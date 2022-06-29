@@ -1,353 +1,168 @@
-# Tapdata Live Data Platform
+![](./assets/logo-orange-grey-bar.png)
 
-## TO BE PUBLISHED IN 2022.06.30
+## OpenSource Will Be Public In 2022.06.30 !
 
-Tapdata Live Data Platform(tldp) is a real time light data platform, you can use it to do:
-1. migrate data between multi sources, including auto create table and type mapping
-2. data transform in migrate
-3. make wide table using multi source table (TODO)
-4. publish wide table api (TODO)
+## What is Tapdata?
 
-## Quick Start
-Please make user you have Docker running on your env, before all things started
+Tapdata is a live data platform designed to connect data silos and provide fresh data to the downstream operational applications & operational analytics. 
 
-### Quick Usage
-1. run `bash build/quick-use.sh` will pull and start a all in one container
+<img width="603" alt="image" src="./assets/tapdata-infra.png">
 
-### Quick Dev
-1. run `bash build/quick-dev.sh` will build a docker image from source and start a all in one container
+Tapdata provides two ways to achieve this: Live Data Integration and Live Data Service. 
 
-If you want to build in local, please install:
-1. JDK and set PATH
-2. maven
-And set build/env.sh tapdata_build_env to "local"
+Live Data Integration is supported by Tapdata's real time data pipelines based on CDC technology, where you can easily connect and capture all the data plus all the changes from disparate data sources, without any custom coding. Tapdata supports many data sources out of box, including dozens of popular databases, you may also use Tapdata's PDK(Plugin Development Kit) quickly add your own data sources. 
 
-If you want to build in docker, please install docker and set build/env.sh tapdata_build_env to "docker"
+Live Data Service is Tapdata's modern approach to the old data integration problem:  streaming data into a centralized data store(currently powered by MongoDB), then serving the data via RESTful API. These APIs are created on-demand, and because they're served by the horizontally scalable, high performant and modern database(instead of source systems), the number of ETL jobs, the performance impact to the source systems, are hence greatly reduced. 
 
-run `bash build/clean.sh` If you want to clean build target
+As an alternative, if your data source allows, you may also create data APIs directly from source databases such as Oracle, MySQL, SQLServer etc. 
 
-## Quick Docs
-### Work Mode
-tapshell has two work modes:
-1. command line mode: you can use commands like `show jobs` display jobs info
-2. lib mode: you can use `p = Pipeline("pipeline"); p.start()`, python code to make and manage your data flow work
+The term "live has two meanings:
 
-### Command Mode Docs
-#### `show datasources`
+- When you are using Live Data Integrations, Tapdata will collect data in a "live" mode means it will listen for the changes on the source database and capture the change immediately and send it to the pipeline for processing and downstream consumption. Sometime this is called CDC technology. The data is always fresh and lively throughout the data pipeline. 
 
-To list the datasources in the Tapdata system, use the command `show datasources` and get the return like below.
-
-``
-id     status     database_type        name
-03f6b1: ready      mysql               test-mysql
-``
-
-| Filed         | **Description**                  |
-| ------------- | -------------------------------- |
-| id            | Datasource id                    |
-| status        | Datasource status(ready/invalid) |
-| database_type | The database type of datasource  |
-| name          | The name of datasource           |
+- When you are using Live Data Services, the backing data store is lively updated by Tapdata Live Data Integration pipelines and stays up-to-date with the source systems.  
 
 
-#### `show jobs`
+## Primary Use Cases
 
-To list the jobs in the Tapdata system, use the command `show jobs` and get the return like below.
+- Heterogeneous Database Replication such as MySQL to MongoDB or ES
 
-``
-a2e1d7: Mysql-2-MongoDB                             draft    custom/initial_sync+cdc
-``
+- Real Time Data Pipelines, a better alternative to Kafka based data pipelines
 
-| Filed  | **Description**                                              |
-| ------ | ------------------------------------------------------------ |
-| id     | Job id                                                       |
-| Name   | The name of job                                              |
-| Status | The status of job                                            |
-| type   | The type of job<br />- cluster-clone/initial_sync<br />- cluster-clone/initial_sync+cdc<br />- custom/initial_sync<br />- custom/initial_sync+cdc |
+- Event-driven Applications, such as fraud detection or event notifications
 
-#### `show tables`
-After appoint a datasource by using `use datasource_name`, you can use `show tables` to  list the tables of this datasource.
+- Operational analytics where you need fresh data to make your insights reflect your business's current state
 
-### DataSource Command
-#### Switch DataSource
-To switch Datasource in the context, issue the `use <datasource>` helper, as in the following example.
 
-``
-use <datasource>
-``
 
-After appoint a datasource , you can use the command below to list table and get the schema of table:
+## How It Works
 
-``
-show tables
-``
+```
+# Create Mysql DataSource
+> Demo_Mysql = DataSource("mysql","Demo_Mysql").host("demo-mysql").port(3306).username('root').password('password').db('demo')
+> Demo_Mysql.save()
 
-``
-desc <table>
+# Create MongoDB DataSource
+> Demo_Mongo = DataSource("mongodb","Demo_Mongo").uri("mongodb://root:password@demo-mongo:27017/demo?authSource=admin")
+> Demo_Mongo.save()
+
+# Create a job that transform the Customer table in Mysql to  MongoDB  and add/set filed 'updated' at the same time.
+> Demo_job = Pipeline("Demo_job").readFrom(Demo_Mysql.Customer).js('record["updated"]=new Date() ;return record;').writeTo(Demo_Mongo.Customer-v1)
+
+> Demo_job.start()
+
+# Check the status of job
+> show jobs
+> monitor job Demo_job
+
+# Check the log of job
+> logs job Demo_job limit=5 tail=True 
 ```
 
-#### Delete DataSource
 
-To delete a DataSource, use the command below, please ensure no job using it before delete it
+## Features
 
-``
-delete datasource <datasource>
-``
-`
+- Build end to end real time data pipelines in minutes
+- CDC based data replication, support dozens of popular data sources
+- Low latency: sub-second performance compared to seconds with Kafka based solution 
+- Built-in incremental data verification
+- At least once guarantee
+- Developer friendly programmable pipeline API, managing data pipelines using code, not SQL
+- Interactive shell, easily create, run and monitor pipelines and manage data services
+- Javascript / Python UDF support 
+- Integration with Kafka as consumer or producer
+- Code-less publish data API, support parameter
+- Horizontal scaling
+- Highly available pipelines
 
-### Job Command
 
-#### `stop job <JobID/JobName> `
+For more details and latest updates, see [Tapdata docs](./docs/About Tapdata/about-tapdata.md) and [release notes](./docs/Release Notes/all-releases.md).
 
-Stop the job  with specified JobID/JobName.
+## More Use Cases: Who & When Can Use Tapdata
 
+#### Application Develoepers
 
+Tapdata can be used by Application developers in following use cases:
 
-#### `start job <JobID/JobName> `
+- 「Coming soon」Automatica API backend (Backend as a service) for data CRUD operations
+- Code-less CQRS implementation
+- Code-less RDBMS caching solution
+- Code-less Producer / Consumer for Kafka 
+- Mainframe offloading
+- Implement CQRS pattern
+- Full text search / Graph search 
 
-Start the job  with specified JobID/JobName.
+#### Data Engineers or Data Analysts
 
-#### `status job <JobID/JobName> `
+For data engineers or data analysts,  Tapdata can be used as a modern, general purpose, low code ETL platform for various data sync, processing or data modeling activities.
 
-Get the status of specified job.
+- Data extract / transform / load
+- Data processing for data warehouse
+- Data modeling
+- Kafka-based data integration alternative
+- Event streaming platform
 
-#### `delete job <JobID/JobName> `
+#### DBAs / System Engineers
 
-Delete the specified job.
+Tapdata can be used by DBAs in following use cases:
 
-#### `logs job <JobID/JobName> [options]` 
+- Heterogeneous database replication
+- Real time backup
+- Database HA
+- Database clustering 
+- Disaster Recovery strategy
+- Sync to cloud or cross cloud data replication
 
-Get log of specified job. 
-##### Options
+#### Data Steward
 
-| Name  | **Required** | Example     | Description                                         |
-| ----- | ------------ | ----------- | --------------------------------------------------- |
-| t     | No           | t=2         | The duration of tail method                         |
-| limit | No           | limit=5     | Specify the last lines when the tail method started |
-| tail  | no           | tail=True   | Tail method(Default:false)                          |
-| level | no           | level=error | The log level (Default:info)                        |
+Tapdata can be used by data stewards in following possible scenarios(Road map feature):
 
+- Build an enterprise master data management platform, either as a hub or transactional type
+- As a metadata management solution
+- As a data as a service platform to facilitate fast data distribution to BUs
 
 
-#### `monitor job <JobID/JobName> `
+## Road Map
 
-Display the job monitor status in real-time.
+- More pre-built processors
+- Aggregation framework on data pipeline
+- Pluggable Storage API - Support additional database for storage solution
+- Open metadata compatibility 
 
-``
-job Car_shop_job2 status: running, total sync table: 1, finished synced: 1, total rows: 4, finished rows: 4, speed: 0, estimated time: 0:00:00
-``
+## Community
 
-| Filed            | **Description**                                   |
-| ---------------- | ------------------------------------------------- |
-| job              | The name of job                                   |
-| Status           | The status of job                                 |
-| total sync table | The number of table that the job has total synced |
-| finished synced  | The number of table that the job has total synced |
-| total rows       | The total rows of the tables in this job          |
-| finished rows    | The total rows that the job has already synced    |
-| Speed            | The real-time speed of this job                   |
-| estimated time   | The estimated time of this job                    |
+You can join these groups and chats to discuss and ask Tapdata related questions:
 
-#### `stats job <JobID/JobName> `
-display the job monitor status one time
+- [WeChat Channel](https://open-assets.tapdata.net/tapdata-community-wechat.jpeg) 
+- [Slack](https://join.slack.com/t/tapdatacommunity/shared_invite/zt-1bjxqe9h0-EZcp7l6j7LwN_kjYB7leZw) 
 
+In addition, you may enjoy following:
 
-### Lib Mode Docs
-The Tapdata shell Library consists of configuration and action. Each configuration declare the attributes of the library  as they pass through the pipeline. 
+- Question in the Github Issues
+- The Tapdata Team [Blog](https://tapdata.net/blog.html) 
 
-To create an Lib or make some action, use the following syntax in the Tapdata Shell:
+For support, please contact [Tapdata](https://tapdata.net/tapdata-enterprise/demo.html). (todo: a brand new contact us page)
 
-``
-<variable> = <lib>.[configurations]
-<variable>.<action>
-``
+## Quick start
 
-#### Example
-``
-Car_shop = DataSource("mysql","Car_shop").host("127.0.0.1").port(3306).username('root').password('password').db('Car_shop')
-Car_shop.validate()
-Car_shop.save()
-```
+### To start using Tapdata
 
-#### DataSource
-The DataSource Libary is used to create , declare ,validate, save and delete a DataSource.
+See [Quick Start Guide](https://tapdata.github.io/docs/Quick%20Start/quick-start.html). 
 
-Declare and configure a new DataSource:
+## 「WIP」Contributing
 
-``
-My_DataSource = DataSource(<database_type>,<name>,<source_type>).[configurations]
-``
+The [community repository](https://github.com/tapdata/community) hosts all information about the Tapdata community, including how to contribute to Tapdata, how Tapdata community is governed, how special interest groups are organized, etc.
 
-| Name           | **Required** | Example                                             | Description                                                  |
-| -------------- | ------------ | --------------------------------------------------- | ------------------------------------------------------------ |
-| database_type  | Yes          | mysql                                               | The database type of the DataSource.<br />Please refer to [Pre-Build Connectors](../Connectors/pre-build-connectors.md) for details |
-| name           | Yes          | "My_DS"                                             | The name of DataSource(Must be unique)                       |
-| source_type    | no           | source_and_target (Default)<br />source<br />target | The type of DataSource.<br />For the types supported by each database, please refer to [Pre-Build Connectors](../Connectors/pre-build-connectors.md) . |
-| configurations | Yes          |                                                     | Each database type has its own configurations, please refer to  [Pre-Build Connectors](../Connectors/pre-build-connectors.md) |
+Contributions are welcomed and greatly appreciated. See [Contribution to Tapdata](./docs/contributing-to-tapdata.md) for details on typical contribution workflows. 
 
-Trigger a DataSource action:
 
-``
-My_DataSource.<action>
-``
 
-##### Action
+## Use cases
 
-| Name       | **Description**                                              |
-| ---------- | ------------------------------------------------------------ |
-| save()     | Save the configured DataSource（Will do Validation at the same time） |
-| validate() | Validate the configured DataSource                           |
-| delete()   | Delete the specific DataSource                               |
+- [MySQL to MySQL](https://tapdata.github.io/docs/Use%20Cases/ETL/mysql-to-mysql.html)
+- [MySQL to MongoDB](https://tapdata.github.io/docs/Use%20Cases/ETL/mysql-to-mongodb.html)
+- [MongoDB to MongoDB](https://tapdata.github.io/docs/Use%20Cases/ETL/mongodb-to-mongodb.html)
 
+## License
 
-
-##### Example
-Create a mysql DataSource.
-
-``
-Car_shop = DataSource("mysql","Car_shop").host("127.0.0.1").port(3306).username('root').password('password').db('Car_shop')
-Car_shop.save()
-``
-
- 
-
-#### Pipeline
-The Pipeline Libary is used to configure  a job and trigger a job action. 
-
-Declare and configure a new DataSource:
-
-``
-My_Pipeline = Pipeline(<name>).[configurations]
-``
-
-| Field | **Required** | Example       | Description |
-| ----- | ------------ | ------------- | ----------- |
-| name  | Yes          | "My_Pipeline" | Job name    |
-
-
-
-##### Configurations
-
-| Field                         | **Required** | Example                                                      | Description                                                  |
-| ----------------------------- | ------------ | ------------------------------------------------------------ | ------------------------------------------------------------ |
-| `readFrom(<Source>)`          | Yes          | readFrom(Car_shop.Customer)                                  | Declare the Pipeline's read source.Please refer to [Source](#source-type) for Source's details |
-| `writeTo(<Sink>, <Relation>)` | Yes          | writeTo(Car_shop.Customer_v1)<br />writeTo(Car_shop.Customer_v1,writeMode=upsert) | Declare the Pipeline's destination.Please refer to [Sink](#sink-type)  and [Relation](#Relation-Type) for more details |
-| `rename(string, string)`      | No           | rename("filed1","filed2")                                    |                                                              |
-| `js(string)`                  | No           | js('record["updated"]=new Date() ;return record;')<br />js("/mypath/modify.js") | Please refer to [JS Usage](./js-usage.md)  for more details  |
-| `filter(string)`              | No           | filter('')                                                   | Only supported when the readFrom source is a single table    |
-| `filterColumn([])`            | No           | filterColumn([column1,column2],FilterType.keep or FilterType.delete) | Only supported when the readFrom source is a single table    |
-|                               |              |                                                              |                                                              |
-
-Trigger a Job action:
-
-``
-My_Pipeline.<action>
-``
-
-##### Action
-
-| Name     | **Description**                                              |
-| -------- | ------------------------------------------------------------ |
-| start()  | Save the configured DataSource（Will do Validation at the same time） |
-| stop()   | Validate the configured DataSource                           |
-| delete() | Delete the specific DataSource                               |
-
-
-
-##### Example
-
-``
-Car_shop_job1 = Pipeline("Car_shop_job1").readFrom(Car_shop.Customer).writeTo(Car_shop.Customer_v1,writeMode=upsert)
-
-Car_shop_job1.start()
-``
-
- 
-
-#### Source Type
-`Source` is used to define and describe a specified DataSource to `readFrom`.The simplest way to use `Source` is`<DataSource>.<table>` like `Car_shop.Customers` which has the same effect as `Source(Car_shop,Customers)`.
-
-``
-Source(<DataSource>, <table(string or [] or table_re="regular expression")>, <sql(string)>)
-``
-
-| Field        | **Required** | Example                                                      | Description                                                  |
-| ------------ | ------------ | ------------------------------------------------------------ | ------------------------------------------------------------ |
-| `DataSource` | Yes          | Car_shop                                                     | DataSource name                                              |
-| `table`      | Yes          | Customers<br />[Customers,Orders]<br />table_re="Customer.*" | The table of the DataSource.<br />Can use regular expression by table_re. |
-| `sql`        | No           | " select * from Customers where name='Edison' "              | Filter conditions of table (Using SQL) <br />**Only supported when the table field is not a array** . |
-
-##### Example
-Declare two tables (Customer and Orders) to sync from the Car_shop DataSource.
-
-``
-Source(Car_shop, [Customers,Orders])
-Source(Car_shop, table_re="Customer.*")
-``
-
-
-
-Sync table Customer from the Car_shop DataSource with codition.
-
-``
-Source(Car_shop, Customers,"select * from Customers where name='Edison'")
-``
-
-#### Sink Type
-`Sink` is used to define and describe a specified DataSource to `writeTo`.The simplest way to use `Sink` is`<DataSource>.<table>` like `Car_shop_1.Customers` which has the same effect as `Sink(Car_shop_1,Customers)`.
-
-``
-Sink(<DataSource>, <table(string or [])>)
-``
-
-| Field        | **Required** | Example                               | Description                                                  |
-| ------------ | ------------ | ------------------------------------- | ------------------------------------------------------------ |
-| `DataSource` | Yes          | Car_shop_1                            | DataSource name                                              |
-| `table`      | No           | Customers<br />["Customers","Orders"] | The table of the DataSource.<br />When not declare the table means move all the table decalre in the Source Type |
-
-##### Example
-
-Declare two tables (Customer and Orders) for the writeTo destination Car_shop DataSource.
-
-``
-Sink(Car_shop, ["Customers","Orders"])
-``
-
-When not declare the table means move all the table decalre in the Source Type
-
-``
-Sink(Car_shop)
-``
-
-#### Relation Type
-
-***Based on different ReadFrom Source, the available relationship types are also different***
-##### SingleTableRelation
-
-`SingleTableRelation` is used to define and describe the configuration of `writeTo` when the ReadFrom Source table is signle.
-
-``
-writeMode=<writeMode>,association=[(<column1>,<column2>)],path=<path>,array_key=<array_key>
-``
-
-| Field         | **Required** | Example                    | Description                                                  |
-| ------------- | ------------ | -------------------------- | ------------------------------------------------------------ |
-| `writeMode`   | No           | writeMode=upsert           | Write Mode.<br />insert/upsert/update/merge_embed<br />Default is insert |
-| `association` | No           | association=[("id", "id")] | The association of write mode.The specified fields will be used for matching. |
-| `path`        | No           |                            |                                                              |
-| `array_key`   | No           |                            |                                                              |
-
-
-
-##### MultiTableRelation
-`MultiTableRelation` is used to define and describe the configuration of `writeTo` when the ReadFrom Source table is multiple.
-
-``
-prefix=<writeMode>,subfix=<subfix>,drop_type=<drop_type>
-``
-
-| Field       | **Required** | Example                 | Description                                                  |
-| ----------- | ------------ | ----------------------- | ------------------------------------------------------------ |
-| `prefix`    | No           | prefix="abc_"           |                                                              |
-| `subfix`    | No           | subfix="xyz_"           |                                                              |
-| `drop_type` | No           | drop_type=DropType.data | Processing method when a table with the same name exists at the target end.<br />DropType.no_drop, DropType.data, DropType.all<br />Default is DropType.no_drop |
+Tapdata is under the SSPL v1 license. 
