@@ -1,0 +1,27 @@
+
+/docker/
+/connector-manager.jar
+/resources
+connector-manager/target
+debezium/debezium-connector-mongodb/target
+debezium/debezium-connector-mysql/target
+debezium/debezium-core/target
+debezium/debezium-embedded/target
+
+*.iml
+
+connector-manager.jar
+/debezium/debezium-connector-mongodb/target/
+/debezium/debezium-connector-mysql/target/
+/debezium/debezium-core/target/
+/debezium/debezium-embedded/target/
+/script-engine*.jar
+/taprunner*.jar
+/tapshell*.jar
+
+# hive hcatlog metastore
+metastore_db
+
+imap-cache-data
+
+.agentStartMsg

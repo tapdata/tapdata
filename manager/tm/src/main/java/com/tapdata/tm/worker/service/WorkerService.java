@@ -1,0 +1,460 @@
+package com.tapdata.tm.worker.service;
+
+import cn.hutool.core.map.MapUtil;
+import com.alibaba.fastjson.JSON;
+import com.google.common.collect.Lists;
+import com.mongodb.BasicDBObject;
+import com.mongodb.client.result.UpdateResult;
+import com.tapdata.manager.common.utils.JsonUtil;
+import com.tapdata.manager.common.utils.StringUtils;
+import com.tapdata.tm.Settings.service.SettingsService;
+import com.tapdata.tm.base.dto.Filter;
+import com.tapdata.tm.base.dto.Page;
+import com.tapdata.tm.commons.base.dto.SchedulableDto;
+import com.tapdata.tm.base.dto.Where;
+import com.tapdata.tm.base.exception.BizException;
+import com.tapdata.tm.base.service.BaseService;
+import com.tapdata.tm.cluster.dto.ClusterStateDto;
+import com.tapdata.tm.cluster.dto.SystemInfo;
+import com.tapdata.tm.cluster.service.ClusterStateService;
+import com.tapdata.tm.config.security.UserDetail;
+import com.tapdata.tm.dataflow.dto.DataFlowDto;
+import com.tapdata.tm.dataflow.service.DataFlowService;
+import com.tapdata.tm.inspect.dto.InspectDto;
+import com.tapdata.tm.scheduleTasks.dto.ScheduleTasksDto;
+import com.tapdata.tm.scheduleTasks.service.ScheduleTasksService;
+import com.tapdata.tm.user.service.UserService;
+import com.tapdata.tm.userLog.service.UserLogService;
+import com.tapdata.tm.worker.dto.WorkerDto;
+import com.tapdata.tm.worker.dto.WorkerProcessInfoDto;
+import com.tapdata.tm.worker.entity.Worker;
+import com.tapdata.tm.worker.repository.WorkerRepository;
+
+import java.math.BigInteger;
+import java.util.*;
+
+import com.tapdata.tm.worker.vo.ApiWorkerStatusVo;
+import com.tapdata.tm.worker.vo.CalculationEngineVo;
+import lombok.NonNull;
+import lombok.Setter;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.collections4.CollectionUtils;
+import org.bson.types.ObjectId;
+import org.springframework.beans.BeanUtils;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.core.query.Update;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.stereotype.Service;
+
+/**
+ * @author lg<lirufei0808 @ gmail.com>
+ * @date 2021/9/10 下午4:30
+ * @description
+ */
+@Service
+@Slf4j
+@Setter(onMethod_ = {@Autowired})
+public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, WorkerRepository> {
+
+    private DataFlowService dataFlowService;
+    private ClusterStateService clusterStateService;
+    private UserService userService;
+    private SettingsService settingsService;
+    private ScheduleTasksService scheduleTasksService;
+
+    public WorkerService(@NonNull WorkerRepository repository) {
+        super(repository, WorkerDto.class, Worker.class);
+    }
+
+    @Override
+    protected void beforeSave(WorkerDto dto, UserDetail userDetail) {
+        if (dto.getIsDeleted() != null && dto.getIsDeleted()) {
+            dto.setPingTime(0L);
+        } else if (dto.getStopping() != null && dto.getStopping()) {
+            dto.setPingTime(System.currentTimeMillis() - 1000 * 60 * 5);
+        }
+    }
+
+    public List<Worker> findAvailableAgent(UserDetail userDetail) {
+        if (Objects.isNull(userDetail)) {
+            return null;
+        }
+        // 引擎定时任务是5秒
+        Query query = Query.query(Criteria.where("worker_type").is("connector")
+                .and("ping_time").gte(System.currentTimeMillis() - 1000 * 5 * 2)
+                .and("isDeleted").ne(true).and("stopping").ne(true));
+        return repository.findAll(query);
+    }
+
+    public List<Worker> findAvailableAgentByAccessNode(UserDetail userDetail, List<String> processIdList) {
+        // 引擎定时任务是5秒
+        Query query = Query.query(Criteria.where("worker_type").is("connector")
+                .and("ping_time").gte(System.currentTimeMillis() - 1000 * 5 * 2)
+                .and("isDeleted").ne(true).and("stopping").ne(true));
+        if (CollectionUtils.isNotEmpty(processIdList)) {
+            query.addCriteria(Criteria.where("process_id").in(processIdList));
+        }
+        return repository.findAll(query, userDetail);
+    }
+
+    @Override
+    public Page<WorkerDto> find(Filter filter) {
+
+        Page<WorkerDto> page = super.find(filter);
+        long now = new Date().getTime();
+        List<ObjectId> runningJobs = new ArrayList<>();
+        page.getItems().forEach(workerDto -> {
+            workerDto.setServerDate(now);
+            if (workerDto.getRunningJobs() != null && workerDto.getRunningJobs().size() > 0) {
+                workerDto.getRunningJobs().forEach(id -> runningJobs.add(new ObjectId(id)));
+            }
+        });
+        Query query = Query.query(Criteria.where("id").in(runningJobs));
+        query.fields().include("id", "name");
+        List<DataFlowDto> list = dataFlowService.findAll(query);
+
+        page.getItems().forEach(workerDto -> {
+            List<DataFlowDto> selfRunningJobs = new ArrayList<>();
+            for (int i = 0; i < list.size(); i++) {
+                if (workerDto.getRunningJobs().contains(list.get(0).getId().toHexString())) {
+                    selfRunningJobs.add(list.remove(i));
+                    i--;
+                }
+            }
+            //TODO这里还是dataflow, 需要兼容Task格式的
+            workerDto.setJobs(selfRunningJobs);
+        });
+
+        return page;
+    }
+
+    public WorkerDto createWorker(WorkerDto workerDto, UserDetail loginUser) {
+
+        if (StringUtils.isBlank(workerDto.getProcessId())) {
+            workerDto.setProcessId(generatorProcessId());
+        }
+
+        workerDto.setExternalUserId(workerDto.getUserId());
+        workerDto.setUserId(loginUser.getUserId());
+        workerDto.setAccessCode(loginUser.getAccessCode());
+        workerDto.setWorkerType("connector");
+
+        WorkerDto transformer = new WorkerDto();
+        BeanUtils.copyProperties(workerDto, transformer);
+
+        transformer.setWorkerType("transformer");
+
+        save(workerDto, loginUser);
+        save(transformer, loginUser);
+
+        workerDto.setTmUserId(loginUser.getUserId());
+
+        //userLogService.addUserLog(Modular);
+
+        return workerDto;
+    }
+
+    private String generatorProcessId() {
+        return new ObjectId().toHexString() + '-' + BigInteger.valueOf(new Date().getTime()).toString(32);
+    }
+
+    public Map<String, WorkerProcessInfoDto> getProcessInfo(List<String> ids) {
+
+        Map<String, WorkerProcessInfoDto> result = new HashMap<>();
+        List<WorkerDto> workers = findAll(Query.query(Criteria.where("workerType").is("connector").and("process_id").in(ids)));
+
+        workers.forEach(worker -> {
+
+            Query query = Query.query(Criteria.where("agentId").is(worker.getProcessId()).and("status").is("running"));
+            query.fields().include("id", "name");
+            //TODO 同样的这里的dataflow处理， 没有改成task的兼容
+            List<DataFlowDto> dataFlows = dataFlowService.findAll(query);
+
+            query = Query.query(Criteria.where("systemInfo.process_id").is(worker.getProcessId()));
+            query.with(Sort.by(Sort.Order.desc("lastUpdAt"))).limit(1);
+            List<ClusterStateDto> clusterState = clusterStateService.findAll(query);
+            SystemInfo systemInfo = clusterState != null && clusterState.size() > 0 ? clusterState.get(0).getSystemInfo() : null;
+
+            WorkerProcessInfoDto workerProcessInfo = new WorkerProcessInfoDto();
+            workerProcessInfo.setRunningNum(dataFlows.size());
+            workerProcessInfo.setDataFlows(dataFlows);
+            workerProcessInfo.setSystemInfo(systemInfo);
+
+            result.put(worker.getProcessId(), workerProcessInfo);
+        });
+
+        return result;
+    }
+
+    /**
+     * 调度任务到合适的实例上
+     * <p>
+     * 用户可以启动多个实例，这些实例会运行在不同地域，并且会有不同的特性支持
+     * 需要在实例上执行任务时，需要通过此方法筛选出合适的实例执行任务。
+     * <p>
+     * 支持DRS场景（地域/可用区、有无互联网访问、单向/双向过滤）、DFS场景（托管实例、本地自建实例）
+     * 支持资源池同地域多个实例的负载调度
+     *
+     */
+    public void scheduleTaskToEngine(SchedulableDto entity, UserDetail userDetail, String type, String name) throws BizException {
+
+        CalculationEngineVo calculationEngineVo = calculationEngine(entity, userDetail);
+        String processId = calculationEngineVo.getProcessId();
+        String filter = calculationEngineVo.getFilter();
+        ArrayList<BasicDBObject> threadLog = calculationEngineVo.getThreadLog();
+
+        ScheduleTasksDto scheduleTasksDto = new ScheduleTasksDto();
+        scheduleTasksDto.setTask_name("TM_SCHEDULE");
+        scheduleTasksDto.setType(type);
+        scheduleTasksDto.setPeriod(0L);
+        scheduleTasksDto.setStatus("done");
+        scheduleTasksDto.setTask_name(name);
+        scheduleTasksDto.setTask_profile("DEFAULT");
+        scheduleTasksDto.setAgent_id(processId);
+        scheduleTasksDto.setLast_updated(new Date());
+        scheduleTasksDto.setPing_time(System.currentTimeMillis());
+        scheduleTasksDto.setFilter(filter);
+        scheduleTasksDto.setThread(threadLog);
+        scheduleTasksService.save(scheduleTasksDto, userDetail);
+    }
+
+    private CalculationEngineVo calculationEngine(SchedulableDto entity, UserDetail userDetail) {
+        CalculationEngineVo calculationEngineVo = new CalculationEngineVo();
+
+        Object jobHeartTimeout = settingsService.getByCategoryAndKey("Job", "jobHeartTimeout");
+        Object buildProfile = settingsService.getByCategoryAndKey("System", "buildProfile");
+        boolean isCloud = buildProfile.equals("CLOUD") || buildProfile.equals("DRS") || buildProfile.equals("DFS");
+        if ((userDetail.getUserId() == null || userDetail.getUserId().equals("")) && isCloud) {
+            throw new BizException("NotFoundUserId");
+        }
+        Long findTime = System.currentTimeMillis() - Long.parseLong((String) jobHeartTimeout);
+
+        // 53迭代Task上增加了指定Flow Engine的功能 --start
+        String agentId = entity.getAgentId();
+        if (StringUtils.isNotBlank(agentId)) {
+            calculationEngineVo.setProcessId(agentId);
+
+            Criteria where = Criteria.where("worker_type").is("connector")
+                    .and("ping_time").gte(findTime)
+                    .and("isDeleted").ne(true)
+                    .and("stopping").ne(true)
+                    .and("process_id").is(agentId);
+            calculationEngineVo.setFilter(where.toString());
+            Worker worker = repository.findOne(Query.query(where)).orElse(null);
+            ArrayList<BasicDBObject> threadLog = new ArrayList<>();
+            assert worker != null;
+            threadLog.add(new BasicDBObject()
+                    .append("process_id", worker.getProcessId())
+                    .append("weight", worker.getWeight())
+                    .append("running_thread", worker.getRunningThread())
+            );
+            calculationEngineVo.setThreadLog(threadLog);
+
+            return calculationEngineVo;
+        }
+        // 53迭代Task上增加了指定Flow Engine的功能 --end
+
+        Criteria where = Criteria.where("worker_type").is("connector")
+                .and("ping_time").gte(findTime)
+                .and("isDeleted").ne(true)
+                .and("stopping").ne(true);
+        if (isCloud) {
+            where.and("user_id").is(userDetail.getUserId());
+        }
+
+        if (isCloud && entity.getAgentTags() != null && entity.getAgentTags().size() > 0) {
+            List<String> agentTags = new ArrayList<>();
+            for (int i = 0; i < entity.getAgentTags().size(); i++) {
+                String s = entity.getAgentTags().get(i);
+                if (!s.equals("unidirectional")) {
+                    agentTags.add(s);
+                }
+            }
+            where.and("agentTags").all(agentTags);
+        }
+
+        Query query = Query.query(where);
+        List<Worker> workers = repository.findAll(query);
+        BasicDBObject thread = new BasicDBObject();
+        //优先调度到用户自己的agent上。用于内部测试使用。不要修改此逻辑！！！
+        //和steven确认了 之前指定agent的逻辑是 work中process_id存的是entity.getUserId()
+        Criteria whereSelf = Criteria.where("worker_type").is("connector")
+                .and("ping_time").gte(findTime)
+                .and("isDeleted").ne(true)
+                .and("stopping").ne(true)
+                .and("process_id").is(entity.getUserId());
+        Worker selfWorkers = repository.findOne(Query.query(whereSelf)).orElse(null);
+        ArrayList<BasicDBObject> threadLog = new ArrayList<>();
+        if(selfWorkers != null){
+            thread.append("process_id",selfWorkers.getProcessId());
+            threadLog.add(new BasicDBObject()
+                    .append("process_id", selfWorkers.getProcessId())
+                    .append("weight", selfWorkers.getWeight())
+                    .append("running_thread", selfWorkers.getRunningThread())
+            );
+        } else {
+            boolean isFirst = true;
+            for (Worker worker : workers) {
+                if (worker.getWeight() == null) {
+                    worker.setWeight(1);
+                }
+                ArrayList<String> status = new ArrayList<>();
+                status.add("scheduled");
+                status.add("running");
+                Where q = new Where().and("status", new BasicDBObject().append("$in", status)).and("agentId", worker.getProcessId());
+                long workNum = dataFlowService.count(q, userService.loadUserById(new ObjectId(entity.getUserId())));
+                worker.setRunningThread((int) workNum);
+                threadLog.add(new BasicDBObject()
+                        .append("process_id", worker.getProcessId())
+                        .append("weight", worker.getWeight())
+                        .append("running_thread", worker.getRunningThread())
+                );
+                float load = (float) (worker.getRunningThread() / worker.getWeight());
+                if (isFirst) {
+                    thread.append("load", load);
+                    thread.append("process_id", worker.getProcessId());
+                    isFirst = false;
+                } else if (load < (float) thread.get("load")) {
+                    thread.append("load", load);
+                    thread.append("process_id", worker.getProcessId());
+                }
+            }
+        }
+
+        String processId = (String) thread.get("process_id");
+
+        entity.setAgentId(processId);
+        entity.setScheduleTime(System.currentTimeMillis());
+
+        calculationEngineVo.setProcessId(processId);
+        calculationEngineVo.setFilter(where.toString());
+        calculationEngineVo.setThreadLog(threadLog);
+
+        return calculationEngineVo;
+    }
+
+    public void scheduleTaskToEngine(InspectDto inspectDto, UserDetail userDetail) throws BizException {
+        scheduleTaskToEngine(inspectDto, userDetail, "Inspect", inspectDto.getName());
+    }
+
+
+    public void scheduleTaskToEngine(DataFlowDto dataFlowDto, UserDetail userDetail) throws BizException {
+        scheduleTaskToEngine(dataFlowDto, userDetail, "Inspect", dataFlowDto.getName());
+    }
+
+    @Deprecated
+    public void scheduleTaskToEngine(SchedulableDto schedulableDto, UserDetail userDetail) throws BizException {
+        List<Worker> list = findAvailableAgent(userDetail);
+
+        if (list != null && list.size() > 0) {
+            Worker worker = list.get(0);
+
+            // 设置调度结果
+            schedulableDto.setAgentId(worker.getProcessId());
+            schedulableDto.setScheduleTime(new Date().getTime());
+        } else {
+            throw new BizException("NotFoundAvailableEngine", "xxxx");
+        }
+    }
+
+    public void cleanWorkers() {
+        Long jobHeartTimeout = 120000L;
+        Long nowMillSeconds = new Date().getTime();
+        List<String> statusList = Arrays.asList("preparing", "downloading", "upgrading");
+
+        Query query = Query.query(Criteria.where("updatePingTime").lt((nowMillSeconds - jobHeartTimeout)));
+        query.addCriteria(Criteria.where("updateStatus").in(statusList));
+        Update update = new Update();
+        update.set("updateStatus", "fail");
+        update.set("updateMsg", "time out");
+        UpdateResult updateResult = update(query, update);
+
+        log.info("clean worker :{}", updateResult.getModifiedCount());
+    }
+
+
+    /**
+     * tapdata engine 调用该方法，更新worker版本信息
+     *
+     * @param map
+     */
+    public void updateMsg(Map map) {
+        log.info("agent 版本 更新中map:{}", JSON.toJSONString(map));
+        Map data = (Map) map.get("data");
+        if (null != data) {
+            String processId = MapUtil.getStr(data, "process_id");
+            if (StringUtils.isNotBlank(processId)) {
+                String progress = MapUtil.getStr(data, "progres");
+                String status = MapUtil.getStr(data, "status");
+                String msg = MapUtil.getStr(data, "msg");
+                Date now = new Date();
+
+                log.info("begin update...progres:{},status:{}", progress, status);
+
+                Query workerQuery = Query.query(Criteria.where("process_id").is(processId));
+                Update workUpdate = new Update();
+                workUpdate.set("updateStatus", status);
+                workUpdate.set("updateMsg", msg);
+                workUpdate.set("progres", progress);
+                workUpdate.set("updateTime", now);
+                workUpdate.set("updatePingTime", now.getTime());
+//                update(workerQuery, workUpdate);
+                repository.getMongoOperations().updateMulti(workerQuery, workUpdate, Worker.class);
+
+            }
+        }
+    }
+
+
+    public Page<ApiWorkerStatusVo> findApiWorkerStatus(UserDetail userDetail) {
+        Query query = Query.query(Criteria.where("worker_type").is("api-server"));
+        query.addCriteria(Criteria.where("ping_time").gte(System.currentTimeMillis() - 30000L));
+        query.addCriteria(Criteria.where("user_id").is(userDetail.getUserId()));
+        WorkerDto worker = findOne(query);
+        log.info("  findApiWorkerStatus  getMongoOperations find :{}", JsonUtil.toJson(worker));
+        List<ApiWorkerStatusVo> list = Lists.newArrayList();
+        if (null != worker) {
+            ApiWorkerStatusVo workerStatusVo = new ApiWorkerStatusVo();
+            workerStatusVo.setWorkerStatus(worker.getWorker_status());
+            workerStatusVo.setServerDate(System.currentTimeMillis());
+            list.add(workerStatusVo);
+        } else {
+            log.error("找不到woerker22222222，userDetail：{}", JSON.toJSONString(userDetail));
+        }
+        Page<ApiWorkerStatusVo> page=new Page<ApiWorkerStatusVo>();
+        page.setItems(list);
+        return page;
+
+    }
+
+    public void updateAll(Query query, Update update) {
+        repository.getMongoOperations().updateMulti(query, update, Worker.class);
+    }
+
+    /**
+     * 客户端上报心跳信息, 这个方法将会根据 process_id 和 worker_type 执行 upsert 操作
+     * @param worker worker
+     * @param loginUser loginUser
+     * @return WorkerDto
+     */
+    public WorkerDto health(WorkerDto worker, UserDetail loginUser) {
+
+        if (worker == null) {
+            throw new BizException("IllegalArgument", "Parameter worker can't be empty.");
+        }
+
+        if (worker.getProcessId() == null || worker.getWorkerType() == null) {
+            throw new BizException("IllegalArgument", "processId or workerType can't be empty.");
+        }
+
+        repository.upsert(
+                Query.query(Criteria.where("process_id").is(worker.getProcessId()).and("worker_type").is(worker.getWorkerType())),
+                convertToEntity(Worker.class, worker), loginUser
+        );
+
+        return worker;
+    }
+}

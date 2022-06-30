@@ -1,0 +1,14 @@
+.-----.              .-.       .-.
+`-. .-'              : :      .' `.
+  : : .--.  .---.  .-' : .--. `. .'.--.
+  : :' .; ; : .; `' .; :' .; ; : :' .; ;
+  :_;`.__,_;: ._.'`.__.'`.__,_;:_;`.__,_;
+            : :
+            :_;
+${AnsiColor.BRIGHT_YELLOW}
+:: Tapdata Manager ::    (v${application.version})
+:: Build At ::           (${application.build})
+:: Spring Boot ::        (v${spring-boot.version})
+:: Active Profile ::     (${spring.profiles.active})
+:: Include Profile ::    (${spring.profiles.include})
+${AnsiColor.DEFAULT}

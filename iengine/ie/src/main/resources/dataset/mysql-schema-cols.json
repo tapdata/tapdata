@@ -1,0 +1,92 @@
+[
+  {
+    "tableName": "customers",
+    "columnName": "id",
+    "dataType": "int",
+    "dataLength": null
+  },
+  {
+    "tableName": "customers",
+    "columnName": "first_name",
+    "dataType": "varchar",
+    "dataLength": 255
+  },
+  {
+    "tableName": "customers",
+    "columnName": "last_name",
+    "dataType": "varchar",
+    "dataLength": 255
+  },
+  {
+    "tableName": "customers",
+    "columnName": "email",
+    "dataType": "varchar",
+    "dataLength": 255
+  },
+  {
+    "tableName": "orders",
+    "columnName": "order_number",
+    "dataType": "int",
+    "dataLength": null
+  },
+  {
+    "tableName": "orders",
+    "columnName": "order_date",
+    "dataType": "date",
+    "dataLength": null
+  },
+  {
+    "tableName": "orders",
+    "columnName": "purchaser",
+    "dataType": "int",
+    "dataLength": null
+  },
+  {
+    "tableName": "orders",
+    "columnName": "quantity",
+    "dataType": "int",
+    "dataLength": null
+  },
+  {
+    "tableName": "orders",
+    "columnName": "product_id",
+    "dataType": "int",
+    "dataLength": null
+  },
+  {
+    "tableName": "products",
+    "columnName": "id",
+    "dataType": "int",
+    "dataLength": null
+  },
+  {
+    "tableName": "products",
+    "columnName": "name",
+    "dataType": "varchar",
+    "dataLength": 255
+  },
+  {
+    "tableName": "products",
+    "columnName": "description",
+    "dataType": "varchar",
+    "dataLength": 512
+  },
+  {
+    "tableName": "products",
+    "columnName": "weight",
+    "dataType": "float",
+    "dataLength": null
+  },
+  {
+    "tableName": "products_on_hand",
+    "columnName": "product_id",
+    "dataType": "int",
+    "dataLength": null
+  },
+  {
+    "tableName": "products_on_hand",
+    "columnName": "quantity",
+    "dataType": "int",
+    "dataLength": null
+  }
+]

@@ -1,0 +1,1378 @@
+<?xml version="1.0"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>2.0.0.RELEASE</version>
+        <relativePath/>
+    </parent>
+
+    <modelVersion>4.0.0</modelVersion>
+    <groupId>com.tapdata</groupId>
+    <artifactId>iengine</artifactId>
+    <version>0.5.2-SNAPSHOT</version>
+    <name>Connector Parent POM</name>
+    <packaging>pom</packaging>
+
+    <properties>
+        <!-- Instruct the build to use only UTF-8 encoding for source code -->
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <maven.compiler.source>1.8</maven.compiler.source>
+        <maven.compiler.target>1.8</maven.compiler.target>
+
+        <!-- Kafka and it's dependencies MUST reflect what the Kafka version uses -->
+        <version.kafka>2.3.1</version.kafka>
+        <version.kafka.scala>2.12</version.kafka.scala>
+        <version.curator>2.11.0</version.curator>
+        <version.zookeeper>3.4.14</version.zookeeper>
+        <version.jackson>2.10.0</version.jackson>
+        <!--    <version.org.slf4j>1.7.26</version.org.slf4j>-->
+        <!-- check new release version at https://github.com/confluentinc/schema-registry/releases -->
+        <version.confluent.platform>5.1.2</version.confluent.platform>
+
+        <!-- Databases -->
+        <version.mysql.server>5.7</version.mysql.server>
+        <version.mysql.driver>8.0.23</version.mysql.driver>
+        <version.hana.driver>2.3.58</version.hana.driver>
+        <version.mysql.binlog>0.25.5</version.mysql.binlog>
+        <version.mongo.server>3.2.12</version.mongo.server>
+        <version.mongo.driver>3.9.1</version.mongo.driver>
+        <!--        <version.oracle.driver>11.2.0.3</version.oracle.driver>-->
+        <!--        <version.oracle.driver>12.1.0.2.0</version.oracle.driver>-->
+        <version.oracle.driver>19.3.0.0.0</version.oracle.driver>
+        <version.mssql.driver>9.4.0.jre8</version.mssql.driver>
+        <version.spring>5.0.4.RELEASE</version.spring>
+
+        <!-- Connectors -->
+        <version.com.google.protobuf>3.19.1</version.com.google.protobuf>
+
+        <!-- Testing -->
+        <version.junit>4.12</version.junit>
+        <version.fest>1.4</version.fest>
+
+        <!-- Maven Plugins -->
+        <version.resources.plugin>2.7</version.resources.plugin>
+        <version.dependency.plugin>2.10</version.dependency.plugin>
+        <version.assembly.plugin>2.4</version.assembly.plugin>
+        <version.war.plugin>2.5</version.war.plugin>
+        <version.codehaus.helper.plugin>1.8</version.codehaus.helper.plugin>
+        <version.google.formatter.plugin>0.3.1</version.google.formatter.plugin>
+        <version.docker.maven.plugin>0.20.1</version.docker.maven.plugin>
+        <version.staging.plugin>1.6.3</version.staging.plugin>
+        <version.protoc.maven.plugin>3.0.0.1</version.protoc.maven.plugin>
+        <jdbc.sybase.version>7.0</jdbc.sybase.version>
+
+        <!-- Dockerfiles -->
+        <docker.maintainer>Debezium community</docker.maintainer>
+
+        <!-- Protobuf compiler options -->
+        <protobuf.input.directory>${project.basedir}/src/main/proto</protobuf.input.directory>
+        <protobuf.output.directory>${project.basedir}/generated-sources</protobuf.output.directory>
+
+        <!--Skip long running tests by default-->
+        <skipLongRunningTests>true</skipLongRunningTests>
+
+        <!-- Don't skip integration tests by default -->
+        <skipITs>false</skipITs>
+
+        <!-- No debug options by default -->
+        <debug.argline/>
+
+        <!-- Java implementation of cryptographic algorithms -->
+        <org.bouncycastle.version>1.60</org.bouncycastle.version>
+
+        <!-- json lib -->
+        <org.json.version>20180813</org.json.version>
+        <gson.version>2.8.6</gson.version>
+
+        <!-- apache commons net -->
+        <commons.net.version>3.6</commons.net.version>
+
+        <dom4j.version>1.6.1</dom4j.version>
+
+        <avro.version>1.9.0</avro.version>
+
+        <mq.version>2.21.74</mq.version>
+
+        <jcifs.version>1.3.17</jcifs.version>
+
+        <gbasedbt.version>3.3.0</gbasedbt.version>
+
+        <version.hamcrest>1.3</version.hamcrest>
+
+        <version.db2.driver>4.23.42</version.db2.driver>
+
+        <version.postgresql.driver>42.2.14</version.postgresql.driver>
+
+        <!-- ANTLR -->
+        <antlr.version>4.7</antlr.version>
+
+        <!-- jsqlparser -->
+        <jsqlparser.version>4.3</jsqlparser.version>
+
+
+        <jts.version>1.13</jts.version>
+
+        <!-- hazelcast -->
+        <!-- original hazelcast -->
+        <!--    <hazelcast.version>5.0.2</hazelcast.version>-->
+        <!-- hazelcast with tapdata persistence -->
+        <hazelcast.version>5.1-BETA-1-SNAPSHOT</hazelcast.version>
+
+        <protobuf-dynamic.version>1.0.1</protobuf-dynamic.version>
+
+        <tm-sdk.version>0.0.2</tm-sdk.version>
+        <tm-common.version>0.0.1-SNAPSHOT</tm-common.version>
+
+        <okhttp.version>4.9.1</okhttp.version>
+
+        <graalvm.js.version>21.3.0</graalvm.js.version>
+
+        <jna.version>5.10.0</jna.version>
+        <log4j.version>2.17.1</log4j.version>
+        <log4j.mongodb.version>2.10.0</log4j.mongodb.version>
+
+        <hutool.version>5.7.15</hutool.version>
+
+        <!-- 依赖关系：compile,provided,runtime,test -->
+        <scope.libs.db2>compile</scope.libs.db2>
+        <scope.libs.clickhouse>compile</scope.libs.clickhouse>
+        <scope.libs.custom>compile</scope.libs.custom>
+        <scope.libs.gbasedbt>compile</scope.libs.gbasedbt>
+        <scope.libs.hana>compile</scope.libs.hana>
+        <scope.libs.hbase>compile</scope.libs.hbase>
+        <scope.libs.hive>compile</scope.libs.hive>
+        <scope.libs.jira>compile</scope.libs.jira>
+        <scope.libs.kafka>compile</scope.libs.kafka>
+        <scope.libs.kudu>compile</scope.libs.kudu>
+        <scope.libs.sybase>compile</scope.libs.sybase>
+        <scope.libs.tidb>compile</scope.libs.tidb>
+        <scope.libs.udp>compile</scope.libs.udp>
+
+        <!-- Debezium Artifacts -->
+        <version.debezium.core.new>2.0.0</version.debezium.core.new>
+        <version.debezium.embedded.new>2.0.1</version.debezium.embedded.new>
+        <version.debezium.connector.postgres>2.0.0</version.debezium.connector.postgres>
+        <version.debezium.connector.mysql>2.0.0</version.debezium.connector.mysql>
+    </properties>
+
+    <modules>
+        <module>ie</module>
+        <module>iengine-common</module>
+        <module>validator</module>
+        <module>api</module>
+        <module>hazelcast-lib</module>
+    </modules>
+
+    <dependencyManagement>
+        <dependencies>
+            <!-- Major dependencies -->
+            <dependency>
+                <groupId>com.fasterxml.jackson.core</groupId>
+                <artifactId>jackson-core</artifactId>
+                <version>${version.jackson}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.fasterxml.jackson.core</groupId>
+                <artifactId>jackson-databind</artifactId>
+                <version>${version.jackson}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.fasterxml.jackson.dataformat</groupId>
+                <artifactId>jackson-dataformat-xml</artifactId>
+                <version>${version.jackson}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.fasterxml.jackson.datatype</groupId>
+                <artifactId>jackson-datatype-jsr310</artifactId>
+                <version>${version.jackson}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.fasterxml.woodstox</groupId>
+                <artifactId>woodstox-core</artifactId>
+                <version>6.0.1</version>
+            </dependency>
+
+            <!-- Kafka Connect -->
+            <dependency>
+                <groupId>org.apache.kafka</groupId>
+                <artifactId>connect-api</artifactId>
+                <version>${version.kafka}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.kafka</groupId>
+                <artifactId>connect-runtime</artifactId>
+                <version>${version.kafka}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.kafka</groupId>
+                <artifactId>connect-json</artifactId>
+                <version>${version.kafka}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.kafka</groupId>
+                <artifactId>connect-file</artifactId>
+                <version>${version.kafka}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.kafka</groupId>
+                <artifactId>connect-transforms</artifactId>
+                <version>${version.kafka}</version>
+            </dependency>
+
+            <!-- Kafka -->
+            <dependency>
+                <groupId>org.apache.kafka</groupId>
+                <artifactId>kafka_${version.kafka.scala}</artifactId>
+                <version>${version.kafka}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.zookeeper</groupId>
+                <artifactId>zookeeper</artifactId>
+                <version>${version.zookeeper}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.curator</groupId>
+                <artifactId>curator-framework</artifactId>
+                <version>2.12.0</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.kafka</groupId>
+                <artifactId>kafka_${version.kafka.scala}</artifactId>
+                <version>${version.kafka}</version>
+                <classifier>test</classifier>
+                <scope>test</scope>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.curator</groupId>
+                <artifactId>curator-test</artifactId>
+                <version>${version.curator}</version>
+                <scope>test</scope>
+            </dependency>
+            <dependency>
+                <groupId>io.confluent</groupId>
+                <artifactId>kafka-connect-avro-converter</artifactId>
+                <version>${version.confluent.platform}</version>
+                <scope>test</scope>
+            </dependency>
+
+            <!--kafka-->
+            <dependency>
+                <groupId>org.apache.kafka</groupId>
+                <artifactId>kafka-clients</artifactId>
+                <version>${version.kafka}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.kafka</groupId>
+                <artifactId>kafka-streams</artifactId>
+                <version>${version.kafka}</version>
+            </dependency>
+
+            <!--Make sure this version is compatible with the Protbuf-C version used on the server -->
+            <dependency>
+                <groupId>com.google.protobuf</groupId>
+                <artifactId>protobuf-java</artifactId>
+                <version>${version.com.google.protobuf}</version>
+            </dependency>
+
+            <!-- MySQL JDBC Driver, Binlog reader, Geometry support -->
+            <dependency>
+                <groupId>mysql</groupId>
+                <artifactId>mysql-connector-java</artifactId>
+                <version>${version.mysql.driver}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.dm</groupId>
+                <artifactId>dmjdbc7</artifactId>
+                <version>1.7.0</version>
+            </dependency>
+            <dependency>
+                <groupId>com.zendesk</groupId>
+                <artifactId>mysql-binlog-connector-java</artifactId>
+                <version>${version.mysql.binlog}</version>
+            </dependency>
+            <dependency>
+                <groupId>mil.nga</groupId>
+                <artifactId>wkb</artifactId>
+                <version>1.0.2</version>
+            </dependency>
+
+            <!-- MongoDB Java driver -->
+            <dependency>
+                <groupId>org.mongodb</groupId>
+                <artifactId>mongo-java-driver</artifactId>
+                <version>${version.mongo.driver}</version>
+            </dependency>
+
+            <!-- Logging -->
+            <dependency>
+                <groupId>org.apache.logging.log4j</groupId>
+                <artifactId>log4j-api</artifactId>
+                <version>${log4j.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.logging.log4j</groupId>
+                <artifactId>log4j-core</artifactId>
+                <version>${log4j.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.logging.log4j</groupId>
+                <artifactId>log4j-mongodb</artifactId>
+                <version>${log4j.mongodb.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.logging.log4j</groupId>
+                <artifactId>log4j-slf4j-impl</artifactId>
+                <version>${log4j.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>commons-io</groupId>
+                <artifactId>commons-io</artifactId>
+                <version>2.4</version>
+            </dependency>
+            <dependency> <!-- 桥接：告诉commons logging使用Log4j2 -->
+                <groupId>org.apache.logging.log4j</groupId>
+                <artifactId>log4j-jcl</artifactId>
+                <version>${log4j.version}</version>
+            </dependency>
+
+
+            <dependency>
+                <groupId>commons-collections</groupId>
+                <artifactId>commons-collections</artifactId>
+                <version>3.2.2</version>
+            </dependency>
+            <dependency>
+                <groupId>commons-logging</groupId>
+                <artifactId>commons-logging</artifactId>
+                <version>1.1.3</version>
+            </dependency>
+            <dependency>
+                <groupId>commons-lang</groupId>
+                <artifactId>commons-lang</artifactId>
+                <version>2.6</version>
+            </dependency>
+
+            <dependency>
+                <groupId>org.apache.commons</groupId>
+                <artifactId>commons-lang3</artifactId>
+                <version>3.9</version>
+            </dependency>
+
+            <!--      <dependency>-->
+            <!--        <groupId>org.slf4j</groupId>-->
+            <!--        <artifactId>slf4j-api</artifactId>-->
+            <!--        <version>${version.org.slf4j}</version>-->
+            <!--      </dependency>-->
+            <!--      <dependency>-->
+            <!--        <groupId>org.slf4j</groupId>-->
+            <!--        <artifactId>slf4j-log4j12</artifactId>-->
+            <!--        <version>${version.org.slf4j}</version>-->
+            <!--        <scope>test</scope>-->
+            <!--      </dependency>-->
+
+            <!-- jdbc driver -->
+            <dependency>
+                <groupId>com.oracle</groupId>
+                <artifactId>ojdbc</artifactId>
+                <version>${version.oracle.driver}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.microsoft.sqlserver</groupId>
+                <artifactId>mssql-jdbc</artifactId>
+                <version>${version.mssql.driver}</version>
+            </dependency>
+
+            <!-- Test dependencies -->
+            <dependency>
+                <groupId>junit</groupId>
+                <artifactId>junit</artifactId>
+                <version>${version.junit}</version>
+                <exclusions>
+                    <exclusion>
+                        <groupId>org.hamcrest</groupId>
+                        <artifactId>hamcrest-core</artifactId>
+                    </exclusion>
+                </exclusions>
+                <scope>test</scope>
+            </dependency>
+            <dependency>
+                <groupId>org.hamcrest</groupId>
+                <artifactId>hamcrest-library</artifactId>
+                <version>${version.hamcrest}</version>
+                <scope>test</scope>
+            </dependency>
+            <dependency>
+                <groupId>org.easytesting</groupId>
+                <artifactId>fest-assert</artifactId>
+                <version>${version.fest}</version>
+                <scope>test</scope>
+            </dependency>
+
+            <!-- Debezium artifacts -->
+            <!--      <dependency>-->
+            <!--        <groupId>com.tapdata</groupId>-->
+            <!--        <artifactId>debezium-core</artifactId>-->
+            <!--        <version>${project.version}</version>-->
+            <!--      </dependency>-->
+            <!--      <dependency>-->
+            <!--        <groupId>com.tapdata</groupId>-->
+            <!--        <artifactId>debezium-embedded</artifactId>-->
+            <!--        <version>${project.version}</version>-->
+            <!--      </dependency>-->
+            <!--      <dependency>-->
+            <!--        <groupId>com.tapdata</groupId>-->
+            <!--        <artifactId>debezium-connector-mysql</artifactId>-->
+            <!--        <version>${version.debezium.connector.mysql}</version>-->
+            <!--      </dependency>-->
+            <!--      <dependency>-->
+            <!--        <groupId>com.tapdata</groupId>-->
+            <!--        <artifactId>debezium-connector-mongodb</artifactId>-->
+            <!--        <version>${project.version}</version>-->
+            <!--      </dependency>-->
+            <!--      <dependency>-->
+            <!--        <groupId>com.tapdata</groupId>-->
+            <!--        <artifactId>debezium-core-new</artifactId>-->
+            <!--        <version>${version.debezium.core.new}</version>-->
+            <!--      </dependency>-->
+            <!--      <dependency>-->
+            <!--        <groupId>com.tapdata</groupId>-->
+            <!--        <artifactId>debezium-embedded-new</artifactId>-->
+            <!--        <version>${version.debezium.embedded.new}</version>-->
+            <!--      </dependency>-->
+            <!--      <dependency>-->
+            <!--        <groupId>com.tapdata</groupId>-->
+            <!--        <artifactId>debezium-connector-postgres</artifactId>-->
+            <!--        <version>${version.debezium.connector.postgres}</version>-->
+            <!--      </dependency>-->
+            <!--      <dependency>-->
+            <!--        <groupId>com.tapdata</groupId>-->
+            <!--        <artifactId>debezium-api</artifactId>-->
+            <!--        <version>${project.version}</version>-->
+            <!--      </dependency>-->
+            <!--      <dependency>-->
+            <!--        <groupId>com.tapdata</groupId>-->
+            <!--        <artifactId>debezium-ddl-parser</artifactId>-->
+            <!--        <version>${project.version}</version>-->
+            <!--      </dependency>-->
+
+            <!--      <dependency>-->
+            <!--        <groupId>com.tapdata</groupId>-->
+            <!--        <artifactId>jdbc-connector</artifactId>-->
+            <!--        <version>${project.version}</version>-->
+            <!--      </dependency>-->
+
+            <dependency>
+                <groupId>com.tapdata</groupId>
+                <artifactId>iengine-common</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+
+            <!--      <dependency>-->
+            <!--        <groupId>com.tapdata</groupId>-->
+            <!--        <artifactId>transformer</artifactId>-->
+            <!--        <version>${project.version}</version>-->
+            <!--      </dependency>-->
+
+            <!--      <dependency>-->
+            <!--        <groupId>com.tapdata</groupId>-->
+            <!--        <artifactId>oracle-cdc</artifactId>-->
+            <!--        <version>${project.version}</version>-->
+            <!--      </dependency>-->
+
+            <dependency>
+                <groupId>com.tapdata</groupId>
+                <artifactId>validator</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+
+            <!--      <dependency>-->
+            <!--        <groupId>com.tapdata</groupId>-->
+            <!--        <artifactId>sqlserver-cdc</artifactId>-->
+            <!--        <version>${project.version}</version>-->
+            <!--      </dependency>-->
+
+            <!--      <dependency>-->
+            <!--        <groupId>com.tapdata</groupId>-->
+            <!--        <artifactId>sybase-cdc</artifactId>-->
+            <!--        <version>${project.version}</version>-->
+            <!--      </dependency>-->
+
+            <!--      <dependency>-->
+            <!--        <groupId>com.tapdata</groupId>-->
+            <!--        <artifactId>gridfs-lib</artifactId>-->
+            <!--        <version>${project.version}</version>-->
+            <!--      </dependency>-->
+
+            <!--      <dependency>-->
+            <!--        <groupId>com.tapdata</groupId>-->
+            <!--        <artifactId>gbase-lib</artifactId>-->
+            <!--        <version>${project.version}</version>-->
+            <!--      </dependency>-->
+
+            <dependency>
+                <groupId>com.sap</groupId>
+                <artifactId>jconn4</artifactId>
+                <version>${jdbc.sybase.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>org.ow2.asm</groupId>
+                <artifactId>asm</artifactId>
+                <version>7.1</version>
+            </dependency>
+            <dependency>
+                <groupId>org.ow2.asm</groupId>
+                <artifactId>asm-tree</artifactId>
+                <version>7.1</version>
+            </dependency>
+
+            <dependency>
+                <groupId>org.codehaus.woodstox</groupId>
+                <artifactId>stax2-api</artifactId>
+                <version>4.2</version>
+            </dependency>
+            <dependency>
+                <groupId>org.codehaus.jackson</groupId>
+                <artifactId>jackson-mapper-asl</artifactId>
+                <version>1.9.2</version>
+            </dependency>
+            <dependency>
+                <groupId>org.codehaus.jackson</groupId>
+                <artifactId>jackson-core-asl</artifactId>
+                <version>1.9.2</version>
+            </dependency>
+            <dependency>
+                <groupId>org.codehaus.jettison</groupId>
+                <artifactId>jettison</artifactId>
+                <version>1.1</version>
+            </dependency>
+            <dependency>
+                <groupId>org.codehaus.janino</groupId>
+                <artifactId>janino</artifactId>
+                <version>3.0.8</version>
+            </dependency>
+
+            <dependency>
+                <groupId>org.jruby.jcodings</groupId>
+                <artifactId>jcodings</artifactId>
+                <version>1.0.55</version>
+            </dependency>
+
+            <dependency>
+                <groupId>org.bouncycastle</groupId>
+                <artifactId>bcprov-jdk15on</artifactId>
+                <version>${org.bouncycastle.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>org.springframework</groupId>
+                <artifactId>spring-web</artifactId>
+                <version>${version.spring}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>org.apache.poi</groupId>
+                <artifactId>poi</artifactId>
+                <version>3.17</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.poi</groupId>
+                <artifactId>poi-ooxml</artifactId>
+                <version>3.17</version>
+            </dependency>
+
+            <dependency>
+                <groupId>org.apache.commons</groupId>
+                <artifactId>commons-csv</artifactId>
+                <version>1.5</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.commons</groupId>
+                <artifactId>commons-math3</artifactId>
+                <version>3.1.1</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.commons</groupId>
+                <artifactId>commons-compress</artifactId>
+                <version>1.18</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.google.collections</groupId>
+                <artifactId>google-collections</artifactId>
+                <version>1.0</version>
+            </dependency>
+
+            <dependency>
+                <groupId>org.json</groupId>
+                <artifactId>json</artifactId>
+                <version>${org.json.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.google.code.gson</groupId>
+                <artifactId>gson</artifactId>
+                <version>${gson.version}</version>
+            </dependency>
+
+            <!-- tapdata internal lib -->
+            <dependency>
+                <groupId>com.tapdata</groupId>
+                <artifactId>api</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <!--      <dependency>-->
+            <!--        <groupId>com.tapdata</groupId>-->
+            <!--        <artifactId>file-lib</artifactId>-->
+            <!--        <version>${project.version}</version>-->
+            <!--      </dependency>-->
+            <!--      <dependency>-->
+            <!--        <groupId>com.tapdata</groupId>-->
+            <!--        <artifactId>rest-lib</artifactId>-->
+            <!--        <version>${project.version}</version>-->
+            <!--      </dependency>-->
+            <!--      <dependency>-->
+            <!--        <groupId>com.tapdata</groupId>-->
+            <!--        <artifactId>mongodb-lib</artifactId>-->
+            <!--        <version>${project.version}</version>-->
+            <!--      </dependency>-->
+            <!--      <dependency>-->
+            <!--        <groupId>com.tapdata</groupId>-->
+            <!--        <artifactId>udp-lib</artifactId>-->
+            <!--        <version>${project.version}</version>-->
+            <!--      </dependency>-->
+            <!--      <dependency>-->
+            <!--        <groupId>com.tapdata</groupId>-->
+            <!--        <artifactId>bitsflow-lib</artifactId>-->
+            <!--        <version>${project.version}</version>-->
+            <!--      </dependency>-->
+            <!--      <dependency>-->
+            <!--        <groupId>com.tapdata</groupId>-->
+            <!--        <artifactId>kafka-lib</artifactId>-->
+            <!--        <version>${project.version}</version>-->
+            <!--      </dependency>-->
+            <!--      <dependency>-->
+            <!--        <groupId>com.tapdata</groupId>-->
+            <!--        <artifactId>mq-lib</artifactId>-->
+            <!--        <version>${project.version}</version>-->
+            <!--      </dependency>-->
+            <!--      <dependency>-->
+            <!--        <groupId>com.tapdata</groupId>-->
+            <!--        <artifactId>custom-lib</artifactId>-->
+            <!--        <version>${project.version}</version>-->
+            <!--      </dependency>-->
+            <!--      <dependency>-->
+            <!--        <groupId>com.tapdata</groupId>-->
+            <!--        <artifactId>db2-lib</artifactId>-->
+            <!--        <version>${project.version}</version>-->
+            <!--      </dependency>-->
+            <!--      <dependency>-->
+            <!--        <groupId>com.tapdata</groupId>-->
+            <!--        <artifactId>gaussdb-lib</artifactId>-->
+            <!--        <version>${project.version}</version>-->
+            <!--      </dependency>-->
+            <!--      <dependency>-->
+            <!--        <groupId>com.tapdata</groupId>-->
+            <!--        <artifactId>postgres-lib</artifactId>-->
+            <!--        <version>${project.version}</version>-->
+            <!--      </dependency>-->
+            <!--      <dependency>-->
+            <!--        <groupId>com.tapdata</groupId>-->
+            <!--        <artifactId>elasticsearch-lib</artifactId>-->
+            <!--        <version>${project.version}</version>-->
+            <!--      </dependency>-->
+            <!--      <dependency>-->
+            <!--        <groupId>com.tapdata</groupId>-->
+            <!--        <artifactId>validator-lib</artifactId>-->
+            <!--        <version>${project.version}</version>-->
+            <!--      </dependency>-->
+
+            <!--      <dependency>-->
+            <!--        <groupId>com.tapdata</groupId>-->
+            <!--        <artifactId>cache-lib</artifactId>-->
+            <!--        <version>${project.version}</version>-->
+            <!--      </dependency>-->
+
+            <!--      <dependency>-->
+            <!--        <groupId>com.tapdata</groupId>-->
+            <!--        <artifactId>log-collect-lib</artifactId>-->
+            <!--        <version>${project.version}</version>-->
+            <!--      </dependency>-->
+
+            <!--      <dependency>-->
+            <!--        <groupId>com.tapdata</groupId>-->
+            <!--        <artifactId>log-reader-lib</artifactId>-->
+            <!--        <version>${project.version}</version>-->
+            <!--      </dependency>-->
+
+            <!--      <dependency>-->
+            <!--        <groupId>com.tapdata</groupId>-->
+            <!--        <artifactId>redis-lib</artifactId>-->
+            <!--        <version>${project.version}</version>-->
+            <!--      </dependency>-->
+
+            <!--      <dependency>-->
+            <!--        <groupId>com.tapdata</groupId>-->
+            <!--        <artifactId>jira-lib</artifactId>-->
+            <!--        <version>${project.version}</version>-->
+            <!--      </dependency>-->
+
+
+            <!--      <dependency>-->
+            <!--        <groupId>com.tapdata</groupId>-->
+            <!--        <artifactId>hive-lib</artifactId>-->
+            <!--        <version>${project.version}</version>-->
+            <!--      </dependency>-->
+            <!--      &lt;!&ndash;hive&ndash;&gt;-->
+            <!--      <dependency>-->
+            <!--        <groupId>org.apache.hive</groupId>-->
+            <!--        <artifactId>hive-jdbc</artifactId>-->
+            <!--        <version>2.3.9</version>-->
+            <!--      </dependency>-->
+            <!--      <dependency>-->
+            <!--        <groupId>org.apache.hive.hcatalog</groupId>-->
+            <!--        <artifactId>hive-hcatalog-core</artifactId>-->
+            <!--        <version>2.3.9</version>-->
+            <!--      </dependency>-->
+            <!--      <dependency>-->
+            <!--        <groupId>org.apache.hive.hcatalog</groupId>-->
+            <!--        <artifactId>hive-hcatalog-streaming</artifactId>-->
+            <!--        <version>2.3.9</version>-->
+            <!--      </dependency>-->
+            <!--      <dependency>-->
+            <!--        <groupId>org.apache.hive</groupId>-->
+            <!--        <artifactId>hive-metastore</artifactId>-->
+            <!--        <version>2.3.9</version>-->
+            <!--      </dependency>-->
+            <!--      <dependency>-->
+            <!--        <groupId>org.apache.hive</groupId>-->
+            <!--        <artifactId>hive-exec</artifactId>-->
+            <!--        <version>2.3.9</version>-->
+            <!--      </dependency>-->
+            <!--      <dependency>-->
+            <!--        <groupId>org.apache.hive</groupId>-->
+            <!--        <artifactId>hive-storage-api</artifactId>-->
+            <!--        <version>2.8.0</version>-->
+            <!--      </dependency>-->
+
+            <!--      <dependency>-->
+            <!--        <groupId>org.javassist</groupId>-->
+            <!--        <artifactId>javassist</artifactId>-->
+            <!--        <version>3.28.0-GA</version>-->
+            <!--      </dependency>-->
+
+            <!--      &lt;!&ndash; tidb &ndash;&gt;-->
+            <!--      <dependency>-->
+            <!--        <groupId>com.tapdata</groupId>-->
+            <!--        <artifactId>tidb-lib</artifactId>-->
+            <!--        <version>${project.version}</version>-->
+            <!--      </dependency>-->
+
+
+            <dependency>
+                <groupId>com.carrotsearch</groupId>
+                <artifactId>hppc</artifactId>
+                <version>0.8.1</version>
+            </dependency>
+
+            <!-- hbase -->
+            <!--      <dependency>-->
+            <!--        <groupId>com.tapdata</groupId>-->
+            <!--        <artifactId>hbase-lib</artifactId>-->
+            <!--        <version>${project.version}</version>-->
+            <!--      </dependency>-->
+            <!--      <dependency>-->
+            <!--        <groupId>org.apache.hbase</groupId>-->
+            <!--        <artifactId>hbase-client</artifactId>-->
+            <!--        <version>2.4.4</version>-->
+            <!--      </dependency>-->
+            <!--      <dependency>-->
+            <!--        <groupId>org.apache.hbase</groupId>-->
+            <!--        <artifactId>hbase-common</artifactId>-->
+            <!--        <version>2.4.4</version>-->
+            <!--      </dependency>-->
+            <!--      <dependency>-->
+            <!--        <groupId>org.apache.hbase</groupId>-->
+            <!--        <artifactId>hbase-protocol</artifactId>-->
+            <!--        <version>2.4.4</version>-->
+            <!--      </dependency>-->
+            <!--      <dependency>-->
+            <!--        <groupId>org.apache.hbase</groupId>-->
+            <!--        <artifactId>hbase-metrics</artifactId>-->
+            <!--        <version>2.4.4</version>-->
+            <!--      </dependency>-->
+            <!--      <dependency>-->
+            <!--        <groupId>org.apache.hbase</groupId>-->
+            <!--        <artifactId>hbase-metrics-api</artifactId>-->
+            <!--        <version>2.4.4</version>-->
+            <!--      </dependency>-->
+            <!--      <dependency>-->
+            <!--        <groupId>org.apache.hbase</groupId>-->
+            <!--        <artifactId>hbase-hadoop-compat</artifactId>-->
+            <!--        <version>2.4.4</version>-->
+            <!--      </dependency>-->
+            <!--      <dependency>-->
+            <!--        <groupId>org.apache.hbase</groupId>-->
+            <!--        <artifactId>hbase-hadoop2-compat</artifactId>-->
+            <!--        <version>2.4.4</version>-->
+            <!--      </dependency>-->
+            <!--      <dependency>-->
+            <!--        <groupId>org.apache.hbase</groupId>-->
+            <!--        <artifactId>hbase-protocol-shaded</artifactId>-->
+            <!--        <version>2.4.4</version>-->
+            <!--      </dependency>-->
+            <!--      <dependency>-->
+            <!--        <groupId>org.apache.hbase.thirdparty</groupId>-->
+            <!--        <artifactId>hbase-shaded-gson</artifactId>-->
+            <!--        <version>3.4.1</version>-->
+            <!--      </dependency>-->
+            <!--      <dependency>-->
+            <!--        <groupId>org.apache.hbase.thirdparty</groupId>-->
+            <!--        <artifactId>hbase-shaded-miscellaneous</artifactId>-->
+            <!--        <version>3.4.1</version>-->
+            <!--      </dependency>-->
+            <!--      <dependency>-->
+            <!--        <groupId>org.apache.hbase.thirdparty</groupId>-->
+            <!--        <artifactId>hbase-shaded-netty</artifactId>-->
+            <!--        <version>3.4.1</version>-->
+            <!--      </dependency>-->
+            <!--      <dependency>-->
+            <!--        <groupId>org.apache.hbase.thirdparty</groupId>-->
+            <!--        <artifactId>hbase-shaded-protobuf</artifactId>-->
+            <!--        <version>3.4.1</version>-->
+            <!--      </dependency>-->
+            <!--      <dependency>-->
+            <!--        <groupId>org.apache.hadoop</groupId>-->
+            <!--        <artifactId>hadoop-common</artifactId>-->
+            <!--        <version>2.10.1</version>-->
+            <!--      </dependency>-->
+            <!--      <dependency>-->
+            <!--        <groupId>org.apache.hadoop</groupId>-->
+            <!--        <artifactId>hadoop-auth</artifactId>-->
+            <!--        <version>2.10.1</version>-->
+            <!--      </dependency>-->
+            <!--      <dependency>-->
+            <!--        <groupId>org.apache.hadoop</groupId>-->
+            <!--        <artifactId>hadoop-annotations</artifactId>-->
+            <!--        <version>2.10.1</version>-->
+            <!--      </dependency>-->
+            <!--      <dependency>-->
+            <!--        <groupId>org.apache.hadoop</groupId>-->
+            <!--        <artifactId>hadoop-hdfs</artifactId>-->
+            <!--        <version>2.10.1</version>-->
+            <!--      </dependency>-->
+            <!--      <dependency>-->
+            <!--        <groupId>org.apache.hadoop</groupId>-->
+            <!--        <artifactId>hadoop-yarn-common</artifactId>-->
+            <!--        <version>2.10.1</version>-->
+            <!--      </dependency>-->
+            <!--      <dependency>-->
+            <!--        <groupId>org.apache.hadoop</groupId>-->
+            <!--        <artifactId>hadoop-yarn-api</artifactId>-->
+            <!--        <version>2.10.1</version>-->
+            <!--      </dependency>-->
+            <!--      <dependency>-->
+            <!--        <groupId>org.apache.hadoop</groupId>-->
+            <!--        <artifactId>hadoop-yarn-client</artifactId>-->
+            <!--        <version>2.10.1</version>-->
+            <!--      </dependency>-->
+            <!--      <dependency>-->
+            <!--        <groupId>org.apache.hadoop</groupId>-->
+            <!--        <artifactId>hadoop-yarn-server-common</artifactId>-->
+            <!--        <version>2.10.1</version>-->
+            <!--      </dependency>-->
+            <!--      <dependency>-->
+            <!--        <groupId>org.apache.htrace</groupId>-->
+            <!--        <artifactId>htrace-core4</artifactId>-->
+            <!--        <version>4.1.0-incubating</version>-->
+            <!--      </dependency>-->
+            <!--      <dependency>-->
+            <!--        <groupId>org.apache.curator</groupId>-->
+            <!--        <artifactId>curator-client</artifactId>-->
+            <!--        <version>4.2.0</version>-->
+            <!--      </dependency>-->
+            <!--      <dependency>-->
+            <!--        <groupId>org.apache.curator</groupId>-->
+            <!--        <artifactId>curator-recipes</artifactId>-->
+            <!--        <version>4.2.0</version>-->
+            <!--      </dependency>-->
+            <!--      <dependency>-->
+            <!--        <groupId>org.apache.thrift</groupId>-->
+            <!--        <artifactId>libthrift</artifactId>-->
+            <!--        <version>0.9.3</version>-->
+            <!--      </dependency>-->
+            <!--      <dependency>-->
+            <!--        <groupId>com.google.inject</groupId>-->
+            <!--        <artifactId>guice</artifactId>-->
+            <!--        <version>3.0</version>-->
+            <!--      </dependency>-->
+            <!--      <dependency>-->
+            <!--        <groupId>com.google.inject.extensions</groupId>-->
+            <!--        <artifactId>guice-servlet</artifactId>-->
+            <!--        <version>4.0</version>-->
+            <!--      </dependency>-->
+            <!--      <dependency>-->
+            <!--        <groupId>com.google.code.findbugs</groupId>-->
+            <!--        <artifactId>jsr305</artifactId>-->
+            <!--        <version>3.0.1</version>-->
+            <!--      </dependency>-->
+            <!--      <dependency>-->
+            <!--        <groupId>com.sun.jersey</groupId>-->
+            <!--        <artifactId>jersey-core</artifactId>-->
+            <!--        <version>1.19</version>-->
+            <!--      </dependency>-->
+            <!--      <dependency>-->
+            <!--        <groupId>com.sun.jersey</groupId>-->
+            <!--        <artifactId>jersey-server</artifactId>-->
+            <!--        <version>1.19</version>-->
+            <!--      </dependency>-->
+
+            <!--      <dependency>-->
+            <!--        <groupId>com.tapdata</groupId>-->
+            <!--        <artifactId>kudu-lib</artifactId>-->
+            <!--        <version>${project.version}</version>-->
+            <!--      </dependency>-->
+
+            <!--      <dependency>-->
+            <!--        <groupId>com.tapdata</groupId>-->
+            <!--        <artifactId>greenplum-lib</artifactId>-->
+            <!--        <version>${project.version}</version>-->
+            <!--      </dependency>-->
+
+            <!--      &lt;!&ndash; clickhouse &ndash;&gt;-->
+            <!--      <dependency>-->
+            <!--        <groupId>com.tapdata</groupId>-->
+            <!--        <artifactId>clickhouse-lib</artifactId>-->
+            <!--        <version>${project.version}</version>-->
+            <!--      </dependency>-->
+
+            <dependency>
+                <groupId>commons-beanutils</groupId>
+                <artifactId>commons-beanutils</artifactId>
+                <version>1.9.2</version>
+            </dependency>
+            <dependency>
+                <groupId>commons-cli</groupId>
+                <artifactId>commons-cli</artifactId>
+                <version>1.4</version>
+            </dependency>
+            <dependency>
+                <groupId>commons-codec</groupId>
+                <artifactId>commons-codec</artifactId>
+                <version>1.9</version>
+            </dependency>
+            <dependency>
+                <groupId>commons-net</groupId>
+                <artifactId>commons-net</artifactId>
+                <version>${commons.net.version}</version>
+            </dependency>
+
+            <!-- hana -->
+            <!--      <dependency>-->
+            <!--        <groupId>com.tapdata</groupId>-->
+            <!--        <artifactId>hana-lib</artifactId>-->
+            <!--        <version>${project.version}</version>-->
+            <!--      </dependency>-->
+            <!--      <dependency>-->
+            <!--        <groupId>com.sap.cloud.db.jdbc</groupId>-->
+            <!--        <artifactId>ngdbc</artifactId>-->
+            <!--        <version>${version.hana.driver}</version>-->
+            <!--      </dependency>-->
+
+            <dependency>
+                <groupId>javax.ws.rs</groupId>
+                <artifactId>javax.ws.rs-api</artifactId>
+                <version>2.1.1</version> <!--原2.0.1-->
+            </dependency>
+            <dependency>
+                <groupId>javax.activation</groupId>
+                <artifactId>activation</artifactId>
+                <version>1.1.1</version>
+            </dependency>
+            <dependency>
+                <groupId>net.minidev</groupId>
+                <artifactId>json-smart</artifactId>
+                <version>2.3</version>
+            </dependency>
+            <dependency>
+                <groupId>io.netty</groupId>
+                <artifactId>netty</artifactId>
+                <version>3.10.5.Final</version>
+            </dependency>
+            <dependency>
+                <groupId>com.nimbusds</groupId>
+                <artifactId>nimbus-jose-jwt</artifactId>
+                <version>9.8.1</version>
+            </dependency>
+            <dependency>
+                <groupId>org.jamon</groupId>
+                <artifactId>jamon-runtime</artifactId>
+                <version>2.3.1</version>
+            </dependency>
+            <dependency>
+                <groupId>jline</groupId>
+                <artifactId>jline</artifactId>
+                <version>2.12</version>
+            </dependency>
+            <dependency>
+                <groupId>org.xerial.snappy</groupId>
+                <artifactId>snappy-java</artifactId>
+                <version>1.1.7.3</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.orc</groupId>
+                <artifactId>orc-core</artifactId>
+                <version>1.5.6</version>
+            </dependency>
+
+            <dependency>
+                <groupId>dom4j</groupId>
+                <artifactId>dom4j</artifactId>
+                <version>${dom4j.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.github.albfernandez</groupId>
+                <artifactId>juniversalchardet</artifactId>
+                <version>2.3.0</version>
+            </dependency>
+
+            <dependency>
+                <groupId>org.apache.avro</groupId>
+                <artifactId>avro</artifactId>
+                <version>${avro.version}</version>
+            </dependency>
+
+            <!--      <dependency>-->
+            <!--        <groupId>com.yoyosys</groupId>-->
+            <!--        <artifactId>mq_2.21</artifactId>-->
+            <!--        <version>${mq.version}</version>-->
+            <!--      </dependency>-->
+
+            <dependency>
+                <groupId>org.antlr</groupId>
+                <artifactId>antlr4</artifactId>
+                <version>4.5</version>
+            </dependency>
+
+            <dependency>
+                <groupId>org.samba.jcifs</groupId>
+                <artifactId>jcifs</artifactId>
+                <version>${jcifs.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.gbase</groupId>
+                <artifactId>gbasedbt</artifactId>
+                <version>${gbasedbt.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.ibm.db2.jcc</groupId>
+                <artifactId>db2jcc</artifactId>
+                <version>${version.db2.driver}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>org.postgresql</groupId>
+                <artifactId>postgresql</artifactId>
+                <version>${version.postgresql.driver}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.huawei</groupId>
+                <artifactId>gauss200</artifactId>
+                <version>1.0.0</version>
+            </dependency>
+
+            <dependency>
+                <groupId>org.antlr</groupId>
+                <artifactId>antlr4-runtime</artifactId>
+                <version>${antlr.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.github.jsqlparser</groupId>
+                <artifactId>jsqlparser</artifactId>
+                <version>${jsqlparser.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>org.elasticsearch.client</groupId>
+                <artifactId>transport</artifactId>
+                <version>7.6.2</version>
+            </dependency>
+            <dependency>
+                <groupId>org.elasticsearch</groupId>
+                <artifactId>elasticsearch</artifactId>
+                <version>7.6.2</version>
+            </dependency>
+            <dependency>
+                <groupId>org.elasticsearch.plugin</groupId>
+                <artifactId>transport-netty4-client</artifactId>
+                <version>7.6.2</version>
+            </dependency>
+            <dependency>
+                <groupId>org.elasticsearch.client</groupId>
+                <artifactId>elasticsearch-rest-high-level-client</artifactId>
+                <version>7.6.2</version>
+            </dependency>
+
+            <dependency>
+                <groupId>org.apache.lucene</groupId>
+                <artifactId>lucene-core</artifactId>
+                <version>8.5.0</version>
+            </dependency>
+
+            <!--引入quartz依赖-->
+            <dependency>
+                <groupId>org.quartz-scheduler</groupId>
+                <artifactId>quartz</artifactId>
+                <version>2.2.1</version>
+            </dependency>
+            <dependency>
+                <groupId>org.quartz-scheduler</groupId>
+                <artifactId>quartz-jobs</artifactId>
+                <version>2.2.1</version>
+            </dependency>
+
+            <!--引入hanlp依赖-->
+            <dependency>
+                <groupId>com.hankcs</groupId>
+                <artifactId>hanlp</artifactId>
+                <version>portable-1.5.3</version>
+            </dependency>
+            <dependency>
+                <groupId>com.hankcs.nlp</groupId>
+                <artifactId>hanlp-lucene-plugin</artifactId>
+                <version>1.1.2</version>
+            </dependency>
+
+            <dependency>
+                <groupId>org.simplejavamail</groupId>
+                <artifactId>simple-java-mail</artifactId>
+                <version>5.0.3</version>
+            </dependency>
+
+            <!-- https://mvnrepository.com/artifact/redis.clients/jedis -->
+            <dependency>
+                <groupId>redis.clients</groupId>
+                <artifactId>jedis</artifactId>
+                <version>3.3.0</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.lmax</groupId>
+                <artifactId>disruptor</artifactId>
+                <version>3.4.2</version>
+            </dependency>
+
+            <!-- 解析Geometry类型数据 -->
+            <dependency>
+                <groupId>com.vividsolutions</groupId>
+                <artifactId>jts</artifactId>
+                <version>${jts.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.google.guava</groupId>
+                <artifactId>guava</artifactId>
+                <version>30.1.1-android</version>
+            </dependency>
+
+            <!-- hazelcast -->
+            <dependency>
+                <groupId>com.hazelcast</groupId>
+                <artifactId>hazelcast</artifactId>
+                <version>${hazelcast.version}</version>
+            </dependency>
+            <!--<dependency>
+              <groupId>com.hazelcast</groupId>
+              <artifactId>hazelcast-enterprise</artifactId>
+              <version>${hazelcast.version}</version>
+            </dependency>-->
+
+            <!-- hazelcast persistence -->
+            <dependency>
+                <groupId>com.hazelcast</groupId>
+                <artifactId>hazelcast-persistence</artifactId>
+                <version>${hazelcast.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.github.os72</groupId>
+                <artifactId>protobuf-dynamic</artifactId>
+                <version>${protobuf-dynamic.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.tapdata</groupId>
+                <artifactId>tm-sdk</artifactId>
+                <version>${tm-sdk.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.tapdata</groupId>
+                <artifactId>tm-common</artifactId>
+                <version>${tm-common.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.squareup.okhttp3</groupId>
+                <artifactId>okhttp</artifactId>
+                <version>${okhttp.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.jetbrains.kotlin</groupId>
+                <artifactId>kotlin-stdlib</artifactId>
+                <version>1.3.70</version>
+            </dependency>
+
+            <!--      <dependency>-->
+            <!--        <groupId>com.tapdata</groupId>-->
+            <!--        <artifactId>vika-lib</artifactId>-->
+            <!--        <version>${project.version}</version>-->
+            <!--      </dependency>-->
+
+            <dependency>
+                <groupId>org.graalvm.js</groupId>
+                <artifactId>js</artifactId>
+                <version>${graalvm.js.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.graalvm.js</groupId>
+                <artifactId>js-scriptengine</artifactId>
+                <version>${graalvm.js.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>net.openhft</groupId>
+                <artifactId>chronicle-queue</artifactId>
+                <version>5.21.91</version>
+            </dependency>
+
+            <dependency>
+                <groupId>cn.hutool</groupId>
+                <artifactId>hutool-core</artifactId>
+                <version>${hutool.version}</version>
+            </dependency>
+
+            <!--      <dependency>-->
+            <!--        <groupId>com.tapdata</groupId>-->
+            <!--        <artifactId>mysql-lib</artifactId>-->
+            <!--        <version>${project.version}</version>-->
+            <!--      </dependency>-->
+
+            <!--      <dependency>-->
+            <!--        <groupId>com.tapdata</groupId>-->
+            <!--        <artifactId>dameng-lib</artifactId>-->
+            <!--        <version>${project.version}</version>-->
+            <!--      </dependency>-->
+
+            <!--      <dependency>-->
+            <!--        <groupId>com.tapdata</groupId>-->
+            <!--        <artifactId>oracle-lib</artifactId>-->
+            <!--        <version>${project.version}</version>-->
+            <!--      </dependency>-->
+
+            <!--      <dependency>-->
+            <!--        <groupId>com.tapdata</groupId>-->
+            <!--        <artifactId>sqlserver-lib</artifactId>-->
+            <!--        <version>${project.version}</version>-->
+            <!--      </dependency>-->
+
+            <!--      <dependency>-->
+            <!--        <groupId>com.tapdata</groupId>-->
+            <!--        <artifactId>sybase-lib</artifactId>-->
+            <!--        <version>${project.version}</version>-->
+            <!--      </dependency>-->
+
+            <dependency>
+                <groupId>com.tapdata</groupId>
+                <artifactId>hazelcast-lib</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+
+        </dependencies>
+    </dependencyManagement>
+
+    <repositories>
+        <repository>
+            <id>tapdata-tapdata-maven</id>
+            <name>maven</name>
+            <url>https://tapdata-maven.pkg.coding.net/repository/tapdata/maven/</url>
+            <releases>
+                <enabled>true</enabled>
+            </releases>
+            <snapshots>
+                <enabled>true</enabled>
+            </snapshots>
+        </repository>
+        <repository>
+            <id>private-repository</id>
+            <name>Hazelcast Private Repository</name>
+            <url>https://repository.hazelcast.com/release/</url>
+            <releases>
+                <enabled>true</enabled>
+            </releases>
+            <snapshots>
+                <enabled>false</enabled>
+            </snapshots>
+        </repository>
+    </repositories>
+
+    <build>
+        <pluginManagement>
+            <plugins>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-surefire-plugin</artifactId>
+                    <version>2.22.1</version>
+                    <configuration>
+                        <useSystemClassLoader>false</useSystemClassLoader>
+                    </configuration>
+                </plugin>
+
+                <plugin>
+                    <groupId>io.fabric8</groupId>
+                    <artifactId>docker-maven-plugin</artifactId>
+                    <version>${version.docker.maven.plugin}</version>
+                </plugin>
+                <plugin>
+                    <groupId>com.github.os72</groupId>
+                    <artifactId>protoc-jar-maven-plugin</artifactId>
+                    <version>${version.protoc.maven.plugin}</version>
+                </plugin>
+                <plugin>
+                    <groupId>org.springframework.boot</groupId>
+                    <artifactId>spring-boot-maven-plugin</artifactId>
+                    <configuration>
+                        <!-- executable>true</executable-->
+                    </configuration>
+                </plugin>
+            </plugins>
+        </pluginManagement>
+    </build>
+
+    <profiles>
+        <profile>
+            <id>dfs</id> <!-- DFS 数据源插件依赖排除 -->
+            <properties>
+                <scope.libs.db2>test</scope.libs.db2>
+                <scope.libs.gbasedbt>test</scope.libs.gbasedbt>
+                <scope.libs.hana>test</scope.libs.hana>
+                <scope.libs.hbase>test</scope.libs.hbase>
+                <scope.libs.hive>test</scope.libs.hive>
+                <scope.libs.jira>test</scope.libs.jira>
+                <scope.libs.kudu>test</scope.libs.kudu>
+                <!--<scope.libs.tidb>test</scope.libs.tidb>-->
+                <scope.libs.udp>test</scope.libs.udp>
+            </properties>
+        </profile>
+    </profiles>
+</project>

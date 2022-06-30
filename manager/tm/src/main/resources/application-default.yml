@@ -1,0 +1,105 @@
+application:
+  title: 'TM'
+  version: '@project.version@-@profile.active@'
+  commit_version: '@env.GIT_COMMIT_VERSION@'
+  description: 'Tapdata Manager'
+  build: '@maven.build.timestamp@'
+
+spring:
+  application:
+    name: TCMApplication
+
+  data:
+    mongodb:
+      cursorBatchSize: 1000
+
+  messages:
+    encoding: UTF-8
+
+  mvc:
+    static-path-pattern: /**
+    format:
+      date-time: yyyyMM-dd HH:mm:ss
+  resources:
+    static-locations: classpath:/static/
+
+    chain:
+      strategy:
+        content:
+          enabled: true
+          paths: /static, /*.js, /*.js.gz
+      cache: true
+      compressed: false
+      enabled: true
+    cache:
+      cachecontrol:
+        cache-public: true
+        max-age: 24h
+      period: 7d
+
+  jackson:
+    default-property-inclusion: non_null
+
+  codec:
+    max-in-memory-size: 10MB
+    thymeleaf:
+      encoding=UTF-8
+      content-type=text/html
+      cache=false
+      mode=LEGACYHTML5
+    messages:
+      encoding: UTF-8
+      cache-seconds: 1
+      basename: messages
+# https://springdoc.org/springdoc-properties.html
+springdoc:
+  enabled: true
+  version: '@project.version@'
+  api-docs:
+    path: /api-docs
+    groups:
+      enabled: true
+  swagger-ui:
+    path: /docs
+    display-request-duration: true
+    groups-order: DESC
+    operationsSorter: method
+    show-actuator: true
+
+server:
+  port: 3000
+  error:
+    path: /error
+  compression:
+    enabled: true
+    mime-types: text/html,text/xml,text/plain,text/css,text/javascript,application/javascript,application/json
+    min-response-size: 1024
+  http2:
+    enabled: true
+  tomcat:
+    uri-encoding: UTF-8
+    max-threads: 1000 #最大工作线程数量
+    min-spare-threads: 100 #最小工作线程数量
+    max-connections: 1000 #一瞬间最大支持的并发的连接数
+    accept-count: 20 #等待队列长度
+
+jasypt:
+  encryptor:
+    password: nmyswls
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: '*'
+  metrics:
+    tags:
+      application: 'TCMApplication'
+
+
+
+access:
+  token:
+    ttl: 1209600
+
+mongodb_uri: ${TAPDATA_MONGO_URI}

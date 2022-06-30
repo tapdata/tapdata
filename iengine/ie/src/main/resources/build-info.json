@@ -1,0 +1,5 @@
+{
+  "timestamp": "@timestamp@",
+  "version": "@env.VERSION@",
+  "gitCommitId": "@env.DAAS_GIT_VERSION@"
+}

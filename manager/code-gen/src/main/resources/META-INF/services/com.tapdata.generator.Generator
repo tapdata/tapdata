@@ -1,0 +1,7 @@
+com.tapdata.generator.ArrayGenerator
+com.tapdata.generator.BooleanGenerator
+com.tapdata.generator.NumberGenerator
+com.tapdata.generator.ObjectGenerator
+com.tapdata.generator.StringGenerator
+com.tapdata.generator.NullGenerator
+com.tapdata.generator.IntegerGenerator

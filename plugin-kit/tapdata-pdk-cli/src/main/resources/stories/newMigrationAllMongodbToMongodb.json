@@ -1,0 +1,46 @@
+{
+  "id": "dag1",
+  "nodes": [
+    {
+      "connectionConfig": {
+        "uri": "mongodb://localhost:27017/",
+        "database": "sample_training"
+      },
+      "nodeConfig": {
+
+      },
+      "tables": ["*"],
+      "id": "s1",
+      "pdkId": "mongodb",
+      "group": "io.tapdata",
+      "type": "Source",
+      "version": "1.0-SNAPSHOT"
+    },
+    {
+      "connectionConfig": {
+        "uri": "mongodb://localhost:27017/",
+        "database": "sample_training"
+      },
+      "nodeConfig": {
+
+      },
+      "tables": ["*"],
+      "id": "t2",
+      "pdkId": "mongodb",
+      "group": "io.tapdata",
+      "type": "Target",
+      "version": "1.0-SNAPSHOT"
+    }
+  ],
+  "dag": [
+    [
+      "s1",
+      "t2"
+    ]
+  ],
+  "jobOptions": {
+    "queueSize": 100,
+    "queueBatchSize": 100,
+    "actionsBeforeStart": ["dropTable", "createTable"]
+  }
+}

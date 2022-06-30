@@ -1,0 +1,22 @@
+{
+  "properties": {
+    "name": "TDDBenchmarkSource",
+    "icon": "icons/icon.png",
+    "id": "tdd-benchmark-source"
+  },
+  "configOptions": {
+  },
+  "dataTypes" : {
+    "tapString[($byte)][fixed]": {"byte" : "16m", "fixed" : "fixed", "to" : "TapString"},
+    "tapNumber[($precision, $scale)]": {"precision" : [1, 40], "precisionDefault" : 4, "scale" : [0, 10], "scaleDefault" : 1, "to": "TapNumber"},
+    "int[($bit)][unsigned][zerofill]": {"bit": 32, "bitDefault" : 16, "unsigned": "unsigned", "zerofill" :  "zerofill", "to": "TapNumber"},
+    "tapBoolean" : {"to": "TapBoolean"},
+    "tapDate" : {"to": "TapDate"},
+    "tapArray" : {"to": "TapArray"},
+    "tapRaw" : {"to": "TapRaw"},
+    "tapBinary" : {"to": "TapBinary"},
+    "tapMap" : {"to": "TapMap"},
+    "tapTime" : {"to": "TapTime"},
+    "tapDateTime" : {"to": "TapDateTime"}
+  }
+}

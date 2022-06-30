@@ -1,0 +1,22 @@
+{
+  "properties": {
+    "name": "YourConnectorName",
+    "icon": "icons/icon.png",
+    "id": "your_connector_id"
+  },
+  "configOptions": {
+    "connection": {
+      "type": "object",
+      "properties": {
+        "token": {
+          "type": "string",
+          "title": "Connection",
+          "x-decorator": "FormItem",
+          "x-component": "Input"
+        }
+      }
+    }
+  },
+  "dataTypes": {
+  }
+}

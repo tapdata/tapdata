@@ -1,0 +1,24 @@
+package ${pageName}.repository;
+
+import com.tapdata.tm.base.reporitory.BaseRepository;
+import ${pageName}.entity.${ModelName}Entity;
+import org.bson.types.ObjectId;
+import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.stereotype.Repository;
+
+/**
+ * @Author:
+ * @Date: ${date}
+ * @Description:
+ */
+@Repository
+public class ${ModelName}Repository extends BaseRepository<${ModelName}Entity, ObjectId> {
+    public ${ModelName}Repository(MongoTemplate mongoOperations) {
+        super(${ModelName}Entity.class, mongoOperations);
+    }
+
+    @Override
+    protected void init() {
+        super.init();
+    }
+}

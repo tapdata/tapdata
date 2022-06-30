@@ -1,0 +1,28 @@
+package ${pageName}.service;
+
+import com.tapdata.tm.base.service.BaseService;
+import ${pageName}.dto.${ModelName}Dto;
+import ${pageName}.entity.${ModelName}Entity;
+import ${pageName}.repository.${ModelName}Repository;
+import com.tapdata.tm.config.security.UserDetail;
+import lombok.NonNull;
+import lombok.extern.slf4j.Slf4j;
+import org.bson.types.ObjectId;
+import org.springframework.stereotype.Service;
+
+/**
+ * @Author:
+ * @Date: ${date}
+ * @Description:
+ */
+@Service
+@Slf4j
+public class ${ModelName}Service extends BaseService<${ModelName}Dto, ${ModelName}Entity, ObjectId, ${ModelName}Repository> {
+    public ${ModelName}Service(@NonNull ${ModelName}Repository repository) {
+        super(repository, ${ModelName}Dto.class, ${ModelName}Entity.class);
+    }
+
+    protected void beforeSave(${ModelName}Dto ${modelName}, UserDetail user) {
+
+    }
+}

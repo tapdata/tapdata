@@ -1,0 +1,514 @@
+package com.tapdata.tm.dataflowinsight.service;
+
+import com.tapdata.manager.common.utils.StringUtils;
+import com.tapdata.tm.base.exception.BizException;
+import com.tapdata.tm.base.service.BaseService;
+import com.tapdata.tm.config.security.UserDetail;
+import com.tapdata.tm.dataflow.dto.DataFlowDto;
+import com.tapdata.tm.dataflow.service.DataFlowService;
+import com.tapdata.tm.dataflowinsight.dto.DataFlowInsightDto;
+import com.tapdata.tm.dataflowinsight.dto.RuntimeMonitorReq;
+import com.tapdata.tm.dataflowinsight.dto.RuntimeMonitorResp;
+import com.tapdata.tm.dataflowinsight.entity.DataFlowInsightEntity;
+import com.tapdata.tm.dataflowinsight.repository.DataFlowInsightRepository;
+import com.tapdata.tm.utils.MapUtils;
+import static com.tapdata.tm.utils.MongoUtils.toObjectId;
+import java.text.DecimalFormat;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.atomic.AtomicLong;
+import lombok.NonNull;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.collections4.CollectionUtils;
+import org.bson.types.ObjectId;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.stereotype.Service;
+
+/**
+ * @Author:
+ * @Date: 2021/09/13
+ * @Description:
+ */
+@Service
+@Slf4j
+public class DataFlowInsightService extends BaseService<DataFlowInsightDto, DataFlowInsightEntity, ObjectId, DataFlowInsightRepository> {
+
+
+    public static final Map<String, List<String>> granularityMap = Collections.unmodifiableMap(new HashMap<String, List<String>>() {{
+        put("minute", Arrays.asList("flow_minute", "stage_minute", "minute"));
+        put("hour", Arrays.asList("flow_hour", "stage_hour", "hour"));
+        put("day", Arrays.asList("flow_day", "stage_day", "day"));
+        put("second", Arrays.asList("flow", "second", "flow_second" ,"stage_second"));
+    }});
+
+
+    private static final SimpleDateFormat secondSdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+    private static final SimpleDateFormat minuteSdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:00");
+    private static final SimpleDateFormat hourSdf = new SimpleDateFormat("yyyy-MM-dd HH:00:00");
+    private static final SimpleDateFormat daySdf = new SimpleDateFormat("yyyy-MM-dd 00:00:00");
+
+    @Autowired
+    private DataFlowService dataFlowService;
+
+    public DataFlowInsightService(@NonNull DataFlowInsightRepository repository) {
+        super(repository, DataFlowInsightDto.class, DataFlowInsightEntity.class);
+    }
+
+    protected void beforeSave(DataFlowInsightDto dataFlowInsight, UserDetail user) {
+
+    }
+
+    public RuntimeMonitorResp runtimeMonitor(RuntimeMonitorReq runtimeMonitorReq, UserDetail userDetail){
+
+        Map<String, Map<String, List<DataFlowInsightDto>>> resultMap = new HashMap<>();
+	    DataFlowDto dataFlowDto = dataFlowService.findById(toObjectId(runtimeMonitorReq.getDataFlowId()), userDetail);
+	    if (dataFlowDto == null){
+	    	throw new BizException("DataFlow.Not.Found");
+	    }
+	    String granularity = granularityMap.entrySet().stream()
+                .filter(entry -> entry.getValue().contains(runtimeMonitorReq.getGranularity()))
+                .findFirst()
+                .map(Map.Entry::getKey)
+                .orElse(runtimeMonitorReq.getGranularity());
+        List<DataFlowInsightDto> dataFlowInsightDtos = findDataFlowInsight(granularity, runtimeMonitorReq.getDataFlowId(), userDetail);
+        resultMap.put(granularity, new HashMap<String, List<DataFlowInsightDto>>(){{ put(runtimeMonitorReq.getDataFlowId(), dataFlowInsightDtos);}});
+        Object statsData;
+        switch (runtimeMonitorReq.getStatsType()){
+            case "throughput":
+                statsData = getThroughputResults(resultMap, runtimeMonitorReq.getGranularity(), runtimeMonitorReq.getDataFlowId(), runtimeMonitorReq.getStageId());
+                break;
+            case "trans_time":
+                statsData = getTransTimeResults(resultMap, runtimeMonitorReq.getGranularity(), runtimeMonitorReq.getDataFlowId(), runtimeMonitorReq.getStageId());
+                break;
+            case "repl_lag":
+                statsData = getReplLagResults(resultMap, runtimeMonitorReq.getGranularity(), runtimeMonitorReq.getDataFlowId(), runtimeMonitorReq.getStageId());
+                break;
+            case "data_overview":
+                statsData = getDataOverviewResult(resultMap, runtimeMonitorReq.getGranularity(), runtimeMonitorReq.getDataFlowId(), runtimeMonitorReq.getStageId());
+                break;
+            default:
+                throw new BizException("IllegalArgument", "statsType");
+        }
+        RuntimeMonitorResp runtimeMonitorResp = new RuntimeMonitorResp();
+        runtimeMonitorResp.setStatsType(runtimeMonitorReq.getStatsType());
+        runtimeMonitorResp.setCreateTime(new Date());
+        runtimeMonitorResp.setDataFlowId(runtimeMonitorReq.getDataFlowId());
+        runtimeMonitorResp.setGranularity(runtimeMonitorReq.getGranularity());
+        runtimeMonitorResp.setStatsData(statsData);
+        return runtimeMonitorResp;
+    }
+
+    public List<Map<String, Object>> getThroughputResults(Map<String, Map<String, List<DataFlowInsightDto>>> resultMap,
+                                                           String throughput, String idsStr, String stageId){
+
+        List<Map<String, Object>> throughputResults = new ArrayList<>();
+        List<DataFlowInsightDto> insightDtosWithThroughput = getCacheDataBygranularity(resultMap, throughput).get(idsStr);
+
+        AtomicLong currentTimeMillis = new AtomicLong(System.currentTimeMillis());
+        if (CollectionUtils.isNotEmpty(insightDtosWithThroughput)) {
+            String cacheKey = getCacheKeyBygranularity(throughput);
+            for (int i = 0; i < insightDtosWithThroughput.size(); i++) {
+                DataFlowInsightDto insightDtoWithThroughput = insightDtosWithThroughput.get(i);
+                double deltaTime = 1; //(curItem.last_updated.getTime() - curItem.id.getTimestamp().getTime()) / 1000;
+                DataFlowInsightDto preInsightDtoWithThroughput = null;
+                Date createTime = null;
+                if (i + 1 < insightDtosWithThroughput.size()){
+                    preInsightDtoWithThroughput = insightDtosWithThroughput.get(i + 1);
+                    long diffTime = (insightDtoWithThroughput.getCreateAt().getTime() - preInsightDtoWithThroughput.getCreateAt().getTime()) / 1000;
+                    deltaTime = diffTime > 0 ? diffTime : deltaTime;
+                    createTime = preInsightDtoWithThroughput.getCreateAt();
+                }else if (insightDtosWithThroughput.size() < 20){
+                    switch (cacheKey) {
+                        case "second":
+                            deltaTime = 1;
+                            break;
+                        case "minute":
+                            deltaTime = 60;
+                            break;
+                        case "hour":
+                            deltaTime = 60 * 60;
+                            break;
+                        case "day":
+                            deltaTime = 24 * 60 * 60;
+                            break;
+                    }
+                    createTime = insightDtoWithThroughput.getCreateAt();
+                }
+
+                if (i < 20){
+                    Map<String, Object> statsData = new HashMap<>();
+                    if (createTime != null){
+                        switch (cacheKey) {
+                            case "second":
+                                statsData.put("t", secondSdf.format(createTime));
+                                break;
+                            case "minute":
+                                statsData.put("t", minuteSdf.format(createTime));
+                                break;
+                            case "hour":
+                                statsData.put("t", hourSdf.format(createTime));
+                                break;
+                            case "day":
+                                statsData.put("t", daySdf.format(createTime));
+                                break;
+
+                        }
+                    }else {
+                        statsData.put("t", getTimeByGranularity(throughput, currentTimeMillis));
+                    }
+                    Map<String, Double> calculation = calculation(insightDtoWithThroughput, preInsightDtoWithThroughput, stageId);
+                    if (MapUtils.isNotEmpty(calculation)){
+                        statsData.put("inputCount", Math.ceil(calculation.get("inputCount")/deltaTime));
+                        statsData.put("outputCount", Math.ceil(calculation.get("outputCount")/deltaTime));
+                        statsData.put("inputSize", Math.ceil(calculation.get("inputSize")/1024/deltaTime));
+                        statsData.put("outputSize", Math.ceil(calculation.get("outputSize")/1024/deltaTime));
+                        throughputResults.add(statsData);
+                    }
+                }
+
+            }
+        }
+
+        if (throughputResults.size() < 20){
+            int size = throughputResults.size();
+            for (int j = 0; j < 20 - size; j++) {
+                Map<String, Object> map = new HashMap<>();
+                map.put("t", getTimeByGranularity(throughput, currentTimeMillis));
+                map.put("inputSize", 0);
+                map.put("outputSize", 0);
+                map.put("inputCount", 0);
+                map.put("outputCount", 0);
+                throughputResults.add(map);
+            }
+        }
+        sort(throughputResults);
+
+        return throughputResults;
+    }
+    public List<Map<String, Object>> getTransTimeResults(Map<String, Map<String, List<DataFlowInsightDto>>> resultMap,
+                                                          String transTime, String idsStr, String stageId){
+
+        List<Map<String, Object>> transTimeResults = new ArrayList<>();
+        List<DataFlowInsightDto> insightDtosWithTransTime = getCacheDataBygranularity(resultMap, transTime).get(idsStr);
+
+        AtomicLong currentTimeMillis = new AtomicLong(System.currentTimeMillis());
+        if (CollectionUtils.isNotEmpty(insightDtosWithTransTime)) {
+            String cacheKey = getCacheKeyBygranularity(transTime);
+            for (int i = 0; i < insightDtosWithTransTime.size(); i++) {
+                DataFlowInsightDto insightDtoWithTransTime = insightDtosWithTransTime.get(i);
+                Map<String, Object> statsData = getStatsData(insightDtoWithTransTime, stageId);
+                String rows = MapUtils.getAsStringByPath(statsData, "input/rows");
+                DataFlowInsightDto preInsightDtoWithTransTime = null;
+                double transmissionTime = 0d;
+                Date createTime = null;
+                if (i + 1 < insightDtosWithTransTime.size()){
+                    preInsightDtoWithTransTime = insightDtosWithTransTime.get(i + 1);
+                    Map<String, Object> preStatsData = getStatsData(preInsightDtoWithTransTime, stageId);
+                    String preRows = MapUtils.getAsStringByPath(preStatsData, "input/rows");
+                    if (StringUtils.isNotBlank(rows) && StringUtils.isNotBlank(preRows)){
+                        double deltaRows = Double.parseDouble(rows) - Double.parseDouble(preRows);
+                        Long transmissionTimeByMap = MapUtils.getAsLong(statsData, "transmissionTime");
+                        Long preTransmissionTime = MapUtils.getAsLong(preStatsData, "transmissionTime");
+                        double time = deltaRows > 0 ? (transmissionTimeByMap - preTransmissionTime) / deltaRows : 0;
+                        transmissionTime = Double.parseDouble(new DecimalFormat("#0.00").format(time));
+                        createTime = preInsightDtoWithTransTime.getCreateAt();
+                    }
+                }else if (insightDtosWithTransTime.size() < 20){
+                    if (StringUtils.isNotBlank(rows)){
+                        double deltaRows = Double.parseDouble(rows);
+                        Long transmissionTimeByMap = MapUtils.getAsLong(statsData, "transmissionTime");
+                        double time = deltaRows > 0 ? transmissionTimeByMap / deltaRows : 0;
+                        transmissionTime = Double.parseDouble(new DecimalFormat("#0.00").format(time));
+                        createTime = insightDtoWithTransTime.getCreateAt();
+                    }
+                }
+
+                if (i < 20){
+                    Map<String, Object> statsDataMap = new HashMap<>();
+                    statsDataMap.put("d", transmissionTime);
+                    if (createTime != null){
+                        switch (cacheKey) {
+                            case "second":
+                                statsDataMap.put("t", secondSdf.format(createTime));
+                                break;
+                            case "minute":
+                                statsDataMap.put("t", minuteSdf.format(createTime));
+                                break;
+                            case "hour":
+                                statsDataMap.put("t", hourSdf.format(createTime));
+                                break;
+                            case "day":
+                                statsDataMap.put("t", daySdf.format(createTime));
+                                break;
+
+                        }
+
+                    }else {
+                        statsDataMap.put("t", getTimeByGranularity(transTime, currentTimeMillis));
+                    }
+                    transTimeResults.add(statsDataMap);
+                }
+
+            }
+        }
+
+        if (transTimeResults.size() < 20){
+            int size = transTimeResults.size();
+            for (int j = 0; j < 20 - size; j++) {
+                Map<String, Object> map = new HashMap<>();
+                map.put("t", getTimeByGranularity(transTime, currentTimeMillis));
+                map.put("d", 0);
+                transTimeResults.add(map);
+            }
+        }
+        sort(transTimeResults);
+
+        return transTimeResults;
+    }
+
+    public List<Map<String, Object>> getReplLagResults(Map<String, Map<String, List<DataFlowInsightDto>>> resultMap,
+                                                        String replLag, String idsStr, String stageId){
+
+        List<Map<String, Object>> replLagResults = new ArrayList<>();
+        List<DataFlowInsightDto> insightDtosWithReplLag = getCacheDataBygranularity(resultMap, replLag).get(idsStr);
+
+        AtomicLong currentTimeMillis = new AtomicLong(System.currentTimeMillis());
+        if (CollectionUtils.isNotEmpty(insightDtosWithReplLag)) {
+            String cacheKey = getCacheKeyBygranularity(replLag);
+            for (int i = 0; i < insightDtosWithReplLag.size(); i++) {
+                DataFlowInsightDto insightDtoWithReplLag = insightDtosWithReplLag.get(i);
+                Map<String, Object> statsData = getStatsData(insightDtoWithReplLag, stageId);
+
+                if (i < 20){
+                    Map<String, Object> statsDataMap = new HashMap<>();
+                    statsDataMap.put("d", statsData.get("replicationLag"));
+                    Date createTime = insightDtoWithReplLag.getCreateAt();
+                    if (createTime != null){
+                        switch (cacheKey) {
+                            case "second":
+                                statsDataMap.put("t", secondSdf.format(createTime));
+                                break;
+                            case "minute":
+                                statsDataMap.put("t", minuteSdf.format(createTime));
+                                break;
+                            case "hour":
+                                statsDataMap.put("t", hourSdf.format(createTime));
+                                break;
+                            case "day":
+                                statsDataMap.put("t", daySdf.format(createTime));
+                                break;
+
+                        }
+                    }else {
+                        statsDataMap.put("t", getTimeByGranularity(replLag, currentTimeMillis));
+                    }
+                    replLagResults.add(statsDataMap);
+                }
+
+            }
+        }
+
+        if (replLagResults.size() < 20){
+            int size = replLagResults.size();
+            for (int j = 0; j < 20 - size; j++) {
+                Map<String, Object> map = new HashMap<>();
+                map.put("t", getTimeByGranularity(replLag, currentTimeMillis));
+                map.put("d", 0);
+                replLagResults.add(map);
+            }
+        }
+        sort(replLagResults);
+
+        return replLagResults;
+    }
+
+    public Map<String, Object> getDataOverviewResult(Map<String, Map<String, List<DataFlowInsightDto>>> resultMap,
+                                                      String dataOverview, String idsStr, String stageId){
+
+        Map<String, Object> dataOverviewResult = new HashMap<>();
+        List<DataFlowInsightDto> insightDtosWithDataOverview = getCacheDataBygranularity(resultMap, dataOverview).get(idsStr);
+
+        if (CollectionUtils.isEmpty(insightDtosWithDataOverview)) {
+            return dataOverviewResult;
+        }
+
+        dataOverviewResult.put("t", secondSdf.format(new Date()));
+        Map<String, Object> statsData = getStatsData(insightDtosWithDataOverview.get(0), stageId);
+        dataOverviewResult.put("inputCount", MapUtils.getValueByPatchPath(statsData, "input/rows"));
+        dataOverviewResult.put("outputCount", MapUtils.getValueByPatchPath(statsData, "output/rows"));
+
+        Object insert = MapUtils.getValueByPatchPath(statsData, "insert/rows");
+        dataOverviewResult.put("insertCount", insert != null ? insert : 0);
+        Object update = MapUtils.getValueByPatchPath(statsData, "update/rows");
+        dataOverviewResult.put("updateCount", update != null ? update : 0);
+        Object delete = MapUtils.getValueByPatchPath(statsData, "delete/rows");
+        dataOverviewResult.put("deleteCount", delete != null ? delete : 0);
+
+        Object inputSize = MapUtils.getValueByPatchPath(statsData, "input/dataSize");
+        dataOverviewResult.put("inputSize", inputSize != null ? Math.ceil(Double.parseDouble(inputSize.toString())/1024) : 0);
+        Object outputSize = MapUtils.getValueByPatchPath(statsData, "output/dataSize");
+        dataOverviewResult.put("inputSize", outputSize != null ? Math.ceil(Double.parseDouble(outputSize.toString())/1024) : 0);
+
+        Object insertSize = MapUtils.getValueByPatchPath(statsData, "insert/dataSize");
+        dataOverviewResult.put("insertSize", insertSize != null ? Math.ceil(Double.parseDouble(insertSize.toString())/1024) : 0);
+        Object updateSize = MapUtils.getValueByPatchPath(statsData, "update/dataSize");
+        dataOverviewResult.put("updateSize", updateSize != null ? Math.ceil(Double.parseDouble(updateSize.toString())/1024) : 0);
+        Object deleteSize = MapUtils.getValueByPatchPath(statsData, "delete/dataSize");
+        dataOverviewResult.put("deleteSize", deleteSize != null ? Math.ceil(Double.parseDouble(deleteSize.toString())/1024) : 0);
+
+        return dataOverviewResult;
+    }
+
+
+    private void sort(List<Map<String, Object>> list){
+        list.sort((m1, m2) ->{
+            try {
+                return (int) (secondSdf.parse(m1.get("t").toString()).getTime() - secondSdf.parse(m2.get("t").toString()).getTime());
+            } catch (Exception e) {
+                return 0;
+            }
+        });
+    }
+
+    private Map<String, List<DataFlowInsightDto>> getCacheDataBygranularity(Map<String, Map<String, List<DataFlowInsightDto>>> resultMap, String value){
+        if (MapUtils.isEmpty(resultMap) || StringUtils.isBlank(value)){
+            return Collections.emptyMap();
+        }
+
+        String key = getCacheKeyBygranularity(value);
+        if (StringUtils.isBlank(key)){
+            return Collections.emptyMap();
+        }
+
+        return resultMap.get(key);
+    }
+
+    private String getCacheKeyBygranularity(String value){
+
+        return granularityMap.entrySet().stream().filter(entry -> entry.getValue().contains(value)).findFirst().map(Map.Entry::getKey).orElse(null);
+    }
+
+    private String getTimeByGranularity(String granularity, AtomicLong currentTimeMillis){
+        String t= "";
+        String cacheKey = getCacheKeyBygranularity(granularity);
+        if (StringUtils.isBlank(cacheKey)){
+            return t;
+        }
+        switch (cacheKey) {
+            case "second":
+                t = secondSdf.format(new Date(currentTimeMillis.addAndGet( - 1000 * 5)));
+                break;
+            case "minute":
+                t = minuteSdf.format(new Date(currentTimeMillis.addAndGet( - 1000 * 60)));
+                break;
+            case "hour":
+                t = hourSdf.format(new Date(currentTimeMillis.addAndGet( - 1000 * 60 * 60)));
+                break;
+            case "day":
+                t = daySdf.format(new Date(currentTimeMillis.addAndGet( - 1000 * 60 * 60 * 24)));
+                break;
+
+        }
+
+        return t;
+    }
+
+
+    private Map<String, Object> getStageMetric(Map<String, Object> statsData, String stageId) {
+        if (StringUtils.isNotBlank(stageId)){
+            List<Map<String, Object>> stagesMetrics = MapUtils.getAsList(statsData, "stagesMetrics");
+            if (CollectionUtils.isNotEmpty(stagesMetrics)){
+                for (Map<String, Object> stageMetric : stagesMetrics) {
+                    if (stageMetric != null
+                            && stageId.equals(MapUtils.getAsString(stageMetric, "stageId"))){
+                        return stageMetric;
+                    }
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private double getDiffMetrics(Map<String, Object> statsData, Map<String, Object> prestatsData, String index){
+        double result = 0L;
+        String value = MapUtils.getAsStringByPath(statsData, index);
+        if (StringUtils.isNotBlank(value)){
+            result = Double.parseDouble(value);
+            String preValue = MapUtils.getAsStringByPath(prestatsData, index);
+            if (StringUtils.isNotBlank(preValue)){
+                result -= Double.parseDouble(preValue);
+            }
+        }
+
+        return result > 0 ? result : 0;
+    }
+
+    private Map<String, Double> calculation(DataFlowInsightDto dataFlowInsightDto, DataFlowInsightDto preDataFlowInsightDto, String stageId){
+        Map<String, Double> result = new HashMap<>();
+        Map<String, Object> statsData = dataFlowInsightDto.getStatsData();
+        Map<String, Object> prestatsData = preDataFlowInsightDto != null ? preDataFlowInsightDto.getStatsData() : null;
+        if (StringUtils.isNotBlank(stageId)){
+            Map<String, Object> stageMetric = getStageMetric(statsData, stageId);
+            if (stageMetric != null){
+                statsData = stageMetric;
+            }
+            Map<String, Object> preStageMetric = getStageMetric(prestatsData, stageId);
+            if (preStageMetric != null){
+                prestatsData = preStageMetric;
+            }
+        }
+        result.put("inputCount", getDiffMetrics(statsData, prestatsData, "input/rows"));
+        result.put("outputCount", getDiffMetrics(statsData, prestatsData, "output/rows"));
+        result.put("inputSize", getDiffMetrics(statsData, prestatsData, "input/dataSize"));
+        result.put("outputSize", getDiffMetrics(statsData, prestatsData, "output/dataSize"));
+
+        return result;
+    }
+
+    private Map<String, Object> getStatsData(DataFlowInsightDto dataFlowInsightDto, String stageId){
+        Map<String, Object> statsData = dataFlowInsightDto.getStatsData();
+        Map<String, Object> stageMetric = getStageMetric(statsData, stageId);
+        if (stageMetric != null){
+            statsData = stageMetric;
+        }
+
+        return statsData == null ? Collections.emptyMap() : statsData;
+    }
+
+    public List<DataFlowInsightDto> findDataFlowInsight(String granularity, String ids){
+
+        return findDataFlowInsight(granularity, ids, null);
+    }
+
+    private List<DataFlowInsightDto> findDataFlowInsight(String granularity, String ids, UserDetail userDetail){
+        if (StringUtils.isBlank(ids) || ids.startsWith(",")) {
+            return Collections.emptyList();
+        }
+        String[] split = ids.split(",");
+        if (split.length == 0){
+            return Collections.emptyList();
+        }
+        Criteria criteria = Criteria.where("statsType").is("runtime_stats")
+                .and("granularity").is(granularity)
+                .and("dataFlowId").is(split[0]);
+        if (split.length > 1){
+            criteria.and("statsData.stagesMetrics.stageId").is(split[1]);
+        }
+        Query query = Query.query(criteria)
+                .with(Sort.by(Sort.Direction.DESC, "_id"))
+                .limit(21);
+//        return userDetail != null ? convertToDto(findAll(query, userDetail), DataFlowInsightDto.class) : findAll(query);
+        return findAll(query);
+    }
+}

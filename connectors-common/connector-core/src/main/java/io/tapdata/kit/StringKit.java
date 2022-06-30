@@ -1,0 +1,167 @@
+package io.tapdata.kit;
+
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Iterator;
+import java.util.List;
+import java.util.stream.Collectors;
+
+public class StringKit {
+
+    /**
+     * write string several times
+     *
+     * @param copied   "?"
+     * @param count    3
+     * @param combiner ","
+     * @return "?,?,?"
+     */
+    public static String copyString(String copied, Integer count, String combiner) {
+        if (count < 1 || EmptyKit.isNull(copied)) {
+            return "";
+        }
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < count; i++) {
+            sb.append(copied).append(combiner);
+        }
+        return sb.delete(sb.length() - combiner.length(), sb.length()).toString();
+    }
+
+    //replace first
+    public static String replaceOnce(String text, String searchString, String replacement) {
+        if (EmptyKit.isEmpty(text)) {
+            return "";
+        }
+        return text.replace(searchString, replacement);
+    }
+
+    /**
+     * join strings with around and splitter
+     *
+     * @param list     ["a","b","c"]
+     * @param around   "'"
+     * @param splitter ","
+     * @return "'a','b','c'"
+     */
+    public static String joinString(Collection<String> list, String around, String splitter) {
+        if (EmptyKit.isEmpty(list)) {
+            return "";
+        }
+        return list.stream().map(s -> around + s + around).collect(Collectors.joining(splitter));
+    }
+
+    public static int compareVersion(String version1, String version2) {
+        List<String> list1 = Arrays.stream(version1.split("\\.")).collect(Collectors.toList());
+        List<String> list2 = Arrays.stream(version2.split("\\.")).collect(Collectors.toList());
+        Iterator<String> iterator1 = list1.iterator();
+        Iterator<String> iterator2 = list2.iterator();
+        while (iterator1.hasNext() && iterator2.hasNext()) {
+            String str1 = iterator1.next();
+            String str2 = iterator2.next();
+            if (Integer.parseInt(str1) > Integer.parseInt(str2)) {
+                return 1;
+            } else if (Integer.parseInt(str1) < Integer.parseInt(str2)) {
+                return -1;
+            }
+        }
+        if (iterator1.hasNext()) {
+            return 1;
+        } else if (iterator2.hasNext()) {
+            return -1;
+        } else {
+            return 0;
+        }
+    }
+
+    public static String subStringBetweenTwoString(String sql, String start, String end) {
+        String sub = "";
+
+        if (EmptyKit.isBlank(sql)) {
+            return "";
+        }
+
+        int startIndex = indexOfIgnoreCase(sql, start);
+        if (startIndex <= 0) {
+            return "";
+        }
+        int endIndex = indexOfIgnoreCase(sql, end);
+        if (endIndex <= 0) {
+            return "";
+        }
+
+        startIndex = startIndex + start.length();
+        if (startIndex >= endIndex) {
+            throw new RuntimeException(String.format("Invalid sql: %s, start: %s, end: %s", sql, start, end));
+        } else {
+            sub = sql.substring(startIndex + start.length(), endIndex);
+        }
+
+        return sub;
+    }
+
+    public static int indexOfIgnoreCase(CharSequence str, CharSequence searchStr) {
+        return indexOfIgnoreCase(str, searchStr, 0);
+    }
+
+    public static int indexOfIgnoreCase(CharSequence str, CharSequence searchStr, int startPos) {
+        if (str != null && searchStr != null) {
+            if (startPos < 0) {
+                startPos = 0;
+            }
+
+            int endLimit = str.length() - searchStr.length() + 1;
+            if (startPos > endLimit) {
+                return -1;
+            } else if (searchStr.length() == 0) {
+                return startPos;
+            } else {
+                for (int i = startPos; i < endLimit; ++i) {
+                    if (regionMatches(str, true, i, searchStr, 0, searchStr.length())) {
+                        return i;
+                    }
+                }
+
+                return -1;
+            }
+        } else {
+            return -1;
+        }
+    }
+
+    static boolean regionMatches(CharSequence cs, boolean ignoreCase, int thisStart, CharSequence substring, int start, int length) {
+        if (cs instanceof String && substring instanceof String) {
+            return ((String) cs).regionMatches(ignoreCase, thisStart, (String) substring, start, length);
+        } else {
+            int index1 = thisStart;
+            int index2 = start;
+            int tmpLen = length;
+            int srcLen = cs.length() - thisStart;
+            int otherLen = substring.length() - start;
+            if (thisStart >= 0 && start >= 0 && length >= 0) {
+                if (srcLen >= length && otherLen >= length) {
+                    while (tmpLen-- > 0) {
+                        char c1 = cs.charAt(index1++);
+                        char c2 = substring.charAt(index2++);
+                        if (c1 != c2) {
+                            if (!ignoreCase) {
+                                return false;
+                            }
+
+                            char u1 = Character.toUpperCase(c1);
+                            char u2 = Character.toUpperCase(c2);
+                            if (u1 != u2 && Character.toLowerCase(u1) != Character.toLowerCase(u2)) {
+                                return false;
+                            }
+                        }
+                    }
+
+                    return true;
+                } else {
+                    return false;
+                }
+            } else {
+                return false;
+            }
+        }
+    }
+}

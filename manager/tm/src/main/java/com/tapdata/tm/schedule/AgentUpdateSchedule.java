@@ -1,0 +1,51 @@
+package com.tapdata.tm.schedule;
+
+
+import com.tapdata.tm.Settings.dto.SettingsDto;
+import com.tapdata.tm.Settings.entity.Settings;
+import com.tapdata.tm.Settings.service.SettingsService;
+import com.tapdata.tm.clusterOperation.service.ClusterOperationService;
+import com.tapdata.tm.worker.service.WorkerService;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
+import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.stereotype.Component;
+
+/**
+ * 定时执行，升级agent版本
+ */
+@Slf4j
+@Component
+public class AgentUpdateSchedule {
+
+    @Autowired
+    ClusterOperationService clusterOperationService;
+
+    @Autowired
+    WorkerService workerService;
+
+
+    @Autowired
+    SettingsService settingsService;
+
+    /**
+     * @desc 执行扫描，每1分钟执行一次
+     */
+    @Scheduled(cron = "0 */1 * * * ?")
+    public void execute() {
+        log.info("清理 clusterOperation");
+        clusterOperationService.cleanOperation();
+
+        log.info("清理 cleanWorkers");
+//        if(server && server.daasSettings && server.daasSettings['buildProfile'] !== 'DAAS')
+        String buildProfile = String.valueOf(settingsService.getByCategoryAndKey("System", "buildProfile"));
+        if (!"DAAS".equals(buildProfile)){
+            workerService.cleanWorkers();
+        }
+
+        log.info("执行扫描，更新agent 版本");
+        clusterOperationService.sendOperation();
+    }
+
+}

@@ -1,0 +1,111 @@
+{
+  "properties": {
+    "name": "TDDBenchmarkTarget-PDK",
+    "icon": "icons/icon.png",
+    "id": "tddBenchmarkTarget"
+  },
+  "configOptions": {
+    "connection": {
+      "type": "object",
+      "properties": {
+        "host": {
+          "type": "string",
+          "title": "Host",
+          "x-decorator": "FormItem",
+          "x-component": "Input"
+        },
+        "port": {
+          "type": "string",
+          "title": "Port",
+          "x-decorator": "FormItem",
+          "x-component": "Input"
+        }
+      }
+    }
+  },
+  "dataTypes": {
+    "boolean": {
+      "bit": 8,
+      "unsigned" : "",
+      "to": "TapNumber"
+    },
+    "tinyint": {
+      "bit": 8,
+      "to": "TapNumber"
+    },
+    "smallint": {
+      "bit": 16,
+      "to": "TapNumber"
+    },
+    "int": {
+      "bit": 32,
+      "to": "TapNumber"
+    },
+    "bigint": {
+      "bit": 64,
+      "to": "TapNumber"
+    },
+    "largeint": {
+      "bit": 128,
+      "to": "TapNumber"
+    },
+    "float": {
+      "bit": 32,
+      "to": "TapNumber"
+    },
+    "double": {
+      "bit": 64,
+      "to": "TapNumber"
+    },
+    "decimal[($precision,$scale)]": {
+      "bit": 128,
+      "precision": [
+        1,
+        27
+      ],
+      "defaultPrecision": 10,
+      "scale": [
+        0,
+        9
+      ],
+      "defaultScale": 0,
+      "to": "TapNumber"
+    },
+    "date": {
+      "byte": 3,
+      "range": [
+        "1000-01-01",
+        "9999-12-31"
+      ],
+      "pattern": "yyyy-MM-dd",
+      "to": "TapDate"
+    },
+    "datetime": {
+      "byte": 8,
+      "range": [
+        "1000-01-01 00:00:00",
+        "9999-12-31 23:59:59"
+      ],
+      "pattern": "yyyy-MM-dd HH:mm:ss",
+      "to": "TapDateTime"
+    },
+    "char[($byte)]": {
+      "byte": 255,
+      "to": "TapString",
+      "defaultByte": 1
+    },
+    "varchar[($byte)]": {
+      "byte": "65535",
+      "to": "TapString"
+    },
+    "string": {
+      "byte": "2147483643",
+      "to": "TapString"
+    },
+    "HLL": {
+      "byte": "16385",
+      "to": "TapNumber",
+      "queryOnly": true
+    }
+  }
+}

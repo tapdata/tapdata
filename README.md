@@ -1,31 +1,13 @@
-![](./assets/logo-orange-grey-bar.png)
-
-## OpenSource Will Be Public In 2022.06.30 !
+<img src="https://github.com/tapdata/tapdata-private/raw/master/assets/logo-orange-grey-bar.png" width="300px"/>
 
 ## Online Document: https://tapdata.github.io/
-
 ## What is Tapdata?
-
 Tapdata is a live data platform designed to connect data silos and provide fresh data to the downstream operational applications & operational analytics. 
-
-<img width="603" alt="image" src="./assets/tapdata-infra.png">
-
-Tapdata provides two ways to achieve this: Live Data Integration and Live Data Service. 
-
-Live Data Integration is supported by Tapdata's real time data pipelines based on CDC technology, where you can easily connect and capture all the data plus all the changes from disparate data sources, without any custom coding. Tapdata supports many data sources out of box, including dozens of popular databases, you may also use Tapdata's PDK(Plugin Development Kit) quickly add your own data sources. 
-
-Live Data Service is Tapdata's modern approach to the old data integration problem:  streaming data into a centralized data store(currently powered by MongoDB), then serving the data via RESTful API. These APIs are created on-demand, and because they're served by the horizontally scalable, high performant and modern database(instead of source systems), the number of ETL jobs, the performance impact to the source systems, are hence greatly reduced. 
-
-As an alternative, if your data source allows, you may also create data APIs directly from source databases such as Oracle, MySQL, SQLServer etc. 
-
-The term "live has two meanings:
-
-- When you are using Live Data Integrations, Tapdata will collect data in a "live" mode means it will listen for the changes on the source database and capture the change immediately and send it to the pipeline for processing and downstream consumption. Sometime this is called CDC technology. The data is always fresh and lively throughout the data pipeline. 
-
-- When you are using Live Data Services, the backing data store is lively updated by Tapdata Live Data Integration pipelines and stays up-to-date with the source systems.  
 
 ## Quick Start
 Please make user you have Docker running on your env, before all things started
+
+only linux system is tested until now
 
 ### Quick Usage
 1. run `bash build/quick-use.sh` will pull and start a all in one container
@@ -33,14 +15,106 @@ Please make user you have Docker running on your env, before all things started
 ### Quick Dev
 1. run `bash build/quick-dev.sh` will build a docker image from source and start a all in one container
 
-If you want to build in local, please install:
-1. JDK and set PATH
-2. maven
-And set build/env.sh tapdata_build_env to "local"
+If you want to build in docker, please install docker and set build/env.sh tapdata_build_env to "docker" (default)
 
-If you want to build in docker, please install docker and set build/env.sh tapdata_build_env to "docker"
+If you want to build in local, please install:
+1. JDK
+2. maven
+set build/env.sh tapdata_build_env to "local"
 
 run `bash build/clean.sh` If you want to clean build target
 
+### Quick Steps
+If everything is ok, now you are in a terminal window, follow next steps, have a try!
+
+#### Create New DataSource
+```
+# 1. mongodb
+source = DataSource("mongodb", "$name").uri("$uri")
+
+# 2. mysql
+source = DataSource("mysql", "$name").host("$host").port($port).username("$username").port($port).db("$db")
+
+# 3. pg
+source = DataSource("postgres", "$name").host("$host").port($port).username("$username").port($port).db("$db").schema("$schema").logPluginName("wal2json")
+
+# save will check all config, and load schema from source
+source.save()
+```
+
+#### Preview Table
+1. `use $name` will switch datasource context
+2. `show tables` will display all tables in current datasource
+3. `desc $table_name` will display table schema
+
+#### Migrate A Table
+migrate job is real time default
+```
+# 1. create a pipeline
+p = Pipeline("$name")
+
+# 2. use readFrom and writeTo describe a migrate job
+p.readFrom("$source_name.$table").write("$sink_name.$table")
+
+# 3. start job
+p.start()
+
+# 4. monitor job
+p.monitor()
+p.logs()
+
+# 5. stop job
+p.stop()
+```
+
+#### Migrate Aable With UDF
+No record schema change support in current version, will support in few days
+
+If you want to change record schema, please use mongodb as sink
+```
+# 1. define a python function
+def fn(record):
+    record["x"] = 1
+    return record
+
+# 2. using processor between source and target
+p.readFrom(...).processor(fn).writeTo(...)
+```
+
+#### Migrate Multi Tables
+migrate job is real time default
+
+```
+# 1. create a pipeline
+p = Pipeline("$name")
+
+# 2. use readFrom and writeTo describe a migrate job, multi table relation syntax is a little different
+source = Source("$datasource_name", ["table1", "table2"...])
+source = Source("$datasource_name", table_re="xxx.*")
+
+# 3. using prefix/suffix add table prefix/suffix
+p.readFrom(source).writeTo("$datasource_name", prefix="", suffix="")
+
+# 4. start job
+p.start()
+```
+
+#### Manager
+1. `show datasources` will show all data sources, you can use `delete datasource $name` delete it if now job using it
+2. `show jobs` will show all jobs and it's stats
+3. `logs job $job_name [limit=20] [t=5] [tail=True]` will show job log
+4. `monitor job $job_name` will keep show job metrics
+5. `status job $job_name` will show job status(running/stopped...)
+
 ## License
-Tapdata is under the SSPL v1 license. 
+
+
+Tapdata uses multiple licenses.
+
+The license for a particular work is defined with following prioritized rules:
+
+- License directly present in the file
+- LICENSE file in the same directory as the work
+- First LICENSE found when exploring parent directories up to the project top level directory
+
+Defaults to Server Side Public License. For PDK Connectors, the license is Apache V2.

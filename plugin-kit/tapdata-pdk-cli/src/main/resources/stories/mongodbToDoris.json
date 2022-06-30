@@ -1,0 +1,48 @@
+{
+  "id": "dag1",
+  "nodes": [
+    {
+      "connectionConfig": {
+        "uri": "mongodb://localhost:27017/",
+        "database": "sample_training"
+      },
+      "tables": ["test"],
+      "id": "s1",
+      "pdkId": "mongodb",
+      "group": "io.tapdata",
+      "type": "Source",
+      "version": "1.0-SNAPSHOT"
+    },
+    {
+      "pdkId": "ChangedTableName",
+      "type": "Processor",
+      "version": "1.0"
+    },
+    {
+      "connectionConfig": {
+        "host": "192.168.1.183",
+        "port": "9030",
+        "database": "example_db",
+        "user": "root",
+        "password": ""
+      },
+      "tables": ["emptyTable2"],
+      "id": "t2",
+      "pdkId": "doris",
+      "group": "io.tapdata.connector.doris",
+      "type": "Target",
+      "version": "1.0-SNAPSHOT"
+    }
+  ],
+  "dag": [
+    [
+      "s1",
+      "t2"
+    ]
+  ],
+  "jobOptions": {
+    "queueSize": 100,
+    "queueBatchSize": 100,
+    "actionsBeforeStart": ["dropTable", "createTable"]
+  }
+}

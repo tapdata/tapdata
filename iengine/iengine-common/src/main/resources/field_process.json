@@ -1,0 +1,38 @@
+{
+  "key": "value",
+  "key1": "value1",
+  "key2": "1",
+  "map": {
+    "map_key": "value",
+    "map_key1": "value1",
+    "map_key2": "1",
+    "map_map": {
+      "map_map_key": "value",
+      "map_map_key1": "value1",
+      "map_map_key2": "1"
+    },
+    "map_list": [
+      "value",
+      {
+        "map_list_key": "value",
+        "map_list_key1": "value1",
+        "map_list_list": [
+          {
+            "map_list_list_key": "value",
+            "map_list_list_key1": "value1"
+          },
+          {
+            "map_list_list_key": "value2",
+            "map_list_list_key1": "value3",
+            "map_list_list_key2": "value3"
+          }
+        ]
+      },
+      {
+        "map_list_key": "value2",
+        "map_list_key1": "value3",
+        "map_list_key2": "123"
+      }
+    ]
+  }
+}

@@ -1,0 +1,49 @@
+{
+  "id": "dag1",
+  "nodes": [
+    {
+      "connectionConfig": {
+      },
+      "table": {
+        "name": "tdd-table",
+        "id": "tdd-table"
+      },
+      "id": "s1",
+      "pdkId": "tdd-source",
+      "group": "io.tapdata.connector",
+      "type": "Source",
+      "version": "1.1-SNAPSHOT"
+    },
+    {
+      "connectionConfig": {
+        "seedHosts": "192.168.153.132:3000",
+        "keyspace": "test",
+        "userName": "",
+        "password": "",
+        "maxConcurrentRequests": 10,
+        "timeoutMs": 100,
+        "retries": 1
+      },
+      "table" : {
+        "name" : "test_set_name",
+        "id" : "test_set_name"
+      },
+      "id" : "t2",
+      "pdkId" : "aerospike",
+      "group" : "io.tapdata.connector.aerospike",
+      "type" : "Target",
+      "version" : "1.0-SNAPSHOT"
+    }
+  ],
+  "dag": [
+    [
+      "s1",
+      "t2"
+    ]
+  ],
+  "jobOptions": {
+    "queueSize": 100,
+    "queueBatchSize": 100,
+    "actionsBeforeStart": ["dropTable", "createTable"]
+  }
+}

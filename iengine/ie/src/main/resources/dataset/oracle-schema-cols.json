@@ -1,0 +1,890 @@
+[
+  {
+    "tableName": "CATEGORIES",
+    "columnName": "PICTURE",
+    "dataType": "VARCHAR2",
+    "dataLength": 255,
+    "precision": null,
+    "scale": null
+  },
+  {
+    "tableName": "CATEGORIES",
+    "columnName": "DESCRIPTION",
+    "dataType": "VARCHAR2",
+    "dataLength": 2000,
+    "precision": null,
+    "scale": null
+  },
+  {
+    "tableName": "CATEGORIES",
+    "columnName": "CATEGORY_NAME",
+    "dataType": "VARCHAR2",
+    "dataLength": 15,
+    "precision": null,
+    "scale": null
+  },
+  {
+    "tableName": "CATEGORIES",
+    "columnName": "CATEGORY_ID",
+    "dataType": "NUMBER",
+    "dataLength": 22,
+    "precision": 9,
+    "scale": 0
+  },
+  {
+    "tableName": "CUSTOMERS",
+    "columnName": "FAX",
+    "dataType": "VARCHAR2",
+    "dataLength": 24,
+    "precision": null,
+    "scale": null
+  },
+  {
+    "tableName": "CUSTOMERS",
+    "columnName": "PHONE",
+    "dataType": "VARCHAR2",
+    "dataLength": 24,
+    "precision": null,
+    "scale": null
+  },
+  {
+    "tableName": "CUSTOMERS",
+    "columnName": "COUNTRY",
+    "dataType": "VARCHAR2",
+    "dataLength": 15,
+    "precision": null,
+    "scale": null
+  },
+  {
+    "tableName": "CUSTOMERS",
+    "columnName": "POSTAL_CODE",
+    "dataType": "VARCHAR2",
+    "dataLength": 10,
+    "precision": null,
+    "scale": null
+  },
+  {
+    "tableName": "CUSTOMERS",
+    "columnName": "REGION",
+    "dataType": "VARCHAR2",
+    "dataLength": 15,
+    "precision": null,
+    "scale": null
+  },
+  {
+    "tableName": "CUSTOMERS",
+    "columnName": "CITY",
+    "dataType": "VARCHAR2",
+    "dataLength": 15,
+    "precision": null,
+    "scale": null
+  },
+  {
+    "tableName": "CUSTOMERS",
+    "columnName": "ADDRESS",
+    "dataType": "VARCHAR2",
+    "dataLength": 60,
+    "precision": null,
+    "scale": null
+  },
+  {
+    "tableName": "CUSTOMERS",
+    "columnName": "CONTACT_TITLE",
+    "dataType": "VARCHAR2",
+    "dataLength": 30,
+    "precision": null,
+    "scale": null
+  },
+  {
+    "tableName": "CUSTOMERS",
+    "columnName": "CONTACT_NAME",
+    "dataType": "VARCHAR2",
+    "dataLength": 30,
+    "precision": null,
+    "scale": null
+  },
+  {
+    "tableName": "CUSTOMERS",
+    "columnName": "COMPANY_NAME",
+    "dataType": "VARCHAR2",
+    "dataLength": 40,
+    "precision": null,
+    "scale": null
+  },
+  {
+    "tableName": "CUSTOMERS",
+    "columnName": "CUSTOMER_CODE",
+    "dataType": "VARCHAR2",
+    "dataLength": 5,
+    "precision": null,
+    "scale": null
+  },
+  {
+    "tableName": "CUSTOMERS",
+    "columnName": "CUSTOMER_ID",
+    "dataType": "NUMBER",
+    "dataLength": 22,
+    "precision": 9,
+    "scale": 0
+  },
+  {
+    "tableName": "EMPLOYEES",
+    "columnName": "REPORTS_TO",
+    "dataType": "NUMBER",
+    "dataLength": 22,
+    "precision": 9,
+    "scale": 0
+  },
+  {
+    "tableName": "EMPLOYEES",
+    "columnName": "NOTES",
+    "dataType": "VARCHAR2",
+    "dataLength": 2000,
+    "precision": null,
+    "scale": null
+  },
+  {
+    "tableName": "EMPLOYEES",
+    "columnName": "PHOTO",
+    "dataType": "VARCHAR2",
+    "dataLength": 255,
+    "precision": null,
+    "scale": null
+  },
+  {
+    "tableName": "EMPLOYEES",
+    "columnName": "EXTENSION",
+    "dataType": "VARCHAR2",
+    "dataLength": 4,
+    "precision": null,
+    "scale": null
+  },
+  {
+    "tableName": "EMPLOYEES",
+    "columnName": "HOME_PHONE",
+    "dataType": "VARCHAR2",
+    "dataLength": 24,
+    "precision": null,
+    "scale": null
+  },
+  {
+    "tableName": "EMPLOYEES",
+    "columnName": "COUNTRY",
+    "dataType": "VARCHAR2",
+    "dataLength": 15,
+    "precision": null,
+    "scale": null
+  },
+  {
+    "tableName": "EMPLOYEES",
+    "columnName": "POSTAL_CODE",
+    "dataType": "VARCHAR2",
+    "dataLength": 10,
+    "precision": null,
+    "scale": null
+  },
+  {
+    "tableName": "EMPLOYEES",
+    "columnName": "REGION",
+    "dataType": "VARCHAR2",
+    "dataLength": 15,
+    "precision": null,
+    "scale": null
+  },
+  {
+    "tableName": "EMPLOYEES",
+    "columnName": "CITY",
+    "dataType": "VARCHAR2",
+    "dataLength": 15,
+    "precision": null,
+    "scale": null
+  },
+  {
+    "tableName": "EMPLOYEES",
+    "columnName": "ADDRESS",
+    "dataType": "VARCHAR2",
+    "dataLength": 60,
+    "precision": null,
+    "scale": null
+  },
+  {
+    "tableName": "EMPLOYEES",
+    "columnName": "HIREDATE",
+    "dataType": "DATE",
+    "dataLength": 7,
+    "precision": null,
+    "scale": null
+  },
+  {
+    "tableName": "EMPLOYEES",
+    "columnName": "BIRTHDATE",
+    "dataType": "DATE",
+    "dataLength": 7,
+    "precision": null,
+    "scale": null
+  },
+  {
+    "tableName": "EMPLOYEES",
+    "columnName": "TITLE_OF_COURTESY",
+    "dataType": "VARCHAR2",
+    "dataLength": 25,
+    "precision": null,
+    "scale": null
+  },
+  {
+    "tableName": "EMPLOYEES",
+    "columnName": "TITLE",
+    "dataType": "VARCHAR2",
+    "dataLength": 30,
+    "precision": null,
+    "scale": null
+  },
+  {
+    "tableName": "EMPLOYEES",
+    "columnName": "FIRSTNAME",
+    "dataType": "VARCHAR2",
+    "dataLength": 10,
+    "precision": null,
+    "scale": null
+  },
+  {
+    "tableName": "EMPLOYEES",
+    "columnName": "LASTNAME",
+    "dataType": "VARCHAR2",
+    "dataLength": 20,
+    "precision": null,
+    "scale": null
+  },
+  {
+    "tableName": "EMPLOYEES",
+    "columnName": "EMPLOYEE_ID",
+    "dataType": "NUMBER",
+    "dataLength": 22,
+    "precision": 9,
+    "scale": 0
+  },
+  {
+    "tableName": "SUPPLIERS",
+    "columnName": "HOME_PAGE",
+    "dataType": "VARCHAR2",
+    "dataLength": 500,
+    "precision": null,
+    "scale": null
+  },
+  {
+    "tableName": "SUPPLIERS",
+    "columnName": "FAX",
+    "dataType": "VARCHAR2",
+    "dataLength": 24,
+    "precision": null,
+    "scale": null
+  },
+  {
+    "tableName": "SUPPLIERS",
+    "columnName": "PHONE",
+    "dataType": "VARCHAR2",
+    "dataLength": 24,
+    "precision": null,
+    "scale": null
+  },
+  {
+    "tableName": "SUPPLIERS",
+    "columnName": "COUNTRY",
+    "dataType": "VARCHAR2",
+    "dataLength": 15,
+    "precision": null,
+    "scale": null
+  },
+  {
+    "tableName": "SUPPLIERS",
+    "columnName": "POSTAL_CODE",
+    "dataType": "VARCHAR2",
+    "dataLength": 10,
+    "precision": null,
+    "scale": null
+  },
+  {
+    "tableName": "SUPPLIERS",
+    "columnName": "REGION",
+    "dataType": "VARCHAR2",
+    "dataLength": 15,
+    "precision": null,
+    "scale": null
+  },
+  {
+    "tableName": "SUPPLIERS",
+    "columnName": "CITY",
+    "dataType": "VARCHAR2",
+    "dataLength": 15,
+    "precision": null,
+    "scale": null
+  },
+  {
+    "tableName": "SUPPLIERS",
+    "columnName": "ADDRESS",
+    "dataType": "VARCHAR2",
+    "dataLength": 60,
+    "precision": null,
+    "scale": null
+  },
+  {
+    "tableName": "SUPPLIERS",
+    "columnName": "CONTACT_TITLE",
+    "dataType": "VARCHAR2",
+    "dataLength": 30,
+    "precision": null,
+    "scale": null
+  },
+  {
+    "tableName": "SUPPLIERS",
+    "columnName": "CONTACT_NAME",
+    "dataType": "VARCHAR2",
+    "dataLength": 30,
+    "precision": null,
+    "scale": null
+  },
+  {
+    "tableName": "SUPPLIERS",
+    "columnName": "COMPANY_NAME",
+    "dataType": "VARCHAR2",
+    "dataLength": 40,
+    "precision": null,
+    "scale": null
+  },
+  {
+    "tableName": "SUPPLIERS",
+    "columnName": "SUPPLIER_ID",
+    "dataType": "NUMBER",
+    "dataLength": 22,
+    "precision": 9,
+    "scale": 0
+  },
+  {
+    "tableName": "SHIPPERS",
+    "columnName": "PHONE",
+    "dataType": "VARCHAR2",
+    "dataLength": 24,
+    "precision": null,
+    "scale": null
+  },
+  {
+    "tableName": "SHIPPERS",
+    "columnName": "COMPANY_NAME",
+    "dataType": "VARCHAR2",
+    "dataLength": 40,
+    "precision": null,
+    "scale": null
+  },
+  {
+    "tableName": "SHIPPERS",
+    "columnName": "SHIPPER_ID",
+    "dataType": "NUMBER",
+    "dataLength": 22,
+    "precision": 9,
+    "scale": 0
+  },
+  {
+    "tableName": "PRODUCTS",
+    "columnName": "DISCONTINUED",
+    "dataType": "CHAR",
+    "dataLength": 1,
+    "precision": null,
+    "scale": null
+  },
+  {
+    "tableName": "PRODUCTS",
+    "columnName": "REORDER_LEVEL",
+    "dataType": "NUMBER",
+    "dataLength": 22,
+    "precision": 9,
+    "scale": 0
+  },
+  {
+    "tableName": "PRODUCTS",
+    "columnName": "UNITS_ON_ORDER",
+    "dataType": "NUMBER",
+    "dataLength": 22,
+    "precision": 9,
+    "scale": 0
+  },
+  {
+    "tableName": "PRODUCTS",
+    "columnName": "UNITS_IN_STOCK",
+    "dataType": "NUMBER",
+    "dataLength": 22,
+    "precision": 9,
+    "scale": 0
+  },
+  {
+    "tableName": "PRODUCTS",
+    "columnName": "UNIT_PRICE",
+    "dataType": "NUMBER",
+    "dataLength": 22,
+    "precision": 10,
+    "scale": 2
+  },
+  {
+    "tableName": "PRODUCTS",
+    "columnName": "QUANTITY_PER_UNIT",
+    "dataType": "VARCHAR2",
+    "dataLength": 20,
+    "precision": null,
+    "scale": null
+  },
+  {
+    "tableName": "PRODUCTS",
+    "columnName": "CATEGORY_ID",
+    "dataType": "NUMBER",
+    "dataLength": 22,
+    "precision": 9,
+    "scale": 0
+  },
+  {
+    "tableName": "PRODUCTS",
+    "columnName": "SUPPLIER_ID",
+    "dataType": "NUMBER",
+    "dataLength": 22,
+    "precision": 9,
+    "scale": 0
+  },
+  {
+    "tableName": "PRODUCTS",
+    "columnName": "PRODUCT_NAME",
+    "dataType": "VARCHAR2",
+    "dataLength": 40,
+    "precision": null,
+    "scale": null
+  },
+  {
+    "tableName": "PRODUCTS",
+    "columnName": "PRODUCT_ID",
+    "dataType": "NUMBER",
+    "dataLength": 22,
+    "precision": 9,
+    "scale": 0
+  },
+  {
+    "tableName": "ORDERS",
+    "columnName": "SHIP_COUNTRY",
+    "dataType": "VARCHAR2",
+    "dataLength": 15,
+    "precision": null,
+    "scale": null
+  },
+  {
+    "tableName": "ORDERS",
+    "columnName": "SHIP_POSTAL_CODE",
+    "dataType": "VARCHAR2",
+    "dataLength": 10,
+    "precision": null,
+    "scale": null
+  },
+  {
+    "tableName": "ORDERS",
+    "columnName": "SHIP_REGION",
+    "dataType": "VARCHAR2",
+    "dataLength": 15,
+    "precision": null,
+    "scale": null
+  },
+  {
+    "tableName": "ORDERS",
+    "columnName": "SHIP_CITY",
+    "dataType": "VARCHAR2",
+    "dataLength": 15,
+    "precision": null,
+    "scale": null
+  },
+  {
+    "tableName": "ORDERS",
+    "columnName": "SHIP_ADDRESS",
+    "dataType": "VARCHAR2",
+    "dataLength": 60,
+    "precision": null,
+    "scale": null
+  },
+  {
+    "tableName": "ORDERS",
+    "columnName": "SHIP_NAME",
+    "dataType": "VARCHAR2",
+    "dataLength": 40,
+    "precision": null,
+    "scale": null
+  },
+  {
+    "tableName": "ORDERS",
+    "columnName": "FREIGHT",
+    "dataType": "NUMBER",
+    "dataLength": 22,
+    "precision": 10,
+    "scale": 2
+  },
+  {
+    "tableName": "ORDERS",
+    "columnName": "SHIP_VIA",
+    "dataType": "NUMBER",
+    "dataLength": 22,
+    "precision": 9,
+    "scale": 0
+  },
+  {
+    "tableName": "ORDERS",
+    "columnName": "SHIPPED_DATE",
+    "dataType": "DATE",
+    "dataLength": 7,
+    "precision": null,
+    "scale": null
+  },
+  {
+    "tableName": "ORDERS",
+    "columnName": "REQUIRED_DATE",
+    "dataType": "DATE",
+    "dataLength": 7,
+    "precision": null,
+    "scale": null
+  },
+  {
+    "tableName": "ORDERS",
+    "columnName": "ORDER_DATE",
+    "dataType": "DATE",
+    "dataLength": 7,
+    "precision": null,
+    "scale": null
+  },
+  {
+    "tableName": "ORDERS",
+    "columnName": "EMPLOYEE_ID",
+    "dataType": "NUMBER",
+    "dataLength": 22,
+    "precision": 9,
+    "scale": 0
+  },
+  {
+    "tableName": "ORDERS",
+    "columnName": "CUSTOMER_ID",
+    "dataType": "NUMBER",
+    "dataLength": 22,
+    "precision": 9,
+    "scale": 0
+  },
+  {
+    "tableName": "ORDERS",
+    "columnName": "ORDER_ID",
+    "dataType": "NUMBER",
+    "dataLength": 22,
+    "precision": 9,
+    "scale": 0
+  },
+  {
+    "tableName": "ORDER_DETAILS",
+    "columnName": "DISCOUNT",
+    "dataType": "NUMBER",
+    "dataLength": 22,
+    "precision": 4,
+    "scale": 2
+  },
+  {
+    "tableName": "ORDER_DETAILS",
+    "columnName": "QUANTITY",
+    "dataType": "NUMBER",
+    "dataLength": 22,
+    "precision": 9,
+    "scale": 0
+  },
+  {
+    "tableName": "ORDER_DETAILS",
+    "columnName": "UNIT_PRICE",
+    "dataType": "NUMBER",
+    "dataLength": 22,
+    "precision": 10,
+    "scale": 2
+  },
+  {
+    "tableName": "ORDER_DETAILS",
+    "columnName": "PRODUCT_ID",
+    "dataType": "NUMBER",
+    "dataLength": 22,
+    "precision": 9,
+    "scale": 0
+  },
+  {
+    "tableName": "ORDER_DETAILS",
+    "columnName": "ORDER_ID",
+    "dataType": "NUMBER",
+    "dataLength": 22,
+    "precision": 9,
+    "scale": 0
+  },
+  {
+    "tableName": "EMPLOYEES",
+    "columnName": "REPORTS_TO",
+    "dataType": "NUMBER",
+    "dataLength": 22,
+    "precision": 9,
+    "scale": 0
+  },
+  {
+    "tableName": "EMPLOYEES",
+    "columnName": "NOTES",
+    "dataType": "VARCHAR2",
+    "dataLength": 2000,
+    "precision": null,
+    "scale": null
+  },
+  {
+    "tableName": "EMPLOYEES",
+    "columnName": "PHOTO",
+    "dataType": "VARCHAR2",
+    "dataLength": 255,
+    "precision": null,
+    "scale": null
+  },
+  {
+    "tableName": "EMPLOYEES",
+    "columnName": "EXTENSION",
+    "dataType": "VARCHAR2",
+    "dataLength": 4,
+    "precision": null,
+    "scale": null
+  },
+  {
+    "tableName": "EMPLOYEES",
+    "columnName": "HOME_PHONE",
+    "dataType": "VARCHAR2",
+    "dataLength": 24,
+    "precision": null,
+    "scale": null
+  },
+  {
+    "tableName": "EMPLOYEES",
+    "columnName": "COUNTRY",
+    "dataType": "VARCHAR2",
+    "dataLength": 15,
+    "precision": null,
+    "scale": null
+  },
+  {
+    "tableName": "EMPLOYEES",
+    "columnName": "POSTAL_CODE",
+    "dataType": "VARCHAR2",
+    "dataLength": 10,
+    "precision": null,
+    "scale": null
+  },
+  {
+    "tableName": "EMPLOYEES",
+    "columnName": "REGION",
+    "dataType": "VARCHAR2",
+    "dataLength": 15,
+    "precision": null,
+    "scale": null
+  },
+  {
+    "tableName": "EMPLOYEES",
+    "columnName": "CITY",
+    "dataType": "VARCHAR2",
+    "dataLength": 15,
+    "precision": null,
+    "scale": null
+  },
+  {
+    "tableName": "EMPLOYEES",
+    "columnName": "ADDRESS",
+    "dataType": "VARCHAR2",
+    "dataLength": 60,
+    "precision": null,
+    "scale": null
+  },
+  {
+    "tableName": "EMPLOYEES",
+    "columnName": "HIREDATE",
+    "dataType": "DATE",
+    "dataLength": 7,
+    "precision": null,
+    "scale": null
+  },
+  {
+    "tableName": "EMPLOYEES",
+    "columnName": "BIRTHDATE",
+    "dataType": "DATE",
+    "dataLength": 7,
+    "precision": null,
+    "scale": null
+  },
+  {
+    "tableName": "EMPLOYEES",
+    "columnName": "TITLE_OF_COURTESY",
+    "dataType": "VARCHAR2",
+    "dataLength": 25,
+    "precision": null,
+    "scale": null
+  },
+  {
+    "tableName": "EMPLOYEES",
+    "columnName": "TITLE",
+    "dataType": "VARCHAR2",
+    "dataLength": 30,
+    "precision": null,
+    "scale": null
+  },
+  {
+    "tableName": "EMPLOYEES",
+    "columnName": "FIRSTNAME",
+    "dataType": "VARCHAR2",
+    "dataLength": 10,
+    "precision": null,
+    "scale": null
+  },
+  {
+    "tableName": "EMPLOYEES",
+    "columnName": "LASTNAME",
+    "dataType": "VARCHAR2",
+    "dataLength": 20,
+    "precision": null,
+    "scale": null
+  },
+  {
+    "tableName": "EMPLOYEES",
+    "columnName": "EMPLOYEE_ID",
+    "dataType": "NUMBER",
+    "dataLength": 22,
+    "precision": 9,
+    "scale": 0
+  },
+  {
+    "tableName": "EMPLOYEES",
+    "columnName": "REPORTS_TO",
+    "dataType": "NUMBER",
+    "dataLength": 22,
+    "precision": 9,
+    "scale": 0
+  },
+  {
+    "tableName": "EMPLOYEES",
+    "columnName": "NOTES",
+    "dataType": "VARCHAR2",
+    "dataLength": 2000,
+    "precision": null,
+    "scale": null
+  },
+  {
+    "tableName": "EMPLOYEES",
+    "columnName": "PHOTO",
+    "dataType": "VARCHAR2",
+    "dataLength": 255,
+    "precision": null,
+    "scale": null
+  },
+  {
+    "tableName": "EMPLOYEES",
+    "columnName": "EXTENSION",
+    "dataType": "VARCHAR2",
+    "dataLength": 4,
+    "precision": null,
+    "scale": null
+  },
+  {
+    "tableName": "EMPLOYEES",
+    "columnName": "HOME_PHONE",
+    "dataType": "VARCHAR2",
+    "dataLength": 24,
+    "precision": null,
+    "scale": null
+  },
+  {
+    "tableName": "EMPLOYEES",
+    "columnName": "COUNTRY",
+    "dataType": "VARCHAR2",
+    "dataLength": 15,
+    "precision": null,
+    "scale": null
+  },
+  {
+    "tableName": "EMPLOYEES",
+    "columnName": "POSTAL_CODE",
+    "dataType": "VARCHAR2",
+    "dataLength": 10,
+    "precision": null,
+    "scale": null
+  },
+  {
+    "tableName": "EMPLOYEES",
+    "columnName": "REGION",
+    "dataType": "VARCHAR2",
+    "dataLength": 15,
+    "precision": null,
+    "scale": null
+  },
+  {
+    "tableName": "EMPLOYEES",
+    "columnName": "CITY",
+    "dataType": "VARCHAR2",
+    "dataLength": 15,
+    "precision": null,
+    "scale": null
+  },
+  {
+    "tableName": "EMPLOYEES",
+    "columnName": "ADDRESS",
+    "dataType": "VARCHAR2",
+    "dataLength": 60,
+    "precision": null,
+    "scale": null
+  },
+  {
+    "tableName": "EMPLOYEES",
+    "columnName": "HIREDATE",
+    "dataType": "DATE",
+    "dataLength": 7,
+    "precision": null,
+    "scale": null
+  },
+  {
+    "tableName": "EMPLOYEES",
+    "columnName": "BIRTHDATE",
+    "dataType": "DATE",
+    "dataLength": 7,
+    "precision": null,
+    "scale": null
+  },
+  {
+    "tableName": "EMPLOYEES",
+    "columnName": "TITLE_OF_COURTESY",
+    "dataType": "VARCHAR2",
+    "dataLength": 25,
+    "precision": null,
+    "scale": null
+  },
+  {
+    "tableName": "EMPLOYEES",
+    "columnName": "TITLE",
+    "dataType": "VARCHAR2",
+    "dataLength": 30,
+    "precision": null,
+    "scale": null
+  },
+  {
+    "tableName": "EMPLOYEES",
+    "columnName": "FIRSTNAME",
+    "dataType": "VARCHAR2",
+    "dataLength": 10,
+    "precision": null,
+    "scale": null
+  },
+  {
+    "tableName": "EMPLOYEES",
+    "columnName": "LASTNAME",
+    "dataType": "VARCHAR2",
+    "dataLength": 20,
+    "precision": null,
+    "scale": null
+  },
+  {
+    "tableName": "EMPLOYEES",
+    "columnName": "EMPLOYEE_ID",
+    "dataType": "NUMBER",
+    "dataLength": 22,
+    "precision": 9,
+    "scale": 0
+  }
+]

@@ -1,0 +1,74 @@
+[
+  {
+    "tableName": "customers",
+    "columnName": "id",
+    "constraintName": "PRIMARY",
+    "owner": null,
+    "fkTableName": null,
+    "fkColumnName": null,
+    "position": 1
+  },
+  {
+    "tableName": "customers",
+    "columnName": "email",
+    "constraintName": "email",
+    "owner": null,
+    "fkTableName": null,
+    "fkColumnName": null,
+    "position": 1
+  },
+  {
+    "tableName": "orders",
+    "columnName": "order_number",
+    "constraintName": "PRIMARY",
+    "owner": null,
+    "fkTableName": null,
+    "fkColumnName": null,
+    "position": 1
+  },
+  {
+    "tableName": "orders",
+    "columnName": "purchaser",
+    "constraintName": "orders_ibfk_1",
+    "owner": "inventory",
+    "fkTableName": "customers",
+    "fkColumnName": "id",
+    "position": 1
+  },
+  {
+    "tableName": "orders",
+    "columnName": "product_id",
+    "constraintName": "orders_ibfk_2",
+    "owner": "inventory",
+    "fkTableName": "products",
+    "fkColumnName": "id",
+    "position": 1
+  },
+  {
+    "tableName": "products",
+    "columnName": "id",
+    "constraintName": "PRIMARY",
+    "owner": null,
+    "fkTableName": null,
+    "fkColumnName": null,
+    "position": 1
+  },
+  {
+    "tableName": "products_on_hand",
+    "columnName": "product_id",
+    "constraintName": "PRIMARY",
+    "owner": null,
+    "fkTableName": null,
+    "fkColumnName": null,
+    "position": 1
+  },
+  {
+    "tableName": "products_on_hand",
+    "columnName": "product_id",
+    "constraintName": "products_on_hand_ibfk_1",
+    "owner": "inventory",
+    "fkTableName": "products",
+    "fkColumnName": "id",
+    "position": 1
+  }
+]

@@ -1,0 +1,348 @@
+{
+  "properties": {
+    "name": "MongoDB",
+    "icon": "icons/mongodb.png",
+    "doc" : "${doc}",
+    "tags" : ["schema-free"],
+    "id": "mongodb"
+  },
+  "configOptions": {
+    "capabilities": [
+      "master-slave-merge"
+    ],
+    "connection": {
+      "type": "object",
+      "properties": {
+        "isUri": {
+          "type": "boolean",
+          "title": "${isUri}",
+          "x-decorator": "FormItem",
+          "x-component": "Radio.Group",
+          "x-component-props": {
+            "optionType": "button"
+          },
+          "enum": [
+            {
+              "label": "${dataForm_form_options_URIMode}",
+              "value": true,
+              "disabled": false
+            },
+            {
+              "label": "${dataForm_form_options_standardMode}",
+              "value": false,
+              "disabled": false
+            }
+          ],
+          "default": true,
+          "x-reactions": [
+            {
+              "target": "*(host,database,user,password,additionalString)",
+              "fulfill": {
+                "state": {
+                  "visible": "{{$self.value===false}}"
+                }
+              }
+            },
+            {
+              "target": "uri",
+              "fulfill": {
+                "state": {
+                  "visible": "{{$self.value!==false}}"
+                }
+              }
+            }
+          ],
+          "required": true,
+          "x-index": 1
+        },
+        "uri": {
+          "type": "string",
+          "title": "${dataForm_form_databaseUri}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "apiServerKey": "database_uri",
+          "required": true,
+          "x-index": 2
+        },
+        "host": {
+          "type": "string",
+          "title": "${dataForm_form_host}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "x-component-props": {
+            "placeholder": "${connection_form_database_host_placeholder}"
+          },
+          "required": true,
+          "x-index": 3
+        },
+        "database": {
+          "type": "string",
+          "title": "${dataForm_form_databaseName}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "required": true,
+          "x-index": 4
+        },
+        "user": {
+          "type": "string",
+          "title": "${dataForm_form_userName}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "x-index": 5
+        },
+        "password": {
+          "type": "string",
+          "title": "${dataForm_form_password}",
+          "x-decorator": "FormItem",
+          "x-component": "Password",
+          "x-index": 6
+        },
+        "additionalString": {
+          "type": "string",
+          "title": "${dataForm_form_additionalString}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "x-index": 7
+        },
+        "ssl": {
+          "type": "boolean",
+          "title": "${dataForm_form_ssl}",
+          "x-decorator": "FormItem",
+          "x-component": "Radio.Group",
+          "x-component-props": {
+            "optionType": "button"
+          },
+          "default": false,
+          "x-index": 8,
+          "enum": [
+            {
+              "label": "${dataForm_form_options_sslTSL}",
+              "value": true
+            },
+            {
+              "label": "${dataForm_form_options_sslTop}",
+              "value": false
+            }
+          ],
+          "x-reactions": [
+            {
+              "target": "*(sslKey,sslPass,sslValidate)",
+              "fulfill": {
+                "state": {
+                  "visible": "{{$self.value===true}}"
+                }
+              }
+            }
+          ]
+        },
+        "sslKey": {
+          "type": "string",
+          "title": "${dataForm_form_sslKey}",
+          "x-decorator": "FormItem",
+          "x-component": "TextFileReader",
+          "fileNameField": "sslKeyFile",
+          "required": true,
+          "x-index": 9
+        },
+        "sslPass": {
+          "type": "string",
+          "title": "${dataForm_form_sslPass}",
+          "x-decorator": "FormItem",
+          "x-component": "Password",
+          "x-index": 10
+        },
+        "sslValidate": {
+          "type": "boolean",
+          "title": "${dataForm_form_sslValidate}",
+          "x-decorator": "FormItem",
+          "x-component": "Switch",
+          "show": false,
+          "x-reactions": [
+            {
+              "target": "sslCA",
+              "fulfill": {
+                "state": {
+                  "visible": "{{$self.value===true}}"
+                }
+              }
+            }
+          ],
+          "x-index": 11
+        },
+        "sslCA": {
+          "type": "string",
+          "title": "${dataForm_form_sslCA}",
+          "x-decorator": "FormItem",
+          "x-component": "TextFileReader",
+          "fileNameField": "sslCAFile",
+          "required": true,
+          "x-index": 12
+        }
+      }
+    }
+  },
+  "messages": {
+    "default": "en_US",
+    "en_US": {
+      "doc": "docs/mongodb_zh_CN.md",
+      "isUri": "Connection method",
+      "dataForm_form_options_URIMode": "URI Mode",
+      "dataForm_form_options_standardMode": "Standard Mode",
+      "dataForm_form_databaseUri": "Database URI",
+      "dataForm_form_host": "Database address",
+      "connection_form_database_host_placeholder": "Please enter the database address",
+      "dataForm_form_databaseName": "Database name",
+      "dataForm_form_userName": "Account",
+      "dataForm_form_password": "password",
+      "dataForm_form_additionalString": "Other connection string parameters",
+      "dataForm_form_ssl": "Connect using TLS/SSL",
+      "dataForm_form_options_sslTSL": "TSL/SSL connection",
+      "dataForm_form_options_sslTop": "Direct connection",
+      "dataForm_form_sslKey": "Client private key",
+      "dataForm_form_sslPass": "Private key password",
+      "dataForm_form_sslValidate": "Validate server certificate",
+      "dataForm_form_sslCA": "Certificate Authority"
+    },
+    "zh_CN": {
+      "doc": "docs/mongodb_zh_CN.md",
+      "isUri": "连接方式",
+      "dataForm_form_options_URIMode": "URI模式",
+      "dataForm_form_options_standardMode": "标准模式",
+      "dataForm_form_databaseUri": "数据库 URI",
+      "dataForm_form_host": "数据库地址",
+      "connection_form_database_host_placeholder": "请输入数据库地址",
+      "dataForm_form_databaseName": "数据库名称",
+      "dataForm_form_userName": "账号",
+      "dataForm_form_password": "密码",
+      "dataForm_form_additionalString": "其他连接串参数",
+      "dataForm_form_ssl": "使用 TLS/SSL 连接",
+      "dataForm_form_options_sslTSL": "TSL/SSL连接",
+      "dataForm_form_options_sslTop": "直接连接",
+      "dataForm_form_sslKey": "客户端私钥",
+      "dataForm_form_sslPass": "私钥密码",
+      "dataForm_form_sslValidate": "验证服务端证书",
+      "dataForm_form_sslCA": "证书颁发机构"
+    },
+    "zh_TW": {
+      "doc": "docs/mongodb_zh_CN.md",
+      "isUri": "連接方式",
+      "dataForm_form_options_URIMode": "URI模式",
+      "dataForm_form_options_standardMode": "標準模式",
+      "dataForm_form_databaseUri": "數據庫 URI",
+      "dataForm_form_host": "數據庫地址",
+      "connection_form_database_host_placeholder": "請輸入數據庫地址",
+      "dataForm_form_databaseName": "數據庫名稱",
+      "dataForm_form_userName": "賬號",
+      "dataForm_form_password": "密碼",
+      "dataForm_form_additionalString": "其他連接串參數",
+      "dataForm_form_ssl": "使用 TLS/SSL 連接",
+      "dataForm_form_options_sslTSL": "TSL/SSL連接",
+      "dataForm_form_options_sslTop": "直接連接",
+      "dataForm_form_sslKey": "客戶端私鑰",
+      "dataForm_form_sslPass": "私鑰密碼",
+      "dataForm_form_sslValidate": "驗證服務端證書",
+      "dataForm_form_sslCA": "證書頒發機構"
+    }
+  },
+  "dataTypes": {
+    "DOUBLE": {
+      "to": "TapNumber",
+      "value": [
+        "-1.7976931348623157E+308",
+        "1.7976931348623157E+308"
+      ],
+      "scale": 17,
+      "precision": 309
+    },
+    "STRING": {
+      "to": "TapString",
+      "preferByte": "100",
+      "byte": "16m"
+    },
+    "DOCUMENT": {
+      "to": "TapMap",
+      "byte": "16m"
+    },
+    "ARRAY": {
+      "to": "TapArray",
+      "byte": "16m"
+    },
+    "BINARY": {
+      "to": "TapBinary",
+      "byte": "16m"
+    },
+    "OBJECT_ID": {
+      "to": "TapString",
+      "byte": "24",
+      "queryOnly": true
+    },
+    "BOOLEAN": {
+      "to": "TapBoolean"
+    },
+    "DATE_TIME": {
+      "to": "TapDateTime",
+      "range": [
+        "1000-01-01T00:00:00.001Z",
+        "9999-12-31T23:59:59.999Z"
+      ],
+      "pattern": "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'",
+      "fraction": [
+        0,
+        3
+      ],
+      "defaultFraction": 3
+    },
+    "JAVASCRIPT": {
+      "to": "TapString",
+      "byte": "16m",
+      "queryOnly": true
+    },
+    "SYMBOL": {
+      "to": "TapString",
+      "byte": "16m",
+      "queryOnly": true
+    },
+    "INT32": {
+      "to": "TapNumber",
+      "bit": 32,
+      "precision": 10,
+      "value": [
+        -2147483648,
+        2147483647
+      ]
+    },
+    "TIMESTAMP": {
+      "to": "TapString",
+      "queryOnly": true
+    },
+    "INT64": {
+      "to": "TapNumber",
+      "bit": 64,
+      "value": [
+        -9223372036854775808,
+        9223372036854775807
+      ]
+    },
+    "DECIMAL128": {
+      "to": "TapNumber",
+      "value": [
+        -1E+6145,
+        1E+6145
+      ],
+      "scale": 1000
+    },
+    "MIN_KEY": {
+      "to": "TapString",
+      "byte": "16m",
+      "queryOnly": true
+    },
+    "MAX_KEY": {
+      "to": "TapString",
+      "byte": "16m",
+      "queryOnly": true
+    },
+    "NULL": {
+      "to": "TapRaw"
+    }
+  }
+}

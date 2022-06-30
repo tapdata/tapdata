@@ -1,0 +1,56 @@
+[
+  {
+    "tableName": "CATEGORIES",
+    "columnName": "CATEGORY_ID",
+    "constraintName": "PK_CATEGORIES",
+    "position": 1
+  },
+  {
+    "tableName": "CUSTOMERS",
+    "columnName": "CUSTOMER_ID",
+    "constraintName": "PK_CUSTOMERS",
+    "position": 1
+  },
+  {
+    "tableName": "EMPLOYEES",
+    "columnName": "EMPLOYEE_ID",
+    "constraintName": "PK_EMPLOYEES",
+    "position": 1
+  },
+  {
+    "tableName": "SUPPLIERS",
+    "columnName": "SUPPLIER_ID",
+    "constraintName": "PK_SUPPLIERS",
+    "position": 1
+  },
+  {
+    "tableName": "SHIPPERS",
+    "columnName": "SHIPPER_ID",
+    "constraintName": "PK_SHIPPERS",
+    "position": 1
+  },
+  {
+    "tableName": "PRODUCTS",
+    "columnName": "PRODUCT_ID",
+    "constraintName": "PK_PRODUCTS",
+    "position": 1
+  },
+  {
+    "tableName": "ORDERS",
+    "columnName": "ORDER_ID",
+    "constraintName": "PK_ORDERS",
+    "position": 1
+  },
+  {
+    "tableName": "ORDER_DETAILS",
+    "columnName": "PRODUCT_ID",
+    "constraintName": "PK_ORDER_DETAILS",
+    "position": 2
+  },
+  {
+    "tableName": "ORDER_DETAILS",
+    "columnName": "ORDER_ID",
+    "constraintName": "PK_ORDER_DETAILS",
+    "position": 1
+  }
+]

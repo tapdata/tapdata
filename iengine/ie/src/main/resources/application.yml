@@ -1,0 +1,16 @@
+spring:
+  data:
+    mongodb:
+      uri: mongodb://mongo:27017/tapdata
+      ssl: false
+      sslCA: ""
+      sslCertKey: ""
+      conn_params: ""
+
+tapdata:
+  cloud:
+    accessCode: <ACCESS_CODE>
+    retryTime: 3
+    baseURLs:
+      http://127.0.0.1:3030/api/
+  mode: cluster  #cluster/singleton

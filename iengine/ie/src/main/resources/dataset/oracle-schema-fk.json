@@ -1,0 +1,90 @@
+[
+  {
+    "tableName": "ORDER_DETAILS",
+    "columnName": "PRODUCT_ID",
+    "constraintName": "FK_PRODUCT_ID",
+    "position": 1,
+    "fkTableName": "PRODUCTS",
+    "fkColumnName": "PRODUCT_ID"
+  },
+  {
+    "tableName": "ORDER_DETAILS",
+    "columnName": "ORDER_ID",
+    "constraintName": "FK_ORDER_ID",
+    "position": 1,
+    "fkTableName": "ORDERS",
+    "fkColumnName": "ORDER_ID"
+  },
+  {
+    "tableName": "ORDERS",
+    "columnName": "SHIP_VIA",
+    "constraintName": "FK_SHIPPER_ID",
+    "position": 1,
+    "fkTableName": "SHIPPERS",
+    "fkColumnName": "SHIPPER_ID"
+  },
+  {
+    "tableName": "ORDERS",
+    "columnName": "EMPLOYEE_ID",
+    "constraintName": "FK_EMPLOYEE_ID",
+    "position": 1,
+    "fkTableName": "EMPLOYEES",
+    "fkColumnName": "EMPLOYEE_ID"
+  },
+  {
+    "tableName": "ORDERS",
+    "columnName": "CUSTOMER_ID",
+    "constraintName": "FK_CUSTOMER_ID",
+    "position": 1,
+    "fkTableName": "CUSTOMERS",
+    "fkColumnName": "CUSTOMER_ID"
+  },
+  {
+    "tableName": "PRODUCTS",
+    "columnName": "SUPPLIER_ID",
+    "constraintName": "FK_SUPPLIER_ID",
+    "position": 1,
+    "fkTableName": "SUPPLIERS",
+    "fkColumnName": "SUPPLIER_ID"
+  },
+  {
+    "tableName": "PRODUCTS",
+    "columnName": "CATEGORY_ID",
+    "constraintName": "FK_CATEGORY_ID",
+    "position": 1,
+    "fkTableName": "CATEGORIES",
+    "fkColumnName": "CATEGORY_ID"
+  },
+  {
+    "tableName": "EMPLOYEES",
+    "columnName": "REPORTS_TO",
+    "constraintName": "FK_REPORTS_TO",
+    "position": 1,
+    "fkTableName": "EMPLOYEES",
+    "fkColumnName": "EMPLOYEE_ID"
+  },
+  {
+    "tableName": "EMPLOYEES",
+    "columnName": "MANAGER_ID",
+    "constraintName": "EMP_MANAGER_FK",
+    "position": 1,
+    "fkTableName": "EMPLOYEES",
+    "fkColumnName": "EMPLOYEE_ID"
+  },
+  {
+    "tableName": "EMPLOYEES",
+    "columnName": "JOB_ID",
+    "constraintName": "EMP_JOB_FK",
+    "position": 1,
+    "fkTableName": "JOBS",
+    "fkColumnName": "JOB_ID"
+  },
+  {
+    "tableName": "EMPLOYEES",
+    "columnName": "DEPARTMENT_ID",
+    "constraintName": "EMP_DEPT_FK",
+    "position": 1,
+    "fkTableName": "DEPARTMENTS",
+    "fkColumnName": "DEPARTMENT_ID"
+  }
+]

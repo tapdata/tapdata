@@ -1,0 +1,7 @@
+{
+  "connection": {
+    "uri": "mongodb://localhost:27017/sample_training"
+  },
+  "node": {
+  }
+}

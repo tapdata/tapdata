@@ -1,0 +1,1 @@
+{"options":{},"indexes":[{"v":2,"key":{"_id":1},"name":"_id_","ns":"tapdata.InspectResult"},{"v":2,"key":{"ttlTime":1},"name":"ttlTime_1","ns":"tapdata.InspectResult","expireAfterSeconds":15552000,"background":true}],"uuid":"70369d8c64fe46b5be30c58fe598ebac"}

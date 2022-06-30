@@ -1,0 +1,14 @@
+package ${path};
+
+import lombok.Data;
+import lombok.EqualsAndHashCode;
+${importClass}
+
+/**
+ * ${Description}
+ */
+@EqualsAndHashCode(callSuper = true)
+@Data
+public class ${name} extends BaseDto {
+${fields}
+}

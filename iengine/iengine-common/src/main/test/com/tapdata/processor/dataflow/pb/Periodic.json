@@ -1,0 +1,914 @@
+{
+  "name": "Unit",
+  "nestedList": [
+    {
+      "name": "TargetsObject",
+      "propertyList": [
+        {
+          "label": "optional",
+          "name": "density",
+          "number": 1,
+          "type": "string"
+        },
+        {
+          "label": "optional",
+          "name": "contentLength",
+          "number": 2,
+          "type": "string"
+        },
+        {
+          "label": "repeated",
+          "name": "targetsObjectData",
+          "number": 3,
+          "type": "TargetsObjectData"
+        }
+      ],
+      "nestedList": [
+        {
+          "name": "TargetsObjectData",
+          "propertyList": [
+            {
+              "label": "optional",
+              "name": "targetObjectNum",
+              "number": 1,
+              "type": "string"
+            },
+            {
+              "label": "repeated",
+              "name": "targetObject",
+              "number": 2,
+              "type": "TargetObject"
+            }
+          ],
+          "nestedList": [
+            {
+              "name": "TargetObject",
+              "propertyList": [
+                {
+                  "label": "optional",
+                  "name": "type",
+                  "number": 1,
+                  "type": "string"
+                },
+                {
+                  "label": "optional",
+                  "name": "riskStatus",
+                  "number": 2,
+                  "type": "string"
+                },
+                {
+                  "label": "optional",
+                  "name": "relativeLateralPosition",
+                  "number": 3,
+                  "type": "string"
+                },
+                {
+                  "label": "optional",
+                  "name": "relativeLongitudinalPosition",
+                  "number": 4,
+                  "type": "string"
+                },
+                {
+                  "label": "optional",
+                  "name": "relativeLateralVelocity",
+                  "number": 5,
+                  "type": "string"
+                },
+                {
+                  "label": "optional",
+                  "name": "relativeLongitudinalVelocity",
+                  "number": 6,
+                  "type": "string"
+                },
+                {
+                  "label": "optional",
+                  "name": "length",
+                  "number": 7,
+                  "type": "string"
+                },
+                {
+                  "label": "optional",
+                  "name": "height",
+                  "number": 8,
+                  "type": "string"
+                },
+                {
+                  "label": "optional",
+                  "name": "width",
+                  "number": 9,
+                  "type": "string"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Position",
+      "propertyList": [
+        {
+          "label": "optional",
+          "name": "density",
+          "number": 1,
+          "type": "string"
+        },
+        {
+          "label": "optional",
+          "name": "contentLength",
+          "number": 2,
+          "type": "string"
+        },
+        {
+          "label": "repeated",
+          "name": "positionData",
+          "number": 3,
+          "type": "PositionData"
+        }
+      ],
+      "nestedList": [
+        {
+          "name": "PositionData",
+          "propertyList": [
+            {
+              "label": "optional",
+              "name": "longitude",
+              "number": 1,
+              "type": "string"
+            },
+            {
+              "label": "optional",
+              "name": "latitude",
+              "number": 2,
+              "type": "string"
+            },
+            {
+              "label": "optional",
+              "name": "height",
+              "number": 3,
+              "type": "string"
+            },
+            {
+              "label": "optional",
+              "name": "validMark",
+              "number": 4,
+              "type": "string"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Decision",
+      "propertyList": [
+        {
+          "label": "optional",
+          "name": "density",
+          "number": 1,
+          "type": "string"
+        },
+        {
+          "label": "optional",
+          "name": "contentLength",
+          "number": 2,
+          "type": "string"
+        },
+        {
+          "label": "repeated",
+          "name": "decisionData",
+          "number": 3,
+          "type": "DecisionData"
+        }
+      ],
+      "nestedList": [
+        {
+          "name": "DecisionData",
+          "propertyList": [
+            {
+              "label": "optional",
+              "name": "gear",
+              "number": 1,
+              "type": "string"
+            },
+            {
+              "label": "optional",
+              "name": "acceleratorPedal",
+              "number": 2,
+              "type": "string"
+            },
+            {
+              "label": "optional",
+              "name": "brakePedal",
+              "number": 3,
+              "type": "string"
+            },
+            {
+              "label": "optional",
+              "name": "steeringAngle",
+              "number": 4,
+              "type": "string"
+            },
+            {
+              "label": "optional",
+              "name": "adReqGear",
+              "number": 5,
+              "type": "string"
+            },
+            {
+              "label": "optional",
+              "name": "adSysReqRelativeLateralVelocity",
+              "number": 6,
+              "type": "string"
+            },
+            {
+              "label": "optional",
+              "name": "adSysReqRelativeLongitudinalVelocity",
+              "number": 7,
+              "type": "string"
+            },
+            {
+              "label": "optional",
+              "name": "adSysReqSteeringAngle",
+              "number": 8,
+              "type": "string"
+            },
+            {
+              "label": "optional",
+              "name": "adSysReqSteeringTorque",
+              "number": 9,
+              "type": "string"
+            },
+            {
+              "label": "optional",
+              "name": "adSysReqLongitudinalMoment",
+              "number": 10,
+              "type": "string"
+            },
+            {
+              "label": "optional",
+              "name": "adSysReqFlashLampStatus",
+              "number": 11,
+              "type": "string"
+            },
+            {
+              "label": "optional",
+              "name": "adSysReqWiperStatus",
+              "number": 12,
+              "type": "string"
+            },
+            {
+              "label": "optional",
+              "name": "driverTakeOverAbility",
+              "number": 13,
+              "type": "string"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "VehiclePerformance",
+      "propertyList": [
+        {
+          "label": "optional",
+          "name": "density",
+          "number": 1,
+          "type": "string"
+        },
+        {
+          "label": "optional",
+          "name": "contentLength",
+          "number": 2,
+          "type": "string"
+        },
+        {
+          "label": "repeated",
+          "name": "vehiclePerformanceData",
+          "number": 3,
+          "type": "VehiclePerformanceData"
+        }
+      ],
+      "nestedList": [
+        {
+          "name": "VehiclePerformanceData",
+          "propertyList": [
+            {
+              "label": "optional",
+              "name": "instantaneousVelocity",
+              "number": 1,
+              "type": "string"
+            },
+            {
+              "label": "optional",
+              "name": "lateralAcceleration",
+              "number": 2,
+              "type": "string"
+            },
+            {
+              "label": "optional",
+              "name": "longitudinalAcceleration",
+              "number": 3,
+              "type": "string"
+            },
+            {
+              "label": "optional",
+              "name": "headingAngle",
+              "number": 4,
+              "type": "string"
+            },
+            {
+              "label": "optional",
+              "name": "yawRate",
+              "number": 5,
+              "type": "string"
+            },
+            {
+              "label": "optional",
+              "name": "rollSpeed",
+              "number": 6,
+              "type": "string"
+            },
+            {
+              "label": "optional",
+              "name": "pitchAngularVelocity",
+              "number": 7,
+              "type": "string"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "SendingDataExternally",
+      "propertyList": [
+        {
+          "label": "optional",
+          "name": "density",
+          "number": 1,
+          "type": "string"
+        },
+        {
+          "label": "optional",
+          "name": "contentLength",
+          "number": 2,
+          "type": "string"
+        },
+        {
+          "label": "repeated",
+          "name": "sendingDataExternallyData",
+          "number": 3,
+          "type": "SendingDataExternallyData"
+        }
+      ],
+      "nestedList": [
+        {
+          "name": "SendingDataExternallyData",
+          "propertyList": [
+            {
+              "label": "optional",
+              "name": "id",
+              "number": 1,
+              "type": "string"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "RoadInfo",
+      "propertyList": [
+        {
+          "label": "optional",
+          "name": "density",
+          "number": 1,
+          "type": "string"
+        },
+        {
+          "label": "optional",
+          "name": "contentLength",
+          "number": 2,
+          "type": "string"
+        },
+        {
+          "label": "repeated",
+          "name": "roadInfoData",
+          "number": 3,
+          "type": "RoadInfoData"
+        }
+      ],
+      "nestedList": [
+        {
+          "name": "RoadInfoData",
+          "propertyList": [
+            {
+              "label": "optional",
+              "name": "trafficSigns",
+              "number": 1,
+              "type": "string"
+            },
+            {
+              "label": "optional",
+              "name": "laneNumber",
+              "number": 2,
+              "type": "string"
+            },
+            {
+              "label": "optional",
+              "name": "laneType",
+              "number": 3,
+              "type": "string"
+            },
+            {
+              "label": "optional",
+              "name": "roadSpeedLimit",
+              "number": 4,
+              "type": "string"
+            },
+            {
+              "label": "optional",
+              "name": "abnormalRoadConditions",
+              "number": 5,
+              "type": "string"
+            },
+            {
+              "label": "optional",
+              "name": "trafficControlInfo",
+              "number": 6,
+              "type": "string"
+            },
+            {
+              "label": "optional",
+              "name": "frontSignalSign",
+              "number": 7,
+              "type": "string"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Environment",
+      "propertyList": [
+        {
+          "label": "optional",
+          "name": "density",
+          "number": 1,
+          "type": "string"
+        },
+        {
+          "label": "optional",
+          "name": "contentLength",
+          "number": 2,
+          "type": "string"
+        },
+        {
+          "label": "repeated",
+          "name": "environmentData",
+          "number": 3,
+          "type": "EnvironmentData"
+        }
+      ],
+      "nestedList": [
+        {
+          "name": "EnvironmentData",
+          "propertyList": [
+            {
+              "label": "optional",
+              "name": "externalLightInfo",
+              "number": 1,
+              "type": "string"
+            },
+            {
+              "label": "optional",
+              "name": "weatherInfo",
+              "number": 2,
+              "type": "string"
+            },
+            {
+              "label": "optional",
+              "name": "externalTemperatureInfo",
+              "number": 3,
+              "type": "string"
+            },
+            {
+              "label": "optional",
+              "name": "externalHumidityInfo",
+              "number": 4,
+              "type": "string"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "VehicleStatus",
+      "propertyList": [
+        {
+          "label": "optional",
+          "name": "density",
+          "number": 1,
+          "type": "string"
+        },
+        {
+          "label": "optional",
+          "name": "contentLength",
+          "number": 2,
+          "type": "string"
+        },
+        {
+          "label": "repeated",
+          "name": "vehicleStatusData",
+          "number": 3,
+          "type": "VehicleStatusData"
+        }
+      ],
+      "nestedList": [
+        {
+          "name": "VehicleStatusData",
+          "propertyList": [
+            {
+              "label": "optional",
+              "name": "powerOnStatus",
+              "number": 1,
+              "type": "string"
+            },
+            {
+              "label": "optional",
+              "name": "controlModel",
+              "number": 2,
+              "type": "string"
+            },
+            {
+              "label": "optional",
+              "name": "dynamicModel",
+              "number": 3,
+              "type": "string"
+            },
+            {
+              "label": "optional",
+              "name": "chargeStatus",
+              "number": 4,
+              "type": "string"
+            },
+            {
+              "label": "optional",
+              "name": "gear",
+              "number": 5,
+              "type": "string"
+            },
+            {
+              "label": "optional",
+              "name": "brakingStatus",
+              "number": 6,
+              "type": "string"
+            },
+            {
+              "label": "optional",
+              "name": "lightSwitch",
+              "number": 7,
+              "type": "string"
+            },
+            {
+              "label": "optional",
+              "name": "batterySoh",
+              "number": 8,
+              "type": "string"
+            },
+            {
+              "label": "optional",
+              "name": "currentOilVolume",
+              "number": 9,
+              "type": "string"
+            },
+            {
+              "label": "optional",
+              "name": "currentCapacity",
+              "number": 10,
+              "type": "string"
+            },
+            {
+              "label": "optional",
+              "name": "accumulatedMileage",
+              "number": 11,
+              "type": "string"
+            },
+            {
+              "label": "optional",
+              "name": "wiperStatus",
+              "number": 12,
+              "type": "string"
+            },
+            {
+              "label": "optional",
+              "name": "networkShape",
+              "number": 13,
+              "type": "string"
+            },
+            {
+              "label": "optional",
+              "name": "signalStrengthLevel",
+              "number": 14,
+              "type": "string"
+            },
+            {
+              "label": "optional",
+              "name": "uplinkRate",
+              "number": 15,
+              "type": "string"
+            },
+            {
+              "label": "optional",
+              "name": "downlinkRate",
+              "number": 16,
+              "type": "string"
+            },
+            {
+              "label": "optional",
+              "name": "afs",
+              "number": 17,
+              "type": "string"
+            },
+            {
+              "label": "optional",
+              "name": "esc",
+              "number": 18,
+              "type": "string"
+            },
+            {
+              "label": "optional",
+              "name": "dcBusVoltage",
+              "number": 19,
+              "type": "string"
+            },
+            {
+              "label": "optional",
+              "name": "igbtTemperature",
+              "number": 20,
+              "type": "string"
+            },
+            {
+              "label": "optional",
+              "name": "threePhaseCurrent",
+              "number": 21,
+              "type": "string"
+            },
+            {
+              "label": "optional",
+              "name": "coolantFlow",
+              "number": 22,
+              "type": "string"
+            },
+            {
+              "label": "optional",
+              "name": "coolantTemperature",
+              "number": 23,
+              "type": "string"
+            },
+            {
+              "label": "optional",
+              "name": "allChargeAndDischargeValue",
+              "number": 24,
+              "type": "string"
+            },
+            {
+              "label": "optional",
+              "name": "thermalRunawayState",
+              "number": 25,
+              "type": "string"
+            },
+            {
+              "label": "optional",
+              "name": "equalizingCellStatus",
+              "number": 26,
+              "type": "string"
+            },
+            {
+              "label": "optional",
+              "name": "currentSignal",
+              "number": 27,
+              "type": "string"
+            },
+            {
+              "label": "optional",
+              "name": "cellVoltageSignal",
+              "number": 28,
+              "type": "string"
+            },
+            {
+              "label": "optional",
+              "name": "batteryTemperature",
+              "number": 29,
+              "type": "string"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Personnel",
+      "propertyList": [
+        {
+          "label": "optional",
+          "name": "density",
+          "number": 1,
+          "type": "string"
+        },
+        {
+          "label": "optional",
+          "name": "contentLength",
+          "number": 2,
+          "type": "string"
+        },
+        {
+          "label": "repeated",
+          "name": "personnelData",
+          "number": 3,
+          "type": "PersonnelData"
+        }
+      ],
+      "nestedList": [
+        {
+          "name": "PersonnelData",
+          "propertyList": [
+            {
+              "label": "optional",
+              "name": "seatBeltStatus",
+              "number": 1,
+              "type": "string"
+            },
+            {
+              "label": "optional",
+              "name": "steeringWheelStatus",
+              "number": 2,
+              "type": "string"
+            },
+            {
+              "label": "optional",
+              "name": "driverSeatStatus",
+              "number": 3,
+              "type": "string"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "VehicleComponent",
+      "propertyList": [
+        {
+          "label": "optional",
+          "name": "density",
+          "number": 1,
+          "type": "string"
+        },
+        {
+          "label": "optional",
+          "name": "contentLength",
+          "number": 2,
+          "type": "string"
+        },
+        {
+          "label": "repeated",
+          "name": "vehicleComponentData",
+          "number": 3,
+          "type": "VehicleComponentData"
+        }
+      ],
+      "nestedList": [
+        {
+          "name": "VehicleComponentData",
+          "propertyList": [
+            {
+              "label": "optional",
+              "name": "airbagStatus",
+              "number": 1,
+              "type": "string"
+            },
+            {
+              "label": "optional",
+              "name": "gnssStatus",
+              "number": 2,
+              "type": "string"
+            },
+            {
+              "label": "optional",
+              "name": "imuStatus",
+              "number": 3,
+              "type": "string"
+            },
+            {
+              "label": "optional",
+              "name": "drivingAutomationSystemStatus",
+              "number": 4,
+              "type": "string"
+            },
+            {
+              "label": "optional",
+              "name": "highPrecisionMapStatus",
+              "number": 5,
+              "type": "string"
+            },
+            {
+              "label": "optional",
+              "name": "obuStatus",
+              "number": 6,
+              "type": "string"
+            },
+            {
+              "label": "optional",
+              "name": "cameraStatus",
+              "number": 7,
+              "type": "string"
+            },
+            {
+              "label": "optional",
+              "name": "lidarStatus",
+              "number": 8,
+              "type": "string"
+            },
+            {
+              "label": "optional",
+              "name": "ultrasonicRadarStatus",
+              "number": 9,
+              "type": "string"
+            },
+            {
+              "label": "optional",
+              "name": "millimeterWaveRadarStatus",
+              "number": 10,
+              "type": "string"
+            },
+            {
+              "label": "optional",
+              "name": "nightVisionSystemStatus",
+              "number": 11,
+              "type": "string"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "propertyList": [
+    {
+      "label": "optional",
+      "name": "targetsObject",
+      "number": 1,
+      "type": "TargetsObject"
+    },
+    {
+      "label": "optional",
+      "name": "position",
+      "number": 2,
+      "type": "Position"
+    },
+    {
+      "label": "optional",
+      "name": "decision",
+      "number": 3,
+      "type": "Decision"
+    },
+    {
+      "label": "optional",
+      "name": "vehiclePerformance",
+      "number": 4,
+      "type": "VehiclePerformance"
+    },
+    {
+      "label": "optional",
+      "name": "sendingDataExternally",
+      "number": 5,
+      "type": "SendingDataExternally"
+    },
+    {
+      "label": "optional",
+      "name": "roadInfo",
+      "number": 6,
+      "type": "RoadInfo"
+    },
+    {
+      "label": "optional",
+      "name": "environment",
+      "number": 7,
+      "type": "Environment"
+    },
+    {
+      "label": "optional",
+      "name": "vehicleStatus",
+      "number": 8,
+      "type": "VehicleStatus"
+    },
+    {
+      "label": "optional",
+      "name": "personnel",
+      "number": 9,
+      "type": "Personnel"
+    },
+    {
+      "label": "optional",
+      "name": "vehicleComponent",
+      "number": 10,
+      "type": "VehicleComponent"
+    }
+  ]
+}
