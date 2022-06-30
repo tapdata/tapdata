@@ -5,14 +5,21 @@
 Tapdata is a live data platform designed to connect data silos and provide fresh data to the downstream operational applications & operational analytics. 
 
 ## Quick Start
-Please make user you have Docker running on your env, before all things started
+Please make sure you have Docker installed on your machine before you get starated. 
 
-only linux system is tested until now
+Currently we only tested on linux OS(No specific flavor requirement).
+ 
+### Quick Use
 
-### Quick Usage
-1. run `bash build/quick-use.sh` will pull and start a all in one container
+This is the easiest way to experiment Tapdata:
 
-### Quick Dev
+  run `bash build/quick-use.sh` will pull docker image and start an all-inone container
+
+
+### Quick Build
+
+Alternatively, you may build the project using following command: 
+
 1. run `bash build/quick-dev.sh` will build a docker image from source and start a all in one container
 
 If you want to build in docker, please install docker and set build/env.sh tapdata_build_env to "docker" (default)
@@ -25,7 +32,8 @@ set build/env.sh tapdata_build_env to "local"
 run `bash build/clean.sh` If you want to clean build target
 
 ### Quick Steps
-If everything is ok, now you are in a terminal window, follow next steps, have a try!
+
+If everything is ok, now you should be in a terminal window, follow next steps, have a try!
 
 #### Create New DataSource
 ```
