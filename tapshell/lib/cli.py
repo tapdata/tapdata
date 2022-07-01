@@ -2990,6 +2990,7 @@ class DataSource():
     @help_decorate("get a datasource status", "")
     def status(self, quiet=True):
         c = self.c
+        print(c)
         if c is None:
             logger.warn("the status is None. please check the name or connector")
             return
@@ -3227,7 +3228,7 @@ class DataSource():
 class MongoDB(DataSource):
     def __init__(self, name):
         self.connector = "mongodb"
-        super().__init__(name)
+        super().__init__(name=name, connector="mongodb")
 
     def uri(self, url):
         self.url = url
@@ -3238,7 +3239,7 @@ class MongoDB(DataSource):
 class Mysql(DataSource):
     def __init__(self, name):
         self.connector = "mysql"
-        super().__init__(name)
+        super().__init__(name=name, connector="mysql")
 
     def to_dict(self):
         base_dict = super().to_dict()
@@ -3251,14 +3252,15 @@ class Mysql(DataSource):
 
 class Postgres(DataSource):
     def __init__(self, name):
-        self.connector = "postgres"
-        super().__init__(name)
+        self.connector = "postgresql"
+        self._log_decorder_plugin = ""
+        super().__init__(connector="postgresql", name=name)
 
     def schema(self, schema):
         self.schema = schema
         return self
 
-    def log_decorder_plugin(self, plugin):
+    def set_log_decorder_plugin(self, plugin):
         self.log_decorder_plugin = plugin
         return self
 
@@ -3268,10 +3270,10 @@ class Postgres(DataSource):
         port = base_dict["database_host"].split(":")[1]
         base_dict["database_host"] = host
         base_dict["database_port"] = port
-        base_dict["database_owner"] = self.schema
+        base_dict["database_owner"] = self._schema
         base_dict["pgsql_log_decorder_plugin_name"] = "wal2json_streaming"
-        if self.log_decorder_plugin is not None:
-            base_dict["pgsql_log_decorder_plugin_name"] = self.log_decorder_plugin
+        if self._log_decorder_plugin is not None:
+            base_dict["pgsql_log_decorder_plugin_name"] = self._log_decorder_plugin
         return base_dict
 
 
