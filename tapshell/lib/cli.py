@@ -1441,6 +1441,7 @@ class JobStatus():
     stop = 'stop'
     stopping = 'stopping'
     complete = "complete"
+    wait_run = "wait_run"
 
 
 @help_decorate("Enum, used to describe a connection readable or writeable")
@@ -2657,7 +2658,6 @@ class Job:
         return True
 
     def save(self):
-        job = {}
         if self.id is None:
             self.job = {
                 "accessNodeProcessId": "",
@@ -2684,15 +2684,30 @@ class Job:
         if res["code"] != "ok":
             return False
         self.id = res["data"]["id"]
-
         job = res["data"]
-
         res = requests.patch(system_server_conf["api"] + "/Task/confirm/" + self.id + system_server_conf["auth_param"],
                              json=job)
         res = res.json()
+        if res["code"] != "ok":
+            return False
+        self.job = res["data"]
+        self.setting = res["data"]
+        return True
 
     def start(self):
-        self.save()
+        try:
+            status = self.status()
+        except (KeyError, TypeError) as e:
+            logger.info("job {} is not save, error is {}, job will be save soon", self.id, e)
+            resp = self.save()
+            if not resp:
+                logger.info("job {} save failed.")
+                return False
+            status = self.status()
+        if status in [JobStatus.running, JobStatus.scheduled, JobStatus.wait_run]:
+            logger.info("job {} status is {} now", self.id, status)
+            return True
+
         if self.id is None:
             logger.warn("save job fail")
             return False
