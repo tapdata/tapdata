@@ -27,6 +27,8 @@ from bson.objectid import ObjectId
 from bson.json_util import dumps
 
 from lib.graph import Node, Graph
+from lib.rules import job_config
+from lib.check import ConfigCheck
 
 
 # Global Logger Utils
@@ -1981,52 +1983,14 @@ class Pipeline:
         return self.config({"accurate_delay": True})
 
     @help_decorate("config pipeline", args="config map, please h pipeline_config get all config key and it's meaning")
-    def config(self, config={}):
-        kk = {}
-        for k in config:
-            v = config[k]
-            if k == "create_index":
-                kk["needToCreateIndex"] = v
-                continue
-            if k == "support_nopk":
-                kk["noPrimaryKey"] = v
-                continue
-            if k == "batch_size":
-                kk["readBatchSize"] = v
-                continue
-            if k == "logminer_concurrency":
-                kk["manuallyMinerConcurrency"] = v
-                kk["oracleLogminer"] = LogMinerMode.manually
-                continue
-            if k == "logminer_mode":
-                kk["oracleLogminer"] = v
-                continue
-            if k == "fast_sql_parser":
-                kk["useCustomSQLParser"] = v
-                continue
-            if k == "lag_warn_seconds":
-                kk["userSetLagTime"] = v
-                kk["lagTimeFalg"] = True
-                continue
-            if k == "sync_type":
-                kk["syncType"] = v
-                continue
-            if k == "stop_on_error":
-                kk["stopOnError"] = v
-                continue
-            if k == "transform_model_version":
-                kk["transformModelVersion"] = v
-                continue
-            if k == "cdc_concurrency":
-                kk["cdcConcurrency"] = v
-                continue
-            if k == "accurate_delay":
-                kk["accurateDelay"] = v
-                kk["cdcVerify"] = v
-                continue
-            kk[k] = v
+    def config(self, config: dict = None):
 
-        self.dag.config(kk)
+        if not isinstance(config, dict):
+            logger.warn("type {} must be {}", config, "dict", "notice", "notice")
+            return
+        mode = self.dag.jobType
+        resp = ConfigCheck(config, job_config[mode], keep_extra=True).checked_config
+        self.dag.config(resp)
         return self
 
     def readLogFrom(self, logMiner):
@@ -2058,15 +2022,11 @@ class Pipeline:
         t = "localTZ"
         if start_time is None or start_time == "":
             t = "current"
-        if len(v.split("/")) == 2:
-            tz = v.split("/")[1]
-            if ":" not in tz:
-                tz = tz + ":00"
         for i in range(len(source_connection_ids)):
             syncPoints.append({
-                "date": start_time,
+                "dateTime": start_time,
                 "timezone": tz,
-                "type": t,
+                "pointType": t,
                 "connectionId": source_connection_ids[i]
             })
         config["syncPoints"] = [syncPoints]
@@ -2076,6 +2036,7 @@ class Pipeline:
     @help_decorate("start this pipeline as a running job", args="p.start()")
     def start(self):
         if self.job is not None:
+            self.job.config(self.dag.setting)
             self.job.start()
             return self
         job = Job(name=self.name, pipeline=self)
@@ -2091,6 +2052,7 @@ class Pipeline:
             "readShareLogMode": "STREAMING",
             "processorConcurrency": 1
         })
+        job.config(self.dag.setting)
         if job.start():
             logger.info("job {} start running ...", self.name)
         else:
@@ -2587,6 +2549,7 @@ class Job:
     def __init__(self, name=None, id=None, dag=None, pipeline=None):
         self.id = None
         self.setting = {}
+        self.job = {}
         self.validateConfig = None
         if id is not None:
             if len(id) == 24:
@@ -2696,11 +2659,7 @@ class Job:
     def save(self):
         job = {}
         if self.id is None:
-            if "stopOnError" in self.setting:
-                stopOnError = self.setting["stopOnError"]
-            else:
-                stopOnError = True
-            job = {
+            self.job = {
                 "accessNodeProcessId": "",
                 "accessNodeProcessIdList": [],
                 "accessNodeType": "AUTOMATIC_PLATFORM_ALLOCATION",
@@ -2717,8 +2676,9 @@ class Job:
                 "createUser": system_server_conf["username"]
             }
             if self.validateConfig is not None:
-                job["validateConfig"] = self.validateConfig
-        res = requests.patch(system_server_conf["api"] + "/Task" + system_server_conf["auth_param"], json=job,
+                self.job["validateConfig"] = self.validateConfig
+        self.job.update(self.setting)
+        res = requests.patch(system_server_conf["api"] + "/Task" + system_server_conf["auth_param"], json=self.job,
                              cookies=system_server_conf["cookies"])
         res = res.json()
         if res["code"] != "ok":
@@ -2744,8 +2704,7 @@ class Job:
         return True
 
     def config(self, config):
-        for k, v in config.items():
-            self.setting[k] = v
+        self.setting.update(config)
 
     def status(self, res=None, quiet=True):
         if res is None:
