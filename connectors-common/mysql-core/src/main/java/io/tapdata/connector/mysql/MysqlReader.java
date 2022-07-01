@@ -51,6 +51,8 @@ import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
+import static io.tapdata.connector.mysql.util.MysqlUtil.randomServerId;
+
 /**
  * @author samuel
  * @Description
@@ -60,6 +62,7 @@ public class MysqlReader implements Closeable {
 	private static final String TAG = MysqlReader.class.getSimpleName();
 	public static final String SERVER_NAME_KEY = "SERVER_NAME";
 	public static final String MYSQL_SCHEMA_HISTORY = "MYSQL_SCHEMA_HISTORY";
+	private static final String SOURCE_RECORD_DDL_KEY = "ddl";
 	private String serverName;
 	private AtomicBoolean running;
 	private MysqlJdbcContext mysqlJdbcContext;
@@ -297,12 +300,6 @@ public class MysqlReader implements Closeable {
 		}
 	}
 
-	private static int randomServerId() {
-		int lowestServerId = 5400;
-		int highestServerId = Integer.MAX_VALUE;
-		return lowestServerId + new Random().nextInt(highestServerId - lowestServerId);
-	}
-
 	@Override
 	public void close() {
 		this.running.set(false);
@@ -320,54 +317,77 @@ public class MysqlReader implements Closeable {
 		if (null == record || null == record.value()) return;
 		Struct value = (Struct) record.value();
 		Schema valueSchema = record.valueSchema();
+		MysqlStreamEvent mysqlStreamEvent = null;
 
 		if (null != valueSchema.field("op")) {
-			Struct source = value.getStruct("source");
-			Long eventTime = source.getInt64("ts_ms");
-			String table = source.getString("table");
-			String op = value.getString("op");
-			MysqlOpType mysqlOpType = MysqlOpType.fromOp(op);
-			if (null == mysqlOpType) {
-				TapLogger.debug(TAG, "Unrecognized operation type: " + op + ", will skip it, record: " + record);
-				return;
-			}
-			Map<String, Object> before;
-			Map<String, Object> after;
-			switch (mysqlOpType) {
-				case INSERT:
-					tapRecordEvent = new TapInsertRecordEvent();
-					if (null == valueSchema.field("after"))
-						throw new RuntimeException("Found insert record does not have after: " + record);
-					after = struct2Map(value.getStruct("after"), table);
-					((TapInsertRecordEvent) tapRecordEvent).setAfter(after);
-					break;
-				case UPDATE:
-					tapRecordEvent = new TapUpdateRecordEvent();
-					if (null != valueSchema.field("before")) {
-						before = struct2Map(value.getStruct("before"), table);
-						((TapUpdateRecordEvent) tapRecordEvent).setBefore(before);
-					}
-					if (null == valueSchema.field("after"))
-						throw new RuntimeException("Found update record does not have after: " + record);
-					after = struct2Map(value.getStruct("after"), table);
-					((TapUpdateRecordEvent) tapRecordEvent).setAfter(after);
-					break;
-				case DELETE:
-					tapRecordEvent = new TapDeleteRecordEvent();
-					if (null == valueSchema.field("before"))
-						throw new RuntimeException("Found delete record does not have before: " + record);
-					before = struct2Map(value.getStruct("before"), table);
-					((TapDeleteRecordEvent) tapRecordEvent).setBefore(before);
-					break;
-				default:
-					break;
-			}
-			tapRecordEvent.setTableId(table);
-			tapRecordEvent.setReferenceTime(eventTime);
-			MysqlStreamOffset mysqlStreamOffset = getMysqlStreamOffset(record);
-			MysqlStreamEvent mysqlStreamEvent = new MysqlStreamEvent(tapRecordEvent, mysqlStreamOffset);
-			enqueue(mysqlStreamEvent);
+			mysqlStreamEvent = wrapDML(record, tapRecordEvent, value, valueSchema);
+		} else if (null != valueSchema.field("ddl")) {
+
 		}
+		Optional.ofNullable(mysqlStreamEvent).ifPresent(this::enqueue);
+	}
+
+	private MysqlStreamEvent wrapDML(SourceRecord record, TapRecordEvent tapRecordEvent, Struct value, Schema valueSchema) {
+		MysqlStreamEvent mysqlStreamEvent;
+		Struct source = value.getStruct("source");
+		Long eventTime = source.getInt64("ts_ms");
+		String table = source.getString("table");
+		String op = value.getString("op");
+		MysqlOpType mysqlOpType = MysqlOpType.fromOp(op);
+		if (null == mysqlOpType) {
+			TapLogger.debug(TAG, "Unrecognized operation type: " + op + ", will skip it, record: " + record);
+			return null;
+		}
+		Map<String, Object> before;
+		Map<String, Object> after;
+		switch (mysqlOpType) {
+			case INSERT:
+				tapRecordEvent = new TapInsertRecordEvent();
+				if (null == valueSchema.field("after"))
+					throw new RuntimeException("Found insert record does not have after: " + record);
+				after = struct2Map(value.getStruct("after"), table);
+				((TapInsertRecordEvent) tapRecordEvent).setAfter(after);
+				break;
+			case UPDATE:
+				tapRecordEvent = new TapUpdateRecordEvent();
+				if (null != valueSchema.field("before")) {
+					before = struct2Map(value.getStruct("before"), table);
+					((TapUpdateRecordEvent) tapRecordEvent).setBefore(before);
+				}
+				if (null == valueSchema.field("after"))
+					throw new RuntimeException("Found update record does not have after: " + record);
+				after = struct2Map(value.getStruct("after"), table);
+				((TapUpdateRecordEvent) tapRecordEvent).setAfter(after);
+				break;
+			case DELETE:
+				tapRecordEvent = new TapDeleteRecordEvent();
+				if (null == valueSchema.field("before"))
+					throw new RuntimeException("Found delete record does not have before: " + record);
+				before = struct2Map(value.getStruct("before"), table);
+				((TapDeleteRecordEvent) tapRecordEvent).setBefore(before);
+				break;
+			default:
+				break;
+		}
+		tapRecordEvent.setTableId(table);
+		tapRecordEvent.setReferenceTime(eventTime);
+		MysqlStreamOffset mysqlStreamOffset = getMysqlStreamOffset(record);
+		mysqlStreamEvent = new MysqlStreamEvent(tapRecordEvent, mysqlStreamOffset);
+		return mysqlStreamEvent;
+	}
+
+	private MysqlStreamEvent wrapDDL(SourceRecord record) {
+		MysqlStreamEvent mysqlStreamEvent = null;
+		Object value = record.value();
+		if (!(value instanceof Struct)) {
+			return null;
+		}
+		Struct structValue = (Struct) value;
+		String ddlStr = structValue.getString(SOURCE_RECORD_DDL_KEY);
+		if (StringUtils.isNotBlank(ddlStr)) {
+
+		}
+		return mysqlStreamEvent;
 	}
 
 	private Map<String, Object> struct2Map(Struct struct, String table) {

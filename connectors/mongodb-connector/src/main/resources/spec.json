@@ -8,7 +8,9 @@
   },
   "configOptions": {
     "capabilities": [
-      "master-slave-merge"
+      {
+        "id": "master-slave-merge"
+      }
     ],
     "connection": {
       "type": "object",

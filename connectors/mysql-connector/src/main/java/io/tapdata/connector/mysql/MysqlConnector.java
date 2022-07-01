@@ -46,22 +46,22 @@ public class MysqlConnector extends ConnectorBase {
 	private String connectionTimezone;
 
 
-		@Override
+	@Override
 	public void registerCapabilities(ConnectorFunctions connectorFunctions, TapCodecsRegistry codecRegistry) {
 		codecRegistry.registerFromTapValue(TapMapValue.class, "json", tapValue -> toJson(tapValue.getValue()));
 		codecRegistry.registerFromTapValue(TapArrayValue.class, "json", tapValue -> toJson(tapValue.getValue()));
 		codecRegistry.registerFromTapValue(TapTimeValue.class, tapTimeValue -> formatTapDateTime(tapTimeValue.getValue(), "HH:mm:ss.SSSSSS"));
 		codecRegistry.registerFromTapValue(TapDateTimeValue.class, tapDateTimeValue -> {
-				if (tapDateTimeValue.getValue() != null && tapDateTimeValue.getValue().getTimeZone() == null) {
-						tapDateTimeValue.getValue().setTimeZone(TimeZone.getTimeZone(this.connectionTimezone));
-				}
-				return formatTapDateTime(tapDateTimeValue.getValue(), "yyyy-MM-dd HH:mm:ss.SSSSSS");
+			if (tapDateTimeValue.getValue() != null && tapDateTimeValue.getValue().getTimeZone() == null) {
+				tapDateTimeValue.getValue().setTimeZone(TimeZone.getTimeZone(this.connectionTimezone));
+			}
+			return formatTapDateTime(tapDateTimeValue.getValue(), "yyyy-MM-dd HH:mm:ss.SSSSSS");
 		});
 		codecRegistry.registerFromTapValue(TapDateValue.class, tapDateValue -> {
-				if (tapDateValue.getValue() != null && tapDateValue.getValue().getTimeZone() == null) {
-						tapDateValue.getValue().setTimeZone(TimeZone.getTimeZone(this.connectionTimezone));
-				}
-				return formatTapDateTime(tapDateValue.getValue(), "yyyy-MM-dd");
+			if (tapDateValue.getValue() != null && tapDateValue.getValue().getTimeZone() == null) {
+				tapDateValue.getValue().setTimeZone(TimeZone.getTimeZone(this.connectionTimezone));
+			}
+			return formatTapDateTime(tapDateValue.getValue(), "yyyy-MM-dd");
 		});
 		codecRegistry.registerFromTapValue(TapBooleanValue.class, "tinyint(1)", TapValue::getValue);
 
@@ -116,9 +116,9 @@ public class MysqlConnector extends ConnectorBase {
 			this.mysqlReader = new MysqlReader(mysqlJdbcContext);
 			this.version = mysqlJdbcContext.getMysqlVersion();
 			this.connectionTimezone = tapConnectionContext.getConnectionConfig().getString("timezone");
-				if ("Database Timezone".equals(this.connectionTimezone) || StringUtils.isBlank(this.connectionTimezone)) {
-						this.connectionTimezone = mysqlJdbcContext.timezone();
-				}
+			if ("Database Timezone".equals(this.connectionTimezone) || StringUtils.isBlank(this.connectionTimezone)) {
+				this.connectionTimezone = mysqlJdbcContext.timezone();
+			}
 		}
 	}
 
@@ -291,7 +291,13 @@ public class MysqlConnector extends ConnectorBase {
 		consumer.accept(mysqlConnectionTest.testBinlogRowImage());
 		consumer.accept(mysqlConnectionTest.testCDCPrivileges());
 		consumer.accept(mysqlConnectionTest.testCreateTablePrivilege(databaseContext));
-		return null;
+		return ConnectionOptions.create()
+				.capability(Capability.create(ConnectionOptions.DML_INSERT_POLICY)
+						.alternative(ConnectionOptions.DML_INSERT_POLICY_UPDATE_ON_EXISTS)
+						.alternative(ConnectionOptions.DML_INSERT_POLICY_IGNORE_ON_EXISTS))
+				.capability(Capability.create(ConnectionOptions.DML_UPDATE_POLICY)
+						.alternative(ConnectionOptions.DML_UPDATE_POLICY_IGNORE_ON_NON_EXISTS)
+						.alternative(ConnectionOptions.DML_UPDATE_POLICY_INSERT_ON_NON_EXISTS));
 	}
 
 	private Object timestampToStreamOffset(TapConnectorContext tapConnectorContext, Long startTime) throws Throwable {

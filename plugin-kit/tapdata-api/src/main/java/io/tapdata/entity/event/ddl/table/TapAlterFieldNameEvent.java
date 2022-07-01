@@ -6,7 +6,7 @@ import io.tapdata.entity.event.ddl.entity.FieldAttrChange;
 import java.util.ArrayList;
 import java.util.List;
 
-public class TapAlterFieldNameEvent extends TapTableEvent {
+public class TapAlterFieldNameEvent extends TapFieldBaseEvent {
     public static final int TYPE = 304;
     private List<FieldAttrChange<String>> nameChanges;
     public TapAlterFieldNameEvent change(FieldAttrChange<String> change) {

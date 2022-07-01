@@ -26,8 +26,17 @@ public class AbstractResultDeserializer implements ObjectDeserializer {
             String matchingString = detector.matchingString();
             int pos = text.indexOf(matchingString);
             if(detector.verify() && pos >= 0) {
-                char c = text.charAt(pos + matchingString.length());
-                if(c == ' ' || c == ',' || c == '}') {
+                int charPos = pos + matchingString.length();
+                boolean hit = false;
+                if(charPos < text.length()) {
+                    char c = text.charAt(charPos);
+                    if(c == ' ' || c == ',' || c == '}') {
+                        hit = true;
+                    }
+                } else {
+                    hit = true;
+                }
+                if(hit) {
                     return parser.getConfig().getDeserializer(detector.getDeserializeClass()).deserialze(parser,type, object);
                 }
             }

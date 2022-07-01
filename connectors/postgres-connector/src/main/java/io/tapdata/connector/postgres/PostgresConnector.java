@@ -343,7 +343,13 @@ public class PostgresConnector extends ConnectorBase {
 
     //write records as all events, prepared
     private void writeRecord(TapConnectorContext connectorContext, List<TapRecordEvent> tapRecordEvents, TapTable tapTable, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer) throws SQLException {
-        new PostgresRecordWriter(postgresJdbcContext, tapTable).setVersion(postgresVersion).write(tapRecordEvents, writeListResultConsumer);
+        String insertDmlPolicy = connectorContext.getConnectorCapabilities().getCapabilityAlternative(ConnectionOptions.DML_INSERT_POLICY);
+        String updateDmlPolicy = connectorContext.getConnectorCapabilities().getCapabilityAlternative(ConnectionOptions.DML_UPDATE_POLICY);
+        new PostgresRecordWriter(postgresJdbcContext, tapTable)
+                .setVersion(postgresVersion)
+                .setInsertPolicy(insertDmlPolicy)
+                .setUpdatePolicy(updateDmlPolicy)
+                .write(tapRecordEvents, writeListResultConsumer);
     }
 
     private long batchCount(TapConnectorContext tapConnectorContext, TapTable tapTable) throws Throwable {

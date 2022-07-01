@@ -1,10 +1,6 @@
 package io.tapdata.entity.event.ddl.table;
 
 import io.tapdata.entity.event.TapEvent;
-import io.tapdata.entity.event.ddl.entity.FieldAttrChange;
-
-import java.util.ArrayList;
-import java.util.List;
 
 public class TapAlterTableCharsetEvent extends TapTableEvent {
     public static final int TYPE = 200;

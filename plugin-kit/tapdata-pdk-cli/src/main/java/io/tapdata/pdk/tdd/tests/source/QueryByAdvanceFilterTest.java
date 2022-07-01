@@ -41,15 +41,7 @@ import static io.tapdata.entity.simplify.TapSimplify.entry;
 import static io.tapdata.entity.simplify.TapSimplify.map;
 import static org.junit.jupiter.api.Assertions.*;
 
-/**
- * 1, use DAG tdd-source -> test-source write 11 record into test-source.
- * 2, after 11 records write to test-source.
- * 3, start DAG test-source -> tdd-target with batchRead and streamRead enabled.
- * 4, test-source should be able to read them from batchRead method and write to tdd-target.
- * 5, after 11 records write to tdd-target, fetch all the records from tdd-target, verify 11 records has been received and match the last record with the record sent from test case.
- * 6, send dropTable event and verify the table is actually dropped.
- *
- */
+
 @DisplayName("Tests for source beginner test")
 public class QueryByAdvanceFilterTest extends PDKTestBase {
     private static final String TAG = DMLTest.class.getSimpleName();
