@@ -14,10 +14,10 @@ import logging.handlers
 from logging import *
 import asyncio
 import pymongo
-import datetime, copy
+import copy
 import functools
 from typing import Iterable, Tuple, Sequence
-import traceback
+from types import FunctionType
 
 import requests
 from IPython.terminal.interactiveshell import TerminalInteractiveShell
@@ -29,6 +29,10 @@ from bson.json_util import dumps
 from lib.graph import Node, Graph
 from lib.rules import job_config
 from lib.check import ConfigCheck
+from lib.request import RequestSession
+
+
+req: RequestSession = None
 
 
 # Global Logger Utils
@@ -129,7 +133,6 @@ class Logger:
 
 
 logger = Logger("tapdata")
-
 # make requests and urllib3 quiet
 logging.getLogger("requests").setLevel(logging.WARNING)
 logging.getLogger("urllib3").setLevel(logging.WARNING)
@@ -502,6 +505,7 @@ def get_table_fields(t, whole=False, source=None, cache=True):
     table_name = table["original_name"]
     api = system_server_conf["api"] + "/MetadataInstances/" + table_id + system_server_conf["auth_param"]
     res = requests.get(api)
+
     data = res.json()["data"]
     fields = data["fields"]
     if whole:
@@ -712,9 +716,8 @@ def show_datasources():
 # show connections
 def show_connections(f=None, quiet=False):
     global client_cache
-    api = system_server_conf["api"] + "/Connections"
     f = {"limit": 10000}
-    res = requests.get(api + system_server_conf["auth_param"] + "&filter=" + urllib.parse.quote_plus(json.dumps(f)))
+    res = req.get("/Connections", params={"filter": json.dumps(f)})
     data = res.json()["data"]["items"]
     client_cache["connections"] = {"name_index": {}, "id_index": {}, "number_index": {}}
     if not quiet:
@@ -1337,17 +1340,18 @@ def desc_table(line):
 
 
 def login_with_access_code(server, access_code):
-    global system_server_conf
+    global system_server_conf, req
     api = "http://" + server + "/api"
-    res = requests.post(api + "/users/generatetoken", json={"accesscode": access_code})
+    req = RequestSession(server)
+    res = req.post("/users/generatetoken", json={"accesscode": access_code})
     if res.status_code != 200:
         logger.warn("init get token request fail, err is: {}", res.json())
         return False
     data = res.json()["data"]
     token = data["id"]
     user_id = data["userId"]
-
-    res = requests.get(api + "/users?access_token=" + token)
+    req.params = {"access_token": token}
+    res = req.get("/users")
     if res.status_code != 200:
         logger.warn("get user info by token fail, err is: {}", res.json())
         return False
@@ -1360,6 +1364,7 @@ def login_with_access_code(server, access_code):
     if token is None:
         return False
     cookies = {"user_id": user_id}
+    req.cookies = requests.cookies.cookiejar_from_dict(cookies)
     ws_uri = "ws://" + server + "/ws/agent?access_token=" + token
     logger.info("{}", _l["login_success_with_access_code"])
     system_server_conf = {
@@ -2245,8 +2250,7 @@ class Source:
             "fields": {"id": True, "original_name": True, "fields": True},
             "limit": 1
         }
-        res = requests.get(system_server_conf["api"] + "/MetadataInstances" + system_server_conf[
-            "auth_param"] + "&filter=" + json.dumps(payload)).json()
+        res = req.get("/MetadataInstances", params={"filter": json.dumps(payload)}).json()
         table_id = None
         for s in res["data"]["items"]:
             if s["original_name"] == tableName:
@@ -2254,8 +2258,7 @@ class Source:
                 break
         if table_id is not None:
             self.primary_key = []
-            res = requests.get(
-                system_server_conf["api"] + "/MetadataInstances/" + table_id + system_server_conf["auth_param"]).json()
+            res = req.get("/MetadataInstances/" + table_id).json()
             for field in res["data"]["fields"]:
                 if field.get("primaryKey", False):
                     self.primary_key.append(field["field_name"])
@@ -2487,8 +2490,7 @@ class Api:
 
     def publish(self):
         if self.id is None:
-            res = requests.post(system_server_conf["api"] + "/Modules" + system_server_conf["auth_param"],
-                                json=self.payload).json()
+            res = req.post("/Modules", json=self.payload).json()
             if res["msg"] == "ok":
                 logger.info("publish api {} success, you can test it by: {}", self.base_path,
                             "http://" + server + "#/apiDocAndTest?id=" + self.base_path + "_v1")
@@ -2500,8 +2502,7 @@ class Api:
                 "id": self.id,
                 "status": "active"
             }
-            res = requests.patch(system_server_conf["api"] + "/Modules" + system_server_conf["auth_param"],
-                                 json=payload, cookies=system_server_conf["cookies"])
+            res = req.patch("/Modules", json=payload)
             res = res.json()
             if res["code"] == "ok":
                 logger.info("publish {} success", self.name)
@@ -2525,8 +2526,7 @@ class Api:
             "id": self.id,
             "status": "pending"
         }
-        res = requests.patch(system_server_conf["api"] + "/Modules" + system_server_conf["auth_param"], json=payload,
-                             cookies=system_server_conf["cookies"])
+        res = requests.patch("/Modules", json=payload)
         res = res.json()
         if res["code"] == "ok":
             logger.info("unpublish {} success", self.id)
@@ -2537,8 +2537,7 @@ class Api:
         if self.id is None:
             logger.warn("delete api {} fail, err is: {}", self.name, "api not find")
             return
-        res = requests.delete(system_server_conf["api"] + "/Modules/" + self.id + system_server_conf["auth_param"],
-                              cookies=system_server_conf["cookies"])
+        res = req.delete("/Modules/" + self.id)
         res = res.json()
         if res["code"] == "ok":
             logger.info("delete api {} success", self.name)
@@ -2577,8 +2576,10 @@ class Job:
 
     @staticmethod
     def list():
-        res = requests.get(system_server_conf["api"] + "/DataFlows" + system_server_conf[
-            "auth_param"] + '&filter={"fields":{"id":true,"name":true,"status":true,"agentId":true,"stats":true}}')
+        res = req.get(
+            "/DataFlows",
+            params={"filter": '{"fields":{"id":true,"name":true,"status":true,"agentId":true,"stats":true}}'}
+        )
         if res.status_code != 200:
             return None
         res = res.json()
@@ -2588,17 +2589,12 @@ class Job:
         return jobs
 
     def reset(self):
-        res = requests.post(
-            system_server_conf["api"] +
-            "/DataFlows/" + self.id + "/reset" +
-            system_server_conf['auth_param']
-        ).json()
+        res = req.post("/DataFlows/" + self.id + "/reset").json()
         return True
 
     def _get_by_name(self):
         param = '{"where":{"name":{"like":"%s"}}}' % (self.name)
-        url = system_server_conf["api"] + "/Task" + system_server_conf["auth_param"] + "&filter=" + param
-        res = requests.get(url)
+        res = req.get("/Task", params={'filter': param})
         if res.status_code != 200:
             return None
         res = res.json()
@@ -2612,8 +2608,7 @@ class Job:
 
     def _get(self):
         if self.id is not None:
-            url = system_server_conf["api"] + "/Task/findTaskDetailById/" + self.id + system_server_conf["auth_param"]
-            res = requests.get(url)
+            res = req.get("/Task/findTaskDetailById/" + self.id)
             if res.status_code != 200:
                 return None
             res = res.json()
@@ -2627,8 +2622,7 @@ class Job:
     def stop(self, t=30):
         if self.id is None:
             return False
-        url = system_server_conf['api'] + '/Task/batchStop' + system_server_conf["auth_param"] + "&taskIds=" + self.id
-        res = requests.put(url)
+        res = req.put('/Task/batchStop', params={'taskIds': self.id})
         s = time.time()
         while True:
             if time.time() - s > t:
@@ -2646,8 +2640,7 @@ class Job:
         if self.status() in [JobStatus.running, JobStatus.scheduled]:
             logger.warn("job status is {}, please stop it first before delete it", self.status())
             return
-        res = requests.post(system_server_conf["api"] + "/DataFlows/removeAll" + system_server_conf[
-            "auth_param"] + "&where=" + '{"_id":{"inq":["' + self.id + '"]}}')
+        res = req.post("/DataFlows/removeAll", params={"where": '{"_id":{"inq":["' + self.id + '"]}}'})
         if res.status_code != 200:
             return False
         res = res.json()
@@ -2678,15 +2671,13 @@ class Job:
             if self.validateConfig is not None:
                 self.job["validateConfig"] = self.validateConfig
         self.job.update(self.setting)
-        res = requests.patch(system_server_conf["api"] + "/Task" + system_server_conf["auth_param"], json=self.job,
-                             cookies=system_server_conf["cookies"])
+        res = req.patch("/Task", json=self.job)
         res = res.json()
         if res["code"] != "ok":
             return False
         self.id = res["data"]["id"]
         job = res["data"]
-        res = requests.patch(system_server_conf["api"] + "/Task/confirm/" + self.id + system_server_conf["auth_param"],
-                             json=job)
+        res = req.patch("/Task/confirm/" + self.id, json=job)
         res = res.json()
         if res["code"] != "ok":
             return False
@@ -2711,8 +2702,7 @@ class Job:
         if self.id is None:
             logger.warn("save job fail")
             return False
-        res = requests.put(system_server_conf["api"] + "/Task/batchStart" + system_server_conf[
-            "auth_param"] + "&taskIds=" + self.id).json()
+        res = req.put("/Task/batchStart", params={"taskIds": self.id}).json()
         if res["code"] != "ok":
             return False
 
@@ -2723,7 +2713,7 @@ class Job:
 
     def status(self, res=None, quiet=True):
         if res is None:
-            res = requests.get(system_server_conf["api"] + "/Task/" + self.id + system_server_conf["auth_param"]).json()
+            res = req.get("/Task/" + self.id).json()
         status = res["data"]["status"]
         if not quiet:
             logger.info("job status is: {}", status)
@@ -2731,7 +2721,7 @@ class Job:
 
     def get_sub_task_ids(self):
         sub_task_ids = []
-        res = requests.get(system_server_conf["api"] + "/Task/" + self.id + system_server_conf["auth_param"]).json()
+        res = req.get("/Task/" + self.id).json()
         statuses = res["data"]["statuses"]
         jobStats = JobStats()
         for subTask in statuses:
@@ -2739,7 +2729,7 @@ class Job:
         return sub_task_ids
 
     def stats(self, res=None):
-        res = requests.get(system_server_conf["api"] + "/Task/" + self.id + system_server_conf["auth_param"]).json()
+        res = req.get("/Task/" + self.id).json()
         statuses = res["data"]["statuses"]
         jobStats = JobStats()
         for subTask in statuses:
@@ -2753,10 +2743,7 @@ class Job:
                 }
               ]
             }
-            res = requests.post(
-                system_server_conf["api"] + "/measurement/query" + system_server_conf["auth_param"],
-                json=payload
-            ).json()
+            res = req.post("/measurement/query", json=payload).json()
             for statistic in res["data"]["statistics"]:
                 jobStats.delay = statistic["replicateLag"]
                 jobStats.output = statistic["outputTotal"]
@@ -2956,8 +2943,7 @@ class DataSource():
     @staticmethod
     @help_decorate("static method, used to list all datasources", res="datasource list, list")
     def list():
-        return requests.get(system_server_conf["api"] + "/Connections" + system_server_conf["auth_param"]).json()[
-            "data"]
+        return req.get("/Connections").json()["data"]
 
     @help_decorate("desc a datasource, display readable struct", res="datasource struct")
     def desc(self, quiet=True):
@@ -2989,19 +2975,18 @@ class DataSource():
 
     @help_decorate("get a datasource status", "")
     def status(self, quiet=True):
-        c = self.c
-        print(c)
-        if c is None:
-            logger.warn("the status is None. please check the name or connector")
+        if self.id is None or isinstance(self.id, FunctionType):
+            logger.warn("datasource is not save, please save first")
             return
-        status = c.get("status")
-        tableCount = c.get("tableCount", "unknown")
-        loadCount = c.get("loadCount", 0)
-        loadFieldsStatus = c.get("loadFieldsStatus", False)
-        loadSchemaDate = c.get("loadSchemaDate", "unknown")
+        info = self.get(self.id)
+        status = info.get("status")
+        tableCount = info.get("tableCount", "unknown")
+        loadCount = info.get("loadCount", 0)
+        loadFieldsStatus = info.get("loadFieldsStatus", False)
+        loadSchemaDate = info.get("loadSchemaDate", "unknown")
         if not quiet:
             logger.info("datasource {} status is: {}, it has {} tables, loaded {}, last load time is: {}",
-                        c.get("name"), status, tableCount, loadCount, loadSchemaDate)
+                        info.get("name"), status, tableCount, loadCount, loadSchemaDate)
         return status
 
     def host(self, host):
@@ -3120,19 +3105,15 @@ class DataSource():
                     "name": name,
                 }
             }
-
-        data = requests.get(system_server_conf["api"] + "/Connections" + system_server_conf[
-            "auth_param"] + "&filter=" + urllib.parse.quote_plus(json.dumps(f)),
-                            cookies=system_server_conf["cookies"]).json()["data"]
+        data = req.get("/Connections", params={'filter': json.dumps(f)}).json()["data"]
         if len(data["items"]) == 0:
             return None
         return data["items"][0]
 
     @help_decorate("save a connection in idaas system")
     def save(self):
-        api = system_server_conf["api"] + "/Connections" + system_server_conf["auth_param"]
         data = self.to_dict()
-        res = requests.post(api, json=data)
+        res = req.post("/Connections", json=data)
         show_connections(quiet=True)
         if res.status_code == 200 and res.json()["code"] == "ok":
             self.id = res.json()["data"]["id"]
@@ -3144,10 +3125,10 @@ class DataSource():
         return False
 
     def delete(self):
-        if self.id is None:
+        if self.id is None or isinstance(self.id, FunctionType):
             return
-        api = system_server_conf["api"] + "/Connections/" + self.id + system_server_conf["auth_param"]
-        res = requests.delete(api, json=self.c)
+        print(self.id, type(self.id), dir(self))
+        res = req.delete("/Connections/" + self.id, json=self.c)
         if res.status_code == 200 and res.json()["code"] == "ok":
             logger.info("delete {} Connection success", self.id)
             return True
@@ -3208,8 +3189,7 @@ class DataSource():
         while True:
             try:
                 time.sleep(5)
-                api = system_server_conf["api"] + "/Connections/" + self.id + system_server_conf["auth_param"]
-                res = requests.get(api).json()
+                res = req.get("/Connections/" + self.id).json()
                 if res["data"] == None:
                     break
                 if "loadFieldsStatus" not in res["data"]:
@@ -3241,14 +3221,6 @@ class Mysql(DataSource):
         self.connector = "mysql"
         super().__init__(name=name, connector="mysql")
 
-    def to_dict(self):
-        base_dict = super().to_dict()
-        host = base_dict["database_host"].split(":")[0]
-        port = base_dict["database_host"].split(":")[1]
-        base_dict["database_host"] = host
-        base_dict["database_port"] = port
-        return base_dict
-
 
 class Postgres(DataSource):
     def __init__(self, name):
@@ -3257,19 +3229,15 @@ class Postgres(DataSource):
         super().__init__(connector="postgresql", name=name)
 
     def schema(self, schema):
-        self.schema = schema
+        self._schema = schema
         return self
 
     def set_log_decorder_plugin(self, plugin):
-        self.log_decorder_plugin = plugin
+        self._log_decorder_plugin = plugin
         return self
 
     def to_dict(self):
         base_dict = super().to_dict()
-        host = base_dict["database_host"].split(":")[0]
-        port = base_dict["database_host"].split(":")[1]
-        base_dict["database_host"] = host
-        base_dict["database_port"] = port
         base_dict["database_owner"] = self._schema
         base_dict["pgsql_log_decorder_plugin_name"] = "wal2json_streaming"
         if self._log_decorder_plugin is not None:
@@ -3301,8 +3269,7 @@ class Connection:
     @help_decorate("save a connection in idaas system")
     def save(self):
         #self.load_schema(quiet=False)
-        api = system_server_conf["api"] + "/Connections" + system_server_conf["auth_param"]
-        res = requests.post(api, json=self.c)
+        res = req.post("/Connections", json=self.c)
         show_connections(quiet=True)
         if res.status_code == 200 and res.json()["code"] == "ok":
             self.id = res.json()["data"]["id"]
@@ -3314,8 +3281,7 @@ class Connection:
         return False
 
     def delete(self):
-        api = system_server_conf["api"] + "/Connections/" + self.id + system_server_conf["auth_param"]
-        res = requests.delete(api, json=self.c)
+        res = req.delete("/Connections/" + self.id, json=self.c)
         if res.status_code == 200 and res.json()["code"] == "ok":
             logger.info("delete {} Connection success", self.id)
             return True
@@ -3342,8 +3308,7 @@ class Connection:
     @staticmethod
     @help_decorate("static method, used to list all connections", res="connection list, list")
     def list():
-        return requests.get(system_server_conf["api"] + "/Connections" + system_server_conf["auth_param"]).json()[
-            "data"]
+        return req.get("/Connections").json()["data"]
 
     @staticmethod
     @help_decorate("get a connection, by it's id or name", args="id or name, using kargs",
@@ -3362,9 +3327,7 @@ class Connection:
                 }
             }
 
-        data = requests.get(system_server_conf["api"] + "/Connections" + system_server_conf[
-            "auth_param"] + "&filter=" + urllib.parse.quote_plus(json.dumps(f)),
-                            cookies=system_server_conf["cookies"]).json()["data"]
+        data = req.get("/Connections", params={"filter": json.dumps(f)}).json()["data"]
         if len(data["items"]) == 0:
             return None
         return data["items"][0]
@@ -3424,9 +3387,7 @@ class Connection:
         while True:
             try:
                 time.sleep(1)
-
-                api = system_server_conf["api"] + "/Connections/" + self.id + system_server_conf["auth_param"]
-                res = requests.get(api).json()
+                res = req.get("/Connections/" + self.id).json()
                 if res["data"] == None:
                     break
                 if "loadFieldsStatus" not in res["data"]:
@@ -3487,17 +3448,14 @@ class DataCheck:
     @help_decorate("get a data check job by it's name", args="data check name",
                    res="DataCheck or None if not exists, DataCheck")
     def get(name):
-        api = system_server_conf["api"] + "/Inspects" + system_server_conf["auth_param"] + "&filter=" + json.dumps(
-            {"where": {"name": name}})
-        data = requests.get(api).json()["data"]
+        data = req.get("/Inspects", params={"filter": {"where": {"name": name}}}).json()["data"]
         if data["total"] == 0:
             return None
         return data[0]
 
     @help_decorate("save a data check job, and start it")
     def save(self):
-        api = system_server_conf["api"] + "/Inspects" + system_server_conf["auth_param"]
-        res = requests.post(api, json=self.check_job)
+        res = req.post("/Inspects", json=self.check_job)
         data = res.json()["data"]
         self.id = data["id"]
 
@@ -3507,16 +3465,12 @@ class DataCheck:
 
     @help_decorate("get data check job status", res="job status")
     def status(self):
-        api = system_server_conf["api"] + "/Inspects" + system_server_conf["auth_param"] + "&filter=" + json.dumps(
-            {"where": {"id": self.id}})
-        res = requests.get(api)
+        res = req.get("/Inspects", params={"filter": {"where": {"id": self.id}}})
         return res.json()["data"][0]["status"]
 
     @help_decorate("get data check job stats", res="job stats")
     def stats(self, quiet=False):
-        api = system_server_conf["api"] + "/Inspects" + system_server_conf["auth_param"] + "&filter=" + json.dumps(
-            {"where": {"id": self.id}})
-        res = requests.get(api)
+        res = req.get("/Inspects", params={"filter": {"where": {"id": self.id}}})
         stats = res.json()["data"][0]["InspectResult"]["stats"][0]
         if not quiet:
             logger.log(
@@ -3657,20 +3611,15 @@ op_object_command_class = {
     }
 }
 
-# try auto login with config file
-fdm = "fdm"
-server = ""
-try:
-    conf_file = "conf.json"
-    if os.path.exists(conf_file):
-        f = open(conf_file, "r")
-        conf = json.loads(str(f.read()))
-        if not is_empty(conf.get("fdm")):
-            fdm = conf.get("fdm")
-        server = conf.get("server")
-        access_code = conf.get("access_code")
-        login_with_access_code(server, access_code)
-    show_connections(quiet=True)
-    show_connectors(quiet=True)
-except Exception as e:
-    logger.warn("load conf file failed, err is: {}", e)
+# try:
+conf_file = "conf.json"
+if os.path.exists(conf_file):
+    f = open(conf_file, "r")
+    conf = json.loads(str(f.read()))
+    server = conf.get("server")
+    access_code = conf.get("access_code")
+    login_with_access_code(server, access_code)
+show_connections(quiet=True)
+show_connectors(quiet=True)
+# except Exception as e:
+#     logger.warn("load conf file failed, err is: {}", e)

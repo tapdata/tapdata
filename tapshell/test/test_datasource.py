@@ -42,7 +42,6 @@ def test_mysql_to_dict():
     test_ds.host(env['mysql.HOST']).db(env['mysql.DB']).username(env['mysql.USERNAME'])\
         .password(env['mysql.PASSWORD']).type("source").props(env['mysql.PROPS'])
     test_ds.to_dict()
-    test_ds.delete()
 
 
 def test_postgres():
@@ -50,11 +49,10 @@ def test_postgres():
     test_ds = Postgres(f"test_postgres_{random_str()}")
     test_ds.host(env['postgres.HOST']).db(env['postgres.DB']).username(env['postgres.USERNAME']) \
         .password(env['postgres.PASSWORD']).type("source").props(env['postgres.PROPS'])
-    assert test_ds.save()
     test_ds.schema(schema)
     assert test_ds.to_dict().get('database_owner') == schema
     plugin = "wal2json_streaming"
-    test_ds.log_decorder_plugin(plugin)
+    test_ds.set_log_decorder_plugin(plugin)
     assert test_ds.to_dict().get('pgsql_log_decorder_plugin_name') == plugin
+    assert test_ds.save()
     test_ds.delete()
-
