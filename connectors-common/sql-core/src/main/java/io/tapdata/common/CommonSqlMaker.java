@@ -91,6 +91,40 @@ public class CommonSqlMaker {
         return builder.toString();
     }
 
+    public static String buildOracleSqlByAdvanceFilter(TapAdvanceFilter filter) {
+        StringBuilder builder = new StringBuilder();
+        if (EmptyKit.isNotEmpty(filter.getMatch()) || EmptyKit.isNotEmpty(filter.getOperators())) {
+            builder.append("WHERE ");
+            builder.append(CommonSqlMaker.buildKeyAndValue(filter.getMatch(), "AND", "="));
+        }
+        if (EmptyKit.isNotEmpty(filter.getOperators())) {
+            if (EmptyKit.isNotEmpty(filter.getMatch())) {
+                builder.append("AND ");
+            }
+            builder.append(filter.getOperators().stream().map(v -> v.toString("\"")).collect(Collectors.joining(" AND "))).append(' ');
+        }
+        if (EmptyKit.isNotEmpty(filter.getSortOnList())) {
+            builder.append("ORDER BY ");
+            builder.append(filter.getSortOnList().stream().map(v -> v.toString("\"")).collect(Collectors.joining(", "))).append(' ');
+        }
+        builder.append(") ");
+        if (null != filter.getSkip() || null != filter.getLimit()) {
+            builder.append("WHERE ");
+        }
+        if (null != filter.getSkip()) {
+            builder.append("ROWNUM > ").append(filter.getSkip()).append(' ');
+        }
+        if (null != filter.getLimit()) {
+            Integer skip = 0;
+            if (null != filter.getSkip()) {
+                builder.append("AND ");
+                skip = filter.getSkip();
+            }
+            builder.append("ROWNUM <= ").append(filter.getLimit() + skip).append(' ');
+        }
+        return builder.toString();
+    }
+
     /**
      * set value for each column in sql
      * e.g.

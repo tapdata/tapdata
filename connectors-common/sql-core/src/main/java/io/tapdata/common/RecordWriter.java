@@ -15,7 +15,9 @@ import java.util.function.Consumer;
 public class RecordWriter {
 
     protected WriteRecorder insertRecorder;
+    protected String insertPolicy = "update-on-exists";
     protected WriteRecorder updateRecorder;
+    protected String updatePolicy = "ignore-on-non-exists";
     protected WriteRecorder deleteRecorder;
     protected String version;
     protected Connection connection;
@@ -28,7 +30,9 @@ public class RecordWriter {
 
     public void write(List<TapRecordEvent> tapRecordEvents, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer) throws SQLException {
         insertRecorder.setVersion(version);
+        insertRecorder.setInsertPolicy(insertPolicy);
         updateRecorder.setVersion(version);
+        updateRecorder.setUpdatePolicy(updatePolicy);
         deleteRecorder.setVersion(version);
         //result of these events
         WriteListResult<TapRecordEvent> listResult = new WriteListResult<>();
@@ -69,6 +73,16 @@ public class RecordWriter {
 
     public RecordWriter setVersion(String version) {
         this.version = version;
+        return this;
+    }
+
+    public RecordWriter setInsertPolicy(String insertPolicy) {
+        this.insertPolicy = insertPolicy;
+        return this;
+    }
+
+    public RecordWriter setUpdatePolicy(String updatePolicy) {
+        this.updatePolicy = updatePolicy;
         return this;
     }
 }
