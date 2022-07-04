@@ -10,9 +10,9 @@ jobs:
 
   build:
 
-    runs-on: tapdata-docker.pkg.coding.net/tapdata/tldp/build:0.1
+    runs-on: ubuntu-18.04
 
     steps:
     - uses: actions/checkout@v3
     - name: Build the Docker image
-      run: docker images
+      run: ls -al
