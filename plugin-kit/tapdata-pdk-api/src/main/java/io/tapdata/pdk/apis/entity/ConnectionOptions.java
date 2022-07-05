@@ -21,6 +21,11 @@ public class ConnectionOptions {
     public static final String DDL_ALTER_DATABASE_TIMEZONE_EVENT = "alter-database-timezone-event";
     public static final String DDL_RENAME_TABLE_EVENT = "rename-table-event";
 
+    /**
+     * Whether provide api service
+     */
+    public static final String CAPABILITY_SUPPORT_API_SERVICE = "support-api-service";
+
     public static final String DML_INSERT_POLICY = "dml-insert-policy";
     public static final String DML_INSERT_POLICY_UPDATE_ON_EXISTS = "update-on-exists";
     public static final String DML_INSERT_POLICY_IGNORE_ON_EXISTS = "ignore-on-exists";
