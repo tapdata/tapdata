@@ -6,25 +6,25 @@ import java.util.TimeZone;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 public class ConnectionOptions {
-    public static final String CAPABILITY_MASTER_SLAVE_MERGE = "master-slave-merge";
-    public static final String CAPABILITY_RESUME_STREAM_BY_TIMESTAMP = "resume-stream-by-timestamp";
+    public static final String CAPABILITY_MASTER_SLAVE_MERGE = "master_slave_merge";
+    public static final String CAPABILITY_RESUME_STREAM_BY_TIMESTAMP = "resume_stream_by_timestamp";
 
-    public static final String DDL_ALTER_FIELD_NAME_EVENT = "alter-field-name-event";
-    public static final String DDL_ALTER_FIELD_ATTRIBUTES_EVENT = "alter-field-attributes-event";
-    public static final String DDL_CREATE_TABLE_EVENT = "create-table-event";
-    public static final String DDL_DROP_TABLE_EVENT = "drop-table-event";
-    public static final String DDL_CLEAR_TABLE_EVENT = "clear-table-event";
-    public static final String DDL_ALTER_PRIMARY_KEY_EVENT = "alter-primary-key-event";
-    public static final String DDL_DROP_FIELD_EVENT = "drop-field-event";
-    public static final String DDL_NEW_FIELD_EVENT = "new-field-event";
-    public static final String DDL_ALTER_TABLE_CHARSET_EVENT = "alter-table-charset-event";
-    public static final String DDL_ALTER_DATABASE_TIMEZONE_EVENT = "alter-database-timezone-event";
-    public static final String DDL_RENAME_TABLE_EVENT = "rename-table-event";
+    public static final String DDL_ALTER_FIELD_NAME_EVENT = "alter_field_name_event";
+    public static final String DDL_ALTER_FIELD_ATTRIBUTES_EVENT = "alter_field_attributes_event";
+    public static final String DDL_CREATE_TABLE_EVENT = "create_table_event";
+    public static final String DDL_DROP_TABLE_EVENT = "drop_table_event";
+    public static final String DDL_CLEAR_TABLE_EVENT = "clear_table_event";
+    public static final String DDL_ALTER_PRIMARY_KEY_EVENT = "alter_primary_key_event";
+    public static final String DDL_DROP_FIELD_EVENT = "drop_field_event";
+    public static final String DDL_NEW_FIELD_EVENT = "new_field_event";
+    public static final String DDL_ALTER_TABLE_CHARSET_EVENT = "alter_table_charset_event";
+    public static final String DDL_ALTER_DATABASE_TIMEZONE_EVENT = "alter_database_timezone_event";
+    public static final String DDL_RENAME_TABLE_EVENT = "rename_table_event";
 
-    public static final String DML_INSERT_POLICY = "dml-insert-policy";
+    public static final String DML_INSERT_POLICY = "dml_insert_policy";
     public static final String DML_INSERT_POLICY_UPDATE_ON_EXISTS = "update_on_exists";
     public static final String DML_INSERT_POLICY_IGNORE_ON_EXISTS = "ignore_on_exists";
-    public static final String DML_UPDATE_POLICY = "dml-update-policy";
+    public static final String DML_UPDATE_POLICY = "dml_update_policy";
     public static final String DML_UPDATE_POLICY_IGNORE_ON_NON_EXISTS = "ignore_on_nonexists";
     public static final String DML_UPDATE_POLICY_INSERT_ON_NON_EXISTS = "insert_on_nonexists";
 
