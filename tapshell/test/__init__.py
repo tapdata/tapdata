@@ -1,7 +1,9 @@
-from __future__ import annotations
 import os
 import random
 import configparser
+from typing import TypeVar
+
+T = TypeVar("T", dict, configparser.SectionProxy)
 
 
 BASEDIR = os.path.dirname(os.path.abspath(__file__))
@@ -23,7 +25,7 @@ class Args:
             cls._ini_read.read(ini_path)
             return super(Args, cls).__new__(cls, *args, **kwargs)
 
-    def __getitem__(self, item) -> dict|configparser.SectionProxy:
+    def __getitem__(self, item) -> T:
 
         try:
             key_1, key_2 = item.split(SEP)
