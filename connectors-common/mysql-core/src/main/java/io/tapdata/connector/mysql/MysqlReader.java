@@ -322,7 +322,7 @@ public class MysqlReader implements Closeable {
 		if (null != valueSchema.field("op")) {
 			mysqlStreamEvent = wrapDML(record, tapRecordEvent, value, valueSchema);
 		} else if (null != valueSchema.field("ddl")) {
-
+			// TODO output TapDDLEvent
 		}
 		Optional.ofNullable(mysqlStreamEvent).ifPresent(this::enqueue);
 	}

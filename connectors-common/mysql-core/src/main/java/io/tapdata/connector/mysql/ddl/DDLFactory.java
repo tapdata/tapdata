@@ -1,8 +1,10 @@
 package io.tapdata.connector.mysql.ddl;
 
-import io.tapdata.connector.mysql.ddl.type.WrapperType;
+import io.tapdata.connector.mysql.ddl.type.DDLType;
 import io.tapdata.entity.event.ddl.TapDDLEvent;
+import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.InstanceFactory;
+import io.tapdata.entity.utils.cache.KVReadOnlyMap;
 
 import java.util.function.Consumer;
 
@@ -12,10 +14,18 @@ import java.util.function.Consumer;
  * @create 2022-07-01 12:17
  **/
 public class DDLFactory {
-	public static void parse(DDLParserType ddlParserType, String ddl, Consumer<TapDDLEvent> consumer) {
-		Class<? extends DDLParser<?>> parserClz = ddlParserType.getParserClz();
-		Class<? extends WrapperType> wrapperType = ddlParserType.getWrapperType();
-		WrapperType wrapperBean = InstanceFactory.bean(wrapperType);
-
+	public static <E> void ddlToTapDDLEvent(DDLParserType ddlParserType, String ddl, KVReadOnlyMap<TapTable> tableMap, Consumer<TapDDLEvent> consumer) throws Throwable {
+		DDLType ddlType = DDLFilter.testAndGetType(ddlParserType, ddl);
+		if (null == ddlType) {
+			return;
+		}
+		Class<? extends DDLParser<E>> parserClz = (Class<? extends DDLParser<E>>) ddlParserType.getParserClz();
+		DDLParser<E> ddlParser = InstanceFactory.bean(parserClz);
+		E parseResult = ddlParser.parse(ddl);
+		Class<? extends DDLWrapper<E>>[] ddlWrappers = (Class<? extends DDLWrapper<E>>[]) ddlType.getDdlWrappers();
+		for (Class<? extends DDLWrapper<E>> ddlWrapper : ddlWrappers) {
+			DDLWrapper<E> ddlWrapperBean = InstanceFactory.bean(ddlWrapper);
+			ddlWrapperBean.wrap(parseResult, tableMap, consumer);
+		}
 	}
 }

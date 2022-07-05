@@ -10,6 +10,14 @@
     "capabilities": [
       {
         "id": "master-slave-merge"
+      },
+      {
+        "id": "dml-insert-policy",
+        "alternatives": ["update-on-exists", "ignore-on-exists"]
+      },
+      {
+        "id": "dml-update-policy",
+        "alternatives": ["ignore-on-non-exists", "insert-on-non-exists"]
       }
     ],
     "connection": {

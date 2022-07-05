@@ -1,6 +1,8 @@
 package io.tapdata.connector.mysql;
 
 import io.tapdata.connector.mysql.ddl.DDLFilter;
+import io.tapdata.connector.mysql.ddl.DDLParserType;
+import io.tapdata.connector.mysql.ddl.type.DDLType;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
@@ -10,19 +12,20 @@ import org.junit.jupiter.api.Test;
  * @create 2022-06-30 10:20
  **/
 public class DDLFilterTest {
-//	@Test
-//	public void testFilter() {
-//		DDLFilter.DDLType ddlType = DDLFilter.testAndGetType("alter table TEST.DDL_TEST ADD COLUMN F1 INT");
-//		Assertions.assertEquals(DDLFilter.DDLType.ADD_COLUMN, ddlType);
-//		ddlType = DDLFilter.testAndGetType("alter table TEST.DDL_TEST ADD F1 INT");
-//		Assertions.assertEquals(DDLFilter.DDLType.ADD_COLUMN, ddlType);
-//		ddlType = DDLFilter.testAndGetType("alter table TEST.DDL_TEST CHANGE");
-//		Assertions.assertNull(ddlType);
-//		ddlType = DDLFilter.testAndGetType("alter table TEST.DDL_TEST CHANGE F1 F1_NEW varchar(50)");
-//		Assertions.assertEquals(DDLFilter.DDLType.CHANGE_COLUMN, ddlType);
-//		ddlType = DDLFilter.testAndGetType("alter table TEST.DDL_TEST RENAME COLUMN F1 TO F1_NEW");
-//		Assertions.assertEquals(DDLFilter.DDLType.RENAME_COLUMN, ddlType);
-//		ddlType = DDLFilter.testAndGetType("alter table TEST.DDL_TEST DROP column F1");
-//		Assertions.assertEquals(DDLFilter.DDLType.DROP_COLUMN, ddlType);
-//	}
+	@Test
+	public void testFilter() {
+		DDLParserType ddlParserType = DDLParserType.CCJ_SQL_PARSER;
+		DDLType ddlType = DDLFilter.testAndGetType(ddlParserType, "alter table TEST.DDL_TEST ADD COLUMN F1 INT");
+		Assertions.assertEquals(DDLType.Type.ADD_COLUMN, ddlType.getType());
+		ddlType = DDLFilter.testAndGetType(ddlParserType, "alter table TEST.DDL_TEST ADD F1 INT");
+		Assertions.assertEquals(DDLType.Type.ADD_COLUMN, ddlType.getType());
+		ddlType = DDLFilter.testAndGetType(ddlParserType, "alter table TEST.DDL_TEST CHANGE");
+		Assertions.assertNull(ddlType);
+		ddlType = DDLFilter.testAndGetType(ddlParserType, "alter table TEST.DDL_TEST CHANGE F1 F1_NEW varchar(50)");
+		Assertions.assertEquals(DDLType.Type.CHANGE_COLUMN, ddlType.getType());
+		ddlType = DDLFilter.testAndGetType(ddlParserType, "alter table TEST.DDL_TEST RENAME COLUMN F1 TO F1_NEW");
+		Assertions.assertEquals(DDLType.Type.RENAME_COLUMN, ddlType.getType());
+		ddlType = DDLFilter.testAndGetType(ddlParserType, "alter table TEST.DDL_TEST DROP column F1");
+		Assertions.assertEquals(DDLType.Type.DROP_COLUMN, ddlType.getType());
+	}
 }

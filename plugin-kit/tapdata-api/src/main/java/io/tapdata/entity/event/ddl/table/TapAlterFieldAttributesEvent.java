@@ -2,6 +2,7 @@ package io.tapdata.entity.event.ddl.table;
 
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.ddl.entity.FieldAttrChange;
+import io.tapdata.entity.event.ddl.entity.ValueChange;
 
 import java.lang.reflect.Field;
 import java.util.ArrayList;
@@ -9,33 +10,43 @@ import java.util.List;
 
 public class TapAlterFieldAttributesEvent extends TapFieldBaseEvent {
     public static final int TYPE = 302;
-    private FieldAttrChange<String> dataTypeChange;
-    private FieldAttrChange<String> checkChange;
-    private FieldAttrChange<String> constraintChange;
-    private FieldAttrChange<Boolean> notNullChange;
-    private FieldAttrChange<String> commentChange;
-    private FieldAttrChange<Object> defaultChange;
-    public TapAlterFieldAttributesEvent defaultChange(FieldAttrChange<Object> change) {
+    private String fieldName;
+    private ValueChange<String> dataTypeChange;
+    private ValueChange<String> checkChange;
+    private ValueChange<String> constraintChange;
+    private ValueChange<Boolean> notNullChange;
+    private ValueChange<String> commentChange;
+    private ValueChange<Object> defaultChange;
+    private ValueChange<Integer> primaryChange;
+    public TapAlterFieldAttributesEvent fieldName(String fieldName) {
+        this.fieldName = fieldName;
+        return this;
+    }
+    public TapAlterFieldAttributesEvent primaryChange(ValueChange<Integer> change) {
+        primaryChange = change;
+        return this;
+    }
+    public TapAlterFieldAttributesEvent defaultChange(ValueChange<Object> change) {
         defaultChange = change;
         return this;
     }
-    public TapAlterFieldAttributesEvent comment(FieldAttrChange<String> change) {
+    public TapAlterFieldAttributesEvent comment(ValueChange<String> change) {
         commentChange = change;
         return this;
     }
-    public TapAlterFieldAttributesEvent notNull(FieldAttrChange<Boolean> change) {
+    public TapAlterFieldAttributesEvent notNull(ValueChange<Boolean> change) {
         notNullChange = change;
         return this;
     }
-    public TapAlterFieldAttributesEvent constraint(FieldAttrChange<String> change) {
+    public TapAlterFieldAttributesEvent constraint(ValueChange<String> change) {
         constraintChange = change;
         return this;
     }
-    public TapAlterFieldAttributesEvent check(FieldAttrChange<String> change) {
+    public TapAlterFieldAttributesEvent check(ValueChange<String> change) {
         checkChange = change;
         return this;
     }
-    public TapAlterFieldAttributesEvent dataType(FieldAttrChange<String> change) {
+    public TapAlterFieldAttributesEvent dataType(ValueChange<String> change) {
         dataTypeChange = change;
         return this;
     }
@@ -46,79 +57,102 @@ public class TapAlterFieldAttributesEvent extends TapFieldBaseEvent {
     public void clone(TapEvent tapEvent) {
         super.clone(tapEvent);
         if (tapEvent instanceof TapAlterFieldAttributesEvent) {
-            TapAlterFieldAttributesEvent alterFieldDataTypeEvent = (TapAlterFieldAttributesEvent) tapEvent;
+            TapAlterFieldAttributesEvent alterFieldAttributesEvent = (TapAlterFieldAttributesEvent) tapEvent;
+            if(fieldName != null) {
+                alterFieldAttributesEvent.fieldName = fieldName;
+            }
+            if(primaryChange != null) {
+                alterFieldAttributesEvent.primaryChange = new ValueChange<>();
+                primaryChange.clone(alterFieldAttributesEvent.primaryChange);
+            }
             if (dataTypeChange != null) {
-                alterFieldDataTypeEvent.dataTypeChange = new FieldAttrChange<>();
-                dataTypeChange.clone(alterFieldDataTypeEvent.dataTypeChange);
+                alterFieldAttributesEvent.dataTypeChange = new ValueChange<>();
+                dataTypeChange.clone(alterFieldAttributesEvent.dataTypeChange);
             }
             if (checkChange != null) {
-                alterFieldDataTypeEvent.checkChange = new FieldAttrChange<>();
-                checkChange.clone(alterFieldDataTypeEvent.checkChange);
+                alterFieldAttributesEvent.checkChange = new ValueChange<>();
+                checkChange.clone(alterFieldAttributesEvent.checkChange);
             }
             if (notNullChange != null) {
-                alterFieldDataTypeEvent.notNullChange = new FieldAttrChange<>();
-                notNullChange.clone(alterFieldDataTypeEvent.notNullChange);
+                alterFieldAttributesEvent.notNullChange = new ValueChange<>();
+                notNullChange.clone(alterFieldAttributesEvent.notNullChange);
             }
             if (defaultChange != null) {
-                alterFieldDataTypeEvent.defaultChange = new FieldAttrChange<>();
-                defaultChange.clone(alterFieldDataTypeEvent.defaultChange);
+                alterFieldAttributesEvent.defaultChange = new ValueChange<>();
+                defaultChange.clone(alterFieldAttributesEvent.defaultChange);
             }
             if (commentChange != null) {
-                alterFieldDataTypeEvent.commentChange = new FieldAttrChange<>();
-                commentChange.clone(alterFieldDataTypeEvent.commentChange);
+                alterFieldAttributesEvent.commentChange = new ValueChange<>();
+                commentChange.clone(alterFieldAttributesEvent.commentChange);
             }
             if (constraintChange != null) {
-                alterFieldDataTypeEvent.constraintChange = new FieldAttrChange<>();
-                constraintChange.clone(alterFieldDataTypeEvent.constraintChange);
+                alterFieldAttributesEvent.constraintChange = new ValueChange<>();
+                constraintChange.clone(alterFieldAttributesEvent.constraintChange);
             }
         }
     }
 
-    public FieldAttrChange<String> getDataTypeChange() {
+    public ValueChange<String> getDataTypeChange() {
         return dataTypeChange;
     }
 
-    public void setDataTypeChange(FieldAttrChange<String> dataTypeChange) {
+    public void setDataTypeChange(ValueChange<String> dataTypeChange) {
         this.dataTypeChange = dataTypeChange;
     }
 
-    public FieldAttrChange<String> getCheckChange() {
+    public ValueChange<String> getCheckChange() {
         return checkChange;
     }
 
-    public void setCheckChange(FieldAttrChange<String> checkChange) {
+    public void setCheckChange(ValueChange<String> checkChange) {
         this.checkChange = checkChange;
     }
 
-    public FieldAttrChange<String> getConstraintChange() {
+    public ValueChange<String> getConstraintChange() {
         return constraintChange;
     }
 
-    public void setConstraintChange(FieldAttrChange<String> constraintChange) {
+    public void setConstraintChange(ValueChange<String> constraintChange) {
         this.constraintChange = constraintChange;
     }
 
-    public FieldAttrChange<Boolean> getNotNullChange() {
+    public ValueChange<Boolean> getNotNullChange() {
         return notNullChange;
     }
 
-    public void setNotNullChange(FieldAttrChange<Boolean> notNullChange) {
+    public void setNotNullChange(ValueChange<Boolean> notNullChange) {
         this.notNullChange = notNullChange;
     }
 
-    public FieldAttrChange<String> getCommentChange() {
+    public ValueChange<String> getCommentChange() {
         return commentChange;
     }
 
-    public void setCommentChange(FieldAttrChange<String> commentChange) {
+    public void setCommentChange(ValueChange<String> commentChange) {
         this.commentChange = commentChange;
     }
 
-    public FieldAttrChange<Object> getDefaultChange() {
+    public ValueChange<Object> getDefaultChange() {
         return defaultChange;
     }
 
-    public void setDefaultChange(FieldAttrChange<Object> defaultChange) {
+    public void setDefaultChange(ValueChange<Object> defaultChange) {
         this.defaultChange = defaultChange;
+    }
+
+    public ValueChange<Integer> getPrimaryChange() {
+        return primaryChange;
+    }
+
+    public void setPrimaryChange(ValueChange<Integer> primaryChange) {
+        this.primaryChange = primaryChange;
+    }
+
+    public String getFieldName() {
+        return fieldName;
+    }
+
+    public void setFieldName(String fieldName) {
+        this.fieldName = fieldName;
     }
 }

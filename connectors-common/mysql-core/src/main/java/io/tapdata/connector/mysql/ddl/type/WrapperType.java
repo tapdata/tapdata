@@ -1,5 +1,6 @@
 package io.tapdata.connector.mysql.ddl.type;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -9,7 +10,11 @@ import java.util.List;
  **/
 public abstract class WrapperType {
 
-	protected List<DDLType> ddlTypes;
+	protected final List<DDLType> ddlTypes;
+
+	protected WrapperType() {
+		this.ddlTypes = new ArrayList<>();
+	}
 
 	public List<DDLType> getDdlTypes() {
 		return ddlTypes;
