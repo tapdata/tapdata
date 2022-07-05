@@ -30,7 +30,8 @@ public class CCJAlterColumnNameDDLWrapper extends CCJBaseDDLWrapper {
 			return;
 		}
 		AlterExpression alterExpression = alterExpressions.get(0);
-		if (alterExpression.getOperation() != AlterOperation.RENAME) {
+		if (alterExpression.getOperation() != AlterOperation.RENAME
+				&& alterExpression.getOperation() != AlterOperation.CHANGE) {
 			return;
 		}
 		List<AlterExpression.ColumnDataType> colDataTypeList = alterExpression.getColDataTypeList();

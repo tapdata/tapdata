@@ -30,7 +30,8 @@ public class CCJAlterColumnAttrsDDLWrapper extends CCJBaseDDLWrapper {
 			return;
 		}
 		for (AlterExpression alterExpression : alterExpressions) {
-			if (alterExpression.getOperation() != AlterOperation.CHANGE) {
+			if (alterExpression.getOperation() != AlterOperation.CHANGE
+					&& alterExpression.getOperation() != AlterOperation.MODIFY) {
 				continue;
 			}
 			List<AlterExpression.ColumnDataType> colDataTypeList = alterExpression.getColDataTypeList();
@@ -69,10 +70,10 @@ public class CCJAlterColumnAttrsDDLWrapper extends CCJBaseDDLWrapper {
 							}
 							break;
 						default:
-							if (StringUtils.equalsAnyIgnoreCase(preSpec, "default")) {
-								tapAlterFieldAttributesEvent.defaultChange(ValueChange.create(columnSpec));
+							if (StringUtils.equalsAnyIgnoreCase(preSpec, "default", "DEFAULT")) {
+								tapAlterFieldAttributesEvent.defaultChange(ValueChange.create(removeFirstAndLastApostrophe(columnSpec)));
 								preSpec = "";
-							} else if (StringUtils.equalsAnyIgnoreCase(preSpec, "comment")) {
+							} else if (StringUtils.equalsAnyIgnoreCase(preSpec, "comment", "COMMENT")) {
 								tapAlterFieldAttributesEvent.comment(ValueChange.create(removeFirstAndLastApostrophe(columnSpec)));
 								preSpec = "";
 							}

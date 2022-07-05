@@ -70,10 +70,10 @@ public class CCJAddColumnDDLWrapper extends CCJBaseDDLWrapper {
 							preSpec = "";
 							break;
 						default:
-							if ("default".equals(preSpec)) {
-								tapField.defaultValue(columnSpec);
+							if (StringUtils.equalsAnyIgnoreCase(preSpec, "default", "DEFAULT")) {
+								tapField.defaultValue(removeFirstAndLastApostrophe(columnSpec));
 								preSpec = "";
-							} else if ("comment".equals(preSpec)) {
+							} else if (StringUtils.equalsAnyIgnoreCase(preSpec, "comment", "COMMENT")) {
 								tapField.comment(removeFirstAndLastApostrophe(columnSpec));
 								preSpec = "";
 							}

@@ -13,11 +13,11 @@
       },
       {
         "id": "dml-insert-policy",
-        "alternatives": ["update-on-exists", "ignore-on-exists"]
+        "alternatives": ["update_on_exists", "ignore_on_exists"]
       },
       {
         "id": "dml-update-policy",
-        "alternatives": ["ignore-on-non-exists", "insert-on-non-exists"]
+        "alternatives": ["ignore_on_nonexists", "insert_on_nonexists"]
       }
     ],
     "connection": {

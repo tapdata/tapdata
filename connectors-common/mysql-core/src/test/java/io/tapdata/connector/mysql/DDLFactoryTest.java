@@ -10,10 +10,7 @@ import io.tapdata.entity.event.ddl.table.TapNewFieldEvent;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.cache.KVReadOnlyMap;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.Assertions;
-import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.*;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -30,8 +27,8 @@ public class DDLFactoryTest {
 	private static final DDLParserType DDL_PARSER_TYPE = DDLParserType.CCJ_SQL_PARSER;
 	private static List<TapDDLEvent> tapDDLEvents;
 
-	@BeforeAll
-	static void beforeAll() {
+	@BeforeEach
+	void beforeEach() {
 		tableMap = new KVReadOnlyMap<TapTable>() {
 			private Map<String, TapTable> map = new HashMap<String, TapTable>() {{
 				TapTable tapTable = new TapTable("DDL_TEST");
@@ -122,9 +119,15 @@ public class DDLFactoryTest {
 	void modifyColumnWrapperTest() throws Throwable {
 		DDLFactory.ddlToTapDDLEvent(
 				DDL_PARSER_TYPE,
-				"alter table TEST.DDL_TEST modify column f1 varchar(50) not null default 'test'",
+				"alter table TEST.DDL_TEST modify column f1 varchar(50) not null default 'test' unique key key",
 				tableMap,
 				tapDDLEvents::add
 		);
+		Assertions.assertEquals(1, tapDDLEvents.size());
+		TapDDLEvent tapDDLEvent = tapDDLEvents.get(0);
+		Assertions.assertInstanceOf(TapAlterFieldAttributesEvent.class, tapDDLEvent);
+		Assertions.assertEquals("f1", ((TapAlterFieldAttributesEvent) tapDDLEvent).getFieldName());
+		Assertions.assertFalse(((TapAlterFieldAttributesEvent) tapDDLEvent).getNotNullChange().getAfter());
+		Assertions.assertEquals("test", ((TapAlterFieldAttributesEvent) tapDDLEvent).getDefaultChange().getAfter());
 	}
 }
