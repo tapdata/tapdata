@@ -7,6 +7,7 @@ import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.cache.KVReadOnlyMap;
 import net.sf.jsqlparser.statement.alter.Alter;
 import net.sf.jsqlparser.statement.alter.AlterExpression;
+import net.sf.jsqlparser.statement.alter.AlterOperation;
 import net.sf.jsqlparser.statement.create.table.ColDataType;
 import org.apache.commons.lang3.StringUtils;
 
@@ -29,6 +30,9 @@ public class CCJAlterColumnAttrsDDLWrapper extends CCJBaseDDLWrapper {
 			return;
 		}
 		for (AlterExpression alterExpression : alterExpressions) {
+			if (alterExpression.getOperation() != AlterOperation.CHANGE) {
+				continue;
+			}
 			List<AlterExpression.ColumnDataType> colDataTypeList = alterExpression.getColDataTypeList();
 			for (AlterExpression.ColumnDataType columnDataType : colDataTypeList) {
 				TapAlterFieldAttributesEvent tapAlterFieldAttributesEvent = new TapAlterFieldAttributesEvent();

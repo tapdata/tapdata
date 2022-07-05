@@ -1,10 +1,14 @@
 package io.tapdata.connector.mysql.ddl.wrapper.ccj;
 
 import io.tapdata.entity.event.ddl.TapDDLEvent;
+import io.tapdata.entity.event.ddl.table.TapDropFieldEvent;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.cache.KVReadOnlyMap;
 import net.sf.jsqlparser.statement.alter.Alter;
+import net.sf.jsqlparser.statement.alter.AlterExpression;
+import net.sf.jsqlparser.statement.alter.AlterOperation;
 
+import java.util.List;
 import java.util.function.Consumer;
 
 /**
@@ -16,5 +20,16 @@ public class CCJDropColumnDDLWrapper extends CCJBaseDDLWrapper {
 	@Override
 	public void wrap(Alter ddl, KVReadOnlyMap<TapTable> tableMap, Consumer<TapDDLEvent> consumer) throws Throwable {
 		verifyAlter(ddl);
+		String tableName = getTableName(ddl);
+		List<AlterExpression> alterExpressions = ddl.getAlterExpressions();
+		for (AlterExpression alterExpression : alterExpressions) {
+			if (alterExpression.getOperation() != AlterOperation.DROP) {
+				continue;
+			}
+			TapDropFieldEvent tapDropFieldEvent = new TapDropFieldEvent();
+			tapDropFieldEvent.setTableId(tableName);
+			tapDropFieldEvent.setFieldName(alterExpression.getColumnName());
+			consumer.accept(tapDropFieldEvent);
+		}
 	}
 }

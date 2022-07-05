@@ -7,6 +7,7 @@ import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.cache.KVReadOnlyMap;
 import net.sf.jsqlparser.statement.alter.Alter;
 import net.sf.jsqlparser.statement.alter.AlterExpression;
+import net.sf.jsqlparser.statement.alter.AlterOperation;
 import org.apache.commons.lang3.StringUtils;
 
 import java.util.List;
@@ -29,6 +30,9 @@ public class CCJAlterColumnNameDDLWrapper extends CCJBaseDDLWrapper {
 			return;
 		}
 		AlterExpression alterExpression = alterExpressions.get(0);
+		if (alterExpression.getOperation() != AlterOperation.RENAME) {
+			return;
+		}
 		List<AlterExpression.ColumnDataType> colDataTypeList = alterExpression.getColDataTypeList();
 		if (null == colDataTypeList || colDataTypeList.size() <= 0) {
 			return;

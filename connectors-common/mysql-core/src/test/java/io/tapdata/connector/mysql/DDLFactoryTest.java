@@ -5,10 +5,12 @@ import io.tapdata.connector.mysql.ddl.DDLParserType;
 import io.tapdata.entity.event.ddl.TapDDLEvent;
 import io.tapdata.entity.event.ddl.table.TapAlterFieldAttributesEvent;
 import io.tapdata.entity.event.ddl.table.TapAlterFieldNameEvent;
+import io.tapdata.entity.event.ddl.table.TapDropFieldEvent;
 import io.tapdata.entity.event.ddl.table.TapNewFieldEvent;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.cache.KVReadOnlyMap;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -25,6 +27,8 @@ import java.util.Map;
  **/
 public class DDLFactoryTest {
 	private static KVReadOnlyMap<TapTable> tableMap;
+	private static final DDLParserType DDL_PARSER_TYPE = DDLParserType.CCJ_SQL_PARSER;
+	private static List<TapDDLEvent> tapDDLEvents;
 
 	@BeforeAll
 	static void beforeAll() {
@@ -48,33 +52,40 @@ public class DDLFactoryTest {
 				return map.get(key);
 			}
 		};
+		tapDDLEvents = new ArrayList<>();
+	}
+
+	@AfterEach
+	void afterEach() {
+		tapDDLEvents.clear();
 	}
 
 	@Test
 	void addColumnWrapperTest() throws Throwable {
 		DDLFactory.ddlToTapDDLEvent(
-				DDLParserType.CCJ_SQL_PARSER,
+				DDL_PARSER_TYPE,
 				"alter table TEST.DDL_TEST add column f1 decimal(5,2) not null comment 'test' key auto_increment",
 				tableMap,
-				tapDDLEvent -> {
-					Assertions.assertInstanceOf(TapNewFieldEvent.class, tapDDLEvent);
-					Assertions.assertEquals(1, ((TapNewFieldEvent) tapDDLEvent).getNewFields().size());
-					List<TapField> newFields = ((TapNewFieldEvent) tapDDLEvent).getNewFields();
-					TapField tapField = newFields.get(0);
-					Assertions.assertEquals("f1", tapField.getName());
-					Assertions.assertEquals("decimal(5,2)", tapField.getDataType());
-					Assertions.assertEquals(3, tapField.getPos());
-					Assertions.assertEquals(2, tapField.getPrimaryKeyPos());
-					Assertions.assertTrue(tapField.getPrimaryKey());
-					Assertions.assertEquals("test", tapField.getComment());
-				});
+				tapDDLEvents::add
+		);
+		Assertions.assertEquals(1, tapDDLEvents.size());
+		TapDDLEvent tapDDLEvent = tapDDLEvents.get(0);
+		Assertions.assertInstanceOf(TapNewFieldEvent.class, tapDDLEvent);
+		Assertions.assertEquals(1, ((TapNewFieldEvent) tapDDLEvent).getNewFields().size());
+		List<TapField> newFields = ((TapNewFieldEvent) tapDDLEvent).getNewFields();
+		TapField tapField = newFields.get(0);
+		Assertions.assertEquals("f1", tapField.getName());
+		Assertions.assertEquals("decimal(5,2)", tapField.getDataType());
+		Assertions.assertEquals(3, tapField.getPos());
+		Assertions.assertEquals(2, tapField.getPrimaryKeyPos());
+		Assertions.assertTrue(tapField.getPrimaryKey());
+		Assertions.assertEquals("test", tapField.getComment());
 	}
 
 	@Test
 	void changeColumnWrapperTest() throws Throwable {
-		List<TapDDLEvent> tapDDLEvents = new ArrayList<>();
 		DDLFactory.ddlToTapDDLEvent(
-				DDLParserType.CCJ_SQL_PARSER,
+				DDL_PARSER_TYPE,
 				"alter table TEST.DDL_TEST change column f1 f1_new int(4) null comment 'test_new' unique key key",
 				tableMap,
 				tapDDLEvents::add
@@ -91,5 +102,29 @@ public class DDLFactoryTest {
 		Assertions.assertTrue(((TapAlterFieldAttributesEvent) tapDDLEvent2).getNotNullChange().getAfter());
 		Assertions.assertEquals("test_new", ((TapAlterFieldAttributesEvent) tapDDLEvent2).getCommentChange().getAfter());
 		Assertions.assertEquals(2, ((TapAlterFieldAttributesEvent) tapDDLEvent2).getPrimaryChange().getAfter());
+	}
+
+	@Test
+	void dropColumnWrapperTest() throws Throwable {
+		DDLFactory.ddlToTapDDLEvent(
+				DDL_PARSER_TYPE,
+				"alter table TEST.DDL_TEST drop column f1",
+				tableMap,
+				tapDDLEvents::add
+		);
+		Assertions.assertEquals(1, tapDDLEvents.size());
+		TapDDLEvent tapDDLEvent = tapDDLEvents.get(0);
+		Assertions.assertInstanceOf(TapDropFieldEvent.class, tapDDLEvent);
+		Assertions.assertEquals("f1", ((TapDropFieldEvent) tapDDLEvent).getFieldName());
+	}
+
+	@Test
+	void modifyColumnWrapperTest() throws Throwable {
+		DDLFactory.ddlToTapDDLEvent(
+				DDL_PARSER_TYPE,
+				"alter table TEST.DDL_TEST modify column f1 varchar(50) not null default 'test'",
+				tableMap,
+				tapDDLEvents::add
+		);
 	}
 }
