@@ -213,6 +213,9 @@ def test_monitor():
 
 def test_check():
     p = make_new_pipeline(f"check_job{random_str()}")
-    p1 = p.readFrom(source_name).writeTo(sink_name)
-    p1.start()
+    p1 = p.readFrom(source_name)
+    p1.dag.jobType = JobType.sync
+    p2 = p1.writeTo(sink_name)
+    p2.start()
+    assert wait_scheduling(p2, except_status=('running',))
     p1.check()

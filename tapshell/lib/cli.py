@@ -35,7 +35,6 @@ from lib.config_parse import Config
 
 
 config: Config = Config()
-fdm = config["backend.fdm"]
 server = config["backend.server"]
 access_code = config["backend.access_code"]
 
@@ -2145,69 +2144,9 @@ class Source:
                     self.primary_key.append(field["field_name"])
         return table_id
 
-    @help_decorate("cache this source to idaas, you can preview it after cache it")
-    def cache(self):
-        if self.cache_p is not None:
-            logger.info("cache already, no need to do it again")
-            return
-        self.cache_table = self.tableName + "_cache"
-        if self.cache_client is None:
-            self.cache_conn = Connection.get(name=fdm)
-            mongo_uri = "mongodb://"
-            if self.cache_conn["database_username"] != "":
-                mongo_uri = mongo_uri + self.cache_conn["database_username"]
-            if self.cache_conn["database_password"] != "":
-                mongo_uri = mongo_uri
-            mongo_uri = mongo_uri + "@" + self.cache_conn["database_host"] + "/" + self.cache_conn["database_name"]
-            mongo_uri = mongo_uri + "?" + self.cache_conn["additionalString"]
-            self.cache_client = pymongo.MongoClient(mongo_uri)
-            if len(list(self.cache_client[fdm][self.cache_table].list_indexes())) > 0:
-                logger.info("cache table already exists, link done!")
-                return
-        p = Pipeline(name=str(uuid.uuid4()))
-        cache_source = Source(self.ori_connection, table=self.table)
-        cache_sink = Sink(fdm)
-        p.readFrom(cache_source).writeTo(cache_sink, relation=MultiTableRelation(suffix="_cache"))
-        p.start()
-        self.cache_p = p
-
     @help_decorate("get cache job status")
     def cache_status(self):
         self.cache_p.status()
-
-    @help_decorate("preview this source, only AFTER cache() call")
-    def preview(self, limit=10, pretty=False):
-        if self.cache_p is None and self.cache_client is None:
-            logger.warn("please call cache() before using preview")
-            return
-        example = list(self.cache_client[fdm][self.cache_table].find().limit(limit))
-        for i in range(len(example)):
-            logger.log("{}: {}", i, example[i] if not pretty else dumps(example[i], indent=4, ensure_ascii=False),
-                       "info", "debug")
-
-    @help_decorate("count this source, only AFTER cache() call")
-    def count(self):
-        if self.cache_p is None and self.cache_client is None:
-            logger.warn("please call cache() before using preview")
-            return
-        c = self.cache_client[fdm][self.cache_table].count()
-        logger.info("cache table count is: {}", c)
-
-    @help_decorate("find using a {}, only AFTER cache() call", args="query, {}")
-    def find(self, query, limit=10, pretty=False):
-        if self.cache_p is None and self.cache_client is None:
-            logger.warn("please call cache() before using preview")
-            return
-        if "_id" in query and type(query["_id"]) == type(""):
-            query["_id"] = ObjectId(query["_id"])
-        result = self.cache_client[fdm][self.cache_table].find(query).limit(limit)
-        c = result.count()
-        if c > 10:
-            logger.info("query match rows count: {}, will show 10 rows for preview", c)
-        example = list(self.cache_client[fdm][self.cache_table].find(query).limit(10))
-        for i in range(len(example)):
-            logger.log("{}: {}", i, example[i] if not pretty else dumps(example[i], indent=4, ensure_ascii=False),
-                       "info", "debug")
 
 
 @help_decorate("sink is end of a pipeline", "sink = Sink($Datasource, $table)")
@@ -3010,7 +2949,6 @@ class DataSource():
     def delete(self):
         if self.id is None or isinstance(self.id, FunctionType):
             return
-        print(self.id, type(self.id), dir(self))
         res = req.delete("/Connections/" + self.id, json=self.c)
         if res.status_code == 200 and res.json()["code"] == "ok":
             logger.info("delete {} Connection success", self.id)
@@ -3331,7 +3269,7 @@ class DataCheck:
     @help_decorate("get a data check job by it's name", args="data check name",
                    res="DataCheck or None if not exists, DataCheck")
     def get(name):
-        data = req.get("/Inspects", params={"filter": {"where": {"name": name}}}).json()["data"]
+        data = req.get("/Inspects", params={"filter": json.dumps({"where": {"name": name}})}).json()["data"]
         if data["total"] == 0:
             return None
         return data[0]
@@ -3348,12 +3286,12 @@ class DataCheck:
 
     @help_decorate("get data check job status", res="job status")
     def status(self):
-        res = req.get("/Inspects", params={"filter": {"where": {"id": self.id}}})
+        res = req.get("/Inspects", params={"filter": json.dumps({"where": {"id": self.id}})})
         return res.json()["data"][0]["status"]
 
     @help_decorate("get data check job stats", res="job stats")
     def stats(self, quiet=False):
-        res = req.get("/Inspects", params={"filter": {"where": {"id": self.id}}})
+        res = req.get("/Inspects", params={"filter": json.dumps({"where": {"id": self.id}})})
         stats = res.json()["data"][0]["InspectResult"]["stats"][0]
         if not quiet:
             logger.log(
