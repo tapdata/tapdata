@@ -23,6 +23,7 @@ public class RegisterMain {
 				basePath + "connectors/dist/mysql-connector-v1.0-SNAPSHOT.jar",
 				basePath + "connectors/dist/postgres-connector-v1.0-SNAPSHOT.jar",
 				basePath + "connectors/dist/mongodb-connector-v1.0-SNAPSHOT.jar",
+				basePath + "connectors/dist/elasticsearch-connector-v1.0-SNAPSHOT.jar",
 		};
 
 		Main.registerCommands().execute(args);
