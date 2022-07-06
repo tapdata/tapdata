@@ -4,6 +4,7 @@ import io.tapdata.common.WriteRecorder;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.kit.EmptyKit;
 import io.tapdata.kit.StringKit;
+import io.tapdata.pdk.apis.entity.ConnectionOptions;
 
 import java.sql.Connection;
 import java.sql.SQLException;
@@ -240,25 +241,71 @@ public class PostgresWriteRecorder extends WriteRecorder {
         }
         Map<String, Object> before = new HashMap<>();
         uniqueCondition.forEach(k -> before.put(k, after.get(k)));
+        if (updatePolicy.equals(ConnectionOptions.DML_UPDATE_POLICY_INSERT_ON_NON_EXISTS)) {
+            insertUpdate(after, before);
+        } else {
+            justUpdate(after, before);
+        }
+        preparedStatement.addBatch();
+    }
+
+    private void justUpdate(Map<String, Object> after, Map<String, Object> before) throws SQLException {
         if (EmptyKit.isNull(preparedStatement)) {
             if (hasPk) {
                 preparedStatement = connection.prepareStatement("UPDATE \"" + schema + "\".\"" + tapTable.getId() + "\" SET " +
-                        after.keySet().stream().map(k -> "\"" + k + "\"=?").collect(Collectors.joining(", ")) + " WHERE " +
+                        allColumn.stream().map(k -> "\"" + k + "\"=?").collect(Collectors.joining(", ")) + " WHERE " +
                         before.keySet().stream().map(k -> "\"" + k + "\"=?").collect(Collectors.joining(" AND ")));
             } else {
                 preparedStatement = connection.prepareStatement("UPDATE \"" + schema + "\".\"" + tapTable.getId() + "\" SET " +
-                        after.keySet().stream().map(k -> "\"" + k + "\"=?").collect(Collectors.joining(", ")) + " WHERE " +
+                        allColumn.stream().map(k -> "\"" + k + "\"=?").collect(Collectors.joining(", ")) + " WHERE " +
                         before.keySet().stream().map(k -> "(\"" + k + "\"=? OR (\"" + k + "\" IS NULL AND ?::text IS NULL))")
                                 .collect(Collectors.joining(" AND ")));
             }
         }
         preparedStatement.clearParameters();
         int pos = 1;
-        for (String key : after.keySet()) {
+        for (String key : allColumn) {
             preparedStatement.setObject(pos++, after.get(key));
         }
         dealNullBefore(before, pos);
-        preparedStatement.addBatch();
+    }
+
+    private void insertUpdate(Map<String, Object> after, Map<String, Object> before) throws SQLException {
+        if (EmptyKit.isNull(preparedStatement)) {
+            String updateSql;
+            if (hasPk) {
+                updateSql = "WITH upsert AS (UPDATE \"" + schema + "\".\"" + tapTable.getId() + "\" SET " + allColumn.stream().map(k -> "\"" + k + "\"=?")
+                        .collect(Collectors.joining(", ")) + " WHERE " + before.keySet().stream().map(k -> "\"" + k + "\"=?")
+                        .collect(Collectors.joining(" AND ")) + " RETURNING *) INSERT INTO \"" + schema + "\".\"" + tapTable.getId() + "\" ("
+                        + allColumn.stream().map(k -> "\"" + k + "\"").collect(Collectors.joining(", ")) + ") SELECT "
+                        + StringKit.copyString("?", allColumn.size(), ",") + " WHERE NOT EXISTS (SELECT * FROM upsert)";
+            } else {
+                updateSql = "WITH upsert AS (UPDATE \"" + schema + "\".\"" + tapTable.getId() + "\" SET " + allColumn.stream().map(k -> "\"" + k + "\"=?")
+                        .collect(Collectors.joining(", ")) + " WHERE " + before.keySet().stream().map(k -> "(\"" + k + "\"=? OR (\"" + k + "\" IS NULL AND ?::text IS NULL))")
+                        .collect(Collectors.joining(" AND ")) + " RETURNING *) INSERT INTO \"" + schema + "\".\"" + tapTable.getId() + "\" ("
+                        + allColumn.stream().map(k -> "\"" + k + "\"").collect(Collectors.joining(", ")) + ") SELECT "
+                        + StringKit.copyString("?", allColumn.size(), ",") + " WHERE NOT EXISTS (SELECT * FROM upsert)";
+            }
+            preparedStatement = connection.prepareStatement(updateSql);
+        }
+        preparedStatement.clearParameters();
+        int pos = 1;
+        for (String key : allColumn) {
+            preparedStatement.setObject(pos++, after.get(key));
+        }
+        if (hasPk) {
+            for (String key : before.keySet()) {
+                preparedStatement.setObject(pos++, after.get(key));
+            }
+        } else {
+            for (String key : before.keySet()) {
+                preparedStatement.setObject(pos++, after.get(key));
+                preparedStatement.setObject(pos++, after.get(key));
+            }
+        }
+        for (String key : allColumn) {
+            preparedStatement.setObject(pos++, after.get(key));
+        }
     }
 
     @Override

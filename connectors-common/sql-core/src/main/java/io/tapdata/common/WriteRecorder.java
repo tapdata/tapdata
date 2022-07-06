@@ -109,14 +109,6 @@ public abstract class WriteRecorder {
         return atomicLong;
     }
 
-    public void setInsertPolicy(String insertPolicy) {
-        this.insertPolicy = insertPolicy;
-    }
-
-    public void setUpdatePolicy(String updatePolicy) {
-        this.updatePolicy = updatePolicy;
-    }
-
     public abstract void addInsertBatch(Map<String, Object> after) throws SQLException;
 
     //before is always empty
