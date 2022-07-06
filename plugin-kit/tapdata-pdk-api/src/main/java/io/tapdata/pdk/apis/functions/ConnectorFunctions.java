@@ -2,6 +2,7 @@ package io.tapdata.pdk.apis.functions;
 
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
+import io.tapdata.pdk.apis.entity.Capability;
 import io.tapdata.pdk.apis.functions.connector.TapFunction;
 import io.tapdata.pdk.apis.functions.connector.common.ReleaseExternalFunction;
 import io.tapdata.pdk.apis.functions.connector.source.*;
@@ -28,13 +29,8 @@ public class ConnectorFunctions extends CommonFunctions<ConnectorFunctions> {
     private DeleteIndexFunction deleteIndexFunction;
     private QueryIndexesFunction queryIndexesFunction;
     private AlterDatabaseTimeZoneFunction alterDatabaseTimeZoneFunction;
-    private AlterFieldCheckFunction alterFieldCheckFunction;
-    private AlterFieldCommentFunction alterFieldCommentFunction;
-    private AlterFieldConstraintFunction alterFieldConstraintFunction;
-    private AlterFieldDataTypeFunction alterFieldDataTypeFunction;
-    private AlterFieldDefaultFunction alterFieldDefaultFunction;
+    private AlterFieldAttributesFunction alterFieldAttributesFunction;
     private AlterFieldNameFunction alterFieldNameFunction;
-    private AlterFieldNotNullFunction alterFieldNotNullFunction;
     private AlterFieldPrimaryKeyFunction alterFieldPrimaryKeyFunction;
     private AlterTableCharsetFunction alterTableCharsetFunction;
     private DropFieldFunction dropFieldFunction;
@@ -44,32 +40,12 @@ public class ConnectorFunctions extends CommonFunctions<ConnectorFunctions> {
         alterDatabaseTimeZoneFunction = function;
         return this;
     }
-    public ConnectorFunctions supportAlterFieldCheckFunction(AlterFieldCheckFunction function) {
-        alterFieldCheckFunction = function;
-        return this;
-    }
-    public ConnectorFunctions supportAlterFieldCommentFunction(AlterFieldCommentFunction function) {
-        alterFieldCommentFunction = function;
-        return this;
-    }
-    public ConnectorFunctions supportAlterFieldConstraintFunction(AlterFieldConstraintFunction function) {
-        alterFieldConstraintFunction = function;
-        return this;
-    }
-    public ConnectorFunctions supportAlterFieldDataTypeFunction(AlterFieldDataTypeFunction function) {
-        alterFieldDataTypeFunction = function;
-        return this;
-    }
-    public ConnectorFunctions supportAlterFieldDefaultFunction(AlterFieldDefaultFunction function) {
-        alterFieldDefaultFunction = function;
+    public ConnectorFunctions supportAlterFieldDataTypeFunction(AlterFieldAttributesFunction function) {
+        alterFieldAttributesFunction = function;
         return this;
     }
     public ConnectorFunctions supportAlterFieldNameFunction(AlterFieldNameFunction function) {
         alterFieldNameFunction = function;
-        return this;
-    }
-    public ConnectorFunctions supportAlterFieldNotNullFunction(AlterFieldNotNullFunction function) {
-        alterFieldNotNullFunction = function;
         return this;
     }
     public ConnectorFunctions supportAlterFieldPrimaryKeyFunction(AlterFieldPrimaryKeyFunction function) {
@@ -89,9 +65,9 @@ public class ConnectorFunctions extends CommonFunctions<ConnectorFunctions> {
         return this;
     }
 
-    public List<String> getCapabilities() {
+    public List<Capability> getCapabilities() {
         Field[] fields = ConnectorFunctions.class.getDeclaredFields();
-        List<String> fieldArray = new ArrayList<>();
+        List<Capability> fieldArray = new ArrayList<>();
         for(Field field : fields) {
             try {
                 Object value = field.get(this);
@@ -108,7 +84,7 @@ public class ConnectorFunctions extends CommonFunctions<ConnectorFunctions> {
                         }
                         fieldNameBuilder.append(c);
                     }
-                    fieldArray.add(fieldNameBuilder.toString());
+                    fieldArray.add(Capability.create(fieldNameBuilder.toString()).type(Capability.TYPE_FUNCTION));
                 }
             } catch (Throwable ignored) {}
         }
@@ -289,32 +265,12 @@ public class ConnectorFunctions extends CommonFunctions<ConnectorFunctions> {
         return alterDatabaseTimeZoneFunction;
     }
 
-    public AlterFieldCheckFunction getAlterFieldCheckFunction() {
-        return alterFieldCheckFunction;
-    }
-
-    public AlterFieldCommentFunction getAlterFieldCommentFunction() {
-        return alterFieldCommentFunction;
-    }
-
-    public AlterFieldConstraintFunction getAlterFieldConstraintFunction() {
-        return alterFieldConstraintFunction;
-    }
-
-    public AlterFieldDataTypeFunction getAlterFieldDataTypeFunction() {
-        return alterFieldDataTypeFunction;
-    }
-
-    public AlterFieldDefaultFunction getAlterFieldDefaultFunction() {
-        return alterFieldDefaultFunction;
+    public AlterFieldAttributesFunction getAlterFieldAttributesFunction() {
+        return alterFieldAttributesFunction;
     }
 
     public AlterFieldNameFunction getAlterFieldNameFunction() {
         return alterFieldNameFunction;
-    }
-
-    public AlterFieldNotNullFunction getAlterFieldNotNullFunction() {
-        return alterFieldNotNullFunction;
     }
 
     public AlterFieldPrimaryKeyFunction getAlterFieldPrimaryKeyFunction() {

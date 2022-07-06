@@ -100,7 +100,7 @@ public class TapConnectorManager implements MemoryFetcher {
     private void init(List<File> jarFiles) {
         if(isStarted.compareAndSet(false, true)) {
             if(jarFiles == null) {
-                String path = CommonUtils.getProperty("pdk_external_jar_path", "./dist");
+                String path = CommonUtils.getProperty("pdk_external_jar_path", "connectors/dist");
                 boolean loadNewJarAtRuntime = CommonUtils.getPropertyBool("pdk_load_new_jar_at_runtime", true);
                 boolean updateJarWhenIdleAtRuntime = CommonUtils.getPropertyBool("pdk_update_jar_when_idle_at_runtime", true);
                 boolean refreshLocalJars = CommonUtils.getPropertyBool("refresh_local_jars", false);

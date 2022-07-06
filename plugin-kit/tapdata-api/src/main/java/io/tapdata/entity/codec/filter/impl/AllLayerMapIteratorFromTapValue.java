@@ -1,5 +1,6 @@
 package io.tapdata.entity.codec.filter.impl;
 
+import io.tapdata.entity.codec.filter.EntryFilter;
 import io.tapdata.entity.codec.filter.MapIteratorEx;
 import io.tapdata.entity.schema.value.TapArrayValue;
 import io.tapdata.entity.schema.value.TapMapValue;
@@ -42,11 +43,11 @@ public class AllLayerMapIteratorFromTapValue implements MapIteratorEx {
 //        }
 //    }
 
-    private void iterateWithPrefix(String prefix, Map<String, Object> obj, BiFunction<String, Object, Object> filter) {
+    private void iterateWithPrefix(String prefix, Map<String, Object> obj, EntryFilter filter) {
         for (Map.Entry<String, Object> entry : obj.entrySet()) {
             Object value = entry.getValue();
             if(value instanceof TapMapValue) {
-                Object newValue = filter.apply(prefix + entry.getKey(), value);
+                Object newValue = filter.filter(prefix + entry.getKey(), value, true);
                 if(newValue != null) {
                     if(newValue instanceof Map) {
                         iterateWithPrefix(prefix + entry.getKey() + MAP_KEY_SEPARATOR, (Map<String, Object>) newValue, filter);
@@ -57,7 +58,7 @@ public class AllLayerMapIteratorFromTapValue implements MapIteratorEx {
                 }
             } else if(entry.getValue() instanceof TapArrayValue) {
 //                iterateListWithPrefix(prefix + entry.getKey() + ".#", (Collection<Object>) entry.getValue(), newList, filter);
-                Object newValue = filter.apply(prefix + entry.getKey(), value);
+                Object newValue = filter.filter(prefix + entry.getKey(), value, true);
                 if(newValue != null) {
                     if(newValue instanceof Collection) {
                         Collection<Object> newList = new ArrayList<>();
@@ -68,7 +69,7 @@ public class AllLayerMapIteratorFromTapValue implements MapIteratorEx {
                     }
                 }
             } else {
-                Object newValue = filter.apply(prefix + entry.getKey(), value);
+                Object newValue = filter.filter(prefix + entry.getKey(), value, true);
                 if(newValue != null) {
                     entry.setValue(newValue);
                 }
@@ -76,12 +77,12 @@ public class AllLayerMapIteratorFromTapValue implements MapIteratorEx {
         }
     }
 
-    private void iterateListWithPrefix(String prefix, Collection<Object> collection, Collection<Object> newList, BiFunction<String, Object, Object> filter) {
+    private void iterateListWithPrefix(String prefix, Collection<Object> collection, Collection<Object> newList, EntryFilter filter) {
         int i = 0;
         for (Object entry : collection) {
             Object value = entry;
             if(value instanceof TapMapValue) {
-                Object newValue = filter.apply(prefix + i, value);
+                Object newValue = filter.filter(prefix + i, value, true);
                 if(newValue != null) {
                     if(newValue instanceof Map) {
                         newList.add(newValue);
@@ -92,7 +93,7 @@ public class AllLayerMapIteratorFromTapValue implements MapIteratorEx {
                 }
             } else if(value instanceof TapArrayValue) {
 //                iterateListWithPrefix(prefix + i + ".#", (Collection<Object>) entry, newList, filter);
-                Object newValue = filter.apply(prefix + i, value);
+                Object newValue = filter.filter(prefix + i, value, true);
                 if(newValue != null) {
                     if(newValue instanceof Collection) {
                         Collection<Object> newList1 = new ArrayList<>();
@@ -103,7 +104,7 @@ public class AllLayerMapIteratorFromTapValue implements MapIteratorEx {
                     }
                 }
             } else {
-                Object newValue = filter.apply(prefix + i, value);
+                Object newValue = filter.filter(prefix + i, value, true);
                 if(newValue != null) {
                     newList.add(newValue);
                 } else {
@@ -115,7 +116,7 @@ public class AllLayerMapIteratorFromTapValue implements MapIteratorEx {
     }
 
     @Override
-    public void iterate(Map<String, Object> map, BiFunction<String, Object, Object> filter) {
+    public void iterate(Map<String, Object> map, EntryFilter filter) {
         if(map == null || filter == null) {
             return;
         }
@@ -123,7 +124,7 @@ public class AllLayerMapIteratorFromTapValue implements MapIteratorEx {
         for(Map.Entry<String, Object> entry : entrySet) {
             Object value = entry.getValue();
             if(value instanceof TapMapValue) {
-                Object newValue = filter.apply(entry.getKey(), value);
+                Object newValue = filter.filter(entry.getKey(), value, false);
                 if(newValue != null) {
                     if(newValue instanceof Map) {
                         entry.setValue(newValue);
@@ -133,7 +134,7 @@ public class AllLayerMapIteratorFromTapValue implements MapIteratorEx {
                     }
                 }
             } else if(value instanceof TapArrayValue) {
-                Object newValue = filter.apply(entry.getKey(), value);
+                Object newValue = filter.filter(entry.getKey(), value, false);
                 if(newValue != null) {
                     if(newValue instanceof Collection) {
                         Collection<Object> newList = new ArrayList<>();
@@ -144,7 +145,7 @@ public class AllLayerMapIteratorFromTapValue implements MapIteratorEx {
                     }
                 }
             } else {
-                Object newValue = filter.apply(entry.getKey(), value);
+                Object newValue = filter.filter(entry.getKey(), value, false);
                 if(newValue != null) {
                     entry.setValue(newValue);
                 }

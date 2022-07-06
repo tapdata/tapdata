@@ -21,11 +21,22 @@
 
     </modules>
 
+    <repositories>
+        <repository>
+            <id>jsqlparser-snapshots</id>
+            <snapshots>
+                <enabled>true</enabled>
+            </snapshots>
+            <url>https://oss.sonatype.org/content/groups/public/</url>
+        </repository>
+    </repositories>
+
     <properties>
         <java.version>8</java.version>
         <mysql.driver.version>8.0.21</mysql.driver.version>
         <hikari.version>4.0.3</hikari.version>
         <debezium.version>1.5.4.Final</debezium.version>
+        <jsqlparser.version>4.4</jsqlparser.version>
     </properties>
     <dependencyManagement>
         <dependencies>
@@ -59,6 +70,11 @@
                 <groupId>io.debezium</groupId>
                 <artifactId>debezium-connector-mysql</artifactId>
                 <version>${debezium.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.github.jsqlparser</groupId>
+                <artifactId>jsqlparser</artifactId>
+                <version>${jsqlparser.version}</version>
             </dependency>
         </dependencies>
     </dependencyManagement>
@@ -99,21 +115,19 @@
         <dependency>
             <groupId>io.debezium</groupId>
             <artifactId>debezium-embedded</artifactId>
-            <!--<exclusions>
-                <exclusion>
-                    <groupId>org.slf4j</groupId>
-                    <artifactId>slf4j-api</artifactId>
-                </exclusion>
-            </exclusions>-->
         </dependency>
         <dependency>
             <groupId>io.debezium</groupId>
             <artifactId>debezium-connector-mysql</artifactId>
         </dependency>
         <dependency>
+            <groupId>com.github.jsqlparser</groupId>
+            <artifactId>jsqlparser</artifactId>
+        </dependency>
+        <dependency>
             <groupId>org.junit.jupiter</groupId>
             <artifactId>junit-jupiter</artifactId>
-			<version>5.8.1</version>
+			<version>5.8.2</version>
             <scope>test</scope>
         </dependency>
     </dependencies>

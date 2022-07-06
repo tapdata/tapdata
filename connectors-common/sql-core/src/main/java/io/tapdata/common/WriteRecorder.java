@@ -26,6 +26,8 @@ public abstract class WriteRecorder {
     protected boolean hasPk = false;
     protected boolean uniqueConditionIsIndex = false;
     protected String version;
+    protected String insertPolicy;
+    protected String updatePolicy;
 
     protected PreparedStatement preparedStatement = null;
     protected final AtomicLong atomicLong = new AtomicLong(0);
@@ -95,6 +97,14 @@ public abstract class WriteRecorder {
         this.version = version;
     }
 
+    public void setInsertPolicy(String insertPolicy) {
+        this.insertPolicy = insertPolicy;
+    }
+
+    public void setUpdatePolicy(String updatePolicy) {
+        this.updatePolicy = updatePolicy;
+    }
+
     public AtomicLong getAtomicLong() {
         return atomicLong;
     }
@@ -151,7 +161,7 @@ public abstract class WriteRecorder {
         preparedStatement.addBatch();
     }
 
-    private void dealNullBefore(Map<String, Object> before, int pos) throws SQLException {
+    protected void dealNullBefore(Map<String, Object> before, int pos) throws SQLException {
         if (hasPk) {
             for (String key : before.keySet()) {
                 preparedStatement.setObject(pos++, before.get(key));
