@@ -97,6 +97,14 @@ public abstract class WriteRecorder {
         this.version = version;
     }
 
+    public void setInsertPolicy(String insertPolicy) {
+        this.insertPolicy = insertPolicy;
+    }
+
+    public void setUpdatePolicy(String updatePolicy) {
+        this.updatePolicy = updatePolicy;
+    }
+
     public AtomicLong getAtomicLong() {
         return atomicLong;
     }

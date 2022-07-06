@@ -209,32 +209,16 @@ public class TapSimplify {
 		return new TapAlterDatabaseTimeZoneEvent();
 	}
 
-	public static TapAlterFieldCommentEvent alterFieldCommentEvent() {
-		return new TapAlterFieldCommentEvent();
-	}
-
 	public static <T> FieldAttrChange<T> fieldAttrChange(String name, T after) {
 		return FieldAttrChange.create(name, after);
 	}
 
-	public static TapAlterFieldConstraintEvent alterFieldConstraintEvent() {
-		return new TapAlterFieldConstraintEvent();
-	}
-
-	public static TapAlterFieldDataTypeEvent alterFieldDataTypeEvent() {
-		return new TapAlterFieldDataTypeEvent();
+	public static TapAlterFieldAttributesEvent alterFieldAttributesEvent() {
+		return new TapAlterFieldAttributesEvent();
 	}
 
 	public static TapAlterFieldNameEvent alterFieldNameEvent() {
 		return new TapAlterFieldNameEvent();
-	}
-
-	public static TapAlterFieldDefaultEvent alterFieldDefaultEvent() {
-		return new TapAlterFieldDefaultEvent();
-	}
-
-	public static TapAlterFieldNotNullEvent alterFieldNotNullEvent() {
-		return new TapAlterFieldNotNullEvent();
 	}
 
 	public static TapAlterFieldPrimaryKeyEvent alterFieldPrimaryKeyEvent() {

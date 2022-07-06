@@ -15,9 +15,9 @@ import java.util.function.Consumer;
 public class RecordWriter {
 
     protected WriteRecorder insertRecorder;
-    protected String insertPolicy = "update-on-exists";
+    protected String insertPolicy = ConnectionOptions.DML_INSERT_POLICY_UPDATE_ON_EXISTS;
     protected WriteRecorder updateRecorder;
-    protected String updatePolicy = "ignore-on-non-exists";
+    protected String updatePolicy = ConnectionOptions.DML_UPDATE_POLICY_IGNORE_ON_NON_EXISTS;
     protected WriteRecorder deleteRecorder;
     protected String version;
     protected Connection connection;

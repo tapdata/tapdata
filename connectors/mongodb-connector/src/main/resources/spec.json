@@ -8,7 +8,17 @@
   },
   "configOptions": {
     "capabilities": [
-      "master-slave-merge"
+      {
+        "id": "master_slave_merge"
+      },
+      {
+        "id": "dml_insert_policy",
+        "alternatives": ["update_on_exists", "ignore_on_exists"]
+      },
+      {
+        "id": "dml_update_policy",
+        "alternatives": ["ignore_on_nonexists", "insert_on_nonexists"]
+      }
     ],
     "connection": {
       "type": "object",

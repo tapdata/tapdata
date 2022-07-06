@@ -1,7 +1,5 @@
 package io.tapdata.pdk.cli;
 
-import picocli.CommandLine;
-
 import java.net.URL;
 
 /**

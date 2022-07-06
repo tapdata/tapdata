@@ -2,18 +2,16 @@ package io.tapdata.entity.event.ddl.table;
 
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.ddl.entity.FieldAttrChange;
+import io.tapdata.entity.event.ddl.entity.ValueChange;
 
 import java.util.ArrayList;
 import java.util.List;
 
-public class TapAlterFieldNameEvent extends TapTableEvent {
+public class TapAlterFieldNameEvent extends TapFieldBaseEvent {
     public static final int TYPE = 304;
-    private List<FieldAttrChange<String>> nameChanges;
-    public TapAlterFieldNameEvent change(FieldAttrChange<String> change) {
-        if(nameChanges == null)
-            nameChanges = new ArrayList<>();
-        if(change != null && nameChanges.contains(change))
-            nameChanges.add(change);
+    private ValueChange<String> nameChange;
+    public TapAlterFieldNameEvent nameChange(ValueChange<String> change) {
+        this.nameChange = change;
         return this;
     }
     public TapAlterFieldNameEvent() {
@@ -23,16 +21,16 @@ public class TapAlterFieldNameEvent extends TapTableEvent {
         super.clone(tapEvent);
         if (tapEvent instanceof TapAlterFieldNameEvent) {
             TapAlterFieldNameEvent alterFieldDataTypeEvent = (TapAlterFieldNameEvent) tapEvent;
-            if (nameChanges != null)
-                alterFieldDataTypeEvent.nameChanges = new ArrayList<>(nameChanges);
+            if (nameChange != null)
+                alterFieldDataTypeEvent.nameChange = nameChange;
         }
     }
 
-    public List<FieldAttrChange<String>> getNameChanges() {
-        return nameChanges;
+    public ValueChange<String> getNameChange() {
+        return nameChange;
     }
 
-    public void setNameChanges(List<FieldAttrChange<String>> nameChanges) {
-        this.nameChanges = nameChanges;
+    public void setNameChange(ValueChange<String> nameChange) {
+        this.nameChange = nameChange;
     }
 }
