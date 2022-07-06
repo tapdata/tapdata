@@ -129,5 +129,21 @@ public class DDLFactoryTest {
 		Assertions.assertEquals("f1", ((TapAlterFieldAttributesEvent) tapDDLEvent).getFieldName());
 		Assertions.assertFalse(((TapAlterFieldAttributesEvent) tapDDLEvent).getNotNullChange().getAfter());
 		Assertions.assertEquals("test", ((TapAlterFieldAttributesEvent) tapDDLEvent).getDefaultChange().getAfter());
+		Assertions.assertEquals(2, ((TapAlterFieldAttributesEvent) tapDDLEvent).getPrimaryChange().getAfter());
+	}
+
+	@Test
+	void renameColumnWrapperTest() throws Throwable {
+		DDLFactory.ddlToTapDDLEvent(
+				DDL_PARSER_TYPE,
+				"alter table TEST.DDL_TEST rename column f1 to f1_new",
+				tableMap,
+				tapDDLEvents::add
+		);
+		Assertions.assertEquals(1, tapDDLEvents.size());
+		TapDDLEvent tapDDLEvent = tapDDLEvents.get(0);
+		Assertions.assertInstanceOf(TapAlterFieldNameEvent.class, tapDDLEvent);
+		Assertions.assertEquals("f1", ((TapAlterFieldNameEvent) tapDDLEvent).getNameChange().getBefore());
+		Assertions.assertEquals("f1_new", ((TapAlterFieldNameEvent) tapDDLEvent).getNameChange().getAfter());
 	}
 }

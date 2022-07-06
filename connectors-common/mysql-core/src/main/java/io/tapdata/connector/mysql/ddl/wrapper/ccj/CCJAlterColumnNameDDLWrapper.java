@@ -30,19 +30,25 @@ public class CCJAlterColumnNameDDLWrapper extends CCJBaseDDLWrapper {
 			return;
 		}
 		AlterExpression alterExpression = alterExpressions.get(0);
-		if (alterExpression.getOperation() != AlterOperation.RENAME
-				&& alterExpression.getOperation() != AlterOperation.CHANGE) {
-			return;
+		if (alterExpression.getOperation() == AlterOperation.CHANGE) {
+			List<AlterExpression.ColumnDataType> colDataTypeList = alterExpression.getColDataTypeList();
+			if (null == colDataTypeList || colDataTypeList.size() <= 0) {
+				return;
+			}
+			AlterExpression.ColumnDataType columnDataType = colDataTypeList.get(0);
+			if (null == columnDataType || StringUtils.isBlank(columnDataType.getColumnName())) {
+				return;
+			}
+			tapAlterFieldNameEvent.nameChange(ValueChange.create(alterExpression.getColumnOldName(), columnDataType.getColumnName()));
+			consumer.accept(tapAlterFieldNameEvent);
+		} else if (alterExpression.getOperation() == AlterOperation.RENAME) {
+			String columnName = alterExpression.getColumnName();
+			String columnOldName = alterExpression.getColumnOldName();
+			if (StringUtils.isBlank(columnName) || StringUtils.isBlank(columnOldName)) {
+				return;
+			}
+			tapAlterFieldNameEvent.nameChange(ValueChange.create(columnOldName, columnName));
+			consumer.accept(tapAlterFieldNameEvent);
 		}
-		List<AlterExpression.ColumnDataType> colDataTypeList = alterExpression.getColDataTypeList();
-		if (null == colDataTypeList || colDataTypeList.size() <= 0) {
-			return;
-		}
-		AlterExpression.ColumnDataType columnDataType = colDataTypeList.get(0);
-		if (null == columnDataType || StringUtils.isBlank(columnDataType.getColumnName())) {
-			return;
-		}
-		tapAlterFieldNameEvent.nameChange(ValueChange.create(alterExpression.getColumnOldName(), columnDataType.getColumnName()));
-		consumer.accept(tapAlterFieldNameEvent);
 	}
 }
