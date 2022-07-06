@@ -79,7 +79,7 @@ public class ConnectorFunctions extends CommonFunctions<ConnectorFunctions> {
                     StringBuilder fieldNameBuilder = new StringBuilder();
                     for(char c : fieldName.toCharArray()) {
                         if(c >= 'A' && c <= 'Z') {
-                            fieldNameBuilder.append("-");
+                            fieldNameBuilder.append("_");
                             c += 32;
                         }
                         fieldNameBuilder.append(c);
