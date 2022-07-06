@@ -242,9 +242,9 @@ public class PostgresWriteRecorder extends WriteRecorder {
         Map<String, Object> before = new HashMap<>();
         uniqueCondition.forEach(k -> before.put(k, after.get(k)));
         if (updatePolicy.equals(ConnectionOptions.DML_UPDATE_POLICY_INSERT_ON_NON_EXISTS)) {
-            justUpdate(after, before);
-        } else {
             insertUpdate(after, before);
+        } else {
+            justUpdate(after, before);
         }
         preparedStatement.addBatch();
     }
