@@ -8,6 +8,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 public class ConnectionOptions {
     public static final String CAPABILITY_MASTER_SLAVE_MERGE = "master_slave_merge";
     public static final String CAPABILITY_RESUME_STREAM_BY_TIMESTAMP = "resume_stream_by_timestamp";
+    public static final String CAPABILITY_SHARED_STREAM_READ = "shared_stream_read";
 
     public static final String DDL_ALTER_FIELD_NAME_EVENT = "alter_field_name_event";
     public static final String DDL_ALTER_FIELD_ATTRIBUTES_EVENT = "alter_field_attributes_event";
