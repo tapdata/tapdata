@@ -36,6 +36,12 @@ public class TapIndex implements Serializable {
         return this;
     }
 
+    private Boolean cluster;
+    public TapIndex cluster(boolean cluster) {
+        this.cluster = cluster;
+        return this;
+    }
+
     public List<TapIndexField> getIndexFields() {
         return indexFields;
     }
@@ -74,5 +80,13 @@ public class TapIndex implements Serializable {
 
     public void setName(String name) {
         this.name = name;
+    }
+
+    public Boolean getCluster() {
+        return cluster;
+    }
+
+    public void setCluster(Boolean cluster) {
+        this.cluster = cluster;
     }
 }
