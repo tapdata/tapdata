@@ -9,7 +9,7 @@
   "configOptions": {
     "capabilities": [
       {
-        "id": "master-slave-merge"
+        "id": "master_slave_merge"
       },
       {
         "id": "dml_insert_policy",
