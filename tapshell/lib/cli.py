@@ -6,7 +6,8 @@ if not python_version().startswith("3"):
 import os
 
 os.environ['PYTHONSTARTUP'] = '>>>'
-import argparse, shlex, os
+os.environ["PROJECT_PATH"] = os.sep.join([os.path.dirname(os.path.abspath(__file__)), ".."])
+import argparse, shlex
 import urllib
 import uuid, json
 import time
@@ -33,7 +34,12 @@ from lib.log import logger, get_log_level
 from lib.config_parse import Config
 
 
-req: RequestSession = None
+config: Config = Config()
+fdm = config["backend.fdm"]
+server = config["backend.server"]
+access_code = config["backend.access_code"]
+
+req: RequestSession = RequestSession(server)
 
 
 # Helper class, used to provide operation tips
@@ -3496,23 +3502,10 @@ op_object_command_class = {
 }
 
 
-fdm = "fdm"
-server = ""
-
 def main():
-    global server, fdm
-    conf_file = "conf.json"
-    if os.path.exists(conf_file):
-        f = open(conf_file, "r")
-        conf = json.loads(str(f.read()))
-        if conf.get("fdm"):
-            fdm = ""
-        server = conf.get("server")
-        access_code = conf.get("access_code")
-        login_with_access_code(server, access_code)
+    login_with_access_code(server, access_code)
     show_connections(quiet=True)
     show_connectors(quiet=True)
 
 
-if __name__ == '__main__':
-    main()
+main()

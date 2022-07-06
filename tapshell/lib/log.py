@@ -4,8 +4,11 @@ import logging
 from lib.config_parse import Config
 
 
+config = Config()
+
+
 def logger_header():
-    return Config().logger_header.lower() == "false"
+    return config["log.logger_header"].lower() == "false"
 
 
 # Global Logger Utils
@@ -107,5 +110,5 @@ class Logger:
 
 logger = Logger("tapdata")
 # make requests and urllib3 quiet
-logging.getLogger("requests").setLevel(logging.WARNING)
-logging.getLogger("urllib3").setLevel(logging.WARNING)
+logging.getLogger("requests").setLevel(get_log_level(config["log.requests_log_level"]))
+logging.getLogger("urllib3").setLevel(get_log_level(config["log.urllib3_log_level"]))
