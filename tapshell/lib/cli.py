@@ -393,8 +393,7 @@ def get_table_fields(t, whole=False, source=None, cache=True):
 
     table_id = table["id"]
     table_name = table["original_name"]
-    api = system_server_conf["api"] + "/MetadataInstances/" + table_id + system_server_conf["auth_param"]
-    res = requests.get(api)
+    res = req.get("/MetadataInstances/" + table_id)
 
     data = res.json()["data"]
     fields = data["fields"]
@@ -498,8 +497,7 @@ def gen_dag_stage(obj):
 
 # show all connectors
 def show_connectors(quiet=False):
-    api = system_server_conf["api"] + "/DatabaseTypes"
-    res = requests.get(api + system_server_conf["auth_param"])
+    res = req.get("/DatabaseTypes")
     data = res.json()["data"]
     global client_cache
     for i in range(len(data)):
@@ -537,9 +535,7 @@ def show_jobs(quiet=False):
             "desc": True
         }
     }
-    api = system_server_conf["api"] + "/Task" + system_server_conf["auth_param"] + "&filter=" + urllib.parse.quote_plus(
-        json.dumps(f))
-    res = requests.get(api)
+    res = req.get("/Task", params={"filter": json.dumps(f)})
     data = res.json()["data"]["items"]
     global client_cache
     jobs = {"name_index": {}, "id_index": {}, "number_index": {}}
@@ -562,8 +558,7 @@ def show_jobs(quiet=False):
 # show all apis
 def show_apis(quiet=False):
     global client_cache
-    api = system_server_conf["api"] + "/Modules" + system_server_conf["auth_param"]
-    res = requests.get(api)
+    res = req.get("/Modules")
     data = res.json()["data"]["items"]
     client_cache["apis"]["name_index"] = {}
     if not quiet:
@@ -665,9 +660,7 @@ def show_tables(source=None, quiet=False):
         return
     source_name = client_cache["connections"]["id_index"][source]["name"]
     f = {"where": {"source.id": source}, "limit": 999999}
-    api = system_server_conf["api"] + "/MetadataInstances" + system_server_conf[
-        "auth_param"] + "&filter=" + urllib.parse.quote_plus(json.dumps(f))
-    res = requests.get(api)
+    res = req.get("/MetadataInstances", params={"filter": json.dumps(f)})
     data = res.json()["data"]["items"]
     client_cache["tables"][source] = {"name_index": {}, "id_index": {}, "number_index": {}}
     tables = []
@@ -877,8 +870,7 @@ class ApiCommand(Magics):
             "tablename": client_cache["apis"]["name_index"][line]["table"],
             "status": "pending"
         }
-        res = requests.patch(system_server_conf["api"] + "/Modules" + system_server_conf["auth_param"], json=payload,
-                             cookies=system_server_conf["cookies"])
+        res = req.patch("/Modules", json=payload)
         res = res.json()
         if res["code"] == "ok":
             logger.info("unpublish {} success", line)
@@ -1029,8 +1021,7 @@ class ApiCommand(Magics):
                 }
             ]
         }
-        res = requests.post(system_server_conf["api"] + "/Modules" + system_server_conf["auth_param"],
-                            json=payload).json()
+        res = req.get("/Modules", json=payload).json()
         if res["msg"] == "ok":
             logger.info(
                 "publish api {} success, you can test it by: {}",
@@ -2972,7 +2963,7 @@ class DataSource():
         database_type = d.get("database_type", "")
         if database_type.lower() not in client_cache["connectors"]:
             logger.warn("connector {} not support, support list is: {}", database_type, client_cache["connectors"])
-
+            return
         connector = client_cache["connectors"][database_type.lower()]
         d["pdkType"] = "pdk"
         d["pdkHash"] = connector["pdkHash"]
@@ -3003,6 +2994,8 @@ class DataSource():
     @help_decorate("save a connection in idaas system")
     def save(self):
         data = self.to_dict()
+        if data is None:
+            return
         res = req.post("/Connections", json=data)
         show_connections(quiet=True)
         if res.status_code == 200 and res.json()["code"] == "ok":
