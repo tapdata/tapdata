@@ -10,7 +10,6 @@ import argparse, shlex, os
 import urllib
 import uuid, json
 import time
-import logging.handlers
 from logging import *
 import asyncio
 import pymongo
@@ -30,112 +29,11 @@ from lib.graph import Node, Graph
 from lib.rules import job_config
 from lib.check import ConfigCheck
 from lib.request import RequestSession
+from lib.log import logger, get_log_level
+from lib.config_parse import Config
 
 
 req: RequestSession = None
-
-
-# Global Logger Utils
-def get_log_level(level):
-    levels = {
-        "debug": 0,
-        "info": 10,
-        "notice": 20,
-        "warn": 30,
-        "error": 40,
-    }
-    if level.lower() in levels:
-        return levels[level.lower()]
-    return 100
-
-
-class Logger:
-    def __init__(self, name=""):
-        self.name = name
-        self.max_len = 0
-        self.color_map = {
-            "info": "32",
-            "notice": "34",
-            "debug": "0",
-            "warn": "33",
-            "error": "31"
-        }
-
-    def _header(self):
-        if logger_header:
-            return "\033[1;34m" + self.name + ", " + "\033[0m" + \
-                   time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()) + ": "
-        else:
-            return ""
-
-    def _print(self, msg, wrap=True):
-        end = "\r"
-        if wrap:
-            end = "\n"
-        l = len(self._header() + msg)
-        tail = ""
-        if l > self.max_len:
-            self.max_len = l
-        if self.max_len > 180:
-            self.max_len = 180
-        if l < self.max_len:
-            tail = " " * (self.max_len - l)
-        print(self._header() + msg + tail, end=end)
-
-    def info(self, *args, **kargs):
-        msg = args[0].replace("{}", "\033[1;32m{}\033[0m")
-        self._print(msg.format(*args[1:]), **kargs)
-
-    def debug(self, *args, **kargs):
-        msg = args[0]
-        self._print(msg.format(*args[1:]), **kargs)
-
-    def notice(self, *args, **kargs):
-        msg = args[0].replace("{}", "\033[1;34m{}\033[0m")
-        self._print(msg.format(*args[1:]), **kargs)
-
-    def warn(self, *args, **kargs):
-        msg = args[0].replace("{}", "\033[1;33m{}\033[0m")
-        self._print(msg.format(*args[1:]), **kargs)
-
-    def error(self, *args, **kargs):
-        msg = args[0].replace("{}", "\033[1;31m{}\033[0m")
-        self._print(msg.format(*args[1:]), **kargs)
-
-    def fatal(self, *args, **kargs):
-        msg = args[0].replace("{}", "\033[1;31m{}\033[0m")
-        self._print(msg.format(*args[1:]), **kargs)
-
-    def log(self, *args, **kargs):
-        msg = args[0]
-        color_n = msg.count("{}")
-        if len(args) != 1 + color_n * 2:
-            self._print(
-                "log error, \033[1;32m{}\033[0m args expected, \033[1;32m{}\033[0m got, print all args: {}" \
-                    .format(1 + color_n * 2, len(args), args), **kargs
-            )
-            return
-
-        params = list(args[1:1 + color_n])
-        for i in args[1 + color_n:]:
-            msg = msg.replace(
-                "{}", "\033[1;" + self.color_map.get(i) +
-                      "m__24FA49F1-7C36-4481-ACF7-BF2146EA4719__\033[0m", 1
-            )
-        msg = msg.replace("__24FA49F1-7C36-4481-ACF7-BF2146EA4719__", "{}")
-        for i in range(len(params)):
-            p = str(params[i])
-            for j in range(int(p.count("`") / 2)):
-                p = p.replace("`", "\033[1;34m", 1)
-                p = p.replace("`", "\033[0m", 1)
-            params[i] = p
-        self._print(msg.format(*params), **kargs)
-
-
-logger = Logger("tapdata")
-# make requests and urllib3 quiet
-logging.getLogger("requests").setLevel(logging.WARNING)
-logging.getLogger("urllib3").setLevel(logging.WARNING)
 
 
 # Helper class, used to provide operation tips
@@ -185,7 +83,7 @@ def help_decorate(h, args=None, res=None):
                         lib_methods_list[class_name] = []
                     lib_methods_list[class_name].append(help_obj)
                 else:
-                    if is_empty(context):
+                    if not context:
                         if command_help_list.get("default", None) is None:
                             command_help_list["default"] = []
                         command_help_list["Default"].append(help_obj)
@@ -222,9 +120,6 @@ def class_help_decorate(h):
 
     return decorator
 
-
-# init global logger header conf, if false, no logger prefix(inlcude time, title ...) will display
-logger_header = False
 
 # system server conf, will become readonly after login
 system_server_conf = {
@@ -284,17 +179,6 @@ help_args = {
 
 ## some static utils, simple and no direct relation with this tool
 ##################################################################
-# judge whether a object is empty
-def is_empty(arg):
-    if arg == "":
-        return True
-    if arg is None:
-        return True
-    if type(arg) in [type([]), type({})]:
-        if len(arg) == 0:
-            return True
-    return False
-
 
 # pad a string to a certain length
 def pad(string, length):
@@ -360,7 +244,7 @@ def show_help(t):
     relations = []
     if type(l) == type({}):
         for context, commands in l.items():
-            if is_empty(commands):
+            if not commands:
                 continue
             logger.notice("{} commands:\n", context)
             for command in commands:
@@ -404,12 +288,12 @@ class global_help(Magics):
     @help_decorate("show global help", "h command")
     # h line_magic
     def h(self, t=None):
-        if is_empty(t):
+        if not t:
             for k, v in help_args.items():
                 logger.log("{}: {}", k, _l[v], "info", "debug")
             return
         try:
-            eval('show_help("' + t + '")')
+            show_help(t)
         except Exception as e:
             logger.warn("no help commands for {} found, please use below command for help, e is: {}", t, e)
             self.h()
@@ -1156,7 +1040,7 @@ class show_command(Magics):
     @line_magic
     @help_decorate("[Job,Datasource,Api,Table] show objects", "show objects")
     def show(self, line):
-        if is_empty(line):
+        if not line:
             pass
         try:
             eval("show_" + line + "()")
@@ -1391,7 +1275,7 @@ class system_command(Magics):
     @line_magic
     @help_decorate("[System] login system", "login -s server_address -u username -p password `OR` login -a access_code")
     def login(self, line):
-        if is_empty(line):
+        if not line:
             logger.warn("args can not be empty for login")
             return
         parser = argparse.ArgumentParser()
@@ -1400,9 +1284,9 @@ class system_command(Magics):
         parser.add_argument("-p", "--password", type=str)
         parser.add_argument("-a", "--access_code", type=str)
         args = parser.parse_args(shlex.split(line))
-        if is_empty(args.server):
+        if not args.server:
             args.server = "127.0.0.1:3030"
-        if not is_empty(args.access_code):
+        if args.access_code:
             login_with_access_code(args.server, args.access_code)
             return
         login_with_password(args.server.args.username, args.password)
@@ -1420,7 +1304,7 @@ class system_command(Magics):
     @help_decorate("[System] change system lang", "lang zh")
     def lang(self, l="en"):
         global _lang, _l
-        if is_empty(l):
+        if not l:
             return
         if i18n.get(l) is None:
             logger.warn("lang {} not support, will use lang {}", l, _lang, "warn", "notice")
@@ -2961,7 +2845,7 @@ class DataSource():
         ]
         # remove field hard to understand
         for k, v in c.items():
-            if is_empty(v):
+            if not v:
                 remove_keys.append(k)
 
         for k in remove_keys:
@@ -3611,15 +3495,24 @@ op_object_command_class = {
     }
 }
 
-# try:
-conf_file = "conf.json"
-if os.path.exists(conf_file):
-    f = open(conf_file, "r")
-    conf = json.loads(str(f.read()))
-    server = conf.get("server")
-    access_code = conf.get("access_code")
-    login_with_access_code(server, access_code)
-show_connections(quiet=True)
-show_connectors(quiet=True)
-# except Exception as e:
-#     logger.warn("load conf file failed, err is: {}", e)
+
+fdm = "fdm"
+server = ""
+
+def main():
+    global server, fdm
+    conf_file = "conf.json"
+    if os.path.exists(conf_file):
+        f = open(conf_file, "r")
+        conf = json.loads(str(f.read()))
+        if conf.get("fdm"):
+            fdm = ""
+        server = conf.get("server")
+        access_code = conf.get("access_code")
+        login_with_access_code(server, access_code)
+    show_connections(quiet=True)
+    show_connectors(quiet=True)
+
+
+if __name__ == '__main__':
+    main()
