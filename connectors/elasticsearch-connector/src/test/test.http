@@ -1,0 +1,56 @@
+#####
+//get all indices
+GET 192.168.1.189:9204/_cat/indices
+
+#####
+//create one index
+PUT 192.168.1.189:9204/jarad_test
+Content-Type: application/json
+
+{
+  "mappings": {
+    "properties": {
+      "Id": {
+        "type": "keyword",
+        "store": true
+      },
+      "Name": {
+        "type": "keyword",
+        "store": true
+      },
+      "Note": {
+        "type": "text",
+        "store": true
+      },
+      "Age": {
+        "type": "integer",
+        "store": true
+      },
+      "birthday": {
+        "type": "date",
+        "format": "yyyy-MM-dd HH:mm:ss",
+        "store": true
+      }
+    }
+  }
+}
+
+#####
+//delete one index
+DELETE 192.168.1.189:9204/jarad_claim1
+
+#####
+GET 192.168.1.189:9204/dmltest_elasticsearch_uzswvg
+
+#####
+GET 192.168.1.189:9204/jarad_claim1/_search
+Content-Type: application/json
+
+{
+  "query": {
+    "match_all": {}
+  }
+}
+
+#####
+PUT 192.168.1.189:9204/jarad_test/
