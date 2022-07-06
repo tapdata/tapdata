@@ -43,7 +43,7 @@ DELETE 192.168.1.189:9204/jarad_claim1
 GET 192.168.1.189:9204/dmltest_elasticsearch_uzswvg
 
 #####
-GET 192.168.1.189:9204/dmltest_elasticsearch_cftmic/_search
+GET 192.168.1.189:9204/jarad_claim1/_search
 Content-Type: application/json
 
 {
