@@ -256,7 +256,7 @@
   "messages": {
     "default": "en_US",
     "en_US": {
-      "doc": "docs/readme_en.md",
+      "doc": "docs/mongodb_en_US.md",
       "isUri": "Connection method",
       "isUrlTips1": "Configure MongoDB database in URI mode. Batch input is supported",
       "isUrlTips2": "Tapdata will connect to a separate server in your network which provides an TSL/SSL tunnel to your database. This method is necessary if your database is in an inaccessible subnet",
@@ -281,7 +281,7 @@
       "dataForm_form_sslCA": "Certificate Authority"
     },
     "zh_CN": {
-      "doc": "docs/readme_zh_CN.md",
+      "doc": "docs/mongodb_zh_CN.md",
       "isUri": "连接方式",
       "isUrlTips1": "以URI方式配置MongoDB数据库，支持批量输入",
       "isUrlTips2": "Tapdata 将连接网络中的单独服务器，该服务器提供到数据库的TSL/SSL通道。如果您的数据库位于不可访问的子网中，则可尝试使用此方法",
@@ -306,7 +306,7 @@
       "dataForm_form_sslCA": "证书颁发机构"
     },
     "zh_TW": {
-      "doc": "docs/readme_zh_TW.md",
+      "doc": "docs/mongodb_zh_TW.md",
       "isUri": "連接方式",
       "isUrlTips1": "以URI方式配置MongoDB數據庫，支持批量輸入",
       "isUrlTips2": "Tapdata 將連接奧網絡中的單獨服務器，該服務器提供到數據庫的TSL/SSL通道。如果您的數據庫位於不可訪問的子網中，則可嘗試使用此方法",
