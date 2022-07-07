@@ -129,6 +129,14 @@ public class TapNumberMapping extends TapMapping {
         } else if(scaleObj instanceof Number) {
             minScale = 0;
             maxScale = ((Number) scaleObj).intValue();
+        } else if(scaleObj instanceof Boolean) {
+            minScale = 0;
+            maxScale = 1;
+        } else if(scaleObj instanceof String) {
+            if(((String) scaleObj).equalsIgnoreCase("true")) {
+                minScale = 0;
+                maxScale = 1;
+            }
         }
 
         Object defaultScaleObj = getObject(info, KEY_SCALE_DEFAULT);
@@ -300,7 +308,7 @@ public class TapNumberMapping extends TapMapping {
         } else if(hasPrecisionScaleVariable){
             Integer newPrecision = precision;
             //Support Oracle scale can be negative value, it will increase the precision length.
-            if(scale < 0) {
+            if(scale != null && scale < 0) {
                 newPrecision = precision - scale;
             }
 
