@@ -186,7 +186,7 @@ public class TapNumberMapping extends TapMapping {
 
         //calculate the min and max value.
         //The accuracy order, min/max value > bit > precision.
-        if(minValue == null || maxValue == null) {
+        if(minValue == null || maxValue == null || unsignedMinValue == null || unsignedMaxValue == null) {
             //bit is higher priority than precision, lower than given min/max value.
             Integer theBit = bit;
             if(theBit == null)
@@ -205,7 +205,7 @@ public class TapNumberMapping extends TapMapping {
                     maxValue = TypeUtils.maxValueForBit(theBit, false);
             }
         }
-        if(minValue == null || maxValue == null) {
+        if(minValue == null || maxValue == null || unsignedMinValue == null || unsignedMaxValue == null) {
             //precision is lowest priority, for the value boundary, the most case, the precision is not accurate.
             Integer thePrecision = maxPrecision;
             if(thePrecision == null)
@@ -256,8 +256,11 @@ public class TapNumberMapping extends TapMapping {
                 throwable.printStackTrace();
             }
         }
-        if(length == null)
+        if(length == null) {
             length = preferBit;
+            if(length != null)
+                hasBitVariable = true;
+        }
         if(length == null)
             length = defaultBit;
         if(length == null)
@@ -276,8 +279,11 @@ public class TapNumberMapping extends TapMapping {
                 throwable.printStackTrace();
             }
         }
-        if(precision == null)
+        if(precision == null) {
             precision = preferPrecision;
+            if(precision != null)
+                hasPrecisionScaleVariable = true;
+        }
         if(precision == null)
             precision = defaultPrecision;
         if(precision == null)
@@ -314,12 +320,17 @@ public class TapNumberMapping extends TapMapping {
 
             theMinValue = (theUnsigned != null && theUnsigned) ? BigDecimal.ZERO : TypeUtils.minValueForPrecision(newPrecision);
             theMaxValue = TypeUtils.maxValueForPrecision(newPrecision);
+        } else if(minValue != null && maxValue != null) {
+            if(theUnsigned != null && theUnsigned && unsignedMinValue != null && unsignedMaxValue != null) {
+                theMinValue = unsignedMinValue;
+                theMaxValue = unsignedMaxValue;
+            } else {
+                theMinValue = minValue;
+                theMaxValue = maxValue;
+            }
         } else if(length != null) {
             theMinValue = TypeUtils.minValueForBit(length, theUnsigned);
             theMaxValue = TypeUtils.maxValueForBit(length, theUnsigned);
-        } else if(minValue != null && maxValue != null) {
-            theMinValue = minValue;
-            theMaxValue = maxValue;
         } else if(precision != null){
             theMinValue = (theUnsigned != null && theUnsigned) ? BigDecimal.ZERO : TypeUtils.minValueForPrecision(precision);
             theMaxValue = TypeUtils.maxValueForPrecision(precision);

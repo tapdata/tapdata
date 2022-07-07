@@ -951,7 +951,7 @@ class TargetTypesGeneratorTest {
         assertEquals("double(255,0)", numeric1000_0Field.getDataType());
 
         TapField decimalField = nameFieldMap.get("numeric");
-        assertEquals("double(20,8)", decimalField.getDataType());
+        assertEquals("float(20,8)", decimalField.getDataType());
     }
 
     @Test
@@ -1219,18 +1219,20 @@ class TargetTypesGeneratorTest {
     @Test
     public void intUnsignedForIntTest() {
         String sourceTypeExpression = "{" +
-                "\"int unsigned\": {\"to\": \"TapNumber\",\"byte\": 32,\"value\": [\"0\", \"4294967295\"]}" +
+//                "    \"int1[($bit)][unsigned]\": {\"bit\": 32, \"unsigned\": \"unsigned\", \"to\": \"TapNumber\"},\n" +
+                "\"int unsigned\": {\"to\": \"TapNumber\",\"bit\": 32,\"value\": [\"0\", \"4294967295\"]}" +
                 "}";
 
         String targetTypeExpression = "{\n" +
 //                "\"int unsigned\": {\"to\": \"TapNumber\",\"byte\": 32,\"value\": [\"0\", \"4294967295\"]}," +
-                "\"int\": {\"to\": \"TapNumber\",\"byte\": 32,\"value\": [\"-2147483648\", \"2147483647\"]}," +
-                "\"bigint\": {\"to\": \"TapNumber\",\"byte\": 64,\"value\": [\"-9223372036854775808\", \"9223372036854775807\"]}" +
+                "\"int\": {\"to\": \"TapNumber\",\"bit\": 32,\"value\": [\"-2147483648\", \"2147483647\"]}," +
+                "\"bigint\": {\"to\": \"TapNumber\",\"bit\": 64,\"value\": [\"-9223372036854775808\", \"9223372036854775807\"]}" +
                 "}";
 
         TapTable sourceTable = table("test");
         sourceTable
                 .add(field("int unsigned", "int unsigned"))
+//                .add(field("int unsigned", "int unsigned"))
         ;
         tableFieldTypesGenerator.autoFill(sourceTable.getNameFieldMap(), DefaultExpressionMatchingMap.map(sourceTypeExpression));
         TapResult<LinkedHashMap<String, TapField>> tapResult = targetTypesGenerator.convert(sourceTable.getNameFieldMap(), DefaultExpressionMatchingMap.map(targetTypeExpression), targetCodecFilterManager);
@@ -1242,4 +1244,5 @@ class TargetTypesGeneratorTest {
         assertEquals("bigint", float10Field.getDataType());
 
     }
+
 }
