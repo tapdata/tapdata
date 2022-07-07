@@ -1,5 +1,12 @@
 FROM tapdata-docker.pkg.coding.net/tapdata/tldp/runtime:0.1
 
+RUN apt-get install -y python3.7 && \
+    update-alternatives --install /usr/bin/python python /usr/bin/python3.7 1 && \
+    update-alternatives --set python /usr/bin/python3.7 && \
+    curl -s https://bootstrap.pypa.io/get-pip.py -o get-pip.py && \
+    python get-pip.py --force-reinstall && \
+    rm get-pip.py
+
 COPY manager /tapdata/apps/manager
 COPY iengine /tapdata/apps/iengine
 RUN mkdir -p /tapdata/apps/plugin-kit /tapdata/apps/connectors-common /tapdata/apps/connectors /tapdata/apps/build
