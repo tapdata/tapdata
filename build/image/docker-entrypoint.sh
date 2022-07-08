@@ -43,6 +43,14 @@ if [[ "x"$tapdata_run_env != "xlocal" ]]; then
         cd manager/dist && bash bin/start.sh && cd -
         cd iengine/dist && bash bin/start.sh && cd -
     fi
+
+    if [[ "x"$mode == "xtest" ]]; then
+        cd /tapdata-source
+        cd manager/dist && bash bin/start.sh && cd -
+        cd iengine/dist && bash bin/start.sh && cd -
+        chmod u+x /tapdata/apps/tapshell/test.sh
+        cd /tapdata/apps/tapshell/ && bash ./test.sh
+    fi
 fi
 
 if [[ "x"$mode == "xuse" ]]; then
@@ -50,6 +58,6 @@ if [[ "x"$mode == "xuse" ]]; then
     bash register-all-connectors.sh
 fi
 
-while [[ 1 ]]; do
-    sleep 1
-done
+if [[ "x"$mode != "xtest" ]]; then
+    sleep infinity
+fi

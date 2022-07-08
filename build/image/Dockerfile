@@ -1,6 +1,6 @@
 FROM tapdata-docker.pkg.coding.net/tapdata/tldp/runtime:0.1
 
-RUN apt-get install -y python3.7 && \
+RUN apt-get install -y python3.7 lsof && \
     update-alternatives --install /usr/bin/python python /usr/bin/python3.7 1 && \
     update-alternatives --set python /usr/bin/python3.7 && \
     curl -s https://bootstrap.pypa.io/get-pip.py -o get-pip.py && \
@@ -25,4 +25,4 @@ RUN mkdir -p /tapdata/database-init/
 COPY database-init/ /tapdata/database-init/
 RUN mkdir -p /tapdata/data/db/
 
-ENTRYPOINT ["bash", "-c", "/tapdata/docker-entrypoint.sh"]
+ENTRYPOINT [ "bash", "-c", "/tapdata/docker-entrypoint.sh" ]
