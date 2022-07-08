@@ -1,47 +1,17 @@
 <?xml version="1.0" encoding="UTF-8"?>
-
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
     <parent>
-        <artifactId>connectors-common</artifactId>
+        <artifactId>connectors</artifactId>
         <groupId>io.tapdata</groupId>
         <version>1.0-SNAPSHOT</version>
     </parent>
-    <modelVersion>4.0.0</modelVersion>
-
-    <artifactId>postgres-core</artifactId>
-
-    <name>postgres-core</name>
+    <artifactId>activemq-connector</artifactId>
     <version>1.0-SNAPSHOT</version>
-    <packaging>jar</packaging>
+    <name>activemq-connector</name>
 
-    <properties>
-        <java.version>8</java.version>
-        <postgres.driver.version>42.3.4</postgres.driver.version>
-        <sql.core.version>1.0-SNAPSHOT</sql.core.version>
-        <debezium.version>1.5.4.Final</debezium.version>
-        <postgres.core.version>1.0-SNAPSHOT</postgres.core.version>
-    </properties>
-    <dependencyManagement>
-        <dependencies>
-            <dependency>
-                <groupId>io.tapdata</groupId>
-                <artifactId>postgres-core</artifactId>
-                <version>${postgres.core.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>org.postgresql</groupId>
-                <artifactId>postgresql</artifactId>
-                <version>${postgres.driver.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>io.tapdata</groupId>
-                <artifactId>sql-core</artifactId>
-                <version>${sql.core.version}</version>
-            </dependency>
-        </dependencies>
-    </dependencyManagement>
-
+    <!--<dependencyManagement>-->
     <dependencies>
         <dependency>
             <groupId>io.tapdata</groupId>
@@ -50,9 +20,17 @@
         </dependency>
         <dependency>
             <groupId>io.tapdata</groupId>
-            <artifactId>sql-core</artifactId>
+            <artifactId>tapdata-pdk-runner</artifactId>
+            <scope>provided</scope>
         </dependency>
+        <dependency>
+            <groupId>io.tapdata</groupId>
+            <artifactId>mq-core</artifactId>
+            <version>1.0-SNAPSHOT</version>
+        </dependency>
+
     </dependencies>
+
     <build>
         <plugins>
             <plugin>
@@ -85,6 +63,31 @@
                     </execution>
                 </executions>
 
+            </plugin>
+            <plugin>
+                <artifactId>maven-resources-plugin</artifactId>
+                <version>3.1.0</version>
+                <executions>
+                    <execution>
+                        <id>copy-resource-one</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>copy-resources</goal>
+                        </goals>
+
+                        <configuration>
+                            <outputDirectory>${basedir}/../../dist/</outputDirectory>
+                            <resources>
+                                <resource>
+                                    <directory>${basedir}/target/</directory>
+                                    <includes>
+                                        <include>${connector.file.name}.jar</include>
+                                    </includes>
+                                </resource>
+                            </resources>
+                        </configuration>
+                    </execution>
+                </executions>
             </plugin>
             <plugin>
                 <groupId>org.apache.felix</groupId>
