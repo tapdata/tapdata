@@ -76,7 +76,7 @@
                         </goals>
 
                         <configuration>
-                            <outputDirectory>${basedir}/../../dist/</outputDirectory>
+                            <outputDirectory>${basedir}/../dist/</outputDirectory>
                             <resources>
                                 <resource>
                                     <directory>${basedir}/target/</directory>
