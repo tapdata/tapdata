@@ -16,7 +16,7 @@ public class ProducerConfiguration extends AbstractConfiguration {
     @Override
     public Map<String, Object> build() {
         final String tid = String.format("TapData-KafkaTarget-%s-%s", connectorId, UUID.randomUUID());
-        configMap.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, this.kafkaConfig.getKafkaBootstrapServers());
+        configMap.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, this.kafkaConfig.getMqTopicString());
         configMap.put(ProducerConfig.CLIENT_ID_CONFIG, tid);
         configMap.put(ProducerConfig.MAX_BLOCK_MS_CONFIG, (int) TimeUnit.SECONDS.toMillis(5L));
         configMap.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, org.apache.kafka.common.serialization.ByteArraySerializer.class);

@@ -1,27 +1,15 @@
 package io.tapdata.connector.kafka.config;
 
-import io.tapdata.entity.utils.BeanUtils;
-import io.tapdata.entity.utils.InstanceFactory;
+import io.tapdata.common.MqConfig;
 
-import java.util.Map;
 import java.util.Set;
 
-public class KafkaConfig {
-
-    private static final BeanUtils beanUtils = InstanceFactory.instance(BeanUtils.class); //bean util
-
-    public KafkaConfig load(Map<String, Object> map)  {
-        return beanUtils.mapToBean(map, this);
-    }
+public class KafkaConfig extends MqConfig {
 
     /**
      * kafka common
      */
-    private String kafkaBootstrapServers;
     private Set<String> kafkaRawTopics;
-    private String kafkaPatternTopics;
-    private String user;
-    private String password;
     private String kafkaSaslMechanism;
     private Boolean krb5;
     private String krb5Keytab;
@@ -56,44 +44,12 @@ public class KafkaConfig {
     private String kafkaPartitionKey = "";
     private Boolean kafkaIgnorePushError = false;
 
-    public String getKafkaBootstrapServers() {
-        return kafkaBootstrapServers;
-    }
-
-    public void setKafkaBootstrapServers(String kafkaBootstrapServers) {
-        this.kafkaBootstrapServers = kafkaBootstrapServers;
-    }
-
     public Set<String> getKafkaRawTopics() {
         return kafkaRawTopics;
     }
 
     public void setKafkaRawTopics(Set<String> kafkaRawTopics) {
         this.kafkaRawTopics = kafkaRawTopics;
-    }
-
-    public String getKafkaPatternTopics() {
-        return kafkaPatternTopics;
-    }
-
-    public void setKafkaPatternTopics(String kafkaPatternTopics) {
-        this.kafkaPatternTopics = kafkaPatternTopics;
-    }
-
-    public String getUser() {
-        return user;
-    }
-
-    public void setUser(String user) {
-        this.user = user;
-    }
-
-    public String getPassword() {
-        return password;
-    }
-
-    public void setPassword(String password) {
-        this.password = password;
     }
 
     public String getKafkaSaslMechanism() {

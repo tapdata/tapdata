@@ -29,7 +29,7 @@ public abstract class AbstractConfiguration implements KafkaConfiguration {
         if (kafkaConfig.getKrb5()) {
             String krb5Path = Krb5Util.saveByCatalog("connections-" + connectorId, kafkaConfig.getKrb5Keytab(), kafkaConfig.getKrb5Conf(), true);
             Krb5Util.updateKafkaConf(kafkaConfig.getKrb5ServiceName(), kafkaConfig.getKrb5Principal(), krb5Path, kafkaConfig.getKrb5Conf(), configMap);
-        } else if (StringUtils.isNotEmpty(this.kafkaConfig.getUser()) && StringUtils.isNotEmpty(this.kafkaConfig.getPassword())) {
+        } else if (StringUtils.isNotEmpty(this.kafkaConfig.getMqUsername()) && StringUtils.isNotEmpty(this.kafkaConfig.getMqPassword())) {
             configMap.put("security.protocol", "SASL_PLAINTEXT");
             String saslMechanism;
             String model;
@@ -51,8 +51,8 @@ public abstract class AbstractConfiguration implements KafkaConfiguration {
             }
             configMap.put("sasl.mechanism", saslMechanism);
             configMap.put("sasl.jaas.config", model + " required " +
-                    "username=" + this.kafkaConfig.getUser() +
-                    " password=" + this.kafkaConfig.getPassword() + ";");
+                    "username=" + this.kafkaConfig.getMqUsername() +
+                    " password=" + this.kafkaConfig.getMqPassword() + ";");
         }
         return configMap;
     }
@@ -64,7 +64,7 @@ public abstract class AbstractConfiguration implements KafkaConfiguration {
 
     @Override
     public Pattern getPatternTopics() {
-        return Optional.ofNullable(this.kafkaConfig.getKafkaPatternTopics()).map(Pattern::compile).orElse(null);
+        return Optional.ofNullable(this.kafkaConfig.getMqTopicString()).map(Pattern::compile).orElse(null);
     }
 
     @Override

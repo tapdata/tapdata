@@ -15,7 +15,7 @@ public class SchemaConfiguration extends AbstractConfiguration {
     @Override
     public Map<String, Object> build() {
         final String schemaId = String.format("TapData-KafkaSchema-%s-%s", connectorId, UUID.randomUUID());
-        configMap.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, this.kafkaConfig.getKafkaBootstrapServers());
+        configMap.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, this.kafkaConfig.getMqTopicString());
         configMap.put(ConsumerConfig.CLIENT_ID_CONFIG, schemaId);
         configMap.put(ConsumerConfig.GROUP_ID_CONFIG, schemaId);
         configMap.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
