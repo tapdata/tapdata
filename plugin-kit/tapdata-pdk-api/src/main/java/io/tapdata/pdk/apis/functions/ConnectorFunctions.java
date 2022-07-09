@@ -3,6 +3,7 @@ package io.tapdata.pdk.apis.functions;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.entity.Capability;
+import io.tapdata.pdk.apis.entity.ConnectionOptions;
 import io.tapdata.pdk.apis.functions.connector.TapFunction;
 import io.tapdata.pdk.apis.functions.connector.common.ReleaseExternalFunction;
 import io.tapdata.pdk.apis.functions.connector.source.*;
@@ -21,19 +22,29 @@ public class ConnectorFunctions extends CommonFunctions<ConnectorFunctions> {
     private WriteRecordFunction writeRecordFunction;
     private QueryByFilterFunction queryByFilterFunction;
     private QueryByAdvanceFilterFunction queryByAdvanceFilterFunction;
+    //create_table_event
     private CreateTableFunction createTableFunction;
+    //clear_table_event
     private ClearTableFunction clearTableFunction;
+    //drop_table_event
     private DropTableFunction dropTableFunction;
     private ControlFunction controlFunction;
     private CreateIndexFunction createIndexFunction;
     private DeleteIndexFunction deleteIndexFunction;
     private QueryIndexesFunction queryIndexesFunction;
+    //alter_database_timezone_event
     private AlterDatabaseTimeZoneFunction alterDatabaseTimeZoneFunction;
+    //alter_field_attributes_event
     private AlterFieldAttributesFunction alterFieldAttributesFunction;
+    //alter_field_name_event
     private AlterFieldNameFunction alterFieldNameFunction;
+    //alter_primary_key_event
     private AlterFieldPrimaryKeyFunction alterFieldPrimaryKeyFunction;
+    //alter_table_charset_event
     private AlterTableCharsetFunction alterTableCharsetFunction;
+    //drop_field_event
     private DropFieldFunction dropFieldFunction;
+    //new_field_event
     private NewFieldFunction newFieldFunction;
 
     public ConnectorFunctions supportAlterDatabaseTimeZoneFunction(AlterDatabaseTimeZoneFunction function) {
