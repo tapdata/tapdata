@@ -4,6 +4,8 @@ sourcepath=$(cd `dirname $0`/../; pwd)
 . $basepath/log.sh
 . $basepath/env.sh
 
+echo $CR_PAT | docker login ghcr.io -u $USERNAME --password-stdin
+
 ulimit -c unlimited
 
 if [[ $tapdata_build_env == "docker" && $_in_docker == "" ]]; then
@@ -75,10 +77,10 @@ build() {
                 docker start tapdata-build-container
             else
                 info "no tapdata build container find, try run a new one..."
-                docker run --name=tapdata-build-container -v $sourcepath:/tapdata-source/ -itd $tapdata_build_image bash
+                docker run --name=tapdata-build-container -v $sourcepath:/tapdata-source/ -id $tapdata_build_image bash
             fi
         fi
-        docker exec -it tapdata-build-container bash -c "cd /tapdata-source && bash build/build.sh -c $components"
+        docker exec -i tapdata-build-container bash -c "cd /tapdata-source && bash build/build.sh -c $components"
         return
     fi
 

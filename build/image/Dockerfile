@@ -1,4 +1,4 @@
-FROM tapdata-docker.pkg.coding.net/tapdata/tldp/runtime:0.1
+FROM ghcr.io/dreamcoin1998/tapdata/tldp/runtime:0.1
 
 RUN apt-get install -y python3.7 lsof && \
     update-alternatives --install /usr/bin/python python /usr/bin/python3.7 1 && \

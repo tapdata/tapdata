@@ -50,6 +50,9 @@ if [[ "x"$tapdata_run_env != "xlocal" ]]; then
         cd iengine/dist && bash bin/start.sh && cd -
         chmod u+x /tapdata/apps/tapshell/test.sh
         cd /tapdata/apps/tapshell/ && bash ./test.sh
+        if [[ $? -ne 0 ]]; then
+            exit 127
+        fi
     fi
 fi
 

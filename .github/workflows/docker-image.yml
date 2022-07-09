@@ -10,9 +10,13 @@ jobs:
 
   build:
 
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v3
-    - name: Build the Docker image
-      run: ls -al
+      - uses: actions/checkout@v3
+      - name: run end2end test
+        env:
+          CR_PAT: ${{ secrets.CR_PAT }}
+          USERNAME: ${{ secrets.USERNAME }}
+        run: chmod u+x build/quick-test.sh && build/quick-test.sh
+             exit $?

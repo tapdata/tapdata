@@ -28,5 +28,8 @@ if [[ $? -ne 0 ]]; then
         bash build/build.sh -p 1 -o image
     fi
     cd $basepath
-    docker run -e mode=test -p 13000:3000 -p 27017:27017 -v $sourcepath:/tapdata-source/ -it --name=$dev_container_name `cat image/tag` bash
+    docker run -e mode=test -p 13000:3000 -p 27017:27017 -v $sourcepath:/tapdata-source/ -i --name=$dev_container_name `cat image/tag` bash
+    if [[ $? -ne 0 ]]; then
+        exit 127
+    fi
 fi
