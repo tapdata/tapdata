@@ -1,0 +1,167 @@
+{
+  "properties": {
+    "name": "DummyDB",
+    "icon": "icons/dummy.png",
+    "doc" : "${doc}",
+    "id": "dummy db"
+  },
+  "configOptions": {
+    "pdkExpansion": [],
+    "connection": {
+      "type": "object",
+      "properties": {
+        "mode": {"type": "string", "title": "${df_mode}", "x-decorator": "FormItem", "x-component": "Radio.Group", "x-index": 1, "required": true, "default": "Common", "x-component-props": {"optionType": "button"},
+          "enum": [
+            {"label": "${df_mode_options_common}", "value": "Common", "disabled": false},
+            {"label": "${df_mode_options_heartbeat}", "value": "Heartbeat", "disabled": false}
+          ],
+          "x-reactions": [
+            {"target": "*(initial_totals,table_name,table_fields)", "fulfill": {"state": {"display": "{{$self.value=='Common' ? 'visible' : 'hidden'}}"}}}
+          ]
+        },
+        "initial_totals": {"type": "number", "title": "${df_initial_totals}", "x-decorator": "FormItem", "x-component": "InputNumber", "x-index": 2, "required": true, "default": "1", "x-reactions": {"dependencies": ["__TAPDATA.connection_type"], "fulfill": { "schema": { "x-decorator-props.style.display": "{{$deps[0]!=='target' ? null:'none'}}" } }}},
+        "incremental_interval": {"type": "number", "title": "${df_incremental_interval}", "x-decorator": "FormItem", "x-component": "InputNumber", "x-index": 3, "required": true, "default": "0", "x-reactions": {"dependencies": ["__TAPDATA.connection_type"], "fulfill": { "schema": { "x-decorator-props.style.display": "{{$deps[0]!=='target' ? null:'none'}}" } }}},
+        "incremental_interval_totals": {"type": "number", "title": "${df_incremental_interval_totals}", "x-decorator": "FormItem", "x-component": "InputNumber", "x-index": 4, "required": true, "default": "1", "x-reactions": {"dependencies": ["__TAPDATA.connection_type"], "fulfill": { "schema": { "x-decorator-props.style.display": "{{$deps[0]!=='target' ? null:'none'}}" } }}},
+        "incremental_types": {"type": "array", "title": "${df_incremental_types}", "x-decorator": "FormItem", "x-component": "Checkbox.Group", "x-index": 5, "default": [1],
+          "enum": [
+            {"label": "${df_incremental_types_insert}", "value": 1},
+            {"label": "${df_incremental_types_update}", "value": 2},
+            {"label": "${df_incremental_types_delete}", "value": 3}
+          ],
+          "x-reactions": {"dependencies": ["__TAPDATA.connection_type"], "fulfill": { "schema": { "x-decorator-props.style.display": "{{$deps[0]!=='target' ? null:'none'}}" } } }
+        },
+        "write_interval": {"type": "number", "title": "${df_write_interval}", "x-decorator": "FormItem", "x-component": "InputNumber", "x-index": 6, "required": true, "default": "1000", "x-reactions": {"dependencies": ["__TAPDATA.connection_type"], "fulfill": { "schema": { "x-decorator-props.style.display": "{{$deps[0]!=='source' ? null:'none'}}" } }}},
+        "write_interval_totals": {"type": "number", "title": "${df_write_interval_totals}", "x-decorator": "FormItem", "x-component": "InputNumber", "x-index": 7, "required": true, "default": "1", "x-reactions": {"dependencies": ["__TAPDATA.connection_type"], "fulfill": { "schema": { "x-decorator-props.style.display": "{{$deps[0]!=='source' ? null:'none'}}" } }}},
+        "write_log": {"type": "boolean", "title": "${df_write_log}", "x-decorator": "FormItem", "x-component": "Switch", "x-index": 8, "required": true, "default": "false", "x-reactions": {"dependencies": ["__TAPDATA.connection_type"], "fulfill": { "schema": { "x-decorator-props.style.display": "{{$deps[0]!=='source' ? null:'none'}}" } }}},
+        "table_name": {"type": "string", "title": "${df_table_name}", "x-decorator": "FormItem", "x-component": "Input", "x-index": 9, "required": true, "default": "tapd8_dummy"},
+        "table_fields": {"type": "array", "title": "${df_table_fields}", "x-decorator": "FormItem", "x-component": "ArrayTable", "x-index": 10, "items": {
+            "type": "object",
+            "properties": {
+              "c1": {"type": "void", "x-component": "ArrayTable.Column", "x-index": 1, "x-component-props": {"title": "${df_table_field_name}"}, "properties": {"name": {"type": "string", "x-decorator": "FormItem", "x-component": "Input"}}},
+              "c2": {"type": "void", "x-component": "ArrayTable.Column", "x-index": 2, "x-component-props": {"title": "${df_table_field_type}"}, "properties": {"type": {"type": "string", "x-decorator": "FormItem", "x-component": "Select", "default": "String",
+                "enum": [
+                  {"label": "String", "value": "String"},
+                  {"label": "Number", "value": "Number"},
+                  {"label": "Boolean", "value": "Boolean"},
+                  {"label": "Date", "value": "Date"},
+                  {"label": "Array", "value": "Array"},
+                  {"label": "Binary", "value": "Binary"},
+                  {"label": "Map", "value": "Map"},
+                  {"label": "Time", "value": "Time"},
+                  {"label": "DateTime", "value": "DateTime"}
+                ]
+              }}},
+              "c3": {"type": "void", "x-component": "ArrayTable.Column", "x-index": 3, "x-component-props": {"width": 80, "title": "${df_table_field_length}" }, "properties": {"len": {"type": "string", "x-decorator": "Editable", "x-component": "Input"}}},
+              "c4": {"type": "void", "x-component": "ArrayTable.Column", "x-index": 4, "x-component-props": {"width": 100, "title": "${df_table_field_default}" }, "properties": {"def": {"type": "string", "x-decorator": "FormItem", "x-component": "Select", "x-component-props": {"allowCreate": true, "filterable": true},
+                "enum": [
+                  {"label": "", "value": ""},
+                  {"label": "serial(1,1)", "value": "serial(1,1)"},
+                  {"label": "now()", "value": "now()"},
+                  {"label": "randomLong(9999)", "value": "randomLong(9999)"},
+                  {"label": "randomString(8)", "value": "randomString(8)"},
+                  {"label": "uuid()", "value": "uuid()"}
+                ]}}},
+              "c5": {"type": "void", "x-component": "ArrayTable.Column", "x-index": 5, "x-component-props": {"width": 80, "title": "${df_table_field_primary}" }, "properties": {"pri": {"type": "boolean", "x-decorator": "FormItem", "x-component": "Switch", "default": "false"}}},
+              "c6": {"type": "void", "x-component": "ArrayTable.Column", "x-index": 6, "x-component-props": {"width": 100, "title": "${df_table_field_operator}", "prop": "operations", "fixed": "right"}, "properties": {"operator": {"type": "void", "x-component": "FormItem",
+                "properties": {
+                  "remove": {"type": "void", "x-component": "ArrayTable.Remove"},
+                  "moveDown": {"type": "void", "x-component": "ArrayTable.MoveDown"},
+                  "moveUp": {"type": "void", "x-component": "ArrayTable.MoveUp"}
+                }
+              }}}
+            }
+          },
+          "properties": {"add": {"type": "void", "x-component": "ArrayTable.Addition", "title": "${df_table_field_btn_add}"}}
+        }
+      }
+    }
+  },
+  "messages": {
+    "default": "en_US",
+    "en_US": {
+      "doc": "docs/dummy_zh_CN.md",
+      "df_mode": "Mode",
+      "df_mode_options_common": "Common",
+      "df_mode_options_heartbeat": "Heartbeat",
+      "df_initial_totals": "Initial data totals",
+      "df_incremental_interval": "Incremental interval (ms)",
+      "df_incremental_interval_totals": "Incremental interval totals",
+      "df_incremental_types": "Incremental data types",
+      "df_incremental_types_insert": "Insert",
+      "df_incremental_types_update": "Update",
+      "df_incremental_types_delete": "Delete",
+      "df_write_interval": "Write interval(mx)",
+      "df_write_interval_totals": "Write interval totals",
+      "df_write_log": "Print message",
+      "df_table_name": "Table name",
+      "df_table_fields": "Table fields",
+      "df_table_field_name": "Name",
+      "df_table_field_type": "Type",
+      "df_table_field_length": "Length",
+      "df_table_field_default": "Default",
+      "df_table_field_primary": "Primary",
+      "df_table_field_operator": "Operator",
+      "df_table_field_btn_add": "Add field"
+    },
+    "zh_CN": {
+      "doc": "docs/dummy_zh_CN.md",
+      "df_mode": "模式",
+      "df_mode_options_common": "普通",
+      "df_mode_options_heartbeat": "心跳",
+      "df_initial_totals": "初始化数据量",
+      "df_incremental_interval": "增量间隔（毫秒）",
+      "df_incremental_interval_totals": "增量间隔总数",
+      "df_incremental_types": "增量包含类型",
+      "df_incremental_types_insert": "插入",
+      "df_incremental_types_update": "更新",
+      "df_incremental_types_delete": "删除",
+      "df_write_interval": "写入间隔(毫秒)",
+      "df_write_interval_totals": "写入间隔总数",
+      "df_write_log": "打印消息",
+      "df_table_name": "表名",
+      "df_table_fields": "字段定义",
+      "df_table_field_name": "名称",
+      "df_table_field_type": "类型",
+      "df_table_field_length": "长度",
+      "df_table_field_default": "默认值",
+      "df_table_field_primary": "主键",
+      "df_table_field_operator": "操作",
+      "df_table_field_btn_add": "增加字段"
+    },
+    "zh_TW": {
+      "doc": "docs/dummy_zh_CN.md",
+      "df_mode": "模式",
+      "df_mode_options_common": "普通",
+      "df_mode_options_heartbeat": "心跳",
+      "df_incremental_interval": "增量間隔（毫秒）",
+      "df_incremental_interval_totals": "增量間隔總數",
+      "df_incremental_types": "增量包含類型",
+      "df_incremental_types_insert": "插入",
+      "df_incremental_types_update": "更新",
+      "df_incremental_types_delete": "刪除",
+      "df_write_interval": "寫入間隔(毫秒)",
+      "df_write_interval_totals": "寫入間隔總數",
+      "df_write_log": "打印消息",
+      "df_table_name": "表名",
+      "df_table_fields": "字段定義",
+      "df_table_field_name": "名稱",
+      "df_table_field_type": "類型",
+      "df_table_field_length": "長度",
+      "df_table_field_default": "默認值",
+      "df_table_field_primary": "主键",
+      "df_table_field_operator": "操作",
+      "df_table_field_btn_add": "增加字段"
+    }
+  },
+  "dataTypes": {
+    "String[($byte)][fixed]": {"byte" : "16m", "fixed" : "fixed", "to" : "TapString"},
+    "Number[($precision, $scale)]": {"precision" : [1, 40], "precisionDefault" : 4, "scale" : [0, 10], "scaleDefault" : 1, "to": "TapNumber"},
+    "Boolean" : {"to": "TapBoolean"},
+    "Date" : {"to": "TapDate"},
+    "Array" : {"to": "TapArray"},
+    "Binary" : {"to": "TapBinary"},
+    "Map" : {"to": "TapMap"},
+    "Time" : {"to": "TapTime"},
+    "DateTime" : {"to": "TapDateTime"}
+  }
+}
