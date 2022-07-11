@@ -1,5 +1,7 @@
 package io.tapdata.dummy.utils;
 
+import io.tapdata.dummy.IBatchConsumer;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;

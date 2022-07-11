@@ -1,7 +1,7 @@
 package io.tapdata.dummy.po;
 
 /**
- * Dummy 列配置模型
+ * Dummy field vo
  *
  * @author <a href="mailto:harsen_lin@163.com">Harsen</a>
  * @version v1.0 2022/7/6 10:55 Create

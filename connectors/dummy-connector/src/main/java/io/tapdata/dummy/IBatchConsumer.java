@@ -1,4 +1,6 @@
-package io.tapdata.dummy.utils;
+package io.tapdata.dummy;
+
+import io.tapdata.dummy.utils.BatchConsumer;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -11,9 +13,20 @@ import java.util.function.Consumer;
  */
 public interface IBatchConsumer<T> extends Consumer<T> {
 
+    /**
+     * auto batch and push to consumer
+     *
+     * @param t the input argument
+     */
+    @Override
+    void accept(T t);
+
     default void flush() {
     }
 
+    /**
+     * Clear cache before ending
+     */
     static <T> IBatchConsumer<T> getInstance(int batchSize, Consumer<List<T>> consumer) {
         if (batchSize > 1) {
             return new BatchConsumer<>(batchSize, consumer);

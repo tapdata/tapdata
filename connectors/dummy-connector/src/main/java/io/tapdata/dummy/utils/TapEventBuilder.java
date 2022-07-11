@@ -34,7 +34,6 @@ public class TapEventBuilder {
     };
 
     private final AtomicLong eventIndex = new AtomicLong(0);
-    private final AtomicLong dataCounts = new AtomicLong();
     private AtomicLong serial;
     private Integer serialStep;
 
@@ -69,16 +68,15 @@ public class TapEventBuilder {
 
         TapInsertRecordEvent tapEvent = TapSimplify.insertRecordEvent(after, table.getName());
         updateOffset(table.getName(), RecordOperators.Insert, tapEvent);
-        dataCounts.addAndGet(1);
         return tapEvent;
     }
 
     public TapUpdateRecordEvent generateUpdateRecordEvent(TapTable table, TapInsertRecordEvent insertRecordEvent) {
-        boolean eventNull = null == insertRecordEvent;
-        Map<String, Object> before = eventNull ? new HashMap<>() : insertRecordEvent.getAfter();
+        insertRecordEvent = (null == insertRecordEvent) ? generateInsertRecordEvent(table) : insertRecordEvent;
+        Map<String, Object> before = insertRecordEvent.getAfter();
         Map<String, Object> after = new HashMap<>(before);
         table.childItems().forEach(tapField -> {
-            if (eventNull || Boolean.FALSE.equals(tapField.getPrimaryKey())) {
+            if (Boolean.FALSE.equals(tapField.getPrimaryKey())) {
                 after.put(tapField.getName(), generateEventValue(tapField, RecordOperators.Update));
             }
         });
@@ -86,7 +84,6 @@ public class TapEventBuilder {
         String tableName = table.getName();
         TapUpdateRecordEvent updateRecordEvent = TapSimplify.updateDMLEvent(before, after, tableName);
         updateOffset(tableName, RecordOperators.Update, updateRecordEvent);
-        dataCounts.addAndGet(1);
         return updateRecordEvent;
     }
 
@@ -119,7 +116,6 @@ public class TapEventBuilder {
         }
         TapDeleteRecordEvent deleteRecordEvent = TapSimplify.deleteDMLEvent(after, tableName);
         updateOffset(tableName, RecordOperators.Delete, deleteRecordEvent);
-        dataCounts.addAndGet(1);
         return deleteRecordEvent;
     }
 

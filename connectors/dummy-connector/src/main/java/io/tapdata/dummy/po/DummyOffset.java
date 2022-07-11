@@ -8,7 +8,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * 偏移量
+ * Dummy offset.
  *
  * @author <a href="mailto:harsen_lin@163.com">Harsen</a>
  * @version v1.0 2022/6/22 16:53 Create
@@ -61,6 +61,14 @@ public class DummyOffset implements Serializable {
         this.tableStats = tableStats;
     }
 
+    /**
+     * Add and counts records stats
+     *
+     * @param op        record operator
+     * @param tableName table name
+     * @param val       add size
+     * @return the number of corresponding operation records
+     */
     public long addCounts(RecordOperators op, String tableName, int val) {
         long totals = 0;
         DummyOffsetStats dummyOffsetStats = tableStats.computeIfAbsent(tableName, s -> new DummyOffsetStats());

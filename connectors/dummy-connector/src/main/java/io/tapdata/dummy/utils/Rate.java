@@ -1,5 +1,7 @@
 package io.tapdata.dummy.utils;
 
+import io.tapdata.dummy.IRate;
+
 /**
  * @author <a href="mailto:harsen_lin@163.com">Harsen</a>
  * @version v1.0 2022/7/10 15:32 Create

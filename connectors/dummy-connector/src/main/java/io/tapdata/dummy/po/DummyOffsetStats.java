@@ -3,7 +3,8 @@ package io.tapdata.dummy.po;
 import java.io.Serializable;
 
 /**
- * 统计结果
+ * Dummy offset stats.
+ * count the number of records inserted, modified and deleted
  *
  * @author <a href="mailto:harsen_lin@163.com">Harsen</a>
  * @version v1.0 2022/6/22 18:43 Create

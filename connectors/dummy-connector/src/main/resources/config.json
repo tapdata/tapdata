@@ -1,8 +1,30 @@
 {
-  "host": "192.168.153.132",
-  "port": 27017,
-  "database": "db_example",
-  "userName": "",
-  "password": "",
-  "collection": "test"
+  "initial_totals": 1,
+  "incremental_interval": 1000,
+  "incremental_interval_totals": 1,
+  "incremental_types": [1],
+  "write_interval": 1000,
+  "write_interval_totals": 1,
+  "write_log": false,
+  "table_name": "tapd8_dummy",
+  "table_fields": [
+    {
+      "type": "Number",
+      "pri": true,
+      "name": "id",
+      "def": "serial(1,1)"
+    },
+    {
+      "type": "String",
+      "pri": false,
+      "name": "name",
+      "def": "randomString(8)"
+    },
+    {
+      "type": "DateTime",
+      "pri": false,
+      "name": "created",
+      "def": "now()"
+    }
+  ]
 }

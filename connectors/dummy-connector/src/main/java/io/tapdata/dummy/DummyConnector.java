@@ -4,9 +4,6 @@ import io.tapdata.base.ConnectorBase;
 import io.tapdata.dummy.constants.RecordOperators;
 import io.tapdata.dummy.constants.SyncStage;
 import io.tapdata.dummy.po.DummyOffset;
-import io.tapdata.dummy.utils.IBatchConsumer;
-import io.tapdata.dummy.utils.IRate;
-import io.tapdata.dummy.utils.DummyConfig;
 import io.tapdata.dummy.utils.TapEventBuilder;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.event.TapEvent;
@@ -44,19 +41,20 @@ public class DummyConnector extends ConnectorBase {
     private Map<String, TapTable> schemas;
     private Boolean writeLog;
     private IRate writeRate;
+    private IDummyConfig config;
 
     @Override
     public void onStart(TapConnectionContext connectionContext) throws Throwable {
         TapLogger.info(TAG, "Start dummy connector");
 
-        DataMap connectionConfig = DummyConfig.connectionConfig(connectionContext);
-        writeLog = DummyConfig.isWriteLog(connectionConfig);
-        Integer writeInterval = DummyConfig.getWriteInterval(connectionConfig);
-        Integer writeIntervalTotals = DummyConfig.getWriteIntervalTotals(connectionConfig);
+        config = IDummyConfig.connectionConfig(connectionContext);
+        Integer writeInterval = config.getWriteInterval();
+        Integer writeIntervalTotals = config.getWriteIntervalTotals();
         writeRate = IRate.getInstance(writeInterval, writeIntervalTotals);
+        writeLog = config.isWriteLog();
 
         schemas = new LinkedHashMap<>();
-        DummyConfig.getSchemas(connectionConfig).forEach(table -> {
+        config.getSchemas().forEach(table -> {
             schemas.put(table.getName(), table);
         });
     }
@@ -131,7 +129,7 @@ public class DummyConnector extends ConnectorBase {
 
             // generate insert record event
             TapInsertRecordEvent tapInsertRecordEvent;
-            Long initialTotals = DummyConfig.getInitialTotals(connectorContext.getConnectionConfig());
+            Long initialTotals = config.getInitialTotals();
             for (int dataIndex = 0; dataIndex < initialTotals && isAlive(); dataIndex++) {
                 tapInsertRecordEvent = builder.generateInsertRecordEvent(table);
                 batchConsumer.accept(tapInsertRecordEvent);
@@ -146,10 +144,9 @@ public class DummyConnector extends ConnectorBase {
     private void supportStreamRead(TapConnectorContext connectorContext, List<String> tableList, Object offsetState, int eventBatchSize, StreamReadConsumer eventConsumer) throws Throwable {
         TapLogger.info(TAG, "start {} stream read", tableList);
 
-        DataMap connectionConfig = connectorContext.getConnectionConfig();
-        Integer incrementalInterval = DummyConfig.getIncrementalInterval(connectionConfig);
-        Integer incrementalIntervalTotals = DummyConfig.getIncrementalIntervalTotals(connectionConfig);
-        Set<RecordOperators> operators = DummyConfig.getIncrementalTypes(connectionConfig);
+        Integer incrementalInterval = config.getIncrementalInterval();
+        Integer incrementalIntervalTotals = config.getIncrementalIntervalTotals();
+        Set<RecordOperators> operators = config.getIncrementalTypes();
 
         try {
             TapTable table;
