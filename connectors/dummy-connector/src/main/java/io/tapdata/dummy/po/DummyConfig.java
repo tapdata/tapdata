@@ -16,7 +16,7 @@ import java.util.*;
  * @version v1.0 2022/7/11 13:13 Create
  */
 public class DummyConfig implements IDummyConfig {
-    private DataMap config;
+    private final DataMap config;
 
     public DummyConfig(DataMap config) {
         this.config = config;

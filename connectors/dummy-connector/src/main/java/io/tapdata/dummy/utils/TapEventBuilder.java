@@ -144,14 +144,14 @@ public class TapEventBuilder {
                             if (null == serial) {
                                 try {
                                     String[] splitStr = params.split(",");
-                                    serialStep = Integer.parseInt(splitStr[1]);
                                     serial = new AtomicLong(Integer.parseInt(splitStr[0]));
+                                    serialStep = Math.max(Integer.parseInt(splitStr[1]), 1);
                                 } catch (Throwable e) {
                                     serialStep = 1;
                                     serial = new AtomicLong(0);
                                 }
                             }
-                            return serial.addAndGet(serialStep);
+                            return serial.getAndAdd(serialStep);
                         } else {
                             return (int) (Math.random() * serial.get()) - serial.get() % serialStep;
                         }

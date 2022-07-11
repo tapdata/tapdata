@@ -24,15 +24,17 @@
         "write_interval": {"type": "number", "title": "${df_write_interval}", "x-decorator": "FormItem", "x-component": "InputNumber", "x-index": 5, "required": true, "default": 1000, "x-reactions": {"dependencies": ["__TAPDATA.connection_type"], "fulfill": { "schema": { "x-decorator-props.style.display": "{{$deps[0]!=='source' ? null:'none'}}" } }}},
         "write_interval_totals": {"type": "number", "title": "${df_write_interval_totals}", "x-decorator": "FormItem", "x-component": "InputNumber", "x-index": 6, "required": true, "default": 1, "x-reactions": {"dependencies": ["__TAPDATA.connection_type"], "fulfill": { "schema": { "x-decorator-props.style.display": "{{$deps[0]!=='source' ? null:'none'}}" } }}},
         "write_log": {"type": "boolean", "title": "${df_write_log}", "x-decorator": "FormItem", "x-component": "Switch", "x-index": 7, "required": true, "default": false, "x-reactions": {"dependencies": ["__TAPDATA.connection_type"], "fulfill": { "schema": { "x-decorator-props.style.display": "{{$deps[0]!=='source' ? null:'none'}}" } }}},
-        "table_name": {"type": "string", "title": "${df_table_name}", "x-decorator": "FormItem", "x-component": "Input", "x-index": 8, "required": true, "default": "tapd8_dummy", "x-reactions": {"dependencies": ["__TAPDATA.connection_type"], "fulfill": { "schema": { "x-decorator-props.style.display": "{{$deps[0]!=='target' ? null:'none'}}" } }}},
-        "table_fields": {"type": "array", "title": "${df_table_fields}", "x-decorator": "FormItem", "x-component": "ArrayTable", "x-index": 9, "x-reactions": {"dependencies": ["__TAPDATA.connection_type"], "fulfill": { "schema": { "x-decorator-props.style.display": "{{$deps[0]!=='target' ? null:'none'}}" } }}, "items": {
+        "table_name": {"type": "string", "title": "${df_table_name}", "x-decorator": "FormItem", "x-component": "Input", "x-index": 8, "required": true, "default": "", "x-reactions": {"dependencies": ["__TAPDATA.connection_type"], "fulfill": { "schema": { "x-decorator-props.style.display": "{{$deps[0]!=='target' ? null:'none'}}" } }}},
+        "table_fields": {"type": "array", "title": "${df_table_fields}", "x-decorator": "FormItem", "x-component": "ArrayTable", "x-index": 9, "required": true, "x-reactions": {"dependencies": ["__TAPDATA.connection_type"], "fulfill": { "schema": { "x-decorator-props.style.display": "{{$deps[0]!=='target' ? null:'none'}}" } }}, "items": {
             "type": "object",
             "properties": {
-              "c1": {"type": "void", "x-component": "ArrayTable.Column", "x-index": 1, "x-component-props": {"title": "${df_table_field_name}"}, "properties": {"name": {"type": "string", "x-decorator": "FormItem", "x-component": "Input"}}},
-              "c2": {"type": "void", "x-component": "ArrayTable.Column", "x-index": 2, "x-component-props": {"title": "${df_table_field_type}"}, "properties": {"type": {"type": "string", "x-decorator": "FormItem", "x-component": "Select", "default": "String",
+              "c1": {"type": "void", "x-component": "ArrayTable.Column", "x-index": 1, "x-component-props": {"title": "${df_table_field_name}"}, "properties": {"name": {"type": "string", "required": true, "x-decorator": "FormItem", "x-component": "Input"}}},
+              "c2": {"type": "void", "x-component": "ArrayTable.Column", "x-index": 2, "x-component-props": {"title": "${df_table_field_type}"}, "properties": {"type": {"type": "string", "required": true, "x-decorator": "FormItem", "x-component": "Select", "default": "String", "x-component-props": {"allowCreate": true, "filterable": true},
                 "enum": [
                   {"label": "String", "value": "String"},
+                  {"label": "String(32)", "value": "String(32)"},
                   {"label": "Number", "value": "Number"},
+                  {"label": "Number(8,0)", "value": "Number(8,0)"},
                   {"label": "Boolean", "value": "Boolean"},
                   {"label": "Date", "value": "Date"},
                   {"label": "Array", "value": "Array"},
@@ -42,8 +44,7 @@
                   {"label": "DateTime", "value": "DateTime"}
                 ]
               }}},
-              "c3": {"type": "void", "x-component": "ArrayTable.Column", "x-index": 3, "x-component-props": {"width": 80, "title": "${df_table_field_length}" }, "properties": {"len": {"type": "string", "x-decorator": "Editable", "x-component": "Input"}}},
-              "c4": {"type": "void", "x-component": "ArrayTable.Column", "x-index": 4, "x-component-props": {"width": 100, "title": "${df_table_field_default}" }, "properties": {"def": {"type": "string", "x-decorator": "FormItem", "x-component": "Select", "x-component-props": {"allowCreate": true, "filterable": true},
+              "c4": {"type": "void", "x-component": "ArrayTable.Column", "x-index": 3, "x-component-props": {"title": "${df_table_field_default}" }, "properties": {"def": {"type": "string", "x-decorator": "FormItem", "x-component": "Select", "x-component-props": {"allowCreate": true, "filterable": true},
                 "enum": [
                   {"label": "", "value": ""},
                   {"label": "serial(1,1)", "value": "serial(1,1)"},
@@ -52,8 +53,8 @@
                   {"label": "randomString(8)", "value": "randomString(8)"},
                   {"label": "uuid()", "value": "uuid()"}
                 ]}}},
-              "c5": {"type": "void", "x-component": "ArrayTable.Column", "x-index": 5, "x-component-props": {"width": 80, "title": "${df_table_field_primary}" }, "properties": {"pri": {"type": "boolean", "x-decorator": "FormItem", "x-component": "Switch", "default": false}}},
-              "c6": {"type": "void", "x-component": "ArrayTable.Column", "x-index": 6, "x-component-props": {"width": 100, "title": "${df_table_field_operator}", "prop": "operations", "fixed": "right"}, "properties": {"operator": {"type": "void", "x-component": "FormItem",
+              "c5": {"type": "void", "x-component": "ArrayTable.Column", "x-index": 4, "x-component-props": {"width": 60, "title": "${df_table_field_primary}" }, "properties": {"pri": {"type": "boolean", "x-decorator": "FormItem", "x-component": "Switch", "default": false}}},
+              "c6": {"type": "void", "x-component": "ArrayTable.Column", "x-index": 5, "x-component-props": {"width": 100, "title": "${df_table_field_operator}", "prop": "operations", "fixed": "right"}, "properties": {"operator": {"type": "void", "x-component": "FormItem",
                 "properties": {
                   "remove": {"type": "void", "x-component": "ArrayTable.Remove"},
                   "moveDown": {"type": "void", "x-component": "ArrayTable.MoveDown"},
@@ -85,7 +86,6 @@
       "df_table_fields": "Table fields",
       "df_table_field_name": "Name",
       "df_table_field_type": "Type",
-      "df_table_field_length": "Length",
       "df_table_field_default": "Default",
       "df_table_field_primary": "Primary",
       "df_table_field_operator": "Operator",
@@ -107,7 +107,6 @@
       "df_table_fields": "字段定义",
       "df_table_field_name": "名称",
       "df_table_field_type": "类型",
-      "df_table_field_length": "长度",
       "df_table_field_default": "默认值",
       "df_table_field_primary": "主键",
       "df_table_field_operator": "操作",
@@ -128,7 +127,6 @@
       "df_table_fields": "字段定義",
       "df_table_field_name": "名稱",
       "df_table_field_type": "類型",
-      "df_table_field_length": "長度",
       "df_table_field_default": "默認值",
       "df_table_field_primary": "主键",
       "df_table_field_operator": "操作",
