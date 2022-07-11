@@ -79,7 +79,7 @@
       "df_incremental_types_insert": "Insert",
       "df_incremental_types_update": "Update",
       "df_incremental_types_delete": "Delete",
-      "df_write_interval": "Write interval(mx)",
+      "df_write_interval": "Write interval(ms)",
       "df_write_interval_totals": "Write interval totals",
       "df_write_log": "Print write log",
       "df_table_name": "Table name",
