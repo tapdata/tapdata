@@ -27,7 +27,7 @@ import static io.tapdata.pdk.apis.entity.ConnectionOptions.DDL_NEW_FIELD_EVENT;
 public class CCJAddColumnDDLWrapper extends CCJBaseDDLWrapper {
 	@Override
 	public List<Capability> getCapabilities() {
-		return Collections.singletonList(Capability.create(DDL_NEW_FIELD_EVENT));
+		return Collections.singletonList(Capability.create(DDL_NEW_FIELD_EVENT).type(Capability.TYPE_DDL));
 	}
 
 	@Override

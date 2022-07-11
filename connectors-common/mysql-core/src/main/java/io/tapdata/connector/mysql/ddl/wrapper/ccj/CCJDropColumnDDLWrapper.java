@@ -22,7 +22,7 @@ import java.util.function.Consumer;
 public class CCJDropColumnDDLWrapper extends CCJBaseDDLWrapper {
 	@Override
 	public List<Capability> getCapabilities() {
-		return Collections.singletonList(Capability.create(ConnectionOptions.DDL_DROP_FIELD_EVENT));
+		return Collections.singletonList(Capability.create(ConnectionOptions.DDL_DROP_FIELD_EVENT).type(Capability.TYPE_DDL));
 	}
 
 	@Override

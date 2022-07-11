@@ -25,7 +25,7 @@ import java.util.function.Consumer;
 public class CCJAlterColumnAttrsDDLWrapper extends CCJBaseDDLWrapper {
 	@Override
 	public List<Capability> getCapabilities() {
-		return Collections.singletonList(Capability.create(ConnectionOptions.DDL_ALTER_FIELD_ATTRIBUTES_EVENT));
+		return Collections.singletonList(Capability.create(ConnectionOptions.DDL_ALTER_FIELD_ATTRIBUTES_EVENT).type(Capability.TYPE_DDL));
 	}
 
 	@Override
