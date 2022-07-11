@@ -6,18 +6,36 @@ on:
   pull_request:
     branches: [ "master" ]
 
+env:
+  CR_PAT: ${{ secrets.CR_PAT }}
+  USERNAME: ${{ secrets.USERNAME }}
+  TEST_DATABASE: ${{ secrets.TEST_DATABASE }}
+
 jobs:
 
-  build:
+  test:
 
     runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v3
-      - name: run end2end test
-        env:
-          CR_PAT: ${{ secrets.CR_PAT }}
-          USERNAME: ${{ secrets.USERNAME }}
-          TEST_DATABASE: ${{ env.TEST_DATABASE }}
+      - name: compile iengine modules
+        run: |
+          chmod u+x build/build.sh 
+          build/build.sh -c iengine
+      - name: compile manager module
+        run:
+          build/build.sh -c manager
+      - name: compile plugin-kit module
+        run:
+          build/build.sh -c plugin-kit
+      - name: compile connectors module
+        run:
+          build/build.sh -c connectors
+      - name: package module and make image
+        run: build/build.sh -p 1 -o image
+      - name: run unittest
+        run: ls -al
+      - name: run integrate test
         run: chmod u+x build/quick-test.sh && build/quick-test.sh
              exit $?

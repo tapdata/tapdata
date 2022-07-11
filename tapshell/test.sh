@@ -18,7 +18,7 @@ fi
 
 test -f $basepath/test/.env
 if [[ $? -ne 0 ]]; then
-    echo $TEST_DATABASE > $basepath/test/.env
+    echo $TEST_DATABASE | base64 -di > $basepath/test/.env
 fi
 
 for i in $(seq 1 30); do
