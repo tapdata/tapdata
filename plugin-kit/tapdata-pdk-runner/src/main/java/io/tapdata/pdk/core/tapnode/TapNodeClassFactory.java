@@ -5,7 +5,7 @@ import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.pdk.core.classloader.DependencyURLClassLoader;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.pdk.core.error.PDKRunnerErrorCodes;
-import io.tapdata.pdk.core.reflection.ClassAnnotationHandler;
+import io.tapdata.entity.reflection.ClassAnnotationHandler;
 import io.tapdata.pdk.core.utils.CommonUtils;
 
 import java.net.URLClassLoader;
