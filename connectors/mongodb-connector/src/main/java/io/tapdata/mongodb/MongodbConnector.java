@@ -244,6 +244,7 @@ public class MongodbConnector extends ConnectorBase {
 	 */
 	@Override
 	public ConnectionOptions connectionTest(TapConnectionContext connectionContext, Consumer<TestItem> consumer) throws Throwable {
+		ConnectionOptions connectionOptions = ConnectionOptions.create();
 		try {
 			onStart(connectionContext);
 			try (final MongoCursor<String> mongoCursor = mongoDatabase.listCollectionNames().iterator();) {
@@ -254,7 +255,7 @@ public class MongodbConnector extends ConnectorBase {
 			throwable.printStackTrace();
 			consumer.accept(testItem(TestItem.ITEM_CONNECTION, TestItem.RESULT_FAILED, "Failed, " + throwable.getMessage()));
 		}
-		return null;
+		return connectionOptions;
 	}
 
 	@Override

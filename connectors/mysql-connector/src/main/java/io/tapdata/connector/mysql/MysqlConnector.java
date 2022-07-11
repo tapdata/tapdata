@@ -1,6 +1,8 @@
 package io.tapdata.connector.mysql;
 
 import io.tapdata.base.ConnectorBase;
+import io.tapdata.connector.mysql.ddl.DDLFactory;
+import io.tapdata.connector.mysql.ddl.DDLParserType;
 import io.tapdata.connector.mysql.entity.MysqlSnapshotOffset;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.event.TapEvent;
@@ -8,6 +10,7 @@ import io.tapdata.entity.event.ddl.index.TapCreateIndexEvent;
 import io.tapdata.entity.event.ddl.table.TapClearTableEvent;
 import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
 import io.tapdata.entity.event.ddl.table.TapDropTableEvent;
+import io.tapdata.entity.event.ddl.table.TapNewFieldEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapIndex;
@@ -39,6 +42,7 @@ import java.util.function.Consumer;
 public class MysqlConnector extends ConnectorBase {
 	private static final String TAG = MysqlConnector.class.getSimpleName();
 	private static final int MAX_FILTER_RESULT_SIZE = 100;
+	private static final DDLParserType DDL_PARSER_TYPE = DDLParserType.CCJ_SQL_PARSER;
 	private MysqlJdbcContext mysqlJdbcContext;
 	private MysqlReader mysqlReader;
 	private MysqlWriter mysqlWriter;
@@ -75,6 +79,11 @@ public class MysqlConnector extends ConnectorBase {
 		connectorFunctions.supportQueryByAdvanceFilter(this::query);
 		connectorFunctions.supportWriteRecord(this::writeRecord);
 		connectorFunctions.supportCreateIndex(this::createIndex);
+		connectorFunctions.supportNewFieldFunction(this::newField);
+	}
+
+	private void newField(TapConnectorContext tapConnectorContext, TapNewFieldEvent tapNewFieldEvent) {
+
 	}
 
 	private void createIndex(TapConnectorContext tapConnectorContext, TapTable tapTable, TapCreateIndexEvent tapCreateIndexEvent) throws Throwable {
@@ -229,7 +238,7 @@ public class MysqlConnector extends ConnectorBase {
 	}
 
 	private void streamRead(TapConnectorContext tapConnectorContext, List<String> tables, Object offset, int batchSize, StreamReadConsumer consumer) throws Throwable {
-		mysqlReader.readBinlog(tapConnectorContext, tables, offset, batchSize, consumer);
+		mysqlReader.readBinlog(tapConnectorContext, tables, offset, batchSize, DDL_PARSER_TYPE, consumer);
 	}
 
 	private long batchCount(TapConnectorContext tapConnectorContext, TapTable tapTable) throws Throwable {
@@ -271,6 +280,7 @@ public class MysqlConnector extends ConnectorBase {
 	@Override
 	public ConnectionOptions connectionTest(TapConnectionContext databaseContext, Consumer<TestItem> consumer) throws Throwable {
 		onStart(databaseContext);
+		ConnectionOptions connectionOptions = ConnectionOptions.create();
 		MysqlConnectionTest mysqlConnectionTest = new MysqlConnectionTest(mysqlJdbcContext);
 		TestItem testHostPort = mysqlConnectionTest.testHostPort(databaseContext);
 		consumer.accept(testHostPort);
@@ -287,17 +297,18 @@ public class MysqlConnector extends ConnectorBase {
 		if (testDatabaseVersion.getResult() == TestItem.RESULT_FAILED) {
 			return null;
 		}
-		consumer.accept(mysqlConnectionTest.testBinlogMode());
-		consumer.accept(mysqlConnectionTest.testBinlogRowImage());
-		consumer.accept(mysqlConnectionTest.testCDCPrivileges());
+		TestItem binlogMode = mysqlConnectionTest.testBinlogMode();
+		TestItem binlogRowImage = mysqlConnectionTest.testBinlogRowImage();
+		TestItem cdcPrivileges = mysqlConnectionTest.testCDCPrivileges();
+		consumer.accept(binlogMode);
+		consumer.accept(binlogRowImage);
+		consumer.accept(cdcPrivileges);
 		consumer.accept(mysqlConnectionTest.testCreateTablePrivilege(databaseContext));
-		return ConnectionOptions.create()
-				.capability(Capability.create(ConnectionOptions.DML_INSERT_POLICY)
-						.alternative(ConnectionOptions.DML_INSERT_POLICY_UPDATE_ON_EXISTS)
-						.alternative(ConnectionOptions.DML_INSERT_POLICY_IGNORE_ON_EXISTS))
-				.capability(Capability.create(ConnectionOptions.DML_UPDATE_POLICY)
-						.alternative(ConnectionOptions.DML_UPDATE_POLICY_IGNORE_ON_NON_EXISTS)
-						.alternative(ConnectionOptions.DML_UPDATE_POLICY_INSERT_ON_NON_EXISTS));
+		if (binlogMode.isSuccess() && binlogRowImage.isSuccess() && cdcPrivileges.isSuccess()) {
+			List<Capability> ddlCapabilities = DDLFactory.getCapabilities(DDL_PARSER_TYPE);
+			ddlCapabilities.forEach(connectionOptions::capability);
+		}
+		return connectionOptions;
 	}
 
 	private Object timestampToStreamOffset(TapConnectorContext tapConnectorContext, Long startTime) throws Throwable {

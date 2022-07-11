@@ -4,12 +4,15 @@ import io.debezium.config.Configuration;
 import io.debezium.connector.mysql.MySqlConnectorConfig;
 import io.debezium.embedded.EmbeddedEngine;
 import io.debezium.engine.DebeziumEngine;
+import io.tapdata.connector.mysql.ddl.DDLFactory;
+import io.tapdata.connector.mysql.ddl.DDLParserType;
 import io.tapdata.connector.mysql.entity.MysqlBinlogPosition;
 import io.tapdata.connector.mysql.entity.MysqlSnapshotOffset;
 import io.tapdata.connector.mysql.entity.MysqlStreamEvent;
 import io.tapdata.connector.mysql.entity.MysqlStreamOffset;
 import io.tapdata.connector.mysql.util.StringCompressUtil;
 import io.tapdata.entity.event.TapEvent;
+import io.tapdata.entity.event.ddl.TapDDLEvent;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
@@ -30,6 +33,7 @@ import io.tapdata.entity.utils.cache.KVReadOnlyMap;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.entity.TapAdvanceFilter;
+import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.kafka.connect.data.Field;
 import org.apache.kafka.connect.data.Schema;
@@ -72,6 +76,7 @@ public class MysqlReader implements Closeable {
 	private StreamReadConsumer streamReadConsumer;
 	private ScheduledExecutorService mysqlSchemaHistoryMonitor;
 	private KVReadOnlyMap<TapTable> tapTableMap;
+	private DDLParserType ddlParserType = DDLParserType.CCJ_SQL_PARSER;
 	private final int MIN_BATCH_SIZE = 1000;
 
 	public MysqlReader(MysqlJdbcContext mysqlJdbcContext) {
@@ -135,11 +140,12 @@ public class MysqlReader implements Closeable {
 	}
 
 	public void readBinlog(TapConnectorContext tapConnectorContext, List<String> tables,
-						   Object offset, int batchSize, StreamReadConsumer consumer) throws Throwable {
+						   Object offset, int batchSize, DDLParserType ddlParserType, StreamReadConsumer consumer) throws Throwable {
 		try {
 			batchSize = Math.max(batchSize, MIN_BATCH_SIZE);
 			initDebeziumServerName(tapConnectorContext);
 			this.tapTableMap = tapConnectorContext.getTableMap();
+			this.ddlParserType = ddlParserType;
 			String offsetStr = "";
 			JsonParser jsonParser = InstanceFactory.instance(JsonParser.class);
 			MysqlStreamOffset mysqlStreamOffset = null;
@@ -313,22 +319,25 @@ public class MysqlReader implements Closeable {
 	}
 
 	private void sourceRecordConsumer(SourceRecord record) {
-		TapRecordEvent tapRecordEvent = null;
 		if (null == record || null == record.value()) return;
-		Struct value = (Struct) record.value();
 		Schema valueSchema = record.valueSchema();
 		MysqlStreamEvent mysqlStreamEvent = null;
-
 		if (null != valueSchema.field("op")) {
-			mysqlStreamEvent = wrapDML(record, tapRecordEvent, value, valueSchema);
+			mysqlStreamEvent = wrapDML(record);
+			Optional.ofNullable(mysqlStreamEvent).ifPresent(this::enqueue);
 		} else if (null != valueSchema.field("ddl")) {
-			// TODO output TapDDLEvent
+			List<MysqlStreamEvent> mysqlStreamEvents = wrapDDL(record);
+			if (null != mysqlStreamEvents && mysqlStreamEvents.size() > 0) {
+				mysqlStreamEvents.forEach(this::enqueue);
+			}
 		}
-		Optional.ofNullable(mysqlStreamEvent).ifPresent(this::enqueue);
 	}
 
-	private MysqlStreamEvent wrapDML(SourceRecord record, TapRecordEvent tapRecordEvent, Struct value, Schema valueSchema) {
+	private MysqlStreamEvent wrapDML(SourceRecord record) {
+		TapRecordEvent tapRecordEvent = null;
 		MysqlStreamEvent mysqlStreamEvent;
+		Schema valueSchema = record.valueSchema();
+		Struct value = (Struct) record.value();
 		Struct source = value.getStruct("source");
 		Long eventTime = source.getInt64("ts_ms");
 		String table = source.getString("table");
@@ -338,8 +347,8 @@ public class MysqlReader implements Closeable {
 			TapLogger.debug(TAG, "Unrecognized operation type: " + op + ", will skip it, record: " + record);
 			return null;
 		}
-		Map<String, Object> before;
-		Map<String, Object> after;
+		Map<String, Object> before = null;
+		Map<String, Object> after = null;
 		switch (mysqlOpType) {
 			case INSERT:
 				tapRecordEvent = new TapInsertRecordEvent();
@@ -372,22 +381,60 @@ public class MysqlReader implements Closeable {
 		tapRecordEvent.setTableId(table);
 		tapRecordEvent.setReferenceTime(eventTime);
 		MysqlStreamOffset mysqlStreamOffset = getMysqlStreamOffset(record);
+		TapLogger.debug(TAG, "Read DML - Table: " + table + "\n  - Operation: " + mysqlOpType.getOp()
+				+ "\n  - Before: " + before + "\n  - After: " + after + "\n  - Offset: " + mysqlStreamOffset);
 		mysqlStreamEvent = new MysqlStreamEvent(tapRecordEvent, mysqlStreamOffset);
 		return mysqlStreamEvent;
 	}
 
-	private MysqlStreamEvent wrapDDL(SourceRecord record) {
-		MysqlStreamEvent mysqlStreamEvent = null;
+	private List<MysqlStreamEvent> wrapDDL(SourceRecord record) {
+		List<MysqlStreamEvent> mysqlStreamEvents = new ArrayList<>();
 		Object value = record.value();
 		if (!(value instanceof Struct)) {
 			return null;
 		}
 		Struct structValue = (Struct) value;
+		Struct source = structValue.getStruct("source");
+		Long eventTime = source.getInt64("ts_ms");
 		String ddlStr = structValue.getString(SOURCE_RECORD_DDL_KEY);
+		TapLogger.info(TAG, "Read DDL: " + ddlStr + ", about to be packaged as some event(s)");
+		MysqlStreamOffset mysqlStreamOffset = getMysqlStreamOffset(record);
 		if (StringUtils.isNotBlank(ddlStr)) {
-
+			try {
+				DDLFactory.ddlToTapDDLEvent(
+						ddlParserType,
+						ddlStr,
+						tapTableMap,
+						tapDDLEvent -> {
+							MysqlStreamEvent mysqlStreamEvent = new MysqlStreamEvent(tapDDLEvent, mysqlStreamOffset);
+							tapDDLEvent.setReferenceTime(eventTime);
+							mysqlStreamEvents.add(mysqlStreamEvent);
+						}
+				);
+			} catch (Throwable e) {
+				throw new RuntimeException("Handle ddl failed: " + ddlStr + ", error: " + e.getMessage(), e);
+			}
 		}
-		return mysqlStreamEvent;
+		printDDLEventLog(mysqlStreamEvents);
+		return mysqlStreamEvents;
+	}
+
+	private void printDDLEventLog(List<MysqlStreamEvent> mysqlStreamEvents) {
+		if (CollectionUtils.isEmpty(mysqlStreamEvents)) {
+			return;
+		}
+		for (MysqlStreamEvent mysqlStreamEvent : mysqlStreamEvents) {
+			if (null == mysqlStreamEvent || null == mysqlStreamEvent.getTapEvent()) {
+				continue;
+			}
+			TapEvent tapEvent = mysqlStreamEvent.getTapEvent();
+			if (!(tapEvent instanceof TapDDLEvent)) {
+				continue;
+			}
+			TapLogger.info(TAG, "DDL event  - Table: " + ((TapDDLEvent) tapEvent).getTableId()
+					+ "\n  - Event type: " + tapEvent.getClass().getSimpleName()
+					+ "\n  - Offset: " + mysqlStreamEvent.getMysqlStreamOffset());
+		}
 	}
 
 	private Map<String, Object> struct2Map(Struct struct, String table) {

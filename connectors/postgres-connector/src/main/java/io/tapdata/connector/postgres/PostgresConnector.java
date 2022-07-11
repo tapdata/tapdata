@@ -114,6 +114,7 @@ public class PostgresConnector extends ConnectorBase {
     // TODO: 2022/6/9 need to improve test items
     @Override
     public ConnectionOptions connectionTest(TapConnectionContext connectionContext, Consumer<TestItem> consumer) {
+        ConnectionOptions connectionOptions = ConnectionOptions.create();
         postgresConfig = (PostgresConfig) new PostgresConfig().load(connectionContext.getConnectionConfig());
         PostgresTest postgresTest = new PostgresTest(postgresConfig);
         TestItem testHostPort = postgresTest.testHostPort();
@@ -130,7 +131,7 @@ public class PostgresConnector extends ConnectorBase {
         consumer.accept(postgresTest.testReplication());
         consumer.accept(postgresTest.testLogPlugin());
         postgresTest.close();
-        return null;
+        return connectionOptions;
     }
 
     @Override

@@ -13,11 +13,12 @@ import org.ehcache.config.units.EntryUnit;
 import org.ehcache.config.units.MemoryUnit;
 
 import java.io.File;
+import java.io.Serializable;
 
 import static io.tapdata.entity.simplify.TapSimplify.*;
 
 @Implementation(value = KVMap.class, buildNumber = 0, type = "ehcache")
-public class EhcacheKVMap<T> implements KVMap<T> {
+public class EhcacheKVMap<T> implements KVMap<T>, Serializable {
     private static final String TAG = EhcacheKVMap.class.getSimpleName();
     private static PersistentCacheManager persistentCacheManager = null;
     private Cache<String, T> cache;
@@ -79,9 +80,10 @@ public class EhcacheKVMap<T> implements KVMap<T> {
                 }
             }
         }
-
+        cache = (Cache<String, T>) persistentCacheManager.getCache(mapKey, String.class, (Class<?>) valueClass);
         if(cache == null) {
             synchronized (this) {
+                cache = (Cache<String, T>) persistentCacheManager.getCache(mapKey, String.class, (Class<?>) valueClass);
                 if(cache == null) {
                     cacheKey = mapKey;
                     if(maxHeapEntries == null) {
@@ -106,9 +108,12 @@ public class EhcacheKVMap<T> implements KVMap<T> {
                         if(maxDiskMB != null && maxDiskMB > 0) {
                             resourcePoolsBuilder = resourcePoolsBuilder.disk(maxDiskMB, MemoryUnit.MB);
                         }
-                        cache = (Cache<String, T>) persistentCacheManager.createCache(mapKey,
-                                CacheConfigurationBuilder.newCacheConfigurationBuilder(String.class, (Class<?>) valueClass,
-                                        resourcePoolsBuilder));
+
+                        if(cache == null) {
+                            cache = (Cache<String, T>) persistentCacheManager.createCache(mapKey,
+                                    CacheConfigurationBuilder.newCacheConfigurationBuilder(String.class, (Class<?>) valueClass,
+                                            resourcePoolsBuilder));
+                        }
                     }
                 }
             }
@@ -122,12 +127,13 @@ public class EhcacheKVMap<T> implements KVMap<T> {
                 .maxHeapEntries(10)
                 .maxDiskMB(5500)
                 .init();
+
 //        tableMap.init("AAAAA", TapTable.class);
 
         tableMap.put("a", table("name").add(field("field", "TapString").tapType(tapString().bytes(100L).fixed(true)).comment("asdkfalskdflskdfj")));
 
         long putTime = System.currentTimeMillis();
-        for(int i = 0; i < 1000000; i++) {
+        for(int i = 0; i < 1; i++) {
             String key = String.valueOf(i);
             tableMap.put(key, table(key).add(field("field", "TapString").comment("asdkfalskdflskdfjasdkfalskdflskdfjasdkfalskdflskdfjasdkfalskdflskdfjasdkfalskdflskdfjasdkfalskdflskdfjasdkfalskdflskdfjasdkfalskdflskdfjasdkfalskdflskdfj" + key)));
         }
@@ -135,7 +141,7 @@ public class EhcacheKVMap<T> implements KVMap<T> {
         //put takes 6090
 
         long getTime = System.currentTimeMillis();
-        for(int i = 0; i < 1000000; i++) {
+        for(int i = 0; i < 1; i++) {
             TapTable table = tableMap.get(String.valueOf(i % 10));
         }
         System.out.println("get take " + (System.currentTimeMillis() - getTime));
@@ -145,7 +151,7 @@ public class EhcacheKVMap<T> implements KVMap<T> {
         System.out.println(tableMap.get("a"));
 
 //        tableMap.clear();
-        tableMap.reset();
+//        tableMap.reset();
 //        tableMap.reset();
     }
     private File getStoragePath() {
