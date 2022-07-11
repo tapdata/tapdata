@@ -2,7 +2,9 @@
 
 ## 完整在线文档地址: https://tapdata.github.io/
 ## Tapdata 为什么而存在
-Tapdata 实时连接各种数据源, 并为业务提供新鲜, 准确的数据服务
+Tapdata 是新一代的实时数据平台, 通过把企业核心数据实时集中到中央化数据平台的方式并通过API 或者反向同步方式, 为下游的交互式应用, 微服务或交互式分析提供新鲜实时的数据
+
+你也可以使用Tapdata作为一个实时数据集成（ETL）工具, 提供各种异构数据库之间的实时复制能力
 
 ## Tapdata 架构图
 <img src="https://github.com/tapdata/tapdata-private/raw/master/assets/tapdata-ldp.png" width="600px"/>
@@ -22,7 +24,7 @@ Tapdata 实时连接各种数据源, 并为业务提供新鲜, 准确的数据�
 ## 使用说明
 1. 在环境启动后, 可通过 `bash bin/tapshell.sh` 进入交互客户端
 
-交互客户端可使用命令模式, 或者 Python 开发语言进行实时数据平台的使用
+交互客户端可使用命令模式, 或者 Shell API 模式进行实时数据平台的使用
 
 ### 基本概念
 1. 数据连接器: 平台支持的数据连接类型, 比如 Mysql, PG, MongoDB
