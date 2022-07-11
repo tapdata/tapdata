@@ -137,7 +137,7 @@ system has 3 jobs
 >>> delete job $name
 ```
 
-2. 同步一张表, 并进行一些数据变换
+2. 同步一张表, 并使用自定义函数进行一些简单数据处理, 目前你可以使用 Python3 语法来进行函数的定义
 ```
 # 1. 定义一个方法, 对 record 进行变换, 并返回 record
 >>> def fn(record):
