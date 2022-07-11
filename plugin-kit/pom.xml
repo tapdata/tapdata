@@ -12,6 +12,7 @@
 		<module>tapdata-pdk-api</module>
 		<module>tapdata-pdk-runner</module>
         <module>tapdata-pdk-cli</module>
+		<module>tapdata-pdk-deploy</module>
         <module>tapdata-tests</module>
 		<module>connector-archetypes</module>
     </modules>

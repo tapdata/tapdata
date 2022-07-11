@@ -1,0 +1,105 @@
+package io.tapdata.pdk.cli.commands;
+
+import com.alibaba.fastjson.JSON;
+import com.alibaba.fastjson.JSONObject;
+import io.tapdata.entity.codec.TapCodecsRegistry;
+import io.tapdata.pdk.apis.annotations.TapConnectorClass;
+import io.tapdata.pdk.apis.functions.ConnectorFunctions;
+import io.tapdata.pdk.apis.spec.TapNodeSpecification;
+import io.tapdata.pdk.cli.CommonCli;
+import io.tapdata.pdk.cli.services.UploadFileService;
+import io.tapdata.pdk.cli.utils.ZipUtils;
+import io.tapdata.pdk.core.connector.TapConnector;
+import io.tapdata.pdk.core.connector.TapConnectorManager;
+import io.tapdata.pdk.core.tapnode.TapNodeContainer;
+import io.tapdata.pdk.core.tapnode.TapNodeInfo;
+import io.tapdata.pdk.core.utils.CommonUtils;
+import io.tapdata.pdk.core.utils.IOUtils;
+import org.apache.commons.io.FileUtils;
+import org.apache.commons.io.FilenameUtils;
+import org.apache.commons.lang3.StringUtils;
+import picocli.CommandLine;
+
+import java.io.File;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.util.*;
+
+@CommandLine.Command(
+        description = "Push PDK jar file into Tapdata",
+        subcommands = MainCli.class
+)
+public class JarHijackerCli extends CommonCli {
+    private static final String TAG = JarHijackerCli.class.getSimpleName();
+    @CommandLine.Option(names = { "-m", "--module" }, required = true, description = "Module path")
+    private String module;
+
+    @CommandLine.Parameters(paramLabel = "FILE", description = "One ore more pdk jar files")
+    File[] files;
+
+
+    @CommandLine.Option(names = {"-h", "--help"}, usageHelp = true, description = "TapData cli help")
+    private boolean helpRequested = false;
+
+    public Integer execute() throws Exception {
+        File moduleDir = new File(module);
+        if(!moduleDir.isDirectory())
+            throw new IllegalArgumentException("Module " + module + " is not a directory");
+        try {
+            CommonUtils.setProperty("refresh_local_jars", "true");
+            String tempDir = CommonUtils.getProperty("temp_dir", "./temp/");
+//            TapConnectorManager.getInstance().start(Arrays.asList(files));
+
+            for (File file : files) {
+//                TapConnector connector = TapConnectorManager.getInstance().getTapConnectorByJarName(file.getName());
+//                TapOverwriteAnnotationHandler overwriteAnnotationHandler = connector.getTapNodeClassFactory().getTapOverwriteAnnotationHandler();
+//                List<Class<?>> overwriteClasses = overwriteAnnotationHandler.getOverwriteClasses();
+                String subPath = "src" + File.separator + "main" + File.separator + "overwrite";
+                String overwritePath = FilenameUtils.concat(module, subPath);
+                File overwriteDir = new File(overwritePath);
+                List<String> targetFiles = new ArrayList<>();
+                if(overwriteDir.isDirectory()) {
+                    Collection<File> files = FileUtils.listFiles(overwriteDir, new String[]{"java"}, true);
+                    if(files == null || files.isEmpty()) {
+                        continue;
+                    }
+                    for(File targetFile : files) {
+                        String path = targetFile.getPath();
+                        int pos = path.indexOf(subPath);
+                        if(pos > 0) {
+                            String theSubPath = path.substring(pos + subPath.length() + 1, path.length() - 5) + ".class";
+                            targetFiles.add(theSubPath);
+                        }
+                    }
+                }
+                if(targetFiles.isEmpty())
+                    return 1;
+                String tempName = file.getName() + UUID.randomUUID().toString().replace("-", "");
+                String tempTargetDir = FilenameUtils.concat(tempDir, tempName);
+                try {
+                    ZipUtils.unzip(file.getAbsolutePath(), tempTargetDir);
+                    File overwriteTargetDir = new File(FilenameUtils.concat(module, "target/classes"));
+                    if(overwriteTargetDir.isDirectory()) {
+                        for(String targetFile : targetFiles) {
+                            File theTargetFile = new File(FilenameUtils.concat(overwriteTargetDir.getAbsolutePath(), targetFile));
+                            if(theTargetFile.isFile()) {
+                                FileUtils.copyFile(theTargetFile, new File(FilenameUtils.concat(tempTargetDir, targetFile)), true);
+                            }
+                        }
+                    }
+                    try (OutputStream fos = FileUtils.openOutputStream(file)) {
+                        ZipUtils.zip(tempTargetDir, fos);
+                    }
+                } finally {
+                    FileUtils.forceDelete(new File(tempTargetDir));
+                }
+
+            }
+        } catch (Throwable throwable) {
+            throwable.printStackTrace();
+            CommonUtils.logError(TAG, "Start failed", throwable);
+        }
+        return 0;
+    }
+
+}
