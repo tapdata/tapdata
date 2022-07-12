@@ -1,6 +1,10 @@
 FROM ghcr.io/tapdata/tapdata/tldp/runtime:0.1
 
-RUN apt-get install -y python3.7 lsof allure && \
+RUN apt-get install -y python3.7 lsof wget && \
+    ALLURE_VERSION=2.13.9 && \
+    wget -qO /tmp/allure-"$ALLURE_VERSION".tgz https://github.com/allure-framework/allure2/releases/download/"$ALLURE_VERSION"/allure-"$ALLURE_VERSION".tgz && \
+    tar -xf /tmp/allure-"$ALLURE_VERSION".tgz --directory=/opt/ && \
+    ln -s /opt/allure-"$ALLURE_VERSION"/bin/allure /usr/bin/allure && \
     update-alternatives --install /usr/bin/python python /usr/bin/python3.7 1 && \
     update-alternatives --set python /usr/bin/python3.7 && \
     curl -s https://bootstrap.pypa.io/get-pip.py -o get-pip.py && \
