@@ -7,8 +7,7 @@ on:
     branches: [ "master" ]
 
 env:
-  CR_PAT: ${{ secrets.CR_PAT }}
-  USERNAME: ${{ secrets.USERNAME }}
+  REGISTRY: ghcr.io
   TEST_DATABASE: ${{ secrets.TEST_DATABASE }}
 
 jobs:
@@ -19,6 +18,12 @@ jobs:
 
     steps:
       - uses: actions/checkout@v3
+      - name: Login to the github container registry
+        uses: docker/login-action@f054a8b539a109f9f41c372932f1ae047eff08c9
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
       - name: compile iengine modules
         run: |
           chmod u+x build/build.sh 
