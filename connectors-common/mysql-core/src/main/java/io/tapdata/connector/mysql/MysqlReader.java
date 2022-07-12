@@ -321,7 +321,7 @@ public class MysqlReader implements Closeable {
 	private void sourceRecordConsumer(SourceRecord record) {
 		if (null == record || null == record.value()) return;
 		Schema valueSchema = record.valueSchema();
-		MysqlStreamEvent mysqlStreamEvent = null;
+		MysqlStreamEvent mysqlStreamEvent;
 		if (null != valueSchema.field("op")) {
 			mysqlStreamEvent = wrapDML(record);
 			Optional.ofNullable(mysqlStreamEvent).ifPresent(this::enqueue);

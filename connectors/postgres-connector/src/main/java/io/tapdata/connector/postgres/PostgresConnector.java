@@ -8,18 +8,20 @@ import io.tapdata.connector.postgres.bean.PostgresColumn;
 import io.tapdata.connector.postgres.cdc.PostgresCdcRunner;
 import io.tapdata.connector.postgres.cdc.offset.PostgresOffset;
 import io.tapdata.connector.postgres.config.PostgresConfig;
+import io.tapdata.connector.postgres.ddl.DDLSqlMaker;
+import io.tapdata.connector.postgres.ddl.sqlmaker.PostgresDDLSqlMaker;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.ddl.index.TapCreateIndexEvent;
-import io.tapdata.entity.event.ddl.table.TapClearTableEvent;
-import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
-import io.tapdata.entity.event.ddl.table.TapDropTableEvent;
+import io.tapdata.entity.event.ddl.table.*;
 import io.tapdata.entity.event.dml.TapRecordEvent;
+import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapIndex;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.value.*;
 import io.tapdata.entity.simplify.TapSimplify;
+import io.tapdata.entity.simplify.pretty.BiClassHandlers;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.kit.DbKit;
 import io.tapdata.kit.EmptyKit;
@@ -50,16 +52,25 @@ import static io.tapdata.entity.simplify.TapSimplify.indexField;
 @TapConnectorClass("spec_postgres.json")
 public class PostgresConnector extends ConnectorBase {
 
+    public static final String TAG = PostgresConnector.class.getSimpleName();
     private PostgresConfig postgresConfig;
     private PostgresJdbcContext postgresJdbcContext;
     private PostgresCdcRunner cdcRunner; //only when task start-pause this variable can be shared
     private Object slotName; //must be stored in stateMap
     private String postgresVersion;
     private static final int BATCH_ADVANCE_READ_LIMIT = 1000;
+    private BiClassHandlers<TapFieldBaseEvent, TapConnectorContext, List<String>> fieldDDLHandlers;
+    private DDLSqlMaker ddlSqlMaker;
 
     @Override
     public void onStart(TapConnectionContext connectorContext) {
         initConnection(connectorContext);
+        ddlSqlMaker = new PostgresDDLSqlMaker();
+        fieldDDLHandlers = new BiClassHandlers<>();
+        fieldDDLHandlers.register(TapNewFieldEvent.class, this::newField);
+        fieldDDLHandlers.register(TapAlterFieldAttributesEvent.class, this::alterFieldAttr);
+        fieldDDLHandlers.register(TapAlterFieldNameEvent.class, this::alterFieldName);
+        fieldDDLHandlers.register(TapDropFieldEvent.class, this::dropField);
     }
 
     @Override
@@ -158,6 +169,10 @@ public class PostgresConnector extends ConnectorBase {
         //query
         connectorFunctions.supportQueryByFilter(this::queryByFilter);
         connectorFunctions.supportQueryByAdvanceFilter(this::queryByAdvanceFilter);
+        connectorFunctions.supportNewFieldFunction(this::fieldDDLHandler);
+        connectorFunctions.supportAlterFieldNameFunction(this::fieldDDLHandler);
+        connectorFunctions.supportAlterFieldAttributesFunction(this::fieldDDLHandler);
+        connectorFunctions.supportDropFieldFunction(this::fieldDDLHandler);
 
         codecRegistry.registerFromTapValue(TapRawValue.class, "text", tapRawValue -> {
             if (tapRawValue != null && tapRawValue.getValue() != null) return toJson(tapRawValue.getValue());
@@ -177,6 +192,52 @@ public class PostgresConnector extends ConnectorBase {
         codecRegistry.registerFromTapValue(TapDateValue.class, tapDateValue -> tapDateValue.getValue().toSqlDate());
     }
 
+    private void fieldDDLHandler(TapConnectorContext tapConnectorContext, TapFieldBaseEvent tapFieldBaseEvent) {
+        List<String> sqls = fieldDDLHandlers.handle(tapFieldBaseEvent, tapConnectorContext);
+        if (null == sqls) {
+            return;
+        }
+        for (String sql : sqls) {
+            try {
+                TapLogger.info(TAG, "Execute ddl sql: " + sql);
+                postgresJdbcContext.execute(sql);
+            } catch (SQLException e) {
+                throw new RuntimeException("Execute ddl sql failed: " + sql + ", error: " + e.getMessage(), e);
+            }
+        }
+    }
+
+    private List<String> alterFieldAttr(TapFieldBaseEvent tapFieldBaseEvent, TapConnectorContext tapConnectorContext) {
+        if (!(tapFieldBaseEvent instanceof TapAlterFieldAttributesEvent)) {
+            return null;
+        }
+        TapAlterFieldAttributesEvent tapAlterFieldAttributesEvent = (TapAlterFieldAttributesEvent) tapFieldBaseEvent;
+        return ddlSqlMaker.alterColumnAttr(tapConnectorContext, tapAlterFieldAttributesEvent);
+    }
+
+    private List<String> dropField(TapFieldBaseEvent tapFieldBaseEvent, TapConnectorContext tapConnectorContext) {
+        if (!(tapFieldBaseEvent instanceof TapDropFieldEvent)) {
+            return null;
+        }
+        TapDropFieldEvent tapDropFieldEvent = (TapDropFieldEvent) tapFieldBaseEvent;
+        return ddlSqlMaker.dropColumn(tapConnectorContext, tapDropFieldEvent);
+    }
+
+    private List<String> alterFieldName(TapFieldBaseEvent tapFieldBaseEvent, TapConnectorContext tapConnectorContext) {
+        if (!(tapFieldBaseEvent instanceof TapAlterFieldNameEvent)) {
+            return null;
+        }
+        TapAlterFieldNameEvent tapAlterFieldNameEvent = (TapAlterFieldNameEvent) tapFieldBaseEvent;
+        return ddlSqlMaker.alterColumnName(tapConnectorContext, tapAlterFieldNameEvent);
+    }
+
+    private List<String> newField(TapFieldBaseEvent tapFieldBaseEvent, TapConnectorContext tapConnectorContext) {
+        if (!(tapFieldBaseEvent instanceof TapNewFieldEvent)) {
+            return null;
+        }
+        TapNewFieldEvent tapNewFieldEvent = (TapNewFieldEvent) tapFieldBaseEvent;
+        return ddlSqlMaker.addColumn(tapConnectorContext, tapNewFieldEvent);
+    }
 
     //clear resource outer and jdbc context
     private void onDestroy(TapConnectorContext connectorContext) throws Throwable {
