@@ -13,19 +13,19 @@
 
 #### 字段类型
 
-- `String[($byte)][fixed]`: 字符串。
+- `string[($byte)][fixed]`: 字符串。
     - `$byte`：字节长度
     - `fixed`：如果定长字符器加上此标识
-- `Number[($precision, $scale)]`: 数值。
+- `number[($precision,$scale)]`: 数值。
     - `$precision`：范围 `1-40`，默认 `4`
     - `$scale`：范围 `0-10`，默认 `1`
-- `Boolean`: 布尔值
-- `Date`: 日期
-- `Array`: 数组
-- `Binary`: 字节
-- `Map`: 键值对
-- `Time`: 时间
-- `DateTime`: 时期+时间
+- `boolean`: 布尔值
+- `date`: 日期
+- `array`: 数组
+- `binary`: 字节
+- `map`: 键值对
+- `time`: 时间
+- `datetime`: 时期+时间
 
 #### 字段默认值
 
@@ -33,8 +33,8 @@
 
 - `serial(int,int)`: 自增，开始位置，步长
 - `now()`: 当前时间
-- `randomLong(long)`: 数字随机
-- `randomString(int)`: 指定长度的随机字符
+- `rlong(long)`: 数字随机
+- `rstring(int)`: 指定长度的随机字符
 - `uuid()`: UUID
 
 ### 说明
@@ -44,8 +44,8 @@
 > - 有固定的数据模型：
 > ```
 > _tapdata_heartbeat_table=[
->   { "type": "String(64)", "pri": true, "name": "id", "def": "$connId" },
->   { "type": "DateTime", "pri": false, "name": "ts", "def": "now()" }
+>   { "type": "string(64)", "pri": true, "name": "id", "def": "$connId" },
+>   { "type": "datetime", "pri": false, "name": "ts", "def": "now()" }
 > ]
 > ```
 > - 固定的频率：`1条/1000ms`

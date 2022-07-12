@@ -13,19 +13,19 @@
 
 #### Field Type
 
-- `String[($byte)][fixed]`: String.
+- `string[($byte)][fixed]`: string.
     - `$byte`: length in bytes
     - `fixed`: if the fixed-length characterizer is added with this flag
-- `Number[($precision, $scale)]`: Number.
+- `number[($precision,$scale)]`: number.
     - `$precision`: range `1-40`, default `4`
     - `$scale`: range `0-10`, default `1`
-- `Boolean`: boolean value
-- `Date`: the date
-- `Array`: array
-- `Binary`: bytes
-- `Map`: key-value pair
-- `Time`: time
-- `DateTime`: date + time
+- `boolean`: boolean value
+- `date`: the date
+- `array`: array
+- `binary`: bytes
+- `map`: key-value pair
+- `time`: time
+- `datetime`: date + time
 
 #### Field default values
 
@@ -33,8 +33,8 @@ The default value used when generating data, the data is `null` when not set, su
 
 - `serial(int,int)`: increment, start position, step size
 - `now()`: current time
-- `randomLong(long)`: random number
-- `randomString(int)`: random character of specified length
+- `rlong(long)`: random number
+- `rstring(int)`: random character of specified length
 - `uuid()`: UUID
 
 ### illustrate
@@ -44,8 +44,8 @@ The default value used when generating data, the data is `null` when not set, su
 > - Has a fixed data model:
 > ````
 > _tapdata_heartbeat_table=[
-> { "type": "String(64)", "pri": true, "name": "id", "def": "$connId" },
-> { "type": "DateTime", "pri": false, "name": "ts", "def": "now()" }
+> { "type": "string(64)", "pri": true, "name": "id", "def": "$connId" },
+> { "type": "datetime", "pri": false, "name": "ts", "def": "now()" }
 > ]
 > ````
 > - Fixed frequency: `1 bar/1000ms`
