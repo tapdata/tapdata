@@ -1,6 +1,6 @@
 FROM ghcr.io/tapdata/tapdata/tldp/runtime:0.1
 
-RUN apt-get install -y python3.7 lsof && \
+RUN apt-get install -y python3.7 lsof allure && \
     update-alternatives --install /usr/bin/python python /usr/bin/python3.7 1 && \
     update-alternatives --set python /usr/bin/python3.7 && \
     curl -s https://bootstrap.pypa.io/get-pip.py -o get-pip.py && \
