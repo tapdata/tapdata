@@ -3,20 +3,20 @@ package io.tapdata.connector.mysql;
 import io.tapdata.base.ConnectorBase;
 import io.tapdata.connector.mysql.ddl.DDLFactory;
 import io.tapdata.connector.mysql.ddl.DDLParserType;
+import io.tapdata.connector.mysql.ddl.DDLSqlMaker;
+import io.tapdata.connector.mysql.ddl.sqlmaker.MysqlDDLSqlMaker;
 import io.tapdata.connector.mysql.entity.MysqlSnapshotOffset;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.ddl.index.TapCreateIndexEvent;
-import io.tapdata.entity.event.ddl.table.TapClearTableEvent;
-import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
-import io.tapdata.entity.event.ddl.table.TapDropTableEvent;
-import io.tapdata.entity.event.ddl.table.TapNewFieldEvent;
+import io.tapdata.entity.event.ddl.table.*;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapIndex;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.value.*;
 import io.tapdata.entity.simplify.TapSimplify;
+import io.tapdata.entity.simplify.pretty.BiClassHandlers;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.pdk.apis.annotations.TapConnectorClass;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
@@ -48,7 +48,27 @@ public class MysqlConnector extends ConnectorBase {
 	private MysqlWriter mysqlWriter;
 	private String version;
 	private String connectionTimezone;
+	private BiClassHandlers<TapFieldBaseEvent, TapConnectorContext, List<String>> fieldDDLHandlers;
+	private DDLSqlMaker ddlSqlMaker;
 
+	@Override
+	public void onStart(TapConnectionContext tapConnectionContext) throws Throwable {
+		this.mysqlJdbcContext = new MysqlJdbcContext(tapConnectionContext);
+		if (tapConnectionContext instanceof TapConnectorContext) {
+			this.mysqlWriter = new MysqlJdbcOneByOneWriter(mysqlJdbcContext);
+			this.mysqlReader = new MysqlReader(mysqlJdbcContext);
+			this.version = mysqlJdbcContext.getMysqlVersion();
+			this.connectionTimezone = tapConnectionContext.getConnectionConfig().getString("timezone");
+			if ("Database Timezone".equals(this.connectionTimezone) || StringUtils.isBlank(this.connectionTimezone)) {
+				this.connectionTimezone = mysqlJdbcContext.timezone();
+			}
+		}
+		ddlSqlMaker = new MysqlDDLSqlMaker();
+		fieldDDLHandlers = new BiClassHandlers<>();
+		fieldDDLHandlers.register(TapNewFieldEvent.class, this::newField);
+		fieldDDLHandlers.register(TapAlterFieldNameEvent.class, this::alterFieldName);
+		fieldDDLHandlers.register(TapDropFieldEvent.class, this::dropField);
+	}
 
 	@Override
 	public void registerCapabilities(ConnectorFunctions connectorFunctions, TapCodecsRegistry codecRegistry) {
@@ -79,11 +99,48 @@ public class MysqlConnector extends ConnectorBase {
 		connectorFunctions.supportQueryByAdvanceFilter(this::query);
 		connectorFunctions.supportWriteRecord(this::writeRecord);
 		connectorFunctions.supportCreateIndex(this::createIndex);
-		connectorFunctions.supportNewFieldFunction(this::newField);
+		connectorFunctions.supportNewFieldFunction(this::fieldDDLHandler);
+		connectorFunctions.supportAlterFieldNameFunction(this::fieldDDLHandler);
+		connectorFunctions.supportDropFieldFunction(this::fieldDDLHandler);
 	}
 
-	private void newField(TapConnectorContext tapConnectorContext, TapNewFieldEvent tapNewFieldEvent) {
+	private void fieldDDLHandler(TapConnectorContext tapConnectorContext, TapFieldBaseEvent tapFieldBaseEvent) {
+		List<String> sqls = fieldDDLHandlers.handle(tapFieldBaseEvent, tapConnectorContext);
+		if (null == sqls) {
+			return;
+		}
+		for (String sql : sqls) {
+			try {
+				TapLogger.info(TAG, "Execute ddl sql: " + sql);
+				mysqlJdbcContext.execute(sql);
+			} catch (Throwable e) {
+				throw new RuntimeException("Execute ddl sql failed: " + sql + ", error: " + e.getMessage(), e);
+			}
+		}
+	}
 
+	private List<String> dropField(TapFieldBaseEvent tapFieldBaseEvent, TapConnectorContext tapConnectorContext) {
+		if (!(tapFieldBaseEvent instanceof TapDropFieldEvent)) {
+			return null;
+		}
+		TapDropFieldEvent tapDropFieldEvent = (TapDropFieldEvent) tapFieldBaseEvent;
+		return ddlSqlMaker.dropColumn(tapConnectorContext, tapDropFieldEvent);
+	}
+
+	private List<String> alterFieldName(TapFieldBaseEvent tapFieldBaseEvent, TapConnectorContext tapConnectorContext) {
+		if (!(tapFieldBaseEvent instanceof TapAlterFieldNameEvent)) {
+			return null;
+		}
+		TapAlterFieldNameEvent tapAlterFieldNameEvent = (TapAlterFieldNameEvent) tapFieldBaseEvent;
+		return ddlSqlMaker.alterColumnName(tapConnectorContext, tapAlterFieldNameEvent);
+	}
+
+	private List<String> newField(TapFieldBaseEvent tapFieldBaseEvent, TapConnectorContext tapConnectorContext) {
+		if (!(tapFieldBaseEvent instanceof TapNewFieldEvent)) {
+			return null;
+		}
+		TapNewFieldEvent tapNewFieldEvent = (TapNewFieldEvent) tapFieldBaseEvent;
+		return ddlSqlMaker.addColumn(tapConnectorContext, tapNewFieldEvent);
 	}
 
 	private void createIndex(TapConnectorContext tapConnectorContext, TapTable tapTable, TapCreateIndexEvent tapCreateIndexEvent) throws Throwable {
@@ -115,20 +172,6 @@ public class MysqlConnector extends ConnectorBase {
 			}
 		});
 		return count.get();
-	}
-
-	@Override
-	public void onStart(TapConnectionContext tapConnectionContext) throws Throwable {
-		this.mysqlJdbcContext = new MysqlJdbcContext(tapConnectionContext);
-		if (tapConnectionContext instanceof TapConnectorContext) {
-			this.mysqlWriter = new MysqlJdbcOneByOneWriter(mysqlJdbcContext);
-			this.mysqlReader = new MysqlReader(mysqlJdbcContext);
-			this.version = mysqlJdbcContext.getMysqlVersion();
-			this.connectionTimezone = tapConnectionContext.getConnectionConfig().getString("timezone");
-			if ("Database Timezone".equals(this.connectionTimezone) || StringUtils.isBlank(this.connectionTimezone)) {
-				this.connectionTimezone = mysqlJdbcContext.timezone();
-			}
-		}
 	}
 
 //	@Override
