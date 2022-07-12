@@ -135,7 +135,7 @@
   },
   "dataTypes": {
     "String[($byte)][fixed]": {"byte" : "16m", "fixed" : "fixed", "to" : "TapString"},
-    "Number[($precision, $scale)]": {"precision" : [1, 40], "precisionDefault" : 4, "scale" : [0, 10], "scaleDefault" : 1, "to": "TapNumber"},
+    "Number[($precision,$scale)]": {"precision" : [1, 40], "precisionDefault" : 4, "scale" : [0, 10], "scaleDefault" : 1, "to": "TapNumber"},
     "Boolean" : {"to": "TapBoolean"},
     "Date" : {"to": "TapDate"},
     "Array" : {"to": "TapArray"},

@@ -5,6 +5,7 @@ import io.tapdata.dummy.constants.RecordOperators;
 import io.tapdata.dummy.utils.DummyUtils;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
+import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.entity.utils.DataMap;
 
 import java.util.*;
@@ -38,8 +39,9 @@ public class DummyConfig implements IDummyConfig {
                     TapField field = new TapField((String) dummyField.get("name"), (String) dummyField.get("type"));
                     field.setDefaultValue(dummyField.get("def"));
                     if (Optional.ofNullable((Boolean) dummyField.get("pri")).orElse(false)) {
-                        field.primaryKeyPos(i);
                         table.getDefaultPrimaryKeys().add(field.getName());
+                        field.setPos(i);
+                        field.primaryKeyPos(table.getDefaultPrimaryKeys().size());
                     }
                     table.add(field);
                 }
