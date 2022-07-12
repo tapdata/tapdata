@@ -43,4 +43,15 @@ jobs:
         run: ls -al
       - name: run integrate test
         run: chmod u+x build/quick-test.sh && build/quick-test.sh
-             exit $?
+             ret=$?
+             git add ./tapshell/test/report/integrate.html/
+             git commit -m "update github page"
+      - name: update github page
+        uses: ad-m/github-push-action@v0.6.0
+        with:
+          force: true
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          branch: report-test
+          directory: ./tapshell/test/report/integrate.html/
+      - name: return code
+        run: exit $ret
