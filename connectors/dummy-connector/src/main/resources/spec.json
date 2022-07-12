@@ -113,7 +113,8 @@
       "df_table_field_btn_add": "增加字段"
     },
     "zh_TW": {
-      "doc": "docs/dummy_zh_CN.md",
+      "doc": "docs/dummy_zh_TW.md",
+      "df_initial_totals": "初始化數據量",
       "df_incremental_interval": "增量間隔（毫秒）",
       "df_incremental_interval_totals": "增量間隔總數",
       "df_incremental_types": "增量事件類型",
