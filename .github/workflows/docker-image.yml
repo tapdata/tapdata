@@ -47,5 +47,6 @@ jobs:
       - name: update github page
         uses: ad-m/github-push-action@v0.6.0
         with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
           branch: report-test
           directory: ./tapshell/test/report/integrate.html/
