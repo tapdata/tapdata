@@ -82,6 +82,10 @@ public class TapIndex implements Serializable {
         this.name = name;
     }
 
+    public boolean isCluster() {
+        return cluster != null && cluster;
+    }
+
     public Boolean getCluster() {
         return cluster;
     }

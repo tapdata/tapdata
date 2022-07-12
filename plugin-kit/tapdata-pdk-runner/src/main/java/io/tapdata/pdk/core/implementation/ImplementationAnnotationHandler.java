@@ -3,7 +3,7 @@ package io.tapdata.pdk.core.implementation;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.annotations.Implementation;
 import io.tapdata.entity.error.CoreException;
-import io.tapdata.pdk.core.reflection.ClassAnnotationHandler;
+import io.tapdata.entity.reflection.ClassAnnotationHandler;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Constructor;
@@ -82,6 +82,7 @@ public class ImplementationAnnotationHandler extends ClassAnnotationHandler {
             }
             TapLogger.debug(TAG, "--------------Implementation Classes End-------------");
         }
+        apply();
     }
 
     @Override

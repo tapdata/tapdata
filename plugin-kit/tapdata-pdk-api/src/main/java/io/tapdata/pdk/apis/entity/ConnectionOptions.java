@@ -6,10 +6,14 @@ import java.util.TimeZone;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 public class ConnectionOptions {
+    //Connector support master slave merge feature.
     public static final String CAPABILITY_MASTER_SLAVE_MERGE = "master_slave_merge";
+    //Connector support lookup stream offset by timestamp
     public static final String CAPABILITY_RESUME_STREAM_BY_TIMESTAMP = "resume_stream_by_timestamp";
+    //Connector's stream read is heavy, when too many tasks requires stream read, performance will drop tremendously， support shared_stream_read can share the stream read capability in multiple tasks.
     public static final String CAPABILITY_SHARED_STREAM_READ = "shared_stream_read";
 
+    //DDL events
     public static final String DDL_ALTER_FIELD_NAME_EVENT = "alter_field_name_event";
     public static final String DDL_ALTER_FIELD_ATTRIBUTES_EVENT = "alter_field_attributes_event";
     public static final String DDL_CREATE_TABLE_EVENT = "create_table_event";

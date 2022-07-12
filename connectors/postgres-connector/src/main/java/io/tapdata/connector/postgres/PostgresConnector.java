@@ -195,7 +195,7 @@ public class PostgresConnector extends ConnectorBase {
 
     //clear postgres slot
     private void clearSlot(String slotName) throws Throwable {
-        postgresJdbcContext.query("SELECT COUNT(*) FROM pg_replication_slots WHERE slot_name='" + slotName + "' AND active='false'", resultSet -> {
+        postgresJdbcContext.queryWithNext("SELECT COUNT(*) FROM pg_replication_slots WHERE slot_name='" + slotName + "' AND active='false'", resultSet -> {
             if (resultSet.getInt(1) > 0) {
                 postgresJdbcContext.execute("SELECT pg_drop_replication_slot('" + slotName + "')");
             }
@@ -231,7 +231,7 @@ public class PostgresConnector extends ConnectorBase {
             String sql = "SELECT * FROM \"" + postgresConfig.getSchema() + "\".\"" + tapTable.getId() + "\" WHERE " + CommonSqlMaker.buildKeyAndValue(filter.getMatch(), "AND", "=");
             FilterResult filterResult = new FilterResult();
             try {
-                postgresJdbcContext.query(sql, resultSet -> filterResult.setResult(DbKit.getRowFromResultSet(resultSet, columnNames)));
+                postgresJdbcContext.queryWithNext(sql, resultSet -> filterResult.setResult(DbKit.getRowFromResultSet(resultSet, columnNames)));
             } catch (Throwable e) {
                 filterResult.setError(e);
             } finally {
@@ -245,13 +245,12 @@ public class PostgresConnector extends ConnectorBase {
         String sql = "SELECT * FROM \"" + postgresConfig.getSchema() + "\".\"" + table.getId() + "\" " + CommonSqlMaker.buildSqlByAdvanceFilter(filter);
         postgresJdbcContext.query(sql, resultSet -> {
             FilterResults filterResults = new FilterResults();
-            while (!resultSet.isAfterLast() && resultSet.getRow() > 0) {
+            while (resultSet.next()) {
                 filterResults.add(DbKit.getRowFromResultSet(resultSet, DbKit.getColumnsFromResultSet(resultSet)));
                 if (filterResults.getResults().size() == BATCH_ADVANCE_READ_LIMIT) {
                     consumer.accept(filterResults);
                     filterResults = new FilterResults();
                 }
-                resultSet.next();
             }
             if (EmptyKit.isNotEmpty(filterResults.getResults())) {
                 consumer.accept(filterResults);
@@ -344,19 +343,19 @@ public class PostgresConnector extends ConnectorBase {
 
     //write records as all events, prepared
     private void writeRecord(TapConnectorContext connectorContext, List<TapRecordEvent> tapRecordEvents, TapTable tapTable, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer) throws SQLException {
-        String insertDmlPolicy = connectorContext.getConnectorCapabilities().getCapabilityAlternative(ConnectionOptions.DML_INSERT_POLICY);
-        String updateDmlPolicy = connectorContext.getConnectorCapabilities().getCapabilityAlternative(ConnectionOptions.DML_UPDATE_POLICY);
+//        String insertDmlPolicy = connectorContext.getConnectorCapabilities().getCapabilityAlternative(ConnectionOptions.DML_INSERT_POLICY);
+//        String updateDmlPolicy = connectorContext.getConnectorCapabilities().getCapabilityAlternative(ConnectionOptions.DML_UPDATE_POLICY);
         new PostgresRecordWriter(postgresJdbcContext, tapTable)
                 .setVersion(postgresVersion)
-                .setInsertPolicy(insertDmlPolicy)
-                .setUpdatePolicy(updateDmlPolicy)
+//                .setInsertPolicy(insertDmlPolicy)
+//                .setUpdatePolicy(updateDmlPolicy)
                 .write(tapRecordEvents, writeListResultConsumer);
     }
 
     private long batchCount(TapConnectorContext tapConnectorContext, TapTable tapTable) throws Throwable {
         AtomicLong count = new AtomicLong(0);
         String sql = "SELECT COUNT(1) FROM \"" + postgresConfig.getSchema() + "\".\"" + tapTable.getId() + "\"";
-        postgresJdbcContext.query(sql, resultSet -> count.set(resultSet.getLong(1)));
+        postgresJdbcContext.queryWithNext(sql, resultSet -> count.set(resultSet.getLong(1)));
         return count.get();
     }
 
@@ -375,14 +374,13 @@ public class PostgresConnector extends ConnectorBase {
             List<TapEvent> tapEvents = list();
             //get all column names
             List<String> columnNames = DbKit.getColumnsFromResultSet(resultSet);
-            while (isAlive() && !resultSet.isAfterLast() && resultSet.getRow() > 0) {
+            while (isAlive() && resultSet.next()) {
                 tapEvents.add(insertRecordEvent(DbKit.getRowFromResultSet(resultSet, columnNames), tapTable.getId()));
                 if (tapEvents.size() == eventBatchSize) {
                     postgresOffset.setOffsetValue(postgresOffset.getOffsetValue() + eventBatchSize);
                     eventsOffsetConsumer.accept(tapEvents, postgresOffset);
                     tapEvents = list();
                 }
-                resultSet.next();
             }
             //last events those less than eventBatchSize
             if (EmptyKit.isNotEmpty(tapEvents)) {
@@ -395,7 +393,7 @@ public class PostgresConnector extends ConnectorBase {
 
     private void streamRead(TapConnectorContext nodeContext, List<String> tableList, Object offsetState, int recordSize, StreamReadConsumer consumer) throws Throwable {
         if (EmptyKit.isNull(cdcRunner)) {
-            cdcRunner = new PostgresCdcRunner().useConfig(postgresConfig);
+            cdcRunner = new PostgresCdcRunner(postgresJdbcContext);
             if (EmptyKit.isNull(slotName)) {
                 cdcRunner.watch(tableList).offset(offsetState).registerConsumer(consumer, recordSize);
                 nodeContext.getStateMap().put("tapdata_pg_slot", cdcRunner.getRunnerName());

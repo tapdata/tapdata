@@ -3,7 +3,7 @@ package io.tapdata.pdk.core.implementation;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.pdk.core.error.PDKRunnerErrorCodes;
-import io.tapdata.pdk.core.reflection.ClassAnnotationHandler;
+import io.tapdata.entity.reflection.ClassAnnotationHandler;
 import io.tapdata.pdk.core.utils.AnnotationUtils;
 import org.reflections.Reflections;
 import org.reflections.scanners.TypeAnnotationsScanner;
@@ -42,7 +42,7 @@ public class ImplementationClassFactory {
 
         implementationAnnotationHandler = new ImplementationAnnotationHandler();
         scan();
-        implementationAnnotationHandler.apply();
+//        implementationAnnotationHandler.apply();
     }
 
     private void scan() {
