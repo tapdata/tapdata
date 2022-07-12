@@ -66,6 +66,7 @@ public class MysqlConnector extends ConnectorBase {
 		ddlSqlMaker = new MysqlDDLSqlMaker();
 		fieldDDLHandlers = new BiClassHandlers<>();
 		fieldDDLHandlers.register(TapNewFieldEvent.class, this::newField);
+		fieldDDLHandlers.register(TapAlterFieldAttributesEvent.class, this::alterFieldAttr);
 		fieldDDLHandlers.register(TapAlterFieldNameEvent.class, this::alterFieldName);
 		fieldDDLHandlers.register(TapDropFieldEvent.class, this::dropField);
 	}
@@ -101,6 +102,7 @@ public class MysqlConnector extends ConnectorBase {
 		connectorFunctions.supportCreateIndex(this::createIndex);
 		connectorFunctions.supportNewFieldFunction(this::fieldDDLHandler);
 		connectorFunctions.supportAlterFieldNameFunction(this::fieldDDLHandler);
+		connectorFunctions.supportAlterFieldAttributesFunction(this::fieldDDLHandler);
 		connectorFunctions.supportDropFieldFunction(this::fieldDDLHandler);
 	}
 
@@ -117,6 +119,14 @@ public class MysqlConnector extends ConnectorBase {
 				throw new RuntimeException("Execute ddl sql failed: " + sql + ", error: " + e.getMessage(), e);
 			}
 		}
+	}
+
+	private List<String> alterFieldAttr(TapFieldBaseEvent tapFieldBaseEvent, TapConnectorContext tapConnectorContext) {
+		if (!(tapFieldBaseEvent instanceof TapAlterFieldAttributesEvent)) {
+			return null;
+		}
+		TapAlterFieldAttributesEvent tapAlterFieldAttributesEvent = (TapAlterFieldAttributesEvent) tapFieldBaseEvent;
+		return ddlSqlMaker.alterColumnAttr(tapConnectorContext, tapAlterFieldAttributesEvent);
 	}
 
 	private List<String> dropField(TapFieldBaseEvent tapFieldBaseEvent, TapConnectorContext tapConnectorContext) {
