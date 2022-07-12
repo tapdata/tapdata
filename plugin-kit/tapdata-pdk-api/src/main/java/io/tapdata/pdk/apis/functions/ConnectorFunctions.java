@@ -38,8 +38,6 @@ public class ConnectorFunctions extends CommonFunctions<ConnectorFunctions> {
     private AlterFieldAttributesFunction alterFieldAttributesFunction;
     //alter_field_name_event
     private AlterFieldNameFunction alterFieldNameFunction;
-    //alter_primary_key_event
-    private AlterFieldPrimaryKeyFunction alterFieldPrimaryKeyFunction;
     //alter_table_charset_event
     private AlterTableCharsetFunction alterTableCharsetFunction;
     //drop_field_event
@@ -51,16 +49,12 @@ public class ConnectorFunctions extends CommonFunctions<ConnectorFunctions> {
         alterDatabaseTimeZoneFunction = function;
         return this;
     }
-    public ConnectorFunctions supportAlterFieldDataTypeFunction(AlterFieldAttributesFunction function) {
+    public ConnectorFunctions supportAlterFieldAttributesFunction(AlterFieldAttributesFunction function) {
         alterFieldAttributesFunction = function;
         return this;
     }
     public ConnectorFunctions supportAlterFieldNameFunction(AlterFieldNameFunction function) {
         alterFieldNameFunction = function;
-        return this;
-    }
-    public ConnectorFunctions supportAlterFieldPrimaryKeyFunction(AlterFieldPrimaryKeyFunction function) {
-        alterFieldPrimaryKeyFunction = function;
         return this;
     }
     public ConnectorFunctions supportAlterTableCharsetFunction(AlterTableCharsetFunction function) {
@@ -282,10 +276,6 @@ public class ConnectorFunctions extends CommonFunctions<ConnectorFunctions> {
 
     public AlterFieldNameFunction getAlterFieldNameFunction() {
         return alterFieldNameFunction;
-    }
-
-    public AlterFieldPrimaryKeyFunction getAlterFieldPrimaryKeyFunction() {
-        return alterFieldPrimaryKeyFunction;
     }
 
     public AlterTableCharsetFunction getAlterTableCharsetFunction() {
