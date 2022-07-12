@@ -71,7 +71,7 @@
   "messages": {
     "default": "en_US",
     "en_US": {
-      "doc": "docs/dummy_zh_CN.md",
+      "doc": "docs/dummy_en_US.md",
       "df_initial_totals": "Initial data totals",
       "df_incremental_interval": "Incremental interval (ms)",
       "df_incremental_interval_totals": "Incremental interval totals",
