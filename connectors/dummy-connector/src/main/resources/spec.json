@@ -29,19 +29,19 @@
             "type": "object",
             "properties": {
               "c1": {"type": "void", "x-component": "ArrayTable.Column", "x-index": 1, "x-component-props": {"title": "${df_table_field_name}"}, "properties": {"name": {"type": "string", "required": true, "x-decorator": "FormItem", "x-component": "Input"}}},
-              "c2": {"type": "void", "x-component": "ArrayTable.Column", "x-index": 2, "x-component-props": {"title": "${df_table_field_type}"}, "properties": {"type": {"type": "string", "required": true, "x-decorator": "FormItem", "x-component": "Select", "default": "String", "x-component-props": {"allowCreate": true, "filterable": true},
+              "c2": {"type": "void", "x-component": "ArrayTable.Column", "x-index": 2, "x-component-props": {"title": "${df_table_field_type}"}, "properties": {"type": {"type": "string", "required": true, "x-decorator": "FormItem", "x-component": "Select", "default": "string", "x-component-props": {"allowCreate": true, "filterable": true},
                 "enum": [
-                  {"label": "String", "value": "String"},
-                  {"label": "String(32)", "value": "String(32)"},
-                  {"label": "Number", "value": "Number"},
-                  {"label": "Number(8,0)", "value": "Number(8,0)"},
-                  {"label": "Boolean", "value": "Boolean"},
-                  {"label": "Date", "value": "Date"},
-                  {"label": "Array", "value": "Array"},
-                  {"label": "Binary", "value": "Binary"},
-                  {"label": "Map", "value": "Map"},
-                  {"label": "Time", "value": "Time"},
-                  {"label": "DateTime", "value": "DateTime"}
+                  {"label": "string", "value": "string"},
+                  {"label": "string(32)", "value": "string(32)"},
+                  {"label": "number", "value": "number"},
+                  {"label": "number(8,0)", "value": "number(8,0)"},
+                  {"label": "boolean", "value": "boolean"},
+                  {"label": "date", "value": "date"},
+                  {"label": "array", "value": "array"},
+                  {"label": "binary", "value": "binary"},
+                  {"label": "map", "value": "map"},
+                  {"label": "time", "value": "time"},
+                  {"label": "datetime", "value": "datetime"}
                 ]
               }}},
               "c4": {"type": "void", "x-component": "ArrayTable.Column", "x-index": 3, "x-component-props": {"title": "${df_table_field_default}" }, "properties": {"def": {"type": "string", "x-decorator": "FormItem", "x-component": "Select", "x-component-props": {"allowCreate": true, "filterable": true},
@@ -49,8 +49,8 @@
                   {"label": "", "value": ""},
                   {"label": "serial(1,1)", "value": "serial(1,1)"},
                   {"label": "now()", "value": "now()"},
-                  {"label": "randomLong(9999)", "value": "randomLong(9999)"},
-                  {"label": "randomString(8)", "value": "randomString(8)"},
+                  {"label": "rlong(9999)", "value": "rlong(9999)"},
+                  {"label": "rstring(8)", "value": "rstring(8)"},
                   {"label": "uuid()", "value": "uuid()"}
                 ]}}},
               "c5": {"type": "void", "x-component": "ArrayTable.Column", "x-index": 4, "x-component-props": {"width": 60, "title": "${df_table_field_primary}" }, "properties": {"pri": {"type": "boolean", "x-decorator": "FormItem", "x-component": "Switch", "default": false}}},
@@ -134,14 +134,15 @@
     }
   },
   "dataTypes": {
-    "String[($byte)][fixed]": {"byte" : "16m", "fixed" : "fixed", "to" : "TapString"},
-    "Number[($precision,$scale)]": {"precision" : [1, 40], "precisionDefault" : 4, "scale" : [0, 10], "scaleDefault" : 1, "to": "TapNumber"},
-    "Boolean" : {"to": "TapBoolean"},
-    "Date" : {"to": "TapDate"},
-    "Array" : {"to": "TapArray"},
-    "Binary" : {"to": "TapBinary"},
-    "Map" : {"to": "TapMap"},
-    "Time" : {"to": "TapTime"},
-    "DateTime" : {"to": "TapDateTime"}
+    "string[($byte)]": {"to" : "TapString", "byte" : "16m"},
+    "number[($precision,$scale)]": {"to": "TapNumber", "precision" : [1, 40], "precisionDefault" : 4, "scale" : [0, 10], "scaleDefault" : 1},
+    "boolean" : {"to": "TapBoolean"},
+    "array" : {"to": "TapArray", "pkEnablement": false},
+    "binary" : {"to": "TapBinary", "pkEnablement": false},
+    "map" : {"to": "TapMap", "pkEnablement": false},
+    "time": {"to": "TapTime", "range": ["-838:59:59", "838:59:59"]},
+    "date": {"to": "TapDate", "range": ["1000-01-01", "9999-12-31"], "pattern": "yyyy-MM-dd"},
+    "datetime[($fraction)]": {"to": "TapDateTime", "range": ["1000-01-01 00:00:00.000000", "9999-12-31 23:59:59.999999"], "pattern": "yyyy-MM-dd HH:mm:ss.SSSSSS", "fraction": [0, 6], "defaultFraction": 0},
+    "timestamp[($fraction)]": {"to": "TapDateTime", "range": ["1970-01-01 00:00:01.000000", "2038-01-19 03:14:07.999999"], "pattern": "yyyy-MM-dd HH:mm:ss.SSSSSS", "fraction": [0, 6], "defaultFraction": 0, "withTimeZone": true}
   }
 }

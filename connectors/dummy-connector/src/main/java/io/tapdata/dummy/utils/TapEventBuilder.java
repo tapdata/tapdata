@@ -11,6 +11,11 @@ import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.simplify.TapSimplify;
 
+import java.sql.Timestamp;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalTime;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
@@ -37,19 +42,15 @@ public class TapEventBuilder {
     private AtomicLong serial;
     private Integer serialStep;
 
-    private final DummyOffset offset;
+    private DummyOffset offset;
 
-    public TapEventBuilder(Object offsetState) {
+    public void reset(Object offsetState, SyncStage syncStage) {
         if (offsetState instanceof DummyOffset) {
             this.offset = (DummyOffset) offsetState;
         } else {
             this.offset = new DummyOffset();
             offset.setBeginTimes(System.currentTimeMillis());
         }
-    }
-
-    public TapEventBuilder(Object offsetState, SyncStage syncStage) {
-        this(offsetState);
         offset.setSyncStage(syncStage);
     }
 
@@ -71,9 +72,8 @@ public class TapEventBuilder {
         return tapEvent;
     }
 
-    public TapUpdateRecordEvent generateUpdateRecordEvent(TapTable table, TapInsertRecordEvent insertRecordEvent) {
-        insertRecordEvent = (null == insertRecordEvent) ? generateInsertRecordEvent(table) : insertRecordEvent;
-        Map<String, Object> before = insertRecordEvent.getAfter();
+    public TapUpdateRecordEvent generateUpdateRecordEvent(TapTable table, Map<String, Object> before) {
+        before = (null == before) ? generateInsertRecordEvent(table).getAfter() : new HashMap<>(before);
         Map<String, Object> after = new HashMap<>(before);
         table.childItems().forEach(tapField -> {
             if (Boolean.FALSE.equals(tapField.getPrimaryKey())) {
@@ -87,34 +87,17 @@ public class TapEventBuilder {
         return updateRecordEvent;
     }
 
-    public TapDeleteRecordEvent generateDeleteRecordEvent(TapTable table, TapInsertRecordEvent insertRecordEvent) {
+    public TapDeleteRecordEvent generateDeleteRecordEvent(TapTable table, Map<String, Object> before) {
         String tableName = table.getName();
-        Map<String, Object> after;
-        if (null == insertRecordEvent) {
-            after = new HashMap<>();
+        if (null == before) {
+            before = new HashMap<>();
             for (TapField tapField : table.childItems()) {
-                after.put(tapField.getName(), generateEventValue(tapField, RecordOperators.Update));
+                before.put(tapField.getName(), generateEventValue(tapField, RecordOperators.Update));
             }
         } else {
-            after = insertRecordEvent.getAfter();
+            before = new HashMap<>(before);
         }
-        TapDeleteRecordEvent deleteRecordEvent = TapSimplify.deleteDMLEvent(after, tableName);
-        updateOffset(tableName, RecordOperators.Delete, deleteRecordEvent);
-        return deleteRecordEvent;
-    }
-
-    public TapDeleteRecordEvent generateDeleteRecordEvent(TapTable table, TapUpdateRecordEvent updateRecordEvent) {
-        String tableName = table.getName();
-        Map<String, Object> after;
-        if (null == updateRecordEvent) {
-            after = new HashMap<>();
-            for (TapField tapField : table.childItems()) {
-                after.put(tapField.getName(), generateEventValue(tapField, RecordOperators.Update));
-            }
-        } else {
-            after = updateRecordEvent.getAfter();
-        }
-        TapDeleteRecordEvent deleteRecordEvent = TapSimplify.deleteDMLEvent(after, tableName);
+        TapDeleteRecordEvent deleteRecordEvent = TapSimplify.deleteDMLEvent(before, tableName);
         updateOffset(tableName, RecordOperators.Delete, deleteRecordEvent);
         return deleteRecordEvent;
     }
@@ -147,8 +130,8 @@ public class TapEventBuilder {
                                     serial = new AtomicLong(Integer.parseInt(splitStr[0]));
                                     serialStep = Math.max(Integer.parseInt(splitStr[1]), 1);
                                 } catch (Throwable e) {
+                                    serial = new AtomicLong(1);
                                     serialStep = 1;
-                                    serial = new AtomicLong(0);
                                 }
                             }
                             return serial.getAndAdd(serialStep);
@@ -156,10 +139,21 @@ public class TapEventBuilder {
                             return (int) (Math.random() * serial.get()) - serial.get() % serialStep;
                         }
                     case "now":
-                        return System.currentTimeMillis();
-                    case "randomlong":
+                        switch (field.getDataType().split("\\(")[0]) {
+                            case "datetime":
+                                return new Date();
+                            case "date":
+                                return LocalDate.now();
+                            case "time":
+                                return LocalTime.now();
+                            case "timestamp":
+                                return Timestamp.from(Instant.now());
+                            default:
+                                return System.currentTimeMillis();
+                        }
+                    case "rlong":
                         return Math.random() * Long.parseLong(params);
-                    case "randomstring":
+                    case "rstring":
                         return randomString(Integer.parseInt(params));
                     case "cuid":
                     case "uuid":

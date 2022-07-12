@@ -13,7 +13,6 @@ import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapTable;
-import io.tapdata.entity.utils.DataMap;
 import io.tapdata.pdk.apis.annotations.TapConnectorClass;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
@@ -42,6 +41,7 @@ public class DummyConnector extends ConnectorBase {
     private Boolean writeLog;
     private IRate writeRate;
     private IDummyConfig config;
+    private final TapEventBuilder builder = new TapEventBuilder();
 
     @Override
     public void onStart(TapConnectionContext connectionContext) throws Throwable {
@@ -124,7 +124,7 @@ public class DummyConnector extends ConnectorBase {
 
         try {
             // Generate specified amount of data
-            TapEventBuilder builder = new TapEventBuilder(offsetState, SyncStage.Initial);
+            builder.reset(offsetState, SyncStage.Initial);
             IBatchConsumer<TapEvent> batchConsumer = IBatchConsumer.getInstance(eventBatchSize, (t) -> eventConsumer.accept(t, builder.getOffset()));
 
             // generate insert record event
@@ -150,8 +150,9 @@ public class DummyConnector extends ConnectorBase {
 
         try {
             TapTable table;
+            Map<String, Object> insertAfter;
             TapInsertRecordEvent insertRecordEvent;
-            TapEventBuilder builder = new TapEventBuilder(offsetState, SyncStage.Incremental);
+            builder.reset(offsetState, SyncStage.Incremental);
             IRate rate = IRate.getInstance(incrementalInterval, incrementalIntervalTotals);
             IBatchConsumer<TapEvent> batchConsumer = IBatchConsumer.getInstance(eventBatchSize, (t) -> eventConsumer.accept(t, builder.getOffset()));
 
@@ -164,18 +165,19 @@ public class DummyConnector extends ConnectorBase {
 
                     if (operators.contains(RecordOperators.Insert)) {
                         insertRecordEvent = builder.generateInsertRecordEvent(table);
+                        insertAfter = new HashMap<>(insertRecordEvent.getAfter());
                         if (!rate.addReturn()) return;
                         batchConsumer.accept(insertRecordEvent);
                     } else {
-                        insertRecordEvent = null;
+                        insertAfter = null;
                     }
                     if (operators.contains(RecordOperators.Update)) {
                         if (!rate.addReturn()) return;
-                        batchConsumer.accept(builder.generateUpdateRecordEvent(table, insertRecordEvent));
+                        batchConsumer.accept(builder.generateUpdateRecordEvent(table, insertAfter));
                     }
                     if (operators.contains(RecordOperators.Update)) {
                         if (!rate.addReturn()) return;
-                        batchConsumer.accept(builder.generateDeleteRecordEvent(table, insertRecordEvent));
+                        batchConsumer.accept(builder.generateDeleteRecordEvent(table, insertAfter));
                     }
                 }
             }
@@ -207,13 +209,19 @@ public class DummyConnector extends ConnectorBase {
 
                 if (e instanceof TapInsertRecordEvent) {
                     insert.addAndGet(1);
-                    if (writeLog) TapLogger.info(TAG, "write insert record: {}", ((TapInsertRecordEvent) e).getAfter());
+                    if (writeLog) {
+                        TapLogger.info(TAG, "write insert record: {}", ((TapInsertRecordEvent) e).getAfter());
+                    }
                 } else if (e instanceof TapUpdateRecordEvent) {
                     update.addAndGet(1);
-                    if (writeLog) TapLogger.info(TAG, "write update record, before: {}, after: {}", ((TapUpdateRecordEvent) e).getBefore(), ((TapUpdateRecordEvent) e).getAfter());
+                    if (writeLog) {
+                        TapLogger.info(TAG, "write update record, before: {}, after: {}", ((TapUpdateRecordEvent) e).getBefore(), ((TapUpdateRecordEvent) e).getAfter());
+                    }
                 } else if (e instanceof TapDeleteRecordEvent) {
                     delete.addAndGet(1);
-                    if (writeLog) TapLogger.info(TAG, "write delete record: {}", ((TapDeleteRecordEvent) e).getBefore());
+                    if (writeLog) {
+                        TapLogger.info(TAG, "write delete record: {}", ((TapDeleteRecordEvent) e).getBefore());
+                    }
                 }
             }
 
