@@ -2,7 +2,7 @@ name: Docker Image CI
 
 on:
   push:
-    branches: [ "master", "feat-cicd" ]
+    branches: [ "master" ]
   pull_request:
     branches: [ "master" ]
 
