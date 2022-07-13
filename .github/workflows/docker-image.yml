@@ -1,4 +1,4 @@
-name: Docker Image CI
+name: LDP Continuous Integration
 
 on:
   push:
@@ -13,7 +13,7 @@ env:
 
 jobs:
 
-  check:
+  Code-Style-Check:
     runs-on: ubuntu-latest
     steps:
       - name: check commit message
@@ -25,11 +25,9 @@ jobs:
             (!startsWith(github.event.head_commit.message, 'Merge'))
         run: echo ${{ github.event.head_commit.message }} exit 1
 
-  test:
-
+  Integration-Testing:
     runs-on: ubuntu-latest
-    needs:
-      - check
+    needs: Code-Style-Check
     steps:
       - uses: actions/checkout@v3
       - name: Login to the github container registry
