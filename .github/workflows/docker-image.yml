@@ -28,7 +28,6 @@ jobs:
   Integration-Testing:
     runs-on: ubuntu-latest
     needs: Code-Style-Check
-      - 
     steps:
       - uses: actions/checkout@v3
       - name: Login to the github container registry
