@@ -2,7 +2,7 @@ import sys
 import time
 from typing import List, Iterable
 
-import pytest
+import pytest, allure
 
 from . import random_str, env
 from lib.cli import DataSource, logger, Pipeline, JobType, get_obj, Source, Sink, Mysql, Postgres
@@ -38,7 +38,6 @@ def make_new_pipeline(name):
     p = Pipeline(name=name)
     return p
 
-
 def wait_scheduling(pipeline: Pipeline, count: int=5, except_status: Iterable[str]=()) -> bool:
     if not except_status:
         except_status = ['running']
@@ -53,183 +52,203 @@ def wait_scheduling(pipeline: Pipeline, count: int=5, except_status: Iterable[st
     return False
 
 
-def test_migrate_job():
-    p = make_new_pipeline(f"migrate_{random_str()}")
-    p1 = p.readFrom(source_name).writeTo(sink_name)
-    p1.start()
-    assert wait_scheduling(p1, except_status=('running', 'wait_run'))
+@allure.feature("pipeline")
+class TestPipeline():
+    @allure.title("real time database migrate between mongodb")
+    def test_migrate_job(self):
+        p = make_new_pipeline(f"migrate_{random_str()}")
+        p1 = p.readFrom(source_name).writeTo(sink_name)
+        p1.start()
+        assert wait_scheduling(p1, except_status=('running', 'wait_run'))
 
 
-def test_sync_job_create():
-    p = make_new_pipeline(f"sync_{random_str()}")
-    p1 = p.readFrom(source_name)
-    p1.dag.jobType = JobType.sync
-    p2 = p1.writeTo(sink_name)
-    p2.start()
-    assert wait_scheduling(p2, except_status=('running', 'wait_run'))
+    @allure.title("real time table sync between mongodb")
+    def test_sync_job_create(self):
+        p = make_new_pipeline(f"sync_{random_str()}")
+        p1 = p.readFrom(source_name)
+        p1.dag.jobType = JobType.sync
+        p2 = p1.writeTo(sink_name)
+        p2.start()
+        assert wait_scheduling(p2, except_status=('running', 'wait_run'))
 
 
-def test_filter_migrate():
-    p = make_new_pipeline(f"filter_migrate_{random_str()}")
-    p1 = p.readFrom(source_name)
-    p1.dag.jobType = JobType.migrate
-    p2 = p1.filter("id > 2 and sex=male")
-    assert id(p1) == id(p2)
+    @allure.title("filter row in migrate")
+    def test_filter_migrate(self):
+        p = make_new_pipeline(f"filter_migrate_{random_str()}")
+        p1 = p.readFrom(source_name)
+        p1.dag.jobType = JobType.migrate
+        p2 = p1.filter("id > 2 and sex=male")
+        assert id(p1) == id(p2)
 
 
-def test_filter_sync():
-    p = make_new_pipeline(f"filter_sync_{random_str()}")
-    p1 = p.readFrom(source_name)
-    p1.dag.jobType = JobType.sync
-    p2 = p1.filter("id > 2 and sex=male").writeTo(sink_name)
-    p2.start()
-    assert wait_scheduling(p2, except_status=('running', 'wait_run'))
+    @allure.title("filter row in sync")
+    def test_filter_sync(self):
+        p = make_new_pipeline(f"filter_sync_{random_str()}")
+        p1 = p.readFrom(source_name)
+        p1.dag.jobType = JobType.sync
+        p2 = p1.filter("id > 2 and sex=male").writeTo(sink_name)
+        p2.start()
+        assert wait_scheduling(p2, except_status=('running', 'wait_run'))
 
 
-def test_filter_column_migrate():
-    p = make_new_pipeline(f"filter_column_migrate_{random_str()}")
-    p1 = p.readFrom(source_name)
-    p1.dag.jobType = JobType.migrate
-    p2 = p1.filterColumn(["id", "name"])
-    assert id(p1) == id(p2)
+    @allure.title("filter column in migrate")
+    def test_filter_column_migrate(self):
+        p = make_new_pipeline(f"filter_column_migrate_{random_str()}")
+        p1 = p.readFrom(source_name)
+        p1.dag.jobType = JobType.migrate
+        p2 = p1.filterColumn(["id", "name"])
+        assert id(p1) == id(p2)
 
 
-def test_filter_column_sync():
-    p = Pipeline(name=f"filter_column_sync_{random_str()}")
-    p1 = p.readFrom(source_name)
-    p1.dag.jobType = JobType.sync
-    p2 = p1.filterColumn(["id", "name"]).writeTo(sink_name)
-    p2.start()
-    assert wait_scheduling(p2, except_status=('running', 'wait_run'))
+    @allure.title("filter column in sync")
+    def test_filter_column_sync(self):
+        p = Pipeline(name=f"filter_column_sync_{random_str()}")
+        p1 = p.readFrom(source_name)
+        p1.dag.jobType = JobType.sync
+        p2 = p1.filterColumn(["id", "name"]).writeTo(sink_name)
+        p2.start()
+        assert wait_scheduling(p2, except_status=('running', 'wait_run'))
 
 
-def test_rename_migrate():
-    ori_name = f"rename_migrate_{random_str()}"
-    new_name = f"rename_migrate_{random_str()}"
-    p = make_new_pipeline(f"simple_{random_str()}")
-    p1 = p.readFrom(source_name)
-    p1.dag.jobType = JobType.migrate
-    p2 = p1.rename(ori_name, new_name)
-    assert id(p1) == id(p2)
+    @allure.title("rename column in migrate")
+    def test_rename_migrate(self):
+        ori_name = f"rename_migrate_{random_str()}"
+        new_name = f"rename_migrate_{random_str()}"
+        p = make_new_pipeline(f"simple_{random_str()}")
+        p1 = p.readFrom(source_name)
+        p1.dag.jobType = JobType.migrate
+        p2 = p1.rename(ori_name, new_name)
+        assert id(p1) == id(p2)
 
 
-def test_rename_sync():
-    ori_name = f"rename_sync_{random_str()}"
-    new_name = f"rename_sync_{random_str()}"
-    p = make_new_pipeline(ori_name)
-    p1 = p.readFrom(source_name)
-    p1.dag.jobType = JobType.sync
-    p2 = p1.rename(ori_name, new_name).writeTo(sink_name)
-    assert id(p1) != id(p2)
-    p2.start()
-    assert wait_scheduling(p2, except_status=('running', 'wait_run'))
+    @allure.title("rename column in sync")
+    def test_rename_sync(self):
+        ori_name = f"rename_sync_{random_str()}"
+        new_name = f"rename_sync_{random_str()}"
+        p = make_new_pipeline(ori_name)
+        p1 = p.readFrom(source_name)
+        p1.dag.jobType = JobType.sync
+        p2 = p1.rename(ori_name, new_name).writeTo(sink_name)
+        assert id(p1) != id(p2)
+        p2.start()
+        assert wait_scheduling(p2, except_status=('running', 'wait_run'))
 
 
-def test_js_migrate():
-    p = make_new_pipeline(f"js_migrate_{random_str()}")
-    p1 = p.readFrom(source_name)
-    p1.dag.jobType = JobType.migrate
-    p2 = p1.js()
-    assert id(p1) == id(p2)
+    @allure.title("js udf in migrate")
+    def test_js_migrate(self):
+        p = make_new_pipeline(f"js_migrate_{random_str()}")
+        p1 = p.readFrom(source_name)
+        p1.dag.jobType = JobType.migrate
+        p2 = p1.js()
+        assert id(p1) == id(p2)
 
 
-def test_js_sync():
-    p = make_new_pipeline(f"js_sync_{random_str()}")
-    p1 = p.readFrom(source_name)
-    p1.dag.jobType = JobType.sync
-    p2 = p1.js().writeTo(sink_name)
-    p2.start()
-    assert wait_scheduling(p2, except_status=('running', 'wait_run'))
+    @allure.title("js udf in sync")
+    def test_js_sync(self):
+        p = make_new_pipeline(f"js_sync_{random_str()}")
+        p1 = p.readFrom(source_name)
+        p1.dag.jobType = JobType.sync
+        p2 = p1.js().writeTo(sink_name)
+        p2.start()
+        assert wait_scheduling(p2, except_status=('running', 'wait_run'))
 
 
-def test_merge_migrate():
-    p = make_new_pipeline(f"merge_migrate_{random_str()}")
-    p1 = p.readFrom(source_name)
-    p2 = p.readFrom(sink_name)
-    p1.dag.jobType = JobType.migrate
-    p3 = p1.merge(p2, [('id', 'id')])
-    assert p3 is None
+    @allure.title("table merge in migrate?")
+    def test_merge_migrate(self):
+        p = make_new_pipeline(f"merge_migrate_{random_str()}")
+        p1 = p.readFrom(source_name)
+        p2 = p.readFrom(sink_name)
+        p1.dag.jobType = JobType.migrate
+        p3 = p1.merge(p2, [('id', 'id')])
+        assert p3 is None
 
 
-def test_merge_sync():
-    p = make_new_pipeline(f"merge_sync_{random_str()}")
-    p1 = p.readFrom(source_mongo_1)
-    p2 = p.readFrom(source_mongo_2)
-    p1.dag.jobType = JobType.sync
-    p3 = p1.merge(p2, [('id', 'id')]).writeTo(sink_mysql)
-    p3.start()
-    assert wait_scheduling(p3, except_status=('running', 'wait_run'))
+    @allure.title("table merge in sync")
+    def test_merge_sync(self):
+        p = make_new_pipeline(f"merge_sync_{random_str()}")
+        p1 = p.readFrom(source_mongo_1)
+        p2 = p.readFrom(source_mongo_2)
+        p1.dag.jobType = JobType.sync
+        p3 = p1.merge(p2, [('id', 'id')]).writeTo(sink_mysql)
+        p3.start()
+        assert wait_scheduling(p3, except_status=('running', 'wait_run'))
 
 
-def test_merge_sync_multi_nesting():
-    p = make_new_pipeline(f"merge_sync_nesting_{random_str()}")
-    p1 = p.readFrom(source_mongo_1)
-    p2 = p.readFrom(source_mongo_2)
-    p3 = p.readFrom(source_postgres)
-    p1.dag.jobType = JobType.sync
-    p2.dag.jobType = JobType.sync
-    p4 = p1.merge(p2.merge(p3))
-    p5 = p4.writeTo(sink_mysql)
-    p5.start()
-    assert wait_scheduling(p5, except_status=('running', 'wait_run', 'error'))
+    @allure.title("multi layer table merge in sync")
+    def test_merge_sync_multi_nesting(self):
+        p = make_new_pipeline(f"merge_sync_nesting_{random_str()}")
+        p1 = p.readFrom(source_mongo_1)
+        p2 = p.readFrom(source_mongo_2)
+        p3 = p.readFrom(source_postgres)
+        p1.dag.jobType = JobType.sync
+        p2.dag.jobType = JobType.sync
+        p4 = p1.merge(p2.merge(p3))
+        p5 = p4.writeTo(sink_mysql)
+        p5.start()
+        assert wait_scheduling(p5, except_status=('running', 'wait_run', 'error'))
 
 
-def test_processor_sync():
-    p = make_new_pipeline(f"processor_sync_{random_str()}")
-    p1 = p.readFrom(source_name)
-    p1.dag.jobType = JobType.sync
-    p2 = p1.js()
-    assert id(p1) != id(p2)
-    p3 = p2.writeTo(sink_name)
-    p3.start()
-    assert wait_scheduling(p3, except_status=('running', 'wait_run'))
+    @allure.title("js udf in sync")
+    def test_processor_sync(self):
+        p = make_new_pipeline(f"processor_sync_{random_str()}")
+        p1 = p.readFrom(source_name)
+        p1.dag.jobType = JobType.sync
+        p2 = p1.js()
+        assert id(p1) != id(p2)
+        p3 = p2.writeTo(sink_name)
+        p3.start()
+        assert wait_scheduling(p3, except_status=('running', 'wait_run'))
 
 
-def test_processor_migrate():
-    p = make_new_pipeline(f"processor_migrate_{random_str()}")
-    p1 = p.readFrom(source_name)
-    p1.dag.jobType = JobType.migrate
-    p2 = p1.js()
-    assert id(p1) == id(p2)
+    def test_processor_migrate(self):
+        p = make_new_pipeline(f"processor_migrate_{random_str()}")
+        p1 = p.readFrom(source_name)
+        p1.dag.jobType = JobType.migrate
+        p2 = p1.js()
+        assert id(p1) == id(p2)
 
 
-def test_config():
-    p = make_new_pipeline(f"config_{random_str()}")
-    p1 = p.readFrom(source_name).writeTo(sink_name)
-    p1.config(config={"desc": "test config"}).start()
-    pipeline_obj = get_obj('job', p1.name)
-    assert pipeline_obj.job["desc"] == "test config"
+    @allure.title("config job")
+    def test_config(self):
+        p = make_new_pipeline(f"config_{random_str()}")
+        p1 = p.readFrom(source_name).writeTo(sink_name)
+        p1.config(config={"desc": "test config"}).start()
+        pipeline_obj = get_obj('job', p1.name)
+        assert pipeline_obj.job["desc"] == "test config"
 
 
-def test_stop():
-    p = make_new_pipeline(f"stop_{random_str()}")
-    p1 = p.readFrom(source_mongo_1).writeTo(sink_mysql)
-    p1.start()
-    assert wait_scheduling(p1, except_status=('running', 'error'))
-    p1.stop()
-    assert wait_scheduling(p1, except_status=('stop', 'stopping', 'error'))
+    @allure.title("test stop job")
+    def test_stop(self):
+        p = make_new_pipeline(f"stop_{random_str()}")
+        p1 = p.readFrom(source_mongo_1).writeTo(sink_mysql)
+        p1.start()
+        assert wait_scheduling(p1, except_status=('running', 'error'))
+        p1.stop()
+        assert wait_scheduling(p1, except_status=('stop', 'stopping', 'error'))
 
 
-def test_stats():
-    p = make_new_pipeline(f"stats_{random_str()}")
-    p1 = p.readFrom(source_name).writeTo(sink_name)
-    p1.start()
-    assert wait_scheduling(p1, except_status=('running', ))
-    p1.stats()
+    @allure.title("test get job status")
+    def test_stats(self):
+        p = make_new_pipeline(f"stats_{random_str()}")
+        p1 = p.readFrom(source_name).writeTo(sink_name)
+        p1.start()
+        assert wait_scheduling(p1, except_status=('running', ))
+        p1.stats()
 
 
-def test_monitor():
-    p = make_new_pipeline(f"monitor_job{random_str()}")
-    p1 = p.readFrom(source_name).writeTo(sink_name)
-    p1.start()
-    p1.monitor(t=2)
+    @allure.title("test monitor job status")
+    def test_monitor(self):
+        p = make_new_pipeline(f"monitor_job{random_str()}")
+        p1 = p.readFrom(source_name).writeTo(sink_name)
+        p1.start()
+        p1.monitor(t=2)
 
 
-def test_check():
-    p = make_new_pipeline(f"check_job{random_str()}")
-    p1 = p.readFrom(source_name)
-    p1.dag.jobType = JobType.sync
-    p2 = p1.writeTo(sink_name)
-    p2.start()
-    assert wait_scheduling(p2, except_status=('running',))
-    p1.check()
+    def test_check(self):
+        p = make_new_pipeline(f"check_job{random_str()}")
+        p1 = p.readFrom(source_name)
+        p1.dag.jobType = JobType.sync
+        p2 = p1.writeTo(sink_name)
+        p2.start()
+        assert wait_scheduling(p2, except_status=('running',))
+        p1.check()
