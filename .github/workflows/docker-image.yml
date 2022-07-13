@@ -82,7 +82,7 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_branch: report-test
           publish_dir: allure-results
-          destination_dir: ${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}
+          #destination_dir: ${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}
           keep_files: true
       - name: print summary
         run: |
