@@ -19,6 +19,7 @@ fi
 cd $basepath/test/
 
 pytest --alluredir=./allure-results
+mkdir -p ./allure-results/history
 
 retCode=$?
 
