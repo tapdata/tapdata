@@ -57,7 +57,6 @@ jobs:
         run: ls -al
       - name: run integrate test
         run: chmod u+x build/quick-test.sh && build/quick-test.sh && ls -al ./tapshell/test/report/integrate.html/
-             exit 0
 
       - name: get test history
         uses: actions/checkout@v2
