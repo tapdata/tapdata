@@ -1,6 +1,4 @@
 <img src="https://github.com/tapdata/tapdata-private/raw/master/assets/logo-orange-grey-bar.png" width="300px"/>
-[中文文档地址](https://github.com/tapdata/tapdata/blob/master/README.zh-CN.md)
-[English Readme](https://github.com/tapdata/tapdata/blob/master/README.md)
 <p align="center">
     <a href="https://github.com/tapdata/tapdata/graphs/contributors" alt="Contributors">
         <img src="https://img.shields.io/github/contributors/tapdata/tapdata" /></a>
@@ -9,6 +7,10 @@
     <a href="https://tapdata.github.io/tapdata">
         <img src="https://github.com/tapdata/tapdata/actions/workflows/docker-image.yml/badge.svg" alt="build status"></a>
 </p>
+
+[中文简要文档地址](https://github.com/tapdata/tapdata/blob/master/README.zh-CN.md)
+
+[English Readme](https://github.com/tapdata/tapdata/blob/master/README.md)
 
 ## 完整在线文档地址: https://tapdata.github.io/
 ## Tapdata 为什么而存在
