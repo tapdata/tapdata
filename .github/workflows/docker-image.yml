@@ -38,6 +38,13 @@ jobs:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+      - name: get test history
+        uses: actions/checkout@v2
+        if: always()
+        continue-on-error: true
+        with:
+          ref: report-test
+          path: report-test
       - name: compile iengine modules
         run: |
           chmod u+x build/build.sh 
@@ -58,31 +65,13 @@ jobs:
       - name: run integrate test
         run: chmod u+x build/quick-test.sh && build/quick-test.sh && ls -al ./tapshell/test/report/integrate.html/
 
-      - name: get test history
-        uses: actions/checkout@v2
-        if: always()
-        continue-on-error: true
-        with:
-          ref: report-test
-          path: report-test
-
-      - name: merge test history to local test
-        uses: simple-elf/allure-report-action@master
-        if: always()
-        with:
-          gh_pages: report-test
-          allure_results: ./tapshell/test/report/integrate.html/
-          allure_report: allure-report
-          allure_history: allure-history
-          keep_reports: 20
-
       - name: update github page
         if: always()
         uses: peaceiris/actions-gh-pages@v3
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_branch: report-test
-          publish_dir: ./tapshell/test/report/integrate.html/
+          publish_dir: gh_pages
           keep_files: true
       - name: print summary
         run: |

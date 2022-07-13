@@ -22,6 +22,15 @@ pytest --alluredir=./allure-results
 
 retCode=$?
 
+if [[ -d "../report-test/last-history" ]]; then
+    cp -r ../report-test/last-history/* ./allure-results/history
+fi
 allure generate ./allure-results -o ./report/integrate.html
+
+mkdir -p gh_pages
+cp -r ./report/integrate.html/* gh_pages/${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}
+cp -r ./report/integrate.html/history/* gh_pages/last-history
+
+ls -al gh_pages
 
 exit $retCode
