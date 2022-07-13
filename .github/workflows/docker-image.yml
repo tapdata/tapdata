@@ -45,7 +45,11 @@ jobs:
         run: chmod u+x build/quick-test.sh && build/quick-test.sh
              exit $?
       - name: update github page
-        uses: ad-m/github-push-action@v0.6.0
+        if: always()
+        uses: peaceiris/actions-gh-pages@v3
         with:
-          branch: report-test
-          directory: ./tapshell/test/report/integrate.html/
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_branch: report-test
+          publish_dir: ./tapshell/test/report/integrate.html/
+          force_orphan: true
+
