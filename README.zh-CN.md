@@ -1,4 +1,14 @@
 <img src="https://github.com/tapdata/tapdata-private/raw/master/assets/logo-orange-grey-bar.png" width="300px"/>
+[中文文档地址](https://github.com/tapdata/tapdata/blob/master/README.zh-CN.md)
+[English Readme](https://github.com/tapdata/tapdata/blob/master/README.md)
+<p align="center">
+    <a href="https://github.com/tapdata/tapdata/graphs/contributors" alt="Contributors">
+        <img src="https://img.shields.io/github/contributors/tapdata/tapdata" /></a>
+    <a href="https://github.com/tapdata/tapdata/pulse" alt="Activity">
+        <img src="https://img.shields.io/github/commit-activity/m/tapdata/tapdata" /></a>
+    <a href="https://tapdata.github.io/tapdata">
+        <img src="https://github.com/tapdata/tapdata/actions/workflows/docker-image.yml/badge.svg" alt="build status"></a>
+</p>
 
 ## 完整在线文档地址: https://tapdata.github.io/
 ## Tapdata 为什么而存在
@@ -13,7 +23,7 @@ Tapdata 是新一代的实时数据平台, 通过把企业核心数据实时集�
 ### 环境准备
 1. 在开始之前, 请保证您的环境安装了 Docker
 2. 当前工具仅在 Linux 下进行过完整测试, 其他操作系统的适配正在进行中
-3. 克隆当前仓库代码到本地
+3. 克隆当前仓库代码到本地: `git clone https://github.com/tapdata/tapdata.git && cd tapdata`
 
 ### 快速启动
 1. 执行 `bash build/quick-use.sh` 会快速启动一个使用环境, 然后会自动进入 tapshell 交互客户端

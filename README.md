@@ -1,23 +1,31 @@
 <img src="https://github.com/tapdata/tapdata-private/raw/master/assets/logo-orange-grey-bar.png" width="300px"/>
+[中文文档地址](https://github.com/tapdata/tapdata/blob/master/README.zh-CN.md)
+[English Readme](https://github.com/tapdata/tapdata/blob/master/README.md)
+<p align="center">
+    <a href="https://github.com/tapdata/tapdata/graphs/contributors" alt="Contributors">
+        <img src="https://img.shields.io/github/contributors/tapdata/tapdata" /></a>
+    <a href="https://github.com/tapdata/tapdata/pulse" alt="Activity">
+        <img src="https://img.shields.io/github/commit-activity/m/tapdata/tapdata" /></a>
+    <a href="https://tapdata.github.io/tapdata">
+        <img src="https://github.com/tapdata/tapdata/actions/workflows/docker-image.yml/badge.svg" alt="build status"></a>
+</p>
 
 ## Online Document: https://tapdata.github.io/
 ## What is Tapdata?
 Tapdata is a live data platform designed to connect data silos and provide fresh data to the downstream operational applications & operational analytics. 
 
-## Quick Start
-Please make sure you have Docker installed on your machine before you get starated. 
-
-Currently we only tested on linux OS(No specific flavor requirement).
+## Env Prepare
+1. Please make sure you have Docker installed on your machine before you get starated. 
+2. Currently we only tested on linux OS(No specific flavor requirement).
+3. clone repo: `git clone https://github.com/tapdata/tapdata.git && cd tapdata`
  
 ### Quick Use
-
 This is the easiest way to experiment Tapdata:
 
   run `bash build/quick-use.sh` will pull docker image and start an all-inone container
 
 
 ### Quick Build
-
 Alternatively, you may build the project using following command: 
 
 1. run `bash build/quick-dev.sh` will build a docker image from source and start a all in one container
