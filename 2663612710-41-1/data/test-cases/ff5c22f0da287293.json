@@ -1,0 +1,72 @@
+{
+  "uid" : "ff5c22f0da287293",
+  "name" : "table merge in sync",
+  "fullName" : "test_pipeline.TestPipeline#test_merge_sync",
+  "historyId" : "edfd051c418b47aafa88b402eedbe088",
+  "time" : {
+    "start" : 1657718042562,
+    "stop" : 1657718044651,
+    "duration" : 2089
+  },
+  "status" : "passed",
+  "flaky" : false,
+  "newFailed" : false,
+  "beforeStages" : [ ],
+  "testStage" : {
+    "status" : "passed",
+    "steps" : [ ],
+    "attachments" : [ {
+      "uid" : "751ddd4ee70a491a",
+      "name" : "stdout",
+      "source" : "751ddd4ee70a491a.txt",
+      "type" : "text/plain",
+      "size" : 1086
+    } ],
+    "parameters" : [ ],
+    "stepsCount" : 0,
+    "attachmentsCount" : 1,
+    "shouldDisplayMessage" : false,
+    "hasContent" : true
+  },
+  "afterStages" : [ ],
+  "labels" : [ {
+    "name" : "feature",
+    "value" : "pipeline"
+  }, {
+    "name" : "suite",
+    "value" : "test_pipeline"
+  }, {
+    "name" : "subSuite",
+    "value" : "TestPipeline"
+  }, {
+    "name" : "host",
+    "value" : "9636e9906e80"
+  }, {
+    "name" : "thread",
+    "value" : "518-MainThread"
+  }, {
+    "name" : "framework",
+    "value" : "pytest"
+  }, {
+    "name" : "language",
+    "value" : "cpython3"
+  }, {
+    "name" : "package",
+    "value" : "test_pipeline"
+  }, {
+    "name" : "resultFormat",
+    "value" : "allure2"
+  } ],
+  "parameters" : [ ],
+  "links" : [ ],
+  "hidden" : false,
+  "retry" : false,
+  "extra" : {
+    "severity" : "normal",
+    "retries" : [ ],
+    "categories" : [ ],
+    "tags" : [ ]
+  },
+  "source" : "ff5c22f0da287293.json",
+  "parameterValues" : [ ]
+}
