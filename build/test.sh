@@ -23,6 +23,9 @@ mkdir -p ./allure-results/history
 
 retCode=$?
 
+mv ../../build/filter_history.py ../
+mv ../../build/template ../
+
 if [[ -d "../../report-test/last-history" ]]; then
     cp -r ../../report-test/last-history/* ./allure-results/history
     python ../filter_history.py ./allure-results/history
