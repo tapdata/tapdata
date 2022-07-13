@@ -1,0 +1,50 @@
+{
+  "uid" : "33f6fea7e5970695",
+  "name" : "test_mysql_to_dict",
+  "fullName" : "test_datasource#test_mysql_to_dict",
+  "historyId" : "3c376caa3f14883a21875402df29a328",
+  "time" : {
+    "start" : 1657743026721,
+    "stop" : 1657743026722,
+    "duration" : 1
+  },
+  "status" : "passed",
+  "flaky" : false,
+  "newFailed" : false,
+  "beforeStages" : [ ],
+  "afterStages" : [ ],
+  "labels" : [ {
+    "name" : "suite",
+    "value" : "test_datasource"
+  }, {
+    "name" : "host",
+    "value" : "62c0af892490"
+  }, {
+    "name" : "thread",
+    "value" : "521-MainThread"
+  }, {
+    "name" : "framework",
+    "value" : "pytest"
+  }, {
+    "name" : "language",
+    "value" : "cpython3"
+  }, {
+    "name" : "package",
+    "value" : "test_datasource"
+  }, {
+    "name" : "resultFormat",
+    "value" : "allure2"
+  } ],
+  "parameters" : [ ],
+  "links" : [ ],
+  "hidden" : false,
+  "retry" : false,
+  "extra" : {
+    "severity" : "normal",
+    "retries" : [ ],
+    "categories" : [ ],
+    "tags" : [ ]
+  },
+  "source" : "33f6fea7e5970695.json",
+  "parameterValues" : [ ]
+}
