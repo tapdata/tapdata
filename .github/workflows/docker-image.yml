@@ -2,21 +2,36 @@ name: Docker Image CI
 
 on:
   push:
-    branches: [ "master" ]
+    branches: [ "develop-v*.*.0" ]
   pull_request:
-    branches: [ "master" ]
+    branches: [ "master", "release-v*.*.*", "develop-v*.*.0" ]
 
 env:
   REGISTRY: ghcr.io
   TEST_DATABASE: ${{ secrets.TEST_DATABASE }}
 
+
 jobs:
+
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: check commit message
+        if: !startsWith(github.event.head_commit.message, 'feat') && 
+            !startsWith(github.event.head_commit.message, 'fix') &&
+            !startsWith(github.event.head_commit.message, 'refactor') &&
+            !startsWith(github.event.head_commit.message, 'test') &&
+            !startsWith(github.event.head_commit.message, 'chore')
+        run: exit 1
 
   test:
 
     runs-on: ubuntu-latest
-
+    needs:
+      - check
     steps:
+      - name: check commit message
+        if: !startsWith(github.event.head_commit.message, 'WIP')
       - uses: actions/checkout@v3
       - name: Login to the github container registry
         uses: docker/login-action@f054a8b539a109f9f41c372932f1ae047eff08c9
