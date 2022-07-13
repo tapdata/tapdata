@@ -27,9 +27,15 @@ if [[ -d "../report-test/last-history" ]]; then
 fi
 allure generate ./allure-results -o ./report/integrate.html
 
+p=${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}
 mkdir -p gh_pages
-cp -r ./report/integrate.html/* gh_pages/${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}
+cp -r ./report/integrate.html/* gh_pages/$p
 cp -r ./report/integrate.html/history/* gh_pages/last-history
+
+cp index.html.template index.html
+
+sed -i "s:__number__:$p:g" index.html
+cp index.html gh_pages/
 
 ls -al gh_pages
 
