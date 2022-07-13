@@ -1,6 +1,0 @@
-[1;34mtapdata, [0m2022-07-13 08:38:30: job [1;32mNone[0m is not save, error is [1;32mcan only concatenate str (not "NoneType") to str[0m, job will be save soon               
-[1;34mtapdata, [0m2022-07-13 08:38:31: job [1;32mrename_sync_skitw[0m start running ...                                                                                         
-[1;34mtapdata, [0m2022-07-13 08:38:31: job [1;32mrename_sync_skitw[0m status is: [1;32medit[0m                                                                                
-[1;34mtapdata, [0m2022-07-13 08:38:32: job [1;32mrename_sync_skitw[0m status is: [1;32mwait_run[0m                                                                            
-[1;34mtapdata, [0m2022-07-13 08:38:32: the status is wait_run now, this is 1 times, 5 times remaining                                                                             
-[1;34mtapdata, [0m2022-07-13 08:38:32: job [1;32mrename_sync_skitw[0m status is: [1;32mwait_run[0m                                                                            
