@@ -20,8 +20,8 @@ cd $basepath/test/
 
 pytest --alluredir=./allure-results
 
-if [[ $? -ne 0 ]]; then
-    exit 1
-fi
+retCode=$?
 
 allure generate ./allure-results -o ./report/integrate.html
+
+exit $retCode
