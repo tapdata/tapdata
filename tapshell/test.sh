@@ -29,21 +29,26 @@ fi
 
 allure generate ./allure-results -o ./report/integrate.html
 
-echo $ACTION_SIGN
-if [[ "x"$ACTION_SIGN == "x" ]]; then
-    ACTION_SIGN=1
+if [[ "x"$RUN_SIGN == "x" ]]; then
+    RUN_SIGN="1-1-1"
 fi
 
-mkdir -p gh_pages/$ACTION_SIGN
+mkdir -p gh_pages/$RUN_SIGN
 mkdir -p gh_pages/last-history
 
-cp -r ./report/integrate.html/* gh_pages/$ACTION_SIGN
+cp -r ./report/integrate.html/* gh_pages/$RUN_SIGN
 cp -r ./report/integrate.html/history/* gh_pages/last-history
 
-cp ../index.html.template index.html
+cp -r ../template/* ./
 
-sed -i "s:__number__:$ACTION_SIGN:g" index.html
+sed -i "s:__run_sign__:$RUN_SIGN:g" index.html
+sed -i "s:__run_sign__:$RUN_SIGN:g" executor.json
+sed -i "s:__run_number__:$RUN_NUMBER:g" executor.json
+sed -i "s:__run_id__:$RUN_ID:g" executor.json
+
 cp index.html gh_pages/
+cp executor.json gh_pages/$RUN_SIGN/widgets/
+cp environment.json gh_pages/$RUN_SIGN/widgets/
 
 mv gh_pages/ ../../
 

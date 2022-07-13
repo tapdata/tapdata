@@ -26,7 +26,6 @@ if [[ $? -ne 0 ]]; then
     fi
 
     cd $basepath
-    echo "ACTION_SIGN is before docker:"$ACTION_SIGN
-    docker run -e mode=test -e ACTION_SIGN=$ACTION_SIGN -p 13000:3000 -p 27017:27017 -v $sourcepath:/tapdata-source/ -i --name=$dev_container_name `cat image/tag` bash
+    docker run -e mode=test -e RUN_SIGN=$RUN_SIGN -e RUN_ID=$RUN_ID -e RUN_NUMBER=$RUN_NUMBER -p 13000:3000 -p 27017:27017 -v $sourcepath:/tapdata-source/ -i --name=$dev_container_name `cat image/tag` bash
     exit $?
 fi

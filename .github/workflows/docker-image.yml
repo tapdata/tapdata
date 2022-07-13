@@ -64,7 +64,9 @@ jobs:
         run: ls -al
       - name: run integrate test
         env:
-          ACTION_SIGN: ${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}
+          RUN_ID: ${{ github.run_id }}
+          RUN_NUMBER: ${{ github.run_number }}
+          RUN_SIGN: ${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}
         run: chmod u+x build/quick-test.sh && build/quick-test.sh && ls -al ./tapshell/test/report/integrate.html/
 
       - name: update github page
