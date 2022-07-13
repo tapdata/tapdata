@@ -1,0 +1,66 @@
+{
+  "uid" : "ff469f688adb71c4",
+  "name" : "test_postgres",
+  "fullName" : "test_datasource#test_postgres",
+  "historyId" : "83f1071b96d1ea3756c8357f0d6ce61a",
+  "time" : {
+    "start" : 1657705859679,
+    "stop" : 1657705864855,
+    "duration" : 5176
+  },
+  "status" : "passed",
+  "flaky" : false,
+  "newFailed" : false,
+  "beforeStages" : [ ],
+  "testStage" : {
+    "status" : "passed",
+    "steps" : [ ],
+    "attachments" : [ {
+      "uid" : "2ebc6287e0f79c9d",
+      "name" : "stdout",
+      "source" : "2ebc6287e0f79c9d.txt",
+      "type" : "text/plain",
+      "size" : 950
+    } ],
+    "parameters" : [ ],
+    "stepsCount" : 0,
+    "attachmentsCount" : 1,
+    "shouldDisplayMessage" : false,
+    "hasContent" : true
+  },
+  "afterStages" : [ ],
+  "labels" : [ {
+    "name" : "suite",
+    "value" : "test_datasource"
+  }, {
+    "name" : "host",
+    "value" : "ab7bce475536"
+  }, {
+    "name" : "thread",
+    "value" : "525-MainThread"
+  }, {
+    "name" : "framework",
+    "value" : "pytest"
+  }, {
+    "name" : "language",
+    "value" : "cpython3"
+  }, {
+    "name" : "package",
+    "value" : "test_datasource"
+  }, {
+    "name" : "resultFormat",
+    "value" : "allure2"
+  } ],
+  "parameters" : [ ],
+  "links" : [ ],
+  "hidden" : false,
+  "retry" : false,
+  "extra" : {
+    "severity" : "normal",
+    "retries" : [ ],
+    "categories" : [ ],
+    "tags" : [ ]
+  },
+  "source" : "ff469f688adb71c4.json",
+  "parameterValues" : [ ]
+}
