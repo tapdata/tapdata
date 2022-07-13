@@ -116,7 +116,7 @@ public class DummyConnector extends ConnectorBase {
     }
 
     private long supportBatchCount(TapConnectorContext nodeContext, TapTable table) throws Throwable {
-        throw new Exception("DiscoverSchema defined in supper connector.");
+        return config.getInitialTotals();
     }
 
     private void supportBatchRead(TapConnectorContext connectorContext, TapTable table, Object offsetState, int eventBatchSize, BiConsumer<List<TapEvent>, Object> eventConsumer) throws Throwable {
