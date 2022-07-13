@@ -82,7 +82,7 @@ jobs:
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_branch: report-test
-          publish_dir: allure-history
+          publish_dir: ./tapshell/test/report/integrate.html/
           keep_files: true
       - name: print summary
         run: |
