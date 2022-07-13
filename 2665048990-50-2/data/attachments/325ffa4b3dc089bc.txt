@@ -1,0 +1,3 @@
+[1;34mtapdata, [0m2022-07-13 17:23:57: job [1;32mNone[0m is not save, error is [1;32mcan only concatenate str (not "NoneType") to str[0m, job will be save soon               
+[1;34mtapdata, [0m2022-07-13 17:23:57: job [1;32mmerge_sync_nesting_gvcyq[0m start running ...                                                                                  
+[1;34mtapdata, [0m2022-07-13 17:23:57: job [1;32mmerge_sync_nesting_gvcyq[0m status is: [1;32mscheduling[0m                                                                   
