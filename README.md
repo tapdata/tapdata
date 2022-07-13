@@ -1,6 +1,9 @@
 <img src="https://github.com/tapdata/tapdata-private/raw/master/assets/logo-orange-grey-bar.png" width="300px"/>
+
 [中文文档地址](https://github.com/tapdata/tapdata/blob/master/README.zh-CN.md)
+
 [English Readme](https://github.com/tapdata/tapdata/blob/master/README.md)
+
 <p align="center">
     <a href="https://github.com/tapdata/tapdata/graphs/contributors" alt="Contributors">
         <img src="https://img.shields.io/github/contributors/tapdata/tapdata" /></a>
