@@ -1,0 +1,72 @@
+{
+  "uid" : "670533a87166054d",
+  "name" : "real time table sync between mongodb",
+  "fullName" : "test_pipeline.TestPipeline#test_sync_job_create",
+  "historyId" : "bf1f15d999ee940ba423743c8c4a7c2f",
+  "time" : {
+    "start" : 1657732351034,
+    "stop" : 1657732353202,
+    "duration" : 2168
+  },
+  "status" : "passed",
+  "flaky" : false,
+  "newFailed" : false,
+  "beforeStages" : [ ],
+  "testStage" : {
+    "status" : "passed",
+    "steps" : [ ],
+    "attachments" : [ {
+      "uid" : "5d5f0d8243b79d10",
+      "name" : "stdout",
+      "source" : "5d5f0d8243b79d10.txt",
+      "type" : "text/plain",
+      "size" : 1086
+    } ],
+    "parameters" : [ ],
+    "stepsCount" : 0,
+    "attachmentsCount" : 1,
+    "shouldDisplayMessage" : false,
+    "hasContent" : true
+  },
+  "afterStages" : [ ],
+  "labels" : [ {
+    "name" : "feature",
+    "value" : "pipeline"
+  }, {
+    "name" : "suite",
+    "value" : "test_pipeline"
+  }, {
+    "name" : "subSuite",
+    "value" : "TestPipeline"
+  }, {
+    "name" : "host",
+    "value" : "105b3834ef4a"
+  }, {
+    "name" : "thread",
+    "value" : "518-MainThread"
+  }, {
+    "name" : "framework",
+    "value" : "pytest"
+  }, {
+    "name" : "language",
+    "value" : "cpython3"
+  }, {
+    "name" : "package",
+    "value" : "test_pipeline"
+  }, {
+    "name" : "resultFormat",
+    "value" : "allure2"
+  } ],
+  "parameters" : [ ],
+  "links" : [ ],
+  "hidden" : false,
+  "retry" : false,
+  "extra" : {
+    "severity" : "normal",
+    "retries" : [ ],
+    "categories" : [ ],
+    "tags" : [ ]
+  },
+  "source" : "670533a87166054d.json",
+  "parameterValues" : [ ]
+}
