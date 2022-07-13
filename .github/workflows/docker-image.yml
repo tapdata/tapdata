@@ -17,11 +17,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: check commit message
-        if: !startsWith(github.event.head_commit.message, 'feat') && 
-            !startsWith(github.event.head_commit.message, 'fix') &&
-            !startsWith(github.event.head_commit.message, 'refactor') &&
-            !startsWith(github.event.head_commit.message, 'test') &&
-            !startsWith(github.event.head_commit.message, 'chore')
+        if: (!startsWith(github.event.head_commit.message, 'feat')) && 
+            (!startsWith(github.event.head_commit.message, 'fix')) &&
+            (!startsWith(github.event.head_commit.message, 'refactor')) &&
+            (!startsWith(github.event.head_commit.message, 'test')) &&
+            (!startsWith(github.event.head_commit.message, 'chore'))
         run: exit 1
 
   test:
