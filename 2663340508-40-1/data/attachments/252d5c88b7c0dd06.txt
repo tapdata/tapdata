@@ -1,3 +1,0 @@
-[1;34mtapdata, [0m2022-07-13 12:25:32: job [1;32mNone[0m is not save, error is [1;32mcan only concatenate str (not "NoneType") to str[0m, job will be save soon               
-[1;34mtapdata, [0m2022-07-13 12:25:32: job [1;32mprocessor_sync_adinv[0m start running ...                                                                                      
-[1;34mtapdata, [0m2022-07-13 12:25:32: job [1;32mprocessor_sync_adinv[0m status is: [1;32mwait_run[0m                                                                         

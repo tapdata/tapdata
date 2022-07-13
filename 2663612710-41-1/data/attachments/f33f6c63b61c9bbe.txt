@@ -1,6 +1,0 @@
-[1;34mtapdata, [0m2022-07-13 13:13:52: job [1;32mNone[0m is not save, error is [1;32mcan only concatenate str (not "NoneType") to str[0m, job will be save soon               
-[1;34mtapdata, [0m2022-07-13 13:13:53: job [1;32msync_ixldu[0m start running ...                                                                                                
-[1;34mtapdata, [0m2022-07-13 13:13:53: job [1;32msync_ixldu[0m status is: [1;32medit[0m                                                                                       
-[1;34mtapdata, [0m2022-07-13 13:13:54: job [1;32msync_ixldu[0m status is: [1;32mrunning[0m                                                                                    
-[1;34mtapdata, [0m2022-07-13 13:13:54: the status is running now, this is 1 times, 5 times remaining                                                                              
-[1;34mtapdata, [0m2022-07-13 13:13:54: job [1;32msync_ixldu[0m status is: [1;32mrunning[0m                                                                                    
