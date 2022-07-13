@@ -5,19 +5,33 @@ from typing import List, Iterable
 import pytest
 
 from . import random_str, env
-from lib.cli import DataSource, logger, Pipeline, JobType, get_obj
+from lib.cli import DataSource, logger, Pipeline, JobType, get_obj, Source, Sink, Mysql, Postgres
 
 
-source_name, sink_name = f"{env['database_1.NAME_PRE']}_{random_str()}", f"{env['database_2.NAME_PRE']}_{random_str()}"
+source_name, sink_name, mysql_name, postgres_name = f"{env['database_1.NAME_PRE']}_{random_str()}",\
+                                             f"{env['database_2.NAME_PRE']}_{random_str()}", \
+                                             f"{env['mysql.NAME_PRE']}_{random_str()}", \
+                                             f"{env['postgres.NAME_PRE']}_{random_str()}"
 source_db = DataSource("mongodb", name=source_name).uri(env['database_1.URI'])
 sink_db = DataSource("mongodb", name=sink_name).uri(env['database_2.URI'])
+mysql_db = Mysql(mysql_name).host(env['mysql.HOST']).db(env['mysql.DB']).username(env['mysql.USERNAME'])\
+        .password(env['mysql.PASSWORD']).type("source").props(env['mysql.PROPS'])
+postgres_db = Postgres(postgres_name).host(env['postgres.HOST']).db(env['postgres.DB']).username(env['postgres.USERNAME']) \
+        .password(env['postgres.PASSWORD']).type("source").props(env['postgres.PROPS'])
 
-if source_db.validate() and sink_db.validate():
+if source_db.validate() and sink_db.validate() and mysql_db.validate() and postgres_db.validate():
     source_db.save()
     sink_db.save()
+    mysql_db.save()
+    postgres_db.save()
 else:
     logger.error("datasource check failed, please check !")
     sys.exit(1)
+
+source_mongo_1 = Source(source_name)
+source_mongo_2 = Source(sink_name)
+source_postgres = Source(postgres_name)
+sink_mysql = Sink(mysql_name)
 
 
 def make_new_pipeline(name):
@@ -139,25 +153,25 @@ def test_merge_migrate():
 
 def test_merge_sync():
     p = make_new_pipeline(f"merge_sync_{random_str()}")
-    p1 = p.readFrom(source_name)
-    p2 = p.readFrom("car_db_3")
+    p1 = p.readFrom(source_mongo_1)
+    p2 = p.readFrom(source_mongo_2)
     p1.dag.jobType = JobType.sync
-    p3 = p1.merge(p2, [('id', 'id')]).writeTo(sink_name)
+    p3 = p1.merge(p2, [('id', 'id')]).writeTo(sink_mysql)
     p3.start()
     assert wait_scheduling(p3, except_status=('running', 'wait_run'))
 
 
 def test_merge_sync_multi_nesting():
     p = make_new_pipeline(f"merge_sync_nesting_{random_str()}")
-    p1 = p.readFrom(source_name)
-    p2 = p.readFrom("car_db_3")
-    p3 = p.readFrom("corp_db")
+    p1 = p.readFrom(source_mongo_1)
+    p2 = p.readFrom(source_mongo_2)
+    p3 = p.readFrom(source_postgres)
     p1.dag.jobType = JobType.sync
     p2.dag.jobType = JobType.sync
     p4 = p1.merge(p2.merge(p3))
-    p5 = p4.writeTo(sink_name)
+    p5 = p4.writeTo(sink_mysql)
     p5.start()
-    assert wait_scheduling(p5, except_status=('running', 'wait_run'))
+    assert wait_scheduling(p5, except_status=('running', 'wait_run', 'error'))
 
 
 def test_processor_sync():
@@ -189,11 +203,11 @@ def test_config():
 
 def test_stop():
     p = make_new_pipeline(f"stop_{random_str()}")
-    p1 = p.readFrom(source_name).writeTo(sink_name)
+    p1 = p.readFrom(source_mongo_1).writeTo(sink_mysql)
     p1.start()
-    assert wait_scheduling(p1, except_status=('running',))
+    assert wait_scheduling(p1, except_status=('running', 'error'))
     p1.stop()
-    assert wait_scheduling(p1, except_status=('stop', 'stopping'))
+    assert wait_scheduling(p1, except_status=('stop', 'stopping', 'error'))
 
 
 def test_stats():

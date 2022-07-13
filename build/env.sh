@@ -10,7 +10,7 @@ export iengine_mem="0.2"
 
 export dev_container_name="tapdata-all-in-one-dev"
 export use_container_name="tapdata-all-in-one-use"
-export tapdata_build_image="tapdata-docker.pkg.coding.net/tapdata/tldp/build:0.1"
+export tapdata_build_image="ghcr.io/tapdata/tapdata/tldp/build:0.1"
 export LC_ALL=en_US.UTF-8
 export _in_docker=""
 if [[ -f "/.dockerenv" ]]; then

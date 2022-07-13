@@ -2,17 +2,71 @@ name: Docker Image CI
 
 on:
   push:
-    branches: [ "master" ]
+    branches: [ "master", "release-v*.*.*", "develop-v*.*.0" ]
   pull_request:
-    branches: [ "master" ]
+    branches: [ "master", "release-v*.*.*", "develop-v*.*.0" ]
+
+env:
+  REGISTRY: ghcr.io
+  TEST_DATABASE: ${{ secrets.TEST_DATABASE }}
+
 
 jobs:
 
-  build:
-
-    runs-on: ubuntu-18.04
-
+  check:
+    runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v3
-    - name: Build the Docker image
-      run: ls -al
+      - name: check commit message
+        if: (!startsWith(github.event.head_commit.message, 'feat')) && 
+            (!startsWith(github.event.head_commit.message, 'fix')) &&
+            (!startsWith(github.event.head_commit.message, 'refactor')) &&
+            (!startsWith(github.event.head_commit.message, 'test')) &&
+            (!startsWith(github.event.head_commit.message, 'chore')) &&
+            (!startsWith(github.event.head_commit.message, 'Merge'))
+        run: echo ${{ github.event.head_commit.message }} exit 1
+
+  test:
+
+    runs-on: ubuntu-latest
+    needs:
+      - check
+    steps:
+      - uses: actions/checkout@v3
+      - name: Login to the github container registry
+        uses: docker/login-action@f054a8b539a109f9f41c372932f1ae047eff08c9
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: compile iengine modules
+        run: |
+          chmod u+x build/build.sh 
+          build/build.sh -c iengine
+      - name: compile manager module
+        run:
+          build/build.sh -c manager
+      - name: compile plugin-kit module
+        run:
+          build/build.sh -c plugin-kit
+      - name: compile connectors module
+        run:
+          build/build.sh -c connectors
+      - name: package module and make image
+        run: build/build.sh -p 1 -o image
+      - name: run unittest
+        run: ls -al
+      - name: run integrate test
+        run: chmod u+x build/quick-test.sh && build/quick-test.sh
+             exit $?
+      - name: update github page
+        if: always()
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_branch: report-test
+          publish_dir: ./tapshell/test/report/integrate.html/
+          destination_dir: ${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}
+          keep_files: true
+      - name: print summary
+        run: |
+          echo "[Click to view test report](https://tapdata.github.io/tapdata/${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}/)" >> $GITHUB_STEP_SUMMARY

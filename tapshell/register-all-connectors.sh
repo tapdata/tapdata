@@ -7,7 +7,7 @@ access_code=`cat $basepath/config.ini |grep "access_code"|awk -F ' ' '{print $3}
 
 if [[ -f ".register" ]]; then
     echo "init connectors register finished, if you want to register your own connector, please run below command:"
-    echo "docker exec -it tapdata-all-in-one bash -c \"cd /tapdata-source/ && ./build/pdk register -a $access_code -t http://$server \$datasource_jar\""
+    echo "docker exec -i tapdata-all-in-one bash -c \"cd /tapdata-source/ && ./build/pdk register -a $access_code -t http://$server \$datasource_jar\""
     exit 0
 fi
 
