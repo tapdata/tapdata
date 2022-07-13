@@ -1,0 +1,6 @@
+[1;34mtapdata, [0m2022-07-13 17:35:11: job [1;32mNone[0m is not save, error is [1;32mcan only concatenate str (not "NoneType") to str[0m, job will be save soon               
+[1;34mtapdata, [0m2022-07-13 17:35:12: job [1;32mmerge_sync_nesting_ifakg[0m start running ...                                                                                  
+[1;34mtapdata, [0m2022-07-13 17:35:12: job [1;32mmerge_sync_nesting_ifakg[0m status is: [1;32mscheduling[0m                                                                   
+[1;34mtapdata, [0m2022-07-13 17:35:13: job [1;32mmerge_sync_nesting_ifakg[0m status is: [1;32merror[0m                                                                        
+[1;34mtapdata, [0m2022-07-13 17:35:13: the status is error now, this is 1 times, 5 times remaining                                                                                
+[1;34mtapdata, [0m2022-07-13 17:35:13: job [1;32mmerge_sync_nesting_ifakg[0m status is: [1;32merror[0m                                                                        
