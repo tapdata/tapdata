@@ -66,5 +66,6 @@ jobs:
           publish_dir: ./tapshell/test/report/integrate.html/
           destination_dir: ${{ github.run_attempt }}
           keep_files: true
+      - name: print summary
         run: |
           echo "[Click to view test report](https://tapdata.github.io/tapdata/${{ github.run_attempt }}/)" >> $GITHUB_STEP_SUMMARY
