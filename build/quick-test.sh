@@ -20,9 +20,9 @@ if [[ $? -ne 0 ]]; then
     fi
 
 
-    test -f $sourcepath/tapshell/test/.env
+    test -f $sourcepath/build/test/.env
     if [[ $? -ne 0 ]]; then
-        echo $TEST_DATABASE | base64 -di > $sourcepath/tapshell/test/.env
+        echo $TEST_DATABASE | base64 -di > $sourcepath/build/test/.env
     fi
 
     cd $basepath
