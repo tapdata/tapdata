@@ -64,4 +64,7 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_branch: report-test
           publish_dir: ./tapshell/test/report/integrate.html/
-          force_orphan: true
+          destination_dir: ${{ github.run_attempt }}
+          keep_files: true
+        run: |
+          echo "[Click to view test report](https://tapdata.github.io/tapdata/${{ github.run_attempt }}/)" >> $GITHUB_STEP_SUMMARY
