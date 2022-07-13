@@ -6,6 +6,11 @@ import io.tapdata.entity.aspect.AspectInterceptor;
 import java.util.*;
 
 public class AspectInterceptorClassHolder implements Comparable<AspectInterceptorClassHolder>{
+    private AspectInterceptor<? extends Aspect> aspectInterceptor;
+    public AspectInterceptorClassHolder aspectInterceptor(AspectInterceptor<? extends Aspect> aspectInterceptor) {
+        this.aspectInterceptor = aspectInterceptor;
+        return this;
+    }
     private Class<? extends AspectInterceptor<? extends Aspect>> aspectClass;
     public AspectInterceptorClassHolder aspectClass(Class<? extends AspectInterceptor<? extends Aspect>> aspectClass) {
         this.aspectClass = aspectClass;
@@ -31,6 +36,14 @@ public class AspectInterceptorClassHolder implements Comparable<AspectIntercepto
 
     public void setOrder(int order) {
         this.order = order;
+    }
+
+    public AspectInterceptor<? extends Aspect> getAspectInterceptor() {
+        return aspectInterceptor;
+    }
+
+    public void setAspectInterceptor(AspectInterceptor<? extends Aspect> aspectInterceptor) {
+        this.aspectInterceptor = aspectInterceptor;
     }
 
     @Override

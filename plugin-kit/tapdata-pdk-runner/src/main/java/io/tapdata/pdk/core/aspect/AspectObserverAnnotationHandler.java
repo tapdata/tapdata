@@ -53,7 +53,7 @@ public class AspectObserverAnnotationHandler extends ClassAnnotationHandler {
 
                     Collection<AspectObserverClassHolder> implClasses = newAspectObserversMap.get(aspectClass);
                     if(implClasses == null) {
-                        implClasses = new TreeSet<>();
+                        implClasses = Collections.synchronizedSortedSet(new TreeSet<>());
                         implClasses.add(new AspectObserverClassHolder().aspectClass(observerClass).order(order));
                         newAspectObserversMap.put(aspectClass, implClasses);
                         TapLogger.debug(TAG, "(New array) AspectObserver {} for Aspect {} will be applied", observerClass, aspectClass);

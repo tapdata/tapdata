@@ -51,7 +51,7 @@ public class AspectInterceptorAnnotationHandler extends ClassAnnotationHandler {
 
                     Collection<AspectInterceptorClassHolder> aspectInterceptors = newAspectInterceptorsMap.get(aspectClass);
                     if(aspectInterceptors == null) {
-                        aspectInterceptors = new TreeSet<>();
+                        aspectInterceptors = Collections.synchronizedSortedSet(new TreeSet<>());
                         aspectInterceptors.add(new AspectInterceptorClassHolder().aspectClass(interceptorClass).order(order));
                         newAspectInterceptorsMap.put(aspectClass, aspectInterceptors);
                         TapLogger.debug(TAG, "(New array) AspectInterceptor {} for Aspect {} order {} will be applied", interceptorClass, aspectClass, order);
