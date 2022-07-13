@@ -21,7 +21,8 @@ jobs:
             (!startsWith(github.event.head_commit.message, 'fix')) &&
             (!startsWith(github.event.head_commit.message, 'refactor')) &&
             (!startsWith(github.event.head_commit.message, 'test')) &&
-            (!startsWith(github.event.head_commit.message, 'chore'))
+            (!startsWith(github.event.head_commit.message, 'chore')) &&
+            (!startsWith(github.event.head_commit.message, 'Merge'))
         run: echo ${{ github.event.head_commit.message }} exit 1
 
   test:
