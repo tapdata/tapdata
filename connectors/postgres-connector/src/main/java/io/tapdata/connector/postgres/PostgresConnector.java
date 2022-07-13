@@ -155,20 +155,21 @@ public class PostgresConnector extends ConnectorBase {
 
         //need to clear resource outer
         connectorFunctions.supportReleaseExternalFunction(this::onDestroy);
-        //target
+        // target
         connectorFunctions.supportWriteRecord(this::writeRecord);
         connectorFunctions.supportCreateTable(this::createTable);
         connectorFunctions.supportClearTable(this::clearTable);
         connectorFunctions.supportDropTable(this::dropTable);
         connectorFunctions.supportCreateIndex(this::createIndex);
-        //source
+        // source
         connectorFunctions.supportBatchCount(this::batchCount);
         connectorFunctions.supportBatchRead(this::batchRead);
         connectorFunctions.supportStreamRead(this::streamRead);
         connectorFunctions.supportTimestampToStreamOffset(this::timestampToStreamOffset);
-        //query
+        // query
         connectorFunctions.supportQueryByFilter(this::queryByFilter);
         connectorFunctions.supportQueryByAdvanceFilter(this::queryByAdvanceFilter);
+        // ddl
         connectorFunctions.supportNewFieldFunction(this::fieldDDLHandler);
         connectorFunctions.supportAlterFieldNameFunction(this::fieldDDLHandler);
         connectorFunctions.supportAlterFieldAttributesFunction(this::fieldDDLHandler);

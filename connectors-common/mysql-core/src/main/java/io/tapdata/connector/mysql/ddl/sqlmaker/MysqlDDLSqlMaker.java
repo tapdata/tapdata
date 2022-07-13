@@ -61,7 +61,7 @@ public class MysqlDDLSqlMaker implements DDLSqlMaker {
 			}
 			String comment = newField.getComment();
 			if (StringUtils.isNotBlank(comment)) {
-				sql.append(" '").append(comment).append("'");
+				sql.append(" comment '").append(comment).append("'");
 			}
 			Boolean primaryKey = newField.getPrimaryKey();
 			if (null != primaryKey && primaryKey) {
