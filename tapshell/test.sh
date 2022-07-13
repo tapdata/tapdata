@@ -25,6 +25,7 @@ retCode=$?
 
 if [[ -d "../../report-test/last-history" ]]; then
     cp -r ../../report-test/last-history/* ./allure-results/history
+    python ../filter_history.py ./allure-results/history
 fi
 
 allure generate ./allure-results -o ./report/integrate.html
@@ -42,12 +43,12 @@ cp -r ./report/integrate.html/history/* gh_pages/last-history
 cp -r ../template/* ./
 
 sed -i "s:__run_sign__:$RUN_SIGN:g" index.html
-sed -i "s:__run_sign__:$RUN_SIGN:g" executor.json
-sed -i "s:__run_number__:$RUN_NUMBER:g" executor.json
-sed -i "s:__run_id__:$RUN_ID:g" executor.json
+sed -i "s:__run_sign__:$RUN_SIGN:g" executors.json
+sed -i "s:__run_number__:$RUN_NUMBER:g" executors.json
+sed -i "s:__run_id__:$RUN_ID:g" executors.json
 
 cp index.html gh_pages/
-cp executor.json gh_pages/$RUN_SIGN/widgets/
+cp executors.json gh_pages/$RUN_SIGN/widgets/
 cp environment.json gh_pages/$RUN_SIGN/widgets/
 
 mv gh_pages/ ../../
