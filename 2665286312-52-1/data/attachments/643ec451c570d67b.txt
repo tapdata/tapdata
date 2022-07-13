@@ -1,0 +1,1 @@
+[1;34mtapdata, [0m2022-07-13 17:57:49: [1;33mmigrate job not support filter processor[0m                                                                                        
