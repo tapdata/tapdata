@@ -212,10 +212,10 @@ public class MysqlMaker implements SqlMaker {
 		}
 
 		// default value
-		/*String defaultValue = tapField.getDefaultValue() == null ? "" : tapField.getDefaultValue().toString();
+		String defaultValue = tapField.getDefaultValue() == null ? "" : tapField.getDefaultValue().toString();
 		if (StringUtils.isNotBlank(defaultValue)) {
 			fieldSql += " DEFAULT '" + defaultValue + "'";
-		}*/
+		}
 
 		// comment
 		String comment = tapField.getComment();
