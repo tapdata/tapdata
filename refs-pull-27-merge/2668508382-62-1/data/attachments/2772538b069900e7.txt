@@ -1,0 +1,1 @@
+[1;34mtapdata, [0m2022-07-14 07:03:23: [1;33mmigrate job not support js processor[0m                                                                                            
