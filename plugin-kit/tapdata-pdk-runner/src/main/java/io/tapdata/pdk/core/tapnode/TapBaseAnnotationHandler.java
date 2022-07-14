@@ -1,7 +1,7 @@
 package io.tapdata.pdk.core.tapnode;
 
 import io.tapdata.pdk.apis.spec.TapNodeSpecification;
-import io.tapdata.pdk.core.reflection.ClassAnnotationHandler;
+import io.tapdata.entity.reflection.ClassAnnotationHandler;
 
 import java.util.Collection;
 import java.util.Map;

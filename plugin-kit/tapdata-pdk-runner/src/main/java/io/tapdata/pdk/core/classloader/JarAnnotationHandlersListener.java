@@ -1,6 +1,6 @@
 package io.tapdata.pdk.core.classloader;
 
-import io.tapdata.pdk.core.reflection.ClassAnnotationHandler;
+import io.tapdata.entity.reflection.ClassAnnotationHandler;
 
 import java.io.File;
 

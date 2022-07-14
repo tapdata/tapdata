@@ -1,4 +1,4 @@
-package io.tapdata.pdk.core.reflection;
+package io.tapdata.entity.reflection;
 
 import io.tapdata.entity.error.CoreException;
 
