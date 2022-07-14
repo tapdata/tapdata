@@ -1,5 +1,7 @@
 package io.tapdata.entity.event;
 
+import io.tapdata.entity.utils.FormatUtils;
+
 import java.io.Serializable;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -12,9 +14,10 @@ public abstract class TapEvent implements Serializable {
      */
     protected Long time;
 
-    public Map<String, Object> info;
+    protected Map<String, Object> info;
 
-    public Map<String, Object> traceMap;
+    protected Map<String, Object> traceMap;
+    protected String key;
 
     public TapEvent(int type) {
         this.type = type;
@@ -99,5 +102,12 @@ public abstract class TapEvent implements Serializable {
                 ", info=" + info +
                 ", traceMap=" + traceMap +
                 '}';
+    }
+
+    public String key() {
+        if (null == this.key) {
+            this.key = FormatUtils.formatTapEvent(this.getClass());
+        }
+        return this.key;
     }
 }

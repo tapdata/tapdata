@@ -63,6 +63,10 @@ public class PostgresDDLSqlMaker implements DDLSqlMaker {
 					addFieldSql.append(" not null");
 				}
 			}
+			Object defaultValue = newField.getDefaultValue();
+			if (null != defaultValue) {
+				addFieldSql.append(" default '").append(defaultValue).append("'");
+			}
 			sqls.add(addFieldSql.toString());
 
 			String comment = newField.getComment();

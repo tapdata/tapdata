@@ -59,6 +59,10 @@ public class MysqlDDLSqlMaker implements DDLSqlMaker {
 					sql.append(" not null");
 				}
 			}
+			Object defaultValue = newField.getDefaultValue();
+			if (null != defaultValue) {
+				sql.append(" default '").append(defaultValue).append("'");
+			}
 			String comment = newField.getComment();
 			if (StringUtils.isNotBlank(comment)) {
 				sql.append(" comment '").append(comment).append("'");
