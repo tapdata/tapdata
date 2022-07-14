@@ -66,10 +66,11 @@ jobs:
         env:
           RUN_ID: ${{ github.run_id }}
           RUN_NUMBER: ${{ github.run_number }}
-          RUN_SIGN: ${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}
+          BRANCH: ${{ github.ref }}
         run: chmod u+x build/quick-test.sh && build/quick-test.sh && ls -al ./tapshell/test/report/integrate.html/
 
       - name: update github page
+        id: gh_pages
         if: always()
         uses: peaceiris/actions-gh-pages@v3
         with:
@@ -78,5 +79,9 @@ jobs:
           publish_dir: gh_pages
           keep_files: true
       - name: print summary
+        if: ${{ steps.gh_pages.conclusion == 'success' }}
+        env:
+          RUN_SIGN: ${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}
+          BRANCH: ${{ github.ref }}
         run: |
-          echo "[Click to view test report](https://tapdata.github.io/tapdata/${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}/)" >> $GITHUB_STEP_SUMMARY
+          echo "[Click to view test report](https://tapdata.github.io/tapdata/$BRANCH/$RUN_SIGN)" >> $GITHUB_STEP_SUMMARY

@@ -7,6 +7,6 @@
     "buildName": "GitHub Actions Run #__run_id__",
     "buildUrl": "https://github.com/tapdata/tapdata/actions/runs/__run_id__",
     "reportName": "Tapdata LDP Test Report",
-    "reportUrl": "https://tapdata.github.io/tapdata/__run_sign__"
+    "reportUrl": "https://tapdata.github.io/tapdata/__branch_dir__/__run_sign__"
   }
 ]

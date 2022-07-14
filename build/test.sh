@@ -37,18 +37,22 @@ if [[ "x"$RUN_SIGN == "x" ]]; then
     RUN_SIGN="1-1-1"
 fi
 
-mkdir -p gh_pages/$RUN_SIGN
+BRANCH_DIR=`echo $BRANCH | sed "s:/:-:g"`
+
+mkdir -p gh_pages/$BRANCH_DIR/$RUN_SIGN
 mkdir -p gh_pages/last-history
 
-cp -r ./report/integrate.html/* gh_pages/$RUN_SIGN
+cp -r ./report/integrate.html/* gh_pages/$BRANCH_DIR/$RUN_SIGN
 cp -r ./report/integrate.html/history/* gh_pages/last-history
 
 cp -r ../template/* ./
 
 sed -i "s:__run_sign__:$RUN_SIGN:g" index.html
+sed -i "s:__branch_dir__:$BRANCH_DIR:g" index.html
 sed -i "s:__run_sign__:$RUN_SIGN:g" executors.json
 sed -i "s:__run_number__:$RUN_NUMBER:g" executors.json
 sed -i "s:__run_id__:$RUN_ID:g" executors.json
+sed -i "s:__branch_dir__:$BRANCH_DIR:g" executors.json
 
 cp index.html gh_pages/
 cp executors.json gh_pages/$RUN_SIGN/widgets/
