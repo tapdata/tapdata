@@ -34,7 +34,9 @@ public class FormatUtils {
         simpleName = simpleName.replaceFirst("Tap", "");
         for(char c : simpleName.toCharArray()) {
             if(c >= 'A' && c <= 'Z') {
-                fieldNameBuilder.append("_");
+				if (fieldNameBuilder.length() > 0) {
+					fieldNameBuilder.append("_");
+				}
                 c += 32;
             }
             fieldNameBuilder.append(c);
