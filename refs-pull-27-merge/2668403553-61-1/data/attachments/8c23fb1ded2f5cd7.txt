@@ -1,0 +1,14 @@
+[1;34mtapdata, [0m2022-07-14 06:40:55: job [1;32mNone[0m is not save, error is [1;32mcan only concatenate str (not "NoneType") to str[0m, job will be save soon               
+[1;34mtapdata, [0m2022-07-14 06:40:55: job [1;32mstop_daguj[0m start running ...                                                                                                
+[1;34mtapdata, [0m2022-07-14 06:40:55: job [1;32mstop_daguj[0m status is: [1;32mscheduling[0m                                                                                 
+[1;34mtapdata, [0m2022-07-14 06:40:56: job [1;32mstop_daguj[0m status is: [1;32mwait_run[0m                                                                                   
+[1;34mtapdata, [0m2022-07-14 06:40:56: the status is wait_run now, this is 1 times, 5 times remaining                                                                             
+[1;34mtapdata, [0m2022-07-14 06:40:56: job [1;32mstop_daguj[0m status is: [1;32mwait_run[0m                                                                                   
+[1;34mtapdata, [0m2022-07-14 06:40:58: job [1;32mstop_daguj[0m status is: [1;32mwait_run[0m                                                                                   
+[1;34mtapdata, [0m2022-07-14 06:40:58: the status is wait_run now, this is 2 times, 4 times remaining                                                                             
+[1;34mtapdata, [0m2022-07-14 06:40:58: job [1;32mstop_daguj[0m status is: [1;32mwait_run[0m                                                                                   
+[1;34mtapdata, [0m2022-07-14 06:40:59: job [1;32mstop_daguj[0m status is: [1;32mrunning[0m                                                                                    
+[1;34mtapdata, [0m2022-07-14 06:40:59: the status is running now, this is 3 times, 3 times remaining                                                                              
+[1;34mtapdata, [0m2022-07-14 06:40:59: job [1;32mstop_daguj[0m status is: [1;32mrunning[0m                                                                                    
+stopping
+[1;34mtapdata, [0m2022-07-14 06:41:00: job [1;32mstop_daguj[0m status is: [1;32mstopping[0m                                                                                   
