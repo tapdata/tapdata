@@ -1,0 +1,91 @@
+{
+  "uid" : "44b62741c6eb7353",
+  "name" : "js udf in migrate",
+  "fullName" : "test_pipeline.TestPipeline#test_js_migrate",
+  "historyId" : "8f71f91b30b5ce0c64f023d3e192d532",
+  "time" : {
+    "start" : 1657782851384,
+    "stop" : 1657782851435,
+    "duration" : 51
+  },
+  "status" : "passed",
+  "flaky" : false,
+  "newFailed" : false,
+  "beforeStages" : [ ],
+  "testStage" : {
+    "status" : "passed",
+    "steps" : [ ],
+    "attachments" : [ {
+      "uid" : "893b593314042368",
+      "name" : "stdout",
+      "source" : "893b593314042368.txt",
+      "type" : "text/plain",
+      "size" : 181
+    } ],
+    "parameters" : [ ],
+    "stepsCount" : 0,
+    "attachmentsCount" : 1,
+    "shouldDisplayMessage" : false,
+    "hasContent" : true
+  },
+  "afterStages" : [ ],
+  "labels" : [ {
+    "name" : "feature",
+    "value" : "pipeline"
+  }, {
+    "name" : "suite",
+    "value" : "test_pipeline"
+  }, {
+    "name" : "subSuite",
+    "value" : "TestPipeline"
+  }, {
+    "name" : "host",
+    "value" : "59cd6833b950"
+  }, {
+    "name" : "thread",
+    "value" : "518-MainThread"
+  }, {
+    "name" : "framework",
+    "value" : "pytest"
+  }, {
+    "name" : "language",
+    "value" : "cpython3"
+  }, {
+    "name" : "package",
+    "value" : "test_pipeline"
+  }, {
+    "name" : "resultFormat",
+    "value" : "allure2"
+  } ],
+  "parameters" : [ ],
+  "links" : [ ],
+  "hidden" : false,
+  "retry" : false,
+  "extra" : {
+    "severity" : "normal",
+    "retries" : [ ],
+    "categories" : [ ],
+    "history" : {
+      "statistic" : {
+        "failed" : 0,
+        "broken" : 0,
+        "skipped" : 0,
+        "passed" : 2,
+        "unknown" : 0,
+        "total" : 2
+      },
+      "items" : [ {
+        "uid" : "a4a507fc878b3694",
+        "status" : "passed",
+        "time" : {
+          "start" : 1657782196933,
+          "stop" : 1657782197010,
+          "duration" : 77
+        }
+      } ]
+    },
+    "tags" : [ ]
+  },
+  "source" : "44b62741c6eb7353.json",
+  "parameterValues" : [ ]
+}

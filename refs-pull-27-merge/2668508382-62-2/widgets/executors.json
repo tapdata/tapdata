@@ -1,0 +1,12 @@
+[
+  {
+    "name": "Tapdata GitHub Actions",
+    "type": "github",
+    "url": "https://tapdata.github.io/tapdata",
+    "buildOrder": 62,
+    "buildName": "GitHub Actions Run #2668508382",
+    "buildUrl": "https://github.com/tapdata/tapdata/actions/runs/2668508382",
+    "reportName": "Tapdata LDP Test Report",
+    "reportUrl": "https://tapdata.github.io/tapdata/refs-pull-27-merge/2668508382-62-2"
+  }
+]
