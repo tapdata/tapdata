@@ -20,12 +20,12 @@ if [[ $? -ne 0 ]]; then
     fi
 
 
-    test -f $sourcepath/tapshell/test/.env
+    test -f $sourcepath/build/test/.env
     if [[ $? -ne 0 ]]; then
-        echo $TEST_DATABASE | base64 -di > $sourcepath/tapshell/test/.env
+        echo $TEST_DATABASE | base64 -di > $sourcepath/build/test/.env
     fi
 
     cd $basepath
-    docker run -e mode=test -p 13000:3000 -p 27017:27017 -v $sourcepath:/tapdata-source/ -i --name=$dev_container_name `cat image/tag` bash
+    docker run -e mode=test -e BRANCH=$BRANCH -e RUN_SIGN=$RUN_SIGN -e RUN_ID=$RUN_ID -e RUN_NUMBER=$RUN_NUMBER -p 13000:3000 -p 27017:27017 -v $sourcepath:/tapdata-source/ -i --name=$dev_container_name `cat image/tag` bash
     exit $?
 fi

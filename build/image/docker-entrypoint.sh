@@ -59,6 +59,8 @@ fi
 if [[ "x"$mode == "xtest" ]]; then
     cd /tapdata-source/tapshell
     bash register-all-connectors.sh
+    cp ../build/test.sh ./
+    mv ../build/test ./
     chmod u+x test.sh
     bash test.sh
     if [[ $? -ne 0 ]]; then
