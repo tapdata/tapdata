@@ -1,0 +1,1 @@
+[1;34mtapdata, [0m2022-07-14 04:09:42: [1;33mmigrate job not support merge[0m                                                                                                   

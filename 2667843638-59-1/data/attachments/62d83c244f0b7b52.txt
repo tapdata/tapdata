@@ -1,0 +1,3 @@
+[1;34mtapdata, [0m2022-07-14 04:09:38: job [1;32mNone[0m is not save, error is [1;32mcan only concatenate str (not "NoneType") to str[0m, job will be save soon               
+[1;34mtapdata, [0m2022-07-14 04:09:38: job [1;32mfilter_column_sync_ioscz[0m start running ...                                                                                  
+[1;34mtapdata, [0m2022-07-14 04:09:38: job [1;32mfilter_column_sync_ioscz[0m status is: [1;32mscheduling[0m                                                                   
