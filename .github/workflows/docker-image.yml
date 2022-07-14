@@ -66,6 +66,7 @@ jobs:
         env:
           RUN_ID: ${{ github.run_id }}
           RUN_NUMBER: ${{ github.run_number }}
+          RUN_SIGN: ${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}
           BRANCH: ${{ github.ref }}
         run: chmod u+x build/quick-test.sh && build/quick-test.sh && ls -al ./tapshell/test/report/integrate.html/
 
@@ -84,4 +85,5 @@ jobs:
           RUN_SIGN: ${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}
           BRANCH: ${{ github.ref }}
         run: |
-          echo "[Click to view test report](https://tapdata.github.io/tapdata/$BRANCH/$RUN_SIGN)" >> $GITHUB_STEP_SUMMARY
+          BRANCH_DIR=`echo $BRANCH | sed "s:/:-:g"`
+          echo "[Click to view test report](https://tapdata.github.io/tapdata/$BRANCH_DIR/$RUN_SIGN)" >> $GITHUB_STEP_SUMMARY
