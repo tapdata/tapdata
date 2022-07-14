@@ -47,8 +47,16 @@ cp -r ./report/integrate.html/history/* gh_pages/last-history
 
 cp -r ../template/* ./
 
-sed -i "s:__run_sign__:$RUN_SIGN:g" index.html
-sed -i "s:__branch_dir__:$BRANCH_DIR:g" index.html
+if [[ $BRANCH_DIR == "refs-heads-master" ]]; then
+  DEFAULT_DIR="refs-heads-master"
+  sed -i "s:__run_sign__:$RUN_SIGN:g" index.html
+  sed -i "s:__branch_dir__:$DEFAULT_DIR:g" index.html
+elif [[ ! -d gh_pages/refs-heads-master/ ]]; then
+  DEFAULT_DIR=$BRANCH_DIR
+  sed -i "s:__run_sign__:$RUN_SIGN:g" index.html
+  sed -i "s:__branch_dir__:$DEFAULT_DIR:g" index.html
+fi
+
 sed -i "s:__run_sign__:$RUN_SIGN:g" executors.json
 sed -i "s:__run_number__:$RUN_NUMBER:g" executors.json
 sed -i "s:__run_id__:$RUN_ID:g" executors.json
