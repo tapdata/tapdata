@@ -1,0 +1,46 @@
+[1;34mtapdata, [0m2022-07-14 03:56:13: job [1;32mNone[0m is not save, error is [1;32mcan only concatenate str (not "NoneType") to str[0m, job will be save soon               
+[1;34mtapdata, [0m2022-07-14 03:56:13: job [1;32mstop_jkmpz[0m start running ...                                                                                                
+[1;34mtapdata, [0m2022-07-14 03:56:13: job [1;32mstop_jkmpz[0m status is: [1;32mscheduling[0m                                                                                 
+[1;34mtapdata, [0m2022-07-14 03:56:14: job [1;32mstop_jkmpz[0m status is: [1;32mwait_run[0m                                                                                   
+[1;34mtapdata, [0m2022-07-14 03:56:14: the status is wait_run now, this is 1 times, 5 times remaining                                                                             
+[1;34mtapdata, [0m2022-07-14 03:56:14: job [1;32mstop_jkmpz[0m status is: [1;32mwait_run[0m                                                                                   
+[1;34mtapdata, [0m2022-07-14 03:56:16: job [1;32mstop_jkmpz[0m status is: [1;32mwait_run[0m                                                                                   
+[1;34mtapdata, [0m2022-07-14 03:56:16: the status is wait_run now, this is 2 times, 4 times remaining                                                                             
+[1;34mtapdata, [0m2022-07-14 03:56:16: job [1;32mstop_jkmpz[0m status is: [1;32mwait_run[0m                                                                                   
+[1;34mtapdata, [0m2022-07-14 03:56:17: job [1;32mstop_jkmpz[0m status is: [1;32mwait_run[0m                                                                                   
+[1;34mtapdata, [0m2022-07-14 03:56:17: the status is wait_run now, this is 3 times, 3 times remaining                                                                             
+[1;34mtapdata, [0m2022-07-14 03:56:17: job [1;32mstop_jkmpz[0m status is: [1;32mwait_run[0m                                                                                   
+[1;34mtapdata, [0m2022-07-14 03:56:18: job [1;32mstop_jkmpz[0m status is: [1;32mrunning[0m                                                                                    
+[1;34mtapdata, [0m2022-07-14 03:56:18: the status is running now, this is 4 times, 2 times remaining                                                                              
+[1;34mtapdata, [0m2022-07-14 03:56:18: job [1;32mstop_jkmpz[0m status is: [1;32mrunning[0m                                                                                    
+error
+error
+error
+error
+error
+error
+error
+error
+error
+error
+error
+error
+error
+error
+error
+error
+error
+error
+error
+error
+error
+error
+error
+error
+error
+error
+error
+error
+error
+error
+[1;34mtapdata, [0m2022-07-14 03:56:48: job [1;32mstop_jkmpz[0m status is: [1;32merror[0m                                                                                      
