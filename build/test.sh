@@ -26,8 +26,10 @@ retCode=$?
 mv ../../build/filter_history.py ../
 mv ../../build/template ../
 
-if [[ -d "../../report-test/last-history" ]]; then
-    cp -r ../../report-test/last-history/* ./allure-results/history
+BRANCH_DIR=`echo $BRANCH | sed "s:/:-:g"`
+
+if [[ -d "../../report-test/$BRANCH_DIR/last-history" ]]; then
+    cp -r ../../report-test/$BRANCH_DIR/last-history/* ./allure-results/history
     python ../filter_history.py ./allure-results/history
 fi
 
@@ -37,13 +39,11 @@ if [[ "x"$RUN_SIGN == "x" ]]; then
     RUN_SIGN="1-1-1"
 fi
 
-BRANCH_DIR=`echo $BRANCH | sed "s:/:-:g"`
-
 mkdir -p gh_pages/$BRANCH_DIR/$RUN_SIGN
-mkdir -p gh_pages/last-history
+mkdir -p gh_pages/$BRANCH_DIR/last-history
 
 cp -r ./report/integrate.html/* gh_pages/$BRANCH_DIR/$RUN_SIGN
-cp -r ./report/integrate.html/history/* gh_pages/last-history
+cp -r ./report/integrate.html/history/* gh_pages/$BRANCH_DIR/last-history
 
 cp -r ../template/* ./
 
@@ -63,8 +63,8 @@ sed -i "s:__run_id__:$RUN_ID:g" executors.json
 sed -i "s:__branch_dir__:$BRANCH_DIR:g" executors.json
 
 cp index.html gh_pages/
-cp executors.json gh_pages/$RUN_SIGN/widgets/
-cp environment.json gh_pages/$RUN_SIGN/widgets/
+cp executors.json gh_pages/$BRANCH_DIR/$RUN_SIGN/widgets/
+cp environment.json gh_pages/$BRANCH_DIR/$RUN_SIGN/widgets/
 
 mv gh_pages/ ../../
 
