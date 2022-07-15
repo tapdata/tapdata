@@ -21,12 +21,12 @@ import com.tapdata.tm.commons.dag.nodes.DataParentNode;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
+import com.tapdata.tm.commons.schema.DataSourceDefinitionDto;
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.commons.task.dto.*;
 import com.tapdata.tm.commons.task.dto.progress.SubTaskSnapshotProgress;
 import com.tapdata.tm.commons.util.MetaDataBuilderUtils;
 import com.tapdata.tm.config.security.UserDetail;
-import com.tapdata.tm.commons.schema.DataSourceDefinitionDto;
 import com.tapdata.tm.ds.service.impl.DataSourceDefinitionService;
 import com.tapdata.tm.ds.service.impl.DataSourceService;
 import com.tapdata.tm.messagequeue.dto.MessageQueueDto;
@@ -49,6 +49,10 @@ import com.tapdata.tm.worker.dto.WorkerDto;
 import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.service.WorkerService;
 import com.tapdata.tm.ws.enums.MessageType;
+import io.tapdata.entity.event.ddl.table.TapAlterFieldNameEvent;
+import io.tapdata.entity.event.ddl.table.TapDropFieldEvent;
+import io.tapdata.entity.event.ddl.table.TapFieldBaseEvent;
+import io.tapdata.entity.event.ddl.table.TapNewFieldEvent;
 import lombok.NonNull;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
@@ -56,7 +60,6 @@ import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.bson.Document;
 import org.bson.types.ObjectId;
-import org.checkerframework.checker.units.qual.C;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.mongodb.core.BulkOperations;
 import org.springframework.data.mongodb.core.MongoTemplate;
@@ -519,6 +522,7 @@ public class SubTaskService extends BaseService<SubTaskDto, SubTaskEntity, Objec
     public void start(ObjectId id, UserDetail user, String startFlag) {
         SubTaskDto subTaskDto = checkExistById(id);
         TaskDto taskDto = taskService.findById(subTaskDto.getParentId(), user);
+        taskService.checkDagAgentConflict(taskDto, false);
         subTaskDto.setParentTask(taskDto);
         start(subTaskDto, user, startFlag);
     }
@@ -1894,5 +1898,34 @@ public class SubTaskService extends BaseService<SubTaskDto, SubTaskEntity, Objec
                 subTaskList.forEach(subTaskDto -> start(subTaskDto.getId(), finalUserMap.get(subTaskDto.getUserId())));
             }
         }
+    }
+
+    public SubTaskDto findByCacheName(String cacheName, UserDetail user) {
+        Criteria taskCriteria = Criteria.where("dag.nodes").elemMatch(Criteria.where("catalog").is("memCache").and("cacheName").is(cacheName));
+        Query query = new Query(taskCriteria);
+        SubTaskDto subTaskDto = findOne(query, user);
+        if (subTaskDto != null) {
+            TaskDto taskDto = taskService.findById(subTaskDto.getParentId(), user);
+            if (taskDto != null) {
+                subTaskDto.setParentTask(taskDto);
+            }
+        }
+
+        return subTaskDto;
+    }
+
+    public void filedDllEvent(String subTaskId, TapFieldBaseEvent event, UserDetail user) {
+        SubTaskDto subTaskDto = checkExistById(MongoUtils.toObjectId(subTaskId), "parentId");
+
+        TaskDto taskDto = taskService.checkExistById(subTaskDto.getParentId(), user);
+
+        if (event instanceof TapNewFieldEvent) {
+
+        } else if (event instanceof TapDropFieldEvent) {
+
+        } else if (event instanceof TapAlterFieldNameEvent) {
+
+        }
+
     }
 }

@@ -18,8 +18,10 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.enums.ParameterIn;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import io.tapdata.entity.event.ddl.table.TapFieldBaseEvent;
+import io.tapdata.entity.schema.TapField;
+import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.bson.Document;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -38,18 +40,12 @@ import java.util.Map;
 @RestController
 @Slf4j
 @RequestMapping("/api/SubTask")
+@Setter(onMethod_ = {@Autowired})
 public class SubTaskController extends BaseController {
 
-    @Autowired
     private SubTaskService subTaskService;
-
-    @Autowired
     private TaskRepository taskRepository;
-
-    @Autowired
     private MessageService messageService;
-
-    @Autowired
     private SnapshotEdgeProgressService snapshotEdgeProgressService;
 
     /**
@@ -323,6 +319,7 @@ public class SubTaskController extends BaseController {
     @Operation(summary = "子任务已经成功运行回调接口")
     @PostMapping("running/{id}")
     public ResponseMessage<TaskOpResp> running(@PathVariable("id") String id) {
+        log.info("subTask running status report by http, id = {}", id);
         String successId = subTaskService.running(MongoUtils.toObjectId(id), getLoginUser());
         TaskOpResp taskOpResp = new TaskOpResp();
         if (StringUtils.isBlank(successId)) {
@@ -488,6 +485,11 @@ public class SubTaskController extends BaseController {
         subTaskService.increaseBacktracking(MongoUtils.toObjectId(subTaskId), srcNode, tgtNode, point, getLoginUser());
         return success();
 
+    }
+
+    @GetMapping("byCacheName/{cacheName}")
+    public ResponseMessage<SubTaskDto> findByCacheName(@PathVariable("cacheName") String cacheName) {
+        return success(subTaskService.findByCacheName(cacheName, getLoginUser()));
     }
 
 

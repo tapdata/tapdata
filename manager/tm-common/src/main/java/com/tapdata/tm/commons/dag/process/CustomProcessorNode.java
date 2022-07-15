@@ -2,9 +2,14 @@ package com.tapdata.tm.commons.dag.process;
 
 import com.tapdata.tm.commons.dag.EqField;
 import com.tapdata.tm.commons.dag.NodeType;
+import com.tapdata.tm.commons.schema.Schema;
+import com.tapdata.tm.commons.schema.SchemaUtils;
+import com.tapdata.tm.commons.util.PdkSchemaConvert;
+import io.tapdata.entity.schema.TapTable;
 import lombok.Getter;
 import lombok.Setter;
 
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -20,6 +25,25 @@ public class CustomProcessorNode extends ProcessorNode {
     private String customNodeId;
 
     private Map<String, Object> form;
+
+
+    @Override
+    protected Schema loadSchema(List<String> includes) {
+        //用于预跑数据得到模型
+        TapTable tapTable =  service.loadTapTable(getInputSchema(), null, getId(), null, customNodeId, null, null);
+        Schema schema = PdkSchemaConvert.fromPdkSchema(tapTable);
+        return schema;
+    }
+
+    @Override
+    public Schema mergeSchema(List<Schema> inputSchemas, Schema schema) {
+        //js节点的模型可以是直接虚拟跑出来的。 跑出来就是正确的模型，由引擎负责传值给tm
+        if (schema != null) {
+            return schema;
+        }
+
+        return SchemaUtils.mergeSchema(inputSchemas, null);
+    }
 
      CustomProcessorNode() {
         super("custom_processor");

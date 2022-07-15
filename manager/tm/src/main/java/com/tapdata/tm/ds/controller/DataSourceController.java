@@ -1,5 +1,7 @@
 package com.tapdata.tm.ds.controller;
 
+import com.alibaba.fastjson.JSONObject;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.tapdata.manager.common.utils.JsonUtil;
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.Field;
@@ -24,6 +26,7 @@ import io.swagger.v3.oas.annotations.enums.ParameterIn;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.entity.utils.JsonParser;
+import io.tapdata.pdk.apis.entity.ConnectionOptions;
 import lombok.Setter;
 import org.bson.Document;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -449,5 +452,22 @@ public class DataSourceController extends BaseController {
         return success(dataSourceService.supportList(getLoginUser()));
     }
 
+
+
+    @PostMapping("connectionOptions/update")
+    public ResponseMessage<Void> updateConnectionOptions(@RequestParam("where") String whereJson, @RequestBody String reqBody) {
+        Where where = parseWhere(whereJson);
+        if (reqBody.indexOf("\"$set\"") > 0 || reqBody.indexOf("\"$setOnInsert\"") > 0 || reqBody.indexOf("\"$unset\"") > 0) {
+            Document updateDto = InstanceFactory.instance(JsonParser.class).fromJson(reqBody, Document.class);
+            JSONObject set = (JSONObject) updateDto.get("$set");
+            ConnectionOptions options = null;
+            if (set.get("options") != null) {
+                options = JsonUtil.parseJsonUseJackson(JsonUtil.toJson(set.get("options")), new TypeReference<ConnectionOptions>() {
+                });
+            }
+            dataSourceService.updateConnectionOptions(MongoUtils.toObjectId((String) where.get("_id")), options, getLoginUser());
+        }
+        return success();
+    }
 
 }
