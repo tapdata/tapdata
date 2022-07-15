@@ -178,3 +178,12 @@ system has 3 jobs
 Tapdata 使用复合 License
 
 整个项目使用 Server Side Public License, 数据源连接相关的子项目使用 Apache V2 License
+
+## 加入我们
+- 微信
+<img src="https://github.com/tapdata/tapdata/raw/master/assets/wechat-qr-code.jpg" width="200px"/>
+
+- [Slack](https://join.slack.com/t/tapdatacommunity/shared_invite/zt-1biraoxpf-NRTsap0YLlAp99PHIVC9eA)
+
+
+
