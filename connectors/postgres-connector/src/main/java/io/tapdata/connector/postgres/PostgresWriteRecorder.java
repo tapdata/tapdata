@@ -249,7 +249,7 @@ public class PostgresWriteRecorder extends WriteRecorder {
         preparedStatement.addBatch();
     }
 
-    private void justUpdate(Map<String, Object> after, Map<String, Object> before) throws SQLException {
+    protected void justUpdate(Map<String, Object> after, Map<String, Object> before) throws SQLException {
         if (EmptyKit.isNull(preparedStatement)) {
             if (hasPk) {
                 preparedStatement = connection.prepareStatement("UPDATE \"" + schema + "\".\"" + tapTable.getId() + "\" SET " +
