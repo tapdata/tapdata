@@ -25,7 +25,7 @@ public class PostgresRecordWriter extends RecordWriter {
     private void openIdentity(JdbcContext jdbcContext) throws SQLException {
         if(EmptyKit.isEmpty(tapTable.primaryKeys())
                 && (EmptyKit.isEmpty(tapTable.getIndexList()) || tapTable.getIndexList().stream().noneMatch(TapIndex::isUnique))) {
-            jdbcContext.execute("ALTER TABLE \"" + tapTable.getId() + "\" REPLICA IDENTITY FULL");
+            jdbcContext.execute("ALTER TABLE \"" + jdbcContext.getConfig().getSchema() + "\".\"" + tapTable.getId() + "\" REPLICA IDENTITY FULL");
         }
     }
 
