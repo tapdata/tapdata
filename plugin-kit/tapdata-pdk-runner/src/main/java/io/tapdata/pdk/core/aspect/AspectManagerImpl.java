@@ -43,6 +43,11 @@ public class AspectManagerImpl implements AspectManager {
     @SuppressWarnings("unchecked")
     @Override
     public synchronized  <T extends Aspect> void registerAspectInterceptor(Class<T> aspectClass, int order, AspectInterceptor<T> aspectInterceptor) {
+        registerInterceptor(aspectClass, order, (AspectInterceptor<Aspect>) aspectInterceptor);
+    }
+    @SuppressWarnings("unchecked")
+    @Override
+    public synchronized void registerInterceptor(Class<? extends Aspect> aspectClass, int order, AspectInterceptor<Aspect> aspectInterceptor) {
         Collection<AspectInterceptorClassHolder> interceptorClassHolders = aspectInterceptorMap.get(aspectClass);
         if(interceptorClassHolders == null) {
             interceptorClassHolders = Collections.synchronizedSortedSet(new TreeSet<>());
@@ -76,13 +81,21 @@ public class AspectManagerImpl implements AspectManager {
                     newInterceptorClassHolders.add(classHolder);
                 }
             }
-            aspectInterceptorMap.put(aspectClass, newInterceptorClassHolders);
+            if(newInterceptorClassHolders.isEmpty())
+                aspectInterceptorMap.remove(aspectClass);
+            else
+                aspectInterceptorMap.put(aspectClass, newInterceptorClassHolders);
             aspectInterceptorInstanceMap.remove(interceptorClass);
         }
     }
 
+    @SuppressWarnings("unchecked")
     @Override
     public synchronized <T extends Aspect> void unregisterAspectInterceptor(Class<T> aspectClass, AspectInterceptor<T> aspectInterceptor) {
+        unregisterInterceptor(aspectClass, (AspectInterceptor<Aspect>) aspectInterceptor);
+    }
+    @Override
+    public synchronized void unregisterInterceptor(Class<? extends Aspect> aspectClass, AspectInterceptor<Aspect> aspectInterceptor) {
         Collection<AspectInterceptorClassHolder> interceptorClassHolders = aspectInterceptorMap.get(aspectClass);
         if(interceptorClassHolders != null) {
             Collection<AspectInterceptorClassHolder> newInterceptorClassHolders = Collections.synchronizedSortedSet(new TreeSet<>());
@@ -93,15 +106,16 @@ public class AspectManagerImpl implements AspectManager {
                     newInterceptorClassHolders.add(classHolder);
                 }
             }
-            aspectInterceptorMap.put(aspectClass, newInterceptorClassHolders);
+            if(newInterceptorClassHolders.isEmpty())
+                aspectInterceptorMap.remove(aspectClass);
+            else
+                aspectInterceptorMap.put(aspectClass, newInterceptorClassHolders);
             aspectInterceptorInstanceMap.remove(aspectInterceptor.getClass());
         }
     }
 
-    @SuppressWarnings("unchecked")
     @Override
-    public synchronized <T extends Aspect> void registerAspectObserver(Class<T> aspectClass, int order, AspectObserver<T> aspectObserver) {
-//        aspectObserversMap.put()
+    public synchronized void registerObserver(Class<? extends Aspect> aspectClass, int order, AspectObserver<Aspect> aspectObserver) {
         Collection<AspectObserverClassHolder> observerClassHolders = aspectObserversMap.get(aspectClass);
         if(observerClassHolders == null) {
             observerClassHolders = Collections.synchronizedSortedSet(new TreeSet<>());
@@ -121,6 +135,11 @@ public class AspectManagerImpl implements AspectManager {
             aspectObserverInstanceMap.putIfAbsent((Class<? extends AspectObserver<? extends Aspect>>) aspectObserver.getClass(), aspectObserver);
             TapLogger.debug(TAG, "(Exist array) AspectObserver {} for Aspect {} will be applied", aspectObserver, aspectClass);
         }
+    }
+    @SuppressWarnings("unchecked")
+    @Override
+    public synchronized <T extends Aspect> void registerAspectObserver(Class<T> aspectClass, int order, AspectObserver<T> aspectObserver) {
+        registerObserver(aspectClass, order, (AspectObserver<Aspect>) aspectObserver);
     }
 
     @Override
@@ -142,6 +161,10 @@ public class AspectManagerImpl implements AspectManager {
 
     @Override
     public synchronized  <T extends Aspect> void unregisterAspectObserver(Class<T> aspectClass, AspectObserver<T> aspectObserver) {
+        unregisterObserver(aspectClass, (AspectObserver<Aspect>) aspectObserver);
+    }
+    @Override
+    public synchronized  void unregisterObserver(Class<? extends Aspect> aspectClass, AspectObserver<Aspect> aspectObserver) {
         Collection<AspectObserverClassHolder> observerClassHolders = aspectObserversMap.get(aspectClass);
         if(observerClassHolders != null) {
             Collection<AspectObserverClassHolder> newObserverClassHolders = Collections.synchronizedSortedSet(new TreeSet<>());
@@ -152,7 +175,10 @@ public class AspectManagerImpl implements AspectManager {
                     newObserverClassHolders.add(classHolder);
                 }
             }
-            aspectObserversMap.put(aspectClass, newObserverClassHolders);
+            if(newObserverClassHolders.isEmpty())
+                aspectObserversMap.remove(aspectClass);
+            else
+                aspectObserversMap.put(aspectClass, newObserverClassHolders);
             aspectObserverInstanceMap.remove(aspectObserver.getClass());
         }
     }

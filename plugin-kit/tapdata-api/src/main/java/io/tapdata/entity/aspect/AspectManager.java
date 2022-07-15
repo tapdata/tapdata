@@ -5,9 +5,16 @@ import java.util.concurrent.Callable;
 public interface AspectManager {
     <T extends Aspect> void registerAspectInterceptor(Class<T> aspectClass, int order, AspectInterceptor<T> aspectInterceptor);
 
+    @SuppressWarnings("unchecked")
+    void registerInterceptor(Class<? extends Aspect> aspectClass, int order, AspectInterceptor<Aspect> aspectInterceptor);
+
     <T extends Aspect> void unregisterAspectInterceptor(Class<T> aspectClass, Class<? extends AspectInterceptor<T>> observerClass);
 
     <T extends Aspect> void unregisterAspectInterceptor(Class<T> aspectClass, AspectInterceptor<T> aspectInterceptor);
+
+    void unregisterInterceptor(Class<? extends Aspect> aspectClass, AspectInterceptor<Aspect> aspectInterceptor);
+
+    void registerObserver(Class<? extends Aspect> aspectClass, int order, AspectObserver<Aspect> aspectObserver);
 
     <T extends Aspect> void registerAspectObserver(Class<T> aspectClass, int order, AspectObserver<T> aspectObserver);
 
@@ -15,6 +22,8 @@ public interface AspectManager {
     <T extends Aspect> void unregisterAspectObserver(Class<T> aspectClass, Class<? extends AspectObserver<T>> observerClass);
 
     <T extends Aspect> void unregisterAspectObserver(Class<T> aspectClass, AspectObserver<T> aspectObserver);
+
+    void unregisterObserver(Class<? extends Aspect> aspectClass, AspectObserver<Aspect> aspectObserver);
 
     <T extends AspectObserver<?>> T getAspectObserver(Class<T> observerClass);
 
