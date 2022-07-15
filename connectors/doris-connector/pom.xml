@@ -19,8 +19,9 @@
         <java.version>8</java.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 
-        <guava.version>31.0.1-jre</guava.version>
-        <sql.core.version>1.0-SNAPSHOT</sql.core.version>
+        <jackson.version>2.13.2</jackson.version>
+        <httpclient.version>4.5.13</httpclient.version>
+        <spring-core.version>2.5.6</spring-core.version>
     </properties>
     <!--<dependencyManagement>-->
     <dependencies>
@@ -47,18 +48,16 @@
         <dependency>
             <groupId>mysql</groupId>
             <artifactId>mysql-connector-java</artifactId>
-            <version>8.0.28</version>
         </dependency>
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
             <artifactId>jackson-databind</artifactId>
-            <version>2.13.2</version>
+            <version>${jackson.version}</version>
             <scope>compile</scope>
         </dependency>
         <dependency>
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>
-            <version>1.18.24</version>
         </dependency>
         <dependency>
             <groupId>org.apache.commons</groupId>
@@ -67,12 +66,10 @@
         <dependency>
             <groupId>com.google.guava</groupId>
             <artifactId>guava</artifactId>
-            <version>${guava.version}</version>
         </dependency>
         <dependency>
             <groupId>io.tapdata</groupId>
             <artifactId>sql-core</artifactId>
-            <version>${sql.core.version}</version>
         </dependency>
         <dependency>
             <groupId>org.apache.commons</groupId>
@@ -81,17 +78,12 @@
         <dependency>
             <groupId>org.apache.httpcomponents</groupId>
             <artifactId>httpclient</artifactId>
-            <version>4.5.13</version>
-            <scope>compile</scope>
+            <version>${httpclient.version}</version>
         </dependency>
         <dependency>
             <groupId>org.springframework</groupId>
             <artifactId>spring-core</artifactId>
-            <version>2.5.6</version>
-        </dependency>
-        <dependency>
-            <groupId>io.tapdata</groupId>
-            <artifactId>tapdata-api</artifactId>
+            <version>${spring-core.version}</version>
         </dependency>
     </dependencies>
     <build>
@@ -139,7 +131,7 @@
                         </goals>
 
                         <configuration>
-                            <outputDirectory>${basedir}/../../dist/</outputDirectory>
+                            <outputDirectory>../dist</outputDirectory>
                             <resources>
                                 <resource>
                                     <directory>${basedir}/target/</directory>

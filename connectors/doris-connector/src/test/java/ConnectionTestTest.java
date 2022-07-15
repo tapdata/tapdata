@@ -1,3 +1,5 @@
+package java;
+
 import io.tapdata.connector.doris.bean.DorisConfig;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.pdk.core.api.impl.JsonParserImpl;

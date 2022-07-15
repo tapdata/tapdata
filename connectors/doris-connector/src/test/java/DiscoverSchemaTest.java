@@ -1,3 +1,5 @@
+package java;
+
 import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.tapdata.connector.doris.bean.DorisConfig;

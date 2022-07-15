@@ -20,15 +20,22 @@
 	<properties>
 		<connector.file.name>${project.artifactId}-v${project.version}</connector.file.name>
 		<java.version>8</java.version>
+		<!--internal dependencies-->
 		<tapdata.pdk.runner.version>1.2-SNAPSHOT</tapdata.pdk.runner.version>
 		<tapdata.api.version>1.2-SNAPSHOT</tapdata.api.version>
 		<tapdata.pdk.api.version>1.2-SNAPSHOT</tapdata.pdk.api.version>
 		<tapdata.pdk.connector.core.version>1.0-SNAPSHOT</tapdata.pdk.connector.core.version>
+		<sql-core.version>1.0-SNAPSHOT</sql-core.version>
+
+		<!--external dependencies-->
 		<junit.jupiter.version>5.8.1</junit.jupiter.version>
 		<junit.platform.version>1.8.1</junit.platform.version>
 		<commons.lang3.version>3.12.0</commons.lang3.version>
 		<commons.collections4.version>4.4</commons.collections4.version>
 		<log4j.version>2.17.1</log4j.version>
+		<guava.version>31.0.1-jre</guava.version>
+		<lombok.version>1.18.24</lombok.version>
+		<mysql.driver.version>8.0.28</mysql.driver.version>
 	</properties>
 	<dependencyManagement>
 		<dependencies>
@@ -97,6 +104,26 @@
 				<groupId>org.apache.commons</groupId>
 				<artifactId>commons-collections4</artifactId>
 				<version>${commons.collections4.version}</version>
+			</dependency>
+			<dependency>
+				<groupId>com.google.guava</groupId>
+				<artifactId>guava</artifactId>
+				<version>${guava.version}</version>
+			</dependency>
+			<dependency>
+				<groupId>org.projectlombok</groupId>
+				<artifactId>lombok</artifactId>
+				<version>${lombok.version}</version>
+			</dependency>
+			<dependency>
+				<groupId>mysql</groupId>
+				<artifactId>mysql-connector-java</artifactId>
+				<version>${mysql.driver.version}</version>
+			</dependency>
+			<dependency>
+				<groupId>io.tapdata</groupId>
+				<artifactId>sql-core</artifactId>
+				<version>${sql-core.version}</version>
 			</dependency>
 		</dependencies>
 	</dependencyManagement>

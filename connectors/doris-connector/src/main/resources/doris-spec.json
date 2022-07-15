@@ -3,7 +3,7 @@
     "name": "Doris",
     "icon": "icons/doris.png",
     "id": "doris",
-    "docs": "${docs}"
+    "docs": "${doc}"
   },
   "configOptions": {
     "connection": {
@@ -32,6 +32,7 @@
           "title": "${dorisHttp}",
           "x-decorator": "FormItem",
           "x-component": "Input",
+          "required": true,
           "x-index": 30
         },
         "database": {

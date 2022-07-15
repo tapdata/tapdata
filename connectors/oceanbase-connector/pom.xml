@@ -14,14 +14,8 @@
         <maven.compiler.source>8</maven.compiler.source>
         <maven.compiler.target>8</maven.compiler.target>
 
-        <!--同工程里的其他module-->
-        <sql-core.version>1.0-SNAPSHOT</sql-core.version>
-
         <!--外部依赖-->
         <HikariCP.version>4.0.3</HikariCP.version>
-        <commons-lang.version>3.12.0</commons-lang.version>
-        <mysql.driver.version>8.0.21</mysql.driver.version>
-        <guava.version>31.0.1-jre</guava.version>
     </properties>
 
     <artifactId>oceanbase-connector</artifactId>
@@ -49,7 +43,6 @@
         <dependency>
             <groupId>mysql</groupId>
             <artifactId>mysql-connector-java</artifactId>
-            <version>${mysql.driver.version}</version>
         </dependency>
 
         <dependency>
@@ -59,7 +52,6 @@
         <dependency>
             <groupId>io.tapdata</groupId>
             <artifactId>sql-core</artifactId>
-            <version>${sql-core.version}</version>
         </dependency>
         <dependency>
             <groupId>org.apache.commons</groupId>
@@ -68,7 +60,6 @@
         <dependency>
             <groupId>com.google.guava</groupId>
             <artifactId>guava</artifactId>
-            <version>${guava.version}</version>
         </dependency>
     </dependencies>
     <build>
