@@ -18,7 +18,7 @@ Tapdata 是新一代的实时数据平台, 通过把企业核心数据实时集�
 
 你也可以使用Tapdata作为一个实时数据集成（ETL）工具, 提供各种异构数据库之间的实时复制能力
 
-## Tapdata 架构图
+## Tapdata 架构图 
 <img src="https://github.com/tapdata/tapdata/raw/master/assets/tapdata-ldp.png" width="900px"/>
 
 ## 安装准备
@@ -181,7 +181,7 @@ Tapdata 使用复合 License
 
 ## 加入我们
 - 微信
-<img src="https://github.com/tapdata/tapdata/raw/master/assets/wechat-qr-code.jpg" width="200px"/>
+![](assets/wechat-qr-code.jpg){:width="200px"}
 
 - [Slack](https://join.slack.com/t/tapdatacommunity/shared_invite/zt-1biraoxpf-NRTsap0YLlAp99PHIVC9eA)
 
