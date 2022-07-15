@@ -136,3 +136,6 @@ The license for a particular work is defined with following prioritized rules:
 - First LICENSE found when exploring parent directories up to the project top level directory
 
 Defaults to Server Side Public License. For PDK Connectors, the license is Apache V2.
+
+## Join now
+- [Slack channel](https://join.slack.com/t/tapdatacommunity/shared_invite/zt-1biraoxpf-NRTsap0YLlAp99PHIVC9eA)
