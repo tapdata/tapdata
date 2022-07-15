@@ -1,3 +1,5 @@
+package java;
+
 import io.tapdata.connector.doris.bean.DorisConfig;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.pdk.core.api.impl.JsonParserImpl;
@@ -24,7 +26,7 @@ public class ConnectionTestTest {
 //        DefaultMap source_map = mapper.readValue(new File(sourcePath), DefaultMap.class);
 
         String targetPath = "B:\\code\\tapdata\\idaas-pdk\\connectors\\doris-connector\\src\\main\\resources\\target.json";
-        dorisConfig = (DorisConfig) DorisConfig.load(targetPath);
+        dorisConfig = (DorisConfig) new DorisConfig().load(targetPath);
         PreparedStatement stmt = null;
         String dbUrl = dorisConfig.getDatabaseUrl();
         Connection conn = DriverManager.getConnection(dbUrl, dorisConfig.getUser(), dorisConfig.getPassword());

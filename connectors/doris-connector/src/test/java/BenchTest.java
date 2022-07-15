@@ -1,4 +1,4 @@
-/**
+package java; /**
  * @Author dayun
  * @Date 7/14/22
  */
@@ -19,7 +19,7 @@ public class BenchTest {
     private void initConnection() throws Exception {
         if (conn == null) {
             String targetPath = "B:\\code\\tapdata\\idaas-pdk\\connectors\\doris-connector\\src\\main\\resources\\target.json";
-            dorisConfig = (DorisConfig) DorisConfig.load(targetPath);
+            dorisConfig = (DorisConfig) new DorisConfig().load(targetPath);
             String dbUrl = dorisConfig.getDatabaseUrl();
             conn = DriverManager.getConnection(dbUrl, dorisConfig.getUser(), dorisConfig.getPassword());
         }

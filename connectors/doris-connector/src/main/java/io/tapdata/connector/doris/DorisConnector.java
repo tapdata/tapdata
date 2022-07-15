@@ -16,7 +16,6 @@ import io.tapdata.entity.schema.value.TapDateValue;
 import io.tapdata.entity.schema.value.TapMapValue;
 import io.tapdata.entity.schema.value.TapRawValue;
 import io.tapdata.entity.schema.value.TapTimeValue;
-import io.tapdata.pdk.apis.TapConnector;
 import io.tapdata.pdk.apis.annotations.TapConnectorClass;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
@@ -30,7 +29,6 @@ import org.apache.commons.lang3.StringUtils;
 import io.tapdata.connector.doris.streamload.DorisStreamLoader;
 import io.tapdata.connector.doris.streamload.HttpUtil;
 
-import java.io.IOException;
 import java.util.List;
 import java.util.function.Consumer;
 
@@ -38,8 +36,8 @@ import java.util.function.Consumer;
  * @Author dayun
  * @Date 7/14/22
  */
-@TapConnectorClass("spec.json")
-public class DorisConnector extends ConnectorBase implements TapConnector {
+@TapConnectorClass("doris-spec.json")
+public class DorisConnector extends ConnectorBase {
     public static final String TAG = DorisConnector.class.getSimpleName();
 
     private DorisContext dorisContext;
@@ -165,7 +163,7 @@ public class DorisConnector extends ConnectorBase implements TapConnector {
         codecRegistry.registerFromTapValue(TapDateValue.class, tapDateValue -> tapDateValue.getValue().toSqlDate());
     }
 
-    private void writeRecord(TapConnectorContext connectorContext, List<TapRecordEvent> tapRecordEvents, TapTable tapTable, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer) throws IOException {
+    private void writeRecord(TapConnectorContext tapConnectorContext, List<TapRecordEvent> tapRecordEvents, TapTable tapTable, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer) throws Throwable {
         if (!useStreamLoad()) {
             throw new UnsupportedOperationException("doris httpUrl is required for write operation");
         }
@@ -180,37 +178,6 @@ public class DorisConnector extends ConnectorBase implements TapConnector {
     private void createTable(TapConnectionContext tapConnectorContext, TapCreateTableEvent tapCreateTableEvent) {
         dorisSchemaLoader.createTable(tapCreateTableEvent.getTable());
     }
-
-//FIXME DOIRS异步执行alter命令，无回调接口，没次对同一个table同时执行一个alter命令；不能保证某个时刻是否存在alter命令正在执行
-
-//    private void alterTable(TapConnectorContext tapConnectorContext, TapAlterTableEvent tapAlterTableEvent)
-//        // TODO 需要实现修改表的功能， 不过测试只能先从源端模拟一个修改表事件
-//        initConnection(tapConnectorContext.getConnectionConfig());
-//        TapTable tapTable = tapConnectorContext.getTable();
-//        Set<String> fieldNames = tapTable.getNameFieldMap().keySet();
-//        try {
-//            for (TapField insertField : tapAlterTableEvent.getInsertFields()) {
-//                if (insertField.getOriginType() == null || insertField.getDefaultValue() == null) continue;
-//                String sql = "ALTER TABLE " + tapTable.getName() +
-//                        " ADD COLUMN " + insertField.getName() + ' ' + insertField.getOriginType() +
-//                        " DEFAULT '" + insertField.getDefaultValue() + "'";
-//                stmt.execute(sql);
-//            }
-//            for (String deletedFieldName : tapAlterTableEvent.getDeletedFields()) {
-//                if (!fieldNames.contains(deletedFieldName)) continue;
-//                String sql = "ALTER TABLE " + tapTable.getName() +
-//                        " DROP COLUMN " + deletedFieldName;
-//                stmt.execute(sql);
-//            }
-//            // TODO Doris在文档中没有看到修改列名的相关操作
-//
-//        } catch (SQLException e) {
-//            e.printStackTrace();
-//            throw new RuntimeException("ALTER Table " + tapTable.getName() + " Failed! \n ");
-//        }
-//
-//        PDKLogger.info(TAG, "alterTable");
-//    }
 
     private void clearTable(TapConnectorContext tapConnectorContext, TapClearTableEvent tapClearTableEvent) {
         final String tableName = tapClearTableEvent.getTableId();

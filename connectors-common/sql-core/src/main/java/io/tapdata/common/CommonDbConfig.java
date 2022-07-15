@@ -48,7 +48,7 @@ public class CommonDbConfig implements Serializable {
         return String.format(this.getDatabaseUrlPattern(), this.getHost(), this.getPort(), this.getDatabase(), this.getExtParams());
     }
 
-    public static CommonDbConfig load(String json) {
+    public CommonDbConfig load(String json) {
         try {
             beanUtils.copyProperties(jsonParser.fromJson(json, this.getClass()), this);
             return this;
