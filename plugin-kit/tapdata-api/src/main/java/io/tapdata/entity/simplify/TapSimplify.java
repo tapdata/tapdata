@@ -205,8 +205,8 @@ public class TapSimplify {
 		return new TapInsertRecordEvent().init().after(after).table(table);
 	}
 
-	public static TapAlterDatabaseTimeZoneEvent alterDatabaseTimeZoneEvent() {
-		return new TapAlterDatabaseTimeZoneEvent();
+	public static TapAlterDatabaseTimezoneEvent alterDatabaseTimeZoneEvent() {
+		return new TapAlterDatabaseTimezoneEvent();
 	}
 
 	public static <T> FieldAttrChange<T> fieldAttrChange(String name, T after) {

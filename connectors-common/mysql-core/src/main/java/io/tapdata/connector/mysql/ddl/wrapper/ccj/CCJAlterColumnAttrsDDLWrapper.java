@@ -5,12 +5,15 @@ import io.tapdata.entity.event.ddl.entity.ValueChange;
 import io.tapdata.entity.event.ddl.table.TapAlterFieldAttributesEvent;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.cache.KVReadOnlyMap;
+import io.tapdata.pdk.apis.entity.Capability;
+import io.tapdata.pdk.apis.entity.ConnectionOptions;
 import net.sf.jsqlparser.statement.alter.Alter;
 import net.sf.jsqlparser.statement.alter.AlterExpression;
 import net.sf.jsqlparser.statement.alter.AlterOperation;
 import net.sf.jsqlparser.statement.create.table.ColDataType;
 import org.apache.commons.lang3.StringUtils;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.function.Consumer;
 
@@ -20,6 +23,11 @@ import java.util.function.Consumer;
  * @create 2022-07-04 17:45
  **/
 public class CCJAlterColumnAttrsDDLWrapper extends CCJBaseDDLWrapper {
+	@Override
+	public List<Capability> getCapabilities() {
+		return Collections.singletonList(Capability.create(ConnectionOptions.DDL_ALTER_FIELD_ATTRIBUTES_EVENT).type(Capability.TYPE_DDL));
+	}
+
 	@Override
 	public void wrap(Alter ddl, KVReadOnlyMap<TapTable> tableMap, Consumer<TapDDLEvent> consumer) throws Throwable {
 		verifyAlter(ddl);
@@ -55,7 +63,7 @@ public class CCJAlterColumnAttrsDDLWrapper extends CCJBaseDDLWrapper {
 						case "null":
 						case "NULL":
 							boolean nullable = !"not".equals(preSpec);
-							tapAlterFieldAttributesEvent.notNull(ValueChange.create(nullable));
+							tapAlterFieldAttributesEvent.nullable(ValueChange.create(nullable));
 							preSpec = "";
 							break;
 						case "key":

@@ -44,11 +44,11 @@ public abstract class TapRecordEvent extends TapBaseEvent {
         this.connectorVersion = connectorVersion;
     }
 
-    @Override
-    public String toString() {
-        return "TapRecordEvent{" +
-                "connector='" + connector + '\'' +
-                ", connectorVersion='" + connectorVersion + '\'' +
-                "} " + super.toString();
-    }
+//    @Override
+//    public String toString() {
+//        return "TapRecordEvent{" +
+//                "connector='" + connector + '\'' +
+//                ", connectorVersion='" + connectorVersion + '\'' +
+//                "} " + super.toString();
+//    }
 }

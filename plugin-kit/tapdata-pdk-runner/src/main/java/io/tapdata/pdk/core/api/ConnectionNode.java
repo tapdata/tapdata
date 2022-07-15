@@ -3,6 +3,7 @@ package io.tapdata.pdk.core.api;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.pdk.apis.TapConnectorNode;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
+import io.tapdata.pdk.apis.entity.ConnectionOptions;
 import io.tapdata.pdk.apis.entity.TestItem;
 
 import java.util.List;
@@ -18,8 +19,8 @@ public class ConnectionNode extends Node {
     public int tableCount() throws Throwable {
         return connectorNode.tableCount(connectionContext);
     }
-    public void connectionTest(Consumer<TestItem> consumer) throws Throwable {
-        connectorNode.connectionTest(connectionContext, consumer);
+    public ConnectionOptions connectionTest(Consumer<TestItem> consumer) throws Throwable {
+        return connectorNode.connectionTest(connectionContext, consumer);
     }
     public void connectorInit() throws Throwable {
         connectorNode.init(connectionContext);

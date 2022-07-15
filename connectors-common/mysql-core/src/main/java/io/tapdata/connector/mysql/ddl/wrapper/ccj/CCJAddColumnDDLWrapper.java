@@ -5,14 +5,19 @@ import io.tapdata.entity.event.ddl.table.TapNewFieldEvent;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.cache.KVReadOnlyMap;
+import io.tapdata.pdk.apis.entity.Capability;
+import io.tapdata.pdk.apis.entity.ConnectionOptions;
 import net.sf.jsqlparser.statement.alter.Alter;
 import net.sf.jsqlparser.statement.alter.AlterExpression;
 import net.sf.jsqlparser.statement.alter.AlterOperation;
 import net.sf.jsqlparser.statement.create.table.ColDataType;
 import org.apache.commons.lang3.StringUtils;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.function.Consumer;
+
+import static io.tapdata.pdk.apis.entity.ConnectionOptions.DDL_NEW_FIELD_EVENT;
 
 /**
  * @author samuel
@@ -20,6 +25,10 @@ import java.util.function.Consumer;
  * @create 2022-07-01 14:24
  **/
 public class CCJAddColumnDDLWrapper extends CCJBaseDDLWrapper {
+	@Override
+	public List<Capability> getCapabilities() {
+		return Collections.singletonList(Capability.create(DDL_NEW_FIELD_EVENT).type(Capability.TYPE_DDL));
+	}
 
 	@Override
 	public void wrap(Alter ddl, KVReadOnlyMap<TapTable> tableMap, Consumer<TapDDLEvent> consumer) throws Throwable {
