@@ -27,7 +27,9 @@ public enum MessageType {
 
 	UNSUBSCRIBE("unsubscribe"),
 	/** 模型推演 */
-	TRANSFORMER("metadataTransformerProgress"),
+	TRANSFORMER_STATUS_PUSH("metadataTransformerProgress"),
+
+	TRANSFORMER("deduceSchema"),
 	/**  */
 	LOADJAR("loadJar"),
 

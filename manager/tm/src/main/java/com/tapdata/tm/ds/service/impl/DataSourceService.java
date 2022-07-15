@@ -61,6 +61,8 @@ import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.entity.utils.JsonParser;
 import io.tapdata.entity.utils.TypeHolder;
+import io.tapdata.pdk.apis.entity.Capability;
+import io.tapdata.pdk.apis.entity.ConnectionOptions;
 import io.tapdata.pdk.core.utils.TapConstants;
 import lombok.NonNull;
 import lombok.Setter;
@@ -337,7 +339,7 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 
         List<String> pdkHashList = items.stream().map(DataSourceConnectionDto::getPdkHash).distinct().collect(Collectors.toList());
         List<DataSourceDefinitionDto> definitionDtoList = dataSourceDefinitionService.findByPdkHashList(pdkHashList, user);
-        Map<String, DataSourceDefinitionDto> definitionMap = definitionDtoList.stream().collect(Collectors.toMap(DataSourceDefinitionDto::getPdkHash, Function.identity(), (f1, f2) -> f1));
+        //Map<String, DataSourceDefinitionDto> definitionMap = definitionDtoList.stream().collect(Collectors.toMap(DataSourceDefinitionDto::getPdkHash, Function.identity(), (f1, f2) -> f1));
 
         for (DataSourceConnectionDto item : items) {
             if (!isAgentReq()) {
@@ -347,9 +349,10 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
                 }
             }
 
-            if (definitionMap.containsKey(item.getPdkHash())) {
-                item.setPdkExpansion(definitionMap.get(item.getPdkHash()).getCapabilities());
-            }
+            //不需要这个操作了。引擎会更新这个东西，另外每次更新databasetypes的时候，需要更新这个  参考： updateCapabilities方法
+//            if (definitionMap.containsKey(item.getPdkHash())) {
+//                item.setCapabilities(definitionMap.get(item.getPdkHash()).getCapabilities());
+//            }
 
             desensitizeMongoConnection(item);
 
@@ -764,11 +767,7 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
         connection.setDefinitionGroup(definitionDto.getGroup());
         connection.setDefinitionScope(definitionDto.getScope());
         connection.setDefinitionPdkId(definitionDto.getPdkId());
-
-        Map<String, Object> properties = definitionDto.getProperties();
-        if (properties != null) {
-            connection.setPdkExpansion((List<String>) properties.get("pdkExpansion"));
-        }
+        connection.setCapabilities(definitionDto.getCapabilities());
 
         //检查是否存在名称相同的数据源连接，存在的话，则不允许。（还可以检验一下关键字）
         checkRepeatName(user, connection.getName(), connection.getId());
@@ -1408,4 +1407,51 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
     }
 
 
+    public void updateConnectionOptions(ObjectId id, ConnectionOptions options, UserDetail user) {
+
+        if (options == null) {
+            options = new ConnectionOptions();
+        }
+
+        Criteria criteria = Criteria.where("_id").is(id);
+        Query query = new Query(criteria);
+        query.fields().include("_id", "database_type");
+        DataSourceConnectionDto connectionDto = findOne(query, user);
+        if (connectionDto == null) {
+            return;
+        }
+
+        Update update = new Update();
+
+        if (options.getCapabilities() == null) {
+            options.setCapabilities(Lists.newArrayList());
+        }
+
+        DataSourceDefinitionDto definitionDto = dataSourceDefinitionService.getByDataSourceType(connectionDto.getDatabase_type(), user);
+        List<Capability> capabilities = definitionDto.getCapabilities();
+        List<Capability> updateCapabilities = options.getCapabilities();
+        if (CollectionUtils.isNotEmpty(updateCapabilities)) {
+            Set<String> upCapabilitySet = updateCapabilities.stream().map(Capability::getId).collect(Collectors.toSet());
+            for (Capability capability : capabilities) {
+                if (!upCapabilitySet.contains(capability.getId())) {
+                    updateCapabilities.add(capability);
+                }
+            }
+        } else {
+            updateCapabilities.addAll(capabilities);
+        }
+        update.set("capabilities", updateCapabilities);
+
+
+        if (StringUtils.isNotBlank(options.getConnectionString())) {
+            update.set("connectionString", options.getConnectionString());
+        }
+
+        if (options.getTimeZone() != null) {
+            update.set("timeZone", options.getTimeZone());
+        }
+
+        updateById(id, update, user);
+
+    }
 }

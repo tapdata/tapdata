@@ -26,6 +26,8 @@ public class ShareCacheVo extends BaseVo {
   private Date createTime;
   private Date cacheTimeAt;
 
+  private Integer maxMemory;
+
   @JsonInclude(JsonInclude.Include.ALWAYS)
   private String createUser;
 
