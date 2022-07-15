@@ -118,6 +118,11 @@ public abstract class WriteRecorder {
         }
         Map<String, Object> before = new HashMap<>();
         uniqueCondition.forEach(k -> before.put(k, after.get(k)));
+        justUpdate(after, before);
+        preparedStatement.addBatch();
+    }
+
+    protected void justUpdate(Map<String, Object> after, Map<String, Object> before) throws SQLException {
         if (EmptyKit.isNull(preparedStatement)) {
             if (hasPk) {
                 preparedStatement = connection.prepareStatement("UPDATE \"" + schema + "\".\"" + tapTable.getId() + "\" SET " +
@@ -136,7 +141,6 @@ public abstract class WriteRecorder {
             preparedStatement.setObject(pos++, after.get(key));
         }
         dealNullBefore(before, pos);
-        preparedStatement.addBatch();
     }
 
     public void addDeleteBatch(Map<String, Object> before) throws SQLException {

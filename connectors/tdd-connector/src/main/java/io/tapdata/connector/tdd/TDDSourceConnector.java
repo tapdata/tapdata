@@ -209,7 +209,7 @@ public class TDDSourceConnector extends ConnectorBase {
                         entry("tapRawTDDUser", new TDDUser("a1", "n1", "d1", 11, TDDUser.GENDER_MALE)),
                         entry("tapNumber", 123.0),
 //                        entry("tapNumber(8)", 1111),
-                        entry("tapNumber52", 1343.22),
+                        entry("tapNumber52", 343.22),
                         entry("tapBinary", new byte[]{123, 21, 3, 2}),
                         entry("tapTime", date),
                         entry("tapMapStringString", map(entry("a", "a"), entry("b", "b"))),
