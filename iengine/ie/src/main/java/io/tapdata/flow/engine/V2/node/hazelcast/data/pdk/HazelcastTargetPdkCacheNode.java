@@ -1,14 +1,13 @@
 package io.tapdata.flow.engine.V2.node.hazelcast.data.pdk;
 
-import com.tapdata.cache.ICacheService;
 import com.tapdata.cache.CacheUtil;
+import com.tapdata.cache.ICacheService;
 import com.tapdata.entity.dataflow.DataFlowCacheConfig;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.CacheNode;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
-import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.flow.engine.V2.entity.TapdataShareLogEvent;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
@@ -50,17 +49,7 @@ public class HazelcastTargetPdkCacheNode extends HazelcastTargetPdkBaseNode {
 
 	@Override
 	void processEvents(List<TapEvent> tapEvents) {
-
-	}
-
-	@Override
-	void processShareLog(List<TapdataShareLogEvent> tapdataShareLogEvents) {
-
-	}
-
-	//	@Override
-	void processPdk(List<TapRecordEvent> tapEvents) {
-		for (TapRecordEvent tapEvent : tapEvents) {
+		for (TapEvent tapEvent : tapEvents) {
 
 			Map<String, Object> row = TapEventUtil.getAfter(tapEvent);
 			if (MapUtils.isEmpty(row)) {
@@ -90,5 +79,10 @@ public class HazelcastTargetPdkCacheNode extends HazelcastTargetPdkBaseNode {
 			}
 
 		}
+	}
+
+	@Override
+	void processShareLog(List<TapdataShareLogEvent> tapdataShareLogEvents) {
+		throw new UnsupportedOperationException();
 	}
 }
