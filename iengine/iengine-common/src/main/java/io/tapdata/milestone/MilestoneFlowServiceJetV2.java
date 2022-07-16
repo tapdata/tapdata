@@ -1,5 +1,6 @@
 package io.tapdata.milestone;
 
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.google.common.collect.EnumBiMap;
 import com.tapdata.constant.BeanUtil;
 import com.tapdata.constant.ConnectorConstant;
@@ -30,7 +31,25 @@ public class MilestoneFlowServiceJetV2 extends MilestoneService {
 
 	public MilestoneFlowServiceJetV2(MilestoneContext milestoneContext) {
 		super(milestoneContext);
-		if (milestoneContext.getEdgeMilestones() == null) {
+		SubTaskDto subTaskDto = milestoneContext.getSubTaskDto();
+		Map<String, Object> attrs = subTaskDto.getAttrs();
+		Object edgeMilestones = null;
+		if (MapUtils.isNotEmpty(attrs)) {
+			edgeMilestones = subTaskDto.getAttrs().get("edgeMilestones");
+		}
+		if (edgeMilestones instanceof Map && MapUtils.isNotEmpty((Map<?, ?>) edgeMilestones)) {
+			Map<String, EdgeMilestone> newEdgeMilestones = new ConcurrentHashMap<>();
+			for (Map.Entry<?, ?> entry : ((Map<?, ?>) edgeMilestones).entrySet()) {
+				Object key = entry.getKey();
+				Object value = entry.getValue();
+				if (value instanceof Map) {
+					EdgeMilestone edgeMilestone = JSONUtil.map2POJO((Map<?, ?>) value, new TypeReference<EdgeMilestone>() {{
+					}});
+					newEdgeMilestones.put(String.valueOf(key), edgeMilestone);
+				}
+			}
+			milestoneContext.setEdgeMilestones(newEdgeMilestones);
+		} else {
 			milestoneContext.setEdgeMilestones(new ConcurrentHashMap<>());
 		}
 		this.clientMongoOperator = buildOperator();

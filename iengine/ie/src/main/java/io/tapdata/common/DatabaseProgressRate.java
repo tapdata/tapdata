@@ -10,7 +10,7 @@ import java.util.List;
 
 public interface DatabaseProgressRate {
 
-	ProgressRateStats progressRateInfo(Job job, Connections sourceConn, Connections targetConn, MongoClient targetMongoClient, List<Target> targets);
+  ProgressRateStats progressRateInfo(Job job, Connections sourceConn, Connections targetConn, MongoClient targetMongoClient, List<Target> targets);
 
-	long getCdcLastTime(Connections sourceConn, Job job);
+  long getCdcLastTime(Connections sourceConn, Job job);
 }

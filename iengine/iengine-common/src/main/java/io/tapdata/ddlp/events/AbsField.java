@@ -15,13 +15,13 @@ import java.util.List;
 @Setter
 @Getter
 public abstract class AbsField extends AbsStruct {
-	private String name;
+  private String name;
 
-	protected AbsField() {
-	}
+  protected AbsField() {
+  }
 
-	protected AbsField(DDLOperator op, String ddl, List<String> namespace, String name) {
-		super(op, ddl, namespace);
-		setName(name);
-	}
+  protected AbsField(DDLOperator op, String ddl, List<String> namespace, String name) {
+    super(op, ddl, namespace);
+    setName(name);
+  }
 }

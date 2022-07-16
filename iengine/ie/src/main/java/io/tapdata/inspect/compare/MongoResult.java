@@ -19,63 +19,63 @@ import java.util.Map;
  * @description
  */
 public class MongoResult extends BaseResult<Map<String, Object>> {
-	MongoClient mongoClient;
-	MongoCursor<Document> mongoCursor;
+  MongoClient mongoClient;
+  MongoCursor<Document> mongoCursor;
 
-	public MongoResult(List<String> sortColumns, Connections connections, String tableName, ConverterProvider converterProvider) {
-		super(sortColumns, connections, tableName, converterProvider);
-	}
+  public MongoResult(List<String> sortColumns, Connections connections, String tableName, ConverterProvider converterProvider) {
+    super(sortColumns, connections, tableName, converterProvider);
+  }
 
-	@Override
-	public void close() {
-		if (mongoCursor != null) {
-			mongoCursor.close();
-		}
-		if (mongoClient != null) {
-			mongoClient.close();
-		}
-	}
+  @Override
+  public void close() {
+    if (mongoCursor != null) {
+      mongoCursor.close();
+    }
+    if (mongoClient != null) {
+      mongoClient.close();
+    }
+  }
 
-	@Override
-	public boolean hasNext() {
-		return mongoCursor.hasNext();
-	}
+  @Override
+  public boolean hasNext() {
+    return mongoCursor.hasNext();
+  }
 
-	@Override
-	public Map<String, Object> next() {
-		pointer++;
-		Document next = mongoCursor.next();
-		next.keySet().stream().forEach(k -> {
-			Object value = next.get(k);
-			if (value != null) {
-				try {
-					RelateDatabaseField fieldSchema = getFieldSchema(k);
-					if (fieldSchema != null && converterProvider != null) {
-						converterProvider.javaTypeConverter(fieldSchema);
-						value = converterProvider.sourceValueConverter(fieldSchema, value);
-						next.put(k, value);
-					}
-					if (value instanceof Date) {
-						next.put(k, ((Date) value).toInstant().toString());
-					} else if (value instanceof ObjectId) {
-						next.put(k, ((ObjectId) value).toHexString());
-					}
-				} catch (ConvertException e) {
-					e.printStackTrace();
-				}
-			}
+  @Override
+  public Map<String, Object> next() {
+    pointer++;
+    Document next = mongoCursor.next();
+    next.keySet().stream().forEach(k -> {
+      Object value = next.get(k);
+      if (value != null) {
+        try {
+          RelateDatabaseField fieldSchema = getFieldSchema(k);
+          if (fieldSchema != null && converterProvider != null) {
+            converterProvider.javaTypeConverter(fieldSchema);
+            value = converterProvider.sourceValueConverter(fieldSchema, value);
+            next.put(k, value);
+          }
+          if (value instanceof Date) {
+            next.put(k, ((Date) value).toInstant().toString());
+          } else if (value instanceof ObjectId) {
+            next.put(k, ((ObjectId) value).toHexString());
+          }
+        } catch (ConvertException e) {
+          e.printStackTrace();
+        }
+      }
 
-		});
-		return next;
-	}
+    });
+    return next;
+  }
 
-	@Override
-	public long getTotal() {
-		return total;
-	}
+  @Override
+  public long getTotal() {
+    return total;
+  }
 
-	@Override
-	public long getPointer() {
-		return pointer;
-	}
+  @Override
+  public long getPointer() {
+    return pointer;
+  }
 }

@@ -16,14 +16,14 @@ import java.util.List;
 @Getter
 public class AddFieldDefault extends AbsField {
 
-	private String value;
+  private String value;
 
-	public AddFieldDefault() {
-	}
+  public AddFieldDefault() {
+  }
 
-	public AddFieldDefault(String ddl, List<String> namespace, String name, String value) {
-		super(DDLOperator.AddFieldDefault, ddl, namespace, name);
-		setValue(value);
-	}
+  public AddFieldDefault(String ddl, List<String> namespace, String name, String value) {
+    super(DDLOperator.AddFieldDefault, ddl, namespace, name);
+    setValue(value);
+  }
 
 }

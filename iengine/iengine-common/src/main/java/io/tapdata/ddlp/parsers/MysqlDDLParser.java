@@ -14,18 +14,18 @@ import io.tapdata.ddlp.utils.SqlDDLParser;
 @DatabaseTypeAnnotation(type = DatabaseTypeEnum.MYSQL)
 public class MysqlDDLParser extends SqlDDLParser {
 
-	/**
-	 * 加载名称
-	 *
-	 * @param reader 读取器
-	 * @return 名称，为空时表示读取不到
-	 */
-	protected String loadName(CharReader reader) {
-		switch (reader.current()) {
-			case '`':
-				return reader.readInQuote('`', '`');
-			default:
-				return reader.readNotIn(spaceFn);
-		}
-	}
+  /**
+   * 加载名称
+   *
+   * @param reader 读取器
+   * @return 名称，为空时表示读取不到
+   */
+  protected String loadName(CharReader reader) {
+    switch (reader.current()) {
+      case '`':
+        return reader.readInQuote('`', '`');
+      default:
+        return reader.readNotIn(spaceFn);
+    }
+  }
 }

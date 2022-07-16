@@ -8,6 +8,8 @@ import java.util.Map;
  */
 public interface IDataSourceRowsGetter {
 
-	List<Map<String, Object>> getRows(Object[] keys);
+  List<Map<String, Object>> getRows(Object[] keys);
+
+  default void close() {}
 
 }

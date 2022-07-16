@@ -17,40 +17,40 @@ import java.util.function.Consumer;
  */
 public interface DDLParser<I, O extends DDLEvent> {
 
-	/**
-	 * DDL 转事件
-	 *
-	 * @param in  DDL
-	 * @param out 事件消费
-	 */
-	void ddl2Event(I in, Consumer<O> out);
+  /**
+   * DDL 转事件
+   *
+   * @param in  DDL
+   * @param out 事件消费
+   */
+  void ddl2Event(I in, Consumer<O> out);
 
-	/**
-	 * DDL 转事件
-	 *
-	 * @param in DDL
-	 * @return 事件
-	 */
-	default List<O> ddl2Event(I in) {
-		List<O> events = new ArrayList<>();
-		ddl2Event(in, events::add);
-		return events;
-	}
+  /**
+   * DDL 转事件
+   *
+   * @param in DDL
+   * @return 事件
+   */
+  default List<O> ddl2Event(I in) {
+    List<O> events = new ArrayList<>();
+    ddl2Event(in, events::add);
+    return events;
+  }
 
-	/**
-	 * DDL 转事件
-	 *
-	 * @param in    输入
-	 * @param out   输出处理器
-	 * @param errFn 异常处理器
-	 * @return 是否异常
-	 */
-	default boolean ddl2Event(I in, Consumer<O> out, BiFunction<I, Exception, Boolean> errFn) {
-		try {
-			ddl2Event(in, out);
-			return true;
-		} catch (Exception e) {
-			return errFn.apply(in, e);
-		}
-	}
+  /**
+   * DDL 转事件
+   *
+   * @param in    输入
+   * @param out   输出处理器
+   * @param errFn 异常处理器
+   * @return 是否异常
+   */
+  default boolean ddl2Event(I in, Consumer<O> out, BiFunction<I, Exception, Boolean> errFn) {
+    try {
+      ddl2Event(in, out);
+      return true;
+    } catch (Exception e) {
+      return errFn.apply(in, e);
+    }
+  }
 }

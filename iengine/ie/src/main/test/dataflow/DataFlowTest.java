@@ -19,9 +19,9 @@ import java.nio.file.Paths;
 
 public class DataFlowTest {
 
-	private Logger logger = LogManager.getLogger(DataFlowTest.class);
+  private Logger logger = LogManager.getLogger(DataFlowTest.class);
 
-	public String tapdataMongoDBURI = "mongodb://localhost/tapdata";
+  public String tapdataMongoDBURI = "mongodb://localhost/tapdata";
 
 //    @Test
 //    public void customDataFlowTest() throws Exception {

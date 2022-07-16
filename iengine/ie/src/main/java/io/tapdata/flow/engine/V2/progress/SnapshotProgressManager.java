@@ -38,6 +38,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.stream.Collectors;
 
 /**
  * @author samuel
@@ -347,7 +348,7 @@ public class SnapshotProgressManager implements Closeable {
 			}
 
 			long count = -2;
-			String errorMsg = "Counting is not supported for database " + srcConn.getDatabase_type();
+			String errorMsg = "";
 			if (null != source) {
 				try {
 					Object countObj = ReflectUtil.invokeInterfaceMethod(
@@ -365,9 +366,7 @@ public class SnapshotProgressManager implements Closeable {
 				if (null != batchCountFunction) {
 					AtomicLong pdkCount = new AtomicLong();
 					AtomicReference<TapTable> tapTable = new AtomicReference<>();
-					Optional.ofNullable(tapTableMap).ifPresent(tm -> {
-						tapTable.set(tapTableMap.get(srcTableName));
-					});
+					Optional.ofNullable(tapTableMap).ifPresent(tm -> tapTable.set(tapTableMap.get(srcTableName)));
 					if (null == tapTable.get()) {
 						tapTable.set(new TapTable(srcTableName));
 					}
@@ -380,13 +379,19 @@ public class SnapshotProgressManager implements Closeable {
 						logger.warn(runtimeException.getMessage() + "\n" + Log4jUtil.getStackString(e));
 						errorMsg = runtimeException.getMessage() + "\n" + Log4jUtil.getStackString(e);
 					}
+				} else {
+					errorMsg = "Counting is not supported for database " + srcConn.getDatabase_type();
 				}
 			}
 			for (SubTaskSnapshotProgress subTaskSnapshotProgress : list) {
 				subTaskSnapshotProgress.setWaitForRunNumber(count);
-				subTaskSnapshotProgress.setErrorMsg(errorMsg);
-				if (count == 0L) {
+				if (StringUtils.isNotBlank(errorMsg)) {
+					subTaskSnapshotProgress.setErrorMsg(errorMsg);
 					subTaskSnapshotProgress.setStatus(SubTaskSnapshotProgress.ProgressStatus.done);
+				} else {
+					if (count == 0L) {
+						subTaskSnapshotProgress.setStatus(SubTaskSnapshotProgress.ProgressStatus.done);
+					}
 				}
 				batchList.add(wrapBatchOperation(subTaskSnapshotProgress, BatchOperationDto.BatchOp.update));
 				if (batchList.size() == BATCH_SIZE) {
@@ -414,6 +419,7 @@ public class SnapshotProgressManager implements Closeable {
 		if (!srcNode.isDataNode()) {
 			return;
 		}
+		List<SubTaskSnapshotProgress> srcEdgeProgressList = clientMongoOperator.find(new Query(Criteria.where("srcNodeId").is(srcNode.getId())), ConnectorConstant.SUBTASK_PROGRESS, SubTaskSnapshotProgress.class);
 		List<Node<?>> successors = GraphUtil.successors(srcNode, Node::isDataNode);
 		for (Node<?> tgtNode : successors) {
 			if (srcNode instanceof TableNode && tgtNode instanceof TableNode) {
@@ -424,11 +430,19 @@ public class SnapshotProgressManager implements Closeable {
 					list = new ArrayList<>();
 					snapshotEdgeProgressMap.put(((TableNode) srcNode).getTableName(), list);
 				}
-				list.add(SubTaskSnapshotProgress.getSnapshotEdgeProgress(
-						subTaskDto.getId().toHexString(),
-						srcNode.getId(), tgtNode.getId(),
-						((TableNode) srcNode).getConnectionId(), ((TableNode) tgtNode).getConnectionId(),
-						((TableNode) srcNode).getTableName(), ((TableNode) tgtNode).getTableName()));
+				SubTaskSnapshotProgress foundEdgeProgress = null;
+				if (CollectionUtils.isNotEmpty(srcEdgeProgressList)) {
+					foundEdgeProgress = srcEdgeProgressList.stream().filter(s -> s.getTgtNodeId().equals(tgtNode.getId())).findFirst().orElse(null);
+				}
+				if (null != foundEdgeProgress) {
+					list.add(foundEdgeProgress);
+				} else {
+					list.add(SubTaskSnapshotProgress.getSnapshotEdgeProgress(
+							subTaskDto.getId().toHexString(),
+							srcNode.getId(), tgtNode.getId(),
+							((TableNode) srcNode).getConnectionId(), ((TableNode) tgtNode).getConnectionId(),
+							((TableNode) srcNode).getTableName(), ((TableNode) tgtNode).getTableName()));
+				}
 			} else if (srcNode instanceof DatabaseNode && tgtNode instanceof DatabaseNode) {
 				List<SyncObjects> syncObjects = ((DatabaseNode) tgtNode).getSyncObjects();
 				if (CollectionUtils.isEmpty(syncObjects)) {
@@ -438,19 +452,14 @@ public class SnapshotProgressManager implements Closeable {
 				if (null == objects) {
 					continue;
 				}
-				List<String> srcTableNames = objects.getObjectNames();
-				for (String srcTableName : srcTableNames) {
-					if (StringUtils.isBlank(srcTableName)) {
-						continue;
-					}
-					String tgtTableName = srcTableName;
-					if (StringUtils.isNotBlank(((DatabaseNode) tgtNode).getTablePrefix())) {
-						tgtTableName = ((DatabaseNode) tgtNode).getTablePrefix() + tgtTableName;
-					}
-					if (StringUtils.isNotBlank(((DatabaseNode) tgtNode).getTableSuffix())) {
-						tgtTableName = tgtTableName + ((DatabaseNode) tgtNode).getTableSuffix();
-					}
-					tgtTableName = Capitalized.convert(tgtTableName, ((DatabaseNode) tgtNode).getTableNameTransform());
+				LinkedHashMap<String, String> tableNameRelation = objects.getTableNameRelation();
+				if (tableNameRelation == null) {
+					continue;
+				}
+
+				for (Map.Entry<String, String> entry : tableNameRelation.entrySet()) {
+					String srcTableName = entry.getKey();
+					String tgtTableName = entry.getValue();
 					List<SubTaskSnapshotProgress> list;
 					if (snapshotEdgeProgressMap.containsKey(srcTableName)) {
 						list = snapshotEdgeProgressMap.get(srcTableName);
@@ -458,11 +467,19 @@ public class SnapshotProgressManager implements Closeable {
 						list = new ArrayList<>();
 						snapshotEdgeProgressMap.put(srcTableName, list);
 					}
-					list.add(SubTaskSnapshotProgress.getSnapshotEdgeProgress(
-							subTaskDto.getId().toHexString(),
-							srcNode.getId(), tgtNode.getId(),
-							((DatabaseNode) srcNode).getConnectionId(), ((DatabaseNode) tgtNode).getConnectionId(),
-							srcTableName, tgtTableName));
+					SubTaskSnapshotProgress tgtEdgeProgress = null;
+					if (CollectionUtils.isNotEmpty(srcEdgeProgressList)) {
+						tgtEdgeProgress = srcEdgeProgressList.stream().filter(s -> s.getSrcTableName().equals(srcTableName) && s.getTgtTableName().equals(tgtTableName)).findFirst().orElse(null);
+					}
+					if (null != tgtEdgeProgress) {
+						list.add(tgtEdgeProgress);
+					} else {
+						list.add(SubTaskSnapshotProgress.getSnapshotEdgeProgress(
+								subTaskDto.getId().toHexString(),
+								srcNode.getId(), tgtNode.getId(),
+								((DatabaseNode) srcNode).getConnectionId(), ((DatabaseNode) tgtNode).getConnectionId(),
+								srcTableName, tgtTableName));
+					}
 				}
 			} else {
 				logger.warn("Init snapshot progress failed, found invalid linking, "

@@ -5,33 +5,33 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 public enum JoinType {
-	LEFT("left"),
-	RIGHT("right"),
-	INNER("inner"),
-	FULL("full"),
-	;
+    LEFT("left"),
+    RIGHT("right"),
+    INNER("inner"),
+    FULL("full"),
+    ;
 
-	private String type;
+    private String type;
 
-	JoinType(String type) {
-		this.type = type;
-	}
+    JoinType(String type) {
+      this.type = type;
+    }
 
-	public String getType() {
-		return type;
-	}
+    public String getType() {
+      return type;
+    }
 
-	private static final Map<String, JoinType> ENUM_MAP;
+    private static final Map<String, JoinType> ENUM_MAP;
 
-	static {
-		Map<String, JoinType> map = new ConcurrentHashMap<>();
-		for (JoinType instance : JoinType.values()) {
-			map.put(instance.type.toLowerCase(), instance);
-		}
-		ENUM_MAP = Collections.unmodifiableMap(map);
-	}
+    static {
+      Map<String,JoinType> map = new ConcurrentHashMap<>();
+      for (JoinType instance : JoinType.values()) {
+        map.put(instance.type.toLowerCase(),instance);
+      }
+      ENUM_MAP = Collections.unmodifiableMap(map);
+    }
 
-	public static JoinType get(String name) {
-		return ENUM_MAP.get(name.toLowerCase());
-	}
-}
+    public static JoinType get (String name) {
+      return ENUM_MAP.get(name.toLowerCase());
+    }
+  }

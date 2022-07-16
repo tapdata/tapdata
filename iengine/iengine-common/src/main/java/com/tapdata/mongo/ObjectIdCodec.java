@@ -13,18 +13,18 @@ import org.bson.types.ObjectId;
  * @create 2020-10-30 12:30
  **/
 public class ObjectIdCodec implements Codec<ObjectId> {
-	@Override
-	public ObjectId decode(BsonReader bsonReader, DecoderContext decoderContext) {
-		return bsonReader.readObjectId();
-	}
+  @Override
+  public ObjectId decode(BsonReader bsonReader, DecoderContext decoderContext) {
+    return bsonReader.readObjectId();
+  }
 
-	@Override
-	public void encode(BsonWriter bsonWriter, ObjectId objectId, EncoderContext encoderContext) {
-		bsonWriter.writeString(objectId.toHexString());
-	}
+  @Override
+  public void encode(BsonWriter bsonWriter, ObjectId objectId, EncoderContext encoderContext) {
+    bsonWriter.writeString(objectId.toHexString());
+  }
 
-	@Override
-	public Class<ObjectId> getEncoderClass() {
-		return ObjectId.class;
-	}
+  @Override
+  public Class<ObjectId> getEncoderClass() {
+    return ObjectId.class;
+  }
 }

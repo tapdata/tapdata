@@ -8,11 +8,11 @@ package io.tapdata.inspect.cdc.exception;
  */
 public class InspectCdcRunProfilesException extends RuntimeException {
 
-	public InspectCdcRunProfilesException(String message) {
-		super(message);
-	}
+  public InspectCdcRunProfilesException(String message) {
+    super(message);
+  }
 
-	public InspectCdcRunProfilesException(String message, Throwable cause) {
-		super(message, cause);
-	}
+  public InspectCdcRunProfilesException(String message, Throwable cause) {
+    super(message, cause);
+  }
 }

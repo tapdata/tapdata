@@ -16,9 +16,9 @@ import lombok.ToString;
 @EqualsAndHashCode
 public class InspectTiming {
 
-	private int intervals;  // 间隔时间
-	private String intervalsUnit;  // second、minute、hour、day、week、month
-	private String start;  // 开始时间，设置以后每次触发的执行时间
-	private String end;
+  private int intervals;  // 间隔时间
+  private String intervalsUnit;  // second、minute、hour、day、week、month
+  private String start;  // 开始时间，设置以后每次触发的执行时间
+  private String end;
 
 }

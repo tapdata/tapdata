@@ -8,91 +8,91 @@ import java.io.Serializable;
  **/
 public class UnSupportedDDL implements Serializable {
 
-	private static final long serialVersionUID = -2323577607737451376L;
-	private Long scn;
+  private static final long serialVersionUID = -2323577607737451376L;
+  private Long scn;
 
-	private String sql;
+  private String sql;
 
-	private Long timestamp;
+  private Long timestamp;
 
-	private String xid;
+  private String xid;
 
-	private String offset;
+  private String offset;
 
-	/**
-	 * 发送ddl的表
-	 */
-	private String tableName;
+  /**
+   * 发送ddl的表
+   */
+  private String tableName;
 
-	public UnSupportedDDL() {
-	}
+  public UnSupportedDDL() {
+  }
 
-	public UnSupportedDDL(Long scn, String sql, Long timestamp, String xid, String tableName) {
-		this.scn = scn;
-		this.sql = sql;
-		this.timestamp = timestamp;
-		this.xid = xid;
-		this.tableName = tableName;
-	}
+  public UnSupportedDDL(Long scn, String sql, Long timestamp, String xid, String tableName) {
+    this.scn = scn;
+    this.sql = sql;
+    this.timestamp = timestamp;
+    this.xid = xid;
+    this.tableName = tableName;
+  }
 
-	public UnSupportedDDL(String sql, Long timestamp, String offset) {
-		this.sql = sql;
-		this.timestamp = timestamp;
-		this.offset = offset;
-	}
+  public UnSupportedDDL(String sql, Long timestamp, String offset) {
+    this.sql = sql;
+    this.timestamp = timestamp;
+    this.offset = offset;
+  }
 
-	public UnSupportedDDL(String sql, Long timestamp, String offset, String tableName) {
-		this.sql = sql;
-		this.timestamp = timestamp;
-		this.offset = offset;
-		this.tableName = tableName;
-	}
+  public UnSupportedDDL(String sql, Long timestamp, String offset, String tableName) {
+    this.sql = sql;
+    this.timestamp = timestamp;
+    this.offset = offset;
+    this.tableName = tableName;
+  }
 
-	public Long getScn() {
-		return scn;
-	}
+  public Long getScn() {
+    return scn;
+  }
 
-	public void setScn(Long scn) {
-		this.scn = scn;
-	}
+  public void setScn(Long scn) {
+    this.scn = scn;
+  }
 
-	public String getSql() {
-		return sql;
-	}
+  public String getSql() {
+    return sql;
+  }
 
-	public void setSql(String sql) {
-		this.sql = sql;
-	}
+  public void setSql(String sql) {
+    this.sql = sql;
+  }
 
-	public Long getTimestamp() {
-		return timestamp;
-	}
+  public Long getTimestamp() {
+    return timestamp;
+  }
 
-	public void setTimestamp(Long timestamp) {
-		this.timestamp = timestamp;
-	}
+  public void setTimestamp(Long timestamp) {
+    this.timestamp = timestamp;
+  }
 
-	public String getXid() {
-		return xid;
-	}
+  public String getXid() {
+    return xid;
+  }
 
-	public void setXid(String xid) {
-		this.xid = xid;
-	}
+  public void setXid(String xid) {
+    this.xid = xid;
+  }
 
-	public String getOffset() {
-		return offset;
-	}
+  public String getOffset() {
+    return offset;
+  }
 
-	public void setOffset(String offset) {
-		this.offset = offset;
-	}
+  public void setOffset(String offset) {
+    this.offset = offset;
+  }
 
-	public String getTableName() {
-		return tableName;
-	}
+  public String getTableName() {
+    return tableName;
+  }
 
-	public void setTableName(String tableName) {
-		this.tableName = tableName;
-	}
+  public void setTableName(String tableName) {
+    this.tableName = tableName;
+  }
 }

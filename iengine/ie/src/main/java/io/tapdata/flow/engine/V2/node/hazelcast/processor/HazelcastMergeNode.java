@@ -17,7 +17,6 @@ import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.exception.HazelcastNotExistsException;
 import io.tapdata.flow.engine.V2.entity.TapdataEvent;
-import io.tapdata.flow.engine.V2.node.hazelcast.data.HazelcastDataBaseNode;
 import io.tapdata.flow.engine.V2.util.GraphUtil;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
 import io.tapdata.pdk.apis.entity.merge.MergeInfo;
@@ -36,6 +35,7 @@ import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 
 import java.util.*;
+import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
 import static com.tapdata.constant.ConnectorConstant.LOOKUP_TABLE_SUFFIX;
@@ -45,7 +45,7 @@ import static com.tapdata.constant.ConnectorConstant.LOOKUP_TABLE_SUFFIX;
  * @Description
  * @create 2022-03-23 11:44
  **/
-public class HazelcastMergeNode extends HazelcastDataBaseNode {
+public class HazelcastMergeNode extends HazelcastProcessorBaseNode {
 
 	private Logger logger = LogManager.getLogger(HazelcastMergeNode.class);
 
@@ -80,15 +80,25 @@ public class HazelcastMergeNode extends HazelcastDataBaseNode {
 	}
 
 	@Override
-	protected boolean tryProcess(int ordinal, @NotNull Object item) throws Exception {
-		if (!(item instanceof TapdataEvent))
-			throw new IllegalArgumentException("Unrecognized item: " + item.getClass().getName());
-		TapdataEvent tapdataEvent = (TapdataEvent) item;
+	protected void updateNodeConfig() {
+		super.updateNodeConfig();
+		initMergeTableProperties(null);
+		initLookupMergeProperties();
+		initMergeCache();
+		initSourceNodeMap(null);
+		initSourceConnectionMap(null);
+		initSourcePkOrUniqueFieldMap(null);
+	}
+
+	@Override
+	protected void tryProcess(TapdataEvent tapdataEvent, BiConsumer<TapdataEvent, ProcessResult> consumer) {
 		TapEvent tapEvent = tapdataEvent.getTapEvent();
-		if (!(tapEvent instanceof TapRecordEvent)) return offer(tapdataEvent);
-		TapTableMap<String, TapTable> tapTableMap = dataProcessorContext.getTapTableMap();
+		if (!tapdataEvent.isDML()) {
+			consumer.accept(tapdataEvent, null);
+			return;
+		}
 		String preNodeId = getPreNodeId(tapdataEvent);
-		Node<?> preNode = dataProcessorContext.getNodes().stream().filter(n -> n.getId().equals(preNodeId)).findFirst().orElse(null);
+		Node<?> preNode = processorBaseContext.getNodes().stream().filter(n -> n.getId().equals(preNodeId)).findFirst().orElse(null);
 		if (null == preNode) throw new RuntimeException("Cannot found node, id: " + preNodeId);
 		String preTableName;
 		if (preNode instanceof TableNode) {
@@ -96,7 +106,6 @@ public class HazelcastMergeNode extends HazelcastDataBaseNode {
 		} else {
 			preTableName = preNodeId;
 		}
-		transformFromTapValue(tapdataEvent, null);
 		if (needCache(tapdataEvent)) {
 			cache(tapdataEvent);
 		}
@@ -109,15 +118,13 @@ public class HazelcastMergeNode extends HazelcastDataBaseNode {
 			mergeInfo.setMergeLookupResults(mergeLookupResults);
 		}
 		tapEvent.addInfo(MergeInfo.EVENT_INFO_KEY, mergeInfo);
-		transformToTapValue(tapdataEvent, tapTableMap, preTableName);
-
-		return offer(tapdataEvent);
+		consumer.accept(tapdataEvent, ProcessResult.create().tableId(preTableName));
 	}
 
 	private void initMergeTableProperties(List<MergeTableProperties> mergeTableProperties) {
 		if (null == mergeTableProperties) {
 			this.mergeTablePropertiesMap = new HashMap<>();
-			Node<?> node = dataProcessorContext.getNode();
+			Node<?> node = processorBaseContext.getNode();
 			if (node instanceof MergeTableNode) {
 				mergeTableProperties = ((MergeTableNode) node).getMergeProperties();
 			} else {
@@ -154,7 +161,7 @@ public class HazelcastMergeNode extends HazelcastDataBaseNode {
 	}
 
 	private void initLookupMergeProperties() {
-		Node<?> node = this.dataProcessorContext.getNode();
+		Node<?> node = this.processorBaseContext.getNode();
 		this.lookupMap = new HashMap<>();
 		this.needCacheIdList = new ArrayList<>();
 		List<MergeTableProperties> mergeProperties = ((MergeTableNode) node).getMergeProperties();
@@ -182,7 +189,7 @@ public class HazelcastMergeNode extends HazelcastDataBaseNode {
 	private void initSourceNodeMap(List<MergeTableProperties> mergeTableProperties) {
 		if (null == mergeTableProperties) {
 			this.sourceNodeMap = new HashMap<>();
-			Node<?> node = this.dataProcessorContext.getNode();
+			Node<?> node = this.processorBaseContext.getNode();
 			mergeTableProperties = ((MergeTableNode) node).getMergeProperties();
 		}
 		if (CollectionUtils.isEmpty(mergeTableProperties)) return;
@@ -199,7 +206,7 @@ public class HazelcastMergeNode extends HazelcastDataBaseNode {
 	private void initSourceConnectionMap(List<MergeTableProperties> mergeTableProperties) {
 		if (null == mergeTableProperties) {
 			this.sourceConnectionMap = new HashMap<>();
-			Node<?> node = this.dataProcessorContext.getNode();
+			Node<?> node = this.processorBaseContext.getNode();
 			mergeTableProperties = ((MergeTableNode) node).getMergeProperties();
 		}
 		if (CollectionUtils.isEmpty(mergeTableProperties)) return;
@@ -217,14 +224,14 @@ public class HazelcastMergeNode extends HazelcastDataBaseNode {
 	private void initSourcePkOrUniqueFieldMap(List<MergeTableProperties> mergeTableProperties) {
 		if (null == mergeTableProperties) {
 			this.sourcePkOrUniqueFieldMap = new HashMap<>();
-			Node<?> node = this.dataProcessorContext.getNode();
+			Node<?> node = this.processorBaseContext.getNode();
 			mergeTableProperties = ((MergeTableNode) node).getMergeProperties();
 		}
 		if (CollectionUtils.isEmpty(mergeTableProperties)) return;
-		TapTableMap<String, TapTable> tapTableMap = dataProcessorContext.getTapTableMap();
+		TapTableMap<String, TapTable> tapTableMap = processorBaseContext.getTapTableMap();
 		for (MergeTableProperties mergeProperty : mergeTableProperties) {
 			String sourceNodeId = mergeProperty.getId();
-			Node<?> preNode = dataProcessorContext.getNodes().stream().filter(n -> n.getId().equals(sourceNodeId)).findFirst().orElse(null);
+			Node<?> preNode = processorBaseContext.getNodes().stream().filter(n -> n.getId().equals(sourceNodeId)).findFirst().orElse(null);
 			String tableName = getTableName(preNode);
 			TapTable tapTable = tapTableMap.get(tableName);
 			MergeTableProperties.MergeType mergeType = mergeProperty.getMergeType();
@@ -508,7 +515,7 @@ public class HazelcastMergeNode extends HazelcastDataBaseNode {
 	}
 
 	private Node<?> getSourceTableNode(String sourceId) {
-		Node<?> node = this.dataProcessorContext.getNode();
+		Node<?> node = this.processorBaseContext.getNode();
 		List<? extends Node<?>> predecessors = node.predecessors();
 		predecessors = predecessors.stream().filter(n -> n.getId().equals(sourceId)).collect(Collectors.toList());
 		predecessors = GraphUtil.predecessors(node, Node::isDataNode, (List<Node<?>>) predecessors);

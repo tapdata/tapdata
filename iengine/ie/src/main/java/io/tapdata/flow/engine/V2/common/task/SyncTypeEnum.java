@@ -9,7 +9,6 @@ import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * 节点采集类型
- *
  * @author jackin
  * @date 2021/3/10 2:59 PM
  **/
@@ -27,7 +26,7 @@ public enum SyncTypeEnum {
 	 */
 	INITIAL_SYNC_CDC("initial_sync+cdc");
 
-	private static final Map<String, SyncTypeEnum> ENUM_MAP;
+  private static final Map<String,SyncTypeEnum> ENUM_MAP;
 
 	private String syncType;
 
@@ -35,19 +34,19 @@ public enum SyncTypeEnum {
 		this.syncType = syncType;
 	}
 
-	public String getSyncType() {
-		return syncType;
-	}
+  public String getSyncType() {
+    return syncType;
+  }
 
-	static {
-		Map<String, SyncTypeEnum> map = new ConcurrentHashMap<>();
-		for (SyncTypeEnum instance : SyncTypeEnum.values()) {
-			map.put(instance.syncType.toLowerCase(), instance);
-		}
-		ENUM_MAP = Collections.unmodifiableMap(map);
-	}
+  static {
+    Map<String,SyncTypeEnum> map = new ConcurrentHashMap<>();
+    for (SyncTypeEnum instance : SyncTypeEnum.values()) {
+      map.put(instance.syncType.toLowerCase(),instance);
+    }
+    ENUM_MAP = Collections.unmodifiableMap(map);
+  }
 
-	public static SyncTypeEnum get(String name) {
-		return ENUM_MAP.get(name.toLowerCase());
-	}
+  public static SyncTypeEnum get(String name) {
+    return ENUM_MAP.get(name.toLowerCase());
+  }
 }

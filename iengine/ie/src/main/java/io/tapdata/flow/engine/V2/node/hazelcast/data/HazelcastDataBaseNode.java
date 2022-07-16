@@ -25,101 +25,101 @@ import java.util.Map;
  **/
 public abstract class HazelcastDataBaseNode extends HazelcastBaseNode {
 
-	private Logger logger = LoggerFactory.getLogger(HazelcastDataBaseNode.class);
+  private Logger logger = LoggerFactory.getLogger(HazelcastDataBaseNode.class);
 
-	protected SyncTypeEnum syncType;
+  protected SyncTypeEnum syncType;
 
-	protected DataProcessorContext dataProcessorContext;
+  protected DataProcessorContext dataProcessorContext;
 
-	public HazelcastDataBaseNode(DataProcessorContext dataProcessorContext) {
-		super(dataProcessorContext);
-		this.dataProcessorContext = dataProcessorContext;
-		this.syncType = SyncTypeEnum.get(dataProcessorContext.getSubTaskDto().getParentTask().getType());
-	}
+  public HazelcastDataBaseNode(DataProcessorContext dataProcessorContext) {
+    super(dataProcessorContext);
+    this.dataProcessorContext = dataProcessorContext;
+    this.syncType = SyncTypeEnum.get(dataProcessorContext.getSubTaskDto().getParentTask().getType());
+  }
 
-	@SneakyThrows
-	protected boolean need2InitialSync(SyncProgress syncProgress) {
-		if (!isRunning()) {
-			return false;
-		}
-		if (SyncTypeEnum.INITIAL_SYNC != syncType && SyncTypeEnum.INITIAL_SYNC_CDC != syncType) {
-			return false;
-		}
-		if (syncProgress != null) {
-			String syncStage = syncProgress.getSyncStage();
-			if (StringUtils.isNotBlank(syncStage)
-					&& SyncStage.valueOf(syncStage).equals(SyncStage.CDC)) {
-				return false;
-			}
-		}
+  @SneakyThrows
+  protected boolean need2InitialSync(SyncProgress syncProgress) {
+    if (!isRunning()) {
+      return false;
+    }
+    if (SyncTypeEnum.INITIAL_SYNC != syncType && SyncTypeEnum.INITIAL_SYNC_CDC != syncType) {
+      return false;
+    }
+    if (syncProgress != null) {
+      String syncStage = syncProgress.getSyncStage();
+      if (StringUtils.isNotBlank(syncStage)
+        && SyncStage.valueOf(syncStage).equals(SyncStage.CDC)) {
+        return false;
+      }
+    }
 
-		return true;
-	}
+    return true;
+  }
 
-	@SneakyThrows
-	protected boolean need2CDC() {
-		if (!isRunning()) {
-			return false;
-		}
-		if (SyncTypeEnum.CDC != syncType && SyncTypeEnum.INITIAL_SYNC_CDC != syncType) {
-			return false;
-		}
+  @SneakyThrows
+  protected boolean need2CDC() {
+    if (!isRunning()) {
+      return false;
+    }
+    if (SyncTypeEnum.CDC != syncType && SyncTypeEnum.INITIAL_SYNC_CDC != syncType) {
+      return false;
+    }
 
-		return true;
-	}
+    return true;
+  }
 
-	protected SyncProgress initSyncProgress(Map<String, Object> attrs) {
-		SyncProgress syncProgress = null;
-		try {
-			if (MapUtils.isEmpty(attrs)) {
-				return null;
-			}
-			Object syncProgressObj = attrs.get("syncProgress");
-			if (syncProgressObj instanceof Map) {
-				for (Map.Entry<?, ?> entry : ((Map<?, ?>) syncProgressObj).entrySet()) {
-					Object key = entry.getKey();
-					Object syncProgressString = entry.getValue();
-					if (!(key instanceof String) || !(syncProgressString instanceof String)) {
-						continue;
-					}
-					List<String> keyList;
-					try {
-						keyList = JSONUtil.json2List((String) key, String.class);
-					} catch (IOException e) {
-						throw new RuntimeException("Convert key to list failed. Key string: " + key + "; Error: " + e.getMessage(), e);
-					}
-					if (CollectionUtils.isNotEmpty(keyList) && keyList.contains(dataProcessorContext.getNode().getId())) {
-						try {
-							SyncProgress tmp = JSONUtil.json2POJO((String) syncProgressString, new TypeReference<SyncProgress>() {
-							});
-							if (null == syncProgress) {
-								syncProgress = tmp;
-							} else if (tmp.compareTo(syncProgress) < 0) {
-								syncProgress = tmp;
-							}
-						} catch (IOException e) {
-							throw new RuntimeException("Convert sync progress json to pojo failed. Sync progress string: " + syncProgressString
-									+ "; Error: " + e.getMessage(), e);
-						}
-					}
-				}
-				logger.info("Init sync progress result: " + syncProgress);
-			} else {
-				if (null == syncProgressObj) {
-					logger.info("Sync progress not exists, will run task as first time");
-				} else {
-					throw new RuntimeException("Unrecognized sync progress type: " + syncProgressObj.getClass().getName() + ", should be a map");
-				}
-			}
-		} catch (Exception e) {
-			throw new RuntimeException("Init sync progress failed; Error: " + e.getMessage() + "\n" + Log4jUtil.getStackString(e), e);
-		}
+  protected SyncProgress initSyncProgress(Map<String, Object> attrs) {
+    SyncProgress syncProgress = null;
+    try {
+      if (MapUtils.isEmpty(attrs)) {
+        return null;
+      }
+      Object syncProgressObj = attrs.get("syncProgress");
+      if (syncProgressObj instanceof Map) {
+        for (Map.Entry<?, ?> entry : ((Map<?, ?>) syncProgressObj).entrySet()) {
+          Object key = entry.getKey();
+          Object syncProgressString = entry.getValue();
+          if (!(key instanceof String) || !(syncProgressString instanceof String)) {
+            continue;
+          }
+          List<String> keyList;
+          try {
+            keyList = JSONUtil.json2List((String) key, String.class);
+          } catch (IOException e) {
+            throw new RuntimeException("Convert key to list failed. Key string: " + key + "; Error: " + e.getMessage(), e);
+          }
+          if (CollectionUtils.isNotEmpty(keyList) && keyList.contains(dataProcessorContext.getNode().getId())) {
+            try {
+              SyncProgress tmp = JSONUtil.json2POJO((String) syncProgressString, new TypeReference<SyncProgress>() {
+              });
+              if (null == syncProgress) {
+                syncProgress = tmp;
+              } else if (tmp.compareTo(syncProgress) < 0) {
+                syncProgress = tmp;
+              }
+            } catch (IOException e) {
+              throw new RuntimeException("Convert sync progress json to pojo failed. Sync progress string: " + syncProgressString
+                + "; Error: " + e.getMessage(), e);
+            }
+          }
+        }
+        logger.info("Init sync progress result: " + syncProgress);
+      } else {
+        if (null == syncProgressObj) {
+          logger.info("Sync progress not exists, will run task as first time");
+        } else {
+          throw new RuntimeException("Unrecognized sync progress type: " + syncProgressObj.getClass().getName() + ", should be a map");
+        }
+      }
+    } catch (Exception e) {
+      throw new RuntimeException("Init sync progress failed; Error: " + e.getMessage() + "\n" + Log4jUtil.getStackString(e), e);
+    }
 
-		if (null != syncProgress) {
-			if (null == syncProgress.getEventSerialNo()) {
-				syncProgress.setEventSerialNo(0L);
-			}
-		}
-		return syncProgress;
-	}
+    if (null != syncProgress) {
+      if (null == syncProgress.getEventSerialNo()) {
+        syncProgress.setEventSerialNo(0L);
+      }
+    }
+    return syncProgress;
+  }
 }

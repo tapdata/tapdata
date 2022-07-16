@@ -2,8 +2,11 @@ package io.tapdata.flow.engine.V2.entity;
 
 
 import com.tapdata.entity.MessageEntity;
+import com.tapdata.entity.dataflow.SyncProgress;
 import io.tapdata.entity.event.TapEvent;
+import io.tapdata.entity.event.ddl.TapDDLEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
+import org.jetbrains.annotations.NotNull;
 
 import java.io.Serializable;
 import java.util.ArrayList;
@@ -31,6 +34,7 @@ public class TapdataEvent implements Serializable, Cloneable {
 	private Object offset;
 	private Object batchOffset;
 	private Object streamOffset;
+	private SyncProgress.Type type = SyncProgress.Type.NORMAL;
 
 	public TapdataEvent() {
 		this.nodeIds = new ArrayList<>();
@@ -129,9 +133,22 @@ public class TapdataEvent implements Serializable, Cloneable {
 		this.mergeTableLookupResult = mergeTableLookupResult;
 	}
 
+	public SyncProgress.Type getType() {
+		return type;
+	}
+
+	public void setType(SyncProgress.Type type) {
+		this.type = type;
+	}
+
 	@Override
 	public Object clone() {
 		TapdataEvent tapdataEvent = new TapdataEvent();
+		return clone(tapdataEvent);
+	}
+
+	@NotNull
+	protected TapdataEvent clone(TapdataEvent tapdataEvent) {
 		tapdataEvent.setSourceTime(this.getSourceTime());
 		tapdataEvent.setSourceTime(sourceTime);
 		tapdataEvent.setSourceSerialNo(sourceSerialNo);
@@ -146,18 +163,12 @@ public class TapdataEvent implements Serializable, Cloneable {
 		}
 
 		if (tapEvent != null) {
-			if (tapEvent instanceof TapRecordEvent) {
-				final TapRecordEvent tapRecordEvent = (TapRecordEvent) this.tapEvent;
-				final TapRecordEvent cloneRecordEvent;
-				try {
-					cloneRecordEvent = tapRecordEvent.getClass().newInstance();
-					tapRecordEvent.clone(cloneRecordEvent);
-					tapdataEvent.setTapEvent(cloneRecordEvent);
-				} catch (InstantiationException | IllegalAccessException e) {
-					throw new RuntimeException("clone tapRecordEvent error", e);
-				}
-			} else {
-				tapdataEvent.setTapEvent(tapEvent);
+			try {
+				TapEvent cloneTapEvent = tapEvent.getClass().newInstance();
+				tapEvent.clone(cloneTapEvent);
+				tapdataEvent.setTapEvent(cloneTapEvent);
+			} catch (InstantiationException | IllegalAccessException e) {
+				throw new RuntimeException("Clone tap event failed: " + e.getMessage(), e);
 			}
 		}
 		return tapdataEvent;
@@ -185,6 +196,13 @@ public class TapdataEvent implements Serializable, Cloneable {
 
 	public void setStreamOffset(Object streamOffset) {
 		this.streamOffset = streamOffset;
+	}
+
+	public boolean isDML() {
+		return tapEvent instanceof TapRecordEvent;
+	}
+	public boolean isDDL() {
+		return tapEvent instanceof TapDDLEvent;
 	}
 
 	@Override

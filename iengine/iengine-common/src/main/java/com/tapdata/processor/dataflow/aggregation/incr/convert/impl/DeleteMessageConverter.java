@@ -16,49 +16,49 @@ import java.util.*;
 
 public class DeleteMessageConverter extends AbstractMessageConverter {
 
-	public DeleteMessageConverter(Stage stage, List<AggrFunction> aggrFunctionList, SnapshotService snapshotService, SyncVersionService syncVersionService) {
-		super(stage, aggrFunctionList, snapshotService, syncVersionService);
-	}
+  public DeleteMessageConverter(Stage stage, List<AggrFunction> aggrFunctionList, SnapshotService snapshotService, SyncVersionService syncVersionService) {
+    super(stage, aggrFunctionList, snapshotService, syncVersionService);
+  }
 
-	@Override
-	public Collection<MessageEntity> convert(MessageEntity originMessage) {
-		final SnapshotRecord tempRecord = this.snapshotService.wrapRecord(this.primaryKeyFieldList, originMessage.getBefore());
-		// 1. insert snapshot
-		final SnapshotRecord oldRecord = this.snapshotService.findOneAndRemove(tempRecord);
-		if (oldRecord == null) {
-			return Collections.emptyList();
-		}
-		oldRecord.setAppend(false);
-		// 2. update aggregation
-		final List<MessageEntity> messageEntityList = new ArrayList<>();
-		for (AggrFunction func : aggrFunctionList) {
-			// 2.1 record filter
-			if (!func.isFilter(oldRecord.getDataMap())) {
-				continue;
-			}
-			// 2.2 call aggregation function
-			final AggrBucket<?> bucket = func.call(this.snapshotService, oldRecord);
-			// 2.3 convert to MessageEntity
-			final HashMap<String, Object> bucketDataMap = new HashMap<>();
-			this.fillDataMap(func, bucket, bucketDataMap);
-			final MessageEntity messageEntity = new MessageEntity();
-			if (bucket.getCount() > 0) {
-				messageEntity.setAfter(bucketDataMap);
-				messageEntity.setOp(MessageOp.UPDATE.getType());
-			} else {
-				messageEntity.setBefore(bucketDataMap);
-				messageEntity.setOp(this.getOp().getType());
-			}
-			messageEntity.setTableName(originMessage.getTableName());
-			messageEntity.setOffset(originMessage.getOffset());
-			messageEntityList.add(messageEntity);
-		}
-		return messageEntityList;
-	}
+  @Override
+  public Collection<MessageEntity> convert(MessageEntity originMessage) {
+    final SnapshotRecord tempRecord = this.snapshotService.wrapRecord(this.primaryKeyFieldList, originMessage.getBefore());
+    // 1. insert snapshot
+    final SnapshotRecord oldRecord = this.snapshotService.findOneAndRemove(tempRecord);
+    if (oldRecord == null) {
+      return Collections.emptyList();
+    }
+    oldRecord.setAppend(false);
+    // 2. update aggregation
+    final List<MessageEntity> messageEntityList = new ArrayList<>();
+    for (AggrFunction func : aggrFunctionList) {
+      // 2.1 record filter
+      if (!func.isFilter(oldRecord.getDataMap())) {
+        continue;
+      }
+      // 2.2 call aggregation function
+      final AggrBucket<?> bucket = func.call(this.snapshotService, oldRecord);
+      // 2.3 convert to MessageEntity
+      final HashMap<String, Object> bucketDataMap = new HashMap<>();
+      this.fillDataMap(func, bucket, bucketDataMap);
+      final MessageEntity messageEntity = new MessageEntity();
+      if (bucket.getCount() > 0) {
+        messageEntity.setAfter(bucketDataMap);
+        messageEntity.setOp(MessageOp.UPDATE.getType());
+      } else {
+        messageEntity.setBefore(bucketDataMap);
+        messageEntity.setOp(this.getOp().getType());
+      }
+      messageEntity.setTableName(originMessage.getTableName());
+      messageEntity.setOffset(originMessage.getOffset());
+      messageEntityList.add(messageEntity);
+    }
+    return messageEntityList;
+  }
 
-	@Override
-	public MessageOp getOp() {
-		return MessageOp.DELETE;
-	}
+  @Override
+  public MessageOp getOp() {
+    return MessageOp.DELETE;
+  }
 
 }

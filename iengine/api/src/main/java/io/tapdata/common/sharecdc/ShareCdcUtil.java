@@ -8,9 +8,12 @@ import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.constant.Log4jUtil;
 import com.tapdata.constant.MongodbUtil;
 import com.tapdata.entity.Connections;
+import com.tapdata.entity.Setting;
 import com.tapdata.entity.hazelcast.HazelcastConstant;
 import com.tapdata.entity.hazelcast.PersistenceStorageConfig;
+import com.tapdata.entity.sharecdc.ShareCdcConstant;
 import com.tapdata.mongo.ClientMongoOperator;
+import com.tapdata.tm.commons.task.dto.SubTaskDto;
 import io.tapdata.common.SettingService;
 import org.apache.commons.collections.MapUtils;
 import org.apache.logging.log4j.LogManager;
@@ -38,6 +41,7 @@ public class ShareCdcUtil {
 	private final static StorageMode DEFAULT_STORAGE_MODE = StorageMode.MongoDB;
 	private final static Integer DEFAULT_MEMORY_SIZE = 1;
 	private final static String DEFAULT_ROCKSDB_DBPATH = "." + File.separator + "rocksdb-data" + File.separator;
+	private final static String SHARE_CDC_KEY_PREFIX = "SHARE_CDC_";
 
 	private static void setDefaultPersistenceConfig(SettingService settingService, ClientMongoOperator clientMongoOperator) {
 		settingService.setValue(HazelcastConstant.SETTING_PERSISTENCE_MODE, DEFAULT_STORAGE_MODE.name());
@@ -58,7 +62,7 @@ public class ShareCdcUtil {
 			if (config == null || settingService == null || clientMongoOperator == null) {
 				throw new IllegalArgumentException(LOG_PREFIX + "Init hazelcast persistence storage failed; Config, SettingService, ClientMongoOperator cannot be null");
 			}
-			setDefaultPersistenceConfig(settingService, clientMongoOperator);
+//      setDefaultPersistenceConfig(settingService, clientMongoOperator);
 			PersistenceStorage persistenceStorage = PersistenceStorage.getInstance();
 			PersistenceStorageConfig persistenceStorageConfig = PersistenceStorageConfig.getInstance();
 			Map<String, List<String>> changeMap = new HashMap<>();
@@ -104,6 +108,8 @@ public class ShareCdcUtil {
 					}
 				}
 			}
+			int shareCdcTtlDay = settingService.getInt("share_cdc_ttl_day", 3);
+			persistenceStorageConfig.setShareCdcTtlDay(shareCdcTtlDay);
 			PersistenceStorageConfig.getInstance().setEnable(true);
 		} catch (Exception e) {
 			logger.error("Init hazelcast storage persistence failed; Error: " + e.getMessage() + "\n" + Log4jUtil.getStackString(e));
@@ -196,6 +202,24 @@ public class ShareCdcUtil {
 			persistenceStorageConfig.setRocksDBPath(rocksdbPath);
 			changeMap.put("RocksDB db path", Arrays.asList(oldRocksDBPath, rocksdbPath));
 			logger.info(LOG_PREFIX + "Hazelcast IMDG storage RocksDB db path: " + rocksdbPath);
+		}
+	}
+
+	public static String getConstructName(SubTaskDto subTaskDto) {
+		return SHARE_CDC_KEY_PREFIX + subTaskDto.getName();
+	}
+
+	public static boolean shareCdcEnable(SettingService settingService) {
+		assert settingService != null;
+		settingService.loadSettings(ShareCdcConstant.SETTING_SHARE_CDC_ENABLE);
+		String shareCdcEnable = settingService.getString(ShareCdcConstant.SETTING_SHARE_CDC_ENABLE, "true");
+		try {
+			return Boolean.parseBoolean(shareCdcEnable);
+		} catch (Exception e) {
+			logger.warn("Get global share cdc enable setting failed, key: " + ShareCdcConstant.SETTING_SHARE_CDC_ENABLE
+					+ ", will use default value: true"
+					+ "; Error: " + e.getMessage() + "\n" + Log4jUtil.getStackString(e));
+			return true;
 		}
 	}
 }

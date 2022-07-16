@@ -13,48 +13,48 @@ import java.util.*;
  */
 public class DataFlowInsight {
 
-	private String id;
+  private String id;
 
-	private String statsType;
+  private String statsType;
 
-	@JsonIgnore
-	private long createTime;
+  @JsonIgnore
+  private long createTime;
 
-	private String dataFlowId;
+  private String dataFlowId;
 
-	@JsonInclude(JsonInclude.Include.NON_NULL)
-	private String statsTime;
+  @JsonInclude(JsonInclude.Include.NON_NULL)
+  private String statsTime;
 
-	@JsonInclude(JsonInclude.Include.NON_NULL)
-	private String granularity;
+  @JsonInclude(JsonInclude.Include.NON_NULL)
+  private String granularity;
 
-	private Object statsData;
+  private Object statsData;
 
-	public DataFlowInsight() {
-	}
+  public DataFlowInsight() {
+  }
 
-	public DataFlowInsight(String statsType, long createTime, String statsTime, String dataFlowId, String granularity, Object statsData) {
-		this.statsType = statsType;
-		this.createTime = createTime;
-		this.dataFlowId = dataFlowId;
-		this.granularity = granularity;
-		this.statsData = statsData;
-		this.statsTime = statsTime;
-	}
+  public DataFlowInsight(String statsType, long createTime, String statsTime, String dataFlowId, String granularity, Object statsData) {
+    this.statsType = statsType;
+    this.createTime = createTime;
+    this.dataFlowId = dataFlowId;
+    this.granularity = granularity;
+    this.statsData = statsData;
+    this.statsTime = statsTime;
+  }
 
-	public void convertStatsDataToEntity() {
-		StatsTypeEnum statsTypeEnum = StatsTypeEnum.fromString(statsType);
-		switch (statsTypeEnum) {
-			case RUNTIME_STATS:
-				if (statsData instanceof Map) {
-					this.statsData = JSONUtil.map2POJO((Map) statsData, DataFlowStats.class);
-				}
-				break;
-			default:
-				break;
-		}
-	}
-	//    public static List<DataFlowStats> initDataFlowStats(String dataFlowId, List<Stage> stages) {
+  public void convertStatsDataToEntity() {
+    StatsTypeEnum statsTypeEnum = StatsTypeEnum.fromString(statsType);
+    switch (statsTypeEnum) {
+      case RUNTIME_STATS:
+        if (statsData instanceof Map) {
+          this.statsData = JSONUtil.map2POJO((Map) statsData, DataFlowStats.class);
+        }
+        break;
+      default:
+        break;
+    }
+  }
+  //    public static List<DataFlowStats> initDataFlowStats(String dataFlowId, List<Stage> stages) {
 //
 //        List<DataFlowStats> dataFlowStatsList = new ArrayList<>();
 //        for (StatsTypeEnum statsType : StatsTypeEnum.values()) {
@@ -191,102 +191,102 @@ public class DataFlowInsight {
 //        }
 //    }
 
-	public String getStatsType() {
-		return statsType;
-	}
+  public String getStatsType() {
+    return statsType;
+  }
 
-	public void setStatsType(String statsType) {
-		this.statsType = statsType;
-	}
+  public void setStatsType(String statsType) {
+    this.statsType = statsType;
+  }
 
-	public long getCreateTime() {
-		return createTime;
-	}
+  public long getCreateTime() {
+    return createTime;
+  }
 
-	public void setCreateTime(long createTime) {
-		this.createTime = createTime;
-	}
+  public void setCreateTime(long createTime) {
+    this.createTime = createTime;
+  }
 
-	public String getDataFlowId() {
-		return dataFlowId;
-	}
+  public String getDataFlowId() {
+    return dataFlowId;
+  }
 
-	public void setDataFlowId(String dataFlowId) {
-		this.dataFlowId = dataFlowId;
-	}
+  public void setDataFlowId(String dataFlowId) {
+    this.dataFlowId = dataFlowId;
+  }
 
-	public String getGranularity() {
-		return granularity;
-	}
+  public String getGranularity() {
+    return granularity;
+  }
 
-	public void setGranularity(String granularity) {
-		this.granularity = granularity;
-	}
+  public void setGranularity(String granularity) {
+    this.granularity = granularity;
+  }
 
-	public Object getStatsData() {
-		return statsData;
-	}
+  public Object getStatsData() {
+    return statsData;
+  }
 
-	public void setStatsData(Object statsData) {
-		this.statsData = statsData;
-	}
+  public void setStatsData(Object statsData) {
+    this.statsData = statsData;
+  }
 
-	public String getStatsTime() {
-		return statsTime;
-	}
+  public String getStatsTime() {
+    return statsTime;
+  }
 
-	public void setStatsTime(String statsTime) {
-		this.statsTime = statsTime;
-	}
+  public void setStatsTime(String statsTime) {
+    this.statsTime = statsTime;
+  }
 
-	public String getId() {
-		return id;
-	}
+  public String getId() {
+    return id;
+  }
 
-	public void setId(String id) {
-		this.id = id;
-	}
+  public void setId(String id) {
+    this.id = id;
+  }
 
-	public enum StatsTypeEnum {
-		RUNTIME_STATS("runtime_stats"),
-		DATAFLOW_DETAILS_STATS("dataFlowDetailsStats"),
-		;
+  public enum StatsTypeEnum {
+    RUNTIME_STATS("runtime_stats"),
+    DATAFLOW_DETAILS_STATS("dataFlowDetailsStats"),
+    ;
 
-		public String type;
+    public String type;
 
-		StatsTypeEnum(String type) {
-			this.type = type;
-		}
+    StatsTypeEnum(String type) {
+      this.type = type;
+    }
 
-		private static final Map<String, StatsTypeEnum> map = new HashMap<>();
+    private static final Map<String, StatsTypeEnum> map = new HashMap<>();
 
-		static {
-			for (StatsTypeEnum statsTypeEnum : StatsTypeEnum.values()) {
-				map.put(statsTypeEnum.type, statsTypeEnum);
-			}
-		}
+    static {
+      for (StatsTypeEnum statsTypeEnum : StatsTypeEnum.values()) {
+        map.put(statsTypeEnum.type, statsTypeEnum);
+      }
+    }
 
-		public static StatsTypeEnum fromString(String stageType) {
-			return map.get(stageType);
-		}
+    public static StatsTypeEnum fromString(String stageType) {
+      return map.get(stageType);
+    }
 
-		public String getType() {
-			return type;
-		}
-	}
+    public String getType() {
+      return type;
+    }
+  }
 
-	public enum Granularity {
-		SECOND("second"),
-		MINUTE("minute"),
-		HOUR("hour"),
-		DAY("day");
+  public enum Granularity {
+    SECOND("second"),
+    MINUTE("minute"),
+    HOUR("hour"),
+    DAY("day");
 
-		public String value;
+    public String value;
 
-		Granularity(String value) {
-			this.value = value;
-		}
-	}
+    Granularity(String value) {
+      this.value = value;
+    }
+  }
 
 //    public static void main(String[] args) throws JsonProcessingException {
 //        DataFlowStats dataFlowStatsOV = getDataFlowStats(UuidUtil.getTimeBasedUuid().toString());

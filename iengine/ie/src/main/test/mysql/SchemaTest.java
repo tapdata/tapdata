@@ -14,11 +14,11 @@ import java.util.Map;
  */
 public class SchemaTest extends BaseTest {
 
-	private List<DatabaseSchemaTableColumns> tableColumns;
+  private List<DatabaseSchemaTableColumns> tableColumns;
 
-	private List<DatabaseSchemaConstraints> constraints;
+  private List<DatabaseSchemaConstraints> constraints;
 
-	private Map<String, Connections> connectionsMap = new HashMap<>();
+  private Map<String, Connections> connectionsMap = new HashMap<>();
 //
 //    @Before
 //    public void initSchemaData() throws URISyntaxException, IOException {

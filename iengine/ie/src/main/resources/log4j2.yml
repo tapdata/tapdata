@@ -1,12 +1,12 @@
 Configutation:
   name: Default
 
-  #  Properties:
-  #    Property:
-  #      - name: log-path
-  #        value: "logs"
-  #      - name: level
-  #        value: INFO
+#  Properties:
+#    Property:
+#      - name: log-path
+#        value: "logs"
+#      - name: level
+#        value: INFO
 
   Appenders:
 

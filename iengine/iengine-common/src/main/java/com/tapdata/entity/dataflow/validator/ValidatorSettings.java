@@ -13,13 +13,13 @@ import java.util.List;
 @Data
 public class ValidatorSettings implements Serializable {
 
-	private static final long serialVersionUID = 645168460852007577L;
+  private static final long serialVersionUID = 645168460852007577L;
 
-	private String id;
+  private String id;
 
-	private String validateStatus;
+  private String validateStatus;
 
-	private String validateFailedMSG;
+  private String validateFailedMSG;
 
-	private List<ValidatorSetting> validateSettings;
+  private List<ValidatorSetting> validateSettings;
 }

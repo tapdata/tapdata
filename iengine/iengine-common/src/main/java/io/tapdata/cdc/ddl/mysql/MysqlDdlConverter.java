@@ -15,23 +15,23 @@ import java.util.function.Consumer;
  */
 public class MysqlDdlConverter implements DdlConverter<DdlEvent, String> {
 
-	private static final MysqlDdlConverter INSTANCE = new MysqlDdlConverter(new SqlConverter());
+  private static final MysqlDdlConverter INSTANCE = new MysqlDdlConverter(new SqlConverter());
 
-	public static MysqlDdlConverter ins() {
-		return INSTANCE;
-	}
+  public static MysqlDdlConverter ins() {
+    return INSTANCE;
+  }
 
-	private SqlConverter converter;
+  private SqlConverter converter;
 
-	protected MysqlDdlConverter(SqlConverter converter) {
-		this.converter = converter;
-	}
+  protected MysqlDdlConverter(SqlConverter converter) {
+    this.converter = converter;
+  }
 
-	@Override
-	public void convertDDL(DdlEvent in, Consumer<String> outConsumer) {
-		switch (in.getOp()) {
-			default:
-				throw new DdlConverterException("Not support ddl operator '" + in.getOp() + "'", in);
-		}
-	}
+  @Override
+  public void convertDDL(DdlEvent in, Consumer<String> outConsumer) {
+    switch (in.getOp()) {
+      default:
+        throw new DdlConverterException("Not support ddl operator '" + in.getOp() + "'", in);
+    }
+  }
 }

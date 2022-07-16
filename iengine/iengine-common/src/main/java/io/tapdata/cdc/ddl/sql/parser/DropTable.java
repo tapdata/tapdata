@@ -9,11 +9,11 @@ import io.tapdata.cdc.ddl.events.DropStruct;
  * @version v1.0 2021/12/12 上午3:31 Create
  */
 public class DropTable extends Table {
-	public DropTable() {
-		super("drop");
-		add((sqlParser, sr, outConsumer, namespace) -> {
-			outConsumer.accept(new DropStruct(sr.data(), namespace));
-			return true;
-		});
-	}
+  public DropTable() {
+    super("drop");
+    add((sqlParser, sr, outConsumer, namespace) -> {
+      outConsumer.accept(new DropStruct(sr.data(), namespace));
+      return true;
+    });
+  }
 }

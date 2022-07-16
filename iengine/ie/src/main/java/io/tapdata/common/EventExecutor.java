@@ -4,5 +4,5 @@ import com.tapdata.entity.Event;
 
 public interface EventExecutor {
 
-	Event execute(Event event);
+  Event execute(Event event);
 }

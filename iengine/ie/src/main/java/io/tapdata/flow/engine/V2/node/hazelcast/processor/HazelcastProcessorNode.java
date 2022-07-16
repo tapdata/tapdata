@@ -7,29 +7,29 @@ import com.tapdata.entity.dataflow.Stage;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.processor.dataflow.*;
 import com.tapdata.tm.commons.dag.Node;
-import com.tapdata.tm.commons.dag.process.FieldProcessorNode;
-import com.tapdata.tm.commons.dag.process.FieldRenameProcessorNode;
-import com.tapdata.tm.commons.dag.process.JsProcessorNode;
-import com.tapdata.tm.commons.dag.process.RowFilterProcessorNode;
+import com.tapdata.tm.commons.dag.process.*;
 import com.tapdata.tm.commons.task.dto.SubTaskDto;
-import io.tapdata.common.sample.sampler.AverageSampler;
-import io.tapdata.common.sample.sampler.CounterSampler;
-import io.tapdata.common.sample.sampler.ResetCounterSampler;
-import io.tapdata.common.sample.sampler.SpeedSampler;
+import io.tapdata.entity.codec.ToTapValueCodec;
+import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
+import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
+import io.tapdata.entity.schema.type.TapType;
+import io.tapdata.entity.schema.value.TapValue;
+import io.tapdata.entity.utils.JavaTypesToTapTypes;
 import io.tapdata.flow.engine.V2.common.node.NodeTypeEnum;
 import io.tapdata.flow.engine.V2.entity.TapdataEvent;
-import io.tapdata.flow.engine.V2.node.hazelcast.HazelcastBaseNode;
-import io.tapdata.metrics.TaskSampleRetriever;
+import io.tapdata.flow.engine.V2.util.TapEventUtil;
 import io.tapdata.schema.TapTableMap;
 import org.apache.commons.collections.CollectionUtils;
+import org.apache.commons.collections.MapUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.jetbrains.annotations.NotNull;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.query.Query;
 
-import javax.annotation.Nonnull;
 import java.util.*;
+import java.util.function.BiConsumer;
 
 import static org.springframework.data.mongodb.core.query.Criteria.where;
 
@@ -37,34 +37,35 @@ import static org.springframework.data.mongodb.core.query.Criteria.where;
  * @author jackin
  * @date 2021/12/16 10:34 PM
  **/
-public class HazelcastProcessorNode extends HazelcastBaseNode {
+public class HazelcastProcessorNode extends HazelcastProcessorBaseNode {
 
 	private DataFlowProcessor dataFlowProcessor;
-
-	// statistic and sample related
-	private ResetCounterSampler resetInputCounter;
-	private CounterSampler inputCounter;
-	private ResetCounterSampler resetOutputCounter;
-	private CounterSampler outputCounter;
-	private SpeedSampler inputQPS;
-	private SpeedSampler outputQPS;
-
-	@Override
-	public void close() throws Exception {
-		if (dataFlowProcessor != null) {
-			dataFlowProcessor.stop();
-		}
-	}
-
-	private AverageSampler timeCostAvg;
+	private NodeTypeEnum nodeType;
 
 	public HazelcastProcessorNode(DataProcessorContext dataProcessorContext) throws Exception {
 		super(dataProcessorContext);
+	}
+
+	@Override
+	protected void init(@NotNull Context context) throws Exception {
+		super.init(context);
+		initDataFlowProcessor();
+	}
+
+	@Override
+	protected void updateNodeConfig() {
+		super.updateNodeConfig();
+		try {
+			initDataFlowProcessor();
+		} catch (Exception e) {
+			throw new RuntimeException(e);
+		}
+	}
+
+	private void initDataFlowProcessor() throws Exception {
 		dataFlowProcessor = new ScriptDataFlowProcessor();
 		final Stage stage = HazelcastUtil.node2CommonStage(processorBaseContext.getNode());
-
 		dataFlowProcessor = createDataFlowProcessor(processorBaseContext.getNode(), stage);
-
 		Job job = new Job();
 		SubTaskDto subTaskDto = processorBaseContext.getSubTaskDto();
 		job.setDataFlowId(subTaskDto.getId().toHexString());
@@ -82,48 +83,16 @@ public class HazelcastProcessorNode extends HazelcastBaseNode {
 				clientMongoOperator,
 				javaScriptFunctions,
 				null,
-				dataProcessorContext.getCacheService()
+				((DataProcessorContext) processorBaseContext).getCacheService()
 		);
 		dataFlowProcessor.initialize(processorContext, stage);
-
 	}
 
 	@Override
-	protected void initSampleCollector() {
-		super.initSampleCollector();
-
-		// TODO: init outputCounter initial value
-		Map<String, Number> values = TaskSampleRetriever.getInstance().retrieve(tags, Arrays.asList(
-				"inputTotal", "outputTotal"
-		));
-		// init statistic and sample related initialize
-		resetInputCounter = statisticCollector.getResetCounterSampler("inputTotal");
-		inputCounter = sampleCollector.getCounterSampler("inputTotal", values.getOrDefault("inputTotal", 0).longValue());
-		resetOutputCounter = statisticCollector.getResetCounterSampler("outputTotal");
-		outputCounter = sampleCollector.getCounterSampler("outputTotal", values.getOrDefault("outputTotal", 0).longValue());
-		inputQPS = sampleCollector.getSpeedSampler("inputQPS");
-		outputQPS = sampleCollector.getSpeedSampler("outputQPS");
-		timeCostAvg = sampleCollector.getAverageSampler("timeCostAvg");
-
-	}
-
-	@Override
-	public boolean tryProcess(int ordinal, @Nonnull Object item) {
-		TapdataEvent tapdataEvent = (TapdataEvent) item;
-		MessageEntity messageEntity;
-		if (null != tapdataEvent.getMessageEntity()) {
-			messageEntity = tapdataEvent.getMessageEntity();
-		} else if (null != tapdataEvent.getTapEvent()) {
-			transformFromTapValue(tapdataEvent, null);
-			messageEntity = tapEvent2Message((TapRecordEvent) tapdataEvent.getTapEvent());
-			messageEntity.setOffset(tapdataEvent.getOffset());
-		} else {
-			while (running.get()) {
-				if (offer(tapdataEvent)) break;
-			}
-			return true;
-		}
-
+	protected void tryProcess(TapdataEvent tapdataEvent, BiConsumer<TapdataEvent, ProcessResult> consumer) {
+		TapEvent tapEvent = tapdataEvent.getTapEvent();
+		MessageEntity messageEntity = tapEvent2Message((TapRecordEvent) tapEvent);
+		messageEntity.setOffset(tapdataEvent.getOffset());
 		int cnt = messageEntity.isDml() ? 1 : 0;
 		resetInputCounter.inc(cnt);
 		inputCounter.inc(cnt);
@@ -134,8 +103,6 @@ public class HazelcastProcessorNode extends HazelcastBaseNode {
 		resetOutputCounter.inc(cnt);
 		outputCounter.inc(cnt);
 		outputQPS.add(cnt);
-
-
 		if (CollectionUtils.isNotEmpty(processedMessages)) {
 			for (MessageEntity processedMessage : processedMessages) {
 				TapdataEvent processedEvent = new TapdataEvent();
@@ -143,19 +110,81 @@ public class HazelcastProcessorNode extends HazelcastBaseNode {
 				if (tapRecordEvent != null) {
 					processedEvent.setTapEvent(tapRecordEvent);
 					TapTableMap<String, TapTable> tapTableMap = processorBaseContext.getTapTableMap();
-					transformToTapValue(processedEvent, tapTableMap, processorBaseContext.getNode().getId());
-					while (running.get()) {
-						if (offer(processedEvent)) break;
+
+					String tableName;
+					if (nodeType == NodeTypeEnum.TABLE_RENAME_PROCESSOR || nodeType == NodeTypeEnum.MIGRATE_FIELD_RENAME_PROCESSOR) {
+						tableName = processedMessage.getTableName();
+					} else {
+						tableName = processorBaseContext.getNode().getId();
 					}
+					transformToTapValue(processedEvent, tapTableMap, tableName);
+					consumer.accept(processedEvent, null);
+				}
+			}
+		}
+	}
+
+	@Override
+	protected void transformToTapValue(TapdataEvent tapdataEvent, TapTableMap<String, TapTable> tapTableMap, String tableName) {
+
+		if (null == tapTableMap)
+			throw new IllegalArgumentException("Transform to TapValue failed, tapTableMap is empty, table name: " + tableName);
+		TapTable tapTable = tapTableMap.get(tableName);
+		if (null == tapTable)
+			throw new IllegalArgumentException("Transform to TapValue failed, table schema is empty, table name: " + tableName);
+		LinkedHashMap<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
+		if (MapUtils.isEmpty(nameFieldMap))
+			throw new IllegalArgumentException("Transform to TapValue failed, field map is empty, table name: " + tableName);
+		TapEvent tapEvent = tapdataEvent.getTapEvent();
+		Map<String, Object> before = TapEventUtil.getBefore(tapEvent);
+		if (MapUtils.isNotEmpty(before)) {
+			Map<String, io.tapdata.entity.schema.type.TapType> tapTypeMap = getTapTypeMap(before);
+			;
+			codecsFilterManager.transformToTapValueMap(before, nameFieldMap);
+			updateTapType(before, tapTypeMap);
+		}
+		Map<String, Object> after = TapEventUtil.getAfter(tapEvent);
+		if (MapUtils.isNotEmpty(after)) {
+			Map<String, TapType> tapTypeMap = getTapTypeMap(after);
+			codecsFilterManager.transformToTapValueMap(after, nameFieldMap);
+			updateTapType(after, tapTypeMap);
+		}
+
+	}
+
+	private Map<String, TapType> getTapTypeMap(Map<String, Object> map) {
+		Map<String, TapType> tapTypeMap = new HashMap<>();
+		if (org.apache.commons.collections4.MapUtils.isNotEmpty(map)) {
+			for (Map.Entry<String, Object> entry : map.entrySet()) {
+				TapType tapType = JavaTypesToTapTypes.toTapType(entry.getValue());
+				if (tapType != null) {
+					tapTypeMap.put(entry.getKey(), tapType);
+				}
+			}
+		}
+		return tapTypeMap;
+	}
+
+	private void updateTapType(Map<String, Object> map, Map<String, TapType> tapTypeMap) {
+		Iterator<Map.Entry<String, Object>> iterator = map.entrySet().iterator();
+		while (iterator.hasNext()) {
+			Map.Entry<String, Object> entry = iterator.next();
+			if (entry.getValue() instanceof TapValue) {
+				TapType tapType = tapTypeMap.get(entry.getKey());
+				TapType oldTapType = ((TapValue<?, ?>) entry.getValue()).getTapType();
+				if (tapType.getType() != oldTapType.getType()) {
+					ToTapValueCodec<?> toTapValueCodec = tapType.toTapValueCodec();
+					TapValue newTapValue = toTapValueCodec.toTapValue(((TapValue<?, ?>) entry.getValue()).getValue(), tapType);
+					newTapValue.setTapType(tapType);
+					entry.setValue(newTapValue);
 				}
 			}
 		}
 
-		return true;
 	}
 
 	private DataFlowProcessor createDataFlowProcessor(Node node, Stage stage) {
-		final NodeTypeEnum nodeType = NodeTypeEnum.get(node.getType());
+		nodeType = NodeTypeEnum.get(node.getType());
 		DataFlowProcessor dataFlowProcessor = null;
 		switch (nodeType) {
 			case CACHE_LOOKUP_PROCESSOR:
@@ -170,6 +199,14 @@ public class HazelcastProcessorNode extends HazelcastBaseNode {
 			case FIELD_RENAME_PROCESSOR:
 			case FIELD_ADD_DEL_PROCESSOR:
 			case FIELD_CALC_PROCESSOR:
+				dataFlowProcessor = new FieldDataFlowProcessor();
+				break;
+			case TABLE_RENAME_PROCESSOR:
+				dataFlowProcessor = new TableRenameProcessor((TableRenameProcessNode) node);
+				break;
+			case MIGRATE_FIELD_RENAME_PROCESSOR:
+				dataFlowProcessor = new MigrateFieldRenameProcessor((MigrateFieldRenameProcessorNode) node);
+				break;
 			case FIELD_MOD_TYPE_PROCESSOR:
 				List<FieldProcess> fieldProcesses = new ArrayList<>();
 				FieldProcessorNode fieldProcessor = (FieldProcessorNode) node;
@@ -215,6 +252,13 @@ public class HazelcastProcessorNode extends HazelcastBaseNode {
 		}
 
 		return dataFlowProcessor;
+	}
 
+	@Override
+	public void close() throws Exception {
+		if (dataFlowProcessor != null) {
+			dataFlowProcessor.stop();
+		}
+		super.close();
 	}
 }

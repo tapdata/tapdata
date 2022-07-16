@@ -11,39 +11,39 @@ import java.util.Map;
  * @description
  */
 public enum InspectMethod {
-	ROW_COUNT("row_count"),
-	FIELD("field"),
-	JOINTFIELD("jointField"),
-	CDC_COUNT("cdcCount"),
-	;
+  ROW_COUNT("row_count"),
+  FIELD("field"),
+  JOINTFIELD("jointField"),
+  CDC_COUNT("cdcCount"),
+  ;
 
-	private final String name;
+  private final String name;
 
-	InspectMethod(String name) {
-		this.name = name;
-	}
+  InspectMethod(String name) {
+    this.name = name;
+  }
 
-	private static Map<String, InspectMethod> map = new HashMap<>();
+  private static Map<String, InspectMethod> map = new HashMap<>();
 
-	static {
-		for (InspectMethod value : InspectMethod.values()) {
-			map.put(value.name, value);
-		}
-	}
+  static {
+    for (InspectMethod value : InspectMethod.values()) {
+      map.put(value.name, value);
+    }
+  }
 
-	public boolean equalsString(String name) {
-		return this.name.equals(name);
-	}
+  public boolean equalsString(String name) {
+    return this.name.equals(name);
+  }
 
-	public static InspectMethod get(String name) {
-		if (StringUtils.isBlank(name)) {
-			return InspectMethod.FIELD;
-		}
-		InspectMethod inspectMethod = map.get(name);
-		if (inspectMethod != null) {
-			return inspectMethod;
-		}
+  public static InspectMethod get(String name) {
+    if (StringUtils.isBlank(name)) {
+      return InspectMethod.FIELD;
+    }
+    InspectMethod inspectMethod = map.get(name);
+    if (inspectMethod != null) {
+      return inspectMethod;
+    }
 
-		return FIELD;
-	}
+    return FIELD;
+  }
 }

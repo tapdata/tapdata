@@ -10,19 +10,19 @@ import java.util.Map;
 @Builder
 public class PbConfiguration {
 
-	private DynamicSchema schema;
+  private DynamicSchema schema;
 
-	/**
-	 * 字段属性和msgDef名字的映射关系
-	 * {
-	 * "Unit.login": "Unit.Login",
-	 * "Unit.login.encryptionRules": "string",
-	 * "Unit.login.loginTime": "string",
-	 * "Unit.login.platformName": "string",
-	 * "Unit.login.loginSerialNumber": "string",
-	 * "Unit.login.platformPassword": "string"
-	 * }
-	 */
-	private Map<String, String> filedMsgDefNameMappingMap;
+  /**
+   * 字段属性和msgDef名字的映射关系
+   * {
+   * "Unit.login": "Unit.Login",
+   * "Unit.login.encryptionRules": "string",
+   * "Unit.login.loginTime": "string",
+   * "Unit.login.platformName": "string",
+   * "Unit.login.loginSerialNumber": "string",
+   * "Unit.login.platformPassword": "string"
+   * }
+   */
+  private Map<String, String> filedMsgDefNameMappingMap;
 
 }

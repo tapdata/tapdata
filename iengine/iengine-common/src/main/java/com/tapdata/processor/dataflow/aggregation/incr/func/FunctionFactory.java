@@ -9,31 +9,31 @@ import java.util.Optional;
 
 public class FunctionFactory {
 
-	private static final FunctionFactory FACTORY = new FunctionFactory();
+  private static final FunctionFactory FACTORY = new FunctionFactory();
 
-	private FunctionFactory() {
-	}
+  private FunctionFactory() {
+  }
 
-	public static FunctionFactory getInstance() {
-		return FACTORY;
-	}
+  public static FunctionFactory getInstance() {
+    return FACTORY;
+  }
 
-	public AggrFunction create(BucketCache<FuncCacheKey, BucketValue> bucketCache, Aggregation aggregation) throws Throwable {
-		final Func funcName = Optional.of(Func.valueOf(aggregation.getAggFunction())).orElseThrow(() -> new IllegalArgumentException(String.format("unknown aggregation function: %s", aggregation.getName())));
-		switch (funcName) {
-			case SUM:
-				return new SumFunction(bucketCache, aggregation);
-			case COUNT:
-				return new CountFunction(bucketCache, aggregation);
-			case MAX:
-				return new MaxFunction(bucketCache, aggregation);
-			case MIN:
-				return new MinFunction(bucketCache, aggregation);
-			case AVG:
-				return new AvgFunction(bucketCache, aggregation);
-			default:
-				throw new IllegalArgumentException(String.format("supported aggregation function: %s", aggregation.getName()));
-		}
-	}
+  public AggrFunction create(BucketCache<FuncCacheKey, BucketValue> bucketCache, Aggregation aggregation) throws Throwable {
+    final Func funcName = Optional.of(Func.valueOf(aggregation.getAggFunction())).orElseThrow(() -> new IllegalArgumentException(String.format("unknown aggregation function: %s", aggregation.getName())));
+    switch (funcName) {
+      case SUM:
+        return new SumFunction(bucketCache, aggregation);
+      case COUNT:
+        return new CountFunction(bucketCache, aggregation);
+      case MAX:
+        return new MaxFunction(bucketCache, aggregation);
+      case MIN:
+        return new MinFunction(bucketCache, aggregation);
+      case AVG:
+        return new AvgFunction(bucketCache, aggregation);
+      default:
+        throw new IllegalArgumentException(String.format("supported aggregation function: %s", aggregation.getName()));
+    }
+  }
 
 }

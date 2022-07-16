@@ -10,81 +10,81 @@ import java.util.Map;
  **/
 public class ProcessContextEvent implements Serializable {
 
-	private static final long serialVersionUID = -2583853079390066758L;
-	private String op;
+  private static final long serialVersionUID = -2583853079390066758L;
+  private String op;
 
-	private String tableName;
+  private String tableName;
 
-	private String syncType;
+  private String syncType;
 
-	private long ts;
+  private long ts;
 
-	private Map<String, Object> updateFields;
+  private Map<String, Object> updateFields;
 
-	private List<String> removeFields;
+  private List<String> removeFields;
 
-	private Map<String, Object> before;
+  private Map<String, Object> before;
 
-	public ProcessContextEvent(String op, String tableName, String syncType, long ts) {
-		this.op = op;
-		this.tableName = tableName;
-		this.syncType = syncType;
-		this.ts = ts;
-	}
+  public ProcessContextEvent(String op, String tableName, String syncType, long ts) {
+    this.op = op;
+    this.tableName = tableName;
+    this.syncType = syncType;
+    this.ts = ts;
+  }
 
-	public String getOp() {
-		return op;
-	}
+  public String getOp() {
+    return op;
+  }
 
-	public void setOp(String op) {
-		this.op = op;
-	}
+  public void setOp(String op) {
+    this.op = op;
+  }
 
-	public String getTableName() {
-		return tableName;
-	}
+  public String getTableName() {
+    return tableName;
+  }
 
-	public void setTableName(String tableName) {
-		this.tableName = tableName;
-	}
+  public void setTableName(String tableName) {
+    this.tableName = tableName;
+  }
 
-	public String getSyncType() {
-		return syncType;
-	}
+  public String getSyncType() {
+    return syncType;
+  }
 
-	public void setSyncType(String syncType) {
-		this.syncType = syncType;
-	}
+  public void setSyncType(String syncType) {
+    this.syncType = syncType;
+  }
 
-	public long getTs() {
-		return ts;
-	}
+  public long getTs() {
+    return ts;
+  }
 
-	public void setTs(long ts) {
-		this.ts = ts;
-	}
+  public void setTs(long ts) {
+    this.ts = ts;
+  }
 
-	public Map<String, Object> getUpdateFields() {
-		return updateFields;
-	}
+  public Map<String, Object> getUpdateFields() {
+    return updateFields;
+  }
 
-	public List<String> getRemoveFields() {
-		return removeFields;
-	}
+  public List<String> getRemoveFields() {
+    return removeFields;
+  }
 
-	public void setRemoveFields(List<String> removeFields) {
-		this.removeFields = removeFields;
-	}
+  public void setRemoveFields(List<String> removeFields) {
+    this.removeFields = removeFields;
+  }
 
-	public void setUpdateFields(Map<String, Object> updateFields) {
-		this.updateFields = updateFields;
-	}
+  public void setUpdateFields(Map<String, Object> updateFields) {
+    this.updateFields = updateFields;
+  }
 
-	public Map<String, Object> getBefore() {
-		return before;
-	}
+  public Map<String, Object> getBefore() {
+    return before;
+  }
 
-	public void setBefore(Map<String, Object> before) {
-		this.before = before;
-	}
+  public void setBefore(Map<String, Object> before) {
+    this.before = before;
+  }
 }

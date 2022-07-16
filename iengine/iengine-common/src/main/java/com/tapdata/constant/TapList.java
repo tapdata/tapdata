@@ -38,47 +38,47 @@ import java.util.Map;
  **/
 public class TapList extends ArrayList {
 
-	public final static String INDEX = "index";
-	public final static String VALUE = "value";
+  public final static String INDEX = "index";
+  public final static String VALUE = "value";
 
-	@Override
-	public void add(int index, Object value) {
-		if (index < 0) {
-			return;
-		}
-		Map<String, Object> tempMap = new HashMap<>();
-		tempMap.put("index", index);
-		tempMap.put("value", value);
+  @Override
+  public void add(int index, Object value) {
+    if (index < 0) {
+      return;
+    }
+    Map<String, Object> tempMap = new HashMap<>();
+    tempMap.put("index", index);
+    tempMap.put("value", value);
 
-		super.add(tempMap);
-	}
+    super.add(tempMap);
+  }
 
-	public int getIndex(int index) throws Exception {
-		Object o = super.get(index);
-		if (o instanceof Map && ((Map) o).containsKey(INDEX)) {
-			try {
-				return Integer.valueOf(((Map) o).get(INDEX).toString());
-			} catch (Exception e) {
-				throw e;
-			}
-		} else {
-			return 0;
-		}
-	}
+  public int getIndex(int index) throws Exception {
+    Object o = super.get(index);
+    if (o instanceof Map && ((Map) o).containsKey(INDEX)) {
+      try {
+        return Integer.valueOf(((Map) o).get(INDEX).toString());
+      } catch (Exception e) {
+        throw e;
+      }
+    } else {
+      return 0;
+    }
+  }
 
-	public Object getValue(int index) {
-		Object o = super.get(index);
-		if (o instanceof Map && ((Map) o).containsKey(VALUE)) {
-			return ((Map) o).get(VALUE);
-		} else {
-			return null;
-		}
-	}
+  public Object getValue(int index) {
+    Object o = super.get(index);
+    if (o instanceof Map && ((Map) o).containsKey(VALUE)) {
+      return ((Map) o).get(VALUE);
+    } else {
+      return null;
+    }
+  }
 
-	public void setValue(int index, Object value) {
-		Object o = super.get(index);
-		if (o instanceof Map && ((Map) o).containsKey(VALUE)) {
-			((Map) o).put(VALUE, value);
-		}
-	}
+  public void setValue(int index, Object value) {
+    Object o = super.get(index);
+    if (o instanceof Map && ((Map) o).containsKey(VALUE)) {
+      ((Map) o).put(VALUE, value);
+    }
+  }
 }

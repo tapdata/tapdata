@@ -15,6 +15,7 @@ import com.tapdata.tm.commons.task.dto.SubTaskDto;
 import io.tapdata.ConverterProvider;
 import io.tapdata.common.SettingService;
 import io.tapdata.debug.DebugProcessor;
+import io.tapdata.milestone.MilestoneService;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.Logger;
 
@@ -22,113 +23,178 @@ import java.util.List;
 
 public abstract class Context {
 
-	protected Job job;
+  protected Job job;
 
-	private Logger logger;
+  private Logger logger;
 
-	private Object offset;
+  private Object offset;
 
-	private SettingService settingService;
+  private SettingService settingService;
 
-	private Connections sourceConn;
-	private Connections targetConn;
+  private Connections sourceConn;
+  private Connections targetConn;
 
-	private DebugProcessor debugProcessor;
+  private DebugProcessor debugProcessor;
 
-	private List<JavaScriptFunctions> javaScriptFunctions;
+  private List<JavaScriptFunctions> javaScriptFunctions;
 
-	/**
-	 * cache 数据
-	 */
-	private ICacheService cacheService;
+  /**
+   * cache 数据
+   */
+  private ICacheService cacheService;
 
-	private ConverterProvider converterProvider;
+  private ConverterProvider converterProvider;
 
-	private DataFlow dataFlow;
+  private MilestoneService milestoneService;
 
-	private List<TypeMapping> targetTypeMappings;
+  private DataFlow dataFlow;
 
-	private ConfigurationCenter configurationCenter;
+  private List<TypeMapping> targetTypeMappings;
 
-	private SubTaskDto subTaskDto;
+  private ConfigurationCenter configurationCenter;
 
-	private Node<?> node;
+  private SubTaskDto subTaskDto;
 
-	public Context(List<Stage> stages, Connections connection) {
+  private Node<?> node;
 
-	}
+  public Context(Job job, Logger logger, Object offset, SettingService settingService,
+                 Connections sourceConn, Connections targetConn, DebugProcessor debugProcessor,
+                 List<JavaScriptFunctions> javaScriptFunctions, ICacheService cacheService,
+                 ConverterProvider converterProvider, MilestoneService milestoneService,
+                 ConfigurationCenter configurationCenter) {
+    this.job = job;
+    this.logger = logger;
+    this.offset = offset;
+    this.settingService = settingService;
+    this.sourceConn = sourceConn;
+    this.targetConn = targetConn;
+    this.debugProcessor = debugProcessor;
+    this.javaScriptFunctions = javaScriptFunctions;
+    this.cacheService = cacheService;
+    this.converterProvider = converterProvider;
+    this.milestoneService = milestoneService;
+    this.configurationCenter = configurationCenter;
+  }
 
-	public Connections getSourceConn() {
-		return sourceConn;
-	}
+  public Context(Job job, Logger logger, Object offset, SettingService settingService,
+                 Connections sourceConn, Connections targetConn, DebugProcessor debugProcessor,
+                 List<JavaScriptFunctions> javaScriptFunctions, ICacheService cacheService,
+                 ConverterProvider converterProvider, MilestoneService milestoneService, DataFlow dataFlow) {
+    this.job = job;
+    this.logger = logger;
+    this.offset = offset;
+    this.settingService = settingService;
+    this.sourceConn = sourceConn;
+    this.targetConn = targetConn;
+    this.debugProcessor = debugProcessor;
+    this.javaScriptFunctions = javaScriptFunctions;
+    this.cacheService = cacheService;
+    this.converterProvider = converterProvider;
+    this.milestoneService = milestoneService;
+    this.dataFlow = dataFlow;
+  }
 
-	public Connections getTargetConn() {
-		return targetConn;
-	}
+  public Context(Job job, Logger logger, Object offset, SettingService settingService,
+                 Connections sourceConn, Connections targetConn, DebugProcessor debugProcessor,
+                 List<JavaScriptFunctions> javaScriptFunctions, ICacheService cacheService,
+                 ConverterProvider converterProvider, MilestoneService milestoneService, DataFlow dataFlow,
+                 SubTaskDto subTaskDto, Node<?> node, ConfigurationCenter configurationCenter) {
+    this.job = job;
+    this.logger = logger;
+    this.offset = offset;
+    this.settingService = settingService;
+    this.sourceConn = sourceConn;
+    this.targetConn = targetConn;
+    this.debugProcessor = debugProcessor;
+    this.javaScriptFunctions = javaScriptFunctions;
+    this.cacheService = cacheService;
+    this.converterProvider = converterProvider;
+    this.milestoneService = milestoneService;
+    this.dataFlow = dataFlow;
+    this.subTaskDto = subTaskDto;
+    this.node = node;
+    this.configurationCenter = configurationCenter;
+  }
 
-	public Logger getLogger() {
-		return logger;
-	}
+  public Context(List<Stage> stages, Connections connection) {
 
-	public void setLogger(Logger logger) {
-		this.logger = logger;
-	}
+  }
 
-	public Job getJob() {
-		return job;
-	}
+  public Connections getSourceConn() {
+    return sourceConn;
+  }
 
-	public Object getOffset() {
-		return offset;
-	}
+  public Connections getTargetConn() {
+    return targetConn;
+  }
 
-	public SettingService getSettingService() {
-		return settingService;
-	}
+  public Logger getLogger() {
+    return logger;
+  }
 
-	public DebugProcessor getDebugProcessor() {
-		return debugProcessor;
-	}
+  public void setLogger(Logger logger) {
+    this.logger = logger;
+  }
 
-	public List<JavaScriptFunctions> getJavaScriptFunctions() {
-		return javaScriptFunctions;
-	}
+  public Job getJob() {
+    return job;
+  }
 
-	public ICacheService getCacheService() {
-		return cacheService;
-	}
+  public Object getOffset() {
+    return offset;
+  }
 
-	public ConverterProvider getConverterProvider() {
-		return converterProvider;
-	}
+  public SettingService getSettingService() {
+    return settingService;
+  }
 
-	public void setConverterProvider(ConverterProvider converterProvider) {
-		this.converterProvider = converterProvider;
-	}
+  public DebugProcessor getDebugProcessor() {
+    return debugProcessor;
+  }
 
-	public List<TypeMapping> getTargetTypeMappings() {
-		return targetTypeMappings;
-	}
+  public List<JavaScriptFunctions> getJavaScriptFunctions() {
+    return javaScriptFunctions;
+  }
 
-	public void setTargetTypeMappings(List<TypeMapping> targetTypeMappings) {
-		this.targetTypeMappings = targetTypeMappings;
-	}
+  public ICacheService getCacheService() {
+    return cacheService;
+  }
 
-	public boolean isRunning() {
-		return (StringUtils.equalsAny(getJob().getStatus(), ConnectorConstant.RUNNING)
-				&& !Thread.currentThread().isInterrupted()) ||
-				(dataFlow != null && StringUtils.equalsAny(dataFlow.getStatus(), ConnectorConstant.RUNNING));
-	}
+  public ConverterProvider getConverterProvider() {
+    return converterProvider;
+  }
 
-	public ConfigurationCenter getConfigurationCenter() {
-		return configurationCenter;
-	}
+  public void setConverterProvider(ConverterProvider converterProvider) {
+    this.converterProvider = converterProvider;
+  }
 
-	public SubTaskDto getSubTaskDto() {
-		return subTaskDto;
-	}
+  public MilestoneService getMilestoneService() {
+    return milestoneService;
+  }
 
-	public Node<?> getNode() {
-		return node;
-	}
+  public List<TypeMapping> getTargetTypeMappings() {
+    return targetTypeMappings;
+  }
+
+  public void setTargetTypeMappings(List<TypeMapping> targetTypeMappings) {
+    this.targetTypeMappings = targetTypeMappings;
+  }
+
+  public boolean isRunning() {
+    return (StringUtils.equalsAny(getJob().getStatus(), ConnectorConstant.RUNNING)
+      && !Thread.currentThread().isInterrupted()) ||
+      (dataFlow != null && StringUtils.equalsAny(dataFlow.getStatus(), ConnectorConstant.RUNNING));
+  }
+
+  public ConfigurationCenter getConfigurationCenter() {
+    return configurationCenter;
+  }
+
+  public SubTaskDto getSubTaskDto() {
+    return subTaskDto;
+  }
+
+  public Node<?> getNode() {
+    return node;
+  }
 }

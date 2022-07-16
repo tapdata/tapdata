@@ -14,49 +14,49 @@ import java.util.function.Consumer;
  **/
 @NotThreadSafe
 public class PersistentLRUMap extends LRUMap {
-	/**
-	 * 执行LRU时，触发调用该函数，用于监听LRU事件
-	 */
-	private Consumer<Entry> onRemoveLRU;
+  /**
+   * 执行LRU时，触发调用该函数，用于监听LRU事件
+   */
+  private Consumer<Entry> onRemoveLRU;
 
-	public PersistentLRUMap(
-			int maxSize,
-			Consumer<Entry> onRemoveLRU) {
+  public PersistentLRUMap(
+    int maxSize,
+    Consumer<Entry> onRemoveLRU) {
 
-		super(maxSize);
+    super(maxSize);
 
-		this.onRemoveLRU = onRemoveLRU;
-	}
+    this.onRemoveLRU = onRemoveLRU;
+  }
 
-	/**
-	 * 清除过期数据时，会调用该防范
-	 *
-	 * @param entry
-	 * @return true: 数据可以被清理；false：数据不允许被清理
-	 */
-	@Override
-	protected boolean removeLRU(LinkEntry entry) {
-		if (onRemoveLRU != null) {
-			onRemoveLRU.accept(entry);
-		}
-		return super.removeLRU(entry);
-	}
+  /**
+   * 清除过期数据时，会调用该防范
+   *
+   * @param entry
+   * @return true: 数据可以被清理；false：数据不允许被清理
+   */
+  @Override
+  protected boolean removeLRU(LinkEntry entry) {
+    if (onRemoveLRU != null) {
+      onRemoveLRU.accept(entry);
+    }
+    return super.removeLRU(entry);
+  }
 
-	@Override
-	public void clear() {
-		HashEntry[] data = this.data;
-		for (int i = data.length - 1; i >= 0; i--) {
-			onRemoveLRU.accept(data[i]);
-		}
-		super.clear();
-	}
+  @Override
+  public void clear() {
+    HashEntry[] data = this.data;
+    for (int i = data.length - 1; i >= 0; i--) {
+      onRemoveLRU.accept(data[i]);
+    }
+    super.clear();
+  }
 
-	@Override
-	public Object remove(Object key) {
-		Object o = super.remove(key);
-		if (o != null) {
-			onRemoveLRU.accept((Entry) o);
-		}
-		return o;
-	}
+  @Override
+  public Object remove(Object key) {
+    Object o = super.remove(key);
+    if (o != null) {
+      onRemoveLRU.accept((Entry) o);
+    }
+    return o;
+  }
 }

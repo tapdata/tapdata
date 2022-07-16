@@ -11,9 +11,9 @@ import java.util.Map;
 
 public interface ValidateDataSource {
 
-	void initialize(Connections connections, List<Mapping> mappings) throws Exception;
+  void initialize(Connections connections, List<Mapping> mappings) throws Exception;
 
-	Map<String, Object> data(Map<String, Object> recordKey, String fromTable, String toTable);
+  Map<String, Object> data(Map<String, Object> recordKey, String fromTable, String toTable);
 
-	void releaseResource();
+  void releaseResource();
 }

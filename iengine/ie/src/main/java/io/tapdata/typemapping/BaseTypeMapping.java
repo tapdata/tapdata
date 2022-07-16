@@ -18,50 +18,50 @@ import java.util.List;
  **/
 public abstract class BaseTypeMapping implements Serializable {
 
-	private static final long serialVersionUID = 9102658158271765640L;
-	protected Logger logger = LogManager.getLogger(BaseTypeMapping.class);
-	protected List<TypeMapping> typeMappings;
-	protected ClientMongoOperator clientMongoOperator;
+  private static final long serialVersionUID = 9102658158271765640L;
+  protected Logger logger = LogManager.getLogger(BaseTypeMapping.class);
+  protected List<TypeMapping> typeMappings;
+  protected ClientMongoOperator clientMongoOperator;
 
-	protected final static String TYPE_PACKAGE_NAME = "io.tapdata";
-	protected final static String TYPE_MAPPING_PROVIDER_CLASS_PATH_NAME = "io.tapdata.typemapping.TypeMappingProvider";
-	protected final static String METHOD_PREFIX = "bind";
+  protected final static String TYPE_PACKAGE_NAME = "io.tapdata";
+  protected final static String TYPE_MAPPING_PROVIDER_CLASS_PATH_NAME = "io.tapdata.typemapping.TypeMappingProvider";
+  protected final static String METHOD_PREFIX = "bind";
 
-	public BaseTypeMapping() {
-	}
+  public BaseTypeMapping() {
+  }
 
-	public BaseTypeMapping(ClientMongoOperator clientMongoOperator) throws Exception {
-		this.clientMongoOperator = clientMongoOperator;
-	}
+  public BaseTypeMapping(ClientMongoOperator clientMongoOperator) throws Exception {
+    this.clientMongoOperator = clientMongoOperator;
+  }
 
-	abstract protected List<TypeMapping> initTypeMappings() throws Exception;
+  abstract protected List<TypeMapping> initTypeMappings() throws Exception;
 
-	abstract public Class<TypeMappingProvider> getTypeMappingClazzByDatabaseType(DatabaseTypeEnum databaseTypeEnum) throws Exception;
+  abstract public Class<TypeMappingProvider> getTypeMappingClazzByDatabaseType(DatabaseTypeEnum databaseTypeEnum) throws Exception;
 
-	public List<TypeMapping> getTypeMappings() {
-		return typeMappings;
-	}
+  public List<TypeMapping> getTypeMappings() {
+    return typeMappings;
+  }
 
-	protected boolean checkMethodName(String methodName) {
-		if (!methodName.startsWith(METHOD_PREFIX)) {
-			return false;
-		}
-		if (!TapType.getNames().contains(StringUtils.removeStart(methodName, METHOD_PREFIX))) {
-			return false;
-		}
-		return true;
-	}
+  protected boolean checkMethodName(String methodName) {
+    if (!methodName.startsWith(METHOD_PREFIX)) {
+      return false;
+    }
+    if (!TapType.getNames().contains(StringUtils.removeStart(methodName, METHOD_PREFIX))) {
+      return false;
+    }
+    return true;
+  }
 
-	protected TapType getTapType(String methodName) {
-		if (!methodName.startsWith(METHOD_PREFIX)) {
-			return null;
-		}
+  protected TapType getTapType(String methodName) {
+    if (!methodName.startsWith(METHOD_PREFIX)) {
+      return null;
+    }
 
-		String tapTypeStr = StringUtils.removeStart(methodName, METHOD_PREFIX);
-		if (TapType.getNames().contains(tapTypeStr)) {
-			return TapType.valueOf(tapTypeStr);
-		} else {
-			return null;
-		}
-	}
+    String tapTypeStr = StringUtils.removeStart(methodName, METHOD_PREFIX);
+    if (TapType.getNames().contains(tapTypeStr)) {
+      return TapType.valueOf(tapTypeStr);
+    } else {
+      return null;
+    }
+  }
 }

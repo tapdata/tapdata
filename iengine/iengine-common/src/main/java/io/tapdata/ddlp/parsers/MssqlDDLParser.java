@@ -14,23 +14,23 @@ import io.tapdata.ddlp.utils.SqlDDLParser;
 @DatabaseTypeAnnotation(type = DatabaseTypeEnum.MSSQL)
 @DatabaseTypeAnnotation(type = DatabaseTypeEnum.ALIYUN_MSSQL)
 public class MssqlDDLParser extends SqlDDLParser {
-	public MssqlDDLParser() {
-	}
+  public MssqlDDLParser() {
+  }
 
-	/**
-	 * 加载名称
-	 *
-	 * @param reader 读取器
-	 * @return 名称，为空时表示读取不到
-	 */
-	protected String loadName(CharReader reader) {
-		switch (reader.current()) {
-			case '[':
-				return reader.readInQuote('[', ']');
-			case '"':
-				return reader.readInQuote('"', '"');
-			default:
-				return reader.readNotIn(spaceFn);
-		}
-	}
+  /**
+   * 加载名称
+   *
+   * @param reader 读取器
+   * @return 名称，为空时表示读取不到
+   */
+  protected String loadName(CharReader reader) {
+    switch (reader.current()) {
+      case '[':
+        return reader.readInQuote('[', ']');
+      case '"':
+        return reader.readInQuote('"', '"');
+      default:
+        return reader.readNotIn(spaceFn);
+    }
+  }
 }

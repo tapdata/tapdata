@@ -4,24 +4,24 @@ import java.util.Map;
 
 public interface SnapshotRecord {
 
-	<T> T getRecord();
+  <T> T getRecord();
 
-	<T> T getRecordID();
+  <T> T getRecordID();
 
-	<T> T getRecordValue(String field);
+  <T> T getRecordValue(String field);
 
-	Object setRecordValue(String field, Object value);
+  Object setRecordValue(String field, Object value);
 
-	Map<String, Object> getDataMap();
+  Map<String, Object> getDataMap();
 
-	boolean isAppend();
+  boolean isAppend();
 
-	boolean isIngnoreCount();
+  boolean isIngnoreCount();
 
-	void setAppend(boolean isAppend);
+  void setAppend(boolean isAppend);
 
-	void setIgnoreCount(boolean isIgnoreCount);
+  void setIgnoreCount(boolean isIgnoreCount);
 
-	SnapshotRecord clone();
+  SnapshotRecord clone();
 
 }

@@ -4,22 +4,30 @@ import com.hazelcast.core.HazelcastInstance;
 import com.tapdata.entity.DatabaseTypeEnum;
 import com.tapdata.entity.dataflow.SyncProgress;
 import com.tapdata.entity.task.context.DataProcessorContext;
+import com.tapdata.tm.commons.dag.DmlPolicy;
+import com.tapdata.tm.commons.dag.DmlPolicyEnum;
+import com.tapdata.tm.commons.dag.Node;
+import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.task.dto.SubTaskDto;
+import io.tapdata.flow.engine.V2.entity.PdkStateMap;
+import io.tapdata.flow.engine.V2.util.PdkUtil;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
-import io.tapdata.flow.engine.V2.entity.PdkStateMap;
 import io.tapdata.flow.engine.V2.monitor.MonitorManager;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.HazelcastDataBaseNode;
-import io.tapdata.flow.engine.V2.util.PdkUtil;
+import io.tapdata.flow.engine.V2.node.pdk.ConnectorNodeService;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
+import io.tapdata.pdk.apis.entity.ConnectionOptions;
+import io.tapdata.pdk.apis.entity.ConnectorCapabilities;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.api.PDKIntegration;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
 import io.tapdata.pdk.core.monitor.PDKMethod;
 import io.tapdata.schema.PdkTableMap;
+import io.tapdata.schema.TapTableMap;
 import org.apache.commons.collections4.MapUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -37,17 +45,19 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 	private final Logger logger = LogManager.getLogger(HazelcastPdkBaseNode.class);
 	private static final String TAG = HazelcastPdkBaseNode.class.getSimpleName();
 	protected MonitorManager monitorManager;
-	protected ConnectorNode connectorNode;
 	protected SyncProgress syncProgress;
+	protected String associateId;
 
-	public HazelcastPdkBaseNode(DataProcessorContext dataProcessorContext) {
-		super(dataProcessorContext);
-		this.monitorManager = new MonitorManager();
-	}
+  public HazelcastPdkBaseNode(DataProcessorContext dataProcessorContext) {
+	  super(dataProcessorContext);
+	  if (!dataProcessorContext.getSubTaskDto().isTransformTask()) {
+		  this.monitorManager = new MonitorManager();
+	  }
+  }
 
 	protected void connectorNodeInit(DataProcessorContext dataProcessorContext) {
 		try {
-			PDKInvocationMonitor.invoke(connectorNode, PDKMethod.INIT, () -> connectorNode.connectorInit(), TAG);
+			PDKInvocationMonitor.invoke(getConnectorNode(), PDKMethod.INIT, () -> getConnectorNode().connectorInit(), TAG);
 		} catch (Exception e) {
 			throw new RuntimeException("Failed to init pdk connector, database type: " + dataProcessorContext.getDatabaseType() + ", message: " + e.getMessage(), e);
 		}
@@ -60,15 +70,43 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 		PdkTableMap pdkTableMap = new PdkTableMap(dataProcessorContext.getTapTableMap());
 		PdkStateMap pdkStateMap = new PdkStateMap(dataProcessorContext.getNode().getId(), hazelcastInstance);
 		PdkStateMap globalStateMap = PdkStateMap.globalStateMap(hazelcastInstance);
-		this.connectorNode = PdkUtil.createNode(subTaskDto.getId().toHexString(),
-				databaseType,
-				clientMongoOperator,
-				this.getClass().getSimpleName() + "-" + dataProcessorContext.getNode().getId(),
-				connectionConfig,
-				pdkTableMap,
-				pdkStateMap,
-				globalStateMap
+		Node<?> node = dataProcessorContext.getNode();
+		ConnectorCapabilities connectorCapabilities = ConnectorCapabilities.create();
+		initDmlPolicy(node, connectorCapabilities);
+		this.associateId = ConnectorNodeService.getInstance().putConnectorNode(
+				PdkUtil.createNode(subTaskDto.getId().toHexString(),
+						databaseType,
+						clientMongoOperator,
+						this.getClass().getSimpleName() + "-" + dataProcessorContext.getNode().getId(),
+						connectionConfig,
+						pdkTableMap,
+						pdkStateMap,
+						globalStateMap,
+						connectorCapabilities
+				)
 		);
+	}
+
+	private void initDmlPolicy(Node<?> node, ConnectorCapabilities connectorCapabilities) {
+		if (node instanceof DatabaseNode && null != ((DatabaseNode) node).getDmlPolicy()) {
+			DmlPolicy dmlPolicy = ((DatabaseNode) node).getDmlPolicy();
+			DmlPolicyEnum insertPolicy = null == dmlPolicy.getInsertPolicy() ? DmlPolicyEnum.update_on_exists : dmlPolicy.getInsertPolicy();
+			if (insertPolicy == DmlPolicyEnum.ignore_on_exists) {
+				connectorCapabilities.alternative(ConnectionOptions.DML_INSERT_POLICY, ConnectionOptions.DML_INSERT_POLICY_IGNORE_ON_EXISTS);
+			} else {
+				connectorCapabilities.alternative(ConnectionOptions.DML_INSERT_POLICY, ConnectionOptions.DML_INSERT_POLICY_UPDATE_ON_EXISTS);
+			}
+			DmlPolicyEnum updatePolicy = null == dmlPolicy.getUpdatePolicy() ? DmlPolicyEnum.ignore_on_nonexists : dmlPolicy.getUpdatePolicy();
+			if (updatePolicy == DmlPolicyEnum.insert_on_nonexists) {
+				connectorCapabilities.alternative(ConnectionOptions.DML_UPDATE_POLICY, ConnectionOptions.DML_UPDATE_POLICY_INSERT_ON_NON_EXISTS);
+			} else {
+				connectorCapabilities.alternative(ConnectionOptions.DML_UPDATE_POLICY, ConnectionOptions.DML_UPDATE_POLICY_IGNORE_ON_NON_EXISTS);
+			}
+		} else {
+			// Default
+			connectorCapabilities.alternative(ConnectionOptions.DML_INSERT_POLICY, ConnectionOptions.DML_INSERT_POLICY_UPDATE_ON_EXISTS);
+			connectorCapabilities.alternative(ConnectionOptions.DML_UPDATE_POLICY, ConnectionOptions.DML_UPDATE_POLICY_IGNORE_ON_NON_EXISTS);
+		}
 	}
 
 	protected void toTapValue(Map<String, Object> data, String tableName, TapCodecsFilterManager tapCodecsFilterManager) {
@@ -87,15 +125,19 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 		tapCodecsFilterManager.transformFromTapValueMap(data);
 	}
 
-	@Override
-	public void close() throws Exception {
-		this.monitorManager.close();
-		Optional.ofNullable(connectorNode).ifPresent(node -> PDKIntegration.releaseAssociateId(node.getAssociateId()));
-		super.close();
-	}
+  @Override
+  public void close() throws Exception {
+	  if (this.monitorManager != null) {
+		  this.monitorManager.close();
+	  }
+	  Optional.ofNullable(dataProcessorContext.getTapTableMap()).ifPresent(TapTableMap::remove);
+		Optional.ofNullable(getConnectorNode()).ifPresent(node -> PDKIntegration.releaseAssociateId(associateId));
+		ConnectorNodeService.getInstance().removeConnectorNode(associateId);
+	  super.close();
+  }
 
-	public ConnectorNode getConnectorNode() {
-		return connectorNode;
+	protected ConnectorNode getConnectorNode() {
+		return ConnectorNodeService.getInstance().getConnectorNode(associateId);
 	}
 
 	protected void tapRecordToTapValue(TapEvent tapEvent, TapCodecsFilterManager codecsFilterManager) {

@@ -212,23 +212,22 @@ public class LoadSchemaRunner implements Runnable {
 			TableFieldTypesGenerator tableFieldTypesGenerator = InstanceFactory.instance(TableFieldTypesGenerator.class);
 			DefaultExpressionMatchingMap dataTypesMap = connectionNode.getConnectionContext().getSpecification().getDataTypesMap();
 			List<String> finalTableNameFilterList = tableNameFilterList;
-			PDKInvocationMonitor.invoke(connectionNode, PDKMethod.DISCOVER_SCHEMA, () -> {
-				connectionNode.getConnectorNode().discoverSchema(connectionNode.getConnectionContext(), finalTableNameFilterList, BATCH_SIZE, tables -> {
-					if (CollectionUtils.isNotEmpty(tables)) {
-						for (TapTable pdkTable : tables) {
-							LinkedHashMap<String, TapField> nameFieldMap = pdkTable.getNameFieldMap();
-							if (MapUtils.isNotEmpty(nameFieldMap)) {
-								nameFieldMap.forEach((fieldName, tapField) -> {
-									if (null == tapField.getTapType()) {
-										tableFieldTypesGenerator.autoFill(tapField, dataTypesMap);
-									}
-								});
+			PDKInvocationMonitor.invoke(connectionNode, PDKMethod.DISCOVER_SCHEMA,
+					() -> connectionNode.getConnectorNode().discoverSchema(connectionNode.getConnectionContext(), finalTableNameFilterList, BATCH_SIZE, tables -> {
+						if (CollectionUtils.isNotEmpty(tables)) {
+							for (TapTable pdkTable : tables) {
+								LinkedHashMap<String, TapField> nameFieldMap = pdkTable.getNameFieldMap();
+								if (MapUtils.isNotEmpty(nameFieldMap)) {
+									nameFieldMap.forEach((fieldName, tapField) -> {
+										if (null == tapField.getTapType()) {
+											tableFieldTypesGenerator.autoFill(tapField, dataTypesMap);
+										}
+									});
+								}
+								tableConsumer.accept(pdkTable);
 							}
-							tableConsumer.accept(pdkTable);
 						}
-					}
-				});
-			}, TAG);
+					}), TAG);
 			tableConsumer.accept(null);
 		} catch (Throwable throwable) {
 			throw new Exception("Load pdk schema failed, message: " + throwable.getMessage(), throwable);

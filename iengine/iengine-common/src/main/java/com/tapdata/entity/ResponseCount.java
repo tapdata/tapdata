@@ -9,25 +9,25 @@ import java.io.Serializable;
  **/
 public class ResponseCount implements Serializable {
 
-	private static final long serialVersionUID = 4618575908546650236L;
+  private static final long serialVersionUID = 4618575908546650236L;
 
-	private long count;
+  private long count;
 
-	public ResponseCount() {
-	}
+  public ResponseCount() {
+  }
 
-	public long getCount() {
-		return count;
-	}
+  public long getCount() {
+    return count;
+  }
 
-	public void setCount(long count) {
-		this.count = count;
-	}
+  public void setCount(long count) {
+    this.count = count;
+  }
 
-	@Override
-	public String toString() {
-		return "ResponseCount{" +
-				"count=" + count +
-				'}';
-	}
+  @Override
+  public String toString() {
+    return "ResponseCount{" +
+      "count=" + count +
+      '}';
+  }
 }

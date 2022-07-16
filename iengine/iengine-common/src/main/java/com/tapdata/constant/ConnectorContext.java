@@ -9,6 +9,7 @@ import com.tapdata.entity.Mapping;
 import com.tapdata.entity.User;
 import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.processor.Processor;
+import io.tapdata.milestone.MilestoneService;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
@@ -24,130 +25,149 @@ import java.util.*;
  */
 public class ConnectorContext implements Serializable {
 
-	private static final long serialVersionUID = 4426488202338033615L;
+  private static final long serialVersionUID = 4426488202338033615L;
 
-	private Logger logger = LogManager.getLogger(ConnectorContext.class);
+  private Logger logger = LogManager.getLogger(ConnectorContext.class);
 
-	/**
-	 * job 信息
-	 */
-	private Job job;
+  /**
+   * job 信息
+   */
+  private Job job;
 
-	/**
-	 * job connection
-	 */
-	private Connections jobSourceConn;
-	private Connections jobTargetConn;
+  /**
+   * job connection
+   */
+  private Connections jobSourceConn;
+  private Connections jobTargetConn;
 
-	/**
-	 * tapdata 中间mongo 连接操作
-	 */
-	private ClientMongoOperator clientMongoOpertor;
+  /**
+   * tapdata 中间mongo 连接操作
+   */
+  private ClientMongoOperator clientMongoOpertor;
 
-	private List<Processor> processors = new ArrayList<>(0);
+  private List<Processor> processors = new ArrayList<>(0);
 
-	private ICacheService cacheService;
+  private ICacheService cacheService;
 
-	private Map<String, Map<String, Integer>> collectionsProjection;
+  private Map<String, Map<String, Integer>> collectionsProjection;
 
-	private boolean isCloud;
+  private boolean isCloud;
 
-	private User user;
+  private User user;
 
+  private MilestoneService milestoneService;
 
-	private ConfigurationCenter configurationCenter;
+  private ConfigurationCenter configurationCenter;
 
-	public ConnectorContext() {
-	}
+  public ConnectorContext() {
+  }
 
-	public ConnectorContext(Job job) {
-		this.job = job;
-	}
+  public ConnectorContext(Job job) {
+    this.job = job;
+  }
 
-	public ConnectorContext(Job job, Connections jobSourceConn, ClientMongoOperator clientMongoOpertor,
-							Connections jobTargetConn, List<Processor> processors, ICacheService cacheService,
-							boolean isCloud, ConfigurationCenter configurationCenter) {
-		this.job = job;
-		this.jobSourceConn = jobSourceConn;
-		this.jobTargetConn = jobTargetConn;
-		this.clientMongoOpertor = clientMongoOpertor;
-		this.processors = processors;
-		this.cacheService = cacheService;
+  public ConnectorContext(Job job, Connections jobSourceConn, ClientMongoOperator clientMongoOpertor,
+                          Connections jobTargetConn, List<Processor> processors, ICacheService cacheService,
+                          boolean isCloud, ConfigurationCenter configurationCenter) {
+    this.job = job;
+    this.jobSourceConn = jobSourceConn;
+    this.jobTargetConn = jobTargetConn;
+    this.clientMongoOpertor = clientMongoOpertor;
+    this.processors = processors;
+    this.cacheService = cacheService;
 
-		List<Mapping> mappings = job.getMappings();
+    List<Mapping> mappings = job.getMappings();
 
-		this.collectionsProjection = getCollectionProjection(mappings);
-		this.isCloud = isCloud;
-		this.configurationCenter = configurationCenter;
-		initUser();
-	}
+    this.collectionsProjection = getCollectionProjection(mappings);
+    this.isCloud = isCloud;
+    this.configurationCenter = configurationCenter;
+    initUser();
+  }
 
-	public ConnectorContext(Job job, Connections jobSourceConn, ClientMongoOperator clientMongoOpertor,
-							Connections jobTargetConn, List<Processor> processors, ICacheService cacheService, ConfigurationCenter configurationCenter) {
-		this.job = job;
-		this.jobSourceConn = jobSourceConn;
-		this.jobTargetConn = jobTargetConn;
-		this.clientMongoOpertor = clientMongoOpertor;
-		this.processors = processors;
-		this.cacheService = cacheService;
+  public ConnectorContext(Job job, Connections jobSourceConn, ClientMongoOperator clientMongoOpertor,
+                          Connections jobTargetConn, List<Processor> processors, ICacheService cacheService, ConfigurationCenter configurationCenter) {
+    this.job = job;
+    this.jobSourceConn = jobSourceConn;
+    this.jobTargetConn = jobTargetConn;
+    this.clientMongoOpertor = clientMongoOpertor;
+    this.processors = processors;
+    this.cacheService = cacheService;
 
-		List<Mapping> mappings = job.getMappings();
+    List<Mapping> mappings = job.getMappings();
 
-		this.collectionsProjection = getCollectionProjection(mappings);
-		this.configurationCenter = configurationCenter;
-		initUser();
-	}
+    this.collectionsProjection = getCollectionProjection(mappings);
+    this.configurationCenter = configurationCenter;
+    initUser();
+  }
 
-	public void initUser() {
-		try {
-			if (this.job != null && StringUtils.isNotBlank(this.job.getUser_id()) && this.clientMongoOpertor != null) {
-				User user = this.clientMongoOpertor.findOne(new Query(Criteria.where("id").is(this.job.getUser_id())),
-						"users/findOne", User.class);
-				this.user = user;
-			}
-		} catch (Exception e) {
-			logger.warn("Get job operator user error: {}, user id: {}, stacks: {}",
-					e.getMessage(), job.getUser_id(), Log4jUtil.getStackString(e));
-		}
-	}
+  public ConnectorContext(Job job, Connections jobSourceConn, ClientMongoOperator clientMongoOpertor,
+                          Connections jobTargetConn, List<Processor> processors, ICacheService cacheService,
+                          MilestoneService milestoneService, ConfigurationCenter configurationCenter) {
+    this.job = job;
+    this.jobSourceConn = jobSourceConn;
+    this.jobTargetConn = jobTargetConn;
+    this.clientMongoOpertor = clientMongoOpertor;
+    this.processors = processors;
+    this.cacheService = cacheService;
+    this.milestoneService = milestoneService;
 
-	public static Map<String, Map<String, Integer>> getCollectionProjection(List<Mapping> mappings) {
-		Map<String, Map<String, Integer>> collectionsProjection = null;
-		if (CollectionUtils.isNotEmpty(mappings)) {
-			for (Mapping mapping : mappings) {
-				String fieldFilterType = mapping.getFieldFilterType();
-				String fieldFilter = mapping.getFieldFilter();
-				Map<String, Integer> projection = new HashMap<>();
-				if (Mapping.FIELD_FILTER_TYPE_RETAINED_FIELD.equals(fieldFilterType) && StringUtils.isNotBlank(fieldFilter)) {
+    List<Mapping> mappings = job.getMappings();
 
-					if (collectionsProjection == null) {
-						collectionsProjection = new HashMap<>();
-					}
+    this.collectionsProjection = getCollectionProjection(mappings);
+    this.configurationCenter = configurationCenter;
+    initUser();
+  }
 
-					List<String> fields = Arrays.asList(fieldFilter.split(","));
-					if (!fields.contains("_id")) {
-						projection.put("_id", 0);
-					}
-					fields.forEach(field -> projection.put(field, 1));
-					collectionsProjection.put(mapping.getFrom_table(), projection);
+  public void initUser() {
+    try {
+      if (this.job != null && StringUtils.isNotBlank(this.job.getUser_id()) && this.clientMongoOpertor != null) {
+        User user = this.clientMongoOpertor.findOne(new Query(Criteria.where("id").is(this.job.getUser_id())),
+          "users/findOne", User.class);
+        this.user = user;
+      }
+    } catch (Exception e) {
+      logger.warn("Get job operator user error: {}, user id: {}, stacks: {}",
+        e.getMessage(), job.getUser_id(), Log4jUtil.getStackString(e));
+    }
+  }
 
-				} else if (Mapping.FIELD_FILTER_TYPE_DELETE_FIELD.equals(fieldFilterType) && StringUtils.isNotBlank(fieldFilter)) {
+  public static Map<String, Map<String, Integer>> getCollectionProjection(List<Mapping> mappings) {
+    Map<String, Map<String, Integer>> collectionsProjection = null;
+    if (CollectionUtils.isNotEmpty(mappings)) {
+      for (Mapping mapping : mappings) {
+        String fieldFilterType = mapping.getFieldFilterType();
+        String fieldFilter = mapping.getFieldFilter();
+        Map<String, Integer> projection = new HashMap<>();
+        if (Mapping.FIELD_FILTER_TYPE_RETAINED_FIELD.equals(fieldFilterType) && StringUtils.isNotBlank(fieldFilter)) {
 
-					if (collectionsProjection == null) {
-						collectionsProjection = new HashMap<>();
-					}
+          if (collectionsProjection == null) {
+            collectionsProjection = new HashMap<>();
+          }
 
-					List<String> fields = Arrays.asList(fieldFilter.split(","));
+          List<String> fields = Arrays.asList(fieldFilter.split(","));
+          if (!fields.contains("_id")) {
+            projection.put("_id", 0);
+          }
+          fields.forEach(field -> projection.put(field, 1));
+          collectionsProjection.put(mapping.getFrom_table(), projection);
 
-					fields.forEach(field -> projection.put(field, 0));
+        } else if (Mapping.FIELD_FILTER_TYPE_DELETE_FIELD.equals(fieldFilterType) && StringUtils.isNotBlank(fieldFilter)) {
 
-					collectionsProjection.put(mapping.getFrom_table(), projection);
-				}
-			}
-		}
+          if (collectionsProjection == null) {
+            collectionsProjection = new HashMap<>();
+          }
 
-		return collectionsProjection;
-	}
+          List<String> fields = Arrays.asList(fieldFilter.split(","));
+
+          fields.forEach(field -> projection.put(field, 0));
+
+          collectionsProjection.put(mapping.getFrom_table(), projection);
+        }
+      }
+    }
+
+    return collectionsProjection;
+  }
 
 //    public ConnectorContext(Connections jobTargetConn, List<Processor> processors) {
 //        this.jobTargetConn = jobTargetConn;
@@ -168,72 +188,80 @@ public class ConnectorContext implements Serializable {
 //        this.startupTime = System.currentTimeMillis();
 //    }
 
-	public boolean isRunning() {
-		return ConnectorConstant.RUNNING.equals(job.getStatus())
-				&& !Thread.currentThread().isInterrupted();
-	}
+  public boolean isRunning() {
+    return ConnectorConstant.RUNNING.equals(job.getStatus())
+      && !Thread.currentThread().isInterrupted();
+  }
 
-	public Map<String, Map<String, Integer>> getCollectionsProjection() {
-		return collectionsProjection;
-	}
+  public Map<String, Map<String, Integer>> getCollectionsProjection() {
+    return collectionsProjection;
+  }
 
-	public Job getJob() {
-		return job;
-	}
+  public Job getJob() {
+    return job;
+  }
 
-	public void setJob(Job job) {
-		this.job = job;
-	}
+  public void setJob(Job job) {
+    this.job = job;
+  }
 
-	public Connections getJobSourceConn() {
-		return jobSourceConn;
-	}
+  public Connections getJobSourceConn() {
+    return jobSourceConn;
+  }
 
-	public void setJobSourceConn(Connections jobSourceConn) {
-		this.jobSourceConn = jobSourceConn;
-	}
+  public void setJobSourceConn(Connections jobSourceConn) {
+    this.jobSourceConn = jobSourceConn;
+  }
 
-	public ClientMongoOperator getClientMongoOpertor() {
-		return clientMongoOpertor;
-	}
+  public ClientMongoOperator getClientMongoOpertor() {
+    return clientMongoOpertor;
+  }
 
-	public void setClientMongoOpertor(ClientMongoOperator clientMongoOpertor) {
-		this.clientMongoOpertor = clientMongoOpertor;
-	}
+  public void setClientMongoOpertor(ClientMongoOperator clientMongoOpertor) {
+    this.clientMongoOpertor = clientMongoOpertor;
+  }
 
-	public void setJobTargetConn(Connections jobTargetConn) {
-		this.jobTargetConn = jobTargetConn;
-	}
+  public void setJobTargetConn(Connections jobTargetConn) {
+    this.jobTargetConn = jobTargetConn;
+  }
 
-	public Connections getJobTargetConn() {
-		return jobTargetConn;
-	}
+  public Connections getJobTargetConn() {
+    return jobTargetConn;
+  }
 
-	public List<Processor> getProcessors() {
-		return processors;
-	}
+  public List<Processor> getProcessors() {
+    return processors;
+  }
 
-	public void setProcessors(List<Processor> processors) {
-		this.processors = processors;
-	}
+  public void setProcessors(List<Processor> processors) {
+    this.processors = processors;
+  }
 
-	public ICacheService getCacheService() {
-		return cacheService;
-	}
+  public ICacheService getCacheService() {
+    return cacheService;
+  }
 
-	public boolean isCloud() {
-		return isCloud;
-	}
+  public boolean isCloud() {
+    return isCloud;
+  }
 
-	public User getUser() {
-		return user;
-	}
+  public User getUser() {
+    return user;
+  }
 
-	public void setUser(User user) {
-		this.user = user;
-	}
+  public void setUser(User user) {
+    this.user = user;
+  }
 
-	public ConfigurationCenter getConfigurationCenter() {
-		return configurationCenter;
-	}
+  public MilestoneService getMilestoneService() {
+    return milestoneService;
+  }
+
+  public void setMilestoneService(MilestoneService milestoneService) {
+    this.milestoneService = milestoneService;
+  }
+
+  public ConfigurationCenter getConfigurationCenter() {
+    return configurationCenter;
+  }
 }

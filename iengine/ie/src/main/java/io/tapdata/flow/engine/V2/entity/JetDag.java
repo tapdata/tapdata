@@ -19,6 +19,7 @@ public class JetDag implements Serializable {
 	private Map<String, AbstractProcessor> processorMap;
 	private Map<String, AbstractProcessor> typeConvertMap;
 
+
 	public JetDag(DAG dag, Map<String, AbstractProcessor> processorMap) {
 		this.dag = dag;
 		this.processorMap = processorMap;

@@ -16,17 +16,17 @@ import java.util.List;
  **/
 public class HazelcastBlank extends HazelcastBaseNode {
 
-	public HazelcastBlank(ProcessorBaseContext processorBaseContext) {
-		super(processorBaseContext);
-	}
+  public HazelcastBlank(ProcessorBaseContext processorBaseContext) {
+    super(processorBaseContext);
+  }
 
-	@Override
-	protected void init(@NotNull Context context) throws Exception {
-		super.init(context);
-	}
+  @Override
+  protected void init(@NotNull Context context) throws Exception {
+    super.init(context);
+  }
 
-	@Override
-	protected boolean tryProcess(int ordinal, @NotNull Object item) throws Exception {
-		return offer((TapdataEvent) item);
-	}
+  @Override
+  protected boolean tryProcess(int ordinal, @NotNull Object item) throws Exception {
+    return offer((TapdataEvent) item);
+  }
 }

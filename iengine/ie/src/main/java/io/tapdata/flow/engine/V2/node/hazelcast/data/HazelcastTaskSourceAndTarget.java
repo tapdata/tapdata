@@ -22,88 +22,88 @@ import java.util.concurrent.TimeUnit;
  **/
 public class HazelcastTaskSourceAndTarget extends HazelcastDataBaseNode {
 
-	private Logger logger = LogManager.getLogger(HazelcastTaskSourceAndTarget.class);
+  private Logger logger = LogManager.getLogger(HazelcastTaskSourceAndTarget.class);
 
-	private HazelcastTaskSource source;
+  private HazelcastTaskSource source;
 
-	private HazelcastTaskTarget target;
+  private HazelcastTaskTarget target;
 
-	private ExecutorService sourceThreadPool;
+  private ExecutorService sourceThreadPool;
 
-	public HazelcastTaskSourceAndTarget(DataProcessorContext dataProcessorContext) {
-		super(dataProcessorContext);
-		this.source = new HazelcastTaskSource(
-				DataProcessorContext.newBuilder()
-						.withSubTaskDto(dataProcessorContext.getSubTaskDto())
-						.withNode(dataProcessorContext.getNode())
-						.withNodes(dataProcessorContext.getNodes())
-						.withEdges(dataProcessorContext.getEdges())
-						.withConfigurationCenter(dataProcessorContext.getConfigurationCenter())
-						.withSourceConn(dataProcessorContext.getConnections())
-						.build()
-		);
-		this.target = new HazelcastTaskTarget(
-				DataProcessorContext.newBuilder()
-						.withSubTaskDto(dataProcessorContext.getSubTaskDto())
-						.withNode(dataProcessorContext.getNode())
-						.withNodes(dataProcessorContext.getNodes())
-						.withEdges(dataProcessorContext.getEdges())
-						.withConfigurationCenter(dataProcessorContext.getConfigurationCenter())
-						.withTargetConn(dataProcessorContext.getConnections())
-						.withCacheService(dataProcessorContext.getCacheService())
-						.build()
-		);
-	}
+  public HazelcastTaskSourceAndTarget(DataProcessorContext dataProcessorContext) {
+    super(dataProcessorContext);
+    this.source = new HazelcastTaskSource(
+      DataProcessorContext.newBuilder()
+        .withSubTaskDto(dataProcessorContext.getSubTaskDto())
+        .withNode(dataProcessorContext.getNode())
+        .withNodes(dataProcessorContext.getNodes())
+        .withEdges(dataProcessorContext.getEdges())
+        .withConfigurationCenter(dataProcessorContext.getConfigurationCenter())
+        .withSourceConn(dataProcessorContext.getConnections())
+        .build()
+    );
+    this.target = new HazelcastTaskTarget(
+      DataProcessorContext.newBuilder()
+        .withSubTaskDto(dataProcessorContext.getSubTaskDto())
+        .withNode(dataProcessorContext.getNode())
+        .withNodes(dataProcessorContext.getNodes())
+        .withEdges(dataProcessorContext.getEdges())
+        .withConfigurationCenter(dataProcessorContext.getConfigurationCenter())
+        .withTargetConn(dataProcessorContext.getConnections())
+        .withCacheService(dataProcessorContext.getCacheService())
+        .build()
+    );
+  }
 
-	@Override
-	protected void init(@Nonnull Context context) throws Exception {
-		Log4jUtil.setThreadContext(dataProcessorContext.getSubTaskDto());
-		source.init(context);
-		target.init(context);
-		sourceThreadPool = new ThreadPoolExecutor(1, 1, 0L, TimeUnit.MILLISECONDS, new SynchronousQueue<>());
+  @Override
+  protected void init(@Nonnull Context context) throws Exception {
+    Log4jUtil.setThreadContext(dataProcessorContext.getSubTaskDto());
+    source.init(context);
+    target.init(context);
+    sourceThreadPool = new ThreadPoolExecutor(1, 1, 0L, TimeUnit.MILLISECONDS, new SynchronousQueue<>());
 
-		startSourceWorker();
-	}
+    startSourceWorker();
+  }
 
-	public void startSourceWorker() {
-		sourceThreadPool.submit(() -> {
-			Log4jUtil.setThreadContext(dataProcessorContext.getSubTaskDto());
-			while (source.running.get()) {
-				try {
-					final TapdataEvent dataEvent = source.getEventQueue().poll(5, TimeUnit.SECONDS);
-					while (source.running.get()) {
-						if (offer(dataEvent)) {
-							source.dmlCount(dataEvent);
-							break;
-						}
-					}
+  public void startSourceWorker() {
+    sourceThreadPool.submit(() -> {
+      Log4jUtil.setThreadContext(dataProcessorContext.getSubTaskDto());
+      while (source.running.get()) {
+        try {
+          final TapdataEvent dataEvent = source.getEventQueue().poll(5, TimeUnit.SECONDS);
+          while (source.running.get()) {
+            if (offer(dataEvent)) {
+              source.dmlCount(dataEvent);
+              break;
+            }
+          }
 
-				} catch (Exception e) {
-					logger.error("Source sync failed {}.", e.getMessage(), e);
-					throw new SourceException(e, true);
-				}
-			}
-		});
-	}
+        } catch (Exception e) {
+          logger.error("Source sync failed {}.", e.getMessage(), e);
+          throw new SourceException(e, true);
+        }
+      }
+    });
+  }
 
-	@Override
-	public void close() throws Exception {
-		Log4jUtil.setThreadContext(dataProcessorContext.getSubTaskDto());
-		source.close();
-		target.close();
-	}
+  @Override
+  public void close() throws Exception {
+    Log4jUtil.setThreadContext(dataProcessorContext.getSubTaskDto());
+    source.close();
+    target.close();
+  }
 
-	@Override
-	public void process(int ordinal, Inbox inbox) {
-		Log4jUtil.setThreadContext(dataProcessorContext.getSubTaskDto());
-		target.process(ordinal, inbox);
-	}
+  @Override
+  public void process(int ordinal, Inbox inbox) {
+    Log4jUtil.setThreadContext(dataProcessorContext.getSubTaskDto());
+    target.process(ordinal, inbox);
+  }
 
-	public HazelcastTaskSource getSource() {
-		return source;
-	}
+  public HazelcastTaskSource getSource() {
+    return source;
+  }
 
-	public HazelcastTaskTarget getTarget() {
-		return target;
-	}
+  public HazelcastTaskTarget getTarget() {
+    return target;
+  }
 }

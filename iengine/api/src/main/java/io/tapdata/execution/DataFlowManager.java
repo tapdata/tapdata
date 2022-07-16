@@ -12,35 +12,35 @@ import com.tapdata.mongo.ClientMongoOperator;
  **/
 public interface DataFlowManager {
 
-	/**
-	 * 将data flow提交到任务调度引擎
-	 *
-	 * @param dataFlow data flow 配置
-	 * @return 返回data flow操作代理
-	 */
-	DataFlowClient submit(DataFlow dataFlow);
+  /**
+   * 将data flow提交到任务调度引擎
+   *
+   * @param dataFlow data flow 配置
+   * @return 返回data flow操作代理
+   */
+  DataFlowClient submit(DataFlow dataFlow);
 
-	boolean stop(DataFlowClient dataFlowClient, boolean force);
+  boolean stop(DataFlowClient dataFlowClient, boolean force);
 
-	/**
-	 * 任务错误处理
-	 *
-	 * @param dataFlowClient
-	 * @return true: There is an exception, the task is stopped, the external cache needs to be cleaned
-	 * false: No exception, no processing required
-	 */
-	default boolean error(DataFlowClient dataFlowClient) {
-		return false;
-	}
+  /**
+   * 任务错误处理
+   *
+   * @param dataFlowClient
+   * @return true: There is an exception, the task is stopped, the external cache needs to be cleaned
+   * false: No exception, no processing required
+   */
+  default boolean error(DataFlowClient dataFlowClient) {
+    return false;
+  }
 
-	/**
-	 * 刷新内存信息
-	 */
-	default void refreshCache(DataFlowClient dataFlowClient) {
+  /**
+   * 刷新内存信息
+   */
+  default void refreshCache(DataFlowClient dataFlowClient) {
 
-	}
+  }
 
-	default void ping(DataFlowClient dataFlowClient) {
+  default void ping(DataFlowClient dataFlowClient) {
 
-	}
+  }
 }

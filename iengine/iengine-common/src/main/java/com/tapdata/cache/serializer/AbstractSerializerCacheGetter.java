@@ -5,6 +5,7 @@ import com.tapdata.cache.ICacheStats;
 import com.tapdata.cache.ICacheStore;
 import com.tapdata.cache.MemoryCacheUtil;
 import com.tapdata.entity.dataflow.DataFlowCacheConfig;
+import com.tapdata.mongo.ClientMongoOperator;
 import org.apache.commons.collections.CollectionUtils;
 
 import java.util.ArrayList;
@@ -18,8 +19,8 @@ public abstract class AbstractSerializerCacheGetter extends AbstractCacheGetter 
 	private final Map<String, Map<String, Object>> dateMap;
 
 	public AbstractSerializerCacheGetter(DataFlowCacheConfig cacheConfig, ICacheStore cacheStore, ICacheStats cacheStats,
-										 Map<String, Set<String>> indexMap, Map<String, Map<String, Object>> dateMap) {
-		super(cacheConfig, cacheStore, cacheStats);
+										 Map<String, Set<String>> indexMap, Map<String, Map<String, Object>> dateMap, ClientMongoOperator clientMongoOperator) {
+		super(cacheConfig, cacheStore, cacheStats, clientMongoOperator);
 		this.indexMap = indexMap;
 		this.dateMap = dateMap;
 	}

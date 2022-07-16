@@ -28,4 +28,4 @@
  * @version v1.0 2021/9/9 下午10:12 Create
  * @since JDK8
  */
-package io.tapdata.cdc.ddl;
+ package io.tapdata.cdc.ddl;

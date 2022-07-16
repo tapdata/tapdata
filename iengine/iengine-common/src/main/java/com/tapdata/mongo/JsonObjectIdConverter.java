@@ -12,8 +12,8 @@ import static java.lang.String.format;
  * @create 2020-11-04 18:05
  **/
 public class JsonObjectIdConverter implements Converter<ObjectId> {
-	@Override
-	public void convert(final ObjectId value, StrictJsonWriter writer) {
-		writer.writeRaw(format("ObjectId(\"%s\")", value.toHexString()));
-	}
+  @Override
+  public void convert(final ObjectId value, StrictJsonWriter writer) {
+    writer.writeRaw(format("ObjectId(\"%s\")", value.toHexString()));
+  }
 }

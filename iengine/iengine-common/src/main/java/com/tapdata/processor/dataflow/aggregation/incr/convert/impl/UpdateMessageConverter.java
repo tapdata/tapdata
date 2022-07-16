@@ -15,64 +15,64 @@ import java.util.*;
 
 public class UpdateMessageConverter extends AbstractMessageConverter {
 
-	public UpdateMessageConverter(Stage stage, List<AggrFunction> aggrFunctionList, SnapshotService<? extends SnapshotRecord> snapshotService, SyncVersionService syncVersionService) {
-		super(stage, aggrFunctionList, snapshotService, syncVersionService);
-	}
+  public UpdateMessageConverter(Stage stage, List<AggrFunction> aggrFunctionList, SnapshotService<? extends SnapshotRecord> snapshotService, SyncVersionService syncVersionService) {
+    super(stage, aggrFunctionList, snapshotService, syncVersionService);
+  }
 
-	@Override
-	public Collection<MessageEntity> convert(MessageEntity originMessage) {
-		final SnapshotRecord newRecord = this.snapshotService.wrapRecord(this.primaryKeyFieldList, originMessage.getAfter());
-		// 1. update snapshot
-		final SnapshotRecord oldRecord = this.snapshotService.findOneAndModify(newRecord);
-		// 2. update aggregation
-		final List<MessageEntity> messageEntityList = new ArrayList<>();
-		for (AggrFunction func : aggrFunctionList) {
-			boolean valueChanged = func.isValueChanged(newRecord, oldRecord);
-			boolean bucketKeyEquals = func.isBucketKeyEquals(newRecord, oldRecord);
-			if (!valueChanged && bucketKeyEquals) {
-				continue;
-			}
-			final List<SnapshotRecord> snapshotRecordList;
-			if (bucketKeyEquals) {
-				SnapshotRecord diff = func.diff(newRecord, oldRecord);
-				snapshotRecordList = diff == null ? Collections.emptyList() : Collections.singletonList(diff);
-			} else {
-				snapshotRecordList = Arrays.asList(oldRecord, newRecord);
-			}
-			for (SnapshotRecord record : snapshotRecordList) {
-				// 2.1 filter
-				if (!func.isFilter(record.getDataMap())) {
-					continue;
-				}
-				// 2.2 call aggregation function
-				final AggrBucket<?> bucket = func.call(this.snapshotService, record);
-				// 2.3 convert to MessageEntity
-				final HashMap<String, Object> bucketDataMap = new HashMap<>();
-				this.fillDataMap(func, bucket, bucketDataMap);
-				final MessageEntity messageEntity = new MessageEntity();
-				if (bucket.getCount() > 0) {
-					messageEntity.setAfter(bucketDataMap);
-					if (record.isAppend() && bucket.getCount() == 1 && !bucketKeyEquals) {
-						messageEntity.setOp(MessageOp.INSERT.getType());  // a new record which has diff bucket key and only one row is a new bucket key
-					} else {
-						messageEntity.setOp(this.getOp().getType());
-					}
-				} else {
-					messageEntity.setOp(MessageOp.DELETE.getType());
-					messageEntity.setBefore(bucketDataMap);
-				}
-				messageEntity.setTableName(originMessage.getTableName());
-				messageEntity.setOffset(originMessage.getOffset());
-				messageEntityList.add(messageEntity);
-			}
-		}
-		return messageEntityList;
-	}
+  @Override
+  public Collection<MessageEntity> convert(MessageEntity originMessage) {
+    final SnapshotRecord newRecord = this.snapshotService.wrapRecord(this.primaryKeyFieldList, originMessage.getAfter());
+    // 1. update snapshot
+    final SnapshotRecord oldRecord = this.snapshotService.findOneAndModify(newRecord);
+    // 2. update aggregation
+    final List<MessageEntity> messageEntityList = new ArrayList<>();
+    for (AggrFunction func : aggrFunctionList) {
+      boolean valueChanged = func.isValueChanged(newRecord, oldRecord);
+      boolean bucketKeyEquals = func.isBucketKeyEquals(newRecord, oldRecord);
+      if (!valueChanged && bucketKeyEquals) {
+        continue;
+      }
+      final List<SnapshotRecord> snapshotRecordList;
+      if (bucketKeyEquals) {
+        SnapshotRecord diff = func.diff(newRecord, oldRecord);
+        snapshotRecordList = diff == null ? Collections.emptyList() : Collections.singletonList(diff);
+      } else {
+        snapshotRecordList = Arrays.asList(oldRecord, newRecord);
+      }
+      for (SnapshotRecord record : snapshotRecordList) {
+        // 2.1 filter
+        if (!func.isFilter(record.getDataMap())) {
+          continue;
+        }
+        // 2.2 call aggregation function
+        final AggrBucket<?> bucket = func.call(this.snapshotService, record);
+        // 2.3 convert to MessageEntity
+        final HashMap<String, Object> bucketDataMap = new HashMap<>();
+        this.fillDataMap(func, bucket, bucketDataMap);
+        final MessageEntity messageEntity = new MessageEntity();
+        if (bucket.getCount() > 0) {
+          messageEntity.setAfter(bucketDataMap);
+          if (record.isAppend() && bucket.getCount() == 1 && !bucketKeyEquals) {
+            messageEntity.setOp(MessageOp.INSERT.getType());  // a new record which has diff bucket key and only one row is a new bucket key
+          } else {
+            messageEntity.setOp(this.getOp().getType());
+          }
+        } else {
+          messageEntity.setOp(MessageOp.DELETE.getType());
+          messageEntity.setBefore(bucketDataMap);
+        }
+        messageEntity.setTableName(originMessage.getTableName());
+        messageEntity.setOffset(originMessage.getOffset());
+        messageEntityList.add(messageEntity);
+      }
+    }
+    return messageEntityList;
+  }
 
-	@Override
-	public MessageOp getOp() {
-		return MessageOp.UPDATE;
-	}
+  @Override
+  public MessageOp getOp() {
+    return MessageOp.UPDATE;
+  }
 
 
 }

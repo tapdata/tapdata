@@ -5,53 +5,53 @@ package com.tapdata.entity;
  */
 public class TableConfig {
 
-	private String collection;
+  private String collection;
 
-	private Object fields;
+  private Object fields;
 
-	private String insertionType;
+  private String insertionType;
 
-	private String table;
+  private String table;
 
-	public String getCollection() {
-		return collection;
-	}
+  public String getCollection() {
+    return collection;
+  }
 
-	public void setCollection(String collection) {
-		this.collection = collection;
-	}
+  public void setCollection(String collection) {
+    this.collection = collection;
+  }
 
-	public Object getFields() {
-		return fields;
-	}
+  public Object getFields() {
+    return fields;
+  }
 
-	public void setFields(Object fields) {
-		this.fields = fields;
-	}
+  public void setFields(Object fields) {
+    this.fields = fields;
+  }
 
-	public String getInsertionType() {
-		return insertionType;
-	}
+  public String getInsertionType() {
+    return insertionType;
+  }
 
-	public void setInsertionType(String insertionType) {
-		this.insertionType = insertionType;
-	}
+  public void setInsertionType(String insertionType) {
+    this.insertionType = insertionType;
+  }
 
-	public String getTable() {
-		return table;
-	}
+  public String getTable() {
+    return table;
+  }
 
-	public void setTable(String table) {
-		this.table = table;
-	}
+  public void setTable(String table) {
+    this.table = table;
+  }
 
-	@Override
-	public String toString() {
-		return "TableConfig{" +
-				"collection='" + collection + '\'' +
-				", fields=" + fields +
-				", insertionType='" + insertionType + '\'' +
-				", table='" + table + '\'' +
-				'}';
-	}
+  @Override
+  public String toString() {
+    return "TableConfig{" +
+      "collection='" + collection + '\'' +
+      ", fields=" + fields +
+      ", insertionType='" + insertionType + '\'' +
+      ", table='" + table + '\'' +
+      '}';
+  }
 }

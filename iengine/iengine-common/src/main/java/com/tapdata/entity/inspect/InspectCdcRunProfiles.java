@@ -22,43 +22,43 @@ import java.time.Instant;
 @EqualsAndHashCode
 public class InspectCdcRunProfiles implements Serializable {
 
-	private Instant cdcBeginDate; // 增量开始时间
-	private Instant cdcEndDate; // 增量结束时间，调度启动时无效
-	private int winDuration; // 窗口时长
-	private String sourceOffset; // 记录开始位置 offset
-	private String targetOffset; // 记录开始位置 offset
+  private Instant cdcBeginDate; // 增量开始时间
+  private Instant cdcEndDate; // 增量结束时间，调度启动时无效
+  private int winDuration; // 窗口时长
+  private String sourceOffset; // 记录开始位置 offset
+  private String targetOffset; // 记录开始位置 offset
 
-	public InspectCdcRunProfiles() {
-	}
+  public InspectCdcRunProfiles() {
+  }
 
-	public InspectCdcRunProfiles(Instant cdcBeginDate, int winDuration) {
-		this.cdcBeginDate = cdcBeginDate;
-		this.winDuration = winDuration;
-	}
+  public InspectCdcRunProfiles(Instant cdcBeginDate, int winDuration) {
+    this.cdcBeginDate = cdcBeginDate;
+    this.winDuration = winDuration;
+  }
 
-	@JsonGetter("cdcBeginDate")
-	public Long jacksonSetCdcBeginDate() {
-		if (null == cdcBeginDate) return null;
-		return cdcBeginDate.toEpochMilli();
-	}
+  @JsonGetter("cdcBeginDate")
+  public Long jacksonSetCdcBeginDate() {
+    if (null == cdcBeginDate) return null;
+    return cdcBeginDate.toEpochMilli();
+  }
 
-	@JsonSetter("cdcBeginDate")
-	public void jacksonGetCdcBeginDate(Long val) {
-		if (null != val) {
-			cdcBeginDate = Instant.ofEpochMilli(val);
-		}
-	}
+  @JsonSetter("cdcBeginDate")
+  public void jacksonGetCdcBeginDate(Long val) {
+    if (null != val) {
+      cdcBeginDate = Instant.ofEpochMilli(val);
+    }
+  }
 
-	@JsonGetter("cdcEndDate")
-	public Long jacksonSetCdcEndDate() {
-		if (null == cdcEndDate) return null;
-		return cdcEndDate.toEpochMilli();
-	}
+  @JsonGetter("cdcEndDate")
+  public Long jacksonSetCdcEndDate() {
+    if (null == cdcEndDate) return null;
+    return cdcEndDate.toEpochMilli();
+  }
 
-	@JsonSetter("cdcEndDate")
-	public void jacksonGetCdcEndDate(Long val) {
-		if (null != val) {
-			cdcEndDate = Instant.ofEpochMilli(val);
-		}
-	}
+  @JsonSetter("cdcEndDate")
+  public void jacksonGetCdcEndDate(Long val) {
+    if (null != val) {
+      cdcEndDate = Instant.ofEpochMilli(val);
+    }
+  }
 }

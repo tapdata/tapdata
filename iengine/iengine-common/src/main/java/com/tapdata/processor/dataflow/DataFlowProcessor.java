@@ -8,8 +8,8 @@ import com.tapdata.processor.Processor;
  */
 public interface DataFlowProcessor extends Processor {
 
-	void initialize(ProcessorContext context, Stage stage) throws Exception;
+  void initialize(ProcessorContext context, Stage stage) throws Exception;
 
-	Stage getStage();
+  Stage getStage();
 
 }

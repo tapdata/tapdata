@@ -27,24 +27,24 @@ import javax.script.ScriptException;
  */
 public class AggregationConfig {
 
-	private Aggregation aggregation;
+  private Aggregation aggregation;
 
-	private FilterEval filterEval;
+  private FilterEval filterEval;
 
-	public AggregationConfig(
-			Aggregation aggregation
-	) throws ScriptException {
-		this.aggregation = aggregation;
-		if (StringUtils.isNotBlank(aggregation.getFilterPredicate())) {
-			this.filterEval = new FilterEval(aggregation.getFilterPredicate(), aggregation.getJsEngineName());
-		}
-	}
+  public AggregationConfig(
+    Aggregation aggregation
+  ) throws ScriptException {
+    this.aggregation = aggregation;
+    if (StringUtils.isNotBlank(aggregation.getFilterPredicate())) {
+      this.filterEval = new FilterEval(aggregation.getFilterPredicate(), aggregation.getJsEngineName());
+    }
+  }
 
-	public Aggregation getAggregation() {
-		return aggregation;
-	}
+  public Aggregation getAggregation() {
+    return aggregation;
+  }
 
-	public FilterEval getFilterEval() {
-		return filterEval;
-	}
+  public FilterEval getFilterEval() {
+    return filterEval;
+  }
 }

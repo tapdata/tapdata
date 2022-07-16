@@ -1,7 +1,5 @@
 package io.tapdata.flow.engine.V2.node.hazelcast.processor;
 
-import com.hazelcast.jet.Traverser;
-import com.hazelcast.jet.Traversers;
 import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.constant.MapUtil;
 import com.tapdata.entity.JavaScriptFunctions;
@@ -12,20 +10,11 @@ import com.tapdata.processor.constant.JSEngineEnum;
 import com.tapdata.tm.commons.customNode.CustomNodeTempDto;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.process.CustomProcessorNode;
-import io.tapdata.common.sample.sampler.AverageSampler;
-import io.tapdata.common.sample.sampler.CounterSampler;
-import io.tapdata.common.sample.sampler.ResetCounterSampler;
-import io.tapdata.common.sample.sampler.SpeedSampler;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
-import io.tapdata.entity.schema.TapTable;
 import io.tapdata.flow.engine.V2.common.node.NodeTypeEnum;
 import io.tapdata.flow.engine.V2.entity.TapdataEvent;
-import io.tapdata.flow.engine.V2.node.hazelcast.HazelcastBaseNode;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
-import io.tapdata.metrics.TaskSampleRetriever;
-import io.tapdata.schema.TapTableMap;
-import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.collections.MapUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -37,8 +26,10 @@ import org.springframework.data.mongodb.core.query.Query;
 import javax.script.Invocable;
 import javax.script.ScriptEngine;
 import javax.script.ScriptException;
-import java.util.*;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.function.BiConsumer;
 
 import static org.springframework.data.mongodb.core.query.Criteria.where;
 
@@ -47,30 +38,21 @@ import static org.springframework.data.mongodb.core.query.Criteria.where;
  * @Description
  * @create 2022-03-17 13:02
  **/
-public class HazelcastCustomProcessor extends HazelcastBaseNode {
+public class HazelcastCustomProcessor extends HazelcastProcessorBaseNode {
 
 	public static final String FUNCTION_NAME = "process";
 
 	private Logger logger = LogManager.getLogger(HazelcastCustomProcessor.class);
-
-	private DataProcessorContext dataProcessorContext;
 	private Invocable engine;
-	private AtomicBoolean running = new AtomicBoolean(true);
-	private Traverser<?> traverser = Traversers.empty();
-
-	// statistic and sample related
-	private ResetCounterSampler resetInputCounter;
-	private CounterSampler inputCounter;
-	private ResetCounterSampler resetOutputCounter;
-	private CounterSampler outputCounter;
-	private SpeedSampler inputQPS;
-	private SpeedSampler outputQPS;
-	private AverageSampler timeCostAvg;
 
 	public HazelcastCustomProcessor(DataProcessorContext dataProcessorContext) {
 		super(dataProcessorContext);
-		this.dataProcessorContext = dataProcessorContext;
-		Node<?> node = dataProcessorContext.getNode();
+	}
+
+	@Override
+	protected void init(@NotNull Context context) throws Exception {
+		super.init(context);
+		Node<?> node = processorBaseContext.getNode();
 		if (NodeTypeEnum.get(node.getType()).equals(NodeTypeEnum.CUSTOM_PROCESSOR)) {
 			String customNodeId = ((CustomProcessorNode) node).getCustomNodeId();
 			Query query = new Query(Criteria.where("_id").is(customNodeId));
@@ -94,52 +76,13 @@ public class HazelcastCustomProcessor extends HazelcastBaseNode {
 	}
 
 	@Override
-	protected void initSampleCollector() {
-		super.initSampleCollector();
-
-		// TODO: init outputCounter initial value
-		Map<String, Number> values = TaskSampleRetriever.getInstance().retrieve(tags, Arrays.asList(
-				"inputTotal", "outputTotal"
-		));
-		// init statistic and sample related initialize
-		resetInputCounter = statisticCollector.getResetCounterSampler("inputTotal");
-		inputCounter = sampleCollector.getCounterSampler("inputTotal", values.getOrDefault("inputTotal", 0).longValue());
-		resetOutputCounter = statisticCollector.getResetCounterSampler("outputTotal");
-		outputCounter = sampleCollector.getCounterSampler("outputTotal", values.getOrDefault("outputTotal", 0).longValue());
-		inputQPS = sampleCollector.getSpeedSampler("inputQPS");
-		outputQPS = sampleCollector.getSpeedSampler("outputQPS");
-		timeCostAvg = sampleCollector.getAverageSampler("timeCostAvg");
-	}
-
-	@Override
-	protected boolean tryProcess(int ordinal, @NotNull Object item) throws Exception {
-		TapdataEvent tapdataEvent = null;
-		if (item instanceof TapdataEvent) {
-			tapdataEvent = (TapdataEvent) item;
-		}
-		if (null == tapdataEvent) {
-			return true;
-		}
-
-		if (null == tapdataEvent.getMessageEntity() && !(tapdataEvent.getTapEvent() instanceof TapRecordEvent)) {
-			while (running.get()) {
-				if (offer(tapdataEvent)) break;
-			}
-			return true;
-		}
-
-		transformFromTapValue(tapdataEvent, null);
+	protected void tryProcess(TapdataEvent tapdataEvent, BiConsumer<TapdataEvent, ProcessResult> consumer) {
 		execute(tapdataEvent);
-		TapTableMap<String, TapTable> tapTableMap = dataProcessorContext.getTapTableMap();
-		transformToTapValue(tapdataEvent, tapTableMap, dataProcessorContext.getNode().getId());
-		while (running.get()) {
-			if (offer(tapdataEvent)) break;
-		}
-		return true;
+		consumer.accept(tapdataEvent, null);
 	}
 
 	private void execute(TapdataEvent tapdataEvent) {
-		Node<?> node = dataProcessorContext.getNode();
+		Node<?> node = processorBaseContext.getNode();
 		TapEvent tapEvent = tapdataEvent.getTapEvent();
 		MessageEntity messageEntity = tapdataEvent.getMessageEntity();
 		boolean isAfter;
@@ -201,11 +144,5 @@ public class HazelcastCustomProcessor extends HazelcastBaseNode {
 				messageEntity.setBefore(before);
 			}
 		}
-	}
-
-	@Override
-	public void close() throws Exception {
-		super.close();
-		running.compareAndSet(true, false);
 	}
 }

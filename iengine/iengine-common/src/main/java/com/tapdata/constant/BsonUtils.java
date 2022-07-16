@@ -13,36 +13,36 @@ import java.util.Date;
  **/
 public class BsonUtils {
 
-	public static Object toJavaType(BsonValue value) throws Exception {
-		switch (value.getBsonType()) {
-			case INT32:
-				return value.asInt32().getValue();
-			case INT64:
-				return value.asInt64().getValue();
-			case STRING:
-				return value.asString().getValue();
-			case DECIMAL128:
-				return value.asDecimal128().doubleValue();
-			case DOUBLE:
-				return value.asDouble().getValue();
-			case BOOLEAN:
-				return value.asBoolean().getValue();
-			case OBJECT_ID:
-				return value.asObjectId().getValue();
-			case DB_POINTER:
-				return new DBRef(value.asDBPointer().getNamespace(), value.asDBPointer().getId());
-			case BINARY:
-				return value.asBinary().getData();
-			case DATE_TIME:
-				return new Date(value.asDateTime().getValue());
-			case SYMBOL:
-				return value.asSymbol().getSymbol();
-			case ARRAY:
-				return value.asArray().toArray();
-			case DOCUMENT:
-				return Document.parse(value.asDocument().toJson());
-			default:
-				throw new Exception("Unsupported bsonvalue type: " + value.getBsonType() + ", value: " + value);
-		}
-	}
+  public static Object toJavaType(BsonValue value) throws Exception {
+    switch (value.getBsonType()) {
+      case INT32:
+        return value.asInt32().getValue();
+      case INT64:
+        return value.asInt64().getValue();
+      case STRING:
+        return value.asString().getValue();
+      case DECIMAL128:
+        return value.asDecimal128().doubleValue();
+      case DOUBLE:
+        return value.asDouble().getValue();
+      case BOOLEAN:
+        return value.asBoolean().getValue();
+      case OBJECT_ID:
+        return value.asObjectId().getValue();
+      case DB_POINTER:
+        return new DBRef(value.asDBPointer().getNamespace(), value.asDBPointer().getId());
+      case BINARY:
+        return value.asBinary().getData();
+      case DATE_TIME:
+        return new Date(value.asDateTime().getValue());
+      case SYMBOL:
+        return value.asSymbol().getSymbol();
+      case ARRAY:
+        return value.asArray().toArray();
+      case DOCUMENT:
+        return Document.parse(value.asDocument().toJson());
+      default:
+        throw new Exception("Unsupported bsonvalue type: " + value.getBsonType() + ", value: " + value);
+    }
+  }
 }

@@ -9,11 +9,11 @@ import com.tapdata.entity.ResponseBody;
  * @version v1.0 2022/4/13 2:48 PM Create
  */
 public class RestDoNotRetryException extends RestException {
-	public RestDoNotRetryException(String uri, String method, Object param, ResponseBody responseBody) {
-		super(uri, method, param, responseBody);
-	}
+  public RestDoNotRetryException(String uri, String method, Object param, ResponseBody responseBody) {
+    super(uri, method, param, responseBody);
+  }
 
-	public RestDoNotRetryException(Throwable cause, String uri, String method, Object param, ResponseBody responseBody) {
-		super(cause, uri, method, param, responseBody);
-	}
+  public RestDoNotRetryException(Throwable cause, String uri, String method, Object param, ResponseBody responseBody) {
+    super(cause, uri, method, param, responseBody);
+  }
 }

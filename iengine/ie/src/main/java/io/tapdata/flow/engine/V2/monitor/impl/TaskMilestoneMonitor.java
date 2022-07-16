@@ -16,22 +16,22 @@ import java.util.concurrent.TimeUnit;
  **/
 public class TaskMilestoneMonitor extends TaskMonitor<Object> {
 
-	private MilestoneFlowServiceJetV2 milestoneService;
-	private ScheduledExecutorService executorService;
+  private MilestoneFlowServiceJetV2 milestoneService;
+  private ScheduledExecutorService executorService;
 
-	public TaskMilestoneMonitor(SubTaskDto subTaskDto, MilestoneFlowServiceJetV2 milestoneService) {
-		super(subTaskDto);
-		this.milestoneService = milestoneService;
-		this.executorService = new ScheduledThreadPoolExecutor(1);
-	}
+  public TaskMilestoneMonitor(SubTaskDto subTaskDto, MilestoneFlowServiceJetV2 milestoneService) {
+    super(subTaskDto);
+    this.milestoneService = milestoneService;
+    this.executorService = new ScheduledThreadPoolExecutor(1);
+  }
 
-	@Override
-	public void start() {
-		executorService.scheduleAtFixedRate(() -> milestoneService.updateList(), intervalMs, intervalMs, TimeUnit.MILLISECONDS);
-	}
+  @Override
+  public void start() {
+    executorService.scheduleAtFixedRate(() -> milestoneService.updateList(), intervalMs, intervalMs, TimeUnit.MILLISECONDS);
+  }
 
-	@Override
-	public void close() throws IOException {
-		ExecutorUtil.shutdown(executorService, 5L, TimeUnit.SECONDS);
-	}
+  @Override
+  public void close() throws IOException {
+    ExecutorUtil.shutdown(executorService, 5L, TimeUnit.SECONDS);
+  }
 }

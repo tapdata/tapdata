@@ -9,5 +9,5 @@ import java.lang.annotation.*;
 @Target(ElementType.TYPE)
 public @interface TaskType {
 
-	String type();
+  String type();
 }

@@ -3,11 +3,11 @@ package io.tapdata.flow.engine.V2.util;
 import com.tapdata.entity.DatabaseTypeEnum;
 import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.mongo.HttpClientMongoOperator;
-import com.tapdata.tm.commons.task.dto.SubTaskDto;
+import io.tapdata.flow.engine.V2.entity.PdkStateMap;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.entity.utils.ObjectSerializable;
-import io.tapdata.flow.engine.V2.entity.PdkStateMap;
+import io.tapdata.pdk.apis.entity.ConnectorCapabilities;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.api.PDKIntegration;
 import io.tapdata.schema.PdkTableMap;
@@ -103,11 +103,35 @@ public class PdkUtil {
 										   PdkTableMap pdkTableMap,
 										   PdkStateMap pdkStateMap,
 										   PdkStateMap globalStateMap) {
+		return createNode(
+				dagId,
+				databaseType,
+				clientMongoOperator,
+				associateId,
+				connectionConfig,
+				pdkTableMap,
+				pdkStateMap,
+				globalStateMap,
+				null
+		);
+	}
+
+	public static ConnectorNode createNode(
+			String dagId,
+			DatabaseTypeEnum.DatabaseType databaseType,
+			ClientMongoOperator clientMongoOperator,
+			String associateId,
+			Map<String, Object> connectionConfig,
+			PdkTableMap pdkTableMap,
+			PdkStateMap pdkStateMap,
+			PdkStateMap globalStateMap,
+			ConnectorCapabilities connectorCapabilities
+	) {
 		ConnectorNode connectorNode;
 		try {
 			downloadPdkFileIfNeed((HttpClientMongoOperator) clientMongoOperator,
 					databaseType.getPdkHash(), databaseType.getJarFile(), databaseType.getJarRid());
-			PDKIntegration.ConnectorBuilder<ConnectorNode> connectorNodeConnectorBuilder = PDKIntegration.createConnectorBuilder()
+			PDKIntegration.ConnectorBuilder<ConnectorNode> connectorBuilder = PDKIntegration.createConnectorBuilder()
 					.withDagId(dagId)
 					.withAssociateId(associateId)
 					.withConnectionConfig(new DataMap() {{
@@ -119,7 +143,10 @@ public class PdkUtil {
 					.withTableMap(pdkTableMap)
 					.withStateMap(pdkStateMap)
 					.withGlobalStateMap(globalStateMap);
-			connectorNode = connectorNodeConnectorBuilder.build();
+			if (null != connectorCapabilities) {
+				connectorBuilder.withConnectorCapabilities(connectorCapabilities);
+			}
+			connectorNode = connectorBuilder.build();
 		} catch (Exception e) {
 			throw new RuntimeException("Failed to create pdk connector node, database type: " + databaseType + ", message: " + e.getMessage(), e);
 		}

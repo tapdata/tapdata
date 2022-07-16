@@ -18,29 +18,29 @@ import java.util.Map;
  **/
 public class BaseConnection implements TapInterface {
 
-	protected List<BaseConnectionValidateResultDetail> details;
+  protected List<BaseConnectionValidateResultDetail> details;
 
-	@Override
-	public Map<String, Boolean> getSupported(String[] supports) {
-		return null;
-	}
+  @Override
+  public Map<String, Boolean> getSupported(String[] supports) {
+    return null;
+  }
 
-	@Override
-	public List<BaseConnectionValidateResultDetail> connectionsInit(ConnectionsType connectionsType) {
-		details = new ArrayList<>();
-		return details;
-	}
+  @Override
+  public List<BaseConnectionValidateResultDetail> connectionsInit(ConnectionsType connectionsType) {
+    details = new ArrayList<>();
+    return details;
+  }
 
-	@Override
-	public BaseConnectionValidateResult testConnections(Connections connections) {
-		BaseConnectionValidateResult result = new BaseConnectionValidateResult();
-		result.setValidateResultDetails(details);
-		result.setStatus(BaseConnectionValidateResult.CONNECTION_STATUS_READY);
-		return result;
-	}
+  @Override
+  public BaseConnectionValidateResult testConnections(Connections connections) {
+    BaseConnectionValidateResult result = new BaseConnectionValidateResult();
+    result.setValidateResultDetails(details);
+    result.setStatus(BaseConnectionValidateResult.CONNECTION_STATUS_READY);
+    return result;
+  }
 
-	@Override
-	public LoadSchemaResult<RelateDataBaseTable> loadSchema(Connections connections) {
-		return new LoadSchemaResult<>();
-	}
+  @Override
+  public LoadSchemaResult<RelateDataBaseTable> loadSchema(Connections connections) {
+    return new LoadSchemaResult<>();
+  }
 }

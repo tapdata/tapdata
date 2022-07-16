@@ -6,17 +6,17 @@ package com.tapdata.entity;
  * @create 2021-12-15 12:04
  **/
 public enum WorkerTypeEnum {
-	CONNECTOR("connector"),
-	TRANSFORMER("transformer"),
-	;
+  CONNECTOR("connector"),
+  TRANSFORMER("transformer"),
+  ;
 
-	private String type;
+  private String type;
 
-	WorkerTypeEnum(String type) {
-		this.type = type;
-	}
+  WorkerTypeEnum(String type) {
+    this.type = type;
+  }
 
-	public String getType() {
-		return type;
-	}
+  public String getType() {
+    return type;
+  }
 }

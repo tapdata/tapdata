@@ -4,12 +4,12 @@ import java.util.Map;
 
 public interface AggrBucket<T extends BucketValue> {
 
-	Map<String, Object> getKey();
+  Map<String, Object> getKey();
 
-	Number getValue();
+  Number getValue();
 
-	long getCount();
+  long getCount();
 
-	T getBucketValue();
+  T getBucketValue();
 
 }

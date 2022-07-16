@@ -18,29 +18,29 @@ import static com.tapdata.entity.DataQualityTag.SUB_COLUMN_NAME;
 
 public class MongoAggregationServiceImpl extends AbstractMongoService implements AggregationService {
 
-	private MongoCollection<Document> collection;
+  private MongoCollection<Document> collection;
 
-	public MongoAggregationServiceImpl(ProcessorContext processorContext) {
-		super(null, processorContext.getTargetConn());
-		List<Mapping> mappingList = processorContext.getJob().getMappings();
-		Mapping mapping = mappingList.get(mappingList.size() - 1);
-		this.collection = this.database.getCollection(mapping.getTo_table());
-	}
+  public MongoAggregationServiceImpl(ProcessorContext processorContext) {
+    super(null, processorContext.getTargetConn());
+    List<Mapping> mappingList = processorContext.getJob().getMappings();
+    Mapping mapping = mappingList.get(mappingList.size() - 1);
+    this.collection = this.database.getCollection(mapping.getTo_table());
+  }
 
-	@Override
-	public long removeExpire(long version) {
-		Bson filter;
-		if (version == 1) {
-			filter = Filters.eq(SUB_COLUMN_NAME + ".version", null);
-		} else {
-			filter = Filters.lt(SUB_COLUMN_NAME + ".version", version);
-		}
-		DeleteResult deleteResult = this.collection.deleteMany(filter);
-		if (deleteResult.wasAcknowledged()) {
-			return deleteResult.getDeletedCount();
-		} else {
-			return 0L;
-		}
-	}
+  @Override
+  public long removeExpire(long version) {
+    Bson filter;
+    if (version == 1) {
+      filter = Filters.eq(SUB_COLUMN_NAME + ".version", null);
+    } else {
+      filter = Filters.lt(SUB_COLUMN_NAME + ".version", version);
+    }
+    DeleteResult deleteResult = this.collection.deleteMany(filter);
+    if (deleteResult.wasAcknowledged()) {
+      return deleteResult.getDeletedCount();
+    } else {
+      return 0L;
+    }
+  }
 
 }

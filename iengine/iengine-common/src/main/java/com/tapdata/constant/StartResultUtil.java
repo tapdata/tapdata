@@ -17,42 +17,42 @@ import java.util.Map;
  **/
 public class StartResultUtil {
 
-	private static Logger logger = LogManager.getLogger(StartResultUtil.class);
-	private final static String AGENT_START_RESULT_JSON = ".agentStartMsg.json";
+  private static Logger logger = LogManager.getLogger(StartResultUtil.class);
+  private final static String AGENT_START_RESULT_JSON = ".agentStartMsg.json";
 
-	public static void writeStartResult(String workDir, String daasVersion, Exception e) {
-		Map<String, String> result = new HashMap<>();
-		if (StringUtils.isNotBlank(daasVersion)) {
-			result.put("version", daasVersion);
-		} else {
-			result.put("version", "-");
-		}
-		if (e == null) {
-			result.put("status", "ok");
-			result.put("msg", "");
-		} else {
-			result.put("status", "failed");
-			result.put("msg", e.getMessage() + "\n  " + Log4jUtil.getStackString(e));
-		}
+  public static void writeStartResult(String workDir, String daasVersion, Exception e) {
+    Map<String, String> result = new HashMap<>();
+    if (StringUtils.isNotBlank(daasVersion)) {
+      result.put("version", daasVersion);
+    } else {
+      result.put("version", "-");
+    }
+    if (e == null) {
+      result.put("status", "ok");
+      result.put("msg", "");
+    } else {
+      result.put("status", "failed");
+      result.put("msg", e.getMessage() + "\n  " + Log4jUtil.getStackString(e));
+    }
 
-		String filePath;
-		if (StringUtils.isNotBlank(workDir)) {
-			filePath = workDir + File.separator + AGENT_START_RESULT_JSON;
-		} else {
-			filePath = ".agentStartMsg";
-		}
-		File file = new File(filePath);
-		if (file.exists()) {
-			file.delete();
-		}
-		try (FileOutputStream fileOutputStream = new FileOutputStream(file)) {
-			String json = JSONUtil.map2Json(result);
-			logger.info("Write start result to file: " + filePath + "\n  " + json);
-			fileOutputStream.write(json.getBytes(StandardCharsets.UTF_8));
-			fileOutputStream.flush();
-		} catch (Exception exception) {
-			String err = "Write start result failed, work dir: " + workDir + ", version: " + daasVersion + ", e: " + e == null ? "-" : e.getMessage() + ", cause: " + exception.getMessage();
-			throw new RuntimeException(err);
-		}
-	}
+    String filePath;
+    if (StringUtils.isNotBlank(workDir)) {
+      filePath = workDir + File.separator + AGENT_START_RESULT_JSON;
+    } else {
+      filePath = ".agentStartMsg";
+    }
+    File file = new File(filePath);
+    if (file.exists()) {
+      file.delete();
+    }
+    try (FileOutputStream fileOutputStream = new FileOutputStream(file)) {
+      String json = JSONUtil.map2Json(result);
+      logger.info("Write start result to file: " + filePath + "\n  " + json);
+      fileOutputStream.write(json.getBytes(StandardCharsets.UTF_8));
+      fileOutputStream.flush();
+    } catch (Exception exception) {
+      String err = "Write start result failed, work dir: " + workDir + ", version: " + daasVersion + ", e: " + e == null ? "-" : e.getMessage() + ", cause: " + exception.getMessage();
+      throw new RuntimeException(err);
+    }
+  }
 }

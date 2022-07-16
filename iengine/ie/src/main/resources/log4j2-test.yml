@@ -17,18 +17,18 @@ Configutation:
 
   Loggers:
 
-    #    Root:
-    #      level: ${level}
-    #      AppenderRef:
-    #      - ref: Console_Appender
-    #        level: error
+#    Root:
+#      level: ${level}
+#      AppenderRef:
+#      - ref: Console_Appender
+#        level: error
 
     Logger:
-      - name: org.springframework
+    - name: org.springframework
+      level: error
+      AppenderRef:
+        ref: Console_Appender
         level: error
-        AppenderRef:
-          ref: Console_Appender
-          level: error
 
 #    - name: org.apache.http.wire
 #      level: debug

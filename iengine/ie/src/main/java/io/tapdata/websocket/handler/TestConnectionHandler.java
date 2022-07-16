@@ -11,7 +11,6 @@ import com.tapdata.validator.ConnectionValidator;
 import com.tapdata.validator.ValidatorConstant;
 import io.tapdata.Runnable.LoadSchemaRunner;
 import io.tapdata.TapInterface;
-import io.tapdata.common.ConverterUtil;
 import io.tapdata.common.SettingService;
 import io.tapdata.common.TapInterfaceUtil;
 import io.tapdata.common.logging.error.ErrorCodeEnum;
@@ -36,7 +35,10 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 import static org.springframework.data.mongodb.core.query.Criteria.where;
 
@@ -47,6 +49,7 @@ import static org.springframework.data.mongodb.core.query.Criteria.where;
  **/
 @EventHandlerAnnotation(type = "testConnection")
 public class TestConnectionHandler implements WebSocketEventHandler {
+
 	private final static Logger logger = LogManager.getLogger(TestConnectionHandler.class);
 
 	private ClientMongoOperator clientMongoOperator;
@@ -92,7 +95,7 @@ public class TestConnectionHandler implements WebSocketEventHandler {
 			Connections connection = null;
 			String connName = event.getOrDefault("name", "").toString();
 			String schemaVersion = UUIDGenerator.uuid();
-			Schema schema = null;
+			Schema schema;
 
 			try {
 				try {
@@ -100,7 +103,6 @@ public class TestConnectionHandler implements WebSocketEventHandler {
 						event.remove("schema");
 					}
 					connection = JSONUtil.map2POJO(event, Connections.class);
-					connection.setResponse_body(null == connection.getResponse_body() ? new HashMap<>() : connection.getResponse_body());
 					connection.setPdkHash((String) event.getOrDefault("pdkHash", ""));
 				} catch (Exception e) {
 					String errMsg = String.format("Map convert to Connections failed, event: %s, err: %s", event, e.getMessage());
@@ -163,150 +165,36 @@ public class TestConnectionHandler implements WebSocketEventHandler {
 					save = true;
 				}
 
-				// 处理密码
+				// Decode passwords
 				connection.decodeDatabasePassword();
 				if (StringUtils.isBlank(connection.getDatabase_password()) && event.containsKey("plain_password")) {
 					Object plainPassword = event.get("plain_password");
 					connection.setDatabase_password(plainPassword != null ? plainPassword.toString() : "");
 				}
 
-				// workaround.
-				setFileDefaultCharset(connection);
+				// PDK connection test
+				if (StringUtils.isBlank(connection.getPdkType())) {
+					throw new ConnectionException("Unknown connection pdk type");
+				}
 				ConnectionValidateResult validateResult;
-				if (StringUtils.isBlank(connection.getPdkType())) {
-					validateResult = ConnectionValidator.initialValidate(connection);
-				} else {
-					DatabaseTypeEnum.DatabaseType databaseDefinition = ConnectionUtil.getDatabaseType(clientMongoOperator, connection.getPdkHash());
-					if (databaseDefinition == null) {
-						throw new ConnectionException(String.format("Unknown database type %s", connection.getDatabase_type()));
-					}
-					PdkUtil.downloadPdkFileIfNeed((HttpClientMongoOperator) clientMongoOperator, databaseDefinition.getPdkHash(), databaseDefinition.getJarFile(), databaseDefinition.getJarRid());
-					validateResult = ConnectionValidator.testPdkConnection(connection, databaseDefinition);
-					schema = validateResult.getSchema();
+				DatabaseTypeEnum.DatabaseType databaseDefinition = ConnectionUtil.getDatabaseType(clientMongoOperator, connection.getPdkHash());
+				if (databaseDefinition == null) {
+					throw new ConnectionException(String.format("Unknown database type %s", connection.getDatabase_type()));
 				}
-				List validateResultDetails = validateResult.getValidateResultDetails();
-
-				TapInterface tapInterface = null;
-				String databaseType = connection.getDatabase_type();
-				if (CollectionUtils.isEmpty(validateResultDetails)) {
-					tapInterface = TapInterfaceUtil.getTapInterface(databaseType, null);
-					if (tapInterface != null) {
-						validateResultDetails = tapInterface.connectionsInit(ConnectionsType.getConnectionType(connection.getConnection_type()));
-
-						// 长连接返回测试项
-						sendMessage.send(WebSocketEventResult.handleSuccess(WebSocketEventResult.Type.TEST_CONNECTION_RESULT,
-								wrapConnectionResult(connection, new ConnectionValidateResult(validateResultDetails))));
-					}
-				} else if (StringUtils.isBlank(connection.getPdkType())) {
-					// 长连接返回测试项
-					sendMessage.send(WebSocketEventResult.handleSuccess(WebSocketEventResult.Type.TEST_CONNECTION_RESULT,
-							wrapConnectionResult(connection, validateResult)));
-				}
-
+				PdkUtil.downloadPdkFileIfNeed((HttpClientMongoOperator) clientMongoOperator, databaseDefinition.getPdkHash(), databaseDefinition.getJarFile(), databaseDefinition.getJarRid());
+				validateResult = ConnectionValidator.testPdkConnection(connection, databaseDefinition);
+				schema = validateResult.getSchema();
+				List<ConnectionValidateResultDetail> validateResultDetails = validateResult.getValidateResultDetails();
+				// Websocket returns test item(s)
+				sendMessage.send(WebSocketEventResult.handleSuccess(WebSocketEventResult.Type.TEST_CONNECTION_RESULT,
+						wrapConnectionResult(connection, validateResult)));
 				if (save) {
-					// 测试项更新中间库
-					Update update = new Update();
-					update.set("response_body.validate_details", validateResultDetails);
-					clientMongoOperator.update(connectionIdQuery, update, ConnectorConstant.CONNECTION_COLLECTION);
-				}
-
-				connection.setSampleSize(settingService.getInt("connections.mongodbLoadSchemaSampleSize", 100));
-				long startTs = System.currentTimeMillis();
-				if (StringUtils.isBlank(connection.getPdkType())) {
-					validateResult = ConnectionValidator.validate(connection, validateResult);
-				}
-
-				if (validateResult != null) {
-					/* 旧的架构，测试连接 */
-
-					List<RelateDataBaseTable> schemaTables = null;
-					if (validateResult.getSchema() != null) {
-						schemaTables = validateResult.getSchema().getTables();
-					}
-
-					ConverterUtil.schemaConvert(schemaTables, connection.getDatabase_type());
-					long javaEndTs = System.currentTimeMillis();
-					long javaSpend = javaEndTs - startTs;
-					int schemaTablesSize = CollectionUtils.isNotEmpty(schemaTables) ? schemaTables.size() : 0;
-
-					if (save) {
-						// 测试结果，更新中间库
-						if (schemaTables != null) {
-							schemaTables.forEach(schemaTable -> schemaTable.setSchemaVersion(schemaVersion));
-						}
-
-						schema = validateResult.getSchema();
-						updateLoadSchemaStatus(connectionIdQuery, updateSchema, everLoadSchema, schemaVersion, schemaTablesSize, schema, schemaTables, validateResultDetails,
-								validateResult.getRetry(), validateResult.getNextRetry(), validateResult.getStatus(), validateResult.getDb_version(), validateResult.getDbFullVersion(),
-								connection);
-					}
-					long endTs = System.currentTimeMillis();
-					long managementSpend = endTs - startTs - javaSpend;
-
-					// 长连接返回测试结果
-					sendMessage.send(WebSocketEventResult.handleSuccess(WebSocketEventResult.Type.TEST_CONNECTION_RESULT,
-							wrapConnectionResult(connection, validateResult)));
-
-					logger.info(TapLog.CON_LOG_0022.getMsg(), connection.getName(), validateResult.getStatus(),
-							javaSpend, managementSpend, schemaTablesSize);
-				} else if (tapInterface != null) {
-					/* 新的架构，测试连接 */
-
-					connection.setLoadSchemaField(false);
-					BaseConnectionValidateResult baseConnectionValidateResult = tapInterface.testConnections(connection);
-
-					if (baseConnectionValidateResult != null) {
-
-						String status = baseConnectionValidateResult.getStatus();
-						validateResultDetails = baseConnectionValidateResult.getValidateResultDetails();
-						if (BaseConnectionValidateResult.CONNECTION_STATUS_READY.equals(status)
-								&& baseConnectionValidateResult != null
-								&& baseConnectionValidateResult.getSchema() != null
-								&& CollectionUtils.isNotEmpty(baseConnectionValidateResult.getSchema().getTables())) {
-
-							schema = baseConnectionValidateResult.getSchema();
-							ConverterUtil.schemaConvert(schema.getTables(), connection.getDatabase_type());
-							String uuid = UUIDGenerator.uuid();
-							schema.getTables().forEach(table -> table.setSchemaVersion(uuid));
-
-						} else {
-							schema = new Schema(new ArrayList<>());
-						}
-
-						long javaEndTs = System.currentTimeMillis();
-						long javaSpend = javaEndTs - startTs;
-						int schemaTablesSize = null != baseConnectionValidateResult.getSchema()
-								&& CollectionUtils.isNotEmpty(baseConnectionValidateResult.getSchema().getTables()) ?
-								baseConnectionValidateResult.getSchema().getTables().size() : 0;
-
-						if (save) {
-							// 测试结果，更新中间库
-							if (schema != null) {
-								schema.getTables().forEach(schemaTable -> schemaTable.setSchemaVersion(schemaVersion));
-							}
-
-							// 连接唯一名称
-							ConnectionUtil.setUniqueName(connection, tapInterface);
-
-							updateLoadSchemaStatus(connectionIdQuery, updateSchema, everLoadSchema, schemaVersion, schemaTablesSize, schema, schema.getTables(), validateResultDetails,
-									baseConnectionValidateResult.getRetry(), baseConnectionValidateResult.getNextRetry(), status, baseConnectionValidateResult.getDb_version(), null,
-									connection);
-						}
-
-						long endTs = System.currentTimeMillis();
-						long managementSpend = endTs - startTs - javaSpend;
-
-						// 长连接返回测试结果
-						sendMessage.send(WebSocketEventResult.handleSuccess(WebSocketEventResult.Type.TEST_CONNECTION_RESULT,
-								wrapConnectionResult(connection, baseConnectionValidateResult)));
-
-						logger.info(TapLog.CON_LOG_0022.getMsg(), connection.getName(), baseConnectionValidateResult.getStatus(),
-								javaSpend, managementSpend, schema.getTables().size());
-					}
+					// Update connection test result
+					updatePDKConnectionTestResult(connectionIdQuery, updateSchema, everLoadSchema, validateResult, validateResultDetails);
 				}
 
 				if (needLoadField(updateSchema, schema, everLoadSchema) && save) {
-					// need to load schema fields
+					// Load schema field
 					LoadSchemaRunner loadSchemaRunner = new LoadSchemaRunner(connection, clientMongoOperator,
 							null == schema.getTables() ? schema.getTapTableCount() : schema.getTables().size());
 					loadSchemaRunner.run();
@@ -336,6 +224,27 @@ public class TestConnectionHandler implements WebSocketEventHandler {
 		return null;
 	}
 
+	private void updatePDKConnectionTestResult(Query connectionIdQuery, boolean updateSchema, boolean everLoadSchema, ConnectionValidateResult validateResult, List<ConnectionValidateResultDetail> validateResultDetails) {
+		Update update = new Update();
+		// Update connection
+		update.set("response_body.retry", validateResult.getRetry());
+		if (validateResult.getNextRetry() != null) {
+			update.set("response_body.next_retry", validateResult.getNextRetry());
+		}
+		update.set("response_body.validate_details", validateResultDetails);
+		update.set("status", validateResult.getStatus());
+		if (needLoadField(updateSchema, validateResult.getSchema(), everLoadSchema)) {
+			update.set("loadSchemaField", true);
+		} else {
+			update.set("loadSchemaField", false);
+		}
+		clientMongoOperator.update(connectionIdQuery, update, ConnectorConstant.CONNECTION_COLLECTION);
+		// Update connection options
+		update = new Update().set("options", validateResult.getConnectionOptions());
+		clientMongoOperator.update(connectionIdQuery, update, ConnectorConstant.CONNECTION_COLLECTION + "/connectionOptions");
+	}
+
+	@Deprecated
 	private void updateConnectionUniqueName(Connections connection, Query connectionIdQuery) {
 		connection.setUniqueName(connection.getId());
 		clientMongoOperator.update(connectionIdQuery, new Update().set("uniqueName", connection.getUniqueName()), ConnectorConstant.CONNECTION_COLLECTION);
@@ -350,6 +259,7 @@ public class TestConnectionHandler implements WebSocketEventHandler {
 		clientMongoOperator.update(query, update, ConnectorConstant.CONNECTION_COLLECTION);
 	}
 
+	@Deprecated
 	private void updateLoadSchemaStatus(Query connectionIdQuery, boolean updateSchema, boolean everLoadSchema, String schemaVersion, int schemaTablesSize, Schema schema
 			, List<RelateDataBaseTable> schemaTables, List validateResultDetails, int retry, Long nextRetry, String status, Integer dbVersion, String dbFullVersion, Connections connections) {
 		Update update = new Update();
@@ -425,6 +335,7 @@ public class TestConnectionHandler implements WebSocketEventHandler {
 		return true;
 	}
 
+	@Deprecated
 	private void setFileDefaultCharset(Connections connection) {
 
 		Setting setting = settingService.getSetting("file.defaultCharset");

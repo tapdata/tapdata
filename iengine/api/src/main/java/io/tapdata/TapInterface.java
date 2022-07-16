@@ -12,40 +12,40 @@ import java.util.Map;
 
 public interface TapInterface {
 
-	/**
-	 * get supported functions
-	 *
-	 * @param supports
-	 */
-	Map<String, Boolean> getSupported(String[] supports);
+  /**
+   * get supported functions
+   *
+   * @param supports
+   */
+  Map<String, Boolean> getSupported(String[] supports);
 
-	/**
-	 * before test connections, init test items
-	 *
-	 * @return
-	 */
-	List<BaseConnectionValidateResultDetail> connectionsInit(ConnectionsType connectionsType);
+  /**
+   * before test connections, init test items
+   *
+   * @return
+   */
+  List<BaseConnectionValidateResultDetail> connectionsInit(ConnectionsType connectionsType);
 
-	/**
-	 * test connections by test items
-	 *
-	 * @param connections
-	 * @return
-	 */
-	BaseConnectionValidateResult testConnections(Connections connections);
+  /**
+   * test connections by test items
+   *
+   * @param connections
+   * @return
+   */
+  BaseConnectionValidateResult testConnections(Connections connections);
 
-	/**
-	 * load schema by connections
-	 *
-	 * @param connections
-	 * @return
-	 */
-	LoadSchemaResult loadSchema(Connections connections);
+  /**
+   * load schema by connections
+   *
+   * @param connections
+   * @return
+   */
+  LoadSchemaResult loadSchema(Connections connections);
 
-	default String getUniqueName(Connections connections) throws Exception {
-		if (connections == null || StringUtils.isBlank(connections.getId())) {
-			return "";
-		}
-		return connections.getId();
-	}
+  default String getUniqueName(Connections connections) throws Exception {
+    if (connections == null || StringUtils.isBlank(connections.getId())) {
+      return "";
+    }
+    return connections.getId();
+  }
 }

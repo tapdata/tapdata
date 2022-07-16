@@ -13,30 +13,30 @@ import java.util.Optional;
  **/
 public class MilestoneUtil {
 
-	/**
-	 * 更新里程碑工具方法
-	 *
-	 * @param milestoneService
-	 * @param milestoneStage
-	 * @param milestoneStatus
-	 * @param errMsg
-	 */
-	public static void updateMilestone(MilestoneService milestoneService, MilestoneStage milestoneStage, MilestoneStatus milestoneStatus,
-									   String errMsg) {
-		if (milestoneStage == null || milestoneStatus == null) {
-			return;
-		}
-		Optional.ofNullable(milestoneService).ifPresent(m -> m.updateMilestoneStatusByCode(milestoneStage, milestoneStatus, errMsg));
-	}
+  /**
+   * 更新里程碑工具方法
+   *
+   * @param milestoneService
+   * @param milestoneStage
+   * @param milestoneStatus
+   * @param errMsg
+   */
+  public static void updateMilestone(MilestoneService milestoneService, MilestoneStage milestoneStage, MilestoneStatus milestoneStatus,
+                                     String errMsg) {
+    if (milestoneStage == null || milestoneStatus == null) {
+      return;
+    }
+    Optional.ofNullable(milestoneService).ifPresent(m -> m.updateMilestoneStatusByCode(milestoneStage, milestoneStatus, errMsg));
+  }
 
-	public static void updateMilestone(MilestoneService milestoneService, MilestoneStage milestoneStage, MilestoneStatus milestoneStatus) {
-		if (milestoneStage == null || milestoneStatus == null) {
-			return;
-		}
-		Optional.ofNullable(milestoneService).ifPresent(m -> m.updateMilestoneStatusByCode(milestoneStage, milestoneStatus));
-	}
+  public static void updateMilestone(MilestoneService milestoneService, MilestoneStage milestoneStage, MilestoneStatus milestoneStatus) {
+    if (milestoneStage == null || milestoneStatus == null) {
+      return;
+    }
+    Optional.ofNullable(milestoneService).ifPresent(m -> m.updateMilestoneStatusByCode(milestoneStage, milestoneStatus));
+  }
 
-	public static String getEdgeKey(String sourceVertexName, String destVertexName) {
-		return sourceVertexName + ":" + destVertexName;
-	}
+  public static String getEdgeKey(String sourceVertexName, String destVertexName) {
+    return sourceVertexName + ":" + destVertexName;
+  }
 }

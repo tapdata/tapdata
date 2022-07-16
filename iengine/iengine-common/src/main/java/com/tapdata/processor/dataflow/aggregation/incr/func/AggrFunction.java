@@ -9,24 +9,24 @@ import java.util.Map;
 
 public interface AggrFunction {
 
-	AggrBucket call(SnapshotService snapshotService, SnapshotRecord snapshotRecord);
+  AggrBucket call(SnapshotService snapshotService, SnapshotRecord snapshotRecord);
 
-	List<AggrBucket> callByGroup(SnapshotService snapshotService);
+  List<AggrBucket> callByGroup(SnapshotService snapshotService);
 
-	Func getFunc();
+  Func getFunc();
 
-	String getProcessName();
+  String getProcessName();
 
-	boolean isFilter(Map<String, Object> dataMap);
+  boolean isFilter(Map<String, Object> dataMap);
 
-	String getValueField();
+  String getValueField();
 
-	Map<String, Object> formatBucketKey(SnapshotRecord snapshotRecord);
+  Map<String, Object> formatBucketKey(SnapshotRecord snapshotRecord);
 
-	boolean isBucketKeyEquals(SnapshotRecord r1, SnapshotRecord r2);
+  boolean isBucketKeyEquals(SnapshotRecord r1, SnapshotRecord r2);
 
-	boolean isValueChanged(SnapshotRecord r1, SnapshotRecord r2);
+  boolean isValueChanged(SnapshotRecord r1, SnapshotRecord r2);
 
-	SnapshotRecord diff(SnapshotRecord newRecord, SnapshotRecord oldRecord);
+  SnapshotRecord diff(SnapshotRecord newRecord, SnapshotRecord oldRecord);
 
 }

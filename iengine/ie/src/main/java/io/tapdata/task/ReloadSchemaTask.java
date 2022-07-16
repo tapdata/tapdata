@@ -21,89 +21,89 @@ import static org.springframework.data.mongodb.core.query.Criteria.where;
 @TaskType(type = "RELOAD_SCHEMA")
 public class ReloadSchemaTask implements Task {
 
-	private TaskContext taskContext;
+  private TaskContext taskContext;
 
-	@Override
-	public void initialize(TaskContext taskContext) {
-		this.taskContext = taskContext;
-	}
+  @Override
+  public void initialize(TaskContext taskContext) {
+    this.taskContext = taskContext;
+  }
 
-	@Override
-	public void execute(Consumer<TaskResult> callback) {
-		TaskResult result = new TaskResult();
-		Map<String, Object> taskData = taskContext.getTaskData();
-		try {
-			if (taskData.containsKey("connection_id")) {
-				String connectionId = (String) taskData.get("connection_id");
+  @Override
+  public void execute(Consumer<TaskResult> callback) {
+    TaskResult result = new TaskResult();
+    Map<String, Object> taskData = taskContext.getTaskData();
+    try {
+      if (taskData.containsKey("connection_id")) {
+        String connectionId = (String) taskData.get("connection_id");
 
-				Query query = new Query(where("_id").is(connectionId));
-				query.fields().exclude("schema");
-				List<Connections> connections = taskContext.getClientMongoOperator().find(query, ConnectorConstant.CONNECTION_COLLECTION, Connections.class);
+        Query query = new Query(where("_id").is(connectionId));
+        query.fields().exclude("schema");
+        List<Connections> connections = taskContext.getClientMongoOperator().find(query, ConnectorConstant.CONNECTION_COLLECTION, Connections.class);
 
-				if (CollectionUtils.isNotEmpty(connections)) {
+        if (CollectionUtils.isNotEmpty(connections)) {
 
-					LoadSchemaResult loadSchemaResult = loadSchema(connections.get(0));
-					// After load schema, clear schema proxy
-					SchemaProxy.getSchemaProxy().clear(connectionId);
+          LoadSchemaResult loadSchemaResult = loadSchema(connections.get(0));
+          // After load schema, clear schema proxy
+          SchemaProxy.getSchemaProxy().clear(connectionId);
 
-					if (StringUtils.isNotBlank(loadSchemaResult.getErrMessage())) {
-						result.setTaskResultCode(201);
-						result.setTaskResult(loadSchemaResult.getErrMessage());
-					} else {
-						List<RelateDataBaseTable> relateDataBaseTables = loadSchemaResult.getSchema();
+          if (StringUtils.isNotBlank(loadSchemaResult.getErrMessage())) {
+            result.setTaskResultCode(201);
+            result.setTaskResult(loadSchemaResult.getErrMessage());
+          } else {
+            List<RelateDataBaseTable> relateDataBaseTables = loadSchemaResult.getSchema();
 
-						Update update = new Update();
-						update.set("schema.tables", relateDataBaseTables);
-						taskContext.getClientMongoOperator().update(query, update, ConnectorConstant.CONNECTION_COLLECTION);
+            Update update = new Update();
+            update.set("schema.tables", relateDataBaseTables);
+            taskContext.getClientMongoOperator().update(query, update, ConnectorConstant.CONNECTION_COLLECTION);
 
-						result.setTaskResultCode(200);
-					}
+            result.setTaskResultCode(200);
+          }
 
-				} else {
-					result.setTaskResultCode(201);
-					result.setTaskResult("Cannot found connection id " + connectionId + ".");
-				}
+        } else {
+          result.setTaskResultCode(201);
+          result.setTaskResult("Cannot found connection id " + connectionId + ".");
+        }
 
-			} else {
-				result.setTaskResultCode(201);
-				result.setTaskResult("Must be set the connection id in task_data.");
-			}
-		} catch (Exception e) {
-			String message = e.getMessage();
-			result.setTaskResult(message);
-			result.setTaskResultCode(201);
-		}
-		callback.accept(result);
-	}
+      } else {
+        result.setTaskResultCode(201);
+        result.setTaskResult("Must be set the connection id in task_data.");
+      }
+    } catch (Exception e) {
+      String message = e.getMessage();
+      result.setTaskResult(message);
+      result.setTaskResultCode(201);
+    }
+    callback.accept(result);
+  }
 
-	private LoadSchemaResult loadSchema(Connections connection) throws Exception {
+  private LoadSchemaResult loadSchema(Connections connection) throws Exception {
 
-		LoadSchemaResult loadSchemaResult = new LoadSchemaResult();
-		setFileDefaultCharset(connection);
+    LoadSchemaResult loadSchemaResult = new LoadSchemaResult();
+    setFileDefaultCharset(connection);
 
-		List<RelateDataBaseTable> relateDataBaseTables;
+    List<RelateDataBaseTable> relateDataBaseTables;
 
-		Schema schema = SchemaFactory.loadSchemaList(connection, true);
+    Schema schema = SchemaFactory.loadSchemaList(connection, true);
 
-		relateDataBaseTables = schema.getTables();
+    relateDataBaseTables = schema.getTables();
 
-		if (CollectionUtils.isEmpty(relateDataBaseTables)) {
-			String databaseType = connection.getDatabase_type();
-			TapInterface tapInterface = TapInterfaceUtil.getTapInterface(databaseType, null);
-			if (tapInterface != null) {
-				loadSchemaResult = tapInterface.loadSchema(connection);
-			}
-		} else {
-			loadSchemaResult.setSchema(relateDataBaseTables);
-		}
+    if (CollectionUtils.isEmpty(relateDataBaseTables)) {
+      String databaseType = connection.getDatabase_type();
+      TapInterface tapInterface = TapInterfaceUtil.getTapInterface(databaseType, null);
+      if (tapInterface != null) {
+        loadSchemaResult = tapInterface.loadSchema(connection);
+      }
+    } else {
+      loadSchemaResult.setSchema(relateDataBaseTables);
+    }
 
-		return loadSchemaResult;
-	}
+    return loadSchemaResult;
+  }
 
-	private void setFileDefaultCharset(Connections connection) {
-		Setting setting = taskContext.getSettingService().getSetting("file.defaultCharset");
-		if (setting != null) {
-			connection.setFileDefaultCharset(setting.getValue());
-		}
-	}
+  private void setFileDefaultCharset(Connections connection) {
+    Setting setting = taskContext.getSettingService().getSetting("file.defaultCharset");
+    if (setting != null) {
+      connection.setFileDefaultCharset(setting.getValue());
+    }
+  }
 }

@@ -12,33 +12,33 @@ import java.io.Serializable;
  **/
 public class SchemaContext implements Serializable {
 
-	private static final long serialVersionUID = 6382236677320554054L;
+  private static final long serialVersionUID = 6382236677320554054L;
 
-	private ClientMongoOperator clientMongoOperator;
-	private Connections connections;
+  private ClientMongoOperator clientMongoOperator;
+  private Connections connections;
 
-	public SchemaContext(ClientMongoOperator clientMongoOperator) {
-		this.clientMongoOperator = clientMongoOperator;
-	}
+  public SchemaContext(ClientMongoOperator clientMongoOperator) {
+    this.clientMongoOperator = clientMongoOperator;
+  }
 
-	public SchemaContext(ClientMongoOperator clientMongoOperator, Connections connections) {
-		this.clientMongoOperator = clientMongoOperator;
-		this.connections = connections;
-	}
+  public SchemaContext(ClientMongoOperator clientMongoOperator, Connections connections) {
+    this.clientMongoOperator = clientMongoOperator;
+    this.connections = connections;
+  }
 
-	public ClientMongoOperator getClientMongoOperator() {
-		return clientMongoOperator;
-	}
+  public ClientMongoOperator getClientMongoOperator() {
+    return clientMongoOperator;
+  }
 
-	public Connections getConnections() {
-		return connections;
-	}
+  public Connections getConnections() {
+    return connections;
+  }
 
-	void setClientMongoOperator(ClientMongoOperator clientMongoOperator) {
-		this.clientMongoOperator = clientMongoOperator;
-	}
+  void setClientMongoOperator(ClientMongoOperator clientMongoOperator) {
+    this.clientMongoOperator = clientMongoOperator;
+  }
 
-	void setConnections(Connections connections) {
-		this.connections = connections;
-	}
+  void setConnections(Connections connections) {
+    this.connections = connections;
+  }
 }

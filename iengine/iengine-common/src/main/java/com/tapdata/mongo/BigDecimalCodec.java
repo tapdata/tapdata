@@ -11,18 +11,18 @@ import java.math.BigDecimal;
 
 public class BigDecimalCodec implements Codec<BigDecimal> {
 
-	@Override
-	public BigDecimal decode(BsonReader reader, DecoderContext decoderContext) {
-		return reader.readDecimal128().bigDecimalValue();
-	}
+  @Override
+  public BigDecimal decode(BsonReader reader, DecoderContext decoderContext) {
+    return reader.readDecimal128().bigDecimalValue();
+  }
 
-	@Override
-	public void encode(BsonWriter writer, BigDecimal value, EncoderContext encoderContext) {
-		writer.writeDecimal128(new Decimal128(value));
-	}
+  @Override
+  public void encode(BsonWriter writer, BigDecimal value, EncoderContext encoderContext) {
+    writer.writeDecimal128(new Decimal128(value));
+  }
 
-	@Override
-	public Class<BigDecimal> getEncoderClass() {
-		return BigDecimal.class;
-	}
+  @Override
+  public Class<BigDecimal> getEncoderClass() {
+    return BigDecimal.class;
+  }
 }

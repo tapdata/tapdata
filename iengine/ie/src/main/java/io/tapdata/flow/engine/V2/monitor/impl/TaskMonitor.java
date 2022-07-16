@@ -13,21 +13,21 @@ import org.apache.logging.log4j.Logger;
  **/
 public abstract class TaskMonitor<T> implements Monitor<T> {
 
-	private static final Long INTERVAL_MS = 2000L;
+  private static final Long INTERVAL_MS = 2000L;
 
-	protected Long intervalMs;
-	protected SubTaskDto subTaskDto;
-	protected Logger logger = LogManager.getLogger(TaskMonitor.class);
+  protected Long intervalMs;
+  protected SubTaskDto subTaskDto;
+  protected Logger logger = LogManager.getLogger(TaskMonitor.class);
 
-	public TaskMonitor(SubTaskDto subTaskDto) {
-		assert null != subTaskDto;
-		this.subTaskDto = subTaskDto;
-		Log4jUtil.setThreadContext(subTaskDto);
-		this.intervalMs = INTERVAL_MS;
-	}
+  public TaskMonitor(SubTaskDto subTaskDto) {
+    assert null != subTaskDto;
+    this.subTaskDto = subTaskDto;
+    Log4jUtil.setThreadContext(subTaskDto);
+    this.intervalMs = INTERVAL_MS;
+  }
 
-	@Override
-	public T get() {
-		return null;
-	}
+  @Override
+  public T get() {
+    return null;
+  }
 }

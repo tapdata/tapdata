@@ -13,7 +13,6 @@ public @interface StageAnnotation {
 
 	/**
 	 * 数据源类型
-	 *
 	 * @return
 	 */
 	DatabaseTypeEnum databaseType();

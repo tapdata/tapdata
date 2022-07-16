@@ -10,25 +10,25 @@ import java.util.List;
  **/
 public class TapdataShareContext {
 
-	private Object processedOffset;
-	private List<InitialStat> initialStats;
+  private Object processedOffset;
+  private List<InitialStat> initialStats;
 
-	public TapdataShareContext() {
-	}
+  public TapdataShareContext() {
+  }
 
-	public Object getProcessedOffset() {
-		return processedOffset;
-	}
+  public Object getProcessedOffset() {
+    return processedOffset;
+  }
 
-	public void setProcessedOffset(Object processedOffset) {
-		this.processedOffset = processedOffset;
-	}
+  public void setProcessedOffset(Object processedOffset) {
+    this.processedOffset = processedOffset;
+  }
 
-	public List<InitialStat> getInitialStats() {
-		return initialStats;
-	}
+  public List<InitialStat> getInitialStats() {
+    return initialStats;
+  }
 
-	public void setInitialStats(List<InitialStat> initialStats) {
-		this.initialStats = initialStats;
-	}
+  public void setInitialStats(List<InitialStat> initialStats) {
+    this.initialStats = initialStats;
+  }
 }

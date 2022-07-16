@@ -8,6 +8,8 @@ import com.tapdata.entity.DatabaseTypeEnum;
 import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.mongo.HttpClientMongoOperator;
 import com.tapdata.tm.commons.dag.Node;
+import com.tapdata.tm.commons.dag.logCollector.HazelCastImdgNode;
+import com.tapdata.tm.commons.dag.logCollector.LogCollectorNode;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.dag.process.MergeTableNode;
@@ -27,6 +29,7 @@ import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
 import io.tapdata.pdk.core.monitor.PDKMethod;
 import io.tapdata.schema.PdkTableMap;
 import io.tapdata.schema.TapTableMap;
+import io.tapdata.schema.TapTableUtil;
 import io.tapdata.websocket.EventHandlerAnnotation;
 import io.tapdata.websocket.WebSocketEventResult;
 import org.apache.commons.collections.CollectionUtils;
@@ -92,10 +95,12 @@ public class DataSyncEventHandler extends BaseEventHandler {
 		List<Node> nodes = subTaskDto.getDag().getNodes();
 		if (CollectionUtils.isEmpty(nodes)) return;
 		for (Node<?> node : nodes) {
-			if (node.isDataNode()) {
+			if (node instanceof TableNode || node instanceof DatabaseNode || node instanceof LogCollectorNode) {
 				dataNodeDestroy(subTaskDto, node);
 			} else if (node instanceof MergeTableNode) {
 				mergeNodeDestroy(node);
+			} else if (node instanceof HazelCastImdgNode) {
+				// TODO clear log
 			}
 		}
 	}
@@ -112,6 +117,13 @@ public class DataSyncEventHandler extends BaseEventHandler {
 			connectionId = ((TableNode) node).getConnectionId();
 		} else if (node instanceof DatabaseNode) {
 			connectionId = ((DatabaseNode) node).getConnectionId();
+		} else if (node instanceof LogCollectorNode) {
+			List<String> connectionIds = ((LogCollectorNode) node).getConnectionIds();
+			if (CollectionUtils.isNotEmpty(connectionIds)) {
+				connectionId = connectionIds.get(0);
+			} else {
+				throw new RuntimeException("Node " + node.getName() + "(" + node.getId() + ") not contain connection id");
+			}
 		}
 		if (StringUtils.isNotBlank(connectionId)) {
 			connections = getConnection(connectionId);
@@ -133,7 +145,7 @@ public class DataSyncEventHandler extends BaseEventHandler {
 				.withGroup(databaseType.getGroup())
 				.withVersion(databaseType.getVersion())
 				.withPdkId(databaseType.getPdkId())
-				.withTableMap(new PdkTableMap(new TapTableMap<>(new HashMap<>())))
+				.withTableMap(new PdkTableMap(TapTableUtil.getTapTableMapByNodeId(node.getId())))
 				.withStateMap(pdkStateMap)
 				.withGlobalStateMap(globalStateMap)
 				.build();

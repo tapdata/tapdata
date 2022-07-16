@@ -10,19 +10,19 @@ import org.bson.types.Binary;
 
 public class ByteArrayCodec implements Codec<byte[]> {
 
-	@Override
-	public byte[] decode(BsonReader reader, DecoderContext decoderContext) {
-		BsonBinary bsonBinary = reader.readBinaryData();
-		return bsonBinary.getData();
-	}
+  @Override
+  public byte[] decode(BsonReader reader, DecoderContext decoderContext) {
+    BsonBinary bsonBinary = reader.readBinaryData();
+    return bsonBinary.getData();
+  }
 
-	@Override
-	public void encode(BsonWriter writer, byte[] value, EncoderContext encoderContext) {
-		writer.writeBinaryData(new BsonBinary(value));
-	}
+  @Override
+  public void encode(BsonWriter writer, byte[] value, EncoderContext encoderContext) {
+    writer.writeBinaryData(new BsonBinary(value));
+  }
 
-	@Override
-	public Class<byte[]> getEncoderClass() {
-		return byte[].class;
-	}
+  @Override
+  public Class<byte[]> getEncoderClass() {
+    return byte[].class;
+  }
 }

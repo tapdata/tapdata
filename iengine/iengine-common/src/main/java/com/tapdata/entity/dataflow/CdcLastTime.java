@@ -10,55 +10,55 @@ import java.io.Serializable;
 
 public class CdcLastTime implements Serializable {
 
-	private static final long serialVersionUID = 8749645828360602424L;
+  private static final long serialVersionUID = 8749645828360602424L;
 
-	private String sourceConnectionId;
+  private String sourceConnectionId;
 
-	private String sourceConnectionName;
+  private String sourceConnectionName;
 
-	private String targetConnectionId;
+  private String targetConnectionId;
 
-	private String targetConnectionName;
+  private String targetConnectionName;
 
-	private long cdcTime;
+  private long cdcTime;
 
-	public String getSourceConnectionId() {
-		return sourceConnectionId;
-	}
+  public String getSourceConnectionId() {
+    return sourceConnectionId;
+  }
 
-	public String getSourceConnectionName() {
-		return sourceConnectionName;
-	}
+  public String getSourceConnectionName() {
+    return sourceConnectionName;
+  }
 
-	public String getTargetConnectionId() {
-		return targetConnectionId;
-	}
+  public String getTargetConnectionId() {
+    return targetConnectionId;
+  }
 
-	public String getTargetConnectionName() {
-		return targetConnectionName;
-	}
+  public String getTargetConnectionName() {
+    return targetConnectionName;
+  }
 
-	public long getCdcTime() {
-		return cdcTime;
-	}
+  public long getCdcTime() {
+    return cdcTime;
+  }
 
-	public void setSourceConnectionId(String sourceConnectionId) {
-		this.sourceConnectionId = sourceConnectionId;
-	}
+  public void setSourceConnectionId(String sourceConnectionId) {
+    this.sourceConnectionId = sourceConnectionId;
+  }
 
-	public void setSourceConnectionName(String sourceConnectionName) {
-		this.sourceConnectionName = sourceConnectionName;
-	}
+  public void setSourceConnectionName(String sourceConnectionName) {
+    this.sourceConnectionName = sourceConnectionName;
+  }
 
-	public void setTargetConnectionId(String targetConnectionId) {
-		this.targetConnectionId = targetConnectionId;
-	}
+  public void setTargetConnectionId(String targetConnectionId) {
+    this.targetConnectionId = targetConnectionId;
+  }
 
-	public void setTargetConnectionName(String targetConnectionName) {
-		this.targetConnectionName = targetConnectionName;
-	}
+  public void setTargetConnectionName(String targetConnectionName) {
+    this.targetConnectionName = targetConnectionName;
+  }
 
-	public void setCdcTime(long cdcTime) {
-		this.cdcTime = cdcTime;
-	}
+  public void setCdcTime(long cdcTime) {
+    this.cdcTime = cdcTime;
+  }
 }

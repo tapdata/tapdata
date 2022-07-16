@@ -21,11 +21,11 @@ import java.util.Map;
  */
 public class SchemaTest {
 
-	private List<DatabaseSchemaTableColumns> tableColumns;
+  private List<DatabaseSchemaTableColumns> tableColumns;
 
-	private List<DatabaseSchemaConstraints> pkConstraints;
+  private List<DatabaseSchemaConstraints> pkConstraints;
 
-	private List<DatabaseSchemaConstraints> fkConstraints;
+  private List<DatabaseSchemaConstraints> fkConstraints;
 
 //    @Before
 //    public void init(){

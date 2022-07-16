@@ -24,11 +24,11 @@ import static org.springframework.data.mongodb.core.query.Criteria.where;
 
 public class TapdataAPITest {
 
-	private final static String BASE_URL = "http://localhost:8080/api/";
+  private final static String BASE_URL = "http://localhost:8080/api/";
 
-	private final static String access_token = "zT1nvhKqSxFVABtvIx5dAHijDORC6RMZ3w65NLmvgSBg7U7NIwvfvuj1CN37cqWH";
+  private final static String access_token = "zT1nvhKqSxFVABtvIx5dAHijDORC6RMZ3w65NLmvgSBg7U7NIwvfvuj1CN37cqWH";
 
-	private ClientMongoOperator clientMongoOperator;
+  private ClientMongoOperator clientMongoOperator;
 
 //    @Before
 //    public void init() {

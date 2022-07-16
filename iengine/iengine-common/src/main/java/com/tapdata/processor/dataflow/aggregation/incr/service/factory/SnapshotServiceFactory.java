@@ -9,19 +9,19 @@ import com.tapdata.processor.dataflow.aggregation.incr.service.mongo.MongoSnapsh
 
 public class SnapshotServiceFactory extends AbstractServiceFactory<SnapshotService> {
 
-	@Override
-	public Class<SnapshotService> getServiceType() {
-		return SnapshotService.class;
-	}
+  @Override
+  public Class<SnapshotService> getServiceType() {
+    return SnapshotService.class;
+  }
 
-	@Override
-	protected SnapshotService doCreate(Stage stage, ProcessorContext processorContext, DatabaseTypeEnum databaseTypeEnum) {
-		switch (databaseTypeEnum) {
-			case MONGODB:
-			case ALIYUN_MONGODB:
-				return new MongoSnapshotServiceImpl(stage, processorContext);
-		}
-		return null;
-	}
+  @Override
+  protected SnapshotService doCreate(Stage stage, ProcessorContext processorContext, DatabaseTypeEnum databaseTypeEnum) {
+    switch (databaseTypeEnum) {
+      case MONGODB:
+      case ALIYUN_MONGODB:
+        return new MongoSnapshotServiceImpl(stage, processorContext);
+    }
+    return null;
+  }
 
 }

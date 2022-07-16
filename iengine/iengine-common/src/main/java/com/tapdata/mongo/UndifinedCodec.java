@@ -9,18 +9,18 @@ import org.bson.codecs.EncoderContext;
 
 public class UndifinedCodec implements Codec<Undefined> {
 
-	@Override
-	public Undefined decode(BsonReader reader, DecoderContext decoderContext) {
-		return Undefined.getEmpty();
-	}
+  @Override
+  public Undefined decode(BsonReader reader, DecoderContext decoderContext) {
+    return Undefined.getEmpty();
+  }
 
-	@Override
-	public void encode(BsonWriter writer, Undefined value, EncoderContext encoderContext) {
-		writer.writeNull();
-	}
+  @Override
+  public void encode(BsonWriter writer, Undefined value, EncoderContext encoderContext) {
+    writer.writeNull();
+  }
 
-	@Override
-	public Class<Undefined> getEncoderClass() {
-		return Undefined.class;
-	}
+  @Override
+  public Class<Undefined> getEncoderClass() {
+    return Undefined.class;
+  }
 }

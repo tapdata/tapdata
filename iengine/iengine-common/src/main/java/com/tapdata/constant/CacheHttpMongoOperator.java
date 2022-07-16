@@ -33,61 +33,61 @@ import static org.springframework.data.mongodb.core.query.Criteria.where;
 
 public class CacheHttpMongoOperator extends HttpClientMongoOperator {
 
-	private final ConcurrentMap<String, String> cache;
+  private final ConcurrentMap<String, String> cache;
 
-	private Logger logger = LogManager.getLogger(getClass());
+  private Logger logger = LogManager.getLogger(getClass());
 
-	private ScheduledExecutorService service = Executors.newScheduledThreadPool(1);
+  private ScheduledExecutorService service = Executors.newScheduledThreadPool(1);
 
-	public CacheHttpMongoOperator(MongoTemplate template, MongoClient mongoClient, RestTemplateOperator restTemplateOperator, ConfigurationCenter configCenter, MongoClientURI mongoClientURI) {
-		super(template, mongoClient, restTemplateOperator, configCenter);
+  public CacheHttpMongoOperator(MongoTemplate template, MongoClient mongoClient, RestTemplateOperator restTemplateOperator, ConfigurationCenter configCenter, MongoClientURI mongoClientURI) {
+    super(template, mongoClient, restTemplateOperator, configCenter);
 
-		this.cache = CacheBuilder.newBuilder()
-				.expireAfterWrite(300, TimeUnit.SECONDS)
-				.build(new CacheLoader<String, String>() {
-					public String load(String jobId) throws Exception {
-						if (StringUtils.isBlank(jobId)) {
-							return null;
-						}
-						Query query = new Query(where("id").is(jobId));
-						List<Job> jobs = CacheHttpMongoOperator.super.find(query, ConnectorConstant.JOB_COLLECTION, Job.class);
-						if (CollectionUtils.isNotEmpty(jobs)) {
-							try {
-								return JSONUtil.obj2Json(jobs.get(0));
-							} catch (JsonProcessingException e) {
-								logger.error("CacheHttpMongoOperator convert job entity {} to json failed {}", jobs.get(0), e.getMessage());
-							}
-						}
+    this.cache = CacheBuilder.newBuilder()
+      .expireAfterWrite(300, TimeUnit.SECONDS)
+      .build(new CacheLoader<String, String>() {
+        public String load(String jobId) throws Exception {
+          if (StringUtils.isBlank(jobId)) {
+            return null;
+          }
+          Query query = new Query(where("id").is(jobId));
+          List<Job> jobs = CacheHttpMongoOperator.super.find(query, ConnectorConstant.JOB_COLLECTION, Job.class);
+          if (CollectionUtils.isNotEmpty(jobs)) {
+            try {
+              return JSONUtil.obj2Json(jobs.get(0));
+            } catch (JsonProcessingException e) {
+              logger.error("CacheHttpMongoOperator convert job entity {} to json failed {}", jobs.get(0), e.getMessage());
+            }
+          }
 
-						return null;
-					}
-				}).asMap();
+          return null;
+        }
+      }).asMap();
 
-		service.scheduleWithFixedDelay(() -> {
+    service.scheduleWithFixedDelay(() -> {
 
-			if (MapUtils.isNotEmpty(cache)) {
-				try {
-					Set<String> jobids = cache.keySet();
+      if (MapUtils.isNotEmpty(cache)) {
+        try {
+          Set<String> jobids = cache.keySet();
 
-					Query query = new Query(where("_id").is(new Document("inq", jobids)));
+          Query query = new Query(where("_id").is(new Document("inq", jobids)));
 
-					List<Job> jobs = super.find(query, ConnectorConstant.JOB_COLLECTION, Job.class);
-					if (CollectionUtils.isNotEmpty(jobs)) {
-						for (Job job : jobs) {
-							cache.put(job.getId(), JSONUtil.obj2Json(job));
-						}
-					}
-				} catch (Exception e) {
-					logger.error("CacheHttpMongoOperator refresh job cache failed {}", e.getMessage(), e);
-				}
-			}
+          List<Job> jobs = super.find(query, ConnectorConstant.JOB_COLLECTION, Job.class);
+          if (CollectionUtils.isNotEmpty(jobs)) {
+            for (Job job : jobs) {
+              cache.put(job.getId(), JSONUtil.obj2Json(job));
+            }
+          }
+        } catch (Exception e) {
+          logger.error("CacheHttpMongoOperator refresh job cache failed {}", e.getMessage(), e);
+        }
+      }
 
-		}, 10, 2, TimeUnit.SECONDS);
+    }, 10, 2, TimeUnit.SECONDS);
 
-	}
+  }
 
-	@Override
-	public <T> List<T> find(Query query, String collection, Class<T> className) {
+  @Override
+  public <T> List<T> find(Query query, String collection, Class<T> className) {
 
 //        if (ConnectorConstant.JOB_COLLECTION.equals(collection) && needToCache(query)) {
 //            List<T> result = new ArrayList<>(1);
@@ -112,17 +112,17 @@ public class CacheHttpMongoOperator extends HttpClientMongoOperator {
 //            }
 //            return result;
 //        }
-		return super.find(query, collection, className);
-	}
+    return super.find(query, collection, className);
+  }
 
-	private boolean needToCache(Query query) {
+  private boolean needToCache(Query query) {
 
-		if (query == null) {
-			return false;
-		}
+    if (query == null) {
+      return false;
+    }
 
-		Document queryObject = query.getQueryObject();
+    Document queryObject = query.getQueryObject();
 
-		return (queryObject.size() == 1) && (queryObject.containsKey("_id") || queryObject.containsKey("id"));
-	}
+    return (queryObject.size() == 1) && (queryObject.containsKey("_id") || queryObject.containsKey("id"));
+  }
 }

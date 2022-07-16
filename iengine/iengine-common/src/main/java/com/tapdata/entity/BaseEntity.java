@@ -16,5 +16,5 @@ import lombok.ToString;
 @EqualsAndHashCode
 public class BaseEntity {
 
-	private String id;
+  private String id;
 }

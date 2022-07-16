@@ -25,89 +25,89 @@ import java.util.stream.Collectors;
  * @description
  */
 public abstract class InspectJob implements Runnable {
-	private static final String TAG = InspectJob.class.getSimpleName();
-	protected com.tapdata.entity.inspect.InspectTask inspectTask;
-	protected String name;
-	protected Connections source;
-	protected Connections target;
-	protected ProgressUpdate progressUpdateCallback;
-	protected ConnectorNode sourceNode, targetNode;
-	protected String inspectResultParentId;
-	protected InspectTaskContext inspectTaskContext;
+    private static final String TAG = InspectJob.class.getSimpleName();
+    protected com.tapdata.entity.inspect.InspectTask inspectTask;
+    protected String name;
+    protected Connections source;
+    protected Connections target;
+    protected ProgressUpdate progressUpdateCallback;
+    protected ConnectorNode sourceNode, targetNode;
+    protected String inspectResultParentId;
+    protected InspectTaskContext inspectTaskContext;
 
-	public InspectJob(InspectTaskContext inspectTaskContext) {
-		this.inspectTask = inspectTaskContext.getTask();
-		this.name = inspectTaskContext.getName() + "." + inspectTask.getTaskId();
-		this.source = inspectTaskContext.getSource();
-		this.target = inspectTaskContext.getTarget();
-		this.progressUpdateCallback = inspectTaskContext.getProgressUpdateCallback();
-		this.inspectResultParentId = inspectTaskContext.getInspectResultParentId();
-		this.sourceNode = inspectTaskContext.getSourceConnectorNode();
-		this.targetNode = inspectTaskContext.getTargetConnectorNode();
-		this.inspectTaskContext = inspectTaskContext;
-		try {
-			PDKInvocationMonitor.invoke(sourceNode, PDKMethod.INIT, () -> sourceNode.connectorInit(), TAG);
-		} catch (Throwable e) {
-			throw new RuntimeException("Init source node failed: " + sourceNode + ", error message: " + e.getMessage(), e);
-		}
-		try {
-			PDKInvocationMonitor.invoke(targetNode, PDKMethod.INIT, () -> targetNode.connectorInit(), TAG);
-		} catch (Throwable e) {
-			throw new RuntimeException("Init target node failed: " + targetNode + ", error message: " + e.getMessage(), e);
-		}
-	}
+    public InspectJob(InspectTaskContext inspectTaskContext) {
+        this.inspectTask = inspectTaskContext.getTask();
+        this.name = inspectTaskContext.getName() + "." + inspectTask.getTaskId();
+        this.source = inspectTaskContext.getSource();
+        this.target = inspectTaskContext.getTarget();
+        this.progressUpdateCallback = inspectTaskContext.getProgressUpdateCallback();
+        this.inspectResultParentId = inspectTaskContext.getInspectResultParentId();
+        this.sourceNode = inspectTaskContext.getSourceConnectorNode();
+        this.targetNode = inspectTaskContext.getTargetConnectorNode();
+        this.inspectTaskContext = inspectTaskContext;
+        try {
+            PDKInvocationMonitor.invoke(sourceNode, PDKMethod.INIT, () -> sourceNode.connectorInit(), TAG);
+        } catch (Throwable e) {
+            throw new RuntimeException("Init source node failed: " + sourceNode + ", error message: " + e.getMessage(), e);
+        }
+        try {
+            PDKInvocationMonitor.invoke(targetNode, PDKMethod.INIT, () -> targetNode.connectorInit(), TAG);
+        } catch (Throwable e) {
+            throw new RuntimeException("Init target node failed: " + targetNode + ", error message: " + e.getMessage(), e);
+        }
+    }
 
-	public static List<String> rdbmsTypes;
+    public static List<String> rdbmsTypes;
 
-	static {
-		rdbmsTypes = DatabaseTypeEnum.getRdbmsDatabaseTypes()
-				.stream().map(DatabaseTypeEnum::getType).collect(Collectors.toList());
-	}
+    static {
+        rdbmsTypes = DatabaseTypeEnum.getRdbmsDatabaseTypes()
+            .stream().map(DatabaseTypeEnum::getType).collect(Collectors.toList());
+    }
 
-	protected List<String> getSortColumns(String sortColumn) {
-		return getSortColumns(sortColumn, ",");
-	}
+    protected List<String> getSortColumns(String sortColumn) {
+        return getSortColumns(sortColumn, ",");
+    }
 
-	protected List<String> getSortColumns(String sortColumn, String split) {
-		if (StringUtils.isAnyBlank(sortColumn, split)) {
-			throw new IllegalArgumentException("Missing input arg: sortColumn, split");
-		}
+    protected List<String> getSortColumns(String sortColumn, String split) {
+        if (StringUtils.isAnyBlank(sortColumn, split)) {
+            throw new IllegalArgumentException("Missing input arg: sortColumn, split");
+        }
 
-		return Arrays.stream(sortColumn.split(split))
-				.filter(column -> StringUtils.isNotBlank(column))
-				.collect(Collectors.toList());
-	}
+        return Arrays.stream(sortColumn.split(split))
+            .filter(column -> StringUtils.isNotBlank(column))
+            .collect(Collectors.toList());
+    }
 
-	protected static Map<String, Object> diffRecordTypeConvert(Map<String, Object> record) {
-		if (MapUtils.isEmpty(record)) {
-			return record;
-		}
+    protected static Map<String, Object> diffRecordTypeConvert(Map<String, Object> record) {
+        if (MapUtils.isEmpty(record)) {
+            return record;
+        }
 
-		Object value;
-		for (Map.Entry<String, Object> entry : record.entrySet()) {
-			value = entry.getValue();
-			if (value instanceof Instant) {
-				record.put(entry.getKey(), value.toString());
-			} else if (value instanceof Date) {
-				record.put(entry.getKey(), ((Date) value).toInstant().toString());
-			} else if (value instanceof MysqlJson) {
-				record.put(entry.getKey(), value.toString());
-			} else if (value instanceof Map || value instanceof Array || value instanceof Collection) {
-				try {
-					JSONUtil.disableFeature(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
-					record.put(entry.getKey(), JSONUtil.obj2Json(value));
-					JSONUtil.enableFeature(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
-				} catch (JsonProcessingException e) {
-					e.printStackTrace();
-				}
-			} else if (value instanceof ObjectId) {
-				record.put(entry.getKey(), ((ObjectId) value).toHexString());
-			} else if (value instanceof DateTime) {
-				record.put(entry.getKey(), ((DateTime) value).toInstant().toString());
-			}
-		}
+        Object value;
+        for (Map.Entry<String, Object> entry : record.entrySet()) {
+            value = entry.getValue();
+            if (value instanceof Instant) {
+                record.put(entry.getKey(), value.toString());
+            } else if (value instanceof Date) {
+                record.put(entry.getKey(), ((Date) value).toInstant().toString());
+            } else if (value instanceof MysqlJson) {
+                record.put(entry.getKey(), value.toString());
+            } else if (value instanceof Map || value instanceof Array || value instanceof Collection) {
+                try {
+                    JSONUtil.disableFeature(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+                    record.put(entry.getKey(), JSONUtil.obj2Json(value));
+                    JSONUtil.enableFeature(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+                } catch (JsonProcessingException e) {
+                    e.printStackTrace();
+                }
+            } else if (value instanceof ObjectId) {
+                record.put(entry.getKey(), ((ObjectId) value).toHexString());
+            } else if (value instanceof DateTime) {
+                record.put(entry.getKey(), ((DateTime) value).toInstant().toString());
+            }
+        }
 
-		return record;
-	}
+        return record;
+    }
 
 }

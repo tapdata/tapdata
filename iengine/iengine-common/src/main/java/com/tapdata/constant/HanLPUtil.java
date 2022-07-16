@@ -14,59 +14,59 @@ import java.util.List;
  **/
 public class HanLPUtil {
 
-	/**
-	 * HanLP分词
-	 *
-	 * @param inputString
-	 * @param language
-	 * @return
-	 */
-	public static List<String> hanLPParticiple(String inputString, String language) {
+  /**
+   * HanLP分词
+   *
+   * @param inputString
+   * @param language
+   * @return
+   */
+  public static List<String> hanLPParticiple(String inputString, String language) {
 
-		if (StringUtils.isBlank(inputString)) {
-			return new ArrayList<>();
-		}
+    if (StringUtils.isBlank(inputString)) {
+      return new ArrayList<>();
+    }
 
-		//标准分词
-		//繁体情况，转换为简体
-		String participleString;
-		switch (language) {
-			case ConnectorConstant.CH_TRADITIONAL_CHINESE:
-				participleString = HanLP.t2s(inputString);
-				break;
-			case ConnectorConstant.HK_TRADITIONAL_CHINESE:
-				participleString = HanLP.hk2s(inputString);
-				break;
-			case ConnectorConstant.TW_TRADITIONAL_CHINESE:
-				participleString = HanLP.tw2s(inputString);
-				break;
-			default:
-				participleString = inputString;
-				break;
-		}
-		// NotionalTokenizer无介词分词
-		List<Term> termList = NotionalTokenizer.segment(participleString);
-		List<String> outPutWordList = new ArrayList<>();
-		for (Term term : termList) {
-			switch (language) {
-				case ConnectorConstant.CH_TRADITIONAL_CHINESE: {
-					outPutWordList.add(HanLP.s2t(term.word));
-				}
-				break;
-				case ConnectorConstant.HK_TRADITIONAL_CHINESE: {
-					outPutWordList.add(HanLP.s2hk(term.word));
-				}
-				break;
-				case ConnectorConstant.TW_TRADITIONAL_CHINESE: {
-					outPutWordList.add(HanLP.hk2tw(HanLP.s2hk(term.word)));
-				}
-				break;
-				default: {
-					outPutWordList.add(term.word);
-				}
-				break;
-			}
-		}
-		return outPutWordList;
-	}
+    //标准分词
+    //繁体情况，转换为简体
+    String participleString;
+    switch (language) {
+      case ConnectorConstant.CH_TRADITIONAL_CHINESE:
+        participleString = HanLP.t2s(inputString);
+        break;
+      case ConnectorConstant.HK_TRADITIONAL_CHINESE:
+        participleString = HanLP.hk2s(inputString);
+        break;
+      case ConnectorConstant.TW_TRADITIONAL_CHINESE:
+        participleString = HanLP.tw2s(inputString);
+        break;
+      default:
+        participleString = inputString;
+        break;
+    }
+    // NotionalTokenizer无介词分词
+    List<Term> termList = NotionalTokenizer.segment(participleString);
+    List<String> outPutWordList = new ArrayList<>();
+    for (Term term : termList) {
+      switch (language) {
+        case ConnectorConstant.CH_TRADITIONAL_CHINESE: {
+          outPutWordList.add(HanLP.s2t(term.word));
+        }
+        break;
+        case ConnectorConstant.HK_TRADITIONAL_CHINESE: {
+          outPutWordList.add(HanLP.s2hk(term.word));
+        }
+        break;
+        case ConnectorConstant.TW_TRADITIONAL_CHINESE: {
+          outPutWordList.add(HanLP.hk2tw(HanLP.s2hk(term.word)));
+        }
+        break;
+        default: {
+          outPutWordList.add(term.word);
+        }
+        break;
+      }
+    }
+    return outPutWordList;
+  }
 }

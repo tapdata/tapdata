@@ -8,7 +8,7 @@ import base.BaseTest;
 public class ManagerTest extends BaseTest {
 
 
-	private static final String mongoURI = "mongodb://localhost:12345/tapdata";
+  private static final String mongoURI = "mongodb://localhost:12345/tapdata";
 
 //    @Test
 //    public void pingTimeTest() throws IllegalAccessException, InterruptedException {

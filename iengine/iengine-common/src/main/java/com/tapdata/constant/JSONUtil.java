@@ -24,138 +24,138 @@ import java.util.Map;
  */
 public class JSONUtil {
 
-	private static Logger logger = LogManager.getLogger(JSONUtil.class);
+  private static Logger logger = LogManager.getLogger(JSONUtil.class);
 
-	protected static ObjectMapper mapper;
+  protected static ObjectMapper mapper;
 
-	static {
-		mapper = new ObjectMapper();
-		mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
-		mapper.configure(SerializationFeature.FAIL_ON_EMPTY_BEANS, false);
-		SimpleModule simpleModule = new SimpleModule();
-		simpleModule.addDeserializer(TapType.class, new TapTypeDeserializer());
-		mapper.registerModule(simpleModule);
-		mapper.registerModule(new JavaTimeModule());
-	}
+  static {
+    mapper = new ObjectMapper();
+    mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+    mapper.configure(SerializationFeature.FAIL_ON_EMPTY_BEANS, false);
+    SimpleModule simpleModule = new SimpleModule();
+    simpleModule.addDeserializer(TapType.class, new TapTypeDeserializer());
+    mapper.registerModule(simpleModule);
+    mapper.registerModule(new JavaTimeModule());
+  }
 
-	/**
-	 * Note that after using this function,
-	 * should call {@link JSONUtil#enableFeature(com.fasterxml.jackson.databind.SerializationFeature)} to restore the feature
-	 *
-	 * @param serializationFeature
-	 */
-	public static void disableFeature(SerializationFeature serializationFeature) {
-		mapper.disable(serializationFeature);
-	}
+  /**
+   * Note that after using this function,
+   * should call {@link JSONUtil#enableFeature(com.fasterxml.jackson.databind.SerializationFeature)} to restore the feature
+   *
+   * @param serializationFeature
+   */
+  public static void disableFeature(SerializationFeature serializationFeature) {
+    mapper.disable(serializationFeature);
+  }
 
-	public static void enableFeature(SerializationFeature serializationFeature) {
-		mapper.enable(serializationFeature);
-	}
+  public static void enableFeature(SerializationFeature serializationFeature) {
+    mapper.enable(serializationFeature);
+  }
 
-	public static <T> List<T> json2List(String json, Class<T> classz) throws IOException {
-		List<T> list;
-		try {
-			TypeFactory typeFactory = mapper.getTypeFactory();
-			list = mapper.readValue(json, typeFactory.constructCollectionType(List.class, classz));
+  public static <T> List<T> json2List(String json, Class<T> classz) throws IOException {
+    List<T> list;
+    try {
+      TypeFactory typeFactory = mapper.getTypeFactory();
+      list = mapper.readValue(json, typeFactory.constructCollectionType(List.class, classz));
 //      list = InstanceFactory.instance(JsonParser.class).fromJson(json, new TypeHolder<List<T>>() {
 //        },
 //        TapConstants.abstractClassDetectors);
-		} catch (Throwable e) {
-			throw new IOException("parse json to " + classz.getName() + " list failed\n" + json, e);
-		}
-		return list;
-	}
+    } catch (Throwable e) {
+      throw new IOException("parse json to " + classz.getName() + " list failed\n" + json, e);
+    }
+    return list;
+  }
 
-	public static String obj2Json(Object object) throws JsonProcessingException {
-		String json;
-		try {
-			json = mapper.writeValueAsString(object);
-		} catch (JsonProcessingException e) {
-			logger.error("convert object to json failed.", e);
-			logger.info(object);
-			throw e;
-		}
-		return json;
-	}
+  public static String obj2Json(Object object) throws JsonProcessingException {
+    String json;
+    try {
+      json = mapper.writeValueAsString(object);
+    } catch (JsonProcessingException e) {
+      logger.error("convert object to json failed.", e);
+      logger.info(object);
+      throw e;
+    }
+    return json;
+  }
 
-	public static String obj2JsonPretty(Object object) throws JsonProcessingException {
-		String json;
-		try {
-			json = mapper.writerWithDefaultPrettyPrinter().writeValueAsString(object);
-		} catch (JsonProcessingException e) {
-			logger.error("convert object to json format fail", e);
-			logger.info(object);
-			throw e;
-		}
-		return json;
-	}
+  public static String obj2JsonPretty(Object object) throws JsonProcessingException {
+    String json;
+    try {
+      json = mapper.writerWithDefaultPrettyPrinter().writeValueAsString(object);
+    } catch (JsonProcessingException e) {
+      logger.error("convert object to json format fail", e);
+      logger.info(object);
+      throw e;
+    }
+    return json;
+  }
 
-	public static Map<String, Object> json2Map(String json) throws IOException {
-		Map<String, Object> map;
-		try {
-			map = mapper.readValue(json, new TypeReference<HashMap<String, Object>>() {
-			});
+  public static Map<String, Object> json2Map(String json) throws IOException {
+    Map<String, Object> map;
+    try {
+      map = mapper.readValue(json, new TypeReference<HashMap<String, Object>>() {
+      });
 //      map = InstanceFactory.instance(JsonParser.class).fromJson(json, new TypeHolder<HashMap<String, Object>>() {
 //        },
 //        TapConstants.abstractClassDetectors);
-		} catch (Throwable e) {
-			throw new IOException("parse json to map failed\n" + json, e);
-		}
+    } catch (Throwable e) {
+      throw new IOException("parse json to map failed\n" + json, e);
+    }
 
-		return map;
-	}
+    return map;
+  }
 
-	public static <T> T json2POJO(String json, Class<T> className) throws IOException {
-		T pojo;
-		try {
-			pojo = mapper.readValue(json, className);
+  public static <T> T json2POJO(String json, Class<T> className) throws IOException {
+    T pojo;
+    try {
+      pojo = mapper.readValue(json, className);
 //      pojo = InstanceFactory.instance(JsonParser.class).fromJson(json, className,
 //        TapConstants.abstractClassDetectors);
-		} catch (Throwable e) {
-			throw new IOException("parse json to " + className.getName() + " failed\n" + json, e);
-		}
+    } catch (Throwable e) {
+      throw new IOException("parse json to " + className.getName() + " failed\n" + json, e);
+    }
 
-		return pojo;
-	}
+    return pojo;
+  }
 
-	public static <T> T json2POJO(String json, TypeReference<T> typeReference) throws IOException {
-		T pojo;
-		try {
-			pojo = mapper.readValue(json, typeReference);
+  public static <T> T json2POJO(String json, TypeReference<T> typeReference) throws IOException {
+    T pojo;
+    try {
+      pojo = mapper.readValue(json, typeReference);
 //      pojo = InstanceFactory.instance(JsonParser.class).fromJson(json, typeReference.getType(),
 //        TapConstants.abstractClassDetectors);
-		} catch (Throwable e) {
-			throw new IOException("parse json to " + typeReference.getType().getTypeName() + " failed\n" + json, e);
-		}
+    } catch (Throwable e) {
+      throw new IOException("parse json to " + typeReference.getType().getTypeName() + " failed\n" + json, e);
+    }
 
-		return pojo;
-	}
+    return pojo;
+  }
 
-	public static <T> T map2POJO(Map map, Class<T> className) {
+  public static <T> T map2POJO(Map map, Class<T> className) {
 
-		return mapper.convertValue(map, className);
-	}
+    return mapper.convertValue(map, className);
+  }
 
-	public static <T> T map2POJO(Map map, TypeReference<T> typeReference) {
-		return mapper.convertValue(map, typeReference);
-	}
+  public static <T> T map2POJO(Map map, TypeReference<T> typeReference) {
+    return mapper.convertValue(map, typeReference);
+  }
 
-	public static String map2Json(Map map) throws JsonProcessingException {
-		return mapper.writeValueAsString(map);
-	}
+  public static String map2Json(Map map) throws JsonProcessingException {
+    return mapper.writeValueAsString(map);
+  }
 
-	public static String map2JsonPretty(Map map) throws JsonProcessingException {
-		return mapper.writerWithDefaultPrettyPrinter().writeValueAsString(map);
-	}
+  public static String map2JsonPretty(Map map) throws JsonProcessingException {
+    return mapper.writerWithDefaultPrettyPrinter().writeValueAsString(map);
+  }
 
-	public static void main(String[] args) throws Exception {
-		ObjectMapper objectMapper = new ObjectMapper();
-		objectMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
-		objectMapper.configure(SerializationFeature.FAIL_ON_EMPTY_BEANS, false);
-		SimpleModule simpleModule = new SimpleModule();
-		simpleModule.addDeserializer(TapType.class, new TapTypeDeserializer());
-		objectMapper.registerModule(simpleModule);
-		objectMapper.registerModule(new JavaTimeModule());
+  public static void main(String[] args) throws Exception {
+    ObjectMapper objectMapper = new ObjectMapper();
+    objectMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+    objectMapper.configure(SerializationFeature.FAIL_ON_EMPTY_BEANS, false);
+    SimpleModule simpleModule = new SimpleModule();
+    simpleModule.addDeserializer(TapType.class, new TapTypeDeserializer());
+    objectMapper.registerModule(simpleModule);
+    objectMapper.registerModule(new JavaTimeModule());
     /*TapString tapString = new TapString(10L, false);
     tapString.setDefaultValue(11L);
     tapString.setByteRatio(1);
@@ -168,28 +168,28 @@ public class JSONUtil {
       new TypeReference<List<TapTable>>() {
       });
     System.out.println(tapType);*/
-		Map<String, Object> map = objectMapper.readValue("{\n" +
-				"  \"timestamp\": \"2022-05-13T11:04:21Z\",\n" +
-				"  \"version\": \"@env.VERSION@\",\n" +
-				"  \"gitCommitId\": \"@env.DAAS_GIT_VERSION@\"\n" +
-				"}", new TypeReference<HashMap<String, Object>>() {
-		});
-		System.out.println(map);
-	}
+    Map<String, Object> map = objectMapper.readValue("{\n" +
+      "  \"timestamp\": \"2022-05-13T11:04:21Z\",\n" +
+      "  \"version\": \"@env.VERSION@\",\n" +
+      "  \"gitCommitId\": \"@env.DAAS_GIT_VERSION@\"\n" +
+      "}", new TypeReference<HashMap<String, Object>>() {
+    });
+    System.out.println(map);
+  }
 
-	static class TapTypeDeserializer extends JsonDeserializer<TapType> {
-		@Override
-		public TapType deserialize(JsonParser p, DeserializationContext ctxt) throws IOException, JsonProcessingException {
-			ObjectCodec codec = p.getCodec();
-			TreeNode treeNode = codec.readTree(p);
-			TreeNode type = treeNode.get("type");
-			int typeInt = (int) ((IntNode) type).numberValue();
-			Class<? extends TapType> tapTypeClass = TapType.getTapTypeClass((byte) typeInt);
-			if (null != tapTypeClass) {
-				return codec.treeToValue(treeNode, tapTypeClass);
-			} else {
-				throw new RuntimeException("Unsupported tap type: " + typeInt);
-			}
-		}
-	}
+  static class TapTypeDeserializer extends JsonDeserializer<TapType> {
+    @Override
+    public TapType deserialize(JsonParser p, DeserializationContext ctxt) throws IOException, JsonProcessingException {
+      ObjectCodec codec = p.getCodec();
+      TreeNode treeNode = codec.readTree(p);
+      TreeNode type = treeNode.get("type");
+      int typeInt = (int) ((IntNode) type).numberValue();
+      Class<? extends TapType> tapTypeClass = TapType.getTapTypeClass((byte) typeInt);
+      if (null != tapTypeClass) {
+        return codec.treeToValue(treeNode, tapTypeClass);
+      } else {
+        throw new RuntimeException("Unsupported tap type: " + typeInt);
+      }
+    }
+  }
 }

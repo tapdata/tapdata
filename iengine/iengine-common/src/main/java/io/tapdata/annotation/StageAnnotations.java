@@ -7,5 +7,5 @@ import java.lang.annotation.*;
 @Target(ElementType.TYPE)
 @Retention(RetentionPolicy.RUNTIME)
 public @interface StageAnnotations {
-	StageAnnotation[] value() default {};
+    StageAnnotation[] value() default {};
 }

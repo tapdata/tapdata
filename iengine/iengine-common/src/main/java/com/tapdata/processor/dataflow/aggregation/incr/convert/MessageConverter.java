@@ -6,8 +6,8 @@ import java.util.Collection;
 
 public interface MessageConverter {
 
-	Collection<MessageEntity> convert(MessageEntity originMessage);
+  Collection<MessageEntity> convert(MessageEntity originMessage);
 
-	MessageOp getOp();
+  MessageOp getOp();
 
 }

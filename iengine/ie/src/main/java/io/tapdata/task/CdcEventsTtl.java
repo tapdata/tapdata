@@ -19,35 +19,35 @@ import java.util.function.Consumer;
 @TaskType(type = "CDC_EVENTS_TTL")
 public class CdcEventsTtl implements Task {
 
-	private Logger logger = LogManager.getLogger(CdcEventsTtl.class);
+  private Logger logger = LogManager.getLogger(CdcEventsTtl.class);
 
-	private TaskContext taskContext;
+  private TaskContext taskContext;
 
-	@Override
-	public void initialize(TaskContext taskContext) {
-		this.taskContext = taskContext;
-	}
+  @Override
+  public void initialize(TaskContext taskContext) {
+    this.taskContext = taskContext;
+  }
 
-	@Override
-	public void execute(Consumer<TaskResult> callback) {
-		try {
-			ClientMongoOperator clientMongoOperator = taskContext.getClientMongoOperator();
-			if (clientMongoOperator == null) {
-				return;
-			}
+  @Override
+  public void execute(Consumer<TaskResult> callback) {
+    try {
+      ClientMongoOperator clientMongoOperator = taskContext.getClientMongoOperator();
+      if (clientMongoOperator == null) {
+        return;
+      }
 
-			long currentTimeMillis = System.currentTimeMillis();
-			int jobCdcRecordTtlDoc = Integer.valueOf(taskContext.getSettingService().getString("job_cdc_record_ttl", "7"));
-			long ttlMills = currentTimeMillis - (jobCdcRecordTtlDoc * 24 * 60 * 60 * 1000L);
+      long currentTimeMillis = System.currentTimeMillis();
+      int jobCdcRecordTtlDoc = Integer.valueOf(taskContext.getSettingService().getString("job_cdc_record_ttl", "7"));
+      long ttlMills = currentTimeMillis - (jobCdcRecordTtlDoc * 24 * 60 * 60 * 1000L);
 
-			Map<String, Object> params = new HashMap<>();
-			params.put("insertDate", new HashMap<String, Object>() {{
-				put("$lt", Double.valueOf(ttlMills));
-			}});
+      Map<String, Object> params = new HashMap<>();
+      params.put("insertDate", new HashMap<String, Object>() {{
+        put("$lt", Double.valueOf(ttlMills));
+      }});
 
-			clientMongoOperator.deleteAll(params, ConnectorConstant.CDC_EVENTS_COLLECTION);
-		} catch (Exception e) {
-			logger.error("Clear cdc events error, err msg: {}", e.getMessage(), e);
-		}
-	}
+      clientMongoOperator.deleteAll(params, ConnectorConstant.CDC_EVENTS_COLLECTION);
+    } catch (Exception e) {
+      logger.error("Clear cdc events error, err msg: {}", e.getMessage(), e);
+    }
+  }
 }

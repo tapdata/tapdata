@@ -14,63 +14,63 @@ import java.util.*;
 
 public class InsertMessageConverter extends AbstractMessageConverter {
 
-	public InsertMessageConverter(Stage stage, List<AggrFunction> aggrFunctionList, SnapshotService<?> snapshotService, SyncVersionService syncVersionService) {
-		super(stage, aggrFunctionList, snapshotService, syncVersionService);
-	}
+  public InsertMessageConverter(Stage stage, List<AggrFunction> aggrFunctionList, SnapshotService<?> snapshotService, SyncVersionService syncVersionService) {
+    super(stage, aggrFunctionList, snapshotService, syncVersionService);
+  }
 
-	@Override
-	public Collection<MessageEntity> convert(MessageEntity originMessage) {
-		final SnapshotRecord newRecord = this.snapshotService.wrapRecord(primaryKeyFieldList, originMessage.getAfter());
-		// 1. insert snapshot
-		final SnapshotRecord oldRecord = this.snapshotService.findOneAndReplace(newRecord);
-		// 2. update aggregation
-		final List<MessageEntity> messageEntityList = new ArrayList<>();
-		for (AggrFunction func : aggrFunctionList) {
-			boolean valueChanged = func.isValueChanged(newRecord, oldRecord);
-			boolean bucketKeyEquals = func.isBucketKeyEquals(newRecord, oldRecord);
-			if (!valueChanged && bucketKeyEquals) {
-				continue;
-			}
-			final List<SnapshotRecord> snapshotRecordList;
-			if (bucketKeyEquals) {
-				SnapshotRecord diff = func.diff(newRecord, oldRecord);
-				snapshotRecordList = diff == null ? Collections.emptyList() : Collections.singletonList(diff);
-			} else {
-				snapshotRecordList = oldRecord != null ? Arrays.asList(oldRecord, newRecord) : Collections.singletonList(newRecord);
-			}
-			for (SnapshotRecord record : snapshotRecordList) {
-				// 2.1 filter
-				if (!func.isFilter(record.getDataMap())) {
-					continue;
-				}
-				// 2.2 call aggregation function
-				final AggrBucket<?> bucket = func.call(this.snapshotService, record);
-				// 2.3 convert to MessageEntity
-				final HashMap<String, Object> bucketDataMap = new HashMap<>();
-				this.fillDataMap(func, bucket, bucketDataMap);
+  @Override
+  public Collection<MessageEntity> convert(MessageEntity originMessage) {
+    final SnapshotRecord newRecord = this.snapshotService.wrapRecord(primaryKeyFieldList, originMessage.getAfter());
+    // 1. insert snapshot
+    final SnapshotRecord oldRecord = this.snapshotService.findOneAndReplace(newRecord);
+    // 2. update aggregation
+    final List<MessageEntity> messageEntityList = new ArrayList<>();
+    for (AggrFunction func : aggrFunctionList) {
+      boolean valueChanged = func.isValueChanged(newRecord, oldRecord);
+      boolean bucketKeyEquals = func.isBucketKeyEquals(newRecord, oldRecord);
+      if (!valueChanged && bucketKeyEquals) {
+        continue;
+      }
+      final List<SnapshotRecord> snapshotRecordList;
+      if (bucketKeyEquals) {
+        SnapshotRecord diff = func.diff(newRecord, oldRecord);
+        snapshotRecordList = diff == null ? Collections.emptyList() : Collections.singletonList(diff);
+      } else {
+        snapshotRecordList = oldRecord != null ? Arrays.asList(oldRecord, newRecord) : Collections.singletonList(newRecord);
+      }
+      for (SnapshotRecord record : snapshotRecordList) {
+        // 2.1 filter
+        if (!func.isFilter(record.getDataMap())) {
+          continue;
+        }
+        // 2.2 call aggregation function
+        final AggrBucket<?> bucket = func.call(this.snapshotService, record);
+        // 2.3 convert to MessageEntity
+        final HashMap<String, Object> bucketDataMap = new HashMap<>();
+        this.fillDataMap(func, bucket, bucketDataMap);
 
-				final MessageEntity messageEntity = new MessageEntity();
-				if (bucket.getCount() <= 0) {
-					messageEntity.setOp(MessageOp.DELETE.getType());
-					messageEntity.setBefore(bucketDataMap);
-				} else if (record.isAppend() && oldRecord == null && bucket.getCount() == 1) {
-					messageEntity.setOp(MessageOp.INSERT.getType());
-					messageEntity.setAfter(bucketDataMap);
-				} else {
-					messageEntity.setOp(MessageOp.UPDATE.getType());
-					messageEntity.setAfter(bucketDataMap);
-				}
-				messageEntity.setTableName(originMessage.getTableName());
-				messageEntity.setOffset(originMessage.getOffset());
-				messageEntityList.add(messageEntity);
-			}
-		}
-		return messageEntityList;
-	}
+        final MessageEntity messageEntity = new MessageEntity();
+        if (bucket.getCount() <= 0) {
+          messageEntity.setOp(MessageOp.DELETE.getType());
+          messageEntity.setBefore(bucketDataMap);
+        } else if (record.isAppend() && oldRecord == null && bucket.getCount() == 1) {
+          messageEntity.setOp(MessageOp.INSERT.getType());
+          messageEntity.setAfter(bucketDataMap);
+        } else {
+          messageEntity.setOp(MessageOp.UPDATE.getType());
+          messageEntity.setAfter(bucketDataMap);
+        }
+        messageEntity.setTableName(originMessage.getTableName());
+        messageEntity.setOffset(originMessage.getOffset());
+        messageEntityList.add(messageEntity);
+      }
+    }
+    return messageEntityList;
+  }
 
-	@Override
-	public MessageOp getOp() {
-		return MessageOp.INSERT;
-	}
+  @Override
+  public MessageOp getOp() {
+    return MessageOp.INSERT;
+  }
 
 }

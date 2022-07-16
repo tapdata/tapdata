@@ -16,11 +16,11 @@ import java.util.List;
 @Getter
 public class DropField extends AbsField {
 
-	public DropField() {
-	}
+  public DropField() {
+  }
 
-	public DropField(String ddl, List<String> namespace, String name) {
-		super(DDLOperator.DropField, ddl, namespace, name);
-	}
+  public DropField(String ddl, List<String> namespace, String name) {
+    super(DDLOperator.DropField, ddl, namespace, name);
+  }
 
 }

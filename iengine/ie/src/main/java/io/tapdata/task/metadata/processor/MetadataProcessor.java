@@ -7,5 +7,5 @@ import java.util.List;
 
 public interface MetadataProcessor {
 
-	List<Document> process(String collectionName, Document record, String operationType, ClientMongoOperator clientMongoOperator);
+  List<Document> process(String collectionName, Document record, String operationType, ClientMongoOperator clientMongoOperator);
 }

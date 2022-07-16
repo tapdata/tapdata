@@ -12,17 +12,17 @@ import io.tapdata.pdk.core.api.ConnectorNode;
  **/
 public class InspectTaskContext extends InspectContext {
 
-	public InspectTaskContext(
-			String name,
-			InspectTask task,
-			Connections source,
-			Connections target,
-			String inspectResultParentId,
-			ProgressUpdate progressUpdateCallback,
-			ConnectorNode sourceConnectorNode,
-			ConnectorNode targetConnectorNode,
-			ClientMongoOperator clientMongoOperator
-	) {
-		super(name, task, source, target, inspectResultParentId, progressUpdateCallback, sourceConnectorNode, targetConnectorNode, clientMongoOperator);
-	}
+    public InspectTaskContext(
+        String name,
+        InspectTask task,
+        Connections source,
+        Connections target,
+        String inspectResultParentId,
+        ProgressUpdate progressUpdateCallback,
+        ConnectorNode sourceConnectorNode,
+        ConnectorNode targetConnectorNode,
+        ClientMongoOperator clientMongoOperator
+    ) {
+        super(name, task, source, target, inspectResultParentId, progressUpdateCallback, sourceConnectorNode, targetConnectorNode, clientMongoOperator);
+    }
 }

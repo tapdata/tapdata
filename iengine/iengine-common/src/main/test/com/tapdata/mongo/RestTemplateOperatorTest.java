@@ -10,7 +10,7 @@ import java.util.List;
 
 public class RestTemplateOperatorTest {
 
-	public static void main(String[] args) throws JsonProcessingException {
+  public static void main(String[] args) throws JsonProcessingException {
 //    List<String> baseURLs = Arrays.asList("http://127.0.0.1:9999", "http://127.0.0.1:8080", "http://localhost:9999");
 //    RestTemplateOperator restTemplateOperator = new RestTemplateOperator(baseURLs, 5000);
 //
@@ -20,10 +20,10 @@ public class RestTemplateOperatorTest {
 //    MappingJackson2HttpMessageConverter mappingJackson2HttpMessageConverter = new MappingJackson2HttpMessageConverter();
 //    mappingJackson2HttpMessageConverter.getObjectMapper().writeValueAsString()
 
-		String x = new MappingJackson2HttpMessageConverter().getObjectMapper().writeValueAsString(null);
-		System.out.println(x);
+    String x = new MappingJackson2HttpMessageConverter().getObjectMapper().writeValueAsString(null);
+    System.out.println(x);
 
 
-	}
+  }
 
 }

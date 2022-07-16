@@ -7,5 +7,5 @@ import java.lang.annotation.*;
 @Target(ElementType.TYPE)
 @Retention(RetentionPolicy.RUNTIME)
 public @interface DatabaseTypeAnnotations {
-	DatabaseTypeAnnotation[] value() default {};
+  DatabaseTypeAnnotation[] value() default {};
 }

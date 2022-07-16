@@ -11,13 +11,13 @@ import java.util.List;
  */
 public interface ISchemaMaker {
 
-	/**
-	 * load oracle schema
-	 *
-	 * @param conn
-	 * @return
-	 * @throws SQLException
-	 */
-	List<RelateDataBaseTable> loadSchema(Connections conn) throws SQLException;
+  /**
+   * load oracle schema
+   *
+   * @param conn
+   * @return
+   * @throws SQLException
+   */
+  List<RelateDataBaseTable> loadSchema(Connections conn) throws SQLException;
 
 }

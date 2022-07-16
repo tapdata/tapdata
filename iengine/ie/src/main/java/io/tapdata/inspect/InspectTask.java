@@ -17,6 +17,7 @@ import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
 import io.tapdata.pdk.core.monitor.PDKMethod;
 import io.tapdata.schema.PdkTableMap;
 import io.tapdata.schema.TapTableMap;
+import io.tapdata.schema.TapTableUtil;
 import org.apache.commons.collections.MapUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
@@ -349,7 +350,7 @@ public abstract class InspectTask implements Runnable {
 						clientMongoOperator,
 						InspectTask.class.getSimpleName() + "-" + srcNodeId,
 						sourceConn.getConfig(),
-						new PdkTableMap(new TapTableMap<>(srcNodeId)),
+						new PdkTableMap(TapTableUtil.getTapTableMapByNodeId(srcNodeId)),
 						new PdkStateMap(srcNodeId, HazelcastUtil.getInstance()),
 						PdkStateMap.globalStateMap(HazelcastUtil.getInstance())
 				));
@@ -364,7 +365,7 @@ public abstract class InspectTask implements Runnable {
 						clientMongoOperator,
 						InspectTask.class.getSimpleName() + "-" + tgtNodeId,
 						targetConn.getConfig(),
-						new PdkTableMap(new TapTableMap<>(tgtNodeId)),
+						new PdkTableMap(TapTableUtil.getTapTableMapByNodeId(tgtNodeId)),
 						new PdkStateMap(tgtNodeId, HazelcastUtil.getInstance()),
 						PdkStateMap.globalStateMap(HazelcastUtil.getInstance())
 				));

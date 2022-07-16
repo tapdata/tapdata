@@ -18,92 +18,92 @@ import java.util.concurrent.atomic.AtomicInteger;
  **/
 public class MongoClientProxy extends MongoClient {
 
-	private static Logger logger = LogManager.getLogger(MongoClientProxy.class);
+  private static Logger logger = LogManager.getLogger(MongoClientProxy.class);
 
-	/**
-	 * 记录已创建的mongodb的连接数
-	 * key：线程方法调用栈的toString后生成的hash code
-	 * value： 连接数统计数
-	 */
-	private static ConcurrentHashMap<String, AtomicInteger> aliveMongoClientCount = new ConcurrentHashMap<>();
+  /**
+   * 记录已创建的mongodb的连接数
+   * key：线程方法调用栈的toString后生成的hash code
+   * value： 连接数统计数
+   */
+  private static ConcurrentHashMap<String, AtomicInteger> aliveMongoClientCount = new ConcurrentHashMap<>();
 
-	/**
-	 * 记录每个mongo client对应 线程方法调用栈的toString后 的hash code
-	 * key：this
-	 * value：线程方法调用栈的toString后生成的hash code
-	 */
-	private static ConcurrentHashMap<MongoClient, String> aliveMongoClientHashCode = new ConcurrentHashMap<>();
+  /**
+   * 记录每个mongo client对应 线程方法调用栈的toString后 的hash code
+   * key：this
+   * value：线程方法调用栈的toString后生成的hash code
+   */
+  private static ConcurrentHashMap<MongoClient, String> aliveMongoClientHashCode = new ConcurrentHashMap<>();
 
-	public MongoClientProxy(MongoClientURI uri) {
-		super(uri);
-		final StackTraceElement[] stackTrace = Thread.currentThread().getStackTrace();
-		StringBuilder sb = new StringBuilder();
-		if (stackTrace != null && stackTrace.length > 0) {
-			for (StackTraceElement stackTraceElement : stackTrace) {
-				sb.append(stackTraceElement.toString());
-			}
+  public MongoClientProxy(MongoClientURI uri) {
+    super(uri);
+    final StackTraceElement[] stackTrace = Thread.currentThread().getStackTrace();
+    StringBuilder sb = new StringBuilder();
+    if (stackTrace != null && stackTrace.length > 0) {
+      for (StackTraceElement stackTraceElement : stackTrace) {
+        sb.append(stackTraceElement.toString());
+      }
 
-			final String hashCode = String.valueOf(sb.toString().hashCode());
+      final String hashCode = String.valueOf(sb.toString().hashCode());
 
-			synchronized (hashCode.intern()) {
-				if (!aliveMongoClientCount.containsKey(hashCode)) {
-					aliveMongoClientCount.put(hashCode, new AtomicInteger(0));
-				}
+      synchronized (hashCode.intern()) {
+        if (!aliveMongoClientCount.containsKey(hashCode)) {
+          aliveMongoClientCount.put(hashCode, new AtomicInteger(0));
+        }
 
-				aliveMongoClientCount.get(hashCode).incrementAndGet();
+        aliveMongoClientCount.get(hashCode).incrementAndGet();
 
-				aliveMongoClientHashCode.put(this, hashCode);
+        aliveMongoClientHashCode.put(this, hashCode);
 
-				final int aliveCount = aliveMongoClientCount.get(hashCode).get();
-				if (aliveCount % 10 == 0) {
-					logger.warn("Alive mongo client threshold warning, alive count {}, call stack {}.", aliveCount, sb.toString());
-				}
-			}
+        final int aliveCount = aliveMongoClientCount.get(hashCode).get();
+        if (aliveCount % 10 == 0) {
+          logger.warn("Alive mongo client threshold warning, alive count {}, call stack {}.", aliveCount, sb.toString());
+        }
+      }
 
-		}
-	}
+    }
+  }
 
-	@Override
-	public void close() {
-		try {
-			super.close();
-		} finally {
-			if (aliveMongoClientHashCode.containsKey(this)) {
-				final String hashCode = aliveMongoClientHashCode.get(this);
+  @Override
+  public void close() {
+    try {
+      super.close();
+    } finally {
+      if (aliveMongoClientHashCode.containsKey(this)) {
+        final String hashCode = aliveMongoClientHashCode.get(this);
 
-				if (aliveMongoClientCount.containsKey(hashCode)) {
-					final int aliveCount = aliveMongoClientCount.get(hashCode).decrementAndGet();
-					if (aliveCount <= 0) {
-						synchronized (hashCode.intern()) {
-							if (aliveCount <= 0) {
-								aliveMongoClientCount.remove(hashCode);
-							}
-						}
-					}
-				}
+        if (aliveMongoClientCount.containsKey(hashCode)) {
+          final int aliveCount = aliveMongoClientCount.get(hashCode).decrementAndGet();
+          if (aliveCount <= 0) {
+            synchronized (hashCode.intern()) {
+              if (aliveCount <= 0) {
+                aliveMongoClientCount.remove(hashCode);
+              }
+            }
+          }
+        }
 
-				aliveMongoClientHashCode.remove(this);
-			}
-		}
-	}
+        aliveMongoClientHashCode.remove(this);
+      }
+    }
+  }
 
-	public static void main(String[] args) throws InterruptedException {
+  public static void main(String[] args) throws InterruptedException {
 
-		List<MongoClient> mongoClients = new ArrayList<>();
-		for (int i = 0; i < 50; i++) {
-			MongoClient client = new MongoClientProxy(new MongoClientURI("mongodb://localhost"));
-			mongoClients.add(client);
-		}
+    List<MongoClient> mongoClients = new ArrayList<>();
+    for (int i = 0; i < 50; i++) {
+      MongoClient client = new MongoClientProxy(new MongoClientURI("mongodb://localhost"));
+      mongoClients.add(client);
+    }
 
-		for (int i = 0; i < mongoClients.size(); i++) {
-			if (i % 2 == 0) {
-				continue;
-			}
-			mongoClients.get(i).close();
-		}
+    for (int i = 0; i < mongoClients.size(); i++) {
+      if (i % 2 == 0) {
+        continue;
+      }
+      mongoClients.get(i).close();
+    }
 
-		while (true) {
-			Thread.sleep(2000L);
-		}
-	}
+    while (true) {
+      Thread.sleep(2000L);
+    }
+  }
 }

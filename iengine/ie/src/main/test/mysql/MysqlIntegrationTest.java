@@ -8,7 +8,7 @@ import com.wix.mysql.EmbeddedMysql;
  */
 public class MysqlIntegrationTest extends BaseTest {
 
-	private static EmbeddedMysql mysqld;
+  private static EmbeddedMysql mysqld;
 //
 //    @Before
 //    public void init() throws IOException, URISyntaxException {

@@ -900,22 +900,10 @@
           ]
         }
       ]
+
     }
   },
-  {
-    "_id": "5ad840203c5994003cc41d52",
-    "name": "Mongo",
-    "connection_type": "source_and_target",
-    "database_type": "mongodb",
-    "database_host": "localhost",
-    "database_username": "",
-    "database_port": 12345,
-    "database_name": "dev",
-    "database_password": "",
-    "schema": {
-      "tables": []
-    }
-  },
+  {"_id" : "5ad840203c5994003cc41d52","name" : "Mongo", "connection_type" : "source_and_target", "database_type" : "mongodb", "database_host" : "localhost", "database_username" : "", "database_port" : 12345, "database_name" : "dev", "database_password" : "", "schema" : { "tables" : [  ] } },
   {
     "_id": "5ad840203c5994003cc41d53",
     "name": "inventory",
@@ -927,252 +915,23 @@
     "database_name": "inventory",
     "database_password": "unittest",
     "schema": {
-      "tables": [
-        {
-          "table_name": "orders",
-          "fields": [
-            {
-              "field_name": "order_date",
-              "table_name": "orders",
-              "data_type": "date",
-              "primary_key_position": 0,
-              "foreign_key_table": null,
-              "foreign_key_column": null,
-              "key": null,
-              "precision": null,
-              "scale": null
-            },
-            {
-              "field_name": "order_date_time_long",
-              "table_name": "orders",
-              "data_type": "datetime",
-              "primary_key_position": 0,
-              "foreign_key_table": null,
-              "foreign_key_column": null,
-              "key": null,
-              "precision": 6,
-              "scale": null
-            },
-            {
-              "field_name": "quantity",
-              "table_name": "orders",
-              "data_type": "int",
-              "primary_key_position": 0,
-              "foreign_key_table": null,
-              "foreign_key_column": null,
-              "key": null,
-              "precision": null,
-              "scale": null
-            },
-            {
-              "field_name": "order_date_time",
-              "table_name": "orders",
-              "data_type": "datetime",
-              "primary_key_position": 0,
-              "foreign_key_table": null,
-              "foreign_key_column": null,
-              "key": null,
-              "precision": 3,
-              "scale": null
-            },
-            {
-              "field_name": "purchaser",
-              "table_name": "orders",
-              "data_type": "int",
-              "primary_key_position": 0,
-              "foreign_key_table": "customers",
-              "foreign_key_column": "_id",
-              "key": null,
-              "precision": null,
-              "scale": null
-            },
-            {
-              "field_name": "order_number",
-              "table_name": "orders",
-              "data_type": "int",
-              "primary_key_position": 1,
-              "foreign_key_table": null,
-              "foreign_key_column": null,
-              "key": "PRI",
-              "precision": null,
-              "scale": null
-            },
-            {
-              "field_name": "product_id",
-              "table_name": "orders",
-              "data_type": "int",
-              "primary_key_position": 0,
-              "foreign_key_table": "products",
-              "foreign_key_column": "_id",
-              "key": null,
-              "precision": null,
-              "scale": null
-            },
-            {
-              "field_name": "order_timestamp",
-              "table_name": "orders",
-              "data_type": "timestamp",
-              "primary_key_position": 0,
-              "foreign_key_table": null,
-              "foreign_key_column": null,
-              "key": null,
-              "precision": 6,
-              "scale": null
-            },
-            {
-              "field_name": "order_time",
-              "table_name": "orders",
-              "data_type": "time",
-              "primary_key_position": 0,
-              "foreign_key_table": null,
-              "foreign_key_column": null,
-              "key": null,
-              "precision": 6,
-              "scale": null
-            }
-          ]
-        },
-        {
-          "table_name": "customers",
-          "fields": [
-            {
-              "field_name": "last_name",
-              "table_name": "customers",
-              "data_type": "varchar",
-              "primary_key_position": 0,
-              "foreign_key_table": null,
-              "foreign_key_column": null,
-              "key": null,
-              "precision": null,
-              "scale": null
-            },
-            {
-              "field_name": "_id",
-              "table_name": "customers",
-              "data_type": "int",
-              "primary_key_position": 1,
-              "foreign_key_table": null,
-              "foreign_key_column": null,
-              "key": "PRI",
-              "precision": null,
-              "scale": null
-            },
-            {
-              "field_name": "first_name",
-              "table_name": "customers",
-              "data_type": "varchar",
-              "primary_key_position": 0,
-              "foreign_key_table": null,
-              "foreign_key_column": null,
-              "key": null,
-              "precision": null,
-              "scale": null
-            },
-            {
-              "field_name": "email",
-              "table_name": "customers",
-              "data_type": "varchar",
-              "primary_key_position": 0,
-              "foreign_key_table": null,
-              "foreign_key_column": null,
-              "key": null,
-              "precision": null,
-              "scale": null
-            }
-          ]
-        },
-        {
-          "table_name": "products_on_hand",
-          "fields": [
-            {
-              "field_name": "quantity",
-              "table_name": "products_on_hand",
-              "data_type": "int",
-              "primary_key_position": 0,
-              "foreign_key_table": null,
-              "foreign_key_column": null,
-              "key": null,
-              "precision": null,
-              "scale": null
-            },
-            {
-              "field_name": "product_id",
-              "table_name": "products_on_hand",
-              "data_type": "int",
-              "primary_key_position": 1,
-              "foreign_key_table": "products",
-              "foreign_key_column": "_id",
-              "key": "PRI",
-              "precision": null,
-              "scale": null
-            }
-          ]
-        },
-        {
-          "table_name": "products",
-          "fields": [
-            {
-              "field_name": "name",
-              "table_name": "products",
-              "data_type": "varchar",
-              "primary_key_position": 0,
-              "foreign_key_table": null,
-              "foreign_key_column": null,
-              "key": null,
-              "precision": null,
-              "scale": null
-            },
-            {
-              "field_name": "description",
-              "table_name": "products",
-              "data_type": "varchar",
-              "primary_key_position": 0,
-              "foreign_key_table": null,
-              "foreign_key_column": null,
-              "key": null,
-              "precision": null,
-              "scale": null
-            },
-            {
-              "field_name": "weight",
-              "table_name": "products",
-              "data_type": "float",
-              "primary_key_position": 0,
-              "foreign_key_table": null,
-              "foreign_key_column": null,
-              "key": null,
-              "precision": null,
-              "scale": null
-            },
-            {
-              "field_name": "_id",
-              "table_name": "products",
-              "data_type": "int",
-              "primary_key_position": 1,
-              "foreign_key_table": null,
-              "foreign_key_column": null,
-              "key": "PRI",
-              "precision": null,
-              "scale": null
-            }
-          ]
-        }
-      ]
+      "tables": [{"table_name":"orders","fields":[{"field_name":"order_date","table_name":"orders","data_type":"date","primary_key_position":0,"foreign_key_table":null,"foreign_key_column":null,"key":null,"precision":null,"scale":null},{"field_name":"order_date_time_long","table_name":"orders","data_type":"datetime","primary_key_position":0,"foreign_key_table":null,"foreign_key_column":null,"key":null,"precision":6,"scale":null},{"field_name":"quantity","table_name":"orders","data_type":"int","primary_key_position":0,"foreign_key_table":null,"foreign_key_column":null,"key":null,"precision":null,"scale":null},{"field_name":"order_date_time","table_name":"orders","data_type":"datetime","primary_key_position":0,"foreign_key_table":null,"foreign_key_column":null,"key":null,"precision":3,"scale":null},{"field_name":"purchaser","table_name":"orders","data_type":"int","primary_key_position":0,"foreign_key_table":"customers","foreign_key_column":"_id","key":null,"precision":null,"scale":null},{"field_name":"order_number","table_name":"orders","data_type":"int","primary_key_position":1,"foreign_key_table":null,"foreign_key_column":null,"key":"PRI","precision":null,"scale":null},{"field_name":"product_id","table_name":"orders","data_type":"int","primary_key_position":0,"foreign_key_table":"products","foreign_key_column":"_id","key":null,"precision":null,"scale":null},{"field_name":"order_timestamp","table_name":"orders","data_type":"timestamp","primary_key_position":0,"foreign_key_table":null,"foreign_key_column":null,"key":null,"precision":6,"scale":null},{"field_name":"order_time","table_name":"orders","data_type":"time","primary_key_position":0,"foreign_key_table":null,"foreign_key_column":null,"key":null,"precision":6,"scale":null}]},{"table_name":"customers","fields":[{"field_name":"last_name","table_name":"customers","data_type":"varchar","primary_key_position":0,"foreign_key_table":null,"foreign_key_column":null,"key":null,"precision":null,"scale":null},{"field_name":"_id","table_name":"customers","data_type":"int","primary_key_position":1,"foreign_key_table":null,"foreign_key_column":null,"key":"PRI","precision":null,"scale":null},{"field_name":"first_name","table_name":"customers","data_type":"varchar","primary_key_position":0,"foreign_key_table":null,"foreign_key_column":null,"key":null,"precision":null,"scale":null},{"field_name":"email","table_name":"customers","data_type":"varchar","primary_key_position":0,"foreign_key_table":null,"foreign_key_column":null,"key":null,"precision":null,"scale":null}]},{"table_name":"products_on_hand","fields":[{"field_name":"quantity","table_name":"products_on_hand","data_type":"int","primary_key_position":0,"foreign_key_table":null,"foreign_key_column":null,"key":null,"precision":null,"scale":null},{"field_name":"product_id","table_name":"products_on_hand","data_type":"int","primary_key_position":1,"foreign_key_table":"products","foreign_key_column":"_id","key":"PRI","precision":null,"scale":null}]},{"table_name":"products","fields":[{"field_name":"name","table_name":"products","data_type":"varchar","primary_key_position":0,"foreign_key_table":null,"foreign_key_column":null,"key":null,"precision":null,"scale":null},{"field_name":"description","table_name":"products","data_type":"varchar","primary_key_position":0,"foreign_key_table":null,"foreign_key_column":null,"key":null,"precision":null,"scale":null},{"field_name":"weight","table_name":"products","data_type":"float","primary_key_position":0,"foreign_key_table":null,"foreign_key_column":null,"key":null,"precision":null,"scale":null},{"field_name":"_id","table_name":"products","data_type":"int","primary_key_position":1,"foreign_key_table":null,"foreign_key_column":null,"key":"PRI","precision":null,"scale":null}]}]
     }
   },
   {
     "_id": "5ad840203c5994003cc41d54",
     "name": "mongo_replset",
-    "connection_type": "source",
-    "database_type": "mongodb",
-    "database_host": "",
-    "database_username": "",
-    "database_port": 0,
+    "connection_type" : "source",
+    "database_type" : "mongodb",
+    "database_host" : "",
+    "database_username" : "",
+    "database_port" : 0,
     "database_uri": "mongodb://localhost:54321,localhost:54322,localhost:54323/demo",
-    "database_name": "",
-    "database_password": "",
-    "user_id": "5a6b1cf96103fb000151d595",
-    "schema": {
+    "database_name" : "",
+    "database_password" : "",
+    "user_id" : "5a6b1cf96103fb000151d595",
+    "schema" : {
+
     }
   }
 ]

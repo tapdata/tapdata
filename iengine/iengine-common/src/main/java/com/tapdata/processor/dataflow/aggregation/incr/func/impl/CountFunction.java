@@ -16,44 +16,44 @@ import java.util.Map;
 
 public class CountFunction extends AbstractAggsFunction {
 
-	public CountFunction(BucketCache<FuncCacheKey, BucketValue> cache, Aggregation aggregation) throws Throwable {
-		super(cache, aggregation);
-	}
+  public CountFunction(BucketCache<FuncCacheKey, BucketValue> cache, Aggregation aggregation) throws Throwable {
+    super(cache, aggregation);
+  }
 
-	@Override
-	public Func getFunc() {
-		return Func.COUNT;
-	}
+  @Override
+  public Func getFunc() {
+    return Func.COUNT;
+  }
 
-	@Override
-	public SnapshotRecord diff(SnapshotRecord newRecord, SnapshotRecord oldRecord) {
-		return null;
-	}
+  @Override
+  public SnapshotRecord diff(SnapshotRecord newRecord, SnapshotRecord oldRecord) {
+    return null;
+  }
 
-	@Override
-	protected AggrBucket doCall(SnapshotService snapshotService, SnapshotRecord snapshotRecord, Map<String, Object> groupByMap) {
-		final FuncCacheKey funcCacheKey = new FuncCacheKey(this.processName, groupByMap);
-		final CountBucket.Value cacheValue = (CountBucket.Value) this.cache.get(funcCacheKey);
-		final CountBucket bucket;
-		if (cacheValue == null) { // not in cache
-			bucket = snapshotService.count(groupByMap);
-		} else {                 //  update in cache
-			long count;
-			if (snapshotRecord.isAppend()) {
-				count = cacheValue.getCount() + 1;
-			} else {
-				count = cacheValue.getCount() - 1;
-			}
-			bucket = new CountBucket(groupByMap, count);
-		}
-		this.cache.put(funcCacheKey, bucket.getBucketValue());
-		return bucket;
-	}
+  @Override
+  protected AggrBucket doCall(SnapshotService snapshotService, SnapshotRecord snapshotRecord, Map<String, Object> groupByMap) {
+    final FuncCacheKey funcCacheKey = new FuncCacheKey(this.processName, groupByMap);
+    final CountBucket.Value cacheValue = (CountBucket.Value) this.cache.get(funcCacheKey);
+    final CountBucket bucket;
+    if (cacheValue == null) { // not in cache
+      bucket = snapshotService.count(groupByMap);
+    } else {                 //  update in cache
+      long count;
+      if (snapshotRecord.isAppend()) {
+        count = cacheValue.getCount() + 1;
+      } else {
+        count = cacheValue.getCount() - 1;
+      }
+      bucket = new CountBucket(groupByMap, count);
+    }
+    this.cache.put(funcCacheKey, bucket.getBucketValue());
+    return bucket;
+  }
 
-	@Override
-	public List<AggrBucket> callByGroup(SnapshotService snapshotService) {
-		return snapshotService.countGroup(this.groupByFieldList);
-	}
+  @Override
+  public List<AggrBucket> callByGroup(SnapshotService snapshotService) {
+    return snapshotService.countGroup(this.groupByFieldList);
+  }
 
 
 }

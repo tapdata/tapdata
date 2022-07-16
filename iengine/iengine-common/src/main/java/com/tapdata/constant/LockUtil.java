@@ -10,31 +10,31 @@ import java.util.function.Predicate;
  * @create 2022-06-07 11:44
  **/
 public class LockUtil {
-	public static void runWithLock(Lock lock, Predicate<?> stop, Runner runner) {
-		if (null == lock) {
-			runner.run();
-			return;
-		}
-		try {
-			while (true) {
-				if (null != stop && stop.test(null)) {
-					break;
-				}
-				try {
-					if (lock.tryLock(1L, TimeUnit.SECONDS)) {
-						break;
-					}
-				} catch (InterruptedException e) {
-					break;
-				}
-			}
-			runner.run();
-		} finally {
-			lock.unlock();
-		}
-	}
+    public static void runWithLock(Lock lock, Predicate<?> stop, Runner runner) {
+        if (null == lock) {
+            runner.run();
+            return;
+        }
+        try {
+            while (true) {
+                if (null != stop && stop.test(null)) {
+                    break;
+                }
+                try {
+                    if (lock.tryLock(1L, TimeUnit.SECONDS)) {
+                        break;
+                    }
+                } catch (InterruptedException e) {
+                    break;
+                }
+            }
+            runner.run();
+        } finally {
+            lock.unlock();
+        }
+    }
 
-	public static interface Runner {
-		public void run();
-	}
+    public static interface Runner {
+        public void run();
+    }
 }

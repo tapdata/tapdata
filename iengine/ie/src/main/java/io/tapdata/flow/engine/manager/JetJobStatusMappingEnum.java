@@ -5,7 +5,6 @@ import io.tapdata.common.DataFlowStatus;
 
 /**
  * data flow状态与jet job status映射枚举
- *
  * @author jackin
  * @date 2021/3/9 6:29 PM
  **/
@@ -25,8 +24,7 @@ public enum JetJobStatusMappingEnum {
 
 	FAILED(JobStatus.FAILED, DataFlowStatus.ERROR),
 
-	COMPLETED(JobStatus.COMPLETED, DataFlowStatus.PAUSED),
-	;
+	COMPLETED(JobStatus.COMPLETED, DataFlowStatus.PAUSED),;
 
 	/**
 	 * data flow 状态

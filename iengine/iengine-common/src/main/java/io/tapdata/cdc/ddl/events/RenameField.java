@@ -16,13 +16,13 @@ import java.util.List;
 @Setter
 @Getter
 public class RenameField extends AbsField {
-	private String rename;
+  private String rename;
 
-	public RenameField() {
-	}
+  public RenameField() {
+  }
 
-	public RenameField(String ddl, List<String> namespace, String field, String rename) {
-		super(DdlOperator.RenameField, ddl, namespace, field);
-		setRename(rename);
-	}
+  public RenameField(String ddl, List<String> namespace, String field, String rename) {
+    super(DdlOperator.RenameField, ddl, namespace, field);
+    setRename(rename);
+  }
 }

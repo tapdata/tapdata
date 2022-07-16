@@ -23,24 +23,30 @@ import com.tapdata.mongo.HttpClientMongoOperator;
 import com.tapdata.tm.commons.dag.Edge;
 import com.tapdata.tm.commons.dag.Element;
 import com.tapdata.tm.commons.dag.Node;
+import com.tapdata.tm.commons.dag.logCollector.HazelCastImdgNode;
+import com.tapdata.tm.commons.dag.logCollector.VirtualTargetNode;
 import com.tapdata.tm.commons.dag.nodes.CacheNode;
 import com.tapdata.tm.commons.dag.nodes.DataNode;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.dag.process.MergeTableNode;
+import com.tapdata.tm.commons.dag.process.MigrateFieldRenameProcessorNode;
+import com.tapdata.tm.commons.dag.process.TableRenameProcessNode;
 import com.tapdata.tm.commons.task.dto.SubTaskDto;
+import io.tapdata.flow.engine.V2.util.PdkUtil;
 import io.tapdata.common.SettingService;
 import io.tapdata.common.sharecdc.ShareCdcUtil;
 import io.tapdata.dao.MessageDao;
+import io.tapdata.entity.aspect.AspectManager;
 import io.tapdata.entity.schema.TapTable;
+import io.tapdata.entity.utils.InstanceFactory;
+import io.tapdata.flow.engine.V2.aspect.TaskStartAspect;
 import io.tapdata.flow.engine.V2.common.node.NodeTypeEnum;
 import io.tapdata.flow.engine.V2.entity.JetDag;
 import io.tapdata.flow.engine.V2.exception.node.NodeException;
 import io.tapdata.flow.engine.V2.node.hazelcast.HazelcastBaseNode;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.*;
-import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.HazelcastPdkSourceAndTargetTableNode;
-import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.HazelcastSourcePdkDataNode;
-import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.HazelcastTargetPdkDataNode;
+import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.*;
 import io.tapdata.flow.engine.V2.node.hazelcast.processor.HazelcastCustomProcessor;
 import io.tapdata.flow.engine.V2.node.hazelcast.processor.HazelcastMergeNode;
 import io.tapdata.flow.engine.V2.node.hazelcast.processor.HazelcastProcessorNode;
@@ -50,7 +56,6 @@ import io.tapdata.flow.engine.V2.task.TaskService;
 import io.tapdata.flow.engine.V2.util.GraphUtil;
 import io.tapdata.flow.engine.V2.util.MergeTableUtil;
 import io.tapdata.flow.engine.V2.util.NodeUtil;
-import io.tapdata.flow.engine.V2.util.PdkUtil;
 import io.tapdata.milestone.MilestoneContext;
 import io.tapdata.milestone.MilestoneFactory;
 import io.tapdata.milestone.MilestoneFlowServiceJetV2;
@@ -126,8 +131,24 @@ public class HazelcastTaskService implements TaskService<SubTaskDto> {
 		JobConfig jobConfig = new JobConfig();
 		jobConfig.setName(subTaskDto.getName() + "-" + subTaskDto.getId().toHexString());
 		jobConfig.setProcessingGuarantee(ProcessingGuarantee.AT_LEAST_ONCE);
+		InstanceFactory.instance(AspectManager.class).executeAspect(new TaskStartAspect().task(subTaskDto));
 		final Job job = hazelcastInstance.getJet().newJob(jetDag.getDag(), jobConfig);
 		return new HazelcastTaskClient(job, subTaskDto, clientMongoOperator, configurationCenter, hazelcastInstance, milestoneFlowServiceJetV2);
+	}
+
+	@Override
+	public TaskClient<SubTaskDto> startTestTask(SubTaskDto subTaskDto) {
+		long startTs = System.currentTimeMillis();
+		final JetDag jetDag = task2HazelcastDAG(subTaskDto);
+//		MilestoneFlowServiceJetV2 milestoneFlowServiceJetV2 = initMilestone(subTaskDto);
+		JobConfig jobConfig = new JobConfig();
+//		jobConfig.setName(subTaskDto.getName() + "-" + subTaskDto.getId().toHexString());
+		jobConfig.setProcessingGuarantee(ProcessingGuarantee.NONE);
+
+		logger.info("task2HazelcastDAG cost {}ms", (System.currentTimeMillis() - startTs));
+
+		Job job = hazelcastInstance.getJet().newLightJob(jetDag.getDag(), jobConfig);
+		return new HazelcastTaskClient(job, subTaskDto, clientMongoOperator, configurationCenter, hazelcastInstance, null);
 	}
 
 	@SneakyThrows
@@ -150,13 +171,17 @@ public class HazelcastTaskService implements TaskService<SubTaskDto> {
 
 			for (Node node : nodes) {
 				Connections connection = null;
-				List<RelateDataBaseTable> nodeSchemas;
 				DatabaseTypeEnum.DatabaseType databaseType = null;
-				nodeSchemas = getNodeSchema(node.getId());
-				if (CollectionUtils.isEmpty(nodeSchemas) && !(node instanceof CacheNode)) {
-					if (needForceNodeSchema(subTaskDto)) {
-						throw new NodeException(String.format("node [id %s, name %s] schema cannot be empty.", node.getId(), node.getName()));
-					}
+				TapTableMap<String, TapTable> tapTableMap = TapTableUtil.getTapTableMapByNodeId(node.getId());
+				if (CollectionUtils.isEmpty(tapTableMap.keySet())
+					&& !(node instanceof CacheNode)
+					&& !(node instanceof HazelCastImdgNode)
+					&& !(node instanceof TableRenameProcessNode)
+					&& !(node instanceof MigrateFieldRenameProcessorNode)
+					&& !(node instanceof VirtualTargetNode)
+					&& !subTaskDto.isTransformTask()) {
+					throw new NodeException(String.format("Node [id %s, name %s] schema cannot be empty",
+						node.getId(), node.getName()));
 				}
 				if (node.isDataNode()) {
 					String connectionId = null;
@@ -166,12 +191,9 @@ public class HazelcastTaskService implements TaskService<SubTaskDto> {
 						connectionId = ((DatabaseNode) node).getConnectionId();
 					}
 					connection = getConnection(connectionId);
-					if (connection == null) {
-						throw new NodeException(String.format("node [id %s, name %s] connection cannot be null.", node.getId(), node.getName()));
-					}
 					databaseType = ConnectionUtil.getDatabaseType(clientMongoOperator, connection.getPdkHash());
 
-					if (connection != null && "pdk".equals(connection.getPdkType())) {
+					if ("pdk".equals(connection.getPdkType())) {
 						PdkUtil.downloadPdkFileIfNeed((HttpClientMongoOperator) clientMongoOperator, databaseType.getPdkHash(), databaseType.getJarFile(), databaseType.getJarRid());
 					}
 				} else if (node instanceof CacheNode) {
@@ -185,7 +207,6 @@ public class HazelcastTaskService implements TaskService<SubTaskDto> {
 					}
 					messageDao.registerCache((CacheNode) node, (TableNode) sourceNode, connection, subTaskDto, clientMongoOperator);
 				}
-				TapTableMap<String, TapTable> tapTableMap = TapTableUtil.getTapTableMapByNodeId(node.getId());
 				List<Node> predecessors = node.predecessors();
 				List<Node> successors = node.successors();
 				Connections finalConnection = connection;
@@ -239,7 +260,6 @@ public class HazelcastTaskService implements TaskService<SubTaskDto> {
 			List<Node> predecessors,
 			List<Node> successors,
 			ConfigurationCenter config,
-			/*List<RelateDataBaseTable> nodeSchemas,*/
 			Connections connection,
 			DatabaseTypeEnum.DatabaseType databaseType,
 			Map<String, MergeTableNode> mergeTableMap,
@@ -287,6 +307,7 @@ public class HazelcastTaskService implements TaskService<SubTaskDto> {
 										.withNodes(nodes)
 										.withEdges(edges)
 										.withConfigurationCenter(config)
+										.withSourceConn(connection)
 										.withConnectionConfig(connection.getConfig())
 										.withDatabaseType(databaseType)
 										.withTapTableMap(tapTableMap)
@@ -332,18 +353,48 @@ public class HazelcastTaskService implements TaskService<SubTaskDto> {
 				}
 				break;
 			case CACHE:
-				hazelcastNode = new HazelcastCacheTarget(
+				if ("pdk".equals(connection.getPdkType())) {
+					hazelcastNode = new HazelcastTargetPdkCacheNode(
+							DataProcessorContext.newBuilder()
+									.withSubTaskDto(subTaskDto)
+									.withNode(node)
+									.withNodes(nodes)
+									.withEdges(edges)
+									.withConfigurationCenter(config)
+									.withConnectionConfig(connection.getConfig())
+									.withDatabaseType(databaseType)
+									.withTapTableMap(tapTableMap)
+									.withCacheService(cacheService)
+									.build()
+					);
+				} else {
+					hazelcastNode = new HazelcastCacheTarget(
 						DataProcessorContext.newBuilder()
-								.withSubTaskDto(subTaskDto)
-								.withNode(node)
-								.withNodes(nodes)
-								.withEdges(edges)
-								.withConfigurationCenter(config)
-								.withTargetConn(connection)
-								.withCacheService(cacheService)
-								.withTapTableMap(tapTableMap)
-								.build()
-				);
+							.withSubTaskDto(subTaskDto)
+							.withNode(node)
+							.withNodes(nodes)
+							.withEdges(edges)
+							.withConfigurationCenter(config)
+							.withTargetConn(connection)
+							.withCacheService(cacheService)
+							.withTapTableMap(tapTableMap)
+							.build()
+					);
+				}
+				break;
+			case VIRTUAL_TARGET:
+
+				hazelcastNode = new HazelcastTargetSchemaNode(DataProcessorContext.newBuilder()
+					.withSubTaskDto(subTaskDto)
+					.withNode(node)
+					.withNodes(nodes)
+					.withEdges(edges)
+					.withConfigurationCenter(config)
+					.withTargetConn(connection)
+					.withCacheService(cacheService)
+					.withTapTableMap(tapTableMap)
+					.build());
+
 				break;
 			case JOIN:
 				hazelcastNode = new HazelcastJoinProcessor(
@@ -362,6 +413,8 @@ public class HazelcastTaskService implements TaskService<SubTaskDto> {
 			case FIELD_RENAME_PROCESSOR:
 			case FIELD_MOD_TYPE_PROCESSOR:
 			case FIELD_CALC_PROCESSOR:
+			case TABLE_RENAME_PROCESSOR:
+			case MIGRATE_FIELD_RENAME_PROCESSOR:
 			case FIELD_ADD_DEL_PROCESSOR:
 				hazelcastNode = new HazelcastProcessorNode(
 						DataProcessorContext.newBuilder()
@@ -373,32 +426,31 @@ public class HazelcastTaskService implements TaskService<SubTaskDto> {
 								.build()
 				);
 				break;
-//            case LOG_COLLECTOR:
-//                hazelcastNode = new HazelcastLogCollectSource(
-//                    DataProcessorContext.newBuilder()
-//                        .withSubTaskDto(subTaskDto)
-//                        .withNode(node)
-//                        .withNodes(nodes)
-//                        .withEdges(edges)
-//                        .withConfigurationCenter(config)
-//                        .build()
-//                );
-//                break;
-//            case HAZELCASTIMDG:
-//                Connections connections = new Connections();
-//                connections.setDatabase_type(DatabaseTypeEnum.HAZELCAST_IMDG.getType());
-//                hazelcastNode = new HazelcastTaskTarget(
-//                    DataProcessorContext.newBuilder()
-//                        .withSubTaskDto(subTaskDto)
-//                        .withNode(node)
-//                        .withNodes(nodes)
-//                        .withEdges(edges)
-//                        .withConfigurationCenter(config)
-//                        .withTargetConn(connections)
-//                        .withCacheService(cacheService)
-//                        .build()
-//                );
-//                break;
+			case LOG_COLLECTOR:
+				hazelcastNode = new HazelcastSourcePdkShareCDCNode(
+						DataProcessorContext.newBuilder()
+								.withSubTaskDto(subTaskDto)
+								.withNode(node)
+								.withNodes(nodes)
+								.withEdges(edges)
+								.withConfigurationCenter(config)
+								.withTapTableMap(tapTableMap)
+								.build()
+				);
+				break;
+			case HAZELCASTIMDG:
+				Connections connections = new Connections();
+				connections.setDatabase_type(DatabaseTypeEnum.HAZELCAST_IMDG.getType());
+				hazelcastNode = new HazelcastTargetPdkShareCDCNode(
+						DataProcessorContext.newBuilder()
+								.withSubTaskDto(subTaskDto)
+								.withNode(node)
+								.withNodes(nodes)
+								.withEdges(edges)
+								.withConfigurationCenter(config)
+								.build()
+				);
+				break;
 			case CUSTOM_PROCESSOR:
 				hazelcastNode = new HazelcastCustomProcessor(
 						DataProcessorContext.newBuilder()
@@ -472,22 +524,6 @@ public class HazelcastTaskService implements TaskService<SubTaskDto> {
 	@Override
 	public List<TaskClient<SubTaskDto>> getTaskClients() {
 		return null;
-	}
-
-	public List<RelateDataBaseTable> getNodeSchema(String nodeId) {
-		final List<RelateDataBaseTable> nodeSchemas = clientMongoOperator.find(
-				new Query(where("nodeId").is(nodeId)),
-				ConnectorConstant.METADATA_INSTANCE_COLLECTION + "/node/oldSchema",
-				RelateDataBaseTable.class
-		);
-
-		return nodeSchemas;
-	}
-
-	public Map<String, String> getTableNameQualifiedNameMap(String nodeId) {
-		return clientMongoOperator
-				.findOne(Query.query(where("nodeId").is(nodeId)),
-						ConnectorConstant.METADATA_INSTANCE_COLLECTION + "/node/tableMap", Map.class);
 	}
 
 	private Connections getConnection(String connectionId) {

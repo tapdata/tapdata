@@ -9,29 +9,29 @@ import java.io.Serializable;
  **/
 public class LogReaderOffset implements Serializable {
 
-	private static final long serialVersionUID = 2297261827698591792L;
-	private long timestamp;
+  private static final long serialVersionUID = 2297261827698591792L;
+  private long timestamp;
 
-	public LogReaderOffset() {
+  public LogReaderOffset() {
 
-	}
+  }
 
-	public LogReaderOffset(long timestamp) {
-		this.timestamp = timestamp;
-	}
+  public LogReaderOffset(long timestamp) {
+    this.timestamp = timestamp;
+  }
 
-	public long getTimestamp() {
-		return timestamp;
-	}
+  public long getTimestamp() {
+    return timestamp;
+  }
 
-	public void setTimestamp(long timestamp) {
-		this.timestamp = timestamp;
-	}
+  public void setTimestamp(long timestamp) {
+    this.timestamp = timestamp;
+  }
 
-	@Override
-	public String toString() {
-		return "LogReaderOffset{" +
-				"timestamp=" + timestamp +
-				'}';
-	}
+  @Override
+  public String toString() {
+    return "LogReaderOffset{" +
+      "timestamp=" + timestamp +
+      '}';
+  }
 }

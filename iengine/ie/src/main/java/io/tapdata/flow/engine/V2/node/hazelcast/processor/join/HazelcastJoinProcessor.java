@@ -1,14 +1,10 @@
 package io.tapdata.flow.engine.V2.node.hazelcast.processor.join;
 
 import com.tapdata.constant.MapUtil;
-import com.tapdata.entity.MessageEntity;
 import com.tapdata.entity.OperationType;
 import com.tapdata.entity.task.context.ProcessorBaseContext;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.process.JoinProcessorNode;
-import io.tapdata.common.sample.sampler.CounterSampler;
-import io.tapdata.common.sample.sampler.ResetCounterSampler;
-import io.tapdata.common.sample.sampler.SpeedSampler;
 import io.tapdata.constructImpl.ConstructIMap;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
@@ -19,9 +15,8 @@ import io.tapdata.entity.schema.TapIndex;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.flow.engine.V2.entity.TapdataEvent;
 import io.tapdata.flow.engine.V2.exception.node.NodeException;
-import io.tapdata.flow.engine.V2.node.hazelcast.HazelcastBaseNode;
+import io.tapdata.flow.engine.V2.node.hazelcast.processor.HazelcastProcessorBaseNode;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
-import io.tapdata.metrics.TaskSampleRetriever;
 import io.tapdata.schema.TapTableMap;
 import lombok.SneakyThrows;
 import org.apache.commons.collections.CollectionUtils;
@@ -33,6 +28,7 @@ import org.jetbrains.annotations.NotNull;
 
 import javax.annotation.Nonnull;
 import java.util.*;
+import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
 import static io.tapdata.flow.engine.V2.node.hazelcast.processor.join.HazelcastJoinProcessor.JoinOperation.Delete;
@@ -42,11 +38,11 @@ import static io.tapdata.flow.engine.V2.node.hazelcast.processor.join.HazelcastJ
  * @author jackin
  * @date 2021/12/15 12:08 PM
  **/
-public class HazelcastJoinProcessor extends HazelcastBaseNode {
+public class HazelcastJoinProcessor extends HazelcastProcessorBaseNode {
 
 	private final Logger logger = LogManager.getLogger(HazelcastJoinProcessor.class);
 
-	private final JoinType joinType;
+	private JoinType joinType;
 
 	private final static String IMAP_NAME_DELIMITER = "-";
 
@@ -64,19 +60,10 @@ public class HazelcastJoinProcessor extends HazelcastBaseNode {
 
 	private List<String> leftPrimaryKeys;
 	private List<String> rightPrimaryKeys;
-	// statistic and sample related
-
-	private ResetCounterSampler resetInputCounter;
-	private CounterSampler inputCounter;
-	private ResetCounterSampler resetOutputCounter;
-	private CounterSampler outputCounter;
-	private SpeedSampler inputQPS;
-	private SpeedSampler outputQPS;
 	private TapTable tapTable;
 
 	public HazelcastJoinProcessor(ProcessorBaseContext processorBaseContext) {
 		super(processorBaseContext);
-		Node<?> node = processorBaseContext.getNode();
 		TapTableMap<String, TapTable> tapTableMap = processorBaseContext.getTapTableMap();
 		Iterator<String> iterator = tapTableMap.keySet().iterator();
 		if (iterator.hasNext()) {
@@ -85,9 +72,27 @@ public class HazelcastJoinProcessor extends HazelcastBaseNode {
 		} else {
 			throw new RuntimeException("Cannot find join node's schema");
 		}
+	}
 
+	private void pkChecker() {
+		if (CollectionUtils.isEmpty(leftPrimaryKeys)) {
+			throw new NodeException("Join processor missing left table primary key");
+		}
+		if (CollectionUtils.isEmpty(rightPrimaryKeys)) {
+			throw new NodeException("Join processor missing right table primary key");
+		}
+	}
+
+	@Override
+	public void init(@Nonnull Context context) throws Exception {
+		super.init(context);
+		this.context = context;
+		initNode();
+	}
+
+	private void initNode() throws Exception {
+		Node<?> node = processorBaseContext.getNode();
 		vatidate(node);
-
 		JoinProcessorNode joinNode = (JoinProcessorNode) node;
 		this.joinType = JoinType.get(joinNode.getJoinType());
 
@@ -109,41 +114,9 @@ public class HazelcastJoinProcessor extends HazelcastBaseNode {
 		this.leftNodeId = joinNode.getLeftNodeId();
 		this.rightNodeId = joinNode.getRightNodeId();
 
-//    this.leftPrimaryKeys = joinNode.getLeftPrimaryKeys();
-//    this.rightPrimaryKeys = joinNode.getRightPrimaryKeys();
-
 		this.leftPrimaryKeys = joinNode.getLeftPrimaryKeys();
 		this.rightPrimaryKeys = joinNode.getRightPrimaryKeys();
 		pkChecker();
-
-//    final List<RelateDatabaseField> fields = nodeSchemas.get(0).getFields();
-//
-//    Collections.sort(
-//      fields,
-//      Comparator.comparingInt(RelateDatabaseField::getPrimary_key_position)
-//    );
-//    keyFields = new ArrayList<>(fields.size());
-//    for (RelateDatabaseField field : fields) {
-//      if (field.getPrimary_key_position() > 0) {
-//        keyFields.add(field.getField_name());
-//      }
-//    }
-
-	}
-
-	private void pkChecker() {
-		if (CollectionUtils.isEmpty(leftPrimaryKeys)) {
-			throw new NodeException("Join processor missing left table primary key");
-		}
-		if (CollectionUtils.isEmpty(rightPrimaryKeys)) {
-			throw new NodeException("Join processor missing right table primary key");
-		}
-	}
-
-	@Override
-	public void init(@Nonnull Context context) throws Exception {
-//    this.leftJoinCache = context.hazelcastInstance().getMap("leftJoinCache");
-		super.init(context);
 		this.leftJoinCache = new ConstructIMap<>(
 				context.hazelcastInstance(),
 				joinCacheMapName(leftNodeId, "leftJoinCache")
@@ -152,7 +125,6 @@ public class HazelcastJoinProcessor extends HazelcastBaseNode {
 				context.hazelcastInstance(),
 				joinCacheMapName(rightNodeId, "rightCache")
 		);
-		this.context = context;
 		if (!taskHasBeenRun()) {
 			leftJoinCache.clear();
 			rightJoinCache.clear();
@@ -160,65 +132,43 @@ public class HazelcastJoinProcessor extends HazelcastBaseNode {
 	}
 
 	@Override
-	protected void initSampleCollector() {
-		super.initSampleCollector();
-
-		// TODO: init outputCounter initial value
-		Map<String, Number> values = TaskSampleRetriever.getInstance().retrieve(tags, Arrays.asList(
-				"inputTotal", "outputTotal"
-		));
-		// init statistic and sample related initialize
-		resetInputCounter = statisticCollector.getResetCounterSampler("inputTotal");
-		inputCounter = sampleCollector.getCounterSampler("inputTotal", values.getOrDefault("inputTotal", 0).longValue());
-		resetOutputCounter = statisticCollector.getResetCounterSampler("outputTotal");
-		outputCounter = sampleCollector.getCounterSampler("outputTotal", values.getOrDefault("outputTotal", 0).longValue());
-		inputQPS = sampleCollector.getSpeedSampler("inputQPS");
-		outputQPS = sampleCollector.getSpeedSampler("outputQPS");
+	protected void updateNodeConfig() {
+		try {
+			initNode();
+		} catch (Exception e) {
+			throw new RuntimeException(e);
+		}
 	}
 
-
 	@Override
-	public boolean tryProcess(int ordinal, @Nonnull Object item) {
+	protected void tryProcess(TapdataEvent tapdataEvent, BiConsumer<TapdataEvent, ProcessResult> consumer) {
 		Node<?> node = processorBaseContext.getNode();
 		if (logger.isDebugEnabled()) {
 			logger.debug(
 					"join node [id: {}, name: {}] receive event {}",
 					node.getId(),
 					node.getName(),
-					item
+					tapdataEvent
 			);
 		}
-		TapdataEvent tapdataEvent = (TapdataEvent) item;
 
 		Map<String, Object> before;
 		Map<String, Object> after;
 		String opType;
 		String tableName;
-		if (null != tapdataEvent.getMessageEntity()) {
-			MessageEntity messageEntity = tapdataEvent.getMessageEntity();
-			after = messageEntity.getAfter();
-			before = messageEntity.getBefore();
-			tableName = messageEntity.getTableName();
-			final OperationType operationType = OperationType.fromOp(messageEntity.getOp());
-			opType = operationType.getOp();
-		} else if (null != tapdataEvent.getTapEvent()) {
-			transformFromTapValue(tapdataEvent, null);
-			TapRecordEvent dataEvent = (TapRecordEvent) tapdataEvent.getTapEvent();
-			before = TapEventUtil.getBefore(dataEvent);
-			after = TapEventUtil.getAfter(dataEvent);
-			opType = TapEventUtil.getOp(dataEvent);
-			tableName = dataEvent.getTableId();
-		} else {
-			while (running.get()) {
-				if (offer(tapdataEvent)) break;
-			}
-			return true;
+		if (!(tapdataEvent.isDML())) {
+			consumer.accept(tapdataEvent, null);
+			return;
 		}
+		TapRecordEvent dataEvent = (TapRecordEvent) tapdataEvent.getTapEvent();
+		before = TapEventUtil.getBefore(dataEvent);
+		after = TapEventUtil.getAfter(dataEvent);
+		opType = TapEventUtil.getOp(dataEvent);
+		tableName = dataEvent.getTableId();
 
 		if (opType == null) {
-			tapdataEvent.setFromNodeId(node.getId());
-			tapdataEvent.addNodeId(node.getId());
-			return offer(tapdataEvent);
+			consumer.accept(tapdataEvent, null);
+			return;
 		}
 
 		List<JoinResult> joinResults;
@@ -245,26 +195,15 @@ public class HazelcastJoinProcessor extends HazelcastBaseNode {
 				TapdataEvent joinTapdataEvent = new TapdataEvent();
 				joinTapdataEvent.setTapEvent(joinEvent);
 				joinTapdataEvent.setSyncStage(tapdataEvent.getSyncStage());
-				TapTableMap<String, TapTable> tapTableMap = processorBaseContext.getTapTableMap();
-				transformToTapValue(joinTapdataEvent, tapTableMap, processorBaseContext.getNode().getId());
 				tapdataEvents.add(joinTapdataEvent);
 			}
 			if (CollectionUtils.isNotEmpty(tapdataEvents)) {
 				if (logger.isDebugEnabled()) {
 					logger.debug("join node [id: {}, name: {}] join results {}", node.getId(), node.getName(), tapdataEvents);
 				}
-
-				for (TapdataEvent event : tapdataEvents) {
-					while (running.get()) {
-						if (offer(event)) {
-							break;
-						}
-					}
-				}
+				tapdataEvents.forEach(event -> consumer.accept(event, null));
 			}
 		}
-
-		return true;
 	}
 
 	@Override
@@ -364,7 +303,8 @@ public class HazelcastJoinProcessor extends HazelcastBaseNode {
 				break;
 			default:
 //        tapRecordEvent = new TapRecordEvent();
-				break;
+//        break;
+				throw new IllegalArgumentException("operationType " + operationType + " is unexpected while joinResult2DataEvent");
 		}
 		tapRecordEvent.setTableId(tableName);
 		tapRecordEvent.setTime(System.currentTimeMillis());

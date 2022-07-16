@@ -1,121 +1,188 @@
 package io.tapdata.entity;
 
+import com.tapdata.cache.ICacheService;
+import com.tapdata.cache.memory.MemoryCacheService;
+import com.tapdata.constant.ConfigurationCenter;
 import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.constant.TapdataShareContext;
 import com.tapdata.entity.Connections;
+import com.tapdata.entity.JavaScriptFunctions;
+import com.tapdata.entity.Job;
 import com.tapdata.entity.dataflow.Stage;
 import com.tapdata.mongo.ClientMongoOperator;
+import com.tapdata.tm.commons.dag.Node;
+import com.tapdata.tm.commons.task.dto.SubTaskDto;
+import io.tapdata.ConverterProvider;
+import io.tapdata.common.SettingService;
+import io.tapdata.debug.DebugProcessor;
 import io.tapdata.logging.JobCustomerLogger;
+import io.tapdata.milestone.MilestoneService;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.logging.log4j.Logger;
 
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 public class TargetContext extends Context {
 
-	private String syncStage;
-	private AtomicBoolean offsetLookup = new AtomicBoolean(true);
-	private TargetSharedContext targetSharedContext;
-	private Object lastInsertOffset;
-	private AtomicBoolean running = new AtomicBoolean(true);
-	private TapdataShareContext tapdataShareContext;
-	private boolean isCloud;
-	private ClientMongoOperator tapdataClientOperator;
-	private boolean firstWorkerThread = false;
+  private String syncStage;
+  private AtomicBoolean offsetLookup = new AtomicBoolean(true);
+  private TargetSharedContext targetSharedContext;
+  private Object lastInsertOffset;
+  private AtomicBoolean running = new AtomicBoolean(true);
+  private TapdataShareContext tapdataShareContext;
+  private boolean isCloud;
+  private ClientMongoOperator tapdataClientOperator;
+  private boolean firstWorkerThread = false;
 
-	private JobCustomerLogger customerLogger;
+  private JobCustomerLogger customerLogger;
 
-	public TargetContext(List<Stage> stages, Connections connection) {
-		super(stages, connection);
-	}
+  public TargetContext(Job job, Logger logger, Object offset, Connections sourceConn,
+                       Connections targetConn, ClientMongoOperator targetClientOperator,
+                       SettingService settingService, DebugProcessor debugProcessor,
+                       List<JavaScriptFunctions> javaScriptFunctions, ICacheService cacheService,
+                       ConverterProvider converterProvider, TapdataShareContext tapdataShareContext,
+                       MilestoneService milestoneService,
+                       ConfigurationCenter configurationCenter
+  ) {
+    super(job, logger, offset, settingService, sourceConn, targetConn, debugProcessor, javaScriptFunctions, cacheService, converterProvider, milestoneService, configurationCenter);
+    this.tapdataShareContext = tapdataShareContext;
+  }
 
-	public String getSyncStage() {
-		return syncStage;
-	}
+  public TargetContext(List<Stage> stages, Connections connection) {
+    super(stages, connection);
+  }
 
-	public void setSyncStage(String syncStage) {
-		this.syncStage = syncStage;
-	}
+  public TargetContext(V1EngineContext context) {
+    super(
+      context.getJob(),
+      context.getLogger(),
+      context.getOffset(),
+      context.getSettingService(),
+      context.getSourceConn(),
+      context.getTargetConn(),
+      context.getDebugProcessor(),
+      context.getJavaScriptFunctions(),
+      context.getCacheService(),
+      context.getConverterProvider(),
+      context.getMilestoneService(),
+      context.getDataFlow()
+    );
+    this.targetSharedContext = new TargetSharedContext();
+    this.tapdataClientOperator = context.getClientMongoOperator();
+  }
 
-	public TargetSharedContext getTargetSharedContext() {
-		return targetSharedContext;
-	}
+  public TargetContext(V1EngineContext context,
+                       SubTaskDto subTaskDto,
+                       Node<?> node,
+                       ConfigurationCenter configurationCenter) {
+    super(
+      context.getJob(),
+      context.getLogger(),
+      context.getOffset(),
+      context.getSettingService(),
+      context.getSourceConn(),
+      context.getTargetConn(),
+      context.getDebugProcessor(),
+      context.getJavaScriptFunctions(),
+      context.getCacheService(),
+      context.getConverterProvider(),
+      context.getMilestoneService(),
+      context.getDataFlow(),
+      subTaskDto, node, configurationCenter
+    );
+    this.targetSharedContext = new TargetSharedContext();
+    this.tapdataClientOperator = context.getClientMongoOperator();
+    this.customerLogger = new JobCustomerLogger(subTaskDto.getId().toHexString(), subTaskDto.getName(), tapdataClientOperator);
+  }
 
-	public void setTargetSharedContext(TargetSharedContext targetSharedContext) {
-		this.targetSharedContext = targetSharedContext;
-	}
+  public String getSyncStage() {
+    return syncStage;
+  }
 
-	public AtomicBoolean getOffsetLookup() {
-		return offsetLookup;
-	}
+  public void setSyncStage(String syncStage) {
+    this.syncStage = syncStage;
+  }
 
-	public Object getLastInsertOffset() {
-		return lastInsertOffset;
-	}
+  public TargetSharedContext getTargetSharedContext() {
+    return targetSharedContext;
+  }
 
-	public void setLastInsertOffset(Object lastInsertOffset) {
-		this.lastInsertOffset = lastInsertOffset;
-	}
+  public void setTargetSharedContext(TargetSharedContext targetSharedContext) {
+    this.targetSharedContext = targetSharedContext;
+  }
 
-	public TapdataShareContext getTapdataShareContext() {
-		return tapdataShareContext;
-	}
+  public AtomicBoolean getOffsetLookup() {
+    return offsetLookup;
+  }
 
-	public void setTapdataShareContext(TapdataShareContext tapdataShareContext) {
-		this.tapdataShareContext = tapdataShareContext;
-	}
+  public Object getLastInsertOffset() {
+    return lastInsertOffset;
+  }
 
-	public boolean isCloud() {
-		return isCloud;
-	}
+  public void setLastInsertOffset(Object lastInsertOffset) {
+    this.lastInsertOffset = lastInsertOffset;
+  }
 
-	public void setCloud(boolean cloud) {
-		isCloud = cloud;
-	}
+  public TapdataShareContext getTapdataShareContext() {
+    return tapdataShareContext;
+  }
 
-	public ClientMongoOperator getTapdataClientOperator() {
-		return tapdataClientOperator;
-	}
+  public void setTapdataShareContext(TapdataShareContext tapdataShareContext) {
+    this.tapdataShareContext = tapdataShareContext;
+  }
 
-	public void setTapdataClientOperator(ClientMongoOperator tapdataClientOperator) {
-		this.tapdataClientOperator = tapdataClientOperator;
-	}
+  public boolean isCloud() {
+    return isCloud;
+  }
 
-	public boolean isFirstWorkerThread() {
-		return firstWorkerThread;
-	}
+  public void setCloud(boolean cloud) {
+    isCloud = cloud;
+  }
 
-	public void setFirstWorkerThread(boolean firstWorkerThread) {
-		this.firstWorkerThread = firstWorkerThread;
-	}
+  public ClientMongoOperator getTapdataClientOperator() {
+    return tapdataClientOperator;
+  }
 
-	public boolean stop(boolean forceStop) {
-		if (forceStop) {
-			if (StringUtils.equalsAny(this.getJob().getStatus(),
-					ConnectorConstant.RUNNING,
-					ConnectorConstant.STOPPING
-			)) {
-				this.getJob().setStatus(ConnectorConstant.FORCE_STOPPING);
-			}
-		} else {
-			if (StringUtils.equalsAny(this.getJob().getStatus(),
-					ConnectorConstant.RUNNING
-			)) {
-				this.getJob().setStatus(ConnectorConstant.STOPPING);
-			}
-		}
-		running.set(false);
-		return running.get();
-	}
+  public void setTapdataClientOperator(ClientMongoOperator tapdataClientOperator) {
+    this.tapdataClientOperator = tapdataClientOperator;
+  }
 
-	public boolean needCleanTarget() {
-		return job.getDrop_target() || !job.getKeepSchema();
-	}
+  public boolean isFirstWorkerThread() {
+    return firstWorkerThread;
+  }
 
-	public JobCustomerLogger getCustomerLogger() {
-		if (customerLogger == null) {
-			customerLogger = new JobCustomerLogger();
-		}
-		return customerLogger;
-	}
+  public void setFirstWorkerThread(boolean firstWorkerThread) {
+    this.firstWorkerThread = firstWorkerThread;
+  }
+
+  public boolean stop(boolean forceStop) {
+    if (forceStop) {
+      if (StringUtils.equalsAny(this.getJob().getStatus(),
+        ConnectorConstant.RUNNING,
+        ConnectorConstant.STOPPING
+      )) {
+        this.getJob().setStatus(ConnectorConstant.FORCE_STOPPING);
+      }
+    } else {
+      if (StringUtils.equalsAny(this.getJob().getStatus(),
+        ConnectorConstant.RUNNING
+      )) {
+        this.getJob().setStatus(ConnectorConstant.STOPPING);
+      }
+    }
+    running.set(false);
+    return running.get();
+  }
+
+  public boolean needCleanTarget() {
+    return job.getDrop_target() || !job.getKeepSchema();
+  }
+
+  public JobCustomerLogger getCustomerLogger() {
+    if (customerLogger == null) {
+      customerLogger = new JobCustomerLogger();
+    }
+    return customerLogger;
+  }
 }

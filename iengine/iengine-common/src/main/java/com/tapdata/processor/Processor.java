@@ -9,7 +9,7 @@ import java.util.List;
  */
 public interface Processor {
 
-	List<MessageEntity> process(List<MessageEntity> batch);
+  List<MessageEntity> process(List<MessageEntity> batch);
 
-	void stop();
+  void stop();
 }

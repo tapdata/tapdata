@@ -12,19 +12,19 @@ import org.apache.logging.log4j.Logger;
  * @create 2020-09-23 17:29
  **/
 public abstract class BaseEventHandler implements WebSocketEventHandler {
-	protected static Logger logger = LogManager.getLogger(BaseEventHandler.class);
-	protected static final String EVENT_DATA = "data";
-	protected ClientMongoOperator clientMongoOperator;
-	protected SettingService settingService;
+  protected static Logger logger = LogManager.getLogger(BaseEventHandler.class);
+  protected static final String EVENT_DATA = "data";
+  protected ClientMongoOperator clientMongoOperator;
+  protected SettingService settingService;
 
-	@Override
-	public void initialize(ClientMongoOperator clientMongoOperator) {
-		this.clientMongoOperator = clientMongoOperator;
-	}
+  @Override
+  public void initialize(ClientMongoOperator clientMongoOperator) {
+    this.clientMongoOperator = clientMongoOperator;
+  }
 
-	@Override
-	public void initialize(ClientMongoOperator clientMongoOperator, SettingService settingService) {
-		this.clientMongoOperator = clientMongoOperator;
-		this.settingService = settingService;
-	}
+  @Override
+  public void initialize(ClientMongoOperator clientMongoOperator, SettingService settingService) {
+    this.clientMongoOperator = clientMongoOperator;
+    this.settingService = settingService;
+  }
 }

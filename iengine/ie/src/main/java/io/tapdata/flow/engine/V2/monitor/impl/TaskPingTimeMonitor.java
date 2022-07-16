@@ -23,32 +23,32 @@ import static org.springframework.data.mongodb.core.query.Criteria.where;
  **/
 public class TaskPingTimeMonitor extends TaskMonitor<Object> {
 
-	private final static long PING_INTERVAL_MS = 5000L;
+  private final static long PING_INTERVAL_MS = 5000L;
 
-	private ScheduledExecutorService executorService;
-	private HttpClientMongoOperator clientMongoOperator;
+  private ScheduledExecutorService executorService;
+  private HttpClientMongoOperator clientMongoOperator;
 
-	public TaskPingTimeMonitor(SubTaskDto subTaskDto, HttpClientMongoOperator clientMongoOperator) {
-		super(subTaskDto);
-		this.executorService = new ScheduledThreadPoolExecutor(1);
-		this.clientMongoOperator = clientMongoOperator;
-	}
+  public TaskPingTimeMonitor(SubTaskDto subTaskDto, HttpClientMongoOperator clientMongoOperator) {
+    super(subTaskDto);
+    this.executorService = new ScheduledThreadPoolExecutor(1);
+    this.clientMongoOperator = clientMongoOperator;
+  }
 
-	@Override
-	public void start() {
-		executorService.scheduleAtFixedRate(
-				() -> {
-					clientMongoOperator.update(
-							new Query(where("_id").is(subTaskDto.getId())),
-							new Update().set("pingTime", System.currentTimeMillis()),
-							ConnectorConstant.SUB_TASK_COLLECTION
-					);
-				}, 0L, PING_INTERVAL_MS, TimeUnit.MILLISECONDS
-		);
-	}
+  @Override
+  public void start() {
+    executorService.scheduleAtFixedRate(
+      () -> {
+        clientMongoOperator.update(
+          new Query(where("_id").is(subTaskDto.getId())),
+          new Update().set("pingTime", System.currentTimeMillis()),
+          ConnectorConstant.SUB_TASK_COLLECTION
+        );
+      }, 0L, PING_INTERVAL_MS, TimeUnit.MILLISECONDS
+    );
+  }
 
-	@Override
-	public void close() throws IOException {
-		ExecutorUtil.shutdown(executorService, 5L, TimeUnit.SECONDS);
-	}
+  @Override
+  public void close() throws IOException {
+    ExecutorUtil.shutdown(executorService, 5L, TimeUnit.SECONDS);
+  }
 }

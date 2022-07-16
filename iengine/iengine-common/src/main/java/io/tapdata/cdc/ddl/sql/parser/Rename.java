@@ -17,19 +17,19 @@ import java.util.function.Consumer;
  */
 public class Rename implements Table.Child {
 
-	@Override
-	public boolean check(SqlParser sqlParser, StringReader sr, Consumer<DdlEvent> outConsumer, List<String> namespace) {
-		if (sr.equalsIgnoreCaseAndMove("rename") && sr.nextAndSkip(sqlParser::spaceFn)) {
-			if (sr.equalsIgnoreCaseAndMove("to") && sr.nextAndSkip(sqlParser::spaceFn)) {
-				outConsumer.accept(new RenameStruct(sr.data(), namespace, sqlParser.loadName(sr)));
-				return true;
-			} else if (sr.equalsIgnoreCaseAndMove("column")) sr.nextAndSkip(sqlParser::spaceFn);
-			String fileName = sqlParser.loadName(sr);
-			if (sr.nextAndSkip(sqlParser::spaceFn) && sr.equalsIgnoreCaseAndMove("to") && sr.nextAndSkip(sqlParser::spaceFn)) {
-				outConsumer.accept(new RenameField(sr.data(), namespace, fileName, sqlParser.loadName(sr)));
-				return true;
-			}
-		}
-		return false;
-	}
+  @Override
+  public boolean check(SqlParser sqlParser, StringReader sr, Consumer<DdlEvent> outConsumer, List<String> namespace) {
+    if (sr.equalsIgnoreCaseAndMove("rename") && sr.nextAndSkip(sqlParser::spaceFn)) {
+      if (sr.equalsIgnoreCaseAndMove("to") && sr.nextAndSkip(sqlParser::spaceFn)) {
+        outConsumer.accept(new RenameStruct(sr.data(), namespace, sqlParser.loadName(sr)));
+        return true;
+      } else if (sr.equalsIgnoreCaseAndMove("column")) sr.nextAndSkip(sqlParser::spaceFn);
+      String fileName = sqlParser.loadName(sr);
+      if (sr.nextAndSkip(sqlParser::spaceFn) && sr.equalsIgnoreCaseAndMove("to") && sr.nextAndSkip(sqlParser::spaceFn)) {
+        outConsumer.accept(new RenameField(sr.data(), namespace, fileName, sqlParser.loadName(sr)));
+        return true;
+      }
+    }
+    return false;
+  }
 }

@@ -12,28 +12,28 @@ import java.util.function.Consumer;
  */
 public interface DdlParser<I, O extends DdlEvent> {
 
-	/**
-	 * 解析并输出
-	 *
-	 * @param in          输入
-	 * @param outConsumer 输出处理器
-	 */
-	void parseDDL(I in, Consumer<O> outConsumer);
+  /**
+   * 解析并输出
+   *
+   * @param in          输入
+   * @param outConsumer 输出处理器
+   */
+  void parseDDL(I in, Consumer<O> outConsumer);
 
-	/**
-	 * 解析并输出
-	 *
-	 * @param in            输入
-	 * @param outConsumer   输出处理器
-	 * @param errorFunction 异常处理器
-	 * @return 异常状态
-	 */
-	default boolean parseDDL(I in, Consumer<O> outConsumer, BiFunction<I, Exception, Boolean> errorFunction) {
-		try {
-			parseDDL(in, outConsumer);
-			return true;
-		} catch (Exception e) {
-			return errorFunction.apply(in, e);
-		}
-	}
+  /**
+   * 解析并输出
+   *
+   * @param in            输入
+   * @param outConsumer   输出处理器
+   * @param errorFunction 异常处理器
+   * @return 异常状态
+   */
+  default boolean parseDDL(I in, Consumer<O> outConsumer, BiFunction<I, Exception, Boolean> errorFunction) {
+    try {
+      parseDDL(in, outConsumer);
+      return true;
+    } catch (Exception e) {
+      return errorFunction.apply(in, e);
+    }
+  }
 }

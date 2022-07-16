@@ -9,9 +9,9 @@ import java.util.Iterator;
  **/
 public interface ConstructIterator<E> extends Iterator<E> {
 
-	E tryNext();
+  E tryNext();
 
-	E peek();
+  E peek();
 
-	long getSequence();
+  long getSequence();
 }

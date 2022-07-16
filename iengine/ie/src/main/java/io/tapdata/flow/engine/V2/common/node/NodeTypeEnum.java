@@ -12,6 +12,7 @@ public enum NodeTypeEnum {
 	DATABASE("database"),
 	TABLE("table"),
 	CACHE("mem_cache"),
+	VIRTUAL_TARGET("VirtualTarget"),
 	JOIN("join_processor"),
 	CACHE_LOOKUP_PROCESSOR("cache_lookup_processor"),
 	ROW_FILTER_PROCESSOR("row_filter_processor"),
@@ -22,29 +23,32 @@ public enum NodeTypeEnum {
 	HAZELCASTIMDG("hazelcastIMDG"),
 	MERGETABLE("merge_table_processor"),
 	CUSTOM_PROCESSOR("custom_processor"),
-	FIELD_RENAME_PROCESSOR("field_rename_processor"),
-	FIELD_ADD_DEL_PROCESSOR("field_add_del_processor"),
-	FIELD_CALC_PROCESSOR("field_calc_processor"),
-	FIELD_MOD_TYPE_PROCESSOR("field_mod_type_processor"),
-	;
+  FIELD_RENAME_PROCESSOR("field_rename_processor"),
+  FIELD_ADD_DEL_PROCESSOR("field_add_del_processor"),
+  FIELD_CALC_PROCESSOR("field_calc_processor"),
+  FIELD_MOD_TYPE_PROCESSOR("field_mod_type_processor"),
 
-	public final String type;
+	TABLE_RENAME_PROCESSOR("table_rename_processor"),
+	MIGRATE_FIELD_RENAME_PROCESSOR("migrate_field_rename_processor"),
+  ;
 
-	NodeTypeEnum(String type) {
-		this.type = type;
-	}
+  public final String type;
 
-	private static final Map<String, NodeTypeEnum> ENUM_MAP;
+  NodeTypeEnum(String type) {
+    this.type = type;
+  }
 
-	static {
-		Map<String, NodeTypeEnum> map = new ConcurrentHashMap<>();
-		for (NodeTypeEnum instance : NodeTypeEnum.values()) {
-			map.put(instance.type.toLowerCase(), instance);
-		}
-		ENUM_MAP = Collections.unmodifiableMap(map);
-	}
+  private static final Map<String, NodeTypeEnum> ENUM_MAP;
 
-	public static NodeTypeEnum get(String name) {
-		return ENUM_MAP.get(name.toLowerCase());
-	}
+  static {
+    Map<String, NodeTypeEnum> map = new ConcurrentHashMap<>();
+    for (NodeTypeEnum instance : NodeTypeEnum.values()) {
+      map.put(instance.type.toLowerCase(), instance);
+    }
+    ENUM_MAP = Collections.unmodifiableMap(map);
+  }
+
+  public static NodeTypeEnum get(String name) {
+    return ENUM_MAP.get(name.toLowerCase());
+  }
 }
