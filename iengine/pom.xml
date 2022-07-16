@@ -12,7 +12,7 @@
     <groupId>com.tapdata</groupId>
     <artifactId>iengine</artifactId>
     <version>0.5.2-SNAPSHOT</version>
-    <name>Connector Parent POM</name>
+    <name>IEngine Parent POM</name>
     <packaging>pom</packaging>
 
     <properties>
