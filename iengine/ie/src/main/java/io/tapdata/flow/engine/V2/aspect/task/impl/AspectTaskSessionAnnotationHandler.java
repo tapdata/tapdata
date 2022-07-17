@@ -24,6 +24,10 @@ public class AspectTaskSessionAnnotationHandler extends ClassAnnotationHandler {
             for(Class<?> clazz : classes) {
 				AspectTaskSession aspectObserverClass = clazz.getAnnotation(AspectTaskSession.class);
                 if(aspectObserverClass != null) {
+                    if(!AspectTask.class.isAssignableFrom(clazz)) {
+                        TapLogger.error(TAG, "AspectTask {} don't implement {}, will be ignored", clazz, AspectTask.class);
+                        continue;
+                    }
                     Class<? extends AspectTask> observerClass = (Class<? extends AspectTask>) clazz;
                     String aspectClass = aspectObserverClass.value();
                     int order = aspectObserverClass.order();
@@ -40,10 +44,6 @@ public class AspectTaskSessionAnnotationHandler extends ClassAnnotationHandler {
                     }
                     if(canNotInitialized != null) {
                         TapLogger.error(TAG, "AspectTask {} don't have non-args public constructor, will be ignored, message {}", clazz, canNotInitialized);
-                        continue;
-                    }
-                    if(!AspectTask.class.isAssignableFrom(observerClass)) {
-                        TapLogger.error(TAG, "AspectTask {} don't implement {}, will be ignored", clazz, AspectTask.class);
                         continue;
                     }
 
