@@ -1,0 +1,524 @@
+<?xml version="1.0"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <groupId>com.tapdata</groupId>
+    <artifactId>ie</artifactId>
+    <packaging>jar</packaging>
+    <name>ie Maven Webapp</name>
+    <url>http://maven.apache.org</url>
+
+    <parent>
+        <groupId>com.tapdata</groupId>
+        <artifactId>iengine</artifactId>
+        <version>0.5.2-SNAPSHOT</version>
+    </parent>
+
+    <properties>
+        <!-- debezium -->
+        <version.debezium>0.5.2-SNAPSHOT</version.debezium>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
+        <java.version>1.8</java.version>
+        <docker.image.prefix>tapdata</docker.image.prefix>
+        <timestamp>${maven.build.timestamp}</timestamp>
+        <maven.build.timestamp.format>yyyy-MM-dd'T'HH:mm:ss'Z'</maven.build.timestamp.format>
+    </properties>
+    <dependencies>
+        <dependency>
+            <groupId>com.tapdata</groupId>
+            <artifactId>observable-module</artifactId>
+            <version>0.5.2-SNAPSHOT</version>
+        </dependency>
+        <dependency> <!-- exclude掉spring-boot的默认log配置 -->
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+            <exclusions>
+                <exclusion>
+                    <groupId>org.springframework.boot</groupId>
+                    <artifactId>spring-boot-starter-logging</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+        <dependency>
+            <groupId>org.hibernate</groupId>
+            <artifactId>hibernate-validator</artifactId>
+            <version>5.2.4.Final</version>
+        </dependency>
+        <!--<dependency> &lt;!&ndash; 引入log4j2依赖 &ndash;&gt;-->
+        <!--<groupId>org.springframework.boot</groupId>-->
+        <!--<artifactId>spring-boot-starter-log4j2</artifactId>-->
+        <!--</dependency>-->
+        <dependency>  <!-- 加上这个才能辨认到log4j2.yml文件 -->
+            <groupId>com.fasterxml.jackson.dataformat</groupId>
+            <artifactId>jackson-dataformat-yaml</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-websocket</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-messaging</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>commons-collections</groupId>
+            <artifactId>commons-collections</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>com.oracle</groupId>
+            <artifactId>ojdbc</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.apache.commons</groupId>
+            <artifactId>commons-lang3</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>com.jayway.jsonpath</groupId>
+            <artifactId>json-path</artifactId>
+            <scope>test</scope>
+            <exclusions>
+                <exclusion>
+                    <artifactId>asm</artifactId>
+                    <groupId>org.ow2.asm</groupId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+
+        <!-- spring jdbc -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-jdbc</artifactId>
+        </dependency>
+
+        <!-- sql parser -->
+        <dependency>
+            <groupId>com.github.jsqlparser</groupId>
+            <artifactId>jsqlparser</artifactId>
+        </dependency>
+
+        <!-- log4j2 -->
+        <!--<dependency>-->
+        <!--<groupId>org.apache.logging.log4j</groupId>-->
+        <!--<artifactId>log4j</artifactId>-->
+        <!--<version>2.10.0</version>-->
+        <!--</dependency>-->
+
+        <dependency>
+            <groupId>org.apache.logging.log4j</groupId>
+            <artifactId>log4j-api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.logging.log4j</groupId>
+            <artifactId>log4j-core</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.logging.log4j</groupId>
+            <artifactId>log4j-mongodb</artifactId>
+        </dependency>
+
+        <!-- mongo -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-mongodb</artifactId>
+        </dependency>
+
+        <!--    <dependency>-->
+        <!--      <groupId>com.tapdata</groupId>-->
+        <!--      <artifactId>debezium-embedded</artifactId>-->
+        <!--      <exclusions>-->
+        <!--        <exclusion>-->
+        <!--          <artifactId>guava</artifactId>-->
+        <!--          <groupId>com.google.guava</groupId>-->
+        <!--        </exclusion>-->
+        <!--        <exclusion>-->
+        <!--          <artifactId>javassist</artifactId>-->
+        <!--          <groupId>org.javassist</groupId>-->
+        <!--        </exclusion>-->
+        <!--        <exclusion>-->
+        <!--          <artifactId>javax.ws.rs-api</artifactId>-->
+        <!--          <groupId>javax.ws.rs</groupId>-->
+        <!--        </exclusion>-->
+        <!--      </exclusions>-->
+        <!--    </dependency>-->
+        <!--    <dependency>-->
+        <!--      <groupId>com.tapdata</groupId>-->
+        <!--      <artifactId>debezium-embedded-new</artifactId>-->
+        <!--      <exclusions>-->
+        <!--        <exclusion>-->
+        <!--          <artifactId>guava</artifactId>-->
+        <!--          <groupId>com.google.guava</groupId>-->
+        <!--        </exclusion>-->
+        <!--      </exclusions>-->
+        <!--    </dependency>-->
+        <!--    <dependency>-->
+        <!--      <groupId>com.tapdata</groupId>-->
+        <!--      <artifactId>debezium-connector-mysql</artifactId>-->
+        <!--    </dependency>-->
+        <!--    <dependency>-->
+        <!--      <groupId>com.tapdata</groupId>-->
+        <!--      <artifactId>debezium-connector-mongodb</artifactId>-->
+        <!--    </dependency>-->
+        <!--    &lt;!&ndash;<dependency>-->
+        <!--      <groupId>com.tapdata</groupId>-->
+        <!--      <artifactId>debezium-connector-gauss200</artifactId>-->
+        <!--    </dependency>&ndash;&gt;-->
+        <!--    <dependency>-->
+        <!--      <groupId>com.tapdata</groupId>-->
+        <!--      <artifactId>debezium-connector-postgres</artifactId>-->
+        <!--    </dependency>-->
+
+        <dependency>
+            <groupId>com.tapdata</groupId>
+            <artifactId>iengine-common</artifactId>
+            <exclusions>
+                <exclusion>
+                    <artifactId>jsr305</artifactId>
+                    <groupId>com.google.code.findbugs</groupId>
+                </exclusion>
+                <exclusion>
+                    <artifactId>lucene-queries</artifactId>
+                    <groupId>org.apache.lucene</groupId>
+                </exclusion>
+                <exclusion>
+                    <artifactId>lucene-sandbox</artifactId>
+                    <groupId>org.apache.lucene</groupId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+
+        <!--    <dependency>-->
+        <!--      <groupId>com.tapdata</groupId>-->
+        <!--      <artifactId>transformer</artifactId>-->
+        <!--    </dependency>-->
+
+        <!--    <dependency>-->
+        <!--      <groupId>com.tapdata</groupId>-->
+        <!--      <artifactId>jdbc-connector</artifactId>-->
+        <!--    </dependency>-->
+
+        <!--    <dependency>-->
+        <!--      <groupId>com.tapdata</groupId>-->
+        <!--      <artifactId>oracle-cdc</artifactId>-->
+        <!--    </dependency>-->
+
+        <dependency>
+            <groupId>com.tapdata</groupId>
+            <artifactId>validator</artifactId>
+        </dependency>
+
+        <!--    <dependency>-->
+        <!--      <groupId>com.tapdata</groupId>-->
+        <!--      <artifactId>sqlserver-cdc</artifactId>-->
+        <!--    </dependency>-->
+
+        <!--    <dependency>-->
+        <!--      <groupId>com.tapdata</groupId>-->
+        <!--      <artifactId>sqlserver-lib</artifactId>-->
+        <!--    </dependency>-->
+
+        <dependency>
+            <groupId>org.apache.commons</groupId>
+            <artifactId>commons-csv</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.mockito</groupId>
+            <artifactId>mockito-all</artifactId>
+            <version>1.10.19</version>
+            <scope>test</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>org.kopitubruk.util</groupId>
+            <artifactId>JSONUtil</artifactId>
+            <version>1.10.2</version>
+            <scope>compile</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>de.flapdoodle.embed</groupId>
+            <artifactId>de.flapdoodle.embed.mongo</artifactId>
+            <version>2.0.3</version>
+            <scope>test</scope>
+            <exclusions>
+                <exclusion>
+                    <groupId>org.apache.commons</groupId>
+                    <artifactId>commons-lang3</artifactId>
+                </exclusion>
+                <exclusion>
+                    <artifactId>commons-compress</artifactId>
+                    <groupId>org.apache.commons</groupId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+
+        <dependency>
+            <groupId>com.wix</groupId>
+            <artifactId>wix-embedded-mysql</artifactId>
+            <version>2.2.6</version>
+            <scope>test</scope>
+            <exclusions>
+                <exclusion>
+                    <artifactId>de.flapdoodle.embed.process</artifactId>
+                    <groupId>de.flapdoodle.embed</groupId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+
+        <dependency>
+            <groupId>org.simplejavamail</groupId>
+            <artifactId>simple-java-mail</artifactId>
+        </dependency>
+        <!--    <dependency>-->
+        <!--      <groupId>com.tapdata</groupId>-->
+        <!--      <artifactId>sybase-cdc</artifactId>-->
+        <!--    <scope>${scope.libs.sybase}</scope>-->
+        <!--    </dependency>-->
+
+        <!--    <dependency>-->
+        <!--      <groupId>com.tapdata</groupId>-->
+        <!--      <artifactId>gridfs-lib</artifactId>-->
+        <!--    </dependency>-->
+
+        <!--    &lt;!&ndash; tapdata internal lib &ndash;&gt;-->
+        <!--    <dependency>-->
+        <!--      <groupId>com.tapdata</groupId>-->
+        <!--      <artifactId>file-lib</artifactId>-->
+        <!--    </dependency>-->
+        <!--    <dependency>-->
+        <!--      <groupId>com.tapdata</groupId>-->
+        <!--      <artifactId>rest-lib</artifactId>-->
+        <!--    </dependency>-->
+        <!--    <dependency>-->
+        <!--      <groupId>com.tapdata</groupId>-->
+        <!--      <artifactId>mongodb-lib</artifactId>-->
+        <!--    </dependency>-->
+        <!--    <dependency>-->
+        <!--      <groupId>com.tapdata</groupId>-->
+        <!--      <artifactId>udp-lib</artifactId>-->
+        <!--    <scope>${scope.libs.udp}</scope>-->
+        <!--    </dependency>-->
+        <!--    <dependency>-->
+        <!--      <groupId>com.tapdata</groupId>-->
+        <!--      <artifactId>api</artifactId>-->
+        <!--    </dependency>-->
+        <!--    <dependency>-->
+        <!--      <groupId>com.tapdata</groupId>-->
+        <!--      <artifactId>kafka-lib</artifactId>-->
+        <!--    <scope>${scope.libs.kafka}</scope>-->
+        <!--    </dependency>-->
+        <!--    <dependency>-->
+        <!--      <groupId>com.tapdata</groupId>-->
+        <!--      <artifactId>mq-lib</artifactId>-->
+        <!--    </dependency>-->
+        <!--    <dependency>-->
+        <!--      <groupId>com.tapdata</groupId>-->
+        <!--      <artifactId>bitsflow-lib</artifactId>-->
+        <!--    </dependency>-->
+        <!--    <dependency>-->
+        <!--      <groupId>com.tapdata</groupId>-->
+        <!--      <artifactId>gbase-lib</artifactId>-->
+        <!--    <scope>${scope.libs.gbasedbt}</scope>-->
+        <!--    </dependency>-->
+        <!--    <dependency>-->
+        <!--      <groupId>com.tapdata</groupId>-->
+        <!--      <artifactId>custom-lib</artifactId>-->
+        <!--    <scope>${scope.libs.custom}</scope>-->
+        <!--    </dependency>-->
+        <!--    <dependency>-->
+        <!--      <groupId>com.tapdata</groupId>-->
+        <!--      <artifactId>db2-lib</artifactId><scope>${scope.libs.db2}</scope>-->
+        <!--    </dependency>-->
+        <!--    <dependency>-->
+        <!--      <groupId>com.tapdata</groupId>-->
+        <!--      <artifactId>gaussdb-lib</artifactId>-->
+        <!--    </dependency>-->
+        <!--    <dependency>-->
+        <!--      <groupId>com.tapdata</groupId>-->
+        <!--      <artifactId>postgres-lib</artifactId>-->
+        <!--    </dependency>-->
+
+        <!--    <dependency>-->
+        <!--      <groupId>com.tapdata</groupId>-->
+        <!--      <artifactId>elasticsearch-lib</artifactId>-->
+        <!--      <exclusions>-->
+        <!--        <exclusion>-->
+        <!--          <artifactId>lucene-queryparser</artifactId>-->
+        <!--          <groupId>org.apache.lucene</groupId>-->
+        <!--        </exclusion>-->
+        <!--        <exclusion>-->
+        <!--          <artifactId>lucene-analyzers-common</artifactId>-->
+        <!--          <groupId>org.apache.lucene</groupId>-->
+        <!--        </exclusion>-->
+        <!--        <exclusion>-->
+        <!--          <artifactId>jopt-simple</artifactId>-->
+        <!--          <groupId>net.sf.jopt-simple</groupId>-->
+        <!--        </exclusion>-->
+        <!--      </exclusions>-->
+        <!--    </dependency>-->
+
+        <!--    <dependency>-->
+        <!--      <groupId>com.tapdata</groupId>-->
+        <!--      <artifactId>cache-lib</artifactId>-->
+        <!--    </dependency>-->
+
+        <!--    <dependency>-->
+        <!--      <groupId>com.tapdata</groupId>-->
+        <!--      <artifactId>log-collect-lib</artifactId>-->
+        <!--    </dependency>-->
+
+        <dependency>
+            <groupId>org.samba.jcifs</groupId>
+            <artifactId>jcifs</artifactId>
+        </dependency>
+        <!--    <dependency>-->
+        <!--      <groupId>com.tapdata</groupId>-->
+        <!--      <artifactId>validator-lib</artifactId>-->
+        <!--    </dependency>-->
+        <dependency>
+            <groupId>com.tapdata</groupId>
+            <artifactId>hazelcast-lib</artifactId>
+        </dependency>
+
+        <!--    <dependency>-->
+        <!--      <groupId>com.tapdata</groupId>-->
+        <!--      <artifactId>redis-lib</artifactId>-->
+        <!--    </dependency>-->
+
+        <!--    <dependency>-->
+        <!--      <groupId>com.tapdata</groupId>-->
+        <!--      <artifactId>jira-lib</artifactId>-->
+        <!--      <scope>${scope.libs.jira}</scope>-->
+        <!--      <exclusions>-->
+        <!--        <exclusion>-->
+        <!--          <artifactId>commons-logging</artifactId>-->
+        <!--          <groupId>commons-logging</groupId>-->
+        <!--        </exclusion>-->
+        <!--        <exclusion>-->
+        <!--          <artifactId>jsr305</artifactId>-->
+        <!--          <groupId>com.google.code.findbugs</groupId>-->
+        <!--        </exclusion>-->
+        <!--      </exclusions>-->
+        <!--    </dependency>-->
+
+        <!--    <dependency>-->
+        <!--      <groupId>com.tapdata</groupId>-->
+        <!--      <artifactId>hive-lib</artifactId>-->
+        <!--    <scope>${scope.libs.hive}</scope>-->
+        <!--    </dependency>-->
+
+        <!--    <dependency>-->
+        <!--      <groupId>com.tapdata</groupId>-->
+        <!--      <artifactId>tidb-lib</artifactId>-->
+        <!--      <scope>${scope.libs.tidb}</scope>-->
+        <!--    </dependency>-->
+
+        <!--    <dependency>-->
+        <!--      <groupId>com.tapdata</groupId>-->
+        <!--      <artifactId>hbase-lib</artifactId>-->
+        <!--      <scope>${scope.libs.hbase}</scope>-->
+        <!--    </dependency>-->
+
+        <!--    <dependency>-->
+        <!--      <groupId>com.tapdata</groupId>-->
+        <!--      <artifactId>kudu-lib</artifactId>-->
+        <!--    <scope>${scope.libs.kudu}</scope>-->
+        <!--    </dependency>-->
+
+        <!--    &lt;!&ndash;<dependency>&ndash;&gt;-->
+        <!--    &lt;!&ndash;<groupId>org.junit.jupiter</groupId>&ndash;&gt;-->
+        <!--    &lt;!&ndash;<artifactId>junit-jupiter-api</artifactId>&ndash;&gt;-->
+        <!--    &lt;!&ndash;<version>RELEASE</version>&ndash;&gt;-->
+        <!--    &lt;!&ndash;</dependency>&ndash;&gt;-->
+        <!--    <dependency>-->
+        <!--      <groupId>com.tapdata</groupId>-->
+        <!--      <artifactId>greenplum-lib</artifactId>-->
+        <!--    </dependency>-->
+
+        <!--    <dependency>-->
+        <!--      <groupId>com.tapdata</groupId>-->
+        <!--      <artifactId>clickhouse-lib</artifactId>-->
+        <!--      <scope>${scope.libs.clickhouse}</scope>-->
+        <!--    </dependency>-->
+
+        <!--    <dependency>-->
+        <!--      <groupId>com.tapdata</groupId>-->
+        <!--      <artifactId>hana-lib</artifactId>-->
+        <!--      <scope>${scope.libs.hana}</scope>-->
+        <!--    </dependency>-->
+        <!--    <dependency>-->
+        <!--      <groupId>com.tapdata</groupId>-->
+        <!--      <artifactId>hazelcast-cloud-lib</artifactId>-->
+        <!--      <version>${project.version}</version>-->
+        <!--    </dependency>-->
+
+        <!--    <dependency>-->
+        <!--      <groupId>org.codehaus.janino</groupId>-->
+        <!--      <artifactId>janino</artifactId>-->
+        <!--      <version>3.0.8</version>-->
+        <!--    </dependency>-->
+
+        <!--    <dependency>-->
+        <!--      <groupId>com.tapdata</groupId>-->
+        <!--      <artifactId>vika-lib</artifactId>-->
+        <!--    </dependency>-->
+
+        <!--    <dependency>-->
+        <!--      <groupId>com.tapdata</groupId>-->
+        <!--      <artifactId>mysql-lib</artifactId>-->
+        <!--    </dependency>-->
+
+        <!--    <dependency>-->
+        <!--      <groupId>com.tapdata</groupId>-->
+        <!--      <artifactId>dameng-lib</artifactId>-->
+        <!--    </dependency>-->
+
+        <!--    <dependency>-->
+        <!--      <groupId>com.tapdata</groupId>-->
+        <!--      <artifactId>oracle-lib</artifactId>-->
+        <!--    </dependency>-->
+
+        <!--    <dependency>-->
+        <!--      <groupId>com.tapdata</groupId>-->
+        <!--      <artifactId>sybase-lib</artifactId>-->
+        <!--    </dependency>-->
+
+        <!--<dependency>-->
+        <!--<groupId>org.junit.jupiter</groupId>-->
+        <!--<artifactId>junit-jupiter-api</artifactId>-->
+        <!--<version>RELEASE</version>-->
+        <!--</dependency>-->
+    </dependencies>
+
+    <!--<repositories>-->
+    <!--<repository>-->
+    <!--<id>codelds</id>-->
+    <!--<url>https://code.lds.org/nexus/content/groups/main-repo</url>-->
+    <!--</repository>-->
+    <!--</repositories>-->
+    <build>
+        <finalName>ie</finalName>
+
+        <testSourceDirectory>src/main/test</testSourceDirectory>
+        <resources>
+            <resource>
+                <directory>src/main/resources</directory>
+                <filtering>true</filtering>
+            </resource>
+        </resources>
+        <plugins>
+
+        </plugins>
+    </build>
+</project>

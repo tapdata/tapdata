@@ -158,11 +158,12 @@
     </properties>
 
     <modules>
-        <module>ie</module>
+        <module>iengine-app</module>
         <module>iengine-common</module>
         <module>validator</module>
         <module>api</module>
         <module>hazelcast-lib</module>
+        <module>modules</module>
     </modules>
 
     <dependencyManagement>
