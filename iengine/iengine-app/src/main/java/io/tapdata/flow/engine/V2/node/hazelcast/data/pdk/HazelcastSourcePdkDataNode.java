@@ -133,7 +133,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 									.connectorContext(getConnectorNode().getConnectorContext())
 									.offsetState(tableOffset)
 									.dataProcessorContext(this.getDataProcessorContext())
-									.state(BatchReadFuncAspect.STATE_START)
+									.start()
 									.table(tapTable), batchReadFuncAspect -> PDKInvocationMonitor.invoke(getConnectorNode(), PDKMethod.SOURCE_BATCH_READ,
 											() -> batchReadFunction.batchRead(getConnectorNode().getConnectorContext(), tapTable, tableOffset, eventBatchSize, (events, offsetObject) -> {
 												if (events != null && !events.isEmpty()) {
@@ -233,12 +233,12 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 			List<String> tables = new ArrayList<>(tapTableMap.keySet());
 			int batchSize = 1;
 			executeAspectWrapper(StreamReadFuncAspect.class, () -> new StreamReadFuncAspect()
-					.state(StreamReadFuncAspect.STATE_START)
 					.connectorContext(getConnectorNode().getConnectorContext())
 					.dataProcessorContext(getDataProcessorContext())
 					.tables(tables)
 					.eventBatchSize(batchSize)
-					.offsetState(syncProgress.getStreamOffsetObj()), streamReadFuncAspect -> PDKInvocationMonitor.invoke(getConnectorNode(), PDKMethod.SOURCE_STREAM_READ,
+					.offsetState(syncProgress.getStreamOffsetObj())
+					.start(), streamReadFuncAspect -> PDKInvocationMonitor.invoke(getConnectorNode(), PDKMethod.SOURCE_STREAM_READ,
 							() -> streamReadFunction.streamRead(getConnectorNode().getConnectorContext(), tables,
 									syncProgress.getStreamOffsetObj(), batchSize, StreamReadConsumer.create((events, offsetObj) -> {
 										if (events != null && !events.isEmpty()) {

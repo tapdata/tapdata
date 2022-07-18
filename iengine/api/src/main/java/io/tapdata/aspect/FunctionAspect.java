@@ -17,6 +17,10 @@ public abstract class FunctionAspect<T extends FunctionAspect<?>> extends DataNo
 		}
 		return (T) this;
 	}
+	public T start() {
+		this.state = STATE_START;
+		return (T) this;
+	}
 	private Throwable throwable;
 
 	public T throwable(Throwable throwable) {

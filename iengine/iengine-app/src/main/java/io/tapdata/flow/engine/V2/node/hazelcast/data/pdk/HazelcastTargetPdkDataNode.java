@@ -11,7 +11,7 @@ import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.dag.vo.SyncObjects;
-import io.tapdata.aspect.CreateIndexFuncAspect;
+import io.tapdata.aspect.*;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.ddl.TapDDLEvent;
@@ -154,7 +154,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 						.table(tapTable)
 						.connectorContext(getConnectorNode().getConnectorContext())
 						.createIndexEvent(indexEvent)
-						.state(CreateIndexFuncAspect.STATE_START), createIndexFuncAspect -> PDKInvocationMonitor.invoke(getConnectorNode(),
+						.start(), createIndexFuncAspect -> PDKInvocationMonitor.invoke(getConnectorNode(),
 							PDKMethod.TARGET_CREATE_INDEX,
 							() -> createIndexFunction.createIndex(getConnectorNode().getConnectorContext(), tapTable, indexEvent), TAG));
 			}
@@ -167,7 +167,11 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 			ClearTableFunction clearTableFunction = getConnectorNode().getConnectorFunctions().getClearTableFunction();
 			Optional.ofNullable(clearTableFunction).ifPresent(func -> {
 				TapClearTableEvent tapClearTableEvent = clearTableEvent(tableId);
-				PDKInvocationMonitor.invoke(getConnectorNode(), PDKMethod.TARGET_CLEAR_TABLE, () -> func.clearTable(getConnectorNode().getConnectorContext(), tapClearTableEvent), TAG);
+				executeAspectWrapper(ClearTableFuncAspect.class, () -> new ClearTableFuncAspect()
+						.clearTableEvent(tapClearTableEvent)
+						.connectorContext(getConnectorNode().getConnectorContext())
+						.start(), clearTableFuncAspect ->
+						PDKInvocationMonitor.invoke(getConnectorNode(), PDKMethod.TARGET_CLEAR_TABLE, () -> func.clearTable(getConnectorNode().getConnectorContext(), tapClearTableEvent), TAG));
 			});
 		}
 	}
@@ -176,7 +180,11 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 		CreateTableFunction createTableFunction = getConnectorNode().getConnectorFunctions().getCreateTableFunction();
 		Optional.ofNullable(createTableFunction).ifPresent(func -> {
 			TapCreateTableEvent tapCreateTableEvent = createTableEvent(tapTable);
-			PDKInvocationMonitor.invoke(getConnectorNode(), PDKMethod.TARGET_CREATE_TABLE, () -> func.createTable(getConnectorNode().getConnectorContext(), tapCreateTableEvent), TAG);
+			executeAspectWrapper(CreateTableFuncAspect.class, () -> new CreateTableFuncAspect()
+					.createTableEvent(tapCreateTableEvent)
+					.connectorContext(getConnectorNode().getConnectorContext())
+					.start(), (createTableFuncAspect ->
+					PDKInvocationMonitor.invoke(getConnectorNode(), PDKMethod.TARGET_CREATE_TABLE, () -> func.createTable(getConnectorNode().getConnectorContext(), tapCreateTableEvent), TAG)));
 		});
 	}
 
@@ -184,8 +192,14 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 		if (SyncTypeEnum.CDC == syncType) return;
 		if (existsDataProcessEnum == ExistsDataProcessEnum.DROP_TABLE) {
 			DropTableFunction dropTableFunction = getConnectorNode().getConnectorFunctions().getDropTableFunction();
-			TapDropTableEvent tapDropTableEvent = dropTableEvent(tableId);
-			Optional.ofNullable(dropTableFunction).ifPresent(func -> PDKInvocationMonitor.invoke(getConnectorNode(), PDKMethod.TARGET_DROP_TABLE, () -> func.dropTable(getConnectorNode().getConnectorContext(), tapDropTableEvent), TAG));
+			if(dropTableFunction != null) {
+				TapDropTableEvent tapDropTableEvent = dropTableEvent(tableId);
+				executeAspectWrapper(DropTableFuncAspect.class, () -> new DropTableFuncAspect()
+						.dropTableEvent(tapDropTableEvent)
+						.connectorContext(getConnectorNode().getConnectorContext())
+						.start(), (dropTableFuncAspect ->
+						PDKInvocationMonitor.invoke(getConnectorNode(), PDKMethod.TARGET_DROP_TABLE, () -> dropTableFunction.dropTable(getConnectorNode().getConnectorContext(), tapDropTableEvent), TAG)));
+			}
 		}
 	}
 
@@ -267,9 +281,12 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 			return false;
 		}
 		try {
-			PDKInvocationMonitor.invoke(connectorNode, pdkMethod,
-					() -> function.newField(connectorNode.getConnectorContext(), tapNewFieldEvent),
-					TAG);
+			executeAspectWrapper(NewFieldFuncAspect.class, () -> new NewFieldFuncAspect()
+					.newFieldEvent(tapNewFieldEvent)
+					.connectorContext(connectorNode.getConnectorContext())
+					.start(), (newFieldFuncAspect ->
+					PDKInvocationMonitor.invoke(connectorNode, pdkMethod,
+							() -> function.newField(connectorNode.getConnectorContext(), tapNewFieldEvent), TAG)));
 		} catch (Exception e) {
 			throw new RuntimeException("Execute " + pdkMethod + " failed, error: " + e.getMessage(), e);
 		}
@@ -285,9 +302,13 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 			return false;
 		}
 		try {
-			PDKInvocationMonitor.invoke(connectorNode, PDKMethod.NEW_FIELD,
-					() -> function.alterFieldName(connectorNode.getConnectorContext(), tapAlterFieldNameEvent),
-					TAG);
+			executeAspectWrapper(AlterFieldNameFuncAspect.class, () -> new AlterFieldNameFuncAspect()
+					.alterFieldNameEvent(tapAlterFieldNameEvent)
+					.connectorContext(connectorNode.getConnectorContext())
+					.start(), (alterFieldNameFuncAspect) ->
+					PDKInvocationMonitor.invoke(connectorNode, PDKMethod.NEW_FIELD,
+							() -> function.alterFieldName(connectorNode.getConnectorContext(), tapAlterFieldNameEvent),
+							TAG));
 		} catch (Exception e) {
 			throw new RuntimeException("Execute " + pdkMethod + " failed, error: " + e.getMessage(), e);
 		}
@@ -315,9 +336,13 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 			return false;
 		}
 		try {
-			PDKInvocationMonitor.invoke(connectorNode, PDKMethod.NEW_FIELD,
-					() -> function.alterFieldAttributes(connectorNode.getConnectorContext(), tapAlterFieldAttributesEvent),
-					TAG);
+			executeAspectWrapper(AlterFieldAttributesFuncAspect.class, () -> new AlterFieldAttributesFuncAspect()
+					.alterFieldAttributesEvent(tapAlterFieldAttributesEvent)
+					.connectorContext(connectorNode.getConnectorContext())
+					.start(), (alterFieldAttributesFuncAspect ->
+					PDKInvocationMonitor.invoke(connectorNode, PDKMethod.NEW_FIELD,
+							() -> function.alterFieldAttributes(connectorNode.getConnectorContext(), tapAlterFieldAttributesEvent),
+							TAG)));
 		} catch (Exception e) {
 			throw new RuntimeException("Execute " + pdkMethod + " failed, error: " + e.getMessage(), e);
 		}
@@ -333,9 +358,13 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 			return false;
 		}
 		try {
-			PDKInvocationMonitor.invoke(connectorNode, PDKMethod.NEW_FIELD,
-					() -> function.dropField(connectorNode.getConnectorContext(), tapDropFieldEvent),
-					TAG);
+			executeAspectWrapper(DropFieldFuncAspect.class, () -> new DropFieldFuncAspect()
+					.dropFieldEvent(tapDropFieldEvent)
+					.connectorContext(connectorNode.getConnectorContext())
+					.start(), (dropFieldFuncAspect ->
+					PDKInvocationMonitor.invoke(connectorNode, PDKMethod.NEW_FIELD,
+						() -> function.dropField(connectorNode.getConnectorContext(), tapDropFieldEvent),
+						TAG)));
 		} catch (Exception e) {
 			throw new RuntimeException("Execute " + pdkMethod + " failed, error: " + e.getMessage(), e);
 		}
@@ -359,25 +388,32 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 			logger.debug("Write {} of record events, {}", tapRecordEvents.size(), LoggerUtils.targetNodeMessage(getConnectorNode()));
 			long start = System.currentTimeMillis();
 			try {
-				PDKInvocationMonitor.invoke(getConnectorNode(), PDKMethod.TARGET_WRITE_RECORD,
-						() -> writeRecordFunction.writeRecord(getConnectorNode().getConnectorContext(), tapRecordEvents, tapTable, writeListResult -> {
-							Map<TapRecordEvent, Throwable> errorMap = writeListResult.getErrorMap();
-							if (MapUtils.isNotEmpty(errorMap)) {
-								for (Map.Entry<TapRecordEvent, Throwable> tapRecordEventThrowableEntry : errorMap.entrySet()) {
-									logger.error(tapRecordEventThrowableEntry.getValue().getMessage(), tapRecordEventThrowableEntry.getValue());
-									logger.error("Error record: " + tapRecordEventThrowableEntry.getKey());
-								}
-								throw new RuntimeException("Write record failed, will stop task");
-							}
-							timeCostAvg.add(events.size(), System.currentTimeMillis() - start);
-							resetInsertedCounter.inc(writeListResult.getInsertedCount());
-							insertedCounter.inc(writeListResult.getInsertedCount());
-							resetUpdatedCounter.inc(writeListResult.getModifiedCount());
-							updatedCounter.inc(writeListResult.getModifiedCount());
-							resetDeletedCounter.inc(writeListResult.getRemovedCount());
-							deletedCounter.inc(writeListResult.getRemovedCount());
-							logger.debug("Wrote {} of record events, {}", tapRecordEvents.size(), LoggerUtils.targetNodeMessage(getConnectorNode()));
-						}), TAG);
+				executeAspectWrapper(WriteRecordFuncAspect.class, () -> new WriteRecordFuncAspect()
+						.recordEvents(tapRecordEvents)
+						.table(tapTable)
+						.connectorContext(getConnectorNode().getConnectorContext())
+						.start(), (writeRecordFuncAspect ->
+							PDKInvocationMonitor.invoke(getConnectorNode(), PDKMethod.TARGET_WRITE_RECORD,
+								() -> writeRecordFunction.writeRecord(getConnectorNode().getConnectorContext(), tapRecordEvents, tapTable, writeListResult -> {
+									Map<TapRecordEvent, Throwable> errorMap = writeListResult.getErrorMap();
+									if (MapUtils.isNotEmpty(errorMap)) {
+										for (Map.Entry<TapRecordEvent, Throwable> tapRecordEventThrowableEntry : errorMap.entrySet()) {
+											logger.error(tapRecordEventThrowableEntry.getValue().getMessage(), tapRecordEventThrowableEntry.getValue());
+											logger.error("Error record: " + tapRecordEventThrowableEntry.getKey());
+										}
+										throw new RuntimeException("Write record failed, will stop task");
+									}
+									if(writeRecordFuncAspect != null)
+										executeAspect(writeRecordFuncAspect.writeListResult(writeListResult).state(WriteRecordFuncAspect.STATE_WRITE_RESULT).writeResultTime(System.currentTimeMillis()));
+									timeCostAvg.add(events.size(), System.currentTimeMillis() - start);
+									resetInsertedCounter.inc(writeListResult.getInsertedCount());
+									insertedCounter.inc(writeListResult.getInsertedCount());
+									resetUpdatedCounter.inc(writeListResult.getModifiedCount());
+									updatedCounter.inc(writeListResult.getModifiedCount());
+									resetDeletedCounter.inc(writeListResult.getRemovedCount());
+									deletedCounter.inc(writeListResult.getRemovedCount());
+									logger.debug("Wrote {} of record events, {}", tapRecordEvents.size(), LoggerUtils.targetNodeMessage(getConnectorNode()));
+								}), TAG)));
 			} catch (Exception e) {
 				throw sneakyThrow(e);
 			}
