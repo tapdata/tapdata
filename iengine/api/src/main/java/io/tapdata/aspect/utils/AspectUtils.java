@@ -1,12 +1,15 @@
-package io.tapdata.aspect;
+package io.tapdata.aspect.utils;
 
+import io.tapdata.aspect.FunctionAspect;
 import io.tapdata.entity.aspect.Aspect;
 import io.tapdata.entity.aspect.AspectInterceptResult;
 import io.tapdata.entity.aspect.AspectManager;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.utils.InstanceFactory;
+import io.tapdata.pdk.core.utils.CommonUtils;
 
 import java.util.concurrent.Callable;
+import java.util.function.Consumer;
 
 public class AspectUtils {
 	private static final AspectManager aspectManager = InstanceFactory.instance(AspectManager.class);
@@ -42,6 +45,33 @@ public class AspectUtils {
 	public static <T extends Aspect> AspectInterceptResult executeAspect(T aspect) {
 		if(aspectManager != null)
 			return aspectManager.executeAspect(aspect);
+		return null;
+	}
+
+	public static <T extends FunctionAspect<T>> AspectInterceptResult executeAspectWrapper(Class<T> aspectClass, Callable<T> aspectCallable, Consumer<T> consumer) {
+		if(aspectManager != null && aspectManager.hasInterceptorOrObserver(aspectClass)) {
+			T aspect = null;
+			try {
+				aspect = aspectCallable.call();
+			} catch (Exception e) {
+				throw new RuntimeException(e);
+			}
+			if(aspect != null) {
+				AspectInterceptResult interceptResult = aspectManager.executeAspect(aspect);
+				if(interceptResult == null || !interceptResult.isIntercepted()) {
+					try {
+						consumer.accept(aspect);
+						aspect.state(FunctionAspect.STATE_END);
+						aspectManager.executeAspect(aspect);
+					} catch(Throwable throwable) {
+						aspect.throwable(throwable).state(FunctionAspect.STATE_END);
+						aspectManager.executeAspect(aspect);
+					}
+				}
+			} else {
+				consumer.accept(null);
+			}
+		}
 		return null;
 	}
 }

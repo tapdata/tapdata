@@ -11,8 +11,6 @@ import com.tapdata.processor.constant.JSEngineEnum;
 import com.tapdata.tm.commons.customNode.CustomNodeTempDto;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.process.CustomProcessorNode;
-import io.tapdata.aspect.AspectUtils;
-import io.tapdata.aspect.ProcessorNodeInitAspect;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.flow.engine.V2.common.node.NodeTypeEnum;

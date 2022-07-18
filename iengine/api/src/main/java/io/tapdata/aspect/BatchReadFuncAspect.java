@@ -12,19 +12,7 @@ public class BatchReadFuncAspect extends FunctionAspect<BatchReadFuncAspect> {
 		this.acceptTime = acceptTime;
 		return this;
 	}
-	private Long endTime;
-	public BatchReadFuncAspect endTime(Long endTime) {
-		this.endTime = endTime;
-		return this;
-	}
-	public static final int STATE_START = 1;
 	public static final int STATE_ACCEPT = 10;
-	public static final int STATE_END = 20;
-	private int state;
-	public BatchReadFuncAspect state(int state) {
-		this.state = state;
-		return this;
-	}
 	private TapConnectorContext connectorContext;
 
 	public BatchReadFuncAspect connectorContext(TapConnectorContext connectorContext) {
@@ -100,13 +88,6 @@ public class BatchReadFuncAspect extends FunctionAspect<BatchReadFuncAspect> {
 		this.events = events;
 	}
 
-	public int getState() {
-		return state;
-	}
-
-	public void setState(int state) {
-		this.state = state;
-	}
 
 	public Long getAcceptTime() {
 		return acceptTime;
@@ -116,11 +97,4 @@ public class BatchReadFuncAspect extends FunctionAspect<BatchReadFuncAspect> {
 		this.acceptTime = acceptTime;
 	}
 
-	public Long getEndTime() {
-		return endTime;
-	}
-
-	public void setEndTime(Long endTime) {
-		this.endTime = endTime;
-	}
 }

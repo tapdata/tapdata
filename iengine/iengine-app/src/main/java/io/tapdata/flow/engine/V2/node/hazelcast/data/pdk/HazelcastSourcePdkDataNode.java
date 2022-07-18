@@ -127,39 +127,34 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 							Object tableOffset = ((Map<String, Object>) syncProgress.getBatchOffsetObj()).get(tapTable.getId());
 							logger.info("Starting batch read, table name: " + tapTable.getId() + ", offset: " + tableOffset);
 							int eventBatchSize = 100;
-							BatchReadFuncAspect batchReadFuncAspect = new BatchReadFuncAspect()
+
+							executeAspectWrapper(BatchReadFuncAspect.class, () -> new BatchReadFuncAspect()
 									.eventBatchSize(eventBatchSize)
 									.connectorContext(getConnectorNode().getConnectorContext())
 									.offsetState(tableOffset)
 									.dataProcessorContext(this.getDataProcessorContext())
 									.state(BatchReadFuncAspect.STATE_START)
-									.table(tapTable);
-							executeAspect(batchReadFuncAspect);
+									.table(tapTable), batchReadFuncAspect -> PDKInvocationMonitor.invoke(getConnectorNode(), PDKMethod.SOURCE_BATCH_READ,
+											() -> batchReadFunction.batchRead(getConnectorNode().getConnectorContext(), tapTable, tableOffset, eventBatchSize, (events, offsetObject) -> {
+												if (events != null && !events.isEmpty()) {
+													if (logger.isDebugEnabled()) {
+														logger.debug("Batch read {} of events, {}", events.size(), LoggerUtils.sourceNodeMessage(getConnectorNode()));
+													}
+													((Map<String, Object>) syncProgress.getBatchOffsetObj()).put(tapTable.getId(), offsetObject);
+													List<TapdataEvent> tapdataEvents = wrapTapdataEvent(events);
+													if(batchReadFuncAspect != null)
+														executeAspect(batchReadFuncAspect.events(tapdataEvents).state(BatchReadFuncAspect.STATE_ACCEPT).acceptTime(System.currentTimeMillis()));
 
-							PDKInvocationMonitor.invoke(getConnectorNode(), PDKMethod.SOURCE_BATCH_READ,
-									() -> batchReadFunction.batchRead(getConnectorNode().getConnectorContext(), tapTable, tableOffset, eventBatchSize, (events, offsetObject) -> {
-										if (events != null && !events.isEmpty()) {
-											if (logger.isDebugEnabled()) {
-												logger.debug("Batch read {} of events, {}", events.size(), LoggerUtils.sourceNodeMessage(getConnectorNode()));
-											}
-											((Map<String, Object>) syncProgress.getBatchOffsetObj()).put(tapTable.getId(), offsetObject);
-											List<TapdataEvent> tapdataEvents = wrapTapdataEvent(events);
-											executeAspect(batchReadFuncAspect.events(tapdataEvents).state(BatchReadFuncAspect.STATE_ACCEPT).acceptTime(System.currentTimeMillis()));
-
-											if (CollectionUtil.isNotEmpty(tapdataEvents)) {
-												tapdataEvents.forEach(this::enqueue);
-												resetOutputCounter.inc(tapdataEvents.size());
-												outputCounter.inc(tapdataEvents.size());
-												outputQPS.add(tapdataEvents.size());
-												resetInitialWriteCounter.inc(tapdataEvents.size());
-												initialWriteCounter.inc(tapdataEvents.size());
-											}
-										}
-									}), TAG, e -> {
-										executeAspect(batchReadFuncAspect.throwable(e).state(BatchReadFuncAspect.STATE_END).endTime(System.currentTimeMillis()));
-										throw e;
-									});
-							executeAspect(batchReadFuncAspect.state(BatchReadFuncAspect.STATE_END).endTime(System.currentTimeMillis()));
+													if (CollectionUtil.isNotEmpty(tapdataEvents)) {
+														tapdataEvents.forEach(this::enqueue);
+														resetOutputCounter.inc(tapdataEvents.size());
+														outputCounter.inc(tapdataEvents.size());
+														outputQPS.add(tapdataEvents.size());
+														resetInitialWriteCounter.inc(tapdataEvents.size());
+														initialWriteCounter.inc(tapdataEvents.size());
+													}
+												}
+											}), TAG));
 						}
 
 						if (isRunning()) {
@@ -237,45 +232,37 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 			logger.info("Starting stream read, table list: " + tapTableMap.keySet() + ", offset: " + syncProgress.getOffsetObj());
 			List<String> tables = new ArrayList<>(tapTableMap.keySet());
 			int batchSize = 1;
-			StreamReadFuncAspect streamReadFuncAspect = new StreamReadFuncAspect()
+			executeAspectWrapper(StreamReadFuncAspect.class, () -> new StreamReadFuncAspect()
 					.state(StreamReadFuncAspect.STATE_START)
 					.connectorContext(getConnectorNode().getConnectorContext())
 					.dataProcessorContext(getDataProcessorContext())
 					.tables(tables)
 					.eventBatchSize(batchSize)
-					.offsetState(syncProgress.getStreamOffsetObj())
-					;
-			executeAspect(streamReadFuncAspect);
-
-			PDKInvocationMonitor.invoke(getConnectorNode(), PDKMethod.SOURCE_STREAM_READ,
-					() -> streamReadFunction.streamRead(getConnectorNode().getConnectorContext(), tables,
-							syncProgress.getStreamOffsetObj(), batchSize, StreamReadConsumer.create((events, offsetObj) -> {
-								if (events != null && !events.isEmpty()) {
-									List<TapdataEvent> tapdataEvents = wrapTapdataEvent(events, SyncStage.CDC, offsetObj);
-									if (logger.isDebugEnabled()) {
-										logger.debug("Stream read {} of events, {}", events.size(), LoggerUtils.sourceNodeMessage(getConnectorNode()));
-									}
-//									InstanceFactory.instance(AspectManager.class).executeAspect(StreamReadDataNodeAspect.class, () -> new StreamReadDataNodeAspect().node(HazelcastSourcePdkDataNode.this).events(tapdataEvents));
-									if (CollectionUtils.isNotEmpty(tapdataEvents)) {
-										tapdataEvents.forEach(this::enqueue);
-										resetOutputCounter.inc(tapdataEvents.size());
-										outputCounter.inc(tapdataEvents.size());
-										outputQPS.add(tapdataEvents.size());
-										executeAspect(streamReadFuncAspect.events(tapdataEvents).state(StreamReadFuncAspect.STATE_ACCEPT).acceptTime(System.currentTimeMillis()));
-									}
-								}
-							}).stateListener((oldState, newState) -> {
-								if (null != newState && StreamReadConsumer.STATE_STREAM_READ_STARTED == newState) {
-//									InstanceFactory.instance(AspectManager.class).executeAspect(StreamReadStartedDataNodeAspect.class, () -> new StreamReadStartedDataNodeAspect().node(HazelcastSourcePdkDataNode.this));
-									// MILESTONE-READ_CDC_EVENT-FINISH
-									executeAspect(streamReadFuncAspect.state(StreamReadFuncAspect.STATE_STREAM_STARTED).streamStartedTime(System.currentTimeMillis()));
-									MilestoneUtil.updateMilestone(milestoneService, MilestoneStage.READ_CDC_EVENT, MilestoneStatus.FINISH);
-								}
-							})), TAG, e -> {
-								executeAspect(streamReadFuncAspect.throwable(e).state(StreamReadFuncAspect.STATE_END).endTime(System.currentTimeMillis()));
-								throw e;
-							});
-			executeAspect(streamReadFuncAspect.state(StreamReadFuncAspect.STATE_END).endTime(System.currentTimeMillis()));
+					.offsetState(syncProgress.getStreamOffsetObj()), streamReadFuncAspect -> PDKInvocationMonitor.invoke(getConnectorNode(), PDKMethod.SOURCE_STREAM_READ,
+							() -> streamReadFunction.streamRead(getConnectorNode().getConnectorContext(), tables,
+									syncProgress.getStreamOffsetObj(), batchSize, StreamReadConsumer.create((events, offsetObj) -> {
+										if (events != null && !events.isEmpty()) {
+											List<TapdataEvent> tapdataEvents = wrapTapdataEvent(events, SyncStage.CDC, offsetObj);
+											if (logger.isDebugEnabled()) {
+												logger.debug("Stream read {} of events, {}", events.size(), LoggerUtils.sourceNodeMessage(getConnectorNode()));
+											}
+											if (CollectionUtils.isNotEmpty(tapdataEvents)) {
+												tapdataEvents.forEach(this::enqueue);
+												resetOutputCounter.inc(tapdataEvents.size());
+												outputCounter.inc(tapdataEvents.size());
+												outputQPS.add(tapdataEvents.size());
+												if(streamReadFuncAspect != null)
+													executeAspect(streamReadFuncAspect.events(tapdataEvents).state(StreamReadFuncAspect.STATE_ACCEPT).acceptTime(System.currentTimeMillis()));
+											}
+										}
+									}).stateListener((oldState, newState) -> {
+										if (null != newState && StreamReadConsumer.STATE_STREAM_READ_STARTED == newState) {
+											// MILESTONE-READ_CDC_EVENT-FINISH
+											if(streamReadFuncAspect != null)
+												executeAspect(streamReadFuncAspect.state(StreamReadFuncAspect.STATE_STREAM_STARTED).streamStartedTime(System.currentTimeMillis()));
+											MilestoneUtil.updateMilestone(milestoneService, MilestoneStage.READ_CDC_EVENT, MilestoneStatus.FINISH);
+										}
+									})), TAG));
 		} else {
 			throw new RuntimeException("PDK node does not support stream read: " + dataProcessorContext.getDatabaseType());
 		}

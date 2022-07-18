@@ -11,6 +11,8 @@ import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.dag.vo.SyncObjects;
+import io.tapdata.aspect.CreateIndexFuncAspect;
+import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.ddl.TapDDLEvent;
 import io.tapdata.entity.event.ddl.index.TapCreateIndexEvent;
@@ -148,7 +150,13 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 				tapIndex.setIndexFields(tapIndexFields);
 				tapIndices.add(tapIndex);
 				TapCreateIndexEvent indexEvent = createIndexEvent(tableId, tapIndices);
-				PDKInvocationMonitor.invoke(getConnectorNode(), PDKMethod.TARGET_CREATE_INDEX, () -> createIndexFunction.createIndex(getConnectorNode().getConnectorContext(), tapTable, indexEvent), TAG);
+				executeAspectWrapper(CreateIndexFuncAspect.class, () -> new CreateIndexFuncAspect()
+						.table(tapTable)
+						.connectorContext(getConnectorNode().getConnectorContext())
+						.createIndexEvent(indexEvent)
+						.state(CreateIndexFuncAspect.STATE_START), createIndexFuncAspect -> PDKInvocationMonitor.invoke(getConnectorNode(),
+							PDKMethod.TARGET_CREATE_INDEX,
+							() -> createIndexFunction.createIndex(getConnectorNode().getConnectorContext(), tapTable, indexEvent), TAG));
 			}
 		}
 	}

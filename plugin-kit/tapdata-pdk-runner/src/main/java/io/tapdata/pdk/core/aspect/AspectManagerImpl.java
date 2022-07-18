@@ -298,6 +298,13 @@ public class AspectManagerImpl implements AspectManager {
         return resultAtomicReference.get();
     }
 
+    @Override
+    public <T extends Aspect> boolean hasInterceptorOrObserver(Class<T> aspectClass) {
+        Collection<AspectInterceptorClassHolder> interceptorClassHolders = aspectInterceptorMap.get(aspectClass);
+        Collection<AspectObserverClassHolder> observerClassHolders = aspectObserversMap.get(aspectClass);
+        return (interceptorClassHolders != null && !interceptorClassHolders.isEmpty()) || (observerClassHolders != null && !observerClassHolders.isEmpty());
+    }
+
     /**
      *
      *

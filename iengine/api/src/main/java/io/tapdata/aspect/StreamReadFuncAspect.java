@@ -17,20 +17,8 @@ public class StreamReadFuncAspect extends FunctionAspect<StreamReadFuncAspect> {
 		this.streamStartedTime = streamStartedTime;
 		return this;
 	}
-	private Long endTime;
-	public StreamReadFuncAspect endTime(Long endTime) {
-		this.endTime = endTime;
-		return this;
-	}
-	public static final int STATE_START = 1;
 	public static final int STATE_STREAM_STARTED = 5;
 	public static final int STATE_ACCEPT = 10;
-	public static final int STATE_END = 20;
-	private int state;
-	public StreamReadFuncAspect state(int state) {
-		this.state = state;
-		return this;
-	}
 	private TapConnectorContext connectorContext;
 
 	public StreamReadFuncAspect connectorContext(TapConnectorContext connectorContext) {
@@ -98,28 +86,12 @@ public class StreamReadFuncAspect extends FunctionAspect<StreamReadFuncAspect> {
 		this.events = events;
 	}
 
-	public int getState() {
-		return state;
-	}
-
-	public void setState(int state) {
-		this.state = state;
-	}
-
 	public Long getAcceptTime() {
 		return acceptTime;
 	}
 
 	public void setAcceptTime(Long acceptTime) {
 		this.acceptTime = acceptTime;
-	}
-
-	public Long getEndTime() {
-		return endTime;
-	}
-
-	public void setEndTime(Long endTime) {
-		this.endTime = endTime;
 	}
 
 	public Long getStreamStartedTime() {
