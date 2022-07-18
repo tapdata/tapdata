@@ -9,6 +9,7 @@ import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.ResponseMessage;
 import com.tapdata.tm.base.dto.Where;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
+import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.ds.bean.NoSchemaFilter;
 import com.tapdata.tm.ds.dto.UpdateTagsDto;
@@ -35,6 +36,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import static com.tapdata.tm.utils.MongoUtils.toObjectId;
 
@@ -468,6 +470,17 @@ public class DataSourceController extends BaseController {
             dataSourceService.updateConnectionOptions(MongoUtils.toObjectId((String) where.get("_id")), options, getLoginUser());
         }
         return success();
+    }
+
+    @Operation(summary = "Find tasks referencing the current connection")
+    @GetMapping("task/{id}")
+    public ResponseMessage<List<Document>> findTaskByConnectionId(@PathVariable("id") String connectionId) {
+        List<TaskDto> taskList = dataSourceService.findTaskByConnectionId(connectionId, getLoginUser());
+        List<Document> result = taskList.stream()
+                .map(task-> new Document("id", task.getId().toHexString())
+                .append("name", task.getName())
+                .append("syncType", task.getSyncType())).collect(Collectors.toList());
+        return success(result);
     }
 
 }
