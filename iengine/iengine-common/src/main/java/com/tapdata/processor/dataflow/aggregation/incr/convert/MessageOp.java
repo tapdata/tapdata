@@ -4,17 +4,17 @@ import com.tapdata.constant.ConnectorConstant;
 
 public enum MessageOp {
 
-  INSERT(ConnectorConstant.MESSAGE_OPERATION_INSERT),
-  UPDATE(ConnectorConstant.MESSAGE_OPERATION_UPDATE),
-  DELETE(ConnectorConstant.MESSAGE_OPERATION_DELETE);
+	INSERT(ConnectorConstant.MESSAGE_OPERATION_INSERT),
+	UPDATE(ConnectorConstant.MESSAGE_OPERATION_UPDATE),
+	DELETE(ConnectorConstant.MESSAGE_OPERATION_DELETE);
 
-  private final String type;
+	private final String type;
 
-  MessageOp(String type) {
-    this.type = type;
-  }
+	MessageOp(String type) {
+		this.type = type;
+	}
 
-  public String getType() {
-    return type;
-  }
+	public String getType() {
+		return type;
+	}
 }

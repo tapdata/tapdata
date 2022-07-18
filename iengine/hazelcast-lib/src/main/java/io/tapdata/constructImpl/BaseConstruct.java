@@ -9,14 +9,14 @@ import io.tapdata.HazelcastConstruct;
  **/
 public class BaseConstruct<T> implements HazelcastConstruct<T> {
 
-  protected Integer ttlSecond;
+	protected Integer ttlSecond;
 
-  protected BaseConstruct() {
-  }
+	protected BaseConstruct() {
+	}
 
-  protected void convertTtlDay2Second(Integer ttlDay) {
-    if (ttlDay != null && ttlDay > 0) {
-      this.ttlSecond = ttlDay * 24 * 60 * 60;
-    }
-  }
+	protected void convertTtlDay2Second(Integer ttlDay) {
+		if (ttlDay != null && ttlDay > 0) {
+			this.ttlSecond = ttlDay * 24 * 60 * 60;
+		}
+	}
 }

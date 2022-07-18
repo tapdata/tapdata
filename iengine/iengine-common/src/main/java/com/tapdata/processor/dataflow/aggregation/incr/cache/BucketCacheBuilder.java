@@ -5,22 +5,22 @@ import com.tapdata.processor.dataflow.aggregation.incr.cache.impl.NoneBucketCach
 
 public class BucketCacheBuilder<K, V> {
 
-  private int maxSize;
+	private int maxSize;
 
-  public BucketCacheBuilder() {
-  }
+	public BucketCacheBuilder() {
+	}
 
-  public BucketCacheBuilder<K, V> maxSize(int maxSize) {
-    this.maxSize = maxSize;
-    return this;
-  }
+	public BucketCacheBuilder<K, V> maxSize(int maxSize) {
+		this.maxSize = maxSize;
+		return this;
+	}
 
-  public int getMaxSize() {
-    return maxSize;
-  }
+	public int getMaxSize() {
+		return maxSize;
+	}
 
-  public BucketCache<K, V> build() {
-    return maxSize > 0 ? new DefaultBucketCache<>(this) : new NoneBucketCache<>();
-  }
+	public BucketCache<K, V> build() {
+		return maxSize > 0 ? new DefaultBucketCache<>(this) : new NoneBucketCache<>();
+	}
 
 }

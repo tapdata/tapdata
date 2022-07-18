@@ -10,17 +10,17 @@ import java.util.Optional;
 
 abstract public class AbstractServiceFactory<T> implements ServiceFactory<T> {
 
-  @Override
-  public T create(Stage stage, ProcessorContext processorContext) {
-    final Connections connections = processorContext.getTargetConn();
-    final DatabaseTypeEnum databaseTypeEnum = Optional.ofNullable(DatabaseTypeEnum.fromString(connections.getDatabase_type())).orElseThrow(() -> new IllegalArgumentException(String.format("unknown database type: %s", connections.getDatabase_type())));
-    T t = this.doCreate(stage, processorContext, databaseTypeEnum);
-    if (t == null) {
-      throw new IllegalArgumentException(String.format("unsupported database type: %s", connections.getDatabase_type()));
-    }
-    return t;
-  }
+	@Override
+	public T create(Stage stage, ProcessorContext processorContext) {
+		final Connections connections = processorContext.getTargetConn();
+		final DatabaseTypeEnum databaseTypeEnum = Optional.ofNullable(DatabaseTypeEnum.fromString(connections.getDatabase_type())).orElseThrow(() -> new IllegalArgumentException(String.format("unknown database type: %s", connections.getDatabase_type())));
+		T t = this.doCreate(stage, processorContext, databaseTypeEnum);
+		if (t == null) {
+			throw new IllegalArgumentException(String.format("unsupported database type: %s", connections.getDatabase_type()));
+		}
+		return t;
+	}
 
-  abstract protected T doCreate(Stage stage, ProcessorContext processorContext, DatabaseTypeEnum databaseTypeEnum);
+	abstract protected T doCreate(Stage stage, ProcessorContext processorContext, DatabaseTypeEnum databaseTypeEnum);
 
 }

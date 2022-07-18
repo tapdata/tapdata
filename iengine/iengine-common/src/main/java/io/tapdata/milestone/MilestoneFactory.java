@@ -6,11 +6,8 @@ import com.tapdata.entity.Job;
 import com.tapdata.entity.dataflow.DataFlow;
 import com.tapdata.entity.dataflow.Stage;
 import com.tapdata.mongo.ClientMongoOperator;
-import com.tapdata.mongo.HttpClientMongoOperator;
-import com.tapdata.mongo.RestTemplateOperator;
-import com.tapdata.tm.commons.task.dto.SubTaskDto;
 import com.tapdata.tm.commons.dag.Node;
-import org.springframework.data.mongodb.core.query.Field;
+import com.tapdata.tm.commons.task.dto.SubTaskDto;
 
 import java.util.List;
 
@@ -21,90 +18,90 @@ import java.util.List;
  **/
 public class MilestoneFactory {
 
-  public static MilestoneFlowService getMilestoneFlowService(DataFlow dataFlow, ClientMongoOperator clientMongoOperator) {
-    if (null == dataFlow || null == clientMongoOperator) {
-      throw new IllegalArgumentException("Get dataflow milestone service failed, dataflow or clientMongoOperator cannot be empty");
-    }
+	public static MilestoneFlowService getMilestoneFlowService(DataFlow dataFlow, ClientMongoOperator clientMongoOperator) {
+		if (null == dataFlow || null == clientMongoOperator) {
+			throw new IllegalArgumentException("Get dataflow milestone service failed, dataflow or clientMongoOperator cannot be empty");
+		}
 
-    MilestoneContext milestoneContext = new MilestoneContext(dataFlow, clientMongoOperator, MilestoneContext.MilestoneType.DATAFLOW_V1);
-    return new MilestoneFlowService(milestoneContext);
-  }
+		MilestoneContext milestoneContext = new MilestoneContext(dataFlow, clientMongoOperator, MilestoneContext.MilestoneType.DATAFLOW_V1);
+		return new MilestoneFlowService(milestoneContext);
+	}
 
-  public static MilestoneJobService getJobMilestoneService(Job job, ClientMongoOperator clientMongoOperator) {
-    if (null == job || null == clientMongoOperator) {
-      throw new IllegalArgumentException("Get job milestone service failed, job or clientMongoOperator cannot be emtpy");
-    }
-    Connections sourceConn = job.getConn(true, clientMongoOperator);
-    Connections targetConn = job.getConn(false, clientMongoOperator, sourceConn);
-    MilestoneContext milestoneContext = new MilestoneContext(job, clientMongoOperator, sourceConn, targetConn, MilestoneContext.MilestoneType.JOB);
-    return new MilestoneJobService(milestoneContext);
-  }
+	public static MilestoneJobService getJobMilestoneService(Job job, ClientMongoOperator clientMongoOperator) {
+		if (null == job || null == clientMongoOperator) {
+			throw new IllegalArgumentException("Get job milestone service failed, job or clientMongoOperator cannot be emtpy");
+		}
+		Connections sourceConn = job.getConn(true, clientMongoOperator);
+		Connections targetConn = job.getConn(false, clientMongoOperator, sourceConn);
+		MilestoneContext milestoneContext = new MilestoneContext(job, clientMongoOperator, sourceConn, targetConn, MilestoneContext.MilestoneType.JOB);
+		return new MilestoneJobService(milestoneContext);
+	}
 
-  public static MilestoneFlowServiceJetV2 getJetMilestoneService(DataFlow dataFlow, List<String> baseURLs, int retryTime, ConfigurationCenter configurationCenter) {
-    if (null == dataFlow) {
-      throw new IllegalArgumentException("Get jet dataflow milestone service failed, dataflow or clientMongoOperator cannot be empty");
-    }
+	public static MilestoneFlowServiceJetV2 getJetMilestoneService(DataFlow dataFlow, List<String> baseURLs, int retryTime, ConfigurationCenter configurationCenter) {
+		if (null == dataFlow) {
+			throw new IllegalArgumentException("Get jet dataflow milestone service failed, dataflow or clientMongoOperator cannot be empty");
+		}
 
-    MilestoneContext milestoneContext = new MilestoneContext(dataFlow, MilestoneContext.MilestoneType.DATAFLOW_V2, baseURLs, retryTime, configurationCenter);
-    return new MilestoneFlowServiceJetV2(milestoneContext);
-  }
+		MilestoneContext milestoneContext = new MilestoneContext(dataFlow, MilestoneContext.MilestoneType.DATAFLOW_V2, baseURLs, retryTime, configurationCenter);
+		return new MilestoneFlowServiceJetV2(milestoneContext);
+	}
 
-  public static MilestoneJetEdgeService getJetEdgeMilestoneService(DataFlow dataFlow, List<String> baseURLs, int retryTime, ConfigurationCenter configurationCenter, Stage sourceStage, Stage destStage) {
-    if (null == dataFlow) {
-      throw new IllegalArgumentException("Get jet dataflow milestone service failed, dataflow or clientMongoOperator cannot be empty");
-    }
+	public static MilestoneJetEdgeService getJetEdgeMilestoneService(DataFlow dataFlow, List<String> baseURLs, int retryTime, ConfigurationCenter configurationCenter, Stage sourceStage, Stage destStage) {
+		if (null == dataFlow) {
+			throw new IllegalArgumentException("Get jet dataflow milestone service failed, dataflow or clientMongoOperator cannot be empty");
+		}
 
-    MilestoneContext milestoneContext = new MilestoneContext(dataFlow, sourceStage, destStage, MilestoneContext.MilestoneType.DATAFLOW_EDGE,
-      baseURLs, retryTime, configurationCenter);
-    return new MilestoneJetEdgeService(milestoneContext, null);
-  }
+		MilestoneContext milestoneContext = new MilestoneContext(dataFlow, sourceStage, destStage, MilestoneContext.MilestoneType.DATAFLOW_EDGE,
+				baseURLs, retryTime, configurationCenter);
+		return new MilestoneJetEdgeService(milestoneContext, null);
+	}
 
-  public static MilestoneFlowServiceJetV2 getJetMilestoneService(SubTaskDto subTaskDto, List<String> baseURLs, int retryTime, ConfigurationCenter configurationCenter) {
-    if (null == subTaskDto) {
-      throw new IllegalArgumentException("Get jet subTaskDto milestone service failed, subTaskDto or clientMongoOperator cannot be empty");
-    }
+	public static MilestoneFlowServiceJetV2 getJetMilestoneService(SubTaskDto subTaskDto, List<String> baseURLs, int retryTime, ConfigurationCenter configurationCenter) {
+		if (null == subTaskDto) {
+			throw new IllegalArgumentException("Get jet subTaskDto milestone service failed, subTaskDto or clientMongoOperator cannot be empty");
+		}
 
-    MilestoneContext milestoneContext = new MilestoneContext(subTaskDto, MilestoneContext.MilestoneType.SUBTASK, baseURLs, retryTime, configurationCenter);
-    return new MilestoneFlowServiceJetV2(milestoneContext);
-  }
+		MilestoneContext milestoneContext = new MilestoneContext(subTaskDto, MilestoneContext.MilestoneType.SUBTASK, baseURLs, retryTime, configurationCenter);
+		return new MilestoneFlowServiceJetV2(milestoneContext);
+	}
 
-  public static MilestoneJetEdgeService getJetEdgeMilestoneService(
-    SubTaskDto subTaskDto,
-    List<String> baseURLs,
-    int retryTime,
-    ConfigurationCenter configurationCenter,
-    Node sourceNode,
-    Node destNode,
-    String sourceVertexName,
-    String destVertexName,
-    MilestoneContext taskMilestoneContext
-  ) {
-    if (null == subTaskDto) {
-      throw new IllegalArgumentException("Get jet subTaskDto milestone service failed, subTaskDto or clientMongoOperator cannot be empty");
-    }
+	public static MilestoneJetEdgeService getJetEdgeMilestoneService(
+			SubTaskDto subTaskDto,
+			List<String> baseURLs,
+			int retryTime,
+			ConfigurationCenter configurationCenter,
+			Node sourceNode,
+			Node destNode,
+			String sourceVertexName,
+			String destVertexName,
+			MilestoneContext taskMilestoneContext
+	) {
+		if (null == subTaskDto) {
+			throw new IllegalArgumentException("Get jet subTaskDto milestone service failed, subTaskDto or clientMongoOperator cannot be empty");
+		}
 
-    MilestoneContext milestoneContext = new MilestoneContext(subTaskDto, sourceNode, destNode, MilestoneContext.MilestoneType.SUBTASK_EDGE,
-      baseURLs, retryTime, configurationCenter, sourceVertexName, destVertexName);
-    return new MilestoneJetEdgeService(milestoneContext, taskMilestoneContext);
-  }
+		MilestoneContext milestoneContext = new MilestoneContext(subTaskDto, sourceNode, destNode, MilestoneContext.MilestoneType.SUBTASK_EDGE,
+				baseURLs, retryTime, configurationCenter, sourceVertexName, destVertexName);
+		return new MilestoneJetEdgeService(milestoneContext, taskMilestoneContext);
+	}
 
-  public static MilestoneJetEdgeService getJetEdgeMilestoneService(
-    SubTaskDto subTaskDto,
-    List<String> baseURLs,
-    int retryTime,
-    ConfigurationCenter configurationCenter,
-    Node sourceNode,
-    String sourceVertexName,
-    List<String> destVertexNames,
-    MilestoneContext taskMilestoneContext,
-    MilestoneContext.VertexType vertexType
-  ) {
-    if (null == subTaskDto) {
-      throw new IllegalArgumentException("Get jet subTaskDto milestone service failed, subTaskDto or clientMongoOperator cannot be empty");
-    }
+	public static MilestoneJetEdgeService getJetEdgeMilestoneService(
+			SubTaskDto subTaskDto,
+			List<String> baseURLs,
+			int retryTime,
+			ConfigurationCenter configurationCenter,
+			Node sourceNode,
+			String sourceVertexName,
+			List<String> destVertexNames,
+			MilestoneContext taskMilestoneContext,
+			MilestoneContext.VertexType vertexType
+	) {
+		if (null == subTaskDto) {
+			throw new IllegalArgumentException("Get jet subTaskDto milestone service failed, subTaskDto or clientMongoOperator cannot be empty");
+		}
 
-    MilestoneContext milestoneContext = new MilestoneContext(subTaskDto, sourceNode, MilestoneContext.MilestoneType.SUBTASK_EDGE,
-      baseURLs, retryTime, configurationCenter, sourceVertexName, destVertexNames, vertexType);
-    return new MilestoneJetEdgeService(milestoneContext, taskMilestoneContext);
-  }
+		MilestoneContext milestoneContext = new MilestoneContext(subTaskDto, sourceNode, MilestoneContext.MilestoneType.SUBTASK_EDGE,
+				baseURLs, retryTime, configurationCenter, sourceVertexName, destVertexNames, vertexType);
+		return new MilestoneJetEdgeService(milestoneContext, taskMilestoneContext);
+	}
 }

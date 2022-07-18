@@ -11,65 +11,65 @@ import java.util.List;
 
 public class ValidationResultTableOverView implements Serializable {
 
-  private static final long serialVersionUID = 3752908253076333594L;
+	private static final long serialVersionUID = 3752908253076333594L;
 
-  private String id;
+	private String id;
 
-  private String validateBatchId;
+	private String validateBatchId;
 
-  private String type;
+	private String type;
 
-  private long validateTime;
+	private long validateTime;
 
-  private String dataFlowId;
+	private String dataFlowId;
 
-  private List<ValidateStats> validateStats;
+	private List<ValidateStats> validateStats;
 
-  public String getId() {
-    return id;
-  }
+	public String getId() {
+		return id;
+	}
 
-  public String getType() {
-    return type;
-  }
+	public String getType() {
+		return type;
+	}
 
-  public long getValidateTime() {
-    return validateTime;
-  }
+	public long getValidateTime() {
+		return validateTime;
+	}
 
-  public List<ValidateStats> getValidateStats() {
-    return validateStats;
-  }
+	public List<ValidateStats> getValidateStats() {
+		return validateStats;
+	}
 
-  public void setId(String id) {
-    this.id = id;
-  }
+	public void setId(String id) {
+		this.id = id;
+	}
 
-  public void setType(String type) {
-    this.type = type;
-  }
+	public void setType(String type) {
+		this.type = type;
+	}
 
-  public void setValidateTime(long validateTime) {
-    this.validateTime = validateTime;
-  }
+	public void setValidateTime(long validateTime) {
+		this.validateTime = validateTime;
+	}
 
-  public void setValidateStats(List<ValidateStats> validateStats) {
-    this.validateStats = validateStats;
-  }
+	public void setValidateStats(List<ValidateStats> validateStats) {
+		this.validateStats = validateStats;
+	}
 
-  public String getDataFlowId() {
-    return dataFlowId;
-  }
+	public String getDataFlowId() {
+		return dataFlowId;
+	}
 
-  public void setDataFlowId(String dataFlowId) {
-    this.dataFlowId = dataFlowId;
-  }
+	public void setDataFlowId(String dataFlowId) {
+		this.dataFlowId = dataFlowId;
+	}
 
-  public String getValidateBatchId() {
-    return validateBatchId;
-  }
+	public String getValidateBatchId() {
+		return validateBatchId;
+	}
 
-  public void setValidateBatchId(String validateBatchId) {
-    this.validateBatchId = validateBatchId;
-  }
+	public void setValidateBatchId(String validateBatchId) {
+		this.validateBatchId = validateBatchId;
+	}
 }

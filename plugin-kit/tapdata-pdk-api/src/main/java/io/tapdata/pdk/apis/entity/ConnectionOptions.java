@@ -13,8 +13,8 @@ public class ConnectionOptions {
     public static final String CAPABILITY_MASTER_SLAVE_MERGE = "master_slave_merge";
     //Connector support lookup stream offset by timestamp
     public static final String CAPABILITY_RESUME_STREAM_BY_TIMESTAMP = "resume_stream_by_timestamp";
-    //Connector's stream read is heavy, when too many tasks requires stream read, performance will drop tremendously， support shared_stream_read can share the stream read capability in multiple tasks.
-    public static final String CAPABILITY_SHARED_STREAM_READ = "shared_stream_read";
+    //Connector disable batch read offset or not, default is disable batch read offset
+    public static final String CAPABILITY_DISABLE_BATCH_READ_OFFSET = "disable_batch_read_offset";
 
     //DDL events
     public static final String DDL_ALTER_FIELD_NAME_EVENT = FormatUtils.formatTapEvent(TapAlterFieldNameEvent.class);

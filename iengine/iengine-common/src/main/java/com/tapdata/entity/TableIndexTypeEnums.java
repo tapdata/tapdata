@@ -8,27 +8,27 @@ package com.tapdata.entity;
  * </pre>
  */
 public enum TableIndexTypeEnums {
-  BTREE, TEXT, HASH, RTREE, OTHER,
-  ;
+	BTREE, TEXT, HASH, RTREE, OTHER,
+	;
 
-  public static TableIndexTypeEnums parse(String val) {
-    if (null != val) {
-      val = val.toUpperCase();
-      switch (val) {
-        case "BTREE":
-          return BTREE;
-        case "TEXT":
-          return TEXT;
-        case "HASH":
-          return HASH;
-        case "RTREE":
-          return RTREE;
-        case "OTHER":
-          return OTHER;
-        default:
-          break;
-      }
-    }
-    return null;
-  }
+	public static TableIndexTypeEnums parse(String val) {
+		if (null != val) {
+			val = val.toUpperCase();
+			switch (val) {
+				case "BTREE":
+					return BTREE;
+				case "TEXT":
+					return TEXT;
+				case "HASH":
+					return HASH;
+				case "RTREE":
+					return RTREE;
+				case "OTHER":
+					return OTHER;
+				default:
+					break;
+			}
+		}
+		return null;
+	}
 }

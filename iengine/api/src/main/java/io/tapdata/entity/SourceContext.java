@@ -2,7 +2,6 @@ package io.tapdata.entity;
 
 import com.tapdata.cache.ICacheService;
 import com.tapdata.constant.ConfigurationCenter;
-import com.tapdata.cache.memory.MemoryCacheService;
 import com.tapdata.entity.Connections;
 import com.tapdata.entity.JavaScriptFunctions;
 import com.tapdata.entity.Job;
@@ -23,152 +22,152 @@ import java.util.function.Consumer;
 
 public class SourceContext extends Context {
 
-  private Consumer<List<MessageEntity>> messageConsumer;
-  private String baseUrl;
-  private String accessCode;
-  private int restRetryTime;
-  private String userId;
-  private Integer roleId;
-  private ClientMongoOperator clientMongoOperator;
-  private boolean isCloud;
+	private Consumer<List<MessageEntity>> messageConsumer;
+	private String baseUrl;
+	private String accessCode;
+	private int restRetryTime;
+	private String userId;
+	private Integer roleId;
+	private ClientMongoOperator clientMongoOperator;
+	private boolean isCloud;
 
-  private JobCustomerLogger customerLogger;
+	private JobCustomerLogger customerLogger;
 
-  public SourceContext(Job job,
-                       Logger logger,
-                       Object offset,
-                       SettingService settingService,
-                       Connections sourceConn,
-                       Connections targetConn,
-                       Consumer<List<MessageEntity>> messageConsumer,
-                       String baseUrl,
-                       String accessCode,
-                       int restRetryTime,
-                       String userId,
-                       Integer roleId,
-                       DebugProcessor debugProcessor,
-                       List<JavaScriptFunctions> javaScriptFunctions,
-                       ClientMongoOperator clientMongoOperator,
-                       ICacheService cacheService,
-                       ConverterProvider converterProvider,
-                       MilestoneService milestoneService,
-                       boolean isCloud,
-                       ConfigurationCenter configurationCenter
-  ) {
-    super(job, logger, offset, settingService, sourceConn, targetConn, debugProcessor, javaScriptFunctions, cacheService, converterProvider, milestoneService, configurationCenter);
-    this.messageConsumer = messageConsumer;
-    this.baseUrl = baseUrl;
-    this.accessCode = accessCode;
-    this.restRetryTime = restRetryTime;
-    this.userId = userId;
-    this.roleId = roleId;
-    this.clientMongoOperator = clientMongoOperator;
-    this.isCloud = isCloud;
-  }
+	public SourceContext(Job job,
+						 Logger logger,
+						 Object offset,
+						 SettingService settingService,
+						 Connections sourceConn,
+						 Connections targetConn,
+						 Consumer<List<MessageEntity>> messageConsumer,
+						 String baseUrl,
+						 String accessCode,
+						 int restRetryTime,
+						 String userId,
+						 Integer roleId,
+						 DebugProcessor debugProcessor,
+						 List<JavaScriptFunctions> javaScriptFunctions,
+						 ClientMongoOperator clientMongoOperator,
+						 ICacheService cacheService,
+						 ConverterProvider converterProvider,
+						 MilestoneService milestoneService,
+						 boolean isCloud,
+						 ConfigurationCenter configurationCenter
+	) {
+		super(job, logger, offset, settingService, sourceConn, targetConn, debugProcessor, javaScriptFunctions, cacheService, converterProvider, milestoneService, configurationCenter);
+		this.messageConsumer = messageConsumer;
+		this.baseUrl = baseUrl;
+		this.accessCode = accessCode;
+		this.restRetryTime = restRetryTime;
+		this.userId = userId;
+		this.roleId = roleId;
+		this.clientMongoOperator = clientMongoOperator;
+		this.isCloud = isCloud;
+	}
 
-  public SourceContext(V1EngineContext context) {
-    super(
-      context.getJob(),
-      context.getLogger(),
-      context.getOffset(),
-      context.getSettingService(),
-      context.getSourceConn(),
-      context.getTargetConn(),
-      context.getDebugProcessor(),
-      context.getJavaScriptFunctions(),
-      context.getCacheService(),
-      context.getConverterProvider(),
-      context.getMilestoneService(),
-      context.getDataFlow()
-    );
-    this.messageConsumer = context.getMessageConsumer();
-    this.baseUrl = context.getBaseUrl();
-    this.accessCode = context.getAccessCode();
-    this.restRetryTime = context.getRestRetryTime();
-    this.userId = context.getUserId();
-    this.roleId = context.getRoleId();
-    this.clientMongoOperator = context.getClientMongoOperator();
-    this.isCloud = context.isCloud();
-  }
+	public SourceContext(V1EngineContext context) {
+		super(
+				context.getJob(),
+				context.getLogger(),
+				context.getOffset(),
+				context.getSettingService(),
+				context.getSourceConn(),
+				context.getTargetConn(),
+				context.getDebugProcessor(),
+				context.getJavaScriptFunctions(),
+				context.getCacheService(),
+				context.getConverterProvider(),
+				context.getMilestoneService(),
+				context.getDataFlow()
+		);
+		this.messageConsumer = context.getMessageConsumer();
+		this.baseUrl = context.getBaseUrl();
+		this.accessCode = context.getAccessCode();
+		this.restRetryTime = context.getRestRetryTime();
+		this.userId = context.getUserId();
+		this.roleId = context.getRoleId();
+		this.clientMongoOperator = context.getClientMongoOperator();
+		this.isCloud = context.isCloud();
+	}
 
-  public SourceContext(V1EngineContext context,
-                       SubTaskDto subTaskDto,
-                       Node<?> node, ConfigurationCenter configurationCenter) {
-    super(
-      context.getJob(),
-      context.getLogger(),
-      context.getOffset(),
-      context.getSettingService(),
-      context.getSourceConn(),
-      context.getTargetConn(),
-      context.getDebugProcessor(),
-      context.getJavaScriptFunctions(),
-      context.getCacheService(),
-      context.getConverterProvider(),
-      context.getMilestoneService(),
-      context.getDataFlow(),
-      subTaskDto,
-      node, configurationCenter
-    );
-    this.messageConsumer = context.getMessageConsumer();
-    this.baseUrl = context.getBaseUrl();
-    this.accessCode = context.getAccessCode();
-    this.restRetryTime = context.getRestRetryTime();
-    this.userId = context.getUserId();
-    this.roleId = context.getRoleId();
-    this.clientMongoOperator = context.getClientMongoOperator();
-    this.isCloud = context.isCloud();
-    this.customerLogger = new JobCustomerLogger(subTaskDto.getId().toHexString(), subTaskDto.getName(), clientMongoOperator);
-  }
+	public SourceContext(V1EngineContext context,
+						 SubTaskDto subTaskDto,
+						 Node<?> node, ConfigurationCenter configurationCenter) {
+		super(
+				context.getJob(),
+				context.getLogger(),
+				context.getOffset(),
+				context.getSettingService(),
+				context.getSourceConn(),
+				context.getTargetConn(),
+				context.getDebugProcessor(),
+				context.getJavaScriptFunctions(),
+				context.getCacheService(),
+				context.getConverterProvider(),
+				context.getMilestoneService(),
+				context.getDataFlow(),
+				subTaskDto,
+				node, configurationCenter
+		);
+		this.messageConsumer = context.getMessageConsumer();
+		this.baseUrl = context.getBaseUrl();
+		this.accessCode = context.getAccessCode();
+		this.restRetryTime = context.getRestRetryTime();
+		this.userId = context.getUserId();
+		this.roleId = context.getRoleId();
+		this.clientMongoOperator = context.getClientMongoOperator();
+		this.isCloud = context.isCloud();
+		this.customerLogger = new JobCustomerLogger(subTaskDto.getId().toHexString(), subTaskDto.getName(), clientMongoOperator);
+	}
 
-  public SourceContext(List<Stage> stages, Connections connection) {
-    super(stages, connection);
-  }
+	public SourceContext(List<Stage> stages, Connections connection) {
+		super(stages, connection);
+	}
 
-  public Consumer<List<MessageEntity>> getMessageConsumer() {
-    return messageConsumer;
-  }
+	public Consumer<List<MessageEntity>> getMessageConsumer() {
+		return messageConsumer;
+	}
 
-  public String getBaseUrl() {
-    return baseUrl;
-  }
+	public String getBaseUrl() {
+		return baseUrl;
+	}
 
-  public String getAccessCode() {
-    return accessCode;
-  }
+	public String getAccessCode() {
+		return accessCode;
+	}
 
-  public int getRestRetryTime() {
-    return restRetryTime;
-  }
+	public int getRestRetryTime() {
+		return restRetryTime;
+	}
 
-  public String getUserId() {
-    return userId;
-  }
+	public String getUserId() {
+		return userId;
+	}
 
-  public Integer getRoleId() {
-    return roleId;
-  }
+	public Integer getRoleId() {
+		return roleId;
+	}
 
-  public ClientMongoOperator getClientMongoOperator() {
-    return clientMongoOperator;
-  }
+	public ClientMongoOperator getClientMongoOperator() {
+		return clientMongoOperator;
+	}
 
-  public boolean getIsCloud() {
-    return this.isCloud;
-  }
+	public boolean getIsCloud() {
+		return this.isCloud;
+	}
 
-  public void setIsCloud(boolean isCloud) {
-    this.isCloud = isCloud;
-  }
+	public void setIsCloud(boolean isCloud) {
+		this.isCloud = isCloud;
+	}
 
-  public void setMessageConsumer(Consumer<List<MessageEntity>> messageConsumer) {
-    this.messageConsumer = messageConsumer;
-  }
+	public void setMessageConsumer(Consumer<List<MessageEntity>> messageConsumer) {
+		this.messageConsumer = messageConsumer;
+	}
 
-  public JobCustomerLogger getCustomerLogger() {
-    if (customerLogger == null) {
-      customerLogger = new JobCustomerLogger();
-    }
-    return customerLogger;
-  }
+	public JobCustomerLogger getCustomerLogger() {
+		if (customerLogger == null) {
+			customerLogger = new JobCustomerLogger();
+		}
+		return customerLogger;
+	}
 }

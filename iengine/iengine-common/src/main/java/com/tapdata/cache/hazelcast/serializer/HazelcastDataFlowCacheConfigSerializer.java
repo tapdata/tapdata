@@ -10,24 +10,24 @@ import javax.annotation.Nonnull;
 import java.io.IOException;
 
 public class HazelcastDataFlowCacheConfigSerializer implements StreamSerializer<DataFlowCacheConfig> {
-  @Override
-  public int getTypeId() {
-    return 432153642;
-  }
+	@Override
+	public int getTypeId() {
+		return 432153642;
+	}
 
-  @Override
-  public void destroy() {
-    StreamSerializer.super.destroy();
-  }
+	@Override
+	public void destroy() {
+		StreamSerializer.super.destroy();
+	}
 
-  @Override
-  public void write(@Nonnull ObjectDataOutput out, @Nonnull DataFlowCacheConfig object) throws IOException {
-    out.writeString(JSONUtil.obj2Json(object));
-  }
+	@Override
+	public void write(@Nonnull ObjectDataOutput out, @Nonnull DataFlowCacheConfig object) throws IOException {
+		out.writeString(JSONUtil.obj2Json(object));
+	}
 
-  @Nonnull
-  @Override
-  public DataFlowCacheConfig read(@Nonnull ObjectDataInput in) throws IOException {
-    return JSONUtil.json2POJO(in.readString(), DataFlowCacheConfig.class);
-  }
+	@Nonnull
+	@Override
+	public DataFlowCacheConfig read(@Nonnull ObjectDataInput in) throws IOException {
+		return JSONUtil.json2POJO(in.readString(), DataFlowCacheConfig.class);
+	}
 }

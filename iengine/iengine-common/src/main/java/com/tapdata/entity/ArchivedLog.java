@@ -11,66 +11,66 @@ import java.sql.SQLException;
  * @since 1.0
  */
 public class ArchivedLog {
-  /**
-   * archived log location
-   */
-  private String name;
+	/**
+	 * archived log location
+	 */
+	private String name;
 
-  /**
-   * first_change scn
-   */
-  private long firstChangeScn;
+	/**
+	 * first_change scn
+	 */
+	private long firstChangeScn;
 
-  /**
-   * next_change scn
-   */
-  private long nextChangeScn;
+	/**
+	 * next_change scn
+	 */
+	private long nextChangeScn;
 
-  public ArchivedLog() {
-  }
+	public ArchivedLog() {
+	}
 
-  public ArchivedLog(String name, long firstChangeScn, long nextChangeScn) {
-    this.name = name;
-    this.firstChangeScn = firstChangeScn;
-    this.nextChangeScn = nextChangeScn;
-  }
+	public ArchivedLog(String name, long firstChangeScn, long nextChangeScn) {
+		this.name = name;
+		this.firstChangeScn = firstChangeScn;
+		this.nextChangeScn = nextChangeScn;
+	}
 
-  public ArchivedLog(ResultSet resultSet) throws SQLException {
-    this.name = resultSet.getString("name");
-    this.firstChangeScn = resultSet.getLong("first_change#");
-    this.nextChangeScn = resultSet.getLong("next_change#");
-  }
+	public ArchivedLog(ResultSet resultSet) throws SQLException {
+		this.name = resultSet.getString("name");
+		this.firstChangeScn = resultSet.getLong("first_change#");
+		this.nextChangeScn = resultSet.getLong("next_change#");
+	}
 
-  public String getName() {
-    return name;
-  }
+	public String getName() {
+		return name;
+	}
 
-  public void setName(String name) {
-    this.name = name;
-  }
+	public void setName(String name) {
+		this.name = name;
+	}
 
-  public long getFirstChangeScn() {
-    return firstChangeScn;
-  }
+	public long getFirstChangeScn() {
+		return firstChangeScn;
+	}
 
-  public void setFirstChangeScn(long firstChangeScn) {
-    this.firstChangeScn = firstChangeScn;
-  }
+	public void setFirstChangeScn(long firstChangeScn) {
+		this.firstChangeScn = firstChangeScn;
+	}
 
-  public long getNextChangeScn() {
-    return nextChangeScn;
-  }
+	public long getNextChangeScn() {
+		return nextChangeScn;
+	}
 
-  public void setNextChangeScn(long nextChangeScn) {
-    this.nextChangeScn = nextChangeScn;
-  }
+	public void setNextChangeScn(long nextChangeScn) {
+		this.nextChangeScn = nextChangeScn;
+	}
 
-  @Override
-  public String toString() {
-    final StringBuilder sb = new StringBuilder("ArchivedLog{");
-    sb.append("name='").append(name).append('\'');
-    sb.append(", firstChangeScn=").append(firstChangeScn);
-    sb.append('}');
-    return sb.toString();
-  }
+	@Override
+	public String toString() {
+		final StringBuilder sb = new StringBuilder("ArchivedLog{");
+		sb.append("name='").append(name).append('\'');
+		sb.append(", firstChangeScn=").append(firstChangeScn);
+		sb.append('}');
+		return sb.toString();
+	}
 }

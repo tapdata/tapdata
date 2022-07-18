@@ -7,29 +7,29 @@ package com.tapdata.entity.inspect;
  */
 public enum InspectStatus {
 
-  PAUSE("pause"),
-  SCHEDULING("scheduling"),
-  RUNNING("running"),
-  ERROR("error"),
-  DONE("done"),
-  WAITING("waiting"),
-  ;
+	PAUSE("pause"),
+	SCHEDULING("scheduling"),
+	RUNNING("running"),
+	ERROR("error"),
+	DONE("done"),
+	WAITING("waiting"),
+	;
 
-  private final String code;
+	private final String code;
 
-  InspectStatus(String code) {
-    this.code = code;
-  }
+	InspectStatus(String code) {
+		this.code = code;
+	}
 
-  public static InspectStatus get(String code) {
-    for (InspectStatus status : InspectStatus.values()) {
-      if (status.code.equals(code))
-        return status;
-    }
-    return null;
-  }
+	public static InspectStatus get(String code) {
+		for (InspectStatus status : InspectStatus.values()) {
+			if (status.code.equals(code))
+				return status;
+		}
+		return null;
+	}
 
-  public String getCode() {
-    return code;
-  }
+	public String getCode() {
+		return code;
+	}
 }

@@ -9,30 +9,30 @@ import java.util.List;
  * @create 2021-08-04 11:25
  **/
 public enum TapType {
-  String,
-  Number,
-  Bytes,
-  Boolean,
-  Date,
-  Datetime,
-  Datetime_with_timezone,
-  Time,
-  Time_with_timezone,
-  Array,
-  Map,
-  Null,
-  Unsupported,
-  ;
+	String,
+	Number,
+	Bytes,
+	Boolean,
+	Date,
+	Datetime,
+	Datetime_with_timezone,
+	Time,
+	Time_with_timezone,
+	Array,
+	Map,
+	Null,
+	Unsupported,
+	;
 
-  private static List<String> names = new ArrayList<>();
+	private static List<String> names = new ArrayList<>();
 
-  static {
-    for (TapType value : TapType.values()) {
-      names.add(value.name());
-    }
-  }
+	static {
+		for (TapType value : TapType.values()) {
+			names.add(value.name());
+		}
+	}
 
-  public static List<java.lang.String> getNames() {
-    return names;
-  }
+	public static List<java.lang.String> getNames() {
+		return names;
+	}
 }

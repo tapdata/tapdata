@@ -16,13 +16,13 @@ import java.util.List;
 @Setter
 @Getter
 public abstract class AbsStruct extends DdlEvent {
-  private List<String> namespace;
+	private List<String> namespace;
 
-  protected AbsStruct() {
-  }
+	protected AbsStruct() {
+	}
 
-  protected AbsStruct(DdlOperator op, String ddl, List<String> namespace) {
-    super(op, ddl);
-    this.namespace = namespace;
-  }
+	protected AbsStruct(DdlOperator op, String ddl, List<String> namespace) {
+		super(op, ddl);
+		this.namespace = namespace;
+	}
 }

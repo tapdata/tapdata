@@ -5,58 +5,58 @@ import java.util.List;
 import java.util.Map;
 
 public class DataValidateStats implements Serializable {
-  private String jodId;
-  private String jobName;
-  private Map<String, Object> sourceInfo;
-  private Map<String, Object> targetInfo;
-  private List<DataValidateResult> validateResult;
-  private String validateDate;
+	private String jodId;
+	private String jobName;
+	private Map<String, Object> sourceInfo;
+	private Map<String, Object> targetInfo;
+	private List<DataValidateResult> validateResult;
+	private String validateDate;
 
-  public String getJodId() {
-    return jodId;
-  }
+	public String getJodId() {
+		return jodId;
+	}
 
-  public void setJodId(String jodId) {
-    this.jodId = jodId;
-  }
+	public void setJodId(String jodId) {
+		this.jodId = jodId;
+	}
 
-  public String getJobName() {
-    return jobName;
-  }
+	public String getJobName() {
+		return jobName;
+	}
 
-  public void setJobName(String jobName) {
-    this.jobName = jobName;
-  }
+	public void setJobName(String jobName) {
+		this.jobName = jobName;
+	}
 
-  public Map<String, Object> getSourceInfo() {
-    return sourceInfo;
-  }
+	public Map<String, Object> getSourceInfo() {
+		return sourceInfo;
+	}
 
-  public void setSourceInfo(Map<String, Object> sourceInfo) {
-    this.sourceInfo = sourceInfo;
-  }
+	public void setSourceInfo(Map<String, Object> sourceInfo) {
+		this.sourceInfo = sourceInfo;
+	}
 
-  public Map<String, Object> getTargetInfo() {
-    return targetInfo;
-  }
+	public Map<String, Object> getTargetInfo() {
+		return targetInfo;
+	}
 
-  public void setTargetInfo(Map<String, Object> targetInfo) {
-    this.targetInfo = targetInfo;
-  }
+	public void setTargetInfo(Map<String, Object> targetInfo) {
+		this.targetInfo = targetInfo;
+	}
 
-  public List<DataValidateResult> getValidateResult() {
-    return validateResult;
-  }
+	public List<DataValidateResult> getValidateResult() {
+		return validateResult;
+	}
 
-  public void setValidateResult(List<DataValidateResult> validateResult) {
-    this.validateResult = validateResult;
-  }
+	public void setValidateResult(List<DataValidateResult> validateResult) {
+		this.validateResult = validateResult;
+	}
 
-  public String getValidateDate() {
-    return validateDate;
-  }
+	public String getValidateDate() {
+		return validateDate;
+	}
 
-  public void setValidateDate(String validateDate) {
-    this.validateDate = validateDate;
-  }
+	public void setValidateDate(String validateDate) {
+		this.validateDate = validateDate;
+	}
 }

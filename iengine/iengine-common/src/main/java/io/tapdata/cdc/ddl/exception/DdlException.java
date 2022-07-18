@@ -7,18 +7,18 @@ package io.tapdata.cdc.ddl.exception;
  * @version v1.0 2021/12/11 下午8:27 Create
  */
 public class DdlException extends RuntimeException {
-  public DdlException() {
-  }
+	public DdlException() {
+	}
 
-  public DdlException(String message) {
-    super(message);
-  }
+	public DdlException(String message) {
+		super(message);
+	}
 
-  public DdlException(String message, Throwable cause) {
-    super(message, cause);
-  }
+	public DdlException(String message, Throwable cause) {
+		super(message, cause);
+	}
 
-  public DdlException(Throwable cause) {
-    super(cause);
-  }
+	public DdlException(Throwable cause) {
+		super(cause);
+	}
 }

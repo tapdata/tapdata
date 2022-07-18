@@ -58,10 +58,10 @@ public class Code28Handler implements BulkWriteErrorHandler {
 		}
 
 		if (set.keySet().stream().anyMatch(key -> (
-			// Is there only one layer
-			StringUtils.startsWith(key, errorField) && StringUtils.countMatches(key, ".") > 1)
-			// Whether there is a single parent node field name
-			|| key.equals(errorField))) {
+				// Is there only one layer
+				StringUtils.startsWith(key, errorField) && StringUtils.countMatches(key, ".") > 1)
+				// Whether there is a single parent node field name
+				|| key.equals(errorField))) {
 			return false;
 		}
 

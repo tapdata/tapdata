@@ -8,8 +8,8 @@ package io.tapdata.cdc.ddl;
  * @since JDK1.1
  */
 public enum DdlOperator {
-  UnSupported,
-  RenameStruct, CommentStruct, DropStruct, CreateStruct, AlertStruct,
-  RenameField, CommentField, DropField, AddField, AlterField,
-  ;
+	UnSupported,
+	RenameStruct, CommentStruct, DropStruct, CreateStruct, AlertStruct,
+	RenameField, CommentField, DropField, AddField, AlterField,
+	;
 }

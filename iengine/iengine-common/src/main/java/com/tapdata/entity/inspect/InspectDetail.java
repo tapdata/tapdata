@@ -7,7 +7,6 @@ import lombok.Setter;
 import lombok.ToString;
 
 import java.io.Serializable;
-import java.util.List;
 import java.util.Map;
 
 /**
@@ -21,19 +20,19 @@ import java.util.Map;
 @EqualsAndHashCode(callSuper = true)
 public class InspectDetail extends BaseEntity implements Serializable {
 
-  private String inspect_id;
-  private String taskId;
-  private String type;
-  private Map<String, Object> source;
-  private Map<String, Object> target;
-  private String inspectResultId;
+	private String inspect_id;
+	private String taskId;
+	private String type;
+	private Map<String, Object> source;
+	private Map<String, Object> target;
+	private String inspectResultId;
 
-  /**
-   * 高级校验: 用户执行脚本后返回的错误信息
-   */
-  private String message;
-  private String user_id;
-  private String customId;
+	/**
+	 * 高级校验: 用户执行脚本后返回的错误信息
+	 */
+	private String message;
+	private String user_id;
+	private String customId;
 	/*private List<Row> details;
 
 	@Getter
