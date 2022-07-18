@@ -6,15 +6,12 @@ import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.tm.commons.task.dto.SubTaskDto;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
 import io.tapdata.entity.event.TapEvent;
-import io.tapdata.entity.event.dml.TapRecordEvent;
-import io.tapdata.exception.SourceException;
-import io.tapdata.flow.engine.V2.entity.TapdataEvent;
+import com.tapdata.entity.TapdataEvent;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.NotNull;
 
-import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.SynchronousQueue;

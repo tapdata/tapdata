@@ -1,6 +1,6 @@
-package io.tapdata.flow.engine.V2.aspect;
+package io.tapdata.aspect;
 
-import io.tapdata.flow.engine.V2.entity.TapdataEvent;
+import com.tapdata.entity.TapdataEvent;
 
 import java.util.List;
 

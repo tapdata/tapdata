@@ -16,7 +16,7 @@ import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.exception.HazelcastNotExistsException;
-import io.tapdata.flow.engine.V2.entity.TapdataEvent;
+import com.tapdata.entity.TapdataEvent;
 import io.tapdata.flow.engine.V2.util.GraphUtil;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
 import io.tapdata.pdk.apis.entity.merge.MergeInfo;

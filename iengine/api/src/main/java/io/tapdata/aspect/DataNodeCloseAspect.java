@@ -1,4 +1,4 @@
-package io.tapdata.flow.engine.V2.aspect;
+package io.tapdata.aspect;
 
 public class DataNodeCloseAspect extends DataNodeAspect<DataNodeCloseAspect> {
 

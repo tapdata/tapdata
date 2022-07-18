@@ -1,10 +1,13 @@
 package io.tapdata.observable;
 
+import io.tapdata.aspect.BatchReadAcceptAspect;
+import io.tapdata.aspect.BatchReadStartAspect;
+import io.tapdata.aspect.task.AspectTask;
+import io.tapdata.aspect.task.AspectTaskSession;
 import io.tapdata.entity.aspect.Aspect;
 import io.tapdata.entity.aspect.AspectInterceptResult;
-import io.tapdata.flow.engine.V2.aspect.task.AspectTask;
-import io.tapdata.flow.engine.V2.aspect.task.AspectTaskSession;
 
+import java.util.Arrays;
 import java.util.List;
 
 @AspectTaskSession
@@ -21,7 +24,7 @@ public class ObservableAspectTask extends AspectTask {
 
     @Override
     public List<Class<? extends Aspect>> observeAspects() {
-        return null;
+        return Arrays.asList(BatchReadAcceptAspect.class, BatchReadStartAspect.class);
     }
 
     @Override

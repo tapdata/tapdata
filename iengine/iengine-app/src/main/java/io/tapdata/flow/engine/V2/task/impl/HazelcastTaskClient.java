@@ -11,7 +11,7 @@ import com.tapdata.tm.commons.dag.nodes.CacheNode;
 import com.tapdata.tm.commons.task.dto.SubTaskDto;
 import io.tapdata.entity.aspect.AspectManager;
 import io.tapdata.entity.utils.InstanceFactory;
-import io.tapdata.flow.engine.V2.aspect.TaskStopAspect;
+import io.tapdata.aspect.TaskStopAspect;
 import io.tapdata.flow.engine.V2.common.HazelcastStatusMappingEnum;
 import io.tapdata.flow.engine.V2.monitor.MonitorManager;
 import io.tapdata.flow.engine.V2.progress.SnapshotProgressManager;

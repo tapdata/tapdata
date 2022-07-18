@@ -3,12 +3,12 @@ package aspect;
 import io.tapdata.entity.aspect.Aspect;
 import io.tapdata.entity.aspect.AspectInterceptResult;
 import io.tapdata.entity.simplify.pretty.ClassHandlers;
-import io.tapdata.flow.engine.V2.aspect.ApplicationStartAspect;
-import io.tapdata.flow.engine.V2.aspect.DataNodeCloseAspect;
-import io.tapdata.flow.engine.V2.aspect.DataNodeInitAspect;
-import io.tapdata.flow.engine.V2.aspect.StreamReadDataNodeAspect;
-import io.tapdata.flow.engine.V2.aspect.task.AspectTask;
-import io.tapdata.flow.engine.V2.aspect.task.AspectTaskSession;
+import io.tapdata.aspect.ApplicationStartAspect;
+import io.tapdata.aspect.DataNodeCloseAspect;
+import io.tapdata.aspect.DataNodeInitAspect;
+import io.tapdata.aspect.StreamReadDataNodeAspect;
+import io.tapdata.aspect.task.AspectTask;
+import io.tapdata.aspect.task.AspectTaskSession;
 
 import java.util.Arrays;
 import java.util.List;

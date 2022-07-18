@@ -1,36 +1,35 @@
-package io.tapdata.flow.engine.V2.aspect;
+package io.tapdata.aspect;
 
 import io.tapdata.entity.schema.TapTable;
-import io.tapdata.flow.engine.V2.entity.TapdataEvent;
+import com.tapdata.entity.TapdataEvent;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 
 import java.util.List;
 
-public class BatchReadStartAspectData extends FunctionAspectData<BatchReadStartAspectData> {
+public class BatchReadAcceptAspect extends DataNodeAspect<BatchReadAcceptAspect> {
+	private List<TapdataEvent> events;
+	public BatchReadAcceptAspect events(List<TapdataEvent> events) {
+		this.events = events;
+		return this;
+	}
 	private TapConnectorContext connectorContext;
-	public BatchReadStartAspectData connectorContext(TapConnectorContext connectorContext) {
+	public BatchReadAcceptAspect connectorContext(TapConnectorContext connectorContext) {
 		this.connectorContext = connectorContext;
 		return this;
 	}
 	private TapTable table;
-	public BatchReadStartAspectData table(TapTable table) {
+	public BatchReadAcceptAspect table(TapTable table) {
 		this.table = table;
 		return this;
 	}
 	private Object offsetState;
-	public BatchReadStartAspectData offsetState(Object offsetState) {
+	public BatchReadAcceptAspect offsetState(Object offsetState) {
 		this.offsetState = offsetState;
 		return this;
 	}
 	private int eventBatchSize;
-	public BatchReadStartAspectData eventBatchSize(int eventBatchSize) {
+	public BatchReadAcceptAspect eventBatchSize(int eventBatchSize) {
 		this.eventBatchSize = eventBatchSize;
-		return this;
-	}
-
-	private List<TapdataEvent> events;
-	public BatchReadStartAspectData events(List<TapdataEvent> events) {
-		this.events = events;
 		return this;
 	}
 
@@ -65,7 +64,6 @@ public class BatchReadStartAspectData extends FunctionAspectData<BatchReadStartA
 	public void setEventBatchSize(int eventBatchSize) {
 		this.eventBatchSize = eventBatchSize;
 	}
-
 	public List<TapdataEvent> getEvents() {
 		return events;
 	}

@@ -10,7 +10,7 @@ import com.tapdata.constant.JSONUtil;
 import com.tapdata.constant.StartResultUtil;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.utils.InstanceFactory;
-import io.tapdata.flow.engine.V2.aspect.task.AspectTaskManager;
+import io.tapdata.aspect.task.AspectTaskManager;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;

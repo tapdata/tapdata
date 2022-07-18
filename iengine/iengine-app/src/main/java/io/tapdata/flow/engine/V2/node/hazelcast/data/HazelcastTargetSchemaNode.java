@@ -7,7 +7,7 @@ import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.value.TapValue;
-import io.tapdata.flow.engine.V2.entity.TapdataEvent;
+import com.tapdata.entity.TapdataEvent;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
 import io.tapdata.schema.SchemaCacheUtil;
 import org.apache.commons.collections4.MapUtils;

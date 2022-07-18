@@ -13,7 +13,7 @@ import com.tapdata.tm.commons.dag.process.CustomProcessorNode;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.flow.engine.V2.common.node.NodeTypeEnum;
-import io.tapdata.flow.engine.V2.entity.TapdataEvent;
+import com.tapdata.entity.TapdataEvent;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
 import org.apache.commons.collections.MapUtils;
 import org.apache.logging.log4j.LogManager;

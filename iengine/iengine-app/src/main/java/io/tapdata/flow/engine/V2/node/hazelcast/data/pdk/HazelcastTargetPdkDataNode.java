@@ -21,7 +21,7 @@ import io.tapdata.entity.schema.TapIndexField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.simplify.pretty.ClassHandlers;
 import io.tapdata.flow.engine.V2.common.task.SyncTypeEnum;
-import io.tapdata.flow.engine.V2.entity.TapdataShareLogEvent;
+import com.tapdata.entity.TapdataShareLogEvent;
 import io.tapdata.milestone.MilestoneStage;
 import io.tapdata.milestone.MilestoneStatus;
 import io.tapdata.pdk.apis.entity.merge.MergeInfo;

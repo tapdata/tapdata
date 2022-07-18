@@ -1,7 +1,6 @@
-package io.tapdata.flow.engine.V2.entity;
+package com.tapdata.entity;
 
 
-import com.tapdata.entity.MessageEntity;
 import com.tapdata.entity.dataflow.SyncProgress;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.ddl.TapDDLEvent;

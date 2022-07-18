@@ -4,13 +4,11 @@ import com.hazelcast.jet.core.Inbox;
 import com.tapdata.constant.Log4jUtil;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import io.tapdata.exception.SourceException;
-import io.tapdata.flow.engine.V2.entity.TapdataEvent;
-import io.tapdata.logging.JobCustomerLogger;
+import com.tapdata.entity.TapdataEvent;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import javax.annotation.Nonnull;
-import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.SynchronousQueue;
 import java.util.concurrent.ThreadPoolExecutor;

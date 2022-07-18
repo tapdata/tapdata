@@ -1,13 +1,9 @@
 package io.tapdata.flow.engine.V2.node.hazelcast.data;
 
 import com.tapdata.entity.task.context.ProcessorBaseContext;
-import io.tapdata.flow.engine.V2.entity.TapdataEvent;
+import com.tapdata.entity.TapdataEvent;
 import io.tapdata.flow.engine.V2.node.hazelcast.HazelcastBaseNode;
 import org.jetbrains.annotations.NotNull;
-
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
 
 /**
  * @author samuel

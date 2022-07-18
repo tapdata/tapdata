@@ -1,4 +1,4 @@
-package io.tapdata.flow.engine.V2.entity;
+package com.tapdata.entity;
 
 import com.hazelcast.jet.core.AbstractProcessor;
 import com.hazelcast.jet.core.DAG;

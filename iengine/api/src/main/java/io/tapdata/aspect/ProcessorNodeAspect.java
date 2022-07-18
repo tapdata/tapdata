@@ -1,6 +1,5 @@
-package io.tapdata.flow.engine.V2.aspect;
+package io.tapdata.aspect;
 
-import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.entity.task.context.ProcessorBaseContext;
 import io.tapdata.entity.aspect.Aspect;
 

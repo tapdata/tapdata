@@ -6,10 +6,8 @@ import com.hazelcast.jet.core.Inbox;
 import com.tapdata.constant.*;
 import com.tapdata.entity.*;
 import com.tapdata.entity.dataflow.Capitalized;
-import com.tapdata.entity.dataflow.DataFlow;
 import com.tapdata.entity.dataflow.SyncProgress;
 import com.tapdata.entity.task.context.DataProcessorContext;
-import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.CacheNode;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
@@ -19,19 +17,12 @@ import com.tapdata.tm.commons.dag.vo.SyncObjects;
 import com.tapdata.tm.commons.task.dto.SubTaskDto;
 import io.tapdata.Target;
 import io.tapdata.common.ClassScanner;
-import io.tapdata.common.SettingService;
 import io.tapdata.common.logging.format.CustomerLogMessagesEnum;
-import io.tapdata.common.sample.sampler.AverageSampler;
-import io.tapdata.common.sample.sampler.CounterSampler;
-import io.tapdata.common.sample.sampler.ResetCounterSampler;
-import io.tapdata.common.sample.sampler.SpeedSampler;
 import io.tapdata.entity.OnData;
 import io.tapdata.entity.TargetContext;
-import io.tapdata.entity.V1EngineContext;
 import io.tapdata.entity.event.dml.TapRecordEvent;
-import io.tapdata.exception.TargetException;
-import io.tapdata.flow.engine.V2.entity.SyncStage;
-import io.tapdata.flow.engine.V2.entity.TapdataEvent;
+import com.tapdata.entity.SyncStage;
+import com.tapdata.entity.TapdataEvent;
 import io.tapdata.flow.engine.V2.exception.node.NodeException;
 import io.tapdata.flow.engine.V2.node.hazelcast.HazelcastBaseNode;
 import io.tapdata.logging.JobCustomerLogger;
@@ -42,7 +33,6 @@ import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.bson.Document;
-import org.springframework.data.mongodb.core.query.Query;
 
 import javax.annotation.Nonnull;
 import java.io.IOException;
@@ -52,8 +42,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
-
-import static org.springframework.data.mongodb.core.query.Criteria.where;
 
 
 /**

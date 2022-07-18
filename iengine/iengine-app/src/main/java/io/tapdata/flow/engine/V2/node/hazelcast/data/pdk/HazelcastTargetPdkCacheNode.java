@@ -9,7 +9,7 @@ import com.tapdata.tm.commons.dag.nodes.CacheNode;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
-import io.tapdata.flow.engine.V2.entity.TapdataShareLogEvent;
+import com.tapdata.entity.TapdataShareLogEvent;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
 import org.apache.commons.collections4.MapUtils;
 import org.apache.logging.log4j.LogManager;

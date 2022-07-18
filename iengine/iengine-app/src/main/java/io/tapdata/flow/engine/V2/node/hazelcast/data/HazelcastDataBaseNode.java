@@ -6,7 +6,7 @@ import com.tapdata.constant.Log4jUtil;
 import com.tapdata.entity.dataflow.SyncProgress;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import io.tapdata.flow.engine.V2.common.task.SyncTypeEnum;
-import io.tapdata.flow.engine.V2.entity.SyncStage;
+import com.tapdata.entity.SyncStage;
 import io.tapdata.flow.engine.V2.node.hazelcast.HazelcastBaseNode;
 import lombok.SneakyThrows;
 import org.apache.commons.collections.CollectionUtils;

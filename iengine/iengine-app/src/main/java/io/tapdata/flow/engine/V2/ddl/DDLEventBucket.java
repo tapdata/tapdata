@@ -1,7 +1,7 @@
 package io.tapdata.flow.engine.V2.ddl;
 
 import io.tapdata.entity.event.ddl.TapDDLEvent;
-import io.tapdata.flow.engine.V2.entity.TapdataEvent;
+import com.tapdata.entity.TapdataEvent;
 import org.apache.commons.collections4.CollectionUtils;
 
 import java.util.ArrayList;
