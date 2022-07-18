@@ -1,4 +1,4 @@
-package aspect;
+package io.tapdata.aspect;
 
 import io.tapdata.aspect.ApplicationStartAspect;
 import io.tapdata.aspect.DataNodeCloseAspect;
@@ -23,6 +23,11 @@ public class MeasureTask extends AspectTask {
 		observerClassHandlers.register(DataNodeInitAspect.class, this::handleNodeInit);
 		observerClassHandlers.register(DataNodeCloseAspect.class, this::handleNodeClose);
 		observerClassHandlers.register(StreamReadDataNodeAspect.class, this::handleStreamReadNode);
+		observerClassHandlers.register(ApplicationStartAspect.class, this::handleApplicationStart);
+	}
+
+	private Void handleApplicationStart(ApplicationStartAspect applicationStartAspect) {
+		return null;
 	}
 
 	private Void handleStreamReadNode(StreamReadDataNodeAspect streamReadNodeAspect) {
