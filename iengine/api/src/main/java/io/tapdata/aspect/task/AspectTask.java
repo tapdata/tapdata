@@ -8,12 +8,17 @@ import java.util.List;
 
 public abstract class AspectTask {
 	protected SubTaskDto task;
+
 	public abstract void onStart();
+
 	public abstract void onStop();
+
 	public abstract List<Class<? extends Aspect>> observeAspects();
+
 	public abstract List<Class<? extends Aspect>> interceptAspects();
 
 	public abstract void onObserveAspect(Aspect aspect);
+
 	public abstract AspectInterceptResult onInterceptAspect(Aspect aspect);
 
 	public SubTaskDto getTask() {

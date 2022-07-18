@@ -21,8 +21,6 @@ import io.tapdata.common.logging.format.CustomerLogMessagesEnum;
 import io.tapdata.entity.OnData;
 import io.tapdata.entity.TargetContext;
 import io.tapdata.entity.event.dml.TapRecordEvent;
-import com.tapdata.entity.SyncStage;
-import com.tapdata.entity.TapdataEvent;
 import io.tapdata.flow.engine.V2.exception.node.NodeException;
 import io.tapdata.flow.engine.V2.node.hazelcast.HazelcastBaseNode;
 import io.tapdata.logging.JobCustomerLogger;

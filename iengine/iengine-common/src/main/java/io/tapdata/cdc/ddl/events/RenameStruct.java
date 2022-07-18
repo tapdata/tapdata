@@ -16,13 +16,13 @@ import java.util.List;
 @Setter
 @Getter
 public class RenameStruct extends AbsStruct {
-  private String rename;
+	private String rename;
 
-  public RenameStruct() {
-  }
+	public RenameStruct() {
+	}
 
-  public RenameStruct(String ddl, List<String> namespace, String rename) {
-    super(DdlOperator.RenameStruct, ddl, namespace);
-    setRename(rename);
-  }
+	public RenameStruct(String ddl, List<String> namespace, String rename) {
+		super(DdlOperator.RenameStruct, ddl, namespace);
+		setRename(rename);
+	}
 }

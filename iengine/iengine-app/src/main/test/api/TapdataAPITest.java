@@ -1,34 +1,14 @@
 package api;
 
-import com.mongodb.client.result.UpdateResult;
-import com.tapdata.constant.ConfigurationCenter;
-import com.tapdata.constant.ConnectorConstant;
-import com.tapdata.entity.Connections;
-import com.tapdata.entity.Job;
 import com.tapdata.mongo.ClientMongoOperator;
-import com.tapdata.mongo.HttpClientMongoOperator;
-import com.tapdata.mongo.RestTemplateOperator;
-import org.apache.commons.collections.CollectionUtils;
-import org.bson.Document;
-import org.bson.types.ObjectId;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Test;
-import org.springframework.data.mongodb.core.query.Criteria;
-import org.springframework.data.mongodb.core.query.Query;
-import org.springframework.data.mongodb.core.query.Update;
-
-import java.util.*;
-
-import static org.springframework.data.mongodb.core.query.Criteria.where;
 
 public class TapdataAPITest {
 
-  private final static String BASE_URL = "http://localhost:8080/api/";
+	private final static String BASE_URL = "http://localhost:8080/api/";
 
-  private final static String access_token = "zT1nvhKqSxFVABtvIx5dAHijDORC6RMZ3w65NLmvgSBg7U7NIwvfvuj1CN37cqWH";
+	private final static String access_token = "zT1nvhKqSxFVABtvIx5dAHijDORC6RMZ3w65NLmvgSBg7U7NIwvfvuj1CN37cqWH";
 
-  private ClientMongoOperator clientMongoOperator;
+	private ClientMongoOperator clientMongoOperator;
 
 //    @Before
 //    public void init() {

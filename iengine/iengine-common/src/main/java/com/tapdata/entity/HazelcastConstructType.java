@@ -6,5 +6,5 @@ package com.tapdata.entity;
  * @create 2021-11-23 17:29
  **/
 public enum HazelcastConstructType {
-  IMap,
+	IMap,
 }

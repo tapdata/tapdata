@@ -12,172 +12,172 @@ import java.util.Date;
  * @since 1.0
  */
 public class RedoLog implements Comparable<RedoLog> {
-  /**
-   * archived log location
-   */
-  private String name;
+	/**
+	 * archived log location
+	 */
+	private String name;
 
-  /**
-   * first_change scn
-   */
-  private long firstChangeScn;
+	/**
+	 * first_change scn
+	 */
+	private long firstChangeScn;
 
-  /**
-   * Archived log record stamp
-   */
-  private long stamp;
+	/**
+	 * Archived log record stamp
+	 */
+	private long stamp;
 
 
-  /**
-   * Redo log sequence number
-   */
-  private long sequence;
+	/**
+	 * Redo log sequence number
+	 */
+	private long sequence;
 
-  /**
-   * online redo log status
-   * CURRENT : using
-   * INACTIVE : unuse
-   */
-  private String status;
+	/**
+	 * online redo log status
+	 * CURRENT : using
+	 * INACTIVE : unuse
+	 */
+	private String status;
 
-  /**
-   *
-   */
-  private Long thread;
+	/**
+	 *
+	 */
+	private Long thread;
 
-  private Date firstTime;
+	private Date firstTime;
 
-  private long sizeInMB;
+	private long sizeInMB;
 
-  public RedoLog() {
-  }
+	public RedoLog() {
+	}
 
-  public static RedoLog archivedLog(ResultSet resultSet) throws SQLException {
-    RedoLog redoLog = new RedoLog();
-    redoLog.setName(resultSet.getString("NAME"));
-    redoLog.setFirstChangeScn(resultSet.getLong("FIRST_CHANGE#"));
-    redoLog.setSequence(resultSet.getLong("SEQUENCE#"));
-    redoLog.setStatus(resultSet.getString("STATUS"));
-    redoLog.setStatus(resultSet.getString("STATUS"));
-    redoLog.setFirstTime(resultSet.getDate("FIRST_TIME"));
-    redoLog.setThread(resultSet.getLong("THREAD#"));
+	public static RedoLog archivedLog(ResultSet resultSet) throws SQLException {
+		RedoLog redoLog = new RedoLog();
+		redoLog.setName(resultSet.getString("NAME"));
+		redoLog.setFirstChangeScn(resultSet.getLong("FIRST_CHANGE#"));
+		redoLog.setSequence(resultSet.getLong("SEQUENCE#"));
+		redoLog.setStatus(resultSet.getString("STATUS"));
+		redoLog.setStatus(resultSet.getString("STATUS"));
+		redoLog.setFirstTime(resultSet.getDate("FIRST_TIME"));
+		redoLog.setThread(resultSet.getLong("THREAD#"));
 
-    long blocks = resultSet.getLong("BLOCKS");
-    long blockSize = resultSet.getLong("BLOCK_SIZE");
+		long blocks = resultSet.getLong("BLOCKS");
+		long blockSize = resultSet.getLong("BLOCK_SIZE");
 
-    redoLog.setSizeInMB(blocks * blockSize / 1024 / 1024);
+		redoLog.setSizeInMB(blocks * blockSize / 1024 / 1024);
 
-    return redoLog;
-  }
+		return redoLog;
+	}
 
-  public static RedoLog onlineLog(ResultSet resultSet, String version) throws SQLException {
-    RedoLog redoLog = new RedoLog();
-    redoLog.setName(resultSet.getString("NAME"));
-    redoLog.setFirstChangeScn(resultSet.getLong("FIRST_CHANGE#"));
-    redoLog.setSequence(resultSet.getLong("SEQUENCE#"));
-    redoLog.setStatus(resultSet.getString("STATUS"));
-    redoLog.setFirstTime(resultSet.getDate("FIRST_TIME"));
+	public static RedoLog onlineLog(ResultSet resultSet, String version) throws SQLException {
+		RedoLog redoLog = new RedoLog();
+		redoLog.setName(resultSet.getString("NAME"));
+		redoLog.setFirstChangeScn(resultSet.getLong("FIRST_CHANGE#"));
+		redoLog.setSequence(resultSet.getLong("SEQUENCE#"));
+		redoLog.setStatus(resultSet.getString("STATUS"));
+		redoLog.setFirstTime(resultSet.getDate("FIRST_TIME"));
 
-    redoLog.setThread(resultSet.getLong("THREAD#"));
+		redoLog.setThread(resultSet.getLong("THREAD#"));
 
-    redoLog.setSizeInMB(resultSet.getLong("SIZEINMB"));
+		redoLog.setSizeInMB(resultSet.getLong("SIZEINMB"));
 
-    return redoLog;
-  }
+		return redoLog;
+	}
 
-  public RedoLog(String name, long firstChangeScn) {
-    this.name = name;
-    this.firstChangeScn = firstChangeScn;
-  }
+	public RedoLog(String name, long firstChangeScn) {
+		this.name = name;
+		this.firstChangeScn = firstChangeScn;
+	}
 
-  public String getName() {
-    return name;
-  }
+	public String getName() {
+		return name;
+	}
 
-  public void setName(String name) {
-    this.name = name;
-  }
+	public void setName(String name) {
+		this.name = name;
+	}
 
-  public long getFirstChangeScn() {
-    return firstChangeScn;
-  }
+	public long getFirstChangeScn() {
+		return firstChangeScn;
+	}
 
-  public void setFirstChangeScn(long firstChangeScn) {
-    this.firstChangeScn = firstChangeScn;
-  }
+	public void setFirstChangeScn(long firstChangeScn) {
+		this.firstChangeScn = firstChangeScn;
+	}
 
-  public long getStamp() {
-    return stamp;
-  }
+	public long getStamp() {
+		return stamp;
+	}
 
-  public void setStamp(long stamp) {
-    this.stamp = stamp;
-  }
+	public void setStamp(long stamp) {
+		this.stamp = stamp;
+	}
 
-  public long getSequence() {
-    return sequence;
-  }
+	public long getSequence() {
+		return sequence;
+	}
 
-  public void setSequence(long sequence) {
-    this.sequence = sequence;
-  }
+	public void setSequence(long sequence) {
+		this.sequence = sequence;
+	}
 
-  public String getStatus() {
-    return status;
-  }
+	public String getStatus() {
+		return status;
+	}
 
-  public void setStatus(String status) {
-    this.status = status;
-  }
+	public void setStatus(String status) {
+		this.status = status;
+	}
 
-  public long getSizeInMB() {
-    return sizeInMB;
-  }
+	public long getSizeInMB() {
+		return sizeInMB;
+	}
 
-  public void setSizeInMB(long sizeInMB) {
-    this.sizeInMB = sizeInMB;
-  }
+	public void setSizeInMB(long sizeInMB) {
+		this.sizeInMB = sizeInMB;
+	}
 
-  public Date getFirstTime() {
-    return firstTime;
-  }
+	public Date getFirstTime() {
+		return firstTime;
+	}
 
-  public void setFirstTime(Date firstTime) {
-    this.firstTime = firstTime;
-  }
+	public void setFirstTime(Date firstTime) {
+		this.firstTime = firstTime;
+	}
 
-  public Long getThread() {
-    return thread;
-  }
+	public Long getThread() {
+		return thread;
+	}
 
-  public void setThread(Long thread) {
-    this.thread = thread;
-  }
+	public void setThread(Long thread) {
+		this.thread = thread;
+	}
 
-  @Override
-  public String toString() {
-    return "RedoLog{" +
-      "name='" + name + '\'' +
-      ", firstChangeScn=" + firstChangeScn +
-      ", stamp=" + stamp +
-      ", sequence=" + sequence +
-      ", status='" + status + '\'' +
-      ", thread=" + thread +
-      ", firstTime=" + firstTime +
-      ", sizeInMB=" + sizeInMB +
-      '}';
-  }
+	@Override
+	public String toString() {
+		return "RedoLog{" +
+				"name='" + name + '\'' +
+				", firstChangeScn=" + firstChangeScn +
+				", stamp=" + stamp +
+				", sequence=" + sequence +
+				", status='" + status + '\'' +
+				", thread=" + thread +
+				", firstTime=" + firstTime +
+				", sizeInMB=" + sizeInMB +
+				'}';
+	}
 
-  @Override
-  public int compareTo(RedoLog o) {
-    if (o == null) {
-      return 1;
-    }
-    if (this.getFirstChangeScn() > o.getFirstChangeScn()) {
-      return 1;
-    } else if (this.getFirstChangeScn() < o.getFirstChangeScn()) {
-      return -1;
-    }
-    return 0;
-  }
+	@Override
+	public int compareTo(RedoLog o) {
+		if (o == null) {
+			return 1;
+		}
+		if (this.getFirstChangeScn() > o.getFirstChangeScn()) {
+			return 1;
+		} else if (this.getFirstChangeScn() < o.getFirstChangeScn()) {
+			return -1;
+		}
+		return 0;
+	}
 }

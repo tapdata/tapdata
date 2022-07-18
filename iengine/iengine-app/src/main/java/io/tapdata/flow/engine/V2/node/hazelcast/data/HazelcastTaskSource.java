@@ -15,7 +15,6 @@ import io.tapdata.entity.SourceContext;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.exception.SourceException;
-import com.tapdata.entity.TapdataEvent;
 import io.tapdata.flow.engine.V2.monitor.MonitorManager;
 import io.tapdata.flow.engine.V2.progress.SnapshotProgressManager;
 import io.tapdata.websocket.handler.TestConnectionHandler;

@@ -21,25 +21,25 @@ import java.util.Map;
 @EventHandlerAnnotation(type = "data_inspect")
 public class DataInspectEventHandler extends BaseEventHandler implements WebSocketEventHandler {
 
-  @Override
-  public void initialize(ClientMongoOperator clientMongoOperator, SettingService settingService) {
-    initialize(clientMongoOperator);
-    this.settingService = settingService;
-  }
+	@Override
+	public void initialize(ClientMongoOperator clientMongoOperator, SettingService settingService) {
+		initialize(clientMongoOperator);
+		this.settingService = settingService;
+	}
 
-  @Override
-  public Object handle(Map event) {
+	@Override
+	public Object handle(Map event) {
 
-    if (MapUtils.isNotEmpty(event)) {
-      Inspect inspect = JSONUtil.map2POJO(event, Inspect.class);
+		if (MapUtils.isNotEmpty(event)) {
+			Inspect inspect = JSONUtil.map2POJO(event, Inspect.class);
 
-      if (InspectStatus.SCHEDULING.getCode().equalsIgnoreCase(inspect.getStatus())) {
-        InspectService.getInstance(clientMongoOperator, settingService).startInspect(inspect);
-      }
+			if (InspectStatus.SCHEDULING.getCode().equalsIgnoreCase(inspect.getStatus())) {
+				InspectService.getInstance(clientMongoOperator, settingService).startInspect(inspect);
+			}
 
-      return WebSocketEventResult.handleSuccess(WebSocketEventResult.Type.EXECUTE_DATA_INSPECT_RESULT, true);
-    } else {
-      return WebSocketEventResult.handleFailed(WebSocketEventResult.Type.EXECUTE_DATA_INSPECT_RESULT, "Inspect message can not be empty.");
-    }
-  }
+			return WebSocketEventResult.handleSuccess(WebSocketEventResult.Type.EXECUTE_DATA_INSPECT_RESULT, true);
+		} else {
+			return WebSocketEventResult.handleFailed(WebSocketEventResult.Type.EXECUTE_DATA_INSPECT_RESULT, "Inspect message can not be empty.");
+		}
+	}
 }

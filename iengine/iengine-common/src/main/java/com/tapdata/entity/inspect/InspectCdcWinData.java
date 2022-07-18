@@ -14,25 +14,25 @@ import java.time.Instant;
 @Getter
 @Setter
 public class InspectCdcWinData {
-  private Instant winBegin;
-  private Instant winEnd;
-  private Instant dataBegin;
-  private Instant dataEnd;
-  private String beginOffset;
-  private String endOffset;
+	private Instant winBegin;
+	private Instant winEnd;
+	private Instant dataBegin;
+	private Instant dataEnd;
+	private String beginOffset;
+	private String endOffset;
 
-  public InspectCdcWinData() {
-  }
+	public InspectCdcWinData() {
+	}
 
-  /**
-   * @param winBegin    窗口开始时间
-   * @param winEnd      窗口结束时间
-   * @param beginOffset 开始偏移量
-   */
-  public InspectCdcWinData(Instant winBegin, Instant winEnd, String beginOffset) {
-    this.winBegin = winBegin;
-    this.winEnd = winEnd;
-    this.beginOffset = beginOffset;
-  }
+	/**
+	 * @param winBegin    窗口开始时间
+	 * @param winEnd      窗口结束时间
+	 * @param beginOffset 开始偏移量
+	 */
+	public InspectCdcWinData(Instant winBegin, Instant winEnd, String beginOffset) {
+		this.winBegin = winBegin;
+		this.winEnd = winEnd;
+		this.beginOffset = beginOffset;
+	}
 
 }

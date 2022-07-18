@@ -10,32 +10,32 @@ import org.apache.commons.lang3.StringUtils;
 
 abstract public class AbstractMongoService implements LifeCycleService {
 
-  protected final MongoClient mongoClient;
-  protected final MongoDatabase database;
-  protected final Stage stage;
+	protected final MongoClient mongoClient;
+	protected final MongoDatabase database;
+	protected final Stage stage;
 
-  public AbstractMongoService(Stage stage, Connections connections) {
-    this.stage = stage;
-    String databaseName;
-    if (StringUtils.isEmpty(connections.getDatabase_uri())) {
-      ServerAddress serverAddress = new ServerAddress(connections.getDatabase_host(), connections.getDatabase_port());
-      MongoCredential credential = MongoCredential.createCredential(connections.getDatabase_username(), connections.getDatabase_name(), connections.getDatabase_password().toCharArray());
-      MongoClientOptions options = MongoClientOptions.builder().sslEnabled(connections.getSsl()).codecRegistry(MongodbUtil.getForJavaCoedcRegistry()).build();
-      mongoClient = new MongoClient(serverAddress, credential, options);
-      databaseName = connections.getDatabase_name();
-    } else {
-      final MongoClientOptions.Builder builder = MongoClientOptions.builder().codecRegistry(MongodbUtil.getForJavaCoedcRegistry());
-      MongoClientURI mongoClientURI = new MongoClientURI(connections.getDatabase_uri(), builder);
-      mongoClient = new MongoClient(mongoClientURI);
-      databaseName = mongoClientURI.getDatabase();
-    }
-    this.database = mongoClient.getDatabase(databaseName);
-  }
+	public AbstractMongoService(Stage stage, Connections connections) {
+		this.stage = stage;
+		String databaseName;
+		if (StringUtils.isEmpty(connections.getDatabase_uri())) {
+			ServerAddress serverAddress = new ServerAddress(connections.getDatabase_host(), connections.getDatabase_port());
+			MongoCredential credential = MongoCredential.createCredential(connections.getDatabase_username(), connections.getDatabase_name(), connections.getDatabase_password().toCharArray());
+			MongoClientOptions options = MongoClientOptions.builder().sslEnabled(connections.getSsl()).codecRegistry(MongodbUtil.getForJavaCoedcRegistry()).build();
+			mongoClient = new MongoClient(serverAddress, credential, options);
+			databaseName = connections.getDatabase_name();
+		} else {
+			final MongoClientOptions.Builder builder = MongoClientOptions.builder().codecRegistry(MongodbUtil.getForJavaCoedcRegistry());
+			MongoClientURI mongoClientURI = new MongoClientURI(connections.getDatabase_uri(), builder);
+			mongoClient = new MongoClient(mongoClientURI);
+			databaseName = mongoClientURI.getDatabase();
+		}
+		this.database = mongoClient.getDatabase(databaseName);
+	}
 
-  @Override
-  public void destroy() {
-    if (mongoClient != null) {
-      mongoClient.close();
-    }
-  }
+	@Override
+	public void destroy() {
+		if (mongoClient != null) {
+			mongoClient.close();
+		}
+	}
 }

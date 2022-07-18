@@ -5,7 +5,6 @@ import com.tapdata.constant.ExecutorUtil;
 import com.tapdata.constant.Log4jUtil;
 import com.tapdata.constant.ReflectUtil;
 import com.tapdata.entity.Connections;
-import com.tapdata.entity.dataflow.Capitalized;
 import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
@@ -38,7 +37,6 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
-import java.util.stream.Collectors;
 
 /**
  * @author samuel

@@ -2,6 +2,7 @@ package io.tapdata.flow.engine.V2.node.hazelcast.data.pdk;
 
 import com.tapdata.constant.Log4jUtil;
 import com.tapdata.constant.MilestoneUtil;
+import com.tapdata.entity.TapdataShareLogEvent;
 import com.tapdata.entity.dataflow.Capitalized;
 import com.tapdata.entity.dataflow.SyncProgress;
 import com.tapdata.entity.task.ExistsDataProcessEnum;
@@ -21,7 +22,6 @@ import io.tapdata.entity.schema.TapIndexField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.simplify.pretty.ClassHandlers;
 import io.tapdata.flow.engine.V2.common.task.SyncTypeEnum;
-import com.tapdata.entity.TapdataShareLogEvent;
 import io.tapdata.milestone.MilestoneStage;
 import io.tapdata.milestone.MilestoneStatus;
 import io.tapdata.pdk.apis.entity.merge.MergeInfo;

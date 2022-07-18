@@ -8,5 +8,5 @@ import java.lang.annotation.*;
 @Retention(RetentionPolicy.RUNTIME)
 public @interface EventHandlerAnnotation {
 
-  String type();
+	String type();
 }

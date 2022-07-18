@@ -8,23 +8,24 @@ import io.tapdata.task.Task;
  */
 public interface TaskClient<T> {
 
-  /**
-   * return task config.
-   */
-  T getTask();
+	/**
+	 * return task config.
+	 */
+	T getTask();
 
-  /**
-   * return task status
-   */
-  String getStatus();
+	/**
+	 * return task status
+	 */
+	String getStatus();
 
-  /**
-   * cache task
-   * @return
-   */
-  default String getCacheName() {
-	  return null;
-  }
+	/**
+	 * cache task
+	 *
+	 * @return
+	 */
+	default String getCacheName() {
+		return null;
+	}
 
 	/**
 	 * stop task

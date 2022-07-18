@@ -10,47 +10,47 @@ import java.util.Map;
  **/
 public class RuntimeInfo implements Serializable {
 
-  private static final long serialVersionUID = -6516583281707633407L;
-  private boolean ddlConfirm = true;
+	private static final long serialVersionUID = -6516583281707633407L;
+	private boolean ddlConfirm = true;
 
-  private List<UnSupportedDDL> unSupportedDDLS;
+	private List<UnSupportedDDL> unSupportedDDLS;
 
-  private List<Map<String, Object>> timeoutTxns;
+	private List<Map<String, Object>> timeoutTxns;
 
-  public RuntimeInfo() {
-  }
+	public RuntimeInfo() {
+	}
 
-  public RuntimeInfo(List<Map<String, Object>> timeoutTxns) {
-    this.ddlConfirm = true;
-    this.timeoutTxns = timeoutTxns;
-  }
+	public RuntimeInfo(List<Map<String, Object>> timeoutTxns) {
+		this.ddlConfirm = true;
+		this.timeoutTxns = timeoutTxns;
+	}
 
-  public RuntimeInfo(boolean ddlConfirm, List<UnSupportedDDL> unSupportedDDLS) {
-    this.ddlConfirm = ddlConfirm;
-    this.unSupportedDDLS = unSupportedDDLS;
-  }
+	public RuntimeInfo(boolean ddlConfirm, List<UnSupportedDDL> unSupportedDDLS) {
+		this.ddlConfirm = ddlConfirm;
+		this.unSupportedDDLS = unSupportedDDLS;
+	}
 
-  public boolean getDdlConfirm() {
-    return ddlConfirm;
-  }
+	public boolean getDdlConfirm() {
+		return ddlConfirm;
+	}
 
-  public void setDdlConfirm(boolean ddlConfirm) {
-    this.ddlConfirm = ddlConfirm;
-  }
+	public void setDdlConfirm(boolean ddlConfirm) {
+		this.ddlConfirm = ddlConfirm;
+	}
 
-  public List<UnSupportedDDL> getUnSupportedDDLS() {
-    return unSupportedDDLS;
-  }
+	public List<UnSupportedDDL> getUnSupportedDDLS() {
+		return unSupportedDDLS;
+	}
 
-  public void setUnSupportedDDLS(List<UnSupportedDDL> unSupportedDDLS) {
-    this.unSupportedDDLS = unSupportedDDLS;
-  }
+	public void setUnSupportedDDLS(List<UnSupportedDDL> unSupportedDDLS) {
+		this.unSupportedDDLS = unSupportedDDLS;
+	}
 
-  public List<Map<String, Object>> getTimeoutTxns() {
-    return timeoutTxns;
-  }
+	public List<Map<String, Object>> getTimeoutTxns() {
+		return timeoutTxns;
+	}
 
-  public void setTimeoutTxns(List<Map<String, Object>> timeoutTxns) {
-    this.timeoutTxns = timeoutTxns;
-  }
+	public void setTimeoutTxns(List<Map<String, Object>> timeoutTxns) {
+		this.timeoutTxns = timeoutTxns;
+	}
 }

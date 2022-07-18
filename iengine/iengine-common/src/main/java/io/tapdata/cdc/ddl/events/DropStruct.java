@@ -15,10 +15,10 @@ import java.util.List;
 @Setter
 @Getter
 public class DropStruct extends AbsStruct {
-  public DropStruct() {
-  }
+	public DropStruct() {
+	}
 
-  public DropStruct(String ddl, List<String> namespace) {
-    super(DdlOperator.DropStruct, ddl, namespace);
-  }
+	public DropStruct(String ddl, List<String> namespace) {
+		super(DdlOperator.DropStruct, ddl, namespace);
+	}
 }

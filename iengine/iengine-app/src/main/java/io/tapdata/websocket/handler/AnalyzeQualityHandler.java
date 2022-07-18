@@ -21,49 +21,49 @@ import java.util.Map;
 @EventHandlerAnnotation(type = "analyzeQuality")
 public class AnalyzeQualityHandler extends DataQaulityStatsTask implements WebSocketEventHandler {
 
-  private static Logger logger = LogManager.getLogger(AnalyzeQualityHandler.class);
+	private static Logger logger = LogManager.getLogger(AnalyzeQualityHandler.class);
 
-  /**
-   * 初始化handler方法
-   *
-   * @param clientMongoOperator 查询管理端数据
-   */
-  @Override
-  public void initialize(ClientMongoOperator clientMongoOperator) {
+	/**
+	 * 初始化handler方法
+	 *
+	 * @param clientMongoOperator 查询管理端数据
+	 */
+	@Override
+	public void initialize(ClientMongoOperator clientMongoOperator) {
 
-  }
+	}
 
-  /**
-   * 初始化handler方法
-   *
-   * @param clientMongoOperator 查询管理端数据
-   * @param settingService      系统配置常量
-   */
-  @Override
-  public void initialize(ClientMongoOperator clientMongoOperator, SettingService settingService) {
-    taskContext = new TaskContext(clientMongoOperator, settingService);
-  }
+	/**
+	 * 初始化handler方法
+	 *
+	 * @param clientMongoOperator 查询管理端数据
+	 * @param settingService      系统配置常量
+	 */
+	@Override
+	public void initialize(ClientMongoOperator clientMongoOperator, SettingService settingService) {
+		taskContext = new TaskContext(clientMongoOperator, settingService);
+	}
 
-  /**
-   * 处理事件方法
-   *
-   * @param event 事件
-   * @return 返回处理结果
-   */
-  @Override
-  public Object handle(Map event) {
-    List<String> connectionIds = null;
-    try {
-      connectionIds = (List<String>) event.get("connectionIds");
-    } catch (Exception e) {
-      logger.error("Analyze data quality by connection id failed, input parm is invalid: {}", event);
-    }
-    if (CollectionUtils.isNotEmpty(connectionIds)) {
-      super.initialize(taskContext);
-      super.connectionIds = connectionIds;
-      super.qualityAnalysis();
-    }
+	/**
+	 * 处理事件方法
+	 *
+	 * @param event 事件
+	 * @return 返回处理结果
+	 */
+	@Override
+	public Object handle(Map event) {
+		List<String> connectionIds = null;
+		try {
+			connectionIds = (List<String>) event.get("connectionIds");
+		} catch (Exception e) {
+			logger.error("Analyze data quality by connection id failed, input parm is invalid: {}", event);
+		}
+		if (CollectionUtils.isNotEmpty(connectionIds)) {
+			super.initialize(taskContext);
+			super.connectionIds = connectionIds;
+			super.qualityAnalysis();
+		}
 
-    return null;
-  }
+		return null;
+	}
 }

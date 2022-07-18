@@ -1,29 +1,6 @@
 package mongodb;
 
 import base.BaseTest;
-import com.mongodb.MongoClient;
-import com.mongodb.MongoClientOptions;
-import com.mongodb.MongoClientURI;
-import com.mongodb.client.MongoCollection;
-import com.mongodb.client.MongoCursor;
-import com.tapdata.mongo.BigDecimalCodec;
-import com.tapdata.mongo.BigIntegerCodec;
-import org.bson.BsonType;
-import org.bson.Document;
-import org.bson.codecs.BsonTypeClassMap;
-import org.bson.codecs.DocumentCodecProvider;
-import org.bson.codecs.configuration.CodecRegistries;
-import org.bson.codecs.configuration.CodecRegistry;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Test;
-
-import java.io.IOException;
-import java.math.BigDecimal;
-import java.math.BigInteger;
-import java.net.URISyntaxException;
-import java.util.HashMap;
-import java.util.Map;
 
 public class CodecTest extends BaseTest {
 

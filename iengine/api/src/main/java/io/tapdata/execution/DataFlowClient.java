@@ -9,6 +9,7 @@ import java.util.concurrent.CompletableFuture;
 
 /**
  * 提交data flow后返回的data flow 操作代理类
+ *
  * @author jackin
  * @date 2021/3/9 4:29 PM
  **/
@@ -21,12 +22,14 @@ public interface DataFlowClient {
 
 	/**
 	 * 取消已提交的任务
+	 *
 	 * @return
 	 */
 	CompletableFuture<Void> cancel(boolean force);
 
 	/**
 	 * 将队列中的数据消费完后再停止任务
+	 *
 	 * @param name
 	 * @return
 	 */
@@ -34,6 +37,7 @@ public interface DataFlowClient {
 
 	/**
 	 * 将队列中的数据消费完后再停止任务
+	 *
 	 * @param name directory the savepoint should be written to
 	 * @return
 	 */
@@ -52,10 +56,11 @@ public interface DataFlowClient {
 	 * Returns the current status of this job.
 	 */
 	@Nonnull
-  DataFlowStatus getStatus();
+	DataFlowStatus getStatus();
 
 	/**
 	 * 获取data flow统计信息
+	 *
 	 * @return
 	 */
 	void dataflowStats(DataFlowStats stats);

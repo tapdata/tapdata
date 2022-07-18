@@ -8,19 +8,19 @@ import com.tapdata.processor.dataflow.aggregation.incr.service.mongo.MongoAggreg
 
 public class AggregationServiceFactory extends AbstractServiceFactory<AggregationService> {
 
-  @Override
-  protected AggregationService doCreate(Stage stage, ProcessorContext processorContext, DatabaseTypeEnum databaseTypeEnum) {
-    switch (databaseTypeEnum) {
-      case MONGODB:
-      case ALIYUN_MONGODB:
-        return new MongoAggregationServiceImpl(processorContext);
-    }
-    return null;
-  }
+	@Override
+	protected AggregationService doCreate(Stage stage, ProcessorContext processorContext, DatabaseTypeEnum databaseTypeEnum) {
+		switch (databaseTypeEnum) {
+			case MONGODB:
+			case ALIYUN_MONGODB:
+				return new MongoAggregationServiceImpl(processorContext);
+		}
+		return null;
+	}
 
-  @Override
-  public Class<AggregationService> getServiceType() {
-    return AggregationService.class;
-  }
+	@Override
+	public Class<AggregationService> getServiceType() {
+		return AggregationService.class;
+	}
 
 }

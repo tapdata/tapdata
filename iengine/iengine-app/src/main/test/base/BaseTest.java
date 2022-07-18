@@ -11,24 +11,24 @@ import org.springframework.jdbc.core.JdbcTemplate;
  */
 public class BaseTest {
 
-  protected static final String mongoURI = "mongodb://localhost:12345/tapdata";
+	protected static final String mongoURI = "mongodb://localhost:12345/tapdata";
 
-  protected static JdbcTemplate mysqlTemplate;
+	protected static JdbcTemplate mysqlTemplate;
 
-  /**
-   * please store Starter or RuntimeConfig in a final field
-   * if you want to use artifact store caching (or else disable caching)
-   */
-  private static final MongodStarter starter = MongodStarter.getDefaultInstance();
+	/**
+	 * please store Starter or RuntimeConfig in a final field
+	 * if you want to use artifact store caching (or else disable caching)
+	 */
+	private static final MongodStarter starter = MongodStarter.getDefaultInstance();
 
-  private static MongodExecutable mongodExe;
-  private static MongodProcess mongod;
+	private static MongodExecutable mongodExe;
+	private static MongodProcess mongod;
 
-  private final static String BASE_URL = "http://localhost:8080/api/";
+	private final static String BASE_URL = "http://localhost:8080/api/";
 
-  private final static String access_token = "IwhxULXqQEAAqxF7LlH2O2hLLUHSZvn7VYBItftHvv1ymfNbMiqUn6DDZj8Nv2Mv";
+	private final static String access_token = "IwhxULXqQEAAqxF7LlH2O2hLLUHSZvn7VYBItftHvv1ymfNbMiqUn6DDZj8Nv2Mv";
 
-  protected static ClientMongoOperator clientMongoOperator;
+	protected static ClientMongoOperator clientMongoOperator;
 //
 //    @Before
 //    public void init() throws IOException, URISyntaxException {

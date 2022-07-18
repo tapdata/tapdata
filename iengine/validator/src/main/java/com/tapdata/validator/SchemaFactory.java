@@ -1,7 +1,7 @@
 package com.tapdata.validator;
 
 import com.mongodb.MongoClient;
-import com.tapdata.constant.*;
+import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.entity.*;
 import com.tapdata.mongo.ClientMongoOperator;
 import io.tapdata.common.ConverterUtil;

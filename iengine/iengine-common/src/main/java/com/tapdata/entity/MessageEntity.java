@@ -1,6 +1,5 @@
 package com.tapdata.entity;
 
-import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.constant.ListUtil;
 import com.tapdata.constant.MapUtil;
 import com.tapdata.processor.context.ProcessContext;
@@ -9,7 +8,9 @@ import org.apache.commons.lang3.StringUtils;
 import org.bson.types.ObjectId;
 
 import java.io.Serializable;
-import java.util.*;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 /**
  * Created by tapdata on 20/06/2017.

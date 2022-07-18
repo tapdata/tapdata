@@ -1,12 +1,12 @@
 package aspect;
 
 import com.tapdata.tm.commons.task.dto.SubTaskDto;
-import io.tapdata.entity.aspect.AspectManager;
-import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.aspect.ApplicationStartAspect;
 import io.tapdata.aspect.TaskStartAspect;
 import io.tapdata.aspect.TaskStopAspect;
 import io.tapdata.aspect.task.AspectTaskManager;
+import io.tapdata.entity.aspect.AspectManager;
+import io.tapdata.entity.utils.InstanceFactory;
 import org.bson.types.ObjectId;
 import org.junit.Test;
 

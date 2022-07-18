@@ -13,8 +13,8 @@ import java.util.Map;
 @EventHandlerAnnotation(type = "ping")
 public class PingEventHandler extends BaseEventHandler implements WebSocketEventHandler {
 
-  @Override
-  public Object handle(Map event) {
-    return null;
-  }
+	@Override
+	public Object handle(Map event) {
+		return null;
+	}
 }

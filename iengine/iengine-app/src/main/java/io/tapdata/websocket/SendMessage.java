@@ -10,5 +10,5 @@ import java.io.IOException;
 @FunctionalInterface
 public interface SendMessage<T extends WebSocketEventResult> {
 
-  public void send(T data) throws IOException;
+	public void send(T data) throws IOException;
 }

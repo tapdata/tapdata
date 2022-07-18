@@ -10,115 +10,115 @@ import java.io.Serializable;
 
 public class ValidationResultFailedRow implements Serializable {
 
-  private static final long serialVersionUID = -3500790147354835190L;
+	private static final long serialVersionUID = -3500790147354835190L;
 
-  private String id;
+	private String id;
 
-  private String validateBatchId;
+	private String validateBatchId;
 
-  private String type;
+	private String type;
 
-  private long validateTime;
+	private long validateTime;
 
-  private String dataFlowId;
+	private String dataFlowId;
 
-  private String validateType;
+	private String validateType;
 
-  private ValidatorStage sourceStage;
+	private ValidatorStage sourceStage;
 
-  private String sourceTableData;
+	private String sourceTableData;
 
-  private ValidatorStage targetStage;
+	private ValidatorStage targetStage;
 
-  private String targetTableData;
+	private String targetTableData;
 
-  private String message;
+	private String message;
 
-  public String getId() {
-    return id;
-  }
+	public String getId() {
+		return id;
+	}
 
-  public String getType() {
-    return type;
-  }
+	public String getType() {
+		return type;
+	}
 
-  public long getValidateTime() {
-    return validateTime;
-  }
+	public long getValidateTime() {
+		return validateTime;
+	}
 
-  public String getDataFlowId() {
-    return dataFlowId;
-  }
+	public String getDataFlowId() {
+		return dataFlowId;
+	}
 
-  public String getValidateType() {
-    return validateType;
-  }
+	public String getValidateType() {
+		return validateType;
+	}
 
-  public ValidatorStage getSourceStage() {
-    return sourceStage;
-  }
+	public ValidatorStage getSourceStage() {
+		return sourceStage;
+	}
 
-  public String getSourceTableData() {
-    return sourceTableData;
-  }
+	public String getSourceTableData() {
+		return sourceTableData;
+	}
 
-  public ValidatorStage getTargetStage() {
-    return targetStage;
-  }
+	public ValidatorStage getTargetStage() {
+		return targetStage;
+	}
 
-  public String getTargetTableData() {
-    return targetTableData;
-  }
+	public String getTargetTableData() {
+		return targetTableData;
+	}
 
-  public String getMessage() {
-    return message;
-  }
+	public String getMessage() {
+		return message;
+	}
 
-  public void setId(String id) {
-    this.id = id;
-  }
+	public void setId(String id) {
+		this.id = id;
+	}
 
-  public void setType(String type) {
-    this.type = type;
-  }
+	public void setType(String type) {
+		this.type = type;
+	}
 
-  public void setValidateTime(long validateTime) {
-    this.validateTime = validateTime;
-  }
+	public void setValidateTime(long validateTime) {
+		this.validateTime = validateTime;
+	}
 
-  public void setDataFlowId(String dataFlowId) {
-    this.dataFlowId = dataFlowId;
-  }
+	public void setDataFlowId(String dataFlowId) {
+		this.dataFlowId = dataFlowId;
+	}
 
-  public void setValidateType(String validateType) {
-    this.validateType = validateType;
-  }
+	public void setValidateType(String validateType) {
+		this.validateType = validateType;
+	}
 
-  public void setSourceStage(ValidatorStage sourceStage) {
-    this.sourceStage = sourceStage;
-  }
+	public void setSourceStage(ValidatorStage sourceStage) {
+		this.sourceStage = sourceStage;
+	}
 
-  public void setSourceTableData(String sourceTableData) {
-    this.sourceTableData = sourceTableData;
-  }
+	public void setSourceTableData(String sourceTableData) {
+		this.sourceTableData = sourceTableData;
+	}
 
-  public void setTargetStage(ValidatorStage targetStage) {
-    this.targetStage = targetStage;
-  }
+	public void setTargetStage(ValidatorStage targetStage) {
+		this.targetStage = targetStage;
+	}
 
-  public void setTargetTableData(String targetTableData) {
-    this.targetTableData = targetTableData;
-  }
+	public void setTargetTableData(String targetTableData) {
+		this.targetTableData = targetTableData;
+	}
 
-  public void setMessage(String message) {
-    this.message = message;
-  }
+	public void setMessage(String message) {
+		this.message = message;
+	}
 
-  public String getValidateBatchId() {
-    return validateBatchId;
-  }
+	public String getValidateBatchId() {
+		return validateBatchId;
+	}
 
-  public void setValidateBatchId(String validateBatchId) {
-    this.validateBatchId = validateBatchId;
-  }
+	public void setValidateBatchId(String validateBatchId) {
+		this.validateBatchId = validateBatchId;
+	}
 }

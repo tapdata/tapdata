@@ -12,46 +12,46 @@ import java.util.List;
  **/
 public class AggregatePreviewResult implements Serializable {
 
-  private static final long serialVersionUID = 8376929705722593581L;
+	private static final long serialVersionUID = 8376929705722593581L;
 
-  private List<Document> previewResult;
+	private List<Document> previewResult;
 
-  private RelateDataBaseTable relateDataBaseTable;
+	private RelateDataBaseTable relateDataBaseTable;
 
-  private Connections connections;
+	private Connections connections;
 
-  private String tableName;
+	private String tableName;
 
-  public AggregatePreviewResult(List<Document> previewResult, RelateDataBaseTable relateDataBaseTable, Connections connections, String tableName) {
-    this.previewResult = previewResult;
-    this.relateDataBaseTable = relateDataBaseTable;
-    this.connections = connections;
-    this.tableName = tableName;
-  }
+	public AggregatePreviewResult(List<Document> previewResult, RelateDataBaseTable relateDataBaseTable, Connections connections, String tableName) {
+		this.previewResult = previewResult;
+		this.relateDataBaseTable = relateDataBaseTable;
+		this.connections = connections;
+		this.tableName = tableName;
+	}
 
-  public List<Document> getPreviewResult() {
-    return previewResult;
-  }
+	public List<Document> getPreviewResult() {
+		return previewResult;
+	}
 
-  public RelateDataBaseTable getRelateDataBaseTable() {
-    return relateDataBaseTable;
-  }
+	public RelateDataBaseTable getRelateDataBaseTable() {
+		return relateDataBaseTable;
+	}
 
-  public Connections getConnections() {
-    return connections;
-  }
+	public Connections getConnections() {
+		return connections;
+	}
 
-  public String getTableName() {
-    return tableName;
-  }
+	public String getTableName() {
+		return tableName;
+	}
 
-  @Override
-  public String toString() {
-    return "AggregatePreviewResult{" +
-      "previewResult=" + previewResult +
-      ", relateDataBaseTable=" + relateDataBaseTable +
-      ", connections=" + connections +
-      ", tableName='" + tableName + '\'' +
-      '}';
-  }
+	@Override
+	public String toString() {
+		return "AggregatePreviewResult{" +
+				"previewResult=" + previewResult +
+				", relateDataBaseTable=" + relateDataBaseTable +
+				", connections=" + connections +
+				", tableName='" + tableName + '\'' +
+				'}';
+	}
 }

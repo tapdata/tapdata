@@ -4,8 +4,6 @@ import org.apache.commons.collections.CollectionUtils;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.lang.reflect.Constructor;
-import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -16,66 +14,66 @@ import java.util.List;
  **/
 public class MonitorManager implements Closeable {
 
-  private List<Monitor<?>> monitors = new ArrayList<>();
+	private List<Monitor<?>> monitors = new ArrayList<>();
 
-  public void startMonitor(MonitorType monitorType, Object... args) throws Exception {
-    if (null == monitorType) {
-      return;
-    }
-    String clazz = monitorType.getClazz();
-    Class<?> monitorClazz = Class.forName(clazz);
-    Class<?>[] argsClass = new Class[args.length];
-    for (int i = 0; i < argsClass.length; i++) {
-      argsClass[i] = args[i].getClass();
-    }
-    Object monitor = monitorClazz.getConstructor(argsClass).newInstance(args);
-    if (monitor instanceof Monitor) {
-      monitors.add((Monitor<?>) monitor);
-      ((Monitor<?>) monitor).start();
-    }
-  }
+	public void startMonitor(MonitorType monitorType, Object... args) throws Exception {
+		if (null == monitorType) {
+			return;
+		}
+		String clazz = monitorType.getClazz();
+		Class<?> monitorClazz = Class.forName(clazz);
+		Class<?>[] argsClass = new Class[args.length];
+		for (int i = 0; i < argsClass.length; i++) {
+			argsClass[i] = args[i].getClass();
+		}
+		Object monitor = monitorClazz.getConstructor(argsClass).newInstance(args);
+		if (monitor instanceof Monitor) {
+			monitors.add((Monitor<?>) monitor);
+			((Monitor<?>) monitor).start();
+		}
+	}
 
-  public void startMonitor(Monitor monitor) throws Exception {
-    monitors.add((Monitor<?>) monitor);
-    ((Monitor<?>) monitor).start();
-  }
+	public void startMonitor(Monitor monitor) throws Exception {
+		monitors.add((Monitor<?>) monitor);
+		((Monitor<?>) monitor).start();
+	}
 
-  @Override
-  public void close() throws IOException {
-    if (CollectionUtils.isEmpty(monitors)) {
-      return;
-    }
-    for (Monitor<?> monitor : monitors) {
-      monitor.close();
-    }
-  }
+	@Override
+	public void close() throws IOException {
+		if (CollectionUtils.isEmpty(monitors)) {
+			return;
+		}
+		for (Monitor<?> monitor : monitors) {
+			monitor.close();
+		}
+	}
 
-  public Object get(MonitorType monitorType) {
-    assert null != monitorType;
-    String clazz = monitorType.getClazz();
-    Monitor<?> findMonitor = monitors.stream().filter(monitor -> monitor.getClass().getName().equals(clazz)).findFirst().orElse(null);
-    if (null != findMonitor) {
-      return findMonitor.get();
-    } else {
-      return null;
-    }
-  }
+	public Object get(MonitorType monitorType) {
+		assert null != monitorType;
+		String clazz = monitorType.getClazz();
+		Monitor<?> findMonitor = monitors.stream().filter(monitor -> monitor.getClass().getName().equals(clazz)).findFirst().orElse(null);
+		if (null != findMonitor) {
+			return findMonitor.get();
+		} else {
+			return null;
+		}
+	}
 
-  public enum MonitorType {
-    SOURCE_TS_MONITOR("io.tapdata.flow.engine.V2.monitor.impl.SourceTSMonitor"),
-    SUBTASK_MILESTONE_MONITOR("io.tapdata.flow.engine.V2.monitor.impl.TaskMilestoneMonitor"),
-    SUBTASK_PING_TIME("io.tapdata.flow.engine.V2.monitor.impl.TaskPingTimeMonitor"),
-    STREAM_OFFSET_MONITOR("io.tapdata.flow.engine.V2.monitor.impl.StreamOffsetMonitor"),
-    ;
+	public enum MonitorType {
+		SOURCE_TS_MONITOR("io.tapdata.flow.engine.V2.monitor.impl.SourceTSMonitor"),
+		SUBTASK_MILESTONE_MONITOR("io.tapdata.flow.engine.V2.monitor.impl.TaskMilestoneMonitor"),
+		SUBTASK_PING_TIME("io.tapdata.flow.engine.V2.monitor.impl.TaskPingTimeMonitor"),
+		STREAM_OFFSET_MONITOR("io.tapdata.flow.engine.V2.monitor.impl.StreamOffsetMonitor"),
+		;
 
-    private String clazz;
+		private String clazz;
 
-    MonitorType(String clazz) {
-      this.clazz = clazz;
-    }
+		MonitorType(String clazz) {
+			this.clazz = clazz;
+		}
 
-    public String getClazz() {
-      return clazz;
-    }
-  }
+		public String getClazz() {
+			return clazz;
+		}
+	}
 }

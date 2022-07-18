@@ -15,7 +15,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-public class MigrateFieldRenameProcessor implements DataFlowProcessor{
+public class MigrateFieldRenameProcessor implements DataFlowProcessor {
 
 	private ProcessorContext processorContext;
 
@@ -23,7 +23,7 @@ public class MigrateFieldRenameProcessor implements DataFlowProcessor{
 
 	/**
 	 * key: table name
-	 *  --key old field name
+	 * --key old field name
 	 */
 	private final Map<String, Map<String, String>> tableFieldsMappingMap;
 
@@ -65,8 +65,8 @@ public class MigrateFieldRenameProcessor implements DataFlowProcessor{
 
 	public MigrateFieldRenameProcessor(MigrateFieldRenameProcessorNode migrateFieldRenameProcessorNode) {
 		this.tableFieldsMappingMap = migrateFieldRenameProcessorNode.getFieldsMapping().stream()
-			.collect(Collectors.toMap(TableFieldInfo::getPreviousTableName,
-				t->t.getFields().stream().collect(Collectors.toMap(FieldInfo::getSourceFieldName, FieldInfo::getTargetFieldName))));
+				.collect(Collectors.toMap(TableFieldInfo::getPreviousTableName,
+						t -> t.getFields().stream().collect(Collectors.toMap(FieldInfo::getSourceFieldName, FieldInfo::getTargetFieldName))));
 	}
 
 	@Override

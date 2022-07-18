@@ -8,11 +8,11 @@ import java.io.Closeable;
  * @create 2022-03-02 01:30
  **/
 public interface Monitor<T> extends Closeable {
-  default void start() {
-    throw new UnsupportedOperationException();
-  }
+	default void start() {
+		throw new UnsupportedOperationException();
+	}
 
-  default T get(){
-    throw new UnsupportedOperationException();
-  }
+	default T get() {
+		throw new UnsupportedOperationException();
+	}
 }

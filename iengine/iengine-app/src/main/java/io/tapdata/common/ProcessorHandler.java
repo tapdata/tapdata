@@ -1,7 +1,6 @@
 package io.tapdata.common;
 
 import com.tapdata.cache.ICacheService;
-import com.tapdata.cache.memory.MemoryCacheService;
 import com.tapdata.constant.*;
 import com.tapdata.entity.JavaScriptFunctions;
 import com.tapdata.entity.Mapping;

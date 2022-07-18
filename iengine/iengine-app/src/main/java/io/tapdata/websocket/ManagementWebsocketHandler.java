@@ -57,52 +57,52 @@ import static io.tapdata.websocket.WebSocketEventResult.Type.UNKNOWN_EVENT_RESUL
 @DependsOn("connectorManager")
 public class ManagementWebsocketHandler implements WebSocketHandler {
 
-  private Logger logger = LogManager.getLogger(ManagementWebsocketHandler.class);
+	private Logger logger = LogManager.getLogger(ManagementWebsocketHandler.class);
 
-  public static final String URL_PREFIX = "ws://";
-  public static final String URL_PREFIX_FOR_SSL = "wss://";
+	public static final String URL_PREFIX = "ws://";
+	public static final String URL_PREFIX_FOR_SSL = "wss://";
 
-  /**
-   * url 后缀
-   */
-  public static final String URL_SUFFIX = "/ws";
+	/**
+	 * url 后缀
+	 */
+	public static final String URL_SUFFIX = "/ws";
 
-  /**
-   * 监听或发送消息的地址
-   */
-  public static final String DESTINATION = "/agent";
+	/**
+	 * 监听或发送消息的地址
+	 */
+	public static final String DESTINATION = "/agent";
 
-  private static final Long PING_INTERVAL = 5L;
-  /**
-   * websocket接受消息的长度限制：10MB
-   */
-  private static final int SESSION_TEXT_LENGTH_LIMIT_BYTE = 10 * 1024 * 1024;
+	private static final Long PING_INTERVAL = 5L;
+	/**
+	 * websocket接受消息的长度限制：10MB
+	 */
+	private static final int SESSION_TEXT_LENGTH_LIMIT_BYTE = 10 * 1024 * 1024;
 
-  /**
-   * 与管理端建立连接
-   */
-  private ListenableFuture<WebSocketSession> listenableFuture;
+	/**
+	 * 与管理端建立连接
+	 */
+	private ListenableFuture<WebSocketSession> listenableFuture;
 
-  /**
-   * 管理端地址列表
-   */
-  private List<String> baseURLs;
+	/**
+	 * 管理端地址列表
+	 */
+	private List<String> baseURLs;
 
-  /**
-   * 连接失败后尝试的次数
-   */
-  private int retryTime;
+	/**
+	 * 连接失败后尝试的次数
+	 */
+	private int retryTime;
 
-  /**
-   * data engine唯一标记，每个agent实例都有一个唯一的id
-   */
-  private String agentId;
+	/**
+	 * data engine唯一标记，每个agent实例都有一个唯一的id
+	 */
+	private String agentId;
 
-  /**
-   * 配置中心，获取agent登录用户信息包括access token
-   */
-  @Autowired
-  private ConfigurationCenter configCenter;
+	/**
+	 * 配置中心，获取agent登录用户信息包括access token
+	 */
+	@Autowired
+	private ConfigurationCenter configCenter;
 
 	/**
 	 * 管理端操作类
@@ -123,227 +123,227 @@ public class ManagementWebsocketHandler implements WebSocketHandler {
 	private Set<BeanDefinition> fileDetectorDefinition;
 
 	@PostConstruct
-  public void init() {
-    this.baseURLs = (List<String>) configCenter.getConfig(ConfigurationCenter.BASR_URLS);
-    this.agentId = (String) configCenter.getConfig(ConfigurationCenter.AGENT_ID);
-    this.retryTime = (Integer) configCenter.getConfig(ConfigurationCenter.RETRY_TIME);
-    this.fileDetectorDefinition = PkgAnnoUtil.getBeanSetWithAnno(Collections.singletonList("io.tapdata.websocket"),
-      Collections.singletonList(EventHandlerAnnotation.class));
-    healthThreadPool = new ScheduledThreadPoolExecutor(1);
-    healthThreadPool.scheduleWithFixedDelay(() -> {
-      Thread.currentThread().setName("Management Websocket Health Check");
-      if (session == null || !session.isOpen()) {
-        logger.info("It is detected that the websocket is not connected, a connection will be created");
-        createClients();
-      }
+	public void init() {
+		this.baseURLs = (List<String>) configCenter.getConfig(ConfigurationCenter.BASR_URLS);
+		this.agentId = (String) configCenter.getConfig(ConfigurationCenter.AGENT_ID);
+		this.retryTime = (Integer) configCenter.getConfig(ConfigurationCenter.RETRY_TIME);
+		this.fileDetectorDefinition = PkgAnnoUtil.getBeanSetWithAnno(Collections.singletonList("io.tapdata.websocket"),
+				Collections.singletonList(EventHandlerAnnotation.class));
+		healthThreadPool = new ScheduledThreadPoolExecutor(1);
+		healthThreadPool.scheduleWithFixedDelay(() -> {
+			Thread.currentThread().setName("Management Websocket Health Check");
+			if (session == null || !session.isOpen()) {
+				logger.info("It is detected that the websocket is not connected, a connection will be created");
+				createClients();
+			}
 
-      try {
-        sendMessage(new TextMessage("{\"type\":\"ping\"}"));
-      } catch (Exception e) {
-        logger.error("Send health message failed, will reconnect websocket", e);
-        createClients();
-      }
-    }, 0, PING_INTERVAL, TimeUnit.SECONDS);
-  }
+			try {
+				sendMessage(new TextMessage("{\"type\":\"ping\"}"));
+			} catch (Exception e) {
+				logger.error("Send health message failed, will reconnect websocket", e);
+				createClients();
+			}
+		}, 0, PING_INTERVAL, TimeUnit.SECONDS);
+	}
 
-  /**
-   * 创建web socket 客户端
-   */
-  public synchronized void createClients() {
+	/**
+	 * 创建web socket 客户端
+	 */
+	public synchronized void createClients() {
 
-    // 连接前关闭之前所有的连接
-    closeSession();
+		// 连接前关闭之前所有的连接
+		closeSession();
 
-    if (CollectionUtils.isNotEmpty(baseURLs)) {
-      for (String baseURL : baseURLs) {
-        connect(baseURL);
-        if (session != null && session.isOpen()) {
-          break;
-        }
-      }
-    } else {
-      logger.error("Connect to management websocket failed, base url(s) is empty");
-    }
-  }
+		if (CollectionUtils.isNotEmpty(baseURLs)) {
+			for (String baseURL : baseURLs) {
+				connect(baseURL);
+				if (session != null && session.isOpen()) {
+					break;
+				}
+			}
+		} else {
+			logger.error("Connect to management websocket failed, base url(s) is empty");
+		}
+	}
 
-  private void closeSession() {
-    if (session != null) {
-      try {
-        session.close();
-      } catch (IOException ignore) {
-      }
-    }
-  }
+	private void closeSession() {
+		if (session != null) {
+			try {
+				session.close();
+			} catch (IOException ignore) {
+			}
+		}
+	}
 
-  private void connect(String baseURL) {
-    String currentWsUrl = null;
-    try {
-      if (StringUtils.startsWithIgnoreCase(baseURL, "http://")) {
-        currentWsUrl = baseURL.replace("http://", URL_PREFIX);
-      } else if (StringUtils.startsWithIgnoreCase(baseURL, "https://")) {
-        currentWsUrl = baseURL.replace("https://", URL_PREFIX_FOR_SSL);
-      } else {
-        throw new RuntimeException("Connect web socket failed, invalid base url: " + baseURL);
-      }
-      currentWsUrl = currentWsUrl.replaceAll("/api/", URL_SUFFIX + DESTINATION
-        + "?agentId={agentId}&access_token={access_token}");
+	private void connect(String baseURL) {
+		String currentWsUrl = null;
+		try {
+			if (StringUtils.startsWithIgnoreCase(baseURL, "http://")) {
+				currentWsUrl = baseURL.replace("http://", URL_PREFIX);
+			} else if (StringUtils.startsWithIgnoreCase(baseURL, "https://")) {
+				currentWsUrl = baseURL.replace("https://", URL_PREFIX_FOR_SSL);
+			} else {
+				throw new RuntimeException("Connect web socket failed, invalid base url: " + baseURL);
+			}
+			currentWsUrl = currentWsUrl.replaceAll("/api/", URL_SUFFIX + DESTINATION
+					+ "?agentId={agentId}&access_token={access_token}");
 
-      // 临时处理，连接dfs时，去掉"/console"
-      if (((AppType) configCenter.getConfig(ConfigurationCenter.APPTYPE)).isDfs()) {
-        currentWsUrl = currentWsUrl.replace("/console", "");
-      }
+			// 临时处理，连接dfs时，去掉"/console"
+			if (((AppType) configCenter.getConfig(ConfigurationCenter.APPTYPE)).isDfs()) {
+				currentWsUrl = currentWsUrl.replace("/console", "");
+			}
 
-      WebSocketClient client = new StandardWebSocketClient();
+			WebSocketClient client = new StandardWebSocketClient();
 
-      currentWsUrl = UriComponentsBuilder.fromUriString(currentWsUrl)
-        .buildAndExpand(agentId, configCenter.getConfig(ConfigurationCenter.TOKEN)).encode().toUri().toString();
+			currentWsUrl = UriComponentsBuilder.fromUriString(currentWsUrl)
+					.buildAndExpand(agentId, configCenter.getConfig(ConfigurationCenter.TOKEN)).encode().toUri().toString();
 
-      if (CloudSignUtil.isNeedSign()) {
-        currentWsUrl = CloudSignUtil.getQueryStr("", currentWsUrl);
-      }
+			if (CloudSignUtil.isNeedSign()) {
+				currentWsUrl = CloudSignUtil.getQueryStr("", currentWsUrl);
+			}
 
-      String version = Version.get();
-      if (org.apache.commons.lang3.StringUtils.isNotEmpty(version)) {
-        WebSocketHttpHeaders webSocketHttpHeaders = new WebSocketHttpHeaders();
-        webSocketHttpHeaders.add(WebSocketHttpHeaders.USER_AGENT, version);
-        this.listenableFuture = client.doHandshake(this, webSocketHttpHeaders, URI.create(UriUtils.decode(currentWsUrl, StandardCharsets.UTF_8)));
-      } else {
-        this.listenableFuture = client.doHandshake(this, UriUtils.decode(currentWsUrl, StandardCharsets.UTF_8));
-      }
+			String version = Version.get();
+			if (org.apache.commons.lang3.StringUtils.isNotEmpty(version)) {
+				WebSocketHttpHeaders webSocketHttpHeaders = new WebSocketHttpHeaders();
+				webSocketHttpHeaders.add(WebSocketHttpHeaders.USER_AGENT, version);
+				this.listenableFuture = client.doHandshake(this, webSocketHttpHeaders, URI.create(UriUtils.decode(currentWsUrl, StandardCharsets.UTF_8)));
+			} else {
+				this.listenableFuture = client.doHandshake(this, UriUtils.decode(currentWsUrl, StandardCharsets.UTF_8));
+			}
 
-      session = listenableFuture.get();
-      session.setTextMessageSizeLimit(SESSION_TEXT_LENGTH_LIMIT_BYTE);
+			session = listenableFuture.get();
+			session.setTextMessageSizeLimit(SESSION_TEXT_LENGTH_LIMIT_BYTE);
 
-      logger.info("Connect to web socket server success, url {}", currentWsUrl);
-    } catch (Exception e) {
-      logger.error("Create web socket by url {} connection failed {}", currentWsUrl, e.getMessage(), e);
-    }
-  }
+			logger.info("Connect to web socket server success, url {}", currentWsUrl);
+		} catch (Exception e) {
+			logger.error("Create web socket by url {} connection failed {}", currentWsUrl, e.getMessage(), e);
+		}
+	}
 
-  @Override
-  public void afterConnectionEstablished(WebSocketSession session) {
-  }
+	@Override
+	public void afterConnectionEstablished(WebSocketSession session) {
+	}
 
-  @Override
-  public void handleMessage(WebSocketSession session, WebSocketMessage<?> message) throws Exception {
-    logger.debug("Received message {}", message);
+	@Override
+	public void handleMessage(WebSocketSession session, WebSocketMessage<?> message) throws Exception {
+		logger.debug("Received message {}", message);
 
-    String payload = (String) message.getPayload();
+		String payload = (String) message.getPayload();
 
-    WebSocketEvent<Map> event = JSONUtil.json2POJO(payload, new TypeReference<WebSocketEvent>() {
-    });
+		WebSocketEvent<Map> event = JSONUtil.json2POJO(payload, new TypeReference<WebSocketEvent>() {
+		});
 
-    Map eventRequestData = event.getData();
-    String messageType = eventRequestData != null && eventRequestData.containsKey("type") && eventRequestData.get("type") != null ?
-      eventRequestData.get("type").toString() : event.getType();
-    WebSocketEventHandler<WebSocketEventResult> eventHandler = eventHandler(messageType);
+		Map eventRequestData = event.getData();
+		String messageType = eventRequestData != null && eventRequestData.containsKey("type") && eventRequestData.get("type") != null ?
+				eventRequestData.get("type").toString() : event.getType();
+		WebSocketEventHandler<WebSocketEventResult> eventHandler = eventHandler(messageType);
 
-    WebSocketEventResult eventResult;
-    if (eventHandler == null) {
-      String errorMsg = String.format("Cannot find web socket event handler, type %s", messageType);
-      logger.warn(errorMsg);
-      eventResult = WebSocketEventResult.handleFailed(UNKNOWN_EVENT_RESULT, errorMsg);
-    } else {
-      try {
-        eventResult = eventHandler.handle(eventRequestData, (data) -> {
-          WebSocketEvent<WebSocketEventResult> result = new WebSocketEvent();
-          result.setType(event.getType());
-          result.setData(data);
-          result.setReceiver(event.getSender());
-          result.setSender(event.getReceiver());
+		WebSocketEventResult eventResult;
+		if (eventHandler == null) {
+			String errorMsg = String.format("Cannot find web socket event handler, type %s", messageType);
+			logger.warn(errorMsg);
+			eventResult = WebSocketEventResult.handleFailed(UNKNOWN_EVENT_RESULT, errorMsg);
+		} else {
+			try {
+				eventResult = eventHandler.handle(eventRequestData, (data) -> {
+					WebSocketEvent<WebSocketEventResult> result = new WebSocketEvent();
+					result.setType(event.getType());
+					result.setData(data);
+					result.setReceiver(event.getSender());
+					result.setSender(event.getReceiver());
 
-          JSONUtil.disableFeature(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
-          session.sendMessage(new TextMessage(JSONUtil.obj2Json(result)));
-        });
-      } catch (Exception e) {
-        String errorMsg = String.format("Handle websocket event error, event: %s, message: %s",
-          event, e.getMessage());
-        logger.error(errorMsg, e);
-        eventResult = WebSocketEventResult.handleFailed(HANDLE_EVENT_ERROR_RESULT, errorMsg);
-      }
-    }
+					JSONUtil.disableFeature(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+					session.sendMessage(new TextMessage(JSONUtil.obj2Json(result)));
+				});
+			} catch (Exception e) {
+				String errorMsg = String.format("Handle websocket event error, event: %s, message: %s",
+						event, e.getMessage());
+				logger.error(errorMsg, e);
+				eventResult = WebSocketEventResult.handleFailed(HANDLE_EVENT_ERROR_RESULT, errorMsg);
+			}
+		}
 
-    // if eventResult is null, do not reply
-    if (eventResult != null) {
-      WebSocketEvent<WebSocketEventResult> result = new WebSocketEvent();
-      result.setType(event.getType());
-      result.setData(eventResult);
-      result.setReceiver(event.getSender());
-      result.setSender(event.getReceiver());
+		// if eventResult is null, do not reply
+		if (eventResult != null) {
+			WebSocketEvent<WebSocketEventResult> result = new WebSocketEvent();
+			result.setType(event.getType());
+			result.setData(eventResult);
+			result.setReceiver(event.getSender());
+			result.setSender(event.getReceiver());
 
-      logger.info("Processed message result {}.", result);
+			logger.info("Processed message result {}.", result);
 
-      JSONUtil.disableFeature(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
-      session.sendMessage(
-        new TextMessage(JSONUtil.obj2Json(result))
-      );
-      JSONUtil.enableFeature(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
-    }
-  }
+			JSONUtil.disableFeature(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+			session.sendMessage(
+					new TextMessage(JSONUtil.obj2Json(result))
+			);
+			JSONUtil.enableFeature(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+		}
+	}
 
-  private WebSocketEventHandler eventHandler(String messageType) throws ClassNotFoundException, InstantiationException, IllegalAccessException {
-    WebSocketEventHandler eventHandler = null;
+	private WebSocketEventHandler eventHandler(String messageType) throws ClassNotFoundException, InstantiationException, IllegalAccessException {
+		WebSocketEventHandler eventHandler = null;
 
-    if (StringUtils.isEmpty(messageType)) {
-      return null;
-    }
+		if (StringUtils.isEmpty(messageType)) {
+			return null;
+		}
 
-    for (BeanDefinition beanDefinition : fileDetectorDefinition) {
-      Class<WebSocketEventHandler> aClass = (Class<WebSocketEventHandler>) Class.forName(beanDefinition.getBeanClassName());
-      EventHandlerAnnotation[] annotations = aClass.getAnnotationsByType(EventHandlerAnnotation.class);
-      if (annotations != null && annotations.length > 0) {
-        for (EventHandlerAnnotation annotation : annotations) {
-          if (messageType.equals(annotation.type())) {
-			  eventHandler = aClass.newInstance();
-			  eventHandler.initialize(taskService, clientMongoOperator, settingService);
-          }
-        }
-      }
+		for (BeanDefinition beanDefinition : fileDetectorDefinition) {
+			Class<WebSocketEventHandler> aClass = (Class<WebSocketEventHandler>) Class.forName(beanDefinition.getBeanClassName());
+			EventHandlerAnnotation[] annotations = aClass.getAnnotationsByType(EventHandlerAnnotation.class);
+			if (annotations != null && annotations.length > 0) {
+				for (EventHandlerAnnotation annotation : annotations) {
+					if (messageType.equals(annotation.type())) {
+						eventHandler = aClass.newInstance();
+						eventHandler.initialize(taskService, clientMongoOperator, settingService);
+					}
+				}
+			}
 
-      if (eventHandler != null) {
-        break;
-      }
-    }
-    return eventHandler;
-  }
+			if (eventHandler != null) {
+				break;
+			}
+		}
+		return eventHandler;
+	}
 
-  @Override
-  public void handleTransportError(WebSocketSession session, Throwable exception) {
-    logger.error("Web socket handler occur handle transport error {}", exception.getMessage(), exception);
-  }
+	@Override
+	public void handleTransportError(WebSocketSession session, Throwable exception) {
+		logger.error("Web socket handler occur handle transport error {}", exception.getMessage(), exception);
+	}
 
-  @Override
-  public void afterConnectionClosed(WebSocketSession session, CloseStatus closeStatus) {
-    logger.info("Web socket closed, session: {}, status code: {}, reason: {}", session.getUri() != null ? session.getUri().toString() : "", closeStatus.getCode(), closeStatus.getReason());
-  }
+	@Override
+	public void afterConnectionClosed(WebSocketSession session, CloseStatus closeStatus) {
+		logger.info("Web socket closed, session: {}, status code: {}, reason: {}", session.getUri() != null ? session.getUri().toString() : "", closeStatus.getCode(), closeStatus.getReason());
+	}
 
-  @Override
-  public boolean supportsPartialMessages() {
-    return false;
-  }
+	@Override
+	public boolean supportsPartialMessages() {
+		return false;
+	}
 
-  /**
-   * 发送websocket信息
-   * 随机给已连接的管理端发送
-   *
-   * @param textMessage
-   * @throws IOException
-   */
-  public void sendMessage(TextMessage textMessage) throws Exception {
-    int failTime = 0;
-    while (true) {
-      try {
-        session.sendMessage(textMessage);
-        break;
-      } catch (Exception e) {
-        if (++failTime > retryTime) {
-          throw e;
-        } else {
-          logger.warn("Send websocket message failed, fail time: {}, message: {}, err: {}, stack: {}", failTime, textMessage, e.getMessage(), Log4jUtil.getStackString(e));
-          createClients();
-          continue;
-        }
-      }
-    }
-  }
+	/**
+	 * 发送websocket信息
+	 * 随机给已连接的管理端发送
+	 *
+	 * @param textMessage
+	 * @throws IOException
+	 */
+	public void sendMessage(TextMessage textMessage) throws Exception {
+		int failTime = 0;
+		while (true) {
+			try {
+				session.sendMessage(textMessage);
+				break;
+			} catch (Exception e) {
+				if (++failTime > retryTime) {
+					throw e;
+				} else {
+					logger.warn("Send websocket message failed, fail time: {}, message: {}, err: {}, stack: {}", failTime, textMessage, e.getMessage(), Log4jUtil.getStackString(e));
+					createClients();
+					continue;
+				}
+			}
+		}
+	}
 }

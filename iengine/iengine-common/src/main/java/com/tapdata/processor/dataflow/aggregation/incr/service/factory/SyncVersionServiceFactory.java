@@ -8,19 +8,19 @@ import com.tapdata.processor.dataflow.aggregation.incr.service.mongo.MongoSyncVe
 
 public class SyncVersionServiceFactory extends AbstractServiceFactory<SyncVersionService> {
 
-  @Override
-  protected SyncVersionService doCreate(Stage stage, ProcessorContext processorContext, DatabaseTypeEnum databaseTypeEnum) {
-    switch (databaseTypeEnum) {
-      case MONGODB:
-      case ALIYUN_MONGODB:
-        return new MongoSyncVersionServiceImpl(stage, processorContext);
-    }
-    return null;
-  }
+	@Override
+	protected SyncVersionService doCreate(Stage stage, ProcessorContext processorContext, DatabaseTypeEnum databaseTypeEnum) {
+		switch (databaseTypeEnum) {
+			case MONGODB:
+			case ALIYUN_MONGODB:
+				return new MongoSyncVersionServiceImpl(stage, processorContext);
+		}
+		return null;
+	}
 
-  @Override
-  public Class<SyncVersionService> getServiceType() {
-    return SyncVersionService.class;
-  }
+	@Override
+	public Class<SyncVersionService> getServiceType() {
+		return SyncVersionService.class;
+	}
 
 }

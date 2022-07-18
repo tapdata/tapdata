@@ -7,5 +7,5 @@ package io.tapdata.inspect.compare;
  */
 @FunctionalInterface
 public interface CompareFunction<T, R> {
-  R apply(T t1, T t2, String sourceId, String targetId);
+	R apply(T t1, T t2, String sourceId, String targetId);
 }

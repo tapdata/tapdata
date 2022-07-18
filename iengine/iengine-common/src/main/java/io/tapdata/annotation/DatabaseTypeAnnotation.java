@@ -10,5 +10,5 @@ import java.lang.annotation.*;
 @Retention(RetentionPolicy.RUNTIME)
 @Repeatable(value = DatabaseTypeAnnotations.class)
 public @interface DatabaseTypeAnnotation {
-  DatabaseTypeEnum type();
+	DatabaseTypeEnum type();
 }

@@ -14,28 +14,28 @@ import java.io.Serializable;
  **/
 public class ShareCdcTaskContext extends ShareCdcContext implements Serializable {
 
-  private static final long serialVersionUID = 6587811104432940573L;
+	private static final long serialVersionUID = 6587811104432940573L;
 
-  private SubTaskDto subTaskDto;
-  private Node node;
-  private Connections connections;
+	private SubTaskDto subTaskDto;
+	private Node node;
+	private Connections connections;
 
-  public ShareCdcTaskContext(Long cdcStartTs, ConfigurationCenter configurationCenter, SubTaskDto subTaskDto, Node node, Connections connections) {
-    super(cdcStartTs, configurationCenter);
-    this.subTaskDto = subTaskDto;
-    this.node = node;
-    this.connections = connections;
-  }
+	public ShareCdcTaskContext(Long cdcStartTs, ConfigurationCenter configurationCenter, SubTaskDto subTaskDto, Node node, Connections connections) {
+		super(cdcStartTs, configurationCenter);
+		this.subTaskDto = subTaskDto;
+		this.node = node;
+		this.connections = connections;
+	}
 
-  public SubTaskDto getSubTaskDto() {
-    return subTaskDto;
-  }
+	public SubTaskDto getSubTaskDto() {
+		return subTaskDto;
+	}
 
-  public Connections getConnections() {
-    return connections;
-  }
+	public Connections getConnections() {
+		return connections;
+	}
 
-  public Node getNode() {
-    return node;
-  }
+	public Node getNode() {
+		return node;
+	}
 }

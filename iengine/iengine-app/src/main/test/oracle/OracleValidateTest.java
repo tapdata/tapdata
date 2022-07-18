@@ -1,16 +1,6 @@
 package oracle;
 
 import base.BaseTest;
-import io.tapdata.common.*;
-import com.tapdata.entity.Connections;
-import com.tapdata.entity.Job;
-import com.tapdata.entity.JobConnection;
-import com.tapdata.entity.Stats;
-import org.junit.Assert;
-import org.junit.Test;
-
-import java.sql.Connection;
-import java.util.Map;
 
 /**
  * Created by tapdata on 19/03/2018.

@@ -1,34 +1,42 @@
 package io.tapdata.aspect;
 
-import io.tapdata.entity.schema.TapTable;
 import com.tapdata.entity.TapdataEvent;
+import io.tapdata.entity.schema.TapTable;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 
 import java.util.List;
 
 public class BatchReadStartAspect extends FunctionAspect<BatchReadStartAspect> {
 	private TapConnectorContext connectorContext;
+
 	public BatchReadStartAspect connectorContext(TapConnectorContext connectorContext) {
 		this.connectorContext = connectorContext;
 		return this;
 	}
+
 	private TapTable table;
+
 	public BatchReadStartAspect table(TapTable table) {
 		this.table = table;
 		return this;
 	}
+
 	private Object offsetState;
+
 	public BatchReadStartAspect offsetState(Object offsetState) {
 		this.offsetState = offsetState;
 		return this;
 	}
+
 	private int eventBatchSize;
+
 	public BatchReadStartAspect eventBatchSize(int eventBatchSize) {
 		this.eventBatchSize = eventBatchSize;
 		return this;
 	}
 
 	private List<TapdataEvent> events;
+
 	public BatchReadStartAspect events(List<TapdataEvent> events) {
 		this.events = events;
 		return this;

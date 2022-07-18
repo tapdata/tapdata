@@ -11,28 +11,28 @@ import java.io.Serializable;
  **/
 public class ShareCdcContext implements Serializable {
 
-  private static final long serialVersionUID = -7643172217247692560L;
+	private static final long serialVersionUID = -7643172217247692560L;
 
-  // Incremental start timestamp
-  private Long cdcStartTs;
+	// Incremental start timestamp
+	private Long cdcStartTs;
 
-  // Tapdata Settings
-  private ConfigurationCenter configurationCenter;
+	// Tapdata Settings
+	private ConfigurationCenter configurationCenter;
 
-  public ShareCdcContext(Long cdcStartTs, ConfigurationCenter configurationCenter) {
-    if (null == cdcStartTs || cdcStartTs.compareTo(0L) < 0) {
-      this.cdcStartTs = 0L;
-    } else {
-      this.cdcStartTs = cdcStartTs;
-    }
-    this.configurationCenter = configurationCenter;
-  }
+	public ShareCdcContext(Long cdcStartTs, ConfigurationCenter configurationCenter) {
+		if (null == cdcStartTs || cdcStartTs.compareTo(0L) < 0) {
+			this.cdcStartTs = 0L;
+		} else {
+			this.cdcStartTs = cdcStartTs;
+		}
+		this.configurationCenter = configurationCenter;
+	}
 
-  public Long getCdcStartTs() {
-    return cdcStartTs;
-  }
+	public Long getCdcStartTs() {
+		return cdcStartTs;
+	}
 
-  public ConfigurationCenter getConfigurationCenter() {
-    return configurationCenter;
-  }
+	public ConfigurationCenter getConfigurationCenter() {
+		return configurationCenter;
+	}
 }

@@ -1,7 +1,5 @@
 package io.tapdata.task;
 
-import com.tapdata.entity.DatabaseTypeEnum;
-
 import java.lang.annotation.*;
 
 @Inherited
@@ -9,5 +7,5 @@ import java.lang.annotation.*;
 @Target(ElementType.TYPE)
 public @interface TaskType {
 
-  String type();
+	String type();
 }

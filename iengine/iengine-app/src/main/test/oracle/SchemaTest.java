@@ -1,31 +1,20 @@
 package oracle;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import io.tapdata.common.JSONUtil;
-import com.tapdata.entity.*;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Test;
-import org.springframework.util.StringUtils;
+import com.tapdata.entity.DatabaseSchemaConstraints;
+import com.tapdata.entity.DatabaseSchemaTableColumns;
 
-import java.net.URL;
-import java.nio.file.Files;
-import java.nio.file.Paths;
-import java.sql.SQLException;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 /**
  * Created by tapdata on 29/11/2017.
  */
 public class SchemaTest {
 
-  private List<DatabaseSchemaTableColumns> tableColumns;
+	private List<DatabaseSchemaTableColumns> tableColumns;
 
-  private List<DatabaseSchemaConstraints> pkConstraints;
+	private List<DatabaseSchemaConstraints> pkConstraints;
 
-  private List<DatabaseSchemaConstraints> fkConstraints;
+	private List<DatabaseSchemaConstraints> fkConstraints;
 
 //    @Before
 //    public void init(){

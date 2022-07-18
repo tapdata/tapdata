@@ -9,16 +9,16 @@ import com.tapdata.tm.commons.dag.DmlPolicyEnum;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.task.dto.SubTaskDto;
-import io.tapdata.flow.engine.V2.entity.PdkStateMap;
-import io.tapdata.flow.engine.V2.util.PdkUtil;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
+import io.tapdata.flow.engine.V2.entity.PdkStateMap;
 import io.tapdata.flow.engine.V2.monitor.MonitorManager;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.HazelcastDataBaseNode;
 import io.tapdata.flow.engine.V2.node.pdk.ConnectorNodeService;
+import io.tapdata.flow.engine.V2.util.PdkUtil;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
 import io.tapdata.pdk.apis.entity.ConnectionOptions;
 import io.tapdata.pdk.apis.entity.ConnectorCapabilities;
@@ -48,12 +48,12 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 	protected SyncProgress syncProgress;
 	protected String associateId;
 
-  public HazelcastPdkBaseNode(DataProcessorContext dataProcessorContext) {
-	  super(dataProcessorContext);
-	  if (!dataProcessorContext.getSubTaskDto().isTransformTask()) {
-		  this.monitorManager = new MonitorManager();
-	  }
-  }
+	public HazelcastPdkBaseNode(DataProcessorContext dataProcessorContext) {
+		super(dataProcessorContext);
+		if (!dataProcessorContext.getSubTaskDto().isTransformTask()) {
+			this.monitorManager = new MonitorManager();
+		}
+	}
 
 	protected void connectorNodeInit(DataProcessorContext dataProcessorContext) {
 		try {
@@ -125,16 +125,16 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 		tapCodecsFilterManager.transformFromTapValueMap(data);
 	}
 
-  @Override
-  public void close() throws Exception {
-	  if (this.monitorManager != null) {
-		  this.monitorManager.close();
-	  }
-	  Optional.ofNullable(dataProcessorContext.getTapTableMap()).ifPresent(TapTableMap::remove);
+	@Override
+	public void close() throws Exception {
+		if (this.monitorManager != null) {
+			this.monitorManager.close();
+		}
+		Optional.ofNullable(dataProcessorContext.getTapTableMap()).ifPresent(TapTableMap::remove);
 		Optional.ofNullable(getConnectorNode()).ifPresent(node -> PDKIntegration.releaseAssociateId(associateId));
 		ConnectorNodeService.getInstance().removeConnectorNode(associateId);
-	  super.close();
-  }
+		super.close();
+	}
 
 	protected ConnectorNode getConnectorNode() {
 		return ConnectorNodeService.getInstance().getConnectorNode(associateId);

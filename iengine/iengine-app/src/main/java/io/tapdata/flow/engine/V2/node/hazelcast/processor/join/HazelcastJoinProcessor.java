@@ -2,6 +2,7 @@ package io.tapdata.flow.engine.V2.node.hazelcast.processor.join;
 
 import com.tapdata.constant.MapUtil;
 import com.tapdata.entity.OperationType;
+import com.tapdata.entity.TapdataEvent;
 import com.tapdata.entity.task.context.ProcessorBaseContext;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.process.JoinProcessorNode;
@@ -13,7 +14,6 @@ import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapIndex;
 import io.tapdata.entity.schema.TapTable;
-import com.tapdata.entity.TapdataEvent;
 import io.tapdata.flow.engine.V2.exception.node.NodeException;
 import io.tapdata.flow.engine.V2.node.hazelcast.processor.HazelcastProcessorBaseNode;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;

@@ -7,14 +7,14 @@ package io.tapdata.inspect.cdc.exception;
  * @version v1.0 2021/11/4 下午8:45 Create
  */
 public class InspectCdcConfException extends RuntimeException {
-  public InspectCdcConfException() {
-  }
+	public InspectCdcConfException() {
+	}
 
-  public InspectCdcConfException(String message) {
-    super(message);
-  }
+	public InspectCdcConfException(String message) {
+		super(message);
+	}
 
-  public static void throwIfTrue(boolean isThrow, String msg) {
-    if (isThrow) throw new InspectCdcConfException(msg);
-  }
+	public static void throwIfTrue(boolean isThrow, String msg) {
+		if (isThrow) throw new InspectCdcConfException(msg);
+	}
 }

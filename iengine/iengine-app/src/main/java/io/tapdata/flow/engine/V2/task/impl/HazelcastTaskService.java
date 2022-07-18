@@ -12,10 +12,7 @@ import com.hazelcast.jet.core.Vertex;
 import com.tapdata.cache.ICacheService;
 import com.tapdata.cache.hazelcast.HazelcastCacheService;
 import com.tapdata.constant.*;
-import com.tapdata.entity.Connections;
-import com.tapdata.entity.DatabaseTypeEnum;
-import com.tapdata.entity.Milestone;
-import com.tapdata.entity.RelateDataBaseTable;
+import com.tapdata.entity.*;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.entity.task.context.ProcessorBaseContext;
 import com.tapdata.mongo.ClientMongoOperator;
@@ -33,16 +30,14 @@ import com.tapdata.tm.commons.dag.process.MergeTableNode;
 import com.tapdata.tm.commons.dag.process.MigrateFieldRenameProcessorNode;
 import com.tapdata.tm.commons.dag.process.TableRenameProcessNode;
 import com.tapdata.tm.commons.task.dto.SubTaskDto;
-import io.tapdata.flow.engine.V2.util.PdkUtil;
+import io.tapdata.aspect.TaskStartAspect;
 import io.tapdata.common.SettingService;
 import io.tapdata.common.sharecdc.ShareCdcUtil;
 import io.tapdata.dao.MessageDao;
 import io.tapdata.entity.aspect.AspectManager;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.InstanceFactory;
-import io.tapdata.aspect.TaskStartAspect;
 import io.tapdata.flow.engine.V2.common.node.NodeTypeEnum;
-import com.tapdata.entity.JetDag;
 import io.tapdata.flow.engine.V2.exception.node.NodeException;
 import io.tapdata.flow.engine.V2.node.hazelcast.HazelcastBaseNode;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.*;
@@ -56,6 +51,7 @@ import io.tapdata.flow.engine.V2.task.TaskService;
 import io.tapdata.flow.engine.V2.util.GraphUtil;
 import io.tapdata.flow.engine.V2.util.MergeTableUtil;
 import io.tapdata.flow.engine.V2.util.NodeUtil;
+import io.tapdata.flow.engine.V2.util.PdkUtil;
 import io.tapdata.milestone.MilestoneContext;
 import io.tapdata.milestone.MilestoneFactory;
 import io.tapdata.milestone.MilestoneFlowServiceJetV2;
@@ -174,14 +170,14 @@ public class HazelcastTaskService implements TaskService<SubTaskDto> {
 				DatabaseTypeEnum.DatabaseType databaseType = null;
 				TapTableMap<String, TapTable> tapTableMap = TapTableUtil.getTapTableMapByNodeId(node.getId());
 				if (CollectionUtils.isEmpty(tapTableMap.keySet())
-					&& !(node instanceof CacheNode)
-					&& !(node instanceof HazelCastImdgNode)
-					&& !(node instanceof TableRenameProcessNode)
-					&& !(node instanceof MigrateFieldRenameProcessorNode)
-					&& !(node instanceof VirtualTargetNode)
-					&& !subTaskDto.isTransformTask()) {
+						&& !(node instanceof CacheNode)
+						&& !(node instanceof HazelCastImdgNode)
+						&& !(node instanceof TableRenameProcessNode)
+						&& !(node instanceof MigrateFieldRenameProcessorNode)
+						&& !(node instanceof VirtualTargetNode)
+						&& !subTaskDto.isTransformTask()) {
 					throw new NodeException(String.format("Node [id %s, name %s] schema cannot be empty",
-						node.getId(), node.getName()));
+							node.getId(), node.getName()));
 				}
 				if (node.isDataNode()) {
 					String connectionId = null;
@@ -369,31 +365,31 @@ public class HazelcastTaskService implements TaskService<SubTaskDto> {
 					);
 				} else {
 					hazelcastNode = new HazelcastCacheTarget(
-						DataProcessorContext.newBuilder()
-							.withSubTaskDto(subTaskDto)
-							.withNode(node)
-							.withNodes(nodes)
-							.withEdges(edges)
-							.withConfigurationCenter(config)
-							.withTargetConn(connection)
-							.withCacheService(cacheService)
-							.withTapTableMap(tapTableMap)
-							.build()
+							DataProcessorContext.newBuilder()
+									.withSubTaskDto(subTaskDto)
+									.withNode(node)
+									.withNodes(nodes)
+									.withEdges(edges)
+									.withConfigurationCenter(config)
+									.withTargetConn(connection)
+									.withCacheService(cacheService)
+									.withTapTableMap(tapTableMap)
+									.build()
 					);
 				}
 				break;
 			case VIRTUAL_TARGET:
 
 				hazelcastNode = new HazelcastTargetSchemaNode(DataProcessorContext.newBuilder()
-					.withSubTaskDto(subTaskDto)
-					.withNode(node)
-					.withNodes(nodes)
-					.withEdges(edges)
-					.withConfigurationCenter(config)
-					.withTargetConn(connection)
-					.withCacheService(cacheService)
-					.withTapTableMap(tapTableMap)
-					.build());
+						.withSubTaskDto(subTaskDto)
+						.withNode(node)
+						.withNodes(nodes)
+						.withEdges(edges)
+						.withConfigurationCenter(config)
+						.withTargetConn(connection)
+						.withCacheService(cacheService)
+						.withTapTableMap(tapTableMap)
+						.build());
 
 				break;
 			case JOIN:

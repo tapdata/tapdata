@@ -7,30 +7,30 @@ import com.tapdata.processor.dataflow.aggregation.incr.cache.BucketCacheBuilder;
 
 public class DefaultBucketCache<K, V> implements BucketCache<K, V> {
 
-  private final Cache<K, V> cache;
+	private final Cache<K, V> cache;
 
-  public DefaultBucketCache(BucketCacheBuilder<K, V> builder) {
-    cache = Caffeine.newBuilder().maximumSize(builder.getMaxSize()).build();
-  }
+	public DefaultBucketCache(BucketCacheBuilder<K, V> builder) {
+		cache = Caffeine.newBuilder().maximumSize(builder.getMaxSize()).build();
+	}
 
-  @Override
-  public void put(K k, V v) {
-    this.cache.put(k, v);
-  }
+	@Override
+	public void put(K k, V v) {
+		this.cache.put(k, v);
+	}
 
-  @Override
-  public V get(K k) {
-    return this.cache.getIfPresent(k);
-  }
+	@Override
+	public V get(K k) {
+		return this.cache.getIfPresent(k);
+	}
 
-  @Override
-  public void invalid(K k) {
-    this.cache.invalidate(k);
-  }
+	@Override
+	public void invalid(K k) {
+		this.cache.invalidate(k);
+	}
 
-  @Override
-  public void invalidAll() {
-    this.cache.cleanUp();
-  }
+	@Override
+	public void invalidAll() {
+		this.cache.cleanUp();
+	}
 
 }

@@ -39,7 +39,6 @@ import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.value.TapDateTimeValue;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.flow.engine.V2.common.node.NodeTypeEnum;
-import com.tapdata.entity.TapdataEvent;
 import io.tapdata.flow.engine.V2.util.GraphUtil;
 import io.tapdata.flow.engine.V2.util.NodeUtil;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
@@ -100,7 +99,7 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 	public HazelcastBaseNode(ProcessorBaseContext processorBaseContext) {
 		this.processorBaseContext = processorBaseContext;
 		aspectManager = InstanceFactory.instance(AspectManager.class);
-		if(aspectManager == null)
+		if (aspectManager == null)
 			TapLogger.warn(TAG, "AspectManager is null, no aspects can be reported, the features implemented by modules won't work. ");
 		if (null != processorBaseContext.getConfigurationCenter()) {
 			this.clientMongoOperator = BeanUtil.getBean(ClientMongoOperator.class);
@@ -118,12 +117,13 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 	}
 
 	public <T extends Aspect> AspectInterceptResult executeAspect(Class<T> aspectClass, Callable<T> aspectCallable) {
-		if(aspectManager != null)
+		if (aspectManager != null)
 			return aspectManager.executeAspect(aspectClass, aspectCallable);
 		return null;
 	}
+
 	public <T extends Aspect> AspectInterceptResult executeAspect(T aspect) {
-		if(aspectManager != null)
+		if (aspectManager != null)
 			return aspectManager.executeAspect(aspect);
 		return null;
 	}

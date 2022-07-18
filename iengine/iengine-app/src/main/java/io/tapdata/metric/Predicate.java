@@ -2,6 +2,6 @@ package io.tapdata.metric;
 
 public interface Predicate<T> {
 
-  PredicateResult test(T v);
+	PredicateResult test(T v);
 
 }

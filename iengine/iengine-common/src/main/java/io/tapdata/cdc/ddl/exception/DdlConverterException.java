@@ -9,28 +9,28 @@ import io.tapdata.cdc.ddl.DdlEvent;
  * @version v1.0 2021/12/12 上午4:07 Create
  */
 public class DdlConverterException extends DdlException {
-  private DdlEvent event;
+	private DdlEvent event;
 
-  public DdlConverterException(DdlEvent event) {
-    this.event = event;
-  }
+	public DdlConverterException(DdlEvent event) {
+		this.event = event;
+	}
 
-  public DdlConverterException(String message, DdlEvent event) {
-    super(message);
-    this.event = event;
-  }
+	public DdlConverterException(String message, DdlEvent event) {
+		super(message);
+		this.event = event;
+	}
 
-  public DdlConverterException(String message, Throwable cause, DdlEvent event) {
-    super(message, cause);
-    this.event = event;
-  }
+	public DdlConverterException(String message, Throwable cause, DdlEvent event) {
+		super(message, cause);
+		this.event = event;
+	}
 
-  public DdlConverterException(Throwable cause, DdlEvent event) {
-    super(cause);
-    this.event = event;
-  }
+	public DdlConverterException(Throwable cause, DdlEvent event) {
+		super(cause);
+		this.event = event;
+	}
 
-  public DdlEvent getEvent() {
-    return event;
-  }
+	public DdlEvent getEvent() {
+		return event;
+	}
 }

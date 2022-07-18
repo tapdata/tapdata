@@ -20,49 +20,49 @@ import java.util.List;
 import static org.springframework.data.mongodb.core.query.Criteria.where;
 
 public class JobUtil {
-  private static Logger logger = LogManager.getLogger(JobUtil.class);
+	private static Logger logger = LogManager.getLogger(JobUtil.class);
 
-  public static List<JavaScriptFunctions> getJavaScriptFunctions(ClientMongoOperator clientMongoOperator) {
-    if (clientMongoOperator == null) return new ArrayList<>();
+	public static List<JavaScriptFunctions> getJavaScriptFunctions(ClientMongoOperator clientMongoOperator) {
+		if (clientMongoOperator == null) return new ArrayList<>();
 
-    return clientMongoOperator.find(new Query(where("type").ne("system")).with(Sort.by(Sort.Order.asc("last_update"))), ConnectorConstant.JAVASCRIPT_FUNCTION_COLLECTION, JavaScriptFunctions.class);
-  }
+		return clientMongoOperator.find(new Query(where("type").ne("system")).with(Sort.by(Sort.Order.asc("last_update"))), ConnectorConstant.JAVASCRIPT_FUNCTION_COLLECTION, JavaScriptFunctions.class);
+	}
 
-  public static void setThreadContext(Job job) {
-    ThreadContext.clearAll();
-    ThreadContext.put("userId", job.getUser_id());
-    ThreadContext.put("jobId", job.getId());
-    ThreadContext.put("jobName", job.getName());
-    ThreadContext.put("app", ConnectorConstant.APP_TRANSFORMER);
-    if (StringUtils.isNotBlank(job.getDataFlowId())) {
-      ThreadContext.put(DebugConstant.SUB_DATAFLOW_ID, job.getDataFlowId());
-    }
-  }
+	public static void setThreadContext(Job job) {
+		ThreadContext.clearAll();
+		ThreadContext.put("userId", job.getUser_id());
+		ThreadContext.put("jobId", job.getId());
+		ThreadContext.put("jobName", job.getName());
+		ThreadContext.put("app", ConnectorConstant.APP_TRANSFORMER);
+		if (StringUtils.isNotBlank(job.getDataFlowId())) {
+			ThreadContext.put(DebugConstant.SUB_DATAFLOW_ID, job.getDataFlowId());
+		}
+	}
 
 
-  /**
-   * 重置包含聚合节点的任务的offset
-   *
-   * @param job
-   */
-  public static void resetJobOffset(Job job, ClientMongoOperator clientMongoOperator) {
-    if (job == null) {
-      return;
-    }
+	/**
+	 * 重置包含聚合节点的任务的offset
+	 *
+	 * @param job
+	 */
+	public static void resetJobOffset(Job job, ClientMongoOperator clientMongoOperator) {
+		if (job == null) {
+			return;
+		}
 
-    final List<Stage> stages = job.getStages();
-    if (CollectionUtils.isNotEmpty(stages)) {
-      for (Stage stage : stages) {
-        if (Stage.StageTypeEnum.fromString(stage.getType()) == Stage.StageTypeEnum.AGGREGATION_PROCESSOR) {
-          clientMongoOperator.update(
-            new Query(where("_id").is(job.getId())),
-            new Update().set("offset", null),
-            ConnectorConstant.JOB_COLLECTION
-          );
-          job.setOffset(null);
-          return;
-        }
-      }
-    }
-  }
+		final List<Stage> stages = job.getStages();
+		if (CollectionUtils.isNotEmpty(stages)) {
+			for (Stage stage : stages) {
+				if (Stage.StageTypeEnum.fromString(stage.getType()) == Stage.StageTypeEnum.AGGREGATION_PROCESSOR) {
+					clientMongoOperator.update(
+							new Query(where("_id").is(job.getId())),
+							new Update().set("offset", null),
+							ConnectorConstant.JOB_COLLECTION
+					);
+					job.setOffset(null);
+					return;
+				}
+			}
+		}
+	}
 }

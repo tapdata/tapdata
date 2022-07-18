@@ -6,23 +6,23 @@ package com.tapdata.cache;
 public interface ICacheStats {
 
 
-  long getCacheDataSize();
+	long getCacheDataSize();
 
-  void setCacheDataSize(long dataSize);
+	void setCacheDataSize(long dataSize);
 
-  long getCacheRowCount();
+	long getCacheRowCount();
 
-  long getHitCacheCount();
+	long getHitCacheCount();
 
-  long getMissCacheCount();
+	long getMissCacheCount();
 
-  void hitRateStats(String cacheName, boolean hitCache);
+	void hitRateStats(String cacheName, boolean hitCache);
 
-  double getHitRate();
+	double getHitRate();
 
-  long addAndGetCacheRowCount(long rowCount);
+	long addAndGetCacheRowCount(long rowCount);
 
-  long addAndGetCacheDataSize(long dataSize);
+	long addAndGetCacheDataSize(long dataSize);
 
-  long getLastLogTs();
+	long getLastLogTs();
 }

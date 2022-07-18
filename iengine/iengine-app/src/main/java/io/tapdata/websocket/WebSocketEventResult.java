@@ -11,124 +11,124 @@ import java.io.Serializable;
  */
 public class WebSocketEventResult implements Serializable {
 
-  private static final long serialVersionUID = -4052014404649475245L;
+	private static final long serialVersionUID = -4052014404649475245L;
 
-  public static final String EVENT_HANDLE_RESULT_SUCCESS = "SUCCESS";
+	public static final String EVENT_HANDLE_RESULT_SUCCESS = "SUCCESS";
 
-  public static final String EVENT_HANDLE_RESULT_ERRPR = "ERROR";
+	public static final String EVENT_HANDLE_RESULT_ERRPR = "ERROR";
 
-  /**
-   * 结果类型
-   */
-  private String type;
+	/**
+	 * 结果类型
+	 */
+	private String type;
 
-  private String error;
+	private String error;
 
-  private String status;
+	private String status;
 
-  private Object result;
+	private Object result;
 
-  private WebSocketEventResult() {
-  }
+	private WebSocketEventResult() {
+	}
 
-  public static WebSocketEventResult handleSuccess(Type type, Object result) {
-    WebSocketEventResult handleResult = new WebSocketEventResult();
-    handleResult.setType(type.getType());
-    handleResult.setStatus(EVENT_HANDLE_RESULT_SUCCESS);
-    handleResult.setResult(result);
+	public static WebSocketEventResult handleSuccess(Type type, Object result) {
+		WebSocketEventResult handleResult = new WebSocketEventResult();
+		handleResult.setType(type.getType());
+		handleResult.setStatus(EVENT_HANDLE_RESULT_SUCCESS);
+		handleResult.setResult(result);
 
-    return handleResult;
-  }
+		return handleResult;
+	}
 
 
-  public static WebSocketEventResult handleFailed(Type type, String error) {
-    WebSocketEventResult handleResult = new WebSocketEventResult();
-    handleResult.setType(type.getType());
-    handleResult.setStatus(EVENT_HANDLE_RESULT_ERRPR);
-    handleResult.setError(error);
+	public static WebSocketEventResult handleFailed(Type type, String error) {
+		WebSocketEventResult handleResult = new WebSocketEventResult();
+		handleResult.setType(type.getType());
+		handleResult.setStatus(EVENT_HANDLE_RESULT_ERRPR);
+		handleResult.setError(error);
 
-    return handleResult;
-  }
+		return handleResult;
+	}
 
-  public static WebSocketEventResult handleFailed(Type type, String error, Throwable throwable) {
-    WebSocketEventResult handleResult = new WebSocketEventResult();
-    handleResult.setType(type.getType());
-    handleResult.setStatus(EVENT_HANDLE_RESULT_ERRPR);
-    if (throwable != null) {
-      String stackString = Log4jUtil.getStackString(throwable);
-      error += "\n" + stackString;
-    }
-    handleResult.setError(error);
+	public static WebSocketEventResult handleFailed(Type type, String error, Throwable throwable) {
+		WebSocketEventResult handleResult = new WebSocketEventResult();
+		handleResult.setType(type.getType());
+		handleResult.setStatus(EVENT_HANDLE_RESULT_ERRPR);
+		if (throwable != null) {
+			String stackString = Log4jUtil.getStackString(throwable);
+			error += "\n" + stackString;
+		}
+		handleResult.setError(error);
 
-    return handleResult;
-  }
+		return handleResult;
+	}
 
-  public String getType() {
-    return type;
-  }
+	public String getType() {
+		return type;
+	}
 
-  public void setType(String type) {
-    this.type = type;
-  }
+	public void setType(String type) {
+		this.type = type;
+	}
 
-  public Object getResult() {
-    return result;
-  }
+	public Object getResult() {
+		return result;
+	}
 
-  public void setResult(Object result) {
-    this.result = result;
-  }
+	public void setResult(Object result) {
+		this.result = result;
+	}
 
-  public String getError() {
-    return error;
-  }
+	public String getError() {
+		return error;
+	}
 
-  public void setError(String error) {
-    this.error = error;
-  }
+	public void setError(String error) {
+		this.error = error;
+	}
 
-  public String getStatus() {
-    return status;
-  }
+	public String getStatus() {
+		return status;
+	}
 
-  public void setStatus(String status) {
-    this.status = status;
-  }
+	public void setStatus(String status) {
+		this.status = status;
+	}
 
-  public enum Type {
-    EXECUTE_SCRIPT_RESULT("execute_script_result"),
-	  EXECUTE_LOAD_SCHEMA_RESULT("execute_load_schema_result"),
-	  UNKNOWN_EVENT_RESULT("unknown_event_result"),
-	  HANDLE_EVENT_ERROR_RESULT("handle_event_error_result"),
-	  EXECUTE_DATA_INSPECT_RESULT("execute_data_inspect_result"),
-	  SUBSCRIBE_EVENT_RESULT("subscribe_result"),
-	  AGGREGATE_PREVIEW_RESULT("aggregatePreviewResult"),
-	  TEST_CONNECTION_RESULT("testConnectionResult"),
-	  LOAD_JAR_LIB_RESULT("loadJarLibResult"),
-	  LOAD_VIKA_RESULT("loadVikaResult"),
-	  DATA_SYNC_RESULT("dataSyncResult"),
+	public enum Type {
+		EXECUTE_SCRIPT_RESULT("execute_script_result"),
+		EXECUTE_LOAD_SCHEMA_RESULT("execute_load_schema_result"),
+		UNKNOWN_EVENT_RESULT("unknown_event_result"),
+		HANDLE_EVENT_ERROR_RESULT("handle_event_error_result"),
+		EXECUTE_DATA_INSPECT_RESULT("execute_data_inspect_result"),
+		SUBSCRIBE_EVENT_RESULT("subscribe_result"),
+		AGGREGATE_PREVIEW_RESULT("aggregatePreviewResult"),
+		TEST_CONNECTION_RESULT("testConnectionResult"),
+		LOAD_JAR_LIB_RESULT("loadJarLibResult"),
+		LOAD_VIKA_RESULT("loadVikaResult"),
+		DATA_SYNC_RESULT("dataSyncResult"),
 
-	  DEDUCE_SCHEMA("deduceSchemaResult"),
-	  ;
+		DEDUCE_SCHEMA("deduceSchemaResult"),
+		;
 
-	  private String type;
+		private String type;
 
-	  Type(String type) {
-		  this.type = type;
-	  }
+		Type(String type) {
+			this.type = type;
+		}
 
-	  public String getType() {
-		  return type;
-    }
-  }
+		public String getType() {
+			return type;
+		}
+	}
 
-  @Override
-  public String toString() {
-    return "WebSocketEventResult{" +
-      "type='" + type + '\'' +
-      ", error='" + error + '\'' +
-      ", status='" + status + '\'' +
-      ", result=" + result +
-      '}';
-  }
+	@Override
+	public String toString() {
+		return "WebSocketEventResult{" +
+				"type='" + type + '\'' +
+				", error='" + error + '\'' +
+				", status='" + status + '\'' +
+				", result=" + result +
+				'}';
+	}
 }

@@ -6,6 +6,7 @@ import java.util.List;
 
 public class StreamReadDataNodeAspect extends DataNodeAspect<StreamReadDataNodeAspect> {
 	private List<TapdataEvent> events;
+
 	public StreamReadDataNodeAspect events(List<TapdataEvent> events) {
 		this.events = events;
 		return this;

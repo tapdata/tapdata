@@ -13,16 +13,17 @@ import java.util.function.BiConsumer;
  **/
 public interface ShareCdcReader extends Closeable {
 
-  /**
-   * Init share cdc reader
-   * @param shareCdcContext
-   * @throws ShareCdcUnsupportedException If not available, will throw this type of exception
-   */
-  void init(ShareCdcContext shareCdcContext) throws ShareCdcUnsupportedException;
+	/**
+	 * Init share cdc reader
+	 *
+	 * @param shareCdcContext
+	 * @throws ShareCdcUnsupportedException If not available, will throw this type of exception
+	 */
+	void init(ShareCdcContext shareCdcContext) throws ShareCdcUnsupportedException;
 
-  default void listen(BiConsumer<TapEvent, Object> logContentConsumer) throws Exception{
-    throw new UnsupportedOperationException();
-  }
+	default void listen(BiConsumer<TapEvent, Object> logContentConsumer) throws Exception {
+		throw new UnsupportedOperationException();
+	}
 
-  boolean isRunning();
+	boolean isRunning();
 }

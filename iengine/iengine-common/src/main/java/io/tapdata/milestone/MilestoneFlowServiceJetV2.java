@@ -1,12 +1,9 @@
 package io.tapdata.milestone;
 
 import com.fasterxml.jackson.core.type.TypeReference;
-import com.google.common.collect.EnumBiMap;
-import com.tapdata.constant.BeanUtil;
 import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.constant.JSONUtil;
 import com.tapdata.entity.Milestone;
-import com.tapdata.entity.dataflow.DataFlow;
 import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.tm.commons.task.dto.SubTaskDto;
 import org.apache.commons.collections.CollectionUtils;

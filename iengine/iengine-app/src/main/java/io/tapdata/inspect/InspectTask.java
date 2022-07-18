@@ -16,7 +16,6 @@ import io.tapdata.pdk.core.api.PDKIntegration;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
 import io.tapdata.pdk.core.monitor.PDKMethod;
 import io.tapdata.schema.PdkTableMap;
-import io.tapdata.schema.TapTableMap;
 import io.tapdata.schema.TapTableUtil;
 import org.apache.commons.collections.MapUtils;
 import org.apache.commons.lang3.StringUtils;

@@ -31,10 +31,10 @@ public class LogUtil {
 		}
 
 		BurstFilter burstFilter = new BurstFilter.Builder()
-			.setRate(rate)
-			.setMaxBurst(rate * 100)
-			.setLevel(Level.INFO)
-			.build();
+				.setRate(rate)
+				.setMaxBurst(rate * 100)
+				.setLevel(Level.INFO)
+				.build();
 
 		return burstFilter;
 	}
@@ -66,12 +66,12 @@ public class LogUtil {
 		}
 
 		TapdataLog4jFilter filter = new TapdataLog4jFilter.Builder()
-			.setInterval(interval)
-			.setOnmatch(Filter.Result.DENY)
-			.setOnmismatch(Filter.Result.NEUTRAL)
-			.setLevel(Level.INFO)
-			.setFormat(isFormat)
-			.build();
+				.setInterval(interval)
+				.setOnmatch(Filter.Result.DENY)
+				.setOnmismatch(Filter.Result.NEUTRAL)
+				.setLevel(Level.INFO)
+				.setFormat(isFormat)
+				.build();
 
 		return filter;
 	}

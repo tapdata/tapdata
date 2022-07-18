@@ -14,15 +14,15 @@ import java.io.IOException;
  */
 public class VersionHeaderInterceptor implements ClientHttpRequestInterceptor {
 
-  private static final String HTTP_HEADER_USER_AGENT = "User-Agent";
+	private static final String HTTP_HEADER_USER_AGENT = "User-Agent";
 
 
-  @Override
-  public ClientHttpResponse intercept(HttpRequest request, byte[] body, ClientHttpRequestExecution execution) throws IOException {
-    String version = Version.get();
-    if (StringUtils.isNotEmpty(version)) {
-      request.getHeaders().add(HTTP_HEADER_USER_AGENT, version);
-    }
-    return execution.execute(request, body);
-  }
+	@Override
+	public ClientHttpResponse intercept(HttpRequest request, byte[] body, ClientHttpRequestExecution execution) throws IOException {
+		String version = Version.get();
+		if (StringUtils.isNotEmpty(version)) {
+			request.getHeaders().add(HTTP_HEADER_USER_AGENT, version);
+		}
+		return execution.execute(request, body);
+	}
 }

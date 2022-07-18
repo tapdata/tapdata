@@ -28,7 +28,6 @@ import io.tapdata.pdk.core.api.PDKIntegration;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
 import io.tapdata.pdk.core.monitor.PDKMethod;
 import io.tapdata.schema.PdkTableMap;
-import io.tapdata.schema.TapTableMap;
 import io.tapdata.schema.TapTableUtil;
 import io.tapdata.websocket.EventHandlerAnnotation;
 import io.tapdata.websocket.WebSocketEventResult;
@@ -37,7 +36,6 @@ import org.apache.commons.lang3.StringUtils;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 

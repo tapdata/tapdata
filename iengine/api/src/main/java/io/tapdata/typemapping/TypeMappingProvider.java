@@ -12,55 +12,55 @@ import java.util.List;
  **/
 public interface TypeMappingProvider {
 
-  default List<DbType> bindString() {
-    return new ArrayList<>();
-  }
+	default List<DbType> bindString() {
+		return new ArrayList<>();
+	}
 
-  default List<DbType> bindNumber() {
-    return new ArrayList<>();
-  }
+	default List<DbType> bindNumber() {
+		return new ArrayList<>();
+	}
 
-  default List<DbType> bindBytes() {
-    return new ArrayList<>();
-  }
+	default List<DbType> bindBytes() {
+		return new ArrayList<>();
+	}
 
-  default List<DbType> bindBoolean() {
-    return new ArrayList<>();
-  }
+	default List<DbType> bindBoolean() {
+		return new ArrayList<>();
+	}
 
-  default List<DbType> bindDate() {
-    return new ArrayList<>();
-  }
+	default List<DbType> bindDate() {
+		return new ArrayList<>();
+	}
 
-  default List<DbType> bindDatetime() {
-    return new ArrayList<>();
-  }
+	default List<DbType> bindDatetime() {
+		return new ArrayList<>();
+	}
 
-  default List<DbType> bindDatetime_with_timezone() {
-    return new ArrayList<>();
-  }
+	default List<DbType> bindDatetime_with_timezone() {
+		return new ArrayList<>();
+	}
 
-  default List<DbType> bindTime() {
-    return new ArrayList<>();
-  }
+	default List<DbType> bindTime() {
+		return new ArrayList<>();
+	}
 
-  default List<DbType> bindTime_with_timezone() {
-    return new ArrayList<>();
-  }
+	default List<DbType> bindTime_with_timezone() {
+		return new ArrayList<>();
+	}
 
-  default List<DbType> bindArray() {
-    return new ArrayList<>();
-  }
+	default List<DbType> bindArray() {
+		return new ArrayList<>();
+	}
 
-  default List<DbType> bindMap() {
-    return new ArrayList<>();
-  }
+	default List<DbType> bindMap() {
+		return new ArrayList<>();
+	}
 
-  default List<DbType> bindNull() {
-    return new ArrayList<>();
-  }
+	default List<DbType> bindNull() {
+		return new ArrayList<>();
+	}
 
-  default List<DbType> bindUnsupported() {
-    return new ArrayList<>();
-  }
+	default List<DbType> bindUnsupported() {
+		return new ArrayList<>();
+	}
 }

@@ -1,24 +1,20 @@
 package mongodb;
 
 import base.BaseTest;
-import com.mongodb.*;
-import com.mongodb.client.ListCollectionsIterable;
+import com.mongodb.MongoClient;
+import com.mongodb.MongoClientURI;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoDatabase;
 import de.flapdoodle.embed.mongo.MongodProcess;
 import de.flapdoodle.embed.mongo.MongodStarter;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.apache.commons.lang3.RandomUtils;
-import org.bson.BsonArray;
 import org.bson.Document;
-import org.bson.conversions.Bson;
-import org.junit.Before;
 import org.junit.Ignore;
 import org.junit.Test;
 
-import java.io.IOException;
-import java.net.URISyntaxException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.stream.IntStream;
@@ -29,12 +25,12 @@ import java.util.stream.IntStream;
 @Ignore
 public class MongodbTest extends BaseTest {
 
-  public static final String ADMIN_DATABASE_NAME = "admin";
-  private static final MongodStarter starter = MongodStarter.getDefaultInstance();
+	public static final String ADMIN_DATABASE_NAME = "admin";
+	private static final MongodStarter starter = MongodStarter.getDefaultInstance();
 
-  private List<MongodProcess> mongodProcessList = new ArrayList<>();
-  private static MongoClient mongoClient;
-  private ExecutorService service = Executors.newCachedThreadPool();
+	private List<MongodProcess> mongodProcessList = new ArrayList<>();
+	private static MongoClient mongoClient;
+	private ExecutorService service = Executors.newCachedThreadPool();
 
     /*@Before
     public void init() throws IOException, URISyntaxException {
@@ -291,20 +287,20 @@ public class MongodbTest extends BaseTest {
 
     }*/
 
-  @Test
-  public void createTable() {
-    MongoClientURI mongoClientURI = new MongoClientURI("mongodb://mongo:27017/source");
-    try (
-      MongoClient client = new MongoClient(mongoClientURI);
-    ) {
-      MongoDatabase database = client.getDatabase(mongoClientURI.getDatabase());
-      int tableCount = 500;
-      IntStream.range(0, tableCount).forEach(i -> {
-        MongoCollection<Document> collection = database.getCollection(RandomStringUtils.randomAlphanumeric(10) + i);
-        collection.drop();
-        collection.insertOne(new Document("id", RandomUtils.nextInt()).append("name", RandomStringUtils.randomAlphabetic(10)));
-        System.out.println(i + "/" + tableCount);
-      });
-    }
-  }
+	@Test
+	public void createTable() {
+		MongoClientURI mongoClientURI = new MongoClientURI("mongodb://mongo:27017/source");
+		try (
+				MongoClient client = new MongoClient(mongoClientURI);
+		) {
+			MongoDatabase database = client.getDatabase(mongoClientURI.getDatabase());
+			int tableCount = 500;
+			IntStream.range(0, tableCount).forEach(i -> {
+				MongoCollection<Document> collection = database.getCollection(RandomStringUtils.randomAlphanumeric(10) + i);
+				collection.drop();
+				collection.insertOne(new Document("id", RandomUtils.nextInt()).append("name", RandomStringUtils.randomAlphabetic(10)));
+				System.out.println(i + "/" + tableCount);
+			});
+		}
+	}
 }

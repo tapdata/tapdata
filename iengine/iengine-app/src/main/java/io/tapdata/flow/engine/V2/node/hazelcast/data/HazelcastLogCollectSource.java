@@ -31,69 +31,69 @@ import static org.springframework.data.mongodb.core.query.Criteria.where;
  **/
 public class HazelcastLogCollectSource extends HazelcastTaskSource {
 
-  private Logger logger = LogManager.getLogger(HazelcastLogCollectSource.class);
+	private Logger logger = LogManager.getLogger(HazelcastLogCollectSource.class);
 
-  public HazelcastLogCollectSource(DataProcessorContext dataProcessorContext) {
-    super(dataProcessorContext);
-  }
+	public HazelcastLogCollectSource(DataProcessorContext dataProcessorContext) {
+		super(dataProcessorContext);
+	}
 
-  @Override
-  protected void init(@NotNull Processor.Context context) throws Exception {
-    SubTaskDto subTaskDto = dataProcessorContext.getSubTaskDto();
-    Node<?> node = dataProcessorContext.getNode();
-    if (!(node instanceof LogCollectorNode)) {
-      throw new RuntimeException("Expected LogCollectorNode, actual is: " + node.getClass().getName());
-    }
-    List<String> connectionIds = ((LogCollectorNode) node).getConnectionIds();
-    Iterator<String> iterator = connectionIds.iterator();
-    while (iterator.hasNext()) {
-      String connectionId = iterator.next();
-      dataProcessorContext = DataProcessorContext.newBuilder()
-        .withSubTaskDto(dataProcessorContext.getSubTaskDto())
-        .withNode(dataProcessorContext.getNode())
-        .withNodes(dataProcessorContext.getNodes())
-        .withEdges(dataProcessorContext.getEdges())
-        .withSourceConn(MongodbUtil.getConnections(new Query(where("_id").is(connectionId)), clientMongoOperator, true))
-        .withConfigurationCenter(dataProcessorContext.getConfigurationCenter())
-        .build();
-      List<String> tableNames = ((LogCollectorNode) node).getTableNames();
-      String selectType = ((LogCollectorNode) node).getSelectType();
-      this.mappings = new ArrayList<>();
-      Map<String, List<RelateDataBaseTable>> schema = dataProcessorContext.getSourceConn().getSchema();
-      switch (selectType) {
-        case LogCollectorNode.SELECT_TYPE_ALL:
-          // 所有表
-          tableNames.addAll(((SchemaList<String, RelateDataBaseTable>) schema).getTableNames());
-          break;
-        case LogCollectorNode.SELECT_TYPE_RESERVATION:
-          // 保留表
-          break;
-        case LogCollectorNode.SELECT_TYPE_EXCLUSIONTABLE:
-          // 排除表
-          List<String> finalTableNames = tableNames;
-          tableNames = ((SchemaList<String, RelateDataBaseTable>) schema).getTableNames().stream()
-            .filter(tableName -> !finalTableNames.contains(tableName)).collect(Collectors.toList());
-          break;
-      }
-      tableNames.forEach(tableName -> {
-        Mapping mapping = new Mapping();
-        mapping.setFrom_table(tableName);
-        this.mappings.add(mapping);
-      });
-      this.syncType = SyncTypeEnum.CDC;
-      try {
-        super.init(context);
-        break;
-      } catch (Exception e) {
-        if (iterator.hasNext()) {
-          logger.warn("Running log collect source with connection: " + dataProcessorContext.getSourceConn().getName() +
-            " failed. Will try next connection" + "\n" + Log4jUtil.getStackString(e));
-        } else {
-          logger.error("Running log collect source with connection: " + dataProcessorContext.getSourceConn().getName() +
-            " failed. Will try next connection" + "\n" + Log4jUtil.getStackString(e));
-          break;
-        }
-      }
-    }
-  }
+	@Override
+	protected void init(@NotNull Processor.Context context) throws Exception {
+		SubTaskDto subTaskDto = dataProcessorContext.getSubTaskDto();
+		Node<?> node = dataProcessorContext.getNode();
+		if (!(node instanceof LogCollectorNode)) {
+			throw new RuntimeException("Expected LogCollectorNode, actual is: " + node.getClass().getName());
+		}
+		List<String> connectionIds = ((LogCollectorNode) node).getConnectionIds();
+		Iterator<String> iterator = connectionIds.iterator();
+		while (iterator.hasNext()) {
+			String connectionId = iterator.next();
+			dataProcessorContext = DataProcessorContext.newBuilder()
+					.withSubTaskDto(dataProcessorContext.getSubTaskDto())
+					.withNode(dataProcessorContext.getNode())
+					.withNodes(dataProcessorContext.getNodes())
+					.withEdges(dataProcessorContext.getEdges())
+					.withSourceConn(MongodbUtil.getConnections(new Query(where("_id").is(connectionId)), clientMongoOperator, true))
+					.withConfigurationCenter(dataProcessorContext.getConfigurationCenter())
+					.build();
+			List<String> tableNames = ((LogCollectorNode) node).getTableNames();
+			String selectType = ((LogCollectorNode) node).getSelectType();
+			this.mappings = new ArrayList<>();
+			Map<String, List<RelateDataBaseTable>> schema = dataProcessorContext.getSourceConn().getSchema();
+			switch (selectType) {
+				case LogCollectorNode.SELECT_TYPE_ALL:
+					// 所有表
+					tableNames.addAll(((SchemaList<String, RelateDataBaseTable>) schema).getTableNames());
+					break;
+				case LogCollectorNode.SELECT_TYPE_RESERVATION:
+					// 保留表
+					break;
+				case LogCollectorNode.SELECT_TYPE_EXCLUSIONTABLE:
+					// 排除表
+					List<String> finalTableNames = tableNames;
+					tableNames = ((SchemaList<String, RelateDataBaseTable>) schema).getTableNames().stream()
+							.filter(tableName -> !finalTableNames.contains(tableName)).collect(Collectors.toList());
+					break;
+			}
+			tableNames.forEach(tableName -> {
+				Mapping mapping = new Mapping();
+				mapping.setFrom_table(tableName);
+				this.mappings.add(mapping);
+			});
+			this.syncType = SyncTypeEnum.CDC;
+			try {
+				super.init(context);
+				break;
+			} catch (Exception e) {
+				if (iterator.hasNext()) {
+					logger.warn("Running log collect source with connection: " + dataProcessorContext.getSourceConn().getName() +
+							" failed. Will try next connection" + "\n" + Log4jUtil.getStackString(e));
+				} else {
+					logger.error("Running log collect source with connection: " + dataProcessorContext.getSourceConn().getName() +
+							" failed. Will try next connection" + "\n" + Log4jUtil.getStackString(e));
+					break;
+				}
+			}
+		}
+	}
 }

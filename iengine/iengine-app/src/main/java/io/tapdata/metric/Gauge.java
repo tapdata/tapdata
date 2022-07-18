@@ -2,8 +2,8 @@ package io.tapdata.metric;
 
 public interface Gauge<T> {
 
-  String getName();
+	String getName();
 
-  T getValue();
+	T getValue();
 
 }

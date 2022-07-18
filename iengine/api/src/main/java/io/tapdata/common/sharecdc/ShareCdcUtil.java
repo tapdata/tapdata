@@ -8,7 +8,6 @@ import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.constant.Log4jUtil;
 import com.tapdata.constant.MongodbUtil;
 import com.tapdata.entity.Connections;
-import com.tapdata.entity.Setting;
 import com.tapdata.entity.hazelcast.HazelcastConstant;
 import com.tapdata.entity.hazelcast.PersistenceStorageConfig;
 import com.tapdata.entity.sharecdc.ShareCdcConstant;

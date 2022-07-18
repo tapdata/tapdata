@@ -4,53 +4,53 @@ import java.io.Serializable;
 
 public class LoginResp implements Serializable {
 
-  private String id;
+	private String id;
 
-  private String created;
+	private String created;
 
-  private String userId;
+	private String userId;
 
-  private Long ttl;
+	private Long ttl;
 
-  private long expiredTimestamp;
+	private long expiredTimestamp;
 
-  public String getId() {
-    return id;
-  }
+	public String getId() {
+		return id;
+	}
 
-  public void setId(String id) {
-    this.id = id;
-  }
+	public void setId(String id) {
+		this.id = id;
+	}
 
-  public String getCreated() {
-    return created;
-  }
+	public String getCreated() {
+		return created;
+	}
 
-  public void setCreated(String created) {
-    this.created = created;
-  }
+	public void setCreated(String created) {
+		this.created = created;
+	}
 
-  public String getUserId() {
-    return userId;
-  }
+	public String getUserId() {
+		return userId;
+	}
 
-  public void setUserId(String userId) {
-    this.userId = userId;
-  }
+	public void setUserId(String userId) {
+		this.userId = userId;
+	}
 
-  public Long getTtl() {
-    return ttl;
-  }
+	public Long getTtl() {
+		return ttl;
+	}
 
-  public void setTtl(Long ttl) {
-    this.ttl = ttl;
-  }
+	public void setTtl(Long ttl) {
+		this.ttl = ttl;
+	}
 
-  public long getExpiredTimestamp() {
-    return expiredTimestamp;
-  }
+	public long getExpiredTimestamp() {
+		return expiredTimestamp;
+	}
 
-  public void setExpiredTimestamp(long expiredTimestamp) {
-    this.expiredTimestamp = expiredTimestamp;
-  }
+	public void setExpiredTimestamp(long expiredTimestamp) {
+		this.expiredTimestamp = expiredTimestamp;
+	}
 }

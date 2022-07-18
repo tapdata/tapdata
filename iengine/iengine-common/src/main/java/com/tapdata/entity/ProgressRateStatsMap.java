@@ -5,17 +5,17 @@ import java.util.Map;
 
 public class ProgressRateStatsMap {
 
-  private Map<String, ProgressRateStats> statsMap;
+	private Map<String, ProgressRateStats> statsMap;
 
-  public ProgressRateStatsMap() {
-    statsMap = new HashMap<>();
-  }
+	public ProgressRateStatsMap() {
+		statsMap = new HashMap<>();
+	}
 
-  public Map<String, ProgressRateStats> getStatsMap() {
-    return statsMap;
-  }
+	public Map<String, ProgressRateStats> getStatsMap() {
+		return statsMap;
+	}
 
-  public void setStatsMap(Map<String, ProgressRateStats> statsMap) {
-    this.statsMap = statsMap;
-  }
+	public void setStatsMap(Map<String, ProgressRateStats> statsMap) {
+		this.statsMap = statsMap;
+	}
 }

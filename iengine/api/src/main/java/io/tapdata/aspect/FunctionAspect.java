@@ -2,6 +2,7 @@ package io.tapdata.aspect;
 
 public abstract class FunctionAspect<T extends FunctionAspect<?>> extends DataNodeAspect<T> {
 	private Throwable throwable;
+
 	public T throwable(Throwable throwable) {
 		this.throwable = throwable;
 		return (T) this;

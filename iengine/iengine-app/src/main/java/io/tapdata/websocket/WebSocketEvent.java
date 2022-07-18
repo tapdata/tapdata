@@ -8,53 +8,53 @@ import java.io.Serializable;
  */
 public class WebSocketEvent<T> implements Serializable {
 
-  private String type;
+	private String type;
 
-  private String receiver;
+	private String receiver;
 
-  private String sender;
+	private String sender;
 
-  private T data;
+	private T data;
 
-  public String getType() {
-    return type;
-  }
+	public String getType() {
+		return type;
+	}
 
-  public void setType(String type) {
-    this.type = type;
-  }
+	public void setType(String type) {
+		this.type = type;
+	}
 
-  public String getReceiver() {
-    return receiver;
-  }
+	public String getReceiver() {
+		return receiver;
+	}
 
-  public void setReceiver(String receiver) {
-    this.receiver = receiver;
-  }
+	public void setReceiver(String receiver) {
+		this.receiver = receiver;
+	}
 
-  public String getSender() {
-    return sender;
-  }
+	public String getSender() {
+		return sender;
+	}
 
-  public void setSender(String sender) {
-    this.sender = sender;
-  }
+	public void setSender(String sender) {
+		this.sender = sender;
+	}
 
-  public T getData() {
-    return data;
-  }
+	public T getData() {
+		return data;
+	}
 
-  public void setData(T data) {
-    this.data = data;
-  }
+	public void setData(T data) {
+		this.data = data;
+	}
 
-  @Override
-  public String toString() {
-    return "WebSocketEvent{" +
-      "type='" + type + '\'' +
-      ", receiver='" + receiver + '\'' +
-      ", sender='" + sender + '\'' +
-      ", data=" + data +
-      '}';
-  }
+	@Override
+	public String toString() {
+		return "WebSocketEvent{" +
+				"type='" + type + '\'' +
+				", receiver='" + receiver + '\'' +
+				", sender='" + sender + '\'' +
+				", data=" + data +
+				'}';
+	}
 }

@@ -9,11 +9,11 @@ import org.junit.Test;
  */
 public class TestCompareFunction {
 
-  @Test
-  public void testCallback() {
+	@Test
+	public void testCallback() {
 
 
 
-  }
+	}
 
 }

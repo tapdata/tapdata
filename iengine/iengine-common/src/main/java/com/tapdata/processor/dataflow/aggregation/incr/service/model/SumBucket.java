@@ -4,44 +4,44 @@ import java.util.Map;
 
 public class SumBucket extends AbstractAggrBucket<SumBucket.Value> {
 
-  public static class Value implements BucketValue {
-    private final Number value;
-    private final long count;
+	public static class Value implements BucketValue {
+		private final Number value;
+		private final long count;
 
-    public Value(Number value, long count) {
-      this.value = value;
-      this.count = count;
-    }
+		public Value(Number value, long count) {
+			this.value = value;
+			this.count = count;
+		}
 
-    public Number getValue() {
-      return value;
-    }
+		public Number getValue() {
+			return value;
+		}
 
-    public long getCount() {
-      return count;
-    }
-  }
+		public long getCount() {
+			return count;
+		}
+	}
 
-  private final Value bucketValue;
+	private final Value bucketValue;
 
-  public SumBucket(Map<String, Object> groupByKey, Number value, long count) {
-    super(groupByKey);
-    this.bucketValue = new Value(value, count);
-  }
+	public SumBucket(Map<String, Object> groupByKey, Number value, long count) {
+		super(groupByKey);
+		this.bucketValue = new Value(value, count);
+	}
 
-  @Override
-  public Number getValue() {
-    return bucketValue.getValue();
-  }
+	@Override
+	public Number getValue() {
+		return bucketValue.getValue();
+	}
 
-  @Override
-  public long getCount() {
-    return bucketValue.getCount();
-  }
+	@Override
+	public long getCount() {
+		return bucketValue.getCount();
+	}
 
-  @Override
-  public SumBucket.Value getBucketValue() {
-    return bucketValue;
-  }
+	@Override
+	public SumBucket.Value getBucketValue() {
+		return bucketValue;
+	}
 
 }

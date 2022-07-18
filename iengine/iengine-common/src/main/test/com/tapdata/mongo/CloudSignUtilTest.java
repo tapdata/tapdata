@@ -24,7 +24,7 @@ import java.util.Map;
 
 public class CloudSignUtilTest {
 
-  public static void main(String[] args) throws UnsupportedEncodingException, URISyntaxException {
+	public static void main(String[] args) throws UnsupportedEncodingException, URISyntaxException {
 //    CloudRestTemplate cloudRestTemplate = new CloudRestTemplate(getRequestFactory(60000, 60000, 60000));
 //    String url = "http://127.0.0.1:9999/test/hello?accessKey=gJXFNomvIlsrrCt9l4jvhVFu1Vm9iXyQ&signVersion=1.0&sign=neYd8JEd27m4JqhzsrNAzvq%2F0vc%3D&nonce=e73c3c52-6129-4daa-b178-51e9ae2c53cb&ts=1628479028057";
 //    Map<String, Object> param = new HashMap<>();
@@ -35,42 +35,42 @@ public class CloudSignUtilTest {
 //    System.out.println(x);
 //    System.out.println(SignUtil.percentEncode(x));
 
-    URI uri = new URI("http://192.168.1.189:8086/tm/api/users/generatetoken?accessKey=gJXFNomvIlsrrCt9l4jvhVFu1Vm9iXyQ&signVersion=1.0&sign=qEzq2iYHjBLUtbibeCehSIfYaJA%3D&nonce=46d6cbcb-60ca-4a1f-bbdc-8f262f7c3e79&ts=1628490043715");
-    System.out.println(uri.toString());
-  }
+		URI uri = new URI("http://192.168.1.189:8086/tm/api/users/generatetoken?accessKey=gJXFNomvIlsrrCt9l4jvhVFu1Vm9iXyQ&signVersion=1.0&sign=qEzq2iYHjBLUtbibeCehSIfYaJA%3D&nonce=46d6cbcb-60ca-4a1f-bbdc-8f262f7c3e79&ts=1628490043715");
+		System.out.println(uri.toString());
+	}
 
-  private static ClientHttpRequestFactory getRequestFactory(int connectTimeout, int readTimeout, int connectRequestTimeout) {
-    int threshold = 1024;
+	private static ClientHttpRequestFactory getRequestFactory(int connectTimeout, int readTimeout, int connectRequestTimeout) {
+		int threshold = 1024;
 
-    PoolingHttpClientConnectionManager poolingHttpClientConnectionManager = new PoolingHttpClientConnectionManager();
-    poolingHttpClientConnectionManager.setMaxTotal(2000);
-    poolingHttpClientConnectionManager.setDefaultMaxPerRoute(2000);
+		PoolingHttpClientConnectionManager poolingHttpClientConnectionManager = new PoolingHttpClientConnectionManager();
+		poolingHttpClientConnectionManager.setMaxTotal(2000);
+		poolingHttpClientConnectionManager.setDefaultMaxPerRoute(2000);
 
-    CloseableHttpClient httpClient = HttpClientBuilder.create()
-      .setDefaultRequestConfig(RequestConfig.custom().setCookieSpec(CookieSpecs.STANDARD).build())
-      .disableAutomaticRetries()
-      .addInterceptorFirst((HttpRequestInterceptor) (request, context) -> {
-        if (request instanceof HttpEntityEnclosingRequest) {
-          HttpEntityEnclosingRequest enclosingRequest = (HttpEntityEnclosingRequest) request;
+		CloseableHttpClient httpClient = HttpClientBuilder.create()
+				.setDefaultRequestConfig(RequestConfig.custom().setCookieSpec(CookieSpecs.STANDARD).build())
+				.disableAutomaticRetries()
+				.addInterceptorFirst((HttpRequestInterceptor) (request, context) -> {
+					if (request instanceof HttpEntityEnclosingRequest) {
+						HttpEntityEnclosingRequest enclosingRequest = (HttpEntityEnclosingRequest) request;
 
-          if (enclosingRequest.getEntity() instanceof ByteArrayEntity) {
-            ByteArrayEntity byteArrayEntity = (ByteArrayEntity) enclosingRequest.getEntity();
-            long contentLength = byteArrayEntity.getContentLength();
-            if (contentLength > threshold) {
-              request.addHeader(org.apache.http.HttpHeaders.CONTENT_ENCODING, "gzip");
-              enclosingRequest.setEntity(new GzipCompressingEntity(enclosingRequest.getEntity()));
-            }
-          }
+						if (enclosingRequest.getEntity() instanceof ByteArrayEntity) {
+							ByteArrayEntity byteArrayEntity = (ByteArrayEntity) enclosingRequest.getEntity();
+							long contentLength = byteArrayEntity.getContentLength();
+							if (contentLength > threshold) {
+								request.addHeader(org.apache.http.HttpHeaders.CONTENT_ENCODING, "gzip");
+								enclosingRequest.setEntity(new GzipCompressingEntity(enclosingRequest.getEntity()));
+							}
+						}
 
-        }
-      })
-      .setConnectionManager(poolingHttpClientConnectionManager)
-      .build();
+					}
+				})
+				.setConnectionManager(poolingHttpClientConnectionManager)
+				.build();
 
-    HttpComponentsClientHttpRequestFactory requestFactory = new HttpComponentsClientHttpRequestFactory(httpClient);
-    requestFactory.setConnectTimeout(connectTimeout);
-    requestFactory.setReadTimeout(readTimeout);
-    requestFactory.setConnectionRequestTimeout(connectRequestTimeout);
-    return requestFactory;
-  }
+		HttpComponentsClientHttpRequestFactory requestFactory = new HttpComponentsClientHttpRequestFactory(httpClient);
+		requestFactory.setConnectTimeout(connectTimeout);
+		requestFactory.setReadTimeout(readTimeout);
+		requestFactory.setConnectionRequestTimeout(connectRequestTimeout);
+		return requestFactory;
+	}
 }

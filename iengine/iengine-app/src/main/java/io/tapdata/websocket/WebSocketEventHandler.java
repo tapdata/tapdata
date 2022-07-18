@@ -38,26 +38,26 @@ public interface WebSocketEventHandler<T> {
 		initialize(clientMongoOperator);
 	}
 
-  /**
-   * 处理事件方法
-   *
-   * @param event 事件
-   * @return 返回处理结果
-   */
-  default T handle(Map event) {
-    return null;
-  }
+	/**
+	 * 处理事件方法
+	 *
+	 * @param event 事件
+	 * @return 返回处理结果
+	 */
+	default T handle(Map event) {
+		return null;
+	}
 
-  /**
-   * 处理事件方法，可以在处理中多次返回消息体
-   * 优先调用该方法，如果没有实现，则调用{@link WebSocketEventHandler#handle(java.util.Map)}
-   *
-   * @param event
-   * @param sendMessage
-   * @return
-   */
-  default T handle(Map event, SendMessage<WebSocketEventResult> sendMessage) {
-    return handle(event);
-  }
+	/**
+	 * 处理事件方法，可以在处理中多次返回消息体
+	 * 优先调用该方法，如果没有实现，则调用{@link WebSocketEventHandler#handle(java.util.Map)}
+	 *
+	 * @param event
+	 * @param sendMessage
+	 * @return
+	 */
+	default T handle(Map event, SendMessage<WebSocketEventResult> sendMessage) {
+		return handle(event);
+	}
 
 }

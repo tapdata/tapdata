@@ -14,6 +14,6 @@ import java.util.List;
 @FunctionalInterface
 public interface ProgressUpdate {
 
-  void progress(InspectTask inspectTask, InspectResultStats inspectResultStats, List<InspectDetail> inspectDetails);
+	void progress(InspectTask inspectTask, InspectResultStats inspectResultStats, List<InspectDetail> inspectDetails);
 
 }

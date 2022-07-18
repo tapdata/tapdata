@@ -25,40 +25,40 @@ public class AspectTaskManagerImpl implements AspectTaskManager {
 		aspectTaskSessionAnnotationHandler = new AspectTaskSessionAnnotationHandler();
 
 		ClassAnnotationManager classAnnotationManager = ClassFactory.create(ClassAnnotationManager.class);
-		if(classAnnotationManager != null) {
+		if (classAnnotationManager != null) {
 			classAnnotationManager
-				.registerClassAnnotationHandler(aspectTaskSessionAnnotationHandler);
+					.registerClassAnnotationHandler(aspectTaskSessionAnnotationHandler);
 			String scanPackage = CommonUtils.getProperty("pdk_aspect_scan_package", "io,tapdata");
 			String[] packages = scanPackage.split(",");
 			classAnnotationManager.scan(packages, this.getClass().getClassLoader());
 
 			taskSessionMap = aspectTaskSessionAnnotationHandler.getAspectTaskSessionMap();
-			if(!taskSessionMap.isEmpty()) {
+			if (!taskSessionMap.isEmpty()) {
 				AspectManager aspectManager = InstanceFactory.instance(AspectManager.class);
-				if(aspectManager != null) {
+				if (aspectManager != null) {
 					final int order = 10000;
 					aspectManager.registerAspectObserver(TaskStartAspect.class, order, aspect -> {
 						SubTaskDto task = aspect.getTask();
-						if(task == null || task.getId() == null) {
+						if (task == null || task.getId() == null) {
 							TapLogger.warn(TAG, "SubTaskDto is missing or taskId is null for TaskStartAspect, task {}", task);
 							return;
 						}
 						Collection<TaskSessionClassHolder> classHolders = taskSessionMap.get("default");
-						if(classHolders != null) {
-							for(TaskSessionClassHolder classHolder : classHolders) {
+						if (classHolders != null) {
+							for (TaskSessionClassHolder classHolder : classHolders) {
 								classHolder.ensureTaskSessionCreated(task);
 							}
 						}
 					});
 					aspectManager.registerAspectObserver(TaskStopAspect.class, order, aspect -> {
 						SubTaskDto task = aspect.getTask();
-						if(task == null || task.getId() == null) {
+						if (task == null || task.getId() == null) {
 							TapLogger.warn(TAG, "SubTaskDto is missing or taskId is null for TaskStopAspect, task {}", task);
 							return;
 						}
 						Collection<TaskSessionClassHolder> classHolders = taskSessionMap.get("default");
-						if(classHolders != null) {
-							for(TaskSessionClassHolder classHolder : classHolders) {
+						if (classHolders != null) {
+							for (TaskSessionClassHolder classHolder : classHolders) {
 								classHolder.ensureTaskSessionStopped(task);
 							}
 						}

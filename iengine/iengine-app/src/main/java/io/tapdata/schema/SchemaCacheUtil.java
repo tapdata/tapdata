@@ -59,14 +59,14 @@ public class SchemaCacheUtil {
 			QueryByAdvanceFilterFunction queryByAdvanceFilterFunction = connectorNode.getConnectorFunctions().getQueryByAdvanceFilterFunction();
 			TapAdvanceFilter tapAdvanceFilter = TapAdvanceFilter.create().limit(1);
 			PDKInvocationMonitor.invoke(connectorNode, PDKMethod.SOURCE_QUERY_BY_ADVANCE_FILTER,
-				() -> queryByAdvanceFilterFunction.query(connectorNode.getConnectorContext(), tapAdvanceFilter, tapTable, filterResults -> {
+					() -> queryByAdvanceFilterFunction.query(connectorNode.getConnectorContext(), tapAdvanceFilter, tapTable, filterResults -> {
 
-					List<Map<String, Object>> results = filterResults.getResults();
-					List<TapEvent> events = wrapTapEvent(results, tapTable.getId());
-					if (CollectionUtil.isNotEmpty(events)) {
-						tapEventList.addAll(events);
-					}
-				}), TAG);
+						List<Map<String, Object>> results = filterResults.getResults();
+						List<TapEvent> events = wrapTapEvent(results, tapTable.getId());
+						if (CollectionUtil.isNotEmpty(events)) {
+							tapEventList.addAll(events);
+						}
+					}), TAG);
 			sampleDataCacheMap.put(sampleDataId, tapEventList);
 		}
 		if (logger.isDebugEnabled()) {

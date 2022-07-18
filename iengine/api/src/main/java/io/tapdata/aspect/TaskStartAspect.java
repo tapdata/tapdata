@@ -5,6 +5,7 @@ import io.tapdata.entity.aspect.Aspect;
 
 public class TaskStartAspect extends Aspect {
 	private SubTaskDto task;
+
 	public TaskStartAspect task(SubTaskDto task) {
 		this.task = task;
 		return this;

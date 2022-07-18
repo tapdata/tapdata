@@ -1,12 +1,11 @@
 package io.tapdata.flow.engine.V2.common;
 
 import com.hazelcast.jet.core.JobStatus;
-import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.task.dto.SubTaskDto;
-import io.tapdata.common.DataFlowStatus;
 
 /**
  * task状态与hazelcast job status映射枚举
+ *
  * @author jackin
  * @date 2021/3/9 6:29 PM
  **/
@@ -26,7 +25,8 @@ public enum HazelcastStatusMappingEnum {
 
 	FAILED(JobStatus.FAILED, SubTaskDto.STATUS_ERROR),
 
-	COMPLETED(JobStatus.COMPLETED, SubTaskDto.STATUS_COMPLETE),;
+	COMPLETED(JobStatus.COMPLETED, SubTaskDto.STATUS_COMPLETE),
+	;
 
 	/**
 	 * task 状态

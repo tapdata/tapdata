@@ -12,33 +12,33 @@ import java.util.List;
 
 @AspectTaskSession
 public class ObservableAspectTask extends AspectTask {
-    @Override
-    public void onStart() {
+	@Override
+	public void onStart() {
 
-    }
+	}
 
-    @Override
-    public void onStop() {
+	@Override
+	public void onStop() {
 
-    }
+	}
 
-    @Override
-    public List<Class<? extends Aspect>> observeAspects() {
-        return Arrays.asList(BatchReadAcceptAspect.class, BatchReadStartAspect.class);
-    }
+	@Override
+	public List<Class<? extends Aspect>> observeAspects() {
+		return Arrays.asList(BatchReadAcceptAspect.class, BatchReadStartAspect.class);
+	}
 
-    @Override
-    public List<Class<? extends Aspect>> interceptAspects() {
-        return null;
-    }
+	@Override
+	public List<Class<? extends Aspect>> interceptAspects() {
+		return null;
+	}
 
-    @Override
-    public void onObserveAspect(Aspect aspect) {
+	@Override
+	public void onObserveAspect(Aspect aspect) {
 
-    }
+	}
 
-    @Override
-    public AspectInterceptResult onInterceptAspect(Aspect aspect) {
-        return null;
-    }
+	@Override
+	public AspectInterceptResult onInterceptAspect(Aspect aspect) {
+		return null;
+	}
 }

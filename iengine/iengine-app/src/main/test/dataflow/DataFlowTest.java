@@ -1,27 +1,13 @@
 package dataflow;
 
-import base.BaseTest;
-import com.mongodb.MongoClient;
-import com.mongodb.MongoClientURI;
-import com.mongodb.client.FindIterable;
-import com.mongodb.client.MongoCollection;
-import com.mongodb.client.model.UpdateOptions;
-import com.mongodb.client.result.UpdateResult;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.bson.Document;
-import org.junit.Test;
-
-import java.net.URISyntaxException;
-import java.net.URL;
-import java.nio.file.Files;
-import java.nio.file.Paths;
 
 public class DataFlowTest {
 
-  private Logger logger = LogManager.getLogger(DataFlowTest.class);
+	private Logger logger = LogManager.getLogger(DataFlowTest.class);
 
-  public String tapdataMongoDBURI = "mongodb://localhost/tapdata";
+	public String tapdataMongoDBURI = "mongodb://localhost/tapdata";
 
 //    @Test
 //    public void customDataFlowTest() throws Exception {

@@ -200,6 +200,7 @@ public class TapdataEvent implements Serializable, Cloneable {
 	public boolean isDML() {
 		return tapEvent instanceof TapRecordEvent;
 	}
+
 	public boolean isDDL() {
 		return tapEvent instanceof TapDDLEvent;
 	}

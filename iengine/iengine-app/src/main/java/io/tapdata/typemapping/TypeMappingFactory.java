@@ -9,11 +9,11 @@ import com.tapdata.mongo.ClientMongoOperator;
  **/
 public class TypeMappingFactory {
 
-  public static BaseTypeMapping getTypeMappingJobEngine() throws Exception {
-    return new TypeMappingJobEngine();
-  }
+	public static BaseTypeMapping getTypeMappingJobEngine() throws Exception {
+		return new TypeMappingJobEngine();
+	}
 
-  public static BaseTypeMapping getTypeMappingJobEngine(ClientMongoOperator clientMongoOperator) throws Exception {
-    return new TypeMappingJobEngine(clientMongoOperator);
-  }
+	public static BaseTypeMapping getTypeMappingJobEngine(ClientMongoOperator clientMongoOperator) throws Exception {
+		return new TypeMappingJobEngine(clientMongoOperator);
+	}
 }

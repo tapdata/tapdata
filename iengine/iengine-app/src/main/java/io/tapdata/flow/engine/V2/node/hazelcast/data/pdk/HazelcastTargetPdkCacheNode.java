@@ -2,6 +2,7 @@ package io.tapdata.flow.engine.V2.node.hazelcast.data.pdk;
 
 import com.tapdata.cache.CacheUtil;
 import com.tapdata.cache.ICacheService;
+import com.tapdata.entity.TapdataShareLogEvent;
 import com.tapdata.entity.dataflow.DataFlowCacheConfig;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.tm.commons.dag.Node;
@@ -9,7 +10,6 @@ import com.tapdata.tm.commons.dag.nodes.CacheNode;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
-import com.tapdata.entity.TapdataShareLogEvent;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
 import org.apache.commons.collections4.MapUtils;
 import org.apache.logging.log4j.LogManager;
@@ -30,6 +30,7 @@ public class HazelcastTargetPdkCacheNode extends HazelcastTargetPdkBaseNode {
 	private DataFlowCacheConfig dataFlowCacheConfig;
 
 	private ICacheService cacheService;
+
 	public HazelcastTargetPdkCacheNode(DataProcessorContext dataProcessorContext) {
 		super(dataProcessorContext);
 		Node<?> node = dataProcessorContext.getNode();
@@ -68,7 +69,8 @@ public class HazelcastTargetPdkCacheNode extends HazelcastTargetPdkBaseNode {
 				cacheService.cacheRow(cacheName, cacheKey, rows);
 			} else if (tapEvent instanceof TapDeleteRecordEvent) {
 				final Object[] pkKeyValues = CacheUtil.getKeyValues(dataFlowCacheConfig.getPrimaryKeys(), row);
-				if (null == pkKeyValues) throw new RuntimeException("Cache primary key not in row data: " + dataFlowCacheConfig.getPrimaryKeys());
+				if (null == pkKeyValues)
+					throw new RuntimeException("Cache primary key not in row data: " + dataFlowCacheConfig.getPrimaryKeys());
 				String pkKey = CacheUtil.cacheKey(pkKeyValues);
 				cacheService.removeByKey(cacheName, cacheKey, pkKey);
 
