@@ -155,6 +155,9 @@
         <version.debezium.embedded.new>2.0.1</version.debezium.embedded.new>
         <version.debezium.connector.postgres>2.0.0</version.debezium.connector.postgres>
         <version.debezium.connector.mysql>2.0.0</version.debezium.connector.mysql>
+
+        <!-- lombok -->
+        <lombok.version>1.18.20</lombok.version>
     </properties>
 
     <modules>
@@ -1296,6 +1299,12 @@
                 <groupId>com.tapdata</groupId>
                 <artifactId>hazelcast-lib</artifactId>
                 <version>${project.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>org.projectlombok</groupId>
+                <artifactId>lombok</artifactId>
+                <version>${lombok.version}</version>
             </dependency>
 
         </dependencies>
