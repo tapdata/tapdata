@@ -6,6 +6,7 @@ import com.hazelcast.jet.core.Processor;
 import com.tapdata.constant.*;
 import com.tapdata.entity.*;
 import com.tapdata.entity.dataflow.*;
+import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.entity.task.context.ProcessorBaseContext;
 import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.mongo.HttpClientMongoOperator;
@@ -18,6 +19,7 @@ import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.commons.task.dto.Dag;
 import com.tapdata.tm.commons.task.dto.SubTaskDto;
+import io.tapdata.aspect.*;
 import io.tapdata.common.SettingService;
 import io.tapdata.common.sample.CollectorFactory;
 import io.tapdata.common.sample.SampleCollector;
@@ -94,13 +96,9 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 	public AtomicBoolean running = new AtomicBoolean(false);
 	protected TapCodecsFilterManager codecsFilterManager;
 
-	protected AspectManager aspectManager;
-
 	public HazelcastBaseNode(ProcessorBaseContext processorBaseContext) {
 		this.processorBaseContext = processorBaseContext;
-		aspectManager = InstanceFactory.instance(AspectManager.class);
-		if (aspectManager == null)
-			TapLogger.warn(TAG, "AspectManager is null, no aspects can be reported, the features implemented by modules won't work. ");
+
 		if (null != processorBaseContext.getConfigurationCenter()) {
 			this.clientMongoOperator = BeanUtil.getBean(ClientMongoOperator.class);
 
@@ -117,19 +115,17 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 	}
 
 	public <T extends Aspect> AspectInterceptResult executeAspect(Class<T> aspectClass, Callable<T> aspectCallable) {
-		if (aspectManager != null)
-			return aspectManager.executeAspect(aspectClass, aspectCallable);
-		return null;
+		return AspectUtils.executeAspect(aspectClass, aspectCallable);
 	}
 
 	public <T extends Aspect> AspectInterceptResult executeAspect(T aspect) {
-		if (aspectManager != null)
-			return aspectManager.executeAspect(aspect);
-		return null;
+		return AspectUtils.executeAspect(aspect);
 	}
 
+	protected void doInit(@NotNull Processor.Context context) throws Exception {
+	};
 	@Override
-	protected void init(@NotNull Processor.Context context) throws Exception {
+	public final void init(@NotNull Processor.Context context) throws Exception {
 		this.jetContext = context;
 		super.init(context);
 		Log4jUtil.setThreadContext(processorBaseContext.getSubTaskDto());
@@ -137,9 +133,15 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 		TapCodecsRegistry tapCodecsRegistry = TapCodecsRegistry.create();
 		tapCodecsRegistry.registerFromTapValue(TapDateTimeValue.class, tapValue -> tapValue.getValue().toInstant());
 		codecsFilterManager = TapCodecsFilterManager.create(tapCodecsRegistry);
-//		InstanceFactory.instance(AspectManager.class).executeAspect(DataNodeInitAspect.class, () -> new DataNodeInitAspect().node(HazelcastBaseNode.this));
 		initSampleCollector();
 		CollectorFactory.getInstance().recordCurrentValueByTag(tags);
+
+		doInit(context);
+		if(processorBaseContext instanceof DataProcessorContext) {
+			AspectUtils.executeAspect(DataNodeInitAspect.class, () -> new DataNodeInitAspect().dataProcessorContext((DataProcessorContext) processorBaseContext));
+		} else {
+			AspectUtils.executeAspect(ProcessorNodeInitAspect.class, () -> new ProcessorNodeInitAspect().processorBaseContext(processorBaseContext));
+		}
 	}
 
 	public ProcessorBaseContext getProcessorBaseContext() {
@@ -427,31 +429,42 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 		return joinTable;
 	}
 
+	protected void doClose() throws Exception {
+	};
 	@Override
-	public void close() throws Exception {
-		running.set(false);
+	public final void close() throws Exception {
+		try {
+			doClose();
+		} finally {
+			running.set(false);
+			if(processorBaseContext instanceof DataProcessorContext) {
+				AspectUtils.executeAspect(DataNodeCloseAspect.class, () -> new DataNodeCloseAspect().dataProcessorContext((DataProcessorContext) processorBaseContext));
+			} else {
+				AspectUtils.executeAspect(ProcessorNodeCloseAspect.class, () -> new ProcessorNodeCloseAspect().processorBaseContext(processorBaseContext));
+			}
 //		InstanceFactory.instance(AspectManager.class).executeAspect(DataNodeCloseAspect.class, () -> new DataNodeCloseAspect().node(HazelcastBaseNode.this));
-		if (processorBaseContext.getSubTaskDto() != null) {
-			if (sampleCollector != null) {
-				CollectorFactory.getInstance().unregisterSampleCollectorFromGroup(processorBaseContext.getSubTaskDto().getId().toString(), sampleCollector);
+			if (processorBaseContext.getSubTaskDto() != null) {
+				if (sampleCollector != null) {
+					CollectorFactory.getInstance().unregisterSampleCollectorFromGroup(processorBaseContext.getSubTaskDto().getId().toString(), sampleCollector);
+				}
+				if (statisticCollector != null) {
+					CollectorFactory.getInstance().unregisterStatisticCollectorFromGroup(processorBaseContext.getSubTaskDto().getId().toString(), statisticCollector);
+				}
+			} else {
+				if (sampleCollector != null) {
+					sampleCollector.stop();
+					CollectorFactory.getInstance().removeSampleCollectorByTags(sampleCollector.tags());
+				}
+				if (statisticCollector != null) {
+					statisticCollector.stop();
+					CollectorFactory.getInstance().removeStatisticCollectorByTags(statisticCollector.tags());
+				}
 			}
-			if (statisticCollector != null) {
-				CollectorFactory.getInstance().unregisterStatisticCollectorFromGroup(processorBaseContext.getSubTaskDto().getId().toString(), statisticCollector);
+			ThreadContext.clearAll();
+			super.close();
+			if (error != null) {
+				throw new RuntimeException(errorMessage, error);
 			}
-		} else {
-			if (sampleCollector != null) {
-				sampleCollector.stop();
-				CollectorFactory.getInstance().removeSampleCollectorByTags(sampleCollector.tags());
-			}
-			if (statisticCollector != null) {
-				statisticCollector.stop();
-				CollectorFactory.getInstance().removeStatisticCollectorByTags(statisticCollector.tags());
-			}
-		}
-		ThreadContext.clearAll();
-		super.close();
-		if (error != null) {
-			throw new RuntimeException(errorMessage, error);
 		}
 	}
 

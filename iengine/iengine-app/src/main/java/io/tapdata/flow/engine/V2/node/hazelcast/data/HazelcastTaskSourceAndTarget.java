@@ -54,7 +54,7 @@ public class HazelcastTaskSourceAndTarget extends HazelcastDataBaseNode {
 	}
 
 	@Override
-	protected void init(@Nonnull Context context) throws Exception {
+	protected void doInit(@Nonnull Context context) throws Exception {
 		Log4jUtil.setThreadContext(dataProcessorContext.getSubTaskDto());
 		source.init(context);
 		target.init(context);
@@ -85,7 +85,7 @@ public class HazelcastTaskSourceAndTarget extends HazelcastDataBaseNode {
 	}
 
 	@Override
-	public void close() throws Exception {
+	public void doClose() throws Exception {
 		Log4jUtil.setThreadContext(dataProcessorContext.getSubTaskDto());
 		source.close();
 		target.close();

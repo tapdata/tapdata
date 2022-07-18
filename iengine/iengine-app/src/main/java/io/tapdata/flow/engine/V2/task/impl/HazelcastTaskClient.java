@@ -9,6 +9,7 @@ import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.CacheNode;
 import com.tapdata.tm.commons.task.dto.SubTaskDto;
+import io.tapdata.aspect.AspectUtils;
 import io.tapdata.aspect.TaskStopAspect;
 import io.tapdata.entity.aspect.AspectManager;
 import io.tapdata.entity.utils.InstanceFactory;
@@ -94,7 +95,7 @@ public class HazelcastTaskClient implements TaskClient<SubTaskDto> {
 
 		if (job.getStatus() == JobStatus.SUSPENDED) {
 			job.cancel();
-			InstanceFactory.instance(AspectManager.class).executeAspect(new TaskStopAspect().task(subTaskDto));
+			AspectUtils.executeAspect(new TaskStopAspect().task(subTaskDto));
 			try {
 				monitorManager.close();
 			} catch (IOException ignore) {

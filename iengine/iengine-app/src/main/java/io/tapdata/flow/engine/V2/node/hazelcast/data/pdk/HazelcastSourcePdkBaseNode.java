@@ -80,8 +80,8 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 	}
 
 	@Override
-	protected void init(@NotNull Context context) throws Exception {
-		super.init(context);
+	protected void doInit(@NotNull Context context) throws Exception {
+		super.doInit(context);
 		try {
 			createPdkConnectorNode(dataProcessorContext, context.hazelcastInstance());
 			connectorNodeInit(dataProcessorContext);
@@ -390,9 +390,9 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 	}
 
 	@Override
-	public void close() throws Exception {
+	public void doClose() throws Exception {
 		Optional.ofNullable(sourceRunner).ifPresent(ExecutorService::shutdownNow);
-		super.close();
+		super.doClose();
 	}
 
 	public LinkedBlockingQueue<TapdataEvent> getEventQueue() {

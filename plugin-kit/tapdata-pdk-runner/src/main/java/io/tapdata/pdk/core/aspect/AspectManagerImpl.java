@@ -31,7 +31,7 @@ public class AspectManagerImpl implements AspectManager {
             classAnnotationManager
                     .registerClassAnnotationHandler(aspectInterceptorAnnotationHandler)
                     .registerClassAnnotationHandler(aspectObserverAnnotationHandler);
-            String scanPackage = CommonUtils.getProperty("pdk_aspect_scan_package", "io,tapdata");
+            String scanPackage = CommonUtils.getProperty("pdk_aspect_scan_package", "io.tapdata,com.tapdata");
             String[] packages = scanPackage.split(",");
             classAnnotationManager.scan(packages, this.getClass().getClassLoader());
 

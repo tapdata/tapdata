@@ -40,9 +40,9 @@ public class HazelcastPdkSourceAndTargetTableNode extends HazelcastPdkBaseNode {
 	}
 
 	@Override
-	protected void init(@NotNull Context context) throws Exception {
+	public void doInit(@NotNull Context context) throws Exception {
 		Log4jUtil.setThreadContext(dataProcessorContext.getSubTaskDto());
-		super.init(context);
+		super.doInit(context);
 		this.target.init(context);
 		this.source.init(context);
 		this.sourceConsumer.execute(this::startSourceConsumer);
@@ -90,12 +90,12 @@ public class HazelcastPdkSourceAndTargetTableNode extends HazelcastPdkBaseNode {
 	}
 
 	@Override
-	public void close() throws Exception {
+	public void doClose() throws Exception {
 		Log4jUtil.setThreadContext(dataProcessorContext.getSubTaskDto());
 		this.source.close();
 		Optional.ofNullable(this.sourceConsumer).ifPresent(ExecutorService::shutdownNow);
 		this.target.close();
-		super.close();
+		super.doClose();
 	}
 
 	@Override

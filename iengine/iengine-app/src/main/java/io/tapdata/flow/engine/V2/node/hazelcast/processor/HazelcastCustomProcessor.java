@@ -11,6 +11,8 @@ import com.tapdata.processor.constant.JSEngineEnum;
 import com.tapdata.tm.commons.customNode.CustomNodeTempDto;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.process.CustomProcessorNode;
+import io.tapdata.aspect.AspectUtils;
+import io.tapdata.aspect.ProcessorNodeInitAspect;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.flow.engine.V2.common.node.NodeTypeEnum;
@@ -50,8 +52,8 @@ public class HazelcastCustomProcessor extends HazelcastProcessorBaseNode {
 	}
 
 	@Override
-	protected void init(@NotNull Context context) throws Exception {
-		super.init(context);
+	protected void doInit(@NotNull Context context) throws Exception {
+		super.doInit(context);
 		Node<?> node = processorBaseContext.getNode();
 		if (NodeTypeEnum.get(node.getType()).equals(NodeTypeEnum.CUSTOM_PROCESSOR)) {
 			String customNodeId = ((CustomProcessorNode) node).getCustomNodeId();

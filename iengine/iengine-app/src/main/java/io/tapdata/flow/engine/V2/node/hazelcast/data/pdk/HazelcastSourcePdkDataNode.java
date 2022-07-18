@@ -68,9 +68,9 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 	}
 
 	@Override
-	protected void init(@NotNull Context context) throws Exception {
+	protected void doInit(@NotNull Context context) throws Exception {
 		try {
-			super.init(context);
+			super.doInit(context);
 			// MILESTONE-INIT_CONNECTOR-FINISH
 			MilestoneUtil.updateMilestone(milestoneService, MilestoneStage.INIT_CONNECTOR, MilestoneStatus.FINISH);
 		} catch (Throwable e) {
@@ -245,7 +245,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 					.eventBatchSize(batchSize)
 					.offsetState(syncProgress.getStreamOffsetObj())
 					;
-			aspectManager.executeAspect(streamReadFuncAspect);
+			executeAspect(streamReadFuncAspect);
 
 			PDKInvocationMonitor.invoke(getConnectorNode(), PDKMethod.SOURCE_STREAM_READ,
 					() -> streamReadFunction.streamRead(getConnectorNode().getConnectorContext(), tables,
@@ -256,12 +256,12 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 										logger.debug("Stream read {} of events, {}", events.size(), LoggerUtils.sourceNodeMessage(getConnectorNode()));
 									}
 //									InstanceFactory.instance(AspectManager.class).executeAspect(StreamReadDataNodeAspect.class, () -> new StreamReadDataNodeAspect().node(HazelcastSourcePdkDataNode.this).events(tapdataEvents));
-									aspectManager.executeAspect(streamReadFuncAspect.events(tapdataEvents).state(StreamReadFuncAspect.STATE_ACCEPT).acceptTime(System.currentTimeMillis()));
 									if (CollectionUtils.isNotEmpty(tapdataEvents)) {
 										tapdataEvents.forEach(this::enqueue);
 										resetOutputCounter.inc(tapdataEvents.size());
 										outputCounter.inc(tapdataEvents.size());
 										outputQPS.add(tapdataEvents.size());
+										executeAspect(streamReadFuncAspect.events(tapdataEvents).state(StreamReadFuncAspect.STATE_ACCEPT).acceptTime(System.currentTimeMillis()));
 									}
 								}
 							}).stateListener((oldState, newState) -> {
@@ -316,13 +316,13 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 	}
 
 	@Override
-	public void close() throws Exception {
+	public void doClose() throws Exception {
 		try {
 			if (null != getConnectorNode()) {
 				PDKInvocationMonitor.invoke(getConnectorNode(), PDKMethod.STOP, () -> getConnectorNode().connectorStop(), TAG);
 			}
 		} finally {
-			super.close();
+			super.doClose();
 		}
 	}
 

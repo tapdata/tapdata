@@ -46,8 +46,8 @@ public class HazelcastProcessorNode extends HazelcastProcessorBaseNode {
 	}
 
 	@Override
-	protected void init(@NotNull Context context) throws Exception {
-		super.init(context);
+	protected void doInit(@NotNull Context context) throws Exception {
+		super.doInit(context);
 		initDataFlowProcessor();
 	}
 
@@ -254,10 +254,10 @@ public class HazelcastProcessorNode extends HazelcastProcessorBaseNode {
 	}
 
 	@Override
-	public void close() throws Exception {
+	public void doClose() throws Exception {
 		if (dataFlowProcessor != null) {
 			dataFlowProcessor.stop();
 		}
-		super.close();
+		super.doClose();
 	}
 }

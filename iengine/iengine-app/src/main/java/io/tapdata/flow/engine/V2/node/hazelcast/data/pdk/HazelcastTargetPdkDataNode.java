@@ -61,9 +61,9 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 	}
 
 	@Override
-	protected void init(@NotNull Context context) throws Exception {
+	protected void doInit(@NotNull Context context) throws Exception {
 		try {
-			super.init(context);
+			super.doInit(context);
 			Node<?> node = dataProcessorContext.getNode();
 			if (node instanceof TableNode) {
 				tableName = ((TableNode) node).getTableName();
@@ -449,13 +449,13 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 	}
 
 	@Override
-	public void close() throws Exception {
+	public void doClose() throws Exception {
 		try {
 			if (null != getConnectorNode()) {
 				PDKInvocationMonitor.invoke(getConnectorNode(), PDKMethod.STOP, () -> getConnectorNode().connectorStop(), TAG);
 			}
 		} finally {
-			super.close();
+			super.doClose();
 		}
 	}
 

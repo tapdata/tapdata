@@ -21,7 +21,6 @@ import java.util.function.BiConsumer;
  **/
 public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 
-	protected ProcessorBaseContext processorBaseContext;
 	// statistic and sample related
 	protected ResetCounterSampler resetInputCounter;
 	protected CounterSampler inputCounter;
@@ -33,7 +32,6 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 
 	public HazelcastProcessorBaseNode(ProcessorBaseContext processorBaseContext) {
 		super(processorBaseContext);
-		this.processorBaseContext = processorBaseContext;
 	}
 
 	@Override

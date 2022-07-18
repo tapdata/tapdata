@@ -28,7 +28,7 @@ public class AspectTaskManagerImpl implements AspectTaskManager {
 		if (classAnnotationManager != null) {
 			classAnnotationManager
 					.registerClassAnnotationHandler(aspectTaskSessionAnnotationHandler);
-			String scanPackage = CommonUtils.getProperty("pdk_aspect_scan_package", "io,tapdata");
+			String scanPackage = CommonUtils.getProperty("pdk_aspect_scan_package", "io.tapdata,com.tapdata");
 			String[] packages = scanPackage.split(",");
 			classAnnotationManager.scan(packages, this.getClass().getClassLoader());
 

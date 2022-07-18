@@ -126,14 +126,14 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 	}
 
 	@Override
-	public void close() throws Exception {
+	public void doClose() throws Exception {
 		if (this.monitorManager != null) {
 			this.monitorManager.close();
 		}
 		Optional.ofNullable(dataProcessorContext.getTapTableMap()).ifPresent(TapTableMap::remove);
 		Optional.ofNullable(getConnectorNode()).ifPresent(node -> PDKIntegration.releaseAssociateId(associateId));
 		ConnectorNodeService.getInstance().removeConnectorNode(associateId);
-		super.close();
+		super.doClose();
 	}
 
 	protected ConnectorNode getConnectorNode() {

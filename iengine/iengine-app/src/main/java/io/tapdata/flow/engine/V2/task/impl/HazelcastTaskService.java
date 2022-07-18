@@ -30,6 +30,7 @@ import com.tapdata.tm.commons.dag.process.MergeTableNode;
 import com.tapdata.tm.commons.dag.process.MigrateFieldRenameProcessorNode;
 import com.tapdata.tm.commons.dag.process.TableRenameProcessNode;
 import com.tapdata.tm.commons.task.dto.SubTaskDto;
+import io.tapdata.aspect.AspectUtils;
 import io.tapdata.aspect.TaskStartAspect;
 import io.tapdata.common.SettingService;
 import io.tapdata.common.sharecdc.ShareCdcUtil;
@@ -127,7 +128,7 @@ public class HazelcastTaskService implements TaskService<SubTaskDto> {
 		JobConfig jobConfig = new JobConfig();
 		jobConfig.setName(subTaskDto.getName() + "-" + subTaskDto.getId().toHexString());
 		jobConfig.setProcessingGuarantee(ProcessingGuarantee.AT_LEAST_ONCE);
-		InstanceFactory.instance(AspectManager.class).executeAspect(new TaskStartAspect().task(subTaskDto));
+		AspectUtils.executeAspect(new TaskStartAspect().task(subTaskDto));
 		final Job job = hazelcastInstance.getJet().newJob(jetDag.getDag(), jobConfig);
 		return new HazelcastTaskClient(job, subTaskDto, clientMongoOperator, configurationCenter, hazelcastInstance, milestoneFlowServiceJetV2);
 	}
