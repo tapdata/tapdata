@@ -1,10 +1,9 @@
 package io.tapdata.aspect;
 
-import io.tapdata.entity.event.ddl.table.TapAlterFieldAttributesEvent;
 import io.tapdata.entity.event.ddl.table.TapDropFieldEvent;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 
-public class DropFieldFuncAspect extends FunctionAspect<DropFieldFuncAspect> {
+public class DropFieldFuncAspect extends DataFunctionAspect<DropFieldFuncAspect> {
 	private TapDropFieldEvent dropFieldEvent;
 	public DropFieldFuncAspect dropFieldEvent(TapDropFieldEvent dropFieldEvent) {
 		this.dropFieldEvent = dropFieldEvent;

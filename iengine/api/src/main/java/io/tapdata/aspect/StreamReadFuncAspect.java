@@ -1,12 +1,11 @@
 package io.tapdata.aspect;
 
 import com.tapdata.entity.TapdataEvent;
-import io.tapdata.entity.schema.TapTable;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 
 import java.util.List;
 
-public class StreamReadFuncAspect extends FunctionAspect<StreamReadFuncAspect> {
+public class StreamReadFuncAspect extends DataFunctionAspect<StreamReadFuncAspect> {
 	private Long acceptTime;
 	public StreamReadFuncAspect acceptTime(Long acceptTime) {
 		this.acceptTime = acceptTime;

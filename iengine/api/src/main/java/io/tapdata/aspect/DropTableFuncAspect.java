@@ -1,10 +1,9 @@
 package io.tapdata.aspect;
 
-import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
 import io.tapdata.entity.event.ddl.table.TapDropTableEvent;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 
-public class DropTableFuncAspect extends FunctionAspect<DropTableFuncAspect> {
+public class DropTableFuncAspect extends DataFunctionAspect<DropTableFuncAspect> {
 	private TapDropTableEvent dropTableEvent;
 	public DropTableFuncAspect dropTableEvent(TapDropTableEvent dropTableEvent) {
 		this.dropTableEvent = dropTableEvent;

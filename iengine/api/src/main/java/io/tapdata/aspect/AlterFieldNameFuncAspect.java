@@ -1,10 +1,9 @@
 package io.tapdata.aspect;
 
 import io.tapdata.entity.event.ddl.table.TapAlterFieldNameEvent;
-import io.tapdata.entity.event.ddl.table.TapNewFieldEvent;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 
-public class AlterFieldNameFuncAspect extends FunctionAspect<AlterFieldNameFuncAspect> {
+public class AlterFieldNameFuncAspect extends DataFunctionAspect<AlterFieldNameFuncAspect> {
 	private TapAlterFieldNameEvent alterFieldNameEvent;
 	public AlterFieldNameFuncAspect alterFieldNameEvent(TapAlterFieldNameEvent alterFieldNameEvent) {
 		this.alterFieldNameEvent = alterFieldNameEvent;

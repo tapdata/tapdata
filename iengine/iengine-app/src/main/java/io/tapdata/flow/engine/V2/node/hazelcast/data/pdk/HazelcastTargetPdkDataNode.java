@@ -12,7 +12,6 @@ import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.dag.vo.SyncObjects;
 import io.tapdata.aspect.*;
-import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.ddl.TapDDLEvent;
 import io.tapdata.entity.event.ddl.index.TapCreateIndexEvent;
@@ -150,7 +149,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 				tapIndex.setIndexFields(tapIndexFields);
 				tapIndices.add(tapIndex);
 				TapCreateIndexEvent indexEvent = createIndexEvent(tableId, tapIndices);
-				executeAspectWrapper(CreateIndexFuncAspect.class, () -> new CreateIndexFuncAspect()
+				executeDataFuncAspect(CreateIndexFuncAspect.class, () -> new CreateIndexFuncAspect()
 						.table(tapTable)
 						.connectorContext(getConnectorNode().getConnectorContext())
 						.createIndexEvent(indexEvent)
@@ -167,7 +166,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 			ClearTableFunction clearTableFunction = getConnectorNode().getConnectorFunctions().getClearTableFunction();
 			Optional.ofNullable(clearTableFunction).ifPresent(func -> {
 				TapClearTableEvent tapClearTableEvent = clearTableEvent(tableId);
-				executeAspectWrapper(ClearTableFuncAspect.class, () -> new ClearTableFuncAspect()
+				executeDataFuncAspect(ClearTableFuncAspect.class, () -> new ClearTableFuncAspect()
 						.clearTableEvent(tapClearTableEvent)
 						.connectorContext(getConnectorNode().getConnectorContext())
 						.start(), clearTableFuncAspect ->
@@ -180,7 +179,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 		CreateTableFunction createTableFunction = getConnectorNode().getConnectorFunctions().getCreateTableFunction();
 		Optional.ofNullable(createTableFunction).ifPresent(func -> {
 			TapCreateTableEvent tapCreateTableEvent = createTableEvent(tapTable);
-			executeAspectWrapper(CreateTableFuncAspect.class, () -> new CreateTableFuncAspect()
+			executeDataFuncAspect(CreateTableFuncAspect.class, () -> new CreateTableFuncAspect()
 					.createTableEvent(tapCreateTableEvent)
 					.connectorContext(getConnectorNode().getConnectorContext())
 					.start(), (createTableFuncAspect ->
@@ -194,7 +193,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 			DropTableFunction dropTableFunction = getConnectorNode().getConnectorFunctions().getDropTableFunction();
 			if(dropTableFunction != null) {
 				TapDropTableEvent tapDropTableEvent = dropTableEvent(tableId);
-				executeAspectWrapper(DropTableFuncAspect.class, () -> new DropTableFuncAspect()
+				executeDataFuncAspect(DropTableFuncAspect.class, () -> new DropTableFuncAspect()
 						.dropTableEvent(tapDropTableEvent)
 						.connectorContext(getConnectorNode().getConnectorContext())
 						.start(), (dropTableFuncAspect ->
@@ -281,7 +280,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 			return false;
 		}
 		try {
-			executeAspectWrapper(NewFieldFuncAspect.class, () -> new NewFieldFuncAspect()
+			executeDataFuncAspect(NewFieldFuncAspect.class, () -> new NewFieldFuncAspect()
 					.newFieldEvent(tapNewFieldEvent)
 					.connectorContext(connectorNode.getConnectorContext())
 					.start(), (newFieldFuncAspect ->
@@ -302,11 +301,11 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 			return false;
 		}
 		try {
-			executeAspectWrapper(AlterFieldNameFuncAspect.class, () -> new AlterFieldNameFuncAspect()
+			executeDataFuncAspect(AlterFieldNameFuncAspect.class, () -> new AlterFieldNameFuncAspect()
 					.alterFieldNameEvent(tapAlterFieldNameEvent)
 					.connectorContext(connectorNode.getConnectorContext())
 					.start(), (alterFieldNameFuncAspect) ->
-					PDKInvocationMonitor.invoke(connectorNode, PDKMethod.NEW_FIELD,
+					PDKInvocationMonitor.invoke(connectorNode, PDKMethod.ALTER_FIELD_NAME,
 							() -> function.alterFieldName(connectorNode.getConnectorContext(), tapAlterFieldNameEvent),
 							TAG));
 		} catch (Exception e) {
@@ -336,11 +335,11 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 			return false;
 		}
 		try {
-			executeAspectWrapper(AlterFieldAttributesFuncAspect.class, () -> new AlterFieldAttributesFuncAspect()
+			executeDataFuncAspect(AlterFieldAttributesFuncAspect.class, () -> new AlterFieldAttributesFuncAspect()
 					.alterFieldAttributesEvent(tapAlterFieldAttributesEvent)
 					.connectorContext(connectorNode.getConnectorContext())
 					.start(), (alterFieldAttributesFuncAspect ->
-					PDKInvocationMonitor.invoke(connectorNode, PDKMethod.NEW_FIELD,
+					PDKInvocationMonitor.invoke(connectorNode, PDKMethod.ALTER_FIELD_ATTRIBUTES,
 							() -> function.alterFieldAttributes(connectorNode.getConnectorContext(), tapAlterFieldAttributesEvent),
 							TAG)));
 		} catch (Exception e) {
@@ -358,11 +357,11 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 			return false;
 		}
 		try {
-			executeAspectWrapper(DropFieldFuncAspect.class, () -> new DropFieldFuncAspect()
+			executeDataFuncAspect(DropFieldFuncAspect.class, () -> new DropFieldFuncAspect()
 					.dropFieldEvent(tapDropFieldEvent)
 					.connectorContext(connectorNode.getConnectorContext())
 					.start(), (dropFieldFuncAspect ->
-					PDKInvocationMonitor.invoke(connectorNode, PDKMethod.NEW_FIELD,
+					PDKInvocationMonitor.invoke(connectorNode, PDKMethod.DROP_FIELD,
 						() -> function.dropField(connectorNode.getConnectorContext(), tapDropFieldEvent),
 						TAG)));
 		} catch (Exception e) {
@@ -388,7 +387,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 			logger.debug("Write {} of record events, {}", tapRecordEvents.size(), LoggerUtils.targetNodeMessage(getConnectorNode()));
 			long start = System.currentTimeMillis();
 			try {
-				executeAspectWrapper(WriteRecordFuncAspect.class, () -> new WriteRecordFuncAspect()
+				executeDataFuncAspect(WriteRecordFuncAspect.class, () -> new WriteRecordFuncAspect()
 						.recordEvents(tapRecordEvents)
 						.table(tapTable)
 						.connectorContext(getConnectorNode().getConnectorContext())

@@ -112,8 +112,8 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 
 		threadName = String.format(THREAD_NAME_TEMPLATE, processorBaseContext.getSubTaskDto().getId().toHexString(), processorBaseContext.getNode() != null ? processorBaseContext.getNode().getName() : null);
 	}
-	public <T extends FunctionAspect<T>> AspectInterceptResult executeAspectWrapper(Class<T> aspectClass, Callable<T> aspectCallable, Consumer<T> consumer) {
-		return AspectUtils.executeAspectWrapper(aspectClass, aspectCallable, consumer);
+	public <T extends DataFunctionAspect<T>> AspectInterceptResult executeDataFuncAspect(Class<T> aspectClass, Callable<T> aspectCallable, Consumer<T> consumer) {
+		return AspectUtils.executeDataFuncAspect(aspectClass, aspectCallable, consumer);
 	}
 	public <T extends Aspect> AspectInterceptResult executeAspect(Class<T> aspectClass, Callable<T> aspectCallable) {
 		return AspectUtils.executeAspect(aspectClass, aspectCallable);

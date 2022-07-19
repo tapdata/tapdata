@@ -1,6 +1,6 @@
 package io.tapdata.aspect;
 
-public abstract class FunctionAspect<T extends FunctionAspect<?>> extends DataNodeAspect<T> {
+public abstract class DataFunctionAspect<T extends DataFunctionAspect<?>> extends DataNodeAspect<T> {
 	private Long endTime;
 	public T endTime(Long endTime) {
 		this.endTime = endTime;

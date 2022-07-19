@@ -6,7 +6,7 @@ import io.tapdata.pdk.apis.context.TapConnectorContext;
 
 import java.util.List;
 
-public class BatchReadFuncAspect extends FunctionAspect<BatchReadFuncAspect> {
+public class BatchReadFuncAspect extends DataFunctionAspect<BatchReadFuncAspect> {
 	private Long acceptTime;
 	public BatchReadFuncAspect acceptTime(Long acceptTime) {
 		this.acceptTime = acceptTime;

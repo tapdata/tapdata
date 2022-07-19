@@ -7,7 +7,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class TapAlterFieldPrimaryKeyEvent extends TapTableEvent {
-    public static final int TYPE = 305;
+    public static final int TYPE = 203;
 
     private List<FieldAttrChange<List<String>>> primaryKeyChanges;
     public TapAlterFieldPrimaryKeyEvent change(FieldAttrChange<List<String>> change) {

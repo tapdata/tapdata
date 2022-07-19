@@ -1,13 +1,10 @@
 package io.tapdata.aspect;
 
-import com.tapdata.entity.TapdataEvent;
 import io.tapdata.entity.event.ddl.index.TapCreateIndexEvent;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 
-import java.util.List;
-
-public class CreateIndexFuncAspect extends FunctionAspect<CreateIndexFuncAspect> {
+public class CreateIndexFuncAspect extends DataFunctionAspect<CreateIndexFuncAspect> {
 	private TapCreateIndexEvent createIndexEvent;
 	public CreateIndexFuncAspect createIndexEvent(TapCreateIndexEvent createIndexEvent) {
 		this.createIndexEvent = createIndexEvent;

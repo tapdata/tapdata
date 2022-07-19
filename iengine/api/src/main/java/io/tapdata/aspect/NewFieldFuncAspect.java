@@ -1,10 +1,9 @@
 package io.tapdata.aspect;
 
-import io.tapdata.entity.event.ddl.table.TapDropTableEvent;
 import io.tapdata.entity.event.ddl.table.TapNewFieldEvent;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 
-public class NewFieldFuncAspect extends FunctionAspect<NewFieldFuncAspect> {
+public class NewFieldFuncAspect extends DataFunctionAspect<NewFieldFuncAspect> {
 	private TapNewFieldEvent newFieldEvent;
 	public NewFieldFuncAspect newFieldEvent(TapNewFieldEvent newFieldEvent) {
 		this.newFieldEvent = newFieldEvent;

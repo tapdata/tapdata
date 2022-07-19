@@ -16,7 +16,6 @@ import io.tapdata.aspect.StreamReadFuncAspect;
 import io.tapdata.common.sample.sampler.CounterSampler;
 import io.tapdata.common.sample.sampler.ResetCounterSampler;
 import io.tapdata.common.sample.sampler.SpeedSampler;
-import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.flow.engine.V2.progress.SnapshotProgressManager;
 import io.tapdata.flow.engine.V2.sharecdc.ReaderType;
@@ -46,7 +45,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Consumer;
 
 /**
  * @author jackin
@@ -128,7 +126,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 							logger.info("Starting batch read, table name: " + tapTable.getId() + ", offset: " + tableOffset);
 							int eventBatchSize = 100;
 
-							executeAspectWrapper(BatchReadFuncAspect.class, () -> new BatchReadFuncAspect()
+							executeDataFuncAspect(BatchReadFuncAspect.class, () -> new BatchReadFuncAspect()
 									.eventBatchSize(eventBatchSize)
 									.connectorContext(getConnectorNode().getConnectorContext())
 									.offsetState(tableOffset)
@@ -142,11 +140,13 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 													}
 													((Map<String, Object>) syncProgress.getBatchOffsetObj()).put(tapTable.getId(), offsetObject);
 													List<TapdataEvent> tapdataEvents = wrapTapdataEvent(events);
-													if(batchReadFuncAspect != null)
-														executeAspect(batchReadFuncAspect.events(tapdataEvents).state(BatchReadFuncAspect.STATE_ACCEPT).acceptTime(System.currentTimeMillis()));
 
 													if (CollectionUtil.isNotEmpty(tapdataEvents)) {
 														tapdataEvents.forEach(this::enqueue);
+
+														if(batchReadFuncAspect != null)
+															executeAspect(batchReadFuncAspect.events(tapdataEvents).state(BatchReadFuncAspect.STATE_ACCEPT).acceptTime(System.currentTimeMillis()));
+
 														resetOutputCounter.inc(tapdataEvents.size());
 														outputCounter.inc(tapdataEvents.size());
 														outputQPS.add(tapdataEvents.size());
@@ -232,7 +232,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 			logger.info("Starting stream read, table list: " + tapTableMap.keySet() + ", offset: " + syncProgress.getOffsetObj());
 			List<String> tables = new ArrayList<>(tapTableMap.keySet());
 			int batchSize = 1;
-			executeAspectWrapper(StreamReadFuncAspect.class, () -> new StreamReadFuncAspect()
+			executeDataFuncAspect(StreamReadFuncAspect.class, () -> new StreamReadFuncAspect()
 					.connectorContext(getConnectorNode().getConnectorContext())
 					.dataProcessorContext(getDataProcessorContext())
 					.tables(tables)

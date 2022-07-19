@@ -1,11 +1,9 @@
 package io.tapdata.aspect;
 
-import io.tapdata.entity.event.ddl.index.TapCreateIndexEvent;
 import io.tapdata.entity.event.ddl.table.TapClearTableEvent;
-import io.tapdata.entity.schema.TapTable;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 
-public class ClearTableFuncAspect extends FunctionAspect<ClearTableFuncAspect> {
+public class ClearTableFuncAspect extends DataFunctionAspect<ClearTableFuncAspect> {
 	private TapClearTableEvent clearTableEvent;
 	public ClearTableFuncAspect clearTableEvent(TapClearTableEvent clearTableEvent) {
 		this.clearTableEvent = clearTableEvent;

@@ -1,12 +1,12 @@
 package io.tapdata.aspect.utils;
 
-import io.tapdata.aspect.FunctionAspect;
+import io.tapdata.aspect.DataFunctionAspect;
+import io.tapdata.aspect.ProcessorFunctionAspect;
 import io.tapdata.entity.aspect.Aspect;
 import io.tapdata.entity.aspect.AspectInterceptResult;
 import io.tapdata.entity.aspect.AspectManager;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.utils.InstanceFactory;
-import io.tapdata.pdk.core.utils.CommonUtils;
 
 import java.util.concurrent.Callable;
 import java.util.function.Consumer;
@@ -48,7 +48,7 @@ public class AspectUtils {
 		return null;
 	}
 
-	public static <T extends FunctionAspect<T>> AspectInterceptResult executeAspectWrapper(Class<T> aspectClass, Callable<T> aspectCallable, Consumer<T> consumer) {
+	public static <T extends DataFunctionAspect<T>> AspectInterceptResult executeDataFuncAspect(Class<T> aspectClass, Callable<T> aspectCallable, Consumer<T> consumer) {
 		if(aspectManager != null && aspectManager.hasInterceptorOrObserver(aspectClass)) {
 			T aspect = null;
 			try {
@@ -61,12 +61,43 @@ public class AspectUtils {
 				if(interceptResult == null || !interceptResult.isIntercepted()) {
 					try {
 						consumer.accept(aspect);
-						aspect.state(FunctionAspect.STATE_END);
+						aspect.state(DataFunctionAspect.STATE_END);
 						aspectManager.executeAspect(aspect);
 					} catch(Throwable throwable) {
-						aspect.throwable(throwable).state(FunctionAspect.STATE_END);
+						aspect.throwable(throwable).state(DataFunctionAspect.STATE_END);
 						aspectManager.executeAspect(aspect);
 					}
+				} else {
+					return interceptResult;
+				}
+			} else {
+				consumer.accept(null);
+			}
+		}
+		return null;
+	}
+
+	public static <T extends ProcessorFunctionAspect<T>> AspectInterceptResult executeProcessorFuncAspect(Class<T> aspectClass, Callable<T> aspectCallable, Consumer<T> consumer) {
+		if(aspectManager != null && aspectManager.hasInterceptorOrObserver(aspectClass)) {
+			T aspect = null;
+			try {
+				aspect = aspectCallable.call();
+			} catch (Exception e) {
+				throw new RuntimeException(e);
+			}
+			if(aspect != null) {
+				AspectInterceptResult interceptResult = aspectManager.executeAspect(aspect);
+				if(interceptResult == null || !interceptResult.isIntercepted()) {
+					try {
+						consumer.accept(aspect);
+						aspect.state(DataFunctionAspect.STATE_END);
+						aspectManager.executeAspect(aspect);
+					} catch(Throwable throwable) {
+						aspect.throwable(throwable).state(DataFunctionAspect.STATE_END);
+						aspectManager.executeAspect(aspect);
+					}
+				} else {
+					return interceptResult;
 				}
 			} else {
 				consumer.accept(null);

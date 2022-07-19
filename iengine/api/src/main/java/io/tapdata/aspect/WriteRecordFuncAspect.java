@@ -1,6 +1,5 @@
 package io.tapdata.aspect;
 
-import io.tapdata.entity.event.ddl.table.TapDropFieldEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
@@ -8,7 +7,7 @@ import io.tapdata.pdk.apis.entity.WriteListResult;
 
 import java.util.List;
 
-public class WriteRecordFuncAspect extends FunctionAspect<WriteRecordFuncAspect> {
+public class WriteRecordFuncAspect extends DataFunctionAspect<WriteRecordFuncAspect> {
 	private WriteListResult<TapRecordEvent> writeListResult;
 	public WriteRecordFuncAspect writeListResult(WriteListResult<TapRecordEvent> writeListResult) {
 		this.writeListResult = writeListResult;
