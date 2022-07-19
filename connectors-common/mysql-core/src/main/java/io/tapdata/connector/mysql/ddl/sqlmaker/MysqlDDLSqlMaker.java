@@ -109,7 +109,7 @@ public class MysqlDDLSqlMaker implements DDLSqlMaker {
 		}
 		ValueChange<String> commentChange = tapAlterFieldAttributesEvent.getCommentChange();
 		if (null != commentChange && StringUtils.isNotBlank(commentChange.getAfter())) {
-			sql.append(" '").append(commentChange.getAfter()).append("'");
+			sql.append(" comment '").append(commentChange.getAfter()).append("'");
 		}
 		ValueChange<Integer> primaryChange = tapAlterFieldAttributesEvent.getPrimaryChange();
 		if (null != primaryChange && null != primaryChange.getAfter() && primaryChange.getAfter() > 0) {
