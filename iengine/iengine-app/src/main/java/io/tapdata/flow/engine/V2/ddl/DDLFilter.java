@@ -36,10 +36,19 @@ public class DDLFilter implements Predicate<TapDDLEvent> {
 
 	@Override
 	public boolean test(TapDDLEvent tapDDLEvent) {
-		if (null != enableDDL && !enableDDL) {
+		if (null == enableDDL) {
+			return false;
+		}
+		if (!enableDDL) {
+			return false;
+		}
+		if (null == disabledEvents) {
 			return false;
 		}
 		String key = tapDDLEvent.key();
-		return null == disabledEvents || !disabledEvents.contains(key);
+		if (disabledEvents.contains(key)) {
+			return false;
+		}
+		return true;
 	}
 }
