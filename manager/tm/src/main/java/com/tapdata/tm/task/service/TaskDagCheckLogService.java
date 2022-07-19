@@ -11,8 +11,6 @@ public interface TaskDagCheckLogService {
 
     List<TaskDagCheckLog> saveAll(List<TaskDagCheckLog> logs);
 
-    List<TaskDagCheckLog> checkWhenSave(TaskDto taskDto, UserDetail userDetail);
-
-    List<TaskDagCheckLog> checkWhenStart(TaskDto taskDto, UserDetail userDetail);
+    List<TaskDagCheckLog> dagCheck(TaskDto taskDto, UserDetail userDetail, boolean onlySave);
 
 }

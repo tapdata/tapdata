@@ -2,14 +2,16 @@ package com.tapdata.tm.task.controller;
 
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.*;
-import com.tapdata.tm.base.dto.Field;
 import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.Edge;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.SchemaTransformerResult;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.vo.FieldProcess;
-import com.tapdata.tm.commons.schema.*;
+import com.tapdata.tm.commons.schema.DataSourceDefinitionDto;
+import com.tapdata.tm.commons.schema.MetadataTransformerItemDto;
+import com.tapdata.tm.commons.schema.TransformerWsMessageDto;
+import com.tapdata.tm.commons.schema.TransformerWsMessageResult;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.task.dto.TaskRunHistoryDto;
 import com.tapdata.tm.config.security.UserDetail;
@@ -23,6 +25,7 @@ import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
 import com.tapdata.tm.metadatainstance.vo.SourceTypeEnum;
 import com.tapdata.tm.task.bean.LogCollectorResult;
 import com.tapdata.tm.task.bean.TranModelReqDto;
+import com.tapdata.tm.task.constant.HaveCheckLogException;
 import com.tapdata.tm.task.entity.TaskEntity;
 import com.tapdata.tm.task.service.*;
 import com.tapdata.tm.task.vo.TaskDetailVo;
@@ -33,10 +36,6 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.enums.ParameterIn;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import io.tapdata.entity.event.ddl.table.TapAlterFieldNameEvent;
-import io.tapdata.entity.event.ddl.table.TapDropFieldEvent;
-import io.tapdata.entity.event.ddl.table.TapFieldBaseEvent;
-import io.tapdata.entity.event.ddl.table.TapNewFieldEvent;
 import lombok.Setter;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -71,6 +70,8 @@ public class TaskController extends BaseController {
     private TaskCheckInspectService taskCheckInspectService;
     private MetadataInstancesService metadataInstancesService;
     private TaskNodeService taskNodeService;
+    private TaskSaveService taskSaveService;
+    private TaskStartService taskStartService;
 
     /**
      * Create a new instance of the model and persist it into the data source
@@ -197,6 +198,11 @@ public class TaskController extends BaseController {
         task.setId(MongoUtils.toObjectId(id));
         UserDetail user = getLoginUser();
         taskCheckInspectService.getInspectFlagDefaultFlag(task, user);
+        try {
+            taskSaveService.taskSaveCheckLog(task, user);
+        } catch (HaveCheckLogException e) {
+            throw new RuntimeException(e);
+        }
         TaskDto taskDto = taskService.confirmById(task, user, confirm);
         return success(taskDto);
     }
@@ -226,7 +232,15 @@ public class TaskController extends BaseController {
     public ResponseMessage<TaskDto> confirmStart(@PathVariable("id") String id, @RequestParam(value = "confirm", required = false, defaultValue = "false") Boolean confirm,
                                                  @RequestBody TaskDto task) {
         task.setId(MongoUtils.toObjectId(id));
-        return success(taskService.confirmStart(task, getLoginUser(), confirm));
+        UserDetail user = getLoginUser();
+
+        try {
+            taskStartService.taskStartCheckLog(task, user);
+        } catch (HaveCheckLogException e) {
+            throw new RuntimeException(e);
+        }
+
+        return success(taskService.confirmStart(task, user, confirm));
     }
 
 

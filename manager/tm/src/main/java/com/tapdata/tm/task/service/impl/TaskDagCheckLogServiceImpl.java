@@ -12,6 +12,8 @@ import com.tapdata.tm.utils.Lists;
 import lombok.Setter;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.LinkedList;
 import java.util.List;
@@ -32,50 +34,20 @@ public class TaskDagCheckLogServiceImpl implements TaskDagCheckLogService {
         return repository.saveAll(logs);
     }
 
-    /**
-     * 保存时：
-     * 1.任务设置检测
-     * 2.源节点设置检测
-     * 3.JS节点设置检测
-     * 4.表编辑节点设置检测
-     * 5.字段编辑节点设置检测
-     * 6.目标节点设置检测
-     * @param taskDto 任务信息
-     */
     @Override
-    public List<TaskDagCheckLog> checkWhenSave(TaskDto taskDto, UserDetail userDetail) {
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public List<TaskDagCheckLog> dagCheck(TaskDto taskDto, UserDetail userDetail, boolean onlySave) {
         List<TaskDagCheckLog> result = Lists.newArrayList();
 
-        LinkedList<DagOutputTemplateEnum> checkList = DagOutputTemplateEnum.getSaveCheck();
+        LinkedList<DagOutputTemplateEnum> checkList = onlySave ? DagOutputTemplateEnum.getSaveCheck() : DagOutputTemplateEnum.getStartCheck();
         checkList.forEach(c -> {
             DagLogStrategy dagLogStrategy = SpringUtil.getBean(c.getBeanName(), DagLogStrategy.class);
             List<TaskDagCheckLog> logs = dagLogStrategy.getLogs(taskDto, userDetail);
             result.addAll(logs);
         });
-        return result;
-    }
 
-    /**
-     * 仅启动时:
-     * 1.agent可用性检测
-     * 2.源连接检测
-     * 3.目标连接检测
-     * 4.字符编码检测
-     * 5.表名大小写检测
-     * 6.模型推演检测
-     * 7.数据校验检测
-     * @param taskDto 任务信息
-     */
-    @Override
-    public List<TaskDagCheckLog> checkWhenStart(TaskDto taskDto, UserDetail userDetail) {
-        List<TaskDagCheckLog> result = Lists.newArrayList();
-        LinkedList<DagOutputTemplateEnum> checkList = DagOutputTemplateEnum.getStartCheck();
+        SpringUtil.getBean(this.getClass()).saveAll(result);
 
-        checkList.forEach(c -> {
-            DagLogStrategy dagLogStrategy = SpringUtil.getBean(c.getBeanName(), DagLogStrategy.class);
-            List<TaskDagCheckLog> logs = dagLogStrategy.getLogs(taskDto, userDetail);
-            result.addAll(logs);
-        });
         return result;
     }
 }
