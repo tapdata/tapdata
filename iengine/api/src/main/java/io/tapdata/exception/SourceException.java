@@ -1,9 +1,6 @@
 package io.tapdata.exception;
 
-import io.tapdata.common.exception.TapdataException;
-import io.tapdata.common.logging.error.ErrorCodeEnum;
-
-public class SourceException extends TapdataException {
+public class SourceException extends RuntimeException {
 
 	private boolean needStop = false;
 
@@ -29,10 +26,4 @@ public class SourceException extends TapdataException {
 	public boolean isNeedStop() {
 		return needStop;
 	}
-
-	public SourceException configErrorCode(ErrorCodeEnum errorCode) {
-		this.errorCode = errorCode;
-		return this;
-	}
-
 }
