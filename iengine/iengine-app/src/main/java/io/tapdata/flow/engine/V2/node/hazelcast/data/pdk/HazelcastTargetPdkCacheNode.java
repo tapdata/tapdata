@@ -1,16 +1,19 @@
 package io.tapdata.flow.engine.V2.node.hazelcast.data.pdk;
 
+import com.hazelcast.jet.core.Inbox;
 import com.tapdata.cache.CacheUtil;
 import com.tapdata.cache.ICacheService;
-import com.tapdata.entity.TapdataShareLogEvent;
+import com.tapdata.entity.TapdataEvent;
 import com.tapdata.entity.dataflow.DataFlowCacheConfig;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.CacheNode;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
+import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
+import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.collections4.MapUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -21,7 +24,9 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
-public class HazelcastTargetPdkCacheNode extends HazelcastTargetPdkBaseNode {
+import static com.hazelcast.jet.impl.util.ExceptionUtil.sneakyThrow;
+
+public class HazelcastTargetPdkCacheNode extends HazelcastPdkBaseNode {
 
 	private final Logger logger = LogManager.getLogger(HazelcastTargetPdkCacheNode.class);
 
@@ -49,6 +54,41 @@ public class HazelcastTargetPdkCacheNode extends HazelcastTargetPdkBaseNode {
 	}
 
 	@Override
+	public void process(int ordinal, @NotNull Inbox inbox) {
+		try {
+			if (!inbox.isEmpty()) {
+				while (isRunning()) {
+					List<TapdataEvent> tapdataEvents = new ArrayList<>();
+					final int count = inbox.drainTo(tapdataEvents, 1000);
+					if (count > 0) {
+						List<TapEvent> tapEvents = new ArrayList<>();
+						for (TapdataEvent tapdataEvent : tapdataEvents) {
+
+							if (tapdataEvent.isDML()) {
+								TapRecordEvent tapRecordEvent = (TapRecordEvent) tapdataEvent.getTapEvent();
+								fromTapValue(TapEventUtil.getBefore(tapRecordEvent), codecsFilterManager);
+								fromTapValue(TapEventUtil.getAfter(tapRecordEvent), codecsFilterManager);
+								tapEvents.add(tapRecordEvent);
+							} else {
+								if (null != tapdataEvent.getTapEvent()) {
+									logger.warn("Tap event type does not supported: " + tapdataEvent.getTapEvent().getClass() + ", will ignore it");
+								}
+							}
+						}
+						if (CollectionUtils.isNotEmpty(tapEvents)) {
+							processEvents(tapEvents);
+						}
+					} else {
+						break;
+					}
+				}
+			}
+		} catch (Exception e) {
+			logger.error("Target process failed {}", e.getMessage(), e);
+			throw sneakyThrow(e);
+		}
+	}
+
 	void processEvents(List<TapEvent> tapEvents) {
 		for (TapEvent tapEvent : tapEvents) {
 
@@ -83,8 +123,4 @@ public class HazelcastTargetPdkCacheNode extends HazelcastTargetPdkBaseNode {
 		}
 	}
 
-	@Override
-	void processShareLog(List<TapdataShareLogEvent> tapdataShareLogEvents) {
-		throw new UnsupportedOperationException();
-	}
 }

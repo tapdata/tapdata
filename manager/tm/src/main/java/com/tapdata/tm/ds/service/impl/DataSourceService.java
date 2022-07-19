@@ -1454,4 +1454,10 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
         updateById(id, update, user);
 
     }
+
+    public List<TaskDto> findTaskByConnectionId(String connectionId, UserDetail userDetail) {
+        Query query = new Query(Criteria.where("dag.nodes.connectionId").is(connectionId));
+        query.fields().include("_id", "name", "syncType");
+        return taskService.findAllDto(query, userDetail);
+    }
 }

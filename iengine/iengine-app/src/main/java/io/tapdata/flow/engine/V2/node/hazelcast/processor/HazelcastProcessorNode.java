@@ -155,9 +155,13 @@ public class HazelcastProcessorNode extends HazelcastProcessorBaseNode {
 		Map<String, TapType> tapTypeMap = new HashMap<>();
 		if (org.apache.commons.collections4.MapUtils.isNotEmpty(map)) {
 			for (Map.Entry<String, Object> entry : map.entrySet()) {
-				TapType tapType = JavaTypesToTapTypes.toTapType(entry.getValue());
-				if (tapType != null) {
-					tapTypeMap.put(entry.getKey(), tapType);
+				if (entry.getValue() instanceof TapValue) {
+					tapTypeMap.put(entry.getKey(), ((TapValue<?, ?>) entry.getValue()).getTapType());
+				} else {
+					TapType tapType = JavaTypesToTapTypes.toTapType(entry.getValue());
+					if (tapType != null) {
+						tapTypeMap.put(entry.getKey(), tapType);
+					}
 				}
 			}
 		}
@@ -170,6 +174,9 @@ public class HazelcastProcessorNode extends HazelcastProcessorBaseNode {
 			Map.Entry<String, Object> entry = iterator.next();
 			if (entry.getValue() instanceof TapValue) {
 				TapType tapType = tapTypeMap.get(entry.getKey());
+				if (tapType == null) {
+					continue;
+				}
 				TapType oldTapType = ((TapValue<?, ?>) entry.getValue()).getTapType();
 				if (tapType.getType() != oldTapType.getType()) {
 					ToTapValueCodec<?> toTapValueCodec = tapType.toTapValueCodec();
