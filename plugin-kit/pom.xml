@@ -14,6 +14,7 @@
         <module>tapdata-pdk-cli</module>
         <module>tapdata-tests</module>
 		<module>connector-archetypes</module>
+        <module>tapdata-common</module>
     </modules>
 
 	<properties>
