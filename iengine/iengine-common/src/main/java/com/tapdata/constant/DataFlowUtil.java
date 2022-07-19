@@ -4,7 +4,6 @@ import com.tapdata.entity.Job;
 import com.tapdata.entity.Mapping;
 import com.tapdata.entity.dataflow.*;
 import com.tapdata.mongo.ClientMongoOperator;
-import io.tapdata.logging.JobCustomerLogger;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.collections.MapUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -135,7 +134,6 @@ public class DataFlowUtil {
 						job.setUser_id(dataFlow.getUser_id());
 						job.setExecuteMode(dataFlow.getExecuteMode());
 						job.setPartitionId(String.valueOf(partitionId));
-						job.setJobCustomerLogger(new JobCustomerLogger(dataFlow.getId(), job.getName(), clientMongoOperator));
 						if (hasCacheStage) {
 							job.setProcess_id(dataFlow.getAgentId());
 							job.setIsDistribute(false);

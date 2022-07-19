@@ -1,7 +1,5 @@
 package com.tapdata.validator;
 
-import io.tapdata.common.logging.error.ErrorCodeEnum;
-
 public class ConnectionValidateResultDetail {
 
 	private String stage_code;
@@ -17,8 +15,6 @@ public class ConnectionValidateResultDetail {
 	private String fail_message;
 
 	private boolean required;
-
-	private ErrorCodeEnum errorCode;
 
 	/**
 	 * the connection validation time cost, in mills
@@ -109,13 +105,5 @@ public class ConnectionValidateResultDetail {
 
 	public void setCost(long cost) {
 		this.cost = cost;
-	}
-
-	public ErrorCodeEnum getErrorCode() {
-		return errorCode;
-	}
-
-	public void setErrorCode(ErrorCodeEnum errorCode) {
-		this.errorCode = errorCode;
 	}
 }

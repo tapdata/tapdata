@@ -7,7 +7,6 @@ import com.tapdata.entity.dataflow.*;
 import com.tapdata.mongo.ClientMongoOperator;
 import io.tapdata.exception.ConnectionException;
 import io.tapdata.exception.DataFlowException;
-import io.tapdata.logging.JobCustomerLogger;
 import io.tapdata.schema.SchemaList;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.collections.MapUtils;
@@ -292,8 +291,6 @@ public class Job implements Serializable {
 	private List<List<Stage>> sameJobStages;
 
 	private ClientMongoOperator clientMongoOperator;
-
-	private JobCustomerLogger jobCustomerLogger;
 
 	private String oracleLogminer = "automatically";
 
@@ -2365,17 +2362,6 @@ public class Job implements Serializable {
 
 	public void setSameJobStages(List<List<Stage>> sameJobStages) {
 		this.sameJobStages = sameJobStages;
-	}
-
-	public JobCustomerLogger getJobCustomerLogger() {
-		if (jobCustomerLogger == null) {
-			jobCustomerLogger = new JobCustomerLogger();
-		}
-		return jobCustomerLogger;
-	}
-
-	public void setJobCustomerLogger(JobCustomerLogger jobCustomerLogger) {
-		this.jobCustomerLogger = jobCustomerLogger;
 	}
 
 	public String getOracleLogminer() {

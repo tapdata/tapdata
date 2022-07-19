@@ -1,7 +1,5 @@
 package io.tapdata.entity;
 
-import io.tapdata.common.logging.error.ErrorCodeEnum;
-
 public class BaseConnectionValidateResultDetail {
 
 	public static final String VALIDATE_DETAIL_RESULT_PASSED = "passed";
@@ -17,8 +15,6 @@ public class BaseConnectionValidateResultDetail {
 	private boolean required;
 
 	private String code;
-
-	private ErrorCodeEnum errorCode;
 
 	/**
 	 * the connection validation time cost, in mills
@@ -98,14 +94,6 @@ public class BaseConnectionValidateResultDetail {
 
 	public void setCost(long cost) {
 		this.cost = cost;
-	}
-
-	public ErrorCodeEnum getErrorCode() {
-		return errorCode;
-	}
-
-	public void setErrorCode(ErrorCodeEnum errorCode) {
-		this.errorCode = errorCode;
 	}
 
 	@Override

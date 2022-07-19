@@ -2,7 +2,6 @@ package io.tapdata.Schedule;
 
 import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.mongo.ClientMongoOperator;
-import io.tapdata.logging.JobCustomerLogger;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.ThreadContext;
 import org.apache.logging.log4j.core.*;
@@ -51,10 +50,6 @@ public class CustomHttpAppender extends AbstractAppender {
 		entity.put("level", level);
 		entity.put("loggerName", event.getLoggerName());
 		String message = event.getMessage() == null ? null : event.getMessage().getFormattedMessage();
-		boolean knownCustomerErrLog = message != null && message.contains(JobCustomerLogger.CUSTOMER_ERROR_LOG_PREFIX);
-		if (knownCustomerErrLog) {
-			message = StringUtils.removeStart(message, JobCustomerLogger.CUSTOMER_ERROR_LOG_PREFIX);
-		}
 		entity.put("message", message);
 
 
@@ -121,33 +116,5 @@ public class CustomHttpAppender extends AbstractAppender {
 		}
 
 		clientMongoOperator.insertOne(entity, ConnectorConstant.LOG_COLLECTION);
-
-		// add customer unknown error logs
-		String jobName = ThreadContext.get("jobName");
-		String dataFlowId = ThreadContext.get("dataFlowId");
-		if (filterUnnecessaryUnknownErrorForCustomerErrorLog(knownCustomerErrLog, level, event.getLoggerName(), message)) {
-			JobCustomerLogger.unknownError(dataFlowId, jobName, clientMongoOperator, message);
-		}
-	}
-
-
-	/**
-	 * Filter the unknown error logs, some logs are redundant，filter the logs out of the customer logs;
-	 */
-	private boolean filterUnnecessaryUnknownErrorForCustomerErrorLog(boolean knownCustomerErrLog, String level, String loggerName,
-																	 String message) {
-		if (!"ERROR".equals(level)) {
-			return false;
-		}
-		if (knownCustomerErrLog) {
-			return false;
-		}
-		// 1. filter the "To see additional job metrics enable JobConfig.storeMetricsAfterJobCompletion" error logged by jet
-		if ("com.hazelcast.jet.impl.MasterJobContext".equals(loggerName)
-				&& message.contains("To see additional job metrics enable JobConfig.storeMetricsAfterJobCompletion")) {
-			return false;
-		}
-
-		return true;
 	}
 }
