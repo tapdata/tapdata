@@ -45,6 +45,7 @@ public class CCJAddColumnDDLWrapper extends CCJBaseDDLWrapper {
 			tapNewFieldEvent.setTableId(tableName);
 			for (AlterExpression.ColumnDataType columnDataType : colDataTypeList) {
 				String columnName = columnDataType.getColumnName();
+				columnName = removeFirstAndLastApostrophe(columnName);
 				ColDataType colDataType = columnDataType.getColDataType();
 				String dataType = getDataType(colDataType);
 				TapField tapField = new TapField(columnName, dataType);

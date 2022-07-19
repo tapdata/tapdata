@@ -164,21 +164,21 @@ public class TransformSchemaService {
         if (SyncType.SYNC.getValue().equals(taskDto.getSyncType())) {
             TransformerWsMessageDto transformParam = getTransformParam(taskDto, user);
 
-            sendTransformer(transformParam, user);
-            return new HashMap<>();
+//            sendTransformer(transformParam, user);
+//            return new HashMap<>();
 
-//            DAGDataServiceImpl dagDataService1 = new DAGDataServiceImpl(transformParam);
-//
-//
-//            Map<String, List<Message>> transformSchema = dag.transformSchema(null, dagDataService1, transformParam.getOptions());
-//            TransformerWsMessageResult transformerWsMessageResult = new TransformerWsMessageResult();
-//            transformerWsMessageResult.setTransformSchema(transformSchema);
-//            transformerWsMessageResult.setUpsertTransformer(dagDataService1.getUpsertTransformer());
-//            transformerWsMessageResult.setBatchInsertMetaDataList(dagDataService1.getBatchInsertMetaDataList());
-//            transformerWsMessageResult.setUpsertItems(dagDataService1.getUpsertItems());
-//            transformerWsMessageResult.setBatchMetadataUpdateMap(dagDataService1.getBatchMetadataUpdateMap());
-//            transformerResult(user, transformerWsMessageResult);
-//            return transformSchema;
+            DAGDataServiceImpl dagDataService1 = new DAGDataServiceImpl(transformParam);
+
+
+            Map<String, List<Message>> transformSchema = dag.transformSchema(null, dagDataService1, transformParam.getOptions());
+            TransformerWsMessageResult transformerWsMessageResult = new TransformerWsMessageResult();
+            transformerWsMessageResult.setTransformSchema(transformSchema);
+            transformerWsMessageResult.setUpsertTransformer(dagDataService1.getUpsertTransformer());
+            transformerWsMessageResult.setBatchInsertMetaDataList(dagDataService1.getBatchInsertMetaDataList());
+            transformerWsMessageResult.setUpsertItems(dagDataService1.getUpsertItems());
+            transformerWsMessageResult.setBatchMetadataUpdateMap(dagDataService1.getBatchMetadataUpdateMap());
+            transformerResult(user, transformerWsMessageResult);
+            return transformSchema;
         }
 
 
