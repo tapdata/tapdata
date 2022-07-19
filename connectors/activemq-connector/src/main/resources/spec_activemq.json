@@ -1,0 +1,100 @@
+{
+  "properties": {
+    "name": "ActiveMQ",
+    "icon": "icons/activemq.png",
+    "doc": "${doc}",
+    "id": "activemq"
+  },
+  "configOptions": {
+    "connection": {
+      "type": "object",
+      "properties": {
+        "mqTopicString": {
+          "type": "string",
+          "title": "${mqTopicString}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "apiServerKey": "mq_topics",
+          "x-index": 1
+        },
+        "mqQueueString": {
+          "type": "string",
+          "title": "${mqQueueString}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "apiServerKey": "mq_queues",
+          "x-index": 2
+        },
+        "brokerURL": {
+          "type": "string",
+          "title": "${brokerURL}",
+          "required": true,
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "apiServerKey": "activemq_url",
+          "x-index": 3
+        },
+        "mqUsername": {
+          "type": "string",
+          "title": "${mqUsername}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "apiServerKey": "mq_username",
+          "x-index": 4
+        },
+        "mqPassword": {
+          "type": "string",
+          "title": "${mqPassword}",
+          "x-decorator": "FormItem",
+          "x-component": "Password",
+          "apiServerKey": "mq_password",
+          "x-index": 5
+        }
+      }
+    }
+  },
+  "messages": {
+    "default": "en_US",
+    "en_US": {
+      "doc": "docs/activemq_en_US.md",
+      "mqTopicString": "Topic name",
+      "mqQueueString": "Queue name",
+      "brokerURL": "MQ connection string",
+      "mqUsername": "Account",
+      "mqPassword": "Password"
+    },
+    "zh_CN": {
+      "doc": "docs/activemq_zh_CN.md",
+      "mqTopicString": "主题名称",
+      "mqQueueString": "队列名称",
+      "brokerURL": "MQ连接串",
+      "mqUsername": "账号",
+      "mqPassword": "密码"
+    },
+    "zh_TW": {
+      "doc": "docs/activemq_zh_TW.md",
+      "mqTopicString": "主題名稱",
+      "mqQueueString": "隊列名稱",
+      "brokerURL": "MQ連接串",
+      "mqUsername": "賬號",
+      "mqPassword": "密碼"
+    }
+  },
+  "dataTypes": {
+    "OBJECT": {
+      "to": "TapMap"
+    },
+    "ARRAY": {
+      "to": "TapArray"
+    },
+    "NUMBER": {
+      "to": "TapNumber"
+    },
+    "BOOLEAN": {
+      "to": "TapBoolean"
+    },
+    "STRING": {
+      "to": "TapString"
+    }
+  }
+}

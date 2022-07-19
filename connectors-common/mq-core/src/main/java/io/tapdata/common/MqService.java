@@ -1,14 +1,29 @@
 package io.tapdata.common;
 
-public abstract class MqService {
+import io.tapdata.entity.event.TapEvent;
+import io.tapdata.entity.event.dml.TapRecordEvent;
+import io.tapdata.entity.schema.TapTable;
+import io.tapdata.pdk.apis.entity.TestItem;
+import io.tapdata.pdk.apis.entity.WriteListResult;
 
-    protected MqConfig mqConfig;
+import java.util.List;
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 
-    public MqService(MqConfig mqConfig) {
+public interface MqService {
 
-    }
+    void testConnection(Consumer<TestItem> consumer);
 
-    public void testConnection() {
+    void init() throws Throwable;
 
-    }
+    void close();
+
+    void loadTables(int tableSize, Consumer<List<TapTable>> consumer) throws Throwable;
+
+    void produce(List<TapRecordEvent> tapRecordEvents, TapTable tapTable, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer) throws Throwable;
+
+    void consumeOne(TapTable tapTable, int eventBatchSize, BiConsumer<List<TapEvent>, Object> eventsOffsetConsumer) throws Throwable;
+
+    void streamConsume(List<String> tableList, int eventBatchSize, BiConsumer<List<TapEvent>, Object> eventsOffsetConsumer) throws Throwable;
+
 }

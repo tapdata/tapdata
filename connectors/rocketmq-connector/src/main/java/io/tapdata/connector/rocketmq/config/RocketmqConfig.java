@@ -6,15 +6,15 @@ import java.io.Serializable;
 
 public class RocketmqConfig extends MqConfig implements Serializable {
 
-    private String productGroup;
+    private String producerGroup;
     private String consumerGroup;
 
-    public String getProductGroup() {
-        return productGroup;
+    public String getProducerGroup() {
+        return producerGroup;
     }
 
-    public void setProductGroup(String productGroup) {
-        this.productGroup = productGroup;
+    public void setProducerGroup(String producerGroup) {
+        this.producerGroup = producerGroup;
     }
 
     public String getConsumerGroup() {
