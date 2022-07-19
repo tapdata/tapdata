@@ -10,6 +10,8 @@ public enum JsonType {
     NULL,
     OBJECT,
     ARRAY,
+    TEXT,
+    INTEGER,
     ;
 
     public static JsonType of(Object obj) {
@@ -23,12 +25,18 @@ public enum JsonType {
             return JsonType.ARRAY;
         }
         if (obj instanceof Number) {
+            if (obj instanceof Integer) {
+                return JsonType.INTEGER;
+            }
             return JsonType.NUMBER;
         }
         if (obj instanceof Boolean) {
             return JsonType.BOOLEAN;
         }
         if (obj instanceof String) {
+            if (String.valueOf(obj).length() > 200) {
+                return JsonType.TEXT;
+            }
             return JsonType.STRING;
         }
         return null;

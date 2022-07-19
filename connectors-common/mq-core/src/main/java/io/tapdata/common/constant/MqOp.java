@@ -1,7 +1,5 @@
 package io.tapdata.common.constant;
 
-import java.util.Optional;
-
 public enum MqOp {
 
     INSERT("insert"),
@@ -20,6 +18,11 @@ public enum MqOp {
     }
 
     public static MqOp fromValue(String value) {
-        return Optional.ofNullable(value).map(MqOp::valueOf).orElse(INSERT);
+        for (MqOp mqOp : MqOp.values()) {
+            if (mqOp.getOp().equals(value)) {
+                return mqOp;
+            }
+        }
+        return INSERT;
     }
 }

@@ -20,7 +20,6 @@ import io.tapdata.pdk.apis.entity.TestItem;
 import io.tapdata.pdk.apis.entity.WriteListResult;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 
-import java.util.Collections;
 import java.util.List;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -78,8 +77,8 @@ public class ActivemqConnector extends ConnectorBase {
     }
 
     @Override
-    public int tableCount(TapConnectionContext connectionContext) {
-        return activemqConfig.getMqTopicSet().size() + activemqConfig.getMqQueueSet().size();
+    public int tableCount(TapConnectionContext connectionContext) throws Throwable {
+        return activemqService.countTables();
     }
 
     private void writeRecord(TapConnectorContext connectorContext, List<TapRecordEvent> tapRecordEvents, TapTable tapTable, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer) throws Throwable {

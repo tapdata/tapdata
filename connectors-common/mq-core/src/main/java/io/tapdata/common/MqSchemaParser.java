@@ -62,6 +62,8 @@ public class MqSchemaParser {
                 case NULL:
                     // not to parse NULL value
                     break;
+                default:
+                    table.add(this.buildField(parentFieldName, fieldName, JsonType.STRING));
             }
         }
     }

@@ -9,21 +9,13 @@
     "connection": {
       "type": "object",
       "properties": {
-        "mqTopicString": {
-          "type": "string",
-          "title": "${mqTopicString}",
-          "x-decorator": "FormItem",
-          "x-component": "Input",
-          "apiServerKey": "mq_topics",
-          "x-index": 1
-        },
         "mqQueueString": {
           "type": "string",
           "title": "${mqQueueString}",
           "x-decorator": "FormItem",
           "x-component": "Input",
           "apiServerKey": "mq_queues",
-          "x-index": 2
+          "x-index": 1
         },
         "brokerURL": {
           "type": "string",
@@ -32,7 +24,7 @@
           "x-decorator": "FormItem",
           "x-component": "Input",
           "apiServerKey": "activemq_url",
-          "x-index": 3
+          "x-index": 2
         },
         "mqUsername": {
           "type": "string",
@@ -40,7 +32,7 @@
           "x-decorator": "FormItem",
           "x-component": "Input",
           "apiServerKey": "mq_username",
-          "x-index": 4
+          "x-index": 3
         },
         "mqPassword": {
           "type": "string",
@@ -48,7 +40,7 @@
           "x-decorator": "FormItem",
           "x-component": "Password",
           "apiServerKey": "mq_password",
-          "x-index": 5
+          "x-index": 4
         }
       }
     }
@@ -57,7 +49,6 @@
     "default": "en_US",
     "en_US": {
       "doc": "docs/activemq_en_US.md",
-      "mqTopicString": "Topic name",
       "mqQueueString": "Queue name",
       "brokerURL": "MQ connection string",
       "mqUsername": "Account",
@@ -65,7 +56,6 @@
     },
     "zh_CN": {
       "doc": "docs/activemq_zh_CN.md",
-      "mqTopicString": "主题名称",
       "mqQueueString": "队列名称",
       "brokerURL": "MQ连接串",
       "mqUsername": "账号",
@@ -73,7 +63,6 @@
     },
     "zh_TW": {
       "doc": "docs/activemq_zh_TW.md",
-      "mqTopicString": "主題名稱",
       "mqQueueString": "隊列名稱",
       "brokerURL": "MQ連接串",
       "mqUsername": "賬號",
@@ -88,12 +77,40 @@
       "to": "TapArray"
     },
     "NUMBER": {
+      "precision": [
+        1,
+        1000
+      ],
+      "scale": [
+        0,
+        1000
+      ],
+      "fixed": true,
+      "preferPrecision": 20,
+      "preferScale": 8,
+      "priority": 1,
+      "to": "TapNumber"
+    },
+    "INTEGER": {
+      "bit": 32,
+      "priority": 1,
+      "value": [
+        -2147483648,
+        2147483647
+      ],
       "to": "TapNumber"
     },
     "BOOLEAN": {
       "to": "TapBoolean"
     },
     "STRING": {
+      "byte": 200,
+      "priority": 1,
+      "defaultByte": 200,
+      "preferByte": 200,
+      "to": "TapString"
+    },
+    "TEXT": {
       "to": "TapString"
     }
   }

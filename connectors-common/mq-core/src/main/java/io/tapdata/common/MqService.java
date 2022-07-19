@@ -18,6 +18,8 @@ public interface MqService {
 
     void close();
 
+    int countTables() throws Throwable;
+
     void loadTables(int tableSize, Consumer<List<TapTable>> consumer) throws Throwable;
 
     void produce(List<TapRecordEvent> tapRecordEvents, TapTable tapTable, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer) throws Throwable;

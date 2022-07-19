@@ -22,7 +22,6 @@ import org.apache.activemq.ActiveMQConnection;
 import org.apache.activemq.ActiveMQConnectionFactory;
 import org.apache.activemq.command.ActiveMQQueue;
 import org.apache.activemq.command.ActiveMQTextMessage;
-import org.apache.activemq.command.ActiveMQTopic;
 import org.apache.commons.lang3.StringUtils;
 
 import javax.jms.Queue;
@@ -30,6 +29,7 @@ import javax.jms.*;
 import java.util.*;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -88,51 +88,47 @@ public class ActivemqService extends AbstractMqService {
     }
 
     @Override
+    public int countTables() throws Throwable {
+        if (EmptyKit.isEmpty(activemqConfig.getMqQueueSet())) {
+            return activemqConnection.getDestinationSource().getQueues().size();
+        } else {
+            return activemqConfig.getMqQueueSet().size();
+        }
+    }
+
+    @Override
     public void loadTables(int tableSize, Consumer<List<TapTable>> consumer) throws Throwable {
         long deadline = System.currentTimeMillis() + MAX_LOAD_TIMEOUT;
         Map<String, Map<String, Object>> destinationRecordMap = new HashMap<>();
-        Set<ActiveMQTopic> existTopicSet = activemqConnection.getDestinationSource().getTopics();
         Set<ActiveMQQueue> existQueueSet = activemqConnection.getDestinationSource().getQueues();
         Set<Destination> destinationSet = new HashSet<>();
         Set<String> existQueueNameSet = new HashSet<>();
-        Set<String> existTopicNameSet = new HashSet<>();
-        //query topic and queue which exists
-        for (Queue queue : existQueueSet) {
-            if (activemqConfig.getMqQueueSet().contains(queue.getQueueName())) {
-                destinationSet.add(queue);
-                existQueueNameSet.add(queue.getQueueName());
+        if (EmptyKit.isEmpty(activemqConfig.getMqQueueSet())) {
+            destinationSet.addAll(existQueueSet);
+        } else {
+            //query queue which exists
+            for (Queue queue : existQueueSet) {
+                if (activemqConfig.getMqQueueSet().contains(queue.getQueueName())) {
+                    destinationSet.add(queue);
+                    existQueueNameSet.add(queue.getQueueName());
+                }
             }
-        }
-        for (ActiveMQTopic topic : existTopicSet) {
-            if (activemqConfig.getMqTopicSet().contains(topic.getTopicName())) {
-                destinationSet.add(topic);
-                existTopicNameSet.add(topic.getTopicName());
-            }
-        }
-        //create topic and queue which not exists
-        Set<String> needCreateQueueSet = activemqConfig.getMqQueueSet().stream()
-                .filter(i -> !existQueueNameSet.contains(i)).collect(Collectors.toSet());
-        Set<String> needCreateTopicSet = activemqConfig.getMqTopicSet().stream()
-                .filter(i -> !existTopicNameSet.contains(i)).collect(Collectors.toSet());
-        if (EmptyKit.isNotEmpty(needCreateQueueSet) || EmptyKit.isNotEmpty(needCreateTopicSet)) {
-            Session session = activemqConnection.createSession(false, Session.AUTO_ACKNOWLEDGE);
-            try {
-                needCreateQueueSet.forEach(item -> {
-                    try {
-                        destinationSet.add(session.createQueue(item));
-                    } catch (JMSException e) {
-                        TapLogger.error(TAG, "create queue error", e);
-                    }
-                });
-                needCreateTopicSet.forEach(item -> {
-                    try {
-                        destinationSet.add(session.createTopic(item));
-                    } catch (JMSException e) {
-                        TapLogger.error(TAG, "create topic error", e);
-                    }
-                });
-            } finally {
-                session.close();
+            //create queue which not exists
+            Set<String> needCreateQueueSet = activemqConfig.getMqQueueSet().stream()
+                    .filter(i -> !existQueueNameSet.contains(i)).collect(Collectors.toSet());
+            if (EmptyKit.isNotEmpty(needCreateQueueSet)) {
+                Session session = activemqConnection.createSession(false, Session.AUTO_ACKNOWLEDGE);
+                try {
+                    needCreateQueueSet.forEach(item -> {
+                        try {
+                            destinationSet.add(session.createQueue(item));
+                        } catch (JMSException e) {
+                            TapLogger.error(TAG, "create queue error", e);
+                        }
+                    });
+                } finally {
+                    session.close();
+                }
             }
         }
         Session session = activemqConnection.createSession(false, Session.CLIENT_ACKNOWLEDGE);
@@ -166,31 +162,49 @@ public class ActivemqService extends AbstractMqService {
 
     @Override
     public void produce(List<TapRecordEvent> tapRecordEvents, TapTable tapTable, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer) throws Throwable {
+        AtomicLong insert = new AtomicLong(0);
+        AtomicLong update = new AtomicLong(0);
+        AtomicLong delete = new AtomicLong(0);
+        WriteListResult<TapRecordEvent> listResult = new WriteListResult<>();
         Session session = activemqConnection.createSession(false, Session.AUTO_ACKNOWLEDGE);
         MessageProducer producer = session.createProducer(null);
         String tableName = tapTable.getId();
-        Destination destination;
-        if (tableName.startsWith("Topic_")) {
-            destination = session.createTopic(getRealTableName(tableName));
-        } else {
-            destination = session.createQueue(getRealTableName(tableName));
-        }
+        Destination destination = session.createQueue(tableName);
         for (TapRecordEvent event : tapRecordEvents) {
             ActivemqMessage activemqMessage = new ActivemqMessage();
             TextMessage textMessage = new ActiveMQTextMessage();
+            MqOp mqOp = MqOp.INSERT;
             if (event instanceof TapInsertRecordEvent) {
                 textMessage.setStringProperty("mqOp", MqOp.INSERT.getOp());
                 textMessage.setText(jsonParser.toJson(((TapInsertRecordEvent) event).getAfter()));
             } else if (event instanceof TapUpdateRecordEvent) {
                 textMessage.setStringProperty("mqOp", MqOp.UPDATE.getOp());
                 textMessage.setText(jsonParser.toJson(((TapUpdateRecordEvent) event).getAfter()));
+                mqOp = MqOp.UPDATE;
             } else if (event instanceof TapDeleteRecordEvent) {
                 textMessage.setStringProperty("mqOp", MqOp.DELETE.getOp());
                 textMessage.setText(jsonParser.toJson(((TapDeleteRecordEvent) event).getBefore()));
+                mqOp = MqOp.DELETE;
             }
             activemqMessage.setMessage(textMessage);
-            producer.send(destination, activemqMessage.getMessage());
+            try {
+                producer.send(destination, activemqMessage.getMessage());
+                switch (mqOp) {
+                    case INSERT:
+                        insert.incrementAndGet();
+                        break;
+                    case UPDATE:
+                        update.incrementAndGet();
+                        break;
+                    case DELETE:
+                        delete.incrementAndGet();
+                        break;
+                }
+            } catch (Exception e) {
+                listResult.addError(event, e);
+            }
         }
+        writeListResultConsumer.accept(listResult.insertedCount(insert.get()).modifiedCount(update.get()).removedCount(delete.get()));
     }
 
     @Override
@@ -199,25 +213,20 @@ public class ActivemqService extends AbstractMqService {
         List<TapEvent> list = TapSimplify.list();
         Session session = activemqConnection.createSession(false, Session.AUTO_ACKNOWLEDGE);
         String tableName = tapTable.getId();
-        String realTableName = getRealTableName(tableName);
-        Destination destination;
-        if (tableName.startsWith("Topic_")) {
-            destination = session.createTopic(realTableName);
-        } else {
-            destination = session.createQueue(realTableName);
-        }
+        Destination destination = session.createQueue(tableName);
         MessageConsumer messageConsumer = session.createConsumer(destination);
         while (consuming.get()) {
             Message message = messageConsumer.receive(SINGLE_MAX_LOAD_TIMEOUT * 3);
             if (EmptyKit.isNull(message)) {
                 break;
             }
-            makeMessage(message, list, realTableName);
+            makeMessage(message, list, tableName);
             if (list.size() >= eventBatchSize) {
                 eventsOffsetConsumer.accept(list, TapSimplify.list());
                 list = TapSimplify.list();
             }
         }
+        session.close();
         if (EmptyKit.isNotEmpty(list)) {
             eventsOffsetConsumer.accept(list, TapSimplify.list());
         }
@@ -233,45 +242,47 @@ public class ActivemqService extends AbstractMqService {
         tablesList.forEach(tables -> executorService.submit(() -> {
             List<TapEvent> list = TapSimplify.list();
             Map<String, MessageConsumer> consumerMap = new HashMap<>();
-            while (consuming.get()) {
+            int err = 0;
+            while (consuming.get() && err < 10) {
                 for (String tableName : tables) {
                     try {
-                        String realTableName = getRealTableName(tableName);
-                        MessageConsumer messageConsumer = consumerMap.get(realTableName);
+                        MessageConsumer messageConsumer = consumerMap.get(tableName);
                         if (EmptyKit.isNull(messageConsumer)) {
-                            Destination destination;
-                            if (tableName.startsWith("Topic_")) {
-                                destination = session.createTopic(realTableName);
-                            } else {
-                                destination = session.createQueue(realTableName);
-                            }
+                            Destination destination = session.createQueue(tableName);
                             messageConsumer = session.createConsumer(destination);
-                            consumerMap.put(realTableName, messageConsumer);
+                            consumerMap.put(tableName, messageConsumer);
                         }
                         Message message = messageConsumer.receive(SINGLE_MAX_LOAD_TIMEOUT / 2);
                         if (EmptyKit.isNull(message)) {
                             continue;
                         }
-                        makeMessage(message, list, realTableName);
+                        makeMessage(message, list, tableName);
                         if (list.size() >= eventBatchSize) {
                             eventsOffsetConsumer.accept(list, TapSimplify.list());
                             list = TapSimplify.list();
                         }
-                    } catch (JMSException e) {
-                        TapLogger.error(TAG, "error occur when consume topic or queue: {}", tableName, e);
+                    } catch (Exception e) {
+                        TapLogger.error(TAG, "error occur when consume queue: {}", tableName, e);
+                        err++;
                     }
                 }
+                TapSimplify.sleep(50);
             }
             if (EmptyKit.isNotEmpty(list)) {
                 eventsOffsetConsumer.accept(list, TapSimplify.list());
             }
             countDownLatch.countDown();
+            if (err >= 10) {
+                consuming.set(false);
+                throw new RuntimeException("Stream Read error!");
+            }
         }));
         try {
             countDownLatch.await();
         } catch (InterruptedException e) {
             TapLogger.error(TAG, "error occur when await", e);
         }
+        session.close();
     }
 
     private void makeMessage(Message message, List<TapEvent> list, String tableName) throws JMSException {
@@ -279,13 +290,13 @@ public class ActivemqService extends AbstractMqService {
         Map<String, Object> data = jsonParser.fromJson(textMessage.getText(), Map.class);
         switch (MqOp.fromValue(textMessage.getStringProperty("mqOp"))) {
             case INSERT:
-                list.add(new TapInsertRecordEvent().init().table(tableName).after(data));
+                list.add(new TapInsertRecordEvent().init().table(tableName).after(data).referenceTime(System.currentTimeMillis()));
                 break;
             case UPDATE:
-                list.add(new TapUpdateRecordEvent().init().table(tableName).after(data));
+                list.add(new TapUpdateRecordEvent().init().table(tableName).after(data).referenceTime(System.currentTimeMillis()));
                 break;
             case DELETE:
-                list.add(new TapDeleteRecordEvent().init().table(tableName).before(data));
+                list.add(new TapDeleteRecordEvent().init().table(tableName).before(data).referenceTime(System.currentTimeMillis()));
                 break;
         }
     }
@@ -293,22 +304,12 @@ public class ActivemqService extends AbstractMqService {
     private String getDestinationName(Destination destination) {
         try {
             if (destination instanceof Queue) {
-                return "Queue_" + ((Queue) destination).getQueueName();
-            } else if (destination instanceof Topic) {
-                return "Topic_" + ((Topic) destination).getTopicName();
+                return ((Queue) destination).getQueueName();
             }
         } catch (JMSException e) {
             TapLogger.error(TAG, "error", e);
         }
         return "";
-    }
-
-    private String getRealTableName(String tableName) {
-        if (tableName.startsWith("Queue_") || tableName.startsWith("Topic_")) {
-            return tableName.substring(tableName.indexOf("_"));
-        } else {
-            return tableName;
-        }
     }
 
 }
