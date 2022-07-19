@@ -40,6 +40,6 @@ public class DDLFilter implements Predicate<TapDDLEvent> {
 			return false;
 		}
 		String key = tapDDLEvent.key();
-		return !disabledEvents.contains(key);
+		return null == disabledEvents || !disabledEvents.contains(key);
 	}
 }

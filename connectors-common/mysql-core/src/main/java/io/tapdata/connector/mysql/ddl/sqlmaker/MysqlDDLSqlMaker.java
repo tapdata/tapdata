@@ -140,7 +140,7 @@ public class MysqlDDLSqlMaker implements DDLSqlMaker {
 		if (StringUtils.isBlank(after)) {
 			throw new RuntimeException("Append alter column name ddl sql failed, new column name is blank");
 		}
-		return Collections.singletonList(String.format(ALTER_TABLE_PREFIX, database, tableId) + " rename `" + before + "` to `" + after + "`");
+		return Collections.singletonList(String.format(ALTER_TABLE_PREFIX, database, tableId) + " rename column `" + before + "` to `" + after + "`");
 	}
 
 	@Override
