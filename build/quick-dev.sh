@@ -27,9 +27,10 @@ if [[ $? -ne 0 ]]; then
         bash build/build.sh -c connectors
         bash build/build.sh -p 1 -o image
     fi
-    cd $basepath
-    docker run -e mode=dev -p 13000:3000 -p 27017:27017 -v $sourcepath:/tapdata-source/ -itd --name=$dev_container_name `cat image/tag` bash
+    docker run -e mode=dev -p 13000:3000 -p 27017:27017 -v $sourcepath:/tapdata-source/ -v `pwd/data`:/data/db/ -itd --name=$dev_container_name `cat image/tag` bash
 fi
 
 docker exec -it $dev_container_name bash -c "cd /tapdata-source/tapshell && bash register-all-connectors.sh"
-docker exec -it $dev_container_name bash -c "cd /tapdata-source/tapshell && bash cli.sh"
+cd $basepath/../
+info "tapdata all in one env started, you can use `bash bin/tapshell.sh` go into terminal env now..."
+bash bin/tapshell.sh
