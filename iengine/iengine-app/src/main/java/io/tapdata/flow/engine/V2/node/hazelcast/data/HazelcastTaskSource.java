@@ -97,8 +97,6 @@ public class HazelcastTaskSource extends HazelcastDataBaseNode {
 	@Override
 	protected void doInit(@Nonnull Context context) throws Exception {
 		try {
-			// test the source connection
-			TestConnectionHandler.testConnectionWithRetry(sourceContext.getCustomerLogger(), sourceContext.getSourceConn(), "source");
 			SubTaskDto subTaskDto = dataProcessorContext.getSubTaskDto();
 			Node<?> node = dataProcessorContext.getNode();
 			ConfigurationCenter configurationCenter = dataProcessorContext.getConfigurationCenter();

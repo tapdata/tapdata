@@ -5,7 +5,6 @@ import com.tapdata.constant.*;
 import com.tapdata.entity.*;
 import io.tapdata.ConverterProvider;
 import io.tapdata.cdc.event.CdcEventHandler;
-import io.tapdata.common.logging.error.ErrorCodeEnum;
 import io.tapdata.debug.DebugConstant;
 import io.tapdata.debug.DebugProcessor;
 import io.tapdata.exception.DDLException;
@@ -338,7 +337,6 @@ public class MemoryMessageConsumer {
 			} catch (Exception e) {
 				String syncStage = offset == null ? SyncStageEnum.SNAPSHOT.name() : SyncStageEnum.CDC.name();
 				String err = e.getMessage() + "; \nstack: " + Log4jUtil.getStackString(e);
-				job.getJobCustomerLogger().error(ErrorCodeEnum.SOURCE_VALUE_CONVERSION_ERROR, ImmutableMap.of("version", conversionVer.getVersion()));
 				if (!job.jobError(e, false, syncStage, logger, ConnectorConstant.WORKER_TYPE_CONNECTOR, err, null)) {
 					break;
 				}
