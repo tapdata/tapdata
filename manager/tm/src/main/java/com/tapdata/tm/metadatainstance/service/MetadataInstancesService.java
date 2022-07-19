@@ -842,6 +842,7 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
 
 
                 value.setHistories(null);
+                value.setSource(null);
                 MetadataInstancesEntity entity = convertToEntity(MetadataInstancesEntity.class, value);
                 Update update = repository.buildUpdateSet(entity, userDetail);
 

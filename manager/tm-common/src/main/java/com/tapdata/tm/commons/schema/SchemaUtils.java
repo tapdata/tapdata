@@ -57,7 +57,7 @@ public class SchemaUtils {
             if (CollectionUtils.isNotEmpty(fields)) {
                 List<Field> removeList = new ArrayList<>();
                 for (Field field : fields) {
-                    if ("job_analyze".equals(field.getSource())) {
+                    if (!"manual".equals(field.getSource())) {
                         removeList.add(field);
                     }
                 }

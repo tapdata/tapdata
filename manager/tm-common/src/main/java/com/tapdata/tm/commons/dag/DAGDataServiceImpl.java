@@ -362,7 +362,7 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
             metadataInstancesDto.setQualifiedName(
                     MetaDataBuilderUtils.generateQualifiedName(metadataInstancesDto.getMetaType(), dataSource, schema.getOriginalName()));
 
-            MetaDataBuilderUtils.build(_metaType, dataSource, userId, userName, metadataInstancesDto.getOriginalName(),
+            metadataInstancesDto = MetaDataBuilderUtils.build(_metaType, dataSource, userId, userName, metadataInstancesDto.getOriginalName(),
                     metadataInstancesDto, null, dataSourceId.toHexString());
 
             metadataInstancesDto.setSourceType(SourceTypeEnum.VIRTUAL.name());
@@ -844,6 +844,7 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
                         metadataInstancesDto.getOriginalName(),
                         metadataInstancesDto, null, metadataInstancesDto.getDatabaseId(), "job_analyze", null);
                 insertMetaDataList.add(_metadataInstancesDto);
+                BeanUtils.copyProperties(_metadataInstancesDto, metadataInstancesDto);
             }
         });
 
