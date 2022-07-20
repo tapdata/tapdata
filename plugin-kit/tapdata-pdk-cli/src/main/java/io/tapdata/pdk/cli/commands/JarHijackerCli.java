@@ -77,18 +77,7 @@ public class JarHijackerCli extends CommonCli {
                 String tempName = file.getName() + UUID.randomUUID().toString().replace("-", "");
                 String tempTargetDir = FilenameUtils.concat(tempDir, tempName);
                 try {
-                    try {
-//                        if(true)
-//                            throw new NullPointerException("asd");
-                        ZipUtils.unzip(file.getAbsolutePath(), tempTargetDir);
-                    } catch (Throwable throwable) {
-                        File zipFile = new File(file.getAbsolutePath() + ".zip");
-                        System.out.println("unzip failed, " + throwable.getMessage() + ". Try to copy file to " + zipFile + " then unzip. ");
-                        if(zipFile.isFile())
-                            FileUtils.forceDelete(zipFile);
-                        FileUtils.copyFile(file, zipFile);
-                        ZipUtils.unzip(zipFile.getAbsolutePath(), tempTargetDir);
-                    }
+                    ZipUtils.unzip(file.getAbsolutePath(), tempTargetDir);
 
                     File overwriteTargetDir = new File(FilenameUtils.concat(module, "target/classes"));
                     if(overwriteTargetDir.isDirectory()) {
@@ -99,11 +88,15 @@ public class JarHijackerCli extends CommonCli {
                             }
                         }
                     }
-                    try (OutputStream fos = FileUtils.openOutputStream(file)) {
+                    File atomicFile = new File(file.getAbsolutePath() + ".bak");
+                    if(atomicFile.exists())
+                        FileUtils.deleteQuietly(atomicFile);
+                    try (OutputStream fos = FileUtils.openOutputStream(atomicFile)) {
                         ZipUtils.zip(tempTargetDir, fos);
                     }
+                    FileUtils.deleteQuietly(file);
+                    FileUtils.moveFile(atomicFile, file);
                 } finally {
-                    FileUtils.forceDelete(new File(file.getAbsolutePath() + ".zip"));
                     FileUtils.forceDelete(new File(tempTargetDir));
                 }
 
