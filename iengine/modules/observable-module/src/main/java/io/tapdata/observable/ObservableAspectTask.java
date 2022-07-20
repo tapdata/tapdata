@@ -1,5 +1,6 @@
 package io.tapdata.observable;
 
+import com.tapdata.entity.TapdataEvent;
 import io.tapdata.aspect.BatchReadFuncAspect;
 import io.tapdata.aspect.StreamReadFuncAspect;
 import io.tapdata.aspect.task.AspectTask;
@@ -10,6 +11,7 @@ import io.tapdata.entity.simplify.pretty.ClassHandlers;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.function.Consumer;
 
 @AspectTaskSession
 public class ObservableAspectTask extends AspectTask {
@@ -21,15 +23,19 @@ public class ObservableAspectTask extends AspectTask {
 	}
 
 	private Void handleStreamReadFunc(StreamReadFuncAspect streamReadFuncAspect) {
+//		streamReadFuncAspect.getDataProcessorContext().getPdkAssociateId();
 		switch (streamReadFuncAspect.getState()) {
 			case StreamReadFuncAspect.STATE_START:
 				streamReadFuncAspect.getTime();
+				streamReadFuncAspect.consumer(new Consumer<List<TapdataEvent>>() {
+					@Override
+					public void accept(List<TapdataEvent> tapdataEvents) {
+						System.currentTimeMillis();
+					}
+				});
 				break;
 			case StreamReadFuncAspect.STATE_STREAM_STARTED:
 				streamReadFuncAspect.getStreamStartedTime();
-				break;
-			case StreamReadFuncAspect.STATE_ACCEPT:
-				streamReadFuncAspect.getAcceptTime();
 				break;
 			case StreamReadFuncAspect.STATE_END:
 				streamReadFuncAspect.getEndTime();
@@ -42,10 +48,12 @@ public class ObservableAspectTask extends AspectTask {
 		switch (aspect.getState()) {
 			case BatchReadFuncAspect.STATE_START:
 				aspect.getTime();
-				break;
-			case BatchReadFuncAspect.STATE_ACCEPT:
-				aspect.getEvents();
-				aspect.getAcceptTime();
+				aspect.consumer(new Consumer<List<TapdataEvent>>() {
+					@Override
+					public void accept(List<TapdataEvent> tapdataEvents) {
+						System.currentTimeMillis();
+					}
+				});
 				break;
 			case BatchReadFuncAspect.STATE_END:
 				aspect.getEndTime();

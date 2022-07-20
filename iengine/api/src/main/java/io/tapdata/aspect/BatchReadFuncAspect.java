@@ -1,18 +1,17 @@
 package io.tapdata.aspect;
 
 import com.tapdata.entity.TapdataEvent;
+import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
+import io.tapdata.pdk.core.utils.CommonUtils;
+import org.apache.commons.lang3.exception.ExceptionUtils;
 
 import java.util.List;
+import java.util.function.Consumer;
 
 public class BatchReadFuncAspect extends DataFunctionAspect<BatchReadFuncAspect> {
-	private Long acceptTime;
-	public BatchReadFuncAspect acceptTime(Long acceptTime) {
-		this.acceptTime = acceptTime;
-		return this;
-	}
-	public static final int STATE_ACCEPT = 10;
+	private static final String TAG = BatchReadFuncAspect.class.getSimpleName();
 	private TapConnectorContext connectorContext;
 
 	public BatchReadFuncAspect connectorContext(TapConnectorContext connectorContext) {
@@ -41,10 +40,16 @@ public class BatchReadFuncAspect extends DataFunctionAspect<BatchReadFuncAspect>
 		return this;
 	}
 
-	private List<TapdataEvent> events;
+	private Consumer<List<TapdataEvent>> consumer;
 
-	public BatchReadFuncAspect events(List<TapdataEvent> events) {
-		this.events = events;
+	public BatchReadFuncAspect consumer(Consumer<List<TapdataEvent>> listConsumer) {
+		this.consumer = tapdataEvents -> {
+			try {
+				listConsumer.accept(tapdataEvents);
+			} catch(Throwable throwable) {
+				TapLogger.warn(TAG, "Consume tapdataEvents from table {} failed on consumer {}, {}", table, listConsumer, ExceptionUtils.getStackTrace(throwable));
+			}
+		};
 		return this;
 	}
 
@@ -80,21 +85,11 @@ public class BatchReadFuncAspect extends DataFunctionAspect<BatchReadFuncAspect>
 		this.eventBatchSize = eventBatchSize;
 	}
 
-	public List<TapdataEvent> getEvents() {
-		return events;
+	public Consumer<List<TapdataEvent>> getConsumer() {
+		return consumer;
 	}
 
-	public void setEvents(List<TapdataEvent> events) {
-		this.events = events;
+	public void setConsumer(Consumer<List<TapdataEvent>> consumer) {
+		this.consumer = consumer;
 	}
-
-
-	public Long getAcceptTime() {
-		return acceptTime;
-	}
-
-	public void setAcceptTime(Long acceptTime) {
-		this.acceptTime = acceptTime;
-	}
-
 }
