@@ -1,0 +1,107 @@
+{
+  "uid" : "bd5896568b415771",
+  "name" : "config job",
+  "fullName" : "test_pipeline.TestPipeline#test_config",
+  "historyId" : "3fd24b328e808f78a027c8159ff63380",
+  "time" : {
+    "start" : 1658317730340,
+    "stop" : 1658317730523,
+    "duration" : 183
+  },
+  "status" : "passed",
+  "flaky" : false,
+  "newFailed" : false,
+  "beforeStages" : [ ],
+  "testStage" : {
+    "status" : "passed",
+    "steps" : [ ],
+    "attachments" : [ {
+      "uid" : "d594bc0ad511b57c",
+      "name" : "stdout",
+      "source" : "d594bc0ad511b57c.txt",
+      "type" : "text/plain",
+      "size" : 543
+    } ],
+    "parameters" : [ ],
+    "stepsCount" : 0,
+    "attachmentsCount" : 1,
+    "shouldDisplayMessage" : false,
+    "hasContent" : true
+  },
+  "afterStages" : [ ],
+  "labels" : [ {
+    "name" : "feature",
+    "value" : "pipeline"
+  }, {
+    "name" : "suite",
+    "value" : "test_pipeline"
+  }, {
+    "name" : "subSuite",
+    "value" : "TestPipeline"
+  }, {
+    "name" : "host",
+    "value" : "283c1e138c4d"
+  }, {
+    "name" : "thread",
+    "value" : "517-MainThread"
+  }, {
+    "name" : "framework",
+    "value" : "pytest"
+  }, {
+    "name" : "language",
+    "value" : "cpython3"
+  }, {
+    "name" : "package",
+    "value" : "test_pipeline"
+  }, {
+    "name" : "resultFormat",
+    "value" : "allure2"
+  } ],
+  "parameters" : [ ],
+  "links" : [ ],
+  "hidden" : false,
+  "retry" : false,
+  "extra" : {
+    "severity" : "normal",
+    "retries" : [ ],
+    "categories" : [ ],
+    "history" : {
+      "statistic" : {
+        "failed" : 0,
+        "broken" : 0,
+        "skipped" : 0,
+        "passed" : 4,
+        "unknown" : 0,
+        "total" : 4
+      },
+      "items" : [ {
+        "uid" : "e589a8e217f3787a",
+        "status" : "passed",
+        "time" : {
+          "start" : 1658314651816,
+          "stop" : 1658314652087,
+          "duration" : 271
+        }
+      }, {
+        "uid" : "357ddc9bfd0e12a0",
+        "status" : "passed",
+        "time" : {
+          "start" : 1658312455954,
+          "stop" : 1658312456275,
+          "duration" : 321
+        }
+      }, {
+        "uid" : "ab9693cca9cab44e",
+        "status" : "passed",
+        "time" : {
+          "start" : 1658310434789,
+          "stop" : 1658310435184,
+          "duration" : 395
+        }
+      } ]
+    },
+    "tags" : [ ]
+  },
+  "source" : "bd5896568b415771.json",
+  "parameterValues" : [ ]
+}

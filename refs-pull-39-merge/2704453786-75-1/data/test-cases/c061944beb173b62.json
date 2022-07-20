@@ -1,0 +1,107 @@
+{
+  "uid" : "c061944beb173b62",
+  "name" : "create datasource with mongodb uri",
+  "fullName" : "test_datasource.TestDataSource#test_mongo_create_datasource_by_uri",
+  "historyId" : "01357ff6cfbebe12ecd764172e6c29d1",
+  "time" : {
+    "start" : 1658317693051,
+    "stop" : 1658317700504,
+    "duration" : 7453
+  },
+  "status" : "passed",
+  "flaky" : false,
+  "newFailed" : false,
+  "beforeStages" : [ ],
+  "testStage" : {
+    "status" : "passed",
+    "steps" : [ ],
+    "attachments" : [ {
+      "uid" : "2adc4a4c2dff205",
+      "name" : "stdout",
+      "source" : "2adc4a4c2dff205.txt",
+      "type" : "text/plain",
+      "size" : 905
+    } ],
+    "parameters" : [ ],
+    "stepsCount" : 0,
+    "attachmentsCount" : 1,
+    "shouldDisplayMessage" : false,
+    "hasContent" : true
+  },
+  "afterStages" : [ ],
+  "labels" : [ {
+    "name" : "feature",
+    "value" : "datasource"
+  }, {
+    "name" : "suite",
+    "value" : "test_datasource"
+  }, {
+    "name" : "subSuite",
+    "value" : "TestDataSource"
+  }, {
+    "name" : "host",
+    "value" : "283c1e138c4d"
+  }, {
+    "name" : "thread",
+    "value" : "517-MainThread"
+  }, {
+    "name" : "framework",
+    "value" : "pytest"
+  }, {
+    "name" : "language",
+    "value" : "cpython3"
+  }, {
+    "name" : "package",
+    "value" : "test_datasource"
+  }, {
+    "name" : "resultFormat",
+    "value" : "allure2"
+  } ],
+  "parameters" : [ ],
+  "links" : [ ],
+  "hidden" : false,
+  "retry" : false,
+  "extra" : {
+    "severity" : "normal",
+    "retries" : [ ],
+    "categories" : [ ],
+    "history" : {
+      "statistic" : {
+        "failed" : 0,
+        "broken" : 0,
+        "skipped" : 0,
+        "passed" : 4,
+        "unknown" : 0,
+        "total" : 4
+      },
+      "items" : [ {
+        "uid" : "c92906711a18f6f6",
+        "status" : "passed",
+        "time" : {
+          "start" : 1658314609115,
+          "stop" : 1658314616676,
+          "duration" : 7561
+        }
+      }, {
+        "uid" : "9cddebed30b52533",
+        "status" : "passed",
+        "time" : {
+          "start" : 1658312416644,
+          "stop" : 1658312423706,
+          "duration" : 7062
+        }
+      }, {
+        "uid" : "182a01bec24539c7",
+        "status" : "passed",
+        "time" : {
+          "start" : 1658310395279,
+          "stop" : 1658310402802,
+          "duration" : 7523
+        }
+      } ]
+    },
+    "tags" : [ ]
+  },
+  "source" : "c061944beb173b62.json",
+  "parameterValues" : [ ]
+}
