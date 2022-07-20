@@ -6,6 +6,7 @@ if [[ "x"$force == "x-f" ]]; then
 fi
 
 . $basepath/env.sh
+. $basepath/log.sh
 basepath=$(cd `dirname $0`; pwd)
 sourcepath=$(cd `dirname $0`/../; pwd)
 cd $basepath
