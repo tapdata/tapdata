@@ -34,10 +34,11 @@ public class MetaDataHistoryService {
         }
 
         BulkOperations bulkOperations = mongoTemplate.bulkOps(BulkOperations.BulkMode.UNORDERED, MetadataInstancesDto.class, "MetaDataHistory");
+        Date date = new Date();
         for (MetadataInstancesDto metadataInstancesDto : metadataInstancesDtos) {
             metadataInstancesDto.setId(null);
             metadataInstancesDto.setHistories(null);
-            metadataInstancesDto.setVersionTime(new Date());
+            metadataInstancesDto.setVersionTime(date);
             bulkOperations.insert(metadataInstancesDto);
         }
 

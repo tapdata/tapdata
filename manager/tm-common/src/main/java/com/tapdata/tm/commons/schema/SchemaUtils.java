@@ -48,10 +48,6 @@ public class SchemaUtils {
                 log.warn("Can't merge non schema.");
                 return null;
             }
-        }
-        if (targetSchema == null) {
-            log.warn("Can't merge non schema.");
-            return null;
         } else {
             List<Field> fields = targetSchema.getFields();
             if (CollectionUtils.isNotEmpty(fields)) {
@@ -63,6 +59,10 @@ public class SchemaUtils {
                 }
                 fields.removeAll(removeList);
             }
+        }
+        if (targetSchema == null) {
+            log.warn("Can't merge non schema.");
+            return null;
         }
 
 
