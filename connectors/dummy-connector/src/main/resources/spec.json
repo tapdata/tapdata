@@ -26,6 +26,9 @@
         "write_log": {"type": "boolean", "title": "${df_write_log}", "x-decorator": "FormItem", "x-component": "Switch", "x-index": 7, "required": true, "default": false, "x-reactions": {"dependencies": ["__TAPDATA.connection_type"], "fulfill": { "schema": { "x-decorator-props.style.display": "{{$deps[0]!=='source' ? null:'none'}}", "required": "{{$deps[0]!=='source' ? true:false}}" } }}},
         "table_name": {"type": "string", "title": "${df_table_name}", "x-decorator": "FormItem", "x-component": "Input", "x-index": 8, "required": true, "default": "dummy_test", "x-reactions": {"dependencies": ["__TAPDATA.connection_type"], "fulfill": { "schema": { "x-decorator-props.style.display": "{{$deps[0]!=='target' ? null:'none'}}", "required": "{{$deps[0]!=='target' ? true:false}}" } }}},
         "table_fields": {"type": "array", "title": "${df_table_fields}", "x-decorator": "FormItem", "x-component": "ArrayTable", "x-index": 9, "required": true, "default": [
+          {"type": "uuid", "pri": true, "name": "id"},
+          {"type": "rstring", "pri": false, "name": "title"},
+          {"type": "now", "pri": false, "name": "created"}
         ], "x-reactions": {"dependencies": ["__TAPDATA.connection_type"], "fulfill": { "schema": { "x-decorator-props.style.display": "{{$deps[0]!=='target' ? null:'none'}}", "required": "{{$deps[0]!=='target' ? true:false}}" } }}, "items": {
             "type": "object",
             "properties": {
