@@ -8,6 +8,7 @@ export database_mem="0.3"
 export manager_mem="0.2"
 export iengine_mem="0.2"
 
+export build_container_name="tapdata-build-container"
 export dev_container_name="tapdata-all-in-one-dev"
 export use_container_name="tapdata-all-in-one-use"
 export tapdata_build_image="ghcr.io/tapdata/tapdata/tldp/build:0.2"
