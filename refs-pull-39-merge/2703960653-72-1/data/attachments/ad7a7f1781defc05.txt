@@ -1,0 +1,1 @@
+[1;34mtapdata, [0m2022-07-20 10:20:50: [1;33mmigrate job not support rename processor[0m                                                                                        

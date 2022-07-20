@@ -1,0 +1,17 @@
+[1;34mtapdata, [0m2022-07-20 10:21:01: job [1;32mNone[0m is not save, error is [1;32mcan only concatenate str (not "NoneType") to str[0m, job will be save soon               
+[1;34mtapdata, [0m2022-07-20 10:21:02: job [1;32mstats_pojbt[0m start running ...                                                                                               
+[1;34mtapdata, [0m2022-07-20 10:21:02: job [1;32mstats_pojbt[0m status is: [1;32mscheduling[0m                                                                                
+[1;34mtapdata, [0m2022-07-20 10:21:03: job [1;32mstats_pojbt[0m status is: [1;32mwait_run[0m                                                                                  
+[1;34mtapdata, [0m2022-07-20 10:21:03: the status is wait_run now, this is 1 times, 5 times remaining                                                                             
+[1;34mtapdata, [0m2022-07-20 10:21:03: job [1;32mstats_pojbt[0m status is: [1;32mwait_run[0m                                                                                  
+[1;34mtapdata, [0m2022-07-20 10:21:04: job [1;32mstats_pojbt[0m status is: [1;32mwait_run[0m                                                                                  
+[1;34mtapdata, [0m2022-07-20 10:21:04: the status is wait_run now, this is 2 times, 4 times remaining                                                                             
+[1;34mtapdata, [0m2022-07-20 10:21:04: job [1;32mstats_pojbt[0m status is: [1;32mwait_run[0m                                                                                  
+[1;34mtapdata, [0m2022-07-20 10:21:05: job [1;32mstats_pojbt[0m status is: [1;32mwait_run[0m                                                                                  
+[1;34mtapdata, [0m2022-07-20 10:21:05: the status is wait_run now, this is 3 times, 3 times remaining                                                                             
+[1;34mtapdata, [0m2022-07-20 10:21:05: job [1;32mstats_pojbt[0m status is: [1;32mwait_run[0m                                                                                  
+[1;34mtapdata, [0m2022-07-20 10:21:06: job [1;32mstats_pojbt[0m status is: [1;32mwait_run[0m                                                                                  
+[1;34mtapdata, [0m2022-07-20 10:21:06: the status is wait_run now, this is 4 times, 2 times remaining                                                                             
+[1;34mtapdata, [0m2022-07-20 10:21:06: job [1;32mstats_pojbt[0m status is: [1;32mwait_run[0m                                                                                  
+[1;34mtapdata, [0m2022-07-20 10:21:07: job [1;32mstats_pojbt[0m status is: [1;32mwait_run[0m                                                                                  
+[1;34mtapdata, [0m2022-07-20 10:21:07: the status is wait_run now, this is 5 times, 1 times remaining                                                                             
