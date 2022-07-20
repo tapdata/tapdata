@@ -11,10 +11,7 @@ import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.Where;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.base.service.BaseService;
-import com.tapdata.tm.commons.dag.AccessNodeTypeEnum;
-import com.tapdata.tm.commons.dag.DAG;
-import com.tapdata.tm.commons.dag.Edge;
-import com.tapdata.tm.commons.dag.Node;
+import com.tapdata.tm.commons.dag.*;
 import com.tapdata.tm.commons.dag.logCollector.HazelCastImdgNode;
 import com.tapdata.tm.commons.dag.logCollector.LogCollectorNode;
 import com.tapdata.tm.commons.dag.nodes.DataParentNode;
@@ -60,7 +57,9 @@ import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.bson.Document;
 import org.bson.types.ObjectId;
+import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.BulkOperations;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
@@ -1914,18 +1913,57 @@ public class SubTaskService extends BaseService<SubTaskDto, SubTaskEntity, Objec
         return subTaskDto;
     }
 
-    public void filedDllEvent(String subTaskId, TapFieldBaseEvent event, UserDetail user) {
-        SubTaskDto subTaskDto = checkExistById(MongoUtils.toObjectId(subTaskId), "parentId");
+    public void updateDag(SubTaskDto subTaskDto, UserDetail user) {
+        SubTaskDto subTaskDto1 = checkExistById(subTaskDto.getId());
 
-        TaskDto taskDto = taskService.checkExistById(subTaskDto.getParentId(), user);
+        Criteria criteria = Criteria.where("_id").is(subTaskDto.getId());
+        Update update = Update.update("dag", subTaskDto.getDag());
+        //update.set("", );
+        repository.update(new Query(criteria), update, user);
 
-        if (event instanceof TapNewFieldEvent) {
+        TaskHistory taskHistory = new TaskHistory();
+        BeanUtils.copyProperties(subTaskDto1, taskHistory);
+        taskHistory.setVersionTime(new Date());
+        taskHistory.setTaskId(subTaskDto1.getId().toHexString());
+        taskHistory.setId(ObjectId.get());
 
-        } else if (event instanceof TapDropFieldEvent) {
+        //保存子任务历史
+        repository.getMongoOperations().insert(taskHistory, "TaskHistories");
 
-        } else if (event instanceof TapAlterFieldNameEvent) {
+        //同步保存到任务。
+        Field field = new Field();
+        field.put("dag", true);
+        TaskDto taskDto = taskService.findById(subTaskDto1.getParentId(), field, user);
 
+        DAG dag = taskDto.getDag();
+        List<Node> nodes = dag.getNodes();
+        DAG subDag = subTaskDto.getDag();
+        List<Node> subNodes = subDag.getNodes();
+        Map<String, Node> subNodeMap = subNodes.stream().collect(Collectors.toMap(Element::getId, n -> n));
+        for (Node node : nodes) {
+            Node subNode = subNodeMap.get(node.getId());
+            if (subNode != null) {
+                BeanUtils.copyProperties(subNode, node);
+            }
         }
 
+        taskService.updateDag(taskDto, user);
+    }
+
+    public SubTaskDto findByVersionTime(String id, Date time, Boolean order) {
+        Criteria criteria = Criteria.where("taskId").is(id);
+        Sort.Direction direction;
+        if (order) {
+            criteria.and("versionTime").gte(time);
+            direction = Sort.Direction.DESC;
+        } else {
+            criteria.and("versionTime").lte(time);
+            direction = Sort.Direction.ASC;
+        }
+
+        Query query = new Query(criteria);
+
+        query.with(Sort.by(direction, "versionTime"));
+        return repository.getMongoOperations().findOne(query, TaskHistory.class, "TaskHistories");
     }
 }

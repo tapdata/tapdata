@@ -27,6 +27,7 @@ import org.bson.Document;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -490,6 +491,21 @@ public class SubTaskController extends BaseController {
     @GetMapping("byCacheName/{cacheName}")
     public ResponseMessage<SubTaskDto> findByCacheName(@PathVariable("cacheName") String cacheName) {
         return success(subTaskService.findByCacheName(cacheName, getLoginUser()));
+    }
+
+
+    @PostMapping("dag")
+    public ResponseMessage<Void> updateDag(@RequestBody SubTaskDto subTaskDto) {
+        subTaskService.updateDag(subTaskDto, getLoginUser());
+        return success();
+    }
+
+
+    @GetMapping("history")
+    public ResponseMessage<SubTaskDto> queryHistory(@RequestParam("id") String id, @RequestParam("time") Date time,
+                                                    @RequestParam(value = "order", defaultValue = "true", required = false) Boolean order) {
+        SubTaskDto subTaskDto  = subTaskService.findByVersionTime(id, time, order);
+        return success(subTaskDto);
     }
 
 

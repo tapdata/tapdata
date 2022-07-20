@@ -720,13 +720,4 @@ public class TaskController extends BaseController {
         TransformerWsMessageDto dto = taskService.findTransformParam(taskId, getLoginUser());
         return success(dto);
     }
-
-
-    @PostMapping("dag")
-    public ResponseMessage<Void> updateDag(@RequestBody TaskDto taskDto) {
-        taskService.updateDag(taskDto, getLoginUser());
-        return success();
-    }
-
-
 }

@@ -52,7 +52,7 @@ public class MetaDataHistoryService {
      * @param order true 所传时间戳之前第一条数据   false 所传时间之后第一条数据
      * @return
      */
-    public MetadataInstancesDto findByVersionTime(String qualifiedName, long time, Boolean order) {
+    public MetadataInstancesDto findByVersionTime(String qualifiedName, Date time, Boolean order) {
         Criteria criteria = Criteria.where("qualifiedName").is(qualifiedName);
         Sort.Direction direction;
         if (order) {
