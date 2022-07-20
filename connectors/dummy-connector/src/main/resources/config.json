@@ -5,11 +5,11 @@
   "incremental_types": [1],
   "write_interval": 1000,
   "write_interval_totals": 1,
-  "write_log": false,
-  "table_name": "tapd8_dummy",
+  "write_log": true,
+  "table_name": "dummy_test",
   "table_fields": [
-    {"type": "number(8,1)", "pri": true, "name": "id", "def": "serial(1,1)"},
-    {"type": "string(32)", "pri": false, "name": "name", "def": "rstring(8)"},
-    {"type": "datetime", "pri": false, "name": "created", "def": "now()"}
+    {"type": "uuid", "pri": true, "name": "id"},
+    {"type": "rstring", "pri": false, "name": "title"},
+    {"type": "now", "pri": false, "name": "created"}
   ]
 }
