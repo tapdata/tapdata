@@ -37,7 +37,7 @@ public class OceanbaseMaker {
     private boolean hasAutoIncrement;
     protected static final int DEFAULT_CONSTRAINT_NAME_MAX_LENGTH = 30;
 
-    public static String[] createTable(TapConnectorContext tapConnectorContext, TapCreateTableEvent tapCreateTableEvent, String version) throws Throwable {
+    public static String[] createTable(TapConnectorContext tapConnectorContext, TapCreateTableEvent tapCreateTableEvent) {
         TapTable tapTable = tapCreateTableEvent.getTable();
         LinkedHashMap<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
         DataMap connectionConfig = tapConnectorContext.getConnectionConfig();
