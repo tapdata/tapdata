@@ -1,20 +1,21 @@
 {
   "properties": {
-    "name": "RabbitMQ",
-    "icon": "icons/rabbitmq.png",
+    "name": "RocketMQ",
+    "icon": "icons/rocketmq.png",
     "doc": "${doc}",
-    "id": "rabbitmq"
+    "id": "rocketmq"
   },
   "configOptions": {
     "connection": {
       "type": "object",
       "properties": {
-        "mqQueueString": {
+        "mqTopicString": {
+          "required": true,
           "type": "string",
-          "title": "${mqQueueString}",
+          "title": "${mqTopicString}",
           "x-decorator": "FormItem",
           "x-component": "Input",
-          "apiServerKey": "mq_queues",
+          "apiServerKey": "mq_topics",
           "x-index": 1
         },
         "mqHost": {
@@ -35,15 +36,21 @@
           "apiServerKey": "mq_port",
           "x-index": 3
         },
-        "apiPort": {
-          "required": true,
+        "producerGroup": {
           "type": "string",
-          "default": 8090,
-          "title": "${apiPort}",
+          "title": "${producerGroup}",
           "x-decorator": "FormItem",
-          "x-component": "InputNumber",
-          "apiServerKey": "mq_apiPort",
+          "x-component": "Input",
+          "apiServerKey": "producer_group",
           "x-index": 4
+        },
+        "consumerGroup": {
+          "type": "string",
+          "title": "${consumerGroup}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "apiServerKey": "consumer_group",
+          "x-index": 5
         },
         "mqUsername": {
           "type": "string",
@@ -51,7 +58,7 @@
           "x-decorator": "FormItem",
           "x-component": "Input",
           "apiServerKey": "mq_username",
-          "x-index": 5
+          "x-index": 6
         },
         "mqPassword": {
           "type": "string",
@@ -59,22 +66,18 @@
           "x-decorator": "FormItem",
           "x-component": "Password",
           "apiServerKey": "mq_password",
-          "x-index": 6
-        },
-        "routeKeyField": {
-          "type": "string",
-          "title": "${routeKeyField}",
-          "x-decorator": "FormItem",
-          "x-component": "Input",
-          "apiServerKey": "route_key_field",
           "x-index": 7
         },
-        "virtualHost": {
-          "type": "string",
-          "title": "${virtualHost}",
+        "useTLS": {
+          "type": "boolean",
+          "title": "${useTLS}",
           "x-decorator": "FormItem",
-          "x-component": "Input",
-          "apiServerKey": "virtual_host",
+          "x-component": "Radio.Group",
+          "x-component-props": {
+            "optionType": "button"
+          },
+          "default": false,
+          "apiServerKey": "use_tls",
           "x-index": 8
         }
       }
@@ -83,37 +86,37 @@
   "messages": {
     "default": "en_US",
     "en_US": {
-      "doc": "docs/rabbitmq_en_US.md",
-      "mqQueueString": "Queue name",
+      "doc": "docs/rocketmq_en_US.md",
+      "mqTopicString": "topic name",
       "mqHost": "MQ address",
       "mqPort": "MQ port",
-      "apiPort": "API Port",
+      "producerGroup": "Producer Group",
+      "consumerGroup": "Consumer Group",
       "mqUsername": "Account",
       "mqPassword": "Password",
-      "routeKeyField": "Message routing",
-      "virtualHost": "Virtual Host"
+      "useTLS": "Use TLS/SSL Connection"
     },
     "zh_CN": {
-      "doc": "docs/rabbitmq_zh_CN.md",
-      "mqQueueString": "队列名称",
+      "doc": "docs/rocketmq_zh_CN.md",
+      "mqTopicString": "主题名称",
       "mqHost": "MQ地址",
       "mqPort": "MQ端口",
-      "apiPort": "API端口",
+      "producerGroup": "生产者组",
+      "consumerGroup": "消费者组",
       "mqUsername": "账号",
       "mqPassword": "密码",
-      "routeKeyField": "消息路由",
-      "virtualHost": "虚拟主机"
+      "useTLS": "使用 TLS/SSL 连接"
     },
     "zh_TW": {
-      "doc": "docs/rabbitmq_zh_TW.md",
-      "mqQueueString": "隊列名稱",
+      "doc": "docs/rocketmq_zh_TW.md",
+      "mqTopicString": "主題名稱",
       "mqHost": "MQ地址",
       "mqPort": "MQ端口",
-      "apiPort": "API端口",
+      "producerGroup": "生產者組",
+      "consumerGroup": "消費者組",
       "mqUsername": "賬號",
       "mqPassword": "密碼",
-      "routeKeyField": "消息路由",
-      "virtualHost": "虛擬主機"
+      "useTLS": "使用 TLS/SSL 連接"
     }
   },
   "dataTypes": {
