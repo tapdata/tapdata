@@ -109,6 +109,7 @@ public class WebSocketEventResult implements Serializable {
 		DATA_SYNC_RESULT("dataSyncResult"),
 
 		DEDUCE_SCHEMA("deduceSchemaResult"),
+		TEST_RUN("testRunResult"),
 		;
 
 		private String type;

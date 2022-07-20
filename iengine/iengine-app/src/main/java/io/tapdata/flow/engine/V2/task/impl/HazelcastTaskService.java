@@ -30,6 +30,7 @@ import com.tapdata.tm.commons.dag.process.MergeTableNode;
 import com.tapdata.tm.commons.dag.process.MigrateFieldRenameProcessorNode;
 import com.tapdata.tm.commons.dag.process.TableRenameProcessNode;
 import com.tapdata.tm.commons.task.dto.SubTaskDto;
+import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.aspect.TaskStartAspect;
 import io.tapdata.common.SettingService;
@@ -295,8 +296,7 @@ public class HazelcastTaskService implements TaskService<SubTaskDto> {
 					}
 				} else if (CollectionUtils.isNotEmpty(successors)) {
 					if ("pdk".equals(connection.getPdkType())) {
-						hazelcastNode = new HazelcastSourcePdkDataNode(
-								DataProcessorContext.newBuilder()
+						DataProcessorContext processorContext = DataProcessorContext.newBuilder()
 										.withSubTaskDto(subTaskDto)
 										.withNode(node)
 										.withNodes(nodes)
@@ -306,7 +306,12 @@ public class HazelcastTaskService implements TaskService<SubTaskDto> {
 										.withConnectionConfig(connection.getConfig())
 										.withDatabaseType(databaseType)
 										.withTapTableMap(tapTableMap)
-										.build());
+										.build();
+						if (TaskDto.SYNC_TYPE_TEST_RUN.equals(subTaskDto.getParentTask().getSyncType()) || subTaskDto.isTransformTask()) {
+							hazelcastNode = new HazelcastSampleSourcePdkDataNode(processorContext);
+						} else {
+							hazelcastNode = new HazelcastSourcePdkDataNode(processorContext);
+						}
 					} else {
 						hazelcastNode = new HazelcastTaskSource(
 								DataProcessorContext.newBuilder()
@@ -378,17 +383,21 @@ public class HazelcastTaskService implements TaskService<SubTaskDto> {
 				}
 				break;
 			case VIRTUAL_TARGET:
-
-				hazelcastNode = new HazelcastTargetSchemaNode(DataProcessorContext.newBuilder()
-						.withSubTaskDto(subTaskDto)
-						.withNode(node)
-						.withNodes(nodes)
-						.withEdges(edges)
-						.withConfigurationCenter(config)
-						.withTargetConn(connection)
-						.withCacheService(cacheService)
-						.withTapTableMap(tapTableMap)
-						.build());
+				DataProcessorContext processorContext = DataProcessorContext.newBuilder()
+								.withSubTaskDto(subTaskDto)
+								.withNode(node)
+								.withNodes(nodes)
+								.withEdges(edges)
+								.withConfigurationCenter(config)
+								.withTargetConn(connection)
+								.withCacheService(cacheService)
+								.withTapTableMap(tapTableMap)
+								.build();
+				if (TaskDto.SYNC_TYPE_TEST_RUN.equals(subTaskDto.getParentTask().getSyncType())) {
+					hazelcastNode = new HazelcastVirtualTargetNode(processorContext);
+				} else {
+					hazelcastNode = new HazelcastSchemaTargetNode(processorContext);
+				}
 
 				break;
 			case JOIN:

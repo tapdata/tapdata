@@ -12,9 +12,9 @@ import com.tapdata.tm.commons.task.dto.SubTaskDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.common.SettingService;
 import io.tapdata.entity.schema.TapTable;
+import io.tapdata.flow.engine.V2.node.hazelcast.data.HazelcastSchemaTargetNode;
 import io.tapdata.flow.engine.V2.task.TaskClient;
 import io.tapdata.flow.engine.V2.task.TaskService;
-import io.tapdata.schema.SchemaCacheUtil;
 import io.tapdata.websocket.EventHandlerAnnotation;
 import io.tapdata.websocket.WebSocketEventHandler;
 import io.tapdata.websocket.WebSocketEventResult;
@@ -70,7 +70,7 @@ public class DeduceSchemaHandler implements WebSocketEventHandler<WebSocketEvent
 				logger.info("load tapTable task {} {}, cost {}ms", schemaKey, taskClient.getStatus(), (System.currentTimeMillis() - startTs));
 				if (SubTaskDto.STATUS_COMPLETE.equals(taskClient.getStatus())) {
 					//成功
-					TapTable tapTable = SchemaCacheUtil.getTapTable(schemaKey);
+					TapTable tapTable = HazelcastSchemaTargetNode.getTapTable(schemaKey);
 					if (logger.isDebugEnabled()) {
 						logger.debug("derivation results: {}", JSON.toJSONString(tapTable));
 					}

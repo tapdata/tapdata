@@ -10,7 +10,6 @@ import com.tapdata.entity.TapdataStartCdcEvent;
 import com.tapdata.entity.dataflow.SyncProgress;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.tm.commons.dag.Node;
-import com.tapdata.tm.commons.dag.nodes.TableNode;
 import io.tapdata.aspect.BatchReadFuncAspect;
 import io.tapdata.aspect.StreamReadFuncAspect;
 import io.tapdata.common.sample.sampler.CounterSampler;
@@ -33,7 +32,6 @@ import io.tapdata.pdk.apis.functions.connector.source.StreamReadFunction;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
 import io.tapdata.pdk.core.monitor.PDKMethod;
 import io.tapdata.pdk.core.utils.LoggerUtils;
-import io.tapdata.schema.SchemaCacheUtil;
 import io.tapdata.schema.TapTableMap;
 import lombok.SneakyThrows;
 import org.apache.commons.collections.CollectionUtils;
@@ -85,28 +83,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 			Thread.currentThread().setName("PDK-SOURCE-RUNNER-" + node.getName() + "(" + node.getId() + ")");
 			Log4jUtil.setThreadContext(dataProcessorContext.getSubTaskDto());
 			TapTableMap<String, TapTable> tapTableMap = dataProcessorContext.getTapTableMap();
-			if (dataProcessorContext.getSubTaskDto().isTransformTask()) {
-				// 测试任务
-				long startTs = System.currentTimeMillis();
-				for (String tableName : tapTableMap.keySet()) {
-					if (!isRunning()) {
-						break;
-					}
-					TapTable tapTable = tapTableMap.get(tableName);
-					String sampleDataId = ((TableNode) node).getConnectionId() + "_" + tableName;
-					SchemaCacheUtil.getSampleData(sampleDataId, getConnectorNode(), tapTable, TAG, tapEvents -> {
-						List<TapdataEvent> tapdataEvents = wrapTapdataEvent(tapEvents);
-						if (CollectionUtil.isNotEmpty(tapdataEvents)) {
-							tapdataEvents.forEach(this::enqueue);
-						}
-					});
-				}
 
-				if (logger.isDebugEnabled()) {
-					logger.info("query sample data complet, cost {}ms", (System.currentTimeMillis() - startTs));
-				}
-				return;
-			}
 			if (need2InitialSync(syncProgress)) {
 				try {
 					// MILESTONE-READ_SNAPSHOT-RUNNING
