@@ -836,6 +836,18 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
 
 
         if (updateMetaMap != null) {
+            Set<String> keySet = updateMetaMap.keySet();
+
+            Map<String, MetadataInstancesDto> metaMap = new HashMap<>();
+            if (CollectionUtils.isNotEmpty(keySet)) {
+                List<ObjectId> ObjectIds = keySet.stream().map(MongoUtils::toObjectId).collect(Collectors.toList());
+                Criteria criteria = Criteria.where("_id").in(ObjectIds);
+                Query query = new Query(criteria);
+                query.fields().exclude("histories");
+                List<MetadataInstancesDto> metadataInstancesDtos = findAllDto(query, userDetail);
+                metaMap = metadataInstancesDtos.stream().collect(Collectors.toMap(m -> m.getId().toHexString(), m -> m));
+
+            }
             for (Map.Entry<String, MetadataInstancesDto> entry : updateMetaMap.entrySet()) {
                 MetadataInstancesDto value = entry.getValue();
                 List<MetadataInstancesDto> histories = value.getHistories();
@@ -849,14 +861,16 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
                 if (CollectionUtils.isNotEmpty(histories)) {
                     if (saveHistory) {
                         //保存历史，用于自动ddl
-                        MetadataInstancesDto metadataInstancesDto = histories.get(0);
-                        metadataInstancesDto.setFields(value.getFields());
-                        metadataInstancesDto.setIndexes(value.getIndexes());
-                        metadataInstancesDto.setDeleted(false);
-                        metadataInstancesDto.setCreateSource(value.getCreateSource());
-                        metadataInstancesDto.setVersion(value.getVersion());
-                        metadataInstancesDto.setHistories(null);
-                        insertMetaDataDtos.add(metadataInstancesDto);
+                        MetadataInstancesDto metadataInstancesDto = metaMap.get(entry.getKey());
+                        if (metadataInstancesDto != null) {
+                            metadataInstancesDto.setFields(value.getFields());
+                            metadataInstancesDto.setIndexes(value.getIndexes());
+                            metadataInstancesDto.setDeleted(false);
+                            metadataInstancesDto.setCreateSource(value.getCreateSource());
+                            metadataInstancesDto.setVersion(value.getVersion());
+                            metadataInstancesDto.setHistories(null);
+                            insertMetaDataDtos.add(metadataInstancesDto);
+                        }
                     }
 
                     Document basicDBObject = new Document("$each", histories);

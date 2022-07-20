@@ -44,30 +44,6 @@ public class MetaDataHistoryService {
         bulkOperations.execute();
     }
 
-    public static void main(String[] args) {
-        Document updateObject = new Document();
-        Document update = new Document();
-        Document set = new Document();
-        Document push = new Document();
-        set.put("version", "");
-        ArrayList<MetadataInstancesDto> hisModels = new ArrayList<>();
-        MetadataInstancesDto metadataInstancesDto = new MetadataInstancesDto();
-        metadataInstancesDto.setDatabaseId("kaskdlfasd");
-        hisModels.add(metadataInstancesDto);
-        Document basicDBObject = new Document("$each", hisModels);
-        basicDBObject.append("$slice", -5);
-        push.put("histories", basicDBObject);
-        set.put("fields", new ArrayList<>());
-        set.put("indices", new ArrayList<>());
-        set.put("is_deleted", false);
-        set.put("createSource", "AUTO");
-        updateObject.put("$set", set);
-        updateObject.put("$push", push);
-        update.put("updateObject", updateObject);
-        Update update1 = Update.fromDocument(update);
-        System.out.println(update1.getUpdateObject());
-    }
-
     /**
      *
      * @param qualifiedName 唯一名称
