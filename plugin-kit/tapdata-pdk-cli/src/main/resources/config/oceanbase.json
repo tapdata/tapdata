@@ -1,0 +1,13 @@
+{
+  "connection": {
+    "host": "192.168.1.126",
+    "port": 2881,
+    "user": "root",
+    "password": "",
+    "database": "test",
+    "timezone": "",
+    "addtionalString": ""
+  },
+  "node": {
+  }
+}

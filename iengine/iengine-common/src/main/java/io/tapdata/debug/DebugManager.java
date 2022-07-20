@@ -1,9 +1,7 @@
 package io.tapdata.debug;
 
-import com.mongodb.client.result.UpdateResult;
 import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.entity.Job;
-import com.tapdata.entity.dataflow.DataFlow;
 import com.tapdata.mongo.ClientMongoOperator;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;

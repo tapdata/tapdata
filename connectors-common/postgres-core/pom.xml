@@ -21,6 +21,7 @@
         <sql.core.version>1.0-SNAPSHOT</sql.core.version>
         <debezium.version>1.5.4.Final</debezium.version>
         <postgres.core.version>1.0-SNAPSHOT</postgres.core.version>
+        <commons-lang3.version>3.12.0</commons-lang3.version>
     </properties>
     <dependencyManagement>
         <dependencies>
@@ -39,6 +40,11 @@
                 <artifactId>sql-core</artifactId>
                 <version>${sql.core.version}</version>
             </dependency>
+            <dependency>
+                <groupId>org.apache.commons</groupId>
+                <artifactId>commons-lang3</artifactId>
+                <version>${commons-lang3.version}</version>
+            </dependency>
         </dependencies>
     </dependencyManagement>
 
@@ -55,6 +61,10 @@
         <dependency>
             <groupId>org.postgresql</groupId>
             <artifactId>postgresql</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.commons</groupId>
+            <artifactId>commons-lang3</artifactId>
         </dependency>
     </dependencies>
     <build>

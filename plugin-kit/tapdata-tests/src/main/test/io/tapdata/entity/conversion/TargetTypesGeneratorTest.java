@@ -951,7 +951,7 @@ class TargetTypesGeneratorTest {
         assertEquals("double(255,0)", numeric1000_0Field.getDataType());
 
         TapField decimalField = nameFieldMap.get("numeric");
-        assertEquals("double(20,8)", decimalField.getDataType());
+        assertEquals("float(20,8)", decimalField.getDataType());
     }
 
     @Test
@@ -1177,4 +1177,72 @@ class TargetTypesGeneratorTest {
         TapField number1011Field = nameFieldMap.get("timestamp with time zone");
         assertEquals("timestampex(6) with time zone", number1011Field.getDataType());
     }
+
+    @Test
+    public void onlyPrecisionNoScaleTest() {
+        String sourceTypeExpression = "{" +
+                "\"float[($precision)]\": {\"to\": \"TapNumber\",\"byte\": 8,\"value\": [\"-1.79E+308\", \"1.79E+308\"],\"precision\": [1,30],\"scale\": 1,\"fixed\": false}," +
+                "\"float1[($precision)]\": {\"to\": \"TapNumber\",\"byte\": 8,\"value\": [\"-1.79E+308\", \"1.79E+308\"],\"precision\": [1,30],\"scale\": true,\"fixed\": false}," +
+                "\"float2[($precision)]\": {\"to\": \"TapNumber\",\"byte\": 8,\"value\": [\"-1.79E+308\", \"1.79E+308\"],\"precision\": [1,30],\"scale\": \"true\",\"fixed\": false}" +
+                "}";
+
+        String targetTypeExpression = "{\n" +
+                "\"floatex[($precision)]\": {\"to\": \"TapNumber\",\"byte\": 8,\"value\": [\"-1.79E+308\", \"1.79E+308\"],\"precision\": [1,30],\"scale\": 1,\"fixed\": false}" +
+                "}";
+
+        TapTable sourceTable = table("test");
+        sourceTable
+                .add(field("float(10)", "float(10)"))
+                .add(field("float(1)", "float(1)"))
+                .add(field("float1(10)", "float1(10)"))
+                .add(field("float2(10)", "float2(10)"))
+        ;
+        tableFieldTypesGenerator.autoFill(sourceTable.getNameFieldMap(), DefaultExpressionMatchingMap.map(sourceTypeExpression));
+        TapResult<LinkedHashMap<String, TapField>> tapResult = targetTypesGenerator.convert(sourceTable.getNameFieldMap(), DefaultExpressionMatchingMap.map(targetTypeExpression), targetCodecFilterManager);
+
+        LinkedHashMap<String, TapField> nameFieldMap = tapResult.getData();
+
+
+        TapField float10Field = nameFieldMap.get("float(10)");
+        assertEquals("floatex(10)", float10Field.getDataType());
+
+        TapField float1Field = nameFieldMap.get("float(1)");
+        assertEquals("floatex(1)", float1Field.getDataType());
+
+        TapField float110Field = nameFieldMap.get("float1(10)");
+        assertEquals("floatex(10)", float110Field.getDataType());
+
+        TapField float210Field = nameFieldMap.get("float2(10)");
+        assertEquals("floatex(10)", float210Field.getDataType());
+    }
+
+    @Test
+    public void intUnsignedForIntTest() {
+        String sourceTypeExpression = "{" +
+//                "    \"int1[($bit)][unsigned]\": {\"bit\": 32, \"unsigned\": \"unsigned\", \"to\": \"TapNumber\"},\n" +
+                "\"int unsigned\": {\"to\": \"TapNumber\",\"bit\": 32,\"value\": [\"0\", \"4294967295\"]}" +
+                "}";
+
+        String targetTypeExpression = "{\n" +
+//                "\"int unsigned\": {\"to\": \"TapNumber\",\"byte\": 32,\"value\": [\"0\", \"4294967295\"]}," +
+                "\"int\": {\"to\": \"TapNumber\",\"bit\": 32,\"value\": [\"-2147483648\", \"2147483647\"]}," +
+                "\"bigint\": {\"to\": \"TapNumber\",\"bit\": 64,\"value\": [\"-9223372036854775808\", \"9223372036854775807\"]}" +
+                "}";
+
+        TapTable sourceTable = table("test");
+        sourceTable
+                .add(field("int unsigned", "int unsigned"))
+//                .add(field("int unsigned", "int unsigned"))
+        ;
+        tableFieldTypesGenerator.autoFill(sourceTable.getNameFieldMap(), DefaultExpressionMatchingMap.map(sourceTypeExpression));
+        TapResult<LinkedHashMap<String, TapField>> tapResult = targetTypesGenerator.convert(sourceTable.getNameFieldMap(), DefaultExpressionMatchingMap.map(targetTypeExpression), targetCodecFilterManager);
+
+        LinkedHashMap<String, TapField> nameFieldMap = tapResult.getData();
+
+
+        TapField float10Field = nameFieldMap.get("int unsigned");
+        assertEquals("bigint", float10Field.getDataType());
+
+    }
+
 }

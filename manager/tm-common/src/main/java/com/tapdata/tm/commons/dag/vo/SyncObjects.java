@@ -7,6 +7,7 @@
 package com.tapdata.tm.commons.dag.vo;
 
 import java.io.Serializable;
+import java.util.LinkedHashMap;
 import java.util.List;
 
 public class SyncObjects implements Serializable {
@@ -17,6 +18,8 @@ public class SyncObjects implements Serializable {
 	private String type;
 
 	private List<String> objectNames;
+
+	private LinkedHashMap<String, String> tableNameRelation;
 
 	private Integer sort;
 
@@ -42,5 +45,13 @@ public class SyncObjects implements Serializable {
 
 	public void setSort(Integer sort) {
 		this.sort = sort;
+	}
+
+	public LinkedHashMap<String, String> getTableNameRelation() {
+		return tableNameRelation;
+	}
+
+	public void setTableNameRelation(LinkedHashMap<String, String> tableNameRelation) {
+		this.tableNameRelation = tableNameRelation;
 	}
 }

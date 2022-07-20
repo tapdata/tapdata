@@ -1,0 +1,139 @@
+[
+  {
+    "name": "northwind",
+    "priority": "normal",
+    "status": "running",
+    "connections": {
+      "source": "5ad840203c5994003cc41d51",
+      "target": "5ad840203c5994003cc41d52"
+    },
+    "stats":{},
+    "mappings": [
+    ],
+    "deployment": {
+      "sync_point": "beginning",
+      "sync_time": ""
+    },
+    "is_validate": true,
+    "mapping_template": "cluster-clone"
+  },
+  {
+    "name": "inventory-integration",
+    "priority": "normal",
+    "status": "running",
+    "connections": {
+      "source": "5ad840203c5994003cc41d53",
+      "target": "5ad840203c5994003cc41d52"
+    },
+    "stats":{},
+    "deployment": {
+      "sync_point": "beginning",
+      "sync_time": ""
+    },
+    "mapping_template": "cluster-clone"
+  },
+  {
+    "name": "inventory-paused-start",
+    "priority": "normal",
+    "status": "running",
+    "connections": {
+      "source": "5ad840203c5994003cc41d53",
+      "target": "5ad840203c5994003cc41d52"
+    },
+    "stats":{},
+    "deployment": {
+      "sync_point": "beginning",
+      "sync_time": ""
+    },
+
+    "mapping_template": "cluster-clone"
+  },
+  {
+    "name": "oracle-sync-time",
+    "priority": "normal",
+    "status": "running",
+    "connections": {
+      "source": "5ad840203c5994003cc41d51",
+      "target": "5ad840203c5994003cc41d52"
+    },
+    "stats":{},
+    "deployment": {
+      "sync_point": "sync_time",
+      "sync_time": "2017-12-17 06:00:10"
+    },
+    "mapping_template": "cluster-clone",
+    "sync_type": "cdc"
+  },
+  {
+    "name": "inventory-sync-point",
+    "priority": "normal",
+    "status": "running",
+    "connections": {
+      "source": "5ad840203c5994003cc41d53",
+      "target": "5ad840203c5994003cc41d52"
+    },
+    "stats":{},
+    "deployment": {
+      "sync_point": "current",
+      "sync_time": ""
+    },
+    "mapping_template": "cluster-clone"
+  },
+  {
+    "_id" : "mongo-connector",
+    "name" : "mongo-connector",
+    "priority" : "normal",
+    "status" : "running",
+    "connections" : {
+      "source" : "5ad840203c5994003cc41d54",
+      "target" : "5ad840203c5994003cc41d52"
+    },
+    "stats":{},
+    "targetConnection" : {
+      "name" : "mongo",
+      "connection_type" : "target",
+      "database_type" : "mongodb",
+      "database_host" : "localhost",
+      "database_username" : "",
+      "database_port" : 10001,
+      "database_name" : "unitest",
+      "database_password" : ""
+    },
+    "sourceConnection" : {
+      "name" : "mongo_replset",
+      "database_type" : "mongodb",
+      "database_host" : "",
+      "database_username" : "",
+      "database_port" : 0,
+      "database_name" : "",
+      "database_password" : ""
+    },
+    "mappings" : [],
+    "deployment" : {
+      "sync_point" : "beginning",
+      "sync_time" : ""
+    },
+    "mapping_template" : "cluster-clone",
+    "fullSyncSucc" : false,
+    "op_filters" : [
+      {
+        "action" : "skip",
+        "filters" : [
+          {
+            "collection" : "bar",
+            "op" : "drop_table"
+          }
+        ]
+      },
+      {
+        "action" : "abort",
+        "filters" : [
+          {
+            "collection" : "",
+            "op" : ""
+          }
+        ]
+      }
+    ]
+  }
+]

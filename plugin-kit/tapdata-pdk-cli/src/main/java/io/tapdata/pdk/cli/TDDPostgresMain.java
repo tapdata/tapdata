@@ -1,9 +1,11 @@
 package io.tapdata.pdk.cli;
 
+import io.tapdata.pdk.core.utils.CommonUtils;
 import picocli.CommandLine;
 
 public class TDDPostgresMain {
     public static void main(String... args) {
+        CommonUtils.setProperty("pdk_external_jar_path", "./connectors/dist");
         args = new String[]{
 //                "test", "-c", "B:\\code\\tapdata\\idaas-pdk\\tapdata-pdk-cli\\src\\main\\resources\\config\\aerospike.json",
 //                "test", "-c", "B:\\code\\tapdata\\idaas-pdk\\tapdata-pdk-cli\\src\\main\\resources\\config\\doris.json",

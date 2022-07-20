@@ -1,7 +1,10 @@
 package com.tapdata.entity.inspect;
 
 import com.tapdata.entity.BaseEntity;
-import lombok.*;
+import lombok.EqualsAndHashCode;
+import lombok.Getter;
+import lombok.Setter;
+import lombok.ToString;
 
 import java.io.Serializable;
 import java.util.Date;

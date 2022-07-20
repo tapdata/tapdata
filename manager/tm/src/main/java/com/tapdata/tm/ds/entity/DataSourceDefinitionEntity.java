@@ -2,6 +2,7 @@
 package com.tapdata.tm.ds.entity;
 
 import com.tapdata.tm.base.entity.BaseEntity;
+import io.tapdata.pdk.apis.entity.Capability;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import org.springframework.data.mongodb.core.index.Indexed;
@@ -24,8 +25,7 @@ public class DataSourceDefinitionEntity extends BaseEntity {
     /**
      * JsonSchema，用于渲染创建数据源的页面，格式查看：https://json-schema.org/specification.html
      */
-    private LinkedHashMap<String, Object> properties;
-    private LinkedHashMap<String, Object> messages;
+    private String properties;
     /**
      * official-官方提供的，self-自定义数据源
      */
@@ -89,5 +89,7 @@ public class DataSourceDefinitionEntity extends BaseEntity {
     private String expression;
     private String tapTypeDataTypeMap;
 
-    private List<String> capabilities;
+    private LinkedHashMap<String, Object> messages;
+
+    private List<Capability> capabilities;
 }

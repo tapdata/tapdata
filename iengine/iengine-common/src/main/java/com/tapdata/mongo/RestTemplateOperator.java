@@ -195,7 +195,7 @@ public class RestTemplateOperator {
 								responseEntity != null && responseEntity.hasBody() ? responseEntity.getBody() : null
 						);
 					}
-				} catch (RestAuthException e) {
+				} catch (RestDoNotRetryException e) {
 					throw e;
 				} catch (Exception e) {
 					retry++;
@@ -267,7 +267,7 @@ public class RestTemplateOperator {
 					}
 
 					break;
-				} catch (RestAuthException e) {
+				} catch (RestDoNotRetryException e) {
 					throw e;
 				} catch (Exception e) {
 					retry++;
@@ -414,7 +414,7 @@ public class RestTemplateOperator {
 					}
 
 					return result;
-				} catch (RestAuthException e) {
+				} catch (RestDoNotRetryException e) {
 					throw e;
 				} catch (Exception e) {
 					retry++;
@@ -470,7 +470,7 @@ public class RestTemplateOperator {
 					}
 
 					return result;
-				} catch (RestAuthException e) {
+				} catch (RestDoNotRetryException e) {
 					throw e;
 				} catch (Exception e) {
 					retry++;
@@ -514,7 +514,7 @@ public class RestTemplateOperator {
 					}
 
 					return result;
-				} catch (RestAuthException e) {
+				} catch (RestDoNotRetryException e) {
 					throw e;
 				} catch (Exception e) {
 					retry++;
@@ -592,7 +592,7 @@ public class RestTemplateOperator {
 					}
 
 					return list;
-				} catch (RestAuthException e) {
+				} catch (RestDoNotRetryException e) {
 					throw e;
 				} catch (Exception e) {
 					retry++;
@@ -753,7 +753,7 @@ public class RestTemplateOperator {
 								responseEntity != null && responseEntity.hasBody() ? responseBody : null
 						);
 					}
-				} catch (RestAuthException e) {
+				} catch (RestDoNotRetryException e) {
 					throw e;
 				} catch (Exception e) {
 					retry++;

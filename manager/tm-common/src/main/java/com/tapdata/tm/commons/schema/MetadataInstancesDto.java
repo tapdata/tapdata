@@ -26,6 +26,7 @@ public class MetadataInstancesDto extends BaseDto {
     private boolean isDeleted = false;
     @JsonProperty("original_name")
     private String originalName;
+    private String ancestorsName;
     @JsonProperty("dev_version")
     private Integer devVersion;
     private String databaseId;

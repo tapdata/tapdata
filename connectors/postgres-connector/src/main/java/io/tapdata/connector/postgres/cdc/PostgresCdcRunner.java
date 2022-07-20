@@ -2,6 +2,7 @@ package io.tapdata.connector.postgres.cdc;
 
 import io.debezium.embedded.EmbeddedEngine;
 import io.debezium.engine.DebeziumEngine;
+import io.tapdata.connector.postgres.PostgresJdbcContext;
 import io.tapdata.connector.postgres.cdc.config.PostgresDebeziumConfig;
 import io.tapdata.connector.postgres.cdc.offset.PostgresOffset;
 import io.tapdata.connector.postgres.cdc.offset.PostgresOffsetStorage;
@@ -35,20 +36,15 @@ import java.util.concurrent.atomic.AtomicReference;
 public class PostgresCdcRunner extends DebeziumCdcRunner {
 
     private static final String TAG = PostgresCdcRunner.class.getSimpleName();
-    private PostgresConfig postgresConfig;
+    private final PostgresConfig postgresConfig;
     private PostgresDebeziumConfig postgresDebeziumConfig;
     private PostgresOffset postgresOffset;
     private int recordSize;
     private StreamReadConsumer consumer;
     private final AtomicReference<Throwable> throwableAtomicReference = new AtomicReference<>();
 
-    public PostgresCdcRunner() {
-
-    }
-
-    public PostgresCdcRunner useConfig(PostgresConfig postgresConfig) {
-        this.postgresConfig = postgresConfig;
-        return this;
+    public PostgresCdcRunner(PostgresJdbcContext postgresJdbcContext) {
+        this.postgresConfig = (PostgresConfig) postgresJdbcContext.getConfig();
     }
 
     public PostgresCdcRunner useSlot(String slotName) {

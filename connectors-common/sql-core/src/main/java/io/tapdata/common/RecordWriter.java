@@ -5,6 +5,7 @@ import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.entity.schema.TapTable;
+import io.tapdata.pdk.apis.entity.ConnectionOptions;
 import io.tapdata.pdk.apis.entity.WriteListResult;
 
 import java.sql.Connection;
@@ -15,7 +16,9 @@ import java.util.function.Consumer;
 public class RecordWriter {
 
     protected WriteRecorder insertRecorder;
+    protected String insertPolicy = ConnectionOptions.DML_INSERT_POLICY_UPDATE_ON_EXISTS;
     protected WriteRecorder updateRecorder;
+    protected String updatePolicy = ConnectionOptions.DML_UPDATE_POLICY_IGNORE_ON_NON_EXISTS;
     protected WriteRecorder deleteRecorder;
     protected String version;
     protected Connection connection;
@@ -28,7 +31,9 @@ public class RecordWriter {
 
     public void write(List<TapRecordEvent> tapRecordEvents, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer) throws SQLException {
         insertRecorder.setVersion(version);
+        insertRecorder.setInsertPolicy(insertPolicy);
         updateRecorder.setVersion(version);
+        updateRecorder.setUpdatePolicy(updatePolicy);
         deleteRecorder.setVersion(version);
         //result of these events
         WriteListResult<TapRecordEvent> listResult = new WriteListResult<>();
@@ -69,6 +74,16 @@ public class RecordWriter {
 
     public RecordWriter setVersion(String version) {
         this.version = version;
+        return this;
+    }
+
+    public RecordWriter setInsertPolicy(String insertPolicy) {
+        this.insertPolicy = insertPolicy;
+        return this;
+    }
+
+    public RecordWriter setUpdatePolicy(String updatePolicy) {
+        this.updatePolicy = updatePolicy;
         return this;
     }
 }

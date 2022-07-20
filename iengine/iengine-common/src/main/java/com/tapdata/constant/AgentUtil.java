@@ -1,20 +1,19 @@
 package com.tapdata.constant;
 
+import com.tapdata.entity.Worker;
+import com.tapdata.mongo.ClientMongoOperator;
+import org.apache.commons.collections.CollectionUtils;
+import org.apache.commons.lang3.StringUtils;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
+import org.yaml.snakeyaml.Yaml;
+
 import java.io.*;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-
-import com.tapdata.entity.Worker;
-import com.tapdata.mongo.ClientMongoOperator;
-import org.apache.commons.collections.CollectionUtils;
-import org.apache.commons.lang3.StringUtils;
-import org.bson.Document;
-import org.springframework.data.domain.Sort;
-import org.springframework.data.mongodb.core.query.Criteria;
-import org.springframework.data.mongodb.core.query.Query;
-import org.yaml.snakeyaml.Yaml;
 
 import static org.springframework.data.mongodb.core.query.Criteria.where;
 

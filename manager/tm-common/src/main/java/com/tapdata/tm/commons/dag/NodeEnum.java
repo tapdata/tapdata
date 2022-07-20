@@ -44,5 +44,10 @@ public enum NodeEnum {
     /**
      * 表编辑节点
      */
-    table_rename_processor
+    table_rename_processor,
+
+    /**
+     * 数据复制-字段编辑节点
+     */
+    migrate_field_rename_processor
 }

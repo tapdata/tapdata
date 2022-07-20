@@ -3,6 +3,7 @@ package io.tapdata.connector.postgres;
 import io.tapdata.common.CommonDbTest;
 import io.tapdata.common.DataSourcePool;
 import io.tapdata.connector.postgres.config.PostgresConfig;
+import io.tapdata.constant.DbTestItem;
 import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.pdk.apis.entity.TestItem;
 
@@ -49,7 +50,7 @@ public class PostgresTest extends CommonDbTest {
     public TestItem testReplication() {
         try {
             AtomicBoolean rolReplication = new AtomicBoolean();
-            jdbcContext.query(String.format(PG_ROLE_INFO, commonDbConfig.getUser()),
+            jdbcContext.queryWithNext(String.format(PG_ROLE_INFO, commonDbConfig.getUser()),
                     resultSet -> rolReplication.set(resultSet.getBoolean("rolreplication")));
             if (rolReplication.get()) {
                 return testItem(DbTestItem.CHECK_CDC_PRIVILEGES.getContent(), TestItem.RESULT_SUCCESSFULLY);
@@ -77,7 +78,7 @@ public class PostgresTest extends CommonDbTest {
 
     private int tableCount() throws Throwable {
         AtomicInteger tableCount = new AtomicInteger();
-        jdbcContext.query(PG_TABLE_NUM, resultSet -> tableCount.set(resultSet.getInt(1)));
+        jdbcContext.queryWithNext(PG_TABLE_NUM, resultSet -> tableCount.set(resultSet.getInt(1)));
         return tableCount.get();
     }
 

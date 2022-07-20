@@ -56,10 +56,10 @@ public class TapInsertRecordEvent extends TapRecordEvent {
 		this.after = after;
 	}
 
-	@Override
-	public String toString() {
-		return "TapInsertRecordEvent{" +
-				"after=" + after +
-				"} " + super.toString();
-	}
+//	@Override
+//	public String toString() {
+//		return "TapInsertRecordEvent{" +
+//				"after=" + after +
+//				"} " + super.toString();
+//	}
 }

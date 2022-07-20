@@ -48,12 +48,13 @@ public class JsonUtil {
 			if (_pretty) {
 				objectMapper.setDefaultPrettyPrinter(new DefaultPrettyPrinter());
 			}
+			SimpleModule simpleModule = new SimpleModule();
+			simpleModule.addDeserializer(TapType.class, new TapTypeDeserializer());
+			objectMapper.registerModule(simpleModule);
+			objectMapper.registerModule(new JavaTimeModule());
 		}
 
-		SimpleModule simpleModule = new SimpleModule();
-		simpleModule.addDeserializer(TapType.class, new TapTypeDeserializer());
-		objectMapper.registerModule(simpleModule);
-		objectMapper.registerModule(new JavaTimeModule());
+
 
 		return objectMapper;
 	}

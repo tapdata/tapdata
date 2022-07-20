@@ -1,10 +1,15 @@
 package com.tapdata.cache;
 
+import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.entity.dataflow.DataFlow;
 import com.tapdata.entity.dataflow.DataFlowCacheConfig;
+import com.tapdata.mongo.ClientMongoOperator;
+import com.tapdata.tm.commons.task.dto.SubTaskDto;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.springframework.data.mongodb.core.query.Query;
+import org.voovan.tools.collection.CacheMap;
 
 import java.util.List;
 import java.util.Map;
@@ -15,11 +20,11 @@ import java.util.concurrent.locks.Lock;
 public abstract class AbstractCacheService implements ICacheService {
 	protected final Logger logger = LogManager.getLogger(AbstractCacheService.class);
 
-	protected Map<String, DataFlowCacheConfig> cacheConfigMap;
+	protected CacheMap<String, DataFlowCacheConfig> cacheConfigMap;
 
 	private Map<String, ICacheStats> cacheStatsMap;
 
-	private final Map<String, ICacheGetter> cacheGetterMap;
+	private final CacheMap<String, ICacheGetter> cacheGetterMap;
 
 	private final Map<String, ICacheStore> cacheStoreMap;
 
@@ -32,12 +37,22 @@ public abstract class AbstractCacheService implements ICacheService {
 	 */
 	protected Map<String, String> cacheStatusMap;
 
-	public AbstractCacheService() {
-		this.cacheGetterMap = new ConcurrentHashMap<>();
+	protected final ClientMongoOperator clientMongoOperator;
+
+	public AbstractCacheService(ClientMongoOperator clientMongoOperator) {
+		this.clientMongoOperator = clientMongoOperator;
+		this.cacheGetterMap = new CacheMap<>();
+		this.cacheGetterMap.destory((k, getter) -> {
+			getter.close();
+			return -1L;
+		}).autoRemove(true).maxSize(100).interval(60).expire(300).create();
 		this.cacheStoreMap = new ConcurrentHashMap<>();
 		this.lastLogTSMap = new ConcurrentHashMap<>();
 		this.cacheStatsMap = new ConcurrentHashMap<>();
 		this.cacheStatusLockMap = new ConcurrentHashMap<>();
+		this.cacheConfigMap = new CacheMap<>();
+		this.cacheConfigMap.autoRemove(true).maxSize(100).interval(60).expire(300).create();
+
 	}
 
 	private ICacheGetter getCacheGetter(String cacheName) throws InterruptedException {
@@ -60,7 +75,8 @@ public abstract class AbstractCacheService implements ICacheService {
 	@Override
 	public void registerCache(DataFlowCacheConfig cacheConfig) {
 		String cacheName = cacheConfig.getCacheName();
-		if (this.cacheConfigMap.containsKey(cacheName)) {
+		String cacheStatus = this.cacheStatusMap.get(cacheName);
+		if (this.cacheConfigMap.containsKey(cacheName) && StringUtils.equalsAnyIgnoreCase(cacheStatus, DataFlow.STATUS_RUNNING)) {
 			throw new RuntimeException(String.format("Cache name %s already exists.", cacheName));
 		}
 
@@ -75,6 +91,10 @@ public abstract class AbstractCacheService implements ICacheService {
 			this.getCacheStore(cacheName).destroy();
 			this.cacheStatusMap.remove(cacheName);
 			this.cacheConfigMap.remove(cacheName);
+			ICacheGetter cacheGetter = this.cacheGetterMap.remove(cacheName);
+			if (cacheGetter != null) {
+				cacheGetter.close();
+			}
 		} catch (Exception e) {
 			logger.error("cache destroy error: " + cacheName, e);
 		}
@@ -140,12 +160,17 @@ public abstract class AbstractCacheService implements ICacheService {
 	}
 
 	private void waitCacheNodeCompletedInitialIfNeed(String cacheName) throws InterruptedException {
-//    while (this.cacheConfigMap.get(cacheName) == null && !Thread.interrupted()) {
-//      logger.warn("Waiting cache node complete registered: " + cacheName);
-//      TimeUnit.SECONDS.sleep(3L);
-//    }
+
 		if (this.cacheConfigMap.get(cacheName) == null) {
-			throw new RuntimeException("cache not registered: " + cacheName);
+			// 如果不存在，则向tm查询
+			SubTaskDto subTaskDto = clientMongoOperator.findOne(new Query(), ConnectorConstant.SUB_TASK_COLLECTION + "/byCacheName/" + cacheName, SubTaskDto.class);
+			DataFlowCacheConfig cacheConfig = CacheUtil.getCacheConfig(subTaskDto, clientMongoOperator);
+			if (cacheConfig == null) {
+				throw new RuntimeException("cache not exist: " + cacheName);
+			}
+			logger.warn("The cache task [{}] is abnormal, query by tm...", cacheName);
+			registerCache(cacheConfig);
+			this.cacheStatusMap.put(cacheName, subTaskDto.getStatus());
 		}
 
 		Lock lock = getCacheStatusLock(cacheName);
@@ -154,28 +179,14 @@ public abstract class AbstractCacheService implements ICacheService {
 			try {
 				String status = this.cacheStatusMap.get(cacheName);
 				if (!StringUtils.equals(status, DataFlow.STATUS_RUNNING)) {
-					throw new RuntimeException("cache not complete initial:" + cacheName);
+//          throw new RuntimeException("cache not complete initial:" + cacheName);
+					//任务状态非正常时，提示用户启动任务，本次查询走查库
+					logger.warn("The cache task [{}] is abnormal, please check", cacheName);
 				}
 			} finally {
 				lock.unlock();
 			}
 		}
-//    while (!Thread.interrupted()) {
-//      if (lock.tryLock(1, TimeUnit.SECONDS)) {
-//        // 判断任务状态
-//        try {
-//          String status = this.cacheStatusMap.get(cacheName);
-//          if (StringUtils.equals(status, DataFlow.STATUS_RUNNING)) {
-//            break;
-//          }
-//        } finally {
-//          lock.unlock();
-//        }
-//      }
-//      logger.warn("Waiting all cache node complete initial: " + cacheName);
-//
-//      TimeUnit.SECONDS.sleep(3);
-//    }
 
 	}
 }

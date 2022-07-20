@@ -2,6 +2,8 @@ package io.tapdata.connector.mysql.util;
 
 import org.apache.commons.lang3.StringUtils;
 
+import java.util.Random;
+
 /**
  * @author samuel
  * @Description
@@ -20,5 +22,11 @@ public class MysqlUtil extends JdbcUtil {
 		}
 
 		return Integer.valueOf(split[index - 1]);
+	}
+
+	public static int randomServerId() {
+		int lowestServerId = 5400;
+		int highestServerId = Integer.MAX_VALUE;
+		return lowestServerId + new Random().nextInt(highestServerId - lowestServerId);
 	}
 }

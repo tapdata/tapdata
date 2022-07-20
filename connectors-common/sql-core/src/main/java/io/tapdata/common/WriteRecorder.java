@@ -26,6 +26,8 @@ public abstract class WriteRecorder {
     protected boolean hasPk = false;
     protected boolean uniqueConditionIsIndex = false;
     protected String version;
+    protected String insertPolicy;
+    protected String updatePolicy;
 
     protected PreparedStatement preparedStatement = null;
     protected final AtomicLong atomicLong = new AtomicLong(0);
@@ -95,6 +97,14 @@ public abstract class WriteRecorder {
         this.version = version;
     }
 
+    public void setInsertPolicy(String insertPolicy) {
+        this.insertPolicy = insertPolicy;
+    }
+
+    public void setUpdatePolicy(String updatePolicy) {
+        this.updatePolicy = updatePolicy;
+    }
+
     public AtomicLong getAtomicLong() {
         return atomicLong;
     }
@@ -108,25 +118,29 @@ public abstract class WriteRecorder {
         }
         Map<String, Object> before = new HashMap<>();
         uniqueCondition.forEach(k -> before.put(k, after.get(k)));
+        justUpdate(after, before);
+        preparedStatement.addBatch();
+    }
+
+    protected void justUpdate(Map<String, Object> after, Map<String, Object> before) throws SQLException {
         if (EmptyKit.isNull(preparedStatement)) {
             if (hasPk) {
                 preparedStatement = connection.prepareStatement("UPDATE \"" + schema + "\".\"" + tapTable.getId() + "\" SET " +
-                        allColumn.stream().map(k -> "\"" + k + "\"=?").collect(Collectors.joining(", ")) + " WHERE " +
+                        after.keySet().stream().map(k -> "\"" + k + "\"=?").collect(Collectors.joining(", ")) + " WHERE " +
                         before.keySet().stream().map(k -> "\"" + k + "\"=?").collect(Collectors.joining(" AND ")));
             } else {
                 preparedStatement = connection.prepareStatement("UPDATE \"" + schema + "\".\"" + tapTable.getId() + "\" SET " +
-                        allColumn.stream().map(k -> "\"" + k + "\"=?").collect(Collectors.joining(", ")) + " WHERE " +
-                        before.keySet().stream().map(k -> "(\"" + k + "\"=? OR (\"" + k + "\" IS NULL AND ?::text IS NULL))")
+                        after.keySet().stream().map(k -> "\"" + k + "\"=?").collect(Collectors.joining(", ")) + " WHERE " +
+                        before.keySet().stream().map(k -> "(\"" + k + "\"=? OR (\"" + k + "\" IS NULL AND ? IS NULL))")
                                 .collect(Collectors.joining(" AND ")));
             }
         }
         preparedStatement.clearParameters();
         int pos = 1;
-        for (String key : allColumn) {
+        for (String key : after.keySet()) {
             preparedStatement.setObject(pos++, after.get(key));
         }
         dealNullBefore(before, pos);
-        preparedStatement.addBatch();
     }
 
     public void addDeleteBatch(Map<String, Object> before) throws SQLException {
@@ -142,7 +156,7 @@ public abstract class WriteRecorder {
                         before.keySet().stream().map(k -> "\"" + k + "\"=?").collect(Collectors.joining(" AND ")));
             } else {
                 preparedStatement = connection.prepareStatement("DELETE FROM \"" + schema + "\".\"" + tapTable.getId() + "\" WHERE " +
-                        before.keySet().stream().map(k -> "(\"" + k + "\"=? OR (\"" + k + "\" IS NULL AND ?::text IS NULL))")
+                        before.keySet().stream().map(k -> "(\"" + k + "\"=? OR (\"" + k + "\" IS NULL AND ? IS NULL))")
                                 .collect(Collectors.joining(" AND ")));
             }
         }
@@ -151,7 +165,7 @@ public abstract class WriteRecorder {
         preparedStatement.addBatch();
     }
 
-    private void dealNullBefore(Map<String, Object> before, int pos) throws SQLException {
+    protected void dealNullBefore(Map<String, Object> before, int pos) throws SQLException {
         if (hasPk) {
             for (String key : before.keySet()) {
                 preparedStatement.setObject(pos++, before.get(key));

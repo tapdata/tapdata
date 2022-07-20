@@ -85,12 +85,12 @@ public abstract class TapBaseEvent extends TapEvent {
         return tableId + "@" + associateId;
     }
 
-    @Override
-    public String toString() {
-        return "TapBaseEvent{" +
-                "associateId='" + associateId + '\'' +
-                ", tableId='" + tableId + '\'' +
-                ", referenceTime=" + referenceTime +
-                "} " + super.toString();
-    }
+//    @Override
+//    public String toString() {
+//        return "TapBaseEvent{" +
+//                "associateId='" + associateId + '\'' +
+//                ", tableId='" + tableId + '\'' +
+//                ", referenceTime=" + referenceTime +
+//                "} " + super.toString();
+//    }
 }

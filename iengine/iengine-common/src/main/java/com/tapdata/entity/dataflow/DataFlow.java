@@ -1,9 +1,12 @@
 package com.tapdata.entity.dataflow;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.tapdata.entity.Milestone;
 import com.tapdata.entity.dataflow.validator.ValidatorSetting;
+import io.tapdata.milestone.EdgeMilestone;
+import io.tapdata.milestone.MilestoneService;
 
 import java.io.Serializable;
 import java.util.List;
@@ -82,10 +85,14 @@ public class DataFlow implements Serializable {
 
 	private List<CdcLastTime> cdcLastTimes;
 
+	@JsonIgnore
+	private MilestoneService milestoneService;
+
 	private List<Milestone> flowMilestones;
 	/**
 	 * key: sourceVertexName+":"+destVertexName
 	 */
+	private Map<String, EdgeMilestone> edgeMilestones;
 
 	private SyncProgress syncProgress;
 
@@ -290,6 +297,22 @@ public class DataFlow implements Serializable {
 
 	public void setCdcLastTimes(List<CdcLastTime> cdcLastTimes) {
 		this.cdcLastTimes = cdcLastTimes;
+	}
+
+	public MilestoneService getMilestoneService() {
+		return milestoneService;
+	}
+
+	public void setMilestoneService(MilestoneService milestoneService) {
+		this.milestoneService = milestoneService;
+	}
+
+	public Map<String, EdgeMilestone> getEdgeMilestones() {
+		return edgeMilestones;
+	}
+
+	public void setEdgeMilestones(Map<String, EdgeMilestone> edgeMilestones) {
+		this.edgeMilestones = edgeMilestones;
 	}
 
 	public List<Milestone> getFlowMilestones() {
