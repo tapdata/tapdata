@@ -95,7 +95,7 @@ public class HazelcastTaskSource extends HazelcastDataBaseNode {
 	}
 
 	@Override
-	protected void init(@Nonnull Context context) throws Exception {
+	protected void doInit(@Nonnull Context context) throws Exception {
 		try {
 			// test the source connection
 			TestConnectionHandler.testConnectionWithRetry(sourceContext.getCustomerLogger(), sourceContext.getSourceConn(), "source");
@@ -106,7 +106,7 @@ public class HazelcastTaskSource extends HazelcastDataBaseNode {
 			Log4jUtil.setThreadContext(subTaskDto);
 
 			running.compareAndSet(false, true);
-			super.init(context);
+			super.doInit(context);
 			this.jetContext = context;
 
 			this.sourceThreadPool = new ThreadPoolExecutor(2, 2, 0L, TimeUnit.MILLISECONDS, new SynchronousQueue<>());

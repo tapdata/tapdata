@@ -1,4 +1,4 @@
-package aspect;
+package io.tapdata.aspect;
 
 import io.tapdata.aspect.ApplicationStartAspect;
 import io.tapdata.entity.aspect.AspectObserver;

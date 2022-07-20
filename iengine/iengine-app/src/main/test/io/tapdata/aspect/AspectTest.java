@@ -1,4 +1,4 @@
-package aspect;
+package io.tapdata.aspect;
 
 import com.tapdata.tm.commons.task.dto.SubTaskDto;
 import io.tapdata.aspect.ApplicationStartAspect;

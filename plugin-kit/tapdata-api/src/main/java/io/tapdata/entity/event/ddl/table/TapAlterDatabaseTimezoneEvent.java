@@ -5,7 +5,7 @@ import io.tapdata.entity.event.TapEvent;
 import java.util.TimeZone;
 
 public class TapAlterDatabaseTimezoneEvent extends TapTableEvent {
-    public static final int TYPE = 310;
+    public static final int TYPE = 200;
     private TimeZone timeZone;
     public TapAlterDatabaseTimezoneEvent timeZone(TimeZone timeZone) {
         this.timeZone = timeZone;

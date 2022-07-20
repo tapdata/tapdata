@@ -6,7 +6,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class TapDropFieldEvent extends TapFieldBaseEvent {
-    public static final int TYPE = 306;
+    public static final int TYPE = 207;
     private String fieldName;
     public TapDropFieldEvent fieldName(String fieldName) {
         this.fieldName = fieldName;

@@ -1,9 +1,5 @@
-package aspect;
+package io.tapdata.aspect;
 
-import io.tapdata.aspect.ApplicationStartAspect;
-import io.tapdata.aspect.DataNodeCloseAspect;
-import io.tapdata.aspect.DataNodeInitAspect;
-import io.tapdata.aspect.StreamReadDataNodeAspect;
 import io.tapdata.aspect.task.AspectTask;
 import io.tapdata.aspect.task.AspectTaskSession;
 import io.tapdata.entity.aspect.Aspect;
@@ -22,10 +18,10 @@ public class MeasureTask extends AspectTask {
 		//TaskStartAspect
 		observerClassHandlers.register(DataNodeInitAspect.class, this::handleNodeInit);
 		observerClassHandlers.register(DataNodeCloseAspect.class, this::handleNodeClose);
-		observerClassHandlers.register(StreamReadDataNodeAspect.class, this::handleStreamReadNode);
+		observerClassHandlers.register(ApplicationStartAspect.class, this::handleApplicationStart);
 	}
 
-	private Void handleStreamReadNode(StreamReadDataNodeAspect streamReadNodeAspect) {
+	private Void handleApplicationStart(ApplicationStartAspect applicationStartAspect) {
 		return null;
 	}
 
@@ -44,7 +40,7 @@ public class MeasureTask extends AspectTask {
 
 	@Override
 	public List<Class<? extends Aspect>> observeAspects() {
-		return Arrays.asList(DataNodeInitAspect.class, DataNodeCloseAspect.class, StreamReadDataNodeAspect.class, ApplicationStartAspect.class);
+		return Arrays.asList(DataNodeInitAspect.class, DataNodeCloseAspect.class, ApplicationStartAspect.class);
 	}
 
 	@Override

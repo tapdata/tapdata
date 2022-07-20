@@ -84,8 +84,8 @@ public class HazelcastJoinProcessor extends HazelcastProcessorBaseNode {
 	}
 
 	@Override
-	public void init(@Nonnull Context context) throws Exception {
-		super.init(context);
+	public void doInit(@Nonnull Context context) throws Exception {
+		super.doInit(context);
 		this.context = context;
 		initNode();
 	}
@@ -207,8 +207,8 @@ public class HazelcastJoinProcessor extends HazelcastProcessorBaseNode {
 	}
 
 	@Override
-	public void close() throws Exception {
-		super.close();
+	public void doClose() throws Exception {
+		super.doClose();
 	}
 
 	private void vatidate(Node<?> node) {

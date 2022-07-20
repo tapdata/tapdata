@@ -47,8 +47,8 @@ public class HazelcastTargetPdkCacheNode extends HazelcastPdkBaseNode {
 	}
 
 	@Override
-	protected void init(@NotNull Context context) throws Exception {
-		super.init(context);
+	protected void doInit(@NotNull Context context) throws Exception {
+		super.doInit(context);
 		this.cacheService = this.dataProcessorContext.getCacheService();
 		this.dataFlowCacheConfig = cacheService.getConfig(cacheName);
 	}

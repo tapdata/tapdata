@@ -9,7 +9,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class TapRenameTableEvent extends TapTableEvent {
-    public static final int TYPE = 204;
+    public static final int TYPE = 210;
     private List<ValueChange<String>> nameChanges;
     public TapRenameTableEvent change(ValueChange<String> change) {
         if(nameChanges == null)

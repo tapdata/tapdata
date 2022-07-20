@@ -30,13 +30,12 @@ import com.tapdata.tm.commons.dag.process.MergeTableNode;
 import com.tapdata.tm.commons.dag.process.MigrateFieldRenameProcessorNode;
 import com.tapdata.tm.commons.dag.process.TableRenameProcessNode;
 import com.tapdata.tm.commons.task.dto.SubTaskDto;
+import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.aspect.TaskStartAspect;
 import io.tapdata.common.SettingService;
 import io.tapdata.common.sharecdc.ShareCdcUtil;
 import io.tapdata.dao.MessageDao;
-import io.tapdata.entity.aspect.AspectManager;
 import io.tapdata.entity.schema.TapTable;
-import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.flow.engine.V2.common.node.NodeTypeEnum;
 import io.tapdata.flow.engine.V2.exception.node.NodeException;
 import io.tapdata.flow.engine.V2.node.hazelcast.HazelcastBaseNode;
@@ -127,7 +126,7 @@ public class HazelcastTaskService implements TaskService<SubTaskDto> {
 		JobConfig jobConfig = new JobConfig();
 		jobConfig.setName(subTaskDto.getName() + "-" + subTaskDto.getId().toHexString());
 		jobConfig.setProcessingGuarantee(ProcessingGuarantee.AT_LEAST_ONCE);
-		InstanceFactory.instance(AspectManager.class).executeAspect(new TaskStartAspect().task(subTaskDto));
+		AspectUtils.executeAspect(new TaskStartAspect().task(subTaskDto));
 		final Job job = hazelcastInstance.getJet().newJob(jetDag.getDag(), jobConfig);
 		return new HazelcastTaskClient(job, subTaskDto, clientMongoOperator, configurationCenter, hazelcastInstance, milestoneFlowServiceJetV2);
 	}

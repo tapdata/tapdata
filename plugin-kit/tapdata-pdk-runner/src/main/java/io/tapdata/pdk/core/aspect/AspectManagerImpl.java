@@ -31,7 +31,7 @@ public class AspectManagerImpl implements AspectManager {
             classAnnotationManager
                     .registerClassAnnotationHandler(aspectInterceptorAnnotationHandler)
                     .registerClassAnnotationHandler(aspectObserverAnnotationHandler);
-            String scanPackage = CommonUtils.getProperty("pdk_aspect_scan_package", "io,tapdata");
+            String scanPackage = CommonUtils.getProperty("pdk_aspect_scan_package", "io.tapdata,com.tapdata");
             String[] packages = scanPackage.split(",");
             classAnnotationManager.scan(packages, this.getClass().getClassLoader());
 
@@ -296,6 +296,13 @@ public class AspectManagerImpl implements AspectManager {
             }
         }
         return resultAtomicReference.get();
+    }
+
+    @Override
+    public <T extends Aspect> boolean hasInterceptorOrObserver(Class<T> aspectClass) {
+        Collection<AspectInterceptorClassHolder> interceptorClassHolders = aspectInterceptorMap.get(aspectClass);
+        Collection<AspectObserverClassHolder> observerClassHolders = aspectObserversMap.get(aspectClass);
+        return (interceptorClassHolders != null && !interceptorClassHolders.isEmpty()) || (observerClassHolders != null && !observerClassHolders.isEmpty());
     }
 
     /**

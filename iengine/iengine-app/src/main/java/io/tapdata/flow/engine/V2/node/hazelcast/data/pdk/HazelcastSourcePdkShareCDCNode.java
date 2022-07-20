@@ -33,7 +33,7 @@ public class HazelcastSourcePdkShareCDCNode extends HazelcastSourcePdkDataNode {
 	}
 
 	@Override
-	protected void init(@NotNull Context context) throws Exception {
+	protected void doInit(@NotNull Context context) throws Exception {
 		Node<?> node = dataProcessorContext.getNode();
 		if (!(node instanceof LogCollectorNode)) {
 			throw new RuntimeException("Expected LogCollectorNode, actual is: " + node.getClass().getName());
@@ -56,6 +56,6 @@ public class HazelcastSourcePdkShareCDCNode extends HazelcastSourcePdkDataNode {
 				.withTapTableMap(dataProcessorContext.getTapTableMap())
 				.build();
 		this.syncType = SyncTypeEnum.CDC;
-		super.init(context);
+		super.doInit(context);
 	}
 }

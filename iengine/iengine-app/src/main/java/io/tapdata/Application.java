@@ -8,6 +8,8 @@ import com.tapdata.constant.BeanUtil;
 import com.tapdata.constant.ConfigurationCenter;
 import com.tapdata.constant.JSONUtil;
 import com.tapdata.constant.StartResultUtil;
+import io.tapdata.aspect.ApplicationStartAspect;
+import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.aspect.task.AspectTaskManager;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.utils.InstanceFactory;
@@ -144,6 +146,7 @@ public class Application {
 			} catch (Exception e) {
 				logger.error(e.getMessage(), e);
 			}
+			AspectUtils.executeAspect(ApplicationStartAspect.class, ApplicationStartAspect::new);
 		} catch (Exception e) {
 			String err = "Run flow engine application failed, err: " + e.getMessage();
 			logger.error(err, e);

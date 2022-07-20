@@ -38,6 +38,8 @@ public interface AspectManager {
     AspectInterceptResult executeAspectInterceptors(Aspect aspect);
 
 
+    <T extends Aspect> boolean hasInterceptorOrObserver(Class<T> aspectClass);
+
     /**
      * Execute Aspect for both interceptors and observers.
      * This method is recommended, best efficiency
