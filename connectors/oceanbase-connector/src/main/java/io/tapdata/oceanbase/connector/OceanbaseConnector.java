@@ -47,12 +47,9 @@ import java.util.function.Consumer;
 @TapConnectorClass("oceanbase-spec.json")
 public class OceanbaseConnector extends ConnectorBase {
     public static final String TAG = OceanbaseConnector.class.getSimpleName();
-    private final AtomicLong counter = new AtomicLong();
-    private final AtomicBoolean isShutDown = new AtomicBoolean(false);
 
     private OceanbaseJdbcContext oceanbaseJdbcContext;
     private OceanbaseWriter oceanbaseWriter;
-    private String version;
     private String connectionTimezone;
 
     /**
@@ -229,12 +226,11 @@ public class OceanbaseConnector extends ConnectorBase {
                 String tableId = createTableEvent.getTableId();
                 TapLogger.info(TAG, "Table \"{}.{}\" exists, skip auto create table", database, tableId);
             } else {
-                String mysqlVersion = oceanbaseJdbcContext.getOceanbaseVersion();
                 if (null == createTableEvent.getTable()) {
                     TapLogger.warn(TAG, "Create table event's tap table is null, will skip it: " + createTableEvent);
                     return;
                 }
-                String[] createTableSqls = OceanbaseMaker.createTable(connectorContext, createTableEvent, mysqlVersion);
+                String[] createTableSqls = OceanbaseMaker.createTable(connectorContext, createTableEvent);
                 for (String createTableSql : createTableSqls) {
                     try {
                         oceanbaseJdbcContext.execute(createTableSql);
@@ -253,7 +249,6 @@ public class OceanbaseConnector extends ConnectorBase {
         this.oceanbaseJdbcContext = new OceanbaseJdbcContext(tapConnectionContext);
         if (tapConnectionContext instanceof TapConnectorContext) {
             this.oceanbaseWriter = new OceanbaseWriter(oceanbaseJdbcContext);
-            this.version = oceanbaseJdbcContext.getOceanbaseVersion();
             this.connectionTimezone = tapConnectionContext.getConnectionConfig().getString("timezone");
             if ("Database Timezone".equals(this.connectionTimezone) || StringUtils.isBlank(this.connectionTimezone)) {
                 this.connectionTimezone = oceanbaseJdbcContext.timezone();
