@@ -1,0 +1,80 @@
+{
+  "uid" : "a4586d671f608f80",
+  "name" : "test stop job",
+  "fullName" : "test_pipeline.TestPipeline#test_stop",
+  "historyId" : "89a92a426a6f71effa829568b271e031",
+  "time" : {
+    "start" : 1658310435186,
+    "stop" : 1658310440592,
+    "duration" : 5406
+  },
+  "status" : "failed",
+  "statusMessage" : "AssertionError: assert False\n +  where False = wait_scheduling(<lib.cli.Pipeline object at 0x7fb8270d1390>, except_status=('running', 'error'))",
+  "statusTrace" : "self = <test.test_pipeline.TestPipeline object at 0x7fb826d12110>\n\n    @allure.title(\"test stop job\")\n    def test_stop(self):\n        p = make_new_pipeline(f\"stop_{random_str()}\")\n        p1 = p.readFrom(source_mongo_1).writeTo(sink_mysql)\n        p1.start()\n>       assert wait_scheduling(p1, except_status=('running', 'error'))\nE       AssertionError: assert False\nE        +  where False = wait_scheduling(<lib.cli.Pipeline object at 0x7fb8270d1390>, except_status=('running', 'error'))\n\ntest_pipeline.py:225: AssertionError",
+  "flaky" : false,
+  "newFailed" : false,
+  "beforeStages" : [ ],
+  "testStage" : {
+    "status" : "failed",
+    "statusMessage" : "AssertionError: assert False\n +  where False = wait_scheduling(<lib.cli.Pipeline object at 0x7fb8270d1390>, except_status=('running', 'error'))",
+    "statusTrace" : "self = <test.test_pipeline.TestPipeline object at 0x7fb826d12110>\n\n    @allure.title(\"test stop job\")\n    def test_stop(self):\n        p = make_new_pipeline(f\"stop_{random_str()}\")\n        p1 = p.readFrom(source_mongo_1).writeTo(sink_mysql)\n        p1.start()\n>       assert wait_scheduling(p1, except_status=('running', 'error'))\nE       AssertionError: assert False\nE        +  where False = wait_scheduling(<lib.cli.Pipeline object at 0x7fb8270d1390>, except_status=('running', 'error'))\n\ntest_pipeline.py:225: AssertionError",
+    "steps" : [ ],
+    "attachments" : [ {
+      "uid" : "788b4b83279c2965",
+      "name" : "stdout",
+      "source" : "788b4b83279c2965.txt",
+      "type" : "text/plain",
+      "size" : 3077
+    } ],
+    "parameters" : [ ],
+    "stepsCount" : 0,
+    "attachmentsCount" : 1,
+    "shouldDisplayMessage" : true,
+    "hasContent" : true
+  },
+  "afterStages" : [ ],
+  "labels" : [ {
+    "name" : "feature",
+    "value" : "pipeline"
+  }, {
+    "name" : "suite",
+    "value" : "test_pipeline"
+  }, {
+    "name" : "subSuite",
+    "value" : "TestPipeline"
+  }, {
+    "name" : "host",
+    "value" : "3b3df1db6711"
+  }, {
+    "name" : "thread",
+    "value" : "520-MainThread"
+  }, {
+    "name" : "framework",
+    "value" : "pytest"
+  }, {
+    "name" : "language",
+    "value" : "cpython3"
+  }, {
+    "name" : "package",
+    "value" : "test_pipeline"
+  }, {
+    "name" : "resultFormat",
+    "value" : "allure2"
+  } ],
+  "parameters" : [ ],
+  "links" : [ ],
+  "hidden" : false,
+  "retry" : false,
+  "extra" : {
+    "severity" : "normal",
+    "retries" : [ ],
+    "categories" : [ {
+      "name" : "Product defects",
+      "matchedStatuses" : [ ],
+      "flaky" : false
+    } ],
+    "tags" : [ ]
+  },
+  "source" : "a4586d671f608f80.json",
+  "parameterValues" : [ ]
+}
