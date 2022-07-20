@@ -109,7 +109,7 @@ public class MysqlDDLSqlMaker implements DDLSqlMaker {
 		}
 		ValueChange<String> commentChange = tapAlterFieldAttributesEvent.getCommentChange();
 		if (null != commentChange && StringUtils.isNotBlank(commentChange.getAfter())) {
-			sql.append(" '").append(commentChange.getAfter()).append("'");
+			sql.append(" comment '").append(commentChange.getAfter()).append("'");
 		}
 		ValueChange<Integer> primaryChange = tapAlterFieldAttributesEvent.getPrimaryChange();
 		if (null != primaryChange && null != primaryChange.getAfter() && primaryChange.getAfter() > 0) {
@@ -140,7 +140,7 @@ public class MysqlDDLSqlMaker implements DDLSqlMaker {
 		if (StringUtils.isBlank(after)) {
 			throw new RuntimeException("Append alter column name ddl sql failed, new column name is blank");
 		}
-		return Collections.singletonList(String.format(ALTER_TABLE_PREFIX, database, tableId) + " rename `" + before + "` to `" + after + "`");
+		return Collections.singletonList(String.format(ALTER_TABLE_PREFIX, database, tableId) + " rename column `" + before + "` to `" + after + "`");
 	}
 
 	@Override
