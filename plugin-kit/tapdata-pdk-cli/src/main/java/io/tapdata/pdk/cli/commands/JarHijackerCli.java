@@ -78,8 +78,8 @@ public class JarHijackerCli extends CommonCli {
                 String tempTargetDir = FilenameUtils.concat(tempDir, tempName);
                 try {
                     try {
-                        if(true)
-                            throw new NullPointerException("asd");
+//                        if(true)
+//                            throw new NullPointerException("asd");
                         ZipUtils.unzip(file.getAbsolutePath(), tempTargetDir);
                     } catch (Throwable throwable) {
                         File zipFile = new File(file.getAbsolutePath() + ".zip");
