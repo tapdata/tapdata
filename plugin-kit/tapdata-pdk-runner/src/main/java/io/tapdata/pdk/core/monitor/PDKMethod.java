@@ -42,6 +42,7 @@ public enum PDKMethod {
     NEW_FIELD,
     ALTER_FIELD_NAME,
     ALTER_FIELD_ATTRIBUTES,
+    GET_TABLE_NAMES,
     DROP_FIELD;
 
     PDKMethod() {
