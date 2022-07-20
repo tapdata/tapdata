@@ -11,13 +11,19 @@ import com.tapdata.tm.ds.service.impl.DataSourceDefinitionService;
 import com.tapdata.tm.ds.service.impl.DataSourceService;
 import com.tapdata.tm.lock.annotation.Lock;
 import com.tapdata.tm.lock.constant.LockType;
+import com.tapdata.tm.messagequeue.dto.MessageQueueDto;
+import com.tapdata.tm.messagequeue.service.MessageQueueService;
 import com.tapdata.tm.metadatainstance.entity.MetadataInstancesEntity;
 import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
 import com.tapdata.tm.task.constant.SyncType;
 import com.tapdata.tm.transform.service.MetadataTransformerItemService;
 import com.tapdata.tm.transform.service.MetadataTransformerService;
+import com.tapdata.tm.user.entity.User;
 import com.tapdata.tm.utils.Lists;
 import com.tapdata.tm.utils.UUIDUtil;
+import com.tapdata.tm.worker.entity.Worker;
+import com.tapdata.tm.worker.service.WorkerService;
+import com.tapdata.tm.ws.enums.MessageType;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.bson.types.ObjectId;
@@ -49,10 +55,14 @@ public class TransformSchemaService {
 
     private final DataSourceDefinitionService definitionService;
 
+    private MessageQueueService messageQueueService;
+    private WorkerService workerService;
+
     @Autowired
     public TransformSchemaService(DAGDataService dagDataService, MetadataInstancesService metadataInstancesService, TaskService taskService,
                                   DataSourceService dataSourceService, MetadataTransformerService metadataTransformerService,
-                                  DataSourceDefinitionService definitionService, MetadataTransformerItemService metadataTransformerItemService) {
+                                  DataSourceDefinitionService definitionService, MetadataTransformerItemService metadataTransformerItemService,
+                                  MessageQueueService messageQueueService, WorkerService workerService) {
         this.dagDataService = dagDataService;
         this.metadataInstancesService = metadataInstancesService;
         this.taskService = taskService;
@@ -60,9 +70,11 @@ public class TransformSchemaService {
         this.dataSourceService = dataSourceService;
         this.definitionService = definitionService;
         this.metadataTransformerItemService = metadataTransformerItemService;
+        this.messageQueueService = messageQueueService;
+        this.workerService = workerService;
     }
 
-    @Value("${tm.transform.batch.num:20}")
+    @Value("${tm.transform.batch.num:100}")
     private int transformBatchNum;
 
 
@@ -77,11 +89,98 @@ public class TransformSchemaService {
         return transformSchema(taskDto, user);
     }
 
-    public Map<String, List<Message>> transformSchema(TaskDto taskDto, UserDetail user) {
+    public TransformerWsMessageDto getTransformParam(TaskDto taskDto, UserDetail user) {
         log.debug("start transform schema, task = {}, user = {}", taskDto, user);
         taskDto.setUserId(user.getUserId());
         DAG dag = taskDto.getDag();
-        dag.getNodes().forEach(node -> node.setService(dagDataService));
+        List<Node> dagNodes = dag.getNodes();
+        dagNodes.forEach(node -> node.setService(dagDataService));
+
+        DAG.Options options = new DAG.Options(taskDto.getRollback(), taskDto.getRollbackTable());
+        options.setSyncType(taskDto.getSyncType());
+        options.setBatchNum(transformBatchNum);
+        if (StringUtils.isBlank(options.getUuid())) {
+            options.setUuid(UUIDUtil.getUUID());
+        }
+        // update metaTransformer version
+        dag.getTargets().forEach(target -> metadataTransformerService.updateVersion(taskDto.getId().toHexString(), target.getId(), options.getUuid()));
+
+        List<Node> nodes = dagNodes;
+
+        List<MetadataInstancesDto> metadataList = new ArrayList<>();
+        Map<String, DataSourceConnectionDto> dataSourceMap = new HashMap<>();
+        Map<String, DataSourceDefinitionDto> definitionDtoMap = new HashMap<>();
+        Map<String, TaskDto> taskMap = new HashMap<>();
+
+        List<String> connectionIds = nodes.stream().filter(n -> n instanceof TableNode).map(n -> ((TableNode) n).getConnectionId()).collect(Collectors.toList());
+        Criteria idCriteria = Criteria.where("_id").in(connectionIds);
+        Query query = new Query(idCriteria);
+        //TODO query 需要限制好参数
+        List<DataSourceConnectionDto> dataSources = dataSourceService.findAllDto(query, user);
+
+
+        if (CollectionUtils.isNotEmpty(dataSources)) {
+            dataSourceMap = dataSources.stream().collect(Collectors.toMap(d -> d.getId().toHexString(), d -> d, (d1, d2) -> d1));
+            Set<String> dbTypes = dataSources.stream().map(DataSourceConnectionDto::getDatabase_type).collect(Collectors.toSet());
+            List<DataSourceDefinitionDto> definitionDtos = definitionService.getByDataSourceType(new ArrayList<>(dbTypes), user);
+            if (CollectionUtils.isNotEmpty(definitionDtos)) {
+                definitionDtoMap = definitionDtos.stream().collect(Collectors.toMap(DataSourceDefinitionDto::getType, d -> d, (d1, d2) -> d1));
+            }
+        }
+
+        List<String> qualifiedNames = new ArrayList<>();
+        for (Node node : nodes) {
+            if (node instanceof TableNode) {
+                String connectionId = ((TableNode) node).getConnectionId();
+                DataSourceConnectionDto dataSourceConnectionDto = dataSourceMap.get(connectionId);
+                DataSourceDefinitionDto dataSourceDefinitionDto = definitionDtoMap.get(dataSourceConnectionDto.getDatabase_type());
+                String qualifiedName = metadataInstancesService.getQualifiedNameByNodeId(node, user, dataSourceConnectionDto, dataSourceDefinitionDto);
+                qualifiedNames.add(qualifiedName);
+            }
+        }
+
+        if (CollectionUtils.isNotEmpty(qualifiedNames)) {
+            metadataList = metadataInstancesService.findByQualifiedNameNotDelete(qualifiedNames, user);
+        }
+
+
+        List<MetadataInstancesDto> databaseSchemes = metadataInstancesService.findDatabaseScheme(connectionIds, user);
+        metadataList.addAll(databaseSchemes);
+
+        Criteria criteria = Criteria.where("dataFlowId").is(taskDto.getId().toHexString());
+        List<MetadataTransformerDto> metadataTransformerDtos = metadataTransformerService.findAllDto(new Query(criteria), user);
+        Map<String, MetadataTransformerDto> metadataTransformerDtoMap = metadataTransformerDtos.stream().collect(Collectors.toMap(m -> m.getDataFlowId() + m.getStageId(), m -> m, (m1, m2) -> m1));
+
+
+        TransformerWsMessageDto transformerWsMessageDto = new TransformerWsMessageDto(taskDto, options, metadataList, dataSourceMap, definitionDtoMap, user.getUserId()
+                , user.getUsername(), metadataTransformerDtoMap, MessageType.TRANSFORMER.getType());
+        return transformerWsMessageDto;
+
+    }
+
+    public Map<String, List<Message>> transformSchema(TaskDto taskDto, UserDetail user) {
+        log.debug("start transform schema, task = {}, user = {}", taskDto, user);
+        DAG dag = taskDto.getDag();
+        if (SyncType.SYNC.getValue().equals(taskDto.getSyncType())) {
+            TransformerWsMessageDto transformParam = getTransformParam(taskDto, user);
+
+            sendTransformer(transformParam, user);
+            return new HashMap<>();
+
+//            DAGDataServiceImpl dagDataService1 = new DAGDataServiceImpl(transformParam);
+//
+//
+//            Map<String, List<Message>> transformSchema = dag.transformSchema(null, dagDataService1, transformParam.getOptions());
+//            TransformerWsMessageResult transformerWsMessageResult = new TransformerWsMessageResult();
+//            transformerWsMessageResult.setTransformSchema(transformSchema);
+//            transformerWsMessageResult.setUpsertTransformer(dagDataService1.getUpsertTransformer());
+//            transformerWsMessageResult.setBatchInsertMetaDataList(dagDataService1.getBatchInsertMetaDataList());
+//            transformerWsMessageResult.setUpsertItems(dagDataService1.getUpsertItems());
+//            transformerWsMessageResult.setBatchMetadataUpdateMap(dagDataService1.getBatchMetadataUpdateMap());
+//            transformerResult(user, transformerWsMessageResult);
+//            return transformSchema;
+        }
+
 
         Map<String, List<SchemaTransformerResult>> results = new HashMap<>();
         Map<String, List<SchemaTransformerResult>> lastBatchResults = new HashMap<>();
@@ -136,87 +235,73 @@ public class TransformSchemaService {
             }
         });
 
-
         DAG.Options options = new DAG.Options(taskDto.getRollback(), taskDto.getRollbackTable());
-        options.setSyncType(taskDto.getSyncType());
-        options.setBatchNum(transformBatchNum);
-        if (StringUtils.isBlank(options.getUuid())) {
-            options.setUuid(UUIDUtil.getUUID());
-        }
-        // update metaTransformer version
-        dag.getTargets().forEach(target -> metadataTransformerService.updateVersion(taskDto.getId().toHexString(), target.getId(), options.getUuid()));
+        Map<String, List<Message>> transformSchema = dag.transformSchema(null, dagDataService, options);
 
-        List<Node> nodes = dag.getNodes();
-
-        if (SyncType.SYNC.getValue().equals(taskDto.getSyncType())) {
-            List<MetadataInstancesDto> metadataList = new ArrayList<>();
-            Map<String, DataSourceConnectionDto> dataSourceMap = new HashMap<>();
-            Map<String, DataSourceDefinitionDto> definitionDtoMap = new HashMap<>();
-            Map<String, TaskDto> taskMap = new HashMap<>();
-
-            List<String> connectionIds = nodes.stream().filter(n -> n instanceof TableNode).map(n -> ((TableNode) n).getConnectionId()).collect(Collectors.toList());
-            Criteria idCriteria = Criteria.where("_id").in(connectionIds);
-            Query query = new Query(idCriteria);
-            //TODO query 需要限制好参数
-            List<DataSourceConnectionDto> dataSources = dataSourceService.findAllDto(query, user);
-
-
-            if (CollectionUtils.isNotEmpty(dataSources)) {
-                dataSourceMap = dataSources.stream().collect(Collectors.toMap(d -> d.getId().toHexString(), d -> d, (d1, d2) -> d1));
-                Set<String> dbTypes = dataSources.stream().map(DataSourceConnectionDto::getDatabase_type).collect(Collectors.toSet());
-                List<DataSourceDefinitionDto> definitionDtos = definitionService.getByDataSourceType(new ArrayList<>(dbTypes), user);
-                if (CollectionUtils.isNotEmpty(definitionDtos)) {
-                    definitionDtoMap = definitionDtos.stream().collect(Collectors.toMap(DataSourceDefinitionDto::getType, d->d, (d1, d2) -> d1));
-                }
-            }
-
-            List<String> qualifiedNames = new ArrayList<>();
-            for (Node node : nodes) {
-                if (node instanceof TableNode) {
-                    String connectionId = ((TableNode) node).getConnectionId();
-                    DataSourceConnectionDto dataSourceConnectionDto = dataSourceMap.get(connectionId);
-                    DataSourceDefinitionDto dataSourceDefinitionDto = definitionDtoMap.get(dataSourceConnectionDto.getDatabase_type());
-                    String qualifiedName = metadataInstancesService.getQualifiedNameByNodeId(node, user, dataSourceConnectionDto, dataSourceDefinitionDto);
-                    qualifiedNames.add(qualifiedName);
-                }
-            }
-
-            if (CollectionUtils.isNotEmpty(qualifiedNames)) {
-                metadataList = metadataInstancesService.findByQualifiedNameNotDelete(qualifiedNames, user);
-            }
-
-
-            List<MetadataInstancesDto> databaseSchemes = metadataInstancesService.findDatabaseScheme(connectionIds, user);
-            metadataList.addAll(databaseSchemes);
-
-            Criteria criteria = Criteria.where("dataFlowId").is(taskDto.getId().toHexString());
-            List<MetadataTransformerDto> metadataTransformerDtos = metadataTransformerService.findAllDto(new Query(criteria), user);
-            Map<String, MetadataTransformerDto> metadataTransformerDtoMap = metadataTransformerDtos.stream().collect(Collectors.toMap(m -> m.getDataFlowId() + m.getStageId(), m -> m, (m1, m2) -> m1));
-
-
-            DAGDataServiceImpl dagDataService1 = new DAGDataServiceImpl(metadataList, dataSourceMap, definitionDtoMap, user.getUserId(), user.getUsername(), null, metadataTransformerDtoMap);
-
-            Map<String, List<Message>> transformSchema = dag.transformSchema(null, dagDataService1, options);
-
-            metadataInstancesService.bulkSave(dagDataService1.getBatchInsertMetaDataList(), dagDataService1.getBatchMetadataUpdateMap(), user);
-
-            List<MetadataTransformerItemDto> upsertItems = dagDataService1.getUpsertItems();
-            if (upsertItems.size() > 0) {
-                metadataTransformerItemService.bulkUpsert(dagDataService1.getUpsertItems());
-                MetadataTransformerItemDto itemDto = upsertItems.get(0);
-                String dataFlowId = itemDto.getDataFlowId();
-                String uuid = itemDto.getUuid();
-                Query query1 = new Query(Criteria.where("dataFlowId").is(dataFlowId).and("uuid").ne(uuid));
-                metadataTransformerItemService.deleteAll(query1);
-            }
-
-            List<MetadataTransformerDto> upsertTransformer = dagDataService1.getUpsertTransformer();
-            if (upsertTransformer.size() > 0) {
-                metadataTransformerService.save(upsertTransformer, user);
-            }
-            return transformSchema;
+        if (SyncType.MIGRATE.getValue().equals(taskDto.getSyncType())) {
+            taskService.updateMigrateStatus(taskDto.getId());
         }
 
-        return dag.transformSchema(null, dagDataService, options);
+        return transformSchema;
+    }
+
+    public void transformerResult(UserDetail user, TransformerWsMessageResult result) {
+        transformerResult(user, result, false);
+    }
+    public void transformerResult(UserDetail user, TransformerWsMessageResult result, boolean saveHistory) {
+
+
+        metadataInstancesService.bulkSave(result.getBatchInsertMetaDataList(), result.getBatchMetadataUpdateMap(), user, saveHistory);
+
+        if (CollectionUtils.isNotEmpty(result.getUpsertItems())) {
+            metadataTransformerItemService.bulkUpsert(result.getUpsertItems());
+            MetadataTransformerItemDto itemDto = result.getUpsertItems().get(0);
+            String dataFlowId = itemDto.getDataFlowId();
+            String uuid = itemDto.getUuid();
+            Query query1 = new Query(Criteria.where("dataFlowId").is(dataFlowId).and("uuid").ne(uuid));
+            metadataTransformerItemService.deleteAll(query1);
+        }
+
+        if (CollectionUtils.isNotEmpty(result.getUpsertTransformer())) {
+            metadataTransformerService.save(result.getUpsertTransformer(), user);
+        }
+    }
+
+
+    private void sendTransformer(TransformerWsMessageDto data, UserDetail user) {
+        TaskDto taskDto = data.getTaskDto();
+        if (taskDto == null) {
+            return;
+        }
+
+        Map<String, DataSourceDefinitionDto> definitionDtoMap = data.getDefinitionDtoMap();
+        if (definitionDtoMap != null) {
+            definitionDtoMap.forEach((k, v) -> {
+                //有些Properties中的字段属性包含了xx.yy.kk,需要过滤掉。不然入库会报错
+                v.setProperties(null);
+            });
+        }
+
+        List<Worker> availableAgent;
+        if (org.apache.commons.lang3.StringUtils.isBlank(taskDto.getAccessNodeType())
+                && org.apache.commons.lang3.StringUtils.equalsIgnoreCase(AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER.name(), taskDto.getAccessNodeType())) {
+            availableAgent = workerService.findAvailableAgentByAccessNode(user, taskDto.getAccessNodeProcessIdList());
+        } else {
+            availableAgent = workerService.findAvailableAgent(user);
+        }
+        if (CollectionUtils.isEmpty(availableAgent)) {
+            return;
+        }
+
+        String processId = availableAgent.get(0).getProcessId();
+        data.setType(MessageType.TRANSFORMER.getType());
+        MessageQueueDto queueDto = new MessageQueueDto();
+        queueDto.setReceiver(processId);
+        queueDto.setData(data);
+        queueDto.setType("pipe");
+
+        log.info("build send test connection websocket context, processId = {}, userId = {}, queueDto = {}", processId, user.getUserId(), queueDto);
+        messageQueueService.sendMessage(queueDto);
+
     }
 }

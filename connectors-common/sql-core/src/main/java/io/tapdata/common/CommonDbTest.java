@@ -1,5 +1,6 @@
 package io.tapdata.common;
 
+import io.tapdata.constant.DbTestItem;
 import io.tapdata.pdk.apis.entity.TestItem;
 import io.tapdata.util.NetUtil;
 
@@ -48,22 +49,4 @@ public class CommonDbTest implements AutoCloseable {
         }
     }
 
-    protected enum DbTestItem {
-
-        HOST_PORT("Check host port is invalid"),
-        CHECK_CDC_PRIVILEGES("Check replication privileges"),
-        CHECK_TABLE_PRIVILEGE("Check all for table privilege"),
-        CHECK_LOG_PLUGIN("Check log plugin for database"),
-        ;
-
-        private final String content;
-
-        DbTestItem(String content) {
-            this.content = content;
-        }
-
-        public String getContent() {
-            return content;
-        }
-    }
 }

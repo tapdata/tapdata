@@ -2,8 +2,8 @@ package com.tapdata.cache.hazelcast;
 
 import com.hazelcast.core.HazelcastInstance;
 import com.hazelcast.map.IMap;
-import com.tapdata.cache.serializer.AbstractSerializerCacheStore;
 import com.tapdata.cache.MemoryCacheUtil;
+import com.tapdata.cache.serializer.AbstractSerializerCacheStore;
 import com.tapdata.entity.dataflow.DataFlowCacheConfig;
 
 import java.util.Map;

@@ -2,16 +2,17 @@ package com.tapdata.tm.task.controller;
 
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.*;
+import com.tapdata.tm.base.dto.Field;
 import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.Edge;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.SchemaTransformerResult;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.vo.FieldProcess;
+import com.tapdata.tm.commons.schema.*;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.task.dto.TaskRunHistoryDto;
 import com.tapdata.tm.config.security.UserDetail;
-import com.tapdata.tm.commons.schema.DataSourceDefinitionDto;
 import com.tapdata.tm.ds.service.impl.DataSourceDefinitionService;
 import com.tapdata.tm.message.constant.Level;
 import com.tapdata.tm.message.constant.MsgTypeEnum;
@@ -23,10 +24,7 @@ import com.tapdata.tm.metadatainstance.vo.SourceTypeEnum;
 import com.tapdata.tm.task.bean.LogCollectorResult;
 import com.tapdata.tm.task.bean.TranModelReqDto;
 import com.tapdata.tm.task.entity.TaskEntity;
-import com.tapdata.tm.task.service.TaskCheckInspectService;
-import com.tapdata.tm.task.service.TaskService;
-import com.tapdata.tm.task.service.TransformSchemaAsyncService;
-import com.tapdata.tm.task.service.TransformSchemaService;
+import com.tapdata.tm.task.service.*;
 import com.tapdata.tm.task.vo.TaskDetailVo;
 import com.tapdata.tm.utils.Lists;
 import com.tapdata.tm.utils.MongoUtils;
@@ -35,6 +33,10 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.enums.ParameterIn;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import io.tapdata.entity.event.ddl.table.TapAlterFieldNameEvent;
+import io.tapdata.entity.event.ddl.table.TapDropFieldEvent;
+import io.tapdata.entity.event.ddl.table.TapFieldBaseEvent;
+import io.tapdata.entity.event.ddl.table.TapNewFieldEvent;
 import lombok.Setter;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -68,6 +70,7 @@ public class TaskController extends BaseController {
     private DataSourceDefinitionService definitionService;
     private TaskCheckInspectService taskCheckInspectService;
     private MetadataInstancesService metadataInstancesService;
+    private TaskNodeService taskNodeService;
 
     /**
      * Create a new instance of the model and persist it into the data source
@@ -242,9 +245,10 @@ public class TaskController extends BaseController {
         Field fields = parseField(fieldsJson);
         UserDetail user = getLoginUser();
         TaskDto taskDto = taskService.findById(MongoUtils.toObjectId(id), fields, user);
-        taskDto.setCreator(StringUtils.isNotBlank(user.getUsername()) ? user.getUsername() : user.getEmail());
-
-        taskCheckInspectService.getInspectFlagDefaultFlag(taskDto, user);
+        if (taskDto != null) {
+            taskDto.setCreator(StringUtils.isNotBlank(user.getUsername()) ? user.getUsername() : user.getEmail());
+            taskCheckInspectService.getInspectFlagDefaultFlag(taskDto, user);
+        }
         return success(taskDto);
     }
 
@@ -508,6 +512,7 @@ public class TaskController extends BaseController {
             TaskDto dto = taskService.findById(taskDtoId);
             if (Objects.nonNull(dto)) {
                 taskDto.setSyncType(dto.getSyncType());
+                taskDto.setType(dto.getType());
             }
         }
 
@@ -527,7 +532,7 @@ public class TaskController extends BaseController {
                 for (Node node : nodes) {
                     if (node instanceof DatabaseNode) {
                         DatabaseNode databaseNode = ((DatabaseNode) node);
-                        if (TaskDto.SYNC_TYPE_MIGRATE.equals(taskDto.getSyncType()) && !StringUtils.equals("custom", taskDto.getMigrateTableSelectType())) {
+                        if (TaskDto.SYNC_TYPE_MIGRATE.equals(taskDto.getSyncType()) && !StringUtils.equals("custom", databaseNode.getMigrateTableSelectType())) {
                             if (databaseNode.getId().equals(sourceNodeId) && CollectionUtils.isEmpty(databaseNode.getTableNames())) {
                                 tableNames = metadataInstancesService.tables(databaseNode.getConnectionId(), SourceTypeEnum.SOURCE.name());
                                 databaseNode.setTableNames(tableNames);
@@ -683,4 +688,45 @@ public class TaskController extends BaseController {
         taskService.getTableDDL(taskDto);
         return success();
     }
+
+
+    @Operation(summary = "模型推演结果推送")
+    @PostMapping("transformer/result")
+    public ResponseMessage<Void> transformerResult(@RequestBody TransformerWsMessageResult result) {
+        transformSchemaService.transformerResult(getLoginUser(), result, false);
+        return success();
+    }
+    @Operation(summary = "模型推演结果推送")
+    @PostMapping("transformer/resultWithHistory")
+    public ResponseMessage<Void> transformerResultHistory(@RequestBody TransformerWsMessageResult result) {
+        transformSchemaService.transformerResult(getLoginUser(), result, true);
+        return success();
+    }
+
+    @Operation(summary = "复制任务节点表字段数据")
+    @GetMapping("getNodeTableInfo")
+    public ResponseMessage<Page<MetadataTransformerItemDto>> getNodeTableInfo(
+            @RequestParam("taskId") String taskId,
+            @RequestParam("nodeId") String nodeId,
+            @RequestParam(value = "searchTable", required = false) String searchTableName,
+            @RequestParam(value = "page", defaultValue = "1") Integer page,
+            @RequestParam(value = "pageSize", defaultValue = "10") Integer pageSize) {
+        return success(taskNodeService.getNodeTableInfo(taskId, nodeId, searchTableName, page, pageSize, getLoginUser()));
+    }
+
+
+    @GetMapping("transformParam/{taskId}")
+    public ResponseMessage<TransformerWsMessageDto> findTransformParam(@PathVariable("taskId") String taskId) {
+        TransformerWsMessageDto dto = taskService.findTransformParam(taskId, getLoginUser());
+        return success(dto);
+    }
+
+
+    @PostMapping("dag")
+    public ResponseMessage<Void> updateDag(@RequestBody TaskDto taskDto) {
+        taskService.updateDag(taskDto, getLoginUser());
+        return success();
+    }
+
+
 }

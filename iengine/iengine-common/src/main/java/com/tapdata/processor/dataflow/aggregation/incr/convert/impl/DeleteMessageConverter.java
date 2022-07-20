@@ -9,8 +9,6 @@ import com.tapdata.processor.dataflow.aggregation.incr.service.SnapshotRecord;
 import com.tapdata.processor.dataflow.aggregation.incr.service.SnapshotService;
 import com.tapdata.processor.dataflow.aggregation.incr.service.SyncVersionService;
 import com.tapdata.processor.dataflow.aggregation.incr.service.model.AggrBucket;
-import com.tapdata.processor.dataflow.aggregation.incr.service.model.BucketValue;
-import com.tapdata.processor.dataflow.aggregation.incr.service.model.SumBucket;
 
 import java.util.*;
 

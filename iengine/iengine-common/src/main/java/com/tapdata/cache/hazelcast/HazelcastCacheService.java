@@ -3,6 +3,7 @@ package com.tapdata.cache.hazelcast;
 import com.hazelcast.config.EvictionConfig;
 import com.hazelcast.config.EvictionPolicy;
 import com.hazelcast.config.MapConfig;
+import com.hazelcast.config.MaxSizePolicy;
 import com.hazelcast.core.HazelcastInstance;
 import com.tapdata.cache.*;
 import com.tapdata.entity.dataflow.DataFlowCacheConfig;
@@ -16,13 +17,10 @@ public class HazelcastCacheService extends AbstractCacheService {
 
 	private final HazelcastInstance hazelcastInstance;
 
-	private ClientMongoOperator clientMongoOperator;
-
 
 	public HazelcastCacheService(HazelcastInstance hazelcastInstance, ClientMongoOperator clientMongoOperator) {
+		super(clientMongoOperator);
 		this.hazelcastInstance = hazelcastInstance;
-		this.clientMongoOperator = clientMongoOperator;
-		this.cacheConfigMap = hazelcastInstance.getMap(CACHE_KEY_PREFIX + "cacheConfig");
 		super.setCacheStatsMap(hazelcastInstance.getMap(CACHE_KEY_PREFIX + "cacheStats"));
 		super.cacheStatusMap = hazelcastInstance.getMap(CACHE_KEY_PREFIX + "cacheStatus");
 	}
@@ -32,16 +30,16 @@ public class HazelcastCacheService extends AbstractCacheService {
 		super.registerCache(config);
 		String cacheName = config.getCacheName();
 		// 配置
-		setCacheConfig(config, MemoryCacheUtil.cacheDataKey(cacheName));
-		setCacheConfig(config, MemoryCacheUtil.cacheIndexKey(cacheName));
+		setCacheConfig(config, CacheUtil.cacheDataKey(cacheName));
+		setCacheConfig(config, CacheUtil.cacheIndexKey(cacheName));
 	}
 
 	private void setCacheConfig(DataFlowCacheConfig config, String cacheConfigName) {
 		MapConfig mapConfig = hazelcastInstance.getConfig().getMapConfig(cacheConfigName);
 		EvictionConfig evictionConfig = mapConfig.getEvictionConfig();
 		evictionConfig.setEvictionPolicy(EvictionPolicy.LRU);
+		evictionConfig.setMaxSizePolicy(MaxSizePolicy.FREE_HEAP_SIZE);
 		evictionConfig.setSize(getMaxInt(config.getMaxSize()));
-		mapConfig.setTimeToLiveSeconds(getMaxInt(config.getTtl()));
 	}
 
 
@@ -60,7 +58,8 @@ public class HazelcastCacheService extends AbstractCacheService {
 
 	@Override
 	protected ICacheGetter getCacheGetterInstance(String cacheName) {
-		return new HazelcastCacheGetter(getConfig(cacheName), getCacheStore(cacheName), getCacheStats(cacheName), clientMongoOperator);
+		logger.info("construct a cache getter for cache [{}]", cacheName);
+		return new HazelcastCacheGetter(getConfig(cacheName), getCacheStore(cacheName), getCacheStats(cacheName), clientMongoOperator, hazelcastInstance);
 	}
 
 	@Override

@@ -7,7 +7,8 @@ import org.apache.commons.collections.CollectionUtils;
 import org.bson.Document;
 import org.springframework.data.mongodb.core.query.Update;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
 
 public class DataQualityTagProcess {
 

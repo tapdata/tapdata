@@ -39,7 +39,10 @@ public enum PDKMethod {
     TARGET_CREATE_INDEX,
     STOP,
     TIMESTAMP_TO_STREAM_OFFSET,
-    ;
+    NEW_FIELD,
+    ALTER_FIELD_NAME,
+    ALTER_FIELD_ATTRIBUTES,
+    DROP_FIELD;
 
     PDKMethod() {
 

@@ -112,7 +112,7 @@ public class MongodbConnector extends ConnectorBase {
 		try (Closeable ignored = executor::shutdown) {
 			List<String> collectionNameList = StreamSupport.stream(collectionNames.spliterator(), false).collect(Collectors.toList());
 
-			if(tables != null && !tables.isEmpty()) {
+			if (tables != null && !tables.isEmpty()) {
 				collectionNameList = ListUtils.retainAll(collectionNameList, tables);
 			}
 			ListUtils.partition(collectionNameList, tableSize).forEach(nameList -> {
@@ -244,6 +244,7 @@ public class MongodbConnector extends ConnectorBase {
 	 */
 	@Override
 	public ConnectionOptions connectionTest(TapConnectionContext connectionContext, Consumer<TestItem> consumer) throws Throwable {
+		ConnectionOptions connectionOptions = ConnectionOptions.create();
 		try {
 			onStart(connectionContext);
 			try (final MongoCursor<String> mongoCursor = mongoDatabase.listCollectionNames().iterator();) {
@@ -254,7 +255,7 @@ public class MongodbConnector extends ConnectorBase {
 			throwable.printStackTrace();
 			consumer.accept(testItem(TestItem.ITEM_CONNECTION, TestItem.RESULT_FAILED, "Failed, " + throwable.getMessage()));
 		}
-		return null;
+		return connectionOptions;
 	}
 
 	@Override
@@ -438,6 +439,16 @@ public class MongodbConnector extends ConnectorBase {
 	private void writeRecord(TapConnectorContext connectorContext, List<TapRecordEvent> tapRecordEvents, TapTable table, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer) throws Throwable {
 		if (mongodbWriter == null) {
 			mongodbWriter = new MongodbWriter(connectorContext.getGlobalStateMap());
+			ConnectorCapabilities connectorCapabilities = connectorContext.getConnectorCapabilities();
+			if (null != connectorCapabilities) {
+				mongoConfig.setInsertDmlPolicy(null == connectorCapabilities.getCapabilityAlternative(ConnectionOptions.DML_INSERT_POLICY) ?
+						ConnectionOptions.DML_INSERT_POLICY_UPDATE_ON_EXISTS : connectorCapabilities.getCapabilityAlternative(ConnectionOptions.DML_INSERT_POLICY));
+				mongoConfig.setUpdateDmlPolicy(null == connectorCapabilities.getCapabilityAlternative(ConnectionOptions.DML_UPDATE_POLICY) ?
+						ConnectionOptions.DML_UPDATE_POLICY_IGNORE_ON_NON_EXISTS : connectorCapabilities.getCapabilityAlternative(ConnectionOptions.DML_UPDATE_POLICY));
+			} else {
+				mongoConfig.setInsertDmlPolicy(ConnectionOptions.DML_INSERT_POLICY_UPDATE_ON_EXISTS);
+				mongoConfig.setUpdateDmlPolicy(ConnectionOptions.DML_UPDATE_POLICY_IGNORE_ON_NON_EXISTS);
+			}
 			mongodbWriter.onStart(mongoConfig);
 		}
 
@@ -486,18 +497,18 @@ public class MongodbConnector extends ConnectorBase {
 
 		Projection projection = tapAdvanceFilter.getProjection();
 		Document projectionDoc = null;
-		if(projection != null) {
-			if(projection.getIncludeFields() != null && !projection.getIncludeFields().isEmpty()) {
-				if(projectionDoc == null)
+		if (projection != null) {
+			if (projection.getIncludeFields() != null && !projection.getIncludeFields().isEmpty()) {
+				if (projectionDoc == null)
 					projectionDoc = new Document();
-				for(String includeField : projection.getIncludeFields()) {
+				for (String includeField : projection.getIncludeFields()) {
 					projectionDoc.put(includeField, 1);
 				}
 			}
-			if(projection.getExcludeFields() != null && !projection.getExcludeFields().isEmpty()) {
-				if(projectionDoc == null)
+			if (projection.getExcludeFields() != null && !projection.getExcludeFields().isEmpty()) {
+				if (projectionDoc == null)
 					projectionDoc = new Document();
-				for(String excludeField : projection.getExcludeFields()) {
+				for (String excludeField : projection.getExcludeFields()) {
 					projectionDoc.put(excludeField, -1);
 				}
 			}

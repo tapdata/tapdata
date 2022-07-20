@@ -2,10 +2,13 @@ package com.tapdata.tm.commons.dag;
 
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
 import com.tapdata.tm.commons.schema.Schema;
+import com.tapdata.tm.commons.task.dto.SubTaskDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
+import io.tapdata.entity.schema.TapTable;
 import org.bson.types.ObjectId;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * @author lg&lt;lirufei0808@gmail.com&gt;
@@ -33,6 +36,11 @@ public interface DAGDataService {
      * @return 返回匹配到的表名称
      */
     public List<Schema> loadSchema(String ownerId, ObjectId dataSourceId, List<String> includes, List<String> excludes);
+
+
+    default TapTable loadTapTable(List<Schema> schemas, String script, String nodeId, String virtualId, String customNodeId, Map<String, Object> form, SubTaskDto subTaskDto) {
+        return null;
+    }
 
     /**
      * 保存数据源

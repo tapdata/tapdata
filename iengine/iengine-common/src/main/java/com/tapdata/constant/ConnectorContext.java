@@ -1,14 +1,13 @@
 package com.tapdata.constant;
 
 import com.tapdata.cache.ICacheService;
-import com.tapdata.cache.ICacheStore;
-import com.tapdata.cache.memory.MemoryCacheService;
 import com.tapdata.entity.Connections;
 import com.tapdata.entity.Job;
 import com.tapdata.entity.Mapping;
 import com.tapdata.entity.User;
 import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.processor.Processor;
+import io.tapdata.milestone.MilestoneService;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
@@ -54,6 +53,7 @@ public class ConnectorContext implements Serializable {
 
 	private User user;
 
+	private MilestoneService milestoneService;
 
 	private ConfigurationCenter configurationCenter;
 
@@ -90,6 +90,24 @@ public class ConnectorContext implements Serializable {
 		this.clientMongoOpertor = clientMongoOpertor;
 		this.processors = processors;
 		this.cacheService = cacheService;
+
+		List<Mapping> mappings = job.getMappings();
+
+		this.collectionsProjection = getCollectionProjection(mappings);
+		this.configurationCenter = configurationCenter;
+		initUser();
+	}
+
+	public ConnectorContext(Job job, Connections jobSourceConn, ClientMongoOperator clientMongoOpertor,
+							Connections jobTargetConn, List<Processor> processors, ICacheService cacheService,
+							MilestoneService milestoneService, ConfigurationCenter configurationCenter) {
+		this.job = job;
+		this.jobSourceConn = jobSourceConn;
+		this.jobTargetConn = jobTargetConn;
+		this.clientMongoOpertor = clientMongoOpertor;
+		this.processors = processors;
+		this.cacheService = cacheService;
+		this.milestoneService = milestoneService;
 
 		List<Mapping> mappings = job.getMappings();
 
@@ -231,6 +249,14 @@ public class ConnectorContext implements Serializable {
 
 	public void setUser(User user) {
 		this.user = user;
+	}
+
+	public MilestoneService getMilestoneService() {
+		return milestoneService;
+	}
+
+	public void setMilestoneService(MilestoneService milestoneService) {
+		this.milestoneService = milestoneService;
 	}
 
 	public ConfigurationCenter getConfigurationCenter() {

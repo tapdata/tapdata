@@ -3,7 +3,10 @@ package io.tapdata.metrics;
 import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.mongo.RestTemplateOperator;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 /**
  * @author Dexter

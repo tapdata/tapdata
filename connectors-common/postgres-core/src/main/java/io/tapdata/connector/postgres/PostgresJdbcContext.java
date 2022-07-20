@@ -30,7 +30,7 @@ public class PostgresJdbcContext extends JdbcContext {
     public String queryVersion() {
         AtomicReference<String> version = new AtomicReference<>("");
         try {
-            query("SHOW server_version_num", resultSet -> version.set(resultSet.getString(1)));
+            queryWithNext("SHOW server_version_num", resultSet -> version.set(resultSet.getString(1)));
         } catch (Throwable e) {
             e.printStackTrace();
         }

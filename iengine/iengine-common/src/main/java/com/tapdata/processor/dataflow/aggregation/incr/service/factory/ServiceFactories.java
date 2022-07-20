@@ -1,6 +1,5 @@
 package com.tapdata.processor.dataflow.aggregation.incr.service.factory;
 
-import com.tapdata.entity.Connections;
 import com.tapdata.entity.dataflow.Stage;
 import com.tapdata.processor.dataflow.ProcessorContext;
 import com.tapdata.processor.dataflow.aggregation.incr.service.ServiceFactory;

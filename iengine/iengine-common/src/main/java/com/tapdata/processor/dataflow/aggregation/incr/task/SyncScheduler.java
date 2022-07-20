@@ -14,7 +14,6 @@ import com.tapdata.processor.dataflow.aggregation.incr.service.SyncVersionServic
 import com.tapdata.processor.dataflow.aggregation.incr.service.model.AggrBucket;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.bson.Document;
 
 import java.util.*;
 import java.util.concurrent.Executors;

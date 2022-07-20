@@ -47,6 +47,7 @@ public class ConnectorProjectBootCli extends CommonCli {
     @Override
     protected Integer execute() throws Exception {
         List<String> paramsList = Lists.newArrayList();
+
 //        switch (type) {
 //            case "source":
 //                paramsList.add("-DarchetypeArtifactId=source-connector-archetype");
@@ -89,7 +90,7 @@ public class ConnectorProjectBootCli extends CommonCli {
         ByteArrayOutputStream errBaos = new ByteArrayOutputStream();
         PrintStream outps = new PrintStream(outBaos);
         PrintStream errps = new PrintStream(errBaos);
-        int state = mavenCli.doMain(params, "..", outps,errps);
+        int state = mavenCli.doMain(params, "../..", outps,errps);
         if (0 == state){
             setSpecNameAndId();
             System.out.println(outBaos);

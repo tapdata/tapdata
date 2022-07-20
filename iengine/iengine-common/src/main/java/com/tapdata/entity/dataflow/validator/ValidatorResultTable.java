@@ -3,8 +3,6 @@ package com.tapdata.entity.dataflow.validator;
 import com.tapdata.entity.dataflow.Stage;
 import lombok.Data;
 
-import java.io.Serializable;
-
 /**
  * 校验概览数据
  * Created by xj

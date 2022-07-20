@@ -2,7 +2,6 @@ package com.tapdata.cache.memory;
 
 import com.tapdata.cache.ICacheGetter;
 import com.tapdata.cache.ICacheService;
-import com.tapdata.cache.ICacheStore;
 import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.constant.Log4jUtil;
 import com.tapdata.entity.dataflow.DataFlow;

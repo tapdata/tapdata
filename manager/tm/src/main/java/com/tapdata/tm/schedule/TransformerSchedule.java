@@ -6,7 +6,7 @@ import com.tapdata.tm.task.bean.TransformWsResp;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.commons.schema.MetadataTransformerDto;
 import com.tapdata.tm.transform.service.MetadataTransformerService;
-import com.tapdata.tm.ws.handler.TransformerHandler;
+import com.tapdata.tm.ws.handler.TransformerStatusPushHandler;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -59,7 +59,7 @@ public class TransformerSchedule {
     public void ws() {
         log.debug("start transform ws message push.");
         //获取当前节点监听的任务id
-        Set<String> taskIds = TransformerHandler.transformMap.keySet();
+        Set<String> taskIds = TransformerStatusPushHandler.transformMap.keySet();
         //查询所有的当前监听的，并且在推演过程中的任务
 
         Criteria criteria = Criteria.where("dataFlowId").in(taskIds).and("pingTime").gte(System.currentTimeMillis() - (8 *1000));
@@ -101,7 +101,7 @@ public class TransformerSchedule {
                 build.setRemainingTime(remainingTime);
                 build.setProgress(((int) (build.getProgress() * 100)) / 100d);
 
-                TransformerHandler.sendTransformMessage(dataFlowId, build);
+                TransformerStatusPushHandler.sendTransformMessage(dataFlowId, build);
             } catch (Exception e) {
                 log.error("TransformerSchedule ws error", e);
             }

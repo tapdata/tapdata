@@ -24,6 +24,6 @@ public class TapTableUtil {
 
 	public static TapTableMap<String, TapTable> getTapTableMapByNodeId(String nodeId) {
 		Map<String, String> tableNameQualifiedNameMap = getTableNameQualifiedNameMap(nodeId);
-		return new TapTableMap<>(tableNameQualifiedNameMap);
+		return TapTableMap.createNew(nodeId, tableNameQualifiedNameMap);
 	}
 }

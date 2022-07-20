@@ -5,6 +5,7 @@ import com.tapdata.cache.ICacheGetter;
 import com.tapdata.cache.ICacheStats;
 import com.tapdata.cache.ICacheStore;
 import com.tapdata.entity.dataflow.DataFlowCacheConfig;
+import com.tapdata.mongo.ClientMongoOperator;
 import org.mapdb.DB;
 import org.mapdb.DBMaker;
 
@@ -17,8 +18,8 @@ public class MapdbCacheService extends AbstractCacheService {
 
 	private final Map<String, DB> dbMap;
 
-	public MapdbCacheService() {
-		super.cacheConfigMap = new ConcurrentHashMap<>();
+	public MapdbCacheService(ClientMongoOperator clientMongoOperator) {
+		super(clientMongoOperator);
 		this.dbMap = new ConcurrentHashMap<>();
 		super.cacheStatusMap = new ConcurrentHashMap<>();
 	}
@@ -61,7 +62,7 @@ public class MapdbCacheService extends AbstractCacheService {
 
 	@Override
 	protected ICacheGetter getCacheGetterInstance(String cacheName) {
-		return new MapdbCacheGetter(getConfig(cacheName), getCacheStore(cacheName), getCacheStats(cacheName));
+		return new MapdbCacheGetter(getConfig(cacheName), getCacheStore(cacheName), getCacheStats(cacheName), null);
 	}
 
 	@Override

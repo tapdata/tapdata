@@ -3,7 +3,7 @@ package com.tapdata.cache.hazelcast;
 import com.hazelcast.config.Config;
 import com.hazelcast.core.Hazelcast;
 import com.hazelcast.core.HazelcastInstance;
-import com.tapdata.cache.MemoryCacheUtil;
+import com.tapdata.cache.CacheUtil;
 import com.tapdata.constant.HazelcastUtil;
 import com.tapdata.entity.dataflow.DataFlowCacheConfig;
 import junit.framework.TestCase;
@@ -37,6 +37,7 @@ public class HazelcastCacheServiceTest extends TestCase {
 				10L,
 				fields,
 				null,
+				null,
 				"",
 				null,
 				Collections.singletonList("id")
@@ -51,8 +52,8 @@ public class HazelcastCacheServiceTest extends TestCase {
 		row.put("v2", "ww");
 		row.put("id", "11");
 
-		final Object[] cacheKeyValues = MemoryCacheUtil.getKeyValues(Arrays.asList(cacheKeys.split(",")), row);
-		String cacheKey = MemoryCacheUtil.cacheKey(cacheKeyValues);
+		final Object[] cacheKeyValues = CacheUtil.getKeyValues(Arrays.asList(cacheKeys.split(",")), row);
+		String cacheKey = CacheUtil.cacheKey(cacheKeyValues);
 		hazelcastCacheService.cacheRow(cacheName, cacheKey, Collections.singletonList(row));
 
 		Map<String, Object> cacheValue = hazelcastCacheService.getCache(cacheName, "aa", "bb");

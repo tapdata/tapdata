@@ -1,5 +1,6 @@
 package com.tapdata.tm.ds.dto;
 
+import io.tapdata.pdk.apis.entity.Capability;
 import lombok.*;
 
 import java.util.LinkedHashMap;
@@ -31,5 +32,5 @@ public class PdkSourceDto {
     //多语言信息
     private LinkedHashMap<String, Object> messages;
     //数据能力
-    private List<String> capabilities;
+    private List<Capability> capabilities;
 }

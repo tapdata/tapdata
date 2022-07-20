@@ -15,18 +15,6 @@
         <version>0.5.2-SNAPSHOT</version>
     </parent>
 
-    <!--  <dependencyManagement>-->
-    <!--    <dependencies>-->
-    <!--      <dependency>-->
-    <!--        <groupId>io.opentelemetry</groupId>-->
-    <!--        <artifactId>opentelemetry-bom</artifactId>-->
-    <!--        <version>1.7.0</version>-->
-    <!--        <type>pom</type>-->
-    <!--        <scope>import</scope>-->
-    <!--      </dependency>-->
-    <!--    </dependencies>-->
-    <!--  </dependencyManagement>-->
-
     <dependencies>
 
         <dependency>
@@ -57,30 +45,6 @@
             <artifactId>commons-lang3</artifactId>
         </dependency>
 
-        <!--    <dependency>-->
-        <!--      <groupId>com.oracle</groupId>-->
-        <!--      <artifactId>ojdbc</artifactId>-->
-        <!--    </dependency>-->
-
-        <!--    <dependency>-->
-        <!--      <groupId>com.dm</groupId>-->
-        <!--      <artifactId>dmjdbc7</artifactId>-->
-        <!--    </dependency>-->
-        <!--    <dependency>-->
-        <!--      <groupId>com.sap.cloud.db.jdbc</groupId>-->
-        <!--      <artifactId>ngdbc</artifactId>-->
-        <!--    </dependency>-->
-
-        <!--    <dependency>-->
-        <!--      <groupId>com.microsoft.sqlserver</groupId>-->
-        <!--      <artifactId>mssql-jdbc</artifactId>-->
-        <!--    </dependency>-->
-
-        <!--    <dependency>-->
-        <!--      <groupId>mysql</groupId>-->
-        <!--      <artifactId>mysql-connector-java</artifactId>-->
-        <!--    </dependency>-->
-
         <dependency>
             <groupId>org.mongodb</groupId>
             <artifactId>mongo-java-driver</artifactId>
@@ -108,11 +72,6 @@
             <groupId>org.apache.logging.log4j</groupId>
             <artifactId>log4j-mongodb</artifactId>
         </dependency>
-
-        <!--    <dependency>-->
-        <!--      <groupId>com.sap</groupId>-->
-        <!--      <artifactId>jconn4</artifactId>-->
-        <!--    </dependency>-->
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
             <artifactId>jackson-databind</artifactId>
@@ -192,11 +151,6 @@
             <artifactId>kafka-streams</artifactId>
         </dependency>
 
-        <!--    <dependency>-->
-        <!--      <groupId>com.yoyosys</groupId>-->
-        <!--      <artifactId>mq_2.21</artifactId>-->
-        <!--    </dependency>-->
-
         <dependency>
             <groupId>org.samba.jcifs</groupId>
             <artifactId>jcifs</artifactId>
@@ -218,26 +172,11 @@
             <scope>test</scope>
         </dependency>
 
-        <!--    <dependency>-->
-        <!--      <groupId>com.gbase</groupId>-->
-        <!--      <artifactId>gbasedbt</artifactId>-->
-        <!--    </dependency>-->
-
         <dependency>
             <groupId>org.hamcrest</groupId>
             <artifactId>hamcrest-library</artifactId>
             <scope>test</scope>
         </dependency>
-
-        <!--    <dependency>-->
-        <!--      <groupId>com.ibm.db2.jcc</groupId>-->
-        <!--      <artifactId>db2jcc</artifactId>-->
-        <!--    </dependency>-->
-
-        <!--    <dependency>-->
-        <!--      <groupId>com.huawei</groupId>-->
-        <!--      <artifactId>gauss200</artifactId>-->
-        <!--    </dependency>-->
 
         <dependency>
             <groupId>com.github.jsqlparser</groupId>
@@ -269,20 +208,10 @@
             <artifactId>lombok</artifactId>
         </dependency>
 
-        <!--    <dependency>-->
-        <!--      <groupId>redis.clients</groupId>-->
-        <!--      <artifactId>jedis</artifactId>-->
-        <!--    </dependency>-->
-
         <dependency>
             <groupId>com.lmax</groupId>
             <artifactId>disruptor</artifactId>
         </dependency>
-
-        <!--    <dependency>-->
-        <!--      <groupId>org.postgresql</groupId>-->
-        <!--      <artifactId>postgresql</artifactId>-->
-        <!--    </dependency>-->
 
         <dependency>
             <groupId>com.vividsolutions</groupId>
@@ -329,29 +258,6 @@
             <groupId>org.graalvm.js</groupId>
             <artifactId>js-scriptengine</artifactId>
         </dependency>
-        <!--    <dependency>-->
-        <!--      <groupId>io.opentelemetry</groupId>-->
-        <!--      <artifactId>opentelemetry-api</artifactId>-->
-        <!--    </dependency>-->
-        <!--    <dependency>-->
-        <!--      <groupId>io.opentelemetry</groupId>-->
-        <!--      <artifactId>opentelemetry-sdk</artifactId>-->
-        <!--    </dependency>-->
-        <!--    <dependency>-->
-        <!--      <groupId>io.opentelemetry</groupId>-->
-        <!--      <artifactId>opentelemetry-api-metrics</artifactId>-->
-        <!--      <version>1.7.0-alpha</version>-->
-        <!--    </dependency>-->
-        <!--    <dependency>-->
-        <!--      <groupId>io.opentelemetry</groupId>-->
-        <!--      <artifactId>opentelemetry-sdk-metrics</artifactId>-->
-        <!--      <version>1.7.0-alpha</version>-->
-        <!--    </dependency>-->
-        <!--    <dependency>-->
-        <!--      <groupId>io.opentelemetry</groupId>-->
-        <!--      <artifactId>opentelemetry-exporter-prometheus</artifactId>-->
-        <!--      <version>1.7.0-alpha</version>-->
-        <!--    </dependency>-->
         <dependency>
             <groupId>io.prometheus</groupId>
             <artifactId>simpleclient_httpserver</artifactId>
@@ -380,7 +286,7 @@
         <dependency>
             <groupId>io.tapdata</groupId>
             <artifactId>tapdata-pdk-runner</artifactId>
-            <version>1.1-SNAPSHOT</version>
+            <version>1.2-SNAPSHOT</version>
         </dependency>
         <dependency>
             <groupId>io.tapdata</groupId>
@@ -416,19 +322,11 @@
             <groupId>com.hazelcast</groupId>
             <artifactId>hazelcast</artifactId>
         </dependency>
-        <!--<dependency>
-          <groupId>com.hazelcast</groupId>
-          <artifactId>hazelcast</artifactId>
-        </dependency>-->
 
         <dependency>
             <groupId>com.hazelcast</groupId>
             <artifactId>hazelcast-persistence</artifactId>
         </dependency>
-        <!--<dependency>
-          <groupId>com.hazelcast</groupId>
-          <artifactId>hazelcast-enterprise</artifactId>
-        </dependency>-->
 
         <dependency>
             <groupId>org.mapdb</groupId>

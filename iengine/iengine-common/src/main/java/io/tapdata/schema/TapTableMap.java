@@ -3,10 +3,12 @@ package io.tapdata.schema;
 import com.tapdata.constant.BeanUtil;
 import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.mongo.ClientMongoOperator;
+import io.tapdata.cache.EhcacheService;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
+import io.tapdata.pdk.core.utils.CommonUtils;
+import io.tapdata.pdk.core.utils.cache.EhcacheKVMap;
 import org.apache.commons.collections4.MapUtils;
-import org.apache.commons.collections4.map.LRUMap;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.data.mongodb.core.query.Query;
 
@@ -28,16 +30,75 @@ import static org.springframework.data.mongodb.core.query.Criteria.where;
  * @create 2022-05-10 11:16
  **/
 public class TapTableMap<K extends String, V extends TapTable> extends HashMap<K, V> {
-	private Map<K, String> tableNameAndQualifiedNameMap = new ConcurrentHashMap<>();
-	private LRUMap<K, V> tapTableLRUMap = new LRUMap<>(10);
+	private static final String DIST_CACHE_PATH = "tap_table_ehcache";
+	public static final int DEFAULT_OFF_HEAP_MB = 100;
+	public static final int DEFAULT_DISK_MB = 1024;
+	public static final int MAX_HEAP_ENTRIES = 100;
+	public static final String TAP_TABLE_OFF_HEAP_MB_KEY = "TAP_TABLE_OFF_HEAP_MB";
+	public static final String TAP_TABLE_DISK_MB_KEY = "TAP_TABLE_DISK_MB";
+	public static final String TAP_TABLE_PREFIX = "TAP_TABLE_";
+	private Map<K, String> tableNameAndQualifiedNameMap;
+	private String mapKey;
 	private Lock lock = new ReentrantLock();
+	private String nodeId;
 
-	public TapTableMap(Map<K, String> tableNameAndQualifiedNameMap) {
-		this.tableNameAndQualifiedNameMap.putAll(tableNameAndQualifiedNameMap);
+	private TapTableMap() {
+
 	}
 
-	public TapTableMap(String nodeId) {
-		this.tableNameAndQualifiedNameMap = (Map<K, String>) TapTableUtil.getTableNameQualifiedNameMap(nodeId);
+	public static TapTableMap<String, TapTable> create(String nodeId, Map<String, String> tableNameAndQualifiedNameMap) {
+		TapTableMap<String, TapTable> tapTableMap = new TapTableMap<>();
+		return tapTableMap
+				.nodeId(nodeId)
+				.tableNameAndQualifiedNameMap(tableNameAndQualifiedNameMap)
+				.init();
+	}
+
+	public static TapTableMap<String, TapTable> createNew(String nodeId, Map<String, String> tableNameAndQualifiedNameMap) {
+		TapTableMap<String, TapTable> tapTableMap = new TapTableMap<>();
+		tapTableMap
+				.nodeId(nodeId)
+				.tableNameAndQualifiedNameMap(tableNameAndQualifiedNameMap)
+				.init();
+		EhcacheService.getInstance().getEhcacheKVMap(tapTableMap.mapKey).clear();
+		return tapTableMap;
+	}
+
+	private TapTableMap<K, V> init() {
+		if (StringUtils.isBlank(nodeId)) {
+			throw new RuntimeException("Missing node id");
+		}
+//		if (MapUtils.isEmpty(tableNameAndQualifiedNameMap)) {
+//			throw new RuntimeException("Missing table name and qualified name map");
+//		}
+		this.mapKey = TAP_TABLE_PREFIX + nodeId;
+		EhcacheKVMap<TapTable> tapTableMap = EhcacheKVMap.create(mapKey, TapTable.class)
+				.cachePath(DIST_CACHE_PATH)
+				.maxHeapEntries(MAX_HEAP_ENTRIES)
+				.maxOffHeapMB(CommonUtils.getPropertyInt(TAP_TABLE_OFF_HEAP_MB_KEY, DEFAULT_OFF_HEAP_MB))
+				.maxDiskMB(CommonUtils.getPropertyInt(TAP_TABLE_DISK_MB_KEY, DEFAULT_DISK_MB))
+				.init();
+		EhcacheService.getInstance().putEhcacheKVMap(mapKey, tapTableMap);
+		return this;
+	}
+
+	public void remove() {
+		EhcacheService.getInstance().getEhcacheKVMap(mapKey).reset();
+		EhcacheService.getInstance().removeEhcacheKVMap(mapKey);
+	}
+
+	public String getQualifiedName(String tableName) {
+		return tableNameAndQualifiedNameMap.get(tableName);
+	}
+
+	private TapTableMap<K, V> tableNameAndQualifiedNameMap(Map<K, String> tableNameAndQualifiedNameMap) {
+		this.tableNameAndQualifiedNameMap = new ConcurrentHashMap<>(tableNameAndQualifiedNameMap);
+		return this;
+	}
+
+	private TapTableMap<K, V> nodeId(String nodeId) {
+		this.nodeId = nodeId;
+		return this;
 	}
 
 	@Override
@@ -52,7 +113,7 @@ public class TapTableMap<K extends String, V extends TapTable> extends HashMap<K
 
 	@Override
 	public V get(Object key) {
-		return getTapTable((K) key);
+		return (V) getTapTable((K) key);
 	}
 
 	@Override
@@ -62,7 +123,11 @@ public class TapTableMap<K extends String, V extends TapTable> extends HashMap<K
 
 	@Override
 	public V put(K key, V value) {
-		throw new UnsupportedOperationException();
+		if (!tableNameAndQualifiedNameMap.containsKey(key)) {
+			throw new IllegalArgumentException("Table " + key + " does not exists, cannot put in table map");
+		}
+		EhcacheService.getInstance().getEhcacheKVMap(mapKey).put(key, value);
+		return value;
 	}
 
 	@Override
@@ -78,7 +143,7 @@ public class TapTableMap<K extends String, V extends TapTable> extends HashMap<K
 	@Override
 	public void clear() {
 		this.tableNameAndQualifiedNameMap.clear();
-		this.tapTableLRUMap.clear();
+		EhcacheService.getInstance().getEhcacheKVMap(this.mapKey).clear();
 	}
 
 	@Override
@@ -93,12 +158,12 @@ public class TapTableMap<K extends String, V extends TapTable> extends HashMap<K
 
 	@Override
 	public Collection<V> values() {
-		return tapTableLRUMap.values();
+		throw new UnsupportedOperationException();
 	}
 
 	@Override
 	public Set<Entry<K, V>> entrySet() {
-		return tapTableLRUMap.entrySet();
+		throw new UnsupportedOperationException();
 	}
 
 	@Override
@@ -163,15 +228,16 @@ public class TapTableMap<K extends String, V extends TapTable> extends HashMap<K
 		throw new UnsupportedOperationException();
 	}
 
-	private V getTapTable(K key) {
-		AtomicReference<V> tapTable = new AtomicReference<>(tapTableLRUMap.get(key));
+	private TapTable getTapTable(K key) {
+		EhcacheKVMap<TapTable> tapTableMap = EhcacheService.getInstance().getEhcacheKVMap(this.mapKey);
+		AtomicReference<TapTable> tapTable = new AtomicReference<>(tapTableMap.get(key));
 		if (null == tapTable.get()) {
 			try {
 				handleWithLock(() -> {
-					tapTable.set(tapTableLRUMap.get(key));
+					tapTable.set(tapTableMap.get(key));
 					if (null == tapTable.get()) {
 						tapTable.set(findSchema(key));
-						this.tapTableLRUMap.put(key, tapTable.get());
+						tapTableMap.put(key, tapTable.get());
 					}
 				});
 			} catch (Exception e) {
@@ -236,5 +302,10 @@ public class TapTableMap<K extends String, V extends TapTable> extends HashMap<K
 
 	interface Handler {
 		void run() throws Exception;
+	}
+
+	public void reset() {
+		EhcacheKVMap<TapTable> ehcacheKVMap = EhcacheService.getInstance().getEhcacheKVMap(this.mapKey);
+		Optional.ofNullable(ehcacheKVMap).ifPresent(EhcacheKVMap::reset);
 	}
 }

@@ -1,10 +1,7 @@
 package io.tapdata.entity.mapping;
 
 import io.tapdata.entity.mapping.type.*;
-import io.tapdata.entity.schema.type.TapBinary;
-import io.tapdata.entity.schema.type.TapNumber;
-import io.tapdata.entity.schema.type.TapString;
-import io.tapdata.entity.schema.type.TapType;
+import io.tapdata.entity.schema.type.*;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.entity.utils.JsonParser;
@@ -192,6 +189,43 @@ class ExpressionMatchingMapTest {
             assertEquals(tapNumber.getScale(), 3);
         });
 
+    }
+
+    @Test
+    void testMappingGbase8sDateTime() {
+        String str = "{\n" +
+
+                "    \"DATETIME HOUR TO SECOND\": {\"to\": \"TapTime\"},\n" +
+                "    \"DATETIME $start TO FRACTION[($fraction)]\": {\"to\": \"TapDateTime\"},\n" +
+                "    \"DATETIME $start TO $end\": {\"to\": \"TapDateTime\"},\n" +
+                "}";
+
+        DefaultExpressionMatchingMap matchingMap = DefaultExpressionMatchingMap.map(str);
+
+        validateTapMapping(matchingMap, "DATETIME YEAR TO FRACTION(5)", TapDateTimeMapping.class, TapDateTime.class, exprResult -> {
+            assertNotNull(exprResult, "Expression is not matched");
+            assertEquals(exprResult.getParams().get("fraction"), "5");
+        }, tapNumberMapping -> {
+            assertNotNull(tapNumberMapping);
+        }, tapNumber -> {
+            assertEquals(5, tapNumber.getFraction());
+        });
+        validateTapMapping(matchingMap, "DATETIME YEAR TO SECOND", TapDateTimeMapping.class, TapDateTime.class, exprResult -> {
+            assertNotNull(exprResult, "Expression is not matched");
+            assertEquals(exprResult.getParams().get("end"), "SECOND");
+        }, tapNumberMapping -> {
+            assertNotNull(tapNumberMapping);
+        }, tapNumber -> {
+            assertNotNull(tapNumber);
+        });
+
+        validateTapMapping(matchingMap, "DATETIME HOUR TO SECOND", TapTimeMapping.class, TapTime.class, exprResult -> {
+            assertNotNull(exprResult, "Expression is not matched");
+        }, tapNumberMapping -> {
+            assertNotNull(tapNumberMapping);
+        }, tapNumber -> {
+            assertNotNull(tapNumber);
+        });
     }
 
     private <T extends TapMapping, R extends TapType> void validateTapMapping(DefaultExpressionMatchingMap matchingMap, String dataType, Class<T> tapMappingClass, Class<R> tapTypeClass, Consumer<TypeExprResult<DataMap>> paramValidator, Consumer<T> tapMappingValidator, Consumer<R> tapTypeValidator) {

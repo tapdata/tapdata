@@ -1,11 +1,13 @@
 package com.tapdata.tm.transform.entity;
 
+import com.tapdata.tm.base.entity.BaseEntity;
 import com.tapdata.tm.commons.dag.FieldsMapping;
+import com.tapdata.tm.commons.dag.vo.FieldInfo;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
-import com.tapdata.tm.base.entity.BaseEntity;
 import org.springframework.data.mongodb.core.mapping.Document;
 
+import java.util.LinkedList;
 import java.util.List;
 
 
@@ -41,4 +43,5 @@ public class MetadataTransformerItemEntity extends BaseEntity {
     private List<FieldsMapping> fieldsMapping;
     private String uuid;
 
+    private LinkedList<FieldInfo> migrateFieldsMapping;// 数据复制使用的字段映射
 }

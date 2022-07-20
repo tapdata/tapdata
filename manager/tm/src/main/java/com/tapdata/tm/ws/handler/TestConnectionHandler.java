@@ -11,7 +11,9 @@ import com.tapdata.manager.common.utils.StringUtils;
 import com.tapdata.tm.base.dto.Field;
 import com.tapdata.tm.commons.base.dto.SchedulableDto;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
+import com.tapdata.tm.commons.schema.DataSourceDefinitionDto;
 import com.tapdata.tm.config.security.UserDetail;
+import com.tapdata.tm.ds.service.impl.DataSourceDefinitionService;
 import com.tapdata.tm.ds.service.impl.DataSourceService;
 import com.tapdata.tm.messagequeue.dto.MessageQueueDto;
 import com.tapdata.tm.messagequeue.service.MessageQueueService;
@@ -20,6 +22,7 @@ import com.tapdata.tm.utils.AES256Util;
 import com.tapdata.tm.utils.MapUtils;
 import static com.tapdata.tm.utils.MongoUtils.toObjectId;
 
+import com.tapdata.tm.utils.MongoUtils;
 import com.tapdata.tm.worker.service.WorkerService;
 import com.tapdata.tm.ws.annotation.WebSocketMessageHandler;
 import com.tapdata.tm.ws.dto.MessageInfo;
@@ -42,15 +45,20 @@ public class TestConnectionHandler implements WebSocketHandler {
 
 	private final DataSourceService dataSourceService;
 
+
+	private final DataSourceDefinitionService dataSourceDefinitionService;
+
 	private final UserService userService;
 
 	private final WorkerService workerService;
 
-	public TestConnectionHandler(MessageQueueService messageQueueService, DataSourceService dataSourceService, UserService userService, WorkerService workerService) {
+	public TestConnectionHandler(MessageQueueService messageQueueService, DataSourceService dataSourceService, UserService userService
+			, WorkerService workerService, DataSourceDefinitionService dataSourceDefinitionService) {
 		this.messageQueueService = messageQueueService;
 		this.dataSourceService = dataSourceService;
 		this.userService = userService;
 		this.workerService = workerService;
+		this.dataSourceDefinitionService = dataSourceDefinitionService;
 	}
 	@Override
 	public void handleMessage(WebSocketContext context) throws Exception{
@@ -79,11 +87,21 @@ public class TestConnectionHandler implements WebSocketHandler {
 		}
 
 		Object config = data.get("config");
+		UserDetail userDetail = userService.loadUserById(toObjectId(userId));
+		if (userDetail == null){
+			WebSocketManager.sendMessage(context.getSender(), "UserDetail is null");
+			return;
+		}
 		if (config != null) {
 			String database_type = (String)data.get("database_type");
+			if (StringUtils.isBlank(database_type)) {
+				String pdkHash = (String) data.get("pdkHash");
+				DataSourceDefinitionDto definitionDto = dataSourceDefinitionService.findByPdkHash(pdkHash, userDetail, "type");
+				database_type = definitionDto.getType();
+			}
 			Map config1 = (Map) config;
 			String uri = (String) config1.get("uri");
-			if (StringUtils.isNotBlank(database_type) && database_type.toLowerCase(Locale.ROOT).contains("mongo") && StringUtils.isNotBlank(uri)) {
+			if (StringUtils.isNotBlank(database_type) && StringUtils.isNotBlank(database_type) && database_type.toLowerCase(Locale.ROOT).contains("mongo") && StringUtils.isNotBlank(uri)) {
 				if (uri.contains("******")) {
 					data.put("editTest", false);
 				}
@@ -98,18 +116,10 @@ public class TestConnectionHandler implements WebSocketHandler {
 			}
 		}
 
-			UserDetail userDetail = userService.loadUserById(toObjectId(userId));
-			if (userDetail == null){
-				WebSocketManager.sendMessage(context.getSender(), "UserDetail is null");
-				return;
-			}
-//		List<Worker> workers = workerService.findAvailableAgent(userDetail.getUserId());
-//		List<Worker> workers = workerService.findAvailableAgent(MapUtils.getAsString(data, "userId"));
 			SchedulableDto schedulableDto = new SchedulableDto();
 			schedulableDto.setAgentTags(tags);
 			schedulableDto.setUserId(userDetail.getUserId());
 			workerService.scheduleTaskToEngine(schedulableDto, userDetail, "testConnection", "testConnection");
-//		String receiver = CollectionUtils.isNotEmpty(workers) ? workers.get(0).getProcessId() : null;
 			String receiver = schedulableDto.getAgentId();
 			if (StringUtils.isBlank(receiver)){
 				log.warn("Receiver is blank,context: {}", JsonUtil.toJson(context));
