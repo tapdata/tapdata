@@ -850,7 +850,6 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
             }
             for (Map.Entry<String, MetadataInstancesDto> entry : updateMetaMap.entrySet()) {
                 MetadataInstancesDto value = entry.getValue();
-                List<MetadataInstancesDto> histories = value.getHistories();
 
 
                 value.setHistories(null);
@@ -858,25 +857,20 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
                 MetadataInstancesEntity entity = convertToEntity(MetadataInstancesEntity.class, value);
                 Update update = repository.buildUpdateSet(entity, userDetail);
 
-                if (CollectionUtils.isNotEmpty(histories)) {
-                    if (saveHistory) {
-                        //保存历史，用于自动ddl
-                        MetadataInstancesDto metadataInstancesDto = metaMap.get(entry.getKey());
-                        if (metadataInstancesDto != null) {
-                            metadataInstancesDto.setFields(value.getFields());
-                            metadataInstancesDto.setIndexes(value.getIndexes());
-                            metadataInstancesDto.setDeleted(false);
-                            metadataInstancesDto.setCreateSource(value.getCreateSource());
-                            metadataInstancesDto.setVersion(value.getVersion());
-                            metadataInstancesDto.setHistories(null);
-                            insertMetaDataDtos.add(metadataInstancesDto);
-                        }
+                if (saveHistory) {
+                    //保存历史，用于自动ddl
+                    MetadataInstancesDto metadataInstancesDto = metaMap.get(entry.getKey());
+                    if (metadataInstancesDto != null) {
+                        metadataInstancesDto.setFields(value.getFields());
+                        metadataInstancesDto.setIndexes(value.getIndexes());
+                        metadataInstancesDto.setDeleted(false);
+                        metadataInstancesDto.setCreateSource(value.getCreateSource());
+                        metadataInstancesDto.setVersion(value.getVersion());
+                        metadataInstancesDto.setHistories(null);
+                        insertMetaDataDtos.add(metadataInstancesDto);
                     }
-
-                    Document basicDBObject = new Document("$each", histories);
-                    basicDBObject.append("$slice", -5);
-                    update.push("histories", basicDBObject);
                 }
+
                 Query where = Query.query(Criteria.where("_id").is(entry.getKey()));
 
                 bulkOperations.updateOne(where, update);
