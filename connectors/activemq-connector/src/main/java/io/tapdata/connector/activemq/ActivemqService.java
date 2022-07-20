@@ -62,8 +62,6 @@ public class ActivemqService extends AbstractMqService {
             consumer.accept(new TestItem(MqTestItem.ACTIVE_MQ_CONNECTION.getContent(), TestItem.RESULT_SUCCESSFULLY, null));
         } catch (Throwable t) {
             consumer.accept(new TestItem(MqTestItem.ACTIVE_MQ_CONNECTION.getContent(), TestItem.RESULT_FAILED, t.getMessage()));
-        } finally {
-            close();
         }
     }
 
@@ -75,9 +73,8 @@ public class ActivemqService extends AbstractMqService {
 
     @Override
     public void close() {
+        super.close();
         try {
-            consuming.set(false);
-            Thread.sleep(2000);
             if (EmptyKit.isNotNull(activemqConnection)) {
                 activemqConnection.stop();
                 activemqConnection.close();
@@ -98,7 +95,6 @@ public class ActivemqService extends AbstractMqService {
 
     @Override
     public void loadTables(int tableSize, Consumer<List<TapTable>> consumer) throws Throwable {
-        long deadline = System.currentTimeMillis() + MAX_LOAD_TIMEOUT;
         Map<String, Map<String, Object>> destinationRecordMap = new HashMap<>();
         Set<ActiveMQQueue> existQueueSet = activemqConnection.getDestinationSource().getQueues();
         Set<Destination> destinationSet = new HashSet<>();
@@ -132,9 +128,7 @@ public class ActivemqService extends AbstractMqService {
             }
         }
         Session session = activemqConnection.createSession(false, Session.CLIENT_ACKNOWLEDGE);
-        Iterator<Destination> iterator = destinationSet.iterator();
-        while (iterator.hasNext() && System.currentTimeMillis() < deadline) {
-            Destination destination = iterator.next();
+        for (Destination destination : destinationSet) {
             MessageConsumer messageConsumer = session.createConsumer(destination);
             TextMessage textMessage = (TextMessage) messageConsumer.receive(SINGLE_MAX_LOAD_TIMEOUT);
             if (textMessage == null) {
@@ -171,7 +165,6 @@ public class ActivemqService extends AbstractMqService {
         String tableName = tapTable.getId();
         Destination destination = session.createQueue(tableName);
         for (TapRecordEvent event : tapRecordEvents) {
-            ActivemqMessage activemqMessage = new ActivemqMessage();
             TextMessage textMessage = new ActiveMQTextMessage();
             MqOp mqOp = MqOp.INSERT;
             if (event instanceof TapInsertRecordEvent) {
@@ -186,9 +179,8 @@ public class ActivemqService extends AbstractMqService {
                 textMessage.setText(jsonParser.toJson(((TapDeleteRecordEvent) event).getBefore()));
                 mqOp = MqOp.DELETE;
             }
-            activemqMessage.setMessage(textMessage);
             try {
-                producer.send(destination, activemqMessage.getMessage());
+                producer.send(destination, textMessage);
                 switch (mqOp) {
                     case INSERT:
                         insert.incrementAndGet();

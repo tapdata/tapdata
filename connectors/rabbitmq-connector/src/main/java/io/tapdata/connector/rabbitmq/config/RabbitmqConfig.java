@@ -8,6 +8,7 @@ public class RabbitmqConfig extends MqConfig implements Serializable {
 
     private String routeKeyField;
     private String virtualHost;
+    private int apiPort;
 
     public String getRouteKeyField() {
         return routeKeyField;
@@ -23,5 +24,13 @@ public class RabbitmqConfig extends MqConfig implements Serializable {
 
     public void setVirtualHost(String virtualHost) {
         this.virtualHost = virtualHost;
+    }
+
+    public int getApiPort() {
+        return apiPort;
+    }
+
+    public void setApiPort(int apiPort) {
+        this.apiPort = apiPort;
     }
 }

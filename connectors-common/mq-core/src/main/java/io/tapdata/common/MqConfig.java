@@ -20,7 +20,7 @@ public class MqConfig implements Serializable {
 
     private String mqType;
     private String mqHost;
-    private Integer mqPort;
+    private int mqPort;
     private String nameSrvAddr;
     private String mqUsername;
     private String mqPassword;
@@ -73,11 +73,11 @@ public class MqConfig implements Serializable {
         this.mqHost = mqHost;
     }
 
-    public Integer getMqPort() {
+    public int getMqPort() {
         return mqPort;
     }
 
-    public void setMqPort(Integer mqPort) {
+    public void setMqPort(int mqPort) {
         this.mqPort = mqPort;
     }
 

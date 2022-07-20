@@ -27,7 +27,8 @@ public class RegisterMain {
 //				basePath + "connectors/dist/elasticsearch-connector-v1.0-SNAPSHOT.jar",
 //				basePath + "connectors/dist/oceanbase-connector-v1.0-SNAPSHOT.jar",
 //				basePath + "connectors/dist/doris-connector-v1.0-SNAPSHOT.jar",
-				basePath + "connectors/dist/activemq-connector-v1.0-SNAPSHOT.jar",
+//				basePath + "connectors/dist/activemq-connector-v1.0-SNAPSHOT.jar",
+				basePath + "connectors/dist/rabbitmq-connector-v1.0-SNAPSHOT.jar",
 		};
 
 		Main.registerCommands().execute(args);

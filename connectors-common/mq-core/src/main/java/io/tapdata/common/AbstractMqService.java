@@ -1,5 +1,8 @@
 package io.tapdata.common;
 
+import io.tapdata.entity.logger.TapLogger;
+import io.tapdata.kit.EmptyKit;
+
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -13,5 +16,16 @@ public abstract class AbstractMqService implements MqService {
     protected final AtomicBoolean consuming = new AtomicBoolean(false);
     protected final static int concurrency = 5;
     protected ExecutorService executorService;
+
+    @Override
+    public void close() {
+        try {
+            consuming.set(false);
+            executorService.shutdown();
+            Thread.sleep(2000);
+        } catch (Exception e) {
+            TapLogger.error(TAG, "close service error", e);
+        }
+    }
 
 }
