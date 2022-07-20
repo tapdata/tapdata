@@ -13,6 +13,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.function.Consumer;
 
+//@AspectTaskSession(excludeTypes = {"trial", "abc"}, includeTypes = {"migrate"})
 @AspectTaskSession
 public class ObservableAspectTask extends AspectTask {
 	private final ClassHandlers observerClassHandlers = new ClassHandlers();
