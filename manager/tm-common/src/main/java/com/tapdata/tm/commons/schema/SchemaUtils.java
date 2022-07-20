@@ -48,21 +48,21 @@ public class SchemaUtils {
                 log.warn("Can't merge non schema.");
                 return null;
             }
-        }
-        if (targetSchema == null) {
-            log.warn("Can't merge non schema.");
-            return null;
         } else {
             List<Field> fields = targetSchema.getFields();
             if (CollectionUtils.isNotEmpty(fields)) {
                 List<Field> removeList = new ArrayList<>();
                 for (Field field : fields) {
-                    if ("job_analyze".equals(field.getSource())) {
+                    if (!"manual".equals(field.getSource())) {
                         removeList.add(field);
                     }
                 }
                 fields.removeAll(removeList);
             }
+        }
+        if (targetSchema == null) {
+            log.warn("Can't merge non schema.");
+            return null;
         }
 
 

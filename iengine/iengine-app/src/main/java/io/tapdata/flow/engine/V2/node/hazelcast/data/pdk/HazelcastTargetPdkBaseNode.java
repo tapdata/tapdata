@@ -335,6 +335,11 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 			throw new RuntimeException("Save to snapshot failed, collection: " + collection + ", object: " + this.syncProgressMap + "errors: " + e.getMessage(), e);
 		}
 		if (uploadDagService.get()) {
+			// Upload DAG
+			TaskDto taskDto = new TaskDto();
+			taskDto.setId(dataProcessorContext.getSubTaskDto().getParentId());
+			taskDto.setDag(dataProcessorContext.getSubTaskDto().getDag());
+			clientMongoOperator.insertOne(taskDto, ConnectorConstant.TASK_COLLECTION + "/dag");
 			if (MapUtils.isNotEmpty(uploadMetadata)) {
 				// Upload Metadata
 				TransformerWsMessageResult wsMessageResult = new TransformerWsMessageResult();
@@ -343,11 +348,6 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 				clientMongoOperator.insertOne(wsMessageResult, ConnectorConstant.TASK_COLLECTION + "/transformer/resultWithHistory");
 				uploadMetadata.clear();
 			}
-			// Upload DAG
-			TaskDto taskDto = new TaskDto();
-			taskDto.setId(dataProcessorContext.getSubTaskDto().getParentId());
-			taskDto.setDag(dataProcessorContext.getSubTaskDto().getDag());
-			clientMongoOperator.insertOne(taskDto, ConnectorConstant.TASK_COLLECTION + "/dag");
 			uploadDagService.compareAndSet(true, false);
 		}
 		return true;

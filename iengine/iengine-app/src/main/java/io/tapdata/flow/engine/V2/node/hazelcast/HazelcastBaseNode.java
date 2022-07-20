@@ -695,7 +695,7 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 		TapEvent tapEvent = tapdataEvent.getTapEvent();
 		TapTableMap<String, TapTable> tapTableMap = processorBaseContext.getTapTableMap();
 		if (StringUtils.isBlank(tableName)) {
-			tableName = ((TapDDLEvent) tapEvent).getTableId();
+			tableName = getNode().getId();
 		}
 		String qualifiedName = tapTableMap.getQualifiedName(tableName);
 		TapTable tapTable = ((DAGDataServiceImpl) dagDataService).getTapTable(qualifiedName);

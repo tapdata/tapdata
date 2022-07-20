@@ -836,19 +836,31 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
 
 
         if (updateMetaMap != null) {
+            Set<String> keySet = updateMetaMap.keySet();
+
+            Map<String, MetadataInstancesDto> metaMap = new HashMap<>();
+            if (CollectionUtils.isNotEmpty(keySet)) {
+                List<ObjectId> ObjectIds = keySet.stream().map(MongoUtils::toObjectId).collect(Collectors.toList());
+                Criteria criteria = Criteria.where("_id").in(ObjectIds);
+                Query query = new Query(criteria);
+                query.fields().exclude("histories");
+                List<MetadataInstancesDto> metadataInstancesDtos = findAllDto(query, userDetail);
+                metaMap = metadataInstancesDtos.stream().collect(Collectors.toMap(m -> m.getId().toHexString(), m -> m));
+
+            }
             for (Map.Entry<String, MetadataInstancesDto> entry : updateMetaMap.entrySet()) {
                 MetadataInstancesDto value = entry.getValue();
-                List<MetadataInstancesDto> histories = value.getHistories();
 
 
                 value.setHistories(null);
+                value.setSource(null);
                 MetadataInstancesEntity entity = convertToEntity(MetadataInstancesEntity.class, value);
                 Update update = repository.buildUpdateSet(entity, userDetail);
 
-                if (CollectionUtils.isNotEmpty(histories)) {
-                    if (saveHistory) {
-                        //保存历史，用于自动ddl
-                        MetadataInstancesDto metadataInstancesDto = histories.get(0);
+                if (saveHistory) {
+                    //保存历史，用于自动ddl
+                    MetadataInstancesDto metadataInstancesDto = metaMap.get(entry.getKey());
+                    if (metadataInstancesDto != null) {
                         metadataInstancesDto.setFields(value.getFields());
                         metadataInstancesDto.setIndexes(value.getIndexes());
                         metadataInstancesDto.setDeleted(false);
@@ -857,11 +869,8 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
                         metadataInstancesDto.setHistories(null);
                         insertMetaDataDtos.add(metadataInstancesDto);
                     }
-
-                    Document basicDBObject = new Document("$each", histories);
-                    basicDBObject.append("$slice", -5);
-                    update.push("histories", basicDBObject);
                 }
+
                 Query where = Query.query(Criteria.where("_id").is(entry.getKey()));
 
                 bulkOperations.updateOne(where, update);
