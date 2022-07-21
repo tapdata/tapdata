@@ -1,5 +1,6 @@
 package io.tapdata.pdk.core.api;
 
+import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.pdk.apis.TapConnector;
 import io.tapdata.pdk.apis.TapConnectorNode;
@@ -7,6 +8,7 @@ import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.entity.ConnectionOptions;
 import io.tapdata.pdk.apis.entity.TestItem;
 import io.tapdata.pdk.apis.functions.ConnectionFunctions;
+import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 
 import java.util.List;
 import java.util.function.Consumer;
@@ -48,6 +50,10 @@ public class ConnectionNode extends Node {
 
     public void init(TapConnector tapNode) {
         connector = tapNode;
-        connectionFunctions = new ConnectionFunctions<>();
+        connectionFunctions = new ConnectorFunctions();
+    }
+
+    public void registerCapabilities() {
+        connector.registerCapabilities((ConnectorFunctions) connectionFunctions, new TapCodecsRegistry());
     }
 }
