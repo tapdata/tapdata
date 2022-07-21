@@ -1,4 +1,4 @@
-package io.tapdata.observable;
+package io.tapdata.test.run;
 
 import com.tapdata.constant.BeanUtil;
 import com.tapdata.entity.TapdataEvent;
@@ -6,6 +6,7 @@ import com.tapdata.entity.task.context.ProcessorBaseContext;
 import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.tm.commons.dag.Element;
 import com.tapdata.tm.commons.dag.Node;
+import io.tapdata.aspect.ProcessorFunctionAspect;
 import io.tapdata.aspect.ProcessorNodeProcessAspect;
 import io.tapdata.aspect.task.AspectTask;
 import io.tapdata.aspect.task.AspectTaskSession;
@@ -18,7 +19,7 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
-@AspectTaskSession
+@AspectTaskSession(includeTypes = "testRun")
 public class TestRunAspectTask extends AspectTask {
 
   private final ClassHandlers observerClassHandlers = new ClassHandlers();
@@ -35,19 +36,26 @@ public class TestRunAspectTask extends AspectTask {
             .map(Element::getId).collect(Collectors.toSet()));
   }
 
-  private Void processorNodeProcessAspect(ProcessorNodeProcessAspect t) {
-    ProcessorBaseContext processorBaseContext = t.getProcessorBaseContext();
-
+  private Void processorNodeProcessAspect(ProcessorNodeProcessAspect processAspect) {
+    ProcessorBaseContext processorBaseContext = processAspect.getProcessorBaseContext();
     String nodeId = processorBaseContext.getNode().getId();
-    if (nodeIds.contains(nodeId)) {
-      TapdataEvent inputEvent = t.getInputEvent();
-      TapdataEvent outputEvent = t.getOutputEvent();
-      /**
-       * {"before":[{}], "after":[{}]}
-       */
-      resultMap.computeIfAbsent("before", key -> new ArrayList<>()).add(getMap(inputEvent));
-      resultMap.computeIfAbsent("after", key -> new ArrayList<>()).add(getMap(outputEvent));
+    switch (processAspect.getState()) {
+      case ProcessorNodeProcessAspect.STATE_START:
+        if (nodeIds.contains(nodeId)) {
+          TapdataEvent inputEvent = processAspect.getInputEvent();
+          /**
+           * {"before":[{}], "after":[{}]}
+           */
+          resultMap.computeIfAbsent("before", key -> new ArrayList<>()).add(getMap(inputEvent));
+          processAspect.consumer(outputEvent ->
+                  resultMap.computeIfAbsent("after", key -> new ArrayList<>()).add(getMap(outputEvent)));
+        }
+        break;
+        case ProcessorFunctionAspect.STATE_END:
+          break;
     }
+
+
     return null;
   }
 
