@@ -9,7 +9,7 @@ while [[ 1 ]]; do
     fi
     sleep 1
 done
-mongo --quiet --eval "rs.initiate()"
+mongo --quiet --eval 'rs.initiate({"_id":"rs0","members":[{"_id":0,"host":"127.0.0.1:27017"}]})'
 
 while [[ 1 ]]; do
     mongo --quiet --eval "rs.status()"|grep PRIMARY &> /dev/null

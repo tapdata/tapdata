@@ -34,5 +34,5 @@ fi
 
 docker exec -it $dev_container_name bash -c "cd /tapdata-source/tapshell && bash register-all-connectors.sh"
 cd $basepath/../
-info "tapdata all in one env started, you can use `bash bin/tapshell.sh` go into terminal env now..."
+info "tapdata all in one env started, you can run bash bin/tapshell.sh go into terminal env now..."
 bash bin/tapshell.sh
