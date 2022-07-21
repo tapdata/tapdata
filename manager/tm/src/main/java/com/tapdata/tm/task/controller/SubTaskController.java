@@ -2,6 +2,7 @@ package com.tapdata.tm.task.controller;
 
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.*;
+import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.commons.task.dto.SubTaskDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.message.constant.Level;
@@ -502,8 +503,12 @@ public class SubTaskController extends BaseController {
 
 
     @GetMapping("history")
-    public ResponseMessage<SubTaskDto> queryHistory(@RequestParam("where") String whereJson) {
-        Where where = parseWhere(whereJson);
+    public ResponseMessage<SubTaskDto> queryHistory(@RequestParam("filter") String filterJson) {
+        Filter filter = parseFilter(filterJson);
+        Where where = filter.getWhere();
+        if (where == null) {
+            throw new BizException("SystemError");
+        }
         String id = (String) where.get("id");
         long time = (long) where.get("time");
         SubTaskDto subTaskDto  = subTaskService.findByVersionTime(id, time);
