@@ -502,7 +502,10 @@ public class SubTaskController extends BaseController {
 
 
     @GetMapping("history")
-    public ResponseMessage<SubTaskDto> queryHistory(@RequestParam("id") String id, @RequestParam("time") Long time) {
+    public ResponseMessage<SubTaskDto> queryHistory(@RequestParam("where") String whereJson) {
+        Where where = parseWhere(whereJson);
+        String id = (String) where.get("id");
+        long time = (long) where.get("time");
         SubTaskDto subTaskDto  = subTaskService.findByVersionTime(id, time);
         return success(subTaskDto);
     }
