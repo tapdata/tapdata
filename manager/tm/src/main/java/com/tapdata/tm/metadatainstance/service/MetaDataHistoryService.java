@@ -2,6 +2,7 @@ package com.tapdata.tm.metadatainstance.service;
 
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.commons.task.dto.SubTaskDto;
+import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.task.service.SubTaskService;
 import com.tapdata.tm.utils.MongoUtils;
 import com.tapdata.tm.utils.SpringContextHelper;
@@ -26,8 +27,8 @@ public class MetaDataHistoryService {
 
     @Autowired
     private MongoTemplate mongoTemplate;
-    //@Autowired
-    //private SubTaskService subTaskService;
+    @Autowired
+    private MetadataInstancesService metadataInstancesService;
     public void saveHistory(MetadataInstancesDto metadataInstancesDto) {
         metadataInstancesDto.setId(null);
         metadataInstancesDto.setHistories(null);
@@ -63,12 +64,17 @@ public class MetaDataHistoryService {
      * @param time 最近时间戳
      * @return
      */
-    public MetadataInstancesDto findByVersionTime(String qualifiedName, Long time) {
+    public MetadataInstancesDto findByVersionTime(String qualifiedName, Long time, UserDetail user) {
         Criteria criteria = Criteria.where("qualifiedName").is(qualifiedName);
         criteria.and("tmCurrentTime").is(time);
 
         Query query = new Query(criteria);
-        return mongoTemplate.findOne(query, MetadataInstancesDto.class, "MetaDataHistory");
+        MetadataInstancesDto metaDataHistory = mongoTemplate.findOne(query, MetadataInstancesDto.class, "MetaDataHistory");
+        if (metaDataHistory != null) {
+            return metaDataHistory;
+        }
+
+        return metadataInstancesService.findByQualifiedNameNotDelete(qualifiedName, user);
     }
 
 

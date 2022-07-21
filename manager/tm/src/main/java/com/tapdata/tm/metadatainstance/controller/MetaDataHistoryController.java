@@ -28,7 +28,7 @@ public class MetaDataHistoryController extends BaseController {
      */
     @GetMapping()
     public ResponseMessage<?> findByVersionTime(@RequestParam("qualifiedName") String qualifiedName, @RequestParam("time") Long time) {
-        MetadataInstancesDto metadataInstancesDto = metaDataHistoryService.findByVersionTime(qualifiedName, time);
+        MetadataInstancesDto metadataInstancesDto = metaDataHistoryService.findByVersionTime(qualifiedName, time, getLoginUser());
         return success(metadataInstancesDto);
     }
 }
