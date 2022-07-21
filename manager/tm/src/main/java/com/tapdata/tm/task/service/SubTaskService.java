@@ -230,7 +230,7 @@ public class SubTaskService extends BaseService<SubTaskDto, SubTaskEntity, Objec
 
         Update set = Update.update("agentId", null).set("agentTags", null).set("scheduleTimes", null)
                 .set("scheduleTime", null)
-                .unset("milestones").set("messages", null).set("status", SubTaskDto.STATUS_EDIT);
+                .unset("milestones").unset("tmCurrentTime").set("messages", null).set("status", SubTaskDto.STATUS_EDIT);
 
 
         if (subTaskDto.getAttrs() != null) {
@@ -1931,7 +1931,7 @@ public class SubTaskService extends BaseService<SubTaskDto, SubTaskEntity, Objec
         taskHistory.setId(ObjectId.get());
 
         //保存子任务历史
-        repository.getMongoOperations().insert(taskHistory, "TaskHistories");
+        repository.getMongoOperations().insert(taskHistory, "DDlTaskHistories");
 
         //同步保存到任务。
         Field field = new Field();
@@ -1953,13 +1953,13 @@ public class SubTaskService extends BaseService<SubTaskDto, SubTaskEntity, Objec
         taskService.updateDag(taskDto, user);
     }
 
-    public SubTaskDto findByVersionTime(String id, Long time, Boolean order) {
+    public SubTaskDto findByVersionTime(String id, Long time) {
         Criteria criteria = Criteria.where("taskId").is(id);
         criteria.and("tmCurrentTime").is(time);
 
         Query query = new Query(criteria);
 
-        return repository.getMongoOperations().findOne(query, TaskHistory.class, "TaskHistories");
+        return repository.getMongoOperations().findOne(query, TaskHistory.class, "DDlTaskHistories");
     }
 
     /**
@@ -1972,7 +1972,7 @@ public class SubTaskService extends BaseService<SubTaskDto, SubTaskEntity, Objec
         criteria.and("tmCurrentTime").gt(time);
 
         Query query = new Query(criteria);
-        repository.getMongoOperations().remove(query, "TaskHistories");
+        repository.getMongoOperations().remove(query, "DDlTaskHistories");
 
         //清理模型
         //MetaDataHistoryService historyService = SpringContextHelper.getBean(MetaDataHistoryService.class);
