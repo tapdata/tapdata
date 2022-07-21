@@ -83,7 +83,7 @@ public class TaskNodeServiceImpl implements TaskNodeService {
 
         currentTableList = ListUtils.partition(tableNames, pageSize).get(page - 1);
 
-        List<Node> predecessors = dag.getPreNodes(nodeId);
+        List<Node<?>> predecessors = dag.nodeMap().get(nodeId);
         Node currentNode = dag.getNode(nodeId);
         if (CollectionUtils.isEmpty(predecessors)) {
             predecessors = Lists.newArrayList();

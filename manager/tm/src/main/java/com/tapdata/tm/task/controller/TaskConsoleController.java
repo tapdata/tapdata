@@ -14,15 +14,15 @@ import org.springframework.web.bind.annotation.*;
 
 @Tag(name = "复制dag信息输出")
 @RestController
-@RequestMapping("/api/task-output")
+@RequestMapping("/api/task/console")
 @Setter(onMethod_ = {@Autowired})
-public class TaskDagCheckController extends BaseController {
+public class TaskConsoleController extends BaseController {
 
     private TaskDagCheckLogService taskDagCheckLogService;
 
-    @GetMapping("/log")
+    @GetMapping("")
     @Operation(summary = "信息输出日志接口")
-    public ResponseMessage<TaskDagCheckLogVo> getLog(
+    public ResponseMessage<TaskDagCheckLogVo> console(
             @Parameter(description = "任务id", required = true) @RequestParam String taskId,
             @Parameter(description = "节点id，默认空，查全部节点日志") @RequestParam String nodeId,
             @Parameter(description = "搜索关键字") @RequestParam String keyword,

@@ -603,7 +603,7 @@ public class DAG implements Serializable, Cloneable {
         return graph.getEdges().stream().map(graph::getEdge).collect(Collectors.toCollection(LinkedList::new));
     }
 
-    public Node getNode(String nodeId) {
+    public Node<?> getNode(String nodeId) {
         return graph.getNode(nodeId);
     }
 
@@ -612,7 +612,7 @@ public class DAG implements Serializable, Cloneable {
      * @param nodeId
      * @return
      */
-    public LinkedList<Node> getPreNodes(String nodeId) {
+    public LinkedList<Node<?>> getPreNodes(String nodeId) {
         return nodeMap().get(nodeId);
     }
 
@@ -620,8 +620,8 @@ public class DAG implements Serializable, Cloneable {
      * get nodeMap only migrate task use
      * @return
      */
-    public Map<String, LinkedList<Node>> nodeMap() {
-        Map<String, LinkedList<Node>> nodeMap = Maps.newHashMap();
+    public Map<String, LinkedList<Node<?>>> nodeMap() {
+        Map<String, LinkedList<Node<?>>> nodeMap = Maps.newHashMap();
 
         Collection<io.github.openlg.graphlib.Edge> edges = graph.getEdges();
 
@@ -648,18 +648,55 @@ public class DAG implements Serializable, Cloneable {
             String target = edge.getTarget();
 
             if (!nodeMap.containsKey(target)) {
-                Node sourceNode = this.getNode(source);
-                LinkedList<Node> pre = nodeMap.get(source);
+                Node<?> sourceNode = this.getNode(source);
+                LinkedList<Node<?>> pre = nodeMap.get(source);
                 if (Objects.nonNull(pre)) {
-                    ImmutableList<Node> copyList = ImmutableList.copyOf(pre);
-                    nodeMap.put(target, new LinkedList<Node>(){{addAll(copyList);add(sourceNode);}});
+                    ImmutableList<Node<?>> copyList = ImmutableList.copyOf(pre);
+                    nodeMap.put(target, new LinkedList<Node<?>>(){{addAll(copyList);add(sourceNode);}});
                 } else {
-                    nodeMap.put(target, new LinkedList<Node>(){{add(sourceNode);}});
+                    nodeMap.put(target, new LinkedList<Node<?>>(){{add(sourceNode);}});
                 }
             }
         });
 
         return nodeMap;
+    }
+
+    public Map<String, LinkedList<Edge>> edgeMap() {
+        Map<String, LinkedList<Edge>> edgeMap = Maps.newHashMap();
+
+        Collection<io.github.openlg.graphlib.Edge> edges = graph.getEdges();
+
+        // inspect edges order
+        List<String> sourceList = edges.stream().map(io.github.openlg.graphlib.Edge::getSource).collect(Collectors.toList());
+        List<String> targetList = edges.stream().map(io.github.openlg.graphlib.Edge::getTarget).collect(Collectors.toList());
+
+        List<String> firstSourceList = sourceList.stream().filter(s -> !targetList.contains(s)).collect(Collectors.toList());
+        if (firstSourceList.size() != NumberUtils.INTEGER_ONE) {
+            return edgeMap;
+        }
+        // get order correct edge
+        LinkedList<io.github.openlg.graphlib.Edge> edgeLinkedList = Lists.newLinkedList();
+        Map<String, io.github.openlg.graphlib.Edge> sourceMap = edges.stream().collect(Collectors.toMap(io.github.openlg.graphlib.Edge::getSource, Function.identity()));
+        String temp = firstSourceList.get(0);
+        for (int i = 0; i < edges.size(); i++) {
+            io.github.openlg.graphlib.Edge edge = sourceMap.get(temp);
+            edgeLinkedList.add(edge);
+            temp = edge.getTarget();
+        }
+
+        edgeLinkedList.forEach(edge -> {
+            String source = edge.getSource();
+            String target = edge.getTarget();
+
+            if (edgeMap.containsKey(source)) {
+                edgeMap.put(target, new LinkedList<Edge>(){{addAll(edgeMap.get(source));add(new Edge(edge.getSource(), edge.getTarget()));}});
+            } else {
+                edgeMap.put(target, new LinkedList<Edge>(){{add(new Edge(edge.getSource(), edge.getTarget()));}});
+            }
+        });
+
+        return edgeMap;
     }
 
 
