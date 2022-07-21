@@ -1,4 +1,4 @@
-package io.tapdata.flow.engine.V2.node.pdk;
+package io.tapdata.node.pdk;
 
 import io.tapdata.pdk.core.api.ConnectorNode;
 import org.apache.commons.lang3.StringUtils;
