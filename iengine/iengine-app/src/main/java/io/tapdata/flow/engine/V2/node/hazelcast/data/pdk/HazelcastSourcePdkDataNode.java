@@ -144,8 +144,8 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 													if (CollectionUtil.isNotEmpty(tapdataEvents)) {
 														tapdataEvents.forEach(this::enqueue);
 
-														if(batchReadFuncAspect != null)
-															executeAspect(batchReadFuncAspect.events(tapdataEvents).state(BatchReadFuncAspect.STATE_ACCEPT).acceptTime(System.currentTimeMillis()));
+														if(batchReadFuncAspect != null && batchReadFuncAspect.getConsumer() != null)
+															batchReadFuncAspect.getConsumer().accept(tapdataEvents);
 
 														resetOutputCounter.inc(tapdataEvents.size());
 														outputCounter.inc(tapdataEvents.size());
@@ -251,8 +251,8 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 												resetOutputCounter.inc(tapdataEvents.size());
 												outputCounter.inc(tapdataEvents.size());
 												outputQPS.add(tapdataEvents.size());
-												if(streamReadFuncAspect != null)
-													executeAspect(streamReadFuncAspect.events(tapdataEvents).state(StreamReadFuncAspect.STATE_ACCEPT).acceptTime(System.currentTimeMillis()));
+												if(streamReadFuncAspect != null && streamReadFuncAspect.getConsumer() != null)
+													streamReadFuncAspect.getConsumer().accept(tapdataEvents);
 											}
 										}
 									}).stateListener((oldState, newState) -> {

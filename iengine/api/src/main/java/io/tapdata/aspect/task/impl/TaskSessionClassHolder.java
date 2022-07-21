@@ -2,6 +2,7 @@ package io.tapdata.aspect.task.impl;
 
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.tm.commons.task.dto.SubTaskDto;
+import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.aspect.DataNodeAspect;
 import io.tapdata.aspect.task.AspectTask;
 import io.tapdata.entity.aspect.*;
@@ -32,6 +33,17 @@ public class TaskSessionClassHolder implements Comparable<TaskSessionClassHolder
 		return this;
 	}
 
+	private List<String> includeTypes;
+	public TaskSessionClassHolder includeTypes(List<String> includeTypes) {
+		this.includeTypes = includeTypes;
+		return this;
+	}
+
+	private List<String> excludeTypes;
+	public TaskSessionClassHolder excludeTypes(List<String> excludeTypes) {
+		this.excludeTypes = excludeTypes;
+		return this;
+	}
 	private int order;
 
 	public TaskSessionClassHolder order(int order) {
@@ -110,7 +122,7 @@ public class TaskSessionClassHolder implements Comparable<TaskSessionClassHolder
 		});
 		if (newRef.get() != null && theAspectTask.equals(newRef.get())) {
 			//new created AspectTask
-			final int order = 10000;
+//			final int order = 10000;
 			List<Class<? extends Aspect>> observerClasses = theAspectTask.aspectTask.observeAspects();
 			AspectManager aspectManager = InstanceFactory.instance(AspectManager.class);
 			if (observerClasses != null && !observerClasses.isEmpty()) {
@@ -178,6 +190,21 @@ public class TaskSessionClassHolder implements Comparable<TaskSessionClassHolder
 				}
 			}
 		}
+	}
+
+	public boolean isTaskSupported(SubTaskDto task) {
+		TaskDto taskDto = task.getParentTask();
+		if(taskDto != null && taskDto.getSyncType() != null) {
+			String syncType = taskDto.getSyncType();
+			if(excludeTypes != null && excludeTypes.contains(syncType)) {
+				return false;
+			}
+			if(includeTypes != null && !includeTypes.isEmpty() && !includeTypes.contains(syncType)) {
+				return false;
+			}
+			return true;
+		}
+		return false;
 	}
 
 	class AspectTaskEx {

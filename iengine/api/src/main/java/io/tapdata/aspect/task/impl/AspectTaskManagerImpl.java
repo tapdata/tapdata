@@ -46,7 +46,8 @@ public class AspectTaskManagerImpl implements AspectTaskManager {
 						Collection<TaskSessionClassHolder> classHolders = taskSessionMap.get("default");
 						if (classHolders != null) {
 							for (TaskSessionClassHolder classHolder : classHolders) {
-								classHolder.ensureTaskSessionCreated(task);
+								if(classHolder.isTaskSupported(task))
+									classHolder.ensureTaskSessionCreated(task);
 							}
 						}
 					});

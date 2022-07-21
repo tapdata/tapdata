@@ -13,9 +13,6 @@ import io.tapdata.entity.simplify.TapSimplify;
 
 import java.sql.Timestamp;
 import java.time.Instant;
-import java.time.LocalDate;
-import java.time.LocalTime;
-import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
@@ -31,12 +28,8 @@ import java.util.regex.Pattern;
  */
 public class TapEventBuilder {
 
-    private static final char[] CHAR_64 = new char[]{
-            '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'
-            , 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z'
-            , 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z'
-            , '_', '-'
-    };
+    private static final char[] RANDOM_CHARS = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ".toCharArray();
+    private static final int RANDOM_CHARS_LENGTH = RANDOM_CHARS.length;
 
     private final AtomicLong eventIndex = new AtomicLong(0);
     private AtomicLong serial;
@@ -114,58 +107,53 @@ public class TapEventBuilder {
      * @return TapEvent
      */
     private Object generateEventValue(TapField field, RecordOperators op) {
-        Object def = field.getDefaultValue();
-        if (def instanceof String) {
-            Matcher m = Pattern.compile("^([^(]+)\\(([^)]*)\\)$").matcher((String) def);
-            if (m.find()) {
-                String fn = m.group(1);
-                String params = m.group(2);
+        Matcher m = Pattern.compile("^([^(]+)(\\(([^)]*)\\))?$").matcher(field.getDataType());
+        if (m.find()) {
+            String fn = m.group(1);
+            String params = m.group(2);
 
-                switch (fn.toLowerCase()) {
-                    case "serial":
-                        if (RecordOperators.Insert == op) {
-                            if (null == serial) {
-                                try {
-                                    String[] splitStr = params.split(",");
-                                    serial = new AtomicLong(Integer.parseInt(splitStr[0]));
-                                    serialStep = Math.max(Integer.parseInt(splitStr[1]), 1);
-                                } catch (Throwable e) {
-                                    serial = new AtomicLong(1);
-                                    serialStep = 1;
-                                }
+            switch (fn.toLowerCase()) {
+                case "serial":
+                    if (RecordOperators.Insert == op) {
+                        if (null == serial) {
+                            try {
+                                String[] splitStr = params.split(",");
+                                serial = new AtomicLong(Integer.parseInt(splitStr[0]));
+                                serialStep = Math.max(Integer.parseInt(splitStr[1]), 1);
+                            } catch (Throwable e) {
+                                serial = new AtomicLong(1);
+                                serialStep = 1;
                             }
-                            return serial.getAndAdd(serialStep);
-                        } else {
-                            return (int) (Math.random() * serial.get()) - serial.get() % serialStep;
                         }
-                    case "now":
-                        switch (field.getDataType().split("\\(")[0]) {
-                            case "datetime":
-                                return new Date();
-                            case "date":
-                                return LocalDate.now();
-                            case "time":
-                                return LocalTime.now();
-                            case "timestamp":
-                                return Timestamp.from(Instant.now());
-                            default:
-                                return System.currentTimeMillis();
+                        return serial.getAndAdd(serialStep);
+                    } else {
+                        return (int) (Math.random() * serial.get()) - serial.get() % serialStep;
+                    }
+                case "now":
+                    return Timestamp.from(Instant.now());
+                case "rnumber":
+                    try {
+                        if (null != params) {
+                            return Math.random() * Long.parseLong(params);
                         }
-                    case "rlong":
-                        return Math.random() * Long.parseLong(params);
-                    case "rstring":
-                        return randomString(Integer.parseInt(params));
-                    case "cuid":
-                    case "uuid":
-                        return UUID.randomUUID().toString();
-                    default:
-                        break;
-                }
-
+                    } catch (NumberFormatException ignore) {
+                    }
+                    return Math.random() * 4;
+                case "rstring":
+                    try {
+                        if (null != params) {
+                            return randomString(Integer.parseInt(params));
+                        }
+                    } catch (NumberFormatException ignore) {
+                    }
+                    return randomString(8);
+                case "uuid":
+                    return UUID.randomUUID().toString();
+                default:
+                    break;
             }
-            return def;
         }
-        return def;
+        return field.getDefaultValue();
     }
 
     /**
@@ -177,7 +165,7 @@ public class TapEventBuilder {
     private String randomString(int length) {
         StringBuilder buf = new StringBuilder();
         for (int i = length; i > 0; i--) {
-            buf.append(CHAR_64[(int) (Math.random() * 64)]);
+            buf.append(RANDOM_CHARS[(int) (Math.random() * RANDOM_CHARS_LENGTH)]);
         }
         return buf.toString();
     }

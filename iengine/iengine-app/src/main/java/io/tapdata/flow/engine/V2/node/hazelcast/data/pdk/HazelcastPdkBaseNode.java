@@ -85,6 +85,7 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 						connectorCapabilities
 				)
 		);
+		processorBaseContext.setPdkAssociateId(this.associateId);
 	}
 
 	private void initDmlPolicy(Node<?> node, ConnectorCapabilities connectorCapabilities) {
