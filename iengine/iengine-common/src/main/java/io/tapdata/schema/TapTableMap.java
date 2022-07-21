@@ -68,9 +68,9 @@ public class TapTableMap<K extends String, V extends TapTable> extends HashMap<K
 		if (StringUtils.isBlank(nodeId)) {
 			throw new RuntimeException("Missing node id");
 		}
-		if (MapUtils.isEmpty(tableNameAndQualifiedNameMap)) {
-			throw new RuntimeException("Missing table name and qualified name map");
-		}
+//		if (MapUtils.isEmpty(tableNameAndQualifiedNameMap)) {
+//			throw new RuntimeException("Missing table name and qualified name map");
+//		}
 		this.mapKey = TAP_TABLE_PREFIX + nodeId;
 		EhcacheKVMap<TapTable> tapTableMap = EhcacheKVMap.create(mapKey, TapTable.class)
 				.cachePath(DIST_CACHE_PATH)

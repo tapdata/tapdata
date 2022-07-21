@@ -88,6 +88,8 @@ public class DDLSchemaHandler {
 			return null;
 		}
 		tapField.setName(after);
+		nameFieldMap.remove(before);
+		nameFieldMap.put(after, tapField);
 		return null;
 	}
 

@@ -32,7 +32,7 @@ public class CommonSqlMaker {
      * @param tapTable Table Object
      * @return substring of SQL
      */
-    public static String buildColumnDefinition(TapTable tapTable) {
+    public static String buildColumnDefinition(TapTable tapTable, boolean needComment) {
         LinkedHashMap<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
         return nameFieldMap.entrySet().stream().sorted(Comparator.comparing(v ->
                 EmptyKit.isNull(v.getValue().getPos()) ? 99999 : v.getValue().getPos())).map(v -> { //pos may be null
@@ -55,6 +55,11 @@ public class CommonSqlMaker {
                 } else {
                     builder.append("'").append(tapField.getDefaultValue()).append("' ");
                 }
+            }
+            if (needComment && EmptyKit.isNotBlank(tapField.getComment())) {
+                String comment = tapField.getComment();
+                comment = comment.replace("'", "\\'");
+                builder.append("comment '").append(comment).append("' ");
             }
             return builder.toString();
         }).collect(Collectors.joining(", "));
