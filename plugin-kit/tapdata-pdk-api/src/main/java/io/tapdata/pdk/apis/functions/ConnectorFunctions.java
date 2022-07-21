@@ -12,6 +12,8 @@ import io.tapdata.pdk.apis.functions.connector.target.*;
 
 import java.lang.reflect.Field;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.function.Consumer;
 
@@ -72,9 +74,14 @@ public class ConnectorFunctions extends ConnectionFunctions<ConnectorFunctions> 
     }
 
     public List<Capability> getCapabilities() {
-        Field[] fields = ConnectorFunctions.class.getDeclaredFields();
+        Field[] connectorFields = ConnectorFunctions.class.getDeclaredFields();
+        Field[] connectionFields = ConnectionFunctions.class.getDeclaredFields();
+
+        List<Field> allFields = new ArrayList<>();
+        allFields.addAll(Arrays.asList(connectorFields));
+        allFields.addAll(Arrays.asList(connectionFields));
         List<Capability> fieldArray = new ArrayList<>();
-        for(Field field : fields) {
+        for(Field field : allFields) {
             try {
                 Object value = field.get(this);
                 if(value instanceof TapFunction) {
