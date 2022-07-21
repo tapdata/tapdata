@@ -17,7 +17,7 @@ import io.tapdata.entity.schema.TapTable;
 import io.tapdata.flow.engine.V2.entity.PdkStateMap;
 import io.tapdata.flow.engine.V2.monitor.MonitorManager;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.HazelcastDataBaseNode;
-import io.tapdata.flow.engine.V2.node.pdk.ConnectorNodeService;
+import io.tapdata.node.pdk.ConnectorNodeService;
 import io.tapdata.flow.engine.V2.util.PdkUtil;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
 import io.tapdata.pdk.apis.entity.ConnectionOptions;
