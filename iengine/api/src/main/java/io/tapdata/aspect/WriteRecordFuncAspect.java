@@ -1,22 +1,26 @@
 package io.tapdata.aspect;
 
 import io.tapdata.entity.event.dml.TapRecordEvent;
+import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.entity.WriteListResult;
+import org.apache.commons.lang3.exception.ExceptionUtils;
 
 import java.util.List;
+import java.util.function.Consumer;
 
 public class WriteRecordFuncAspect extends DataFunctionAspect<WriteRecordFuncAspect> {
-	private WriteListResult<TapRecordEvent> writeListResult;
-	public WriteRecordFuncAspect writeListResult(WriteListResult<TapRecordEvent> writeListResult) {
-		this.writeListResult = writeListResult;
-		return this;
-	}
-	public static final int STATE_WRITE_RESULT = 10;
-	private Long writeResultTime;
-	public WriteRecordFuncAspect writeResultTime(Long writeResultTime) {
-		this.writeResultTime = writeResultTime;
+	private static final String TAG = WriteRecordFuncAspect.class.getSimpleName();
+	private Consumer<WriteListResult<TapRecordEvent>> consumer;
+	public WriteRecordFuncAspect consumer(Consumer<WriteListResult<TapRecordEvent>> resultConsumer) {
+		this.consumer = writeListResult -> {
+			try {
+				resultConsumer.accept(writeListResult);
+			} catch(Throwable throwable) {
+				TapLogger.warn(TAG, "Consume writeListResult {} for recordEvents size {} table {} failed on consumer {}, {}", writeListResult, recordEvents != null ? recordEvents.size() : 0, table, resultConsumer, ExceptionUtils.getStackTrace(throwable));
+			}
+		};
 		return this;
 	}
 	private List<TapRecordEvent> recordEvents;
@@ -60,19 +64,11 @@ public class WriteRecordFuncAspect extends DataFunctionAspect<WriteRecordFuncAsp
 		this.table = table;
 	}
 
-	public WriteListResult<TapRecordEvent> getWriteListResult() {
-		return writeListResult;
+	public Consumer<WriteListResult<TapRecordEvent>> getConsumer() {
+		return consumer;
 	}
 
-	public void setWriteListResult(WriteListResult<TapRecordEvent> writeListResult) {
-		this.writeListResult = writeListResult;
-	}
-
-	public Long getWriteResultTime() {
-		return writeResultTime;
-	}
-
-	public void setWriteResultTime(Long writeResultTime) {
-		this.writeResultTime = writeResultTime;
+	public void setConsumer(Consumer<WriteListResult<TapRecordEvent>> consumer) {
+		this.consumer = consumer;
 	}
 }
