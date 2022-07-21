@@ -1,0 +1,60 @@
+{
+  "uid" : "4b4757e66a1912dae1a509f688f20b0f",
+  "children" : [ {
+    "name" : "Product defects",
+    "children" : [ {
+      "name" : "AssertionError: assert False\n +  where False = wait_scheduling(<lib.cli.Pipeline object at 0x7fc1671d62d0>, except_status=('running', 'wait_run'))",
+      "children" : [ {
+        "name" : "real time database migrate between mongodb",
+        "uid" : "3844168a1fe4da7c",
+        "parentUid" : "0d7701779d642acf80bab7b65a4e6720",
+        "status" : "failed",
+        "time" : {
+          "start" : 1658396893852,
+          "stop" : 1658396900620,
+          "duration" : 6768
+        },
+        "flaky" : false,
+        "newFailed" : false,
+        "parameters" : [ ]
+      } ],
+      "uid" : "0d7701779d642acf80bab7b65a4e6720"
+    }, {
+      "name" : "AssertionError: assert False\n +  where False = wait_scheduling(<lib.cli.Pipeline object at 0x7fc167100290>, except_status=('running', 'error'))",
+      "children" : [ {
+        "name" : "test stop job",
+        "uid" : "182530d0869bd5c3",
+        "parentUid" : "b0cfc3fee901bd33b13e958c31ad8b77",
+        "status" : "failed",
+        "time" : {
+          "start" : 1658396921567,
+          "stop" : 1658396928131,
+          "duration" : 6564
+        },
+        "flaky" : false,
+        "newFailed" : false,
+        "parameters" : [ ]
+      } ],
+      "uid" : "b0cfc3fee901bd33b13e958c31ad8b77"
+    }, {
+      "name" : "AssertionError: assert False\n +  where False = wait_scheduling(<lib.cli.Pipeline object at 0x7fc1671d1a10>, except_status=('running',))",
+      "children" : [ {
+        "name" : "test get job status",
+        "uid" : "8d7a50ac3ed8aa5f",
+        "parentUid" : "ac28a6dcae1106557cbd796f1e3e1f76",
+        "status" : "failed",
+        "time" : {
+          "start" : 1658396928151,
+          "stop" : 1658396934595,
+          "duration" : 6444
+        },
+        "flaky" : false,
+        "newFailed" : false,
+        "parameters" : [ ]
+      } ],
+      "uid" : "ac28a6dcae1106557cbd796f1e3e1f76"
+    } ],
+    "uid" : "8fb3a91ba5aaf9de24cc8a92edc82b5d"
+  } ],
+  "name" : "categories"
+}

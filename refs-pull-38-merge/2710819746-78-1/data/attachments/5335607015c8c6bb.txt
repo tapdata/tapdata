@@ -1,0 +1,16 @@
+[1;34mtapdata, [0m2022-07-21 09:48:42: job [1;33mstop_ahgos[0m start failed!                                                                                                    
+[1;34mtapdata, [0m2022-07-21 09:48:42: job [1;32mstop_ahgos[0m status is: [1;32medit[0m                                                                                       
+[1;34mtapdata, [0m2022-07-21 09:48:43: job [1;32mstop_ahgos[0m status is: [1;32medit[0m                                                                                       
+[1;34mtapdata, [0m2022-07-21 09:48:43: the status is edit now, this is 1 times, 5 times remaining                                                                                 
+[1;34mtapdata, [0m2022-07-21 09:48:43: job [1;32mstop_ahgos[0m status is: [1;32medit[0m                                                                                       
+[1;34mtapdata, [0m2022-07-21 09:48:44: job [1;32mstop_ahgos[0m status is: [1;32medit[0m                                                                                       
+[1;34mtapdata, [0m2022-07-21 09:48:44: the status is edit now, this is 2 times, 4 times remaining                                                                                 
+[1;34mtapdata, [0m2022-07-21 09:48:44: job [1;32mstop_ahgos[0m status is: [1;32medit[0m                                                                                       
+[1;34mtapdata, [0m2022-07-21 09:48:45: job [1;32mstop_ahgos[0m status is: [1;32medit[0m                                                                                       
+[1;34mtapdata, [0m2022-07-21 09:48:45: the status is edit now, this is 3 times, 3 times remaining                                                                                 
+[1;34mtapdata, [0m2022-07-21 09:48:45: job [1;32mstop_ahgos[0m status is: [1;32medit[0m                                                                                       
+[1;34mtapdata, [0m2022-07-21 09:48:46: job [1;32mstop_ahgos[0m status is: [1;32medit[0m                                                                                       
+[1;34mtapdata, [0m2022-07-21 09:48:47: the status is edit now, this is 4 times, 2 times remaining                                                                                 
+[1;34mtapdata, [0m2022-07-21 09:48:47: job [1;32mstop_ahgos[0m status is: [1;32medit[0m                                                                                       
+[1;34mtapdata, [0m2022-07-21 09:48:48: job [1;32mstop_ahgos[0m status is: [1;32medit[0m                                                                                       
+[1;34mtapdata, [0m2022-07-21 09:48:48: the status is edit now, this is 5 times, 1 times remaining                                                                                 

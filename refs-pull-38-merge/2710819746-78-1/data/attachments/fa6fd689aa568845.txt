@@ -1,0 +1,5 @@
+[1;34mtapdata, [0m2022-07-21 09:48:30: job [1;32mrename_sync_havzq[0m start running ...                                                                                         
+[1;34mtapdata, [0m2022-07-21 09:48:30: job [1;32mrename_sync_havzq[0m status is: [1;32medit[0m                                                                                
+[1;34mtapdata, [0m2022-07-21 09:48:31: job [1;32mrename_sync_havzq[0m status is: [1;32mrunning[0m                                                                             
+[1;34mtapdata, [0m2022-07-21 09:48:31: the status is running now, this is 1 times, 5 times remaining                                                                              
+[1;34mtapdata, [0m2022-07-21 09:48:31: job [1;32mrename_sync_havzq[0m status is: [1;32mrunning[0m                                                                             

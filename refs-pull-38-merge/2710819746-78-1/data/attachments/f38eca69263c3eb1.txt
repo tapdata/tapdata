@@ -1,0 +1,7 @@
+[1;34mtapdata, [0m2022-07-21 09:48:59: job [1;32mcheck_jobukqvd[0m start running ...                                                                                            
+[1;34mtapdata, [0m2022-07-21 09:48:59: job [1;32mcheck_jobukqvd[0m status is: [1;32medit[0m                                                                                   
+[1;34mtapdata, [0m2022-07-21 09:49:00: job [1;32mcheck_jobukqvd[0m status is: [1;32mrunning[0m                                                                                
+[1;34mtapdata, [0m2022-07-21 09:49:00: the status is running now, this is 1 times, 5 times remaining                                                                              
+[1;34mtapdata, [0m2022-07-21 09:49:00: job [1;32mcheck_jobukqvd[0m status is: [1;32mrunning[0m                                                                                
+[1;34mtapdata, [0m2022-07-21 09:49:00: pipeline not start, no status can show                                                                                                     
+[1;34mtapdata, [0m2022-07-21 09:49:00: [1;33mThe status of this task is not in [running, stop, complete], unable to check data.[0m                                              
