@@ -1959,13 +1959,17 @@ public class SubTaskService extends BaseService<SubTaskDto, SubTaskEntity, Objec
 
         Query query = new Query(criteria);
 
-        TaskHistory dDlTaskHistories = repository.getMongoOperations().findOne(query, TaskHistory.class, "DDlTaskHistories");
+        SubTaskDto dDlTaskHistories = repository.getMongoOperations().findOne(query, TaskHistory.class, "DDlTaskHistories");
 
-        if (dDlTaskHistories != null) {
-            return dDlTaskHistories;
+        if (dDlTaskHistories == null) {
+            dDlTaskHistories = findById(MongoUtils.toObjectId(id));
+        } else {
+            dDlTaskHistories.setId(MongoUtils.toObjectId(id));
         }
 
-        return findById(MongoUtils.toObjectId(id));
+        TaskDto taskDto = taskService.findById(dDlTaskHistories.getParentId());
+        dDlTaskHistories.setParentTask(taskDto);
+        return dDlTaskHistories;
     }
 
     /**
