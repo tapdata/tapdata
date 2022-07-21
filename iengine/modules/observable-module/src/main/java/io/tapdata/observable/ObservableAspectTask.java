@@ -1,6 +1,7 @@
 package io.tapdata.observable;
 
 import com.tapdata.entity.TapdataEvent;
+import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.aspect.BatchReadFuncAspect;
 import io.tapdata.aspect.StreamReadFuncAspect;
 import io.tapdata.aspect.task.AspectTask;
@@ -13,8 +14,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.function.Consumer;
 
-//@AspectTaskSession(excludeTypes = {"trial", "abc"}, includeTypes = {"migrate"})
-@AspectTaskSession
+@AspectTaskSession(includeTypes = {TaskDto.SYNC_TYPE_MIGRATE, TaskDto.SYNC_TYPE_SYNC})
 public class ObservableAspectTask extends AspectTask {
 	private final ClassHandlers observerClassHandlers = new ClassHandlers();
 	@Override
