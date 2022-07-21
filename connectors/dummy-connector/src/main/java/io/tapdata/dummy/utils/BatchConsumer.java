@@ -22,9 +22,8 @@ public class BatchConsumer<T> implements IBatchConsumer<T> {
 
     @Override
     public void accept(T t) {
-        if (dataLists.size() < batchSize) {
-            dataLists.add(t);
-        } else {
+        dataLists.add(t);
+        if (dataLists.size() >= batchSize) {
             flush();
         }
     }
