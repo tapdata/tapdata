@@ -75,7 +75,12 @@ public class HazelcastSampleSourcePdkDataNode extends HazelcastSourcePdkDataNode
           logger.debug("get sample data, cache [{}], cost {}ms", isCache, (System.currentTimeMillis() - startTs));
         }
 
-        List<TapdataEvent> tapdataEvents = wrapTapdataEvent(tapEventList);
+        List<TapEvent> cloneList = new ArrayList<>();
+        for (TapEvent tapEvent : tapEventList) {
+          cloneList.add((TapEvent) tapEvent.clone());
+        }
+
+        List<TapdataEvent> tapdataEvents = wrapTapdataEvent(cloneList);
         if (CollectionUtil.isNotEmpty(tapdataEvents)) {
           tapdataEvents.forEach(this::enqueue);
         }
