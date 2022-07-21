@@ -10,18 +10,18 @@ import java.math.BigInteger;
 
 public class BigIntegerCodec implements Codec<BigInteger> {
 
-  @Override
-  public BigInteger decode(BsonReader reader, DecoderContext decoderContext) {
-    return new BigInteger(reader.readString());
-  }
+	@Override
+	public BigInteger decode(BsonReader reader, DecoderContext decoderContext) {
+		return new BigInteger(reader.readString());
+	}
 
-  @Override
-  public void encode(BsonWriter writer, BigInteger value, EncoderContext encoderContext) {
-    writer.writeString(value.toString());
-  }
+	@Override
+	public void encode(BsonWriter writer, BigInteger value, EncoderContext encoderContext) {
+		writer.writeString(value.toString());
+	}
 
-  @Override
-  public Class<BigInteger> getEncoderClass() {
-    return BigInteger.class;
-  }
+	@Override
+	public Class<BigInteger> getEncoderClass() {
+		return BigInteger.class;
+	}
 }

@@ -17,22 +17,22 @@ package com.tapdata.processor.dataflow.aggregation;
 
 
 public enum WindowType {
-  ROLLING("Rolling"),
-  SLIDING("Sliding"),
-  ;
+	ROLLING("Rolling"),
+	SLIDING("Sliding"),
+	;
 
-  private final String label;
+	private final String label;
 
-  WindowType(String label) {
-    this.label = label;
-  }
+	WindowType(String label) {
+		this.label = label;
+	}
 
-  public String getLabel() {
-    return label;
-  }
+	public String getLabel() {
+		return label;
+	}
 
-  @Override
-  public String toString() {
-    return name().toLowerCase();
-  }
+	@Override
+	public String toString() {
+		return name().toLowerCase();
+	}
 }

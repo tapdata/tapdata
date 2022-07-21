@@ -18,24 +18,24 @@ public class HazelcastCacheGetter extends AbstractSerializerCacheGetter {
 	private final HazelcastInstance hazelcastInstance;
 
 
-  public HazelcastCacheGetter(DataFlowCacheConfig cacheConfig, ICacheStore cacheStore, ICacheStats cacheStats,
-							  ClientMongoOperator clientMongoOperator,
-							  HazelcastInstance hazelcastInstance) {
-    super(cacheConfig, cacheStore, cacheStats,
-      ((AbstractSerializerCacheStore) cacheStore).getIndexMap(),
-      ((AbstractSerializerCacheStore) cacheStore).getDataMap(), clientMongoOperator);
-	this.hazelcastInstance = hazelcastInstance;
-  }
+	public HazelcastCacheGetter(DataFlowCacheConfig cacheConfig, ICacheStore cacheStore, ICacheStats cacheStats,
+								ClientMongoOperator clientMongoOperator,
+								HazelcastInstance hazelcastInstance) {
+		super(cacheConfig, cacheStore, cacheStats,
+				((AbstractSerializerCacheStore) cacheStore).getIndexMap(),
+				((AbstractSerializerCacheStore) cacheStore).getDataMap(), clientMongoOperator);
+		this.hazelcastInstance = hazelcastInstance;
+	}
 
-  @Override
-  protected Connections getSourceConnection(DataFlowCacheConfig cacheConfig) {
-    Connections sourceConnection = super.getSourceConnection(cacheConfig);
-    if (sourceConnection == null && StringUtils.isNotEmpty(cacheConfig.getSourceConnectionId())) {
-      Query query = new Query(Criteria.where("_id").is(cacheConfig.getSourceConnectionId()));
-      query.fields().exclude("schema");
-      sourceConnection = MongodbUtil.getConnections(query, clientMongoOperator, true);
-      cacheConfig.setSourceConnection(sourceConnection);
-    }
-    return sourceConnection;
-  }
+	@Override
+	protected Connections getSourceConnection(DataFlowCacheConfig cacheConfig) {
+		Connections sourceConnection = super.getSourceConnection(cacheConfig);
+		if (sourceConnection == null && StringUtils.isNotEmpty(cacheConfig.getSourceConnectionId())) {
+			Query query = new Query(Criteria.where("_id").is(cacheConfig.getSourceConnectionId()));
+			query.fields().exclude("schema");
+			sourceConnection = MongodbUtil.getConnections(query, clientMongoOperator, true);
+			cacheConfig.setSourceConnection(sourceConnection);
+		}
+		return sourceConnection;
+	}
 }

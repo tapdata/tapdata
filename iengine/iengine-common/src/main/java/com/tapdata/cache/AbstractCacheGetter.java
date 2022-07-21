@@ -122,6 +122,7 @@ public abstract class AbstractCacheGetter implements ICacheGetter {
 
 	/**
 	 * 获取源
+	 *
 	 * @return
 	 */
 	protected Connections getSourceConnection(DataFlowCacheConfig cacheConfig) {

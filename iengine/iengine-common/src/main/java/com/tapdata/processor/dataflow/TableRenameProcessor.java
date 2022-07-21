@@ -14,7 +14,7 @@ import java.util.Objects;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-public class TableRenameProcessor implements DataFlowProcessor{
+public class TableRenameProcessor implements DataFlowProcessor {
 
 	private ProcessorContext processorContext;
 	private Stage stage;
@@ -30,11 +30,11 @@ public class TableRenameProcessor implements DataFlowProcessor{
 		LinkedHashSet<TableRenameTableInfo> tableNames = tableRenameProcessNode.getTableNames();
 
 		if (Objects.isNull(tableNames) || tableNames.isEmpty()) {
-			this.tableNameMappingMap =  Maps.newLinkedHashMap();
+			this.tableNameMappingMap = Maps.newLinkedHashMap();
 		}
 
 		this.tableNameMappingMap = tableNames.stream()
-			.collect(Collectors.toMap(TableRenameTableInfo::getPreviousTableName, Function.identity()));
+				.collect(Collectors.toMap(TableRenameTableInfo::getPreviousTableName, Function.identity()));
 
 
 	}

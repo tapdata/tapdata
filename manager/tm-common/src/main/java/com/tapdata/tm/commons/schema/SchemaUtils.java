@@ -39,6 +39,8 @@ public class SchemaUtils {
         List<Schema> _inputSchemas = inputSchemas.stream().filter(Objects::nonNull).collect(Collectors.toList());
         Schema targetSchema = cloneSchema(schema);
 
+
+
         if (targetSchema == null) {
             if (_inputSchemas.size() > 0) {
                 targetSchema = _inputSchemas.remove(0);
@@ -46,11 +48,23 @@ public class SchemaUtils {
                 log.warn("Can't merge non schema.");
                 return null;
             }
+        } else {
+            List<Field> fields = targetSchema.getFields();
+            if (CollectionUtils.isNotEmpty(fields)) {
+                List<Field> removeList = new ArrayList<>();
+                for (Field field : fields) {
+                    if (!"manual".equals(field.getSource())) {
+                        removeList.add(field);
+                    }
+                }
+                fields.removeAll(removeList);
+            }
         }
         if (targetSchema == null) {
             log.warn("Can't merge non schema.");
             return null;
         }
+
 
         Schema finalTargetSchema = targetSchema;
         List<String> inputSchemaFieldIds = _inputSchemas.stream().flatMap(s -> s.getFields().stream())

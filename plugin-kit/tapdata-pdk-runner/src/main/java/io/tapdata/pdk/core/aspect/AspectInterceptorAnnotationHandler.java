@@ -26,6 +26,10 @@ public class AspectInterceptorAnnotationHandler extends ClassAnnotationHandler {
             for(Class<?> clazz : classes) {
                 AspectInterceptorClass aspectInterceptorClass = clazz.getAnnotation(AspectInterceptorClass.class);
                 if(aspectInterceptorClass != null) {
+                    if(!AspectInterceptor.class.isAssignableFrom(clazz)) {
+                        TapLogger.error(TAG, "AspectInterceptor {} don't implement {}, will be ignored", clazz, AspectInterceptor.class);
+                        continue;
+                    }
                     Class<? extends AspectInterceptor<? extends Aspect>> interceptorClass = (Class<? extends AspectInterceptor<? extends Aspect>>) clazz;
                     Class<? extends Aspect> aspectClass = aspectInterceptorClass.value();
                     int order = aspectInterceptorClass.order();
@@ -42,10 +46,6 @@ public class AspectInterceptorAnnotationHandler extends ClassAnnotationHandler {
                     }
                     if(canNotInitialized != null) {
                         TapLogger.error(TAG, "AspectInterceptor {} don't have non-args public constructor, will be ignored, message {}", clazz, canNotInitialized);
-                        continue;
-                    }
-                    if(!AspectInterceptor.class.isAssignableFrom(interceptorClass)) {
-                        TapLogger.error(TAG, "AspectInterceptor {} don't implement {}, will be ignored", clazz, AspectInterceptor.class);
                         continue;
                     }
 

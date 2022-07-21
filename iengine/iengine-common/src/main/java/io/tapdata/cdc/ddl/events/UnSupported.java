@@ -10,10 +10,10 @@ import io.tapdata.cdc.ddl.DdlOperator;
  * @version v1.0 2021/12/13 上午12:32 Create
  */
 public class UnSupported extends DdlEvent {
-  public UnSupported() {
-  }
+	public UnSupported() {
+	}
 
-  public UnSupported(String ddl) {
-    super(DdlOperator.UnSupported, ddl);
-  }
+	public UnSupported(String ddl) {
+		super(DdlOperator.UnSupported, ddl);
+	}
 }

@@ -7,13 +7,13 @@ public class JdbcConstant {
 	 */
 	public final static String ORACLE_OFFSET_TABLE_NAME = "_TAPD8_OFFSET";
 	public final static String ORACLE_CREATE_OFFSET_TABLE = "CREATE TABLE %s(" +
-		"JOB_ID VARCHAR2(50), " +
-		"SCN NUMBER NOT NULL, " +
-		"RSID VARCHAR2(50) NOT NULL)";
+			"JOB_ID VARCHAR2(50), " +
+			"SCN NUMBER NOT NULL, " +
+			"RSID VARCHAR2(50) NOT NULL)";
 	public final static String POSTGRES_ORACLE_CREATE_OFFSET_TABLE = "CREATE TABLE %s(" +
-		"JOB_ID VARCHAR(50), " +
-		"SCN NUMERIC NOT NULL, " +
-		"RSID VARCHAR(50) NOT NULL)";
+			"JOB_ID VARCHAR(50), " +
+			"SCN NUMERIC NOT NULL, " +
+			"RSID VARCHAR(50) NOT NULL)";
 	public final static String ORACLE_CHECK_OFFSET_EXISTS = "SELECT COUNT(1) FROM %s WHERE JOB_ID=? AND SCN=? AND RSID=?";
 	public final static String ORACLE_INSERT_OFFSET = "INSERT INTO %s(JOB_ID, SCN, RSID) VALUES(?, ?, ?)";
 	public final static String ORACLE_UPDATE_SCN_RSID = "UPDATE %s SET SCN=?, RSID=? WHERE JOB_ID=?";

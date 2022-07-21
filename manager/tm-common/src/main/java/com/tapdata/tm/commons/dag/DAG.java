@@ -496,6 +496,11 @@ public class DAG implements Serializable, Cloneable {
                 }
             });
         }
+
+        List<Node> allNodes = getNodes();
+        for (Node allNode : allNodes) {
+            allNode.setSchema(null);
+        }
         if (nodeId != null) {
             Node node = graph.getNode(nodeId);
             clearTransFlag(node);

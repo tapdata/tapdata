@@ -11,25 +11,25 @@ import java.io.Serializable;
 
 public class Sampling implements Serializable {
 
-  private static final long serialVersionUID = -5202967405210081976L;
+	private static final long serialVersionUID = -5202967405210081976L;
 
-  private String type;
+	private String type;
 
-  private long value;
+	private long value;
 
-  public String getType() {
-    return type;
-  }
+	public String getType() {
+		return type;
+	}
 
-  public long getValue() {
-    return value;
-  }
+	public long getValue() {
+		return value;
+	}
 
-  public void setType(String type) {
-    this.type = type;
-  }
+	public void setType(String type) {
+		this.type = type;
+	}
 
-  public void setValue(long value) {
-    this.value = value;
-  }
+	public void setValue(long value) {
+		this.value = value;
+	}
 }

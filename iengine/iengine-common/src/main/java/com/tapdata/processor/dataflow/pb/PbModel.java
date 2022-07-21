@@ -7,13 +7,13 @@ import java.util.List;
 @Data
 public class PbModel {
 
-  private String name;
+	private String name;
 
-  private List<PbProperty> propertyList;
+	private List<PbProperty> propertyList;
 
-  /**
-   * 复杂类型时，类型的属性
-   */
-  private List<PbModel> nestedList;
+	/**
+	 * 复杂类型时，类型的属性
+	 */
+	private List<PbModel> nestedList;
 
 }

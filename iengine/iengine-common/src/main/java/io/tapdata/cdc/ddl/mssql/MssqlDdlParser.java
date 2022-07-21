@@ -20,40 +20,40 @@ import java.util.function.Consumer;
  */
 public class MssqlDdlParser implements DdlParser<String, DdlEvent> {
 
-  private static final MssqlDdlParser INSTANCE = new MssqlDdlParser();
+	private static final MssqlDdlParser INSTANCE = new MssqlDdlParser();
 
-  public static MssqlDdlParser ins() {
-    return INSTANCE;
-  }
+	public static MssqlDdlParser ins() {
+		return INSTANCE;
+	}
 
-  private SqlParser sqlParser;
-  private List<Table> tables = new ArrayList<>();
+	private SqlParser sqlParser;
+	private List<Table> tables = new ArrayList<>();
 
-  private MssqlDdlParser() {
-    this.sqlParser = new SqlParser('\\', '[', ']', '.', '\'');
-    tables.add(new Table("alter")
-      .add(new DropColumn())
-      .add(new AddColumn())
-      .add(new Rename())
-      .add(new AlterColumn())
-    );
-    tables.add(new Table("create"));
-    tables.add(new DropTable());
-  }
+	private MssqlDdlParser() {
+		this.sqlParser = new SqlParser('\\', '[', ']', '.', '\'');
+		tables.add(new Table("alter")
+				.add(new DropColumn())
+				.add(new AddColumn())
+				.add(new Rename())
+				.add(new AlterColumn())
+		);
+		tables.add(new Table("create"));
+		tables.add(new DropTable());
+	}
 
-  @Override
-  public void parseDDL(String in, Consumer<DdlEvent> outConsumer) {
-    if (null == in || (in = in.trim()).isEmpty()) throw new DdlException("DDL is empty");
+	@Override
+	public void parseDDL(String in, Consumer<DdlEvent> outConsumer) {
+		if (null == in || (in = in.trim()).isEmpty()) throw new DdlException("DDL is empty");
 
-    StringReader sr = new StringReader(in) {
-      @Override
-      public RuntimeException ex(String msg) {
-        return new DdlParserException(msg + ", position " + position(), data());
-      }
-    };
-    for (Table table : tables) {
-      if (table.check(sqlParser, sr, outConsumer)) return;
-    }
-    throw sr.ex("Unrealized ddl operator");
-  }
+		StringReader sr = new StringReader(in) {
+			@Override
+			public RuntimeException ex(String msg) {
+				return new DdlParserException(msg + ", position " + position(), data());
+			}
+		};
+		for (Table table : tables) {
+			if (table.check(sqlParser, sr, outConsumer)) return;
+		}
+		throw sr.ex("Unrealized ddl operator");
+	}
 }

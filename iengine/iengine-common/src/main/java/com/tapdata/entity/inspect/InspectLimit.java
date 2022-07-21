@@ -18,8 +18,8 @@ import java.io.Serializable;
 @EqualsAndHashCode
 public class InspectLimit implements Serializable {
 
-  private int keep = 1000;
-  private int fullMatchKeep = 100;
-  private String action = "stop";
+	private int keep = 1000;
+	private int fullMatchKeep = 100;
+	private String action = "stop";
 
 }

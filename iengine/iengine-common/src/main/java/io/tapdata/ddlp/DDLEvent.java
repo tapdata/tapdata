@@ -14,16 +14,16 @@ import lombok.Setter;
 @Setter
 public abstract class DDLEvent {
 
-  private DDLOperator op;
-  private String ddl;
+	private DDLOperator op;
+	private String ddl;
 
-  protected DDLEvent() {
-  }
+	protected DDLEvent() {
+	}
 
-  protected DDLEvent(DDLOperator op, String ddl) {
-    setOp(op);
-    setDdl(ddl);
-  }
+	protected DDLEvent(DDLOperator op, String ddl) {
+		setOp(op);
+		setDdl(ddl);
+	}
 
 	@Override
 	public String toString() {

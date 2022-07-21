@@ -16,16 +16,16 @@ import java.util.List;
 @Getter
 public class AlterField extends AbsField {
 
-  // todo: 如需要实现异构 DDL 同步需要进行解析
-  // 因时间有限，只实现同库同步，将类型定义放在一个字段
-  private String type;
+	// todo: 如需要实现异构 DDL 同步需要进行解析
+	// 因时间有限，只实现同库同步，将类型定义放在一个字段
+	private String type;
 
-  public AlterField() {
-  }
+	public AlterField() {
+	}
 
-  public AlterField(String ddl, List<String> namespace, String name, String type) {
-    super(DDLOperator.AlterField, ddl, namespace, name);
-    setType(type);
-  }
+	public AlterField(String ddl, List<String> namespace, String name, String type) {
+		super(DDLOperator.AlterField, ddl, namespace, name);
+		setType(type);
+	}
 
 }

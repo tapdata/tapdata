@@ -13,14 +13,14 @@ import lombok.Setter;
 @Getter
 public abstract class DdlEvent {
 
-  private DdlOperator op;
-  private String ddl;
+	private DdlOperator op;
+	private String ddl;
 
-  public DdlEvent() {
-  }
+	public DdlEvent() {
+	}
 
-  public DdlEvent(DdlOperator op, String ddl) {
-    setOp(op);
-    setDdl(ddl);
-  }
+	public DdlEvent(DdlOperator op, String ddl) {
+		setOp(op);
+		setDdl(ddl);
+	}
 }

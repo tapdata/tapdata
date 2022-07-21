@@ -15,20 +15,20 @@ import lombok.Setter;
 @Setter
 public class UnSupported extends DDLEvent {
 
-  private int pos;
-  private String msg;
+	private int pos;
+	private String msg;
 
-  public UnSupported() {
-    this(null);
-  }
+	public UnSupported() {
+		this(null);
+	}
 
-  public UnSupported(String ddl) {
-    super(DDLOperator.Unsupported, ddl);
-  }
+	public UnSupported(String ddl) {
+		super(DDLOperator.Unsupported, ddl);
+	}
 
-  public UnSupported(String ddl, int pos, String msg) {
-    this(ddl);
-    this.pos = pos;
-    this.msg = msg;
-  }
+	public UnSupported(String ddl, int pos, String msg) {
+		this(ddl);
+		this.pos = pos;
+		this.msg = msg;
+	}
 }

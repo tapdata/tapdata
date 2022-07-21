@@ -4,20 +4,20 @@ import java.util.Map;
 
 public class LibSupported {
 
-  private String databaseType;
+	private String databaseType;
 
-  private Map<String, Boolean> supportedList;
+	private Map<String, Boolean> supportedList;
 
-  public LibSupported(String databaseType, Map<String, Boolean> supportedList) {
-    this.databaseType = databaseType;
-    this.supportedList = supportedList;
-  }
+	public LibSupported(String databaseType, Map<String, Boolean> supportedList) {
+		this.databaseType = databaseType;
+		this.supportedList = supportedList;
+	}
 
-  public String getDatabaseType() {
-    return databaseType;
-  }
+	public String getDatabaseType() {
+		return databaseType;
+	}
 
-  public Map<String, Boolean> getSupportedList() {
-    return supportedList;
-  }
+	public Map<String, Boolean> getSupportedList() {
+		return supportedList;
+	}
 }

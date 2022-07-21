@@ -16,7 +16,7 @@ public class ConnectionUtil {
         HikariDataSource hikariDataSource = new HikariDataSource();
         DataMap connectionConfig = tapConnectionContext.getConnectionConfig();
         hikariDataSource.setDriverClassName("com.mysql.cj.jdbc.Driver");
-        String username = connectionConfig.getString("username");
+        String username = connectionConfig.getString("user");
         String password = connectionConfig.getString("password");
         hikariDataSource.setJdbcUrl(jdbcUrl);
         hikariDataSource.setUsername(username);

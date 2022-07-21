@@ -5,8 +5,8 @@ import com.tapdata.processor.dataflow.ProcessorContext;
 
 public interface ServiceFactory<T> {
 
-  T create(Stage stage, ProcessorContext processorContext);
+	T create(Stage stage, ProcessorContext processorContext);
 
-  Class<T> getServiceType();
+	Class<T> getServiceType();
 
 }
