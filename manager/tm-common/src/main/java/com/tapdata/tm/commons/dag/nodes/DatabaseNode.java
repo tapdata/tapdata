@@ -292,12 +292,14 @@ public class DatabaseNode extends DataParentNode<List<Schema>> {
 
     @Override
     public void fieldDdlEvent(TapDDLEvent event) throws Exception {
+        if (null == fieldProcess) {
+            return;
+        }
         for (FieldProcess process : fieldProcess) {
             List<FieldProcessorNode.Operation> operations = process.getOperations();
             for (FieldProcessorNode.Operation operation : operations) {
                 operation.matchPdkFieldEvent(event);
             }
         }
-
     }
 }

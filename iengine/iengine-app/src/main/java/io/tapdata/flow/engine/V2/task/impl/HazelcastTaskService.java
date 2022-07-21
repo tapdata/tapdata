@@ -64,7 +64,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.DependsOn;
-import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Service;
 
@@ -156,10 +155,14 @@ public class HazelcastTaskService implements TaskService<SubTaskDto> {
 
 		Long tmCurrentTime = subTaskDtoAtomicReference.get().getTmCurrentTime();
 		if (null != tmCurrentTime && tmCurrentTime.compareTo(0L) > 0) {
-			clientMongoOperator.delete(Query.query(where("id").is(subTaskDto.getId().toHexString()).and("time").is(tmCurrentTime)),
-					ConnectorConstant.SUB_TASK_COLLECTION + "/history");
-			subTaskDtoAtomicReference.set(clientMongoOperator.findOne(new Query(Criteria.where("id").is(subTaskDto.getId().toHexString()).and("time").is(tmCurrentTime)),
-					ConnectorConstant.SUB_TASK_COLLECTION + "/history", SubTaskDto.class));
+			Map<String, Object> params = new HashMap<>();
+			params.put("id", subTaskDto.getId().toHexString());
+			params.put("time", tmCurrentTime);
+			clientMongoOperator.deleteByMap(params, ConnectorConstant.SUB_TASK_COLLECTION + "/history");
+			subTaskDtoAtomicReference.set(clientMongoOperator.findOne(params, ConnectorConstant.SUB_TASK_COLLECTION + "/history", SubTaskDto.class));
+			if (null == subTaskDtoAtomicReference.get()) {
+				throw new RuntimeException("Get task history failed, param: " + params + ", result is null");
+			}
 		}
 
 		final List<Node> nodes = subTaskDtoAtomicReference.get().getDag().getNodes();
