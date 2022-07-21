@@ -498,4 +498,12 @@ public abstract class Node<S> extends Element{
             }
         }
     }
+
+    public String getTaskId() {
+        DAG dag = getDag();
+        if (dag != null && dag.getTaskId() != null) {
+            return dag.getTaskId().toHexString();
+        }
+        return null;
+    }
 }

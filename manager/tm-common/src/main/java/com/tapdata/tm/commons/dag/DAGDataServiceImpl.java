@@ -277,7 +277,7 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
             metadataInstancesDto.setQualifiedName(qualifiedName);
 
             MetaDataBuilderUtils.build(_metaType, dataSource, userId, userName, metadataInstancesDto.getOriginalName(),
-                    metadataInstancesDto, null, dataSource.getId().toHexString());
+                    metadataInstancesDto, null, dataSource.getId().toHexString(), taskId);
 
             metadataInstancesDto.setSourceType(SourceTypeEnum.VIRTUAL.name());
 
@@ -371,7 +371,7 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
                     MetaDataBuilderUtils.generateQualifiedName(metadataInstancesDto.getMetaType(), dataSource, schema.getOriginalName(), taskId));
 
             metadataInstancesDto = MetaDataBuilderUtils.build(_metaType, dataSource, userId, userName, metadataInstancesDto.getOriginalName(),
-                    metadataInstancesDto, null, dataSourceId.toHexString());
+                    metadataInstancesDto, null, dataSourceId.toHexString(), taskId);
 
             metadataInstancesDto.setSourceType(SourceTypeEnum.VIRTUAL.name());
 
@@ -850,7 +850,8 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
                 MetadataInstancesDto _metadataInstancesDto = MetaDataBuilderUtils.build(
                         metadataInstancesDto.getMetaType(), dataSourceConnectionDto, userId, userName,
                         metadataInstancesDto.getOriginalName(),
-                        metadataInstancesDto, null, metadataInstancesDto.getDatabaseId(), "job_analyze", null);
+                        metadataInstancesDto, null, metadataInstancesDto.getDatabaseId(), "job_analyze",
+                        null, taskId);
                 insertMetaDataList.add(_metadataInstancesDto);
                 BeanUtils.copyProperties(_metadataInstancesDto, metadataInstancesDto);
             }

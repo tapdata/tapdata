@@ -119,16 +119,31 @@ public class MetaDataBuilderUtils {
 
 
     public static MetadataInstancesDto build(String metaType, DataSourceConnectionDto source, String userId, String userName) {
-       return build(metaType, source, userId, userName, null, null, null, null, null, null);
+        return build(metaType, source, userId, userName, null, null, null, null, null, null, null);
+
     }
+    public static MetadataInstancesDto build(String metaType, DataSourceConnectionDto source, String userId, String userName, String taskId) {
+       return build(metaType, source, userId, userName, null, null, null, null, null, null, taskId);
+    }
+
 
     public static MetadataInstancesDto build(String metaType, DataSourceConnectionDto source, String userId, String userName, String tableName
             , MetadataInstancesDto newModel, MetadataInstancesDto oldModel, String databaseId) {
-        return build(metaType, source, userId, userName, tableName, newModel, oldModel, databaseId, null, null);
+        return build(metaType, source, userId, userName, tableName, newModel, oldModel, databaseId, null);
+
+    }
+
+    public static MetadataInstancesDto build(String metaType, DataSourceConnectionDto source, String userId, String userName, String tableName
+            , MetadataInstancesDto newModel, MetadataInstancesDto oldModel, String databaseId, String taskId) {
+        return build(metaType, source, userId, userName, tableName, newModel, oldModel, databaseId, null, null, taskId);
     }
 
     public static MetadataInstancesDto build(String metaType, DataSourceConnectionDto source, String userId, String userName, String tableName
             , MetadataInstancesDto newModel, MetadataInstancesDto oldModel, String databaseId, String createSource, Map<String, String> qualifiedNameMap) {
+        return build(metaType, source, userId, userName, tableName, newModel, oldModel, databaseId, createSource, qualifiedNameMap, null);
+    }
+    public static MetadataInstancesDto build(String metaType, DataSourceConnectionDto source, String userId, String userName, String tableName
+            , MetadataInstancesDto newModel, MetadataInstancesDto oldModel, String databaseId, String createSource, Map<String, String> qualifiedNameMap, String taskId) {
 
         if (qualifiedNameMap == null) {
             qualifiedNameMap = new HashMap<>();
@@ -146,7 +161,7 @@ public class MetaDataBuilderUtils {
         metadataObj.setMetaType(metaType);
         metadataObj.setOriginalName(sourceDto.getName());
         String qualifiedName = qualifiedNameMap.get(tableName);
-        metadataObj.setQualifiedName(StringUtils.isBlank(qualifiedName) ? generateQualifiedName(metaType, source, tableName) : qualifiedName);
+        metadataObj.setQualifiedName(StringUtils.isBlank(qualifiedName) ? generateQualifiedName(metaType, source, tableName, taskId) : qualifiedName);
         metadataObj.setSource(sourceDto);
         metadataObj.setDevVersion(1);
 

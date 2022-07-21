@@ -791,7 +791,8 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
                 MetadataInstancesDto _metadataInstancesDto = MetaDataBuilderUtils.build(
                         metadataInstancesDto.getMetaType(), dataSourceConnectionDto, userDetail.getUserId(), userDetail.getUsername(),
                         metadataInstancesDto.getOriginalName(),
-                        metadataInstancesDto, null, metadataInstancesDto.getDatabaseId(), "job_analyze", null);
+                        metadataInstancesDto, null, metadataInstancesDto.getDatabaseId(), "job_analyze",
+                        null);
 
                 MetadataInstancesEntity metadataInstance = convertToEntity(MetadataInstancesEntity.class, _metadataInstancesDto);
 
