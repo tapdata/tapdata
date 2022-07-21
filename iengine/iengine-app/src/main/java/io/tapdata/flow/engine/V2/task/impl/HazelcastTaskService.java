@@ -64,11 +64,13 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.DependsOn;
+import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Service;
 
 import javax.annotation.PostConstruct;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import static org.springframework.data.mongodb.core.query.Criteria.where;
@@ -120,7 +122,6 @@ public class HazelcastTaskService implements TaskService<SubTaskDto> {
 
 	@Override
 	public TaskClient<SubTaskDto> startTask(SubTaskDto subTaskDto) {
-
 		final JetDag jetDag = task2HazelcastDAG(subTaskDto);
 		MilestoneFlowServiceJetV2 milestoneFlowServiceJetV2 = initMilestone(subTaskDto);
 
@@ -151,9 +152,18 @@ public class HazelcastTaskService implements TaskService<SubTaskDto> {
 	private JetDag task2HazelcastDAG(SubTaskDto subTaskDto) {
 
 		DAG dag = new DAG();
+		AtomicReference<SubTaskDto> subTaskDtoAtomicReference = new AtomicReference<>(subTaskDto);
 
-		final List<Node> nodes = subTaskDto.getDag().getNodes();
-		final List<Edge> edges = subTaskDto.getDag().getEdges();
+		Long tmCurrentTime = subTaskDtoAtomicReference.get().getTmCurrentTime();
+		if (null != tmCurrentTime && tmCurrentTime.compareTo(0L) > 0) {
+			clientMongoOperator.delete(Query.query(where("id").is(subTaskDto.getId().toHexString()).and("time").is(tmCurrentTime)),
+					ConnectorConstant.SUB_TASK_COLLECTION + "/history");
+			subTaskDtoAtomicReference.set(clientMongoOperator.findOne(new Query(Criteria.where("id").is(subTaskDto.getId().toHexString()).and("time").is(tmCurrentTime)),
+					ConnectorConstant.SUB_TASK_COLLECTION + "/history", SubTaskDto.class));
+		}
+
+		final List<Node> nodes = subTaskDtoAtomicReference.get().getDag().getNodes();
+		final List<Edge> edges = subTaskDtoAtomicReference.get().getDag().getEdges();
 		Map<String, Vertex> vertexMap = new HashMap<>();
 		Map<String, AbstractProcessor> hazelcastBaseNodeMap = new HashMap<>();
 		Map<String, AbstractProcessor> typeConvertMap = new HashMap<>();
@@ -168,14 +178,14 @@ public class HazelcastTaskService implements TaskService<SubTaskDto> {
 			for (Node node : nodes) {
 				Connections connection = null;
 				DatabaseTypeEnum.DatabaseType databaseType = null;
-				TapTableMap<String, TapTable> tapTableMap = TapTableUtil.getTapTableMapByNodeId(node.getId());
+				TapTableMap<String, TapTable> tapTableMap = TapTableUtil.getTapTableMapByNodeId(node.getId(), tmCurrentTime);
 				if (CollectionUtils.isEmpty(tapTableMap.keySet())
 						&& !(node instanceof CacheNode)
 						&& !(node instanceof HazelCastImdgNode)
 						&& !(node instanceof TableRenameProcessNode)
 						&& !(node instanceof MigrateFieldRenameProcessorNode)
 						&& !(node instanceof VirtualTargetNode)
-						&& !subTaskDto.isTransformTask()) {
+						&& !subTaskDtoAtomicReference.get().isTransformTask()) {
 					throw new NodeException(String.format("Node [id %s, name %s] schema cannot be empty",
 							node.getId(), node.getName()));
 				}
@@ -201,7 +211,7 @@ public class HazelcastTaskService implements TaskService<SubTaskDto> {
 							connection = getConnection(((TableNode) sourceNode).getConnectionId());
 						}
 					}
-					messageDao.registerCache((CacheNode) node, (TableNode) sourceNode, connection, subTaskDto, clientMongoOperator);
+					messageDao.registerCache((CacheNode) node, (TableNode) sourceNode, connection, subTaskDtoAtomicReference.get(), clientMongoOperator);
 				}
 				List<Node> predecessors = node.predecessors();
 				List<Node> successors = node.successors();
@@ -210,9 +220,9 @@ public class HazelcastTaskService implements TaskService<SubTaskDto> {
 
 				Vertex vertex = new Vertex(NodeUtil.getVertexName(node), () -> {
 					try {
-						Log4jUtil.setThreadContext(subTaskDto);
+						Log4jUtil.setThreadContext(subTaskDtoAtomicReference.get());
 						return createNode(
-								subTaskDto,
+								subTaskDtoAtomicReference.get(),
 								nodes,
 								edges,
 								node,

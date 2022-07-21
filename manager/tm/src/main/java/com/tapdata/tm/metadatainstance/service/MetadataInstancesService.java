@@ -818,6 +818,10 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
 
         boolean write = false;
 
+        if (null == insertMetaDataDtos) {
+            insertMetaDataDtos = new ArrayList<>();
+        }
+
         if (CollectionUtils.isNotEmpty(insertMetaDataDtos)) {
             for (MetadataInstancesDto metadataInstancesDto : insertMetaDataDtos) {
                 MetadataInstancesEntity metadataInstance = convertToEntity(MetadataInstancesEntity.class, metadataInstancesDto);

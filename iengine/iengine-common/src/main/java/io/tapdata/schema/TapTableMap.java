@@ -41,24 +41,22 @@ public class TapTableMap<K extends String, V extends TapTable> extends HashMap<K
 	private String mapKey;
 	private Lock lock = new ReentrantLock();
 	private String nodeId;
+	private Long time;
 
 	private TapTableMap() {
 
 	}
 
 	public static TapTableMap<String, TapTable> create(String nodeId, Map<String, String> tableNameAndQualifiedNameMap) {
-		TapTableMap<String, TapTable> tapTableMap = new TapTableMap<>();
-		return tapTableMap
-				.nodeId(nodeId)
-				.tableNameAndQualifiedNameMap(tableNameAndQualifiedNameMap)
-				.init();
+		return create(nodeId, tableNameAndQualifiedNameMap, null);
 	}
 
-	public static TapTableMap<String, TapTable> createNew(String nodeId, Map<String, String> tableNameAndQualifiedNameMap) {
+	public static TapTableMap<String, TapTable> create(String nodeId, Map<String, String> tableNameAndQualifiedNameMap, Long time) {
 		TapTableMap<String, TapTable> tapTableMap = new TapTableMap<>();
 		tapTableMap
 				.nodeId(nodeId)
 				.tableNameAndQualifiedNameMap(tableNameAndQualifiedNameMap)
+				.time(time)
 				.init();
 		EhcacheService.getInstance().getEhcacheKVMap(tapTableMap.mapKey).clear();
 		return tapTableMap;
@@ -98,6 +96,11 @@ public class TapTableMap<K extends String, V extends TapTable> extends HashMap<K
 
 	private TapTableMap<K, V> nodeId(String nodeId) {
 		this.nodeId = nodeId;
+		return this;
+	}
+
+	public TapTableMap<K, V> time(Long time) {
+		this.time = time;
 		return this;
 	}
 
@@ -253,8 +256,15 @@ public class TapTableMap<K extends String, V extends TapTable> extends HashMap<K
 			throw new RuntimeException("Table name \"" + k + "\" not exists, qualified name: " + qualifiedName);
 		}
 		ClientMongoOperator clientMongoOperator = BeanUtil.getBean(ClientMongoOperator.class);
-		String url = ConnectorConstant.METADATA_INSTANCE_COLLECTION + "/tapTables";
-		Query query = Query.query(where("qualified_name").is(qualifiedName));
+		String url;
+		Query query;
+		if (null != time && time.compareTo(0L) > 0) {
+			url = ConnectorConstant.METADATA_HISTROY_COLLECTION;
+			query = Query.query(where("qualifiedName").is(qualifiedName).and("time").is(time));
+		} else {
+			url = ConnectorConstant.METADATA_INSTANCE_COLLECTION + "/tapTables";
+			query = Query.query(where("qualified_name").is(qualifiedName));
+		}
 		TapTable tapTable = clientMongoOperator.findOne(query, url, TapTable.class);
 		LinkedHashMap<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
 		if (MapUtils.isNotEmpty(nameFieldMap)) {

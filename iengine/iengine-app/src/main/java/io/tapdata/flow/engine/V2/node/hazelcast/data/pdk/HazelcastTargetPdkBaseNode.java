@@ -14,7 +14,6 @@ import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.commons.schema.TransformerWsMessageResult;
 import com.tapdata.tm.commons.task.dto.MergeTableProperties;
 import com.tapdata.tm.commons.task.dto.SubTaskDto;
-import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.common.sample.sampler.AverageSampler;
 import io.tapdata.common.sample.sampler.CounterSampler;
 import io.tapdata.common.sample.sampler.ResetCounterSampler;
@@ -336,14 +335,12 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 		}
 		if (uploadDagService.get()) {
 			// Upload DAG
-			TaskDto taskDto = new TaskDto();
-			taskDto.setId(dataProcessorContext.getSubTaskDto().getParentId());
-			taskDto.setDag(dataProcessorContext.getSubTaskDto().getDag());
-			clientMongoOperator.insertOne(taskDto, ConnectorConstant.TASK_COLLECTION + "/dag");
+			clientMongoOperator.insertOne(dataProcessorContext.getSubTaskDto(), ConnectorConstant.SUB_TASK_COLLECTION + "/dag");
 			if (MapUtils.isNotEmpty(uploadMetadata)) {
 				// Upload Metadata
 				TransformerWsMessageResult wsMessageResult = new TransformerWsMessageResult();
 				wsMessageResult.setBatchMetadataUpdateMap(uploadMetadata);
+				wsMessageResult.setTaskId(subTaskDto.getId().toHexString());
 				// 返回结果调用接口返回
 				clientMongoOperator.insertOne(wsMessageResult, ConnectorConstant.TASK_COLLECTION + "/transformer/resultWithHistory");
 				uploadMetadata.clear();
