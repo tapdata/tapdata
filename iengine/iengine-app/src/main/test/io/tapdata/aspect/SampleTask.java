@@ -6,19 +6,34 @@ import io.tapdata.entity.aspect.Aspect;
 import io.tapdata.entity.aspect.AspectInterceptResult;
 import io.tapdata.entity.simplify.pretty.ClassHandlers;
 
-import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.List;
 
-@AspectTaskSession
-public class MeasureTask extends AspectTask {
+public class SampleTask extends AspectTask {
 	private final ClassHandlers observerClassHandlers = new ClassHandlers();
 
-	public MeasureTask() {
+	public SampleTask() {
 		observerClassHandlers.register(DataNodeInitAspect.class, this::handleNodeInit);
 		observerClassHandlers.register(DataNodeCloseAspect.class, this::handleNodeClose);
 		observerClassHandlers.register(ApplicationStartAspect.class, this::handleApplicationStart);
 		observerClassHandlers.register(ProcessorNodeProcessAspect.class, this::handleProcessorNodeProcess);
 		observerClassHandlers.register(StreamReadFuncAspect.class, this::handleStreamRead);
+		observerClassHandlers.register(BatchReadFuncAspect.class, this::handleBatchRead);
+		observerClassHandlers.register(TableCountAspect.class, this::handleTableCount);
+		observerClassHandlers.register(WriteRecordFuncAspect.class, this::handleWriteRecord);
+	}
+
+	private Void handleWriteRecord(WriteRecordFuncAspect writeRecordFuncAspect) {
+		return null;
+	}
+
+	private Void handleTableCount(TableCountAspect tableCountAspect) {
+		return null;
+	}
+
+
+	private Void handleBatchRead(BatchReadFuncAspect batchReadFuncAspect) {
+		return null;
 	}
 
 	private Void handleStreamRead(StreamReadFuncAspect streamReadFuncAspect) {
@@ -54,7 +69,12 @@ public class MeasureTask extends AspectTask {
 
 	@Override
 	public List<Class<? extends Aspect>> observeAspects() {
-		return (List<Class<? extends Aspect>>) observerClassHandlers.keyList();
+		List<Class<?>> classes = observerClassHandlers.keyList();
+		List<Class<? extends Aspect>> aspectClasses = new ArrayList<>();
+		for(Class<?> clazz : classes) {
+			aspectClasses.add((Class<? extends Aspect>) clazz);
+		}
+		return aspectClasses;
 	}
 
 	@Override
