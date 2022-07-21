@@ -3,6 +3,7 @@ package com.tapdata.tm.task.service.impl.dagcheckstrategy;
 import cn.hutool.core.date.DateUtil;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
+import com.tapdata.tm.message.constant.Level;
 import com.tapdata.tm.task.constant.DagOutputTemplateEnum;
 import com.tapdata.tm.task.entity.TaskDagCheckLog;
 import com.tapdata.tm.task.service.DagLogStrategy;
@@ -16,6 +17,7 @@ import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Component;
 
+import java.text.MessageFormat;
 import java.util.Date;
 import java.util.List;
 
@@ -36,9 +38,17 @@ public class TaskSettingStrategyImpl implements DagLogStrategy {
 
         Query query = new Query(Criteria.where("name").is(taskName).and("_id").ne(taskId));
         List<TaskDto> dtos = taskService.findAll(query);
-        String template = CollectionUtils.isEmpty(dtos) ? templateEnum.getInfoTemplate() : templateEnum.getErrorTemplate();
+        String template;
+        String grade;
+        if (CollectionUtils. isEmpty(dtos)) {
+            template = templateEnum.getInfoTemplate();
+            grade = Level.INFO.getValue();
+        } else {
+            template = templateEnum.getErrorTemplate();
+            grade = Level.ERROR.getValue();
+        }
 
-        String content = String.format(template, current, taskName);
+        String content = MessageFormat.format(template, current, taskName);
         
         TaskDagCheckLog log = new TaskDagCheckLog();
         log.setTaskId(taskId.toHexString());
@@ -46,6 +56,7 @@ public class TaskSettingStrategyImpl implements DagLogStrategy {
         log.setCreateAt(now);
         log.setCreateUser(userDetail.getUserId());
         log.setLog(content);
+        log.setGrade(grade);
 
         return Lists.newArrayList(log);
     }

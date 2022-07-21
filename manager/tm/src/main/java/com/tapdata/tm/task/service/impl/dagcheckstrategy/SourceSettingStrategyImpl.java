@@ -15,6 +15,7 @@ import org.apache.commons.lang3.math.NumberUtils;
 import org.bson.types.ObjectId;
 import org.springframework.stereotype.Component;
 
+import java.text.MessageFormat;
 import java.util.Date;
 import java.util.LinkedList;
 import java.util.List;
@@ -56,7 +57,7 @@ public class SourceSettingStrategyImpl implements DagLogStrategy {
             }
             nameMap.put(name, value);
 
-            String content = String.format(template, current, taskName, name);
+            String content = MessageFormat.format(template, current, taskName, name);
 
             TaskDagCheckLog log = new TaskDagCheckLog();
             log.setTaskId(taskId.toHexString());

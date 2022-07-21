@@ -7,10 +7,10 @@ import com.tapdata.tm.commons.task.dto.SubTaskDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.message.constant.Level;
-import com.tapdata.tm.task.constant.HaveCheckLogException;
 import com.tapdata.tm.task.entity.TaskDagCheckLog;
 import com.tapdata.tm.task.service.SubTaskService;
 import com.tapdata.tm.task.service.TaskDagCheckLogService;
+import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.task.service.TaskStartService;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
@@ -35,6 +35,7 @@ public class TaskStartServiceImpl implements TaskStartService {
     private SubTaskService subTaskService;
     private CustomerJobLogsService customerJobLogsService;
     private TaskDagCheckLogService taskDagCheckLogService;
+    private TaskService taskService;
 
     @Async
     public void start0(TaskDto taskDto, UserDetail user) {
@@ -77,14 +78,33 @@ public class TaskStartServiceImpl implements TaskStartService {
     }
 
     @Override
-    public void taskStartCheckLog(TaskDto taskDto, UserDetail userDetail) throws HaveCheckLogException {
-        List<TaskDagCheckLog> taskDagCheckLogs = taskDagCheckLogService.dagCheck(taskDto, userDetail, false);
-        if (CollectionUtils.isNotEmpty(taskDagCheckLogs)) {
-            Optional<TaskDagCheckLog> any = taskDagCheckLogs.stream().filter(log -> StringUtils.equals(Level.ERROR.getValue(), log.getGrade())).findAny();
+    public boolean taskStartCheckLog(TaskDto taskDto, UserDetail userDetail) {
+        taskDagCheckLogService.removeAllByTaskId(taskDto.getId().toHexString());
+
+        boolean saveNoPass = false;
+        List<TaskDagCheckLog> saveLogs = taskDagCheckLogService.dagCheck(taskDto, userDetail, true);
+        if (CollectionUtils.isNotEmpty(saveLogs)) {
+            Optional<TaskDagCheckLog> any = saveLogs.stream().filter(log -> StringUtils.equals(Level.ERROR.getValue(), log.getGrade())).findAny();
             if (any.isPresent()) {
-                throw new HaveCheckLogException("hava error log");
+                saveNoPass = true;
+                taskService.updateStatus(taskDto.getId(), TaskDto.STATUS_EDIT);
             }
         }
+
+        boolean startNoPass = false;
+        List<TaskDagCheckLog> startLogs = taskDagCheckLogService.dagCheck(taskDto, userDetail, false);
+        if (CollectionUtils.isNotEmpty(startLogs)) {
+            Optional<TaskDagCheckLog> any = startLogs.stream().filter(log -> StringUtils.equals(Level.ERROR.getValue(), log.getGrade())).findAny();
+            if (any.isPresent()) {
+                startNoPass = true;
+                if (!saveNoPass) {
+                    taskService.updateStatus(taskDto.getId(), TaskDto.STATUS_EDIT);
+                    subTaskService.updateStatus(taskDto.getId(), SubTaskDto.STATUS_ERROR);
+                }
+            }
+        }
+
+        return saveNoPass & startNoPass;
     }
 
 }

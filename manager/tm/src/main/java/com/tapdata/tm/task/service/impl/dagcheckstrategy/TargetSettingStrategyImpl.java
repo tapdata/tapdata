@@ -5,6 +5,7 @@ import com.google.common.collect.Maps;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
+import com.tapdata.tm.message.constant.Level;
 import com.tapdata.tm.task.constant.DagOutputTemplateEnum;
 import com.tapdata.tm.task.entity.TaskDagCheckLog;
 import com.tapdata.tm.task.service.DagLogStrategy;
@@ -14,6 +15,7 @@ import org.apache.commons.lang3.math.NumberUtils;
 import org.bson.types.ObjectId;
 import org.springframework.stereotype.Component;
 
+import java.text.MessageFormat;
 import java.util.Date;
 import java.util.LinkedList;
 import java.util.List;
@@ -43,16 +45,19 @@ public class TargetSettingStrategyImpl implements DagLogStrategy {
             String name = node.getName();
             Integer value;
             String template;
+            String grade;
             if (nameMap.containsKey(name)) {
                 value = nameMap.get(name) + 1;
                 template = templateEnum.getErrorTemplate();
+                grade = Level.ERROR.getValue();
             } else {
                 value = NumberUtils.INTEGER_ZERO;
                 template = templateEnum.getInfoTemplate();
+                grade = Level.INFO.getValue();
             }
             nameMap.put(name, value);
 
-            String content = String.format(template, current, taskName, name);
+            String content = MessageFormat.format(template, current, taskName, name);
 
             TaskDagCheckLog log = new TaskDagCheckLog();
             log.setTaskId(taskId.toHexString());
@@ -60,6 +65,7 @@ public class TargetSettingStrategyImpl implements DagLogStrategy {
             log.setCreateAt(now);
             log.setCreateUser(userDetail.getUserId());
             log.setLog(content);
+            log.setGrade(grade);
 
             result.add(log);
         });

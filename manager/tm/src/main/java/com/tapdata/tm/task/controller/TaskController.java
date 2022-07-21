@@ -25,7 +25,6 @@ import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
 import com.tapdata.tm.metadatainstance.vo.SourceTypeEnum;
 import com.tapdata.tm.task.bean.LogCollectorResult;
 import com.tapdata.tm.task.bean.TranModelReqDto;
-import com.tapdata.tm.task.constant.HaveCheckLogException;
 import com.tapdata.tm.task.entity.TaskEntity;
 import com.tapdata.tm.task.service.*;
 import com.tapdata.tm.task.vo.TaskDetailVo;
@@ -198,12 +197,12 @@ public class TaskController extends BaseController {
         task.setId(MongoUtils.toObjectId(id));
         UserDetail user = getLoginUser();
         taskCheckInspectService.getInspectFlagDefaultFlag(task, user);
-        try {
-            taskSaveService.taskSaveCheckLog(task, user);
-        } catch (HaveCheckLogException e) {
-            throw new RuntimeException(e);
+
+        boolean noPass = taskSaveService.taskSaveCheckLog(task, user);
+        TaskDto taskDto = task;
+        if (!noPass) {
+            taskDto = taskService.confirmById(task, user, confirm);
         }
-        TaskDto taskDto = taskService.confirmById(task, user, confirm);
         return success(taskDto);
     }
 
@@ -234,13 +233,13 @@ public class TaskController extends BaseController {
         task.setId(MongoUtils.toObjectId(id));
         UserDetail user = getLoginUser();
 
-        try {
-            taskStartService.taskStartCheckLog(task, user);
-        } catch (HaveCheckLogException e) {
-            throw new RuntimeException(e);
+        boolean noPass = taskStartService.taskStartCheckLog(task, user);
+        TaskDto taskDto = task;
+        if (!noPass) {
+            taskDto = taskService.confirmStart(task, user, confirm);
         }
 
-        return success(taskService.confirmStart(task, user, confirm));
+        return success(taskDto);
     }
 
 

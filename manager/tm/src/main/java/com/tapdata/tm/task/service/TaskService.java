@@ -2619,4 +2619,10 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         Update update = Update.update("migrateModelStatus", TaskDto.MODELDONE);
         update(query, update);
     }
+
+    public void updateStatus(ObjectId taskId, String status) {
+        Query query = Query.query(Criteria.where("_id").is(taskId));
+        Update update = Update.update("status", status);
+        update(query, update);
+    }
 }

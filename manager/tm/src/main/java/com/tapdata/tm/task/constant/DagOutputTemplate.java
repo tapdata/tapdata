@@ -9,7 +9,7 @@ public class DagOutputTemplate {
      * Agent不可用：
      * 【ERROR】 2022-05-24 21:05:22  【任务A】【Agent可用性检测】：当前无可用Agent，任务运行失败
      */
-    public static String AGENT_CAN_USE_INFO = "{0} 【{1}】\n【Agent可用性检测】：检查到当前有{2}个可用Agent，当前任务将在Agent：{{3}}上运行";
+    public static String AGENT_CAN_USE_INFO = "{0} 【{1}】\n【Agent可用性检测】：检查到当前有{2}个可用Agent，当前任务将在Agent：'{'{3}}上运行";
     public static String AGENT_CAN_USE_ERROR = "{0}【{1}】\n【Agent可用性检测】：当前无可用Agent，任务运行失败";
 
     /**
@@ -20,8 +20,8 @@ public class DagOutputTemplate {
      * 任务检测未通过：
      * 【ERROR】 2022-05-24 21:05:22  【任务A】【任务设置检测】：任务{MySQL_test}检测未通过，异常项{任务名称}，异常原因：任务名称重复，请重新设置
      */
-    public static String TASK_SETTING_INFO = "{0} 【{1}】\n【任务设置检测】：任务{{1}}检测通过";
-    public static String TASK_SETTING_ERROR = " {0} 【{1}】\n【任务设置检测】：任务{{1}}检测未通过，异常项{任务名称}，异常原因：任务名称重复，请重新设置";
+    public static String TASK_SETTING_INFO = "{0} 【{1}】\n【任务设置检测】：任务'{'{1}}检测通过";
+    public static String TASK_SETTING_ERROR = " {0} 【{1}】\n【任务设置检测】：任务'{'{1}}检测未通过，异常项{任务名称}，异常原因：任务名称重复，请重新设置";
 
     /**
      * 源节点设置检测：
@@ -31,8 +31,8 @@ public class DagOutputTemplate {
      * 源节点检测未通过：
      * 【ERROR】 2022-05-24 21:05:22  【任务A】【源节点设置检测】：节点{MySQL_01}检测未通过，异常项{节点名称}，异常原因：节点名称重复，请重新设置
      */
-    public static String SOURCE_SETTING_INFO = " {0} 【{1}】\n【源节点设置检测】：节点{{2}}检测通过";
-    public static String SOURCE_SETTING_ERROR = " {0} 【{1}】\n【源节点设置检测】：节点{{2}}检测未通过，异常项{节点名称}，异常原因：节点名称重复，请重新设置";
+    public static String SOURCE_SETTING_INFO = " {0} 【{1}】\n【源节点设置检测】：节点'{'{2}}检测通过";
+    public static String SOURCE_SETTING_ERROR = " {0} 【{1}】\n【源节点设置检测】：节点'{'{2}}检测未通过，异常项{节点名称}，异常原因：节点名称重复，请重新设置";
 
     /**
      * JS节点设置检测：（没有可跳过检测）
@@ -42,8 +42,8 @@ public class DagOutputTemplate {
      * JS节点检测未通过：
      * 【ERROR】 2022-05-24 21:05:22 【任务A】 【JS节点设置检测】：节点{JS节点001}检测未通过，异常项属性：{脚本}，异常原因：设置有误，请重新设置
      */
-    public static String JS_NODE_INFO = " {0} 【{1}】\n【JS节点设置检测】：节点{{2}}检测通过";
-    public static String JS_NODE_ERROR = " {0} 【{1}】\n【JS节点设置检测】：节点{{2}}检测未通过，异常项属性：{脚本}，异常原因：设置有误，请重新设置";
+    public static String JS_NODE_INFO = " {0} 【{1}】\n【JS节点设置检测】：节点'{'{2}}检测通过";
+    public static String JS_NODE_ERROR = " {0} 【{1}】\n【JS节点设置检测】：节点'{'{2}}检测未通过，异常项属性：{脚本}，异常原因：设置有误，请重新设置";
 
     /**
      * 表编辑节点设置检测：（没有可跳过检测）
@@ -64,8 +64,8 @@ public class DagOutputTemplate {
      * 字段编辑节点检测未通过：
      * 【ERROR】 2022-05-24 21:05:22  【任务A】【字段编辑节点设置检测】：节点{字段编辑节点001}检测未通过，异常项属性：{后缀}，异常原因：设置有误，请重新设置
      */
-    public static String FIELD_EDIT_NODE_INFO = " {0} 【{1}】\n【字段编辑节点设置检测】：节点{{2}}检测";
-    public static String FIELD_EDIT_NODE_ERROR = " {0} 【{1}】\n【字段编辑节点设置检测】：节点{{2}}检测未通过，异常项属性：{后缀}，异常原因：设置有误，请重新设置";
+    public static String FIELD_EDIT_NODE_INFO = " {0} 【{1}】\n【字段编辑节点设置检测】：节点'{'{2}}检测";
+    public static String FIELD_EDIT_NODE_ERROR = " {0} 【{1}】\n【字段编辑节点设置检测】：节点'{'{2}}检测未通过，异常项属性：{后缀}，异常原因：设置有误，请重新设置";
 
     /**
      * 目标节点设置检测：
@@ -75,8 +75,8 @@ public class DagOutputTemplate {
      * 目标节点检测未通过：
      * 【ERROR】 2022-05-24 21:05:22  【任务A】【目标节点设置检测】：节点{MySQL_01}检测未通过，异常项属性：{节点名称}，异常原因：节点名称重复，请重新设置
      */
-    public static String TARGET_NODE_INFO = " {0} 【{1}】\n【目标节点设置检测】：节点{{2}}检测通过";
-    public static String TARGET_NODE_ERROR = " {0} 【{1}】\n【目标节点设置检测】：节点{{2}}检测未通过，异常项属性：{节点名称}，异常原因：节点名称重复，请重新设置";
+    public static String TARGET_NODE_INFO = " {0} 【{1}】\n【目标节点设置检测】：节点'{'{2}}检测通过";
+    public static String TARGET_NODE_ERROR = " {0} 【{1}】\n【目标节点设置检测】：节点'{'{2}}检测未通过，异常项属性：{节点名称}，异常原因：节点名称重复，请重新设置";
 
     /**
      * 源连接检测：

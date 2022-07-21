@@ -4,6 +4,7 @@ import cn.hutool.core.date.DateUtil;
 import com.tapdata.tm.commons.dag.AccessNodeTypeEnum;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
+import com.tapdata.tm.message.constant.Level;
 import com.tapdata.tm.task.constant.DagOutputTemplateEnum;
 import com.tapdata.tm.task.entity.TaskDagCheckLog;
 import com.tapdata.tm.task.service.DagLogStrategy;
@@ -40,12 +41,15 @@ public class AgentStrategyImpl implements DagLogStrategy {
 
         String template;
         String content;
+        String grade;
         if (CollectionUtils.isNotEmpty(availableAgent)) {
             template = templateEnum.getInfoTemplate();
             content = String.format(template, DateUtil.now(), taskDto.getName(), availableAgent.size(), availableAgent.get(0).getHostname());
+            grade = Level.INFO.getValue();
         } else {
             template = templateEnum.getErrorTemplate();
             content = String.format(template, DateUtil.now(), taskDto.getName());
+            grade = Level.ERROR.getValue();
         }
 
         TaskDagCheckLog log = new TaskDagCheckLog();
@@ -54,6 +58,7 @@ public class AgentStrategyImpl implements DagLogStrategy {
         log.setCreateAt(new Date());
         log.setCreateUser(userDetail.getUserId());
         log.setLog(content);
+        log.setGrade(grade);
 
         return Lists.newArrayList(log);
     }
