@@ -89,10 +89,6 @@
             <artifactId>spring-core</artifactId>
             <version>2.5.6</version>
         </dependency>
-        <dependency>
-            <groupId>io.tapdata</groupId>
-            <artifactId>tapdata-api</artifactId>
-        </dependency>
     </dependencies>
     <build>
         <plugins>
