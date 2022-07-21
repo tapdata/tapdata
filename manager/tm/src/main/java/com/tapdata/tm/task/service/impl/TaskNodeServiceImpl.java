@@ -147,10 +147,10 @@ public class TaskNodeServiceImpl implements TaskNodeService {
             String sinkQualifiedName = null;
             if (Objects.nonNull(targetDataSource)) {
                 String metaType = "mongodb".equals(targetDataSource.getDatabase_type()) ? "collection" : "table";
-                sinkQualifiedName = MetaDataBuilderUtils.generateQualifiedName(metaType, targetDataSource, tableName);
+                sinkQualifiedName = MetaDataBuilderUtils.generateQualifiedName(metaType, targetDataSource, tableName, taskId);
             }
             String metaType = "mongodb".equals(sourceDataSource.getDatabase_type()) ? "collection" : "table";
-            String sourceQualifiedName = MetaDataBuilderUtils.generateQualifiedName(metaType, sourceDataSource, tableName);
+            String sourceQualifiedName = MetaDataBuilderUtils.generateQualifiedName(metaType, sourceDataSource, tableName, taskId);
 
             List<Field> fields = metaMap.get(tableName).getFields();
 
