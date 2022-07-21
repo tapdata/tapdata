@@ -50,13 +50,23 @@ public class MetaDataBuilderUtils {
     }
 
     public static String generateQualifiedName(String metaType, DataSourceConnectionDto connectionDto, String tableName) {
+        return generateQualifiedName(metaType, connectionDto, tableName, null);
+    }
+    public static String generateQualifiedName(String metaType, DataSourceConnectionDto connectionDto, String tableName, String taskId) {
         String qualifiedName = metaTypePropertyMap.get(metaType).getPrefix();
         String id = connectionDto.getId().toHexString();
         if (DataSourceDefinitionDto.PDK_TYPE.equals(connectionDto.getPdkType())) {
             qualifiedName += connectionDto.getDefinitionPdkId() + "_";
             qualifiedName += connectionDto.getDefinitionGroup() + "_";
             qualifiedName += connectionDto.getDefinitionVersion() + "_";
-            qualifiedName += tableName + "_" + id;
+            if (StringUtils.isNotBlank(tableName)) {
+                qualifiedName += tableName + "_";
+            }
+
+            if (StringUtils.isNotBlank(taskId)) {
+                qualifiedName += taskId + "_";
+            }
+            qualifiedName += id;
         } else if (metaTypePropertyMap.get(metaType).isModel()) {
             String databaseType = connectionDto.getDatabase_type();
             String databaseName;
@@ -77,6 +87,9 @@ public class MetaDataBuilderUtils {
             }
             if (StringUtils.isNotBlank(databaseOwner)) {
                 qualifiedName += databaseOwner + "_";
+            }
+            if (StringUtils.isNotBlank(taskId)) {
+                qualifiedName += taskId + "_";
             }
             qualifiedName += tableName + "_" + id;
 

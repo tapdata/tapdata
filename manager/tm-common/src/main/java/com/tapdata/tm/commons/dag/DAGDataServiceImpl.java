@@ -44,6 +44,8 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
     private final String userId;
     private final String userName;
 
+    private  String taskId = null;
+
     private final Map<String, MetadataInstancesDto> batchMetadataUpdateMap = new LinkedHashMap<>();
 
     private final List<MetadataInstancesDto> batchInsertMetaDataList = new ArrayList<>();
@@ -63,6 +65,7 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
         this.definitionDtoMap = transformerWsMessageDto.getDefinitionDtoMap();
         if (transformerWsMessageDto.getTaskDto() != null) {
             taskMap.put(transformerWsMessageDto.getTaskDto().getId().toHexString(), transformerWsMessageDto.getTaskDto());
+            this.taskId = transformerWsMessageDto.getTaskDto().getId().toHexString();
         }
         this.userId = transformerWsMessageDto.getUserId();
         this.userName = transformerWsMessageDto.getUserName();
@@ -79,6 +82,7 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
         this.definitionDtoMap = definitionDtoMap;
         if (taskDto != null) {
             taskMap.put(taskDto.getId().toHexString(), taskDto);
+            this.taskId = taskDto.getId().toHexString();
         }
         this.userId = userId;
         this.userName = userName;
@@ -320,6 +324,7 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
             }
         }
 
+
         String databaseQualifiedName = MetaDataBuilderUtils.generateQualifiedName("database", dataSource, null);
         MetadataInstancesDto dataSourceMetadataInstance = metadataMap.get(databaseQualifiedName);
 
@@ -363,7 +368,7 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
             metadataInstancesDto.setLastUpdBy(userId);
 
             metadataInstancesDto.setQualifiedName(
-                    MetaDataBuilderUtils.generateQualifiedName(metadataInstancesDto.getMetaType(), dataSource, schema.getOriginalName()));
+                    MetaDataBuilderUtils.generateQualifiedName(metadataInstancesDto.getMetaType(), dataSource, schema.getOriginalName(), taskId));
 
             metadataInstancesDto = MetaDataBuilderUtils.build(_metaType, dataSource, userId, userName, metadataInstancesDto.getOriginalName(),
                     metadataInstancesDto, null, dataSourceId.toHexString());
