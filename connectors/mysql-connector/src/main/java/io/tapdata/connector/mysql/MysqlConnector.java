@@ -107,9 +107,9 @@ public class MysqlConnector extends ConnectorBase {
 		connectorFunctions.supportGetTableNamesFunction(this::getTableNames);
 	}
 
-	private void getTableNames(TapConnectorContext tapConnectorContext, int batchSize, Consumer<List<String>> listConsumer) {
+	private void getTableNames(TapConnectionContext tapConnectionContext, int batchSize, Consumer<List<String>> listConsumer) {
 		MysqlSchemaLoader mysqlSchemaLoader = new MysqlSchemaLoader(mysqlJdbcContext);
-		mysqlSchemaLoader.getTableNames(tapConnectorContext, batchSize, listConsumer);
+		mysqlSchemaLoader.getTableNames(tapConnectionContext, batchSize, listConsumer);
 	}
 
 	private void fieldDDLHandler(TapConnectorContext tapConnectorContext, TapFieldBaseEvent tapFieldBaseEvent) {

@@ -348,8 +348,8 @@ public class MysqlSchemaLoader {
 		return tableList;
 	}
 
-	public void getTableNames(TapConnectorContext tapConnectorContext, int batchSize, Consumer<List<String>> listConsumer) {
-		DataMap connectionConfig = tapConnectorContext.getConnectionConfig();
+	public void getTableNames(TapConnectionContext tapConnectionContext, int batchSize, Consumer<List<String>> listConsumer) {
+		DataMap connectionConfig = tapConnectionContext.getConnectionConfig();
 		String database = connectionConfig.getString("database");
 		String sql = String.format(SELECT_TABLES, database);
 		List<String> list = new ArrayList<>();

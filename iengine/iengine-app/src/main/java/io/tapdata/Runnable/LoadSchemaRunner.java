@@ -207,10 +207,9 @@ public class LoadSchemaRunner implements Runnable {
 	public static void loadPdkSchema(Connections connections, ConnectionNode connectionNode, Consumer<TapTable> tableConsumer) throws Exception {
 		try {
 			TableFilter tableFilter = TableFilter.create(connections.getTable_filter());
-			// todo sam get table names and filter table name
 			GetTableNamesFunction getTableNamesFunction = connectionNode.getConnectionFunctions().getGetTableNamesFunction();
 			if (null == getTableNamesFunction) {
-				pdkDiscorySchema(connectionNode, tableConsumer, new ArrayList<>());
+				pdkDiscoverSchema(connectionNode, tableConsumer, new ArrayList<>());
 			} else {
 				List<String> tempList = new ArrayList<>();
 				PDKInvocationMonitor.invoke(connectionNode, PDKMethod.GET_TABLE_NAMES,
@@ -220,12 +219,12 @@ public class LoadSchemaRunner implements Runnable {
 							}
 							tableNames.stream().filter(tableFilter).forEach(tempList::add);
 							if (tempList.size() >= BATCH_SIZE) {
-								pdkDiscorySchema(connectionNode, tableConsumer, tempList);
+								pdkDiscoverSchema(connectionNode, tableConsumer, tempList);
 								tempList.clear();
 							}
 						}), TAG);
 				if (CollectionUtils.isNotEmpty(tempList)) {
-					pdkDiscorySchema(connectionNode, tableConsumer, tempList);
+					pdkDiscoverSchema(connectionNode, tableConsumer, tempList);
 					tempList.clear();
 				}
 			}
@@ -234,7 +233,7 @@ public class LoadSchemaRunner implements Runnable {
 		}
 	}
 
-	private static void pdkDiscorySchema(ConnectionNode connectionNode, Consumer<TapTable> tableConsumer, List<String> tableFilter) {
+	private static void pdkDiscoverSchema(ConnectionNode connectionNode, Consumer<TapTable> tableConsumer, List<String> tableFilter) {
 		TableFieldTypesGenerator tableFieldTypesGenerator = InstanceFactory.instance(TableFieldTypesGenerator.class);
 		DefaultExpressionMatchingMap dataTypesMap = connectionNode.getConnectionContext().getSpecification().getDataTypesMap();
 		PDKInvocationMonitor.invoke(connectionNode, PDKMethod.DISCOVER_SCHEMA,
