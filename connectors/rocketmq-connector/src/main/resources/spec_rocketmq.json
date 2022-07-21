@@ -10,7 +10,6 @@
       "type": "object",
       "properties": {
         "mqTopicString": {
-          "required": true,
           "type": "string",
           "title": "${mqTopicString}",
           "x-decorator": "FormItem",
@@ -72,11 +71,7 @@
           "type": "boolean",
           "title": "${useTLS}",
           "x-decorator": "FormItem",
-          "x-component": "Radio.Group",
-          "x-component-props": {
-            "optionType": "button"
-          },
-          "default": false,
+          "x-component": "Switch",
           "apiServerKey": "use_tls",
           "x-index": 8
         }

@@ -69,7 +69,7 @@ public class RocketmqConnector extends ConnectorBase {
 
     @Override
     public ConnectionOptions connectionTest(TapConnectionContext connectionContext, Consumer<TestItem> consumer) throws Throwable {
-        rocketmqConfig = (RocketmqConfig) new RocketmqConfig().load(connectionContext.getConnectionConfig());
+        rocketmqConfig = new RocketmqConfig().load(connectionContext.getConnectionConfig());
         RocketmqService rocketmqService = new RocketmqService(rocketmqConfig);
         rocketmqService.testConnection(consumer);
         rocketmqService.close();

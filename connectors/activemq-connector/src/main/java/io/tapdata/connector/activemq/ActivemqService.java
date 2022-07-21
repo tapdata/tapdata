@@ -85,6 +85,19 @@ public class ActivemqService extends AbstractMqService {
     }
 
     @Override
+    protected <T> Map<String, Object> analyzeTable(Object object, T topic, TapTable tapTable) throws Exception {
+        Session session = (Session) object;
+        tapTable.setId(((Queue) topic).getQueueName());
+        tapTable.setName(((Queue) topic).getQueueName());
+        MessageConsumer messageConsumer = session.createConsumer((Destination) topic);
+        TextMessage textMessage = (TextMessage) messageConsumer.receive(SINGLE_MAX_LOAD_TIMEOUT);
+        if (textMessage == null) {
+            return new HashMap<>();
+        }
+        return jsonParser.fromJson(textMessage.getText(), Map.class);
+    }
+
+    @Override
     public int countTables() throws Throwable {
         if (EmptyKit.isEmpty(activemqConfig.getMqQueueSet())) {
             return activemqConnection.getDestinationSource().getQueues().size();
@@ -95,7 +108,6 @@ public class ActivemqService extends AbstractMqService {
 
     @Override
     public void loadTables(int tableSize, Consumer<List<TapTable>> consumer) throws Throwable {
-        Map<String, Map<String, Object>> destinationRecordMap = new HashMap<>();
         Set<ActiveMQQueue> existQueueSet = activemqConnection.getDestinationSource().getQueues();
         Set<Destination> destinationSet = new HashSet<>();
         Set<String> existQueueNameSet = new HashSet<>();
@@ -128,30 +140,8 @@ public class ActivemqService extends AbstractMqService {
             }
         }
         Session session = activemqConnection.createSession(false, Session.CLIENT_ACKNOWLEDGE);
-        for (Destination destination : destinationSet) {
-            MessageConsumer messageConsumer = session.createConsumer(destination);
-            TextMessage textMessage = (TextMessage) messageConsumer.receive(SINGLE_MAX_LOAD_TIMEOUT);
-            if (textMessage == null) {
-                destinationRecordMap.put(getDestinationName(destination), new HashMap<>());
-                continue;
-            }
-            destinationRecordMap.put(getDestinationName(destination), jsonParser.fromJson(textMessage.getText(), Map.class));
-        }
-        TreeMap<String, Map<String, Object>> treeMap = new TreeMap<>(Comparator.naturalOrder());
-        treeMap.putAll(destinationRecordMap);
-        List<TapTable> tableList = TapSimplify.list();
-        for (Map.Entry<String, Map<String, Object>> e : treeMap.entrySet()) {
-            TapTable table = TapSimplify.table(e.getKey());
-            SCHEMA_PARSER.parse(table, e.getValue());
-            tableList.add(table);
-            if (tableList.size() >= tableSize) {
-                consumer.accept(tableList);
-                tableList = TapSimplify.list();
-            }
-        }
-        if (EmptyKit.isNotEmpty(tableList)) {
-            consumer.accept(tableList);
-        }
+        submitTables(tableSize, consumer, session, destinationSet);
+        session.close();
     }
 
     @Override
@@ -263,6 +253,13 @@ public class ActivemqService extends AbstractMqService {
             if (EmptyKit.isNotEmpty(list)) {
                 eventsOffsetConsumer.accept(list, TapSimplify.list());
             }
+            consumerMap.forEach((key, value) -> {
+                try {
+                    value.close();
+                } catch (JMSException e) {
+                    throw new RuntimeException(e);
+                }
+            });
             countDownLatch.countDown();
             if (err >= 10) {
                 consuming.set(false);
@@ -292,16 +289,4 @@ public class ActivemqService extends AbstractMqService {
                 break;
         }
     }
-
-    private String getDestinationName(Destination destination) {
-        try {
-            if (destination instanceof Queue) {
-                return ((Queue) destination).getQueueName();
-            }
-        } catch (JMSException e) {
-            TapLogger.error(TAG, "error", e);
-        }
-        return "";
-    }
-
 }

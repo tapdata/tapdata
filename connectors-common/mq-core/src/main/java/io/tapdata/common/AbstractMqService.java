@@ -1,11 +1,17 @@
 package io.tapdata.common;
 
 import io.tapdata.entity.logger.TapLogger;
+import io.tapdata.entity.schema.TapTable;
+import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.kit.EmptyKit;
 
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Consumer;
 
 public abstract class AbstractMqService implements MqService {
 
@@ -28,4 +34,21 @@ public abstract class AbstractMqService implements MqService {
         }
     }
 
+    protected <T> void submitTables(int tableSize, Consumer<List<TapTable>> consumer, Object object, Set<T> destinationSet) throws Exception {
+        List<TapTable> tableList = TapSimplify.list();
+        for (T topic : destinationSet) {
+            TapTable table = new TapTable();
+            SCHEMA_PARSER.parse(table, analyzeTable(object, topic, table));
+            tableList.add(table);
+            if (tableList.size() >= tableSize) {
+                consumer.accept(tableList);
+                tableList = TapSimplify.list();
+            }
+        }
+        if (EmptyKit.isNotEmpty(tableList)) {
+            consumer.accept(tableList);
+        }
+    }
+
+    protected abstract <T> Map<String, Object> analyzeTable(Object object, T topic, TapTable tapTable) throws Exception;
 }

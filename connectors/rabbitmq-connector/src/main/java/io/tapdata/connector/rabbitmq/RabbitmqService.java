@@ -75,6 +75,18 @@ public class RabbitmqService extends AbstractMqService {
     }
 
     @Override
+    protected <T> Map<String, Object> analyzeTable(Object object, T destination, TapTable tapTable) throws Exception {
+        Channel channel = (Channel) object;
+        tapTable.setId((String) destination);
+        tapTable.setName((String) destination);
+        GetResponse message = channel.basicGet((String) destination, false);
+        if (message == null) {
+            return new HashMap<>();
+        }
+        return jsonParser.fromJsonBytes(message.getBody(), Map.class);
+    }
+
+    @Override
     public int countTables() throws Throwable {
         if (EmptyKit.isEmpty(rabbitmqConfig.getMqQueueSet())) {
             Client client = new Client(String.format(RABBITMQ_URL, rabbitmqConfig.getMqHost(), rabbitmqConfig.getApiPort()),
@@ -87,7 +99,6 @@ public class RabbitmqService extends AbstractMqService {
 
     @Override
     public void loadTables(int tableSize, Consumer<List<TapTable>> consumer) throws Throwable {
-        Map<String, Map<String, Object>> destinationRecordMap = new HashMap<>();
         Client client = new Client(String.format(RABBITMQ_URL, rabbitmqConfig.getMqHost(), rabbitmqConfig.getApiPort()),
                 rabbitmqConfig.getMqUsername(), rabbitmqConfig.getMqPassword());
         Channel channel = rabbitmqConnection.createChannel();
@@ -114,29 +125,8 @@ public class RabbitmqService extends AbstractMqService {
                 }
             }
         }
-        for (String destination : destinationSet) {
-            GetResponse message = channel.basicGet(destination, false);
-            if (message == null) {
-                destinationRecordMap.put(destination, new HashMap<>());
-                continue;
-            }
-            destinationRecordMap.put(destination, jsonParser.fromJsonBytes(message.getBody(), Map.class));
-        }
-        TreeMap<String, Map<String, Object>> treeMap = new TreeMap<>(Comparator.naturalOrder());
-        treeMap.putAll(destinationRecordMap);
-        List<TapTable> tableList = TapSimplify.list();
-        for (Map.Entry<String, Map<String, Object>> e : treeMap.entrySet()) {
-            TapTable table = TapSimplify.table(e.getKey());
-            SCHEMA_PARSER.parse(table, e.getValue());
-            tableList.add(table);
-            if (tableList.size() >= tableSize) {
-                consumer.accept(tableList);
-                tableList = TapSimplify.list();
-            }
-        }
-        if (EmptyKit.isNotEmpty(tableList)) {
-            consumer.accept(tableList);
-        }
+        submitTables(tableSize, consumer, channel, destinationSet);
+        channel.close();
     }
 
     @Override
