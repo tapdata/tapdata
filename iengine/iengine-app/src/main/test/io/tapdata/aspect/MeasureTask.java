@@ -13,12 +13,26 @@ import java.util.List;
 public class MeasureTask extends AspectTask {
 	private final ClassHandlers observerClassHandlers = new ClassHandlers();
 
-	@Override
-	public void onStart() {
-		//TaskStartAspect
+	public MeasureTask() {
 		observerClassHandlers.register(DataNodeInitAspect.class, this::handleNodeInit);
 		observerClassHandlers.register(DataNodeCloseAspect.class, this::handleNodeClose);
 		observerClassHandlers.register(ApplicationStartAspect.class, this::handleApplicationStart);
+		observerClassHandlers.register(ProcessorNodeProcessAspect.class, this::handleProcessorNodeProcess);
+		observerClassHandlers.register(StreamReadFuncAspect.class, this::handleStreamRead);
+	}
+
+	private Void handleStreamRead(StreamReadFuncAspect streamReadFuncAspect) {
+		return null;
+	}
+
+	private Void handleProcessorNodeProcess(ProcessorNodeProcessAspect nodeProcessAspect) {
+		return null;
+	}
+
+	@Override
+	public void onStart() {
+		//TaskStartAspect
+
 	}
 
 	private Void handleApplicationStart(ApplicationStartAspect applicationStartAspect) {
@@ -40,7 +54,7 @@ public class MeasureTask extends AspectTask {
 
 	@Override
 	public List<Class<? extends Aspect>> observeAspects() {
-		return Arrays.asList(DataNodeInitAspect.class, DataNodeCloseAspect.class, ApplicationStartAspect.class);
+		return (List<Class<? extends Aspect>>) observerClassHandlers.keyList();
 	}
 
 	@Override

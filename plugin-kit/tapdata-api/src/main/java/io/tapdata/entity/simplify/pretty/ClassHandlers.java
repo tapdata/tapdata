@@ -10,6 +10,10 @@ public class ClassHandlers {
     private static final String TAG = ClassHandlers.class.getSimpleName();
 
     private final Map<Class<?>, List<Function<?, ?>>> classHandlersMap = new ConcurrentHashMap<>();
+
+    public List<Class<?>> keyList() {
+        return new ArrayList<>(classHandlersMap.keySet());
+    }
     public <T, R> void register(Class<T> tClass, Function<T, R> objectHandler) {
         List<Function<?, ?>> objectHandlers = classHandlersMap.compute(tClass, (aClass, classObjectHandlers) -> new ArrayList<>());
         objectHandlers.add(objectHandler);

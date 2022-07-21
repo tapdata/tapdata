@@ -49,59 +49,60 @@ public class AspectUtils {
 	}
 
 	public static <T extends DataFunctionAspect<T>> AspectInterceptResult executeDataFuncAspect(Class<T> aspectClass, Callable<T> aspectCallable, Consumer<T> consumer) {
+		T aspect = null;
 		if(aspectManager != null && aspectManager.hasInterceptorOrObserver(aspectClass)) {
-			T aspect = null;
 			try {
 				aspect = aspectCallable.call();
 			} catch (Exception e) {
 				throw new RuntimeException(e);
 			}
-			if(aspect != null) {
-				AspectInterceptResult interceptResult = aspectManager.executeAspect(aspect);
-				if(interceptResult == null || !interceptResult.isIntercepted()) {
-					try {
-						consumer.accept(aspect);
-						aspect.state(DataFunctionAspect.STATE_END);
-						aspectManager.executeAspect(aspect);
-					} catch(Throwable throwable) {
-						aspect.throwable(throwable).state(DataFunctionAspect.STATE_END);
-						aspectManager.executeAspect(aspect);
-					}
-				} else {
-					return interceptResult;
+		}
+		if(aspect != null) {
+			AspectInterceptResult interceptResult = aspectManager.executeAspect(aspect);
+			if(interceptResult == null || !interceptResult.isIntercepted()) {
+				try {
+					consumer.accept(aspect);
+					aspect.state(DataFunctionAspect.STATE_END);
+					aspectManager.executeAspect(aspect);
+				} catch(Throwable throwable) {
+					aspect.throwable(throwable).state(DataFunctionAspect.STATE_END);
+					aspectManager.executeAspect(aspect);
 				}
 			} else {
-				consumer.accept(null);
+				return interceptResult;
 			}
+		} else {
+			consumer.accept(null);
 		}
+
 		return null;
 	}
 
 	public static <T extends ProcessorFunctionAspect<T>> AspectInterceptResult executeProcessorFuncAspect(Class<T> aspectClass, Callable<T> aspectCallable, Consumer<T> consumer) {
+		T aspect = null;
 		if(aspectManager != null && aspectManager.hasInterceptorOrObserver(aspectClass)) {
-			T aspect = null;
 			try {
 				aspect = aspectCallable.call();
 			} catch (Exception e) {
 				throw new RuntimeException(e);
 			}
-			if(aspect != null) {
-				AspectInterceptResult interceptResult = aspectManager.executeAspect(aspect);
-				if(interceptResult == null || !interceptResult.isIntercepted()) {
-					try {
-						consumer.accept(aspect);
-						aspect.state(DataFunctionAspect.STATE_END);
-						aspectManager.executeAspect(aspect);
-					} catch(Throwable throwable) {
-						aspect.throwable(throwable).state(DataFunctionAspect.STATE_END);
-						aspectManager.executeAspect(aspect);
-					}
-				} else {
-					return interceptResult;
+		}
+		if(aspect != null) {
+			AspectInterceptResult interceptResult = aspectManager.executeAspect(aspect);
+			if(interceptResult == null || !interceptResult.isIntercepted()) {
+				try {
+					consumer.accept(aspect);
+					aspect.state(DataFunctionAspect.STATE_END);
+					aspectManager.executeAspect(aspect);
+				} catch(Throwable throwable) {
+					aspect.throwable(throwable).state(DataFunctionAspect.STATE_END);
+					aspectManager.executeAspect(aspect);
 				}
 			} else {
-				consumer.accept(null);
+				return interceptResult;
 			}
+		} else {
+			consumer.accept(null);
 		}
 		return null;
 	}
