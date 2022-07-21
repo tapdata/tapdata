@@ -1,5 +1,6 @@
-package io.tapdata.pdk.apis.functions.connector.common;
+package io.tapdata.pdk.apis.functions.connection;
 
+import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.functions.connector.TapFunction;
 
@@ -10,5 +11,5 @@ public interface GetTableNamesFunction extends TapFunction {
     /**
      * @param nodeContext the node context in a DAG
      */
-    void tableNames(TapConnectorContext nodeContext, int batchSize, Consumer<List<String>> consumer) throws Throwable;
+    void tableNames(TapConnectionContext nodeContext, int batchSize, Consumer<List<String>> consumer) throws Throwable;
 }

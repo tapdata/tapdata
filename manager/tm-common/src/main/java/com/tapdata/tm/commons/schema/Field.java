@@ -42,6 +42,10 @@ public class Field {
     @org.springframework.data.mongodb.core.mapping.Field("id")
     private String id;
 
+    public void setId(String id) {
+        this.id = id;
+    }
+
     private Boolean isAnalyze;
     @JsonProperty("is_auto_allowed")
     @org.springframework.data.mongodb.core.mapping.Field("is_auto_allowed")

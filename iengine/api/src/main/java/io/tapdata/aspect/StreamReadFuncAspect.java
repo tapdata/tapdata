@@ -1,16 +1,15 @@
 package io.tapdata.aspect;
 
 import com.tapdata.entity.TapdataEvent;
+import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
+import org.apache.commons.lang3.exception.ExceptionUtils;
 
 import java.util.List;
+import java.util.function.Consumer;
 
 public class StreamReadFuncAspect extends DataFunctionAspect<StreamReadFuncAspect> {
-	private Long acceptTime;
-	public StreamReadFuncAspect acceptTime(Long acceptTime) {
-		this.acceptTime = acceptTime;
-		return this;
-	}
+	private static final String TAG = StreamReadFuncAspect.class.getSimpleName();
 	private Long streamStartedTime;
 	public StreamReadFuncAspect streamStartedTime(Long streamStartedTime) {
 		this.streamStartedTime = streamStartedTime;
@@ -46,10 +45,15 @@ public class StreamReadFuncAspect extends DataFunctionAspect<StreamReadFuncAspec
 		return this;
 	}
 
-	private List<TapdataEvent> events;
-
-	public StreamReadFuncAspect events(List<TapdataEvent> events) {
-		this.events = events;
+	private Consumer<List<TapdataEvent>> consumer;
+	public StreamReadFuncAspect consumer(Consumer<List<TapdataEvent>> listConsumer) {
+		this.consumer = tapdataEvents -> {
+			try {
+				listConsumer.accept(tapdataEvents);
+			} catch(Throwable throwable) {
+				TapLogger.warn(TAG, "Consume tapdataEvents from table {} failed on consumer {}, {}", tables, listConsumer, ExceptionUtils.getStackTrace(throwable));
+			}
+		};
 		return this;
 	}
 
@@ -77,22 +81,6 @@ public class StreamReadFuncAspect extends DataFunctionAspect<StreamReadFuncAspec
 		this.eventBatchSize = eventBatchSize;
 	}
 
-	public List<TapdataEvent> getEvents() {
-		return events;
-	}
-
-	public void setEvents(List<TapdataEvent> events) {
-		this.events = events;
-	}
-
-	public Long getAcceptTime() {
-		return acceptTime;
-	}
-
-	public void setAcceptTime(Long acceptTime) {
-		this.acceptTime = acceptTime;
-	}
-
 	public Long getStreamStartedTime() {
 		return streamStartedTime;
 	}
@@ -107,5 +95,13 @@ public class StreamReadFuncAspect extends DataFunctionAspect<StreamReadFuncAspec
 
 	public void setTables(List<String> tables) {
 		this.tables = tables;
+	}
+
+	public Consumer<List<TapdataEvent>> getConsumer() {
+		return consumer;
+	}
+
+	public void setConsumer(Consumer<List<TapdataEvent>> consumer) {
+		this.consumer = consumer;
 	}
 }

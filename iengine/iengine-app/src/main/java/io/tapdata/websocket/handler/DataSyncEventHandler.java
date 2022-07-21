@@ -73,8 +73,12 @@ public class DataSyncEventHandler extends BaseEventHandler {
 					}
 					try {
 						destroy(taskId);
-					} catch (Exception e) {
-						webSocketEventResult = WebSocketEventResult.handleFailed(WebSocketEventResult.Type.DATA_SYNC_RESULT, e.getMessage() + "\n" + Log4jUtil.getStackString(e), e);
+					} catch (Throwable e) {
+						if ("delete".equals(opType)) {
+							logger.error("Destroy task [" + taskId + "] failed, error: " + e.getMessage(), e);
+						} else {
+							webSocketEventResult = WebSocketEventResult.handleFailed(WebSocketEventResult.Type.DATA_SYNC_RESULT, e.getMessage() + "\n" + Log4jUtil.getStackString(e), e);
+						}
 					}
 					break;
 				default:
