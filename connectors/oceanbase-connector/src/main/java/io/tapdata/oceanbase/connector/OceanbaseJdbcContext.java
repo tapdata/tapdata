@@ -45,7 +45,6 @@ public class OceanbaseJdbcContext implements AutoCloseable {
     private HikariDataSource hikariDataSource;
     private static final String SELECT_SQL_MODE = "select @@sql_mode";
     private static final String SET_CLIENT_SQL_MODE = "set sql_mode = ?";
-    private static final String SELECT_MYSQL_VERSION = "select version() as version";
     private static final String SELECT_TABLE = "SELECT t.* FROM `%s`.`%s` t";
     private static final String SELECT_COUNT = "SELECT count(*) FROM `%s`.`%s` t";
     private static final String CHECK_TABLE_EXISTS_SQL = "SELECT * FROM information_schema.tables WHERE TABLE_SCHEMA='%s' AND TABLE_NAME='%s'";
@@ -172,16 +171,6 @@ public class OceanbaseJdbcContext implements AutoCloseable {
                 }
             }
         }
-    }
-
-    public String getOceanbaseVersion() throws Throwable {
-        AtomicReference<String> version = new AtomicReference<>();
-        query(SELECT_MYSQL_VERSION, resultSet -> {
-            if (resultSet.next()) {
-                version.set(resultSet.getString("version"));
-            }
-        });
-        return version.get();
     }
 
     public List<DataMap> query(String sql, final Set<String> fieldNames) throws Throwable {
