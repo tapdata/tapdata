@@ -212,7 +212,7 @@ public class TaskSessionClassHolder implements Comparable<TaskSessionClassHolder
 		return false;
 	}
 
-	class AspectTaskEx {
+	static class AspectTaskEx {
 		AspectTask aspectTask;
 		AspectObserver<Aspect> aspectObserver;
 		AspectInterceptor<Aspect> aspectInterceptor;

@@ -14,6 +14,8 @@ import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.dag.process.MergeTableNode;
 import com.tapdata.tm.commons.task.dto.SubTaskDto;
+import io.tapdata.aspect.TaskResetAspect;
+import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.entity.utils.cache.KVMap;
@@ -158,6 +160,7 @@ public class DataSyncEventHandler extends BaseEventHandler {
 			if (releaseExternalFunction != null) {
 				PDKInvocationMonitor.invoke(connectorNode, PDKMethod.RELEASE_EXTERNAL, () -> releaseExternalFunction.release(connectorNode.getConnectorContext()), TAG);
 			}
+			AspectUtils.executeAspect(TaskResetAspect.class, () -> new TaskResetAspect().task(subTaskDto));
 			TapConnectorContext connectorContext = connectorNode.getConnectorContext();
 			if (connectorContext != null) {
 				KVMap<Object> stateMap = connectorContext.getStateMap();
