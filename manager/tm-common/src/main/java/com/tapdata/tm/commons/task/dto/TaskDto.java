@@ -34,6 +34,10 @@ public class TaskDto extends ParentTaskDto {
      * 试运行
      */
     public static final String SYNC_TYPE_TEST_RUN = "testRun";
+    /**
+     * 模型推演
+     */
+    public static final String SYNC_TYPE_DEDUCE_SCHEMA = "deduceSchema";
 
     public static final String MODELDONE = "modelDone";
 

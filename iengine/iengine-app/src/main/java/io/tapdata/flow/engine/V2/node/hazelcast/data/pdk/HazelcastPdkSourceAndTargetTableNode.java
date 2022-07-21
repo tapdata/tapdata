@@ -9,6 +9,7 @@ import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.NotNull;
@@ -36,7 +37,8 @@ public class HazelcastPdkSourceAndTargetTableNode extends HazelcastPdkBaseNode {
 	public HazelcastPdkSourceAndTargetTableNode(DataProcessorContext dataProcessorContext) {
 		super(dataProcessorContext);
 		SubTaskDto subTaskDto = dataProcessorContext.getSubTaskDto();
-		if (TaskDto.SYNC_TYPE_TEST_RUN.equals(subTaskDto.getParentTask().getSyncType()) || subTaskDto.isTransformTask()) {
+		if (StringUtils.equalsAnyIgnoreCase(subTaskDto.getParentTask().getSyncType(),
+						TaskDto.SYNC_TYPE_DEDUCE_SCHEMA, TaskDto.SYNC_TYPE_TEST_RUN)) {
 			this.source = new HazelcastSampleSourcePdkDataNode(dataProcessorContext);
 		} else {
 			this.source = new HazelcastSourcePdkDataNode(dataProcessorContext);
