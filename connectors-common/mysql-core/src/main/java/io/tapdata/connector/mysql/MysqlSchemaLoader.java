@@ -14,6 +14,7 @@ import io.tapdata.entity.utils.DataMap;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.kit.DbKit;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
+import io.tapdata.pdk.apis.context.TapConnectorContext;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 
@@ -195,14 +196,14 @@ public class MysqlSchemaLoader {
 		}
 	}
 
-	private void discoverFields(List<DataMap> columnList, TapTable tapTable, TableFieldTypesGenerator tableFieldTypesGenerator, 
+	private void discoverFields(List<DataMap> columnList, TapTable tapTable, TableFieldTypesGenerator tableFieldTypesGenerator,
 								DefaultExpressionMatchingMap dataTypesMap) {
 		AtomicInteger primaryPos = new AtomicInteger(1);
 
 		if (CollectionUtils.isEmpty(columnList)) {
 			return;
 		}
-		columnList.forEach( dataMap -> {
+		columnList.forEach(dataMap -> {
 			String columnName = dataMap.getString("COLUMN_NAME");
 			String columnType = dataMap.getString("COLUMN_TYPE");
 			TapField field = TapSimplify.field(columnName, columnType);
@@ -345,5 +346,29 @@ public class MysqlSchemaLoader {
 			TapLogger.error(TAG, "Execute queryAllTables failed, error: " + e.getMessage(), e);
 		}
 		return tableList;
+	}
+
+	public void getTableNames(TapConnectorContext tapConnectorContext, int batchSize, Consumer<List<String>> listConsumer) {
+		DataMap connectionConfig = tapConnectorContext.getConnectionConfig();
+		String database = connectionConfig.getString("database");
+		String sql = String.format(SELECT_TABLES, database);
+		List<String> list = new ArrayList<>();
+		try {
+			mysqlJdbcContext.query(sql, rs -> {
+				while (rs.next()) {
+					list.add(rs.getString("TABLE_NAME"));
+					if (list.size() >= batchSize) {
+						listConsumer.accept(list);
+						list.clear();
+					}
+				}
+			});
+		} catch (Throwable e) {
+			throw new RuntimeException("Get table names failed, sql: " + sql + ", error: " + e.getMessage(), e);
+		}
+		if (list.size() > 0) {
+			listConsumer.accept(list);
+			list.clear();
+		}
 	}
 }

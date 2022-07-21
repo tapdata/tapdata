@@ -104,6 +104,12 @@ public class MysqlConnector extends ConnectorBase {
 		connectorFunctions.supportAlterFieldNameFunction(this::fieldDDLHandler);
 		connectorFunctions.supportAlterFieldAttributesFunction(this::fieldDDLHandler);
 		connectorFunctions.supportDropFieldFunction(this::fieldDDLHandler);
+		connectorFunctions.supportGetTableNamesFunction(this::getTableNames);
+	}
+
+	private void getTableNames(TapConnectorContext tapConnectorContext, int batchSize, Consumer<List<String>> listConsumer) {
+		MysqlSchemaLoader mysqlSchemaLoader = new MysqlSchemaLoader(mysqlJdbcContext);
+		mysqlSchemaLoader.getTableNames(tapConnectorContext, batchSize, listConsumer);
 	}
 
 	private void fieldDDLHandler(TapConnectorContext tapConnectorContext, TapFieldBaseEvent tapFieldBaseEvent) {
