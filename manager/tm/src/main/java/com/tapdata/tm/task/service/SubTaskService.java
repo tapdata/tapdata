@@ -28,6 +28,7 @@ import com.tapdata.tm.ds.service.impl.DataSourceDefinitionService;
 import com.tapdata.tm.ds.service.impl.DataSourceService;
 import com.tapdata.tm.messagequeue.dto.MessageQueueDto;
 import com.tapdata.tm.messagequeue.service.MessageQueueService;
+import com.tapdata.tm.metadatainstance.service.MetaDataHistoryService;
 import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
 import com.tapdata.tm.monitor.entity.AgentStatDto;
 import com.tapdata.tm.monitor.service.MeasurementService;
@@ -41,6 +42,7 @@ import com.tapdata.tm.task.vo.SubTaskDetailVo;
 import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.utils.Lists;
 import com.tapdata.tm.utils.MongoUtils;
+import com.tapdata.tm.utils.SpringContextHelper;
 import com.tapdata.tm.utils.UUIDUtil;
 import com.tapdata.tm.worker.dto.WorkerDto;
 import com.tapdata.tm.worker.entity.Worker;
@@ -100,6 +102,7 @@ public class SubTaskService extends BaseService<SubTaskDto, SubTaskEntity, Objec
 
     private DataSourceDefinitionService dataSourceDefinitionService;
 
+    private MetaDataHistoryService historyService;
     /**
      * 非停止状态
      */
@@ -1918,12 +1921,12 @@ public class SubTaskService extends BaseService<SubTaskDto, SubTaskEntity, Objec
 
         Criteria criteria = Criteria.where("_id").is(subTaskDto.getId());
         Update update = Update.update("dag", subTaskDto.getDag());
-        //update.set("", );
+        long tmCurrentTime = System.currentTimeMillis();
+        update.set("tmCurrentTime", tmCurrentTime);
         repository.update(new Query(criteria), update, user);
 
         TaskHistory taskHistory = new TaskHistory();
         BeanUtils.copyProperties(subTaskDto1, taskHistory);
-        taskHistory.setVersionTime(new Date());
         taskHistory.setTaskId(subTaskDto1.getId().toHexString());
         taskHistory.setId(ObjectId.get());
 
@@ -1950,20 +1953,29 @@ public class SubTaskService extends BaseService<SubTaskDto, SubTaskEntity, Objec
         taskService.updateDag(taskDto, user);
     }
 
-    public SubTaskDto findByVersionTime(String id, Date time, Boolean order) {
+    public SubTaskDto findByVersionTime(String id, Long time, Boolean order) {
         Criteria criteria = Criteria.where("taskId").is(id);
-        Sort.Direction direction;
-        if (order) {
-            criteria.and("versionTime").gte(time);
-            direction = Sort.Direction.DESC;
-        } else {
-            criteria.and("versionTime").lte(time);
-            direction = Sort.Direction.ASC;
-        }
+        criteria.and("tmCurrentTime").is(time);
 
         Query query = new Query(criteria);
 
-        query.with(Sort.by(direction, "versionTime"));
         return repository.getMongoOperations().findOne(query, TaskHistory.class, "TaskHistories");
+    }
+
+    /**
+     *
+     * @param time 最近时间戳
+     * @return
+     */
+    public void clean(String taskId, Long time) {
+        Criteria criteria = Criteria.where("taskId").is(taskId);
+        criteria.and("tmCurrentTime").gt(time);
+
+        Query query = new Query(criteria);
+        repository.getMongoOperations().remove(query, "TaskHistories");
+
+        //清理模型
+        //MetaDataHistoryService historyService = SpringContextHelper.getBean(MetaDataHistoryService.class);
+        historyService.clean(taskId, time);
     }
 }

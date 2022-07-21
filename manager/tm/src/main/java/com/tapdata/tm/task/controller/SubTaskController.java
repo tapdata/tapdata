@@ -502,10 +502,17 @@ public class SubTaskController extends BaseController {
 
 
     @GetMapping("history")
-    public ResponseMessage<SubTaskDto> queryHistory(@RequestParam("id") String id, @RequestParam("time") Date time,
+    public ResponseMessage<SubTaskDto> queryHistory(@RequestParam("id") String id, @RequestParam("time") Long time,
                                                     @RequestParam(value = "order", defaultValue = "true", required = false) Boolean order) {
         SubTaskDto subTaskDto  = subTaskService.findByVersionTime(id, time, order);
         return success(subTaskDto);
+    }
+
+    @DeleteMapping("history")
+    public ResponseMessage<SubTaskDto> cleanHistory(@RequestParam("id") String id, @RequestParam("time") Long time,
+                                                    @RequestParam(value = "order", defaultValue = "true", required = false) Boolean order) {
+        subTaskService.clean(id, time);
+        return success();
     }
 
 

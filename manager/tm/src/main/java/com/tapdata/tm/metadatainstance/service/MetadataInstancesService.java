@@ -812,7 +812,7 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
 
 
     public int bulkSave(List<MetadataInstancesDto> insertMetaDataDtos,
-                        Map<String, MetadataInstancesDto> updateMetaMap, UserDetail userDetail, boolean saveHistory) {
+                        Map<String, MetadataInstancesDto> updateMetaMap, UserDetail userDetail, boolean saveHistory, String taskId) {
 
         BulkOperations bulkOperations = repository.bulkOperations(BulkOperations.BulkMode.UNORDERED);
 
@@ -883,7 +883,7 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
 
             //保存历史版本
             if (saveHistory && CollectionUtils.isNotEmpty(insertMetaDataDtos)) {
-                metaDataHistoryService.saveHistory(insertMetaDataDtos);
+                metaDataHistoryService.saveHistory(insertMetaDataDtos, taskId);
             }
             return result.getModifiedCount();
         } else {

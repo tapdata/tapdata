@@ -88,6 +88,11 @@ public class MetadataInstancesDto extends BaseDto {
     protected String pdkGroup;
     protected String pdkVersion;
 
+    //auto ddl need this param
+    private Long tmCurrentTime;
+    //auto ddl need this param
+    private String taskId;
+
     /**
      * 是否是虚拟表 'virtual' 'source'
      */

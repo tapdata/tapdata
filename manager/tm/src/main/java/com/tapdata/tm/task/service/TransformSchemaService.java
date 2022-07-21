@@ -251,7 +251,7 @@ public class TransformSchemaService {
     public void transformerResult(UserDetail user, TransformerWsMessageResult result, boolean saveHistory) {
 
 
-        metadataInstancesService.bulkSave(result.getBatchInsertMetaDataList(), result.getBatchMetadataUpdateMap(), user, saveHistory);
+        metadataInstancesService.bulkSave(result.getBatchInsertMetaDataList(), result.getBatchMetadataUpdateMap(), user, saveHistory, result.getTaskId());
 
         if (CollectionUtils.isNotEmpty(result.getUpsertItems())) {
             metadataTransformerItemService.bulkUpsert(result.getUpsertItems());
