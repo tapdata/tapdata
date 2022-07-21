@@ -275,6 +275,7 @@ public class RocketmqService extends AbstractMqService {
                             litePullConsumer = new DefaultLitePullConsumer(rocketmqConfig.getConsumerGroup(), getRPCHook());
                             litePullConsumer.setNamesrvAddr(rocketmqConfig.getNameSrvAddr());
                             litePullConsumer.setConsumeFromWhere(ConsumeFromWhere.CONSUME_FROM_FIRST_OFFSET);
+                            litePullConsumer.subscribe(tableName, "*");
                             try {
                                 litePullConsumer.start();
                             } catch (MQClientException e) {
