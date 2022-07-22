@@ -179,15 +179,24 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 
 	private void createTable(TapTable tapTable) {
 		CreateTableFunction createTableFunction = getConnectorNode().getConnectorFunctions().getCreateTableFunction();
-		Optional.ofNullable(createTableFunction).ifPresent(func -> {
+		CreateTableV2Function createTableV2Function = getConnectorNode().getConnectorFunctions().getCreateTableV2Function();
+		if(createTableV2Function != null || createTableFunction != null) {
 			TapCreateTableEvent tapCreateTableEvent = createTableEvent(tapTable);
 			executeDataFuncAspect(CreateTableFuncAspect.class, () -> new CreateTableFuncAspect()
 					.createTableEvent(tapCreateTableEvent)
 					.connectorContext(getConnectorNode().getConnectorContext())
 					.dataProcessorContext(dataProcessorContext)
 					.start(), (createTableFuncAspect ->
-					PDKInvocationMonitor.invoke(getConnectorNode(), PDKMethod.TARGET_CREATE_TABLE, () -> func.createTable(getConnectorNode().getConnectorContext(), tapCreateTableEvent), TAG)));
-		});
+					PDKInvocationMonitor.invoke(getConnectorNode(), PDKMethod.TARGET_CREATE_TABLE, () -> {
+						if(createTableV2Function != null) {
+							CreateTableOptions createTableOptions = createTableV2Function.createTable(getConnectorNode().getConnectorContext(), tapCreateTableEvent);
+							if(createTableFuncAspect != null)
+								createTableFuncAspect.createTableOptions(createTableOptions);
+						} else {
+							createTableFunction.createTable(getConnectorNode().getConnectorContext(), tapCreateTableEvent);
+						}
+					}, TAG)));
+		}
 	}
 
 	private void dropTable(ExistsDataProcessEnum existsDataProcessEnum, String tableId) {
