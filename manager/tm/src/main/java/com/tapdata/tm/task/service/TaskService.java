@@ -450,29 +450,30 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                             fieldNames = fields.stream().map(FieldInfo::getSourceFieldName).collect(Collectors.toList());
                         }
                         List<com.tapdata.tm.commons.schema.Field> tableFields = fieldMap.get(table.getQualifiedName());
-                        List<String> finalFieldNames = fieldNames;
-                        tableFields.forEach(field -> {
-                            String targetFieldName = field.getFieldName();
-                            if (!finalFieldNames.contains(targetFieldName)) {
-                                if (StringUtils.isNotBlank(operation.getPrefix())) {
-                                    targetFieldName = operation.getPrefix().concat(targetFieldName);
-                                }
-                                if (StringUtils.isNotBlank(operation.getSuffix())) {
-                                    targetFieldName = targetFieldName.concat(operation.getSuffix());
-                                }
-                                if (StringUtils.isNotBlank(operation.getCapitalized())) {
-                                    if (CapitalizedEnum.fromValue(operation.getCapitalized()) == CapitalizedEnum.UPPER) {
-                                        targetFieldName = StringUtils.upperCase(targetFieldName);
-                                    } else {
-                                        targetFieldName = StringUtils.lowerCase(targetFieldName);
+                        if (CollectionUtils.isNotEmpty(tableFields)) {
+                            List<String> finalFieldNames = fieldNames;
+                            tableFields.forEach(field -> {
+                                String targetFieldName = field.getFieldName();
+                                if (!finalFieldNames.contains(targetFieldName)) {
+                                    if (StringUtils.isNotBlank(operation.getPrefix())) {
+                                        targetFieldName = operation.getPrefix().concat(targetFieldName);
                                     }
+                                    if (StringUtils.isNotBlank(operation.getSuffix())) {
+                                        targetFieldName = targetFieldName.concat(operation.getSuffix());
+                                    }
+                                    if (StringUtils.isNotBlank(operation.getCapitalized())) {
+                                        if (CapitalizedEnum.fromValue(operation.getCapitalized()) == CapitalizedEnum.UPPER) {
+                                            targetFieldName = StringUtils.upperCase(targetFieldName);
+                                        } else {
+                                            targetFieldName = StringUtils.lowerCase(targetFieldName);
+                                        }
+                                    }
+                                    FieldInfo fieldInfo =
+                                            new FieldInfo(field.getFieldName(), targetFieldName, true, "system");
+                                    fields.add(fieldInfo);
                                 }
-                                FieldInfo fieldInfo =
-                                        new FieldInfo(field.getFieldName(), targetFieldName, true, "system");
-                                fields.add(fieldInfo);
-                            }
-                        });
-
+                            });
+                        }
                     });
                 }
             }

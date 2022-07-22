@@ -67,13 +67,13 @@ public class MigrateFieldRenameProcessorNode extends Node<List<Schema>> {
                 while (iterator.hasNext()) {
                     Field field = iterator.next();
                     String fieldName = field.getFieldName();
-                    if (Objects.nonNull(showMap.get(fieldName)) && !showMap.get(fieldName)) {
+                    Boolean show = showMap.get(fieldName);
+                    if (Objects.nonNull(show) && !show) {
                         iterator.remove();
-                    }
-
-                    if (fieldMap.containsKey(fieldName)) {
+                    } else if (fieldMap.containsKey(fieldName)) {
                         field.setFieldName(fieldMap.get(fieldName));
                     }
+
                 }
             }
         });
