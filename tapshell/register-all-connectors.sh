@@ -2,12 +2,12 @@
 basepath=$(cd `dirname $0`; pwd)
 cd $basepath
 
-server=`cat conf.json |grep "server"|awk -F '"' '{print $4}'`
-access_code=`cat conf.json |grep "access_code"|awk -F '"' '{print $4}'`
+server=`cat $basepath/config.ini |grep "server"|awk -F ' ' '{print $3}'`
+access_code=`cat $basepath/config.ini |grep "access_code"|awk -F ' ' '{print $3}'`
 
 if [[ -f ".register" ]]; then
     echo "init connectors register finished, if you want to register your own connector, please run below command:"
-    echo "docker exec -it tapdata-all-in-one bash -c \"cd /tapdata-source/ && ./build/pdk register -a $access_code -t http://$server \$datasource_jar\""
+    echo "docker exec -i tapdata-all-in-one bash -c \"cd /tapdata-source/ && ./build/pdk register -a $access_code -t http://$server \$datasource_jar\""
     exit 0
 fi
 
@@ -30,3 +30,4 @@ for i in `ls connectors/dist|grep -v tdd-connector`; do
 done
 
 touch "$basepath/.register"
+exit 0

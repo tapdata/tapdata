@@ -75,10 +75,10 @@ build() {
                 docker start tapdata-build-container
             else
                 info "no tapdata build container find, try run a new one..."
-                docker run --name=tapdata-build-container -v $sourcepath:/tapdata-source/ -itd $tapdata_build_image bash
+                docker run --name=tapdata-build-container -v $sourcepath:/tapdata-source/ -id $tapdata_build_image bash
             fi
         fi
-        docker exec -it tapdata-build-container bash -c "cd /tapdata-source && bash build/build.sh -c $components"
+        docker exec -i tapdata-build-container bash -c "cd /tapdata-source && bash build/build.sh -c $components"
         return
     fi
 
