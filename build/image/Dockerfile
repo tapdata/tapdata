@@ -1,4 +1,4 @@
-FROM tapdata-docker.pkg.coding.net/tapdata/tldp/runtime:0.1
+FROM ghcr.io/tapdata/tapdata/tldp/runtime:0.2
 
 COPY manager /tapdata/apps/manager
 COPY iengine /tapdata/apps/iengine
@@ -18,4 +18,4 @@ RUN mkdir -p /tapdata/database-init/
 COPY database-init/ /tapdata/database-init/
 RUN mkdir -p /tapdata/data/db/
 
-ENTRYPOINT ["bash", "-c", "/tapdata/docker-entrypoint.sh"]
+ENTRYPOINT [ "bash", "-c", "/tapdata/docker-entrypoint.sh" ]

@@ -24,7 +24,7 @@ if [[ $? -ne 0 ]]; then
     error "NO ipython find, please install python3 and ipython manually before using idaas cli"
 fi
 
-server=`cat $basepath/conf.json |grep "server"|awk -F '"' '{print $4}'`
+server=`cat $basepath/config.ini |grep "server"|awk -F ' ' '{print $3}'`
 info "waiting for remote manager: $server start..."
 
 while [[ 1 ]]; do
