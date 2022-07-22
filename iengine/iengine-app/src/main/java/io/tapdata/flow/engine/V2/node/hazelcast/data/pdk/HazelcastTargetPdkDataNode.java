@@ -152,6 +152,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 				executeDataFuncAspect(CreateIndexFuncAspect.class, () -> new CreateIndexFuncAspect()
 						.table(tapTable)
 						.connectorContext(getConnectorNode().getConnectorContext())
+						.dataProcessorContext(dataProcessorContext)
 						.createIndexEvent(indexEvent)
 						.start(), createIndexFuncAspect -> PDKInvocationMonitor.invoke(getConnectorNode(),
 							PDKMethod.TARGET_CREATE_INDEX,
@@ -169,6 +170,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 				executeDataFuncAspect(ClearTableFuncAspect.class, () -> new ClearTableFuncAspect()
 						.clearTableEvent(tapClearTableEvent)
 						.connectorContext(getConnectorNode().getConnectorContext())
+						.dataProcessorContext(dataProcessorContext)
 						.start(), clearTableFuncAspect ->
 						PDKInvocationMonitor.invoke(getConnectorNode(), PDKMethod.TARGET_CLEAR_TABLE, () -> func.clearTable(getConnectorNode().getConnectorContext(), tapClearTableEvent), TAG));
 			});
@@ -182,6 +184,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 			executeDataFuncAspect(CreateTableFuncAspect.class, () -> new CreateTableFuncAspect()
 					.createTableEvent(tapCreateTableEvent)
 					.connectorContext(getConnectorNode().getConnectorContext())
+					.dataProcessorContext(dataProcessorContext)
 					.start(), (createTableFuncAspect ->
 					PDKInvocationMonitor.invoke(getConnectorNode(), PDKMethod.TARGET_CREATE_TABLE, () -> func.createTable(getConnectorNode().getConnectorContext(), tapCreateTableEvent), TAG)));
 		});
@@ -196,6 +199,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 				executeDataFuncAspect(DropTableFuncAspect.class, () -> new DropTableFuncAspect()
 						.dropTableEvent(tapDropTableEvent)
 						.connectorContext(getConnectorNode().getConnectorContext())
+						.dataProcessorContext(dataProcessorContext)
 						.start(), (dropTableFuncAspect ->
 						PDKInvocationMonitor.invoke(getConnectorNode(), PDKMethod.TARGET_DROP_TABLE, () -> dropTableFunction.dropTable(getConnectorNode().getConnectorContext(), tapDropTableEvent), TAG)));
 			}
@@ -283,6 +287,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 			executeDataFuncAspect(NewFieldFuncAspect.class, () -> new NewFieldFuncAspect()
 					.newFieldEvent(tapNewFieldEvent)
 					.connectorContext(connectorNode.getConnectorContext())
+					.dataProcessorContext(dataProcessorContext)
 					.start(), (newFieldFuncAspect ->
 					PDKInvocationMonitor.invoke(connectorNode, pdkMethod,
 							() -> function.newField(connectorNode.getConnectorContext(), tapNewFieldEvent), TAG)));
@@ -304,6 +309,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 			executeDataFuncAspect(AlterFieldNameFuncAspect.class, () -> new AlterFieldNameFuncAspect()
 					.alterFieldNameEvent(tapAlterFieldNameEvent)
 					.connectorContext(connectorNode.getConnectorContext())
+					.dataProcessorContext(dataProcessorContext)
 					.start(), (alterFieldNameFuncAspect) ->
 					PDKInvocationMonitor.invoke(connectorNode, PDKMethod.ALTER_FIELD_NAME,
 							() -> function.alterFieldName(connectorNode.getConnectorContext(), tapAlterFieldNameEvent),
@@ -338,6 +344,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 			executeDataFuncAspect(AlterFieldAttributesFuncAspect.class, () -> new AlterFieldAttributesFuncAspect()
 					.alterFieldAttributesEvent(tapAlterFieldAttributesEvent)
 					.connectorContext(connectorNode.getConnectorContext())
+					.dataProcessorContext(dataProcessorContext)
 					.start(), (alterFieldAttributesFuncAspect ->
 					PDKInvocationMonitor.invoke(connectorNode, PDKMethod.ALTER_FIELD_ATTRIBUTES,
 							() -> function.alterFieldAttributes(connectorNode.getConnectorContext(), tapAlterFieldAttributesEvent),
@@ -360,6 +367,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 			executeDataFuncAspect(DropFieldFuncAspect.class, () -> new DropFieldFuncAspect()
 					.dropFieldEvent(tapDropFieldEvent)
 					.connectorContext(connectorNode.getConnectorContext())
+					.dataProcessorContext(dataProcessorContext)
 					.start(), (dropFieldFuncAspect ->
 					PDKInvocationMonitor.invoke(connectorNode, PDKMethod.DROP_FIELD,
 						() -> function.dropField(connectorNode.getConnectorContext(), tapDropFieldEvent),
@@ -391,6 +399,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 						.recordEvents(tapRecordEvents)
 						.table(tapTable)
 						.connectorContext(getConnectorNode().getConnectorContext())
+						.dataProcessorContext(dataProcessorContext)
 						.start(), (writeRecordFuncAspect ->
 							PDKInvocationMonitor.invoke(getConnectorNode(), PDKMethod.TARGET_WRITE_RECORD,
 								() -> writeRecordFunction.writeRecord(getConnectorNode().getConnectorContext(), tapRecordEvents, tapTable, writeListResult -> {

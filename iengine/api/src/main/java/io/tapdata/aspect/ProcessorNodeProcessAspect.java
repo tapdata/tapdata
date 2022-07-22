@@ -31,13 +31,6 @@ public class ProcessorNodeProcessAspect extends ProcessorFunctionAspect<Processo
 		this.inputEvent = inputEvent;
 		return this;
 	}
-	private Long outputTime;
-	public ProcessorNodeProcessAspect outputTime(Long outputTime) {
-		this.outputTime = outputTime;
-		return this;
-	}
-
-	public static final int STATE_OUTPUT = 10;
 
 	public LongAdder getCounter() {
 		return counter;
@@ -49,14 +42,6 @@ public class ProcessorNodeProcessAspect extends ProcessorFunctionAspect<Processo
 
 	public void setInputEvent(TapdataEvent inputEvent) {
 		this.inputEvent = inputEvent;
-	}
-
-	public Long getOutputTime() {
-		return outputTime;
-	}
-
-	public void setOutputTime(Long outputTime) {
-		this.outputTime = outputTime;
 	}
 
 	public Consumer<TapdataEvent> getConsumer() {
