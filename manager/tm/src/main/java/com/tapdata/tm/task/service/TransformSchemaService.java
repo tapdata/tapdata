@@ -241,6 +241,7 @@ public class TransformSchemaService {
         options.setSyncType(taskDto.getSyncType());
         Map<String, List<Message>> transformSchema = dag.transformSchema(null, dagDataService, options);
 
+
         if (SyncType.MIGRATE.getValue().equals(taskDto.getSyncType())) {
             taskService.updateMigrateStatus(taskDto.getId());
         }
