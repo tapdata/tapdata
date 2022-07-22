@@ -52,8 +52,7 @@ build_component() {
         cd $p
         end_time=`date '+%s'`
         duration=`expr $end_time - $start_time`
-        warn "$_component build fail, cost time: $duration seconds, continue build next component..."
-        return
+        error "$_component build fail, cost time: $duration seconds, stop building..."
     fi
     cd $p
     end_time=`date '+%s'`
