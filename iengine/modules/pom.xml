@@ -20,6 +20,11 @@
             <artifactId>api</artifactId>
             <version>0.5.2-SNAPSHOT</version>
         </dependency>
+        <dependency>
+            <groupId>io.tapdata</groupId>
+            <artifactId>tapdata-common</artifactId>
+            <version>0.2.23-SNAPSHOT</version>
+        </dependency>
 
     </dependencies>
 </project>
