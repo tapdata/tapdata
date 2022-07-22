@@ -426,6 +426,8 @@ public class HazelcastTaskService implements TaskService<SubTaskDto> {
 						DataProcessorContext.newBuilder()
 								.withSubTaskDto(subTaskDto)
 								.withNode(node)
+								.withNodes(nodes)
+								.withEdges(edges)
 								.withCacheService(cacheService)
 								.withConfigurationCenter(config)
 								.withTapTableMap(tapTableMap)
