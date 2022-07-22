@@ -45,7 +45,6 @@ public class TestConnectionHandler implements WebSocketHandler {
 
 	private final DataSourceService dataSourceService;
 
-
 	private final DataSourceDefinitionService dataSourceDefinitionService;
 
 	private final UserService userService;

@@ -20,6 +20,8 @@ public class TaskDagCheckLogVo implements Serializable {
     private LinkedHashMap<String, String> nodes;
     @Schema(description = "日志数据")
     private LinkedList<TaskLogInfoVo> list;
+    @Schema(description = "模型推演日志数据")
+    private LinkedList<TaskLogInfoVo> modelList;
     private long total;
     private String offset;
 }

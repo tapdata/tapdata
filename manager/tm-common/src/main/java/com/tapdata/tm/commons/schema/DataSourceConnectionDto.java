@@ -1,5 +1,6 @@
 package com.tapdata.tm.commons.schema;
 
+import com.google.common.collect.ImmutableMultimap;
 import com.google.common.collect.Lists;
 import com.tapdata.tm.commons.base.dto.BaseDto;
 import com.tapdata.tm.commons.dag.AccessNodeTypeEnum;
@@ -267,6 +268,8 @@ public class DataSourceConnectionDto extends BaseDto {
         private TimeZone timeZone;
 
         private String connectionString;
+
+        private ImmutableMultimap<String, Object> extParam;
 
         /**
          * 后续 开放可以多选 flow engine 的话，这里一定要删除

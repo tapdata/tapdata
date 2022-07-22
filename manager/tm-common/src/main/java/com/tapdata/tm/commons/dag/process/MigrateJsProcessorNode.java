@@ -3,6 +3,7 @@ package com.tapdata.tm.commons.dag.process;
 import com.tapdata.manager.common.utils.JsonUtil;
 import com.tapdata.tm.commons.dag.*;
 import com.tapdata.tm.commons.dag.logCollector.VirtualTargetNode;
+import com.tapdata.tm.commons.dag.vo.MigrateJsResultVo;
 import com.tapdata.tm.commons.schema.*;
 import com.tapdata.tm.commons.task.dto.Dag;
 import com.tapdata.tm.commons.task.dto.SubTaskDto;
@@ -17,6 +18,7 @@ import org.springframework.beans.BeanUtils;
 
 import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static com.tapdata.tm.commons.base.convert.ObjectIdDeserialize.toObjectId;
@@ -70,7 +72,13 @@ public class MigrateJsProcessorNode extends Node<List<Schema>> {
         subTaskDto.setName(taskDto.getName() + "(100)");
         subTaskDto.setTransformTask(true);
         ////用于预跑数据得到模型
-        //TapTable tapTable = service.loadTapTable(getInputSchema(), script, getId(), target.getId(), null, null, subTaskDto);
+        List<MigrateJsResultVo> jsResult = service.getJsResult(getId(), target.getId(), subTaskDto);
+        if (CollectionUtils.isEmpty(jsResult)) {
+            throw new RuntimeException("migrate js result is null");
+        }
+
+//        jsResult.stream().map(MigrateJsResultVo::getFieldName, Function.identity())
+
         Schema schema = null;
 
         List<List<Schema>> inputSchema = getInputSchema();

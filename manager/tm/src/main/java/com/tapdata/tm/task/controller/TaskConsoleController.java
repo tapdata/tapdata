@@ -14,7 +14,7 @@ import org.springframework.web.bind.annotation.*;
 
 @Tag(name = "复制dag信息输出")
 @RestController
-@RequestMapping("/api/task/console")
+@RequestMapping("/api/task-console")
 @Setter(onMethod_ = {@Autowired})
 public class TaskConsoleController extends BaseController {
 
@@ -24,9 +24,9 @@ public class TaskConsoleController extends BaseController {
     @Operation(summary = "信息输出日志接口")
     public ResponseMessage<TaskDagCheckLogVo> console(
             @Parameter(description = "任务id", required = true) @RequestParam String taskId,
-            @Parameter(description = "节点id，默认空，查全部节点日志") @RequestParam String nodeId,
-            @Parameter(description = "搜索关键字") @RequestParam String keyword,
-            @Parameter(description = "日志等级 INFO WARN ERROR") @RequestParam String grade) {
+            @Parameter(description = "节点id，默认空，查全部节点日志") @RequestParam(required = false) String nodeId,
+            @Parameter(description = "搜索关键字") @RequestParam(required = false) String keyword,
+            @Parameter(description = "日志等级 INFO WARN ERROR") @RequestParam(required = false) String grade) {
         TaskLogDto dto = new TaskLogDto();
         dto.setTaskId(taskId);
         dto.setNodeId(nodeId);

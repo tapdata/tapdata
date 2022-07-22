@@ -4,9 +4,11 @@ import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.collection.ListUtil;
 import cn.hutool.extra.cglib.CglibUtil;
 import cn.hutool.extra.spring.SpringUtil;
+import com.google.common.base.Splitter;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
+import com.tapdata.tm.message.constant.Level;
 import com.tapdata.tm.observability.dto.TaskLogDto;
 import com.tapdata.tm.task.constant.DagOutputTemplateEnum;
 import com.tapdata.tm.task.entity.TaskDagCheckLog;
@@ -32,9 +34,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.LinkedHashMap;
-import java.util.LinkedList;
-import java.util.List;
+import java.text.MessageFormat;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
@@ -80,43 +81,58 @@ public class TaskDagCheckLogServiceImpl implements TaskDagCheckLogService {
         String nodeId = dto.getNodeId();
         String grade = dto.getGrade();
         String keyword = dto.getKeyword();
-        int offset = dto.getOffset();
-        int limit = dto.getLimit();
+//        int offset = dto.getOffset();
+//        int limit = dto.getLimit();
+
+        TaskDto taskDto = taskService.findById(MongoUtils.toObjectId(taskId));
+        LinkedHashMap<String, String> nodeMap = taskDto.getDag().getNodes().stream()
+                .collect(Collectors.toMap(Node::getId, Node::getName,(x, y) -> y, LinkedHashMap::new));
 
         Criteria criteria = Criteria.where("taskId").is(taskId);
         if (StringUtils.isNotBlank(nodeId)) {
             criteria.and("nodeId").is(nodeId);
         }
         if (StringUtils.isNotBlank(grade)) {
-            criteria.and("grade").is(grade);
+            if (grade.contains(",")) {
+                criteria.and("grade").in(Splitter.on(",").trimResults().splitToList(grade));
+            } else {
+                criteria.and("grade").is(grade);
+            }
         }
         if (StringUtils.isNotBlank(keyword)) {
             criteria.regex("log").is(keyword);
         }
-        if (offset > 0) {
-            criteria.and("_id").gte(offset);
-        }
-        Query query = new Query(criteria);
-        long count = mongoTemplate.count(query, TaskDagCheckLog.class);
-
-        TaskDto taskDto = taskService.findById(MongoUtils.toObjectId(taskId));
-        LinkedHashMap<String, String> nodeMap = taskDto.getDag().getNodes().stream()
-                .collect(Collectors.toMap(Node::getId, Node::getName,(x, y) -> y, LinkedHashMap::new));
-
-        query.with(Sort.by("createTime"));
-        query.with(Pageable.ofSize(limit));
-        List<TaskDagCheckLog> taskDagCheckLogs = find(query);
+        Criteria modelCriteria = new Criteria();
+        BeanUtil.copyProperties(criteria, modelCriteria);
+//        if (offset > 0) {
+//            criteria.and("_id").gte(offset);
+//        }
+        Query logQuery = new Query(criteria.and("checkType").ne(DagOutputTemplateEnum.MODEL_PROCESS_CHECK.name()));
+        logQuery.with(Sort.by("createTime"));
+        List<TaskDagCheckLog> taskDagCheckLogs = find(logQuery);
         if (CollectionUtils.isEmpty(taskDagCheckLogs)) {
             TaskDagCheckLogVo taskDagCheckLogVo = new TaskDagCheckLogVo();
             taskDagCheckLogVo.setNodes(nodeMap);
             return taskDagCheckLogVo;
         }
 
+        Query modelQuery = new Query(modelCriteria.and("checkType").is(DagOutputTemplateEnum.MODEL_PROCESS_CHECK.name()));
+        modelQuery.with(Sort.by("createTime"));
+        List<TaskDagCheckLog> modelLogs = find(modelQuery);
+
         LinkedList<TaskLogInfoVo> data = taskDagCheckLogs.stream()
-                .map(g -> new TaskLogInfoVo(g.getId().toHexString(), g.getGrade(), g.getLog()))
+                .map(g -> new TaskLogInfoVo(g.getId().toHexString(), g.getGrade(), StringUtils.replace(g.getLog(), "$taskName", taskDto.getName())))
                 .collect(Collectors.toCollection(LinkedList::new));
 
-        return new TaskDagCheckLogVo(nodeMap, data, count, data.getLast().getId());
+        TaskDagCheckLogVo result = new TaskDagCheckLogVo(nodeMap, data, null, 0, null);
+
+        if (CollectionUtils.isNotEmpty(modelLogs)) {
+            LinkedList<TaskLogInfoVo> collect = modelLogs.stream()
+                    .map(g -> new TaskLogInfoVo(g.getId().toHexString(), g.getGrade(), StringUtils.replace(g.getLog(), "$taskName", taskDto.getName())))
+                    .collect(Collectors.toCollection(LinkedList::new));
+            result.setModelList(collect);
+        }
+        return result;
     }
 
     @Override
@@ -126,5 +142,34 @@ public class TaskDagCheckLogServiceImpl implements TaskDagCheckLogService {
 
     public List<TaskDagCheckLog> find(Query query) {
         return mongoTemplate.find(query, TaskDagCheckLog.class);
+    }
+
+    @Override
+    public TaskDagCheckLog createLog(String taskId, String userId, String grade, DagOutputTemplateEnum templateEnum, boolean needSave, Object ... param) {
+        Date now = new Date();
+
+        TaskDagCheckLog log = new TaskDagCheckLog();
+        log.setTaskId(taskId);
+        log.setCheckType(templateEnum.name());
+        log.setCreateAt(now);
+        log.setCreateUser(userId);
+        log.setGrade(grade);
+
+        String template;
+        if (StringUtils.equals(Level.INFO.getValue(), grade)) {
+            template = templateEnum.getInfoTemplate();
+        } else if (StringUtils.equals(Level.ERROR.getValue(), grade)){
+            template = templateEnum.getErrorTemplate();
+        } else {
+            template = templateEnum.getInfoTemplate();
+        }
+        String content = MessageFormat.format(template, param);
+        log.setLog(content);
+
+        if (needSave) {
+            this.save(log);
+        }
+
+        return log;
     }
 }

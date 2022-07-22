@@ -32,10 +32,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
+import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -163,7 +160,11 @@ public class TaskNodeServiceImpl implements TaskNodeService {
                             .collect(Collectors.toMap(FieldInfo::getSourceFieldName, Function.identity()));
                 }
                 Map<String, FieldInfo> finalFieldInfoMap = fieldInfoMap;
-                fields.forEach(field -> {
+
+                Iterator<Field> iterator = fields.iterator();
+                while (iterator.hasNext()) {
+                    Field field = iterator.next();
+
                     String defaultValue = Objects.isNull(field.getDefaultValue()) ? "" : field.getDefaultValue().toString();
 
                     String fieldName = field.getOriginalFieldName();
@@ -171,13 +172,17 @@ public class TaskNodeServiceImpl implements TaskNodeService {
 
                     if (Objects.nonNull(finalFieldInfoMap) && finalFieldInfoMap.containsKey(fieldName)) {
                         FieldInfo fieldInfo = finalFieldInfoMap.get(fieldName);
+                        if (!fieldInfo.getIsShow()) {
+                            iterator.remove();
+                        }
+
                         mapping.setTargetFieldName(fieldInfo.getTargetFieldName());
                         mapping.setIsShow(fieldInfo.getIsShow());
                         mapping.setMigrateType(fieldInfo.getType());
                         mapping.setTargetFieldName(fieldInfo.getTargetFieldName());
                     }
                     fieldsMapping.add(mapping);
-                });
+                }
             }
 
             item.setPreviousTableName(previousTableName);
