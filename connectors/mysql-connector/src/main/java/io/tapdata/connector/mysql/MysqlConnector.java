@@ -323,13 +323,13 @@ public class MysqlConnector extends ConnectorBase {
 		TapRecordEvent tapRecordEvent;
 		switch (op) {
 			case "i":
-				tapRecordEvent = TapSimplify.insertRecordEvent(after, tapTable.getId());
+				tapRecordEvent = TapSimplify.insertRecordEvent(after, tapTable.getId()).init();
 				break;
 			case "u":
-				tapRecordEvent = TapSimplify.updateDMLEvent(before, after, tapTable.getId());
+				tapRecordEvent = TapSimplify.updateDMLEvent(before, after, tapTable.getId()).init();
 				break;
 			case "d":
-				tapRecordEvent = TapSimplify.deleteDMLEvent(before, tapTable.getId());
+				tapRecordEvent = TapSimplify.deleteDMLEvent(before, tapTable.getId()).init();
 				break;
 			default:
 				throw new IllegalArgumentException("Operation " + op + " not support");
