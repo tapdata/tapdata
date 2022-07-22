@@ -236,7 +236,11 @@ public class TransformSchemaService {
         });
 
         DAG.Options options = new DAG.Options(taskDto.getRollback(), taskDto.getRollbackTable());
+        options.setBatchNum(transformBatchNum);
+        options.setUuid(UUIDUtil.getUUID());
+        options.setSyncType(taskDto.getSyncType());
         Map<String, List<Message>> transformSchema = dag.transformSchema(null, dagDataService, options);
+
 
         if (SyncType.MIGRATE.getValue().equals(taskDto.getSyncType())) {
             taskService.updateMigrateStatus(taskDto.getId());
