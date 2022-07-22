@@ -2,6 +2,8 @@ package com.tapdata.tm.task.service;
 
 import com.tapdata.manager.common.utils.StringUtils;
 import com.tapdata.tm.commons.dag.*;
+import com.tapdata.tm.commons.dag.nodes.DataParentNode;
+import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.schema.*;
 import com.tapdata.tm.commons.task.dto.Message;
@@ -112,7 +114,7 @@ public class TransformSchemaService {
         Map<String, DataSourceDefinitionDto> definitionDtoMap = new HashMap<>();
         Map<String, TaskDto> taskMap = new HashMap<>();
 
-        List<String> connectionIds = nodes.stream().filter(n -> n instanceof TableNode).map(n -> ((TableNode) n).getConnectionId()).collect(Collectors.toList());
+        List<String> connectionIds = nodes.stream().filter(n -> n instanceof DataParentNode).map(n -> ((DataParentNode) n).getConnectionId()).collect(Collectors.toList());
         Criteria idCriteria = Criteria.where("_id").in(connectionIds);
         Query query = new Query(idCriteria);
         //TODO query 需要限制好参数
@@ -136,6 +138,9 @@ public class TransformSchemaService {
                 DataSourceDefinitionDto dataSourceDefinitionDto = definitionDtoMap.get(dataSourceConnectionDto.getDatabase_type());
                 String qualifiedName = metadataInstancesService.getQualifiedNameByNodeId(node, user, dataSourceConnectionDto, dataSourceDefinitionDto);
                 qualifiedNames.add(qualifiedName);
+            } else if (node instanceof DatabaseNode) {
+                List<MetadataInstancesDto> metas = metadataInstancesService.findByNodeId(node.getId(), null, user, dag);
+                metadataList.addAll(metas);
             }
         }
 
