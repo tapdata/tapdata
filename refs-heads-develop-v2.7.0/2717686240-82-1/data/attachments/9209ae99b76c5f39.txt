@@ -1,0 +1,5 @@
+[1;34mtapdata, [0m2022-07-22 09:42:20: job [1;32mmerge_sync_vklsz[0m start running ...                                                                                          
+[1;34mtapdata, [0m2022-07-22 09:42:20: job [1;32mmerge_sync_vklsz[0m status is: [1;32mscheduling[0m                                                                           
+[1;34mtapdata, [0m2022-07-22 09:42:21: job [1;32mmerge_sync_vklsz[0m status is: [1;32mrunning[0m                                                                              
+[1;34mtapdata, [0m2022-07-22 09:42:21: the status is running now, this is 1 times, 5 times remaining                                                                              
+[1;34mtapdata, [0m2022-07-22 09:42:21: job [1;32mmerge_sync_vklsz[0m status is: [1;32mrunning[0m                                                                              

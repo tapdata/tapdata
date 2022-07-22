@@ -1,0 +1,16 @@
+[1;34mtapdata, [0m2022-07-22 09:42:43: job [1;32mcheck_jobndhfi[0m start running ...                                                                                            
+[1;34mtapdata, [0m2022-07-22 09:42:43: job [1;32mcheck_jobndhfi[0m status is: [1;32mscheduling[0m                                                                             
+[1;34mtapdata, [0m2022-07-22 09:42:44: job [1;32mcheck_jobndhfi[0m status is: [1;32mwait_run[0m                                                                               
+[1;34mtapdata, [0m2022-07-22 09:42:44: the status is wait_run now, this is 1 times, 5 times remaining                                                                             
+[1;34mtapdata, [0m2022-07-22 09:42:44: job [1;32mcheck_jobndhfi[0m status is: [1;32mwait_run[0m                                                                               
+[1;34mtapdata, [0m2022-07-22 09:42:45: job [1;32mcheck_jobndhfi[0m status is: [1;32mwait_run[0m                                                                               
+[1;34mtapdata, [0m2022-07-22 09:42:45: the status is wait_run now, this is 2 times, 4 times remaining                                                                             
+[1;34mtapdata, [0m2022-07-22 09:42:45: job [1;32mcheck_jobndhfi[0m status is: [1;32mwait_run[0m                                                                               
+[1;34mtapdata, [0m2022-07-22 09:42:46: job [1;32mcheck_jobndhfi[0m status is: [1;32mwait_run[0m                                                                               
+[1;34mtapdata, [0m2022-07-22 09:42:46: the status is wait_run now, this is 3 times, 3 times remaining                                                                             
+[1;34mtapdata, [0m2022-07-22 09:42:46: job [1;32mcheck_jobndhfi[0m status is: [1;32mwait_run[0m                                                                               
+[1;34mtapdata, [0m2022-07-22 09:42:47: job [1;32mcheck_jobndhfi[0m status is: [1;32mwait_run[0m                                                                               
+[1;34mtapdata, [0m2022-07-22 09:42:47: the status is wait_run now, this is 4 times, 2 times remaining                                                                             
+[1;34mtapdata, [0m2022-07-22 09:42:47: job [1;32mcheck_jobndhfi[0m status is: [1;32mwait_run[0m                                                                               
+[1;34mtapdata, [0m2022-07-22 09:42:48: job [1;32mcheck_jobndhfi[0m status is: [1;32mwait_run[0m                                                                               
+[1;34mtapdata, [0m2022-07-22 09:42:48: the status is wait_run now, this is 5 times, 1 times remaining                                                                             

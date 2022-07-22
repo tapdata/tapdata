@@ -1,0 +1,5 @@
+[1;34mtapdata, [0m2022-07-22 09:42:06: job [1;32mmigrate_puzgj[0m start running ...                                                                                             
+[1;34mtapdata, [0m2022-07-22 09:42:06: job [1;32mmigrate_puzgj[0m status is: [1;32medit[0m                                                                                    
+[1;34mtapdata, [0m2022-07-22 09:42:07: job [1;32mmigrate_puzgj[0m status is: [1;32mrunning[0m                                                                                 
+[1;34mtapdata, [0m2022-07-22 09:42:07: the status is running now, this is 1 times, 5 times remaining                                                                              
+[1;34mtapdata, [0m2022-07-22 09:42:07: job [1;32mmigrate_puzgj[0m status is: [1;32mrunning[0m                                                                                 
