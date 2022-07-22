@@ -48,6 +48,11 @@ public class ConnectionOptions {
      * Database timezone
      */
     private TimeZone timeZone;
+    private String charset;
+    public ConnectionOptions charset(String charset) {
+        this.charset = charset;
+        return this;
+    }
     public ConnectionOptions timeZone(TimeZone timeZone) {
         this.timeZone = timeZone;
         return this;
@@ -119,5 +124,13 @@ public class ConnectionOptions {
 
     public void setConnectionString(String connectionString) {
         this.connectionString = connectionString;
+    }
+
+    public String getCharset() {
+        return charset;
+    }
+
+    public void setCharset(String charset) {
+        this.charset = charset;
     }
 }
