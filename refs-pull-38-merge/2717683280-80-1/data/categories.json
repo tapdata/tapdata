@@ -1,0 +1,60 @@
+{
+  "uid" : "4b4757e66a1912dae1a509f688f20b0f",
+  "children" : [ {
+    "name" : "Product defects",
+    "children" : [ {
+      "name" : "AssertionError: assert False\n +  where False = wait_scheduling(<lib.cli.Pipeline object at 0x7f24ed715050>, except_status=('running', 'error'))",
+      "children" : [ {
+        "name" : "test stop job",
+        "uid" : "19e6bf04fc27f008",
+        "parentUid" : "64a7aefca6c91e9cb7572cba84adb043",
+        "status" : "failed",
+        "time" : {
+          "start" : 1658482935596,
+          "stop" : 1658482942034,
+          "duration" : 6438
+        },
+        "flaky" : false,
+        "newFailed" : false,
+        "parameters" : [ ]
+      } ],
+      "uid" : "64a7aefca6c91e9cb7572cba84adb043"
+    }, {
+      "name" : "AssertionError: assert False\n +  where False = wait_scheduling(<lib.cli.Pipeline object at 0x7f24ed1f3090>, except_status=('running',))",
+      "children" : [ {
+        "name" : "test get job status",
+        "uid" : "53df565feffce5fc",
+        "parentUid" : "166a46c917d8f63664afb6f277889f1a",
+        "status" : "failed",
+        "time" : {
+          "start" : 1658482942144,
+          "stop" : 1658482948538,
+          "duration" : 6394
+        },
+        "flaky" : false,
+        "newFailed" : false,
+        "parameters" : [ ]
+      } ],
+      "uid" : "166a46c917d8f63664afb6f277889f1a"
+    }, {
+      "name" : "AssertionError: assert False\n +  where False = wait_scheduling(<lib.cli.Pipeline object at 0x7f24ed3c7ed0>, except_status=('running',))",
+      "children" : [ {
+        "name" : "test_check",
+        "uid" : "ad75793af77d81c8",
+        "parentUid" : "9546055cac53d794693c04237fe8396d",
+        "status" : "failed",
+        "time" : {
+          "start" : 1658482950706,
+          "stop" : 1658482957091,
+          "duration" : 6385
+        },
+        "flaky" : false,
+        "newFailed" : true,
+        "parameters" : [ ]
+      } ],
+      "uid" : "9546055cac53d794693c04237fe8396d"
+    } ],
+    "uid" : "8fb3a91ba5aaf9de24cc8a92edc82b5d"
+  } ],
+  "name" : "categories"
+}

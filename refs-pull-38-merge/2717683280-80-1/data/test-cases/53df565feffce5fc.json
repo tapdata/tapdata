@@ -1,0 +1,100 @@
+{
+  "uid" : "53df565feffce5fc",
+  "name" : "test get job status",
+  "fullName" : "test_pipeline.TestPipeline#test_stats",
+  "historyId" : "7fd126ae87f4bbc0fdebf1dc86f6005c",
+  "time" : {
+    "start" : 1658482942144,
+    "stop" : 1658482948538,
+    "duration" : 6394
+  },
+  "status" : "failed",
+  "statusMessage" : "AssertionError: assert False\n +  where False = wait_scheduling(<lib.cli.Pipeline object at 0x7f24ed1f3090>, except_status=('running',))",
+  "statusTrace" : "self = <test.test_pipeline.TestPipeline object at 0x7f24ed1fd590>\n\n    @allure.title(\"test get job status\")\n    def test_stats(self):\n        p = make_new_pipeline(f\"stats_{random_str()}\")\n        p1 = p.readFrom(source_name).writeTo(sink_name)\n        p1.start()\n>       assert wait_scheduling(p1, except_status=('running', ))\nE       AssertionError: assert False\nE        +  where False = wait_scheduling(<lib.cli.Pipeline object at 0x7f24ed1f3090>, except_status=('running',))\n\ntest_pipeline.py:235: AssertionError",
+  "flaky" : false,
+  "newFailed" : false,
+  "beforeStages" : [ ],
+  "testStage" : {
+    "status" : "failed",
+    "statusMessage" : "AssertionError: assert False\n +  where False = wait_scheduling(<lib.cli.Pipeline object at 0x7f24ed1f3090>, except_status=('running',))",
+    "statusTrace" : "self = <test.test_pipeline.TestPipeline object at 0x7f24ed1fd590>\n\n    @allure.title(\"test get job status\")\n    def test_stats(self):\n        p = make_new_pipeline(f\"stats_{random_str()}\")\n        p1 = p.readFrom(source_name).writeTo(sink_name)\n        p1.start()\n>       assert wait_scheduling(p1, except_status=('running', ))\nE       AssertionError: assert False\nE        +  where False = wait_scheduling(<lib.cli.Pipeline object at 0x7f24ed1f3090>, except_status=('running',))\n\ntest_pipeline.py:235: AssertionError",
+    "steps" : [ ],
+    "attachments" : [ {
+      "uid" : "efed6fc27fc60352",
+      "name" : "stdout",
+      "source" : "efed6fc27fc60352.txt",
+      "type" : "text/plain",
+      "size" : 2896
+    } ],
+    "parameters" : [ ],
+    "stepsCount" : 0,
+    "attachmentsCount" : 1,
+    "shouldDisplayMessage" : true,
+    "hasContent" : true
+  },
+  "afterStages" : [ ],
+  "labels" : [ {
+    "name" : "feature",
+    "value" : "pipeline"
+  }, {
+    "name" : "suite",
+    "value" : "test_pipeline"
+  }, {
+    "name" : "subSuite",
+    "value" : "TestPipeline"
+  }, {
+    "name" : "host",
+    "value" : "0528edc11598"
+  }, {
+    "name" : "thread",
+    "value" : "660-MainThread"
+  }, {
+    "name" : "framework",
+    "value" : "pytest"
+  }, {
+    "name" : "language",
+    "value" : "cpython3"
+  }, {
+    "name" : "package",
+    "value" : "test_pipeline"
+  }, {
+    "name" : "resultFormat",
+    "value" : "allure2"
+  } ],
+  "parameters" : [ ],
+  "links" : [ ],
+  "hidden" : false,
+  "retry" : false,
+  "extra" : {
+    "severity" : "normal",
+    "retries" : [ ],
+    "categories" : [ {
+      "name" : "Product defects",
+      "matchedStatuses" : [ ],
+      "flaky" : false
+    } ],
+    "history" : {
+      "statistic" : {
+        "failed" : 2,
+        "broken" : 0,
+        "skipped" : 0,
+        "passed" : 0,
+        "unknown" : 0,
+        "total" : 2
+      },
+      "items" : [ {
+        "uid" : "8d7a50ac3ed8aa5f",
+        "status" : "failed",
+        "statusDetails" : "AssertionError: assert False\n +  where False = wait_scheduling(<lib.cli.Pipeline object at 0x7fc1671d1a10>, except_status=('running',))",
+        "time" : {
+          "start" : 1658396928151,
+          "stop" : 1658396934595,
+          "duration" : 6444
+        }
+      } ]
+    },
+    "tags" : [ ]
+  },
+  "source" : "53df565feffce5fc.json",
+  "parameterValues" : [ ]
+}

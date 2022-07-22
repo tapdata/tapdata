@@ -1,0 +1,91 @@
+{
+  "uid" : "f799b411c6919aa3",
+  "name" : "multi layer table merge in sync",
+  "fullName" : "test_pipeline.TestPipeline#test_merge_sync_multi_nesting",
+  "historyId" : "e47bc9eeb23a37c66c477fc23870bfb9",
+  "time" : {
+    "start" : 1658482929652,
+    "stop" : 1658482931969,
+    "duration" : 2317
+  },
+  "status" : "passed",
+  "flaky" : false,
+  "newFailed" : false,
+  "beforeStages" : [ ],
+  "testStage" : {
+    "status" : "passed",
+    "steps" : [ ],
+    "attachments" : [ {
+      "uid" : "ad87a5819f388e41",
+      "name" : "stdout",
+      "source" : "ad87a5819f388e41.txt",
+      "type" : "text/plain",
+      "size" : 905
+    } ],
+    "parameters" : [ ],
+    "stepsCount" : 0,
+    "attachmentsCount" : 1,
+    "shouldDisplayMessage" : false,
+    "hasContent" : true
+  },
+  "afterStages" : [ ],
+  "labels" : [ {
+    "name" : "feature",
+    "value" : "pipeline"
+  }, {
+    "name" : "suite",
+    "value" : "test_pipeline"
+  }, {
+    "name" : "subSuite",
+    "value" : "TestPipeline"
+  }, {
+    "name" : "host",
+    "value" : "0528edc11598"
+  }, {
+    "name" : "thread",
+    "value" : "660-MainThread"
+  }, {
+    "name" : "framework",
+    "value" : "pytest"
+  }, {
+    "name" : "language",
+    "value" : "cpython3"
+  }, {
+    "name" : "package",
+    "value" : "test_pipeline"
+  }, {
+    "name" : "resultFormat",
+    "value" : "allure2"
+  } ],
+  "parameters" : [ ],
+  "links" : [ ],
+  "hidden" : false,
+  "retry" : false,
+  "extra" : {
+    "severity" : "normal",
+    "retries" : [ ],
+    "categories" : [ ],
+    "history" : {
+      "statistic" : {
+        "failed" : 0,
+        "broken" : 0,
+        "skipped" : 0,
+        "passed" : 2,
+        "unknown" : 0,
+        "total" : 2
+      },
+      "items" : [ {
+        "uid" : "8e58544c4ae59f53",
+        "status" : "passed",
+        "time" : {
+          "start" : 1658396915392,
+          "stop" : 1658396917798,
+          "duration" : 2406
+        }
+      } ]
+    },
+    "tags" : [ ]
+  },
+  "source" : "f799b411c6919aa3.json",
+  "parameterValues" : [ ]
+}

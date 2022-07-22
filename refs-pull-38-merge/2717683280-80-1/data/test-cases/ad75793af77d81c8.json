@@ -1,0 +1,99 @@
+{
+  "uid" : "ad75793af77d81c8",
+  "name" : "test_check",
+  "fullName" : "test_pipeline.TestPipeline#test_check",
+  "historyId" : "fa38c78c99c895035a3d9c2796cb8195",
+  "time" : {
+    "start" : 1658482950706,
+    "stop" : 1658482957091,
+    "duration" : 6385
+  },
+  "status" : "failed",
+  "statusMessage" : "AssertionError: assert False\n +  where False = wait_scheduling(<lib.cli.Pipeline object at 0x7f24ed3c7ed0>, except_status=('running',))",
+  "statusTrace" : "self = <test.test_pipeline.TestPipeline object at 0x7f24ed7cb790>\n\n    def test_check(self):\n        p = make_new_pipeline(f\"check_job{random_str()}\")\n        p1 = p.readFrom(source_name)\n        p1.dag.jobType = JobType.sync\n        p2 = p1.writeTo(sink_name)\n        p2.start()\n>       assert wait_scheduling(p2, except_status=('running',))\nE       AssertionError: assert False\nE        +  where False = wait_scheduling(<lib.cli.Pipeline object at 0x7f24ed3c7ed0>, except_status=('running',))\n\ntest_pipeline.py:253: AssertionError",
+  "flaky" : false,
+  "newFailed" : true,
+  "beforeStages" : [ ],
+  "testStage" : {
+    "status" : "failed",
+    "statusMessage" : "AssertionError: assert False\n +  where False = wait_scheduling(<lib.cli.Pipeline object at 0x7f24ed3c7ed0>, except_status=('running',))",
+    "statusTrace" : "self = <test.test_pipeline.TestPipeline object at 0x7f24ed7cb790>\n\n    def test_check(self):\n        p = make_new_pipeline(f\"check_job{random_str()}\")\n        p1 = p.readFrom(source_name)\n        p1.dag.jobType = JobType.sync\n        p2 = p1.writeTo(sink_name)\n        p2.start()\n>       assert wait_scheduling(p2, except_status=('running',))\nE       AssertionError: assert False\nE        +  where False = wait_scheduling(<lib.cli.Pipeline object at 0x7f24ed3c7ed0>, except_status=('running',))\n\ntest_pipeline.py:253: AssertionError",
+    "steps" : [ ],
+    "attachments" : [ {
+      "uid" : "f5565fd0c8118ba0",
+      "name" : "stdout",
+      "source" : "f5565fd0c8118ba0.txt",
+      "type" : "text/plain",
+      "size" : 2896
+    } ],
+    "parameters" : [ ],
+    "stepsCount" : 0,
+    "attachmentsCount" : 1,
+    "shouldDisplayMessage" : true,
+    "hasContent" : true
+  },
+  "afterStages" : [ ],
+  "labels" : [ {
+    "name" : "feature",
+    "value" : "pipeline"
+  }, {
+    "name" : "suite",
+    "value" : "test_pipeline"
+  }, {
+    "name" : "subSuite",
+    "value" : "TestPipeline"
+  }, {
+    "name" : "host",
+    "value" : "0528edc11598"
+  }, {
+    "name" : "thread",
+    "value" : "660-MainThread"
+  }, {
+    "name" : "framework",
+    "value" : "pytest"
+  }, {
+    "name" : "language",
+    "value" : "cpython3"
+  }, {
+    "name" : "package",
+    "value" : "test_pipeline"
+  }, {
+    "name" : "resultFormat",
+    "value" : "allure2"
+  } ],
+  "parameters" : [ ],
+  "links" : [ ],
+  "hidden" : false,
+  "retry" : false,
+  "extra" : {
+    "severity" : "normal",
+    "retries" : [ ],
+    "categories" : [ {
+      "name" : "Product defects",
+      "matchedStatuses" : [ ],
+      "flaky" : false
+    } ],
+    "history" : {
+      "statistic" : {
+        "failed" : 1,
+        "broken" : 0,
+        "skipped" : 0,
+        "passed" : 1,
+        "unknown" : 0,
+        "total" : 2
+      },
+      "items" : [ {
+        "uid" : "a7a29511e870abe9",
+        "status" : "passed",
+        "time" : {
+          "start" : 1658396937865,
+          "stop" : 1658396940187,
+          "duration" : 2322
+        }
+      } ]
+    },
+    "tags" : [ ]
+  },
+  "source" : "ad75793af77d81c8.json",
+  "parameterValues" : [ ]
+}
