@@ -112,7 +112,7 @@ public class TaskSessionClassHolder implements Comparable<TaskSessionClassHolder
 		return null;
 	}
 
-	public void ensureTaskSessionCreated(SubTaskDto task) {
+	public synchronized void ensureTaskSessionCreated(SubTaskDto task) {
 		String taskId = task.getId().toString();
 		AtomicReference<AspectTaskEx> newRef = new AtomicReference<>();
 		AspectTaskEx theAspectTask = aspectTaskMap.computeIfAbsent(taskId, id -> {
@@ -163,7 +163,7 @@ public class TaskSessionClassHolder implements Comparable<TaskSessionClassHolder
 		String taskId = task.getId().toString();
 		ensureTaskSessionStopped(taskId);
 	}
-	public void ensureTaskSessionStopped(String taskId) {
+	public synchronized void ensureTaskSessionStopped(String taskId) {
 		if(taskId == null)
 			return;
 		AspectTaskEx aspectTask = aspectTaskMap.remove(taskId);
