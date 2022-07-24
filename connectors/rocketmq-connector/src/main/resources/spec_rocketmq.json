@@ -70,6 +70,7 @@
         "useTLS": {
           "type": "boolean",
           "title": "${useTLS}",
+          "default": false,
           "x-decorator": "FormItem",
           "x-component": "Switch",
           "apiServerKey": "use_tls",

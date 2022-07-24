@@ -3,6 +3,7 @@ package io.tapdata.connector.kafka.admin;
 import io.tapdata.connector.kafka.config.AdminConfiguration;
 import org.apache.kafka.clients.admin.AdminClient;
 import org.apache.kafka.clients.admin.ListTopicsOptions;
+import org.apache.kafka.clients.admin.NewTopic;
 
 import java.util.Set;
 
@@ -32,6 +33,14 @@ public class DefaultAdmin implements Admin {
         } catch (Throwable t) {
             throw new RuntimeException("fetch topic list error", t);
         }
+    }
+
+    @Override
+    public void createTopics(Set<String> topics) {
+        Set<NewTopic> newTopics = topics.stream()
+                .map(topic -> new NewTopic(topic, 3, (short) 1))
+                .collect(java.util.stream.Collectors.toSet());
+        adminClient.createTopics(newTopics);
     }
 
     @Override

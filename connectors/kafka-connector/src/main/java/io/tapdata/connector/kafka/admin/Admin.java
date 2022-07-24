@@ -8,4 +8,6 @@ public interface Admin extends AutoCloseable {
 
   Set<String> listTopics();
 
+  void createTopics(Set<String> topics);
+
 }

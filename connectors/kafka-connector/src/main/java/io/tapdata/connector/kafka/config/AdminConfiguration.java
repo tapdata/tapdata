@@ -14,7 +14,7 @@ public class AdminConfiguration extends AbstractConfiguration {
 
     @Override
     public Map<String, Object> build() {
-        configMap.put(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG, this.kafkaConfig.getMqTopicString());
+        configMap.put(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG, this.kafkaConfig.getNameSrvAddr());
         configMap.put(AdminClientConfig.CLIENT_ID_CONFIG, String.format("TapData-KafkaAdmin-%s-%s", connectorId, UUID.randomUUID()));
         configMap.put(AdminClientConfig.REQUEST_TIMEOUT_MS_CONFIG, (int) TimeUnit.SECONDS.toMillis(10L));
         return super.build();

@@ -16,7 +16,7 @@ public class ConsumerConfiguration extends AbstractConfiguration {
 
     @Override
     public Map<String, Object> build() {
-        configMap.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, this.kafkaConfig.getMqTopicString());
+        configMap.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, this.kafkaConfig.getNameSrvAddr());
         configMap.put(ConsumerConfig.CLIENT_ID_CONFIG, String.format("TapData-KafkaSource-%s-%s", connectorId, UUID.randomUUID()));
         configMap.put(ConsumerConfig.GROUP_ID_CONFIG, String.format("TapData-KafkaSource-%s", this.connectorId));
         configMap.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, this.isEarliest ? "earliest" : "latest");
