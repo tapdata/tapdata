@@ -55,9 +55,9 @@ public class RocketmqService extends AbstractMqService {
     public void testConnection(Consumer<TestItem> consumer) {
         try {
             defaultMQProducer.start();
-            consumer.accept(new TestItem(MqTestItem.RABBIT_MQ_CONNECTION.getContent(), TestItem.RESULT_SUCCESSFULLY, null));
+            consumer.accept(new TestItem(MqTestItem.ROCKET_MQ_CONNECTION.getContent(), TestItem.RESULT_SUCCESSFULLY, null));
         } catch (Throwable t) {
-            consumer.accept(new TestItem(MqTestItem.RABBIT_MQ_CONNECTION.getContent(), TestItem.RESULT_FAILED, t.getMessage()));
+            consumer.accept(new TestItem(MqTestItem.ROCKET_MQ_CONNECTION.getContent(), TestItem.RESULT_FAILED, t.getMessage()));
         }
     }
 
@@ -260,9 +260,9 @@ public class RocketmqService extends AbstractMqService {
     @Override
     public void streamConsume(List<String> tableList, int eventBatchSize, BiConsumer<List<TapEvent>, Object> eventsOffsetConsumer) throws Throwable {
         consuming.set(true);
-        List<List<String>> tablesList = Lists.partition(tableList, concurrency);
-        executorService = Executors.newFixedThreadPool(concurrency);
-        CountDownLatch countDownLatch = new CountDownLatch(concurrency);
+        List<List<String>> tablesList = Lists.partition(tableList, (tableList.size() - 1) / concurrency + 1);
+        executorService = Executors.newFixedThreadPool(tablesList.size());
+        CountDownLatch countDownLatch = new CountDownLatch(tablesList.size());
         tablesList.forEach(tables -> executorService.submit(() -> {
             List<TapEvent> list = TapSimplify.list();
             Map<String, DefaultLitePullConsumer> consumerMap = new HashMap<>();

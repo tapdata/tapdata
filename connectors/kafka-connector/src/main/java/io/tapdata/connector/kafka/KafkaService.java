@@ -180,9 +180,9 @@ public class KafkaService extends AbstractMqService {
         AtomicLong update = new AtomicLong(0);
         AtomicLong delete = new AtomicLong(0);
         WriteListResult<TapRecordEvent> listResult = new WriteListResult<>();
-        List<List<TapRecordEvent>> subEventLists = Lists.partition(tapRecordEvents, concurrency);
-        CountDownLatch countDownLatch = new CountDownLatch(concurrency);
-        executorService = Executors.newFixedThreadPool(concurrency);
+        List<List<TapRecordEvent>> subEventLists = Lists.partition(tapRecordEvents, (tapRecordEvents.size() - 1) / concurrency + 1);
+        CountDownLatch countDownLatch = new CountDownLatch(subEventLists.size());
+        executorService = Executors.newFixedThreadPool(subEventLists.size());
         subEventLists.forEach(subEventList -> executorService.submit(() -> {
             subEventList.forEach(event -> {
                 Map<String, Object> data;

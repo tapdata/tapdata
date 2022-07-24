@@ -218,9 +218,9 @@ public class ActivemqService extends AbstractMqService {
     public void streamConsume(List<String> tableList, int eventBatchSize, BiConsumer<List<TapEvent>, Object> eventsOffsetConsumer) throws Throwable {
         consuming.set(true);
         Session session = activemqConnection.createSession(false, Session.AUTO_ACKNOWLEDGE);
-        List<List<String>> tablesList = Lists.partition(tableList, concurrency);
-        executorService = Executors.newFixedThreadPool(concurrency);
-        CountDownLatch countDownLatch = new CountDownLatch(concurrency);
+        List<List<String>> tablesList = Lists.partition(tableList, (tableList.size() - 1) / concurrency + 1);
+        executorService = Executors.newFixedThreadPool(tablesList.size());
+        CountDownLatch countDownLatch = new CountDownLatch(tablesList.size());
         tablesList.forEach(tables -> executorService.submit(() -> {
             List<TapEvent> list = TapSimplify.list();
             Map<String, MessageConsumer> consumerMap = new HashMap<>();

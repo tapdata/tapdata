@@ -15,9 +15,9 @@ public class RegisterMain {
 		String basePath = "/";
 		if (null != resource) basePath = resource.getPath() + "../../../../";
 		args = new String[]{
-				"register", "-a", "3324cfdf-7d3e-4792-bd32-571638d4562f", "-t", "http://localhost:3000",
+//				"register", "-a", "3324cfdf-7d3e-4792-bd32-571638d4562f", "-t", "http://localhost:3000",
 //                "register", "-a", "3324cfdf-7d3e-4792-bd32-571638d4562f", "-t", "http://192.168.1.132:31787",
-//				"register", "-a", "3324cfdf-7d3e-4792-bd32-571638d4562f", "-t", "http://192.168.1.132:31966",
+				"register", "-a", "3324cfdf-7d3e-4792-bd32-571638d4562f", "-t", "http://192.168.1.132:31966",
 //				"register", "-a", "3324cfdf-7d3e-4792-bd32-571638d4562f", "-t", "http://192.168.1.132:31267",
 
 //                "/Users/aplomb/dev/tapdata/GithubProjects/idaas-pdk/dist/empty-connector-v1.1-SNAPSHOT.jar",
@@ -27,9 +27,9 @@ public class RegisterMain {
 //				basePath + "connectors/dist/elasticsearch-connector-v1.0-SNAPSHOT.jar",
 //				basePath + "connectors/dist/oceanbase-connector-v1.0-SNAPSHOT.jar",
 //				basePath + "connectors/dist/doris-connector-v1.0-SNAPSHOT.jar",
-//				basePath + "connectors/dist/activemq-connector-v1.0-SNAPSHOT.jar",
-//				basePath + "connectors/dist/rabbitmq-connector-v1.0-SNAPSHOT.jar",
-//				basePath + "connectors/dist/rocketmq-connector-v1.0-SNAPSHOT.jar",
+				basePath + "connectors/dist/activemq-connector-v1.0-SNAPSHOT.jar",
+				basePath + "connectors/dist/rabbitmq-connector-v1.0-SNAPSHOT.jar",
+				basePath + "connectors/dist/rocketmq-connector-v1.0-SNAPSHOT.jar",
 				basePath + "connectors/dist/kafka-connector-v1.0-SNAPSHOT.jar",
 		};
 
