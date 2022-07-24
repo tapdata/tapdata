@@ -1,10 +1,5 @@
 package com.tapdata.constant;
 
-import java.io.IOException;
-import java.io.StringWriter;
-import java.util.*;
-
-import com.tapdata.entity.User;
 import org.apache.commons.collections.MapUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.dom4j.Document;
@@ -13,6 +8,10 @@ import org.dom4j.DocumentHelper;
 import org.dom4j.Element;
 import org.dom4j.io.OutputFormat;
 import org.dom4j.io.XMLWriter;
+
+import java.io.IOException;
+import java.io.StringWriter;
+import java.util.*;
 
 public class XMLUtil {
 

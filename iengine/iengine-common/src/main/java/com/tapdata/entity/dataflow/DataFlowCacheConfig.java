@@ -1,15 +1,11 @@
 package com.tapdata.entity.dataflow;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
-import com.tapdata.constant.MongodbUtil;
 import com.tapdata.entity.Connections;
-import com.tapdata.mongo.ClientMongoOperator;
+import com.tapdata.tm.commons.dag.Node;
 import org.apache.commons.collections.CollectionUtils;
-import org.springframework.data.mongodb.core.query.Criteria;
-import org.springframework.data.mongodb.core.query.Query;
 
 import java.io.Serializable;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
@@ -58,6 +54,11 @@ public class DataFlowCacheConfig implements Serializable {
 	private String sourceConnectionId;
 
 	/**
+	 * 源节点的node信息
+	 */
+	private Node sourceNode;
+
+	/**
 	 * 缓存的源表名称
 	 */
 	private String tableName;
@@ -78,6 +79,7 @@ public class DataFlowCacheConfig implements Serializable {
 			long ttl,
 			Set<String> fields,
 			Connections sourceConnection,
+			Node sourceNode,
 			String tableName,
 			Stage sourceStage,
 			List<String> primaryKeys
@@ -91,6 +93,7 @@ public class DataFlowCacheConfig implements Serializable {
 		this.ttl = ttl;
 		this.fields = fields;
 		this.sourceConnection = sourceConnection;
+		this.sourceNode = sourceNode;
 		this.tableName = tableName;
 		this.sourceStage = sourceStage;
 		if (CollectionUtils.isNotEmpty(primaryKeys)) {
@@ -200,6 +203,14 @@ public class DataFlowCacheConfig implements Serializable {
 
 	public void setSourceConnectionId(String sourceConnectionId) {
 		this.sourceConnectionId = sourceConnectionId;
+	}
+
+	public Node getSourceNode() {
+		return sourceNode;
+	}
+
+	public void setSourceNode(Node sourceNode) {
+		this.sourceNode = sourceNode;
 	}
 
 	@Override

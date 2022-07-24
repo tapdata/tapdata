@@ -17,7 +17,7 @@ public abstract class AbstractCacheStats implements ICacheStats {
 	public void hitRateStats(String cacheName, boolean hitCache) {
 		hitStats(cacheName, hitCache);
 		double hitRate = getHitRate();
-		if (MemoryCacheUtil.logInfoCacheMetrics(cacheName, getCacheDataSize(), getCacheRowCount(), getHitCacheCount(), getMissCacheCount(),
+		if (CacheUtil.logInfoCacheMetrics(cacheName, getCacheDataSize(), getCacheRowCount(), getHitCacheCount(), getMissCacheCount(),
 				() -> hitRate <= LOG_INFO_HIT_CACHE_RATE_CAPACITY &&
 						System.currentTimeMillis() - getLastLogTs() > LOG_INFO_INTERVAL_MILLIS
 		)) {

@@ -32,7 +32,12 @@ public abstract class CCJBaseDDLWrapper extends BaseDDLWrapper<Alter> {
 
 	protected String getTableName(Alter ddl) {
 		Table table = ddl.getTable();
-		return table.getName();
+		String tableName = table.getName();
+		if (StringUtils.isNotBlank(tableName)) {
+			tableName = StringUtils.removeStart(tableName, "`");
+			tableName = StringUtils.removeEnd(tableName, "`");
+		}
+		return tableName;
 	}
 
 	protected String getDataType(ColDataType colDataType) {

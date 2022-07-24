@@ -55,7 +55,7 @@ public class RequestFilter implements Filter {
 		}
 		long endTime = System.currentTimeMillis();
 		double time = (endTime - startTime)/ 1000D;
-		log.info("{} {} {} {}s ", clientIp, method, uri, BigDecimal.valueOf(time).setScale(3, RoundingMode.HALF_UP));
+		//log.info("{} {} {} {}s ", clientIp, method, uri, BigDecimal.valueOf(time).setScale(3, RoundingMode.HALF_UP));
 
 		if (log.isDebugEnabled()) logRes(httpServletResponse);
 

@@ -2,9 +2,6 @@ package io.tapdata.constructImpl;
 
 import com.hazelcast.core.HazelcastInstance;
 import com.hazelcast.map.IMap;
-import com.tapdata.constant.JSONUtil;
-
-import java.util.Map;
 
 /**
  * @author samuel

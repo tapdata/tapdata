@@ -10,4 +10,7 @@ public interface IDataSourceRowsGetter {
 
 	List<Map<String, Object>> getRows(Object[] keys);
 
+	default void close() {
+	}
+
 }

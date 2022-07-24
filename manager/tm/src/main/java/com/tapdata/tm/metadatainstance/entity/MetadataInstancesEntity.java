@@ -30,6 +30,7 @@ import java.util.Set;
 public class MetadataInstancesEntity extends BaseEntity {
     @Field("qualified_name")
     private String qualifiedName;
+    private String ancestorsName;
     @Field("meta_type")
     private String metaType;
     @Field("is_deleted")

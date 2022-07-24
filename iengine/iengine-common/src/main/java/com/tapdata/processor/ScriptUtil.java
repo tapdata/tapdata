@@ -88,16 +88,16 @@ public class ScriptUtil {
 			return null;
 		}
 
-		String buildInMethod = initBuildInMethod(javaScriptFunctions, clientMongoOperator);
-		String scripts = new StringBuilder(script).append(System.lineSeparator()).append(buildInMethod).toString();
-
-		ScriptEngine e = getScriptEngine(jsEngineName);
-		e.eval(scripts);
-		if (Thread.currentThread().getContextClassLoader() instanceof CustomerClassLoader) {
-			Thread.currentThread().setContextClassLoader(Thread.currentThread().getContextClassLoader().getParent());
+		ClassLoader contextClassLoader = Thread.currentThread().getContextClassLoader();
+		try {
+			String buildInMethod = initBuildInMethod(javaScriptFunctions, clientMongoOperator);
+			String scripts = new StringBuilder(script).append(System.lineSeparator()).append(buildInMethod).toString();
+			ScriptEngine e = getScriptEngine(jsEngineName);
+			e.eval(scripts);
+			return (Invocable) e;
+		} finally {
+			Thread.currentThread().setContextClassLoader(contextClassLoader);
 		}
-
-		return (Invocable) e;
 	}
 
 	public static Invocable getScriptEngine(String jsEngineName, String script, List<JavaScriptFunctions> javaScriptFunctions,
@@ -107,19 +107,21 @@ public class ScriptUtil {
 			return null;
 		}
 
-		String buildInMethod = initBuildInMethod(javaScriptFunctions, clientMongoOperator);
-		String scripts = new StringBuilder(script).append(System.lineSeparator()).append(buildInMethod).toString();
+		ClassLoader contextClassLoader = Thread.currentThread().getContextClassLoader();
+		try {
+			String buildInMethod = initBuildInMethod(javaScriptFunctions, clientMongoOperator);
+			String scripts = new StringBuilder(script).append(System.lineSeparator()).append(buildInMethod).toString();
 
-		ScriptEngine e = getScriptEngine(jsEngineName);
-		e.eval(scripts);
-		if (Thread.currentThread().getContextClassLoader() instanceof CustomerClassLoader) {
-			Thread.currentThread().setContextClassLoader(Thread.currentThread().getContextClassLoader().getParent());
+			ScriptEngine e = getScriptEngine(jsEngineName);
+			e.eval(scripts);
+			e.put("source", source);
+			e.put("target", target);
+			e.put("CacheService", memoryCacheGetter);
+
+			return (Invocable) e;
+		} finally {
+			Thread.currentThread().setContextClassLoader(contextClassLoader);
 		}
-		e.put("source", source);
-		e.put("target", target);
-		e.put("CacheService", memoryCacheGetter);
-
-		return (Invocable) e;
 	}
 
 	public static Object invokeScript(
@@ -302,6 +304,10 @@ public class ScriptUtil {
 				final URLClassLoader urlClassLoader = new CustomerClassLoader(urlList.toArray(new URL[0]), Thread.currentThread().getContextClassLoader());
 				Thread.currentThread().setContextClassLoader(urlClassLoader);
 			}
+		}
+		if (Thread.currentThread().getContextClassLoader() == null) {
+			final URLClassLoader urlClassLoader = new CustomerClassLoader(new URL[0], ScriptUtil.class.getClassLoader());
+			Thread.currentThread().setContextClassLoader(urlClassLoader);
 		}
 
 		return buildInMethod.toString();

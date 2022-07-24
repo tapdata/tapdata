@@ -1,7 +1,7 @@
 package com.tapdata.cache.mapdb;
 
-import com.tapdata.cache.serializer.AbstractSerializerCacheStore;
 import com.tapdata.cache.MemoryCacheUtil;
+import com.tapdata.cache.serializer.AbstractSerializerCacheStore;
 import com.tapdata.entity.dataflow.DataFlowCacheConfig;
 import org.mapdb.DB;
 import org.mapdb.Serializer;

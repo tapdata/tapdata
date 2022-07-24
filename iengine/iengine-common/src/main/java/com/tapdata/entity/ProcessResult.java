@@ -1,6 +1,5 @@
 package com.tapdata.entity;
 
-import com.mongodb.client.model.ReplaceOneModel;
 import com.mongodb.client.model.UpdateOptions;
 import com.mongodb.client.model.WriteModel;
 import org.apache.commons.collections.MapUtils;

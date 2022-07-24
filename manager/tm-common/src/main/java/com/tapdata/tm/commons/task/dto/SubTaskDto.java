@@ -52,6 +52,10 @@ public class SubTaskDto extends ParentSubTaskDto {
     @JsonDeserialize( using = DagDeserialize.class)
     private DAG tempDag;
 
+    //用户对接pdk重置删除的标记
     private Boolean resetFlag;
     private Boolean deleteFlag;
+
+    //是否为一个推演任务
+    private boolean transformTask;
 }

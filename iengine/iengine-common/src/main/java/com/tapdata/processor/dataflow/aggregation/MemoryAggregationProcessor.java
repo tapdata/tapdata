@@ -21,23 +21,17 @@ import com.tapdata.entity.Mapping;
 import com.tapdata.entity.MessageEntity;
 import com.tapdata.entity.dataflow.Aggregation;
 import com.tapdata.entity.dataflow.Stage;
-import com.tapdata.processor.ProcessorException;
 import com.tapdata.processor.dataflow.DataFlowProcessor;
 import com.tapdata.processor.dataflow.ProcessorContext;
-
-import java.util.concurrent.atomic.AtomicInteger;
-
 import org.apache.commons.collections.CollectionUtils;
-import org.apache.commons.collections.ComparatorUtils;
 import org.apache.commons.collections.MapUtils;
 import org.apache.commons.lang3.StringUtils;
-import org.apache.commons.lang3.builder.CompareToBuilder;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.util.*;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.*;

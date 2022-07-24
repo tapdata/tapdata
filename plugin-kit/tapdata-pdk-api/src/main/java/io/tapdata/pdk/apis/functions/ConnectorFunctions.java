@@ -44,7 +44,13 @@ public class ConnectorFunctions extends CommonFunctions<ConnectorFunctions> {
     private DropFieldFunction dropFieldFunction;
     //new_field_event
     private NewFieldFunction newFieldFunction;
+    //get_table_names
+    private GetTableNamesFunction getTableNamesFunction;
 
+    public ConnectorFunctions supportGetTableNamesFunction(GetTableNamesFunction function) {
+        getTableNamesFunction = function;
+        return this;
+    }
     public ConnectorFunctions supportAlterDatabaseTimeZoneFunction(AlterDatabaseTimeZoneFunction function) {
         alterDatabaseTimeZoneFunction = function;
         return this;
@@ -288,5 +294,9 @@ public class ConnectorFunctions extends CommonFunctions<ConnectorFunctions> {
 
     public NewFieldFunction getNewFieldFunction() {
         return newFieldFunction;
+    }
+
+    public GetTableNamesFunction getGetTableNamesFunction() {
+        return getTableNamesFunction;
     }
 }

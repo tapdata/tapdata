@@ -12,7 +12,7 @@
     <groupId>com.tapdata</groupId>
     <artifactId>iengine</artifactId>
     <version>0.5.2-SNAPSHOT</version>
-    <name>Connector Parent POM</name>
+    <name>IEngine Parent POM</name>
     <packaging>pom</packaging>
 
     <properties>
@@ -123,7 +123,7 @@
         <protobuf-dynamic.version>1.0.1</protobuf-dynamic.version>
 
         <tm-sdk.version>0.0.2</tm-sdk.version>
-        <tm-common.version>0.0.1-SNAPSHOT</tm-common.version>
+        <tm-common.version>0.0.2-SNAPSHOT</tm-common.version>
 
         <okhttp.version>4.9.1</okhttp.version>
 
@@ -155,14 +155,18 @@
         <version.debezium.embedded.new>2.0.1</version.debezium.embedded.new>
         <version.debezium.connector.postgres>2.0.0</version.debezium.connector.postgres>
         <version.debezium.connector.mysql>2.0.0</version.debezium.connector.mysql>
+
+        <!-- lombok -->
+        <lombok.version>1.18.20</lombok.version>
     </properties>
 
     <modules>
-        <module>ie</module>
+        <module>iengine-app</module>
         <module>iengine-common</module>
         <module>validator</module>
         <module>api</module>
         <module>hazelcast-lib</module>
+        <module>modules</module>
     </modules>
 
     <dependencyManagement>
@@ -362,18 +366,6 @@
                 <version>3.9</version>
             </dependency>
 
-            <!--      <dependency>-->
-            <!--        <groupId>org.slf4j</groupId>-->
-            <!--        <artifactId>slf4j-api</artifactId>-->
-            <!--        <version>${version.org.slf4j}</version>-->
-            <!--      </dependency>-->
-            <!--      <dependency>-->
-            <!--        <groupId>org.slf4j</groupId>-->
-            <!--        <artifactId>slf4j-log4j12</artifactId>-->
-            <!--        <version>${version.org.slf4j}</version>-->
-            <!--        <scope>test</scope>-->
-            <!--      </dependency>-->
-
             <!-- jdbc driver -->
             <dependency>
                 <groupId>com.oracle</groupId>
@@ -413,106 +405,17 @@
                 <scope>test</scope>
             </dependency>
 
-            <!-- Debezium artifacts -->
-            <!--      <dependency>-->
-            <!--        <groupId>com.tapdata</groupId>-->
-            <!--        <artifactId>debezium-core</artifactId>-->
-            <!--        <version>${project.version}</version>-->
-            <!--      </dependency>-->
-            <!--      <dependency>-->
-            <!--        <groupId>com.tapdata</groupId>-->
-            <!--        <artifactId>debezium-embedded</artifactId>-->
-            <!--        <version>${project.version}</version>-->
-            <!--      </dependency>-->
-            <!--      <dependency>-->
-            <!--        <groupId>com.tapdata</groupId>-->
-            <!--        <artifactId>debezium-connector-mysql</artifactId>-->
-            <!--        <version>${version.debezium.connector.mysql}</version>-->
-            <!--      </dependency>-->
-            <!--      <dependency>-->
-            <!--        <groupId>com.tapdata</groupId>-->
-            <!--        <artifactId>debezium-connector-mongodb</artifactId>-->
-            <!--        <version>${project.version}</version>-->
-            <!--      </dependency>-->
-            <!--      <dependency>-->
-            <!--        <groupId>com.tapdata</groupId>-->
-            <!--        <artifactId>debezium-core-new</artifactId>-->
-            <!--        <version>${version.debezium.core.new}</version>-->
-            <!--      </dependency>-->
-            <!--      <dependency>-->
-            <!--        <groupId>com.tapdata</groupId>-->
-            <!--        <artifactId>debezium-embedded-new</artifactId>-->
-            <!--        <version>${version.debezium.embedded.new}</version>-->
-            <!--      </dependency>-->
-            <!--      <dependency>-->
-            <!--        <groupId>com.tapdata</groupId>-->
-            <!--        <artifactId>debezium-connector-postgres</artifactId>-->
-            <!--        <version>${version.debezium.connector.postgres}</version>-->
-            <!--      </dependency>-->
-            <!--      <dependency>-->
-            <!--        <groupId>com.tapdata</groupId>-->
-            <!--        <artifactId>debezium-api</artifactId>-->
-            <!--        <version>${project.version}</version>-->
-            <!--      </dependency>-->
-            <!--      <dependency>-->
-            <!--        <groupId>com.tapdata</groupId>-->
-            <!--        <artifactId>debezium-ddl-parser</artifactId>-->
-            <!--        <version>${project.version}</version>-->
-            <!--      </dependency>-->
-
-            <!--      <dependency>-->
-            <!--        <groupId>com.tapdata</groupId>-->
-            <!--        <artifactId>jdbc-connector</artifactId>-->
-            <!--        <version>${project.version}</version>-->
-            <!--      </dependency>-->
-
             <dependency>
                 <groupId>com.tapdata</groupId>
                 <artifactId>iengine-common</artifactId>
                 <version>${project.version}</version>
             </dependency>
 
-            <!--      <dependency>-->
-            <!--        <groupId>com.tapdata</groupId>-->
-            <!--        <artifactId>transformer</artifactId>-->
-            <!--        <version>${project.version}</version>-->
-            <!--      </dependency>-->
-
-            <!--      <dependency>-->
-            <!--        <groupId>com.tapdata</groupId>-->
-            <!--        <artifactId>oracle-cdc</artifactId>-->
-            <!--        <version>${project.version}</version>-->
-            <!--      </dependency>-->
-
             <dependency>
                 <groupId>com.tapdata</groupId>
                 <artifactId>validator</artifactId>
                 <version>${project.version}</version>
             </dependency>
-
-            <!--      <dependency>-->
-            <!--        <groupId>com.tapdata</groupId>-->
-            <!--        <artifactId>sqlserver-cdc</artifactId>-->
-            <!--        <version>${project.version}</version>-->
-            <!--      </dependency>-->
-
-            <!--      <dependency>-->
-            <!--        <groupId>com.tapdata</groupId>-->
-            <!--        <artifactId>sybase-cdc</artifactId>-->
-            <!--        <version>${project.version}</version>-->
-            <!--      </dependency>-->
-
-            <!--      <dependency>-->
-            <!--        <groupId>com.tapdata</groupId>-->
-            <!--        <artifactId>gridfs-lib</artifactId>-->
-            <!--        <version>${project.version}</version>-->
-            <!--      </dependency>-->
-
-            <!--      <dependency>-->
-            <!--        <groupId>com.tapdata</groupId>-->
-            <!--        <artifactId>gbase-lib</artifactId>-->
-            <!--        <version>${project.version}</version>-->
-            <!--      </dependency>-->
 
             <dependency>
                 <groupId>com.sap</groupId>
@@ -626,330 +529,12 @@
                 <artifactId>api</artifactId>
                 <version>${project.version}</version>
             </dependency>
-            <!--      <dependency>-->
-            <!--        <groupId>com.tapdata</groupId>-->
-            <!--        <artifactId>file-lib</artifactId>-->
-            <!--        <version>${project.version}</version>-->
-            <!--      </dependency>-->
-            <!--      <dependency>-->
-            <!--        <groupId>com.tapdata</groupId>-->
-            <!--        <artifactId>rest-lib</artifactId>-->
-            <!--        <version>${project.version}</version>-->
-            <!--      </dependency>-->
-            <!--      <dependency>-->
-            <!--        <groupId>com.tapdata</groupId>-->
-            <!--        <artifactId>mongodb-lib</artifactId>-->
-            <!--        <version>${project.version}</version>-->
-            <!--      </dependency>-->
-            <!--      <dependency>-->
-            <!--        <groupId>com.tapdata</groupId>-->
-            <!--        <artifactId>udp-lib</artifactId>-->
-            <!--        <version>${project.version}</version>-->
-            <!--      </dependency>-->
-            <!--      <dependency>-->
-            <!--        <groupId>com.tapdata</groupId>-->
-            <!--        <artifactId>bitsflow-lib</artifactId>-->
-            <!--        <version>${project.version}</version>-->
-            <!--      </dependency>-->
-            <!--      <dependency>-->
-            <!--        <groupId>com.tapdata</groupId>-->
-            <!--        <artifactId>kafka-lib</artifactId>-->
-            <!--        <version>${project.version}</version>-->
-            <!--      </dependency>-->
-            <!--      <dependency>-->
-            <!--        <groupId>com.tapdata</groupId>-->
-            <!--        <artifactId>mq-lib</artifactId>-->
-            <!--        <version>${project.version}</version>-->
-            <!--      </dependency>-->
-            <!--      <dependency>-->
-            <!--        <groupId>com.tapdata</groupId>-->
-            <!--        <artifactId>custom-lib</artifactId>-->
-            <!--        <version>${project.version}</version>-->
-            <!--      </dependency>-->
-            <!--      <dependency>-->
-            <!--        <groupId>com.tapdata</groupId>-->
-            <!--        <artifactId>db2-lib</artifactId>-->
-            <!--        <version>${project.version}</version>-->
-            <!--      </dependency>-->
-            <!--      <dependency>-->
-            <!--        <groupId>com.tapdata</groupId>-->
-            <!--        <artifactId>gaussdb-lib</artifactId>-->
-            <!--        <version>${project.version}</version>-->
-            <!--      </dependency>-->
-            <!--      <dependency>-->
-            <!--        <groupId>com.tapdata</groupId>-->
-            <!--        <artifactId>postgres-lib</artifactId>-->
-            <!--        <version>${project.version}</version>-->
-            <!--      </dependency>-->
-            <!--      <dependency>-->
-            <!--        <groupId>com.tapdata</groupId>-->
-            <!--        <artifactId>elasticsearch-lib</artifactId>-->
-            <!--        <version>${project.version}</version>-->
-            <!--      </dependency>-->
-            <!--      <dependency>-->
-            <!--        <groupId>com.tapdata</groupId>-->
-            <!--        <artifactId>validator-lib</artifactId>-->
-            <!--        <version>${project.version}</version>-->
-            <!--      </dependency>-->
-
-            <!--      <dependency>-->
-            <!--        <groupId>com.tapdata</groupId>-->
-            <!--        <artifactId>cache-lib</artifactId>-->
-            <!--        <version>${project.version}</version>-->
-            <!--      </dependency>-->
-
-            <!--      <dependency>-->
-            <!--        <groupId>com.tapdata</groupId>-->
-            <!--        <artifactId>log-collect-lib</artifactId>-->
-            <!--        <version>${project.version}</version>-->
-            <!--      </dependency>-->
-
-            <!--      <dependency>-->
-            <!--        <groupId>com.tapdata</groupId>-->
-            <!--        <artifactId>log-reader-lib</artifactId>-->
-            <!--        <version>${project.version}</version>-->
-            <!--      </dependency>-->
-
-            <!--      <dependency>-->
-            <!--        <groupId>com.tapdata</groupId>-->
-            <!--        <artifactId>redis-lib</artifactId>-->
-            <!--        <version>${project.version}</version>-->
-            <!--      </dependency>-->
-
-            <!--      <dependency>-->
-            <!--        <groupId>com.tapdata</groupId>-->
-            <!--        <artifactId>jira-lib</artifactId>-->
-            <!--        <version>${project.version}</version>-->
-            <!--      </dependency>-->
-
-
-            <!--      <dependency>-->
-            <!--        <groupId>com.tapdata</groupId>-->
-            <!--        <artifactId>hive-lib</artifactId>-->
-            <!--        <version>${project.version}</version>-->
-            <!--      </dependency>-->
-            <!--      &lt;!&ndash;hive&ndash;&gt;-->
-            <!--      <dependency>-->
-            <!--        <groupId>org.apache.hive</groupId>-->
-            <!--        <artifactId>hive-jdbc</artifactId>-->
-            <!--        <version>2.3.9</version>-->
-            <!--      </dependency>-->
-            <!--      <dependency>-->
-            <!--        <groupId>org.apache.hive.hcatalog</groupId>-->
-            <!--        <artifactId>hive-hcatalog-core</artifactId>-->
-            <!--        <version>2.3.9</version>-->
-            <!--      </dependency>-->
-            <!--      <dependency>-->
-            <!--        <groupId>org.apache.hive.hcatalog</groupId>-->
-            <!--        <artifactId>hive-hcatalog-streaming</artifactId>-->
-            <!--        <version>2.3.9</version>-->
-            <!--      </dependency>-->
-            <!--      <dependency>-->
-            <!--        <groupId>org.apache.hive</groupId>-->
-            <!--        <artifactId>hive-metastore</artifactId>-->
-            <!--        <version>2.3.9</version>-->
-            <!--      </dependency>-->
-            <!--      <dependency>-->
-            <!--        <groupId>org.apache.hive</groupId>-->
-            <!--        <artifactId>hive-exec</artifactId>-->
-            <!--        <version>2.3.9</version>-->
-            <!--      </dependency>-->
-            <!--      <dependency>-->
-            <!--        <groupId>org.apache.hive</groupId>-->
-            <!--        <artifactId>hive-storage-api</artifactId>-->
-            <!--        <version>2.8.0</version>-->
-            <!--      </dependency>-->
-
-            <!--      <dependency>-->
-            <!--        <groupId>org.javassist</groupId>-->
-            <!--        <artifactId>javassist</artifactId>-->
-            <!--        <version>3.28.0-GA</version>-->
-            <!--      </dependency>-->
-
-            <!--      &lt;!&ndash; tidb &ndash;&gt;-->
-            <!--      <dependency>-->
-            <!--        <groupId>com.tapdata</groupId>-->
-            <!--        <artifactId>tidb-lib</artifactId>-->
-            <!--        <version>${project.version}</version>-->
-            <!--      </dependency>-->
-
 
             <dependency>
                 <groupId>com.carrotsearch</groupId>
                 <artifactId>hppc</artifactId>
                 <version>0.8.1</version>
             </dependency>
-
-            <!-- hbase -->
-            <!--      <dependency>-->
-            <!--        <groupId>com.tapdata</groupId>-->
-            <!--        <artifactId>hbase-lib</artifactId>-->
-            <!--        <version>${project.version}</version>-->
-            <!--      </dependency>-->
-            <!--      <dependency>-->
-            <!--        <groupId>org.apache.hbase</groupId>-->
-            <!--        <artifactId>hbase-client</artifactId>-->
-            <!--        <version>2.4.4</version>-->
-            <!--      </dependency>-->
-            <!--      <dependency>-->
-            <!--        <groupId>org.apache.hbase</groupId>-->
-            <!--        <artifactId>hbase-common</artifactId>-->
-            <!--        <version>2.4.4</version>-->
-            <!--      </dependency>-->
-            <!--      <dependency>-->
-            <!--        <groupId>org.apache.hbase</groupId>-->
-            <!--        <artifactId>hbase-protocol</artifactId>-->
-            <!--        <version>2.4.4</version>-->
-            <!--      </dependency>-->
-            <!--      <dependency>-->
-            <!--        <groupId>org.apache.hbase</groupId>-->
-            <!--        <artifactId>hbase-metrics</artifactId>-->
-            <!--        <version>2.4.4</version>-->
-            <!--      </dependency>-->
-            <!--      <dependency>-->
-            <!--        <groupId>org.apache.hbase</groupId>-->
-            <!--        <artifactId>hbase-metrics-api</artifactId>-->
-            <!--        <version>2.4.4</version>-->
-            <!--      </dependency>-->
-            <!--      <dependency>-->
-            <!--        <groupId>org.apache.hbase</groupId>-->
-            <!--        <artifactId>hbase-hadoop-compat</artifactId>-->
-            <!--        <version>2.4.4</version>-->
-            <!--      </dependency>-->
-            <!--      <dependency>-->
-            <!--        <groupId>org.apache.hbase</groupId>-->
-            <!--        <artifactId>hbase-hadoop2-compat</artifactId>-->
-            <!--        <version>2.4.4</version>-->
-            <!--      </dependency>-->
-            <!--      <dependency>-->
-            <!--        <groupId>org.apache.hbase</groupId>-->
-            <!--        <artifactId>hbase-protocol-shaded</artifactId>-->
-            <!--        <version>2.4.4</version>-->
-            <!--      </dependency>-->
-            <!--      <dependency>-->
-            <!--        <groupId>org.apache.hbase.thirdparty</groupId>-->
-            <!--        <artifactId>hbase-shaded-gson</artifactId>-->
-            <!--        <version>3.4.1</version>-->
-            <!--      </dependency>-->
-            <!--      <dependency>-->
-            <!--        <groupId>org.apache.hbase.thirdparty</groupId>-->
-            <!--        <artifactId>hbase-shaded-miscellaneous</artifactId>-->
-            <!--        <version>3.4.1</version>-->
-            <!--      </dependency>-->
-            <!--      <dependency>-->
-            <!--        <groupId>org.apache.hbase.thirdparty</groupId>-->
-            <!--        <artifactId>hbase-shaded-netty</artifactId>-->
-            <!--        <version>3.4.1</version>-->
-            <!--      </dependency>-->
-            <!--      <dependency>-->
-            <!--        <groupId>org.apache.hbase.thirdparty</groupId>-->
-            <!--        <artifactId>hbase-shaded-protobuf</artifactId>-->
-            <!--        <version>3.4.1</version>-->
-            <!--      </dependency>-->
-            <!--      <dependency>-->
-            <!--        <groupId>org.apache.hadoop</groupId>-->
-            <!--        <artifactId>hadoop-common</artifactId>-->
-            <!--        <version>2.10.1</version>-->
-            <!--      </dependency>-->
-            <!--      <dependency>-->
-            <!--        <groupId>org.apache.hadoop</groupId>-->
-            <!--        <artifactId>hadoop-auth</artifactId>-->
-            <!--        <version>2.10.1</version>-->
-            <!--      </dependency>-->
-            <!--      <dependency>-->
-            <!--        <groupId>org.apache.hadoop</groupId>-->
-            <!--        <artifactId>hadoop-annotations</artifactId>-->
-            <!--        <version>2.10.1</version>-->
-            <!--      </dependency>-->
-            <!--      <dependency>-->
-            <!--        <groupId>org.apache.hadoop</groupId>-->
-            <!--        <artifactId>hadoop-hdfs</artifactId>-->
-            <!--        <version>2.10.1</version>-->
-            <!--      </dependency>-->
-            <!--      <dependency>-->
-            <!--        <groupId>org.apache.hadoop</groupId>-->
-            <!--        <artifactId>hadoop-yarn-common</artifactId>-->
-            <!--        <version>2.10.1</version>-->
-            <!--      </dependency>-->
-            <!--      <dependency>-->
-            <!--        <groupId>org.apache.hadoop</groupId>-->
-            <!--        <artifactId>hadoop-yarn-api</artifactId>-->
-            <!--        <version>2.10.1</version>-->
-            <!--      </dependency>-->
-            <!--      <dependency>-->
-            <!--        <groupId>org.apache.hadoop</groupId>-->
-            <!--        <artifactId>hadoop-yarn-client</artifactId>-->
-            <!--        <version>2.10.1</version>-->
-            <!--      </dependency>-->
-            <!--      <dependency>-->
-            <!--        <groupId>org.apache.hadoop</groupId>-->
-            <!--        <artifactId>hadoop-yarn-server-common</artifactId>-->
-            <!--        <version>2.10.1</version>-->
-            <!--      </dependency>-->
-            <!--      <dependency>-->
-            <!--        <groupId>org.apache.htrace</groupId>-->
-            <!--        <artifactId>htrace-core4</artifactId>-->
-            <!--        <version>4.1.0-incubating</version>-->
-            <!--      </dependency>-->
-            <!--      <dependency>-->
-            <!--        <groupId>org.apache.curator</groupId>-->
-            <!--        <artifactId>curator-client</artifactId>-->
-            <!--        <version>4.2.0</version>-->
-            <!--      </dependency>-->
-            <!--      <dependency>-->
-            <!--        <groupId>org.apache.curator</groupId>-->
-            <!--        <artifactId>curator-recipes</artifactId>-->
-            <!--        <version>4.2.0</version>-->
-            <!--      </dependency>-->
-            <!--      <dependency>-->
-            <!--        <groupId>org.apache.thrift</groupId>-->
-            <!--        <artifactId>libthrift</artifactId>-->
-            <!--        <version>0.9.3</version>-->
-            <!--      </dependency>-->
-            <!--      <dependency>-->
-            <!--        <groupId>com.google.inject</groupId>-->
-            <!--        <artifactId>guice</artifactId>-->
-            <!--        <version>3.0</version>-->
-            <!--      </dependency>-->
-            <!--      <dependency>-->
-            <!--        <groupId>com.google.inject.extensions</groupId>-->
-            <!--        <artifactId>guice-servlet</artifactId>-->
-            <!--        <version>4.0</version>-->
-            <!--      </dependency>-->
-            <!--      <dependency>-->
-            <!--        <groupId>com.google.code.findbugs</groupId>-->
-            <!--        <artifactId>jsr305</artifactId>-->
-            <!--        <version>3.0.1</version>-->
-            <!--      </dependency>-->
-            <!--      <dependency>-->
-            <!--        <groupId>com.sun.jersey</groupId>-->
-            <!--        <artifactId>jersey-core</artifactId>-->
-            <!--        <version>1.19</version>-->
-            <!--      </dependency>-->
-            <!--      <dependency>-->
-            <!--        <groupId>com.sun.jersey</groupId>-->
-            <!--        <artifactId>jersey-server</artifactId>-->
-            <!--        <version>1.19</version>-->
-            <!--      </dependency>-->
-
-            <!--      <dependency>-->
-            <!--        <groupId>com.tapdata</groupId>-->
-            <!--        <artifactId>kudu-lib</artifactId>-->
-            <!--        <version>${project.version}</version>-->
-            <!--      </dependency>-->
-
-            <!--      <dependency>-->
-            <!--        <groupId>com.tapdata</groupId>-->
-            <!--        <artifactId>greenplum-lib</artifactId>-->
-            <!--        <version>${project.version}</version>-->
-            <!--      </dependency>-->
-
-            <!--      &lt;!&ndash; clickhouse &ndash;&gt;-->
-            <!--      <dependency>-->
-            <!--        <groupId>com.tapdata</groupId>-->
-            <!--        <artifactId>clickhouse-lib</artifactId>-->
-            <!--        <version>${project.version}</version>-->
-            <!--      </dependency>-->
 
             <dependency>
                 <groupId>commons-beanutils</groupId>
@@ -971,18 +556,6 @@
                 <artifactId>commons-net</artifactId>
                 <version>${commons.net.version}</version>
             </dependency>
-
-            <!-- hana -->
-            <!--      <dependency>-->
-            <!--        <groupId>com.tapdata</groupId>-->
-            <!--        <artifactId>hana-lib</artifactId>-->
-            <!--        <version>${project.version}</version>-->
-            <!--      </dependency>-->
-            <!--      <dependency>-->
-            <!--        <groupId>com.sap.cloud.db.jdbc</groupId>-->
-            <!--        <artifactId>ngdbc</artifactId>-->
-            <!--        <version>${version.hana.driver}</version>-->
-            <!--      </dependency>-->
 
             <dependency>
                 <groupId>javax.ws.rs</groupId>
@@ -1047,12 +620,6 @@
                 <artifactId>avro</artifactId>
                 <version>${avro.version}</version>
             </dependency>
-
-            <!--      <dependency>-->
-            <!--        <groupId>com.yoyosys</groupId>-->
-            <!--        <artifactId>mq_2.21</artifactId>-->
-            <!--        <version>${mq.version}</version>-->
-            <!--      </dependency>-->
 
             <dependency>
                 <groupId>org.antlr</groupId>
@@ -1191,11 +758,6 @@
                 <artifactId>hazelcast</artifactId>
                 <version>${hazelcast.version}</version>
             </dependency>
-            <!--<dependency>
-              <groupId>com.hazelcast</groupId>
-              <artifactId>hazelcast-enterprise</artifactId>
-              <version>${hazelcast.version}</version>
-            </dependency>-->
 
             <!-- hazelcast persistence -->
             <dependency>
@@ -1233,12 +795,6 @@
                 <version>1.3.70</version>
             </dependency>
 
-            <!--      <dependency>-->
-            <!--        <groupId>com.tapdata</groupId>-->
-            <!--        <artifactId>vika-lib</artifactId>-->
-            <!--        <version>${project.version}</version>-->
-            <!--      </dependency>-->
-
             <dependency>
                 <groupId>org.graalvm.js</groupId>
                 <artifactId>js</artifactId>
@@ -1262,40 +818,16 @@
                 <version>${hutool.version}</version>
             </dependency>
 
-            <!--      <dependency>-->
-            <!--        <groupId>com.tapdata</groupId>-->
-            <!--        <artifactId>mysql-lib</artifactId>-->
-            <!--        <version>${project.version}</version>-->
-            <!--      </dependency>-->
-
-            <!--      <dependency>-->
-            <!--        <groupId>com.tapdata</groupId>-->
-            <!--        <artifactId>dameng-lib</artifactId>-->
-            <!--        <version>${project.version}</version>-->
-            <!--      </dependency>-->
-
-            <!--      <dependency>-->
-            <!--        <groupId>com.tapdata</groupId>-->
-            <!--        <artifactId>oracle-lib</artifactId>-->
-            <!--        <version>${project.version}</version>-->
-            <!--      </dependency>-->
-
-            <!--      <dependency>-->
-            <!--        <groupId>com.tapdata</groupId>-->
-            <!--        <artifactId>sqlserver-lib</artifactId>-->
-            <!--        <version>${project.version}</version>-->
-            <!--      </dependency>-->
-
-            <!--      <dependency>-->
-            <!--        <groupId>com.tapdata</groupId>-->
-            <!--        <artifactId>sybase-lib</artifactId>-->
-            <!--        <version>${project.version}</version>-->
-            <!--      </dependency>-->
-
             <dependency>
                 <groupId>com.tapdata</groupId>
                 <artifactId>hazelcast-lib</artifactId>
                 <version>${project.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>org.projectlombok</groupId>
+                <artifactId>lombok</artifactId>
+                <version>${lombok.version}</version>
             </dependency>
 
         </dependencies>

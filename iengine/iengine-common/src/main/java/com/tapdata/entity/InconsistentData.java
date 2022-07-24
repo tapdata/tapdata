@@ -1,7 +1,5 @@
 package com.tapdata.entity;
 
-import org.bson.types.ObjectId;
-
 import java.util.Map;
 
 /**

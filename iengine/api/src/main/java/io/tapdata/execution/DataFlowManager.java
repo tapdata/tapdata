@@ -1,7 +1,6 @@
 package io.tapdata.execution;
 
 import com.tapdata.entity.dataflow.DataFlow;
-import com.tapdata.mongo.ClientMongoOperator;
 
 /**
  * 负责处理与data flow相关的所有操作

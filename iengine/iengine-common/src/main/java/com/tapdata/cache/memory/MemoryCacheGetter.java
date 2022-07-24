@@ -1,9 +1,12 @@
 package com.tapdata.cache.memory;
 
-import com.tapdata.cache.*;
+import com.tapdata.cache.AbstractCacheGetter;
+import com.tapdata.cache.ICacheRuntimeStats;
+import com.tapdata.cache.ICacheStats;
 import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.entity.dataflow.DataFlowCacheConfig;
 import com.tapdata.entity.dataflow.StageRuntimeStats;
+import com.tapdata.mongo.ClientMongoOperator;
 import org.apache.commons.lang3.StringUtils;
 
 import java.util.List;
@@ -32,8 +35,8 @@ public class MemoryCacheGetter extends AbstractCacheGetter {
 	public MemoryCacheGetter(DataFlowCacheConfig cacheConfig,
 							 Map<String, Map<String, Map<String, Object>>> cacheData,
 							 ICacheStats cacheStats,
-							 ICacheRuntimeStats cacheStageRuntimeStats) {
-		super(cacheConfig, new MemoryCacheStore(cacheData, cacheStats, cacheConfig), cacheStats);
+							 ICacheRuntimeStats cacheStageRuntimeStats, ClientMongoOperator clientMongoOperator) {
+		super(cacheConfig, new MemoryCacheStore(cacheData, cacheStats, cacheConfig), cacheStats, clientMongoOperator);
 		this.cacheData = cacheData;
 		this.isInitialing = new AtomicBoolean(true);
 		this.running = new AtomicBoolean(true);

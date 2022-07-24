@@ -29,4 +29,12 @@ public class MysqlStreamOffset implements Serializable {
 	public void setOffset(Map<String, String> offset) {
 		this.offset = offset;
 	}
+
+	@Override
+	public String toString() {
+		return "MysqlStreamOffset{" +
+				"name='" + name + '\'' +
+				", offset=" + offset +
+				'}';
+	}
 }

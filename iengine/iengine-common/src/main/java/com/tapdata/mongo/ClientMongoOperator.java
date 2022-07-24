@@ -207,10 +207,10 @@ public class ClientMongoOperator implements Serializable {
 				}
 				break;
 			} catch (MongoSocketException |
-					MongoNotPrimaryException |
-					MongoClientException |
-					MongoNodeIsRecoveringException |
-					MongoInterruptedException e) {
+					 MongoNotPrimaryException |
+					 MongoClientException |
+					 MongoNodeIsRecoveringException |
+					 MongoInterruptedException e) {
 
 				retry = retryNetworkException(retryInteval, errorRetry, retry, e);
 

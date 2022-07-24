@@ -1,6 +1,6 @@
 package com.tapdata.entity;
 
-import com.tapdata.entity.dataflow.*;
+import com.tapdata.entity.dataflow.Stage;
 import org.apache.commons.collections.CollectionUtils;
 
 import java.io.Serializable;

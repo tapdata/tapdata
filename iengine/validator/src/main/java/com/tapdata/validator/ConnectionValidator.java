@@ -9,6 +9,7 @@ import io.tapdata.entity.BaseConnectionValidateResult;
 import io.tapdata.entity.BaseConnectionValidateResultDetail;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.logging.JobCustomerLogger;
+import io.tapdata.pdk.apis.entity.ConnectionOptions;
 import io.tapdata.pdk.apis.entity.TestItem;
 import io.tapdata.pdk.core.api.ConnectionNode;
 import io.tapdata.pdk.core.api.PDKIntegration;
@@ -29,6 +30,7 @@ import java.sql.Statement;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 public class ConnectionValidator {
 	public static final String TAG = ConnectionValidator.class.getSimpleName();
@@ -173,13 +175,21 @@ public class ConnectionValidator {
 		}
 	}
 
+	/**
+	 * Do pdk connection test
+	 *
+	 * @param connections  Connection Data
+	 * @param databaseType Pdk spec json
+	 * @return {@link ConnectionValidateResult}
+	 */
 	public static ConnectionValidateResult testPdkConnection(Connections connections, DatabaseTypeEnum.DatabaseType databaseType) {
 
 		ConnectionValidateResult connectionValidateResult = new ConnectionValidateResult();
 		if ("pdk".equals(connections.getPdkType())) {
-			ConnectionNode connectionNode = null;
+			ConnectionNode connectionNode;
 			long ts = System.currentTimeMillis();
 			try {
+				// Create connection node
 				connectionNode = PDKIntegration.createConnectionConnectorBuilder()
 						.withConnectionConfig(new DataMap() {{
 							putAll(connections.getConfig());
@@ -192,49 +202,47 @@ public class ConnectionValidator {
 				ConnectionNode finalConnectionNode = connectionNode;
 				List<ConnectionValidateResultDetail> resultDetails = new ArrayList<>();
 				AtomicBoolean anyErrorOccurred = new AtomicBoolean(false);
+				AtomicReference<ConnectionOptions> connectionOptionsAtomicReference = new AtomicReference<>();
+				// Call pdk connectionTest function
+				PDKInvocationMonitor.invoke(connectionNode, PDKMethod.CONNECTION_TEST,
+						() -> connectionOptionsAtomicReference.set(finalConnectionNode.connectionTest(testItem -> {
+							// Handle test item result
+							final String item = testItem.getItem();
+							final int result = testItem.getResult();
 
-				ClassLoader oldClassloader = Thread.currentThread().getContextClassLoader();
-				PDKInvocationMonitor.invoke(finalConnectionNode, PDKMethod.SOURCE_CONNECTION_TEST, () -> finalConnectionNode.connectionTest(testItem -> {
-					ClassLoader pdkClassloader = Thread.currentThread().getContextClassLoader();
-					if (oldClassloader != null) {
-						Thread.currentThread().setContextClassLoader(oldClassloader);
-					}
-					try {
-						final String item = testItem.getItem();
-						final int result = testItem.getResult();
-
-						ConnectionValidateResultDetail resultDetail = new ConnectionValidateResultDetail();
-						resultDetail.setStatus(
-								result == TestItem.RESULT_FAILED ?
-										ValidatorConstant.VALIDATE_DETAIL_RESULT_FAIL :
-										ValidatorConstant.VALIDATE_DETAIL_RESULT_PASSED
-						);
-						if (result == TestItem.RESULT_FAILED) {
+							ConnectionValidateResultDetail resultDetail = new ConnectionValidateResultDetail();
+							resultDetail.setStatus(
+									result == TestItem.RESULT_FAILED ?
+											ValidatorConstant.VALIDATE_DETAIL_RESULT_FAIL :
+											ValidatorConstant.VALIDATE_DETAIL_RESULT_PASSED
+							);
+							if (result == TestItem.RESULT_FAILED) {
+								anyErrorOccurred.set(true);
+							}
+							resultDetail.setFail_message(testItem.getInformation());
+							resultDetail.setShow_msg(item);
+							resultDetails.add(resultDetail);
+						})), TAG, TAG, error -> {
+							ConnectionValidateResultDetail resultDetail = new ConnectionValidateResultDetail();
+							resultDetail.setStatus(ValidatorConstant.VALIDATE_DETAIL_RESULT_FAIL);
+							resultDetail.setFail_message(error.getMessage());
+							resultDetail.setShow_msg("Occurred error");
+							resultDetails.add(resultDetail);
 							anyErrorOccurred.set(true);
-						}
-						resultDetail.setFail_message(testItem.getInformation());
-						resultDetail.setShow_msg(item);
-						resultDetails.add(resultDetail);
-					} finally {
-						Thread.currentThread().setContextClassLoader(pdkClassloader);
-					}
-				}), null, TAG, error -> {
-					ConnectionValidateResultDetail resultDetail = new ConnectionValidateResultDetail();
-					resultDetail.setStatus(ValidatorConstant.VALIDATE_DETAIL_RESULT_FAIL);
-					resultDetail.setFail_message(error.getMessage());
-					resultDetail.setShow_msg("Occurred error");
-					resultDetails.add(resultDetail);
-					anyErrorOccurred.set(true);
-				});
+						});
+				if (null == connectionOptionsAtomicReference.get()) {
+					connectionOptionsAtomicReference.set(ConnectionOptions.create());
+				}
+				connectionValidateResult.setConnectionOptions(connectionOptionsAtomicReference.get());
 
-				if (!resultDetails.isEmpty()) {
+				// Call pdk tableCount function to get the number of resources(table,api,file...)
+				if (CollectionUtils.isNotEmpty(resultDetails)) {
 					connectionValidateResult.setValidateResultDetails(resultDetails);
 					connectionValidateResult.setStatus(
 							anyErrorOccurred.get() ?
 									ValidatorConstant.CONNECTION_STATUS_INVALID :
 									ValidatorConstant.CONNECTION_STATUS_READY
 					);
-
 					AtomicInteger schemaCount = new AtomicInteger();
 					if (ValidatorConstant.CONNECTION_STATUS_READY.equals(connectionValidateResult.getStatus())) {
 						PDKInvocationMonitor.invoke(connectionNode, PDKMethod.INIT, connectionNode::connectorInit, "Init PDK", TAG);
@@ -263,13 +271,6 @@ public class ConnectionValidator {
 					connectionValidateResult.setSchema(new Schema(false, schemaCount.get()));
 				}
 			} finally {
-//        if (connectionNode != null) {
-//          ConnectionNode finalConnectionNode = connectionNode;
-//          PDKInvocationMonitor.invoke(finalConnectionNode, PDKMethod.STOP,
-//                  finalConnectionNode::connectorStop, "PDK Destroy " + connectionNode.getConnectionContext(), TAG, error -> {
-//            logger.error("PDK Destroy occurred error {} connectionNode {}", error.getMessage(), finalConnectionNode.getConnectionContext());
-//          });
-//        }
 				PDKIntegration.releaseAssociateId(connections.getName() + "_" + ts);
 			}
 		}

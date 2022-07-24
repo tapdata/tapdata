@@ -1,7 +1,6 @@
 package com.tapdata.processor.dataflow;
 
 import com.tapdata.cache.ICacheService;
-import com.tapdata.cache.memory.MemoryCacheService;
 import com.tapdata.entity.Connections;
 import com.tapdata.entity.JavaScriptFunctions;
 import com.tapdata.entity.Job;
