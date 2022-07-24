@@ -1,0 +1,16 @@
+[1;34mtapdata, [0m2022-07-24 20:15:29: job [1;32mstats_cgajs[0m start running ...                                                                                               
+[1;34mtapdata, [0m2022-07-24 20:15:29: job [1;32mstats_cgajs[0m status is: [1;32mscheduling[0m                                                                                
+[1;34mtapdata, [0m2022-07-24 20:15:30: job [1;32mstats_cgajs[0m status is: [1;32mwait_run[0m                                                                                  
+[1;34mtapdata, [0m2022-07-24 20:15:30: the status is wait_run now, this is 1 times, 5 times remaining                                                                             
+[1;34mtapdata, [0m2022-07-24 20:15:30: job [1;32mstats_cgajs[0m status is: [1;32mwait_run[0m                                                                                  
+[1;34mtapdata, [0m2022-07-24 20:15:31: job [1;32mstats_cgajs[0m status is: [1;32mwait_run[0m                                                                                  
+[1;34mtapdata, [0m2022-07-24 20:15:31: the status is wait_run now, this is 2 times, 4 times remaining                                                                             
+[1;34mtapdata, [0m2022-07-24 20:15:31: job [1;32mstats_cgajs[0m status is: [1;32mwait_run[0m                                                                                  
+[1;34mtapdata, [0m2022-07-24 20:15:32: job [1;32mstats_cgajs[0m status is: [1;32mwait_run[0m                                                                                  
+[1;34mtapdata, [0m2022-07-24 20:15:32: the status is wait_run now, this is 3 times, 3 times remaining                                                                             
+[1;34mtapdata, [0m2022-07-24 20:15:32: job [1;32mstats_cgajs[0m status is: [1;32mwait_run[0m                                                                                  
+[1;34mtapdata, [0m2022-07-24 20:15:33: job [1;32mstats_cgajs[0m status is: [1;32mwait_run[0m                                                                                  
+[1;34mtapdata, [0m2022-07-24 20:15:33: the status is wait_run now, this is 4 times, 2 times remaining                                                                             
+[1;34mtapdata, [0m2022-07-24 20:15:33: job [1;32mstats_cgajs[0m status is: [1;32mwait_run[0m                                                                                  
+[1;34mtapdata, [0m2022-07-24 20:15:34: job [1;32mstats_cgajs[0m status is: [1;32mwait_run[0m                                                                                  
+[1;34mtapdata, [0m2022-07-24 20:15:34: the status is wait_run now, this is 5 times, 1 times remaining                                                                             

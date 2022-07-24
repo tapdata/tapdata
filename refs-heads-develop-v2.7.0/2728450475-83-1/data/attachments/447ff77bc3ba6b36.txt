@@ -1,0 +1,5 @@
+[1;34mtapdata, [0m2022-07-24 20:15:05: job [1;32mfilter_sync_qrbvf[0m start running ...                                                                                         
+[1;34mtapdata, [0m2022-07-24 20:15:05: job [1;32mfilter_sync_qrbvf[0m status is: [1;32medit[0m                                                                                
+[1;34mtapdata, [0m2022-07-24 20:15:06: job [1;32mfilter_sync_qrbvf[0m status is: [1;32mrunning[0m                                                                             
+[1;34mtapdata, [0m2022-07-24 20:15:06: the status is running now, this is 1 times, 5 times remaining                                                                              
+[1;34mtapdata, [0m2022-07-24 20:15:06: job [1;32mfilter_sync_qrbvf[0m status is: [1;32mrunning[0m                                                                             
