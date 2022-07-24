@@ -108,16 +108,13 @@ public class HazelcastProcessorNode extends HazelcastProcessorBaseNode {
 				TapRecordEvent tapRecordEvent = message2TapEvent(processedMessage);
 				if (tapRecordEvent != null) {
 					processedEvent.setTapEvent(tapRecordEvent);
-					TapTableMap<String, TapTable> tapTableMap = processorBaseContext.getTapTableMap();
-
 					String tableName;
 					if (nodeType == NodeTypeEnum.TABLE_RENAME_PROCESSOR || nodeType == NodeTypeEnum.MIGRATE_FIELD_RENAME_PROCESSOR) {
 						tableName = processedMessage.getTableName();
 					} else {
 						tableName = processorBaseContext.getNode().getId();
 					}
-					transformToTapValue(processedEvent, tapTableMap, tableName);
-					consumer.accept(processedEvent, null);
+					consumer.accept(processedEvent, ProcessResult.create().tableId(tableName));
 				}
 			}
 		}
@@ -138,7 +135,6 @@ public class HazelcastProcessorNode extends HazelcastProcessorBaseNode {
 		Map<String, Object> before = TapEventUtil.getBefore(tapEvent);
 		if (MapUtils.isNotEmpty(before)) {
 			Map<String, io.tapdata.entity.schema.type.TapType> tapTypeMap = getTapTypeMap(before);
-			;
 			codecsFilterManager.transformToTapValueMap(before, nameFieldMap);
 			updateTapType(before, tapTypeMap);
 		}
@@ -201,18 +197,16 @@ public class HazelcastProcessorNode extends HazelcastProcessorBaseNode {
 				JsProcessorNode jsProcessorNode = (JsProcessorNode) node;
 				stage.setScript(jsProcessorNode.getScript());
 				break;
-			case FIELD_PROCESSOR:
-			case FIELD_RENAME_PROCESSOR:
-			case FIELD_ADD_DEL_PROCESSOR:
-			case FIELD_CALC_PROCESSOR:
-				dataFlowProcessor = new FieldDataFlowProcessor();
-				break;
 			case TABLE_RENAME_PROCESSOR:
 				dataFlowProcessor = new TableRenameProcessor((TableRenameProcessNode) node);
 				break;
 			case MIGRATE_FIELD_RENAME_PROCESSOR:
 				dataFlowProcessor = new MigrateFieldRenameProcessor((MigrateFieldRenameProcessorNode) node);
 				break;
+			case FIELD_PROCESSOR:
+			case FIELD_RENAME_PROCESSOR:
+			case FIELD_ADD_DEL_PROCESSOR:
+			case FIELD_CALC_PROCESSOR:
 			case FIELD_MOD_TYPE_PROCESSOR:
 				List<FieldProcess> fieldProcesses = new ArrayList<>();
 				FieldProcessorNode fieldProcessor = (FieldProcessorNode) node;

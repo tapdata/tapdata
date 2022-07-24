@@ -13,12 +13,12 @@
 
 #### 字段类型
 
-- `string[($byte)][fixed]`: 字符串。
-    - `$byte`：字节长度
-    - `fixed`：如果定长字符器加上此标识
-- `number[($precision,$scale)]`: 数值。
-    - `$precision`：范围 `1-40`，默认 `4`
-    - `$scale`：范围 `0-10`，默认 `1`
+- `string[($byte)][fixed]`: 字符串
+    - `$byte`: 字节长度（默认：`64`）
+    - `fixed`: 如果定长字符器加上此标识（默认：非定长）
+- `number[($precision,$scale)]`: 数值
+    - `$precision`: 长度（范围 `1-40`，默认 `4`）
+    - `$scale`: 精度（范围 `0-10`，默认 `1`）
 - `boolean`: 布尔值
 - `date`: 日期
 - `array`: 数组
@@ -26,16 +26,19 @@
 - `map`: 键值对
 - `time`: 时间
 - `datetime`: 时期+时间
+- `now`: 当前时间
+- `uuid`: UUID
+- `serial[($begin,$step)]`: 自增
+  - `$begin`: 开始位置（默认：`1`）
+  - `$step`: 步长（默认：`1`）
+- `rnumber[($precision)]`: 数字随机
+  - `$precision`: 长度（默认：`4`）
+- `rstring[($byte)]`: 指定长度的随机字符
+  - `$byte`: 字节长度（默认：`64`）
 
 #### 字段默认值
 
-生成数据时使用的默认值，不设置时数据为 `null`，支持函数：
-
-- `serial(int,int)`: 自增，开始位置，步长
-- `now()`: 当前时间
-- `rlong(long)`: 数字随机
-- `rstring(int)`: 指定长度的随机字符
-- `uuid()`: UUID
+生成数据时使用的默认值，不设置时数据为 `null`
 
 ### 说明
 > 当 `mode='ConnHeartbeat'` 时，其它参数不需要配置：
@@ -45,7 +48,7 @@
 > ```
 > _tapdata_heartbeat_table=[
 >   { "type": "string(64)", "pri": true, "name": "id", "def": "$connId" },
->   { "type": "datetime", "pri": false, "name": "ts", "def": "now()" }
+>   { "type": "now", "pri": false, "name": "ts" }
 > ]
 > ```
 > - 固定的频率：`1条/1000ms`

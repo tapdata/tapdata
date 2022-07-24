@@ -18,6 +18,8 @@ import io.tapdata.entity.mapping.DefaultExpressionMatchingMap;
 import io.tapdata.entity.result.TapResult;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
+import io.tapdata.entity.utils.InstanceFactory;
+import io.tapdata.entity.utils.JsonParser;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.bson.types.ObjectId;
@@ -26,6 +28,7 @@ import org.springframework.beans.BeanUtils;
 import java.io.Serializable;
 import java.util.*;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 
 @Slf4j
@@ -362,7 +365,7 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
             metadataInstancesDto.setQualifiedName(
                     MetaDataBuilderUtils.generateQualifiedName(metadataInstancesDto.getMetaType(), dataSource, schema.getOriginalName()));
 
-            MetaDataBuilderUtils.build(_metaType, dataSource, userId, userName, metadataInstancesDto.getOriginalName(),
+            metadataInstancesDto = MetaDataBuilderUtils.build(_metaType, dataSource, userId, userName, metadataInstancesDto.getOriginalName(),
                     metadataInstancesDto, null, dataSourceId.toHexString());
 
             metadataInstancesDto.setSourceType(SourceTypeEnum.VIRTUAL.name());
@@ -844,6 +847,7 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
                         metadataInstancesDto.getOriginalName(),
                         metadataInstancesDto, null, metadataInstancesDto.getDatabaseId(), "job_analyze", null);
                 insertMetaDataList.add(_metadataInstancesDto);
+                BeanUtils.copyProperties(_metadataInstancesDto, metadataInstancesDto);
             }
         });
 
@@ -895,9 +899,55 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
             return;
         }
 
-        String expression = definitionDtoMap.get(dataSourceConnectionDto.getDatabase_type()).getExpression();
-        PdkSchemaConvert.tableFieldTypesGenerator.autoFill(tapTable.getNameFieldMap() == null ? new LinkedHashMap<>() : tapTable.getNameFieldMap(), DefaultExpressionMatchingMap.map(expression));
+        DataSourceDefinitionDto definitionDto = definitionDtoMap.get(dataSourceConnectionDto.getDatabase_type());
+        if (definitionDto != null) {
+            String expression = definitionDto.getExpression();
+            Map<Class<?>, String> tapMap = definitionDto.getTapMap();
+            PdkSchemaConvert.tableFieldTypesGenerator.autoFill(tapTable.getNameFieldMap() == null ? new LinkedHashMap<>() : tapTable.getNameFieldMap(), DefaultExpressionMatchingMap.map(expression));
+            LinkedHashMap<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
+            TapCodecsFilterManager codecsFilterManager = TapCodecsFilterManager.create(TapCodecsRegistry.create().withTapTypeDataTypeMap(tapMap));
+            TapResult<LinkedHashMap<String, TapField>> convert = PdkSchemaConvert.targetTypesGenerator.convert(nameFieldMap
+                    , DefaultExpressionMatchingMap.map(expression), codecsFilterManager);
+            LinkedHashMap<String, TapField> data = convert.getData();
+
+            data.forEach((k, v) -> {
+                TapField tapField = nameFieldMap.get(k);
+                BeanUtils.copyProperties(v, tapField);
+            });
+            tapTable.setNameFieldMap(nameFieldMap);
+        }
         MetadataInstancesDto metadataInstancesDto1 = PdkSchemaConvert.fromPdk(tapTable);
+
+        Map<String, Field> oldFieldMap = new HashMap<>();
+        if (CollectionUtils.isNotEmpty(metadataInstancesDto.getFields())) {
+            oldFieldMap = metadataInstancesDto.getFields().stream().collect(Collectors.toMap(Field::getFieldName, f -> f));
+        }
+        if (CollectionUtils.isNotEmpty(metadataInstancesDto1.getFields())) {
+
+            for (Field field : metadataInstancesDto1.getFields()) {
+                Field oldField = oldFieldMap.get(field.getFieldName());
+                if (oldField != null) {
+                    oldField.setDefaultValue(field.getDefaultValue());
+                    oldField.setIsNullable(field.getIsNullable());
+                    oldField.setFieldName(field.getFieldName());
+                    oldField.setOriginalFieldName(field.getOriginalFieldName());
+                    oldField.setColumnPosition(field.getColumnPosition());
+                    oldField.setPrimaryKeyPosition(field.getPrimaryKeyPosition());
+                    oldField.setForeignKeyTable(field.getForeignKeyTable());
+                    oldField.setForeignKeyColumn(field.getForeignKeyColumn());
+                    oldField.setAutoincrement(field.getAutoincrement());
+                    oldField.setComment(field.getComment());
+                    oldField.setPkConstraintName(field.getPkConstraintName());
+                    oldField.setPrimaryKey(field.getPrimaryKey());
+                    oldField.setTapType(field.getTapType());
+                    oldField.setDataType(field.getDataType());
+                    BeanUtils.copyProperties(oldField, field);
+                } else {
+                    field.setSourceDbType(dataSourceConnectionDto.getDatabase_type());
+                    field.setId(ObjectId.get().toHexString());
+                }
+            }
+        }
         metadataInstancesDto.setFields(metadataInstancesDto1.getFields());
         metadataInstancesDto.setIndexes(metadataInstancesDto1.getIndexes());
         metadataInstancesDto.setIndices(metadataInstancesDto1.getIndices());
