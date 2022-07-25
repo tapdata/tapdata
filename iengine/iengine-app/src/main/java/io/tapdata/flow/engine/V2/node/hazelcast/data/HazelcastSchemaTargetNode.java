@@ -51,16 +51,16 @@ public class HazelcastSchemaTargetNode extends HazelcastVirtualTargetNode {
 		super(dataProcessorContext);
 		this.schemaKey = dataProcessorContext.getSubTaskDto().getId().toHexString() + "-" + dataProcessorContext.getNode().getId();
 
-		LinkedList<Node<?>> preNodes = dataProcessorContext.getSubTaskDto().getDag().getPreNodes(getNode().getId());
+		List<Node<?>> preNodes = getNode().predecessors();
 		if (preNodes.size() != 1) {
 			throw new IllegalArgumentException("HazelcastSchemaTargetNode only allows one predecessor node");
 		}
-		Node<?> deductionSchemaNode = preNodes.getFirst();
-		LinkedList<Node<?>> prePreNodes = dataProcessorContext.getSubTaskDto().getDag().getPreNodes(deductionSchemaNode.getId());
+		Node<?> deductionSchemaNode = preNodes.get(0);
+		List<? extends Node<?>> prePreNodes = deductionSchemaNode.predecessors();
 		if (prePreNodes.size() != 1) {
 			throw new IllegalArgumentException("The front node of HazelcastSchemaTargetNode only allows one front node");
 		}
-		this.prePreNode = prePreNodes.getFirst();
+		this.prePreNode = prePreNodes.get(0);
 		//js节点之前的节点的模型
 		this.prePreNodeTapTableMap = TapTableUtil.getTapTableMapByNodeId(prePreNode.getId());
 	}
