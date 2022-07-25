@@ -20,8 +20,8 @@ public class TaskSessionClassHolder implements Comparable<TaskSessionClassHolder
 	private static final String TAG = TaskSessionClassHolder.class.getSimpleName();
 	private final Map<String, AspectTaskEx> aspectTaskMap = new ConcurrentHashMap<>();
 	private Class<? extends AspectTask> taskClass;
-	private AspectObserver<Aspect> aspectObserver;
-	private AspectInterceptor<Aspect> aspectInterceptor;
+	private final AspectObserver<Aspect> aspectObserver;
+	private final AspectInterceptor<Aspect> aspectInterceptor;
 
 	public TaskSessionClassHolder() {
 		aspectObserver = this::observeNodeAspect;
@@ -112,7 +112,7 @@ public class TaskSessionClassHolder implements Comparable<TaskSessionClassHolder
 		return null;
 	}
 
-	public void ensureTaskSessionCreated(SubTaskDto task) {
+	public synchronized void ensureTaskSessionCreated(SubTaskDto task) {
 		String taskId = task.getId().toString();
 		AtomicReference<AspectTaskEx> newRef = new AtomicReference<>();
 		AspectTaskEx theAspectTask = aspectTaskMap.computeIfAbsent(taskId, id -> {
@@ -161,6 +161,11 @@ public class TaskSessionClassHolder implements Comparable<TaskSessionClassHolder
 
 	public void ensureTaskSessionStopped(SubTaskDto task) {
 		String taskId = task.getId().toString();
+		ensureTaskSessionStopped(taskId);
+	}
+	public synchronized void ensureTaskSessionStopped(String taskId) {
+		if(taskId == null)
+			return;
 		AspectTaskEx aspectTask = aspectTaskMap.remove(taskId);
 		if (aspectTask != null) {
 			CommonUtils.ignoreAnyError(aspectTask.aspectTask::onStop, TAG);
@@ -207,7 +212,7 @@ public class TaskSessionClassHolder implements Comparable<TaskSessionClassHolder
 		return false;
 	}
 
-	class AspectTaskEx {
+	static class AspectTaskEx {
 		AspectTask aspectTask;
 		AspectObserver<Aspect> aspectObserver;
 		AspectInterceptor<Aspect> aspectInterceptor;
@@ -226,7 +231,13 @@ public class TaskSessionClassHolder implements Comparable<TaskSessionClassHolder
 				return null;
 			};
 		}
-
 	}
 
+	public AspectTask getAspectTasks(String taskId) {
+		AspectTaskEx aspectTaskEx = aspectTaskMap.get(taskId);
+		if(aspectTaskEx != null) {
+			return aspectTaskEx.aspectTask;
+		}
+		return null;
+	}
 }
