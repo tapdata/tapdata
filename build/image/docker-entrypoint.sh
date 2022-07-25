@@ -9,7 +9,7 @@ while [[ 1 ]]; do
     fi
     sleep 1
 done
-mongo --quiet --eval "rs.initiate()"
+mongo --quiet --eval 'rs.initiate({"_id":"rs0","members":[{"_id":0,"host":"127.0.0.1:27017"}]})'
 
 while [[ 1 ]]; do
     mongo --quiet --eval "rs.status()"|grep PRIMARY &> /dev/null
@@ -43,6 +43,12 @@ if [[ "x"$tapdata_run_env != "xlocal" ]]; then
         cd manager/dist && bash bin/start.sh && cd -
         cd iengine/dist && bash bin/start.sh && cd -
     fi
+
+    if [[ "x"$mode == "xtest" ]]; then
+        cd /tapdata-source
+        cd manager/dist && bash bin/start.sh && cd -
+        cd iengine/dist && bash bin/start.sh && cd -
+    fi
 fi
 
 if [[ "x"$mode == "xuse" ]]; then
@@ -50,6 +56,18 @@ if [[ "x"$mode == "xuse" ]]; then
     bash register-all-connectors.sh
 fi
 
-while [[ 1 ]]; do
-    sleep 1
-done
+if [[ "x"$mode == "xtest" ]]; then
+    cd /tapdata-source/tapshell
+    bash register-all-connectors.sh
+    cp ../build/test.sh ./
+    mv ../build/test ./
+    chmod u+x test.sh
+    bash test.sh
+    if [[ $? -ne 0 ]]; then
+      exit 127
+    fi
+fi
+
+if [[ "x"$mode != "xtest" ]]; then
+    sleep infinity
+fi

@@ -97,7 +97,7 @@ public class PostgresDDLSqlMaker implements DDLSqlMaker {
 		String fieldName = tapAlterFieldAttributesEvent.getFieldName();
 		ValueChange<String> dataTypeChange = tapAlterFieldAttributesEvent.getDataTypeChange();
 		if (null != dataTypeChange && StringUtils.isNotBlank(dataTypeChange.getAfter())) {
-			sqls.add(String.format(ALTER_TABLE_PREFIX, database, schema, tableId) + " alter column " + String.format(COLUMN_NAME_FORMAT, fieldName) + " set type " + dataTypeChange.getAfter());
+			sqls.add(String.format(ALTER_TABLE_PREFIX, database, schema, tableId) + " alter column " + String.format(COLUMN_NAME_FORMAT, fieldName) + " set data type " + dataTypeChange.getAfter());
 		}
 		ValueChange<Boolean> nullableChange = tapAlterFieldAttributesEvent.getNullableChange();
 		if (null != nullableChange && null != nullableChange.getAfter()) {

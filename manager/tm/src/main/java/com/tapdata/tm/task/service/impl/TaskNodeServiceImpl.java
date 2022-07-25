@@ -64,7 +64,7 @@ public class TaskNodeServiceImpl implements TaskNodeService {
         }
 
         DatabaseNode sourceNode = dag.getSourceNode().getFirst();
-        DatabaseNode targetNode = dag.getTargetNode().getLast();
+        DatabaseNode targetNode = org.apache.commons.collections4.CollectionUtils.isNotEmpty(dag.getTargetNode()) ? dag.getTargetNode().getLast() : null;
         List<String> tableNames = sourceNode.getTableNames();
         if (CollectionUtils.isEmpty(tableNames) && StringUtils.equals("all", sourceNode.getMigrateTableSelectType())) {
             List<MetadataInstancesDto> metaInstances = metadataInstancesService.findBySourceIdAndTableNameList(sourceNode.getConnectionId(), null, userDetail);
@@ -163,7 +163,8 @@ public class TaskNodeServiceImpl implements TaskNodeService {
                             .collect(Collectors.toMap(FieldInfo::getSourceFieldName, Function.identity()));
                 }
                 Map<String, FieldInfo> finalFieldInfoMap = fieldInfoMap;
-                fields.forEach(field -> {
+                for (int i = 0; i < fields.size(); i++) {
+                    Field field = fields.get(i);
                     String defaultValue = Objects.isNull(field.getDefaultValue()) ? "" : field.getDefaultValue().toString();
 
                     String fieldName = field.getOriginalFieldName();
@@ -171,13 +172,18 @@ public class TaskNodeServiceImpl implements TaskNodeService {
 
                     if (Objects.nonNull(finalFieldInfoMap) && finalFieldInfoMap.containsKey(fieldName)) {
                         FieldInfo fieldInfo = finalFieldInfoMap.get(fieldName);
+
+                        if (!(currentNode instanceof MigrateFieldRenameProcessorNode) && !fieldInfo.getIsShow()) {
+                            continue;
+                        }
+
                         mapping.setTargetFieldName(fieldInfo.getTargetFieldName());
                         mapping.setIsShow(fieldInfo.getIsShow());
                         mapping.setMigrateType(fieldInfo.getType());
                         mapping.setTargetFieldName(fieldInfo.getTargetFieldName());
                     }
                     fieldsMapping.add(mapping);
-                });
+                }
             }
 
             item.setPreviousTableName(previousTableName);

@@ -2,6 +2,8 @@ package com.tapdata.tm.task.service;
 
 import com.tapdata.manager.common.utils.StringUtils;
 import com.tapdata.tm.commons.dag.*;
+import com.tapdata.tm.commons.dag.nodes.DataParentNode;
+import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.schema.*;
 import com.tapdata.tm.commons.task.dto.Message;
@@ -112,7 +114,7 @@ public class TransformSchemaService {
         Map<String, DataSourceDefinitionDto> definitionDtoMap = new HashMap<>();
         Map<String, TaskDto> taskMap = new HashMap<>();
 
-        List<String> connectionIds = nodes.stream().filter(n -> n instanceof TableNode).map(n -> ((TableNode) n).getConnectionId()).collect(Collectors.toList());
+        List<String> connectionIds = nodes.stream().filter(n -> n instanceof DataParentNode).map(n -> ((DataParentNode) n).getConnectionId()).collect(Collectors.toList());
         Criteria idCriteria = Criteria.where("_id").in(connectionIds);
         Query query = new Query(idCriteria);
         //TODO query 需要限制好参数
@@ -136,6 +138,9 @@ public class TransformSchemaService {
                 DataSourceDefinitionDto dataSourceDefinitionDto = definitionDtoMap.get(dataSourceConnectionDto.getDatabase_type());
                 String qualifiedName = metadataInstancesService.getQualifiedNameByNodeId(node, user, dataSourceConnectionDto, dataSourceDefinitionDto);
                 qualifiedNames.add(qualifiedName);
+            } else if (node instanceof DatabaseNode) {
+                List<MetadataInstancesDto> metas = metadataInstancesService.findByNodeId(node.getId(), null, user, dag);
+                metadataList.addAll(metas);
             }
         }
 
@@ -164,21 +169,21 @@ public class TransformSchemaService {
         if (SyncType.SYNC.getValue().equals(taskDto.getSyncType())) {
             TransformerWsMessageDto transformParam = getTransformParam(taskDto, user);
 
-//            sendTransformer(transformParam, user);
-//            return new HashMap<>();
+            sendTransformer(transformParam, user);
+            return new HashMap<>();
 
-            DAGDataServiceImpl dagDataService1 = new DAGDataServiceImpl(transformParam);
-
-
-            Map<String, List<Message>> transformSchema = dag.transformSchema(null, dagDataService1, transformParam.getOptions());
-            TransformerWsMessageResult transformerWsMessageResult = new TransformerWsMessageResult();
-            transformerWsMessageResult.setTransformSchema(transformSchema);
-            transformerWsMessageResult.setUpsertTransformer(dagDataService1.getUpsertTransformer());
-            transformerWsMessageResult.setBatchInsertMetaDataList(dagDataService1.getBatchInsertMetaDataList());
-            transformerWsMessageResult.setUpsertItems(dagDataService1.getUpsertItems());
-            transformerWsMessageResult.setBatchMetadataUpdateMap(dagDataService1.getBatchMetadataUpdateMap());
-            transformerResult(user, transformerWsMessageResult);
-            return transformSchema;
+//            DAGDataServiceImpl dagDataService1 = new DAGDataServiceImpl(transformParam);
+//
+//
+//            Map<String, List<Message>> transformSchema = dag.transformSchema(null, dagDataService1, transformParam.getOptions());
+//            TransformerWsMessageResult transformerWsMessageResult = new TransformerWsMessageResult();
+//            transformerWsMessageResult.setTransformSchema(transformSchema);
+//            transformerWsMessageResult.setUpsertTransformer(dagDataService1.getUpsertTransformer());
+//            transformerWsMessageResult.setBatchInsertMetaDataList(dagDataService1.getBatchInsertMetaDataList());
+//            transformerWsMessageResult.setUpsertItems(dagDataService1.getUpsertItems());
+//            transformerWsMessageResult.setBatchMetadataUpdateMap(dagDataService1.getBatchMetadataUpdateMap());
+//            transformerResult(user, transformerWsMessageResult);
+//            return transformSchema;
         }
 
 
@@ -236,7 +241,11 @@ public class TransformSchemaService {
         });
 
         DAG.Options options = new DAG.Options(taskDto.getRollback(), taskDto.getRollbackTable());
+        options.setBatchNum(transformBatchNum);
+        options.setUuid(UUIDUtil.getUUID());
+        options.setSyncType(taskDto.getSyncType());
         Map<String, List<Message>> transformSchema = dag.transformSchema(null, dagDataService, options);
+
 
         if (SyncType.MIGRATE.getValue().equals(taskDto.getSyncType())) {
             taskService.updateMigrateStatus(taskDto.getId());
@@ -251,7 +260,7 @@ public class TransformSchemaService {
     public void transformerResult(UserDetail user, TransformerWsMessageResult result, boolean saveHistory) {
 
 
-        metadataInstancesService.bulkSave(result.getBatchInsertMetaDataList(), result.getBatchMetadataUpdateMap(), user, saveHistory);
+        metadataInstancesService.bulkSave(result.getBatchInsertMetaDataList(), result.getBatchMetadataUpdateMap(), user, saveHistory, result.getTaskId());
 
         if (CollectionUtils.isNotEmpty(result.getUpsertItems())) {
             metadataTransformerItemService.bulkUpsert(result.getUpsertItems());

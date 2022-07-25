@@ -45,7 +45,7 @@ public class MigrateFieldRenameProcessor implements DataFlowProcessor{
 		}
 		Map<String, FieldInfo> fieldsMappingMap = this.tableFieldsMappingMap.get(tableName);
 		if (MapUtils.isEmpty(fieldsMappingMap)) {
-			throw new IllegalArgumentException(String.format("no suitable rename configuration for table [%s]", tableName));
+			return map;
 		}
 
 		Set<String> keySet = new HashSet<>(map.keySet());

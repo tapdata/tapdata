@@ -67,6 +67,7 @@ public class MysqlReader implements Closeable {
 	public static final String SERVER_NAME_KEY = "SERVER_NAME";
 	public static final String MYSQL_SCHEMA_HISTORY = "MYSQL_SCHEMA_HISTORY";
 	private static final String SOURCE_RECORD_DDL_KEY = "ddl";
+	public static final String FIRST_TIME_KEY = "FIRST_TIME";
 	private String serverName;
 	private AtomicBoolean running;
 	private MysqlJdbcContext mysqlJdbcContext;
@@ -189,8 +190,11 @@ public class MysqlReader implements Closeable {
 			List<String> dbTableNames = tables.stream().map(t -> database + "." + t).collect(Collectors.toList());
 			builder.with(MySqlConnectorConfig.DATABASE_INCLUDE_LIST, database);
 			builder.with(MySqlConnectorConfig.TABLE_INCLUDE_LIST, String.join(",", dbTableNames));
-//			builder.with("snapshot.mode", "schema_only");
-			builder.with("snapshot.mode", "schema_only_recovery");
+			if (Boolean.parseBoolean(tapConnectorContext.getStateMap().get(FIRST_TIME_KEY).toString())) {
+				builder.with("snapshot.mode", "schema_only_recovery");
+			} else {
+				builder.with("snapshot.mode", "schema_only");
+			}
 			builder.with("database.history", "io.tapdata.connector.mysql.StateMapHistoryBackingStore");
 			builder.with(EmbeddedEngine.OFFSET_STORAGE, "io.tapdata.connector.mysql.PdkPersistenceOffsetBackingStore");
 			if (StringUtils.isNotBlank(offsetStr)) {
@@ -301,8 +305,10 @@ public class MysqlReader implements Closeable {
 		Object serverNameFromStateMap = stateMap.get(SERVER_NAME_KEY);
 		if (serverNameFromStateMap instanceof String) {
 			this.serverName = String.valueOf(serverNameFromStateMap);
+			stateMap.put(FIRST_TIME_KEY, false);
 		} else {
 			stateMap.put(SERVER_NAME_KEY, this.serverName);
+			stateMap.put(FIRST_TIME_KEY, true);
 		}
 	}
 

@@ -11,10 +11,7 @@ import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.Where;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.base.service.BaseService;
-import com.tapdata.tm.commons.dag.AccessNodeTypeEnum;
-import com.tapdata.tm.commons.dag.DAG;
-import com.tapdata.tm.commons.dag.Edge;
-import com.tapdata.tm.commons.dag.Node;
+import com.tapdata.tm.commons.dag.*;
 import com.tapdata.tm.commons.dag.logCollector.HazelCastImdgNode;
 import com.tapdata.tm.commons.dag.logCollector.LogCollectorNode;
 import com.tapdata.tm.commons.dag.nodes.DataParentNode;
@@ -31,6 +28,7 @@ import com.tapdata.tm.ds.service.impl.DataSourceDefinitionService;
 import com.tapdata.tm.ds.service.impl.DataSourceService;
 import com.tapdata.tm.messagequeue.dto.MessageQueueDto;
 import com.tapdata.tm.messagequeue.service.MessageQueueService;
+import com.tapdata.tm.metadatainstance.service.MetaDataHistoryService;
 import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
 import com.tapdata.tm.monitor.entity.AgentStatDto;
 import com.tapdata.tm.monitor.service.MeasurementService;
@@ -44,6 +42,7 @@ import com.tapdata.tm.task.vo.SubTaskDetailVo;
 import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.utils.Lists;
 import com.tapdata.tm.utils.MongoUtils;
+import com.tapdata.tm.utils.SpringContextHelper;
 import com.tapdata.tm.utils.UUIDUtil;
 import com.tapdata.tm.worker.dto.WorkerDto;
 import com.tapdata.tm.worker.entity.Worker;
@@ -60,7 +59,9 @@ import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.bson.Document;
 import org.bson.types.ObjectId;
+import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.BulkOperations;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
@@ -101,6 +102,7 @@ public class SubTaskService extends BaseService<SubTaskDto, SubTaskEntity, Objec
 
     private DataSourceDefinitionService dataSourceDefinitionService;
 
+    private MetaDataHistoryService historyService;
     /**
      * 非停止状态
      */
@@ -228,7 +230,7 @@ public class SubTaskService extends BaseService<SubTaskDto, SubTaskEntity, Objec
 
         Update set = Update.update("agentId", null).set("agentTags", null).set("scheduleTimes", null)
                 .set("scheduleTime", null)
-                .unset("milestones").set("messages", null).set("status", SubTaskDto.STATUS_EDIT);
+                .unset("milestones").unset("tmCurrentTime").set("messages", null).set("status", SubTaskDto.STATUS_EDIT);
 
 
         if (subTaskDto.getAttrs() != null) {
@@ -1914,18 +1916,76 @@ public class SubTaskService extends BaseService<SubTaskDto, SubTaskEntity, Objec
         return subTaskDto;
     }
 
-    public void filedDllEvent(String subTaskId, TapFieldBaseEvent event, UserDetail user) {
-        SubTaskDto subTaskDto = checkExistById(MongoUtils.toObjectId(subTaskId), "parentId");
+    public void updateDag(SubTaskDto subTaskDto, UserDetail user) {
+        SubTaskDto subTaskDto1 = checkExistById(subTaskDto.getId());
 
-        TaskDto taskDto = taskService.checkExistById(subTaskDto.getParentId(), user);
+        Criteria criteria = Criteria.where("_id").is(subTaskDto.getId());
+        Update update = Update.update("dag", subTaskDto.getDag());
+        long tmCurrentTime = System.currentTimeMillis();
+        update.set("tmCurrentTime", tmCurrentTime);
+        repository.update(new Query(criteria), update, user);
 
-        if (event instanceof TapNewFieldEvent) {
+        TaskHistory taskHistory = new TaskHistory();
+        BeanUtils.copyProperties(subTaskDto1, taskHistory);
+        taskHistory.setTaskId(subTaskDto1.getId().toHexString());
+        taskHistory.setId(ObjectId.get());
 
-        } else if (event instanceof TapDropFieldEvent) {
+        //保存子任务历史
+        repository.getMongoOperations().insert(taskHistory, "DDlTaskHistories");
 
-        } else if (event instanceof TapAlterFieldNameEvent) {
+        //同步保存到任务。
+        Field field = new Field();
+        field.put("dag", true);
+        TaskDto taskDto = taskService.findById(subTaskDto1.getParentId(), field, user);
 
+        DAG dag = taskDto.getDag();
+        List<Node> nodes = dag.getNodes();
+        DAG subDag = subTaskDto.getDag();
+        List<Node> subNodes = subDag.getNodes();
+        Map<String, Node> subNodeMap = subNodes.stream().collect(Collectors.toMap(Element::getId, n -> n));
+        for (Node node : nodes) {
+            Node subNode = subNodeMap.get(node.getId());
+            if (subNode != null) {
+                BeanUtils.copyProperties(subNode, node);
+            }
         }
 
+        taskService.updateDag(taskDto, user);
+    }
+
+    public SubTaskDto findByVersionTime(String id, Long time) {
+        Criteria criteria = Criteria.where("taskId").is(id);
+        criteria.and("tmCurrentTime").is(time);
+
+        Query query = new Query(criteria);
+
+        SubTaskDto dDlTaskHistories = repository.getMongoOperations().findOne(query, TaskHistory.class, "DDlTaskHistories");
+
+        if (dDlTaskHistories == null) {
+            dDlTaskHistories = findById(MongoUtils.toObjectId(id));
+        } else {
+            dDlTaskHistories.setId(MongoUtils.toObjectId(id));
+        }
+
+        TaskDto taskDto = taskService.findById(dDlTaskHistories.getParentId());
+        dDlTaskHistories.setParentTask(taskDto);
+        return dDlTaskHistories;
+    }
+
+    /**
+     *
+     * @param time 最近时间戳
+     * @return
+     */
+    public void clean(String taskId, Long time) {
+        Criteria criteria = Criteria.where("taskId").is(taskId);
+        criteria.and("tmCurrentTime").gt(time);
+
+        Query query = new Query(criteria);
+        repository.getMongoOperations().remove(query, "DDlTaskHistories");
+
+        //清理模型
+        //MetaDataHistoryService historyService = SpringContextHelper.getBean(MetaDataHistoryService.class);
+        historyService.clean(taskId, time);
     }
 }

@@ -197,7 +197,7 @@ public class TableNode extends DataNode {
         }
         Schema outputSchema = super.mergeSchema(inputSchemas, schema);
 
-        outputSchema.setFields(transformFields(inputFields, outputSchema));
+        outputSchema.setFields(transformFields(inputFields, outputSchema, null));
         long count = outputSchema.getFields().stream().filter(Field::isDeleted).count();
         long count1 = outputSchema.getFields().stream().filter(f -> !f.isDeleted()).filter(field -> field.getFieldName().contains(".")).count();
         for (SchemaTransformerResult result : schemaTransformerResults) {
