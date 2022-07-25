@@ -148,7 +148,7 @@ public class HazelcastMultiAggregatorProcessor extends HazelcastBaseNode {
     }
 
     @Override
-    protected void init(@NotNull Context context) throws Exception {
+    public void doInit(@NotNull Context context) throws Exception {
         // 判空
         if (rules != null && !rules.isEmpty()) {
             initCache(nodeId, context.hazelcastInstance());
@@ -165,7 +165,7 @@ public class HazelcastMultiAggregatorProcessor extends HazelcastBaseNode {
     }
 
     @Override
-    public void close() throws Exception {
+    public void doClose() throws Exception {
         for (Aggregator aggregator : aggregators) {
             aggregator.close();
         }
