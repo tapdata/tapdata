@@ -105,7 +105,7 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
         if (metadataInstances == null)
             return null;
         Schema schema = JsonUtil.parseJsonUseJackson(JsonUtil.toJsonUseJackson(metadataInstances), Schema.class);
-        schema.setFields(schema.getFields()/*.stream().filter(field -> field.getParent() == null).collect(Collectors.toList())*/);
+        //schema.setFields(schema.getFields()/*.stream().filter(field -> field.getParent() == null).collect(Collectors.toList())*/);
 
         // 这里需要 执行字段映射，将 data_type 转换为 通用字段类型，设置到 data_type 字段（不要回写原模型）
         // 修改后的字段类型保存在schema里面

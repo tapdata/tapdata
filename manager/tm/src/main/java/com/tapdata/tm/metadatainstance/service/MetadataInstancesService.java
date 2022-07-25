@@ -5,6 +5,7 @@ import com.google.common.collect.ImmutableMap;
 import com.mongodb.BasicDBObject;
 import com.mongodb.bulk.BulkWriteResult;
 import com.mongodb.client.result.UpdateResult;
+import com.tapdata.manager.common.utils.JsonUtil;
 import com.tapdata.manager.common.utils.StringUtils;
 import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Page;
@@ -20,10 +21,8 @@ import com.tapdata.tm.commons.dag.process.MergeTableNode;
 import com.tapdata.tm.commons.dag.process.MigrateFieldRenameProcessorNode;
 import com.tapdata.tm.commons.dag.process.ProcessorNode;
 import com.tapdata.tm.commons.dag.process.TableRenameProcessNode;
-import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
-import com.tapdata.tm.commons.schema.DataSourceDefinitionDto;
+import com.tapdata.tm.commons.schema.*;
 import com.tapdata.tm.commons.schema.Field;
-import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.commons.schema.bean.Schema;
 import com.tapdata.tm.commons.schema.bean.SourceDto;
 import com.tapdata.tm.commons.schema.bean.Table;
@@ -67,6 +66,7 @@ import org.springframework.data.mongodb.core.aggregation.*;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
@@ -926,6 +926,34 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
         return ImmutablePair.of(modifyCount, insertCount);
     }
 
+
+    public void bulkUpdate(List<MetadataInstancesDto> metadataInstancesDtos, UserDetail user) {
+
+
+        BulkOperations bulkOperations = repository.bulkOperations(BulkOperations.BulkMode.UNORDERED);
+        int num = 0;
+        for (MetadataInstancesDto dto : metadataInstancesDtos) {
+            num++;
+
+
+            Criteria criteria = Criteria.where("_id").is(dto.getId());
+            Query query = new Query(criteria);
+            repository.applyUserDetail(query, user);
+            Update update = repository.buildUpdateSet(convertToEntity(MetadataInstancesEntity.class, dto), user);
+            repository.beforeUpsert(update, user);
+
+            //这个操作有可能是插入操作，所以需要校验字段是否又id，如果没有就set id进去
+            beforeSave(dto, user);
+            bulkOperations.upsert(query, update);
+            if (num % 1000 == 0) {
+                bulkOperations.execute();
+            }
+        }
+
+        bulkOperations.execute();
+
+    }
+
     public List<String> tables(String connectId, String sourceType) {
         Criteria criteria = Criteria.where("source._id").is(connectId)
                 .and("sourceType").is(sourceType)
@@ -1466,29 +1494,38 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
     }
 
 
-    private void linkLogic(String id, UserDetail user){
-        linkLogic(MongoUtils.toObjectId(id), user);
-    }
-    private void linkLogic(ObjectId id, UserDetail user){
-        MetadataInstancesDto metadataInstancesDto = findById(id, user);
+    @Async
+    public void linkLogic(String qualifiedName, UserDetail user){
+        MetadataInstancesDto metadataInstancesDto = findByQualifiedNameNotDelete(qualifiedName, user);
         linkLogic(metadataInstancesDto, user);
     }
-    private void linkLogic(MetadataInstancesDto metadataInstancesDto, UserDetail user){
+    @Async
+    public void linkLogic(MetadataInstancesDto metadataInstancesDto, UserDetail user){
 
-        //查询得到所有的关联的逻辑模型表
-        Criteria criteria = Criteria.where("entitySchemaId").is(metadataInstancesDto.getId().toHexString())
-                .and("is_deleted").ne(true);
-        Query query = new Query(criteria);
-        List<MetadataInstancesDto> taskMetadatas = findAllDto(query, user);
+        try {
+            //查询得到所有的关联的逻辑模型表
+            Criteria criteria = Criteria.where("entitySchemaId").is(metadataInstancesDto.getId().toHexString())
+                    .and("is_deleted").ne(true);
+            Query query = new Query(criteria);
+            List<MetadataInstancesDto> taskMetadatas = findAllDto(query, user);
+            com.tapdata.tm.commons.schema.Schema originalSchema = JsonUtil.parseJsonUseJackson(JsonUtil.toJsonUseJackson(metadataInstancesDto), com.tapdata.tm.commons.schema.Schema.class);
 
-        if (CollectionUtils.isNotEmpty(taskMetadatas)) {
-            //如果逻辑模型没有为空，则遍历合并物理模型跟逻辑模型，得到新的逻辑模型保存到库里面。
-            for (MetadataInstancesDto taskMetadata : taskMetadatas) {
 
+            List<MetadataInstancesDto> updateMetadatas = new ArrayList<>();
+            if (CollectionUtils.isNotEmpty(taskMetadatas)) {
+                //如果逻辑模型没有为空，则遍历合并物理模型跟逻辑模型，得到新的逻辑模型保存到库里面。
+                for (MetadataInstancesDto taskMetadata : taskMetadatas) {
+                    com.tapdata.tm.commons.schema.Schema schema = JsonUtil.parseJsonUseJackson(JsonUtil.toJsonUseJackson(taskMetadata), com.tapdata.tm.commons.schema.Schema.class);
+                    schema = SchemaUtils.mergeSchema(Lists.of(SchemaUtils.cloneSchema(originalSchema)), schema, false);
+                    MetadataInstancesDto metadataInstancesDto1 = JsonUtil.parseJsonUseJackson(JsonUtil.toJsonUseJackson(schema), MetadataInstancesDto.class);
+                    updateMetadatas.add(metadataInstancesDto1);
+                }
             }
+
+            //批量入库
+            bulkUpdate(updateMetadatas, user);
+        } catch (Exception e) {
+            log.warn("update logic metadata failed, qualified name = {}", metadataInstancesDto.getQualifiedName());
         }
-
-        //批量入库
-
     }
 }
