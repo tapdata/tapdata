@@ -73,6 +73,8 @@ public class HazelcastMultiAggregatorProcessor extends HazelcastBaseNode {
 
     private ConstructIMap<ArrayList<BigDecimal>> cacheList;
 
+    private ConstructIMap<TapdataEvent> cacheEvents;
+
     private final List<String> targetFieldsName = new ArrayList<>();
 
     private int count = 0;
@@ -102,12 +104,13 @@ public class HazelcastMultiAggregatorProcessor extends HazelcastBaseNode {
 
     public static void clearCache(String nodeId, HazelcastInstance hazelcastInstance) {
         ConstructIMap<BigDecimal> cacheNumbers = new ConstructIMap<>(hazelcastInstance, nodeId + "-" + "AggregatorCache");
+        ConstructIMap<ArrayList<BigDecimal>> cacheList = new ConstructIMap<>(hazelcastInstance, nodeId + "-" + "AggregatorCacheList");
+
         try {
             cacheNumbers.clear();
         } catch (Exception e) {
             throw new RuntimeException("Clear aggregate cache failed, name: " + cacheNumbers.getName() + "(" + cacheNumbers.getType() + "), error: " + e.getMessage(), e);
         }
-        ConstructIMap<ArrayList<BigDecimal>> cacheList = new ConstructIMap<>(hazelcastInstance, nodeId + "-" + "AggregatorCacheList");
         try {
             cacheList.clear();
         } catch (Exception e) {
@@ -207,22 +210,44 @@ public class HazelcastMultiAggregatorProcessor extends HazelcastBaseNode {
 //      }
 //      count2++;
 //      // end debug
-            TapdataEvent tapdataEvent;
-            if (item instanceof TapdataEvent) {
-                tapdataEvent = (TapdataEvent) item;
-            } else {
-                return true;
+        TapdataEvent tapdataEvent;
+        if (item instanceof TapdataEvent) {
+            tapdataEvent = (TapdataEvent) item;
+        } else {
+            return true;
+        }
+        if (null == tapdataEvent.getMessageEntity() && !(tapdataEvent.getTapEvent() instanceof TapRecordEvent)) {
+            while (isRunning()) {
+                if (offer(tapdataEvent)) break;
             }
-            if (null == tapdataEvent.getMessageEntity() && !(tapdataEvent.getTapEvent() instanceof TapRecordEvent)) {
-                while (isRunning()) {
-                    if (offer(tapdataEvent)) break;
-                }
-                return true;
-            }
-            transformFromTapValue(tapdataEvent, null);
+            return true;
+        }
+        transformFromTapValue(tapdataEvent, null);
 
-            // initialize input
-            aggregators.get(0).setInitialInput(Lists.newArrayList(tapdataEvent));
+        // initialize input
+        Object initialInput = tapdataEvent;
+        List<Object> inputItems = Lists.newArrayList(initialInput);
+        for (Aggregator aggregator : aggregators) {
+            final List<AggregatorProcessorBase> processors = aggregator.getProcessors();
+            for (AggregatorProcessorBase processor : processors) {
+                if (inputItems.size() == 0) {
+                    if (!(processor instanceof Aggregator.FinishP)) {
+                        logger.warn("empty input");
+                    }
+                    break;
+                }
+                if (inputItems.size() == 1) {
+                    Object input = inputItems.get(0);
+                    inputItems = processor.tryProcess(input);
+                } else {
+                    List<Object> result = null;
+                    for (Object input : inputItems) {
+                        result = processor.tryProcess(input);
+                    }
+                    inputItems = result;
+                }
+            }
+        }
         return true;
     }
 
@@ -234,10 +259,10 @@ public class HazelcastMultiAggregatorProcessor extends HazelcastBaseNode {
 
         /**
          * 逻辑处理器类
-         * @param items
+         * @param item
          * @return
          */
-        public abstract List<Object> tryProcess(final List<Object> items);
+        public abstract List<Object> tryProcess(final Object item);
     }
 
     /**
@@ -285,10 +310,6 @@ public class HazelcastMultiAggregatorProcessor extends HazelcastBaseNode {
 //            for (Runnable p : processors) {
 //                threadService.execute(p);
 //            }
-            List<Object> input = initialInput;
-            for (AggregatorProcessorBase processor : processors) {
-                input = processor.tryProcess(input);
-            }
         }
 
         public void close() {
@@ -350,12 +371,12 @@ public class HazelcastMultiAggregatorProcessor extends HazelcastBaseNode {
             }
 
             @Override
-            public List<Object> tryProcess(List<Object> items) {
-                if (CollectionUtil.isEmpty(items)) {
+            public List<Object> tryProcess(Object item) {
+                if (item == null) {
                     return Collections.emptyList();
                 }
 
-                WrapItem wrappedItem = (WrapItem) items.get(0);
+                WrapItem wrappedItem = (WrapItem) item;
                 Object event = wrappedItem.getMessage();
                 if (event instanceof MessageEntity) {
                     deleteUnRelatedFieldPOld((MessageEntity) event);
@@ -364,7 +385,7 @@ public class HazelcastMultiAggregatorProcessor extends HazelcastBaseNode {
                 } else {
                     throw new RuntimeException("Unimplemented message type");
                 }
-                return items;
+                return Lists.newArrayList(item);
             }
 
 
@@ -462,13 +483,12 @@ public class HazelcastMultiAggregatorProcessor extends HazelcastBaseNode {
          */
         public class WrappedItem extends AggregatorProcessorBase {
 
-            public List<Object> tryProcess(List<Object> items) {
+            public List<Object> tryProcess(Object item) {
                 final List<Object> result = Lists.newArrayList();
-                if (CollectionUtil.isEmpty(items)) {
+                if (item == null) {
                     return Collections.emptyList();
                 }
 
-                Object item = items.get(0);
                 TapdataEvent event = (TapdataEvent) item;
                 if (event.getMessageEntity() != null) {
                     MessageEntity messageEntity = ((TapdataEvent) item).getMessageEntity();
@@ -510,17 +530,13 @@ public class HazelcastMultiAggregatorProcessor extends HazelcastBaseNode {
             }
 
             @Override
-            public List<Object> tryProcess(List<Object> items) {
-                if (CollectionUtil.isEmpty(items)) {
+            public List<Object> tryProcess(Object item) {
+                if (item == null) {
                     return Collections.emptyList();
                 }
-                if (items.size() > 1) {
-                    logger.warn("Unexpected input");
-                    return Collections.emptyList();
-                }
-                WrapItem wrappedItem = (WrapItem) items.get(0);
+                WrapItem wrappedItem = (WrapItem) item;
                 if (groupbyList == null || groupbyList.isEmpty()) {
-                    return items;
+                    return Lists.newArrayList(item);
                 } else {
                     List<Object> result;
                     Object event = wrappedItem.getMessage();
@@ -628,15 +644,15 @@ public class HazelcastMultiAggregatorProcessor extends HazelcastBaseNode {
             }
 
             @Override
-            public List<Object> tryProcess(List<Object> items) {
-                if (CollectionUtil.isEmpty(items)) {
+            public List<Object> tryProcess(Object item) {
+                if (item == null) {
                     return Collections.emptyList();
                 }
                 if (groupbyList == null || groupbyList.isEmpty()) {
-                    return items;
+                    return Lists.newArrayList(item);
                 }
 
-                WrapItem wrappedItem = (WrapItem) items.get(0);
+                WrapItem wrappedItem = (WrapItem) item;
                 Object event = wrappedItem.getMessage();
                 if (event == null) {
                     logger.error("event is null");
@@ -776,7 +792,7 @@ public class HazelcastMultiAggregatorProcessor extends HazelcastBaseNode {
                     throw new RuntimeException("Aggregator rule is null!");
                 }
 
-                initBucketThreads();
+//                initBucketThreads();
             }
 
             /**
@@ -808,13 +824,13 @@ public class HazelcastMultiAggregatorProcessor extends HazelcastBaseNode {
             }
 
             @Override
-            public List<Object> tryProcess(List<Object> items) {
-                if (CollectionUtil.isEmpty(items)) {
+            public List<Object> tryProcess(Object item) {
+                if (item == null) {
                     return Collections.emptyList();
                 }
                 try {
                     final List<Object> result = Lists.newArrayList();
-                    WrapItem wrappedItem = (WrapItem) items.get(0);
+                    WrapItem wrappedItem = (WrapItem) item;
                     Object event = wrappedItem.getMessage();
                     if (event == null) {
                         logger.error("event is null");
@@ -830,74 +846,65 @@ public class HazelcastMultiAggregatorProcessor extends HazelcastBaseNode {
                             case "COUNT":
                                 if (wrappedItem.isEvent()) {
                                     boolean rs = AggregateOps.count(name, cacheNumbers, wrappedItem, wrappedItem.isMessageEntity());
-                                    if (!rs) {
-                                        return Collections.emptyList();
-                                    }
+                                    return rs ? Lists.newArrayList(wrappedItem) : Collections.emptyList();
                                 } else {
                                     throw new RuntimeException("Unimplemented type: " + event.getClass().getSimpleName());
                                 }
-                                result.add(wrappedItem);
-                                break;
                             case "SUM":
-                                final List<Object> sumResult = handleFutureList(opBucketFutures);
-                                result.addAll(sumResult);
-                            case "AVG":
-                                if (count % 100000 == 0) {
-                                    logger.info("Rolling sample count=" + count + " input queue=" + items.size());
-                                }
-                                count++;
                                 if (wrappedItem.isEvent()) {
-                                    while (!opBucket.lockExist(cacheKey)) {
-                                        if (opBucket.setLock(cacheKey)) {
-                                            int bucketId = Math.abs(cacheKey.hashCode()) % opBucket.bucketCount;
-                                            List<WrapItem> values = opBucket.getData(bucketId).get(cacheKey);
-                                            if (values == null) {
-                                                values = new ArrayList<>(1000);
-                                                opBucket.getData(bucketId).put(cacheKey, values);
-                                            }
-                                            try {
-                                                values.add(wrappedItem);
-                                            } catch (Throwable e) {
-                                                logger.error(e);
-                                            }
-                                            opBucket.delLock(cacheKey);
-                                            break;
-                                        }
-                                    }
+                                    boolean rs = AggregateOps.sum(name, aggregatorField, cacheNumbers, wrappedItem, wrappedItem.isMessageEntity());
+                                    return rs ? Lists.newArrayList(wrappedItem) : Collections.emptyList();
                                 } else {
                                     throw new RuntimeException("Unimplemented type: " + event.getClass().getSimpleName());
                                 }
-                                final List<Object> avgResult = handleFutureList(opBucketFutures);
-                                result.addAll(avgResult);
-                                break;
+//                                final List<Object> sumResult = handleFutureList(opBucketFutures);
+//                                result.addAll(sumResult);
+                            case "AVG":
+//                                if (count % 100000 == 0) {
+//                                    logger.info("Rolling sample count=" + count + " input queue=" + items.size());
+//                                }
+//                                count++;
+                                if (wrappedItem.isEvent()) {
+                                    boolean rs = AggregateOps.avg(name, aggregatorField, cacheNumbers, wrappedItem, wrappedItem.isMessageEntity());
+                                    return rs ? Lists.newArrayList(wrappedItem) : Collections.emptyList();
+//                                    while (!opBucket.lockExist(cacheKey)) {
+//                                        if (opBucket.setLock(cacheKey)) {
+//                                            int bucketId = Math.abs(cacheKey.hashCode()) % opBucket.bucketCount;
+//                                            List<WrapItem> values = opBucket.getData(bucketId).get(cacheKey);
+//                                            if (values == null) {
+//                                                values = new ArrayList<>(1000);
+//                                                opBucket.getData(bucketId).put(cacheKey, values);
+//                                            }
+//                                            try {
+//                                                values.add(wrappedItem);
+//                                            } catch (Throwable e) {
+//                                                logger.error(e);
+//                                            }
+//                                            opBucket.delLock(cacheKey);
+//                                            break;
+//                                        }
+//                                    }
+                                } else {
+                                    throw new RuntimeException("Unimplemented type: " + event.getClass().getSimpleName());
+                                }
                             case "MAX":
                                 if (wrappedItem.isEvent()) {
                                     boolean rs = AggregateOps.max(aggregatorField, cacheNumbers, cacheList, wrappedItem, wrappedItem.isMessageEntity());
-                                    if (!rs) {
-                                        return Collections.emptyList();
-                                    }
+                                    return rs ? Lists.newArrayList(wrappedItem) : Collections.emptyList();
                                 } else {
                                     throw new RuntimeException("Unimplemented type: " + event.getClass().getSimpleName());
                                 }
-                                result.add(wrappedItem);
-                                break;
                             case "MIN":
                                 if (wrappedItem.isEvent()) {
                                     boolean rs = AggregateOps.min(aggregatorField, cacheNumbers, cacheList, wrappedItem, wrappedItem.isMessageEntity());
-                                    if (!rs) {
-                                        return Collections.emptyList();
-                                    }
+                                    return rs ? Lists.newArrayList(wrappedItem) : Collections.emptyList();
                                 } else {
                                     throw new RuntimeException("Unimplemented type");
                                 }
-                                result.add(wrappedItem);
-                                break;
                             default:
                                 throw new RuntimeException("Unimplemented aggregatorOp type");
                         } // end switch
-                        return result;
                     }
-
                 } catch (Exception e) {
                     logger.error("RollingAggregateP error:", e);
                 }
@@ -1068,8 +1075,8 @@ public class HazelcastMultiAggregatorProcessor extends HazelcastBaseNode {
             }
 
             @Override
-            public List<Object> tryProcess(List<Object> items) {
-                return nextAggregator.processors.get(0).tryProcess(items);
+            public List<Object> tryProcess(Object item) {
+                return nextAggregator.processors.get(0).tryProcess(item);
             }
         }
 
@@ -1079,11 +1086,10 @@ public class HazelcastMultiAggregatorProcessor extends HazelcastBaseNode {
          */
         public class FinishP extends AggregatorProcessorBase {
             @Override
-            public List<Object> tryProcess(List<Object> items) {
-                if (CollectionUtil.isEmpty(items)) {
+            public List<Object> tryProcess(Object item) {
+                if (item == null) {
                     return Collections.emptyList();
                 }
-                Object item = items.get(0);
                 if (item instanceof WrapItem) {
                     WrapItem wrappedItem = (WrapItem) item;
                     TapdataEvent event = wrappedItem.getEvent();
@@ -1139,9 +1145,11 @@ public class HazelcastMultiAggregatorProcessor extends HazelcastBaseNode {
                     }
                     // end debug
                     transformToTapValue(event, processorBaseContext.getTapTableMap(), processorBaseContext.getNode().getId());
-                    while (isRunning()) {
-                        if (offer(event)) break;
-                    }
+//                    while (isRunning()) {
+//                        if (offer(event)) break;
+//                    }
+                    offer(event);
+                    logger.warn("--offer event--");
                 } else {
                     throw new RuntimeException("not implement");
                 }

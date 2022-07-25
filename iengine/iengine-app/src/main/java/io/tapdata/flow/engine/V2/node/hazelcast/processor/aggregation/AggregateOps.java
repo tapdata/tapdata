@@ -580,7 +580,7 @@ public class AggregateOps {
                 if (operationType == OperationType.DELETE) {
                     logger.debug("cacheList didn't contains this value:" + fieldValue + " can not delete");
                 } else if (operationType == OperationType.INSERT) {
-                    groupedMaxList = doInsertAndCut(groupedMaxList, fieldValue, Comparator.reverseOrder());
+                    groupedMaxList = doInsertAndCut(groupedMaxList, fieldValue, new MaxComparator());
                 } else {
                     throw new RuntimeException("unimplement code");
                 }
@@ -631,7 +631,7 @@ public class AggregateOps {
                 if (tapRecordEvent instanceof TapDeleteRecordEvent) {
                     logger.debug("cacheList didn't contains this value:" + fieldValue + " can not delete");
                 } else if (tapRecordEvent instanceof TapInsertRecordEvent) {
-                    groupedMaxList = doInsertAndCut(groupedMaxList, fieldValue, Comparator.reverseOrder());
+                    groupedMaxList = doInsertAndCut(groupedMaxList, fieldValue, new MaxComparator());
                 } else {
                     throw new RuntimeException("unimplement code");
                 }
@@ -717,7 +717,7 @@ public class AggregateOps {
                 if (operationType == OperationType.DELETE) {
                     logger.debug("cacheList didn't contains this value:" + fieldValue + " can not delete");
                 } else if (operationType == OperationType.INSERT) {
-                    groupedMinList = doInsertAndCut(groupedMinList, fieldValue, Comparator.naturalOrder());
+                    groupedMinList = doInsertAndCut(groupedMinList, fieldValue, new MinComparator());
                 } else {
                     throw new RuntimeException("unimplement code");
                 }
@@ -767,7 +767,7 @@ public class AggregateOps {
                 if (tapRecordEvent instanceof TapDeleteRecordEvent) {
                     logger.debug("cacheList didn't contains this value:" + fieldValue + " can not delete");
                 } else if (tapRecordEvent instanceof TapInsertRecordEvent) {
-                    groupedMinList = doInsertAndCut(groupedMinList, fieldValue, Comparator.naturalOrder());
+                    groupedMinList = doInsertAndCut(groupedMinList, fieldValue, new MinComparator());
                 } else {
                     throw new RuntimeException("unimplement code");
                 }
@@ -814,6 +814,42 @@ public class AggregateOps {
             Map<String, Object> after = TapEventUtil.getAfter(tapRecordEvent);
             if (after != null && groupedMinList.size() > 0) {
                 after.put(MIN, groupedMinList.get(0));
+            }
+        }
+    }
+
+    public static class MinComparator implements Comparator{
+        @Override
+        public int compare(Object o1, Object o2) {
+
+            if (o1 == null && o2 == null) {
+                return 0;
+            } else if (o1 == null) {
+                return 1;
+            } else if (o2 == null) {
+                return -1;
+            } else {
+                Comparable<Object> c1 = (Comparable<Object>) o1;
+                Comparable<Object> c2 = (Comparable<Object>) o2;
+                return c1.compareTo(c2);
+            }
+        }
+    }
+
+    public static class MaxComparator implements Comparator{
+        @Override
+        public int compare(Object o1, Object o2) {
+
+            if (o1 == null && o2 == null) {
+                return 0;
+            } else if (o1 == null) {
+                return 1;
+            } else if (o2 == null) {
+                return -1;
+            } else {
+                Comparable<Object> c1 = (Comparable<Object>) o1;
+                Comparable<Object> c2 = (Comparable<Object>) o2;
+                return c2.compareTo(c1);
             }
         }
     }
