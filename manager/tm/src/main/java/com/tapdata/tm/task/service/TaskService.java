@@ -368,6 +368,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         DAG dag = taskDto.getDag();
         if (dag != null) {
             if (TaskDto.SYNC_TYPE_MIGRATE.equals(taskDto.getSyncType())) {
+                taskDto.setMigrateModelStatus(TaskDto.MODELING);
                 if (CollectionUtils.isNotEmpty(dag.getSourceNode())) {
                     //supplier migrate tableSelectType=all tableNames and SyncObjects
                     DatabaseNode sourceNode = dag.getSourceNode().get(0);
