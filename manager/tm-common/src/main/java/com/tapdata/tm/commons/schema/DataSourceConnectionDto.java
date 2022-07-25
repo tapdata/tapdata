@@ -270,7 +270,7 @@ public class DataSourceConnectionDto extends BaseDto {
 
         private String connectionString;
 
-        private ImmutableMap<String, Object> extParam;
+        private Map<String, Object> extParam;
 
         /**
          * 后续 开放可以多选 flow engine 的话，这里一定要删除
