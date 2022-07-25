@@ -2,6 +2,7 @@ package com.tapdata.tm.task.service.impl;
 
 import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.collection.ListUtil;
+import cn.hutool.core.date.DateUtil;
 import cn.hutool.extra.cglib.CglibUtil;
 import cn.hutool.extra.spring.SpringUtil;
 import com.google.common.base.Splitter;
@@ -107,7 +108,11 @@ public class TaskDagCheckLogServiceImpl implements TaskDagCheckLogService {
 //        if (offset > 0) {
 //            criteria.and("_id").gte(offset);
 //        }
-        Query logQuery = new Query(criteria.and("checkType").ne(DagOutputTemplateEnum.MODEL_PROCESS_CHECK.name()));
+        Query logQuery = new Query(criteria.and("checkType").nin(
+                Lists.of(DagOutputTemplateEnum.MODEL_PROCESS_CHECK.name(),
+                        DagOutputTemplateEnum.SOURCE_CONNECT_CHECK.name(),
+                        DagOutputTemplateEnum.TARGET_CONNECT_CHECK.name())
+        ));
         logQuery.with(Sort.by("createTime"));
         List<TaskDagCheckLog> taskDagCheckLogs = find(logQuery);
         if (CollectionUtils.isEmpty(taskDagCheckLogs)) {
@@ -116,20 +121,42 @@ public class TaskDagCheckLogServiceImpl implements TaskDagCheckLogService {
             return taskDagCheckLogVo;
         }
 
-        Query modelQuery = new Query(modelCriteria.and("checkType").is(DagOutputTemplateEnum.MODEL_PROCESS_CHECK.name()));
+        Query modelQuery = new Query(modelCriteria.and("checkType").in(
+                Lists.of(DagOutputTemplateEnum.MODEL_PROCESS_CHECK.name(),
+                        DagOutputTemplateEnum.SOURCE_CONNECT_CHECK.name(),
+                        DagOutputTemplateEnum.TARGET_CONNECT_CHECK.name())
+        ));
         modelQuery.with(Sort.by("createTime"));
         List<TaskDagCheckLog> modelLogs = find(modelQuery);
 
         LinkedList<TaskLogInfoVo> data = taskDagCheckLogs.stream()
-                .map(g -> new TaskLogInfoVo(g.getId().toHexString(), g.getGrade(), StringUtils.replace(g.getLog(), "$taskName", taskDto.getName())))
+                .map(g -> {
+                    String log = g.getLog();
+                    log = StringUtils.replace(log, "$taskName", taskDto.getName());
+                    log = StringUtils.replace(log, "$date", DateUtil.formatDateTime(g.getCreateAt()));
+
+                    return new TaskLogInfoVo(g.getId().toHexString(), g.getGrade(), log);
+                })
                 .collect(Collectors.toCollection(LinkedList::new));
 
         TaskDagCheckLogVo result = new TaskDagCheckLogVo(nodeMap, data, null, 0, null);
 
         if (CollectionUtils.isNotEmpty(modelLogs)) {
+            // duplication
+            modelLogs = modelLogs.stream()
+                    .collect(Collectors.collectingAndThen(Collectors.toCollection(() ->
+                            new TreeSet<>(Comparator.comparing(TaskDagCheckLog::getLog))), LinkedList::new));
+
             LinkedList<TaskLogInfoVo> collect = modelLogs.stream()
-                    .map(g -> new TaskLogInfoVo(g.getId().toHexString(), g.getGrade(), StringUtils.replace(g.getLog(), "$taskName", taskDto.getName())))
+                    .map(g -> {
+                        String log = g.getLog();
+                        log = StringUtils.replace(log, "$taskName", taskDto.getName());
+                        log = StringUtils.replace(log, "$date", DateUtil.formatDateTime(g.getCreateAt()));
+
+                        return new TaskLogInfoVo(g.getId().toHexString(), g.getGrade(), log);
+                    })
                     .collect(Collectors.toCollection(LinkedList::new));
+
             result.setModelList(collect);
         }
         return result;
@@ -145,8 +172,14 @@ public class TaskDagCheckLogServiceImpl implements TaskDagCheckLogService {
     }
 
     @Override
-    public TaskDagCheckLog createLog(String taskId, String userId, String grade, DagOutputTemplateEnum templateEnum, boolean needSave, Object ... param) {
+    public TaskDagCheckLog createLog(String taskId, String userId, String grade, DagOutputTemplateEnum templateEnum,
+                                     boolean delOther,boolean needSave, Object ... param) {
         Date now = new Date();
+        if (delOther) {
+            mongoTemplate.findAllAndRemove(Query.query(Criteria.where("taskId").is(taskId)
+                    .and("checkType").is(templateEnum.name())
+            ), TaskDagCheckLog.class);
+        }
 
         TaskDagCheckLog log = new TaskDagCheckLog();
         log.setTaskId(taskId);

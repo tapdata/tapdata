@@ -1,6 +1,7 @@
 package io.tapdata.websocket.handler;
 
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Maps;
 import com.tapdata.constant.*;
 import com.tapdata.entity.*;
 import com.tapdata.mongo.ClientMongoOperator;
@@ -162,6 +163,7 @@ public class TestConnectionHandler implements WebSocketEventHandler {
 					connectionIdQuery = new Query(Criteria.where("_id").is(id));
 					connectionIdQuery.fields().exclude("schema");
 					connection = clientMongoOperator.findOne(connectionIdQuery, ConnectorConstant.CONNECTION_COLLECTION, Connections.class);
+					connection.setExtParam((Map) event.getOrDefault("extParam", Maps.newHashMap()));
 					save = true;
 				}
 
@@ -352,6 +354,7 @@ public class TestConnectionHandler implements WebSocketEventHandler {
 		map.put("id", connection.getId());
 		map.put("response_body", connection.getResponse_body());
 		map.put("status", validateResult.getStatus());
+		map.put("extParam", connection.getExtParam());
 
 		return map;
 	}

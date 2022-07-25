@@ -66,6 +66,7 @@ public class TargetSettingStrategyImpl implements DagLogStrategy {
             log.setCreateUser(userDetail.getUserId());
             log.setLog(content);
             log.setGrade(grade);
+            log.setNodeId(node.getId());
 
             result.add(log);
         });

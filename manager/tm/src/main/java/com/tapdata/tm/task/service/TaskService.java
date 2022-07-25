@@ -1386,7 +1386,11 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             checkDagAgentConflict(task, false);
 
             try {
-                start(task, user);
+                boolean noPass = taskStartService.taskStartCheckLog(task, user);
+                if (!noPass) {
+                    start(task, user);
+                }
+
             } catch (Exception e) {
                 log.warn("start task exception, task id = {}, e = {}", task.getId(), e);
             }

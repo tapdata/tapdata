@@ -18,6 +18,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
+import java.text.MessageFormat;
 import java.util.Date;
 import java.util.List;
 
@@ -44,11 +45,11 @@ public class AgentStrategyImpl implements DagLogStrategy {
         String grade;
         if (CollectionUtils.isNotEmpty(availableAgent)) {
             template = templateEnum.getInfoTemplate();
-            content = String.format(template, DateUtil.now(), taskDto.getName(), availableAgent.size(), availableAgent.get(0).getHostname());
+            content = MessageFormat.format(template, DateUtil.now(), availableAgent.size(), availableAgent.get(0).getProcessId());
             grade = Level.INFO.getValue();
         } else {
             template = templateEnum.getErrorTemplate();
-            content = String.format(template, DateUtil.now(), taskDto.getName());
+            content = MessageFormat.format(template, DateUtil.now(), taskDto.getName());
             grade = Level.ERROR.getValue();
         }
 

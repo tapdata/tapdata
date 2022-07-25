@@ -9,8 +9,8 @@ public class DagOutputTemplate {
      * Agent不可用：
      * 【ERROR】 2022-05-24 21:05:22  【任务A】【Agent可用性检测】：当前无可用Agent，任务运行失败
      */
-    public static String AGENT_CAN_USE_INFO = "{0} 【$taskName】【Agent可用性检测】：检查到当前有{1}个可用Agent，当前任务将在Agent：'{'{2}}上运行";
-    public static String AGENT_CAN_USE_ERROR = "{0}【$taskName】【Agent可用性检测】：当前无可用Agent，任务运行失败";
+    public static String AGENT_CAN_USE_INFO = "$date【$taskName】【Agent可用性检测】：检查到当前有{1}个可用Agent，当前任务将在Agent：'{'{2}}上运行";
+    public static String AGENT_CAN_USE_ERROR = "$date【$taskName】【Agent可用性检测】：当前无可用Agent，任务运行失败";
 
     /**
      * 任务设置检测
@@ -20,8 +20,8 @@ public class DagOutputTemplate {
      * 任务检测未通过：
      * 【ERROR】 2022-05-24 21:05:22  【任务A】【任务设置检测】：任务{MySQL_test}检测未通过，异常项{任务名称}，异常原因：任务名称重复，请重新设置
      */
-    public static String TASK_SETTING_INFO = "{0} 【$taskName】【任务设置检测】：任务'{'$taskName}检测通过";
-    public static String TASK_SETTING_ERROR = " {0} 【$taskName】【任务设置检测】：任务'{'$taskName}检测未通过，异常项{任务名称}，异常原因：任务名称重复，请重新设置";
+    public static String TASK_SETTING_INFO = "$date【$taskName】【任务设置检测】：任务'{'$taskName}检测通过";
+    public static String TASK_SETTING_ERROR = "$date【$taskName】【任务设置检测】：任务'{'$taskName}检测未通过，异常项{任务名称}，异常原因：任务名称重复，请重新设置";
 
     /**
      * 源节点设置检测：
@@ -31,8 +31,8 @@ public class DagOutputTemplate {
      * 源节点检测未通过：
      * 【ERROR】 2022-05-24 21:05:22  【任务A】【源节点设置检测】：节点{MySQL_01}检测未通过，异常项{节点名称}，异常原因：节点名称重复，请重新设置
      */
-    public static String SOURCE_SETTING_INFO = " {0} 【$taskName】【源节点设置检测】：节点'{'{1}}检测通过";
-    public static String SOURCE_SETTING_ERROR = " {0} 【$taskName】【源节点设置检测】：节点'{'{1}}检测未通过，异常项{节点名称}，异常原因：节点名称重复，请重新设置";
+    public static String SOURCE_SETTING_INFO = "$date【$taskName】【源节点设置检测】：节点'{'{1}}检测通过";
+    public static String SOURCE_SETTING_ERROR = "$date【$taskName】【源节点设置检测】：节点'{'{1}}检测未通过，异常项{节点名称}，异常原因：节点名称重复，请重新设置";
 
     /**
      * JS节点设置检测：（没有可跳过检测）
@@ -42,8 +42,8 @@ public class DagOutputTemplate {
      * JS节点检测未通过：
      * 【ERROR】 2022-05-24 21:05:22 【任务A】 【JS节点设置检测】：节点{JS节点001}检测未通过，异常项属性：{脚本}，异常原因：设置有误，请重新设置
      */
-    public static String JS_NODE_INFO = " {0} 【$taskName】【JS节点设置检测】：节点'{'{1}}检测通过";
-    public static String JS_NODE_ERROR = " {0} 【$taskName】【JS节点设置检测】：节点'{'{1}}检测未通过，异常项属性：{脚本}，异常原因：设置有误，请重新设置";
+    public static String JS_NODE_INFO = "$date【$taskName】【JS节点设置检测】：节点'{'{1}}检测通过";
+    public static String JS_NODE_ERROR = "$date【$taskName】【JS节点设置检测】：节点'{'{1}}检测未通过，异常项属性：{脚本}，异常原因：设置有误，请重新设置";
 
     /**
      * 表编辑节点设置检测：（没有可跳过检测）
@@ -53,8 +53,8 @@ public class DagOutputTemplate {
      * 表编辑节点检测未通过：
      * 【ERROR】 2022-05-24 21:05:22 【任务A】 【表编辑节点设置检测】：节点{表编辑节点001}检测未通过，异常项属性：{前缀}，异常原因：设置有误，请重新设置
      */
-    public static String TABLE_EDIT_NODE_INFO = " {0} 【$taskName】【表编辑节点设置检测】：节点{1}检测通过";
-    public static String TABLE_EDIT_NODE_ERROR = " {0} 【$taskName】【表编辑节点设置检测】：节点{1}检测未通过，异常项属性：{前缀}，异常原因：设置有误，请重新设置";
+    public static String TABLE_EDIT_NODE_INFO = "$date【$taskName】【表编辑节点设置检测】：节点{1}检测通过";
+    public static String TABLE_EDIT_NODE_ERROR = "$date【$taskName】【表编辑节点设置检测】：节点{1}检测未通过，异常项属性：{前缀}，异常原因：设置有误，请重新设置";
 
     /**
      * 字段编辑节点设置检测：（没有可跳过检测）
@@ -64,8 +64,8 @@ public class DagOutputTemplate {
      * 字段编辑节点检测未通过：
      * 【ERROR】 2022-05-24 21:05:22  【任务A】【字段编辑节点设置检测】：节点{字段编辑节点001}检测未通过，异常项属性：{后缀}，异常原因：设置有误，请重新设置
      */
-    public static String FIELD_EDIT_NODE_INFO = " {0} 【$taskName】【字段编辑节点设置检测】：节点'{'{1}}检测";
-    public static String FIELD_EDIT_NODE_ERROR = " {0} 【$taskName】【字段编辑节点设置检测】：节点'{'{1}}检测未通过，异常项属性：{后缀}，异常原因：设置有误，请重新设置";
+    public static String FIELD_EDIT_NODE_INFO = "$date【$taskName】【字段编辑节点设置检测】：节点'{'{1}}检测通过";
+    public static String FIELD_EDIT_NODE_ERROR = "$date【$taskName】【字段编辑节点设置检测】：节点'{'{1}}检测未通过，异常项属性：{后缀}，异常原因：设置有误，请重新设置";
 
     /**
      * 目标节点设置检测：
@@ -75,8 +75,8 @@ public class DagOutputTemplate {
      * 目标节点检测未通过：
      * 【ERROR】 2022-05-24 21:05:22  【任务A】【目标节点设置检测】：节点{MySQL_01}检测未通过，异常项属性：{节点名称}，异常原因：节点名称重复，请重新设置
      */
-    public static String TARGET_NODE_INFO = " {0} 【$taskName】【目标节点设置检测】：节点'{'{1}}检测通过";
-    public static String TARGET_NODE_ERROR = " {0} 【$taskName】【目标节点设置检测】：节点'{'{1}}检测未通过，异常项属性：{节点名称}，异常原因：节点名称重复，请重新设置";
+    public static String TARGET_NODE_INFO = "$date【$taskName】【目标节点设置检测】：节点'{'{1}}检测通过";
+    public static String TARGET_NODE_ERROR = "$date【$taskName】【目标节点设置检测】：节点'{'{1}}检测未通过，异常项属性：{节点名称}，异常原因：节点名称重复，请重新设置";
 
     /**
      * 源连接检测：
@@ -88,14 +88,14 @@ public class DagOutputTemplate {
      * 【ERROR】 2022-05-24 21:05:22  【任务A】【源连接检测】：连接{"connectorId":
      * "626bc1bcf3ed334254305087","connectorType":"mysql","connectorName":"MySQL001","dbName":"students","schema":"students","schemaLoadStatus":"100%","connectDelay":"10ms","status":"not ready","messages":"CDC权限校验不通过，无法进行增量同步"}，
      */
-    public static String SOURCE_CONNECT_INFO = " {0} 【$taskName】【源连接检测】：连接XXX检测通过";
-    public static String SOURCE_CONNECT_ERROR = " {0} 【$taskName】【源连接检测】：连接XXX";
+    public static String SOURCE_CONNECT_INFO = "$date【$taskName】【源连接检测】：连接{1}";
+    public static String SOURCE_CONNECT_ERROR = "$date【$taskName】【源连接检测】：连接{1}";
 
     /**
      * 目标连接检测
      */
-    public static String TARGET_CONNECT_INFO = " {0} 【$taskName】【目标连接检测】：源连接状态检查XXX";
-    public static String TARGET_CONNECT_ERROR = " {0} 【$taskName】【目标连接检测】：源连接状态检查XXX";
+    public static String TARGET_CONNECT_INFO = "$date【$taskName】【目标连接检测】：连接{1}";
+    public static String TARGET_CONNECT_ERROR = "$date【$taskName】【目标连接检测】：连接{1}";
 
     /**
      * 字符编码检测：
@@ -105,8 +105,8 @@ public class DagOutputTemplate {
      * 字符编码检测未通过：
      * 【WARN】 2022-05-24 21:05:22  【任务A】【字符编码检测】：检测异常，异常项{编码不一致}，异常原因：目标库为GBK，源和目标编码不一致，可能会出现乱码
      */
-    public static String CHARACTER_ENCODING_INFO = " {0} 【$taskName】【字符编码检测】：源库和目标库字符编码一致，均为UTF-8，检测正常";
-    public static String CHARACTER_ENCODING_WARN = " {0} 【$taskName】【字符编码检测】：检测异常，异常项{编码不一致}，异常原因：目标库为GBK，源和目标编码不一致，可能会出现乱码";
+    public static String CHARACTER_ENCODING_INFO = "$date【$taskName】【字符编码检测】：源库和目标库字符编码一致，均为UTF-8，检测正常";
+    public static String CHARACTER_ENCODING_WARN = "$date【$taskName】【字符编码检测】：检测异常，异常项{编码不一致}，异常原因：目标库为GBK，源和目标编码不一致，可能会出现乱码";
 
     /**
      * 表名大小写检测：
@@ -116,8 +116,8 @@ public class DagOutputTemplate {
      * 表名大小写检测未通过：
      * 【WARN】 2022-05-24 21:05:22  【任务A】【表名大小写检测】：检测异常，异常原因：源库表名为大写，目标库表名默认为小写，可能会影响到任务同步
      */
-    public static String TABLE_NAME_CASE_INFO = " {0} 【$taskName】【表名大小写检测】： 源库表名和目标库表名大小写设置一致，检测正常";
-    public static String TABLE_NAME_CASE_ERROR = " {0} 【$taskName】【表名大小写检测】：检测异常，异常原因：源库表名为大写，目标库表名默认为小写，可能会影响到任务同步";
+    public static String TABLE_NAME_CASE_INFO = "$date【$taskName】【表名大小写检测】： 源库表名和目标库表名大小写设置一致，检测正常";
+    public static String TABLE_NAME_CASE_ERROR = "$date【$taskName】【表名大小写检测】：检测异常，异常原因：源库表名为大写，目标库表名默认为小写，可能会影响到任务同步";
 
     /**
      * 模型推演检测：（多表时每100张打印一条日志）
@@ -127,8 +127,8 @@ public class DagOutputTemplate {
      * 模型推演检测未通过：
      * 【WARN】 2022-05-24 21:05:22  【任务A】【模型推演检测】：表名{表名A}检测异常，异常原因：字段推演异常
      */
-    public static String MODEL_PROCESS_INFO = " {0} 【$taskName】【模型推演检测】：推演进度{1}/{2}，检测正常";
-    public static String MODEL_PROCESS_ERROR = " {0} 【$taskName】【模型推演检测】：表名：{1}，检测异常，异常原因：字段推演异常";
+    public static String MODEL_PROCESS_INFO = "$date【$taskName】【模型推演检测】：推演进度{1}/{2}，检测正常";
+    public static String MODEL_PROCESS_ERROR = "$date【$taskName】【模型推演检测】：表名：{1}，检测异常，异常原因：字段推演异常";
 
     /**
      * 数据校验检测：（若任务中有处理节点则不进行校验）
@@ -137,6 +137,6 @@ public class DagOutputTemplate {
      * 【INFO】 2022-05-24 21:05:22  【任务A】【节点名称】【数据校验检测】：支持数据校验，其中支持校验表数量为20张，不支持校验表数量为0张
      * 【INFO】 2022-05-24 21:05:22  【任务A】【数据校验检测】：该连接不支持数据校验
      */
-    public static String DATA_INSPECT_INFO = " {0} 【$taskName】【数据校验检测】：支持数据校验，其中支持校验表数量为20张，不支持校验表数量为0张";
-    public static String DATA_INSPECT_ERROR = " {0} 【$taskName】【数据校验检测】：该连接不支持数据校验";
+    public static String DATA_INSPECT_INFO = "$date【$taskName】【数据校验检测】：支持数据校验，其中支持校验表数量为20张，不支持校验表数量为0张";
+    public static String DATA_INSPECT_ERROR = "$date【$taskName】【数据校验检测】：该连接不支持数据校验";
 }

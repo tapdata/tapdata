@@ -1,5 +1,6 @@
 package com.tapdata.tm.commons.schema;
 
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableMultimap;
 import com.google.common.collect.Lists;
 import com.tapdata.tm.commons.base.dto.BaseDto;
@@ -269,7 +270,7 @@ public class DataSourceConnectionDto extends BaseDto {
 
         private String connectionString;
 
-        private ImmutableMultimap<String, Object> extParam;
+        private ImmutableMap<String, Object> extParam;
 
         /**
          * 后续 开放可以多选 flow engine 的话，这里一定要删除

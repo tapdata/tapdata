@@ -817,7 +817,7 @@ public class DAGService implements DAGDataService {
 
         // add transformer task log
         taskDagCheckLogService.createLog(taskId, null, Level.INFO.getValue(), DagOutputTemplateEnum.MODEL_PROCESS_CHECK,
-                true, DateUtil.now(), transformer.getFinished(), transformer.getTotal());
+                false, true, DateUtil.now(), transformer.getFinished(), transformer.getTotal());
 
         metadataTransformerService.save(transformer);
     }
