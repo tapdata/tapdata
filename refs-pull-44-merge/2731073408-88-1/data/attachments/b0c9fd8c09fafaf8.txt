@@ -1,0 +1,5 @@
+[1;34mtapdata, [0m2022-07-25 09:02:59: job [1;32mfilter_column_sync_ugvbl[0m start running ...                                                                                  
+[1;34mtapdata, [0m2022-07-25 09:02:59: job [1;32mfilter_column_sync_ugvbl[0m status is: [1;32medit[0m                                                                         
+[1;34mtapdata, [0m2022-07-25 09:03:00: job [1;32mfilter_column_sync_ugvbl[0m status is: [1;32mrunning[0m                                                                      
+[1;34mtapdata, [0m2022-07-25 09:03:00: the status is running now, this is 1 times, 5 times remaining                                                                              
+[1;34mtapdata, [0m2022-07-25 09:03:00: job [1;32mfilter_column_sync_ugvbl[0m status is: [1;32mrunning[0m                                                                      
