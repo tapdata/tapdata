@@ -65,8 +65,8 @@ public class HazelcastMergeNode extends HazelcastProcessorBaseNode {
 	}
 
 	@Override
-	protected void init(@NotNull Context context) throws Exception {
-		super.init(context);
+	protected void doInit(@NotNull Context context) throws Exception {
+		super.doInit(context);
 		initMergeTableProperties(null);
 		initLookupMergeProperties();
 		initMergeCache();

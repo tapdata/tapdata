@@ -122,11 +122,9 @@ public class DummyConnector extends ConnectorBase {
     private void supportBatchRead(TapConnectorContext connectorContext, TapTable table, Object offsetState, int eventBatchSize, BiConsumer<List<TapEvent>, Object> eventConsumer) throws Throwable {
         TapLogger.info(TAG, "start {} batch read", table.getName());
 
-        try {
-            // Generate specified amount of data
-            builder.reset(offsetState, SyncStage.Initial);
-            IBatchConsumer<TapEvent> batchConsumer = IBatchConsumer.getInstance(eventBatchSize, (t) -> eventConsumer.accept(t, builder.getOffset()));
-
+        // Generate specified amount of data
+        builder.reset(offsetState, SyncStage.Initial);
+        try (IBatchConsumer<TapEvent> batchConsumer = IBatchConsumer.getInstance(eventBatchSize, config.getBatchTimeouts(), (t) -> eventConsumer.accept(t, builder.getOffset()))) {
             // generate insert record event
             TapInsertRecordEvent tapInsertRecordEvent;
             Long initialTotals = config.getInitialTotals();
@@ -134,11 +132,8 @@ public class DummyConnector extends ConnectorBase {
                 tapInsertRecordEvent = builder.generateInsertRecordEvent(table);
                 batchConsumer.accept(tapInsertRecordEvent);
             }
-            // Push data that has not been pushed yet
-            batchConsumer.flush();
-        } finally {
-            TapLogger.info(TAG, "compile {} batch read", table.getName());
         }
+        TapLogger.info(TAG, "compile {} batch read", table.getName());
     }
 
     private void supportStreamRead(TapConnectorContext connectorContext, List<String> tableList, Object offsetState, int eventBatchSize, StreamReadConsumer eventConsumer) throws Throwable {
@@ -148,14 +143,12 @@ public class DummyConnector extends ConnectorBase {
         Integer incrementalIntervalTotals = config.getIncrementalIntervalTotals();
         Set<RecordOperators> operators = config.getIncrementalTypes();
 
-        try {
-            TapTable table;
-            Map<String, Object> insertAfter;
-            TapInsertRecordEvent insertRecordEvent;
-            builder.reset(offsetState, SyncStage.Incremental);
-            IRate rate = IRate.getInstance(incrementalInterval, incrementalIntervalTotals);
-            IBatchConsumer<TapEvent> batchConsumer = IBatchConsumer.getInstance(eventBatchSize, (t) -> eventConsumer.accept(t, builder.getOffset()));
-
+        TapTable table;
+        Map<String, Object> insertAfter;
+        TapInsertRecordEvent insertRecordEvent;
+        builder.reset(offsetState, SyncStage.Incremental);
+        IRate rate = IRate.getInstance(incrementalInterval, incrementalIntervalTotals);
+        try (IBatchConsumer<TapEvent> batchConsumer = IBatchConsumer.getInstance(eventBatchSize, config.getBatchTimeouts(), (t) -> eventConsumer.accept(t, builder.getOffset()))) {
             while (isAlive()) {
                 for (String tableName : tableList) {
                     table = schemas.get(tableName);
@@ -181,10 +174,8 @@ public class DummyConnector extends ConnectorBase {
                     }
                 }
             }
-            batchConsumer.flush();
-        } finally {
-            TapLogger.info(TAG, "compile {} batch read", tableList);
         }
+        TapLogger.info(TAG, "compile {} batch read", tableList);
     }
 
     private Object supportTimestampToStreamOffset(TapConnectorContext connectorContext, Long offsetStartTime) throws Throwable {

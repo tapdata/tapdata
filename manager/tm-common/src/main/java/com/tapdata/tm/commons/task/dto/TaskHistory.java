@@ -8,6 +8,5 @@ import java.util.Date;
 @EqualsAndHashCode(callSuper = true)
 @Data
 public class TaskHistory extends SubTaskDto {
-    private Date versionTime;
     private String taskId;
 }

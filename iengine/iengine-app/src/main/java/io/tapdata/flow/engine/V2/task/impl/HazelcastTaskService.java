@@ -30,13 +30,12 @@ import com.tapdata.tm.commons.dag.process.MergeTableNode;
 import com.tapdata.tm.commons.dag.process.MigrateFieldRenameProcessorNode;
 import com.tapdata.tm.commons.dag.process.TableRenameProcessNode;
 import com.tapdata.tm.commons.task.dto.SubTaskDto;
+import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.aspect.TaskStartAspect;
 import io.tapdata.common.SettingService;
 import io.tapdata.common.sharecdc.ShareCdcUtil;
 import io.tapdata.dao.MessageDao;
-import io.tapdata.entity.aspect.AspectManager;
 import io.tapdata.entity.schema.TapTable;
-import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.flow.engine.V2.common.node.NodeTypeEnum;
 import io.tapdata.flow.engine.V2.exception.node.NodeException;
 import io.tapdata.flow.engine.V2.node.hazelcast.HazelcastBaseNode;
@@ -69,6 +68,7 @@ import org.springframework.stereotype.Service;
 
 import javax.annotation.PostConstruct;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import static org.springframework.data.mongodb.core.query.Criteria.where;
@@ -120,14 +120,13 @@ public class HazelcastTaskService implements TaskService<SubTaskDto> {
 
 	@Override
 	public TaskClient<SubTaskDto> startTask(SubTaskDto subTaskDto) {
-
 		final JetDag jetDag = task2HazelcastDAG(subTaskDto);
 		MilestoneFlowServiceJetV2 milestoneFlowServiceJetV2 = initMilestone(subTaskDto);
 
 		JobConfig jobConfig = new JobConfig();
 		jobConfig.setName(subTaskDto.getName() + "-" + subTaskDto.getId().toHexString());
 		jobConfig.setProcessingGuarantee(ProcessingGuarantee.AT_LEAST_ONCE);
-		InstanceFactory.instance(AspectManager.class).executeAspect(new TaskStartAspect().task(subTaskDto));
+		AspectUtils.executeAspect(new TaskStartAspect().task(subTaskDto));
 		final Job job = hazelcastInstance.getJet().newJob(jetDag.getDag(), jobConfig);
 		return new HazelcastTaskClient(job, subTaskDto, clientMongoOperator, configurationCenter, hazelcastInstance, milestoneFlowServiceJetV2);
 	}
@@ -151,9 +150,22 @@ public class HazelcastTaskService implements TaskService<SubTaskDto> {
 	private JetDag task2HazelcastDAG(SubTaskDto subTaskDto) {
 
 		DAG dag = new DAG();
+		AtomicReference<SubTaskDto> subTaskDtoAtomicReference = new AtomicReference<>(subTaskDto);
 
-		final List<Node> nodes = subTaskDto.getDag().getNodes();
-		final List<Edge> edges = subTaskDto.getDag().getEdges();
+		Long tmCurrentTime = subTaskDtoAtomicReference.get().getTmCurrentTime();
+		if (null != tmCurrentTime && tmCurrentTime.compareTo(0L) > 0) {
+			Map<String, Object> params = new HashMap<>();
+			params.put("id", subTaskDto.getId().toHexString());
+			params.put("time", tmCurrentTime);
+			clientMongoOperator.deleteByMap(params, ConnectorConstant.SUB_TASK_COLLECTION + "/history");
+			subTaskDtoAtomicReference.set(clientMongoOperator.findOne(params, ConnectorConstant.SUB_TASK_COLLECTION + "/history", SubTaskDto.class));
+			if (null == subTaskDtoAtomicReference.get()) {
+				throw new RuntimeException("Get task history failed, param: " + params + ", result is null");
+			}
+		}
+
+		final List<Node> nodes = subTaskDtoAtomicReference.get().getDag().getNodes();
+		final List<Edge> edges = subTaskDtoAtomicReference.get().getDag().getEdges();
 		Map<String, Vertex> vertexMap = new HashMap<>();
 		Map<String, AbstractProcessor> hazelcastBaseNodeMap = new HashMap<>();
 		Map<String, AbstractProcessor> typeConvertMap = new HashMap<>();
@@ -168,14 +180,14 @@ public class HazelcastTaskService implements TaskService<SubTaskDto> {
 			for (Node node : nodes) {
 				Connections connection = null;
 				DatabaseTypeEnum.DatabaseType databaseType = null;
-				TapTableMap<String, TapTable> tapTableMap = TapTableUtil.getTapTableMapByNodeId(node.getId());
+				TapTableMap<String, TapTable> tapTableMap = TapTableUtil.getTapTableMapByNodeId(node.getId(), tmCurrentTime);
 				if (CollectionUtils.isEmpty(tapTableMap.keySet())
 						&& !(node instanceof CacheNode)
 						&& !(node instanceof HazelCastImdgNode)
 						&& !(node instanceof TableRenameProcessNode)
 						&& !(node instanceof MigrateFieldRenameProcessorNode)
 						&& !(node instanceof VirtualTargetNode)
-						&& !subTaskDto.isTransformTask()) {
+						&& !subTaskDtoAtomicReference.get().isTransformTask()) {
 					throw new NodeException(String.format("Node [id %s, name %s] schema cannot be empty",
 							node.getId(), node.getName()));
 				}
@@ -201,7 +213,7 @@ public class HazelcastTaskService implements TaskService<SubTaskDto> {
 							connection = getConnection(((TableNode) sourceNode).getConnectionId());
 						}
 					}
-					messageDao.registerCache((CacheNode) node, (TableNode) sourceNode, connection, subTaskDto, clientMongoOperator);
+					messageDao.registerCache((CacheNode) node, (TableNode) sourceNode, connection, subTaskDtoAtomicReference.get(), clientMongoOperator);
 				}
 				List<Node> predecessors = node.predecessors();
 				List<Node> successors = node.successors();
@@ -210,9 +222,9 @@ public class HazelcastTaskService implements TaskService<SubTaskDto> {
 
 				Vertex vertex = new Vertex(NodeUtil.getVertexName(node), () -> {
 					try {
-						Log4jUtil.setThreadContext(subTaskDto);
+						Log4jUtil.setThreadContext(subTaskDtoAtomicReference.get());
 						return createNode(
-								subTaskDto,
+								subTaskDtoAtomicReference.get(),
 								nodes,
 								edges,
 								node,

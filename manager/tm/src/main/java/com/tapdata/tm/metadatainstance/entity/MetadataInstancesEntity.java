@@ -95,6 +95,8 @@ public class MetadataInstancesEntity extends BaseEntity {
     protected String pdkGroup;
     protected String pdkVersion;
 
+    private Long tmCurrentTime;
+
     /**
      * 是否是虚拟表 'virtual' 'source'
      */

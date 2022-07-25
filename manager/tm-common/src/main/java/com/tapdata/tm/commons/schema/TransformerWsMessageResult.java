@@ -12,8 +12,10 @@ import java.util.Map;
 public class TransformerWsMessageResult {
 
     private List<MetadataInstancesDto> batchInsertMetaDataList;
+    private List<String> batchRemoveMetaDataList;
     private Map<String, MetadataInstancesDto> batchMetadataUpdateMap;
     private List<MetadataTransformerItemDto> upsertItems;
     private List<MetadataTransformerDto> upsertTransformer;
     private Map<String, List<Message>> transformSchema;
+    private String taskId;
 }

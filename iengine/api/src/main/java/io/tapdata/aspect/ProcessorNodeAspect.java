@@ -6,7 +6,7 @@ import io.tapdata.entity.aspect.Aspect;
 public abstract class ProcessorNodeAspect<T extends ProcessorNodeAspect<?>> extends Aspect {
 	private ProcessorBaseContext processorBaseContext;
 
-	T processorBaseContext(ProcessorBaseContext processorBaseContext) {
+	public T processorBaseContext(ProcessorBaseContext processorBaseContext) {
 		this.processorBaseContext = processorBaseContext;
 		return (T) this;
 	}

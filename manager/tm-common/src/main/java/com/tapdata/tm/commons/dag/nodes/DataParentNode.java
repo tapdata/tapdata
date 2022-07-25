@@ -155,8 +155,23 @@ public abstract class DataParentNode<S> extends Node<S> {
     }
 
 
-    protected List<Field> transformFields(List<String> inputFields, Schema s) {
+    protected List<Field> transformFields(List<String> inputFields, Schema s, List<String> inputFieldOriginalNames) {
         List<Field> fields = s.getFields();
+
+        if (CollectionUtils.isNotEmpty(inputFieldOriginalNames)) {
+            LinkedList<Node> preNodes = getDag().nodeMap().get(this.getId());
+            if (CollectionUtils.isNotEmpty(preNodes) && preNodes.stream().anyMatch(n -> n instanceof MigrateFieldRenameProcessorNode)) {
+                Iterator<Field> iterator = fields.iterator();
+                while (iterator.hasNext()) {
+                    Field field = iterator.next();
+                    String originalFieldName = field.getOriginalFieldName();
+                    if (!inputFieldOriginalNames.contains(originalFieldName)) {
+                        iterator.remove();
+                    }
+                }
+            }
+        }
+
         List<Node<S>> predecessors = super.predecessors();
         List<FieldProcess> _fieldProcess = null;
         if(predecessors != null && predecessors.size() > 0) {
@@ -168,7 +183,6 @@ public abstract class DataParentNode<S> extends Node<S> {
                 return null;
             }).filter(Objects::nonNull).flatMap(Collection::stream).collect(Collectors.toList());
         }
-
 
         fieldNameReduction(inputFields, fields, fieldsNameTransform);
 
@@ -210,5 +224,13 @@ public abstract class DataParentNode<S> extends Node<S> {
 
         fieldNameUpLow(inputFields, fields, fieldsNameTransform);
         return fields;
+    }
+
+    private void removeField(List<String> inputFields, List<Field> fields) {
+        Iterator<Field> iterator = fields.iterator();
+        while (iterator.hasNext()) {
+            Field field = iterator.next();
+
+        }
     }
 }

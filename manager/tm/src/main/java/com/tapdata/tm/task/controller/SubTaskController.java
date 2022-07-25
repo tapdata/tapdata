@@ -18,8 +18,6 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.enums.ParameterIn;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import io.tapdata.entity.event.ddl.table.TapFieldBaseEvent;
-import io.tapdata.entity.schema.TapField;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
@@ -27,7 +25,6 @@ import org.bson.Document;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -502,10 +499,15 @@ public class SubTaskController extends BaseController {
 
 
     @GetMapping("history")
-    public ResponseMessage<SubTaskDto> queryHistory(@RequestParam("id") String id, @RequestParam("time") Date time,
-                                                    @RequestParam(value = "order", defaultValue = "true", required = false) Boolean order) {
-        SubTaskDto subTaskDto  = subTaskService.findByVersionTime(id, time, order);
+    public ResponseMessage<SubTaskDto> queryHistory(@RequestParam("id") String id, @RequestParam("time") Long time) {
+        SubTaskDto subTaskDto  = subTaskService.findByVersionTime(id, time);
         return success(subTaskDto);
+    }
+
+    @DeleteMapping("history")
+    public ResponseMessage<SubTaskDto> cleanHistory(@RequestParam("id") String id, @RequestParam("time") Long time) {
+        subTaskService.clean(id, time);
+        return success();
     }
 
 

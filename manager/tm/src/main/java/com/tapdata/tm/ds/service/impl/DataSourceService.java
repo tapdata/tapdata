@@ -73,6 +73,7 @@ import org.bson.Document;
 import org.bson.types.ObjectId;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
@@ -1456,9 +1457,16 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 
 	}
 
-	public List<TaskDto> findTaskByConnectionId(String connectionId, UserDetail userDetail) {
+	public Long countTaskByConnectionId(String connectionId, UserDetail userDetail) {
 		Query query = new Query(Criteria.where("dag.nodes.connectionId").is(connectionId).and("is_deleted").ne(true));
 		query.fields().include("_id", "name", "syncType");
+		return taskService.count(query, userDetail);
+	}
+	public List<TaskDto> findTaskByConnectionId(String connectionId, int limit, UserDetail userDetail) {
+		Query query = new Query(Criteria.where("dag.nodes.connectionId").is(connectionId).and("is_deleted").ne(true));
+		query.fields().include("_id", "name", "syncType");
+		query.limit(limit);
+		query.with(Sort.by(Sort.Direction.ASC, "_id"));
 		return taskService.findAllDto(query, userDetail);
 	}
 }

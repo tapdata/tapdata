@@ -473,13 +473,19 @@ public class DataSourceController extends BaseController {
     }
 
     @Operation(summary = "Find tasks referencing the current connection")
-    @GetMapping("task/{id}")
-    public ResponseMessage<List<Document>> findTaskByConnectionId(@PathVariable("id") String connectionId) {
-        List<TaskDto> taskList = dataSourceService.findTaskByConnectionId(connectionId, getLoginUser());
-        List<Document> result = taskList.stream()
-                .map(task-> new Document("id", task.getId().toHexString())
-                .append("name", task.getName())
-                .append("syncType", task.getSyncType())).collect(Collectors.toList());
+    @GetMapping("task/{id}/{limit}")
+    public ResponseMessage<Map<String, Object>> findTaskByConnectionId(@PathVariable("id") String connectionId, @PathVariable("limit") int limit) {
+        UserDetail loginUser = getLoginUser();
+        Long total = dataSourceService.countTaskByConnectionId(connectionId, loginUser);
+        List<TaskDto> taskList = dataSourceService.findTaskByConnectionId(connectionId, limit, loginUser);
+        List<Document> items = taskList.stream()
+                .map(task -> new Document("id", task.getId().toHexString())
+                        .append("name", task.getName())
+                        .append("syncType", task.getSyncType())).collect(Collectors.toList());
+        Map<String, Object> result = new HashMap<String, Object>() {{
+            put("items", items);
+            put("total", total);
+        }};
         return success(result);
     }
 

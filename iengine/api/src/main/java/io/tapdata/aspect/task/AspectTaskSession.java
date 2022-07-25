@@ -7,6 +7,8 @@ import java.lang.annotation.*;
 @Documented
 public @interface AspectTaskSession {
 	String value() default "default";
+	String[] includeTypes() default "";
+	String[] excludeTypes() default "";
 
 	int order() default Integer.MAX_VALUE;
 }

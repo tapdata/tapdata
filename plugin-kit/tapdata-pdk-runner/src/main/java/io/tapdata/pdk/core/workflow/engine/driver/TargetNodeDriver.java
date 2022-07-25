@@ -57,7 +57,6 @@ public class TargetNodeDriver extends Driver implements ListHandler<List<TapEven
     private KVMap<TapTable> tableKVMap;
     private ClassHandlers classHandlers = new ClassHandlers();
     private Map<String, String> tableIdAssociateIdToTableIdMap = new ConcurrentHashMap<>();
-    private Map<String, TableTapEventHandler> tableIdTapEventHandlerMap = new ConcurrentHashMap<>();
     public TargetNodeDriver() {
         classHandlers.register(TapCreateTableEvent.class, this::handleCreateTableEvent);
 //        classHandlers.register(TapAlterTableEvent.class, this::handleAlterTableEvent);

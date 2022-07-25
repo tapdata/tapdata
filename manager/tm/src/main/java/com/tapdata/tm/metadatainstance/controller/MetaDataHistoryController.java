@@ -7,7 +7,6 @@ import com.tapdata.tm.metadatainstance.service.MetaDataHistoryService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.Date;
 
 @RestController
 @RequestMapping("api/metadata/history")
@@ -25,13 +24,11 @@ public class MetaDataHistoryController extends BaseController {
      *
      * @param qualifiedName 唯一名称
      * @param time 最近时间戳
-     * @param order true 所传时间戳之前第一条数据   false 所传时间之后第一条数据
      * @return
      */
     @GetMapping()
-    public ResponseMessage<?> findByVersionTime(@RequestParam("qualifiedName") String qualifiedName, @RequestParam("time") Date time,
-                                                @RequestParam(value = "order", defaultValue = "true", required = false) Boolean order) {
-        MetadataInstancesDto metadataInstancesDto = metaDataHistoryService.findByVersionTime(qualifiedName, time, order);
+    public ResponseMessage<?> findByVersionTime(@RequestParam("qualifiedName") String qualifiedName, @RequestParam("time") Long time) {
+        MetadataInstancesDto metadataInstancesDto = metaDataHistoryService.findByVersionTime(qualifiedName, time, getLoginUser());
         return success(metadataInstancesDto);
     }
 }
