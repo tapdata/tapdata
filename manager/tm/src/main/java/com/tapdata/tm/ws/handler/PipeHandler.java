@@ -49,23 +49,24 @@ public class PipeHandler implements WebSocketHandler {
 		try {
 			Object result = data.get("result");
 			JSONObject jsonObject = JSON.parseObject(JSON.toJSONString(result));
-			JSONObject extParam = jsonObject.getJSONObject("extParam");
-			if (Objects.nonNull(extParam ) && "testConnectionResult".equals(data.get("type").toString())) {
-				String taskId = extParam.getString("taskId");
-				String templateEnum = extParam.getString("templateEnum");
-				String userId = extParam.getString("userId");
+			if (Objects.nonNull(jsonObject)) {
+				JSONObject extParam = jsonObject.getJSONObject("extParam");
+				if (Objects.nonNull(extParam ) && "testConnectionResult".equals(data.get("type").toString())) {
+					String taskId = extParam.getString("taskId");
+					String templateEnum = extParam.getString("templateEnum");
+					String userId = extParam.getString("userId");
 
-				if (org.apache.commons.lang3.StringUtils.isNotBlank(templateEnum)) {
-					JSONObject responseBody = jsonObject.getJSONObject("response_body");
-					JSONArray validateDetails = responseBody.getJSONArray("validate_details");
+					if (org.apache.commons.lang3.StringUtils.isNotBlank(templateEnum)) {
+						JSONObject responseBody = jsonObject.getJSONObject("response_body");
+						JSONArray validateDetails = responseBody.getJSONArray("validate_details");
 
-					String grade = ("passed").equals(validateDetails.getJSONObject(0).getString("status")) ?
-							Level.INFO.getValue() : Level.ERROR.getValue();
+						String grade = ("passed").equals(validateDetails.getJSONObject(0).getString("status")) ?
+								Level.INFO.getValue() : Level.ERROR.getValue();
 
-					taskDagCheckLogService.createLog(taskId, userId, grade, DagOutputTemplateEnum.valueOf(templateEnum),
-							true, true, DateUtil.now(), jsonObject.getJSONObject("response_body").toJSONString());
+						taskDagCheckLogService.createLog(taskId, userId, grade, DagOutputTemplateEnum.valueOf(templateEnum),
+								true, true, DateUtil.now(), jsonObject.getJSONObject("response_body").toJSONString());
+					}
 				}
-
 			}
 		} catch (Exception e) {
 			log.error("PipeHandler handleMessage response body error", e);
