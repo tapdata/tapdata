@@ -17,6 +17,8 @@ import com.tapdata.tm.commons.task.dto.Message;
 import com.tapdata.tm.commons.task.dto.SubTaskDto;
 import com.tapdata.tm.commons.util.Loader;
 import io.github.openlg.graphlib.Graph;
+import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
+import io.tapdata.entity.event.ddl.table.TapDropTableEvent;
 import lombok.*;
 import io.tapdata.entity.event.ddl.TapDDLEvent;
 import org.apache.commons.collections4.CollectionUtils;
@@ -24,6 +26,7 @@ import org.apache.commons.lang3.math.NumberUtils;
 import org.bson.types.ObjectId;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.config.BeanDefinition;
 import org.springframework.context.annotation.ClassPathScanningCandidateComponentProvider;
 import org.springframework.core.type.filter.AnnotationTypeFilter;
@@ -950,6 +953,17 @@ public class DAG implements Serializable, Cloneable {
         Node node = this.getNode(nodeId);
         List<Node> results = new ArrayList<>();
         results.add(node);
+
+        if (event instanceof TapCreateTableEvent || event instanceof TapDropTableEvent) {
+            if (node instanceof DatabaseNode) {
+                node.fieldDdlEvent(event);
+                Dag dag = toDag();
+                DAG newDag = build(dag);
+                BeanUtils.copyProperties(newDag, this);
+            } else {
+                return;
+            }
+        }
 
         //递归找到所有需要ddl处理的节点
         List<Node> successors = node.successors();

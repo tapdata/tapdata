@@ -47,6 +47,7 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
     private final Map<String, MetadataInstancesDto> batchMetadataUpdateMap = new LinkedHashMap<>();
 
     private final List<MetadataInstancesDto> batchInsertMetaDataList = new ArrayList<>();
+    private final List<String> batchRemoveMetaDataList = new ArrayList<>();
 
 
     private final List<MetadataTransformerItemDto> upsertItems = new ArrayList<>();
@@ -95,6 +96,17 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
         if (!"database".equals(metadataInstancesDto.getMetaType()) && metadataInstancesDto.getSource() != null && !metadataInstancesDto.getQualifiedName().startsWith("PN")) {
             metadataMap.put(metadataInstancesDto.getSource().get_id() + metadataInstancesDto.getName(), metadataInstancesDto);
         }
+    }
+
+    private void deleteMetaDataMap(String qualifiedName) {
+        MetadataInstancesDto metadataInstancesDto = metadataMap.get(qualifiedName);
+        if (metadataInstancesDto.getId() != null) {
+            metadataMap.remove(metadataInstancesDto.getId().toHexString());
+        }
+        if (!"database".equals(metadataInstancesDto.getMetaType()) && metadataInstancesDto.getSource() != null) {
+            metadataMap.remove(metadataInstancesDto.getSource().get_id() + metadataInstancesDto.getName());
+        }
+        metadataMap.remove(qualifiedName);
     }
 
     private Schema convertToSchema(MetadataInstancesDto metadataInstances) {
@@ -949,5 +961,46 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
         metadataInstancesDto.setIndices(metadataInstancesDto1.getIndices());
 
         setMetaDataMap(metadataInstancesDto);
+    }
+
+    public void createNewTable(String connectionId, TapTable tapTable) {
+        DataSourceConnectionDto connectionDto = dataSourceMap.get(connectionId);
+        if (connectionDto == null) {
+            return;
+        }
+
+        DataSourceDefinitionDto definitionDto = definitionDtoMap.get(connectionDto.getDatabase_type());
+        if (definitionDto != null) {
+            String expression = definitionDto.getExpression();
+            Map<Class<?>, String> tapMap = definitionDto.getTapMap();
+            PdkSchemaConvert.tableFieldTypesGenerator.autoFill(tapTable.getNameFieldMap() == null ? new LinkedHashMap<>() : tapTable.getNameFieldMap(), DefaultExpressionMatchingMap.map(expression));
+            LinkedHashMap<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
+            TapCodecsFilterManager codecsFilterManager = TapCodecsFilterManager.create(TapCodecsRegistry.create().withTapTypeDataTypeMap(tapMap));
+            TapResult<LinkedHashMap<String, TapField>> convert = PdkSchemaConvert.targetTypesGenerator.convert(nameFieldMap
+                    , DefaultExpressionMatchingMap.map(expression), codecsFilterManager);
+            LinkedHashMap<String, TapField> data = convert.getData();
+
+            data.forEach((k, v) -> {
+                TapField tapField = nameFieldMap.get(k);
+                BeanUtils.copyProperties(v, tapField);
+            });
+            tapTable.setNameFieldMap(nameFieldMap);
+        }
+        MetadataInstancesDto metadataInstancesDto1 = PdkSchemaConvert.fromPdk(tapTable);
+
+        if (CollectionUtils.isNotEmpty(metadataInstancesDto1.getFields())) {
+
+            for (Field field : metadataInstancesDto1.getFields()) {
+                    field.setSourceDbType(connectionDto.getDatabase_type());
+                    field.setId(ObjectId.get().toHexString());
+                }
+
+        }
+        setMetaDataMap(metadataInstancesDto1);
+    }
+
+    public void dropTable(String qualifiedName) {
+        batchRemoveMetaDataList.add(qualifiedName);
+        deleteMetaDataMap(qualifiedName);
     }
 }

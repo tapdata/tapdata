@@ -262,6 +262,12 @@ public class TransformSchemaService {
 
         metadataInstancesService.bulkSave(result.getBatchInsertMetaDataList(), result.getBatchMetadataUpdateMap(), user, saveHistory, result.getTaskId());
 
+        if (CollectionUtils.isNotEmpty(result.getBatchRemoveMetaDataList())) {
+            Criteria criteria = Criteria.where("qualified_name").in(result.getBatchRemoveMetaDataList());
+            Query query = new Query(criteria);
+            metadataInstancesService.deleteAll(query, user);
+        }
+
         if (CollectionUtils.isNotEmpty(result.getUpsertItems())) {
             metadataTransformerItemService.bulkUpsert(result.getUpsertItems());
             MetadataTransformerItemDto itemDto = result.getUpsertItems().get(0);
