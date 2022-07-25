@@ -312,6 +312,35 @@ public class RestTemplateOperator {
 		}
 	}
 
+	public void delete(String resource, Map<String, Object> params) {
+		String baseURL = this.baseURL;
+		int baseURLChangeTime = 0;
+		Exception exception = null;
+
+		setRetryTime();
+		String url = null;
+		while (baseURLChangeTime < size) {
+			int retry = 0;
+			while (retry <= retryTime) {
+				try {
+					url = url(baseURL, resource);
+					url = queryString(url, params).toString();
+					restTemplate.delete(url, params);
+					return;
+				} catch (Exception e) {
+					retry++;
+					exception = retryExceptionHandle(e, url, HttpMethod.DELETE.name(), params, null);
+				}
+			}
+			baseURL = changeBaseURLToNext(baseURL);
+			baseURLChangeTime++;
+		}
+
+		if (exception != null) {
+			throw new ManagementException(String.format(TapLog.ERROR_0006.getMsg(), exception.getMessage()), exception);
+		}
+	}
+
 	public void deleteAll(String resource, String operation, Map<String, Object> params) {
 		String baseURL = this.baseURL;
 		int baseURLChangeTime = 0;

@@ -24,6 +24,11 @@ public class TapTableUtil {
 
 	public static TapTableMap<String, TapTable> getTapTableMapByNodeId(String nodeId) {
 		Map<String, String> tableNameQualifiedNameMap = getTableNameQualifiedNameMap(nodeId);
-		return TapTableMap.createNew(nodeId, tableNameQualifiedNameMap);
+		return TapTableMap.create(nodeId, tableNameQualifiedNameMap);
+	}
+
+	public static TapTableMap<String, TapTable> getTapTableMapByNodeId(String nodeId, Long time) {
+		Map<String, String> tableNameQualifiedNameMap = getTableNameQualifiedNameMap(nodeId);
+		return TapTableMap.create(nodeId, tableNameQualifiedNameMap);
 	}
 }
