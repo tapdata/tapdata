@@ -229,7 +229,7 @@ public class TaskNodeServiceImpl implements TaskNodeService {
         Dag build = dtoDag.toDag();
         build = JsonUtil.parseJsonUseJackson(JsonUtil.toJsonUseJackson(build), Dag.class);
         List<Node<?>> nodes = dtoDag.nodeMap().get(nodeId);
-
+        nodes.add(dtoDag.getNode(nodeId));
 
         Node<?> target = new VirtualTargetNode();
         target.setId(UUID.randomUUID().toString());

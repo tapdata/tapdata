@@ -191,12 +191,18 @@ public class HazelcastProcessorNode extends HazelcastProcessorBaseNode {
 		switch (nodeType) {
 			case CACHE_LOOKUP_PROCESSOR:
 			case JS_PROCESSOR:
-			case MIGRATE_JS_PROCESSOR:
 				dataFlowProcessor = new ScriptDataFlowProcessor();
 				stage.setType(Stage.StageTypeEnum.SCRIPT_TYPE.getType());
 
 				JsProcessorNode jsProcessorNode = (JsProcessorNode) node;
 				stage.setScript(jsProcessorNode.getScript());
+				break;
+			case MIGRATE_JS_PROCESSOR:
+				dataFlowProcessor = new ScriptDataFlowProcessor();
+				stage.setType(Stage.StageTypeEnum.SCRIPT_TYPE.getType());
+
+				MigrateJsProcessorNode migrateJsProcessorNode = (MigrateJsProcessorNode) node;
+				stage.setScript(migrateJsProcessorNode.getScript());
 				break;
 			case TABLE_RENAME_PROCESSOR:
 				dataFlowProcessor = new TableRenameProcessor((TableRenameProcessNode) node);

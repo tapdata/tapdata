@@ -28,6 +28,7 @@ import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.dag.process.MergeTableNode;
 import com.tapdata.tm.commons.dag.process.MigrateFieldRenameProcessorNode;
+import com.tapdata.tm.commons.dag.process.MigrateJsProcessorNode;
 import com.tapdata.tm.commons.dag.process.TableRenameProcessNode;
 import com.tapdata.tm.commons.task.dto.SubTaskDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
@@ -190,6 +191,7 @@ public class HazelcastTaskService implements TaskService<SubTaskDto> {
 						&& !(node instanceof TableRenameProcessNode)
 						&& !(node instanceof MigrateFieldRenameProcessorNode)
 						&& !(node instanceof VirtualTargetNode)
+						&& !(node instanceof MigrateJsProcessorNode)
 						&& !StringUtils.equalsAnyIgnoreCase(subTaskDto.getParentTask().getSyncType(), TaskDto.SYNC_TYPE_DEDUCE_SCHEMA, TaskDto.SYNC_TYPE_TEST_RUN)) {
 					throw new NodeException(String.format("Node [id %s, name %s] schema cannot be empty",
 							node.getId(), node.getName()));
