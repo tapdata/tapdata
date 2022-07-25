@@ -1,0 +1,16 @@
+[1;34mtapdata, [0m2022-07-25 07:46:30: job [1;32mstats_wljcn[0m start running ...                                                                                               
+[1;34mtapdata, [0m2022-07-25 07:46:30: job [1;32mstats_wljcn[0m status is: [1;32medit[0m                                                                                      
+[1;34mtapdata, [0m2022-07-25 07:46:31: job [1;32mstats_wljcn[0m status is: [1;32mwait_run[0m                                                                                  
+[1;34mtapdata, [0m2022-07-25 07:46:32: the status is wait_run now, this is 1 times, 5 times remaining                                                                             
+[1;34mtapdata, [0m2022-07-25 07:46:32: job [1;32mstats_wljcn[0m status is: [1;32mwait_run[0m                                                                                  
+[1;34mtapdata, [0m2022-07-25 07:46:33: job [1;32mstats_wljcn[0m status is: [1;32mwait_run[0m                                                                                  
+[1;34mtapdata, [0m2022-07-25 07:46:33: the status is wait_run now, this is 2 times, 4 times remaining                                                                             
+[1;34mtapdata, [0m2022-07-25 07:46:33: job [1;32mstats_wljcn[0m status is: [1;32mwait_run[0m                                                                                  
+[1;34mtapdata, [0m2022-07-25 07:46:34: job [1;32mstats_wljcn[0m status is: [1;32mwait_run[0m                                                                                  
+[1;34mtapdata, [0m2022-07-25 07:46:34: the status is wait_run now, this is 3 times, 3 times remaining                                                                             
+[1;34mtapdata, [0m2022-07-25 07:46:34: job [1;32mstats_wljcn[0m status is: [1;32mwait_run[0m                                                                                  
+[1;34mtapdata, [0m2022-07-25 07:46:35: job [1;32mstats_wljcn[0m status is: [1;32mwait_run[0m                                                                                  
+[1;34mtapdata, [0m2022-07-25 07:46:35: the status is wait_run now, this is 4 times, 2 times remaining                                                                             
+[1;34mtapdata, [0m2022-07-25 07:46:35: job [1;32mstats_wljcn[0m status is: [1;32mwait_run[0m                                                                                  
+[1;34mtapdata, [0m2022-07-25 07:46:36: job [1;32mstats_wljcn[0m status is: [1;32mwait_run[0m                                                                                  
+[1;34mtapdata, [0m2022-07-25 07:46:36: the status is wait_run now, this is 5 times, 1 times remaining                                                                             

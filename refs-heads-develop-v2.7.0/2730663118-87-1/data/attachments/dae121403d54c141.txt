@@ -1,0 +1,5 @@
+[1;34mtapdata, [0m2022-07-25 07:46:01: job [1;32mmigrate_lvaxz[0m start running ...                                                                                             
+[1;34mtapdata, [0m2022-07-25 07:46:01: job [1;32mmigrate_lvaxz[0m status is: [1;32medit[0m                                                                                    
+[1;34mtapdata, [0m2022-07-25 07:46:02: job [1;32mmigrate_lvaxz[0m status is: [1;32mwait_run[0m                                                                                
+[1;34mtapdata, [0m2022-07-25 07:46:02: the status is wait_run now, this is 1 times, 5 times remaining                                                                             
+[1;34mtapdata, [0m2022-07-25 07:46:02: job [1;32mmigrate_lvaxz[0m status is: [1;32mwait_run[0m                                                                                
