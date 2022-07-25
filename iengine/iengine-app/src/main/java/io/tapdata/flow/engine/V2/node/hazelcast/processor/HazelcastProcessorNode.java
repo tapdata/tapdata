@@ -41,16 +41,8 @@ public class HazelcastProcessorNode extends HazelcastProcessorBaseNode {
 
 	private DataFlowProcessor dataFlowProcessor;
 
-	/**
-	 * Whether to process data from multiple tables
-	 */
-	private final boolean multipleTables;
-
 	public HazelcastProcessorNode(DataProcessorContext dataProcessorContext) throws Exception {
 		super(dataProcessorContext);
-		//如果为迁移任务、且源节点为数据库类型
-		this.multipleTables = CollectionUtils.isNotEmpty(dataProcessorContext.getSubTaskDto().getDag().getSourceNode())
-						&& TaskDto.SYNC_TYPE_MIGRATE.equals(dataProcessorContext.getSubTaskDto().getParentTask().getSyncType());
 	}
 
 	@Override

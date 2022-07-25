@@ -60,6 +60,7 @@ import io.tapdata.schema.TapTableMap;
 import io.tapdata.schema.TapTableUtil;
 import lombok.SneakyThrows;
 import org.apache.commons.collections.CollectionUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -188,7 +189,7 @@ public class HazelcastTaskService implements TaskService<SubTaskDto> {
 						&& !(node instanceof TableRenameProcessNode)
 						&& !(node instanceof MigrateFieldRenameProcessorNode)
 						&& !(node instanceof VirtualTargetNode)
-						&& !subTaskDtoAtomicReference.get().isTransformTask()) {
+						&& !StringUtils.equalsAnyIgnoreCase(subTaskDto.getParentTask().getSyncType(), TaskDto.SYNC_TYPE_DEDUCE_SCHEMA, TaskDto.SYNC_TYPE_TEST_RUN)) {
 					throw new NodeException(String.format("Node [id %s, name %s] schema cannot be empty",
 							node.getId(), node.getName()));
 				}
@@ -320,7 +321,8 @@ public class HazelcastTaskService implements TaskService<SubTaskDto> {
 										.withDatabaseType(databaseType)
 										.withTapTableMap(tapTableMap)
 										.build();
-						if (TaskDto.SYNC_TYPE_TEST_RUN.equals(subTaskDto.getParentTask().getSyncType()) || subTaskDto.isTransformTask()) {
+						if (StringUtils.equalsAnyIgnoreCase(subTaskDto.getParentTask().getSyncType(),
+										TaskDto.SYNC_TYPE_DEDUCE_SCHEMA, TaskDto.SYNC_TYPE_TEST_RUN)) {
 							hazelcastNode = new HazelcastSampleSourcePdkDataNode(processorContext);
 						} else {
 							hazelcastNode = new HazelcastSourcePdkDataNode(processorContext);
@@ -437,6 +439,8 @@ public class HazelcastTaskService implements TaskService<SubTaskDto> {
 						DataProcessorContext.newBuilder()
 								.withSubTaskDto(subTaskDto)
 								.withNode(node)
+								.withNodes(nodes)
+								.withEdges(edges)
 								.withCacheService(cacheService)
 								.withConfigurationCenter(config)
 								.withTapTableMap(tapTableMap)

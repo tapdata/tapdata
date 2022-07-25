@@ -72,7 +72,8 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 
 	public HazelcastSourcePdkBaseNode(DataProcessorContext dataProcessorContext) {
 		super(dataProcessorContext);
-		if (!dataProcessorContext.getSubTaskDto().isTransformTask()) {
+		if (!StringUtils.equalsAnyIgnoreCase(dataProcessorContext.getSubTaskDto().getParentTask().getSyncType(),
+						TaskDto.SYNC_TYPE_DEDUCE_SCHEMA, TaskDto.SYNC_TYPE_TEST_RUN)) {
 			initMilestoneService(MilestoneContext.VertexType.SOURCE);
 		}
 		// MILESTONE-INIT_CONNECTOR-RUNNING
@@ -91,7 +92,8 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 		}
 		SubTaskDto subTaskDto = dataProcessorContext.getSubTaskDto();
 		syncProgress = initSyncProgress(subTaskDto.getAttrs());
-		if (!subTaskDto.isTransformTask()) {
+		if (!StringUtils.equalsAnyIgnoreCase(subTaskDto.getParentTask().getSyncType(),
+						TaskDto.SYNC_TYPE_DEDUCE_SCHEMA, TaskDto.SYNC_TYPE_TEST_RUN)) {
 			initBatchAndStreamOffset(subTaskDto);
 		}
 		Node<?> node = dataProcessorContext.getNode();
@@ -290,7 +292,8 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 			tapdataEvent.setTapEvent(tapRecordEvent);
 			tapdataEvent.setSyncStage(syncStage);
 			if (SyncStage.INITIAL_SYNC == syncStage) {
-				if (isLast && !dataProcessorContext.getSubTaskDto().isTransformTask()) {
+				if (isLast && !StringUtils.equalsAnyIgnoreCase(dataProcessorContext.getSubTaskDto().getParentTask().getSyncType(),
+								TaskDto.SYNC_TYPE_DEDUCE_SCHEMA, TaskDto.SYNC_TYPE_TEST_RUN)) {
 					Map<String, Object> batchOffsetObj = (Map<String, Object>) syncProgress.getBatchOffsetObj();
 					Map<String, Object> newMap = new HashMap<>();
 					try {
