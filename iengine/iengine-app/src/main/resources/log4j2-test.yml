@@ -1,37 +1,35 @@
-Configutation:
-  name: Default
-
+Configuration:
+  Name: Default
   Properties:
     Property:
-      name: log-path
-      value: "logs"
+      - Name: log-path
+        Value: "${env:TAPDATA_WORK_DIR}/logs"
+      - Name: level
+        Value: INFO
 
   Appenders:
-
     Console:
-      name: Console_Appender
-      target: SYSTEM_OUT
+      Name: consoleAppender
+      Target: SYSTEM_OUT
       PatternLayout:
-        pattern: "[%-5level] %d{yyyy-MM-dd HH:mm:ss.SSS} [%t] %c{1} - %msg%n"
-
+        Pattern: "[%-5level] %d{yyyy-MM-dd HH:mm:ss.SSS} [%t] %c{1} - %msg%n"
+    RollingFile:
+      - Name: rollingFileAppender
+        FileName: ${log-path}/tapdata-iengine.log
+        FilePattern: tapdata-iengine-$${date:yyyyMMdd}.log
+        PatternLayout:
+          Pattern: "[%-5level] %d{yyyy-MM-dd HH:mm:ss.SSS} [%t] %c{1} - %msg%n"
+        Policies:
+          OnStartupTriggeringPolicy:
+            MinSize: 10 MB
+          SizeBasedTriggeringPolicy:
+            Size: 150 MB
+        DefaultRollOverStrategy:
+          Max: 30
 
   Loggers:
-
-#    Root:
-#      level: ${level}
-#      AppenderRef:
-#      - ref: Console_Appender
-#        level: error
-
-    Logger:
-    - name: org.springframework
-      level: error
+    Root:
+      Level: ${level}
       AppenderRef:
-        ref: Console_Appender
-        level: error
-
-#    - name: org.apache.http.wire
-#      level: debug
-#      AppenderRef:
-#        ref: Console_Appender
-#        level: debug
+        - Ref: consoleAppender
+        - Ref: rollingFileAppender

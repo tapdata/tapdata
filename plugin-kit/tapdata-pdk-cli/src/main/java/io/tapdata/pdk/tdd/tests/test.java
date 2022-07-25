@@ -27,9 +27,22 @@ import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 
+import static io.tapdata.entity.simplify.TapSimplify.entry;
+import static io.tapdata.entity.simplify.TapSimplify.map;
+
 public class test {
 	public static void main(String... args) throws Throwable {
         System.out.println("hello");
 //        System.out.println(convertJarFileName("mongodb-connector-v1.0-SNAPSHOT__628daf0716419763bbdce3f1__.jar"));
+		Map<String, Object> obj = map(entry("aa", new Date()),
+				entry("bbb", new byte[]{12, 31})
+//				entry("ccc", new DateTime(new Date()))
+		);
+		JsonParser jsonParser = InstanceFactory.instance(JsonParser.class);
+		String str = jsonParser.toJsonWithClass(obj);
+		System.out.println(str);
+
+		Object objs = jsonParser.fromJson(str);
+
     }
 }

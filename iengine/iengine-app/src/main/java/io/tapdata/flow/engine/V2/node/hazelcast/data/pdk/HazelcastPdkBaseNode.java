@@ -17,7 +17,7 @@ import io.tapdata.entity.schema.TapTable;
 import io.tapdata.flow.engine.V2.entity.PdkStateMap;
 import io.tapdata.flow.engine.V2.monitor.MonitorManager;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.HazelcastDataBaseNode;
-import io.tapdata.flow.engine.V2.node.pdk.ConnectorNodeService;
+import io.tapdata.node.pdk.ConnectorNodeService;
 import io.tapdata.flow.engine.V2.util.PdkUtil;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
 import io.tapdata.pdk.apis.entity.ConnectionOptions;
@@ -85,6 +85,7 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 						connectorCapabilities
 				)
 		);
+		processorBaseContext.setPdkAssociateId(this.associateId);
 	}
 
 	private void initDmlPolicy(Node<?> node, ConnectorCapabilities connectorCapabilities) {
@@ -126,14 +127,14 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 	}
 
 	@Override
-	public void close() throws Exception {
+	public void doClose() throws Exception {
 		if (this.monitorManager != null) {
 			this.monitorManager.close();
 		}
 		Optional.ofNullable(dataProcessorContext.getTapTableMap()).ifPresent(TapTableMap::remove);
 		Optional.ofNullable(getConnectorNode()).ifPresent(node -> PDKIntegration.releaseAssociateId(associateId));
 		ConnectorNodeService.getInstance().removeConnectorNode(associateId);
-		super.close();
+		super.doClose();
 	}
 
 	protected ConnectorNode getConnectorNode() {

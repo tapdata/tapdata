@@ -216,7 +216,7 @@ public class LoadSchemaRunner implements Runnable {
 			DefaultExpressionMatchingMap dataTypesMap = connectionNode.getConnectionContext().getSpecification().getDataTypesMap();
 			List<String> finalTableNameFilterList = tableNameFilterList;
 			PDKInvocationMonitor.invoke(connectionNode, PDKMethod.DISCOVER_SCHEMA,
-					() -> connectionNode.getConnectorNode().discoverSchema(connectionNode.getConnectionContext(), finalTableNameFilterList, BATCH_SIZE, tables -> {
+					() -> connectionNode.getConnector().discoverSchema(connectionNode.getConnectionContext(), finalTableNameFilterList, BATCH_SIZE, tables -> {
 						if (CollectionUtils.isNotEmpty(tables)) {
 							for (TapTable pdkTable : tables) {
 								LinkedHashMap<String, TapField> nameFieldMap = pdkTable.getNameFieldMap();

@@ -12,9 +12,9 @@ import com.tapdata.tm.commons.task.dto.SubTaskDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.common.SettingService;
 import io.tapdata.entity.schema.TapTable;
+import io.tapdata.flow.engine.V2.node.hazelcast.data.HazelcastSchemaTargetNode;
 import io.tapdata.flow.engine.V2.task.TaskClient;
 import io.tapdata.flow.engine.V2.task.TaskService;
-import io.tapdata.schema.SchemaCacheUtil;
 import io.tapdata.websocket.EventHandlerAnnotation;
 import io.tapdata.websocket.WebSocketEventHandler;
 import io.tapdata.websocket.WebSocketEventResult;
@@ -70,7 +70,7 @@ public class DeduceSchemaHandler implements WebSocketEventHandler<WebSocketEvent
 				logger.info("load tapTable task {} {}, cost {}ms", schemaKey, taskClient.getStatus(), (System.currentTimeMillis() - startTs));
 				if (SubTaskDto.STATUS_COMPLETE.equals(taskClient.getStatus())) {
 					//成功
-					TapTable tapTable = SchemaCacheUtil.getTapTable(schemaKey);
+					TapTable tapTable = HazelcastSchemaTargetNode.getTapTable(schemaKey);
 					if (logger.isDebugEnabled()) {
 						logger.debug("derivation results: {}", JSON.toJSONString(tapTable));
 					}
@@ -198,61 +198,4 @@ public class DeduceSchemaHandler implements WebSocketEventHandler<WebSocketEvent
 		}
 	}
 
-	private static class DeduceSchemaResponse {
-
-		private Map<String, Update> batchMetadataUpdateMap;
-		private List<MetadataInstancesDto> batchInsertMetaDataList;
-		private List<MetadataTransformerItemDto> upsertItems;
-		private List<MetadataTransformerDto> upsertTransformer;
-
-		private Map<String, List<Message>> transformSchema;
-
-		public DeduceSchemaResponse(Map<String, Update> batchMetadataUpdateMap, List<MetadataInstancesDto> batchInsertMetaDataList, List<MetadataTransformerItemDto> upsertItems, List<MetadataTransformerDto> upsertTransformer, Map<String, List<Message>> transformSchema) {
-			this.batchMetadataUpdateMap = batchMetadataUpdateMap;
-			this.batchInsertMetaDataList = batchInsertMetaDataList;
-			this.upsertItems = upsertItems;
-			this.upsertTransformer = upsertTransformer;
-			this.transformSchema = transformSchema;
-		}
-
-		public Map<String, Update> getBatchMetadataUpdateMap() {
-			return batchMetadataUpdateMap;
-		}
-
-		public void setBatchMetadataUpdateMap(Map<String, Update> batchMetadataUpdateMap) {
-			this.batchMetadataUpdateMap = batchMetadataUpdateMap;
-		}
-
-		public List<MetadataInstancesDto> getBatchInsertMetaDataList() {
-			return batchInsertMetaDataList;
-		}
-
-		public void setBatchInsertMetaDataList(List<MetadataInstancesDto> batchInsertMetaDataList) {
-			this.batchInsertMetaDataList = batchInsertMetaDataList;
-		}
-
-		public List<MetadataTransformerItemDto> getUpsertItems() {
-			return upsertItems;
-		}
-
-		public void setUpsertItems(List<MetadataTransformerItemDto> upsertItems) {
-			this.upsertItems = upsertItems;
-		}
-
-		public List<MetadataTransformerDto> getUpsertTransformer() {
-			return upsertTransformer;
-		}
-
-		public void setUpsertTransformer(List<MetadataTransformerDto> upsertTransformer) {
-			this.upsertTransformer = upsertTransformer;
-		}
-
-		public Map<String, List<Message>> getTransformSchema() {
-			return transformSchema;
-		}
-
-		public void setTransformSchema(Map<String, List<Message>> transformSchema) {
-			this.transformSchema = transformSchema;
-		}
-	}
 }

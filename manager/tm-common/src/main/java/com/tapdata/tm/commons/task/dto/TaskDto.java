@@ -30,8 +30,13 @@ public class TaskDto extends ParentTaskDto {
     public static final String SYNC_TYPE_MIGRATE = "migrate";
     public static final String SYNC_TYPE_LOG_COLLECTOR = "logCollector";
     public static final String SYNC_TYPE_CONN_HEARTBEAT = "connHeartbeat";
+    /**
+     * 试运行
+     */
+    public static final String SYNC_TYPE_TEST_RUN = "testRun";
 
     public static final String MODELDONE = "modelDone";
+    public static final String MODELING = "modelIng";
 
     /** 任务图*/
     @JsonSerialize( using = DagSerialize.class)

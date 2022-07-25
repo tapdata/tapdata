@@ -30,13 +30,13 @@ import com.tapdata.tm.commons.dag.process.MergeTableNode;
 import com.tapdata.tm.commons.dag.process.MigrateFieldRenameProcessorNode;
 import com.tapdata.tm.commons.dag.process.TableRenameProcessNode;
 import com.tapdata.tm.commons.task.dto.SubTaskDto;
+import com.tapdata.tm.commons.task.dto.TaskDto;
+import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.aspect.TaskStartAspect;
 import io.tapdata.common.SettingService;
 import io.tapdata.common.sharecdc.ShareCdcUtil;
 import io.tapdata.dao.MessageDao;
-import io.tapdata.entity.aspect.AspectManager;
 import io.tapdata.entity.schema.TapTable;
-import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.flow.engine.V2.common.node.NodeTypeEnum;
 import io.tapdata.flow.engine.V2.exception.node.NodeException;
 import io.tapdata.flow.engine.V2.node.hazelcast.HazelcastBaseNode;
@@ -45,6 +45,7 @@ import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.*;
 import io.tapdata.flow.engine.V2.node.hazelcast.processor.HazelcastCustomProcessor;
 import io.tapdata.flow.engine.V2.node.hazelcast.processor.HazelcastMergeNode;
 import io.tapdata.flow.engine.V2.node.hazelcast.processor.HazelcastProcessorNode;
+import io.tapdata.flow.engine.V2.node.hazelcast.processor.aggregation.HazelcastMultiAggregatorProcessor;
 import io.tapdata.flow.engine.V2.node.hazelcast.processor.join.HazelcastJoinProcessor;
 import io.tapdata.flow.engine.V2.task.TaskClient;
 import io.tapdata.flow.engine.V2.task.TaskService;
@@ -127,7 +128,7 @@ public class HazelcastTaskService implements TaskService<SubTaskDto> {
 		JobConfig jobConfig = new JobConfig();
 		jobConfig.setName(subTaskDto.getName() + "-" + subTaskDto.getId().toHexString());
 		jobConfig.setProcessingGuarantee(ProcessingGuarantee.AT_LEAST_ONCE);
-		InstanceFactory.instance(AspectManager.class).executeAspect(new TaskStartAspect().task(subTaskDto));
+		AspectUtils.executeAspect(new TaskStartAspect().task(subTaskDto));
 		final Job job = hazelcastInstance.getJet().newJob(jetDag.getDag(), jobConfig);
 		return new HazelcastTaskClient(job, subTaskDto, clientMongoOperator, configurationCenter, hazelcastInstance, milestoneFlowServiceJetV2);
 	}
@@ -309,8 +310,7 @@ public class HazelcastTaskService implements TaskService<SubTaskDto> {
 					}
 				} else if (CollectionUtils.isNotEmpty(successors)) {
 					if ("pdk".equals(connection.getPdkType())) {
-						hazelcastNode = new HazelcastSourcePdkDataNode(
-								DataProcessorContext.newBuilder()
+						DataProcessorContext processorContext = DataProcessorContext.newBuilder()
 										.withSubTaskDto(subTaskDto)
 										.withNode(node)
 										.withNodes(nodes)
@@ -320,7 +320,12 @@ public class HazelcastTaskService implements TaskService<SubTaskDto> {
 										.withConnectionConfig(connection.getConfig())
 										.withDatabaseType(databaseType)
 										.withTapTableMap(tapTableMap)
-										.build());
+										.build();
+						if (TaskDto.SYNC_TYPE_TEST_RUN.equals(subTaskDto.getParentTask().getSyncType()) || subTaskDto.isTransformTask()) {
+							hazelcastNode = new HazelcastSampleSourcePdkDataNode(processorContext);
+						} else {
+							hazelcastNode = new HazelcastSourcePdkDataNode(processorContext);
+						}
 					} else {
 						hazelcastNode = new HazelcastTaskSource(
 								DataProcessorContext.newBuilder()
@@ -392,17 +397,21 @@ public class HazelcastTaskService implements TaskService<SubTaskDto> {
 				}
 				break;
 			case VIRTUAL_TARGET:
-
-				hazelcastNode = new HazelcastTargetSchemaNode(DataProcessorContext.newBuilder()
-						.withSubTaskDto(subTaskDto)
-						.withNode(node)
-						.withNodes(nodes)
-						.withEdges(edges)
-						.withConfigurationCenter(config)
-						.withTargetConn(connection)
-						.withCacheService(cacheService)
-						.withTapTableMap(tapTableMap)
-						.build());
+				DataProcessorContext processorContext = DataProcessorContext.newBuilder()
+								.withSubTaskDto(subTaskDto)
+								.withNode(node)
+								.withNodes(nodes)
+								.withEdges(edges)
+								.withConfigurationCenter(config)
+								.withTargetConn(connection)
+								.withCacheService(cacheService)
+								.withTapTableMap(tapTableMap)
+								.build();
+				if (TaskDto.SYNC_TYPE_TEST_RUN.equals(subTaskDto.getParentTask().getSyncType())) {
+					hazelcastNode = new HazelcastVirtualTargetNode(processorContext);
+				} else {
+					hazelcastNode = new HazelcastSchemaTargetNode(processorContext);
+				}
 
 				break;
 			case JOIN:
@@ -472,6 +481,18 @@ public class HazelcastTaskService implements TaskService<SubTaskDto> {
 				break;
 			case MERGETABLE:
 				hazelcastNode = new HazelcastMergeNode(
+						DataProcessorContext.newBuilder()
+								.withSubTaskDto(subTaskDto)
+								.withNode(node)
+								.withNodes(nodes)
+								.withEdges(edges)
+								.withConfigurationCenter(config)
+								.withTapTableMap(tapTableMap)
+								.build()
+				);
+				break;
+			case AGGREGATION_PROCESSOR:
+				hazelcastNode = new HazelcastMultiAggregatorProcessor(
 						DataProcessorContext.newBuilder()
 								.withSubTaskDto(subTaskDto)
 								.withNode(node)

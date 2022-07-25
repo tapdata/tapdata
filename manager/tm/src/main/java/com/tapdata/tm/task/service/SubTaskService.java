@@ -96,7 +96,6 @@ public class SubTaskService extends BaseService<SubTaskDto, SubTaskEntity, Objec
     private MessageQueueService messageQueueService;
     private CustomerJobLogsService customerJobLogsService;
     private UserService userService;
-
     private MetadataInstancesService metadataInstancesService;
     private DataSourceService dataSourceService;
 
@@ -1304,7 +1303,7 @@ public class SubTaskService extends BaseService<SubTaskDto, SubTaskEntity, Objec
 
 
         DataSourceConnectionDto heartbeatConnection = null;
-        String heartbeatTable = "tapdata_heartbeat_table_names";
+        String heartbeatTable = "_tapdata_heartbeat_table";
         for (DataSourceConnectionDto dataSource : dataSourceDtos) {
             List<String> connectionIds = getConnectionIds(user, dataSourceCacheByType, dataSource);
             TaskDto oldConnHeartbeatTask = getHeartbeatTaskDto(connectionIds, user);
@@ -1323,14 +1322,16 @@ public class SubTaskService extends BaseService<SubTaskDto, SubTaskEntity, Objec
 
             //循环中只需要获取一次dummy源跟打点模型表
             if (heartbeatConnection == null) {
+                String databaseType = "dummy";
+                String mode = "ConnHeartbeat";
 
-                Criteria criteria2 = Criteria.where("pdkId").is("dummy db");
-                Query query3 = new Query(criteria2);
+                Query query3 = new Query(Criteria.where("pdkId").is(databaseType));
                 query3.fields().include("pdkHash", "type");
                 DataSourceDefinitionDto definitionDto = dataSourceDefinitionService.findOne(query3);
                 //获取打点的Dummy数据源
-                Criteria criteriaCon = Criteria.where("database_type").is("dummy db").and("config.mode").is("Heartbeat");
-                Query query2 = new Query(criteriaCon);
+                Query query2 = new Query(Criteria.where("database_type").is(databaseType)
+                        .and("config.mode").is(mode)
+                );
                 heartbeatConnection = dataSourceService.findOne(query2, user);
 
                 boolean addDummy = false;
@@ -1338,8 +1339,7 @@ public class SubTaskService extends BaseService<SubTaskDto, SubTaskEntity, Objec
                     heartbeatConnection = new DataSourceConnectionDto();
                     heartbeatConnection.setName("tapdata_heartbeat_dummy_connection");
                     LinkedHashMap<String, Object> config = new LinkedHashMap<>();
-                    config.put("mode", "Heartbeat");
-                    config.put("incremental_interval", "1000");
+                    config.put("mode", mode);
 
                     heartbeatConnection.setConfig(config);
                     heartbeatConnection.setConnection_type("source");
@@ -1987,5 +1987,11 @@ public class SubTaskService extends BaseService<SubTaskDto, SubTaskEntity, Objec
         //清理模型
         //MetaDataHistoryService historyService = SpringContextHelper.getBean(MetaDataHistoryService.class);
         historyService.clean(taskId, time);
+    }
+
+    public void updateStatus(ObjectId taskId, String status) {
+        Query query = Query.query(Criteria.where("_id").is(taskId));
+        Update update = Update.update("status", status);
+        update(query, update);
     }
 }

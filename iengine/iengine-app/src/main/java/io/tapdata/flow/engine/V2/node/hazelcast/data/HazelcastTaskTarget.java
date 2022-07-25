@@ -87,7 +87,7 @@ public class HazelcastTaskTarget extends HazelcastBaseNode {
 	}
 
 	@Override
-	protected void init(@Nonnull Context context) throws Exception {
+	protected void doInit(@Nonnull Context context) throws Exception {
 		try {
 			// test the target connection
 			try {
@@ -100,7 +100,7 @@ public class HazelcastTaskTarget extends HazelcastBaseNode {
 			ConfigurationCenter configurationCenter = dataProcessorContext.getConfigurationCenter();
 			Log4jUtil.setThreadContext(subTaskDto);
 			this.running = new AtomicBoolean(true);
-			super.init(context);
+			super.doInit(context);
 
 			Class<?> targetClazz = ClassScanner.getClazzByDatabaseType(dataProcessorContext.getTargetConn().getDatabase_type(), ClassScanner.TARGET);
 			target = (Target) targetClazz.newInstance();
@@ -356,7 +356,7 @@ public class HazelcastTaskTarget extends HazelcastBaseNode {
 	}
 
 	@Override
-	public void close() throws Exception {
+	public void doClose() throws Exception {
 		running.compareAndSet(true, false);
 		Optional.ofNullable(targetContext).ifPresent(context -> context.getJob().setStatus(ConnectorConstant.STOPPING));
 		if (target != null) {
@@ -368,7 +368,7 @@ public class HazelcastTaskTarget extends HazelcastBaseNode {
 		}
 
 		// should call super since there are some clean up jobs in super
-		super.close();
+		super.doClose();
 	}
 
 //  private void initTargetDB() throws Exception {

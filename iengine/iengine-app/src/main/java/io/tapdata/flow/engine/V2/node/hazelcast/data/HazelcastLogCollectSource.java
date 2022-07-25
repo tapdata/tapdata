@@ -38,7 +38,7 @@ public class HazelcastLogCollectSource extends HazelcastTaskSource {
 	}
 
 	@Override
-	protected void init(@NotNull Processor.Context context) throws Exception {
+	protected void doInit(@NotNull Processor.Context context) throws Exception {
 		SubTaskDto subTaskDto = dataProcessorContext.getSubTaskDto();
 		Node<?> node = dataProcessorContext.getNode();
 		if (!(node instanceof LogCollectorNode)) {
@@ -82,7 +82,7 @@ public class HazelcastLogCollectSource extends HazelcastTaskSource {
 			});
 			this.syncType = SyncTypeEnum.CDC;
 			try {
-				super.init(context);
+				super.doInit(context);
 				break;
 			} catch (Exception e) {
 				if (iterator.hasNext()) {
