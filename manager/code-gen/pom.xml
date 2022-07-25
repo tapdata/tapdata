@@ -18,8 +18,9 @@
     <properties>
         <maven.compiler.source>8</maven.compiler.source>
         <maven.compiler.target>8</maven.compiler.target>
-        <version.jackson.annotations>2.4.0</version.jackson.annotations>
-        <version.jackson.core>2.4.1</version.jackson.core>
+        <version.jackson.annotations>2.12.6</version.jackson.annotations>
+        <version.jackson.core>2.12.6</version.jackson.core>
+        <version.jackson.databind>2.12.6.1</version.jackson.databind>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     </properties>
 
@@ -46,7 +47,7 @@
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
             <artifactId>jackson-databind</artifactId>
-            <version>${version.jackson.core}</version>
+            <version>${version.jackson.databind}</version>
         </dependency>
 
     </dependencies>
