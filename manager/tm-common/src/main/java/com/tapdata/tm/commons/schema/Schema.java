@@ -99,6 +99,10 @@ public class Schema implements Cloneable, Serializable {
     protected String pdkGroup;
     protected String pdkVersion;
 
+    //逻辑表物理表分离所添加的相关属性
+    private String linkTaskId;
+    private String entitySchemaId;
+
     public void setSourceNodeDatabaseType(String sourceNodeDatabaseType) {
         this.sourceNodeDatabaseType = sourceNodeDatabaseType;
     }

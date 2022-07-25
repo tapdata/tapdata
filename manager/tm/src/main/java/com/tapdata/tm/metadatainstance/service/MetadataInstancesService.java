@@ -1464,4 +1464,31 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
 
         return null;
     }
+
+
+    private void linkLogic(String id, UserDetail user){
+        linkLogic(MongoUtils.toObjectId(id), user);
+    }
+    private void linkLogic(ObjectId id, UserDetail user){
+        MetadataInstancesDto metadataInstancesDto = findById(id, user);
+        linkLogic(metadataInstancesDto, user);
+    }
+    private void linkLogic(MetadataInstancesDto metadataInstancesDto, UserDetail user){
+
+        //查询得到所有的关联的逻辑模型表
+        Criteria criteria = Criteria.where("entitySchemaId").is(metadataInstancesDto.getId().toHexString())
+                .and("is_deleted").ne(true);
+        Query query = new Query(criteria);
+        List<MetadataInstancesDto> taskMetadatas = findAllDto(query, user);
+
+        if (CollectionUtils.isNotEmpty(taskMetadatas)) {
+            //如果逻辑模型没有为空，则遍历合并物理模型跟逻辑模型，得到新的逻辑模型保存到库里面。
+            for (MetadataInstancesDto taskMetadata : taskMetadatas) {
+
+            }
+        }
+
+        //批量入库
+
+    }
 }
