@@ -51,12 +51,12 @@ public class HazelcastSchemaTargetNode extends HazelcastVirtualTargetNode {
 		super(dataProcessorContext);
 		this.schemaKey = dataProcessorContext.getSubTaskDto().getId().toHexString() + "-" + dataProcessorContext.getNode().getId();
 
-		LinkedList<Node> preNodes = dataProcessorContext.getSubTaskDto().getDag().getPreNodes(getNode().getId());
+		LinkedList<Node<?>> preNodes = dataProcessorContext.getSubTaskDto().getDag().getPreNodes(getNode().getId());
 		if (preNodes.size() != 1) {
 			throw new IllegalArgumentException("HazelcastSchemaTargetNode only allows one predecessor node");
 		}
 		Node<?> deductionSchemaNode = preNodes.getFirst();
-		LinkedList<Node> prePreNodes = dataProcessorContext.getSubTaskDto().getDag().getPreNodes(deductionSchemaNode.getId());
+		LinkedList<Node<?>> prePreNodes = dataProcessorContext.getSubTaskDto().getDag().getPreNodes(deductionSchemaNode.getId());
 		if (prePreNodes.size() != 1) {
 			throw new IllegalArgumentException("The front node of HazelcastSchemaTargetNode only allows one front node");
 		}

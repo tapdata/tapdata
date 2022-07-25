@@ -65,12 +65,13 @@ public class MigrateJsProcessorNode extends Node<List<Schema>> {
         ObjectId taskId = this.getDag().getTaskId();
         TaskDto taskDto = service.getTaskById(taskId == null ? null : taskId.toHexString());
         taskDto.setDag(null);
+        taskDto.setSyncType(TaskDto.SYNC_TYPE_DEDUCE_SCHEMA);
         subTaskDto.setParentTask(taskDto);
         subTaskDto.setDag(build);
         subTaskDto.setParentId(taskDto.getId());
         subTaskDto.setId(new ObjectId());
         subTaskDto.setName(taskDto.getName() + "(100)");
-        subTaskDto.setTransformTask(true);
+//        subTaskDto.setTransformTask(true);
         ////用于预跑数据得到模型
         List<MigrateJsResultVo> jsResult = service.getJsResult(getId(), target.getId(), subTaskDto);
         if (CollectionUtils.isEmpty(jsResult)) {
