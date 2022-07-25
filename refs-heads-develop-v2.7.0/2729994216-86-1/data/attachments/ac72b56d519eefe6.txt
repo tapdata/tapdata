@@ -1,0 +1,5 @@
+[1;34mtapdata, [0m2022-07-25 05:13:56: job [1;32mmerge_sync_dzpmv[0m start running ...                                                                                          
+[1;34mtapdata, [0m2022-07-25 05:13:56: job [1;32mmerge_sync_dzpmv[0m status is: [1;32mscheduling[0m                                                                           
+[1;34mtapdata, [0m2022-07-25 05:13:57: job [1;32mmerge_sync_dzpmv[0m status is: [1;32mrunning[0m                                                                              
+[1;34mtapdata, [0m2022-07-25 05:13:58: the status is running now, this is 1 times, 5 times remaining                                                                              
+[1;34mtapdata, [0m2022-07-25 05:13:58: job [1;32mmerge_sync_dzpmv[0m status is: [1;32mrunning[0m                                                                              

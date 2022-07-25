@@ -1,0 +1,16 @@
+[1;34mtapdata, [0m2022-07-25 05:14:12: job [1;32mstats_udpxv[0m start running ...                                                                                               
+[1;34mtapdata, [0m2022-07-25 05:14:12: job [1;32mstats_udpxv[0m status is: [1;32mscheduling[0m                                                                                
+[1;34mtapdata, [0m2022-07-25 05:14:13: job [1;32mstats_udpxv[0m status is: [1;32mwait_run[0m                                                                                  
+[1;34mtapdata, [0m2022-07-25 05:14:13: the status is wait_run now, this is 1 times, 5 times remaining                                                                             
+[1;34mtapdata, [0m2022-07-25 05:14:13: job [1;32mstats_udpxv[0m status is: [1;32mwait_run[0m                                                                                  
+[1;34mtapdata, [0m2022-07-25 05:14:14: job [1;32mstats_udpxv[0m status is: [1;32mwait_run[0m                                                                                  
+[1;34mtapdata, [0m2022-07-25 05:14:14: the status is wait_run now, this is 2 times, 4 times remaining                                                                             
+[1;34mtapdata, [0m2022-07-25 05:14:14: job [1;32mstats_udpxv[0m status is: [1;32mwait_run[0m                                                                                  
+[1;34mtapdata, [0m2022-07-25 05:14:15: job [1;32mstats_udpxv[0m status is: [1;32mwait_run[0m                                                                                  
+[1;34mtapdata, [0m2022-07-25 05:14:15: the status is wait_run now, this is 3 times, 3 times remaining                                                                             
+[1;34mtapdata, [0m2022-07-25 05:14:15: job [1;32mstats_udpxv[0m status is: [1;32mwait_run[0m                                                                                  
+[1;34mtapdata, [0m2022-07-25 05:14:16: job [1;32mstats_udpxv[0m status is: [1;32mwait_run[0m                                                                                  
+[1;34mtapdata, [0m2022-07-25 05:14:16: the status is wait_run now, this is 4 times, 2 times remaining                                                                             
+[1;34mtapdata, [0m2022-07-25 05:14:17: job [1;32mstats_udpxv[0m status is: [1;32mwait_run[0m                                                                                  
+[1;34mtapdata, [0m2022-07-25 05:14:18: job [1;32mstats_udpxv[0m status is: [1;32mwait_run[0m                                                                                  
+[1;34mtapdata, [0m2022-07-25 05:14:18: the status is wait_run now, this is 5 times, 1 times remaining                                                                             

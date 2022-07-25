@@ -1,0 +1,16 @@
+[1;34mtapdata, [0m2022-07-25 05:14:05: job [1;32mstop_sqanp[0m start running ...                                                                                                
+[1;34mtapdata, [0m2022-07-25 05:14:05: job [1;32mstop_sqanp[0m status is: [1;32mscheduling[0m                                                                                 
+[1;34mtapdata, [0m2022-07-25 05:14:06: job [1;32mstop_sqanp[0m status is: [1;32mwait_run[0m                                                                                   
+[1;34mtapdata, [0m2022-07-25 05:14:06: the status is wait_run now, this is 1 times, 5 times remaining                                                                             
+[1;34mtapdata, [0m2022-07-25 05:14:06: job [1;32mstop_sqanp[0m status is: [1;32mwait_run[0m                                                                                   
+[1;34mtapdata, [0m2022-07-25 05:14:07: job [1;32mstop_sqanp[0m status is: [1;32mwait_run[0m                                                                                   
+[1;34mtapdata, [0m2022-07-25 05:14:07: the status is wait_run now, this is 2 times, 4 times remaining                                                                             
+[1;34mtapdata, [0m2022-07-25 05:14:07: job [1;32mstop_sqanp[0m status is: [1;32mwait_run[0m                                                                                   
+[1;34mtapdata, [0m2022-07-25 05:14:08: job [1;32mstop_sqanp[0m status is: [1;32mwait_run[0m                                                                                   
+[1;34mtapdata, [0m2022-07-25 05:14:08: the status is wait_run now, this is 3 times, 3 times remaining                                                                             
+[1;34mtapdata, [0m2022-07-25 05:14:08: job [1;32mstop_sqanp[0m status is: [1;32mwait_run[0m                                                                                   
+[1;34mtapdata, [0m2022-07-25 05:14:09: job [1;32mstop_sqanp[0m status is: [1;32mwait_run[0m                                                                                   
+[1;34mtapdata, [0m2022-07-25 05:14:09: the status is wait_run now, this is 4 times, 2 times remaining                                                                             
+[1;34mtapdata, [0m2022-07-25 05:14:09: job [1;32mstop_sqanp[0m status is: [1;32mwait_run[0m                                                                                   
+[1;34mtapdata, [0m2022-07-25 05:14:10: job [1;32mstop_sqanp[0m status is: [1;32mwait_run[0m                                                                                   
+[1;34mtapdata, [0m2022-07-25 05:14:10: the status is wait_run now, this is 5 times, 1 times remaining                                                                             
