@@ -78,7 +78,7 @@ public class Application {
 			System.setProperty(LoggingSystem.class.getName(), "none");
 			tapdataWorkDir = System.getenv("TAPDATA_WORK_DIR");
 
-//			addRollingFileAppender(tapdataWorkDir);
+			addRollingFileAppender(tapdataWorkDir);
 			initSecurityConfig();
 			String buildInfoJson;
 			try (
@@ -242,22 +242,19 @@ public class Application {
 				.withConfig(config).build();
 
 		RollingFileAppender rollingFileAppender = RollingFileAppender.newBuilder()
-				.withName("rollingFileAppender")
+				.setName("rollingFileAppender")
 				.withFileName(logsPath.toString() + "/tapdata-agent.log")
 				.withFilePattern(logsPath.toString() + "/tapdata-agent.log.%d{yyyyMMdd}.gz")
-				.withLayout(patternLayout)
+				.setLayout(patternLayout)
 				.withPolicy(compositeTriggeringPolicy)
 				.withStrategy(strategy)
 				.build();
 		rollingFileAppender.start();
-//
-//        rootLogger.addAppender(rollingFileAppender);
+		config.addAppender(rollingFileAppender);
+		LoggerConfig rootLoggerConfig = config.getRootLogger();
+		rootLoggerConfig.setLevel(defaultLogLevel);
+		rootLoggerConfig.addAppender(rollingFileAppender, null, null);
 
-//		AppenderRef ref = AppenderRef.createAppenderRef("rollingFileAppender", defaultLogLevel, null);
-//		LoggerConfig rootLoggerConfig = config.getRootLogger();
-//		rootLoggerConfig.addAppender(rollingFileAppender, null, null);
-//		rootLoggerConfig.getAppenderRefs().add(ref);
-//		rootLoggerConfig.setLevel(defaultLogLevel);
 		/*ConsoleAppender consoleAppender = ConsoleAppender.newBuilder()
 			.withName("consoleAppender")
 			.withLayout(patternLayout)
