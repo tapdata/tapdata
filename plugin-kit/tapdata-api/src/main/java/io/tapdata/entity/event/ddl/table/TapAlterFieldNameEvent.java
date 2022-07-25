@@ -8,7 +8,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class TapAlterFieldNameEvent extends TapFieldBaseEvent {
-    public static final int TYPE = 304;
+    public static final int TYPE = 202;
     private ValueChange<String> nameChange;
     public TapAlterFieldNameEvent nameChange(ValueChange<String> change) {
         this.nameChange = change;

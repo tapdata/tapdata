@@ -2,6 +2,8 @@ package io.tapdata.flow.engine.V2.node.hazelcast.processor;
 
 import com.tapdata.entity.TapdataEvent;
 import com.tapdata.entity.task.context.ProcessorBaseContext;
+import io.tapdata.aspect.ProcessorNodeProcessAspect;
+import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.common.sample.sampler.AverageSampler;
 import io.tapdata.common.sample.sampler.CounterSampler;
 import io.tapdata.common.sample.sampler.ResetCounterSampler;
@@ -21,7 +23,6 @@ import java.util.function.BiConsumer;
  **/
 public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 
-	protected ProcessorBaseContext processorBaseContext;
 	// statistic and sample related
 	protected ResetCounterSampler resetInputCounter;
 	protected CounterSampler inputCounter;
@@ -33,7 +34,6 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 
 	public HazelcastProcessorBaseNode(ProcessorBaseContext processorBaseContext) {
 		super(processorBaseContext);
-		this.processorBaseContext = processorBaseContext;
 	}
 
 	@Override
@@ -59,31 +59,44 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 	@Override
 	protected final boolean tryProcess(int ordinal, @NotNull Object item) throws Exception {
 		TapdataEvent tapdataEvent = (TapdataEvent) item;
-		if (null == tapdataEvent.getTapEvent()) {
-			while (running.get()) {
-				if (offer(tapdataEvent)) break;
-			}
-			return true;
-		}
-		// Update memory from ddl event info map
-		updateMemoryFromDDLInfoMap(tapdataEvent);
-		if (tapdataEvent.isDML()) {
-			transformFromTapValue(tapdataEvent, null);
-		}
-		tryProcess(tapdataEvent, (event, processResult) -> {
-			if (null == event) {
+		AspectUtils.executeProcessorFuncAspect(ProcessorNodeProcessAspect.class, () -> new ProcessorNodeProcessAspect()
+				.processorBaseContext(getProcessorBaseContext())
+				.inputEvent(tapdataEvent)
+				.start(), (processorNodeProcessAspect) -> {
+			if (null == tapdataEvent.getTapEvent()) {
+				while (running.get()) {
+					if (offer(tapdataEvent)) {
+						if(processorNodeProcessAspect != null && processorNodeProcessAspect.getConsumer() != null)
+							processorNodeProcessAspect.getConsumer().accept(tapdataEvent);
+						break;
+					}
+				}
 				return;
 			}
+			// Update memory from ddl event info map
+			updateMemoryFromDDLInfoMap(tapdataEvent);
 			if (tapdataEvent.isDML()) {
-				if (null != processResult && null != processResult.getTableId()) {
-					transformToTapValue(event, processorBaseContext.getTapTableMap(), processResult.getTableId());
-				} else {
-					transformToTapValue(event, processorBaseContext.getTapTableMap(), getNode().getId());
+				transformFromTapValue(tapdataEvent, null);
+			}
+			tryProcess(tapdataEvent, (event, processResult) -> {
+				if (null == event) {
+					return;
 				}
-			}
-			while (running.get()) {
-				if (offer(event)) break;
-			}
+				if (tapdataEvent.isDML()) {
+					if (null != processResult && null != processResult.getTableId()) {
+						transformToTapValue(event, processorBaseContext.getTapTableMap(), processResult.getTableId());
+					} else {
+						transformToTapValue(event, processorBaseContext.getTapTableMap(), getNode().getId());
+					}
+				}
+				while (running.get()) {
+					if (offer(event)) {
+						if(processorNodeProcessAspect != null && processorNodeProcessAspect.getConsumer() != null)
+							processorNodeProcessAspect.getConsumer().accept(event);
+						break;
+					}
+				}
+			});
 		});
 		return true;
 	}

@@ -27,6 +27,8 @@ public class ProcessorBaseContext implements Serializable {
 	private final List<RelateDataBaseTable> nodeSchemas;
 	private final TapTableMap<String, TapTable> tapTableMap;
 
+	private String pdkAssociateId;
+
 	protected <T extends ProcessorBaseContextBuilder<T>> ProcessorBaseContext(ProcessorBaseContextBuilder<T> builder) {
 		subTaskDto = builder.subTaskDto;
 		node = builder.node;
@@ -128,5 +130,13 @@ public class ProcessorBaseContext implements Serializable {
 
 	public static ProcessorBaseContextBuilder<?> newBuilder() {
 		return new ProcessorBaseContextBuilder<>();
+	}
+
+	public String getPdkAssociateId() {
+		return pdkAssociateId;
+	}
+
+	public void setPdkAssociateId(String pdkAssociateId) {
+		this.pdkAssociateId = pdkAssociateId;
 	}
 }

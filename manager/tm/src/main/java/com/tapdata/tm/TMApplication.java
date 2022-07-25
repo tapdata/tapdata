@@ -8,6 +8,7 @@ import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.web.servlet.ServletComponentScan;
 import org.springframework.context.ConfigurableApplicationContext;
+import org.springframework.context.annotation.Import;
 import org.springframework.data.mongodb.config.EnableMongoAuditing;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Field;
@@ -20,6 +21,7 @@ import org.springframework.scheduling.annotation.EnableAsync;
  * @date 2020/9/9 6:54 上午
  * @description
  */
+@Import(cn.hutool.extra.spring.SpringUtil.class)
 @ServletComponentScan("com.tapdata.tm.monitor.servlet")
 @SpringBootApplication
 @EnableMongoAuditing

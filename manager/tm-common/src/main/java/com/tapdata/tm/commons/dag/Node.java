@@ -120,8 +120,8 @@ public abstract class Node<S> extends Element{
         return graph.predecessors(getId()).stream().map(id -> (Node<S>)graph.getNode(id)).collect(Collectors.toList());
     }
 
-    public LinkedList<Node> getPreNodes(String nodeId) {
-        return getDag().getPreNodes(nodeId);
+    public LinkedList<Node<?>> getPreNodes(String nodeId) {
+        return getDag().nodeMap().get(nodeId);
     }
 
     public List<DatabaseNode> getSourceNode() {

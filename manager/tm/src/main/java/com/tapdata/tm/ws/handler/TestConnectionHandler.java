@@ -45,7 +45,6 @@ public class TestConnectionHandler implements WebSocketHandler {
 
 	private final DataSourceService dataSourceService;
 
-
 	private final DataSourceDefinitionService dataSourceDefinitionService;
 
 	private final UserService userService;
@@ -135,70 +134,70 @@ public class TestConnectionHandler implements WebSocketHandler {
 			String database_type = MapUtils.getAsString(data, "database_type");
 			String database_uri = MapUtils.getAsString(data, "database_uri");
 			boolean containsDatabaseType = Arrays.asList("mongodb", "gridfs").contains(database_type);
-			if (containsDatabaseType && StringUtils.isNotBlank(database_uri)){
-			sendMessage(receiver, context);
-			return;
-		}
-		String id = MapUtils.getAsString(data, "id");
-		Field field = new Field();
-		field.put("database_password", 1);
-		field.put("database_uri", 1);
-		field.put("database_username", 1);
-		if (StringUtils.isNotBlank(id)){
-			DataSourceConnectionDto connectionDto = dataSourceService.findById(new ObjectId(id), field);
-			if (connectionDto != null){
-				Boolean justTest = MapUtils.getAsBoolean(data, "justTest");
-				String database_username = MapUtils.getAsString(data, "database_username");
-				String database_password = MapUtils.getAsString(data, "database_password");
-				String plain_password = MapUtils.getAsString(data, "plain_password");
-				if ((justTest != null && justTest && containsDatabaseType) || (StringUtils.isNotBlank(database_username) && StringUtils.isBlank(database_password)
-						&& StringUtils.isBlank(connectionDto.getDatabase_name()) && StringUtils.isBlank(connectionDto.getDatabase_password()) && containsDatabaseType)) {
+			if (containsDatabaseType && StringUtils.isNotBlank(database_uri)) {
+				sendMessage(receiver, context);
+				return;
+			}
+			String id = MapUtils.getAsString(data, "id");
+			Field field = new Field();
+			field.put("database_password", 1);
+			field.put("database_uri", 1);
+			field.put("database_username", 1);
+			if (StringUtils.isNotBlank(id)) {
+				DataSourceConnectionDto connectionDto = dataSourceService.findById(new ObjectId(id), field);
+				if (connectionDto != null) {
+					Boolean justTest = MapUtils.getAsBoolean(data, "justTest");
+					String database_username = MapUtils.getAsString(data, "database_username");
+					String database_password = MapUtils.getAsString(data, "database_password");
+					String plain_password = MapUtils.getAsString(data, "plain_password");
+					if ((justTest != null && justTest && containsDatabaseType) || (StringUtils.isNotBlank(database_username) && StringUtils.isBlank(database_password)
+							&& StringUtils.isBlank(connectionDto.getDatabase_name()) && StringUtils.isBlank(connectionDto.getDatabase_password()) && containsDatabaseType)) {
 
-					// 兼容老数据，充填mongodb uri
-					data.put("database_uri", connectionDto.getDatabase_uri());
+						// 兼容老数据，充填mongodb uri
+						data.put("database_uri", connectionDto.getDatabase_uri());
 
-					sendMessage(receiver, context);
+						sendMessage(receiver, context);
+					} else {
+						if (StringUtils.isNotBlank(database_username) && StringUtils.isBlank(plain_password)) {
+							// 由于脱敏，如果是编辑，前端不会传回来密码，使用从中间库查出来的密码
+							data.put("database_password", connectionDto.getDatabase_password());
+						} else if (StringUtils.isNotBlank(database_username) && StringUtils.isNotBlank(plain_password)) {
+							data.put("database_password", AES256Util.Aes256Encode(plain_password));
+							data.remove("plain_password");
+						}
+						Boolean isUrl = MapUtils.getAsBoolean(data, "isUrl");
+						if (containsDatabaseType && (isUrl == null || !isUrl)) {
+							constructURI(data);
+						}
+
+						sendMessage(receiver, context);
+					}
 				} else {
-					if (StringUtils.isNotBlank(database_username) && StringUtils.isBlank(plain_password)) {
-						// 由于脱敏，如果是编辑，前端不会传回来密码，使用从中间库查出来的密码
-						data.put("database_password", connectionDto.getDatabase_password());
-					} else if (StringUtils.isNotBlank(database_username) && StringUtils.isNotBlank(plain_password)) {
-						data.put("database_password", AES256Util.Aes256Encode(plain_password));
-						data.remove("plain_password");
-					}
-					Boolean isUrl = MapUtils.getAsBoolean(data, "isUrl");
-					if (containsDatabaseType && (isUrl == null || !isUrl)) {
-						constructURI(data);
-					}
-
-					sendMessage(receiver, context);
+					data.put("status", "error");
+					data.put("msg", "Connection info not found");
+					sendMessage(context.getSender(), context);
 				}
-			}else {
-				data.put("status", "error");
-				data.put("msg", "Connection info not found");
-				sendMessage(context.getSender(), context);
+
+			} else {
+				Boolean isUrl = MapUtils.getAsBoolean(data, "isUrl");
+				if (containsDatabaseType && (isUrl == null || !isUrl)) {
+					constructURI(data);
+				}
+				String database_username = MapUtils.getAsString(data, "database_username");
+				String plain_password = MapUtils.getAsString(data, "plain_password");
+				if (StringUtils.isNotBlank(database_username) && StringUtils.isNotBlank(plain_password)) {
+					data.put("database_password", AES256Util.Aes256Encode(plain_password));
+
+					data.remove("plain_password");
+				}
+
+				log.info("Handler message start,context: {}", JsonUtil.toJson(context));
+				sendMessage(receiver, context);
+				log.info("Handler message end,sessionId: {}", context.getSessionId());
 			}
 
-		}else {
-			Boolean isUrl = MapUtils.getAsBoolean(data, "isUrl");
-			if (containsDatabaseType && (isUrl == null || !isUrl)){
-				constructURI(data);
-			}
-			String database_username = MapUtils.getAsString(data, "database_username");
-			String plain_password = MapUtils.getAsString(data, "plain_password");
-			if (StringUtils.isNotBlank(database_username) && StringUtils.isNotBlank(plain_password)){
-				data.put("database_password", AES256Util.Aes256Encode(plain_password));
 
-				data.remove("plain_password");
-			}
-
-			log.info("Handler message start,context: {}", JsonUtil.toJson(context));
-			sendMessage(receiver, context);
-			log.info("Handler message end,sessionId: {}", context.getSessionId());
 		}
-
-
-	}
 
 	private void constructURI(Map<String, Object> data) {
 		if (MapUtils.isEmpty(data)) {

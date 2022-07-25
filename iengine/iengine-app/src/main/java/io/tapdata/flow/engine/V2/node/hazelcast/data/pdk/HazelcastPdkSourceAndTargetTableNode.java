@@ -5,6 +5,7 @@ import com.tapdata.constant.Log4jUtil;
 import com.tapdata.entity.TapdataEvent;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.tm.commons.task.dto.SubTaskDto;
+import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
@@ -34,15 +35,20 @@ public class HazelcastPdkSourceAndTargetTableNode extends HazelcastPdkBaseNode {
 
 	public HazelcastPdkSourceAndTargetTableNode(DataProcessorContext dataProcessorContext) {
 		super(dataProcessorContext);
-		this.source = new HazelcastSourcePdkDataNode(dataProcessorContext);
+		SubTaskDto subTaskDto = dataProcessorContext.getSubTaskDto();
+		if (TaskDto.SYNC_TYPE_TEST_RUN.equals(subTaskDto.getParentTask().getSyncType()) || subTaskDto.isTransformTask()) {
+			this.source = new HazelcastSampleSourcePdkDataNode(dataProcessorContext);
+		} else {
+			this.source = new HazelcastSourcePdkDataNode(dataProcessorContext);
+		}
 		this.target = new HazelcastTargetPdkDataNode(dataProcessorContext);
 		this.sourceConsumer = new ThreadPoolExecutor(1, 1, 0L, TimeUnit.MILLISECONDS, new SynchronousQueue<>());
 	}
 
 	@Override
-	protected void init(@NotNull Context context) throws Exception {
+	public void doInit(@NotNull Context context) throws Exception {
 		Log4jUtil.setThreadContext(dataProcessorContext.getSubTaskDto());
-		super.init(context);
+		super.doInit(context);
 		this.target.init(context);
 		this.source.init(context);
 		this.sourceConsumer.execute(this::startSourceConsumer);
@@ -90,12 +96,12 @@ public class HazelcastPdkSourceAndTargetTableNode extends HazelcastPdkBaseNode {
 	}
 
 	@Override
-	public void close() throws Exception {
+	public void doClose() throws Exception {
 		Log4jUtil.setThreadContext(dataProcessorContext.getSubTaskDto());
 		this.source.close();
 		Optional.ofNullable(this.sourceConsumer).ifPresent(ExecutorService::shutdownNow);
 		this.target.close();
-		super.close();
+		super.doClose();
 	}
 
 	@Override

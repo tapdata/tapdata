@@ -96,7 +96,6 @@ public class SubTaskService extends BaseService<SubTaskDto, SubTaskEntity, Objec
     private MessageQueueService messageQueueService;
     private CustomerJobLogsService customerJobLogsService;
     private UserService userService;
-
     private MetadataInstancesService metadataInstancesService;
     private DataSourceService dataSourceService;
 
@@ -1987,5 +1986,11 @@ public class SubTaskService extends BaseService<SubTaskDto, SubTaskEntity, Objec
         //清理模型
         //MetaDataHistoryService historyService = SpringContextHelper.getBean(MetaDataHistoryService.class);
         historyService.clean(taskId, time);
+    }
+
+    public void updateStatus(ObjectId taskId, String status) {
+        Query query = Query.query(Criteria.where("_id").is(taskId));
+        Update update = Update.update("status", status);
+        update(query, update);
     }
 }

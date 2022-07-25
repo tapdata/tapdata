@@ -1,6 +1,7 @@
 package com.tapdata.tm.commons.dag.nodes;
 
 import cn.hutool.core.thread.ThreadUtil;
+import com.google.common.collect.Lists;
 import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.NodeType;
@@ -219,7 +220,7 @@ public class DatabaseNode extends DataParentNode<List<Schema>> {
                     .collect(Collectors.toList());
 
         } else {
-            LinkedList<Node> preNodes = getPreNodes(this.getId());
+            LinkedList<Node<?>> preNodes = getPreNodes(this.getId());
             if (CollectionUtils.isNotEmpty(preNodes)) {
                 LinkedList<TableRenameProcessNode> collect = preNodes.stream().filter(node -> node instanceof TableRenameProcessNode)
                         .map(node -> (TableRenameProcessNode) node)

@@ -1386,7 +1386,11 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             checkDagAgentConflict(task, false);
 
             try {
-                start(task, user);
+                boolean noPass = taskStartService.taskStartCheckLog(task, user);
+                if (!noPass) {
+                    start(task, user);
+                }
+
             } catch (Exception e) {
                 log.warn("start task exception, task id = {}, e = {}", task.getId(), e);
             }
@@ -2618,6 +2622,12 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     public void updateMigrateStatus(ObjectId taskId) {
         Query query = Query.query(Criteria.where("_id").is(taskId));
         Update update = Update.update("migrateModelStatus", TaskDto.MODELDONE);
+        update(query, update);
+    }
+
+    public void updateStatus(ObjectId taskId, String status) {
+        Query query = Query.query(Criteria.where("_id").is(taskId));
+        Update update = Update.update("status", status);
         update(query, update);
     }
 }

@@ -23,15 +23,33 @@ public class AspectTaskSessionAnnotationHandler extends ClassAnnotationHandler {
 			newAspectTaskSessionMap = new ConcurrentHashMap<>();
 			TapLogger.debug(TAG, "--------------AspectTask Classes Start-------------");
 			for (Class<?> clazz : classes) {
-				AspectTaskSession aspectObserverClass = clazz.getAnnotation(AspectTaskSession.class);
-				if (aspectObserverClass != null) {
+				AspectTaskSession aspectTaskSession = clazz.getAnnotation(AspectTaskSession.class);
+				if (aspectTaskSession != null) {
 					if (!AspectTask.class.isAssignableFrom(clazz)) {
 						TapLogger.error(TAG, "AspectTask {} don't implement {}, will be ignored", clazz, AspectTask.class);
 						continue;
 					}
 					Class<? extends AspectTask> observerClass = (Class<? extends AspectTask>) clazz;
-					String aspectClass = aspectObserverClass.value();
-					int order = aspectObserverClass.order();
+					String aspectClass = aspectTaskSession.value();
+					int order = aspectTaskSession.order();
+					String[] includeTypes = aspectTaskSession.includeTypes();
+					List<String> includeList = new ArrayList<>();
+					if(includeTypes != null) {
+						for(String include : includeTypes) {
+							if(!include.trim().equals("") && !includeList.contains(include)) {
+								includeList.add(include);
+							}
+						}
+					}
+					String[] excludeTypes = aspectTaskSession.excludeTypes();
+					List<String> excludeList = new ArrayList<>();
+					if(excludeTypes != null) {
+						for(String exclude : excludeTypes) {
+							if(!exclude.trim().equals("") && !excludeList.contains(exclude)) {
+								excludeList.add(exclude);
+							}
+						}
+					}
 
 					//Check class can be initialized for non-args constructor
 					String canNotInitialized = null;
@@ -51,11 +69,11 @@ public class AspectTaskSessionAnnotationHandler extends ClassAnnotationHandler {
 					Collection<TaskSessionClassHolder> implClasses = newAspectTaskSessionMap.get(aspectClass);
 					if (implClasses == null) {
 						implClasses = Collections.synchronizedSortedSet(new TreeSet<>());
-						implClasses.add(new TaskSessionClassHolder().taskClass(observerClass).order(order));
+						implClasses.add(new TaskSessionClassHolder().taskClass(observerClass).excludeTypes(excludeList).includeTypes(includeList).order(order));
 						newAspectTaskSessionMap.put(aspectClass, implClasses);
 						TapLogger.debug(TAG, "(New array) AspectTask {} for Aspect {} will be applied", observerClass, aspectClass);
 					} else {
-						implClasses.add(new TaskSessionClassHolder().taskClass(observerClass).order(order));
+						implClasses.add(new TaskSessionClassHolder().taskClass(observerClass).excludeTypes(excludeList).includeTypes(includeList).order(order));
 						TapLogger.debug(TAG, "(Exist array) AspectTask {} for Aspect {} will be applied", clazz, aspectClass);
 					}
 				}
