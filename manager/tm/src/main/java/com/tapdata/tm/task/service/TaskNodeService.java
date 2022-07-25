@@ -5,7 +5,6 @@ import com.tapdata.tm.commons.schema.MetadataTransformerItemDto;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.task.vo.JsResultDto;
 import com.tapdata.tm.task.vo.JsResultVo;
-import org.springframework.web.bind.annotation.RequestParam;
 
 public interface TaskNodeService {
     Page<MetadataTransformerItemDto> getNodeTableInfo(String taskId, String nodeId, String searchTableName,
