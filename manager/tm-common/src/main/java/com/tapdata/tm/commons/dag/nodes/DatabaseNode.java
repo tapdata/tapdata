@@ -137,6 +137,9 @@ public class DatabaseNode extends DataParentNode<List<Schema>> {
     }
 
     private List<TableIndex> updateIndexDelField(List<TableIndex> indices, List<String> inputFieldOriginalNames) {
+        if (CollectionUtils.isEmpty(indices)) {
+            return indices;
+        }
         Iterator<TableIndex> indexIterator = indices.iterator();
         while (indexIterator.hasNext()) {
             TableIndex tableIndex = indexIterator.next();
