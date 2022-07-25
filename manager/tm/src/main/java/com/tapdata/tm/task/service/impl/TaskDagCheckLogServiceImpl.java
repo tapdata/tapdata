@@ -1,9 +1,6 @@
 package com.tapdata.tm.task.service.impl;
 
-import cn.hutool.core.bean.BeanUtil;
-import cn.hutool.core.collection.ListUtil;
 import cn.hutool.core.date.DateUtil;
-import cn.hutool.extra.cglib.CglibUtil;
 import cn.hutool.extra.spring.SpringUtil;
 import com.google.common.base.Splitter;
 import com.tapdata.tm.commons.dag.Node;
@@ -24,9 +21,7 @@ import com.tapdata.tm.utils.MongoUtils;
 import lombok.Setter;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
-import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
@@ -90,24 +85,25 @@ public class TaskDagCheckLogServiceImpl implements TaskDagCheckLogService {
                 .collect(Collectors.toMap(Node::getId, Node::getName,(x, y) -> y, LinkedHashMap::new));
 
         Criteria criteria = Criteria.where("taskId").is(taskId);
+        Criteria modelCriteria = Criteria.where("taskId").is(taskId);
         if (StringUtils.isNotBlank(nodeId)) {
             criteria.and("nodeId").is(nodeId);
+            modelCriteria.and("nodeId").is(nodeId);
         }
         if (StringUtils.isNotBlank(grade)) {
             if (grade.contains(",")) {
                 criteria.and("grade").in(Splitter.on(",").trimResults().splitToList(grade));
+                modelCriteria.and("grade").in(Splitter.on(",").trimResults().splitToList(grade));
             } else {
                 criteria.and("grade").is(grade);
+                modelCriteria.and("grade").is(grade);
             }
         }
         if (StringUtils.isNotBlank(keyword)) {
             criteria.regex("log").is(keyword);
+            modelCriteria.regex("log").is(keyword);
         }
-        Criteria modelCriteria = new Criteria();
-        BeanUtil.copyProperties(criteria, modelCriteria);
-//        if (offset > 0) {
-//            criteria.and("_id").gte(offset);
-//        }
+
         Query logQuery = new Query(criteria.and("checkType").nin(
                 Lists.of(DagOutputTemplateEnum.MODEL_PROCESS_CHECK.name(),
                         DagOutputTemplateEnum.SOURCE_CONNECT_CHECK.name(),
@@ -164,7 +160,7 @@ public class TaskDagCheckLogServiceImpl implements TaskDagCheckLogService {
 
     @Override
     public void removeAllByTaskId(String taskId) {
-        mongoTemplate.findAllAndRemove(Query.query(Criteria.where("taskId").is(taskId)), TaskDagCheckLog.class);
+        mongoTemplate.remove(Query.query(Criteria.where("taskId").is(taskId)), TaskDagCheckLog.class);
     }
 
     public List<TaskDagCheckLog> find(Query query) {
