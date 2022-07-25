@@ -159,7 +159,7 @@ public abstract class DataParentNode<S> extends Node<S> {
         List<Field> fields = s.getFields();
 
         if (CollectionUtils.isNotEmpty(inputFieldOriginalNames)) {
-            LinkedList<Node> preNodes = getDag().nodeMap().get(this.getId());
+            LinkedList<Node<?>> preNodes = getDag().nodeMap().get(this.getId());
             if (CollectionUtils.isNotEmpty(preNodes) && preNodes.stream().anyMatch(n -> n instanceof MigrateFieldRenameProcessorNode)) {
                 Iterator<Field> iterator = fields.iterator();
                 while (iterator.hasNext()) {

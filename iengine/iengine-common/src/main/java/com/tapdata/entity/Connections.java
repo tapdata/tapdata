@@ -442,6 +442,8 @@ public class Connections implements Serializable {
 	private String redoLogParserHost;
 	private Integer redoLogParserPort;
 
+	private Map<String, Object> extParam;
+
 	public Connections() {
 	}
 
@@ -2215,6 +2217,14 @@ public class Connections implements Serializable {
 
 	public void setPdkHash(String pdkHash) {
 		this.pdkHash = pdkHash;
+	}
+
+	public Map<String, Object> getExtParam() {
+		return extParam;
+	}
+
+	public void setExtParam(Map<String, Object> extParam) {
+		this.extParam = extParam;
 	}
 }
 

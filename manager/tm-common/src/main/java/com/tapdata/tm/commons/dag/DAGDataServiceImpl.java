@@ -4,6 +4,7 @@ import com.tapdata.manager.common.utils.JsonUtil;
 import com.tapdata.manager.common.utils.StringUtils;
 import com.tapdata.tm.commons.dag.process.MigrateFieldRenameProcessorNode;
 import com.tapdata.tm.commons.dag.process.TableRenameProcessNode;
+import com.tapdata.tm.commons.dag.vo.MigrateJsResultVo;
 import com.tapdata.tm.commons.schema.*;
 import com.tapdata.tm.commons.schema.bean.SourceDto;
 import com.tapdata.tm.commons.schema.bean.SourceTypeEnum;
@@ -132,7 +133,7 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
         }
 
 
-        DataSourceConnectionDto dataSource = dataSourceMap.get(dataSourceId);
+        DataSourceConnectionDto dataSource = dataSourceMap.get(dataSourceId.toHexString());
 
         if (dataSource == null) {
             log.error("Load schema failed, not found connection by id {}", dataSourceId.toHexString());
@@ -140,13 +141,9 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
         }
 
         List<MetadataInstancesDto> metadataInstances = new ArrayList<>();
-        for (String key : metadataMap.keySet()) {
-            if (key.contains(dataSourceId.toHexString())) {
-                MetadataInstancesDto metadataInstancesDto = metadataMap.get(key);
-                if (metadataInstancesDto != null) {
-                    metadataInstances.add(metadataInstancesDto);
-                }
-            }
+        for (String include : includes) {
+            MetadataInstancesDto metadataInstancesDto = metadataMap.get(dataSourceId + include);
+            metadataInstances.add(metadataInstancesDto);
         }
 
         long start = System.currentTimeMillis();
@@ -163,6 +160,11 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
 //        TapTable tapTable = InstanceFactory.instance(JsonParser.class).fromJson(json, new TypeHolder<TapTable>() {
 //        }, TapConstants.abstractClassDetectors);
 //        return tapTable;
+        return null;
+    }
+
+    @Override
+    public List<MigrateJsResultVo> getJsResult(String jsNodeId, String virtualTargetId, SubTaskDto subTaskDto) {
         return null;
     }
 

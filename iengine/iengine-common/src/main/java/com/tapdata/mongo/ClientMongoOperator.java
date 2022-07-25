@@ -104,6 +104,10 @@ public class ClientMongoOperator implements Serializable {
 		mongoTemplate.remove(query, collection);
 	}
 
+	public void deleteByMap(Map<String, Object> params, String collection) {
+		mongoTemplate.remove(params, collection);
+	}
+
 	public void deleteAll(Map<String, Object> params, String collection) {
 		if (MapUtils.isNotEmpty(params)) {
 			mongoTemplate.remove(new Query(getAndCriteria(params)));

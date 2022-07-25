@@ -64,4 +64,6 @@ public class ParentSubTaskDto extends SchedulableDto {
 
     private String parentSyncType;
 
+    private Long tmCurrentTime;
+
 }

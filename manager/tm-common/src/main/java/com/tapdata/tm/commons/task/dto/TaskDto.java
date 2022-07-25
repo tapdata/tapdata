@@ -40,6 +40,7 @@ public class TaskDto extends ParentTaskDto {
     public static final String SYNC_TYPE_DEDUCE_SCHEMA = "deduceSchema";
 
     public static final String MODELDONE = "modelDone";
+    public static final String MODELING = "modelIng";
 
     /** 任务图*/
     @JsonSerialize( using = DagSerialize.class)
