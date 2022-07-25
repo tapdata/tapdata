@@ -89,10 +89,6 @@
             <artifactId>spring-core</artifactId>
             <version>2.5.6</version>
         </dependency>
-        <dependency>
-            <groupId>io.tapdata</groupId>
-            <artifactId>tapdata-api</artifactId>
-        </dependency>
     </dependencies>
     <build>
         <plugins>
@@ -139,7 +135,7 @@
                         </goals>
 
                         <configuration>
-                            <outputDirectory>${basedir}/../../dist/</outputDirectory>
+                            <outputDirectory>../dist</outputDirectory>
                             <resources>
                                 <resource>
                                     <directory>${basedir}/target/</directory>
@@ -166,18 +162,6 @@
                     <target>8</target>
                 </configuration>
             </plugin>
-            <!--            <plugin>-->
-            <!--                <groupId>org.apache.maven.plugins</groupId>-->
-            <!--                <artifactId>maven-source-plugin</artifactId>-->
-            <!--                <executions>-->
-            <!--                    <execution>-->
-            <!--                        <id>attach-sources</id>-->
-            <!--                        <goals>-->
-            <!--                            <goal>jar</goal>-->
-            <!--                        </goals>-->
-            <!--                    </execution>-->
-            <!--                </executions>-->
-            <!--            </plugin>-->
         </plugins>
     </build>
 </project>

@@ -6,18 +6,18 @@ if not python_version().startswith("3"):
 import os
 
 os.environ['PYTHONSTARTUP'] = '>>>'
-import argparse, shlex, os
+os.environ["PROJECT_PATH"] = os.sep.join([os.path.dirname(os.path.abspath(__file__)), ".."])
+import argparse, shlex
 import urllib
 import uuid, json
 import time
-import logging.handlers
 from logging import *
 import asyncio
 import pymongo
-import datetime, copy
+import copy
 import functools
 from typing import Iterable, Tuple, Sequence
-import traceback
+from types import FunctionType
 
 import requests
 from IPython.terminal.interactiveshell import TerminalInteractiveShell
@@ -27,110 +27,18 @@ from bson.objectid import ObjectId
 from bson.json_util import dumps
 
 from lib.graph import Node, Graph
+from lib.rules import job_config
+from lib.check import ConfigCheck
+from lib.request import RequestSession
+from lib.log import logger, get_log_level
+from lib.config_parse import Config
 
 
-# Global Logger Utils
-def get_log_level(level):
-    levels = {
-        "debug": 0,
-        "info": 10,
-        "notice": 20,
-        "warn": 30,
-        "error": 40,
-    }
-    if level.lower() in levels:
-        return levels[level.lower()]
-    return 100
+config: Config = Config()
+server = config["backend.server"]
+access_code = config["backend.access_code"]
 
-
-class Logger:
-    def __init__(self, name=""):
-        self.name = name
-        self.max_len = 0
-        self.color_map = {
-            "info": "32",
-            "notice": "34",
-            "debug": "0",
-            "warn": "33",
-            "error": "31"
-        }
-
-    def _header(self):
-        if logger_header:
-            return "\033[1;34m" + self.name + ", " + "\033[0m" + \
-                   time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()) + ": "
-        else:
-            return ""
-
-    def _print(self, msg, wrap=True):
-        end = "\r"
-        if wrap:
-            end = "\n"
-        l = len(self._header() + msg)
-        tail = ""
-        if l > self.max_len:
-            self.max_len = l
-        if self.max_len > 180:
-            self.max_len = 180
-        if l < self.max_len:
-            tail = " " * (self.max_len - l)
-        print(self._header() + msg + tail, end=end)
-
-    def info(self, *args, **kargs):
-        msg = args[0].replace("{}", "\033[1;32m{}\033[0m")
-        self._print(msg.format(*args[1:]), **kargs)
-
-    def debug(self, *args, **kargs):
-        msg = args[0]
-        self._print(msg.format(*args[1:]), **kargs)
-
-    def notice(self, *args, **kargs):
-        msg = args[0].replace("{}", "\033[1;34m{}\033[0m")
-        self._print(msg.format(*args[1:]), **kargs)
-
-    def warn(self, *args, **kargs):
-        msg = args[0].replace("{}", "\033[1;33m{}\033[0m")
-        self._print(msg.format(*args[1:]), **kargs)
-
-    def error(self, *args, **kargs):
-        msg = args[0].replace("{}", "\033[1;31m{}\033[0m")
-        self._print(msg.format(*args[1:]), **kargs)
-
-    def fatal(self, *args, **kargs):
-        msg = args[0].replace("{}", "\033[1;31m{}\033[0m")
-        self._print(msg.format(*args[1:]), **kargs)
-
-    def log(self, *args, **kargs):
-        msg = args[0]
-        color_n = msg.count("{}")
-        if len(args) != 1 + color_n * 2:
-            self._print(
-                "log error, \033[1;32m{}\033[0m args expected, \033[1;32m{}\033[0m got, print all args: {}" \
-                    .format(1 + color_n * 2, len(args), args), **kargs
-            )
-            return
-
-        params = list(args[1:1 + color_n])
-        for i in args[1 + color_n:]:
-            msg = msg.replace(
-                "{}", "\033[1;" + self.color_map.get(i) +
-                      "m__24FA49F1-7C36-4481-ACF7-BF2146EA4719__\033[0m", 1
-            )
-        msg = msg.replace("__24FA49F1-7C36-4481-ACF7-BF2146EA4719__", "{}")
-        for i in range(len(params)):
-            p = str(params[i])
-            for j in range(int(p.count("`") / 2)):
-                p = p.replace("`", "\033[1;34m", 1)
-                p = p.replace("`", "\033[0m", 1)
-            params[i] = p
-        self._print(msg.format(*params), **kargs)
-
-
-logger = Logger("tapdata")
-
-# make requests and urllib3 quiet
-logging.getLogger("requests").setLevel(logging.WARNING)
-logging.getLogger("urllib3").setLevel(logging.WARNING)
+req: RequestSession = RequestSession(server)
 
 
 # Helper class, used to provide operation tips
@@ -180,7 +88,7 @@ def help_decorate(h, args=None, res=None):
                         lib_methods_list[class_name] = []
                     lib_methods_list[class_name].append(help_obj)
                 else:
-                    if is_empty(context):
+                    if not context:
                         if command_help_list.get("default", None) is None:
                             command_help_list["default"] = []
                         command_help_list["Default"].append(help_obj)
@@ -217,9 +125,6 @@ def class_help_decorate(h):
 
     return decorator
 
-
-# init global logger header conf, if false, no logger prefix(inlcude time, title ...) will display
-logger_header = False
 
 # system server conf, will become readonly after login
 system_server_conf = {
@@ -279,17 +184,6 @@ help_args = {
 
 ## some static utils, simple and no direct relation with this tool
 ##################################################################
-# judge whether a object is empty
-def is_empty(arg):
-    if arg == "":
-        return True
-    if arg is None:
-        return True
-    if type(arg) in [type([]), type({})]:
-        if len(arg) == 0:
-            return True
-    return False
-
 
 # pad a string to a certain length
 def pad(string, length):
@@ -355,7 +249,7 @@ def show_help(t):
     relations = []
     if type(l) == type({}):
         for context, commands in l.items():
-            if is_empty(commands):
+            if not commands:
                 continue
             logger.notice("{} commands:\n", context)
             for command in commands:
@@ -399,12 +293,12 @@ class global_help(Magics):
     @help_decorate("show global help", "h command")
     # h line_magic
     def h(self, t=None):
-        if is_empty(t):
+        if not t:
             for k, v in help_args.items():
                 logger.log("{}: {}", k, _l[v], "info", "debug")
             return
         try:
-            eval('show_help("' + t + '")')
+            show_help(t)
         except Exception as e:
             logger.warn("no help commands for {} found, please use below command for help, e is: {}", t, e)
             self.h()
@@ -494,12 +388,19 @@ def get_table_fields(t, whole=False, source=None, cache=True):
         table_id = t
     if client_cache["tables"].get(source) is None:
         show_tables(quiet=True, source=source)
-    table = client_cache["tables"][source][index_type][t]
+
+    table = client_cache["tables"][source][index_type].get(t, None)
+    if table is None:
+        show_tables(quiet=True, source=source)
+    table = client_cache["tables"][source][index_type].get(t, None)
+    if table is None:
+        logger.warn("table {} not find in system", t)
+        return
 
     table_id = table["id"]
     table_name = table["original_name"]
-    api = system_server_conf["api"] + "/MetadataInstances/" + table_id + system_server_conf["auth_param"]
-    res = requests.get(api)
+    res = req.get("/MetadataInstances/" + table_id)
+
     data = res.json()["data"]
     fields = data["fields"]
     if whole:
@@ -602,8 +503,7 @@ def gen_dag_stage(obj):
 
 # show all connectors
 def show_connectors(quiet=False):
-    api = system_server_conf["api"] + "/DatabaseTypes"
-    res = requests.get(api + system_server_conf["auth_param"])
+    res = req.get("/DatabaseTypes")
     data = res.json()["data"]
     global client_cache
     for i in range(len(data)):
@@ -641,9 +541,7 @@ def show_jobs(quiet=False):
             "desc": True
         }
     }
-    api = system_server_conf["api"] + "/Task" + system_server_conf["auth_param"] + "&filter=" + urllib.parse.quote_plus(
-        json.dumps(f))
-    res = requests.get(api)
+    res = req.get("/Task", params={"filter": json.dumps(f)})
     data = res.json()["data"]["items"]
     global client_cache
     jobs = {"name_index": {}, "id_index": {}, "number_index": {}}
@@ -666,8 +564,7 @@ def show_jobs(quiet=False):
 # show all apis
 def show_apis(quiet=False):
     global client_cache
-    api = system_server_conf["api"] + "/Modules" + system_server_conf["auth_param"]
-    res = requests.get(api)
+    res = req.get("/Modules")
     data = res.json()["data"]["items"]
     client_cache["apis"]["name_index"] = {}
     if not quiet:
@@ -710,9 +607,8 @@ def show_datasources():
 # show connections
 def show_connections(f=None, quiet=False):
     global client_cache
-    api = system_server_conf["api"] + "/Connections"
     f = {"limit": 10000}
-    res = requests.get(api + system_server_conf["auth_param"] + "&filter=" + urllib.parse.quote_plus(json.dumps(f)))
+    res = req.get("/Connections", params={"filter": json.dumps(f)})
     data = res.json()["data"]["items"]
     client_cache["connections"] = {"name_index": {}, "id_index": {}, "number_index": {}}
     if not quiet:
@@ -770,9 +666,7 @@ def show_tables(source=None, quiet=False):
         return
     source_name = client_cache["connections"]["id_index"][source]["name"]
     f = {"where": {"source.id": source}, "limit": 999999}
-    api = system_server_conf["api"] + "/MetadataInstances" + system_server_conf[
-        "auth_param"] + "&filter=" + urllib.parse.quote_plus(json.dumps(f))
-    res = requests.get(api)
+    res = req.get("/MetadataInstances", params={"filter": json.dumps(f)})
     data = res.json()["data"]["items"]
     client_cache["tables"][source] = {"name_index": {}, "id_index": {}, "number_index": {}}
     tables = []
@@ -953,16 +847,6 @@ def show_db(line):
         logger.warn("no show object found")
         return
     connection = get_signature_v("connection", line)
-    #del (connection["response_body"])
-    #del (connection["transformed"])
-    #del (connection["schemaVersion"])
-    #del (connection["username"])
-    #del (connection["loadCount"])
-    #del (connection["loadSchemaDate"])
-    #del (connection["tableCount"])
-    #del (connection["everLoadSchema"])
-    #del (connection["loadFieldsStatus"])
-    #del (connection["loadFieldErrMsg"])
     display = {}
     for k, v in connection.items():
         if v is None or v == "":
@@ -982,8 +866,7 @@ class ApiCommand(Magics):
             "tablename": client_cache["apis"]["name_index"][line]["table"],
             "status": "pending"
         }
-        res = requests.patch(system_server_conf["api"] + "/Modules" + system_server_conf["auth_param"], json=payload,
-                             cookies=system_server_conf["cookies"])
+        res = req.patch("/Modules", json=payload)
         res = res.json()
         if res["code"] == "ok":
             logger.info("unpublish {} success", line)
@@ -1134,8 +1017,7 @@ class ApiCommand(Magics):
                 }
             ]
         }
-        res = requests.post(system_server_conf["api"] + "/Modules" + system_server_conf["auth_param"],
-                            json=payload).json()
+        res = req.get("/Modules", json=payload).json()
         if res["msg"] == "ok":
             logger.info(
                 "publish api {} success, you can test it by: {}",
@@ -1151,7 +1033,7 @@ class show_command(Magics):
     @line_magic
     @help_decorate("[Job,Datasource,Api,Table] show objects", "show objects")
     def show(self, line):
-        if is_empty(line):
+        if not line:
             pass
         try:
             eval("show_" + line + "()")
@@ -1329,23 +1211,19 @@ def desc_table(line):
     display_fields = get_table_fields(line, source=connection_id)
     print(json.dumps(display_fields, indent=4))
 
-
-# def login(server, access_code):
-#     login_with_access_code(server, access_code)
-
-
 def login_with_access_code(server, access_code):
-    global system_server_conf
+    global system_server_conf, req
     api = "http://" + server + "/api"
-    res = requests.post(api + "/users/generatetoken", json={"accesscode": access_code})
+    req = RequestSession(server)
+    res = req.post("/users/generatetoken", json={"accesscode": access_code})
     if res.status_code != 200:
         logger.warn("init get token request fail, err is: {}", res.json())
         return False
     data = res.json()["data"]
     token = data["id"]
     user_id = data["userId"]
-
-    res = requests.get(api + "/users?access_token=" + token)
+    req.params = {"access_token": token}
+    res = req.get("/users")
     if res.status_code != 200:
         logger.warn("get user info by token fail, err is: {}", res.json())
         return False
@@ -1358,6 +1236,7 @@ def login_with_access_code(server, access_code):
     if token is None:
         return False
     cookies = {"user_id": user_id}
+    req.cookies = requests.cookies.cookiejar_from_dict(cookies)
     ws_uri = "ws://" + server + "/ws/agent?access_token=" + token
     logger.info("{}", _l["login_success_with_access_code"])
     system_server_conf = {
@@ -1384,7 +1263,7 @@ class system_command(Magics):
     @line_magic
     @help_decorate("[System] login system", "login -s server_address -u username -p password `OR` login -a access_code")
     def login(self, line):
-        if is_empty(line):
+        if not line:
             logger.warn("args can not be empty for login")
             return
         parser = argparse.ArgumentParser()
@@ -1393,9 +1272,9 @@ class system_command(Magics):
         parser.add_argument("-p", "--password", type=str)
         parser.add_argument("-a", "--access_code", type=str)
         args = parser.parse_args(shlex.split(line))
-        if is_empty(args.server):
+        if not args.server:
             args.server = "127.0.0.1:3030"
-        if not is_empty(args.access_code):
+        if args.access_code:
             login_with_access_code(args.server, args.access_code)
             return
         login_with_password(args.server.args.username, args.password)
@@ -1413,7 +1292,7 @@ class system_command(Magics):
     @help_decorate("[System] change system lang", "lang zh")
     def lang(self, l="en"):
         global _lang, _l
-        if is_empty(l):
+        if not l:
             return
         if i18n.get(l) is None:
             logger.warn("lang {} not support, will use lang {}", l, _lang, "warn", "notice")
@@ -1439,6 +1318,7 @@ class JobStatus():
     stop = 'stop'
     stopping = 'stopping'
     complete = "complete"
+    wait_run = "wait_run"
 
 
 @help_decorate("Enum, used to describe a connection readable or writeable")
@@ -1871,7 +1751,9 @@ class Pipeline:
         if type(script) == types.FunctionType:
             from metapensiero.pj.api import translates
             import inspect
-            js_script = translates(inspect.getsource(script))[0]
+            source_code = inspect.getsource(script)
+            source_code = "def process(" + source_code.split("(", 2)[1]
+            js_script = translates(source_code)[0]
             f = Js(js_script, False)
         else:
             if script.endswith(".js"):
@@ -1981,52 +1863,14 @@ class Pipeline:
         return self.config({"accurate_delay": True})
 
     @help_decorate("config pipeline", args="config map, please h pipeline_config get all config key and it's meaning")
-    def config(self, config={}):
-        kk = {}
-        for k in config:
-            v = config[k]
-            if k == "create_index":
-                kk["needToCreateIndex"] = v
-                continue
-            if k == "support_nopk":
-                kk["noPrimaryKey"] = v
-                continue
-            if k == "batch_size":
-                kk["readBatchSize"] = v
-                continue
-            if k == "logminer_concurrency":
-                kk["manuallyMinerConcurrency"] = v
-                kk["oracleLogminer"] = LogMinerMode.manually
-                continue
-            if k == "logminer_mode":
-                kk["oracleLogminer"] = v
-                continue
-            if k == "fast_sql_parser":
-                kk["useCustomSQLParser"] = v
-                continue
-            if k == "lag_warn_seconds":
-                kk["userSetLagTime"] = v
-                kk["lagTimeFalg"] = True
-                continue
-            if k == "sync_type":
-                kk["syncType"] = v
-                continue
-            if k == "stop_on_error":
-                kk["stopOnError"] = v
-                continue
-            if k == "transform_model_version":
-                kk["transformModelVersion"] = v
-                continue
-            if k == "cdc_concurrency":
-                kk["cdcConcurrency"] = v
-                continue
-            if k == "accurate_delay":
-                kk["accurateDelay"] = v
-                kk["cdcVerify"] = v
-                continue
-            kk[k] = v
+    def config(self, config: dict = None):
 
-        self.dag.config(kk)
+        if not isinstance(config, dict):
+            logger.warn("type {} must be {}", config, "dict", "notice", "notice")
+            return
+        mode = self.dag.jobType
+        resp = ConfigCheck(config, job_config[mode], keep_extra=True).checked_config
+        self.dag.config(resp)
         return self
 
     def readLogFrom(self, logMiner):
@@ -2058,15 +1902,11 @@ class Pipeline:
         t = "localTZ"
         if start_time is None or start_time == "":
             t = "current"
-        if len(v.split("/")) == 2:
-            tz = v.split("/")[1]
-            if ":" not in tz:
-                tz = tz + ":00"
         for i in range(len(source_connection_ids)):
             syncPoints.append({
-                "date": start_time,
+                "dateTime": start_time,
                 "timezone": tz,
-                "type": t,
+                "pointType": t,
                 "connectionId": source_connection_ids[i]
             })
         config["syncPoints"] = [syncPoints]
@@ -2076,6 +1916,7 @@ class Pipeline:
     @help_decorate("start this pipeline as a running job", args="p.start()")
     def start(self):
         if self.job is not None:
+            self.job.config(self.dag.setting)
             self.job.start()
             return self
         job = Job(name=self.name, pipeline=self)
@@ -2091,6 +1932,7 @@ class Pipeline:
             "readShareLogMode": "STREAMING",
             "processorConcurrency": 1
         })
+        job.config(self.dag.setting)
         if job.start():
             logger.info("job {} start running ...", self.name)
         else:
@@ -2282,8 +2124,7 @@ class Source:
             "fields": {"id": True, "original_name": True, "fields": True},
             "limit": 1
         }
-        res = requests.get(system_server_conf["api"] + "/MetadataInstances" + system_server_conf[
-            "auth_param"] + "&filter=" + json.dumps(payload)).json()
+        res = req.get("/MetadataInstances", params={"filter": json.dumps(payload)}).json()
         table_id = None
         for s in res["data"]["items"]:
             if s["original_name"] == tableName:
@@ -2291,76 +2132,15 @@ class Source:
                 break
         if table_id is not None:
             self.primary_key = []
-            res = requests.get(
-                system_server_conf["api"] + "/MetadataInstances/" + table_id + system_server_conf["auth_param"]).json()
+            res = req.get("/MetadataInstances/" + table_id).json()
             for field in res["data"]["fields"]:
                 if field.get("primaryKey", False):
                     self.primary_key.append(field["field_name"])
         return table_id
 
-    @help_decorate("cache this source to idaas, you can preview it after cache it")
-    def cache(self):
-        if self.cache_p is not None:
-            logger.info("cache already, no need to do it again")
-            return
-        self.cache_table = self.tableName + "_cache"
-        if self.cache_client is None:
-            self.cache_conn = Connection.get(name=fdm)
-            mongo_uri = "mongodb://"
-            if self.cache_conn["database_username"] != "":
-                mongo_uri = mongo_uri + self.cache_conn["database_username"]
-            if self.cache_conn["database_password"] != "":
-                mongo_uri = mongo_uri
-            mongo_uri = mongo_uri + "@" + self.cache_conn["database_host"] + "/" + self.cache_conn["database_name"]
-            mongo_uri = mongo_uri + "?" + self.cache_conn["additionalString"]
-            self.cache_client = pymongo.MongoClient(mongo_uri)
-            if len(list(self.cache_client[fdm][self.cache_table].list_indexes())) > 0:
-                logger.info("cache table already exists, link done!")
-                return
-        p = Pipeline(name=str(uuid.uuid4()))
-        cache_source = Source(self.ori_connection, table=self.table)
-        cache_sink = Sink(fdm)
-        p.readFrom(cache_source).writeTo(cache_sink, relation=MultiTableRelation(suffix="_cache"))
-        p.start()
-        self.cache_p = p
-
     @help_decorate("get cache job status")
     def cache_status(self):
         self.cache_p.status()
-
-    @help_decorate("preview this source, only AFTER cache() call")
-    def preview(self, limit=10, pretty=False):
-        if self.cache_p is None and self.cache_client is None:
-            logger.warn("please call cache() before using preview")
-            return
-        example = list(self.cache_client[fdm][self.cache_table].find().limit(limit))
-        for i in range(len(example)):
-            logger.log("{}: {}", i, example[i] if not pretty else dumps(example[i], indent=4, ensure_ascii=False),
-                       "info", "debug")
-
-    @help_decorate("count this source, only AFTER cache() call")
-    def count(self):
-        if self.cache_p is None and self.cache_client is None:
-            logger.warn("please call cache() before using preview")
-            return
-        c = self.cache_client[fdm][self.cache_table].count()
-        logger.info("cache table count is: {}", c)
-
-    @help_decorate("find using a {}, only AFTER cache() call", args="query, {}")
-    def find(self, query, limit=10, pretty=False):
-        if self.cache_p is None and self.cache_client is None:
-            logger.warn("please call cache() before using preview")
-            return
-        if "_id" in query and type(query["_id"]) == type(""):
-            query["_id"] = ObjectId(query["_id"])
-        result = self.cache_client[fdm][self.cache_table].find(query).limit(limit)
-        c = result.count()
-        if c > 10:
-            logger.info("query match rows count: {}, will show 10 rows for preview", c)
-        example = list(self.cache_client[fdm][self.cache_table].find(query).limit(10))
-        for i in range(len(example)):
-            logger.log("{}: {}", i, example[i] if not pretty else dumps(example[i], indent=4, ensure_ascii=False),
-                       "info", "debug")
 
 
 @help_decorate("sink is end of a pipeline", "sink = Sink($Datasource, $table)")
@@ -2524,8 +2304,7 @@ class Api:
 
     def publish(self):
         if self.id is None:
-            res = requests.post(system_server_conf["api"] + "/Modules" + system_server_conf["auth_param"],
-                                json=self.payload).json()
+            res = req.post("/Modules", json=self.payload).json()
             if res["msg"] == "ok":
                 logger.info("publish api {} success, you can test it by: {}", self.base_path,
                             "http://" + server + "#/apiDocAndTest?id=" + self.base_path + "_v1")
@@ -2537,8 +2316,7 @@ class Api:
                 "id": self.id,
                 "status": "active"
             }
-            res = requests.patch(system_server_conf["api"] + "/Modules" + system_server_conf["auth_param"],
-                                 json=payload, cookies=system_server_conf["cookies"])
+            res = req.patch("/Modules", json=payload)
             res = res.json()
             if res["code"] == "ok":
                 logger.info("publish {} success", self.name)
@@ -2562,8 +2340,7 @@ class Api:
             "id": self.id,
             "status": "pending"
         }
-        res = requests.patch(system_server_conf["api"] + "/Modules" + system_server_conf["auth_param"], json=payload,
-                             cookies=system_server_conf["cookies"])
+        res = requests.patch("/Modules", json=payload)
         res = res.json()
         if res["code"] == "ok":
             logger.info("unpublish {} success", self.id)
@@ -2574,8 +2351,7 @@ class Api:
         if self.id is None:
             logger.warn("delete api {} fail, err is: {}", self.name, "api not find")
             return
-        res = requests.delete(system_server_conf["api"] + "/Modules/" + self.id + system_server_conf["auth_param"],
-                              cookies=system_server_conf["cookies"])
+        res = req.delete("/Modules/" + self.id)
         res = res.json()
         if res["code"] == "ok":
             logger.info("delete api {} success", self.name)
@@ -2587,6 +2363,7 @@ class Job:
     def __init__(self, name=None, id=None, dag=None, pipeline=None):
         self.id = None
         self.setting = {}
+        self.job = {}
         self.validateConfig = None
         if id is not None:
             if len(id) == 24:
@@ -2613,8 +2390,10 @@ class Job:
 
     @staticmethod
     def list():
-        res = requests.get(system_server_conf["api"] + "/DataFlows" + system_server_conf[
-            "auth_param"] + '&filter={"fields":{"id":true,"name":true,"status":true,"agentId":true,"stats":true}}')
+        res = req.get(
+            "/DataFlows",
+            params={"filter": '{"fields":{"id":true,"name":true,"status":true,"agentId":true,"stats":true}}'}
+        )
         if res.status_code != 200:
             return None
         res = res.json()
@@ -2624,17 +2403,12 @@ class Job:
         return jobs
 
     def reset(self):
-        res = requests.post(
-            system_server_conf["api"] +
-            "/DataFlows/" + self.id + "/reset" +
-            system_server_conf['auth_param']
-        ).json()
+        res = req.post("/DataFlows/" + self.id + "/reset").json()
         return True
 
     def _get_by_name(self):
         param = '{"where":{"name":{"like":"%s"}}}' % (self.name)
-        url = system_server_conf["api"] + "/Task" + system_server_conf["auth_param"] + "&filter=" + param
-        res = requests.get(url)
+        res = req.get("/Task", params={'filter': param})
         if res.status_code != 200:
             return None
         res = res.json()
@@ -2648,8 +2422,7 @@ class Job:
 
     def _get(self):
         if self.id is not None:
-            url = system_server_conf["api"] + "/Task/findTaskDetailById/" + self.id + system_server_conf["auth_param"]
-            res = requests.get(url)
+            res = req.get("/Task/findTaskDetailById/" + self.id)
             if res.status_code != 200:
                 return None
             res = res.json()
@@ -2663,8 +2436,7 @@ class Job:
     def stop(self, t=30):
         if self.id is None:
             return False
-        url = system_server_conf['api'] + '/Task/batchStop' + system_server_conf["auth_param"] + "&taskIds=" + self.id
-        res = requests.put(url)
+        res = req.put('/Task/batchStop', params={'taskIds': self.id})
         s = time.time()
         while True:
             if time.time() - s > t:
@@ -2682,8 +2454,7 @@ class Job:
         if self.status() in [JobStatus.running, JobStatus.scheduled]:
             logger.warn("job status is {}, please stop it first before delete it", self.status())
             return
-        res = requests.post(system_server_conf["api"] + "/DataFlows/removeAll" + system_server_conf[
-            "auth_param"] + "&where=" + '{"_id":{"inq":["' + self.id + '"]}}')
+        res = req.post("/DataFlows/removeAll", params={"where": '{"_id":{"inq":["' + self.id + '"]}}'})
         if res.status_code != 200:
             return False
         res = res.json()
@@ -2694,13 +2465,8 @@ class Job:
         return True
 
     def save(self):
-        job = {}
         if self.id is None:
-            if "stopOnError" in self.setting:
-                stopOnError = self.setting["stopOnError"]
-            else:
-                stopOnError = True
-            job = {
+            self.job = {
                 "accessNodeProcessId": "",
                 "accessNodeProcessIdList": [],
                 "accessNodeType": "AUTOMATIC_PLATFORM_ALLOCATION",
@@ -2717,39 +2483,52 @@ class Job:
                 "createUser": system_server_conf["username"]
             }
             if self.validateConfig is not None:
-                job["validateConfig"] = self.validateConfig
-        res = requests.patch(system_server_conf["api"] + "/Task" + system_server_conf["auth_param"], json=job,
-                             cookies=system_server_conf["cookies"])
+                self.job["validateConfig"] = self.validateConfig
+        self.job.update(self.setting)
+        res = req.patch("/Task", json=self.job)
         res = res.json()
         if res["code"] != "ok":
             return False
         self.id = res["data"]["id"]
-
         job = res["data"]
-
-        res = requests.patch(system_server_conf["api"] + "/Task/confirm/" + self.id + system_server_conf["auth_param"],
-                             json=job)
+        res = req.patch("/Task/confirm/" + self.id, json=job)
         res = res.json()
+        if res["code"] != "ok":
+            return False
+        self.job = res["data"]
+        self.setting = res["data"]
+        return True
 
     def start(self):
-        self.save()
+        try:
+            status = self.status()
+        except (KeyError, TypeError) as e:
+            resp = self.save()
+            if not resp:
+                logger.info("job {} save failed.")
+                return False
+            status = self.status()
+        if status in [JobStatus.running, JobStatus.scheduled, JobStatus.wait_run]:
+            logger.info("job {} status is {} now", self.id, status)
+            return True
+
         if self.id is None:
             logger.warn("save job fail")
             return False
-        res = requests.put(system_server_conf["api"] + "/Task/batchStart" + system_server_conf[
-            "auth_param"] + "&taskIds=" + self.id).json()
+        # TODO: sleep 1 seconds, wait for js gen schema
+        time.sleep(1)
+        res = req.put("/Task/batchStart", params={"taskIds": self.id}).json()
         if res["code"] != "ok":
             return False
 
         return True
 
     def config(self, config):
-        for k, v in config.items():
-            self.setting[k] = v
+        self.setting.update(config)
 
     def status(self, res=None, quiet=True):
         if res is None:
-            res = requests.get(system_server_conf["api"] + "/Task/" + self.id + system_server_conf["auth_param"]).json()
+            res = req.get("/Task/" + self.id).json()
         status = res["data"]["status"]
         if not quiet:
             logger.info("job status is: {}", status)
@@ -2757,7 +2536,7 @@ class Job:
 
     def get_sub_task_ids(self):
         sub_task_ids = []
-        res = requests.get(system_server_conf["api"] + "/Task/" + self.id + system_server_conf["auth_param"]).json()
+        res = req.get("/Task/" + self.id).json()
         statuses = res["data"]["statuses"]
         jobStats = JobStats()
         for subTask in statuses:
@@ -2765,7 +2544,7 @@ class Job:
         return sub_task_ids
 
     def stats(self, res=None):
-        res = requests.get(system_server_conf["api"] + "/Task/" + self.id + system_server_conf["auth_param"]).json()
+        res = req.get("/Task/" + self.id).json()
         statuses = res["data"]["statuses"]
         jobStats = JobStats()
         for subTask in statuses:
@@ -2779,10 +2558,7 @@ class Job:
                 }
               ]
             }
-            res = requests.post(
-                system_server_conf["api"] + "/measurement/query" + system_server_conf["auth_param"],
-                json=payload
-            ).json()
+            res = req.post("/measurement/query", json=payload).json()
             for statistic in res["data"]["statistics"]:
                 jobStats.delay = statistic["replicateLag"]
                 jobStats.output = statistic["outputTotal"]
@@ -2982,8 +2758,7 @@ class DataSource():
     @staticmethod
     @help_decorate("static method, used to list all datasources", res="datasource list, list")
     def list():
-        return requests.get(system_server_conf["api"] + "/Connections" + system_server_conf["auth_param"]).json()[
-            "data"]
+        return req.get("/Connections").json()["data"]
 
     @help_decorate("desc a datasource, display readable struct", res="datasource struct")
     def desc(self, quiet=True):
@@ -3001,7 +2776,7 @@ class DataSource():
         ]
         # remove field hard to understand
         for k, v in c.items():
-            if is_empty(v):
+            if not v:
                 remove_keys.append(k)
 
         for k in remove_keys:
@@ -3015,18 +2790,18 @@ class DataSource():
 
     @help_decorate("get a datasource status", "")
     def status(self, quiet=True):
-        c = self.c
-        if c is None:
-            logger.warn("the status is None. please check the name or connector")
+        if self.id is None or isinstance(self.id, FunctionType):
+            logger.warn("datasource is not save, please save first")
             return
-        status = c.get("status")
-        tableCount = c.get("tableCount", "unknown")
-        loadCount = c.get("loadCount", 0)
-        loadFieldsStatus = c.get("loadFieldsStatus", False)
-        loadSchemaDate = c.get("loadSchemaDate", "unknown")
+        info = self.get(self.id)
+        status = info.get("status")
+        tableCount = info.get("tableCount", "unknown")
+        loadCount = info.get("loadCount", 0)
+        loadFieldsStatus = info.get("loadFieldsStatus", False)
+        loadSchemaDate = info.get("loadSchemaDate", "unknown")
         if not quiet:
             logger.info("datasource {} status is: {}, it has {} tables, loaded {}, last load time is: {}",
-                        c.get("name"), status, tableCount, loadCount, loadSchemaDate)
+                        info.get("name"), status, tableCount, loadCount, loadSchemaDate)
         return status
 
     def host(self, host):
@@ -3122,7 +2897,7 @@ class DataSource():
         database_type = d.get("database_type", "")
         if database_type.lower() not in client_cache["connectors"]:
             logger.warn("connector {} not support, support list is: {}", database_type, client_cache["connectors"])
-
+            return
         connector = client_cache["connectors"][database_type.lower()]
         d["pdkType"] = "pdk"
         d["pdkHash"] = connector["pdkHash"]
@@ -3145,19 +2920,17 @@ class DataSource():
                     "name": name,
                 }
             }
-
-        data = requests.get(system_server_conf["api"] + "/Connections" + system_server_conf[
-            "auth_param"] + "&filter=" + urllib.parse.quote_plus(json.dumps(f)),
-                            cookies=system_server_conf["cookies"]).json()["data"]
+        data = req.get("/Connections", params={'filter': json.dumps(f)}).json()["data"]
         if len(data["items"]) == 0:
             return None
         return data["items"][0]
 
     @help_decorate("save a connection in idaas system")
     def save(self):
-        api = system_server_conf["api"] + "/Connections" + system_server_conf["auth_param"]
         data = self.to_dict()
-        res = requests.post(api, json=data)
+        if data is None:
+            return
+        res = req.post("/Connections", json=data)
         show_connections(quiet=True)
         if res.status_code == 200 and res.json()["code"] == "ok":
             self.id = res.json()["data"]["id"]
@@ -3169,10 +2942,9 @@ class DataSource():
         return False
 
     def delete(self):
-        if self.id is None:
+        if self.id is None or isinstance(self.id, FunctionType):
             return
-        api = system_server_conf["api"] + "/Connections/" + self.id + system_server_conf["auth_param"]
-        res = requests.delete(api, json=self.c)
+        res = req.delete("/Connections/" + self.id, json=self.c)
         if res.status_code == 200 and res.json()["code"] == "ok":
             logger.info("delete {} Connection success", self.id)
             return True
@@ -3233,8 +3005,7 @@ class DataSource():
         while True:
             try:
                 time.sleep(5)
-                api = system_server_conf["api"] + "/Connections/" + self.id + system_server_conf["auth_param"]
-                res = requests.get(api).json()
+                res = req.get("/Connections/" + self.id).json()
                 if res["data"] == None:
                     break
                 if "loadFieldsStatus" not in res["data"]:
@@ -3253,7 +3024,7 @@ class DataSource():
 class MongoDB(DataSource):
     def __init__(self, name):
         self.connector = "mongodb"
-        super().__init__(name)
+        super().__init__(name=name, connector="mongodb")
 
     def uri(self, url):
         self.url = url
@@ -3264,40 +3035,29 @@ class MongoDB(DataSource):
 class Mysql(DataSource):
     def __init__(self, name):
         self.connector = "mysql"
-        super().__init__(name)
-
-    def to_dict(self):
-        base_dict = super().to_dict()
-        host = base_dict["database_host"].split(":")[0]
-        port = base_dict["database_host"].split(":")[1]
-        base_dict["database_host"] = host
-        base_dict["database_port"] = port
-        return base_dict
+        super().__init__(name=name, connector="mysql")
 
 
 class Postgres(DataSource):
     def __init__(self, name):
-        self.connector = "postgres"
-        super().__init__(name)
+        self.connector = "postgresql"
+        self._log_decorder_plugin = ""
+        super().__init__(connector="postgresql", name=name)
 
     def schema(self, schema):
-        self.schema = schema
+        self._schema = schema
         return self
 
-    def log_decorder_plugin(self, plugin):
-        self.log_decorder_plugin = plugin
+    def set_log_decorder_plugin(self, plugin):
+        self._log_decorder_plugin = plugin
         return self
 
     def to_dict(self):
         base_dict = super().to_dict()
-        host = base_dict["database_host"].split(":")[0]
-        port = base_dict["database_host"].split(":")[1]
-        base_dict["database_host"] = host
-        base_dict["database_port"] = port
-        base_dict["database_owner"] = self.schema
+        base_dict["database_owner"] = self._schema
         base_dict["pgsql_log_decorder_plugin_name"] = "wal2json_streaming"
-        if self.log_decorder_plugin is not None:
-            base_dict["pgsql_log_decorder_plugin_name"] = self.log_decorder_plugin
+        if self._log_decorder_plugin is not None:
+            base_dict["pgsql_log_decorder_plugin_name"] = self._log_decorder_plugin
         return base_dict
 
 
@@ -3325,8 +3085,7 @@ class Connection:
     @help_decorate("save a connection in idaas system")
     def save(self):
         #self.load_schema(quiet=False)
-        api = system_server_conf["api"] + "/Connections" + system_server_conf["auth_param"]
-        res = requests.post(api, json=self.c)
+        res = req.post("/Connections", json=self.c)
         show_connections(quiet=True)
         if res.status_code == 200 and res.json()["code"] == "ok":
             self.id = res.json()["data"]["id"]
@@ -3338,8 +3097,7 @@ class Connection:
         return False
 
     def delete(self):
-        api = system_server_conf["api"] + "/Connections/" + self.id + system_server_conf["auth_param"]
-        res = requests.delete(api, json=self.c)
+        res = req.delete("/Connections/" + self.id, json=self.c)
         if res.status_code == 200 and res.json()["code"] == "ok":
             logger.info("delete {} Connection success", self.id)
             return True
@@ -3366,8 +3124,7 @@ class Connection:
     @staticmethod
     @help_decorate("static method, used to list all connections", res="connection list, list")
     def list():
-        return requests.get(system_server_conf["api"] + "/Connections" + system_server_conf["auth_param"]).json()[
-            "data"]
+        return req.get("/Connections").json()["data"]
 
     @staticmethod
     @help_decorate("get a connection, by it's id or name", args="id or name, using kargs",
@@ -3386,9 +3143,7 @@ class Connection:
                 }
             }
 
-        data = requests.get(system_server_conf["api"] + "/Connections" + system_server_conf[
-            "auth_param"] + "&filter=" + urllib.parse.quote_plus(json.dumps(f)),
-                            cookies=system_server_conf["cookies"]).json()["data"]
+        data = req.get("/Connections", params={"filter": json.dumps(f)}).json()["data"]
         if len(data["items"]) == 0:
             return None
         return data["items"][0]
@@ -3448,9 +3203,7 @@ class Connection:
         while True:
             try:
                 time.sleep(1)
-
-                api = system_server_conf["api"] + "/Connections/" + self.id + system_server_conf["auth_param"]
-                res = requests.get(api).json()
+                res = req.get("/Connections/" + self.id).json()
                 if res["data"] == None:
                     break
                 if "loadFieldsStatus" not in res["data"]:
@@ -3511,17 +3264,14 @@ class DataCheck:
     @help_decorate("get a data check job by it's name", args="data check name",
                    res="DataCheck or None if not exists, DataCheck")
     def get(name):
-        api = system_server_conf["api"] + "/Inspects" + system_server_conf["auth_param"] + "&filter=" + json.dumps(
-            {"where": {"name": name}})
-        data = requests.get(api).json()["data"]
+        data = req.get("/Inspects", params={"filter": json.dumps({"where": {"name": name}})}).json()["data"]
         if data["total"] == 0:
             return None
         return data[0]
 
     @help_decorate("save a data check job, and start it")
     def save(self):
-        api = system_server_conf["api"] + "/Inspects" + system_server_conf["auth_param"]
-        res = requests.post(api, json=self.check_job)
+        res = req.post("/Inspects", json=self.check_job)
         data = res.json()["data"]
         self.id = data["id"]
 
@@ -3531,16 +3281,12 @@ class DataCheck:
 
     @help_decorate("get data check job status", res="job status")
     def status(self):
-        api = system_server_conf["api"] + "/Inspects" + system_server_conf["auth_param"] + "&filter=" + json.dumps(
-            {"where": {"id": self.id}})
-        res = requests.get(api)
+        res = req.get("/Inspects", params={"filter": json.dumps({"where": {"id": self.id}})})
         return res.json()["data"][0]["status"]
 
     @help_decorate("get data check job stats", res="job stats")
     def stats(self, quiet=False):
-        api = system_server_conf["api"] + "/Inspects" + system_server_conf["auth_param"] + "&filter=" + json.dumps(
-            {"where": {"id": self.id}})
-        res = requests.get(api)
+        res = req.get("/Inspects", params={"filter": json.dumps({"where": {"id": self.id}})})
         stats = res.json()["data"][0]["InspectResult"]["stats"][0]
         if not quiet:
             logger.log(
@@ -3681,20 +3427,11 @@ op_object_command_class = {
     }
 }
 
-# try auto login with config file
-fdm = "fdm"
-server = ""
-try:
-    conf_file = "conf.json"
-    if os.path.exists(conf_file):
-        f = open(conf_file, "r")
-        conf = json.loads(str(f.read()))
-        if not is_empty(conf.get("fdm")):
-            fdm = conf.get("fdm")
-        server = conf.get("server")
-        access_code = conf.get("access_code")
-        login_with_access_code(server, access_code)
+
+def main():
+    login_with_access_code(server, access_code)
     show_connections(quiet=True)
     show_connectors(quiet=True)
-except Exception as e:
-    logger.warn("load conf file failed, err is: {}", e)
+
+
+main()

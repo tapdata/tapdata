@@ -36,9 +36,9 @@
           "x-index": 3,
           "required": true
         },
-        "username": {
+        "user": {
           "type": "string",
-          "title": "${username}",
+          "title": "${user}",
           "x-decorator": "FormItem",
           "x-component": "Input",
           "apiServerKey": "database_username",
@@ -188,7 +188,7 @@
       "host": "Host",
       "port": "Port",
       "database": "database",
-      "username": "username",
+      "user": "user",
       "password": "password",
       "addtionalString": "Connection Parameter String",
       "timezone": "timezone",
@@ -198,7 +198,7 @@
       "host": "地址",
       "port": "端口",
       "database": "数据库",
-      "username": "账号",
+      "user": "账号",
       "password": "密码",
       "addtionalString": "连接参数",
       "timezone": "时区",
@@ -208,7 +208,7 @@
       "host": "地址",
       "port": "端口",
       "database": "數據庫",
-      "username": "賬號",
+      "user": "賬號",
       "password": "密碼",
       "addtionalString": "連接參數",
       "timezone": "時區",

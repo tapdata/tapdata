@@ -39,7 +39,7 @@ public class HeartbeatDummyConfig extends DummyConfig {
         TapTable table = TapSimplify.table(TABLE_NAME);
         table.setDefaultPrimaryKeys(Collections.singletonList("id"));
         table.add(TapSimplify.field("id", "string").pos(1).defaultValue(connId).primaryKeyPos(1));
-        table.add(TapSimplify.field("ts", "datetime").pos(2).defaultValue("now()"));
+        table.add(TapSimplify.field("ts", "now").pos(2));
 
         tables.add(table);
         return tables;

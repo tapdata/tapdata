@@ -54,6 +54,13 @@ public class DummyConfig implements IDummyConfig {
     }
 
     @Override
+    public Long getBatchTimeouts() {
+        String val = config.getString("batch_timeouts");
+        val = DummyUtils.blankDefault(val, "3000");
+        return Long.parseLong(val);
+    }
+
+    @Override
     public Long getInitialTotals() {
         String val = config.getString("initial_totals");
         val = DummyUtils.blankDefault(val, "1");

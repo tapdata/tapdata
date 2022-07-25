@@ -2,6 +2,7 @@ package com.tapdata.tm.commons.dag.nodes;
 
 import cn.hutool.core.thread.ThreadUtil;
 import com.tapdata.tm.commons.dag.DAG;
+import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.NodeType;
 import com.tapdata.tm.commons.dag.SchemaTransformerResult;
 import com.tapdata.tm.commons.dag.process.FieldProcessorNode;
@@ -84,8 +85,6 @@ public class DatabaseNode extends DataParentNode<List<Schema>> {
         }
 
         Map<String, List<Field>> targetFieldMap = schemas.stream().collect(Collectors.toMap(Schema::getOriginalName, Schema::getFields, (k1, k2)-> k1));
-
-
         // 1. 所有源库按照表名称分组合并
         // 2. 根据规则转换源库表名称，匹配目标表并合并
         DataSourceConnectionDto dataSource = service.getDataSource(connectionId);
@@ -97,6 +96,7 @@ public class DatabaseNode extends DataParentNode<List<Schema>> {
         List<SchemaTransformerResult> schemaTransformerResults = new ArrayList<>();
         String currentDbName = schemas.size() > 0 ? schemas.get(0).getDatabase() : null;
         List<String> inputFields = inputSchemas.stream().flatMap(Collection::stream).map(Schema::getFields).flatMap(Collection::stream).map(Field::getFieldName).collect(Collectors.toList());
+        List<String> inputFieldOriginalNames = inputSchemas.stream().flatMap(Collection::stream).map(Schema::getFields).flatMap(Collection::stream).map(Field::getOriginalFieldName).collect(Collectors.toList());
         Map<String, Schema> inputTables = inputSchemas.stream().flatMap(Collection::stream).peek(s -> {
 
             transformResults(targetFieldMap.get(s.getOriginalName()), dataSource, _metaType, schemaTransformerResults, currentDbName, s);
@@ -123,7 +123,7 @@ public class DatabaseNode extends DataParentNode<List<Schema>> {
         }
         for (Schema schema : outputSchema) {
             schema.setAncestorsName(schema.getOriginalName());
-            schema.setFields(transformFields(inputFields, schema));
+            schema.setFields(transformFields(inputFields, schema, inputFieldOriginalNames));
             long count = schema.getFields().stream().filter(Field::isDeleted).count();
             long count1 = schema.getFields().stream().filter(f -> !f.isDeleted()).filter(field -> field.getFieldName().contains(".")).count();
             for (SchemaTransformerResult result : schemaTransformerResults) {
@@ -202,21 +202,23 @@ public class DatabaseNode extends DataParentNode<List<Schema>> {
                     .collect(Collectors.toList());
 
         } else {
-            List<TableRenameProcessNode> collect = predecessors().stream().filter(node -> node instanceof TableRenameProcessNode)
-                    .map(node -> (TableRenameProcessNode) node)
-                    .collect(Collectors.toList());
-
-            collect.forEach(node -> {
-                Map<String, TableRenameTableInfo> namesMapping = node.originalMap();
-                if (!namesMapping.isEmpty()) {
-                    for (int i = 0; i < includes.size(); i++) {
-                        String tableName = includes.get(i);
-                        if (namesMapping.containsKey(tableName)) {
-                            includes.set(i, namesMapping.get(tableName).getCurrentTableName());
+            LinkedList<Node> preNodes = getPreNodes(this.getId());
+            if (CollectionUtils.isNotEmpty(preNodes)) {
+                LinkedList<TableRenameProcessNode> collect = preNodes.stream().filter(node -> node instanceof TableRenameProcessNode)
+                        .map(node -> (TableRenameProcessNode) node)
+                        .collect(Collectors.toCollection(LinkedList::new));
+                if (CollectionUtils.isNotEmpty(collect)) {
+                    Map<String, TableRenameTableInfo> namesMapping = collect.getLast().originalMap();
+                    if (!namesMapping.isEmpty()) {
+                        for (int i = 0; i < includes.size(); i++) {
+                            String tableName = includes.get(i);
+                            if (namesMapping.containsKey(tableName)) {
+                                includes.set(i, namesMapping.get(tableName).getCurrentTableName());
+                            }
                         }
                     }
                 }
-            });
+            }
 
             filteredTableNames = includes;
         }

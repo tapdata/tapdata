@@ -3,9 +3,11 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+test/.env
+
 # C extensions
 *.so
-
+test/allure-results/
 # Distribution / packaging
 .Python
 build/

@@ -26,6 +26,12 @@ public interface IDummyConfig {
     List<TapTable> getSchemas();
 
     /**
+     * data batch push timeouts, default: 3000
+     * @return timeouts
+     */
+    Long getBatchTimeouts();
+
+    /**
      * Get initial totals, takes effect when greater than 0, default: 1
      *
      * @return totals
@@ -73,7 +79,6 @@ public interface IDummyConfig {
      * @return is print log
      */
     Boolean isWriteLog();
-
 
     /**
      * Get and check connection config
