@@ -1,6 +1,7 @@
 package com.tapdata.tm.commons.dag.nodes;
 
 import cn.hutool.core.thread.ThreadUtil;
+import com.google.common.collect.Lists;
 import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.NodeType;
@@ -11,10 +12,7 @@ import com.tapdata.tm.commons.dag.vo.BatchTypeOperation;
 import com.tapdata.tm.commons.dag.vo.FieldProcess;
 import com.tapdata.tm.commons.dag.vo.SyncObjects;
 import com.tapdata.tm.commons.dag.vo.TableRenameTableInfo;
-import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
-import com.tapdata.tm.commons.schema.Field;
-import com.tapdata.tm.commons.schema.Schema;
-import com.tapdata.tm.commons.schema.SchemaUtils;
+import com.tapdata.tm.commons.schema.*;
 import io.tapdata.entity.event.ddl.TapDDLEvent;
 import io.tapdata.entity.event.ddl.table.TapFieldBaseEvent;
 import com.tapdata.tm.commons.task.dto.TaskDto;
@@ -124,6 +122,8 @@ public class DatabaseNode extends DataParentNode<List<Schema>> {
         for (Schema schema : outputSchema) {
             schema.setAncestorsName(schema.getOriginalName());
             schema.setFields(transformFields(inputFields, schema, inputFieldOriginalNames));
+            //  has migrateFieldNode && field not show => will del index where contain field
+            schema.setIndices(updateIndexDelField(schema.getIndices(), inputFieldOriginalNames));
             long count = schema.getFields().stream().filter(Field::isDeleted).count();
             long count1 = schema.getFields().stream().filter(f -> !f.isDeleted()).filter(field -> field.getFieldName().contains(".")).count();
             for (SchemaTransformerResult result : schemaTransformerResults) {
@@ -135,6 +135,22 @@ public class DatabaseNode extends DataParentNode<List<Schema>> {
             }
         }
         return outputSchema;
+    }
+
+    private List<TableIndex> updateIndexDelField(List<TableIndex> indices, List<String> inputFieldOriginalNames) {
+        Iterator<TableIndex> indexIterator = indices.iterator();
+        while (indexIterator.hasNext()) {
+            TableIndex tableIndex = indexIterator.next();
+            List<TableIndexColumn> columns = tableIndex.getColumns();
+
+            columns.removeIf(column -> inputFieldOriginalNames.contains(column.getColumnName()));
+
+            if (CollectionUtils.isEmpty(columns)) {
+                indexIterator.remove();
+            }
+        }
+
+        return indices;
     }
 
     @SneakyThrows
@@ -202,7 +218,7 @@ public class DatabaseNode extends DataParentNode<List<Schema>> {
                     .collect(Collectors.toList());
 
         } else {
-            LinkedList<Node> preNodes = getPreNodes(this.getId());
+            LinkedList<Node<?>> preNodes = getPreNodes(this.getId());
             if (CollectionUtils.isNotEmpty(preNodes)) {
                 LinkedList<TableRenameProcessNode> collect = preNodes.stream().filter(node -> node instanceof TableRenameProcessNode)
                         .map(node -> (TableRenameProcessNode) node)
