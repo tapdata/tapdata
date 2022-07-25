@@ -3,37 +3,36 @@ Configuration:
   Properties:
     Property:
       - Name: log-path
-        Value: "logs"
+        Value: "${env:TAPDATA_WORK_DIR}/logs"
       - Name: level
         Value: INFO
 
   Appenders:
     Console:
-      Name: Console_Appender
+      Name: consoleAppender
       Target: SYSTEM_OUT
       PatternLayout:
         Pattern: "[%-5level] %d{yyyy-MM-dd HH:mm:ss.SSS} [%t] %c{1} - %msg%n"
-
-#    RollingFile:
-#      - name: RollingFile_Appender
-#        fileName: tapdata-server.log
-#        filePattern: tapdata-server-$${date:yyyyMMdd}.log
-#        PatternLayout:
-#          pattern: "[%-5level] %d{yyyy-MM-dd HH:mm:ss.SSS} [%t] %c{1} - %msg%n"
-#        Policies:
-#          OnStartupTriggeringPolicy:
-#            minSize: 10 MB
-#          SizeBasedTriggeringPolicy:
-#            size: 150 MB
-#        DefaultRollOverStrategy:
-#          max: 30
+    RollingFile:
+      - Name: rollingFileAppender
+        FileName: ${log-path}/tapdata-iengine.log
+        FilePattern: tapdata-iengine-$${date:yyyyMMdd}.log
+        PatternLayout:
+          Pattern: "[%-5level] %d{yyyy-MM-dd HH:mm:ss.SSS} [%t] %c{1} - %msg%n"
+        Policies:
+          OnStartupTriggeringPolicy:
+            MinSize: 10 MB
+          SizeBasedTriggeringPolicy:
+            Size: 150 MB
+        DefaultRollOverStrategy:
+          Max: 30
 
   Loggers:
-      Root:
-        level: ${level}
-        AppenderRef:
-          - ref: Console_Appender
-#          - ref: RollingFile_Appender
+    Root:
+      Level: ${level}
+      AppenderRef:
+        - Ref: consoleAppender
+        - Ref: rollingFileAppender
 #
 #      Logger:
 #        - name: com
