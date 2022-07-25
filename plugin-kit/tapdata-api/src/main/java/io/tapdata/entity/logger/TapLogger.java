@@ -198,8 +198,4 @@ public class TapLogger {
         TapLogger.logListener = logListener;
     }
 
-    static SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss,SSS");
-    public static String dateString() {
-        return sdf.format(new Date());
-    }
 }
