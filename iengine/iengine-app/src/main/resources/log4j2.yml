@@ -1,20 +1,18 @@
-Configutation:
-  name: Default
-
+Configuration:
+  Name: Default
   Properties:
     Property:
-#      - name: log-path
-#        value: "logs"
-      - name: level
-        value: INFO
+      - Name: log-path
+        Value: "logs"
+      - Name: level
+        Value: INFO
 
   Appenders:
-
     Console:
-      name: Console_Appender
-      target: SYSTEM_OUT
+      Name: Console_Appender
+      Target: SYSTEM_OUT
       PatternLayout:
-        pattern: "[%-5level] %d{yyyy-MM-dd HH:mm:ss.SSS} [%t] %c{1} - %msg%n"
+        Pattern: "[%-5level] %d{yyyy-MM-dd HH:mm:ss.SSS} [%t] %c{1} - %msg%n"
 
 #    RollingFile:
 #      - name: RollingFile_Appender
@@ -30,12 +28,11 @@ Configutation:
 #        DefaultRollOverStrategy:
 #          max: 30
 
-#  Loggers:
-#
-#      Root:
-#        level: ${level}
-#        AppenderRef:
-#          - ref: Console_Appender
+  Loggers:
+      Root:
+        level: ${level}
+        AppenderRef:
+          - ref: Console_Appender
 #          - ref: RollingFile_Appender
 #
 #      Logger:
