@@ -15,6 +15,8 @@ import java.util.Map;
 @NoArgsConstructor
 @Schema(description = "js模型推演试运行结果Dto")
 public class JsResultDto {
+    private String code;
+    private String message;
     private String taskId;
     private List<Map<String, Object>> before;
     private List<Map<String, Object>> after;

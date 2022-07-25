@@ -749,13 +749,14 @@ public class TaskController extends BaseController {
                                          @RequestParam String jsNodeId,
                                          @RequestParam String tableName,
                                          @RequestParam(defaultValue = "1") Integer rows) {
-
+        taskNodeService.testRunJsNode(taskId, jsNodeId, tableName, rows, getLoginUser());
         return success();
     }
 
     @PostMapping("migrate-js/save-result")
     @Operation(description = "js节点运行结果保存")
-    public ResponseMessage<Void> testResult(@RequestBody JsResultDto jsResultDto) {
+    public ResponseMessage<Void> saveResult(@RequestBody JsResultDto jsResultDto) {
+        taskNodeService.saveResult(jsResultDto);
         return success();
     }
 

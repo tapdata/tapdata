@@ -1,5 +1,6 @@
 package com.tapdata.tm.task.service.impl;
 
+import cn.hutool.core.bean.BeanUtil;
 import com.google.common.collect.Maps;
 import com.tapdata.manager.common.utils.JsonUtil;
 import com.tapdata.tm.base.dto.Page;
@@ -31,6 +32,8 @@ import com.tapdata.tm.metadatainstance.entity.MetadataInstancesEntity;
 import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
 import com.tapdata.tm.task.service.TaskNodeService;
 import com.tapdata.tm.task.service.TaskService;
+import com.tapdata.tm.task.vo.JsResultDto;
+import com.tapdata.tm.task.vo.JsResultVo;
 import com.tapdata.tm.utils.Lists;
 import com.tapdata.tm.utils.MongoUtils;
 import com.tapdata.tm.worker.entity.Worker;
@@ -45,6 +48,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
+import java.util.concurrent.ConcurrentMap;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -58,6 +62,8 @@ public class TaskNodeServiceImpl implements TaskNodeService {
     private DataSourceService dataSourceService;
     private MessageQueueService messageQueueService;
     private WorkerService workerService;
+
+    public static final ConcurrentMap<String, Object> jsNodeResult = Maps.newConcurrentMap();
 
     @Override
     public Page<MetadataTransformerItemDto> getNodeTableInfo(String taskId, String nodeId, String searchTableName,
@@ -217,9 +223,13 @@ public class TaskNodeServiceImpl implements TaskNodeService {
     public void testRunJsNode(String taskId, String nodeId, String tableName, Integer rows, UserDetail userDetail) {
         TaskDto taskDto = taskService.findById(MongoUtils.toObjectId(taskId));
 
-        Dag dag = taskDto.getDag().toDag();
-        dag = JsonUtil.parseJsonUseJackson(JsonUtil.toJsonUseJackson(dag), Dag.class);
-        List<Node<?>> nodes = taskDto.getDag().nodeMap().get(nodeId);
+        DAG dtoDag = taskDto.getDag();
+        dtoDag.getSourceNode().getFirst().setTableNames(Lists.of(tableName));
+
+        Dag build = dtoDag.toDag();
+        build = JsonUtil.parseJsonUseJackson(JsonUtil.toJsonUseJackson(build), Dag.class);
+        List<Node<?>> nodes = dtoDag.nodeMap().get(nodeId);
+
 
         Node<?> target = new VirtualTargetNode();
         target.setId(UUID.randomUUID().toString());
@@ -228,22 +238,22 @@ public class TaskNodeServiceImpl implements TaskNodeService {
             nodes.add(target);
         }
 
-        List<Edge> edges = taskDto.getDag().edgeMap().get(nodeId);
+        List<Edge> edges = dtoDag.edgeMap().get(nodeId);
         if (org.apache.commons.collections4.CollectionUtils.isNotEmpty(edges)) {
             Edge edge = new Edge(nodeId, target.getId());
             edges.add(edge);
         }
 
-        dag.setNodes(new LinkedList<Node>(){{addAll(nodes);}});
-        dag.setEdges(edges);
+        build.setNodes(new LinkedList<Node>(){{addAll(nodes);}});
+        build.setEdges(edges);
 
-        DAG build = DAG.build(dag);
+        DAG temp = DAG.build(build);
 
         taskDto.setDag(null);
         SubTaskDto subTaskDto = new SubTaskDto();
         subTaskDto.setStatus(SubTaskDto.STATUS_WAIT_RUN);
         subTaskDto.setParentTask(taskDto);
-        subTaskDto.setDag(build);
+        subTaskDto.setDag(temp);
         subTaskDto.setParentId(taskDto.getId());
         subTaskDto.setId(new ObjectId());
         subTaskDto.setName(taskDto.getName() + "(100)");
@@ -258,5 +268,22 @@ public class TaskNodeServiceImpl implements TaskNodeService {
         queueDto.setData(subTaskDto);
         queueDto.setType(TaskDto.SYNC_TYPE_TEST_RUN);
         messageQueueService.sendMessage(queueDto);
+    }
+
+    @Override
+    public void saveResult(JsResultDto jsResultDto) {
+        jsNodeResult.put(jsResultDto.getTaskId(),  jsResultDto);
+    }
+
+    @Override
+    public JsResultVo getRun(String taskId, String jsNodeId) {
+        JsResultVo result = new JsResultVo();
+        if (jsNodeResult.containsKey(taskId)) {
+            BeanUtil.copyProperties(jsNodeResult.get(taskId), result);
+            result.setOver(true);
+        } else {
+            result.setOver(false);
+        }
+        return result;
     }
 }
