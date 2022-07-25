@@ -427,6 +427,7 @@ public class HazelcastTaskService implements TaskService<SubTaskDto> {
 				);
 				break;
 			case JS_PROCESSOR:
+      case MIGRATE_JS_PROCESSOR:
 			case FIELD_PROCESSOR:
 			case ROW_FILTER_PROCESSOR:
 			case CACHE_LOOKUP_PROCESSOR:
