@@ -1,6 +1,7 @@
 package io.tapdata.aspect;
 
 import io.tapdata.aspect.task.AspectTaskSession;
+import io.tapdata.entity.aspect.Aspect;
 
 import java.util.concurrent.atomic.LongAdder;
 
@@ -18,6 +19,10 @@ public class TestSampleTask extends SampleTask {
 		onStartCounter.increment();
 	}
 
+	@Override
+	public void onObserveAspect(Aspect aspect) {
+		super.onObserveAspect(aspect);
+	}
 	@Override
 	protected Void handleProcessorNodeProcess(ProcessorNodeProcessAspect nodeProcessAspect) {
 		this.nodeProcessAspect = nodeProcessAspect;
