@@ -7,4 +7,6 @@ import com.tapdata.tm.config.security.UserDetail;
 public interface TaskNodeService {
     Page<MetadataTransformerItemDto> getNodeTableInfo(String taskId, String nodeId, String searchTableName,
                                                       Integer page, Integer pageSize, UserDetail userDetail);
+
+    void testRunJsNode(String taskId, String jsNodeId, String tableName, Integer rows, UserDetail userDetail);
 }
