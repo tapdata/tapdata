@@ -51,6 +51,7 @@ public class PipeHandler implements WebSocketHandler {
 			Object result = data.get("result");
 			String jsonStr = JSON.toJSONString(result);
 			JSONValidator jsonValidator = JSONValidator.from(jsonStr);
+			jsonValidator.validate();
 			if (jsonValidator.getType() == JSONValidator.Type.Object) {
 				JSONObject jsonObject = JSON.parseObject(jsonStr);
 				if (Objects.nonNull(jsonObject)) {
