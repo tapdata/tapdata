@@ -81,7 +81,12 @@ public class TestRunAspectTask extends AspectTask {
 
   @Override
   public List<Class<? extends Aspect>> observeAspects() {
-    return null;
+    List<Class<?>> classes = observerClassHandlers.keyList();
+    List<Class<? extends Aspect>> aspectClasses = new ArrayList<>();
+    for(Class<?> clazz : classes) {
+      aspectClasses.add((Class<? extends Aspect>) clazz);
+    }
+    return aspectClasses;
   }
 
   @Override
@@ -91,7 +96,7 @@ public class TestRunAspectTask extends AspectTask {
 
   @Override
   public void onObserveAspect(Aspect aspect) {
-
+    observerClassHandlers.handle(aspect);
   }
 
   @Override
