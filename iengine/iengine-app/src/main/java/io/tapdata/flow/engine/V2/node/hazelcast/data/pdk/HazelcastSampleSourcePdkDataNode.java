@@ -69,7 +69,7 @@ public class HazelcastSampleSourcePdkDataNode extends HazelcastSourcePdkDataNode
 
         List<TapEvent> tapEventList = sampleDataCacheMap.getOrDefault(sampleDataId, new ArrayList<>());
         boolean isCache = true;
-        if (CollectionUtils.isEmpty(tapEventList)) {
+        if (CollectionUtils.isEmpty(tapEventList) || tapEventList.size() < rows) {
           isCache = false;
           QueryByAdvanceFilterFunction queryByAdvanceFilterFunction = getConnectorNode().getConnectorFunctions().getQueryByAdvanceFilterFunction();
           TapAdvanceFilter tapAdvanceFilter = TapAdvanceFilter.create().limit(rows);
@@ -90,15 +90,18 @@ public class HazelcastSampleSourcePdkDataNode extends HazelcastSourcePdkDataNode
         }
 
         List<TapEvent> cloneList = new ArrayList<>();
+        int count = 0;
         for (TapEvent tapEvent : tapEventList) {
+          if (count > rows) {
+            break;
+          }
           cloneList.add((TapEvent) tapEvent.clone());
+          count++;
         }
 
         List<TapdataEvent> tapdataEvents = wrapTapdataEvent(cloneList);
         if (CollectionUtil.isNotEmpty(tapdataEvents)) {
           tapdataEvents.forEach(this::enqueue);
-          //如果为复制任务，只需要取一个表的数据即可
-          break;
         }
       }
 
