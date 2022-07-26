@@ -8,7 +8,8 @@ import java.util.Date;
 @Data
 @Document("MeasureLock")
 public class MeasureLockEntity {
-    private Date hour;
-    private String tmProcessName;
+    private Date time;
+    private String granularity;
+    private String unique;
     private Date createdTime;
 }
