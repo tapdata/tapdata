@@ -15,6 +15,7 @@ import com.tapdata.tm.monitor.constant.TableNameEnum;
 import com.tapdata.tm.monitor.dto.TransmitTotalVo;
 import com.tapdata.tm.monitor.entity.AgentEnvironmentEntity;
 import com.tapdata.tm.monitor.entity.MeasurementEntity;
+import com.tapdata.tm.monitor.param.MeasurementQueryParam;
 import com.tapdata.tm.monitor.vo.GetMeasurementVo;
 import com.tapdata.tm.monitor.vo.GetStaticVo;
 import com.tapdata.tm.task.entity.SubTaskEntity;
@@ -785,5 +786,301 @@ public class MeasurementService {
         return measurementEntity;
     }
 
+    private static final String TAG_FORMAT = String.format("%s.%%s", MeasurementEntity.FIELD_TAGS);
+    private static final String FIELD_FORMAT = String.format("%s.%s.%%s",
+            MeasurementEntity.FIELD_SAMPLES, Sample.FIELD_VALUES);
+    private static final String INSTANT_PADDING_LEFT = "left";
+    private static final String INSTANT_PADDING_RIGHT = "right";
 
+
+    public Object getSamples(MeasurementQueryParam measurementQueryParam) {
+        Map<String, List<Map<String, Object>>> data = new HashMap<>();
+
+        long initialStart = measurementQueryParam.getStartAt();
+        long initialEnd = measurementQueryParam.getEndAt();
+
+        boolean hasTimeline = false;
+        List<Long> timeline = null;
+        for(String unique : measurementQueryParam.getSamples().keySet()) {
+            data.putIfAbsent(unique, new ArrayList<>());
+            List<Map<String, Object>> uniqueData = data.get(unique);
+            MeasurementQueryParam.MeasurementQuerySample querySample = measurementQueryParam.getSamples().get(unique);
+            long start = null != querySample.getStartAt() ? querySample.getStartAt() : initialStart;
+            long end = null != querySample.getEndAt() ? querySample.getEndAt() : initialEnd;
+            switch (querySample.getType()) {
+                case MeasurementQueryParam.MeasurementQuerySample.MEASUREMENT_QUERY_SAMPLE_TYPE_INSTANT:
+                    Map<String, Sample> instantSamples = getInstantSamples(querySample, end, INSTANT_PADDING_RIGHT);
+                    uniqueData.addAll(formatSingleSamples(instantSamples));
+                    break;
+                case MeasurementQueryParam.MeasurementQuerySample.MEASUREMENT_QUERY_SAMPLE_TYPE_DIFFERENCE:
+                    Map<String, Sample> diffSamples = getDifferenceSamples(querySample, start, end);
+                    uniqueData.addAll(formatSingleSamples(diffSamples));
+                    break;
+                case MeasurementQueryParam.MeasurementQuerySample.MEASUREMENT_QUERY_SAMPLE_TYPE_CONTINUOUS:
+                    hasTimeline = true;
+                    Map<String, List<Sample>> continuousSamples = getContinuousSamples(querySample, start, end);
+                    long interval = calculateInterval(start, end);
+                    timeline = getTimeline(start, end, interval);
+                    List<Map<String, Object>> formatContinuousSamples = formatContinuousSamples(continuousSamples, timeline, interval);
+                    uniqueData.addAll(formatContinuousSamples);
+                    break;
+            }
+        }
+
+        Map<String, Object> ret = new HashMap<>();
+        ret.put("samples", data);
+        if (hasTimeline && null != timeline) {
+            ret.put("time", timeline);
+        }
+
+        return ret;
+    }
+
+
+    private Map<String, Sample> getInstantSamples(MeasurementQueryParam.MeasurementQuerySample querySample, long time, String padding) {
+        Map<String, Sample> data = new HashMap<>();
+        if (!StringUtils.equalsAny(querySample.getType(),
+                MeasurementQueryParam.MeasurementQuerySample.MEASUREMENT_QUERY_SAMPLE_TYPE_INSTANT,
+                MeasurementQueryParam.MeasurementQuerySample.MEASUREMENT_QUERY_SAMPLE_TYPE_DIFFERENCE)) {
+            return data;
+        }
+
+        Criteria criteria = Criteria.where(MeasurementEntity.FIELD_DATE);
+        Sort sort;
+        switch (padding) {
+            case INSTANT_PADDING_LEFT:
+                criteria = criteria.gte(new Date(time));
+                sort = Sort.by(MeasurementEntity.FIELD_DATE).ascending();
+                break;
+            case INSTANT_PADDING_RIGHT:
+                criteria = criteria.lte(new Date(time));
+                sort = Sort.by(MeasurementEntity.FIELD_DATE).descending();
+                break;
+            default:
+                throw new RuntimeException("invalid padding value when get instant value");
+        }
+
+        for (Map.Entry<String, String> entry : querySample.getTags().entrySet()) {
+            criteria.and(String.format(TAG_FORMAT, entry.getKey())).is(entry.getValue());
+        }
+
+        List<String> includedFields = new ArrayList<>();
+        includedFields.add(MeasurementEntity.FIELD_TAGS);
+        includedFields.add(String.format("%s.%s", MeasurementEntity.FIELD_SAMPLES, Sample.FIELD_DATE));
+        for (String field : querySample.getFields()) {
+            includedFields.add(String.format(FIELD_FORMAT, field));
+        }
+
+        Query query = new Query(criteria);
+        query.fields().include(includedFields.toArray(new String[]{}));
+        query.with(sort);
+        MeasurementEntity entity = mongoOperations.findOne(query, MeasurementEntity.class, TableNameEnum.AgentMeasurement.getValue());
+        if (entity != null) {
+            String hash = hashTag(entity.getTags());
+            for(Sample sample : entity.getSamples()) {
+                if (!data.containsKey(hash)) {
+                    data.put(hash, sample);
+                    continue;
+                }
+                long oldInterval = Math.abs(data.get(hash).getDate().getTime() - time);
+                long newInterval = Math.abs(sample.getDate().getTime() - time);
+                if (newInterval < oldInterval) {
+                    data.put(hash, sample);
+                }
+            }
+        }
+
+        return data;
+    }
+
+    public Map<String, Sample> getDifferenceSamples(MeasurementQueryParam.MeasurementQuerySample querySample, long start, long end) {
+        Map<String, Sample> endSamples = getInstantSamples(querySample, end, INSTANT_PADDING_RIGHT);
+        Map<String, Sample> startSamples = getInstantSamples(querySample, start, INSTANT_PADDING_LEFT);
+
+        Map<String, Sample> data = new HashMap<>();
+        for (String hash : endSamples.keySet()) {
+            if (!startSamples.containsKey(hash)) {
+                continue;
+            }
+
+            Sample ret = new Sample();
+            ret.setVs(new HashMap<>());
+            Sample startSample = startSamples.get(hash);
+            Sample endSample = endSamples.get(hash);
+            for (String key : endSample.getVs().keySet()) {
+                if (!startSample.getVs().containsKey(key)) {
+                    continue;
+                }
+                Number diff = endSample.getVs().get(key).doubleValue() - startSample.getVs().get(key).doubleValue();
+                ret.getVs().put(key, diff);
+            }
+            data.put(hash, ret);
+        }
+
+        return data;
+    }
+
+    private Map<String, List<Sample>> getContinuousSamples(MeasurementQueryParam.MeasurementQuerySample querySample, long start, long end) {
+        Map<String, List<Sample>> data = new HashMap<>();
+        if (!StringUtils.equalsAny(querySample.getType(),
+                MeasurementQueryParam.MeasurementQuerySample.MEASUREMENT_QUERY_SAMPLE_TYPE_CONTINUOUS)) {
+            return data;
+        }
+
+        Criteria criteria = Criteria.where(String.format("%s.%s", MeasurementEntity.FIELD_SAMPLES, Sample.FIELD_DATE))
+                .gte(new Date(start))
+                .lte(new Date(end));
+        criteria.and(MeasurementEntity.FIELD_GRANULARITY).is(calculateGranularity(start, end));
+        for (Map.Entry<String, String> entry : querySample.getTags().entrySet()) {
+            criteria.and(String.format(TAG_FORMAT, entry.getKey())).is(entry.getValue());
+        }
+
+        List<String> includedFields = new ArrayList<>();
+        includedFields.add(MeasurementEntity.FIELD_TAGS);
+        includedFields.add(String.format("%s.%s", MeasurementEntity.FIELD_SAMPLES, Sample.FIELD_DATE));
+        for (String field : querySample.getFields()) {
+            includedFields.add(String.format(FIELD_FORMAT, field));
+        }
+
+        Query query = new Query(criteria);
+        query.fields().include(includedFields.toArray(new String[]{}));
+        query.with(Sort.by(MeasurementEntity.FIELD_DATE).ascending());
+        List<MeasurementEntity> entities = mongoOperations.find(query, MeasurementEntity.class, TableNameEnum.AgentMeasurement.getValue());
+        for (MeasurementEntity entity : entities) {
+            String hash = hashTag(entity.getTags());
+            if (!data.containsKey(hash)) {
+                data.put(hash, new ArrayList<>());
+            }
+            data.get(hash).addAll(entity.getSamples());
+        }
+
+        return data;
+    }
+
+    private String hashTag(Map<String, String> tags) {
+        StringBuilder sb = new StringBuilder();
+        for(String key: tags.keySet().stream().sorted().collect(Collectors.toList())) {
+            sb.append(String.format("%s:%s", key, tags.get(key)));
+            sb.append(";");
+        }
+
+        return sb.toString();
+    }
+
+    private Map<String, String> reverseHashTag(String hash) {
+        Map<String, String> tags = new HashMap<>();
+        for(String pair : hash.split(";")) {
+            String[] kv = pair.split(":");
+            tags.put(kv[0], kv[1]);
+        }
+
+        return tags;
+    }
+
+    private List<Map<String, Object>> formatSingleSamples(Map<String, Sample> singleSamples) {
+        List<Map<String, Object>> data = new ArrayList<>();
+        for(Map.Entry<String, Sample> entry: singleSamples.entrySet()) {
+            Map<String, String> tags = reverseHashTag(entry.getKey());
+            Map<String, Object> values = new HashMap<>(entry.getValue().getVs());
+            values.put("tags", tags);
+            data.add(values);
+        }
+
+        return data;
+    }
+
+    private  List<Map<String, Object>> formatContinuousSamples(Map<String, List<Sample>> continuousSamples, List<Long> timeline, long interval) {
+        List<Map<String, Object>> data = new ArrayList<>();
+        for (Map.Entry<String, List<Sample>> entry : continuousSamples.entrySet()) {
+            Map<String, String> tags = reverseHashTag(entry.getKey());
+            Map<String, Number[]> values = new HashMap<>();
+
+            List<Sample> samples = entry.getValue().stream().sorted(Comparator.comparing(Sample::getDate)).collect(Collectors.toList());
+
+            int timeLineIdx = 0;
+            int sampleIdx1 = 0;
+            int sampleIdx2 = 0;
+            while (timeLineIdx < timeline.size() && sampleIdx1 < samples.size()) {
+                Sample sample1 = samples.get(sampleIdx1);
+                long time1 = sample1.getDate().getTime();
+                long gap1 = Math.abs(timeline.get(timeLineIdx) - time1);
+
+                if (gap1 > interval / 2) {
+                    timeLineIdx += 1;
+                    continue;
+                }
+
+                // set the value into array
+                for(String key : sample1.getVs().keySet()) {
+                    values.putIfAbsent(key, new Number[timeline.size()]);
+                    values.get(key)[timeLineIdx] = sample1.getVs().get(key);
+                }
+
+                boolean skipSet = false;
+                while(sampleIdx2 < samples.size() - 1) {
+                    sampleIdx2 += 1;
+                    Sample sample2 = samples.get(sampleIdx2);
+                    long time2 = sample2.getDate().getTime();
+                    long gap2 = Math.abs(timeline.get(timeLineIdx) - time2);
+                    if (gap2 > interval / 2) {
+                        break;
+                    }
+
+                    if (!skipSet && gap1 > gap2) {
+                        // set the value into array, only if the gap is smaller than the former one
+                        for(String key : sample2.getVs().keySet()) {
+                            values.putIfAbsent(key, new Number[timeline.size()]);
+                            values.get(key)[timeLineIdx] = sample2.getVs().get(key);
+                        }
+                    }
+                    // the data gap after must be greater, does not have to set again, skip the set step
+                    skipSet = true;
+                }
+                timeLineIdx += 1;
+                sampleIdx1 = sampleIdx2;
+            }
+            Map<String, Object> single = new HashMap<>(values);
+            single.put("tags", tags);
+            data.add(single);
+        }
+
+        return data;
+    }
+
+    private static final long MINUTES_TOTAL_FOR_5SECONDS_GRANULARITY = 60L;
+    private static final long MINUTES_TOTAL_FOR_MINUTE_GRANULARITY = 1440L;
+    private static final long MINUTES_TOTAL_FOR_HOUR_GRANULARITY = 43200L;
+    private String calculateGranularity(long startAt, long endAt) {
+        long minutes = (endAt - startAt) / 60000;
+        if (minutes < MINUTES_TOTAL_FOR_5SECONDS_GRANULARITY)
+            return "minute";
+        if (minutes < MINUTES_TOTAL_FOR_MINUTE_GRANULARITY)
+            return "hour";
+        if (minutes < MINUTES_TOTAL_FOR_HOUR_GRANULARITY)
+            return "day";
+        return "month";
+    }
+
+    private long calculateInterval(long startAt, long endAt) {
+        long minutes = (endAt - startAt) / 60000;
+        if (minutes < MINUTES_TOTAL_FOR_5SECONDS_GRANULARITY)
+            return 5 * 1000;
+        if (minutes < MINUTES_TOTAL_FOR_MINUTE_GRANULARITY)
+            return 60 * 1000;
+        if (minutes < MINUTES_TOTAL_FOR_HOUR_GRANULARITY)
+            return 60 * 60 * 1000;
+
+        return 24 * 60 * 60 * 1000;
+    }
+
+    private List<Long> getTimeline(long start, long end, long interval) {
+        // get the time trail with same interval
+        List<Long> timeline = new ArrayList<>();
+        while (start < end) {
+            timeline.add(end);
+            end -= interval;
+        }
+
+        return timeline.stream().sorted().collect(Collectors.toList());
+    }
 }

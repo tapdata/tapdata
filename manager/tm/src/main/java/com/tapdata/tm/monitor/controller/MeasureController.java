@@ -8,6 +8,7 @@ import com.tapdata.tm.monitor.constant.TableNameEnum;
 import com.tapdata.tm.monitor.dto.SampleVo;
 import com.tapdata.tm.monitor.dto.StatisticVo;
 import com.tapdata.tm.monitor.dto.TransmitTotalVo;
+import com.tapdata.tm.monitor.param.MeasurementQueryParam;
 import com.tapdata.tm.monitor.service.MeasurementService;
 import com.tapdata.tm.monitor.vo.GetMeasurementVo;
 import com.tapdata.tm.monitor.vo.GetStaticVo;
@@ -121,4 +122,19 @@ public class MeasureController extends BaseController {
         return success(transmitTotalVo);
     }
 
+    @PostMapping("points/aggregate")
+    public ResponseMessage pointsAggregate() {
+        return success();
+    }
+
+    @PostMapping("query/v2")
+    public ResponseMessage queryV2(@RequestBody MeasurementQueryParam measurementQueryParam) {
+        try {
+            Object data = measurementService.getSamples(measurementQueryParam);
+            return success(data);
+        } catch (Exception e) {
+            e.printStackTrace();
+            return failed(e);
+        }
+    }
 }
