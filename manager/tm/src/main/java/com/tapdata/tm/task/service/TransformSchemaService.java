@@ -20,7 +20,6 @@ import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
 import com.tapdata.tm.task.constant.SyncType;
 import com.tapdata.tm.transform.service.MetadataTransformerItemService;
 import com.tapdata.tm.transform.service.MetadataTransformerService;
-import com.tapdata.tm.user.entity.User;
 import com.tapdata.tm.utils.Lists;
 import com.tapdata.tm.utils.UUIDUtil;
 import com.tapdata.tm.worker.entity.Worker;
@@ -136,10 +135,10 @@ public class TransformSchemaService {
                 String connectionId = ((TableNode) node).getConnectionId();
                 DataSourceConnectionDto dataSourceConnectionDto = dataSourceMap.get(connectionId);
                 DataSourceDefinitionDto dataSourceDefinitionDto = definitionDtoMap.get(dataSourceConnectionDto.getDatabase_type());
-                String qualifiedName = metadataInstancesService.getQualifiedNameByNodeId(node, user, dataSourceConnectionDto, dataSourceDefinitionDto);
+                String qualifiedName = metadataInstancesService.getQualifiedNameByNodeId(node, user, dataSourceConnectionDto, dataSourceDefinitionDto, taskDto.getId().toHexString());
                 qualifiedNames.add(qualifiedName);
             } else if (node instanceof DatabaseNode) {
-                List<MetadataInstancesDto> metas = metadataInstancesService.findByNodeId(node.getId(), null, user, dag);
+                List<MetadataInstancesDto> metas = metadataInstancesService.findByNodeId(node.getId(), null, user, taskDto);
                 metadataList.addAll(metas);
             }
         }

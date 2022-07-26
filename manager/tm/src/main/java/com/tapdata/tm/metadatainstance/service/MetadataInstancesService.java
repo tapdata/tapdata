@@ -1094,27 +1094,27 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
         if (taskDto != null && taskDto.getDag() != null) {
             DAG dag = taskDto.getDag();
             Node node = dag.getNode(nodeId);
-            kv = getNodeMapping(user, dag, kv, node);
+            kv = getNodeMapping(user, taskDto, kv, node);
         }
         return kv;
     }
 
-    private Map<String, String> getNodeMapping(UserDetail user, DAG dag, Map<String, String> kv, Node node) {
+    private Map<String, String> getNodeMapping(UserDetail user, TaskDto taskDto, Map<String, String> kv, Node node) {
 
 
         if (node instanceof ProcessorNode) {
-            kv.put(node.getId(), getQualifiedNameByNodeId(node, user, null, null));
+            kv.put(node.getId(), getQualifiedNameByNodeId(node, user, null, null, taskDto.getId().toHexString()));
             if (node instanceof MergeTableNode) {
-                List<Node> predecessors = dag.predecessors(node.getId());
+                List<Node> predecessors = taskDto.getDag().predecessors(node.getId());
                 for (Node predecessor : predecessors) {
-                    getNodeMapping(user, dag, kv, predecessor);
+                    getNodeMapping(user, taskDto, kv, predecessor);
                 }
 
             }
         } else if (node instanceof TableNode) {
-            kv.put(((TableNode) node).getTableName(), getQualifiedNameByNodeId(node, user, null, null));
+            kv.put(((TableNode) node).getTableName(), getQualifiedNameByNodeId(node, user, null, null, taskDto.getId().toHexString()));
         } else {
-            List<MetadataInstancesDto> metadatas = findByNodeId(node.getId(), Lists.of("original_name", "qualified_name"), user, dag);
+            List<MetadataInstancesDto> metadatas = findByNodeId(node.getId(), Lists.of("original_name", "qualified_name"), user, taskDto);
             if (CollectionUtils.isNotEmpty(metadatas)) {
                 kv = metadatas.stream()
                         .collect(Collectors.toMap(MetadataInstancesDto::getOriginalName
@@ -1124,7 +1124,7 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
         return kv;
     }
 
-    public String getQualifiedNameByNodeId(Node node, UserDetail user, DataSourceConnectionDto dataSource, DataSourceDefinitionDto definitionDto) {
+    public String getQualifiedNameByNodeId(Node node, UserDetail user, DataSourceConnectionDto dataSource, DataSourceDefinitionDto definitionDto, String taskId) {
         if (node == null) {
             return null;
         }
@@ -1148,29 +1148,28 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
             }
 
             String tableName = ((TableNode) node).transformTableName(((TableNode) node).getTableName());
-            return MetaDataBuilderUtils.generateQualifiedName(metaType, dataSource, tableName);
+            return MetaDataBuilderUtils.generateQualifiedName(metaType, dataSource, tableName, taskId);
         } else if (node instanceof ProcessorNode) {
-            return MetaDataBuilderUtils.generateQualifiedName(com.tapdata.tm.commons.util.MetaType.processor_node.name(), node.getId(), null);
+            return MetaDataBuilderUtils.generateQualifiedName(com.tapdata.tm.commons.util.MetaType.processor_node.name(), node.getId(), null, taskId);
         }
         return null;
     }
 
 
-    public List<MetadataInstancesDto> findByNodeId(String nodeId, List<String> fields, UserDetail user, DAG dag) {
+    public List<MetadataInstancesDto> findByNodeId(String nodeId, List<String> fields, UserDetail user, TaskDto taskDto) {
 
-        if (dag == null) {
+        if (taskDto == null || taskDto.getDag() == null) {
             Criteria criteria = Criteria.where("dag.nodes.id").is(nodeId);
             Query query = new Query(criteria);
             query.fields().include("dag");
-            TaskDto taskDto = taskService.findOne(query, user);
-            if (taskDto != null) {
-                dag = taskDto.getDag();
-            }
+            taskDto = taskService.findOne(query, user);
         }
 
+        String taskId = taskDto.getId().toHexString();
 
         List<MetadataInstancesDto> metadatas = new ArrayList<>();
-        if (dag != null) {
+        DAG dag = taskDto.getDag();
+        if (taskDto.getDag() != null) {
             Node node = dag.getNode(nodeId);
             if (node != null) {
                 Criteria criteriaTable = Criteria.where("meta_type").in("table", "collection", "view");
@@ -1182,13 +1181,13 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
                 }
                 if (node instanceof TableRenameProcessNode || node instanceof MigrateFieldRenameProcessorNode) {
                     queryMetadata.addCriteria(criteriaNode);
-                    String qualifiedName = MetaDataBuilderUtils.generateQualifiedName(MetaType.processor_node.name(), nodeId, null);
+                    String qualifiedName = MetaDataBuilderUtils.generateQualifiedName(MetaType.processor_node.name(), nodeId, null, taskId);
                     criteriaNode.and("qualified_name").regex("^"+qualifiedName+".*")
                             .and("is_deleted").ne(true);
                     metadatas.addAll(findAll(queryMetadata));
                 } else if (Node.NodeCatalog.processor.equals(node.getCatalog())) {
                     queryMetadata.addCriteria(criteriaNode);
-                    String qualifiedName = MetaDataBuilderUtils.generateQualifiedName(MetaType.processor_node.name(), nodeId, null);
+                    String qualifiedName = MetaDataBuilderUtils.generateQualifiedName(MetaType.processor_node.name(), nodeId, null, taskId);
                     criteriaNode.and("qualified_name").is(qualifiedName).and("is_deleted").ne(true);
                     metadatas.add(findOne(queryMetadata, user));
                 } else if (node instanceof TableNode) {
@@ -1498,12 +1497,10 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
     }
 
 
-    @Async
     public void linkLogic(String qualifiedName, UserDetail user){
         MetadataInstancesDto metadataInstancesDto = findByQualifiedNameNotDelete(qualifiedName, user);
         linkLogic(metadataInstancesDto, user);
     }
-    @Async
     public void linkLogic(MetadataInstancesDto metadataInstancesDto, UserDetail user){
 
         try {

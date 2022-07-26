@@ -2386,7 +2386,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                 List<Node> nodes = dag.getNodes();
                 if (CollectionUtils.isNotEmpty(nodes)) {
                     for (Node node : nodes) {
-                        List<MetadataInstancesDto> metadataInstancesDtos = metadataInstancesService.findByNodeId(node.getId(), null, user, dag);
+                        List<MetadataInstancesDto> metadataInstancesDtos = metadataInstancesService.findByNodeId(node.getId(), null, user, taskDto);
                         if (CollectionUtils.isNotEmpty(metadataInstancesDtos)) {
                             for (MetadataInstancesDto metadataInstancesDto : metadataInstancesDtos) {
                                 metadataInstancesDto.setCreateUser(null);

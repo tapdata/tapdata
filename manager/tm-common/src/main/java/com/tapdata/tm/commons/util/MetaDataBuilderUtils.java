@@ -42,6 +42,11 @@ public class MetaDataBuilderUtils {
     }
 
     public static String generateQualifiedName(String metaType, String nodeId, String tableName) {
+        return generateQualifiedName(metaType, nodeId, tableName, null);
+    }
+
+    /** stay task id*/
+    public static String generateQualifiedName(String metaType, String nodeId, String tableName, String taskId) {
         if (StringUtils.isBlank(tableName)) {
             return metaTypePropertyMap.get(metaType).prefix + nodeId;
         } else {

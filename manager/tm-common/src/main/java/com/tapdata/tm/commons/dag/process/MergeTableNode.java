@@ -141,7 +141,7 @@ public class MergeTableNode extends ProcessorNode {
             String tableName = ((TableNode) node).transformTableName(((TableNode) node).getTableName());
             return MetaDataBuilderUtils.generateQualifiedName(metaType, dataSource, tableName, getTaskId());
         } else if (node instanceof ProcessorNode) {
-            return MetaDataBuilderUtils.generateQualifiedName(MetaType.processor_node.name(), nodeId, null);
+            return MetaDataBuilderUtils.generateQualifiedName(MetaType.processor_node.name(), nodeId, null, getTaskId());
         }
         return null;
     }
