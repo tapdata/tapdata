@@ -319,7 +319,9 @@ public class DatabaseNode extends DataParentNode<List<Schema>> {
             tableNames = tableNames == null ? new ArrayList<>() : tableNames;
             if (event instanceof TapCreateTableEvent) {
                 String tableName = ((TapCreateTableEvent) event).getTableId();
-                tableNames.add(tableName);
+                if (!tableNames.contains(tableName)) {
+                    tableNames.add(tableName);
+                }
             } else if (event instanceof TapDropTableEvent) {
                 String tableName = ((TapDropTableEvent) event).getTableId();
                 tableNames.remove(tableName);
