@@ -108,6 +108,7 @@ public class TableMonitor implements Monitor<TableMonitor.TableResult> {
 				}
 			}
 		}, 0L, PERIOD_SECOND, TimeUnit.SECONDS);
+		logger.info("Dynamic table monitor started, interval: "+PERIOD_SECOND+" seconds");
 	}
 
 	@Override

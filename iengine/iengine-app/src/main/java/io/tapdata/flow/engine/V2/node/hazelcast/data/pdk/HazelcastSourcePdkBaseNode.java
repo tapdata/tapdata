@@ -94,7 +94,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 	public HazelcastSourcePdkBaseNode(DataProcessorContext dataProcessorContext) {
 		super(dataProcessorContext);
 		if (!StringUtils.equalsAnyIgnoreCase(dataProcessorContext.getSubTaskDto().getParentTask().getSyncType(),
-						TaskDto.SYNC_TYPE_DEDUCE_SCHEMA, TaskDto.SYNC_TYPE_TEST_RUN)) {
+				TaskDto.SYNC_TYPE_DEDUCE_SCHEMA, TaskDto.SYNC_TYPE_TEST_RUN)) {
 			initMilestoneService(MilestoneContext.VertexType.SOURCE);
 		}
 		// MILESTONE-INIT_CONNECTOR-RUNNING
@@ -114,7 +114,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 		SubTaskDto subTaskDto = dataProcessorContext.getSubTaskDto();
 		syncProgress = initSyncProgress(subTaskDto.getAttrs());
 		if (!StringUtils.equalsAnyIgnoreCase(subTaskDto.getParentTask().getSyncType(),
-						TaskDto.SYNC_TYPE_DEDUCE_SCHEMA, TaskDto.SYNC_TYPE_TEST_RUN)) {
+				TaskDto.SYNC_TYPE_DEDUCE_SCHEMA, TaskDto.SYNC_TYPE_TEST_RUN)) {
 			initBatchAndStreamOffset(subTaskDto);
 		}
 		initDDLFilter();
@@ -145,6 +145,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 				this.monitorManager.startMonitor(tableMonitor);
 				this.tableMonitorResultHandler = new ScheduledThreadPoolExecutor(1);
 				this.tableMonitorResultHandler.scheduleAtFixedRate(this::handleTableMonitorResult, 0L, PERIOD_SECOND_HANDLE_TABLE_MONITOR_RESULT, TimeUnit.SECONDS);
+				logger.info("Handle dynamic add/remove table thread started, interval: "+PERIOD_SECOND_HANDLE_TABLE_MONITOR_RESULT+" seconds");
 				this.newTables = new CopyOnWriteArrayList<>();
 				this.removeTables = new CopyOnWriteArrayList<>();
 			}
@@ -344,6 +345,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 							List<TapdataEvent> tapdataEvents = new ArrayList<>();
 							// Load schema
 							LoadSchemaRunner.pdkDiscoverSchema(getConnectorNode(), addList, addTapTables::add);
+							logger.info("Load new table's schema finished");
 							if (CollectionUtils.isEmpty(addTapTables)) {
 								String error = "Load new table schema failed, expect table count: " + addList.size() + ", actual: 0";
 								errorHandle(new RuntimeException(error), error);
@@ -373,6 +375,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 							tapdataEvents.forEach(this::enqueue);
 							this.newTables.addAll(addList);
 							if (this.endSnapshotLoop.get()) {
+								logger.info("It is detected that the snapshot reading has ended, and the reading thread will be restarted");
 								// Restart source runner
 								if (null != sourceRunner) {
 									this.sourceRunnerFirstTime.set(false);
@@ -399,6 +402,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 						}
 						// Handle remove table(s)
 						if (CollectionUtils.isNotEmpty(removeList)) {
+							logger.info("Found remove table(s): " + removeList);
 							List<TapdataEvent> tapdataEvents = new ArrayList<>();
 							for (String tableName : removeList) {
 								if (!isRunning()) {
@@ -462,7 +466,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 			tapdataEvent.setSyncStage(syncStage);
 			if (SyncStage.INITIAL_SYNC == syncStage) {
 				if (isLast && !StringUtils.equalsAnyIgnoreCase(dataProcessorContext.getSubTaskDto().getParentTask().getSyncType(),
-								TaskDto.SYNC_TYPE_DEDUCE_SCHEMA, TaskDto.SYNC_TYPE_TEST_RUN)) {
+						TaskDto.SYNC_TYPE_DEDUCE_SCHEMA, TaskDto.SYNC_TYPE_TEST_RUN)) {
 					Map<String, Object> batchOffsetObj = (Map<String, Object>) syncProgress.getBatchOffsetObj();
 					Map<String, Object> newMap = new HashMap<>();
 					try {
@@ -543,22 +547,28 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 				Map<String, List<Message>> errorMessage;
 				if (tapEvent instanceof TapCreateTableEvent) {
 					qualifiedName = dagDataService.createNewTable(dataProcessorContext.getSourceConn().getId(), tapTable);
+					logger.info("Create new table in memory, qualified name: " + qualifiedName);
 					dataProcessorContext.getTapTableMap().putNew(tapTable.getId(), tapTable, qualifiedName);
 					errorMessage = dag.transformSchema(null, dagDataService, transformerWsMessageDto.getOptions());
 					MetadataInstancesDto metadata = dagDataService.getMetadata(qualifiedName);
 					insertMetadata.add(metadata);
+					logger.info("Create new table schema transform finished: " + tapTable);
 				} else if (tapEvent instanceof TapDropTableEvent) {
 					qualifiedName = dataProcessorContext.getTapTableMap().getQualifiedName(((TapDropTableEvent) tapEvent).getTableId());
+					logger.info("Drop table in memory qualified name: " + qualifiedName);
 					dagDataService.dropTable(qualifiedName);
 					errorMessage = dag.transformSchema(null, dagDataService, transformerWsMessageDto.getOptions());
 					dataProcessorContext.getTapTableMap().remove(tapTable.getId());
 					removeMetadata.add(qualifiedName);
+					logger.info("Drop table schema transform finished");
 				} else {
 					qualifiedName = dataProcessorContext.getTapTableMap().getQualifiedName(tableId);
+					logger.info("Alter table in memory, qualified name: " + qualifiedName);
 					dagDataService.coverMetaDataByTapTable(qualifiedName, tapTable);
 					errorMessage = dag.transformSchema(null, dagDataService, transformerWsMessageDto.getOptions());
 					MetadataInstancesDto metadata = dagDataService.getMetadata(qualifiedName);
 					updateMetadata.put(metadata.getId().toHexString(), metadata);
+					logger.info("Alter table schema transform finished");
 				}
 				tapEvent.addInfo(INSERT_METADATA_INFO_KEY, insertMetadata);
 				tapEvent.addInfo(UPDATE_METADATA_INFO_KEY, updateMetadata);
