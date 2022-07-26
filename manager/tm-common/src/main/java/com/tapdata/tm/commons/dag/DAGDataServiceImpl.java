@@ -865,8 +865,10 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
                 update2.setDeleted(false);
                 update2.setCreateSource(metadataInstancesDto.getCreateSource());
                 update2.setVersion(newVersion);
-                metadataInstancesDto.setId(existsMetadataInstance.getId());
-                metadataUpdateMap.put(existsMetadataInstance.getId().toHexString(), update2);
+                if (existsMetadataInstance != null && existsMetadataInstance.getId() != null) {
+                    metadataInstancesDto.setId(existsMetadataInstance.getId());
+                    metadataUpdateMap.put(existsMetadataInstance.getId().toHexString(), update2);
+                }
 
 
             } else { // 直接写入
@@ -875,7 +877,6 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
                         metadataInstancesDto.getMetaType(), dataSourceConnectionDto, userId, userName,
                         metadataInstancesDto.getOriginalName(),
                         metadataInstancesDto, null, metadataInstancesDto.getDatabaseId(), "job_analyze", null);
-                _metadataInstancesDto.setId(new ObjectId());
                 insertMetaDataList.add(_metadataInstancesDto);
                 BeanUtils.copyProperties(_metadataInstancesDto, metadataInstancesDto);
             }
