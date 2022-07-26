@@ -421,8 +421,8 @@ public class PostgresConnector extends ConnectorBase {
         }
         new PostgresRecordWriter(postgresJdbcContext, tapTable)
                 .setVersion(postgresVersion)
-//                .setInsertPolicy(insertDmlPolicy)
-//                .setUpdatePolicy(updateDmlPolicy)
+                .setInsertPolicy(insertDmlPolicy)
+                .setUpdatePolicy(updateDmlPolicy)
 				.write(tapRecordEvents, writeListResultConsumer);
 	}
 
