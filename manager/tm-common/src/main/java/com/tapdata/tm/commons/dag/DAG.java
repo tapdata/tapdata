@@ -20,6 +20,7 @@ import io.github.openlg.graphlib.Graph;
 import lombok.*;
 import io.tapdata.entity.event.ddl.TapDDLEvent;
 import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.math.NumberUtils;
 import org.bson.types.ObjectId;
 import org.slf4j.Logger;
