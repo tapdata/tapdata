@@ -5,6 +5,8 @@ import com.tapdata.tm.monitor.entity.MeasurementEntity;
 import com.tapdata.tm.utils.TimeUtil;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.RandomUtils;
+import org.apache.commons.lang3.StringUtils;
+import org.jose4j.lang.StringUtil;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.mongodb.core.FindAndModifyOptions;
 import org.springframework.data.mongodb.core.MongoTemplate;
@@ -30,6 +32,7 @@ public class MeasureLockService {
      *
      * @return
      */
+    @Deprecated
     public MeasureLockEntity tryGetLock(String tmProcessName) {
         Date now = new Date();
         Date hour = TimeUtil.cleanTimeAfterHour(now);
@@ -40,5 +43,24 @@ public class MeasureLockService {
         update.set("createdTime",new Date());
         MeasureLockEntity measureLockEntity = mongoOperations.findAndModify(query, update, FindAndModifyOptions.options().returnNew(true).upsert(true), MeasureLockEntity.class);
         return measureLockEntity;
+    }
+
+    public boolean lock(String granularity, Date date, String unique) {
+        Query query = Query.query(Criteria.where("granularity").is(granularity));
+
+        Update update = new Update();
+        update.setOnInsert("time", date);
+        update.setOnInsert("unique", unique);
+        update.setOnInsert("createdTime", new Date());
+        MeasureLockEntity measureLockEntity = mongoOperations.findAndModify(query, update, FindAndModifyOptions.options().returnNew(true).upsert(true), MeasureLockEntity.class);
+        if (null == measureLockEntity) {
+            return true;
+        }
+        return StringUtils.equals(measureLockEntity.getUnique(), unique);
+    }
+
+    public void unlock(String granularity, String unique) {
+        Query query = Query.query(Criteria.where("granularity").is(granularity).and("unique").is(unique));
+        mongoOperations.findAndRemove(query, MeasureLockEntity.class);
     }
 }
