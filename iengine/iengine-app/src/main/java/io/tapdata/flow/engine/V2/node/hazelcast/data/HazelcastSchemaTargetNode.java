@@ -118,7 +118,7 @@ public class HazelcastSchemaTargetNode extends HazelcastVirtualTargetNode {
 	@Override
 	protected void doClose() throws Exception {
 		super.doClose();
-		Optional.ofNullable(this.prePreNodeTapTableMap).ifPresent(TapTableMap::remove);
+		Optional.ofNullable(this.prePreNodeTapTableMap).ifPresent(TapTableMap::reset);
 	}
 
 	@NotNull

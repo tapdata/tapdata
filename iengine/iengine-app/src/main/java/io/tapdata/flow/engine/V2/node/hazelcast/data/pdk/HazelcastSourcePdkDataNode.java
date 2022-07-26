@@ -156,7 +156,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 						if (!isRunning()) {
 							break;
 						}
-						if (this.removeTables.contains(tableName)) {
+						if (this.removeTables != null && this.removeTables.contains(tableName)) {
 							logger.info("Table " + tableName + " is detected that it has been removed, the snapshot read will be skipped");
 							this.removeTables.remove(tableName);
 							continue;
