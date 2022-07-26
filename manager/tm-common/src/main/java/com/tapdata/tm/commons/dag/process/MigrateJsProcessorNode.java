@@ -94,7 +94,7 @@ public class MigrateJsProcessorNode extends Node<List<Schema>> {
             result = getInputSchema().get(0);
         } else {
             Map<String, MigrateJsResultVo> removeMap = jsResult.stream()
-                    .filter(n -> "REMOVE".equals(n.getOp()) || "CONVERT".equals(n.getOp()))
+                    .filter(n -> "REMOVE".equals(n.getOp()))
                     .collect(Collectors.toMap(MigrateJsResultVo::getFieldName, Function.identity(), (e1, e2) -> e1));
 
             Map<String, MigrateJsResultVo> convertMap = jsResult.stream()
@@ -132,7 +132,9 @@ public class MigrateJsProcessorNode extends Node<List<Schema>> {
                     nameFieldMap.putAll(createMap);
                 }
 
-                result.add(PdkSchemaConvert.fromPdkSchema(tapTable));
+                Schema temp = PdkSchemaConvert.fromPdkSchema(tapTable);
+                temp.setDatabaseId(schema.getDatabaseId());
+                result.add(temp);
             }
         }
 
@@ -146,7 +148,7 @@ public class MigrateJsProcessorNode extends Node<List<Schema>> {
     }
 
     public MigrateJsProcessorNode() {
-        super("migrate_js_processor");
+        super(NodeEnum.migrate_js_processor.name(), NodeCatalog.processor);
     }
 
     @Override
