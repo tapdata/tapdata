@@ -13,6 +13,7 @@ import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.vo.SyncObjects;
+import com.tapdata.tm.commons.dag.nodes.DataParentNode;
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.commons.schema.TransformerWsMessageResult;
 import com.tapdata.tm.commons.task.dto.MergeTableProperties;
@@ -26,6 +27,10 @@ import io.tapdata.entity.event.ddl.TapDDLEvent;
 import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
+import io.tapdata.entity.schema.TapTable;
+import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.concurrent.PartitionConcurrentProcessor;
+import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.concurrent.partitioner.KeysPartitioner;
+import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.concurrent.selector.TapEventPartitionKeySelector;
 import io.tapdata.flow.engine.V2.util.PdkUtil;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
 import io.tapdata.metrics.TaskSampleRetriever;
@@ -78,6 +83,14 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 	private List<MetadataInstancesDto> insertMetadata;
 	private Map<String, MetadataInstancesDto> updateMetadata;
 	private List<String> removeMetadata;
+	private boolean initialConcurrent;
+	private int initialConcurrentWriteNum;
+	private boolean cdcConcurrent;
+	private int cdcConcurrentWriteNum;
+
+	private PartitionConcurrentProcessor initialPartitionConcurrentProcessor;
+	private PartitionConcurrentProcessor cdcPartitionConcurrentProcessor;
+	private boolean inCdc = false;
 
 	public HazelcastTargetPdkBaseNode(DataProcessorContext dataProcessorContext) {
 		super(dataProcessorContext);
@@ -135,6 +148,30 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 		this.insertMetadata = new CopyOnWriteArrayList<>();
 		this.updateMetadata = new ConcurrentHashMap<>();
 		this.removeMetadata = new CopyOnWriteArrayList<>();
+
+		final Node<?> node = this.dataProcessorContext.getNode();
+		if (node instanceof DataParentNode) {
+			DataParentNode dataParentNode = (DataParentNode) node;
+			final Boolean initialConcurrent = dataParentNode.getInitialConcurrent();
+			if (initialConcurrent != null) {
+				this.initialConcurrent = initialConcurrent;
+				this.initialConcurrentWriteNum = dataParentNode.getInitialConcurrentWriteNum() != null ? dataParentNode.getInitialConcurrentWriteNum() : 8;
+				if (initialConcurrent) {
+					this.initialPartitionConcurrentProcessor = initConcurrentProcessor(initialConcurrentWriteNum);
+					this.initialPartitionConcurrentProcessor.start();
+				}
+
+			}
+			final Boolean cdcConcurrent = dataParentNode.getCdcConcurrent();
+			if (cdcConcurrent != null) {
+				this.cdcConcurrent = cdcConcurrent;
+				this.cdcConcurrentWriteNum = dataParentNode.getCdcConcurrentWriteNum() != null ? dataParentNode.getCdcConcurrentWriteNum() : 4;
+				if (cdcConcurrent) {
+					this.cdcPartitionConcurrentProcessor = initConcurrentProcessor(cdcConcurrentWriteNum);
+					this.cdcPartitionConcurrentProcessor.start();
+				}
+			}
+		}
 	}
 
 	protected void initDatabaseTableNameMap(DatabaseNode node) {
@@ -165,58 +202,34 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 			if (!inbox.isEmpty()) {
 				while (isRunning()) {
 					List<TapdataEvent> tapdataEvents = new ArrayList<>();
-					final int count = inbox.drainTo(tapdataEvents, 1000);
+					final int count = inbox.drainTo(tapdataEvents, dataProcessorContext.getSubTaskDto().getParentTask().getReadBatchSize());
 					if (count > 0) {
-						List<TapEvent> tapEvents = new ArrayList<>();
-						List<TapdataShareLogEvent> tapdataShareLogEvents = new ArrayList<>();
-						if (null != getConnectorNode()) {
-							codecsFilterManager = getConnectorNode().getCodecsFilterManager();
-						}
-						AtomicReference<TapdataEvent> lastDmlTapdataEvent = new AtomicReference<>();
-						for (TapdataEvent tapdataEvent : tapdataEvents) {
-							SyncStage syncStage = tapdataEvent.getSyncStage();
-							if (null != syncStage) {
-								if (syncStage == SyncStage.INITIAL_SYNC && firstBatchEvent.compareAndSet(false, true)) {
-									// MILESTONE-WRITE_SNAPSHOT-RUNNING
-									MilestoneUtil.updateMilestone(milestoneService, MilestoneStage.WRITE_SNAPSHOT, MilestoneStatus.RUNNING);
-								} else if (syncStage == SyncStage.CDC && firstStreamEvent.compareAndSet(false, true)) {
-									// MILESTONE-WRITE_CDC_EVENT-FINISH
-									MilestoneUtil.updateMilestone(milestoneService, MilestoneStage.WRITE_CDC_EVENT, MilestoneStatus.FINISH);
+						if (!inCdc) {
+							List<TapdataEvent> partialCdcEvents = new ArrayList<>();
+							final Iterator<TapdataEvent> iterator = tapdataEvents.iterator();
+							while (iterator.hasNext()) {
+								final TapdataEvent tapdataEvent = iterator.next();
+								if (tapdataEvent instanceof TapdataStartCdcEvent || inCdc) {
+									inCdc = true;
+									partialCdcEvents.add(tapdataEvent);
+									iterator.remove();
 								}
 							}
-							if (tapdataEvent instanceof TapdataHeartbeatEvent) {
-								handleTapdataHeartbeatEvent(tapdataEvent);
-							} else if (tapdataEvent instanceof TapdataCompleteSnapshotEvent) {
-								handleTapdataCompleteSnapshotEvent();
-							} else if (tapdataEvent instanceof TapdataStartCdcEvent) {
-								handleTapdataStartCdcEvent(tapdataEvent);
-							} else if (tapdataEvent instanceof TapdataShareLogEvent) {
-								handleTapdataShareLogEvent(tapdataShareLogEvents, tapdataEvent, lastDmlTapdataEvent::set);
+
+							// initial events and cdc events both in the queue
+							if (CollectionUtils.isNotEmpty(partialCdcEvents)) {
+								initialProcessEvents(tapdataEvents, false);
+								// process partial cdc event
+								if (this.initialPartitionConcurrentProcessor != null) {
+									this.initialPartitionConcurrentProcessor.stop();
+								}
+								cdcProcessEvents(partialCdcEvents);
 							} else {
-								if (tapdataEvent.isDML()) {
-									handleTapdataRecordEvent(tapdataEvent, tapEvents, lastDmlTapdataEvent::set);
-								} else if (tapdataEvent.isDDL()) {
-									handleTapdataDDLEvent(tapdataEvent, tapEvents, lastDmlTapdataEvent::set);
-								} else {
-									if (null != tapdataEvent.getTapEvent()) {
-										logger.warn("Tap event type does not supported: " + tapdataEvent.getTapEvent().getClass() + ", will ignore it");
-									}
-								}
+								initialProcessEvents(tapdataEvents, true);
 							}
+						} else {
+							cdcProcessEvents(tapdataEvents);
 						}
-						if (CollectionUtils.isNotEmpty(tapEvents)) {
-							resetInputCounter.inc(tapEvents.size());
-							inputCounter.inc(tapEvents.size());
-							inputQPS.add(tapEvents.size());
-							processEvents(tapEvents);
-						}
-						if (CollectionUtils.isNotEmpty(tapdataShareLogEvents)) {
-							resetInputCounter.inc(tapdataShareLogEvents.size());
-							inputCounter.inc(tapdataShareLogEvents.size());
-							inputQPS.add(tapdataShareLogEvents.size());
-							processShareLog(tapdataShareLogEvents);
-						}
-						flushSyncProgressMap(lastDmlTapdataEvent.get());
 					} else {
 						break;
 					}
@@ -226,6 +239,81 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 			logger.error("Target process failed {}", e.getMessage(), e);
 			throw sneakyThrow(e);
 		}
+	}
+
+	private void initialProcessEvents(List<TapdataEvent> initialEvents, boolean async) {
+
+		if (CollectionUtils.isNotEmpty(initialEvents)) {
+			if (initialConcurrent) {
+				this.initialPartitionConcurrentProcessor.process(initialEvents, async);
+			} else {
+				this.handleTapdataEvents(initialEvents);
+			}
+		}
+	}
+
+	private void cdcProcessEvents(List<TapdataEvent> cdcEvents) {
+
+		if (CollectionUtils.isNotEmpty(cdcEvents)) {
+			if (cdcConcurrent) {
+				this.cdcPartitionConcurrentProcessor.process(cdcEvents, true);
+			} else {
+				this.handleTapdataEvents(cdcEvents);
+			}
+		}
+	}
+
+	private void handleTapdataEvents(List<TapdataEvent> tapdataEvents) {
+		List<TapEvent> tapEvents = new ArrayList<>();
+		List<TapdataShareLogEvent> tapdataShareLogEvents = new ArrayList<>();
+		if (null != getConnectorNode()) {
+			codecsFilterManager = getConnectorNode().getCodecsFilterManager();
+		}
+		AtomicReference<TapdataEvent> lastDmlTapdataEvent = new AtomicReference<>();
+		for (TapdataEvent tapdataEvent : tapdataEvents) {
+			SyncStage syncStage = tapdataEvent.getSyncStage();
+			if (null != syncStage) {
+				if (syncStage == SyncStage.INITIAL_SYNC && firstBatchEvent.compareAndSet(false, true)) {
+					// MILESTONE-WRITE_SNAPSHOT-RUNNING
+					MilestoneUtil.updateMilestone(milestoneService, MilestoneStage.WRITE_SNAPSHOT, MilestoneStatus.RUNNING);
+				} else if (syncStage == SyncStage.CDC && firstStreamEvent.compareAndSet(false, true)) {
+					// MILESTONE-WRITE_CDC_EVENT-FINISH
+					MilestoneUtil.updateMilestone(milestoneService, MilestoneStage.WRITE_CDC_EVENT, MilestoneStatus.FINISH);
+				}
+			}
+			if (tapdataEvent instanceof TapdataHeartbeatEvent) {
+				handleTapdataHeartbeatEvent(tapdataEvent);
+			} else if (tapdataEvent instanceof TapdataCompleteSnapshotEvent) {
+				handleTapdataCompleteSnapshotEvent();
+			} else if (tapdataEvent instanceof TapdataStartCdcEvent) {
+				handleTapdataStartCdcEvent(tapdataEvent);
+			} else if (tapdataEvent instanceof TapdataShareLogEvent) {
+				handleTapdataShareLogEvent(tapdataShareLogEvents, tapdataEvent, lastDmlTapdataEvent::set);
+			} else {
+				if (tapdataEvent.isDML()) {
+					handleTapdataRecordEvent(tapdataEvent, tapEvents, lastDmlTapdataEvent::set);
+				} else if (tapdataEvent.isDDL()) {
+					handleTapdataDDLEvent(tapdataEvent, tapEvents, lastDmlTapdataEvent::set);
+				} else {
+					if (null != tapdataEvent.getTapEvent()) {
+						logger.warn("Tap event type does not supported: " + tapdataEvent.getTapEvent().getClass() + ", will ignore it");
+					}
+				}
+			}
+		}
+		if (CollectionUtils.isNotEmpty(tapEvents)) {
+			resetInputCounter.inc(tapEvents.size());
+			inputCounter.inc(tapEvents.size());
+			inputQPS.add(tapEvents.size());
+			processEvents(tapEvents);
+		}
+		if (CollectionUtils.isNotEmpty(tapdataShareLogEvents)) {
+			resetInputCounter.inc(tapdataShareLogEvents.size());
+			inputCounter.inc(tapdataShareLogEvents.size());
+			inputQPS.add(tapdataShareLogEvents.size());
+			processShareLog(tapdataShareLogEvents);
+		}
+		flushSyncProgressMap(lastDmlTapdataEvent.get());
 	}
 
 	private void handleTapdataShareLogEvent(List<TapdataShareLogEvent> tapdataShareLogEvents, TapdataEvent tapdataEvent, Consumer<TapdataEvent> consumer) {
@@ -351,6 +439,24 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 		}
 	}
 
+	protected void handleTapTablePrimaryKeys(TapTable tapTable) {
+		if (writeStrategy.equals(com.tapdata.tm.commons.task.dto.MergeTableProperties.MergeType.updateOrInsert.name())) {
+			if (CollectionUtils.isNotEmpty(updateConditionFields)) {
+				// 设置逻辑主键
+				tapTable.setLogicPrimaries(updateConditionFields);
+			} else {
+				Collection<String> logicUniqueKey = tapTable.primaryKeys(true);
+				if (CollectionUtils.isEmpty(logicUniqueKey)) {
+					tapTable.setLogicPrimaries(tapTable.getNameFieldMap().keySet());
+				}
+			}
+		} else if (writeStrategy.equals(com.tapdata.tm.commons.task.dto.MergeTableProperties.MergeType.appendWrite.name())) {
+			// 没有关联条件，清空主键信息
+			tapTable.getNameFieldMap().values().forEach(v -> v.setPrimaryKeyPos(0));
+			tapTable.setLogicPrimaries(null);
+		}
+	}
+
 	@Override
 	public boolean saveToSnapshot() {
 		if (!flushOffset.get()) return true;
@@ -401,5 +507,36 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 			uploadDagService.compareAndSet(true, false);
 		}
 		return true;
+	}
+
+	@NotNull
+	private PartitionConcurrentProcessor initConcurrentProcessor(int cdcConcurrentWriteNum) {
+		return new PartitionConcurrentProcessor(
+				cdcConcurrentWriteNum,
+				dataProcessorContext.getSubTaskDto().getParentTask().getReadBatchSize(),
+				new KeysPartitioner(),
+				new TapEventPartitionKeySelector(tapEvent -> {
+					final String tgtTableName = getTgtTableNameFromTapEvent(tapEvent);
+					TapTable tapTable = dataProcessorContext.getTapTableMap().get(tgtTableName);
+					handleTapTablePrimaryKeys(tapTable);
+					return new ArrayList<>(tapTable.primaryKeys());
+				}),
+				this::handleTapdataEvents,
+				this::flushSyncProgressMap
+		);
+	}
+
+	@Override
+	public void doClose() throws Exception {
+
+		if (this.initialPartitionConcurrentProcessor != null) {
+			this.initialPartitionConcurrentProcessor.stop();
+		}
+
+		if (this.cdcPartitionConcurrentProcessor != null) {
+			this.cdcPartitionConcurrentProcessor.stop();
+		}
+
+		super.doClose();
 	}
 }

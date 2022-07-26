@@ -430,24 +430,6 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 		}
 	}
 
-	private void handleTapTablePrimaryKeys(TapTable tapTable) {
-		if (writeStrategy.equals(com.tapdata.tm.commons.task.dto.MergeTableProperties.MergeType.updateOrInsert.name())) {
-			if (CollectionUtils.isNotEmpty(updateConditionFields)) {
-				// 设置逻辑主键
-				tapTable.setLogicPrimaries(updateConditionFields);
-			} else {
-				Collection<String> logicUniqueKey = tapTable.primaryKeys(true);
-				if (CollectionUtils.isEmpty(logicUniqueKey)) {
-					tapTable.setLogicPrimaries(tapTable.getNameFieldMap().keySet());
-				}
-			}
-		} else if (writeStrategy.equals(com.tapdata.tm.commons.task.dto.MergeTableProperties.MergeType.appendWrite.name())) {
-			// 没有关联条件，清空主键信息
-			tapTable.getNameFieldMap().values().forEach(v -> v.setPrimaryKeyPos(0));
-			tapTable.setLogicPrimaries(null);
-		}
-	}
-
 	private void dispatchTapRecordEvents(List<TapEvent> tapEvents, Predicate<DispatchEntity> dispatchClause, Consumer<List<TapEvent>> consumer) {
 		DispatchEntity dispatchEntity = new DispatchEntity();
 		List<TapEvent> tempList = new ArrayList<>();

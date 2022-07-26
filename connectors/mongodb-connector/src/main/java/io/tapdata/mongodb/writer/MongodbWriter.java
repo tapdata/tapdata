@@ -47,16 +47,11 @@ public class MongodbWriter {
 	private ConnectionString connectionString;
 	private MongodbConfig mongodbConfig;
 
-	public MongodbWriter(KVMap<Object> globalStateMap) {
+	public MongodbWriter(KVMap<Object> globalStateMap, MongodbConfig mongodbConfig, MongoClient mongoClient) {
 		this.globalStateMap = globalStateMap;
-	}
-
-	public void onStart(MongodbConfig mongodbConfig) {
-		if (mongoClient == null) {
-			mongoClient = MongodbUtil.createMongoClient(mongodbConfig);
-			mongoDatabase = mongoClient.getDatabase(mongodbConfig.getDatabase());
-			this.connectionString = new ConnectionString(mongodbConfig.getUri());
-		}
+		this.mongoClient = mongoClient;
+		this.mongoDatabase = mongoClient.getDatabase(mongodbConfig.getDatabase());
+		this.connectionString = new ConnectionString(mongodbConfig.getUri());
 		this.mongodbConfig = mongodbConfig;
 	}
 
