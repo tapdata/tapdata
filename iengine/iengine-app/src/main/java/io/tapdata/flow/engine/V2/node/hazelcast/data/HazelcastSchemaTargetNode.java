@@ -71,7 +71,7 @@ public class HazelcastSchemaTargetNode extends HazelcastVirtualTargetNode {
 		}
 		this.prePreNode = prePreNodes.get(0);
 		//js节点之前的节点的模型
-		this.prePreNodeTapTableMap = TapTableUtil.getTapTableMapByNodeId(prePreNode.getId());
+		this.prePreNodeTapTableMap = TapTableUtil.getTapTableMapByNodeId("SCHEMA_", prePreNode.getId(), null);
 	}
 
 	@Override
@@ -113,6 +113,12 @@ public class HazelcastSchemaTargetNode extends HazelcastVirtualTargetNode {
 			logger.error("Target process failed {}", e.getMessage(), e);
 			throw sneakyThrow(e);
 		}
+	}
+
+	@Override
+	protected void doClose() throws Exception {
+		super.doClose();
+		Optional.ofNullable(this.prePreNodeTapTableMap).ifPresent(TapTableMap::remove);
 	}
 
 	@NotNull

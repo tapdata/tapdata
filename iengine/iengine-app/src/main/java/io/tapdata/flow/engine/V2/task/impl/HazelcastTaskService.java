@@ -203,7 +203,8 @@ public class HazelcastTaskService implements TaskService<SubTaskDto> {
 					if (predecessors.size() != 1) {
 						throw new IllegalArgumentException("Node [" + node.getId() + "] has more than one predecessor");
 					}
-					tapTableMap = TapTableUtil.getTapTableMapByNodeId(predecessors.get(0).getId(), tmCurrentTime);
+					Map<String, String> nameQualifiedNameMap = TapTableUtil.getTableNameQualifiedNameMap(predecessors.get(0).getId());
+					tapTableMap = TapTableMap.create(node.getId(), nameQualifiedNameMap);
 				}
 				if (node.isDataNode()) {
 					String connectionId = null;

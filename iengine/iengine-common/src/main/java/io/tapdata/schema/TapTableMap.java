@@ -52,17 +52,21 @@ public class TapTableMap<K extends String, V extends TapTable> extends HashMap<K
 	}
 
 	public static TapTableMap<String, TapTable> create(String nodeId, Map<String, String> tableNameAndQualifiedNameMap, Long time) {
+		return create(null, nodeId, tableNameAndQualifiedNameMap, time);
+	}
+
+	public static TapTableMap<String, TapTable> create(String prefix, String nodeId, Map<String, String> tableNameAndQualifiedNameMap, Long time) {
 		TapTableMap<String, TapTable> tapTableMap = new TapTableMap<>();
 		tapTableMap
 				.nodeId(nodeId)
 				.tableNameAndQualifiedNameMap(tableNameAndQualifiedNameMap)
 				.time(time)
-				.init();
+				.init(prefix);
 		EhcacheService.getInstance().getEhcacheKVMap(tapTableMap.mapKey).clear();
 		return tapTableMap;
 	}
 
-	private TapTableMap<K, V> init() {
+	private TapTableMap<K, V> init(String prefix) {
 		if (StringUtils.isBlank(nodeId)) {
 			throw new RuntimeException("Missing node id");
 		}
@@ -70,6 +74,9 @@ public class TapTableMap<K extends String, V extends TapTable> extends HashMap<K
 //			throw new RuntimeException("Missing table name and qualified name map");
 //		}
 		this.mapKey = TAP_TABLE_PREFIX + nodeId;
+		if (StringUtils.isNotEmpty(prefix)) {
+			this.mapKey = prefix + "_" + this.mapKey;
+		}
 		EhcacheKVMap<TapTable> tapTableMap = EhcacheKVMap.create(mapKey, TapTable.class)
 				.cachePath(DIST_CACHE_PATH)
 				.maxHeapEntries(MAX_HEAP_ENTRIES)
