@@ -52,13 +52,11 @@ public class TestRunAspectTask extends AspectTask {
            * {"before":[{}], "after":[{}]}
            */
           resultMap.computeIfAbsent("before", key -> new ArrayList<>()).add(getMap(inputEvent));
+          processAspect.setConsumer(outputEvent ->
+                  resultMap.computeIfAbsent("after", key -> new ArrayList<>()).add(getMap(outputEvent)));
         }
         break;
       case ProcessorFunctionAspect.STATE_END:
-          if (nodeIds.contains(nodeId)) {
-            processAspect.consumer(outputEvent ->
-                    resultMap.computeIfAbsent("after", key -> new ArrayList<>()).add(getMap(outputEvent)));
-          }
           break;
     }
 
