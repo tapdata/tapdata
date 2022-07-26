@@ -18,6 +18,7 @@ import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.collections.map.LRUMap;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.voovan.tools.collection.CacheMap;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -29,9 +30,12 @@ public class HazelcastSampleSourcePdkDataNode extends HazelcastSourcePdkDataNode
 
   private static final String TAG = HazelcastSampleSourcePdkDataNode.class.getSimpleName();
 
-  private static final Map<String, List<TapEvent>> sampleDataCacheMap = new LRUMap(100);
+  private static final CacheMap<String, List<TapEvent>> sampleDataCacheMap = new CacheMap<>();
 
 
+  static {
+    sampleDataCacheMap.maxSize(100).autoRemove(true).expire(600).interval(60).create();
+  }
   public HazelcastSampleSourcePdkDataNode(DataProcessorContext dataProcessorContext) {
     super(dataProcessorContext);
   }

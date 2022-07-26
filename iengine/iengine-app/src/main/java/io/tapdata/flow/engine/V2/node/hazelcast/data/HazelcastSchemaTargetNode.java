@@ -5,6 +5,9 @@ import com.hazelcast.jet.core.Inbox;
 import com.tapdata.entity.TapdataEvent;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.tm.commons.dag.Node;
+import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
+import com.tapdata.tm.commons.dag.process.ProcessorNode;
+import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
@@ -12,10 +15,12 @@ import io.tapdata.entity.schema.value.TapValue;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
 import io.tapdata.schema.TapTableMap;
 import io.tapdata.schema.TapTableUtil;
+import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.MapUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.NotNull;
+import org.voovan.tools.collection.CacheMap;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -29,14 +34,18 @@ public class HazelcastSchemaTargetNode extends HazelcastVirtualTargetNode {
 	/**
 	 * key: subTaskId+jsNodeId
 	 */
-	private static final Map<String, TapTable> tabTableCacheMap = new ConcurrentHashMap<>();
-	private static final Map<String, List<SchemaApplyResult>> schemaApplyResultMap = new ConcurrentHashMap<>();
+	private static final CacheMap<String, TapTable> tabTableCacheMap = new CacheMap<>();
+	private static final CacheMap<String, List<SchemaApplyResult>> schemaApplyResultMap = new CacheMap<>();
 
 	private final String schemaKey;
 
 	private final Node<?> prePreNode;
-
 	private final TapTableMap<String, TapTable> prePreNodeTapTableMap;
+
+	static {
+		tabTableCacheMap.maxSize(100).autoRemove(true).expire(600).interval(60).create();
+		schemaApplyResultMap.maxSize(100).autoRemove(true).expire(600).interval(60).create();
+	}
 
 
 	public static TapTable getTapTable(String schemaKey) {
@@ -164,10 +173,14 @@ public class HazelcastSchemaTargetNode extends HazelcastVirtualTargetNode {
 
 	private LinkedHashMap<String, TapField> getOldNameFieldMap(TapRecordEvent tapEvent) {
 		TapTable oldTapTable;
-		if (multipleTables) {
-			oldTapTable = prePreNodeTapTableMap.get(tapEvent.getTableId());
+		if (this.prePreNode instanceof ProcessorNode) {
+			if (multipleTables) {
+				oldTapTable = prePreNodeTapTableMap.get(tapEvent.getTableId());
+			} else {
+				oldTapTable = prePreNodeTapTableMap.get(prePreNode.getId());
+			}
 		} else {
-			oldTapTable = prePreNodeTapTableMap.get(prePreNode.getId());
+			oldTapTable = prePreNodeTapTableMap.get(tapEvent.getTableId());
 		}
 		if (oldTapTable == null) {
 			return null;
