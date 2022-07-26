@@ -1,10 +1,13 @@
 package io.tapdata.entity.mapping;
 
+import io.tapdata.entity.mapping.DefaultExpressionMatchingMap;
+import io.tapdata.entity.mapping.TypeExprResult;
 import io.tapdata.entity.mapping.type.*;
 import io.tapdata.entity.schema.type.*;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.entity.utils.JsonParser;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 import java.util.function.Consumer;
@@ -63,8 +66,8 @@ class ExpressionMatchingMapTest {
 //        });
         //"    \"binary($byte)\": {\"byte\": 255, \"to\": \"TapBinary\"},\n" +
         validateTapMapping(matchingMap, "Binary(4)", TapBinaryMapping.class, TapBinary.class, exprResult -> {
-            assertNotNull(exprResult, "Expression is not matched");
-            assertEquals(exprResult.getParams().get("byte"), "4");
+            Assertions.assertNotNull(exprResult, "Expression is not matched");
+            Assertions.assertEquals(exprResult.getParams().get("byte"), "4");
         }, tapBinaryMapping -> {
             assertEquals(tapBinaryMapping.getBytes(), 255 );
         }, tapBinary -> {
@@ -72,8 +75,8 @@ class ExpressionMatchingMapTest {
         });
 
         validateTapMapping(matchingMap, "binary(4)", TapBinaryMapping.class, TapBinary.class, exprResult -> {
-            assertNotNull(exprResult, "Expression is not matched");
-            assertEquals(exprResult.getParams().get("byte"), "4");
+            Assertions.assertNotNull(exprResult, "Expression is not matched");
+            Assertions.assertEquals(exprResult.getParams().get("byte"), "4");
         }, tapBinaryMapping -> {
             assertEquals(tapBinaryMapping.getBytes(), 255 );
         }, tapBinary -> {
@@ -81,12 +84,12 @@ class ExpressionMatchingMapTest {
         });
 
         validateTapMapping(matchingMap, "binary", TapBinaryMapping.class, TapBinary.class, exprResult -> {
-            assertNull(exprResult, "Expression should not be matched");
+            Assertions.assertNull(exprResult, "Expression should not be matched");
         }, null, null);
 
         // "    \"mediumblob\": {\"byte\": \"16m\", \"to\": \"TapBinary\"},\n" +
         validateTapMapping(matchingMap, "mediumblob", TapBinaryMapping.class, TapBinary.class, exprResult -> {
-            assertNotNull(exprResult, "Expression is not matched");
+            Assertions.assertNotNull(exprResult, "Expression is not matched");
             assertNull(exprResult.getParams());
         }, tapBinaryMapping -> {
             assertEquals(tapBinaryMapping.getBytes(), 16777215 );
@@ -95,7 +98,7 @@ class ExpressionMatchingMapTest {
         });
 
         validateTapMapping(matchingMap, "MEDIUMBLOB", TapBinaryMapping.class, TapBinary.class, exprResult -> {
-            assertNotNull(exprResult, "Expression is not matched");
+            Assertions.assertNotNull(exprResult, "Expression is not matched");
             assertNull(exprResult.getParams());
         }, tapBinaryMapping -> {
             assertEquals(tapBinaryMapping.getBytes(), 16777215 );

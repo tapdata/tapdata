@@ -2,6 +2,8 @@ package io.tapdata.entity.conversion;
 
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
+import io.tapdata.entity.conversion.TableFieldTypesGenerator;
+import io.tapdata.entity.conversion.TargetTypesGenerator;
 import io.tapdata.entity.mapping.DefaultExpressionMatchingMap;
 import io.tapdata.entity.result.TapResult;
 import io.tapdata.entity.schema.TapField;

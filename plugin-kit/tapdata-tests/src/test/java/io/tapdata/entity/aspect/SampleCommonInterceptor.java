@@ -3,7 +3,7 @@ package io.tapdata.entity.aspect;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 
-public class SampleCommonInterceptor implements AspectInterceptor<SampleAspect>{
+public class SampleCommonInterceptor implements AspectInterceptor<SampleAspect> {
     private final List<SampleAspect> aspects = new CopyOnWriteArrayList<>();
     private boolean intercept;
 
