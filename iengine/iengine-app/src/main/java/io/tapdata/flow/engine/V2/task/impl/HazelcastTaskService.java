@@ -26,10 +26,7 @@ import com.tapdata.tm.commons.dag.nodes.CacheNode;
 import com.tapdata.tm.commons.dag.nodes.DataNode;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
-import com.tapdata.tm.commons.dag.process.MergeTableNode;
-import com.tapdata.tm.commons.dag.process.MigrateFieldRenameProcessorNode;
-import com.tapdata.tm.commons.dag.process.MigrateJsProcessorNode;
-import com.tapdata.tm.commons.dag.process.TableRenameProcessNode;
+import com.tapdata.tm.commons.dag.process.*;
 import com.tapdata.tm.commons.task.dto.SubTaskDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.aspect.TaskStartAspect;
@@ -184,19 +181,8 @@ public class HazelcastTaskService implements TaskService<SubTaskDto> {
 			for (Node node : nodes) {
 				Connections connection = null;
 				DatabaseTypeEnum.DatabaseType databaseType = null;
-				TapTableMap<String, TapTable> tapTableMap = TapTableUtil.getTapTableMapByNodeId(node.getId(), tmCurrentTime);
-				if (CollectionUtils.isEmpty(tapTableMap.keySet())
-						&& !(node instanceof CacheNode)
-						&& !(node instanceof HazelCastImdgNode)
-						&& !(node instanceof TableRenameProcessNode)
-						&& !(node instanceof MigrateFieldRenameProcessorNode)
-						&& !(node instanceof VirtualTargetNode)
-						&& !(node instanceof MigrateJsProcessorNode)
-						&& !StringUtils.equalsAnyIgnoreCase(subTaskDto.getParentTask().getSyncType(), TaskDto.SYNC_TYPE_DEDUCE_SCHEMA, TaskDto.SYNC_TYPE_TEST_RUN)) {
-					throw new NodeException(String.format("Node [id %s, name %s] schema cannot be empty",
-							node.getId(), node.getName()));
-				}
-				if (CollectionUtils.isEmpty(tapTableMap.keySet())
+				TapTableMap<String, TapTable> tapTableMap;
+				if ((node instanceof MigrateJsProcessorNode || node instanceof JsProcessorNode)
 								&& StringUtils.equalsAnyIgnoreCase(subTaskDto.getParentTask().getSyncType(), TaskDto.SYNC_TYPE_DEDUCE_SCHEMA)) {
 					//模型推演阶段，如果没有模型取上一个节点的模型
 					List<Node> predecessors = node.predecessors();
@@ -205,7 +191,20 @@ public class HazelcastTaskService implements TaskService<SubTaskDto> {
 					}
 					Map<String, String> nameQualifiedNameMap = TapTableUtil.getTableNameQualifiedNameMap(predecessors.get(0).getId());
 					tapTableMap = TapTableMap.create(node.getId(), nameQualifiedNameMap);
+				} else {
+					tapTableMap = TapTableUtil.getTapTableMapByNodeId(node.getId(), tmCurrentTime);
 				}
+				if (CollectionUtils.isEmpty(tapTableMap.keySet())
+						&& !(node instanceof CacheNode)
+						&& !(node instanceof HazelCastImdgNode)
+						&& !(node instanceof TableRenameProcessNode)
+						&& !(node instanceof MigrateFieldRenameProcessorNode)
+						&& !(node instanceof VirtualTargetNode)
+						&& !StringUtils.equalsAnyIgnoreCase(subTaskDto.getParentTask().getSyncType(), TaskDto.SYNC_TYPE_DEDUCE_SCHEMA, TaskDto.SYNC_TYPE_TEST_RUN)) {
+					throw new NodeException(String.format("Node [id %s, name %s] schema cannot be empty",
+							node.getId(), node.getName()));
+				}
+
 				if (node.isDataNode()) {
 					String connectionId = null;
 					if (node instanceof DataNode) {
