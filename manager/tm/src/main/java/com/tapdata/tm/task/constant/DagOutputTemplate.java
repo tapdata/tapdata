@@ -9,7 +9,7 @@ public class DagOutputTemplate {
      * Agent不可用：
      * 【ERROR】 2022-05-24 21:05:22  【任务A】【Agent可用性检测】：当前无可用Agent，任务运行失败
      */
-    public static String AGENT_CAN_USE_INFO = "$date【$taskName】【Agent可用性检测】：检查到当前有{1}个可用Agent，当前任务将在Agent：'{'{2}}上运行";
+    public static String AGENT_CAN_USE_INFO = "$date【$taskName】【Agent可用性检测】：检查到当前有{1}个可用Agent：[{2}],当前任务将在Agent：'{'{3}}上运行";
     public static String AGENT_CAN_USE_ERROR = "$date【$taskName】【Agent可用性检测】：当前无可用Agent，任务运行失败";
 
     /**
