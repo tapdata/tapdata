@@ -173,8 +173,8 @@ public class TaskDagCheckLogServiceImpl implements TaskDagCheckLogService {
     }
 
     @Override
-    public TaskDagCheckLog createLog(String taskId, String userId, String grade, DagOutputTemplateEnum templateEnum,
-                                     boolean delOther,boolean needSave, Object ... param) {
+    public void createLog(String taskId, String userId, String grade, DagOutputTemplateEnum templateEnum,
+                          boolean delOther, boolean needSave, Object ... param) {
         Date now = new Date();
         if (delOther) {
             mongoTemplate.remove(Query.query(Criteria.where("taskId").is(taskId)
@@ -204,6 +204,5 @@ public class TaskDagCheckLogServiceImpl implements TaskDagCheckLogService {
             this.save(log);
         }
 
-        return log;
     }
 }

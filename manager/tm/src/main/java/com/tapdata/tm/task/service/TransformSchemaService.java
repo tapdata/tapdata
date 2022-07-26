@@ -1,5 +1,6 @@
 package com.tapdata.tm.task.service;
 
+import cn.hutool.core.date.DateUtil;
 import com.tapdata.manager.common.utils.StringUtils;
 import com.tapdata.tm.commons.dag.*;
 import com.tapdata.tm.commons.dag.nodes.DataParentNode;
@@ -13,10 +14,12 @@ import com.tapdata.tm.ds.service.impl.DataSourceDefinitionService;
 import com.tapdata.tm.ds.service.impl.DataSourceService;
 import com.tapdata.tm.lock.annotation.Lock;
 import com.tapdata.tm.lock.constant.LockType;
+import com.tapdata.tm.message.constant.Level;
 import com.tapdata.tm.messagequeue.dto.MessageQueueDto;
 import com.tapdata.tm.messagequeue.service.MessageQueueService;
 import com.tapdata.tm.metadatainstance.entity.MetadataInstancesEntity;
 import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
+import com.tapdata.tm.task.constant.DagOutputTemplateEnum;
 import com.tapdata.tm.task.constant.SyncType;
 import com.tapdata.tm.transform.service.MetadataTransformerItemService;
 import com.tapdata.tm.transform.service.MetadataTransformerService;
@@ -26,6 +29,7 @@ import com.tapdata.tm.utils.UUIDUtil;
 import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.service.WorkerService;
 import com.tapdata.tm.ws.enums.MessageType;
+import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.bson.types.ObjectId;
@@ -59,12 +63,13 @@ public class TransformSchemaService {
 
     private MessageQueueService messageQueueService;
     private WorkerService workerService;
+    private TaskDagCheckLogService taskDagCheckLogService;
 
     @Autowired
     public TransformSchemaService(DAGDataService dagDataService, MetadataInstancesService metadataInstancesService, TaskService taskService,
                                   DataSourceService dataSourceService, MetadataTransformerService metadataTransformerService,
                                   DataSourceDefinitionService definitionService, MetadataTransformerItemService metadataTransformerItemService,
-                                  MessageQueueService messageQueueService, WorkerService workerService) {
+                                  MessageQueueService messageQueueService, WorkerService workerService, TaskDagCheckLogService taskDagCheckLogService) {
         this.dagDataService = dagDataService;
         this.metadataInstancesService = metadataInstancesService;
         this.taskService = taskService;
@@ -74,6 +79,7 @@ public class TransformSchemaService {
         this.metadataTransformerItemService = metadataTransformerItemService;
         this.messageQueueService = messageQueueService;
         this.workerService = workerService;
+        this.taskDagCheckLogService = taskDagCheckLogService;
     }
 
     @Value("${tm.transform.batch.num:100}")
@@ -211,6 +217,13 @@ public class TransformSchemaService {
 
         if (CollectionUtils.isNotEmpty(result.getUpsertTransformer())) {
             metadataTransformerService.save(result.getUpsertTransformer(), user);
+
+            String taskId = result.getUpsertTransformer().get(0).getDataFlowId();
+            int total = result.getUpsertTransformer().get(0).getTotal();
+
+            // add transformer task log
+            taskDagCheckLogService.createLog(taskId, user.getUserId(), Level.INFO.getValue(), DagOutputTemplateEnum.MODEL_PROCESS_CHECK,
+                    false, true, DateUtil.now(), total, total);
         }
     }
 
