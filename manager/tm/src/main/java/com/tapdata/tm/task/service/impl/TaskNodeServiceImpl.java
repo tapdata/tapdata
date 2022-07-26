@@ -252,6 +252,7 @@ public class TaskNodeServiceImpl implements TaskNodeService {
         DAG temp = DAG.build(build);
 
         taskDto.setDag(null);
+        taskDto.setSyncType(TaskDto.SYNC_TYPE_DEDUCE_SCHEMA);
         SubTaskDto subTaskDto = new SubTaskDto();
         subTaskDto.setStatus(SubTaskDto.STATUS_WAIT_RUN);
         subTaskDto.setParentTask(taskDto);
