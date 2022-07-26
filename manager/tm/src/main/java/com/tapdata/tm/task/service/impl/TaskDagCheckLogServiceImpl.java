@@ -1,5 +1,6 @@
 package com.tapdata.tm.task.service.impl;
 
+import cn.hutool.core.date.DatePattern;
 import cn.hutool.core.date.DateUtil;
 import cn.hutool.extra.spring.SpringUtil;
 import com.google.common.base.Splitter;
@@ -31,6 +32,7 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.text.MessageFormat;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -124,7 +126,7 @@ public class TaskDagCheckLogServiceImpl implements TaskDagCheckLogService {
                 .map(g -> {
                     String log = g.getLog();
                     log = StringUtils.replace(log, "$taskName", taskDto.getName());
-                    log = StringUtils.replace(log, "$date", DateUtil.formatDateTime(g.getCreateAt()));
+                    log = StringUtils.replace(log, "$date", DateUtil.toLocalDateTime(g.getCreateAt()).format(DateTimeFormatter.ofPattern(DatePattern.NORM_DATETIME_PATTERN)));
 
                     return new TaskLogInfoVo(g.getId().toHexString(), g.getGrade(), log);
                 })
@@ -142,7 +144,7 @@ public class TaskDagCheckLogServiceImpl implements TaskDagCheckLogService {
                     .map(g -> {
                         String log = g.getLog();
                         log = StringUtils.replace(log, "$taskName", taskDto.getName());
-                        log = StringUtils.replace(log, "$date", DateUtil.formatDateTime(g.getCreateAt()));
+                        log = StringUtils.replace(log, "$date", DateUtil.toLocalDateTime(g.getCreateAt()).format(DateTimeFormatter.ofPattern(DatePattern.NORM_DATETIME_PATTERN)));
 
                         return new TaskLogInfoVo(g.getId().toHexString(), g.getGrade(), log);
                     })
