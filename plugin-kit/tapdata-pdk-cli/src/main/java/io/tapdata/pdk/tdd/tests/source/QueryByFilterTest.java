@@ -1,22 +1,17 @@
 package io.tapdata.pdk.tdd.tests.source;
 
 import io.tapdata.entity.event.control.PatrolEvent;
-import io.tapdata.entity.event.dml.TapInsertRecordEvent;
-import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.DataMap;
-import io.tapdata.entity.utils.InstanceFactory;
-import io.tapdata.entity.utils.cache.KVMapFactory;
-import io.tapdata.pdk.apis.entity.FilterResults;
 import io.tapdata.pdk.apis.entity.Projection;
 import io.tapdata.pdk.apis.entity.QueryOperator;
 import io.tapdata.pdk.apis.entity.TapAdvanceFilter;
+import io.tapdata.pdk.apis.entity.TapFilter;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
-import io.tapdata.pdk.apis.functions.connector.source.BatchCountFunction;
-import io.tapdata.pdk.apis.functions.connector.source.BatchReadFunction;
 import io.tapdata.pdk.apis.functions.connector.target.DropTableFunction;
 import io.tapdata.pdk.apis.functions.connector.target.QueryByAdvanceFilterFunction;
+import io.tapdata.pdk.apis.functions.connector.target.QueryByFilterFunction;
 import io.tapdata.pdk.apis.functions.connector.target.WriteRecordFunction;
 import io.tapdata.pdk.apis.spec.TapNodeSpecification;
 import io.tapdata.pdk.cli.entity.DAGDescriber;
@@ -26,7 +21,10 @@ import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
 import io.tapdata.pdk.core.monitor.PDKMethod;
 import io.tapdata.pdk.core.tapnode.TapNodeInfo;
 import io.tapdata.pdk.core.utils.CommonUtils;
-import io.tapdata.pdk.core.workflow.engine.*;
+import io.tapdata.pdk.core.workflow.engine.DataFlowEngine;
+import io.tapdata.pdk.core.workflow.engine.DataFlowWorker;
+import io.tapdata.pdk.core.workflow.engine.JobOptions;
+import io.tapdata.pdk.core.workflow.engine.TapDAGNodeEx;
 import io.tapdata.pdk.tdd.core.PDKTestBase;
 import io.tapdata.pdk.tdd.core.SupportFunction;
 import io.tapdata.pdk.tdd.tests.target.DMLTest;
@@ -34,16 +32,17 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-import java.util.*;
-import java.util.function.Consumer;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
 
 import static io.tapdata.entity.simplify.TapSimplify.entry;
 import static io.tapdata.entity.simplify.TapSimplify.map;
-import static org.junit.jupiter.api.Assertions.*;
 
 
 @DisplayName("Tests for source beginner test")
-public class QueryByAdvanceFilterTest extends PDKTestBase {
+public class QueryByFilterTest extends PDKTestBase {
     private static final String TAG = DMLTest.class.getSimpleName();
     ConnectorNode tddTargetNode;
     ConnectorNode sourceNode;
@@ -126,60 +125,37 @@ public class QueryByAdvanceFilterTest extends PDKTestBase {
 
     private void startQueryByAdvanceFilterTest(ConnectorNode targetNode) throws Throwable {
         ConnectorFunctions connectorFunctions = targetNode.getConnectorFunctions();
-        QueryByAdvanceFilterFunction queryByAdvanceFilterFunction = connectorFunctions.getQueryByAdvanceFilterFunction();
+        QueryByFilterFunction queryByFilterFunction = connectorFunctions.getQueryByFilterFunction();
 
         TapTable targetTable = targetNode.getConnectorContext().getTableMap().get(targetNode.getTable());
 
-        connectorFunctions.getQueryByAdvanceFilterFunction().query(targetNode.getConnectorContext(), TapAdvanceFilter.create().limit(2), targetTable, filterResults -> {
-            $(() -> Assertions.assertNotNull(filterResults.getResults(), "Query results should be not null"));
-            $(() -> Assertions.assertEquals(2, filterResults.getResults().size(), "Limit 2 results"));
+      TapFilter tapFilter = TapFilter.create();
+      tapFilter.setMatch(DataMap.create().kv("id", "12312323213"));
+      TapFilter tapFilter1 = TapFilter.create();
+      tapFilter1.setMatch(DataMap.create().kv("id", "full_1"));
+      TapFilter tapFilter2 =TapFilter.create();
+      tapFilter2.setMatch(DataMap.create().kv("tapInt",1023123));
+        connectorFunctions.getQueryByFilterFunction().query(targetNode.getConnectorContext(),
+            Collections.singletonList(tapFilter), targetTable, filterResults -> {
+                    $(() -> Assertions.assertEquals(1, filterResults.size(), "FilterResults size must the same with tap filter list"));
+                    $(() -> Assertions.assertNull(filterResults.get(0).getResult(), "Query results should be null"));
+                });
+        connectorFunctions.getQueryByFilterFunction().query(targetNode.getConnectorContext(),
+            Collections.singletonList(tapFilter1), targetTable, filterResults -> {
+            $(() -> Assertions.assertNotNull(filterResults.get(0).getResult(), "Query results should be not null"));
+            $(() -> Assertions.assertEquals(1, filterResults.size(), "Should return 1 result"));
+            $(() -> Assertions.assertTrue(objectIsEqual("123", filterResults.get(0).getResult().get("tapString")), "tapString field should equal 123"));
+            $(() -> Assertions.assertTrue(objectIsEqual(123.0, filterResults.get(0).getResult().get("tapNumber")), "tapNumber field should equal 123.0"));
         });
-        connectorFunctions.getQueryByAdvanceFilterFunction().query(targetNode.getConnectorContext(),
-                TapAdvanceFilter.create().match(DataMap.create().kv("id", "12312323213")), targetTable, filterResults -> {
-                    $(() -> Assertions.assertNull(filterResults.getResults(), "Query results should be null"));
-                });
 
-        connectorFunctions.getQueryByAdvanceFilterFunction().query(targetNode.getConnectorContext(),
-                TapAdvanceFilter.create().match(DataMap.create().kv("id", "full_1")), targetTable, filterResults -> {
-            $(() -> Assertions.assertNotNull(filterResults.getResults(), "Query results should be not null"));
-            $(() -> Assertions.assertEquals(1, filterResults.getResults().size(), "Should return 1 result"));
-            $(() -> Assertions.assertEquals("123", filterResults.getResults().get(0).get("tapString"), "tapString field should equal 123"));
-              $(() -> Assertions.assertTrue(objectIsEqual(123.0, filterResults.getResults().get(0).get("tapNumber")), "tapNumber field should equal 123.0"));
-        });
-
-        connectorFunctions.getQueryByAdvanceFilterFunction().query(targetNode.getConnectorContext(),
-                TapAdvanceFilter.create().op(QueryOperator.lt("tapInt", 1023123)), targetTable, filterResults -> {
-                    $(() -> Assertions.assertNotNull(filterResults.getResults(), "Query results should be not null"));
-                    $(() -> Assertions.assertEquals(10, filterResults.getResults().size(), "Should return 10 result"));
-                    $(() -> Assertions.assertTrue(objectIsEqual("1234", filterResults.getResults().get(0).get("tapString")), "tapString field should equal 1234"));
-                    $(() -> Assertions.assertTrue(objectIsEqual(123.0, filterResults.getResults().get(0).get("tapNumber")), "tapNumber field should equal 123.0"));
-                    $(() -> Assertions.assertTrue(objectIsEqual(123123, filterResults.getResults().get(0).get("tapInt")), "tapInt field should equal 123123"));
-                });
-        connectorFunctions.getQueryByAdvanceFilterFunction().query(targetNode.getConnectorContext(),
-                TapAdvanceFilter.create().op(QueryOperator.lte("tapInt", 1023123)), targetTable, filterResults -> {
-                    $(() -> Assertions.assertNotNull(filterResults.getResults(), "Query results should be not null"));
-                    $(() -> Assertions.assertEquals(11, filterResults.getResults().size(), "Should return 11 result"));
-
-                    $(() -> Assertions.assertTrue(objectIsEqual(1023123, filterResults.getResults().get(0).get("tapInt")), "First record, tapInt field should equal 1023123"));
-                    $(() -> Assertions.assertTrue(objectIsEqual(123123, filterResults.getResults().get(1).get("tapInt")), "Second record, tapInt field should equal 123123"));
-                });
-
-        connectorFunctions.getQueryByAdvanceFilterFunction().query(targetNode.getConnectorContext(),
-                TapAdvanceFilter.create().op(QueryOperator.lte("tapInt", 1023123)).skip(1).limit(1), targetTable, filterResults -> {
-                    $(() -> Assertions.assertNotNull(filterResults.getResults(), "Query results should be not null"));
-                    $(() -> Assertions.assertEquals(1, filterResults.getResults().size(), "Should return 1 result"));
-
-                    $(() -> Assertions.assertTrue(objectIsEqual(123123, filterResults.getResults().get(0).get("tapInt")), "First record, tapInt field should equal 123123"));
-                });
-
-        connectorFunctions.getQueryByAdvanceFilterFunction().query(targetNode.getConnectorContext(),
-                TapAdvanceFilter.create().op(QueryOperator.lte("tapInt", 1023123)).skip(1).limit(1).projection(Projection.create().include("tapInt")), targetTable, filterResults -> {
-                    $(() -> Assertions.assertNotNull(filterResults.getResults(), "Query results should be not null"));
-                    $(() -> Assertions.assertEquals(1, filterResults.getResults().size(), "Should return 1 result"));
-
-                    $(() -> Assertions.assertTrue(objectIsEqual(123123, filterResults.getResults().get(0).get("tapInt")), "First record, tapInt field should equal 123123"));
-//                    $(() -> Assertions.assertNull(filterResults.getResults().get(0).get("tapString"), "tapString should be removed by projection"));
-                });
+         connectorFunctions.getQueryByFilterFunction().query(targetNode.getConnectorContext(),
+         Collections.singletonList(tapFilter2), targetTable, filterResults -> {
+            $(() -> Assertions.assertNotNull(filterResults.get(0).getResult(), "Query results should be not null"));
+            $(() -> Assertions.assertEquals(1, filterResults.size(), "Should return 1 result"));
+            $(() -> Assertions.assertTrue(objectIsEqual("123", filterResults.get(0).getResult().get("tapString")), "tapString field should equal 123"));
+            $(() -> Assertions.assertTrue(objectIsEqual(123.0, filterResults.get(0).getResult().get("tapNumber")), "tapNumber field should equal 123.0"));
+            $(() -> Assertions.assertTrue(objectIsEqual(1023123, filterResults.get(0).getResult().get("tapInt")), "tapInt field should equal 1023123"));
+          });
 
         sendDropTableEvent(dataFlowEngine, dag, testTableId, new PatrolEvent().patrolListener((innerNodeId, innerState) -> {
             if (innerNodeId.equals(testTargetNodeId) && innerState == PatrolEvent.STATE_LEAVE) {
