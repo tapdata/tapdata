@@ -224,7 +224,9 @@ public class TaskNodeServiceImpl implements TaskNodeService {
         TaskDto taskDto = taskService.findById(MongoUtils.toObjectId(taskId));
 
         DAG dtoDag = taskDto.getDag();
-        dtoDag.getSourceNode().getFirst().setTableNames(Lists.of(tableName));
+        DatabaseNode first = dtoDag.getSourceNode().getFirst();
+        first.setTableNames(Lists.of(tableName));
+        first.setRows(rows);
 
         Dag build = dtoDag.toDag();
         build = JsonUtil.parseJsonUseJackson(JsonUtil.toJsonUseJackson(build), Dag.class);

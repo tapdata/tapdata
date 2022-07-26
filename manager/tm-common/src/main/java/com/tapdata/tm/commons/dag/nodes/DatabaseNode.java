@@ -63,6 +63,8 @@ public class DatabaseNode extends DataParentNode<List<Schema>> {
     //包含的表名，用于数据挖掘，在加载schema的时候存入
     private List<String> tableNames;
 
+    private Integer rows;
+
     // 复制任务 全部 or 自定义
     private String migrateTableSelectType;
 
