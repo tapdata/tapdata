@@ -150,15 +150,12 @@ public class TaskDagCheckLogServiceImpl implements TaskDagCheckLogService {
 
             result.setModelList(collect);
 
-//            List<String> checkTypes = modelLogs.stream().map(TaskDagCheckLog::getCheckType).distinct().collect(Collectors.toList());
-//            boolean containsDelay = checkTypes.containsAll(delayList);
-
             boolean present = modelLogs.stream()
                     .filter(n -> DagOutputTemplateEnum.MODEL_PROCESS_CHECK.name().equals(n.getCheckType()))
                     .anyMatch(n -> {
-                int size = taskDto.getDag().getSourceNode().getFirst().getTableNames().size();
-                return n.getLog().contains(size + "/" + size);
-            });
+                        int size = taskDto.getDag().getSourceNode().getFirst().getTableNames().size();
+                        return n.getLog().contains(size + "/" + size);
+                    });
             result.setOver(present);
         }
         return result;
