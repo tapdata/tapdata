@@ -612,6 +612,7 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 		SubTaskDto subTaskDto = processorBaseContext.getSubTaskDto();
 		com.hazelcast.jet.Job hazelcastJob = jetContext.hazelcastInstance().getJet().getJob(subTaskDto.getName() + "-" + subTaskDto.getId().toHexString());
 		if (hazelcastJob != null) {
+			AspectUtils.executeAspect(new TaskStopAspect().task(subTaskDto).error(throwable));
 			hazelcastJob.cancel();
 		}
 	}

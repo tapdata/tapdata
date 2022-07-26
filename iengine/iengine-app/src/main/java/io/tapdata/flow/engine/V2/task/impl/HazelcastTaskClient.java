@@ -93,7 +93,7 @@ public class HazelcastTaskClient implements TaskClient<SubTaskDto> {
 
 		if (job.getStatus() == JobStatus.SUSPENDED) {
 			job.cancel();
-			AspectUtils.executeAspect(new TaskStopAspect().task(subTaskDto));
+
 			try {
 				monitorManager.close();
 			} catch (IOException ignore) {
