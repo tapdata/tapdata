@@ -104,11 +104,10 @@ public class TaskDagCheckLogServiceImpl implements TaskDagCheckLogService {
             modelCriteria.regex("log").is(keyword);
         }
 
-        Query logQuery = new Query(criteria.and("checkType").nin(
-                Lists.of(DagOutputTemplateEnum.MODEL_PROCESS_CHECK.name(),
-                        DagOutputTemplateEnum.SOURCE_CONNECT_CHECK.name(),
-                        DagOutputTemplateEnum.TARGET_CONNECT_CHECK.name())
-        ));
+        List<String> delayList = Lists.of(DagOutputTemplateEnum.MODEL_PROCESS_CHECK.name(),
+                DagOutputTemplateEnum.SOURCE_CONNECT_CHECK.name(),
+                DagOutputTemplateEnum.TARGET_CONNECT_CHECK.name());
+        Query logQuery = new Query(criteria.and("checkType").nin(delayList));
         logQuery.with(Sort.by("createTime"));
         List<TaskDagCheckLog> taskDagCheckLogs = find(logQuery);
         if (CollectionUtils.isEmpty(taskDagCheckLogs)) {
@@ -117,11 +116,7 @@ public class TaskDagCheckLogServiceImpl implements TaskDagCheckLogService {
             return taskDagCheckLogVo;
         }
 
-        Query modelQuery = new Query(modelCriteria.and("checkType").in(
-                Lists.of(DagOutputTemplateEnum.MODEL_PROCESS_CHECK.name(),
-                        DagOutputTemplateEnum.SOURCE_CONNECT_CHECK.name(),
-                        DagOutputTemplateEnum.TARGET_CONNECT_CHECK.name())
-        ));
+        Query modelQuery = new Query(modelCriteria.and("checkType").in(delayList));
         modelQuery.with(Sort.by("createTime"));
         List<TaskDagCheckLog> modelLogs = find(modelQuery);
 
@@ -135,7 +130,7 @@ public class TaskDagCheckLogServiceImpl implements TaskDagCheckLogService {
                 })
                 .collect(Collectors.toCollection(LinkedList::new));
 
-        TaskDagCheckLogVo result = new TaskDagCheckLogVo(nodeMap, data, null, 0, null);
+        TaskDagCheckLogVo result = new TaskDagCheckLogVo(nodeMap, data, null, false);
 
         if (CollectionUtils.isNotEmpty(modelLogs)) {
             // duplication
@@ -154,6 +149,14 @@ public class TaskDagCheckLogServiceImpl implements TaskDagCheckLogService {
                     .collect(Collectors.toCollection(LinkedList::new));
 
             result.setModelList(collect);
+
+            boolean present = modelLogs.stream()
+                    .filter(n -> DagOutputTemplateEnum.MODEL_PROCESS_CHECK.name().equals(n.getCheckType()))
+                    .anyMatch(n -> {
+                        int size = taskDto.getDag().getSourceNode().getFirst().getTableNames().size();
+                        return n.getLog().contains(size + "/" + size);
+                    });
+            result.setOver(present);
         }
         return result;
     }

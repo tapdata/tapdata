@@ -10,6 +10,7 @@ import cn.hutool.core.date.DateUtil;
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
+import com.alibaba.fastjson.JSONValidator;
 import com.tapdata.manager.common.utils.JsonUtil;
 import com.tapdata.manager.common.utils.StringUtils;
 import com.tapdata.tm.message.constant.Level;
@@ -48,28 +49,32 @@ public class PipeHandler implements WebSocketHandler {
 		Map<String, Object> data = messageInfo.getData();
 		try {
 			Object result = data.get("result");
-			JSONObject jsonObject = JSON.parseObject(JSON.toJSONString(result));
-			if (Objects.nonNull(jsonObject)) {
-				JSONObject extParam = jsonObject.getJSONObject("extParam");
-				if (Objects.nonNull(extParam ) && "testConnectionResult".equals(data.get("type").toString())) {
-					String taskId = extParam.getString("taskId");
-					String templateEnum = extParam.getString("templateEnum");
-					String userId = extParam.getString("userId");
+			String jsonStr = JSON.toJSONString(result);
+			JSONValidator jsonValidator = JSONValidator.from(jsonStr);
+			if (jsonValidator.getType() == JSONValidator.Type.Object) {
+				JSONObject jsonObject = JSON.parseObject(jsonStr);
+				if (Objects.nonNull(jsonObject)) {
+					JSONObject extParam = jsonObject.getJSONObject("extParam");
+					if (Objects.nonNull(extParam) && "testConnectionResult".equals(data.get("type").toString())) {
+						String taskId = extParam.getString("taskId");
+						String templateEnum = extParam.getString("templateEnum");
+						String userId = extParam.getString("userId");
 
-					if (org.apache.commons.lang3.StringUtils.isNotBlank(templateEnum)) {
-						JSONObject responseBody = jsonObject.getJSONObject("response_body");
-						JSONArray validateDetails = responseBody.getJSONArray("validate_details");
+						if (org.apache.commons.lang3.StringUtils.isNotBlank(templateEnum)) {
+							JSONObject responseBody = jsonObject.getJSONObject("response_body");
+							JSONArray validateDetails = responseBody.getJSONArray("validate_details");
 
-						String grade = ("passed").equals(validateDetails.getJSONObject(0).getString("status")) ?
-								Level.INFO.getValue() : Level.ERROR.getValue();
+							String grade = ("passed").equals(validateDetails.getJSONObject(0).getString("status")) ?
+									Level.INFO.getValue() : Level.ERROR.getValue();
 
-						taskDagCheckLogService.createLog(taskId, userId, grade, DagOutputTemplateEnum.valueOf(templateEnum),
-								true, true, DateUtil.now(), jsonObject.getJSONObject("response_body").toJSONString());
+							taskDagCheckLogService.createLog(taskId, userId, grade, DagOutputTemplateEnum.valueOf(templateEnum),
+									true, true, DateUtil.now(), jsonObject.getJSONObject("response_body").toJSONString());
+						}
 					}
 				}
 			}
 		} catch (Exception e) {
-			log.error("PipeHandler handleMessage response body error", e);
+			log.warn("PipeHandler handleMessage response body error", e);
 		}
 
 		if (StringUtils.isNotBlank(messageInfo.getReceiver())){
