@@ -19,6 +19,7 @@ import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.commons.task.dto.Dag;
 import com.tapdata.tm.commons.task.dto.SubTaskDto;
+import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.aspect.*;
 import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.common.SettingService;
@@ -98,6 +99,11 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 	public AtomicBoolean running = new AtomicBoolean(false);
 	protected TapCodecsFilterManager codecsFilterManager;
 
+	/**
+	 * Whether to process data from multiple tables
+	 */
+	protected final boolean multipleTables;
+
 	public HazelcastBaseNode(ProcessorBaseContext processorBaseContext) {
 		this.processorBaseContext = processorBaseContext;
 
@@ -114,6 +120,9 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 		}
 
 		threadName = String.format(THREAD_NAME_TEMPLATE, processorBaseContext.getSubTaskDto().getId().toHexString(), processorBaseContext.getNode() != null ? processorBaseContext.getNode().getName() : null);
+
+		//如果为迁移任务、且源节点为数据库类型
+		this.multipleTables = CollectionUtils.isNotEmpty(processorBaseContext.getSubTaskDto().getDag().getSourceNode());
 	}
 
 	public <T extends DataFunctionAspect<T>> AspectInterceptResult executeDataFuncAspect(Class<T> aspectClass, Callable<T> aspectCallable, Consumer<T> consumer) {
@@ -623,6 +632,7 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 		SubTaskDto subTaskDto = processorBaseContext.getSubTaskDto();
 		com.hazelcast.jet.Job hazelcastJob = jetContext.hazelcastInstance().getJet().getJob(subTaskDto.getName() + "-" + subTaskDto.getId().toHexString());
 		if (hazelcastJob != null) {
+			AspectUtils.executeAspect(new TaskStopAspect().task(subTaskDto).error(throwable));
 			hazelcastJob.cancel();
 		}
 	}

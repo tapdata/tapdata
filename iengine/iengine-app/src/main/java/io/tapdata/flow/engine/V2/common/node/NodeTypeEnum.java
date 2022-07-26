@@ -17,6 +17,8 @@ public enum NodeTypeEnum {
 	CACHE_LOOKUP_PROCESSOR("cache_lookup_processor"),
 	ROW_FILTER_PROCESSOR("row_filter_processor"),
 	JS_PROCESSOR("js_processor"),
+
+	MIGRATE_JS_PROCESSOR("migrate_js_processor"),
 	FIELD_PROCESSOR("field_processor"),
 	AGGREGATION_PROCESSOR("aggregation_processor"),
 	LOG_COLLECTOR("logCollector"),

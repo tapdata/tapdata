@@ -3,6 +3,7 @@ package com.tapdata.tm.commons.dag;
 import com.tapdata.manager.common.utils.JsonUtil;
 import com.tapdata.manager.common.utils.StringUtils;
 import com.tapdata.tm.commons.dag.process.MigrateFieldRenameProcessorNode;
+import com.tapdata.tm.commons.dag.process.MigrateJsProcessorNode;
 import com.tapdata.tm.commons.dag.process.TableRenameProcessNode;
 import com.tapdata.tm.commons.dag.vo.MigrateJsResultVo;
 import com.tapdata.tm.commons.schema.*;
@@ -223,10 +224,7 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
             }
         }
 
-        boolean appendNodeTableName = false;
-        if (node instanceof TableRenameProcessNode || node instanceof MigrateFieldRenameProcessorNode) {
-            appendNodeTableName = true;
-        }
+        boolean appendNodeTableName = node instanceof TableRenameProcessNode || node instanceof MigrateFieldRenameProcessorNode || node instanceof MigrateJsProcessorNode;
 
         if (node.isDataNode()) {
             return createOrUpdateSchemaForDataNode(dataSourceId, schemas, options);

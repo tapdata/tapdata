@@ -56,6 +56,4 @@ public class SubTaskDto extends ParentSubTaskDto {
     private Boolean resetFlag;
     private Boolean deleteFlag;
 
-    //是否为一个推演任务
-    private boolean transformTask;
 }
