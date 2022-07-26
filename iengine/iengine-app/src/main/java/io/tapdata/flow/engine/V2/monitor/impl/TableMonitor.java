@@ -3,12 +3,15 @@ package io.tapdata.flow.engine.V2.monitor.impl;
 import com.tapdata.constant.ExecutorUtil;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.flow.engine.V2.monitor.Monitor;
+import io.tapdata.node.pdk.ConnectorNodeService;
 import io.tapdata.pdk.apis.functions.connection.GetTableNamesFunction;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
 import io.tapdata.pdk.core.monitor.PDKMethod;
 import io.tapdata.schema.TapTableMap;
 import org.apache.commons.collections.CollectionUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -25,25 +28,26 @@ import java.util.function.Consumer;
  * @create 2022-07-21 16:04
  **/
 public class TableMonitor implements Monitor<TableMonitor.TableResult> {
+	private final Logger logger = LogManager.getLogger(TableMonitor.class);
 	public static final long AWAIT_SECOND = 10L;
-	public static final long PERIOD_MINUTES = 1L;
+	public static final long PERIOD_SECOND = 60L;
 	public static final String TAG = TableMonitor.class.getSimpleName();
 	public static final int BATCH_SIZE = 100;
 	private TapTableMap<String, TapTable> tapTableMap;
-	private ConnectorNode connectorNode;
+	private String associateId;
 	private ReentrantLock lock;
 	private ScheduledExecutorService threadPool;
 	private TableResult tableResult;
 
-	public TableMonitor(TapTableMap<String, TapTable> tapTableMap, ConnectorNode connectorNode) {
+	public TableMonitor(TapTableMap<String, TapTable> tapTableMap, String associateId) {
 		if (null == tapTableMap) {
 			throw new RuntimeException("Missing Tap Table Map");
 		}
-		if (null == connectorNode) {
-			throw new RuntimeException("Missing Connector Node");
+		if (null == associateId) {
+			throw new RuntimeException("Missing associate id");
 		}
 		this.tapTableMap = tapTableMap;
-		this.connectorNode = connectorNode;
+		this.associateId = associateId;
 		this.lock = new ReentrantLock();
 		this.threadPool = new ScheduledThreadPoolExecutor(1);
 		this.tableResult = TableResult.create();
@@ -51,6 +55,7 @@ public class TableMonitor implements Monitor<TableMonitor.TableResult> {
 	}
 
 	private void verify() {
+		ConnectorNode connectorNode = ConnectorNodeService.getInstance().getConnectorNode(associateId);
 		GetTableNamesFunction getTableNamesFunction = connectorNode.getConnectorFunctions().getGetTableNamesFunction();
 		if (null == getTableNamesFunction) {
 			throw new RuntimeException("Connector node: " + connectorNode + " unsupported getTableNamesFunction");
@@ -65,6 +70,7 @@ public class TableMonitor implements Monitor<TableMonitor.TableResult> {
 	@Override
 	public void start() {
 		threadPool.scheduleAtFixedRate(() -> {
+			ConnectorNode connectorNode = ConnectorNodeService.getInstance().getConnectorNode(associateId);
 			Thread.currentThread().setName("Table-Monitor-" + connectorNode.getAssociateId());
 			try {
 				while (true) {
@@ -94,12 +100,14 @@ public class TableMonitor implements Monitor<TableMonitor.TableResult> {
 				if (CollectionUtils.isNotEmpty(tapTableNames)) {
 					tableResult.removeAll(tapTableNames);
 				}
+			} catch (Throwable throwable) {
+				logger.warn("Found add/remove table failed, will retry next time, error: " + throwable.getMessage(), throwable);
 			} finally {
 				if (lock.isLocked()) {
 					lock.unlock();
 				}
 			}
-		}, 0L, PERIOD_MINUTES, TimeUnit.MINUTES);
+		}, 0L, PERIOD_SECOND, TimeUnit.SECONDS);
 	}
 
 	@Override
@@ -132,7 +140,9 @@ public class TableMonitor implements Monitor<TableMonitor.TableResult> {
 		}
 
 		public TableResult add(String tableName) {
-			addList.add(tableName);
+			if (!addList.contains(tableName)) {
+				addList.add(tableName);
+			}
 			return this;
 		}
 
@@ -142,7 +152,11 @@ public class TableMonitor implements Monitor<TableMonitor.TableResult> {
 		}
 
 		public TableResult removeAll(List<String> tableNames) {
-			removeList.addAll(tableNames);
+			for (String tableName : tableNames) {
+				if (!removeList.contains(tableName)) {
+					removeList.add(tableName);
+				}
+			}
 			return this;
 		}
 

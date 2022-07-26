@@ -15,6 +15,7 @@ import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.DAGDataServiceImpl;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.DataParentNode;
+import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.commons.schema.TransformerWsMessageDto;
 import com.tapdata.tm.commons.task.dto.Message;
@@ -33,6 +34,7 @@ import io.tapdata.entity.mapping.DefaultExpressionMatchingMap;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.exception.SourceException;
+import io.tapdata.flow.engine.V2.common.task.SyncTypeEnum;
 import io.tapdata.flow.engine.V2.ddl.DDLFilter;
 import io.tapdata.flow.engine.V2.ddl.DDLSchemaHandler;
 import io.tapdata.flow.engine.V2.monitor.MonitorManager;
@@ -44,7 +46,9 @@ import io.tapdata.milestone.MilestoneContext;
 import io.tapdata.milestone.MilestoneStage;
 import io.tapdata.milestone.MilestoneStatus;
 import io.tapdata.node.pdk.ConnectorNodeService;
+import io.tapdata.pdk.apis.functions.connection.GetTableNamesFunction;
 import io.tapdata.pdk.apis.functions.connector.source.TimestampToStreamOffsetFunction;
+import io.tapdata.pdk.core.api.PDKIntegration;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
 import io.tapdata.pdk.core.monitor.PDKMethod;
 import org.apache.commons.collections.CollectionUtils;
@@ -68,7 +72,7 @@ import java.util.stream.Collectors;
  **/
 public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 	private static final String TAG = HazelcastTargetPdkDataNode.class.getSimpleName();
-	public static final long PERIOD_MINUTES_HANDLE_TABLE_MONITOR_RESULT = 1L;
+	public static final long PERIOD_SECOND_HANDLE_TABLE_MONITOR_RESULT = 10L;
 	private final Logger logger = LogManager.getLogger(HazelcastSourcePdkBaseNode.class);
 	protected SyncProgress syncProgress;
 	protected ExecutorService sourceRunner = new ThreadPoolExecutor(2, 2, 0L, TimeUnit.SECONDS, new SynchronousQueue<>());
@@ -83,6 +87,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 	protected ReentrantLock sourceRunnerLock;
 	protected AtomicBoolean endSnapshotLoop;
 	protected CopyOnWriteArrayList<String> newTables;
+	protected CopyOnWriteArrayList<String> removeTables;
 	protected AtomicBoolean sourceRunnerFirstTime;
 	private DAGDataServiceImpl dagDataService;
 
@@ -111,7 +116,6 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 			initBatchAndStreamOffset(subTaskDto);
 		}
 		initDDLFilter();
-		initTableMonitor();
 		this.sourceRunnerLock = new ReentrantLock();
 		this.endSnapshotLoop = new AtomicBoolean(false);
 		this.transformerWsMessageDto = clientMongoOperator.findOne(new Query(),
@@ -119,6 +123,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 				TransformerWsMessageDto.class);
 		this.sourceRunnerFirstTime = new AtomicBoolean(true);
 		this.sourceRunner.submit(this::startSourceRunner);
+		initTableMonitor();
 	}
 
 	private void initDDLFilter() {
@@ -126,23 +131,40 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 		if (node.isDataNode()) {
 			Boolean enableDDL = ((DataParentNode<?>) node).getEnableDDL();
 			List<String> disabledEvents = ((DataParentNode<?>) node).getDisabledEvents();
-			Boolean enableDynamicTable = ((DataParentNode<?>) node).getEnableDynamicTable();
-			this.ddlFilter = DDLFilter.create(enableDDL, disabledEvents, enableDynamicTable);
+			this.ddlFilter = DDLFilter.create(enableDDL, disabledEvents).dynamicTableTest(this::needDynamicTable);
 		}
 	}
 
 	private void initTableMonitor() throws Exception {
 		Node<?> node = dataProcessorContext.getNode();
 		if (node.isDataNode()) {
-			Boolean enableDynamicTable = ((DataParentNode<?>) node).getEnableDynamicTable();
-			if (null != enableDynamicTable && enableDynamicTable) {
-				TableMonitor tableMonitor = new TableMonitor(dataProcessorContext.getTapTableMap(), getConnectorNode());
+			if (needDynamicTable(null)) {
+				TableMonitor tableMonitor = new TableMonitor(dataProcessorContext.getTapTableMap(), associateId);
 				this.monitorManager.startMonitor(tableMonitor);
 				this.tableMonitorResultHandler = new ScheduledThreadPoolExecutor(1);
-				this.tableMonitorResultHandler.scheduleAtFixedRate(this::handleTableMonitorResult, 0L, PERIOD_MINUTES_HANDLE_TABLE_MONITOR_RESULT, TimeUnit.MINUTES);
+				this.tableMonitorResultHandler.scheduleAtFixedRate(this::handleTableMonitorResult, 0L, PERIOD_SECOND_HANDLE_TABLE_MONITOR_RESULT, TimeUnit.SECONDS);
 				this.newTables = new CopyOnWriteArrayList<>();
+				this.removeTables = new CopyOnWriteArrayList<>();
 			}
 		}
+	}
+
+	private boolean needDynamicTable(Object obj) {
+		Node<?> node = dataProcessorContext.getNode();
+		if (node instanceof DatabaseNode) {
+			Boolean enableDynamicTable = ((DatabaseNode) node).getEnableDynamicTable();
+			if (null == enableDynamicTable || !enableDynamicTable) {
+				return false;
+			}
+			if (syncType.equals(SyncTypeEnum.INITIAL_SYNC)) {
+				return false;
+			}
+			GetTableNamesFunction getTableNamesFunction = getConnectorNode().getConnectorFunctions().getGetTableNamesFunction();
+			if (null == getTableNamesFunction) {
+				return false;
+			}
+		}
+		return true;
 	}
 
 	private void initBatchAndStreamOffset(SubTaskDto subTaskDto) {
@@ -350,29 +372,42 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 							this.newTables.addAll(addList);
 							if (this.endSnapshotLoop.get()) {
 								// Restart source runner
-								if (null != getConnectorNode()) {
-									PDKInvocationMonitor.invoke(getConnectorNode(), PDKMethod.STOP, () -> getConnectorNode().connectorStop(), TAG);
-									ConnectorNodeService.getInstance().removeConnectorNode(this.associateId);
-									createPdkConnectorNode(dataProcessorContext, jetContext.hazelcastInstance());
-								} else {
-									String error = "Connector node is null";
-									errorHandle(new RuntimeException(error), error);
-									return;
-								}
 								if (null != sourceRunner) {
+									this.sourceRunnerFirstTime.set(false);
+									if (null != getConnectorNode()) {
+										PDKInvocationMonitor.invoke(getConnectorNode(), PDKMethod.STOP, () -> getConnectorNode().connectorStop(), TAG);
+										PDKIntegration.releaseAssociateId(this.associateId);
+										ConnectorNodeService.getInstance().removeConnectorNode(this.associateId);
+										createPdkConnectorNode(dataProcessorContext, jetContext.hazelcastInstance());
+										connectorNodeInit(dataProcessorContext);
+									} else {
+										String error = "Connector node is null";
+										errorHandle(new RuntimeException(error), error);
+										return;
+									}
 									this.sourceRunner.shutdownNow();
+									this.sourceRunner = new ThreadPoolExecutor(1, 1, 0L, TimeUnit.SECONDS, new SynchronousQueue<>());
 									sourceRunner.submit(this::startSourceRunner);
 								} else {
 									String error = "Source runner is null";
 									errorHandle(new RuntimeException(error), error);
 									return;
 								}
-								this.sourceRunnerFirstTime.compareAndSet(true, false);
 							}
 						}
 						// Handle remove table(s)
 						if (CollectionUtils.isNotEmpty(removeList)) {
-
+							List<TapdataEvent> tapdataEvents = new ArrayList<>();
+							for (String tableName : removeList) {
+								if (!isRunning()) {
+									break;
+								}
+								TapDropTableEvent tapDropTableEvent = new TapDropTableEvent();
+								tapDropTableEvent.setTableId(tableName);
+								TapdataEvent tapdataEvent = wrapTapdataEvent(tapDropTableEvent, SyncStage.valueOf(syncProgress.getSyncStage()), null, false);
+								tapdataEvents.add(tapdataEvent);
+							}
+							tapdataEvents.forEach(this::enqueue);
 						}
 					} catch (Throwable throwable) {
 						String error = "Handle table monitor result failed, result: " + tableResult + ", error: " + throwable.getMessage();
@@ -486,6 +521,9 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 			}
 			// Refresh task schema by ddl event
 			try {
+				List<MetadataInstancesDto> insertMetadata = new CopyOnWriteArrayList<>();
+				Map<String, MetadataInstancesDto> updateMetadata = new ConcurrentHashMap<>();
+				List<String> removeMetadata = new CopyOnWriteArrayList<>();
 				if (null == transformerWsMessageDto) {
 					transformerWsMessageDto = clientMongoOperator.findOne(new Query(),
 							ConnectorConstant.TASK_COLLECTION + "/transformParam/" + processorBaseContext.getSubTaskDto().getParentTask().getId().toHexString(),
@@ -498,19 +536,30 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 				if (null == dagDataService) {
 					dagDataService = new DAGDataServiceImpl(transformerWsMessageDto);
 				}
-				String qualifiedName = processorBaseContext.getTapTableMap().getQualifiedName(tableId);
+				String qualifiedName = "";
+				Map<String, List<Message>> errorMessage;
 				if (tapEvent instanceof TapCreateTableEvent) {
-					String newTableQualifiedName = dagDataService.createNewTable(dataProcessorContext.getSourceConn().getId(), tapTable);
+					qualifiedName = dagDataService.createNewTable(dataProcessorContext.getSourceConn().getId(), tapTable);
+					dataProcessorContext.getTapTableMap().putNew(tapTable.getId(), tapTable, qualifiedName);
+					errorMessage = dag.transformSchema(null, dagDataService, transformerWsMessageDto.getOptions());
+					MetadataInstancesDto metadata = dagDataService.getMetadata(qualifiedName);
+					insertMetadata.add(metadata);
 				} else if (tapEvent instanceof TapDropTableEvent) {
+					qualifiedName = dataProcessorContext.getTapTableMap().getQualifiedName(((TapDropTableEvent) tapEvent).getTableId());
 					dagDataService.dropTable(qualifiedName);
+					errorMessage = dag.transformSchema(null, dagDataService, transformerWsMessageDto.getOptions());
+					dataProcessorContext.getTapTableMap().remove(tapTable.getId());
+					removeMetadata.add(qualifiedName);
 				} else {
+					qualifiedName = dataProcessorContext.getTapTableMap().getQualifiedName(tableId);
 					dagDataService.coverMetaDataByTapTable(qualifiedName, tapTable);
+					errorMessage = dag.transformSchema(null, dagDataService, transformerWsMessageDto.getOptions());
+					MetadataInstancesDto metadata = dagDataService.getMetadata(qualifiedName);
+					updateMetadata.put(metadata.getId().toHexString(), metadata);
 				}
-				Map<String, List<Message>> errorMessage = dag.transformSchema(null, dagDataService, transformerWsMessageDto.getOptions());
-				Map<String, MetadataInstancesDto> uploadMetadata = new HashMap<>();
-				MetadataInstancesDto metadata = dagDataService.getMetadata(qualifiedName);
-				uploadMetadata.put(metadata.getId().toHexString(), metadata);
-				tapEvent.addInfo(UPLOAD_METADATA_INFO_KEY, uploadMetadata);
+				tapEvent.addInfo(INSERT_METADATA_INFO_KEY, insertMetadata);
+				tapEvent.addInfo(UPDATE_METADATA_INFO_KEY, updateMetadata);
+				tapEvent.addInfo(REMOVE_METADATA_INFO_KEY, removeMetadata);
 				tapEvent.addInfo(DAG_DATA_SERVICE_INFO_KEY, dagDataService);
 				tapEvent.addInfo(TRANSFORM_SCHEMA_ERROR_MESSAGE_INFO_KEY, errorMessage);
 			} catch (Exception e) {

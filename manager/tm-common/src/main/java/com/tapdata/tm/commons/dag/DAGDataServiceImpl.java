@@ -875,7 +875,7 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
                         metadataInstancesDto.getMetaType(), dataSourceConnectionDto, userId, userName,
                         metadataInstancesDto.getOriginalName(),
                         metadataInstancesDto, null, metadataInstancesDto.getDatabaseId(), "job_analyze", null);
-                metadataInstancesDto.setId(new ObjectId());
+                _metadataInstancesDto.setId(new ObjectId());
                 insertMetaDataList.add(_metadataInstancesDto);
                 BeanUtils.copyProperties(_metadataInstancesDto, metadataInstancesDto);
             }

@@ -190,11 +190,11 @@ public class MysqlReader implements Closeable {
 			List<String> dbTableNames = tables.stream().map(t -> database + "." + t).collect(Collectors.toList());
 			builder.with(MySqlConnectorConfig.DATABASE_INCLUDE_LIST, database);
 			builder.with(MySqlConnectorConfig.TABLE_INCLUDE_LIST, String.join(",", dbTableNames));
-			if (Boolean.parseBoolean(tapConnectorContext.getStateMap().get(FIRST_TIME_KEY).toString())) {
-				builder.with("snapshot.mode", "schema_only_recovery");
-			} else {
-				builder.with("snapshot.mode", "schema_only");
-			}
+			builder.with("snapshot.mode", "schema_only_recovery");
+//			if (Boolean.parseBoolean(tapConnectorContext.getStateMap().get(FIRST_TIME_KEY).toString())) {
+//			} else {
+//				builder.with("snapshot.mode", "schema_only");
+//			}
 			builder.with("database.history", "io.tapdata.connector.mysql.StateMapHistoryBackingStore");
 			builder.with(EmbeddedEngine.OFFSET_STORAGE, "io.tapdata.connector.mysql.PdkPersistenceOffsetBackingStore");
 			if (StringUtils.isNotBlank(offsetStr)) {
@@ -463,6 +463,9 @@ public class MysqlReader implements Closeable {
 	private Object handleDatetime(String table, String fieldName, Object value) {
 		TapTable tapTable = tapTableMap.get(table);
 		if (null == tapTable) return value;
+		if (null == tapTable.getNameFieldMap()) {
+			return value;
+		}
 		TapField tapField = tapTable.getNameFieldMap().get(fieldName);
 		if (null == tapField) return value;
 		TapType tapType = tapField.getTapType();

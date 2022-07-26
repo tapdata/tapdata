@@ -39,7 +39,10 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.NotNull;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -81,27 +84,34 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 			Thread.currentThread().setName("PDK-SOURCE-RUNNER-" + node.getName() + "(" + node.getId() + ")");
 			Log4jUtil.setThreadContext(dataProcessorContext.getSubTaskDto());
 			TapTableMap<String, TapTable> tapTableMap = dataProcessorContext.getTapTableMap();
-
-			if (need2InitialSync(syncProgress)) {
-				try {
+			try {
+				if (need2InitialSync(syncProgress)) {
 					if (this.sourceRunnerFirstTime.get()) {
-						doSnapshot(tapTableMap.keySet());
-					} else {
-						doSnapshot(new HashSet<>(newTables));
+						doSnapshot(new ArrayList<>(tapTableMap.keySet()));
 					}
-				} catch (Throwable e) {
-					MilestoneUtil.updateMilestone(milestoneService, MilestoneStage.READ_SNAPSHOT, MilestoneStatus.ERROR, e.getMessage() + "\n" + Log4jUtil.getStackString(e));
-					throw e;
-				} finally {
-					snapshotProgressManager.close();
 				}
+				if (!sourceRunnerFirstTime.get() && CollectionUtils.isNotEmpty(newTables)) {
+					try {
+						doSnapshot(newTables);
+					} catch (Throwable e) {
+						MilestoneUtil.updateMilestone(milestoneService, MilestoneStage.READ_SNAPSHOT, MilestoneStatus.ERROR, e.getMessage() + "\n" + Log4jUtil.getStackString(e));
+						throw e;
+					} finally {
+						snapshotProgressManager.close();
+					}
+				}
+			} catch (Throwable e) {
+				MilestoneUtil.updateMilestone(milestoneService, MilestoneStage.READ_SNAPSHOT, MilestoneStatus.ERROR, e.getMessage() + "\n" + Log4jUtil.getStackString(e));
+				throw e;
+			} finally {
+				snapshotProgressManager.close();
 			}
 
 			if (need2CDC()) {
 				try {
 					doCdc();
 				} catch (Throwable e) {
-					// MILESTONE-READ_CDC_EVENT-FINISH
+					// MILESTONE-READ_CDC_EVENT-ERROR
 					MilestoneUtil.updateMilestone(milestoneService, MilestoneStage.READ_CDC_EVENT, MilestoneStatus.ERROR, e.getMessage() + "\n" + Log4jUtil.getStackString(e));
 					logger.error("Read CDC failed, error message: " + e.getMessage(), e);
 					throw e;
@@ -110,12 +120,29 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 		} catch (Throwable throwable) {
 			error = throwable;
 		} finally {
-			this.running.set(false);
+			try {
+				while (isRunning()) {
+					try {
+						if (sourceRunnerLock.tryLock(1L, TimeUnit.SECONDS)) {
+							break;
+						}
+					} catch (InterruptedException e) {
+						break;
+					}
+				}
+				if (this.sourceRunnerFirstTime.get()) {
+					this.running.set(false);
+				}
+			} finally {
+				if (sourceRunnerLock.isLocked()) {
+					sourceRunnerLock.unlock();
+				}
+			}
 		}
 	}
 
 	@SneakyThrows
-	private void doSnapshot(Set<String> tableList) {
+	private void doSnapshot(List<String> tableList) {
 		// MILESTONE-READ_SNAPSHOT-RUNNING
 		MilestoneUtil.updateMilestone(milestoneService, MilestoneStage.READ_SNAPSHOT, MilestoneStatus.RUNNING);
 		syncProgress.setSyncStage(SyncStage.INITIAL_SYNC.name());
@@ -138,6 +165,11 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 						}
 						if (!isRunning()) {
 							break;
+						}
+						if (this.removeTables.contains(tableName)) {
+							logger.info("Table " + tableName + " is detected that it has been removed, the snapshot read will be skipped");
+							this.removeTables.remove(tableName);
+							continue;
 						}
 						TapTable tapTable = dataProcessorContext.getTapTableMap().get(tableName);
 						Object tableOffset = ((Map<String, Object>) syncProgress.getBatchOffsetObj()).get(tapTable.getId());
@@ -194,7 +226,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 						tableList.addAll(newTables);
 						newTables.clear();
 					} else {
-						this.endSnapshotLoop.compareAndSet(false, true);
+						this.endSnapshotLoop.set(true);
 						break;
 					}
 				} finally {
@@ -219,6 +251,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 		if (!isRunning()) {
 			return;
 		}
+		this.endSnapshotLoop.set(true);
 		if (null == syncProgress.getStreamOffsetObj()) {
 			throw new RuntimeException("Starting stream read failed, errors: start point offset is null");
 		} else {

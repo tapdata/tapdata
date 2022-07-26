@@ -16,16 +16,15 @@ public class DDLFilter implements Predicate<TapDDLEvent> {
 
 	private Boolean enableDDL;
 	private List<String> disabledEvents;
-	private Boolean enableDynamicTable;
+	private Predicate<?> dynamicTableTest;
 
 	private DDLFilter() {
 	}
 
-	public static DDLFilter create(Boolean enableDDL, List<String> disabledEvents, Boolean enableDynamicTable) {
+	public static DDLFilter create(Boolean enableDDL, List<String> disabledEvents) {
 		return new DDLFilter()
 				.enableDDL(enableDDL)
-				.disabledEvents(disabledEvents)
-				.enableDynamicTable(enableDynamicTable);
+				.disabledEvents(disabledEvents);
 	}
 
 	public DDLFilter enableDDL(Boolean enableDDL) {
@@ -38,8 +37,8 @@ public class DDLFilter implements Predicate<TapDDLEvent> {
 		return this;
 	}
 
-	public DDLFilter enableDynamicTable(Boolean enableDynamicTable) {
-		this.enableDynamicTable = enableDynamicTable;
+	public DDLFilter dynamicTableTest(Predicate<?> dynamicTableTest) {
+		this.dynamicTableTest = dynamicTableTest;
 		return this;
 	}
 
@@ -51,7 +50,7 @@ public class DDLFilter implements Predicate<TapDDLEvent> {
 				return true;
 			}
 		}
-		if (null != enableDynamicTable && enableDynamicTable) {
+		if (null != dynamicTableTest && dynamicTableTest.test(null)) {
 			if (tapDDLEvent instanceof TapCreateTableEvent || tapDDLEvent instanceof TapDropTableEvent) {
 				return true;
 			}
