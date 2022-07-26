@@ -14,6 +14,7 @@ import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
 import lombok.Getter;
 import lombok.Setter;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.bson.types.ObjectId;
 import org.springframework.beans.BeanUtils;
@@ -34,6 +35,7 @@ import static com.tapdata.tm.commons.base.convert.ObjectIdDeserialize.toObjectId
 @NodeType("migrate_js_processor")
 @Getter
 @Setter
+@Slf4j
 public class MigrateJsProcessorNode extends Node<List<Schema>> {
     @EqField
     private String script;
@@ -80,52 +82,58 @@ public class MigrateJsProcessorNode extends Node<List<Schema>> {
         subTaskDto.setName(taskDto.getName() + "(100)");
         subTaskDto.setParentSyncType(taskDto.getSyncType());
 
-        List<MigrateJsResultVo> jsResult = service.getJsResult(getId(), target.getId(), subTaskDto);
-        if (CollectionUtils.isEmpty(jsResult)) {
-            throw new RuntimeException("migrate js result is null");
-        }
-
-        Map<String, MigrateJsResultVo> removeMap = jsResult.stream()
-                .filter(n -> "REMOVE".equals(n.getOp()) || "CONVERT".equals(n.getOp()))
-                .collect(Collectors.toMap(MigrateJsResultVo::getFieldName, Function.identity(), (e1, e2) -> e1));
-
-        Map<String, MigrateJsResultVo> convertMap = jsResult.stream()
-                .filter(n -> "CONVERT".equals(n.getOp()))
-                .collect(Collectors.toMap(MigrateJsResultVo::getFieldName, Function.identity(), (e1, e2) -> e1));
-
-        Map<String, TapField> createMap = jsResult.stream()
-                .filter(n -> "CREATE".equals(n.getOp()))
-                .collect(Collectors.toMap(MigrateJsResultVo::getFieldName, MigrateJsResultVo::getTapField, (e1, e2) -> e1));
-
-        List<Schema> inputSchema = getInputSchema().get(0);
-        if (CollectionUtils.isEmpty(inputSchema)) {
-            return null;
-        }
-
-        // js result data
         List<Schema> result = Lists.newArrayList();
-        for (Schema schema : inputSchema) {
+        List<MigrateJsResultVo> jsResult;
+        try {
+            jsResult = service.getJsResult(getId(), target.getId(), subTaskDto);
+        } catch (Exception e) {
+            log.error("MigrateJsProcessorNode getJsResult ERROR", e);
+            throw new RuntimeException(e);
+        }
+        if (CollectionUtils.isEmpty(jsResult)) {
+            result = getInputSchema().get(0);
+        } else {
+            Map<String, MigrateJsResultVo> removeMap = jsResult.stream()
+                    .filter(n -> "REMOVE".equals(n.getOp()) || "CONVERT".equals(n.getOp()))
+                    .collect(Collectors.toMap(MigrateJsResultVo::getFieldName, Function.identity(), (e1, e2) -> e1));
 
-            TapTable tapTable = PdkSchemaConvert.toPdk(schema);
-            LinkedHashMap<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
+            Map<String, MigrateJsResultVo> convertMap = jsResult.stream()
+                    .filter(n -> "CONVERT".equals(n.getOp()))
+                    .collect(Collectors.toMap(MigrateJsResultVo::getFieldName, Function.identity(), (e1, e2) -> e1));
 
-            if (!removeMap.isEmpty()) {
-                removeMap.keySet().forEach(nameFieldMap::remove);
+            Map<String, TapField> createMap = jsResult.stream()
+                    .filter(n -> "CREATE".equals(n.getOp()))
+                    .collect(Collectors.toMap(MigrateJsResultVo::getFieldName, MigrateJsResultVo::getTapField, (e1, e2) -> e1));
+
+            List<Schema> inputSchema = getInputSchema().get(0);
+            if (CollectionUtils.isEmpty(inputSchema)) {
+                return null;
             }
 
-            if (!convertMap.isEmpty()) {
-                convertMap.keySet().forEach(name -> {
-                    if (nameFieldMap.containsKey(name)) {
-                        nameFieldMap.put(name, convertMap.get(name).getTapField());
-                    }
-                });
-            }
+            // js result data
+            for (Schema schema : inputSchema) {
 
-            if (!createMap.isEmpty()) {
-                nameFieldMap.putAll(createMap);
-            }
+                TapTable tapTable = PdkSchemaConvert.toPdk(schema);
+                LinkedHashMap<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
 
-            result.add(PdkSchemaConvert.fromPdkSchema(tapTable));
+                if (!removeMap.isEmpty()) {
+                    removeMap.keySet().forEach(nameFieldMap::remove);
+                }
+
+                if (!convertMap.isEmpty()) {
+                    convertMap.keySet().forEach(name -> {
+                        if (nameFieldMap.containsKey(name)) {
+                            nameFieldMap.put(name, convertMap.get(name).getTapField());
+                        }
+                    });
+                }
+
+                if (!createMap.isEmpty()) {
+                    nameFieldMap.putAll(createMap);
+                }
+
+                result.add(PdkSchemaConvert.fromPdkSchema(tapTable));
+            }
         }
 
         return result;
