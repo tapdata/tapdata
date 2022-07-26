@@ -39,10 +39,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.NotNull;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -91,20 +88,13 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 					}
 				}
 				if (!sourceRunnerFirstTime.get() && CollectionUtils.isNotEmpty(newTables)) {
-					try {
-						doSnapshot(newTables);
-					} catch (Throwable e) {
-						MilestoneUtil.updateMilestone(milestoneService, MilestoneStage.READ_SNAPSHOT, MilestoneStatus.ERROR, e.getMessage() + "\n" + Log4jUtil.getStackString(e));
-						throw e;
-					} finally {
-						snapshotProgressManager.close();
-					}
+					doSnapshot(newTables);
 				}
 			} catch (Throwable e) {
 				MilestoneUtil.updateMilestone(milestoneService, MilestoneStage.READ_SNAPSHOT, MilestoneStatus.ERROR, e.getMessage() + "\n" + Log4jUtil.getStackString(e));
 				throw e;
 			} finally {
-				snapshotProgressManager.close();
+				Optional.ofNullable(snapshotProgressManager).ifPresent(SnapshotProgressManager::close);
 			}
 
 			if (need2CDC()) {

@@ -3,14 +3,12 @@ package io.tapdata.flow.engine.V2.node.hazelcast.data.pdk;
 import com.tapdata.constant.Log4jUtil;
 import com.tapdata.constant.MilestoneUtil;
 import com.tapdata.entity.TapdataShareLogEvent;
-import com.tapdata.entity.dataflow.Capitalized;
 import com.tapdata.entity.dataflow.SyncProgress;
 import com.tapdata.entity.task.ExistsDataProcessEnum;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
-import com.tapdata.tm.commons.dag.vo.SyncObjects;
 import io.tapdata.aspect.*;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.ddl.TapDDLEvent;
@@ -461,8 +459,10 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 				}
 				dispatchEntity.setCurrentTapEvent(tapRecordEvent);
 				if (null != dispatchClause && dispatchClause.test(dispatchEntity)) {
-					consumer.accept(tempList);
-					tempList.clear();
+					if (CollectionUtils.isNotEmpty(tempList)) {
+						consumer.accept(tempList);
+						tempList.clear();
+					}
 					dispatchEntity.setLastTapEvent(tapRecordEvent);
 				}
 				tempList.add(tapEvent);
@@ -478,6 +478,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 		}
 		if (CollectionUtils.isNotEmpty(tempList)) {
 			consumer.accept(tempList);
+			tempList.clear();
 		}
 	}
 
