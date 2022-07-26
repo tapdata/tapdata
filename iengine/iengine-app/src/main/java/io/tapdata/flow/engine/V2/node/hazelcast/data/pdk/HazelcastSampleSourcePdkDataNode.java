@@ -5,6 +5,7 @@ import com.tapdata.constant.Log4jUtil;
 import com.tapdata.entity.TapdataEvent;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.tm.commons.dag.Node;
+import com.tapdata.tm.commons.dag.nodes.DataParentNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
@@ -51,7 +52,7 @@ public class HazelcastSampleSourcePdkDataNode extends HazelcastSourcePdkDataNode
           break;
         }
         TapTable tapTable = tapTableMap.get(tableName);
-        String sampleDataId = ((TableNode) node).getConnectionId() + "_" + tableName;
+        String sampleDataId = ((DataParentNode) node).getConnectionId() + "_" + tableName;
 
         List<TapEvent> tapEventList = sampleDataCacheMap.getOrDefault(sampleDataId, new ArrayList<>());
         boolean isCache = true;
