@@ -68,8 +68,6 @@ public class DatabaseNode extends DataParentNode<List<Schema>> {
     // 复制任务 全部 or 自定义
     private String migrateTableSelectType;
 
-    private Boolean enableDynamicTable;
-
     public DatabaseNode() {
         super("database");
     }

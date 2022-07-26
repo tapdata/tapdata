@@ -62,6 +62,7 @@ public abstract class DataParentNode<S> extends Node<S> {
     private Boolean enableDDL;
 
     private List<String> disabledEvents;
+    private Boolean enableDynamicTable;
     /**
      * constructor for node
      *

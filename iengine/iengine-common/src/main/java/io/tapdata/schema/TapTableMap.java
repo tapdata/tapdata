@@ -80,11 +80,6 @@ public class TapTableMap<K extends String, V extends TapTable> extends HashMap<K
 		return this;
 	}
 
-	public void remove() {
-		EhcacheService.getInstance().getEhcacheKVMap(mapKey).reset();
-		EhcacheService.getInstance().removeEhcacheKVMap(mapKey);
-	}
-
 	public String getQualifiedName(String tableName) {
 		return tableNameAndQualifiedNameMap.get(tableName);
 	}
@@ -140,6 +135,8 @@ public class TapTableMap<K extends String, V extends TapTable> extends HashMap<K
 
 	@Override
 	public V remove(Object key) {
+		this.tableNameAndQualifiedNameMap.remove(key);
+		EhcacheService.getInstance().getEhcacheKVMap(mapKey).remove((String) key);
 		throw new UnsupportedOperationException();
 	}
 
@@ -315,7 +312,8 @@ public class TapTableMap<K extends String, V extends TapTable> extends HashMap<K
 	}
 
 	public void reset() {
-		EhcacheKVMap<TapTable> ehcacheKVMap = EhcacheService.getInstance().getEhcacheKVMap(this.mapKey);
-		Optional.ofNullable(ehcacheKVMap).ifPresent(EhcacheKVMap::reset);
+		EhcacheService.getInstance().getEhcacheKVMap(mapKey).reset();
+		EhcacheService.getInstance().removeEhcacheKVMap(mapKey);
+		this.tableNameAndQualifiedNameMap.clear();
 	}
 }

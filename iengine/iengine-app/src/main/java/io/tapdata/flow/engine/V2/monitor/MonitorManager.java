@@ -6,6 +6,7 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Consumer;
 
 /**
  * @author samuel
@@ -59,14 +60,21 @@ public class MonitorManager implements Closeable {
 		}
 	}
 
+	public Monitor<?> getMonitorByType(MonitorType monitorType) {
+		assert null != monitorType;
+		String clazz = monitorType.getClazz();
+		return monitors.stream().filter(monitor -> monitor.getClass().getName().equals(clazz)).findFirst().orElse(null);
+	}
+
 	public enum MonitorType {
 		SOURCE_TS_MONITOR("io.tapdata.flow.engine.V2.monitor.impl.SourceTSMonitor"),
 		SUBTASK_MILESTONE_MONITOR("io.tapdata.flow.engine.V2.monitor.impl.TaskMilestoneMonitor"),
 		SUBTASK_PING_TIME("io.tapdata.flow.engine.V2.monitor.impl.TaskPingTimeMonitor"),
 		STREAM_OFFSET_MONITOR("io.tapdata.flow.engine.V2.monitor.impl.StreamOffsetMonitor"),
+		TABLE_MONITOR("io.tapdata.flow.engine.V2.monitor.impl.TableMonitor"),
 		;
 
-		private String clazz;
+		private final String clazz;
 
 		MonitorType(String clazz) {
 			this.clazz = clazz;

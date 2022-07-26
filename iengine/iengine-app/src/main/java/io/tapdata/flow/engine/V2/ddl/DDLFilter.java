@@ -1,6 +1,8 @@
 package io.tapdata.flow.engine.V2.ddl;
 
 import io.tapdata.entity.event.ddl.TapDDLEvent;
+import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
+import io.tapdata.entity.event.ddl.table.TapDropTableEvent;
 
 import java.util.List;
 import java.util.function.Predicate;
@@ -14,14 +16,16 @@ public class DDLFilter implements Predicate<TapDDLEvent> {
 
 	private Boolean enableDDL;
 	private List<String> disabledEvents;
+	private Boolean enableDynamicTable;
 
 	private DDLFilter() {
 	}
 
-	public static DDLFilter create(Boolean enableDDL, List<String> disabledEvents) {
+	public static DDLFilter create(Boolean enableDDL, List<String> disabledEvents, Boolean enableDynamicTable) {
 		return new DDLFilter()
 				.enableDDL(enableDDL)
-				.disabledEvents(disabledEvents);
+				.disabledEvents(disabledEvents)
+				.enableDynamicTable(enableDynamicTable);
 	}
 
 	public DDLFilter enableDDL(Boolean enableDDL) {
@@ -34,21 +38,24 @@ public class DDLFilter implements Predicate<TapDDLEvent> {
 		return this;
 	}
 
+	public DDLFilter enableDynamicTable(Boolean enableDynamicTable) {
+		this.enableDynamicTable = enableDynamicTable;
+		return this;
+	}
+
 	@Override
 	public boolean test(TapDDLEvent tapDDLEvent) {
-		if (null == enableDDL) {
-			return false;
+		if (null != enableDDL && enableDDL) {
+			String key = tapDDLEvent.key();
+			if (null != disabledEvents && !disabledEvents.contains(key)) {
+				return true;
+			}
 		}
-		if (!enableDDL) {
-			return false;
+		if (null != enableDynamicTable && enableDynamicTable) {
+			if (tapDDLEvent instanceof TapCreateTableEvent || tapDDLEvent instanceof TapDropTableEvent) {
+				return true;
+			}
 		}
-		if (null == disabledEvents) {
-			return false;
-		}
-		String key = tapDDLEvent.key();
-		if (disabledEvents.contains(key)) {
-			return false;
-		}
-		return true;
+		return false;
 	}
 }

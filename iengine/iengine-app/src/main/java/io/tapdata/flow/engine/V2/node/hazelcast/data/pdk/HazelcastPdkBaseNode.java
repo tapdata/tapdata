@@ -131,7 +131,7 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 		if (this.monitorManager != null) {
 			this.monitorManager.close();
 		}
-		Optional.ofNullable(dataProcessorContext.getTapTableMap()).ifPresent(TapTableMap::remove);
+		Optional.ofNullable(dataProcessorContext.getTapTableMap()).ifPresent(TapTableMap::reset);
 		Optional.ofNullable(getConnectorNode()).ifPresent(node -> PDKIntegration.releaseAssociateId(associateId));
 		ConnectorNodeService.getInstance().removeConnectorNode(associateId);
 		super.doClose();
