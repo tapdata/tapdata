@@ -175,7 +175,7 @@ public class TaskDagCheckLogServiceImpl implements TaskDagCheckLogService {
                                      boolean delOther,boolean needSave, Object ... param) {
         Date now = new Date();
         if (delOther) {
-            mongoTemplate.findAllAndRemove(Query.query(Criteria.where("taskId").is(taskId)
+            mongoTemplate.remove(Query.query(Criteria.where("taskId").is(taskId)
                     .and("checkType").is(templateEnum.name())
             ), TaskDagCheckLog.class);
         }
