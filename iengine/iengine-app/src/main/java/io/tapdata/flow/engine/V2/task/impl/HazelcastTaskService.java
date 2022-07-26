@@ -141,7 +141,7 @@ public class HazelcastTaskService implements TaskService<SubTaskDto> {
 		JobConfig jobConfig = new JobConfig();
 //		jobConfig.setName(subTaskDto.getName() + "-" + subTaskDto.getId().toHexString());
 		jobConfig.setProcessingGuarantee(ProcessingGuarantee.NONE);
-
+		AspectUtils.executeAspect(new TaskStartAspect().task(subTaskDto));
 		logger.info("task2HazelcastDAG cost {}ms", (System.currentTimeMillis() - startTs));
 
 		Job job = hazelcastInstance.getJet().newLightJob(jetDag.getDag(), jobConfig);
