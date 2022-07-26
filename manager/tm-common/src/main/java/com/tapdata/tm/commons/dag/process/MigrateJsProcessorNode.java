@@ -40,10 +40,14 @@ public class MigrateJsProcessorNode extends Node<List<Schema>> {
 
     @Override
     protected List<Schema> loadSchema(List<String> includes) {
+        ObjectId taskId = this.getDag().getTaskId();
+
         String nodeId = this.getId();
         Dag dag = this.getDag().toDag();
         dag = JsonUtil.parseJsonUseJackson(JsonUtil.toJsonUseJackson(dag), Dag.class);
         List<Node<?>> nodes = this.getDag().nodeMap().get(nodeId);
+
+        nodes.add(this);
 
         Node<?> target = new VirtualTargetNode();
         target.setId(UUID.randomUUID().toString());
@@ -62,10 +66,10 @@ public class MigrateJsProcessorNode extends Node<List<Schema>> {
         dag.setEdges(edges);
 
         DAG build = DAG.build(dag);
+        build.getNodes().forEach(node -> node.getDag().setTaskId(taskId));
 
         SubTaskDto subTaskDto = new SubTaskDto();
         subTaskDto.setStatus(SubTaskDto.STATUS_WAIT_RUN);
-        ObjectId taskId = this.getDag().getTaskId();
         TaskDto taskDto = service.getTaskById(taskId == null ? null : taskId.toHexString());
         taskDto.setDag(null);
         taskDto.setSyncType(TaskDto.SYNC_TYPE_DEDUCE_SCHEMA);
