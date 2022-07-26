@@ -87,6 +87,8 @@ public class HazelcastSampleSourcePdkDataNode extends HazelcastSourcePdkDataNode
         List<TapdataEvent> tapdataEvents = wrapTapdataEvent(cloneList);
         if (CollectionUtil.isNotEmpty(tapdataEvents)) {
           tapdataEvents.forEach(this::enqueue);
+          //如果为复制任务，只需要取一个表的数据即可
+          break;
         }
       }
 
