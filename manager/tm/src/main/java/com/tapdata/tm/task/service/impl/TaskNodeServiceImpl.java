@@ -284,6 +284,7 @@ public class TaskNodeServiceImpl implements TaskNodeService {
         if (jsNodeResult.containsKey(taskId)) {
             BeanUtil.copyProperties(jsNodeResult.get(taskId), result);
             result.setOver(true);
+            jsNodeResult.remove(taskId);
         } else {
             result.setOver(false);
         }
