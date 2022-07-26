@@ -5,12 +5,10 @@ import io.tapdata.entity.codec.ToTapValueCodec;
 import io.tapdata.entity.codec.detector.impl.NewFieldDetector;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
 import io.tapdata.entity.schema.TapField;
-import io.tapdata.entity.schema.type.TapType;
 import io.tapdata.entity.schema.value.TapStringValue;
 import io.tapdata.entity.schema.value.TapValue;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.entity.utils.JsonParser;
-import org.checkerframework.checker.units.qual.A;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
@@ -18,7 +16,6 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicReference;
 
 import static io.tapdata.entity.simplify.TapSimplify.*;
 import static org.junit.jupiter.api.Assertions.assertEquals;

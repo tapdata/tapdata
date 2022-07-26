@@ -11,7 +11,7 @@ public class TapEventToStringTest {
     public void test() {
         TapNewFieldEvent newFieldEvent = new TapNewFieldEvent();
         newFieldEvent.setPdkId("mysql");
-        newFieldEvent.setPdkGroup("tapdata");
+        newFieldEvent.setPdkGroup("io/tapdata");
         newFieldEvent.setPdkVersion("1.10.0");
         newFieldEvent.field(new TapField("aaa", "varchar(30)").comment("this is comment"));
         newFieldEvent.field(new TapField("bbb", "tinyint(8)"));

@@ -3,7 +3,6 @@ package io.tapdata.pdk.core.api.impl;
 import com.alibaba.fastjson.JSONObject;
 import io.tapdata.entity.codecs.TDDUser;
 import io.tapdata.entity.utils.InstanceFactory;
-import io.tapdata.entity.utils.ObjectSerializable;
 import io.tapdata.entity.utils.TapUtils;
 import org.bson.BsonTimestamp;
 import org.bson.Document;
