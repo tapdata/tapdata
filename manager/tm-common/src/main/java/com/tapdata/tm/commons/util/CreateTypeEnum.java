@@ -24,4 +24,12 @@ public enum CreateTypeEnum {
     public static boolean isUser(String str) {
         return !isSystem(str);
     }
+
+    public static boolean isSystem(CreateTypeEnum val) {
+        return System == val;
+    }
+
+    public static boolean isUser(CreateTypeEnum val) {
+        return !isSystem(val);
+    }
 }
