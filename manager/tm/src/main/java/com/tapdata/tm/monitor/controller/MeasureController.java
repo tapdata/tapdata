@@ -8,6 +8,8 @@ import com.tapdata.tm.monitor.constant.TableNameEnum;
 import com.tapdata.tm.monitor.dto.SampleVo;
 import com.tapdata.tm.monitor.dto.StatisticVo;
 import com.tapdata.tm.monitor.dto.TransmitTotalVo;
+import com.tapdata.tm.monitor.param.AggregateMeasurementParam;
+import com.tapdata.tm.monitor.param.MeasurementQueryParam;
 import com.tapdata.tm.monitor.service.MeasurementService;
 import com.tapdata.tm.monitor.vo.GetMeasurementVo;
 import com.tapdata.tm.monitor.vo.GetStaticVo;
@@ -30,27 +32,6 @@ public class MeasureController extends BaseController {
     @Autowired
     MeasurementService measurementService;
 
-   /* @PostMapping("points")
-    public ResponseMessage add(@RequestBody BulkSampleRequest bulkSampleRequest) {
-        try {
-            List samples = bulkSampleRequest.getSampleRequests();
-            if (CollectionUtils.isEmpty(samples)) {
-                return failed("samples must not empty");
-            }
-
-            if (StringUtils.isEmpty(bulkSampleRequest.getMeasurement())) {
-                return failed("measurement must not empty");
-            }
-
-            measurementService.addBulkSampleRequest(bulkSampleRequest);
-        } catch (Exception e) {
-            log.error("添加秒点异常", e);
-            return failed("添加秒点异常");
-        }
-        return success();
-    }*/
-
-
     @PostMapping("points")
     public ResponseMessage points(@RequestBody BulkRequest bulkRequest) {
         log.info("MeasureController-- {}", JsonUtil.toJson(bulkRequest));
@@ -71,6 +52,7 @@ public class MeasureController extends BaseController {
     }
 
 
+    @Deprecated
     @PostMapping("query")
     public ResponseMessage query(@RequestBody QueryMeasurementParam queryMeasurementParam) {
         QueryMeasurementVo queryMeasurementVo = new QueryMeasurementVo();
@@ -109,6 +91,7 @@ public class MeasureController extends BaseController {
      * @param queryMeasurementParam
      * @return
      */
+    @Deprecated
     @GetMapping("queryTransmitTotal")
     public ResponseMessage queryTransmitTotal(@RequestBody QueryMeasurementParam queryMeasurementParam) {
         TransmitTotalVo transmitTotalVo = new TransmitTotalVo();
@@ -119,5 +102,27 @@ public class MeasureController extends BaseController {
             log.error("查询秒点异常", e);
         }
         return success(transmitTotalVo);
+    }
+
+    @PostMapping("points/aggregate")
+    public ResponseMessage pointsAggregate(@RequestBody AggregateMeasurementParam aggregateMeasurementParam) {
+        try {
+            measurementService.aggregateMeasurement(aggregateMeasurementParam);
+            return success();
+        } catch (Exception e) {
+            e.printStackTrace();
+            return failed(e);
+        }
+    }
+
+    @PostMapping("query/v2")
+    public ResponseMessage queryV2(@RequestBody MeasurementQueryParam measurementQueryParam) {
+        try {
+            Object data = measurementService.getSamples(measurementQueryParam);
+            return success(data);
+        } catch (Exception e) {
+            e.printStackTrace();
+            return failed(e);
+        }
     }
 }
