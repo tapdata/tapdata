@@ -4,6 +4,7 @@ import com.tapdata.manager.common.utils.JsonUtil;
 import com.tapdata.manager.common.utils.StringUtils;
 import com.tapdata.tm.commons.dag.process.MigrateFieldRenameProcessorNode;
 import com.tapdata.tm.commons.dag.process.TableRenameProcessNode;
+import com.tapdata.tm.commons.dag.vo.MigrateJsResultVo;
 import com.tapdata.tm.commons.schema.*;
 import com.tapdata.tm.commons.schema.bean.SourceDto;
 import com.tapdata.tm.commons.schema.bean.SourceTypeEnum;
@@ -171,6 +172,11 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
 //        TapTable tapTable = InstanceFactory.instance(JsonParser.class).fromJson(json, new TypeHolder<TapTable>() {
 //        }, TapConstants.abstractClassDetectors);
 //        return tapTable;
+        return null;
+    }
+
+    @Override
+    public List<MigrateJsResultVo> getJsResult(String jsNodeId, String virtualTargetId, SubTaskDto subTaskDto) {
         return null;
     }
 

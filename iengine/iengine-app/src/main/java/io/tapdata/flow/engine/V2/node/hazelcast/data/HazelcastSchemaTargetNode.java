@@ -9,7 +9,7 @@ import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.value.TapValue;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
-import io.tapdata.schema.SchemaCacheUtil;
+import org.apache.commons.collections.map.LRUMap;
 import org.apache.commons.collections4.MapUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -21,13 +21,25 @@ import java.util.Map;
 
 import static com.hazelcast.jet.impl.util.ExceptionUtil.sneakyThrow;
 
-public class HazelcastTargetSchemaNode extends HazelcastDataBaseNode {
+public class HazelcastSchemaTargetNode extends HazelcastVirtualTargetNode {
 
-	private final static Logger logger = LogManager.getLogger(HazelcastTargetSchemaNode.class);
+	private final static Logger logger = LogManager.getLogger(HazelcastSchemaTargetNode.class);
+
+	/**
+	 * key: subTaskId+jsNodeId
+	 */
+	private static final Map<String, TapTable> tabTableCacheMap = new LRUMap(100);
 
 	private final String schemaKey;
 
-	public HazelcastTargetSchemaNode(DataProcessorContext dataProcessorContext) {
+	public static TapTable getTapTable(String schemaKey) {
+		TapTable tapTable = tabTableCacheMap.get(schemaKey);
+		tabTableCacheMap.remove(schemaKey);
+		return tapTable;
+	}
+
+
+	public HazelcastSchemaTargetNode(DataProcessorContext dataProcessorContext) {
 		super(dataProcessorContext);
 		this.schemaKey = dataProcessorContext.getSubTaskDto().getId().toHexString() + "-" + dataProcessorContext.getNode().getId();
 
@@ -73,7 +85,7 @@ public class HazelcastTargetSchemaNode extends HazelcastDataBaseNode {
 									}
 								}
 							}
-							SchemaCacheUtil.putTabTable(schemaKey, tapTable);
+							tabTableCacheMap.put(schemaKey, tapTable);
 						}
 
 					} else {

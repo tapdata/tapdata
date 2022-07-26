@@ -9,6 +9,7 @@ import com.tapdata.processor.dataflow.*;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.process.*;
 import com.tapdata.tm.commons.task.dto.SubTaskDto;
+import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.entity.codec.ToTapValueCodec;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
@@ -39,10 +40,17 @@ import static org.springframework.data.mongodb.core.query.Criteria.where;
 public class HazelcastProcessorNode extends HazelcastProcessorBaseNode {
 
 	private DataFlowProcessor dataFlowProcessor;
-	private NodeTypeEnum nodeType;
+
+	/**
+	 * Whether to process data from multiple tables
+	 */
+	private final boolean multipleTables;
 
 	public HazelcastProcessorNode(DataProcessorContext dataProcessorContext) throws Exception {
 		super(dataProcessorContext);
+		//如果为迁移任务、且源节点为数据库类型
+		this.multipleTables = CollectionUtils.isNotEmpty(dataProcessorContext.getSubTaskDto().getDag().getSourceNode())
+						&& TaskDto.SYNC_TYPE_MIGRATE.equals(dataProcessorContext.getSubTaskDto().getParentTask().getSyncType());
 	}
 
 	@Override
@@ -109,7 +117,7 @@ public class HazelcastProcessorNode extends HazelcastProcessorBaseNode {
 				if (tapRecordEvent != null) {
 					processedEvent.setTapEvent(tapRecordEvent);
 					String tableName;
-					if (nodeType == NodeTypeEnum.TABLE_RENAME_PROCESSOR || nodeType == NodeTypeEnum.MIGRATE_FIELD_RENAME_PROCESSOR) {
+					if (multipleTables) {
 						tableName = processedMessage.getTableName();
 					} else {
 						tableName = processorBaseContext.getNode().getId();
@@ -186,7 +194,7 @@ public class HazelcastProcessorNode extends HazelcastProcessorBaseNode {
 	}
 
 	private DataFlowProcessor createDataFlowProcessor(Node node, Stage stage) {
-		nodeType = NodeTypeEnum.get(node.getType());
+		NodeTypeEnum nodeType = NodeTypeEnum.get(node.getType());
 		DataFlowProcessor dataFlowProcessor = null;
 		switch (nodeType) {
 			case CACHE_LOOKUP_PROCESSOR:

@@ -32,10 +32,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
+import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -83,7 +80,7 @@ public class TaskNodeServiceImpl implements TaskNodeService {
 
         currentTableList = ListUtils.partition(tableNames, pageSize).get(page - 1);
 
-        List<Node> predecessors = dag.getPreNodes(nodeId);
+        List<Node<?>> predecessors = dag.nodeMap().get(nodeId);
         Node currentNode = dag.getNode(nodeId);
         if (CollectionUtils.isEmpty(predecessors)) {
             predecessors = Lists.newArrayList();

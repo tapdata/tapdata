@@ -67,7 +67,7 @@ public class WebSocketServer extends TextWebSocketHandler {
 		}
 		log.info("WebSocket receive.  message, userId,id: {}, {}, {}", msg, userId, id);
 
-		if(StringUtils.isNotBlank(msg)){
+ 		if(StringUtils.isNotBlank(msg)){
 			try {
 				MessageInfo messageInfo = JsonUtil.parseJsonUseJackson(msg, MessageInfo.class);
 

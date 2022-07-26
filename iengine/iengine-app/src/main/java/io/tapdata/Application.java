@@ -242,22 +242,19 @@ public class Application {
 				.withConfig(config).build();
 
 		RollingFileAppender rollingFileAppender = RollingFileAppender.newBuilder()
-				.withName("rollingFileAppender")
+				.setName("rollingFileAppender")
 				.withFileName(logsPath.toString() + "/tapdata-agent.log")
 				.withFilePattern(logsPath.toString() + "/tapdata-agent.log.%d{yyyyMMdd}.gz")
-				.withLayout(patternLayout)
+				.setLayout(patternLayout)
 				.withPolicy(compositeTriggeringPolicy)
 				.withStrategy(strategy)
 				.build();
 		rollingFileAppender.start();
-//
-//        rootLogger.addAppender(rollingFileAppender);
-
-		AppenderRef ref = AppenderRef.createAppenderRef("rollingFileAppender", defaultLogLevel, null);
+		config.addAppender(rollingFileAppender);
 		LoggerConfig rootLoggerConfig = config.getRootLogger();
-		rootLoggerConfig.getAppenderRefs().add(ref);
 		rootLoggerConfig.setLevel(defaultLogLevel);
 		rootLoggerConfig.addAppender(rollingFileAppender, null, null);
+
 		/*ConsoleAppender consoleAppender = ConsoleAppender.newBuilder()
 			.withName("consoleAppender")
 			.withLayout(patternLayout)
