@@ -4,7 +4,6 @@ import cn.hutool.core.collection.ConcurrentHashSet;
 import com.google.common.collect.Lists;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import com.hazelcast.core.HazelcastInstance;
-import com.tapdata.constant.CollectionUtil;
 import com.tapdata.constant.ExecutorUtil;
 import com.tapdata.constant.MapUtil;
 import com.tapdata.entity.MessageEntity;
@@ -73,8 +72,6 @@ public class HazelcastMultiAggregatorProcessor extends HazelcastBaseNode {
 
     private ConstructIMap<ArrayList<BigDecimal>> cacheList;
 
-    private ConstructIMap<TapdataEvent> cacheEvents;
-
     private final List<String> targetFieldsName = new ArrayList<>();
 
     private int count = 0;
@@ -92,7 +89,6 @@ public class HazelcastMultiAggregatorProcessor extends HazelcastBaseNode {
         nodeId = aggNode.getId();
         rules = aggNode.getAggregations();
 //    pks = aggNode.getPrimaryKeys();
-
     }
 
     private void initCache(String nodeId, HazelcastInstance hazelcastInstance) {
@@ -150,6 +146,7 @@ public class HazelcastMultiAggregatorProcessor extends HazelcastBaseNode {
     @Override
     public void doInit(@NotNull Context context) throws Exception {
         // 判空
+        logger.info("init aggregator processor, nodeId:{}", nodeId);
         if (rules != null && !rules.isEmpty()) {
             initCache(nodeId, context.hazelcastInstance());
 
@@ -161,7 +158,7 @@ public class HazelcastMultiAggregatorProcessor extends HazelcastBaseNode {
             logger.warn("Aggregation DAG config error.");
         }
 
-        super.init(context);
+//        super.init(context);
     }
 
     @Override
@@ -170,10 +167,12 @@ public class HazelcastMultiAggregatorProcessor extends HazelcastBaseNode {
             aggregator.close();
         }
         super.close();
+        logger.info("close aggregator, nodeId: {}", nodeId);
     }
 
     @Override
     protected boolean tryProcess(int ordinal, @NotNull Object item) {
+        logger.info("try process aggregator, nodeId: {}", nodeId);
         Node<?> node = processorBaseContext.getNode();
         if (logger.isDebugEnabled()) {
             logger.debug(
@@ -1149,7 +1148,6 @@ public class HazelcastMultiAggregatorProcessor extends HazelcastBaseNode {
 //                        if (offer(event)) break;
 //                    }
                     offer(event);
-                    logger.warn("--offer event--");
                 } else {
                     throw new RuntimeException("not implement");
                 }
