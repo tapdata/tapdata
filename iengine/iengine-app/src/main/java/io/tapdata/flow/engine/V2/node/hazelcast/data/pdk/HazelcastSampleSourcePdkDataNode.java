@@ -120,8 +120,10 @@ public class HazelcastSampleSourcePdkDataNode extends HazelcastSourcePdkDataNode
   private static List<TapEvent> wrapTapEvent(List<Map<String, Object>> results, String table) {
     List<TapEvent> tapEvents = new ArrayList<>();
 
-    for (Map<String, Object> result : results) {
-      tapEvents.add(new TapInsertRecordEvent().init().after(result).table(table));
+    if (CollectionUtils.isNotEmpty(results)) {
+      for (Map<String, Object> result : results) {
+        tapEvents.add(new TapInsertRecordEvent().init().after(result).table(table));
+      }
     }
 
     return tapEvents;

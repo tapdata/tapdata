@@ -5,6 +5,7 @@ import cn.hutool.core.date.DateUtil;
 import cn.hutool.extra.spring.SpringUtil;
 import com.google.common.base.Splitter;
 import com.tapdata.tm.commons.dag.Node;
+import com.tapdata.tm.commons.dag.process.MigrateJsProcessorNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.message.constant.Level;
@@ -160,6 +161,11 @@ public class TaskDagCheckLogServiceImpl implements TaskDagCheckLogService {
                     });
             result.setOver(present);
         }
+
+        if (taskDto.getDag().getNodes().stream().anyMatch(n -> n instanceof MigrateJsProcessorNode)) {
+            result.setOver(true);
+        }
+
         return result;
     }
 
