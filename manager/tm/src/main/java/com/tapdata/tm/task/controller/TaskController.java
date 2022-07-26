@@ -764,8 +764,7 @@ public class TaskController extends BaseController {
     @Operation(description = "js节点试运行结果获取")
     public ResponseMessage<JsResultVo> getRun(@RequestParam String taskId,
                                          @RequestParam String jsNodeId) {
-
-        return success(new JsResultVo());
+        return success(taskNodeService.getRun(taskId, jsNodeId));
     }
 
 }
