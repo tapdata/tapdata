@@ -71,6 +71,7 @@ public class HazelcastSampleSourcePdkDataNode extends HazelcastSourcePdkDataNode
         boolean isCache = true;
         if (CollectionUtils.isEmpty(tapEventList) || tapEventList.size() < rows) {
           isCache = false;
+          tapEventList.clear();
           QueryByAdvanceFilterFunction queryByAdvanceFilterFunction = getConnectorNode().getConnectorFunctions().getQueryByAdvanceFilterFunction();
           TapAdvanceFilter tapAdvanceFilter = TapAdvanceFilter.create().limit(rows);
           PDKInvocationMonitor.invoke(getConnectorNode(), PDKMethod.SOURCE_QUERY_BY_ADVANCE_FILTER,
