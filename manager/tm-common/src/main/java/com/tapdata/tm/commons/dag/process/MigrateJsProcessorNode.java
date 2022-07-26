@@ -1,5 +1,6 @@
 package com.tapdata.tm.commons.dag.process;
 
+import cn.hutool.core.bean.BeanUtil;
 import com.google.common.collect.Lists;
 import com.tapdata.manager.common.utils.JsonUtil;
 import com.tapdata.tm.commons.dag.*;
@@ -12,6 +13,10 @@ import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.util.PdkSchemaConvert;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
+import io.tapdata.entity.utils.InstanceFactory;
+import io.tapdata.entity.utils.JsonParser;
+import io.tapdata.entity.utils.TypeHolder;
+import io.tapdata.pdk.core.utils.TapConstants;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
@@ -42,31 +47,31 @@ public class MigrateJsProcessorNode extends Node<List<Schema>> {
 
     @Override
     protected List<Schema> loadSchema(List<String> includes) {
-        ObjectId taskId = this.getDag().getTaskId();
-
-        String nodeId = this.getId();
+        final List<String> predIds = new ArrayList<>();
+        getPrePre(this, predIds);
+        predIds.add(this.getId());
         Dag dag = this.getDag().toDag();
         dag = JsonUtil.parseJsonUseJackson(JsonUtil.toJsonUseJackson(dag), Dag.class);
-        List<Node<?>> nodes = this.getDag().nodeMap().get(nodeId);
+        List<Node> nodes = dag.getNodes();
 
-        nodes.add(this);
-
-        Node<?> target = new VirtualTargetNode();
+        Node target = new VirtualTargetNode();
         target.setId(UUID.randomUUID().toString());
         target.setName(target.getId());
         if (CollectionUtils.isNotEmpty(nodes)) {
+            nodes = nodes.stream().filter(n -> predIds.contains(n.getId())).collect(Collectors.toList());
             nodes.add(target);
         }
 
-        List<Edge> edges = this.getDag().edgeMap().get(nodeId);
+        List<Edge> edges = dag.getEdges();
         if (CollectionUtils.isNotEmpty(edges)) {
-            Edge edge = new Edge(nodeId, target.getId());
+            edges = edges.stream().filter(e -> (predIds.contains(e.getTarget()) || predIds.contains(e.getSource())) && !e.getSource().equals(this.getId())).collect(Collectors.toList());
+            Edge edge = new Edge(this.getId(), target.getId());
             edges.add(edge);
         }
 
-        dag.setNodes(new LinkedList<Node>(){{addAll(nodes);}});
+        ObjectId taskId = this.getDag().getTaskId();
+        dag.setNodes(nodes);
         dag.setEdges(edges);
-
         DAG build = DAG.build(dag);
         build.getNodes().forEach(node -> node.getDag().setTaskId(taskId));
 
@@ -132,9 +137,9 @@ public class MigrateJsProcessorNode extends Node<List<Schema>> {
                     nameFieldMap.putAll(createMap);
                 }
 
-                Schema temp = PdkSchemaConvert.fromPdkSchema(tapTable);
-                temp.setDatabaseId(schema.getDatabaseId());
-                result.add(temp);
+                Schema s = PdkSchemaConvert.fromPdkSchema(tapTable);
+                s.setDatabaseId(schema.getDatabaseId());
+                result.add(s);
             }
         }
 
@@ -205,5 +210,15 @@ public class MigrateJsProcessorNode extends Node<List<Schema>> {
 
         getSourceNode().stream().findFirst().ifPresent(node -> connectionId.set(node.getConnectionId()));
         return connectionId.get();
+    }
+
+    private void getPrePre(Node node, List<String> preIds) {
+        List<Node> predecessors = node.predecessors();
+        if (CollectionUtils.isNotEmpty(predecessors)) {
+            for (Node predecessor : predecessors) {
+                preIds.add(predecessor.getId());
+                getPrePre(predecessor, preIds);
+            }
+        }
     }
 }
