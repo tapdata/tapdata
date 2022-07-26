@@ -42,7 +42,7 @@ public class SaveInspectResultParam {
     private Long firstTargetTotal=0L;       // ": 0, // 目标总数=
 
     /**  */
-    private List<Map> stats;
+    private List<Stats> stats;
     /**  */
     private Integer spendMilli;
     /**  */
@@ -66,4 +66,6 @@ public class SaveInspectResultParam {
     private String customId;
     private  String parentId;
     private String firstCheckId;
+
+    private boolean partStats;   // 标识是否只上报了一部分 stats 信息
 }

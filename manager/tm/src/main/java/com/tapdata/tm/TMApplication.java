@@ -1,5 +1,6 @@
 package com.tapdata.tm;
 
+import com.tapdata.tm.ds.service.impl.RepairCreateTimeComponent;
 import com.tapdata.tm.user.dto.UserDto;
 import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.utils.SpringContextHelper;
@@ -10,7 +11,6 @@ import org.springframework.boot.web.servlet.ServletComponentScan;
 import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.data.mongodb.config.EnableMongoAuditing;
 import org.springframework.data.mongodb.core.query.Criteria;
-import org.springframework.data.mongodb.core.query.Field;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.repository.config.EnableMongoRepositories;
 import org.springframework.scheduling.annotation.EnableAsync;
@@ -31,6 +31,11 @@ public class TMApplication {
 	public static void main(String[] args) {
 		ConfigurableApplicationContext applicationContext = SpringApplication.run(TMApplication.class, args);
 		SpringContextHelper.applicationContext = applicationContext;
+
+		new Thread(()->{
+			RepairCreateTimeComponent repairCreateTimeComponent = applicationContext.getBean("repairCreateTimeComponent", RepairCreateTimeComponent.class);
+			repairCreateTimeComponent.repair();
+		}).start();
 
 		UserService userService = applicationContext.getBean(UserService.class);
 		Query query = new Query(Criteria.where("email").is("admin@admin.com"));

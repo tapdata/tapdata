@@ -28,7 +28,7 @@ public class HazelCastImdgNode extends Node<Object> {
     }
 
     @Override
-    public Object mergeSchema(List<Object> inputSchemas, Object schemas) {
+    public Object mergeSchema(List<Object> inputSchemas, Object schemas, DAG.Options options) {
         return null;
     }
 

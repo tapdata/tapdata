@@ -1,0 +1,11 @@
+spring:
+  profiles:
+    active: '@profile.active@'
+    include: '@env.PRODUCT@,default'
+
+  data:
+    mongodb:
+      uri: 'mongodb://127.0.0.1:27017/idaas_tm'
+      cursorBatchSize: 1000
+tcm:
+  url: http://127.0.0.1:31103

@@ -1,0 +1,12 @@
+spring:
+    profiles:
+        active: '@profile.active@'
+        include: '@env.PRODUCT@,default'
+
+    data:
+        mongodb:
+            uri: 'mongodb://root:tapdata@192.168.0.30:32000/dfs_tm?authSource=admin'
+            cursorBatchSize: 1000
+
+tcm:
+    url: http://192.168.0.30:30103

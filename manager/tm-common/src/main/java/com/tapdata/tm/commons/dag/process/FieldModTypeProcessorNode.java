@@ -1,6 +1,7 @@
 package com.tapdata.tm.commons.dag.process;
 
 import com.tapdata.manager.common.utils.JsonUtil;
+import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.EqField;
 import com.tapdata.tm.commons.dag.NodeType;
 import com.tapdata.tm.commons.schema.Schema;
@@ -33,7 +34,7 @@ public class FieldModTypeProcessorNode extends FieldProcessorNode {
     }
 
     @Override
-    public Schema mergeSchema(List<Schema> inputSchemas, Schema schema) {
+    public Schema mergeSchema(List<Schema> inputSchemas, Schema schema, DAG.Options options) {
         Schema outputSchema = superMergeSchema(inputSchemas, schema);
 
         if (operations != null && operations.size() > 0) {

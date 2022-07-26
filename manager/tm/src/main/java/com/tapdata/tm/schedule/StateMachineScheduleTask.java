@@ -7,6 +7,7 @@
 package com.tapdata.tm.schedule;
 
 import com.mongodb.client.result.UpdateResult;
+import com.tapdata.manager.common.utils.IOUtils;
 import com.tapdata.manager.common.utils.JsonUtil;
 import com.tapdata.manager.common.utils.StringUtils;
 import com.tapdata.tm.CustomerJobLogs.CustomerJobLog;
@@ -16,9 +17,15 @@ import com.tapdata.tm.Settings.constant.KeyEnum;
 import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.commons.task.dto.SubTaskDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
+import com.tapdata.tm.commons.websocket.MessageInfoBuilder;
 import com.tapdata.tm.config.security.UserDetail;
+import com.tapdata.tm.dataflow.StartType;
 import com.tapdata.tm.dataflow.dto.DataFlowDto;
+import com.tapdata.tm.dataflow.dto.DataFlowStatus;
+import com.tapdata.tm.dataflow.entity.DataFlow;
 import com.tapdata.tm.dataflow.service.DataFlowService;
+import com.tapdata.tm.messagequeue.service.MessageQueueService;
+import com.tapdata.tm.statemachine.constant.StateMachineConstant;
 import com.tapdata.tm.statemachine.enums.DataFlowEvent;
 import com.tapdata.tm.statemachine.enums.DataFlowState;
 import com.tapdata.tm.statemachine.enums.SubTaskState;
@@ -34,13 +41,17 @@ import com.tapdata.tm.worker.service.WorkerService;
 import java.util.*;
 
 import lombok.Setter;
+
+import com.tapdata.tm.ws.endpoint.WebSocketManager;
 import lombok.extern.slf4j.Slf4j;
 import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Field;
 import org.springframework.data.mongodb.core.query.Query;
 import static org.springframework.data.mongodb.core.query.Query.query;
 import org.springframework.data.mongodb.core.query.Update;
+import org.springframework.data.util.CloseableIterator;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
@@ -56,6 +67,9 @@ public class StateMachineScheduleTask {
 	private CustomerJobLogsService customerJobLogsService;
 	private SettingsService settingsService;
 	private TaskService taskService;
+
+	@Autowired
+	private MessageQueueService messageQueueService;
 
 	@Scheduled(fixedDelay = 5 * 1000)
 	@SchedulerLock(name ="checkScheduledSubTask", lockAtMostFor = "5s", lockAtLeastFor = "5s")
@@ -99,8 +113,8 @@ public class StateMachineScheduleTask {
 	 *         停止中（强制停止中）超过5倍心跳超时时间会变为已暂停
 	 **/
 	@Scheduled(fixedDelay = 5 * 1000)
-	@SchedulerLock(name ="checkScheduledDataFlow", lockAtMostFor = "5s", lockAtLeastFor = "5s")
-	public void checkScheduledDataFlow() {
+	@SchedulerLock(name ="checkDataFlowHeartbeat", lockAtMostFor = "5s", lockAtLeastFor = "5s")
+	public void checkDataFlowHeartbeat() {
 		Object jobHeartTimeout = settingsService.getValueByCategoryAndKey(CategoryEnum.JOB, KeyEnum.JOB_HEART_TIMEOUT);
 		if (jobHeartTimeout == null || Long.parseLong(jobHeartTimeout.toString()) <= 0){
 			log.warn("The setting of jobHeartTimeout must be greater than 0, jobHeartTimeout: {}", jobHeartTimeout);
@@ -125,7 +139,7 @@ public class StateMachineScheduleTask {
 		List<DataFlowDto> dataFlowDtos = dataFlowService.findAll(query);
 		dataFlowDtos.forEach(dataFlowDto -> {
 			try {
-				log.info("checkScheduledSubTask start,dataFlowId: {}, status: {}", dataFlowDto.getId().toHexString(), dataFlowDto.getStatus());
+				log.info("CheckDataFlowHeartbeat start,dataFlowId: {}, status: {}", dataFlowDto.getId().toHexString(), dataFlowDto.getStatus());
 				UserDetail userDetail = userService.loadUserById(toObjectId(dataFlowDto.getUserId()));
 				if (DataFlowState.SCHEDULING.getName().equals(dataFlowDto.getStatus())){
 					dataFlowDto.setAgentId(null);
@@ -142,16 +156,86 @@ public class StateMachineScheduleTask {
 							customerJobLogsService.assignAgent(dataFlowLog, userDetail);
 						}
 					}
-					log.info("checkScheduledSubTask complete,dataFlowId: {}, processId: {}", dataFlowDto.getId().toHexString(), processId);
+					log.info("CheckDataFlowHeartbeat complete,dataFlowId: {}, processId: {}", dataFlowDto.getId().toHexString(), processId);
 				}else {
 					StateMachineResult result = stateMachineService.executeAboutDataFlow(dataFlowDto, DataFlowEvent.OVERTIME, userDetail);
-					log.info("checkScheduledSubTask complete,dataFlowId: {}, result: {}", dataFlowDto.getId().toHexString(), JsonUtil.toJson(result));
+					log.info("CheckDataFlowHeartbeat complete,dataFlowId: {}, result: {}", dataFlowDto.getId().toHexString(), JsonUtil.toJson(result));
 				}
 
 			} catch (Throwable e) {
 				log.error("Failed to execute state machine,dataFlowId: {}, event: {},message: {}", dataFlowDto.getId().toHexString(), DataFlowEvent.OVERTIME.getName(), e.getMessage(), e);
 			}
 		});
+	}
+
+	@Scheduled(fixedDelay = 5 * 1000)
+	@SchedulerLock(name ="checkScheduledDataFlow", lockAtMostFor = "5s", lockAtLeastFor = "5s")
+	public void checkScheduledDataFlow() {
+		Query query = Query.query(Criteria.where("status").in(StateMachineConstant.DATAFLOW_STATUS_STOPPED, StateMachineConstant.DATAFLOW_STATUS_ERROR)
+				.and("setting.isSchedule").is(true)
+				.and("nextScheduledTime").lt(System.currentTimeMillis()));
+		List<DataFlowDto> dataFlowDtos = dataFlowService.findAll(query);
+		dataFlowDtos.forEach(dataFlowDto -> {
+			try {
+				log.info("CheckScheduledDataFlow start,dataFlowId: {}, status: {}", dataFlowDto.getId().toHexString(), dataFlowDto.getStatus());
+				UserDetail userDetail = userService.loadUserById(toObjectId(dataFlowDto.getUserId()));
+				dataFlowDto.setStartType(StartType.auto.name());
+				StateMachineResult result = stateMachineService.executeAboutDataFlow(dataFlowDto, DataFlowEvent.START, userDetail);
+				log.info("CheckScheduledDataFlow complete,dataFlowId: {}, result: {}", dataFlowDto.getId().toHexString(), JsonUtil.toJson(result));
+
+			} catch (Throwable e) {
+				log.error("Failed to execute state machine,dataFlowId: {}, event: {},message: {}", dataFlowDto.getId().toHexString(), DataFlowEvent.START.getName(), e.getMessage(), e);
+			}
+		});
+	}
+
+	/**
+	 * When the data flow ping time timeout and status in scheduled, stopping, force stopping,
+	 * then resend event to flow engine
+	 */
+	@Scheduled(fixedDelay = 30000)
+	public void compensationEventNotification() {
+		List<String> onlineAgent = WebSocketManager.getOnlineAgent();
+
+		if (onlineAgent.size() == 0) {
+			log.info("Not have online agent, cancel compensation event notification.");
+			return;
+		}
+
+		log.info("Compensation event notification for agents {}", String.join(",", onlineAgent));
+
+		Criteria criteria = Criteria.where("agentId").in(onlineAgent)
+				.and("status")
+				.in(DataFlowStatus.scheduled.v, DataFlowStatus.stopping.v, DataFlowStatus.force_stopping.v);
+		Query query = query(criteria);
+		query.fields().include("id", "status", "agentId", "pingTime");
+
+		CloseableIterator<DataFlow> it = dataFlowService.stream(query);
+		it.forEachRemaining(dataFlow -> {
+			switch (dataFlow.getStatus()) {
+				case "scheduled":
+					messageQueueService.sendMessage(dataFlow.getAgentId(), MessageInfoBuilder.newMessage()
+						.call("dataFlowScheduler", "scheduledDataFlow")
+						.body(dataFlow.getId().toHexString()).build());
+					break;
+				case "stopping":
+					messageQueueService.sendMessage(dataFlow.getAgentId(),
+							MessageInfoBuilder.newMessage()
+									.call("dataFlowScheduler", "stoppingDataFlow")
+									.body(dataFlow.getId().toHexString()).build());
+					break;
+				case "force stopping":
+					messageQueueService.sendMessage(dataFlow.getAgentId(), MessageInfoBuilder.newMessage()
+							.call("dataFlowScheduler", "forceStoppingDataFlow")
+							.body(dataFlow.getId().toHexString()).build());
+					break;
+				default:
+					break;
+			}
+		});
+
+		IOUtils.closeQuietly(it);
+
 	}
 
 

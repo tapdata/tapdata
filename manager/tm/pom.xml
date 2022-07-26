@@ -72,6 +72,15 @@
 			</properties>
 		</profile>
 		<profile>
+			<id>perf</id>
+			<properties>
+				<profile.active>perf</profile.active>
+				<profile.dir>${resource.dir}/perf</profile.dir>
+				<env.GIT_COMMIT_VERSION>${maven.build.timestamp}</env.GIT_COMMIT_VERSION>
+				<env.PRODUCT>dfs</env.PRODUCT>
+			</properties>
+		</profile>
+		<profile>
 			<id>idaas</id>
 			<properties>
 				<profile.active>idaas</profile.active>
@@ -93,7 +102,7 @@
 		<dependency>
 			<groupId>com.tapdata</groupId>
 			<artifactId>tm-common</artifactId>
-			<version>0.0.1-SNAPSHOT</version>
+			<version>1.0.0</version>
 		</dependency>
 
 		<dependency>
@@ -105,6 +114,10 @@
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-data-mongodb</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.data</groupId>
+			<artifactId>spring-data-elasticsearch</artifactId>
 		</dependency>
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
@@ -130,6 +143,18 @@
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-cache</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-actuator</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>io.micrometer</groupId>
+			<artifactId>micrometer-core</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>io.micrometer</groupId>
+			<artifactId>micrometer-registry-prometheus</artifactId>
 		</dependency>
 
 		<dependency>
@@ -209,10 +234,10 @@
 			</exclusions>
 		</dependency>
 
-		<dependency>
+		<!--<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-actuator</artifactId>
-		</dependency>
+		</dependency>-->
 
 		<dependency>
 			<groupId>org.powermock</groupId>

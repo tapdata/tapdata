@@ -6,7 +6,7 @@
 
   <groupId>com.tapdata</groupId>
   <artifactId>tm-common</artifactId>
-  <version>0.0.1-SNAPSHOT</version>
+  <version>1.0.0</version>
 
   <name>tm-common</name>
   <url>http://www.tapdata.io</url>

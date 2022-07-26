@@ -38,6 +38,7 @@ import org.springframework.data.mongodb.repository.support.MongoRepositoryFactor
 import org.springframework.data.util.StreamUtils;
 import org.springframework.data.util.Streamable;
 import org.springframework.util.Assert;
+import org.springframework.util.StringUtils;
 
 import java.lang.reflect.Field;
 import java.util.*;
@@ -104,15 +105,16 @@ public abstract class BaseRepository<Entity extends BaseEntity, ID> {
         return repositoryFactory.getEntityInformation(tClass);
     }
 
-    protected void beforeUpdateEntity(Entity entity, UserDetail userDetail) {
+    public void beforeUpdateEntity(Entity entity, UserDetail userDetail) {
         entity.setLastUpdAt(new Date());
         entity.setLastUpdBy(userDetail.getUserId());
     }
 
-    protected void beforeCreateEntity(Entity entity, UserDetail userDetail) {
+    public void beforeCreateEntity(Entity entity, UserDetail userDetail) {
         entity.setCreateAt(new Date());
         entity.setUserId(userDetail.getUserId());
         entity.setCreateUser(userDetail.getUsername());
+        beforeUpdateEntity(entity, userDetail);
     }
 
     public void beforeUpsert(Update update, UserDetail userDetail) {
@@ -245,11 +247,17 @@ public abstract class BaseRepository<Entity extends BaseEntity, ID> {
             Field field = files[i];
             Object value = ReflectionUtils.getField(field, entity);
             if (value != null) {
+                /*org.springframework.data.mongodb.core.mapping.Field fieldDef =
+                        field.getAnnotation(org.springframework.data.mongodb.core.mapping.Field.class);*/
+                String fieldName = field.getName();
+                /*if ( fieldDef != null && StringUtils.hasText(fieldDef.value())) {
+                    fieldName = fieldDef.value();
+                }*/
                 SetOnInsert setOnInsert = field.getAnnotation(SetOnInsert.class);
                 if (setOnInsert != null) {
-                    update.setOnInsert(field.getName(), value);
+                    update.setOnInsert(fieldName, value);
                 } else {
-                    update.set(field.getName(), value);
+                    update.set(fieldName, value);
                 }
             }
         }
@@ -913,6 +921,10 @@ public abstract class BaseRepository<Entity extends BaseEntity, ID> {
 
     public MongoTemplate getMongoOperations() {
         return mongoOperations;
+    }
+
+    public String getCollectionName() {
+        return entityInformation.getCollectionName();
     }
 
     /**

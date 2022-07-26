@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<configuration scan="true" scanPeriod="3 seconds">
+	<property name="logName" value="tm" />
+	<property name="logPath" value="logs"/>
+	<contextName>${logName}</contextName>
+
+	<define name="HOSTNAME" class="com.tapdata.tm.config.CanonicalHostNamePropertyDefiner"/>
+
+	<appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+		<encoder>
+			<pattern>
+				%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n
+			</pattern>
+		</encoder>
+	</appender>
+
+	<appender name="APP_LOG_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+		<file>${logPath}/${logName}-${HOSTNAME}.log</file>
+
+		<rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+			<fileNamePattern>${logPath}/${logName}-${HOSTNAME}-%d{yyyy-MM-dd}.%i.zip</fileNamePattern>
+			<timeBasedFileNamingAndTriggeringPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedFNATP">
+				<maxFileSize>1024MB</maxFileSize>
+			</timeBasedFileNamingAndTriggeringPolicy>
+			<maxHistory>7</maxHistory>
+		</rollingPolicy>
+		<encoder>
+			<pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%contextName] [%thread] %-5level %logger{36} - %msg%n</pattern>
+		</encoder>
+	</appender>
+
+	<appender name="APP_WS_LOG_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+		<file>${logPath}/${logName}-ws-${HOSTNAME}.log</file>
+
+		<rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+			<fileNamePattern>${logPath}/${logName}-ws-${HOSTNAME}-%d{yyyy-MM-dd}.%i.zip</fileNamePattern>
+			<timeBasedFileNamingAndTriggeringPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedFNATP">
+				<maxFileSize>1024MB</maxFileSize>
+			</timeBasedFileNamingAndTriggeringPolicy>
+			<maxHistory>7</maxHistory>
+		</rollingPolicy>
+		<encoder>
+			<pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%contextName] [%thread] %-5level %logger{36} - %msg%n</pattern>
+		</encoder>
+	</appender>
+
+	<appender name="APP_REQUEST_LOG_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+		<file>${logPath}/${logName}-req-${HOSTNAME}.log</file>
+
+		<rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+			<fileNamePattern>${logPath}/${logName}-req-${HOSTNAME}-%d{yyyy-MM-dd}.%i.zip</fileNamePattern>
+			<timeBasedFileNamingAndTriggeringPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedFNATP">
+				<maxFileSize>1024MB</maxFileSize>
+			</timeBasedFileNamingAndTriggeringPolicy>
+			<maxHistory>7</maxHistory>
+		</rollingPolicy>
+		<encoder>
+			<pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%contextName] [%thread] %-5level %logger{36} - %msg%n</pattern>
+		</encoder>
+	</appender>
+
+	<jmxConfigurator />
+	<root level="INFO">
+		<appender-ref ref="STDOUT" />
+		<appender-ref ref="APP_LOG_FILE" />
+	</root>
+
+	<logger name="com.tapdata" level="INFO" />
+	<logger name="com.tapdata.tm.inspect" level="DEBUG" />
+	<logger name="com.tapdata.tm.base.filter.RequestFilter" level="DEBUG" additivity="false">
+		<appender-ref ref="APP_REQUEST_LOG_FILE"/>
+		<appender-ref ref="APP_LOG_FILE" />
+		<appender-ref ref="STDOUT" />
+	</logger>
+	<logger name="com.tapdata.tm.ws" level="DEBUG" additivity="false">
+		<appender-ref ref="APP_WS_LOG_FILE"/>
+		<appender-ref ref="APP_LOG_FILE" />
+		<appender-ref ref="STDOUT" />
+	</logger>
+
+	<logger name="org.springframework.data.mongodb" level="INFO"/>
+	<logger name="org.mongodb.driver" level="INFO"/>
+
+</configuration>

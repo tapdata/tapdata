@@ -40,6 +40,8 @@
 	<logger name="org.springframework.data.mongodb" level="INFO"/>
 	<logger name="org.mongodb.driver" level="INFO"/>
 	<logger name="net.javacrumbs.shedlock.core" level="INFO"/>
+	<!-- this is used to print the elastic search request body -->
+    <!--<logger name="tracer" level="TRACE"/>-->
 	<!--<logger name="com.tapdata.manager.iaas.k8s.interceptor" level="DEBUG"/>-->
 
 </configuration>

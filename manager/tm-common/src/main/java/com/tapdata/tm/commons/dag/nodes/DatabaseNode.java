@@ -6,6 +6,7 @@ import com.tapdata.tm.commons.dag.SchemaTransformerResult;
 import com.tapdata.tm.commons.dag.vo.BatchTypeOperation;
 import com.tapdata.tm.commons.dag.vo.FieldProcess;
 import com.tapdata.tm.commons.dag.vo.SyncObjects;
+import com.tapdata.tm.commons.dag.vo.TableOperation;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
 import com.tapdata.tm.commons.schema.Field;
 import com.tapdata.tm.commons.schema.Schema;
@@ -35,12 +36,15 @@ import static com.tapdata.tm.commons.base.convert.ObjectIdDeserialize.toObjectId
 @Slf4j
 public class DatabaseNode extends DataParentNode<List<Schema>> {
 
+    private String connectionId;
     private Boolean dataQualityTag;
     private Integer distance;
     private Boolean freeTransform;
     private List<String> inputLanes;
     private List<String> outputLanes;
     private String existDataProcessMode = "keepData";
+    private String databaseType;
+    private String dropType;
     private Integer readBatchSize;
     private Integer readCdcInterval;
     private List<FieldProcess> fieldProcess;
@@ -49,7 +53,15 @@ public class DatabaseNode extends DataParentNode<List<Schema>> {
      * 复制DAG web端改成 这个字段不传值需要从源表tableNames推出来
      */
     private List<SyncObjects> syncObjects;
+
+    private String tablePrefix;
+    private String tableSuffix;
+
     private List<BatchTypeOperation> batchOperationList;
+
+    private String fieldsNameTransform;
+    private String tableNameTransform;
+    private List<TableOperation> tableOperations;
 
     //包含的表名，用于数据挖掘，在加载schema的时候存入
     private List<String> tableNames;
@@ -57,13 +69,14 @@ public class DatabaseNode extends DataParentNode<List<Schema>> {
     // 复制任务 全部 or 自定义
     private String tableSelectType = "all";
 
+    public static final String SELF_TYPE = "database";
+
     public DatabaseNode() {
         super("database");
     }
 
-
     @Override
-    public List<Schema> mergeSchema(List<List<Schema>> inputSchemas, List<Schema> schemas) {
+    public List<Schema> mergeSchema(List<List<Schema>> inputSchemas, List<Schema> schemas, DAG.Options options) {
         //把inputSchemas的deleted的field给过滤掉
         for (List<Schema> inputSchema : inputSchemas) {
             SchemaUtils.removeDeleteFields(inputSchema);
@@ -95,7 +108,7 @@ public class DatabaseNode extends DataParentNode<List<Schema>> {
                 (s1, s2) -> SchemaUtils.mergeSchema(Collections.singletonList(s1), s2)));
 
         if (listener != null) {
-            listener.schemaTransformResult(getId(), schemaTransformerResults);
+            listener.schemaTransformResult(getId(), this, schemaTransformerResults);
         }
         List<Schema> outputSchema;
         if (schemas.size() == 0) {

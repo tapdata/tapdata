@@ -8,6 +8,8 @@ package com.tapdata.tm.ws.enums;
 
 public enum MessageType {
 
+	PING("ping"),
+	PONG("pong"),
 	TEST_CONNECTION("testConnection"),
 
 	PIPE("pipe"),
@@ -27,7 +29,9 @@ public enum MessageType {
 
 	UNSUBSCRIBE("unsubscribe"),
 	/** 模型推演 */
-	TRANSFORMER("metadataTransformerProgress"),
+	TRANSFORMER_STATUS_PUSH("metadataTransformerProgress"),
+
+	TRANSFORMER("deduceSchema"),
 	/**  */
 	LOADJAR("loadJar"),
 

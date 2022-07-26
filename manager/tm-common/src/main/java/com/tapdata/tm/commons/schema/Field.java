@@ -10,6 +10,9 @@ import java.util.List;
 @Data
 public class Field {
 
+    public static final String SOURCE_JOB_ANALYZE = "job_analyze";
+    public static final String SOURCE_AUTO = "auto";
+    public static final String SOURCE_MANUAL = "manual";
 
     private Object autoincrement;
 
@@ -20,6 +23,8 @@ public class Field {
     @JsonProperty("dataType")
     @org.springframework.data.mongodb.core.mapping.Field("dataType")
     private Integer dataType1;
+    @JsonProperty("tapType")
+    private String tapType;
     @JsonProperty("data_type")
     @org.springframework.data.mongodb.core.mapping.Field("data_type")
     private String dataType;
@@ -63,7 +68,7 @@ public class Field {
     @org.springframework.data.mongodb.core.mapping.Field("javaType")
     private String javaType1;
 
-    private Object oriPrecision;
+    private Integer oriPrecision;
 
     private Object oriScale;
     @JsonProperty("original_field_name")
@@ -132,13 +137,13 @@ public class Field {
     private List<DictionaryDto> dictionary;
     private List<String> oldIdList;
 
-    private String tapType;
-
     private String sourceDbType;
 
     /**
      * 临时字段，在处理字段类型映射时，用于声明这个字段在源库的 typeMapping 规则是否 fixed
      */
     private Boolean fixed;
+
+    private Boolean dataTypeSupport;
     private String createSource; // manual/auto/job_analyze
 }

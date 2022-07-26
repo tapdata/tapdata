@@ -34,6 +34,8 @@ import java.math.BigInteger;
 import java.util.*;
 
 import com.tapdata.tm.worker.vo.ApiWorkerStatusVo;
+import io.firedome.MultiTaggedCounter;
+import io.micrometer.core.instrument.Metrics;
 import com.tapdata.tm.worker.vo.CalculationEngineVo;
 import lombok.NonNull;
 import lombok.Setter;
@@ -60,13 +62,23 @@ import org.springframework.stereotype.Service;
 public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, WorkerRepository> {
 
     private DataFlowService dataFlowService;
+    @Autowired
     private ClusterStateService clusterStateService;
+    @Autowired
+    private UserLogService userLogService;
+    @Autowired
     private UserService userService;
+    @Autowired
     private SettingsService settingsService;
+    @Autowired
     private ScheduleTasksService scheduleTasksService;
+
+    private final MultiTaggedCounter workerPing;
 
     public WorkerService(@NonNull WorkerRepository repository) {
         super(repository, WorkerDto.class, Worker.class);
+
+        workerPing = new MultiTaggedCounter("worker_ping", Metrics.globalRegistry, "worker_type", "version");
     }
 
     @Override
@@ -454,6 +466,8 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
                 Query.query(Criteria.where("process_id").is(worker.getProcessId()).and("worker_type").is(worker.getWorkerType())),
                 convertToEntity(Worker.class, worker), loginUser
         );
+
+        workerPing.increment(worker.getWorkerType(), worker.getVersion());
 
         return worker;
     }

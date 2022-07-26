@@ -1,5 +1,6 @@
 package com.tapdata.tm.base.filter;
 
+import com.tapdata.manager.common.utils.StringUtils;
 import com.tapdata.tm.base.dto.ResponseMessage;
 import com.tapdata.tm.utils.ThreadLocalUtils;
 import com.tapdata.tm.utils.WebUtils;
@@ -14,7 +15,10 @@ import java.io.UnsupportedEncodingException;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.net.URLDecoder;
+import java.util.Collections;
 import java.util.Enumeration;
+import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 /**
  * @author lg<lirufei0808 @ gmail.com>
@@ -38,7 +42,16 @@ public class RequestFilter implements Filter {
 		HttpServletResponse httpServletResponse = new HttpServletResponseWrapper((HttpServletResponse) servletResponse);
 
 		ThreadLocalUtils.set(ThreadLocalUtils.USER_LOCALE, WebUtils.getLocale((HttpServletRequest) servletRequest));
-		String reqId = ResponseMessage.generatorReqId();
+		List<String> values = WebUtils.parseQueryString(httpServletRequest.getQueryString()).get("reqId");
+		String reqIdFromHeader = httpServletRequest.getHeader("requestId");
+		String reqId;
+		if (values != null && values.size() > 0) {
+			reqId = values.get(0);
+		} else if (StringUtils.isNotBlank(reqIdFromHeader)){
+			reqId = reqIdFromHeader;
+		} else {
+			reqId = ResponseMessage.generatorReqId();
+		}
 		String ip = WebUtils.getRealIpAddress(httpServletRequest);
 		ThreadLocalUtils.set(ThreadLocalUtils.REQUEST_ID, reqId);
 		Thread.currentThread().setName(ip + "-" + Thread.currentThread().getId() + "-" + reqId);
@@ -54,8 +67,9 @@ public class RequestFilter implements Filter {
 			log.error("Process request error", e);
 		}
 		long endTime = System.currentTimeMillis();
-		double time = (endTime - startTime)/ 1000D;
-		log.info("{} {} {} {}s ", clientIp, method, uri, BigDecimal.valueOf(time).setScale(3, RoundingMode.HALF_UP));
+
+		long time = endTime - startTime;
+		log.info("{} {} {} {}ms ", clientIp, method, uri, time);
 
 		if (log.isDebugEnabled()) logRes(httpServletResponse);
 
@@ -94,7 +108,8 @@ public class RequestFilter implements Filter {
 		httpServletResponse.getHeaderNames().forEach(headerName -> {
 			log.debug(" < {}: {}", headerName, httpServletResponse.getHeader(headerName));
 		});
-		if (servletResponse instanceof HttpServletResponseWrapper) {
+		String contentType = httpServletResponse.getHeader("Content-Type");
+		if (!"application/zip".equals(contentType) && servletResponse instanceof HttpServletResponseWrapper) {
 			try {
 				String content = ((HttpServletResponseWrapper) servletResponse).getContentAsString();
 				log.debug(" < {}", content);

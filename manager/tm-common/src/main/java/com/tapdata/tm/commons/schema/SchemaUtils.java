@@ -156,6 +156,13 @@ public class SchemaUtils {
         //return JsonUtil.parseJsonUseJackson(JsonUtil.toJsonUseJackson(source), Schema.class);
     }
 
+    public static List<Schema> cloneSchema(List<Schema> schemas) {
+        return InstanceFactory.instance(JsonParser.class)
+                .fromJson(InstanceFactory.instance(JsonParser.class)
+                        .toJson(schemas), new TypeHolder<List<Schema>>() {}, TapConstants.abstractClassDetectors);
+        //return JsonUtil.parseJsonUseJackson(JsonUtil.toJsonUseJackson(source), Schema.class);
+    }
+
     public static Field createField(FieldProcessorNode.Operation operation) {
         Field field = new Field();
         field.setFieldName(operation.getField());

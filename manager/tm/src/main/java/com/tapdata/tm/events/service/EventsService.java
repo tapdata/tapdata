@@ -30,6 +30,7 @@ import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
@@ -55,6 +56,7 @@ public class EventsService extends BaseService<EventsDto, Events, ObjectId, Even
     MailUtils mailUtils;
 
     @Autowired
+    @Lazy
     MessageService messageService;
 
     @Autowired

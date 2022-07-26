@@ -56,4 +56,8 @@ public class DataSourceTypeDto extends BaseDto {
     private String jarFile;
     private Long jarTime;
     private String jarRid;
+
+    private List<String> tags; // 标签  - 本地自建库(localDatabase) 云数据库(cloudDatabase) 消息队列(mq) NoSQL数据库(nosql) SaaS应用(saas)
+
+    private Boolean isComing; // 即将上线
 }

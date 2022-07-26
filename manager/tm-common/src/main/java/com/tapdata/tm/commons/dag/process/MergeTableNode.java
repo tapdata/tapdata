@@ -52,7 +52,7 @@ public class MergeTableNode extends ProcessorNode {
      * @return
      */
     @Override
-    public Schema mergeSchema(List<Schema> inputSchemas, Schema schema) {
+    public Schema mergeSchema(List<Schema> inputSchemas, Schema schema, DAG.Options options) {
         Map<String, Schema> schemaMap = inputSchemas.stream().collect(Collectors.toMap(Schema::getQualifiedName, s -> s, (a1, a2) -> a1));
 
         Schema main = null;
@@ -88,7 +88,7 @@ public class MergeTableNode extends ProcessorNode {
         }
 
 
-        return super.mergeSchema(Lists.newArrayList(main),null);
+        return super.mergeSchema(Lists.newArrayList(main),null, options);
     }
 
     private Schema merge(Map<String, Schema> schemaMap, MergeTableProperties mergeProperty, Schema main, Set<String> inlineF) {
@@ -111,7 +111,7 @@ public class MergeTableNode extends ProcessorNode {
             }
         }
 
-        main = super.mergeSchema(Lists.newArrayList(main), schema1);
+        main = super.mergeSchema(Lists.newArrayList(main), schema1, null);
 
         List<MergeTableProperties> children = mergeProperty.getChildren();
         if (CollectionUtils.isNotEmpty(children)) {

@@ -29,6 +29,8 @@ import com.tapdata.tm.inspect.dto.InspectDto;
 import com.tapdata.tm.inspect.dto.InspectResultDto;
 import com.tapdata.tm.inspect.entity.InspectEntity;
 import com.tapdata.tm.inspect.repository.InspectRepository;
+import com.tapdata.tm.inspect.vo.InspectDetailVo;
+import com.tapdata.tm.inspect.vo.InspectListVo;
 import com.tapdata.tm.message.constant.Level;
 import com.tapdata.tm.message.constant.MsgTypeEnum;
 import com.tapdata.tm.message.service.MessageService;
@@ -251,6 +253,9 @@ public class InspectService extends BaseService<InspectDto, InspectEntity, Objec
         if (CollectionUtils.isNotEmpty(inspectDtoList)) {
             joinResult(inspectDtoList);
         }
+
+//        List<InspectListVo> inspectListVoList = com.tapdata.tm.utils.BeanUtil.deepCloneList(inspectDtoList, InspectListVo.class);
+//        page.setItems(inspectListVoList);
         return page;
     }
 
@@ -269,6 +274,7 @@ public class InspectService extends BaseService<InspectDto, InspectEntity, Objec
             inspectDto.setInspectResult(resultDtos.get(0));
             inspectDto.setDifferenceNumber(pair.getKey());
         }
+        InspectDetailVo inspectDetailVo = BeanUtil.copyProperties(inspectDto, InspectDetailVo.class);
         return inspectDto;
     }
 
@@ -292,6 +298,16 @@ public class InspectService extends BaseService<InspectDto, InspectEntity, Objec
 
         workerService.scheduleTaskToEngine(inspectDto, user);
 
+      /*  if (Mode.MANUAL.getValue().equals(inspectDto.getMode())){
+            inspectDto.setStatus(InspectStatusEnum.SCHEDULING.getValue());
+        }
+        else {
+            inspectDto.setStatus(InspectStatusEnum.WAITING.getValue());
+        }*/
+        Date now = new Date();
+        //保存的时候，直接把ping_time 保存为当前时间
+        inspectDto.setPing_time(now.getTime());
+        inspectDto.setLastStartTime(now.getTime());
 
         super.save(inspectDto, user);
 
@@ -397,6 +413,12 @@ public class InspectService extends BaseService<InspectDto, InspectEntity, Objec
         ObjectId objectId = MongoUtils.toObjectId(id);
         inspectDto = findById(objectId);
 
+        InspectStatusEnum inspectStatus = InspectStatusEnum.of(inspectDto.getStatus());
+        if (inspectStatus == InspectStatusEnum.RUNNING ||
+                inspectStatus == InspectStatusEnum.SCHEDULING || inspectStatus == InspectStatusEnum.WAITING) {
+            throw new BizException("Inspect.Start.Failed", (inspectStatus == InspectStatusEnum.RUNNING ? "" : "等待") + "运行中的任务不能再次启动");
+        }
+
         inspectDto.setStatus(InspectStatusEnum.SCHEDULING.getValue());
 
         if (StringUtils.isNotEmpty(updateDto.getByFirstCheckId())) {
@@ -417,6 +439,29 @@ public class InspectService extends BaseService<InspectDto, InspectEntity, Objec
         String agentId = inspectDto.getAgentId();
         where.put("id", objectId);
         updateByWhere(where, inspectDto, user);
+
+        inspectDto.setInspectResultId(updateDto.getInspectResultId());
+        inspectDto.setTaskIds(updateDto.getTaskIds());
+
+        if (!StringUtils.isEmpty(inspectDto.getInspectResultId())) { // 重新执行校验
+            List<String> taskIds = inspectDto.getTaskIds();
+            if (taskIds == null || taskIds.size() == 0) {
+                InspectResultDto inspectResult = inspectResultService.findById(new ObjectId(inspectDto.getInspectResultId()));
+                taskIds = inspectResult.getStats().stream().filter(stats -> "failed".equals(stats.getResult()))
+                        .map(Stats::getTaskId).collect(Collectors.toList());
+            }
+            List<String> finalTaskIds = taskIds;
+            List<Task> newTasks = inspectDto.getTasks().stream().filter(task -> finalTaskIds.contains(task.getTaskId()))
+                    .collect(Collectors.toList());
+            inspectDto.setTasks(newTasks);
+
+            long result = inspectDetailsService.deleteAll(Query.query(
+                    Criteria.where("inspect_id").is(id)
+                            .and("taskId").in(finalTaskIds)
+                            .and("inspectResultId").is(inspectDto.getInspectResultId())));
+            log.info("Remove inspect details before restart inspect task (inspectId={}, inspectResultId={}, taskId=[{}]), delete {} records.",
+                    id, inspectDto.getInspectResultId(), String.join(",", finalTaskIds), result);
+        }
 
         startInspectTask(inspectDto, agentId);
         return inspectDto;

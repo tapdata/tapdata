@@ -1,0 +1,34 @@
+spring:
+    profiles:
+        active: '@profile.active@'
+        include: '@env.PRODUCT@,default'
+
+    data:
+        mongodb:
+            #uri: 'mongodb://root:Gotapd8+@dds-2ze990d6029d16e41298-pub.mongodb.rds.aliyuncs.com:3717,dds-2ze990d6029d16e42455-pub.mongodb.rds.aliyuncs.com:3717/dfsTcmprod?replicaSet=mgset-49010163&authSource=admin'
+            uri: 'mongodb://root:Gotapd8%2B@dds-2ze990d6029d16e41158.mongodb.rds.aliyuncs.com:3717,dds-2ze990d6029d16e42796.mongodb.rds.aliyuncs.com:3717/dfsTm?replicaSet=mgset-49010163&authSource=admin'
+            cursorBatchSize: 1000
+    elasticsearch:
+        rest:
+            uris: http://172.19.137.196:9200,http://172.19.137.194:9200,http://172.19.137.195:9200
+
+tcm:
+    url: http://172.19.137.193:30103
+
+logWareHouse: elasticsearch
+
+task:
+    log:
+        expireDay: 7
+        cron: "0 0 0 * * ?"
+
+management:
+    server:
+        port: 34567
+    endpoints:
+        web:
+            exposure:
+                include: prometheus
+    metrics:
+        tags:
+            application: tm-java

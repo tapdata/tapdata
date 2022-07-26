@@ -917,4 +917,8 @@ public class DAGDataServiceImpl implements DAGDataService {
     public List<MetadataTransformerDto> getUpsertTransformer() {
         return upsertTransformer;
     }
+
+    public MetadataInstancesDto getMetadata(String qualifiedName) {
+        return metadataMap.get(qualifiedName);
+    }
 }

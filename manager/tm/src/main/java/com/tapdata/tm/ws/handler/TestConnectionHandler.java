@@ -12,6 +12,7 @@ import com.tapdata.tm.base.dto.Field;
 import com.tapdata.tm.commons.base.dto.SchedulableDto;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
 import com.tapdata.tm.config.security.UserDetail;
+import com.tapdata.tm.commons.schema.DataSourceEnum;
 import com.tapdata.tm.ds.service.impl.DataSourceService;
 import com.tapdata.tm.messagequeue.dto.MessageQueueDto;
 import com.tapdata.tm.messagequeue.service.MessageQueueService;
@@ -24,6 +25,7 @@ import com.tapdata.tm.worker.service.WorkerService;
 import com.tapdata.tm.ws.annotation.WebSocketMessageHandler;
 import com.tapdata.tm.ws.dto.MessageInfo;
 import com.tapdata.tm.ws.dto.WebSocketContext;
+import com.tapdata.tm.ws.dto.WebSocketResult;
 import com.tapdata.tm.ws.endpoint.WebSocketManager;
 import com.tapdata.tm.ws.enums.MessageType;
 import java.net.URLEncoder;
@@ -59,7 +61,7 @@ public class TestConnectionHandler implements WebSocketHandler {
 		messageInfo.setType("pipe");
 		String userId = context.getUserId();
 		if (StringUtils.isBlank(userId)){
-			WebSocketManager.sendMessage(context.getSender(), "UserId is blank");
+			WebSocketManager.sendMessage(context.getSender(), WebSocketResult.fail("UserId is blank"));
 			return;
 		}
 		Map<String, Object> data = messageInfo.getData();
@@ -100,7 +102,7 @@ public class TestConnectionHandler implements WebSocketHandler {
 
 			UserDetail userDetail = userService.loadUserById(toObjectId(userId));
 			if (userDetail == null){
-				WebSocketManager.sendMessage(context.getSender(), "UserDetail is null");
+				WebSocketManager.sendMessage(context.getSender(), WebSocketResult.fail("UserDetail is null"));
 				return;
 			}
 //		List<Worker> workers = workerService.findAvailableAgent(userDetail.getUserId());
@@ -113,18 +115,20 @@ public class TestConnectionHandler implements WebSocketHandler {
 			String receiver = schedulableDto.getAgentId();
 			if (StringUtils.isBlank(receiver)){
 				log.warn("Receiver is blank,context: {}", JsonUtil.toJson(context));
-				data.put("status", "error");
-				data.put("msg", "Worker not found,receiver is blank");
-				sendMessage(context.getSender(), context);
-				return;
-			}
-			handleData(receiver, context);
+	//			data.put("status", "error");
+	//			data.put("msg", "Worker not found,receiver is blank");
+	//			sendMessage(context.getSender(), context);
+				WebSocketManager.sendMessage(context.getSender(), WebSocketResult.fail("Worker not found,receiver is blank"));
+			return;
 		}
-		private void handleData(String receiver, WebSocketContext context) {
-			Map<String, Object> data = context.getMessageInfo().getData();
-			String database_type = MapUtils.getAsString(data, "database_type");
-			String database_uri = MapUtils.getAsString(data, "database_uri");
-			boolean containsDatabaseType = Arrays.asList("mongodb", "gridfs").contains(database_type);
+		handleData(receiver, context);
+	}
+
+	private void handleData(String receiver, WebSocketContext context) {
+		Map<String, Object> data = context.getMessageInfo().getData();
+		String database_type = MapUtils.getAsString(data, "database_type");
+		String database_uri = MapUtils.getAsString(data, "database_uri");
+		boolean containsDatabaseType = DataSourceEnum.isMongoDB(database_type) || DataSourceEnum.isGridFs(database_type);
 			if (containsDatabaseType && StringUtils.isNotBlank(database_uri)){
 			sendMessage(receiver, context);
 			return;
@@ -149,10 +153,10 @@ public class TestConnectionHandler implements WebSocketHandler {
 
 					sendMessage(receiver, context);
 				} else {
-					if (StringUtils.isNotBlank(database_username) && StringUtils.isBlank(plain_password)) {
+					if (StringUtils.isBlank(plain_password)) {
 						// 由于脱敏，如果是编辑，前端不会传回来密码，使用从中间库查出来的密码
 						data.put("database_password", connectionDto.getDatabase_password());
-					} else if (StringUtils.isNotBlank(database_username) && StringUtils.isNotBlank(plain_password)) {
+					} else if (StringUtils.isNotBlank(plain_password)) {
 						data.put("database_password", AES256Util.Aes256Encode(plain_password));
 						data.remove("plain_password");
 					}
@@ -197,7 +201,7 @@ public class TestConnectionHandler implements WebSocketHandler {
 		String uri = "";
 
 		String database_type = MapUtils.getAsString(data, "database_type");
-		if ("mongodb".equals(database_type)) {
+		if (DataSourceEnum.isMongoDB(database_type)) {
 			uri = MONGODB_URI_PREFIX;
 			String database_username = MapUtils.getAsString(data, "database_username");
 			String database_password = MapUtils.getAsString(data, "database_password");

@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Test SLB</title>
+</head>
+<body>
+
+<div style="width: 100px; margin: 100px auto 10px;">
+    <button name="send">发送消息</button>
+    <div id="message-container"></div>
+</div>
+
+
+<script type="text/javascript" src="./ws.js"></script>
+<script type="text/javascript">
+    (function() {
+        const msgBox = document.getElementById('message-container');
+        const ws = new WS();
+        ws.connect(`${location.protocol === 'https:' ? 'wss': 'ws'}://${location.host}/ws/agent`);
+        ws.on('message', function(msg) {
+            msgBox.innerText = typeof msg === 'object' ? JSON.stringify(msg) : msg;
+        });
+
+        document.getElementsByName('send')[0].addEventListener('click', function() {
+            ws.send(new Date().getTime() + '')
+        });
+    })();
+</script>
+
+</body>
+</html>

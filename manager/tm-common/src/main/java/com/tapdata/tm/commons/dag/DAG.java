@@ -1,8 +1,15 @@
 package com.tapdata.tm.commons.dag;
 
+import com.google.common.collect.ImmutableList;
+import com.tapdata.tm.commons.dag.vo.CustomTypeMapping;
 import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
+import com.tapdata.tm.commons.dag.process.TableRenameProcessNode;
 import com.tapdata.tm.commons.dag.vo.SyncObjects;
+import com.tapdata.tm.commons.dag.vo.TableRenameTableInfo;
+import com.tapdata.tm.commons.schema.MetadataInstancesDto;
+import com.tapdata.tm.commons.schema.Schema;
 import com.tapdata.tm.commons.task.dto.Dag;
 import com.tapdata.tm.commons.task.dto.Message;
 import com.tapdata.tm.commons.task.dto.SubTaskDto;
@@ -13,6 +20,7 @@ import lombok.Data;
 import lombok.Getter;
 import lombok.Setter;
 import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.lang3.math.NumberUtils;
 import org.bson.types.ObjectId;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -25,6 +33,7 @@ import java.io.Serializable;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -47,6 +56,10 @@ public class DAG implements Serializable {
     @Getter
     @Setter
     private ObjectId taskId;
+
+    @Setter
+    @Getter
+    private String syncType;
 
     /**
      * DAG owner id
@@ -386,6 +399,61 @@ public class DAG implements Serializable {
                     .filter(Objects::nonNull)
                     .forEach(node -> node.setService(dagDataService));
         }
+
+
+
+
+        if (dagDataService instanceof DAGDataServiceImpl) {
+
+            addNodeEventListener(new Node.EventListener<Object>() {
+                final Map<String, List<SchemaTransformerResult>> results = new HashMap<>();
+                final Map<String, List<SchemaTransformerResult>> lastBatchResults = new HashMap<>();
+                @Override
+                public void onTransfer(List<Object> inputSchemaList, Object schema, Object outputSchema, String nodeId) {
+                    List<SchemaTransformerResult> schemaTransformerResults = results.get(nodeId);
+                    if (schemaTransformerResults == null) {
+                        return;
+                    }
+                    List<Schema> outputSchemaList;
+                    if (outputSchema instanceof List) {
+                        outputSchemaList = (List) outputSchema;
+
+                    } else {
+                        Schema outputSchema1 = (Schema) outputSchema;
+                        outputSchemaList = Lists.newArrayList(outputSchema1);
+                    }
+
+                    List<MetadataInstancesDto> all = outputSchemaList.stream().map(s ->  ((DAGDataServiceImpl) dagDataService).getMetadata(s.getQualifiedName())).collect(Collectors.toList());
+                    Map<String, MetadataInstancesDto> metaMaps = all.stream().collect(Collectors.toMap(MetadataInstancesDto::getQualifiedName, m -> m, (m1, m2) -> m1));
+                    for (SchemaTransformerResult schemaTransformerResult : schemaTransformerResults) {
+                        if (Objects.isNull(schemaTransformerResult)) {
+                            continue;
+                        }
+                        MetadataInstancesDto metadataInstancesEntity = metaMaps.get(schemaTransformerResult.getSinkQulifiedName());
+                        if (metadataInstancesEntity != null && metadataInstancesEntity.getId() != null) {
+                            schemaTransformerResult.setSinkTableId(metadataInstancesEntity.getId().toHexString());
+                        }
+                    }
+                }
+
+                @Override
+                public void schemaTransformResult(String nodeId, Node node, List<SchemaTransformerResult> schemaTransformerResults) {
+                    List<SchemaTransformerResult> results1 = results.get(nodeId);
+                    if (CollectionUtils.isNotEmpty(results1)) {
+                        results1.addAll(schemaTransformerResults);
+                    } else {
+                        results.put(nodeId, schemaTransformerResults);
+                    }
+                    lastBatchResults.put(nodeId, schemaTransformerResults);
+                }
+
+                @Override
+                public List<SchemaTransformerResult> getSchemaTransformResult(String nodeId) {
+                    return lastBatchResults.get(nodeId);
+                }
+            });
+        }
+
         if (taskId != null && dagDataService != null) {
             AtomicInteger finishedTransferCount = new AtomicInteger(0);
             int total = graph.getNodes().size();
@@ -398,7 +466,7 @@ public class DAG implements Serializable {
                 }
 
                 @Override
-                public void schemaTransformResult(String nodeId, List<SchemaTransformerResult> schemaTransformerResults) {
+                public void schemaTransformResult(String nodeId, Node node, List<SchemaTransformerResult> schemaTransformerResults) {
 
                 }
 
@@ -423,6 +491,14 @@ public class DAG implements Serializable {
         }
         logger.debug("Transform schema cost {}ms", System.currentTimeMillis() - start);
         return new HashMap<>();
+    }
+
+    /**
+     * 获取所有源节点
+     * @return
+     */
+    public List<Node> getSourceNodes() {
+        return graph.getSources().stream().map(graph::getNode).collect(Collectors.toList());
     }
 
     private void clearTransFlag(Node node) {
@@ -517,6 +593,61 @@ public class DAG implements Serializable {
 
     public Node getNode(String nodeId) {
         return graph.getNode(nodeId);
+    }
+
+    /**
+     * get pre all node, only migrate task use
+     * @param nodeId
+     * @return
+     */
+    public LinkedList<Node> getPreNodes(String nodeId) {
+        return nodeMap().get(nodeId);
+    }
+
+    /**
+     * get nodeMap only migrate task use
+     * @return
+     */
+    public Map<String, LinkedList<Node>> nodeMap() {
+        Map<String, LinkedList<Node>> nodeMap = Maps.newHashMap();
+
+        Collection<io.github.openlg.graphlib.Edge> edges = graph.getEdges();
+
+        // inspect edges order
+        List<String> sourceList = edges.stream().map(io.github.openlg.graphlib.Edge::getSource).collect(Collectors.toList());
+        List<String> targetList = edges.stream().map(io.github.openlg.graphlib.Edge::getTarget).collect(Collectors.toList());
+
+        List<String> firstSourceList = sourceList.stream().filter(s -> !targetList.contains(s)).collect(Collectors.toList());
+        if (firstSourceList.size() != NumberUtils.INTEGER_ONE) {
+            return nodeMap;
+        }
+        // get order correct edge
+        LinkedList<io.github.openlg.graphlib.Edge> edgeLinkedList = Lists.newLinkedList();
+        Map<String, io.github.openlg.graphlib.Edge> sourceMap = edges.stream().collect(Collectors.toMap(io.github.openlg.graphlib.Edge::getSource, Function.identity()));
+        String temp = firstSourceList.get(0);
+        for (int i = 0; i < edges.size(); i++) {
+            io.github.openlg.graphlib.Edge edge = sourceMap.get(temp);
+            edgeLinkedList.add(edge);
+            temp = edge.getTarget();
+        }
+
+        edgeLinkedList.forEach(edge -> {
+            String source = edge.getSource();
+            String target = edge.getTarget();
+
+            if (!nodeMap.containsKey(target)) {
+                Node sourceNode = this.getNode(source);
+                LinkedList<Node> pre = nodeMap.get(source);
+                if (Objects.nonNull(pre)) {
+                    ImmutableList<Node> copyList = ImmutableList.copyOf(pre);
+                    nodeMap.put(target, new LinkedList<Node>(){{addAll(copyList);add(sourceNode);}});
+                } else {
+                    nodeMap.put(target, new LinkedList<Node>(){{add(sourceNode);}});
+                }
+            }
+        });
+
+        return nodeMap;
     }
 
 
@@ -675,10 +806,10 @@ public class DAG implements Serializable {
                 }
 
                 @Override
-                public void schemaTransformResult(String nodeId, List<SchemaTransformerResult> schemaTransformerResults) {
+                public void schemaTransformResult(String nodeId,Node node, List<SchemaTransformerResult> schemaTransformerResults) {
                     nodeEventListeners.forEach(nodeEventListener -> {
                         try {
-                            nodeEventListener.schemaTransformResult(nodeId, schemaTransformerResults);
+                            nodeEventListener.schemaTransformResult(nodeId, node, schemaTransformerResults);
                         } catch (Exception e) {
                             logger.error("Trigger transfer listener failed", e);
                         }
@@ -736,6 +867,26 @@ public class DAG implements Serializable {
         return false;
     }
 
+    public LinkedList<DatabaseNode> getSourceNode() {
+        return graph.getNodes()
+                .stream()
+                .map(id -> (Node)graph.getNode(id))
+                .collect(Collectors.toList())
+                .stream()
+                .filter(node -> node instanceof DatabaseNode && graph.getSources().contains(node.getId()))
+                .map(node -> (DatabaseNode) node).collect(Collectors.toCollection(LinkedList::new));
+    }
+
+    public LinkedList<DatabaseNode> getTargetNode() {
+        return graph.getNodes()
+                .stream()
+                .map(id -> (Node)graph.getNode(id))
+                .collect(Collectors.toList())
+                .stream()
+                .filter(node -> node instanceof DatabaseNode && graph.getSinks().contains(node.getId()))
+                .map(node -> (DatabaseNode) node).collect(Collectors.toCollection(LinkedList::new));
+    }
+
     @Data
     @AllArgsConstructor
     public static class SubTaskStatus {
@@ -759,6 +910,9 @@ public class DAG implements Serializable {
     @AllArgsConstructor
     public static class Options {
 
+        public Options() {
+        }
+
         public Options(String rollback, String rollbackTable) {
             this.rollback = rollback;
             this.rollbackTable = rollbackTable;
@@ -766,11 +920,18 @@ public class DAG implements Serializable {
 
         private String rollback; //: "table"/"all"
         private String rollbackTable; //: "Leon_CAR_CUSTOMER";
+        private List<CustomTypeMapping> customTypeMappings;
+        private String fieldsNameTransform;
         private List<String> includes; //: "Leon_CAR_CUSTOMER";
         private int batchNum;
         private String uuid;
 
         private String syncType;
 
+        public Options(String rollback, String rollbackTable, List<CustomTypeMapping> customTypeMappings) {
+            this.rollback = rollback;
+            this.rollbackTable = rollbackTable;
+            this.customTypeMappings = customTypeMappings;
+        }
     }
 }

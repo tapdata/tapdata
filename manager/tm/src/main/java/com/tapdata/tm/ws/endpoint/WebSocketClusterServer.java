@@ -17,9 +17,11 @@ import com.tapdata.tm.cluster.service.ClusterStateService;
 import com.tapdata.tm.clusterOperation.service.ClusterOperationService;
 import com.tapdata.tm.log.dto.LogDto;
 import com.tapdata.tm.log.service.LogService;
+import com.tapdata.tm.tcm.service.TcmService;
 import com.tapdata.tm.utils.MD5Util;
 import com.tapdata.tm.utils.MapUtils;
 import com.tapdata.tm.worker.service.WorkerService;
+import com.tapdata.tm.ws.dto.WebSocketResult;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.Setter;
@@ -47,6 +49,7 @@ import java.util.stream.Collectors;
 public class WebSocketClusterServer extends TextWebSocketHandler {
 
     public static final Map<String, AgentInfo> agentMap = new ConcurrentHashMap<>();
+    private static final Map<String, WebSocketSession> webSocketSessionCache = new ConcurrentHashMap<>();
 
     @Autowired
     ClusterOperationService clusterOperationService;
@@ -61,6 +64,9 @@ public class WebSocketClusterServer extends TextWebSocketHandler {
     @Autowired
     LogService logService;
 
+    @Autowired
+    TcmService tcmService;
+
 
     /**
      * 握手后建立成功
@@ -68,6 +74,7 @@ public class WebSocketClusterServer extends TextWebSocketHandler {
     @Override
     public void afterConnectionEstablished(WebSocketSession session) {
         log.info("WebSocketClusterServer  afterConnectionEstablished sessionId:{}, sessionUri :{}   ", session.getId(), session.getUri());
+        webSocketSessionCache.put(session.getId(), session);
     }
 
     /**
@@ -84,6 +91,15 @@ public class WebSocketClusterServer extends TextWebSocketHandler {
     @Override
     public void afterConnectionClosed(WebSocketSession session, CloseStatus status) {
         log.error("WebSocket close about cluster,id: {},uri: {},closeStatus: {}", session.getId(), session.getUri(), status);
+        WebSocketSession wsSession = webSocketSessionCache.remove(session.getId());
+        if (wsSession != null) {
+            for (String uuid : agentMap.keySet() ) {
+                if (agentMap.get(uuid).session == wsSession) {
+                    agentMap.remove(uuid);
+                    break;
+                }
+            }
+        }
     }
 
     public static void sendMessage(String uuid, String message) throws IOException {
@@ -130,7 +146,14 @@ public class WebSocketClusterServer extends TextWebSocketHandler {
                     String uuid = MapUtils.getAsStringByPath(map, "/data/systemInfo/uuid");
                     log.info("statusInfo put uuid  :{}",uuid);
                     if (StringUtils.isNotBlank(uuid)) {
-                        agentMap.put(uuid, new AgentInfo(uuid, session, ttl));
+                        //根据uuid 报错session，以便可以发对uuid对应的session去
+                        //为什么要不断往后退ttl
+                        AgentInfo agentInfo = agentMap.get(uuid);
+                        if (agentInfo != null) {
+                            agentInfo.ttl = ttl;
+                        } else {
+                            agentMap.put(uuid, new AgentInfo(uuid, session, ttl));
+                        }
                     }
                     clusterStateService.statusInfo(map);
                     break;
@@ -159,6 +182,12 @@ public class WebSocketClusterServer extends TextWebSocketHandler {
                 case "updateWorkerPingTime":
                     updateWorkerPingTime(map);
                     break;
+                case "checkTapdataAgentVersion": // 获取tapdataAgent版本是否支持
+                    checkTapdataAgentVersion(map, session);
+                    break;
+                case "downloadUrl": //  获取engine的downloadUrl
+                    getLatestDownloadUrl(session);
+                    break;
                 default:
                     session.sendMessage(new TextMessage("Type is not supported"));
                     break;
@@ -168,9 +197,36 @@ public class WebSocketClusterServer extends TextWebSocketHandler {
             log.error("Handle message failed,message: {}", e.getMessage(), e);
             try {
                 session.sendMessage(new TextMessage("Handle message failed,message:" + e.getMessage()));
-            } catch (Exception ignored) {
-                log.error("Websocket send message failed,message: {}", e.getMessage(), e);
+            } catch (Exception ex) {
+                log.error("Websocket send message failed,message: {}", ex.getMessage(), ex);
             }
+        }
+    }
+
+    private void getLatestDownloadUrl(WebSocketSession session) {
+        WebSocketResult webSocketResult = WebSocketResult.ok(tcmService.getDownloadUrl(), "downloadUrl");
+        try {
+            session.sendMessage(new TextMessage(JsonUtil.toJson(webSocketResult)));
+        } catch (Exception e) {
+            log.error("Websocket send message failed,message: {}", e.getMessage(), e);
+        }
+    }
+
+    private void checkTapdataAgentVersion(Map map, WebSocketSession session) {
+        Object data = map.get("data");
+        Object versionInfo = null;
+        if (data instanceof Map){
+            Object version = ((Map) data).get("version");
+            if (version != null){
+                versionInfo = tcmService.getVersionInfo(version.toString());
+            }
+        }
+        WebSocketResult webSocketResult = WebSocketResult.ok(versionInfo, "checkTapdataAgentVersion");
+
+        try {
+            session.sendMessage(new TextMessage(JsonUtil.toJson(webSocketResult)));
+        } catch (Exception e) {
+            log.error("Websocket send message failed,message: {}", e.getMessage(), e);
         }
     }
 

@@ -18,12 +18,20 @@ import com.tapdata.tm.commons.dag.logCollector.LogCollectorNode;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.dag.process.MergeTableNode;
+import com.tapdata.tm.commons.dag.process.MigrateFieldRenameProcessorNode;
 import com.tapdata.tm.commons.dag.process.ProcessorNode;
+import com.tapdata.tm.commons.dag.process.TableRenameProcessNode;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
+import com.tapdata.tm.commons.schema.DataSourceDefinitionDto;
+import com.tapdata.tm.commons.schema.Field;
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;
+import com.tapdata.tm.commons.schema.bean.Schema;
+import com.tapdata.tm.commons.schema.bean.SourceDto;
+import com.tapdata.tm.commons.schema.bean.Table;
 import com.tapdata.tm.commons.task.dto.MergeTableProperties;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.util.MetaDataBuilderUtils;
+import com.tapdata.tm.commons.util.MetaType;
 import com.tapdata.tm.commons.util.PdkSchemaConvert;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.dag.service.DAGService;
@@ -53,6 +61,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
+import org.bson.Document;
 import org.bson.types.ObjectId;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -84,6 +93,9 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
     private TaskService taskService;
 
     private DAGService dagService;
+
+
+    private MetaDataHistoryService metaDataHistoryService;
 
     public MetadataInstancesDto add(MetadataInstancesDto record, UserDetail user) {
         return save(record, user);
@@ -659,6 +671,46 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
         return findByQualifiedName(qualified_name, user);
     }
 
+    public MetadataInstancesDto findBySourceIdAndTableName(String sourceId, String tableName, UserDetail userDetail) {
+        Criteria criteria = Criteria
+                .where("meta_type").in("table", "collection", "view")
+                .and("original_name").is(tableName)
+                .and("is_deleted").ne(true)
+                .and("source._id").is(sourceId);
+
+        return findOne(Query.query(criteria), userDetail);
+    }
+
+    public List<MetadataInstancesDto> findBySourceIdAndTableNameList(String sourceId, List<String> tableNames, UserDetail userDetail) {
+        Criteria criteria = Criteria
+                .where("meta_type").in(Lists.of("table", "collection", "view"))
+                .and("is_deleted").ne(true)
+                .and("source._id").is(sourceId);
+
+        if (CollectionUtils.isNotEmpty(tableNames)) {
+            criteria.and("original_name").in(tableNames);
+        }
+
+        return findAllDto(Query.query(criteria), userDetail);
+    }
+
+    public List<MetadataInstancesEntity> findEntityBySourceIdAndTableNameList(String sourceId, List<String> tableNames, UserDetail userDetail) {
+        Criteria criteria = Criteria
+                .where("meta_type").in(Lists.of("table", "collection", "view"))
+                .and("is_deleted").ne(true)
+                .and("source._id").is(sourceId);
+
+        if (CollectionUtils.isNotEmpty(tableNames)) {
+            criteria.and("original_name").in(tableNames);
+        }
+
+        return findAll(Query.query(criteria), userDetail);
+    }
+
+    public Update buildUpdateSet(MetadataInstancesEntity entity) {
+        return repository.buildUpdateSet(entity);
+    }
+
     public List<MetadataInstancesDto> findByQualifiedName(String qualifiedName, UserDetail user) {
         Where where = new Where().and("qualified_name", qualifiedName);
         return findAll(where, user);
@@ -670,6 +722,15 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
         Query query = new Query(criteria);
         return findOne(query, user);
     }
+
+    public List<MetadataInstancesDto> findByQualifiedNameList(List<String> qualifiedNames) {
+        Criteria criteria = Criteria.where("qualified_name").in(qualifiedNames).and("is_deleted").ne(true);
+
+        Query query = new Query(criteria);
+        return findAll(query);
+    }
+
+
 
     public List<MetadataInstancesDto> findByQualifiedNameNotDelete(List<String> qualifiedNames, UserDetail user, String... fieldName) {
         Criteria criteria = Criteria.where("qualified_name").in(qualifiedNames).and("is_deleted").ne(true);
@@ -686,7 +747,9 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
     }
 
     public int bulkSave(List<MetadataInstancesDto> metadataInstancesDtos,
+                        MetadataInstancesDto dataSourceMetadataInstance,
                         DataSourceConnectionDto dataSourceConnectionDto,
+                        DAG.Options options,
                         UserDetail userDetail,
                         Map<String, MetadataInstancesEntity> existsMetadataInstances) {
 
@@ -711,6 +774,70 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
                 historyModel.setVersionUserId(userDetail.getUserId());
                 historyModel.setVersionUserName(userDetail.getUsername());
                 historyModel.setHistories(null);
+
+                Map<String, Field> existsFieldMap = existsMetadataInstance.getFields().stream()
+                        .collect(Collectors.toMap(Field::getOriginalFieldName, f -> f, (f1, f2) -> f1));
+
+                HashMap<String, Field> fields = new HashMap<>();
+                metadataInstancesDto.getFields().forEach(field -> {
+                    if (existsFieldMap.containsKey(field.getOriginalFieldName())) {
+                        Field existsField = existsFieldMap.get(field.getOriginalFieldName());
+                        field.setId(existsField.getId());
+
+                        boolean isManual = Field.SOURCE_MANUAL.equals(existsField.getSource());
+                        if (isManual) {
+                            field.setDataType(existsField.getDataType());
+                            field.setPrecision(existsField.getPrecision());
+                            field.setScale(existsField.getScale());
+                        }
+                    }
+                    if (StringUtils.isBlank(field.getId())) {
+                        field.setId(new ObjectId().toHexString());
+                    }
+
+                    // Make sure the target model fields do not have the same name
+                    if (!fields.containsKey(field.getFieldName())) {
+                        fields.put(field.getFieldName(), field);
+                    }
+                });
+
+                // 未设置 rollback 时，默认保留用户配置过的字段
+                // rollback = 'all' or (rollback = 'table' and rollbackTable = metadataInstancesDto.getOriginalName()) , 回滚当前表
+                String rollback = options != null ? options.getRollback() : null;
+                String rollbackTable = options != null ? options.getRollbackTable() : null;
+                String fieldsNameTransform = options != null ? options.getFieldsNameTransform() : null;
+                if ("all".equalsIgnoreCase(rollback) ||
+                        ("table".equalsIgnoreCase(rollback) &&
+                                metadataInstancesDto.getOriginalName().equalsIgnoreCase(rollbackTable))) {
+
+                    metadataInstancesDto.getFields().forEach(field -> {
+                        if (existsFieldMap.containsKey(field.getOriginalFieldName())) {
+                            Field existsField = existsFieldMap.get(field.getOriginalFieldName());
+                            /*if ("manual".equalsIgnoreCase(existsField.getSource())
+                                    && existsField.getIsAutoAllowed() != null && !existsField.getIsAutoAllowed()) {*/
+                            String transformDataType = field.getDataType();
+                                BeanUtils.copyProperties(existsField, field);
+                                if ("table".equalsIgnoreCase(rollback) && StringUtils.isNotBlank(fieldsNameTransform)) {
+                                    if ("toUpperCase".equalsIgnoreCase(fieldsNameTransform)) {
+                                        field.setFieldName(field.getOriginalFieldName().toUpperCase());
+                                    } else if("toLowerCase".equalsIgnoreCase(fieldsNameTransform)) {
+                                        field.setFieldName(field.getOriginalFieldName().toLowerCase());
+                                    } else {
+                                        field.setFieldName(field.getOriginalFieldName());
+                                    }
+                                } else {
+                                    field.setFieldName(field.getOriginalFieldName());
+                                }
+                                field.setJavaType(field.getOriginalJavaType());
+                                field.setPrecision(field.getOriPrecision());
+                                field.setDataType(transformDataType); //field.getOriginalDataType());
+                                field.setDeleted(false);
+                            //}
+                            field.setId(existsField.getId());
+                        }
+                    });
+                }
+
                 Update update = new Update();
                 update.set("version", newVersion);
                 ArrayList<MetadataInstancesDto> hisModels = new ArrayList<>();
@@ -722,7 +849,8 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
                 update.set("indices", metadataInstancesDto.getIndices());
                 update.set("is_deleted", false);
                 update.set("createSource", metadataInstancesDto.getCreateSource());
-
+                update.set("original_name", metadataInstancesDto.getOriginalName());
+                update.set("name", metadataInstancesDto.getName());
 
                 Query where = Query.query(Criteria.where("id").is(existsMetadataInstance.getId()));
                 repository.applyUserDetail(where, userDetail);
@@ -740,6 +868,13 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
 
                 //这个操作有可能是插入操作，所以需要校验字段是否又id，如果没有就set id进去
                 beforeSave(metadataInstancesDto, userDetail);
+                if ("vika".equals(dataSourceConnectionDto.getDatabase_type())) {
+                    metadataInstance.setFields(null);
+                    metadataInstance.setMetaType(MetaType.VikaDatasheet.name());
+                } else if ("qingflow".equals(dataSourceConnectionDto.getDatabase_type())) {
+                    metadataInstance.setFields(null);
+                    metadataInstance.setMetaType(MetaType.qingFlowApp.name());
+                }
                 Update update = repository.buildUpdateSet(metadataInstance, userDetail);
                 Query where = Query.query(Criteria.where("qualified_name").is(metadataInstance.getQualifiedName()));
                 repository.applyUserDetail(where, userDetail);
@@ -829,7 +964,7 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
         Criteria criteria = Criteria.where("source._id").is(connectId)
                 .and("sourceType").is(sourceType)
                 .and("is_deleted").is(false)
-                .and("meta_type").in(MetaType.collection.name(), MetaType.table.name());
+                .and("meta_type").in(MetaType.collection.name(), MetaType.table.name(), MetaType.VikaDatasheet.name(), MetaType.qingFlowApp.name());
         Query query = new Query(criteria);
         query.fields().include("original_name");
         List<MetadataInstancesDto> metadataInstancesDtos = findAll(query);

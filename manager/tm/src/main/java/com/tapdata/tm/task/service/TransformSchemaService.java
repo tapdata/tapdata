@@ -120,7 +120,7 @@ public class TransformSchemaService {
             }
 
             @Override
-            public void schemaTransformResult(String nodeId, List<SchemaTransformerResult> schemaTransformerResults) {
+            public void schemaTransformResult(String nodeId, Node node, List<SchemaTransformerResult> schemaTransformerResults) {
                 List<SchemaTransformerResult> results1 = results.get(nodeId);
                 if (CollectionUtils.isNotEmpty(results1)) {
                     results1.addAll(schemaTransformerResults);

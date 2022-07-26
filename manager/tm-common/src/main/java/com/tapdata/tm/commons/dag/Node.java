@@ -114,6 +114,14 @@ public abstract class Node<S> extends Element{
         return graph.predecessors(getId()).stream().map(id -> (Node<S>)graph.getNode(id)).collect(Collectors.toList());
     }
 
+    public LinkedList<Node> getPreNodes(String nodeId) {
+        return getDag().getPreNodes(nodeId);
+    }
+
+    public List<DatabaseNode> getSourceNode() {
+        return getDag().getSourceNode();
+    }
+
     /**
      * 模型推演方法，当前节点的模型会重新计算，并且自动触发后面节点的 transformSchema
      */
@@ -184,7 +192,7 @@ public abstract class Node<S> extends Element{
                     schema1.getFields().removeAll(deleteF);
                 }
             }
-            outputSchema = mergeSchema(inputSchemas, cloneSchema(schema));
+            outputSchema = mergeSchema(inputSchemas, cloneSchema(schema), options);
             mergedSchema = true;  // 进行merge操作，需要执行保存/更新
         } else {
             this.outputSchema = cloneSchema(schema);
@@ -257,7 +265,7 @@ public abstract class Node<S> extends Element{
         });
     }
 
-    public abstract S mergeSchema(List<S> inputSchemas, S s);
+    public abstract S mergeSchema(List<S> inputSchemas, S s, DAG.Options options);
 
     /**
      * 节点加载模型
@@ -295,6 +303,9 @@ public abstract class Node<S> extends Element{
      * @return 修改过的模型，返回 null 不执行保存
      */
     protected S filterChangedSchema(S outputSchema, DAG.Options options) {
+        if (options != null && options.getCustomTypeMappings() != null && options.getCustomTypeMappings().size() > 0) {
+            return outputSchema;
+        }
         return compareSchemaEquals(this.schema, outputSchema) ? null : outputSchema;
     }
 
@@ -394,7 +405,7 @@ public abstract class Node<S> extends Element{
          * @param schemaTransformerResults
          * @param nodeId
          */
-        void schemaTransformResult(String nodeId, List<SchemaTransformerResult> schemaTransformerResults);
+        void schemaTransformResult(String nodeId, Node node, List<SchemaTransformerResult> schemaTransformerResults);
 
         List<SchemaTransformerResult> getSchemaTransformResult(String nodeId);
     }

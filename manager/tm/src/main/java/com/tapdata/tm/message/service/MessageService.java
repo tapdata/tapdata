@@ -56,6 +56,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
@@ -218,6 +219,7 @@ public class MessageService extends BaseService {
      * @param level
      * @param userDetail
      */
+    @Async("NotificationExecutor")
     public void addMigration(String serverName, String sourceId, MsgTypeEnum msgTypeEnum, Level level, UserDetail userDetail) {
         MessageEntity saveMessage = new MessageEntity();
 
@@ -631,6 +633,7 @@ public class MessageService extends BaseService {
      * @return
      */
     @Deprecated
+    @Async("NotificationExecutor")
     public MessageDto add(MessageDto messageDto) {
         try {
             MessageEntity messageEntity = new MessageEntity();

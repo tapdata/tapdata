@@ -55,7 +55,11 @@ public class WorkerController extends BaseController {
     @Operation(summary = "Create a new instance of the model and persist it into the data source")
     @PostMapping("/health")
     public ResponseMessage<WorkerDto> health(@RequestBody WorkerDto worker) {
-        worker.setPingTime(new Date().getTime());
+        // flow-engine will set pingTime to 1 when users ask to stop the flow-engine in DFS， so here we
+        // keep the pingTime value 1
+        if (worker.getPingTime() == null || worker.getPingTime() != 1) {
+            worker.setPingTime(new Date().getTime());
+        }
         return success(workerService.health(worker, getLoginUser()));
     }
 

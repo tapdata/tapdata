@@ -28,6 +28,7 @@ public class UserDto extends BaseDto {
     private String email;
     private Integer role;
     private String phone;
+    private String photo;
     private boolean emailVerified;
     @JsonProperty("emailVerified_from_frontend")
     private Boolean emailVerifiedFromFrontend;
