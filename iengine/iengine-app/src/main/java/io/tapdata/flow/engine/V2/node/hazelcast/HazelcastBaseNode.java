@@ -118,8 +118,7 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 		threadName = String.format(THREAD_NAME_TEMPLATE, processorBaseContext.getSubTaskDto().getId().toHexString(), processorBaseContext.getNode() != null ? processorBaseContext.getNode().getName() : null);
 
 		//如果为迁移任务、且源节点为数据库类型
-		this.multipleTables = CollectionUtils.isNotEmpty(processorBaseContext.getSubTaskDto().getDag().getSourceNode())
-						&& TaskDto.SYNC_TYPE_MIGRATE.equals(processorBaseContext.getSubTaskDto().getParentTask().getSyncType());
+		this.multipleTables = CollectionUtils.isNotEmpty(processorBaseContext.getSubTaskDto().getDag().getSourceNode());
 	}
 	public <T extends DataFunctionAspect<T>> AspectInterceptResult executeDataFuncAspect(Class<T> aspectClass, Callable<T> aspectCallable, Consumer<T> consumer) {
 		return AspectUtils.executeDataFuncAspect(aspectClass, aspectCallable, consumer);

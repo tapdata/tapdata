@@ -196,6 +196,15 @@ public class HazelcastTaskService implements TaskService<SubTaskDto> {
 					throw new NodeException(String.format("Node [id %s, name %s] schema cannot be empty",
 							node.getId(), node.getName()));
 				}
+				if (CollectionUtils.isEmpty(tapTableMap.keySet())
+								&& StringUtils.equalsAnyIgnoreCase(subTaskDto.getParentTask().getSyncType(), TaskDto.SYNC_TYPE_DEDUCE_SCHEMA)) {
+					//模型推演阶段，如果没有模型取上一个节点的模型
+					List<Node> predecessors = node.predecessors();
+					if (predecessors.size() != 1) {
+						throw new IllegalArgumentException("Node [" + node.getId() + "] has more than one predecessor");
+					}
+					tapTableMap = TapTableUtil.getTapTableMapByNodeId(predecessors.get(0).getId(), tmCurrentTime);
+				}
 				if (node.isDataNode()) {
 					String connectionId = null;
 					if (node instanceof DataNode) {
@@ -225,6 +234,7 @@ public class HazelcastTaskService implements TaskService<SubTaskDto> {
 				Connections finalConnection = connection;
 				DatabaseTypeEnum.DatabaseType finalDatabaseType = databaseType;
 
+				TapTableMap<String, TapTable> finalTapTableMap = tapTableMap;
 				Vertex vertex = new Vertex(NodeUtil.getVertexName(node), () -> {
 					try {
 						Log4jUtil.setThreadContext(subTaskDtoAtomicReference.get());
@@ -239,7 +249,7 @@ public class HazelcastTaskService implements TaskService<SubTaskDto> {
 								finalConnection,
 								finalDatabaseType,
 								mergeTableMap,
-								tapTableMap
+								finalTapTableMap
 						);
 					} catch (Exception e) {
 						logger.error("create dag node failed: {}", e.getMessage(), e);
