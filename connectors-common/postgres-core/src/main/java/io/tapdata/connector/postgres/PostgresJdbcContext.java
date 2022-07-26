@@ -61,13 +61,15 @@ public class PostgresJdbcContext extends JdbcContext {
         try {
             query(String.format(PG_ALL_TABLE, getConfig().getDatabase(), getConfig().getSchema(), tableSql),
                     resultSet -> {
-                        String tableName = resultSet.getString("table_name");
-                        if (StringUtils.isBlank(tableName)) {
-                            tableList.add(tableName);
-                        }
-                        if (tableList.size() >= batchSize) {
-                            consumer.accept(tableList);
-                            tableList.clear();
+                        while (resultSet.next()) {
+                            String tableName = resultSet.getString("table_name");
+                            if (StringUtils.isNotBlank(tableName)) {
+                                tableList.add(tableName);
+                            }
+                            if (tableList.size() >= batchSize) {
+                                consumer.accept(tableList);
+                                tableList.clear();
+                            }
                         }
                     });
             if (!tableList.isEmpty()) {
