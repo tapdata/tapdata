@@ -54,7 +54,7 @@ public class HazelcastSampleSourcePdkDataNode extends HazelcastSourcePdkDataNode
       List<String> tables = new ArrayList<>(tapTableMap.keySet());
       int rows = 1;
       if (node instanceof DatabaseNode) {
-        rows = ((DatabaseNode) node).getRows();
+        rows = ((DatabaseNode) node).getRows() == null ? 1 : ((DatabaseNode) node).getRows();
         tables = ((DatabaseNode) node).getTableNames();
       }
 

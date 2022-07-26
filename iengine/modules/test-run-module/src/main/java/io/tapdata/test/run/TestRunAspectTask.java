@@ -76,10 +76,11 @@ public class TestRunAspectTask extends AspectTask {
   public void onStop() {
     ClientMongoOperator clientMongoOperator = BeanUtil.getBean(ClientMongoOperator.class);
     Map<String, Object> paramMap = new HashMap<>();
-    paramMap.put("reqId", task.getId().toHexString());
+    paramMap.put("taskId", task.getParentTask().getId().toHexString());
     paramMap.put("code", "ok");
     paramMap.put("ts", new Date().getTime());
-    paramMap.put("data", resultMap);
+    paramMap.put("before", resultMap.get("before"));
+    paramMap.put("after", resultMap.get("after"));
 
     clientMongoOperator.insertOne(paramMap, "/task/migrate-js/save-result");
 

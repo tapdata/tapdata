@@ -3,6 +3,8 @@ package io.tapdata.websocket.handler;
 import com.tapdata.constant.JSONUtil;
 import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.tm.commons.task.dto.SubTaskDto;
+import io.tapdata.aspect.TaskStopAspect;
+import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.common.SettingService;
 import io.tapdata.flow.engine.V2.task.TaskClient;
 import io.tapdata.flow.engine.V2.task.TaskService;
@@ -42,7 +44,11 @@ public class TestRunTaskHandler implements WebSocketEventHandler<WebSocketEventR
 
 		String taskId = subTaskDto.getId().toHexString();
 		TaskClient<SubTaskDto> taskClient = taskService.startTestTask(subTaskDto);
-		taskClient.join();
+		try {
+			taskClient.join();
+		} finally {
+			AspectUtils.executeAspect(new TaskStopAspect().task(taskClient.getTask()));
+		}
 
 		logger.info("test run task {} {}, cost {}ms", taskId, taskClient.getStatus(), (System.currentTimeMillis() - startTs));
 
