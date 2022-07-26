@@ -6,6 +6,7 @@ import com.tapdata.entity.TapdataEvent;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.DataParentNode;
+import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
@@ -24,6 +25,7 @@ import org.voovan.tools.collection.CacheMap;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 public class HazelcastSampleSourcePdkDataNode extends HazelcastSourcePdkDataNode {
 
@@ -49,9 +51,16 @@ public class HazelcastSampleSourcePdkDataNode extends HazelcastSourcePdkDataNode
       Thread.currentThread().setName("PDK-SAMPLE-SOURCE-RUNNER-" + node.getName() + "(" + node.getId() + ")");
       Log4jUtil.setThreadContext(dataProcessorContext.getSubTaskDto());
       TapTableMap<String, TapTable> tapTableMap = dataProcessorContext.getTapTableMap();
+      List<String> tables = new ArrayList<>(tapTableMap.keySet());
+      int rows = 1;
+      if (node instanceof DatabaseNode) {
+        rows = ((DatabaseNode) node).getRows();
+        tables = ((DatabaseNode) node).getTableNames();
+      }
+
       // 测试任务
       long startTs = System.currentTimeMillis();
-      for (String tableName : tapTableMap.keySet()) {
+      for (String tableName : tables) {
         if (!isRunning()) {
           break;
         }
@@ -63,7 +72,7 @@ public class HazelcastSampleSourcePdkDataNode extends HazelcastSourcePdkDataNode
         if (CollectionUtils.isEmpty(tapEventList)) {
           isCache = false;
           QueryByAdvanceFilterFunction queryByAdvanceFilterFunction = getConnectorNode().getConnectorFunctions().getQueryByAdvanceFilterFunction();
-          TapAdvanceFilter tapAdvanceFilter = TapAdvanceFilter.create().limit(1);
+          TapAdvanceFilter tapAdvanceFilter = TapAdvanceFilter.create().limit(rows);
           PDKInvocationMonitor.invoke(getConnectorNode(), PDKMethod.SOURCE_QUERY_BY_ADVANCE_FILTER,
                   () -> queryByAdvanceFilterFunction.query(getConnectorNode().getConnectorContext(), tapAdvanceFilter, tapTable, filterResults -> {
 

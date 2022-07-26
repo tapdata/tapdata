@@ -6,12 +6,14 @@ import com.tapdata.entity.task.context.ProcessorBaseContext;
 import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.tm.commons.dag.Element;
 import com.tapdata.tm.commons.dag.Node;
+import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.aspect.ProcessorFunctionAspect;
 import io.tapdata.aspect.ProcessorNodeProcessAspect;
 import io.tapdata.aspect.task.AspectTask;
 import io.tapdata.aspect.task.AspectTaskSession;
 import io.tapdata.entity.aspect.Aspect;
 import io.tapdata.entity.aspect.AspectInterceptResult;
+import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.simplify.pretty.ClassHandlers;
 
@@ -19,7 +21,7 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
-@AspectTaskSession(includeTypes = "testRun")
+@AspectTaskSession(includeTypes = TaskDto.SYNC_TYPE_TEST_RUN)
 public class TestRunAspectTask extends AspectTask {
 
   private final ClassHandlers observerClassHandlers = new ClassHandlers();
@@ -28,9 +30,12 @@ public class TestRunAspectTask extends AspectTask {
 
   private final Map<String, List<Map<String, Object>>> resultMap = new ConcurrentHashMap<>();
 
+  public TestRunAspectTask() {
+    observerClassHandlers.register(ProcessorNodeProcessAspect.class, this::processorNodeProcessAspect);
+  }
+
   @Override
   public void onStart() {
-    observerClassHandlers.register(ProcessorNodeProcessAspect.class, this::processorNodeProcessAspect);
     Optional<Node> optional = task.getDag().getNodes().stream().filter(n -> n.getType().equals("virtualTarget")).findFirst();
     optional.ifPresent(node -> this.nodeIds = task.getDag().getPreNodes(node.getId()).stream()
             .map(Element::getId).collect(Collectors.toSet()));
@@ -47,11 +52,13 @@ public class TestRunAspectTask extends AspectTask {
            * {"before":[{}], "after":[{}]}
            */
           resultMap.computeIfAbsent("before", key -> new ArrayList<>()).add(getMap(inputEvent));
-          processAspect.consumer(outputEvent ->
-                  resultMap.computeIfAbsent("after", key -> new ArrayList<>()).add(getMap(outputEvent)));
         }
         break;
-        case ProcessorFunctionAspect.STATE_END:
+      case ProcessorFunctionAspect.STATE_END:
+          if (nodeIds.contains(nodeId)) {
+            processAspect.consumer(outputEvent ->
+                    resultMap.computeIfAbsent("after", key -> new ArrayList<>()).add(getMap(outputEvent)));
+          }
           break;
     }
 
@@ -60,8 +67,9 @@ public class TestRunAspectTask extends AspectTask {
   }
 
   private Map<String, Object> getMap(TapdataEvent tapdataEvent) {
-    if (tapdataEvent.getTapEvent() instanceof TapInsertRecordEvent) {
-      return ((TapInsertRecordEvent) tapdataEvent.getTapEvent()).getAfter();
+    TapEvent tapEvent = (TapEvent) tapdataEvent.getTapEvent().clone();
+    if (tapEvent instanceof TapInsertRecordEvent) {
+      return ((TapInsertRecordEvent) tapEvent).getAfter();
     }
     return new HashMap<>();
   }
