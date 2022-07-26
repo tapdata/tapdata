@@ -135,7 +135,7 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 		tapCodecsRegistry.registerFromTapValue(TapDateTimeValue.class, tapValue -> tapValue.getValue().toInstant());
 		codecsFilterManager = TapCodecsFilterManager.create(tapCodecsRegistry);
 		initSampleCollector();
-		CollectorFactory.getInstance().recordCurrentValueByTag(tags);
+//		CollectorFactory.getInstance().recordCurrentValueByTag(tags);
 
 		doInit(context);
 		if(processorBaseContext instanceof DataProcessorContext) {
