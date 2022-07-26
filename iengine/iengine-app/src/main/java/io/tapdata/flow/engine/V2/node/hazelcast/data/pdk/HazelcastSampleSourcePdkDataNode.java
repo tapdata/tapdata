@@ -103,7 +103,7 @@ public class HazelcastSampleSourcePdkDataNode extends HazelcastSourcePdkDataNode
       }
 
       if (logger.isDebugEnabled()) {
-        logger.info("query sample data complet, cost {}ms", (System.currentTimeMillis() - startTs));
+        logger.debug("query sample data complete, cost {}ms", (System.currentTimeMillis() - startTs));
       }
 
     } catch (Throwable throwable) {
