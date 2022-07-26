@@ -2,8 +2,6 @@ Configuration:
   Name: Default
   Properties:
     Property:
-      - Name: log-path
-        Value: "${env:TAPDATA_WORK_DIR}/logs"
       - Name: level
         Value: INFO
 
@@ -13,23 +11,9 @@ Configuration:
       Target: SYSTEM_OUT
       PatternLayout:
         Pattern: "[%-5level] %d{yyyy-MM-dd HH:mm:ss.SSS} [%t] %c{1} - %msg%n"
-    RollingFile:
-      - Name: rollingFileAppender
-        FileName: ${log-path}/tapdata-iengine.log
-        FilePattern: tapdata-iengine-$${date:yyyyMMdd}.log
-        PatternLayout:
-          Pattern: "[%-5level] %d{yyyy-MM-dd HH:mm:ss.SSS} [%t] %c{1} - %msg%n"
-        Policies:
-          OnStartupTriggeringPolicy:
-            MinSize: 10 MB
-          SizeBasedTriggeringPolicy:
-            Size: 150 MB
-        DefaultRollOverStrategy:
-          Max: 30
 
   Loggers:
     Root:
       Level: ${level}
       AppenderRef:
         - Ref: consoleAppender
-        - Ref: rollingFileAppender
