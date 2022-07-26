@@ -698,6 +698,10 @@ public class MongodbConnector extends ConnectorBase {
 		return mongodbStreamReader;
 	}
 
+	private void getTableNames(TapConnectionContext tapConnectionContext, int batchSize, Consumer<List<String>> listConsumer) throws Throwable {
+		String database = mongoConfig.getDatabase();
+	}
+
 	@Override
 	public void onStop(TapConnectionContext connectionContext) throws Throwable {
 //        if (mongoClient != null) {

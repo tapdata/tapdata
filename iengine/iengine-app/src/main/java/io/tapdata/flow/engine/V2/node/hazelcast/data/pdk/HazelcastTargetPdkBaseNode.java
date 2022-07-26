@@ -7,9 +7,12 @@ import com.tapdata.constant.JSONUtil;
 import com.tapdata.constant.Log4jUtil;
 import com.tapdata.constant.MilestoneUtil;
 import com.tapdata.entity.*;
+import com.tapdata.entity.dataflow.Capitalized;
 import com.tapdata.entity.dataflow.SyncProgress;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.tm.commons.dag.Node;
+import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
+import com.tapdata.tm.commons.dag.vo.SyncObjects;
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.commons.schema.TransformerWsMessageResult;
 import com.tapdata.tm.commons.task.dto.MergeTableProperties;
@@ -20,6 +23,7 @@ import io.tapdata.common.sample.sampler.ResetCounterSampler;
 import io.tapdata.common.sample.sampler.SpeedSampler;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.ddl.TapDDLEvent;
+import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.flow.engine.V2.util.PdkUtil;
@@ -37,6 +41,7 @@ import org.jetbrains.annotations.NotNull;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -70,7 +75,9 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 	protected SpeedSampler inputQPS;
 	protected AverageSampler timeCostAvg;
 	protected AtomicBoolean uploadDagService;
-	private Map<String, MetadataInstancesDto> uploadMetadata;
+	private List<MetadataInstancesDto> insertMetadata;
+	private Map<String, MetadataInstancesDto> updateMetadata;
+	private List<String> removeMetadata;
 
 	public HazelcastTargetPdkBaseNode(DataProcessorContext dataProcessorContext) {
 		super(dataProcessorContext);
@@ -125,7 +132,31 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 			throw new RuntimeException(e);
 		}
 		this.uploadDagService = new AtomicBoolean(false);
-		this.uploadMetadata = new ConcurrentHashMap<>();
+		this.insertMetadata = new CopyOnWriteArrayList<>();
+		this.updateMetadata = new ConcurrentHashMap<>();
+		this.removeMetadata = new CopyOnWriteArrayList<>();
+	}
+
+	protected void initDatabaseTableNameMap(DatabaseNode node) {
+		tableNameMap = new HashMap<>();
+		List<String> tableNames = null;
+		List<SyncObjects> syncObjects = node.getSyncObjects();
+		SyncObjects tableObjects = syncObjects.stream().filter(s -> s.getType().equals(com.tapdata.entity.dataflow.SyncObjects.TABLE_TYPE)).findFirst().orElse(null);
+		if (null != tableObjects) {
+			tableNames = new ArrayList<>(tableObjects.getObjectNames());
+		}
+		if (CollectionUtils.isEmpty(tableNames))
+			throw new RuntimeException("Found database node's table list is empty, will stop task");
+		String tableNameTransform = node.getTableNameTransform();
+		String tablePrefix = node.getTablePrefix();
+		String tableSuffix = node.getTableSuffix();
+		tableNames.forEach(t -> {
+			String targetTableName = t;
+			if (StringUtils.isNotBlank(tablePrefix)) targetTableName = tablePrefix + targetTableName;
+			if (StringUtils.isNotBlank(tableSuffix)) targetTableName = targetTableName + tableSuffix;
+			targetTableName = Capitalized.convert(targetTableName, tableNameTransform);
+			tableNameMap.put(t, targetTableName);
+		});
 	}
 
 	@Override
@@ -238,10 +269,25 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 
 	private void handleTapdataDDLEvent(TapdataEvent tapdataEvent, List<TapEvent> tapEvents, Consumer<TapdataEvent> consumer) {
 		TapDDLEvent tapDDLEvent = (TapDDLEvent) tapdataEvent.getTapEvent();
+		if (tapdataEvent.getTapEvent() instanceof TapCreateTableEvent) {
+			updateNode(tapdataEvent);
+			Node<?> node = dataProcessorContext.getNode();
+			if (node instanceof DatabaseNode) {
+				initDatabaseTableNameMap((DatabaseNode) dataProcessorContext.getNode());
+			}
+		}
 		updateMemoryFromDDLInfoMap(tapdataEvent, getTgtTableNameFromTapEvent(tapDDLEvent));
-		Object uploadMetadata = tapDDLEvent.getInfo(UPLOAD_METADATA_INFO_KEY);
-		if (uploadMetadata instanceof Map) {
-			this.uploadMetadata.putAll((Map<? extends String, ? extends MetadataInstancesDto>) uploadMetadata);
+		Object updateMetadata = tapDDLEvent.getInfo(UPDATE_METADATA_INFO_KEY);
+		if (updateMetadata instanceof Map && MapUtils.isNotEmpty((Map<?, ?>) updateMetadata)) {
+			this.updateMetadata.putAll((Map<? extends String, ? extends MetadataInstancesDto>) updateMetadata);
+		}
+		Object insertMetadata = tapDDLEvent.getInfo(INSERT_METADATA_INFO_KEY);
+		if (insertMetadata instanceof List && CollectionUtils.isNotEmpty((Collection<?>) insertMetadata)) {
+			this.insertMetadata.addAll((Collection<? extends MetadataInstancesDto>) insertMetadata);
+		}
+		Object removeMetadata = tapDDLEvent.getInfo(REMOVE_METADATA_INFO_KEY);
+		if (removeMetadata instanceof List && CollectionUtils.isNotEmpty((Collection<?>) removeMetadata)) {
+			this.removeMetadata.addAll((Collection<? extends String>) removeMetadata);
 		}
 		tapEvents.add(tapDDLEvent);
 		if (null != tapdataEvent.getBatchOffset() || null != tapdataEvent.getStreamOffset()) {
@@ -335,15 +381,22 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 		}
 		if (uploadDagService.get()) {
 			// Upload DAG
-			clientMongoOperator.insertOne(dataProcessorContext.getSubTaskDto(), ConnectorConstant.SUB_TASK_COLLECTION + "/dag");
-			if (MapUtils.isNotEmpty(uploadMetadata)) {
+			SubTaskDto updateSubTaskDto = new SubTaskDto();
+			updateSubTaskDto.setId(subTaskDto.getId());
+			updateSubTaskDto.setDag(subTaskDto.getDag());
+			clientMongoOperator.insertOne(updateSubTaskDto, ConnectorConstant.SUB_TASK_COLLECTION + "/dag");
+			if (MapUtils.isNotEmpty(updateMetadata) || CollectionUtils.isNotEmpty(insertMetadata) || CollectionUtils.isNotEmpty(removeMetadata)) {
 				// Upload Metadata
 				TransformerWsMessageResult wsMessageResult = new TransformerWsMessageResult();
-				wsMessageResult.setBatchMetadataUpdateMap(uploadMetadata);
+				wsMessageResult.setBatchInsertMetaDataList(insertMetadata);
+				wsMessageResult.setBatchMetadataUpdateMap(updateMetadata);
+				wsMessageResult.setBatchRemoveMetaDataList(removeMetadata);
 				wsMessageResult.setTaskId(subTaskDto.getId().toHexString());
 				// 返回结果调用接口返回
 				clientMongoOperator.insertOne(wsMessageResult, ConnectorConstant.TASK_COLLECTION + "/transformer/resultWithHistory");
-				uploadMetadata.clear();
+				insertMetadata.clear();
+				updateMetadata.clear();
+				removeMetadata.clear();
 			}
 			uploadDagService.compareAndSet(true, false);
 		}

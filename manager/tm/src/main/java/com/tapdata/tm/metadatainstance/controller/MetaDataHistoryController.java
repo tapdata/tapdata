@@ -4,6 +4,7 @@ import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.ResponseMessage;
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.metadatainstance.service.MetaDataHistoryService;
+import io.tapdata.entity.schema.TapTable;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
@@ -27,8 +28,8 @@ public class MetaDataHistoryController extends BaseController {
      * @return
      */
     @GetMapping()
-    public ResponseMessage<?> findByVersionTime(@RequestParam("qualifiedName") String qualifiedName, @RequestParam("time") Long time) {
-        MetadataInstancesDto metadataInstancesDto = metaDataHistoryService.findByVersionTime(qualifiedName, time, getLoginUser());
-        return success(metadataInstancesDto);
+    public ResponseMessage<TapTable> findByVersionTime(@RequestParam("qualifiedName") String qualifiedName, @RequestParam("time") Long time) {
+        TapTable tapTable = metaDataHistoryService.findByVersionTime(qualifiedName, time, getLoginUser());
+        return success(tapTable);
     }
 }

@@ -9,9 +9,11 @@ import io.tapdata.entity.utils.DataMap;
 import io.tapdata.kit.DbKit;
 import io.tapdata.kit.EmptyKit;
 import io.tapdata.kit.StringKit;
+import org.apache.commons.lang3.StringUtils;
 
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 
 public class PostgresJdbcContext extends JdbcContext {
 
@@ -52,6 +54,32 @@ public class PostgresJdbcContext extends JdbcContext {
     }
 
     @Override
+    public void queryAllTables(List<String> tableNames, int batchSize, Consumer<List<String>> consumer) {
+        TapLogger.debug(TAG, "Query some tables, schema: " + getConfig().getSchema());
+        List<String> tableList = TapSimplify.list();
+        String tableSql = EmptyKit.isNotEmpty(tableNames) ? "AND table_name IN (" + StringKit.joinString(tableNames, "'", ",") + ")" : "";
+        try {
+            query(String.format(PG_ALL_TABLE, getConfig().getDatabase(), getConfig().getSchema(), tableSql),
+                    resultSet -> {
+                        String tableName = resultSet.getString("table_name");
+                        if (StringUtils.isBlank(tableName)) {
+                            tableList.add(tableName);
+                        }
+                        if (tableList.size() >= batchSize) {
+                            consumer.accept(tableList);
+                            tableList.clear();
+                        }
+                    });
+            if (!tableList.isEmpty()) {
+                consumer.accept(tableList);
+                tableList.clear();
+            }
+        } catch (Throwable e) {
+            TapLogger.error(TAG, "Execute queryAllTables failed, error: " + e.getMessage(), e);
+        }
+    }
+
+    @Override
     public List<DataMap> queryAllColumns(List<String> tableNames) {
         TapLogger.debug(TAG, "Query columns of some tables, schema: " + getConfig().getSchema());
         List<DataMap> columnList = TapSimplify.list();
@@ -79,7 +107,7 @@ public class PostgresJdbcContext extends JdbcContext {
         return indexList;
     }
 
-    private final static String PG_ALL_TABLE =
+    public final static String PG_ALL_TABLE =
             "SELECT t.table_name,\n" +
                     "       (select max(cast(obj_description(relfilenode, 'pg_class') as varchar)) as comment\n" +
                     "        from pg_class c\n" +

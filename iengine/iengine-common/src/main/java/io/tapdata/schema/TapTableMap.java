@@ -80,11 +80,6 @@ public class TapTableMap<K extends String, V extends TapTable> extends HashMap<K
 		return this;
 	}
 
-	public void remove() {
-		EhcacheService.getInstance().getEhcacheKVMap(mapKey).reset();
-		EhcacheService.getInstance().removeEhcacheKVMap(mapKey);
-	}
-
 	public String getQualifiedName(String tableName) {
 		return tableNameAndQualifiedNameMap.get(tableName);
 	}
@@ -133,6 +128,14 @@ public class TapTableMap<K extends String, V extends TapTable> extends HashMap<K
 		return value;
 	}
 
+	public void putNew(K key, V value, String qualifiedName) {
+		if (StringUtils.isBlank(qualifiedName)) {
+			throw new IllegalArgumentException("Qualified name is blank, table id: " + key + ", schema: " + value);
+		}
+		this.tableNameAndQualifiedNameMap.put(key, qualifiedName);
+		EhcacheService.getInstance().getEhcacheKVMap(mapKey).put(key, value);
+	}
+
 	@Override
 	public void putAll(Map<? extends K, ? extends V> m) {
 		throw new UnsupportedOperationException();
@@ -140,7 +143,9 @@ public class TapTableMap<K extends String, V extends TapTable> extends HashMap<K
 
 	@Override
 	public V remove(Object key) {
-		throw new UnsupportedOperationException();
+		this.tableNameAndQualifiedNameMap.remove(key);
+		EhcacheService.getInstance().getEhcacheKVMap(mapKey).remove((String) key);
+		return null;
 	}
 
 	@Override
@@ -258,14 +263,18 @@ public class TapTableMap<K extends String, V extends TapTable> extends HashMap<K
 		ClientMongoOperator clientMongoOperator = BeanUtil.getBean(ClientMongoOperator.class);
 		String url;
 		Query query;
+		TapTable tapTable;
 		if (null != time && time.compareTo(0L) > 0) {
 			url = ConnectorConstant.METADATA_HISTROY_COLLECTION;
-			query = Query.query(where("qualifiedName").is(qualifiedName).and("time").is(time));
+			Map<String, Object> param = new HashMap<>();
+			param.put("qualifiedName", qualifiedName);
+			param.put("time", time);
+			tapTable = clientMongoOperator.findOne(param, url, TapTable.class);
 		} else {
 			url = ConnectorConstant.METADATA_INSTANCE_COLLECTION + "/tapTables";
 			query = Query.query(where("qualified_name").is(qualifiedName));
+			tapTable = clientMongoOperator.findOne(query, url, TapTable.class);
 		}
-		TapTable tapTable = clientMongoOperator.findOne(query, url, TapTable.class);
 		LinkedHashMap<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
 		if (MapUtils.isNotEmpty(nameFieldMap)) {
 			LinkedHashMap<String, TapField> sortedFieldMap = new LinkedHashMap<>();
@@ -315,7 +324,8 @@ public class TapTableMap<K extends String, V extends TapTable> extends HashMap<K
 	}
 
 	public void reset() {
-		EhcacheKVMap<TapTable> ehcacheKVMap = EhcacheService.getInstance().getEhcacheKVMap(this.mapKey);
-		Optional.ofNullable(ehcacheKVMap).ifPresent(EhcacheKVMap::reset);
+		EhcacheService.getInstance().getEhcacheKVMap(mapKey).reset();
+		EhcacheService.getInstance().removeEhcacheKVMap(mapKey);
+		this.tableNameAndQualifiedNameMap.clear();
 	}
 }

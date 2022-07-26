@@ -15,32 +15,43 @@ import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.DAGDataServiceImpl;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.DataParentNode;
+import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.commons.schema.TransformerWsMessageDto;
 import com.tapdata.tm.commons.task.dto.Message;
 import com.tapdata.tm.commons.task.dto.SubTaskDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
+import io.tapdata.Runnable.LoadSchemaRunner;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
 import io.tapdata.entity.conversion.TableFieldTypesGenerator;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.control.HeartbeatEvent;
 import io.tapdata.entity.event.ddl.TapDDLEvent;
+import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
+import io.tapdata.entity.event.ddl.table.TapDropTableEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.mapping.DefaultExpressionMatchingMap;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.exception.SourceException;
+import io.tapdata.flow.engine.V2.common.task.SyncTypeEnum;
 import io.tapdata.flow.engine.V2.ddl.DDLFilter;
 import io.tapdata.flow.engine.V2.ddl.DDLSchemaHandler;
+import io.tapdata.flow.engine.V2.monitor.MonitorManager;
+import io.tapdata.flow.engine.V2.monitor.impl.TableMonitor;
 import io.tapdata.flow.engine.V2.progress.SnapshotProgressManager;
 import io.tapdata.flow.engine.V2.util.PdkUtil;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
 import io.tapdata.milestone.MilestoneContext;
 import io.tapdata.milestone.MilestoneStage;
 import io.tapdata.milestone.MilestoneStatus;
+import io.tapdata.node.pdk.ConnectorNodeService;
+import io.tapdata.pdk.apis.functions.connection.GetTableNamesFunction;
 import io.tapdata.pdk.apis.functions.connector.source.TimestampToStreamOffsetFunction;
+import io.tapdata.pdk.core.api.PDKIntegration;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
 import io.tapdata.pdk.core.monitor.PDKMethod;
+import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -51,6 +62,7 @@ import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Collectors;
 
 /**
@@ -60,15 +72,24 @@ import java.util.stream.Collectors;
  **/
 public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 	private static final String TAG = HazelcastTargetPdkDataNode.class.getSimpleName();
+	public static final long PERIOD_SECOND_HANDLE_TABLE_MONITOR_RESULT = 10L;
 	private final Logger logger = LogManager.getLogger(HazelcastSourcePdkBaseNode.class);
 	protected SyncProgress syncProgress;
-	protected ExecutorService sourceRunner = new ThreadPoolExecutor(1, 1, 0L, TimeUnit.SECONDS, new SynchronousQueue<>());
+	protected ExecutorService sourceRunner = new ThreadPoolExecutor(2, 2, 0L, TimeUnit.SECONDS, new SynchronousQueue<>());
+	protected ScheduledExecutorService tableMonitorResultHandler;
 	protected SnapshotProgressManager snapshotProgressManager;
 	protected LinkedBlockingQueue<TapdataEvent> eventQueue = new LinkedBlockingQueue<>(10);
 	private TapdataEvent pendingEvent;
 	protected SourceMode sourceMode = SourceMode.NORMAL;
 	protected Long initialFirstStartTime = System.currentTimeMillis();
+	protected TransformerWsMessageDto transformerWsMessageDto;
 	protected DDLFilter ddlFilter;
+	protected ReentrantLock sourceRunnerLock;
+	protected AtomicBoolean endSnapshotLoop;
+	protected CopyOnWriteArrayList<String> newTables;
+	protected CopyOnWriteArrayList<String> removeTables;
+	protected AtomicBoolean sourceRunnerFirstTime;
+	private DAGDataServiceImpl dagDataService;
 
 	public HazelcastSourcePdkBaseNode(DataProcessorContext dataProcessorContext) {
 		super(dataProcessorContext);
@@ -94,13 +115,56 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 		if (!subTaskDto.isTransformTask()) {
 			initBatchAndStreamOffset(subTaskDto);
 		}
+		initDDLFilter();
+		this.sourceRunnerLock = new ReentrantLock();
+		this.endSnapshotLoop = new AtomicBoolean(false);
+		this.transformerWsMessageDto = clientMongoOperator.findOne(new Query(),
+				ConnectorConstant.TASK_COLLECTION + "/transformParam/" + processorBaseContext.getSubTaskDto().getParentTask().getId().toHexString(),
+				TransformerWsMessageDto.class);
+		this.sourceRunnerFirstTime = new AtomicBoolean(true);
+		this.sourceRunner.submit(this::startSourceRunner);
+		initTableMonitor();
+	}
+
+	private void initDDLFilter() {
 		Node<?> node = dataProcessorContext.getNode();
 		if (node.isDataNode()) {
 			Boolean enableDDL = ((DataParentNode<?>) node).getEnableDDL();
 			List<String> disabledEvents = ((DataParentNode<?>) node).getDisabledEvents();
-			this.ddlFilter = DDLFilter.create(enableDDL, disabledEvents);
+			this.ddlFilter = DDLFilter.create(enableDDL, disabledEvents).dynamicTableTest(this::needDynamicTable);
 		}
-		this.sourceRunner.submit(this::startSourceRunner);
+	}
+
+	private void initTableMonitor() throws Exception {
+		Node<?> node = dataProcessorContext.getNode();
+		if (node.isDataNode()) {
+			if (needDynamicTable(null)) {
+				TableMonitor tableMonitor = new TableMonitor(dataProcessorContext.getTapTableMap(), associateId);
+				this.monitorManager.startMonitor(tableMonitor);
+				this.tableMonitorResultHandler = new ScheduledThreadPoolExecutor(1);
+				this.tableMonitorResultHandler.scheduleAtFixedRate(this::handleTableMonitorResult, 0L, PERIOD_SECOND_HANDLE_TABLE_MONITOR_RESULT, TimeUnit.SECONDS);
+				this.newTables = new CopyOnWriteArrayList<>();
+				this.removeTables = new CopyOnWriteArrayList<>();
+			}
+		}
+	}
+
+	private boolean needDynamicTable(Object obj) {
+		Node<?> node = dataProcessorContext.getNode();
+		if (node instanceof DatabaseNode) {
+			Boolean enableDynamicTable = ((DatabaseNode) node).getEnableDynamicTable();
+			if (null == enableDynamicTable || !enableDynamicTable) {
+				return false;
+			}
+			if (syncType.equals(SyncTypeEnum.INITIAL_SYNC)) {
+				return false;
+			}
+			GetTableNamesFunction getTableNamesFunction = getConnectorNode().getConnectorFunctions().getGetTableNamesFunction();
+			if (null == getTableNamesFunction) {
+				return false;
+			}
+		}
+		return true;
 	}
 
 	private void initBatchAndStreamOffset(SubTaskDto subTaskDto) {
@@ -241,7 +305,6 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 				Optional.ofNullable(snapshotProgressManager)
 						.ifPresent(s -> s.incrementEdgeFinishNumber(TapEventUtil.getTableId(dataEvent.getTapEvent())));
 			}
-
 			if (error != null) {
 				throw new RuntimeException(error);
 			}
@@ -251,6 +314,112 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 		}
 
 		return false;
+	}
+
+	private void handleTableMonitorResult() {
+		Thread.currentThread().setName("Handle-Table-Monitor-Result-" + this.associateId);
+		// Handle dynamic table change
+		Object tableMonitor = monitorManager.getMonitorByType(MonitorManager.MonitorType.TABLE_MONITOR);
+		if (tableMonitor instanceof TableMonitor) {
+			((TableMonitor) tableMonitor).consume(tableResult -> {
+				List<String> addList = tableResult.getAddList();
+				List<String> removeList = tableResult.getRemoveList();
+				if (CollectionUtils.isNotEmpty(addList) || CollectionUtils.isNotEmpty(removeList)) {
+					try {
+						while (isRunning()) {
+							try {
+								if (sourceRunnerLock.tryLock(1L, TimeUnit.SECONDS)) {
+									break;
+								}
+							} catch (InterruptedException e) {
+								break;
+							}
+						}
+						// Handle new table(s)
+						if (CollectionUtils.isNotEmpty(addList)) {
+							logger.info("Found new table(s): " + addList);
+							List<TapTable> addTapTables = new ArrayList<>();
+							List<TapdataEvent> tapdataEvents = new ArrayList<>();
+							// Load schema
+							LoadSchemaRunner.pdkDiscoverSchema(getConnectorNode(), addList, addTapTables::add);
+							if (CollectionUtils.isEmpty(addTapTables)) {
+								String error = "Load new table schema failed, expect table count: " + addList.size() + ", actual: 0";
+								errorHandle(new RuntimeException(error), error);
+							}
+							if (addList.size() != addTapTables.size()) {
+								String error = "Load new table schema failed, expect table count: " + addList.size() + ", actual: " + addTapTables.size();
+								errorHandle(new RuntimeException(error), error);
+							}
+							for (TapTable addTapTable : addTapTables) {
+								if (!isRunning()) {
+									break;
+								}
+								TapCreateTableEvent tapCreateTableEvent = new TapCreateTableEvent();
+								tapCreateTableEvent.table(addTapTable);
+								tapCreateTableEvent.setTableId(addTapTable.getId());
+								TapdataEvent tapdataEvent = wrapTapdataEvent(tapCreateTableEvent, SyncStage.valueOf(syncProgress.getSyncStage()), null, false);
+								if (null == tapdataEvent) {
+									String error = "Wrap create table tapdata event failed: " + addTapTable;
+									errorHandle(new RuntimeException(error), error);
+									return;
+								}
+								tapdataEvents.add(tapdataEvent);
+							}
+							if (!isRunning()) {
+								return;
+							}
+							tapdataEvents.forEach(this::enqueue);
+							this.newTables.addAll(addList);
+							if (this.endSnapshotLoop.get()) {
+								// Restart source runner
+								if (null != sourceRunner) {
+									this.sourceRunnerFirstTime.set(false);
+									if (null != getConnectorNode()) {
+										PDKInvocationMonitor.invoke(getConnectorNode(), PDKMethod.STOP, () -> getConnectorNode().connectorStop(), TAG);
+										PDKIntegration.releaseAssociateId(this.associateId);
+										ConnectorNodeService.getInstance().removeConnectorNode(this.associateId);
+										createPdkConnectorNode(dataProcessorContext, jetContext.hazelcastInstance());
+										connectorNodeInit(dataProcessorContext);
+									} else {
+										String error = "Connector node is null";
+										errorHandle(new RuntimeException(error), error);
+										return;
+									}
+									this.sourceRunner.shutdownNow();
+									this.sourceRunner = new ThreadPoolExecutor(1, 1, 0L, TimeUnit.SECONDS, new SynchronousQueue<>());
+									sourceRunner.submit(this::startSourceRunner);
+								} else {
+									String error = "Source runner is null";
+									errorHandle(new RuntimeException(error), error);
+									return;
+								}
+							}
+						}
+						// Handle remove table(s)
+						if (CollectionUtils.isNotEmpty(removeList)) {
+							List<TapdataEvent> tapdataEvents = new ArrayList<>();
+							for (String tableName : removeList) {
+								if (!isRunning()) {
+									break;
+								}
+								TapDropTableEvent tapDropTableEvent = new TapDropTableEvent();
+								tapDropTableEvent.setTableId(tableName);
+								TapdataEvent tapdataEvent = wrapTapdataEvent(tapDropTableEvent, SyncStage.valueOf(syncProgress.getSyncStage()), null, false);
+								tapdataEvents.add(tapdataEvent);
+							}
+							tapdataEvents.forEach(this::enqueue);
+						}
+					} catch (Throwable throwable) {
+						String error = "Handle table monitor result failed, result: " + tableResult + ", error: " + throwable.getMessage();
+						errorHandle(new RuntimeException(error, throwable), error);
+					} finally {
+						if (sourceRunnerLock.isLocked()) {
+							sourceRunnerLock.unlock();
+						}
+					}
+				}
+			});
+		}
 	}
 
 	abstract void startSourceRunner();
@@ -319,18 +488,24 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 			tapdataEvent.setStreamOffset(offsetObj);
 			tapdataEvent.setSourceTime(((TapDDLEvent) tapEvent).getReferenceTime());
 			String tableId = ((TapDDLEvent) tapEvent).getTableId();
-			TapTable tapTable = processorBaseContext.getTapTableMap().get(tableId);
+			TapTable tapTable;
 			// Modify schema by ddl event
-			try {
-				InstanceFactory.bean(DDLSchemaHandler.class).updateSchemaByDDLEvent((TapDDLEvent) tapEvent, tapTable);
-				TableFieldTypesGenerator tableFieldTypesGenerator = InstanceFactory.instance(TableFieldTypesGenerator.class);
-				DefaultExpressionMatchingMap dataTypesMap = getConnectorNode().getConnectorContext().getSpecification().getDataTypesMap();
-				tableFieldTypesGenerator.autoFill(tapTable.getNameFieldMap(), dataTypesMap);
-			} catch (Exception e) {
-				RuntimeException runtimeException = new RuntimeException("Modify schema by ddl failed, ddl type: " + tapEvent.getClass() + ", error: " + e.getMessage(), e);
-				errorHandle(runtimeException, runtimeException.getMessage());
-				throw runtimeException;
+			if (tapEvent instanceof TapCreateTableEvent) {
+				tapTable = ((TapCreateTableEvent) tapEvent).getTable();
+			} else {
+				try {
+					tapTable = processorBaseContext.getTapTableMap().get(tableId);
+					InstanceFactory.bean(DDLSchemaHandler.class).updateSchemaByDDLEvent((TapDDLEvent) tapEvent, tapTable);
+					TableFieldTypesGenerator tableFieldTypesGenerator = InstanceFactory.instance(TableFieldTypesGenerator.class);
+					DefaultExpressionMatchingMap dataTypesMap = getConnectorNode().getConnectorContext().getSpecification().getDataTypesMap();
+					tableFieldTypesGenerator.autoFill(tapTable.getNameFieldMap(), dataTypesMap);
+				} catch (Exception e) {
+					RuntimeException runtimeException = new RuntimeException("Modify schema by ddl failed, ddl type: " + tapEvent.getClass() + ", error: " + e.getMessage(), e);
+					errorHandle(runtimeException, runtimeException.getMessage());
+					throw runtimeException;
+				}
 			}
+
 			// Refresh task config by ddl event
 			DAG dag = processorBaseContext.getSubTaskDto().getDag();
 			try {
@@ -346,21 +521,45 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 			}
 			// Refresh task schema by ddl event
 			try {
-				TransformerWsMessageDto transformerWsMessageDto = clientMongoOperator.findOne(new Query(),
-						ConnectorConstant.TASK_COLLECTION + "/transformParam/" + processorBaseContext.getSubTaskDto().getParentTask().getId().toHexString(),
-						TransformerWsMessageDto.class);
+				List<MetadataInstancesDto> insertMetadata = new CopyOnWriteArrayList<>();
+				Map<String, MetadataInstancesDto> updateMetadata = new ConcurrentHashMap<>();
+				List<String> removeMetadata = new CopyOnWriteArrayList<>();
+				if (null == transformerWsMessageDto) {
+					transformerWsMessageDto = clientMongoOperator.findOne(new Query(),
+							ConnectorConstant.TASK_COLLECTION + "/transformParam/" + processorBaseContext.getSubTaskDto().getParentTask().getId().toHexString(),
+							TransformerWsMessageDto.class);
+				}
 				List<MetadataInstancesDto> metadataInstancesDtoList = transformerWsMessageDto.getMetadataInstancesDtoList();
 				Map<String, String> qualifiedNameIdMap = metadataInstancesDtoList.stream()
 						.collect(Collectors.toMap(MetadataInstancesDto::getQualifiedName, m -> m.getId().toHexString()));
 				tapEvent.addInfo(QUALIFIED_NAME_ID_MAP_INFO_KEY, qualifiedNameIdMap);
-				DAGDataServiceImpl dagDataService = new DAGDataServiceImpl(transformerWsMessageDto);
-				String qualifiedName = processorBaseContext.getTapTableMap().getQualifiedName(tableId);
-				dagDataService.coverMetaDataByTapTable(qualifiedName, tapTable);
-				Map<String, List<Message>> errorMessage = dag.transformSchema(null, dagDataService, transformerWsMessageDto.getOptions());
-				Map<String, MetadataInstancesDto> uploadMetadata = new HashMap<>();
-				MetadataInstancesDto metadata = dagDataService.getMetadata(qualifiedName);
-				uploadMetadata.put(metadata.getId().toHexString(), metadata);
-				tapEvent.addInfo(UPLOAD_METADATA_INFO_KEY, uploadMetadata);
+				if (null == dagDataService) {
+					dagDataService = new DAGDataServiceImpl(transformerWsMessageDto);
+				}
+				String qualifiedName = "";
+				Map<String, List<Message>> errorMessage;
+				if (tapEvent instanceof TapCreateTableEvent) {
+					qualifiedName = dagDataService.createNewTable(dataProcessorContext.getSourceConn().getId(), tapTable);
+					dataProcessorContext.getTapTableMap().putNew(tapTable.getId(), tapTable, qualifiedName);
+					errorMessage = dag.transformSchema(null, dagDataService, transformerWsMessageDto.getOptions());
+					MetadataInstancesDto metadata = dagDataService.getMetadata(qualifiedName);
+					insertMetadata.add(metadata);
+				} else if (tapEvent instanceof TapDropTableEvent) {
+					qualifiedName = dataProcessorContext.getTapTableMap().getQualifiedName(((TapDropTableEvent) tapEvent).getTableId());
+					dagDataService.dropTable(qualifiedName);
+					errorMessage = dag.transformSchema(null, dagDataService, transformerWsMessageDto.getOptions());
+					dataProcessorContext.getTapTableMap().remove(tapTable.getId());
+					removeMetadata.add(qualifiedName);
+				} else {
+					qualifiedName = dataProcessorContext.getTapTableMap().getQualifiedName(tableId);
+					dagDataService.coverMetaDataByTapTable(qualifiedName, tapTable);
+					errorMessage = dag.transformSchema(null, dagDataService, transformerWsMessageDto.getOptions());
+					MetadataInstancesDto metadata = dagDataService.getMetadata(qualifiedName);
+					updateMetadata.put(metadata.getId().toHexString(), metadata);
+				}
+				tapEvent.addInfo(INSERT_METADATA_INFO_KEY, insertMetadata);
+				tapEvent.addInfo(UPDATE_METADATA_INFO_KEY, updateMetadata);
+				tapEvent.addInfo(REMOVE_METADATA_INFO_KEY, removeMetadata);
 				tapEvent.addInfo(DAG_DATA_SERVICE_INFO_KEY, dagDataService);
 				tapEvent.addInfo(TRANSFORM_SCHEMA_ERROR_MESSAGE_INFO_KEY, errorMessage);
 			} catch (Exception e) {
@@ -391,8 +590,12 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 
 	@Override
 	public void doClose() throws Exception {
-		Optional.ofNullable(sourceRunner).ifPresent(ExecutorService::shutdownNow);
-		super.doClose();
+		try {
+			Optional.ofNullable(tableMonitorResultHandler).ifPresent(ExecutorService::shutdownNow);
+			Optional.ofNullable(sourceRunner).ifPresent(ExecutorService::shutdownNow);
+		} finally {
+			super.doClose();
+		}
 	}
 
 	public LinkedBlockingQueue<TapdataEvent> getEventQueue() {
