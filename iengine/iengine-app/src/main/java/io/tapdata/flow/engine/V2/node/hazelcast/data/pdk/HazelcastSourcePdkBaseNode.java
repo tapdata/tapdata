@@ -500,7 +500,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 				}
 				String qualifiedName = processorBaseContext.getTapTableMap().getQualifiedName(tableId);
 				if (tapEvent instanceof TapCreateTableEvent) {
-					dagDataService.createNewTable(dataProcessorContext.getSourceConn().getId(), tapTable);
+					String newTableQualifiedName = dagDataService.createNewTable(dataProcessorContext.getSourceConn().getId(), tapTable);
 				} else if (tapEvent instanceof TapDropTableEvent) {
 					dagDataService.dropTable(qualifiedName);
 				} else {

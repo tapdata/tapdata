@@ -207,7 +207,7 @@ public abstract class Node<S> extends Element{
         if (mergedSchema && this.outputSchema != null) {
             S changedSchema = filterChangedSchema(this.outputSchema, options);  // 过滤出修改过的模型
             if (changedSchema != null) {
-                String taskId = this.getDag().getTaskId().toHexString();
+                String taskId = service.getTaskId().toHexString();
                 String version = options.getUuid();
                 try {
                     Collection<String> predecessors = getGraph().predecessors(nodeId);

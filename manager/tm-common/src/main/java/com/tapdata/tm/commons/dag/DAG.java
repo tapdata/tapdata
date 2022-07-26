@@ -421,12 +421,12 @@ public class DAG implements Serializable, Cloneable {
             graph.getNodes().stream().map(graph::getNode)
                     .filter(Objects::nonNull)
                     .forEach(node -> node.setService(dagDataService));
+
         }
 
-
-
-
         if (dagDataService instanceof DAGDataServiceImpl) {
+            ObjectId taskId1 = ((DAGDataServiceImpl) dagDataService).getTaskId();
+            this.setTaskId(taskId1);
 
             addNodeEventListener(new Node.EventListener<Object>() {
                 final Map<String, List<SchemaTransformerResult>> results = new HashMap<>();

@@ -155,7 +155,9 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
         List<MetadataInstancesDto> metadataInstances = new ArrayList<>();
         for (String include : includes) {
             MetadataInstancesDto metadataInstancesDto = metadataMap.get(dataSourceId + include);
-            metadataInstances.add(metadataInstancesDto);
+            if (metadataInstancesDto != null) {
+                metadataInstances.add(metadataInstancesDto);
+            }
         }
 
         long start = System.currentTimeMillis();
@@ -636,6 +638,10 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
             //在这个map为空的时候，说明推演的时候就不需要处理这段逻辑
             return;
         }
+
+        if (taskId == null) {
+            taskId = getTaskId().toHexString();
+        }
         log.debug("upsert transform record, size = {}", schemaTransformerResults == null ? 0 : schemaTransformerResults.size());
         if (CollectionUtils.isEmpty(schemaTransformerResults)) {
             return;
@@ -798,6 +804,15 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
         if (taskMap.size() == 1) {
             ArrayList<TaskDto> taskDtos = new ArrayList<>(taskMap.values());
             return taskDtos.get(0);
+        }
+        return null;
+    }
+
+    public ObjectId getTaskId() {
+
+        if (taskMap.size() == 1) {
+            ArrayList<TaskDto> taskDtos = new ArrayList<>(taskMap.values());
+            return taskDtos.get(0).getId();
         }
         return null;
     }
@@ -969,10 +984,10 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
         setMetaDataMap(metadataInstancesDto);
     }
 
-    public void createNewTable(String connectionId, TapTable tapTable) {
+    public String createNewTable(String connectionId, TapTable tapTable) {
         DataSourceConnectionDto connectionDto = dataSourceMap.get(connectionId);
         if (connectionDto == null) {
-            return;
+            return null;
         }
 
         DataSourceDefinitionDto definitionDto = definitionDtoMap.get(connectionDto.getDatabase_type());
@@ -993,6 +1008,9 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
             tapTable.setNameFieldMap(nameFieldMap);
         }
         MetadataInstancesDto metadataInstancesDto1 = PdkSchemaConvert.fromPdk(tapTable);
+        String databaseQualifiedName = MetaDataBuilderUtils.generateQualifiedName("database", connectionDto, null);
+        MetadataInstancesDto databaseMeta = metadataMap.get(databaseQualifiedName);
+        metadataInstancesDto1 = MetaDataBuilderUtils.build(MetaType.table.name(), connectionDto, userId, userName, metadataInstancesDto1.getOriginalName(), metadataInstancesDto1, null, databaseMeta.getId().toString());
 
         if (CollectionUtils.isNotEmpty(metadataInstancesDto1.getFields())) {
 
@@ -1003,6 +1021,7 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
 
         }
         setMetaDataMap(metadataInstancesDto1);
+        return metadataInstancesDto1.getQualifiedName();
     }
 
     public void dropTable(String qualifiedName) {
