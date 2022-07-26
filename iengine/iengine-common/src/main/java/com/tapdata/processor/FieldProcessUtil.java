@@ -129,6 +129,89 @@ public class FieldProcessUtil {
 		return true;
 	}
 
+	/**
+	 * alter语句处理
+	 *
+	 * @param alter
+	 * @param fieldProcessMap
+	 * @param databaseTypeEnum
+	 * @return true 继续处理，false 不需要执行的sql
+	 */
+	public static boolean alterProcess(Alter alter, Map<String, FieldProcess> fieldProcessMap, DatabaseTypeEnum databaseTypeEnum) {
+		List<AlterExpression> alterExpressions = alter.getAlterExpressions();
+		Iterator<AlterExpression> iterator = alterExpressions.iterator();
+		while (iterator.hasNext()) {
+			AlterExpression alterExpression = iterator.next();
+			switch (alterExpression.getOperation()) {
+				case RENAME:
+					String columnOldName = alterExpression.getColumnOldName();
+					FieldProcess fieldProcess = fieldProcessMap.get(columnOldName);
+					if (fieldProcess != null && FieldProcess.FieldOp.fromOperation(fieldProcess.getOp()) == FieldProcess.FieldOp.OP_RENAME) {
+						alterExpression.setColumnOldName(JdbcUtil.formatFieldName(fieldProcess.getOperand(), databaseTypeEnum.getType()));
+					} else {
+						iterator.remove();
+					}
+					break;
+				case DROP:
+					List<String> pkColumns = alterExpression.getPkColumns();
+					ListIterator<String> pkIterator = pkColumns.listIterator();
+					while (pkIterator.hasNext()) {
+						String pkColumnName = pkIterator.next();
+						fieldProcess = fieldProcessMap.get(pkColumnName);
+						if (fieldProcess != null && FieldProcess.FieldOp.fromOperation(fieldProcess.getOp()) == FieldProcess.FieldOp.OP_RENAME) {
+							pkIterator.set(JdbcUtil.formatFieldName(fieldProcess.getOperand(), databaseTypeEnum.getType()));
+						} else {
+							pkIterator.remove();
+						}
+					}
+					if (CollectionUtils.isEmpty(pkColumns)) {
+						iterator.remove();
+					}
+					break;
+				case MODIFY:
+					List<AlterExpression.ColumnDataType> colDataTypeList = alterExpression.getColDataTypeList();
+					Iterator<AlterExpression.ColumnDataType> columnDataTypeIterator = colDataTypeList.iterator();
+					while (columnDataTypeIterator.hasNext()) {
+						AlterExpression.ColumnDataType columnDataType = columnDataTypeIterator.next();
+						String columnDataTypeColumnName = columnDataType.getColumnName();
+						fieldProcess = fieldProcessMap.get(columnDataTypeColumnName);
+						if (fieldProcess != null && FieldProcess.FieldOp.fromOperation(fieldProcess.getOp()) == FieldProcess.FieldOp.OP_RENAME) {
+							columnDataType.setColumnName(JdbcUtil.formatFieldName(fieldProcess.getOperand(), databaseTypeEnum.getType()));
+						} else {
+							columnDataTypeIterator.remove();
+						}
+					}
+					if (CollectionUtils.isEmpty(colDataTypeList)) {
+						iterator.remove();
+					}
+				default:
+					break;
+			}
+		}
+		return !CollectionUtils.isEmpty(alterExpressions);
+	}
+
+	/**
+	 * comment语句处理
+	 *
+	 * @param comment
+	 * @param fieldProcessMap
+	 * @param databaseTypeEnum
+	 * @return
+	 */
+	public static boolean commentProcess(Comment comment, Map<String, FieldProcess> fieldProcessMap, DatabaseTypeEnum databaseTypeEnum) {
+
+		Column column = comment.getColumn();
+		String columnName = column.getColumnName();
+		FieldProcess fieldProcess = fieldProcessMap.get(columnName);
+		if (fieldProcess != null && FieldProcess.FieldOp.fromOperation(fieldProcess.getOp()) == FieldProcess.FieldOp.OP_RENAME) {
+			column.setColumnName(JdbcUtil.formatFieldName(fieldProcess.getOperand(), databaseTypeEnum.getType()));
+			return true;
+		} else {
+			return false;
+		}
+	}
+
 	private static void renameField(Map<String, Object> record, Map<String, String> renameMapping, FieldProcess process, String field, Map<String, Object> readOnlyRecord) throws Exception {
 		Object value = MapUtilV2.getValueByKeyV2(readOnlyRecord, field);
 		if (value instanceof TapList || value instanceof NotExistsNode) {

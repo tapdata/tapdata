@@ -4,7 +4,6 @@ import com.tapdata.entity.dataflow.Stage;
 import lombok.Data;
 
 import java.io.Serializable;
-import java.util.List;
 
 /**
  * 校验概览数据

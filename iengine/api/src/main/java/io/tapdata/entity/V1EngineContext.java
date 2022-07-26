@@ -1,7 +1,6 @@
 package io.tapdata.entity;
 
 import com.tapdata.cache.ICacheService;
-import com.tapdata.cache.memory.MemoryCacheService;
 import com.tapdata.entity.Connections;
 import com.tapdata.entity.JavaScriptFunctions;
 import com.tapdata.entity.Job;
@@ -11,6 +10,7 @@ import com.tapdata.mongo.ClientMongoOperator;
 import io.tapdata.ConverterProvider;
 import io.tapdata.common.SettingService;
 import io.tapdata.debug.DebugProcessor;
+import io.tapdata.milestone.MilestoneService;
 import org.apache.logging.log4j.Logger;
 
 import java.util.List;
@@ -53,6 +53,8 @@ public class V1EngineContext {
 
 	private ConverterProvider converterProvider;
 
+	private MilestoneService milestoneService;
+
 	private DataFlow dataFlow;
 
 	private V1EngineContext() {
@@ -76,6 +78,7 @@ public class V1EngineContext {
 		private DebugProcessor debugProcessor;
 		private List<JavaScriptFunctions> javaScriptFunctions;
 		private ConverterProvider converterProvider;
+		private MilestoneService milestoneService;
 		private DataFlow dataFlow;
 		private ICacheService cacheService;
 
@@ -167,6 +170,11 @@ public class V1EngineContext {
 			return this;
 		}
 
+		public Builder withMilestoneService(MilestoneService milestoneService) {
+			this.milestoneService = milestoneService;
+			return this;
+		}
+
 		public Builder withDataFlow(DataFlow dataFlow) {
 			this.dataFlow = dataFlow;
 			return this;
@@ -185,6 +193,7 @@ public class V1EngineContext {
 			v1EngineContext.userId = this.userId;
 			v1EngineContext.converterProvider = this.converterProvider;
 			v1EngineContext.debugProcessor = this.debugProcessor;
+			v1EngineContext.milestoneService = this.milestoneService;
 			v1EngineContext.javaScriptFunctions = this.javaScriptFunctions;
 			v1EngineContext.clientMongoOperator = this.clientMongoOperator;
 			v1EngineContext.targetConn = this.targetConn;
@@ -273,6 +282,10 @@ public class V1EngineContext {
 
 	public ConverterProvider getConverterProvider() {
 		return converterProvider;
+	}
+
+	public MilestoneService getMilestoneService() {
+		return milestoneService;
 	}
 
 	public DataFlow getDataFlow() {

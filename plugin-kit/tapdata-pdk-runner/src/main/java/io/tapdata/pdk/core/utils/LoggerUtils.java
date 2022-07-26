@@ -2,8 +2,6 @@ package io.tapdata.pdk.core.utils;
 
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.api.ProcessorNode;
-import io.tapdata.pdk.core.api.SourceNode;
-import io.tapdata.pdk.core.api.TargetNode;
 
 public class LoggerUtils {
     private LoggerUtils() {}

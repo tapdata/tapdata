@@ -118,7 +118,7 @@ public class ConstructRingBuffer<T extends Document> extends BaseConstruct<T> {
 		public E peek() {
 			E e = null;
 			try {
-				e = ringbuffer.readOne(sequence);
+				e = ringbuffer.readOne(sequence < 0 ? 0 : sequence);
 			} catch (InterruptedException ignore) {
 			}
 			return e;

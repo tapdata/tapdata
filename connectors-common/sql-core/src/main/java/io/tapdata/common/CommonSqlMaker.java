@@ -32,7 +32,7 @@ public class CommonSqlMaker {
      * @param tapTable Table Object
      * @return substring of SQL
      */
-    public static String buildColumnDefinition(TapTable tapTable) {
+    public static String buildColumnDefinition(TapTable tapTable, boolean needComment) {
         LinkedHashMap<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
         return nameFieldMap.entrySet().stream().sorted(Comparator.comparing(v ->
                 EmptyKit.isNull(v.getValue().getPos()) ? 99999 : v.getValue().getPos())).map(v -> { //pos may be null
@@ -55,6 +55,11 @@ public class CommonSqlMaker {
                 } else {
                     builder.append("'").append(tapField.getDefaultValue()).append("' ");
                 }
+            }
+            if (needComment && EmptyKit.isNotBlank(tapField.getComment())) {
+                String comment = tapField.getComment();
+                comment = comment.replace("'", "\\'");
+                builder.append("comment '").append(comment).append("' ");
             }
             return builder.toString();
         }).collect(Collectors.joining(", "));
@@ -87,6 +92,40 @@ public class CommonSqlMaker {
         }
         if (null != filter.getLimit()) {
             builder.append("LIMIT ").append(filter.getLimit()).append(' ');
+        }
+        return builder.toString();
+    }
+
+    public static String buildOracleSqlByAdvanceFilter(TapAdvanceFilter filter) {
+        StringBuilder builder = new StringBuilder();
+        if (EmptyKit.isNotEmpty(filter.getMatch()) || EmptyKit.isNotEmpty(filter.getOperators())) {
+            builder.append("WHERE ");
+            builder.append(CommonSqlMaker.buildKeyAndValue(filter.getMatch(), "AND", "="));
+        }
+        if (EmptyKit.isNotEmpty(filter.getOperators())) {
+            if (EmptyKit.isNotEmpty(filter.getMatch())) {
+                builder.append("AND ");
+            }
+            builder.append(filter.getOperators().stream().map(v -> v.toString("\"")).collect(Collectors.joining(" AND "))).append(' ');
+        }
+        if (EmptyKit.isNotEmpty(filter.getSortOnList())) {
+            builder.append("ORDER BY ");
+            builder.append(filter.getSortOnList().stream().map(v -> v.toString("\"")).collect(Collectors.joining(", "))).append(' ');
+        }
+        builder.append(") ");
+        if (null != filter.getSkip() || null != filter.getLimit()) {
+            builder.append("WHERE ");
+        }
+        if (null != filter.getSkip()) {
+            builder.append("ROWNUM > ").append(filter.getSkip()).append(' ');
+        }
+        if (null != filter.getLimit()) {
+            Integer skip = 0;
+            if (null != filter.getSkip()) {
+                builder.append("AND ");
+                skip = filter.getSkip();
+            }
+            builder.append("ROWNUM <= ").append(filter.getLimit() + skip).append(' ');
         }
         return builder.toString();
     }

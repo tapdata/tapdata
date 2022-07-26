@@ -11,26 +11,24 @@ import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.Where;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.base.service.BaseService;
-import com.tapdata.tm.commons.dag.AccessNodeTypeEnum;
-import com.tapdata.tm.commons.dag.DAG;
-import com.tapdata.tm.commons.dag.Edge;
-import com.tapdata.tm.commons.dag.Node;
+import com.tapdata.tm.commons.dag.*;
 import com.tapdata.tm.commons.dag.logCollector.HazelCastImdgNode;
 import com.tapdata.tm.commons.dag.logCollector.LogCollectorNode;
 import com.tapdata.tm.commons.dag.nodes.DataParentNode;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
+import com.tapdata.tm.commons.schema.DataSourceDefinitionDto;
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.commons.task.dto.*;
 import com.tapdata.tm.commons.task.dto.progress.SubTaskSnapshotProgress;
 import com.tapdata.tm.commons.util.MetaDataBuilderUtils;
 import com.tapdata.tm.config.security.UserDetail;
-import com.tapdata.tm.commons.schema.DataSourceDefinitionDto;
 import com.tapdata.tm.ds.service.impl.DataSourceDefinitionService;
 import com.tapdata.tm.ds.service.impl.DataSourceService;
 import com.tapdata.tm.messagequeue.dto.MessageQueueDto;
 import com.tapdata.tm.messagequeue.service.MessageQueueService;
+import com.tapdata.tm.metadatainstance.service.MetaDataHistoryService;
 import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
 import com.tapdata.tm.monitor.entity.AgentStatDto;
 import com.tapdata.tm.monitor.service.MeasurementService;
@@ -44,11 +42,16 @@ import com.tapdata.tm.task.vo.SubTaskDetailVo;
 import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.utils.Lists;
 import com.tapdata.tm.utils.MongoUtils;
+import com.tapdata.tm.utils.SpringContextHelper;
 import com.tapdata.tm.utils.UUIDUtil;
 import com.tapdata.tm.worker.dto.WorkerDto;
 import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.service.WorkerService;
 import com.tapdata.tm.ws.enums.MessageType;
+import io.tapdata.entity.event.ddl.table.TapAlterFieldNameEvent;
+import io.tapdata.entity.event.ddl.table.TapDropFieldEvent;
+import io.tapdata.entity.event.ddl.table.TapFieldBaseEvent;
+import io.tapdata.entity.event.ddl.table.TapNewFieldEvent;
 import lombok.NonNull;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
@@ -56,8 +59,9 @@ import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.bson.Document;
 import org.bson.types.ObjectId;
-import org.checkerframework.checker.units.qual.C;
+import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.BulkOperations;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
@@ -92,12 +96,12 @@ public class SubTaskService extends BaseService<SubTaskDto, SubTaskEntity, Objec
     private MessageQueueService messageQueueService;
     private CustomerJobLogsService customerJobLogsService;
     private UserService userService;
-
     private MetadataInstancesService metadataInstancesService;
     private DataSourceService dataSourceService;
 
     private DataSourceDefinitionService dataSourceDefinitionService;
 
+    private MetaDataHistoryService historyService;
     /**
      * 非停止状态
      */
@@ -225,7 +229,7 @@ public class SubTaskService extends BaseService<SubTaskDto, SubTaskEntity, Objec
 
         Update set = Update.update("agentId", null).set("agentTags", null).set("scheduleTimes", null)
                 .set("scheduleTime", null)
-                .unset("milestones").set("messages", null).set("status", SubTaskDto.STATUS_EDIT);
+                .unset("milestones").unset("tmCurrentTime").set("messages", null).set("status", SubTaskDto.STATUS_EDIT);
 
 
         if (subTaskDto.getAttrs() != null) {
@@ -519,6 +523,7 @@ public class SubTaskService extends BaseService<SubTaskDto, SubTaskEntity, Objec
     public void start(ObjectId id, UserDetail user, String startFlag) {
         SubTaskDto subTaskDto = checkExistById(id);
         TaskDto taskDto = taskService.findById(subTaskDto.getParentId(), user);
+        taskService.checkDagAgentConflict(taskDto, false);
         subTaskDto.setParentTask(taskDto);
         start(subTaskDto, user, startFlag);
     }
@@ -1298,7 +1303,7 @@ public class SubTaskService extends BaseService<SubTaskDto, SubTaskEntity, Objec
 
 
         DataSourceConnectionDto heartbeatConnection = null;
-        String heartbeatTable = "tapdata_heartbeat_table_names";
+        String heartbeatTable = "_tapdata_heartbeat_table";
         for (DataSourceConnectionDto dataSource : dataSourceDtos) {
             List<String> connectionIds = getConnectionIds(user, dataSourceCacheByType, dataSource);
             TaskDto oldConnHeartbeatTask = getHeartbeatTaskDto(connectionIds, user);
@@ -1317,14 +1322,16 @@ public class SubTaskService extends BaseService<SubTaskDto, SubTaskEntity, Objec
 
             //循环中只需要获取一次dummy源跟打点模型表
             if (heartbeatConnection == null) {
+                String databaseType = "dummy";
+                String mode = "ConnHeartbeat";
 
-                Criteria criteria2 = Criteria.where("pdkId").is("dummy db");
-                Query query3 = new Query(criteria2);
+                Query query3 = new Query(Criteria.where("pdkId").is(databaseType));
                 query3.fields().include("pdkHash", "type");
                 DataSourceDefinitionDto definitionDto = dataSourceDefinitionService.findOne(query3);
                 //获取打点的Dummy数据源
-                Criteria criteriaCon = Criteria.where("database_type").is("dummy db").and("config.mode").is("Heartbeat");
-                Query query2 = new Query(criteriaCon);
+                Query query2 = new Query(Criteria.where("database_type").is(databaseType)
+                        .and("config.mode").is(mode)
+                );
                 heartbeatConnection = dataSourceService.findOne(query2, user);
 
                 boolean addDummy = false;
@@ -1332,8 +1339,7 @@ public class SubTaskService extends BaseService<SubTaskDto, SubTaskEntity, Objec
                     heartbeatConnection = new DataSourceConnectionDto();
                     heartbeatConnection.setName("tapdata_heartbeat_dummy_connection");
                     LinkedHashMap<String, Object> config = new LinkedHashMap<>();
-                    config.put("mode", "Heartbeat");
-                    config.put("incremental_interval", "1000");
+                    config.put("mode", mode);
 
                     heartbeatConnection.setConfig(config);
                     heartbeatConnection.setConnection_type("source");
@@ -1894,5 +1900,98 @@ public class SubTaskService extends BaseService<SubTaskDto, SubTaskEntity, Objec
                 subTaskList.forEach(subTaskDto -> start(subTaskDto.getId(), finalUserMap.get(subTaskDto.getUserId())));
             }
         }
+    }
+
+    public SubTaskDto findByCacheName(String cacheName, UserDetail user) {
+        Criteria taskCriteria = Criteria.where("dag.nodes").elemMatch(Criteria.where("catalog").is("memCache").and("cacheName").is(cacheName));
+        Query query = new Query(taskCriteria);
+        SubTaskDto subTaskDto = findOne(query, user);
+        if (subTaskDto != null) {
+            TaskDto taskDto = taskService.findById(subTaskDto.getParentId(), user);
+            if (taskDto != null) {
+                subTaskDto.setParentTask(taskDto);
+            }
+        }
+
+        return subTaskDto;
+    }
+
+    public void updateDag(SubTaskDto subTaskDto, UserDetail user) {
+        SubTaskDto subTaskDto1 = checkExistById(subTaskDto.getId());
+
+        Criteria criteria = Criteria.where("_id").is(subTaskDto.getId());
+        Update update = Update.update("dag", subTaskDto.getDag());
+        long tmCurrentTime = System.currentTimeMillis();
+        update.set("tmCurrentTime", tmCurrentTime);
+        repository.update(new Query(criteria), update, user);
+
+        TaskHistory taskHistory = new TaskHistory();
+        BeanUtils.copyProperties(subTaskDto1, taskHistory);
+        taskHistory.setTaskId(subTaskDto1.getId().toHexString());
+        taskHistory.setId(ObjectId.get());
+
+        //保存子任务历史
+        repository.getMongoOperations().insert(taskHistory, "DDlTaskHistories");
+
+        //同步保存到任务。
+        Field field = new Field();
+        field.put("dag", true);
+        TaskDto taskDto = taskService.findById(subTaskDto1.getParentId(), field, user);
+
+        DAG dag = taskDto.getDag();
+        List<Node> nodes = dag.getNodes();
+        DAG subDag = subTaskDto.getDag();
+        List<Node> subNodes = subDag.getNodes();
+        Map<String, Node> subNodeMap = subNodes.stream().collect(Collectors.toMap(Element::getId, n -> n));
+        for (Node node : nodes) {
+            Node subNode = subNodeMap.get(node.getId());
+            if (subNode != null) {
+                BeanUtils.copyProperties(subNode, node);
+            }
+        }
+
+        taskService.updateDag(taskDto, user);
+    }
+
+    public SubTaskDto findByVersionTime(String id, Long time) {
+        Criteria criteria = Criteria.where("taskId").is(id);
+        criteria.and("tmCurrentTime").is(time);
+
+        Query query = new Query(criteria);
+
+        SubTaskDto dDlTaskHistories = repository.getMongoOperations().findOne(query, TaskHistory.class, "DDlTaskHistories");
+
+        if (dDlTaskHistories == null) {
+            dDlTaskHistories = findById(MongoUtils.toObjectId(id));
+        } else {
+            dDlTaskHistories.setId(MongoUtils.toObjectId(id));
+        }
+
+        TaskDto taskDto = taskService.findById(dDlTaskHistories.getParentId());
+        dDlTaskHistories.setParentTask(taskDto);
+        return dDlTaskHistories;
+    }
+
+    /**
+     *
+     * @param time 最近时间戳
+     * @return
+     */
+    public void clean(String taskId, Long time) {
+        Criteria criteria = Criteria.where("taskId").is(taskId);
+        criteria.and("tmCurrentTime").gt(time);
+
+        Query query = new Query(criteria);
+        repository.getMongoOperations().remove(query, "DDlTaskHistories");
+
+        //清理模型
+        //MetaDataHistoryService historyService = SpringContextHelper.getBean(MetaDataHistoryService.class);
+        historyService.clean(taskId, time);
+    }
+
+    public void updateStatus(ObjectId taskId, String status) {
+        Query query = Query.query(Criteria.where("_id").is(taskId));
+        Update update = Update.update("status", status);
+        update(query, update);
     }
 }

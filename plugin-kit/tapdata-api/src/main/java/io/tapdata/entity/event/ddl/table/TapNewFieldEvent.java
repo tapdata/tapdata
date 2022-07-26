@@ -7,7 +7,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class TapNewFieldEvent extends TapFieldBaseEvent {
-    public static final int TYPE = 307;
+    public static final int TYPE = 209;
     private List<TapField> newFields;
     public TapNewFieldEvent field(TapField field) {
         if(newFields == null)
@@ -36,4 +36,5 @@ public class TapNewFieldEvent extends TapFieldBaseEvent {
     public void setNewFields(List<TapField> newFields) {
         this.newFields = newFields;
     }
+
 }

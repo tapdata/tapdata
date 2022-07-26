@@ -3,10 +3,17 @@ package com.tapdata.constant;
 import com.tapdata.entity.RelateDatabaseField;
 import io.tapdata.annotation.Ignore;
 import jdk.nashorn.api.scripting.ScriptObjectMirror;
+import jdk.nashorn.internal.objects.NativeBoolean;
+import jdk.nashorn.internal.objects.NativeNumber;
+import jdk.nashorn.internal.objects.NativeString;
+import jdk.nashorn.internal.runtime.ScriptObject;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.collections.MapUtils;
 import org.apache.commons.lang3.SerializationUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.lang3.reflect.FieldUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.bson.Document;
 
 import java.io.Serializable;
@@ -16,6 +23,9 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 public class MapUtil {
+
+	private static Logger logger = LogManager.getLogger(MapUtil.class);
+
 	/**
 	 * get value from map, before target
 	 *
@@ -275,6 +285,18 @@ public class MapUtil {
 				ListUtil.copyList(list, newObject);
 				newMap.put(key, newObject);
 			} else if (value instanceof Map) {
+				if (value instanceof ScriptObjectMirror) {
+					try {
+						ScriptObject sobj = (ScriptObject) FieldUtils.readField(value, "sobj", true);
+						if (sobj instanceof NativeNumber || sobj instanceof NativeBoolean || sobj instanceof NativeString) {
+							Object newObject = FieldUtils.readField(sobj, "value", true);
+							newMap.put(key, newObject);
+							continue;
+						}
+					} catch (IllegalAccessException e) {
+						logger.warn("get new obj error, skip it...", e);
+					}
+				}
 				Map newObject = new HashMap();
 				copyToNewMap((Map) value, newObject);
 				newMap.put(key, newObject);

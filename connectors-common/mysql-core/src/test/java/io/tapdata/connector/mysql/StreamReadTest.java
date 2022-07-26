@@ -1,20 +1,19 @@
 package io.tapdata.connector.mysql;
 
-import io.debezium.config.Configuration;
-import io.debezium.connector.mysql.MySqlConnectorConfig;
-import io.debezium.embedded.EmbeddedEngine;
-import io.debezium.engine.DebeziumEngine;
-import net.sf.jsqlparser.JSQLParserException;
-import net.sf.jsqlparser.parser.CCJSqlParserUtil;
-import net.sf.jsqlparser.statement.Statement;
-import org.apache.commons.lang3.StringUtils;
-import org.apache.kafka.connect.data.Struct;
-import org.apache.kafka.connect.runtime.standalone.StandaloneConfig;
-import org.apache.kafka.connect.source.SourceRecord;
+import io.tapdata.entity.event.TapEvent;
+import io.tapdata.entity.utils.DataMap;
+import io.tapdata.entity.utils.InstanceFactory;
+import io.tapdata.entity.utils.cache.KVMap;
+import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
+import io.tapdata.pdk.apis.context.TapConnectorContext;
+import io.tapdata.pdk.apis.spec.TapNodeSpecification;
+import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 
-import java.io.IOException;
-
-import static io.tapdata.connector.mysql.util.MysqlUtil.randomServerId;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 
 /**
  * @author samuel
@@ -23,91 +22,83 @@ import static io.tapdata.connector.mysql.util.MysqlUtil.randomServerId;
  **/
 public class StreamReadTest {
 	private static final String SERVER_NAME = "test";
+	private TapConnectorContext tapConnectorContext;
+	private MysqlJdbcContext mysqlJdbcContext;
+	private MysqlReader mysqlReader;
 
-	public static void main(String[] args) {
-		Configuration.Builder builder = Configuration.create()
-				.with("name", SERVER_NAME)
-				.with("connector.class", "io.debezium.connector.mysql.MySqlConnector")
-				.with("database.hostname", "127.0.0.1")
-				.with("database.port", 3307)
-				.with("database.user", "root")
-				.with("database.password", "tapdata")
-				.with("database.server.name", SERVER_NAME)
-				.with("threadName", "Debezium-Mysql-Connector-" + SERVER_NAME)
-				.with("database.history.skip.unparseable.ddl", true)
-				.with("database.history.store.only.monitored.tables.ddl", true)
-				.with("database.history.store.only.captured.tables.ddl", true)
-				.with(MySqlConnectorConfig.SNAPSHOT_LOCKING_MODE, MySqlConnectorConfig.SnapshotLockingMode.NONE)
-				.with("max.queue.size", 1000 * 8)
-				.with("max.batch.size", 1000)
-				.with(MySqlConnectorConfig.SERVER_ID, randomServerId())
-				.with("time.precision.mode", "adaptive_time_microseconds");
-		builder.with(MySqlConnectorConfig.DATABASE_INCLUDE_LIST, "INSURANCE");
-		builder.with(MySqlConnectorConfig.TABLE_INCLUDE_LIST, "INSURANCE.DDL_TEST");
-		builder.with("snapshot.mode", "SCHEMA_ONLY_RECOVERY");
-		builder.with(MySqlConnectorConfig.DATABASE_HISTORY, "io.tapdata.connector.mysql.StateMapHistoryBackingStore");
-		builder.with(StandaloneConfig.OFFSET_STORAGE_FILE_FILENAME_CONFIG, "offset");
-		Configuration configuration = builder.build();
-		StringBuilder configStr = new StringBuilder("Starting binlog reader with config {\n");
-		configuration.withMaskedPasswords().asMap().forEach((k, v) -> configStr.append("  ")
-				.append(k)
-				.append(": ")
-				.append(v)
-				.append("\n"));
-		configStr.append("}");
-		System.out.println(configStr);
-		EmbeddedEngine embeddedEngine = null;
-		try {
-			embeddedEngine = (EmbeddedEngine) new EmbeddedEngine.BuilderImpl()
-					.using(configuration)
-					.notifying(StreamReadTest::sourceRecordConsumer)
-					.using(new DebeziumEngine.ConnectorCallback() {
-						@Override
-						public void taskStarted() {
-							System.out.println("CDC engine started");
-						}
-					})
-					.using((result, message, throwable) -> {
-						if (result) {
-							if (StringUtils.isNotBlank(message)) {
-								System.out.println("CDC engine stopped: " + message);
-							} else {
-								System.out.println("CDC engine stopped");
-							}
-						} else {
-							if (null != throwable) {
-								if (StringUtils.isNotBlank(message)) {
-									System.err.println(message);
-									throwable.printStackTrace();
-								} else {
-									throwable.printStackTrace();
-								}
-							} else {
-								System.err.println(message);
-							}
-						}
-					})
-					.build();
-			embeddedEngine.run();
-		} finally {
-			if (null != embeddedEngine) {
-				try {
-					embeddedEngine.close();
-				} catch (IOException ignore) {
-				}
-			}
-		}
+	@BeforeEach
+	void beforeEach() {
+		DataMap connectionConfig = new DataMap();
+		connectionConfig.kv("host", "localhost");
+		connectionConfig.kv("port", 3307);
+		connectionConfig.kv("username", "root");
+		connectionConfig.kv("password", "tapdata");
+		connectionConfig.kv("database", "test");
+		TapNodeSpecification tapNodeSpecification = new TapNodeSpecification();
+		tapNodeSpecification.setId("mysql");
+		tapConnectorContext = new TapConnectorContext(tapNodeSpecification, connectionConfig, new DataMap());
+		KVMap<Object> stateMap = InstanceFactory.instance(KVMap.class);
+		stateMap.init("streamTest", Object.class);
+		tapConnectorContext.setStateMap(stateMap);
+		mysqlJdbcContext = new MysqlJdbcContext(tapConnectorContext);
+		mysqlReader = new MysqlReader(mysqlJdbcContext);
 	}
 
-	private static void sourceRecordConsumer(SourceRecord record) {
-		if (null != record.valueSchema().field("ddl")) {
-			String ddl = ((Struct) record.value()).getString("ddl");
-			try {
-				Statement statement = CCJSqlParserUtil.parse(ddl);
-				System.out.println(statement);
-			} catch (JSQLParserException e) {
-				e.printStackTrace();
-			}
-		}
+	/**
+	 * CREATE DATABASE if not exists `test`;
+	 * CREATE TABLE if not exists `test`.`test` (
+	 * `id` int,
+	 * `name` varchar(50) DEFAULT NULL
+	 * ) ENGINE=InnoDB;
+	 *
+	 * @throws Throwable
+	 */
+	@Test
+	void streamReadDDLTest1() throws Throwable {
+//		String fieldName = "tapDDLTest";
+//		String newFieldName = "tapDDLTestNew";
+//		String[] ddlSql = new String[]{
+//				"alter table test.test add column " + fieldName + " varchar(20) not null default 'tapdata' comment 'test'",
+//				"alter table test.test change column " + fieldName + " " + newFieldName + " varchar(50) null default 'tapdata_new' comment 'test_new'",
+//				"alter table test.test change " + newFieldName + " " + fieldName + " varchar(20) not null default 'tapdata' comment 'test'",
+//				"alter table test.test rename column " + fieldName + " to " + newFieldName + "",
+//				"alter table test.test modify column " + newFieldName + " varchar(50) null default 'tapdata_new' comment 'test_new'",
+//				"alter table test.test rename column " + newFieldName + " to " + fieldName,
+//				"alter table test.test modify " + fieldName + " varchar(20) not null default 'tapdata' comment 'test'",
+//				"alter table test.test drop column " + fieldName,
+//				"alter table test.test add " + fieldName + " varchar(20)",
+//				"alter table test.test drop " + fieldName,
+//		};
+//		mysqlJdbcContext.execute("create database if not exists `test`");
+//		mysqlJdbcContext.execute("drop table if exists `test`.`tapDDLTest`");
+//		mysqlJdbcContext.execute("create table `test`.`tapDDLTest`(id int, name varchar(50))");
+//		List<TapEvent> tapEventList = new ArrayList<>(ddlSql.length);
+//		mysqlReader.readBinlog(tapConnectorContext, Collections.singletonList("test"), null, 1000,
+//				StreamReadConsumer.create((tapEvents, o) -> {
+//					System.out.println("Found ddl size: " + tapEvents.size());
+//					tapEventList.addAll(tapEvents);
+//					if (tapEventList.size() >= 12) {
+//						mysqlReader.close();
+//					}
+//				}).stateListener((from, to) -> {
+//					if (to.equals(StreamReadConsumer.STATE_STREAM_READ_STARTED)) {
+//						try {
+//							Thread.sleep(5000L);
+//						} catch (InterruptedException ignored) {
+//						}
+//						System.out.println("Stream read started");
+//						try {
+//							for (int i = 0; i < ddlSql.length; i++) {
+//								String ddl = ddlSql[i];
+//								System.out.println((i + 1) + " ===>>> execute ddl: " + ddl);
+//							}
+//						} catch (Throwable e) {
+//							e.printStackTrace();
+//						}
+//					}
+//				})
+//		);
+//		Assertions.assertEquals(12, tapEventList.size());
+//		mysqlJdbcContext.execute("drop table if exists `test`.`tapDDLTest`");
 	}
 }

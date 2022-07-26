@@ -1,7 +1,6 @@
 package io.tapdata.entity;
 
 import com.tapdata.constant.ConnectorConstant;
-import com.tapdata.constant.MessageUtil;
 import com.tapdata.entity.MessageEntity;
 import com.tapdata.entity.OperationType;
 import com.tapdata.entity.dataflow.RuntimeThroughput;

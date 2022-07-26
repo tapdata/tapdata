@@ -30,13 +30,13 @@ public class PostgresWriteRecorder extends WriteRecorder {
         }
         if (EmptyKit.isNotEmpty(uniqueCondition)) {
             if (Integer.parseInt(version) > 90500 && uniqueConditionIsIndex) {
-                if (insertPolicy.equals(ConnectionOptions.DML_INSERT_POLICY_IGNORE_ON_EXISTS)) {
+                if (insertPolicy.equals("ignore-on-exists")) {
                     conflictIgnoreInsert(after);
                 } else {
                     conflictUpdateInsert(after);
                 }
             } else {
-                if (insertPolicy.equals(ConnectionOptions.DML_INSERT_POLICY_IGNORE_ON_EXISTS)) {
+                if (insertPolicy.equals("ignore-on-exists")) {
                     notExistsInsert(after);
                 } else {
                     withUpdateInsert(after);
@@ -249,22 +249,22 @@ public class PostgresWriteRecorder extends WriteRecorder {
         preparedStatement.addBatch();
     }
 
-    private void justUpdate(Map<String, Object> after, Map<String, Object> before) throws SQLException {
+    protected void justUpdate(Map<String, Object> after, Map<String, Object> before) throws SQLException {
         if (EmptyKit.isNull(preparedStatement)) {
             if (hasPk) {
                 preparedStatement = connection.prepareStatement("UPDATE \"" + schema + "\".\"" + tapTable.getId() + "\" SET " +
-                        allColumn.stream().map(k -> "\"" + k + "\"=?").collect(Collectors.joining(", ")) + " WHERE " +
+                        after.keySet().stream().map(k -> "\"" + k + "\"=?").collect(Collectors.joining(", ")) + " WHERE " +
                         before.keySet().stream().map(k -> "\"" + k + "\"=?").collect(Collectors.joining(" AND ")));
             } else {
                 preparedStatement = connection.prepareStatement("UPDATE \"" + schema + "\".\"" + tapTable.getId() + "\" SET " +
-                        allColumn.stream().map(k -> "\"" + k + "\"=?").collect(Collectors.joining(", ")) + " WHERE " +
+                        after.keySet().stream().map(k -> "\"" + k + "\"=?").collect(Collectors.joining(", ")) + " WHERE " +
                         before.keySet().stream().map(k -> "(\"" + k + "\"=? OR (\"" + k + "\" IS NULL AND ?::text IS NULL))")
                                 .collect(Collectors.joining(" AND ")));
             }
         }
         preparedStatement.clearParameters();
         int pos = 1;
-        for (String key : allColumn) {
+        for (String key : after.keySet()) {
             preparedStatement.setObject(pos++, after.get(key));
         }
         dealNullBefore(before, pos);
@@ -306,5 +306,28 @@ public class PostgresWriteRecorder extends WriteRecorder {
         for (String key : allColumn) {
             preparedStatement.setObject(pos++, after.get(key));
         }
+    }
+
+    @Override
+    public void addDeleteBatch(Map<String, Object> before) throws SQLException {
+        if (EmptyKit.isEmpty(before)) {
+            return;
+        }
+        if (EmptyKit.isNotEmpty(uniqueCondition)) {
+            before.keySet().removeIf(k -> !uniqueCondition.contains(k));
+        }
+        if (EmptyKit.isNull(preparedStatement)) {
+            if (hasPk) {
+                preparedStatement = connection.prepareStatement("DELETE FROM \"" + schema + "\".\"" + tapTable.getId() + "\" WHERE " +
+                        before.keySet().stream().map(k -> "\"" + k + "\"=?").collect(Collectors.joining(" AND ")));
+            } else {
+                preparedStatement = connection.prepareStatement("DELETE FROM \"" + schema + "\".\"" + tapTable.getId() + "\" WHERE " +
+                        before.keySet().stream().map(k -> "(\"" + k + "\"=? OR (\"" + k + "\" IS NULL AND ?::text IS NULL))")
+                                .collect(Collectors.joining(" AND ")));
+            }
+        }
+        preparedStatement.clearParameters();
+        dealNullBefore(before, 1);
+        preparedStatement.addBatch();
     }
 }

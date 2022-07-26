@@ -8,18 +8,20 @@ import io.tapdata.connector.postgres.bean.PostgresColumn;
 import io.tapdata.connector.postgres.cdc.PostgresCdcRunner;
 import io.tapdata.connector.postgres.cdc.offset.PostgresOffset;
 import io.tapdata.connector.postgres.config.PostgresConfig;
+import io.tapdata.connector.postgres.ddl.DDLSqlMaker;
+import io.tapdata.connector.postgres.ddl.sqlmaker.PostgresDDLSqlMaker;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.ddl.index.TapCreateIndexEvent;
-import io.tapdata.entity.event.ddl.table.TapClearTableEvent;
-import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
-import io.tapdata.entity.event.ddl.table.TapDropTableEvent;
+import io.tapdata.entity.event.ddl.table.*;
 import io.tapdata.entity.event.dml.TapRecordEvent;
+import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapIndex;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.value.*;
 import io.tapdata.entity.simplify.TapSimplify;
+import io.tapdata.entity.simplify.pretty.BiClassHandlers;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.kit.DbKit;
 import io.tapdata.kit.EmptyKit;
@@ -50,16 +52,25 @@ import static io.tapdata.entity.simplify.TapSimplify.indexField;
 @TapConnectorClass("spec_postgres.json")
 public class PostgresConnector extends ConnectorBase {
 
+    public static final String TAG = PostgresConnector.class.getSimpleName();
     private PostgresConfig postgresConfig;
     private PostgresJdbcContext postgresJdbcContext;
     private PostgresCdcRunner cdcRunner; //only when task start-pause this variable can be shared
     private Object slotName; //must be stored in stateMap
     private String postgresVersion;
     private static final int BATCH_ADVANCE_READ_LIMIT = 1000;
+    private BiClassHandlers<TapFieldBaseEvent, TapConnectorContext, List<String>> fieldDDLHandlers;
+    private DDLSqlMaker ddlSqlMaker;
 
     @Override
     public void onStart(TapConnectionContext connectorContext) {
         initConnection(connectorContext);
+        ddlSqlMaker = new PostgresDDLSqlMaker();
+        fieldDDLHandlers = new BiClassHandlers<>();
+        fieldDDLHandlers.register(TapNewFieldEvent.class, this::newField);
+        fieldDDLHandlers.register(TapAlterFieldAttributesEvent.class, this::alterFieldAttr);
+        fieldDDLHandlers.register(TapAlterFieldNameEvent.class, this::alterFieldName);
+        fieldDDLHandlers.register(TapDropFieldEvent.class, this::dropField);
     }
 
     @Override
@@ -114,6 +125,7 @@ public class PostgresConnector extends ConnectorBase {
     // TODO: 2022/6/9 need to improve test items
     @Override
     public ConnectionOptions connectionTest(TapConnectionContext connectionContext, Consumer<TestItem> consumer) {
+        ConnectionOptions connectionOptions = ConnectionOptions.create();
         postgresConfig = (PostgresConfig) new PostgresConfig().load(connectionContext.getConnectionConfig());
         PostgresTest postgresTest = new PostgresTest(postgresConfig);
         TestItem testHostPort = postgresTest.testHostPort();
@@ -130,7 +142,7 @@ public class PostgresConnector extends ConnectorBase {
         consumer.accept(postgresTest.testReplication());
         consumer.accept(postgresTest.testLogPlugin());
         postgresTest.close();
-        return null;
+        return connectionOptions;
     }
 
     @Override
@@ -143,20 +155,25 @@ public class PostgresConnector extends ConnectorBase {
 
         //need to clear resource outer
         connectorFunctions.supportReleaseExternalFunction(this::onDestroy);
-        //target
+        // target
         connectorFunctions.supportWriteRecord(this::writeRecord);
         connectorFunctions.supportCreateTable(this::createTable);
         connectorFunctions.supportClearTable(this::clearTable);
         connectorFunctions.supportDropTable(this::dropTable);
         connectorFunctions.supportCreateIndex(this::createIndex);
-        //source
+        // source
         connectorFunctions.supportBatchCount(this::batchCount);
         connectorFunctions.supportBatchRead(this::batchRead);
         connectorFunctions.supportStreamRead(this::streamRead);
         connectorFunctions.supportTimestampToStreamOffset(this::timestampToStreamOffset);
-        //query
+        // query
         connectorFunctions.supportQueryByFilter(this::queryByFilter);
         connectorFunctions.supportQueryByAdvanceFilter(this::queryByAdvanceFilter);
+        // ddl
+        connectorFunctions.supportNewFieldFunction(this::fieldDDLHandler);
+        connectorFunctions.supportAlterFieldNameFunction(this::fieldDDLHandler);
+        connectorFunctions.supportAlterFieldAttributesFunction(this::fieldDDLHandler);
+        connectorFunctions.supportDropFieldFunction(this::fieldDDLHandler);
 
         codecRegistry.registerFromTapValue(TapRawValue.class, "text", tapRawValue -> {
             if (tapRawValue != null && tapRawValue.getValue() != null) return toJson(tapRawValue.getValue());
@@ -176,6 +193,52 @@ public class PostgresConnector extends ConnectorBase {
         codecRegistry.registerFromTapValue(TapDateValue.class, tapDateValue -> tapDateValue.getValue().toSqlDate());
     }
 
+    private void fieldDDLHandler(TapConnectorContext tapConnectorContext, TapFieldBaseEvent tapFieldBaseEvent) {
+        List<String> sqls = fieldDDLHandlers.handle(tapFieldBaseEvent, tapConnectorContext);
+        if (null == sqls) {
+            return;
+        }
+        for (String sql : sqls) {
+            try {
+                TapLogger.info(TAG, "Execute ddl sql: " + sql);
+                postgresJdbcContext.execute(sql);
+            } catch (SQLException e) {
+                throw new RuntimeException("Execute ddl sql failed: " + sql + ", error: " + e.getMessage(), e);
+            }
+        }
+    }
+
+    private List<String> alterFieldAttr(TapFieldBaseEvent tapFieldBaseEvent, TapConnectorContext tapConnectorContext) {
+        if (!(tapFieldBaseEvent instanceof TapAlterFieldAttributesEvent)) {
+            return null;
+        }
+        TapAlterFieldAttributesEvent tapAlterFieldAttributesEvent = (TapAlterFieldAttributesEvent) tapFieldBaseEvent;
+        return ddlSqlMaker.alterColumnAttr(tapConnectorContext, tapAlterFieldAttributesEvent);
+    }
+
+    private List<String> dropField(TapFieldBaseEvent tapFieldBaseEvent, TapConnectorContext tapConnectorContext) {
+        if (!(tapFieldBaseEvent instanceof TapDropFieldEvent)) {
+            return null;
+        }
+        TapDropFieldEvent tapDropFieldEvent = (TapDropFieldEvent) tapFieldBaseEvent;
+        return ddlSqlMaker.dropColumn(tapConnectorContext, tapDropFieldEvent);
+    }
+
+    private List<String> alterFieldName(TapFieldBaseEvent tapFieldBaseEvent, TapConnectorContext tapConnectorContext) {
+        if (!(tapFieldBaseEvent instanceof TapAlterFieldNameEvent)) {
+            return null;
+        }
+        TapAlterFieldNameEvent tapAlterFieldNameEvent = (TapAlterFieldNameEvent) tapFieldBaseEvent;
+        return ddlSqlMaker.alterColumnName(tapConnectorContext, tapAlterFieldNameEvent);
+    }
+
+    private List<String> newField(TapFieldBaseEvent tapFieldBaseEvent, TapConnectorContext tapConnectorContext) {
+        if (!(tapFieldBaseEvent instanceof TapNewFieldEvent)) {
+            return null;
+        }
+        TapNewFieldEvent tapNewFieldEvent = (TapNewFieldEvent) tapFieldBaseEvent;
+        return ddlSqlMaker.addColumn(tapConnectorContext, tapNewFieldEvent);
+    }
 
     //clear resource outer and jdbc context
     private void onDestroy(TapConnectorContext connectorContext) throws Throwable {
@@ -194,7 +257,7 @@ public class PostgresConnector extends ConnectorBase {
 
     //clear postgres slot
     private void clearSlot(String slotName) throws Throwable {
-        postgresJdbcContext.query("SELECT COUNT(*) FROM pg_replication_slots WHERE slot_name='" + slotName + "' AND active='false'", resultSet -> {
+        postgresJdbcContext.queryWithNext("SELECT COUNT(*) FROM pg_replication_slots WHERE slot_name='" + slotName + "' AND active='false'", resultSet -> {
             if (resultSet.getInt(1) > 0) {
                 postgresJdbcContext.execute("SELECT pg_drop_replication_slot('" + slotName + "')");
             }
@@ -230,7 +293,7 @@ public class PostgresConnector extends ConnectorBase {
             String sql = "SELECT * FROM \"" + postgresConfig.getSchema() + "\".\"" + tapTable.getId() + "\" WHERE " + CommonSqlMaker.buildKeyAndValue(filter.getMatch(), "AND", "=");
             FilterResult filterResult = new FilterResult();
             try {
-                postgresJdbcContext.query(sql, resultSet -> filterResult.setResult(DbKit.getRowFromResultSet(resultSet, columnNames)));
+                postgresJdbcContext.queryWithNext(sql, resultSet -> filterResult.setResult(DbKit.getRowFromResultSet(resultSet, columnNames)));
             } catch (Throwable e) {
                 filterResult.setError(e);
             } finally {
@@ -244,13 +307,12 @@ public class PostgresConnector extends ConnectorBase {
         String sql = "SELECT * FROM \"" + postgresConfig.getSchema() + "\".\"" + table.getId() + "\" " + CommonSqlMaker.buildSqlByAdvanceFilter(filter);
         postgresJdbcContext.query(sql, resultSet -> {
             FilterResults filterResults = new FilterResults();
-            while (!resultSet.isAfterLast() && resultSet.getRow() > 0) {
+            while (resultSet.next()) {
                 filterResults.add(DbKit.getRowFromResultSet(resultSet, DbKit.getColumnsFromResultSet(resultSet)));
                 if (filterResults.getResults().size() == BATCH_ADVANCE_READ_LIMIT) {
                     consumer.accept(filterResults);
                     filterResults = new FilterResults();
                 }
-                resultSet.next();
             }
             if (EmptyKit.isNotEmpty(filterResults.getResults())) {
                 consumer.accept(filterResults);
@@ -263,7 +325,7 @@ public class PostgresConnector extends ConnectorBase {
         TapTable tapTable = tapCreateTableEvent.getTable();
         Collection<String> primaryKeys = tapTable.primaryKeys();
         //pgsql UNIQUE INDEX use 'UNIQUE' not 'UNIQUE KEY' but here use 'PRIMARY KEY'
-        String sql = "CREATE TABLE IF NOT EXISTS \"" + postgresConfig.getSchema() + "\".\"" + tapTable.getId() + "\"(" + CommonSqlMaker.buildColumnDefinition(tapTable);
+        String sql = "CREATE TABLE IF NOT EXISTS \"" + postgresConfig.getSchema() + "\".\"" + tapTable.getId() + "\"(" + CommonSqlMaker.buildColumnDefinition(tapTable, false);
         if (EmptyKit.isNotEmpty(tapTable.primaryKeys())) {
             sql += "," + " PRIMARY KEY (\"" + String.join("\",\"", primaryKeys) + "\" )";
         }
@@ -343,25 +405,19 @@ public class PostgresConnector extends ConnectorBase {
 
     //write records as all events, prepared
     private void writeRecord(TapConnectorContext connectorContext, List<TapRecordEvent> tapRecordEvents, TapTable tapTable, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer) throws SQLException {
-        String insertDmlPolicy = connectorContext.getConnectorCapabilities().getCapabilityAlternative(ConnectionOptions.DML_INSERT_POLICY);
-        if(insertDmlPolicy == null) {
-          insertDmlPolicy = ConnectionOptions.DML_INSERT_POLICY_UPDATE_ON_EXISTS;
-        }
-        String updateDmlPolicy = connectorContext.getConnectorCapabilities().getCapabilityAlternative(ConnectionOptions.DML_UPDATE_POLICY);
-        if(updateDmlPolicy == null) {
-          updateDmlPolicy = ConnectionOptions.DML_UPDATE_POLICY_IGNORE_ON_NON_EXISTS;
-        }
+//        String insertDmlPolicy = connectorContext.getConnectorCapabilities().getCapabilityAlternative(ConnectionOptions.DML_INSERT_POLICY);
+//        String updateDmlPolicy = connectorContext.getConnectorCapabilities().getCapabilityAlternative(ConnectionOptions.DML_UPDATE_POLICY);
         new PostgresRecordWriter(postgresJdbcContext, tapTable)
                 .setVersion(postgresVersion)
-                .setInsertPolicy(insertDmlPolicy)
-                .setUpdatePolicy(updateDmlPolicy)
+//                .setInsertPolicy(insertDmlPolicy)
+//                .setUpdatePolicy(updateDmlPolicy)
                 .write(tapRecordEvents, writeListResultConsumer);
     }
 
     private long batchCount(TapConnectorContext tapConnectorContext, TapTable tapTable) throws Throwable {
         AtomicLong count = new AtomicLong(0);
         String sql = "SELECT COUNT(1) FROM \"" + postgresConfig.getSchema() + "\".\"" + tapTable.getId() + "\"";
-        postgresJdbcContext.query(sql, resultSet -> count.set(resultSet.getLong(1)));
+        postgresJdbcContext.queryWithNext(sql, resultSet -> count.set(resultSet.getLong(1)));
         return count.get();
     }
 
@@ -380,14 +436,13 @@ public class PostgresConnector extends ConnectorBase {
             List<TapEvent> tapEvents = list();
             //get all column names
             List<String> columnNames = DbKit.getColumnsFromResultSet(resultSet);
-            while (isAlive() && !resultSet.isAfterLast() && resultSet.getRow() > 0) {
+            while (isAlive() && resultSet.next()) {
                 tapEvents.add(insertRecordEvent(DbKit.getRowFromResultSet(resultSet, columnNames), tapTable.getId()));
                 if (tapEvents.size() == eventBatchSize) {
                     postgresOffset.setOffsetValue(postgresOffset.getOffsetValue() + eventBatchSize);
                     eventsOffsetConsumer.accept(tapEvents, postgresOffset);
                     tapEvents = list();
                 }
-                resultSet.next();
             }
             //last events those less than eventBatchSize
             if (EmptyKit.isNotEmpty(tapEvents)) {
@@ -400,7 +455,7 @@ public class PostgresConnector extends ConnectorBase {
 
     private void streamRead(TapConnectorContext nodeContext, List<String> tableList, Object offsetState, int recordSize, StreamReadConsumer consumer) throws Throwable {
         if (EmptyKit.isNull(cdcRunner)) {
-            cdcRunner = new PostgresCdcRunner().useConfig(postgresConfig);
+            cdcRunner = new PostgresCdcRunner(postgresJdbcContext);
             if (EmptyKit.isNull(slotName)) {
                 cdcRunner.watch(tableList).offset(offsetState).registerConsumer(consumer, recordSize);
                 nodeContext.getStateMap().put("tapdata_pg_slot", cdcRunner.getRunnerName());

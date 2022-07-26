@@ -1,8 +1,10 @@
 package com.tapdata.tm.commons.dag;
 
+import com.tapdata.tm.commons.dag.vo.FieldInfo;
 import lombok.Data;
 
 import java.io.Serializable;
+import java.util.LinkedList;
 import java.util.List;
 
 /**
@@ -29,4 +31,6 @@ public class SchemaTransformerResult implements Serializable {
     private int userDeletedNum;                    //  ": 0,
     private String sinkTableId;                  // ": "615523a6beeb6a899b21df14"
     private List<FieldsMapping> fieldsMapping;
+
+    private LinkedList<FieldInfo> migrateFieldsMapping;
 }

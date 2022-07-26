@@ -33,9 +33,8 @@ public class DbKit {
             if (EmptyKit.isNotNull(resultSet)) {
                 List<String> columnNames = getColumnsFromResultSet(resultSet);
                 //cannot replace with while resultSet.next()
-                while (!resultSet.isAfterLast() && resultSet.getRow() > 0) {
+                while (resultSet.next()) {
                     list.add(getRowFromResultSet(resultSet, columnNames));
-                    resultSet.next();
                 }
             }
         } catch (SQLException e) {
@@ -111,4 +110,5 @@ public class DbKit {
             }
         }
     }
+
 }

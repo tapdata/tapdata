@@ -1,26 +1,32 @@
 package io.tapdata.pdk.apis.entity;
 
+import io.tapdata.entity.event.ddl.table.*;
+import io.tapdata.entity.utils.FormatUtils;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.TimeZone;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 public class ConnectionOptions {
+    //Connector support master slave merge feature.
     public static final String CAPABILITY_MASTER_SLAVE_MERGE = "master_slave_merge";
+    //Connector support lookup stream offset by timestamp
     public static final String CAPABILITY_RESUME_STREAM_BY_TIMESTAMP = "resume_stream_by_timestamp";
-    public static final String CAPABILITY_SHARED_STREAM_READ = "shared_stream_read";
+    //Connector disable batch read offset or not, default is disable batch read offset
+    public static final String CAPABILITY_DISABLE_BATCH_READ_OFFSET = "disable_batch_read_offset";
 
-    public static final String DDL_ALTER_FIELD_NAME_EVENT = "alter_field_name_event";
-    public static final String DDL_ALTER_FIELD_ATTRIBUTES_EVENT = "alter_field_attributes_event";
-    public static final String DDL_CREATE_TABLE_EVENT = "create_table_event";
-    public static final String DDL_DROP_TABLE_EVENT = "drop_table_event";
-    public static final String DDL_CLEAR_TABLE_EVENT = "clear_table_event";
-    public static final String DDL_ALTER_PRIMARY_KEY_EVENT = "alter_primary_key_event";
-    public static final String DDL_DROP_FIELD_EVENT = "drop_field_event";
-    public static final String DDL_NEW_FIELD_EVENT = "new_field_event";
-    public static final String DDL_ALTER_TABLE_CHARSET_EVENT = "alter_table_charset_event";
-    public static final String DDL_ALTER_DATABASE_TIMEZONE_EVENT = "alter_database_timezone_event";
-    public static final String DDL_RENAME_TABLE_EVENT = "rename_table_event";
+    //DDL events
+    public static final String DDL_ALTER_FIELD_NAME_EVENT = FormatUtils.formatTapEvent(TapAlterFieldNameEvent.class);
+    public static final String DDL_ALTER_FIELD_ATTRIBUTES_EVENT = FormatUtils.formatTapEvent(TapAlterFieldAttributesEvent.class);
+    public static final String DDL_CREATE_TABLE_EVENT = FormatUtils.formatTapEvent(TapCreateTableEvent.class);
+    public static final String DDL_DROP_TABLE_EVENT = FormatUtils.formatTapEvent(TapDropTableEvent.class);
+    public static final String DDL_CLEAR_TABLE_EVENT = FormatUtils.formatTapEvent(TapClearTableEvent.class);
+    public static final String DDL_DROP_FIELD_EVENT = FormatUtils.formatTapEvent(TapDropFieldEvent.class);
+    public static final String DDL_NEW_FIELD_EVENT = FormatUtils.formatTapEvent(TapNewFieldEvent.class);
+    public static final String DDL_ALTER_TABLE_CHARSET_EVENT = FormatUtils.formatTapEvent(TapAlterTableCharsetEvent.class);
+    public static final String DDL_ALTER_DATABASE_TIMEZONE_EVENT = FormatUtils.formatTapEvent(TapAlterDatabaseTimezoneEvent.class);
+    public static final String DDL_RENAME_TABLE_EVENT = FormatUtils.formatTapEvent(TapRenameTableEvent.class);
 
     public static final String DML_INSERT_POLICY = "dml_insert_policy";
     public static final String DML_INSERT_POLICY_UPDATE_ON_EXISTS = "update_on_exists";
@@ -42,6 +48,11 @@ public class ConnectionOptions {
      * Database timezone
      */
     private TimeZone timeZone;
+    private String charset;
+    public ConnectionOptions charset(String charset) {
+        this.charset = charset;
+        return this;
+    }
     public ConnectionOptions timeZone(TimeZone timeZone) {
         this.timeZone = timeZone;
         return this;
@@ -113,5 +124,13 @@ public class ConnectionOptions {
 
     public void setConnectionString(String connectionString) {
         this.connectionString = connectionString;
+    }
+
+    public String getCharset() {
+        return charset;
+    }
+
+    public void setCharset(String charset) {
+        this.charset = charset;
     }
 }

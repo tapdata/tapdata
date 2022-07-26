@@ -1,11 +1,9 @@
 package com.tapdata.processor.dataflow.aggregation.incr.service.mongo;
 
 import com.mongodb.BasicDBObject;
-import com.mongodb.Function;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.model.FindOneAndUpdateOptions;
 import com.mongodb.client.model.ReturnDocument;
-import com.tapdata.entity.Connections;
 import com.tapdata.entity.dataflow.Stage;
 import com.tapdata.processor.dataflow.ProcessorContext;
 import com.tapdata.processor.dataflow.aggregation.incr.service.SyncVersionService;

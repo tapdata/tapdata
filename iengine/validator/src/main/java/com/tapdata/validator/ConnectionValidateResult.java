@@ -1,6 +1,7 @@
 package com.tapdata.validator;
 
 import com.tapdata.entity.Schema;
+import io.tapdata.pdk.apis.entity.ConnectionOptions;
 
 import java.util.List;
 
@@ -19,6 +20,7 @@ public class ConnectionValidateResult {
 	private Integer db_version;
 
 	private String dbFullVersion;
+	private ConnectionOptions connectionOptions;
 
 	public ConnectionValidateResult() {
 	}
@@ -81,5 +83,13 @@ public class ConnectionValidateResult {
 
 	public void setDbFullVersion(String dbFullVersion) {
 		this.dbFullVersion = dbFullVersion;
+	}
+
+	public ConnectionOptions getConnectionOptions() {
+		return connectionOptions;
+	}
+
+	public void setConnectionOptions(ConnectionOptions connectionOptions) {
+		this.connectionOptions = connectionOptions;
 	}
 }

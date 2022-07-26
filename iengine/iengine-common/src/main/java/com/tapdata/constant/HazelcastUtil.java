@@ -30,7 +30,8 @@ import java.io.File;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 
-import static com.hazelcast.client.properties.ClientProperty.*;
+import static com.hazelcast.client.properties.ClientProperty.HAZELCAST_CLOUD_DISCOVERY_TOKEN;
+import static com.hazelcast.client.properties.ClientProperty.METRICS_ENABLED;
 
 /**
  * @author samuel

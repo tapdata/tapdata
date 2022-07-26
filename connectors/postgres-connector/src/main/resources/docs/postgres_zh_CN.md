@@ -12,15 +12,7 @@ PostgreSQL 的逻辑解码功能最早出现在9.4版本中，它是一种机制
 - **复制协议**（Replication Protocol）：提供了消费者实时订阅（甚至同步订阅）数据库变更的机制
 - **快照导出**（export snapshot）：允许导出数据库的一致性快照（pg_export_snapshot）
 - **复制槽**（Replication Slot）：用于保存消费者偏移量，跟踪订阅者进度。
-所以，根据以上，我们需要安装逻辑解码器，现有提供的解码器如下：
-
-解码器| pg版本 | tapdata支持 | 输出格式
-:-----------: | :-----------: |:-----------:|:-----------: |
-decoderbufs|9.6+|不支持|protobuf
-wal2json|9.4+|支持|json|
-pgoutput|10.0+|不支持|pg log|
-test_decoding|9.4+|不支持|text|
-decoder_raw|9.4+|不支持|SQL|
+所以，根据以上，我们需要安装逻辑解码器，现有提供的解码器如下拉框中所示
 
 ### **4. 先决条件**
 #### **4.1 修改REPLICA IDENTITY**

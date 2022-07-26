@@ -3,9 +3,6 @@ package com.tapdata.entity.values;
 import com.tapdata.constant.ConnectorContext;
 import com.tapdata.entity.RelateDatabaseField;
 
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
-
 /**
  * The Abstract class for Tap Value container, all Tap Value should extend this.
  *

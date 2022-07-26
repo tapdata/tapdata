@@ -5,10 +5,10 @@ import com.tapdata.entity.dataflow.Stage;
 import com.tapdata.processor.dataflow.aggregation.incr.convert.AbstractMessageConverter;
 import com.tapdata.processor.dataflow.aggregation.incr.convert.MessageOp;
 import com.tapdata.processor.dataflow.aggregation.incr.func.AggrFunction;
-import com.tapdata.processor.dataflow.aggregation.incr.service.SyncVersionService;
-import com.tapdata.processor.dataflow.aggregation.incr.service.model.AggrBucket;
 import com.tapdata.processor.dataflow.aggregation.incr.service.SnapshotRecord;
 import com.tapdata.processor.dataflow.aggregation.incr.service.SnapshotService;
+import com.tapdata.processor.dataflow.aggregation.incr.service.SyncVersionService;
+import com.tapdata.processor.dataflow.aggregation.incr.service.model.AggrBucket;
 
 import java.util.*;
 

@@ -3,6 +3,7 @@ package com.tapdata.cache;
 import com.tapdata.entity.Connections;
 import com.tapdata.entity.DatabaseTypeEnum;
 import com.tapdata.entity.dataflow.DataFlowCacheConfig;
+import com.tapdata.mongo.ClientMongoOperator;
 import io.tapdata.exception.DataFlowException;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.logging.log4j.LogManager;
@@ -20,14 +21,17 @@ public abstract class AbstractCacheGetter implements ICacheGetter {
 
 	protected final ICacheStats cacheStats;
 
-	private IDataSourceRowsGetter dataSourceRowsGetter;
+	protected final ClientMongoOperator clientMongoOperator;
+
+	protected IDataSourceRowsGetter dataSourceRowsGetter;
 
 	private final ICacheStore cacheStore;
 
-	public AbstractCacheGetter(DataFlowCacheConfig cacheConfig, ICacheStore cacheStore, ICacheStats cacheStats) {
+	public AbstractCacheGetter(DataFlowCacheConfig cacheConfig, ICacheStore cacheStore, ICacheStats cacheStats, ClientMongoOperator clientMongoOperator) {
 		this.cacheConfig = cacheConfig;
 		this.cacheStats = cacheStats;
 		this.cacheStore = cacheStore;
+		this.clientMongoOperator = clientMongoOperator;
 	}
 
 	abstract protected List<Map<String, Object>> getRecordList(String cacheName, Object... cacheKeys) throws InterruptedException;
@@ -59,9 +63,9 @@ public abstract class AbstractCacheGetter implements ICacheGetter {
 		if (record == null && lookup) {
 			List<Map<String, Object>> rows = getDataSourceRowsGetter().getRows(cacheKeys);
 			if (CollectionUtils.isNotEmpty(rows)) {
-				String key = MemoryCacheUtil.cacheKey(cacheKeys);
+				String key = CacheUtil.cacheKey(cacheKeys);
 				cacheStore.cacheRow(cacheName, key, rows);
-				record = MemoryCacheUtil.returnCacheRow(rows.get(rows.size() - 1));
+				record = CacheUtil.returnCacheRow(rows.get(rows.size() - 1));
 				cacheStats.hitRateStats(cacheName, false);
 			}
 		} else {
@@ -79,9 +83,9 @@ public abstract class AbstractCacheGetter implements ICacheGetter {
 			if (CollectionUtils.isNotEmpty(rows)) {
 				recordList = new ArrayList<>(rows.size());
 				for (Map<String, Object> row : rows) {
-					recordList.add(MemoryCacheUtil.returnCacheRow(row));
+					recordList.add(CacheUtil.returnCacheRow(row));
 				}
-				String key = MemoryCacheUtil.cacheKey(cacheKeys);
+				String key = CacheUtil.cacheKey(cacheKeys);
 				cacheStore.cacheRow(cacheName, key, rows);
 				cacheStats.hitRateStats(cacheName, false);
 			}
@@ -123,5 +127,12 @@ public abstract class AbstractCacheGetter implements ICacheGetter {
 	 */
 	protected Connections getSourceConnection(DataFlowCacheConfig cacheConfig) {
 		return cacheConfig.getSourceConnection();
+	}
+
+	@Override
+	public void close() {
+		if (dataSourceRowsGetter != null) {
+			dataSourceRowsGetter.close();
+		}
 	}
 }

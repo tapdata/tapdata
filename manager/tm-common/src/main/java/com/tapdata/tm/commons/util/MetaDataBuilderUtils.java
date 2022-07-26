@@ -41,8 +41,12 @@ public class MetaDataBuilderUtils {
         metaTypePropertyMap.put(MetaType.processor_node.name(), new MetaTypeProperty("PN_", true));
     }
 
-    public static String generateQualifiedName(String metaType, String nodeId) {
-        return metaTypePropertyMap.get(metaType).prefix + nodeId;
+    public static String generateQualifiedName(String metaType, String nodeId, String tableName) {
+        if (StringUtils.isBlank(tableName)) {
+            return metaTypePropertyMap.get(metaType).prefix + nodeId;
+        } else {
+            return metaTypePropertyMap.get(metaType).prefix + nodeId + "_" + tableName;
+        }
     }
 
     public static String generateQualifiedName(String metaType, DataSourceConnectionDto connectionDto, String tableName) {
