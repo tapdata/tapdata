@@ -13,10 +13,13 @@ import io.tapdata.aspect.task.AspectTask;
 import io.tapdata.aspect.task.AspectTaskSession;
 import io.tapdata.entity.aspect.Aspect;
 import io.tapdata.entity.aspect.AspectInterceptResult;
+import io.tapdata.entity.codec.TapCodecsRegistry;
+import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
 import io.tapdata.entity.event.TapEvent;
-import io.tapdata.entity.event.dml.TapInsertRecordEvent;
-import io.tapdata.entity.schema.value.TapValue;
+import io.tapdata.entity.schema.value.TapDateTimeValue;
 import io.tapdata.entity.simplify.pretty.ClassHandlers;
+import io.tapdata.flow.engine.V2.util.TapEventUtil;
+import org.apache.commons.collections.MapUtils;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -31,8 +34,13 @@ public class TestRunAspectTask extends AspectTask {
 
   private final Map<String, List<Map<String, Object>>> resultMap = new ConcurrentHashMap<>();
 
+  private final TapCodecsFilterManager codecsFilterManager;
+
   public TestRunAspectTask() {
     observerClassHandlers.register(ProcessorNodeProcessAspect.class, this::processorNodeProcessAspect);
+    TapCodecsRegistry tapCodecsRegistry = TapCodecsRegistry.create();
+    tapCodecsRegistry.registerFromTapValue(TapDateTimeValue.class, tapValue -> tapValue.getValue().toInstant());
+    codecsFilterManager = TapCodecsFilterManager.create(tapCodecsRegistry);
   }
 
   @Override
@@ -52,9 +60,9 @@ public class TestRunAspectTask extends AspectTask {
           /**
            * {"before":[{}], "after":[{}]}
            */
-          resultMap.computeIfAbsent("before", key -> new ArrayList<>()).add(getMap(inputEvent));
+          resultMap.computeIfAbsent("before", key -> new ArrayList<>()).add(transformFromTapValue(inputEvent));
           processAspect.setConsumer(outputEvent ->
-                  resultMap.computeIfAbsent("after", key -> new ArrayList<>()).add(getMap(outputEvent)));
+                  resultMap.computeIfAbsent("after", key -> new ArrayList<>()).add(transformFromTapValue(outputEvent)));
         }
         break;
       case ProcessorFunctionAspect.STATE_END:
@@ -63,22 +71,6 @@ public class TestRunAspectTask extends AspectTask {
 
 
     return null;
-  }
-
-  private Map<String, Object> getMap(TapdataEvent tapdataEvent) {
-    TapEvent tapEvent = (TapEvent) tapdataEvent.getTapEvent().clone();
-    if (tapEvent instanceof TapInsertRecordEvent) {
-      Map<String, Object> after = ((TapInsertRecordEvent) tapEvent).getAfter();
-      Iterator<Map.Entry<String, Object>> iterator = after.entrySet().iterator();
-      while (iterator.hasNext()) {
-        Map.Entry<String, Object> entry = iterator.next();
-        if (entry.getValue() instanceof TapValue) {
-          entry.setValue(((TapValue<?, ?>) entry.getValue()).getOriginValue());
-        }
-      }
-      return after;
-    }
-    return new HashMap<>();
   }
 
   @Override
@@ -118,5 +110,15 @@ public class TestRunAspectTask extends AspectTask {
   @Override
   public AspectInterceptResult onInterceptAspect(Aspect aspect) {
     return null;
+  }
+
+  private Map<String, Object> transformFromTapValue(TapdataEvent tapdataEvent) {
+    if (null == tapdataEvent.getTapEvent()) return new HashMap<>();
+    TapEvent tapEvent = (TapEvent) tapdataEvent.getTapEvent().clone();
+    Map<String, Object> after = TapEventUtil.getAfter(tapEvent);
+    if (MapUtils.isNotEmpty(after)) {
+      codecsFilterManager.transformFromTapValueMap(after);
+    }
+    return after;
   }
 }
