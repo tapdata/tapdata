@@ -15,6 +15,7 @@ import io.tapdata.entity.aspect.Aspect;
 import io.tapdata.entity.aspect.AspectInterceptResult;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
+import io.tapdata.entity.schema.value.TapValue;
 import io.tapdata.entity.simplify.pretty.ClassHandlers;
 
 import java.util.*;
@@ -67,7 +68,15 @@ public class TestRunAspectTask extends AspectTask {
   private Map<String, Object> getMap(TapdataEvent tapdataEvent) {
     TapEvent tapEvent = (TapEvent) tapdataEvent.getTapEvent().clone();
     if (tapEvent instanceof TapInsertRecordEvent) {
-      return ((TapInsertRecordEvent) tapEvent).getAfter();
+      Map<String, Object> after = ((TapInsertRecordEvent) tapEvent).getAfter();
+      Iterator<Map.Entry<String, Object>> iterator = after.entrySet().iterator();
+      while (iterator.hasNext()) {
+        Map.Entry<String, Object> entry = iterator.next();
+        if (entry.getValue() instanceof TapValue) {
+          entry.setValue(((TapValue<?, ?>) entry.getValue()).getOriginValue());
+        }
+      }
+      return after;
     }
     return new HashMap<>();
   }
