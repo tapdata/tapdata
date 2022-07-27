@@ -731,7 +731,7 @@ public class AggregateOps {
                     groupedMinList = doInsertAndCut(groupedMinList, fieldValue, new MinComparator());
                 } else {
                     if (changedCount.compareTo(BigDecimal.ZERO) > 0) {
-                        groupedMinList = doInsertAndCut(groupedMinList, fieldValue, new MaxComparator());
+                        groupedMinList = doInsertAndCut(groupedMinList, fieldValue, new MinComparator());
                     } else {
                         throw new RuntimeException("unimplement code");
                     }
@@ -789,7 +789,7 @@ public class AggregateOps {
                     groupedMinList = doInsertAndCut(groupedMinList, fieldValue, new MinComparator());
                 } else {
                     if (changedCount.compareTo(BigDecimal.ZERO) > 0) {
-                        groupedMinList = doInsertAndCut(groupedMinList, fieldValue, new MaxComparator());
+                        groupedMinList = doInsertAndCut(groupedMinList, fieldValue, new MinComparator());
                     } else {
                         throw new RuntimeException("unimplement code");
                     }
