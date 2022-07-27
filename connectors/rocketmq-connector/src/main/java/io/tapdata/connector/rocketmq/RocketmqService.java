@@ -223,20 +223,23 @@ public class RocketmqService extends AbstractMqService {
         litePullConsumer.setConsumeFromWhere(ConsumeFromWhere.CONSUME_FROM_FIRST_OFFSET);
         litePullConsumer.start();
         litePullConsumer.subscribe(tableName, "*");
-        while (consuming.get()) {
-            List<MessageExt> messageList = litePullConsumer.poll(SINGLE_MAX_LOAD_TIMEOUT * 3);
-            if (EmptyKit.isEmpty(messageList)) {
-                break;
-            }
-            for (MessageExt message : messageList) {
-                makeMessage(message, list, tableName);
-                if (list.size() >= eventBatchSize) {
-                    eventsOffsetConsumer.accept(list, TapSimplify.list());
-                    list = TapSimplify.list();
+        try {
+            while (consuming.get()) {
+                List<MessageExt> messageList = litePullConsumer.poll(SINGLE_MAX_LOAD_TIMEOUT * 3);
+                if (EmptyKit.isEmpty(messageList)) {
+                    break;
+                }
+                for (MessageExt message : messageList) {
+                    makeMessage(message, list, tableName);
+                    if (list.size() >= eventBatchSize) {
+                        eventsOffsetConsumer.accept(list, TapSimplify.list());
+                        list = TapSimplify.list();
+                    }
                 }
             }
+        } finally {
+            litePullConsumer.shutdown();
         }
-        litePullConsumer.shutdown();
         if (EmptyKit.isNotEmpty(list)) {
             eventsOffsetConsumer.accept(list, TapSimplify.list());
         }

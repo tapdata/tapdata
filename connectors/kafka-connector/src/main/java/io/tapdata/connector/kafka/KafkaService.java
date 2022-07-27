@@ -236,7 +236,7 @@ public class KafkaService extends AbstractMqService {
         if (EmptyKit.isEmpty(tapTable.primaryKeys(true))) {
             return null;
         } else {
-            return jsonParser.toJsonBytes(tapTable.primaryKeys(true).stream().map(key -> (String) data.get(key)).collect(Collectors.joining("_")));
+            return jsonParser.toJsonBytes(tapTable.primaryKeys(true).stream().map(key -> data.get(key).toString()).collect(Collectors.joining("_")));
         }
     }
 
