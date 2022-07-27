@@ -17,6 +17,12 @@ import java.math.BigDecimal;
 @Getter
 public class WrapItem implements Cloneable {
     private Object message;
+    /**
+     * 事件造成行数的变化
+     */
+    private BigDecimal changedCount = BigDecimal.ZERO;
+
+    private Object originalMessage;
 
     private String cachedGroupByKey;
 
@@ -64,6 +70,8 @@ public class WrapItem implements Cloneable {
     public WrapItem clone() {
         WrapItem newItem = new WrapItem();
         newItem.setMessage(message);
+        newItem.setOriginalMessage(originalMessage);
+        newItem.setChangedCount(changedCount);
         newItem.setCachedGroupByKey(cachedGroupByKey);
         newItem.setCachedRollingAggregateCounter(cachedRollingAggregateCounter);
         newItem.setEvent((TapdataEvent) event.clone());
