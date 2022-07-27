@@ -12,6 +12,7 @@ import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.logCollector.VirtualTargetNode;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.process.MigrateFieldRenameProcessorNode;
+import com.tapdata.tm.commons.dag.process.MigrateJsProcessorNode;
 import com.tapdata.tm.commons.dag.process.TableRenameProcessNode;
 import com.tapdata.tm.commons.dag.vo.FieldInfo;
 import com.tapdata.tm.commons.dag.vo.TableFieldInfo;
@@ -24,6 +25,7 @@ import com.tapdata.tm.commons.task.dto.Dag;
 import com.tapdata.tm.commons.task.dto.SubTaskDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.util.MetaDataBuilderUtils;
+import com.tapdata.tm.commons.util.MetaType;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.ds.service.impl.DataSourceService;
 import com.tapdata.tm.messagequeue.dto.MessageQueueDto;
@@ -32,6 +34,7 @@ import com.tapdata.tm.metadatainstance.entity.MetadataInstancesEntity;
 import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
 import com.tapdata.tm.task.service.TaskNodeService;
 import com.tapdata.tm.task.service.TaskService;
+import com.tapdata.tm.task.utils.CacheUtils;
 import com.tapdata.tm.task.vo.JsResultDto;
 import com.tapdata.tm.task.vo.JsResultVo;
 import com.tapdata.tm.utils.Lists;
@@ -44,6 +47,7 @@ import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.collections4.ListUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.bson.types.ObjectId;
+import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -63,8 +67,6 @@ public class TaskNodeServiceImpl implements TaskNodeService {
     private MessageQueueService messageQueueService;
     private WorkerService workerService;
 
-    public static final ConcurrentMap<String, Object> jsNodeResult = Maps.newConcurrentMap();
-
     @Override
     public Page<MetadataTransformerItemDto> getNodeTableInfo(String taskId, String nodeId, String searchTableName,
                                                              Integer page, Integer pageSize, UserDetail userDetail) {
@@ -81,7 +83,7 @@ public class TaskNodeServiceImpl implements TaskNodeService {
         }
 
         DatabaseNode sourceNode = dag.getSourceNode().getFirst();
-        DatabaseNode targetNode = org.apache.commons.collections4.CollectionUtils.isNotEmpty(dag.getTargetNode()) ? dag.getTargetNode().getLast() : null;
+        DatabaseNode targetNode = CollectionUtils.isNotEmpty(dag.getTargetNode()) ? dag.getTargetNode().getLast() : null;
         List<String> tableNames = sourceNode.getTableNames();
         if (CollectionUtils.isEmpty(tableNames) && StringUtils.equals("all", sourceNode.getMigrateTableSelectType())) {
             List<MetadataInstancesDto> metaInstances = metadataInstancesService.findBySourceIdAndTableNameList(sourceNode.getConnectionId(), null, userDetail);
@@ -100,8 +102,65 @@ public class TaskNodeServiceImpl implements TaskNodeService {
 
         currentTableList = ListUtils.partition(tableNames, pageSize).get(page - 1);
 
+        DataSourceConnectionDto targetDataSource = null;
+        if (targetNode != null) {
+            targetDataSource = dataSourceService.findById(MongoUtils.toObjectId(targetNode.getConnectionId()));
+        }
+        // if current node pre has js node need get data from metaInstances
+        boolean preHasJsNode = dag.getPreNodes(nodeId).stream().anyMatch(n -> n instanceof MigrateJsProcessorNode);
+        if (preHasJsNode)
+            return getMetaByJsNode(nodeId, result, sourceNode, targetNode, tableNames, currentTableList, targetDataSource);
+        else
+            return getMetadataTransformerItemDtoPage(nodeId, userDetail, result, dag, sourceNode, targetNode, tableNames, currentTableList, targetDataSource);
+    }
+
+    private Page<MetadataTransformerItemDto> getMetaByJsNode(String nodeId, Page<MetadataTransformerItemDto> result, DatabaseNode sourceNode, DatabaseNode targetNode, List<String> tableNames, List<String> currentTableList, DataSourceConnectionDto targetDataSource) {
+        List<String> qualifiedNames;
+        if (targetNode != null && nodeId.equals(targetNode.getId())) {
+            String metaType = "mongodb".equals(targetDataSource.getDatabase_type()) ? "collection" : "table";
+            qualifiedNames = currentTableList.stream().map(t ->
+                    MetaDataBuilderUtils.generateQualifiedName(metaType, targetDataSource, t)).collect(Collectors.toList());
+        } else {
+            qualifiedNames = currentTableList.stream().map(t ->
+                    MetaDataBuilderUtils.generateQualifiedName(MetaType.processor_node.name(), nodeId, t)).collect(Collectors.toList());
+        }
+        List<MetadataInstancesDto> instances = metadataInstancesService.findByQualifiedNameList(qualifiedNames);
+        if (CollectionUtils.isNotEmpty(instances)) {
+            List<MetadataTransformerItemDto> data = Lists.newArrayList();
+            for (MetadataInstancesDto instance : instances) {
+                MetadataTransformerItemDto item = new MetadataTransformerItemDto();
+                item.setSourceObjectName(instance.getOriginalName());
+                item.setPreviousTableName(instance.getOriginalName());
+                item.setSinkObjectName(instance.getName());
+                item.setSinkQulifiedName(instance.getQualifiedName());
+
+                List<FieldsMapping> fieldsMapping = Lists.newArrayList();
+                if (CollectionUtils.isNotEmpty(instance.getFields())) {
+                    for (Field field : instance.getFields()) {
+                        String defaultValue = Objects.isNull(field.getDefaultValue()) ? "" : field.getDefaultValue().toString();
+                        FieldsMapping mapping = new FieldsMapping(field.getFieldName(), field.getOriginalFieldName(),
+                                field.getDataType(), "auto", defaultValue, true, "system");
+                        fieldsMapping.add(mapping);
+                    }
+                }
+
+                item.setFieldsMapping(fieldsMapping);
+                item.setSourceFieldCount(fieldsMapping.size());
+                item.setSourceDataBaseType(sourceNode.getDatabaseType());
+                item.setSinkDbType(targetNode != null ? targetNode.getDatabaseType() : null);
+
+                data.add(item);
+            }
+            result.setTotal(tableNames.size());
+            result.setItems(data);
+        }
+        return result;
+    }
+
+    @NotNull
+    private Page<MetadataTransformerItemDto> getMetadataTransformerItemDtoPage(String nodeId, UserDetail userDetail, Page<MetadataTransformerItemDto> result, DAG dag, DatabaseNode sourceNode, DatabaseNode targetNode, List<String> tableNames, List<String> currentTableList, DataSourceConnectionDto targetDataSource) {
         List<Node<?>> predecessors = dag.nodeMap().get(nodeId);
-        Node currentNode = dag.getNode(nodeId);
+        Node<?> currentNode = dag.getNode(nodeId);
         if (CollectionUtils.isEmpty(predecessors)) {
             predecessors = Lists.newArrayList();
         }
@@ -129,7 +188,7 @@ public class TaskNodeServiceImpl implements TaskNodeService {
             if (CollectionUtils.isNotEmpty(fieldsMapping)) {
                 tableFieldMap = fieldsMapping.stream()
                         .filter(f -> Objects.nonNull(f.getQualifiedName()))
-                        .collect(Collectors.toMap(TableFieldInfo::getOriginTableName, TableFieldInfo::getFields, (e1,e2)->e1));
+                        .collect(Collectors.toMap(TableFieldInfo::getOriginTableName, TableFieldInfo::getFields, (e1, e2) -> e1));
             }
         }
 
@@ -141,11 +200,6 @@ public class TaskNodeServiceImpl implements TaskNodeService {
         }
 
         DataSourceConnectionDto sourceDataSource = dataSourceService.findById(MongoUtils.toObjectId(sourceNode.getConnectionId()));
-
-        DataSourceConnectionDto targetDataSource = null;
-        if (targetNode != null) {
-            targetDataSource = dataSourceService.findById(MongoUtils.toObjectId(targetNode.getConnectionId()));
-        }
 
         List<MetadataTransformerItemDto> data = Lists.newArrayList();
         for (String tableName : currentTableList) {
@@ -180,8 +234,7 @@ public class TaskNodeServiceImpl implements TaskNodeService {
                             .collect(Collectors.toMap(FieldInfo::getSourceFieldName, Function.identity()));
                 }
                 Map<String, FieldInfo> finalFieldInfoMap = fieldInfoMap;
-                for (int i = 0; i < fields.size(); i++) {
-                    Field field = fields.get(i);
+                for (Field field : fields) {
                     String defaultValue = Objects.isNull(field.getDefaultValue()) ? "" : field.getDefaultValue().toString();
 
                     String fieldName = field.getOriginalFieldName();
@@ -246,7 +299,7 @@ public class TaskNodeServiceImpl implements TaskNodeService {
             edges.add(edge);
         }
 
-        build.setNodes(new LinkedList<Node>(){{addAll(nodes);}});
+        Objects.requireNonNull(build).setNodes(new LinkedList<Node>(){{addAll(nodes);}});
         build.setEdges(edges);
 
         DAG temp = DAG.build(build);
@@ -275,16 +328,17 @@ public class TaskNodeServiceImpl implements TaskNodeService {
 
     @Override
     public void saveResult(JsResultDto jsResultDto) {
-        jsNodeResult.put(jsResultDto.getTaskId(),  jsResultDto);
+        if (Objects.nonNull(jsResultDto)) {
+            CacheUtils.put(jsResultDto.getTaskId(),  jsResultDto);
+        }
     }
 
     @Override
     public JsResultVo getRun(String taskId, String jsNodeId) {
         JsResultVo result = new JsResultVo();
-        if (jsNodeResult.containsKey(taskId)) {
-            BeanUtil.copyProperties(jsNodeResult.get(taskId), result);
+        if (CacheUtils.isExist(taskId)) {
+            BeanUtil.copyProperties(CacheUtils.invalidate(taskId), result);
             result.setOver(true);
-            jsNodeResult.remove(taskId);
         } else {
             result.setOver(false);
         }

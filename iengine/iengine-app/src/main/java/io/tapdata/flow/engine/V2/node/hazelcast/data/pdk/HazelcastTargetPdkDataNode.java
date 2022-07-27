@@ -166,6 +166,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 		CreateTableFunction createTableFunction = getConnectorNode().getConnectorFunctions().getCreateTableFunction();
 		CreateTableV2Function createTableV2Function = getConnectorNode().getConnectorFunctions().getCreateTableV2Function();
 		if (createTableV2Function != null || createTableFunction != null) {
+			handleTapTablePrimaryKeys(tapTable);
 			TapCreateTableEvent tapCreateTableEvent = createTableEvent(tapTable);
 			executeDataFuncAspect(CreateTableFuncAspect.class, () -> new CreateTableFuncAspect()
 					.createTableEvent(tapCreateTableEvent)

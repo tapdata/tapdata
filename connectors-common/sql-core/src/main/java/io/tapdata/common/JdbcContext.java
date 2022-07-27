@@ -173,7 +173,9 @@ public abstract class JdbcContext {
      */
     public abstract List<DataMap> queryAllTables(List<String> tableNames);
 
-    public abstract void queryAllTables(List<String> tableNames, int batchSize, Consumer<List<String>> consumer);
+    public void queryAllTables(List<String> tableNames, int batchSize, Consumer<List<String>> consumer){
+        throw new UnsupportedOperationException();
+    }
 
     /**
      * query all column info from some tables
