@@ -44,7 +44,7 @@ public class ConnectorNodeService {
 		}
 	}
 
-	public enum ConnectorNodeServiceInstance {
+	private enum ConnectorNodeServiceInstance {
 		SINGLETON;
 		private final ConnectorNodeService connectorNodeService;
 

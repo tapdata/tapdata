@@ -20,6 +20,6 @@ public interface TaskDagCheckLogService {
 
     void removeAllByTaskId(String taskId);
 
-    TaskDagCheckLog createLog(String taskId, String userId, String grade, DagOutputTemplateEnum templateEnum,
-                              boolean delOther, boolean needSave, Object ... param);
+    void createLog(String taskId, String userId, String grade, DagOutputTemplateEnum templateEnum,
+                   boolean delOther, boolean needSave, Object ... param);
 }

@@ -368,7 +368,6 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         DAG dag = taskDto.getDag();
         if (dag != null) {
             if (TaskDto.SYNC_TYPE_MIGRATE.equals(taskDto.getSyncType())) {
-                taskDto.setMigrateModelStatus(TaskDto.MODELING);
                 if (CollectionUtils.isNotEmpty(dag.getSourceNode())) {
                     //supplier migrate tableSelectType=all tableNames and SyncObjects
                     DatabaseNode sourceNode = dag.getSourceNode().get(0);
@@ -731,11 +730,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                     }
                     boolean canHotUpdate = subTaskService.canHotUpdate(subTaskDto.getDag(), updateSubtask.getDag());
                     if (!canHotUpdate) {
-                        Message message = new Message();
-                        message.setCode("Task.UpdateSubTask");
-                        List<Message> messageList = new ArrayList<>();
-                        messageList.add(message);
-                        messageMap.put(updateSubtask.getSubTaskId().toString(), messageList);
+                        throw new BizException("Task.UpdateSubTask");
                     }
                 }
             }
@@ -1381,9 +1376,6 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     public void batchStart(List<ObjectId> taskIds, UserDetail user) {
         List<TaskDto> taskDtos = findAllTasksByIds(taskIds.stream().map(ObjectId::toHexString).collect(Collectors.toList()));
         for (TaskDto task : taskDtos) {
-            if (TaskDto.SYNC_TYPE_MIGRATE.equals(task.getSyncType()) && !TaskDto.MODELDONE.equals(task.getMigrateModelStatus())) {
-               throw new BizException("Task.MigrateModelNotDeductionDone");
-            }
             checkDagAgentConflict(task, false);
 
             try {
@@ -2618,12 +2610,6 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
         Query query = new Query(Criteria.where("_id").in(ids));
         return findAll(query);
-    }
-
-    public void updateMigrateStatus(ObjectId taskId) {
-        Query query = Query.query(Criteria.where("_id").is(taskId));
-        Update update = Update.update("migrateModelStatus", TaskDto.MODELDONE);
-        update(query, update);
     }
 
     public void updateStatus(ObjectId taskId, String status) {

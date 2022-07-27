@@ -1,6 +1,7 @@
 package io.tapdata.flow.engine.V2.monitor;
 
 import java.io.Closeable;
+import java.util.function.Consumer;
 
 /**
  * @author samuel
@@ -13,6 +14,10 @@ public interface Monitor<T> extends Closeable {
 	}
 
 	default T get() {
+		throw new UnsupportedOperationException();
+	}
+
+	default void consume(Consumer<T> consumer) {
 		throw new UnsupportedOperationException();
 	}
 }

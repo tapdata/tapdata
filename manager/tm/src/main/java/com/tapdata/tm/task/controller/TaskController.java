@@ -27,6 +27,8 @@ import com.tapdata.tm.task.bean.LogCollectorResult;
 import com.tapdata.tm.task.bean.TranModelReqDto;
 import com.tapdata.tm.task.entity.TaskEntity;
 import com.tapdata.tm.task.service.*;
+import com.tapdata.tm.task.vo.JsResultDto;
+import com.tapdata.tm.task.vo.JsResultVo;
 import com.tapdata.tm.task.vo.TaskDetailVo;
 import com.tapdata.tm.utils.Lists;
 import com.tapdata.tm.utils.MongoUtils;
@@ -57,7 +59,7 @@ import java.util.stream.Stream;
  */
 @Tag(name = "Task", description = "Task相关接口")
 @RestController
-@RequestMapping("/api/Task")
+@RequestMapping({"/api/Task", "/api/task"})
 @Setter(onMethod_ = {@Autowired})
 public class TaskController extends BaseController {
     private TaskService taskService;
@@ -741,7 +743,28 @@ public class TaskController extends BaseController {
         return success();
     }
 
+    @GetMapping("migrate-js/test-run")
+    @Operation(description = "js节点试运行")
+    public ResponseMessage<Void> testRun(@RequestParam String taskId,
+                                         @RequestParam String jsNodeId,
+                                         @RequestParam String tableName,
+                                         @RequestParam(defaultValue = "1") Integer rows) {
+        taskNodeService.testRunJsNode(taskId, jsNodeId, tableName, rows, getLoginUser());
+        return success();
+    }
 
+    @PostMapping("migrate-js/save-result")
+    @Operation(description = "js节点运行结果保存")
+    public ResponseMessage<Void> saveResult(@RequestBody JsResultDto jsResultDto) {
+        taskNodeService.saveResult(jsResultDto);
+        return success();
+    }
 
+    @GetMapping("migrate-js/get-result")
+    @Operation(description = "js节点试运行结果获取")
+    public ResponseMessage<JsResultVo> getRun(@RequestParam String taskId,
+                                         @RequestParam String jsNodeId) {
+        return success(taskNodeService.getRun(taskId, jsNodeId));
+    }
 
 }

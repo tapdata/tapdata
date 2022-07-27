@@ -41,16 +41,8 @@ public class HazelcastProcessorNode extends HazelcastProcessorBaseNode {
 
 	private DataFlowProcessor dataFlowProcessor;
 
-	/**
-	 * Whether to process data from multiple tables
-	 */
-	private final boolean multipleTables;
-
 	public HazelcastProcessorNode(DataProcessorContext dataProcessorContext) throws Exception {
 		super(dataProcessorContext);
-		//如果为迁移任务、且源节点为数据库类型
-		this.multipleTables = CollectionUtils.isNotEmpty(dataProcessorContext.getSubTaskDto().getDag().getSourceNode())
-						&& TaskDto.SYNC_TYPE_MIGRATE.equals(dataProcessorContext.getSubTaskDto().getParentTask().getSyncType());
 	}
 
 	@Override
@@ -204,6 +196,13 @@ public class HazelcastProcessorNode extends HazelcastProcessorBaseNode {
 
 				JsProcessorNode jsProcessorNode = (JsProcessorNode) node;
 				stage.setScript(jsProcessorNode.getScript());
+				break;
+			case MIGRATE_JS_PROCESSOR:
+				dataFlowProcessor = new ScriptDataFlowProcessor();
+				stage.setType(Stage.StageTypeEnum.SCRIPT_TYPE.getType());
+
+				MigrateJsProcessorNode migrateJsProcessorNode = (MigrateJsProcessorNode) node;
+				stage.setScript(migrateJsProcessorNode.getScript());
 				break;
 			case TABLE_RENAME_PROCESSOR:
 				dataFlowProcessor = new TableRenameProcessor((TableRenameProcessNode) node);

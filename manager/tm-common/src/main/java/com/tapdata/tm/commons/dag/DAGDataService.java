@@ -97,4 +97,6 @@ public interface DAGDataService {
     boolean checkNewestVersion(String taskId, String nodeId, String version);
 
     TaskDto getTaskById(String taskId);
+    ObjectId getTaskId();
+
 }

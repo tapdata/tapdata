@@ -14,6 +14,8 @@ import com.tapdata.tm.commons.dag.vo.SyncObjects;
 import com.tapdata.tm.commons.dag.vo.TableRenameTableInfo;
 import com.tapdata.tm.commons.schema.*;
 import io.tapdata.entity.event.ddl.TapDDLEvent;
+import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
+import io.tapdata.entity.event.ddl.table.TapDropTableEvent;
 import io.tapdata.entity.event.ddl.table.TapFieldBaseEvent;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import lombok.Getter;
@@ -62,6 +64,8 @@ public class DatabaseNode extends DataParentNode<List<Schema>> {
 
     //包含的表名，用于数据挖掘，在加载schema的时候存入
     private List<String> tableNames;
+
+    private Integer rows;
 
     // 复制任务 全部 or 自定义
     private String migrateTableSelectType;
@@ -312,6 +316,19 @@ public class DatabaseNode extends DataParentNode<List<Schema>> {
 
     @Override
     public void fieldDdlEvent(TapDDLEvent event) throws Exception {
+
+        if (event instanceof TapCreateTableEvent || event instanceof TapDropTableEvent) {
+            tableNames = tableNames == null ? new ArrayList<>() : tableNames;
+            if (event instanceof TapCreateTableEvent) {
+                String tableName = ((TapCreateTableEvent) event).getTableId();
+                tableNames.add(tableName);
+            } else if (event instanceof TapDropTableEvent) {
+                String tableName = ((TapDropTableEvent) event).getTableId();
+                tableNames.remove(tableName);
+            }
+
+        }
+
         if (null == fieldProcess) {
             return;
         }

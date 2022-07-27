@@ -6,6 +6,7 @@ import com.tapdata.constant.JSONUtil;
 import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.DAGDataServiceImpl;
+import com.tapdata.tm.commons.dag.vo.MigrateJsResultVo;
 import com.tapdata.tm.commons.schema.*;
 import com.tapdata.tm.commons.task.dto.Message;
 import com.tapdata.tm.commons.task.dto.SubTaskDto;
@@ -18,12 +19,14 @@ import io.tapdata.flow.engine.V2.task.TaskService;
 import io.tapdata.websocket.EventHandlerAnnotation;
 import io.tapdata.websocket.WebSocketEventHandler;
 import io.tapdata.websocket.WebSocketEventResult;
+import org.apache.commons.collections.CollectionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.data.mongodb.core.query.Update;
 
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @EventHandlerAnnotation(type = "deduceSchema")
 public class DeduceSchemaHandler implements WebSocketEventHandler<WebSocketEventResult> {
@@ -76,6 +79,30 @@ public class DeduceSchemaHandler implements WebSocketEventHandler<WebSocketEvent
 					}
 
 					return tapTable;
+				}
+				return null;
+			}
+
+			@Override
+			public List<MigrateJsResultVo> getJsResult(String jsNodeId, String virtualTargetId, SubTaskDto subTaskDto) {
+				String schemaKey = subTaskDto.getId() + "-" + virtualTargetId;
+				long startTs = System.currentTimeMillis();
+				TaskClient<SubTaskDto> taskClient = taskService.startTestTask(subTaskDto);
+				taskClient.join();
+
+				logger.info("load tapTable task {} {}, cost {}ms", schemaKey, taskClient.getStatus(), (System.currentTimeMillis() - startTs));
+				if (SubTaskDto.STATUS_COMPLETE.equals(taskClient.getStatus())) {
+					//成功
+					List<HazelcastSchemaTargetNode.SchemaApplyResult> schemaApplyResultList = HazelcastSchemaTargetNode.getSchemaApplyResultList(schemaKey);
+					if (logger.isDebugEnabled()) {
+						logger.debug("derivation results: {}", JSON.toJSONString(schemaApplyResultList));
+					}
+
+					if (CollectionUtils.isNotEmpty(schemaApplyResultList)) {
+						return schemaApplyResultList.stream().map(s -> new MigrateJsResultVo(s.getOp(),s.getFieldName(), s.getTapField()))
+										.collect(Collectors.toList());
+					}
+
 				}
 				return null;
 			}

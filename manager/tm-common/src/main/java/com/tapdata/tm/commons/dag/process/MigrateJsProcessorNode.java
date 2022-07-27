@@ -1,5 +1,7 @@
 package com.tapdata.tm.commons.dag.process;
 
+import cn.hutool.core.bean.BeanUtil;
+import com.google.common.collect.Lists;
 import com.tapdata.manager.common.utils.JsonUtil;
 import com.tapdata.tm.commons.dag.*;
 import com.tapdata.tm.commons.dag.logCollector.VirtualTargetNode;
@@ -9,13 +11,20 @@ import com.tapdata.tm.commons.task.dto.Dag;
 import com.tapdata.tm.commons.task.dto.SubTaskDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.util.PdkSchemaConvert;
+import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
+import io.tapdata.entity.utils.InstanceFactory;
+import io.tapdata.entity.utils.JsonParser;
+import io.tapdata.entity.utils.TypeHolder;
+import io.tapdata.pdk.core.utils.TapConstants;
 import lombok.Getter;
 import lombok.Setter;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.bson.types.ObjectId;
 import org.springframework.beans.BeanUtils;
 
+import java.time.OffsetDateTime;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
@@ -31,122 +40,110 @@ import static com.tapdata.tm.commons.base.convert.ObjectIdDeserialize.toObjectId
 @NodeType("migrate_js_processor")
 @Getter
 @Setter
+@Slf4j
 public class MigrateJsProcessorNode extends Node<List<Schema>> {
     @EqField
     private String script;
 
     @Override
     protected List<Schema> loadSchema(List<String> includes) {
-        String nodeId = this.getId();
+        final List<String> predIds = new ArrayList<>();
+        getPrePre(this, predIds);
+        predIds.add(this.getId());
         Dag dag = this.getDag().toDag();
         dag = JsonUtil.parseJsonUseJackson(JsonUtil.toJsonUseJackson(dag), Dag.class);
-        List<Node<?>> nodes = this.getDag().nodeMap().get(nodeId);
+        List<Node> nodes = dag.getNodes();
 
-        Node<?> target = new VirtualTargetNode();
+        Node target = new VirtualTargetNode();
         target.setId(UUID.randomUUID().toString());
         target.setName(target.getId());
         if (CollectionUtils.isNotEmpty(nodes)) {
+            nodes = nodes.stream().filter(n -> predIds.contains(n.getId())).collect(Collectors.toList());
             nodes.add(target);
         }
 
-        List<Edge> edges = this.getDag().edgeMap().get(nodeId);
+        List<Edge> edges = dag.getEdges();
         if (CollectionUtils.isNotEmpty(edges)) {
-            Edge edge = new Edge(nodeId, target.getId());
+            edges = edges.stream().filter(e -> (predIds.contains(e.getTarget()) || predIds.contains(e.getSource())) && !e.getSource().equals(this.getId())).collect(Collectors.toList());
+            Edge edge = new Edge(this.getId(), target.getId());
             edges.add(edge);
         }
 
-        dag.setNodes(new LinkedList<Node>(){{addAll(nodes);}});
+        ObjectId taskId = this.getDag().getTaskId();
+        dag.setNodes(nodes);
         dag.setEdges(edges);
-
         DAG build = DAG.build(dag);
+        build.getNodes().forEach(node -> node.getDag().setTaskId(taskId));
 
         SubTaskDto subTaskDto = new SubTaskDto();
         subTaskDto.setStatus(SubTaskDto.STATUS_WAIT_RUN);
-        ObjectId taskId = this.getDag().getTaskId();
         TaskDto taskDto = service.getTaskById(taskId == null ? null : taskId.toHexString());
         taskDto.setDag(null);
+        taskDto.setSyncType(TaskDto.SYNC_TYPE_DEDUCE_SCHEMA);
         subTaskDto.setParentTask(taskDto);
         subTaskDto.setDag(build);
         subTaskDto.setParentId(taskDto.getId());
         subTaskDto.setId(new ObjectId());
         subTaskDto.setName(taskDto.getName() + "(100)");
-        subTaskDto.setTransformTask(true);
-        ////用于预跑数据得到模型
-        List<MigrateJsResultVo> jsResult = service.getJsResult(getId(), target.getId(), subTaskDto);
+        subTaskDto.setParentSyncType(taskDto.getSyncType());
+
+        List<Schema> result = Lists.newArrayList();
+        List<MigrateJsResultVo> jsResult;
+        try {
+            jsResult = service.getJsResult(getId(), target.getId(), subTaskDto);
+        } catch (Exception e) {
+            log.error("MigrateJsProcessorNode getJsResult ERROR", e);
+            throw new RuntimeException(e);
+        }
         if (CollectionUtils.isEmpty(jsResult)) {
-            throw new RuntimeException("migrate js result is null");
-        }
+            result = getInputSchema().get(0);
+        } else {
+            Map<String, MigrateJsResultVo> removeMap = jsResult.stream()
+                    .filter(n -> "REMOVE".equals(n.getOp()))
+                    .collect(Collectors.toMap(MigrateJsResultVo::getFieldName, Function.identity(), (e1, e2) -> e1));
 
-//        jsResult.stream().map(MigrateJsResultVo::getFieldName, Function.identity())
+            Map<String, MigrateJsResultVo> convertMap = jsResult.stream()
+                    .filter(n -> "CONVERT".equals(n.getOp()))
+                    .collect(Collectors.toMap(MigrateJsResultVo::getFieldName, Function.identity(), (e1, e2) -> e1));
 
-        Schema schema = null;
+            Map<String, TapField> createMap = jsResult.stream()
+                    .filter(n -> "CREATE".equals(n.getOp()))
+                    .collect(Collectors.toMap(MigrateJsResultVo::getFieldName, MigrateJsResultVo::getTapField, (e1, e2) -> e1));
 
-        List<List<Schema>> inputSchema = getInputSchema();
-        if (CollectionUtils.isEmpty(inputSchema)) {
-            return null;
-        }
-
-
-        Schema schema1 = null;
-        if (schema1 != null) {
-            schema.setDatabaseId(schema1.getDatabaseId());
-            schema.setDatabase(schema1.getDatabase());
-            schema.setName(schema1.getName());
-            schema.setOriginalName(schema1.getOriginalName());
-            schema.setCreateSource(schema1.getCreateSource());
-
-
-            List<Field> fields1 = schema1.getFields();
-            Map<String, Field> originFieldMap = fields1.stream().collect(Collectors.toMap(Field::getFieldName, f -> f));
-
-            String sourceDbType = null;
-            if (CollectionUtils.isNotEmpty(fields1)) {
-                sourceDbType = fields1.get(0).getSourceDbType();
+            List<Schema> inputSchema = getInputSchema().get(0);
+            if (CollectionUtils.isEmpty(inputSchema)) {
+                return null;
             }
 
+            // js result data
+            for (Schema schema : inputSchema) {
 
-            List<Field> fields = schema.getFields();
+                TapTable tapTable = PdkSchemaConvert.toPdk(schema);
+                LinkedHashMap<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
 
-            Set<String> fieldNames = fields.stream().map(Field::getFieldName).collect(Collectors.toSet());
-
-            if (CollectionUtils.isNotEmpty(fields)) {
-                for (Field field : fields) {
-                    field.setDataTypeTemp(field.getDataType());
-                    field.setOriginalDataType(field.getDataType());
-                    Field field1 = originFieldMap.get(field.getFieldName());
-                    if (field1 != null) {
-                        field1.setDataType(field.getDataType());
-                        field1.setColumnPosition(field.getColumnPosition());
-                        field1.setTapType(field.getTapType());
-                        BeanUtils.copyProperties(field1, field);
-                    } else {
-                        field.setSourceDbType(sourceDbType);
-                    }
+                if (!removeMap.isEmpty()) {
+                    removeMap.keySet().forEach(nameFieldMap::remove);
                 }
-            }
 
-            List<TableIndex> indices = new ArrayList<>();
-
-            if (CollectionUtils.isNotEmpty(schema1.getIndices())) {
-                for (TableIndex index : schema1.getIndices()) {
-                    List<TableIndexColumn> columns = index.getColumns();
-                    List<TableIndexColumn> newColumns = new ArrayList<>();
-                    for (TableIndexColumn column : columns) {
-                        if (fieldNames.contains(column.getColumnName())){
-                            newColumns.add(column);
+                if (!convertMap.isEmpty()) {
+                    convertMap.keySet().forEach(name -> {
+                        if (nameFieldMap.containsKey(name)) {
+                            nameFieldMap.put(name, convertMap.get(name).getTapField());
                         }
-                    }
-                    if (CollectionUtils.isNotEmpty(newColumns)) {
-                        index.setColumns(newColumns);
-                        indices.add(index);
-                    }
+                    });
                 }
-            }
 
-            schema.setIndices(indices);
+                if (!createMap.isEmpty()) {
+                    nameFieldMap.putAll(createMap);
+                }
+
+                Schema s = PdkSchemaConvert.fromPdkSchema(tapTable);
+                s.setDatabaseId(schema.getDatabaseId());
+                result.add(s);
+            }
         }
 
-        return null;
+        return result;
     }
 
     @Override
@@ -156,7 +153,7 @@ public class MigrateJsProcessorNode extends Node<List<Schema>> {
     }
 
     public MigrateJsProcessorNode() {
-        super("migrate_js_processor");
+        super(NodeEnum.migrate_js_processor.name(), NodeCatalog.processor);
     }
 
     @Override
@@ -189,16 +186,6 @@ public class MigrateJsProcessorNode extends Node<List<Schema>> {
         return false;
     }
 
-    private void getPrePre(Node node, List<String> preIds) {
-        List<Node> predecessors = node.predecessors();
-        if (CollectionUtils.isNotEmpty(predecessors)) {
-            for (Node predecessor : predecessors) {
-                preIds.add(predecessor.getId());
-                getPrePre(predecessor, preIds);
-            }
-        }
-    }
-
     @Override
     protected List<Schema> saveSchema(Collection<String> predecessors, String nodeId, List<Schema> schema, DAG.Options options) {
         ObjectId taskId = taskId();
@@ -223,5 +210,15 @@ public class MigrateJsProcessorNode extends Node<List<Schema>> {
 
         getSourceNode().stream().findFirst().ifPresent(node -> connectionId.set(node.getConnectionId()));
         return connectionId.get();
+    }
+
+    private void getPrePre(Node node, List<String> preIds) {
+        List<Node> predecessors = node.predecessors();
+        if (CollectionUtils.isNotEmpty(predecessors)) {
+            for (Node predecessor : predecessors) {
+                preIds.add(predecessor.getId());
+                getPrePre(predecessor, preIds);
+            }
+        }
     }
 }

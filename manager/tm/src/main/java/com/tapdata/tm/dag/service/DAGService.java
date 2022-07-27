@@ -885,4 +885,8 @@ public class DAGService implements DAGDataService {
     public TaskDto getTaskById(String taskId) {
         return taskService.findById(new ObjectId(taskId));
     }
+
+    public ObjectId getTaskId() {
+        return null;
+    }
 }

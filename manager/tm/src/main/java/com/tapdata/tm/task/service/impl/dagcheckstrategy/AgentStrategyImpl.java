@@ -21,6 +21,7 @@ import org.springframework.stereotype.Component;
 import java.text.MessageFormat;
 import java.util.Date;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Component("agentStrategy")
 @Setter(onMethod_ = {@Autowired})
@@ -45,7 +46,9 @@ public class AgentStrategyImpl implements DagLogStrategy {
         String grade;
         if (CollectionUtils.isNotEmpty(availableAgent)) {
             template = templateEnum.getInfoTemplate();
-            content = MessageFormat.format(template, DateUtil.now(), availableAgent.size(), availableAgent.get(0).getProcessId());
+            List<String> collect = availableAgent.stream().map(Worker::getHostname).collect(Collectors.toList());
+            content = MessageFormat.format(template, DateUtil.now(), availableAgent.size(), StringUtils.join(collect, ","),
+                    availableAgent.get(0).getHostname());
             grade = Level.INFO.getValue();
         } else {
             template = templateEnum.getErrorTemplate();

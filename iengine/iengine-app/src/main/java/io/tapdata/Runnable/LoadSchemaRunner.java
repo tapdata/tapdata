@@ -18,7 +18,9 @@ import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.exception.ConvertException;
+import io.tapdata.pdk.apis.functions.connection.GetTableNamesFunction;
 import io.tapdata.pdk.core.api.ConnectionNode;
+import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.api.PDKIntegration;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
 import io.tapdata.pdk.core.monitor.PDKMethod;
@@ -33,11 +35,12 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
+import java.util.regex.Pattern;
 
 /**
  * @author samuel
@@ -204,37 +207,74 @@ public class LoadSchemaRunner implements Runnable {
 
 	public static void loadPdkSchema(Connections connections, ConnectionNode connectionNode, Consumer<TapTable> tableConsumer) throws Exception {
 		try {
-			String tableFilter = connections.getTable_filter();
-			List<String> tableNameFilterList = new ArrayList<>();
-			if (StringUtils.isNotBlank(tableFilter)) {
-				String[] split = tableFilter.split(",");
-				if (split.length > 0) {
-					tableNameFilterList = Arrays.asList(split);
+			TableFilter tableFilter = TableFilter.create(connections.getTable_filter());
+			GetTableNamesFunction getTableNamesFunction = connectionNode.getConnectionFunctions().getGetTableNamesFunction();
+			if (null == getTableNamesFunction) {
+				pdkDiscoverSchema(connectionNode, new ArrayList<>(), tableConsumer);
+			} else {
+				List<String> tempList = new ArrayList<>();
+				PDKInvocationMonitor.invoke(connectionNode, PDKMethod.GET_TABLE_NAMES,
+						() -> getTableNamesFunction.tableNames(connectionNode.getConnectionContext(), BATCH_SIZE, tableNames -> {
+							if (CollectionUtils.isEmpty(tableNames)) {
+								return;
+							}
+							tableNames.stream().filter(tableFilter).forEach(tempList::add);
+							if (tempList.size() >= BATCH_SIZE) {
+								pdkDiscoverSchema(connectionNode, tempList, tableConsumer);
+								tempList.clear();
+							}
+						}), TAG);
+				if (CollectionUtils.isNotEmpty(tempList)) {
+					pdkDiscoverSchema(connectionNode, tempList, tableConsumer);
+					tempList.clear();
 				}
 			}
-			TableFieldTypesGenerator tableFieldTypesGenerator = InstanceFactory.instance(TableFieldTypesGenerator.class);
-			DefaultExpressionMatchingMap dataTypesMap = connectionNode.getConnectionContext().getSpecification().getDataTypesMap();
-			List<String> finalTableNameFilterList = tableNameFilterList;
-			PDKInvocationMonitor.invoke(connectionNode, PDKMethod.DISCOVER_SCHEMA,
-					() -> connectionNode.getConnector().discoverSchema(connectionNode.getConnectionContext(), finalTableNameFilterList, BATCH_SIZE, tables -> {
-						if (CollectionUtils.isNotEmpty(tables)) {
-							for (TapTable pdkTable : tables) {
-								LinkedHashMap<String, TapField> nameFieldMap = pdkTable.getNameFieldMap();
-								if (MapUtils.isNotEmpty(nameFieldMap)) {
-									nameFieldMap.forEach((fieldName, tapField) -> {
-										if (null == tapField.getTapType()) {
-											tableFieldTypesGenerator.autoFill(tapField, dataTypesMap);
-										}
-									});
-								}
-								tableConsumer.accept(pdkTable);
-							}
-						}
-					}), TAG);
-			tableConsumer.accept(null);
 		} catch (Throwable throwable) {
 			throw new Exception("Load pdk schema failed, message: " + throwable.getMessage(), throwable);
 		}
+	}
+
+	public static void pdkDiscoverSchema(ConnectionNode connectionNode, List<String> tableFilter, Consumer<TapTable> tableConsumer) {
+		TableFieldTypesGenerator tableFieldTypesGenerator = InstanceFactory.instance(TableFieldTypesGenerator.class);
+		DefaultExpressionMatchingMap dataTypesMap = connectionNode.getConnectionContext().getSpecification().getDataTypesMap();
+		PDKInvocationMonitor.invoke(connectionNode, PDKMethod.DISCOVER_SCHEMA,
+				() -> connectionNode.getConnector().discoverSchema(connectionNode.getConnectionContext(), tableFilter, BATCH_SIZE, tables -> {
+					if (CollectionUtils.isNotEmpty(tables)) {
+						for (TapTable pdkTable : tables) {
+							LinkedHashMap<String, TapField> nameFieldMap = pdkTable.getNameFieldMap();
+							if (MapUtils.isNotEmpty(nameFieldMap)) {
+								nameFieldMap.forEach((fieldName, tapField) -> {
+									if (null == tapField.getTapType()) {
+										tableFieldTypesGenerator.autoFill(tapField, dataTypesMap);
+									}
+								});
+							}
+							tableConsumer.accept(pdkTable);
+						}
+					}
+				}), TAG);
+		tableConsumer.accept(null);
+	}
+
+	public static void pdkDiscoverSchema(ConnectorNode connectorNode, List<String> tableFilter, Consumer<TapTable> tableConsumer) {
+		TableFieldTypesGenerator tableFieldTypesGenerator = InstanceFactory.instance(TableFieldTypesGenerator.class);
+		DefaultExpressionMatchingMap dataTypesMap = connectorNode.getConnectorContext().getSpecification().getDataTypesMap();
+		PDKInvocationMonitor.invoke(connectorNode, PDKMethod.DISCOVER_SCHEMA,
+				() -> connectorNode.getConnector().discoverSchema(connectorNode.getConnectorContext(), tableFilter, BATCH_SIZE, tables -> {
+					if (CollectionUtils.isNotEmpty(tables)) {
+						for (TapTable pdkTable : tables) {
+							LinkedHashMap<String, TapField> nameFieldMap = pdkTable.getNameFieldMap();
+							if (MapUtils.isNotEmpty(nameFieldMap)) {
+								nameFieldMap.forEach((fieldName, tapField) -> {
+									if (null == tapField.getTapType()) {
+										tableFieldTypesGenerator.autoFill(tapField, dataTypesMap);
+									}
+								});
+							}
+							tableConsumer.accept(pdkTable);
+						}
+					}
+				}), TAG);
 	}
 
 	private void updateSchema(String loadFieldsStatus, Throwable error) {
@@ -298,6 +338,47 @@ public class LoadSchemaRunner implements Runnable {
 			List<TapTable> tapTables = schema.getTapTables();
 			tapTables.forEach(t -> t.setLastUpdate(lastUpdate));
 			update.set("schema.tables", tapTables);
+		}
+	}
+
+	private static class TableFilter implements Predicate<String> {
+		private List<Pattern> patterns;
+
+		private TableFilter() {
+		}
+
+		public static TableFilter create(String tableFilterStr) {
+			TableFilter tableFilter = new TableFilter();
+			if (StringUtils.isBlank(tableFilterStr)) {
+				return tableFilter;
+			}
+			String[] split = tableFilterStr.split(",");
+			for (String s : split) {
+				s = s.replaceAll("\\*", ".*");
+				Pattern pattern = Pattern.compile(s);
+				tableFilter.add(pattern);
+			}
+			return tableFilter;
+		}
+
+		public void add(Pattern pattern) {
+			if (null == patterns) {
+				patterns = new ArrayList<>();
+			}
+			patterns.add(pattern);
+		}
+
+		@Override
+		public boolean test(String s) {
+			if (CollectionUtils.isEmpty(patterns)) {
+				return true;
+			}
+			for (Pattern pattern : patterns) {
+				if (pattern.matcher(s).matches()) {
+					return true;
+				}
+			}
+			return false;
 		}
 	}
 }

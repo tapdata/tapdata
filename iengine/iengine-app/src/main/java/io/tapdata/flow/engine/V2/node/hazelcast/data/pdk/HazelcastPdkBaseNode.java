@@ -9,6 +9,7 @@ import com.tapdata.tm.commons.dag.DmlPolicyEnum;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.task.dto.SubTaskDto;
+import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
@@ -29,6 +30,7 @@ import io.tapdata.pdk.core.monitor.PDKMethod;
 import io.tapdata.schema.PdkTableMap;
 import io.tapdata.schema.TapTableMap;
 import org.apache.commons.collections4.MapUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -50,7 +52,8 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 
 	public HazelcastPdkBaseNode(DataProcessorContext dataProcessorContext) {
 		super(dataProcessorContext);
-		if (!dataProcessorContext.getSubTaskDto().isTransformTask()) {
+		if (!StringUtils.equalsAnyIgnoreCase(dataProcessorContext.getSubTaskDto().getParentTask().getSyncType(),
+						TaskDto.SYNC_TYPE_DEDUCE_SCHEMA, TaskDto.SYNC_TYPE_TEST_RUN)) {
 			this.monitorManager = new MonitorManager();
 		}
 	}
@@ -131,7 +134,7 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 		if (this.monitorManager != null) {
 			this.monitorManager.close();
 		}
-		Optional.ofNullable(dataProcessorContext.getTapTableMap()).ifPresent(TapTableMap::remove);
+		Optional.ofNullable(dataProcessorContext.getTapTableMap()).ifPresent(TapTableMap::reset);
 		Optional.ofNullable(getConnectorNode()).ifPresent(node -> PDKIntegration.releaseAssociateId(associateId));
 		ConnectorNodeService.getInstance().removeConnectorNode(associateId);
 		super.doClose();
