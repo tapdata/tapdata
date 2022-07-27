@@ -332,20 +332,18 @@ public class ClickhouseConnector extends ConnectorBase {
     private void createTable(TapConnectorContext tapConnectorContext, TapCreateTableEvent tapCreateTableEvent) {
 
         TapTable tapTable = tapCreateTableEvent.getTable();
-        Collection<String> primaryKeys = tapTable.primaryKeys();
-        Collection<String> logicPrimaryKeys = Collections.emptyList();
-        if (EmptyKit.isEmpty(primaryKeys)) {
-            logicPrimaryKeys = tapTable.primaryKeys(true);
-        }
-        //pgsql UNIQUE INDEX use 'UNIQUE' not 'UNIQUE KEY' but here use 'PRIMARY KEY'
+        Collection<String> primaryKeys = tapTable.primaryKeys(true);
+//        Collection<String> logicPrimaryKeys = Collections.emptyList();
+//        if (EmptyKit.isEmpty(primaryKeys)) {
+//            logicPrimaryKeys = tapTable.primaryKeys(true);
+//        }
         String sql = "CREATE TABLE IF NOT EXISTS \"" + clickhouseConfig.getDatabase() + "\".\"" + tapTable.getId() + "\"(" + ClickhouseDDLSqlMaker.buildColumnDefinition(tapTable, true);
         sql = sql.substring(0, sql.length() - 1) + ") ENGINE = MergeTree ";
-        if (EmptyKit.isNotEmpty(tapTable.primaryKeys())) {
-            sql += " PRIMARY KEY (\"" + String.join("\",\"", primaryKeys) + "\"";
-        } else if (EmptyKit.isNotEmpty(logicPrimaryKeys)) {
-            sql += " PRIMARY KEY (\"" + String.join("\",\"", logicPrimaryKeys) + "\"";
+        if (EmptyKit.isNotEmpty(primaryKeys)) {
+            sql += " PRIMARY KEY (\"" + String.join("\",\"", primaryKeys) + "\")";
+        } else {
+            sql += " order by tuple()";
         }
-        sql += ")";
         try {
             List<String> sqls = TapSimplify.list();
             sqls.add(sql);

@@ -152,15 +152,15 @@ public class ClickhouseWriter {
         }
         List<String> afterKeys = new ArrayList<>(after.keySet());
         Collection<String> uniqueKeys = getUniqueKeys(tapTable);
-        Collection<String> primaryKeys = tapTable.primaryKeys();
-        Collection<String> logicPrimaryKeys = EmptyKit.isNotEmpty(primaryKeys) ? Collections.emptyList() : tapTable.primaryKeys(true);
+//        Collection<String> primaryKeys = tapTable.primaryKeys(true);
+//        Collection<String> logicPrimaryKeys = EmptyKit.isNotEmpty(primaryKeys) ? Collections.emptyList() : tapTable.primaryKeys(true);
         for (String fieldName : nameFieldMap.keySet()) {
             TapField tapField = nameFieldMap.get(fieldName);
             if (!needAddIntoPreparedStatementValues(tapField, tapRecordEvent)) {
                 continue;
             }
             //clickhouse 更新的时候不能更新主键，否则会报错
-            if(!(tapRecordEvent instanceof TapUpdateRecordEvent) || !uniqueKeys.contains(fieldName) && !logicPrimaryKeys.contains(fieldName)){
+            if(!(tapRecordEvent instanceof TapUpdateRecordEvent) || !uniqueKeys.contains(fieldName)){
                 preparedStatement.setObject(parameterIndex++, after.get(fieldName));
             }
             afterKeys.remove(fieldName);
@@ -291,7 +291,7 @@ public class ClickhouseWriter {
         if (null == preparedStatement) {
             DataMap connectionConfig = tapConnectorContext.getConnectionConfig();
             String database = connectionConfig.getString("database");
-            String name = connectionConfig.getString("name");
+//            String name = connectionConfig.getString("name");
             String tableId = tapTable.getId();
             LinkedHashMap<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
             if (MapUtils.isEmpty(nameFieldMap)) {
