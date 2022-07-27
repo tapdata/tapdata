@@ -1,6 +1,8 @@
 package io.tapdata.flow.engine.V2.monitor.impl;
 
 import com.tapdata.constant.ExecutorUtil;
+import com.tapdata.constant.Log4jUtil;
+import com.tapdata.tm.commons.task.dto.SubTaskDto;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.flow.engine.V2.monitor.Monitor;
 import io.tapdata.node.pdk.ConnectorNodeService;
@@ -38,8 +40,9 @@ public class TableMonitor implements Monitor<TableMonitor.TableResult> {
 	private ReentrantLock lock;
 	private ScheduledExecutorService threadPool;
 	private TableResult tableResult;
+	private SubTaskDto subTaskDto;
 
-	public TableMonitor(TapTableMap<String, TapTable> tapTableMap, String associateId) {
+	public TableMonitor(TapTableMap<String, TapTable> tapTableMap, String associateId, SubTaskDto subTaskDto) {
 		if (null == tapTableMap) {
 			throw new RuntimeException("Missing Tap Table Map");
 		}
@@ -48,6 +51,7 @@ public class TableMonitor implements Monitor<TableMonitor.TableResult> {
 		}
 		this.tapTableMap = tapTableMap;
 		this.associateId = associateId;
+		this.subTaskDto = subTaskDto;
 		this.lock = new ReentrantLock();
 		this.threadPool = new ScheduledThreadPoolExecutor(1);
 		this.tableResult = TableResult.create();
@@ -72,6 +76,7 @@ public class TableMonitor implements Monitor<TableMonitor.TableResult> {
 		threadPool.scheduleAtFixedRate(() -> {
 			ConnectorNode connectorNode = ConnectorNodeService.getInstance().getConnectorNode(associateId);
 			Thread.currentThread().setName("Table-Monitor-" + connectorNode.getAssociateId());
+			Log4jUtil.setThreadContext(subTaskDto);
 			try {
 				while (true) {
 					try {
