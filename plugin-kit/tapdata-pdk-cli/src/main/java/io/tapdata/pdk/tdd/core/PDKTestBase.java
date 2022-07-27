@@ -1,5 +1,6 @@
 package io.tapdata.pdk.tdd.core;
 
+import com.alibaba.fastjson.JSON;
 import com.google.common.collect.MapDifference;
 import com.google.common.collect.Maps;
 import io.tapdata.entity.event.control.PatrolEvent;
@@ -540,6 +541,7 @@ public class PDKTestBase {
         TapTable targetTable = targetNode.getConnectorContext().getTableMap().get(targetNode.getTable());
 
         FilterResult filterResult = filterResults(targetNode, filter, targetTable);
+        TapLogger.info("XXXXXX", "filterResult {}", JSON.toJSONString(filterResult));
         $(() -> assertNotNull(filterResult, "The filter " + InstanceFactory.instance(JsonParser.class).toJson(before) + " can not get any result. Please make sure writeRecord method update record correctly and queryByFilter/queryByAdvanceFilter can query it out for verification. "));
 
         $(() -> assertNotNull(filterResult.getResult().get("tapInt"), "The value of tapInt should not be null"));
