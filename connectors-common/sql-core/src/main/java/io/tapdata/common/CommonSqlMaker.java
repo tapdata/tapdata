@@ -87,12 +87,13 @@ public class CommonSqlMaker {
             builder.append("ORDER BY ");
             builder.append(filter.getSortOnList().stream().map(v -> v.toString("\"")).collect(Collectors.joining(", "))).append(' ');
         }
-        if (null != filter.getSkip()) {
-            builder.append("OFFSET ").append(filter.getSkip()).append(' ');
-        }
         if (null != filter.getLimit()) {
             builder.append("LIMIT ").append(filter.getLimit()).append(' ');
         }
+        if (null != filter.getSkip()) {
+            builder.append("OFFSET ").append(filter.getSkip()).append(' ');
+        }
+
         return builder.toString();
     }
 
