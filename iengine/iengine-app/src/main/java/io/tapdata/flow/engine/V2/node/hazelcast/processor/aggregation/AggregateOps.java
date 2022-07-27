@@ -6,6 +6,7 @@ import io.tapdata.constructImpl.ConstructIMap;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
+import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -19,7 +20,8 @@ import java.util.Map;
  * 大家一致同意先不要搞太复杂
  * 因此每个聚合节点只支持1个同类算子，比如SUM只能有1个，这样可以简化代码
  * 算子为什么没有处理update，因为前置处理器：CrossGroupP和groupByP 把update拆成了delete+insert
- *
+ * 从source传过来的update事件，都通过前置处理器CrossGroupP和groupByP 把update拆成了delete+insert
+ * 从source传过来的insert事件，除了第一条记录，后续都在前置处理器进行转化成update，因此走到算子里的update实际上都为insert
  * @author alexouyang
  * @Date 2022/4/26
  */
@@ -96,7 +98,7 @@ public class AggregateOps {
 
     }
 
-    private static BigDecimal updateCounter(ConstructIMap<BigDecimal> cache, String cacheKey, MessageEntity event) throws Exception {
+    private static BigDecimal updateCounter(ConstructIMap<BigDecimal> cache, String cacheKey, MessageEntity event, BigDecimal changedCount) throws Exception {
         String counterCacheKey = cacheKey + "#counter";
         final OperationType operationType = OperationType.fromOp(event.getOp());
         if (cache.exists(counterCacheKey)) {
@@ -125,21 +127,27 @@ public class AggregateOps {
         }
     }
 
-    private static BigDecimal updateCounter(ConstructIMap<BigDecimal> cache, String cacheKey, TapRecordEvent event) throws Exception {
+    private static BigDecimal updateCounter(ConstructIMap<BigDecimal> cache, String cacheKey, TapRecordEvent event, BigDecimal changedCount) throws Exception {
         String counterCacheKey = cacheKey + "#counter";
+        OperationType operationType = OperationType.fromOp(TapEventUtil.getOp(event));
         if (cache.exists(counterCacheKey)) {
             BigDecimal counter = cache.find(counterCacheKey);
-            if (event instanceof TapDeleteRecordEvent) {
-                BigDecimal newValue = counter.subtract(BigDecimal.ONE);
-                cache.update(counterCacheKey, newValue);
-                return newValue;
-            } else if (event instanceof TapInsertRecordEvent) {
-                BigDecimal newValue = counter.add(BigDecimal.ONE);
-                cache.update(counterCacheKey, newValue);
-                return newValue;
-            } else {
-                return counter;
-            }
+            BigDecimal addition = preProcessCount(operationType, changedCount);
+            BigDecimal newValue = counter.add(addition);
+            cache.update(counterCacheKey, newValue);
+            return newValue;
+//            if (event instanceof TapDeleteRecordEvent) {
+//                BigDecimal newValue = counter.subtract(BigDecimal.ONE);
+//                cache.update(counterCacheKey, newValue);
+//                return newValue;
+//            } else if (event instanceof TapInsertRecordEvent || event instanceof TapUpdateRecordEvent) {
+//                BigDecimal newValue = counter.add(BigDecimal.ONE);
+//                cache.update(counterCacheKey, newValue);
+//                return newValue;
+//            } else {
+//                return counter;
+//            }
+
         } else {
             if (event instanceof TapDeleteRecordEvent) {
                 logger.error("counter not exist." + event);
@@ -153,57 +161,48 @@ public class AggregateOps {
         }
     }
 
-    private static BigDecimal preProcessSum(MessageEntity event, String aggregatorField) {
+    private static BigDecimal preProcessSum(MessageEntity event, String aggregatorField, BigDecimal changedCount) {
         final OperationType operationType = OperationType.fromOp(event.getOp());
+        if (changedCount.compareTo(BigDecimal.ZERO) != 0) {
+            boolean positive = changedCount.compareTo(BigDecimal.ZERO) > 0;
+            Map<String, Object> after = event.getAfter();
+            return getNumberForPreProcessSum(after, aggregatorField, positive);
+        }
         if (operationType == OperationType.DELETE) {
-            if (event.getBefore() != null) {
-                Object fieldValue = event.getBefore().get(aggregatorField);
-                try {
-                    // 取反
-                    return AggregatorUtils.getBigDecimal(fieldValue).negate();
-                } catch (Exception ignore) {
-
-                }
-            }
+            return getNumberForPreProcessSum(event.getBefore(), aggregatorField, false);
         } else if (operationType == OperationType.INSERT) {
-            if (event.getAfter() != null) {
-                Object fieldValue = event.getAfter().get(aggregatorField);
-                try {
-                    return AggregatorUtils.getBigDecimal(fieldValue);
-                } catch (Exception ignore) {
-
-                }
-            }
+            return getNumberForPreProcessSum(event.getAfter(), aggregatorField, true);
         } else {
             throw new RuntimeException("unimplemented code");
         }
-        return BigDecimal.ZERO;
     }
 
-    private static BigDecimal preProcessSum(TapRecordEvent event, String aggregatorField) {
+    private static BigDecimal preProcessSum(TapRecordEvent event, String aggregatorField, BigDecimal changedCount) {
+        if (changedCount.compareTo(BigDecimal.ZERO) != 0) {
+            boolean positive = changedCount.compareTo(BigDecimal.ZERO) > 0;
+            Map<String, Object> after = TapEventUtil.getAfter(event);
+            return getNumberForPreProcessSum(after, aggregatorField, positive);
+        }
         if (event instanceof TapDeleteRecordEvent) {
             Map<String, Object> before = TapEventUtil.getBefore(event);
-            if (before != null) {
-                Object fieldValue = before.get(aggregatorField);
-                try {
-                    // 取反
-                    return AggregatorUtils.getBigDecimal(fieldValue).negate();
-                } catch (Exception ignore) {
-
-                }
-            }
+            return getNumberForPreProcessSum(before, aggregatorField, false);
         } else if (event instanceof TapInsertRecordEvent) {
             Map<String, Object> after = TapEventUtil.getAfter(event);
-            if (after != null) {
-                Object fieldValue = after.get(aggregatorField);
-                try {
-                    return AggregatorUtils.getBigDecimal(fieldValue);
-                } catch (Exception ignore) {
-
-                }
-            }
+            return getNumberForPreProcessSum(after, aggregatorField, true);
         } else {
             throw new RuntimeException("unimplemented code");
+        }
+    }
+
+    private static BigDecimal getNumberForPreProcessSum(Map<String, Object> map, final String aggregatorField, final boolean positive) {
+        if (map == null) {
+            return BigDecimal.ZERO;
+        }
+        Object fieldValue = map.get(aggregatorField);
+        try {
+            return positive ? AggregatorUtils.getBigDecimal(fieldValue) : AggregatorUtils.getBigDecimal(fieldValue).negate();
+        } catch (Exception ignore) {
+
         }
         return BigDecimal.ZERO;
     }
@@ -219,7 +218,7 @@ public class AggregateOps {
 
                 }
             }
-        } else if (operationType == OperationType.INSERT) {
+        } else if (operationType == OperationType.INSERT || operationType == OperationType.UPDATE) {
             if (event.getAfter() != null) {
                 Object fieldValue = event.getAfter().get(aggregatorField);
                 try {
@@ -245,7 +244,7 @@ public class AggregateOps {
 
                 }
             }
-        } else if (event instanceof TapInsertRecordEvent) {
+        } else if (event instanceof TapInsertRecordEvent || event instanceof TapUpdateRecordEvent) {
             Map<String, Object> after = TapEventUtil.getAfter(event);
             if (after != null) {
                 Object fieldValue = after.get(aggregatorField);
@@ -285,7 +284,11 @@ public class AggregateOps {
         }
     }
 
-    private static BigDecimal preProcessCount(OperationType operationType) {
+    private static BigDecimal preProcessCount(OperationType operationType, BigDecimal changedCount) {
+        if (changedCount.compareTo(BigDecimal.ZERO) != 0) {
+            return changedCount;
+        }
+
         if (operationType == OperationType.INSERT) {
             return BigDecimal.ONE;
         } else if (operationType == OperationType.DELETE) {
@@ -348,7 +351,7 @@ public class AggregateOps {
         MessageEntity messageEntity = (MessageEntity) wrappedItem.getMessage();
         OperationType operationType = OperationType.fromOp(messageEntity.getOp());
 
-        BigDecimal countValue = preProcessCount(operationType);
+        BigDecimal countValue = preProcessCount(operationType, wrappedItem.getChangedCount());
 
         if (cache.exists(cacheKey)) {
             BigDecimal valueInCache = cache.find(cacheKey);
@@ -372,8 +375,6 @@ public class AggregateOps {
             wrappedItem.setCachedRollingAggregateCounter(countValue);
             wrappedItem.setCachedGroupByKey(null);
         }
-
-
         return true;
     }
 
@@ -383,7 +384,7 @@ public class AggregateOps {
         TapRecordEvent tapRecordEvent = (TapRecordEvent) wrappedItem.getMessage();
         OperationType operationType = OperationType.fromOp(TapEventUtil.getOp(tapRecordEvent));
 
-        BigDecimal countValue = preProcessCount(operationType);
+        BigDecimal countValue = preProcessCount(operationType, wrappedItem.getChangedCount());
 
         if (cache.exists(cacheKey)) {
             BigDecimal valueInCache = cache.find(cacheKey);
@@ -407,8 +408,6 @@ public class AggregateOps {
             wrappedItem.setCachedRollingAggregateCounter(countValue);
             wrappedItem.setCachedGroupByKey(null);
         }
-
-
         return true;
     }
 
@@ -417,13 +416,13 @@ public class AggregateOps {
                                             WrapItem wrappedItem) throws Exception {
         String cacheKey = wrappedItem.getCachedGroupByKey();
         MessageEntity messageEntity = (MessageEntity) wrappedItem.getMessage();
-        BigDecimal fieldValue = preProcessSum(messageEntity, aggregatorField);
+        BigDecimal fieldValue = preProcessSum(messageEntity, aggregatorField, wrappedItem.getChangedCount());
         if (fieldValue == null) {
             logger.error("value is null for aggregatorField name: " + aggregatorField);
             return false;
         }
         // 累计的行数
-        BigDecimal groupedRecordCount = updateCounter(cache, cacheKey, messageEntity);
+        BigDecimal groupedRecordCount = updateCounter(cache, cacheKey, messageEntity, wrappedItem.getChangedCount());
 
         if (cache.exists(cacheKey)) {
             // 删除
@@ -452,13 +451,13 @@ public class AggregateOps {
                                              WrapItem wrappedItem) throws Exception {
         String cacheKey = wrappedItem.getCachedGroupByKey();
         TapRecordEvent tapRecordEvent = (TapRecordEvent) wrappedItem.getMessage();
-        BigDecimal fieldValue = preProcessSum(tapRecordEvent, aggregatorField);
+        BigDecimal fieldValue = preProcessSum(tapRecordEvent, aggregatorField, wrappedItem.getChangedCount());
         if (fieldValue == null) {
             logger.error("value is null for aggregatorField name: " + aggregatorField);
             return false;
         }
         // 累计的行数
-        BigDecimal groupedRecordCount = updateCounter(cache, cacheKey, tapRecordEvent);
+        BigDecimal groupedRecordCount = updateCounter(cache, cacheKey, tapRecordEvent, wrappedItem.getChangedCount());
 
         if (cache.exists(cacheKey)) {
             // 删除
@@ -488,13 +487,13 @@ public class AggregateOps {
         String cacheKey = wrappedItem.getCachedGroupByKey();
         MessageEntity messageEntity = (MessageEntity) wrappedItem.getMessage();
         // 这一步跟SUM是一样的
-        BigDecimal fieldValue = preProcessSum(messageEntity, aggregatorField);
+        BigDecimal fieldValue = preProcessSum(messageEntity, aggregatorField, wrappedItem.getChangedCount());
         if (fieldValue == null) {
             logger.error("value is null for aggregatorField name: " + aggregatorField);
             return false;
         }
         // 累计的行数
-        BigDecimal groupedRecordCount = updateCounter(cache, cacheKey, messageEntity);
+        BigDecimal groupedRecordCount = updateCounter(cache, cacheKey, messageEntity, wrappedItem.getChangedCount());
 
         if (cache.exists(cacheKey)) {
             // 删除
@@ -524,14 +523,14 @@ public class AggregateOps {
         String cacheKey = wrappedItem.getCachedGroupByKey();
         TapRecordEvent tapRecordEvent = (TapRecordEvent) wrappedItem.getMessage();
         // 这一步跟SUM是一样的
-        BigDecimal fieldValue = preProcessSum(tapRecordEvent, aggregatorField);
+        BigDecimal fieldValue = preProcessSum(tapRecordEvent, aggregatorField, wrappedItem.getChangedCount());
         if (fieldValue == null) {
             logger.error("value is null for aggregatorField name: " + aggregatorField);
             return false;
         }
         // 累计的行数
-        BigDecimal groupedRecordCount = updateCounter(cache, cacheKey, tapRecordEvent);
-
+        BigDecimal groupedRecordCount = updateCounter(cache, cacheKey, tapRecordEvent, wrappedItem.getChangedCount());
+        System.out.println("--------count-----" + groupedRecordCount.intValue());
         if (cache.exists(cacheKey)) {
             // 删除
             if (groupedRecordCount.compareTo(BigDecimal.ZERO) == 0) {
@@ -564,14 +563,14 @@ public class AggregateOps {
         BigDecimal fieldValue = preProcessField(messageEntity, aggregatorField);
 
         // 累计的行数
-        BigDecimal groupedRecordCount = updateCounter(cache, cacheKey, messageEntity);
+        BigDecimal groupedRecordCount = updateCounter(cache, cacheKey, messageEntity, wrappedItem.getChangedCount());
 
         if (cacheList.exists(cacheKey)) {
             ArrayList<BigDecimal> groupedMaxList = cacheList.find(cacheKey);
             if (groupedMaxList.contains(fieldValue)) {
                 if (operationType == OperationType.DELETE) {
                     groupedMaxList.remove(fieldValue);
-                } else if (operationType == OperationType.INSERT) {
+                } else if (operationType == OperationType.INSERT || operationType == OperationType.UPDATE) {
                     logger.debug("cacheList already contains this value:" + fieldValue + " do not need to insert");
                 } else {
                     throw new RuntimeException("unimplement code");
@@ -579,7 +578,7 @@ public class AggregateOps {
             } else {
                 if (operationType == OperationType.DELETE) {
                     logger.debug("cacheList didn't contains this value:" + fieldValue + " can not delete");
-                } else if (operationType == OperationType.INSERT) {
+                } else if (operationType == OperationType.INSERT || operationType == OperationType.UPDATE) {
                     groupedMaxList = doInsertAndCut(groupedMaxList, fieldValue, new MaxComparator());
                 } else {
                     throw new RuntimeException("unimplement code");
@@ -615,8 +614,8 @@ public class AggregateOps {
         BigDecimal fieldValue = preProcessField(tapRecordEvent, aggregatorField);
 
         // 累计的行数
-        BigDecimal groupedRecordCount = updateCounter(cache, cacheKey, tapRecordEvent);
-
+        BigDecimal groupedRecordCount = updateCounter(cache, cacheKey, tapRecordEvent, wrappedItem.getChangedCount());
+        BigDecimal changedCount = wrappedItem.getChangedCount();
         if (cacheList.exists(cacheKey)) {
             ArrayList<BigDecimal> groupedMaxList = cacheList.find(cacheKey);
             if (groupedMaxList.contains(fieldValue)) {
@@ -625,7 +624,11 @@ public class AggregateOps {
                 } else if (tapRecordEvent instanceof TapInsertRecordEvent) {
                     logger.debug("cacheList already contains this value:" + fieldValue + " do not need to insert");
                 } else {
-                    throw new RuntimeException("unimplement code");
+                    if (changedCount.compareTo(BigDecimal.ZERO) < 0) {
+                        groupedMaxList.remove(fieldValue);
+                    } else {
+                        throw new RuntimeException("unimplement code");
+                    }
                 }
             } else {
                 if (tapRecordEvent instanceof TapDeleteRecordEvent) {
@@ -633,7 +636,11 @@ public class AggregateOps {
                 } else if (tapRecordEvent instanceof TapInsertRecordEvent) {
                     groupedMaxList = doInsertAndCut(groupedMaxList, fieldValue, new MaxComparator());
                 } else {
-                    throw new RuntimeException("unimplement code");
+                    if (changedCount.compareTo(BigDecimal.ZERO) > 0) {
+                        groupedMaxList = doInsertAndCut(groupedMaxList, fieldValue, new MaxComparator());
+                    } else {
+                        throw new RuntimeException("unimplement code");
+                    }
                 }
             }
             if (groupedMaxList.size() > 0) {
@@ -701,8 +708,8 @@ public class AggregateOps {
         BigDecimal fieldValue = preProcessField(messageEntity, aggregatorField);
 
         // 累计的行数
-        BigDecimal groupedRecordCount = updateCounter(cache, cacheKey, messageEntity);
-
+        BigDecimal groupedRecordCount = updateCounter(cache, cacheKey, messageEntity, wrappedItem.getChangedCount());
+        BigDecimal changedCount = wrappedItem.getChangedCount();
         if (cacheList.exists(cacheKey)) {
             ArrayList<BigDecimal> groupedMinList = cacheList.find(cacheKey);
             if (groupedMinList.contains(fieldValue)) {
@@ -711,7 +718,11 @@ public class AggregateOps {
                 } else if (operationType == OperationType.INSERT) {
                     logger.debug("cacheList already contains this value:" + fieldValue + " do not need to insert");
                 } else {
-                    throw new RuntimeException("unimplement code");
+                    if (changedCount.compareTo(BigDecimal.ZERO) < 0) {
+                        groupedMinList.remove(fieldValue);
+                    } else {
+                        throw new RuntimeException("unimplement code");
+                    }
                 }
             } else {
                 if (operationType == OperationType.DELETE) {
@@ -719,7 +730,11 @@ public class AggregateOps {
                 } else if (operationType == OperationType.INSERT) {
                     groupedMinList = doInsertAndCut(groupedMinList, fieldValue, new MinComparator());
                 } else {
-                    throw new RuntimeException("unimplement code");
+                    if (changedCount.compareTo(BigDecimal.ZERO) > 0) {
+                        groupedMinList = doInsertAndCut(groupedMinList, fieldValue, new MaxComparator());
+                    } else {
+                        throw new RuntimeException("unimplement code");
+                    }
                 }
             }
             if (groupedMinList.size() > 0) {
@@ -751,8 +766,8 @@ public class AggregateOps {
         BigDecimal fieldValue = preProcessField(tapRecordEvent, aggregatorField);
 
         // 累计的行数
-        BigDecimal groupedRecordCount = updateCounter(cache, cacheKey, tapRecordEvent);
-
+        BigDecimal groupedRecordCount = updateCounter(cache, cacheKey, tapRecordEvent, wrappedItem.getChangedCount());
+        BigDecimal changedCount = wrappedItem.getChangedCount();
         if (cacheList.exists(cacheKey)) {
             ArrayList<BigDecimal> groupedMinList = cacheList.find(cacheKey);
             if (groupedMinList.contains(fieldValue)) {
@@ -761,7 +776,11 @@ public class AggregateOps {
                 } else if (tapRecordEvent instanceof TapInsertRecordEvent) {
                     logger.debug("cacheList already contains this value:" + fieldValue + " do not need to insert");
                 } else {
-                    throw new RuntimeException("unimplement code");
+                    if (changedCount.compareTo(BigDecimal.ZERO) < 0) {
+                        groupedMinList.remove(fieldValue);
+                    } else {
+                        throw new RuntimeException("unimplement code");
+                    }
                 }
             } else {
                 if (tapRecordEvent instanceof TapDeleteRecordEvent) {
@@ -769,7 +788,11 @@ public class AggregateOps {
                 } else if (tapRecordEvent instanceof TapInsertRecordEvent) {
                     groupedMinList = doInsertAndCut(groupedMinList, fieldValue, new MinComparator());
                 } else {
-                    throw new RuntimeException("unimplement code");
+                    if (changedCount.compareTo(BigDecimal.ZERO) > 0) {
+                        groupedMinList = doInsertAndCut(groupedMinList, fieldValue, new MaxComparator());
+                    } else {
+                        throw new RuntimeException("unimplement code");
+                    }
                 }
             }
             if (groupedMinList.size() > 0) {
@@ -818,10 +841,9 @@ public class AggregateOps {
         }
     }
 
-    public static class MinComparator implements Comparator{
+    public static class MinComparator implements Comparator {
         @Override
         public int compare(Object o1, Object o2) {
-
             if (o1 == null && o2 == null) {
                 return 0;
             } else if (o1 == null) {
@@ -836,10 +858,9 @@ public class AggregateOps {
         }
     }
 
-    public static class MaxComparator implements Comparator{
+    public static class MaxComparator implements Comparator {
         @Override
         public int compare(Object o1, Object o2) {
-
             if (o1 == null && o2 == null) {
                 return 0;
             } else if (o1 == null) {

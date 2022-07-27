@@ -2,8 +2,8 @@ package io.tapdata.flow.engine.V2.node.hazelcast.processor.aggregation;
 
 import cn.hutool.core.collection.ConcurrentHashSet;
 import com.google.common.collect.Lists;
-import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import com.hazelcast.core.HazelcastInstance;
+import com.tapdata.constant.CollectionUtil;
 import com.tapdata.constant.ExecutorUtil;
 import com.tapdata.constant.MapUtil;
 import com.tapdata.entity.MessageEntity;
@@ -27,6 +27,7 @@ import io.tapdata.flow.engine.V2.util.TapEventUtil;
 import io.tapdata.schema.TapTableMap;
 import lombok.Getter;
 import lombok.Setter;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.NotNull;
@@ -38,18 +39,17 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.ThreadFactory;
-import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
 
 
 /**
@@ -63,6 +63,8 @@ public class HazelcastMultiAggregatorProcessor extends HazelcastBaseNode {
     private final Logger logger = LogManager.getLogger(HazelcastMultiAggregatorProcessor.class);
 
     private final List<Aggregator> aggregators = new ArrayList<>();
+
+    private Queue<Object> eventQueue = new LinkedList<>();
 
     private final String nodeId;
 
@@ -225,25 +227,24 @@ public class HazelcastMultiAggregatorProcessor extends HazelcastBaseNode {
 
         // initialize input
         Object initialInput = tapdataEvent;
-        List<Object> inputItems = Lists.newArrayList(initialInput);
+        eventQueue.offer(initialInput);
+//        List<Object> inputItems = Lists.newArrayList(initialInput);
         for (Aggregator aggregator : aggregators) {
             final List<AggregatorProcessorBase> processors = aggregator.getProcessors();
             for (AggregatorProcessorBase processor : processors) {
-                if (inputItems.size() == 0) {
-                    if (!(processor instanceof Aggregator.FinishP)) {
-                        logger.warn("empty input");
+                int queueSize = eventQueue.size();
+//                if (inputItems.size() == 0) {
+//                    if (!(processor instanceof Aggregator.FinishP)) {
+//                        logger.warn("empty input");
+//                    }
+//                    break;
+//                }
+                for (int i = 0; i < queueSize; i++) {
+                    Object inputItem = eventQueue.poll();
+                    List<Object> outputItems = processor.tryProcess(inputItem);
+                    for (Object outputItem : outputItems) {
+                        eventQueue.offer(outputItem);
                     }
-                    break;
-                }
-                if (inputItems.size() == 1) {
-                    Object input = inputItems.get(0);
-                    inputItems = processor.tryProcess(input);
-                } else {
-                    List<Object> result = null;
-                    for (Object input : inputItems) {
-                        result = processor.tryProcess(input);
-                    }
-                    inputItems = result;
                 }
             }
         }
@@ -356,7 +357,7 @@ public class HazelcastMultiAggregatorProcessor extends HazelcastBaseNode {
         }
 
         private void finish() {
-            processors.add(new FinishP());
+            processors.add(new FinishP(groupbyList));
         }
 
         /***
@@ -638,8 +639,16 @@ public class HazelcastMultiAggregatorProcessor extends HazelcastBaseNode {
         public class GroupByP extends AggregatorProcessorBase {
             private final List<String> groupbyList;
 
+            private String aggregatorOp;
+
             public GroupByP(List<String> groupbyList) {
                 this.groupbyList = groupbyList;
+
+                if (rule != null && rule.getAggFunction() != null) {
+                    aggregatorOp = rule.getAggFunction();
+                } else {
+                    throw new RuntimeException("Aggregator rule is null!");
+                }
             }
 
             @Override
@@ -658,12 +667,17 @@ public class HazelcastMultiAggregatorProcessor extends HazelcastBaseNode {
                     return Collections.emptyList();
                 }
                 final List<Object> result;
-                if (event instanceof MessageEntity) {
-                    result = groupByPOld((MessageEntity) event, wrappedItem);
-                } else if (event instanceof TapRecordEvent) {
-                    result = groupByP((TapRecordEvent) event, wrappedItem);
-                } else {
-                    throw new RuntimeException("Unimplemented message type");
+                try {
+                    if (event instanceof MessageEntity) {
+                        result = groupByPOld((MessageEntity) event, wrappedItem);
+                    } else if (event instanceof TapRecordEvent) {
+                        result = groupByP((TapRecordEvent) event, wrappedItem);
+                    } else {
+                        throw new RuntimeException("Unimplemented message type");
+                    }
+                } catch (Exception e) {
+                    logger.error("GroupP error:", e);
+                    return Collections.emptyList();
                 }
                 return result;
             }
@@ -686,7 +700,7 @@ public class HazelcastMultiAggregatorProcessor extends HazelcastBaseNode {
                 return sb.toString();
             }
 
-            private List<Object> groupByPOld(MessageEntity event, WrapItem wrappedItem) {
+            private List<Object> groupByPOld(MessageEntity event, WrapItem wrappedItem) throws Exception {
                 final List<Object> result = Lists.newArrayList();
                 final OperationType operationType = OperationType.fromOp(event.getOp());
                     if (operationType == OperationType.UPDATE) {
@@ -708,20 +722,30 @@ public class HazelcastMultiAggregatorProcessor extends HazelcastBaseNode {
                         String cachedGroupByKey2 = concatGroupByKeys(event.getAfter(), groupbyList);
                         insertWrap.setCachedGroupByKey(cachedGroupByKey2);
                         result.add(insertWrap);
-                    } else {
-                        if (event.getAfter() != null) {
-                            String cachedGroupByKey = concatGroupByKeys(event.getAfter(), groupbyList);
+                    } else if (operationType == OperationType.INSERT) {
+                        String cachedGroupByKey = concatGroupByKeys(event.getAfter(), groupbyList);
+                        // 第一次insert事件传到target仍为insert，后续insert传到target转为update
+                        if (checkCacheKey(cachedGroupByKey, aggregatorOp)) {
+                            MessageEntity update = (MessageEntity) event.clone();
+                            update.setOp("u");
+                            update.setBefore(null);
+                            WrapItem updateWrap = wrappedItem.clone();
+                            updateWrap.setMessage(update);
+                            updateWrap.setCachedGroupByKey(cachedGroupByKey);
+                            result.add(updateWrap);
+                        } else {
                             wrappedItem.setCachedGroupByKey(cachedGroupByKey);
-                        } else if (event.getBefore() != null) {
-                            String cachedGroupByKey = concatGroupByKeys(event.getBefore(), groupbyList);
-                            wrappedItem.setCachedGroupByKey(cachedGroupByKey);
+                            result.add(wrappedItem);
                         }
+                    } else {
+                        String cachedGroupByKey = concatGroupByKeys(event.getBefore(), groupbyList);
+                        wrappedItem.setCachedGroupByKey(cachedGroupByKey);
                         result.add(wrappedItem);
                     }
                     return result;
             }
 
-            private List<Object> groupByP(TapRecordEvent event, WrapItem wrappedItem) {
+            private List<Object> groupByP(TapRecordEvent event, WrapItem wrappedItem) throws Exception {
                 final List<Object> result = Lists.newArrayList();
                 Map<String, Object> before = TapEventUtil.getBefore(event);
                 Map<String, Object> after = TapEventUtil.getAfter(event);
@@ -744,18 +768,44 @@ public class HazelcastMultiAggregatorProcessor extends HazelcastBaseNode {
                     String cachedGroupByKey2 = concatGroupByKeys(after, groupbyList);
                     insertWrap.setCachedGroupByKey(cachedGroupByKey2);
                     result.add(insertWrap);
-                } else {
-                    if (after != null) {
-                        String cachedGroupByKey = concatGroupByKeys(after, groupbyList);
+                } else if (event instanceof TapInsertRecordEvent) {
+                    String cachedGroupByKey = concatGroupByKeys(after, groupbyList);
+                    if (checkCacheKey(cachedGroupByKey, aggregatorOp)) {
+                        TapUpdateRecordEvent cloneUpdate = new TapUpdateRecordEvent();
+                        event.clone(cloneUpdate);
+                        cloneUpdate.setAfter(InstanceFactory.instance(TapUtils.class).cloneMap(after));
+                        WrapItem updateWrap = wrappedItem.clone();
+                        updateWrap.setChangedCount(BigDecimal.ONE);
+                        updateWrap.setMessage(cloneUpdate);
+                        updateWrap.setCachedGroupByKey(cachedGroupByKey);
+                        result.add(updateWrap);
+                    } else {
                         wrappedItem.setCachedGroupByKey(cachedGroupByKey);
-                    } else if (before != null) {
-                        String cachedGroupByKey = concatGroupByKeys(before, groupbyList);
-                        wrappedItem.setCachedGroupByKey(cachedGroupByKey);
+                        wrappedItem.setChangedCount(BigDecimal.ONE);
+                        result.add(wrappedItem);
                     }
-                    result.add(wrappedItem);
+                } else {
+                    String cachedGroupByKey = concatGroupByKeys(before, groupbyList);
+                    if (checkCacheKey(cachedGroupByKey, aggregatorOp)) {
+                        TapUpdateRecordEvent cloneUpdate = new TapUpdateRecordEvent();
+                        event.clone(cloneUpdate);
+                        // todo by dayun
+                        cloneUpdate.setAfter(InstanceFactory.instance(TapUtils.class).cloneMap(before));
+                        WrapItem updateWrap = wrappedItem.clone();
+                        updateWrap.setChangedCount(BigDecimal.ONE.negate());
+                        updateWrap.setMessage(cloneUpdate);
+                        updateWrap.setCachedGroupByKey(cachedGroupByKey);
+                        result.add(updateWrap);
+                    } else {
+                        wrappedItem.setCachedGroupByKey(cachedGroupByKey);
+                        wrappedItem.setChangedCount(BigDecimal.ONE.negate());
+                        result.add(wrappedItem);
+                    }
                 }
                 return result;
             }
+
+
 
         } // end class GroupByP
 
@@ -790,26 +840,6 @@ public class HazelcastMultiAggregatorProcessor extends HazelcastBaseNode {
                 } else {
                     throw new RuntimeException("Aggregator rule is null!");
                 }
-
-//                initBucketThreads();
-            }
-
-            /**
-             * 用分桶算法，加速计算
-             */
-            private void initBucketThreads() {
-                logger.debug("initBucketWorkers...");
-                final ThreadFactory namedThreadFactory = new ThreadFactoryBuilder().setNameFormat("RollingAggregateP-" + aggregatorOp + "-%d").build();
-                opThreadService = new ThreadPoolExecutor(opBucket.bucketCount, opBucket.bucketCount, 0L,
-                        TimeUnit.MILLISECONDS, new LinkedBlockingQueue<>(4), namedThreadFactory,
-                        new ThreadPoolExecutor.AbortPolicy());
-                // 多线程启动聚合器内部的pipeline
-                workerRunning = true;
-                for (int i = 0; i < opBucket.bucketCount; i++) {
-                    BucketWorker worker = new BucketWorker(i);
-                    final Future<Object> objectFuture = opThreadService.submit(worker);
-                    opBucketFutures.add(objectFuture);
-                }
             }
 
             public void closeBucketThreads() {
@@ -828,7 +858,6 @@ public class HazelcastMultiAggregatorProcessor extends HazelcastBaseNode {
                     return Collections.emptyList();
                 }
                 try {
-                    final List<Object> result = Lists.newArrayList();
                     WrapItem wrappedItem = (WrapItem) item;
                     Object event = wrappedItem.getMessage();
                     if (event == null) {
@@ -909,17 +938,6 @@ public class HazelcastMultiAggregatorProcessor extends HazelcastBaseNode {
                 }
                 return Collections.emptyList();
             }
-
-            private List<Object> handleFutureList(final List<Future<Object>> futures) {
-                return opBucketFutures.stream().map(x -> {
-                    try {
-                        return x.get();
-                    } catch (final Exception ignore) {
-                        return null;
-                    }
-                }).collect(Collectors.toList());
-            }
-
 
             /**
              * 分桶类
@@ -1084,6 +1102,19 @@ public class HazelcastMultiAggregatorProcessor extends HazelcastBaseNode {
          * 对外输出
          */
         public class FinishP extends AggregatorProcessorBase {
+            private List<String> groupbyList;
+            private String aggregatorOp;
+
+            public FinishP(List<String> groupbyList) {
+                this.groupbyList = groupbyList;
+
+                if (rule != null && rule.getAggFunction() != null) {
+                    aggregatorOp = rule.getAggFunction();
+                } else {
+                    throw new RuntimeException("Aggregator rule is null!");
+                }
+            }
+
             @Override
             public List<Object> tryProcess(Object item) {
                 if (item == null) {
@@ -1100,24 +1131,34 @@ public class HazelcastMultiAggregatorProcessor extends HazelcastBaseNode {
                         schemaFilterOld(messageEntity);
                         // delete 事件特殊处理,否则delete事件把目标结果直接删了
                         if (wrappedItem.getCachedRollingAggregateCounter().compareTo(BigDecimal.ZERO) != 0) {
-                            messageEntity.setOp("i");
+                            final OperationType operationType = OperationType.fromOp(messageEntity.getOp());
+                            if (operationType == OperationType.INSERT || operationType == OperationType.DELETE) {
+                                messageEntity.setOp("i");
+                            } else {
+                                messageEntity.setOp("u");
+                            }
                         }
-
                         event.setMessageEntity(messageEntity);
                     } else if (((WrapItem) item).getMessage() instanceof TapRecordEvent) {
                         TapRecordEvent tapRecordEvent = (TapRecordEvent) wrappedItem.getMessage();
                         schemaFilter(tapRecordEvent);
                         if (wrappedItem.getCachedRollingAggregateCounter().compareTo(BigDecimal.ZERO) != 0) {
-                            TapInsertRecordEvent cloneInsert = new TapInsertRecordEvent();
-                            tapRecordEvent.clone(cloneInsert);
                             if (tapRecordEvent instanceof TapDeleteRecordEvent) {
-                                cloneInsert.setAfter(((TapDeleteRecordEvent) tapRecordEvent).getBefore());
+                                TapDeleteRecordEvent cloneDelete = new TapDeleteRecordEvent();
+                                tapRecordEvent.clone(cloneDelete);
+                                cloneDelete.setBefore(((TapDeleteRecordEvent) tapRecordEvent).getBefore());
+                                event.setTapEvent(cloneDelete);
                             } else if (tapRecordEvent instanceof TapInsertRecordEvent) {
+                                TapInsertRecordEvent cloneInsert = new TapInsertRecordEvent();
+                                tapRecordEvent.clone(cloneInsert);
                                 cloneInsert.setAfter(((TapInsertRecordEvent) tapRecordEvent).getAfter());
+                                event.setTapEvent(cloneInsert);
                             } else if (tapRecordEvent instanceof TapUpdateRecordEvent) {
-                                cloneInsert.setAfter(((TapUpdateRecordEvent) tapRecordEvent).getAfter());
+                                TapUpdateRecordEvent cloneUpdate = new TapUpdateRecordEvent();
+                                tapRecordEvent.clone(cloneUpdate);
+                                cloneUpdate.setAfter(((TapUpdateRecordEvent) tapRecordEvent).getAfter());
+                                event.setTapEvent(cloneUpdate);
                             }
-                            event.setTapEvent(cloneInsert);
                         } else {
                             event.setTapEvent(tapRecordEvent);
                         }
@@ -1144,9 +1185,6 @@ public class HazelcastMultiAggregatorProcessor extends HazelcastBaseNode {
                     }
                     // end debug
                     transformToTapValue(event, processorBaseContext.getTapTableMap(), processorBaseContext.getNode().getId());
-//                    while (isRunning()) {
-//                        if (offer(event)) break;
-//                    }
                     offer(event);
                 } else {
                     throw new RuntimeException("not implement");
@@ -1197,6 +1235,13 @@ public class HazelcastMultiAggregatorProcessor extends HazelcastBaseNode {
 
         }
 
+        private boolean checkCacheKey(final String cacheKey, final String aggregatorOp) throws Exception {
+            if ("COUNT".equalsIgnoreCase(aggregatorOp) || "SUM".equalsIgnoreCase(aggregatorOp) || "AVG".equalsIgnoreCase(aggregatorOp)) {
+                return cacheNumbers.exists(cacheKey);
+            } else {
+                return cacheList.exists(cacheKey);
+            }
+        }
     }// end class Aggregator
 
 }
