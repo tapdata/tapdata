@@ -125,7 +125,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 				TransformerWsMessageDto.class);
 		this.sourceRunnerFirstTime = new AtomicBoolean(true);
 		this.sourceRunner.submit(this::startSourceRunner);
-//		initTableMonitor();
+		initTableMonitor();
 	}
 
 	private void initDDLFilter() {
@@ -166,6 +166,8 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 			if (null == getTableNamesFunction) {
 				return false;
 			}
+		} else {
+			return false;
 		}
 		return true;
 	}
