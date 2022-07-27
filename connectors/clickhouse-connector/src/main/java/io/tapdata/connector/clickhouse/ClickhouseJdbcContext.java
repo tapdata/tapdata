@@ -10,7 +10,6 @@ import io.tapdata.entity.utils.DataMap;
 import io.tapdata.kit.DbKit;
 import io.tapdata.kit.EmptyKit;
 import io.tapdata.kit.StringKit;
-import ru.yandex.clickhouse.except.ClickHouseException;
 import ru.yandex.clickhouse.except.ClickHouseUnknownException;
 
 import java.sql.Connection;
@@ -19,6 +18,7 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 
 public class ClickhouseJdbcContext extends JdbcContext {
 
@@ -74,6 +74,11 @@ public class ClickhouseJdbcContext extends JdbcContext {
             TapLogger.error(TAG, "CK Execute queryAllTables failed, error: " + e.getMessage(), e);
         }
         return tableList;
+    }
+
+//    @Override
+    public void queryAllTables(List<String> tableNames, int batchSize, Consumer<List<String>> consumer) {
+
     }
 
     @Override

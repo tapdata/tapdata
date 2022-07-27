@@ -13,6 +13,7 @@ import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.entity.utils.JsonParser;
+import io.tapdata.kit.EmptyKit;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.entity.ConnectionOptions;
 import io.tapdata.pdk.apis.entity.WriteListResult;
@@ -151,14 +152,15 @@ public class ClickhouseWriter {
         }
         List<String> afterKeys = new ArrayList<>(after.keySet());
         Collection<String> uniqueKeys = getUniqueKeys(tapTable);
-        Collection<String> primaryKeys = tapTable.primaryKeys(true);
+        Collection<String> primaryKeys = tapTable.primaryKeys();
+        Collection<String> logicPrimaryKeys = EmptyKit.isNotEmpty(primaryKeys) ? Collections.emptyList() : tapTable.primaryKeys(true);
         for (String fieldName : nameFieldMap.keySet()) {
             TapField tapField = nameFieldMap.get(fieldName);
             if (!needAddIntoPreparedStatementValues(tapField, tapRecordEvent)) {
                 continue;
             }
             //clickhouse 更新的时候不能更新主键，否则会报错
-            if(!(tapRecordEvent instanceof TapUpdateRecordEvent) || !uniqueKeys.contains(fieldName) && !primaryKeys.contains(fieldName)){
+            if(!(tapRecordEvent instanceof TapUpdateRecordEvent) || !uniqueKeys.contains(fieldName) && !logicPrimaryKeys.contains(fieldName)){
                 preparedStatement.setObject(parameterIndex++, after.get(fieldName));
             }
             afterKeys.remove(fieldName);

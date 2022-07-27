@@ -164,22 +164,23 @@ public class ClickhouseConnector extends ConnectorBase {
             if (tapValue != null && tapValue.getValue() != null) return toJson(tapValue.getValue());
             return "null";
         });
+        codecRegistry.registerFromTapValue(TapBooleanValue.class, "UInt8", TapValue::getValue);
 
 
         codecRegistry.registerFromTapValue(TapTimeValue.class, tapTimeValue -> formatTapDateTime(tapTimeValue.getValue(), "HH:mm:ss.SS"));
-        codecRegistry.registerFromTapValue(TapDateTimeValue.class, tapDateTimeValue -> {
-            if (tapDateTimeValue.getValue() != null && tapDateTimeValue.getValue().getTimeZone() == null) {
-                tapDateTimeValue.getValue().setTimeZone(TimeZone.getTimeZone(this.connectionTimezone));
-            }
-            return formatTapDateTime(tapDateTimeValue.getValue(), "yyyy-MM-dd HH:mm:ss.SS");
-        });
-        codecRegistry.registerFromTapValue(TapDateValue.class, tapDateValue -> {
-            if (tapDateValue.getValue() != null && tapDateValue.getValue().getTimeZone() == null) {
-                tapDateValue.getValue().setTimeZone(TimeZone.getTimeZone(this.connectionTimezone));
-            }
-            return formatTapDateTime(tapDateValue.getValue(), "yyyy-MM-dd");
-        });
-        codecRegistry.registerFromTapValue(TapBooleanValue.class, "UInt8", TapValue::getValue);
+//        codecRegistry.registerFromTapValue(TapDateTimeValue.class, tapDateTimeValue -> {
+//            if (tapDateTimeValue.getValue() != null && tapDateTimeValue.getValue().getTimeZone() == null) {
+//                tapDateTimeValue.getValue().setTimeZone(TimeZone.getTimeZone(this.connectionTimezone));
+//            }
+//            return formatTapDateTime(tapDateTimeValue.getValue(), "yyyy-MM-dd HH:mm:ss.SS");
+//        });
+//        codecRegistry.registerFromTapValue(TapDateValue.class, tapDateValue -> {
+//            if (tapDateValue.getValue() != null && tapDateValue.getValue().getTimeZone() == null) {
+//                tapDateValue.getValue().setTimeZone(TimeZone.getTimeZone(this.connectionTimezone));
+//            }
+//            return formatTapDateTime(tapDateValue.getValue(), "yyyy-MM-dd");
+//        });
+//
         codecRegistry.registerFromTapValue(TapBinaryValue.class, "String", tapValue -> {
             if(tapValue != null && tapValue.getValue() != null) {
                 return new String(Base64.encodeBase64(tapValue.getValue()));
@@ -190,8 +191,8 @@ public class ClickhouseConnector extends ConnectorBase {
 
         //TapTimeValue, TapDateTimeValue and TapDateValue's value is DateTime, need convert into Date object.
 //        codecRegistry.registerFromTapValue(TapTimeValue.class, tapTimeValue -> tapTimeValue.getValue().toTime());
-//        codecRegistry.registerFromTapValue(TapDateTimeValue.class, tapDateTimeValue -> tapDateTimeValue.getValue().toTimestamp());
-//        codecRegistry.registerFromTapValue(TapDateValue.class, tapDateValue -> tapDateValue.getValue().toSqlDate());
+        codecRegistry.registerFromTapValue(TapDateTimeValue.class, tapDateTimeValue -> tapDateTimeValue.getValue().toTimestamp());
+        codecRegistry.registerFromTapValue(TapDateValue.class, tapDateValue -> tapDateValue.getValue().toSqlDate());
 
         //target
         connectorFunctions.supportCreateTable(this::createTable);
@@ -331,12 +332,18 @@ public class ClickhouseConnector extends ConnectorBase {
     private void createTable(TapConnectorContext tapConnectorContext, TapCreateTableEvent tapCreateTableEvent) {
 
         TapTable tapTable = tapCreateTableEvent.getTable();
-        Collection<String> primaryKeys = tapTable.primaryKeys(true);
+        Collection<String> primaryKeys = tapTable.primaryKeys();
+        Collection<String> logicPrimaryKeys = Collections.emptyList();
+        if (EmptyKit.isEmpty(primaryKeys)) {
+            logicPrimaryKeys = tapTable.primaryKeys(true);
+        }
         //pgsql UNIQUE INDEX use 'UNIQUE' not 'UNIQUE KEY' but here use 'PRIMARY KEY'
         String sql = "CREATE TABLE IF NOT EXISTS \"" + clickhouseConfig.getDatabase() + "\".\"" + tapTable.getId() + "\"(" + ClickhouseDDLSqlMaker.buildColumnDefinition(tapTable, true);
         sql = sql.substring(0, sql.length() - 1) + ") ENGINE = MergeTree ";
         if (EmptyKit.isNotEmpty(tapTable.primaryKeys())) {
             sql += " PRIMARY KEY (\"" + String.join("\",\"", primaryKeys) + "\"";
+        } else if (EmptyKit.isNotEmpty(logicPrimaryKeys)) {
+            sql += " PRIMARY KEY (\"" + String.join("\",\"", logicPrimaryKeys) + "\"";
         }
         sql += ")";
         try {

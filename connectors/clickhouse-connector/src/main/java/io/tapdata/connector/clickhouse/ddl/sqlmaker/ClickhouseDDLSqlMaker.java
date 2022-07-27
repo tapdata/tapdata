@@ -173,7 +173,9 @@ public class ClickhouseDDLSqlMaker implements DDLSqlMaker {
      */
     public static String buildColumnDefinition(TapTable tapTable, boolean needComment) {
         LinkedHashMap<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
-        Collection<String> primaryKeys = tapTable.primaryKeys(true);
+        //no primary key,need judge logic primary key
+        Collection<String> primaryKeys = tapTable.primaryKeys();
+        Collection<String> logicPrimaryKeys = EmptyKit.isNotEmpty(primaryKeys) ? Collections.emptyList() : tapTable.primaryKeys(true);
         return nameFieldMap.entrySet().stream().sorted(Comparator.comparing(v ->
                 EmptyKit.isNull(v.getValue().getPos()) ? 99999 : v.getValue().getPos())).map(v -> { //pos may be null
             StringBuilder builder = new StringBuilder();
@@ -184,7 +186,7 @@ public class ClickhouseDDLSqlMaker implements DDLSqlMaker {
             }
             builder.append('\"').append(tapField.getName()).append("\" ");
             //null to omit
-            if (tapField.getNullable() != null && tapField.getNullable() && !tapField.getPrimaryKey() && !primaryKeys.contains(tapField.getName())) {
+            if (tapField.getNullable() != null && tapField.getNullable() && !tapField.getPrimaryKey() && !logicPrimaryKeys.contains(tapField.getName())) {
                 builder.append("Nullable(").append(tapField.getDataType()).append(")").append(' ');
             }else{
                 builder.append(tapField.getDataType()).append(' ');
