@@ -162,10 +162,6 @@ public class TaskDagCheckLogServiceImpl implements TaskDagCheckLogService {
             result.setOver(present);
         }
 
-        if (taskDto.getDag().getNodes().stream().anyMatch(n -> n instanceof MigrateJsProcessorNode)) {
-            result.setOver(true);
-        }
-
         return result;
     }
 
