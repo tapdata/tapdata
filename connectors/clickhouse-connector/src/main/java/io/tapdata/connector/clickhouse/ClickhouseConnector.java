@@ -331,7 +331,7 @@ public class ClickhouseConnector extends ConnectorBase {
     private void createTable(TapConnectorContext tapConnectorContext, TapCreateTableEvent tapCreateTableEvent) {
 
         TapTable tapTable = tapCreateTableEvent.getTable();
-        Collection<String> primaryKeys = tapTable.primaryKeys();
+        Collection<String> primaryKeys = tapTable.primaryKeys(true);
         //pgsql UNIQUE INDEX use 'UNIQUE' not 'UNIQUE KEY' but here use 'PRIMARY KEY'
         String sql = "CREATE TABLE IF NOT EXISTS \"" + clickhouseConfig.getDatabase() + "\".\"" + tapTable.getId() + "\"(" + ClickhouseDDLSqlMaker.buildColumnDefinition(tapTable, true);
         sql = sql.substring(0, sql.length() - 1) + ") ENGINE = MergeTree ";

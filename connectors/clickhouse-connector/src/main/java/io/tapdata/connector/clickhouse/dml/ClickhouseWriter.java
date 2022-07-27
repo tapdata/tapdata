@@ -151,13 +151,14 @@ public class ClickhouseWriter {
         }
         List<String> afterKeys = new ArrayList<>(after.keySet());
         Collection<String> uniqueKeys = getUniqueKeys(tapTable);
+        Collection<String> primaryKeys = tapTable.primaryKeys(true);
         for (String fieldName : nameFieldMap.keySet()) {
             TapField tapField = nameFieldMap.get(fieldName);
             if (!needAddIntoPreparedStatementValues(tapField, tapRecordEvent)) {
                 continue;
             }
             //clickhouse 更新的时候不能更新主键，否则会报错
-            if(!(tapRecordEvent instanceof TapUpdateRecordEvent) || !uniqueKeys.contains(fieldName)){
+            if(!(tapRecordEvent instanceof TapUpdateRecordEvent) || !uniqueKeys.contains(fieldName) && !primaryKeys.contains(fieldName)){
                 preparedStatement.setObject(parameterIndex++, after.get(fieldName));
             }
             afterKeys.remove(fieldName);
