@@ -178,6 +178,7 @@ public class ParentTaskDto extends BaseDto {
      * 界面展示的任务开始时间
      */
     private Date startTime;
+    private Date stopTime;
 
     /**
      * 访问节点

@@ -927,9 +927,26 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             //updateById(taskDto.getId(), update, user);
 
             if (subTaskDtos.size() == 1) {
+                String taskFormerStatus = taskDto.getStatus();
                 String status = subTaskDtos.get(0).getStatus();
                 update.set("status", status);
                 taskDto.setStatus(status);
+                switch (status) {
+                    case SubTaskDto.STATUS_STOP:
+                        Date stopTime = new Date(System.currentTimeMillis());
+                        update.set("stopTime", stopTime);
+                        taskDto.setStopTime(stopTime);
+                        break;
+                    case SubTaskDto.STATUS_SCHEDULING:
+                        // TODO(dexter, zed): 这里还存在一个调度失败的情况，会有一些问题，无法记录到第一次启动(重置后也算第一次)的时间
+                        if (taskFormerStatus.equals(TaskDto.STATUS_EDIT)){
+                            Date startTime = new Date(System.currentTimeMillis());
+                            update.set("startTime", startTime);
+                            taskDto.setStartTime(startTime);
+                        }
+                        break;
+
+                }
                 updateById(taskDto.getId(), update, user);
                 return;
             }
@@ -948,8 +965,14 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             //存在子任务处于调度中，待运行，运行中，停止中，暂停中，则设置任务为运行中
             for (String status : statues) {
                 if (SubTaskService.runningStatus.contains(status)) {
+                    String taskFormerStatus = taskDto.getStatus();
                     update.set("status", TaskDto.STATUS_RUNNING);
                     taskDto.setStatus(status);
+                    if (taskFormerStatus.equals(TaskDto.STATUS_EDIT)){
+                        Date startTime = new Date(System.currentTimeMillis());
+                        update.set("startTime", startTime);
+                        taskDto.setStartTime(startTime);
+                    }
                     updateById(taskDto.getId(), update, user);
                     return;
                 }
@@ -966,12 +989,15 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 //        }
 
             //所有的子任务都是已完成，错误，已停止，调度失败, 编辑中状态，任务的状态为已停止。
+            Date stopTime = new Date(System.currentTimeMillis());
             for (String status : statues) {
                 if (!SubTaskService.stopStatus.contains(status)) {
                     break;
                 }
                 update.set("status", TaskDto.STATUS_STOP);
+                update.set("stopTime", stopTime);
                 taskDto.setStatus(status);
+                taskDto.setStopTime(stopTime);
                 updateById(taskDto.getId(), update, user);
                 return;
             }

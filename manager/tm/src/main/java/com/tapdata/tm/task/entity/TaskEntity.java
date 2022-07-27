@@ -158,6 +158,7 @@ public class TaskEntity extends BaseEntity {
      * 界面展示的任务开始时间
      */
     private Date startTime;
+    private Date stopTime;
 
     private HashSet<String> heartbeatTasks;
 
