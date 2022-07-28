@@ -251,7 +251,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         taskDto.setIsSchedule(getBoolValue(taskDto.getIsSchedule(), false));
 
         // 遇到错误时停止
-        taskDto.setIsStopOnError(getBoolValue(taskDto.getIsStopOnError(), false));
+        taskDto.setIsStopOnError(getBoolValue(taskDto.getIsStopOnError(), true));
 
         // 共享挖掘
         taskDto.setShareCdcEnable(getBoolValue(taskDto.getShareCdcEnable(), false));
