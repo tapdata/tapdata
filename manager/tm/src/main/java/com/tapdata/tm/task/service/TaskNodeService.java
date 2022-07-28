@@ -15,5 +15,5 @@ public interface TaskNodeService {
 
     void saveResult(JsResultDto jsResultDto);
 
-    JsResultVo getRun( String taskId, String jsNodeId);
+    JsResultVo getRun( String taskId, String jsNodeId, Long version);
 }

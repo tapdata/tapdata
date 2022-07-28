@@ -20,4 +20,5 @@ public class JsResultDto {
     private String taskId;
     private List<Map<String, Object>> before;
     private List<Map<String, Object>> after;
+    private Long version;
 }

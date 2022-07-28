@@ -280,6 +280,7 @@ public class TaskNodeServiceImpl implements TaskNodeService {
         String tableName = dto.getTableName();
         Integer rows = dto.getRows();
         String script = dto.getScript();
+        Long version = dto.getVersion();
 
         TaskDto taskDto = taskService.findById(MongoUtils.toObjectId(taskId));
 
@@ -324,6 +325,7 @@ public class TaskNodeServiceImpl implements TaskNodeService {
         subTaskDto.setParentId(taskDto.getId());
         subTaskDto.setId(new ObjectId());
         subTaskDto.setName(taskDto.getName() + "(100)");
+        subTaskDto.setVersion(version);
 
         List<Worker> workers = workerService.findAvailableAgentByAccessNode(userDetail, taskDto.getAccessNodeProcessIdList());
         if (CollectionUtils.isEmpty(workers)) {
@@ -340,15 +342,17 @@ public class TaskNodeServiceImpl implements TaskNodeService {
     @Override
     public void saveResult(JsResultDto jsResultDto) {
         if (Objects.nonNull(jsResultDto)) {
-            CacheUtils.put(jsResultDto.getTaskId(),  jsResultDto);
+            StringJoiner joiner = new StringJoiner(":", jsResultDto.getTaskId(), jsResultDto.getVersion().toString());
+            CacheUtils.put(joiner.toString(),  jsResultDto);
         }
     }
 
     @Override
-    public JsResultVo getRun(String taskId, String jsNodeId) {
+    public JsResultVo getRun(String taskId, String jsNodeId, Long version) {
         JsResultVo result = new JsResultVo();
-        if (CacheUtils.isExist(taskId)) {
-            BeanUtil.copyProperties(CacheUtils.invalidate(taskId), result);
+        StringJoiner joiner = new StringJoiner(":", taskId, version.toString());
+        if (CacheUtils.isExist(joiner.toString())) {
+            BeanUtil.copyProperties(CacheUtils.invalidate(joiner.toString()), result);
             result.setOver(true);
         } else {
             result.setOver(false);
