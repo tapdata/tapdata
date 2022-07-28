@@ -5,6 +5,7 @@ import com.google.common.collect.ImmutableMap;
 import com.mongodb.BasicDBObject;
 import com.mongodb.bulk.BulkWriteResult;
 import com.mongodb.client.result.UpdateResult;
+import com.tapdata.manager.common.utils.JsonUtil;
 import com.tapdata.manager.common.utils.StringUtils;
 import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Page;
@@ -16,14 +17,9 @@ import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.logCollector.LogCollectorNode;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
-import com.tapdata.tm.commons.dag.process.MergeTableNode;
-import com.tapdata.tm.commons.dag.process.MigrateFieldRenameProcessorNode;
-import com.tapdata.tm.commons.dag.process.ProcessorNode;
-import com.tapdata.tm.commons.dag.process.TableRenameProcessNode;
-import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
-import com.tapdata.tm.commons.schema.DataSourceDefinitionDto;
+import com.tapdata.tm.commons.dag.process.*;
+import com.tapdata.tm.commons.schema.*;
 import com.tapdata.tm.commons.schema.Field;
-import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.commons.schema.bean.Schema;
 import com.tapdata.tm.commons.schema.bean.SourceDto;
 import com.tapdata.tm.commons.schema.bean.Table;
@@ -1526,5 +1522,52 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
         }
 
         return null;
+    }
+
+
+    public void qualifiedNameLinkLogic(String qualifiedName, UserDetail user){
+        qualifiedNameLinkLogic(Lists.of(qualifiedName), user);
+    }
+    public void qualifiedNameLinkLogic(List<String> qualifiedNames, UserDetail user){
+        List<MetadataInstancesDto> metadataInstancesDto = findByQualifiedNameNotDelete(qualifiedNames, user);
+        linkLogic(metadataInstancesDto, user);
+    }
+    public void linkLogic(MetadataInstancesDto metadataInstancesDto, UserDetail user){
+        linkLogic(Lists.of(metadataInstancesDto), user);
+    }
+
+    public void linkLogic(List<MetadataInstancesDto> metadataInstancesDtos, UserDetail user){
+        try {
+            List<MetadataInstancesDto> updateMetadatas = new ArrayList<>();
+            for (MetadataInstancesDto metadataInstancesDto : metadataInstancesDtos) {
+                //查询得到所有的关联的逻辑模型表
+                Criteria criteria = Criteria.where("meta_type").is(metadataInstancesDto.getMetaType()).and("original_name").is(metadataInstancesDto.getOriginalName())
+                        .and("source._id").is(metadataInstancesDto.getSource().get_id())
+                        .and("is_deleted").ne(true).and("sourceType").is(SourceTypeEnum.VIRTUAL.name());
+                Query query = new Query(criteria);
+                List<MetadataInstancesDto> taskMetadatas = findAllDto(query, user);
+                com.tapdata.tm.commons.schema.Schema originalSchema = JsonUtil.parseJsonUseJackson(JsonUtil.toJsonUseJackson(metadataInstancesDto), com.tapdata.tm.commons.schema.Schema.class);
+
+
+                if (CollectionUtils.isNotEmpty(taskMetadatas)) {
+                    //如果逻辑模型没有为空，则遍历合并物理模型跟逻辑模型，得到新的逻辑模型保存到库里面。
+                    for (MetadataInstancesDto taskMetadata : taskMetadatas) {
+                        com.tapdata.tm.commons.schema.Schema schema = JsonUtil.parseJsonUseJackson(JsonUtil.toJsonUseJackson(taskMetadata), com.tapdata.tm.commons.schema.Schema.class);
+                        schema = SchemaUtils.mergeSchema(Lists.of(SchemaUtils.cloneSchema(originalSchema)), schema, false);
+                        MetadataInstancesDto metadataInstancesDto1 = JsonUtil.parseJsonUseJackson(JsonUtil.toJsonUseJackson(schema), MetadataInstancesDto.class);
+                        if (metadataInstancesDto1 != null) {
+                            metadataInstancesDto1.setQualifiedName(taskMetadata.getQualifiedName());
+                            updateMetadatas.add(metadataInstancesDto1);
+                        }
+                    }
+                }
+
+            }
+
+            //批量入库
+            bulkUpsetByWhere(updateMetadatas, user);
+        } catch (Exception e) {
+            log.warn("update logic metadata failed");
+        }
     }
 }
