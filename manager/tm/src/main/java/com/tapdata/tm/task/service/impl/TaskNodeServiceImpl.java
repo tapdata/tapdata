@@ -17,6 +17,7 @@ import com.tapdata.tm.commons.dag.process.TableRenameProcessNode;
 import com.tapdata.tm.commons.dag.vo.FieldInfo;
 import com.tapdata.tm.commons.dag.vo.TableFieldInfo;
 import com.tapdata.tm.commons.dag.vo.TableRenameTableInfo;
+import com.tapdata.tm.commons.dag.vo.TestRunDto;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
 import com.tapdata.tm.commons.schema.Field;
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;
@@ -273,7 +274,13 @@ public class TaskNodeServiceImpl implements TaskNodeService {
     }
 
     @Override
-    public void testRunJsNode(String taskId, String nodeId, String tableName, Integer rows, UserDetail userDetail) {
+    public void testRunJsNode(TestRunDto dto, UserDetail userDetail) {
+        String taskId = dto.getTaskId();
+        String nodeId = dto.getJsNodeId();
+        String tableName = dto.getTableName();
+        Integer rows = dto.getRows();
+        String script = dto.getScript();
+
         TaskDto taskDto = taskService.findById(MongoUtils.toObjectId(taskId));
 
         DAG dtoDag = taskDto.getDag();
@@ -284,12 +291,16 @@ public class TaskNodeServiceImpl implements TaskNodeService {
         Dag build = dtoDag.toDag();
         build = JsonUtil.parseJsonUseJackson(JsonUtil.toJsonUseJackson(build), Dag.class);
         List<Node<?>> nodes = dtoDag.nodeMap().get(nodeId);
-        nodes.add(dtoDag.getNode(nodeId));
+        MigrateJsProcessorNode jsNode = (MigrateJsProcessorNode) dtoDag.getNode(nodeId);
+        if (StringUtils.isNotBlank(script)) {
+            jsNode.setScript(script);
+        }
+        nodes.add(jsNode);
 
         Node<?> target = new VirtualTargetNode();
         target.setId(UUID.randomUUID().toString());
         target.setName(target.getId());
-        if (org.apache.commons.collections4.CollectionUtils.isNotEmpty(nodes)) {
+        if (CollectionUtils.isNotEmpty(nodes)) {
             nodes.add(target);
         }
 
