@@ -22,9 +22,12 @@ public class HeartbeatDummyConfig extends DummyConfig {
 
     private String connId;
 
-    public HeartbeatDummyConfig(String connId, DataMap config) {
+    public HeartbeatDummyConfig(DataMap config) {
         super(config);
-        this.connId = connId;
+        this.connId = config.getString("connId");
+        if (null == this.connId) {
+            throw new IllegalArgumentException("connection config.connId is null");
+        }
     }
 
     /**
@@ -52,7 +55,7 @@ public class HeartbeatDummyConfig extends DummyConfig {
      */
     @Override
     public Long getInitialTotals() {
-        return 0L;
+        return 1L;
     }
 
     /**
