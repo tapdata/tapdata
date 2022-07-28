@@ -13,9 +13,6 @@ import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
 import io.tapdata.aspect.BatchReadFuncAspect;
 import io.tapdata.aspect.StreamReadFuncAspect;
-import io.tapdata.common.sample.sampler.CounterSampler;
-import io.tapdata.common.sample.sampler.ResetCounterSampler;
-import io.tapdata.common.sample.sampler.SpeedSampler;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.flow.engine.V2.progress.SnapshotProgressManager;
 import io.tapdata.flow.engine.V2.sharecdc.ReaderType;
@@ -24,7 +21,6 @@ import io.tapdata.flow.engine.V2.sharecdc.ShareCdcTaskContext;
 import io.tapdata.flow.engine.V2.sharecdc.ShareCdcTaskPdkContext;
 import io.tapdata.flow.engine.V2.sharecdc.exception.ShareCdcUnsupportedException;
 import io.tapdata.flow.engine.V2.sharecdc.impl.ShareCdcFactory;
-import io.tapdata.metrics.TaskSampleRetriever;
 import io.tapdata.milestone.MilestoneStage;
 import io.tapdata.milestone.MilestoneStatus;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
@@ -42,7 +38,6 @@ import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
@@ -54,12 +49,6 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 	private static final String TAG = HazelcastSourcePdkDataNode.class.getSimpleName();
 	private final Logger logger = LogManager.getLogger(HazelcastSourcePdkDataNode.class);
 	private ShareCdcReader shareCdcReader;
-	private ResetCounterSampler resetOutputCounter;
-	private CounterSampler outputCounter;
-	private SpeedSampler outputQPS;
-	private ResetCounterSampler resetInitialWriteCounter;
-	private CounterSampler initialWriteCounter;
-	private Long initialTime;
 
 	public HazelcastSourcePdkDataNode(DataProcessorContext dataProcessorContext) {
 		super(dataProcessorContext);
@@ -146,19 +135,12 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 
 														if(batchReadFuncAspect != null && batchReadFuncAspect.getConsumer() != null)
 															batchReadFuncAspect.getConsumer().accept(tapdataEvents);
-
-														resetOutputCounter.inc(tapdataEvents.size());
-														outputCounter.inc(tapdataEvents.size());
-														outputQPS.add(tapdataEvents.size());
-														resetInitialWriteCounter.inc(tapdataEvents.size());
-														initialWriteCounter.inc(tapdataEvents.size());
 													}
 												}
 											}), TAG));
 						}
 
 						if (isRunning()) {
-							initialTime = System.currentTimeMillis();
 							// MILESTONE-READ_SNAPSHOT-FINISH
 							MilestoneUtil.updateMilestone(milestoneService, MilestoneStage.READ_SNAPSHOT, MilestoneStatus.FINISH);
 							enqueue(new TapdataCompleteSnapshotEvent());
@@ -248,9 +230,6 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 											}
 											if (CollectionUtils.isNotEmpty(tapdataEvents)) {
 												tapdataEvents.forEach(this::enqueue);
-												resetOutputCounter.inc(tapdataEvents.size());
-												outputCounter.inc(tapdataEvents.size());
-												outputQPS.add(tapdataEvents.size());
 												if(streamReadFuncAspect != null && streamReadFuncAspect.getConsumer() != null)
 													streamReadFuncAspect.getConsumer().accept(tapdataEvents);
 											}
@@ -281,9 +260,6 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 				return;
 			}
 			tapdataEvent.setType(SyncProgress.Type.SHARE_CDC);
-			resetOutputCounter.inc(1);
-			outputCounter.inc(1);
-			outputQPS.add(1);
 			enqueue(tapdataEvent);
 		});
 	}
@@ -310,37 +286,6 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 			}
 		} finally {
 			super.doClose();
-		}
-	}
-
-	/**
-	 * TODO(dexter): restore from the db;
-	 */
-	@Override
-	protected void initSampleCollector() {
-		super.initSampleCollector();
-
-		// TODO: init outputCounter initial value
-		Map<String, Number> values = TaskSampleRetriever.getInstance().retrieve(tags, Arrays.asList(
-				"outputTotal", "initialWrite"
-		));
-		// init statistic and sample related initialize
-		resetOutputCounter = statisticCollector.getResetCounterSampler("outputTotal");
-		outputCounter = sampleCollector.getCounterSampler("outputTotal");
-		outputCounter.inc(values.getOrDefault("outputTotal", 0).longValue());
-		outputQPS = sampleCollector.getSpeedSampler("outputQPS");
-		resetInitialWriteCounter = statisticCollector.getResetCounterSampler("initialWrite");
-		initialWriteCounter = sampleCollector.getCounterSampler("initialWrite");
-		initialWriteCounter.inc(values.getOrDefault("initialWrite", 0).longValue());
-
-		statisticCollector.addSampler("initialTime", () -> {
-			if (initialTime != null) {
-				return initialTime;
-			}
-			return 0;
-		});
-		if (syncProgress != null) {
-			statisticCollector.addSampler("cdcTime", () -> syncProgress.getEventTime());
 		}
 	}
 }

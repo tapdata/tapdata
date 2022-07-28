@@ -413,13 +413,6 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 									}
 									if(writeRecordFuncAspect != null && writeRecordFuncAspect.getConsumer() != null)
 										writeRecordFuncAspect.getConsumer().accept(writeListResult);
-									timeCostAvg.add(events.size(), System.currentTimeMillis() - start);
-									resetInsertedCounter.inc(writeListResult.getInsertedCount());
-									insertedCounter.inc(writeListResult.getInsertedCount());
-									resetUpdatedCounter.inc(writeListResult.getModifiedCount());
-									updatedCounter.inc(writeListResult.getModifiedCount());
-									resetDeletedCounter.inc(writeListResult.getRemovedCount());
-									deletedCounter.inc(writeListResult.getRemovedCount());
 									logger.debug("Wrote {} of record events, {}", tapRecordEvents.size(), LoggerUtils.targetNodeMessage(getConnectorNode()));
 								}), TAG)));
 			} catch (Exception e) {
