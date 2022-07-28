@@ -49,5 +49,6 @@ public enum NodeEnum {
     /**
      * 数据复制-字段编辑节点
      */
-    migrate_field_rename_processor
+    migrate_field_rename_processor,
+    migrate_js_processor
 }

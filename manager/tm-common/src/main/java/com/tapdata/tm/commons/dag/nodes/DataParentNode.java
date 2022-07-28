@@ -58,10 +58,18 @@ public abstract class DataParentNode<S> extends Node<S> {
     @EqField
     private DmlPolicy dmlPolicy;
 
-
     private Boolean enableDDL;
 
     private List<String> disabledEvents;
+    private Boolean enableDynamicTable;
+	/** 是否开启全量并发写入*/
+	private Boolean initialConcurrent;
+	/** 全量写入线程数*/
+	private Integer initialConcurrentWriteNum;
+	/** 是否开启增量并发写入*/
+	private Boolean cdcConcurrent;
+	/** 增量写入线程数*/
+	private Integer cdcConcurrentWriteNum;
     /**
      * constructor for node
      *
@@ -159,7 +167,7 @@ public abstract class DataParentNode<S> extends Node<S> {
         List<Field> fields = s.getFields();
 
         if (CollectionUtils.isNotEmpty(inputFieldOriginalNames)) {
-            LinkedList<Node> preNodes = getDag().nodeMap().get(this.getId());
+            LinkedList<Node<?>> preNodes = getDag().nodeMap().get(this.getId());
             if (CollectionUtils.isNotEmpty(preNodes) && preNodes.stream().anyMatch(n -> n instanceof MigrateFieldRenameProcessorNode)) {
                 Iterator<Field> iterator = fields.iterator();
                 while (iterator.hasNext()) {

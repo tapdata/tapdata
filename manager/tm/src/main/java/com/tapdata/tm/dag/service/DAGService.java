@@ -1,5 +1,6 @@
 package com.tapdata.tm.dag.service;
 
+import cn.hutool.core.date.DateUtil;
 import com.google.common.collect.Maps;
 import com.tapdata.manager.common.utils.JsonUtil;
 import com.tapdata.manager.common.utils.StringUtils;
@@ -16,6 +17,7 @@ import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.commons.schema.DataSourceDefinitionDto;
 import com.tapdata.tm.ds.service.impl.DataSourceDefinitionService;
 import com.tapdata.tm.ds.service.impl.DataSourceService;
+import com.tapdata.tm.message.constant.Level;
 import com.tapdata.tm.messagequeue.dto.MessageQueueDto;
 import com.tapdata.tm.messagequeue.service.MessageQueueService;
 import com.tapdata.tm.commons.util.MetaType;
@@ -23,6 +25,8 @@ import com.tapdata.tm.metadatainstance.entity.MetadataInstancesEntity;
 import com.tapdata.tm.metadatainstance.repository.MetadataInstancesRepository;
 import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
 import com.tapdata.tm.metadatainstance.vo.SourceTypeEnum;
+import com.tapdata.tm.task.constant.DagOutputTemplateEnum;
+import com.tapdata.tm.task.service.TaskDagCheckLogService;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.commons.schema.MetadataTransformerDto;
 import com.tapdata.tm.commons.schema.MetadataTransformerItemDto;
@@ -77,8 +81,8 @@ public class DAGService implements DAGDataService {
     private MetadataTransformerService metadataTransformerService;
     private MetadataTransformerItemService metadataTransformerItemService;
     private TaskService taskService;
-
     private MetadataInstancesRepository repository;
+    private TaskDagCheckLogService taskDagCheckLogService;
 
     private Schema convertToSchema(MetadataInstancesDto metadataInstances, UserDetail user) {
         if (metadataInstances == null)
@@ -810,6 +814,11 @@ public class DAGService implements DAGDataService {
         if (transformer.getBeginTimestamp() == 0) {
             transformer.setBeginTimestamp(transformer.getPingTime());
         }
+
+        // add transformer task log
+        taskDagCheckLogService.createLog(taskId, null, Level.INFO.getValue(), DagOutputTemplateEnum.MODEL_PROCESS_CHECK,
+                false, true, DateUtil.now(), transformer.getFinished(), transformer.getTotal());
+
         metadataTransformerService.save(transformer);
     }
 
@@ -875,5 +884,9 @@ public class DAGService implements DAGDataService {
     @Override
     public TaskDto getTaskById(String taskId) {
         return taskService.findById(new ObjectId(taskId));
+    }
+
+    public ObjectId getTaskId() {
+        return null;
     }
 }

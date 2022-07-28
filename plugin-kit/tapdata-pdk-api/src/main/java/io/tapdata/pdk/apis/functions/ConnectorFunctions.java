@@ -28,6 +28,7 @@ public class ConnectorFunctions extends ConnectionFunctions<ConnectorFunctions> 
     protected QueryByAdvanceFilterFunction queryByAdvanceFilterFunction;
     //create_table_event
     protected CreateTableFunction createTableFunction;
+    protected CreateTableV2Function createTableV2Function;
     //clear_table_event
     protected ClearTableFunction clearTableFunction;
     //drop_table_event
@@ -195,10 +196,26 @@ public class ConnectorFunctions extends ConnectionFunctions<ConnectorFunctions> 
         return this;
     }
 
+    /**
+     * @deprecated
+     *
+     * Please use supportCreateTableV2 instead.
+     * CreateTableOptions is required as return value to tell engine the table is exists already or not.
+     *
+     * @param function
+     * @return
+     */
+    @Deprecated
     public ConnectorFunctions supportCreateTable(CreateTableFunction function) {
         this.createTableFunction = function;
         return this;
     }
+
+    public ConnectorFunctions supportCreateTableV2(CreateTableV2Function function) {
+        this.createTableV2Function = function;
+        return this;
+    }
+
 
     public ConnectorFunctions supportClearTable(ClearTableFunction function) {
         this.clearTableFunction = function;
@@ -304,4 +321,7 @@ public class ConnectorFunctions extends ConnectionFunctions<ConnectorFunctions> 
         return newFieldFunction;
     }
 
+    public CreateTableV2Function getCreateTableV2Function() {
+        return createTableV2Function;
+    }
 }

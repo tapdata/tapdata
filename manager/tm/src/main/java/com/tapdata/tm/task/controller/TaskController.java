@@ -2,14 +2,17 @@ package com.tapdata.tm.task.controller;
 
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.*;
-import com.tapdata.tm.base.dto.Field;
 import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.Edge;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.SchemaTransformerResult;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.vo.FieldProcess;
-import com.tapdata.tm.commons.schema.*;
+import com.tapdata.tm.commons.dag.vo.TestRunDto;
+import com.tapdata.tm.commons.schema.DataSourceDefinitionDto;
+import com.tapdata.tm.commons.schema.MetadataTransformerItemDto;
+import com.tapdata.tm.commons.schema.TransformerWsMessageDto;
+import com.tapdata.tm.commons.schema.TransformerWsMessageResult;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.task.dto.TaskRunHistoryDto;
 import com.tapdata.tm.config.security.UserDetail;
@@ -25,6 +28,8 @@ import com.tapdata.tm.task.bean.LogCollectorResult;
 import com.tapdata.tm.task.bean.TranModelReqDto;
 import com.tapdata.tm.task.entity.TaskEntity;
 import com.tapdata.tm.task.service.*;
+import com.tapdata.tm.task.vo.JsResultDto;
+import com.tapdata.tm.task.vo.JsResultVo;
 import com.tapdata.tm.task.vo.TaskDetailVo;
 import com.tapdata.tm.utils.Lists;
 import com.tapdata.tm.utils.MongoUtils;
@@ -33,10 +38,6 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.enums.ParameterIn;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import io.tapdata.entity.event.ddl.table.TapAlterFieldNameEvent;
-import io.tapdata.entity.event.ddl.table.TapDropFieldEvent;
-import io.tapdata.entity.event.ddl.table.TapFieldBaseEvent;
-import io.tapdata.entity.event.ddl.table.TapNewFieldEvent;
 import lombok.Setter;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -59,7 +60,7 @@ import java.util.stream.Stream;
  */
 @Tag(name = "Task", description = "Task相关接口")
 @RestController
-@RequestMapping("/api/Task")
+@RequestMapping({"/api/Task", "/api/task"})
 @Setter(onMethod_ = {@Autowired})
 public class TaskController extends BaseController {
     private TaskService taskService;
@@ -71,6 +72,8 @@ public class TaskController extends BaseController {
     private TaskCheckInspectService taskCheckInspectService;
     private MetadataInstancesService metadataInstancesService;
     private TaskNodeService taskNodeService;
+    private TaskSaveService taskSaveService;
+    private TaskStartService taskStartService;
 
     /**
      * Create a new instance of the model and persist it into the data source
@@ -197,7 +200,12 @@ public class TaskController extends BaseController {
         task.setId(MongoUtils.toObjectId(id));
         UserDetail user = getLoginUser();
         taskCheckInspectService.getInspectFlagDefaultFlag(task, user);
-        TaskDto taskDto = taskService.confirmById(task, user, confirm);
+
+        boolean noPass = taskSaveService.taskSaveCheckLog(task, user);
+        TaskDto taskDto = task;
+        if (!noPass) {
+            taskDto = taskService.confirmById(task, user, confirm);
+        }
         return success(taskDto);
     }
 
@@ -226,7 +234,15 @@ public class TaskController extends BaseController {
     public ResponseMessage<TaskDto> confirmStart(@PathVariable("id") String id, @RequestParam(value = "confirm", required = false, defaultValue = "false") Boolean confirm,
                                                  @RequestBody TaskDto task) {
         task.setId(MongoUtils.toObjectId(id));
-        return success(taskService.confirmStart(task, getLoginUser(), confirm));
+        UserDetail user = getLoginUser();
+
+        boolean noPass = taskStartService.taskStartCheckLog(task, user);
+        TaskDto taskDto = task;
+        if (!noPass) {
+            taskDto = taskService.confirmStart(task, user, confirm);
+        }
+
+        return success(taskDto);
     }
 
 
@@ -720,4 +736,33 @@ public class TaskController extends BaseController {
         TransformerWsMessageDto dto = taskService.findTransformParam(taskId, getLoginUser());
         return success(dto);
     }
+
+
+    @PostMapping("dag")
+    public ResponseMessage<Void> updateDag(@RequestBody TaskDto taskDto) {
+        taskService.updateDag(taskDto, getLoginUser());
+        return success();
+    }
+
+    @PostMapping("migrate-js/test-run")
+    @Operation(description = "js节点试运行")
+    public ResponseMessage<Void> testRun(@RequestBody TestRunDto dto) {
+        taskNodeService.testRunJsNode(dto, getLoginUser());
+        return success();
+    }
+
+    @PostMapping("migrate-js/save-result")
+    @Operation(description = "js节点运行结果保存")
+    public ResponseMessage<Void> saveResult(@RequestBody JsResultDto jsResultDto) {
+        taskNodeService.saveResult(jsResultDto);
+        return success();
+    }
+
+    @GetMapping("migrate-js/get-result")
+    @Operation(description = "js节点试运行结果获取")
+    public ResponseMessage<JsResultVo> getRun(@RequestParam String taskId,
+                                         @RequestParam String jsNodeId) {
+        return success(taskNodeService.getRun(taskId, jsNodeId));
+    }
+
 }

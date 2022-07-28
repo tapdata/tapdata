@@ -61,7 +61,9 @@ public class RecordWriter {
         insertRecorder.executeBatch(listResult);
         updateRecorder.executeBatch(listResult);
         deleteRecorder.executeBatch(listResult);
-        connection.commit();
+        if (!connection.getAutoCommit()) {
+            connection.commit();
+        }
         insertRecorder.releaseResource();
         updateRecorder.releaseResource();
         deleteRecorder.releaseResource();

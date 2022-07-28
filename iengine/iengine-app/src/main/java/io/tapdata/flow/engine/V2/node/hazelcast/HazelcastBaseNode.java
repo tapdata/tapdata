@@ -19,6 +19,7 @@ import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.commons.task.dto.Dag;
 import com.tapdata.tm.commons.task.dto.SubTaskDto;
+import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.aspect.*;
 import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.common.SettingService;
@@ -30,7 +31,8 @@ import io.tapdata.entity.aspect.AspectInterceptResult;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
 import io.tapdata.entity.event.TapEvent;
-import io.tapdata.entity.event.ddl.TapDDLEvent;
+import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
+import io.tapdata.entity.event.ddl.table.TapDropTableEvent;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
@@ -72,7 +74,9 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 	protected static final String NEW_DAG_INFO_KEY = "NEW_DAG";
 	protected static final String DAG_DATA_SERVICE_INFO_KEY = "DAG_DATA_SERVICE";
 	protected static final String TRANSFORM_SCHEMA_ERROR_MESSAGE_INFO_KEY = "TRANSFORM_SCHEMA_ERROR_MESSAGE";
-	protected static final String UPLOAD_METADATA_INFO_KEY = "UPLOAD_METADATA";
+	protected static final String UPDATE_METADATA_INFO_KEY = "UPDATE_METADATA";
+	protected static final String INSERT_METADATA_INFO_KEY = "INSERT_METADATA";
+	protected static final String REMOVE_METADATA_INFO_KEY = "REMOVE_METADATA";
 	protected static final String QUALIFIED_NAME_ID_MAP_INFO_KEY = "QUALIFIED_NAME_ID_MAP";
 	private static final String TAG = HazelcastBaseNode.class.getSimpleName();
 
@@ -95,6 +99,11 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 	public AtomicBoolean running = new AtomicBoolean(false);
 	protected TapCodecsFilterManager codecsFilterManager;
 
+	/**
+	 * Whether to process data from multiple tables
+	 */
+	protected final boolean multipleTables;
+
 	public HazelcastBaseNode(ProcessorBaseContext processorBaseContext) {
 		this.processorBaseContext = processorBaseContext;
 
@@ -111,10 +120,15 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 		}
 
 		threadName = String.format(THREAD_NAME_TEMPLATE, processorBaseContext.getSubTaskDto().getId().toHexString(), processorBaseContext.getNode() != null ? processorBaseContext.getNode().getName() : null);
+
+		//如果为迁移任务、且源节点为数据库类型
+		this.multipleTables = CollectionUtils.isNotEmpty(processorBaseContext.getSubTaskDto().getDag().getSourceNode());
 	}
+
 	public <T extends DataFunctionAspect<T>> AspectInterceptResult executeDataFuncAspect(Class<T> aspectClass, Callable<T> aspectCallable, Consumer<T> consumer) {
 		return AspectUtils.executeDataFuncAspect(aspectClass, aspectCallable, consumer);
 	}
+
 	public <T extends Aspect> AspectInterceptResult executeAspect(Class<T> aspectClass, Callable<T> aspectCallable) {
 		return AspectUtils.executeAspect(aspectClass, aspectCallable);
 	}
@@ -124,7 +138,10 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 	}
 
 	protected void doInit(@NotNull Processor.Context context) throws Exception {
-	};
+	}
+
+	;
+
 	@Override
 	public final void init(@NotNull Processor.Context context) throws Exception {
 		this.jetContext = context;
@@ -135,10 +152,10 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 		tapCodecsRegistry.registerFromTapValue(TapDateTimeValue.class, tapValue -> tapValue.getValue().toInstant());
 		codecsFilterManager = TapCodecsFilterManager.create(tapCodecsRegistry);
 		initSampleCollector();
-		CollectorFactory.getInstance().recordCurrentValueByTag(tags);
+//		CollectorFactory.getInstance().recordCurrentValueByTag(tags);
 
 		doInit(context);
-		if(processorBaseContext instanceof DataProcessorContext) {
+		if (processorBaseContext instanceof DataProcessorContext) {
 			AspectUtils.executeAspect(DataNodeInitAspect.class, () -> new DataNodeInitAspect().dataProcessorContext((DataProcessorContext) processorBaseContext));
 		} else {
 			AspectUtils.executeAspect(ProcessorNodeInitAspect.class, () -> new ProcessorNodeInitAspect().processorBaseContext(processorBaseContext));
@@ -431,14 +448,17 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 	}
 
 	protected void doClose() throws Exception {
-	};
+	}
+
+	;
+
 	@Override
 	public final void close() throws Exception {
 		try {
 			doClose();
 		} finally {
 			running.set(false);
-			if(processorBaseContext instanceof DataProcessorContext) {
+			if (processorBaseContext instanceof DataProcessorContext) {
 				AspectUtils.executeAspect(DataNodeCloseAspect.class, () -> new DataNodeCloseAspect().dataProcessorContext((DataProcessorContext) processorBaseContext));
 			} else {
 				AspectUtils.executeAspect(ProcessorNodeCloseAspect.class, () -> new ProcessorNodeCloseAspect().processorBaseContext(processorBaseContext));
@@ -612,6 +632,7 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 		SubTaskDto subTaskDto = processorBaseContext.getSubTaskDto();
 		com.hazelcast.jet.Job hazelcastJob = jetContext.hazelcastInstance().getJet().getJob(subTaskDto.getName() + "-" + subTaskDto.getId().toHexString());
 		if (hazelcastJob != null) {
+			AspectUtils.executeAspect(new TaskStopAspect().task(subTaskDto).error(throwable));
 			hazelcastJob.cancel();
 		}
 	}
@@ -698,24 +719,52 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 			tableName = getNode().getId();
 		}
 		String qualifiedName = tapTableMap.getQualifiedName(tableName);
-		TapTable tapTable = ((DAGDataServiceImpl) dagDataService).getTapTable(qualifiedName);
-		tapTableMap.put(tableName, tapTable);
-		Object uploadMetadataObj = tapEvent.getInfo(UPLOAD_METADATA_INFO_KEY);
-		if (uploadMetadataObj instanceof Map) {
-			MetadataInstancesDto metadata = ((DAGDataServiceImpl) dagDataService).getMetadata(qualifiedName);
-			if (null == metadata.getId()) {
-				Object qualifiedNameIdMap = tapEvent.getInfo(QUALIFIED_NAME_ID_MAP_INFO_KEY);
-				if (qualifiedNameIdMap instanceof Map) {
-					Object id = ((Map<?, ?>) qualifiedNameIdMap).get(qualifiedName);
-					if (id instanceof String && StringUtils.isNotBlank((String) id)) {
-						metadata.setId(new ObjectId((String) id));
+		if (tapEvent instanceof TapCreateTableEvent) {
+			Object insertMetadata = tapEvent.getInfo(INSERT_METADATA_INFO_KEY);
+			if (insertMetadata instanceof List) {
+				String finalTableName = tableName;
+				MetadataInstancesDto metadata = ((DAGDataServiceImpl) dagDataService).getBatchInsertMetaDataList().stream().filter(m -> m.getOriginalName().equals(finalTableName))
+						.findFirst().orElse(null);
+				if (null != metadata) {
+					qualifiedName = metadata.getQualifiedName();
+					((List<MetadataInstancesDto>) insertMetadata).add(metadata);
+					TapTable tapTable = ((DAGDataServiceImpl) dagDataService).getTapTable(qualifiedName);
+					if (tapTableMap.containsKey(tableName)) {
+						tapTableMap.put(tableName, tapTable);
+					} else {
+						tapTableMap.putNew(tableName, tapTable, qualifiedName);
 					}
-				}
-				if (null == metadata.getId()) {
-					throw new RuntimeException("Transform result metadata is invalid, id is null");
+				} else {
+					throw new RuntimeException("Cannot found metadata from insert metadata list, table name: " + tableName);
 				}
 			}
-			((Map<String, MetadataInstancesDto>) uploadMetadataObj).put(metadata.getId().toHexString(), metadata);
+		} else if (tapEvent instanceof TapDropTableEvent) {
+			// do nothing
+		} else {
+			TapTable tapTable = ((DAGDataServiceImpl) dagDataService).getTapTable(qualifiedName);
+			tapTableMap.put(tableName, tapTable);
+			Object updateMetadataObj = tapEvent.getInfo(UPDATE_METADATA_INFO_KEY);
+			if (updateMetadataObj instanceof Map) {
+				MetadataInstancesDto metadata = ((DAGDataServiceImpl) dagDataService).getMetadata(qualifiedName);
+				if (null == metadata.getId()) {
+					Object qualifiedNameIdMap = tapEvent.getInfo(QUALIFIED_NAME_ID_MAP_INFO_KEY);
+					if (qualifiedNameIdMap instanceof Map) {
+						Object id = ((Map<?, ?>) qualifiedNameIdMap).get(qualifiedName);
+						if (id instanceof String && StringUtils.isNotBlank((String) id)) {
+							metadata.setId(new ObjectId((String) id));
+						}
+					}
+					if (null == metadata.getId()) {
+						throw new RuntimeException("Transform result metadata is invalid, id is null");
+					}
+				}
+				((Map<String, MetadataInstancesDto>) updateMetadataObj).put(metadata.getId().toHexString(), metadata);
+			}
+		}
+		if (tapTableMap.containsKey(tableName)) {
+
+		} else {
+
 		}
 	}
 

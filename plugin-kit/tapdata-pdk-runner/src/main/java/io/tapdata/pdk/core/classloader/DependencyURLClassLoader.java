@@ -22,6 +22,8 @@ public class DependencyURLClassLoader extends ClassLoader {
 
     private ChildURLClassLoader childClassLoader;
 
+    private Collection<URL> jarUrls;
+
     public void close() {
         if(childClassLoader != null) {
             try {
@@ -42,7 +44,7 @@ public class DependencyURLClassLoader extends ClassLoader {
                         theJarFile.close();
                         CommonUtils.ignoreAnyError(() -> {
                             FileUtils.forceDelete(new File(theJarFile.getName()));
-                            TapLogger.info(TAG, "Deleted jar file {}", theJarFile.getName());
+                            TapLogger.info(TAG, "Deleted jar file {} from classloader", theJarFile.getName());
                         }, TAG);
                     } catch (Throwable t) {
                         // if we got this far, this is probably not a JAR loader so skip it
@@ -51,14 +53,24 @@ public class DependencyURLClassLoader extends ClassLoader {
                 }
             } catch (Throwable t) {
                 // probably not a SUN VM
-                TapLogger.error(TAG, "Closing jar file failed, error {}", t.getMessage());
+                TapLogger.warn(TAG, "Closing jar file failed, error {}", t.getMessage());
             }
             try {
                 childClassLoader.close();
                 TapLogger.info(TAG, "Closing classloader {} urls {}", childClassLoader.hashCode(), Arrays.toString(childClassLoader.getURLs()));
             } catch (Throwable e) {
 //                e.printStackTrace();
-                TapLogger.error(TAG, "Closing classloader failed, error {}", e.getMessage());
+                TapLogger.warn(TAG, "Closing classloader failed, error {}", e.getMessage());
+            } finally {
+                if(jarUrls != null) {
+                    for (URL jarUrl : jarUrls) {
+                        File file = new File(jarUrl.getFile());
+                        if(file.exists()) {
+                            FileUtils.deleteQuietly(file);
+                            TapLogger.info(TAG, "Deleted jar file {}", file.getName());
+                        }
+                    }
+                }
             }
         }
     }
@@ -126,6 +138,7 @@ public class DependencyURLClassLoader extends ClassLoader {
         }
         URL[] urlArray = new URL[urls.size()];
         urls.toArray(urlArray);
+        jarUrls = urls;
 
         childClassLoader = new ChildURLClassLoader(urlArray, new FindClassClassLoader(DependencyURLClassLoader.class.getClassLoader()) );
     }

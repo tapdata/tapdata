@@ -1,41 +1,59 @@
 package com.tapdata.tm.task.service.impl;
 
+import cn.hutool.core.bean.BeanUtil;
 import com.google.common.collect.Maps;
+import com.tapdata.manager.common.utils.JsonUtil;
 import com.tapdata.tm.base.dto.Page;
+import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.commons.dag.DAG;
+import com.tapdata.tm.commons.dag.Edge;
 import com.tapdata.tm.commons.dag.FieldsMapping;
 import com.tapdata.tm.commons.dag.Node;
+import com.tapdata.tm.commons.dag.logCollector.VirtualTargetNode;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.process.MigrateFieldRenameProcessorNode;
+import com.tapdata.tm.commons.dag.process.MigrateJsProcessorNode;
 import com.tapdata.tm.commons.dag.process.TableRenameProcessNode;
 import com.tapdata.tm.commons.dag.vo.FieldInfo;
 import com.tapdata.tm.commons.dag.vo.TableFieldInfo;
 import com.tapdata.tm.commons.dag.vo.TableRenameTableInfo;
+import com.tapdata.tm.commons.dag.vo.TestRunDto;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
 import com.tapdata.tm.commons.schema.Field;
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.commons.schema.MetadataTransformerItemDto;
+import com.tapdata.tm.commons.task.dto.Dag;
+import com.tapdata.tm.commons.task.dto.SubTaskDto;
+import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.util.MetaDataBuilderUtils;
+import com.tapdata.tm.commons.util.MetaType;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.ds.service.impl.DataSourceService;
+import com.tapdata.tm.messagequeue.dto.MessageQueueDto;
+import com.tapdata.tm.messagequeue.service.MessageQueueService;
 import com.tapdata.tm.metadatainstance.entity.MetadataInstancesEntity;
 import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
 import com.tapdata.tm.task.service.TaskNodeService;
 import com.tapdata.tm.task.service.TaskService;
+import com.tapdata.tm.task.utils.CacheUtils;
+import com.tapdata.tm.task.vo.JsResultDto;
+import com.tapdata.tm.task.vo.JsResultVo;
 import com.tapdata.tm.utils.Lists;
 import com.tapdata.tm.utils.MongoUtils;
+import com.tapdata.tm.worker.entity.Worker;
+import com.tapdata.tm.worker.service.WorkerService;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.collections4.ListUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.bson.types.ObjectId;
+import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
+import java.util.*;
+import java.util.concurrent.ConcurrentMap;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -47,6 +65,8 @@ public class TaskNodeServiceImpl implements TaskNodeService {
     private TaskService taskService;
     private MetadataInstancesService metadataInstancesService;
     private DataSourceService dataSourceService;
+    private MessageQueueService messageQueueService;
+    private WorkerService workerService;
 
     @Override
     public Page<MetadataTransformerItemDto> getNodeTableInfo(String taskId, String nodeId, String searchTableName,
@@ -64,7 +84,7 @@ public class TaskNodeServiceImpl implements TaskNodeService {
         }
 
         DatabaseNode sourceNode = dag.getSourceNode().getFirst();
-        DatabaseNode targetNode = org.apache.commons.collections4.CollectionUtils.isNotEmpty(dag.getTargetNode()) ? dag.getTargetNode().getLast() : null;
+        DatabaseNode targetNode = CollectionUtils.isNotEmpty(dag.getTargetNode()) ? dag.getTargetNode().getLast() : null;
         List<String> tableNames = sourceNode.getTableNames();
         if (CollectionUtils.isEmpty(tableNames) && StringUtils.equals("all", sourceNode.getMigrateTableSelectType())) {
             List<MetadataInstancesDto> metaInstances = metadataInstancesService.findBySourceIdAndTableNameList(sourceNode.getConnectionId(), null, userDetail);
@@ -83,8 +103,65 @@ public class TaskNodeServiceImpl implements TaskNodeService {
 
         currentTableList = ListUtils.partition(tableNames, pageSize).get(page - 1);
 
-        List<Node> predecessors = dag.getPreNodes(nodeId);
-        Node currentNode = dag.getNode(nodeId);
+        DataSourceConnectionDto targetDataSource = null;
+        if (targetNode != null) {
+            targetDataSource = dataSourceService.findById(MongoUtils.toObjectId(targetNode.getConnectionId()));
+        }
+        // if current node pre has js node need get data from metaInstances
+        boolean preHasJsNode = dag.getPreNodes(nodeId).stream().anyMatch(n -> n instanceof MigrateJsProcessorNode);
+        if (preHasJsNode)
+            return getMetaByJsNode(nodeId, result, sourceNode, targetNode, tableNames, currentTableList, targetDataSource);
+        else
+            return getMetadataTransformerItemDtoPage(nodeId, userDetail, result, dag, sourceNode, targetNode, tableNames, currentTableList, targetDataSource);
+    }
+
+    private Page<MetadataTransformerItemDto> getMetaByJsNode(String nodeId, Page<MetadataTransformerItemDto> result, DatabaseNode sourceNode, DatabaseNode targetNode, List<String> tableNames, List<String> currentTableList, DataSourceConnectionDto targetDataSource) {
+        List<String> qualifiedNames;
+        if (targetNode != null && nodeId.equals(targetNode.getId())) {
+            String metaType = "mongodb".equals(targetDataSource.getDatabase_type()) ? "collection" : "table";
+            qualifiedNames = currentTableList.stream().map(t ->
+                    MetaDataBuilderUtils.generateQualifiedName(metaType, targetDataSource, t)).collect(Collectors.toList());
+        } else {
+            qualifiedNames = currentTableList.stream().map(t ->
+                    MetaDataBuilderUtils.generateQualifiedName(MetaType.processor_node.name(), nodeId, t)).collect(Collectors.toList());
+        }
+        List<MetadataInstancesDto> instances = metadataInstancesService.findByQualifiedNameList(qualifiedNames);
+        if (CollectionUtils.isNotEmpty(instances)) {
+            List<MetadataTransformerItemDto> data = Lists.newArrayList();
+            for (MetadataInstancesDto instance : instances) {
+                MetadataTransformerItemDto item = new MetadataTransformerItemDto();
+                item.setSourceObjectName(instance.getOriginalName());
+                item.setPreviousTableName(instance.getOriginalName());
+                item.setSinkObjectName(instance.getName());
+                item.setSinkQulifiedName(instance.getQualifiedName());
+
+                List<FieldsMapping> fieldsMapping = Lists.newArrayList();
+                if (CollectionUtils.isNotEmpty(instance.getFields())) {
+                    for (Field field : instance.getFields()) {
+                        String defaultValue = Objects.isNull(field.getDefaultValue()) ? "" : field.getDefaultValue().toString();
+                        FieldsMapping mapping = new FieldsMapping(field.getFieldName(), field.getOriginalFieldName(),
+                                field.getDataType(), "auto", defaultValue, true, "system");
+                        fieldsMapping.add(mapping);
+                    }
+                }
+
+                item.setFieldsMapping(fieldsMapping);
+                item.setSourceFieldCount(fieldsMapping.size());
+                item.setSourceDataBaseType(sourceNode.getDatabaseType());
+                item.setSinkDbType(targetNode != null ? targetNode.getDatabaseType() : null);
+
+                data.add(item);
+            }
+            result.setTotal(tableNames.size());
+            result.setItems(data);
+        }
+        return result;
+    }
+
+    @NotNull
+    private Page<MetadataTransformerItemDto> getMetadataTransformerItemDtoPage(String nodeId, UserDetail userDetail, Page<MetadataTransformerItemDto> result, DAG dag, DatabaseNode sourceNode, DatabaseNode targetNode, List<String> tableNames, List<String> currentTableList, DataSourceConnectionDto targetDataSource) {
+        List<Node<?>> predecessors = dag.nodeMap().get(nodeId);
+        Node<?> currentNode = dag.getNode(nodeId);
         if (CollectionUtils.isEmpty(predecessors)) {
             predecessors = Lists.newArrayList();
         }
@@ -112,7 +189,7 @@ public class TaskNodeServiceImpl implements TaskNodeService {
             if (CollectionUtils.isNotEmpty(fieldsMapping)) {
                 tableFieldMap = fieldsMapping.stream()
                         .filter(f -> Objects.nonNull(f.getQualifiedName()))
-                        .collect(Collectors.toMap(TableFieldInfo::getOriginTableName, TableFieldInfo::getFields, (e1,e2)->e1));
+                        .collect(Collectors.toMap(TableFieldInfo::getOriginTableName, TableFieldInfo::getFields, (e1, e2) -> e1));
             }
         }
 
@@ -124,11 +201,6 @@ public class TaskNodeServiceImpl implements TaskNodeService {
         }
 
         DataSourceConnectionDto sourceDataSource = dataSourceService.findById(MongoUtils.toObjectId(sourceNode.getConnectionId()));
-
-        DataSourceConnectionDto targetDataSource = null;
-        if (targetNode != null) {
-            targetDataSource = dataSourceService.findById(MongoUtils.toObjectId(targetNode.getConnectionId()));
-        }
 
         List<MetadataTransformerItemDto> data = Lists.newArrayList();
         for (String tableName : currentTableList) {
@@ -163,8 +235,7 @@ public class TaskNodeServiceImpl implements TaskNodeService {
                             .collect(Collectors.toMap(FieldInfo::getSourceFieldName, Function.identity()));
                 }
                 Map<String, FieldInfo> finalFieldInfoMap = fieldInfoMap;
-                for (int i = 0; i < fields.size(); i++) {
-                    Field field = fields.get(i);
+                for (Field field : fields) {
                     String defaultValue = Objects.isNull(field.getDefaultValue()) ? "" : field.getDefaultValue().toString();
 
                     String fieldName = field.getOriginalFieldName();
@@ -199,6 +270,89 @@ public class TaskNodeServiceImpl implements TaskNodeService {
 
         result.setTotal(tableNames.size());
         result.setItems(data);
+        return result;
+    }
+
+    @Override
+    public void testRunJsNode(TestRunDto dto, UserDetail userDetail) {
+        String taskId = dto.getTaskId();
+        String nodeId = dto.getJsNodeId();
+        String tableName = dto.getTableName();
+        Integer rows = dto.getRows();
+        String script = dto.getScript();
+
+        TaskDto taskDto = taskService.findById(MongoUtils.toObjectId(taskId));
+
+        DAG dtoDag = taskDto.getDag();
+        DatabaseNode first = dtoDag.getSourceNode().getFirst();
+        first.setTableNames(Lists.of(tableName));
+        first.setRows(rows);
+
+        Dag build = dtoDag.toDag();
+        build = JsonUtil.parseJsonUseJackson(JsonUtil.toJsonUseJackson(build), Dag.class);
+        List<Node<?>> nodes = dtoDag.nodeMap().get(nodeId);
+        MigrateJsProcessorNode jsNode = (MigrateJsProcessorNode) dtoDag.getNode(nodeId);
+        if (StringUtils.isNotBlank(script)) {
+            jsNode.setScript(script);
+        }
+        nodes.add(jsNode);
+
+        Node<?> target = new VirtualTargetNode();
+        target.setId(UUID.randomUUID().toString());
+        target.setName(target.getId());
+        if (CollectionUtils.isNotEmpty(nodes)) {
+            nodes.add(target);
+        }
+
+        List<Edge> edges = dtoDag.edgeMap().get(nodeId);
+        if (org.apache.commons.collections4.CollectionUtils.isNotEmpty(edges)) {
+            Edge edge = new Edge(nodeId, target.getId());
+            edges.add(edge);
+        }
+
+        Objects.requireNonNull(build).setNodes(new LinkedList<Node>(){{addAll(nodes);}});
+        build.setEdges(edges);
+
+        DAG temp = DAG.build(build);
+
+        taskDto.setDag(null);
+        taskDto.setSyncType(TaskDto.SYNC_TYPE_TEST_RUN);
+        SubTaskDto subTaskDto = new SubTaskDto();
+        subTaskDto.setStatus(SubTaskDto.STATUS_WAIT_RUN);
+        subTaskDto.setParentTask(taskDto);
+        subTaskDto.setDag(temp);
+        subTaskDto.setParentId(taskDto.getId());
+        subTaskDto.setId(new ObjectId());
+        subTaskDto.setName(taskDto.getName() + "(100)");
+
+        List<Worker> workers = workerService.findAvailableAgentByAccessNode(userDetail, taskDto.getAccessNodeProcessIdList());
+        if (CollectionUtils.isEmpty(workers)) {
+            throw new BizException("no agent");
+        }
+
+        MessageQueueDto queueDto = new MessageQueueDto();
+        queueDto.setReceiver(workers.get(0).getProcessId());
+        queueDto.setData(subTaskDto);
+        queueDto.setType(TaskDto.SYNC_TYPE_TEST_RUN);
+        messageQueueService.sendMessage(queueDto);
+    }
+
+    @Override
+    public void saveResult(JsResultDto jsResultDto) {
+        if (Objects.nonNull(jsResultDto)) {
+            CacheUtils.put(jsResultDto.getTaskId(),  jsResultDto);
+        }
+    }
+
+    @Override
+    public JsResultVo getRun(String taskId, String jsNodeId) {
+        JsResultVo result = new JsResultVo();
+        if (CacheUtils.isExist(taskId)) {
+            BeanUtil.copyProperties(CacheUtils.invalidate(taskId), result);
+            result.setOver(true);
+        } else {
+            result.setOver(false);
+        }
         return result;
     }
 }

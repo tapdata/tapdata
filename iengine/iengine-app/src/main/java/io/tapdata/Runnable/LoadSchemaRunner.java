@@ -20,6 +20,7 @@ import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.exception.ConvertException;
 import io.tapdata.pdk.apis.functions.connection.GetTableNamesFunction;
 import io.tapdata.pdk.core.api.ConnectionNode;
+import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.api.PDKIntegration;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
 import io.tapdata.pdk.core.monitor.PDKMethod;
@@ -209,7 +210,7 @@ public class LoadSchemaRunner implements Runnable {
 			TableFilter tableFilter = TableFilter.create(connections.getTable_filter());
 			GetTableNamesFunction getTableNamesFunction = connectionNode.getConnectionFunctions().getGetTableNamesFunction();
 			if (null == getTableNamesFunction) {
-				pdkDiscoverSchema(connectionNode, tableConsumer, new ArrayList<>());
+				pdkDiscoverSchema(connectionNode, new ArrayList<>(), tableConsumer);
 			} else {
 				List<String> tempList = new ArrayList<>();
 				PDKInvocationMonitor.invoke(connectionNode, PDKMethod.GET_TABLE_NAMES,
@@ -219,12 +220,12 @@ public class LoadSchemaRunner implements Runnable {
 							}
 							tableNames.stream().filter(tableFilter).forEach(tempList::add);
 							if (tempList.size() >= BATCH_SIZE) {
-								pdkDiscoverSchema(connectionNode, tableConsumer, tempList);
+								pdkDiscoverSchema(connectionNode, tempList, tableConsumer);
 								tempList.clear();
 							}
 						}), TAG);
 				if (CollectionUtils.isNotEmpty(tempList)) {
-					pdkDiscoverSchema(connectionNode, tableConsumer, tempList);
+					pdkDiscoverSchema(connectionNode, tempList, tableConsumer);
 					tempList.clear();
 				}
 			}
@@ -233,7 +234,7 @@ public class LoadSchemaRunner implements Runnable {
 		}
 	}
 
-	private static void pdkDiscoverSchema(ConnectionNode connectionNode, Consumer<TapTable> tableConsumer, List<String> tableFilter) {
+	public static void pdkDiscoverSchema(ConnectionNode connectionNode, List<String> tableFilter, Consumer<TapTable> tableConsumer) {
 		TableFieldTypesGenerator tableFieldTypesGenerator = InstanceFactory.instance(TableFieldTypesGenerator.class);
 		DefaultExpressionMatchingMap dataTypesMap = connectionNode.getConnectionContext().getSpecification().getDataTypesMap();
 		PDKInvocationMonitor.invoke(connectionNode, PDKMethod.DISCOVER_SCHEMA,
@@ -253,6 +254,27 @@ public class LoadSchemaRunner implements Runnable {
 					}
 				}), TAG);
 		tableConsumer.accept(null);
+	}
+
+	public static void pdkDiscoverSchema(ConnectorNode connectorNode, List<String> tableFilter, Consumer<TapTable> tableConsumer) {
+		TableFieldTypesGenerator tableFieldTypesGenerator = InstanceFactory.instance(TableFieldTypesGenerator.class);
+		DefaultExpressionMatchingMap dataTypesMap = connectorNode.getConnectorContext().getSpecification().getDataTypesMap();
+		PDKInvocationMonitor.invoke(connectorNode, PDKMethod.DISCOVER_SCHEMA,
+				() -> connectorNode.getConnector().discoverSchema(connectorNode.getConnectorContext(), tableFilter, BATCH_SIZE, tables -> {
+					if (CollectionUtils.isNotEmpty(tables)) {
+						for (TapTable pdkTable : tables) {
+							LinkedHashMap<String, TapField> nameFieldMap = pdkTable.getNameFieldMap();
+							if (MapUtils.isNotEmpty(nameFieldMap)) {
+								nameFieldMap.forEach((fieldName, tapField) -> {
+									if (null == tapField.getTapType()) {
+										tableFieldTypesGenerator.autoFill(tapField, dataTypesMap);
+									}
+								});
+							}
+							tableConsumer.accept(pdkTable);
+						}
+					}
+				}), TAG);
 	}
 
 	private void updateSchema(String loadFieldsStatus, Throwable error) {

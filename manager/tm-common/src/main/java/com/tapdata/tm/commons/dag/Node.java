@@ -72,7 +72,7 @@ public abstract class Node<S> extends Element{
 
     protected transient EventListener<S> listener;
 
-    private String subTaskId;
+//    private String subTaskId;
 
     /**
      * constructor for node
@@ -121,8 +121,8 @@ public abstract class Node<S> extends Element{
         return graph.predecessors(getId()).stream().map(id -> (Node<S>)graph.getNode(id)).collect(Collectors.toList());
     }
 
-    public LinkedList<Node> getPreNodes(String nodeId) {
-        return getDag().getPreNodes(nodeId);
+    public LinkedList<Node<?>> getPreNodes(String nodeId) {
+        return getDag().nodeMap().get(nodeId);
     }
 
     public List<DatabaseNode> getSourceNode() {
@@ -208,7 +208,7 @@ public abstract class Node<S> extends Element{
         if (mergedSchema && this.outputSchema != null) {
             S changedSchema = filterChangedSchema(this.outputSchema, options);  // 过滤出修改过的模型
             if (changedSchema != null) {
-                String taskId = this.getDag().getTaskId().toHexString();
+                String taskId = service.getTaskId().toHexString();
                 String version = options.getUuid();
                 try {
                     Collection<String> predecessors = getGraph().predecessors(nodeId);

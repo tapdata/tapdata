@@ -244,7 +244,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         taskDto.setIsSchedule(getBoolValue(taskDto.getIsSchedule(), false));
 
         // 遇到错误时停止
-        taskDto.setIsStopOnError(getBoolValue(taskDto.getIsStopOnError(), false));
+        taskDto.setIsStopOnError(getBoolValue(taskDto.getIsStopOnError(), true));
 
         // 共享挖掘
         taskDto.setShareCdcEnable(getBoolValue(taskDto.getShareCdcEnable(), false));
@@ -723,11 +723,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                     }
                     boolean canHotUpdate = subTaskService.canHotUpdate(subTaskDto.getDag(), updateSubtask.getDag());
                     if (!canHotUpdate) {
-                        Message message = new Message();
-                        message.setCode("Task.UpdateSubTask");
-                        List<Message> messageList = new ArrayList<>();
-                        messageList.add(message);
-                        messageMap.put(updateSubtask.getSubTaskId().toString(), messageList);
+                        throw new BizException("Task.UpdateSubTask");
                     }
                 }
             }
@@ -1373,13 +1369,14 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     public void batchStart(List<ObjectId> taskIds, UserDetail user) {
         List<TaskDto> taskDtos = findAllTasksByIds(taskIds.stream().map(ObjectId::toHexString).collect(Collectors.toList()));
         for (TaskDto task : taskDtos) {
-            if (TaskDto.SYNC_TYPE_MIGRATE.equals(task.getSyncType()) && !TaskDto.MODELDONE.equals(task.getMigrateModelStatus())) {
-               throw new BizException("Task.MigrateModelNotDeductionDone");
-            }
             checkDagAgentConflict(task, false);
 
             try {
-                start(task, user);
+                boolean noPass = taskStartService.taskStartCheckLog(task, user);
+                if (!noPass) {
+                    start(task, user);
+                }
+
             } catch (Exception e) {
                 log.warn("start task exception, task id = {}, e = {}", task.getId(), e);
             }
@@ -2608,9 +2605,9 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         return findAll(query);
     }
 
-    public void updateMigrateStatus(ObjectId taskId) {
+    public void updateStatus(ObjectId taskId, String status) {
         Query query = Query.query(Criteria.where("_id").is(taskId));
-        Update update = Update.update("migrateModelStatus", TaskDto.MODELDONE);
+        Update update = Update.update("status", status);
         update(query, update);
     }
 }

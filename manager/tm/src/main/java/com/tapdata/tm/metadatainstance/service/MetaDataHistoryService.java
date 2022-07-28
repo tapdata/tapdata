@@ -2,10 +2,12 @@ package com.tapdata.tm.metadatainstance.service;
 
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.commons.task.dto.SubTaskDto;
+import com.tapdata.tm.commons.util.PdkSchemaConvert;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.task.service.SubTaskService;
 import com.tapdata.tm.utils.MongoUtils;
 import com.tapdata.tm.utils.SpringContextHelper;
+import io.tapdata.entity.schema.TapTable;
 import org.apache.commons.collections4.CollectionUtils;
 import org.bson.Document;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -64,17 +66,17 @@ public class MetaDataHistoryService {
      * @param time 最近时间戳
      * @return
      */
-    public MetadataInstancesDto findByVersionTime(String qualifiedName, Long time, UserDetail user) {
+    public TapTable findByVersionTime(String qualifiedName, Long time, UserDetail user) {
         Criteria criteria = Criteria.where("qualifiedName").is(qualifiedName);
         criteria.and("tmCurrentTime").is(time);
 
         Query query = new Query(criteria);
         MetadataInstancesDto metaDataHistory = mongoTemplate.findOne(query, MetadataInstancesDto.class, "MetaDataHistory");
-        if (metaDataHistory != null) {
-            return metaDataHistory;
+        if (metaDataHistory == null) {
+            metaDataHistory = metadataInstancesService.findByQualifiedNameNotDelete(qualifiedName, user);
         }
 
-        return metadataInstancesService.findByQualifiedNameNotDelete(qualifiedName, user);
+        return PdkSchemaConvert.toPdk(metaDataHistory);
     }
 
 

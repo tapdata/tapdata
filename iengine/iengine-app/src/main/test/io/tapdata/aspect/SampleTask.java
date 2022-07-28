@@ -10,7 +10,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class SampleTask extends AspectTask {
-	private final ClassHandlers observerClassHandlers = new ClassHandlers();
+	protected final ClassHandlers observerClassHandlers = new ClassHandlers();
 
 	public SampleTask() {
 		observerClassHandlers.register(DataNodeInitAspect.class, this::handleNodeInit);
@@ -23,24 +23,24 @@ public class SampleTask extends AspectTask {
 		observerClassHandlers.register(WriteRecordFuncAspect.class, this::handleWriteRecord);
 	}
 
-	private Void handleWriteRecord(WriteRecordFuncAspect writeRecordFuncAspect) {
+	protected Void handleWriteRecord(WriteRecordFuncAspect writeRecordFuncAspect) {
 		return null;
 	}
 
-	private Void handleTableCount(TableCountAspect tableCountAspect) {
+	protected Void handleTableCount(TableCountAspect tableCountAspect) {
 		return null;
 	}
 
 
-	private Void handleBatchRead(BatchReadFuncAspect batchReadFuncAspect) {
+	protected Void handleBatchRead(BatchReadFuncAspect batchReadFuncAspect) {
 		return null;
 	}
 
-	private Void handleStreamRead(StreamReadFuncAspect streamReadFuncAspect) {
+	protected Void handleStreamRead(StreamReadFuncAspect streamReadFuncAspect) {
 		return null;
 	}
 
-	private Void handleProcessorNodeProcess(ProcessorNodeProcessAspect nodeProcessAspect) {
+	protected Void handleProcessorNodeProcess(ProcessorNodeProcessAspect nodeProcessAspect) {
 		return null;
 	}
 
@@ -50,15 +50,15 @@ public class SampleTask extends AspectTask {
 
 	}
 
-	private Void handleApplicationStart(ApplicationStartAspect applicationStartAspect) {
+	protected Void handleApplicationStart(ApplicationStartAspect applicationStartAspect) {
 		return null;
 	}
 
-	private Void handleNodeClose(DataNodeCloseAspect nodeCloseAspect) {
+	protected Void handleNodeClose(DataNodeCloseAspect nodeCloseAspect) {
 		return null;
 	}
 
-	private Void handleNodeInit(DataNodeInitAspect nodeInitAspect) {
+	protected Void handleNodeInit(DataNodeInitAspect nodeInitAspect) {
 		return null;
 	}
 

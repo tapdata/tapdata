@@ -9,6 +9,7 @@ import java.sql.*;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 
 /**
  * abstract jdbc context
@@ -171,6 +172,10 @@ public abstract class JdbcContext {
      * @return List<TableName and Comments>
      */
     public abstract List<DataMap> queryAllTables(List<String> tableNames);
+
+    public void queryAllTables(List<String> tableNames, int batchSize, Consumer<List<String>> consumer){
+        throw new UnsupportedOperationException();
+    }
 
     /**
      * query all column info from some tables
