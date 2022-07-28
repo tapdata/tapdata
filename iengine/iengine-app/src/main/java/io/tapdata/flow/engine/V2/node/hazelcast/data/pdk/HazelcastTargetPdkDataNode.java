@@ -52,6 +52,7 @@ import static io.tapdata.entity.simplify.TapSimplify.*;
  **/
 public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 	private static final String TAG = HazelcastTargetPdkDataNode.class.getSimpleName();
+	public static final int MAX_INDEX_FIELDS_COUNT = 10;
 	private final Logger logger = LogManager.getLogger(HazelcastTargetPdkDataNode.class);
 	private ClassHandlers ddlEventHandlers;
 
@@ -123,6 +124,14 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 				updateConditionFields = ((TableNode) node).getUpdateConditionFields();
 			} else if (node instanceof DatabaseNode) {
 				updateConditionFields = new ArrayList<>(tapTable.primaryKeys(true));
+			}
+			if (null == updateConditionFields) {
+				logger.warn("Table " + tableId + " index fields is null, will not create index automatically");
+				return;
+			}
+			if (updateConditionFields.size() > MAX_INDEX_FIELDS_COUNT) {
+				logger.warn("Table " + tableId + " index field exceeds the maximum value of 10, the index will not be created automatically, please create it manually");
+				return;
 			}
 			if (CollectionUtils.isNotEmpty(updateConditionFields)) {
 				updateConditionFields.forEach(field -> {

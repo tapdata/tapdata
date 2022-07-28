@@ -145,7 +145,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 				this.monitorManager.startMonitor(tableMonitor);
 				this.tableMonitorResultHandler = new ScheduledThreadPoolExecutor(1);
 				this.tableMonitorResultHandler.scheduleAtFixedRate(this::handleTableMonitorResult, 0L, PERIOD_SECOND_HANDLE_TABLE_MONITOR_RESULT, TimeUnit.SECONDS);
-				logger.info("Handle dynamic add/remove table thread started, interval: "+PERIOD_SECOND_HANDLE_TABLE_MONITOR_RESULT+" seconds");
+				logger.info("Handle dynamic add/remove table thread started, interval: " + PERIOD_SECOND_HANDLE_TABLE_MONITOR_RESULT + " seconds");
 				this.newTables = new CopyOnWriteArrayList<>();
 				this.removeTables = new CopyOnWriteArrayList<>();
 			}
@@ -344,6 +344,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 						// Handle new table(s)
 						if (CollectionUtils.isNotEmpty(addList)) {
 							logger.info("Found new table(s): " + addList);
+							addList.forEach(a -> removeTables.remove(a));
 							List<TapTable> addTapTables = new ArrayList<>();
 							List<TapdataEvent> tapdataEvents = new ArrayList<>();
 							// Load schema
@@ -406,6 +407,11 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 						// Handle remove table(s)
 						if (CollectionUtils.isNotEmpty(removeList)) {
 							logger.info("Found remove table(s): " + removeList);
+							removeList.forEach(r -> {
+								if (!removeTables.contains(r)) {
+									removeTables.add(r);
+								}
+							});
 							List<TapdataEvent> tapdataEvents = new ArrayList<>();
 							for (String tableName : removeList) {
 								if (!isRunning()) {
@@ -546,7 +552,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 				if (null == dagDataService) {
 					dagDataService = new DAGDataServiceImpl(transformerWsMessageDto);
 				}
-				String qualifiedName = "";
+				String qualifiedName;
 				Map<String, List<Message>> errorMessage;
 				if (tapEvent instanceof TapCreateTableEvent) {
 					qualifiedName = dagDataService.createNewTable(dataProcessorContext.getSourceConn().getId(), tapTable);
@@ -595,6 +601,12 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 	protected void enqueue(TapdataEvent tapdataEvent) {
 		while (isRunning()) {
 			try {
+				if (tapdataEvent.getTapEvent() instanceof TapRecordEvent) {
+					String tableId = ((TapRecordEvent) tapdataEvent.getTapEvent()).getTableId();
+					if (removeTables.contains(tableId)) {
+						break;
+					}
+				}
 				if (eventQueue.offer(tapdataEvent, 3, TimeUnit.SECONDS)) {
 					break;
 				}

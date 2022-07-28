@@ -293,19 +293,34 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 					.start(), streamReadFuncAspect -> PDKInvocationMonitor.invoke(getConnectorNode(), PDKMethod.SOURCE_STREAM_READ,
 					() -> streamReadFunction.streamRead(getConnectorNode().getConnectorContext(), tables,
 							syncProgress.getStreamOffsetObj(), batchSize, StreamReadConsumer.create((events, offsetObj) -> {
-								if (events != null && !events.isEmpty()) {
-									List<TapdataEvent> tapdataEvents = wrapTapdataEvent(events, SyncStage.CDC, offsetObj);
-									if (logger.isDebugEnabled()) {
-										logger.debug("Stream read {} of events, {}", events.size(), LoggerUtils.sourceNodeMessage(getConnectorNode()));
+								try {
+									while (isRunning()) {
+										try {
+											if (sourceRunnerLock.tryLock(1L, TimeUnit.SECONDS)) {
+												break;
+											}
+										} catch (InterruptedException e) {
+											break;
+										}
 									}
-									if (CollectionUtils.isNotEmpty(tapdataEvents)) {
-										tapdataEvents.forEach(this::enqueue);
-										syncProgress.setStreamOffsetObj(offsetObj);
-										resetOutputCounter.inc(tapdataEvents.size());
-										outputCounter.inc(tapdataEvents.size());
-										outputQPS.add(tapdataEvents.size());
-										if (streamReadFuncAspect != null && streamReadFuncAspect.getConsumer() != null)
-											streamReadFuncAspect.getConsumer().accept(tapdataEvents);
+									if (events != null && !events.isEmpty()) {
+										List<TapdataEvent> tapdataEvents = wrapTapdataEvent(events, SyncStage.CDC, offsetObj);
+										if (logger.isDebugEnabled()) {
+											logger.debug("Stream read {} of events, {}", events.size(), LoggerUtils.sourceNodeMessage(getConnectorNode()));
+										}
+										if (CollectionUtils.isNotEmpty(tapdataEvents)) {
+											tapdataEvents.forEach(this::enqueue);
+											syncProgress.setStreamOffsetObj(offsetObj);
+											resetOutputCounter.inc(tapdataEvents.size());
+											outputCounter.inc(tapdataEvents.size());
+											outputQPS.add(tapdataEvents.size());
+											if (streamReadFuncAspect != null && streamReadFuncAspect.getConsumer() != null)
+												streamReadFuncAspect.getConsumer().accept(tapdataEvents);
+										}
+									}
+								} finally {
+									if (sourceRunnerLock.isLocked()) {
+										sourceRunnerLock.unlock();
 									}
 								}
 							}).stateListener((oldState, newState) -> {
