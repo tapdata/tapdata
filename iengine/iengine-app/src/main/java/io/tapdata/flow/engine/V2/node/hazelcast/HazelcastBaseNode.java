@@ -22,8 +22,6 @@ import com.tapdata.tm.commons.task.dto.SubTaskDto;
 import io.tapdata.aspect.*;
 import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.common.SettingService;
-import io.tapdata.common.sample.CollectorFactory;
-import io.tapdata.common.sample.SampleCollector;
 import io.tapdata.entity.OnData;
 import io.tapdata.entity.aspect.Aspect;
 import io.tapdata.entity.aspect.AspectInterceptResult;
@@ -88,8 +86,6 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 	protected SettingService settingService;
 
 	protected Map<String, String> tags;
-	protected SampleCollector sampleCollector;
-	protected SampleCollector statisticCollector;
 	protected MilestoneService milestoneService;
 	protected Throwable error;
 	protected String errorMessage;
@@ -149,8 +145,6 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 		TapCodecsRegistry tapCodecsRegistry = TapCodecsRegistry.create();
 		tapCodecsRegistry.registerFromTapValue(TapDateTimeValue.class, tapValue -> tapValue.getValue().toInstant());
 		codecsFilterManager = TapCodecsFilterManager.create(tapCodecsRegistry);
-		initSampleCollector();
-		CollectorFactory.getInstance().recordCurrentValueByTag(tags);
 
 		doInit(context);
 		if (this instanceof HazelcastProcessorBaseNode || this instanceof HazelcastMultiAggregatorProcessor) {
@@ -462,23 +456,6 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 				AspectUtils.executeAspect(DataNodeCloseAspect.class, () -> new DataNodeCloseAspect().dataProcessorContext((DataProcessorContext) processorBaseContext));
 			}
 //		InstanceFactory.instance(AspectManager.class).executeAspect(DataNodeCloseAspect.class, () -> new DataNodeCloseAspect().node(HazelcastBaseNode.this));
-			if (processorBaseContext.getSubTaskDto() != null) {
-				if (sampleCollector != null) {
-					CollectorFactory.getInstance().unregisterSampleCollectorFromGroup(processorBaseContext.getSubTaskDto().getId().toString(), sampleCollector);
-				}
-				if (statisticCollector != null) {
-					CollectorFactory.getInstance().unregisterStatisticCollectorFromGroup(processorBaseContext.getSubTaskDto().getId().toString(), statisticCollector);
-				}
-			} else {
-				if (sampleCollector != null) {
-					sampleCollector.stop();
-					CollectorFactory.getInstance().removeSampleCollectorByTags(sampleCollector.tags());
-				}
-				if (statisticCollector != null) {
-					statisticCollector.stop();
-					CollectorFactory.getInstance().removeStatisticCollectorByTags(statisticCollector.tags());
-				}
-			}
 			ThreadContext.clearAll();
 			super.close();
 			if (error != null) {
@@ -489,25 +466,6 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 
 	public void setMilestoneService(MilestoneService milestoneService) {
 		this.milestoneService = milestoneService;
-	}
-
-	protected void initSampleCollector() {
-		// new version of metrics and statistics collector
-		tags = new HashMap<>();
-		if (processorBaseContext.getNode() != null) {
-			tags.put("nodeId", processorBaseContext.getNode().getId());
-			tags.put("type", "node");
-		}
-		if (processorBaseContext.getSubTaskDto() != null) {
-			tags.put("subTaskId", processorBaseContext.getSubTaskDto().getId().toString());
-			tags.put("taskId", processorBaseContext.getSubTaskDto().getParentId().toString());
-		}
-		sampleCollector = CollectorFactory.getInstance().getSampleCollectorByTags("nodeSamples", tags);
-		statisticCollector = CollectorFactory.getInstance().getStatisticCollectorByTags("nodeStatistics", tags);
-		if (processorBaseContext.getSubTaskDto() != null) {
-			CollectorFactory.getInstance().registerSampleCollectorToGroup(processorBaseContext.getSubTaskDto().getId().toString(), sampleCollector);
-			CollectorFactory.getInstance().registerStatisticCollectorToGroup(processorBaseContext.getSubTaskDto().getId().toString(), statisticCollector);
-		}
 	}
 
 	protected void onDataStats(OnData onData, Stats stats) {
