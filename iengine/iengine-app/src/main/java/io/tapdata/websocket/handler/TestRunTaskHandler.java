@@ -2,6 +2,7 @@ package io.tapdata.websocket.handler;
 
 import com.tapdata.constant.JSONUtil;
 import com.tapdata.mongo.ClientMongoOperator;
+import com.tapdata.tm.commons.task.dto.ParentTaskDto;
 import com.tapdata.tm.commons.task.dto.SubTaskDto;
 import io.tapdata.aspect.TaskStopAspect;
 import io.tapdata.aspect.utils.AspectUtils;
@@ -45,6 +46,7 @@ public class TestRunTaskHandler implements WebSocketEventHandler<WebSocketEventR
 
 		long startTs = System.currentTimeMillis();
 		SubTaskDto subTaskDto = JSONUtil.map2POJO(event, SubTaskDto.class);
+		subTaskDto.getParentTask().setType(ParentTaskDto.TYPE_INITIAL_SYNC);
 
 		String taskId = subTaskDto.getId().toHexString();
 		if (taskClientMap.containsKey(taskId)) {

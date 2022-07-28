@@ -603,7 +603,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 			try {
 				if (tapdataEvent.getTapEvent() instanceof TapRecordEvent) {
 					String tableId = ((TapRecordEvent) tapdataEvent.getTapEvent()).getTableId();
-					if (removeTables.contains(tableId)) {
+					if (removeTables != null && removeTables.contains(tableId)) {
 						break;
 					}
 				}
