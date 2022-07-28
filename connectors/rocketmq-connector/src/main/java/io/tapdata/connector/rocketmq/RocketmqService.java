@@ -83,7 +83,10 @@ public class RocketmqService extends AbstractMqService {
 
     @Override
     protected <T> Map<String, Object> analyzeTable(Object object, T topic, TapTable tapTable) throws Exception {
-        DefaultLitePullConsumer litePullConsumer = (DefaultLitePullConsumer) object;
+        DefaultLitePullConsumer litePullConsumer = new DefaultLitePullConsumer(rocketmqConfig.getConsumerGroup(), getRPCHook());
+        litePullConsumer.setNamesrvAddr(rocketmqConfig.getNameSrvAddr());
+        litePullConsumer.setConsumeFromWhere(ConsumeFromWhere.CONSUME_FROM_FIRST_OFFSET);
+        litePullConsumer.start();
         tapTable.setId((String) topic);
         tapTable.setName((String) topic);
         litePullConsumer.subscribe((String) topic, "*");
@@ -92,6 +95,7 @@ public class RocketmqService extends AbstractMqService {
             return new HashMap<>();
         }
         MessageExt messageExt = messageExts.get(0);
+        litePullConsumer.shutdown();
         return jsonParser.fromJsonBytes(messageExt.getBody(), Map.class);
     }
 
@@ -138,13 +142,8 @@ public class RocketmqService extends AbstractMqService {
                 }
             }
         }
-        DefaultLitePullConsumer litePullConsumer = new DefaultLitePullConsumer(rocketmqConfig.getConsumerGroup(), getRPCHook());
-        litePullConsumer.setNamesrvAddr(rocketmqConfig.getNameSrvAddr());
-        litePullConsumer.setConsumeFromWhere(ConsumeFromWhere.CONSUME_FROM_FIRST_OFFSET);
-        litePullConsumer.start();
-        submitTables(tableSize, consumer, litePullConsumer, destinationSet);
+        submitTables(tableSize, consumer, null, destinationSet);
         defaultMQAdminExt.shutdown();
-        litePullConsumer.shutdown();
     }
 
     @Override

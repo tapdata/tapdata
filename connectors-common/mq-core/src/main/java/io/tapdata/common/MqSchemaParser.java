@@ -57,6 +57,8 @@ public class MqSchemaParser {
                 case NUMBER:
                 case STRING:
                 case BOOLEAN:
+                case INTEGER:
+                case TEXT:
                     table.add(this.buildField(parentFieldName, fieldName, jsonType));
                     break;
                 case NULL:
