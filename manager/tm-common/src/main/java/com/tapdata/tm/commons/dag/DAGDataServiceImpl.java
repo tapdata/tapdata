@@ -379,7 +379,7 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
                     MetaDataBuilderUtils.generateQualifiedName(metadataInstancesDto.getMetaType(), dataSource, schema.getOriginalName(), taskId));
 
             metadataInstancesDto = MetaDataBuilderUtils.build(_metaType, dataSource, userId, userName, metadataInstancesDto.getOriginalName(),
-                    metadataInstancesDto, null, dataSourceId.toHexString(), taskId);
+                    metadataInstancesDto, null, dataSourceMetadataInstance.getId().toHexString(), taskId);
 
             metadataInstancesDto.setSourceType(SourceTypeEnum.VIRTUAL.name());
 
@@ -812,6 +812,16 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
         // 需要比对现有模型，并记录模型历史
 
         //BulkOperations bulkOperations = repository.bulkOperations(BulkOperations.BulkMode.UNORDERED);
+        List<String> removeKey = new ArrayList<>();
+        existsMetadataInstances.forEach((k, v) -> {
+            if (v.getSourceType().equals(SourceTypeEnum.SOURCE.name())) {
+                removeKey.add(k);
+            }
+        });
+
+        for (String key : removeKey) {
+            existsMetadataInstances.remove(key);
+        }
 
         Map<String, MetadataInstancesDto> metadataUpdateMap = new LinkedHashMap<>();
 

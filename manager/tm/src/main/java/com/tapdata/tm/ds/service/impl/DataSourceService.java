@@ -69,6 +69,7 @@ import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.lang3.tuple.Pair;
 import org.bson.Document;
 import org.bson.types.ObjectId;
 import org.springframework.beans.BeanUtils;
@@ -1117,7 +1118,15 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 							Long schemaVersion = (Long) set.get("lastUpdate");
 							String loadFieldsStatus = (String) set.get("loadFieldsStatus");
 							oldConnectionDto.setLoadSchemaField(set.get("loadSchemaField") != null ? ((Boolean) set.get("loadSchemaField")) : true);
-							metadataUtil.modelNext(newModels, oldConnectionDto, databaseId, user);
+							List<MetadataInstancesDto> newModelList = metadataUtil.modelNext(newModels, oldConnectionDto, databaseId, user);
+
+							Pair<Integer, Integer> pair = metadataInstancesService.bulkUpsetByWhere(newModelList, user);
+							List<String> qualifiedNames = newModelList.stream().filter(Objects::nonNull).map(MetadataInstancesDto::getQualifiedName)
+									.filter(StringUtils::isNotBlank).collect(Collectors.toList());
+							metadataInstancesService.qualifiedNameLinkLogic(qualifiedNames, user);
+							String name = newModelList.stream().map(MetadataInstancesDto::getOriginalName).collect(Collectors.toList()).toString();
+							log.info("Upsert model, model list = {}, values = {}, modify count = {}, insert count = {}"
+									, newModelList.size(), name, pair.getLeft(), pair.getRight());
 							deleteModels(loadFieldsStatus, databaseId, schemaVersion, user);
 						}
 					}

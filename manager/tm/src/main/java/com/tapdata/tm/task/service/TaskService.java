@@ -114,13 +114,6 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     private MetadataTransformerItemService metadataTransformerItemService;
     private FileService fileService1;
     private MongoTemplate mongoTemplate;
-    private static ThreadPoolExecutor completableFutureThreadPool;
-
-    static {
-        int poolSize = Runtime.getRuntime().availableProcessors();
-        completableFutureThreadPool = new ThreadPoolExecutor(poolSize, poolSize,
-                0, TimeUnit.MILLISECONDS, new LinkedBlockingQueue<>());
-    }
 
     public final static String LOG_COLLECTOR_SAVE_ID = "log_collector_save_id";
 

@@ -5,6 +5,7 @@ import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.exception.DDLException;
 import com.tapdata.tm.commons.schema.Field;
 import com.tapdata.tm.commons.schema.Schema;
+import com.tapdata.tm.commons.schema.bean.SourceTypeEnum;
 import com.tapdata.tm.commons.task.dto.Message;
 import io.github.openlg.graphlib.Graph;
 import io.tapdata.entity.event.ddl.TapDDLEvent;
@@ -235,6 +236,25 @@ public abstract class Node<S> extends Element{
                     listener.onTransfer(inputSchemas, schema, outputSchema, nodeId);
                 } catch (Exception e) {
                     log.error("Call transfer listener failed in node {}", nodeId, e);
+                }
+            }
+        } else {
+            Collection<String> predecessors = getGraph().predecessors(nodeId);
+            S changedSchema = filterChangedSchema(this.outputSchema, options);
+            if (schema instanceof Schema) {
+                if (((Schema) schema).getSourceType().equals(SourceTypeEnum.SOURCE.name())) {
+                    saveSchema(predecessors, nodeId, changedSchema, options);
+                }
+            } else if (schema instanceof List){
+                List<Schema> updateSchema = new ArrayList<>();
+                for (Schema o : ((List<Schema>) changedSchema)) {
+                    if ( o.getSourceType().equals(SourceTypeEnum.SOURCE.name())) {
+                        updateSchema.add(o);
+                    }
+                }
+
+                if (CollectionUtils.isNotEmpty(updateSchema)) {
+                    saveSchema(predecessors, nodeId, (S) updateSchema, options);
                 }
             }
         }

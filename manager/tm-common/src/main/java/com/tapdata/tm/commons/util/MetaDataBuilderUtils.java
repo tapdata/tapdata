@@ -67,11 +67,10 @@ public class MetaDataBuilderUtils {
             if (StringUtils.isNotBlank(tableName)) {
                 qualifiedName += tableName + "_";
             }
-
-            if (StringUtils.isNotBlank(taskId)) {
-                qualifiedName += taskId + "_";
-            }
             qualifiedName += id;
+            if (StringUtils.isNotBlank(taskId)) {
+                qualifiedName += "_" + taskId;
+            }
         } else if (metaTypePropertyMap.get(metaType).isModel()) {
             String databaseType = connectionDto.getDatabase_type();
             String databaseName;
@@ -93,10 +92,10 @@ public class MetaDataBuilderUtils {
             if (StringUtils.isNotBlank(databaseOwner)) {
                 qualifiedName += databaseOwner + "_";
             }
-            if (StringUtils.isNotBlank(taskId)) {
-                qualifiedName += taskId + "_";
-            }
             qualifiedName += tableName + "_" + id;
+            if (StringUtils.isNotBlank(taskId)) {
+                qualifiedName += "_" + taskId;
+            }
 
         } else {
             if ("api".equals(metaType)) {
@@ -206,6 +205,7 @@ public class MetaDataBuilderUtils {
 
             metadataObj.setDatabaseId(databaseId);
             metadataObj.setSource(sourceDto);
+            metadataObj.setTaskId(taskId);
 
             if (sourceDto.getLoadSchemaField() != null && sourceDto.getLoadSchemaField()) {
                 if (oldModel != null && newModel != null && CollectionUtils.isNotEmpty(newModel.getFields())) {

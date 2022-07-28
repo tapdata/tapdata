@@ -357,19 +357,22 @@ public class MetadataUtil {
     }
 
 
-    public void modelNext(List<MetadataInstancesDto> newModels, DataSourceConnectionDto connection, String databaseId, UserDetail user) {
+    public MetadataInstancesDto modelNext(MetadataInstancesDto newModel, DataSourceConnectionDto connection, String databaseId, UserDetail user) {
+        List<MetadataInstancesDto> metadataInstancesDtos = modelNext(Lists.of(newModel), connection, databaseId, user);
+        if (CollectionUtils.isNotEmpty(metadataInstancesDtos)) {
+            return metadataInstancesDtos.get(0);
+        }
+        return null;
+    }
+    public List<MetadataInstancesDto> modelNext(List<MetadataInstancesDto> newModels, DataSourceConnectionDto connection, String databaseId, UserDetail user) {
         if (newModels == null || connection == null) {
             log.info("Finished update new models, newModels = {}, connection = {}", newModels == null ? "" : newModels.size(), connection);
-            return;
+            return Lists.newArrayList();
         }
 
 
         Map<String, String> newModelMap = newModels.stream().collect(Collectors.toMap(MetadataInstancesDto::getOriginalName
                 , m -> MetaDataBuilderUtils.generateQualifiedName(m.getMetaType(), connection, m.getOriginalName())));
-        Map<String, String> newModelvkMap = new HashMap<>();
-        newModelMap.forEach((k, v) -> {
-            newModelvkMap.put(v, k);
-        });
         Criteria criteria = Criteria.where("qualified_name").in(newModelMap.values());
         List<MetadataInstancesDto> metadataInstancesDtos = metadataInstancesService.findAllDto(new Query(criteria), user);
 
@@ -417,13 +420,7 @@ public class MetadataUtil {
             newModelList.add(newModel);
         }
 
-        Pair<Integer, Integer> pair = metadataInstancesService.bulkUpsetByWhere(newModelList, user, newModelMap);
-        for (MetadataInstancesDto metadataInstancesDto : newModelList) {
-            metadataInstancesService.linkLogic(metadataInstancesDto.getQualifiedName(), user);
-        }
-        String name = newModelList.stream().map(MetadataInstancesDto::getOriginalName).collect(Collectors.toList()).toString();
-        log.info("Upsert model, model list = {}, values = {}, modify count = {}, insert count = {}"
-                , newModelList.size(), name, pair.getLeft(), pair.getRight());
+        return newModelList;
     }
 
 

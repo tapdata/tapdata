@@ -103,6 +103,5 @@ public class MetadataInstancesEntity extends BaseEntity {
     private String sourceType= SourceTypeEnum.SOURCE.name();
 
     //逻辑表物理表分离所添加的相关属性
-    private String linkTaskId;
-    private String entitySchemaId;
+    private String taskId;
 }
