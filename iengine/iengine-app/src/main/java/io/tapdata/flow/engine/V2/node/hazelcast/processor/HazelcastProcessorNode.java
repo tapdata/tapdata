@@ -91,16 +91,7 @@ public class HazelcastProcessorNode extends HazelcastProcessorBaseNode {
 		TapEvent tapEvent = tapdataEvent.getTapEvent();
 		MessageEntity messageEntity = tapEvent2Message((TapRecordEvent) tapEvent);
 		messageEntity.setOffset(tapdataEvent.getOffset());
-		int cnt = messageEntity.isDml() ? 1 : 0;
-		resetInputCounter.inc(cnt);
-		inputCounter.inc(cnt);
-		inputQPS.add(cnt);
-		long start = System.currentTimeMillis();
 		final List<MessageEntity> processedMessages = dataFlowProcessor.process(Collections.singletonList(messageEntity));
-		timeCostAvg.add(System.currentTimeMillis() - start);
-		resetOutputCounter.inc(cnt);
-		outputCounter.inc(cnt);
-		outputQPS.add(cnt);
 		if (CollectionUtils.isNotEmpty(processedMessages)) {
 			for (MessageEntity processedMessage : processedMessages) {
 				TapdataEvent processedEvent = new TapdataEvent();
