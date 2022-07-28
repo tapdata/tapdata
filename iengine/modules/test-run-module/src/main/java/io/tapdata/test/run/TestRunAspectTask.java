@@ -78,6 +78,7 @@ public class TestRunAspectTask extends AspectTask {
     ClientMongoOperator clientMongoOperator = BeanUtil.getBean(ClientMongoOperator.class);
     Map<String, Object> paramMap = new HashMap<>();
     paramMap.put("taskId", task.getParentTask().getId().toHexString());
+    paramMap.put("version", task.getVersion());
     paramMap.put("code", "ok");
     paramMap.put("ts", new Date().getTime());
     paramMap.put("before", resultMap.get("before"));

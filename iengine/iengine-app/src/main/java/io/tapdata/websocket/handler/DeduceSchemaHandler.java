@@ -9,6 +9,7 @@ import com.tapdata.tm.commons.dag.DAGDataServiceImpl;
 import com.tapdata.tm.commons.dag.vo.MigrateJsResultVo;
 import com.tapdata.tm.commons.schema.*;
 import com.tapdata.tm.commons.task.dto.Message;
+import com.tapdata.tm.commons.task.dto.ParentTaskDto;
 import com.tapdata.tm.commons.task.dto.SubTaskDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.common.SettingService;
@@ -22,7 +23,6 @@ import io.tapdata.websocket.WebSocketEventResult;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.springframework.data.mongodb.core.query.Update;
 
 import java.util.List;
 import java.util.Map;
@@ -67,8 +67,7 @@ public class DeduceSchemaHandler implements WebSocketEventHandler<WebSocketEvent
 				// 跑任务加载js模型
 				String schemaKey = subTaskDto.getId() + "-" + virtualId;
 				long startTs = System.currentTimeMillis();
-				TaskClient<SubTaskDto> taskClient = taskService.startTestTask(subTaskDto);
-				taskClient.join();
+				TaskClient<SubTaskDto> taskClient = execTask(subTaskDto);
 
 				logger.info("load tapTable task {} {}, cost {}ms", schemaKey, taskClient.getStatus(), (System.currentTimeMillis() - startTs));
 				if (SubTaskDto.STATUS_COMPLETE.equals(taskClient.getStatus())) {
@@ -87,8 +86,8 @@ public class DeduceSchemaHandler implements WebSocketEventHandler<WebSocketEvent
 			public List<MigrateJsResultVo> getJsResult(String jsNodeId, String virtualTargetId, SubTaskDto subTaskDto) {
 				String schemaKey = subTaskDto.getId() + "-" + virtualTargetId;
 				long startTs = System.currentTimeMillis();
-				TaskClient<SubTaskDto> taskClient = taskService.startTestTask(subTaskDto);
-				taskClient.join();
+
+				TaskClient<SubTaskDto> taskClient = execTask(subTaskDto);
 
 				logger.info("load tapTable task {} {}, cost {}ms", schemaKey, taskClient.getStatus(), (System.currentTimeMillis() - startTs));
 				if (SubTaskDto.STATUS_COMPLETE.equals(taskClient.getStatus())) {
@@ -105,6 +104,13 @@ public class DeduceSchemaHandler implements WebSocketEventHandler<WebSocketEvent
 
 				}
 				return null;
+			}
+
+			private TaskClient<SubTaskDto> execTask(SubTaskDto subTaskDto) {
+				subTaskDto.getParentTask().setType(ParentTaskDto.TYPE_INITIAL_SYNC);
+				TaskClient<SubTaskDto> taskClient = taskService.startTestTask(subTaskDto);
+				taskClient.join();
+				return taskClient;
 			}
 		};
 

@@ -8,6 +8,7 @@ import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.SchemaTransformerResult;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.vo.FieldProcess;
+import com.tapdata.tm.commons.dag.vo.TestRunDto;
 import com.tapdata.tm.commons.schema.DataSourceDefinitionDto;
 import com.tapdata.tm.commons.schema.MetadataTransformerItemDto;
 import com.tapdata.tm.commons.schema.TransformerWsMessageDto;
@@ -743,13 +744,10 @@ public class TaskController extends BaseController {
         return success();
     }
 
-    @GetMapping("migrate-js/test-run")
+    @PostMapping("migrate-js/test-run")
     @Operation(description = "js节点试运行")
-    public ResponseMessage<Void> testRun(@RequestParam String taskId,
-                                         @RequestParam String jsNodeId,
-                                         @RequestParam String tableName,
-                                         @RequestParam(defaultValue = "1") Integer rows) {
-        taskNodeService.testRunJsNode(taskId, jsNodeId, tableName, rows, getLoginUser());
+    public ResponseMessage<Void> testRun(@RequestBody TestRunDto dto) {
+        taskNodeService.testRunJsNode(dto, getLoginUser());
         return success();
     }
 
@@ -763,8 +761,8 @@ public class TaskController extends BaseController {
     @GetMapping("migrate-js/get-result")
     @Operation(description = "js节点试运行结果获取")
     public ResponseMessage<JsResultVo> getRun(@RequestParam String taskId,
-                                         @RequestParam String jsNodeId) {
-        return success(taskNodeService.getRun(taskId, jsNodeId));
+                                         @RequestParam String jsNodeId, @RequestParam Long version) {
+        return success(taskNodeService.getRun(taskId, jsNodeId, version));
     }
 
 }

@@ -17,6 +17,7 @@ import com.tapdata.tm.commons.dag.process.TableRenameProcessNode;
 import com.tapdata.tm.commons.dag.vo.FieldInfo;
 import com.tapdata.tm.commons.dag.vo.TableFieldInfo;
 import com.tapdata.tm.commons.dag.vo.TableRenameTableInfo;
+import com.tapdata.tm.commons.dag.vo.TestRunDto;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
 import com.tapdata.tm.commons.schema.Field;
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;
@@ -273,7 +274,14 @@ public class TaskNodeServiceImpl implements TaskNodeService {
     }
 
     @Override
-    public void testRunJsNode(String taskId, String nodeId, String tableName, Integer rows, UserDetail userDetail) {
+    public void testRunJsNode(TestRunDto dto, UserDetail userDetail) {
+        String taskId = dto.getTaskId();
+        String nodeId = dto.getJsNodeId();
+        String tableName = dto.getTableName();
+        Integer rows = dto.getRows();
+        String script = dto.getScript();
+        Long version = dto.getVersion();
+
         TaskDto taskDto = taskService.findById(MongoUtils.toObjectId(taskId));
 
         DAG dtoDag = taskDto.getDag();
@@ -284,12 +292,16 @@ public class TaskNodeServiceImpl implements TaskNodeService {
         Dag build = dtoDag.toDag();
         build = JsonUtil.parseJsonUseJackson(JsonUtil.toJsonUseJackson(build), Dag.class);
         List<Node<?>> nodes = dtoDag.nodeMap().get(nodeId);
-        nodes.add(dtoDag.getNode(nodeId));
+        MigrateJsProcessorNode jsNode = (MigrateJsProcessorNode) dtoDag.getNode(nodeId);
+        if (StringUtils.isNotBlank(script)) {
+            jsNode.setScript(script);
+        }
+        nodes.add(jsNode);
 
         Node<?> target = new VirtualTargetNode();
         target.setId(UUID.randomUUID().toString());
         target.setName(target.getId());
-        if (org.apache.commons.collections4.CollectionUtils.isNotEmpty(nodes)) {
+        if (CollectionUtils.isNotEmpty(nodes)) {
             nodes.add(target);
         }
 
@@ -313,6 +325,7 @@ public class TaskNodeServiceImpl implements TaskNodeService {
         subTaskDto.setParentId(taskDto.getId());
         subTaskDto.setId(new ObjectId());
         subTaskDto.setName(taskDto.getName() + "(100)");
+        subTaskDto.setVersion(version);
 
         List<Worker> workers = workerService.findAvailableAgentByAccessNode(userDetail, taskDto.getAccessNodeProcessIdList());
         if (CollectionUtils.isEmpty(workers)) {
@@ -329,15 +342,17 @@ public class TaskNodeServiceImpl implements TaskNodeService {
     @Override
     public void saveResult(JsResultDto jsResultDto) {
         if (Objects.nonNull(jsResultDto)) {
-            CacheUtils.put(jsResultDto.getTaskId(),  jsResultDto);
+            StringJoiner joiner = new StringJoiner(":", jsResultDto.getTaskId(), jsResultDto.getVersion().toString());
+            CacheUtils.put(joiner.toString(),  jsResultDto);
         }
     }
 
     @Override
-    public JsResultVo getRun(String taskId, String jsNodeId) {
+    public JsResultVo getRun(String taskId, String jsNodeId, Long version) {
         JsResultVo result = new JsResultVo();
-        if (CacheUtils.isExist(taskId)) {
-            BeanUtil.copyProperties(CacheUtils.invalidate(taskId), result);
+        StringJoiner joiner = new StringJoiner(":", taskId, version.toString());
+        if (CacheUtils.isExist(joiner.toString())) {
+            BeanUtil.copyProperties(CacheUtils.invalidate(joiner.toString()), result);
             result.setOver(true);
         } else {
             result.setOver(false);

@@ -265,7 +265,8 @@ public class TapTableMap<K extends String, V extends TapTable> extends HashMap<K
 	private V findSchema(K k) {
 		String qualifiedName = tableNameAndQualifiedNameMap.get(k);
 		if (StringUtils.isBlank(qualifiedName)) {
-			throw new RuntimeException("Table name \"" + k + "\" not exists, qualified name: " + qualifiedName);
+			throw new RuntimeException("Table name \"" + k + "\" not exists, qualified name: " + qualifiedName
+							+ " tableNameAndQualifiedNameMap: " + tableNameAndQualifiedNameMap);
 		}
 		ClientMongoOperator clientMongoOperator = BeanUtil.getBean(ClientMongoOperator.class);
 		String url;
