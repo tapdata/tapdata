@@ -383,8 +383,9 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 	}
 
 	private boolean executeCreateTableFunction(TapCreateTableEvent tapCreateTableEvent) {
-		TapTable table = tapCreateTableEvent.getTable();
-		createTable(table);
+		String tgtTableName = getTgtTableNameFromTapEvent(tapCreateTableEvent);
+		TapTable tgtTapTable = dataProcessorContext.getTapTableMap().get(tgtTableName);
+		createTable(tgtTapTable);
 		return true;
 	}
 
