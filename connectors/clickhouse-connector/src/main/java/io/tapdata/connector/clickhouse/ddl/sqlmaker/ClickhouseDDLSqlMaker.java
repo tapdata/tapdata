@@ -184,6 +184,7 @@ public class ClickhouseDDLSqlMaker implements DDLSqlMaker {
             if (tapField.getDataType() == null) {
                 return "";
             }
+            tapField.setDataType(tapField.getDataType().replace("unsigned","").replace("UNSIGNED",""));
             builder.append('\"').append(tapField.getName()).append("\" ");
             //null to omit
             if (tapField.getNullable() != null && tapField.getNullable() && !primaryKeys.contains(tapField.getName())) {

@@ -24,6 +24,7 @@ public class ClickhouseJdbcContext extends JdbcContext {
 
     private final static String TAG = ClickhouseJdbcContext.class.getSimpleName();
 
+    public static final String DATABASE_TIMEZON_SQL = "SELECT timeZone()";
     private final static String CK_ALL_TABLE = "select database,name from system.tables where database !='system' and database='%s' ";
     private final static String CK_ALL_COLUMN = "select * from system.columns where database='%s'";
     private final static String CK_ALL_INDEX = "";//从异构数据源 同步到clickhouse 索引对应不上
@@ -127,5 +128,22 @@ public class ClickhouseJdbcContext extends JdbcContext {
             } else
                 throw new SQLException("Execute query failed, sql: " + sql + ", code: " + e.getSQLState() + "(" + e.getErrorCode() + "), error: " + e.getMessage(), e);
         }
+    }
+
+    public String timezone() throws SQLException {
+
+        String timeZone = null;
+        TapLogger.debug(TAG, "Get timezone sql: " + DATABASE_TIMEZON_SQL);
+        try (
+                Connection connection = getConnection();
+                Statement statement = connection.createStatement();
+                ResultSet resultSet = statement.executeQuery(DATABASE_TIMEZON_SQL)
+        ) {
+            while (resultSet.next()) {
+                timeZone = resultSet.getString(1);
+                return timeZone;
+            }
+        }
+        return timeZone;
     }
 }

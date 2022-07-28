@@ -4,12 +4,10 @@ import com.google.common.collect.Lists;
 import io.tapdata.base.ConnectorBase;
 import io.tapdata.common.CommonSqlMaker;
 import io.tapdata.common.DataSourcePool;
-import io.tapdata.common.ResultSetConsumer;
 import io.tapdata.connector.clickhouse.config.ClickhouseConfig;
 import io.tapdata.connector.clickhouse.ddl.DDLSqlMaker;
 import io.tapdata.connector.clickhouse.ddl.sqlmaker.ClickhouseDDLSqlMaker;
 import io.tapdata.connector.clickhouse.dml.ClickhouseWriter;
-import io.tapdata.entity.codec.FromTapValueCodec;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.ddl.index.TapCreateIndexEvent;
@@ -34,11 +32,9 @@ import io.tapdata.pdk.apis.entity.*;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import org.apache.commons.codec.binary.Base64;
 import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.lang3.StringUtils;
 
-import java.sql.Connection;
-import java.sql.ResultSet;
-import java.sql.SQLException;
-import java.sql.Statement;
+import java.sql.*;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -81,9 +77,9 @@ public class ClickhouseConnector extends ConnectorBase {
         }
 //        clickhouseVersion = clickhouseJdbcContext.queryVersion();
         this.connectionTimezone = connectionContext.getConnectionConfig().getString("timezone");
-//        if ("Database Timezone".equals(this.connectionTimezone) || StringUtils.isBlank(this.connectionTimezone)) {
-//            this.connectionTimezone = clickhouseJdbcContext.timezone();
-//        }
+        if ("Database Timezone".equals(this.connectionTimezone) || StringUtils.isBlank(this.connectionTimezone)) {
+            this.connectionTimezone = clickhouseJdbcContext.timezone();
+        }
         this.clickhouseWriter = new ClickhouseWriter(clickhouseJdbcContext);
     }
 
@@ -168,19 +164,6 @@ public class ClickhouseConnector extends ConnectorBase {
 
 
         codecRegistry.registerFromTapValue(TapTimeValue.class, tapTimeValue -> formatTapDateTime(tapTimeValue.getValue(), "HH:mm:ss.SS"));
-//        codecRegistry.registerFromTapValue(TapDateTimeValue.class, tapDateTimeValue -> {
-//            if (tapDateTimeValue.getValue() != null && tapDateTimeValue.getValue().getTimeZone() == null) {
-//                tapDateTimeValue.getValue().setTimeZone(TimeZone.getTimeZone(this.connectionTimezone));
-//            }
-//            return formatTapDateTime(tapDateTimeValue.getValue(), "yyyy-MM-dd HH:mm:ss.SS");
-//        });
-//        codecRegistry.registerFromTapValue(TapDateValue.class, tapDateValue -> {
-//            if (tapDateValue.getValue() != null && tapDateValue.getValue().getTimeZone() == null) {
-//                tapDateValue.getValue().setTimeZone(TimeZone.getTimeZone(this.connectionTimezone));
-//            }
-//            return formatTapDateTime(tapDateValue.getValue(), "yyyy-MM-dd");
-//        });
-//
         codecRegistry.registerFromTapValue(TapBinaryValue.class, "String", tapValue -> {
             if(tapValue != null && tapValue.getValue() != null) {
                 return new String(Base64.encodeBase64(tapValue.getValue()));
@@ -188,11 +171,17 @@ public class ClickhouseConnector extends ConnectorBase {
             return null;
         });
 
-
         //TapTimeValue, TapDateTimeValue and TapDateValue's value is DateTime, need convert into Date object.
 //        codecRegistry.registerFromTapValue(TapTimeValue.class, tapTimeValue -> tapTimeValue.getValue().toTime());
-        codecRegistry.registerFromTapValue(TapDateTimeValue.class, tapDateTimeValue -> tapDateTimeValue.getValue().toTimestamp());
-        codecRegistry.registerFromTapValue(TapDateValue.class, tapDateValue -> tapDateValue.getValue().toSqlDate());
+        codecRegistry.registerFromTapValue(TapDateTimeValue.class, tapDateTimeValue -> {
+            DateTime datetime = tapDateTimeValue.getValue();
+            datetime.setTimeZone(TimeZone.getTimeZone(this.connectionTimezone));
+            return datetime.toTimestamp();
+        });
+        codecRegistry.registerFromTapValue(TapDateValue.class, tapDateValue -> {
+            DateTime datetime = tapDateValue.getValue();
+            datetime.setTimeZone(TimeZone.getTimeZone(this.connectionTimezone));
+            return datetime.toSqlDate();});
 
         //target
         connectorFunctions.supportCreateTable(this::createTable);
@@ -217,6 +206,27 @@ public class ClickhouseConnector extends ConnectorBase {
         connectorFunctions.supportAlterFieldNameFunction(this::fieldDDLHandler);
         connectorFunctions.supportAlterFieldAttributesFunction(this::fieldDDLHandler);
         connectorFunctions.supportDropFieldFunction(this::fieldDDLHandler);
+    }
+
+    private void createTable(TapConnectorContext tapConnectorContext, TapCreateTableEvent tapCreateTableEvent) {
+
+        TapTable tapTable = tapCreateTableEvent.getTable();
+        Collection<String> primaryKeys = tapTable.primaryKeys(true);
+        String sql = "CREATE TABLE IF NOT EXISTS \"" + clickhouseConfig.getDatabase() + "\".\"" + tapTable.getId() + "\"(" + ClickhouseDDLSqlMaker.buildColumnDefinition(tapTable, true);
+        sql = sql.substring(0, sql.length() - 1) + ") ENGINE = MergeTree ";
+        if (EmptyKit.isNotEmpty(primaryKeys)) {
+            sql += " PRIMARY KEY (\"" + String.join("\",\"", primaryKeys) + "\")";
+        } else {
+            sql += " order by tuple()";
+        }
+        try {
+            List<String> sqls = TapSimplify.list();
+            sqls.add(sql);
+            clickhouseJdbcContext.batchExecute(sqls);
+        } catch (Throwable e) {
+            e.printStackTrace();
+            throw new RuntimeException("Create Table " + tapTable.getId() + " Failed! " + e.getMessage());
+        }
     }
 
     private void fieldDDLHandler(TapConnectorContext tapConnectorContext, TapFieldBaseEvent tapFieldBaseEvent) {
@@ -326,31 +336,6 @@ public class ClickhouseConnector extends ConnectorBase {
         } catch (Throwable e) {
             e.printStackTrace();
             throw new RuntimeException("Drop Table " + tapDropTableEvent.getTableId() + " Failed! \n ");
-        }
-    }
-
-    private void createTable(TapConnectorContext tapConnectorContext, TapCreateTableEvent tapCreateTableEvent) {
-
-        TapTable tapTable = tapCreateTableEvent.getTable();
-        Collection<String> primaryKeys = tapTable.primaryKeys(true);
-//        Collection<String> logicPrimaryKeys = Collections.emptyList();
-//        if (EmptyKit.isEmpty(primaryKeys)) {
-//            logicPrimaryKeys = tapTable.primaryKeys(true);
-//        }
-        String sql = "CREATE TABLE IF NOT EXISTS \"" + clickhouseConfig.getDatabase() + "\".\"" + tapTable.getId() + "\"(" + ClickhouseDDLSqlMaker.buildColumnDefinition(tapTable, true);
-        sql = sql.substring(0, sql.length() - 1) + ") ENGINE = MergeTree ";
-        if (EmptyKit.isNotEmpty(primaryKeys)) {
-            sql += " PRIMARY KEY (\"" + String.join("\",\"", primaryKeys) + "\")";
-        } else {
-            sql += " order by tuple()";
-        }
-        try {
-            List<String> sqls = TapSimplify.list();
-            sqls.add(sql);
-            clickhouseJdbcContext.batchExecute(sqls);
-        } catch (Throwable e) {
-            e.printStackTrace();
-            throw new RuntimeException("Create Table " + tapTable.getId() + " Failed! " + e.getMessage());
         }
     }
 
