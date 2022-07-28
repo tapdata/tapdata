@@ -17,13 +17,9 @@ import com.tapdata.validator.ValidatorConstant;
 import io.tapdata.Runnable.LoadSchemaRunner;
 import io.tapdata.TapInterface;
 import io.tapdata.common.*;
-import io.tapdata.common.sample.CollectorFactory;
 import io.tapdata.dao.MessageDao;
 import io.tapdata.entity.*;
 import io.tapdata.metric.MetricManager;
-import io.tapdata.metrics.InfoSampleCollector;
-import io.tapdata.metrics.TaskSampleReporter;
-import io.tapdata.metrics.TaskSampleRetriever;
 import io.tapdata.schema.SchemaProxy;
 import io.tapdata.task.TapdataTaskScheduler;
 import org.apache.commons.collections.CollectionUtils;
@@ -251,14 +247,6 @@ public class ConnectorManager {
 
 			// init script task schedule
 			initScriptTaskSchedule(clientMongoOperator);
-
-			// init samples and statistics
-			CollectorFactory.getInstance().start(
-					new TaskSampleReporter(clientMongoOperator),
-					new InfoSampleCollector.AgentInfoReporter(clientMongoOperator)
-			);
-			(new InfoSampleCollector()).registerInfo(configCenter, version);
-			TaskSampleRetriever.getInstance().start(restTemplateOperator);
 
 			// init type mappings
       /*try {

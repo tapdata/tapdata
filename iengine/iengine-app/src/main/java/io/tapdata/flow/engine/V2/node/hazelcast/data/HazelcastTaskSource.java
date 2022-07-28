@@ -8,9 +8,6 @@ import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.task.dto.SubTaskDto;
 import io.tapdata.Source;
 import io.tapdata.common.ClassScanner;
-import io.tapdata.common.sample.sampler.CounterSampler;
-import io.tapdata.common.sample.sampler.ResetCounterSampler;
-import io.tapdata.common.sample.sampler.SpeedSampler;
 import io.tapdata.entity.SourceContext;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
@@ -72,13 +69,6 @@ public class HazelcastTaskSource extends HazelcastDataBaseNode {
 	private AtomicBoolean firstCdcEvent = new AtomicBoolean(false);
 	private SnapshotProgressManager snapshotProgressManager;
 
-	// statistic and sample related
-	private ResetCounterSampler resetInputCounter;
-	private CounterSampler inputCounter;
-	private SpeedSampler inputQPS;
-	private ResetCounterSampler resetOutputCounter;
-	private CounterSampler outputCounter;
-	private SpeedSampler outputQPS;
 	private TapdataEvent pendingEvent;
 
 	protected DataProcessorContext dataProcessorContext;
@@ -321,11 +311,6 @@ public class HazelcastTaskSource extends HazelcastDataBaseNode {
 	private void doNormalCdc() {
 		logger.info("Starting incremental sync, use connection source: " + source.getClass().getName());
 		source.increamentalSync();
-	}
-
-	@Override
-	protected void initSampleCollector() {
-		super.initSampleCollector();
 	}
 
 	@Override
