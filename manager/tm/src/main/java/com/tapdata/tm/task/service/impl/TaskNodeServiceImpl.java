@@ -80,6 +80,9 @@ public class TaskNodeServiceImpl implements TaskNodeService {
         Page<MetadataTransformerItemDto> result = new Page<>();
 
         DAG dag = taskService.findById(MongoUtils.toObjectId(taskId)).getDag();
+        if (CollectionUtils.isEmpty(dag.getEdges())) {
+            return result;
+        }
 
         LinkedList<DatabaseNode> databaseNodes = dag.getNodes().stream()
                 .filter(node -> node instanceof DatabaseNode)
@@ -114,7 +117,7 @@ public class TaskNodeServiceImpl implements TaskNodeService {
             targetDataSource = dataSourceService.findById(MongoUtils.toObjectId(targetNode.getConnectionId()));
         }
         // if current node pre has js node need get data from metaInstances
-        boolean preHasJsNode = dag.getPreNodes(nodeId).stream().anyMatch(n -> n instanceof MigrateJsProcessorNode);
+        boolean preHasJsNode = Objects.requireNonNull(dag.getPreNodes(nodeId)).stream().anyMatch(n -> n instanceof MigrateJsProcessorNode);
         if (preHasJsNode)
             return getMetaByJsNode(nodeId, result, sourceNode, targetNode, tableNames, currentTableList, targetDataSource);
         else
