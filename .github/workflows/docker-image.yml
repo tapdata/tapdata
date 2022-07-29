@@ -43,16 +43,19 @@ jobs:
         with:
           ref: report-test
           path: report-test
-      - name: compile iengine modules
+      - name: compile plugin-kit module
         run: |
           chmod u+x build/build.sh 
-          build/build.sh -c iengine
+          build/build.sh -c plugin-kit
+      - name: compile connectors-common module
+        run:
+          build/build.sh -c connectors-common
       - name: compile manager module
         run:
           build/build.sh -c manager
-      - name: compile plugin-kit module
-        run:
-          build/build.sh -c plugin-kit
+      - name: compile iengine modules
+        run: |
+          build/build.sh -c iengine
       - name: compile connectors module
         run:
           build/build.sh -c connectors
