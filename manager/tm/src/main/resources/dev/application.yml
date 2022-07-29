@@ -1,13 +1,10 @@
 spring:
-    profiles:
-        active: '@profile.active@'
-        include: '@env.PRODUCT@,default'
+  profiles:
+    active: 'dev'
+    include: 'dfs,default'
 
-    data:
-        mongodb:
-            uri: 'mongodb://192.168.1.182:32000/tapdata_tm'
-            cursorBatchSize: 1000
-springdoc:
-    enabled: true
-tcm:
-    url: http://192.168.1.182:30103
+  data:
+    mongodb:
+      uri: 'mongodb://127.0.0.1:27017/tapdata?authSource=admin'
+      cursorBatchSize: 1000
+
