@@ -14,8 +14,8 @@ import static io.tapdata.entity.simplify.TapSimplify.list;
  * @author <a href="mailto:harsen_lin@163.com">Harsen</a>
  * @version v1.0 2022/7/29 14:50 Create
  */
-public class FirstValueClassHandlers<T, R> {
-    private static final String TAG = FirstValueClassHandlers.class.getSimpleName();
+public class TypeHandlers<T, R> {
+    private static final String TAG = TypeHandlers.class.getSimpleName();
     /**
      * cache all handler of instance class
      */
@@ -36,7 +36,7 @@ public class FirstValueClassHandlers<T, R> {
      * @param clz handle class type
      * @param fn  handle callback
      */
-    public <C extends T> FirstValueClassHandlers<T, R> register(Class<C> clz, Function<C, R> fn) {
+    public <C extends T> TypeHandlers<T, R> register(Class<C> clz, Function<C, R> fn) {
         handlers.computeIfAbsent(clz, key -> list()).add(fn);
         return this;
     }
@@ -67,8 +67,8 @@ public class FirstValueClassHandlers<T, R> {
         return null;
     }
 
-    public static <T, R> FirstValueClassHandlers<T, R> ins() {
-        return new FirstValueClassHandlers<>();
+    public static <T, R> TypeHandlers<T, R> create() {
+        return new TypeHandlers<>();
     }
 
 }
