@@ -160,8 +160,10 @@ public class ClickhouseConnector extends ConnectorBase {
             if (tapValue != null && tapValue.getValue() != null) return toJson(tapValue.getValue());
             return "null";
         });
-        codecRegistry.registerFromTapValue(TapBooleanValue.class, "UInt8", TapValue::getValue);
-
+        codecRegistry.registerFromTapValue(TapBooleanValue.class, "UInt8", tapValue -> {
+            if(tapValue.getValue()) return 1;
+            else return 0;
+        });
 
         codecRegistry.registerFromTapValue(TapTimeValue.class, tapTimeValue -> formatTapDateTime(tapTimeValue.getValue(), "HH:mm:ss.SS"));
         codecRegistry.registerFromTapValue(TapBinaryValue.class, "String", tapValue -> {
@@ -191,8 +193,8 @@ public class ClickhouseConnector extends ConnectorBase {
 
 
         //source 暂未找到 增量方案，1.x 不支持源
-//        connectorFunctions.supportBatchCount(this::batchCount);
-//        connectorFunctions.supportBatchRead(this::batchRead);
+        connectorFunctions.supportBatchCount(this::batchCount);
+        connectorFunctions.supportBatchRead(this::batchRead);
 //        connectorFunctions.supportStreamRead(this::streamRead);
 //        connectorFunctions.supportTimestampToStreamOffset(this::timestampToStreamOffset);
         //query
@@ -220,6 +222,7 @@ public class ClickhouseConnector extends ConnectorBase {
         try {
             List<String> sqls = TapSimplify.list();
             sqls.add(sql);
+            TapLogger.info("table 为:","table->{}",tapTable.getId());
             clickhouseJdbcContext.batchExecute(sqls);
         } catch (Throwable e) {
             e.printStackTrace();
@@ -291,13 +294,20 @@ public class ClickhouseConnector extends ConnectorBase {
 
     // 不支持偏移量
     private void batchRead(TapConnectorContext tapConnectorContext, TapTable tapTable, Object offsetState, int eventBatchSize, BiConsumer<List<TapEvent>, Object> eventsOffsetConsumer) throws Throwable {
-        String sql = "SELECT * FROM \"" + clickhouseConfig.getDatabase() + "\".\"" + tapTable.getId();
+        String sql = "SELECT * FROM \"" + clickhouseConfig.getDatabase() + "\".\"" + tapTable.getId()+"\"";
         clickhouseJdbcContext.query(sql, resultSet -> {
             List<TapEvent> tapEvents = list();
             //get all column names
             List<String> columnNames = DbKit.getColumnsFromResultSet(resultSet);
             while (isAlive() && resultSet.next()) {
-                tapEvents.add(insertRecordEvent(DbKit.getRowFromResultSet(resultSet, columnNames), tapTable.getId()));
+                DataMap dataMap = DbKit.getRowFromResultSet(resultSet, columnNames);
+                for (Map.Entry<String, Object> e : dataMap.entrySet()) {
+                    Object value = e.getValue();
+                    if (value instanceof String) {
+                        e.setValue(((java.lang.String) value).trim());
+                    }
+                }
+                tapEvents.add(insertRecordEvent(dataMap, tapTable.getId()));
                 if (tapEvents.size() == eventBatchSize) {
                     eventsOffsetConsumer.accept(tapEvents, null);
                     tapEvents = list();
