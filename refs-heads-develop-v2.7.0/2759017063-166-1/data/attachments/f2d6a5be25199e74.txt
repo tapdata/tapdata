@@ -1,0 +1,7 @@
+job [1;32mcheck_jobhjrcn[0m start running ...                                                                                                                                     
+job [1;32mcheck_jobhjrcn[0m status is: [1;32mscheduling[0m                                                                                                                      
+job [1;32mcheck_jobhjrcn[0m status is: [1;32mrunning[0m                                                                                                                         
+the status is running now, this is 1 times, 5 times remaining                                                                                                                       
+job [1;32mcheck_jobhjrcn[0m status is: [1;32mrunning[0m                                                                                                                         
+pipeline not start, no status can show                                                                                                                                              
+[1;33mThe status of this task is not in [running, stop, complete], unable to check data.[0m                                                                                       
