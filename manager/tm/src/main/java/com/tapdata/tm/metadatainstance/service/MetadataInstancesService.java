@@ -819,7 +819,20 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
             insertMetaDataDtos = new ArrayList<>();
         }
 
+        List<String> qualifiedNames = new ArrayList<>();
+
         if (CollectionUtils.isNotEmpty(insertMetaDataDtos)) {
+
+            if (saveHistory) {
+                for (MetadataInstancesDto insertMetaDataDto : insertMetaDataDtos) {
+                    String qualifiedName = insertMetaDataDto.getQualifiedName();
+                    int i = qualifiedName.lastIndexOf("_");
+                    String oldQualifiedName = qualifiedName.substring(0, i);
+                    insertMetaDataDto.setQualifiedName(oldQualifiedName);
+                    qualifiedNames.add(oldQualifiedName);
+                }
+            }
+
             for (MetadataInstancesDto metadataInstancesDto : insertMetaDataDtos) {
                 MetadataInstancesEntity metadataInstance = convertToEntity(MetadataInstancesEntity.class, metadataInstancesDto);
 
@@ -837,18 +850,22 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
 
 
         if (updateMetaMap != null) {
-            Set<String> keySet = updateMetaMap.keySet();
-
+            List<String> findQualifiedNames = new ArrayList<>();
             Map<String, MetadataInstancesDto> metaMap = new HashMap<>();
-            if (CollectionUtils.isNotEmpty(keySet)) {
-                List<ObjectId> ObjectIds = keySet.stream().map(MongoUtils::toObjectId).collect(Collectors.toList());
-                Criteria criteria = Criteria.where("_id").in(ObjectIds);
+            for (MetadataInstancesDto value : updateMetaMap.values()) {
+                String qualifiedName = value.getQualifiedName();
+                int i = qualifiedName.lastIndexOf("_");
+                String oldQualifiedName = qualifiedName.substring(0, i);
+                value.setQualifiedName(oldQualifiedName);
+                qualifiedNames.add(oldQualifiedName);
+                findQualifiedNames.add(oldQualifiedName);
+                Criteria criteria = Criteria.where("qualified_name").in(findQualifiedNames);
                 Query query = new Query(criteria);
                 query.fields().exclude("histories");
                 List<MetadataInstancesDto> metadataInstancesDtos = findAllDto(query, userDetail);
                 metaMap = metadataInstancesDtos.stream().collect(Collectors.toMap(m -> m.getId().toHexString(), m -> m));
-
             }
+
             for (Map.Entry<String, MetadataInstancesDto> entry : updateMetaMap.entrySet()) {
                 MetadataInstancesDto value = entry.getValue();
 
@@ -873,7 +890,7 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
                     }
                 }
 
-                Query where = Query.query(Criteria.where("_id").is(entry.getKey()));
+                Query where = Query.query(Criteria.where("qualified_name").is(value.getQualifiedName()));
 
                 bulkOperations.updateOne(where, update);
                 write = true;
@@ -886,6 +903,10 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
             //保存历史版本
             if (saveHistory && CollectionUtils.isNotEmpty(insertMetaDataDtos)) {
                 metaDataHistoryService.saveHistory(insertMetaDataDtos, taskId);
+            }
+
+            if (saveHistory) {
+                qualifiedNameLinkLogic(qualifiedNames, userDetail);
             }
             return result.getModifiedCount();
         } else {
