@@ -1,0 +1,177 @@
+{
+  "uid" : "9a7ab3ae865b13d6",
+  "name" : "test stop job",
+  "fullName" : "test_pipeline.TestPipeline#test_stop",
+  "historyId" : "89a92a426a6f71effa829568b271e031",
+  "time" : {
+    "start" : 1659084866936,
+    "stop" : 1659084870899,
+    "duration" : 3963
+  },
+  "status" : "passed",
+  "flaky" : false,
+  "newFailed" : false,
+  "beforeStages" : [ ],
+  "testStage" : {
+    "status" : "passed",
+    "steps" : [ ],
+    "attachments" : [ {
+      "uid" : "c84773c724710ab8",
+      "name" : "stdout",
+      "source" : "c84773c724710ab8.txt",
+      "type" : "text/plain",
+      "size" : 1095
+    } ],
+    "parameters" : [ ],
+    "stepsCount" : 0,
+    "attachmentsCount" : 1,
+    "shouldDisplayMessage" : false,
+    "hasContent" : true
+  },
+  "afterStages" : [ ],
+  "labels" : [ {
+    "name" : "feature",
+    "value" : "pipeline"
+  }, {
+    "name" : "suite",
+    "value" : "test_pipeline"
+  }, {
+    "name" : "subSuite",
+    "value" : "TestPipeline"
+  }, {
+    "name" : "host",
+    "value" : "3dd1a0842275"
+  }, {
+    "name" : "thread",
+    "value" : "828-MainThread"
+  }, {
+    "name" : "framework",
+    "value" : "pytest"
+  }, {
+    "name" : "language",
+    "value" : "cpython3"
+  }, {
+    "name" : "package",
+    "value" : "test_pipeline"
+  }, {
+    "name" : "resultFormat",
+    "value" : "allure2"
+  } ],
+  "parameters" : [ ],
+  "links" : [ ],
+  "hidden" : false,
+  "retry" : false,
+  "extra" : {
+    "severity" : "normal",
+    "retries" : [ ],
+    "categories" : [ ],
+    "history" : {
+      "statistic" : {
+        "failed" : 6,
+        "broken" : 0,
+        "skipped" : 0,
+        "passed" : 6,
+        "unknown" : 0,
+        "total" : 12
+      },
+      "items" : [ {
+        "uid" : "b23afb6d2ad79cd4",
+        "status" : "passed",
+        "time" : {
+          "start" : 1659083515304,
+          "stop" : 1659083519395,
+          "duration" : 4091
+        }
+      }, {
+        "uid" : "186e082515a3d462",
+        "status" : "passed",
+        "time" : {
+          "start" : 1659082480543,
+          "stop" : 1659082513614,
+          "duration" : 33071
+        }
+      }, {
+        "uid" : "7397a65b9f9d9fc0",
+        "status" : "passed",
+        "time" : {
+          "start" : 1659081389867,
+          "stop" : 1659081393618,
+          "duration" : 3751
+        }
+      }, {
+        "uid" : "92aa8eed1d777c49",
+        "status" : "passed",
+        "time" : {
+          "start" : 1659080046465,
+          "stop" : 1659080079514,
+          "duration" : 33049
+        }
+      }, {
+        "uid" : "80c1738038831e89",
+        "status" : "passed",
+        "time" : {
+          "start" : 1659078709040,
+          "stop" : 1659078712933,
+          "duration" : 3893
+        }
+      }, {
+        "uid" : "88b12f76ce065d25",
+        "status" : "failed",
+        "statusDetails" : "AssertionError: assert False\n +  where False = wait_scheduling(<lib.cli.Pipeline object at 0x7fadfad6aed0>, except_status=('running', 'error'))",
+        "time" : {
+          "start" : 1659076827038,
+          "stop" : 1659076833473,
+          "duration" : 6435
+        }
+      }, {
+        "uid" : "5501b218b738158",
+        "status" : "failed",
+        "statusDetails" : "AssertionError: assert False\n +  where False = wait_scheduling(<lib.cli.Pipeline object at 0x7f1749e3fed0>, except_status=('running', 'error'))",
+        "time" : {
+          "start" : 1659067810581,
+          "stop" : 1659067816982,
+          "duration" : 6401
+        }
+      }, {
+        "uid" : "223e29cf0ccaab19",
+        "status" : "failed",
+        "statusDetails" : "AssertionError: assert False\n +  where False = wait_scheduling(<lib.cli.Pipeline object at 0x7fd4a08ff4d0>, except_status=('running', 'error'))",
+        "time" : {
+          "start" : 1658735183081,
+          "stop" : 1658735189669,
+          "duration" : 6588
+        }
+      }, {
+        "uid" : "493abece17348361",
+        "status" : "failed",
+        "statusDetails" : "AssertionError: assert False\n +  where False = wait_scheduling(<lib.cli.Pipeline object at 0x7fa177d9b290>, except_status=('running', 'error'))",
+        "time" : {
+          "start" : 1658726044126,
+          "stop" : 1658726050949,
+          "duration" : 6823
+        }
+      }, {
+        "uid" : "71afdbb8d81d3b20",
+        "status" : "failed",
+        "statusDetails" : "AssertionError: assert False\n +  where False = wait_scheduling(<lib.cli.Pipeline object at 0x7f9f89611610>, except_status=('running', 'error'))",
+        "time" : {
+          "start" : 1658693721909,
+          "stop" : 1658693728437,
+          "duration" : 6528
+        }
+      }, {
+        "uid" : "ec2c1169c3f8913d",
+        "status" : "failed",
+        "statusDetails" : "AssertionError: assert False\n +  where False = wait_scheduling(<lib.cli.Pipeline object at 0x7f2f5a077250>, except_status=('running', 'error'))",
+        "time" : {
+          "start" : 1658482947058,
+          "stop" : 1658482953667,
+          "duration" : 6609
+        }
+      } ]
+    },
+    "tags" : [ ]
+  },
+  "source" : "9a7ab3ae865b13d6.json",
+  "parameterValues" : [ ]
+}

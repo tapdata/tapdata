@@ -1,0 +1,171 @@
+{
+  "uid" : "e0539978fa86d009",
+  "name" : "test monitor job status",
+  "fullName" : "test_pipeline.TestPipeline#test_monitor",
+  "historyId" : "3fd54ac5d350d86ca5d030675fbb6f2d",
+  "time" : {
+    "start" : 1659084875597,
+    "stop" : 1659084879046,
+    "duration" : 3449
+  },
+  "status" : "passed",
+  "flaky" : false,
+  "newFailed" : false,
+  "beforeStages" : [ ],
+  "testStage" : {
+    "status" : "passed",
+    "steps" : [ ],
+    "attachments" : [ {
+      "uid" : "bcf53f3196005c7c",
+      "name" : "stdout",
+      "source" : "bcf53f3196005c7c.txt",
+      "type" : "text/plain",
+      "size" : 563
+    } ],
+    "parameters" : [ ],
+    "stepsCount" : 0,
+    "attachmentsCount" : 1,
+    "shouldDisplayMessage" : false,
+    "hasContent" : true
+  },
+  "afterStages" : [ ],
+  "labels" : [ {
+    "name" : "feature",
+    "value" : "pipeline"
+  }, {
+    "name" : "suite",
+    "value" : "test_pipeline"
+  }, {
+    "name" : "subSuite",
+    "value" : "TestPipeline"
+  }, {
+    "name" : "host",
+    "value" : "3dd1a0842275"
+  }, {
+    "name" : "thread",
+    "value" : "828-MainThread"
+  }, {
+    "name" : "framework",
+    "value" : "pytest"
+  }, {
+    "name" : "language",
+    "value" : "cpython3"
+  }, {
+    "name" : "package",
+    "value" : "test_pipeline"
+  }, {
+    "name" : "resultFormat",
+    "value" : "allure2"
+  } ],
+  "parameters" : [ ],
+  "links" : [ ],
+  "hidden" : false,
+  "retry" : false,
+  "extra" : {
+    "severity" : "normal",
+    "retries" : [ ],
+    "categories" : [ ],
+    "history" : {
+      "statistic" : {
+        "failed" : 0,
+        "broken" : 0,
+        "skipped" : 0,
+        "passed" : 12,
+        "unknown" : 0,
+        "total" : 12
+      },
+      "items" : [ {
+        "uid" : "b2997de2f1b51bff",
+        "status" : "passed",
+        "time" : {
+          "start" : 1659083524151,
+          "stop" : 1659083527678,
+          "duration" : 3527
+        }
+      }, {
+        "uid" : "9d257943dfe162b9",
+        "status" : "passed",
+        "time" : {
+          "start" : 1659082517920,
+          "stop" : 1659082521179,
+          "duration" : 3259
+        }
+      }, {
+        "uid" : "1f303197dd36d30c",
+        "status" : "passed",
+        "time" : {
+          "start" : 1659081398337,
+          "stop" : 1659081401842,
+          "duration" : 3505
+        }
+      }, {
+        "uid" : "1a5197f610bd0597",
+        "status" : "passed",
+        "time" : {
+          "start" : 1659080083912,
+          "stop" : 1659080087211,
+          "duration" : 3299
+        }
+      }, {
+        "uid" : "9282c44cbef6fcba",
+        "status" : "passed",
+        "time" : {
+          "start" : 1659078717609,
+          "stop" : 1659078720947,
+          "duration" : 3338
+        }
+      }, {
+        "uid" : "617fbf33e6d61bc5",
+        "status" : "passed",
+        "time" : {
+          "start" : 1659076840115,
+          "stop" : 1659076842387,
+          "duration" : 2272
+        }
+      }, {
+        "uid" : "291eb71ecb54ca6a",
+        "status" : "passed",
+        "time" : {
+          "start" : 1659067823563,
+          "stop" : 1659067825741,
+          "duration" : 2178
+        }
+      }, {
+        "uid" : "8a9c31418381f9d2",
+        "status" : "passed",
+        "time" : {
+          "start" : 1658735196319,
+          "stop" : 1658735198546,
+          "duration" : 2227
+        }
+      }, {
+        "uid" : "b1260a5e3adbb005",
+        "status" : "passed",
+        "time" : {
+          "start" : 1658726058119,
+          "stop" : 1658726060535,
+          "duration" : 2416
+        }
+      }, {
+        "uid" : "df6a7a98cad3c247",
+        "status" : "passed",
+        "time" : {
+          "start" : 1658693734924,
+          "stop" : 1658693737108,
+          "duration" : 2184
+        }
+      }, {
+        "uid" : "ce797ea30c4c7080",
+        "status" : "passed",
+        "time" : {
+          "start" : 1658482960299,
+          "stop" : 1658482962583,
+          "duration" : 2284
+        }
+      } ]
+    },
+    "tags" : [ ]
+  },
+  "source" : "e0539978fa86d009.json",
+  "parameterValues" : [ ]
+}
