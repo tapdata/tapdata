@@ -109,7 +109,8 @@ public class HazelcastProcessorNode extends HazelcastProcessorBaseNode {
 				if (tapRecordEvent != null) {
 					processedEvent.setTapEvent(tapRecordEvent);
 					String tableName;
-					if (multipleTables) {
+					if (multipleTables || StringUtils.equalsAnyIgnoreCase(processorBaseContext.getSubTaskDto().getParentTask().getSyncType(),
+									TaskDto.SYNC_TYPE_DEDUCE_SCHEMA)) {
 						tableName = processedMessage.getTableName();
 					} else {
 						tableName = processorBaseContext.getNode().getId();
