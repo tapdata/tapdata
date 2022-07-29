@@ -145,8 +145,9 @@ public class TaskNodeServiceImpl implements TaskNodeService {
                 if (CollectionUtils.isNotEmpty(instance.getFields())) {
                     for (Field field : instance.getFields()) {
                         String defaultValue = Objects.isNull(field.getDefaultValue()) ? "" : field.getDefaultValue().toString();
+                        int primaryKey = Objects.isNull(field.getPrimaryKeyPosition()) ? 0 : field.getPrimaryKeyPosition();
                         FieldsMapping mapping = new FieldsMapping(field.getFieldName(), field.getOriginalFieldName(),
-                                field.getDataType(), "auto", defaultValue, true, "system");
+                                field.getDataType(), "auto", defaultValue, true, "system", primaryKey);
                         fieldsMapping.add(mapping);
                     }
                 }
@@ -252,9 +253,10 @@ public class TaskNodeServiceImpl implements TaskNodeService {
                 Map<String, FieldInfo> finalFieldInfoMap = fieldInfoMap;
                 for (Field field : fields) {
                     String defaultValue = Objects.isNull(field.getDefaultValue()) ? "" : field.getDefaultValue().toString();
-
+                    int primaryKey = Objects.isNull(field.getPrimaryKeyPosition()) ? 0 : field.getPrimaryKeyPosition();
                     String fieldName = field.getOriginalFieldName();
-                    FieldsMapping mapping = new FieldsMapping(fieldName, fieldName, field.getDataType(), "auto", defaultValue, true, "system");
+                    FieldsMapping mapping = new FieldsMapping(fieldName, fieldName, field.getDataType(),
+                            "auto", defaultValue, true, "system", primaryKey);
 
                     if (Objects.nonNull(finalFieldInfoMap) && finalFieldInfoMap.containsKey(fieldName)) {
                         FieldInfo fieldInfo = finalFieldInfoMap.get(fieldName);
