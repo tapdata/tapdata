@@ -1,5 +1,7 @@
 package io.tapdata.aspect.task;
 
+import io.tapdata.aspect.TaskStartAspect;
+import io.tapdata.aspect.TaskStopAspect;
 import io.tapdata.entity.aspect.Aspect;
 import io.tapdata.entity.aspect.AspectInterceptResult;
 import io.tapdata.entity.simplify.pretty.TypeHandlers;
@@ -15,12 +17,12 @@ public abstract class AbstractAspectTask extends AspectTask {
     protected final TypeHandlers<Aspect, AspectInterceptResult> interceptHandlers = TypeHandlers.create();
 
     @Override
-    public void onStart() {
+    public void onStart(TaskStartAspect startAspect) {
 
     }
 
     @Override
-    public void onStop() {
+    public void onStop(TaskStopAspect stopAspect) {
 
     }
 
