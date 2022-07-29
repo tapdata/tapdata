@@ -87,7 +87,7 @@ public class DateTime {
                 nano = (int) ((time % 1000) * 1000000);
                 break;
             case 6:
-                seconds = time / 10000000;
+                seconds = time / 1000000;
                 nano = (int) ((time % 1000000) * 1000);
                 break;
             case 9:
