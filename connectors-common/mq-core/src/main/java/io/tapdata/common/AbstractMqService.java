@@ -3,8 +3,6 @@ package io.tapdata.common;
 import com.google.common.collect.Lists;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapTable;
-import io.tapdata.entity.simplify.TapSimplify;
-import io.tapdata.kit.EmptyKit;
 
 import java.util.ArrayList;
 import java.util.List;

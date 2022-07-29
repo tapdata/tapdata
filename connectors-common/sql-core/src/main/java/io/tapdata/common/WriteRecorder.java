@@ -37,7 +37,8 @@ public abstract class WriteRecorder {
         this.connection = connection;
         this.tapTable = tapTable;
         this.schema = schema;
-        this.allColumn = new ArrayList<>(tapTable.getNameFieldMap().keySet());
+        this.allColumn = tapTable.getNameFieldMap().entrySet().stream().sorted(Comparator.comparing(v ->
+                EmptyKit.isNull(v.getValue().getPos()) ? 99999 : v.getValue().getPos())).map(Map.Entry::getKey).collect(Collectors.toList());
         analyzeTable();
     }
 
