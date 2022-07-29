@@ -113,7 +113,7 @@ public class HazelcastSampleSourcePdkDataNode extends HazelcastSourcePdkDataNode
     } catch (Throwable throwable) {
       error = throwable;
     } finally {
-      this.running.set(false);
+      logger.info("source runner complete...");
     }
   }
 

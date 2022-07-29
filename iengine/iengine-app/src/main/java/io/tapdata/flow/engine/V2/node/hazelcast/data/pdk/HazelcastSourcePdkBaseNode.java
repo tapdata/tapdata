@@ -91,6 +91,8 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 	protected AtomicBoolean sourceRunnerFirstTime;
 	private DAGDataServiceImpl dagDataService;
 
+	private Future<?> sourceRunnerFuture;
+
 	public HazelcastSourcePdkBaseNode(DataProcessorContext dataProcessorContext) {
 		super(dataProcessorContext);
 		if (!StringUtils.equalsAnyIgnoreCase(dataProcessorContext.getSubTaskDto().getParentTask().getSyncType(),
@@ -124,7 +126,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 				ConnectorConstant.TASK_COLLECTION + "/transformParam/" + processorBaseContext.getSubTaskDto().getParentTask().getId().toHexString(),
 				TransformerWsMessageDto.class);
 		this.sourceRunnerFirstTime = new AtomicBoolean(true);
-		this.sourceRunner.submit(this::startSourceRunner);
+		sourceRunnerFuture = this.sourceRunner.submit(this::startSourceRunner);
 		initTableMonitor();
 	}
 
@@ -318,6 +320,10 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 			throw new SourceException(e, true);
 		}
 
+		if (sourceRunnerFuture != null && sourceRunnerFuture.isDone()) {
+			this.running.set(false);
+		}
+
 		return false;
 	}
 
@@ -436,6 +442,8 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 			});
 		}
 	}
+
+
 
 	abstract void startSourceRunner();
 
