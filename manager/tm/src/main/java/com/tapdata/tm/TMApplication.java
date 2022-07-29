@@ -16,6 +16,8 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.repository.config.EnableMongoRepositories;
 import org.springframework.scheduling.annotation.EnableAsync;
 
+import java.util.TimeZone;
+
 /**
  * @author lg<lirufei0808 @ gmail.com>
  * @date 2020/9/9 6:54 上午
@@ -42,6 +44,8 @@ public class TMApplication {
 		if (userDto != null) {
 			log.info("admin access code is {}", userDto.getAccessCode());
 		}
+
+		TimeZone.setDefault(TimeZone.getTimeZone("Asia/Shanghai"));
 
 	}
 }
