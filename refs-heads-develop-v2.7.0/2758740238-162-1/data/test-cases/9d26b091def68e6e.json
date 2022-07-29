@@ -1,0 +1,123 @@
+{
+  "uid" : "9d26b091def68e6e",
+  "name" : "js udf in migrate",
+  "fullName" : "test_pipeline.TestPipeline#test_js_migrate",
+  "historyId" : "8f71f91b30b5ce0c64f023d3e192d532",
+  "time" : {
+    "start" : 1659076305213,
+    "stop" : 1659076305273,
+    "duration" : 60
+  },
+  "status" : "passed",
+  "flaky" : false,
+  "newFailed" : false,
+  "beforeStages" : [ ],
+  "testStage" : {
+    "status" : "passed",
+    "steps" : [ ],
+    "attachments" : [ {
+      "uid" : "8420505088cc1f0a",
+      "name" : "stdout",
+      "source" : "8420505088cc1f0a.txt",
+      "type" : "text/plain",
+      "size" : 181
+    } ],
+    "parameters" : [ ],
+    "stepsCount" : 0,
+    "attachmentsCount" : 1,
+    "shouldDisplayMessage" : false,
+    "hasContent" : true
+  },
+  "afterStages" : [ ],
+  "labels" : [ {
+    "name" : "feature",
+    "value" : "pipeline"
+  }, {
+    "name" : "suite",
+    "value" : "test_pipeline"
+  }, {
+    "name" : "subSuite",
+    "value" : "TestPipeline"
+  }, {
+    "name" : "host",
+    "value" : "73b5dbba6ba0"
+  }, {
+    "name" : "thread",
+    "value" : "830-MainThread"
+  }, {
+    "name" : "framework",
+    "value" : "pytest"
+  }, {
+    "name" : "language",
+    "value" : "cpython3"
+  }, {
+    "name" : "package",
+    "value" : "test_pipeline"
+  }, {
+    "name" : "resultFormat",
+    "value" : "allure2"
+  } ],
+  "parameters" : [ ],
+  "links" : [ ],
+  "hidden" : false,
+  "retry" : false,
+  "extra" : {
+    "severity" : "normal",
+    "retries" : [ ],
+    "categories" : [ ],
+    "history" : {
+      "statistic" : {
+        "failed" : 0,
+        "broken" : 0,
+        "skipped" : 0,
+        "passed" : 6,
+        "unknown" : 0,
+        "total" : 6
+      },
+      "items" : [ {
+        "uid" : "d42d4e1a01640c",
+        "status" : "passed",
+        "time" : {
+          "start" : 1659067801127,
+          "stop" : 1659067801243,
+          "duration" : 116
+        }
+      }, {
+        "uid" : "fd7c982b6ec50ef3",
+        "status" : "passed",
+        "time" : {
+          "start" : 1658735173253,
+          "stop" : 1658735173331,
+          "duration" : 78
+        }
+      }, {
+        "uid" : "cada7e980b300893",
+        "status" : "passed",
+        "time" : {
+          "start" : 1658726032205,
+          "stop" : 1658726032277,
+          "duration" : 72
+        }
+      }, {
+        "uid" : "892f04c6890b4c4f",
+        "status" : "passed",
+        "time" : {
+          "start" : 1658693710704,
+          "stop" : 1658693710745,
+          "duration" : 41
+        }
+      }, {
+        "uid" : "c3d94bc4c61d4a41",
+        "status" : "passed",
+        "time" : {
+          "start" : 1658482937319,
+          "stop" : 1658482937380,
+          "duration" : 61
+        }
+      } ]
+    },
+    "tags" : [ ]
+  },
+  "source" : "9d26b091def68e6e.json",
+  "parameterValues" : [ ]
+}
