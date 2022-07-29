@@ -54,13 +54,24 @@ public class LogServiceElastic {
     @Value("${task.log.expireDay:7}")
     private int expireDay;
 
+    @Value("${task.log.indexName:logs}")
+    private String indexName;
+
     @Autowired
     private ElasticsearchRestTemplate elasticsearchRestTemplate;
+
+    private IndexCoordinates getIndexCoordinates() {
+        if (StringUtils.isEmpty(indexName)) {
+            return elasticsearchRestTemplate.getIndexCoordinatesFor(LogEntityElastic.class);
+        } else {
+            return IndexCoordinates.of(indexName);
+        }
+    }
 
     public void save(LogDto logDto) {
         LogEntityElastic log=new LogEntityElastic();
         BeanUtil.copyProperties(logDto,log);
-        elasticsearchRestTemplate.save(log);
+        elasticsearchRestTemplate.save(log, getIndexCoordinates());
     }
 
 
@@ -86,7 +97,7 @@ public class LogServiceElastic {
         log.setCreateUser(userDetail.getUsername());
         log.setLastUpdAt(new Date());
         log.setLastUpdBy(userDetail.getUserId());
-        elasticsearchRestTemplate.save(log);
+        elasticsearchRestTemplate.save(log, getIndexCoordinates());
 
         return logDto;
     }
@@ -180,7 +191,7 @@ public class LogServiceElastic {
     }
 
     public SearchHits<LogEntityElastic> find(CriteriaQuery query) {
-        return elasticsearchRestTemplate.search(query, LogEntityElastic.class);
+        return elasticsearchRestTemplate.search(query, LogEntityElastic.class, getIndexCoordinates());
     }
 
     public Page<LogDto> find(Filter filter, UserDetail userDetail) {
@@ -191,7 +202,7 @@ public class LogServiceElastic {
             return new Page<>(0, logs);
         }
 
-        SearchHits<LogEntityElastic> searchHits = elasticsearchRestTemplate.search(query, LogEntityElastic.class);
+        SearchHits<LogEntityElastic> searchHits = elasticsearchRestTemplate.search(query, LogEntityElastic.class, getIndexCoordinates());
 
         searchHits.stream().iterator().forEachRemaining(searchHit -> {
             LogEntityElastic entity = searchHit.getContent();
@@ -225,7 +236,7 @@ public class LogServiceElastic {
         SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
         AtomicInteger count = new AtomicInteger(0);
 
-        SearchHits<LogEntityElastic> searchHits = elasticsearchRestTemplate.search(query, LogEntityElastic.class);
+        SearchHits<LogEntityElastic> searchHits = elasticsearchRestTemplate.search(query, LogEntityElastic.class, getIndexCoordinates());
 
         searchHits.stream().iterator().forEachRemaining(searchHit -> {
             StringBuffer sb = new StringBuffer();
@@ -270,7 +281,7 @@ public class LogServiceElastic {
     public void deleteExpiredLogs() {
 
         //IndexCoordinates index = IndexCoordinates.of("logs-leon");
-        IndexCoordinates index = elasticsearchRestTemplate.getIndexCoordinatesFor(LogEntityElastic.class);
+        IndexCoordinates index = getIndexCoordinates();
 
         Query query = new NativeSearchQueryBuilder()
                 .addAggregation(
@@ -338,7 +349,7 @@ public class LogServiceElastic {
            Criteria c = Criteria.where("contextMap.dataFlowId").is(dataFlowId);
            CriteriaQuery query = new CriteriaQuery(c);
 
-           ByQueryResponse deleteResult = elasticsearchRestTemplate.delete(query, LogEntityElastic.class);
+           ByQueryResponse deleteResult = elasticsearchRestTemplate.delete(query, LogEntityElastic.class, getIndexCoordinates());
            deleteResult.getDeleted();
            log.debug("Clean up {} row of data flow {} expired logs.", deleteResult.getDeleted(), dataFlowId);
        } catch (Exception e) {
