@@ -1,0 +1,91 @@
+{
+  "uid" : "d1269533e1a844e8",
+  "name" : "filter column in sync",
+  "fullName" : "test_pipeline.TestPipeline#test_filter_column_sync",
+  "historyId" : "21089dcd5e79d7757be3cc5b72b0eba3",
+  "time" : {
+    "start" : 1659118593862,
+    "stop" : 1659118595702,
+    "duration" : 1840
+  },
+  "status" : "passed",
+  "flaky" : false,
+  "newFailed" : false,
+  "beforeStages" : [ ],
+  "testStage" : {
+    "status" : "passed",
+    "steps" : [ ],
+    "attachments" : [ {
+      "uid" : "11c84ae2ff0e8882",
+      "name" : "stdout",
+      "source" : "11c84ae2ff0e8882.txt",
+      "type" : "text/plain",
+      "size" : 1086
+    } ],
+    "parameters" : [ ],
+    "stepsCount" : 0,
+    "attachmentsCount" : 1,
+    "shouldDisplayMessage" : false,
+    "hasContent" : true
+  },
+  "afterStages" : [ ],
+  "labels" : [ {
+    "name" : "feature",
+    "value" : "pipeline"
+  }, {
+    "name" : "suite",
+    "value" : "test_pipeline"
+  }, {
+    "name" : "subSuite",
+    "value" : "TestPipeline"
+  }, {
+    "name" : "host",
+    "value" : "81fdc4032c34"
+  }, {
+    "name" : "thread",
+    "value" : "508-MainThread"
+  }, {
+    "name" : "framework",
+    "value" : "pytest"
+  }, {
+    "name" : "language",
+    "value" : "cpython3"
+  }, {
+    "name" : "package",
+    "value" : "test_pipeline"
+  }, {
+    "name" : "resultFormat",
+    "value" : "allure2"
+  } ],
+  "parameters" : [ ],
+  "links" : [ ],
+  "hidden" : false,
+  "retry" : false,
+  "extra" : {
+    "severity" : "normal",
+    "retries" : [ ],
+    "categories" : [ ],
+    "history" : {
+      "statistic" : {
+        "failed" : 0,
+        "broken" : 0,
+        "skipped" : 0,
+        "passed" : 2,
+        "unknown" : 0,
+        "total" : 2
+      },
+      "items" : [ {
+        "uid" : "8eaa1e092cba21fc",
+        "status" : "passed",
+        "time" : {
+          "start" : 1657784553109,
+          "stop" : 1657784554235,
+          "duration" : 1126
+        }
+      } ]
+    },
+    "tags" : [ ]
+  },
+  "source" : "d1269533e1a844e8.json",
+  "parameterValues" : [ ]
+}
