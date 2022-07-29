@@ -1,0 +1,187 @@
+{
+  "uid" : "c0c25e57de0f9d69",
+  "name" : "config job",
+  "fullName" : "test_pipeline.TestPipeline#test_config",
+  "historyId" : "3fd24b328e808f78a027c8159ff63380",
+  "time" : {
+    "start" : 1659088051966,
+    "stop" : 1659088053485,
+    "duration" : 1519
+  },
+  "status" : "passed",
+  "flaky" : false,
+  "newFailed" : false,
+  "beforeStages" : [ ],
+  "testStage" : {
+    "status" : "passed",
+    "steps" : [ ],
+    "attachments" : [ {
+      "uid" : "c119b2047cf70fd8",
+      "name" : "stdout",
+      "source" : "c119b2047cf70fd8.txt",
+      "type" : "text/plain",
+      "size" : 362
+    } ],
+    "parameters" : [ ],
+    "stepsCount" : 0,
+    "attachmentsCount" : 1,
+    "shouldDisplayMessage" : false,
+    "hasContent" : true
+  },
+  "afterStages" : [ ],
+  "labels" : [ {
+    "name" : "feature",
+    "value" : "pipeline"
+  }, {
+    "name" : "suite",
+    "value" : "test_pipeline"
+  }, {
+    "name" : "subSuite",
+    "value" : "TestPipeline"
+  }, {
+    "name" : "host",
+    "value" : "ed1d8aeeb80d"
+  }, {
+    "name" : "thread",
+    "value" : "831-MainThread"
+  }, {
+    "name" : "framework",
+    "value" : "pytest"
+  }, {
+    "name" : "language",
+    "value" : "cpython3"
+  }, {
+    "name" : "package",
+    "value" : "test_pipeline"
+  }, {
+    "name" : "resultFormat",
+    "value" : "allure2"
+  } ],
+  "parameters" : [ ],
+  "links" : [ ],
+  "hidden" : false,
+  "retry" : false,
+  "extra" : {
+    "severity" : "normal",
+    "retries" : [ ],
+    "categories" : [ ],
+    "history" : {
+      "statistic" : {
+        "failed" : 0,
+        "broken" : 0,
+        "skipped" : 0,
+        "passed" : 14,
+        "unknown" : 0,
+        "total" : 14
+      },
+      "items" : [ {
+        "uid" : "da93b505f7ae1307",
+        "status" : "passed",
+        "time" : {
+          "start" : 1659085738767,
+          "stop" : 1659085740138,
+          "duration" : 1371
+        }
+      }, {
+        "uid" : "10e1ff0866aa3288",
+        "status" : "passed",
+        "time" : {
+          "start" : 1659084865461,
+          "stop" : 1659084866933,
+          "duration" : 1472
+        }
+      }, {
+        "uid" : "2256ddb436fb0770",
+        "status" : "passed",
+        "time" : {
+          "start" : 1659083513685,
+          "stop" : 1659083515301,
+          "duration" : 1616
+        }
+      }, {
+        "uid" : "d8271f68c730b745",
+        "status" : "passed",
+        "time" : {
+          "start" : 1659082479144,
+          "stop" : 1659082480541,
+          "duration" : 1397
+        }
+      }, {
+        "uid" : "a0be2be9ef7fc031",
+        "status" : "passed",
+        "time" : {
+          "start" : 1659081388348,
+          "stop" : 1659081389864,
+          "duration" : 1516
+        }
+      }, {
+        "uid" : "ba748cc946d7d5d",
+        "status" : "passed",
+        "time" : {
+          "start" : 1659080045036,
+          "stop" : 1659080046463,
+          "duration" : 1427
+        }
+      }, {
+        "uid" : "6492700950134309",
+        "status" : "passed",
+        "time" : {
+          "start" : 1659078707264,
+          "stop" : 1659078709024,
+          "duration" : 1760
+        }
+      }, {
+        "uid" : "1db49e64a8c4fe1b",
+        "status" : "passed",
+        "time" : {
+          "start" : 1659076825737,
+          "stop" : 1659076827035,
+          "duration" : 1298
+        }
+      }, {
+        "uid" : "512e86e81f43ad67",
+        "status" : "passed",
+        "time" : {
+          "start" : 1659067809292,
+          "stop" : 1659067810579,
+          "duration" : 1287
+        }
+      }, {
+        "uid" : "26ea8c7f1bce4c10",
+        "status" : "passed",
+        "time" : {
+          "start" : 1658735181691,
+          "stop" : 1658735183079,
+          "duration" : 1388
+        }
+      }, {
+        "uid" : "57348b3025b33128",
+        "status" : "passed",
+        "time" : {
+          "start" : 1658726042588,
+          "stop" : 1658726044123,
+          "duration" : 1535
+        }
+      }, {
+        "uid" : "9062ed29880bab1f",
+        "status" : "passed",
+        "time" : {
+          "start" : 1658693720548,
+          "stop" : 1658693721907,
+          "duration" : 1359
+        }
+      }, {
+        "uid" : "fe8f42bc81ec3645",
+        "status" : "passed",
+        "time" : {
+          "start" : 1658482945695,
+          "stop" : 1658482947056,
+          "duration" : 1361
+        }
+      } ]
+    },
+    "tags" : [ ]
+  },
+  "source" : "c0c25e57de0f9d69.json",
+  "parameterValues" : [ ]
+}
