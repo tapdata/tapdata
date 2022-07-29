@@ -1020,7 +1020,7 @@ class ApiCommand(Magics):
                 }
             ]
         }
-        res = req.get("/Modules", json=payload).json()
+        res = req.post("/Modules", json=payload).json()
         if res["code"] == "ok":
             logger.info(
                 "publish api {} success, you can test it by: {}",
