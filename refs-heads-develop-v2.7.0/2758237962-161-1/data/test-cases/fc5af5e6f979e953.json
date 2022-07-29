@@ -1,0 +1,115 @@
+{
+  "uid" : "fc5af5e6f979e953",
+  "name" : "table merge in sync",
+  "fullName" : "test_pipeline.TestPipeline#test_merge_sync",
+  "historyId" : "edfd051c418b47aafa88b402eedbe088",
+  "time" : {
+    "start" : 1659067803035,
+    "stop" : 1659067805479,
+    "duration" : 2444
+  },
+  "status" : "passed",
+  "flaky" : false,
+  "newFailed" : false,
+  "beforeStages" : [ ],
+  "testStage" : {
+    "status" : "passed",
+    "steps" : [ ],
+    "attachments" : [ {
+      "uid" : "a55d009340248d79",
+      "name" : "stdout",
+      "source" : "a55d009340248d79.txt",
+      "type" : "text/plain",
+      "size" : 905
+    } ],
+    "parameters" : [ ],
+    "stepsCount" : 0,
+    "attachmentsCount" : 1,
+    "shouldDisplayMessage" : false,
+    "hasContent" : true
+  },
+  "afterStages" : [ ],
+  "labels" : [ {
+    "name" : "feature",
+    "value" : "pipeline"
+  }, {
+    "name" : "suite",
+    "value" : "test_pipeline"
+  }, {
+    "name" : "subSuite",
+    "value" : "TestPipeline"
+  }, {
+    "name" : "host",
+    "value" : "52d4f6c596fc"
+  }, {
+    "name" : "thread",
+    "value" : "823-MainThread"
+  }, {
+    "name" : "framework",
+    "value" : "pytest"
+  }, {
+    "name" : "language",
+    "value" : "cpython3"
+  }, {
+    "name" : "package",
+    "value" : "test_pipeline"
+  }, {
+    "name" : "resultFormat",
+    "value" : "allure2"
+  } ],
+  "parameters" : [ ],
+  "links" : [ ],
+  "hidden" : false,
+  "retry" : false,
+  "extra" : {
+    "severity" : "normal",
+    "retries" : [ ],
+    "categories" : [ ],
+    "history" : {
+      "statistic" : {
+        "failed" : 0,
+        "broken" : 0,
+        "skipped" : 0,
+        "passed" : 5,
+        "unknown" : 0,
+        "total" : 5
+      },
+      "items" : [ {
+        "uid" : "8e7fabed257c81fb",
+        "status" : "passed",
+        "time" : {
+          "start" : 1658735176288,
+          "stop" : 1658735177599,
+          "duration" : 1311
+        }
+      }, {
+        "uid" : "f0ac49de23ed0559",
+        "status" : "passed",
+        "time" : {
+          "start" : 1658726035418,
+          "stop" : 1658726038053,
+          "duration" : 2635
+        }
+      }, {
+        "uid" : "5ea80f9054247ad5",
+        "status" : "passed",
+        "time" : {
+          "start" : 1658693713279,
+          "stop" : 1658693715869,
+          "duration" : 2590
+        }
+      }, {
+        "uid" : "6f73837dded634be",
+        "status" : "passed",
+        "time" : {
+          "start" : 1658482939205,
+          "stop" : 1658482941754,
+          "duration" : 2549
+        }
+      } ]
+    },
+    "tags" : [ ]
+  },
+  "source" : "fc5af5e6f979e953.json",
+  "parameterValues" : [ ]
+}

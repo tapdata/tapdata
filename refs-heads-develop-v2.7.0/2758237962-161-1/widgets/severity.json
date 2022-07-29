@@ -1,0 +1,251 @@
+[ {
+  "uid" : "d42d4e1a01640c",
+  "name" : "js udf in migrate",
+  "time" : {
+    "start" : 1659067801127,
+    "stop" : 1659067801243,
+    "duration" : 116
+  },
+  "status" : "passed",
+  "severity" : "normal"
+}, {
+  "uid" : "fc5af5e6f979e953",
+  "name" : "table merge in sync",
+  "time" : {
+    "start" : 1659067803035,
+    "stop" : 1659067805479,
+    "duration" : 2444
+  },
+  "status" : "passed",
+  "severity" : "normal"
+}, {
+  "uid" : "734d1e80750172bb",
+  "name" : "table merge in migrate?",
+  "time" : {
+    "start" : 1659067802816,
+    "stop" : 1659067803034,
+    "duration" : 218
+  },
+  "status" : "passed",
+  "severity" : "normal"
+}, {
+  "uid" : "291eb71ecb54ca6a",
+  "name" : "test monitor job status",
+  "time" : {
+    "start" : 1659067823563,
+    "stop" : 1659067825741,
+    "duration" : 2178
+  },
+  "status" : "passed",
+  "severity" : "normal"
+}, {
+  "uid" : "a86861c3542c99ed",
+  "name" : "create mongodb datasource with uri",
+  "time" : {
+    "start" : 1659067775143,
+    "stop" : 1659067785325,
+    "duration" : 10182
+  },
+  "status" : "passed",
+  "severity" : "normal"
+}, {
+  "uid" : "5501b218b738158",
+  "name" : "test stop job",
+  "time" : {
+    "start" : 1659067810581,
+    "stop" : 1659067816982,
+    "duration" : 6401
+  },
+  "status" : "failed",
+  "severity" : "normal"
+}, {
+  "uid" : "5e3ba079d2270cbc",
+  "name" : "filter row in sync",
+  "time" : {
+    "start" : 1659067795900,
+    "stop" : 1659067798218,
+    "duration" : 2318
+  },
+  "status" : "passed",
+  "severity" : "normal"
+}, {
+  "uid" : "3281b2e7f6b0b70e",
+  "name" : "rename column in sync",
+  "time" : {
+    "start" : 1659067799844,
+    "stop" : 1659067801125,
+    "duration" : 1281
+  },
+  "status" : "passed",
+  "severity" : "normal"
+}, {
+  "uid" : "8852238f618de49c",
+  "name" : "create datasource with mongodb uri",
+  "time" : {
+    "start" : 1659067762808,
+    "stop" : 1659067770027,
+    "duration" : 7219
+  },
+  "status" : "passed",
+  "severity" : "normal"
+}, {
+  "uid" : "ed5de2ce1ee52594",
+  "name" : "test get job status",
+  "time" : {
+    "start" : 1659067817123,
+    "stop" : 1659067823550,
+    "duration" : 6427
+  },
+  "status" : "failed",
+  "severity" : "normal"
+}, {
+  "uid" : "5a766ffaea91e8ed",
+  "name" : "filter column in migrate",
+  "time" : {
+    "start" : 1659067798242,
+    "stop" : 1659067798286,
+    "duration" : 44
+  },
+  "status" : "passed",
+  "severity" : "normal"
+}, {
+  "uid" : "a92c3627e9aa7f43",
+  "name" : "test mysql form valid",
+  "time" : {
+    "start" : 1659067785327,
+    "stop" : 1659067785327,
+    "duration" : 0
+  },
+  "status" : "passed",
+  "severity" : "normal"
+}, {
+  "uid" : "7a675544ad98a09b",
+  "name" : "real time table sync between mongodb",
+  "time" : {
+    "start" : 1659067793372,
+    "stop" : 1659067795843,
+    "duration" : 2471
+  },
+  "status" : "passed",
+  "severity" : "normal"
+}, {
+  "uid" : "dfd0590e3e4537ba",
+  "name" : "js udf in sync",
+  "time" : {
+    "start" : 1659067806830,
+    "stop" : 1659067809234,
+    "duration" : 2404
+  },
+  "status" : "passed",
+  "severity" : "normal"
+}, {
+  "uid" : "b89cab39372a4eab",
+  "name" : "test_check",
+  "time" : {
+    "start" : 1659067825743,
+    "stop" : 1659067831124,
+    "duration" : 5381
+  },
+  "status" : "passed",
+  "severity" : "normal"
+}, {
+  "uid" : "873a97af60b43f9",
+  "name" : "rename column in migrate",
+  "time" : {
+    "start" : 1659067799793,
+    "stop" : 1659067799842,
+    "duration" : 49
+  },
+  "status" : "passed",
+  "severity" : "normal"
+}, {
+  "uid" : "26e34982c4ee8212",
+  "name" : "real time database migrate between mongodb",
+  "time" : {
+    "start" : 1659067790475,
+    "stop" : 1659067793370,
+    "duration" : 2895
+  },
+  "status" : "passed",
+  "severity" : "normal"
+}, {
+  "uid" : "8a1b1d2ca90318d5",
+  "name" : "filter row in migrate",
+  "time" : {
+    "start" : 1659067795846,
+    "stop" : 1659067795897,
+    "duration" : 51
+  },
+  "status" : "passed",
+  "severity" : "normal"
+}, {
+  "uid" : "580eeb8bc3157ca0",
+  "name" : "multi layer table merge in sync",
+  "time" : {
+    "start" : 1659067805481,
+    "stop" : 1659067806828,
+    "duration" : 1347
+  },
+  "status" : "passed",
+  "severity" : "normal"
+}, {
+  "uid" : "8a49a48e529b5268",
+  "name" : "test_processor_migrate",
+  "time" : {
+    "start" : 1659067809235,
+    "stop" : 1659067809290,
+    "duration" : 55
+  },
+  "status" : "passed",
+  "severity" : "normal"
+}, {
+  "uid" : "512e86e81f43ad67",
+  "name" : "config job",
+  "time" : {
+    "start" : 1659067809292,
+    "stop" : 1659067810579,
+    "duration" : 1287
+  },
+  "status" : "passed",
+  "severity" : "normal"
+}, {
+  "uid" : "55df815b87298c2f",
+  "name" : "filter column in sync",
+  "time" : {
+    "start" : 1659067798296,
+    "stop" : 1659067799792,
+    "duration" : 1496
+  },
+  "status" : "passed",
+  "severity" : "normal"
+}, {
+  "uid" : "4af0075ae7af6910",
+  "name" : "js udf in sync",
+  "time" : {
+    "start" : 1659067801245,
+    "stop" : 1659067802814,
+    "duration" : 1569
+  },
+  "status" : "passed",
+  "severity" : "normal"
+}, {
+  "uid" : "9664a1dff6d7a72f",
+  "name" : "create PG datasource with form",
+  "time" : {
+    "start" : 1659067785329,
+    "stop" : 1659067790472,
+    "duration" : 5143
+  },
+  "status" : "passed",
+  "severity" : "normal"
+}, {
+  "uid" : "8573740816e92d06",
+  "name" : "create mongodb datasource with form",
+  "time" : {
+    "start" : 1659067770029,
+    "stop" : 1659067775141,
+    "duration" : 5112
+  },
+  "status" : "passed",
+  "severity" : "normal"
+} ]
