@@ -7,12 +7,19 @@ import com.tapdata.tm.commons.dag.vo.FieldInfo;
 import com.tapdata.tm.commons.dag.vo.TableFieldInfo;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.collections.MapUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
-import java.util.*;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
 public class MigrateFieldRenameProcessor implements DataFlowProcessor{
+
+	private static Logger logger = LogManager.getLogger(MigrateFieldRenameProcessor.class);
 
 	private ProcessorContext processorContext;
 
@@ -52,7 +59,8 @@ public class MigrateFieldRenameProcessor implements DataFlowProcessor{
 		for (String oldFieldName : keySet) {
 			FieldInfo fieldInfo = fieldsMappingMap.get(oldFieldName);
 			if (fieldInfo == null) {
-				throw new IllegalArgumentException(String.format("no suitable rename configuration for field [%s]", oldFieldName));
+				logger.warn(String.format("no suitable rename configuration for field [%s]", oldFieldName));
+				continue;
 			}
 			Object value = map.remove(oldFieldName);
 			if (fieldInfo.getIsShow() != null && !fieldInfo.getIsShow()) {
