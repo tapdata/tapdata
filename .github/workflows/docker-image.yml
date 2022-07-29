@@ -46,7 +46,7 @@ jobs:
       - name: compile plugin-kit module
         run: |
           chmod u+x build/build.sh 
-          build/build.sh -c plugin-kit
+          build/build.sh -c plugin-kit || exit 1
       - name: compile connectors-common module
         run:
           build/build.sh -c connectors-common

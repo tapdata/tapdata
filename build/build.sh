@@ -84,6 +84,10 @@ build() {
             fi
         fi
         docker exec -i tapdata-build-container bash -c "cd /tapdata-source && bash build/build.sh -c $components"
+        if [[ $? -ne 0 ]]; then
+            exit 1
+        fi
+
         return
     fi
 
