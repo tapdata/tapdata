@@ -45,7 +45,7 @@ public class SampleTask extends AspectTask {
 	}
 
 	@Override
-	public void onStart() {
+	public void onStart(TaskStartAspect startAspect) {
 		//TaskStartAspect
 
 	}
@@ -63,7 +63,7 @@ public class SampleTask extends AspectTask {
 	}
 
 	@Override
-	public void onStop() {
+	public void onStop(TaskStopAspect stopAspect) {
 		//TaskStopAspect
 	}
 
