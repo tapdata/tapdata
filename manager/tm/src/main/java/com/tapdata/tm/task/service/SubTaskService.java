@@ -17,6 +17,9 @@ import com.tapdata.tm.commons.dag.logCollector.LogCollectorNode;
 import com.tapdata.tm.commons.dag.nodes.DataParentNode;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
+import com.tapdata.tm.commons.dag.process.MigrateFieldRenameProcessorNode;
+import com.tapdata.tm.commons.dag.process.MigrateJsProcessorNode;
+import com.tapdata.tm.commons.dag.process.TableRenameProcessNode;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
 import com.tapdata.tm.commons.schema.DataSourceDefinitionDto;
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;
@@ -42,16 +45,11 @@ import com.tapdata.tm.task.vo.SubTaskDetailVo;
 import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.utils.Lists;
 import com.tapdata.tm.utils.MongoUtils;
-import com.tapdata.tm.utils.SpringContextHelper;
 import com.tapdata.tm.utils.UUIDUtil;
 import com.tapdata.tm.worker.dto.WorkerDto;
 import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.service.WorkerService;
 import com.tapdata.tm.ws.enums.MessageType;
-import io.tapdata.entity.event.ddl.table.TapAlterFieldNameEvent;
-import io.tapdata.entity.event.ddl.table.TapDropFieldEvent;
-import io.tapdata.entity.event.ddl.table.TapFieldBaseEvent;
-import io.tapdata.entity.event.ddl.table.TapNewFieldEvent;
 import lombok.NonNull;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
@@ -61,7 +59,6 @@ import org.bson.Document;
 import org.bson.types.ObjectId;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.BulkOperations;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
@@ -72,6 +69,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -883,12 +881,16 @@ public class SubTaskService extends BaseService<SubTaskDto, SubTaskEntity, Objec
         //老的节点在当前更新中必须都存在。
         //老的连线在当前更新中必须存在。
         //之前存在的处理节点跟当前对应的处理节点参数必须一致
+        Map<String, Node> oldNodeMap = oldNodes.stream().collect(Collectors.toMap(Node::getId, n -> n));
         Map<String, Node> curNodeMap = curNodes.stream().collect(Collectors.toMap(Node::getId, n -> n));
-        for (Node oldNode : oldNodes) {
-//            Node node = curNodeMap.get(oldNode.getId());
-//            if (!oldNode.getId().equals(node.getId())) {
-//                return false;
-//            }
+        AtomicBoolean flag = new AtomicBoolean(false);
+        curNodeMap.forEach((k, v) -> {
+            if (v instanceof TableRenameProcessNode || v instanceof MigrateFieldRenameProcessorNode || v instanceof MigrateJsProcessorNode) {
+                flag.set(true);
+            }
+        });
+        if (flag.get()) {
+            return false;
         }
 
         for (Edge oldEdge : oldEdges) {
@@ -906,7 +908,6 @@ public class SubTaskService extends BaseService<SubTaskDto, SubTaskEntity, Objec
 
 
         //新增连线的输出不能是老节点。
-        Map<String, Node> oldNodeMap = oldNodes.stream().collect(Collectors.toMap(Node::getId, n -> n));
         List<Edge> edges = curEdges.stream().filter(e -> !oldEdges.contains(e)).collect(Collectors.toList());
         for (Edge curEdge : edges) {
             if (oldNodeMap.get(curEdge.getTarget()) != null) {

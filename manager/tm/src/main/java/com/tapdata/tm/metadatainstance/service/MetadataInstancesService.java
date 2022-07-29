@@ -906,12 +906,12 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
 
             Criteria criteria = Criteria.where("qualified_name").is(newModelMap.get(dto.getOriginalName()));
             Query query = new Query(criteria);
+            beforeSave(dto, user);
             repository.applyUserDetail(query, user);
             Update update = repository.buildUpdateSet(convertToEntity(MetadataInstancesEntity.class, dto), user);
             repository.beforeUpsert(update, user);
 
             //这个操作有可能是插入操作，所以需要校验字段是否又id，如果没有就set id进去
-            beforeSave(dto, user);
             bulkOperations.upsert(query, update);
             if (num % 1000 == 0) {
                 BulkWriteResult execute = bulkOperations.execute();

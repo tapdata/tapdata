@@ -21,4 +21,6 @@ public class FieldsMapping {
 
     private Boolean isShow;
     private String migrateType;
+
+    private int primary_key_position;
 }

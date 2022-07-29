@@ -1,11 +1,13 @@
 package io.tapdata.connector.mysql.ddl.sqlmaker;
 
 import io.tapdata.connector.mysql.ddl.DDLSqlMaker;
+import io.tapdata.connector.mysql.util.MysqlUtil;
 import io.tapdata.entity.event.ddl.entity.ValueChange;
 import io.tapdata.entity.event.ddl.table.TapAlterFieldAttributesEvent;
 import io.tapdata.entity.event.ddl.table.TapAlterFieldNameEvent;
 import io.tapdata.entity.event.ddl.table.TapDropFieldEvent;
 import io.tapdata.entity.event.ddl.table.TapNewFieldEvent;
+import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import org.apache.commons.lang3.StringUtils;
@@ -21,6 +23,12 @@ import java.util.List;
  **/
 public class MysqlDDLSqlMaker implements DDLSqlMaker {
 	private final static String ALTER_TABLE_PREFIX = "alter table `%s`.`%s`";
+	public static final String TAG = MysqlDDLSqlMaker.class.getSimpleName();
+	private String version;
+
+	public MysqlDDLSqlMaker(String version) {
+		this.version = version;
+	}
 
 	@Override
 	public List<String> addColumn(TapConnectorContext tapConnectorContext, TapNewFieldEvent tapNewFieldEvent) {
@@ -46,6 +54,11 @@ public class MysqlDDLSqlMaker implements DDLSqlMaker {
 				throw new RuntimeException("Append add column ddl sql failed, field name is blank");
 			}
 			String dataType = newField.getDataType();
+			try {
+				dataType = MysqlUtil.fixDataType(dataType, version);
+			} catch (Exception e) {
+				TapLogger.warn(TAG, e.getMessage());
+			}
 			if (StringUtils.isNotBlank(dataType)) {
 				sql.append(" ").append(dataType);
 			} else {
@@ -95,7 +108,13 @@ public class MysqlDDLSqlMaker implements DDLSqlMaker {
 		}
 		ValueChange<String> dataTypeChange = tapAlterFieldAttributesEvent.getDataTypeChange();
 		if (StringUtils.isNotBlank(dataTypeChange.getAfter())) {
-			sql.append(" ").append(dataTypeChange.getAfter());
+			String dataTypeChangeAfter = dataTypeChange.getAfter();
+			try {
+				dataTypeChangeAfter = MysqlUtil.fixDataType(dataTypeChangeAfter, version);
+			} catch (Exception e) {
+				TapLogger.warn(TAG, e.getMessage());
+			}
+			sql.append(" ").append(dataTypeChangeAfter);
 		} else {
 			throw new RuntimeException("Append alter column attr ddl sql failed, data type is blank");
 		}
