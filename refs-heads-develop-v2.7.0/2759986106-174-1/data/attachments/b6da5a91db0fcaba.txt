@@ -1,0 +1,6 @@
+job [1;32mstats_hbgqj[0m start running ...                                                                                                                                        
+job [1;32mstats_hbgqj[0m status is: [1;32mscheduling[0m                                                                                                                         
+job [1;32mstats_hbgqj[0m status is: [1;32mrunning[0m                                                                                                                            
+the status is running now, this is 1 times, 5 times remaining                                                                                                                       
+job [1;32mstats_hbgqj[0m status is: [1;32mrunning[0m                                                                                                                            
+job [1;32mstats_hbgqj[0m status: [1;32mrunning[0m, delay: [1;32m0.0[0m, stats: input [1;32m0[0m, output [1;32m0[0m, insert [1;32m0[0m, update [1;32m0[0m, delete [1;32m0[0mjob [1;32mstats_hbgqj[0m status: [1;32mrunning[0m, delay: [1;32m0.0[0m, stats: input [1;32m0[0m, output [1;32m0[0m, insert [1;32m0[0m, update [1;32m0[0m, delete [1;32m0[0m
