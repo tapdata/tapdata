@@ -9,6 +9,8 @@ import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.aspect.ProcessorFunctionAspect;
 import io.tapdata.aspect.ProcessorNodeProcessAspect;
+import io.tapdata.aspect.TaskStartAspect;
+import io.tapdata.aspect.TaskStopAspect;
 import io.tapdata.aspect.task.AspectTask;
 import io.tapdata.aspect.task.AspectTaskSession;
 import io.tapdata.entity.aspect.Aspect;
@@ -44,7 +46,7 @@ public class TestRunAspectTask extends AspectTask {
   }
 
   @Override
-  public void onStart() {
+  public void onStart(TaskStartAspect startAspect) {
     Optional<Node> optional = task.getDag().getNodes().stream().filter(n -> n.getType().equals("virtualTarget")).findFirst();
     optional.ifPresent(node -> this.nodeIds = task.getDag().getPreNodes(node.getId()).stream()
             .map(Element::getId).collect(Collectors.toSet()));
@@ -74,7 +76,7 @@ public class TestRunAspectTask extends AspectTask {
   }
 
   @Override
-  public void onStop() {
+  public void onStop(TaskStopAspect stopAspect) {
     ClientMongoOperator clientMongoOperator = BeanUtil.getBean(ClientMongoOperator.class);
     Map<String, Object> paramMap = new HashMap<>();
     paramMap.put("taskId", task.getParentTask().getId().toHexString());

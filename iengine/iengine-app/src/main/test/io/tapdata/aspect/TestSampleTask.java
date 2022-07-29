@@ -14,7 +14,7 @@ public class TestSampleTask extends SampleTask {
 		super();
 	}
 	@Override
-	public void onStart() {
+	public void onStart(TaskStartAspect startAspect) {
 		//TaskStartAspect
 		onStartCounter.increment();
 	}
@@ -30,7 +30,7 @@ public class TestSampleTask extends SampleTask {
 	}
 
 	@Override
-	public void onStop() {
+	public void onStop(TaskStopAspect stopAspect) {
 		//TaskStartAspect
 		onStopCounter.increment();
 	}
