@@ -31,7 +31,7 @@ import static org.springframework.data.mongodb.core.query.Criteria.where;
  **/
 public class TapTableMap<K extends String, V extends TapTable> extends HashMap<K, V> {
 	private static final String DIST_CACHE_PATH = "tap_table_ehcache";
-	public static final int DEFAULT_OFF_HEAP_MB = 100;
+	public static final int DEFAULT_OFF_HEAP_MB = 10;
 	public static final int DEFAULT_DISK_MB = 1024;
 	public static final int MAX_HEAP_ENTRIES = 100;
 	public static final String TAP_TABLE_OFF_HEAP_MB_KEY = "TAP_TABLE_OFF_HEAP_MB";
