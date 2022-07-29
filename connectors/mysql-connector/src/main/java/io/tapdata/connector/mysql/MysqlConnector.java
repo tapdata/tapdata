@@ -18,6 +18,7 @@ import io.tapdata.entity.schema.value.*;
 import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.entity.simplify.pretty.BiClassHandlers;
 import io.tapdata.entity.utils.DataMap;
+import io.tapdata.entity.utils.cache.KVMap;
 import io.tapdata.pdk.apis.annotations.TapConnectorClass;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
@@ -63,7 +64,7 @@ public class MysqlConnector extends ConnectorBase {
 				this.connectionTimezone = mysqlJdbcContext.timezone();
 			}
 		}
-		ddlSqlMaker = new MysqlDDLSqlMaker();
+		ddlSqlMaker = new MysqlDDLSqlMaker(version);
 		fieldDDLHandlers = new BiClassHandlers<>();
 		fieldDDLHandlers.register(TapNewFieldEvent.class, this::newField);
 		fieldDDLHandlers.register(TapAlterFieldAttributesEvent.class, this::alterFieldAttr);
@@ -105,6 +106,18 @@ public class MysqlConnector extends ConnectorBase {
 		connectorFunctions.supportAlterFieldAttributesFunction(this::fieldDDLHandler);
 		connectorFunctions.supportDropFieldFunction(this::fieldDDLHandler);
 		connectorFunctions.supportGetTableNamesFunction(this::getTableNames);
+		connectorFunctions.supportReleaseExternalFunction(this::releaseExternal);
+	}
+
+	private void releaseExternal(TapConnectorContext tapConnectorContext) {
+		try {
+			KVMap<Object> stateMap = tapConnectorContext.getStateMap();
+			if (null != stateMap) {
+				stateMap.clear();
+			}
+		} catch (Throwable throwable) {
+			TapLogger.warn(TAG, "Release mysql state map failed, error: " + throwable.getMessage());
+		}
 	}
 
 	private void getTableNames(TapConnectionContext tapConnectionContext, int batchSize, Consumer<List<String>> listConsumer) {
@@ -189,10 +202,6 @@ public class MysqlConnector extends ConnectorBase {
 		});
 		return count.get();
 	}
-
-//	@Override
-//	public void onDestroy(TapConnectionContext connectionContext) throws Throwable {
-//	}
 
 	@Override
 	public void onStop(TapConnectionContext connectionContext) throws Throwable {
