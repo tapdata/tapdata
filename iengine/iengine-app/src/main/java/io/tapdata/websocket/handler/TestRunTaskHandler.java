@@ -58,12 +58,13 @@ public class TestRunTaskHandler implements WebSocketEventHandler<WebSocketEventR
 		try {
 			taskClient = taskService.startTestTask(subTaskDto);
 			taskClient.join();
+			AspectUtils.executeAspect(new TaskStopAspect().task(taskClient.getTask()));
 		} catch (Throwable throwable) {
+			if (taskClient != null) {
+				AspectUtils.executeAspect(new TaskStopAspect().task(taskClient.getTask()).error(throwable));
+			}
 			return WebSocketEventResult.handleFailed(WebSocketEventResult.Type.TEST_RUN, throwable.getMessage());
 		} finally {
-			if (taskClient != null) {
-				AspectUtils.executeAspect(new TaskStopAspect().task(taskClient.getTask()));
-			}
 			taskClientMap.remove(taskId);
 		}
 
