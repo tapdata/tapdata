@@ -47,7 +47,7 @@ public class AspectTaskManagerImpl implements AspectTaskManager {
 						if (classHolders != null) {
 							for (TaskSessionClassHolder classHolder : classHolders) {
 								if(classHolder.isTaskSupported(task))
-									classHolder.ensureTaskSessionCreated(task);
+									classHolder.ensureTaskSessionCreated(aspect);
 							}
 						}
 					});
@@ -60,7 +60,7 @@ public class AspectTaskManagerImpl implements AspectTaskManager {
 						Collection<TaskSessionClassHolder> classHolders = taskSessionMap.get("default");
 						if (classHolders != null) {
 							for (TaskSessionClassHolder classHolder : classHolders) {
-								classHolder.ensureTaskSessionStopped(task);
+								classHolder.ensureTaskSessionStopped(aspect);
 							}
 						}
 					});

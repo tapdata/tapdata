@@ -4,6 +4,8 @@ import com.tapdata.entity.TapdataEvent;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.aspect.BatchReadFuncAspect;
 import io.tapdata.aspect.StreamReadFuncAspect;
+import io.tapdata.aspect.TaskStartAspect;
+import io.tapdata.aspect.TaskStopAspect;
 import io.tapdata.aspect.task.AspectTask;
 import io.tapdata.aspect.task.AspectTaskSession;
 import io.tapdata.entity.aspect.Aspect;
@@ -18,7 +20,7 @@ import java.util.function.Consumer;
 public class ObservableAspectTask extends AspectTask {
 	private final ClassHandlers observerClassHandlers = new ClassHandlers();
 	@Override
-	public void onStart() {
+	public void onStart(TaskStartAspect startAspect) {
 		observerClassHandlers.register(BatchReadFuncAspect.class, this::handleBatchReadFunc);
 		observerClassHandlers.register(StreamReadFuncAspect.class, this::handleStreamReadFunc);
 	}
@@ -64,7 +66,7 @@ public class ObservableAspectTask extends AspectTask {
 	}
 
 	@Override
-	public void onStop() {
+	public void onStop(TaskStopAspect stopAspect) {
 
 	}
 
