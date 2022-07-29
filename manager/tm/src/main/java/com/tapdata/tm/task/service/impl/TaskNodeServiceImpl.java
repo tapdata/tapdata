@@ -1,14 +1,12 @@
 package com.tapdata.tm.task.service.impl;
 
 import cn.hutool.core.bean.BeanUtil;
+import cn.hutool.extra.spring.SpringUtil;
 import com.google.common.collect.Maps;
 import com.tapdata.manager.common.utils.JsonUtil;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.exception.BizException;
-import com.tapdata.tm.commons.dag.DAG;
-import com.tapdata.tm.commons.dag.Edge;
-import com.tapdata.tm.commons.dag.FieldsMapping;
-import com.tapdata.tm.commons.dag.Node;
+import com.tapdata.tm.commons.dag.*;
 import com.tapdata.tm.commons.dag.logCollector.VirtualTargetNode;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.process.MigrateFieldRenameProcessorNode;
@@ -18,16 +16,15 @@ import com.tapdata.tm.commons.dag.vo.FieldInfo;
 import com.tapdata.tm.commons.dag.vo.TableFieldInfo;
 import com.tapdata.tm.commons.dag.vo.TableRenameTableInfo;
 import com.tapdata.tm.commons.dag.vo.TestRunDto;
-import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
-import com.tapdata.tm.commons.schema.Field;
-import com.tapdata.tm.commons.schema.MetadataInstancesDto;
-import com.tapdata.tm.commons.schema.MetadataTransformerItemDto;
+import com.tapdata.tm.commons.schema.*;
 import com.tapdata.tm.commons.task.dto.Dag;
 import com.tapdata.tm.commons.task.dto.SubTaskDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.util.MetaDataBuilderUtils;
 import com.tapdata.tm.commons.util.MetaType;
+import com.tapdata.tm.commons.util.PdkSchemaConvert;
 import com.tapdata.tm.config.security.UserDetail;
+import com.tapdata.tm.ds.service.impl.DataSourceDefinitionService;
 import com.tapdata.tm.ds.service.impl.DataSourceService;
 import com.tapdata.tm.messagequeue.dto.MessageQueueDto;
 import com.tapdata.tm.messagequeue.service.MessageQueueService;
@@ -42,6 +39,12 @@ import com.tapdata.tm.utils.Lists;
 import com.tapdata.tm.utils.MongoUtils;
 import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.service.WorkerService;
+import io.tapdata.entity.codec.TapCodecsRegistry;
+import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
+import io.tapdata.entity.mapping.DefaultExpressionMatchingMap;
+import io.tapdata.entity.result.TapResult;
+import io.tapdata.entity.schema.TapField;
+import io.tapdata.entity.schema.TapTable;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections.CollectionUtils;
@@ -49,6 +52,7 @@ import org.apache.commons.collections4.ListUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.bson.types.ObjectId;
 import org.jetbrains.annotations.NotNull;
+import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -67,6 +71,8 @@ public class TaskNodeServiceImpl implements TaskNodeService {
     private DataSourceService dataSourceService;
     private MessageQueueService messageQueueService;
     private WorkerService workerService;
+    private DAGDataService dagDataService;
+    private DataSourceDefinitionService dataSourceDefinitionService;
 
     @Override
     public Page<MetadataTransformerItemDto> getNodeTableInfo(String taskId, String nodeId, String searchTableName,
@@ -193,14 +199,23 @@ public class TaskNodeServiceImpl implements TaskNodeService {
             }
         }
 
-        Map<String, MetadataInstancesEntity> metaMap = Maps.newHashMap();
-        List<MetadataInstancesEntity> list = metadataInstancesService.findEntityBySourceIdAndTableNameList(sourceNode.getConnectionId(),
+        DataSourceConnectionDto sourceDataSource = dataSourceService.findById(MongoUtils.toObjectId(sourceNode.getConnectionId()));
+
+        Map<String, MetadataInstancesDto> metaMap = Maps.newHashMap();
+        List<MetadataInstancesDto> list = metadataInstancesService.findBySourceIdAndTableNameList(sourceNode.getConnectionId(),
                 currentTableList, userDetail);
         if (CollectionUtils.isNotEmpty(list)) {
-            metaMap = list.stream().collect(Collectors.toMap(MetadataInstancesEntity::getOriginalName, Function.identity()));
+            metaMap = list.stream().map(meta -> {
+                // source & target not same database type
+                if (currentNode instanceof DatabaseNode && !sourceDataSource.getDatabase_type().equals(targetDataSource.getDatabase_type())) {
+                    Schema schema = JsonUtil.parseJsonUseJackson(JsonUtil.toJsonUseJackson(meta), Schema.class);
+                    return processFieldToDB(schema, meta, targetDataSource, userDetail);
+                } else {
+                    return meta;
+                }
+            }).collect(Collectors.toMap(MetadataInstancesDto::getOriginalName, Function.identity()));
         }
 
-        DataSourceConnectionDto sourceDataSource = dataSourceService.findById(MongoUtils.toObjectId(sourceNode.getConnectionId()));
 
         List<MetadataTransformerItemDto> data = Lists.newArrayList();
         for (String tableName : currentTableList) {
@@ -358,5 +373,96 @@ public class TaskNodeServiceImpl implements TaskNodeService {
             result.setOver(false);
         }
         return result;
+    }
+
+    /**
+     * 根据字段类型映射规则，将模型 schema中的通用字段类型转换为指定数据库字段类型
+     * @param schema 包含通用字段类型的模型
+     * @param metadataInstancesDto 将映射后的字段类型保存到这里
+     * @param dataSourceConnectionDto 数据库类型
+     */
+    private MetadataInstancesDto processFieldToDB(Schema schema, MetadataInstancesDto metadataInstancesDto, DataSourceConnectionDto dataSourceConnectionDto, UserDetail user) {
+
+        if (metadataInstancesDto == null || schema == null ||
+                metadataInstancesDto.getFields() == null || dataSourceConnectionDto == null){
+            log.error("Process field type mapping to db type failed, invalid params: schema={}, metadataInstanceDto={}, dataSourceConnectionsDto={}",
+                    schema, metadataInstancesDto, dataSourceConnectionDto);
+            return metadataInstancesDto;
+        }
+
+        final String sourceNodeDatabaseType = schema.getSourceNodeDatabaseType();
+        final String databaseType = dataSourceConnectionDto.getDatabase_type();
+        String dbVersion = dataSourceConnectionDto.getDb_version();
+        if (com.tapdata.manager.common.utils.StringUtils.isBlank(dbVersion)) {
+            dbVersion = "*";
+        }
+        //Map<String, List<TypeMappingsEntity>> typeMapping = typeMappingsService.getTypeMapping(databaseType, TypeMappingDirection.TO_DATATYPE);
+
+        schema.setInvalidFields(new ArrayList<>());
+        String finalDbVersion = dbVersion;
+        Map<String, Field> fields = schema.getFields().stream().collect(Collectors.toMap(Field::getFieldName, f -> f, (f1, f2) -> f1));
+
+
+        DataSourceDefinitionDto definitionDto = dataSourceDefinitionService.getByDataSourceType(databaseType, user);
+        String expression = definitionDto.getExpression();
+        Map<Class<?>, String> tapMap = definitionDto.getTapMap();
+
+        TapTable tapTable = PdkSchemaConvert.toPdk(schema);
+
+
+        if (tapTable.getNameFieldMap() != null && tapTable.getNameFieldMap().size() != 0) {
+            LinkedHashMap<String, TapField> updateFieldMap = new LinkedHashMap<>();
+            tapTable.getNameFieldMap().forEach((k, v) -> {
+                if (v.getTapType() == null) {
+                    updateFieldMap.put(k, v);
+                }
+            });
+
+            if (updateFieldMap.size() != 0) {
+                PdkSchemaConvert.tableFieldTypesGenerator.autoFill(updateFieldMap, DefaultExpressionMatchingMap.map(expression));
+
+                updateFieldMap.forEach((k, v) -> {
+                    tapTable.getNameFieldMap().replace(k, v);
+                });
+            }
+        }
+
+        LinkedHashMap<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
+
+        TapCodecsFilterManager codecsFilterManager = TapCodecsFilterManager.create(TapCodecsRegistry.create().withTapTypeDataTypeMap(tapMap));
+        TapResult<LinkedHashMap<String, TapField>> convert = PdkSchemaConvert.targetTypesGenerator.convert(nameFieldMap
+                , DefaultExpressionMatchingMap.map(expression), codecsFilterManager);
+        LinkedHashMap<String, TapField> data = convert.getData();
+
+        data.forEach((k, v) -> {
+            TapField tapField = nameFieldMap.get(k);
+            BeanUtils.copyProperties(v, tapField);
+        });
+        tapTable.setNameFieldMap(nameFieldMap);
+
+
+
+        metadataInstancesDto = PdkSchemaConvert.fromPdk(tapTable);
+
+
+        metadataInstancesDto.getFields().forEach(field -> {
+            if (field.getId() == null) {
+                field.setId(new ObjectId().toHexString());
+            }
+            Field originalField = fields.get(field.getFieldName());
+            if (databaseType.equalsIgnoreCase(field.getSourceDbType())) {
+                if (originalField != null && originalField.getDataTypeTemp() != null) {
+                    field.setDataType(originalField.getDataTypeTemp());
+                }
+            }
+        });
+
+        Map<String, Field> result = metadataInstancesDto.getFields()
+                .stream().collect(Collectors.toMap(Field::getFieldName, m -> m, (m1, m2) -> m2));
+        if (result.size() != metadataInstancesDto.getFields().size()) {
+            metadataInstancesDto.setFields(new ArrayList<>(result.values()));
+        }
+
+        return metadataInstancesDto;
     }
 }
