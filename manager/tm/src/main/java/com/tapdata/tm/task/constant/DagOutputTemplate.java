@@ -21,7 +21,7 @@ public class DagOutputTemplate {
      * 【ERROR】 2022-05-24 21:05:22  【任务A】【任务设置检测】：任务{MySQL_test}检测未通过，异常项{任务名称}，异常原因：任务名称重复，请重新设置
      */
     public static String TASK_SETTING_INFO = "$date【$taskName】【任务设置检测】：任务'{'$taskName}检测通过";
-    public static String TASK_SETTING_ERROR = "$date【$taskName】【任务设置检测】：任务'{'$taskName}检测未通过，异常项{任务名称}，异常原因：任务名称重复，请重新设置";
+    public static String TASK_SETTING_ERROR = "$date【$taskName】【任务设置检测】：任务'{'$taskName}检测未通过，异常项'{'任务名称}，异常原因：任务名称重复，请重新设置";
 
     /**
      * 源节点设置检测：
