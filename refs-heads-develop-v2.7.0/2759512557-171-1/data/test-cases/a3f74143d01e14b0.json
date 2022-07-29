@@ -1,0 +1,179 @@
+{
+  "uid" : "a3f74143d01e14b0",
+  "name" : "js udf in sync",
+  "fullName" : "test_pipeline.TestPipeline#test_processor_sync",
+  "historyId" : "5f76061d07be2fa3f1de95bfd0d35e24",
+  "time" : {
+    "start" : 1659085736249,
+    "stop" : 1659085738726,
+    "duration" : 2477
+  },
+  "status" : "passed",
+  "flaky" : false,
+  "newFailed" : false,
+  "beforeStages" : [ ],
+  "testStage" : {
+    "status" : "passed",
+    "steps" : [ ],
+    "attachments" : [ {
+      "uid" : "7a2c05e3770c43c8",
+      "name" : "stdout",
+      "source" : "7a2c05e3770c43c8.txt",
+      "type" : "text/plain",
+      "size" : 905
+    } ],
+    "parameters" : [ ],
+    "stepsCount" : 0,
+    "attachmentsCount" : 1,
+    "shouldDisplayMessage" : false,
+    "hasContent" : true
+  },
+  "afterStages" : [ ],
+  "labels" : [ {
+    "name" : "feature",
+    "value" : "pipeline"
+  }, {
+    "name" : "suite",
+    "value" : "test_pipeline"
+  }, {
+    "name" : "subSuite",
+    "value" : "TestPipeline"
+  }, {
+    "name" : "host",
+    "value" : "a49d0bee50c4"
+  }, {
+    "name" : "thread",
+    "value" : "828-MainThread"
+  }, {
+    "name" : "framework",
+    "value" : "pytest"
+  }, {
+    "name" : "language",
+    "value" : "cpython3"
+  }, {
+    "name" : "package",
+    "value" : "test_pipeline"
+  }, {
+    "name" : "resultFormat",
+    "value" : "allure2"
+  } ],
+  "parameters" : [ ],
+  "links" : [ ],
+  "hidden" : false,
+  "retry" : false,
+  "extra" : {
+    "severity" : "normal",
+    "retries" : [ ],
+    "categories" : [ ],
+    "history" : {
+      "statistic" : {
+        "failed" : 0,
+        "broken" : 0,
+        "skipped" : 0,
+        "passed" : 13,
+        "unknown" : 0,
+        "total" : 13
+      },
+      "items" : [ {
+        "uid" : "4715728be0657381",
+        "status" : "passed",
+        "time" : {
+          "start" : 1659084862874,
+          "stop" : 1659084865335,
+          "duration" : 2461
+        }
+      }, {
+        "uid" : "dffb9c9b08bc4570",
+        "status" : "passed",
+        "time" : {
+          "start" : 1659083510747,
+          "stop" : 1659083513588,
+          "duration" : 2841
+        }
+      }, {
+        "uid" : "50c8e5c9ac6081cc",
+        "status" : "passed",
+        "time" : {
+          "start" : 1659082476558,
+          "stop" : 1659082479089,
+          "duration" : 2531
+        }
+      }, {
+        "uid" : "8f40135125836f9d",
+        "status" : "passed",
+        "time" : {
+          "start" : 1659081385811,
+          "stop" : 1659081388250,
+          "duration" : 2439
+        }
+      }, {
+        "uid" : "3ae756cd5e210ea6",
+        "status" : "passed",
+        "time" : {
+          "start" : 1659080042421,
+          "stop" : 1659080044954,
+          "duration" : 2533
+        }
+      }, {
+        "uid" : "3cdbc07bd5c1d96b",
+        "status" : "passed",
+        "time" : {
+          "start" : 1659078705612,
+          "stop" : 1659078707140,
+          "duration" : 1528
+        }
+      }, {
+        "uid" : "dd2f1075c4e926e6",
+        "status" : "passed",
+        "time" : {
+          "start" : 1659076823316,
+          "stop" : 1659076825690,
+          "duration" : 2374
+        }
+      }, {
+        "uid" : "dfd0590e3e4537ba",
+        "status" : "passed",
+        "time" : {
+          "start" : 1659067806830,
+          "stop" : 1659067809234,
+          "duration" : 2404
+        }
+      }, {
+        "uid" : "5c05cbb68650e4e6",
+        "status" : "passed",
+        "time" : {
+          "start" : 1658735178998,
+          "stop" : 1658735181635,
+          "duration" : 2637
+        }
+      }, {
+        "uid" : "19efec95669381d",
+        "status" : "passed",
+        "time" : {
+          "start" : 1658726041008,
+          "stop" : 1658726042493,
+          "duration" : 1485
+        }
+      }, {
+        "uid" : "ebfe05e0335cddef",
+        "status" : "passed",
+        "time" : {
+          "start" : 1658693718203,
+          "stop" : 1658693720496,
+          "duration" : 2293
+        }
+      }, {
+        "uid" : "21f723269751345",
+        "status" : "passed",
+        "time" : {
+          "start" : 1658482943221,
+          "stop" : 1658482945642,
+          "duration" : 2421
+        }
+      } ]
+    },
+    "tags" : [ ]
+  },
+  "source" : "a3f74143d01e14b0.json",
+  "parameterValues" : [ ]
+}
