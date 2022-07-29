@@ -1020,15 +1020,15 @@ class ApiCommand(Magics):
                 }
             ]
         }
-        res = req.get("/Modules", json=payload).json()
-        if res["msg"] == "ok":
+        res = req.post("/Modules", json=payload).json()
+        if res["code"] == "ok":
             logger.info(
                 "publish api {} success, you can test it by: {}",
                 base_path,
                 "http://" + server + "#/apiDocAndTest?id=" + base_path + "_v1"
             )
         else:
-            logger.warn("publish api {} fail, err is: {}", base_path, res["msg"])
+            logger.warn("publish api {} fail, err is: {}", base_path, res["message"])
 
 
 @magics_class
@@ -2311,12 +2311,12 @@ class Api:
     def publish(self):
         if self.id is None:
             res = req.post("/Modules", json=self.payload).json()
-            if res["msg"] == "ok":
+            if res["code"] == "ok":
                 logger.info("publish api {} success, you can test it by: {}", self.base_path,
                             "http://" + server + "#/apiDocAndTest?id=" + self.base_path + "_v1")
                 self.id = res["data"]["id"]
             else:
-                logger.warn("publish api {} fail, err is: {}", self.base_path, res["msg"])
+                logger.warn("publish api {} fail, err is: {}", self.base_path, res["message"])
         else:
             payload = {
                 "id": self.id,
@@ -2327,7 +2327,7 @@ class Api:
             if res["code"] == "ok":
                 logger.info("publish {} success", self.name)
             else:
-                logger.warn("publish {} fail, err is: {}", self.name, res["msg"])
+                logger.warn("publish {} fail, err is: {}", self.name, res["message"])
 
     def get(self, name):
         global client_cache
@@ -2351,7 +2351,7 @@ class Api:
         if res["code"] == "ok":
             logger.info("unpublish {} success", self.id)
         else:
-            logger.warn("unpublish {} fail, err is: {}", self.id, res["msg"])
+            logger.warn("unpublish {} fail, err is: {}", self.id, res["message"])
 
     def delete(self):
         if self.id is None:
@@ -2362,7 +2362,7 @@ class Api:
         if res["code"] == "ok":
             logger.info("delete api {} success", self.name)
         else:
-            logger.warn("delete api {} fail, err is: {}", self.name, res["msg"])
+            logger.warn("delete api {} fail, err is: {}", self.name, res["message"])
 
 
 class Job:
@@ -2943,7 +2943,7 @@ class DataSource():
             self.validate(quiet=False)
             return True
         else:
-            logger.warn("save Connection fail, err is: {}", res.json()["msg"])
+            logger.warn("save Connection fail, err is: {}", res.json()["message"])
         return False
 
     def delete(self):
