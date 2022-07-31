@@ -165,42 +165,47 @@ public class AggregateOps {
         final OperationType operationType = OperationType.fromOp(event.getOp());
         if (changedCount.compareTo(BigDecimal.ZERO) != 0) {
             boolean positive = changedCount.compareTo(BigDecimal.ZERO) > 0;
+            Map<String, Object> before = event.getBefore();
             Map<String, Object> after = event.getAfter();
-            return getNumberForPreProcessSum(after, aggregatorField, positive);
+            return positive ? getNumberForPreProcessSum(after, aggregatorField) : getNumberForPreProcessSum(before, aggregatorField).negate();
         }
         if (operationType == OperationType.DELETE) {
-            return getNumberForPreProcessSum(event.getBefore(), aggregatorField, false);
+            return getNumberForPreProcessSum(event.getBefore(), aggregatorField).negate();
         } else if (operationType == OperationType.INSERT) {
-            return getNumberForPreProcessSum(event.getAfter(), aggregatorField, true);
+            return getNumberForPreProcessSum(event.getAfter(), aggregatorField);
         } else {
             throw new RuntimeException("unimplemented code");
         }
     }
 
     private static BigDecimal preProcessSum(TapRecordEvent event, String aggregatorField, BigDecimal changedCount) {
+        if (changedCount == null) {
+            return BigDecimal.ZERO;
+        }
         if (changedCount.compareTo(BigDecimal.ZERO) != 0) {
             boolean positive = changedCount.compareTo(BigDecimal.ZERO) > 0;
+            Map<String, Object> before = TapEventUtil.getBefore(event);
             Map<String, Object> after = TapEventUtil.getAfter(event);
-            return getNumberForPreProcessSum(after, aggregatorField, positive);
+            return positive ? getNumberForPreProcessSum(after, aggregatorField) : getNumberForPreProcessSum(before, aggregatorField).negate();
         }
         if (event instanceof TapDeleteRecordEvent) {
             Map<String, Object> before = TapEventUtil.getBefore(event);
-            return getNumberForPreProcessSum(before, aggregatorField, false);
+            return getNumberForPreProcessSum(before, aggregatorField).negate();
         } else if (event instanceof TapInsertRecordEvent) {
             Map<String, Object> after = TapEventUtil.getAfter(event);
-            return getNumberForPreProcessSum(after, aggregatorField, true);
+            return getNumberForPreProcessSum(after, aggregatorField);
         } else {
             throw new RuntimeException("unimplemented code");
         }
     }
 
-    private static BigDecimal getNumberForPreProcessSum(Map<String, Object> map, final String aggregatorField, final boolean positive) {
+    private static BigDecimal getNumberForPreProcessSum(Map<String, Object> map, final String aggregatorField) {
         if (map == null) {
             return BigDecimal.ZERO;
         }
         Object fieldValue = map.get(aggregatorField);
         try {
-            return positive ? AggregatorUtils.getBigDecimal(fieldValue) : AggregatorUtils.getBigDecimal(fieldValue).negate();
+            return AggregatorUtils.getBigDecimal(fieldValue);
         } catch (Exception ignore) {
 
         }
@@ -285,6 +290,9 @@ public class AggregateOps {
     }
 
     private static BigDecimal preProcessCount(OperationType operationType, BigDecimal changedCount) {
+        if (changedCount == null) {
+            return BigDecimal.ZERO;
+        }
         if (changedCount.compareTo(BigDecimal.ZERO) != 0) {
             return changedCount;
         }
@@ -530,7 +538,6 @@ public class AggregateOps {
         }
         // 累计的行数
         BigDecimal groupedRecordCount = updateCounter(cache, cacheKey, tapRecordEvent, wrappedItem.getChangedCount());
-        System.out.println("--------count-----" + groupedRecordCount.intValue());
         if (cache.exists(cacheKey)) {
             // 删除
             if (groupedRecordCount.compareTo(BigDecimal.ZERO) == 0) {
@@ -561,9 +568,9 @@ public class AggregateOps {
         final OperationType operationType = OperationType.fromOp(messageEntity.getOp());
 
         BigDecimal fieldValue = preProcessField(messageEntity, aggregatorField);
-
+        BigDecimal changedCount = wrappedItem.getChangedCount();
         // 累计的行数
-        BigDecimal groupedRecordCount = updateCounter(cache, cacheKey, messageEntity, wrappedItem.getChangedCount());
+        BigDecimal groupedRecordCount = updateCounter(cache, cacheKey, messageEntity, changedCount);
 
         if (cacheList.exists(cacheKey)) {
             ArrayList<BigDecimal> groupedMaxList = cacheList.find(cacheKey);
@@ -578,10 +585,14 @@ public class AggregateOps {
             } else {
                 if (operationType == OperationType.DELETE) {
                     logger.debug("cacheList didn't contains this value:" + fieldValue + " can not delete");
-                } else if (operationType == OperationType.INSERT || operationType == OperationType.UPDATE) {
-                    groupedMaxList = doInsertAndCut(groupedMaxList, fieldValue, new MaxComparator());
+                } else if (operationType == OperationType.INSERT) {
+                    groupedMaxList = doInsertAndCut(groupedMaxList, fieldValue, new MaxComparator(), changedCount);
                 } else {
-                    throw new RuntimeException("unimplement code");
+                    if (changedCount == null || changedCount.compareTo(BigDecimal.ZERO) <= 0) {
+                        throw new RuntimeException("unimplement code");
+                    } else {
+                        groupedMaxList = doInsertAndCut(groupedMaxList, fieldValue, new MaxComparator(), changedCount);
+                    }
                 }
             }
             if (groupedMaxList.size() > 0) {
@@ -626,6 +637,8 @@ public class AggregateOps {
                 } else {
                     if (changedCount.compareTo(BigDecimal.ZERO) < 0) {
                         groupedMaxList.remove(fieldValue);
+                    } else if (changedCount.compareTo(BigDecimal.ZERO) > 0) {
+                        logger.debug("cacheList already contains this value:" + fieldValue + " do not need to insert");
                     } else {
                         throw new RuntimeException("unimplement code");
                     }
@@ -634,12 +647,12 @@ public class AggregateOps {
                 if (tapRecordEvent instanceof TapDeleteRecordEvent) {
                     logger.debug("cacheList didn't contains this value:" + fieldValue + " can not delete");
                 } else if (tapRecordEvent instanceof TapInsertRecordEvent) {
-                    groupedMaxList = doInsertAndCut(groupedMaxList, fieldValue, new MaxComparator());
+                    groupedMaxList = doInsertAndCut(groupedMaxList, fieldValue, new MaxComparator(), changedCount);
                 } else {
-                    if (changedCount.compareTo(BigDecimal.ZERO) > 0) {
-                        groupedMaxList = doInsertAndCut(groupedMaxList, fieldValue, new MaxComparator());
-                    } else {
+                    if (changedCount == null || changedCount.compareTo(BigDecimal.ZERO) <= 0) {
                         throw new RuntimeException("unimplement code");
+                    } else {
+                        groupedMaxList = doInsertAndCut(groupedMaxList, fieldValue, new MaxComparator(), changedCount);
                     }
                 }
             }
@@ -689,8 +702,10 @@ public class AggregateOps {
         }
     }
 
-    private static ArrayList<BigDecimal> doInsertAndCut(ArrayList<BigDecimal> groupedMaxList, BigDecimal fieldValue, Comparator comparator) {
-        groupedMaxList.add(fieldValue);
+    private static ArrayList<BigDecimal> doInsertAndCut(ArrayList<BigDecimal> groupedMaxList, BigDecimal fieldValue, Comparator comparator, BigDecimal changedCount) {
+        if (changedCount != null) {
+            groupedMaxList.add(fieldValue);
+        }
         groupedMaxList.sort(comparator);
         if (groupedMaxList.size() > MAX_LENGTH) {
             return new ArrayList(groupedMaxList.subList(0, MAX_LENGTH));
@@ -728,12 +743,12 @@ public class AggregateOps {
                 if (operationType == OperationType.DELETE) {
                     logger.debug("cacheList didn't contains this value:" + fieldValue + " can not delete");
                 } else if (operationType == OperationType.INSERT) {
-                    groupedMinList = doInsertAndCut(groupedMinList, fieldValue, new MinComparator());
+                    groupedMinList = doInsertAndCut(groupedMinList, fieldValue, new MinComparator(), changedCount);
                 } else {
-                    if (changedCount.compareTo(BigDecimal.ZERO) > 0) {
-                        groupedMinList = doInsertAndCut(groupedMinList, fieldValue, new MinComparator());
-                    } else {
+                    if (changedCount == null || changedCount.compareTo(BigDecimal.ZERO) <= 0) {
                         throw new RuntimeException("unimplement code");
+                    } else {
+                        groupedMinList = doInsertAndCut(groupedMinList, fieldValue, new MinComparator(), changedCount);
                     }
                 }
             }
@@ -778,6 +793,8 @@ public class AggregateOps {
                 } else {
                     if (changedCount.compareTo(BigDecimal.ZERO) < 0) {
                         groupedMinList.remove(fieldValue);
+                    } else if (changedCount.compareTo(BigDecimal.ZERO) > 0) {
+                        logger.debug("cacheList already contains this value:" + fieldValue + " do not need to insert");
                     } else {
                         throw new RuntimeException("unimplement code");
                     }
@@ -786,12 +803,12 @@ public class AggregateOps {
                 if (tapRecordEvent instanceof TapDeleteRecordEvent) {
                     logger.debug("cacheList didn't contains this value:" + fieldValue + " can not delete");
                 } else if (tapRecordEvent instanceof TapInsertRecordEvent) {
-                    groupedMinList = doInsertAndCut(groupedMinList, fieldValue, new MinComparator());
+                    groupedMinList = doInsertAndCut(groupedMinList, fieldValue, new MinComparator(), changedCount);
                 } else {
-                    if (changedCount.compareTo(BigDecimal.ZERO) > 0) {
-                        groupedMinList = doInsertAndCut(groupedMinList, fieldValue, new MinComparator());
-                    } else {
+                    if (changedCount == null || changedCount.compareTo(BigDecimal.ZERO) <= 0) {
                         throw new RuntimeException("unimplement code");
+                    } else {
+                        groupedMinList = doInsertAndCut(groupedMinList, fieldValue, new MinComparator(), changedCount);
                     }
                 }
             }
