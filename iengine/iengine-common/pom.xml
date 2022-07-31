@@ -334,11 +334,6 @@
             <version>3.0.8</version>
             <!--      <type>bundle</type>-->
         </dependency>
-        <dependency>
-            <groupId>com.github.ben-manes.caffeine</groupId>
-            <artifactId>caffeine</artifactId>
-        </dependency>
-
     </dependencies>
 
     <distributionManagement>
