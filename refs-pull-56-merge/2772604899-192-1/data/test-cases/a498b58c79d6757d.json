@@ -1,0 +1,91 @@
+{
+  "uid" : "a498b58c79d6757d",
+  "name" : "config job",
+  "fullName" : "test_pipeline.TestPipeline#test_config",
+  "historyId" : "3fd24b328e808f78a027c8159ff63380",
+  "time" : {
+    "start" : 1659334195973,
+    "stop" : 1659334196312,
+    "duration" : 339
+  },
+  "status" : "passed",
+  "flaky" : false,
+  "newFailed" : false,
+  "beforeStages" : [ ],
+  "testStage" : {
+    "status" : "passed",
+    "steps" : [ ],
+    "attachments" : [ {
+      "uid" : "240aaa22068622ad",
+      "name" : "stdout",
+      "source" : "240aaa22068622ad.txt",
+      "type" : "text/plain",
+      "size" : 543
+    } ],
+    "parameters" : [ ],
+    "stepsCount" : 0,
+    "attachmentsCount" : 1,
+    "shouldDisplayMessage" : false,
+    "hasContent" : true
+  },
+  "afterStages" : [ ],
+  "labels" : [ {
+    "name" : "feature",
+    "value" : "pipeline"
+  }, {
+    "name" : "suite",
+    "value" : "test_pipeline"
+  }, {
+    "name" : "subSuite",
+    "value" : "TestPipeline"
+  }, {
+    "name" : "host",
+    "value" : "c8fb1b5bd1a5"
+  }, {
+    "name" : "thread",
+    "value" : "516-MainThread"
+  }, {
+    "name" : "framework",
+    "value" : "pytest"
+  }, {
+    "name" : "language",
+    "value" : "cpython3"
+  }, {
+    "name" : "package",
+    "value" : "test_pipeline"
+  }, {
+    "name" : "resultFormat",
+    "value" : "allure2"
+  } ],
+  "parameters" : [ ],
+  "links" : [ ],
+  "hidden" : false,
+  "retry" : false,
+  "extra" : {
+    "severity" : "normal",
+    "retries" : [ ],
+    "categories" : [ ],
+    "history" : {
+      "statistic" : {
+        "failed" : 0,
+        "broken" : 0,
+        "skipped" : 0,
+        "passed" : 2,
+        "unknown" : 0,
+        "total" : 2
+      },
+      "items" : [ {
+        "uid" : "b485eed461617418",
+        "status" : "passed",
+        "time" : {
+          "start" : 1659328146358,
+          "stop" : 1659328146818,
+          "duration" : 460
+        }
+      } ]
+    },
+    "tags" : [ ]
+  },
+  "source" : "a498b58c79d6757d.json",
+  "parameterValues" : [ ]
+}
