@@ -57,6 +57,7 @@ public class RocketmqConnector extends ConnectorBase {
         codecRegistry.registerFromTapValue(TapDateValue.class, tapDateValue -> formatTapDateTime(tapDateValue.getValue(), "yyyy-MM-dd"));
 
         connectorFunctions.supportWriteRecord(this::writeRecord);
+        connectorFunctions.supportBatchCount(this::batchCount);
         connectorFunctions.supportBatchRead(this::batchRead);
         connectorFunctions.supportStreamRead(this::streamRead);
         connectorFunctions.supportTimestampToStreamOffset(this::timestampToStreamOffset);
@@ -83,6 +84,10 @@ public class RocketmqConnector extends ConnectorBase {
 
     private void writeRecord(TapConnectorContext connectorContext, List<TapRecordEvent> tapRecordEvents, TapTable tapTable, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer) throws Throwable {
         rocketmqService.produce(tapRecordEvents, tapTable, writeListResultConsumer);
+    }
+
+    private long batchCount(TapConnectorContext tapConnectorContext, TapTable tapTable) throws Throwable {
+        return rocketmqService.msgCount(tapTable);
     }
 
     private void batchRead(TapConnectorContext tapConnectorContext, TapTable tapTable, Object offsetState, int eventBatchSize, BiConsumer<List<TapEvent>, Object> eventsOffsetConsumer) throws Throwable {

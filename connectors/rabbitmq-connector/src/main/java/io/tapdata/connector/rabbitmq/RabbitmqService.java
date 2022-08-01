@@ -87,6 +87,14 @@ public class RabbitmqService extends AbstractMqService {
     }
 
     @Override
+    public long msgCount(TapTable tapTable) throws Throwable {
+        Channel channel = rabbitmqConnection.createChannel();
+        long count = channel.messageCount(tapTable.getId());
+        channel.close();
+        return count;
+    }
+
+    @Override
     public int countTables() throws Throwable {
         if (EmptyKit.isEmpty(rabbitmqConfig.getMqQueueSet())) {
             Client client = new Client(String.format(RABBITMQ_URL, rabbitmqConfig.getMqHost(), rabbitmqConfig.getApiPort()),

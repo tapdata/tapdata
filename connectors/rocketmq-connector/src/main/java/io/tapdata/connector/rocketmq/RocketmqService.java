@@ -23,6 +23,7 @@ import org.apache.rocketmq.acl.common.SessionCredentials;
 import org.apache.rocketmq.client.consumer.DefaultLitePullConsumer;
 import org.apache.rocketmq.client.exception.MQClientException;
 import org.apache.rocketmq.client.producer.DefaultMQProducer;
+import org.apache.rocketmq.common.admin.ConsumeStats;
 import org.apache.rocketmq.common.consumer.ConsumeFromWhere;
 import org.apache.rocketmq.common.message.Message;
 import org.apache.rocketmq.common.message.MessageExt;
@@ -79,6 +80,17 @@ public class RocketmqService extends AbstractMqService {
         if (EmptyKit.isNotNull(defaultMQProducer)) {
             defaultMQProducer.shutdown();
         }
+    }
+
+    @Override
+    public long msgCount(TapTable tapTable) throws Throwable {
+        DefaultMQAdminExt defaultMQAdminExt = new DefaultMQAdminExt();
+        defaultMQAdminExt.setNamesrvAddr(rocketmqConfig.getNameSrvAddr());
+        defaultMQAdminExt.start();
+        ConsumeStats stats = defaultMQAdminExt.examineConsumeStats(rocketmqConfig.getConsumerGroup(), tapTable.getId());
+        long count = stats.computeTotalDiff();
+        defaultMQAdminExt.shutdown();
+        return count;
     }
 
     @Override
