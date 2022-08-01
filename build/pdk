@@ -19,7 +19,7 @@ PLUGIN_CLI=$BASEDIR/plugin-kit/tapdata-pdk-cli/target/appassembler/bin/tap-plugi
 
 if [ ! -f $PLUGIN_CLI ]; then
   echo "Building......"
-  ./mvnw clean install -DskipTests -q
+  ./mvnw clean install -q
   echo "Done"
 fi
 
