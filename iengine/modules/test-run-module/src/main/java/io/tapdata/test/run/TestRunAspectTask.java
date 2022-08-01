@@ -48,7 +48,7 @@ public class TestRunAspectTask extends AspectTask {
   @Override
   public void onStart(TaskStartAspect startAspect) {
     Optional<Node> optional = task.getDag().getNodes().stream().filter(n -> n.getType().equals("virtualTarget")).findFirst();
-    optional.ifPresent(node -> this.nodeIds = task.getDag().getPreNodes(node.getId()).stream()
+    optional.ifPresent(node -> this.nodeIds = task.getDag().predecessors(node.getId()).stream()
             .map(Element::getId).collect(Collectors.toSet()));
   }
 
