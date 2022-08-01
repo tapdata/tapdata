@@ -10,6 +10,7 @@ import com.tapdata.entity.MessageEntity;
 import com.tapdata.entity.OperationType;
 import com.tapdata.entity.TapdataEvent;
 import com.tapdata.entity.task.context.ProcessorBaseContext;
+import com.tapdata.manager.common.utils.JsonUtil;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.process.AggregationProcessorNode;
 import com.tapdata.tm.commons.task.dto.Aggregation;
@@ -27,6 +28,7 @@ import io.tapdata.flow.engine.V2.util.TapEventUtil;
 import io.tapdata.schema.TapTableMap;
 import lombok.Getter;
 import lombok.Setter;
+import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -725,7 +727,7 @@ public class HazelcastMultiAggregatorProcessor extends HazelcastBaseNode {
                     } else if (operationType == OperationType.INSERT) {
                         String cachedGroupByKey = concatGroupByKeys(event.getAfter(), groupbyList);
                         // 第一次insert事件传到target仍为insert，后续insert传到target转为update
-                        if (checkCacheKey(cachedGroupByKey, aggregatorOp)) {
+                        if (checkCacheKeyIfExist(cachedGroupByKey, aggregatorOp)) {
                             MessageEntity update = (MessageEntity) event.clone();
                             update.setOp("u");
                             update.setBefore(null);
@@ -750,27 +752,12 @@ public class HazelcastMultiAggregatorProcessor extends HazelcastBaseNode {
                 Map<String, Object> before = TapEventUtil.getBefore(event);
                 Map<String, Object> after = TapEventUtil.getAfter(event);
                 if (event instanceof TapUpdateRecordEvent) {
-                    //split into two events
-                    TapDeleteRecordEvent cloneDelete = new TapDeleteRecordEvent();
-                    event.clone(cloneDelete);
-                    cloneDelete.setBefore(InstanceFactory.instance(TapUtils.class).cloneMap(before));
-                    WrapItem deleteWrap = wrappedItem.clone();
-                    deleteWrap.setMessage(cloneDelete);
-                    String cachedGroupByKey1 = concatGroupByKeys(before, groupbyList);
-                    deleteWrap.setCachedGroupByKey(cachedGroupByKey1);
-                    result.add(deleteWrap);
-
-                    TapInsertRecordEvent cloneInsert = new TapInsertRecordEvent();
-                    event.clone(cloneInsert);
-                    cloneInsert.setAfter(InstanceFactory.instance(TapUtils.class).cloneMap(after));
-                    WrapItem insertWrap = wrappedItem.clone();
-                    insertWrap.setMessage(cloneInsert);
-                    String cachedGroupByKey2 = concatGroupByKeys(after, groupbyList);
-                    insertWrap.setCachedGroupByKey(cachedGroupByKey2);
-                    result.add(insertWrap);
+                    final List<Object> splitEvents = handleUpdateTapEvent(event, before, after, wrappedItem);
+                    result.addAll(splitEvents);
                 } else if (event instanceof TapInsertRecordEvent) {
                     String cachedGroupByKey = concatGroupByKeys(after, groupbyList);
-                    if (checkCacheKey(cachedGroupByKey, aggregatorOp)) {
+                    // insertEvent转化为能造成counter变化的updateEvent
+                    if (checkCacheKeyIfExist(cachedGroupByKey, aggregatorOp)) {
                         TapUpdateRecordEvent cloneUpdate = new TapUpdateRecordEvent();
                         event.clone(cloneUpdate);
                         cloneUpdate.setAfter(InstanceFactory.instance(TapUtils.class).cloneMap(after));
@@ -786,10 +773,10 @@ public class HazelcastMultiAggregatorProcessor extends HazelcastBaseNode {
                     }
                 } else {
                     String cachedGroupByKey = concatGroupByKeys(before, groupbyList);
-                    if (checkCacheKey(cachedGroupByKey, aggregatorOp)) {
+                    if (checkCacheKeyIfExist(cachedGroupByKey, aggregatorOp)) {
                         TapUpdateRecordEvent cloneUpdate = new TapUpdateRecordEvent();
                         event.clone(cloneUpdate);
-                        // todo by dayun
+                        // todo by dayun 因为源端传过来的deleteEvent没有after，所以这里转成update事件只需要从before获取groupKey就好，让target知道删除哪一行
                         cloneUpdate.setAfter(InstanceFactory.instance(TapUtils.class).cloneMap(before));
                         WrapItem updateWrap = wrappedItem.clone();
                         updateWrap.setChangedCount(BigDecimal.ONE.negate());
@@ -805,7 +792,103 @@ public class HazelcastMultiAggregatorProcessor extends HazelcastBaseNode {
                 return result;
             }
 
+            private List<Object> handleUpdateTapEvent(final TapRecordEvent event, final Map<String, Object> before, final Map<String, Object> after, final WrapItem wrappedItem) {
+                final List<Object> result = Lists.newArrayList();
+                if (MapUtils.isNotEmpty(before) && MapUtils.isNotEmpty(after)) {
+                    if (checkGroupByKeyChanged(before, after)) {
+                        result.addAll(splitTapUpdateEventAsFourEvents(event, before, after, wrappedItem));
+                    } else {
+                        //split into two events
+                        result.addAll(splitTapUpdateEventAsTwoEvents(event, before, after, wrappedItem));
+                    }
+                } else {
+                    // before 有可能是空的，例如目前mongo source connector没有提供before，所以暂时无法彻底解决groupByKey的值有变化的情况
+                    //split into two events
+                    result.addAll(splitTapUpdateEventAsTwoEvents(event, after, after, wrappedItem));
+                }
+                return result;
+            }
 
+            private List<Object> splitTapUpdateEventAsFourEvents(final TapRecordEvent event, final Map<String, Object> before, final Map<String, Object> after, final WrapItem wrappedItem) {
+                final List<Object> result = Lists.newArrayList();
+                String cachedGroupByKeyBefore = concatGroupByKeys(before, groupbyList);
+                TapDeleteRecordEvent cloneDeleteBefore = new TapDeleteRecordEvent();
+                event.clone(cloneDeleteBefore);
+                cloneDeleteBefore.setBefore(InstanceFactory.instance(TapUtils.class).cloneMap(before));
+                WrapItem deleteWrapBefore = wrappedItem.clone();
+                deleteWrapBefore.setChangedCount(BigDecimal.ONE.negate());
+                deleteWrapBefore.setMessage(cloneDeleteBefore);
+                deleteWrapBefore.setCachedGroupByKey(cachedGroupByKeyBefore);
+                result.add(deleteWrapBefore);
+
+                TapInsertRecordEvent cloneInsertBefore = new TapInsertRecordEvent();
+                event.clone(cloneInsertBefore);
+                cloneInsertBefore.setAfter(InstanceFactory.instance(TapUtils.class).cloneMap(before));
+                WrapItem insertWrapBefore = wrappedItem.clone();
+                insertWrapBefore.setMessage(cloneInsertBefore);
+                insertWrapBefore.setCachedGroupByKey(cachedGroupByKeyBefore);
+                result.add(insertWrapBefore);
+
+                String cachedGroupByKeyAfter = concatGroupByKeys(after, groupbyList);
+                TapDeleteRecordEvent cloneDeleteAfter = new TapDeleteRecordEvent();
+                event.clone(cloneDeleteAfter);
+                cloneDeleteAfter.setBefore(InstanceFactory.instance(TapUtils.class).cloneMap(after));
+                WrapItem deleteWrapAfter = wrappedItem.clone();
+                deleteWrapAfter.setMessage(cloneDeleteAfter);
+                deleteWrapAfter.setCachedGroupByKey(cachedGroupByKeyAfter);
+                result.add(deleteWrapAfter);
+
+                TapInsertRecordEvent cloneInsertAfter = new TapInsertRecordEvent();
+                event.clone(cloneInsertAfter);
+                cloneInsertAfter.setAfter(InstanceFactory.instance(TapUtils.class).cloneMap(after));
+                WrapItem insertWrapAfter = wrappedItem.clone();
+                insertWrapAfter.setChangedCount(BigDecimal.ONE);
+                insertWrapAfter.setMessage(cloneInsertAfter);
+                insertWrapAfter.setCachedGroupByKey(cachedGroupByKeyAfter);
+                result.add(insertWrapAfter);
+                return result;
+            }
+
+            private List<Object> splitTapUpdateEventAsTwoEvents(final TapRecordEvent event, final Map<String, Object> before, final Map<String, Object> after, final WrapItem wrappedItem) {
+                final List<Object> result = Lists.newArrayList();
+                TapDeleteRecordEvent cloneDelete = new TapDeleteRecordEvent();
+                event.clone(cloneDelete);
+                cloneDelete.setBefore(InstanceFactory.instance(TapUtils.class).cloneMap(before));
+                WrapItem deleteWrap = wrappedItem.clone();
+                deleteWrap.setMessage(cloneDelete);
+                deleteWrap.setChangedCount(BigDecimal.ZERO);
+                String cachedGroupByKey1 = concatGroupByKeys(before, groupbyList);
+                deleteWrap.setCachedGroupByKey(cachedGroupByKey1);
+                result.add(deleteWrap);
+
+                TapInsertRecordEvent cloneInsert = new TapInsertRecordEvent();
+                event.clone(cloneInsert);
+                cloneInsert.setAfter(InstanceFactory.instance(TapUtils.class).cloneMap(after));
+                WrapItem insertWrap = wrappedItem.clone();
+                insertWrap.setMessage(cloneInsert);
+                insertWrap.setChangedCount(BigDecimal.ZERO);
+                String cachedGroupByKey2 = concatGroupByKeys(after, groupbyList);
+                insertWrap.setCachedGroupByKey(cachedGroupByKey2);
+                result.add(insertWrap);
+                return result;
+            }
+
+            /**
+             * 检查更新前后是否有修改了groupKey的值
+             * @param before
+             * @param after
+             * @return
+             */
+            private boolean checkGroupByKeyChanged(final Map<String, Object> before, final Map<String, Object> after) {
+                for (final String columnName : groupbyList) {
+                    Object columnValBefore = before.get(columnName);
+                    Object columnValAfter = after.get(columnName);
+                    if (!columnValBefore.equals(columnValAfter)) {
+                        return true;
+                    }
+                }
+                return false;
+            }
 
         } // end class GroupByP
 
@@ -1160,6 +1243,10 @@ public class HazelcastMultiAggregatorProcessor extends HazelcastBaseNode {
                                 event.setTapEvent(cloneUpdate);
                             }
                         } else {
+                            if (tapRecordEvent instanceof TapInsertRecordEvent) {
+                                logger.warn("no need to insert this record");
+                                return Collections.emptyList();
+                            }
                             event.setTapEvent(tapRecordEvent);
                         }
                     }
@@ -1235,7 +1322,7 @@ public class HazelcastMultiAggregatorProcessor extends HazelcastBaseNode {
 
         }
 
-        private boolean checkCacheKey(final String cacheKey, final String aggregatorOp) throws Exception {
+        private boolean checkCacheKeyIfExist(final String cacheKey, final String aggregatorOp) throws Exception {
             if ("COUNT".equalsIgnoreCase(aggregatorOp) || "SUM".equalsIgnoreCase(aggregatorOp) || "AVG".equalsIgnoreCase(aggregatorOp)) {
                 return cacheNumbers.exists(cacheKey);
             } else {
