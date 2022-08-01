@@ -1,0 +1,72 @@
+{
+  "uid" : "48374df3a7ccf6ec",
+  "name" : "create mongodb datasource with uri",
+  "fullName" : "test_datasource.TestDataSource#test_mongo_create_by_uri",
+  "historyId" : "b4d87711d3a8f3ded82c4677aae2c954",
+  "time" : {
+    "start" : 1659349738355,
+    "stop" : 1659349748526,
+    "duration" : 10171
+  },
+  "status" : "passed",
+  "flaky" : false,
+  "newFailed" : false,
+  "beforeStages" : [ ],
+  "testStage" : {
+    "status" : "passed",
+    "steps" : [ ],
+    "attachments" : [ {
+      "uid" : "6ff1977dbcca9fc8",
+      "name" : "stdout",
+      "source" : "6ff1977dbcca9fc8.txt",
+      "type" : "text/plain",
+      "size" : 1629
+    } ],
+    "parameters" : [ ],
+    "stepsCount" : 0,
+    "attachmentsCount" : 1,
+    "shouldDisplayMessage" : false,
+    "hasContent" : true
+  },
+  "afterStages" : [ ],
+  "labels" : [ {
+    "name" : "feature",
+    "value" : "datasource"
+  }, {
+    "name" : "suite",
+    "value" : "test_datasource"
+  }, {
+    "name" : "subSuite",
+    "value" : "TestDataSource"
+  }, {
+    "name" : "host",
+    "value" : "e1402bed40da"
+  }, {
+    "name" : "thread",
+    "value" : "825-MainThread"
+  }, {
+    "name" : "framework",
+    "value" : "pytest"
+  }, {
+    "name" : "language",
+    "value" : "cpython3"
+  }, {
+    "name" : "package",
+    "value" : "test_datasource"
+  }, {
+    "name" : "resultFormat",
+    "value" : "allure2"
+  } ],
+  "parameters" : [ ],
+  "links" : [ ],
+  "hidden" : false,
+  "retry" : false,
+  "extra" : {
+    "severity" : "normal",
+    "retries" : [ ],
+    "categories" : [ ],
+    "tags" : [ ]
+  },
+  "source" : "48374df3a7ccf6ec.json",
+  "parameterValues" : [ ]
+}
