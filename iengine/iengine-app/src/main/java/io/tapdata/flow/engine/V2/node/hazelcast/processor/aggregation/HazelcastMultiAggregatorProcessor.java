@@ -159,7 +159,6 @@ public class HazelcastMultiAggregatorProcessor extends HazelcastBaseNode {
         for (Aggregator aggregator : aggregators) {
             aggregator.close();
         }
-        super.close();
         logger.info("close aggregator, nodeId: {}", nodeId);
     }
 
