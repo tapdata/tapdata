@@ -23,7 +23,11 @@ public class RedisConfig {
 
     private String sentinelName;
 
-    private List<HostPort> hostPorts;
+    private String database;
+
+    private List<HostPort> sentinelAddress;
+
+    private String valueType;
 
 
 
@@ -60,12 +64,12 @@ public class RedisConfig {
         this.sentinelName = sentinelName;
     }
 
-    public List<HostPort> getHostPorts() {
-        return hostPorts;
+    public List<HostPort> getSentinelAddress() {
+        return sentinelAddress;
     }
 
-    public void setHostPorts(List<HostPort> hostPorts) {
-        this.hostPorts = hostPorts;
+    public void setSentinelAddress(List<HostPort> sentinelAddress) {
+        this.sentinelAddress = sentinelAddress;
     }
 
     public void setPort(int port) {
@@ -88,6 +92,20 @@ public class RedisConfig {
         this.password = password;
     }
 
+    public String getDatabase() {
+        return database;
+    }
+
+    public void setDatabase(String database) {
+        this.database = database;
+    }
 
 
+    public String getValueType() {
+        return valueType;
+    }
+
+    public void setValueType(String valueType) {
+        this.valueType = valueType;
+    }
 }

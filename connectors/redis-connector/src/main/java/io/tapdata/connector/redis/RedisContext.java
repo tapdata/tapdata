@@ -2,6 +2,7 @@ package io.tapdata.connector.redis;
 
 import io.tapdata.connector.constant.DeployModeEnum;
 import io.tapdata.connector.constant.HostPort;
+import io.tapdata.connector.constant.RedisKeySetter;
 import io.tapdata.entity.logger.TapLogger;
 import org.apache.commons.lang3.StringUtils;
 import redis.clients.jedis.Jedis;
@@ -14,7 +15,6 @@ import redis.clients.jedis.util.Pool;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicInteger;
 
 
 /**
@@ -35,14 +35,16 @@ public class RedisContext implements AutoCloseable {
 
     private static final int GET_JEDIS_TIMEOUT_COUNT = 3;
 
-    private  RedisConfig redisConfig;
+    private final RedisConfig redisConfig;
 
-    private Pool<Jedis> jedisPool;
+    private volatile Pool<Jedis> jedisPool;
 
-    private final AtomicInteger dbNumber = new AtomicInteger(-1);
+    private final RedisKeySetter redisKeySetter;
+
 
     public RedisContext(RedisConfig redisConfig) throws Exception {
         this.redisConfig = redisConfig;
+        this.redisKeySetter = new RedisKeySetter();
         try{
             if (jedisPool == null) {
                 synchronized (this) {
@@ -51,7 +53,6 @@ public class RedisContext implements AutoCloseable {
                     }
                 }
             }
-            initializeJedisPool(redisConfig);
         } catch (Exception e) {
             TapLogger.error(TAG, "close connection error", e);
             throw new Exception("Initial redis target failed %s", e);
@@ -81,7 +82,7 @@ public class RedisContext implements AutoCloseable {
                 jedisPool = new JedisPool(jedisPoolConfig, redisConfig.getHost(), redisConfig.getPort(), POOL_TIMEOUT);
             }
         } else if (deployModeEnum == DeployModeEnum.SENTINEL) {
-            final List<HostPort> hostPorts = redisConfig.getHostPorts();
+            final List<HostPort> hostPorts = redisConfig.getSentinelAddress();
             Set<String> sentinelHostPort = new HashSet<>(hostPorts.size());
             for (HostPort hostPort : hostPorts) {
                 sentinelHostPort.add(hostPort.getHost() + ":" + hostPort.getPort());
@@ -109,18 +110,17 @@ public class RedisContext implements AutoCloseable {
     public Jedis getJedis() {
         Jedis jedis = null;
         int retryCount = 0;
-        boolean jedisException = false;
-        while (jedisException) {
+        while (true) {
             try {
                 jedis = jedisPool.getResource();
-                if (StringUtils.isNotBlank(redisConfig.getUser())) {
-                    jedis.select(Integer.parseInt(redisConfig.getUser()));
+                if (StringUtils.isNotBlank(redisConfig.getDatabase())) {
+                    jedis.select(Integer.parseInt(redisConfig.getDatabase()));
                 }
                 return jedis;
             } catch (Exception e) {
                 if (e instanceof JedisConnectionException) {
                     retryCount++;
-                    jedisException = true;
+
                     if (retryCount > GET_JEDIS_TIMEOUT_COUNT) {
                         break;
                     }
@@ -142,8 +142,8 @@ public class RedisContext implements AutoCloseable {
         return redisConfig;
     }
 
-    public Pool<Jedis> getJedisPool() {
-        return jedisPool;
+    public RedisKeySetter getRedisKeySetter() {
+        return redisKeySetter;
     }
 
     @Override
