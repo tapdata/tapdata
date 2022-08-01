@@ -5,6 +5,7 @@ import cn.hutool.extra.spring.SpringUtil;
 import com.google.common.collect.Maps;
 import com.tapdata.manager.common.utils.JsonUtil;
 import com.tapdata.tm.base.dto.Page;
+import com.tapdata.tm.base.dto.ResponseMessage;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.commons.dag.*;
 import com.tapdata.tm.commons.dag.logCollector.VirtualTargetNode;
@@ -35,6 +36,7 @@ import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.task.utils.CacheUtils;
 import com.tapdata.tm.task.vo.JsResultDto;
 import com.tapdata.tm.task.vo.JsResultVo;
+import com.tapdata.tm.utils.FunctionUtils;
 import com.tapdata.tm.utils.Lists;
 import com.tapdata.tm.utils.MongoUtils;
 import com.tapdata.tm.worker.entity.Worker;
@@ -80,7 +82,7 @@ public class TaskNodeServiceImpl implements TaskNodeService {
         Page<MetadataTransformerItemDto> result = new Page<>();
 
         DAG dag = taskService.findById(MongoUtils.toObjectId(taskId)).getDag();
-        if (CollectionUtils.isEmpty(dag.getEdges())) {
+        if (CollectionUtils.isEmpty(dag.getEdges()) || Objects.isNull(dag.getPreNodes(nodeId))) {
             return result;
         }
 
@@ -117,7 +119,7 @@ public class TaskNodeServiceImpl implements TaskNodeService {
             targetDataSource = dataSourceService.findById(MongoUtils.toObjectId(targetNode.getConnectionId()));
         }
         // if current node pre has js node need get data from metaInstances
-        boolean preHasJsNode = Objects.requireNonNull(dag.getPreNodes(nodeId)).stream().anyMatch(n -> n instanceof MigrateJsProcessorNode);
+        boolean preHasJsNode = dag.getPreNodes(nodeId).stream().anyMatch(n -> n instanceof MigrateJsProcessorNode);
         if (preHasJsNode)
             return getMetaByJsNode(nodeId, result, sourceNode, targetNode, tableNames, currentTableList, targetDataSource);
         else
@@ -368,16 +370,28 @@ public class TaskNodeServiceImpl implements TaskNodeService {
     }
 
     @Override
-    public JsResultVo getRun(String taskId, String jsNodeId, Long version) {
+    public ResponseMessage<JsResultVo> getRun(String taskId, String jsNodeId, Long version) {
+        ResponseMessage<JsResultVo> res = new ResponseMessage<>();
         JsResultVo result = new JsResultVo();
         StringJoiner joiner = new StringJoiner(":", taskId, version.toString());
         if (CacheUtils.isExist(joiner.toString())) {
-            BeanUtil.copyProperties(CacheUtils.invalidate(joiner.toString()), result);
             result.setOver(true);
+            JsResultDto dto = new JsResultDto();
+            BeanUtil.copyProperties(CacheUtils.invalidate(joiner.toString()), dto);
+            FunctionUtils.isTureOrFalse(dto.getCode().equals("ok")).trueOrFalseHandle(() -> {
+                BeanUtil.copyProperties(dto, result);
+                res.setCode("ok");
+                res.setData(result);
+            }, () -> {
+                log.error("getRun JsResultVo error:{}", dto.getMessage());
+                res.setCode("SystemError");
+                res.setMessage("SystemError");
+            });
         } else {
             result.setOver(false);
+            res.setData(result);
         }
-        return result;
+        return res;
     }
 
     /**
@@ -395,7 +409,6 @@ public class TaskNodeServiceImpl implements TaskNodeService {
             return metadataInstancesDto;
         }
 
-        final String sourceNodeDatabaseType = schema.getSourceNodeDatabaseType();
         final String databaseType = dataSourceConnectionDto.getDatabase_type();
         String dbVersion = dataSourceConnectionDto.getDb_version();
         if (com.tapdata.manager.common.utils.StringUtils.isBlank(dbVersion)) {
