@@ -930,7 +930,7 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
     public List<String> tables(String connectId, String sourceType) {
         Criteria criteria = Criteria.where("source._id").is(connectId)
                 .and("sourceType").is(sourceType)
-                .and("is_deleted").is(false)
+                .and("is_deleted").ne(true)
                 .and("meta_type").in(MetaType.collection.name(), MetaType.table.name());
         Query query = new Query(criteria);
         query.fields().include("original_name");
