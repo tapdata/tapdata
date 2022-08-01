@@ -11,10 +11,7 @@ import com.tapdata.tm.observability.vo.TaskStatisticsVO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
@@ -24,9 +21,9 @@ import java.util.List;
 public class ObservabilityController extends BaseController {
 
     @Operation(summary = "可观测性并行请求接口", description = "一个接口返回任务事件统计、任务日志和校验数据")
-    @GetMapping("/list")
-    public ResponseMessage<List<ParallelInfoVO<?>>> getList(@Parameter(name = "dtos", description = "多个service和method的参数集合", required = true)
-                                          @RequestBody List<ServiceMethodDto<?>> dtos) {
+    @PostMapping("/list")
+    public ResponseMessage<List<ParallelInfoVO<?>>> getList(@Parameter(description = "多个service和method的参数集合", required = true)
+                                          @RequestBody List<ServiceMethodDto<?>> serviceMethodDto) {
 
         return success();
     }
