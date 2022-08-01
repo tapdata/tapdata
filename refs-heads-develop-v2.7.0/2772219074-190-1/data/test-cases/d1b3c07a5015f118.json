@@ -1,0 +1,244 @@
+{
+  "uid" : "d1b3c07a5015f118",
+  "name" : "test_check",
+  "fullName" : "test_pipeline.TestPipeline#test_check",
+  "historyId" : "fa38c78c99c895035a3d9c2796cb8195",
+  "time" : {
+    "start" : 1659328024752,
+    "stop" : 1659328027431,
+    "duration" : 2679
+  },
+  "status" : "passed",
+  "flaky" : false,
+  "newFailed" : false,
+  "beforeStages" : [ ],
+  "testStage" : {
+    "status" : "passed",
+    "steps" : [ ],
+    "attachments" : [ {
+      "uid" : "b667c98686499bd8",
+      "name" : "stdout",
+      "source" : "b667c98686499bd8.txt",
+      "type" : "text/plain",
+      "size" : 1267
+    } ],
+    "parameters" : [ ],
+    "stepsCount" : 0,
+    "attachmentsCount" : 1,
+    "shouldDisplayMessage" : false,
+    "hasContent" : true
+  },
+  "afterStages" : [ ],
+  "labels" : [ {
+    "name" : "feature",
+    "value" : "pipeline"
+  }, {
+    "name" : "suite",
+    "value" : "test_pipeline"
+  }, {
+    "name" : "subSuite",
+    "value" : "TestPipeline"
+  }, {
+    "name" : "host",
+    "value" : "53897b1657b3"
+  }, {
+    "name" : "thread",
+    "value" : "833-MainThread"
+  }, {
+    "name" : "framework",
+    "value" : "pytest"
+  }, {
+    "name" : "language",
+    "value" : "cpython3"
+  }, {
+    "name" : "package",
+    "value" : "test_pipeline"
+  }, {
+    "name" : "resultFormat",
+    "value" : "allure2"
+  } ],
+  "parameters" : [ ],
+  "links" : [ ],
+  "hidden" : false,
+  "retry" : false,
+  "extra" : {
+    "severity" : "normal",
+    "retries" : [ ],
+    "categories" : [ ],
+    "history" : {
+      "statistic" : {
+        "failed" : 5,
+        "broken" : 0,
+        "skipped" : 0,
+        "passed" : 21,
+        "unknown" : 0,
+        "total" : 26
+      },
+      "items" : [ {
+        "uid" : "cff10e6c02f7cec",
+        "status" : "passed",
+        "time" : {
+          "start" : 1659326972347,
+          "stop" : 1659326974776,
+          "duration" : 2429
+        }
+      }, {
+        "uid" : "9c5acaf0ecc5530a",
+        "status" : "passed",
+        "time" : {
+          "start" : 1659325732850,
+          "stop" : 1659325735061,
+          "duration" : 2211
+        }
+      }, {
+        "uid" : "eed92d4fda0066e6",
+        "status" : "passed",
+        "time" : {
+          "start" : 1659324227952,
+          "stop" : 1659324230427,
+          "duration" : 2475
+        }
+      }, {
+        "uid" : "1be8d50c0f18ae70",
+        "status" : "passed",
+        "time" : {
+          "start" : 1659323029524,
+          "stop" : 1659323031862,
+          "duration" : 2338
+        }
+      }, {
+        "uid" : "69ce589f86bff5f3",
+        "status" : "passed",
+        "time" : {
+          "start" : 1659272174719,
+          "stop" : 1659272176983,
+          "duration" : 2264
+        }
+      }, {
+        "uid" : "ce215628191e2f17",
+        "status" : "passed",
+        "time" : {
+          "start" : 1659109500308,
+          "stop" : 1659109502718,
+          "duration" : 2410
+        }
+      }, {
+        "uid" : "a2a5c8256475247d",
+        "status" : "passed",
+        "time" : {
+          "start" : 1659096833930,
+          "stop" : 1659096836404,
+          "duration" : 2474
+        }
+      }, {
+        "uid" : "6957e5dd9025fd37",
+        "status" : "passed",
+        "time" : {
+          "start" : 1659095605376,
+          "stop" : 1659095607928,
+          "duration" : 2552
+        }
+      }, {
+        "uid" : "58442ef6935f877e",
+        "status" : "passed",
+        "time" : {
+          "start" : 1659093587337,
+          "stop" : 1659093589638,
+          "duration" : 2301
+        }
+      }, {
+        "uid" : "cff9e488db045397",
+        "status" : "passed",
+        "time" : {
+          "start" : 1659090950926,
+          "stop" : 1659090953303,
+          "duration" : 2377
+        }
+      }, {
+        "uid" : "38667c68b370f3a",
+        "status" : "passed",
+        "time" : {
+          "start" : 1659089699570,
+          "stop" : 1659089702046,
+          "duration" : 2476
+        }
+      }, {
+        "uid" : "45f9c5e4a23ffe85",
+        "status" : "passed",
+        "time" : {
+          "start" : 1659088065318,
+          "stop" : 1659088067544,
+          "duration" : 2226
+        }
+      }, {
+        "uid" : "95c9df3b1d07aacd",
+        "status" : "passed",
+        "time" : {
+          "start" : 1659085751496,
+          "stop" : 1659085754005,
+          "duration" : 2509
+        }
+      }, {
+        "uid" : "88778e5cae76096b",
+        "status" : "passed",
+        "time" : {
+          "start" : 1659084879050,
+          "stop" : 1659084881425,
+          "duration" : 2375
+        }
+      }, {
+        "uid" : "760e510b729f690c",
+        "status" : "passed",
+        "time" : {
+          "start" : 1659083527681,
+          "stop" : 1659083530179,
+          "duration" : 2498
+        }
+      }, {
+        "uid" : "db2d35994132858a",
+        "status" : "passed",
+        "time" : {
+          "start" : 1659082521181,
+          "stop" : 1659082523445,
+          "duration" : 2264
+        }
+      }, {
+        "uid" : "520dad0a9624b3f1",
+        "status" : "passed",
+        "time" : {
+          "start" : 1659081401845,
+          "stop" : 1659081404160,
+          "duration" : 2315
+        }
+      }, {
+        "uid" : "7d0f2bf472eef916",
+        "status" : "passed",
+        "time" : {
+          "start" : 1659080087214,
+          "stop" : 1659080089510,
+          "duration" : 2296
+        }
+      }, {
+        "uid" : "607342d4f1815650",
+        "status" : "passed",
+        "time" : {
+          "start" : 1659078720950,
+          "stop" : 1659078723428,
+          "duration" : 2478
+        }
+      }, {
+        "uid" : "b7ecd52cbab0010f",
+        "status" : "failed",
+        "statusDetails" : "AssertionError: assert False\n +  where False = wait_scheduling(<lib.cli.Pipeline object at 0x7fadfad6aa50>, except_status=('running',))",
+        "time" : {
+          "start" : 1659076842389,
+          "stop" : 1659076848755,
+          "duration" : 6366
+        }
+      } ]
+    },
+    "tags" : [ ]
+  },
+  "source" : "d1b3c07a5015f118.json",
+  "parameterValues" : [ ]
+}
