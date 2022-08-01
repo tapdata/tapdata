@@ -737,6 +737,7 @@ public class HazelcastMultiAggregatorProcessor extends HazelcastBaseNode {
                         event.clone(cloneUpdate);
                         // todo by dayun 因为源端传过来的deleteEvent没有after，所以这里转成update事件只需要从before获取groupKey就好，让target知道删除哪一行
                         cloneUpdate.setAfter(InstanceFactory.instance(TapUtils.class).cloneMap(before));
+                        cloneUpdate.setBefore(InstanceFactory.instance(TapUtils.class).cloneMap(before));
                         WrapItem updateWrap = wrappedItem.clone();
                         updateWrap.setChangedCount(BigDecimal.ONE.negate());
                         updateWrap.setMessage(cloneUpdate);

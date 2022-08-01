@@ -1,1 +1,1 @@
-mvn clean install -DskipTests --fail-at-end
+mvn clean install --fail-at-end
