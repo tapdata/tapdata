@@ -76,12 +76,13 @@ public class JsProcessorNode extends ProcessorNode {
         ObjectId taskId = this.getDag().getTaskId();
         TaskDto taskDto = service.getTaskById(taskId == null ? null : taskId.toHexString());
         taskDto.setDag(null);
+        taskDto.setSyncType(TaskDto.SYNC_TYPE_DEDUCE_SCHEMA);
         subTaskDto.setParentTask(taskDto);
         subTaskDto.setDag(build);
         subTaskDto.setParentId(taskDto.getId());
         subTaskDto.setId(new ObjectId());
         subTaskDto.setName(taskDto.getName() + "(100)");
-        subTaskDto.setTransformTask(true);
+//        subTaskDto.setTransformTask(true);
         ////用于预跑数据得到模型
         TapTable tapTable = service.loadTapTable(getInputSchema(), script, getId(), target.getId(), null, null, subTaskDto);
         Schema schema = PdkSchemaConvert.fromPdkSchema(tapTable);

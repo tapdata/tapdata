@@ -2,7 +2,10 @@ package io.tapdata.aspect.task.impl;
 
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.tm.commons.task.dto.SubTaskDto;
+import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.aspect.DataNodeAspect;
+import io.tapdata.aspect.TaskStartAspect;
+import io.tapdata.aspect.TaskStopAspect;
 import io.tapdata.aspect.task.AspectTask;
 import io.tapdata.entity.aspect.*;
 import io.tapdata.entity.logger.TapLogger;
@@ -19,8 +22,8 @@ public class TaskSessionClassHolder implements Comparable<TaskSessionClassHolder
 	private static final String TAG = TaskSessionClassHolder.class.getSimpleName();
 	private final Map<String, AspectTaskEx> aspectTaskMap = new ConcurrentHashMap<>();
 	private Class<? extends AspectTask> taskClass;
-	private AspectObserver<Aspect> aspectObserver;
-	private AspectInterceptor<Aspect> aspectInterceptor;
+	private final AspectObserver<Aspect> aspectObserver;
+	private final AspectInterceptor<Aspect> aspectInterceptor;
 
 	public TaskSessionClassHolder() {
 		aspectObserver = this::observeNodeAspect;
@@ -32,6 +35,17 @@ public class TaskSessionClassHolder implements Comparable<TaskSessionClassHolder
 		return this;
 	}
 
+	private List<String> includeTypes;
+	public TaskSessionClassHolder includeTypes(List<String> includeTypes) {
+		this.includeTypes = includeTypes;
+		return this;
+	}
+
+	private List<String> excludeTypes;
+	public TaskSessionClassHolder excludeTypes(List<String> excludeTypes) {
+		this.excludeTypes = excludeTypes;
+		return this;
+	}
 	private int order;
 
 	public TaskSessionClassHolder order(int order) {
@@ -100,7 +114,8 @@ public class TaskSessionClassHolder implements Comparable<TaskSessionClassHolder
 		return null;
 	}
 
-	public void ensureTaskSessionCreated(SubTaskDto task) {
+	public synchronized void ensureTaskSessionCreated(TaskStartAspect startAspect) {
+		SubTaskDto task = startAspect.getTask();
 		String taskId = task.getId().toString();
 		AtomicReference<AspectTaskEx> newRef = new AtomicReference<>();
 		AspectTaskEx theAspectTask = aspectTaskMap.computeIfAbsent(taskId, id -> {
@@ -110,7 +125,7 @@ public class TaskSessionClassHolder implements Comparable<TaskSessionClassHolder
 		});
 		if (newRef.get() != null && theAspectTask.equals(newRef.get())) {
 			//new created AspectTask
-			final int order = 10000;
+//			final int order = 10000;
 			List<Class<? extends Aspect>> observerClasses = theAspectTask.aspectTask.observeAspects();
 			AspectManager aspectManager = InstanceFactory.instance(AspectManager.class);
 			if (observerClasses != null && !observerClasses.isEmpty()) {
@@ -132,7 +147,7 @@ public class TaskSessionClassHolder implements Comparable<TaskSessionClassHolder
 					}
 				}
 			}
-			CommonUtils.ignoreAnyError(theAspectTask.aspectTask::onStart, TAG);
+			CommonUtils.ignoreAnyError(() -> theAspectTask.aspectTask.onStart(startAspect), TAG);
 		}
 	}
 
@@ -147,11 +162,16 @@ public class TaskSessionClassHolder implements Comparable<TaskSessionClassHolder
 		}
 	}
 
-	public void ensureTaskSessionStopped(SubTaskDto task) {
-		String taskId = task.getId().toString();
+	public void ensureTaskSessionStopped(TaskStopAspect stopAspect) {
+		String taskId = stopAspect.getTask().getId().toString();
+		ensureTaskSessionStopped(taskId, stopAspect);
+	}
+	public synchronized void ensureTaskSessionStopped(String taskId, TaskStopAspect stopAspect) {
+		if(taskId == null)
+			return;
 		AspectTaskEx aspectTask = aspectTaskMap.remove(taskId);
 		if (aspectTask != null) {
-			CommonUtils.ignoreAnyError(aspectTask.aspectTask::onStop, TAG);
+			CommonUtils.ignoreAnyError(() -> aspectTask.aspectTask.onStop(stopAspect), TAG);
 
 			List<Class<? extends Aspect>> observerClasses = aspectTask.aspectTask.observeAspects();
 			AspectManager aspectManager = InstanceFactory.instance(AspectManager.class);
@@ -180,7 +200,22 @@ public class TaskSessionClassHolder implements Comparable<TaskSessionClassHolder
 		}
 	}
 
-	class AspectTaskEx {
+	public boolean isTaskSupported(SubTaskDto task) {
+		TaskDto taskDto = task.getParentTask();
+		if(taskDto != null && taskDto.getSyncType() != null) {
+			String syncType = taskDto.getSyncType();
+			if(excludeTypes != null && excludeTypes.contains(syncType)) {
+				return false;
+			}
+			if(includeTypes != null && !includeTypes.isEmpty() && !includeTypes.contains(syncType)) {
+				return false;
+			}
+			return true;
+		}
+		return false;
+	}
+
+	static class AspectTaskEx {
 		AspectTask aspectTask;
 		AspectObserver<Aspect> aspectObserver;
 		AspectInterceptor<Aspect> aspectInterceptor;
@@ -199,7 +234,13 @@ public class TaskSessionClassHolder implements Comparable<TaskSessionClassHolder
 				return null;
 			};
 		}
-
 	}
 
+	public AspectTask getAspectTasks(String taskId) {
+		AspectTaskEx aspectTaskEx = aspectTaskMap.get(taskId);
+		if(aspectTaskEx != null) {
+			return aspectTaskEx.aspectTask;
+		}
+		return null;
+	}
 }

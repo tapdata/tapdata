@@ -1,9 +1,11 @@
 package io.tapdata.pdk.cli;
 
+import io.tapdata.pdk.core.utils.CommonUtils;
 import picocli.CommandLine;
 
 public class ModelPredictionMain {
     public static void main(String[] args) {
+		CommonUtils.setProperty("pdk_external_jar_path", "./connectors/dist");
         args = new String[]{
                 "modelPrediction", "-o", "./output",
 //                "-i", "tapdata-api",
@@ -20,9 +22,29 @@ public class ModelPredictionMain {
 //                "/Users/aplomb/dev/tapdata/GithubProjects/idaas-pdk/dist/empty-connector-v1.1-SNAPSHOT.jar",
 //                "/Users/aplomb/dev/tapdata/GithubProjects/idaas-pdk/dist/file-connector-v1.0-SNAPSHOT.jar",
 
-                "connectors/mysql-connector",
-                "connectors/postgres-connector",
-                "connectors/mongodb-connector",
+				"connectors/dist/activemq-connector-v1.0-SNAPSHOT.jar",
+				"connectors/dist/doris-connector-v1.0-SNAPSHOT.jar",
+				"connectors/dist/dummy-connector-v1.0-SNAPSHOT.jar",
+				"connectors/dist/elasticsearch-connector-v1.0-SNAPSHOT.jar",
+				"connectors/dist/gbase8a-connector-v1.0-SNAPSHOT.jar",
+				"connectors/dist/gbase8s-connector-v1.0-SNAPSHOT.jar",
+				"connectors/dist/kafka-connector-v1.0-SNAPSHOT.jar",
+				"connectors/dist/mongodb-connector-v1.0-SNAPSHOT.jar",
+//				"connectors/dist/mssql-connector-v1.0-SNAPSHOT.jar",
+				"connectors/dist/mysql-connector-v1.0-SNAPSHOT.jar",
+//				"connectors/dist/oceanbase-connector-v1.0-SNAPSHOT.jar",
+//				"connectors/dist/oracle-connector-v1.0-SNAPSHOT.jar",
+//				"connectors/dist/postgres-connector-v1.0-SNAPSHOT.jar",
+//				"connectors/dist/rabbitmq-connector-v1.0-SNAPSHOT.jar",
+//				"connectors/dist/rocketmq-connector-v1.0-SNAPSHOT.jar",
+
+//                "connectors/mysql-connector",
+//                "connectors/postgres-connector",
+//                "connectors/mongodb-connector",
+
+//				"connectors/elasticsearch-connector",
+//				"connectors/oceanbase-connector"
+
 //                "connectors/oracle/oracle-connector",
 
 //                "/Users/aplomb/dev/tapdata/GithubProjects/idaas-pdk-new/dist/postgres-connector-v1.0-SNAPSHOT.jar",

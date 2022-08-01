@@ -12,9 +12,7 @@ import redis.clients.jedis.JedisSentinelPool;
 import redis.clients.jedis.exceptions.JedisConnectionException;
 import redis.clients.jedis.util.Pool;
 
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 
 
 /**
@@ -70,7 +68,7 @@ public class RedisContext implements AutoCloseable {
         jedisPoolConfig.setTestOnReturn(TEST_ON_RETURN);
         jedisPoolConfig.setTestWhileIdle(TEST_WHILE_IDLE);
 
-        DeployModeEnum deployModeEnum = DeployModeEnum.fromString(redisConfig.getDeployMode());
+        DeployModeEnum deployModeEnum = DeployModeEnum.fromString(redisConfig.getDeploymentMode());
         if (deployModeEnum == null) {
             deployModeEnum = DeployModeEnum.STANDALONE;
         }
@@ -82,26 +80,17 @@ public class RedisContext implements AutoCloseable {
                 jedisPool = new JedisPool(jedisPoolConfig, redisConfig.getHost(), redisConfig.getPort(), POOL_TIMEOUT);
             }
         } else if (deployModeEnum == DeployModeEnum.SENTINEL) {
-            final List<HostPort> hostPorts = redisConfig.getSentinelAddress();
+            final List<LinkedHashMap<String,Integer>> hostPorts = redisConfig.getSentinelAddress();
             Set<String> sentinelHostPort = new HashSet<>(hostPorts.size());
-            for (HostPort hostPort : hostPorts) {
-                sentinelHostPort.add(hostPort.getHost() + ":" + hostPort.getPort());
+            for (LinkedHashMap<String,Integer> hostPort : hostPorts) {
+                  sentinelHostPort.add(hostPort.get("host") + ":" + hostPort.get("port"));
             }
             if (StringUtils.isNotBlank(redisConfig.getUser()) && StringUtils.isNotBlank(redisConfig.getPassword())) {
                 jedisPool = new JedisSentinelPool(
-                        redisConfig.getSentinelName(),
-                        sentinelHostPort,
-                        jedisPoolConfig,
-                        POOL_TIMEOUT,
-                        redisConfig.getPassword()
-                );
+                        redisConfig.getSentinelName(), sentinelHostPort, jedisPoolConfig, POOL_TIMEOUT, redisConfig.getPassword());
             } else {
                 jedisPool = new JedisSentinelPool(
-                        redisConfig.getSentinelName(),
-                        sentinelHostPort,
-                        jedisPoolConfig,
-                        POOL_TIMEOUT
-                );
+                        redisConfig.getSentinelName(), sentinelHostPort, jedisPoolConfig, POOL_TIMEOUT);
             }
         }
         return jedisPool;

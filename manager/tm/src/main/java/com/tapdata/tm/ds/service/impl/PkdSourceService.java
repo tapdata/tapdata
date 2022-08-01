@@ -69,7 +69,7 @@ public class PkdSourceService {
                 scope = "public";
             }
             Criteria criteria = Criteria.where("scope").is(scope)
-                    .and("jarFile").is(jarFile.getOriginalFilename())
+                    .and("group").is(pdkSourceDto.getGroup())
                     .and("version").is(version)
                     .and("pdkId").is(pdkSourceDto.getId())
                     .and("is_deleted").is(false);

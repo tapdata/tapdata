@@ -1,5 +1,6 @@
 package com.tapdata.tm.commons.dag;
 
+import com.tapdata.tm.commons.dag.vo.MigrateJsResultVo;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
 import com.tapdata.tm.commons.schema.Schema;
 import com.tapdata.tm.commons.task.dto.SubTaskDto;
@@ -39,6 +40,10 @@ public interface DAGDataService {
 
 
     default TapTable loadTapTable(List<Schema> schemas, String script, String nodeId, String virtualId, String customNodeId, Map<String, Object> form, SubTaskDto subTaskDto) {
+        return null;
+    }
+
+    default List<MigrateJsResultVo> getJsResult(String jsNodeId, String virtualTargetId, SubTaskDto subTaskDto) {
         return null;
     }
 
@@ -92,4 +97,6 @@ public interface DAGDataService {
     boolean checkNewestVersion(String taskId, String nodeId, String version);
 
     TaskDto getTaskById(String taskId);
+    ObjectId getTaskId();
+
 }

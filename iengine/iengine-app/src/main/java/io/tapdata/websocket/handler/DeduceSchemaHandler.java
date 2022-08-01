@@ -6,24 +6,27 @@ import com.tapdata.constant.JSONUtil;
 import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.DAGDataServiceImpl;
+import com.tapdata.tm.commons.dag.vo.MigrateJsResultVo;
 import com.tapdata.tm.commons.schema.*;
 import com.tapdata.tm.commons.task.dto.Message;
+import com.tapdata.tm.commons.task.dto.ParentTaskDto;
 import com.tapdata.tm.commons.task.dto.SubTaskDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.common.SettingService;
 import io.tapdata.entity.schema.TapTable;
+import io.tapdata.flow.engine.V2.node.hazelcast.data.HazelcastSchemaTargetNode;
 import io.tapdata.flow.engine.V2.task.TaskClient;
 import io.tapdata.flow.engine.V2.task.TaskService;
-import io.tapdata.schema.SchemaCacheUtil;
 import io.tapdata.websocket.EventHandlerAnnotation;
 import io.tapdata.websocket.WebSocketEventHandler;
 import io.tapdata.websocket.WebSocketEventResult;
+import org.apache.commons.collections.CollectionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.springframework.data.mongodb.core.query.Update;
 
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @EventHandlerAnnotation(type = "deduceSchema")
 public class DeduceSchemaHandler implements WebSocketEventHandler<WebSocketEventResult> {
@@ -64,13 +67,12 @@ public class DeduceSchemaHandler implements WebSocketEventHandler<WebSocketEvent
 				// 跑任务加载js模型
 				String schemaKey = subTaskDto.getId() + "-" + virtualId;
 				long startTs = System.currentTimeMillis();
-				TaskClient<SubTaskDto> taskClient = taskService.startTestTask(subTaskDto);
-				taskClient.join();
+				TaskClient<SubTaskDto> taskClient = execTask(subTaskDto);
 
 				logger.info("load tapTable task {} {}, cost {}ms", schemaKey, taskClient.getStatus(), (System.currentTimeMillis() - startTs));
 				if (SubTaskDto.STATUS_COMPLETE.equals(taskClient.getStatus())) {
 					//成功
-					TapTable tapTable = SchemaCacheUtil.getTapTable(schemaKey);
+					TapTable tapTable = HazelcastSchemaTargetNode.getTapTable(schemaKey);
 					if (logger.isDebugEnabled()) {
 						logger.debug("derivation results: {}", JSON.toJSONString(tapTable));
 					}
@@ -78,6 +80,37 @@ public class DeduceSchemaHandler implements WebSocketEventHandler<WebSocketEvent
 					return tapTable;
 				}
 				return null;
+			}
+
+			@Override
+			public List<MigrateJsResultVo> getJsResult(String jsNodeId, String virtualTargetId, SubTaskDto subTaskDto) {
+				String schemaKey = subTaskDto.getId() + "-" + virtualTargetId;
+				long startTs = System.currentTimeMillis();
+
+				TaskClient<SubTaskDto> taskClient = execTask(subTaskDto);
+
+				logger.info("load tapTable task {} {}, cost {}ms", schemaKey, taskClient.getStatus(), (System.currentTimeMillis() - startTs));
+				if (SubTaskDto.STATUS_COMPLETE.equals(taskClient.getStatus())) {
+					//成功
+					List<HazelcastSchemaTargetNode.SchemaApplyResult> schemaApplyResultList = HazelcastSchemaTargetNode.getSchemaApplyResultList(schemaKey);
+					if (logger.isDebugEnabled()) {
+						logger.debug("derivation results: {}", JSON.toJSONString(schemaApplyResultList));
+					}
+
+					if (CollectionUtils.isNotEmpty(schemaApplyResultList)) {
+						return schemaApplyResultList.stream().map(s -> new MigrateJsResultVo(s.getOp(),s.getFieldName(), s.getTapField()))
+										.collect(Collectors.toList());
+					}
+
+				}
+				return null;
+			}
+
+			private TaskClient<SubTaskDto> execTask(SubTaskDto subTaskDto) {
+				subTaskDto.getParentTask().setType(ParentTaskDto.TYPE_INITIAL_SYNC);
+				TaskClient<SubTaskDto> taskClient = taskService.startTestTask(subTaskDto);
+				taskClient.join();
+				return taskClient;
 			}
 		};
 
@@ -198,61 +231,4 @@ public class DeduceSchemaHandler implements WebSocketEventHandler<WebSocketEvent
 		}
 	}
 
-	private static class DeduceSchemaResponse {
-
-		private Map<String, Update> batchMetadataUpdateMap;
-		private List<MetadataInstancesDto> batchInsertMetaDataList;
-		private List<MetadataTransformerItemDto> upsertItems;
-		private List<MetadataTransformerDto> upsertTransformer;
-
-		private Map<String, List<Message>> transformSchema;
-
-		public DeduceSchemaResponse(Map<String, Update> batchMetadataUpdateMap, List<MetadataInstancesDto> batchInsertMetaDataList, List<MetadataTransformerItemDto> upsertItems, List<MetadataTransformerDto> upsertTransformer, Map<String, List<Message>> transformSchema) {
-			this.batchMetadataUpdateMap = batchMetadataUpdateMap;
-			this.batchInsertMetaDataList = batchInsertMetaDataList;
-			this.upsertItems = upsertItems;
-			this.upsertTransformer = upsertTransformer;
-			this.transformSchema = transformSchema;
-		}
-
-		public Map<String, Update> getBatchMetadataUpdateMap() {
-			return batchMetadataUpdateMap;
-		}
-
-		public void setBatchMetadataUpdateMap(Map<String, Update> batchMetadataUpdateMap) {
-			this.batchMetadataUpdateMap = batchMetadataUpdateMap;
-		}
-
-		public List<MetadataInstancesDto> getBatchInsertMetaDataList() {
-			return batchInsertMetaDataList;
-		}
-
-		public void setBatchInsertMetaDataList(List<MetadataInstancesDto> batchInsertMetaDataList) {
-			this.batchInsertMetaDataList = batchInsertMetaDataList;
-		}
-
-		public List<MetadataTransformerItemDto> getUpsertItems() {
-			return upsertItems;
-		}
-
-		public void setUpsertItems(List<MetadataTransformerItemDto> upsertItems) {
-			this.upsertItems = upsertItems;
-		}
-
-		public List<MetadataTransformerDto> getUpsertTransformer() {
-			return upsertTransformer;
-		}
-
-		public void setUpsertTransformer(List<MetadataTransformerDto> upsertTransformer) {
-			this.upsertTransformer = upsertTransformer;
-		}
-
-		public Map<String, List<Message>> getTransformSchema() {
-			return transformSchema;
-		}
-
-		public void setTransformSchema(Map<String, List<Message>> transformSchema) {
-			this.transformSchema = transformSchema;
-		}
-	}
 }

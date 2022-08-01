@@ -56,6 +56,7 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static io.tapdata.connector.mysql.util.MysqlUtil.randomServerId;
+import static io.tapdata.entity.simplify.TapSimplify.insertRecordEvent;
 
 /**
  * @author samuel
@@ -190,11 +191,11 @@ public class MysqlReader implements Closeable {
 			List<String> dbTableNames = tables.stream().map(t -> database + "." + t).collect(Collectors.toList());
 			builder.with(MySqlConnectorConfig.DATABASE_INCLUDE_LIST, database);
 			builder.with(MySqlConnectorConfig.TABLE_INCLUDE_LIST, String.join(",", dbTableNames));
-			if (Boolean.parseBoolean(tapConnectorContext.getStateMap().get(FIRST_TIME_KEY).toString())) {
-				builder.with("snapshot.mode", "schema_only_recovery");
-			} else {
-				builder.with("snapshot.mode", "schema_only");
-			}
+			builder.with("snapshot.mode", "schema_only_recovery");
+//			if (Boolean.parseBoolean(tapConnectorContext.getStateMap().get(FIRST_TIME_KEY).toString())) {
+//			} else {
+//				builder.with("snapshot.mode", "schema_only");
+//			}
 			builder.with("database.history", "io.tapdata.connector.mysql.StateMapHistoryBackingStore");
 			builder.with(EmbeddedEngine.OFFSET_STORAGE, "io.tapdata.connector.mysql.PdkPersistenceOffsetBackingStore");
 			if (StringUtils.isNotBlank(offsetStr)) {
@@ -357,14 +358,14 @@ public class MysqlReader implements Closeable {
 		Map<String, Object> after = null;
 		switch (mysqlOpType) {
 			case INSERT:
-				tapRecordEvent = new TapInsertRecordEvent();
+				tapRecordEvent = new TapInsertRecordEvent().init();
 				if (null == valueSchema.field("after"))
 					throw new RuntimeException("Found insert record does not have after: " + record);
 				after = struct2Map(value.getStruct("after"), table);
 				((TapInsertRecordEvent) tapRecordEvent).setAfter(after);
 				break;
 			case UPDATE:
-				tapRecordEvent = new TapUpdateRecordEvent();
+				tapRecordEvent = new TapUpdateRecordEvent().init();
 				if (null != valueSchema.field("before")) {
 					before = struct2Map(value.getStruct("before"), table);
 					((TapUpdateRecordEvent) tapRecordEvent).setBefore(before);
@@ -375,7 +376,7 @@ public class MysqlReader implements Closeable {
 				((TapUpdateRecordEvent) tapRecordEvent).setAfter(after);
 				break;
 			case DELETE:
-				tapRecordEvent = new TapDeleteRecordEvent();
+				tapRecordEvent = new TapDeleteRecordEvent().init();
 				if (null == valueSchema.field("before"))
 					throw new RuntimeException("Found delete record does not have before: " + record);
 				before = struct2Map(value.getStruct("before"), table);
@@ -463,6 +464,9 @@ public class MysqlReader implements Closeable {
 	private Object handleDatetime(String table, String fieldName, Object value) {
 		TapTable tapTable = tapTableMap.get(table);
 		if (null == tapTable) return value;
+		if (null == tapTable.getNameFieldMap()) {
+			return value;
+		}
 		TapField tapField = tapTable.getNameFieldMap().get(fieldName);
 		if (null == tapField) return value;
 		TapType tapType = tapField.getTapType();

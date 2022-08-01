@@ -178,10 +178,12 @@
           "title": "${cacheKey}",
           "x-decorator": "FormItem",
           "x-component": "FieldSelect",
-          "x-reactions": "{{useAsyncDataSourceByConfig({service: loadNodeFieldOptions, withoutField: true}, $values.$inputs[0])}}",
-          "index": 1,
-          "required": true
-
+          "x-component-props": {
+            "allowCreate": true,
+            "multiple": true,
+            "filterable": true
+          },
+          "x-reactions": "{{useAsyncDataSourceByConfig({service: loadNodeFieldOptions, withoutField: true}, $values.$inputs[0])}}"
         },
         "prefixKey": {
           "type": "string",
@@ -209,7 +211,7 @@
       "valueType": "storage format",
       "sentinelAddress" : "Server address",
       "Address" : "Please enter the server address",
-      "sentinelPort": "Please enter the server port",
+      "sentinelPort": "server port",
       "cacheKey": "cache key",
       "cachePrefix": "cache prefix",
       "prompt": "add"
@@ -226,9 +228,9 @@
       "standalone": "单机部署",
       "sentinel": "哨兵部署",
       "valueType": "存储格式",
-      "sentinelAddress" : "服務器地址",
-      "Address" : "请输入服务器地址",
-      "sentinelPort": "请输入服务器端口",
+      "sentinelAddress" : "服务器地址",
+      "Address" : "服务器地址",
+      "sentinelPort": "端口",
       "cacheKey": "缓存键",
       "cachePrefix": "缓存前缀",
       "prompt": "添加"
@@ -246,8 +248,8 @@
       "sentinel": "哨兵部署",
       "valueType": "存儲格式",
       "sentinelAddress" : "服務器地址",
-      "Address" : "請輸入服務器地址",
-      "sentinelPort": "請輸入服務器端口",
+      "Address" : "服務器地址",
+      "sentinelPort": "服務器端口",
       "cacheKey": "緩存鍵",
       "cachePrefix": "緩存前綴",
       "prompt": "添加"

@@ -3,7 +3,7 @@ package io.tapdata.entity.event.ddl.table;
 import io.tapdata.entity.event.TapEvent;
 
 public class TapAlterTableCharsetEvent extends TapTableEvent {
-    public static final int TYPE = 200;
+    public static final int TYPE = 204;
     private String charset;
     public TapAlterTableCharsetEvent charset(String charset) {
         this.charset = charset;

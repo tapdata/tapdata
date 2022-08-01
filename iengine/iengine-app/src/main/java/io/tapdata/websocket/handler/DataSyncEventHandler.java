@@ -2,6 +2,7 @@ package io.tapdata.websocket.handler;
 
 import com.tapdata.constant.ConnectionUtil;
 import com.tapdata.constant.ConnectorConstant;
+import com.tapdata.constant.HazelcastUtil;
 import com.tapdata.constant.Log4jUtil;
 import com.tapdata.entity.Connections;
 import com.tapdata.entity.DatabaseTypeEnum;
@@ -12,13 +13,17 @@ import com.tapdata.tm.commons.dag.logCollector.HazelCastImdgNode;
 import com.tapdata.tm.commons.dag.logCollector.LogCollectorNode;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
+import com.tapdata.tm.commons.dag.process.AggregationProcessorNode;
 import com.tapdata.tm.commons.dag.process.MergeTableNode;
 import com.tapdata.tm.commons.task.dto.SubTaskDto;
+import io.tapdata.aspect.TaskResetAspect;
+import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.entity.utils.cache.KVMap;
 import io.tapdata.flow.engine.V2.entity.PdkStateMap;
 import io.tapdata.flow.engine.V2.node.hazelcast.processor.HazelcastMergeNode;
+import io.tapdata.flow.engine.V2.node.hazelcast.processor.aggregation.HazelcastMultiAggregatorProcessor;
 import io.tapdata.flow.engine.V2.task.impl.HazelcastTaskService;
 import io.tapdata.flow.engine.V2.util.PdkUtil;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
@@ -103,8 +108,14 @@ public class DataSyncEventHandler extends BaseEventHandler {
 				mergeNodeDestroy(node);
 			} else if (node instanceof HazelCastImdgNode) {
 				// TODO clear log
+			} else if (node instanceof AggregationProcessorNode) {
+				aggregateNodeDestroy(node);
 			}
 		}
+	}
+
+	private void aggregateNodeDestroy(Node<?> node) {
+		HazelcastMultiAggregatorProcessor.clearCache(node.getId(), HazelcastUtil.getInstance());
 	}
 
 	private void mergeNodeDestroy(Node<?> node) {
@@ -158,6 +169,7 @@ public class DataSyncEventHandler extends BaseEventHandler {
 			if (releaseExternalFunction != null) {
 				PDKInvocationMonitor.invoke(connectorNode, PDKMethod.RELEASE_EXTERNAL, () -> releaseExternalFunction.release(connectorNode.getConnectorContext()), TAG);
 			}
+			AspectUtils.executeAspect(TaskResetAspect.class, () -> new TaskResetAspect().task(subTaskDto));
 			TapConnectorContext connectorContext = connectorNode.getConnectorContext();
 			if (connectorContext != null) {
 				KVMap<Object> stateMap = connectorContext.getStateMap();

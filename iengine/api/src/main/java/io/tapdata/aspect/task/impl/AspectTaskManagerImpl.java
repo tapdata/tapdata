@@ -3,6 +3,7 @@ package io.tapdata.aspect.task.impl;
 import com.tapdata.tm.commons.task.dto.SubTaskDto;
 import io.tapdata.aspect.TaskStartAspect;
 import io.tapdata.aspect.TaskStopAspect;
+import io.tapdata.aspect.task.AspectTask;
 import io.tapdata.aspect.task.AspectTaskManager;
 import io.tapdata.entity.annotations.Implementation;
 import io.tapdata.entity.aspect.AspectManager;
@@ -12,8 +13,7 @@ import io.tapdata.entity.utils.ClassFactory;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.pdk.core.utils.CommonUtils;
 
-import java.util.Collection;
-import java.util.Map;
+import java.util.*;
 
 @Implementation(AspectTaskManager.class)
 public class AspectTaskManagerImpl implements AspectTaskManager {
@@ -28,7 +28,7 @@ public class AspectTaskManagerImpl implements AspectTaskManager {
 		if (classAnnotationManager != null) {
 			classAnnotationManager
 					.registerClassAnnotationHandler(aspectTaskSessionAnnotationHandler);
-			String scanPackage = CommonUtils.getProperty("pdk_aspect_scan_package", "io,tapdata");
+			String scanPackage = CommonUtils.getProperty("pdk_aspect_scan_package", "io.tapdata,com.tapdata");
 			String[] packages = scanPackage.split(",");
 			classAnnotationManager.scan(packages, this.getClass().getClassLoader());
 
@@ -46,7 +46,8 @@ public class AspectTaskManagerImpl implements AspectTaskManager {
 						Collection<TaskSessionClassHolder> classHolders = taskSessionMap.get("default");
 						if (classHolders != null) {
 							for (TaskSessionClassHolder classHolder : classHolders) {
-								classHolder.ensureTaskSessionCreated(task);
+								if(classHolder.isTaskSupported(task))
+									classHolder.ensureTaskSessionCreated(aspect);
 							}
 						}
 					});
@@ -59,7 +60,7 @@ public class AspectTaskManagerImpl implements AspectTaskManager {
 						Collection<TaskSessionClassHolder> classHolders = taskSessionMap.get("default");
 						if (classHolders != null) {
 							for (TaskSessionClassHolder classHolder : classHolders) {
-								classHolder.ensureTaskSessionStopped(task);
+								classHolder.ensureTaskSessionStopped(aspect);
 							}
 						}
 					});
@@ -68,5 +69,19 @@ public class AspectTaskManagerImpl implements AspectTaskManager {
 		}
 	}
 
+	@Override
+	public List<AspectTask> getAspectTasks(String taskId) {
+		Collection<TaskSessionClassHolder> classHolders = taskSessionMap.get("default");
+		if(classHolders != null) {
+			List<AspectTask> aspectTasks = new ArrayList<>();
+			for (TaskSessionClassHolder classHolder : classHolders) {
+				AspectTask aspectTask = classHolder.getAspectTasks(taskId);
+				if(aspectTask != null)
+					aspectTasks.add(aspectTask);
+			}
+			return aspectTasks;
+		}
+		return Collections.emptyList();
+	}
 
 }

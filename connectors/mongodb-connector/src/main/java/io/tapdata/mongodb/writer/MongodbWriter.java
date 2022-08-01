@@ -47,16 +47,11 @@ public class MongodbWriter {
 	private ConnectionString connectionString;
 	private MongodbConfig mongodbConfig;
 
-	public MongodbWriter(KVMap<Object> globalStateMap) {
+	public MongodbWriter(KVMap<Object> globalStateMap, MongodbConfig mongodbConfig, MongoClient mongoClient) {
 		this.globalStateMap = globalStateMap;
-	}
-
-	public void onStart(MongodbConfig mongodbConfig) {
-		if (mongoClient == null) {
-			mongoClient = MongodbUtil.createMongoClient(mongodbConfig);
-			mongoDatabase = mongoClient.getDatabase(mongodbConfig.getDatabase());
-			this.connectionString = new ConnectionString(mongodbConfig.getUri());
-		}
+		this.mongoClient = mongoClient;
+		this.mongoDatabase = mongoClient.getDatabase(mongodbConfig.getDatabase());
+		this.connectionString = new ConnectionString(mongodbConfig.getUri());
 		this.mongodbConfig = mongodbConfig;
 	}
 
@@ -83,7 +78,6 @@ public class MongodbWriter {
 		List<WriteModel<Document>> writeModels = new ArrayList<>();
 //				Map<String, List<Document>> insertMap = new HashMap<>();
 //				Map<String, List<TapRecordEvent>> insertEventMap = new HashMap<>();
-		UpdateOptions options = new UpdateOptions().upsert(true);
 
 		WriteListResult<TapRecordEvent> writeListResult = writeListResult();
 
@@ -94,6 +88,8 @@ public class MongodbWriter {
 		MongodbLookupUtil.lookUpAndSaveDeleteMessage(tapRecordEvents, this.globalStateMap, this.connectionString, pks, collection);
 
 		for (TapRecordEvent recordEvent : tapRecordEvents) {
+			UpdateOptions options = new UpdateOptions().upsert(true);
+
 			final Map<String, Object> info = recordEvent.getInfo();
 			if (MapUtils.isNotEmpty(info) && info.containsKey(MergeInfo.EVENT_INFO_KEY)) {
 				final List<WriteModel<Document>> mergeWriteModels = MongodbMergeOperate.merge(inserted, updated, deleted, recordEvent, table);

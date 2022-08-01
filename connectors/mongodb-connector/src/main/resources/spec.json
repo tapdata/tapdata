@@ -338,6 +338,8 @@
         "-1.7976931348623157E+308",
         "1.7976931348623157E+308"
       ],
+      "preferPrecision": 20,
+      "preferScale": 8,
       "scale": 17,
       "precision": 309
     },

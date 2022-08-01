@@ -6,6 +6,7 @@ import com.tapdata.tm.commons.schema.bean.FileSources;
 import com.tapdata.tm.commons.schema.bean.PlatformInfo;
 import com.tapdata.tm.commons.schema.bean.Schema;
 import com.tapdata.tm.commons.schema.bean.UrlInfo;
+import com.tapdata.tm.commons.util.CreateTypeEnum;
 import com.tapdata.tm.ds.bean.ResponseBody;
 import io.tapdata.pdk.apis.entity.Capability;
 import lombok.Data;
@@ -38,6 +39,8 @@ public class DataSourceEntity extends BaseEntity {
     private String name;
     /** 数据源的配置信息 jsonschema */
     private Map<String, Object> config;
+    /** 创建类型 */
+    private CreateTypeEnum createType;
     /** 连接类型 源，目标，源&目标 */
     private String connection_type;
     /** 对应DataSourceDefinition databasetype */

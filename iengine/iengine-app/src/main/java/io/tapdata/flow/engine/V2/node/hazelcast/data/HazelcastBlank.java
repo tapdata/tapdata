@@ -17,11 +17,6 @@ public class HazelcastBlank extends HazelcastBaseNode {
 	}
 
 	@Override
-	protected void init(@NotNull Context context) throws Exception {
-		super.init(context);
-	}
-
-	@Override
 	protected boolean tryProcess(int ordinal, @NotNull Object item) throws Exception {
 		return offer((TapdataEvent) item);
 	}

@@ -9,14 +9,15 @@ import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.CacheNode;
 import com.tapdata.tm.commons.task.dto.SubTaskDto;
+import com.tapdata.tm.commons.task.dto.TaskDto;
+import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.aspect.TaskStopAspect;
-import io.tapdata.entity.aspect.AspectManager;
-import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.flow.engine.V2.common.HazelcastStatusMappingEnum;
 import io.tapdata.flow.engine.V2.monitor.MonitorManager;
 import io.tapdata.flow.engine.V2.progress.SnapshotProgressManager;
 import io.tapdata.flow.engine.V2.task.TaskClient;
 import io.tapdata.milestone.MilestoneService;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -49,7 +50,7 @@ public class HazelcastTaskClient implements TaskClient<SubTaskDto> {
 		this.clientMongoOperator = clientMongoOperator;
 		this.configurationCenter = configurationCenter;
 		this.hazelcastInstance = hazelcastInstance;
-		if (!subTaskDto.isTransformTask()) {
+		if (!StringUtils.equalsAnyIgnoreCase(subTaskDto.getParentTask().getSyncType(), TaskDto.SYNC_TYPE_DEDUCE_SCHEMA, TaskDto.SYNC_TYPE_TEST_RUN)) {
 			this.monitorManager = new MonitorManager();
 			try {
 				this.monitorManager.startMonitor(MonitorManager.MonitorType.SUBTASK_MILESTONE_MONITOR, subTaskDto, milestoneService);
@@ -94,7 +95,7 @@ public class HazelcastTaskClient implements TaskClient<SubTaskDto> {
 
 		if (job.getStatus() == JobStatus.SUSPENDED) {
 			job.cancel();
-			InstanceFactory.instance(AspectManager.class).executeAspect(new TaskStopAspect().task(subTaskDto));
+
 			try {
 				monitorManager.close();
 			} catch (IOException ignore) {

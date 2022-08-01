@@ -1,5 +1,6 @@
 package io.tapdata.flow.engine.V2.monitor;
 
+import io.tapdata.pdk.core.utils.CommonUtils;
 import org.apache.commons.collections.CollectionUtils;
 
 import java.io.Closeable;
@@ -14,6 +15,7 @@ import java.util.List;
  **/
 public class MonitorManager implements Closeable {
 
+	public static final String TAG = MonitorManager.class.getSimpleName();
 	private List<Monitor<?>> monitors = new ArrayList<>();
 
 	public void startMonitor(MonitorType monitorType, Object... args) throws Exception {
@@ -44,7 +46,7 @@ public class MonitorManager implements Closeable {
 			return;
 		}
 		for (Monitor<?> monitor : monitors) {
-			monitor.close();
+			CommonUtils.ignoreAnyError(monitor::close, TAG);
 		}
 	}
 
@@ -59,14 +61,21 @@ public class MonitorManager implements Closeable {
 		}
 	}
 
+	public Monitor<?> getMonitorByType(MonitorType monitorType) {
+		assert null != monitorType;
+		String clazz = monitorType.getClazz();
+		return monitors.stream().filter(monitor -> monitor.getClass().getName().equals(clazz)).findFirst().orElse(null);
+	}
+
 	public enum MonitorType {
 		SOURCE_TS_MONITOR("io.tapdata.flow.engine.V2.monitor.impl.SourceTSMonitor"),
 		SUBTASK_MILESTONE_MONITOR("io.tapdata.flow.engine.V2.monitor.impl.TaskMilestoneMonitor"),
 		SUBTASK_PING_TIME("io.tapdata.flow.engine.V2.monitor.impl.TaskPingTimeMonitor"),
 		STREAM_OFFSET_MONITOR("io.tapdata.flow.engine.V2.monitor.impl.StreamOffsetMonitor"),
+		TABLE_MONITOR("io.tapdata.flow.engine.V2.monitor.impl.TableMonitor"),
 		;
 
-		private String clazz;
+		private final String clazz;
 
 		MonitorType(String clazz) {
 			this.clazz = clazz;

@@ -31,7 +31,7 @@ public class AspectManagerImpl implements AspectManager {
             classAnnotationManager
                     .registerClassAnnotationHandler(aspectInterceptorAnnotationHandler)
                     .registerClassAnnotationHandler(aspectObserverAnnotationHandler);
-            String scanPackage = CommonUtils.getProperty("pdk_aspect_scan_package", "io,tapdata");
+            String scanPackage = CommonUtils.getProperty("pdk_aspect_scan_package", "io.tapdata,com.tapdata");
             String[] packages = scanPackage.split(",");
             classAnnotationManager.scan(packages, this.getClass().getClassLoader());
 
@@ -58,7 +58,7 @@ public class AspectManagerImpl implements AspectManager {
             Collection<AspectInterceptorClassHolder> newInterceptorClassHolders = Collections.synchronizedSortedSet(new TreeSet<>(interceptorClassHolders));
             for(AspectInterceptorClassHolder aspectInterceptorClassHolder : newInterceptorClassHolders) {
                 if(aspectInterceptorClassHolder.getAspectInterceptor() != null && aspectInterceptorClassHolder.getAspectInterceptor().equals(aspectInterceptor)) {
-                    TapLogger.warn(TAG, "aspectInterceptor {} already exists for Aspect {}", aspectInterceptor, aspectClass);
+//                    TapLogger.warn(TAG, "aspectInterceptor {} already exists for Aspect {}", aspectInterceptor, aspectClass);
                     return;
                 }
             }
@@ -126,7 +126,7 @@ public class AspectManagerImpl implements AspectManager {
             Collection<AspectObserverClassHolder> newObserverClassHolders = Collections.synchronizedSortedSet(new TreeSet<>(observerClassHolders));
             for(AspectObserverClassHolder aspectObserverClassHolder : newObserverClassHolders) {
                 if(aspectObserverClassHolder.getAspectObserver() != null && aspectObserverClassHolder.getAspectObserver().equals(aspectObserver)) {
-                    TapLogger.warn(TAG, "aspectObserver {} already exists for Aspect {}", aspectObserver, aspectClass);
+//                    TapLogger.warn(TAG, "aspectObserver {} already exists for Aspect {}", aspectObserver, aspectClass);
                     return;
                 }
             }
@@ -147,15 +147,19 @@ public class AspectManagerImpl implements AspectManager {
         Collection<AspectObserverClassHolder> observerClassHolders = aspectObserversMap.get(aspectClass);
         if(observerClassHolders != null) {
             Collection<AspectObserverClassHolder> newObserverClassHolders = Collections.synchronizedSortedSet(new TreeSet<>());
+            boolean found = false;
             for(AspectObserverClassHolder classHolder : observerClassHolders) {
                 if(classHolder.getAspectClass().equals(observerClass)) {
 //                    deleteObserverHolders.add(classHolder);
+                    found = true;
                 } else {
                     newObserverClassHolders.add(classHolder);
                 }
             }
-            aspectObserversMap.put(aspectClass, newObserverClassHolders);
-            aspectObserverInstanceMap.remove(observerClass);
+            if(found) {
+                aspectObserversMap.put(aspectClass, newObserverClassHolders);
+                aspectObserverInstanceMap.remove(observerClass);
+            }
         }
     }
 
@@ -168,18 +172,22 @@ public class AspectManagerImpl implements AspectManager {
         Collection<AspectObserverClassHolder> observerClassHolders = aspectObserversMap.get(aspectClass);
         if(observerClassHolders != null) {
             Collection<AspectObserverClassHolder> newObserverClassHolders = Collections.synchronizedSortedSet(new TreeSet<>());
+            boolean found = false;
             for(AspectObserverClassHolder classHolder : observerClassHolders) {
                 if(classHolder.getAspectObserver() != null && classHolder.getAspectObserver().equals(aspectObserver)) {
 //                    deleteObserverHolders.add(classHolder);
+                    found = true;
                 } else {
                     newObserverClassHolders.add(classHolder);
                 }
             }
-            if(newObserverClassHolders.isEmpty())
-                aspectObserversMap.remove(aspectClass);
-            else
-                aspectObserversMap.put(aspectClass, newObserverClassHolders);
-            aspectObserverInstanceMap.remove(aspectObserver.getClass());
+            if(found) {
+                if(newObserverClassHolders.isEmpty())
+                    aspectObserversMap.remove(aspectClass);
+                else
+                    aspectObserversMap.put(aspectClass, newObserverClassHolders);
+                aspectObserverInstanceMap.remove(aspectObserver.getClass());
+            }
         }
     }
 
@@ -296,6 +304,13 @@ public class AspectManagerImpl implements AspectManager {
             }
         }
         return resultAtomicReference.get();
+    }
+
+    @Override
+    public <T extends Aspect> boolean hasInterceptorOrObserver(Class<T> aspectClass) {
+        Collection<AspectInterceptorClassHolder> interceptorClassHolders = aspectInterceptorMap.get(aspectClass);
+        Collection<AspectObserverClassHolder> observerClassHolders = aspectObserversMap.get(aspectClass);
+        return (interceptorClassHolders != null && !interceptorClassHolders.isEmpty()) || (observerClassHolders != null && !observerClassHolders.isEmpty());
     }
 
     /**

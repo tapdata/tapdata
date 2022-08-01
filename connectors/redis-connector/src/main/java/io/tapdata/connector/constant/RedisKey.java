@@ -11,7 +11,6 @@ public class RedisKey {
   private String val;
   private String prefix;
 
-
   public String getVal() {
     return val;
   }

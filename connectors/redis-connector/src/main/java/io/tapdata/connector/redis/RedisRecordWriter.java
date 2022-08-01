@@ -64,18 +64,21 @@ public class RedisRecordWriter {
                 if (recordEvent instanceof TapInsertRecordEvent) {
                     TapInsertRecordEvent tapInsertRecordEvent = (TapInsertRecordEvent) recordEvent;
                     Map<String, Object> value = tapInsertRecordEvent.getAfter();
-                    writeData(value, tapInsertRecordEvent, pipelined);
+                    String tableName = tapInsertRecordEvent.getTableId();
+                    writeData(value, tapInsertRecordEvent, pipelined,tableName);
                     insert++;
                 } else if (recordEvent instanceof TapUpdateRecordEvent) {
                     TapUpdateRecordEvent tapUpdateRecordEvent = (TapUpdateRecordEvent) recordEvent;
                     Map<String, Object> value = tapUpdateRecordEvent.getAfter();
-                    writeData(value, tapUpdateRecordEvent, pipelined);
+                    String tableName = tapUpdateRecordEvent.getTableId();
+                    writeData(value, tapUpdateRecordEvent, pipelined,tableName);
                     update++;
 
                 } else {
                     TapDeleteRecordEvent tapDeleteRecordEvent = (TapDeleteRecordEvent) recordEvent;
                     Map<String, Object> value = tapDeleteRecordEvent.getBefore();
-                    writeData(value, tapDeleteRecordEvent, pipelined);
+                    String tableName = tapDeleteRecordEvent.getTableId();
+                    writeData(value, tapDeleteRecordEvent, pipelined,tableName);
                     delete++;
                 }
 
@@ -107,12 +110,12 @@ public class RedisRecordWriter {
     /**
      * 组装pipeline数据
      */
-    private void writeData(Map<String, Object> value, TapRecordEvent recordEvent, Pipeline pipelined) {
+    private void writeData(Map<String, Object> value, TapRecordEvent recordEvent, Pipeline pipelined,String tableName) {
         if (MapUtils.isEmpty(value)) {
             TapLogger.warn("Message data is empty {} will skip it.", JSON.toJSONString(recordEvent));
             return;
         }
-        String key = redisContext.getRedisKeySetter().getRedisKey(value, tapTable, connectorContext);
+        String key = redisContext.getRedisKeySetter().getRedisKey(value, tapTable, connectorContext,tableName);
         if (recordEvent instanceof TapUpdateRecordEvent) {
             pipelined.del(key);
         } else {
@@ -127,12 +130,12 @@ public class RedisRecordWriter {
             }
         }
 
-        boolean flag = redisContext.getRedisKeySetter().tableIsExist(tapTable.getName());
+        boolean flag = redisContext.getRedisKeySetter().tableIsExist(tableName);
         if (flag) {
             if (VALUE_TYPE.equals(redisContext.getRedisConfig().getValueType())) {
-                pipelined.sadd(JSON_REDIS_TABLES, tapTable.getName());
+                pipelined.sadd(JSON_REDIS_TABLES, tableName);
             } else {
-                pipelined.sadd(HASH_REDIS_TABLES, tapTable.getName());
+                pipelined.sadd(HASH_REDIS_TABLES, tableName);
             }
         }
     }

@@ -10,6 +10,7 @@ import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 
 import java.io.IOException;
+import java.util.LinkedHashMap;
 import java.util.List;
 
 import static io.tapdata.base.ConnectorBase.testItem;
@@ -29,24 +30,24 @@ public class RedisTest {
 
     public TestItem testHostPort() {
         try {
-            DeployModeEnum deployModeEnum = DeployModeEnum.fromString(redisConfig.getDeployMode());
+            DeployModeEnum deployModeEnum = DeployModeEnum.fromString(redisConfig.getDeploymentMode());
             if (deployModeEnum == null) {
                 deployModeEnum = DeployModeEnum.STANDALONE;
             }
             if (deployModeEnum == DeployModeEnum.STANDALONE) {
                 NetUtil.validateHostPortWithSocket(redisConfig.getHost(), redisConfig.getPort());
             } else {
-                final List<HostPort> hostPorts = redisConfig.getSentinelAddress();
+                final List<LinkedHashMap<String,Integer>> hostPorts = redisConfig.getSentinelAddress();
                 if (CollectionUtils.isEmpty(hostPorts)) {
                     return testItem(DbTestItem.HOST_PORT.getContent(), TestItem.RESULT_FAILED, "host/port cannot be empty.");
                 }
 
                 StringBuilder failedHostPort = new StringBuilder();
-                for (HostPort hostPort : hostPorts) {
+                for (LinkedHashMap<String,Integer> hostPort : hostPorts) {
                     try {
-                        NetUtil.validateHostPortWithSocket(hostPort.getHost(), hostPort.getPort());
+                        NetUtil.validateHostPortWithSocket(String.valueOf(hostPort.get("host")), hostPort.get("port"));
                     } catch (Exception e) {
-                        failedHostPort.append(hostPort.getHost()).append(":").append(hostPort).append(",");
+                        failedHostPort.append(hostPort.get("host")).append(":").append(hostPort.get("port")).append(",");
                     }
                 }
                 if (StringUtils.isNotBlank(failedHostPort)) {

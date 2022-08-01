@@ -4,6 +4,7 @@ package io.tapdata.connector.constant;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
+import io.tapdata.entity.utils.DataMap;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -24,12 +25,14 @@ public class RedisKeySetter {
   private  List arrayList = new ArrayList();
 
 
-  public  String getRedisKey(Map<String, Object> value, TapTable tapTable, TapConnectorContext connectorContext) {
-    RedisKey redisKey = getOrAuto(tapTable,connectorContext);
+  public  String getRedisKey(Map<String, Object> value, TapTable tapTable, TapConnectorContext connectorContext,String tableName) {
+    RedisKey redisKey = getOrAuto(tableName,connectorContext);
 
     StringBuffer buf = new StringBuffer();
     if (StringUtils.isNotBlank(redisKey.getPrefix())) {
       buf.append(redisKey.getPrefix());
+    }else {
+      buf.append(tableName);
     }
 
     String[] keys = redisKey.getVal().split(",");
@@ -42,57 +45,37 @@ public class RedisKeySetter {
   }
 
 
-  public RedisKey getOrAuto(TapTable tapTable,TapConnectorContext connectorContext) {
-    RedisKey val = allSet.get(tapTable.getName());
+  public RedisKey getOrAuto(String tableName,TapConnectorContext connectorContext) {
+    RedisKey val = allSet.get(tableName);
     if (null == val) {
-      val = init(tapTable);
-      allSet.put(tapTable.getName(), val);
+      val = init(tableName,connectorContext);
+      allSet.put(tableName, val);
     }
     return val;
   }
 
-  private RedisKey init(TapTable tapTable) {
+  private RedisKey init(String tableName, TapConnectorContext connectorContext) {
 
     RedisKey redisKey = new RedisKey();
-    List<String> keys = new ArrayList<>();
-    // No primary key
-    if (CollectionUtils.isEmpty(tapTable.getDefaultPrimaryKeys())) {
-      if (null == tapTable.getName()) {
-        throw new RuntimeException("Not found target schema " + tapTable.getName());
-      }
-      List<TapField> fields = new ArrayList<>(10);
-      for (TapField field : tapTable.getNameFieldMap().values()) {
-        fields.add(field);
-      }
-      if (null != fields) {
-        // Sort by primary key
-        fields.sort((o1, o2) -> {
-          if (o1.getPos() < o2.getPos()) {
-            return 1;
-          } else if (o1.getPos() > o1.getPos()) {
-            return -1;
-          } else {
-            return 0;
-          }
-        });
+    DataMap nodeConfig = connectorContext.getNodeConfig();
+    if (nodeConfig == null) {
+      throw new RuntimeException("Not found cache key " + tableName);
+    }
 
-        for (TapField tapField : fields) {
-          keys.add(tapField.getName());
-        }
-      }
+    List<String> cacheKeys= (List<String>) nodeConfig.get("cacheKeys");
 
-    } else { //  primary key
-      for (String primary : tapTable.getDefaultPrimaryKeys()) {
-        keys.add(primary);
+    if (CollectionUtils.isEmpty(cacheKeys)) {
+      if (StringUtils.isEmpty(tableName)) {
+        throw new RuntimeException("Not found cache key " + tableName);
       }
     }
 
-      redisKey.setVal(String.join(",", keys));
-      redisKey.setPrefix(tapTable.getName());
+    redisKey.setVal(String.join(",", cacheKeys));
+    redisKey.setPrefix((String) nodeConfig.get("prefixKey"));
 
-      if (StringUtils.isBlank(redisKey.getVal())) {
-        TapLogger.info("Set redis redisKey is '{}'", redisKey.getVal());
-        throw new RuntimeException("Redis applyop failed,rediskey is blank");
+    if (StringUtils.isBlank(redisKey.getVal())) {
+      TapLogger.error("Set redis redisKey is '{}'", redisKey.getVal());
+      throw new RuntimeException("Redis write failed,rediskey is blank");
     }
 
     return redisKey;

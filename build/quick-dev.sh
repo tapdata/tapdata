@@ -22,9 +22,10 @@ if [[ $? -ne 0 ]]; then
     x=`docker images $tag|wc -l`
     if [[ $x -eq 1 ]]; then
         cd ../
-        bash build/build.sh -c iengine
-        bash build/build.sh -c manager
         bash build/build.sh -c plugin-kit
+        bash build/build.sh -c connectors-common
+        bash build/build.sh -c manager
+        bash build/build.sh -c iengine
         bash build/build.sh -c connectors
         bash build/build.sh -p 1 -o image
     fi

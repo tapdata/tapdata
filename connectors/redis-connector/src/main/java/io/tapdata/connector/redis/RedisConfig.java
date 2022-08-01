@@ -4,6 +4,8 @@ import io.tapdata.connector.constant.HostPort;
 import io.tapdata.entity.utils.BeanUtils;
 import io.tapdata.entity.utils.InstanceFactory;
 
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -19,13 +21,13 @@ public class RedisConfig {
     private String user;
     private String password;
 
-    private String deployMode = "standalone";
+    private String deploymentMode ;
 
     private String sentinelName;
 
     private String database;
 
-    private List<HostPort> sentinelAddress;
+    private ArrayList<LinkedHashMap<String,Integer>> sentinelAddress;
 
     private String valueType;
 
@@ -48,12 +50,12 @@ public class RedisConfig {
         return port;
     }
 
-    public String getDeployMode() {
-        return deployMode;
+    public String getDeploymentMode() {
+        return deploymentMode;
     }
 
-    public void setDeployMode(String deployMode) {
-        this.deployMode = deployMode;
+    public void setDeploymentMode(String deploymentMode) {
+        this.deploymentMode = deploymentMode;
     }
 
     public String getSentinelName() {
@@ -64,11 +66,11 @@ public class RedisConfig {
         this.sentinelName = sentinelName;
     }
 
-    public List<HostPort> getSentinelAddress() {
+    public ArrayList<LinkedHashMap<String, Integer>> getSentinelAddress() {
         return sentinelAddress;
     }
 
-    public void setSentinelAddress(List<HostPort> sentinelAddress) {
+    public void setSentinelAddress(ArrayList<LinkedHashMap<String, Integer>> sentinelAddress) {
         this.sentinelAddress = sentinelAddress;
     }
 

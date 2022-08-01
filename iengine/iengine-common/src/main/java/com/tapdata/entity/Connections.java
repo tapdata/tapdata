@@ -442,16 +442,7 @@ public class Connections implements Serializable {
 	private String redoLogParserHost;
 	private Integer redoLogParserPort;
 
-
-	/**
-	 * redis deploy mode, default: standalone
-	 * standalone/sentinel/master-slave
-	 */
-	private String deployMode = "standalone";
-
-	private String sentinelName;
-
-	private List<HostPort> hostPorts;
+	private Map<String, Object> extParam;
 
 
 	public Connections() {
@@ -2013,29 +2004,7 @@ public class Connections implements Serializable {
 		return ssl;
 	}
 
-	public String getDeployMode() {
-		return deployMode;
-	}
 
-	public void setDeployMode(String deployMode) {
-		this.deployMode = deployMode;
-	}
-
-	public String getSentinelName() {
-		return sentinelName;
-	}
-
-	public void setSentinelName(String sentinelName) {
-		this.sentinelName = sentinelName;
-	}
-
-	public List<HostPort> getHostPorts() {
-		return hostPorts;
-	}
-
-	public void setHostPorts(List<HostPort> hostPorts) {
-		this.hostPorts = hostPorts;
-	}
 
 	@Override
 	public String toString() {
@@ -2219,9 +2188,6 @@ public class Connections implements Serializable {
 				", redoLogParserEnable=" + redoLogParserEnable +
 				", redoLogParserHost='" + redoLogParserHost + '\'' +
 				", redoLogParserPort=" + redoLogParserPort +
-				", deployMode='" + deployMode + '\'' +
-				", sentinelName='" + sentinelName + '\'' +
-				", hostPorts=" + hostPorts +
 				'}';
 	}
 
@@ -2279,6 +2245,14 @@ public class Connections implements Serializable {
 
 	public void setPdkHash(String pdkHash) {
 		this.pdkHash = pdkHash;
+	}
+
+	public Map<String, Object> getExtParam() {
+		return extParam;
+	}
+
+	public void setExtParam(Map<String, Object> extParam) {
+		this.extParam = extParam;
 	}
 }
 

@@ -336,10 +336,14 @@ public class PDKIntegration {
             if(nodeInstance == null)
                 throw new CoreException(PDKRunnerErrorCodes.PDK_PROCESSOR_NOTFOUND, MessageFormat.format("Source not found for pdkId {0} group {1} version {2} for associateId {3}", pdkId, group, version, associateId));
             ConnectionNode connectionNode = new ConnectionNode();
-            connectionNode.connectorNode = (TapConnectorNode) nodeInstance.getTapNode();
+            connectionNode.init((TapConnector) nodeInstance.getTapNode());
             connectionNode.associateId = associateId;
             connectionNode.tapNodeInfo = nodeInstance.getTapNodeInfo();
             connectionNode.connectionContext = new TapConnectionContext(nodeInstance.getTapNodeInfo().getTapNodeSpecification(), connectionConfig);
+
+            PDKInvocationMonitor.getInstance().invokePDKMethod(connectionNode, PDKMethod.REGISTER_CAPABILITIES,
+                    connectionNode::registerCapabilities,
+                    MessageFormat.format("call connection functions {0} associateId {1}", TapNodeSpecification.idAndGroup(pdkId, group, version), associateId), TAG);
             return connectionNode;
         }
     }

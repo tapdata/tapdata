@@ -8,6 +8,8 @@ import com.tapdata.constant.BeanUtil;
 import com.tapdata.constant.ConfigurationCenter;
 import com.tapdata.constant.JSONUtil;
 import com.tapdata.constant.StartResultUtil;
+import io.tapdata.aspect.ApplicationStartAspect;
+import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.aspect.task.AspectTaskManager;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.utils.InstanceFactory;
@@ -63,6 +65,7 @@ import java.util.stream.Collectors;
 @EnableScheduling
 public class Application {
 
+	private static final String TAG = Application.class.getSimpleName();
 	private static Logger logger = LogManager.getLogger(Application.class);
 	private static Logger pdkLogger = LogManager.getLogger("PDK");
 
@@ -74,9 +77,6 @@ public class Application {
 		try {
 			System.setProperty(LoggingSystem.class.getName(), "none");
 			tapdataWorkDir = System.getenv("TAPDATA_WORK_DIR");
-
-			//Initialize AspectTasks
-			InstanceFactory.instance(AspectTaskManager.class);
 
 			addRollingFileAppender(tapdataWorkDir);
 			initSecurityConfig();
@@ -139,11 +139,20 @@ public class Application {
 				configurationCenter.putConfig(ConfigurationCenter.WORK_DIR, tapdataWorkDir);
 			}
 			BeanUtil.configurableApplicationContext = run;
+
+			TapLogger.info(TAG, "Looking for Aspect annotations...");
+			long time = System.currentTimeMillis();
+			//Initialize AspectTasks
+			InstanceFactory.instance(AspectTaskManager.class);
+			TapLogger.info(TAG, "Looking for Aspect annotations takes " + (System.currentTimeMillis() - time));
+
 			try {
 				StartResultUtil.writeStartResult(tapdataWorkDir, configurationCenter.getConfig("version").toString(), null);
 			} catch (Exception e) {
 				logger.error(e.getMessage(), e);
 			}
+
+			AspectUtils.executeAspect(ApplicationStartAspect.class, ApplicationStartAspect::new);
 		} catch (Exception e) {
 			String err = "Run flow engine application failed, err: " + e.getMessage();
 			logger.error(err, e);
@@ -233,22 +242,19 @@ public class Application {
 				.withConfig(config).build();
 
 		RollingFileAppender rollingFileAppender = RollingFileAppender.newBuilder()
-				.withName("rollingFileAppender")
+				.setName("rollingFileAppender")
 				.withFileName(logsPath.toString() + "/tapdata-agent.log")
 				.withFilePattern(logsPath.toString() + "/tapdata-agent.log.%d{yyyyMMdd}.gz")
-				.withLayout(patternLayout)
+				.setLayout(patternLayout)
 				.withPolicy(compositeTriggeringPolicy)
 				.withStrategy(strategy)
 				.build();
 		rollingFileAppender.start();
-//
-//        rootLogger.addAppender(rollingFileAppender);
-
-		AppenderRef ref = AppenderRef.createAppenderRef("rollingFileAppender", defaultLogLevel, null);
+		config.addAppender(rollingFileAppender);
 		LoggerConfig rootLoggerConfig = config.getRootLogger();
-		rootLoggerConfig.getAppenderRefs().add(ref);
 		rootLoggerConfig.setLevel(defaultLogLevel);
 		rootLoggerConfig.addAppender(rollingFileAppender, null, null);
+
 		/*ConsoleAppender consoleAppender = ConsoleAppender.newBuilder()
 			.withName("consoleAppender")
 			.withLayout(patternLayout)

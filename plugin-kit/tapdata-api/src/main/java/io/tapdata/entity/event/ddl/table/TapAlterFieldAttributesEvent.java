@@ -10,7 +10,7 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 
 public class TapAlterFieldAttributesEvent extends TapFieldBaseEvent {
-	public static final int TYPE = 302;
+	public static final int TYPE = 201;
 	private String fieldName;
 	private ValueChange<String> dataTypeChange;
 	private ValueChange<String> checkChange;

@@ -9,6 +9,7 @@ import com.tapdata.processor.dataflow.*;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.process.*;
 import com.tapdata.tm.commons.task.dto.SubTaskDto;
+import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.entity.codec.ToTapValueCodec;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
@@ -39,15 +40,14 @@ import static org.springframework.data.mongodb.core.query.Criteria.where;
 public class HazelcastProcessorNode extends HazelcastProcessorBaseNode {
 
 	private DataFlowProcessor dataFlowProcessor;
-	private NodeTypeEnum nodeType;
 
 	public HazelcastProcessorNode(DataProcessorContext dataProcessorContext) throws Exception {
 		super(dataProcessorContext);
 	}
 
 	@Override
-	protected void init(@NotNull Context context) throws Exception {
-		super.init(context);
+	protected void doInit(@NotNull Context context) throws Exception {
+		super.doInit(context);
 		initDataFlowProcessor();
 	}
 
@@ -109,7 +109,8 @@ public class HazelcastProcessorNode extends HazelcastProcessorBaseNode {
 				if (tapRecordEvent != null) {
 					processedEvent.setTapEvent(tapRecordEvent);
 					String tableName;
-					if (nodeType == NodeTypeEnum.TABLE_RENAME_PROCESSOR || nodeType == NodeTypeEnum.MIGRATE_FIELD_RENAME_PROCESSOR) {
+					if (multipleTables || StringUtils.equalsAnyIgnoreCase(processorBaseContext.getSubTaskDto().getParentTask().getSyncType(),
+									TaskDto.SYNC_TYPE_DEDUCE_SCHEMA)) {
 						tableName = processedMessage.getTableName();
 					} else {
 						tableName = processorBaseContext.getNode().getId();
@@ -186,7 +187,7 @@ public class HazelcastProcessorNode extends HazelcastProcessorBaseNode {
 	}
 
 	private DataFlowProcessor createDataFlowProcessor(Node node, Stage stage) {
-		nodeType = NodeTypeEnum.get(node.getType());
+		NodeTypeEnum nodeType = NodeTypeEnum.get(node.getType());
 		DataFlowProcessor dataFlowProcessor = null;
 		switch (nodeType) {
 			case CACHE_LOOKUP_PROCESSOR:
@@ -196,6 +197,13 @@ public class HazelcastProcessorNode extends HazelcastProcessorBaseNode {
 
 				JsProcessorNode jsProcessorNode = (JsProcessorNode) node;
 				stage.setScript(jsProcessorNode.getScript());
+				break;
+			case MIGRATE_JS_PROCESSOR:
+				dataFlowProcessor = new ScriptDataFlowProcessor();
+				stage.setType(Stage.StageTypeEnum.SCRIPT_TYPE.getType());
+
+				MigrateJsProcessorNode migrateJsProcessorNode = (MigrateJsProcessorNode) node;
+				stage.setScript(migrateJsProcessorNode.getScript());
 				break;
 			case TABLE_RENAME_PROCESSOR:
 				dataFlowProcessor = new TableRenameProcessor((TableRenameProcessNode) node);
@@ -255,10 +263,10 @@ public class HazelcastProcessorNode extends HazelcastProcessorBaseNode {
 	}
 
 	@Override
-	public void close() throws Exception {
+	public void doClose() throws Exception {
 		if (dataFlowProcessor != null) {
 			dataFlowProcessor.stop();
 		}
-		super.close();
+		super.doClose();
 	}
 }

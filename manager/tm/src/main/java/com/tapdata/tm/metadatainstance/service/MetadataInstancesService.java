@@ -16,10 +16,7 @@ import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.logCollector.LogCollectorNode;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
-import com.tapdata.tm.commons.dag.process.MergeTableNode;
-import com.tapdata.tm.commons.dag.process.MigrateFieldRenameProcessorNode;
-import com.tapdata.tm.commons.dag.process.ProcessorNode;
-import com.tapdata.tm.commons.dag.process.TableRenameProcessNode;
+import com.tapdata.tm.commons.dag.process.*;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
 import com.tapdata.tm.commons.schema.DataSourceDefinitionDto;
 import com.tapdata.tm.commons.schema.Field;
@@ -858,6 +855,7 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
 
                 value.setHistories(null);
                 value.setSource(null);
+                value.setId(null);
                 MetadataInstancesEntity entity = convertToEntity(MetadataInstancesEntity.class, value);
                 Update update = repository.buildUpdateSet(entity, userDetail);
 
@@ -908,12 +906,12 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
 
             Criteria criteria = Criteria.where("qualified_name").is(newModelMap.get(dto.getOriginalName()));
             Query query = new Query(criteria);
+            beforeSave(dto, user);
             repository.applyUserDetail(query, user);
             Update update = repository.buildUpdateSet(convertToEntity(MetadataInstancesEntity.class, dto), user);
             repository.beforeUpsert(update, user);
 
             //这个操作有可能是插入操作，所以需要校验字段是否又id，如果没有就set id进去
-            beforeSave(dto, user);
             bulkOperations.upsert(query, update);
             if (num % 1000 == 0) {
                 BulkWriteResult execute = bulkOperations.execute();
@@ -932,7 +930,7 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
     public List<String> tables(String connectId, String sourceType) {
         Criteria criteria = Criteria.where("source._id").is(connectId)
                 .and("sourceType").is(sourceType)
-                .and("is_deleted").is(false)
+                .and("is_deleted").ne(true)
                 .and("meta_type").in(MetaType.collection.name(), MetaType.table.name());
         Query query = new Query(criteria);
         query.fields().include("original_name");
@@ -1151,7 +1149,7 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
                     String[] fieldArrays = fields.toArray(new String[0]);
                     queryMetadata.fields().include(fieldArrays);
                 }
-                if (node instanceof TableRenameProcessNode || node instanceof MigrateFieldRenameProcessorNode) {
+                if (node instanceof TableRenameProcessNode || node instanceof MigrateFieldRenameProcessorNode || node instanceof MigrateJsProcessorNode) {
                     queryMetadata.addCriteria(criteriaNode);
                     String qualifiedName = MetaDataBuilderUtils.generateQualifiedName(MetaType.processor_node.name(), nodeId, null);
                     criteriaNode.and("qualified_name").regex("^"+qualifiedName+".*")
