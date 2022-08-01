@@ -17,6 +17,9 @@ import io.tapdata.entity.schema.TapIndex;
 import io.tapdata.entity.schema.TapIndexField;
 import io.tapdata.entity.schema.type.TapType;
 import io.tapdata.entity.utils.InstanceFactory;
+import io.tapdata.entity.utils.JsonParser;
+import io.tapdata.entity.utils.TypeHolder;
+import io.tapdata.pdk.core.utils.TapConstants;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 
@@ -72,29 +75,45 @@ public class PdkSchemaConvert {
 
 
         LinkedHashMap<String, TapField> nameFieldMap = new LinkedHashMap<>();
-        for (Field field : fields) {
-            TapFieldEx tapField = new TapFieldEx();
-            BeanUtils.copyProperties(field, tapField);
 
-            tapField.setId(field.getId());
-            tapField.setDefaultValue(field.getDefaultValue());
-            tapField.setNullable((Boolean) field.getIsNullable());
-            tapField.setName(field.getFieldName());
-            //tapField.setPartitionKeyPos(field.get);
-            tapField.setPos(field.getColumnPosition());
-            tapField.setPrimaryKeyPos(field.getPrimaryKeyPosition());
-            tapField.setForeignKeyTable(field.getForeignKeyTable());
-            tapField.setForeignKeyField(field.getForeignKeyColumn());
-            tapField.setAutoInc("YES".equals(field.getAutoincrement()));
-            //tapField.setAutoIncStartValue(dd);
-            //tapField.setCheck(field.);
-            tapField.setComment(field.getComment());
-            tapField.setConstraint(field.getPkConstraintName());
-            tapField.setPrimaryKey(field.getPrimaryKey());
-            tapField.setPartitionKey(partitionSet.contains(field.getColumnPosition()));
-            tapField.setDataType(field.getDataType());
-            tapField.setTapType(StringUtils.isBlank(field.getTapType()) ? null : JsonUtil.parseJsonUseJackson(field.getTapType(), new TypeReference<TapType>() {}));
-            nameFieldMap.put(field.getFieldName(), tapField);
+        if (CollectionUtils.isNotEmpty(fields)) {
+            for (Field field : fields) {
+                TapFieldEx tapField = new TapFieldEx();
+                BeanUtils.copyProperties(field, tapField);
+
+                tapField.setId(field.getId());
+                tapField.setDefaultValue(field.getDefaultValue());
+                tapField.setNullable((Boolean) field.getIsNullable());
+                tapField.setName(field.getFieldName());
+                //tapField.setPartitionKeyPos(field.get);
+                tapField.setPos(field.getColumnPosition());
+                tapField.setPrimaryKeyPos(field.getPrimaryKeyPosition());
+                tapField.setForeignKeyTable(field.getForeignKeyTable());
+                tapField.setForeignKeyField(field.getForeignKeyColumn());
+                tapField.setAutoInc("YES".equals(field.getAutoincrement()));
+                //tapField.setAutoIncStartValue(dd);
+                //tapField.setCheck(field.);
+                tapField.setComment(field.getComment());
+                tapField.setConstraint(field.getPkConstraintName());
+                tapField.setPrimaryKey(field.getPrimaryKey());
+                tapField.setPartitionKey(partitionSet.contains(field.getColumnPosition()));
+                tapField.setDataType(field.getDataType());
+                if (StringUtils.isNotBlank(field.getTapType())) {
+                    TapType tapType = null;
+                    try {
+
+                        tapType = InstanceFactory.instance(JsonParser.class).fromJson(field.getTapType(), new TypeHolder<TapType>() {
+                        }, TapConstants.abstractClassDetectors);
+                    } catch (Exception e) {
+                        tapType = JsonUtil.parseJsonUseJackson(field.getTapType(), new TypeReference<TapType>() {
+                        });
+                    }
+
+                    tapField.setTapType(tapType);
+
+                }
+                nameFieldMap.put(field.getFieldName(), tapField);
+            }
         }
 
         tapTable.setNameFieldMap(nameFieldMap);
@@ -104,7 +123,8 @@ public class PdkSchemaConvert {
 
 
     public static TapTable toPdk(Schema schema) {
-        MetadataInstancesDto metadataInstances = JsonUtil.parseJsonUseJackson(JsonUtil.toJsonUseJackson(schema), MetadataInstancesDto.class);
+        MetadataInstancesDto metadataInstances = InstanceFactory.instance(JsonParser.class).fromJson(InstanceFactory.instance(JsonParser.class).toJson(schema), new TypeHolder<MetadataInstancesDto>() {
+        }, TapConstants.abstractClassDetectors);
         return toPdk(metadataInstances);
     }
 
@@ -126,7 +146,9 @@ public class PdkSchemaConvert {
         List<Field> fields = new ArrayList<>();
         Set<Integer> partitionSet = new HashSet<>();
 
-        if (!nameFieldMap.isEmpty()) {
+
+
+        if (nameFieldMap != null && !nameFieldMap.isEmpty()) {
             for (Map.Entry<String, TapField> entry : nameFieldMap.entrySet()) {
                 Field field = new Field();
                 TapField tapField = entry.getValue();
@@ -147,7 +169,7 @@ public class PdkSchemaConvert {
                 field.setComment(tapField.getComment());
                 field.setPkConstraintName(tapField.getConstraint());
                 field.setPrimaryKey(tapField.getPrimaryKey());
-                field.setTapType(tapField.getTapType() == null ? null : JsonUtil.toJsonUseJackson(tapField.getTapType()));
+                field.setTapType(tapField.getTapType() == null ? null : InstanceFactory.instance(JsonParser.class).toJson(tapField.getTapType()));
 
                 if (tapField.getPartitionKey()) {
                     partitionSet.add(tapField.getPos());
@@ -202,7 +224,8 @@ public class PdkSchemaConvert {
 
     public static Schema fromPdkSchema(TapTable tapTable) {
         MetadataInstancesDto metadataInstances = fromPdk(tapTable);
-        return JsonUtil.parseJsonUseJackson(JsonUtil.toJsonUseJackson(metadataInstances), Schema.class);
+        return InstanceFactory.instance(JsonParser.class).fromJson(InstanceFactory.instance(JsonParser.class).toJson(metadataInstances), new TypeHolder<Schema>() {
+        }, TapConstants.abstractClassDetectors);
     }
 
 }

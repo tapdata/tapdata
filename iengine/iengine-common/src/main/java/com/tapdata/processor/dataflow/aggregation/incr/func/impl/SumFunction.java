@@ -1,17 +1,17 @@
 package com.tapdata.processor.dataflow.aggregation.incr.func.impl;
 
 import com.tapdata.entity.dataflow.Aggregation;
+import com.tapdata.processor.dataflow.aggregation.incr.cache.BucketCache;
 import com.tapdata.processor.dataflow.aggregation.incr.calc.Calculator;
 import com.tapdata.processor.dataflow.aggregation.incr.calc.ComposeCalculator;
 import com.tapdata.processor.dataflow.aggregation.incr.func.AbstractAggsFunction;
 import com.tapdata.processor.dataflow.aggregation.incr.func.Func;
-import com.tapdata.processor.dataflow.aggregation.incr.cache.BucketCache;
 import com.tapdata.processor.dataflow.aggregation.incr.func.FuncCacheKey;
+import com.tapdata.processor.dataflow.aggregation.incr.service.SnapshotRecord;
+import com.tapdata.processor.dataflow.aggregation.incr.service.SnapshotService;
 import com.tapdata.processor.dataflow.aggregation.incr.service.model.AggrBucket;
 import com.tapdata.processor.dataflow.aggregation.incr.service.model.BucketValue;
 import com.tapdata.processor.dataflow.aggregation.incr.service.model.SumBucket;
-import com.tapdata.processor.dataflow.aggregation.incr.service.SnapshotRecord;
-import com.tapdata.processor.dataflow.aggregation.incr.service.SnapshotService;
 
 import java.util.List;
 import java.util.Map;

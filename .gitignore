@@ -105,3 +105,7 @@ output/
 !/plugin-kit/tapdata-pdk-api/src/main/java/io/tapdata/pdk/apis/functions/connector/target/
 !/plugin-kit/tapdata-pdk-cli/src/main/java/io/tapdata/pdk/tdd/tests/target
 
+temp/
+tmp_dist/
+tap_table_ehcache/
+**/logs/

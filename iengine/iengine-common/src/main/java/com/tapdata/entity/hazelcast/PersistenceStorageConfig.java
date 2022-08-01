@@ -19,6 +19,7 @@ public class PersistenceStorageConfig implements Serializable {
 	private String mongoDbName;
 	private String mongoCollection;
 	private Integer inMemSize;
+	private int shareCdcTtlDay;
 	private boolean firstTime = true;
 	private boolean enable = false;
 	private Throwable throwable;
@@ -114,6 +115,14 @@ public class PersistenceStorageConfig implements Serializable {
 
 	public void setThrowable(Throwable throwable) {
 		this.throwable = throwable;
+	}
+
+	public int getShareCdcTtlDay() {
+		return shareCdcTtlDay;
+	}
+
+	public void setShareCdcTtlDay(int shareCdcTtlDay) {
+		this.shareCdcTtlDay = shareCdcTtlDay;
 	}
 
 	public static void clearMongoConfig() {

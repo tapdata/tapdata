@@ -1,12 +1,15 @@
 package com.tapdata.tm.commons.dag;
 
-import com.mongodb.BasicDBObject;
-import com.mongodb.bulk.BulkWriteResult;
 import com.tapdata.manager.common.utils.JsonUtil;
 import com.tapdata.manager.common.utils.StringUtils;
+import com.tapdata.tm.commons.dag.process.MigrateFieldRenameProcessorNode;
+import com.tapdata.tm.commons.dag.process.MigrateJsProcessorNode;
+import com.tapdata.tm.commons.dag.process.TableRenameProcessNode;
+import com.tapdata.tm.commons.dag.vo.MigrateJsResultVo;
 import com.tapdata.tm.commons.schema.*;
 import com.tapdata.tm.commons.schema.bean.SourceDto;
 import com.tapdata.tm.commons.schema.bean.SourceTypeEnum;
+import com.tapdata.tm.commons.task.dto.SubTaskDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.util.MetaDataBuilderUtils;
 import com.tapdata.tm.commons.util.MetaType;
@@ -17,39 +20,36 @@ import io.tapdata.entity.mapping.DefaultExpressionMatchingMap;
 import io.tapdata.entity.result.TapResult;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
+import io.tapdata.entity.utils.InstanceFactory;
+import io.tapdata.entity.utils.JsonParser;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.bson.types.ObjectId;
 import org.springframework.beans.BeanUtils;
-import org.springframework.data.mongodb.core.BulkOperations;
-import org.springframework.data.mongodb.core.query.Criteria;
-import org.springframework.data.mongodb.core.query.Query;
-import org.springframework.data.mongodb.core.query.Update;
 
+import java.io.Serializable;
 import java.util.*;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 
-/**
- * @author lg&lt;lirufei0808@gmail.com&gt;
- * create at 2021/11/10 下午2:15
- */
 @Slf4j
-public class DAGDataServiceImpl implements DAGDataService {
+public class DAGDataServiceImpl implements DAGDataService, Serializable {
 
     private final Map<String, MetadataInstancesDto> metadataMap;
     private final Map<String, DataSourceConnectionDto> dataSourceMap;
     private final Map<String, DataSourceDefinitionDto> definitionDtoMap;
 
     private final Map<String, MetadataTransformerDto> transformerDtoMap;
-    private final Map<String, TaskDto> taskMap;
+    private final Map<String, TaskDto> taskMap = new HashMap<>();
 
     private final String userId;
     private final String userName;
 
-    private final Map<String, Update> batchMetadataUpdateMap = new LinkedHashMap<>();
+    private final Map<String, MetadataInstancesDto> batchMetadataUpdateMap = new LinkedHashMap<>();
 
     private final List<MetadataInstancesDto> batchInsertMetaDataList = new ArrayList<>();
+    private final List<String> batchRemoveMetaDataList = new ArrayList<>();
 
 
     private final List<MetadataTransformerItemDto> upsertItems = new ArrayList<>();
@@ -57,8 +57,22 @@ public class DAGDataServiceImpl implements DAGDataService {
 
 
 
+    public DAGDataServiceImpl(TransformerWsMessageDto transformerWsMessageDto) {
+        this.metadataMap = new HashMap<>();
+        for (MetadataInstancesDto metadataInstancesDto : transformerWsMessageDto.getMetadataInstancesDtoList()) {
+            setMetaDataMap(metadataInstancesDto);
+        }
+        this.dataSourceMap = transformerWsMessageDto.getDataSourceMap();
+        this.definitionDtoMap = transformerWsMessageDto.getDefinitionDtoMap();
+        if (transformerWsMessageDto.getTaskDto() != null) {
+            taskMap.put(transformerWsMessageDto.getTaskDto().getId().toHexString(), transformerWsMessageDto.getTaskDto());
+        }
+        this.userId = transformerWsMessageDto.getUserId();
+        this.userName = transformerWsMessageDto.getUserName();
+        this.transformerDtoMap = transformerWsMessageDto.getTransformerDtoMap();
+    }
     public DAGDataServiceImpl(List<MetadataInstancesDto> metadataInstancesDtos, Map<String, DataSourceConnectionDto> dataSourceMap
-            , Map<String, DataSourceDefinitionDto> definitionDtoMap, String userId, String userName, Map<String, TaskDto> taskMap
+            , Map<String, DataSourceDefinitionDto> definitionDtoMap, String userId, String userName, TaskDto taskDto
             , Map<String, MetadataTransformerDto> transformerDtoMap) {
         this.metadataMap = new HashMap<>();
         for (MetadataInstancesDto metadataInstancesDto : metadataInstancesDtos) {
@@ -66,7 +80,9 @@ public class DAGDataServiceImpl implements DAGDataService {
         }
         this.dataSourceMap = dataSourceMap;
         this.definitionDtoMap = definitionDtoMap;
-        this.taskMap = taskMap;
+        if (taskDto != null) {
+            taskMap.put(taskDto.getId().toHexString(), taskDto);
+        }
         this.userId = userId;
         this.userName = userName;
         this.transformerDtoMap = transformerDtoMap;
@@ -84,6 +100,17 @@ public class DAGDataServiceImpl implements DAGDataService {
         }
     }
 
+    private void deleteMetaDataMap(String qualifiedName) {
+        MetadataInstancesDto metadataInstancesDto = metadataMap.get(qualifiedName);
+        if (metadataInstancesDto.getId() != null) {
+            metadataMap.remove(metadataInstancesDto.getId().toHexString());
+        }
+        if (!"database".equals(metadataInstancesDto.getMetaType()) && metadataInstancesDto.getSource() != null) {
+            metadataMap.remove(metadataInstancesDto.getSource().get_id() + metadataInstancesDto.getName());
+        }
+        metadataMap.remove(qualifiedName);
+    }
+
     private Schema convertToSchema(MetadataInstancesDto metadataInstances) {
         if (metadataInstances == null)
             return null;
@@ -99,23 +126,10 @@ public class DAGDataServiceImpl implements DAGDataService {
     @Override
     public Schema loadSchema(String ownerId, ObjectId dataSourceId, String tableName) {
 
-        if (ownerId == null || dataSourceId == null || tableName == null) {
-            log.error("Can't load schema by params: {}, {}, {}", ownerId, dataSourceId, tableName);
+        if (dataSourceId == null || tableName == null) {
+            log.error("Can't load schema by params: {}, {}", dataSourceId, tableName);
             return null;
         }
-//
-//        //UserDetail userDetail = userService.loadUserById(toObjectId(ownerId));
-//
-////        if (userDetail == null) {
-////            log.error("Load schema failed, not found user by id {}", ownerId);
-////            return null;
-////        }
-//
-//        Criteria criteria = Criteria
-//                .where("meta_type").in("table", "collection", "view")
-//                .and("original_name").is(tableName)
-//                .and("is_deleted").ne(true)
-//                .and("source._id").is(dataSourceId.toHexString());
         String key = dataSourceId + tableName;
 
         MetadataInstancesDto metadataInstances = metadataMap.get(key);
@@ -126,52 +140,24 @@ public class DAGDataServiceImpl implements DAGDataService {
     @Override
     public List<Schema> loadSchema(String ownerId, ObjectId dataSourceId, List<String> includes, List<String> excludes) {
 
-        if (ownerId == null || dataSourceId == null) {
+        if (dataSourceId == null) {
             log.error("Can't load schema by params: {}, {}, {}, {}", ownerId, dataSourceId, includes, excludes);
             return null;
         }
 
-        //UserDetail userDetail = userService.loadUserById(toObjectId(ownerId));
-//
-//        if (userDetail == null) {
-//            log.error("Load schema failed, not found user by id {}", ownerId);
-//            return null;
-//        }
 
-        DataSourceConnectionDto dataSource = dataSourceMap.get(dataSourceId);
+        DataSourceConnectionDto dataSource = dataSourceMap.get(dataSourceId.toHexString());
 
         if (dataSource == null) {
             log.error("Load schema failed, not found connection by id {}", dataSourceId.toHexString());
             return null;
         }
 
-        Criteria criteria = Criteria
-                .where("meta_type").in("table", "collection", "view")
-                .and("is_deleted").ne(true)
-                .orOperator(Criteria.where("source.id").is(dataSourceId.toHexString()),
-                        Criteria.where("source.id").is(dataSourceId),
-                        Criteria.where("source._id").is(dataSourceId),
-                        Criteria.where("source._id").is(dataSourceId.toHexString())
-                ).and("source.database_name").is(dataSource.getDatabase_name());
-
-        boolean includeNotEmpty = includes != null && includes.size() > 0;
-        boolean excludeNotEmpty = excludes != null && excludes.size() > 0;
-        if (includeNotEmpty && excludeNotEmpty) {
-            criteria.andOperator(Criteria.where("original_name").in(includes),
-                    Criteria.where("original_name").nin(excludes));
-        } else if (includeNotEmpty) {
-            criteria.and("original_name").in(includes);
-        } else if (excludeNotEmpty) {
-            criteria.and("original_name").nin(excludes);
-        }
-
         List<MetadataInstancesDto> metadataInstances = new ArrayList<>();
-        for (String key : metadataMap.keySet()) {
-            if (key.contains(dataSourceId.toHexString())) {
-                MetadataInstancesDto metadataInstancesDto = metadataMap.get(key);
-                if (metadataInstancesDto != null) {
-                    metadataInstances.add(metadataInstancesDto);
-                }
+        for (String include : includes) {
+            MetadataInstancesDto metadataInstancesDto = metadataMap.get(dataSourceId + include);
+            if (metadataInstancesDto != null) {
+                metadataInstances.add(metadataInstancesDto);
             }
         }
 
@@ -182,12 +168,28 @@ public class DAGDataServiceImpl implements DAGDataService {
     }
 
     @Override
+    public TapTable loadTapTable(List<Schema> schemas, String script, String nodeId, String virtualId, String customNodeId, Map<String, Object> form, SubTaskDto subTaskDto) {
+        //TODO 引擎用于js跑虚拟数据产生模型  js节点存在源节点schema跟 script， 自定义节点存在 自定义节点id, 跟 form表单
+        //具体参数可以另行再定，反正这里得到的会成为最终的节点入库模型
+//        String json = "{\"defaultPrimaryKeys\":[\"_id\"],\"id\":\"XXX\",\"lastUpdate\":1656129059016,\"name\":\"XXX\",\"nameFieldMap\":{\"_id\":{\"autoInc\":false,\"dataType\":\"OBJECT_ID\",\"name\":\"_id\",\"nullable\":true,\"partitionKey\":false,\"pos\":22,\"primaryKey\":true,\"primaryKeyPos\":1},\"CUSTOMER_ID\":{\"autoInc\":false,\"dataType\":\"STRING\",\"name\":\"CUSTOMER_ID\",\"nullable\":true,\"partitionKey\":false,\"pos\":22,\"primaryKey\":false},\"CITY\":{\"autoInc\":false,\"dataType\":\"STRING\",\"name\":\"CITY\",\"nullable\":true,\"partitionKey\":false,\"pos\":22,\"primaryKey\":false},\"COUNTRY_CODE\":{\"autoInc\":false,\"dataType\":\"STRING\",\"name\":\"COUNTRY_CODE\",\"nullable\":true,\"partitionKey\":false,\"pos\":22,\"primaryKey\":false},\"DATE_OF_BIRTH\":{\"autoInc\":false,\"dataType\":\"DATE_TIME\",\"name\":\"DATE_OF_BIRTH\",\"nullable\":true,\"partitionKey\":false,\"pos\":22,\"primaryKey\":false},\"EMAIL\":{\"autoInc\":false,\"dataType\":\"STRING\",\"name\":\"EMAIL\",\"nullable\":true,\"partitionKey\":false,\"pos\":22,\"primaryKey\":false},\"FIRST_NAME\":{\"autoInc\":false,\"dataType\":\"STRING\",\"name\":\"FIRST_NAME\",\"nullable\":true,\"partitionKey\":false,\"pos\":22,\"primaryKey\":false},\"GENDER\":{\"autoInc\":false,\"dataType\":\"STRING\",\"name\":\"GENDER\",\"nullable\":true,\"partitionKey\":false,\"pos\":22,\"primaryKey\":false},\"JOB\":{\"autoInc\":false,\"dataType\":\"STRING\",\"name\":\"JOB\",\"nullable\":true,\"partitionKey\":false,\"pos\":22,\"primaryKey\":false},\"LAST_CHANGE\":{\"autoInc\":false,\"dataType\":\"DATE_TIME\",\"name\":\"LAST_CHANGE\",\"nullable\":true,\"partitionKey\":false,\"pos\":22,\"primaryKey\":false},\"LAST_NAME\":{\"autoInc\":false,\"dataType\":\"STRING\",\"name\":\"LAST_NAME\",\"nullable\":true,\"partitionKey\":false,\"pos\":22,\"primaryKey\":false},\"MARITAL_STATUS\":{\"autoInc\":false,\"dataType\":\"STRING\",\"name\":\"MARITAL_STATUS\",\"nullable\":true,\"partitionKey\":false,\"pos\":22,\"primaryKey\":false},\"NATIONALITY\":{\"autoInc\":false,\"dataType\":\"STRING\",\"name\":\"NATIONALITY\",\"nullable\":true,\"partitionKey\":false,\"pos\":22,\"primaryKey\":false},\"NUMBER_CHILDREN\":{\"autoInc\":false,\"dataType\":\"INT32\",\"name\":\"NUMBER_CHILDREN\",\"nullable\":true,\"partitionKey\":false,\"pos\":22,\"primaryKey\":false},\"PHONE\":{\"autoInc\":false,\"dataType\":\"STRING\",\"name\":\"PHONE\",\"nullable\":true,\"partitionKey\":false,\"pos\":22,\"primaryKey\":false},\"STREET\":{\"autoInc\":false,\"dataType\":\"STRING\",\"name\":\"STREET\",\"nullable\":true,\"partitionKey\":false,\"pos\":22,\"primaryKey\":false},\"ZIP\":{\"autoInc\":false,\"dataType\":\"STRING\",\"name\":\"ZIP\",\"nullable\":true,\"partitionKey\":false,\"pos\":22,\"primaryKey\":false},\"POLICY_ID\":{\"autoInc\":false,\"dataType\":\"STRING\",\"name\":\"POLICY_ID\",\"nullable\":true,\"partitionKey\":false,\"pos\":22,\"primaryKey\":false},\"CAR_MODEL\":{\"autoInc\":false,\"dataType\":\"STRING\",\"name\":\"CAR_MODEL\",\"nullable\":true,\"partitionKey\":false,\"pos\":22,\"primaryKey\":false},\"COVER_START\":{\"autoInc\":false,\"dataType\":\"DATE_TIME\",\"name\":\"COVER_START\",\"nullable\":true,\"partitionKey\":false,\"pos\":22,\"primaryKey\":false},\"LAST_ANN_PREMIUM_GROSS\":{\"autoInc\":false,\"dataType\":\"DOUBLE\",\"name\":\"LAST_ANN_PREMIUM_GROSS\",\"nullable\":true,\"partitionKey\":false,\"pos\":22,\"primaryKey\":false},\"MAX_COVERED\":{\"autoInc\":false,\"dataType\":\"INT32\",\"name\":\"MAX_COVERED\",\"nullable\":true,\"partitionKey\":false,\"pos\":22,\"primaryKey\":false}}}";
+//        TapTable tapTable = InstanceFactory.instance(JsonParser.class).fromJson(json, new TypeHolder<TapTable>() {
+//        }, TapConstants.abstractClassDetectors);
+//        return tapTable;
+        return null;
+    }
+
+    @Override
+    public List<MigrateJsResultVo> getJsResult(String jsNodeId, String virtualTargetId, SubTaskDto subTaskDto) {
+        return null;
+    }
+
+    @Override
     public List<Schema> createOrUpdateSchema(String ownerId, ObjectId dataSourceId, List<Schema> schemas, DAG.Options options, Node node) {
 
         log.info("Create or update schema: ownerId={}, dataSourceId={}, schemaCount={}, options={}", ownerId,
                 dataSourceId, schemas != null ? schemas.size() : null,options);
 
-        if (schemas == null || ownerId == null) {
+        if (schemas == null) {
             log.error("Save schema failed, param can not be empty: {}, {}, {}", ownerId, dataSourceId, schemas);
             return Collections.emptyList();
         }
@@ -213,18 +215,21 @@ public class DAGDataServiceImpl implements DAGDataService {
                     if (oldIdList == null) {
                         field.setOldIdList(new ArrayList<>());
                     }
-                    field.getOldIdList().add(field.getId());
+                    if (field.getId() != null) {
+                        field.getOldIdList().add(field.getId());
+                    }
                     field.setId(new ObjectId().toHexString());
                 }
                 set.add(field.getId());
             }
         }
 
+        boolean appendNodeTableName = node instanceof TableRenameProcessNode || node instanceof MigrateFieldRenameProcessorNode || node instanceof MigrateJsProcessorNode;
 
         if (node.isDataNode()) {
             return createOrUpdateSchemaForDataNode(dataSourceId, schemas, options);
         } else {
-            return createOrUpdateSchemaForProcessNode(schemas, options, node.getId());
+            return createOrUpdateSchemaForProcessNode(schemas, options, node.getId(), appendNodeTableName);
         }
     }
 
@@ -234,7 +239,7 @@ public class DAGDataServiceImpl implements DAGDataService {
      * @param options 配置项
      * @return
      */
-    private List<Schema> createOrUpdateSchemaForProcessNode(List<Schema> schemas, DAG.Options options, String nodeId) {
+    private List<Schema> createOrUpdateSchemaForProcessNode(List<Schema> schemas, DAG.Options options, String nodeId, boolean appendNodeTableName) {
 
         List<ObjectId> databaseMetadataInstancesIds = schemas.stream().map(Schema::getDatabaseId).distinct()
                 .filter(Objects::nonNull).map(ObjectId::new).collect(Collectors.toList());
@@ -277,8 +282,9 @@ public class DAGDataServiceImpl implements DAGDataService {
             metadataInstancesDto.setLastUserName(userName);
             metadataInstancesDto.setLastUpdBy(userId);
 
-            metadataInstancesDto.setQualifiedName(
-                    MetaDataBuilderUtils.generateQualifiedName(MetaType.processor_node.name(), nodeId));
+            String nodeTableName = appendNodeTableName ? schema.getOriginalName() : null;
+            String qualifiedName = MetaDataBuilderUtils.generateQualifiedName(MetaType.processor_node.name(), nodeId, nodeTableName);
+            metadataInstancesDto.setQualifiedName(qualifiedName);
 
             MetaDataBuilderUtils.build(_metaType, dataSource, userId, userName, metadataInstancesDto.getOriginalName(),
                     metadataInstancesDto, null, dataSource.getId().toHexString());
@@ -373,7 +379,7 @@ public class DAGDataServiceImpl implements DAGDataService {
             metadataInstancesDto.setQualifiedName(
                     MetaDataBuilderUtils.generateQualifiedName(metadataInstancesDto.getMetaType(), dataSource, schema.getOriginalName()));
 
-            MetaDataBuilderUtils.build(_metaType, dataSource, userId, userName, metadataInstancesDto.getOriginalName(),
+            metadataInstancesDto = MetaDataBuilderUtils.build(_metaType, dataSource, userId, userName, metadataInstancesDto.getOriginalName(),
                     metadataInstancesDto, null, dataSourceId.toHexString());
 
             metadataInstancesDto.setSourceType(SourceTypeEnum.VIRTUAL.name());
@@ -496,23 +502,6 @@ public class DAGDataServiceImpl implements DAGDataService {
                 field.setOriginalDataType(originalDataType);
             }
             field.setDataTypeTemp(originalDataType);
-
-//            String cacheKey = originalDataType + "-" + finalDbVersion;
-//            List<TypeMappingsEntity> typeMappings = null;
-//            if (typeMapping.containsKey(cacheKey)) {
-//                typeMappings = typeMapping.get(cacheKey);
-//            } else if (typeMapping.containsKey(originalDataType + "-*")) {
-//                cacheKey = originalDataType + "-*";
-//                typeMappings = typeMapping.get(cacheKey);
-//            }
-//            if (typeMappings == null || typeMappings.size() == 0) {
-//                schema.getInvalidFields().add(field.getFieldName());
-//                log.error("Not found tap type mapping rule for databaseType={}, dbVersion={}, dbFieldType={}", databaseType, finalDbVersion, originalDataType);
-//                return;
-//            }
-//
-//            field.setDataType(typeMappings.get(0).getTapType());
-//            field.setFixed(typeMappings.get(0).getFixed());
         });
 
         return schema;
@@ -627,42 +616,10 @@ public class DAGDataServiceImpl implements DAGDataService {
 
     @Override
     public void updateTransformRate(String taskId, int total, int finished) {
-//        //需要做一下频率控制 下面算法是每十分之一发一次
-//        if (((finished -1) * 10 / total) == (finished *10 / total)) {
-//            return;
-//        }
-//
-//        Map<String, Object> data = new HashMap<>();
-//        data.put("totalTable", total);
-//        data.put("finishTable", finished);
-//        data.put("transformStatus", total == finished ? "finished" : "loading");
-//
-//
-//        Map<String, Object> map = new HashMap<>();
-//        map.put("type", MessageType.EDIT_FLUSH.getType());
-//        map.put("opType", "transformRate");
-//        map.put("taskId", taskId);
-//        map.put("data", data);
-//        MessageQueueDto queueDto = new MessageQueueDto();
-//        queueDto.setData(map);
-//        queueDto.setType("pipe");
-//
-//        log.info("build transform rate websocket context, queueDto = {}", queueDto);
-//        messageQueueService.sendMessage(queueDto);
     }
 
     @Override
     public boolean checkNewestVersion(String taskId, String nodeId, String version) {
-//        Criteria criteria = Criteria.where("dataFlowId").is(taskId).and("stageId").is(nodeId);
-//        MetadataTransformerDto transformer = metadataTransformerService.findOne(new Query(criteria));
-//
-//        // meta transformer version not equals return;
-//        if (Objects.nonNull(transformer) && !org.apache.commons.lang3.StringUtils.equals(version, transformer.getVersion())) {
-//            log.warn("meta transformer version not equals, transformer = {}, uuid = {}", transformer, version);
-//            return false;
-//        } else {
-//            return true;
-//        }
         //todo
         return false;
     }
@@ -675,6 +632,14 @@ public class DAGDataServiceImpl implements DAGDataService {
      */
     @Override
     public void upsertTransformTemp(List<SchemaTransformerResult> schemaTransformerResults, String taskId, String nodeId, int total, List<String> sourceQualifiedNames, String uuid) {
+        if (transformerDtoMap == null) {
+            //在这个map为空的时候，说明推演的时候就不需要处理这段逻辑
+            return;
+        }
+
+        if (taskId == null) {
+            taskId = getTaskId().toHexString();
+        }
         log.debug("upsert transform record, size = {}", schemaTransformerResults == null ? 0 : schemaTransformerResults.size());
         if (CollectionUtils.isEmpty(schemaTransformerResults)) {
             return;
@@ -687,13 +652,13 @@ public class DAGDataServiceImpl implements DAGDataService {
             sourceQualifiedNames.add(schemaTransformerResult.getSinkQulifiedName());
         }
 
-        Criteria criteria1 = Criteria.where("qualified_name").in(sourceQualifiedNames);
-        Query query = new Query(criteria1);
-        query.fields().include("_id", "qualified_name", "originalName", "name", "fields");
         List<MetadataInstancesDto> all = new ArrayList<>();
 
         for (String sourceQualifiedName : sourceQualifiedNames) {
-            all.add(metadataMap.get(sourceQualifiedName));
+            MetadataInstancesDto metadataInstancesDto = metadataMap.get(sourceQualifiedName);
+            if (metadataInstancesDto != null) {
+                all.add(metadataInstancesDto);
+            }
         }
         Map<String, MetadataInstancesDto> metaMaps = all.stream().collect(Collectors.toMap(MetadataInstancesDto::getQualifiedName, m -> m, (m1, m2) -> m1));
 
@@ -828,7 +793,26 @@ public class DAGDataServiceImpl implements DAGDataService {
 
     @Override
     public TaskDto getTaskById(String taskId) {
-        return taskMap.get(taskId);
+        TaskDto taskDto = taskMap.get(taskId);
+
+        if (taskDto != null) {
+            return taskDto;
+        }
+
+        if (taskMap.size() == 1) {
+            ArrayList<TaskDto> taskDtos = new ArrayList<>(taskMap.values());
+            return taskDtos.get(0);
+        }
+        return null;
+    }
+
+    public ObjectId getTaskId() {
+
+        if (taskMap.size() == 1) {
+            ArrayList<TaskDto> taskDtos = new ArrayList<>(taskMap.values());
+            return taskDtos.get(0).getId();
+        }
+        return null;
     }
 
 
@@ -843,7 +827,7 @@ public class DAGDataServiceImpl implements DAGDataService {
 
         //BulkOperations bulkOperations = repository.bulkOperations(BulkOperations.BulkMode.UNORDERED);
 
-        Map<String, Update> metadataUpdateMap = new LinkedHashMap<>();
+        Map<String, MetadataInstancesDto> metadataUpdateMap = new LinkedHashMap<>();
 
         List<MetadataInstancesDto> insertMetaDataList = new ArrayList<>();
         metadataInstancesDtos.forEach(metadataInstancesDto -> {
@@ -866,18 +850,23 @@ public class DAGDataServiceImpl implements DAGDataService {
                 historyModel.setVersionUserId(userId);
                 historyModel.setVersionUserName(userName);
                 historyModel.setHistories(null);
-                Update update = new Update();
-                update.set("version", newVersion);
+
+                MetadataInstancesDto update2 = new MetadataInstancesDto();
+
                 ArrayList<MetadataInstancesDto> hisModels = new ArrayList<>();
                 hisModels.add(historyModel);
-                BasicDBObject basicDBObject = new BasicDBObject("$each", hisModels);
-                basicDBObject.append("$slice", -5);
-                update.push("histories", basicDBObject);
-                update.set("fields", metadataInstancesDto.getFields());
-                update.set("indices", metadataInstancesDto.getIndices());
-                update.set("is_deleted", false);
-                update.set("createSource", metadataInstancesDto.getCreateSource());
-                metadataUpdateMap.put(existsMetadataInstance.getId().toHexString(), update);
+
+
+                update2.setHistories(hisModels);
+                update2.setFields(metadataInstancesDto.getFields());
+                update2.setIndexes(metadataInstancesDto.getIndexes());
+                update2.setDeleted(false);
+                update2.setCreateSource(metadataInstancesDto.getCreateSource());
+                update2.setVersion(newVersion);
+                if (existsMetadataInstance != null && existsMetadataInstance.getId() != null) {
+                    metadataInstancesDto.setId(existsMetadataInstance.getId());
+                    metadataUpdateMap.put(existsMetadataInstance.getId().toHexString(), update2);
+                }
 
 
             } else { // 直接写入
@@ -887,6 +876,7 @@ public class DAGDataServiceImpl implements DAGDataService {
                         metadataInstancesDto.getOriginalName(),
                         metadataInstancesDto, null, metadataInstancesDto.getDatabaseId(), "job_analyze", null);
                 insertMetaDataList.add(_metadataInstancesDto);
+                BeanUtils.copyProperties(_metadataInstancesDto, metadataInstancesDto);
             }
         });
 
@@ -901,7 +891,7 @@ public class DAGDataServiceImpl implements DAGDataService {
     }
 
 
-    public Map<String, Update> getBatchMetadataUpdateMap() {
+    public Map<String, MetadataInstancesDto> getBatchMetadataUpdateMap() {
         return batchMetadataUpdateMap;
     }
 
@@ -920,5 +910,122 @@ public class DAGDataServiceImpl implements DAGDataService {
 
     public MetadataInstancesDto getMetadata(String qualifiedName) {
         return metadataMap.get(qualifiedName);
+    }
+
+    public TapTable getTapTable(String qualifiedName) {
+        MetadataInstancesDto metadataInstancesDto = metadataMap.get(qualifiedName);
+        return PdkSchemaConvert.toPdk(metadataInstancesDto);
+    }
+
+
+    public void coverMetaDataByTapTable(String qualifiedName, TapTable tapTable) {
+        MetadataInstancesDto metadataInstancesDto = metadataMap.get(qualifiedName);
+        if (metadataInstancesDto == null) {
+            return;
+        }
+        DataSourceConnectionDto dataSourceConnectionDto = dataSourceMap.get(metadataInstancesDto.getSource().get_id());
+        if (dataSourceConnectionDto == null) {
+            return;
+        }
+
+        DataSourceDefinitionDto definitionDto = definitionDtoMap.get(dataSourceConnectionDto.getDatabase_type());
+        if (definitionDto != null) {
+            String expression = definitionDto.getExpression();
+            Map<Class<?>, String> tapMap = definitionDto.getTapMap();
+            PdkSchemaConvert.tableFieldTypesGenerator.autoFill(tapTable.getNameFieldMap() == null ? new LinkedHashMap<>() : tapTable.getNameFieldMap(), DefaultExpressionMatchingMap.map(expression));
+            LinkedHashMap<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
+            TapCodecsFilterManager codecsFilterManager = TapCodecsFilterManager.create(TapCodecsRegistry.create().withTapTypeDataTypeMap(tapMap));
+            TapResult<LinkedHashMap<String, TapField>> convert = PdkSchemaConvert.targetTypesGenerator.convert(nameFieldMap
+                    , DefaultExpressionMatchingMap.map(expression), codecsFilterManager);
+            LinkedHashMap<String, TapField> data = convert.getData();
+
+            data.forEach((k, v) -> {
+                TapField tapField = nameFieldMap.get(k);
+                BeanUtils.copyProperties(v, tapField);
+            });
+            tapTable.setNameFieldMap(nameFieldMap);
+        }
+        MetadataInstancesDto metadataInstancesDto1 = PdkSchemaConvert.fromPdk(tapTable);
+
+        Map<String, Field> oldFieldMap = new HashMap<>();
+        if (CollectionUtils.isNotEmpty(metadataInstancesDto.getFields())) {
+            oldFieldMap = metadataInstancesDto.getFields().stream().collect(Collectors.toMap(Field::getFieldName, f -> f));
+        }
+        if (CollectionUtils.isNotEmpty(metadataInstancesDto1.getFields())) {
+
+            for (Field field : metadataInstancesDto1.getFields()) {
+                Field oldField = oldFieldMap.get(field.getFieldName());
+                if (oldField != null) {
+                    oldField.setDefaultValue(field.getDefaultValue());
+                    oldField.setIsNullable(field.getIsNullable());
+                    oldField.setFieldName(field.getFieldName());
+                    oldField.setOriginalFieldName(field.getOriginalFieldName());
+                    oldField.setColumnPosition(field.getColumnPosition());
+                    oldField.setPrimaryKeyPosition(field.getPrimaryKeyPosition());
+                    oldField.setForeignKeyTable(field.getForeignKeyTable());
+                    oldField.setForeignKeyColumn(field.getForeignKeyColumn());
+                    oldField.setAutoincrement(field.getAutoincrement());
+                    oldField.setComment(field.getComment());
+                    oldField.setPkConstraintName(field.getPkConstraintName());
+                    oldField.setPrimaryKey(field.getPrimaryKey());
+                    oldField.setTapType(field.getTapType());
+                    oldField.setDataType(field.getDataType());
+                    BeanUtils.copyProperties(oldField, field);
+                } else {
+                    field.setSourceDbType(dataSourceConnectionDto.getDatabase_type());
+                    field.setId(ObjectId.get().toHexString());
+                }
+            }
+        }
+        metadataInstancesDto.setFields(metadataInstancesDto1.getFields());
+        metadataInstancesDto.setIndexes(metadataInstancesDto1.getIndexes());
+        metadataInstancesDto.setIndices(metadataInstancesDto1.getIndices());
+
+        setMetaDataMap(metadataInstancesDto);
+    }
+
+    public String createNewTable(String connectionId, TapTable tapTable) {
+        DataSourceConnectionDto connectionDto = dataSourceMap.get(connectionId);
+        if (connectionDto == null) {
+            return null;
+        }
+
+        DataSourceDefinitionDto definitionDto = definitionDtoMap.get(connectionDto.getDatabase_type());
+        if (definitionDto != null) {
+            String expression = definitionDto.getExpression();
+            Map<Class<?>, String> tapMap = definitionDto.getTapMap();
+            PdkSchemaConvert.tableFieldTypesGenerator.autoFill(tapTable.getNameFieldMap() == null ? new LinkedHashMap<>() : tapTable.getNameFieldMap(), DefaultExpressionMatchingMap.map(expression));
+            LinkedHashMap<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
+            TapCodecsFilterManager codecsFilterManager = TapCodecsFilterManager.create(TapCodecsRegistry.create().withTapTypeDataTypeMap(tapMap));
+            TapResult<LinkedHashMap<String, TapField>> convert = PdkSchemaConvert.targetTypesGenerator.convert(nameFieldMap
+                    , DefaultExpressionMatchingMap.map(expression), codecsFilterManager);
+            LinkedHashMap<String, TapField> data = convert.getData();
+
+            data.forEach((k, v) -> {
+                TapField tapField = nameFieldMap.get(k);
+                BeanUtils.copyProperties(v, tapField);
+            });
+            tapTable.setNameFieldMap(nameFieldMap);
+        }
+        MetadataInstancesDto metadataInstancesDto1 = PdkSchemaConvert.fromPdk(tapTable);
+        String databaseQualifiedName = MetaDataBuilderUtils.generateQualifiedName("database", connectionDto, null);
+        MetadataInstancesDto databaseMeta = metadataMap.get(databaseQualifiedName);
+        metadataInstancesDto1 = MetaDataBuilderUtils.build(MetaType.table.name(), connectionDto, userId, userName, metadataInstancesDto1.getOriginalName(), metadataInstancesDto1, null, databaseMeta.getId().toString());
+
+        if (CollectionUtils.isNotEmpty(metadataInstancesDto1.getFields())) {
+
+            for (Field field : metadataInstancesDto1.getFields()) {
+                    field.setSourceDbType(connectionDto.getDatabase_type());
+                    field.setId(ObjectId.get().toHexString());
+                }
+
+        }
+        setMetaDataMap(metadataInstancesDto1);
+        return metadataInstancesDto1.getQualifiedName();
+    }
+
+    public void dropTable(String qualifiedName) {
+        batchRemoveMetaDataList.add(qualifiedName);
+        deleteMetaDataMap(qualifiedName);
     }
 }

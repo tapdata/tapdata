@@ -5,6 +5,7 @@ import com.alibaba.fastjson.JSONObject;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.pdk.apis.annotations.TapConnectorClass;
+import io.tapdata.pdk.apis.entity.Capability;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import io.tapdata.pdk.apis.spec.TapNodeSpecification;
 import io.tapdata.pdk.cli.CommonCli;
@@ -146,17 +147,42 @@ public class RegisterCli extends CommonCli {
                     TapCodecsRegistry codecRegistry = new TapCodecsRegistry();
                     connector1.registerCapabilities(connectorFunctions, codecRegistry);
 
-                    List<String> capabilities = connectorFunctions.getCapabilities();
+                    List<Capability> capabilities = connectorFunctions.getCapabilities();
+                    Boolean disableDDLSync = null;
                     DataMap dataMap = nodeContainer.getConfigOptions();
                     if(dataMap != null) {
-                        List<String> capabilityList = (List<String>) dataMap.get("capabilities");
+                        List<Map<String, Object>> capabilityList = (List<Map<String, Object>>) dataMap.get("capabilities");
+
                         if(CollectionUtils.isNotEmpty(capabilityList)) {
-                            capabilities.addAll(capabilityList);
+                            for(Map<String, Object> capabilityFromSpec : capabilityList) {
+                                String capabilityId = (String) capabilityFromSpec.get("id");
+                                if(capabilityId != null) {
+                                    List<String> alternatives = (List<String>) capabilityFromSpec.get("alternatives");
+                                    capabilities.add(Capability.create(capabilityId).alternatives(alternatives).type(Capability.TYPE_OTHER));
+                                }
+                            }
+                        }
+
+                        Map<String, Object> supportDDL = (Map<String, Object>) dataMap.get("supportDDL");
+                        if(supportDDL != null) {
+//                            disableDDLSync = (Boolean) supportDDL.get("disableDDLSync");
+//                            if(disableDDLSync == null) {
+//                                disableDDLSync = false;
+//                            }
+//                            if(!disableDDLSync) {
+//                            }
+                            List<String> ddlEvents = (List<String>) supportDDL.get("events");
+                            if(ddlEvents != null) {
+                                for(String ddlEvent : ddlEvents) {
+                                    capabilities.add(Capability.create(ddlEvent).type(Capability.TYPE_DDL));
+                                }
+                            }
                         }
 
                     }
                     if (CollectionUtils.isNotEmpty(capabilities)) {
                         o.put("capabilities", capabilities);
+//                        o.put("disableDDLSync", disableDDLSync);
                         dataMap.remove("capabilities");
                     }
 
@@ -168,6 +194,7 @@ public class RegisterCli extends CommonCli {
                 System.out.println(file.getName() + " uploading...");
                 UploadFileService.upload(inputStreamMap, file, jsons, latest, tmUrl, authToken);
                 System.out.println(file.getName() + " registered successfully");
+
             }
         } catch (Throwable throwable) {
             throwable.printStackTrace();

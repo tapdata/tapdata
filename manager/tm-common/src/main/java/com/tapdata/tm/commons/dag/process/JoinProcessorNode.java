@@ -1,4 +1,5 @@
 package com.tapdata.tm.commons.dag.process;
+import com.tapdata.tm.commons.exception.DDLException;
 import com.tapdata.tm.commons.schema.TableIndexColumn;
 
 import com.tapdata.manager.common.utils.StringUtils;
@@ -9,6 +10,11 @@ import com.tapdata.tm.commons.dag.NodeType;
 import com.tapdata.tm.commons.schema.Field;
 import com.tapdata.tm.commons.schema.Schema;
 import com.tapdata.tm.commons.schema.TableIndex;
+import io.tapdata.entity.event.ddl.TapDDLEvent;
+import io.tapdata.entity.event.ddl.entity.ValueChange;
+import io.tapdata.entity.event.ddl.table.TapAlterFieldNameEvent;
+import io.tapdata.entity.event.ddl.table.TapDropFieldEvent;
+import io.tapdata.entity.event.ddl.table.TapFieldBaseEvent;
 import lombok.Data;
 import lombok.Getter;
 import lombok.Setter;
@@ -315,6 +321,47 @@ public class JoinProcessorNode extends ProcessorNode {
             return true;
         }
         return false;
+    }
+
+    @Override
+    public void fieldDdlEvent(TapDDLEvent event) throws Exception {
+        updateDdlList(leftPrimaryKeys, event);
+        updateDdlList(rightPrimaryKeys, event);
+//        if (event instanceof TapAlterFieldNameEvent) {
+//            ValueChange<String> nameChange = ((TapAlterFieldNameEvent) event).getNameChange();
+//            String leftChangeField = null;
+//            String rightChangeField = null;
+//            for (String left : leftPrimaryKeys) {
+//                if (left.equals(nameChange.getBefore())) {
+//                    leftChangeField = left;
+//                }
+//            }
+//
+//            for (String right : rightPrimaryKeys) {
+//                if (right.equals(nameChange.getBefore())) {
+//                    rightChangeField = right;
+//                }
+//            }
+//            if (leftChangeField != null) {
+//                leftPrimaryKeys.remove(leftChangeField);
+//                leftPrimaryKeys.add(nameChange.getAfter());
+//            }
+//
+//            if (rightChangeField != null) {
+//                rightPrimaryKeys.remove(leftChangeField);
+//                rightPrimaryKeys.add(nameChange.getAfter());
+//            }
+//
+//        } else if (event instanceof TapDropFieldEvent) {
+//            String fieldName = ((TapDropFieldEvent) event).getFieldName();
+//            if (leftPrimaryKeys.contains(fieldName)) {
+//                throw new DDLException("Join node: Ddl drop field link left primary fields");
+//            }
+//
+//            if (rightPrimaryKeys.contains(fieldName)) {
+//                throw new DDLException("Join node: Ddl drop field link right primary fields");
+//            }
+//        }
     }
 
 }

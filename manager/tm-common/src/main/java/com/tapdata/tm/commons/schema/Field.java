@@ -5,10 +5,11 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Data;
 
+import java.io.Serializable;
 import java.util.List;
 
 @Data
-public class Field {
+public class Field implements Serializable {
 
     public static final String SOURCE_JOB_ANALYZE = "job_analyze";
     public static final String SOURCE_AUTO = "auto";
@@ -46,6 +47,10 @@ public class Field {
 
     @org.springframework.data.mongodb.core.mapping.Field("id")
     private String id;
+
+    public void setId(String id) {
+        this.id = id;
+    }
 
     private Boolean isAnalyze;
     @JsonProperty("is_auto_allowed")

@@ -6,7 +6,9 @@ import com.tapdata.tm.commons.schema.bean.FileSources;
 import com.tapdata.tm.commons.schema.bean.PlatformInfo;
 import com.tapdata.tm.commons.schema.bean.Schema;
 import com.tapdata.tm.commons.schema.bean.UrlInfo;
+import com.tapdata.tm.commons.util.CreateTypeEnum;
 import com.tapdata.tm.ds.bean.ResponseBody;
+import io.tapdata.pdk.apis.entity.Capability;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import org.apache.commons.collections4.CollectionUtils;
@@ -19,6 +21,7 @@ import org.springframework.data.mongodb.core.mapping.Field;
 import java.util.List;
 import java.util.Set;
 import java.util.Map;
+import java.util.TimeZone;
 
 /**
  * 数据源连接
@@ -37,6 +40,8 @@ public class DataSourceEntity extends BaseEntity {
     private String name;
     /** 数据源的配置信息 jsonschema */
     private Map<String, Object> config;
+    /** 创建类型 */
+    private CreateTypeEnum createType;
     /** 连接类型 源，目标，源&目标 */
     private String connection_type;
     /** 对应DataSourceDefinition databasetype */
@@ -58,6 +63,8 @@ public class DataSourceEntity extends BaseEntity {
 
     /** pdk定义目标是否可以连接的一个属性 */
     private List<String> pdkExpansion;
+
+    private List<Capability> capabilities;
     /** */
     private Integer retry;
 //    /** 是否删除的标记 */
@@ -289,6 +296,10 @@ public class DataSourceEntity extends BaseEntity {
 
     @Transient
     private String accessNodeProcessId;
+
+    private TimeZone timeZone;
+
+    private String connectionString;
 
     /**
      * 后续 开放可以多选 flow engine 的话，这里一定要删除

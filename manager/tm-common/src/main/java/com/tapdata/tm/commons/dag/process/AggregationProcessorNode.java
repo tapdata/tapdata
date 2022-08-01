@@ -9,6 +9,8 @@ import com.tapdata.tm.commons.schema.Schema;
 import com.tapdata.tm.commons.schema.TableIndex;
 import com.tapdata.tm.commons.schema.TableIndexColumn;
 import com.tapdata.tm.commons.task.dto.Aggregation;
+import io.tapdata.entity.event.ddl.TapDDLEvent;
+import io.tapdata.entity.event.ddl.table.TapFieldBaseEvent;
 import lombok.Getter;
 import lombok.Setter;
 import org.apache.commons.collections4.CollectionUtils;
@@ -196,5 +198,10 @@ public class AggregationProcessorNode extends ProcessorNode {
             return true;
         }
         return false;
+    }
+
+    @Override
+    public void fieldDdlEvent(TapDDLEvent event) throws Exception {
+        updateDdlList(primaryKeys, event);
     }
 }

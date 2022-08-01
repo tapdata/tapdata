@@ -65,6 +65,13 @@ springdoc:
     groups-order: DESC
     operationsSorter: method
     show-actuator: true
+  group-configs:
+    - group: All
+      packages-to-scan:
+        - com.tapdata.tm
+    - group: observability
+      packages-to-scan:
+        - com.tapdata.tm.observability.controller
 
 server:
   port: 3000

@@ -8,7 +8,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 public class TapCreateTableEvent extends TapTableEvent {
-    public static final int TYPE = 201;
+    public static final int TYPE = 206;
     private TapTable table;
     public TapCreateTableEvent table(TapTable table) {
         this.table = table;

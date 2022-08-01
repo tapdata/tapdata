@@ -7,11 +7,14 @@ import com.tapdata.tm.accessToken.dto.AccessTokenDto;
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.*;
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;
-import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.commons.schema.bean.Table;
+import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.inspect.service.InspectService;
+import com.tapdata.tm.metadatainstance.dto.MigrateResetTableDto;
+import com.tapdata.tm.metadatainstance.dto.MigrateTableInfoDto;
 import com.tapdata.tm.metadatainstance.param.ClassificationParam;
 import com.tapdata.tm.metadatainstance.param.TablesSupportInspectParam;
+import com.tapdata.tm.metadatainstance.service.MetaMigrateService;
 import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
 import com.tapdata.tm.metadatainstance.vo.*;
 import com.tapdata.tm.modules.dto.ModulesDto;
@@ -44,7 +47,10 @@ import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.net.BindException;
 import java.nio.charset.StandardCharsets;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.Collectors;
 
@@ -63,6 +69,7 @@ public class MetadataInstancesController extends BaseController {
     private MetadataInstancesService metadataInstancesService;
     private ModulesService modulesService;
     private InspectService inspectService;
+    private MetaMigrateService metaMigrateService;
 
     /**
      * 新增元数据
@@ -651,5 +658,18 @@ public class MetadataInstancesController extends BaseController {
 
     }
 
+    @Operation(summary = "复制任务目标节点字段保存元数据")
+    @PostMapping("migrate/saveTable")
+    public ResponseMessage<Void> saveMigrateTableInfo(@RequestBody MigrateTableInfoDto dto) {
+        metaMigrateService.saveMigrateTableInfo(dto, getLoginUser());
+        return success();
+    }
+
+    @Operation(summary = "复制任务 重置接口")
+    @PostMapping("migrate/reset")
+    public ResponseMessage<Void> migrateResetAllTable(@RequestBody MigrateResetTableDto dto) {
+        metaMigrateService.migrateResetAllTable(dto, getLoginUser());
+        return success();
+    }
 
 }

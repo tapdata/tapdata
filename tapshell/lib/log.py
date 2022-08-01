@@ -6,9 +6,10 @@ from lib.config_parse import Config
 
 config = Config()
 
+logger_header = False
 
-def logger_header():
-    return config["log.logger_header"].lower() == "false"
+#def logger_header():
+#    return config["log.logger_header"].lower() == "false"
 
 
 # Global Logger Utils
@@ -38,7 +39,7 @@ class Logger:
         }
 
     def _header(self):
-        if logger_header():
+        if logger_header:
             return "\033[1;34m" + self.name + ", " + "\033[0m" + \
                    time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()) + ": "
         else:

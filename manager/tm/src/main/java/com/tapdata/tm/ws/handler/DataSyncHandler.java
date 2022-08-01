@@ -76,6 +76,7 @@ public class DataSyncHandler implements WebSocketHandler{
                 case DataSyncMq.OP_TYPE_RESTARTED:
                     //任务状态在运行中，可能收到运行已完成。
                     //收到任务已经运行的消息，将子任务改成已运行状态
+                    log.info("subTask running status report by ws, id = {}", objectId);
                     subTaskService.running(objectId, userDetail);
                     break;
                 case DataSyncMq.OP_TYPE_STOPPED:

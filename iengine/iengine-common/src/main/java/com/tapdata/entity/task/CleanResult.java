@@ -1,9 +1,6 @@
 package com.tapdata.entity.task;
 
-import org.bson.Document;
-
 import java.io.Serializable;
-import java.util.Map;
 
 public class CleanResult implements Serializable {
 

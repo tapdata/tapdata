@@ -47,8 +47,8 @@ public class UnsubscribeHandler implements WebSocketHandler {
 			} else if (MessageType.EDIT_FLUSH.getType().equals(type)) {
 				EditFlushHandler.removeSession(context.getSessionId());
 				log.info("DataFlowInsightHandler unsubscribed successfully");
-			} else if (MessageType.TRANSFORMER.getType().equals(type)) {
-				TransformerHandler.removeSession(context.getSessionId());
+			} else if (MessageType.TRANSFORMER_STATUS_PUSH.getType().equals(type)) {
+				TransformerStatusPushHandler.removeSession(context.getSessionId());
 				log.info("TransformerHandler unsubscribed successfully");
 			}
 

@@ -11,6 +11,7 @@ import com.tapdata.manager.common.utils.JsonUtil;
 import com.tapdata.tm.CustomerJobLogs.CustomerJobLog;
 import com.tapdata.tm.CustomerJobLogs.service.CustomerJobLogsService;
 import com.tapdata.tm.base.dto.*;
+import com.tapdata.tm.base.dto.Field;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.base.service.BaseService;
 import com.tapdata.tm.commons.base.dto.BaseDto;
@@ -18,11 +19,19 @@ import com.tapdata.tm.commons.dag.*;
 import com.tapdata.tm.commons.dag.nodes.*;
 import com.tapdata.tm.commons.dag.process.JoinProcessorNode;
 import com.tapdata.tm.commons.dag.process.MergeTableNode;
+import com.tapdata.tm.commons.dag.process.MigrateFieldRenameProcessorNode;
+import com.tapdata.tm.commons.dag.vo.FieldInfo;
+import com.tapdata.tm.commons.dag.vo.Operation;
 import com.tapdata.tm.commons.dag.vo.SyncObjects;
+import com.tapdata.tm.commons.dag.vo.TableFieldInfo;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;
+import com.tapdata.tm.commons.schema.MetadataTransformerDto;
+import com.tapdata.tm.commons.schema.MetadataTransformerItemDto;
+import com.tapdata.tm.commons.schema.*;
 import com.tapdata.tm.commons.task.dto.*;
 import com.tapdata.tm.commons.task.dto.migrate.MigrateTableDto;
+import com.tapdata.tm.commons.util.CapitalizedEnum;
 import com.tapdata.tm.commons.util.MetaDataBuilderUtils;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.ds.service.impl.DataSourceService;
@@ -50,8 +59,6 @@ import com.tapdata.tm.task.repository.TaskRepository;
 import com.tapdata.tm.task.vo.ShareCacheDetailVo;
 import com.tapdata.tm.task.vo.ShareCacheVo;
 import com.tapdata.tm.task.vo.TaskDetailVo;
-import com.tapdata.tm.commons.schema.MetadataTransformerDto;
-import com.tapdata.tm.commons.schema.MetadataTransformerItemDto;
 import com.tapdata.tm.transform.service.MetadataTransformerItemService;
 import com.tapdata.tm.transform.service.MetadataTransformerService;
 import com.tapdata.tm.utils.*;
@@ -68,6 +75,8 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.multipart.MultipartFile;
 
 import javax.servlet.http.HttpServletResponse;
@@ -242,7 +251,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         taskDto.setIsSchedule(getBoolValue(taskDto.getIsSchedule(), false));
 
         // 遇到错误时停止
-        taskDto.setIsStopOnError(getBoolValue(taskDto.getIsStopOnError(), false));
+        taskDto.setIsStopOnError(getBoolValue(taskDto.getIsStopOnError(), true));
 
         // 共享挖掘
         taskDto.setShareCdcEnable(getBoolValue(taskDto.getShareCdcEnable(), false));
@@ -317,7 +326,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
      *
      * @param taskDto 任务
      * @param user    用户
-     * @return
+     * @return TaskDto
      */
     //@Transactional
     public TaskDto updateById(TaskDto taskDto, UserDetail user) {
@@ -329,6 +338,13 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         if (taskDto.getId() != null) {
             oldTaskDto = findById(taskDto.getId(), user);
             taskDto.setSyncType(oldTaskDto.getSyncType());
+
+            if (StringUtils.isBlank(taskDto.getAccessNodeType())) {
+                taskDto.setAccessNodeType(oldTaskDto.getAccessNodeType());
+                taskDto.setAccessNodeProcessId(oldTaskDto.getAccessNodeProcessId());
+                taskDto.setAccessNodeProcessIdList(oldTaskDto.getAccessNodeProcessIdList());
+            }
+
             log.debug("old task = {}", oldTaskDto);
         }
 
@@ -352,8 +368,26 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         DAG dag = taskDto.getDag();
         if (dag != null) {
             if (TaskDto.SYNC_TYPE_MIGRATE.equals(taskDto.getSyncType())) {
-                transformSchemaAsyncService.transformSchema(dag, user, taskDto.getId());
+                if (CollectionUtils.isNotEmpty(dag.getSourceNode())) {
+                    //supplier migrate tableSelectType=all tableNames and SyncObjects
+                    DatabaseNode sourceNode = dag.getSourceNode().get(0);
+                    if (Objects.nonNull(sourceNode) && CollectionUtils.isEmpty(sourceNode.getTableNames())
+                            && StringUtils.equals("all", sourceNode.getMigrateTableSelectType())) {
+                        String connectionId = sourceNode.getConnectionId();
+                        List<MetadataInstancesDto> metaList = metadataInstancesService.findBySourceIdAndTableNameList(connectionId, null, user);
+                        if (CollectionUtils.isNotEmpty(metaList)) {
+                            List<String> collect = metaList.stream().map(MetadataInstancesDto::getOriginalName).collect(Collectors.toList());
+                            sourceNode.setTableNames(collect);
+                            Dag temp = new Dag(dag.getEdges(), dag.getNodes());
+                            dag = DAG.build(temp);
+                        }
+                    }
 
+                    // supplement migrate_field_rename_processor fieldMapping data
+                    supplementMigrateFieldMapping(dag, user);
+
+                    transformSchemaAsyncService.transformSchema(dag, user, taskDto.getId());
+                }
             } else {
                 transformSchemaService.transformSchema(dag, user, taskDto.getId());
             }
@@ -386,6 +420,66 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
     }
 
+    private void supplementMigrateFieldMapping(DAG dag, UserDetail userDetail) {
+        dag.getNodes().forEach(node -> {
+            if (node instanceof MigrateFieldRenameProcessorNode) {
+                MigrateFieldRenameProcessorNode fieldNode = (MigrateFieldRenameProcessorNode) node;
+                LinkedList<TableFieldInfo> fieldsMapping = fieldNode.getFieldsMapping();
+
+                if (CollectionUtils.isNotEmpty(fieldsMapping)) {
+                    List<String> tableNames = fieldsMapping.stream()
+                            .map(TableFieldInfo::getOriginTableName)
+                            .collect(Collectors.toList());
+                    DatabaseNode sourceNode = dag.getNodes().stream()
+                            .filter(n -> n instanceof DatabaseNode)
+                            .map(n -> (DatabaseNode) n)
+                            .collect(Collectors.toCollection(LinkedList::new))
+                            .stream()
+                            .filter(n -> dag.getSources().contains(n))
+                            .findAny().orElse(new DatabaseNode());
+
+                    List<MetadataInstancesDto> metaList = metadataInstancesService.findBySourceIdAndTableNameList(sourceNode.getConnectionId(), tableNames, userDetail);
+                    Map<String, List<com.tapdata.tm.commons.schema.Field>> fieldMap = metaList.stream()
+                            .collect(Collectors.toMap(MetadataInstancesDto::getQualifiedName, MetadataInstancesDto::getFields));
+                    fieldsMapping.forEach(table -> {
+                        Operation operation = table.getOperation();
+                        LinkedList<FieldInfo> fields = table.getFields();
+
+                        List<String> fieldNames = Lists.newArrayList();
+                        if (CollectionUtils.isNotEmpty(fields)) {
+                            fieldNames = fields.stream().map(FieldInfo::getSourceFieldName).collect(Collectors.toList());
+                        }
+                        List<com.tapdata.tm.commons.schema.Field> tableFields = fieldMap.get(table.getQualifiedName());
+                        if (CollectionUtils.isNotEmpty(tableFields)) {
+                            List<String> finalFieldNames = fieldNames;
+                            tableFields.forEach(field -> {
+                                String targetFieldName = field.getFieldName();
+                                if (!finalFieldNames.contains(targetFieldName)) {
+                                    if (StringUtils.isNotBlank(operation.getPrefix())) {
+                                        targetFieldName = operation.getPrefix().concat(targetFieldName);
+                                    }
+                                    if (StringUtils.isNotBlank(operation.getSuffix())) {
+                                        targetFieldName = targetFieldName.concat(operation.getSuffix());
+                                    }
+                                    if (StringUtils.isNotBlank(operation.getCapitalized())) {
+                                        if (CapitalizedEnum.fromValue(operation.getCapitalized()) == CapitalizedEnum.UPPER) {
+                                            targetFieldName = StringUtils.upperCase(targetFieldName);
+                                        } else {
+                                            targetFieldName = StringUtils.lowerCase(targetFieldName);
+                                        }
+                                    }
+                                    FieldInfo fieldInfo =
+                                            new FieldInfo(field.getFieldName(), targetFieldName, true, "system");
+                                    fields.add(fieldInfo);
+                                }
+                            });
+                        }
+                    });
+                }
+            }
+        });
+    }
+
 
     public TaskDto updateShareCacheTask(String id, SaveShareCacheParam saveShareCacheParam, UserDetail user) {
         TaskDto taskDto = findById(MongoUtils.toObjectId(id));
@@ -403,6 +497,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         }*/
 
         updateById(taskDto, user);
+        start(taskDto.getId(), user);
         return taskDto;
 
     }
@@ -438,6 +533,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
      * @return
      */
     public TaskDto confirmStart(TaskDto taskDto, UserDetail user, boolean confirm) {
+        checkDagAgentConflict(taskDto, true);
         taskDto = confirmById(taskDto, user, confirm, false);
         start(taskDto, user);
         return findById(taskDto.getId(), user);
@@ -451,12 +547,21 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
      * @return
      */
     public TaskDto confirmById(TaskDto taskDto, UserDetail user, boolean confirm) {
+        if (Objects.nonNull(taskDto.getId())) {
+            TaskDto temp = findById(taskDto.getId());
+            if (Objects.nonNull(temp) && StringUtils.isBlank(taskDto.getAccessNodeType())) {
+                taskDto.setAccessNodeType(temp.getAccessNodeType());
+                taskDto.setAccessNodeProcessId(temp.getAccessNodeProcessId());
+                taskDto.setAccessNodeProcessIdList(temp.getAccessNodeProcessIdList());
+            }
+        }
         // check task inspect flag
         checkTaskInspectFlag(taskDto);
 
-        TaskDto saveTask = confirmById(taskDto, user, confirm, false);
+        checkDagAgentConflict(taskDto, true);
+
         //saveInspect(existedTask, taskDto, user);
-        return saveTask;
+        return confirmById(taskDto, user, confirm, false);
     }
 
     public void checkTaskInspectFlag (TaskDto taskDto) {
@@ -524,22 +629,18 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         // check task flow engine available
         dataSourceService.checkAccessNodeAvailable(taskDto.getAccessNodeType(), taskDto.getAccessNodeProcessIdList(), user);
 
-        //若该任务中有两个或多个表节点指定的agent不同，则在节点上进行提示（冲突时运行设置显示“用户手动指定”但右侧下拉框为空）并下方提示
-        //提示文案：所属agent节点冲突
-        checkDagAgentConflict(taskDto, dag);
-
-        //校验dag
-        if (!taskDto.getShareCache() && !importTask) {
-            Map<String, List<Message>> validateMessage = dag.validate();
-            if (!validateMessage.isEmpty()) {
-                throw new BizException("Task.ListWarnMessage", validateMessage);
+        if (!taskDto.getShareCache()) {
+            if (!importTask) {
+                Map<String, List<Message>> validateMessage = dag.validate();
+                if (!validateMessage.isEmpty()) {
+                    throw new BizException("Task.ListWarnMessage", validateMessage);
+                }
             }
         }
 
         taskDto = updateById(taskDto, user);
 
         List<SubTaskDto> subTaskDtos = subTaskService.findByTaskId(taskDto.getId());
-
 
         List<DAG> newDags = dag.split();
         CustomerJobLog customerJobLog = new CustomerJobLog(taskDto.getId().toString(), taskDto.getName());
@@ -629,11 +730,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                     }
                     boolean canHotUpdate = subTaskService.canHotUpdate(subTaskDto.getDag(), updateSubtask.getDag());
                     if (!canHotUpdate) {
-                        Message message = new Message();
-                        message.setCode("Task.UpdateSubTask");
-                        List<Message> messageList = new ArrayList<>();
-                        messageList.add(message);
-                        messageMap.put(updateSubtask.getSubTaskId().toString(), messageList);
+                        throw new BizException("Task.UpdateSubTask");
                     }
                 }
             }
@@ -655,7 +752,12 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
     }
 
-    private void checkDagAgentConflict(TaskDto taskDto, DAG dag) {
+    public void checkDagAgentConflict(TaskDto taskDto, boolean showListMsg) {
+        if (taskDto.getShareCache()) {
+            return;
+        }
+
+        DAG dag = taskDto.getDag();
         List<String> connectionIdList = new ArrayList<>();
         dag.getNodes().forEach(node -> {
             if (node instanceof DataParentNode) {
@@ -687,7 +789,12 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             });
         }
         if (!validateMessage.isEmpty()) {
-            throw new BizException("Task.ListWarnMessage", validateMessage);
+            if (showListMsg) {
+                throw new BizException("Task.ListWarnMessage", validateMessage);
+            } else {
+                Message message = validateMessage.values().iterator().next().get(0);
+                throw new BizException(message.getCode(), message.getMsg());
+            }
         }
     }
 
@@ -778,11 +885,11 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             List<SubTaskDto> subTaskDtos = subTaskService.findByTaskId(taskDto.getId(), "status");
             //如果没有子任务。则任务状态为状态字段的值
             List<SubStatus> statuses = new ArrayList<>();
-            taskDto.setStatuses(statuses);
             if (CollectionUtils.isNotEmpty(subTaskDtos)) {
                 statuses = subTaskDtos.stream().map(s -> new SubStatus(s.getId().toString(), s.getName(), null, s.getStatus())).collect(Collectors.toList());
             }
             Update update = Update.update("statuses", statuses);
+            taskDto.setStatuses(statuses);
             //updateById(taskDto.getId(), update, user);
 
             if (subTaskDtos.size() == 1) {
@@ -842,23 +949,6 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             log.warn("refresh task statuses error, task name = {}", taskDto == null ? "" : taskDto.getName());
         }
     }
-
-    private void setStatus(Object taskDto, String status) {
-        if (taskDto instanceof TaskDto) {
-            ((TaskDto) taskDto).setStatus(status);
-        } else if (taskDto instanceof TaskEntity) {
-            ((TaskEntity) taskDto).setStatus(status);
-        }
-    }
-
-    private void setStatuses(Object taskDto, List<SubStatus> subStatuses) {
-        if (taskDto instanceof TaskDto) {
-            ((TaskDto) taskDto).setStatuses(subStatuses);
-        } else if (taskDto instanceof TaskEntity) {
-            ((TaskEntity) taskDto).setStatuses(subStatuses);
-        }
-    }
-
 
     /**
      * 拷贝任务
@@ -957,6 +1047,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         TaskService taskService = SpringContextHelper.getBean(TaskService.class);
 
         log.info("create new task, task = {}", taskDto);
+        checkDagAgentConflict(taskDto, false);
         taskDto = taskService.confirmById(taskDto, user, true, true);
         //taskService.flushStatus(taskDto, user);
         return taskDto;
@@ -1131,6 +1222,26 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         return taskDto;
     }
 
+    /**
+     * 根据id校验任务是否存在
+     *
+     * @param id   id
+     * @param user 用户
+     * @return
+     */
+    public TaskDto checkExistById(ObjectId id, UserDetail user, String... fields) {
+        Query query = new Query(Criteria.where("_id").is(id));
+        if (fields != null && fields.length > 0) {
+            query.fields().include(fields);
+        }
+        TaskDto taskDto = findOne(query, user);
+        if (taskDto == null) {
+            throw new BizException("Task.NotFound", "The copied task does not exist");
+        }
+
+        return taskDto;
+    }
+
 
     /**
      * 获取子任务名称
@@ -1263,11 +1374,18 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
 
     public void batchStart(List<ObjectId> taskIds, UserDetail user) {
-        for (ObjectId taskId : taskIds) {
+        List<TaskDto> taskDtos = findAllTasksByIds(taskIds.stream().map(ObjectId::toHexString).collect(Collectors.toList()));
+        for (TaskDto task : taskDtos) {
+            checkDagAgentConflict(task, false);
+
             try {
-                start(taskId, user);
+                boolean noPass = taskStartService.taskStartCheckLog(task, user);
+                if (!noPass) {
+                    start(task, user);
+                }
+
             } catch (Exception e) {
-                log.warn("start task exception, task id = {}, e = {}", taskId, e);
+                log.warn("start task exception, task id = {}, e = {}", task.getId(), e);
             }
         }
     }
@@ -1817,6 +1935,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             shareCacheDetailVo.setFields((List<String>) sourceNode.getAttrs().get("fields"));
         }
         shareCacheDetailVo.setMaxRows(targetNode.getMaxRows());
+        shareCacheDetailVo.setMaxMemory(targetNode.getMaxMemory());
         shareCacheDetailVo.setTtl(TimeUtil.parseSecondsToDay(targetNode.getTtl()));
 
         return shareCacheDetailVo;
@@ -1828,17 +1947,28 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         taskDto.setShareCache(true);
         taskDto.setLastUpdAt(new Date());
         taskDto.setName(saveShareCacheParam.getName());
+
+        DAG dag = taskDto.getDag();
+        String sourceId;
+        if (dag != null && CollectionUtils.isNotEmpty(dag.getSources())) {
+            sourceId = dag.getSources().get(0).getId();
+        } else {
+            sourceId = UUIDUtil.get64UUID();
+        }
+
+        String targetId;
+        if (dag != null && CollectionUtils.isNotEmpty(dag.getTargets())) {
+            targetId = dag.getTargets().get(0).getId();
+        } else {
+            targetId = UUIDUtil.get64UUID();
+        }
+
+
         List<Edge> edges = saveShareCacheParam.getEdges();
         List<Map> nodeList = (List<Map>) saveShareCacheParam.getDag().get("nodes");
         if (CollectionUtils.isEmpty(edges) && CollectionUtils.isNotEmpty(nodeList)) {
             edges = new ArrayList<>();
             Edge edge = new Edge();
-            String sourceId = UUIDUtil.get64UUID();
-            String targetId = UUIDUtil.get64UUID();
-            edge.setSource(sourceId);
-            edge.setTarget(targetId);
-            edges.add(edge);
-
 
             Map sourceNodeMap = nodeList.get(0);
             TableNode tableNode = new TableNode();
@@ -1846,7 +1976,6 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             tableNode.setType("table");
             tableNode.setDatabaseType((String) sourceNodeMap.get("databaseType"));
             tableNode.setConnectionId((String) sourceNodeMap.get("connectionId"));
-            tableNode.setId(sourceId);
 
             Map<String, Object> attrs = new HashMap();
             if (null != sourceNodeMap.get("attrs")) {
@@ -1857,8 +1986,17 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             Map targetNodeMap = nodeList.get(1);
             CacheNode cacheNode = new CacheNode();
             cacheNode.setCacheKeys((String) targetNodeMap.get("cacheKeys"));
-            cacheNode.setMaxRows(MapUtil.getInt(targetNodeMap, "maxRows").longValue());
-            cacheNode.setTtl(TimeUtil.parseDayToSeconds(MapUtil.getInt(targetNodeMap, "ttl")));
+            Integer maxRows = MapUtil.getInt(targetNodeMap, "maxRows");
+            Integer maxMemory = MapUtil.getInt(targetNodeMap, "maxMemory");
+            cacheNode.setMaxRows(maxRows == null ? Integer.MAX_VALUE : maxRows.longValue());
+            cacheNode.setMaxMemory(maxMemory == null ? 500 : maxMemory.intValue());
+            Integer ttl = MapUtil.getInt(targetNodeMap, "ttl");
+            cacheNode.setTtl(ttl == null ? Integer.MAX_VALUE : TimeUtil.parseDayToSeconds(ttl));
+
+            edge.setSource(sourceId);
+            edge.setTarget(targetId);
+            edges.add(edge);
+            tableNode.setId(sourceId);
             cacheNode.setId(targetId);
             cacheNode.setFields((List<String>) attrs.get("fields"));
             cacheNode.setCacheName(saveShareCacheParam.getName());
@@ -2195,6 +2333,17 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         return true;
     }
 
+    public TransformerWsMessageDto findTransformParam(String taskId, UserDetail user) {
+        TaskDto taskDto = checkExistById(MongoUtils.toObjectId(taskId), user);
+        return transformSchemaService.getTransformParam(taskDto, user);
+    }
+
+    public void updateDag(TaskDto taskDto, UserDetail user) {
+        checkExistById(taskDto.getId(), user, "_id");
+        Criteria criteria = Criteria.where("_id").is(taskDto.getId());
+        repository.update(new Query(criteria), Update.update("dag", taskDto.getDag()), user);
+    }
+
     @Data
     @AllArgsConstructor
     @NoArgsConstructor
@@ -2334,6 +2483,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                         continue;
                     }
                 }
+                checkDagAgentConflict(taskDto, false);
                 confirmById(taskDto, user, true, true);
             }
         }
@@ -2460,5 +2610,11 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
         Query query = new Query(Criteria.where("_id").in(ids));
         return findAll(query);
+    }
+
+    public void updateStatus(ObjectId taskId, String status) {
+        Query query = Query.query(Criteria.where("_id").is(taskId));
+        Update update = Update.update("status", status);
+        update(query, update);
     }
 }

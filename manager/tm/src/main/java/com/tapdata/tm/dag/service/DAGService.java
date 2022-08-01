@@ -1,15 +1,24 @@
 package com.tapdata.tm.dag.service;
 
+import cn.hutool.core.date.DateUtil;
+import com.google.common.collect.Maps;
 import com.tapdata.manager.common.utils.JsonUtil;
 import com.tapdata.manager.common.utils.StringUtils;
 import com.tapdata.tm.commons.dag.*;
 import com.tapdata.tm.commons.dag.vo.CustomTypeMapping;
 import com.tapdata.tm.commons.schema.*;
+import com.tapdata.tm.commons.dag.process.MigrateFieldRenameProcessorNode;
+import com.tapdata.tm.commons.dag.process.TableRenameProcessNode;
+import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
+import com.tapdata.tm.commons.schema.Field;
+import com.tapdata.tm.commons.schema.MetadataInstancesDto;
+import com.tapdata.tm.commons.schema.Schema;
 import com.tapdata.tm.commons.schema.bean.SourceDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.ds.service.impl.DataSourceDefinitionService;
 import com.tapdata.tm.ds.service.impl.DataSourceService;
+import com.tapdata.tm.message.constant.Level;
 import com.tapdata.tm.messagequeue.dto.MessageQueueDto;
 import com.tapdata.tm.messagequeue.service.MessageQueueService;
 import com.tapdata.tm.commons.util.MetaType;
@@ -17,6 +26,8 @@ import com.tapdata.tm.metadatainstance.entity.MetadataInstancesEntity;
 import com.tapdata.tm.metadatainstance.repository.MetadataInstancesRepository;
 import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
 import com.tapdata.tm.metadatainstance.vo.SourceTypeEnum;
+import com.tapdata.tm.task.constant.DagOutputTemplateEnum;
+import com.tapdata.tm.task.service.TaskDagCheckLogService;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.transform.entity.MetadataTransformerItemEntity;
 import com.tapdata.tm.transform.service.MetadataTransformerItemService;
@@ -87,6 +98,7 @@ public class DAGService implements DAGDataService {
     private MetadataTransformerService metadataTransformerService;
     private MetadataTransformerItemService metadataTransformerItemService;
     private TaskService taskService;
+    private TaskDagCheckLogService taskDagCheckLogService;
 
     @Autowired
     private DataTypeSupportService dataTypeSupportService;
@@ -223,11 +235,15 @@ public class DAGService implements DAGDataService {
             }
         }
 
+        boolean appendNodeTableName = false;
+        if (node instanceof TableRenameProcessNode || node instanceof MigrateFieldRenameProcessorNode) {
+            appendNodeTableName = true;
+        }
 
         if (node.isDataNode()) {
             return createOrUpdateSchemaForDataNode(userDetail, dataSourceId, schemas, options);
         } else {
-            return createOrUpdateSchemaForProcessNode(userDetail, schemas, options, node.getId());
+            return createOrUpdateSchemaForProcessNode(userDetail, schemas, options, node.getId(), appendNodeTableName);
         }
     }
 
@@ -238,7 +254,9 @@ public class DAGService implements DAGDataService {
      * @param options 配置项
      * @return
      */
-    private List<Schema> createOrUpdateSchemaForProcessNode(UserDetail userDetail, List<Schema> schemas, DAG.Options options, String nodeId) {
+    private List<Schema> createOrUpdateSchemaForProcessNode(UserDetail userDetail, List<Schema> schemas,
+                                                            DAG.Options options, String nodeId,
+                                                            boolean appendNodeTableName) {
 
         List<ObjectId> databaseMetadataInstancesIds = schemas.stream().map(Schema::getDatabaseId).distinct()
                 .filter(Objects::nonNull).map(ObjectId::new).collect(Collectors.toList());
@@ -266,6 +284,7 @@ public class DAGService implements DAGDataService {
             // 这里需要将 data_type 字段根据字段类型映射规则转换为 数据库类型
             //   需要 根据 所有可匹配条件，尽量缩小匹配结果，选择最优字段类型
             metadataInstancesDto = processFieldToDB(schema, metadataInstancesDto, dataSource, userDetail, options);
+            metadataInstancesDto.setAncestorsName(schema.getAncestorsName());
 
             metadataInstancesDto.setMetaType(_metaType);
             metadataInstancesDto.setDeleted(false);
@@ -279,8 +298,9 @@ public class DAGService implements DAGDataService {
             metadataInstancesDto.setLastUserName(userDetail.getUsername());
             metadataInstancesDto.setLastUpdBy(userDetail.getUserId());
 
-            metadataInstancesDto.setQualifiedName(
-                    MetaDataBuilderUtils.generateQualifiedName(MetaType.processor_node.name(), nodeId));
+            String nodeTableName = appendNodeTableName ? schema.getOriginalName() : null;
+            String qualifiedName = MetaDataBuilderUtils.generateQualifiedName(MetaType.processor_node.name(), nodeId, nodeTableName);
+            metadataInstancesDto.setQualifiedName(qualifiedName);
 
             MetaDataBuilderUtils.build(_metaType, dataSource, userDetail.getUserId(), userDetail.getUsername(), metadataInstancesDto.getOriginalName(),
                     metadataInstancesDto, null, dataSource.getId().toHexString());
@@ -304,16 +324,22 @@ public class DAGService implements DAGDataService {
                 repository.findAll(query, userDetail).stream().collect(Collectors.toMap(MetadataInstancesEntity::getQualifiedName, s -> s, (s1, s2) -> s1));
         for (MetadataInstancesDto metadataInstancesDto : metadataInstancesDtos) {
             MetadataInstancesEntity existsMetadataInstance = existsMetadataInstances.get(metadataInstancesDto.getQualifiedName());
-            Map<String, Field> existsFieldMap = existsMetadataInstance.getFields().stream()
-                    .collect(Collectors.toMap(Field::getFieldName, f -> f, (f1, f2) -> f1));
+
+            Map<String, Field> existsFieldMap = Maps.newConcurrentMap();
+
+            if (!Objects.isNull(existsMetadataInstance)) {
+                existsFieldMap = existsMetadataInstance.getFields().stream()
+                        .collect(Collectors.toMap(Field::getFieldName, f -> f, (f1, f2) -> f1));
+            }
 
             if ("all".equalsIgnoreCase(rollback) ||
                     ("table".equalsIgnoreCase(rollback) &&
                             metadataInstancesDto.getOriginalName().equalsIgnoreCase(rollbackTable))) {
 
+                Map<String, Field> finalExistsFieldMap = existsFieldMap;
                 metadataInstancesDto.getFields().forEach(field -> {
-                    if (existsFieldMap.containsKey(field.getOriginalFieldName())) {
-                        Field existsField = existsFieldMap.get(field.getOriginalFieldName());
+                    if (finalExistsFieldMap.containsKey(field.getOriginalFieldName())) {
+                        Field existsField = finalExistsFieldMap.get(field.getOriginalFieldName());
                         if ("manual".equalsIgnoreCase(existsField.getSource())
                             /* && existsField.getIsAutoAllowed() != null&& !existsField.getIsAutoAllowed()*/) {
                             boolean deleted = field.isDeleted();
@@ -330,17 +356,16 @@ public class DAGService implements DAGDataService {
                         }
                         field.setId(existsField.getId());
                     }
+
+                    if (finalExistsFieldMap.containsKey(field.getOriginalFieldName())) {
+                        Field existsField = finalExistsFieldMap.get(field.getOriginalFieldName());
+                        field.setId(existsField.getId());
+                    }
+                    if (StringUtils.isBlank(field.getId())) {
+                        field.setId(new ObjectId().toHexString());
+                    }
                 });
             }
-            metadataInstancesDto.getFields().forEach(field -> {
-                if (existsFieldMap.containsKey(field.getOriginalFieldName())) {
-                    Field existsField = existsFieldMap.get(field.getOriginalFieldName());
-                    field.setId(existsField.getId());
-                }
-                if (StringUtils.isBlank(field.getId())) {
-                    field.setId(new ObjectId().toHexString());
-                }
-            });
 
             metadataInstancesDto.setDatabaseId(dataSourceMetadataInstance.getId().toHexString());
         }
@@ -409,6 +434,7 @@ public class DAGService implements DAGDataService {
             // 这里需要将 data_type 字段根据字段类型映射规则转换为 数据库类型
             //   需要 根据 所有可匹配条件，尽量缩小匹配结果，选择最优字段类型
             metadataInstancesDto = processFieldToDB(schema, metadataInstancesDto, dataSource, userDetail, options);
+            metadataInstancesDto.setAncestorsName(schema.getAncestorsName());
 
             metadataInstancesDto.getFields().forEach(field -> {
                 field.setSourceDbType(dataSource.getDatabase_type());
@@ -1001,7 +1027,6 @@ public class DAGService implements DAGDataService {
         }
         SchemaTransformerResult result = schemaTransformerResults.get(0);
 
-
         for (SchemaTransformerResult schemaTransformerResult : schemaTransformerResults) {
             sourceQualifiedNames.add(schemaTransformerResult.getSourceQualifiedName());
             sourceQualifiedNames.add(schemaTransformerResult.getSinkQulifiedName());
@@ -1029,8 +1054,6 @@ public class DAGService implements DAGDataService {
 
             List<FieldsMapping> fieldsMappings = getFieldsMapping(metaMaps.get(schemaTransformerResult.getSourceQualifiedName()), metaMaps.get(schemaTransformerResult.getSinkQulifiedName()));
             metadataTransformerItemDto.setFieldsMapping(fieldsMappings);
-
-
 
             Criteria criteria2 = Criteria.where("dataFlowId").is(taskId)
                     .and("sinkNodeId").is(nodeId)
@@ -1091,6 +1114,11 @@ public class DAGService implements DAGDataService {
         if (transformer.getBeginTimestamp() == 0) {
             transformer.setBeginTimestamp(transformer.getPingTime());
         }
+
+        // add transformer task log
+        taskDagCheckLogService.createLog(taskId, null, Level.INFO.getValue(), DagOutputTemplateEnum.MODEL_PROCESS_CHECK,
+                false, true, DateUtil.now(), transformer.getFinished(), transformer.getTotal());
+
         metadataTransformerService.save(transformer);
     }
 
@@ -1156,5 +1184,9 @@ public class DAGService implements DAGDataService {
     @Override
     public TaskDto getTaskById(String taskId) {
         return taskService.findById(new ObjectId(taskId));
+    }
+
+    public ObjectId getTaskId() {
+        return null;
     }
 }

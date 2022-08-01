@@ -1,13 +1,11 @@
 package com.tapdata.mongo;
 
-import org.apache.commons.lang3.StringUtils;
 import org.bson.BsonReader;
 import org.bson.BsonType;
 import org.bson.BsonWriter;
 import org.bson.codecs.Codec;
 import org.bson.codecs.DecoderContext;
 import org.bson.codecs.EncoderContext;
-import org.bson.types.ObjectId;
 
 
 public class StringCodec implements Codec<String> {

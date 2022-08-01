@@ -12,13 +12,9 @@ import javax.servlet.*;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.io.UnsupportedEncodingException;
-import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.net.URLDecoder;
-import java.util.Collections;
 import java.util.Enumeration;
 import java.util.List;
-import java.util.concurrent.TimeUnit;
 
 /**
  * @author lg<lirufei0808 @ gmail.com>
@@ -67,9 +63,8 @@ public class RequestFilter implements Filter {
 			log.error("Process request error", e);
 		}
 		long endTime = System.currentTimeMillis();
-
-		long time = endTime - startTime;
-		log.info("{} {} {} {}ms ", clientIp, method, uri, time);
+		double time = (endTime - startTime)/ 1000D;
+		//log.info("{} {} {} {}s ", clientIp, method, uri, BigDecimal.valueOf(time).setScale(3, RoundingMode.HALF_UP));
 
 		if (log.isDebugEnabled()) logRes(httpServletResponse);
 

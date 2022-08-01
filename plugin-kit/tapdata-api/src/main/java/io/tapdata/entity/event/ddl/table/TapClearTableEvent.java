@@ -7,7 +7,7 @@ import io.tapdata.entity.schema.TapTable;
 import java.util.ArrayList;
 
 public class TapClearTableEvent extends TapTableEvent {
-    public static final int TYPE = 202;
+    public static final int TYPE = 205;
     public TapClearTableEvent() {
         super(TYPE);
     }

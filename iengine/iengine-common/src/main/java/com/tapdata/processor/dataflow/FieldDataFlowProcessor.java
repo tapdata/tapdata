@@ -165,6 +165,29 @@ public class FieldDataFlowProcessor implements DataFlowProcessor {
 			if (null != tmpFieldProcess && !FieldProcessUtil.filedProcess(IndicesUtil.getTableIndex(message), tmpFieldProcess)) {
 				return null;
 			}
+		} else if (OperationType.DDL.getOp().equalsIgnoreCase(messageOp)) {
+			//ddl事件，处理字段信息
+			List<FieldProcess> tmpFieldProcess = getFieldProcesses(message);
+			if (CollectionUtils.isNotEmpty(tmpFieldProcess)) {
+				Map<String, FieldProcess> fieldProcessMap = tmpFieldProcess.stream()
+						.collect(Collectors.toMap(f -> JdbcUtil.formatFieldName(f.getField(), targetDatabaseTypeEnum.getType()), Function.identity()));
+
+				String originalDdl = message.getDdl();
+				Statement parse = CCJSqlParserUtil.parse(originalDdl);
+				boolean isContinue = false;
+				if (parse instanceof Alter) {
+					isContinue = FieldProcessUtil.alterProcess((Alter) parse, fieldProcessMap, targetDatabaseTypeEnum);
+				} else if (parse instanceof Comment) {
+					isContinue = FieldProcessUtil.commentProcess((Comment) parse, fieldProcessMap, targetDatabaseTypeEnum);
+				}
+				String ddl = parse.toString();
+				if (!isContinue) {
+					logger.warn("field process ddl {} to {}, ignore..", originalDdl, ddl);
+					return null;
+				}
+				logger.info("field process ddl {} to {}", originalDdl, ddl);
+				message.setDdl(ddl);
+			}
 		}
 
 		return message;

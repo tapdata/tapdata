@@ -7,6 +7,7 @@ import com.tapdata.entity.DatabaseTypeEnum;
 import com.tapdata.entity.dataflow.DataFlowCacheConfig;
 import com.tapdata.entity.dataflow.Stage;
 import com.tapdata.entity.dataflow.StageRuntimeStats;
+import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.processor.ScriptConnection;
 import com.tapdata.processor.ScriptUtil;
 import org.apache.commons.collections.MapUtils;
@@ -73,7 +74,8 @@ public class MemoryCacheService extends AbstractCacheService {
 //
 //  private Map<String, AtomicBoolean> running;
 
-	public MemoryCacheService() {
+	public MemoryCacheService(ClientMongoOperator clientMongoOperator) {
+		super(clientMongoOperator);
 		this.cacheData = new ConcurrentHashMap<>();
 		cacheStageRuntimeStats = new MemoryCacheRuntimeStats();
 		this.cacheConfig = new ConcurrentHashMap<>();
@@ -92,7 +94,7 @@ public class MemoryCacheService extends AbstractCacheService {
 
 	@Override
 	protected ICacheGetter getCacheGetterInstance(String cacheName) {
-		return new MemoryCacheGetter(getConfig(cacheName), cacheData.get(cacheName), getCacheStats(cacheName), cacheStageRuntimeStats);
+		return new MemoryCacheGetter(getConfig(cacheName), cacheData.get(cacheName), getCacheStats(cacheName), cacheStageRuntimeStats, null);
 	}
 
 	@Override

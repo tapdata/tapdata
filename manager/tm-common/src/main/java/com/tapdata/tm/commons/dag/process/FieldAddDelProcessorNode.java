@@ -6,6 +6,8 @@ import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.NodeType;
 import com.tapdata.tm.commons.schema.Field;
 import com.tapdata.tm.commons.schema.Schema;
+import io.tapdata.entity.event.ddl.TapDDLEvent;
+import io.tapdata.entity.event.ddl.table.TapFieldBaseEvent;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
@@ -75,7 +77,10 @@ public class FieldAddDelProcessorNode extends FieldProcessorNode {
                 if ("CREATE".equalsIgnoreCase(operand)) {
                     operation.setType("String");
                     operation.setJava_type("String");
-                    outputSchema.getFields().add(createField(operation));
+                    Field field = createField(operation);
+                    //这种创建的字段不能使用手动，不然修改名称后，后面的节点不会覆盖，应该合并原则都是手动的时候,取原有的
+                    field.setSource("job_analyze");
+                    outputSchema.getFields().add(field);
                 } else if ("REMOVE".equalsIgnoreCase(operand) && !"false".equals(operation.getOperand())) {
                     for (Field field : outputSchema.getFields()) {
                         if (operation.getId().equals(field.getId()))  {
@@ -120,5 +125,14 @@ public class FieldAddDelProcessorNode extends FieldProcessorNode {
             return true;
         }
         return false;
+    }
+
+    @Override
+    public void fieldDdlEvent(TapDDLEvent event) throws Exception {
+        for (Operation operation : operations) {
+            if (operation.getOp().equals("REMOVE") || operation.getOp().equals("CREATE") ) {
+                operation.matchPdkFieldEvent(event);
+            }
+        }
     }
 }

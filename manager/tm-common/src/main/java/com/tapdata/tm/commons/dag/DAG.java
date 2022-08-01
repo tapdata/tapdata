@@ -2,10 +2,13 @@ package com.tapdata.tm.commons.dag;
 
 import com.google.common.collect.ImmutableList;
 import com.tapdata.tm.commons.dag.vo.CustomTypeMapping;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
+import com.tapdata.manager.common.utils.JsonUtil;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.process.TableRenameProcessNode;
+import com.tapdata.tm.commons.dag.process.ProcessorNode;
 import com.tapdata.tm.commons.dag.vo.SyncObjects;
 import com.tapdata.tm.commons.dag.vo.TableRenameTableInfo;
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;
@@ -15,19 +18,20 @@ import com.tapdata.tm.commons.task.dto.Message;
 import com.tapdata.tm.commons.task.dto.SubTaskDto;
 import com.tapdata.tm.commons.util.Loader;
 import io.github.openlg.graphlib.Graph;
-import lombok.AllArgsConstructor;
-import lombok.Data;
-import lombok.Getter;
-import lombok.Setter;
+import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
+import io.tapdata.entity.event.ddl.table.TapDropTableEvent;
+import lombok.*;
+import io.tapdata.entity.event.ddl.TapDDLEvent;
 import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.math.NumberUtils;
 import org.bson.types.ObjectId;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.config.BeanDefinition;
 import org.springframework.context.annotation.ClassPathScanningCandidateComponentProvider;
 import org.springframework.core.type.filter.AnnotationTypeFilter;
-import org.springframework.util.Assert;
 
 import java.io.Serializable;
 import java.util.*;
@@ -42,7 +46,7 @@ import java.util.stream.Stream;
  * @date 2021/11/3 下午4:06
  * @description
  */
-public class DAG implements Serializable {
+public class DAG implements Serializable, Cloneable {
 
     private static Logger logger = LoggerFactory.getLogger(DAG.class);
     public static Map<String, Class<? extends Node>> nodeMapping = new HashMap<>();
@@ -145,12 +149,34 @@ public class DAG implements Serializable {
 
         List<Node> nodes = taskDag.getNodes();
         if (CollectionUtils.isNotEmpty(nodes)) {
-            ConcurrentHashMap<String, List<String>> tableNamesMap = new ConcurrentHashMap<>();
+            List<String> tableNamesList = Lists.newArrayList();
             Set<String> targetIdList = graph.getSinks();
             Set<String> resourceIdList = graph.getSources();
 
-            nodes.stream().filter(node -> node instanceof DatabaseNode && resourceIdList.contains(node.getId()) && CollectionUtils.isNotEmpty(((DatabaseNode) node).getTableNames()))
-                    .forEach(resource -> tableNamesMap.put( resource.getId(), ((DatabaseNode) resource).getTableNames()));
+            nodes.stream().filter(node -> node instanceof DatabaseNode && resourceIdList.contains(node.getId())
+                            && CollectionUtils.isNotEmpty(((DatabaseNode) node).getTableNames()))
+                    .forEach(resource -> tableNamesList.addAll(((DatabaseNode) resource).getTableNames()));
+
+            ArrayList<String> objectNames = Lists.newArrayList(tableNamesList);
+            LinkedHashMap<String, String> tableNameRelation = Maps.newLinkedHashMap();
+
+            // 中间有表改的话 需要同步更新
+            LinkedList<TableRenameProcessNode> collect = nodes.stream()
+                    .filter(n -> n instanceof TableRenameProcessNode)
+                    .map(t -> (TableRenameProcessNode) t)
+                    .collect(Collectors.toCollection(LinkedList::new));
+            if (CollectionUtils.isNotEmpty(collect)) {
+                Map<String, TableRenameTableInfo> originalMap = collect.getLast().originalMap();
+                for (int i = 0; i < tableNamesList.size(); i++) {
+                    String tableName = tableNamesList.get(i);
+                    String currentTableName = tableName;
+                    if (originalMap.containsKey(tableName)) {
+                        currentTableName = originalMap.get(tableName).getCurrentTableName();
+                        objectNames.set(i, currentTableName);
+                    }
+                    tableNameRelation.put(tableName, currentTableName);
+                }
+            }
 
             for (Node<?> node : nodes) {
                 if (node == null) {
@@ -162,10 +188,9 @@ public class DAG implements Serializable {
                 if (node instanceof DatabaseNode && targetIdList.contains(targetId)) {
                     SyncObjects syncObjects = new SyncObjects();
                     syncObjects.setType("table");
-                    String sourceId = edgeMap.get(targetId);
-                    Assert.notNull(sourceId, "migrate task targetId:" + targetId + " edge sourceId is null");
-                    if (!tableNamesMap.isEmpty() && CollectionUtils.isNotEmpty(tableNamesMap.get(sourceId))) {
-                        syncObjects.setObjectNames(tableNamesMap.get(sourceId));
+                    syncObjects.setTableNameRelation(tableNameRelation);
+                    if (CollectionUtils.isNotEmpty(objectNames)) {
+                        syncObjects.setObjectNames(objectNames);
                     } else {
                         syncObjects.setObjectNames(Lists.newArrayList());
                     }
@@ -398,12 +423,12 @@ public class DAG implements Serializable {
             graph.getNodes().stream().map(graph::getNode)
                     .filter(Objects::nonNull)
                     .forEach(node -> node.setService(dagDataService));
+
         }
 
-
-
-
         if (dagDataService instanceof DAGDataServiceImpl) {
+            ObjectId taskId1 = ((DAGDataServiceImpl) dagDataService).getTaskId();
+            this.setTaskId(taskId1);
 
             addNodeEventListener(new Node.EventListener<Object>() {
                 final Map<String, List<SchemaTransformerResult>> results = new HashMap<>();
@@ -475,6 +500,11 @@ public class DAG implements Serializable {
                     return null;
                 }
             });
+        }
+
+        List<Node> allNodes = getNodes();
+        for (Node allNode : allNodes) {
+            allNode.setSchema(null);
         }
         if (nodeId != null) {
             Node node = graph.getNode(nodeId);
@@ -591,7 +621,7 @@ public class DAG implements Serializable {
         return graph.getEdges().stream().map(graph::getEdge).collect(Collectors.toCollection(LinkedList::new));
     }
 
-    public Node getNode(String nodeId) {
+    public Node<?> getNode(String nodeId) {
         return graph.getNode(nodeId);
     }
 
@@ -600,7 +630,7 @@ public class DAG implements Serializable {
      * @param nodeId
      * @return
      */
-    public LinkedList<Node> getPreNodes(String nodeId) {
+    public LinkedList<Node<?>> getPreNodes(String nodeId) {
         return nodeMap().get(nodeId);
     }
 
@@ -608,8 +638,8 @@ public class DAG implements Serializable {
      * get nodeMap only migrate task use
      * @return
      */
-    public Map<String, LinkedList<Node>> nodeMap() {
-        Map<String, LinkedList<Node>> nodeMap = Maps.newHashMap();
+    public Map<String, LinkedList<Node<?>>> nodeMap() {
+        Map<String, LinkedList<Node<?>>> nodeMap = Maps.newHashMap();
 
         Collection<io.github.openlg.graphlib.Edge> edges = graph.getEdges();
 
@@ -636,18 +666,55 @@ public class DAG implements Serializable {
             String target = edge.getTarget();
 
             if (!nodeMap.containsKey(target)) {
-                Node sourceNode = this.getNode(source);
-                LinkedList<Node> pre = nodeMap.get(source);
+                Node<?> sourceNode = this.getNode(source);
+                LinkedList<Node<?>> pre = nodeMap.get(source);
                 if (Objects.nonNull(pre)) {
-                    ImmutableList<Node> copyList = ImmutableList.copyOf(pre);
-                    nodeMap.put(target, new LinkedList<Node>(){{addAll(copyList);add(sourceNode);}});
+                    ImmutableList<Node<?>> copyList = ImmutableList.copyOf(pre);
+                    nodeMap.put(target, new LinkedList<Node<?>>(){{addAll(copyList);add(sourceNode);}});
                 } else {
-                    nodeMap.put(target, new LinkedList<Node>(){{add(sourceNode);}});
+                    nodeMap.put(target, new LinkedList<Node<?>>(){{add(sourceNode);}});
                 }
             }
         });
 
         return nodeMap;
+    }
+
+    public Map<String, LinkedList<Edge>> edgeMap() {
+        Map<String, LinkedList<Edge>> edgeMap = Maps.newHashMap();
+
+        Collection<io.github.openlg.graphlib.Edge> edges = graph.getEdges();
+
+        // inspect edges order
+        List<String> sourceList = edges.stream().map(io.github.openlg.graphlib.Edge::getSource).collect(Collectors.toList());
+        List<String> targetList = edges.stream().map(io.github.openlg.graphlib.Edge::getTarget).collect(Collectors.toList());
+
+        List<String> firstSourceList = sourceList.stream().filter(s -> !targetList.contains(s)).collect(Collectors.toList());
+        if (firstSourceList.size() != NumberUtils.INTEGER_ONE) {
+            return edgeMap;
+        }
+        // get order correct edge
+        LinkedList<io.github.openlg.graphlib.Edge> edgeLinkedList = Lists.newLinkedList();
+        Map<String, io.github.openlg.graphlib.Edge> sourceMap = edges.stream().collect(Collectors.toMap(io.github.openlg.graphlib.Edge::getSource, Function.identity()));
+        String temp = firstSourceList.get(0);
+        for (int i = 0; i < edges.size(); i++) {
+            io.github.openlg.graphlib.Edge edge = sourceMap.get(temp);
+            edgeLinkedList.add(edge);
+            temp = edge.getTarget();
+        }
+
+        edgeLinkedList.forEach(edge -> {
+            String source = edge.getSource();
+            String target = edge.getTarget();
+
+            if (edgeMap.containsKey(source)) {
+                edgeMap.put(target, new LinkedList<Edge>(){{addAll(edgeMap.get(source));add(new Edge(edge.getSource(), edge.getTarget()));}});
+            } else {
+                edgeMap.put(target, new LinkedList<Edge>(){{add(new Edge(edge.getSource(), edge.getTarget()));}});
+            }
+        });
+
+        return edgeMap;
     }
 
 
@@ -933,5 +1000,59 @@ public class DAG implements Serializable {
             this.rollbackTable = rollbackTable;
             this.customTypeMappings = customTypeMappings;
         }
+    }
+
+
+    public void filedDdlEvent(String nodeId, TapDDLEvent event) throws Exception {
+        Node node = this.getNode(nodeId);
+        List<Node> results = new ArrayList<>();
+        results.add(node);
+
+        if (event instanceof TapCreateTableEvent || event instanceof TapDropTableEvent) {
+            if (node instanceof DatabaseNode) {
+                node.fieldDdlEvent(event);
+                Dag dag = toDag();
+                DAG newDag = build(dag);
+                BeanUtils.copyProperties(newDag, this);
+            } else {
+                return;
+            }
+        }
+
+        //递归找到所有需要ddl处理的节点
+        List<Node> successors = node.successors();
+        for (Node successor : successors) {
+            nextDdlNode(successor, results);
+        }
+
+
+        for (Node result : results) {
+            //将所有的节点进行ddl事件处理
+            result.fieldDdlEvent(event);
+        }
+    }
+
+    private void nextDdlNode(Node node, List<Node> results) {
+        if (node.isDataNode()) {
+            return;
+        }
+
+        if (node instanceof ProcessorNode) {
+            results.add(node);
+            List<Node> successors = node.successors();
+            for (Node successor : successors) {
+                nextDdlNode(successor, results);
+            }
+        }
+    }
+
+    @Override
+    public DAG clone() throws CloneNotSupportedException {
+        Dag dag = this.toDag();
+        String json = JsonUtil.toJsonUseJackson(dag);
+        Dag dag1 = JsonUtil.parseJsonUseJackson(json, new TypeReference<Dag>() {
+        });
+
+        return DAG.build(dag1);
     }
 }

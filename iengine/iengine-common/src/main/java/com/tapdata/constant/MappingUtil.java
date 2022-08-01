@@ -2,7 +2,6 @@ package com.tapdata.constant;
 
 import com.tapdata.entity.Mapping;
 import org.apache.commons.collections.CollectionUtils;
-import org.apache.commons.collections.MapUtils;
 
 import java.util.ArrayList;
 import java.util.HashMap;

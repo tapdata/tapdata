@@ -39,4 +39,9 @@ public class MetadataTransformerItemDto extends BaseDto {
     private String uuid;
     private List<FieldsMapping> fieldsMapping;
 
+    /**
+     * migrate pre tableName
+     */
+    private String previousTableName;
+
 }

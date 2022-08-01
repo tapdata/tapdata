@@ -57,6 +57,11 @@ public abstract class Element implements Serializable {
         return dag.getTaskId();
     }
 
+    @JsonIgnore
+    public String getSyncType() {
+        return dag.getSyncType();
+    }
+
     public static enum ElementType {
         Node,
         Link

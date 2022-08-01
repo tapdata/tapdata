@@ -16,14 +16,13 @@ import com.mongodb.client.result.UpdateResult;
 import com.tapdata.entity.Connections;
 import com.tapdata.entity.DatabaseTypeEnum;
 import io.tapdata.annotation.DatabaseTypeAnnotation;
+import org.apache.commons.collections.map.HashedMap;
+import org.bson.Document;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
-
-import org.apache.commons.collections.map.HashedMap;
-import org.bson.Document;
 
 @DatabaseTypeAnnotation(type = DatabaseTypeEnum.MONGODB)
 @DatabaseTypeAnnotation(type = DatabaseTypeEnum.ALIYUN_MONGODB)

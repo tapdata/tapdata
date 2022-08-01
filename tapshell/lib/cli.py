@@ -388,7 +388,14 @@ def get_table_fields(t, whole=False, source=None, cache=True):
         table_id = t
     if client_cache["tables"].get(source) is None:
         show_tables(quiet=True, source=source)
-    table = client_cache["tables"][source][index_type][t]
+
+    table = client_cache["tables"][source][index_type].get(t, None)
+    if table is None:
+        show_tables(quiet=True, source=source)
+    table = client_cache["tables"][source][index_type].get(t, None)
+    if table is None:
+        logger.warn("table {} not find in system", t)
+        return
 
     table_id = table["id"]
     table_name = table["original_name"]
@@ -840,16 +847,6 @@ def show_db(line):
         logger.warn("no show object found")
         return
     connection = get_signature_v("connection", line)
-    #del (connection["response_body"])
-    #del (connection["transformed"])
-    #del (connection["schemaVersion"])
-    #del (connection["username"])
-    #del (connection["loadCount"])
-    #del (connection["loadSchemaDate"])
-    #del (connection["tableCount"])
-    #del (connection["everLoadSchema"])
-    #del (connection["loadFieldsStatus"])
-    #del (connection["loadFieldErrMsg"])
     display = {}
     for k, v in connection.items():
         if v is None or v == "":
@@ -1213,11 +1210,6 @@ def desc_table(line):
 
     display_fields = get_table_fields(line, source=connection_id)
     print(json.dumps(display_fields, indent=4))
-
-
-# def login(server, access_code):
-#     login_with_access_code(server, access_code)
-
 
 def login_with_access_code(server, access_code):
     global system_server_conf, req
@@ -1759,7 +1751,9 @@ class Pipeline:
         if type(script) == types.FunctionType:
             from metapensiero.pj.api import translates
             import inspect
-            js_script = translates(inspect.getsource(script))[0]
+            source_code = inspect.getsource(script)
+            source_code = "def process(" + source_code.split("(", 2)[1]
+            js_script = translates(source_code)[0]
             f = Js(js_script, False)
         else:
             if script.endswith(".js"):
@@ -2509,7 +2503,6 @@ class Job:
         try:
             status = self.status()
         except (KeyError, TypeError) as e:
-            logger.info("job {} is not save, error is {}, job will be save soon", self.id, e)
             resp = self.save()
             if not resp:
                 logger.info("job {} save failed.")
@@ -2522,6 +2515,8 @@ class Job:
         if self.id is None:
             logger.warn("save job fail")
             return False
+        # TODO: sleep 1 seconds, wait for js gen schema
+        time.sleep(1)
         res = req.put("/Task/batchStart", params={"taskIds": self.id}).json()
         if res["code"] != "ok":
             return False

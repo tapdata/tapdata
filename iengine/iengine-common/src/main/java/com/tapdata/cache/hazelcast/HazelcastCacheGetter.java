@@ -1,5 +1,6 @@
 package com.tapdata.cache.hazelcast;
 
+import com.hazelcast.core.HazelcastInstance;
 import com.tapdata.cache.ICacheStats;
 import com.tapdata.cache.ICacheStore;
 import com.tapdata.cache.serializer.AbstractSerializerCacheGetter;
@@ -14,13 +15,16 @@ import org.springframework.data.mongodb.core.query.Query;
 
 public class HazelcastCacheGetter extends AbstractSerializerCacheGetter {
 
-	private final ClientMongoOperator clientMongoOperator;
+	private final HazelcastInstance hazelcastInstance;
 
-	public HazelcastCacheGetter(DataFlowCacheConfig cacheConfig, ICacheStore cacheStore, ICacheStats cacheStats, ClientMongoOperator clientMongoOperator) {
+
+	public HazelcastCacheGetter(DataFlowCacheConfig cacheConfig, ICacheStore cacheStore, ICacheStats cacheStats,
+								ClientMongoOperator clientMongoOperator,
+								HazelcastInstance hazelcastInstance) {
 		super(cacheConfig, cacheStore, cacheStats,
 				((AbstractSerializerCacheStore) cacheStore).getIndexMap(),
-				((AbstractSerializerCacheStore) cacheStore).getDataMap());
-		this.clientMongoOperator = clientMongoOperator;
+				((AbstractSerializerCacheStore) cacheStore).getDataMap(), clientMongoOperator);
+		this.hazelcastInstance = hazelcastInstance;
 	}
 
 	@Override
