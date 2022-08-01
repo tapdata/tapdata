@@ -150,10 +150,8 @@ i18n = {
         "ready": "ready",
         "invalid": "invalid",
         "testing": "testing",
-        "command_help": "tapdata opensource client support command mode usage, type `h command` to list all commands "
-                        "and it's usage",
-        "lib_help": "tapdata opensource client support lib mode usage, type `h lib` to list all Basic Class and it's "
-                    "usage",
+        "command_help": "tapdata opensource client support command mode usage, type `h command` to list all commands and it's usage",
+        "lib_help": "tapdata opensource client support lib mode usage, type `h lib` to list all Basic Class and it's usage",
         "unknown": "unknown"
     },
     "zh": {
