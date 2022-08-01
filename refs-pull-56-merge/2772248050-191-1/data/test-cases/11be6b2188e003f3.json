@@ -1,0 +1,72 @@
+{
+  "uid" : "11be6b2188e003f3",
+  "name" : "filter column in sync",
+  "fullName" : "test_pipeline.TestPipeline#test_filter_column_sync",
+  "historyId" : "21089dcd5e79d7757be3cc5b72b0eba3",
+  "time" : {
+    "start" : 1659328137362,
+    "stop" : 1659328138068,
+    "duration" : 706
+  },
+  "status" : "passed",
+  "flaky" : false,
+  "newFailed" : false,
+  "beforeStages" : [ ],
+  "testStage" : {
+    "status" : "passed",
+    "steps" : [ ],
+    "attachments" : [ {
+      "uid" : "cf5090cd6840f1e1",
+      "name" : "stdout",
+      "source" : "cf5090cd6840f1e1.txt",
+      "type" : "text/plain",
+      "size" : 543
+    } ],
+    "parameters" : [ ],
+    "stepsCount" : 0,
+    "attachmentsCount" : 1,
+    "shouldDisplayMessage" : false,
+    "hasContent" : true
+  },
+  "afterStages" : [ ],
+  "labels" : [ {
+    "name" : "feature",
+    "value" : "pipeline"
+  }, {
+    "name" : "suite",
+    "value" : "test_pipeline"
+  }, {
+    "name" : "subSuite",
+    "value" : "TestPipeline"
+  }, {
+    "name" : "host",
+    "value" : "ccca9ec0ea70"
+  }, {
+    "name" : "thread",
+    "value" : "506-MainThread"
+  }, {
+    "name" : "framework",
+    "value" : "pytest"
+  }, {
+    "name" : "language",
+    "value" : "cpython3"
+  }, {
+    "name" : "package",
+    "value" : "test_pipeline"
+  }, {
+    "name" : "resultFormat",
+    "value" : "allure2"
+  } ],
+  "parameters" : [ ],
+  "links" : [ ],
+  "hidden" : false,
+  "retry" : false,
+  "extra" : {
+    "severity" : "normal",
+    "retries" : [ ],
+    "categories" : [ ],
+    "tags" : [ ]
+  },
+  "source" : "11be6b2188e003f3.json",
+  "parameterValues" : [ ]
+}
