@@ -73,7 +73,6 @@ public class TaskNodeServiceImpl implements TaskNodeService {
     private DataSourceService dataSourceService;
     private MessageQueueService messageQueueService;
     private WorkerService workerService;
-    private DAGDataService dagDataService;
     private DataSourceDefinitionService dataSourceDefinitionService;
 
     @Override
