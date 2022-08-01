@@ -41,6 +41,8 @@ import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.value.TapDateTimeValue;
 import io.tapdata.flow.engine.V2.common.node.NodeTypeEnum;
+import io.tapdata.flow.engine.V2.node.hazelcast.processor.HazelcastProcessorBaseNode;
+import io.tapdata.flow.engine.V2.node.hazelcast.processor.aggregation.HazelcastMultiAggregatorProcessor;
 import io.tapdata.flow.engine.V2.util.GraphUtil;
 import io.tapdata.flow.engine.V2.util.NodeUtil;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
@@ -153,10 +155,10 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 //		CollectorFactory.getInstance().recordCurrentValueByTag(tags);
 
 		doInit(context);
-		if (processorBaseContext instanceof DataProcessorContext) {
-			AspectUtils.executeAspect(DataNodeInitAspect.class, () -> new DataNodeInitAspect().dataProcessorContext((DataProcessorContext) processorBaseContext));
-		} else {
+		if (this instanceof HazelcastProcessorBaseNode || this instanceof HazelcastMultiAggregatorProcessor) {
 			AspectUtils.executeAspect(ProcessorNodeInitAspect.class, () -> new ProcessorNodeInitAspect().processorBaseContext(processorBaseContext));
+		} else {
+			AspectUtils.executeAspect(DataNodeInitAspect.class, () -> new DataNodeInitAspect().dataProcessorContext((DataProcessorContext) processorBaseContext));
 		}
 	}
 
