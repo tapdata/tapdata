@@ -1,0 +1,72 @@
+{
+  "uid" : "3d3a973ce203818a",
+  "name" : "real time database migrate between mongodb",
+  "fullName" : "test_pipeline.TestPipeline#test_migrate_job",
+  "historyId" : "0657c83763def5bcb63193d5e13b577d",
+  "time" : {
+    "start" : 1659342985452,
+    "stop" : 1659342988509,
+    "duration" : 3057
+  },
+  "status" : "passed",
+  "flaky" : false,
+  "newFailed" : false,
+  "beforeStages" : [ ],
+  "testStage" : {
+    "status" : "passed",
+    "steps" : [ ],
+    "attachments" : [ {
+      "uid" : "26b4335b5d1766e6",
+      "name" : "stdout",
+      "source" : "26b4335b5d1766e6.txt",
+      "type" : "text/plain",
+      "size" : 905
+    } ],
+    "parameters" : [ ],
+    "stepsCount" : 0,
+    "attachmentsCount" : 1,
+    "shouldDisplayMessage" : false,
+    "hasContent" : true
+  },
+  "afterStages" : [ ],
+  "labels" : [ {
+    "name" : "feature",
+    "value" : "pipeline"
+  }, {
+    "name" : "suite",
+    "value" : "test_pipeline"
+  }, {
+    "name" : "subSuite",
+    "value" : "TestPipeline"
+  }, {
+    "name" : "host",
+    "value" : "66814ae02e42"
+  }, {
+    "name" : "thread",
+    "value" : "831-MainThread"
+  }, {
+    "name" : "framework",
+    "value" : "pytest"
+  }, {
+    "name" : "language",
+    "value" : "cpython3"
+  }, {
+    "name" : "package",
+    "value" : "test_pipeline"
+  }, {
+    "name" : "resultFormat",
+    "value" : "allure2"
+  } ],
+  "parameters" : [ ],
+  "links" : [ ],
+  "hidden" : false,
+  "retry" : false,
+  "extra" : {
+    "severity" : "normal",
+    "retries" : [ ],
+    "categories" : [ ],
+    "tags" : [ ]
+  },
+  "source" : "3d3a973ce203818a.json",
+  "parameterValues" : [ ]
+}
