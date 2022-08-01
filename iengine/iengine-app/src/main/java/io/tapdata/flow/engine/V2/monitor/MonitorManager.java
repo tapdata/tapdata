@@ -1,12 +1,12 @@
 package io.tapdata.flow.engine.V2.monitor;
 
+import io.tapdata.pdk.core.utils.CommonUtils;
 import org.apache.commons.collections.CollectionUtils;
 
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.function.Consumer;
 
 /**
  * @author samuel
@@ -15,6 +15,7 @@ import java.util.function.Consumer;
  **/
 public class MonitorManager implements Closeable {
 
+	public static final String TAG = MonitorManager.class.getSimpleName();
 	private List<Monitor<?>> monitors = new ArrayList<>();
 
 	public void startMonitor(MonitorType monitorType, Object... args) throws Exception {
@@ -45,7 +46,7 @@ public class MonitorManager implements Closeable {
 			return;
 		}
 		for (Monitor<?> monitor : monitors) {
-			monitor.close();
+			CommonUtils.ignoreAnyError(monitor::close, TAG);
 		}
 	}
 

@@ -332,8 +332,12 @@ public class TapTableMap<K extends String, V extends TapTable> extends HashMap<K
 	}
 
 	public void reset() {
-		EhcacheService.getInstance().getEhcacheKVMap(mapKey).reset();
-		EhcacheService.getInstance().removeEhcacheKVMap(mapKey);
+		EhcacheService ehcacheService = EhcacheService.getInstance();
+		if (StringUtils.isNotBlank(mapKey)) {
+			EhcacheKVMap<Object> ehcacheKVMap = ehcacheService.getEhcacheKVMap(mapKey);
+			Optional.ofNullable(ehcacheKVMap).ifPresent(EhcacheKVMap::reset);
+			ehcacheService.removeEhcacheKVMap(mapKey);
+		}
 		this.tableNameAndQualifiedNameMap.clear();
 	}
 }

@@ -140,8 +140,6 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 	protected void doInit(@NotNull Processor.Context context) throws Exception {
 	}
 
-	;
-
 	@Override
 	public final void init(@NotNull Processor.Context context) throws Exception {
 		this.jetContext = context;
