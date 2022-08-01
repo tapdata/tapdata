@@ -54,6 +54,15 @@
 			</properties>
 		</profile>
 		<profile>
+			<id>test3</id>
+			<properties>
+				<profile.active>test3</profile.active>
+				<profile.dir>${resource.dir}/test3</profile.dir>
+				<env.GIT_COMMIT_VERSION>${maven.build.timestamp}</env.GIT_COMMIT_VERSION>
+				<env.PRODUCT>dfs</env.PRODUCT>
+			</properties>
+		</profile>
+		<profile>
 			<id>uat</id>
 			<properties>
 				<profile.active>uat</profile.active>

@@ -36,14 +36,12 @@ import static com.tapdata.tm.commons.base.convert.ObjectIdDeserialize.toObjectId
 @Slf4j
 public class DatabaseNode extends DataParentNode<List<Schema>> {
 
-    private String connectionId;
     private Boolean dataQualityTag;
     private Integer distance;
     private Boolean freeTransform;
     private List<String> inputLanes;
     private List<String> outputLanes;
     private String existDataProcessMode = "keepData";
-    private String databaseType;
     private String dropType;
     private Integer readBatchSize;
     private Integer readCdcInterval;
@@ -53,14 +51,8 @@ public class DatabaseNode extends DataParentNode<List<Schema>> {
      * 复制DAG web端改成 这个字段不传值需要从源表tableNames推出来
      */
     private List<SyncObjects> syncObjects;
-
-    private String tablePrefix;
-    private String tableSuffix;
-
     private List<BatchTypeOperation> batchOperationList;
 
-    private String fieldsNameTransform;
-    private String tableNameTransform;
     private List<TableOperation> tableOperations;
 
     //包含的表名，用于数据挖掘，在加载schema的时候存入
