@@ -444,7 +444,6 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 	}
 
 
-
 	abstract void startSourceRunner();
 
 	@NotNull
@@ -458,7 +457,12 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 		for (int i = 0; i < events.size(); i++) {
 			TapEvent tapEvent = events.get(i);
 			boolean isLast = i == (events.size() - 1);
-			TapdataEvent tapdataEvent = wrapTapdataEvent(tapEvent, syncStage, offsetObj, isLast);
+			TapdataEvent tapdataEvent;
+			try {
+				tapdataEvent = wrapTapdataEvent(tapEvent, syncStage, offsetObj, isLast);
+			} catch (Throwable throwable) {
+				throw new RuntimeException("Error wrap TapEvent, event: " + tapEvent + ", error: " + throwable.getMessage(), throwable);
+			}
 			if (null == tapdataEvent) {
 				continue;
 			}
@@ -592,7 +596,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 				tapEvent.addInfo(REMOVE_METADATA_INFO_KEY, removeMetadata);
 				tapEvent.addInfo(DAG_DATA_SERVICE_INFO_KEY, dagDataService);
 				tapEvent.addInfo(TRANSFORM_SCHEMA_ERROR_MESSAGE_INFO_KEY, errorMessage);
-			} catch (Exception e) {
+			} catch (Throwable e) {
 				RuntimeException runtimeException = new RuntimeException("Transform schema by TapDDLEvent failed, error: " + e.getMessage(), e);
 				errorHandle(runtimeException, runtimeException.getMessage());
 				throw runtimeException;
