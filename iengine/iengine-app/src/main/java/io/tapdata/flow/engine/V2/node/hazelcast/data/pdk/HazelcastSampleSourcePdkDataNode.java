@@ -47,6 +47,9 @@ public class HazelcastSampleSourcePdkDataNode extends HazelcastSourcePdkDataNode
   public void startSourceRunner() {
 
     try {
+      if (true) {
+        throw new RuntimeException("test exception");
+      }
       Node<?> node = dataProcessorContext.getNode();
       Thread.currentThread().setName("PDK-SAMPLE-SOURCE-RUNNER-" + node.getName() + "(" + node.getId() + ")");
       Log4jUtil.setThreadContext(dataProcessorContext.getSubTaskDto());
