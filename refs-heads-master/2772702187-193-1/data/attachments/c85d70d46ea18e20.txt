@@ -1,0 +1,3 @@
+job [1;32mNone[0m is not save, error is [1;32mcan only concatenate str (not "NoneType") to str[0m, job will be save soon                                                        
+job [1;32mprocessor_sync_cbirh[0m start running ...                                                                                                                               
+job [1;32mprocessor_sync_cbirh[0m status is: [1;32mscheduling[0m                                                                                                                

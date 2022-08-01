@@ -1,0 +1,3 @@
+job [1;32mNone[0m is not save, error is [1;32mcan only concatenate str (not "NoneType") to str[0m, job will be save soon                                                        
+job [1;32mconfig_wmglc[0m start running ...                                                                                                                                       
+system has [1;32m10[0m jobs                                                                                                                                                       
