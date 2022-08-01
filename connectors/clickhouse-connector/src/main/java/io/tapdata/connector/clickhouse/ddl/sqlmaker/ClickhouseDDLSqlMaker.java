@@ -18,7 +18,7 @@ import java.util.stream.Collectors;
 
 public class ClickhouseDDLSqlMaker implements DDLSqlMaker {
 
-    private final static String TABLE_NAME_FORMAT = "\"%s\".\"%s\".\"%s\"";
+    private final static String TABLE_NAME_FORMAT = "\"%s\".\"%s\"";
     private final static String ALTER_TABLE_PREFIX = "alter table " + TABLE_NAME_FORMAT;
 
     @Override
@@ -37,7 +37,8 @@ public class ClickhouseDDLSqlMaker implements DDLSqlMaker {
             throw new RuntimeException("CK Append add column ddl sql failed, table name is blank");
         }
         for (TapField newField : newFields) {
-            StringBuilder sql = new StringBuilder(String.format(ALTER_TABLE_PREFIX, database, tableId)).append(" add");
+            newField.setDataType(newField.getDataType().replace("unsigned","").replace("UNSIGNED",""));
+            StringBuilder sql = new StringBuilder(String.format(ALTER_TABLE_PREFIX, database, tableId)).append(" add column ");
             String fieldName = newField.getName();
             if (StringUtils.isNotBlank(fieldName)) {
                 sql.append(" `").append(fieldName).append("`");
@@ -46,7 +47,11 @@ public class ClickhouseDDLSqlMaker implements DDLSqlMaker {
             }
             String dataType = newField.getDataType();
             if (StringUtils.isNotBlank(dataType)) {
-                sql.append(" ").append(dataType);
+                if (newField.getNullable() != null && newField.getNullable()) {
+                    sql.append("Nullable(").append(newField.getDataType()).append(")").append(' ');
+                } else {
+                    sql.append(" ").append(dataType);
+                }
             } else {
                 throw new RuntimeException("CK Append add column ddl sql failed, data type is blank");
             }
@@ -85,7 +90,7 @@ public class ClickhouseDDLSqlMaker implements DDLSqlMaker {
         if (StringUtils.isBlank(tableId)) {
             throw new RuntimeException("CK Append alter column attr ddl sql failed, table name is blank");
         }
-        StringBuilder sql = new StringBuilder(String.format(ALTER_TABLE_PREFIX, database, tableId)).append(" modify");
+        StringBuilder sql = new StringBuilder(String.format(ALTER_TABLE_PREFIX, database, tableId)).append(" modify column");
         String fieldName = tapAlterFieldAttributesEvent.getFieldName();
         if (StringUtils.isNotBlank(fieldName)) {
             sql.append(" `").append(fieldName).append("`");
@@ -93,6 +98,7 @@ public class ClickhouseDDLSqlMaker implements DDLSqlMaker {
             throw new RuntimeException("CK Append alter column attr ddl sql failed, field name is blank");
         }
         ValueChange<String> dataTypeChange = tapAlterFieldAttributesEvent.getDataTypeChange();
+        dataTypeChange.setAfter(dataTypeChange.getAfter().replace("unsigned","").replace("UNSIGNED",""));
         if (StringUtils.isNotBlank(dataTypeChange.getAfter())) {
             sql.append(" ").append(dataTypeChange.getAfter());
         } else {
@@ -157,7 +163,7 @@ public class ClickhouseDDLSqlMaker implements DDLSqlMaker {
         if (StringUtils.isBlank(fieldName)) {
             throw new RuntimeException("CK Append drop column ddl sql failed, field name is blank");
         }
-        return Collections.singletonList(String.format(ALTER_TABLE_PREFIX, database, tableId) + " drop `" + fieldName + "`");
+        return Collections.singletonList(String.format(ALTER_TABLE_PREFIX, database, tableId) + " drop column`" + fieldName + "`");
     }
 
     /**
