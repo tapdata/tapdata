@@ -14,6 +14,8 @@ public class BatchReadFuncAspect extends DataFunctionAspect<BatchReadFuncAspect>
 	private static final String TAG = BatchReadFuncAspect.class.getSimpleName();
 	private TapConnectorContext connectorContext;
 
+	public static final int STATE_BATCHING = 10;
+
 	public BatchReadFuncAspect connectorContext(TapConnectorContext connectorContext) {
 		this.connectorContext = connectorContext;
 		return this;

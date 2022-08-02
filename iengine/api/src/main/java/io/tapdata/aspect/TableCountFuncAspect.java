@@ -6,6 +6,9 @@ import java.util.function.BiConsumer;
 
 public class TableCountFuncAspect extends DataFunctionAspect<TableCountFuncAspect> {
 	private BiConsumer<String, Long> tableCountConsumer;
+
+	public static final int STATE_COUNTING = 10;
+
 	public TableCountFuncAspect tableCountConsumer(BiConsumer<String, Long> consumer) {
 		tableCountConsumer = consumer;
 		return this;

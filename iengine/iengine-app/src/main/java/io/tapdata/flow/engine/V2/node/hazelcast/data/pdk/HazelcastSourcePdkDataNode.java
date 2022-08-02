@@ -193,7 +193,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 											tapdataEvents.forEach(this::enqueue);
 
 											if (batchReadFuncAspect != null && batchReadFuncAspect.getConsumer() != null)
-												batchReadFuncAspect.getConsumer().accept(tapdataEvents);
+												batchReadFuncAspect.state(BatchReadFuncAspect.STATE_BATCHING).getConsumer().accept(tapdataEvents);
 
 											resetOutputCounter.inc(tapdataEvents.size());
 											outputCounter.inc(tapdataEvents.size());
@@ -325,7 +325,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 											outputCounter.inc(tapdataEvents.size());
 											outputQPS.add(tapdataEvents.size());
 											if (streamReadFuncAspect != null && streamReadFuncAspect.getConsumer() != null)
-												streamReadFuncAspect.getConsumer().accept(tapdataEvents);
+												streamReadFuncAspect.state(StreamReadFuncAspect.STATE_STREAMING).getConsumer().accept(tapdataEvents);
 										}
 									}
 								} catch (Throwable throwable) {

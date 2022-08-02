@@ -11,6 +11,7 @@ public class ProcessorNodeProcessAspect extends ProcessorFunctionAspect<Processo
 	private static final String TAG = ProcessorNodeProcessAspect.class.getSimpleName();
 	private final LongAdder counter = new LongAdder();
 	private Consumer<TapdataEvent> consumer;
+	public static final int STATE_PROCESSING = 10;
 	public ProcessorNodeProcessAspect consumer(Consumer<TapdataEvent> listConsumer) {
 		this.consumer = tapdataEvent -> {
 			try {

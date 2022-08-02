@@ -67,7 +67,7 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 				while (running.get()) {
 					if (offer(tapdataEvent)) {
 						if(processorNodeProcessAspect != null && processorNodeProcessAspect.getConsumer() != null)
-							processorNodeProcessAspect.getConsumer().accept(tapdataEvent);
+							processorNodeProcessAspect.state(ProcessorNodeProcessAspect.STATE_PROCESSING).getConsumer().accept(tapdataEvent);
 						break;
 					}
 				}
