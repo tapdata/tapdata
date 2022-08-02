@@ -12,6 +12,8 @@ import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.tm.commons.dag.Node;
 import io.tapdata.aspect.BatchReadFuncAspect;
 import io.tapdata.aspect.StreamReadFuncAspect;
+import io.tapdata.aspect.SourceStateAspect;
+import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.common.sample.sampler.CounterSampler;
 import io.tapdata.common.sample.sampler.ResetCounterSampler;
 import io.tapdata.common.sample.sampler.SpeedSampler;
@@ -57,8 +59,11 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 	private CounterSampler initialWriteCounter;
 	private Long initialTime;
 
+	private final SourceStateAspect sourceStateAspect;
+
 	public HazelcastSourcePdkDataNode(DataProcessorContext dataProcessorContext) {
 		super(dataProcessorContext);
+		sourceStateAspect = new SourceStateAspect();
 	}
 
 	@Override
@@ -80,6 +85,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 			Node<?> node = dataProcessorContext.getNode();
 			Thread.currentThread().setName("PDK-SOURCE-RUNNER-" + node.getName() + "(" + node.getId() + ")");
 			Log4jUtil.setThreadContext(dataProcessorContext.getSubTaskDto());
+			AspectUtils.executeAspect(sourceStateAspect.state(SourceStateAspect.STATE_INITIAL_SYNC_START));
 			TapTableMap<String, TapTable> tapTableMap = dataProcessorContext.getTapTableMap();
 			try {
 				if (need2InitialSync(syncProgress)) {
@@ -96,15 +102,18 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 			} finally {
 				Optional.ofNullable(snapshotProgressManager).ifPresent(SnapshotProgressManager::close);
 			}
-
+			AspectUtils.executeAspect(sourceStateAspect.state(SourceStateAspect.STATE_INITIAL_SYNC_COMPLETED));
 			if (need2CDC()) {
 				try {
+					AspectUtils.executeAspect(sourceStateAspect.state(SourceStateAspect.STATE_CDC_START));
 					doCdc();
 				} catch (Throwable e) {
 					// MILESTONE-READ_CDC_EVENT-ERROR
 					MilestoneUtil.updateMilestone(milestoneService, MilestoneStage.READ_CDC_EVENT, MilestoneStatus.ERROR, e.getMessage() + "\n" + Log4jUtil.getStackString(e));
 					logger.error("Read CDC failed, error message: " + e.getMessage(), e);
 					throw e;
+				} finally {
+					AspectUtils.executeAspect(sourceStateAspect.state(SourceStateAspect.STATE_CDC_COMPLETED));
 				}
 			}
 		} catch (Throwable throwable) {
