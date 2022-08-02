@@ -4,22 +4,24 @@ import com.tapdata.entity.TapdataEvent;
 import io.tapdata.entity.logger.TapLogger;
 import org.apache.commons.lang3.exception.ExceptionUtils;
 
+import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.function.Consumer;
 
 public class ProcessorNodeProcessAspect extends ProcessorFunctionAspect<ProcessorNodeProcessAspect> {
 	private static final String TAG = ProcessorNodeProcessAspect.class.getSimpleName();
 	private final LongAdder counter = new LongAdder();
-	private Consumer<TapdataEvent> consumer;
+	private List<Consumer<TapdataEvent>> consumers = new CopyOnWriteArrayList<>();
 	public ProcessorNodeProcessAspect consumer(Consumer<TapdataEvent> listConsumer) {
-		this.consumer = tapdataEvent -> {
+		this.consumers.add(tapdataEvent -> {
 			try {
 				listConsumer.accept(tapdataEvent);
 				counter.increment();
 			} catch(Throwable throwable) {
 				TapLogger.warn(TAG, "Consume outputEvent {} for inputEvent {} failed on consumer {}, {}", tapdataEvent, inputEvent, listConsumer, ExceptionUtils.getStackTrace(throwable));
 			}
-		};
+		});
 		return this;
 	}
 
@@ -44,11 +46,11 @@ public class ProcessorNodeProcessAspect extends ProcessorFunctionAspect<Processo
 		this.inputEvent = inputEvent;
 	}
 
-	public Consumer<TapdataEvent> getConsumer() {
-		return consumer;
+	public List<Consumer<TapdataEvent>> getConsumers() {
+		return consumers;
 	}
 
-	public void setConsumer(Consumer<TapdataEvent> consumer) {
-		this.consumer = consumer;
+	public void setConsumers(List<Consumer<TapdataEvent>> consumers) {
+		this.consumers = consumers;
 	}
 }

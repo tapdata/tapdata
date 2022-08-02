@@ -6,6 +6,7 @@ import io.tapdata.pdk.apis.context.TapConnectorContext;
 import org.apache.commons.lang3.exception.ExceptionUtils;
 
 import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Consumer;
 
 public class StreamReadFuncAspect extends DataFunctionAspect<StreamReadFuncAspect> {
@@ -45,15 +46,15 @@ public class StreamReadFuncAspect extends DataFunctionAspect<StreamReadFuncAspec
 		return this;
 	}
 
-	private Consumer<List<TapdataEvent>> consumer;
+	private List<Consumer<List<TapdataEvent>>> consumers = new CopyOnWriteArrayList<>();
 	public StreamReadFuncAspect consumer(Consumer<List<TapdataEvent>> listConsumer) {
-		this.consumer = tapdataEvents -> {
+		consumers.add(tapdataEvents -> {
 			try {
 				listConsumer.accept(tapdataEvents);
 			} catch(Throwable throwable) {
 				TapLogger.warn(TAG, "Consume tapdataEvents from table {} failed on consumer {}, {}", tables, listConsumer, ExceptionUtils.getStackTrace(throwable));
 			}
-		};
+		});
 		return this;
 	}
 
@@ -97,11 +98,11 @@ public class StreamReadFuncAspect extends DataFunctionAspect<StreamReadFuncAspec
 		this.tables = tables;
 	}
 
-	public Consumer<List<TapdataEvent>> getConsumer() {
-		return consumer;
+	public List<Consumer<List<TapdataEvent>>> getConsumers() {
+		return consumers;
 	}
 
-	public void setConsumer(Consumer<List<TapdataEvent>> consumer) {
-		this.consumer = consumer;
+	public void setConsumers(List<Consumer<List<TapdataEvent>>> consumers) {
+		this.consumers = consumers;
 	}
 }

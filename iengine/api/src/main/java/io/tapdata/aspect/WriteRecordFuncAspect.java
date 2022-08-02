@@ -8,20 +8,21 @@ import io.tapdata.pdk.apis.entity.WriteListResult;
 import org.apache.commons.lang3.exception.ExceptionUtils;
 
 import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
 public class WriteRecordFuncAspect extends DataFunctionAspect<WriteRecordFuncAspect> {
 	private static final String TAG = WriteRecordFuncAspect.class.getSimpleName();
-	private BiConsumer<List<TapRecordEvent>, WriteListResult<TapRecordEvent>> consumer;
+	private List<BiConsumer<List<TapRecordEvent>, WriteListResult<TapRecordEvent>>> consumers = new CopyOnWriteArrayList<>();
 	public WriteRecordFuncAspect consumer(BiConsumer<List<TapRecordEvent>, WriteListResult<TapRecordEvent>> resultConsumer) {
-		this.consumer = (theRecordEvents, writeListResult) -> {
+		this.consumers.add((theRecordEvents, writeListResult) -> {
 			try {
 				resultConsumer.accept(theRecordEvents, writeListResult);
 			} catch(Throwable throwable) {
 				TapLogger.warn(TAG, "Consume writeListResult {} for recordEvents size {} table {} failed on consumer {}, {}", writeListResult, recordEvents != null ? recordEvents.size() : 0, table, resultConsumer, ExceptionUtils.getStackTrace(throwable));
 			}
-		};
+		});
 		return this;
 	}
 	private List<TapRecordEvent> recordEvents;
@@ -65,11 +66,11 @@ public class WriteRecordFuncAspect extends DataFunctionAspect<WriteRecordFuncAsp
 		this.table = table;
 	}
 
-	public BiConsumer<List<TapRecordEvent>, WriteListResult<TapRecordEvent>> getConsumer() {
-		return consumer;
+	public List<BiConsumer<List<TapRecordEvent>, WriteListResult<TapRecordEvent>>> getConsumers() {
+		return consumers;
 	}
 
-	public void setConsumer(BiConsumer<List<TapRecordEvent>, WriteListResult<TapRecordEvent>> consumer) {
-		this.consumer = consumer;
+	public void setConsumers(List<BiConsumer<List<TapRecordEvent>, WriteListResult<TapRecordEvent>>> consumers) {
+		this.consumers = consumers;
 	}
 }

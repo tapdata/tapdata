@@ -1,21 +1,24 @@
 package io.tapdata.aspect;
 
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.BiConsumer;
 
 public class TableCountFuncAspect extends DataFunctionAspect<TableCountFuncAspect> {
-	private BiConsumer<String, Long> tableCountConsumer;
+	private List<BiConsumer<String, Long>> tableCountConsumerList = new CopyOnWriteArrayList<>();
 	public TableCountFuncAspect tableCountConsumer(BiConsumer<String, Long> consumer) {
-		tableCountConsumer = consumer;
+		if(!tableCountConsumerList.contains(consumer))
+			tableCountConsumerList.add(consumer);
 		return this;
 	}
 
-	public BiConsumer<String, Long> getTableCountConsumer() {
-		return tableCountConsumer;
+	public List<BiConsumer<String, Long>> getTableCountConsumerList() {
+		return tableCountConsumerList;
 	}
 
-	public void setTableCountConsumer(BiConsumer<String, Long> tableCountConsumer) {
-		this.tableCountConsumer = tableCountConsumer;
+	public void setTableCountConsumerList(List<BiConsumer<String, Long>> tableCountConsumerList) {
+		this.tableCountConsumerList = tableCountConsumerList;
 	}
 }

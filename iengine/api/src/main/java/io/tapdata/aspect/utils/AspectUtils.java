@@ -7,8 +7,11 @@ import io.tapdata.entity.aspect.AspectInterceptResult;
 import io.tapdata.entity.aspect.AspectManager;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.utils.InstanceFactory;
+import io.tapdata.pdk.core.utils.CommonUtils;
 
+import java.util.List;
 import java.util.concurrent.Callable;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
 public class AspectUtils {
@@ -105,5 +108,21 @@ public class AspectUtils {
 			consumer.accept(null);
 		}
 		return null;
+	}
+
+	public static <T>  void accept(List<Consumer<T>> consumers, T t) {
+		if(consumers != null) {
+			for(Consumer<T> consumer : consumers) {
+				CommonUtils.ignoreAnyError(() -> consumer.accept(t), TAG);
+			}
+		}
+	}
+
+	public static <T, P>  void accept(List<BiConsumer<T, P>> consumers, T t, P p) {
+		if(consumers != null) {
+			for(BiConsumer<T, P> consumer : consumers) {
+				CommonUtils.ignoreAnyError(() -> consumer.accept(t, p), TAG);
+			}
+		}
 	}
 }
