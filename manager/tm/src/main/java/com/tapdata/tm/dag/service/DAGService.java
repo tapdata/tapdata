@@ -284,7 +284,7 @@ public class DAGService implements DAGDataService {
             metadataInstancesDto.setQualifiedName(qualifiedName);
 
             MetaDataBuilderUtils.build(_metaType, dataSource, userDetail.getUserId(), userDetail.getUsername(), metadataInstancesDto.getOriginalName(),
-                    metadataInstancesDto, null, dataSource.getId().toHexString());
+                    metadataInstancesDto, null, dataSourceMetadataInstance.getId().toHexString());
 
             metadataInstancesDto.setSourceType(SourceTypeEnum.VIRTUAL.name());
 
@@ -434,7 +434,7 @@ public class DAGService implements DAGDataService {
                     MetaDataBuilderUtils.generateQualifiedName(metadataInstancesDto.getMetaType(), dataSource, schema.getOriginalName()));
 
             MetaDataBuilderUtils.build(_metaType, dataSource, userDetail.getUserId(), userDetail.getUsername(), metadataInstancesDto.getOriginalName(),
-                    metadataInstancesDto, null, dataSourceId.toHexString());
+                    metadataInstancesDto, null, dataSourceMetadataInstance.getId().toHexString());
 
             metadataInstancesDto.setSourceType(SourceTypeEnum.VIRTUAL.name());
 

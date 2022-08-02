@@ -756,7 +756,11 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                     }
                     boolean canHotUpdate = subTaskService.canHotUpdate(subTaskDto.getDag(), updateSubtask.getDag());
                     if (!canHotUpdate) {
-                        throw new BizException("Task.UpdateSubTask");
+                        Message message = new Message();
+                        message.setCode("Task.UpdateSubTask");
+                        List<Message> messageList = new ArrayList<>();
+                        messageList.add(message);
+                        messageMap.put(updateSubtask.getSubTaskId().toString(), messageList);
                     }
                 }
             }
