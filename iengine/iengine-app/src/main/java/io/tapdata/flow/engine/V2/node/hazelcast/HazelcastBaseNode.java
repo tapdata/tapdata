@@ -458,10 +458,10 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 			doClose();
 		} finally {
 			running.set(false);
-			if (processorBaseContext instanceof DataProcessorContext) {
-				AspectUtils.executeAspect(DataNodeCloseAspect.class, () -> new DataNodeCloseAspect().dataProcessorContext((DataProcessorContext) processorBaseContext));
-			} else {
+			if (this instanceof HazelcastProcessorBaseNode || this instanceof HazelcastMultiAggregatorProcessor) {
 				AspectUtils.executeAspect(ProcessorNodeCloseAspect.class, () -> new ProcessorNodeCloseAspect().processorBaseContext(processorBaseContext));
+			} else {
+				AspectUtils.executeAspect(DataNodeCloseAspect.class, () -> new DataNodeCloseAspect().dataProcessorContext((DataProcessorContext) processorBaseContext));
 			}
 //		InstanceFactory.instance(AspectManager.class).executeAspect(DataNodeCloseAspect.class, () -> new DataNodeCloseAspect().node(HazelcastBaseNode.this));
 			if (processorBaseContext.getSubTaskDto() != null) {
