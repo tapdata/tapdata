@@ -10,7 +10,7 @@ import lombok.EqualsAndHashCode;
  */
 @EqualsAndHashCode(callSuper = true)
 @Data
-public class FlowSubTaskDto extends ParentSubTaskDto {
+public class FlowSubTaskDto extends ParentTaskDto {
     private Dag dag;
     private FlowTaskDto parentTask;
 

@@ -1,8 +1,8 @@
 package com.tapdata.tm.schedule;
 
-import com.tapdata.tm.commons.task.dto.SubTaskDto;
+import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
-import com.tapdata.tm.task.service.SubTaskService;
+import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.utils.MongoUtils;
 import lombok.Setter;
@@ -26,7 +26,7 @@ import java.util.List;
 @Setter(onMethod_ = {@Autowired})
 public class SubTaskRestartSchedule {
 
-    private SubTaskService subTaskService;
+    private TaskService taskService;
     private UserService userService;
 
     /**
@@ -39,12 +39,12 @@ public class SubTaskRestartSchedule {
         Criteria criteria = Criteria.where("restartFlag").is(true).and("status").is("stop");
         Query query = new Query(criteria);
         query.fields().include("_id", "restartUserId");
-        List<SubTaskDto> restartSubTasks = subTaskService.findAll(query);
-        for (SubTaskDto subTask : restartSubTasks) {
+        List<TaskDto> restartSubTasks = taskService.findAll(query);
+        for (TaskDto subTask : restartSubTasks) {
 
             try {
                 UserDetail user = userService.loadUserById(MongoUtils.toObjectId(subTask.getRestartUserId()));
-                subTaskService.start(subTask.getId(), user);
+                taskService.start(subTask.getId(), user);
             } catch (Exception e) {
                 log.warn("restart subtask error, subtask id = {}, e = {}", subTask.getId(), e.getMessage());
             }

@@ -7,7 +7,7 @@
 package com.tapdata.tm.statemachine.config;
 
 import com.mongodb.client.result.UpdateResult;
-import com.tapdata.tm.commons.task.dto.SubTaskDto;
+import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.statemachine.annotation.EnableStateMachine;
 import com.tapdata.tm.statemachine.configuration.AbstractStateMachineConfigurer;
 import com.tapdata.tm.statemachine.configuration.StateMachineBuilder;
@@ -16,9 +16,10 @@ import com.tapdata.tm.statemachine.enums.SubTaskState;
 import com.tapdata.tm.statemachine.model.StateContext;
 import com.tapdata.tm.statemachine.model.StateMachineResult;
 import com.tapdata.tm.statemachine.model.SubTaskStateContext;
-import com.tapdata.tm.task.service.SubTaskService;
 import java.util.Date;
 import java.util.function.Function;
+
+import com.tapdata.tm.task.service.TaskService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
@@ -64,14 +65,14 @@ public class SubTaskStateMachineConfig extends AbstractStateMachineConfigurer<Su
 	}
 
 	@Autowired
-	private SubTaskService subTaskService;
+	private TaskService taskService;
 
 	public Function<StateContext<SubTaskState, DataFlowEvent>, StateMachineResult> commonAction() {
 		return (stateContext) ->{
 			if (stateContext instanceof SubTaskStateContext){
 				Update update = Update.update("status", stateContext.getTarget().getName());
 				setOperTime(stateContext.getTarget().getName(), update);
-				UpdateResult updateResult = subTaskService.update(
+				UpdateResult updateResult = taskService.update(
 						Query.query(Criteria.where("_id").is(((SubTaskStateContext)stateContext).getData().getId())
 								.and("status").is(stateContext.getSource().getName())),
 						update, stateContext.getUserDetail());
@@ -87,16 +88,16 @@ public class SubTaskStateMachineConfig extends AbstractStateMachineConfigurer<Su
 	private void setOperTime(String status, Update update){
 		Date date = new Date();
 		switch (status) {
-			case SubTaskDto.STATUS_WAIT_RUN:  //  scheduled对应startTime和scheduledTime
+			case TaskDto.STATUS_WAIT_RUN:  //  scheduled对应startTime和scheduledTime
 				update.set("startTime", date).set("scheduledTime", date);
 				break;
-			case SubTaskDto.STATUS_STOPPING:  // stopping对应stoppingTime
+			case TaskDto.STATUS_STOPPING:  // stopping对应stoppingTime
 				update.set("stoppingTime", date);
 				break;
-			case SubTaskDto.STATUS_RUNNING:  //  running对应runningTime
+			case TaskDto.STATUS_RUNNING:  //  running对应runningTime
 				update.set("runningTime", date);
 				break;
-			case SubTaskDto.STATUS_ERROR:  //  error对应errorTime和finishTime
+			case TaskDto.STATUS_ERROR:  //  error对应errorTime和finishTime
 				update.set("errorTime", date).set("finishTime", date);
 				break;
 			default:

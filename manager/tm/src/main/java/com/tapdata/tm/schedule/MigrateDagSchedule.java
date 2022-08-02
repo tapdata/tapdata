@@ -1,6 +1,6 @@
 package com.tapdata.tm.schedule;
 
-import com.tapdata.tm.task.service.SubTaskService;
+import com.tapdata.tm.task.service.TaskService;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
@@ -13,11 +13,11 @@ import org.springframework.stereotype.Component;
 @Setter(onMethod_ = {@Autowired})
 public class MigrateDagSchedule {
 
-    private SubTaskService subTaskService;
+    private TaskService taskService;
 
     @Scheduled(fixedDelay = 10 * 1000)
     @SchedulerLock(name = "migrateDagPlanStartLock", lockAtMostFor = "5s", lockAtLeastFor = "5s")
     public void migrateDagPlanStart() {
-        subTaskService.startPlanMigrateDagTask();
+        taskService.startPlanMigrateDagTask();
     }
 }

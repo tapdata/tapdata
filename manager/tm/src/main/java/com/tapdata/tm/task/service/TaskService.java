@@ -56,6 +56,7 @@ import com.tapdata.tm.task.constant.SubTaskEnum;
 import com.tapdata.tm.task.constant.SubTaskOpStatusEnum;
 import com.tapdata.tm.task.constant.SyncType;
 import com.tapdata.tm.task.constant.TaskStatusEnum;
+import com.tapdata.tm.task.entity.TaskDagCheckLog;
 import com.tapdata.tm.task.entity.TaskEntity;
 import com.tapdata.tm.task.param.SaveShareCacheParam;
 import com.tapdata.tm.task.repository.TaskRepository;
@@ -111,7 +112,6 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     private MeasurementService measurementService;
     private InspectService inspectService;
     private TaskRunHistoryService taskRunHistoryService;
-    private TaskStartService taskStartService;
     private TransformSchemaAsyncService transformSchemaAsyncService;
     private TransformSchemaService transformSchemaService;
     private CustomerJobLogsService customerJobLogsService;
@@ -128,12 +128,13 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     private FileService fileService1;
 
     private MessageQueueService messageQueueService;
-    private MongoTemplate mongoTemplate;
 
     private UserService userService;
 
     private TaskNodeRuntimeInfoService taskNodeRuntimeInfoService;
     private TaskDatabaseRuntimeInfoService taskDatabaseRuntimeInfoService;
+
+    private TaskDagCheckLogService taskDagCheckLogService;
     public static Set<String> stopStatus = new HashSet<>();
     /**
      * 停止状态
@@ -1042,7 +1043,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             checkDagAgentConflict(task, false);
 
             try {
-                boolean noPass = taskStartService.taskStartCheckLog(task, user);
+                boolean noPass = taskStartCheckLog(task, user);
                 if (!noPass) {
                     start(task, user);
                 }
@@ -1460,7 +1461,6 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
      * @param user
      * @return
      */
-    @Transactional
     public TaskDto createShareCacheTask(SaveShareCacheParam saveShareCacheParam, UserDetail user) {
         TaskDto taskDto = new TaskDto();
 
@@ -1980,7 +1980,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                 List<Node> nodes = dag.getNodes();
                 if (CollectionUtils.isNotEmpty(nodes)) {
                     for (Node node : nodes) {
-                        List<MetadataInstancesDto> metadataInstancesDtos = metadataInstancesService.findByNodeId(node.getId(), null, user, dag);
+                        List<MetadataInstancesDto> metadataInstancesDtos = metadataInstancesService.findByNodeId(node.getId(), null, user, taskDto);
                         if (CollectionUtils.isNotEmpty(metadataInstancesDtos)) {
                             for (MetadataInstancesDto metadataInstancesDto : metadataInstancesDtos) {
                                 metadataInstancesDto.setCreateUser(null);
@@ -2411,7 +2411,6 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
      * @param id
      * @param id
      */
-    @Async
     public void start(ObjectId id, UserDetail user, String startFlag) {
         TaskDto taskDto = checkExistById(id, user);
         checkDagAgentConflict(taskDto, false);
@@ -2539,8 +2538,6 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
      * @param user       用户
      * @param force      是否强制停止
      */
-    @Transactional
-    @Async
     public void pause(TaskDto TaskDto, UserDetail user, boolean force) {
         pause(TaskDto, user, force, false);
     }
@@ -2553,7 +2550,6 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
      * @param force      是否强制停止
      */
     //@Transactional
-    @Async
     public void pause(TaskDto TaskDto, UserDetail user, boolean force, boolean restart) {
         //任务暂停的子任务状态只能是运行中
         if (!SubTaskOpStatusEnum.to_stop_status.v().contains(TaskDto.getStatus()) && !restart) {
@@ -3212,6 +3208,35 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         //清理模型
         //MetaDataHistoryService historyService = SpringContextHelper.getBean(MetaDataHistoryService.class);
         historyService.clean(taskId, time);
+    }
+
+
+    public boolean taskStartCheckLog(TaskDto taskDto, UserDetail userDetail) {
+        taskDagCheckLogService.removeAllByTaskId(taskDto.getId().toHexString());
+
+        boolean saveNoPass = false;
+        List<TaskDagCheckLog> saveLogs = taskDagCheckLogService.dagCheck(taskDto, userDetail, true);
+        if (org.apache.commons.collections.CollectionUtils.isNotEmpty(saveLogs)) {
+            Optional<TaskDagCheckLog> any = saveLogs.stream().filter(log -> StringUtils.equals(Level.ERROR.getValue(), log.getGrade())).findAny();
+            if (any.isPresent()) {
+                saveNoPass = true;
+                updateStatus(taskDto.getId(), TaskDto.STATUS_EDIT);
+            }
+        }
+
+        boolean startNoPass = false;
+        List<TaskDagCheckLog> startLogs = taskDagCheckLogService.dagCheck(taskDto, userDetail, false);
+        if (org.apache.commons.collections.CollectionUtils.isNotEmpty(startLogs)) {
+            Optional<TaskDagCheckLog> any = startLogs.stream().filter(log -> StringUtils.equals(Level.ERROR.getValue(), log.getGrade())).findAny();
+            if (any.isPresent()) {
+                startNoPass = true;
+                if (!saveNoPass) {
+                    updateStatus(taskDto.getId(), TaskDto.STATUS_EDIT);
+                }
+            }
+        }
+
+        return saveNoPass & startNoPass;
     }
 
 }

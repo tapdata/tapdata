@@ -17,8 +17,6 @@ public class TaskSnapshotsDto extends BaseDto {
     private ObjectId taskId;
     /** 任务 */
     private TaskDto snapshot;
-    /** 子任务列表 */
-    private List<SubTaskDto> subtasks;
     /** 运行时信息*/
     private TaskNodeRuntimeInfoDto nodeRunTimeInfo;
     private TaskDatabaseRuntimeInfoDto DatabaseRunNodeTimeInfo;

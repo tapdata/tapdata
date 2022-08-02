@@ -23,7 +23,6 @@ import com.tapdata.tm.statemachine.enums.DataFlowState;
 import com.tapdata.tm.statemachine.enums.SubTaskState;
 import com.tapdata.tm.statemachine.model.StateMachineResult;
 import com.tapdata.tm.statemachine.service.StateMachineService;
-import com.tapdata.tm.task.service.SubTaskService;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.user.service.UserService;
 import static com.tapdata.tm.utils.MongoUtils.toObjectId;
@@ -47,7 +46,6 @@ import org.springframework.stereotype.Component;
 @Component
 @Setter(onMethod_ = {@Autowired})
 public class StateMachineScheduleTask {
-	private SubTaskService subTaskService;
 	private StateMachineService stateMachineService;
 	private UserService userService;
 	private DataFlowService dataFlowService;

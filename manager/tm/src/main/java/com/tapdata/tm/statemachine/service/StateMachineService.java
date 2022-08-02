@@ -18,7 +18,6 @@ import com.tapdata.tm.statemachine.enums.SubTaskState;
 import com.tapdata.tm.statemachine.model.DataFlowStateTrigger;
 import com.tapdata.tm.statemachine.model.StateMachineResult;
 import com.tapdata.tm.statemachine.model.SubTaskStateTrigger;
-import com.tapdata.tm.task.service.SubTaskService;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.user.service.UserService;
 import static com.tapdata.tm.utils.MongoUtils.toObjectId;

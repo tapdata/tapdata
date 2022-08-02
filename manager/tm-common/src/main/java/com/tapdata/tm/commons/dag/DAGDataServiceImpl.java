@@ -9,7 +9,6 @@ import com.tapdata.tm.commons.dag.vo.MigrateJsResultVo;
 import com.tapdata.tm.commons.schema.*;
 import com.tapdata.tm.commons.schema.bean.SourceDto;
 import com.tapdata.tm.commons.schema.bean.SourceTypeEnum;
-import com.tapdata.tm.commons.task.dto.SubTaskDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.util.MetaDataBuilderUtils;
 import com.tapdata.tm.commons.util.MetaType;
@@ -20,8 +19,6 @@ import io.tapdata.entity.mapping.DefaultExpressionMatchingMap;
 import io.tapdata.entity.result.TapResult;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
-import io.tapdata.entity.utils.InstanceFactory;
-import io.tapdata.entity.utils.JsonParser;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.bson.types.ObjectId;
@@ -30,7 +27,6 @@ import org.springframework.beans.BeanUtils;
 import java.io.Serializable;
 import java.util.*;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 
 @Slf4j
@@ -172,7 +168,7 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
     }
 
     @Override
-    public TapTable loadTapTable(List<Schema> schemas, String script, String nodeId, String virtualId, String customNodeId, Map<String, Object> form, SubTaskDto subTaskDto) {
+    public TapTable loadTapTable(List<Schema> schemas, String script, String nodeId, String virtualId, String customNodeId, Map<String, Object> form, TaskDto subTaskDto) {
         //TODO 引擎用于js跑虚拟数据产生模型  js节点存在源节点schema跟 script， 自定义节点存在 自定义节点id, 跟 form表单
         //具体参数可以另行再定，反正这里得到的会成为最终的节点入库模型
 //        String json = "{\"defaultPrimaryKeys\":[\"_id\"],\"id\":\"XXX\",\"lastUpdate\":1656129059016,\"name\":\"XXX\",\"nameFieldMap\":{\"_id\":{\"autoInc\":false,\"dataType\":\"OBJECT_ID\",\"name\":\"_id\",\"nullable\":true,\"partitionKey\":false,\"pos\":22,\"primaryKey\":true,\"primaryKeyPos\":1},\"CUSTOMER_ID\":{\"autoInc\":false,\"dataType\":\"STRING\",\"name\":\"CUSTOMER_ID\",\"nullable\":true,\"partitionKey\":false,\"pos\":22,\"primaryKey\":false},\"CITY\":{\"autoInc\":false,\"dataType\":\"STRING\",\"name\":\"CITY\",\"nullable\":true,\"partitionKey\":false,\"pos\":22,\"primaryKey\":false},\"COUNTRY_CODE\":{\"autoInc\":false,\"dataType\":\"STRING\",\"name\":\"COUNTRY_CODE\",\"nullable\":true,\"partitionKey\":false,\"pos\":22,\"primaryKey\":false},\"DATE_OF_BIRTH\":{\"autoInc\":false,\"dataType\":\"DATE_TIME\",\"name\":\"DATE_OF_BIRTH\",\"nullable\":true,\"partitionKey\":false,\"pos\":22,\"primaryKey\":false},\"EMAIL\":{\"autoInc\":false,\"dataType\":\"STRING\",\"name\":\"EMAIL\",\"nullable\":true,\"partitionKey\":false,\"pos\":22,\"primaryKey\":false},\"FIRST_NAME\":{\"autoInc\":false,\"dataType\":\"STRING\",\"name\":\"FIRST_NAME\",\"nullable\":true,\"partitionKey\":false,\"pos\":22,\"primaryKey\":false},\"GENDER\":{\"autoInc\":false,\"dataType\":\"STRING\",\"name\":\"GENDER\",\"nullable\":true,\"partitionKey\":false,\"pos\":22,\"primaryKey\":false},\"JOB\":{\"autoInc\":false,\"dataType\":\"STRING\",\"name\":\"JOB\",\"nullable\":true,\"partitionKey\":false,\"pos\":22,\"primaryKey\":false},\"LAST_CHANGE\":{\"autoInc\":false,\"dataType\":\"DATE_TIME\",\"name\":\"LAST_CHANGE\",\"nullable\":true,\"partitionKey\":false,\"pos\":22,\"primaryKey\":false},\"LAST_NAME\":{\"autoInc\":false,\"dataType\":\"STRING\",\"name\":\"LAST_NAME\",\"nullable\":true,\"partitionKey\":false,\"pos\":22,\"primaryKey\":false},\"MARITAL_STATUS\":{\"autoInc\":false,\"dataType\":\"STRING\",\"name\":\"MARITAL_STATUS\",\"nullable\":true,\"partitionKey\":false,\"pos\":22,\"primaryKey\":false},\"NATIONALITY\":{\"autoInc\":false,\"dataType\":\"STRING\",\"name\":\"NATIONALITY\",\"nullable\":true,\"partitionKey\":false,\"pos\":22,\"primaryKey\":false},\"NUMBER_CHILDREN\":{\"autoInc\":false,\"dataType\":\"INT32\",\"name\":\"NUMBER_CHILDREN\",\"nullable\":true,\"partitionKey\":false,\"pos\":22,\"primaryKey\":false},\"PHONE\":{\"autoInc\":false,\"dataType\":\"STRING\",\"name\":\"PHONE\",\"nullable\":true,\"partitionKey\":false,\"pos\":22,\"primaryKey\":false},\"STREET\":{\"autoInc\":false,\"dataType\":\"STRING\",\"name\":\"STREET\",\"nullable\":true,\"partitionKey\":false,\"pos\":22,\"primaryKey\":false},\"ZIP\":{\"autoInc\":false,\"dataType\":\"STRING\",\"name\":\"ZIP\",\"nullable\":true,\"partitionKey\":false,\"pos\":22,\"primaryKey\":false},\"POLICY_ID\":{\"autoInc\":false,\"dataType\":\"STRING\",\"name\":\"POLICY_ID\",\"nullable\":true,\"partitionKey\":false,\"pos\":22,\"primaryKey\":false},\"CAR_MODEL\":{\"autoInc\":false,\"dataType\":\"STRING\",\"name\":\"CAR_MODEL\",\"nullable\":true,\"partitionKey\":false,\"pos\":22,\"primaryKey\":false},\"COVER_START\":{\"autoInc\":false,\"dataType\":\"DATE_TIME\",\"name\":\"COVER_START\",\"nullable\":true,\"partitionKey\":false,\"pos\":22,\"primaryKey\":false},\"LAST_ANN_PREMIUM_GROSS\":{\"autoInc\":false,\"dataType\":\"DOUBLE\",\"name\":\"LAST_ANN_PREMIUM_GROSS\",\"nullable\":true,\"partitionKey\":false,\"pos\":22,\"primaryKey\":false},\"MAX_COVERED\":{\"autoInc\":false,\"dataType\":\"INT32\",\"name\":\"MAX_COVERED\",\"nullable\":true,\"partitionKey\":false,\"pos\":22,\"primaryKey\":false}}}";
@@ -183,7 +179,7 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
     }
 
     @Override
-    public List<MigrateJsResultVo> getJsResult(String jsNodeId, String virtualTargetId, SubTaskDto subTaskDto) {
+    public List<MigrateJsResultVo> getJsResult(String jsNodeId, String virtualTargetId, TaskDto subTaskDto) {
         return null;
     }
 
