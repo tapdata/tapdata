@@ -67,6 +67,7 @@ public class AspectUtils {
 				} catch(Throwable throwable) {
 					aspect.throwable(throwable).state(DataFunctionAspect.STATE_END);
 					aspectManager.executeAspect(aspect);
+					throw throwable;
 				}
 			} else {
 				return interceptResult;
@@ -97,6 +98,7 @@ public class AspectUtils {
 				} catch(Throwable throwable) {
 					aspect.throwable(throwable).state(DataFunctionAspect.STATE_END);
 					aspectManager.executeAspect(aspect);
+					throw throwable;
 				}
 			} else {
 				return interceptResult;
