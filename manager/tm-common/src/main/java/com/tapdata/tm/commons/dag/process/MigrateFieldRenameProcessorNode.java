@@ -90,7 +90,7 @@ public class MigrateFieldRenameProcessorNode extends Node<List<Schema>> {
     protected List<Schema> saveSchema(Collection<String> predecessors, String nodeId, List<Schema> schema, DAG.Options options) {
         ObjectId taskId = taskId();
         schema.forEach(s -> {
-            s.setTaskId(taskId);
+            //s.setTaskId(taskId);
             s.setNodeId(nodeId);
         });
 

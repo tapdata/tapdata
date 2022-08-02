@@ -121,7 +121,7 @@ public class TaskNodeServiceImpl implements TaskNodeService {
         if (preHasJsNode)
             return getMetaByJsNode(nodeId, result, sourceNode, targetNode, tableNames, currentTableList, targetDataSource);
         else
-            return getMetadataTransformerItemDtoPage(nodeId, userDetail, result, dag, sourceNode, targetNode, tableNames, currentTableList, targetDataSource);
+            return getMetadataTransformerItemDtoPage(nodeId, userDetail, result, dag, sourceNode, targetNode, tableNames, currentTableList, targetDataSource, taskId);
     }
 
     private Page<MetadataTransformerItemDto> getMetaByJsNode(String nodeId, Page<MetadataTransformerItemDto> result, DatabaseNode sourceNode, DatabaseNode targetNode, List<String> tableNames, List<String> currentTableList, DataSourceConnectionDto targetDataSource) {
@@ -169,7 +169,7 @@ public class TaskNodeServiceImpl implements TaskNodeService {
     }
 
     @NotNull
-    private Page<MetadataTransformerItemDto> getMetadataTransformerItemDtoPage(String nodeId, UserDetail userDetail, Page<MetadataTransformerItemDto> result, DAG dag, DatabaseNode sourceNode, DatabaseNode targetNode, List<String> tableNames, List<String> currentTableList, DataSourceConnectionDto targetDataSource) {
+    private Page<MetadataTransformerItemDto> getMetadataTransformerItemDtoPage(String nodeId, UserDetail userDetail, Page<MetadataTransformerItemDto> result, DAG dag, DatabaseNode sourceNode, DatabaseNode targetNode, List<String> tableNames, List<String> currentTableList, DataSourceConnectionDto targetDataSource, String taskId) {
         List<Node<?>> predecessors = dag.nodeMap().get(nodeId);
         Node<?> currentNode = dag.getNode(nodeId);
         if (CollectionUtils.isEmpty(predecessors)) {
@@ -238,10 +238,10 @@ public class TaskNodeServiceImpl implements TaskNodeService {
             String sinkQualifiedName = null;
             if (Objects.nonNull(targetDataSource)) {
                 String metaType = "mongodb".equals(targetDataSource.getDatabase_type()) ? "collection" : "table";
-                sinkQualifiedName = MetaDataBuilderUtils.generateQualifiedName(metaType, targetDataSource, tableName);
+                sinkQualifiedName = MetaDataBuilderUtils.generateQualifiedName(metaType, targetDataSource, tableName, taskId);
             }
             String metaType = "mongodb".equals(sourceDataSource.getDatabase_type()) ? "collection" : "table";
-            String sourceQualifiedName = MetaDataBuilderUtils.generateQualifiedName(metaType, sourceDataSource, tableName);
+            String sourceQualifiedName = MetaDataBuilderUtils.generateQualifiedName(metaType, sourceDataSource, tableName, taskId);
 
             List<Field> fields = metaMap.get(tableName).getFields();
 

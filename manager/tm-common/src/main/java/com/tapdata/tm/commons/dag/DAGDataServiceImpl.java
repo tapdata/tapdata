@@ -46,6 +46,8 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
     private final String userId;
     private final String userName;
 
+    private  String taskId = null;
+
     private final Map<String, MetadataInstancesDto> batchMetadataUpdateMap = new LinkedHashMap<>();
 
     private final List<MetadataInstancesDto> batchInsertMetaDataList = new ArrayList<>();
@@ -66,6 +68,7 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
         this.definitionDtoMap = transformerWsMessageDto.getDefinitionDtoMap();
         if (transformerWsMessageDto.getTaskDto() != null) {
             taskMap.put(transformerWsMessageDto.getTaskDto().getId().toHexString(), transformerWsMessageDto.getTaskDto());
+            this.taskId = transformerWsMessageDto.getTaskDto().getId().toHexString();
         }
         this.userId = transformerWsMessageDto.getUserId();
         this.userName = transformerWsMessageDto.getUserName();
@@ -82,6 +85,7 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
         this.definitionDtoMap = definitionDtoMap;
         if (taskDto != null) {
             taskMap.put(taskDto.getId().toHexString(), taskDto);
+            this.taskId = taskDto.getId().toHexString();
         }
         this.userId = userId;
         this.userName = userName;
@@ -115,7 +119,7 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
         if (metadataInstances == null)
             return null;
         Schema schema = JsonUtil.parseJsonUseJackson(JsonUtil.toJsonUseJackson(metadataInstances), Schema.class);
-        schema.setFields(schema.getFields()/*.stream().filter(field -> field.getParent() == null).collect(Collectors.toList())*/);
+        //schema.setFields(schema.getFields()/*.stream().filter(field -> field.getParent() == null).collect(Collectors.toList())*/);
 
         // 这里需要 执行字段映射，将 data_type 转换为 通用字段类型，设置到 data_type 字段（不要回写原模型）
         // 修改后的字段类型保存在schema里面
@@ -283,11 +287,11 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
             metadataInstancesDto.setLastUpdBy(userId);
 
             String nodeTableName = appendNodeTableName ? schema.getOriginalName() : null;
-            String qualifiedName = MetaDataBuilderUtils.generateQualifiedName(MetaType.processor_node.name(), nodeId, nodeTableName);
+            String qualifiedName = MetaDataBuilderUtils.generateQualifiedName(MetaType.processor_node.name(), nodeId, nodeTableName, taskId);
             metadataInstancesDto.setQualifiedName(qualifiedName);
 
             MetaDataBuilderUtils.build(_metaType, dataSource, userId, userName, metadataInstancesDto.getOriginalName(),
-                    metadataInstancesDto, null, dataSource.getId().toHexString());
+                    metadataInstancesDto, null, dataSource.getId().toHexString(), taskId);
 
             metadataInstancesDto.setSourceType(SourceTypeEnum.VIRTUAL.name());
 
@@ -334,6 +338,7 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
             }
         }
 
+
         String databaseQualifiedName = MetaDataBuilderUtils.generateQualifiedName("database", dataSource, null);
         MetadataInstancesDto dataSourceMetadataInstance = metadataMap.get(databaseQualifiedName);
 
@@ -377,10 +382,10 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
             metadataInstancesDto.setLastUpdBy(userId);
 
             metadataInstancesDto.setQualifiedName(
-                    MetaDataBuilderUtils.generateQualifiedName(metadataInstancesDto.getMetaType(), dataSource, schema.getOriginalName()));
+                    MetaDataBuilderUtils.generateQualifiedName(metadataInstancesDto.getMetaType(), dataSource, schema.getOriginalName(), taskId));
 
             metadataInstancesDto = MetaDataBuilderUtils.build(_metaType, dataSource, userId, userName, metadataInstancesDto.getOriginalName(),
-                    metadataInstancesDto, null, dataSourceId.toHexString());
+                    metadataInstancesDto, null, dataSourceMetadataInstance.getId().toHexString(), taskId);
 
             metadataInstancesDto.setSourceType(SourceTypeEnum.VIRTUAL.name());
 
@@ -826,6 +831,16 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
         // 需要比对现有模型，并记录模型历史
 
         //BulkOperations bulkOperations = repository.bulkOperations(BulkOperations.BulkMode.UNORDERED);
+        List<String> removeKey = new ArrayList<>();
+        existsMetadataInstances.forEach((k, v) -> {
+            if (v.getSourceType().equals(SourceTypeEnum.SOURCE.name())) {
+                removeKey.add(k);
+            }
+        });
+
+        for (String key : removeKey) {
+            existsMetadataInstances.remove(key);
+        }
 
         Map<String, MetadataInstancesDto> metadataUpdateMap = new LinkedHashMap<>();
 
@@ -863,6 +878,7 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
                 update2.setDeleted(false);
                 update2.setCreateSource(metadataInstancesDto.getCreateSource());
                 update2.setVersion(newVersion);
+                update2.setQualifiedName(metadataInstancesDto.getQualifiedName());
                 if (existsMetadataInstance != null && existsMetadataInstance.getId() != null) {
                     metadataInstancesDto.setId(existsMetadataInstance.getId());
                     metadataUpdateMap.put(existsMetadataInstance.getId().toHexString(), update2);
@@ -874,7 +890,8 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
                 MetadataInstancesDto _metadataInstancesDto = MetaDataBuilderUtils.build(
                         metadataInstancesDto.getMetaType(), dataSourceConnectionDto, userId, userName,
                         metadataInstancesDto.getOriginalName(),
-                        metadataInstancesDto, null, metadataInstancesDto.getDatabaseId(), "job_analyze", null);
+                        metadataInstancesDto, null, metadataInstancesDto.getDatabaseId(), "job_analyze",
+                        null, taskId);
                 insertMetaDataList.add(_metadataInstancesDto);
                 BeanUtils.copyProperties(_metadataInstancesDto, metadataInstancesDto);
             }

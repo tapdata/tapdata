@@ -42,6 +42,11 @@ public class MetaDataBuilderUtils {
     }
 
     public static String generateQualifiedName(String metaType, String nodeId, String tableName) {
+        return generateQualifiedName(metaType, nodeId, tableName, null);
+    }
+
+    /** stay task id*/
+    public static String generateQualifiedName(String metaType, String nodeId, String tableName, String taskId) {
         if (StringUtils.isBlank(tableName)) {
             return metaTypePropertyMap.get(metaType).prefix + nodeId;
         } else {
@@ -50,13 +55,22 @@ public class MetaDataBuilderUtils {
     }
 
     public static String generateQualifiedName(String metaType, DataSourceConnectionDto connectionDto, String tableName) {
+        return generateQualifiedName(metaType, connectionDto, tableName, null);
+    }
+    public static String generateQualifiedName(String metaType, DataSourceConnectionDto connectionDto, String tableName, String taskId) {
         String qualifiedName = metaTypePropertyMap.get(metaType).getPrefix();
         String id = connectionDto.getId().toHexString();
         if (DataSourceDefinitionDto.PDK_TYPE.equals(connectionDto.getPdkType())) {
             qualifiedName += connectionDto.getDefinitionPdkId() + "_";
             qualifiedName += connectionDto.getDefinitionGroup() + "_";
             qualifiedName += connectionDto.getDefinitionVersion() + "_";
-            qualifiedName += tableName + "_" + id;
+            if (StringUtils.isNotBlank(tableName)) {
+                qualifiedName += tableName + "_";
+            }
+            qualifiedName += id;
+            if (StringUtils.isNotBlank(taskId)) {
+                qualifiedName += "_" + taskId;
+            }
         } else if (metaTypePropertyMap.get(metaType).isModel()) {
             String databaseType = connectionDto.getDatabase_type();
             String databaseName;
@@ -79,6 +93,9 @@ public class MetaDataBuilderUtils {
                 qualifiedName += databaseOwner + "_";
             }
             qualifiedName += tableName + "_" + id;
+            if (StringUtils.isNotBlank(taskId)) {
+                qualifiedName += "_" + taskId;
+            }
 
         } else {
             if ("api".equals(metaType)) {
@@ -106,16 +123,31 @@ public class MetaDataBuilderUtils {
 
 
     public static MetadataInstancesDto build(String metaType, DataSourceConnectionDto source, String userId, String userName) {
-       return build(metaType, source, userId, userName, null, null, null, null, null, null);
+        return build(metaType, source, userId, userName, null, null, null, null, null, null, null);
+
     }
+    public static MetadataInstancesDto build(String metaType, DataSourceConnectionDto source, String userId, String userName, String taskId) {
+       return build(metaType, source, userId, userName, null, null, null, null, null, null, taskId);
+    }
+
 
     public static MetadataInstancesDto build(String metaType, DataSourceConnectionDto source, String userId, String userName, String tableName
             , MetadataInstancesDto newModel, MetadataInstancesDto oldModel, String databaseId) {
-        return build(metaType, source, userId, userName, tableName, newModel, oldModel, databaseId, null, null);
+        return build(metaType, source, userId, userName, tableName, newModel, oldModel, databaseId, null);
+
+    }
+
+    public static MetadataInstancesDto build(String metaType, DataSourceConnectionDto source, String userId, String userName, String tableName
+            , MetadataInstancesDto newModel, MetadataInstancesDto oldModel, String databaseId, String taskId) {
+        return build(metaType, source, userId, userName, tableName, newModel, oldModel, databaseId, null, null, taskId);
     }
 
     public static MetadataInstancesDto build(String metaType, DataSourceConnectionDto source, String userId, String userName, String tableName
             , MetadataInstancesDto newModel, MetadataInstancesDto oldModel, String databaseId, String createSource, Map<String, String> qualifiedNameMap) {
+        return build(metaType, source, userId, userName, tableName, newModel, oldModel, databaseId, createSource, qualifiedNameMap, null);
+    }
+    public static MetadataInstancesDto build(String metaType, DataSourceConnectionDto source, String userId, String userName, String tableName
+            , MetadataInstancesDto newModel, MetadataInstancesDto oldModel, String databaseId, String createSource, Map<String, String> qualifiedNameMap, String taskId) {
 
         if (qualifiedNameMap == null) {
             qualifiedNameMap = new HashMap<>();
@@ -133,7 +165,7 @@ public class MetaDataBuilderUtils {
         metadataObj.setMetaType(metaType);
         metadataObj.setOriginalName(sourceDto.getName());
         String qualifiedName = qualifiedNameMap.get(tableName);
-        metadataObj.setQualifiedName(StringUtils.isBlank(qualifiedName) ? generateQualifiedName(metaType, source, tableName) : qualifiedName);
+        metadataObj.setQualifiedName(StringUtils.isBlank(qualifiedName) ? generateQualifiedName(metaType, source, tableName, taskId) : qualifiedName);
         metadataObj.setSource(sourceDto);
         metadataObj.setDevVersion(1);
 
@@ -173,6 +205,7 @@ public class MetaDataBuilderUtils {
 
             metadataObj.setDatabaseId(databaseId);
             metadataObj.setSource(sourceDto);
+            metadataObj.setTaskId(taskId);
 
             if (sourceDto.getLoadSchemaField() != null && sourceDto.getLoadSchemaField()) {
                 if (oldModel != null && newModel != null && CollectionUtils.isNotEmpty(newModel.getFields())) {

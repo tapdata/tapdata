@@ -1,6 +1,7 @@
 package com.tapdata.tm.base.dto;
 
 import com.tapdata.manager.common.utils.StringUtils;
+import com.tapdata.tm.utils.Lists;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.EqualsAndHashCode;
@@ -12,7 +13,10 @@ import org.springdoc.core.converters.models.DefaultPageable;
 
 import javax.validation.constraints.Min;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * @author lg<lirufei0808 @ gmail.com>
