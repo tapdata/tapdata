@@ -31,6 +31,9 @@ public class ConnectorNodeService {
 	}
 
 	public ConnectorNode getConnectorNode(String associateId) {
+		if (null == associateId) {
+			return null;
+		}
 		return this.connectorNodeMap.get(associateId);
 	}
 

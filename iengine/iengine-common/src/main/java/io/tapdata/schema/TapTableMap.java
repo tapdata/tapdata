@@ -283,6 +283,8 @@ public class TapTableMap<K extends String, V extends TapTable> extends HashMap<K
 			query = Query.query(where("qualified_name").is(qualifiedName));
 			tapTable = clientMongoOperator.findOne(query, url, TapTable.class);
 		}
+		if (null == tapTable) return null;
+
 		LinkedHashMap<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
 		if (MapUtils.isNotEmpty(nameFieldMap)) {
 			LinkedHashMap<String, TapField> sortedFieldMap = new LinkedHashMap<>();
