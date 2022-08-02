@@ -690,7 +690,7 @@ public class RestTemplateOperator {
 						}
 						if (data instanceof Map && ((Map) data).containsKey("items")) {
 							Object items = ((Map) data).get("items");
-							if (items instanceof List && CollectionUtils.isNotEmpty((List) items)) {
+							if (items instanceof List) {
 								data = items;
 							}
 						}
