@@ -253,6 +253,10 @@ public class DataSourceDefinitionService extends BaseService<DataSourceDefinitio
 
         long count = repository.count(query);
 
+        for (DataSourceDefinitionDto definitionEntity : definitionEntities) {
+            updateConfigPropertiesTitle(definitionEntity);
+        }
+
         // distinct
         definitionEntities = definitionEntities.stream().collect(
                 Collectors.collectingAndThen(

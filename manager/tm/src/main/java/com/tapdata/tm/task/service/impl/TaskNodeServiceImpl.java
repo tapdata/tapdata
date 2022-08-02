@@ -73,7 +73,6 @@ public class TaskNodeServiceImpl implements TaskNodeService {
     private DataSourceService dataSourceService;
     private MessageQueueService messageQueueService;
     private WorkerService workerService;
-    private DAGDataService dagDataService;
     private DataSourceDefinitionService dataSourceDefinitionService;
 
     @Override
@@ -118,24 +117,50 @@ public class TaskNodeServiceImpl implements TaskNodeService {
         if (targetNode != null) {
             targetDataSource = dataSourceService.findById(MongoUtils.toObjectId(targetNode.getConnectionId()));
         }
+
+        List<Node<?>> predecessors = dag.nodeMap().get(nodeId);
+        Node<?> currentNode = dag.getNode(nodeId);
+        if (CollectionUtils.isEmpty(predecessors)) {
+            predecessors = Lists.newArrayList();
+        }
+        predecessors.add(currentNode);
+
         // if current node pre has js node need get data from metaInstances
         boolean preHasJsNode = dag.getPreNodes(nodeId).stream().anyMatch(n -> n instanceof MigrateJsProcessorNode);
         if (preHasJsNode)
-            return getMetaByJsNode(nodeId, result, sourceNode, targetNode, tableNames, currentTableList, targetDataSource);
+            return getMetaByJsNode(nodeId, result, sourceNode, targetNode, tableNames, currentTableList, targetDataSource, predecessors);
         else
-            return getMetadataTransformerItemDtoPage(nodeId, userDetail, result, dag, sourceNode, targetNode, tableNames, currentTableList, targetDataSource);
+            return getMetadataTransformerItemDtoPage(userDetail, result, sourceNode, targetNode, tableNames, currentTableList, targetDataSource, predecessors, currentNode);
     }
 
-    private Page<MetadataTransformerItemDto> getMetaByJsNode(String nodeId, Page<MetadataTransformerItemDto> result, DatabaseNode sourceNode, DatabaseNode targetNode, List<String> tableNames, List<String> currentTableList, DataSourceConnectionDto targetDataSource) {
-        List<String> qualifiedNames;
-        if (targetNode != null && nodeId.equals(targetNode.getId())) {
-            String metaType = "mongodb".equals(targetDataSource.getDatabase_type()) ? "collection" : "table";
-            qualifiedNames = currentTableList.stream().map(t ->
-                    MetaDataBuilderUtils.generateQualifiedName(metaType, targetDataSource, t)).collect(Collectors.toList());
-        } else {
-            qualifiedNames = currentTableList.stream().map(t ->
-                    MetaDataBuilderUtils.generateQualifiedName(MetaType.processor_node.name(), nodeId, t)).collect(Collectors.toList());
+    private Page<MetadataTransformerItemDto> getMetaByJsNode(String nodeId, Page<MetadataTransformerItemDto> result, DatabaseNode sourceNode, DatabaseNode targetNode, List<String> tableNames, List<String> currentTableList, DataSourceConnectionDto targetDataSource, List<Node<?>> predecessors) {
+        // table rename
+        LinkedList<TableRenameProcessNode> tableRenameProcessNodes = predecessors.stream()
+                .filter(node -> node instanceof TableRenameProcessNode)
+                .map(node -> (TableRenameProcessNode) node)
+                .collect(Collectors.toCollection(LinkedList::new));
+        Map<String, TableRenameTableInfo> tableNameMapping = null;
+        if (CollectionUtils.isNotEmpty(tableRenameProcessNodes)) {
+            tableNameMapping = tableRenameProcessNodes.getLast().originalMap();
         }
+
+        String metaType = "mongodb".equals(targetDataSource.getDatabase_type()) ? "collection" : "table";
+        List<String> qualifiedNames = Lists.newArrayList();
+        for (String tableName : currentTableList) {
+            String tempName;
+            if (Objects.nonNull(tableNameMapping) && !tableNameMapping.isEmpty() && Objects.nonNull(tableNameMapping.get(tableName))) {
+                tempName = tableNameMapping.get(tableName).getCurrentTableName();
+            } else {
+                tempName = tableName;
+            }
+
+            if (targetNode != null && nodeId.equals(targetNode.getId())) {
+                qualifiedNames.add(MetaDataBuilderUtils.generateQualifiedName(metaType, targetDataSource, tempName));
+            } else {
+                qualifiedNames.add(MetaDataBuilderUtils.generateQualifiedName(MetaType.processor_node.name(), nodeId, tempName));
+            }
+        }
+
         List<MetadataInstancesDto> instances = metadataInstancesService.findByQualifiedNameList(qualifiedNames);
         if (CollectionUtils.isNotEmpty(instances)) {
             List<MetadataTransformerItemDto> data = Lists.newArrayList();
@@ -171,14 +196,7 @@ public class TaskNodeServiceImpl implements TaskNodeService {
     }
 
     @NotNull
-    private Page<MetadataTransformerItemDto> getMetadataTransformerItemDtoPage(String nodeId, UserDetail userDetail, Page<MetadataTransformerItemDto> result, DAG dag, DatabaseNode sourceNode, DatabaseNode targetNode, List<String> tableNames, List<String> currentTableList, DataSourceConnectionDto targetDataSource) {
-        List<Node<?>> predecessors = dag.nodeMap().get(nodeId);
-        Node<?> currentNode = dag.getNode(nodeId);
-        if (CollectionUtils.isEmpty(predecessors)) {
-            predecessors = Lists.newArrayList();
-        }
-        predecessors.add(currentNode);
-
+    private Page<MetadataTransformerItemDto> getMetadataTransformerItemDtoPage(UserDetail userDetail, Page<MetadataTransformerItemDto> result, DatabaseNode sourceNode, DatabaseNode targetNode, List<String> tableNames, List<String> currentTableList, DataSourceConnectionDto targetDataSource, List<Node<?>> predecessors, Node<?> currentNode) {
         // table rename
         LinkedList<TableRenameProcessNode> tableRenameProcessNodes = predecessors
                 .stream()
@@ -245,7 +263,7 @@ public class TaskNodeServiceImpl implements TaskNodeService {
             String metaType = "mongodb".equals(sourceDataSource.getDatabase_type()) ? "collection" : "table";
             String sourceQualifiedName = MetaDataBuilderUtils.generateQualifiedName(metaType, sourceDataSource, tableName);
 
-            List<Field> fields = metaMap.get(tableName).getFields();
+            List<Field> fields = metaMap.get(tableName).getFields().stream().filter(t -> !t.isDeleted()).collect(Collectors.toList());
 
             // TableRenameProcessNode not need fields
             if (!(currentNode instanceof TableRenameProcessNode)) {

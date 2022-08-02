@@ -8,6 +8,7 @@ import com.tapdata.tm.commons.dag.DmlPolicy;
 import com.tapdata.tm.commons.dag.DmlPolicyEnum;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
+import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.task.dto.SubTaskDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
@@ -77,12 +78,17 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 		Node<?> node = dataProcessorContext.getNode();
 		ConnectorCapabilities connectorCapabilities = ConnectorCapabilities.create();
 		initDmlPolicy(node, connectorCapabilities);
+		Map<String, Object> nodeConfig = null;
+		if (node instanceof TableNode) {
+			nodeConfig = ((TableNode) node).getNodeConfig();
+		}
 		this.associateId = ConnectorNodeService.getInstance().putConnectorNode(
 				PdkUtil.createNode(subTaskDto.getId().toHexString(),
 						databaseType,
 						clientMongoOperator,
 						this.getClass().getSimpleName() + "-" + dataProcessorContext.getNode().getId(),
 						connectionConfig,
+						nodeConfig,
 						pdkTableMap,
 						pdkStateMap,
 						globalStateMap,
