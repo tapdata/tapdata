@@ -583,6 +583,9 @@ public class HazelcastTaskService implements TaskService<SubTaskDto> {
 				ConnectorConstant.CONNECTION_COLLECTION,
 				Connections.class
 		);
+		if (null == connections) {
+			throw new RuntimeException("Cannot find connection by id(" + connectionId + ")");
+		}
 		connections.decodeDatabasePassword();
 		connections.initCustomTimeZone();
 		return connections;
