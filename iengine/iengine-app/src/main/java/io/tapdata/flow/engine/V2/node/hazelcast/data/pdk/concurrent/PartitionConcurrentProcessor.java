@@ -186,7 +186,7 @@ public class PartitionConcurrentProcessor {
 				if (tapdataEvent.isDML()) {
 					final List<Object> partitionValue = keySelector.select(tapdataEvent.getTapEvent());
 					final PartitionResult<TapdataEvent> partitionResult = partitioner.partition(partitionSize, tapdataEvent, partitionValue);
-					final int partition = partitionResult.getPartition();
+					final int partition = partitionResult.getPartition() < 0 ? DEFAULT_PARTITION : partitionResult.getPartition();
  					final LinkedBlockingQueue<PartitionEvent<TapdataEvent>> queue = partitionsQueue.get(partition);
 					final NormalEvent<TapdataEvent> normalEvent = new NormalEvent<>(eventSeq.incrementAndGet(), tapdataEvent);
 					if (!enqueuePartitionEvent(partition, queue, normalEvent)) {
