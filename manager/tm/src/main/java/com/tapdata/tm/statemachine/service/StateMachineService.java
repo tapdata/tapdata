@@ -7,7 +7,7 @@
 package com.tapdata.tm.statemachine.service;
 
 import com.tapdata.tm.base.exception.BizException;
-import com.tapdata.tm.commons.task.dto.SubTaskDto;
+import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.dataflow.dto.DataFlowDto;
 import com.tapdata.tm.dataflow.service.DataFlowService;
@@ -19,6 +19,7 @@ import com.tapdata.tm.statemachine.model.DataFlowStateTrigger;
 import com.tapdata.tm.statemachine.model.StateMachineResult;
 import com.tapdata.tm.statemachine.model.SubTaskStateTrigger;
 import com.tapdata.tm.task.service.SubTaskService;
+import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.user.service.UserService;
 import static com.tapdata.tm.utils.MongoUtils.toObjectId;
 import lombok.extern.slf4j.Slf4j;
@@ -40,7 +41,7 @@ public class StateMachineService {
 	DataFlowService dataFlowService;
 
 	@Autowired
-	private SubTaskService subTaskService;
+	private TaskService taskService;
 
 	@Autowired
 	private UserService userService;
@@ -99,7 +100,7 @@ public class StateMachineService {
 	}
 
 	private StateMachineResult executeAboutSubTask(ObjectId subTaskId, DataFlowEvent event, UserDetail userDetail){
-		SubTaskDto dto = subTaskService.findById(subTaskId, userDetail);
+		TaskDto dto = taskService.findById(subTaskId, userDetail);
 		if (dto == null){
 			throw new BizException("Task.NotFound");
 		}
@@ -107,7 +108,7 @@ public class StateMachineService {
 
 	}
 
-	public StateMachineResult executeAboutSubTask(SubTaskDto dto, DataFlowEvent event, UserDetail userDetail){
+	public StateMachineResult executeAboutSubTask(TaskDto dto, DataFlowEvent event, UserDetail userDetail){
 		SubTaskStateTrigger trigger = new SubTaskStateTrigger();
 		trigger.setSource(SubTaskState.getState(dto.getStatus()));
 		trigger.setEvent(event);

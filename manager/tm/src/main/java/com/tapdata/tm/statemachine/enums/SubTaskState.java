@@ -6,7 +6,7 @@
  */
 package com.tapdata.tm.statemachine.enums;
 
-import static com.tapdata.tm.commons.task.dto.SubTaskDto.*;
+import static com.tapdata.tm.commons.task.dto.TaskDto.*;
 import java.util.HashMap;
 import java.util.Map;
 

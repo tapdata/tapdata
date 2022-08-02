@@ -5,7 +5,7 @@ import com.tapdata.tm.utils.Lists;
 
 import java.util.List;
 
-import static com.tapdata.tm.commons.task.dto.SubTaskDto.*;
+import static com.tapdata.tm.commons.task.dto.TaskDto.*;
 
 /**
  * @Author: Zed

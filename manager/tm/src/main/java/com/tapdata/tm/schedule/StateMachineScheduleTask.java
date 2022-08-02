@@ -14,7 +14,6 @@ import com.tapdata.tm.CustomerJobLogs.service.CustomerJobLogsService;
 import com.tapdata.tm.Settings.constant.CategoryEnum;
 import com.tapdata.tm.Settings.constant.KeyEnum;
 import com.tapdata.tm.Settings.service.SettingsService;
-import com.tapdata.tm.commons.task.dto.SubTaskDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.dataflow.dto.DataFlowDto;
@@ -61,7 +60,7 @@ public class StateMachineScheduleTask {
 	@SchedulerLock(name ="checkScheduledSubTask", lockAtMostFor = "5s", lockAtLeastFor = "5s")
 	public void checkScheduledSubTask() {
 		Query query = query(Criteria.where("status").is(SubTaskState.WAITING_RUN.getName()).and("scheduledTime").lt(new Date(System.currentTimeMillis() - 1000 * 60)));
-		List<SubTaskDto> subTaskDtos = subTaskService.findAll(query);
+		List<TaskDto> subTaskDtos = taskService.findAll(query);
 		subTaskDtos.forEach(subTaskDto -> {
 			try {
 				UserDetail userDetail = userService.loadUserById(toObjectId(subTaskDto.getUserId()));
@@ -77,7 +76,7 @@ public class StateMachineScheduleTask {
 	@SchedulerLock(name ="checkStoppingSubTask", lockAtMostFor = "5s", lockAtLeastFor = "5s")
 	public void checkStoppingSubTask() {
 		Query query = query(Criteria.where("status").is(SubTaskState.STOPPING.getName()).and("stoppingTime").lt(new Date(System.currentTimeMillis() - 1000 * 60 * 5)));
-		List<SubTaskDto> subTaskDtos = subTaskService.findAll(query);
+		List<TaskDto> subTaskDtos = taskService.findAll(query);
 		subTaskDtos.forEach(subTaskDto -> {
 			try {
 				UserDetail userDetail = userService.loadUserById(toObjectId(subTaskDto.getUserId()));
@@ -157,31 +156,27 @@ public class StateMachineScheduleTask {
 
 	public void checkScheduledTask(long timeoutMillis, boolean isCloud) {
 		List<String> statusList = new ArrayList<>();
-		statusList.add(SubTaskDto.STATUS_RUNNING);
+		statusList.add(TaskDto.STATUS_RUNNING);
 		if (!isCloud){  //  任务心跳超时在云版情况下不会重新设置agentId，所以scheduling状态下的任务不做处理，直到它被接管running为止
-			statusList.add(SubTaskDto.STATUS_SCHEDULING);
+			statusList.add(TaskDto.STATUS_SCHEDULING);
 		}
 
 		Query query = Query.query(new Criteria().orOperator(
 				new Criteria("status").in(statusList).and("pingTime").lt(System.currentTimeMillis() - timeoutMillis),
-				new Criteria("status").is(SubTaskDto.STATUS_STOPPING)
+				new Criteria("status").is(TaskDto.STATUS_STOPPING)
 						.and("pingTime").lt(System.currentTimeMillis() - timeoutMillis * 5)
 		));
 
-		List<SubTaskDto> subTaskDtos = subTaskService.findAll(query);
+		List<TaskDto> subTaskDtos = taskService.findAll(query);
 		Map<String, UserDetail> userDetailMap = new HashMap<>();
-		for (SubTaskDto subTaskDto : subTaskDtos) {
-			UserDetail userDetail = userDetailMap.get(subTaskDto.getUserId());
+		for (TaskDto taskDto : subTaskDtos) {
+			UserDetail userDetail = userDetailMap.get(taskDto.getUserId());
 			if (userDetail == null) {
-				userDetail = userService.loadUserById(toObjectId(subTaskDto.getUserId()));
-				userDetailMap.put(subTaskDto.getUserId(), userDetail);
+				userDetail = userService.loadUserById(toObjectId(taskDto.getUserId()));
+				userDetailMap.put(taskDto.getUserId(), userDetail);
 			}
 
-			TaskDto taskDto = taskService.findById(subTaskDto.getParentId());
-			assert taskDto != null;
-			subTaskDto.setParentTask(taskDto);
-
-			subTaskService.run(subTaskDto, userDetail);
+			taskService.run(taskDto, userDetail);
 		}
 
 

@@ -1,22 +1,19 @@
 package com.tapdata.tm.metadatainstance.service;
 
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;
-import com.tapdata.tm.commons.task.dto.SubTaskDto;
+import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.util.PdkSchemaConvert;
 import com.tapdata.tm.config.security.UserDetail;
-import com.tapdata.tm.task.service.SubTaskService;
+import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.utils.MongoUtils;
 import com.tapdata.tm.utils.SpringContextHelper;
 import io.tapdata.entity.schema.TapTable;
 import org.apache.commons.collections4.CollectionUtils;
-import org.bson.Document;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.BulkOperations;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
-import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -43,9 +40,8 @@ public class MetaDataHistoryService {
             return;
         }
 
-        SubTaskService subTaskService = SpringContextHelper.getBean(SubTaskService.class);
-        SubTaskDto subTaskDto = subTaskService.checkExistById(MongoUtils.toObjectId(taskId), "tmCurrentTime");
-
+        TaskService taskService = SpringContextHelper.getBean(TaskService.class);
+        TaskDto taskDto = taskService.findById(MongoUtils.toObjectId(taskId));
 
 
         BulkOperations bulkOperations = mongoTemplate.bulkOps(BulkOperations.BulkMode.UNORDERED, MetadataInstancesDto.class, "MetaDataHistory");
@@ -53,7 +49,7 @@ public class MetaDataHistoryService {
             metadataInstancesDto.setId(null);
             metadataInstancesDto.setHistories(null);
             metadataInstancesDto.setTaskId(taskId);
-            metadataInstancesDto.setTmCurrentTime(subTaskDto.getTmCurrentTime());
+            metadataInstancesDto.setTmCurrentTime(taskDto.getTmCurrentTime());
             bulkOperations.insert(metadataInstancesDto);
         }
 

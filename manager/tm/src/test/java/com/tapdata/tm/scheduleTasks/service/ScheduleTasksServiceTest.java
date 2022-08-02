@@ -4,16 +4,11 @@ import cn.hutool.core.util.EnumUtil;
 import com.tapdata.tm.BaseJunit;
 import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Page;
-import com.tapdata.tm.base.dto.Where;
-import com.tapdata.tm.commons.task.dto.SubStatus;
-import com.tapdata.tm.commons.task.dto.SubTaskDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
-import com.tapdata.tm.task.constant.SyncType;
 import com.tapdata.tm.task.constant.TaskStatusEnum;
 import com.tapdata.tm.task.entity.TaskEntity;
 import com.tapdata.tm.task.repository.TaskRepository;
-import com.tapdata.tm.task.service.SubTaskService;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.utils.MongoUtils;
 import org.bson.types.ObjectId;
@@ -23,9 +18,7 @@ import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 
 import java.util.*;
-import java.util.stream.Collectors;
 
-import static org.junit.jupiter.api.Assertions.*;
 
 class ScheduleTasksServiceTest extends BaseJunit {
 
@@ -139,7 +132,7 @@ class ScheduleTasksServiceTest extends BaseJunit {
         Filter filter = parseFilter("{\"order\":\"createTime DESC\",\"limit\":20,\"fields\":{\"id\":true,\"name\":true,\"status\":true,\"last_updated\":true,\"createTime\":true,\"user_id\":true,\"startTime\":true,\"agentId\":true,\"statuses\":true,\"type\":true},\"skip\":0,\"where\":{\"syncType\":\"sync\",\"or\":[{\"name\":{\"like\":\"ma\",\"options\":\"i\"}},{\"stages.tableName\":{\"like\":\"ma\",\"options\":\"i\"}},{\"stages.name\":{\"like\":\"ma\",\"options\":\"i\"}}]}}");
         Criteria Orcriteria = taskService.parseOrToCriteria(filter.getWhere());
         List<String> statues = new ArrayList<>();
-        statues.addAll(SubTaskService.stopStatus);
+        statues.addAll(TaskService.stopStatus);
         Criteria notRunningCri = Criteria.where("statuses.status").in(statues);
         Criteria emptyStatus = Criteria.where("statuses").is(new ArrayList());
         List<Criteria> statusCriList = new ArrayList<>();

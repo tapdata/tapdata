@@ -17,14 +17,6 @@ import java.io.Serializable;
  */
 @Data
 public class TaskDto extends ParentTaskDto {
-
-    /** 编辑中 */
-    public static final String STATUS_EDIT = "edit";
-    /** 运行中 */
-    public static final String STATUS_RUNNING = "running";
-    /** 停止 */
-    public static final String STATUS_STOP = "stop";
-
     /** migrate迁移  logCollector 挖掘任务*/
     public static final String SYNC_TYPE_SYNC = "sync";
     public static final String SYNC_TYPE_MIGRATE = "migrate";
@@ -67,6 +59,40 @@ public class TaskDto extends ParentTaskDto {
     private String inspectId;
 
     private String migrateModelStatus;
+
+    /** 编辑中 待启动 */
+    public static final String STATUS_EDIT = "edit";
+    /** 准备中 */
+    public static final String STATUS_PREPARING = "preparing";
+    /** 调度中 */
+    public static final String STATUS_SCHEDULING = "scheduling";
+    /** 调度失败 */
+    public static final String STATUS_SCHEDULE_FAILED = "schedule_failed";
+    /** 待运行 */
+    public static final String STATUS_WAIT_RUN = "wait_run";
+    /** 运行中 */
+    public static final String STATUS_RUNNING = "running";
+    /** 停止中 */
+    public static final String STATUS_STOPPING = "stopping";
+    /** 暂停中 */
+    //public static final String STATUS_PAUSING = "pausing";
+    /** 错误 */
+    public static final String STATUS_ERROR = "error";
+    /** 完成 */
+    public static final String STATUS_COMPLETE = "complete";
+    /** 已停止 */
+    public static final String STATUS_STOP = "stop";
+    /** 已暂停 */
+    //public static final String STATUS_PAUSE = "pause";
+
+    @JsonSerialize( using = DagSerialize.class)
+    @JsonDeserialize( using = DagDeserialize.class)
+    private DAG tempDag;
+
+    //用户对接pdk重置删除的标记
+    private Boolean resetFlag;
+    private Boolean deleteFlag;
+    private Long version;
 
     public DAG getDag() {
         if (dag != null) {

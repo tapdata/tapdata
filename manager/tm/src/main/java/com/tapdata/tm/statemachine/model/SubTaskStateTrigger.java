@@ -6,11 +6,11 @@
  */
 package com.tapdata.tm.statemachine.model;
 
-import com.tapdata.tm.commons.task.dto.SubTaskDto;
+import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.statemachine.enums.DataFlowEvent;
 import com.tapdata.tm.statemachine.enums.SubTaskState;
 
-public class SubTaskStateTrigger extends AbstractStateTrigger<SubTaskState, DataFlowEvent, SubTaskDto> {
+public class SubTaskStateTrigger extends AbstractStateTrigger<SubTaskState, DataFlowEvent, TaskDto> {
 
 
 }
