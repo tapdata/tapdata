@@ -194,7 +194,7 @@ public class KafkaService extends AbstractMqService {
         WriteListResult<TapRecordEvent> listResult = new WriteListResult<>();
         List<List<TapRecordEvent>> subEventLists = Lists.partition(tapRecordEvents, (tapRecordEvents.size() - 1) / concurrency + 1);
         CountDownLatch countDownLatch = new CountDownLatch(concurrency);
-        subEventLists.forEach(subEventList -> executorService.submit(() -> {
+        subEventLists.forEach(subEventList -> produceService.submit(() -> {
             subEventList.forEach(event -> {
                 Map<String, Object> data;
                 MqOp mqOp = MqOp.INSERT;
