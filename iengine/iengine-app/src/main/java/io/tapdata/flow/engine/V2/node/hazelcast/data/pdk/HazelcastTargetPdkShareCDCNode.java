@@ -1,5 +1,7 @@
 package io.tapdata.flow.engine.V2.node.hazelcast.data.pdk;
 
+import com.hazelcast.core.HazelcastInstance;
+import com.tapdata.constant.HazelcastUtil;
 import com.tapdata.constant.MapUtil;
 import com.tapdata.entity.TapdataShareLogEvent;
 import com.tapdata.entity.hazelcast.PersistenceStorageConfig;
@@ -7,6 +9,7 @@ import com.tapdata.entity.sharecdc.LogContent;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.logCollector.LogCollectorNode;
+import com.tapdata.tm.commons.task.dto.SubTaskDto;
 import io.tapdata.HazelcastConstruct;
 import io.tapdata.common.sharecdc.ShareCdcUtil;
 import io.tapdata.constructImpl.ConstructRingBuffer;
@@ -53,9 +56,13 @@ public class HazelcastTargetPdkShareCDCNode extends HazelcastTargetPdkBaseNode {
 			PersistenceStorageConfig persistenceStorageConfig = PersistenceStorageConfig.getInstance();
 			shareCdcTtlDay = persistenceStorageConfig.getShareCdcTtlDay();
 		}
-		this.hazelcastConstruct = new ConstructRingBuffer<>(
-				context.hazelcastInstance(),
-				ShareCdcUtil.getConstructName(processorBaseContext.getSubTaskDto()),
+		this.hazelcastConstruct = getHazelcastConstruct(context.hazelcastInstance(), shareCdcTtlDay, processorBaseContext.getSubTaskDto());
+	}
+
+	private static HazelcastConstruct<Document> getHazelcastConstruct(HazelcastInstance hazelcastInstance, Integer shareCdcTtlDay, SubTaskDto subTaskDto) {
+		return new ConstructRingBuffer<>(
+				hazelcastInstance,
+				ShareCdcUtil.getConstructName(subTaskDto),
 				shareCdcTtlDay
 		);
 	}

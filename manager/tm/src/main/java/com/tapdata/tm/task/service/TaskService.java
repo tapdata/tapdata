@@ -17,9 +17,7 @@ import com.tapdata.tm.base.service.BaseService;
 import com.tapdata.tm.commons.base.dto.BaseDto;
 import com.tapdata.tm.commons.dag.*;
 import com.tapdata.tm.commons.dag.nodes.*;
-import com.tapdata.tm.commons.dag.process.JoinProcessorNode;
-import com.tapdata.tm.commons.dag.process.MergeTableNode;
-import com.tapdata.tm.commons.dag.process.MigrateFieldRenameProcessorNode;
+import com.tapdata.tm.commons.dag.process.*;
 import com.tapdata.tm.commons.dag.vo.FieldInfo;
 import com.tapdata.tm.commons.dag.vo.Operation;
 import com.tapdata.tm.commons.dag.vo.SyncObjects;
@@ -449,12 +447,20 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                         if (CollectionUtils.isNotEmpty(fields)) {
                             fieldNames = fields.stream().map(FieldInfo::getSourceFieldName).collect(Collectors.toList());
                         }
+
+                        List<String> hiddenFields = table.getFields().stream().filter(t -> !t.getIsShow())
+                                .map(FieldInfo::getSourceFieldName)
+                                .collect(Collectors.toList());
+
                         List<com.tapdata.tm.commons.schema.Field> tableFields = fieldMap.get(table.getQualifiedName());
                         if (CollectionUtils.isNotEmpty(tableFields)) {
-                            List<String> finalFieldNames = fieldNames;
-                            tableFields.forEach(field -> {
+                            for (com.tapdata.tm.commons.schema.Field field : tableFields) {
                                 String targetFieldName = field.getFieldName();
-                                if (!finalFieldNames.contains(targetFieldName)) {
+                                if (!fieldNames.contains(targetFieldName)) {
+                                    if (CollectionUtils.isNotEmpty(hiddenFields) && hiddenFields.contains(targetFieldName)) {
+                                        continue;
+                                    }
+
                                     if (StringUtils.isNotBlank(operation.getPrefix())) {
                                         targetFieldName = operation.getPrefix().concat(targetFieldName);
                                     }
@@ -472,7 +478,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                                             new FieldInfo(field.getFieldName(), targetFieldName, true, "system");
                                     fields.add(fieldInfo);
                                 }
-                            });
+                            }
                         }
                     });
                 }
@@ -560,8 +566,28 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
         checkDagAgentConflict(taskDto, true);
 
+        checkDDLConflict(taskDto);
+
         //saveInspect(existedTask, taskDto, user);
         return confirmById(taskDto, user, confirm, false);
+    }
+
+    private void checkDDLConflict(TaskDto taskDto) {
+        Boolean isOpenAutoDDL = taskDto.getIsOpenAutoDDL();
+        if (Objects.isNull(isOpenAutoDDL) || !isOpenAutoDDL) {
+            return;
+        }
+
+        FunctionUtils.isTureOrFalse(TaskDto.SYNC_TYPE_MIGRATE.equals(taskDto.getSyncType())).trueOrFalseHandle(
+                () -> {
+                    boolean anyMatch = taskDto.getDag().getNodes().stream().anyMatch(n -> n instanceof MigrateJsProcessorNode);
+                    FunctionUtils.isTure(anyMatch).throwMessage("Task.DDL.Conflict.Migrate");
+                },
+                () -> {
+                    boolean anyMatch = taskDto.getDag().getNodes().stream().anyMatch(n -> n instanceof JsProcessorNode);
+                    FunctionUtils.isTure(anyMatch).throwMessage("Task.DDL.Conflict.Migrate");
+                }
+        );
     }
 
     public void checkTaskInspectFlag (TaskDto taskDto) {
