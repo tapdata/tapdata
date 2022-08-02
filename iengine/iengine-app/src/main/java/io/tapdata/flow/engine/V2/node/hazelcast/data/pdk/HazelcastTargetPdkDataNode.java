@@ -423,8 +423,9 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 										}
 										throw new RuntimeException("Write record failed, will stop task");
 									}
+
 									if (writeRecordFuncAspect != null)
-										AspectUtils.accept(writeRecordFuncAspect.getConsumers(), tapRecordEvents, writeListResult);
+										AspectUtils.accept(writeRecordFuncAspect.state(WriteRecordFuncAspect.STATE_WRITING).getConsumers(), tapRecordEvents, writeListResult);
 
 									timeCostAvg.add(events.size(), System.currentTimeMillis() - start);
 									resetInsertedCounter.inc(writeListResult.getInsertedCount());

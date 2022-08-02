@@ -8,6 +8,8 @@ import java.util.function.BiConsumer;
 
 public class TableCountFuncAspect extends DataFunctionAspect<TableCountFuncAspect> {
 	private List<BiConsumer<String, Long>> tableCountConsumerList = new CopyOnWriteArrayList<>();
+
+	public static final int STATE_COUNTING = 10;
 	public TableCountFuncAspect tableCountConsumer(BiConsumer<String, Long> consumer) {
 		if(!tableCountConsumerList.contains(consumer))
 			tableCountConsumerList.add(consumer);

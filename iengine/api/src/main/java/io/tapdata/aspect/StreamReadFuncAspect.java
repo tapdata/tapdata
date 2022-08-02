@@ -17,7 +17,7 @@ public class StreamReadFuncAspect extends DataFunctionAspect<StreamReadFuncAspec
 		return this;
 	}
 	public static final int STATE_STREAM_STARTED = 5;
-	public static final int STATE_ACCEPT = 10;
+	public static final int STATE_STREAMING = 10;
 	private TapConnectorContext connectorContext;
 
 	public StreamReadFuncAspect connectorContext(TapConnectorContext connectorContext) {

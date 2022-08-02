@@ -13,6 +13,7 @@ public class ProcessorNodeProcessAspect extends ProcessorFunctionAspect<Processo
 	private static final String TAG = ProcessorNodeProcessAspect.class.getSimpleName();
 	private final LongAdder counter = new LongAdder();
 	private List<Consumer<TapdataEvent>> consumers = new CopyOnWriteArrayList<>();
+	public static final int STATE_PROCESSING = 10;
 	public ProcessorNodeProcessAspect consumer(Consumer<TapdataEvent> listConsumer) {
 		this.consumers.add(tapdataEvent -> {
 			try {
