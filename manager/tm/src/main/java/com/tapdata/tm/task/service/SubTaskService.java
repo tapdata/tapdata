@@ -883,16 +883,6 @@ public class SubTaskService extends BaseService<SubTaskDto, SubTaskEntity, Objec
         //老的连线在当前更新中必须存在。
         //之前存在的处理节点跟当前对应的处理节点参数必须一致
         Map<String, Node> oldNodeMap = oldNodes.stream().collect(Collectors.toMap(Node::getId, n -> n));
-        Map<String, Node> curNodeMap = curNodes.stream().collect(Collectors.toMap(Node::getId, n -> n));
-        AtomicBoolean flag = new AtomicBoolean(false);
-        curNodeMap.forEach((k, v) -> {
-            if (v instanceof TableRenameProcessNode || v instanceof MigrateFieldRenameProcessorNode || v instanceof MigrateJsProcessorNode) {
-                flag.set(true);
-            }
-        });
-        if (flag.get()) {
-            return false;
-        }
 
         for (Edge oldEdge : oldEdges) {
             boolean eq = false;
