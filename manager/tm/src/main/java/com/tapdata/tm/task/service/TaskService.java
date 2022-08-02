@@ -449,12 +449,20 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                         if (CollectionUtils.isNotEmpty(fields)) {
                             fieldNames = fields.stream().map(FieldInfo::getSourceFieldName).collect(Collectors.toList());
                         }
+
+                        List<String> hiddenFields = table.getFields().stream().filter(t -> !t.getIsShow())
+                                .map(FieldInfo::getSourceFieldName)
+                                .collect(Collectors.toList());
+
                         List<com.tapdata.tm.commons.schema.Field> tableFields = fieldMap.get(table.getQualifiedName());
                         if (CollectionUtils.isNotEmpty(tableFields)) {
-                            List<String> finalFieldNames = fieldNames;
-                            tableFields.forEach(field -> {
+                            for (com.tapdata.tm.commons.schema.Field field : tableFields) {
                                 String targetFieldName = field.getFieldName();
-                                if (!finalFieldNames.contains(targetFieldName)) {
+                                if (!fieldNames.contains(targetFieldName)) {
+                                    if (CollectionUtils.isNotEmpty(hiddenFields) && hiddenFields.contains(targetFieldName)) {
+                                        continue;
+                                    }
+
                                     if (StringUtils.isNotBlank(operation.getPrefix())) {
                                         targetFieldName = operation.getPrefix().concat(targetFieldName);
                                     }
@@ -472,7 +480,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                                             new FieldInfo(field.getFieldName(), targetFieldName, true, "system");
                                     fields.add(fieldInfo);
                                 }
-                            });
+                            }
                         }
                     });
                 }

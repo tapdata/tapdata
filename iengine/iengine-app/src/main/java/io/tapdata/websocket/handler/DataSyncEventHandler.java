@@ -22,6 +22,7 @@ import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.entity.utils.cache.KVMap;
 import io.tapdata.flow.engine.V2.entity.PdkStateMap;
+import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.HazelcastTargetPdkShareCDCNode;
 import io.tapdata.flow.engine.V2.node.hazelcast.processor.HazelcastMergeNode;
 import io.tapdata.flow.engine.V2.node.hazelcast.processor.aggregation.HazelcastMultiAggregatorProcessor;
 import io.tapdata.flow.engine.V2.task.impl.HazelcastTaskService;
@@ -106,8 +107,6 @@ public class DataSyncEventHandler extends BaseEventHandler {
 				dataNodeDestroy(subTaskDto, node);
 			} else if (node instanceof MergeTableNode) {
 				mergeNodeDestroy(node);
-			} else if (node instanceof HazelCastImdgNode) {
-				// TODO clear log
 			} else if (node instanceof AggregationProcessorNode) {
 				aggregateNodeDestroy(node);
 			}

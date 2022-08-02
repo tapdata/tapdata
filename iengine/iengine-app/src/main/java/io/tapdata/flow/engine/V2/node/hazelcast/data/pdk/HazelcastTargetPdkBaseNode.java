@@ -13,6 +13,7 @@ import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.DataParentNode;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
+import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.dag.vo.SyncObjects;
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.commons.schema.TransformerWsMessageResult;
@@ -138,12 +139,14 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 	@Override
 	protected void doInit(@NotNull Context context) throws Exception {
 		super.doInit(context);
-		try {
-			createPdkConnectorNode(dataProcessorContext, context.hazelcastInstance());
-			connectorNodeInit(dataProcessorContext);
-		} catch (Throwable e) {
-			MilestoneUtil.updateMilestone(milestoneService, MilestoneStage.INIT_TRANSFORMER, MilestoneStatus.ERROR, e.getMessage() + "\n" + Log4jUtil.getStackString(e));
-			throw new RuntimeException(e);
+		if (getNode() instanceof TableNode || getNode() instanceof DatabaseNode) {
+			try {
+				createPdkConnectorNode(dataProcessorContext, context.hazelcastInstance());
+				connectorNodeInit(dataProcessorContext);
+			} catch (Throwable e) {
+				MilestoneUtil.updateMilestone(milestoneService, MilestoneStage.INIT_TRANSFORMER, MilestoneStatus.ERROR, e.getMessage() + "\n" + Log4jUtil.getStackString(e));
+				throw new RuntimeException(e);
+			}
 		}
 		this.uploadDagService = new AtomicBoolean(false);
 		this.insertMetadata = new CopyOnWriteArrayList<>();
@@ -523,7 +526,10 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 					return new ArrayList<>(tapTable.primaryKeys());
 				}),
 				this::handleTapdataEvents,
-				this::flushSyncProgressMap
+				this::flushSyncProgressMap,
+				this::errorHandle,
+				dataProcessorContext.getSubTaskDto().getId().toHexString(),
+				dataProcessorContext.getSubTaskDto().getName()
 		);
 	}
 

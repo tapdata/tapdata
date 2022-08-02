@@ -4,9 +4,11 @@ import com.google.common.collect.Queues;
 import com.tapdata.constant.ExecutorUtil;
 import com.tapdata.entity.TapdataEvent;
 import io.tapdata.entity.event.TapEvent;
+import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.concurrent.partitioner.KeysPartitioner;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.concurrent.partitioner.PartitionResult;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.concurrent.partitioner.Partitioner;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.concurrent.selector.PartitionKeySelector;
+import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.concurrent.selector.TapEventPartitionKeySelector;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -14,6 +16,7 @@ import org.apache.logging.log4j.Logger;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
@@ -27,7 +30,7 @@ import java.util.stream.IntStream;
  **/
 public class PartitionConcurrentProcessor {
 
-	private final String CONCURRENT_PROCESS_THREAD_NAME_PREFIX = "concurrent-process-thread-";
+	private String concurrentProcessThreadNamePrefix;
 
 	private final static String LOG_PREFIX = "[partition concurrent] ";
 
@@ -55,6 +58,7 @@ public class PartitionConcurrentProcessor {
 	private LinkedBlockingQueue<WatermarkEvent> watermarkQueue;
 
 	private Consumer<TapdataEvent> flushOffset;
+	private ErrorHandler<Throwable, String> errorHandler;
 
 	public PartitionConcurrentProcessor(
 			int partitionSize,
@@ -62,8 +66,13 @@ public class PartitionConcurrentProcessor {
 			Partitioner<TapdataEvent, List<Object>> partitioner,
 			PartitionKeySelector<String, TapEvent, Object> keySelector,
 			Consumer<List<TapdataEvent>> eventProcessor,
-			Consumer<TapdataEvent> flushOffset
+			Consumer<TapdataEvent> flushOffset,
+			ErrorHandler<Throwable, String> errorHandler,
+			String taskId,
+			String taskName
 	) {
+
+		this.concurrentProcessThreadNamePrefix = "concurrent-process-thread-" + taskId + "-" + taskName + "-";
 
 		this.batchSize = batchSize;
 
@@ -74,6 +83,7 @@ public class PartitionConcurrentProcessor {
 				new LinkedBlockingQueue<>(1)
 		);
 
+		this.errorHandler = errorHandler;
 		this.partitionsQueue = IntStream
 				.range(0, partitionSize)
 				.mapToObj(
@@ -98,6 +108,7 @@ public class PartitionConcurrentProcessor {
 		this.flushOffset = flushOffset;
 		this.executorService.submit(() -> {
 			while (running.get()) {
+				Thread.currentThread().setName(taskId + "-" + taskName + "-watermark-event-process");
 				try {
 					final WatermarkEvent watermarkEvent = watermarkQueue.poll(3, TimeUnit.SECONDS);
 					if (watermarkEvent != null) {
@@ -113,6 +124,8 @@ public class PartitionConcurrentProcessor {
 					}
 				} catch (InterruptedException e) {
 					break;
+				} catch (Throwable throwable) {
+					errorHandler.accept(throwable, "process watermark event failed");
 				}
 			}
 		});
@@ -123,7 +136,7 @@ public class PartitionConcurrentProcessor {
 			final LinkedBlockingQueue<PartitionEvent<TapdataEvent>> linkedBlockingQueue = partitionsQueue.get(partition);
 			int finalPartition = partition;
 			executorService.submit(() -> {
-				Thread.currentThread().setName(CONCURRENT_PROCESS_THREAD_NAME_PREFIX + finalPartition);
+				Thread.currentThread().setName(concurrentProcessThreadNamePrefix + finalPartition);
 				List<TapdataEvent> processEvents = new ArrayList<>();
 				while (running.get()) {
 					try {
@@ -159,6 +172,8 @@ public class PartitionConcurrentProcessor {
 						}
 					} catch (InterruptedException e) {
 						break;
+					} catch (Throwable throwable) {
+						errorHandler.accept(throwable, "process watermark event failed");
 					}
 				}
 			});
@@ -272,5 +287,33 @@ public class PartitionConcurrentProcessor {
 	public void stop(){
 		running.compareAndSet(true, false);
 		ExecutorUtil.shutdownEx(this.executorService, 60L, TimeUnit.SECONDS);
+	}
+
+	@FunctionalInterface
+	public interface ErrorHandler<T, M> {
+
+		/**
+		 * Performs this operation on the given argument.
+		 *
+		 * @param t the input argument
+		 */
+		void accept(T t, M m);
+
+		/**
+		 * Returns a composed {@code Consumer} that performs, in sequence, this
+		 * operation followed by the {@code after} operation. If performing either
+		 * operation throws an exception, it is relayed to the caller of the
+		 * composed operation.  If performing this operation throws an exception,
+		 * the {@code after} operation will not be performed.
+		 *
+		 * @param after the operation to perform after this operation
+		 * @return a composed {@code Consumer} that performs in sequence this
+		 * operation followed by the {@code after} operation
+		 * @throws NullPointerException if {@code after} is null
+		 */
+		default ErrorHandler<T, M> andThen(ErrorHandler<T, M> after) {
+			Objects.requireNonNull(after);
+			return (T t, M m) -> { accept(t, m); after.accept(t, m); };
+		}
 	}
 }
