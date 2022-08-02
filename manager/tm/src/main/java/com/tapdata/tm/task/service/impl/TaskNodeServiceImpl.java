@@ -240,7 +240,6 @@ public class TaskNodeServiceImpl implements TaskNodeService {
             }).collect(Collectors.toMap(MetadataInstancesDto::getOriginalName, Function.identity()));
         }
 
-
         List<MetadataTransformerItemDto> data = Lists.newArrayList();
         for (String tableName : currentTableList) {
             MetadataTransformerItemDto item = new MetadataTransformerItemDto();
@@ -263,6 +262,9 @@ public class TaskNodeServiceImpl implements TaskNodeService {
             String metaType = "mongodb".equals(sourceDataSource.getDatabase_type()) ? "collection" : "table";
             String sourceQualifiedName = MetaDataBuilderUtils.generateQualifiedName(metaType, sourceDataSource, tableName);
 
+            if (CollectionUtils.isEmpty(metaMap.get(tableName).getFields())) {
+                continue;
+            }
             List<Field> fields = metaMap.get(tableName).getFields().stream().filter(t -> !t.isDeleted()).collect(Collectors.toList());
 
             // TableRenameProcessNode not need fields

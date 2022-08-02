@@ -17,9 +17,7 @@ import com.tapdata.tm.base.service.BaseService;
 import com.tapdata.tm.commons.base.dto.BaseDto;
 import com.tapdata.tm.commons.dag.*;
 import com.tapdata.tm.commons.dag.nodes.*;
-import com.tapdata.tm.commons.dag.process.JoinProcessorNode;
-import com.tapdata.tm.commons.dag.process.MergeTableNode;
-import com.tapdata.tm.commons.dag.process.MigrateFieldRenameProcessorNode;
+import com.tapdata.tm.commons.dag.process.*;
 import com.tapdata.tm.commons.dag.vo.FieldInfo;
 import com.tapdata.tm.commons.dag.vo.Operation;
 import com.tapdata.tm.commons.dag.vo.SyncObjects;
@@ -568,8 +566,28 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
         checkDagAgentConflict(taskDto, true);
 
+        checkDDLConflict(taskDto);
+
         //saveInspect(existedTask, taskDto, user);
         return confirmById(taskDto, user, confirm, false);
+    }
+
+    private void checkDDLConflict(TaskDto taskDto) {
+        Boolean isOpenAutoDDL = taskDto.getIsOpenAutoDDL();
+        if (Objects.isNull(isOpenAutoDDL) || !isOpenAutoDDL) {
+            return;
+        }
+
+        FunctionUtils.isTureOrFalse(TaskDto.SYNC_TYPE_MIGRATE.equals(taskDto.getSyncType())).trueOrFalseHandle(
+                () -> {
+                    boolean anyMatch = taskDto.getDag().getNodes().stream().anyMatch(n -> n instanceof MigrateJsProcessorNode);
+                    FunctionUtils.isTure(anyMatch).throwMessage("Task.DDL.Conflict.Migrate");
+                },
+                () -> {
+                    boolean anyMatch = taskDto.getDag().getNodes().stream().anyMatch(n -> n instanceof JsProcessorNode);
+                    FunctionUtils.isTure(anyMatch).throwMessage("Task.DDL.Conflict.Migrate");
+                }
+        );
     }
 
     public void checkTaskInspectFlag (TaskDto taskDto) {
