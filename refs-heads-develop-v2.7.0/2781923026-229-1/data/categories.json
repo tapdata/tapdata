@@ -1,0 +1,78 @@
+{
+  "uid" : "4b4757e66a1912dae1a509f688f20b0f",
+  "children" : [ {
+    "name" : "Test defects",
+    "children" : [ {
+      "name" : "IndexError: tuple index out of range",
+      "children" : [ {
+        "name" : "filter row in sync",
+        "uid" : "3b38a22a87a5ed4c",
+        "parentUid" : "2c6752fe25a95e5634d9e2bf3ed0f246",
+        "status" : "broken",
+        "time" : {
+          "start" : 1659441810242,
+          "stop" : 1659441810410,
+          "duration" : 168
+        },
+        "flaky" : false,
+        "newFailed" : false,
+        "parameters" : [ ]
+      }, {
+        "name" : "filter column in sync",
+        "uid" : "882ff99812d9a14b",
+        "parentUid" : "2c6752fe25a95e5634d9e2bf3ed0f246",
+        "status" : "broken",
+        "time" : {
+          "start" : 1659441811080,
+          "stop" : 1659441811202,
+          "duration" : 122
+        },
+        "flaky" : false,
+        "newFailed" : false,
+        "parameters" : [ ]
+      }, {
+        "name" : "rename column in sync",
+        "uid" : "5fa1124bf293a95c",
+        "parentUid" : "2c6752fe25a95e5634d9e2bf3ed0f246",
+        "status" : "broken",
+        "time" : {
+          "start" : 1659441811787,
+          "stop" : 1659441811909,
+          "duration" : 122
+        },
+        "flaky" : false,
+        "newFailed" : false,
+        "parameters" : [ ]
+      }, {
+        "name" : "js udf in sync",
+        "uid" : "394f1934eb13ed9e",
+        "parentUid" : "2c6752fe25a95e5634d9e2bf3ed0f246",
+        "status" : "broken",
+        "time" : {
+          "start" : 1659441812280,
+          "stop" : 1659441812410,
+          "duration" : 130
+        },
+        "flaky" : false,
+        "newFailed" : false,
+        "parameters" : [ ]
+      }, {
+        "name" : "js udf in sync",
+        "uid" : "744246614692b57a",
+        "parentUid" : "2c6752fe25a95e5634d9e2bf3ed0f246",
+        "status" : "broken",
+        "time" : {
+          "start" : 1659441816675,
+          "stop" : 1659441816789,
+          "duration" : 114
+        },
+        "flaky" : false,
+        "newFailed" : false,
+        "parameters" : [ ]
+      } ],
+      "uid" : "2c6752fe25a95e5634d9e2bf3ed0f246"
+    } ],
+    "uid" : "bdbf199525818fae7a8651db9eafe741"
+  } ],
+  "name" : "categories"
+}
