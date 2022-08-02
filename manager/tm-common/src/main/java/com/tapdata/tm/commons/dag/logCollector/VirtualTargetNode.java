@@ -24,7 +24,7 @@ import java.util.List;
 @Slf4j
 public class VirtualTargetNode extends Node<Object> {
     public VirtualTargetNode() {
-        super("virtualTarget");
+        super("virtualTarget", NodeCatalog.virtualTarget);
     }
 
     @Override

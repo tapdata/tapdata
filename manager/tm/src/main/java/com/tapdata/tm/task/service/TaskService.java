@@ -573,8 +573,12 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     }
 
     private void checkDDLConflict(TaskDto taskDto) {
-        Boolean isOpenAutoDDL = taskDto.getIsOpenAutoDDL();
-        if (Objects.isNull(isOpenAutoDDL) || !isOpenAutoDDL) {
+        LinkedList<DatabaseNode> sourceNode = taskDto.getDag().getSourceNode();
+        if (CollectionUtils.isNotEmpty(sourceNode)) {
+            return;
+        }
+        boolean enableDDL = sourceNode.stream().anyMatch(DataParentNode::getEnableDDL);
+        if (!enableDDL) {
             return;
         }
 
@@ -585,7 +589,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                 },
                 () -> {
                     boolean anyMatch = taskDto.getDag().getNodes().stream().anyMatch(n -> n instanceof JsProcessorNode);
-                    FunctionUtils.isTure(anyMatch).throwMessage("Task.DDL.Conflict.Migrate");
+                    FunctionUtils.isTure(anyMatch).throwMessage("Task.DDL.Conflict.Sync");
                 }
         );
     }
