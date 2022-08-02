@@ -104,6 +104,15 @@ public class TestConnectionHandler implements WebSocketHandler {
 				if (uri.contains("******")) {
 					data.put("editTest", false);
 				}
+			} else {
+				Object password = config1.get("password");
+				Object mqPassword = config1.get("mqPassword");
+				if (Objects.isNull(password) && Objects.isNull(mqPassword)) {
+					Object id = data.get("id");
+					if (id != null) {
+						data.put("editTest", false);
+					}
+				}
 			}
 		}
 
