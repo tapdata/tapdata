@@ -19,7 +19,6 @@ import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.commons.task.dto.Dag;
 import com.tapdata.tm.commons.task.dto.SubTaskDto;
-import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.aspect.*;
 import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.common.SettingService;
@@ -68,7 +67,6 @@ import java.util.stream.Collectors;
  * @date 2021/12/7 3:25 PM
  **/
 public abstract class HazelcastBaseNode extends AbstractProcessor {
-
 	/**
 	 * [sub task id]-[node id]
 	 */
@@ -626,7 +624,10 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 		this.milestoneService = MilestoneFactory.getJetEdgeMilestoneService(processorBaseContext.getSubTaskDto(), httpClientMongoOperator.getRestTemplateOperator().getBaseURLs(), httpClientMongoOperator.getRestTemplateOperator().getRetryTime(), httpClientMongoOperator.getConfigCenter(), node, vertexName, vertexNames, null, vertexType);
 	}
 
-	protected void errorHandle(Throwable throwable, String errorMessage) {
+	protected synchronized void errorHandle(Throwable throwable, String errorMessage) {
+		if (null != error) {
+			return;
+		}
 		this.error = throwable;
 		this.errorMessage = errorMessage;
 		SubTaskDto subTaskDto = processorBaseContext.getSubTaskDto();
