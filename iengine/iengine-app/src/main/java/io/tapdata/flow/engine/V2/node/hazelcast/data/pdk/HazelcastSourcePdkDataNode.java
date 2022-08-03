@@ -12,6 +12,8 @@ import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.tm.commons.dag.Node;
 import io.tapdata.aspect.BatchReadFuncAspect;
 import io.tapdata.aspect.StreamReadFuncAspect;
+import io.tapdata.aspect.SourceStateAspect;
+import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.common.sample.sampler.CounterSampler;
 import io.tapdata.common.sample.sampler.ResetCounterSampler;
 import io.tapdata.common.sample.sampler.SpeedSampler;
@@ -57,8 +59,11 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 	private CounterSampler initialWriteCounter;
 	private Long initialTime;
 
+	private final SourceStateAspect sourceStateAspect;
+
 	public HazelcastSourcePdkDataNode(DataProcessorContext dataProcessorContext) {
 		super(dataProcessorContext);
+		sourceStateAspect = new SourceStateAspect().dataProcessorContext(dataProcessorContext);
 	}
 
 	@Override
@@ -80,6 +85,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 			Node<?> node = dataProcessorContext.getNode();
 			Thread.currentThread().setName("PDK-SOURCE-RUNNER-" + node.getName() + "(" + node.getId() + ")");
 			Log4jUtil.setThreadContext(dataProcessorContext.getSubTaskDto());
+			AspectUtils.executeAspect(sourceStateAspect.state(SourceStateAspect.STATE_INITIAL_SYNC_START));
 			TapTableMap<String, TapTable> tapTableMap = dataProcessorContext.getTapTableMap();
 			try {
 				if (need2InitialSync(syncProgress)) {
@@ -96,15 +102,17 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 			} finally {
 				Optional.ofNullable(snapshotProgressManager).ifPresent(SnapshotProgressManager::close);
 			}
-
 			if (need2CDC()) {
 				try {
+					AspectUtils.executeAspect(sourceStateAspect.state(SourceStateAspect.STATE_CDC_START));
 					doCdc();
 				} catch (Throwable e) {
 					// MILESTONE-READ_CDC_EVENT-ERROR
 					MilestoneUtil.updateMilestone(milestoneService, MilestoneStage.READ_CDC_EVENT, MilestoneStatus.ERROR, e.getMessage() + "\n" + Log4jUtil.getStackString(e));
 					logger.error("Read CDC failed, error message: " + e.getMessage(), e);
 					throw e;
+				} finally {
+					AspectUtils.executeAspect(sourceStateAspect.state(SourceStateAspect.STATE_CDC_COMPLETED));
 				}
 			}
 		} catch (Throwable throwable) {
@@ -184,8 +192,8 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 										if (CollectionUtil.isNotEmpty(tapdataEvents)) {
 											tapdataEvents.forEach(this::enqueue);
 
-											if (batchReadFuncAspect != null && batchReadFuncAspect.getConsumer() != null)
-												batchReadFuncAspect.getConsumer().accept(tapdataEvents);
+											if (batchReadFuncAspect != null)
+												AspectUtils.accept(batchReadFuncAspect.state(BatchReadFuncAspect.STATE_BATCHING).getConsumers(), tapdataEvents);
 
 											resetOutputCounter.inc(tapdataEvents.size());
 											outputCounter.inc(tapdataEvents.size());
@@ -230,6 +238,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 				// MILESTONE-READ_SNAPSHOT-FINISH
 				MilestoneUtil.updateMilestone(milestoneService, MilestoneStage.READ_SNAPSHOT, MilestoneStatus.FINISH);
 				enqueue(new TapdataCompleteSnapshotEvent());
+				AspectUtils.executeAspect(sourceStateAspect.state(SourceStateAspect.STATE_INITIAL_SYNC_COMPLETED));
 			}
 		} else {
 			throw new RuntimeException("PDK node does not support batch read: " + dataProcessorContext.getDatabaseType());
@@ -315,8 +324,8 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 											resetOutputCounter.inc(tapdataEvents.size());
 											outputCounter.inc(tapdataEvents.size());
 											outputQPS.add(tapdataEvents.size());
-											if (streamReadFuncAspect != null && streamReadFuncAspect.getConsumer() != null)
-												streamReadFuncAspect.getConsumer().accept(tapdataEvents);
+											if (streamReadFuncAspect != null)
+												AspectUtils.accept(streamReadFuncAspect.state(StreamReadFuncAspect.STATE_STREAMING).getConsumers(), tapdataEvents);
 										}
 									}
 								} catch (Throwable throwable) {

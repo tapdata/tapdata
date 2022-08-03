@@ -66,8 +66,8 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 			if (null == tapdataEvent.getTapEvent()) {
 				while (running.get()) {
 					if (offer(tapdataEvent)) {
-						if(processorNodeProcessAspect != null && processorNodeProcessAspect.getConsumer() != null)
-							processorNodeProcessAspect.getConsumer().accept(tapdataEvent);
+						if(processorNodeProcessAspect != null)
+							AspectUtils.accept(processorNodeProcessAspect.state(ProcessorNodeProcessAspect.STATE_PROCESSING).getConsumers(), tapdataEvent);
 						break;
 					}
 				}
@@ -91,8 +91,8 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 				}
 				while (running.get()) {
 					if (offer(event)) {
-						if(processorNodeProcessAspect != null && processorNodeProcessAspect.getConsumer() != null)
-							processorNodeProcessAspect.getConsumer().accept(event);
+						if(processorNodeProcessAspect != null)
+							AspectUtils.accept(processorNodeProcessAspect.getConsumers(), event);
 						break;
 					}
 				}
