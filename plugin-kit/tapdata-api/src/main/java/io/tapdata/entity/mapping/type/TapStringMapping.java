@@ -48,7 +48,7 @@ public class TapStringMapping extends TapBytesBase {
     final BigDecimal bytesDifValue = BigDecimal.valueOf(10).pow(17);
     final BigDecimal fixedValue = BigDecimal.valueOf(10).pow(17);
     final BigDecimal byteRatioValue = BigDecimal.valueOf(10).pow(16);
-    final BigDecimal defaultByteValue = BigDecimal.valueOf(10).pow(15);
+    final BigDecimal defaultByteValue = BigDecimal.valueOf(10).pow(6);
 
     @Override
     public BigDecimal matchingScore(TapField field) {

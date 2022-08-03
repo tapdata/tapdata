@@ -1257,7 +1257,7 @@ class TargetTypesGeneratorTest {
         String targetTypeExpression = "{\n" +
 //                "\"int unsigned\": {\"to\": \"TapNumber\",\"byte\": 32,\"value\": [\"0\", \"4294967295\"]}," +
                 "\"CLOB[($byte)]\": {\"byte\": \"2147483647\",\"pkEnablement\": false,\"defaultByte\": 1048576,\"priority\": 2,\"to\": \"TapString\"}," +
-                "\"VARCHAR($byte)\": {\"byte\": 32672,\"priority\": 1,\"preferByte\": 2000,\"defaultByte\": 300,\"to\": \"TapString\"}" +
+                "\"VARCHAR($byte)\": {\"byte\": 32672,\"priority\": 1,\"preferByte\": 2000,\"to\": \"TapString\"}" +
                 "}";
 
         TapTable sourceTable = table("test");
