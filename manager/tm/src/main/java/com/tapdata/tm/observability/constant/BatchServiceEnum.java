@@ -9,16 +9,17 @@ import lombok.Getter;
 @AllArgsConstructor
 @Getter
 public enum BatchServiceEnum {
-    TASKCONSOLE(TaskDagCheckLogService.class, "getLogs", TaskLogDto.class, TaskDagCheckLogVo.class);
+    TASKCONSOLE(TaskDagCheckLogService.class.getName(), "getLogs", "/api/task-console", TaskLogDto.class.getName(), TaskDagCheckLogVo.class.getName());
 
-    private final Class service;
+    private final String service;
     private final String method;
-    private final Class param;
-    private final Class result;
+    private final String uri;
+    private final String param;
+    private final String result;
 
-    public static BatchServiceEnum getEnumByServiceAndMethod(String service, String method) {
+    public static BatchServiceEnum getEnumByServiceAndMethod(String uri) {
         for (BatchServiceEnum value : BatchServiceEnum.values()) {
-            if (value.getService().getSimpleName().equals(service) && value.getMethod().equals(method)) {
+            if (value.getUri().equals(uri)) {
                 return value;
             }
         }

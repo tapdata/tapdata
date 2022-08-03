@@ -1,10 +1,11 @@
 package com.tapdata.tm.observability.service;
 
-import com.tapdata.tm.observability.dto.ServiceMethodDto;
-import com.tapdata.tm.observability.vo.ParallelInfoVO;
+import com.tapdata.tm.observability.dto.BatchRequestDto;
+import com.tapdata.tm.observability.vo.BatchResponeVo;
 
-import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 
 public interface ObservabilityService {
-    List<ParallelInfoVO<?>> getList(List<ServiceMethodDto<?>> serviceMethodDto);
+    BatchResponeVo batch(BatchRequestDto batchRequestDto) throws ExecutionException, InterruptedException;
 }
