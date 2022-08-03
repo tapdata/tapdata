@@ -182,6 +182,9 @@ public class LoadSchemaEventHandler extends BaseEventHandler implements WebSocke
 									connection,
 									connectionNode,
 									table -> {
+										if (null == table) {
+											return;
+										}
 										if (StringUtils.isNotBlank(table.getName())) {
 											tapTables.add(table);
 										}

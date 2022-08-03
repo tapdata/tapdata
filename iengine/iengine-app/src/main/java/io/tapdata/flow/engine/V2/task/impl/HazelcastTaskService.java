@@ -21,6 +21,7 @@ import com.tapdata.tm.commons.dag.Edge;
 import com.tapdata.tm.commons.dag.Element;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.logCollector.HazelCastImdgNode;
+import com.tapdata.tm.commons.dag.logCollector.LogCollectorNode;
 import com.tapdata.tm.commons.dag.logCollector.VirtualTargetNode;
 import com.tapdata.tm.commons.dag.nodes.CacheNode;
 import com.tapdata.tm.commons.dag.nodes.DataNode;
@@ -50,7 +51,6 @@ import io.tapdata.flow.engine.V2.task.TaskService;
 import io.tapdata.flow.engine.V2.util.GraphUtil;
 import io.tapdata.flow.engine.V2.util.MergeTableUtil;
 import io.tapdata.flow.engine.V2.util.NodeUtil;
-import io.tapdata.flow.engine.V2.util.PdkUtil;
 import io.tapdata.milestone.MilestoneContext;
 import io.tapdata.milestone.MilestoneFactory;
 import io.tapdata.milestone.MilestoneFlowServiceJetV2;
@@ -183,7 +183,7 @@ public class HazelcastTaskService implements TaskService<SubTaskDto> {
 				DatabaseTypeEnum.DatabaseType databaseType = null;
 				TapTableMap<String, TapTable> tapTableMap;
 				if ((node instanceof MigrateJsProcessorNode || node instanceof JsProcessorNode)
-								&& StringUtils.equalsAnyIgnoreCase(subTaskDto.getParentTask().getSyncType(), TaskDto.SYNC_TYPE_DEDUCE_SCHEMA)) {
+						&& StringUtils.equalsAnyIgnoreCase(subTaskDto.getParentTask().getSyncType(), TaskDto.SYNC_TYPE_DEDUCE_SCHEMA)) {
 					//模型推演阶段，如果没有模型取上一个节点的模型
 					List<Node> predecessors = node.predecessors();
 					if (predecessors.size() != 1) {
@@ -205,19 +205,21 @@ public class HazelcastTaskService implements TaskService<SubTaskDto> {
 							node.getId(), node.getName()));
 				}
 
-				if (node.isDataNode()) {
+				if (node.isDataNode() || node.isLogCollectorNode()) {
 					String connectionId = null;
 					if (node instanceof DataNode) {
 						connectionId = ((DataNode) node).getConnectionId();
 					} else if (node instanceof DatabaseNode) {
 						connectionId = ((DatabaseNode) node).getConnectionId();
+					} else if (node instanceof LogCollectorNode) {
+						connectionId = ((LogCollectorNode) node).getConnectionIds().get(0);
 					}
 					connection = getConnection(connectionId);
 					databaseType = ConnectionUtil.getDatabaseType(clientMongoOperator, connection.getPdkHash());
 
-					if ("pdk".equals(connection.getPdkType())) {
-						PdkUtil.downloadPdkFileIfNeed((HttpClientMongoOperator) clientMongoOperator, databaseType.getPdkHash(), databaseType.getJarFile(), databaseType.getJarRid());
-					}
+//					if ("pdk".equals(connection.getPdkType())) {
+//						PdkUtil.downloadPdkFileIfNeed((HttpClientMongoOperator) clientMongoOperator, databaseType.getPdkHash(), databaseType.getJarFile(), databaseType.getJarRid());
+//					}
 				} else if (node instanceof CacheNode) {
 					Optional<Edge> edge = edges.stream().filter(e -> e.getTarget().equals(node.getId())).findFirst();
 					Node sourceNode = null;
@@ -324,18 +326,18 @@ public class HazelcastTaskService implements TaskService<SubTaskDto> {
 				} else if (CollectionUtils.isNotEmpty(successors)) {
 					if ("pdk".equals(connection.getPdkType())) {
 						DataProcessorContext processorContext = DataProcessorContext.newBuilder()
-										.withSubTaskDto(subTaskDto)
-										.withNode(node)
-										.withNodes(nodes)
-										.withEdges(edges)
-										.withConfigurationCenter(config)
-										.withSourceConn(connection)
-										.withConnectionConfig(connection.getConfig())
-										.withDatabaseType(databaseType)
-										.withTapTableMap(tapTableMap)
-										.build();
+								.withSubTaskDto(subTaskDto)
+								.withNode(node)
+								.withNodes(nodes)
+								.withEdges(edges)
+								.withConfigurationCenter(config)
+								.withSourceConn(connection)
+								.withConnectionConfig(connection.getConfig())
+								.withDatabaseType(databaseType)
+								.withTapTableMap(tapTableMap)
+								.build();
 						if (StringUtils.equalsAnyIgnoreCase(subTaskDto.getParentTask().getSyncType(),
-										TaskDto.SYNC_TYPE_DEDUCE_SCHEMA, TaskDto.SYNC_TYPE_TEST_RUN)) {
+								TaskDto.SYNC_TYPE_DEDUCE_SCHEMA, TaskDto.SYNC_TYPE_TEST_RUN)) {
 							hazelcastNode = new HazelcastSampleSourcePdkDataNode(processorContext);
 						} else {
 							hazelcastNode = new HazelcastSourcePdkDataNode(processorContext);
@@ -412,15 +414,15 @@ public class HazelcastTaskService implements TaskService<SubTaskDto> {
 				break;
 			case VIRTUAL_TARGET:
 				DataProcessorContext processorContext = DataProcessorContext.newBuilder()
-								.withSubTaskDto(subTaskDto)
-								.withNode(node)
-								.withNodes(nodes)
-								.withEdges(edges)
-								.withConfigurationCenter(config)
-								.withTargetConn(connection)
-								.withCacheService(cacheService)
-								.withTapTableMap(tapTableMap)
-								.build();
+						.withSubTaskDto(subTaskDto)
+						.withNode(node)
+						.withNodes(nodes)
+						.withEdges(edges)
+						.withConfigurationCenter(config)
+						.withTargetConn(connection)
+						.withCacheService(cacheService)
+						.withTapTableMap(tapTableMap)
+						.build();
 				if (TaskDto.SYNC_TYPE_TEST_RUN.equals(subTaskDto.getParentTask().getSyncType())) {
 					hazelcastNode = new HazelcastVirtualTargetNode(processorContext);
 				} else {
@@ -439,7 +441,7 @@ public class HazelcastTaskService implements TaskService<SubTaskDto> {
 				);
 				break;
 			case JS_PROCESSOR:
-      case MIGRATE_JS_PROCESSOR:
+			case MIGRATE_JS_PROCESSOR:
 			case FIELD_PROCESSOR:
 			case ROW_FILTER_PROCESSOR:
 			case CACHE_LOOKUP_PROCESSOR:
@@ -470,6 +472,8 @@ public class HazelcastTaskService implements TaskService<SubTaskDto> {
 								.withEdges(edges)
 								.withConfigurationCenter(config)
 								.withTapTableMap(tapTableMap)
+								.withConnectionConfig(connection.getConfig())
+								.withDatabaseType(databaseType)
 								.build()
 				);
 				break;
@@ -579,6 +583,9 @@ public class HazelcastTaskService implements TaskService<SubTaskDto> {
 				ConnectorConstant.CONNECTION_COLLECTION,
 				Connections.class
 		);
+		if (null == connections) {
+			throw new RuntimeException("Cannot find connection by id(" + connectionId + ")");
+		}
 		connections.decodeDatabasePassword();
 		connections.initCustomTimeZone();
 		return connections;

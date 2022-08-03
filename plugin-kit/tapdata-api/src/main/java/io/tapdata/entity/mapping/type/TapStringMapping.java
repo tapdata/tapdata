@@ -45,6 +45,7 @@ public class TapStringMapping extends TapBytesBase {
         }
         return null;
     }
+    final BigDecimal bytesDifValue = BigDecimal.valueOf(10).pow(17);
     final BigDecimal fixedValue = BigDecimal.valueOf(10).pow(17);
     final BigDecimal byteRatioValue = BigDecimal.valueOf(10).pow(16);
     final BigDecimal defaultByteValue = BigDecimal.valueOf(10).pow(15);
@@ -90,9 +91,9 @@ public class TapStringMapping extends TapBytesBase {
                     if(defaultBytes != null) {
                         score = score.add(defaultByteValue);
                     }
-                    return score.add(BigDecimal.valueOf(Long.MAX_VALUE - (theBytes - width)));
+                    return score.add(bytesDifValue.subtract(BigDecimal.valueOf(theBytes - width)));
                 } else {
-                    score = score.subtract(BigDecimal.valueOf(Long.MAX_VALUE));
+                    score = score.subtract(bytesDifValue);
                     return score.add(BigDecimal.valueOf(theBytes - width)); // unacceptable
                 }
             }

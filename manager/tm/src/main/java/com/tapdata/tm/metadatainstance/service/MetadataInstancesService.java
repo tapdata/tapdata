@@ -41,10 +41,7 @@ import com.tapdata.tm.metadatainstance.vo.*;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.user.dto.UserDto;
 import com.tapdata.tm.user.service.UserService;
-import com.tapdata.tm.utils.Lists;
-import com.tapdata.tm.utils.MetadataUtil;
-import com.tapdata.tm.utils.MongoUtils;
-import com.tapdata.tm.utils.SchemaTransformUtils;
+import com.tapdata.tm.utils.*;
 import io.tapdata.entity.mapping.DefaultExpressionMatchingMap;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
@@ -1180,6 +1177,9 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
                     } else {
                         throw new BizException("table node is error nodeId:" + tableNode.getId());
                     }
+
+                    FunctionUtils.isTure(CollectionUtils.isEmpty(tableNames)).throwMessage("SystemError", "dag node tableNames is null");
+
                     criteriaTable.and("source._id").is(tableNode.getConnectionId())
                             .and("originalName").in(tableNames).and("is_deleted").ne(true);
                     metadatas = findAllDto(queryMetadata, user);
