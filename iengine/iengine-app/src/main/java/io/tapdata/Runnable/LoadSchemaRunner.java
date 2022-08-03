@@ -90,6 +90,7 @@ public class LoadSchemaRunner implements Runnable {
 
 	public void tableConsumer(TapTable table) {
 		if (table == null) {
+			System.err.println("Last");
 			updateSchema(ConnectorConstant.LOAD_FIELD_STATUS_FINISHED, null);
 		} else {
 			schema.getTapTables().add(table);
@@ -229,52 +230,42 @@ public class LoadSchemaRunner implements Runnable {
 					tempList.clear();
 				}
 			}
+			tableConsumer.accept(null);
 		} catch (Throwable throwable) {
 			throw new Exception("Load pdk schema failed, message: " + throwable.getMessage(), throwable);
 		}
 	}
 
 	public static void pdkDiscoverSchema(ConnectionNode connectionNode, List<String> tableFilter, Consumer<TapTable> tableConsumer) {
-		TableFieldTypesGenerator tableFieldTypesGenerator = InstanceFactory.instance(TableFieldTypesGenerator.class);
 		DefaultExpressionMatchingMap dataTypesMap = connectionNode.getConnectionContext().getSpecification().getDataTypesMap();
 		PDKInvocationMonitor.invoke(connectionNode, PDKMethod.DISCOVER_SCHEMA,
-				() -> connectionNode.getConnector().discoverSchema(connectionNode.getConnectionContext(), tableFilter, BATCH_SIZE, tables -> {
-					if (CollectionUtils.isNotEmpty(tables)) {
-						for (TapTable pdkTable : tables) {
-							LinkedHashMap<String, TapField> nameFieldMap = pdkTable.getNameFieldMap();
-							if (MapUtils.isNotEmpty(nameFieldMap)) {
-								nameFieldMap.forEach((fieldName, tapField) -> {
-									if (null == tapField.getTapType()) {
-										tableFieldTypesGenerator.autoFill(tapField, dataTypesMap);
-									}
-								});
-							}
-							tableConsumer.accept(pdkTable);
-						}
-					}
-				}), TAG);
-		tableConsumer.accept(null);
+				() -> connectionNode.getConnector().discoverSchema(connectionNode.getConnectionContext(), tableFilter, BATCH_SIZE,
+						tables -> consumeTapTable(tableConsumer, dataTypesMap, tables)), TAG);
 	}
 
 	public static void pdkDiscoverSchema(ConnectorNode connectorNode, List<String> tableFilter, Consumer<TapTable> tableConsumer) {
-		TableFieldTypesGenerator tableFieldTypesGenerator = InstanceFactory.instance(TableFieldTypesGenerator.class);
 		DefaultExpressionMatchingMap dataTypesMap = connectorNode.getConnectorContext().getSpecification().getDataTypesMap();
 		PDKInvocationMonitor.invoke(connectorNode, PDKMethod.DISCOVER_SCHEMA,
-				() -> connectorNode.getConnector().discoverSchema(connectorNode.getConnectorContext(), tableFilter, BATCH_SIZE, tables -> {
-					if (CollectionUtils.isNotEmpty(tables)) {
-						for (TapTable pdkTable : tables) {
-							LinkedHashMap<String, TapField> nameFieldMap = pdkTable.getNameFieldMap();
-							if (MapUtils.isNotEmpty(nameFieldMap)) {
-								nameFieldMap.forEach((fieldName, tapField) -> {
-									if (null == tapField.getTapType()) {
-										tableFieldTypesGenerator.autoFill(tapField, dataTypesMap);
-									}
-								});
-							}
-							tableConsumer.accept(pdkTable);
-						}
+				() -> connectorNode.getConnector().discoverSchema(connectorNode.getConnectorContext(), tableFilter, BATCH_SIZE,
+						tables -> consumeTapTable(tableConsumer, dataTypesMap, tables)), TAG);
+	}
+
+	private static void consumeTapTable(Consumer<TapTable> tableConsumer, DefaultExpressionMatchingMap dataTypesMap, List<TapTable> tables) {
+		if (CollectionUtils.isEmpty(tables)) {
+			return;
+		}
+		TableFieldTypesGenerator tableFieldTypesGenerator = InstanceFactory.instance(TableFieldTypesGenerator.class);
+		for (TapTable pdkTable : tables) {
+			LinkedHashMap<String, TapField> nameFieldMap = pdkTable.getNameFieldMap();
+			if (MapUtils.isNotEmpty(nameFieldMap)) {
+				nameFieldMap.forEach((fieldName, tapField) -> {
+					if (null == tapField.getTapType()) {
+						tableFieldTypesGenerator.autoFill(tapField, dataTypesMap);
 					}
-				}), TAG);
+				});
+			}
+			tableConsumer.accept(pdkTable);
+		}
 	}
 
 	private void updateSchema(String loadFieldsStatus, Throwable error) {
@@ -317,6 +308,7 @@ public class LoadSchemaRunner implements Runnable {
 		if (update == null) {
 			return;
 		}
+		System.err.println(loadSchemaProgress.getLoadCount() + "/" + loadSchemaProgress.getTableCount());
 		clientMongoOperator.update(query, update, ConnectorConstant.CONNECTION_COLLECTION);
 	}
 
