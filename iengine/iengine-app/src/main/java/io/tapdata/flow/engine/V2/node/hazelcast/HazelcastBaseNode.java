@@ -630,6 +630,7 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 		}
 		this.error = throwable;
 		this.errorMessage = errorMessage;
+		this.running.set(false);
 		SubTaskDto subTaskDto = processorBaseContext.getSubTaskDto();
 		com.hazelcast.jet.Job hazelcastJob = jetContext.hazelcastInstance().getJet().getJob(subTaskDto.getName() + "-" + subTaskDto.getId().toHexString());
 		if (hazelcastJob != null) {
