@@ -98,7 +98,7 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
         Query query = Query.query(Criteria.where("worker_type").is("connector")
                 .and("ping_time").gte(System.currentTimeMillis() - 1000 * 5 * 2)
                 .and("isDeleted").ne(true).and("stopping").ne(true));
-        return repository.findAll(query);
+        return repository.findAll(query, userDetail);
     }
 
     public List<Worker> findAvailableAgentByAccessNode(UserDetail userDetail, List<String> processIdList) {

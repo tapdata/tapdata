@@ -15,6 +15,7 @@ import com.tapdata.manager.common.utils.ReflectionUtils;
 import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Where;
 import com.tapdata.tm.base.entity.BaseEntity;
+import com.tapdata.tm.config.security.SimpleGrantedAuthority;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.utils.Lists;
 import com.tapdata.tm.utils.MapUtils;
@@ -22,6 +23,8 @@ import org.bson.BsonDocument;
 import org.bson.BsonValue;
 import org.bson.Document;
 import org.jetbrains.annotations.NotNull;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.data.domain.Sort;
@@ -30,6 +33,7 @@ import org.springframework.data.mongodb.core.FindAndModifyOptions;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.aggregation.*;
 import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.CriteriaDefinition;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.data.mongodb.repository.query.MongoEntityInformation;
@@ -56,6 +60,7 @@ public abstract class BaseRepository<Entity extends BaseEntity, ID> {
     private static MongoRepositoryFactory repositoryFactory;
     protected final MongoTemplate mongoOperations;
     protected final MappingMongoEntityInformation<Entity, ID> entityInformation;
+    private static Logger log = LoggerFactory.getLogger(BaseRepository.class);
 
     @Value("${spring.data.mongodb.cursorBatchSize}")
     protected int cursorBatchSize = 1000;
@@ -167,17 +172,29 @@ public abstract class BaseRepository<Entity extends BaseEntity, ID> {
         Assert.notNull(query, "Entity must not be null!");
         Assert.notNull(userDetail, "UserDetail must not be null!");
 
-        Document queryObject = query.getQueryObject();
-//		if (!queryObject.containsKey("customId")) {
-//			query.addCriteria(Criteria.where("customId").is(userDetail.getCustomerId()));
-//		}
-
-        if (!userDetail.isRoot()) {
-            if (!queryObject.containsKey("user_id")) {
-                query.addCriteria(Criteria.where("user_id").is(userDetail.getUserId()));
-            }
+        boolean hasAdminRole = userDetail.getAuthorities().contains(new SimpleGrantedAuthority("ADMIN"));
+        if (hasAdminRole) {
+            removeFilter("customId", query);
+            query.addCriteria(Criteria.where("customId").is(userDetail.getCustomerId()));
+        } else {
+            removeFilter("customId", query);
+            removeFilter("user_id", query);
+            query.addCriteria(Criteria.where("customId").is(userDetail.getCustomerId()));
+            query.addCriteria(Criteria.where("user_id").is(userDetail.getUserId()));
         }
         return query;
+    }
+
+    public static void removeFilter(String key, Query query) {
+        Field criteriaField = null;
+        try {
+            criteriaField = Query.class.getDeclaredField("criteria");
+            criteriaField.setAccessible(true);
+            Map<String, CriteriaDefinition> criteria = (Map<String, CriteriaDefinition>) criteriaField.get(query);
+            criteria.remove(key);
+        } catch (Exception e) {
+            log.error("Remove {} in query {} failed", key, query, e);
+        }
     }
 
     /**
