@@ -4,7 +4,6 @@ import com.tapdata.entity.TapdataEvent;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
-import io.tapdata.pdk.core.utils.CommonUtils;
 import org.apache.commons.lang3.exception.ExceptionUtils;
 
 import java.util.List;
@@ -15,7 +14,9 @@ public class BatchReadFuncAspect extends DataFunctionAspect<BatchReadFuncAspect>
 	private static final String TAG = BatchReadFuncAspect.class.getSimpleName();
 	private TapConnectorContext connectorContext;
 
-	public static final int STATE_BATCHING = 10;
+	public static final int STATE_ENQUEUED = 10;
+
+	public static final int STATE_READ_COMPLETE = 11;
 
 	public BatchReadFuncAspect connectorContext(TapConnectorContext connectorContext) {
 		this.connectorContext = connectorContext;
@@ -43,14 +44,33 @@ public class BatchReadFuncAspect extends DataFunctionAspect<BatchReadFuncAspect>
 		return this;
 	}
 
-	private List<Consumer<List<TapdataEvent>>> consumers = new CopyOnWriteArrayList<>();
-
-	public BatchReadFuncAspect consumer(Consumer<List<TapdataEvent>> listConsumer) {
-		this.consumers.add(tapdataEvents -> {
+	private List<Consumer<List<TapdataEvent>>> enqueuedConsumers = null;
+	public BatchReadFuncAspect enqueuedConsumer(Consumer<List<TapdataEvent>> listConsumer) {
+		if (null == enqueuedConsumers) {
+			enqueuedConsumers = new CopyOnWriteArrayList<>();
+		}
+		this.enqueuedConsumers.add(tapdataEvents -> {
 			try {
 				listConsumer.accept(tapdataEvents);
 			} catch(Throwable throwable) {
-				TapLogger.warn(TAG, "Consume tapdataEvents from table {} failed on consumer {}, {}", table, listConsumer, ExceptionUtils.getStackTrace(throwable));
+				TapLogger.warn(TAG, "Consume tapdataEvents from table {} failed on enqueued consumer {}, {}",
+						table, listConsumer, ExceptionUtils.getStackTrace(throwable));
+			}
+		});
+		return this;
+	}
+
+	private List<Consumer<List<TapdataEvent>>> readCompleteConsumers = null;
+	public BatchReadFuncAspect readCompleteConsumer(Consumer<List<TapdataEvent>> listConsumer) {
+		if (null == readCompleteConsumers) {
+			readCompleteConsumers = new CopyOnWriteArrayList<>();
+		}
+		this.readCompleteConsumers.add(tapdataEvents -> {
+			try {
+				listConsumer.accept(tapdataEvents);
+			} catch(Throwable throwable) {
+				TapLogger.warn(TAG, "Consume tapdataEvents from table {} failed on read complete consumer {}, {}",
+						table, listConsumer, ExceptionUtils.getStackTrace(throwable));
 			}
 		});
 		return this;
@@ -88,11 +108,19 @@ public class BatchReadFuncAspect extends DataFunctionAspect<BatchReadFuncAspect>
 		this.eventBatchSize = eventBatchSize;
 	}
 
-	public List<Consumer<List<TapdataEvent>>> getConsumers() {
-		return consumers;
+	public List<Consumer<List<TapdataEvent>>> getEnqueuedConsumers() {
+		return enqueuedConsumers;
 	}
 
-	public void setConsumers(List<Consumer<List<TapdataEvent>>> consumers) {
-		this.consumers = consumers;
+	public void setEnqueuedConsumers(List<Consumer<List<TapdataEvent>>> enqueuedConsumers) {
+		this.enqueuedConsumers = enqueuedConsumers;
+	}
+
+	public List<Consumer<List<TapdataEvent>>> getReadCompleteConsumers() {
+		return readCompleteConsumers;
+	}
+
+	public void setReadCompleteConsumers(List<Consumer<List<TapdataEvent>>> readCompleteConsumers) {
+		this.readCompleteConsumers = readCompleteConsumers;
 	}
 }
