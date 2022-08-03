@@ -27,7 +27,7 @@ public class ObservabilityServiceImpl implements ObservabilityService {
     @Override
     public BatchResponeVo batch(BatchRequestDto batchRequestDto) throws ExecutionException, InterruptedException {
 
-        List<CompletableFuture<BatchResponeVo>> futuresList  = Lists.newLinkedList();
+        List<CompletableFuture<BatchResponeVo>> futuresList = Lists.newLinkedList();
 
         batchRequestDto.forEach((k, v) -> {
             BatchUriParamDto req = JsonUtil.parseJsonUseJackson(JsonUtil.toJsonUseJackson(v), BatchUriParamDto.class);
@@ -66,7 +66,7 @@ public class ObservabilityServiceImpl implements ObservabilityService {
 
         BatchResponeVo result = new BatchResponeVo();
         allCompletableFuture.thenApply(v ->
-                futuresList.stream().map(CompletableFuture::join).collect(Collectors.toList())).get().
+                        futuresList.stream().map(CompletableFuture::join).collect(Collectors.toList())).get().
                 forEach(result::putAll);
 
         return result;
