@@ -3,57 +3,72 @@ package com.tapdata.tm.observability.service.impl;
 import cn.hutool.extra.spring.SpringUtil;
 import com.google.common.collect.Lists;
 import com.tapdata.manager.common.utils.JsonUtil;
-import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.observability.constant.BatchServiceEnum;
-import com.tapdata.tm.observability.dto.ServiceMethodDto;
+import com.tapdata.tm.observability.dto.BatchRequestDto;
+import com.tapdata.tm.observability.dto.BatchUriParamDto;
 import com.tapdata.tm.observability.service.ObservabilityService;
-import com.tapdata.tm.observability.vo.ParallelInfoVO;
+import com.tapdata.tm.observability.vo.BatchDataVo;
+import com.tapdata.tm.observability.vo.BatchResponeVo;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
 
 @Service
+@Slf4j
 public class ObservabilityServiceImpl implements ObservabilityService {
     @Override
-    public List<ParallelInfoVO<?>> getList(List<ServiceMethodDto<?>> serviceMethodDto) {
+    public BatchResponeVo batch(BatchRequestDto batchRequestDto) throws ExecutionException, InterruptedException {
 
-        List<CompletableFuture<ParallelInfoVO<?>>> futuresList  = Lists.newLinkedList();
-        serviceMethodDto.forEach(rep -> {
-            String serviceName = rep.getServiceName();
-            String methodName = rep.getMethodName();
-            Object param = rep.getParam();
+        List<CompletableFuture<BatchResponeVo>> futuresList  = Lists.newLinkedList();
 
-            BatchServiceEnum serviceEnum = BatchServiceEnum.getEnumByServiceAndMethod(serviceName, methodName);
-            if (Objects.isNull(serviceEnum)) {
-                throw new BizException("not required service method");
-            }
+        batchRequestDto.forEach((k, v) -> {
+            BatchUriParamDto req = JsonUtil.parseJsonUseJackson(JsonUtil.toJsonUseJackson(v), BatchUriParamDto.class);
+            Map<?, ?> param = Objects.requireNonNull(req).getParam();
+            String uri = req.getUri();
 
-            CompletableFuture<ParallelInfoVO<?>> query = CompletableFuture.supplyAsync(() -> {
+            BatchServiceEnum serviceEnum = BatchServiceEnum.getEnumByServiceAndMethod(uri);
+            CompletableFuture<BatchResponeVo> query = CompletableFuture.supplyAsync(() -> {
+                BatchResponeVo result = new BatchResponeVo();
                 try {
-                    Method method = serviceEnum.getService().getMethod(methodName, serviceEnum.getParam().getClasses());
+                    if (Objects.isNull(serviceEnum)) {
+                        result.put(k, new BatchDataVo("SystemError", "not required service method", null));
+                        return result;
+                    }
 
-                    Object obj = JsonUtil.parseJsonUseJackson(JsonUtil.toJsonUseJackson(param), serviceEnum.getParam());
-                    Object invoke = method.invoke(serviceEnum.getResult(), obj);
-                    return new ParallelInfoVO<>("ok", null, invoke);
-                } catch (NoSuchMethodException e) {
-                    throw new RuntimeException(e);
-                } catch (InvocationTargetException e) {
-                    throw new RuntimeException(e);
-                } catch (IllegalAccessException e) {
-                    throw new RuntimeException(e);
+                    Class<?> serviceClass = Class.forName(serviceEnum.getService());
+                    Class<?> paramClass = Class.forName(serviceEnum.getParam());
+                    Method method = serviceClass.getMethod(serviceEnum.getMethod(), paramClass);
+
+                    Object obj = JsonUtil.parseJsonUseJackson(JsonUtil.toJsonUseJackson(param), paramClass);
+                    Object bean = SpringUtil.getBean(serviceClass);
+                    Object invoke = method.invoke(bean, obj);
+                    result.put(k, new BatchDataVo("ok", null, invoke));
+                    return result;
+                } catch (ClassNotFoundException | InvocationTargetException | NoSuchMethodException |
+                         IllegalAccessException e) {
+                    log.error("ObservabilityService batch method error msg:{}", e.getMessage(), e);
+                    result.put(k, new BatchDataVo("SystemError", e.getCause().getMessage(), null));
+                    return result;
                 }
             });
 
             futuresList.add(query);
         });
-        CompletableFuture<Void> allCompletableFuture = CompletableFuture.allOf(futuresList.toArray(new CompletableFuture[futuresList.size()]));
-        return allCompletableFuture.thenApply(e -> futuresList.stream()
-                .map(CompletableFuture::join)
-                .collect(Collectors.<ParallelInfoVO<?>>toList())).join();
+        CompletableFuture<Void> allCompletableFuture = CompletableFuture.allOf(futuresList.toArray(new CompletableFuture[0]));
+
+        BatchResponeVo result = new BatchResponeVo();
+        allCompletableFuture.thenApply(v ->
+                futuresList.stream().map(CompletableFuture::join).collect(Collectors.toList())).get().
+                forEach(result::putAll);
+
+        return result;
     }
 }
