@@ -189,11 +189,14 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 										((Map<String, Object>) syncProgress.getBatchOffsetObj()).put(tapTable.getId(), offsetObject);
 										List<TapdataEvent> tapdataEvents = wrapTapdataEvent(events);
 
+										if (batchReadFuncAspect != null)
+											AspectUtils.accept(batchReadFuncAspect.state(BatchReadFuncAspect.STATE_READ_COMPLETE).getReadCompleteConsumers(), tapdataEvents);
+
 										if (CollectionUtil.isNotEmpty(tapdataEvents)) {
 											tapdataEvents.forEach(this::enqueue);
 
 											if (batchReadFuncAspect != null)
-												AspectUtils.accept(batchReadFuncAspect.state(BatchReadFuncAspect.STATE_BATCHING).getConsumers(), tapdataEvents);
+												AspectUtils.accept(batchReadFuncAspect.state(BatchReadFuncAspect.STATE_ENQUEUED).getEnqueuedConsumers(), tapdataEvents);
 
 											resetOutputCounter.inc(tapdataEvents.size());
 											outputCounter.inc(tapdataEvents.size());
@@ -318,6 +321,10 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 										if (logger.isDebugEnabled()) {
 											logger.debug("Stream read {} of events, {}", events.size(), LoggerUtils.sourceNodeMessage(getConnectorNode()));
 										}
+
+										if (streamReadFuncAspect != null)
+											AspectUtils.accept(streamReadFuncAspect.state(StreamReadFuncAspect.STATE_STREAMING_READ_COMPLETED).getStreamingReadCompleteConsumers(), tapdataEvents);
+
 										if (CollectionUtils.isNotEmpty(tapdataEvents)) {
 											tapdataEvents.forEach(this::enqueue);
 											syncProgress.setStreamOffsetObj(offsetObj);
@@ -325,7 +332,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 											outputCounter.inc(tapdataEvents.size());
 											outputQPS.add(tapdataEvents.size());
 											if (streamReadFuncAspect != null)
-												AspectUtils.accept(streamReadFuncAspect.state(StreamReadFuncAspect.STATE_STREAMING).getConsumers(), tapdataEvents);
+												AspectUtils.accept(streamReadFuncAspect.state(StreamReadFuncAspect.STATE_STREAMING_ENQUEUED).getStreamingEnqueuedConsumers(), tapdataEvents);
 										}
 									}
 								} catch (Throwable throwable) {
