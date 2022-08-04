@@ -1,7 +1,6 @@
 package com.tapdata.tm.task.service.impl;
 
 import cn.hutool.core.bean.BeanUtil;
-import cn.hutool.extra.spring.SpringUtil;
 import com.google.common.collect.Maps;
 import com.tapdata.manager.common.utils.JsonUtil;
 import com.tapdata.tm.base.dto.Page;
@@ -29,9 +28,7 @@ import com.tapdata.tm.ds.service.impl.DataSourceDefinitionService;
 import com.tapdata.tm.ds.service.impl.DataSourceService;
 import com.tapdata.tm.messagequeue.dto.MessageQueueDto;
 import com.tapdata.tm.messagequeue.service.MessageQueueService;
-import com.tapdata.tm.metadatainstance.entity.MetadataInstancesEntity;
 import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
-import com.tapdata.tm.task.service.TaskNodeService;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.task.utils.CacheUtils;
 import com.tapdata.tm.task.vo.JsResultDto;
@@ -57,6 +54,7 @@ import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import com.tapdata.tm.task.service.TaskNodeService;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentMap;
@@ -130,7 +128,7 @@ public class TaskNodeServiceImpl implements TaskNodeService {
         if (preHasJsNode)
             return getMetaByJsNode(nodeId, result, sourceNode, targetNode, tableNames, currentTableList, targetDataSource, predecessors);
         else
-            return getMetadataTransformerItemDtoPage(userDetail, result, sourceNode, targetNode, tableNames, currentTableList, targetDataSource, predecessors, currentNode);
+            return getMetadataTransformerItemDtoPage(nodeId, userDetail, result, dag, sourceNode, targetNode, tableNames, currentTableList, targetDataSource, taskId, predecessors, currentNode);
     }
 
     private Page<MetadataTransformerItemDto> getMetaByJsNode(String nodeId, Page<MetadataTransformerItemDto> result, DatabaseNode sourceNode, DatabaseNode targetNode, List<String> tableNames, List<String> currentTableList, DataSourceConnectionDto targetDataSource, List<Node<?>> predecessors) {
@@ -196,9 +194,10 @@ public class TaskNodeServiceImpl implements TaskNodeService {
     }
 
     @NotNull
-    private Page<MetadataTransformerItemDto> getMetadataTransformerItemDtoPage(String nodeId, UserDetail userDetail, Page<MetadataTransformerItemDto> result, DAG dag, DatabaseNode sourceNode, DatabaseNode targetNode, List<String> tableNames, List<String> currentTableList, DataSourceConnectionDto targetDataSource, String taskId, , List<Node<?>> predecessors, Node<?> currentNode) {
-        List<Node<?>> predecessors = dag.nodeMap().get(nodeId);
-        Node<?> currentNode = dag.getNode(nodeId);
+    private Page<MetadataTransformerItemDto> getMetadataTransformerItemDtoPage(String nodeId, UserDetail userDetail
+            , Page<MetadataTransformerItemDto> result, DAG dag, DatabaseNode sourceNode, DatabaseNode targetNode
+            , List<String> tableNames, List<String> currentTableList, DataSourceConnectionDto targetDataSource
+            , String taskId, List<Node<?>> predecessors, Node<?> currentNode) {
         if (CollectionUtils.isEmpty(predecessors)) {
             predecessors = Lists.newArrayList();
         }
