@@ -23,78 +23,78 @@ import static io.tapdata.entity.simplify.TapSimplify.*;
 import static junit.framework.TestCase.*;
 
 public class AspectTest {
-	@Test
-	public void testTaskLifeCircle() {
-		AspectTaskManager aspectTaskManager = InstanceFactory.instance(AspectTaskManager.class);
-		assertNotNull(aspectTaskManager);
-		AspectManager aspectManager = InstanceFactory.instance(AspectManager.class);
-		assertNotNull(aspectManager);
-		SubTaskDto subTaskDto = new SubTaskDto();
-		subTaskDto.setId(new ObjectId());
-		TaskDto taskDto = new TaskDto();
-		taskDto.setSyncType("TEST_TARGET");
-		subTaskDto.setParentTask(taskDto);
-
-		aspectManager.executeAspect(new TaskStartAspect().task(subTaskDto));
-		List<AspectTask> aspectTasks = aspectTaskManager.getAspectTasks(subTaskDto.getId().toString());
-		TestSampleTask testSampleTask = null;
-		for(AspectTask aspectTask : aspectTasks) {
-			if(aspectTask.getClass().equals(TestSampleTask.class)) {
-				testSampleTask = (TestSampleTask) aspectTask;
-				break;
-			}
-		}
-		assertNotNull(testSampleTask);
-
-		aspectManager.executeAspect(new TaskStartAspect().task(subTaskDto));
-		TestSampleTask testSampleTaskAnother = null;
-		for(AspectTask aspectTask : aspectTasks) {
-			if(aspectTask.getClass().equals(TestSampleTask.class)) {
-				testSampleTaskAnother = (TestSampleTask) aspectTask;
-				break;
-			}
-		}
-		assertNotNull(testSampleTaskAnother);
-		assertEquals(testSampleTaskAnother, testSampleTask);
-		assertEquals(1, testSampleTask.onStartCounter.intValue());
-		assertEquals(0, testSampleTask.onStopCounter.intValue());
-
-		TapdataEvent event = new TapdataEvent();
-		event.setTapEvent(insertRecordEvent(map(entry("aa", 1)), "table1"));
-		ProcessorNodeProcessAspect processorNodeProcessAspect = new ProcessorNodeProcessAspect().state(ProcessorFunctionAspect.STATE_START).inputEvent(event);
-		aspectManager.executeAspect(processorNodeProcessAspect);
-		assertNotNull(testSampleTask.nodeProcessAspect);
-		assertEquals("table1", ((TapInsertRecordEvent)testSampleTask.nodeProcessAspect.getInputEvent().getTapEvent()).getTableId());
-		assertEquals(ProcessorNodeProcessAspect.STATE_START, testSampleTask.nodeProcessAspect.getState());
-
-		aspectManager.executeAspect(processorNodeProcessAspect.state(ProcessorFunctionAspect.STATE_END));
-		assertEquals(ProcessorNodeProcessAspect.STATE_END, testSampleTask.nodeProcessAspect.getState());
-
-		aspectManager.executeAspect(new TaskStopAspect().task(subTaskDto));
-		aspectTasks = aspectTaskManager.getAspectTasks(subTaskDto.getId().toString());
-		TestSampleTask testSampleTaskNone = null;
-		for(AspectTask aspectTask : aspectTasks) {
-			if(aspectTask.getClass().equals(TestSampleTask.class)) {
-				testSampleTaskNone = (TestSampleTask) aspectTask;
-				break;
-			}
-		}
-		assertNull(testSampleTaskNone);
-		assertEquals(1, testSampleTask.onStartCounter.intValue());
-		assertEquals(1, testSampleTask.onStopCounter.intValue());
-
-		aspectManager.executeAspect(new TaskStopAspect().task(subTaskDto));
-		testSampleTaskNone = null;
-		for(AspectTask aspectTask : aspectTasks) {
-			if(aspectTask.getClass().equals(TestSampleTask.class)) {
-				testSampleTaskNone = (TestSampleTask) aspectTask;
-				break;
-			}
-		}
-		assertNull(testSampleTaskNone);
-		assertEquals(1, testSampleTask.onStartCounter.intValue());
-		assertEquals(1, testSampleTask.onStopCounter.intValue());
-	}
+//	@Test
+//	public void testTaskLifeCircle() {
+//		AspectTaskManager aspectTaskManager = InstanceFactory.instance(AspectTaskManager.class);
+//		assertNotNull(aspectTaskManager);
+//		AspectManager aspectManager = InstanceFactory.instance(AspectManager.class);
+//		assertNotNull(aspectManager);
+//		SubTaskDto subTaskDto = new SubTaskDto();
+//		subTaskDto.setId(new ObjectId());
+//		TaskDto taskDto = new TaskDto();
+//		taskDto.setSyncType("TEST_TARGET");
+//		subTaskDto.setParentTask(taskDto);
+//
+//		aspectManager.executeAspect(new TaskStartAspect().task(subTaskDto));
+//		List<AspectTask> aspectTasks = aspectTaskManager.getAspectTasks(subTaskDto.getId().toString());
+//		TestSampleTask testSampleTask = null;
+//		for(AspectTask aspectTask : aspectTasks) {
+//			if(aspectTask.getClass().equals(TestSampleTask.class)) {
+//				testSampleTask = (TestSampleTask) aspectTask;
+//				break;
+//			}
+//		}
+//		assertNotNull(testSampleTask);
+//
+//		aspectManager.executeAspect(new TaskStartAspect().task(subTaskDto));
+//		TestSampleTask testSampleTaskAnother = null;
+//		for(AspectTask aspectTask : aspectTasks) {
+//			if(aspectTask.getClass().equals(TestSampleTask.class)) {
+//				testSampleTaskAnother = (TestSampleTask) aspectTask;
+//				break;
+//			}
+//		}
+//		assertNotNull(testSampleTaskAnother);
+//		assertEquals(testSampleTaskAnother, testSampleTask);
+//		assertEquals(1, testSampleTask.onStartCounter.intValue());
+//		assertEquals(0, testSampleTask.onStopCounter.intValue());
+//
+//		TapdataEvent event = new TapdataEvent();
+//		event.setTapEvent(insertRecordEvent(map(entry("aa", 1)), "table1"));
+//		ProcessorNodeProcessAspect processorNodeProcessAspect = new ProcessorNodeProcessAspect().state(ProcessorFunctionAspect.STATE_START).inputEvent(event);
+//		aspectManager.executeAspect(processorNodeProcessAspect);
+//		assertNotNull(testSampleTask.nodeProcessAspect);
+//		assertEquals("table1", ((TapInsertRecordEvent)testSampleTask.nodeProcessAspect.getInputEvent().getTapEvent()).getTableId());
+//		assertEquals(ProcessorNodeProcessAspect.STATE_START, testSampleTask.nodeProcessAspect.getState());
+//
+//		aspectManager.executeAspect(processorNodeProcessAspect.state(ProcessorFunctionAspect.STATE_END));
+//		assertEquals(ProcessorNodeProcessAspect.STATE_END, testSampleTask.nodeProcessAspect.getState());
+//
+//		aspectManager.executeAspect(new TaskStopAspect().task(subTaskDto));
+//		aspectTasks = aspectTaskManager.getAspectTasks(subTaskDto.getId().toString());
+//		TestSampleTask testSampleTaskNone = null;
+//		for(AspectTask aspectTask : aspectTasks) {
+//			if(aspectTask.getClass().equals(TestSampleTask.class)) {
+//				testSampleTaskNone = (TestSampleTask) aspectTask;
+//				break;
+//			}
+//		}
+//		assertNull(testSampleTaskNone);
+//		assertEquals(1, testSampleTask.onStartCounter.intValue());
+//		assertEquals(1, testSampleTask.onStopCounter.intValue());
+//
+//		aspectManager.executeAspect(new TaskStopAspect().task(subTaskDto));
+//		testSampleTaskNone = null;
+//		for(AspectTask aspectTask : aspectTasks) {
+//			if(aspectTask.getClass().equals(TestSampleTask.class)) {
+//				testSampleTaskNone = (TestSampleTask) aspectTask;
+//				break;
+//			}
+//		}
+//		assertNull(testSampleTaskNone);
+//		assertEquals(1, testSampleTask.onStartCounter.intValue());
+//		assertEquals(1, testSampleTask.onStopCounter.intValue());
+//	}
 
 	@Test
 	public void testIncludes() {
