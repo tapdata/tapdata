@@ -47,6 +47,7 @@ public abstract class LogMiner implements ILogMiner {
     protected StreamReadConsumer consumer;
 
     //init with pdk params
+    @Override
     public void init(List<String> tableList, List<TapTable> lobTables, Object offsetState, int recordSize, StreamReadConsumer consumer) throws Throwable {
         this.tableList = tableList;
         this.lobTables = lobTables.stream().collect(Collectors.toMap(TapTable::getId, Function.identity()));
@@ -63,6 +64,7 @@ public abstract class LogMiner implements ILogMiner {
         }
     }
 
+    @Override
     public void stopMiner() throws Throwable {
         TapLogger.info(TAG, "Log Miner is shutting down...");
         isRunning.set(false);
