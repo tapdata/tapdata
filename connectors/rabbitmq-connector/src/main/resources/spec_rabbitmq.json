@@ -61,14 +61,6 @@
           "apiServerKey": "mq_password",
           "x-index": 6
         },
-        "routeKeyField": {
-          "type": "string",
-          "title": "${routeKeyField}",
-          "x-decorator": "FormItem",
-          "x-component": "Input",
-          "apiServerKey": "route_key_field",
-          "x-index": 7
-        },
         "virtualHost": {
           "type": "string",
           "title": "${virtualHost}",

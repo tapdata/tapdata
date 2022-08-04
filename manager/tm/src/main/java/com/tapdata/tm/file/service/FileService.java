@@ -6,6 +6,7 @@ import com.mongodb.client.gridfs.GridFSBuckets;
 import com.mongodb.client.gridfs.GridFSDownloadStream;
 import com.mongodb.client.gridfs.GridFSFindIterable;
 import com.mongodb.client.gridfs.model.GridFSFile;
+import com.tapdata.tm.utils.FunctionUtils;
 import com.tapdata.tm.utils.GZIPUtil;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.compress.utils.IOUtils;
@@ -173,7 +174,9 @@ public class FileService {
             if (flag) {
                 log.info("图片类型,进入预览");
                 response.setHeader("Content-disposition", "inline; filename=" + fileName);
-                response.setContentType("image/jpeg");
+                FunctionUtils.isTureOrFalse(file.getFilename().contains(".svg")).trueOrFalseHandle(
+                        () -> {response.setContentType("image/svg+xml");},
+                        () ->{response.setContentType("image/jpeg");});
                 // 不进行压缩的文件大小，单位为bit
                 InputStream in = convertGridFSFile2Resource(file).getInputStream();
                 int contentLength = (int) convertGridFSFile2Resource(file).contentLength();

@@ -106,7 +106,8 @@ public class TestConnectionHandler implements WebSocketHandler {
 				}
 			} else {
 				Object password = config1.get("password");
-				if (password == null || StringUtils.isBlank((String) password)) {
+				Object mqPassword = config1.get("mqPassword");
+				if (Objects.isNull(password) && Objects.isNull(mqPassword)) {
 					Object id = data.get("id");
 					if (id != null) {
 						data.put("editTest", false);

@@ -278,8 +278,7 @@ public class DatabaseNode extends DataParentNode<List<Schema>> {
                 //s.setTaskId(taskId());
                 s.setNodeId(nodeId);
             });
-            List<Schema> updateSchema = service.createOrUpdateSchema(ownerId(), toObjectId(connectionId), schemaList, options, this);
-            //service.upsertTransformTemp(this.listener.getSchemaTransformResult(nodeId), this.getDag().getTaskId().toHexString(), nodeId, getFilteredTableNames().size(), updateSchema, options.getUuid());
+            schemaList = service.createOrUpdateSchema(ownerId(), toObjectId(connectionId), schemaList, options, this);
         }
         return schemaList;
     }

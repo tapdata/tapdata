@@ -1,6 +1,7 @@
 package com.tapdata.tm.task.service;
 
 import com.tapdata.tm.base.dto.Page;
+import com.tapdata.tm.base.dto.ResponseMessage;
 import com.tapdata.tm.commons.dag.vo.TestRunDto;
 import com.tapdata.tm.commons.schema.MetadataTransformerItemDto;
 import com.tapdata.tm.config.security.UserDetail;
@@ -15,5 +16,5 @@ public interface TaskNodeService {
 
     void saveResult(JsResultDto jsResultDto);
 
-    JsResultVo getRun( String taskId, String jsNodeId);
+    ResponseMessage<JsResultVo> getRun(String taskId, String jsNodeId, Long version);
 }

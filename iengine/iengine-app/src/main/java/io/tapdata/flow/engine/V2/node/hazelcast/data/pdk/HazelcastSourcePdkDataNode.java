@@ -108,7 +108,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 				}
 			}
 		} catch (Throwable throwable) {
-			error = throwable;
+			errorHandle(throwable, throwable.getMessage());
 		} finally {
 			try {
 				while (isRunning()) {
@@ -274,6 +274,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 		}
 	}
 
+	@SneakyThrows
 	private void doNormalCDC() {
 		if (!isRunning()) {
 			return;
@@ -318,6 +319,10 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 												streamReadFuncAspect.getConsumer().accept(tapdataEvents);
 										}
 									}
+								} catch (Throwable throwable) {
+									String error = "Error processing incremental data, error: " + throwable.getMessage();
+									RuntimeException runtimeException = new RuntimeException(error, throwable);
+									errorHandle(runtimeException, runtimeException.getMessage());
 								} finally {
 									if (sourceRunnerLock.isLocked()) {
 										sourceRunnerLock.unlock();

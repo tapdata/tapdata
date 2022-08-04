@@ -12,7 +12,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * @create 2022-07-09 15:15
  **/
 public class ConnectorNodeService {
-	private Map<String, ConnectorNode> connectorNodeMap;
+	private final Map<String, ConnectorNode> connectorNodeMap;
 
 	private ConnectorNodeService() {
 		this.connectorNodeMap = new ConcurrentHashMap<>();
@@ -31,6 +31,9 @@ public class ConnectorNodeService {
 	}
 
 	public ConnectorNode getConnectorNode(String associateId) {
+		if (null == associateId) {
+			return null;
+		}
 		return this.connectorNodeMap.get(associateId);
 	}
 

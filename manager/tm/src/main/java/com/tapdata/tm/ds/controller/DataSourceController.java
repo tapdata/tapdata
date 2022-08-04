@@ -10,6 +10,7 @@ import com.tapdata.tm.base.dto.ResponseMessage;
 import com.tapdata.tm.base.dto.Where;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
+import com.tapdata.tm.commons.util.CreateTypeEnum;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.ds.bean.NoSchemaFilter;
 import com.tapdata.tm.ds.dto.UpdateTagsDto;
@@ -108,6 +109,15 @@ public class DataSourceController extends BaseController {
             }
         }
 
+
+        Where where = filter.getWhere();
+        if (where == null) {
+            where = new Where();
+            Map<String, Object> createTypeMap = new HashMap<>();
+            createTypeMap.put("$ne", CreateTypeEnum.System);
+            where.put("createType", createTypeMap);
+        }
+
         //隐藏密码
         Page<DataSourceConnectionDto> dataSourceConnectionDtoPage = dataSourceService.list(filter, noSchema, getLoginUser());
 
@@ -128,6 +138,13 @@ public class DataSourceController extends BaseController {
         NoSchemaFilter filter = JsonUtil.parseJson(filterJson, NoSchemaFilter.class);
         if (filter == null) {
             filter = new NoSchemaFilter();
+        }
+        Where where = filter.getWhere();
+        if (where == null) {
+            where = new Where();
+            Map<String, Object> createTypeMap = new HashMap<>();
+            createTypeMap.put("$ne", CreateTypeEnum.System);
+            where.put("createType", createTypeMap);
         }
 
         //隐藏密码
@@ -151,6 +168,14 @@ public class DataSourceController extends BaseController {
         NoSchemaFilter filter = JsonUtil.parseJson(filterJson, NoSchemaFilter.class);
         if (filter == null) {
             filter = new NoSchemaFilter();
+        }
+
+        Where where = filter.getWhere();
+        if (where == null) {
+            where = new Where();
+            Map<String, Object> createTypeMap = new HashMap<>();
+            createTypeMap.put("$ne", CreateTypeEnum.System);
+            where.put("createType", createTypeMap);
         }
 
         return success(dataSourceService.listAll(filter, getLoginUser()));
@@ -324,6 +349,11 @@ public class DataSourceController extends BaseController {
             )
             @RequestParam(value = "where", required = false) String whereJson) {
         Where where = parseWhere(whereJson);
+
+        Map<String, Object> createTypeMap = new HashMap<>();
+        createTypeMap.put("$ne", CreateTypeEnum.System);
+        where.put("createType", createTypeMap);
+
         long count = dataSourceService.count(where, getLoginUser());
 
 

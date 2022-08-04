@@ -15,4 +15,5 @@ public class TestRunDto {
     private String script;
     private String tableName;
     private Integer rows;
+    private Long version;
 }

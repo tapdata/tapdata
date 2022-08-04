@@ -31,6 +31,8 @@ import org.apache.kafka.common.header.internals.RecordHeaders;
 
 import java.time.Duration;
 import java.util.*;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicLong;
@@ -127,46 +129,57 @@ public class KafkaService extends AbstractMqService {
         }
         admin.close();
         SchemaConfiguration schemaConfiguration = new SchemaConfiguration(kafkaConfig, connectorId);
-        KafkaConsumer<byte[], byte[]> kafkaConsumer = new KafkaConsumer<>(schemaConfiguration.build());
-        kafkaConsumer.subscribe(destinationSet);
-        submitPageTables(tableSize, consumer, kafkaConsumer, destinationSet);
-        kafkaConsumer.close();
+        submitPageTables(tableSize, consumer, schemaConfiguration, destinationSet);
     }
 
-    protected void submitPageTables(int tableSize, Consumer<List<TapTable>> consumer, KafkaConsumer<byte[], byte[]> kafkaConsumer, Set<String> destinationSet) throws Exception {
+    protected void submitPageTables(int tableSize, Consumer<List<TapTable>> consumer, SchemaConfiguration schemaConfiguration, Set<String> destinationSet) throws Exception {
         List<List<String>> tablesList = Lists.partition(new ArrayList<>(destinationSet), tableSize);
+        Map<String, Object> config = schemaConfiguration.build();
         tablesList.forEach(tables -> {
-            kafkaConsumer.subscribe(tables);
-            List<TapTable> tableList = TapSimplify.list();
-            final Set<String> topicSet = new HashSet<>();
-            ConsumerRecords<byte[], byte[]> consumerRecords = kafkaConsumer.poll(Duration.ofSeconds(1L));
-            for (ConsumerRecord<byte[], byte[]> record : consumerRecords) {
-                if (topicSet.contains(record.topic())) {
-                    continue;
+            List<TapTable> tableList = new CopyOnWriteArrayList<>();
+            final Set<String> topicSet = new CopyOnWriteArraySet<>();
+            CountDownLatch countDownLatch = new CountDownLatch(tables.size());
+            executorService = Executors.newFixedThreadPool(tables.size());
+            tables.forEach(table -> executorService.submit(() -> {
+                KafkaConsumer<byte[], byte[]> kafkaConsumer = new KafkaConsumer<>(config);
+                kafkaConsumer.subscribe(Collections.singleton(table));
+                ConsumerRecords<byte[], byte[]> consumerRecords = kafkaConsumer.poll(Duration.ofSeconds(2L));
+                for (ConsumerRecord<byte[], byte[]> record : consumerRecords) {
+                    if (topicSet.contains(record.topic())) {
+                        continue;
+                    }
+                    Map<String, Object> messageBody;
+                    try {
+                        messageBody = jsonParser.fromJsonBytes(record.value(), Map.class);
+                    } catch (Exception e) {
+                        TapLogger.error(TAG, "topic[{}] value [{}] can not parse to json, ignore...", record.topic(), record.value());
+                        continue;
+                    }
+                    if (messageBody == null) {
+                        TapLogger.warn(TAG, "messageBody not allow null...");
+                        continue;
+                    }
+                    if (messageBody.containsKey("mqOp")) {
+                        messageBody = (Map<String, Object>) messageBody.get("data");
+                    }
+                    try {
+                        TapTable tapTable = new TapTable(table);
+                        SCHEMA_PARSER.parse(tapTable, messageBody);
+                        tableList.add(tapTable);
+                    } catch (Throwable t) {
+                        TapLogger.error(TAG, String.format("%s parse topic invalid json object: %s", record.topic(), t.getMessage()), t);
+                    }
+                    topicSet.add(record.topic());
                 }
-                Map<String, Object> messageBody;
-                try {
-                    messageBody = jsonParser.fromJsonBytes(record.value(), Map.class);
-                } catch (Exception e) {
-                    TapLogger.error(TAG, "topic[{}] value [{}] can not parse to json, ignore...", record.topic(), record.value());
-                    continue;
-                }
-                if (messageBody == null) {
-                    TapLogger.warn(TAG, "messageBody not allow null...");
-                    continue;
-                }
-                if (messageBody.containsKey("mqOp")) {
-                    messageBody = (Map<String, Object>) messageBody.get("data");
-                }
-                try {
-                    TapTable table = new TapTable(record.topic());
-                    SCHEMA_PARSER.parse(table, messageBody);
-                    tableList.add(table);
-                } catch (Throwable t) {
-                    TapLogger.error(TAG, String.format("%s parse topic invalid json object: %s", record.topic(), t.getMessage()), t);
-                }
-                topicSet.add(record.topic());
+                kafkaConsumer.close();
+                countDownLatch.countDown();
+            }));
+            try {
+                countDownLatch.await();
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
             }
+            executorService.shutdown();
             tables.stream().filter(v -> !topicSet.contains(v)).map(TapTable::new).forEach(tableList::add);
             consumer.accept(tableList);
         });

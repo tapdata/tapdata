@@ -761,8 +761,8 @@ public class TaskController extends BaseController {
     @GetMapping("migrate-js/get-result")
     @Operation(description = "js节点试运行结果获取")
     public ResponseMessage<JsResultVo> getRun(@RequestParam String taskId,
-                                         @RequestParam String jsNodeId) {
-        return success(taskNodeService.getRun(taskId, jsNodeId));
+                                         @RequestParam String jsNodeId, @RequestParam Long version) {
+        return taskNodeService.getRun(taskId, jsNodeId, version);
     }
 
 }

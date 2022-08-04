@@ -1,7 +1,6 @@
 package io.tapdata.aspect;
 
 import io.tapdata.aspect.task.AspectTask;
-import io.tapdata.aspect.task.AspectTaskSession;
 import io.tapdata.entity.aspect.Aspect;
 import io.tapdata.entity.aspect.AspectInterceptResult;
 import io.tapdata.entity.simplify.pretty.ClassHandlers;
@@ -19,7 +18,7 @@ public class SampleTask extends AspectTask {
 		observerClassHandlers.register(ProcessorNodeProcessAspect.class, this::handleProcessorNodeProcess);
 		observerClassHandlers.register(StreamReadFuncAspect.class, this::handleStreamRead);
 		observerClassHandlers.register(BatchReadFuncAspect.class, this::handleBatchRead);
-		observerClassHandlers.register(TableCountAspect.class, this::handleTableCount);
+		observerClassHandlers.register(TableCountFuncAspect.class, this::handleTableCount);
 		observerClassHandlers.register(WriteRecordFuncAspect.class, this::handleWriteRecord);
 	}
 
@@ -27,7 +26,7 @@ public class SampleTask extends AspectTask {
 		return null;
 	}
 
-	protected Void handleTableCount(TableCountAspect tableCountAspect) {
+	protected Void handleTableCount(TableCountFuncAspect tableCountFuncAspect) {
 		return null;
 	}
 
@@ -45,7 +44,7 @@ public class SampleTask extends AspectTask {
 	}
 
 	@Override
-	public void onStart() {
+	public void onStart(TaskStartAspect startAspect) {
 		//TaskStartAspect
 
 	}
@@ -63,7 +62,7 @@ public class SampleTask extends AspectTask {
 	}
 
 	@Override
-	public void onStop() {
+	public void onStop(TaskStopAspect stopAspect) {
 		//TaskStopAspect
 	}
 

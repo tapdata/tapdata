@@ -151,7 +151,6 @@ public class DorisStreamLoader {
                     .addColumns(columns)
                     .enableDelete()
                     .setEntity(entity);
-            System.out.println(entity);
             pendingLoadFuture = executorService.submit(() -> {
                 TapLogger.info(TAG, "start execute load, headers: {}", putBuilder.header);
                 return httpClient.execute(putBuilder.build());

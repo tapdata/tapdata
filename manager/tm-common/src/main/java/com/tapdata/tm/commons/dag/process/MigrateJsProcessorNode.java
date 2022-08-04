@@ -117,7 +117,6 @@ public class MigrateJsProcessorNode extends Node<List<Schema>> {
 
             // js result data
             for (Schema schema : inputSchema) {
-
                 TapTable tapTable = PdkSchemaConvert.toPdk(schema);
                 LinkedHashMap<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
 
@@ -137,9 +136,51 @@ public class MigrateJsProcessorNode extends Node<List<Schema>> {
                     nameFieldMap.putAll(createMap);
                 }
 
-                Schema s = PdkSchemaConvert.fromPdkSchema(tapTable);
-                s.setDatabaseId(schema.getDatabaseId());
-                result.add(s);
+                Schema jsSchema = PdkSchemaConvert.fromPdkSchema(tapTable);
+                jsSchema.setDatabaseId(schema.getDatabaseId());
+
+                List<Field> fields = jsSchema.getFields();
+                Set<String> fieldNames = fields.stream().map(Field::getFieldName).collect(Collectors.toSet());
+                Map<String, Field> originFieldMap = schema.getFields().stream().collect(Collectors.toMap(Field::getFieldName, f -> f));
+
+                if (CollectionUtils.isNotEmpty(fields)) {
+                    for (Field field : fields) {
+                        Field originField = originFieldMap.get(field.getFieldName());
+                        if (originField != null) {
+                            originField.setAutoincrement(field.getAutoincrement());
+                            originField.setDataType(field.getDataType());
+                            originField.setIsNullable(field.getIsNullable());
+                            originField.setColumnPosition(field.getColumnPosition());
+                            originField.setTapType(field.getTapType());
+                            BeanUtil.copyProperties(originField, field);
+
+                            field.setId(new ObjectId().toHexString());
+                            field.setDataTypeTemp(originField.getDataType());
+                            field.setOriginalDataType(originField.getDataType());
+                            field.setOriginalFieldName(originField.getOriginalFieldName());
+                        }
+                    }
+                }
+
+                List<TableIndex> indices = new ArrayList<>();
+                if (CollectionUtils.isNotEmpty(schema.getIndices())) {
+                    for (TableIndex index : schema.getIndices()) {
+                        List<TableIndexColumn> columns = index.getColumns();
+                        List<TableIndexColumn> newColumns = new ArrayList<>();
+                        for (TableIndexColumn column : columns) {
+                            if (fieldNames.contains(column.getColumnName())){
+                                newColumns.add(column);
+                            }
+                        }
+                        if (CollectionUtils.isNotEmpty(newColumns)) {
+                            index.setColumns(newColumns);
+                            indices.add(index);
+                        }
+                    }
+                }
+                jsSchema.setIndices(indices);
+
+                result.add(jsSchema);
             }
         }
 

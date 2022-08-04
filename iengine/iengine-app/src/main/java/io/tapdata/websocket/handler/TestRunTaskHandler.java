@@ -2,6 +2,7 @@ package io.tapdata.websocket.handler;
 
 import com.tapdata.constant.JSONUtil;
 import com.tapdata.mongo.ClientMongoOperator;
+import com.tapdata.tm.commons.task.dto.ParentTaskDto;
 import com.tapdata.tm.commons.task.dto.SubTaskDto;
 import io.tapdata.aspect.TaskStopAspect;
 import io.tapdata.aspect.utils.AspectUtils;
@@ -26,7 +27,7 @@ public class TestRunTaskHandler implements WebSocketEventHandler<WebSocketEventR
 
 	private TaskService<SubTaskDto> taskService;
 
-	private Map<String, TaskClient<SubTaskDto>> taskClientMap = new ConcurrentHashMap<>();
+	private Map<String, SubTaskDto> taskClientMap = new ConcurrentHashMap<>();
 
 
 	@Override
@@ -45,19 +46,26 @@ public class TestRunTaskHandler implements WebSocketEventHandler<WebSocketEventR
 
 		long startTs = System.currentTimeMillis();
 		SubTaskDto subTaskDto = JSONUtil.map2POJO(event, SubTaskDto.class);
+		subTaskDto.getParentTask().setType(ParentTaskDto.TYPE_INITIAL_SYNC);
 
 		String taskId = subTaskDto.getId().toHexString();
-		if (taskClientMap.containsKey(taskId)) {
+		if (taskClientMap.putIfAbsent(taskId, subTaskDto) != null) {
 			logger.warn("{} task is running, skip", taskId);
 			return WebSocketEventResult.handleFailed(WebSocketEventResult.Type.TEST_RUN, "task is running...");
 		}
-		TaskClient<SubTaskDto> taskClient = taskService.startTestTask(subTaskDto);
+		logger.info("{} task start", taskId);
+		TaskClient<SubTaskDto> taskClient = null;
 		try {
-			taskClientMap.put(taskClient.getTask().getId().toHexString(), taskClient);
+			taskClient = taskService.startTestTask(subTaskDto);
 			taskClient.join();
-		} finally {
 			AspectUtils.executeAspect(new TaskStopAspect().task(taskClient.getTask()));
-			taskClientMap.remove(taskClient.getTask().getId().toHexString());
+		} catch (Throwable throwable) {
+			if (taskClient != null) {
+				AspectUtils.executeAspect(new TaskStopAspect().task(taskClient.getTask()).error(throwable));
+			}
+			return WebSocketEventResult.handleFailed(WebSocketEventResult.Type.TEST_RUN, throwable.getMessage());
+		} finally {
+			taskClientMap.remove(taskId);
 		}
 
 		logger.info("test run task {} {}, cost {}ms", taskId, taskClient.getStatus(), (System.currentTimeMillis() - startTs));

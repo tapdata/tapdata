@@ -30,6 +30,7 @@ import com.tapdata.tm.commons.schema.bean.PlatformInfo;
 import com.tapdata.tm.commons.schema.bean.Schema;
 import com.tapdata.tm.commons.schema.bean.Table;
 import com.tapdata.tm.commons.task.dto.TaskDto;
+import com.tapdata.tm.commons.util.CreateTypeEnum;
 import com.tapdata.tm.commons.util.MetaDataBuilderUtils;
 import com.tapdata.tm.commons.util.PdkSchemaConvert;
 import com.tapdata.tm.config.security.UserDetail;
@@ -890,7 +891,7 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 		if ("finished".equals(loadFieldsStatus) && schemaVersion != null) {
 			log.debug("loadFieldsStatus is finished, update model delete flag");
 			// handle delete model, not match schemaVersion will update is_deleted to true
-			Criteria criteria = Criteria.where("is_deleted").is(false).and("databaseId").is(datasourceId)
+			Criteria criteria = Criteria.where("is_deleted").ne(true).and("databaseId").is(datasourceId)
 					.and("lastUpdate").ne(schemaVersion);
 			log.info("Delete metadata update filter: {}", criteria);
 			Query query = new Query(criteria);

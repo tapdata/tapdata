@@ -4,6 +4,8 @@ import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.tm.commons.task.dto.SubTaskDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.aspect.DataNodeAspect;
+import io.tapdata.aspect.TaskStartAspect;
+import io.tapdata.aspect.TaskStopAspect;
 import io.tapdata.aspect.task.AspectTask;
 import io.tapdata.entity.aspect.*;
 import io.tapdata.entity.logger.TapLogger;
@@ -112,7 +114,8 @@ public class TaskSessionClassHolder implements Comparable<TaskSessionClassHolder
 		return null;
 	}
 
-	public synchronized void ensureTaskSessionCreated(SubTaskDto task) {
+	public synchronized void ensureTaskSessionCreated(TaskStartAspect startAspect) {
+		SubTaskDto task = startAspect.getTask();
 		String taskId = task.getId().toString();
 		AtomicReference<AspectTaskEx> newRef = new AtomicReference<>();
 		AspectTaskEx theAspectTask = aspectTaskMap.computeIfAbsent(taskId, id -> {
@@ -144,7 +147,7 @@ public class TaskSessionClassHolder implements Comparable<TaskSessionClassHolder
 					}
 				}
 			}
-			CommonUtils.ignoreAnyError(theAspectTask.aspectTask::onStart, TAG);
+			CommonUtils.ignoreAnyError(() -> theAspectTask.aspectTask.onStart(startAspect), TAG);
 		}
 	}
 
@@ -159,16 +162,16 @@ public class TaskSessionClassHolder implements Comparable<TaskSessionClassHolder
 		}
 	}
 
-	public void ensureTaskSessionStopped(SubTaskDto task) {
-		String taskId = task.getId().toString();
-		ensureTaskSessionStopped(taskId);
+	public void ensureTaskSessionStopped(TaskStopAspect stopAspect) {
+		String taskId = stopAspect.getTask().getId().toString();
+		ensureTaskSessionStopped(taskId, stopAspect);
 	}
-	public synchronized void ensureTaskSessionStopped(String taskId) {
+	public synchronized void ensureTaskSessionStopped(String taskId, TaskStopAspect stopAspect) {
 		if(taskId == null)
 			return;
 		AspectTaskEx aspectTask = aspectTaskMap.remove(taskId);
 		if (aspectTask != null) {
-			CommonUtils.ignoreAnyError(aspectTask.aspectTask::onStop, TAG);
+			CommonUtils.ignoreAnyError(() -> aspectTask.aspectTask.onStop(stopAspect), TAG);
 
 			List<Class<? extends Aspect>> observerClasses = aspectTask.aspectTask.observeAspects();
 			AspectManager aspectManager = InstanceFactory.instance(AspectManager.class);

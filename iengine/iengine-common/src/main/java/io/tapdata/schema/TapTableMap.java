@@ -31,7 +31,7 @@ import static org.springframework.data.mongodb.core.query.Criteria.where;
  **/
 public class TapTableMap<K extends String, V extends TapTable> extends HashMap<K, V> {
 	private static final String DIST_CACHE_PATH = "tap_table_ehcache";
-	public static final int DEFAULT_OFF_HEAP_MB = 100;
+	public static final int DEFAULT_OFF_HEAP_MB = 10;
 	public static final int DEFAULT_DISK_MB = 1024;
 	public static final int MAX_HEAP_ENTRIES = 100;
 	public static final String TAP_TABLE_OFF_HEAP_MB_KEY = "TAP_TABLE_OFF_HEAP_MB";
@@ -265,7 +265,8 @@ public class TapTableMap<K extends String, V extends TapTable> extends HashMap<K
 	private V findSchema(K k) {
 		String qualifiedName = tableNameAndQualifiedNameMap.get(k);
 		if (StringUtils.isBlank(qualifiedName)) {
-			throw new RuntimeException("Table name \"" + k + "\" not exists, qualified name: " + qualifiedName);
+			throw new RuntimeException("Table name \"" + k + "\" not exists, qualified name: " + qualifiedName
+							+ " tableNameAndQualifiedNameMap: " + tableNameAndQualifiedNameMap);
 		}
 		ClientMongoOperator clientMongoOperator = BeanUtil.getBean(ClientMongoOperator.class);
 		String url;
@@ -282,6 +283,8 @@ public class TapTableMap<K extends String, V extends TapTable> extends HashMap<K
 			query = Query.query(where("qualified_name").is(qualifiedName));
 			tapTable = clientMongoOperator.findOne(query, url, TapTable.class);
 		}
+		if (null == tapTable) return null;
+
 		LinkedHashMap<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
 		if (MapUtils.isNotEmpty(nameFieldMap)) {
 			LinkedHashMap<String, TapField> sortedFieldMap = new LinkedHashMap<>();
@@ -331,8 +334,12 @@ public class TapTableMap<K extends String, V extends TapTable> extends HashMap<K
 	}
 
 	public void reset() {
-		EhcacheService.getInstance().getEhcacheKVMap(mapKey).reset();
-		EhcacheService.getInstance().removeEhcacheKVMap(mapKey);
+		EhcacheService ehcacheService = EhcacheService.getInstance();
+		if (StringUtils.isNotBlank(mapKey)) {
+			EhcacheKVMap<Object> ehcacheKVMap = ehcacheService.getEhcacheKVMap(mapKey);
+			Optional.ofNullable(ehcacheKVMap).ifPresent(EhcacheKVMap::reset);
+			ehcacheService.removeEhcacheKVMap(mapKey);
+		}
 		this.tableNameAndQualifiedNameMap.clear();
 	}
 }

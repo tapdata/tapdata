@@ -383,8 +383,9 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 	}
 
 	private boolean executeCreateTableFunction(TapCreateTableEvent tapCreateTableEvent) {
-		TapTable table = tapCreateTableEvent.getTable();
-		createTable(table);
+		String tgtTableName = getTgtTableNameFromTapEvent(tapCreateTableEvent);
+		TapTable tgtTapTable = dataProcessorContext.getTapTableMap().get(tgtTableName);
+		createTable(tgtTapTable);
 		return true;
 	}
 
@@ -422,7 +423,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 										throw new RuntimeException("Write record failed, will stop task");
 									}
 									if (writeRecordFuncAspect != null && writeRecordFuncAspect.getConsumer() != null)
-										writeRecordFuncAspect.getConsumer().accept(writeListResult);
+										writeRecordFuncAspect.getConsumer().accept(tapRecordEvents, writeListResult);
 									timeCostAvg.add(events.size(), System.currentTimeMillis() - start);
 									resetInsertedCounter.inc(writeListResult.getInsertedCount());
 									insertedCounter.inc(writeListResult.getInsertedCount());

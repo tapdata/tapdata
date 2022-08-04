@@ -20,10 +20,7 @@ import lombok.ToString;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.List;
+import java.util.*;
 import java.util.stream.Collectors;
 
 import static com.tapdata.tm.commons.base.convert.ObjectIdDeserialize.toObjectId;
@@ -149,6 +146,9 @@ public class TableNode extends DataNode {
     /** redis 键前缀 */
     @EqField
     private String redisKeyPrefix;
+
+
+    private Map<String, Object> nodeConfig;
 
     public TableNode() {
         super("table");

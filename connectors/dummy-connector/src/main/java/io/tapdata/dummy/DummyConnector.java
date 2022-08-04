@@ -168,7 +168,7 @@ public class DummyConnector extends ConnectorBase {
                         if (!rate.addReturn()) return;
                         batchConsumer.accept(builder.generateUpdateRecordEvent(table, insertAfter));
                     }
-                    if (operators.contains(RecordOperators.Update)) {
+                    if (operators.contains(RecordOperators.Delete)) {
                         if (!rate.addReturn()) return;
                         batchConsumer.accept(builder.generateDeleteRecordEvent(table, insertAfter));
                     }

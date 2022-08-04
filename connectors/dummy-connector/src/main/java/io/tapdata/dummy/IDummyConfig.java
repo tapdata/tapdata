@@ -92,7 +92,7 @@ public interface IDummyConfig {
         }
 
         if (HeartbeatDummyConfig.isHeartbeat(config)) {
-            return new HeartbeatDummyConfig(connectionContext.getId(), config);
+            return new HeartbeatDummyConfig(config);
         } else {
             return new DummyConfig(config);
         }
