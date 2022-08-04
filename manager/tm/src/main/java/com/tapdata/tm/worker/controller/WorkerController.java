@@ -2,8 +2,13 @@ package com.tapdata.tm.worker.controller;
 
 import com.google.gson.reflect.TypeToken;
 import com.tapdata.manager.common.utils.JsonUtil;
+import com.tapdata.manager.common.utils.StringUtils;
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.*;
+import com.tapdata.tm.config.security.UserDetail;
+import com.tapdata.tm.userLog.constant.Modular;
+import com.tapdata.tm.userLog.service.UserLogService;
+import com.tapdata.tm.utils.MapUtils;
 import com.tapdata.tm.utils.MongoUtils;
 import com.tapdata.tm.worker.dto.WorkerDto;
 import com.tapdata.tm.worker.dto.WorkerProcessInfoDto;
@@ -30,9 +35,11 @@ import java.util.Map;
 @RequestMapping("/api/Workers")
 public class WorkerController extends BaseController {
 
+    private final UserLogService userLogService;
     private WorkerService workerService;
-    public WorkerController(WorkerService workerService) {
+    public WorkerController(WorkerService workerService, UserLogService userLogService) {
         this.workerService = workerService;
+        this.userLogService = userLogService;
     }
 
     /**
@@ -263,6 +270,9 @@ public class WorkerController extends BaseController {
     @Operation(summary = "Update instances of the model matched by {{where}} from the data source")
     @PostMapping("update")
     public ResponseMessage<Map<String, Long>> updateByWhere(@RequestParam("where") String whereJson, @RequestBody String reqBody) {
+
+        UserDetail userDetail = getLoginUser();
+
         Where where = parseWhere(whereJson);
         Document update = Document.parse(reqBody);
         if (update.containsKey("$set") && update.get("$set") instanceof Document) {
@@ -271,10 +281,31 @@ public class WorkerController extends BaseController {
             }
         }
 
+        com.tapdata.tm.userLog.constant.Operation operation = null;
+
         if (update.containsKey("isDeleted") && update.getBoolean("isDeleted")) {
             update.put("ping_time", 0L);
+            operation = com.tapdata.tm.userLog.constant.Operation.DELETE;
         }else if (update.containsKey("stopping") && update.getBoolean("stopping")){
             update.put("ping_time", System.currentTimeMillis() - 1000 * 60 * 5);
+            operation = com.tapdata.tm.userLog.constant.Operation.STOP;
+        }
+        boolean isTcmRequest = update.containsKey("isTCM") && update.getBoolean("isTCM");
+        if (isTcmRequest) {
+            try {
+                Filter filter = new Filter();
+                filter.setWhere(where);
+
+                WorkerDto worker = workerService.findOne(filter, userDetail);
+                if (worker != null && worker.getTcmInfo() != null) {
+                    userLogService.addUserLog(
+                            Modular.AGENT, operation,
+                            userDetail, worker.getTcmInfo().getAgentName());
+                }
+            } catch (Exception e) {
+                // Ignore record agent operation log error
+                log.error("Record update worker operation fail", e);
+            }
         }
 
         if (!update.containsKey("$set") && !update.containsKey("$setOnInsert") && !update.containsKey("$unset")) {
@@ -283,7 +314,7 @@ public class WorkerController extends BaseController {
             update = _body;
         }
 
-        long count = workerService.updateByWhere(where, update, getLoginUser());
+        long count = workerService.updateByWhere(where, update, userDetail);
         /*if (reqBody.contains("\"$set\"") || reqBody.contains("\"$setOnInsert\"") || reqBody.contains("\"$unset\"")) {
             UpdateDto<WorkerDto> updateDto = JsonUtil.parseJsonUseJackson(reqBody, new TypeReference<UpdateDto<WorkerDto>>(){});
 

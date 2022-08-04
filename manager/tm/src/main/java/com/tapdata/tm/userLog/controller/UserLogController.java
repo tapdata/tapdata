@@ -36,7 +36,7 @@ public class UserLogController extends BaseController {
         if (filter == null) {
             filter = new Filter();
         }
-        return success(userLogService.find(filter));
+        return success(userLogService.find(filter, getLoginUser()));
     }
 
     @Operation(summary = "添加操作日志")

@@ -24,6 +24,8 @@ import com.tapdata.tm.inspect.dto.InspectDto;
 import com.tapdata.tm.scheduleTasks.dto.ScheduleTasksDto;
 import com.tapdata.tm.scheduleTasks.service.ScheduleTasksService;
 import com.tapdata.tm.user.service.UserService;
+import com.tapdata.tm.userLog.constant.Modular;
+import com.tapdata.tm.userLog.constant.Operation;
 import com.tapdata.tm.userLog.service.UserLogService;
 import com.tapdata.tm.worker.dto.WorkerDto;
 import com.tapdata.tm.worker.dto.WorkerProcessInfoDto;
@@ -164,7 +166,16 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
 
         workerDto.setTmUserId(loginUser.getUserId());
 
-        //userLogService.addUserLog(Modular);
+        try {
+            String agentName = "";
+            if (workerDto.getTcmInfo() != null && StringUtils.isNotBlank(workerDto.getTcmInfo().getAgentName())) {
+                agentName = workerDto.getTcmInfo().getAgentName();
+            }
+            userLogService.addUserLog(Modular.AGENT, Operation.CREATE, loginUser, agentName);
+        } catch (Exception e) {
+            // Ignore record agent operation log error
+            log.error("Record create worker operation fail", e);
+        }
 
         return workerDto;
     }

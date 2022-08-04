@@ -61,10 +61,10 @@ public class ClusterStateServiceAop {
     @After("updateAgentPointcut()")
     public Object afterUpdateAgentPointcut(JoinPoint joinPoint) {
         if (!shouldRecord()) {
-            log.info("不是来自用户操作");
+            //log.info("不是来自用户操作");
             return null;
         }
-        log.info("点击agent 自动升级");
+        log.debug("点击agent 自动升级");
         Object[] args = joinPoint.getArgs();
         UpdateAgentVersionParam updateAgentVersionParam = (UpdateAgentVersionParam) args[0];
         UserDetail userDetail = (UserDetail) args[1];
@@ -79,9 +79,6 @@ public class ClusterStateServiceAop {
     private Boolean shouldRecord() {
         ServletRequestAttributes attributes = (ServletRequestAttributes) RequestContextHolder.currentRequestAttributes();
         HttpServletRequest request = attributes.getRequest();
-        if (null == request) {
-            return false;
-        }
         String userAgent = request.getHeader("User-Agent");
         if (StringUtils.isNotEmpty(userAgent) && (userAgent.contains("Java") || userAgent.contains("java") || userAgent.contains("nodejs"))) {
             return false;

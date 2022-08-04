@@ -166,7 +166,8 @@ public class UserLogService extends BaseService {
             userLogs.setLastUpdAt(new Date());
             userLogs.setLastUpdBy(userDetail.getUsername());
             userLogs.setRename(rename);
-            userLogRepository.getMongoOperations().insert(userLogs);
+            //userLogRepository.getMongoOperations().insert(userLogs);
+            userLogRepository.insert(userLogs, userDetail);
 
         } catch (Exception e) {
             log.error("执行插入操作日志失败", e);

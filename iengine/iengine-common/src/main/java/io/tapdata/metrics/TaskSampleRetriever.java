@@ -1,5 +1,6 @@
 package io.tapdata.metrics;
 
+import com.tapdata.constant.BeanUtil;
 import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.mongo.RestTemplateOperator;
 
@@ -31,7 +32,8 @@ public class TaskSampleRetriever {
 
 	public Map<String, Number> retrieve(Map<String, String> tags, List<String> fields) {
 		if (operator == null) {
-			throw new RuntimeException("TaskSampleRetriever should be call start() first.");
+			operator = BeanUtil.getBean(RestTemplateOperator.class);
+			//throw new RuntimeException("TaskSampleRetriever should be call start() first.");
 		}
 		Map<String, Object> request = new HashMap<>();
 		request.put("samples", new ArrayList<Map<String, Object>>() {{
