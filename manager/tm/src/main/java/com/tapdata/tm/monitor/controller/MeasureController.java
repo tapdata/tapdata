@@ -11,6 +11,7 @@ import com.tapdata.tm.monitor.dto.TransmitTotalVo;
 import com.tapdata.tm.monitor.param.AggregateMeasurementParam;
 import com.tapdata.tm.monitor.param.MeasurementQueryParam;
 import com.tapdata.tm.monitor.service.MeasurementService;
+import com.tapdata.tm.monitor.service.MeasurementServiceV2;
 import com.tapdata.tm.monitor.vo.GetMeasurementVo;
 import com.tapdata.tm.monitor.vo.GetStaticVo;
 import com.tapdata.tm.monitor.vo.QueryMeasurementVo;
@@ -32,6 +33,9 @@ public class MeasureController extends BaseController {
     @Autowired
     MeasurementService measurementService;
 
+    @Autowired
+    MeasurementServiceV2 measurementServiceV2;
+
     @PostMapping("points")
     public ResponseMessage points(@RequestBody BulkRequest bulkRequest) {
         log.info("MeasureController-- {}", JsonUtil.toJson(bulkRequest));
@@ -43,6 +47,22 @@ public class MeasureController extends BaseController {
             }
             if (CollectionUtils.isNotEmpty(statistics)) {
                 measurementService.addAgentStatistics(statistics);
+            }
+        } catch (Exception e) {
+            log.error("添加秒点异常", e);
+            return failed("添加秒点异常");
+        }
+        return success();
+    }
+
+    @PostMapping("points/v2")
+    public ResponseMessage pointsV2(@RequestBody BulkRequest bulkRequest) {
+        log.info("MeasureController-- {}", JsonUtil.toJson(bulkRequest));
+        try {
+            List samples = bulkRequest.getSamples();
+            List statistics = bulkRequest.getStatistics();
+            if (CollectionUtils.isNotEmpty(samples)) {
+                measurementServiceV2.addAgentMeasurement(samples);
             }
         } catch (Exception e) {
             log.error("添加秒点异常", e);
@@ -107,7 +127,7 @@ public class MeasureController extends BaseController {
     @PostMapping("points/aggregate")
     public ResponseMessage pointsAggregate(@RequestBody AggregateMeasurementParam aggregateMeasurementParam) {
         try {
-            measurementService.aggregateMeasurement(aggregateMeasurementParam);
+            measurementServiceV2.aggregateMeasurement(aggregateMeasurementParam);
             return success();
         } catch (Exception e) {
             e.printStackTrace();
@@ -118,7 +138,7 @@ public class MeasureController extends BaseController {
     @PostMapping("query/v2")
     public ResponseMessage queryV2(@RequestBody MeasurementQueryParam measurementQueryParam) {
         try {
-            Object data = measurementService.getSamples(measurementQueryParam);
+            Object data = measurementServiceV2.getSamples(measurementQueryParam);
             return success(data);
         } catch (Exception e) {
             e.printStackTrace();
