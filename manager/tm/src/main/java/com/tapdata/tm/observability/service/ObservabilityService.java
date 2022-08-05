@@ -3,7 +3,6 @@ package com.tapdata.tm.observability.service;
 import com.tapdata.tm.observability.dto.BatchRequestDto;
 import com.tapdata.tm.observability.vo.BatchResponeVo;
 
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 
 public interface ObservabilityService {

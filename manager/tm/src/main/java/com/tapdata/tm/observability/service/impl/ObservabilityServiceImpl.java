@@ -9,21 +9,29 @@ import com.tapdata.tm.observability.dto.BatchUriParamDto;
 import com.tapdata.tm.observability.service.ObservabilityService;
 import com.tapdata.tm.observability.vo.BatchDataVo;
 import com.tapdata.tm.observability.vo.BatchResponeVo;
+import io.tapdata.common.executor.ExecutorsManager;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @Service
 @Slf4j
 public class ObservabilityServiceImpl implements ObservabilityService {
+
+    private static final ScheduledExecutorService scheduler = ExecutorsManager.getInstance().getScheduledExecutorService();
+
     @Override
     public BatchResponeVo batch(BatchRequestDto batchRequestDto) throws ExecutionException, InterruptedException {
 
@@ -58,17 +66,33 @@ public class ObservabilityServiceImpl implements ObservabilityService {
                     result.put(k, new BatchDataVo("SystemError", e.getCause().getMessage(), null));
                     return result;
                 }
-            });
+            }, scheduler);
 
-            futuresList.add(query);
+            final CompletableFuture<BatchResponeVo> chains = within(query, Duration.ofSeconds(10), k);
+            futuresList.add(chains);
         });
         CompletableFuture<Void> allCompletableFuture = CompletableFuture.allOf(futuresList.toArray(new CompletableFuture[0]));
 
         BatchResponeVo result = new BatchResponeVo();
-        allCompletableFuture.thenApply(v ->
-                futuresList.stream().map(CompletableFuture::join).collect(Collectors.toList())).get().
-                forEach(result::putAll);
-
+        allCompletableFuture.thenApply(v -> futuresList.stream().map(CompletableFuture::join).collect(Collectors.toList()))
+                .get()
+                .forEach(result::putAll);
         return result;
+    }
+
+    public CompletableFuture<BatchResponeVo> failAfter(Duration duration, String key){
+        /// need a schedular executor
+        final CompletableFuture<BatchResponeVo> timer = new CompletableFuture<>();
+        scheduler.schedule(()->{
+            return timer.complete(new BatchResponeVo() {{
+                put(key, new BatchDataVo("SystemError", "method excute timeout 1s", null));
+            }});
+        },duration.toMillis(), TimeUnit.MILLISECONDS);
+        return timer;
+    }
+
+    public CompletableFuture<BatchResponeVo> within(CompletableFuture<BatchResponeVo> taskFuture, Duration duration, String key){
+        CompletableFuture<BatchResponeVo> timeoutWatcher = failAfter(duration, key);
+        return taskFuture.applyToEither(timeoutWatcher, Function.identity());
     }
 }
