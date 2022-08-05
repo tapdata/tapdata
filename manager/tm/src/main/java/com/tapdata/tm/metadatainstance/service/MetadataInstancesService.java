@@ -850,18 +850,23 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
             List<String> findQualifiedNames = new ArrayList<>();
             Map<String, MetadataInstancesDto> metaMap = new HashMap<>();
             for (MetadataInstancesDto value : updateMetaMap.values()) {
-                String qualifiedName = value.getQualifiedName();
-                int i = qualifiedName.lastIndexOf("_");
-                String oldQualifiedName = qualifiedName.substring(0, i);
-                value.setQualifiedName(oldQualifiedName);
-                qualifiedNames.add(oldQualifiedName);
-                findQualifiedNames.add(oldQualifiedName);
-                Criteria criteria = Criteria.where("qualified_name").in(findQualifiedNames);
-                Query query = new Query(criteria);
-                query.fields().exclude("histories");
-                List<MetadataInstancesDto> metadataInstancesDtos = findAllDto(query, userDetail);
-                metaMap = metadataInstancesDtos.stream().collect(Collectors.toMap(m -> m.getId().toHexString(), m -> m));
+                if (saveHistory) {
+                    String qualifiedName = value.getQualifiedName();
+                    int i = qualifiedName.lastIndexOf("_");
+                    String oldQualifiedName = qualifiedName.substring(0, i);
+                    value.setQualifiedName(oldQualifiedName);
+                    qualifiedNames.add(oldQualifiedName);
+                    findQualifiedNames.add(oldQualifiedName);
+                } else {
+                    qualifiedNames.add(value.getQualifiedName());
+                    findQualifiedNames.add(value.getQualifiedName());
+                }
             }
+            Criteria criteria = Criteria.where("qualified_name").in(findQualifiedNames);
+            Query query = new Query(criteria);
+            query.fields().exclude("histories");
+            List<MetadataInstancesDto> metadataInstancesDtos = findAllDto(query, userDetail);
+            metaMap = metadataInstancesDtos.stream().collect(Collectors.toMap(m -> m.getId().toHexString(), m -> m));
 
             for (Map.Entry<String, MetadataInstancesDto> entry : updateMetaMap.entrySet()) {
                 MetadataInstancesDto value = entry.getValue();
