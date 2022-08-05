@@ -16,7 +16,7 @@ public class ApplicationStartAspectHandler implements AspectObserver<Application
     @Override
     public void observe(ApplicationStartAspect aspect) {
         ClientMongoOperator clientMongoOperator = BeanUtil.getBean(ClientMongoOperator.class);
-        CollectorFactory.getInstance().start(new TaskSampleReporter(clientMongoOperator));
+        CollectorFactory.getInstance("v2").start(new TaskSampleReporter(clientMongoOperator));
         RestTemplateOperator restTemplateOperator = BeanUtil.getBean(RestTemplateOperator.class);
         TaskSampleRetriever.getInstance().start(restTemplateOperator);
     }

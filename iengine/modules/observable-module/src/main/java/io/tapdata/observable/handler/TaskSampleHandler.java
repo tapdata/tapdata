@@ -63,7 +63,7 @@ public class TaskSampleHandler extends AbstractHandler {
                 "outputInsertTotal", "outputUpdateTotal", "outputDeleteTotal", "outputDdlTotal", "outputOthersTotal"
         ));
 
-        collector = CollectorFactory.getInstance().getSampleCollectorByTags("taskSamplers", tags);
+        collector = CollectorFactory.getInstance("v2").getSampleCollectorByTags("taskSamplers", tags);
 
         collector.addSampler("tableTotal", taskTables::size);
 
@@ -110,15 +110,15 @@ public class TaskSampleHandler extends AbstractHandler {
         collector.addSampler("snapshotDoneAt", () -> snapshotDoneAt);
 
         // cache the initial sample value
-        CollectorFactory.getInstance().recordCurrentValueByTag(tags);
+        CollectorFactory.getInstance("v2").recordCurrentValueByTag(tags);
     }
 
     public void close() {
         Optional.ofNullable(collector).ifPresent(collector -> {
             Map<String, String> tags = collector.tags();
             // cache the last sample value
-            CollectorFactory.getInstance().recordCurrentValueByTag(tags);
-            CollectorFactory.getInstance().removeSampleCollectorByTags(tags);
+            CollectorFactory.getInstance("v2").recordCurrentValueByTag(tags);
+            CollectorFactory.getInstance("v2").removeSampleCollectorByTags(tags);
         });
     }
 

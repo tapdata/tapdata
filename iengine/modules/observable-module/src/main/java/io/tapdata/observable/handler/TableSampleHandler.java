@@ -66,7 +66,7 @@ public class TableSampleHandler extends AbstractHandler {
 
         Map<String, Number> values = tableValues.getOrDefault(table, new HashMap<>());
         Map<String, String> tags = tableTags(table);
-        SampleCollector collector = CollectorFactory.getInstance().getSampleCollectorByTags("tableSamplers", tags);
+        SampleCollector collector = CollectorFactory.getInstance("v2").getSampleCollectorByTags("tableSamplers", tags);
         collectors.putIfAbsent(nodeId, new HashMap<>());
         collectors.get(nodeId).put(table, collector);
 
@@ -78,7 +78,7 @@ public class TableSampleHandler extends AbstractHandler {
                 values.getOrDefault("snapshotInsertTotal", 0).longValue()));
 
         // cache the initial sample value
-        CollectorFactory.getInstance().recordCurrentValueByTag(tags);
+        CollectorFactory.getInstance("v2").recordCurrentValueByTag(tags);
     }
 
     public void close(Node<?> node) {
@@ -90,8 +90,8 @@ public class TableSampleHandler extends AbstractHandler {
         for(SampleCollector collector : tableCollectors.values()) {
             Map<String, String> tags = collector.tags();
             // cache the last sample value
-            CollectorFactory.getInstance().recordCurrentValueByTag(tags);
-            CollectorFactory.getInstance().removeSampleCollectorByTags(tags);
+            CollectorFactory.getInstance("v2").recordCurrentValueByTag(tags);
+            CollectorFactory.getInstance("v2").removeSampleCollectorByTags(tags);
         }
     }
 
