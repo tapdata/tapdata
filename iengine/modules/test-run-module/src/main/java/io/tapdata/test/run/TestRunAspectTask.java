@@ -63,7 +63,7 @@ public class TestRunAspectTask extends AspectTask {
            * {"before":[{}], "after":[{}]}
            */
           resultMap.computeIfAbsent("before", key -> new ArrayList<>()).add(transformFromTapValue(inputEvent));
-          processAspect.setConsumer(outputEvent ->
+          processAspect.consumer(outputEvent ->
                   resultMap.computeIfAbsent("after", key -> new ArrayList<>()).add(transformFromTapValue(outputEvent)));
         }
         break;

@@ -16,20 +16,20 @@ import java.util.concurrent.locks.ReentrantLock;
 
 public class MapdbCacheService extends AbstractCacheService {
 
-	private final Map<String, DB> dbMap;
+  private final Map<String, DB> dbMap;
 
-	public MapdbCacheService(ClientMongoOperator clientMongoOperator) {
-		super(clientMongoOperator);
-		this.dbMap = new ConcurrentHashMap<>();
-		super.cacheStatusMap = new ConcurrentHashMap<>();
-	}
+  public MapdbCacheService(ClientMongoOperator clientMongoOperator) {
+    super(clientMongoOperator);
+    this.dbMap = new ConcurrentHashMap<>();
+    super.cacheStatusMap = new ConcurrentHashMap<>();
+  }
 
-	@Override
-	protected Lock getCacheStatusLockInstance(String cacheName) {
-		return new ReentrantLock();
-	}
+  @Override
+  protected Lock getCacheStatusLockInstance(String cacheName) {
+    return new ReentrantLock();
+  }
 
-	private DB getDB(String cacheName) {
+  private DB getDB(String cacheName) {
 //    String tapdataWorkDir = System.getenv("TAPDATA_WORK_DIR");
 //    Path cachePath = Paths.get(tapdataWorkDir, "cache", cacheName);
 //    try {
@@ -50,29 +50,29 @@ public class MapdbCacheService extends AbstractCacheService {
 //      .fileDeleteAfterClose()
 ////      .cleanerHackEnable()
 //      .make();
-		return dbMap.computeIfAbsent(cacheName, f -> DBMaker.memoryDB().executorEnable().closeOnJvmShutdown().make());
-	}
+    return dbMap.computeIfAbsent(cacheName, f -> DBMaker.memoryDB().executorEnable().closeOnJvmShutdown().make());
+  }
 
-	@Override
-	public void registerCache(DataFlowCacheConfig cacheConfig) {
-		super.registerCache(cacheConfig);
-		String cacheName = cacheConfig.getCacheName();
-		this.dbMap.put(cacheName, getDB(cacheName));
-	}
+  @Override
+  public void registerCache(DataFlowCacheConfig cacheConfig) {
+    super.registerCache(cacheConfig);
+    String cacheName = cacheConfig.getCacheName();
+    this.dbMap.put(cacheName, getDB(cacheName));
+  }
 
-	@Override
-	protected ICacheGetter getCacheGetterInstance(String cacheName) {
-		return new MapdbCacheGetter(getConfig(cacheName), getCacheStore(cacheName), getCacheStats(cacheName), null);
-	}
+  @Override
+  protected ICacheGetter getCacheGetterInstance(String cacheName) {
+    return new MapdbCacheGetter(getConfig(cacheName), getCacheStore(cacheName), getCacheStats(cacheName), null);
+  }
 
-	@Override
-	protected ICacheStats getCacheStats(String cacheName) {
-		return super.getCacheStatsMap().computeIfAbsent(cacheName, f -> new MapdbCacheStats());
-	}
+  @Override
+  protected ICacheStats getCacheStats(String cacheName) {
+    return super.getCacheStatsMap().computeIfAbsent(cacheName, f -> new MapdbCacheStats());
+  }
 
-	@Override
-	protected ICacheStore getCacheStore(String cacheName) {
-		return super.getCacheStoreMap().computeIfAbsent(cacheName, f -> new MapdbCacheStore(getConfig(cacheName), dbMap.get(cacheName)));
-	}
+  @Override
+  protected ICacheStore getCacheStore(String cacheName) {
+    return super.getCacheStoreMap().computeIfAbsent(cacheName, f -> new MapdbCacheStore(getConfig(cacheName), dbMap.get(cacheName)));
+  }
 
 }

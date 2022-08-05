@@ -10,6 +10,7 @@ import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
 import io.tapdata.aspect.*;
+import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.ddl.TapDDLEvent;
 import io.tapdata.entity.event.ddl.index.TapCreateIndexEvent;
@@ -422,8 +423,10 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 										}
 										throw new RuntimeException("Write record failed, will stop task");
 									}
-									if (writeRecordFuncAspect != null && writeRecordFuncAspect.getConsumer() != null)
-										writeRecordFuncAspect.getConsumer().accept(tapRecordEvents, writeListResult);
+
+									if (writeRecordFuncAspect != null)
+										AspectUtils.accept(writeRecordFuncAspect.state(WriteRecordFuncAspect.STATE_WRITING).getConsumers(), tapRecordEvents, writeListResult);
+
 									timeCostAvg.add(events.size(), System.currentTimeMillis() - start);
 									resetInsertedCounter.inc(writeListResult.getInsertedCount());
 									insertedCounter.inc(writeListResult.getInsertedCount());

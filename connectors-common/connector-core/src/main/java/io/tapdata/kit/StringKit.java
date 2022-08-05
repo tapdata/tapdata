@@ -176,4 +176,11 @@ public class StringKit {
         }
         return false;
     }
+
+    public static int indexOf(String str, String searchStr) {
+        if (EmptyKit.isNotBlank(str) && EmptyKit.isNotBlank(searchStr)) {
+            return str.indexOf(searchStr);
+        }
+        return -1;
+    }
 }

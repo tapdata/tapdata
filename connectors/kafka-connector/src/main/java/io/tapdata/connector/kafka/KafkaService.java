@@ -31,10 +31,7 @@ import org.apache.kafka.common.header.internals.RecordHeaders;
 
 import java.time.Duration;
 import java.util.*;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.CopyOnWriteArraySet;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.Executors;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
@@ -47,9 +44,11 @@ public class KafkaService extends AbstractMqService {
     private static final JsonParser jsonParser = InstanceFactory.instance(JsonParser.class);
     private final KafkaConfig kafkaConfig;
     private String connectorId;
+    private ExecutorService produceService;
 
     public KafkaService(KafkaConfig kafkaConfig) {
         this.kafkaConfig = kafkaConfig;
+        produceService = Executors.newFixedThreadPool(concurrency);
     }
 
     public void setConnectorId(String connectorId) {
@@ -194,9 +193,8 @@ public class KafkaService extends AbstractMqService {
         AtomicLong delete = new AtomicLong(0);
         WriteListResult<TapRecordEvent> listResult = new WriteListResult<>();
         List<List<TapRecordEvent>> subEventLists = Lists.partition(tapRecordEvents, (tapRecordEvents.size() - 1) / concurrency + 1);
-        CountDownLatch countDownLatch = new CountDownLatch(subEventLists.size());
-        executorService = Executors.newFixedThreadPool(subEventLists.size());
-        subEventLists.forEach(subEventList -> executorService.submit(() -> {
+        CountDownLatch countDownLatch = new CountDownLatch(concurrency);
+        subEventLists.forEach(subEventList -> produceService.submit(() -> {
             subEventList.forEach(event -> {
                 Map<String, Object> data;
                 MqOp mqOp = MqOp.INSERT;
@@ -324,5 +322,11 @@ public class KafkaService extends AbstractMqService {
                 list.add(new TapDeleteRecordEvent().init().table(tableName).before(data).referenceTime(System.currentTimeMillis()));
                 break;
         }
+    }
+
+    @Override
+    public void close() {
+        super.close();
+        produceService.shutdown();
     }
 }

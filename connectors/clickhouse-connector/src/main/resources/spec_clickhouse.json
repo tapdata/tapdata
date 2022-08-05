@@ -46,7 +46,7 @@
           "x-index": 3,
           "required": true
         },
-        "user": {
+        "username": {
           "type": "string",
           "title": "${user}",
           "x-decorator": "FormItem",

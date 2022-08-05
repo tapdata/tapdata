@@ -59,9 +59,11 @@ public class AspectTest {
 		assertEquals(1, testSampleTask.onStartCounter.intValue());
 		assertEquals(0, testSampleTask.onStopCounter.intValue());
 
+		ProcessorBaseContext processorBaseContext = ProcessorBaseContext.newBuilder().withSubTaskDto(subTaskDto).build();
+
 		TapdataEvent event = new TapdataEvent();
 		event.setTapEvent(insertRecordEvent(map(entry("aa", 1)), "table1"));
-		ProcessorNodeProcessAspect processorNodeProcessAspect = new ProcessorNodeProcessAspect().state(ProcessorFunctionAspect.STATE_START).inputEvent(event);
+		ProcessorNodeProcessAspect processorNodeProcessAspect = new ProcessorNodeProcessAspect().processorBaseContext(processorBaseContext).state(ProcessorFunctionAspect.STATE_START).inputEvent(event);
 		aspectManager.executeAspect(processorNodeProcessAspect);
 		assertNotNull(testSampleTask.nodeProcessAspect);
 		assertEquals("table1", ((TapInsertRecordEvent)testSampleTask.nodeProcessAspect.getInputEvent().getTapEvent()).getTableId());
