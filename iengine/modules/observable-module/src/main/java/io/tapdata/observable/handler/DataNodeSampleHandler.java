@@ -71,7 +71,7 @@ public class DataNodeSampleHandler extends AbstractNodeSampleHandler {
                 "currentEventTimestamp", "createTableTotal"
         ));
         String nodeId = node.getId();
-        SampleCollector collector = CollectorFactory.getInstance().getSampleCollectorByTags("nodeSamplers", tags);
+        SampleCollector collector = CollectorFactory.getInstance("v2").getSampleCollectorByTags("nodeSamplers", tags);
         collectors.put(nodeId, collector);
 
         // table samples for node
@@ -124,7 +124,7 @@ public class DataNodeSampleHandler extends AbstractNodeSampleHandler {
         }
 
         // cache the initial sample value
-        CollectorFactory.getInstance().recordCurrentValueByTag(tags);
+        CollectorFactory.getInstance("v2").recordCurrentValueByTag(tags);
 
     }
 
@@ -133,8 +133,8 @@ public class DataNodeSampleHandler extends AbstractNodeSampleHandler {
         Optional.ofNullable(collectors.get(nodeId)).ifPresent(collector -> {
             Map<String, String> tags = collector.tags();
             // cache the last sample value
-            CollectorFactory.getInstance().recordCurrentValueByTag(tags);
-            CollectorFactory.getInstance().removeSampleCollectorByTags(tags);
+            CollectorFactory.getInstance("v2").recordCurrentValueByTag(tags);
+            CollectorFactory.getInstance("v2").removeSampleCollectorByTags(tags);
         });
     }
 
