@@ -138,6 +138,32 @@ public class HazelcastTaskTarget extends HazelcastBaseNode {
 		}
 	}
 
+	@Override
+	protected void initSampleCollector() {
+		super.initSampleCollector();
+
+		statisticCollector.addSampler("replicateLag", () -> {
+			Long ts = null;
+			for (String progress : syncProgressMap.values()) {
+				try {
+					SyncProgress process = JSONUtil.json2POJO(progress, SyncProgress.class);
+					if (null == process) {
+						continue;
+					}
+					if (null == ts || ts > process.getEventTime()) {
+						ts = process.getEventTime();
+					}
+				} catch (IOException e) {
+				}
+			}
+
+			// TODO(dexter): use db time to minus the  event time will be more accurate, will break when:
+			//  1. db time has gap with tapdata agent host time;
+			//  2. some db unlike mongo wont flash last event time, this will cause replicate greater than the actual value;
+			return ts == null ? 0 : System.currentTimeMillis() - ts;
+		});
+	}
+
 	/**
 	 * Implements the boilerplate of dispatching against the ordinal,
 	 * taking items from the inbox one by one, and invoking the
