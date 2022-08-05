@@ -205,7 +205,7 @@ public class HazelcastTaskService implements TaskService<SubTaskDto> {
 							node.getId(), node.getName()));
 				}
 
-				if (node.isDataNode() || node.isLogCollectorNode()) {
+				if (node instanceof TableNode || node instanceof DatabaseNode || node.isLogCollectorNode()) {
 					String connectionId = null;
 					if (node instanceof DataNode) {
 						connectionId = ((DataNode) node).getConnectionId();

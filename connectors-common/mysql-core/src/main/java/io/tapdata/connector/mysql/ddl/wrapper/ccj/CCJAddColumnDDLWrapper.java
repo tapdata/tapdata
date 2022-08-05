@@ -2,11 +2,11 @@ package io.tapdata.connector.mysql.ddl.wrapper.ccj;
 
 import io.tapdata.entity.event.ddl.TapDDLEvent;
 import io.tapdata.entity.event.ddl.table.TapNewFieldEvent;
+import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.cache.KVReadOnlyMap;
 import io.tapdata.pdk.apis.entity.Capability;
-import io.tapdata.pdk.apis.entity.ConnectionOptions;
 import net.sf.jsqlparser.statement.alter.Alter;
 import net.sf.jsqlparser.statement.alter.AlterExpression;
 import net.sf.jsqlparser.statement.alter.AlterOperation;
@@ -41,6 +41,9 @@ public class CCJAddColumnDDLWrapper extends CCJBaseDDLWrapper {
 				continue;
 			}
 			List<AlterExpression.ColumnDataType> colDataTypeList = alterExpression.getColDataTypeList();
+			if (null == colDataTypeList) {
+				continue;
+			}
 			TapNewFieldEvent tapNewFieldEvent = new TapNewFieldEvent();
 			tapNewFieldEvent.setTableId(tableName);
 			for (AlterExpression.ColumnDataType columnDataType : colDataTypeList) {

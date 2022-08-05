@@ -1247,4 +1247,31 @@ class TargetTypesGeneratorTest {
 
     }
 
+    @Test
+    public void pgVarcharToDB2ClobTest() {
+
+        String sourceTypeExpression = "{" +
+                "\"character varying[($byte)]\": {\"byte\": 10485760,\"priority\": 1,\"defaultByte\": 10485760,\"preferByte\": 2000,\"to\": \"TapString\"}" +
+                "}";
+
+        String targetTypeExpression = "{\n" +
+//                "\"int unsigned\": {\"to\": \"TapNumber\",\"byte\": 32,\"value\": [\"0\", \"4294967295\"]}," +
+                "\"CLOB[($byte)]\": {\"byte\": \"2147483647\",\"pkEnablement\": false,\"defaultByte\": 1048576,\"priority\": 2,\"to\": \"TapString\"}," +
+                "\"VARCHAR($byte)\": {\"byte\": 32672,\"priority\": 1,\"preferByte\": 2000,\"to\": \"TapString\"}" +
+                "}";
+
+        TapTable sourceTable = table("test");
+        sourceTable
+                .add(field("character varying(200)", "character varying(200)"))
+        ;
+        tableFieldTypesGenerator.autoFill(sourceTable.getNameFieldMap(), DefaultExpressionMatchingMap.map(sourceTypeExpression));
+        TapResult<LinkedHashMap<String, TapField>> tapResult = targetTypesGenerator.convert(sourceTable.getNameFieldMap(), DefaultExpressionMatchingMap.map(targetTypeExpression), targetCodecFilterManager);
+
+        LinkedHashMap<String, TapField> nameFieldMap = tapResult.getData();
+
+
+        TapField characterVarying_200 = nameFieldMap.get("character varying(200)");
+        assertEquals("VARCHAR(200)", characterVarying_200.getDataType());
+
+    }
 }
