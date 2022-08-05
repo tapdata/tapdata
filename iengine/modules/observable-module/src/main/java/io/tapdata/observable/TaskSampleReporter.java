@@ -31,7 +31,7 @@ public class TaskSampleReporter implements BulkReporter {
         }
 
         try {
-            operator.insertOne(bulkRequest, ConnectorConstant.SAMPLE_STATISTIC_COLLECTION + "/points");
+            operator.insertOne(bulkRequest, ConnectorConstant.SAMPLE_STATISTIC_COLLECTION + "/points/v2");
         } catch (Exception e) {
             logger.warn("Failed to report task samples and statistics, will retry...");
         }

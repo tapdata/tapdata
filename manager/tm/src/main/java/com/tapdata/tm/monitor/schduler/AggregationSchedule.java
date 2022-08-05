@@ -1,6 +1,6 @@
 package com.tapdata.tm.monitor.schduler;
 
-import com.tapdata.tm.monitor.constant.Granularity;
+import com.tapdata.tm.monitor.entity.MeasureLockEntity;
 import com.tapdata.tm.monitor.service.MeasureLockService;
 import com.tapdata.tm.monitor.service.MeasurementService;
 import lombok.extern.slf4j.Slf4j;
@@ -9,56 +9,62 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 import java.lang.management.ManagementFactory;
-import java.util.Date;
-import java.util.HashMap;
 
+/**
+ * 每个小时的1分钟生成上一个小时的所有分钟点以及一天里的小时点
+ */
 @Slf4j
 @Component
 public class AggregationSchedule {
     @Autowired
     MeasureLockService measureLockService;
 
+
     @Autowired
     MeasurementService measurementService;
 
-    private final String processName = ManagementFactory.getRuntimeMXBean().getName();
+    /**
+     * @desc
+     */
+    @Scheduled(cron = "0 1 * * * ?")  //每小时的第一分钟
+    public void execute() {
+        //  获取TM进程ID
+        String processName = ManagementFactory.getRuntimeMXBean().getName();
+        log.info("获取到了锁，执行补齐上一个小时的所有分钟点");
 
-    @Scheduled(cron = "5 * * * * ?")  // xx:xx:05 at every minute
-    public void aggregateByGranularityMinute() {
-        aggregateWithLockAcquire(Granularity.GRANULARITY_MINUTE, System.currentTimeMillis());
+        Integer agentMeasurementInsertCount = measurementService.generateMinuteInHourPoint("AgentMeasurement");
+        log.info("AgentMeasurement 补充了{} 条分钟点记录", agentMeasurementInsertCount);
+
+
     }
 
 
-    @Scheduled(cron = "0 1 * * * ?")  // xx:01:00 at every hour when
-    public void aggregateByGranularityHour() {
-        aggregateWithLockAcquire(Granularity.GRANULARITY_HOUR, System.currentTimeMillis());
+    /**
+     * 补全维度是天的指标
+     */
+    @Scheduled(cron = "0 1 0 * * ?")  //每天零点一分
+    public void executeDay() {
+        String processName = ManagementFactory.getRuntimeMXBean().getName();
+        log.info("获取到了锁，执行补齐上昨天的的天点");
+
+        Integer agentMeasurementInsertCount = measurementService.generateHourInDayPoint("AgentMeasurement");
+        log.info("获取到了锁，完成补齐上昨天的的天点");
+
+
     }
 
+    /**
+     * 每月1号的凌晨一点一份执行
+     */
+    @Scheduled(cron = "0 0 0 1 * ?")  // 每月1号的凌晨0点0分执行
+    public void executeMonth() {
+        String processName = ManagementFactory.getRuntimeMXBean().getName();
+        log.info("获取到了锁，执行补齐上个月的天点");
 
-    @Scheduled(cron = "0 1 0 * * ?") // 00:00:00 at every day
-    public void aggregateByGranularityDay() {
-        aggregateWithLockAcquire(Granularity.GRANULARITY_DAY, System.currentTimeMillis());
-    }
+        Integer agentMeasurementInsertCount = measurementService.generateDayInMonthPoint("AgentMeasurement");
+        log.info("获取到了锁，完成补齐上个月的天点");
 
 
-    private void aggregateWithLockAcquire(String granularity, long current) {
-        Date date = new Date(current);
-        // get the start and end of this aggregate operation
-        long interval = Granularity.getGranularityMillisInterval(granularity);
-        long end = Granularity.calculateGranularityDate(granularity, date).getTime();
-
-        // lock with current
-        String unique = String.format("%s-%s", processName, Thread.currentThread().getId());
-        if (!measureLockService.lock(granularity, date, unique)) {
-            return;
-        }
-
-        try {
-            // execute aggregate
-            measurementService.aggregateMeasurementByGranularity(new HashMap<>(), end - interval, end, granularity);
-        } finally {
-            measureLockService.unlock(granularity, unique);
-        }
     }
 
 
