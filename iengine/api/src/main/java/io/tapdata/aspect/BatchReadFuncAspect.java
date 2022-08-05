@@ -8,11 +8,14 @@ import io.tapdata.pdk.core.utils.CommonUtils;
 import org.apache.commons.lang3.exception.ExceptionUtils;
 
 import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Consumer;
 
 public class BatchReadFuncAspect extends DataFunctionAspect<BatchReadFuncAspect> {
 	private static final String TAG = BatchReadFuncAspect.class.getSimpleName();
 	private TapConnectorContext connectorContext;
+
+	public static final int STATE_BATCHING = 10;
 
 	public BatchReadFuncAspect connectorContext(TapConnectorContext connectorContext) {
 		this.connectorContext = connectorContext;
@@ -40,16 +43,16 @@ public class BatchReadFuncAspect extends DataFunctionAspect<BatchReadFuncAspect>
 		return this;
 	}
 
-	private Consumer<List<TapdataEvent>> consumer;
+	private List<Consumer<List<TapdataEvent>>> consumers = new CopyOnWriteArrayList<>();
 
 	public BatchReadFuncAspect consumer(Consumer<List<TapdataEvent>> listConsumer) {
-		this.consumer = tapdataEvents -> {
+		this.consumers.add(tapdataEvents -> {
 			try {
 				listConsumer.accept(tapdataEvents);
 			} catch(Throwable throwable) {
 				TapLogger.warn(TAG, "Consume tapdataEvents from table {} failed on consumer {}, {}", table, listConsumer, ExceptionUtils.getStackTrace(throwable));
 			}
-		};
+		});
 		return this;
 	}
 
@@ -85,11 +88,11 @@ public class BatchReadFuncAspect extends DataFunctionAspect<BatchReadFuncAspect>
 		this.eventBatchSize = eventBatchSize;
 	}
 
-	public Consumer<List<TapdataEvent>> getConsumer() {
-		return consumer;
+	public List<Consumer<List<TapdataEvent>>> getConsumers() {
+		return consumers;
 	}
 
-	public void setConsumer(Consumer<List<TapdataEvent>> consumer) {
-		this.consumer = consumer;
+	public void setConsumers(List<Consumer<List<TapdataEvent>>> consumers) {
+		this.consumers = consumers;
 	}
 }

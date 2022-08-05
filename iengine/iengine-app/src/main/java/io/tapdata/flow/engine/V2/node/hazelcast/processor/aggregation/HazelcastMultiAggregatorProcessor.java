@@ -637,7 +637,7 @@ public class HazelcastMultiAggregatorProcessor extends HazelcastBaseNode {
                     }
                 } catch (Exception e) {
                     logger.error("GroupP error:", e);
-                    return Collections.emptyList();
+                    throw new RuntimeException("Unimplemented case");
                 }
                 return result;
             }

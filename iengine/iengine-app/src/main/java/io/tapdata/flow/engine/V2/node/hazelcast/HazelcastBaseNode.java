@@ -19,7 +19,6 @@ import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.commons.task.dto.Dag;
 import com.tapdata.tm.commons.task.dto.SubTaskDto;
-import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.aspect.*;
 import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.common.SettingService;
@@ -68,7 +67,6 @@ import java.util.stream.Collectors;
  * @date 2021/12/7 3:25 PM
  **/
 public abstract class HazelcastBaseNode extends AbstractProcessor {
-
 	/**
 	 * [sub task id]-[node id]
 	 */
@@ -458,10 +456,10 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 			doClose();
 		} finally {
 			running.set(false);
-			if (processorBaseContext instanceof DataProcessorContext) {
-				AspectUtils.executeAspect(DataNodeCloseAspect.class, () -> new DataNodeCloseAspect().dataProcessorContext((DataProcessorContext) processorBaseContext));
-			} else {
+			if (this instanceof HazelcastProcessorBaseNode || this instanceof HazelcastMultiAggregatorProcessor) {
 				AspectUtils.executeAspect(ProcessorNodeCloseAspect.class, () -> new ProcessorNodeCloseAspect().processorBaseContext(processorBaseContext));
+			} else {
+				AspectUtils.executeAspect(DataNodeCloseAspect.class, () -> new DataNodeCloseAspect().dataProcessorContext((DataProcessorContext) processorBaseContext));
 			}
 //		InstanceFactory.instance(AspectManager.class).executeAspect(DataNodeCloseAspect.class, () -> new DataNodeCloseAspect().node(HazelcastBaseNode.this));
 			if (processorBaseContext.getSubTaskDto() != null) {
@@ -626,9 +624,13 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 		this.milestoneService = MilestoneFactory.getJetEdgeMilestoneService(processorBaseContext.getSubTaskDto(), httpClientMongoOperator.getRestTemplateOperator().getBaseURLs(), httpClientMongoOperator.getRestTemplateOperator().getRetryTime(), httpClientMongoOperator.getConfigCenter(), node, vertexName, vertexNames, null, vertexType);
 	}
 
-	protected void errorHandle(Throwable throwable, String errorMessage) {
+	protected synchronized void errorHandle(Throwable throwable, String errorMessage) {
+		if (null != error) {
+			return;
+		}
 		this.error = throwable;
 		this.errorMessage = errorMessage;
+		this.running.set(false);
 		SubTaskDto subTaskDto = processorBaseContext.getSubTaskDto();
 		com.hazelcast.jet.Job hazelcastJob = jetContext.hazelcastInstance().getJet().getJob(subTaskDto.getName() + "-" + subTaskDto.getId().toHexString());
 		if (hazelcastJob != null) {

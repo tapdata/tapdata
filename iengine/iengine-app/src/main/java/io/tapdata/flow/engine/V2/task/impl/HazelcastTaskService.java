@@ -205,7 +205,7 @@ public class HazelcastTaskService implements TaskService<SubTaskDto> {
 							node.getId(), node.getName()));
 				}
 
-				if (node.isDataNode() || node.isLogCollectorNode()) {
+				if (node instanceof TableNode || node instanceof DatabaseNode || node.isLogCollectorNode()) {
 					String connectionId = null;
 					if (node instanceof DataNode) {
 						connectionId = ((DataNode) node).getConnectionId();
@@ -583,6 +583,9 @@ public class HazelcastTaskService implements TaskService<SubTaskDto> {
 				ConnectorConstant.CONNECTION_COLLECTION,
 				Connections.class
 		);
+		if (null == connections) {
+			throw new RuntimeException("Cannot find connection by id(" + connectionId + ")");
+		}
 		connections.decodeDatabasePassword();
 		connections.initCustomTimeZone();
 		return connections;
