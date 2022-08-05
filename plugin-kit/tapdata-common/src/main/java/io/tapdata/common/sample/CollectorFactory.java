@@ -23,9 +23,15 @@ public class CollectorFactory {
 
     private static final int periodSeconds = 5;
 
-    private static final CollectorFactory INSTANCE = new CollectorFactory();
+    private static final Map<String, CollectorFactory> INSTANCES = new ConcurrentHashMap<>();
+
+    public static CollectorFactory getInstance(String key) {
+        INSTANCES.putIfAbsent(key, new CollectorFactory());
+        return INSTANCES.get(key);
+    }
+
     public static CollectorFactory getInstance() {
-        return INSTANCE;
+        return getInstance("v1");
     }
 
     /**
