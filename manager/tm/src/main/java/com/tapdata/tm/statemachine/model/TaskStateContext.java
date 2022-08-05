@@ -8,9 +8,9 @@ package com.tapdata.tm.statemachine.model;
 
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.statemachine.enums.DataFlowEvent;
-import com.tapdata.tm.statemachine.enums.SubTaskState;
+import com.tapdata.tm.statemachine.enums.TaskState;
 
-public class SubTaskStateContext extends StateContext<SubTaskState, DataFlowEvent>{
+public class TaskStateContext extends StateContext<TaskState, DataFlowEvent>{
 
 	@Override
 	public TaskDto getData() {

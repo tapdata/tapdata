@@ -402,7 +402,7 @@
 //     * 重置子任务接口
 //     * @param id
 //     */
-//    @Operation(summary = "重置子任务接口")
+//    @Operation(summary = "重置任务接口")
 //    @PostMapping("renew/{id}")
 //    public ResponseMessage<Void> renew(@PathVariable("id") String id, @RequestParam(value = "force", defaultValue = "false") Boolean force) {
 //        subTaskService.renew(MongoUtils.toObjectId(id), getLoginUser());

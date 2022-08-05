@@ -3,7 +3,7 @@ package com.tapdata.tm.task.constant;
 import java.util.ArrayList;
 import java.util.List;
 
-public enum SubTaskEnum {
+public enum TaskEnum {
     STATUS_EDIT("edit"),
     STATUS_PREPARING("preparing"),
     STATUS_SCHEDULING("scheduling"),
@@ -20,7 +20,7 @@ public enum SubTaskEnum {
     private final String value;
 
     // 构造方法
-    private SubTaskEnum(String value) {
+    private TaskEnum(String value) {
         this.value = value;
     }
 
@@ -31,7 +31,7 @@ public enum SubTaskEnum {
     public static List<String> getAllStatus() {
         List<String> allStatus = new ArrayList();
         //循环输出 值
-        for (SubTaskEnum e : SubTaskEnum.values()) {
+        for (TaskEnum e : TaskEnum.values()) {
 //            System.out.println(e.toString());
             allStatus.add(e.getValue());
         }

@@ -8,9 +8,9 @@ package com.tapdata.tm.statemachine.model;
 
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.statemachine.enums.DataFlowEvent;
-import com.tapdata.tm.statemachine.enums.SubTaskState;
+import com.tapdata.tm.statemachine.enums.TaskState;
 
-public class SubTaskStateTrigger extends AbstractStateTrigger<SubTaskState, DataFlowEvent, TaskDto> {
+public class TaskStateTrigger extends AbstractStateTrigger<TaskState, DataFlowEvent, TaskDto> {
 
 
 }

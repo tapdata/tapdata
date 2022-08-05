@@ -17,8 +17,8 @@ import com.tapdata.tm.monitor.entity.AgentEnvironmentEntity;
 import com.tapdata.tm.monitor.entity.MeasurementEntity;
 import com.tapdata.tm.monitor.vo.GetMeasurementVo;
 import com.tapdata.tm.monitor.vo.GetStaticVo;
-import com.tapdata.tm.task.entity.SubTaskEntity;
-import com.tapdata.tm.task.repository.SubTaskRepository;
+import com.tapdata.tm.task.entity.TaskEntity;
+import com.tapdata.tm.task.repository.TaskRepository;
 import com.tapdata.tm.utils.BeanUtil;
 import com.tapdata.tm.utils.Lists;
 import com.tapdata.tm.utils.TimeUtil;
@@ -59,7 +59,7 @@ public class MeasurementService {
 
 
     @Autowired
-    private SubTaskRepository subTaskRepository;
+    private TaskRepository taskRepository;
 
 
     private static final Long ONE_HOUR = 60 * 60 * 1000L;
@@ -756,8 +756,8 @@ public class MeasurementService {
         Map transmitTotalMap = new HashMap();
         Query querySubTask = Query.query(Criteria.where("user_id").is(userDetail.getUserId()).and("is_deleted").ne(true));
         querySubTask.fields().include("id");
-        List<SubTaskEntity> subTaskDtos = subTaskRepository.findAll(querySubTask);
-        List<String> subTaskIdList = subTaskDtos.stream().map(SubTaskEntity::getId).map(ObjectId::toString).collect(Collectors.toList());
+        List<TaskEntity> subTaskDtos = taskRepository.findAll(querySubTask);
+        List<String> subTaskIdList = subTaskDtos.stream().map(TaskEntity::getId).map(ObjectId::toString).collect(Collectors.toList());
 
 
         Query query = Query.query(Criteria.where("tags.type").is("subTask").and("tags.subTaskId").in(subTaskIdList));

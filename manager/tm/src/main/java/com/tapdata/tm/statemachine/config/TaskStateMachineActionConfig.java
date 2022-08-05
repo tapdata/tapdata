@@ -15,7 +15,7 @@ import com.tapdata.tm.statemachine.annotation.WithStateMachine;
 import com.tapdata.tm.statemachine.enums.DataFlowEvent;
 import com.tapdata.tm.statemachine.enums.Transitions;
 import com.tapdata.tm.statemachine.model.StateMachineResult;
-import com.tapdata.tm.statemachine.model.SubTaskStateContext;
+import com.tapdata.tm.statemachine.model.TaskStateContext;
 import com.tapdata.tm.statemachine.service.StateMachineService;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.worker.service.WorkerService;
@@ -33,21 +33,21 @@ import org.springframework.stereotype.Component;
 @Component
 @WithStateMachine
 @Setter(onMethod_ = {@Autowired})
-public class SubTaskStateMachineActionConfig {
+public class TaskStateMachineActionConfig {
 
 	private StateMachineService stateMachineService;
 	private WorkerService workerService;
 	private TaskService taskService;
 
 	@OnAction(Transitions.SUBTASK_START)
-	public StateMachineResult start(SubTaskStateContext context){
+	public StateMachineResult start(TaskStateContext context){
 		TaskDto subTaskDto = context.getData();
 		taskService.start(subTaskDto.getId(), context.getUserDetail());
 		return StateMachineResult.ok();
 	}
 
 	@OnAction(Transitions.SUBTASK_SCHEDULE_SUCEESS)
-	public StateMachineResult scheduleSuccess(SubTaskStateContext context){
+	public StateMachineResult scheduleSuccess(TaskStateContext context){
 		TaskDto taskDto = context.getData();
 		if (StringUtils.isBlank(taskDto.getAgentId())){
 			throw new BizException("Agent.Not.Found");
@@ -63,7 +63,7 @@ public class SubTaskStateMachineActionConfig {
 	}
 
 	@OnAction(Transitions.SUBTASK_OVERTIME)
-	public StateMachineResult overtime(SubTaskStateContext context){
+	public StateMachineResult overtime(TaskStateContext context){
 		TaskDto taskDto = context.getData();
 		Update update = Update.update("status", context.getTarget().getName());
 		UpdateResult updateResult = taskService.update(Query.query(Criteria.where("_id").is(taskDto.getId())
@@ -84,12 +84,12 @@ public class SubTaskStateMachineActionConfig {
 
 				workerService.scheduleTaskToEngine(dto, context.getUserDetail(), "SubTask", dto.getName());
 				if (StringUtils.isNotBlank(dto.getAgentId())){
-					result = stateMachineService.executeAboutSubTask(dto, DataFlowEvent.SCHEDULE_SUCCESS, context.getUserDetail());
+					result = stateMachineService.executeAboutTask(dto, DataFlowEvent.SCHEDULE_SUCCESS, context.getUserDetail());
 				}else {
-					result = stateMachineService.executeAboutSubTask(dto, DataFlowEvent.SCHEDULE_FAILED, context.getUserDetail());
+					result = stateMachineService.executeAboutTask(dto, DataFlowEvent.SCHEDULE_FAILED, context.getUserDetail());
 				}
 			}else {
-				result = stateMachineService.executeAboutSubTask(taskDto, DataFlowEvent.SCHEDULE_FAILED, context.getUserDetail());
+				result = stateMachineService.executeAboutTask(taskDto, DataFlowEvent.SCHEDULE_FAILED, context.getUserDetail());
 			}
 
 		}else {

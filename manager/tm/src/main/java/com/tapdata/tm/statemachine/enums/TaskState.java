@@ -10,7 +10,7 @@ import static com.tapdata.tm.commons.task.dto.TaskDto.*;
 import java.util.HashMap;
 import java.util.Map;
 
-public enum SubTaskState {
+public enum TaskState {
 
 	/**
 	 * 编辑中
@@ -51,7 +51,7 @@ public enum SubTaskState {
 
 	private String name;
 
-	SubTaskState(String name) {
+	TaskState(String name) {
 		this.name = name;
 	}
 
@@ -59,15 +59,15 @@ public enum SubTaskState {
 		return name;
 	}
 
-	private static final Map<String, SubTaskState> map = new HashMap<>();
+	private static final Map<String, TaskState> map = new HashMap<>();
 
 	static {
-		for (SubTaskState value : SubTaskState.values()) {
+		for (TaskState value : TaskState.values()) {
 			map.put(value.getName(),value);
 		}
 	}
 
-	public static SubTaskState getState(String name){
+	public static TaskState getState(String name){
 		return map.get(name);
 	}
 

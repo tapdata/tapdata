@@ -1188,10 +1188,12 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
                         throw new BizException("table node is error nodeId:" + tableNode.getId());
                     }
 
-                for (String tableName : tableNames) {
-                    String qualifiedName = MetaDataBuilderUtils.generateQualifiedName(metaType, dataSource, tableName, taskId);
-                    qualifiedNames.add(qualifiedName);
-                }
+                    if(CollectionUtils.isNotEmpty(tableNames)) {
+                        for (String tableName : tableNames) {
+                            String qualifiedName = MetaDataBuilderUtils.generateQualifiedName(metaType, dataSource, tableName, taskId);
+                            qualifiedNames.add(qualifiedName);
+                        }
+                    }
             }
 
         }

@@ -24,8 +24,7 @@ import com.tapdata.tm.metadatadefinition.param.BatchUpdateParam;
 import com.tapdata.tm.metadatadefinition.service.MetadataDefinitionService;
 import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
 import com.tapdata.tm.metadatainstance.vo.SourceTypeEnum;
-import com.tapdata.tm.task.bean.LogCollectorResult;
-import com.tapdata.tm.task.bean.TranModelReqDto;
+import com.tapdata.tm.task.bean.*;
 import com.tapdata.tm.task.entity.TaskEntity;
 import com.tapdata.tm.task.service.*;
 import com.tapdata.tm.task.vo.JsResultDto;
@@ -39,8 +38,10 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.enums.ParameterIn;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.Setter;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.bson.Document;
 import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
@@ -60,6 +61,7 @@ import java.util.stream.Stream;
  */
 @Tag(name = "Task", description = "Task相关接口")
 @RestController
+@Slf4j
 @RequestMapping({"/api/Task", "/api/task"})
 @Setter(onMethod_ = {@Autowired})
 public class TaskController extends BaseController {
@@ -431,6 +433,40 @@ public class TaskController extends BaseController {
     }
 
 
+    @Operation(summary = "运行时信息接口")
+    @GetMapping("runtimeInfo/{taskId}")
+    public ResponseMessage<RunTimeInfo> runtimeInfo(@PathVariable("taskId") String taskId
+            , @RequestParam(value = "endTime", required = false) Long endTime) {
+        return success(taskService.runtimeInfo(MongoUtils.toObjectId(taskId), endTime, getLoginUser()));
+
+    }
+
+
+    @GetMapping("view/increase/{taskId}")
+    public ResponseMessage<List<IncreaseSyncVO>> increaseView(@PathVariable("taskId") String taskId,
+                                                              @RequestParam(value = "skip", required = false, defaultValue = "0") Long skip,
+                                                              @RequestParam(value = "limit", required = false, defaultValue = "20") Integer limit) {
+        return success(taskService.increaseView(taskId, getLoginUser()));
+    }
+
+    @PostMapping("increase/clear/{taskId}")
+    public ResponseMessage<List<IncreaseSyncVO>> increaseClear(@PathVariable("taskId") String taskId,
+                                                               @RequestParam("srcNode") String srcNode,
+                                                               @RequestParam("tgtNode") String tgtNode) {
+        taskService.increaseClear(MongoUtils.toObjectId(taskId), srcNode, tgtNode, getLoginUser());
+        return success();
+    }
+
+    @PostMapping("increase/backtracking/{taskId}")
+    public ResponseMessage<List<IncreaseSyncVO>> increaseBacktracking(@PathVariable("taskId") String taskId,
+                                                                      @RequestParam("srcNode") String srcNode,
+                                                                      @RequestParam("tgtNode") String tgtNode,
+                                                                      @RequestBody TaskDto.SyncPoint point) {
+        taskService.increaseBacktracking(MongoUtils.toObjectId(taskId), srcNode, tgtNode, point, getLoginUser());
+        return success();
+
+    }
+
     @Operation(summary = "复制同步任务")
     @PutMapping("copy/{id}")
     public ResponseMessage<TaskDto> copy(@PathVariable("id") String id) {
@@ -468,6 +504,126 @@ public class TaskController extends BaseController {
         return success();
     }
 
+
+    @Operation(summary = "子任务已经成功运行回调接口")
+    @PostMapping("running/{id}")
+    public ResponseMessage<TaskOpResp> running(@PathVariable("id") String id) {
+        log.info("subTask running status report by http, id = {}", id);
+        String successId = taskService.running(MongoUtils.toObjectId(id), getLoginUser());
+        TaskOpResp taskOpResp = new TaskOpResp();
+        if (StringUtils.isBlank(successId)) {
+            taskOpResp = new TaskOpResp(successId);
+        }
+
+        return success(taskOpResp);
+    }
+
+
+
+    /**
+     * 收到任务运行失败的消息
+     * @param id
+     */
+    @Operation(summary = "任务运行失败回调接口")
+    @PostMapping("runError/{id}")
+    public ResponseMessage<TaskOpResp> runError(@PathVariable("id") String id, @RequestParam(value = "errMsg", required = false) String errMsg,
+                                                @RequestParam(value = "errStack", required = false) String errStack) {
+        String successId = taskService.runError(MongoUtils.toObjectId(id), getLoginUser(), errMsg, errStack);
+        TaskOpResp taskOpResp = new TaskOpResp();
+        if (StringUtils.isBlank(successId)) {
+            taskOpResp = new TaskOpResp(successId);
+        }
+
+        return success(taskOpResp);
+    }
+
+
+    /**
+     * 收到任务运行完成的消息
+     * @param id
+     */
+    @Operation(summary = "任务执行完成回调接口")
+    @PostMapping("complete/{id}")
+    public ResponseMessage<TaskOpResp> complete(@PathVariable("id") String id) {
+        String successId = taskService.complete(MongoUtils.toObjectId(id), getLoginUser());
+        TaskOpResp taskOpResp = new TaskOpResp();
+        if (StringUtils.isBlank(successId)) {
+            taskOpResp = new TaskOpResp(successId);
+        }
+
+        return success(taskOpResp);
+    }
+
+
+    /**
+     * 收到任务已经停止的消息
+     * @param id
+     */
+    @Operation(summary = "停止成功回调接口")
+    @PostMapping("stopped/{id}")
+    public ResponseMessage<TaskOpResp> stopped(@PathVariable("id") String id) {
+        String successId = taskService.stopped(MongoUtils.toObjectId(id), getLoginUser());
+        TaskOpResp taskOpResp = new TaskOpResp();
+        if (StringUtils.isBlank(successId)) {
+            taskOpResp = new TaskOpResp(successId);
+        }
+
+        return success(taskOpResp);
+    }
+
+
+    /**
+     * 重置任务接口
+     * @param id
+     */
+    @Operation(summary = "重置任务接口")
+    @PostMapping("renew/{id}")
+    public ResponseMessage<Void> renew(@PathVariable("id") String id, @RequestParam(value = "force", defaultValue = "false") Boolean force) {
+        taskService.renew(MongoUtils.toObjectId(id), getLoginUser());
+        return success();
+    }
+
+
+    /**
+     * 更新子任务的node跟任务中的node
+     * @param taskId 子任务id
+     * @param nodeId nodeId
+     * @param reqBody 更新的参数
+     * @return
+     */
+    @Operation(summary = "更新子任务的node跟任务中的node")
+    @PostMapping("node/{taskId}/{nodeId}")
+    public ResponseMessage<Void> updateNode(@PathVariable("taskId") String taskId, @PathVariable("nodeId") String nodeId, @RequestBody String reqBody) {
+        Document update = Document.parse(reqBody);
+        if (!update.containsKey("$set") && !update.containsKey("$setOnInsert") && !update.containsKey("$unset")) {
+            Document _body = new Document();
+            _body.put("$set", update);
+            update = _body;
+        }
+        taskService.updateNode(MongoUtils.toObjectId(taskId), nodeId, update, getLoginUser());
+        return success();
+    }
+
+
+
+
+    @GetMapping("byCacheName/{cacheName}")
+    public ResponseMessage<TaskDto> findByCacheName(@PathVariable("cacheName") String cacheName) {
+        return success(taskService.findByCacheName(cacheName, getLoginUser()));
+    }
+
+
+    @GetMapping("history")
+    public ResponseMessage<TaskDto> queryHistory(@RequestParam("id") String id, @RequestParam("time") Long time) {
+        TaskDto taskDto  = taskService.findByVersionTime(id, time);
+        return success(taskDto);
+    }
+
+    @DeleteMapping("history")
+    public ResponseMessage<TaskDto> cleanHistory(@RequestParam("id") String id, @RequestParam("time") Long time) {
+        taskService.clean(id, time);
+        return success();
+    }
 
     @PutMapping("batchStart")
     public ResponseMessage<Void> batchStart(@RequestParam("taskIds") List<String> taskIds) {

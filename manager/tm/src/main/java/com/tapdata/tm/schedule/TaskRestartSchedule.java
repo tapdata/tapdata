@@ -24,29 +24,29 @@ import java.util.List;
 @Component
 @Slf4j
 @Setter(onMethod_ = {@Autowired})
-public class SubTaskRestartSchedule {
+public class TaskRestartSchedule {
 
     private TaskService taskService;
     private UserService userService;
 
     /**
-     * 定时重启子任务，只要找到有重启标记，并且是停止状态的任务，就重启，每分钟启动一次
+     * 定时重启任务，只要找到有重启标记，并且是停止状态的任务，就重启，每分钟启动一次
      */
     @Scheduled(fixedDelay = 10 * 1000)
-    @SchedulerLock(name ="restart_subtask_lock", lockAtMostFor = "5s", lockAtLeastFor = "5s")
-    public void restartSubTask() {
-        //查询到所有需要重启的子任务
+    @SchedulerLock(name ="restart_task_lock", lockAtMostFor = "5s", lockAtLeastFor = "5s")
+    public void restartTask() {
+        //查询到所有需要重启的任务
         Criteria criteria = Criteria.where("restartFlag").is(true).and("status").is("stop");
         Query query = new Query(criteria);
         query.fields().include("_id", "restartUserId");
-        List<TaskDto> restartSubTasks = taskService.findAll(query);
-        for (TaskDto subTask : restartSubTasks) {
+        List<TaskDto> restartTasks = taskService.findAll(query);
+        for (TaskDto task : restartTasks) {
 
             try {
-                UserDetail user = userService.loadUserById(MongoUtils.toObjectId(subTask.getRestartUserId()));
-                taskService.start(subTask.getId(), user);
+                UserDetail user = userService.loadUserById(MongoUtils.toObjectId(task.getRestartUserId()));
+                taskService.start(task.getId(), user);
             } catch (Exception e) {
-                log.warn("restart subtask error, subtask id = {}, e = {}", subTask.getId(), e.getMessage());
+                log.warn("restart subtask error, task id = {}, e = {}", task.getId(), e.getMessage());
             }
         }
     }
