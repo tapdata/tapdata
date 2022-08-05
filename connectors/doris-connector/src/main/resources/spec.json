@@ -32,6 +32,7 @@
           "title": "${dorisHttp}",
           "x-decorator": "FormItem",
           "x-component": "Input",
+          "required": true,
           "x-index": 30
         },
         "database": {
