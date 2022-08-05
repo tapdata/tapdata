@@ -1,4 +1,4 @@
-package io.tapdata.observable.handler;
+package io.tapdata.observable.metric.handler;
 
 import com.tapdata.tm.commons.task.dto.SubTaskDto;
 import io.tapdata.common.sample.CollectorFactory;
@@ -8,7 +8,7 @@ import io.tapdata.common.sample.sampler.CounterSampler;
 import io.tapdata.common.sample.sampler.SpeedSampler;
 import io.tapdata.entity.event.dml.*;
 import io.tapdata.entity.logger.TapLogger;
-import io.tapdata.observable.TaskSampleRetriever;
+import io.tapdata.observable.metric.TaskSampleRetriever;
 import io.tapdata.pdk.apis.entity.WriteListResult;
 
 import java.util.*;

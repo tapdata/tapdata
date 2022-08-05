@@ -1,11 +1,11 @@
-package io.tapdata.observable.handler;
+package io.tapdata.observable.metric.handler;
 
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.task.dto.SubTaskDto;
 import io.tapdata.common.sample.CollectorFactory;
 import io.tapdata.common.sample.SampleCollector;
 import io.tapdata.common.sample.sampler.CounterSampler;
-import io.tapdata.observable.TaskSampleRetriever;
+import io.tapdata.observable.metric.TaskSampleRetriever;
 
 import java.util.*;
 

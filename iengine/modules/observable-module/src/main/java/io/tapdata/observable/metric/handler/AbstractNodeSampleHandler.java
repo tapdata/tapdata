@@ -1,4 +1,4 @@
-package io.tapdata.observable.handler;
+package io.tapdata.observable.metric.handler;
 
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.task.dto.SubTaskDto;
