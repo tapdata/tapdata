@@ -1,4 +1,4 @@
-package io.tapdata.observable;
+package io.tapdata.observable.metric;
 
 import com.tapdata.constant.BeanUtil;
 import com.tapdata.mongo.ClientMongoOperator;
