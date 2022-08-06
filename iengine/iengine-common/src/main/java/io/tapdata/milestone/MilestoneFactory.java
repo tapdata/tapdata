@@ -6,11 +6,8 @@ import com.tapdata.entity.Job;
 import com.tapdata.entity.dataflow.DataFlow;
 import com.tapdata.entity.dataflow.Stage;
 import com.tapdata.mongo.ClientMongoOperator;
-import com.tapdata.mongo.HttpClientMongoOperator;
-import com.tapdata.mongo.RestTemplateOperator;
-import com.tapdata.tm.commons.task.dto.SubTaskDto;
 import com.tapdata.tm.commons.dag.Node;
-import org.springframework.data.mongodb.core.query.Field;
+import com.tapdata.tm.commons.task.dto.SubTaskDto;
 
 import java.util.List;
 

@@ -15,12 +15,11 @@ import com.tapdata.tm.messagequeue.dto.MessageQueueDto;
 import com.tapdata.tm.messagequeue.entity.MessageQueue;
 import com.tapdata.tm.messagequeue.repository.MessageQueueRepository;
 import com.tapdata.tm.ws.endpoint.WebSocketManager;
-import java.io.IOException;
-
-import com.tapdata.tm.ws.enums.MessageType;
 import lombok.extern.slf4j.Slf4j;
 import org.bson.types.ObjectId;
 import org.springframework.stereotype.Service;
+
+import java.io.IOException;
 
 @Service
 @Slf4j

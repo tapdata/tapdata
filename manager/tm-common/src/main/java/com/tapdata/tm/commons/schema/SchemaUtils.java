@@ -1,8 +1,6 @@
 package com.tapdata.tm.commons.schema;
 
-import com.tapdata.manager.common.utils.JsonUtil;
 import com.tapdata.tm.commons.dag.process.FieldProcessorNode;
-import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.entity.utils.JsonParser;
 import io.tapdata.entity.utils.TypeHolder;
@@ -37,9 +35,23 @@ public class SchemaUtils {
      * @return 合并后的结果
      */
     public static Schema mergeSchema(List<Schema> inputSchemas, Schema schema) {
+        return mergeSchema(inputSchemas, schema, true);
+    }
+
+    /**
+     *
+     * @param inputSchemas 输入
+     * @param schema 原有表
+     * @param logicInput 输入为逻辑表：true  输入为物理表:  false
+     * @return 合并后的模型
+     */
+    public static Schema mergeSchema(List<Schema> inputSchemas, Schema schema, boolean logicInput) {
+
 
         List<Schema> _inputSchemas = inputSchemas.stream().filter(Objects::nonNull).collect(Collectors.toList());
         Schema targetSchema = cloneSchema(schema);
+
+
 
         if (targetSchema == null) {
             if (_inputSchemas.size() > 0) {
@@ -48,11 +60,25 @@ public class SchemaUtils {
                 log.warn("Can't merge non schema.");
                 return null;
             }
+        } else {
+            if (logicInput) {
+                List<Field> fields = targetSchema.getFields();
+                if (CollectionUtils.isNotEmpty(fields)) {
+                    List<Field> removeList = new ArrayList<>();
+                    for (Field field : fields) {
+                        if (!"manual".equals(field.getSource())) {
+                            removeList.add(field);
+                        }
+                    }
+                    fields.removeAll(removeList);
+                }
+            }
         }
         if (targetSchema == null) {
             log.warn("Can't merge non schema.");
             return null;
         }
+
 
         Schema finalTargetSchema = targetSchema;
         List<String> inputSchemaFieldIds = _inputSchemas.stream().flatMap(s -> s.getFields().stream())
@@ -150,9 +176,15 @@ public class SchemaUtils {
      * @return
      */
     public static Schema cloneSchema(Schema source) {
-
         return InstanceFactory.instance(JsonParser.class).fromJson(InstanceFactory.instance(JsonParser.class).toJson(source), new TypeHolder<Schema>() {
         }, TapConstants.abstractClassDetectors);
+        //return JsonUtil.parseJsonUseJackson(JsonUtil.toJsonUseJackson(source), Schema.class);
+    }
+
+    public static List<Schema> cloneSchema(List<Schema> schemas) {
+        return InstanceFactory.instance(JsonParser.class)
+                .fromJson(InstanceFactory.instance(JsonParser.class)
+                        .toJson(schemas), new TypeHolder<List<Schema>>() {}, TapConstants.abstractClassDetectors);
         //return JsonUtil.parseJsonUseJackson(JsonUtil.toJsonUseJackson(source), Schema.class);
     }
 

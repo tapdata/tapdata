@@ -6,6 +6,16 @@
 	"doc": "${doc}"
   },
   "configOptions": {
+	"capabilities":[
+	  {
+		"id": "dml_insert_policy",
+		"alternatives": ["update_on_exists", "ignore_on_exists"]
+	  },
+	  {
+		"id": "dml_update_policy",
+		"alternatives": ["ignore_on_nonexists", "insert_on_nonexists"]
+	  }
+	],
 	"connection": {
 	  "type": "object",
 	  "properties": {
@@ -291,8 +301,8 @@
 	  "bit": 8,
 	  "precision": 3,
 	  "value": [
-		0,
-		255
+		  -128,
+		  127
 	  ]
 	},
 	"tinyint[($zerofill)] unsigned": {
@@ -300,8 +310,8 @@
 	  "bit": 8,
 	  "precision": 3,
 	  "value": [
-		-128,
-		127
+		  0,
+		  255
 	  ],
 	  "unsigned": "unsigned"
 	},

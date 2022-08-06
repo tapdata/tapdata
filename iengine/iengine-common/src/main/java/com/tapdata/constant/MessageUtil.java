@@ -6,16 +6,11 @@ import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.util.RamUsageEstimator;
-import org.bson.Document;
-import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 
 import java.util.*;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
-
-import static org.springframework.data.mongodb.core.query.Criteria.where;
 
 /**
  * @author jackin

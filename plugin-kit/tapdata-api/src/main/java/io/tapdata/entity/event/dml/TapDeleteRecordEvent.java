@@ -53,10 +53,10 @@ public class TapDeleteRecordEvent extends TapRecordEvent {
 		this.before = before;
 	}
 
-	@Override
-	public String toString() {
-		return "TapDeleteRecordEvent{" +
-				"before=" + before +
-				"} " + super.toString();
-	}
+//	@Override
+//	public String toString() {
+//		return "TapDeleteRecordEvent{" +
+//				"before=" + before +
+//				"} " + super.toString();
+//	}
 }

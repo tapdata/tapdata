@@ -23,17 +23,17 @@ public enum Transitions {
 	 * source: edit/stopped/error
 	 * target: scheduling
 	 **/
-	SUBTASK_START(DataFlowEvent.START, new SubTaskState[]{SubTaskState.EDIT,SubTaskState.STOPPED,SubTaskState.ERROR, SubTaskState.DONE, SubTaskState.SCHEDULING_FAILED}),
+	SUBTASK_START(DataFlowEvent.START, new TaskState[]{TaskState.EDIT, TaskState.STOPPED, TaskState.ERROR, TaskState.DONE, TaskState.SCHEDULING_FAILED}),
 	/**
 	 * source: scheduling
 	 * target: wait_run
 	 **/
-	SUBTASK_SCHEDULE_SUCEESS(DataFlowEvent.SCHEDULE_SUCCESS, new SubTaskState[]{SubTaskState.SCHEDULING}),
+	SUBTASK_SCHEDULE_SUCEESS(DataFlowEvent.SCHEDULE_SUCCESS, new TaskState[]{TaskState.SCHEDULING}),
 	/**
 	 * source: wait_run
 	 * target: scheduling
 	 **/
-	SUBTASK_OVERTIME(DataFlowEvent.OVERTIME, new SubTaskState[]{SubTaskState.WAITING_RUN}),
+	SUBTASK_OVERTIME(DataFlowEvent.OVERTIME, new TaskState[]{TaskState.WAITING_RUN}),
 	;
 
 	private Enum event;

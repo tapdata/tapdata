@@ -14,17 +14,15 @@ import com.tapdata.tm.CustomerJobLogs.service.CustomerJobLogsService;
 import com.tapdata.tm.Settings.constant.CategoryEnum;
 import com.tapdata.tm.Settings.constant.KeyEnum;
 import com.tapdata.tm.Settings.service.SettingsService;
-import com.tapdata.tm.commons.task.dto.SubTaskDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.dataflow.dto.DataFlowDto;
 import com.tapdata.tm.dataflow.service.DataFlowService;
 import com.tapdata.tm.statemachine.enums.DataFlowEvent;
 import com.tapdata.tm.statemachine.enums.DataFlowState;
-import com.tapdata.tm.statemachine.enums.SubTaskState;
+import com.tapdata.tm.statemachine.enums.TaskState;
 import com.tapdata.tm.statemachine.model.StateMachineResult;
 import com.tapdata.tm.statemachine.service.StateMachineService;
-import com.tapdata.tm.task.service.SubTaskService;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.user.service.UserService;
 import static com.tapdata.tm.utils.MongoUtils.toObjectId;
@@ -48,7 +46,6 @@ import org.springframework.stereotype.Component;
 @Component
 @Setter(onMethod_ = {@Autowired})
 public class StateMachineScheduleTask {
-	private SubTaskService subTaskService;
 	private StateMachineService stateMachineService;
 	private UserService userService;
 	private DataFlowService dataFlowService;
@@ -58,33 +55,33 @@ public class StateMachineScheduleTask {
 	private TaskService taskService;
 
 	@Scheduled(fixedDelay = 5 * 1000)
-	@SchedulerLock(name ="checkScheduledSubTask", lockAtMostFor = "5s", lockAtLeastFor = "5s")
-	public void checkScheduledSubTask() {
-		Query query = query(Criteria.where("status").is(SubTaskState.WAITING_RUN.getName()).and("scheduledTime").lt(new Date(System.currentTimeMillis() - 1000 * 60)));
-		List<SubTaskDto> subTaskDtos = subTaskService.findAll(query);
-		subTaskDtos.forEach(subTaskDto -> {
+	@SchedulerLock(name ="checkScheduledTask", lockAtMostFor = "5s", lockAtLeastFor = "5s")
+	public void checkScheduledTask() {
+		Query query = query(Criteria.where("status").is(TaskState.WAITING_RUN.getName()).and("scheduledTime").lt(new Date(System.currentTimeMillis() - 1000 * 60)));
+		List<TaskDto> taskDtos = taskService.findAll(query);
+		taskDtos.forEach(taskDto -> {
 			try {
-				UserDetail userDetail = userService.loadUserById(toObjectId(subTaskDto.getUserId()));
-				StateMachineResult result = stateMachineService.executeAboutSubTask(subTaskDto, DataFlowEvent.OVERTIME, userDetail);
+				UserDetail userDetail = userService.loadUserById(toObjectId(taskDto.getUserId()));
+				StateMachineResult result = stateMachineService.executeAboutTask(taskDto, DataFlowEvent.OVERTIME, userDetail);
 				log.info("checkScheduledSubTask complete, result: {}", JsonUtil.toJson(result));
 			} catch (Throwable e) {
-				log.error("Failed to execute state machine,subTaskId: {}, event: {},message: {}", subTaskDto.getId().toHexString(), DataFlowEvent.OVERTIME.getName(), e.getMessage(), e);
+				log.error("Failed to execute state machine,subTaskId: {}, event: {},message: {}", taskDto.getId().toHexString(), DataFlowEvent.OVERTIME.getName(), e.getMessage(), e);
 			}
 		});
 	}
 
 	@Scheduled(fixedDelay = 5 * 1000)
-	@SchedulerLock(name ="checkStoppingSubTask", lockAtMostFor = "5s", lockAtLeastFor = "5s")
+	@SchedulerLock(name ="checkStoppingTask", lockAtMostFor = "5s", lockAtLeastFor = "5s")
 	public void checkStoppingSubTask() {
-		Query query = query(Criteria.where("status").is(SubTaskState.STOPPING.getName()).and("stoppingTime").lt(new Date(System.currentTimeMillis() - 1000 * 60 * 5)));
-		List<SubTaskDto> subTaskDtos = subTaskService.findAll(query);
-		subTaskDtos.forEach(subTaskDto -> {
+		Query query = query(Criteria.where("status").is(TaskState.STOPPING.getName()).and("stoppingTime").lt(new Date(System.currentTimeMillis() - 1000 * 60 * 5)));
+		List<TaskDto> taskDtos = taskService.findAll(query);
+		taskDtos.forEach(taskDto -> {
 			try {
-				UserDetail userDetail = userService.loadUserById(toObjectId(subTaskDto.getUserId()));
-				StateMachineResult result = stateMachineService.executeAboutSubTask(subTaskDto, DataFlowEvent.OVERTIME, userDetail);
+				UserDetail userDetail = userService.loadUserById(toObjectId(taskDto.getUserId()));
+				StateMachineResult result = stateMachineService.executeAboutTask(taskDto, DataFlowEvent.OVERTIME, userDetail);
 				log.info("checkStoppingSubTask complete, result: {}", JsonUtil.toJson(result));
 			} catch (Throwable e) {
-				log.error("Failed to execute state machine,subTaskId: {}, event: {},message: {}", subTaskDto.getId().toHexString(), DataFlowEvent.OVERTIME.getName(), e.getMessage(), e);
+				log.error("Failed to execute state machine,subTaskId: {}, event: {},message: {}", taskDto.getId().toHexString(), DataFlowEvent.OVERTIME.getName(), e.getMessage(), e);
 			}
 		});
 	}
@@ -111,7 +108,8 @@ public class StateMachineScheduleTask {
 		boolean isCloud = "CLOUD".equals(buildProfile) || "DRS".equals(buildProfile) || "DFS".equals(buildProfile);
 		List<String> statusList = new ArrayList<>();
 		statusList.add(DataFlowState.RUNNING.getName());
-		if (!isCloud){  //  任务心跳超时在云版情况下不会重新设置agentId，所以scheduling状态下的任务不做处理，直到它被接管running为止
+		//  任务心跳超时在云版情况下不会重新设置agentId，所以scheduling状态下的任务不做处理，直到它被接管running为止
+		if (!isCloud){
 			statusList.add(DataFlowState.SCHEDULING.getName());
 		}
 
@@ -157,31 +155,28 @@ public class StateMachineScheduleTask {
 
 	public void checkScheduledTask(long timeoutMillis, boolean isCloud) {
 		List<String> statusList = new ArrayList<>();
-		statusList.add(SubTaskDto.STATUS_RUNNING);
-		if (!isCloud){  //  任务心跳超时在云版情况下不会重新设置agentId，所以scheduling状态下的任务不做处理，直到它被接管running为止
-			statusList.add(SubTaskDto.STATUS_SCHEDULING);
+		statusList.add(TaskDto.STATUS_RUNNING);
+		//  任务心跳超时在云版情况下不会重新设置agentId，所以scheduling状态下的任务不做处理，直到它被接管running为止
+		if (!isCloud){
+			statusList.add(TaskDto.STATUS_SCHEDULING);
 		}
 
 		Query query = Query.query(new Criteria().orOperator(
 				new Criteria("status").in(statusList).and("pingTime").lt(System.currentTimeMillis() - timeoutMillis),
-				new Criteria("status").is(SubTaskDto.STATUS_STOPPING)
+				new Criteria("status").is(TaskDto.STATUS_STOPPING)
 						.and("pingTime").lt(System.currentTimeMillis() - timeoutMillis * 5)
 		));
 
-		List<SubTaskDto> subTaskDtos = subTaskService.findAll(query);
+		List<TaskDto> subTaskDtos = taskService.findAll(query);
 		Map<String, UserDetail> userDetailMap = new HashMap<>();
-		for (SubTaskDto subTaskDto : subTaskDtos) {
-			UserDetail userDetail = userDetailMap.get(subTaskDto.getUserId());
+		for (TaskDto taskDto : subTaskDtos) {
+			UserDetail userDetail = userDetailMap.get(taskDto.getUserId());
 			if (userDetail == null) {
-				userDetail = userService.loadUserById(toObjectId(subTaskDto.getUserId()));
-				userDetailMap.put(subTaskDto.getUserId(), userDetail);
+				userDetail = userService.loadUserById(toObjectId(taskDto.getUserId()));
+				userDetailMap.put(taskDto.getUserId(), userDetail);
 			}
 
-			TaskDto taskDto = taskService.findById(subTaskDto.getParentId());
-			assert taskDto != null;
-			subTaskDto.setParentTask(taskDto);
-
-			subTaskService.run(subTaskDto, userDetail);
+			taskService.run(taskDto, userDetail);
 		}
 
 

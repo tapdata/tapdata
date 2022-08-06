@@ -38,7 +38,7 @@ public class StateMachineController extends BaseController {
 	@GetMapping("/subTask/{id}/{event}")
 	public Object subTask(@PathVariable("id") String id, @PathVariable("event") String event){
 
-		return success(stateMachineService.executeAboutSubTask(id, event, getLoginUser()));
+		return success(stateMachineService.executeAboutTask(id, event, getLoginUser()));
 	}
 
 	private StateMachineResult getExecResult(String id, String event) {

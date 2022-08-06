@@ -1,7 +1,6 @@
 package com.tapdata.tm.task.entity;
 
 import com.tapdata.tm.base.entity.BaseEntity;
-import com.tapdata.tm.commons.task.dto.SubTaskDto;
 import com.tapdata.tm.commons.task.dto.TaskDatabaseRuntimeInfoDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.task.dto.TaskNodeRuntimeInfoDto;
@@ -25,8 +24,6 @@ public class TaskSnapshotsEntity extends BaseEntity {
     private ObjectId taskId;
     /** 任务 */
     private TaskDto snapshot;
-    /** 子任务列表 */
-    private List<SubTaskDto> subtasks;
     /** 运行时信息*/
     private TaskNodeRuntimeInfoDto nodeRunTimeInfo;
     private TaskDatabaseRuntimeInfoDto DatabaseRunNodeTimeInfo;

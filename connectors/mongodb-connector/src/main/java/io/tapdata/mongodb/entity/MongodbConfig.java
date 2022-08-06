@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mongodb.ConnectionString;
 import io.tapdata.kit.EmptyKit;
+import io.tapdata.pdk.apis.entity.ConnectionOptions;
 
 import java.io.File;
 import java.io.IOException;
@@ -15,171 +16,191 @@ import java.util.Map;
 
 public class MongodbConfig implements Serializable {
 
-		private boolean isUri = true;
+	private boolean isUri = true;
 
-		private String uri;
+	private String uri;
 
-		private String host;
+	private String host;
 
-		private String database;
+	private String database;
 
-		private String user;
+	private String user;
 
-		private String password;
+	private String password;
 
-		private String additionalString;
+	private String additionalString;
 
-		private boolean ssl;
+	private boolean ssl;
 
-		private String sslCA;
+	private String sslCA;
 
-		private String sslKey;
+	private String sslKey;
 
-		private String sslPass;
+	private String sslPass;
 
-		private boolean sslValidate;
+	private boolean sslValidate;
 
-		private boolean checkServerIdentity;
+	private boolean checkServerIdentity;
 
-    public static MongodbConfig load(String jsonFile) throws IOException {
-        ObjectMapper mapper = new ObjectMapper(new JsonFactory());
-				mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
-        return mapper.readValue(new File(jsonFile), MongodbConfig.class);
-    }
+	private String insertDmlPolicy;
 
-    public static MongodbConfig load(Map<String, Object> map) throws IOException {
-        ObjectMapper mapper = new ObjectMapper();
-				mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
-        return mapper.readValue((new ObjectMapper()).writeValueAsString(map), MongodbConfig.class);
-    }
+	private String updateDmlPolicy;
 
-    public String getUri() {
-				if (isUri) {
-						return uri;
-				} else {
-						StringBuilder sb = new StringBuilder("mongodb://");
-						if (EmptyKit.isNotEmpty(this.getUser()) && EmptyKit.isNotEmpty(this.getPassword())) {
-								String encodeUsername = null;
-								String encodePassword = null;
-								try {
-										encodeUsername = URLEncoder.encode(this.getUser(), "UTF-8");
-										encodePassword = URLEncoder.encode(this.getPassword(), "UTF-8");
-								} catch (UnsupportedEncodingException e) {
-										throw new RuntimeException(String.format("Encoding mongodb username/password failed %s", e.getMessage()), e);
-								}
-								sb.append(encodeUsername).append(":").append(encodePassword).append("@");
-						}
-						sb.append(this.getHost().trim());
-						sb.append("/").append(this.getDatabase());
-						if (EmptyKit.isNotBlank(this.getAdditionalString())) {
-								sb.append("?").append(this.getAdditionalString().trim());
-						}
-						return sb.toString();
+	public static MongodbConfig load(String jsonFile) throws IOException {
+		ObjectMapper mapper = new ObjectMapper(new JsonFactory());
+		mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+		return mapper.readValue(new File(jsonFile), MongodbConfig.class);
+	}
+
+	public static MongodbConfig load(Map<String, Object> map) throws IOException {
+		ObjectMapper mapper = new ObjectMapper();
+		mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+		return mapper.readValue((new ObjectMapper()).writeValueAsString(map), MongodbConfig.class);
+	}
+
+	public String getUri() {
+		if (isUri) {
+			return uri;
+		} else {
+			StringBuilder sb = new StringBuilder("mongodb://");
+			if (EmptyKit.isNotEmpty(this.getUser()) && EmptyKit.isNotEmpty(this.getPassword())) {
+				String encodeUsername = null;
+				String encodePassword = null;
+				try {
+					encodeUsername = URLEncoder.encode(this.getUser(), "UTF-8");
+					encodePassword = URLEncoder.encode(this.getPassword(), "UTF-8");
+				} catch (UnsupportedEncodingException e) {
+					throw new RuntimeException(String.format("Encoding mongodb username/password failed %s", e.getMessage()), e);
 				}
-    }
-
-		public String getDatabase(){
-				if (isUri && EmptyKit.isNotEmpty(uri)) {
-						ConnectionString connectionString = new ConnectionString(uri);
-						return connectionString.getDatabase();
-				} else {
-						return database;
-				}
+				sb.append(encodeUsername).append(":").append(encodePassword).append("@");
+			}
+			sb.append(this.getHost().trim());
+			sb.append("/").append(this.getDatabase());
+			if (EmptyKit.isNotBlank(this.getAdditionalString())) {
+				sb.append("?").append(this.getAdditionalString().trim());
+			}
+			return sb.toString();
 		}
+	}
 
-    public void setUri(String uri) {
-        this.uri = uri;
-    }
-
-		public void setIsUri(boolean uri) {
-				isUri = uri;
+	public String getDatabase() {
+		if (isUri && EmptyKit.isNotEmpty(uri)) {
+			ConnectionString connectionString = new ConnectionString(uri);
+			return connectionString.getDatabase();
+		} else {
+			return database;
 		}
+	}
 
-		public boolean getIsUri() {
-				return isUri;
-		}
+	public void setUri(String uri) {
+		this.uri = uri;
+	}
 
-		public String getHost() {
-				return host;
-		}
+	public void setIsUri(boolean uri) {
+		isUri = uri;
+	}
 
-		public void setHost(String host) {
-				this.host = host;
-		}
+	public boolean getIsUri() {
+		return isUri;
+	}
 
-		public void setDatabase(String database) {
-				this.database = database;
-		}
+	public String getHost() {
+		return host;
+	}
 
-		public String getUser() {
-				return user;
-		}
+	public void setHost(String host) {
+		this.host = host;
+	}
 
-		public void setUser(String user) {
-				this.user = user;
-		}
+	public void setDatabase(String database) {
+		this.database = database;
+	}
 
-		public String getPassword() {
-				return password;
-		}
+	public String getUser() {
+		return user;
+	}
 
-		public void setPassword(String password) {
-				this.password = password;
-		}
+	public void setUser(String user) {
+		this.user = user;
+	}
 
-		public String getAdditionalString() {
-				return additionalString;
-		}
+	public String getPassword() {
+		return password;
+	}
 
-		public void setAdditionalString(String additionalString) {
-				this.additionalString = additionalString;
-		}
+	public void setPassword(String password) {
+		this.password = password;
+	}
 
-		public boolean isSsl() {
-				return ssl;
-		}
+	public String getAdditionalString() {
+		return additionalString;
+	}
 
-		public void setSsl(boolean ssl) {
-				this.ssl = ssl;
-		}
+	public void setAdditionalString(String additionalString) {
+		this.additionalString = additionalString;
+	}
 
-		public String getSslKey() {
-				return sslKey;
-		}
+	public boolean isSsl() {
+		return ssl;
+	}
 
-		public void setSslKey(String sslKey) {
-				this.sslKey = sslKey;
-		}
+	public void setSsl(boolean ssl) {
+		this.ssl = ssl;
+	}
 
-		public String getSslPass() {
-				return sslPass;
-		}
+	public String getSslKey() {
+		return sslKey;
+	}
 
-		public void setSslPass(String sslPass) {
-				this.sslPass = sslPass;
-		}
+	public void setSslKey(String sslKey) {
+		this.sslKey = sslKey;
+	}
 
-		public boolean isSslValidate() {
-				return sslValidate;
-		}
+	public String getSslPass() {
+		return sslPass;
+	}
 
-		public void setSslValidate(boolean sslValidate) {
-				this.sslValidate = sslValidate;
-		}
+	public void setSslPass(String sslPass) {
+		this.sslPass = sslPass;
+	}
 
-		public boolean getCheckServerIdentity() {
-				return checkServerIdentity;
-		}
+	public boolean isSslValidate() {
+		return sslValidate;
+	}
 
-		public void setCheckServerIdentity(boolean checkServerIdentity) {
-				this.checkServerIdentity = checkServerIdentity;
-		}
+	public void setSslValidate(boolean sslValidate) {
+		this.sslValidate = sslValidate;
+	}
 
-		public String getSslCA() {
-				return sslCA;
-		}
+	public boolean getCheckServerIdentity() {
+		return checkServerIdentity;
+	}
 
-		public void setSslCA(String sslCA) {
-				this.sslCA = sslCA;
-		}
+	public void setCheckServerIdentity(boolean checkServerIdentity) {
+		this.checkServerIdentity = checkServerIdentity;
+	}
+
+	public String getSslCA() {
+		return sslCA;
+	}
+
+	public void setSslCA(String sslCA) {
+		this.sslCA = sslCA;
+	}
+
+	public String getInsertDmlPolicy() {
+		return insertDmlPolicy;
+	}
+
+	public void setInsertDmlPolicy(String insertDmlPolicy) {
+		this.insertDmlPolicy = insertDmlPolicy;
+	}
+
+	public String getUpdateDmlPolicy() {
+		return updateDmlPolicy;
+	}
+
+	public void setUpdateDmlPolicy(String updateDmlPolicy) {
+		this.updateDmlPolicy = updateDmlPolicy;
+	}
 }

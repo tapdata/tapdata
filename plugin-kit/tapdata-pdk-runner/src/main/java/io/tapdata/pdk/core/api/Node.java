@@ -1,5 +1,6 @@
 package io.tapdata.pdk.core.api;
 
+import io.tapdata.pdk.apis.spec.TapNodeSpecification;
 import io.tapdata.pdk.core.tapnode.TapNodeInfo;
 import io.tapdata.pdk.core.utils.CommonUtils;
 
@@ -43,5 +44,22 @@ public abstract class Node {
 
     public List<Map<String, Object>> getTasks() {
         return tasks;
+    }
+
+    @Override
+    public String toString() {
+        StringBuilder builder = new StringBuilder(this.getClass().getSimpleName()).append(": ");
+        TapNodeInfo nodeInfo = this.getTapNodeInfo();
+        TapNodeSpecification specification = null;
+        if(nodeInfo != null && (specification = nodeInfo.getTapNodeSpecification()) != null) {
+            builder.append("id=").append(specification.getId()).append("; ");
+            builder.append("group=").append(specification.getGroup()).append("; ");
+            builder.append("version=").append(specification.getVersion()).append("; ");
+            builder.append("nodeType=").append(nodeInfo.getNodeType()).append("; ");
+            builder.append("nodeClass=").append(nodeInfo.getNodeClass()).append("; ");
+        }
+        builder.append("associateId=").append(associateId).append("; ");
+        builder.append("dagId=").append(dagId).append(".");
+        return builder.toString();
     }
 }

@@ -2,11 +2,18 @@ package com.tapdata.tm.commons.dag.nodes;
 
 import com.tapdata.tm.commons.dag.*;
 import com.tapdata.tm.commons.dag.event.WriteEvent;
+import com.tapdata.tm.commons.exception.DDLException;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
 import com.tapdata.tm.commons.schema.Field;
 import com.tapdata.tm.commons.schema.Schema;
 import com.tapdata.tm.commons.schema.SchemaUtils;
 import com.tapdata.tm.commons.task.dto.JoinTable;
+import io.tapdata.entity.event.ddl.TapDDLEvent;
+import io.tapdata.entity.event.ddl.entity.ValueChange;
+import io.tapdata.entity.event.ddl.table.TapAlterFieldNameEvent;
+import io.tapdata.entity.event.ddl.table.TapDropFieldEvent;
+import io.tapdata.entity.event.ddl.table.TapFieldBaseEvent;
+import io.tapdata.entity.event.ddl.table.TapNewFieldEvent;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.ToString;
@@ -190,7 +197,7 @@ public class TableNode extends DataNode {
         }
         Schema outputSchema = super.mergeSchema(inputSchemas, schema);
 
-        outputSchema.setFields(transformFields(inputFields, outputSchema));
+        outputSchema.setFields(transformFields(inputFields, outputSchema, null));
         long count = outputSchema.getFields().stream().filter(Field::isDeleted).count();
         long count1 = outputSchema.getFields().stream().filter(f -> !f.isDeleted()).filter(field -> field.getFieldName().contains(".")).count();
         for (SchemaTransformerResult result : schemaTransformerResults) {
@@ -207,7 +214,7 @@ public class TableNode extends DataNode {
             return schema;
         }
         schema.setNodeId(getId());
-        schema.setTaskId(taskId());
+        //schema.setTaskId(taskId());
         List<Schema> result = service.createOrUpdateSchema(ownerId(), toObjectId(connectionId), Collections.singletonList(schema), options, this);
 
 
@@ -250,5 +257,11 @@ public class TableNode extends DataNode {
             return true;
         }
         return false;
+    }
+
+
+    @Override
+    public void fieldDdlEvent(TapDDLEvent event) throws Exception {
+        updateDdlList(updateConditionFields, event);
     }
 }

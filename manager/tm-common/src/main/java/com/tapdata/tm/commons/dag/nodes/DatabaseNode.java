@@ -1,23 +1,34 @@
 package com.tapdata.tm.commons.dag.nodes;
 
+import cn.hutool.core.thread.ThreadUtil;
+import com.google.common.collect.Lists;
 import com.tapdata.tm.commons.dag.DAG;
+import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.NodeType;
 import com.tapdata.tm.commons.dag.SchemaTransformerResult;
+import com.tapdata.tm.commons.dag.process.FieldProcessorNode;
+import com.tapdata.tm.commons.dag.process.TableRenameProcessNode;
 import com.tapdata.tm.commons.dag.vo.BatchTypeOperation;
 import com.tapdata.tm.commons.dag.vo.FieldProcess;
 import com.tapdata.tm.commons.dag.vo.SyncObjects;
-import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
-import com.tapdata.tm.commons.schema.Field;
-import com.tapdata.tm.commons.schema.Schema;
-import com.tapdata.tm.commons.schema.SchemaUtils;
+import com.tapdata.tm.commons.dag.vo.TableRenameTableInfo;
+import com.tapdata.tm.commons.schema.*;
+import io.tapdata.entity.event.ddl.TapDDLEvent;
+import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
+import io.tapdata.entity.event.ddl.table.TapDropTableEvent;
+import io.tapdata.entity.event.ddl.table.TapFieldBaseEvent;
+import com.tapdata.tm.commons.task.dto.TaskDto;
 import lombok.Getter;
 import lombok.Setter;
+import lombok.SneakyThrows;
 import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.ListUtils;
 
 import java.util.*;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -54,8 +65,10 @@ public class DatabaseNode extends DataParentNode<List<Schema>> {
     //包含的表名，用于数据挖掘，在加载schema的时候存入
     private List<String> tableNames;
 
+    private Integer rows;
+
     // 复制任务 全部 or 自定义
-    private String tableSelectType = "all";
+    private String migrateTableSelectType;
 
     public DatabaseNode() {
         super("database");
@@ -74,8 +87,6 @@ public class DatabaseNode extends DataParentNode<List<Schema>> {
         }
 
         Map<String, List<Field>> targetFieldMap = schemas.stream().collect(Collectors.toMap(Schema::getOriginalName, Schema::getFields, (k1, k2)-> k1));
-
-
         // 1. 所有源库按照表名称分组合并
         // 2. 根据规则转换源库表名称，匹配目标表并合并
         DataSourceConnectionDto dataSource = service.getDataSource(connectionId);
@@ -87,6 +98,7 @@ public class DatabaseNode extends DataParentNode<List<Schema>> {
         List<SchemaTransformerResult> schemaTransformerResults = new ArrayList<>();
         String currentDbName = schemas.size() > 0 ? schemas.get(0).getDatabase() : null;
         List<String> inputFields = inputSchemas.stream().flatMap(Collection::stream).map(Schema::getFields).flatMap(Collection::stream).map(Field::getFieldName).collect(Collectors.toList());
+        List<String> inputFieldOriginalNames = inputSchemas.stream().flatMap(Collection::stream).map(Schema::getFields).flatMap(Collection::stream).map(Field::getOriginalFieldName).collect(Collectors.toList());
         Map<String, Schema> inputTables = inputSchemas.stream().flatMap(Collection::stream).peek(s -> {
 
             transformResults(targetFieldMap.get(s.getOriginalName()), dataSource, _metaType, schemaTransformerResults, currentDbName, s);
@@ -112,7 +124,10 @@ public class DatabaseNode extends DataParentNode<List<Schema>> {
             outputSchema = Stream.concat(new ArrayList<>(inputTables.values()).stream(), existsTables.stream()).collect(Collectors.toList());
         }
         for (Schema schema : outputSchema) {
-            schema.setFields(transformFields(inputFields, schema));
+            schema.setAncestorsName(schema.getOriginalName());
+            schema.setFields(transformFields(inputFields, schema, inputFieldOriginalNames));
+            //  has migrateFieldNode && field not show => will del index where contain field
+            schema.setIndices(updateIndexDelField(schema.getIndices(), inputFieldOriginalNames));
             long count = schema.getFields().stream().filter(Field::isDeleted).count();
             long count1 = schema.getFields().stream().filter(f -> !f.isDeleted()).filter(field -> field.getFieldName().contains(".")).count();
             for (SchemaTransformerResult result : schemaTransformerResults) {
@@ -126,6 +141,25 @@ public class DatabaseNode extends DataParentNode<List<Schema>> {
         return outputSchema;
     }
 
+    private List<TableIndex> updateIndexDelField(List<TableIndex> indices, List<String> inputFieldOriginalNames) {
+        if (CollectionUtils.isEmpty(indices)) {
+            return indices;
+        }
+        Iterator<TableIndex> indexIterator = indices.iterator();
+        while (indexIterator.hasNext()) {
+            TableIndex tableIndex = indexIterator.next();
+            List<TableIndexColumn> columns = tableIndex.getColumns();
+
+            columns.removeIf(column -> inputFieldOriginalNames.contains(column.getColumnName()));
+
+            if (CollectionUtils.isEmpty(columns)) {
+                indexIterator.remove();
+            }
+        }
+
+        return indices;
+    }
+    @SneakyThrows
     public void transformSchema(DAG.Options options) {
 
         if (CollectionUtils.isEmpty(getGraph().successors(this.getId()))) {
@@ -141,30 +175,40 @@ public class DatabaseNode extends DataParentNode<List<Schema>> {
 
             List<String> includes = new ArrayList<>();
             options.setIncludes(includes);
-            ListUtils.partition(tables, options.getBatchNum()).forEach(list -> {
-                includes.clear();
-                includes.addAll(list);
-                this.setSchema(null);
-                super.transformSchema(options);
-            });
+            List<List<String>> partition = ListUtils.partition(tables, options.getBatchNum());
+            if ("sync".equals(options.getSyncType())) {
+                partition.forEach(list -> {
+                    includes.clear();
+                    includes.addAll(list);
+                    this.setSchema(null);
+                    super.transformSchema(options);
+                });
+            } else {
+                CountDownLatch countDownLatch = ThreadUtil.newCountDownLatch(partition.size());
+                partition.forEach( list -> ThreadUtil.execute(() -> {
+                    includes.clear();
+                    includes.addAll(list);
+                    this.setSchema(null);
+                    super.transformSchema(options);
+                    countDownLatch.countDown();
+                }));
+                countDownLatch.await();
+            }
         }
     }
 
     public List<String> getSourceNodeTableNames() {
-        List<SyncObjects> syncObjectsList;
-        if (CollectionUtils.isNotEmpty(syncObjects)) {
-            syncObjectsList = syncObjects;
-        } else {
-            List<List<SyncObjects>> collect = successors().stream().filter(s -> "database".equalsIgnoreCase(s.getType()))
-                    .map(successor -> ((DatabaseNode) successor).getSyncObjects()).collect(Collectors.toList());
-            syncObjectsList = collect.get(0);
-        }
-        return syncObjectsList.stream()
-                .filter(s -> s.getObjectNames() != null && "table,topic,queue,".contains(s.getType() + ","))
-                .flatMap(s -> s.getObjectNames().stream()).collect(Collectors.toList());
+        AtomicReference<List<String>> tableNames = new AtomicReference<>();
+
+        Set<String> targetNodeIds = getGraph().getSinks();
+
+        this.getDag().getSources().stream()
+                .findAny()
+                .ifPresent(t -> tableNames.set(((DatabaseNode) t).getTableNames()));
+
+        return tableNames.get();
     }
 
-    //TODO 这个地方加载一万张表，存在问题，需要优化
     @Override
     protected List<Schema> loadSchema(List<String> includes) {
 
@@ -172,18 +216,38 @@ public class DatabaseNode extends DataParentNode<List<Schema>> {
             return Collections.emptyList();
         }
 
+        List<String> filteredTableNames;
 
-//        // 目标库只查询用户选择的表模型
-//        if (syncObjects != null) {
-//            List<String> filteredTableNames = getFilteredTableNames();
-//            includes.addAll(filteredTableNames);
-//        }
+        if (TaskDto.SYNC_TYPE_SYNC.equals(getSyncType())) {
+            filteredTableNames = includes.stream()
+                    .map(this::transformTableName)
+                    .collect(Collectors.toList());
 
-        List<String> filteredTableNames = includes.stream()
-                .map(this::transformTableName)
-                .collect(Collectors.toList());
+        } else {
+            LinkedList<Node<?>> preNodes = getPreNodes(this.getId());
+            if (CollectionUtils.isNotEmpty(preNodes)) {
+                LinkedList<TableRenameProcessNode> collect = preNodes.stream().filter(node -> node instanceof TableRenameProcessNode)
+                        .map(node -> (TableRenameProcessNode) node)
+                        .collect(Collectors.toCollection(LinkedList::new));
+                if (CollectionUtils.isNotEmpty(collect)) {
+                    Map<String, TableRenameTableInfo> namesMapping = collect.getLast().originalMap();
+                    if (!namesMapping.isEmpty()) {
+                        for (int i = 0; i < includes.size(); i++) {
+                            String tableName = includes.get(i);
+                            if (namesMapping.containsKey(tableName)) {
+                                includes.set(i, namesMapping.get(tableName).getCurrentTableName());
+                            }
+                        }
+                    }
+                }
+            }
+
+            filteredTableNames = includes;
+        }
+
         List<Schema> schemaList = service.loadSchema(ownerId(), toObjectId(connectionId), filteredTableNames, null)
                 .stream().peek(s -> {
+                    s.setAncestorsName(s.getOriginalName());
                     s.setNodeId(getId());
                     s.setSourceNodeDatabaseType(getDatabaseType());
                 }).collect(Collectors.toList());
@@ -211,7 +275,7 @@ public class DatabaseNode extends DataParentNode<List<Schema>> {
     protected List<Schema> saveSchema(Collection<String> pre, String nodeId, List<Schema> schemaList, DAG.Options options) {
         if (schemaList != null && schemaList.size() > 0) {
             schemaList.forEach(s -> {
-                s.setTaskId(taskId());
+                //s.setTaskId(taskId());
                 s.setNodeId(nodeId);
             });
             List<Schema> updateSchema = service.createOrUpdateSchema(ownerId(), toObjectId(connectionId), schemaList, options, this);
@@ -248,5 +312,31 @@ public class DatabaseNode extends DataParentNode<List<Schema>> {
                 return true;
             }
         }).collect(Collectors.toList());
+    }
+
+    @Override
+    public void fieldDdlEvent(TapDDLEvent event) throws Exception {
+
+        if (event instanceof TapCreateTableEvent || event instanceof TapDropTableEvent) {
+            tableNames = tableNames == null ? new ArrayList<>() : tableNames;
+            if (event instanceof TapCreateTableEvent) {
+                String tableName = ((TapCreateTableEvent) event).getTableId();
+                tableNames.add(tableName);
+            } else if (event instanceof TapDropTableEvent) {
+                String tableName = ((TapDropTableEvent) event).getTableId();
+                tableNames.remove(tableName);
+            }
+
+        }
+
+        if (null == fieldProcess) {
+            return;
+        }
+        for (FieldProcess process : fieldProcess) {
+            List<FieldProcessorNode.Operation> operations = process.getOperations();
+            for (FieldProcessorNode.Operation operation : operations) {
+                operation.matchPdkFieldEvent(event);
+            }
+        }
     }
 }

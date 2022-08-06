@@ -1,7 +1,7 @@
 package com.tapdata.tm.task.entity;
 
 import com.tapdata.tm.base.entity.BaseEntity;
-import com.tapdata.tm.commons.task.dto.progress.SubTaskSnapshotProgress;
+import com.tapdata.tm.commons.task.dto.progress.TaskSnapshotProgress;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
@@ -30,12 +30,12 @@ public class SnapshotEdgeProgressEntity extends BaseEntity implements Serializab
 	private Long startTs;
 	private Long endTs;
 	private String subTaskId;
-	private SubTaskSnapshotProgress.ProgressType type;
+	private TaskSnapshotProgress.ProgressType type;
 	private String srcNodeId;
 	private String tgtNodeId;
 	private String srcConnId;
 	private String tgtConnId;
-	private SubTaskSnapshotProgress.ProgressStatus status;
+	private TaskSnapshotProgress.ProgressStatus status;
 
 	//概览独有属性
 	private Integer totalTaleNum;

@@ -1,7 +1,7 @@
 package io.tapdata.pdk.core.utils;
 
 import io.tapdata.entity.logger.TapLogger;
-import io.tapdata.pdk.core.reflection.ClassAnnotationHandler;
+import io.tapdata.entity.reflection.ClassAnnotationHandler;
 import org.reflections.Reflections;
 
 public class AnnotationUtils {

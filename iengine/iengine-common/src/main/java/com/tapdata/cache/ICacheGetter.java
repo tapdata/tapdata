@@ -73,4 +73,7 @@ public interface ICacheGetter {
 	default IDataSourceRowsGetter getDataSourceRowsGetter() {
 		throw new RuntimeException("not support...");
 	}
+
+	default void close() {
+	}
 }

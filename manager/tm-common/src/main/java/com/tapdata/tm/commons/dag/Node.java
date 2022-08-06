@@ -2,10 +2,17 @@ package com.tapdata.tm.commons.dag;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
+import com.tapdata.tm.commons.exception.DDLException;
 import com.tapdata.tm.commons.schema.Field;
 import com.tapdata.tm.commons.schema.Schema;
+import com.tapdata.tm.commons.schema.bean.SourceTypeEnum;
 import com.tapdata.tm.commons.task.dto.Message;
 import io.github.openlg.graphlib.Graph;
+import io.tapdata.entity.event.ddl.TapDDLEvent;
+import io.tapdata.entity.event.ddl.entity.ValueChange;
+import io.tapdata.entity.event.ddl.table.TapAlterFieldNameEvent;
+import io.tapdata.entity.event.ddl.table.TapDropFieldEvent;
+import io.tapdata.entity.event.ddl.table.TapFieldBaseEvent;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.Setter;
@@ -65,7 +72,7 @@ public abstract class Node<S> extends Element{
 
     protected transient EventListener<S> listener;
 
-    private String subTaskId;
+//    private String subTaskId;
 
     /**
      * constructor for node
@@ -112,6 +119,14 @@ public abstract class Node<S> extends Element{
     public List<Node<S>> predecessors() {
         Graph<? extends Element, ? extends Element> graph = getGraph();
         return graph.predecessors(getId()).stream().map(id -> (Node<S>)graph.getNode(id)).collect(Collectors.toList());
+    }
+
+    public LinkedList<Node<?>> getPreNodes(String nodeId) {
+        return getDag().nodeMap().get(nodeId);
+    }
+
+    public List<DatabaseNode> getSourceNode() {
+        return getDag().getSourceNode();
     }
 
     /**
@@ -193,37 +208,22 @@ public abstract class Node<S> extends Element{
         if (mergedSchema && this.outputSchema != null) {
             S changedSchema = filterChangedSchema(this.outputSchema, options);  // 过滤出修改过的模型
             if (changedSchema != null) {
-                String taskId = this.getDag().getTaskId().toHexString();
+                String taskId = service.getTaskId().toHexString();
                 String version = options.getUuid();
                 try {
-                    boolean canSaveMetaData = true;
-                    if (this instanceof DatabaseNode) {
-                        List<Schema> schemaList = (List<Schema>)changedSchema;
-                        List<String> originalNameList = schemaList.stream().map(Schema::getOriginalName).collect(Collectors.toList());
-                        Optional<List<String>> targetTableNameList = getDag().getTargets().stream()
-                                .filter(i -> nodeId.equals(i.getId()))
-                                .findFirst()
-                                .map(n -> ((DatabaseNode) n).getSyncObjects().get(0).getObjectNames());
-                        if (targetTableNameList.isPresent() && !new HashSet<>(targetTableNameList.get()).containsAll(originalNameList)) {
-                            canSaveMetaData = false;
-                        }
-
+                    Collection<String> predecessors = getGraph().predecessors(nodeId);
+                    //需要保存的地方就可以存储异步推演的内容
+                    outputSchema = saveSchema(predecessors, nodeId, changedSchema, options);
+                    List<String> sourceQualifiedNames;
+                    if (outputSchema instanceof List) {
+                        List<Schema> outTemp = (List<Schema>) outputSchema;
+                        sourceQualifiedNames = outTemp.stream().map(Schema::getQualifiedName).collect(Collectors.toList());
+                    } else {
+                        Schema outputSchema = (Schema) this.outputSchema;
+                        sourceQualifiedNames = new ArrayList<>();
+                        sourceQualifiedNames.add(outputSchema.getQualifiedName());
                     }
-                    if (canSaveMetaData) {
-                        Collection<String> predecessors = getGraph().predecessors(nodeId);
-                        //需要保存的地方就可以存储异步推演的内容
-                        outputSchema = saveSchema(predecessors, nodeId, changedSchema, options);
-                        List<String> sourceQualifiedNames;
-                        if (outputSchema instanceof List) {
-                            List<Schema> outTemp = (List<Schema>) outputSchema;
-                            sourceQualifiedNames = outTemp.stream().map(Schema::getQualifiedName).collect(Collectors.toList());
-                        } else {
-                            Schema outputSchema = (Schema) this.outputSchema;
-                            sourceQualifiedNames = new ArrayList<>();
-                            sourceQualifiedNames.add(outputSchema.getQualifiedName());
-                        }
-                        service.upsertTransformTemp(this.listener.getSchemaTransformResult(nodeId), taskId, nodeId, tableSize(), sourceQualifiedNames, version);
-                    }
+                    service.upsertTransformTemp(this.listener.getSchemaTransformResult(nodeId), taskId, nodeId, tableSize(), sourceQualifiedNames, version);
                 } catch (Exception e) {
                     log.error("Save schema failed.", e);
                 }
@@ -236,6 +236,25 @@ public abstract class Node<S> extends Element{
                     listener.onTransfer(inputSchemas, schema, outputSchema, nodeId);
                 } catch (Exception e) {
                     log.error("Call transfer listener failed in node {}", nodeId, e);
+                }
+            }
+        } else {
+            Collection<String> predecessors = getGraph().predecessors(nodeId);
+            S changedSchema = filterChangedSchema(this.outputSchema, options);
+            if (schema instanceof Schema) {
+                if (((Schema) schema).getSourceType().equals(SourceTypeEnum.SOURCE.name())) {
+                    saveSchema(predecessors, nodeId, changedSchema, options);
+                }
+            } else if (schema instanceof List){
+                List<Schema> updateSchema = new ArrayList<>();
+                for (Schema o : ((List<Schema>) changedSchema)) {
+                    if ( o.getSourceType().equals(SourceTypeEnum.SOURCE.name())) {
+                        updateSchema.add(o);
+                    }
+                }
+
+                if (CollectionUtils.isNotEmpty(updateSchema)) {
+                    saveSchema(predecessors, nodeId, (S) updateSchema, options);
                 }
             }
         }
@@ -377,6 +396,8 @@ public abstract class Node<S> extends Element{
         processor,
         logCollector,
         memCache,
+
+        virtualTarget,
     }
 
     public interface EventListener<S> {
@@ -460,5 +481,49 @@ public abstract class Node<S> extends Element{
                 });
             }
         }
+    }
+
+
+    /**
+     * 对于ddl时间的node节点改动处理， 默认不处理
+     *  目前需要处理的有，表节点改名，删除，新增， 数据库节点，改名，删除，新增
+     *  字段改名节点    字段新增节点    字段删除节点
+     * @param event
+     */
+    public void fieldDdlEvent(TapDDLEvent event) throws Exception {
+
+    }
+
+    protected void updateDdlList(List<String> updateList, TapDDLEvent event) throws Exception {
+        if (CollectionUtils.isEmpty(updateList)) {
+            return;
+        }
+        if (event instanceof TapAlterFieldNameEvent) {
+            ValueChange<String> nameChange = ((TapAlterFieldNameEvent) event).getNameChange();
+            String changeField = null;
+            for (String updateConditionField : updateList) {
+                if (updateConditionField.equals(nameChange.getBefore())) {
+                    changeField = updateConditionField;
+                }
+            }
+            if (changeField != null) {
+                updateList.remove(changeField);
+                updateList.add(nameChange.getAfter());
+            }
+
+        } else if (event instanceof TapDropFieldEvent) {
+            String fieldName = ((TapDropFieldEvent) event).getFieldName();
+            if (updateList.contains(fieldName)) {
+                throw new DDLException("Ddl drop field link update condition fields");
+            }
+        }
+    }
+
+    public String getTaskId() {
+        DAG dag = getDag();
+        if (dag != null && dag.getTaskId() != null) {
+            return dag.getTaskId().toHexString();
+        }
+        return null;
     }
 }

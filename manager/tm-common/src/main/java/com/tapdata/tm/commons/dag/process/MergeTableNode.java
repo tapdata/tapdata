@@ -12,6 +12,8 @@ import com.tapdata.tm.commons.schema.Schema;
 import com.tapdata.tm.commons.task.dto.MergeTableProperties;
 import com.tapdata.tm.commons.util.MetaDataBuilderUtils;
 import com.tapdata.tm.commons.util.MetaType;
+import io.tapdata.entity.event.ddl.TapDDLEvent;
+import io.tapdata.entity.event.ddl.table.TapFieldBaseEvent;
 import io.tapdata.entity.schema.type.TapMap;
 import lombok.Getter;
 import lombok.Setter;
@@ -137,9 +139,9 @@ public class MergeTableNode extends ProcessorNode {
             }
 
             String tableName = ((TableNode) node).transformTableName(((TableNode) node).getTableName());
-            return MetaDataBuilderUtils.generateQualifiedName(metaType, dataSource, tableName);
+            return MetaDataBuilderUtils.generateQualifiedName(metaType, dataSource, tableName, getTaskId());
         } else if (node instanceof ProcessorNode) {
-            return MetaDataBuilderUtils.generateQualifiedName(MetaType.processor_node.name(), nodeId);
+            return MetaDataBuilderUtils.generateQualifiedName(MetaType.processor_node.name(), nodeId, null, getTaskId());
         }
         return null;
     }
@@ -205,5 +207,10 @@ public class MergeTableNode extends ProcessorNode {
         }
 
         return true;
+    }
+
+    @Override
+    public void fieldDdlEvent(TapDDLEvent event) {
+
     }
 }

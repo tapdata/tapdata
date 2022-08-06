@@ -10,11 +10,11 @@ import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.ddl.index.TapCreateIndexEvent;
 import io.tapdata.entity.event.ddl.table.TapDropTableEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
+import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapIndex;
 import io.tapdata.entity.schema.TapIndexField;
 import io.tapdata.entity.schema.TapTable;
-
 import io.tapdata.entity.schema.value.*;
 import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.entity.utils.DataMap;
@@ -26,36 +26,34 @@ import io.tapdata.mongodb.reader.MongodbStreamReader;
 import io.tapdata.mongodb.reader.MongodbV4StreamReader;
 import io.tapdata.mongodb.reader.v3.MongodbV3StreamReader;
 import io.tapdata.mongodb.writer.MongodbWriter;
+import io.tapdata.pdk.apis.annotations.TapConnectorClass;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
-import io.tapdata.pdk.apis.annotations.TapConnectorClass;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.entity.*;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
-import io.tapdata.entity.logger.TapLogger;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.ListUtils;
 import org.apache.commons.collections4.MapUtils;
 import org.bson.*;
-
 import org.bson.conversions.Bson;
 import org.bson.types.*;
 
-import static com.mongodb.client.model.Filters.*;
-import static com.mongodb.client.model.Filters.and;
-import static java.util.Collections.singletonList;
-import static org.bson.codecs.configuration.CodecRegistries.fromProviders;
-import static org.bson.codecs.configuration.CodecRegistries.fromRegistries;
-
 import java.io.Closeable;
 import java.util.*;
-import java.util.concurrent.*;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
+
+import static com.mongodb.client.model.Filters.*;
+import static java.util.Collections.singletonList;
 
 /**
  * Different Connector need use different "spec.json" file with different pdk id which specified in Annotation "TapConnectorClass"
@@ -78,7 +76,7 @@ public class MongodbConnector extends ConnectorBase {
 
 	private MongodbStreamReader mongodbStreamReader;
 
-	private MongodbWriter mongodbWriter;
+	private volatile MongodbWriter mongodbWriter;
 
 	private Bson queryCondition(String firstPrimaryKey, Object value) {
 		return gte(firstPrimaryKey, value);
@@ -112,7 +110,7 @@ public class MongodbConnector extends ConnectorBase {
 		try (Closeable ignored = executor::shutdown) {
 			List<String> collectionNameList = StreamSupport.stream(collectionNames.spliterator(), false).collect(Collectors.toList());
 
-			if(tables != null && !tables.isEmpty()) {
+			if (tables != null && !tables.isEmpty()) {
 				collectionNameList = ListUtils.retainAll(collectionNameList, tables);
 			}
 			ListUtils.partition(collectionNameList, tableSize).forEach(nameList -> {
@@ -244,6 +242,7 @@ public class MongodbConnector extends ConnectorBase {
 	 */
 	@Override
 	public ConnectionOptions connectionTest(TapConnectionContext connectionContext, Consumer<TestItem> consumer) throws Throwable {
+		ConnectionOptions connectionOptions = ConnectionOptions.create();
 		try {
 			onStart(connectionContext);
 			try (final MongoCursor<String> mongoCursor = mongoDatabase.listCollectionNames().iterator();) {
@@ -254,7 +253,7 @@ public class MongodbConnector extends ConnectorBase {
 			throwable.printStackTrace();
 			consumer.accept(testItem(TestItem.ITEM_CONNECTION, TestItem.RESULT_FAILED, "Failed, " + throwable.getMessage()));
 		}
-		return null;
+		return connectionOptions;
 	}
 
 	@Override
@@ -309,6 +308,7 @@ public class MongodbConnector extends ConnectorBase {
 		connectorFunctions.supportWriteRecord(this::writeRecord);
 		connectorFunctions.supportQueryByAdvanceFilter(this::queryByAdvanceFilter);
 		connectorFunctions.supportDropTable(this::dropTable);
+		connectorFunctions.supportGetTableNamesFunction(this::getTableNames);
 
 		//Handle the special bson types, convert them to TapValue. Otherwise the unrecognized types will be converted to TapRawValue by default.
 		//Target side will not easy to handle the TapRawValue.
@@ -437,8 +437,21 @@ public class MongodbConnector extends ConnectorBase {
 	 */
 	private void writeRecord(TapConnectorContext connectorContext, List<TapRecordEvent> tapRecordEvents, TapTable table, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer) throws Throwable {
 		if (mongodbWriter == null) {
-			mongodbWriter = new MongodbWriter(connectorContext.getGlobalStateMap());
-			mongodbWriter.onStart(mongoConfig);
+			synchronized (this) {
+				if (mongodbWriter == null) {
+					mongodbWriter = new MongodbWriter(connectorContext.getGlobalStateMap(), mongoConfig, mongoClient);
+					ConnectorCapabilities connectorCapabilities = connectorContext.getConnectorCapabilities();
+					if (null != connectorCapabilities) {
+						mongoConfig.setInsertDmlPolicy(null == connectorCapabilities.getCapabilityAlternative(ConnectionOptions.DML_INSERT_POLICY) ?
+								ConnectionOptions.DML_INSERT_POLICY_UPDATE_ON_EXISTS : connectorCapabilities.getCapabilityAlternative(ConnectionOptions.DML_INSERT_POLICY));
+						mongoConfig.setUpdateDmlPolicy(null == connectorCapabilities.getCapabilityAlternative(ConnectionOptions.DML_UPDATE_POLICY) ?
+								ConnectionOptions.DML_UPDATE_POLICY_IGNORE_ON_NON_EXISTS : connectorCapabilities.getCapabilityAlternative(ConnectionOptions.DML_UPDATE_POLICY));
+					} else {
+						mongoConfig.setInsertDmlPolicy(ConnectionOptions.DML_INSERT_POLICY_UPDATE_ON_EXISTS);
+						mongoConfig.setUpdateDmlPolicy(ConnectionOptions.DML_UPDATE_POLICY_IGNORE_ON_NON_EXISTS);
+					}
+				}
+			}
 		}
 
 		mongodbWriter.writeRecord(tapRecordEvents, table, writeListResultConsumer);
@@ -486,18 +499,18 @@ public class MongodbConnector extends ConnectorBase {
 
 		Projection projection = tapAdvanceFilter.getProjection();
 		Document projectionDoc = null;
-		if(projection != null) {
-			if(projection.getIncludeFields() != null && !projection.getIncludeFields().isEmpty()) {
-				if(projectionDoc == null)
+		if (projection != null) {
+			if (projection.getIncludeFields() != null && !projection.getIncludeFields().isEmpty()) {
+				if (projectionDoc == null)
 					projectionDoc = new Document();
-				for(String includeField : projection.getIncludeFields()) {
+				for (String includeField : projection.getIncludeFields()) {
 					projectionDoc.put(includeField, 1);
 				}
 			}
-			if(projection.getExcludeFields() != null && !projection.getExcludeFields().isEmpty()) {
-				if(projectionDoc == null)
+			if (projection.getExcludeFields() != null && !projection.getExcludeFields().isEmpty()) {
+				if (projectionDoc == null)
 					projectionDoc = new Document();
-				for(String excludeField : projection.getExcludeFields()) {
+				for (String excludeField : projection.getExcludeFields()) {
 					projectionDoc.put(excludeField, -1);
 				}
 			}
@@ -685,6 +698,24 @@ public class MongodbConnector extends ConnectorBase {
 		}
 		mongodbStreamReader.onStart(mongoConfig);
 		return mongodbStreamReader;
+	}
+
+	private void getTableNames(TapConnectionContext tapConnectionContext, int batchSize, Consumer<List<String>> listConsumer) throws Throwable {
+		String database = mongoConfig.getDatabase();
+		List<String> temp = new ArrayList<>();
+		MongoCursor<String> iterator = mongoClient.getDatabase(database).listCollectionNames().iterator();
+		while (iterator.hasNext()) {
+			String tableName = iterator.next();
+			temp.add(tableName);
+			if (temp.size() >= batchSize) {
+				listConsumer.accept(temp);
+				temp.clear();
+			}
+		}
+		if (!temp.isEmpty()) {
+			listConsumer.accept(temp);
+			temp.clear();
+		}
 	}
 
 	@Override

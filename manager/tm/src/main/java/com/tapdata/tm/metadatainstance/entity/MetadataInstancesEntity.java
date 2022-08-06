@@ -30,6 +30,7 @@ import java.util.Set;
 public class MetadataInstancesEntity extends BaseEntity {
     @Field("qualified_name")
     private String qualifiedName;
+    private String ancestorsName;
     @Field("meta_type")
     private String metaType;
     @Field("is_deleted")
@@ -94,8 +95,13 @@ public class MetadataInstancesEntity extends BaseEntity {
     protected String pdkGroup;
     protected String pdkVersion;
 
+    private Long tmCurrentTime;
+
     /**
      * 是否是虚拟表 'virtual' 'source'
      */
     private String sourceType= SourceTypeEnum.SOURCE.name();
+
+    //逻辑表物理表分离所添加的相关属性
+    private String taskId;
 }

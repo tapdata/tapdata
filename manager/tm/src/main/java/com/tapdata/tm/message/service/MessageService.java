@@ -6,11 +6,9 @@ import cn.hutool.json.JSONUtil;
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONObject;
 import com.mongodb.client.result.UpdateResult;
-import com.tapdata.manager.common.utils.DateUtil;
 import com.tapdata.manager.common.utils.JsonUtil;
 import com.tapdata.tm.Settings.constant.CategoryEnum;
 import com.tapdata.tm.Settings.constant.KeyEnum;
-import com.tapdata.tm.Settings.dto.AgentNotificationDto;
 import com.tapdata.tm.Settings.dto.NotificationDto;
 import com.tapdata.tm.Settings.dto.NotificationSettingDto;
 import com.tapdata.tm.Settings.dto.RunNotificationDto;
@@ -22,8 +20,6 @@ import com.tapdata.tm.base.dto.TmPageable;
 import com.tapdata.tm.base.dto.Where;
 import com.tapdata.tm.base.service.BaseService;
 import com.tapdata.tm.commons.base.dto.BaseDto;
-import com.tapdata.tm.commons.dag.DAG;
-import com.tapdata.tm.commons.task.dto.SubTaskDto;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.events.constant.Type;
 import com.tapdata.tm.events.service.EventsService;
@@ -36,10 +32,9 @@ import com.tapdata.tm.message.entity.MessageEntity;
 import com.tapdata.tm.message.repository.MessageRepository;
 import com.tapdata.tm.message.vo.MessageListVo;
 import com.tapdata.tm.messagequeue.service.MessageQueueService;
-import com.tapdata.tm.task.constant.SubTaskEnum;
-import com.tapdata.tm.task.entity.SubTaskEntity;
-import com.tapdata.tm.task.repository.SubTaskRepository;
-import com.tapdata.tm.task.service.SubTaskService;
+import com.tapdata.tm.task.constant.TaskEnum;
+import com.tapdata.tm.task.entity.TaskEntity;
+import com.tapdata.tm.task.repository.TaskRepository;
 import com.tapdata.tm.user.entity.Notification;
 import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.utils.MailUtils;
@@ -58,7 +53,10 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
@@ -78,7 +76,7 @@ public class MessageService extends BaseService {
 
 
     @Autowired(required = false)
-    SubTaskRepository subTaskRepository;
+    TaskRepository subTaskRepository;
 
     @Autowired
     MailUtils mailUtils;
@@ -152,7 +150,7 @@ public class MessageService extends BaseService {
     /**
      * 只用于获取消息通知铃铛的红色数字
      *
-     * @param filter
+     * @param where
      * @param userDetail
      * @return
      */
@@ -192,19 +190,19 @@ public class MessageService extends BaseService {
      * @param serverName
      */
     public void addMigration(String serverName, String sourceId, String userId) {
-        SubTaskEntity subTaskEntity = subTaskRepository.findById(sourceId).get();
-        if (null == subTaskEntity) {
-            log.error("数据有误，找不到  {}  对应的子任务", sourceId);
+        TaskEntity taskEntity = subTaskRepository.findById(sourceId).get();
+        if (null == taskEntity) {
+            log.error("数据有误，找不到  {}  对应的", sourceId);
             return;
         }
 //        * 每个子任务包含以下的状态： 调度中，调度失败，带运行，运行中，停止中，已停止，已完成，错误。
-        String status = subTaskEntity.getStatus();
+        String status = taskEntity.getStatus();
 
         Level level = Level.INFO;
         MsgTypeEnum msgTypeEnum = MsgTypeEnum.CONNECTED;
         UserDetail userDetail = userService.loadUserById(MongoUtils.toObjectId(userId));
-        if (SubTaskEnum.STATUS_SCHEDULE_FAILED.getValue().equals(status) ||
-                SubTaskEnum.STATUS_ERROR.getValue().equals(status)) {
+        if (TaskEnum.STATUS_SCHEDULE_FAILED.getValue().equals(status) ||
+                TaskEnum.STATUS_ERROR.getValue().equals(status)) {
             level = Level.ERROR;
         }
         addMigration(serverName, sourceId, msgTypeEnum, level, userDetail);

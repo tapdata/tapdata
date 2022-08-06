@@ -22,7 +22,7 @@ public class TaskDetailVo extends BaseVo {
     @JsonInclude(JsonInclude.Include.ALWAYS)
     private String desc;
 
-    //增量所处时间点
+    // 增量所处时间点
     private Date eventTime;
 
     //全量开始时间

@@ -1,8 +1,6 @@
 package com.tapdata.cache.memory;
 
 import com.tapdata.cache.AbstractCacheStats;
-import com.tapdata.cache.ICacheStats;
-import com.tapdata.cache.MemoryCacheUtil;
 
 import java.math.BigDecimal;
 import java.util.concurrent.atomic.AtomicLong;

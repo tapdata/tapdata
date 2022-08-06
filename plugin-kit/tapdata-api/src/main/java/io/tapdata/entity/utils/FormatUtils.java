@@ -1,5 +1,7 @@
 package io.tapdata.entity.utils;
 
+import io.tapdata.entity.event.TapEvent;
+
 public class FormatUtils {
     public static String format(String message, Object... params) {
         if(message == null)
@@ -24,5 +26,21 @@ public class FormatUtils {
             pos += value.length();
         }
         return message;
+    }
+
+    public static String formatTapEvent(Class<? extends TapEvent> tapEventClass) {
+        StringBuilder fieldNameBuilder = new StringBuilder();
+        String simpleName = tapEventClass.getSimpleName();
+        simpleName = simpleName.replaceFirst("Tap", "");
+        for(char c : simpleName.toCharArray()) {
+            if(c >= 'A' && c <= 'Z') {
+				if (fieldNameBuilder.length() > 0) {
+					fieldNameBuilder.append("_");
+				}
+                c += 32;
+            }
+            fieldNameBuilder.append(c);
+        }
+        return fieldNameBuilder.toString();
     }
 }

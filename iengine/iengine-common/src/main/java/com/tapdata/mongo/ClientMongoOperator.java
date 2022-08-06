@@ -104,6 +104,10 @@ public class ClientMongoOperator implements Serializable {
 		mongoTemplate.remove(query, collection);
 	}
 
+	public void deleteByMap(Map<String, Object> params, String collection) {
+		mongoTemplate.remove(params, collection);
+	}
+
 	public void deleteAll(Map<String, Object> params, String collection) {
 		if (MapUtils.isNotEmpty(params)) {
 			mongoTemplate.remove(new Query(getAndCriteria(params)));
@@ -207,10 +211,10 @@ public class ClientMongoOperator implements Serializable {
 				}
 				break;
 			} catch (MongoSocketException |
-					MongoNotPrimaryException |
-					MongoClientException |
-					MongoNodeIsRecoveringException |
-					MongoInterruptedException e) {
+					 MongoNotPrimaryException |
+					 MongoClientException |
+					 MongoNodeIsRecoveringException |
+					 MongoInterruptedException e) {
 
 				retry = retryNetworkException(retryInteval, errorRetry, retry, e);
 

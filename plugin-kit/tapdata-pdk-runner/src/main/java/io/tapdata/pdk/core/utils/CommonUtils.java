@@ -1,7 +1,11 @@
 package io.tapdata.pdk.core.utils;
 
+import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.error.CoreException;
+import io.tapdata.pdk.apis.spec.TapNodeSpecification;
+import io.tapdata.pdk.core.api.ConnectorNode;
+import io.tapdata.pdk.core.api.Node;
 import io.tapdata.pdk.core.error.PDKRunnerErrorCodes;
 import io.tapdata.pdk.core.error.QuiteException;
 import io.tapdata.pdk.core.executor.ExecutorsManager;
@@ -32,6 +36,26 @@ public class CommonUtils {
             int dot = version.indexOf(".");
             if(dot != -1) { version = version.substring(0, dot); }
         } return Integer.parseInt(version);
+    }
+    public boolean pdkEquals(Node pdkNode, TapEvent event) {
+        return pdkEquals(pdkNode, event, true);
+    }
+    public boolean pdkEquals(Node pdkNode, TapEvent event, boolean ignoreVersion) {
+        if(pdkNode != null &&
+                pdkNode.getTapNodeInfo() != null &&
+                pdkNode.getTapNodeInfo().getTapNodeSpecification() != null &&
+                event != null &&
+                event.getPdkId() != null &&
+                event.getPdkGroup() != null &&
+                event.getPdkVersion() != null
+        ) {
+            TapNodeSpecification specification = pdkNode.getTapNodeInfo().getTapNodeSpecification();
+            if(specification.getId() != null && specification.getGroup() != null && specification.getVersion() != null) {
+                return specification.getId().equals(event.getPdkId()) && specification.getGroup().equals(event.getPdkGroup()) &&
+                        (ignoreVersion || specification.getVersion().equals(event.getPdkVersion()));
+            }
+        }
+        return false;
     }
 
     public interface AnyError {

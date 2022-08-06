@@ -1,53 +1,115 @@
 package com.tapdata.tm.commons.dag.process;
 
 
+import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
+import com.tapdata.tm.commons.dag.DAG;
+import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.NodeEnum;
 import com.tapdata.tm.commons.dag.NodeType;
+import com.tapdata.tm.commons.dag.vo.TableRenameTableInfo;
+import com.tapdata.tm.commons.schema.Schema;
+import com.tapdata.tm.commons.schema.SchemaUtils;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.collections4.CollectionUtils;
+import org.bson.types.ObjectId;
 
-import java.util.LinkedHashMap;
+import java.util.*;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+
+import static com.tapdata.tm.commons.base.convert.ObjectIdDeserialize.toObjectId;
 
 @NodeType("table_rename_processor")
 @Getter
 @Setter
 @Slf4j
-public class TableRenameProcessNode extends ProcessorNode {
+public class TableRenameProcessNode extends Node<List<Schema>> {
     /**
      * 创建处理器节点
      *
      **/
     public TableRenameProcessNode() {
-        super(NodeEnum.table_rename_processor.name());
+        super(NodeEnum.table_rename_processor.name(), NodeCatalog.processor);
     }
 
     /**
      * 源表名-新表名
      */
-    private LinkedHashMap<String, String> tableNames;
+    private LinkedHashSet<TableRenameTableInfo> tableNames;
 
-    /**
-     * 替换关键字
-     */
-    private String searchString;
-    /**
-     * 替换文本
-     */
-    private String replacement;
+    public Map<String, TableRenameTableInfo> originalMap () {
+        if (Objects.isNull(tableNames) || tableNames.isEmpty()) {
+            return Maps.newLinkedHashMap();
+        }
 
-    /**
-     * 前缀
-     */
-    private String prefix;
-    /**
-     * 后缀
-     */
-    private String suffix;
+        return tableNames.stream().collect(Collectors.toMap(TableRenameTableInfo::getOriginTableName, Function.identity()));
+    }
 
-    /**
-     * Capitalized toUpperCase 转大写 toLowerCase 转小写 ""不变（默认）
-     */
-    private String capitalized;
+    public Map<String, TableRenameTableInfo> currentMap() {
+        if (Objects.isNull(tableNames) || tableNames.isEmpty()) {
+            return Maps.newLinkedHashMap();
+        }
 
+        return tableNames.stream().collect(Collectors.toMap(TableRenameTableInfo::getCurrentTableName, Function.identity()));
+    }
+
+    @Override
+    public List<Schema> mergeSchema(List<List<Schema>> inputSchemas, List<Schema> schemas) {
+        if (CollectionUtils.isEmpty(inputSchemas)) {
+            return Lists.newArrayList();
+        }
+
+        if (Objects.isNull(tableNames) || tableNames.isEmpty()) {
+            return inputSchemas.get(0);
+        }
+
+        inputSchemas.get(0).forEach(schema -> {
+            String originalName = schema.getOriginalName();
+            if (originalMap().containsKey(originalName)) {
+                String currentTableName = originalMap().get(originalName).getCurrentTableName();
+                schema.setName(currentTableName);
+                schema.setOriginalName(currentTableName);
+                //schema.setDatabaseId(null);
+                //schema.setQualifiedName(MetaDataBuilderUtils.generateQualifiedName(MetaType.processor_node.name(), getId()));
+            }
+            schema.setAncestorsName(originalName);
+        });
+
+        return inputSchemas.get(0);
+    }
+
+    @Override
+    protected List<Schema> loadSchema(List<String> includes) {
+        return null;
+    }
+
+    @Override
+    protected List<Schema> saveSchema(Collection<String> predecessors, String nodeId, List<Schema> schema, DAG.Options options) {
+        ObjectId taskId = taskId();
+        schema.forEach(s -> {
+            //s.setTaskId(taskId);
+            s.setNodeId(nodeId);
+        });
+
+        return service.createOrUpdateSchema(ownerId(), toObjectId(getConnectId()), schema, options, this);
+    }
+
+    @Override
+    protected List<Schema> cloneSchema(List<Schema> schemas) {
+        if (schemas == null) {
+            return Collections.emptyList();
+        }
+        return SchemaUtils.cloneSchema(schemas);
+    }
+
+    private String getConnectId() {
+        AtomicReference<String> connectionId = new AtomicReference<>("");
+
+        getSourceNode().stream().findFirst().ifPresent(node -> connectionId.set(node.getConnectionId()));
+        return connectionId.get();
+    }
 }

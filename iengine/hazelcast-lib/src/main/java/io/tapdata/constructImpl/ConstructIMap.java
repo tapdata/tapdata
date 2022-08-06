@@ -2,9 +2,6 @@ package io.tapdata.constructImpl;
 
 import com.hazelcast.core.HazelcastInstance;
 import com.hazelcast.map.IMap;
-import com.tapdata.constant.JSONUtil;
-
-import java.util.Map;
 
 /**
  * @author samuel
@@ -13,7 +10,7 @@ import java.util.Map;
  **/
 public class ConstructIMap<T> extends BaseConstruct<T> {
 
-	private IMap<String, T> iMap;
+	protected IMap<String, Object> iMap;
 
 	public ConstructIMap(HazelcastInstance hazelcastInstance, String name) {
 		this.iMap = hazelcastInstance.getMap(name);
@@ -27,14 +24,12 @@ public class ConstructIMap<T> extends BaseConstruct<T> {
 
 	@Override
 	public int update(String key, T data) throws Exception {
-		iMap.put(key, data);
-		return 1;
+		return insert(key, data);
 	}
 
 	@Override
 	public int upsert(String key, T data) throws Exception {
-		iMap.put(key, data);
-		return 1;
+		return insert(key, data);
 	}
 
 	@Override
@@ -49,7 +44,7 @@ public class ConstructIMap<T> extends BaseConstruct<T> {
 
 	@Override
 	public T find(String key) throws Exception {
-		return iMap.get(key);
+		return (T) iMap.get(key);
 	}
 
 	@Override

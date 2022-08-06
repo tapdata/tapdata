@@ -1,6 +1,5 @@
 package com.tapdata.entity.dataflow;
 
-import com.fasterxml.jackson.annotation.JsonProperty;
 import com.tapdata.entity.FieldProcess;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
