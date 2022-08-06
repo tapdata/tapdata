@@ -195,6 +195,10 @@ public class DataSourceDefinitionService extends BaseService<DataSourceDefinitio
         if (!Objects.isNull(dataSourceDefinition)
                 && !Objects.isNull(dataSourceDefinition.getProperties())) {
             LinkedHashMap<String, Object> properties = dataSourceDefinition.getProperties();
+            if (properties == null) {
+                return;
+            }
+
             final String[] content = {JSON.toJSONString(properties)};
 
             LinkedHashMap<String, Object> messages = dataSourceDefinition.getMessages();
@@ -224,10 +228,14 @@ public class DataSourceDefinitionService extends BaseService<DataSourceDefinitio
     public List<DataSourceTypeDto> dataSourceTypes(UserDetail user, Filter filter) {
         //根据名称过滤与分页信息，查询数据源定义列表并返还
         //页面查询列表只需要查询数据源定义类型信息，不需要配置信息，所以当filter中查询字段为空时，只查询非配置的信息
-        if (filter.getFields() == null || filter.getFields().size() == 0) {
+        Field fields = filter.getFields();
+        if (fields == null || fields.size() == 0) {
             Field field = new Field();
             field.put("properties", false);
             filter.setFields(field);
+        } else {
+            fields.put("messages", true);
+            fields.put("pdkId", true);
         }
         //如果是官方的，则所有人可以查询，否则只能查询用户自己添加的类型信息
 //        Query query = repository.filterToSimpleQuery(filter);
