@@ -1,10 +1,6 @@
 package io.tapdata.pdk.cli;
 
-import java.io.IOException;
 import java.net.URL;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.util.*;
 
 /**
  * Picocli aims to be the easiest way to create rich command line applications that can run on and off the JVM. Considering picocli? Check what happy users say about picocli.
@@ -82,12 +78,20 @@ public class RegisterMain {
                 return "/";
             }
 
-            Path path = Paths.get(resource.getPath() + "../../../../");
-            String basePath = path.toFile().getCanonicalPath() + "/";
-            System.out.println("basePath:" + basePath);
-            return basePath;
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-    }
+//                "/Users/aplomb/dev/tapdata/GithubProjects/idaas-pdk/dist/empty-connector-v1.1-SNAPSHOT.jar",
+				basePath + "connectors/dist/mysql-connector-v1.0-SNAPSHOT.jar",
+				basePath + "connectors/dist/postgres-connector-v1.0-SNAPSHOT.jar",
+				basePath + "connectors/dist/mongodb-connector-v1.0-SNAPSHOT.jar",
+				basePath + "connectors/dist/elasticsearch-connector-v1.0-SNAPSHOT.jar",
+				basePath + "connectors/dist/oceanbase-connector-v1.0-SNAPSHOT.jar",
+				basePath + "connectors/dist/doris-connector-v1.0-SNAPSHOT.jar",
+				basePath + "connectors/dist/activemq-connector-v1.0-SNAPSHOT.jar",
+				basePath + "connectors/dist/rabbitmq-connector-v1.0-SNAPSHOT.jar",
+				basePath + "connectors/dist/rocketmq-connector-v1.0-SNAPSHOT.jar",
+				basePath + "connectors/dist/kafka-connector-v1.0-SNAPSHOT.jar",
+				basePath + "connectors/dist/redis-connector-v1.0-SNAPSHOT.jar",
+		};
+
+		Main.registerCommands().execute(args);
+	}
 }
