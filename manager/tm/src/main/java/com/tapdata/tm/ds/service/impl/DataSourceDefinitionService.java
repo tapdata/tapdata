@@ -199,6 +199,12 @@ public class DataSourceDefinitionService extends BaseService<DataSourceDefinitio
 
             LinkedHashMap<String, Object> messages = dataSourceDefinition.getMessages();
             String language = MessageUtil.getLanguage();
+
+            //如果message为空，或者语言为空，不能影响主流程
+            if (messages == null || StringUtils.isBlank(language)) {
+                return;
+            }
+
             Object o = messages.get(language);
             LinkedHashMap<String, Object> msgJson = JSON.parseObject(JSON.toJSONString(o), new TypeReference<LinkedHashMap<String, Object>>(){});
 
