@@ -18,9 +18,7 @@ import com.tapdata.tm.base.service.BaseService;
 import com.tapdata.tm.commons.dag.*;
 import com.tapdata.tm.commons.dag.logCollector.LogCollectorNode;
 import com.tapdata.tm.commons.dag.nodes.*;
-import com.tapdata.tm.commons.dag.process.JoinProcessorNode;
-import com.tapdata.tm.commons.dag.process.MergeTableNode;
-import com.tapdata.tm.commons.dag.process.MigrateFieldRenameProcessorNode;
+import com.tapdata.tm.commons.dag.process.*;
 import com.tapdata.tm.commons.dag.vo.FieldInfo;
 import com.tapdata.tm.commons.dag.vo.Operation;
 import com.tapdata.tm.commons.dag.vo.SyncObjects;
@@ -303,7 +301,6 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         }
     }
 
-    @Override
     protected void beforeSave(TaskDto task, UserDetail user) {
         setDefault(task);
 
@@ -458,12 +455,20 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                         if (CollectionUtils.isNotEmpty(fields)) {
                             fieldNames = fields.stream().map(FieldInfo::getSourceFieldName).collect(Collectors.toList());
                         }
+
+                        List<String> hiddenFields = table.getFields().stream().filter(t -> !t.getIsShow())
+                                .map(FieldInfo::getSourceFieldName)
+                                .collect(Collectors.toList());
+
                         List<com.tapdata.tm.commons.schema.Field> tableFields = fieldMap.get(table.getQualifiedName());
                         if (CollectionUtils.isNotEmpty(tableFields)) {
-                            List<String> finalFieldNames = fieldNames;
-                            tableFields.forEach(field -> {
+                            for (com.tapdata.tm.commons.schema.Field field : tableFields) {
                                 String targetFieldName = field.getFieldName();
-                                if (!finalFieldNames.contains(targetFieldName)) {
+                                if (!fieldNames.contains(targetFieldName)) {
+                                    if (CollectionUtils.isNotEmpty(hiddenFields) && hiddenFields.contains(targetFieldName)) {
+                                        continue;
+                                    }
+
                                     if (StringUtils.isNotBlank(operation.getPrefix())) {
                                         targetFieldName = operation.getPrefix().concat(targetFieldName);
                                     }
@@ -481,7 +486,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                                             new FieldInfo(field.getFieldName(), targetFieldName, true, "system");
                                     fields.add(fieldInfo);
                                 }
-                            });
+                            }
                         }
                     });
                 }
@@ -558,8 +563,32 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
         checkDagAgentConflict(taskDto, true);
 
+        checkDDLConflict(taskDto);
+
         //saveInspect(existedTask, taskDto, user);
         return confirmById(taskDto, user, confirm, false);
+    }
+
+    private void checkDDLConflict(TaskDto taskDto) {
+        LinkedList<DatabaseNode> sourceNode = taskDto.getDag().getSourceNode();
+        if (CollectionUtils.isNotEmpty(sourceNode)) {
+            return;
+        }
+        boolean enableDDL = sourceNode.stream().anyMatch(DataParentNode::getEnableDDL);
+        if (!enableDDL) {
+            return;
+        }
+
+        FunctionUtils.isTureOrFalse(TaskDto.SYNC_TYPE_MIGRATE.equals(taskDto.getSyncType())).trueOrFalseHandle(
+                () -> {
+                    boolean anyMatch = taskDto.getDag().getNodes().stream().anyMatch(n -> n instanceof MigrateJsProcessorNode);
+                    FunctionUtils.isTure(anyMatch).throwMessage("Task.DDL.Conflict.Migrate");
+                },
+                () -> {
+                    boolean anyMatch = taskDto.getDag().getNodes().stream().anyMatch(n -> n instanceof JsProcessorNode);
+                    FunctionUtils.isTure(anyMatch).throwMessage("Task.DDL.Conflict.Sync");
+                }
+        );
     }
 
     public void checkTaskInspectFlag (TaskDto taskDto) {
@@ -637,6 +666,122 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         }
 
         return updateById(taskDto, user);
+        taskDto = updateById(taskDto, user);
+
+        List<SubTaskDto> subTaskDtos = subTaskService.findByTaskId(taskDto.getId());
+
+        List<DAG> newDags = dag.split();
+        CustomerJobLog customerJobLog = new CustomerJobLog(taskDto.getId().toString(), taskDto.getName());
+        customerJobLog.setDataFlowType(CustomerJobLogsService.DataFlowType.sync.getV());
+        customerJobLog.setJobInfos(printInfos(dag));
+        customerJobLogsService.splittedJobs(customerJobLog, user);
+
+        log.debug("check task dag complete, task id = {}", taskDto.getId());
+
+        Boolean isOpenAutoDDL = taskDto.getIsOpenAutoDDL();
+
+        if (CollectionUtils.isEmpty(subTaskDtos)) {
+            //拆分子任务
+            int index = 1;
+            for (DAG subDag : newDags) {
+                SubTaskDto subTaskDto = new SubTaskDto();
+                subTaskDto.setParentId(taskDto.getId());
+                subTaskDto.setName(getSubTaskName(taskDto, index, user));
+                subTaskDto.setStatus(SubTaskDto.STATUS_EDIT);
+                subTaskDto.setIsEdit(true);
+                subTaskDto.setDag(subDag);
+                subTaskDtos.add(subTaskDto);
+                index++;
+
+                //设置子任务isOpenAutoDDL 属性，与父任务保持一致
+                subTaskDto.setIsOpenAutoDDL(isOpenAutoDDL);
+            }
+
+            //子任务入库
+            List<SubTaskDto> subTaskSaves = subTaskService.save(subTaskDtos, user);
+            log.debug("handle subtask is complete, will be save");
+
+
+            taskDto = saveAndClearTemp(taskDto, user);
+
+            Map<String, Object> attrs = taskDto.getAttrs();
+            if (attrs == null) {
+                attrs = new HashMap<>();
+                taskDto.setAttrs(attrs);
+            }
+            SubTaskDto subTaskDto = subTaskSaves.get(0);
+            if (subTaskDto != null) {
+                attrs.put(LOG_COLLECTOR_SAVE_ID, subTaskSaves.get(0).getId().toHexString());
+            }
+
+            return taskDto;
+        }
+
+
+        //合并子任务
+        List<DAG.SubTaskStatus> dags = dag.update(newDags, subTaskDtos);
+        Map<ObjectId, SubTaskDto> subTaskDtoMap = subTaskDtos.stream().collect(Collectors.toMap(SubTaskDto::getId, s -> s));
+
+        List<DAG.SubTaskStatus> deleteSubTasks = dags.stream().filter(s -> "delete".equals(s.getAction())).collect(Collectors.toList());
+        if (CollectionUtils.isNotEmpty(deleteSubTasks)) {
+            for (DAG.SubTaskStatus deleteSubTask : deleteSubTasks) {
+                SubTaskDto subTaskDto = subTaskDtoMap.get(deleteSubTask.getSubTaskId());
+                if (SubTaskService.runningStatus.contains(subTaskDto.getStatus())) {
+                    throw new BizException("Task.DeleteSubTaskIsRun");
+                }
+            }
+        }
+
+        Map<String, List<Message>> messageMap = new HashMap<>();
+        if (!confirm) {
+            if (CollectionUtils.isNotEmpty(deleteSubTasks)) {
+                for (DAG.SubTaskStatus deleteSubTask : deleteSubTasks) {
+                    SubTaskDto subTaskDto = subTaskDtoMap.get(deleteSubTask.getSubTaskId());
+                    if (subTaskDto.getIsEdit() == null || subTaskDto.getIsEdit()) {
+                        continue;
+                    }
+                    Message message = new Message();
+                    message.setCode("Task.DeleteSubTask");
+                    List<Message> messageList = new ArrayList<>();
+                    messageList.add(message);
+                    messageMap.put(deleteSubTask.getSubTaskId().toString(), messageList);
+                }
+            }
+
+
+            List<DAG.SubTaskStatus> updateSubTasks = dags.stream().filter(s -> "update".equals(s.getAction())).collect(Collectors.toList());
+            if (CollectionUtils.isNotEmpty(updateSubTasks)) {
+                for (DAG.SubTaskStatus updateSubtask : updateSubTasks) {
+                    SubTaskDto subTaskDto = subTaskDtoMap.get(updateSubtask.getSubTaskId());
+                    if (subTaskDto.getIsEdit() == null || subTaskDto.getIsEdit()) {
+                        continue;
+                    }
+                    boolean canHotUpdate = subTaskService.canHotUpdate(subTaskDto.getDag(), updateSubtask.getDag());
+                    if (!canHotUpdate) {
+                        Message message = new Message();
+                        message.setCode("Task.UpdateSubTask");
+                        List<Message> messageList = new ArrayList<>();
+                        messageList.add(message);
+                        messageMap.put(updateSubtask.getSubTaskId().toString(), messageList);
+                    }
+                }
+            }
+
+        }
+
+        //推合并的子任务进行新增更新删除
+        updateSubtask(taskDto, user, dags);
+
+        //更新任务
+        log.debug("update task, task dto = {}", taskDto);
+        TaskDto taskDto1 = saveAndClearTemp(taskDto, user);
+        if (messageMap.size() > 0) {
+            //返回异常
+            throw new BizException("Task.ListWarnMessage", messageMap);
+        }
+
+        return taskDto1;
+
     }
 
     public void checkDagAgentConflict(TaskDto taskDto, boolean showListMsg) {
@@ -1245,11 +1390,11 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                 statusesCriteria = new Criteria().orOperator(statusCriList);
                 break;
             case "error":
-                statues.add(TaskDto.STATUS_ERROR);
+                statues.add(SubTaskDto.STATUS_ERROR);
                 criteria.and("statuses.status").in(statues);
                 break;
             case "edit":
-                statues.add(TaskDto.STATUS_EDIT);
+                statues.add(SubTaskDto.STATUS_EDIT);
                 criteria.and("statuses.status").in(statues);
                 break;
             default:
@@ -1681,7 +1826,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
      * 增量所处时间点，参考 IncreaseSyncVO 的 cdcTime   其实就是 AgentStatistics 表的cdcTime
      * 全量开始时间，参考 SubTask 的milestone  code 是 READ_SNAPSHOT 的start
      * 增量开始时间，参考 SubTask 的milestone  code 是 READ_CDC_EVENT 的start
-     * 任务完成时间  取 ParentTaskDto 的 finishTime
+     * 任务完成时间  取 ParentSubTaskDto 的 finishTime
      * 增量最大滞后时间:  AgentStatistics  replicateLag
      * 任务开始时间： SubTask startTime
      * 总时长 参考   FullSyncVO 的结束结束 - 开始时间

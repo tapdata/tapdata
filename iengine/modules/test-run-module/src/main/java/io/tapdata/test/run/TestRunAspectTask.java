@@ -48,7 +48,7 @@ public class TestRunAspectTask extends AspectTask {
   @Override
   public void onStart(TaskStartAspect startAspect) {
     Optional<Node> optional = task.getDag().getNodes().stream().filter(n -> n.getType().equals("virtualTarget")).findFirst();
-    optional.ifPresent(node -> this.nodeIds = task.getDag().getPreNodes(node.getId()).stream()
+    optional.ifPresent(node -> this.nodeIds = task.getDag().predecessors(node.getId()).stream()
             .map(Element::getId).collect(Collectors.toSet()));
   }
 
@@ -63,7 +63,7 @@ public class TestRunAspectTask extends AspectTask {
            * {"before":[{}], "after":[{}]}
            */
           resultMap.computeIfAbsent("before", key -> new ArrayList<>()).add(transformFromTapValue(inputEvent));
-          processAspect.setConsumer(outputEvent ->
+          processAspect.consumer(outputEvent ->
                   resultMap.computeIfAbsent("after", key -> new ArrayList<>()).add(transformFromTapValue(outputEvent)));
         }
         break;
@@ -77,15 +77,20 @@ public class TestRunAspectTask extends AspectTask {
 
   @Override
   public void onStop(TaskStopAspect stopAspect) {
-    ClientMongoOperator clientMongoOperator = BeanUtil.getBean(ClientMongoOperator.class);
     Map<String, Object> paramMap = new HashMap<>();
     paramMap.put("taskId", task.getParentTask().getId().toHexString());
     paramMap.put("version", task.getVersion());
-    paramMap.put("code", "ok");
     paramMap.put("ts", new Date().getTime());
-    paramMap.put("before", resultMap.get("before"));
-    paramMap.put("after", resultMap.get("after"));
-
+    if (stopAspect.getError() != null) {
+      //run task error
+      paramMap.put("code", "error");
+      paramMap.put("message", stopAspect.getError().getMessage());
+    } else {
+      paramMap.put("code", "ok");
+      paramMap.put("before", resultMap.get("before"));
+      paramMap.put("after", resultMap.get("after"));
+    }
+    ClientMongoOperator clientMongoOperator = BeanUtil.getBean(ClientMongoOperator.class);
     clientMongoOperator.insertOne(paramMap, "/task/migrate-js/save-result");
 
   }

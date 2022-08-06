@@ -11,9 +11,10 @@ import com.tapdata.entity.dataflow.Capitalized;
 import com.tapdata.entity.dataflow.SyncProgress;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.tm.commons.dag.Node;
-import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
-import com.tapdata.tm.commons.dag.vo.SyncObjects;
 import com.tapdata.tm.commons.dag.nodes.DataParentNode;
+import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
+import com.tapdata.tm.commons.dag.nodes.TableNode;
+import com.tapdata.tm.commons.dag.vo.SyncObjects;
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.commons.schema.TransformerWsMessageResult;
 import com.tapdata.tm.commons.task.dto.MergeTableProperties;
@@ -37,6 +38,7 @@ import io.tapdata.metrics.TaskSampleRetriever;
 import io.tapdata.milestone.MilestoneContext;
 import io.tapdata.milestone.MilestoneStage;
 import io.tapdata.milestone.MilestoneStatus;
+import io.tapdata.pdk.core.utils.CommonUtils;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.collections.MapUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -137,12 +139,14 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 	@Override
 	protected void doInit(@NotNull Context context) throws Exception {
 		super.doInit(context);
-		try {
-			createPdkConnectorNode(dataProcessorContext, context.hazelcastInstance());
-			connectorNodeInit(dataProcessorContext);
-		} catch (Throwable e) {
-			MilestoneUtil.updateMilestone(milestoneService, MilestoneStage.INIT_TRANSFORMER, MilestoneStatus.ERROR, e.getMessage() + "\n" + Log4jUtil.getStackString(e));
-			throw new RuntimeException(e);
+		if (getNode() instanceof TableNode || getNode() instanceof DatabaseNode) {
+			try {
+				createPdkConnectorNode(dataProcessorContext, context.hazelcastInstance());
+				connectorNodeInit(dataProcessorContext);
+			} catch (Throwable e) {
+				MilestoneUtil.updateMilestone(milestoneService, MilestoneStage.INIT_TRANSFORMER, MilestoneStatus.ERROR, e.getMessage() + "\n" + Log4jUtil.getStackString(e));
+				throw new RuntimeException(e);
+			}
 		}
 		this.uploadDagService = new AtomicBoolean(false);
 		this.insertMetadata = new CopyOnWriteArrayList<>();
@@ -522,21 +526,20 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 					return new ArrayList<>(tapTable.primaryKeys());
 				}),
 				this::handleTapdataEvents,
-				this::flushSyncProgressMap
+				this::flushSyncProgressMap,
+				this::errorHandle,
+				dataProcessorContext.getSubTaskDto().getId().toHexString(),
+				dataProcessorContext.getSubTaskDto().getName()
 		);
 	}
 
 	@Override
 	public void doClose() throws Exception {
-
-		if (this.initialPartitionConcurrentProcessor != null) {
-			this.initialPartitionConcurrentProcessor.stop();
+		try {
+			CommonUtils.ignoreAnyError(() -> Optional.ofNullable(this.initialPartitionConcurrentProcessor).ifPresent(PartitionConcurrentProcessor::stop), TAG);
+			CommonUtils.ignoreAnyError(() -> Optional.ofNullable(this.cdcPartitionConcurrentProcessor).ifPresent(PartitionConcurrentProcessor::stop), TAG);
+		} finally {
+			super.doClose();
 		}
-
-		if (this.cdcPartitionConcurrentProcessor != null) {
-			this.cdcPartitionConcurrentProcessor.stop();
-		}
-
-		super.doClose();
 	}
 }

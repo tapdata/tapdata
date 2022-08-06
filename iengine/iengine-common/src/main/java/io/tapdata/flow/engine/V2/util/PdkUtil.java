@@ -11,6 +11,7 @@ import io.tapdata.pdk.apis.entity.ConnectorCapabilities;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.api.PDKIntegration;
 import io.tapdata.schema.PdkTableMap;
+import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.filefilter.*;
 import org.apache.commons.lang3.StringUtils;
@@ -109,6 +110,7 @@ public class PdkUtil {
 				clientMongoOperator,
 				associateId,
 				connectionConfig,
+				null,
 				pdkTableMap,
 				pdkStateMap,
 				globalStateMap,
@@ -122,6 +124,7 @@ public class PdkUtil {
 			ClientMongoOperator clientMongoOperator,
 			String associateId,
 			Map<String, Object> connectionConfig,
+			Map<String, Object> nodeConfig,
 			PdkTableMap pdkTableMap,
 			PdkStateMap pdkStateMap,
 			PdkStateMap globalStateMap,
@@ -134,15 +137,22 @@ public class PdkUtil {
 			PDKIntegration.ConnectorBuilder<ConnectorNode> connectorBuilder = PDKIntegration.createConnectorBuilder()
 					.withDagId(dagId)
 					.withAssociateId(associateId)
-					.withConnectionConfig(new DataMap() {{
-						putAll(connectionConfig);
-					}})
 					.withGroup(databaseType.getGroup())
 					.withVersion(databaseType.getVersion())
 					.withPdkId(databaseType.getPdkId())
 					.withTableMap(pdkTableMap)
 					.withStateMap(pdkStateMap)
 					.withGlobalStateMap(globalStateMap);
+			if (MapUtils.isNotEmpty(connectionConfig)) {
+				connectorBuilder.withConnectionConfig(new DataMap() {{
+					putAll(connectionConfig);
+				}});
+			}
+			if (MapUtils.isNotEmpty(nodeConfig)) {
+				connectorBuilder.withNodeConfig(new DataMap() {{
+					putAll(nodeConfig);
+				}});
+			}
 			if (null != connectorCapabilities) {
 				connectorBuilder.withConnectorCapabilities(connectorCapabilities);
 			}

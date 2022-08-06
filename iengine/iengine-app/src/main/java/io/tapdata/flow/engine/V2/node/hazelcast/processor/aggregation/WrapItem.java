@@ -20,7 +20,7 @@ public class WrapItem implements Cloneable {
     /**
      * 事件造成行数的变化
      */
-    private BigDecimal changedCount = BigDecimal.ZERO;
+    private BigDecimal changedCount;
 
     private Object originalMessage;
 

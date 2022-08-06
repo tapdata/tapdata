@@ -22,7 +22,7 @@ public class KeysPartitioner implements Partitioner<TapdataEvent, List<Object>> 
 
 		int partition = 0;
 		if (CollectionUtils.isNotEmpty(partitionValue)) {
-			partition = Objects.hash(partitionValue) % partitionSize;
+			partition = Math.abs(Objects.hash(partitionValue)) % partitionSize;
 		}
 		return new PartitionResult<>(partition, tapdataEvent);
 	}

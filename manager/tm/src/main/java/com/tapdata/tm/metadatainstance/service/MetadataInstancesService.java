@@ -40,10 +40,7 @@ import com.tapdata.tm.metadatainstance.vo.*;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.user.dto.UserDto;
 import com.tapdata.tm.user.service.UserService;
-import com.tapdata.tm.utils.Lists;
-import com.tapdata.tm.utils.MetadataUtil;
-import com.tapdata.tm.utils.MongoUtils;
-import com.tapdata.tm.utils.SchemaTransformUtils;
+import com.tapdata.tm.utils.*;
 import io.tapdata.entity.mapping.DefaultExpressionMatchingMap;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
@@ -853,18 +850,23 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
             List<String> findQualifiedNames = new ArrayList<>();
             Map<String, MetadataInstancesDto> metaMap = new HashMap<>();
             for (MetadataInstancesDto value : updateMetaMap.values()) {
-                String qualifiedName = value.getQualifiedName();
-                int i = qualifiedName.lastIndexOf("_");
-                String oldQualifiedName = qualifiedName.substring(0, i);
-                value.setQualifiedName(oldQualifiedName);
-                qualifiedNames.add(oldQualifiedName);
-                findQualifiedNames.add(oldQualifiedName);
-                Criteria criteria = Criteria.where("qualified_name").in(findQualifiedNames);
-                Query query = new Query(criteria);
-                query.fields().exclude("histories");
-                List<MetadataInstancesDto> metadataInstancesDtos = findAllDto(query, userDetail);
-                metaMap = metadataInstancesDtos.stream().collect(Collectors.toMap(m -> m.getId().toHexString(), m -> m));
+                if (saveHistory) {
+                    String qualifiedName = value.getQualifiedName();
+                    int i = qualifiedName.lastIndexOf("_");
+                    String oldQualifiedName = qualifiedName.substring(0, i);
+                    value.setQualifiedName(oldQualifiedName);
+                    qualifiedNames.add(oldQualifiedName);
+                    findQualifiedNames.add(oldQualifiedName);
+                } else {
+                    qualifiedNames.add(value.getQualifiedName());
+                    findQualifiedNames.add(value.getQualifiedName());
+                }
             }
+            Criteria criteria = Criteria.where("qualified_name").in(findQualifiedNames);
+            Query query = new Query(criteria);
+            query.fields().exclude("histories");
+            List<MetadataInstancesDto> metadataInstancesDtos = findAllDto(query, userDetail);
+            metaMap = metadataInstancesDtos.stream().collect(Collectors.toMap(m -> m.getId().toHexString(), m -> m));
 
             for (Map.Entry<String, MetadataInstancesDto> entry : updateMetaMap.entrySet()) {
                 MetadataInstancesDto value = entry.getValue();
@@ -951,7 +953,7 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
     public List<String> tables(String connectId, String sourceType) {
         Criteria criteria = Criteria.where("source._id").is(connectId)
                 .and("sourceType").is(sourceType)
-                .and("is_deleted").is(false)
+                .and("is_deleted").ne(true)
                 .and("meta_type").in(MetaType.collection.name(), MetaType.table.name());
         Query query = new Query(criteria);
         query.fields().include("original_name");
@@ -1261,6 +1263,9 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
                     } else {
                         throw new BizException("table node is error nodeId:" + tableNode.getId());
                     }
+
+                    FunctionUtils.isTure(CollectionUtils.isEmpty(tableNames)).throwMessage("SystemError", "dag node tableNames is null");
+
                     criteriaTable.and("source._id").is(tableNode.getConnectionId())
                             .and("originalName").in(tableNames).and("is_deleted").ne(true);
                     metadatas = findAllDto(queryMetadata, user);

@@ -4,6 +4,7 @@ import cn.hutool.core.bean.BeanUtil;
 import com.google.common.collect.Maps;
 import com.tapdata.manager.common.utils.JsonUtil;
 import com.tapdata.tm.base.dto.Page;
+import com.tapdata.tm.base.dto.ResponseMessage;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.commons.dag.*;
 import com.tapdata.tm.commons.dag.logCollector.VirtualTargetNode;
@@ -27,11 +28,11 @@ import com.tapdata.tm.ds.service.impl.DataSourceService;
 import com.tapdata.tm.messagequeue.dto.MessageQueueDto;
 import com.tapdata.tm.messagequeue.service.MessageQueueService;
 import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
-import com.tapdata.tm.task.service.TaskNodeService;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.task.utils.CacheUtils;
 import com.tapdata.tm.task.vo.JsResultDto;
 import com.tapdata.tm.task.vo.JsResultVo;
+import com.tapdata.tm.utils.FunctionUtils;
 import com.tapdata.tm.utils.Lists;
 import com.tapdata.tm.utils.MongoUtils;
 import com.tapdata.tm.worker.entity.Worker;
@@ -52,6 +53,7 @@ import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import com.tapdata.tm.task.service.TaskNodeService;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentMap;
@@ -68,7 +70,6 @@ public class TaskNodeServiceImpl implements TaskNodeService {
     private DataSourceService dataSourceService;
     private MessageQueueService messageQueueService;
     private WorkerService workerService;
-    private DAGDataService dagDataService;
     private DataSourceDefinitionService dataSourceDefinitionService;
 
     @Override
@@ -77,7 +78,7 @@ public class TaskNodeServiceImpl implements TaskNodeService {
         Page<MetadataTransformerItemDto> result = new Page<>();
 
         DAG dag = taskService.findById(MongoUtils.toObjectId(taskId)).getDag();
-        if (CollectionUtils.isEmpty(dag.getEdges())) {
+        if (CollectionUtils.isEmpty(dag.getEdges()) || Objects.isNull(dag.getPreNodes(nodeId))) {
             return result;
         }
 
@@ -113,24 +114,50 @@ public class TaskNodeServiceImpl implements TaskNodeService {
         if (targetNode != null) {
             targetDataSource = dataSourceService.findById(MongoUtils.toObjectId(targetNode.getConnectionId()));
         }
+
+        List<Node<?>> predecessors = dag.nodeMap().get(nodeId);
+        Node<?> currentNode = dag.getNode(nodeId);
+        if (CollectionUtils.isEmpty(predecessors)) {
+            predecessors = Lists.newArrayList();
+        }
+        predecessors.add(currentNode);
+
         // if current node pre has js node need get data from metaInstances
-        boolean preHasJsNode = Objects.requireNonNull(dag.getPreNodes(nodeId)).stream().anyMatch(n -> n instanceof MigrateJsProcessorNode);
+        boolean preHasJsNode = dag.getPreNodes(nodeId).stream().anyMatch(n -> n instanceof MigrateJsProcessorNode);
         if (preHasJsNode)
-            return getMetaByJsNode(nodeId, result, sourceNode, targetNode, tableNames, currentTableList, targetDataSource);
+            return getMetaByJsNode(nodeId, result, sourceNode, targetNode, tableNames, currentTableList, targetDataSource, predecessors);
         else
-            return getMetadataTransformerItemDtoPage(nodeId, userDetail, result, dag, sourceNode, targetNode, tableNames, currentTableList, targetDataSource, taskId);
+            return getMetadataTransformerItemDtoPage(nodeId, userDetail, result, dag, sourceNode, targetNode, tableNames, currentTableList, targetDataSource, taskId, predecessors, currentNode);
     }
 
-    private Page<MetadataTransformerItemDto> getMetaByJsNode(String nodeId, Page<MetadataTransformerItemDto> result, DatabaseNode sourceNode, DatabaseNode targetNode, List<String> tableNames, List<String> currentTableList, DataSourceConnectionDto targetDataSource) {
-        List<String> qualifiedNames;
-        if (targetNode != null && nodeId.equals(targetNode.getId())) {
-            String metaType = "mongodb".equals(targetDataSource.getDatabase_type()) ? "collection" : "table";
-            qualifiedNames = currentTableList.stream().map(t ->
-                    MetaDataBuilderUtils.generateQualifiedName(metaType, targetDataSource, t)).collect(Collectors.toList());
-        } else {
-            qualifiedNames = currentTableList.stream().map(t ->
-                    MetaDataBuilderUtils.generateQualifiedName(MetaType.processor_node.name(), nodeId, t)).collect(Collectors.toList());
+    private Page<MetadataTransformerItemDto> getMetaByJsNode(String nodeId, Page<MetadataTransformerItemDto> result, DatabaseNode sourceNode, DatabaseNode targetNode, List<String> tableNames, List<String> currentTableList, DataSourceConnectionDto targetDataSource, List<Node<?>> predecessors) {
+        // table rename
+        LinkedList<TableRenameProcessNode> tableRenameProcessNodes = predecessors.stream()
+                .filter(node -> node instanceof TableRenameProcessNode)
+                .map(node -> (TableRenameProcessNode) node)
+                .collect(Collectors.toCollection(LinkedList::new));
+        Map<String, TableRenameTableInfo> tableNameMapping = null;
+        if (CollectionUtils.isNotEmpty(tableRenameProcessNodes)) {
+            tableNameMapping = tableRenameProcessNodes.getLast().originalMap();
         }
+
+        String metaType = "mongodb".equals(targetDataSource.getDatabase_type()) ? "collection" : "table";
+        List<String> qualifiedNames = Lists.newArrayList();
+        for (String tableName : currentTableList) {
+            String tempName;
+            if (Objects.nonNull(tableNameMapping) && !tableNameMapping.isEmpty() && Objects.nonNull(tableNameMapping.get(tableName))) {
+                tempName = tableNameMapping.get(tableName).getCurrentTableName();
+            } else {
+                tempName = tableName;
+            }
+
+            if (targetNode != null && nodeId.equals(targetNode.getId())) {
+                qualifiedNames.add(MetaDataBuilderUtils.generateQualifiedName(metaType, targetDataSource, tempName));
+            } else {
+                qualifiedNames.add(MetaDataBuilderUtils.generateQualifiedName(MetaType.processor_node.name(), nodeId, tempName));
+            }
+        }
+
         List<MetadataInstancesDto> instances = metadataInstancesService.findByQualifiedNameList(qualifiedNames);
         if (CollectionUtils.isNotEmpty(instances)) {
             List<MetadataTransformerItemDto> data = Lists.newArrayList();
@@ -166,9 +193,10 @@ public class TaskNodeServiceImpl implements TaskNodeService {
     }
 
     @NotNull
-    private Page<MetadataTransformerItemDto> getMetadataTransformerItemDtoPage(String nodeId, UserDetail userDetail, Page<MetadataTransformerItemDto> result, DAG dag, DatabaseNode sourceNode, DatabaseNode targetNode, List<String> tableNames, List<String> currentTableList, DataSourceConnectionDto targetDataSource, String taskId) {
-        List<Node<?>> predecessors = dag.nodeMap().get(nodeId);
-        Node<?> currentNode = dag.getNode(nodeId);
+    private Page<MetadataTransformerItemDto> getMetadataTransformerItemDtoPage(String nodeId, UserDetail userDetail
+            , Page<MetadataTransformerItemDto> result, DAG dag, DatabaseNode sourceNode, DatabaseNode targetNode
+            , List<String> tableNames, List<String> currentTableList, DataSourceConnectionDto targetDataSource
+            , String taskId, List<Node<?>> predecessors, Node<?> currentNode) {
         if (CollectionUtils.isEmpty(predecessors)) {
             predecessors = Lists.newArrayList();
         }
@@ -217,7 +245,6 @@ public class TaskNodeServiceImpl implements TaskNodeService {
             }).collect(Collectors.toMap(MetadataInstancesDto::getOriginalName, Function.identity()));
         }
 
-
         List<MetadataTransformerItemDto> data = Lists.newArrayList();
         for (String tableName : currentTableList) {
             MetadataTransformerItemDto item = new MetadataTransformerItemDto();
@@ -240,7 +267,10 @@ public class TaskNodeServiceImpl implements TaskNodeService {
             String metaType = "mongodb".equals(sourceDataSource.getDatabase_type()) ? "collection" : "table";
             String sourceQualifiedName = MetaDataBuilderUtils.generateQualifiedName(metaType, sourceDataSource, tableName, taskId);
 
-            List<Field> fields = metaMap.get(tableName).getFields();
+            if (CollectionUtils.isEmpty(metaMap.get(tableName).getFields())) {
+                continue;
+            }
+            List<Field> fields = metaMap.get(tableName).getFields().stream().filter(t -> !t.isDeleted()).collect(Collectors.toList());
 
             // TableRenameProcessNode not need fields
             if (!(currentNode instanceof TableRenameProcessNode)) {
@@ -363,16 +393,28 @@ public class TaskNodeServiceImpl implements TaskNodeService {
     }
 
     @Override
-    public JsResultVo getRun(String taskId, String jsNodeId, Long version) {
+    public ResponseMessage<JsResultVo> getRun(String taskId, String jsNodeId, Long version) {
+        ResponseMessage<JsResultVo> res = new ResponseMessage<>();
         JsResultVo result = new JsResultVo();
         StringJoiner joiner = new StringJoiner(":", taskId, version.toString());
         if (CacheUtils.isExist(joiner.toString())) {
-            BeanUtil.copyProperties(CacheUtils.invalidate(joiner.toString()), result);
             result.setOver(true);
+            JsResultDto dto = new JsResultDto();
+            BeanUtil.copyProperties(CacheUtils.invalidate(joiner.toString()), dto);
+            FunctionUtils.isTureOrFalse(dto.getCode().equals("ok")).trueOrFalseHandle(() -> {
+                BeanUtil.copyProperties(dto, result);
+                res.setCode("ok");
+                res.setData(result);
+            }, () -> {
+                log.error("getRun JsResultVo error:{}", dto.getMessage());
+                res.setCode("SystemError");
+                res.setMessage("SystemError");
+            });
         } else {
             result.setOver(false);
+            res.setData(result);
         }
-        return result;
+        return res;
     }
 
     /**
@@ -390,7 +432,6 @@ public class TaskNodeServiceImpl implements TaskNodeService {
             return metadataInstancesDto;
         }
 
-        final String sourceNodeDatabaseType = schema.getSourceNodeDatabaseType();
         final String databaseType = dataSourceConnectionDto.getDatabase_type();
         String dbVersion = dataSourceConnectionDto.getDb_version();
         if (com.tapdata.manager.common.utils.StringUtils.isBlank(dbVersion)) {

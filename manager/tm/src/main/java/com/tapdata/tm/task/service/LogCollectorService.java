@@ -528,6 +528,17 @@ public class LogCollectorService {
         }
 
         String persistenceMongodb_uri_db = logSystemConfigDto.getPersistenceMongodb_uri_db();
+//        if (StringUtils.isNotBlank(connectionName)) {
+//            connectionName = connectionName.trim();
+//            Criteria nameCriteria = Criteria.where("name").is(connectionName);
+//            Query query = new Query(nameCriteria);
+//            query.fields().include("config", "database_type");
+//            DataSourceConnectionDto connectionDto = dataSourceService.findOne(query, user);
+//            Map<String, Object> config = connectionDto.getConfig();
+//            if (connectionDto.getDatabase_type().toLowerCase(Locale.ROOT).contains("mongo") && config.get("uri") != null) {
+//                persistenceMongodb_uri_db = (String) config.get("uri");
+//            }
+//        }
         if (persistenceMongodb_uri_db != null) {
             if (!persistenceMongodb_uri_db.contains("******")) {
                 settingsService.update(SettingsEnum.SHARE_CDC_PERSISTENCE_MONGODB_URI_DB, persistenceMongodb_uri_db);

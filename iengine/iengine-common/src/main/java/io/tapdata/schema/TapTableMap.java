@@ -283,6 +283,10 @@ public class TapTableMap<K extends String, V extends TapTable> extends HashMap<K
 			query = Query.query(where("qualified_name").is(qualifiedName));
 			tapTable = clientMongoOperator.findOne(query, url, TapTable.class);
 		}
+		if (null == tapTable) {
+			throw new RuntimeException("Table name \"" + k + "\" not exists, qualified name: " + qualifiedName);
+		}
+
 		LinkedHashMap<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
 		if (MapUtils.isNotEmpty(nameFieldMap)) {
 			LinkedHashMap<String, TapField> sortedFieldMap = new LinkedHashMap<>();
@@ -332,8 +336,12 @@ public class TapTableMap<K extends String, V extends TapTable> extends HashMap<K
 	}
 
 	public void reset() {
-		EhcacheService.getInstance().getEhcacheKVMap(mapKey).reset();
-		EhcacheService.getInstance().removeEhcacheKVMap(mapKey);
+		EhcacheService ehcacheService = EhcacheService.getInstance();
+		if (StringUtils.isNotBlank(mapKey)) {
+			EhcacheKVMap<Object> ehcacheKVMap = ehcacheService.getEhcacheKVMap(mapKey);
+			Optional.ofNullable(ehcacheKVMap).ifPresent(EhcacheKVMap::reset);
+			ehcacheService.removeEhcacheKVMap(mapKey);
+		}
 		this.tableNameAndQualifiedNameMap.clear();
 	}
 }

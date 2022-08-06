@@ -20,10 +20,12 @@ import com.tapdata.tm.ds.entity.DataSourceDefinitionEntity;
 import com.tapdata.tm.ds.repository.DataSourceDefinitionRepository;
 import com.tapdata.tm.utils.Lists;
 import com.tapdata.tm.utils.MessageUtil;
+import com.tapdata.tm.utils.MongoUtils;
 import io.tapdata.pdk.apis.entity.Capability;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.bson.Document;
 import org.bson.types.ObjectId;
 import org.springframework.beans.BeanUtils;
@@ -246,16 +248,22 @@ public class DataSourceDefinitionService extends BaseService<DataSourceDefinitio
         query.addCriteria(criteria);
         query.limit(0);
         query.skip(0);
-        List<DataSourceDefinitionEntity> definitionEntities = repository.findAll(query);
+        MongoUtils.applyField(query, filter.getFields());
+        List<DataSourceDefinitionDto> definitionEntities = findAll(query);
 
         long count = repository.count(query);
+
+        for (DataSourceDefinitionDto definitionEntity : definitionEntities) {
+            updateConfigPropertiesTitle(definitionEntity);
+        }
 
         // distinct
         definitionEntities = definitionEntities.stream().collect(
                 Collectors.collectingAndThen(
-                        Collectors.toCollection(() -> new TreeSet<>(Comparator.comparing(DataSourceDefinitionEntity::getPdkId))), ArrayList::new
+                        Collectors.toCollection(() -> new TreeSet<>(Comparator.comparing(d-> StringUtils.isNotBlank(d.getPdkId()) ? d.getPdkId() : d.getId().toHexString()))), ArrayList::new
                 )
         );
+
 
         List<DataSourceTypeDto> typeList = CglibUtil.copyList(definitionEntities, DataSourceTypeDto::new);
 
