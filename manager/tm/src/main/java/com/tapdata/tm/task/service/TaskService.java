@@ -666,123 +666,10 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         }
 
         return updateById(taskDto, user);
-        taskDto = updateById(taskDto, user);
-
-        List<SubTaskDto> subTaskDtos = subTaskService.findByTaskId(taskDto.getId());
-
-        List<DAG> newDags = dag.split();
-        CustomerJobLog customerJobLog = new CustomerJobLog(taskDto.getId().toString(), taskDto.getName());
-        customerJobLog.setDataFlowType(CustomerJobLogsService.DataFlowType.sync.getV());
-        customerJobLog.setJobInfos(printInfos(dag));
-        customerJobLogsService.splittedJobs(customerJobLog, user);
-
-        log.debug("check task dag complete, task id = {}", taskDto.getId());
-
-        Boolean isOpenAutoDDL = taskDto.getIsOpenAutoDDL();
-
-        if (CollectionUtils.isEmpty(subTaskDtos)) {
-            //拆分子任务
-            int index = 1;
-            for (DAG subDag : newDags) {
-                SubTaskDto subTaskDto = new SubTaskDto();
-                subTaskDto.setParentId(taskDto.getId());
-                subTaskDto.setName(getSubTaskName(taskDto, index, user));
-                subTaskDto.setStatus(SubTaskDto.STATUS_EDIT);
-                subTaskDto.setIsEdit(true);
-                subTaskDto.setDag(subDag);
-                subTaskDtos.add(subTaskDto);
-                index++;
-
-                //设置子任务isOpenAutoDDL 属性，与父任务保持一致
-                subTaskDto.setIsOpenAutoDDL(isOpenAutoDDL);
-            }
-
-            //子任务入库
-            List<SubTaskDto> subTaskSaves = subTaskService.save(subTaskDtos, user);
-            log.debug("handle subtask is complete, will be save");
-
-
-            taskDto = saveAndClearTemp(taskDto, user);
-
-            Map<String, Object> attrs = taskDto.getAttrs();
-            if (attrs == null) {
-                attrs = new HashMap<>();
-                taskDto.setAttrs(attrs);
-            }
-            SubTaskDto subTaskDto = subTaskSaves.get(0);
-            if (subTaskDto != null) {
-                attrs.put(LOG_COLLECTOR_SAVE_ID, subTaskSaves.get(0).getId().toHexString());
-            }
-
-            return taskDto;
-        }
-
-
-        //合并子任务
-        List<DAG.SubTaskStatus> dags = dag.update(newDags, subTaskDtos);
-        Map<ObjectId, SubTaskDto> subTaskDtoMap = subTaskDtos.stream().collect(Collectors.toMap(SubTaskDto::getId, s -> s));
-
-        List<DAG.SubTaskStatus> deleteSubTasks = dags.stream().filter(s -> "delete".equals(s.getAction())).collect(Collectors.toList());
-        if (CollectionUtils.isNotEmpty(deleteSubTasks)) {
-            for (DAG.SubTaskStatus deleteSubTask : deleteSubTasks) {
-                SubTaskDto subTaskDto = subTaskDtoMap.get(deleteSubTask.getSubTaskId());
-                if (SubTaskService.runningStatus.contains(subTaskDto.getStatus())) {
-                    throw new BizException("Task.DeleteSubTaskIsRun");
-                }
-            }
-        }
-
-        Map<String, List<Message>> messageMap = new HashMap<>();
-        if (!confirm) {
-            if (CollectionUtils.isNotEmpty(deleteSubTasks)) {
-                for (DAG.SubTaskStatus deleteSubTask : deleteSubTasks) {
-                    SubTaskDto subTaskDto = subTaskDtoMap.get(deleteSubTask.getSubTaskId());
-                    if (subTaskDto.getIsEdit() == null || subTaskDto.getIsEdit()) {
-                        continue;
-                    }
-                    Message message = new Message();
-                    message.setCode("Task.DeleteSubTask");
-                    List<Message> messageList = new ArrayList<>();
-                    messageList.add(message);
-                    messageMap.put(deleteSubTask.getSubTaskId().toString(), messageList);
-                }
-            }
-
-
-            List<DAG.SubTaskStatus> updateSubTasks = dags.stream().filter(s -> "update".equals(s.getAction())).collect(Collectors.toList());
-            if (CollectionUtils.isNotEmpty(updateSubTasks)) {
-                for (DAG.SubTaskStatus updateSubtask : updateSubTasks) {
-                    SubTaskDto subTaskDto = subTaskDtoMap.get(updateSubtask.getSubTaskId());
-                    if (subTaskDto.getIsEdit() == null || subTaskDto.getIsEdit()) {
-                        continue;
-                    }
-                    boolean canHotUpdate = subTaskService.canHotUpdate(subTaskDto.getDag(), updateSubtask.getDag());
-                    if (!canHotUpdate) {
-                        Message message = new Message();
-                        message.setCode("Task.UpdateSubTask");
-                        List<Message> messageList = new ArrayList<>();
-                        messageList.add(message);
-                        messageMap.put(updateSubtask.getSubTaskId().toString(), messageList);
-                    }
-                }
-            }
-
-        }
-
-        //推合并的子任务进行新增更新删除
-        updateSubtask(taskDto, user, dags);
-
-        //更新任务
-        log.debug("update task, task dto = {}", taskDto);
-        TaskDto taskDto1 = saveAndClearTemp(taskDto, user);
-        if (messageMap.size() > 0) {
-            //返回异常
-            throw new BizException("Task.ListWarnMessage", messageMap);
-        }
-
-        return taskDto1;
 
     }
+
+
 
     public void checkDagAgentConflict(TaskDto taskDto, boolean showListMsg) {
         if (taskDto.getShareCache()) {
@@ -1390,11 +1277,11 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                 statusesCriteria = new Criteria().orOperator(statusCriList);
                 break;
             case "error":
-                statues.add(SubTaskDto.STATUS_ERROR);
+                statues.add(TaskDto.STATUS_ERROR);
                 criteria.and("statuses.status").in(statues);
                 break;
             case "edit":
-                statues.add(SubTaskDto.STATUS_EDIT);
+                statues.add(TaskDto.STATUS_EDIT);
                 criteria.and("statuses.status").in(statues);
                 break;
             default:
