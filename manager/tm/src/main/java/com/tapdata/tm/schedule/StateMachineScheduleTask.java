@@ -63,25 +63,25 @@ public class StateMachineScheduleTask {
 			try {
 				UserDetail userDetail = userService.loadUserById(toObjectId(taskDto.getUserId()));
 				StateMachineResult result = stateMachineService.executeAboutTask(taskDto, DataFlowEvent.OVERTIME, userDetail);
-				log.info("checkScheduledSubTask complete, result: {}", JsonUtil.toJson(result));
+				log.info("checkScheduledTask complete, result: {}", JsonUtil.toJson(result));
 			} catch (Throwable e) {
-				log.error("Failed to execute state machine,subTaskId: {}, event: {},message: {}", taskDto.getId().toHexString(), DataFlowEvent.OVERTIME.getName(), e.getMessage(), e);
+				log.error("Failed to execute state machine,taskId: {}, event: {},message: {}", taskDto.getId().toHexString(), DataFlowEvent.OVERTIME.getName(), e.getMessage(), e);
 			}
 		});
 	}
 
 	@Scheduled(fixedDelay = 5 * 1000)
 	@SchedulerLock(name ="checkStoppingTask", lockAtMostFor = "5s", lockAtLeastFor = "5s")
-	public void checkStoppingSubTask() {
+	public void checkStoppingTask() {
 		Query query = query(Criteria.where("status").is(TaskState.STOPPING.getName()).and("stoppingTime").lt(new Date(System.currentTimeMillis() - 1000 * 60 * 5)));
 		List<TaskDto> taskDtos = taskService.findAll(query);
 		taskDtos.forEach(taskDto -> {
 			try {
 				UserDetail userDetail = userService.loadUserById(toObjectId(taskDto.getUserId()));
 				StateMachineResult result = stateMachineService.executeAboutTask(taskDto, DataFlowEvent.OVERTIME, userDetail);
-				log.info("checkStoppingSubTask complete, result: {}", JsonUtil.toJson(result));
+				log.info("checkStoppingTask complete, result: {}", JsonUtil.toJson(result));
 			} catch (Throwable e) {
-				log.error("Failed to execute state machine,subTaskId: {}, event: {},message: {}", taskDto.getId().toHexString(), DataFlowEvent.OVERTIME.getName(), e.getMessage(), e);
+				log.error("Failed to execute state machine,taskId: {}, event: {},message: {}", taskDto.getId().toHexString(), DataFlowEvent.OVERTIME.getName(), e.getMessage(), e);
 			}
 		});
 	}
@@ -123,7 +123,7 @@ public class StateMachineScheduleTask {
 		List<DataFlowDto> dataFlowDtos = dataFlowService.findAll(query);
 		dataFlowDtos.forEach(dataFlowDto -> {
 			try {
-				log.info("checkScheduledSubTask start,dataFlowId: {}, status: {}", dataFlowDto.getId().toHexString(), dataFlowDto.getStatus());
+				log.info("checkScheduledTask start,dataFlowId: {}, status: {}", dataFlowDto.getId().toHexString(), dataFlowDto.getStatus());
 				UserDetail userDetail = userService.loadUserById(toObjectId(dataFlowDto.getUserId()));
 				if (DataFlowState.SCHEDULING.getName().equals(dataFlowDto.getStatus())){
 					dataFlowDto.setAgentId(null);
@@ -140,10 +140,10 @@ public class StateMachineScheduleTask {
 							customerJobLogsService.assignAgent(dataFlowLog, userDetail);
 						}
 					}
-					log.info("checkScheduledSubTask complete,dataFlowId: {}, processId: {}", dataFlowDto.getId().toHexString(), processId);
+					log.info("checkScheduledTask complete,dataFlowId: {}, processId: {}", dataFlowDto.getId().toHexString(), processId);
 				}else {
 					StateMachineResult result = stateMachineService.executeAboutDataFlow(dataFlowDto, DataFlowEvent.OVERTIME, userDetail);
-					log.info("checkScheduledSubTask complete,dataFlowId: {}, result: {}", dataFlowDto.getId().toHexString(), JsonUtil.toJson(result));
+					log.info("checkScheduledTask complete,dataFlowId: {}, result: {}", dataFlowDto.getId().toHexString(), JsonUtil.toJson(result));
 				}
 
 			} catch (Throwable e) {
@@ -167,9 +167,9 @@ public class StateMachineScheduleTask {
 						.and("pingTime").lt(System.currentTimeMillis() - timeoutMillis * 5)
 		));
 
-		List<TaskDto> subTaskDtos = taskService.findAll(query);
+		List<TaskDto> taskDtos = taskService.findAll(query);
 		Map<String, UserDetail> userDetailMap = new HashMap<>();
-		for (TaskDto taskDto : subTaskDtos) {
+		for (TaskDto taskDto : taskDtos) {
 			UserDetail userDetail = userDetailMap.get(taskDto.getUserId());
 			if (userDetail == null) {
 				userDetail = userService.loadUserById(toObjectId(taskDto.getUserId()));

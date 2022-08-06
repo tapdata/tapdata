@@ -109,7 +109,7 @@ public class ParentTaskDto extends SchedulableDto {
     private Boolean shareCdcEnable;
 
     /** 子任务状态*/
-    private List<SubStatus> statuses;
+    private List<Status> statuses;
 
     /** 状态*/
     private String status;

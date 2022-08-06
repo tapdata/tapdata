@@ -35,7 +35,7 @@ public class StateMachineService {
 	@Autowired
 	StateMachine<DataFlowState, DataFlowEvent> dataFlowMachine;
 	@Autowired
-	StateMachine<TaskState, DataFlowEvent> subTaskMachine;
+	StateMachine<TaskState, DataFlowEvent> taskMachine;
 
 	@Autowired
 	DataFlowService dataFlowService;
@@ -56,7 +56,7 @@ public class StateMachineService {
 		return dataFlowMachine.handleEvent(dataFlowStateTrigger);
 	}
 
-	public StateMachineResult testSubTask(String id, String event, String status){
+	public StateMachineResult testTask(String id, String event, String status){
 		return executeAboutTask(id, event, userService.loadUserById(toObjectId("61408608c4e5c40012663090")));
 	}
 
@@ -90,17 +90,17 @@ public class StateMachineService {
 		return dataFlowMachine.handleEvent(trigger);
 	}
 
-	public StateMachineResult executeAboutTask(String subTaskId, String subTaskEvent, UserDetail userDetail){
-		DataFlowEvent event = DataFlowEvent.getEvent(subTaskEvent);
+	public StateMachineResult executeAboutTask(String taskId, String taskEvent, UserDetail userDetail){
+		DataFlowEvent event = DataFlowEvent.getEvent(taskEvent);
 		if (event == null){
-			throw new BizException(String.format("SubTask event[%s] does not exist", subTaskEvent));
+			throw new BizException(String.format("task event[%s] does not exist", taskEvent));
 		}
-		return executeAboutTask(toObjectId(subTaskId), event , userDetail);
+		return executeAboutTask(toObjectId(taskId), event , userDetail);
 
 	}
 
-	private StateMachineResult executeAboutTask(ObjectId subTaskId, DataFlowEvent event, UserDetail userDetail){
-		TaskDto dto = taskService.findById(subTaskId, userDetail);
+	private StateMachineResult executeAboutTask(ObjectId taskId, DataFlowEvent event, UserDetail userDetail){
+		TaskDto dto = taskService.findById(taskId, userDetail);
 		if (dto == null){
 			throw new BizException("Task.NotFound");
 		}
@@ -118,6 +118,6 @@ public class StateMachineService {
 	}
 
 	private StateMachineResult executeAboutTask(TaskStateTrigger trigger){
-		return subTaskMachine.handleEvent(trigger);
+		return taskMachine.handleEvent(trigger);
 	}
 }

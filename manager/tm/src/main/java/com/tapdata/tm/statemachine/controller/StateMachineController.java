@@ -35,7 +35,7 @@ public class StateMachineController extends BaseController {
 		return success(dto.getIds().stream().map(id -> getExecResult(id, event)).collect(Collectors.toList()));
 	}
 
-	@GetMapping("/subTask/{id}/{event}")
+	@GetMapping("/task/{id}/{event}")
 	public Object subTask(@PathVariable("id") String id, @PathVariable("event") String event){
 
 		return success(stateMachineService.executeAboutTask(id, event, getLoginUser()));

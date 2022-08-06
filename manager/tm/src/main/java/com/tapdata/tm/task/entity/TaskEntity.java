@@ -5,7 +5,7 @@ import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.SchemaTransformerResult;
 import com.tapdata.tm.commons.task.dto.ErrorStrategy;
 import com.tapdata.tm.commons.task.dto.Message;
-import com.tapdata.tm.commons.task.dto.SubStatus;
+import com.tapdata.tm.commons.task.dto.Status;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
@@ -95,7 +95,7 @@ public class TaskEntity extends BaseEntity {
     private Boolean shareCdcEnable = false;
 
     /** 子任务状态*/
-    private List<SubStatus> statuses;
+    private List<Status> statuses;
 
     /** 状态*/
     private String status;

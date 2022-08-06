@@ -10,7 +10,7 @@ import java.io.Serializable;
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
-public class SubStatus implements Serializable {
+public class Status implements Serializable {
 
     private String id;
     private String name;

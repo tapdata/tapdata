@@ -17,13 +17,10 @@ import com.tapdata.tm.commons.dag.nodes.DataParentNode;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
-import com.tapdata.tm.commons.schema.DataSourceDefinitionDto;
-import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.commons.task.dto.Dag;
 import com.tapdata.tm.commons.task.dto.ParentTaskDto;
-import com.tapdata.tm.commons.task.dto.SubStatus;
+import com.tapdata.tm.commons.task.dto.Status;
 import com.tapdata.tm.commons.task.dto.TaskDto;
-import com.tapdata.tm.commons.util.MetaDataBuilderUtils;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.ds.service.impl.DataSourceDefinitionService;
 import com.tapdata.tm.ds.service.impl.DataSourceService;
@@ -851,12 +848,12 @@ public class LogCollectorService {
 
                 if (CollectionUtils.isNotEmpty(oldTableNames) && oldTableNames.containsAll(tableNames)) {
                     //检查状态，如果状态不是启动的，需要启动起来
-                    List<SubStatus> statuses = oldLogCollectorTask.getStatuses();
+                    List<Status> statuses = oldLogCollectorTask.getStatuses();
                     if (updateConnectionId) {
                         taskService.confirmById(oldLogCollectorTask, user, true);
                     }
                     if (CollectionUtils.isNotEmpty(statuses)) {
-                        SubStatus subStatus = statuses.get(0);
+                        Status subStatus = statuses.get(0);
                         if (TaskDto.STATUS_RUNNING.equals(subStatus.getStatus())) {
                             return;
                         }

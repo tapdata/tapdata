@@ -76,7 +76,7 @@ public class MessageService extends BaseService {
 
 
     @Autowired(required = false)
-    TaskRepository subTaskRepository;
+    TaskRepository taskRepository;
 
     @Autowired
     MailUtils mailUtils;
@@ -190,7 +190,7 @@ public class MessageService extends BaseService {
      * @param serverName
      */
     public void addMigration(String serverName, String sourceId, String userId) {
-        TaskEntity taskEntity = subTaskRepository.findById(sourceId).get();
+        TaskEntity taskEntity = taskRepository.findById(sourceId).get();
         if (null == taskEntity) {
             log.error("数据有误，找不到  {}  对应的", sourceId);
             return;
