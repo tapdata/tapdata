@@ -2,10 +2,11 @@ package io.tapdata.connector.redis;
 
 import io.tapdata.base.ConnectorBase;
 import io.tapdata.entity.codec.TapCodecsRegistry;
+import io.tapdata.entity.event.ddl.table.TapClearTableEvent;
+import io.tapdata.entity.event.ddl.table.TapDropTableEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.schema.TapTable;
-import io.tapdata.entity.schema.value.TapMapValue;
-import io.tapdata.entity.schema.value.TapNumberValue;
+import io.tapdata.entity.utils.DataMap;
 import io.tapdata.pdk.apis.annotations.TapConnectorClass;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
@@ -29,6 +30,8 @@ public class RedisConnector extends ConnectorBase {
     private RedisConfig redisConfig;
 
     private RedisContext redisContext;
+
+    private  final  static String INIT_TABLE_NAME="tapdata";
 
 
 
@@ -58,7 +61,8 @@ public class RedisConnector extends ConnectorBase {
     @Override
     public void registerCapabilities(ConnectorFunctions connectorFunctions, TapCodecsRegistry codecRegistry) {
         connectorFunctions.supportWriteRecord(this::writeRecord);
-
+        connectorFunctions.supportClearTable(this::clearTable);
+        connectorFunctions.supportDropTable(this::dropTable);
 
     }
 
@@ -68,15 +72,9 @@ public class RedisConnector extends ConnectorBase {
         Set<String> cacheTables;
         List<TapTable> tapTableList = list();
         TapTable tapTable  = new TapTable();
-        tapTable.setName("tapdata");
+        tapTable.setName(INIT_TABLE_NAME);
         tapTableList.add(tapTable);
-        if (RedisRecordWriter.VALUE_TYPE.equals(redisContext.getRedisConfig().getValueType())) {
-            cacheTables = jedis.smembers(RedisRecordWriter.JSON_REDIS_TABLES);
-
-        } else {
-            cacheTables = jedis.smembers(RedisRecordWriter.HASH_REDIS_TABLES);
-        }
-
+        cacheTables = jedis.smembers(RedisRecordWriter.JSON_REDIS_TABLES);
         if(!CollectionUtils.isEmpty(cacheTables)){
             for (String tableName:cacheTables){
                 TapTable tapTableTemp  = new TapTable();
@@ -108,14 +106,7 @@ public class RedisConnector extends ConnectorBase {
     @Override
     public int tableCount(TapConnectionContext connectionContext) throws Throwable {
         Jedis jedis = redisContext.getJedis();
-        Set<String> cacheTables;
-        if (RedisRecordWriter.VALUE_TYPE.equals(redisContext.getRedisConfig().getValueType())) {
-            cacheTables = jedis.smembers(RedisRecordWriter.JSON_REDIS_TABLES);
-
-        } else {
-            cacheTables = jedis.smembers(RedisRecordWriter.HASH_REDIS_TABLES);
-        }
-
+        Set<String> cacheTables = jedis.smembers(RedisRecordWriter.JSON_REDIS_TABLES);
         if(!CollectionUtils.isEmpty(cacheTables)){
             return cacheTables.size()+1;
         }
@@ -125,5 +116,27 @@ public class RedisConnector extends ConnectorBase {
 
     private void writeRecord(TapConnectorContext connectorContext, List<TapRecordEvent> tapRecordEvents, TapTable tapTable, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer) throws Throwable {
         new RedisRecordWriter(redisContext, tapTable, connectorContext).write(tapRecordEvents, writeListResultConsumer);
+    }
+
+
+    private void clearTable(TapConnectorContext tapConnectorContext, TapClearTableEvent tapClearTableEvent) throws Throwable {
+
+        DataMap nodeConfig = tapConnectorContext.getNodeConfig();
+        String keyName = tapClearTableEvent.getTableId();
+        if(nodeConfig !=null) {
+            keyName = (String) nodeConfig.get("prefixKey");
+        }
+        Jedis jedis = redisContext.getJedis();
+        jedis.del(keyName);
+    }
+
+    private void dropTable(TapConnectorContext tapConnectorContext, TapDropTableEvent tapDropTableEvent) throws Throwable {
+        DataMap nodeConfig = tapConnectorContext.getNodeConfig();
+        String keyName = tapDropTableEvent.getTableId();
+        if(nodeConfig !=null) {
+           keyName = (String) nodeConfig.get("prefixKey");
+        }
+        Jedis jedis = redisContext.getJedis();
+        jedis.del(keyName);
     }
 }

@@ -1,6 +1,7 @@
 package io.tapdata.connector.constant;
 
 
+import io.tapdata.connector.redis.RedisRecordWriter;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
@@ -25,10 +26,21 @@ public class RedisKeySetter {
   private  List arrayList = new ArrayList();
 
 
-  public  String getRedisKey(Map<String, Object> value, TapTable tapTable, TapConnectorContext connectorContext,String tableName) {
+  public  String getRedisKey(Map<String, Object> value, TapConnectorContext connectorContext, String tableName) {
+
+    DataMap nodeConfig = connectorContext.getNodeConfig();
+    if (nodeConfig == null) {
+      return tableName;
+    }
+    String valueType = (String) nodeConfig.get("valueType");
+    if(RedisRecordWriter.VALUE_TYPE_LIST.equals(valueType)){
+
+      return (String)nodeConfig.get("prefixKey");
+    }
+
     RedisKey redisKey = getOrAuto(tableName,connectorContext);
 
-    StringBuffer buf = new StringBuffer();
+    StringBuilder buf = new StringBuilder();
     if (StringUtils.isNotBlank(redisKey.getPrefix())) {
       buf.append(redisKey.getPrefix());
     }else {
@@ -58,9 +70,6 @@ public class RedisKeySetter {
 
     RedisKey redisKey = new RedisKey();
     DataMap nodeConfig = connectorContext.getNodeConfig();
-    if (nodeConfig == null) {
-      throw new RuntimeException("Not found cache key " + tableName);
-    }
 
     List<String> cacheKeys= (List<String>) nodeConfig.get("cacheKeys");
 
@@ -101,6 +110,7 @@ public class RedisKeySetter {
     }
     return false;
   }
+
 
 
 }

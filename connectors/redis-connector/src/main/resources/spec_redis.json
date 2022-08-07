@@ -72,24 +72,7 @@
           "x-index": 4,
           "required": true
         },
-        "valueType": {
-          "type": "string",
-          "title": "${valueType}",
-          "default": "hash",
-          "x-decorator": "FormItem",
-          "x-component": "Select",
-          "x-index": 5,
-          "enum": [
-            {
-              "label": "hash",
-              "value": "hash"
-            },
-            {
-              "label": "json",
-              "value": "json"
-            }
-          ]
-        },
+
         "passwordDisplay": {
           "type": "boolean",
           "title": "${passwordDisplay}",
@@ -173,6 +156,33 @@
     },
     "node":{
       "properties":{
+        "valueType": {
+          "type": "string",
+          "title": "${valueType}",
+          "default": "list",
+          "x-decorator": "FormItem",
+          "x-component": "Select",
+          "x-index": 3,
+          "enum": [
+            {
+              "label": "list",
+              "value": "list"
+            },
+            {
+              "label": "json",
+              "value": "json"
+            }
+          ],
+          "index": 1
+        },
+        "prefixKey": {
+          "type": "string",
+          "title": "${cachePrefix}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "index": 2,
+          "required": true
+        },
         "cacheKeys": {
           "type": "string",
           "title": "${cacheKey}",
@@ -183,15 +193,10 @@
             "multiple": true,
             "filterable": true
           },
-          "x-reactions": "{{useAsyncDataSourceByConfig({service: loadNodeFieldOptions, withoutField: true}, $values.$inputs[0])}}"
-        },
-        "prefixKey": {
-          "type": "string",
-          "title": "${cachePrefix}",
-          "x-decorator": "FormItem",
-          "x-component": "Input",
-          "index": 2
+          "x-reactions": "{{useAsyncDataSourceByConfig({service: loadNodeFieldOptions, withoutField: true}, $values.$inputs[0])}}",
+          "index": 3
         }
+
       }
     }
   },

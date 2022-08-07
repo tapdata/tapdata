@@ -29,9 +29,6 @@ public class RedisConfig {
 
     private ArrayList<LinkedHashMap<String,Integer>> sentinelAddress;
 
-    private String valueType;
-
-
 
 
     public RedisConfig load(Map<String, Object> map)  {
@@ -103,11 +100,4 @@ public class RedisConfig {
     }
 
 
-    public String getValueType() {
-        return valueType;
-    }
-
-    public void setValueType(String valueType) {
-        this.valueType = valueType;
-    }
 }
