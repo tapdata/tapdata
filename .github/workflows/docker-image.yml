@@ -16,8 +16,11 @@ jobs:
 
   Code-Style-Check:
     runs-on: ubuntu-latest
+    outputs:
+      check-style: true
     steps:
       - name: check commit message
+        id: check-style
         if: (!startsWith(github.event.head_commit.message, 'feat')) && 
             (!startsWith(github.event.head_commit.message, 'fix')) &&
             (!startsWith(github.event.head_commit.message, 'refactor')) &&
@@ -26,12 +29,12 @@ jobs:
             (!startsWith(github.event.head_commit.message, 'Merge'))
         run: |
           echo ${{ github.event.head_commit.message }}
-          echo "STYLE_CHECK_PASS=0" >> $GITHUB_ENV
+          echo "::set-output name=defined::false"
 
   Integration-Testing:
     runs-on: ubuntu-latest
-    if: ${{ env.STYLE_CHECK_PASS }} == "1"
     needs: Code-Style-Check
+    if: needs.Code-Style-Check.outputs.check-style == "true"
     steps:
       - uses: actions/checkout@v3
       - name: Login to the github container registry
