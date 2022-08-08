@@ -11,9 +11,10 @@ import com.tapdata.entity.dataflow.SyncProgress;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.tm.commons.dag.Node;
 import io.tapdata.aspect.BatchReadFuncAspect;
-import io.tapdata.aspect.StreamReadFuncAspect;
 import io.tapdata.aspect.SourceStateAspect;
+import io.tapdata.aspect.StreamReadFuncAspect;
 import io.tapdata.aspect.utils.AspectUtils;
+import io.tapdata.aspect.TableCountFuncAspect;
 import io.tapdata.common.sample.sampler.CounterSampler;
 import io.tapdata.common.sample.sampler.ResetCounterSampler;
 import io.tapdata.common.sample.sampler.SpeedSampler;
@@ -29,6 +30,7 @@ import io.tapdata.metrics.TaskSampleRetriever;
 import io.tapdata.milestone.MilestoneStage;
 import io.tapdata.milestone.MilestoneStatus;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
+import io.tapdata.pdk.apis.functions.connector.source.BatchCountFunction;
 import io.tapdata.pdk.apis.functions.connector.source.BatchReadFunction;
 import io.tapdata.pdk.apis.functions.connector.source.StreamReadFunction;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
@@ -132,8 +134,9 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 					this.running.set(false);
 				}
 			} finally {
-				if (sourceRunnerLock.isLocked()) {
+				try {
 					sourceRunnerLock.unlock();
+				} catch (Exception ignored) {
 				}
 			}
 		}
@@ -189,11 +192,14 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 										((Map<String, Object>) syncProgress.getBatchOffsetObj()).put(tapTable.getId(), offsetObject);
 										List<TapdataEvent> tapdataEvents = wrapTapdataEvent(events);
 
+										if (batchReadFuncAspect != null)
+											AspectUtils.accept(batchReadFuncAspect.state(BatchReadFuncAspect.STATE_READ_COMPLETE).getReadCompleteConsumers(), tapdataEvents);
+
 										if (CollectionUtil.isNotEmpty(tapdataEvents)) {
 											tapdataEvents.forEach(this::enqueue);
 
 											if (batchReadFuncAspect != null)
-												AspectUtils.accept(batchReadFuncAspect.state(BatchReadFuncAspect.STATE_BATCHING).getConsumers(), tapdataEvents);
+												AspectUtils.accept(batchReadFuncAspect.state(BatchReadFuncAspect.STATE_ENQUEUED).getEnqueuedConsumers(), tapdataEvents);
 
 											resetOutputCounter.inc(tapdataEvents.size());
 											outputCounter.inc(tapdataEvents.size());
@@ -204,8 +210,9 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 									}
 								}), TAG));
 					} finally {
-						if (sourceRunnerLock.isLocked()) {
+						try {
 							sourceRunnerLock.unlock();
+						} catch (Exception ignored) {
 						}
 					}
 				}
@@ -228,8 +235,9 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 						break;
 					}
 				} finally {
-					if (sourceRunnerLock.isLocked()) {
+					try {
 						sourceRunnerLock.unlock();
+					} catch (Exception ignored) {
 					}
 				}
 			}
@@ -242,6 +250,41 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 			}
 		} else {
 			throw new RuntimeException("PDK node does not support batch read: " + dataProcessorContext.getDatabaseType());
+		}
+	}
+
+	/**
+	 *
+	 * TODO(dexter): use multi thread to batch count the table, and use async;
+	 */
+	@SneakyThrows
+	private void doCount() {
+		BatchCountFunction batchCountFunction = getConnectorNode().getConnectorFunctions().getBatchCountFunction();
+		if (null == batchCountFunction) {
+			throw new RuntimeException("PDK node does not support table batch count: " + dataProcessorContext.getDatabaseType());
+		}
+
+		for(String tableName : dataProcessorContext.getTapTableMap().keySet()) {
+			if (!isRunning()) {
+				return;
+			}
+
+			TapTable table = dataProcessorContext.getTapTableMap().get(tableName);
+			executeDataFuncAspect(TableCountFuncAspect.class, () -> new TableCountFuncAspect()
+					.dataProcessorContext(this.getDataProcessorContext())
+					.start(), tableCountFuncAspect -> PDKInvocationMonitor.invoke(getConnectorNode(), PDKMethod.SOURCE_BATCH_COUNT,
+					() -> {
+						try {
+							long count = batchCountFunction.count(getConnectorNode().getConnectorContext(), table);
+							if (null != tableCountFuncAspect) {
+								AspectUtils.accept(tableCountFuncAspect.state(TableCountFuncAspect.STATE_COUNTING).getTableCountConsumerList(), table.getName(), count);
+							}
+						} catch (Exception e) {
+							RuntimeException runtimeException = new RuntimeException("Count " + table.getId() + " failed: " + e.getMessage(), e);
+							logger.warn(runtimeException.getMessage() + "\n" + Log4jUtil.getStackString(e));
+						}
+					}, TAG));
+
 		}
 	}
 
@@ -318,6 +361,10 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 										if (logger.isDebugEnabled()) {
 											logger.debug("Stream read {} of events, {}", events.size(), LoggerUtils.sourceNodeMessage(getConnectorNode()));
 										}
+
+										if (streamReadFuncAspect != null)
+											AspectUtils.accept(streamReadFuncAspect.state(StreamReadFuncAspect.STATE_STREAMING_READ_COMPLETED).getStreamingReadCompleteConsumers(), tapdataEvents);
+
 										if (CollectionUtils.isNotEmpty(tapdataEvents)) {
 											tapdataEvents.forEach(this::enqueue);
 											syncProgress.setStreamOffsetObj(offsetObj);
@@ -325,7 +372,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 											outputCounter.inc(tapdataEvents.size());
 											outputQPS.add(tapdataEvents.size());
 											if (streamReadFuncAspect != null)
-												AspectUtils.accept(streamReadFuncAspect.state(StreamReadFuncAspect.STATE_STREAMING).getConsumers(), tapdataEvents);
+												AspectUtils.accept(streamReadFuncAspect.state(StreamReadFuncAspect.STATE_STREAMING_ENQUEUED).getStreamingEnqueuedConsumers(), tapdataEvents);
 										}
 									}
 								} catch (Throwable throwable) {
@@ -333,8 +380,9 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 									RuntimeException runtimeException = new RuntimeException(error, throwable);
 									errorHandle(runtimeException, runtimeException.getMessage());
 								} finally {
-									if (sourceRunnerLock.isLocked()) {
+									try {
 										sourceRunnerLock.unlock();
+									} catch (Exception ignored) {
 									}
 								}
 							}).stateListener((oldState, newState) -> {

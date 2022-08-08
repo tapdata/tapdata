@@ -79,23 +79,59 @@ public class TimeUtil {
         return dateList;
     }
 
+    /**
+     * 把月后面的时间值清零，以便获得只有整数月的date
+     *
+     * @return
+     */
+    public static Date cleanTimeAfterMonth(Date date) {
+        Date dateWithoutDay = date;
+        try {
+            //TODO 强制设置时区
+            SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM");
+            String s = sdf.format(date);
+            dateWithoutDay = sdf.parse(s);
+        } catch (Exception e) {
+            log.error("情况秒出错", e);
+        }
+        return dateWithoutDay;
+    }
 
     /**
-     * 把分钟后面的时间值清零，以便获得只有整数分钟的date
+     * 把天后面的时间值清零，以便获得只有整数天的date
+     *
+     * @return
+     */
+    public static Date cleanTimeAfterDay(Date date) {
+        Date dateWithoutHour = date;
+        try {
+            //TODO 强制设置时区
+            SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd");
+            String s = sdf.format(date);
+            dateWithoutHour = sdf.parse(s);
+        } catch (Exception e) {
+            log.error("情况秒出错", e);
+        }
+        return dateWithoutHour;
+    }
+
+
+    /**
+     * 把小时后面的时间值清零，以便获得只有整数小时的date
      *
      * @return
      */
     public static Date cleanTimeAfterHour(Date date) {
-        Date dateWithoutSecond = date;
+        Date dateWithoutMinute = date;
         try {
             //TODO 强制设置时区
             SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH");
             String s = sdf.format(date);
-            dateWithoutSecond = sdf.parse(s);
+            dateWithoutMinute = sdf.parse(s);
         } catch (Exception e) {
             log.error("情况秒出错", e);
         }
-        return dateWithoutSecond;
+        return dateWithoutMinute;
     }
 
     /**

@@ -34,6 +34,7 @@ import com.tapdata.tm.metadatainstance.service.MetaDataHistoryService;
 import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
 import com.tapdata.tm.monitor.entity.AgentStatDto;
 import com.tapdata.tm.monitor.service.MeasurementService;
+import com.tapdata.tm.monitor.service.MeasurementServiceV2;
 import com.tapdata.tm.task.bean.FullSyncVO;
 import com.tapdata.tm.task.bean.IncreaseSyncVO;
 import com.tapdata.tm.task.bean.RunTimeInfo;
@@ -83,6 +84,7 @@ public class SubTaskService extends BaseService<SubTaskDto, SubTaskEntity, Objec
 
     private TaskService taskService;
     private MeasurementService measurementService;
+    private MeasurementServiceV2 measurementServiceV2;
     private SnapshotEdgeProgressService snapshotEdgeProgressService;
     private TaskNodeRuntimeInfoService taskNodeRuntimeInfoService;
     private TaskDatabaseRuntimeInfoService taskDatabaseRuntimeInfoService;
@@ -200,6 +202,7 @@ public class SubTaskService extends BaseService<SubTaskDto, SubTaskEntity, Objec
         //所有的任务重置操作，都会进这里
         //根据subTaskId 把指标数据都删掉
         measurementService.deleteSubTaskMeasurement(subTaskId);
+        measurementServiceV2.deleteSubTaskMeasurement(subTaskId);
     }
 
 

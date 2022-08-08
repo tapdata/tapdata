@@ -17,12 +17,15 @@ import org.apache.logging.log4j.Logger;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 /**
  * @author samuel
@@ -41,6 +44,7 @@ public class TableMonitor implements Monitor<TableMonitor.TableResult> {
 	private ScheduledExecutorService threadPool;
 	private TableResult tableResult;
 	private SubTaskDto subTaskDto;
+	private Set<String> removeTables;
 
 	public TableMonitor(TapTableMap<String, TapTable> tapTableMap, String associateId, SubTaskDto subTaskDto) {
 		if (null == tapTableMap) {
@@ -55,6 +59,7 @@ public class TableMonitor implements Monitor<TableMonitor.TableResult> {
 		this.lock = new ReentrantLock();
 		this.threadPool = new ScheduledThreadPoolExecutor(1);
 		this.tableResult = TableResult.create();
+		this.removeTables = new HashSet<>();
 		verify();
 	}
 
@@ -80,7 +85,7 @@ public class TableMonitor implements Monitor<TableMonitor.TableResult> {
 			try {
 				while (true) {
 					try {
-						if (lock.tryLock(5L, TimeUnit.SECONDS)) {
+						if (lock.tryLock(1L, TimeUnit.SECONDS)) {
 							break;
 						}
 					} catch (InterruptedException e) {
@@ -88,45 +93,51 @@ public class TableMonitor implements Monitor<TableMonitor.TableResult> {
 					}
 				}
 				List<String> tapTableNames = new ArrayList<>(tapTableMap.keySet());
+				tapTableNames = tapTableNames.stream().filter(name -> !removeTables.contains(name)).collect(Collectors.toList());
 				GetTableNamesFunction getTableNamesFunction = connectorNode.getConnectorFunctions().getGetTableNamesFunction();
+				List<String> finalTapTableNames = tapTableNames;
 				PDKInvocationMonitor.invoke(connectorNode, PDKMethod.GET_TABLE_NAMES,
 						() -> getTableNamesFunction.tableNames(connectorNode.getConnectorContext(), BATCH_SIZE, dbTableNames -> {
 							if (null == dbTableNames) {
 								return;
 							}
 							for (String dbTableName : dbTableNames) {
-								if (tapTableNames.contains(dbTableName)) {
-									tapTableNames.remove(dbTableName);
+								if (finalTapTableNames.contains(dbTableName)) {
+									finalTapTableNames.remove(dbTableName);
 									continue;
 								}
 								tableResult.add(dbTableName);
+								removeTables.remove(dbTableName);
 							}
 						}), TAG);
 				if (CollectionUtils.isNotEmpty(tapTableNames)) {
 					tableResult.removeAll(tapTableNames);
+					removeTables.addAll(tapTableNames);
 				}
 			} catch (Throwable throwable) {
 				logger.warn("Found add/remove table failed, will retry next time, error: " + throwable.getMessage(), throwable);
 			} finally {
-				if (lock.isLocked()) {
+				try {
 					lock.unlock();
+				} catch (Exception ignored) {
 				}
 			}
 		}, 0L, PERIOD_SECOND, TimeUnit.SECONDS);
-		logger.info("Dynamic table monitor started, interval: "+PERIOD_SECOND+" seconds");
+		logger.info("Dynamic table monitor started, interval: " + PERIOD_SECOND + " seconds");
 	}
 
 	@Override
 	public void consume(Consumer<TableResult> consumer) {
 		try {
-			if (lock.tryLock(10L, TimeUnit.SECONDS)) {
+			if (lock.tryLock(1L, TimeUnit.SECONDS)) {
 				consumer.accept(tableResult);
 				tableResult.clear();
 			}
 		} catch (InterruptedException ignored) {
 		} finally {
-			if (lock.isLocked()) {
+			try {
 				lock.unlock();
+			} catch (Exception ignored) {
 			}
 		}
 	}
