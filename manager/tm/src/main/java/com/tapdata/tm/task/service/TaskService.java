@@ -821,7 +821,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
      * @param id   任务id
      * @param user 用户
      */
-    public void remove(ObjectId id, UserDetail user) {
+    public TaskDto remove(ObjectId id, UserDetail user) {
         //查询任务是否存在。
         //查询任务状态是否为停止状态。
         TaskDto taskDto = checkExistById(id, user);
@@ -856,6 +856,8 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         } else if (SyncType.SYNC.getValue().equals(taskDto.getSyncType())) {
             messageService.addSync(taskDto.getName(), taskDto.getId().toString(), MsgTypeEnum.DELETED, "", Level.WARN, user);
         }
+
+        return taskDto;
 
     }
 

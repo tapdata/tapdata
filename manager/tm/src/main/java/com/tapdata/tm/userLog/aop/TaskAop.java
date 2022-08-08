@@ -12,6 +12,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.aspectj.lang.JoinPoint;
 import org.aspectj.lang.annotation.After;
+import org.aspectj.lang.annotation.AfterReturning;
 import org.aspectj.lang.annotation.Aspect;
 import org.aspectj.lang.annotation.Pointcut;
 import org.bson.types.ObjectId;
@@ -103,5 +104,87 @@ public class TaskAop {
             }
         }
         return null;
+    }
+
+    @Pointcut("execution(* com.tapdata.tm.task.service.TaskService.create(..))")
+    public void createTask() {
+
+    }
+    @After("createTask()")
+    public void afterCreateTask(JoinPoint joinPoint) {
+        Object[] args = joinPoint.getArgs();
+        TaskDto taskDto = null;
+        UserDetail userDetail = null;
+        if (args!= null && args.length > 0)
+            taskDto = (TaskDto) args[0];
+        if (args!= null && args.length > 1)
+            userDetail = (UserDetail) args[1];
+
+        if (taskDto != null && userDetail != null) {
+            String taskId = taskDto.getId() != null ? taskDto.getId().toHexString() : null;
+            userLogService.addUserLog(Modular.MIGRATION, Operation.CREATE, userDetail, taskId, taskDto.getName());
+        } else {
+            log.warn("Ignore logging to create task action log when params is null.");
+        }
+    }
+
+    @Pointcut("execution(* com.tapdata.tm.task.service.TaskService.start(..))")
+    public void startTask() {
+
+    }
+    @After("startTask()")
+    public void afterStartTask(JoinPoint joinPoint) {
+        Object[] args = joinPoint.getArgs();
+        TaskDto taskDto = null;
+        UserDetail userDetail = null;
+        if (args!= null && args.length > 0 && args[0] instanceof TaskDto)
+            taskDto = (TaskDto) args[0];
+        if (args!= null && args.length > 1)
+            userDetail = (UserDetail) args[1];
+
+        if (taskDto != null && userDetail != null) {
+            String taskId = taskDto.getId() != null ? taskDto.getId().toHexString() : null;
+            userLogService.addUserLog(Modular.MIGRATION, Operation.START, userDetail, taskId, taskDto.getName());
+        } else {
+            log.warn("Ignore logging to start task action log when params is null.");
+        }
+    }
+
+    @Pointcut("execution(* com.tapdata.tm.task.service.TaskService.remove(..))")
+    public void remove() {
+
+    }
+    @AfterReturning(value = "remove()", returning = "taskDto")
+    public void afterRemove(JoinPoint joinPoint, TaskDto taskDto) {
+        Object[] args = joinPoint.getArgs();
+        UserDetail userDetail = null;
+        if (args!= null && args.length > 1)
+            userDetail = (UserDetail) args[1];
+
+        if (userDetail != null && taskDto != null) {
+            String taskId = taskDto.getId() != null ? taskDto.getId().toHexString() : null;
+            userLogService.addUserLog(Modular.MIGRATION, Operation.DELETE, userDetail, taskId, taskDto.getName());
+        } else {
+            log.warn("Ignore logging to delete task action log when params is null.");
+        }
+    }
+
+    @Pointcut("execution(* com.tapdata.tm.task.service.TaskService.copy(..))")
+    public void copy() {
+
+    }
+    @AfterReturning(value = "copy()", returning = "taskDto")
+    public void afterCopy(JoinPoint joinPoint, TaskDto taskDto) {
+        Object[] args = joinPoint.getArgs();
+        UserDetail userDetail = null;
+        if (args!= null && args.length > 1)
+            userDetail = (UserDetail) args[1];
+
+        if (userDetail != null && taskDto != null) {
+            String taskId = taskDto.getId() != null ? taskDto.getId().toHexString() : null;
+            userLogService.addUserLog(Modular.MIGRATION, Operation.COPY, userDetail, taskId, taskDto.getName());
+        } else {
+            log.warn("Ignore logging to delete task action log when params is null.");
+        }
     }
 }
