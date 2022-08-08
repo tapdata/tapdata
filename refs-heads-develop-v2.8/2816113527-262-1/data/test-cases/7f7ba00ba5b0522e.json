@@ -1,0 +1,91 @@
+{
+  "uid" : "7f7ba00ba5b0522e",
+  "name" : "test monitor job status",
+  "fullName" : "test_pipeline.TestPipeline#test_monitor",
+  "historyId" : "3fd54ac5d350d86ca5d030675fbb6f2d",
+  "time" : {
+    "start" : 1659943917154,
+    "stop" : 1659943920389,
+    "duration" : 3235
+  },
+  "status" : "passed",
+  "flaky" : false,
+  "newFailed" : false,
+  "beforeStages" : [ ],
+  "testStage" : {
+    "status" : "passed",
+    "steps" : [ ],
+    "attachments" : [ {
+      "uid" : "b5de8f1bec11d1b2",
+      "name" : "stdout",
+      "source" : "b5de8f1bec11d1b2.txt",
+      "type" : "text/plain",
+      "size" : 563
+    } ],
+    "parameters" : [ ],
+    "stepsCount" : 0,
+    "attachmentsCount" : 1,
+    "shouldDisplayMessage" : false,
+    "hasContent" : true
+  },
+  "afterStages" : [ ],
+  "labels" : [ {
+    "name" : "feature",
+    "value" : "pipeline"
+  }, {
+    "name" : "suite",
+    "value" : "test_pipeline"
+  }, {
+    "name" : "subSuite",
+    "value" : "TestPipeline"
+  }, {
+    "name" : "host",
+    "value" : "e6bbc35875ab"
+  }, {
+    "name" : "thread",
+    "value" : "825-MainThread"
+  }, {
+    "name" : "framework",
+    "value" : "pytest"
+  }, {
+    "name" : "language",
+    "value" : "cpython3"
+  }, {
+    "name" : "package",
+    "value" : "test_pipeline"
+  }, {
+    "name" : "resultFormat",
+    "value" : "allure2"
+  } ],
+  "parameters" : [ ],
+  "links" : [ ],
+  "hidden" : false,
+  "retry" : false,
+  "extra" : {
+    "severity" : "normal",
+    "retries" : [ ],
+    "categories" : [ ],
+    "history" : {
+      "statistic" : {
+        "failed" : 0,
+        "broken" : 0,
+        "skipped" : 0,
+        "passed" : 2,
+        "unknown" : 0,
+        "total" : 2
+      },
+      "items" : [ {
+        "uid" : "95c579810a8ee1a8",
+        "status" : "passed",
+        "time" : {
+          "start" : 1659941360482,
+          "stop" : 1659941363971,
+          "duration" : 3489
+        }
+      } ]
+    },
+    "tags" : [ ]
+  },
+  "source" : "7f7ba00ba5b0522e.json",
+  "parameterValues" : [ ]
+}
