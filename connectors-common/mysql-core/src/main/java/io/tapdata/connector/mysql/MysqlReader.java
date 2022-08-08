@@ -45,6 +45,7 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.sql.ResultSetMetaData;
+import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -473,6 +474,11 @@ public class MysqlReader implements Closeable {
 		if (tapType instanceof TapDateTime) {
 			if (((TapDateTime) tapType).getFraction().equals(0) && value instanceof Long) {
 				value = ((Long) value) / 1000;
+			} else if (value instanceof String) {
+				try {
+					value = Instant.parse((CharSequence) value);
+				} catch (Exception ignored) {
+				}
 			}
 		} else if (tapType instanceof TapDate) {
 			if (value instanceof Integer) {

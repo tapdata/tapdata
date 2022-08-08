@@ -82,6 +82,7 @@ public class PartitionConcurrentProcessor {
 				60L, TimeUnit.SECONDS,
 				new LinkedBlockingQueue<>(1)
 		);
+		logger.info(LOG_PREFIX + "completed create thread pool, pool size {}", partitionSize + 1);
 
 		this.errorHandler = errorHandler;
 		this.partitionsQueue = IntStream
@@ -125,6 +126,7 @@ public class PartitionConcurrentProcessor {
 				} catch (InterruptedException e) {
 					break;
 				} catch (Throwable throwable) {
+					running.compareAndSet(true, false);
 					errorHandler.accept(throwable, "process watermark event failed");
 				}
 			}
@@ -173,6 +175,7 @@ public class PartitionConcurrentProcessor {
 					} catch (InterruptedException e) {
 						break;
 					} catch (Throwable throwable) {
+						running.compareAndSet(true, false);
 						errorHandler.accept(throwable, "process watermark event failed");
 					}
 				}
@@ -186,7 +189,7 @@ public class PartitionConcurrentProcessor {
 				if (tapdataEvent.isDML()) {
 					final List<Object> partitionValue = keySelector.select(tapdataEvent.getTapEvent());
 					final PartitionResult<TapdataEvent> partitionResult = partitioner.partition(partitionSize, tapdataEvent, partitionValue);
-					final int partition = partitionResult.getPartition();
+					final int partition = partitionResult.getPartition() < 0 ? DEFAULT_PARTITION : partitionResult.getPartition();
  					final LinkedBlockingQueue<PartitionEvent<TapdataEvent>> queue = partitionsQueue.get(partition);
 					final NormalEvent<TapdataEvent> normalEvent = new NormalEvent<>(eventSeq.incrementAndGet(), tapdataEvent);
 					if (!enqueuePartitionEvent(partition, queue, normalEvent)) {

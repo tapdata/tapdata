@@ -316,21 +316,9 @@ public class ClusterStateService extends BaseService<ClusterStateDto, ClusterSta
         if (CollectionUtils.isEmpty(availableAgent)) {
             return result;
         }
-        List<String> processIdList = availableAgent.stream().map(Worker::getProcessId).distinct().collect(Collectors.toList());
-        if (CollectionUtils.isEmpty(processIdList)) {
-            return result;
-        }
 
-        Query query = new Query(Criteria.where("systemInfo.process_id").in(processIdList));
-        List<ClusterStateDto> clusterStateDtos = findAll(query);
-        if (CollectionUtils.isEmpty(clusterStateDtos)) {
-            return result;
-        }
-
-        clusterStateDtos.forEach(dto -> {
-            SystemInfo systemInfo = dto.getSystemInfo();
-            Assert.notNull(systemInfo, "clusterState systemInfo is null");
-            AccessNodeInfo accessNodeInfo = new AccessNodeInfo(systemInfo.getProcess_id(), systemInfo.getHostname(), systemInfo.getIp());
+        availableAgent.forEach(dto -> {
+            AccessNodeInfo accessNodeInfo = new AccessNodeInfo(dto.getProcessId(), dto.getHostname(), dto.getHostname());
             result.add(accessNodeInfo);
         });
 

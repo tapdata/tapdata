@@ -17,9 +17,7 @@ import com.tapdata.tm.base.service.BaseService;
 import com.tapdata.tm.commons.base.dto.BaseDto;
 import com.tapdata.tm.commons.dag.*;
 import com.tapdata.tm.commons.dag.nodes.*;
-import com.tapdata.tm.commons.dag.process.JoinProcessorNode;
-import com.tapdata.tm.commons.dag.process.MergeTableNode;
-import com.tapdata.tm.commons.dag.process.MigrateFieldRenameProcessorNode;
+import com.tapdata.tm.commons.dag.process.*;
 import com.tapdata.tm.commons.dag.vo.FieldInfo;
 import com.tapdata.tm.commons.dag.vo.Operation;
 import com.tapdata.tm.commons.dag.vo.SyncObjects;
@@ -571,8 +569,32 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
         checkDagAgentConflict(taskDto, true);
 
+        checkDDLConflict(taskDto);
+
         //saveInspect(existedTask, taskDto, user);
         return confirmById(taskDto, user, confirm, false);
+    }
+
+    private void checkDDLConflict(TaskDto taskDto) {
+        LinkedList<DatabaseNode> sourceNode = taskDto.getDag().getSourceNode();
+        if (CollectionUtils.isNotEmpty(sourceNode)) {
+            return;
+        }
+        boolean enableDDL = sourceNode.stream().anyMatch(DataParentNode::getEnableDDL);
+        if (!enableDDL) {
+            return;
+        }
+
+        FunctionUtils.isTureOrFalse(TaskDto.SYNC_TYPE_MIGRATE.equals(taskDto.getSyncType())).trueOrFalseHandle(
+                () -> {
+                    boolean anyMatch = taskDto.getDag().getNodes().stream().anyMatch(n -> n instanceof MigrateJsProcessorNode);
+                    FunctionUtils.isTure(anyMatch).throwMessage("Task.DDL.Conflict.Migrate");
+                },
+                () -> {
+                    boolean anyMatch = taskDto.getDag().getNodes().stream().anyMatch(n -> n instanceof JsProcessorNode);
+                    FunctionUtils.isTure(anyMatch).throwMessage("Task.DDL.Conflict.Sync");
+                }
+        );
     }
 
     public void checkTaskInspectFlag (TaskDto taskDto) {
@@ -741,7 +763,11 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                     }
                     boolean canHotUpdate = subTaskService.canHotUpdate(subTaskDto.getDag(), updateSubtask.getDag());
                     if (!canHotUpdate) {
-                        throw new BizException("Task.UpdateSubTask");
+                        Message message = new Message();
+                        message.setCode("Task.UpdateSubTask");
+                        List<Message> messageList = new ArrayList<>();
+                        messageList.add(message);
+                        messageMap.put(updateSubtask.getSubTaskId().toString(), messageList);
                     }
                 }
             }

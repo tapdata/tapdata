@@ -1,0 +1,54 @@
+name: Trigger Enterprise Build by RestApi
+
+on:
+  push:
+    branches: [ "master", "release-v*.*.*", "develop-v*.*.0" ]
+  pull_request:
+    branches: [ "master", "release-v*.*.*", "develop-v*.*.0" ]
+
+jobs:
+  Trigger:
+    runs-on: ubuntu-latest
+    steps:
+      # Set env
+      - name: Set Env if Push
+        if: ${{ github.event_name == 'push' }}
+        run: |
+          echo "ENTERPRISE_BRANCH=${{ github.ref_name }}" >> $GITHUB_ENV
+          echo "CURRENT_BRANCH=${{ github.ref_name }}" >> $GITHUB_ENV
+          echo "FRONTEND_BRANCH=${{ github.ref_name }}" >> $GITHUB_ENV
+          echo "TAG_BRANCH=${{ github.ref_name }}" >> $GITHUB_ENV
+      - name: Set Env if Pull Request
+        if: ${{ github.event_name == 'pull_request' }}
+        run: |
+          echo "ENTERPRISE_BRANCH=${{ github.base_ref }}" >> $GITHUB_ENV
+          echo "FRONTEND_BRANCH=${{ github.base_ref }}" >> $GITHUB_ENV
+          echo "CURRENT_BRANCH=${{ github.ref }}" >> $GITHUB_ENV
+          echo "TAG_BRANCH=${{ github.base_ref }}" >> $GITHUB_ENV
+      - name: Checkout Code to Get Author and Message
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      - name: Trigger by RestApi
+        run: |
+          author=`git log -1 --pretty=format:'%an'`
+          message=`git log -1 --pretty=%B`
+          time=`git log -1 --date=format:"%Y/%m/%d %T" --format="%ad"`
+          author_email=`git log -1 --format='%ae'`
+          curl \
+          -X POST \
+          -H "Accept: application/vnd.github+json" \
+          -H "Authorization: token ${{ secrets.TAPDATA_ENT_CICD_TOKEN }}" \
+          https://api.github.com/repos/tapdata/tapdata-enterprise/dispatches \
+          -d '{
+            "event_type": "opensource commit trigger",
+            "client_payload": {
+              "frontend_branch": "${{ env.FRONTEND_BRANCH }}",
+              "opensource_branch": "${{ env.CURRENT_BRANCH }}",
+              "current_branch": "${{ env.ENTERPRISE_BRANCH }}",
+              "commit_author": "'"${author}"'",
+              "commit_message": "'"${message}"'",
+              "commit_time": "'"${time}"'",
+              "commit_author_email": "'"${author_email}"'"
+            }
+          }'

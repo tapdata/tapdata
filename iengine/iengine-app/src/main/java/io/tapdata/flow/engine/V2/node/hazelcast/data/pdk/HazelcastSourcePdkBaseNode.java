@@ -320,7 +320,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 			throw new SourceException(e, true);
 		}
 
-		if (sourceRunnerFuture != null && sourceRunnerFuture.isDone()) {
+		if (sourceRunnerFuture != null && sourceRunnerFuture.isDone() && sourceRunnerFirstTime.get()) {
 			this.running.set(false);
 		}
 
@@ -329,117 +329,122 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 
 	private void handleTableMonitorResult() {
 		Thread.currentThread().setName("Handle-Table-Monitor-Result-" + this.associateId);
-		Log4jUtil.setThreadContext(dataProcessorContext.getSubTaskDto());
-		// Handle dynamic table change
-		Object tableMonitor = monitorManager.getMonitorByType(MonitorManager.MonitorType.TABLE_MONITOR);
-		if (tableMonitor instanceof TableMonitor) {
-			((TableMonitor) tableMonitor).consume(tableResult -> {
-				List<String> addList = tableResult.getAddList();
-				List<String> removeList = tableResult.getRemoveList();
-				if (CollectionUtils.isNotEmpty(addList) || CollectionUtils.isNotEmpty(removeList)) {
+		try {
+			Log4jUtil.setThreadContext(dataProcessorContext.getSubTaskDto());
+			// Handle dynamic table change
+			Object tableMonitor = monitorManager.getMonitorByType(MonitorManager.MonitorType.TABLE_MONITOR);
+			if (tableMonitor instanceof TableMonitor) {
+				((TableMonitor) tableMonitor).consume(tableResult -> {
 					try {
-						while (isRunning()) {
-							try {
-								if (sourceRunnerLock.tryLock(1L, TimeUnit.SECONDS)) {
+						List<String> addList = tableResult.getAddList();
+						List<String> removeList = tableResult.getRemoveList();
+						if (CollectionUtils.isNotEmpty(addList) || CollectionUtils.isNotEmpty(removeList)) {
+							while (isRunning()) {
+								try {
+									if (sourceRunnerLock.tryLock(1L, TimeUnit.SECONDS)) {
+										break;
+									}
+								} catch (InterruptedException e) {
 									break;
 								}
-							} catch (InterruptedException e) {
-								break;
 							}
-						}
-						// Handle new table(s)
-						if (CollectionUtils.isNotEmpty(addList)) {
-							logger.info("Found new table(s): " + addList);
-							addList.forEach(a -> removeTables.remove(a));
-							List<TapTable> addTapTables = new ArrayList<>();
-							List<TapdataEvent> tapdataEvents = new ArrayList<>();
-							// Load schema
-							LoadSchemaRunner.pdkDiscoverSchema(getConnectorNode(), addList, addTapTables::add);
-							logger.info("Load new table's schema finished");
-							if (CollectionUtils.isEmpty(addTapTables)) {
-								String error = "Load new table schema failed, expect table count: " + addList.size() + ", actual: 0";
-								errorHandle(new RuntimeException(error), error);
-							}
-							if (addList.size() != addTapTables.size()) {
-								String error = "Load new table schema failed, expect table count: " + addList.size() + ", actual: " + addTapTables.size();
-								errorHandle(new RuntimeException(error), error);
-							}
-							for (TapTable addTapTable : addTapTables) {
-								if (!isRunning()) {
-									break;
-								}
-								TapCreateTableEvent tapCreateTableEvent = new TapCreateTableEvent();
-								tapCreateTableEvent.table(addTapTable);
-								tapCreateTableEvent.setTableId(addTapTable.getId());
-								TapdataEvent tapdataEvent = wrapTapdataEvent(tapCreateTableEvent, SyncStage.valueOf(syncProgress.getSyncStage()), null, false);
-								if (null == tapdataEvent) {
-									String error = "Wrap create table tapdata event failed: " + addTapTable;
+							// Handle new table(s)
+							if (CollectionUtils.isNotEmpty(addList)) {
+								logger.info("Found new table(s): " + addList);
+								addList.forEach(a -> removeTables.remove(a));
+								List<TapTable> addTapTables = new ArrayList<>();
+								List<TapdataEvent> tapdataEvents = new ArrayList<>();
+								// Load schema
+								LoadSchemaRunner.pdkDiscoverSchema(getConnectorNode(), addList, addTapTables::add);
+								logger.info("Load new table's schema finished");
+								if (CollectionUtils.isEmpty(addTapTables)) {
+									String error = "Load new table schema failed, expect table count: " + addList.size() + ", actual: 0";
 									errorHandle(new RuntimeException(error), error);
-									return;
 								}
-								tapdataEvents.add(tapdataEvent);
-							}
-							if (!isRunning()) {
-								return;
-							}
-							tapdataEvents.forEach(this::enqueue);
-							this.newTables.addAll(addList);
-							if (this.endSnapshotLoop.get()) {
-								logger.info("It is detected that the snapshot reading has ended, and the reading thread will be restarted");
-								// Restart source runner
-								if (null != sourceRunner) {
-									this.sourceRunnerFirstTime.set(false);
-									if (null != getConnectorNode()) {
-										PDKInvocationMonitor.invoke(getConnectorNode(), PDKMethod.STOP, () -> getConnectorNode().connectorStop(), TAG);
-										PDKIntegration.releaseAssociateId(this.associateId);
-										ConnectorNodeService.getInstance().removeConnectorNode(this.associateId);
-										createPdkConnectorNode(dataProcessorContext, jetContext.hazelcastInstance());
-										connectorNodeInit(dataProcessorContext);
-									} else {
-										String error = "Connector node is null";
+								if (addList.size() != addTapTables.size()) {
+									String error = "Load new table schema failed, expect table count: " + addList.size() + ", actual: " + addTapTables.size();
+									errorHandle(new RuntimeException(error), error);
+								}
+								for (TapTable addTapTable : addTapTables) {
+									if (!isRunning()) {
+										break;
+									}
+									TapCreateTableEvent tapCreateTableEvent = new TapCreateTableEvent();
+									tapCreateTableEvent.table(addTapTable);
+									tapCreateTableEvent.setTableId(addTapTable.getId());
+									TapdataEvent tapdataEvent = wrapTapdataEvent(tapCreateTableEvent, SyncStage.valueOf(syncProgress.getSyncStage()), null, false);
+									if (null == tapdataEvent) {
+										String error = "Wrap create table tapdata event failed: " + addTapTable;
 										errorHandle(new RuntimeException(error), error);
 										return;
 									}
-									this.sourceRunner.shutdownNow();
-									this.sourceRunner = new ThreadPoolExecutor(1, 1, 0L, TimeUnit.SECONDS, new SynchronousQueue<>());
-									sourceRunner.submit(this::startSourceRunner);
-								} else {
-									String error = "Source runner is null";
-									errorHandle(new RuntimeException(error), error);
+									tapdataEvents.add(tapdataEvent);
+								}
+								if (!isRunning()) {
 									return;
 								}
-							}
-						}
-						// Handle remove table(s)
-						if (CollectionUtils.isNotEmpty(removeList)) {
-							logger.info("Found remove table(s): " + removeList);
-							removeList.forEach(r -> {
-								if (!removeTables.contains(r)) {
-									removeTables.add(r);
+								tapdataEvents.forEach(this::enqueue);
+								this.newTables.addAll(addList);
+								if (this.endSnapshotLoop.get()) {
+									logger.info("It is detected that the snapshot reading has ended, and the reading thread will be restarted");
+									// Restart source runner
+									if (null != sourceRunner) {
+										this.sourceRunnerFirstTime.set(false);
+										if (null != getConnectorNode()) {
+											PDKInvocationMonitor.invoke(getConnectorNode(), PDKMethod.STOP, () -> getConnectorNode().connectorStop(), TAG);
+											PDKIntegration.releaseAssociateId(this.associateId);
+											ConnectorNodeService.getInstance().removeConnectorNode(this.associateId);
+											createPdkConnectorNode(dataProcessorContext, jetContext.hazelcastInstance());
+											connectorNodeInit(dataProcessorContext);
+										} else {
+											String error = "Connector node is null";
+											errorHandle(new RuntimeException(error), error);
+											return;
+										}
+										this.sourceRunner.shutdownNow();
+										this.sourceRunner = new ThreadPoolExecutor(1, 1, 0L, TimeUnit.SECONDS, new SynchronousQueue<>());
+										sourceRunner.submit(this::startSourceRunner);
+									} else {
+										String error = "Source runner is null";
+										errorHandle(new RuntimeException(error), error);
+										return;
+									}
 								}
-							});
-							List<TapdataEvent> tapdataEvents = new ArrayList<>();
-							for (String tableName : removeList) {
-								if (!isRunning()) {
-									break;
-								}
-								TapDropTableEvent tapDropTableEvent = new TapDropTableEvent();
-								tapDropTableEvent.setTableId(tableName);
-								TapdataEvent tapdataEvent = wrapTapdataEvent(tapDropTableEvent, SyncStage.valueOf(syncProgress.getSyncStage()), null, false);
-								tapdataEvents.add(tapdataEvent);
 							}
-							tapdataEvents.forEach(this::enqueue);
+							// Handle remove table(s)
+							if (CollectionUtils.isNotEmpty(removeList)) {
+								logger.info("Found remove table(s): " + removeList);
+								removeList.forEach(r -> {
+									if (!removeTables.contains(r)) {
+										removeTables.add(r);
+									}
+								});
+								List<TapdataEvent> tapdataEvents = new ArrayList<>();
+								for (String tableName : removeList) {
+									if (!isRunning()) {
+										break;
+									}
+									TapDropTableEvent tapDropTableEvent = new TapDropTableEvent();
+									tapDropTableEvent.setTableId(tableName);
+									TapdataEvent tapdataEvent = wrapTapdataEvent(tapDropTableEvent, SyncStage.valueOf(syncProgress.getSyncStage()), null, false);
+									tapdataEvents.add(tapdataEvent);
+								}
+								tapdataEvents.forEach(this::enqueue);
+							}
 						}
 					} catch (Throwable throwable) {
 						String error = "Handle table monitor result failed, result: " + tableResult + ", error: " + throwable.getMessage();
-						errorHandle(new RuntimeException(error, throwable), error);
-					} finally {
-						if (sourceRunnerLock.isLocked()) {
-							sourceRunnerLock.unlock();
-						}
+						throw new RuntimeException(error, throwable);
 					}
-				}
-			});
+				});
+			}
+		} catch (Throwable throwable) {
+			errorHandle(throwable, throwable.getMessage());
+		} finally {
+			try {
+				sourceRunnerLock.unlock();
+			} catch (Exception ignored) {
+			}
 		}
 	}
 
@@ -579,7 +584,6 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 					logger.info("Drop table in memory qualified name: " + qualifiedName);
 					dagDataService.dropTable(qualifiedName);
 					errorMessage = dag.transformSchema(null, dagDataService, transformerWsMessageDto.getOptions());
-					dataProcessorContext.getTapTableMap().remove(tapTable.getId());
 					removeMetadata.add(qualifiedName);
 					logger.info("Drop table schema transform finished");
 				} else {
