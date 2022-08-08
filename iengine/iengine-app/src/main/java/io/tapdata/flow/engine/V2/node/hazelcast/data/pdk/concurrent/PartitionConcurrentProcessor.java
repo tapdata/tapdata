@@ -82,6 +82,7 @@ public class PartitionConcurrentProcessor {
 				60L, TimeUnit.SECONDS,
 				new LinkedBlockingQueue<>(1)
 		);
+		logger.info(LOG_PREFIX + "completed create thread pool, pool size {}", partitionSize + 1);
 
 		this.errorHandler = errorHandler;
 		this.partitionsQueue = IntStream
@@ -125,6 +126,7 @@ public class PartitionConcurrentProcessor {
 				} catch (InterruptedException e) {
 					break;
 				} catch (Throwable throwable) {
+					running.compareAndSet(true, false);
 					errorHandler.accept(throwable, "process watermark event failed");
 				}
 			}
@@ -173,6 +175,7 @@ public class PartitionConcurrentProcessor {
 					} catch (InterruptedException e) {
 						break;
 					} catch (Throwable throwable) {
+						running.compareAndSet(true, false);
 						errorHandler.accept(throwable, "process watermark event failed");
 					}
 				}

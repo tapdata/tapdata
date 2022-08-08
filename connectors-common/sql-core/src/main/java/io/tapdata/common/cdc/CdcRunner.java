@@ -1,4 +1,4 @@
-package io.tapdata.common;
+package io.tapdata.common.cdc;
 
 public interface CdcRunner extends Runnable {
     void startCdcRunner() throws Throwable;

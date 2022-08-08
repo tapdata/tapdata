@@ -11,8 +11,8 @@ import com.tapdata.entity.dataflow.SyncProgress;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.tm.commons.dag.Node;
 import io.tapdata.aspect.BatchReadFuncAspect;
-import io.tapdata.aspect.StreamReadFuncAspect;
 import io.tapdata.aspect.SourceStateAspect;
+import io.tapdata.aspect.StreamReadFuncAspect;
 import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.common.sample.sampler.CounterSampler;
 import io.tapdata.common.sample.sampler.ResetCounterSampler;
@@ -132,8 +132,9 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 					this.running.set(false);
 				}
 			} finally {
-				if (sourceRunnerLock.isLocked()) {
+				try {
 					sourceRunnerLock.unlock();
+				} catch (Exception ignored) {
 				}
 			}
 		}
@@ -204,8 +205,9 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 									}
 								}), TAG));
 					} finally {
-						if (sourceRunnerLock.isLocked()) {
+						try {
 							sourceRunnerLock.unlock();
+						} catch (Exception ignored) {
 						}
 					}
 				}
@@ -228,8 +230,9 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 						break;
 					}
 				} finally {
-					if (sourceRunnerLock.isLocked()) {
+					try {
 						sourceRunnerLock.unlock();
+					} catch (Exception ignored) {
 					}
 				}
 			}
@@ -333,8 +336,9 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 									RuntimeException runtimeException = new RuntimeException(error, throwable);
 									errorHandle(runtimeException, runtimeException.getMessage());
 								} finally {
-									if (sourceRunnerLock.isLocked()) {
+									try {
 										sourceRunnerLock.unlock();
+									} catch (Exception ignored) {
 									}
 								}
 							}).stateListener((oldState, newState) -> {
