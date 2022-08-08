@@ -20,6 +20,7 @@ import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.pdk.core.workflow.engine.*;
 import io.tapdata.pdk.tdd.core.PDKTestBase;
 import io.tapdata.pdk.tdd.core.SupportFunction;
+import org.apache.commons.collections4.CollectionUtils;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -161,7 +162,11 @@ public class DMLTest extends PDKTestBase {
                             String targetTable = dag.getNodeMap().get(targetNodeId).getTable();
                             List<TapTable> allTables = new ArrayList<>();
                             try {
-                                connectionNode.discoverSchema(Collections.singletonList(targetTable), 10, tables -> allTables.addAll(tables));
+                                connectionNode.discoverSchema(Collections.singletonList(targetTable), 10, tables -> {
+                                    if (CollectionUtils.isNotEmpty(tables)) {
+                                        allTables.addAll(tables);
+                                    }
+                                });
                                 for(TapTable table : allTables) {
                                     if(table.getId() != null && table.getId().equals(targetTable)) {
                                         $(() -> Assertions.fail("Target table " + targetTable + " should be deleted, because dropTable has been called, please check your dropTable method whether it works as expected or not"));

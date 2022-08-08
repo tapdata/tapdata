@@ -40,7 +40,7 @@ public class PdkPersistenceOffsetBackingStore extends MemoryOffsetBackingStore {
 	@Override
 	public void start() {
 		super.start();
-//		load();
+		load();
 	}
 
 	private void load() {

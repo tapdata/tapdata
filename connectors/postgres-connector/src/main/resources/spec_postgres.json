@@ -6,6 +6,16 @@
     "id": "postgres"
   },
   "configOptions": {
+    "capabilities":[
+      {
+        "id": "dml_insert_policy",
+        "alternatives": ["update_on_exists", "ignore_on_exists"]
+      },
+      {
+        "id": "dml_update_policy",
+        "alternatives": ["ignore_on_nonexists", "insert_on_nonexists"]
+      }
+    ],
     "connection": {
       "type": "object",
       "properties": {
@@ -80,6 +90,10 @@
           "x-index": 8,
           "enum": [
             {
+              "label": "DECODERBUFS",
+              "value": "decoderbufs"
+            },
+            {
               "label": "WAL2JSON",
               "value": "wal2json"
             },
@@ -107,7 +121,7 @@
   "messages": {
     "default": "en_US",
     "en_US": {
-      "doc": "docs/postgres_zh_CN.md",
+      "doc": "docs/postgres_en_US.md",
       "host": "Host",
       "port": "Port",
       "database" : "database",
@@ -129,7 +143,7 @@
       "logPluginName" : "日志插件"
     },
     "zh_TW": {
-      "doc": "docs/postgres_zh_CN.md",
+      "doc": "docs/postgres_zh_TW.md",
       "host": "地址",
       "port": "端口",
       "database" : "數據庫",

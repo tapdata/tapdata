@@ -171,6 +171,32 @@ public class TapTable extends TapItem<TapField> {
 		return null;
 	}
 
+	public int getMaxPos() {
+		if (null == nameFieldMap || nameFieldMap.size() <= 0) {
+			return 0;
+		}
+		int max = 0;
+		for (TapField tapField : nameFieldMap.values()) {
+			if (null != tapField && max < tapField.getPos()) {
+				max = tapField.getPos();
+			}
+		}
+		return max;
+	}
+
+	public int getMaxPKPos() {
+		if (null == nameFieldMap || nameFieldMap.size() <= 0) {
+			return 0;
+		}
+		int max = 0;
+		for (TapField tapField : nameFieldMap.values()) {
+			if (null != tapField.getPrimaryKeyPos() && max < tapField.getPrimaryKeyPos()) {
+				max = tapField.getPrimaryKeyPos();
+			}
+		}
+		return max;
+	}
+
 	public String getName() {
 		return name;
 	}

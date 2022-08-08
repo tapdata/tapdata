@@ -1,7 +1,5 @@
 package com.tapdata.entity;
 
-import org.apache.logging.log4j.ThreadContext;
-
 public enum TapLog {
 
 	/**

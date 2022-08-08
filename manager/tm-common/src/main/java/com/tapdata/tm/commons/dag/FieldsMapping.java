@@ -17,4 +17,10 @@ public class FieldsMapping {
     private String sourceFieldName;
     private String sourceFieldType;
     private String type;
+    private String defaultValue;
+
+    private Boolean isShow;
+    private String migrateType;
+
+    private int primary_key_position;
 }

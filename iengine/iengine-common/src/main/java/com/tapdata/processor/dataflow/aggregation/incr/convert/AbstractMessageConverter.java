@@ -6,7 +6,6 @@ import com.tapdata.processor.dataflow.aggregation.incr.service.SnapshotRecord;
 import com.tapdata.processor.dataflow.aggregation.incr.service.SnapshotService;
 import com.tapdata.processor.dataflow.aggregation.incr.service.SyncVersionService;
 import com.tapdata.processor.dataflow.aggregation.incr.service.model.AggrBucket;
-import org.bson.Document;
 
 import java.util.LinkedHashMap;
 import java.util.List;

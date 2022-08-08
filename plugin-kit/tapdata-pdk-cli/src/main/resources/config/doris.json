@@ -1,10 +1,11 @@
 {
   "connection": {
     "host": "192.168.1.183",
-    "port": "9030",
+    "port": 9030,
     "database": "example_db",
     "user": "root",
-    "password": ""
+    "password": "",
+    "dorisHttp": "192.168.1.183:8040"
   },
   "node": {
   }

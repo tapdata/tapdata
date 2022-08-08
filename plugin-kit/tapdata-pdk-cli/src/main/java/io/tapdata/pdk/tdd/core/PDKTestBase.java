@@ -79,16 +79,16 @@ public class PDKTestBase {
             throw new IllegalArgumentException("TDD test config file doesn't exist or not a file, please check " + testConfigFile);
 
         String jarUrl = CommonUtils.getProperty("pdk_test_jar_file", "");
-        String tddJarUrl = CommonUtils.getProperty("pdk_external_jar_path", "./dist") + "/tdd-connector-v1.0-SNAPSHOT.jar";
+        String tddJarUrl = CommonUtils.getProperty("pdk_external_jar_path", "../connectors/dist") + "/tdd-connector-v1.0-SNAPSHOT.jar";
         File tddJarFile = new File(tddJarUrl);
         if (!tddJarFile.isFile())
-            throw new IllegalArgumentException("TDD jar file doesn't exist or not a file, please check " + tddJarFile);
+            throw new IllegalArgumentException("TDD jar file doesn't exist or not a file, please check " + tddJarFile.getAbsolutePath());
 
         if (StringUtils.isBlank(jarUrl))
             throw new IllegalArgumentException("Please specify jar file in env properties or java system properties, key is pdk_test_jar_file");
         jarFile = new File(jarUrl);
         if (!jarFile.isFile())
-            throw new IllegalArgumentException("PDK jar file " + jarUrl + " is not a file or not exists");
+            throw new IllegalArgumentException("PDK jar file " + jarFile.getAbsolutePath() + " is not a file or not exists");
         TapConnectorManager.getInstance().start(Arrays.asList(jarFile, tddJarFile));
         testConnector = TapConnectorManager.getInstance().getTapConnectorByJarName(jarFile.getName());
         Collection<TapNodeInfo> tapNodeInfoCollection = testConnector.getTapNodeClassFactory().getConnectorTapNodeInfos();

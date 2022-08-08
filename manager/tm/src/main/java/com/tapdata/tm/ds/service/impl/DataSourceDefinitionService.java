@@ -3,12 +3,14 @@ package com.tapdata.tm.ds.service.impl;
 import cn.hutool.extra.cglib.CglibUtil;
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.TypeReference;
+import com.tapdata.manager.common.utils.JsonUtil;
 import com.tapdata.tm.base.dto.Field;
 import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.Where;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.base.service.BaseService;
+import com.tapdata.tm.commons.base.dto.BaseDto;
 import com.tapdata.tm.commons.util.CapabilityEnum;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.commons.schema.DataSourceDefinitionDto;
@@ -18,9 +20,12 @@ import com.tapdata.tm.ds.entity.DataSourceDefinitionEntity;
 import com.tapdata.tm.ds.repository.DataSourceDefinitionRepository;
 import com.tapdata.tm.utils.Lists;
 import com.tapdata.tm.utils.MessageUtil;
+import com.tapdata.tm.utils.MongoUtils;
+import io.tapdata.pdk.apis.entity.Capability;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.bson.Document;
 import org.bson.types.ObjectId;
 import org.springframework.beans.BeanUtils;
@@ -150,13 +155,17 @@ public class DataSourceDefinitionService extends BaseService<DataSourceDefinitio
      * @param user
      * @return
      */
-    public DataSourceDefinitionDto findByPdkHash(String pdkHash, UserDetail user) {
+    public DataSourceDefinitionDto findByPdkHash(String pdkHash, UserDetail user, String... field) {
         Criteria userCriteria = new Criteria();
         userCriteria.and("customId").is(user.getCustomerId());
         Criteria supplierCriteria = Criteria.where("supplierType").ne("self");
         Criteria criteria = Criteria.where("pdkHash").is(pdkHash);
         criteria.orOperator(userCriteria, supplierCriteria);
-        Optional<DataSourceDefinitionEntity> optional = repository.findOne(Query.query(criteria));
+        Query query = Query.query(criteria);
+        if (field != null && field.length > 0) {
+            query.fields().include(field);
+        }
+        Optional<DataSourceDefinitionEntity> optional = repository.findOne(query);
         DataSourceDefinitionDto dataSourceDefinition = optional.map(dataSourceDefinitionEntity -> convertToDto(dataSourceDefinitionEntity, DataSourceDefinitionDto.class)).orElse(null);
 
         try {
@@ -239,16 +248,22 @@ public class DataSourceDefinitionService extends BaseService<DataSourceDefinitio
         query.addCriteria(criteria);
         query.limit(0);
         query.skip(0);
-        List<DataSourceDefinitionEntity> definitionEntities = repository.findAll(query);
+        MongoUtils.applyField(query, filter.getFields());
+        List<DataSourceDefinitionDto> definitionEntities = findAll(query);
 
         long count = repository.count(query);
+
+        for (DataSourceDefinitionDto definitionEntity : definitionEntities) {
+            updateConfigPropertiesTitle(definitionEntity);
+        }
 
         // distinct
         definitionEntities = definitionEntities.stream().collect(
                 Collectors.collectingAndThen(
-                        Collectors.toCollection(() -> new TreeSet<>(Comparator.comparing(DataSourceDefinitionEntity::getPdkId))), ArrayList::new
+                        Collectors.toCollection(() -> new TreeSet<>(Comparator.comparing(d-> StringUtils.isNotBlank(d.getPdkId()) ? d.getPdkId() : d.getId().toHexString()))), ArrayList::new
                 )
         );
+
 
         List<DataSourceTypeDto> typeList = CglibUtil.copyList(definitionEntities, DataSourceTypeDto::new);
 
@@ -285,7 +300,7 @@ public class DataSourceDefinitionService extends BaseService<DataSourceDefinitio
     public boolean checkHasSomeCapability(List<String> pdkHashList, UserDetail userDetail, CapabilityEnum eventType) {
         List<DataSourceDefinitionDto> definitionList = findByPdkHashList(pdkHashList, userDetail);
         if (CollectionUtils.isNotEmpty(definitionList)) {
-            Optional<List<String>> optional = definitionList.stream()
+            Optional<List<Capability>> optional = definitionList.stream()
                     .map(DataSourceDefinitionDto::getCapabilities)
                     .filter(cap -> Objects.isNull(cap) || CollectionUtils.isEmpty(cap))
                     .findFirst();
@@ -293,23 +308,86 @@ public class DataSourceDefinitionService extends BaseService<DataSourceDefinitio
                 return false;
             }
 
-            List<List<String>> capabilities = definitionList.stream()
+            List<List<Capability>> capabilities = definitionList.stream()
                     .map(DataSourceDefinitionDto::getCapabilities)
                     .filter(Objects::nonNull).collect(Collectors.toList());
 
-            Optional<List<String>> reduce = capabilities.stream().reduce((a, b) -> {
+            Optional<List<Capability>> reduce = capabilities.stream().reduce((a, b) -> {
                 a.retainAll(b);
                 return a;
             });
 
             if (reduce.isPresent()) {
-                List<String> intersection = reduce.orElse(new ArrayList<>());
-                if (intersection.contains(eventType.getEvent())) {
-                    return true;
+                List<Capability> intersection = reduce.orElse(new ArrayList<>());
+                for (Capability capability : intersection) {
+                    List<String> alternatives = capability.getAlternatives();
+                    if (CollectionUtils.isNotEmpty(alternatives) && alternatives.contains(eventType.getEvent())) {
+                        return true;
+                    }
                 }
+
             }
 
         }
         return false;
+    }
+
+
+
+    /**
+     * Convert DB Entity to Dto
+     *
+     * @param entity           required, the record of Entity.
+     * @param dtoClass         required, the Class of Dto.
+     * @param ignoreProperties optional, fields that do not need to be processed during conversion.
+     * @return the Dto of converted.
+     */
+    @Override
+    public DataSourceDefinitionDto convertToDto(DataSourceDefinitionEntity entity, Class dtoClass, String... ignoreProperties) {
+        if (dtoClass == null || entity == null)
+            return null;
+
+        try {
+            DataSourceDefinitionDto target = (DataSourceDefinitionDto) dtoClass.getDeclaredConstructor().newInstance();
+            String json = entity.getProperties();
+            LinkedHashMap<String, Object> properties = JsonUtil.parseJsonUseJackson(json, new com.fasterxml.jackson.core.type.TypeReference<LinkedHashMap<String, Object>>() {
+            });
+
+            BeanUtils.copyProperties(entity, target, ignoreProperties);
+            target.setProperties(properties);
+
+            return target;
+        } catch (Exception e) {
+            log.error("Convert dto " + dtoClass + " failed.", e);
+        }
+        return null;
+    }
+
+    /**
+     * Convert Dto to DB Entity
+     *
+     * @param entityClass      required, the Class of entity
+     * @param dto1              required, the record of dto.
+     * @param ignoreProperties optional, fields that do not need to be processed during conversion.
+     * @return the List of converted.
+     */
+    @Override
+    public DataSourceDefinitionEntity convertToEntity(Class entityClass, BaseDto dto1, String... ignoreProperties) {
+
+        if (entityClass == null || dto1 == null)
+            return null;
+        DataSourceDefinitionDto dto = (DataSourceDefinitionDto) dto1;
+        try {
+            DataSourceDefinitionEntity entity = (DataSourceDefinitionEntity) entityClass.getDeclaredConstructor().newInstance();
+            LinkedHashMap<String, Object> properties = dto.getProperties();
+            String json = JsonUtil.toJson(properties);
+            BeanUtils.copyProperties(dto, entity, ignoreProperties);
+            entity.setProperties(json);
+
+            return entity;
+        } catch (Exception e) {
+            log.error("Convert entity " + entityClass + " failed.", e);
+        }
+        return null;
     }
 }

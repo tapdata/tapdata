@@ -6,8 +6,10 @@ import org.apache.commons.lang3.StringUtils;
 import javax.net.ssl.*;
 import javax.xml.bind.DatatypeConverter;
 import java.io.*;
-import java.security.*;
-import java.security.cert.Certificate;
+import java.security.KeyFactory;
+import java.security.KeyStore;
+import java.security.NoSuchAlgorithmException;
+import java.security.PrivateKey;
 import java.security.cert.CertificateException;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
@@ -15,7 +17,6 @@ import java.security.interfaces.RSAPrivateKey;
 import java.security.spec.InvalidKeySpecException;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 
 public class SSLUtil {

@@ -1,6 +1,5 @@
 package com.tapdata.processor.dataflow.aggregation.incr;
 
-import com.tapdata.constant.MapUtil;
 import com.tapdata.constant.TapdataOffset;
 import com.tapdata.entity.MessageEntity;
 import com.tapdata.entity.OperationType;
@@ -10,14 +9,17 @@ import com.tapdata.processor.dataflow.DataFlowProcessor;
 import com.tapdata.processor.dataflow.ProcessorContext;
 import com.tapdata.processor.dataflow.aggregation.incr.cache.BucketCache;
 import com.tapdata.processor.dataflow.aggregation.incr.cache.BucketCacheBuilder;
-import com.tapdata.processor.dataflow.aggregation.incr.convert.*;
+import com.tapdata.processor.dataflow.aggregation.incr.convert.MessageConverters;
 import com.tapdata.processor.dataflow.aggregation.incr.convert.impl.DeleteMessageConverter;
 import com.tapdata.processor.dataflow.aggregation.incr.convert.impl.InsertMessageConverter;
 import com.tapdata.processor.dataflow.aggregation.incr.convert.impl.UpdateMessageConverter;
 import com.tapdata.processor.dataflow.aggregation.incr.func.AggrFunction;
 import com.tapdata.processor.dataflow.aggregation.incr.func.FuncCacheKey;
 import com.tapdata.processor.dataflow.aggregation.incr.func.FunctionFactory;
-import com.tapdata.processor.dataflow.aggregation.incr.service.*;
+import com.tapdata.processor.dataflow.aggregation.incr.service.AggregationService;
+import com.tapdata.processor.dataflow.aggregation.incr.service.LifeCycleService;
+import com.tapdata.processor.dataflow.aggregation.incr.service.SnapshotService;
+import com.tapdata.processor.dataflow.aggregation.incr.service.SyncVersionService;
 import com.tapdata.processor.dataflow.aggregation.incr.service.factory.ServiceFactories;
 import com.tapdata.processor.dataflow.aggregation.incr.service.model.BucketValue;
 import com.tapdata.processor.dataflow.aggregation.incr.task.CleanScheduler;

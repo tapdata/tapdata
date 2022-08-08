@@ -29,6 +29,7 @@ public class SyncProgress implements Serializable, Comparable<SyncProgress> {
 	private Object batchOffsetObj;
 	@JsonIgnore
 	private Object streamOffsetObj;
+	private Type type = Type.NORMAL;
 
 	public SyncProgress() {
 		this.eventSerialNo = 1L;
@@ -130,6 +131,19 @@ public class SyncProgress implements Serializable, Comparable<SyncProgress> {
 
 	public void setStreamOffsetObj(Object streamOffsetObj) {
 		this.streamOffsetObj = streamOffsetObj;
+	}
+
+	public Type getType() {
+		return type;
+	}
+
+	public void setType(Type type) {
+		this.type = type;
+	}
+
+	public enum Type {
+		NORMAL, // from normal task
+		SHARE_CDC, // from share cdc task
 	}
 
 	@Override

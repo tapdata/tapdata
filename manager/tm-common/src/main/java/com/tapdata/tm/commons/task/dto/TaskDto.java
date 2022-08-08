@@ -30,6 +30,14 @@ public class TaskDto extends ParentTaskDto {
     public static final String SYNC_TYPE_MIGRATE = "migrate";
     public static final String SYNC_TYPE_LOG_COLLECTOR = "logCollector";
     public static final String SYNC_TYPE_CONN_HEARTBEAT = "connHeartbeat";
+    /**
+     * 试运行
+     */
+    public static final String SYNC_TYPE_TEST_RUN = "testRun";
+    /**
+     * 模型推演
+     */
+    public static final String SYNC_TYPE_DEDUCE_SCHEMA = "deduceSchema";
 
     /** 任务图*/
     @JsonSerialize( using = DagSerialize.class)
@@ -58,12 +66,13 @@ public class TaskDto extends ParentTaskDto {
 
     private String inspectId;
 
-    private String migrateTableSelectType;
+    private String migrateModelStatus;
 
     public DAG getDag() {
         if (dag != null) {
             dag.setTaskId(getId());
             dag.setOwnerId(getUserId());
+            dag.setSyncType(getSyncType());
         }
         return dag;
     }

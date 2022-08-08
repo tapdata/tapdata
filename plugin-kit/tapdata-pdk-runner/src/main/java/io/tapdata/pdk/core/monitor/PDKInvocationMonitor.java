@@ -41,7 +41,9 @@ public class PDKInvocationMonitor implements MemoryFetcher {
         return instance;
     }
 
-
+    public static void invoke(Node node, PDKMethod method, CommonUtils.AnyError r, String logTag, Consumer<CoreException> errorConsumer) {
+        instance.invokePDKMethod(node, method, r, null, logTag, errorConsumer, false, 0, 0);
+    }
     public static void invoke(Node node, PDKMethod method, CommonUtils.AnyError r, String logTag) {
         instance.invokePDKMethod(node, method, r, null, logTag);
     }

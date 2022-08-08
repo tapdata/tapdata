@@ -1,7 +1,6 @@
 package com.tapdata.entity;
 
 import java.io.Serializable;
-import java.math.BigDecimal;
 import java.text.DecimalFormat;
 import java.util.List;
 

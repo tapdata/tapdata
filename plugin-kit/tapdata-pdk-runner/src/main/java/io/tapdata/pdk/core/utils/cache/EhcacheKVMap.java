@@ -2,66 +2,118 @@ package io.tapdata.pdk.core.utils.cache;
 
 import io.tapdata.entity.annotations.Implementation;
 import io.tapdata.entity.schema.TapTable;
-import io.tapdata.entity.utils.InstanceFactory;
-import io.tapdata.entity.utils.ObjectSerializable;
 import io.tapdata.entity.utils.cache.KVMap;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import org.ehcache.Cache;
 import org.ehcache.PersistentCacheManager;
-import org.ehcache.Status;
 import org.ehcache.config.builders.CacheConfigurationBuilder;
 import org.ehcache.config.builders.CacheManagerBuilder;
 import org.ehcache.config.builders.ResourcePoolsBuilder;
 import org.ehcache.config.units.EntryUnit;
 import org.ehcache.config.units.MemoryUnit;
-import org.ehcache.spi.serialization.Serializer;
-import org.ehcache.spi.serialization.SerializerException;
 
 import java.io.File;
-import java.nio.ByteBuffer;
-import java.util.Arrays;
+import java.io.Serializable;
 
 import static io.tapdata.entity.simplify.TapSimplify.*;
 
 @Implementation(value = KVMap.class, buildNumber = 0, type = "ehcache")
-public class EhcacheKVMap<T> implements KVMap<T> {
+public class EhcacheKVMap<T> implements KVMap<T>, Serializable {
     private static final String TAG = EhcacheKVMap.class.getSimpleName();
     private static PersistentCacheManager persistentCacheManager = null;
     private Cache<String, T> cache;
     private String cacheKey;
+    private Class<T> valueClass;
+
+    private Integer maxHeapEntries;
+    private Integer maxDiskMB;
+    private Integer maxOffHeapMB;
+
+    private String cachePath;
+
+    public EhcacheKVMap<T> maxHeapEntries(int maxHeapEntries) {
+        this.maxHeapEntries = maxHeapEntries;
+        return this;
+    }
+
+    public EhcacheKVMap<T> maxDiskMB(int maxDiskMB) {
+        this.maxDiskMB = maxDiskMB;
+        return this;
+    }
+
+    public EhcacheKVMap<T> maxOffHeapMB(int maxOffHeapMB) {
+        this.maxOffHeapMB = maxOffHeapMB;
+        return this;
+    }
+
+    public EhcacheKVMap<T> cachePath(String cachePath) {
+        this.cachePath = cachePath;
+        return this;
+    }
+
+    public static <T> EhcacheKVMap<T> create(String mapKey, Class<T> valueClass) {
+        EhcacheKVMap<T> tEhcacheKVMap = new EhcacheKVMap<>();
+        tEhcacheKVMap.cacheKey = mapKey;
+        tEhcacheKVMap.valueClass = valueClass;
+        return tEhcacheKVMap;
+    }
+
+    @SuppressWarnings("unchecked")
+    public EhcacheKVMap<T> init() {
+        init(cacheKey, valueClass);
+        return this;
+    }
     @SuppressWarnings("unchecked")
     @Override
     public void init(String mapKey, Class<T> valueClass) {
         if(persistentCacheManager == null) {
             synchronized (PersistentCacheManager.class) {
                 if(persistentCacheManager == null) {
-                    String cacheFolder = CommonUtils.getProperty("tapcache.ehcache_root_path", "cacheData");
+                    if(cachePath == null) {
+                        cachePath = CommonUtils.getProperty("tapcache_ehcache_root_path", "cacheData");
+                    }
 
-                    PersistentCacheManager persistentCacheManager = CacheManagerBuilder.newCacheManagerBuilder()
-                            .with(CacheManagerBuilder.persistence(new File(getStoragePath(), cacheFolder)))
+                    EhcacheKVMap.persistentCacheManager = CacheManagerBuilder.newCacheManagerBuilder()
+                            .with(CacheManagerBuilder.persistence(new File(getStoragePath(), cachePath)))
                             .withSerializer(Object.class, ObjectSerializer.class)
                             .build(true);
-
-                    this.persistentCacheManager = persistentCacheManager;
                 }
             }
         }
-
+        cache = (Cache<String, T>) persistentCacheManager.getCache(mapKey, String.class, (Class<?>) valueClass);
         if(cache == null) {
             synchronized (this) {
+                cache = (Cache<String, T>) persistentCacheManager.getCache(mapKey, String.class, (Class<?>) valueClass);
                 if(cache == null) {
                     cacheKey = mapKey;
-                    int maxHeapEntries = CommonUtils.getPropertyInt("tapcache_ehcache_heap_max_entries", 1000);
-                    int maxDiskSize = CommonUtils.getPropertyInt("tapcache_ehcache_disk_max_mb", 512);
+                    if(maxHeapEntries == null) {
+                        maxHeapEntries = CommonUtils.getPropertyInt("tapcache_ehcache_heap_max_entries", 10);
+                    }
+//                    if(maxDiskMB == null) {
+//                        maxDiskMB = CommonUtils.getPropertyInt("tapcache_ehcache_disk_max_mb", 20);
+//                    }
+//                    if(maxOffHeapMB == null) {
+//                        maxOffHeapMB = CommonUtils.getPropertyInt("tapcache_ehcache_disk_max_mb", 10);
+//                    }
 
-                    CommonUtils.ignoreAnyError(() -> persistentCacheManager.destroyCache(mapKey), TAG);
+//                    CommonUtils.ignoreAnyError(() -> persistentCacheManager.destroyCache(mapKey), TAG);
                     if(cache == null) {
-                        cache = (Cache<String, T>) persistentCacheManager.createCache(mapKey,
-                                CacheConfigurationBuilder.newCacheConfigurationBuilder(String.class, (Class<?>) valueClass,
-                                        ResourcePoolsBuilder.newResourcePoolsBuilder()
-                                                .heap(maxHeapEntries, EntryUnit.ENTRIES)
-//                                                .disk(maxDiskSize, MemoryUnit.MB, true)
-                                ));
+                        ResourcePoolsBuilder resourcePoolsBuilder = ResourcePoolsBuilder.newResourcePoolsBuilder();
+                        if(maxHeapEntries != null && maxHeapEntries > 0) {
+                            resourcePoolsBuilder = resourcePoolsBuilder.heap(maxHeapEntries, EntryUnit.ENTRIES);
+                        }
+                        if(maxOffHeapMB != null && maxOffHeapMB > 0) {
+                            resourcePoolsBuilder = resourcePoolsBuilder.offheap(maxOffHeapMB, MemoryUnit.MB);
+                        }
+                        if(maxDiskMB != null && maxDiskMB > 0) {
+                            resourcePoolsBuilder = resourcePoolsBuilder.disk(maxDiskMB, MemoryUnit.MB);
+                        }
+
+                        if(cache == null) {
+                            cache = (Cache<String, T>) persistentCacheManager.createCache(mapKey,
+                                    CacheConfigurationBuilder.newCacheConfigurationBuilder(String.class, (Class<?>) valueClass,
+                                            resourcePoolsBuilder));
+                        }
                     }
                 }
             }
@@ -71,29 +123,36 @@ public class EhcacheKVMap<T> implements KVMap<T> {
 
 
     public static void main(String... args) {
-        EhcacheKVMap<TapTable> tableMap = new EhcacheKVMap<>();
-        tableMap.init("AAAAA", TapTable.class);
+        EhcacheKVMap<TapTable> tableMap = EhcacheKVMap.create("AAAAA", TapTable.class)
+                .maxHeapEntries(10)
+                .maxDiskMB(5500)
+                .init();
+
+//        tableMap.init("AAAAA", TapTable.class);
 
         tableMap.put("a", table("name").add(field("field", "TapString").tapType(tapString().bytes(100L).fixed(true)).comment("asdkfalskdflskdfj")));
 
-//        long putTime = System.currentTimeMillis();
-//        for(int i = 0; i < 1; i++) {
-//            String key = String.valueOf(i);
-//            tableMap.put(key, table(key).add(field("field", "TapString").comment("asdkfalskdflskdfjasdkfalskdflskdfjasdkfalskdflskdfjasdkfalskdflskdfjasdkfalskdflskdfjasdkfalskdflskdfjasdkfalskdflskdfjasdkfalskdflskdfjasdkfalskdflskdfj")));
-//        }
-//        System.out.println("put takes " + (System.currentTimeMillis() - putTime));
-//
-//        long getTime = System.currentTimeMillis();
-//        for(int i = 0; i < 1000000; i++) {
-//            TapTable table = tableMap.get("a");
-//        }
-//        System.out.println("get take " + (System.currentTimeMillis() - getTime));
+        long putTime = System.currentTimeMillis();
+        for(int i = 0; i < 1; i++) {
+            String key = String.valueOf(i);
+            tableMap.put(key, table(key).add(field("field", "TapString").comment("asdkfalskdflskdfjasdkfalskdflskdfjasdkfalskdflskdfjasdkfalskdflskdfjasdkfalskdflskdfjasdkfalskdflskdfjasdkfalskdflskdfjasdkfalskdflskdfjasdkfalskdflskdfj" + key)));
+        }
+        System.out.println("put takes " + (System.currentTimeMillis() - putTime));
+        //put takes 6090
+
+        long getTime = System.currentTimeMillis();
+        for(int i = 0; i < 1; i++) {
+            TapTable table = tableMap.get(String.valueOf(i % 10));
+        }
+        System.out.println("get take " + (System.currentTimeMillis() - getTime));
+        //get take 61, hit on cache for 1 million read.
+        //if missing cache, will take 31 seconds for 1 million read.
 
         System.out.println(tableMap.get("a"));
 
-        tableMap.clear();
-        tableMap.reset();
-        tableMap.reset();
+//        tableMap.clear();
+//        tableMap.reset();
+//        tableMap.reset();
     }
     private File getStoragePath() {
         return new File("./");
@@ -132,5 +191,37 @@ public class EhcacheKVMap<T> implements KVMap<T> {
     @Override
     public void reset() {
         CommonUtils.ignoreAnyError(() -> persistentCacheManager.destroyCache(cacheKey), TAG);
+    }
+
+    public Integer getMaxHeapEntries() {
+        return maxHeapEntries;
+    }
+
+    public void setMaxHeapEntries(Integer maxHeapEntries) {
+        this.maxHeapEntries = maxHeapEntries;
+    }
+
+    public Integer getMaxDiskMB() {
+        return maxDiskMB;
+    }
+
+    public void setMaxDiskMB(Integer maxDiskMB) {
+        this.maxDiskMB = maxDiskMB;
+    }
+
+    public Integer getMaxOffHeapMB() {
+        return maxOffHeapMB;
+    }
+
+    public void setMaxOffHeapMB(Integer maxOffHeapMB) {
+        this.maxOffHeapMB = maxOffHeapMB;
+    }
+
+    public String getCachePath() {
+        return cachePath;
+    }
+
+    public void setCachePath(String cachePath) {
+        this.cachePath = cachePath;
     }
 }

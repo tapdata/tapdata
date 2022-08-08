@@ -20,12 +20,14 @@ public class ProcessorBaseContext implements Serializable {
 
 	private static final long serialVersionUID = -8383020637450262788L;
 	private final SubTaskDto subTaskDto;
-	private final Node<?> node;
-	private final List<Node> nodes;
-	private final List<Edge> edges;
+	private Node<?> node;
+	private List<Node> nodes;
+	private List<Edge> edges;
 	private final ConfigurationCenter configurationCenter;
 	private final List<RelateDataBaseTable> nodeSchemas;
 	private final TapTableMap<String, TapTable> tapTableMap;
+
+	private String pdkAssociateId;
 
 	protected <T extends ProcessorBaseContextBuilder<T>> ProcessorBaseContext(ProcessorBaseContextBuilder<T> builder) {
 		subTaskDto = builder.subTaskDto;
@@ -45,8 +47,8 @@ public class ProcessorBaseContext implements Serializable {
 		return node;
 	}
 
-	public List<Node> getNodes() {
-		return nodes;
+	public void setNode(Node<?> node) {
+		this.node = node;
 	}
 
 	public List<Edge> getEdges() {
@@ -63,6 +65,18 @@ public class ProcessorBaseContext implements Serializable {
 
 	public TapTableMap<String, TapTable> getTapTableMap() {
 		return tapTableMap;
+	}
+
+	public List<Node> getNodes() {
+		return nodes;
+	}
+
+	public void setNodes(List<Node> nodes) {
+		this.nodes = nodes;
+	}
+
+	public void setEdges(List<Edge> edges) {
+		this.edges = edges;
 	}
 
 	public static class ProcessorBaseContextBuilder<T extends ProcessorBaseContextBuilder<T>> {
@@ -116,5 +130,13 @@ public class ProcessorBaseContext implements Serializable {
 
 	public static ProcessorBaseContextBuilder<?> newBuilder() {
 		return new ProcessorBaseContextBuilder<>();
+	}
+
+	public String getPdkAssociateId() {
+		return pdkAssociateId;
+	}
+
+	public void setPdkAssociateId(String pdkAssociateId) {
+		this.pdkAssociateId = pdkAssociateId;
 	}
 }

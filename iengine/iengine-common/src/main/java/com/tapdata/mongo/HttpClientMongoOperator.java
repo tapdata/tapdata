@@ -105,6 +105,12 @@ public class HttpClientMongoOperator extends ClientMongoOperator {
 		}
 	}
 
+	@Override
+	public void deleteByMap(Map<String, Object> params, String collection) {
+		validateToken();
+		restTemplateOperator.delete(addToken(collection), params);
+	}
+
 	/**
 	 * 这个不能随意调用，需要预先在backend项目新增自定义deleteAll接口
 	 *

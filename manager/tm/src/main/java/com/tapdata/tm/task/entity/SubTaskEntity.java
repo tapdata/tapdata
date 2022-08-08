@@ -76,4 +76,6 @@ public class SubTaskEntity extends BaseEntity {
     private Boolean resetFlag;
     private Boolean deleteFlag;
 
+    private Long tmCurrentTime;
+
 }

@@ -113,7 +113,7 @@ public class ModelPredictionCli extends CommonCli {
                     System.out.println("------------- Project " + pomFile + " package successfully -------------");
                     MavenXpp3Reader reader = new MavenXpp3Reader();
                     Model model = reader.read(new FileReader(FilenameUtils.concat(file.getAbsolutePath(), "pom.xml")));
-                    jarFile = FilenameUtils.concat("./", "./dist/" + model.getArtifactId() + "-v" + model.getVersion() + ".jar");
+                    jarFile = FilenameUtils.concat("./connectors", "./dist/" + model.getArtifactId() + "-v" + model.getVersion() + ".jar");
                 }
             } else {
                 throw new IllegalArgumentException("File " + file.getAbsolutePath() + " is not exist");

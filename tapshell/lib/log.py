@@ -5,6 +5,7 @@ from lib.config_parse import Config
 
 config = Config()
 
+logger_header = False
 
 # Global Logger Utils
 def get_log_level(level):
