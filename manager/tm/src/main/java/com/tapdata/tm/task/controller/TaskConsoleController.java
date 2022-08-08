@@ -2,7 +2,7 @@ package com.tapdata.tm.task.controller;
 
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.ResponseMessage;
-import com.tapdata.tm.observability.dto.TaskLogDto;
+import com.tapdata.tm.monitor.dto.TaskLogDto;
 import com.tapdata.tm.task.service.TaskDagCheckLogService;
 import com.tapdata.tm.task.vo.TaskDagCheckLogVo;
 import io.swagger.v3.oas.annotations.Operation;

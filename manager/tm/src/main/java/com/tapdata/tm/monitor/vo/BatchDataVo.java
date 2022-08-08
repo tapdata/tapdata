@@ -1,4 +1,4 @@
-package com.tapdata.tm.observability.vo;
+package com.tapdata.tm.monitor.vo;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.AllArgsConstructor;

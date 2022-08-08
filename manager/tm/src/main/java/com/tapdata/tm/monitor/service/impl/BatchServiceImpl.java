@@ -1,14 +1,14 @@
-package com.tapdata.tm.observability.service.impl;
+package com.tapdata.tm.monitor.service.impl;
 
 import cn.hutool.extra.spring.SpringUtil;
 import com.google.common.collect.Lists;
 import com.tapdata.manager.common.utils.JsonUtil;
-import com.tapdata.tm.observability.constant.BatchServiceEnum;
-import com.tapdata.tm.observability.dto.BatchRequestDto;
-import com.tapdata.tm.observability.dto.BatchUriParamDto;
-import com.tapdata.tm.observability.service.ObservabilityService;
-import com.tapdata.tm.observability.vo.BatchDataVo;
-import com.tapdata.tm.observability.vo.BatchResponeVo;
+import com.tapdata.tm.monitor.constant.BatchServiceEnum;
+import com.tapdata.tm.monitor.dto.BatchRequestDto;
+import com.tapdata.tm.monitor.dto.BatchUriParamDto;
+import com.tapdata.tm.monitor.service.BatchService;
+import com.tapdata.tm.monitor.vo.BatchDataVo;
+import com.tapdata.tm.monitor.vo.BatchResponeVo;
 import io.tapdata.common.executor.ExecutorsManager;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -26,9 +26,11 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import static java.time.temporal.ChronoUnit.SECONDS;
+
 @Service
 @Slf4j
-public class ObservabilityServiceImpl implements ObservabilityService {
+public class BatchServiceImpl implements BatchService {
 
     private static final ScheduledExecutorService scheduler = ExecutorsManager.getInstance().getScheduledExecutorService();
 
@@ -57,8 +59,8 @@ public class ObservabilityServiceImpl implements ObservabilityService {
 
                     Object obj = JsonUtil.parseJsonUseJackson(JsonUtil.toJsonUseJackson(param), paramClass);
                     Object bean = SpringUtil.getBean(serviceClass);
-                    Object invoke = method.invoke(bean, obj);
-                    result.put(k, new BatchDataVo("ok", null, invoke));
+                    Object data = method.invoke(bean, obj);
+                    result.put(k, new BatchDataVo("ok", null, data));
                     return result;
                 } catch (ClassNotFoundException | InvocationTargetException | NoSuchMethodException |
                          IllegalAccessException e) {
@@ -83,11 +85,9 @@ public class ObservabilityServiceImpl implements ObservabilityService {
     public CompletableFuture<BatchResponeVo> failAfter(Duration duration, String key){
         /// need a schedular executor
         final CompletableFuture<BatchResponeVo> timer = new CompletableFuture<>();
-        scheduler.schedule(()->{
-            return timer.complete(new BatchResponeVo() {{
-                put(key, new BatchDataVo("SystemError", "method excute timeout 1s", null));
-            }});
-        },duration.toMillis(), TimeUnit.MILLISECONDS);
+        scheduler.schedule(()-> timer.complete(new BatchResponeVo() {{
+            put(key, new BatchDataVo("SystemError", "method excute timeout "+duration.get(SECONDS)+"s", null));
+        }}),duration.toMillis(), TimeUnit.MILLISECONDS);
         return timer;
     }
 
