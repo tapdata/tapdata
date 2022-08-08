@@ -73,7 +73,7 @@ peek 表, 可以使用 show 的简略 id, 或者使用名字
 ```
 m = MongoDB("source").
 m.host("192.168.1.181:32560").db("source").username("root").password("Gotapd8!").type("source").props("authSource=admin");
-m.valid()
+m.validate()
 CHECK_CONNECT: passed
 CHECK_AUTH: passed
 CHECK_PERMISSION: passed
@@ -89,7 +89,7 @@ m = DataSource("source")
 m.connector("mongodb")
 其余与封装对象一样, 需要保证每个属性与定义的数据表单一致
 
-m.valid()
+m.validate()
 m.save()
 ```
 
