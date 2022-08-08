@@ -14,7 +14,7 @@ import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.dag.process.MergeTableNode;
 import com.tapdata.tm.commons.dag.vo.SyncObjects;
-import com.tapdata.tm.commons.task.dto.SubTaskDto;
+import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.Target;
 import io.tapdata.common.ClassScanner;
 import io.tapdata.common.logging.format.CustomerLogMessagesEnum;
@@ -95,10 +95,10 @@ public class HazelcastTaskTarget extends HazelcastBaseNode {
 			} catch (Exception ignored) {
 			}
 			Thread.currentThread().setName(threadName);
-			SubTaskDto subTaskDto = dataProcessorContext.getSubTaskDto();
+			TaskDto taskDto = dataProcessorContext.getTaskDto();
 			Node<?> node = dataProcessorContext.getNode();
 			ConfigurationCenter configurationCenter = dataProcessorContext.getConfigurationCenter();
-			Log4jUtil.setThreadContext(subTaskDto);
+			Log4jUtil.setThreadContext(taskDto);
 			this.running = new AtomicBoolean(true);
 			super.doInit(context);
 
@@ -180,9 +180,9 @@ public class HazelcastTaskTarget extends HazelcastBaseNode {
 	public void process(int ordinal, Inbox inbox) {
 		try {
 			Thread.currentThread().setName(threadName);
-			SubTaskDto subTaskDto = dataProcessorContext.getSubTaskDto();
+			TaskDto taskDto = dataProcessorContext.getTaskDto();
 			Node<?> node = dataProcessorContext.getNode();
-			Log4jUtil.setThreadContext(subTaskDto);
+			Log4jUtil.setThreadContext(taskDto);
 
 			if (!inbox.isEmpty()) {
 
@@ -537,8 +537,8 @@ public class HazelcastTaskTarget extends HazelcastBaseNode {
 
 	@Override
 	public boolean saveToSnapshot() {
-		SubTaskDto subTaskDto = dataProcessorContext.getSubTaskDto();
-		String collection = ConnectorConstant.SUB_TASK_COLLECTION + "/syncProgress/" + subTaskDto.getId();
+		TaskDto taskDto = dataProcessorContext.getTaskDto();
+		String collection = ConnectorConstant.SUB_TASK_COLLECTION + "/syncProgress/" + taskDto.getId();
 		try {
 			clientMongoOperator.insertOne(this.syncProgressMap, collection);
 		} catch (Exception e) {

@@ -9,20 +9,18 @@ import com.tapdata.entity.DatabaseTypeEnum;
 import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.mongo.HttpClientMongoOperator;
 import com.tapdata.tm.commons.dag.Node;
-import com.tapdata.tm.commons.dag.logCollector.HazelCastImdgNode;
 import com.tapdata.tm.commons.dag.logCollector.LogCollectorNode;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.dag.process.AggregationProcessorNode;
 import com.tapdata.tm.commons.dag.process.MergeTableNode;
-import com.tapdata.tm.commons.task.dto.SubTaskDto;
+import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.aspect.TaskResetAspect;
 import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.entity.utils.cache.KVMap;
 import io.tapdata.flow.engine.V2.entity.PdkStateMap;
-import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.HazelcastTargetPdkShareCDCNode;
 import io.tapdata.flow.engine.V2.node.hazelcast.processor.HazelcastMergeNode;
 import io.tapdata.flow.engine.V2.node.hazelcast.processor.aggregation.HazelcastMultiAggregatorProcessor;
 import io.tapdata.flow.engine.V2.task.impl.HazelcastTaskService;
@@ -98,7 +96,7 @@ public class DataSyncEventHandler extends BaseEventHandler {
 	}
 
 	private void destroy(String taskId) {
-		SubTaskDto subTaskDto = clientMongoOperator.findOne(Query.query(Criteria.where("_id").is(taskId)), ConnectorConstant.SUB_TASK_COLLECTION, SubTaskDto.class);
+		TaskDto subTaskDto = clientMongoOperator.findOne(Query.query(Criteria.where("_id").is(taskId)), ConnectorConstant.SUB_TASK_COLLECTION, TaskDto.class);
 		if (null == subTaskDto) return;
 		List<Node> nodes = subTaskDto.getDag().getNodes();
 		if (CollectionUtils.isEmpty(nodes)) return;
@@ -121,7 +119,7 @@ public class DataSyncEventHandler extends BaseEventHandler {
 		HazelcastMergeNode.clearCache(node);
 	}
 
-	private void dataNodeDestroy(SubTaskDto subTaskDto, Node<?> node) {
+	private void dataNodeDestroy(TaskDto taskDto, Node<?> node) {
 		String connectionId = null;
 		Connections connections = null;
 		DatabaseTypeEnum.DatabaseType databaseType;
@@ -149,7 +147,7 @@ public class DataSyncEventHandler extends BaseEventHandler {
 		PdkUtil.downloadPdkFileIfNeed((HttpClientMongoOperator) clientMongoOperator,
 				databaseType.getPdkHash(), databaseType.getJarFile(), databaseType.getJarRid());
 		ConnectorNode connectorNode = PDKIntegration.createConnectorBuilder()
-				.withDagId(subTaskDto.getId().toHexString())
+				.withDagId(taskDto.getId().toHexString())
 				.withAssociateId(this.getClass().getSimpleName() + "-" + node.getId())
 				.withConnectionConfig(new DataMap() {{
 					putAll(finalConnections.getConfig());
@@ -168,7 +166,7 @@ public class DataSyncEventHandler extends BaseEventHandler {
 			if (releaseExternalFunction != null) {
 				PDKInvocationMonitor.invoke(connectorNode, PDKMethod.RELEASE_EXTERNAL, () -> releaseExternalFunction.release(connectorNode.getConnectorContext()), TAG);
 			}
-			AspectUtils.executeAspect(TaskResetAspect.class, () -> new TaskResetAspect().task(subTaskDto));
+			AspectUtils.executeAspect(TaskResetAspect.class, () -> new TaskResetAspect().task(taskDto));
 			TapConnectorContext connectorContext = connectorNode.getConnectorContext();
 			if (connectorContext != null) {
 				KVMap<Object> stateMap = connectorContext.getStateMap();

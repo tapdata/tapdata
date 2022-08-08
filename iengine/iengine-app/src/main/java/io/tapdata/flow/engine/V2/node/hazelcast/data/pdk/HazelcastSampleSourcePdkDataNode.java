@@ -7,7 +7,6 @@ import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.DataParentNode;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
-import com.tapdata.tm.commons.dag.nodes.TableNode;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.schema.TapTable;
@@ -17,7 +16,6 @@ import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
 import io.tapdata.pdk.core.monitor.PDKMethod;
 import io.tapdata.schema.TapTableMap;
 import org.apache.commons.collections.CollectionUtils;
-import org.apache.commons.collections.map.LRUMap;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.voovan.tools.collection.CacheMap;
@@ -25,7 +23,6 @@ import org.voovan.tools.collection.CacheMap;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 public class HazelcastSampleSourcePdkDataNode extends HazelcastSourcePdkDataNode {
 
@@ -49,7 +46,7 @@ public class HazelcastSampleSourcePdkDataNode extends HazelcastSourcePdkDataNode
     try {
       Node<?> node = dataProcessorContext.getNode();
       Thread.currentThread().setName("PDK-SAMPLE-SOURCE-RUNNER-" + node.getName() + "(" + node.getId() + ")");
-      Log4jUtil.setThreadContext(dataProcessorContext.getSubTaskDto());
+      Log4jUtil.setThreadContext(dataProcessorContext.getTaskDto());
       TapTableMap<String, TapTable> tapTableMap = dataProcessorContext.getTapTableMap();
       List<String> tables = new ArrayList<>(tapTableMap.keySet());
       int rows = 1;

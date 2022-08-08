@@ -3,7 +3,7 @@ package io.tapdata.websocket.handler;
 import com.tapdata.constant.JSONUtil;
 import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.tm.commons.task.dto.ParentTaskDto;
-import com.tapdata.tm.commons.task.dto.SubTaskDto;
+import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.aspect.TaskStopAspect;
 import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.common.SettingService;
@@ -25,9 +25,9 @@ public class TestRunTaskHandler implements WebSocketEventHandler<WebSocketEventR
 
 	private ClientMongoOperator clientMongoOperator;
 
-	private TaskService<SubTaskDto> taskService;
+	private TaskService<TaskDto> taskService;
 
-	private Map<String, SubTaskDto> taskClientMap = new ConcurrentHashMap<>();
+	private Map<String, TaskDto> taskClientMap = new ConcurrentHashMap<>();
 
 
 	@Override
@@ -36,7 +36,7 @@ public class TestRunTaskHandler implements WebSocketEventHandler<WebSocketEventR
 	}
 
 	@Override
-	public void initialize(TaskService<SubTaskDto> taskService, ClientMongoOperator clientMongoOperator, SettingService settingService) {
+	public void initialize(TaskService<TaskDto> taskService, ClientMongoOperator clientMongoOperator, SettingService settingService) {
 		this.initialize(clientMongoOperator, settingService);
 		this.taskService = taskService;
 	}
@@ -45,18 +45,18 @@ public class TestRunTaskHandler implements WebSocketEventHandler<WebSocketEventR
 	public WebSocketEventResult handle(Map event) {
 
 		long startTs = System.currentTimeMillis();
-		SubTaskDto subTaskDto = JSONUtil.map2POJO(event, SubTaskDto.class);
-		subTaskDto.getParentTask().setType(ParentTaskDto.TYPE_INITIAL_SYNC);
+		TaskDto taskDto = JSONUtil.map2POJO(event, TaskDto.class);
+		taskDto.setType(ParentTaskDto.TYPE_INITIAL_SYNC);
 
-		String taskId = subTaskDto.getId().toHexString();
-		if (taskClientMap.putIfAbsent(taskId, subTaskDto) != null) {
+		String taskId = taskDto.getId().toHexString();
+		if (taskClientMap.putIfAbsent(taskId, taskDto) != null) {
 			logger.warn("{} task is running, skip", taskId);
 			return WebSocketEventResult.handleFailed(WebSocketEventResult.Type.TEST_RUN, "task is running...");
 		}
 		logger.info("{} task start", taskId);
-		TaskClient<SubTaskDto> taskClient = null;
+		TaskClient<TaskDto> taskClient = null;
 		try {
-			taskClient = taskService.startTestTask(subTaskDto);
+			taskClient = taskService.startTestTask(taskDto);
 			taskClient.join();
 			AspectUtils.executeAspect(new TaskStopAspect().task(taskClient.getTask()));
 		} catch (Throwable throwable) {

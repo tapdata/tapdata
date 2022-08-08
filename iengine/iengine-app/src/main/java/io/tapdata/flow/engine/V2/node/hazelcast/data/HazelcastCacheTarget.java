@@ -13,7 +13,7 @@ public class HazelcastCacheTarget extends HazelcastTaskTarget {
 		Node<?> node = dataProcessorContext.getNode();
 		Connections targetConn = Connections.cacheConnection(sourceConn, HazelcastUtil.node2Stages(node));
 		this.dataProcessorContext = DataProcessorContext.newBuilder()
-				.withSubTaskDto(dataProcessorContext.getSubTaskDto())
+				.withTaskDto(dataProcessorContext.getTaskDto())
 				.withNode(node)
 				.withNodes(dataProcessorContext.getNodes())
 				.withEdges(dataProcessorContext.getEdges())

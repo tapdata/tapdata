@@ -34,7 +34,7 @@ public abstract class HazelcastDataBaseNode extends HazelcastBaseNode {
 	public HazelcastDataBaseNode(DataProcessorContext dataProcessorContext) {
 		super(dataProcessorContext);
 		this.dataProcessorContext = dataProcessorContext;
-		this.syncType = SyncTypeEnum.get(dataProcessorContext.getSubTaskDto().getParentTask().getType());
+		this.syncType = SyncTypeEnum.get(dataProcessorContext.getTaskDto().getType());
 	}
 
 	@SneakyThrows

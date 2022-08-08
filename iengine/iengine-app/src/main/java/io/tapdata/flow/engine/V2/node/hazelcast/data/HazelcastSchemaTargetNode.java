@@ -58,7 +58,7 @@ public class HazelcastSchemaTargetNode extends HazelcastVirtualTargetNode {
 
 	public HazelcastSchemaTargetNode(DataProcessorContext dataProcessorContext) {
 		super(dataProcessorContext);
-		this.schemaKey = dataProcessorContext.getSubTaskDto().getId().toHexString() + "-" + dataProcessorContext.getNode().getId();
+		this.schemaKey = dataProcessorContext.getTaskDto().getId().toHexString() + "-" + dataProcessorContext.getNode().getId();
 
 		List<Node<?>> preNodes = getNode().predecessors();
 		if (preNodes.size() != 1) {

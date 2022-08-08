@@ -8,7 +8,7 @@ import com.tapdata.entity.Connections;
 import com.tapdata.entity.OperationType;
 import com.tapdata.entity.sharecdc.LogContent;
 import com.tapdata.entity.task.NodeUtil;
-import com.tapdata.tm.commons.task.dto.SubTaskDto;
+import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.ConstructIterator;
 import io.tapdata.HazelcastConstruct;
 import io.tapdata.common.sharecdc.ShareCdcUtil;
@@ -56,7 +56,7 @@ public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializa
 
 	private ExecutorService readThreadPool;
 	private Future<?> readFuture;
-	private SubTaskDto logCollectorSubTaskDto;
+	private TaskDto logCollectorTaskDto;
 	private HazelcastInstance hazelcastInstance;
 	private HazelcastConstruct<Document> hazelcastConstruct;
 	private AtomicLong headSequence = new AtomicLong();
@@ -93,7 +93,7 @@ public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializa
 	 * If throw {@link ShareCdcUnsupportedException}, present cannot use shared incremental mode
 	 */
 	private int canShareCdc(int step) throws ShareCdcUnsupportedException {
-		SubTaskDto subTaskDto = ((ShareCdcTaskContext) this.shareCdcContext).getSubTaskDto();
+		TaskDto taskDto = ((ShareCdcTaskContext) this.shareCdcContext).getTaskDto();
 		Connections connections = ((ShareCdcTaskContext) this.shareCdcContext).getConnections();
 
 		// Check connection whether to open enable share cdc
@@ -103,23 +103,23 @@ public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializa
 		logger.info(logWrapper(++step, "Check connection " + connections.getName() + " enable share cdc: true"));
 
 		// Check task whether to open enable share cdc
-		if (!subTaskDto.getParentTask().getShareCdcEnable()) {
-			throw new ShareCdcUnsupportedException("Task " + subTaskDto.getParentTask().getName() + " not enable share cdc", true);
+		if (!taskDto.getShareCdcEnable()) {
+			throw new ShareCdcUnsupportedException("Task " + taskDto.getName() + " not enable share cdc", true);
 		}
-		logger.info(logWrapper(++step, "Check task " + subTaskDto.getParentTask().getName() + " enable share cdc: true"));
+		logger.info(logWrapper(++step, "Check task " + taskDto.getName() + " enable share cdc: true"));
 
 		// Check log collector task is exists
-		Map<String, String> shareCdcTaskId = subTaskDto.getShareCdcTaskId();
+		Map<String, String> shareCdcTaskId = taskDto.getShareCdcTaskId();
 		if (MapUtils.isEmpty(shareCdcTaskId)) {
 			throw new ShareCdcUnsupportedException("Not found any log collector task", true);
 		}
 		if (!shareCdcTaskId.containsKey(connections.getId())) {
 			throw new ShareCdcUnsupportedException("Not found log collector task by connection id: " + connections.getId(), true);
 		}
-		this.logCollectorSubTaskDto = getLogCollectorSubTask();
-		logger.info(logWrapper(++step, "Found log collector task: " + this.logCollectorSubTaskDto.getParentTask().getName()));
+		this.logCollectorTaskDto = getLogCollectorSubTask();
+		logger.info(logWrapper(++step, "Found log collector task: " + this.logCollectorTaskDto.getName()));
 
-		this.hazelcastConstruct = new ConstructRingBuffer<>(hazelcastInstance, ShareCdcUtil.getConstructName(this.logCollectorSubTaskDto));
+		this.hazelcastConstruct = new ConstructRingBuffer<>(hazelcastInstance, ShareCdcUtil.getConstructName(this.logCollectorTaskDto));
 		logger.info(logWrapper(++step, "Init hazelcast construct completed"));
 
 		// Check cdc start timestamp is available in log storage
@@ -155,23 +155,23 @@ public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializa
 		return step;
 	}
 
-	private SubTaskDto getLogCollectorSubTask() throws ShareCdcUnsupportedException {
-		SubTaskDto subTaskDto = ((ShareCdcTaskContext) this.shareCdcContext).getSubTaskDto();
+	private TaskDto getLogCollectorSubTask() throws ShareCdcUnsupportedException {
+		TaskDto taskDto = ((ShareCdcTaskContext) this.shareCdcContext).getTaskDto();
 		Connections connections = ((ShareCdcTaskContext) this.shareCdcContext).getConnections();
-		Map<String, String> shareCdcTaskId = subTaskDto.getShareCdcTaskId();
+		Map<String, String> shareCdcTaskId = taskDto.getShareCdcTaskId();
 		ObjectId logCollectorSubTaskId = new ObjectId(shareCdcTaskId.get(connections.getId()));
-		this.logCollectorSubTaskDto = this.clientMongoOperator.findOne(new Query(where("_id").is(logCollectorSubTaskId)), ConnectorConstant.SUB_TASK_COLLECTION, SubTaskDto.class);
-		if (this.logCollectorSubTaskDto == null) {
+		this.logCollectorTaskDto = this.clientMongoOperator.findOne(new Query(where("_id").is(logCollectorSubTaskId)), ConnectorConstant.SUB_TASK_COLLECTION, TaskDto.class);
+		if (this.logCollectorTaskDto == null) {
 			throw new ShareCdcUnsupportedException("Cannot find sub task by id: " + logCollectorSubTaskId + "(" + logCollectorSubTaskId.getClass().getName() + ")", true);
 		}
-		return logCollectorSubTaskDto;
+		return logCollectorTaskDto;
 	}
 
 	private void initThreadPool() {
-		SubTaskDto subTaskDto = ((ShareCdcTaskContext) this.shareCdcContext).getSubTaskDto();
+		TaskDto taskDto = ((ShareCdcTaskContext) this.shareCdcContext).getTaskDto();
 		this.readThreadPool = new ThreadPoolExecutor(1, 1, 0L, TimeUnit.MILLISECONDS, new SynchronousQueue<>(), r -> {
-			Log4jUtil.setThreadContext(((ShareCdcTaskContext) this.shareCdcContext).getSubTaskDto());
-			return new Thread(r, THREAD_NAME_PREFIX + subTaskDto.getName() + "-" + subTaskDto.getId());
+			Log4jUtil.setThreadContext(((ShareCdcTaskContext) this.shareCdcContext).getTaskDto());
+			return new Thread(r, THREAD_NAME_PREFIX + taskDto.getName() + "-" + taskDto.getId());
 		});
 	}
 

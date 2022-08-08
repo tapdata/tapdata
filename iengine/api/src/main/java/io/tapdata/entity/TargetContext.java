@@ -10,7 +10,7 @@ import com.tapdata.entity.Job;
 import com.tapdata.entity.dataflow.Stage;
 import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.tm.commons.dag.Node;
-import com.tapdata.tm.commons.task.dto.SubTaskDto;
+import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.ConverterProvider;
 import io.tapdata.common.SettingService;
 import io.tapdata.debug.DebugProcessor;
@@ -72,7 +72,7 @@ public class TargetContext extends Context {
 	}
 
 	public TargetContext(V1EngineContext context,
-						 SubTaskDto subTaskDto,
+						 TaskDto taskDto,
 						 Node<?> node,
 						 ConfigurationCenter configurationCenter) {
 		super(
@@ -88,11 +88,11 @@ public class TargetContext extends Context {
 				context.getConverterProvider(),
 				context.getMilestoneService(),
 				context.getDataFlow(),
-				subTaskDto, node, configurationCenter
+				taskDto, node, configurationCenter
 		);
 		this.targetSharedContext = new TargetSharedContext();
 		this.tapdataClientOperator = context.getClientMongoOperator();
-		this.customerLogger = new JobCustomerLogger(subTaskDto.getId().toHexString(), subTaskDto.getName(), tapdataClientOperator);
+		this.customerLogger = new JobCustomerLogger(taskDto.getId().toHexString(), taskDto.getName(), tapdataClientOperator);
 	}
 
 	public String getSyncStage() {

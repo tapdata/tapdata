@@ -78,7 +78,7 @@ public class TestRunAspectTask extends AspectTask {
   @Override
   public void onStop(TaskStopAspect stopAspect) {
     Map<String, Object> paramMap = new HashMap<>();
-    paramMap.put("taskId", task.getParentTask().getId().toHexString());
+    paramMap.put("taskId", task.getId().toHexString());
     paramMap.put("version", task.getVersion());
     paramMap.put("ts", new Date().getTime());
     if (stopAspect.getError() != null) {

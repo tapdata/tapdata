@@ -10,7 +10,6 @@ import com.tapdata.tm.commons.dag.vo.MigrateJsResultVo;
 import com.tapdata.tm.commons.schema.*;
 import com.tapdata.tm.commons.task.dto.Message;
 import com.tapdata.tm.commons.task.dto.ParentTaskDto;
-import com.tapdata.tm.commons.task.dto.SubTaskDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.common.SettingService;
 import io.tapdata.entity.schema.TapTable;
@@ -35,7 +34,7 @@ public class DeduceSchemaHandler implements WebSocketEventHandler<WebSocketEvent
 
 	private ClientMongoOperator clientMongoOperator;
 
-	private TaskService<SubTaskDto> taskService;
+	private TaskService<TaskDto> taskService;
 
 	@Override
 	public void initialize(ClientMongoOperator clientMongoOperator) {
@@ -43,7 +42,7 @@ public class DeduceSchemaHandler implements WebSocketEventHandler<WebSocketEvent
 	}
 
 	@Override
-	public void initialize(TaskService<SubTaskDto> taskService, ClientMongoOperator clientMongoOperator, SettingService settingService) {
+	public void initialize(TaskService<TaskDto> taskService, ClientMongoOperator clientMongoOperator, SettingService settingService) {
 		this.initialize(clientMongoOperator, settingService);
 		this.taskService = taskService;
 	}
@@ -63,14 +62,14 @@ public class DeduceSchemaHandler implements WebSocketEventHandler<WebSocketEvent
 		) {
 
 			@Override
-			public TapTable loadTapTable(List<Schema> schemas, String script, String nodeId, String virtualId, String customNodeId, Map<String, Object> form, SubTaskDto subTaskDto) {
+			public TapTable loadTapTable(List<Schema> schemas, String script, String nodeId, String virtualId, String customNodeId, Map<String, Object> form, TaskDto taskDto) {
 				// 跑任务加载js模型
-				String schemaKey = subTaskDto.getId() + "-" + virtualId;
+				String schemaKey = taskDto.getId() + "-" + virtualId;
 				long startTs = System.currentTimeMillis();
-				TaskClient<SubTaskDto> taskClient = execTask(subTaskDto);
+				TaskClient<TaskDto> taskClient = execTask(taskDto);
 
 				logger.info("load tapTable task {} {}, cost {}ms", schemaKey, taskClient.getStatus(), (System.currentTimeMillis() - startTs));
-				if (SubTaskDto.STATUS_COMPLETE.equals(taskClient.getStatus())) {
+				if (TaskDto.STATUS_COMPLETE.equals(taskClient.getStatus())) {
 					//成功
 					TapTable tapTable = HazelcastSchemaTargetNode.getTapTable(schemaKey);
 					if (logger.isDebugEnabled()) {
@@ -83,14 +82,14 @@ public class DeduceSchemaHandler implements WebSocketEventHandler<WebSocketEvent
 			}
 
 			@Override
-			public List<MigrateJsResultVo> getJsResult(String jsNodeId, String virtualTargetId, SubTaskDto subTaskDto) {
-				String schemaKey = subTaskDto.getId() + "-" + virtualTargetId;
+			public List<MigrateJsResultVo> getJsResult(String jsNodeId, String virtualTargetId, TaskDto taskDto) {
+				String schemaKey = taskDto.getId() + "-" + virtualTargetId;
 				long startTs = System.currentTimeMillis();
 
-				TaskClient<SubTaskDto> taskClient = execTask(subTaskDto);
+				TaskClient<TaskDto> taskClient = execTask(taskDto);
 
 				logger.info("load tapTable task {} {}, cost {}ms", schemaKey, taskClient.getStatus(), (System.currentTimeMillis() - startTs));
-				if (SubTaskDto.STATUS_COMPLETE.equals(taskClient.getStatus())) {
+				if (TaskDto.STATUS_COMPLETE.equals(taskClient.getStatus())) {
 					//成功
 					List<HazelcastSchemaTargetNode.SchemaApplyResult> schemaApplyResultList = HazelcastSchemaTargetNode.getSchemaApplyResultList(schemaKey);
 					if (logger.isDebugEnabled()) {
@@ -106,9 +105,9 @@ public class DeduceSchemaHandler implements WebSocketEventHandler<WebSocketEvent
 				return null;
 			}
 
-			private TaskClient<SubTaskDto> execTask(SubTaskDto subTaskDto) {
-				subTaskDto.getParentTask().setType(ParentTaskDto.TYPE_INITIAL_SYNC);
-				TaskClient<SubTaskDto> taskClient = taskService.startTestTask(subTaskDto);
+			private TaskClient<TaskDto> execTask(TaskDto taskDto) {
+				taskDto.setType(ParentTaskDto.TYPE_INITIAL_SYNC);
+				TaskClient<TaskDto> taskClient = taskService.startTestTask(taskDto);
 				taskClient.join();
 				return taskClient;
 			}

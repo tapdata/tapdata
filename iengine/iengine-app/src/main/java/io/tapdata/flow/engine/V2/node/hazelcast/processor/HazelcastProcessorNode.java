@@ -8,7 +8,6 @@ import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.processor.dataflow.*;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.process.*;
-import com.tapdata.tm.commons.task.dto.SubTaskDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.entity.codec.ToTapValueCodec;
 import io.tapdata.entity.event.TapEvent;
@@ -66,11 +65,11 @@ public class HazelcastProcessorNode extends HazelcastProcessorBaseNode {
 		final Stage stage = HazelcastUtil.node2CommonStage(processorBaseContext.getNode());
 		dataFlowProcessor = createDataFlowProcessor(processorBaseContext.getNode(), stage);
 		Job job = new Job();
-		SubTaskDto subTaskDto = processorBaseContext.getSubTaskDto();
+		TaskDto subTaskDto = processorBaseContext.getTaskDto();
 		job.setDataFlowId(subTaskDto.getId().toHexString());
 		job.setStatus(ConnectorConstant.RUNNING);
 		job.setSubTaskId(subTaskDto.getId().toHexString());
-		job.setTaskId(subTaskDto.getParentId().toHexString());
+		job.setTaskId(subTaskDto.getId().toHexString());
 		job.setJobErrorNotifier(this::errorHandle);
 		job.setUser_id(subTaskDto.getUserId());
 		List<JavaScriptFunctions> javaScriptFunctions = clientMongoOperator.find(new Query(where("type").ne("system")).with(Sort.by(Sort.Order.asc("last_update"))), ConnectorConstant.JAVASCRIPT_FUNCTION_COLLECTION, JavaScriptFunctions.class);
@@ -109,7 +108,7 @@ public class HazelcastProcessorNode extends HazelcastProcessorBaseNode {
 				if (tapRecordEvent != null) {
 					processedEvent.setTapEvent(tapRecordEvent);
 					String tableName;
-					if (multipleTables || StringUtils.equalsAnyIgnoreCase(processorBaseContext.getSubTaskDto().getParentTask().getSyncType(),
+					if (multipleTables || StringUtils.equalsAnyIgnoreCase(processorBaseContext.getTaskDto().getSyncType(),
 									TaskDto.SYNC_TYPE_DEDUCE_SCHEMA)) {
 						tableName = processedMessage.getTableName();
 					} else {

@@ -9,7 +9,7 @@ import com.tapdata.entity.MessageEntity;
 import com.tapdata.entity.dataflow.Stage;
 import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.tm.commons.dag.Node;
-import com.tapdata.tm.commons.task.dto.SubTaskDto;
+import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.ConverterProvider;
 import io.tapdata.common.SettingService;
 import io.tapdata.debug.DebugProcessor;
@@ -91,7 +91,7 @@ public class SourceContext extends Context {
 	}
 
 	public SourceContext(V1EngineContext context,
-						 SubTaskDto subTaskDto,
+						 TaskDto taskDto,
 						 Node<?> node, ConfigurationCenter configurationCenter) {
 		super(
 				context.getJob(),
@@ -106,7 +106,7 @@ public class SourceContext extends Context {
 				context.getConverterProvider(),
 				context.getMilestoneService(),
 				context.getDataFlow(),
-				subTaskDto,
+				taskDto,
 				node, configurationCenter
 		);
 		this.messageConsumer = context.getMessageConsumer();
@@ -117,7 +117,7 @@ public class SourceContext extends Context {
 		this.roleId = context.getRoleId();
 		this.clientMongoOperator = context.getClientMongoOperator();
 		this.isCloud = context.isCloud();
-		this.customerLogger = new JobCustomerLogger(subTaskDto.getId().toHexString(), subTaskDto.getName(), clientMongoOperator);
+		this.customerLogger = new JobCustomerLogger(taskDto.getId().toHexString(), taskDto.getName(), clientMongoOperator);
 	}
 
 	public SourceContext(List<Stage> stages, Connections connection) {
