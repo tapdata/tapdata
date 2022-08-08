@@ -19,6 +19,10 @@ public class TapInsertRecordEvent extends TapRecordEvent {
 		super(TYPE);
 	}
 
+	public static TapInsertRecordEvent create() {
+		return new TapInsertRecordEvent().init();
+	}
+
 	public void clone(TapEvent tapEvent) {
 		super.clone(tapEvent);
 		if (tapEvent instanceof TapInsertRecordEvent) {
