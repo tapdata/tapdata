@@ -5,10 +5,18 @@ on:
     branches: [ "master", "release-v*.*.*", "develop-v*.*.0", "develop-v*.*", "release-v*.*" ]
   pull_request:
     branches: [ "master", "release-v*.*.*", "develop-v*.*.0", "develop-v*.*", "release-v*.*" ]
+  schedule:
+    - cron: "30 9 * * *"
+    - cron: "30 12 * * *"
+    - cron: "30 17 * * *"
 
 env:
   REGISTRY: ghcr.io
   TEST_DATABASE: ${{ secrets.TEST_DATABASE }}
+  FEISHU_PERSON_IN_CHARGE: ${{ secrets.FEISHU_PERSON_IN_CHARGE }}
+  FEISHU_CHAT_ID: ${{ secrets.FEISHU_CHAT_ID }}
+  FEISHU_APP_ID: ${{ secrets.FEISHU_APP_ID}}
+  FEISHU_APP_SECRET: ${{ secrets.FEISHU_APP_SECRET }}
 
 
 jobs:
@@ -35,6 +43,27 @@ jobs:
     needs: Code-Style-Check
     if: needs.Code-Style-Check.outputs.check-style != 'false'
     steps:
+      - name: Set Env if Push
+        if: ${{ github.event_name == 'push' }}
+        run: |
+          echo "CURRENT_BRANCH=${{ github.ref_name }}" >> $GITHUB_ENV
+          echo "TAG_BRANCH=${{ github.ref_name }}" >> $GITHUB_ENV
+      - name: Set Env if Pull Request
+        if: ${{ github.event_name == 'pull_request' }}
+        run: |
+          echo "CURRENT_BRANCH=${{ github.ref }}" >> $GITHUB_ENV
+          echo "TAG_BRANCH=${{ github.base_ref }}" >> $GITHUB_ENV
+      - name: Checkout Enterprise Repo to Set Env if Cron Job
+        if: ${{ github.event_name == 'schedule' }}
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      - name: Set Env if Cron Job
+        if: ${{ github.event_name == 'schedule' }}
+        run: |
+          current_branch="`git branch -r | grep develop | cut -d "/" -f 2 | sort -rV | head -n 1`"
+          echo "CURRENT_BRANCH=$current_branch" >> $GITHUB_ENV
+          echo "TAG_BRANCH=$current_branch" >> $GITHUB_ENV
       - uses: actions/checkout@v3
       - name: Login to the github container registry
         uses: docker/login-action@f054a8b539a109f9f41c372932f1ae047eff08c9
@@ -91,3 +120,17 @@ jobs:
         run: |
           BRANCH_DIR=`echo $BRANCH | sed "s:/:-:g"`
           echo "[Click to view test report](https://tapdata.github.io/tapdata/$BRANCH_DIR/$RUN_SIGN)" >> $GITHUB_STEP_SUMMARY
+      - name: Send notices to feishu
+        if : ${{ failure() }}
+        run: |
+          pip install requests GitPython
+          python build/feishu_notice.py \
+            --branch ${{ env.CURRENT_BRANCH}} \
+            --runner "LDP Continuous Integration" \
+            --detail_url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+            --token ${{ secrets.GITHUB_TOKEN }} \
+            --job_id ${{ github.run_id }} \
+            --person_in_charge ${{ env.FEISHU_PERSON_IN_CHARGE }} \
+            --app_id ${{ env.FEISHU_APP_ID }} \
+            --app_secret ${{ env.FEISHU_APP_SECRET}} \
+            --chat_id ${{ env.FEISHU_CHAT_ID }}
