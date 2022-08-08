@@ -76,6 +76,8 @@ public class TaskController extends BaseController {
     private TaskNodeService taskNodeService;
     private TaskSaveService taskSaveService;
 
+    private SnapshotEdgeProgressService snapshotEdgeProgressService;
+
     /**
      * Create a new instance of the model and persist it into the data source
      *
@@ -441,6 +443,18 @@ public class TaskController extends BaseController {
 
     }
 
+
+    @GetMapping("view/sync/overview/{taskId}")
+    public ResponseMessage<FullSyncVO> syncOverview(@PathVariable("taskId") String taskId) {
+        return success(snapshotEdgeProgressService.syncOverview(taskId));
+    }
+
+    @GetMapping("view/sync/table/{taskId}")
+    public ResponseMessage<Page<TableStatus>> syncTableView(@PathVariable("taskId") String subTaskId,
+                                                            @RequestParam(value = "skip", required = false, defaultValue = "0") Long skip,
+                                                            @RequestParam(value = "limit", required = false, defaultValue = "20") Integer limit) {
+        return success(snapshotEdgeProgressService.syncTableView(subTaskId, skip, limit));
+    }
 
     @GetMapping("view/increase/{taskId}")
     public ResponseMessage<List<IncreaseSyncVO>> increaseView(@PathVariable("taskId") String taskId,
