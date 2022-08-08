@@ -3,20 +3,25 @@ package com.tapdata.tm.monitor.controller;
 import com.tapdata.manager.common.utils.JsonUtil;
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.ResponseMessage;
+import com.tapdata.tm.monitor.dto.BatchRequestDto;
 import com.tapdata.tm.monitor.dto.StatisticVo;
 import com.tapdata.tm.monitor.dto.TransmitTotalVo;
 import com.tapdata.tm.monitor.param.AggregateMeasurementParam;
 import com.tapdata.tm.monitor.param.MeasurementQueryParam;
+import com.tapdata.tm.monitor.service.BatchService;
 import com.tapdata.tm.monitor.service.MeasurementService;
 import com.tapdata.tm.monitor.service.MeasurementServiceV2;
-import com.tapdata.tm.monitor.vo.QueryMeasurementVo;
-import com.tapdata.tm.monitor.dto.BatchRequestDto;
-import com.tapdata.tm.monitor.service.BatchService;
 import com.tapdata.tm.monitor.vo.BatchResponeVo;
+import com.tapdata.tm.monitor.vo.QueryMeasurementVo;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import io.tapdata.common.sample.request.*;
+import io.tapdata.common.sample.request.BulkRequest;
+import io.tapdata.common.sample.request.QueryMeasurementParam;
+import io.tapdata.common.sample.request.QuerySampleParam;
+import io.tapdata.common.sample.request.QueryStisticsParam;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
@@ -149,7 +154,8 @@ public class MeasureController extends BaseController {
 
     @Operation(summary = "可观测性并行请求接口", description = "一个接口返回任务事件统计、任务日志和校验数据")
     @PostMapping("/batch")
-    public ResponseMessage<BatchResponeVo> batch(@Parameter(description = "多个service和method的参数集合", required = true)
+    public ResponseMessage<BatchResponeVo> batch(@Parameter(description = "多个请求的参数集合", required = true,
+                                                         content = @Content(schema = @Schema(implementation = BatchRequestDto.class)))
                                                  @RequestBody BatchRequestDto batchRequestDto) throws ExecutionException, InterruptedException {
         return success(batchService.batch(batchRequestDto));
     }
