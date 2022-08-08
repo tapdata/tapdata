@@ -10,6 +10,7 @@ import com.tapdata.tm.monitor.param.AggregateMeasurementParam;
 import com.tapdata.tm.monitor.param.MeasurementQueryParam;
 import com.tapdata.tm.utils.TimeUtil;
 import io.tapdata.common.sample.request.*;
+import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.bson.Document;
@@ -28,8 +29,8 @@ import java.util.stream.Collectors;
 
 @Service
 @Slf4j
+@Setter(onMethod_ = {@Autowired})
 public class MeasurementServiceV2 {
-    @Autowired
     private MongoTemplate mongoOperations;
 
     public void addAgentMeasurement(List<SampleRequest> samples) {

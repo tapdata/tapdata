@@ -1,21 +1,23 @@
 package com.tapdata.tm.monitor.controller;
 
 import com.tapdata.manager.common.utils.JsonUtil;
-import com.tapdata.manager.common.utils.StringUtils;
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.ResponseMessage;
-import com.tapdata.tm.monitor.constant.TableNameEnum;
-import com.tapdata.tm.monitor.dto.SampleVo;
 import com.tapdata.tm.monitor.dto.StatisticVo;
 import com.tapdata.tm.monitor.dto.TransmitTotalVo;
 import com.tapdata.tm.monitor.param.AggregateMeasurementParam;
 import com.tapdata.tm.monitor.param.MeasurementQueryParam;
 import com.tapdata.tm.monitor.service.MeasurementService;
 import com.tapdata.tm.monitor.service.MeasurementServiceV2;
-import com.tapdata.tm.monitor.vo.GetMeasurementVo;
-import com.tapdata.tm.monitor.vo.GetStaticVo;
 import com.tapdata.tm.monitor.vo.QueryMeasurementVo;
+import com.tapdata.tm.monitor.dto.BatchRequestDto;
+import com.tapdata.tm.monitor.service.BatchService;
+import com.tapdata.tm.monitor.vo.BatchResponeVo;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import io.tapdata.common.sample.request.*;
+import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -23,18 +25,17 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
+import java.util.concurrent.ExecutionException;
 
 @RestController
 @RequestMapping(value = "/api/measurement")
 @Slf4j
+@Tag(name = "可观测性")
+@Setter(onMethod_ = {@Autowired})
 public class MeasureController extends BaseController {
-
-    @Autowired
-    MeasurementService measurementService;
-
-    @Autowired
-    MeasurementServiceV2 measurementServiceV2;
+    private MeasurementService measurementService;
+    private MeasurementServiceV2 measurementServiceV2;
+    private BatchService batchService;
 
     @PostMapping("points")
     public ResponseMessage points(@RequestBody BulkRequest bulkRequest) {
@@ -144,5 +145,12 @@ public class MeasureController extends BaseController {
             e.printStackTrace();
             return failed(e);
         }
+    }
+
+    @Operation(summary = "可观测性并行请求接口", description = "一个接口返回任务事件统计、任务日志和校验数据")
+    @PostMapping("/batch")
+    public ResponseMessage<BatchResponeVo> batch(@Parameter(description = "多个service和method的参数集合", required = true)
+                                                 @RequestBody BatchRequestDto batchRequestDto) throws ExecutionException, InterruptedException {
+        return success(batchService.batch(batchRequestDto));
     }
 }
