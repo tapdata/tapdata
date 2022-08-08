@@ -69,7 +69,7 @@ jobs:
       - name: Set Env if Cron Job
         if: ${{ github.event_name == 'schedule' }}
         run: |
-          current_branch="`git branch -r | grep develop | cut -d "/" -f 2 | sort -rV | head -n 1`"
+          current_branch="`git branch -r | cut -d "/" -f 2 | grep '^develop-v[0-9]*.[0-9]*.[0-9]*$' | sort -rV | head -n 1`"
           echo "CURRENT_BRANCH=$current_branch" >> $GITHUB_ENV
           echo "TAG_BRANCH=$current_branch" >> $GITHUB_ENV
       - uses: actions/checkout@v3
