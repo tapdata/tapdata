@@ -91,7 +91,7 @@ build() {
         fi
         return
     fi
-#    echo "env PRODUCT is: ${PRODUCT}"
+
     check_env
     for component in ${all_components[*]}
     do

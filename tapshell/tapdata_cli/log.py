@@ -8,9 +8,6 @@ config = Config()
 
 logger_header = False
 
-#def logger_header():
-#    return config["log.logger_header"].lower() == "false"
-
 
 # Global Logger Utils
 def get_log_level(level):
