@@ -7,10 +7,12 @@ import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.entity.utils.JsonParser;
 import io.tapdata.entity.utils.cache.KVMap;
 import io.tapdata.entity.utils.cache.KVReadOnlyMap;
+import io.tapdata.pdk.apis.entity.ConnectorCapabilities;
 import io.tapdata.pdk.apis.spec.TapNodeSpecification;
 
 
 public class TapConnectorContext extends TapConnectionContext {
+    protected ConnectorCapabilities connectorCapabilities;
     protected DataMap nodeConfig;
     protected KVReadOnlyMap<TapTable> tableMap;
     protected KVMap<Object> stateMap;
@@ -50,6 +52,14 @@ public class TapConnectorContext extends TapConnectionContext {
 
     public void setGlobalStateMap(KVMap<Object> globalStateMap) {
             this.globalStateMap = globalStateMap;
+    }
+
+    public ConnectorCapabilities getConnectorCapabilities() {
+        return connectorCapabilities;
+    }
+
+    public void setConnectorCapabilities(ConnectorCapabilities connectorCapabilities) {
+        this.connectorCapabilities = connectorCapabilities;
     }
 
     public String toString() {

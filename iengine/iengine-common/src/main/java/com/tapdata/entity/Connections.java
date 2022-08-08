@@ -9,7 +9,6 @@ import io.tapdata.schema.SchemaMap;
 import io.tapdata.schema.SchemaProxy;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
-import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 
 import java.io.Serializable;
@@ -443,6 +442,8 @@ public class Connections implements Serializable {
 	private String redoLogParserHost;
 	private Integer redoLogParserPort;
 
+	private Map<String, Object> extParam;
+
 	public Connections() {
 	}
 
@@ -758,6 +759,7 @@ public class Connections implements Serializable {
 								stage.getTtl(),
 								stage.getFields(),
 								soureConnection,
+								null,
 								tableName,
 								inputStage,
 								pks
@@ -767,6 +769,10 @@ public class Connections implements Serializable {
 		}
 
 		return cacheConnection;
+	}
+
+	public static Connections virtualTargetNodeConnections() {
+		return new Connections();
 	}
 
 	public int getInitialReadSize() {
@@ -2211,6 +2217,14 @@ public class Connections implements Serializable {
 
 	public void setPdkHash(String pdkHash) {
 		this.pdkHash = pdkHash;
+	}
+
+	public Map<String, Object> getExtParam() {
+		return extParam;
+	}
+
+	public void setExtParam(Map<String, Object> extParam) {
+		this.extParam = extParam;
 	}
 }
 

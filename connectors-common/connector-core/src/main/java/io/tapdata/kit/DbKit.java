@@ -4,11 +4,10 @@ import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.entity.utils.DataMap;
 
 import java.io.BufferedInputStream;
+import java.io.BufferedReader;
 import java.io.IOException;
-import java.sql.Blob;
-import java.sql.ResultSet;
-import java.sql.ResultSetMetaData;
-import java.sql.SQLException;
+import java.io.Reader;
+import java.sql.*;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -33,9 +32,8 @@ public class DbKit {
             if (EmptyKit.isNotNull(resultSet)) {
                 List<String> columnNames = getColumnsFromResultSet(resultSet);
                 //cannot replace with while resultSet.next()
-                while (!resultSet.isAfterLast() && resultSet.getRow() > 0) {
+                while (resultSet.next()) {
                     list.add(getRowFromResultSet(resultSet, columnNames));
-                    resultSet.next();
                 }
             }
         } catch (SQLException e) {
@@ -86,7 +84,21 @@ public class DbKit {
         return columnNames;
     }
 
-    public static byte[] BlobToBytes(Blob blob) {
+    public static List<String> getColumnTypesFromResultSet(ResultSet resultSet) {
+        //get all column typeNames
+        List<String> columnTypeNames = new ArrayList<>();
+        try {
+            ResultSetMetaData resultSetMetaData = resultSet.getMetaData();
+            for (int i = 1; i <= resultSetMetaData.getColumnCount(); i++) {
+                columnTypeNames.add(resultSetMetaData.getColumnTypeName(i));
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return columnTypeNames;
+    }
+
+    public static byte[] blobToBytes(Blob blob) {
         BufferedInputStream bis = null;
         try {
             bis = new BufferedInputStream(blob.getBinaryStream());
@@ -111,4 +123,21 @@ public class DbKit {
             }
         }
     }
+
+    public static String clobToString(Clob clob) {
+        String re = "";
+        try (Reader is = clob.getCharacterStream(); BufferedReader br = new BufferedReader(is)) {
+            String s = br.readLine();
+            StringBuilder sb = new StringBuilder();
+            while (s != null) {
+                sb.append(s);
+                s = br.readLine();
+            }
+            re = sb.toString();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return re;
+    }
+
 }

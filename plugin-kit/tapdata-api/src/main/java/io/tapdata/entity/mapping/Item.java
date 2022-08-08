@@ -72,10 +72,10 @@ public class Item {
         boolean stillCleanPrefix = true;
         StringBuilder prefixBuilder = new StringBuilder();
 
+        List<Integer> optionPosList;
         for (int i = 0; i < string.length(); i++) {
             char ch = string.charAt(i);
             if(inVariableChars) { // in variable
-                List<Integer> optionPosList;
                 if(variableStops.contains(ch)) { // meet variable stop word
                     inVariableChars = false;
 
@@ -115,6 +115,14 @@ public class Item {
                 builder.append("\\");
             }
             builder.append(ch);
+        }
+        if(inVariableChars) {
+            inVariableChars = false;
+
+            String currentV = currentVariable.toString();
+            currentVariable.delete(0, currentVariable.length());
+            optionPosList = allVariableKeyOptionPosListMap.computeIfAbsent(currentV, k -> new ArrayList<>());
+            optionPosList.add(optionCounter.get());
         }
         cleanPrefix = prefixBuilder.toString().toLowerCase();
         regExpr = builder.toString();

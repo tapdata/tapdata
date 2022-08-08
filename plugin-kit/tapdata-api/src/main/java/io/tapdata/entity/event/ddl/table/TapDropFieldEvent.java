@@ -1,19 +1,15 @@
 package io.tapdata.entity.event.ddl.table;
 
 import io.tapdata.entity.event.TapEvent;
-import io.tapdata.entity.schema.TapField;
 
 import java.util.ArrayList;
 import java.util.List;
 
-public class TapDropFieldEvent extends TapTableEvent {
-    public static final int TYPE = 306;
-    private List<String> fields;
-    public TapDropFieldEvent field(String field) {
-        if(fields == null)
-            fields = new ArrayList<>();
-        if(field != null)
-            fields.add(field);
+public class TapDropFieldEvent extends TapFieldBaseEvent {
+    public static final int TYPE = 207;
+    private String fieldName;
+    public TapDropFieldEvent fieldName(String fieldName) {
+        this.fieldName = fieldName;
         return this;
     }
 
@@ -25,16 +21,16 @@ public class TapDropFieldEvent extends TapTableEvent {
         super.clone(tapEvent);
         if (tapEvent instanceof TapDropFieldEvent) {
             TapDropFieldEvent dropFieldEvent = (TapDropFieldEvent) tapEvent;
-            if (fields != null)
-                dropFieldEvent.fields = new ArrayList<>(fields);
+            if (fieldName != null)
+                dropFieldEvent.fieldName = fieldName;
         }
     }
 
-    public List<String> getFields() {
-        return fields;
+    public String getFieldName() {
+        return fieldName;
     }
 
-    public void setFields(List<String> fields) {
-        this.fields = fields;
+    public void setFieldName(String fieldName) {
+        this.fieldName = fieldName;
     }
 }

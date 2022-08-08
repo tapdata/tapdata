@@ -93,11 +93,11 @@ public class TapUpdateRecordEvent extends TapRecordEvent {
 		}
 	}
 
-	@Override
-	public String toString() {
-		return "TapUpdateRecordEvent{" +
-				"after=" + after +
-				", before=" + before +
-				"} " + super.toString();
-	}
+//	@Override
+//	public String toString() {
+//		return "TapUpdateRecordEvent{" +
+//				"after=" + after +
+//				", before=" + before +
+//				"} " + super.toString();
+//	}
 }

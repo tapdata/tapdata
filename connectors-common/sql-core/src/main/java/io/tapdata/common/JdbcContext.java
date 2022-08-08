@@ -9,6 +9,7 @@ import java.sql.*;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 
 /**
  * abstract jdbc context
@@ -65,14 +66,14 @@ public abstract class JdbcContext {
     public String queryVersion() {
         AtomicReference<String> version = new AtomicReference<>("");
         try {
-            query("SELECT VERSION()", resultSet -> version.set(resultSet.getString(1)));
+            queryWithNext("SELECT VERSION()", resultSet -> version.set(resultSet.getString(1)));
         } catch (Throwable e) {
             e.printStackTrace();
         }
         return version.get();
     }
 
-    public void query(String sql, ResultSetConsumer resultSetConsumer) throws Throwable {
+    public void queryWithNext(String sql, ResultSetConsumer resultSetConsumer) throws Throwable {
         TapLogger.debug(TAG, "Execute query, sql: " + sql);
         try (
                 Connection connection = getConnection();
@@ -84,6 +85,21 @@ public abstract class JdbcContext {
                 resultSet.next(); //move to first row
                 resultSetConsumer.accept(resultSet);
             }
+            resultSet.close();
+        } catch (SQLException e) {
+            throw new SQLException("Execute query failed, sql: " + sql + ", code: " + e.getSQLState() + "(" + e.getErrorCode() + "), error: " + e.getMessage(), e);
+        }
+    }
+
+    public void query(String sql, ResultSetConsumer resultSetConsumer) throws Throwable {
+        TapLogger.debug(TAG, "Execute query, sql: " + sql);
+        try (
+                Connection connection = getConnection();
+                Statement statement = connection.createStatement()
+        ) {
+            statement.setFetchSize(1000); //protected from OM
+            ResultSet resultSet = statement.executeQuery(sql);
+            resultSetConsumer.accept(resultSet);
             resultSet.close();
         } catch (SQLException e) {
             throw new SQLException("Execute query failed, sql: " + sql + ", code: " + e.getSQLState() + "(" + e.getErrorCode() + "), error: " + e.getMessage(), e);
@@ -156,6 +172,10 @@ public abstract class JdbcContext {
      * @return List<TableName and Comments>
      */
     public abstract List<DataMap> queryAllTables(List<String> tableNames);
+
+    public void queryAllTables(List<String> tableNames, int batchSize, Consumer<List<String>> consumer){
+        throw new UnsupportedOperationException();
+    }
 
     /**
      * query all column info from some tables

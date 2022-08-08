@@ -1,8 +1,6 @@
 package com.tapdata.processor.dataflow;
 
 import com.tapdata.cache.ICacheService;
-import com.tapdata.cache.memory.JobCacheGetter;
-import com.tapdata.cache.memory.MemoryCacheService;
 import com.tapdata.constant.*;
 import com.tapdata.entity.MessageEntity;
 import com.tapdata.entity.OperationType;

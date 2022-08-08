@@ -1,7 +1,5 @@
 package com.tapdata.entity;
 
-import org.apache.commons.collections.MapUtils;
-
 import java.io.Serializable;
 import java.util.Map;
 

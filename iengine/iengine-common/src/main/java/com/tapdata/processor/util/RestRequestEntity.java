@@ -2,7 +2,6 @@ package com.tapdata.processor.util;
 
 import com.tapdata.entity.RestURLInfo;
 import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 
 public class RestRequestEntity {

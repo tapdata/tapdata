@@ -1,5 +1,23 @@
+import argparse
+import copy
+import functools
+import json
+import shlex
 import sys
+import time
+import uuid
+import re
+from logging import *
 from platform import python_version
+from types import FunctionType
+from typing import Iterable, Tuple, Sequence
+
+import asyncio
+import requests
+import websockets
+from IPython.core.magic import Magics, magics_class, line_magic
+from IPython.terminal.interactiveshell import TerminalInteractiveShell
+
 if not python_version().startswith("3"):
     print("python version must be 3.x, please install python3 before using tapdata cli")
     sys.exit(-1)
@@ -7,24 +25,6 @@ import os
 
 os.environ['PYTHONSTARTUP'] = '>>>'
 os.environ["PROJECT_PATH"] = os.sep.join([os.path.dirname(os.path.abspath(__file__)), ".."])
-import argparse, shlex
-import urllib
-import uuid, json
-import time
-from logging import *
-import asyncio
-import pymongo
-import copy
-import functools
-from typing import Iterable, Tuple, Sequence
-from types import FunctionType
-
-import requests
-from IPython.terminal.interactiveshell import TerminalInteractiveShell
-from IPython.core.magic import Magics, magics_class, line_magic
-import websockets
-from bson.objectid import ObjectId
-from bson.json_util import dumps
 
 from lib.graph import Node, Graph
 from lib.rules import job_config
@@ -32,7 +32,6 @@ from lib.check import ConfigCheck
 from lib.request import RequestSession
 from lib.log import logger, get_log_level
 from lib.config_parse import Config
-
 
 config: Config = Config()
 server = config["backend.server"]
@@ -182,27 +181,24 @@ help_args = {
 }
 
 
-## some static utils, simple and no direct relation with this tool
-##################################################################
+# some static utils, simple and no direct relation with this tool
+
 
 # pad a string to a certain length
 def pad(string, length):
     string = str(string)
-    import re
+
     def len_zh(data):
         temp = re.findall('[^_\-a-zA-Z$0-9. #()\',\\\\/]+', data)
         count = 0
         for i in temp:
             count += len(i)
-        return (count)
+        return count
 
     zh = len_zh(string)
     if len(string) >= length:
         return string
     return string + " " * (length - len(string) - zh)
-
-
-####################################################################
 
 
 # operation tips when type h
@@ -332,7 +328,7 @@ def get_index_type(s):
         pass
     if len(s) == 6:
         for i in s:
-            if (i >= "0" and i <= "9") or (i >= "a" and i <= "f"):
+            if ("0" <= i <= "9") or ("a" <= i <= "f"):
                 continue
             return "name_index"
     else:
@@ -388,7 +384,14 @@ def get_table_fields(t, whole=False, source=None, cache=True):
         table_id = t
     if client_cache["tables"].get(source) is None:
         show_tables(quiet=True, source=source)
-    table = client_cache["tables"][source][index_type][t]
+
+    table = client_cache["tables"][source][index_type].get(t, None)
+    if table is None:
+        show_tables(quiet=True, source=source)
+    table = client_cache["tables"][source][index_type].get(t, None)
+    if table is None:
+        logger.warn("table {} not find in system", t)
+        return
 
     table_id = table["id"]
     table_name = table["original_name"]
@@ -544,7 +547,8 @@ def show_jobs(quiet=False):
             continue
         if not quiet:
             logger.log(
-                "{}: " + pad(data[i]["name"], 42) + " {} {}", data[i]["id"][-6:], pad(data[i].get("status", "unkownn"), 12),
+                "{}: " + pad(data[i]["name"], 42) + " {} {}", data[i]["id"][-6:],
+                pad(data[i].get("status", "unkownn"), 12),
                 data[i].get("syncType", "unknown") + "/" + data[i].get("type", "unknown"),
                 "debug", "info" if data[i].get("status", "unkownn") != "error" else "error", "notice"
             )
@@ -684,7 +688,8 @@ def show_tables(source=None, quiet=False):
             pass
         if not quiet:
             if len(each_line_tables) == each_line_table_count:
-                logger.log("{} "*each_line_table_count, *each_line_tables, *["notice" for i in range(each_line_table_count)])
+                logger.log("{} " * each_line_table_count, *each_line_tables,
+                           *["notice" for i in range(each_line_table_count)])
                 each_line_tables = []
             each_line_tables.append(pad(data[i]["original_name"], max_table_name_len))
     return tables
@@ -793,7 +798,7 @@ class op_object_command(Magics):
         return self.__common_op("status", line)
 
     @line_magic
-    @help_decorate("[Job] keep monitor a object status", "monitor $job_name t=30")
+    @help_decorate("[Job] keep monitor a object status", "monitor job $job_name t=30")
     def monitor(self, line):
         return self.__common_op("monitor", line)
 
@@ -840,16 +845,6 @@ def show_db(line):
         logger.warn("no show object found")
         return
     connection = get_signature_v("connection", line)
-    #del (connection["response_body"])
-    #del (connection["transformed"])
-    #del (connection["schemaVersion"])
-    #del (connection["username"])
-    #del (connection["loadCount"])
-    #del (connection["loadSchemaDate"])
-    #del (connection["tableCount"])
-    #del (connection["everLoadSchema"])
-    #del (connection["loadFieldsStatus"])
-    #del (connection["loadFieldErrMsg"])
     display = {}
     for k, v in connection.items():
         if v is None or v == "":
@@ -1214,11 +1209,6 @@ def desc_table(line):
     display_fields = get_table_fields(line, source=connection_id)
     print(json.dumps(display_fields, indent=4))
 
-
-# def login(server, access_code):
-#     login_with_access_code(server, access_code)
-
-
 def login_with_access_code(server, access_code):
     global system_server_conf, req
     api = "http://" + server + "/api"
@@ -1415,7 +1405,7 @@ class MergeNode(BaseObj):
             "joinKeys": [{"source": i[0], "target": i[1]} for i in self.association],
             "mergeType": self.mergeType,
             "targetPath": self.targetPath,
-            "children": [ i.to_dict() for i in self.child ],
+            "children": [i.to_dict() for i in self.child],
             "tableName": self.table_name
         }
 
@@ -1452,7 +1442,7 @@ class Merge(MergeNode):
                 "processorThreadNum": 1,
                 "name": "主从合并",
                 "mergeProperties": [{
-                    "children": [ i.to_dict() for i in self.child ],
+                    "children": [i.to_dict() for i in self.child],
                     "id": self.node_id,
                     "isArray": False,
                     "tableName": self.table_name,
@@ -1759,7 +1749,9 @@ class Pipeline:
         if type(script) == types.FunctionType:
             from metapensiero.pj.api import translates
             import inspect
-            js_script = translates(inspect.getsource(script))[0]
+            source_code = inspect.getsource(script)
+            source_code = "def process(" + source_code.split("(", 2)[1]
+            js_script = translates(source_code)[0]
             f = Js(js_script, False)
         else:
             if script.endswith(".js"):
@@ -1769,7 +1761,8 @@ class Pipeline:
         return self._common_stage(f)
 
     @help_decorate("merge another pipeline", args="p.merge($pipeline)")
-    def merge(self, pipeline, association: Iterable[Sequence[Tuple[str, str]]]=None, mergeType="updateWrite", targetPath=""):
+    def merge(self, pipeline, association: Iterable[Sequence[Tuple[str, str]]] = None, mergeType="updateWrite",
+              targetPath=""):
         if not isinstance(pipeline, Pipeline):
             logger.warn("{}", "pipeline must be the instance of class Pipeline")
             return
@@ -1990,17 +1983,13 @@ class Pipeline:
 
     @help_decorate("monitor pipeline job until it stoppped or timeout", args="p.monitor(10)")
     def monitor(self, t=30):
-        global logger_header
         if self.job is None:
             logger.warn("pipeline not start, no monitor can show")
             return
-        logger_header = True
         self.job.monitor(t)
-        logger_header = False
         return self
 
     def check(self):
-        global logger_header
         if self.status() not in [JobStatus.running, JobStatus.stop, JobStatus.complete]:
             logger.warn(
                 "{}", "The status of this task is not in [running, stop, complete], unable to check data."
@@ -2010,15 +1999,14 @@ class Pipeline:
             self.check_job = DataCheck(self.sources[0], self.sinks[0]["sink"], self.sinks[0]["relation"],
                                        name=self.name)
             self.check_job.start()
-        logger_header = True
         while True:
             time.sleep(1)
             if self.check_job.status() == "scheduling":
-                logger.info("prepareing for data check, please wait for a while ...", wrap=False)
+                logger.info("prepareing for data check, please wait for a while ...", wrap=False, logger_header=True)
                 continue
             stats = self.check_job.stats()
             if self.check_job.status() == "running":
-                logger.info("data check running, progress is: {} %", stats["progress"] * 100, wrap=False)
+                logger.info("data check running, progress is: {} %", stats["progress"] * 100, wrap=False, logger_header=True)
                 continue
             if self.check_job.status() == "done":
                 logger.log(
@@ -2030,7 +2018,6 @@ class Pipeline:
                     "warn"
                 )
                 break
-        logger_header = False
 
 
 class Agg(BaseObj):
@@ -2509,7 +2496,6 @@ class Job:
         try:
             status = self.status()
         except (KeyError, TypeError) as e:
-            logger.info("job {} is not save, error is {}, job will be save soon", self.id, e)
             resp = self.save()
             if not resp:
                 logger.info("job {} save failed.")
@@ -2522,6 +2508,8 @@ class Job:
         if self.id is None:
             logger.warn("save job fail")
             return False
+        # TODO: sleep 1 seconds, wait for js gen schema
+        time.sleep(1)
         res = req.put("/Task/batchStart", params={"taskIds": self.id}).json()
         if res["code"] != "ok":
             return False
@@ -2554,14 +2542,14 @@ class Job:
         jobStats = JobStats()
         for subTask in statuses:
             payload = {
-              "statistics": [
-                {
-                  "tags": {
-                    "subTaskId": subTask["id"],
-                    "type": "subTask"
-                  }
-                }
-              ]
+                "statistics": [
+                    {
+                        "tags": {
+                            "subTaskId": subTask["id"],
+                            "type": "subTask"
+                        }
+                    }
+                ]
             }
             res = req.post("/measurement/query", json=payload).json()
             for statistic in res["data"]["statistics"]:
@@ -2609,7 +2597,9 @@ class Job:
                                     continue
                                 if i["id"] not in log_ids:
                                     if get_log_level(i["level"]) >= get_log_level(level) and not quiet:
-                                        logger.log("[{}] {} {}: {}", i["level"], time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(i["date"])), i["loggerName"], i["message"],
+                                        logger.log("[{}] {} {}: {}", i["level"],
+                                                   time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(i["date"])),
+                                                   i["loggerName"], i["message"],
                                                    i["level"].lower(), "info", "info", "debug")
                                     log_ids[i["id"]] = 1
                             if not tail:
@@ -2617,6 +2607,7 @@ class Job:
                             time.sleep(1)
                         await websocket.close()
                         return logs
+
         try:
             asyncio.get_event_loop().run_until_complete(l())
         except Exception as e:
@@ -2634,14 +2625,14 @@ class Job:
                 logger.info(
                     "job {} status: {}, delay: {}, stats: input {}, output {}, insert {}, update {}, delete {}",
                     self.name, status, stats.delay, stats.input, stats.output, stats.insert, stats.update, stats.delete,
-                    "info", "info", "notice", "info", "info", "info", "info", "info", wrap=False
+                    "info", "info", "notice", "info", "info", "info", "info", "info", wrap=False, logger_header=True
                 )
             if status in [JobStatus.running, JobStatus.edit, JobStatus.scheduled]:
                 continue
             logger.info(
                 "job {} status: {}, delay: {}, stats: input {}, output {}, insert {}, update {}, delete {}",
                 self.name, status, stats.delay, stats.input, stats.output, stats.insert, stats.update, stats.delete,
-                "info", "info", "notice", "info", "info", "info", "info", "info", wrap=False
+                "info", "info", "notice", "info", "info", "info", "info", "info", wrap=False, logger_header=True
             )
             break
 
@@ -3089,7 +3080,7 @@ class Connection:
 
     @help_decorate("save a connection in idaas system")
     def save(self):
-        #self.load_schema(quiet=False)
+        # self.load_schema(quiet=False)
         res = req.post("/Connections", json=self.c)
         show_connections(quiet=True)
         if res.status_code == 200 and res.json()["code"] == "ok":
@@ -3303,11 +3294,9 @@ class DataCheck:
 
     @help_decorate("monitor this job until it finished", args="timeout seconds")
     def monitor(self, t=30, quiet=False):
-        global logger_header
         if self.id is None:
             logger.warn("data check job not start, no monitor can show")
             return
-        logger_header = True
         start_time = time.time()
         while True:
             if time.time() - start_time > t:
@@ -3316,15 +3305,15 @@ class DataCheck:
             status = self.status()
             stats = self.stats()
             if status == "running":
-                logger.info("data check running, progress is: {} %", stats["progress"] * 100, wrap=False)
+                logger.info("data check running, progress is: {} %", stats["progress"] * 100, wrap=False, logger_header=True)
             if status == "done":
                 logger.log(
                     "data check finished, check result is: {}, same row is number is: {}, diff row number is: {}",
                     stats["result"], stats["row_passed"], stats["row_failed"],
-                    "info" if stats["result"] != "failed" else "error", "info", "warn"
+                    "info" if stats["result"] != "failed" else "error", "info", "warn",
+                    logger_header=True
                 )
                 break
-        logger_header = False
 
 
 # used to describe a pipeline job

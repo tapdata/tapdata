@@ -1,5 +1,10 @@
 package io.tapdata.entity.event;
 
+import io.tapdata.entity.event.ddl.TapDDLEvent;
+import io.tapdata.entity.utils.FormatUtils;
+import io.tapdata.entity.utils.InstanceFactory;
+import io.tapdata.entity.utils.JsonParser;
+
 import java.io.Serializable;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -12,9 +17,14 @@ public abstract class TapEvent implements Serializable {
      */
     protected Long time;
 
-    public Map<String, Object> info;
+    protected Map<String, Object> info;
 
-    public Map<String, Object> traceMap;
+    protected Map<String, Object> traceMap;
+    protected String key;
+
+    protected String pdkId;
+    protected String pdkGroup;
+    protected String pdkVersion;
 
     public TapEvent(int type) {
         this.type = type;
@@ -73,6 +83,30 @@ public abstract class TapEvent implements Serializable {
         this.time = time;
     }
 
+    public String getPdkId() {
+        return pdkId;
+    }
+
+    public void setPdkId(String pdkId) {
+        this.pdkId = pdkId;
+    }
+
+    public String getPdkGroup() {
+        return pdkGroup;
+    }
+
+    public void setPdkGroup(String pdkGroup) {
+        this.pdkGroup = pdkGroup;
+    }
+
+    public String getPdkVersion() {
+        return pdkVersion;
+    }
+
+    public void setPdkVersion(String pdkVersion) {
+        this.pdkVersion = pdkVersion;
+    }
+
     @Override
     public Object clone() {
         try {
@@ -86,6 +120,9 @@ public abstract class TapEvent implements Serializable {
 
     public void clone(TapEvent tapEvent) {
         tapEvent.time = time;
+        tapEvent.pdkId = pdkId;
+        tapEvent.pdkGroup = pdkGroup;
+        tapEvent.pdkVersion = pdkVersion;
         if(info != null)
             tapEvent.info = new ConcurrentHashMap<>(info);
         if(traceMap != null)
@@ -94,10 +131,18 @@ public abstract class TapEvent implements Serializable {
 
     @Override
     public String toString() {
-        return "TapEvent{" +
-                "time=" + time +
-                ", info=" + info +
-                ", traceMap=" + traceMap +
-                '}';
+        return super.toString() + ": " + InstanceFactory.instance(JsonParser.class).toJson(this);
+//        return "TapEvent{" +
+//                "time=" + time +
+//                ", info=" + info +
+//                ", traceMap=" + traceMap +
+//                '}';
+    }
+
+    public String key() {
+        if (null == this.key) {
+            this.key = FormatUtils.formatTapEvent(this.getClass());
+        }
+        return this.key;
     }
 }

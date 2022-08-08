@@ -68,6 +68,22 @@ public class JsonParserImpl implements JsonParser {
             return JSON.toJSONString(obj, SerializerFeature.DisableCircularReferenceDetect/*, SerializerFeature.SortField, SerializerFeature.MapSortField*/);
         }
     }
+
+    @Override
+    public byte[] toJsonBytes(Object obj, ToJsonFeature... features) {
+        if (features != null && features.length > 0) {
+            //XXX to force adding WriteMapNullValue feature as the only one we have.
+            return JSON.toJSONBytes(obj, SerializerFeature.DisableCircularReferenceDetect, SerializerFeature.WriteMapNullValue/*, SerializerFeature.SortField, SerializerFeature.MapSortField*/);
+        } else {
+            return JSON.toJSONBytes(obj, SerializerFeature.DisableCircularReferenceDetect/*, SerializerFeature.SortField, SerializerFeature.MapSortField*/);
+        }
+    }
+
+    @Override
+    public <T> T fromJsonBytes(byte[] jsonBytes, Class<T> clazz) {
+        return JSON.parseObject(jsonBytes, clazz, Feature.OrderedField, /*Feature.UseNativeJavaObject, */Feature.DisableCircularReferenceDetect);
+    }
+
     @Override
     public DataMap fromJsonObject(String json) {
         return JSON.parseObject(json, DataMap.class, Feature.OrderedField, /*Feature.UseNativeJavaObject, */Feature.DisableCircularReferenceDetect);

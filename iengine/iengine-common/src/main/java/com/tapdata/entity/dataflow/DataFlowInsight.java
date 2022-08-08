@@ -4,9 +4,9 @@ package com.tapdata.entity.dataflow;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.tapdata.constant.JSONUtil;
-import org.apache.commons.collections.CollectionUtils;
 
-import java.util.*;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * @author jackin

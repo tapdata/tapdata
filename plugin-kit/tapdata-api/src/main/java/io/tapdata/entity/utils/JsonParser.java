@@ -5,6 +5,9 @@ import java.util.List;
 public interface JsonParser {
     String toJson(Object obj, ToJsonFeature... features);
 
+    byte[] toJsonBytes(Object obj, ToJsonFeature... features);
+    <T> T fromJsonBytes(byte[] jsonBytes, Class<T> clazz);
+
     DataMap fromJsonObject(String json);
     List<?> fromJsonArray(String json);
     Object fromJson(String json);

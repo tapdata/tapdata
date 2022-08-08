@@ -1,5 +1,6 @@
 package io.tapdata.pdk.cli;
 
+import io.tapdata.pdk.core.utils.CommonUtils;
 import picocli.CommandLine;
 
 /**
@@ -11,11 +12,12 @@ import picocli.CommandLine;
 public class TDDMongoDBMain1 {
     //
     public static void main(String... args) {
+        CommonUtils.setProperty("pdk_external_jar_path", "./connectors/dist");
         args = new String[]{
 //                "test", "-c", "B:\\code\\tapdata\\idaas-pdk\\tapdata-pdk-cli\\src\\main\\resources\\config\\aerospike.json",
 //                "test", "-c", "B:\\code\\tapdata\\idaas-pdk\\tapdata-pdk-cli\\src\\main\\resources\\config\\doris.json",
 //                "test", "-c", "/Users/aplomb/dev/tapdata/GithubProjects/idaas-pdk/tapdata-pdk-cli/src/main/resources/config/doris.json",
-                "test", "-c", "tapdata-pdk-cli/src/main/resources/config/mongodb.json",
+                "test", "-c", "plugin-kit/tapdata-pdk-cli/src/main/resources/config/mongodb.json",
 //                "-i", "tapdata-api",
 //                "-i", "tapdata-pdk-api",
 //                "-i", "connectors/connector-core",

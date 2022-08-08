@@ -195,7 +195,7 @@ public class RestTemplateOperator {
 								responseEntity != null && responseEntity.hasBody() ? responseEntity.getBody() : null
 						);
 					}
-				} catch (RestAuthException e) {
+				} catch (RestDoNotRetryException e) {
 					throw e;
 				} catch (Exception e) {
 					retry++;
@@ -267,7 +267,7 @@ public class RestTemplateOperator {
 					}
 
 					break;
-				} catch (RestAuthException e) {
+				} catch (RestDoNotRetryException e) {
 					throw e;
 				} catch (Exception e) {
 					retry++;
@@ -301,6 +301,35 @@ public class RestTemplateOperator {
 				} catch (Exception e) {
 					retry++;
 					exception = retryExceptionHandle(e, url, HttpMethod.DELETE.name(), uriVariables, null);
+				}
+			}
+			baseURL = changeBaseURLToNext(baseURL);
+			baseURLChangeTime++;
+		}
+
+		if (exception != null) {
+			throw new ManagementException(String.format(TapLog.ERROR_0006.getMsg(), exception.getMessage()), exception);
+		}
+	}
+
+	public void delete(String resource, Map<String, Object> params) {
+		String baseURL = this.baseURL;
+		int baseURLChangeTime = 0;
+		Exception exception = null;
+
+		setRetryTime();
+		String url = null;
+		while (baseURLChangeTime < size) {
+			int retry = 0;
+			while (retry <= retryTime) {
+				try {
+					url = url(baseURL, resource);
+					url = queryString(url, params).toString();
+					restTemplate.delete(url, params);
+					return;
+				} catch (Exception e) {
+					retry++;
+					exception = retryExceptionHandle(e, url, HttpMethod.DELETE.name(), params, null);
 				}
 			}
 			baseURL = changeBaseURLToNext(baseURL);
@@ -414,7 +443,7 @@ public class RestTemplateOperator {
 					}
 
 					return result;
-				} catch (RestAuthException e) {
+				} catch (RestDoNotRetryException e) {
 					throw e;
 				} catch (Exception e) {
 					retry++;
@@ -470,7 +499,7 @@ public class RestTemplateOperator {
 					}
 
 					return result;
-				} catch (RestAuthException e) {
+				} catch (RestDoNotRetryException e) {
 					throw e;
 				} catch (Exception e) {
 					retry++;
@@ -514,7 +543,7 @@ public class RestTemplateOperator {
 					}
 
 					return result;
-				} catch (RestAuthException e) {
+				} catch (RestDoNotRetryException e) {
 					throw e;
 				} catch (Exception e) {
 					retry++;
@@ -592,7 +621,7 @@ public class RestTemplateOperator {
 					}
 
 					return list;
-				} catch (RestAuthException e) {
+				} catch (RestDoNotRetryException e) {
 					throw e;
 				} catch (Exception e) {
 					retry++;
@@ -661,7 +690,7 @@ public class RestTemplateOperator {
 						}
 						if (data instanceof Map && ((Map) data).containsKey("items")) {
 							Object items = ((Map) data).get("items");
-							if (items instanceof List && CollectionUtils.isNotEmpty((List) items)) {
+							if (items instanceof List) {
 								data = items;
 							}
 						}
@@ -753,7 +782,7 @@ public class RestTemplateOperator {
 								responseEntity != null && responseEntity.hasBody() ? responseBody : null
 						);
 					}
-				} catch (RestAuthException e) {
+				} catch (RestDoNotRetryException e) {
 					throw e;
 				} catch (Exception e) {
 					retry++;

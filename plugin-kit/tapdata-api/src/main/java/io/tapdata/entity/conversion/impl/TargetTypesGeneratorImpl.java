@@ -16,10 +16,8 @@ import io.tapdata.entity.schema.type.TapString;
 import io.tapdata.entity.utils.InstanceFactory;
 
 import java.math.BigDecimal;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.TreeMap;
+import java.util.*;
+
 
 @Implementation(value = TargetTypesGenerator.class, buildNumber = 0)
 public class TargetTypesGeneratorImpl implements TargetTypesGenerator {
@@ -166,6 +164,8 @@ public class TargetTypesGeneratorImpl implements TargetTypesGenerator {
 //        AtomicReference<String> hitExpression = new AtomicReference<>();
 //        AtomicReference<TapMapping> tapMappingReference = new AtomicReference<>();
 //        AtomicLong bestScore = new AtomicLong(-1);
+//        List<Container<BigDecimal, String>> qualifiedList = new ArrayList<>();
+//        List<Container<BigDecimal, String>> noneQualifiedList = new ArrayList<>();
         matchingMap.iterate(expressionValueEntry -> {
             TapMapping tapMapping = (TapMapping) expressionValueEntry.getValue().get(TapMapping.FIELD_TYPE_MAPPING);
             if(tapMapping != null) {
@@ -175,6 +175,7 @@ public class TargetTypesGeneratorImpl implements TargetTypesGenerator {
 
                 BigDecimal score = tapMapping.matchingScore(field);
                 if(score.compareTo(BigDecimal.ZERO) >= 0) {
+//                    qualifiedList.add(new Container<>(score, expressionValueEntry.getKey()));
                     bestTapMapping.input(expressionValueEntry.getKey(), tapMapping, score);
 //                    if(score > bestTapMapping.score) {
 //                        bestTapMapping.score = score;
@@ -182,6 +183,7 @@ public class TargetTypesGeneratorImpl implements TargetTypesGenerator {
 //                        bestTapMapping.tapMapping = tapMapping;
 //                    }
                 } else {
+//                    noneQualifiedList.add(new Container<>(score, expressionValueEntry.getKey()));
                     bestNotHitTapMapping.input(expressionValueEntry.getKey(), tapMapping, score);
 //                    if(score > bestNotHitTapMapping.score) {
 //                        bestNotHitTapMapping.score = score;
@@ -193,6 +195,11 @@ public class TargetTypesGeneratorImpl implements TargetTypesGenerator {
             }
             return false;
         });
+//        qualifiedList.sort((o1, o2) -> o2.getT().compareTo(o1.getT()));
+//        noneQualifiedList.sort((o1, o2) -> o2.getT().compareTo(o1.getT()));
+//        TapLogger.info(TAG, "Field {} qualified data types {}, not qualified data types {}", field.getDataType(),
+//                qualifiedList.stream().map(Container::getP).collect(Collectors.toList()),
+//                noneQualifiedList.stream().map(Container::getP).collect(Collectors.toList()));
         HitTapMapping bestOne = bestTapMapping.getBestOne();
         if(bestOne != null && bestOne.tapMapping != null && bestOne.hitExpression != null) {
             return bestOne.tapMapping.fromTapType(bestOne.hitExpression, field.getTapType());

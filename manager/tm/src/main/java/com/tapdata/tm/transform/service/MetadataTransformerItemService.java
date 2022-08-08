@@ -3,9 +3,7 @@ package com.tapdata.tm.transform.service;
 import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.service.BaseService;
-import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.schema.MetadataTransformerItemDto;
-import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.transform.entity.MetadataTransformerItemEntity;
@@ -13,7 +11,6 @@ import com.tapdata.tm.transform.repository.MetadataTransformerItemRepository;
 import lombok.NonNull;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang3.StringUtils;
 import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.mongodb.core.BulkOperations;
@@ -25,7 +22,6 @@ import org.springframework.util.Assert;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Objects;
 
 /**
  * @Author:
@@ -70,28 +66,7 @@ public class MetadataTransformerItemService extends BaseService<MetadataTransfor
     }
 
     public Page<MetadataTransformerItemDto> findByFilter(Filter filter) {
-        Page<MetadataTransformerItemDto> data = find(filter);
-        List<MetadataTransformerItemDto> items = data.getItems();
-        // 过滤 始终拿到最新的任务 推演的表 -- 复制任务
-        String dataFlowId = (String) filter.getWhere().get("dataFlowId");
-        String sinkNodeId = (String) filter.getWhere().get("sinkNodeId");
-
-        if (StringUtils.isNotEmpty(sinkNodeId)) {
-            TaskDto taskDto = taskService.findById(new ObjectId(dataFlowId));
-
-            DatabaseNode databaseNode = taskDto.getDag().getTargets().stream()
-                    .filter(node -> sinkNodeId.equals(node.getId()) && node instanceof DatabaseNode)
-                    .map(m -> (DatabaseNode) m)
-                    .findFirst().orElse(null);
-
-            if (!Objects.isNull(databaseNode) && !Objects.isNull(databaseNode.getSyncObjects())) {
-                List<String> objectNames = databaseNode.getSyncObjects().get(0).getObjectNames();
-                items.removeIf(next -> !objectNames.contains(next.getSinkObjectName()));
-                data.setItems(items);
-            }
-        }
-
-        return data;
+        return find(filter);
     }
 
     public void bulkUpsert(List<MetadataTransformerItemDto> metadataTransformerItemDtos) {

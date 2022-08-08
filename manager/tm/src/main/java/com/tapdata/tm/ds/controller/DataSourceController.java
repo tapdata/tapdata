@@ -1,5 +1,7 @@
 package com.tapdata.tm.ds.controller;
 
+import com.alibaba.fastjson.JSONObject;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.tapdata.manager.common.utils.JsonUtil;
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.Field;
@@ -7,6 +9,8 @@ import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.ResponseMessage;
 import com.tapdata.tm.base.dto.Where;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
+import com.tapdata.tm.commons.task.dto.TaskDto;
+import com.tapdata.tm.commons.util.CreateTypeEnum;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.ds.bean.NoSchemaFilter;
 import com.tapdata.tm.ds.dto.UpdateTagsDto;
@@ -24,6 +28,7 @@ import io.swagger.v3.oas.annotations.enums.ParameterIn;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.entity.utils.JsonParser;
+import io.tapdata.pdk.apis.entity.ConnectionOptions;
 import lombok.Setter;
 import org.bson.Document;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -32,6 +37,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import static com.tapdata.tm.utils.MongoUtils.toObjectId;
 
@@ -103,6 +109,15 @@ public class DataSourceController extends BaseController {
             }
         }
 
+
+        Where where = filter.getWhere();
+        if (where == null) {
+            where = new Where();
+            Map<String, Object> createTypeMap = new HashMap<>();
+            createTypeMap.put("$ne", CreateTypeEnum.System);
+            where.put("createType", createTypeMap);
+        }
+
         //隐藏密码
         Page<DataSourceConnectionDto> dataSourceConnectionDtoPage = dataSourceService.list(filter, noSchema, getLoginUser());
 
@@ -123,6 +138,13 @@ public class DataSourceController extends BaseController {
         NoSchemaFilter filter = JsonUtil.parseJson(filterJson, NoSchemaFilter.class);
         if (filter == null) {
             filter = new NoSchemaFilter();
+        }
+        Where where = filter.getWhere();
+        if (where == null) {
+            where = new Where();
+            Map<String, Object> createTypeMap = new HashMap<>();
+            createTypeMap.put("$ne", CreateTypeEnum.System);
+            where.put("createType", createTypeMap);
         }
 
         //隐藏密码
@@ -146,6 +168,14 @@ public class DataSourceController extends BaseController {
         NoSchemaFilter filter = JsonUtil.parseJson(filterJson, NoSchemaFilter.class);
         if (filter == null) {
             filter = new NoSchemaFilter();
+        }
+
+        Where where = filter.getWhere();
+        if (where == null) {
+            where = new Where();
+            Map<String, Object> createTypeMap = new HashMap<>();
+            createTypeMap.put("$ne", CreateTypeEnum.System);
+            where.put("createType", createTypeMap);
         }
 
         return success(dataSourceService.listAll(filter, getLoginUser()));
@@ -319,6 +349,11 @@ public class DataSourceController extends BaseController {
             )
             @RequestParam(value = "where", required = false) String whereJson) {
         Where where = parseWhere(whereJson);
+
+        Map<String, Object> createTypeMap = new HashMap<>();
+        createTypeMap.put("$ne", CreateTypeEnum.System);
+        where.put("createType", createTypeMap);
+
         long count = dataSourceService.count(where, getLoginUser());
 
 
@@ -449,5 +484,39 @@ public class DataSourceController extends BaseController {
         return success(dataSourceService.supportList(getLoginUser()));
     }
 
+
+
+    @PostMapping("connectionOptions/update")
+    public ResponseMessage<Void> updateConnectionOptions(@RequestParam("where") String whereJson, @RequestBody String reqBody) {
+        Where where = parseWhere(whereJson);
+        if (reqBody.indexOf("\"$set\"") > 0 || reqBody.indexOf("\"$setOnInsert\"") > 0 || reqBody.indexOf("\"$unset\"") > 0) {
+            Document updateDto = InstanceFactory.instance(JsonParser.class).fromJson(reqBody, Document.class);
+            JSONObject set = (JSONObject) updateDto.get("$set");
+            ConnectionOptions options = null;
+            if (set.get("options") != null) {
+                options = JsonUtil.parseJsonUseJackson(JsonUtil.toJson(set.get("options")), new TypeReference<ConnectionOptions>() {
+                });
+            }
+            dataSourceService.updateConnectionOptions(MongoUtils.toObjectId((String) where.get("_id")), options, getLoginUser());
+        }
+        return success();
+    }
+
+    @Operation(summary = "Find tasks referencing the current connection")
+    @GetMapping("task/{id}/{limit}")
+    public ResponseMessage<Map<String, Object>> findTaskByConnectionId(@PathVariable("id") String connectionId, @PathVariable("limit") int limit) {
+        UserDetail loginUser = getLoginUser();
+        Long total = dataSourceService.countTaskByConnectionId(connectionId, loginUser);
+        List<TaskDto> taskList = dataSourceService.findTaskByConnectionId(connectionId, limit, loginUser);
+        List<Document> items = taskList.stream()
+                .map(task -> new Document("id", task.getId().toHexString())
+                        .append("name", task.getName())
+                        .append("syncType", task.getSyncType())).collect(Collectors.toList());
+        Map<String, Object> result = new HashMap<String, Object>() {{
+            put("items", items);
+            put("total", total);
+        }};
+        return success(result);
+    }
 
 }

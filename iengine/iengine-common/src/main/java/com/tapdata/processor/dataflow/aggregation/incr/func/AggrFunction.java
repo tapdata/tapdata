@@ -1,8 +1,8 @@
 package com.tapdata.processor.dataflow.aggregation.incr.func;
 
-import com.tapdata.processor.dataflow.aggregation.incr.service.model.AggrBucket;
 import com.tapdata.processor.dataflow.aggregation.incr.service.SnapshotRecord;
 import com.tapdata.processor.dataflow.aggregation.incr.service.SnapshotService;
+import com.tapdata.processor.dataflow.aggregation.incr.service.model.AggrBucket;
 
 import java.util.List;
 import java.util.Map;

@@ -29,9 +29,15 @@ Tapdata 是新一代的实时数据平台, 通过把企业核心数据实时集�
 
 ### 快速启动
 1. 执行 `bash build/quick-use.sh` 会快速启动一个使用环境, 然后会自动进入 tapshell 交互客户端
+2. 下次进入环境时, 可执行 `bash bin/tapshell.sh` 进入交互命令行工具
  
 ### 从源码编译启动
 1. 执行 `bash build/quick-dev.sh` 会从源码编译, 并启动一个完整的使用环境,  然后会自动进入 tapshell 交互客户端
+2. 下次进入环境时, 可执行 `bash bin/tapshell.sh` 进入交互命令行工具
+
+### 环境清理
+1. 执行 `bash build/clean.sh` 会清理包括编译中间产物, 编译镜像, 运行容器在内的全部内容, 但是会保留运行的任务配置与进度等信息
+2. 如果需要删除任务运行配置, 请删除主目录的 data 目录即可
 
 ## 使用说明
 1. 在环境启动后, 可通过 `bash bin/tapshell.sh` 进入交互客户端

@@ -1,5 +1,6 @@
 package io.tapdata.entity.codec.filter.impl;
 
+import io.tapdata.entity.codec.filter.EntryFilter;
 import io.tapdata.entity.codec.filter.MapIteratorEx;
 
 import java.util.*;
@@ -37,7 +38,7 @@ public class AllLayerMapIterator implements MapIteratorEx {
 //        }
 //    }
 
-    private void iterateWithPrefix(String prefix, Map<String, Object> obj, BiFunction<String, Object, Object> filter) {
+    private void iterateWithPrefix(String prefix, Map<String, Object> obj, EntryFilter filter) {
         for (Map.Entry<String, Object> entry : obj.entrySet()) {
             Object value = entry.getValue();
             if(value instanceof Map) {
@@ -49,14 +50,14 @@ public class AllLayerMapIterator implements MapIteratorEx {
                 iterateListWithPrefix(prefix + entry.getKey() + ARRAY_KEY_SEPARATOR, (Collection<Object>) value, newList, filter);
                 entry.setValue(newList);
             }
-            Object newValue = filter.apply(prefix + entry.getKey(), entry.getValue());
+            Object newValue = filter.filter(prefix + entry.getKey(), entry.getValue(), true);
             if(newValue != null) {
                 entry.setValue(newValue);
             }
         }
     }
 
-    private void iterateListWithPrefix(String prefix, Collection<Object> collection, Collection<Object> newList, BiFunction<String, Object, Object> filter) {
+    private void iterateListWithPrefix(String prefix, Collection<Object> collection, Collection<Object> newList, EntryFilter filter) {
         int i = 0;
         for (Object entry : collection) {
             Object value = entry;
@@ -68,7 +69,7 @@ public class AllLayerMapIterator implements MapIteratorEx {
                 iterateListWithPrefix(prefix + i + ARRAY_KEY_SEPARATOR, (Collection<Object>) value, newList1, filter);
                 value = newList1;
             }
-            Object newValue = filter.apply(prefix + i, value);
+            Object newValue = filter.filter(prefix + i, value, true );
             if(newValue != null) {
                 newList.add(newValue);
             } else {
@@ -79,7 +80,7 @@ public class AllLayerMapIterator implements MapIteratorEx {
     }
 
     @Override
-    public void iterate(Map<String, Object> map, BiFunction<String, Object, Object> filter) {
+    public void iterate(Map<String, Object> map, EntryFilter filter) {
         if(map == null || filter == null) {
             return;
         }
@@ -93,7 +94,7 @@ public class AllLayerMapIterator implements MapIteratorEx {
                 iterateListWithPrefix(entry.getKey() + ARRAY_KEY_SEPARATOR, (Collection<Object>) value, newList, filter);
                 entry.setValue(newList);
             }
-            Object newValue = filter.apply(entry.getKey(), entry.getValue());
+            Object newValue = filter.filter(entry.getKey(), entry.getValue(), false);
             if(newValue != null) {
                 entry.setValue(newValue);
             }

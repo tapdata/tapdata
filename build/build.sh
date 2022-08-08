@@ -52,8 +52,13 @@ build_component() {
         cd $p
         end_time=`date '+%s'`
         duration=`expr $end_time - $start_time`
-        warn "$_component build fail, cost time: $duration seconds, continue build next component..."
-        return
+        if [[ $_component == "connectors" ]]; then
+            # connectors build fail will continue build
+            warn "connectors build fail, cost time: $duration seconds, continue building..."
+            return
+        else
+            error "$_component build fail, cost time: $duration seconds, stop building..."
+        fi
     fi
     cd $p
     end_time=`date '+%s'`
@@ -79,6 +84,10 @@ build() {
             fi
         fi
         docker exec -i tapdata-build-container bash -c "cd /tapdata-source && bash build/build.sh -c $components"
+        if [[ $? -ne 0 ]]; then
+            exit 1
+        fi
+
         return
     fi
 

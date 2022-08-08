@@ -24,7 +24,7 @@ public class TapRuntime {
     }
 
     private TapRuntime() {
-        String scanPackage = CommonUtils.getProperty("pdk_implementation_scan_package", "io,tapdata");
+        String scanPackage = CommonUtils.getProperty("pdk_implementation_scan_package", "io.tapdata,com.tapdata");
         String[] packages = scanPackage.split(",");
         implementationClassFactory = new ImplementationClassFactory();
         implementationClassFactory.init(packages, this.getClass().getClassLoader());

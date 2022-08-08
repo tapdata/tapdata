@@ -32,6 +32,9 @@ public class CacheNode extends Node<Object> {
     private Long ttl;
     private String cacheKeys;
     private Long maxRows;
+    /** 最大缓存 单位M */
+    private Integer maxMemory;
+
 
     public CacheNode() {
         super("mem_cache", NodeCatalog.memCache);

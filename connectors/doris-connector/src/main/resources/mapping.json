@@ -1,0 +1,24 @@
+{
+  "id": {
+    "name": "id",
+    "originType": "VARCHAR(10)",
+    "partitionKeyPos": 1,
+    "pos": 1,
+    "primaryKey": true
+  },
+  "description": {
+    "name": "description",
+    "originType": "TEXT",
+    "pos": 2
+  },
+  "name": {
+    "name": "name",
+    "originType": "VARCHAR(256)",
+    "pos": 3
+  },
+  "age": {
+    "name": "age",
+    "originType": "DOUBLE",
+    "pos": 4
+  }
+}

@@ -56,7 +56,7 @@ public class PdkController extends BaseController {
         pkdSourceService.uploadAndView(pdkHash, getLoginUser(), PdkFileTypeEnum.JAR, response);
     }
 
-    @GetMapping(value = "/icon", produces = MediaType.IMAGE_JPEG_VALUE)
+    @GetMapping(value = "/icon")
     public void downloadIcon(@RequestParam("pdkHash") String pdkHash, HttpServletResponse response) {
         pkdSourceService.uploadAndView(pdkHash, getLoginUser(),PdkFileTypeEnum.IMAGE, response);
     }
