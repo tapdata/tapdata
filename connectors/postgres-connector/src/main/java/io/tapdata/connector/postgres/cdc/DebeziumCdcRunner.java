@@ -2,7 +2,7 @@ package io.tapdata.connector.postgres.cdc;
 
 import io.debezium.embedded.EmbeddedEngine;
 import io.debezium.engine.DebeziumEngine;
-import io.tapdata.common.CdcRunner;
+import io.tapdata.common.cdc.CdcRunner;
 import org.apache.kafka.connect.source.SourceRecord;
 
 import java.io.IOException;

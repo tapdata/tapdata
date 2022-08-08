@@ -1,0 +1,15 @@
+{
+  "initial_totals": 1,
+  "incremental_interval": 1000,
+  "incremental_interval_totals": 1,
+  "incremental_types": [1],
+  "write_interval": 1000,
+  "write_interval_totals": 1,
+  "write_log": true,
+  "table_name": "dummy_test",
+  "table_fields": [
+    {"type": "uuid", "pri": true, "name": "id"},
+    {"type": "rstring", "pri": false, "name": "title"},
+    {"type": "now", "pri": false, "name": "created"}
+  ]
+}

@@ -7,6 +7,8 @@ import com.tapdata.tm.commons.schema.bean.FileSources;
 import com.tapdata.tm.commons.schema.bean.PlatformInfo;
 import com.tapdata.tm.commons.schema.bean.ResponseBody;
 import com.tapdata.tm.commons.schema.bean.UrlInfo;
+import com.tapdata.tm.commons.util.CreateTypeEnum;
+import io.tapdata.pdk.apis.entity.Capability;
 import lombok.Data;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.data.mongodb.core.mapping.Field;
@@ -14,6 +16,7 @@ import org.springframework.data.mongodb.core.mapping.Field;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TimeZone;
 
 /**
  * @author lg&lt;lirufei0808@gmail.com&gt;
@@ -29,6 +32,8 @@ public class DataSourceConnectionDto extends BaseDto {
         private String name;
         /** 数据源的配置信息 符合connectiondefinition的jsonschema的json  */
         private Map<String, Object> config;
+        /** 创建类型 */
+        private CreateTypeEnum createType;
         /** 连接类型 源，目标，源&目标 */
         private String connection_type;
         /** 对应DataSourceDefinition type */
@@ -52,6 +57,8 @@ public class DataSourceConnectionDto extends BaseDto {
 
         /** pdk定义目标是否可以连接的一个属性 */
         private List<String> pdkExpansion;
+
+        private List<Capability> capabilities;
         /** */
         private Integer retry;
 //    /** 是否删除的标记 */
@@ -259,6 +266,12 @@ public class DataSourceConnectionDto extends BaseDto {
         private List<String> accessNodeProcessIdList;
 
         private boolean accessNodeTypeEmpty;
+
+        private TimeZone timeZone;
+
+        private String connectionString;
+
+        private Map<String, Object> extParam;
 
         /**
          * 后续 开放可以多选 flow engine 的话，这里一定要删除

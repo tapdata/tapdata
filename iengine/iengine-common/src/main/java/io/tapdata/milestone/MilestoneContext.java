@@ -6,8 +6,8 @@ import com.tapdata.entity.Job;
 import com.tapdata.entity.dataflow.DataFlow;
 import com.tapdata.entity.dataflow.Stage;
 import com.tapdata.mongo.ClientMongoOperator;
-import com.tapdata.tm.commons.task.dto.SubTaskDto;
 import com.tapdata.tm.commons.dag.Node;
+import com.tapdata.tm.commons.task.dto.SubTaskDto;
 
 import java.io.Serializable;
 import java.util.List;

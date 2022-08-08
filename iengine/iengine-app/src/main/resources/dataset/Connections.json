@@ -1,0 +1,937 @@
+[
+  {
+    "_id": "5ad840203c5994003cc41d51",
+    "name": "NORTHWIND",
+    "connection_type": "source",
+    "database_type": "oracle",
+    "database_host": "192.168.0.161",
+    "database_username": "NORTHWIND",
+    "database_port": 1524,
+    "database_name": "XE",
+    "database_password": "NORTHWIND",
+    "database_owner": "NORTHWIND",
+    "schema": {
+      "tables": [
+        {
+          "table_name": "ORDER_DETAILS",
+          "fields": [
+            {
+              "field_name": "ORDER_ID",
+              "table_name": "ORDER_DETAILS",
+              "data_type": "NUMBER",
+              "primary_key_position": 1,
+              "foreign_key_table": "ORDERS",
+              "foreign_key_column": "ORDER_ID",
+              "key": "PRI",
+              "precision": 9,
+              "scale": 0
+            },
+            {
+              "field_name": "QUANTITY",
+              "table_name": "ORDER_DETAILS",
+              "data_type": "NUMBER",
+              "primary_key_position": 0,
+              "foreign_key_table": null,
+              "foreign_key_column": null,
+              "key": null,
+              "precision": 9,
+              "scale": 0
+            },
+            {
+              "field_name": "UNIT_PRICE",
+              "table_name": "ORDER_DETAILS",
+              "data_type": "NUMBER",
+              "primary_key_position": 0,
+              "foreign_key_table": null,
+              "foreign_key_column": null,
+              "key": null,
+              "precision": 10,
+              "scale": 2
+            },
+            {
+              "field_name": "PRODUCT_ID",
+              "table_name": "ORDER_DETAILS",
+              "data_type": "NUMBER",
+              "primary_key_position": 2,
+              "foreign_key_table": "PRODUCTS",
+              "foreign_key_column": "PRODUCT_ID",
+              "key": "PRI",
+              "precision": 9,
+              "scale": 0
+            },
+            {
+              "field_name": "DISCOUNT",
+              "table_name": "ORDER_DETAILS",
+              "data_type": "NUMBER",
+              "primary_key_position": 0,
+              "foreign_key_table": null,
+              "foreign_key_column": null,
+              "key": null,
+              "precision": 4,
+              "scale": 2
+            }
+          ]
+        },
+        {
+          "table_name": "SHIPPERS",
+          "fields": [
+            {
+              "field_name": "COMPANY_NAME",
+              "table_name": "SHIPPERS",
+              "data_type": "VARCHAR2",
+              "primary_key_position": 0,
+              "foreign_key_table": null,
+              "foreign_key_column": null,
+              "key": null,
+              "precision": null,
+              "scale": null
+            },
+            {
+              "field_name": "SHIPPER_ID",
+              "table_name": "SHIPPERS",
+              "data_type": "NUMBER",
+              "primary_key_position": 1,
+              "foreign_key_table": null,
+              "foreign_key_column": null,
+              "key": "PRI",
+              "precision": 9,
+              "scale": 0
+            },
+            {
+              "field_name": "PHONE",
+              "table_name": "SHIPPERS",
+              "data_type": "VARCHAR2",
+              "primary_key_position": 0,
+              "foreign_key_table": null,
+              "foreign_key_column": null,
+              "key": null,
+              "precision": null,
+              "scale": null
+            }
+          ]
+        },
+        {
+          "table_name": "CUSTOMERS",
+          "fields": [
+            {
+              "field_name": "CONTACT_NAME",
+              "table_name": "CUSTOMERS",
+              "data_type": "VARCHAR2",
+              "primary_key_position": 0,
+              "foreign_key_table": null,
+              "foreign_key_column": null,
+              "key": null,
+              "precision": null,
+              "scale": null
+            },
+            {
+              "field_name": "COMPANY_NAME",
+              "table_name": "CUSTOMERS",
+              "data_type": "VARCHAR2",
+              "primary_key_position": 0,
+              "foreign_key_table": null,
+              "foreign_key_column": null,
+              "key": null,
+              "precision": null,
+              "scale": null
+            },
+            {
+              "field_name": "COUNTRY",
+              "table_name": "CUSTOMERS",
+              "data_type": "VARCHAR2",
+              "primary_key_position": 0,
+              "foreign_key_table": null,
+              "foreign_key_column": null,
+              "key": null,
+              "precision": null,
+              "scale": null
+            },
+            {
+              "field_name": "CITY",
+              "table_name": "CUSTOMERS",
+              "data_type": "VARCHAR2",
+              "primary_key_position": 0,
+              "foreign_key_table": null,
+              "foreign_key_column": null,
+              "key": null,
+              "precision": null,
+              "scale": null
+            },
+            {
+              "field_name": "CONTACT_TITLE",
+              "table_name": "CUSTOMERS",
+              "data_type": "VARCHAR2",
+              "primary_key_position": 0,
+              "foreign_key_table": null,
+              "foreign_key_column": null,
+              "key": null,
+              "precision": null,
+              "scale": null
+            },
+            {
+              "field_name": "POSTAL_CODE",
+              "table_name": "CUSTOMERS",
+              "data_type": "VARCHAR2",
+              "primary_key_position": 0,
+              "foreign_key_table": null,
+              "foreign_key_column": null,
+              "key": null,
+              "precision": null,
+              "scale": null
+            },
+            {
+              "field_name": "PHONE",
+              "table_name": "CUSTOMERS",
+              "data_type": "VARCHAR2",
+              "primary_key_position": 0,
+              "foreign_key_table": null,
+              "foreign_key_column": null,
+              "key": null,
+              "precision": null,
+              "scale": null
+            },
+            {
+              "field_name": "ADDRESS",
+              "table_name": "CUSTOMERS",
+              "data_type": "VARCHAR2",
+              "primary_key_position": 0,
+              "foreign_key_table": null,
+              "foreign_key_column": null,
+              "key": null,
+              "precision": null,
+              "scale": null
+            },
+            {
+              "field_name": "CUSTOMER_ID",
+              "table_name": "CUSTOMERS",
+              "data_type": "NUMBER",
+              "primary_key_position": 1,
+              "foreign_key_table": null,
+              "foreign_key_column": null,
+              "key": "PRI",
+              "precision": 9,
+              "scale": 0
+            },
+            {
+              "field_name": "CUSTOMER_CODE",
+              "table_name": "CUSTOMERS",
+              "data_type": "VARCHAR2",
+              "primary_key_position": 0,
+              "foreign_key_table": null,
+              "foreign_key_column": null,
+              "key": null,
+              "precision": null,
+              "scale": null
+            },
+            {
+              "field_name": "FAX",
+              "table_name": "CUSTOMERS",
+              "data_type": "VARCHAR2",
+              "primary_key_position": 0,
+              "foreign_key_table": null,
+              "foreign_key_column": null,
+              "key": null,
+              "precision": null,
+              "scale": null
+            },
+            {
+              "field_name": "REGION",
+              "table_name": "CUSTOMERS",
+              "data_type": "VARCHAR2",
+              "primary_key_position": 0,
+              "foreign_key_table": null,
+              "foreign_key_column": null,
+              "key": null,
+              "precision": null,
+              "scale": null
+            }
+          ]
+        },
+        {
+          "table_name": "EMPLOYEES",
+          "fields": [
+            {
+              "field_name": "EMPLOYEE_ID",
+              "table_name": "EMPLOYEES",
+              "data_type": "NUMBER",
+              "primary_key_position": 1,
+              "foreign_key_table": null,
+              "foreign_key_column": null,
+              "key": "PRI",
+              "precision": 9,
+              "scale": 0
+            },
+            {
+              "field_name": "TITLE_OF_COURTESY",
+              "table_name": "EMPLOYEES",
+              "data_type": "VARCHAR2",
+              "primary_key_position": 0,
+              "foreign_key_table": null,
+              "foreign_key_column": null,
+              "key": null,
+              "precision": null,
+              "scale": null
+            },
+            {
+              "field_name": "EXTENSION",
+              "table_name": "EMPLOYEES",
+              "data_type": "VARCHAR2",
+              "primary_key_position": 0,
+              "foreign_key_table": null,
+              "foreign_key_column": null,
+              "key": null,
+              "precision": null,
+              "scale": null
+            },
+            {
+              "field_name": "FIRSTNAME",
+              "table_name": "EMPLOYEES",
+              "data_type": "VARCHAR2",
+              "primary_key_position": 0,
+              "foreign_key_table": null,
+              "foreign_key_column": null,
+              "key": null,
+              "precision": null,
+              "scale": null
+            },
+            {
+              "field_name": "BIRTHDATE",
+              "table_name": "EMPLOYEES",
+              "data_type": "DATE",
+              "primary_key_position": 0,
+              "foreign_key_table": null,
+              "foreign_key_column": null,
+              "key": null,
+              "precision": null,
+              "scale": null
+            },
+            {
+              "field_name": "REPORTS_TO",
+              "table_name": "EMPLOYEES",
+              "data_type": "NUMBER",
+              "primary_key_position": 0,
+              "foreign_key_table": "EMPLOYEES",
+              "foreign_key_column": "EMPLOYEE_ID",
+              "key": null,
+              "precision": 9,
+              "scale": 0
+            },
+            {
+              "field_name": "REGION",
+              "table_name": "EMPLOYEES",
+              "data_type": "VARCHAR2",
+              "primary_key_position": 0,
+              "foreign_key_table": null,
+              "foreign_key_column": null,
+              "key": null,
+              "precision": null,
+              "scale": null
+            },
+            {
+              "field_name": "NOTES",
+              "table_name": "EMPLOYEES",
+              "data_type": "VARCHAR2",
+              "primary_key_position": 0,
+              "foreign_key_table": null,
+              "foreign_key_column": null,
+              "key": null,
+              "precision": null,
+              "scale": null
+            },
+            {
+              "field_name": "COUNTRY",
+              "table_name": "EMPLOYEES",
+              "data_type": "VARCHAR2",
+              "primary_key_position": 0,
+              "foreign_key_table": null,
+              "foreign_key_column": null,
+              "key": null,
+              "precision": null,
+              "scale": null
+            },
+            {
+              "field_name": "CITY",
+              "table_name": "EMPLOYEES",
+              "data_type": "VARCHAR2",
+              "primary_key_position": 0,
+              "foreign_key_table": null,
+              "foreign_key_column": null,
+              "key": null,
+              "precision": null,
+              "scale": null
+            },
+            {
+              "field_name": "POSTAL_CODE",
+              "table_name": "EMPLOYEES",
+              "data_type": "VARCHAR2",
+              "primary_key_position": 0,
+              "foreign_key_table": null,
+              "foreign_key_column": null,
+              "key": null,
+              "precision": null,
+              "scale": null
+            },
+            {
+              "field_name": "LASTNAME",
+              "table_name": "EMPLOYEES",
+              "data_type": "VARCHAR2",
+              "primary_key_position": 0,
+              "foreign_key_table": null,
+              "foreign_key_column": null,
+              "key": null,
+              "precision": null,
+              "scale": null
+            },
+            {
+              "field_name": "ADDRESS",
+              "table_name": "EMPLOYEES",
+              "data_type": "VARCHAR2",
+              "primary_key_position": 0,
+              "foreign_key_table": null,
+              "foreign_key_column": null,
+              "key": null,
+              "precision": null,
+              "scale": null
+            },
+            {
+              "field_name": "HIREDATE",
+              "table_name": "EMPLOYEES",
+              "data_type": "DATE",
+              "primary_key_position": 0,
+              "foreign_key_table": null,
+              "foreign_key_column": null,
+              "key": null,
+              "precision": null,
+              "scale": null
+            },
+            {
+              "field_name": "HOME_PHONE",
+              "table_name": "EMPLOYEES",
+              "data_type": "VARCHAR2",
+              "primary_key_position": 0,
+              "foreign_key_table": null,
+              "foreign_key_column": null,
+              "key": null,
+              "precision": null,
+              "scale": null
+            },
+            {
+              "field_name": "TITLE",
+              "table_name": "EMPLOYEES",
+              "data_type": "VARCHAR2",
+              "primary_key_position": 0,
+              "foreign_key_table": null,
+              "foreign_key_column": null,
+              "key": null,
+              "precision": null,
+              "scale": null
+            },
+            {
+              "field_name": "PHOTO",
+              "table_name": "EMPLOYEES",
+              "data_type": "VARCHAR2",
+              "primary_key_position": 0,
+              "foreign_key_table": null,
+              "foreign_key_column": null,
+              "key": null,
+              "precision": null,
+              "scale": null
+            }
+          ]
+        },
+        {
+          "table_name": "PRODUCTS",
+          "fields": [
+            {
+              "field_name": "CATEGORY_ID",
+              "table_name": "PRODUCTS",
+              "data_type": "NUMBER",
+              "primary_key_position": 0,
+              "foreign_key_table": "CATEGORIES",
+              "foreign_key_column": "CATEGORY_ID",
+              "key": null,
+              "precision": 9,
+              "scale": 0
+            },
+            {
+              "field_name": "UNITS_IN_STOCK",
+              "table_name": "PRODUCTS",
+              "data_type": "NUMBER",
+              "primary_key_position": 0,
+              "foreign_key_table": null,
+              "foreign_key_column": null,
+              "key": null,
+              "precision": 9,
+              "scale": 0
+            },
+            {
+              "field_name": "UNITS_ON_ORDER",
+              "table_name": "PRODUCTS",
+              "data_type": "NUMBER",
+              "primary_key_position": 0,
+              "foreign_key_table": null,
+              "foreign_key_column": null,
+              "key": null,
+              "precision": 9,
+              "scale": 0
+            },
+            {
+              "field_name": "UNIT_PRICE",
+              "table_name": "PRODUCTS",
+              "data_type": "NUMBER",
+              "primary_key_position": 0,
+              "foreign_key_table": null,
+              "foreign_key_column": null,
+              "key": null,
+              "precision": 10,
+              "scale": 2
+            },
+            {
+              "field_name": "SUPPLIER_ID",
+              "table_name": "PRODUCTS",
+              "data_type": "NUMBER",
+              "primary_key_position": 0,
+              "foreign_key_table": "SUPPLIERS",
+              "foreign_key_column": "SUPPLIER_ID",
+              "key": null,
+              "precision": 9,
+              "scale": 0
+            },
+            {
+              "field_name": "QUANTITY_PER_UNIT",
+              "table_name": "PRODUCTS",
+              "data_type": "VARCHAR2",
+              "primary_key_position": 0,
+              "foreign_key_table": null,
+              "foreign_key_column": null,
+              "key": null,
+              "precision": null,
+              "scale": null
+            },
+            {
+              "field_name": "DISCONTINUED",
+              "table_name": "PRODUCTS",
+              "data_type": "CHAR",
+              "primary_key_position": 0,
+              "foreign_key_table": null,
+              "foreign_key_column": null,
+              "key": null,
+              "precision": null,
+              "scale": null
+            },
+            {
+              "field_name": "REORDER_LEVEL",
+              "table_name": "PRODUCTS",
+              "data_type": "NUMBER",
+              "primary_key_position": 0,
+              "foreign_key_table": null,
+              "foreign_key_column": null,
+              "key": null,
+              "precision": 9,
+              "scale": 0
+            },
+            {
+              "field_name": "PRODUCT_NAME",
+              "table_name": "PRODUCTS",
+              "data_type": "VARCHAR2",
+              "primary_key_position": 0,
+              "foreign_key_table": null,
+              "foreign_key_column": null,
+              "key": null,
+              "precision": null,
+              "scale": null
+            },
+            {
+              "field_name": "PRODUCT_ID",
+              "table_name": "PRODUCTS",
+              "data_type": "NUMBER",
+              "primary_key_position": 1,
+              "foreign_key_table": null,
+              "foreign_key_column": null,
+              "key": "PRI",
+              "precision": 9,
+              "scale": 0
+            }
+          ]
+        },
+        {
+          "table_name": "ORDERS",
+          "fields": [
+            {
+              "field_name": "SHIP_ADDRESS",
+              "table_name": "ORDERS",
+              "data_type": "VARCHAR2",
+              "primary_key_position": 0,
+              "foreign_key_table": null,
+              "foreign_key_column": null,
+              "key": null,
+              "precision": null,
+              "scale": null
+            },
+            {
+              "field_name": "SHIP_NAME",
+              "table_name": "ORDERS",
+              "data_type": "VARCHAR2",
+              "primary_key_position": 0,
+              "foreign_key_table": null,
+              "foreign_key_column": null,
+              "key": null,
+              "precision": null,
+              "scale": null
+            },
+            {
+              "field_name": "REQUIRED_DATE",
+              "table_name": "ORDERS",
+              "data_type": "DATE",
+              "primary_key_position": 0,
+              "foreign_key_table": null,
+              "foreign_key_column": null,
+              "key": null,
+              "precision": null,
+              "scale": null
+            },
+            {
+              "field_name": "SHIP_COUNTRY",
+              "table_name": "ORDERS",
+              "data_type": "VARCHAR2",
+              "primary_key_position": 0,
+              "foreign_key_table": null,
+              "foreign_key_column": null,
+              "key": null,
+              "precision": null,
+              "scale": null
+            },
+            {
+              "field_name": "EMPLOYEE_ID",
+              "table_name": "ORDERS",
+              "data_type": "NUMBER",
+              "primary_key_position": 0,
+              "foreign_key_table": "EMPLOYEES",
+              "foreign_key_column": "EMPLOYEE_ID",
+              "key": null,
+              "precision": 9,
+              "scale": 0
+            },
+            {
+              "field_name": "ORDER_DATE",
+              "table_name": "ORDERS",
+              "data_type": "DATE",
+              "primary_key_position": 0,
+              "foreign_key_table": null,
+              "foreign_key_column": null,
+              "key": null,
+              "precision": null,
+              "scale": null
+            },
+            {
+              "field_name": "SHIP_CITY",
+              "table_name": "ORDERS",
+              "data_type": "VARCHAR2",
+              "primary_key_position": 0,
+              "foreign_key_table": null,
+              "foreign_key_column": null,
+              "key": null,
+              "precision": null,
+              "scale": null
+            },
+            {
+              "field_name": "CUSTOMER_ID",
+              "table_name": "ORDERS",
+              "data_type": "NUMBER",
+              "primary_key_position": 0,
+              "foreign_key_table": "CUSTOMERS",
+              "foreign_key_column": "CUSTOMER_ID",
+              "key": null,
+              "precision": 9,
+              "scale": 0
+            },
+            {
+              "field_name": "SHIP_VIA",
+              "table_name": "ORDERS",
+              "data_type": "NUMBER",
+              "primary_key_position": 0,
+              "foreign_key_table": "SHIPPERS",
+              "foreign_key_column": "SHIPPER_ID",
+              "key": null,
+              "precision": 9,
+              "scale": 0
+            },
+            {
+              "field_name": "SHIP_REGION",
+              "table_name": "ORDERS",
+              "data_type": "VARCHAR2",
+              "primary_key_position": 0,
+              "foreign_key_table": null,
+              "foreign_key_column": null,
+              "key": null,
+              "precision": null,
+              "scale": null
+            },
+            {
+              "field_name": "SHIP_POSTAL_CODE",
+              "table_name": "ORDERS",
+              "data_type": "VARCHAR2",
+              "primary_key_position": 0,
+              "foreign_key_table": null,
+              "foreign_key_column": null,
+              "key": null,
+              "precision": null,
+              "scale": null
+            },
+            {
+              "field_name": "FREIGHT",
+              "table_name": "ORDERS",
+              "data_type": "NUMBER",
+              "primary_key_position": 0,
+              "foreign_key_table": null,
+              "foreign_key_column": null,
+              "key": null,
+              "precision": 10,
+              "scale": 2
+            },
+            {
+              "field_name": "SHIPPED_DATE",
+              "table_name": "ORDERS",
+              "data_type": "DATE",
+              "primary_key_position": 0,
+              "foreign_key_table": null,
+              "foreign_key_column": null,
+              "key": null,
+              "precision": null,
+              "scale": null
+            },
+            {
+              "field_name": "ORDER_ID",
+              "table_name": "ORDERS",
+              "data_type": "NUMBER",
+              "primary_key_position": 1,
+              "foreign_key_table": null,
+              "foreign_key_column": null,
+              "key": "PRI",
+              "precision": 9,
+              "scale": 0
+            }
+          ]
+        },
+        {
+          "table_name": "SUPPLIERS",
+          "fields": [
+            {
+              "field_name": "CONTACT_NAME",
+              "table_name": "SUPPLIERS",
+              "data_type": "VARCHAR2",
+              "primary_key_position": 0,
+              "foreign_key_table": null,
+              "foreign_key_column": null,
+              "key": null,
+              "precision": null,
+              "scale": null
+            },
+            {
+              "field_name": "COMPANY_NAME",
+              "table_name": "SUPPLIERS",
+              "data_type": "VARCHAR2",
+              "primary_key_position": 0,
+              "foreign_key_table": null,
+              "foreign_key_column": null,
+              "key": null,
+              "precision": null,
+              "scale": null
+            },
+            {
+              "field_name": "COUNTRY",
+              "table_name": "SUPPLIERS",
+              "data_type": "VARCHAR2",
+              "primary_key_position": 0,
+              "foreign_key_table": null,
+              "foreign_key_column": null,
+              "key": null,
+              "precision": null,
+              "scale": null
+            },
+            {
+              "field_name": "CITY",
+              "table_name": "SUPPLIERS",
+              "data_type": "VARCHAR2",
+              "primary_key_position": 0,
+              "foreign_key_table": null,
+              "foreign_key_column": null,
+              "key": null,
+              "precision": null,
+              "scale": null
+            },
+            {
+              "field_name": "CONTACT_TITLE",
+              "table_name": "SUPPLIERS",
+              "data_type": "VARCHAR2",
+              "primary_key_position": 0,
+              "foreign_key_table": null,
+              "foreign_key_column": null,
+              "key": null,
+              "precision": null,
+              "scale": null
+            },
+            {
+              "field_name": "HOME_PAGE",
+              "table_name": "SUPPLIERS",
+              "data_type": "VARCHAR2",
+              "primary_key_position": 0,
+              "foreign_key_table": null,
+              "foreign_key_column": null,
+              "key": null,
+              "precision": null,
+              "scale": null
+            },
+            {
+              "field_name": "POSTAL_CODE",
+              "table_name": "SUPPLIERS",
+              "data_type": "VARCHAR2",
+              "primary_key_position": 0,
+              "foreign_key_table": null,
+              "foreign_key_column": null,
+              "key": null,
+              "precision": null,
+              "scale": null
+            },
+            {
+              "field_name": "PHONE",
+              "table_name": "SUPPLIERS",
+              "data_type": "VARCHAR2",
+              "primary_key_position": 0,
+              "foreign_key_table": null,
+              "foreign_key_column": null,
+              "key": null,
+              "precision": null,
+              "scale": null
+            },
+            {
+              "field_name": "ADDRESS",
+              "table_name": "SUPPLIERS",
+              "data_type": "VARCHAR2",
+              "primary_key_position": 0,
+              "foreign_key_table": null,
+              "foreign_key_column": null,
+              "key": null,
+              "precision": null,
+              "scale": null
+            },
+            {
+              "field_name": "SUPPLIER_ID",
+              "table_name": "SUPPLIERS",
+              "data_type": "NUMBER",
+              "primary_key_position": 1,
+              "foreign_key_table": null,
+              "foreign_key_column": null,
+              "key": "PRI",
+              "precision": 9,
+              "scale": 0
+            },
+            {
+              "field_name": "FAX",
+              "table_name": "SUPPLIERS",
+              "data_type": "VARCHAR2",
+              "primary_key_position": 0,
+              "foreign_key_table": null,
+              "foreign_key_column": null,
+              "key": null,
+              "precision": null,
+              "scale": null
+            },
+            {
+              "field_name": "REGION",
+              "table_name": "SUPPLIERS",
+              "data_type": "VARCHAR2",
+              "primary_key_position": 0,
+              "foreign_key_table": null,
+              "foreign_key_column": null,
+              "key": null,
+              "precision": null,
+              "scale": null
+            }
+          ]
+        },
+        {
+          "table_name": "CATEGORIES",
+          "fields": [
+            {
+              "field_name": "CATEGORY_ID",
+              "table_name": "CATEGORIES",
+              "data_type": "NUMBER",
+              "primary_key_position": 1,
+              "foreign_key_table": null,
+              "foreign_key_column": null,
+              "key": "PRI",
+              "precision": 9,
+              "scale": 0
+            },
+            {
+              "field_name": "PICTURE",
+              "table_name": "CATEGORIES",
+              "data_type": "VARCHAR2",
+              "primary_key_position": 0,
+              "foreign_key_table": null,
+              "foreign_key_column": null,
+              "key": null,
+              "precision": null,
+              "scale": null
+            },
+            {
+              "field_name": "DESCRIPTION",
+              "table_name": "CATEGORIES",
+              "data_type": "VARCHAR2",
+              "primary_key_position": 0,
+              "foreign_key_table": null,
+              "foreign_key_column": null,
+              "key": null,
+              "precision": null,
+              "scale": null
+            },
+            {
+              "field_name": "CATEGORY_NAME",
+              "table_name": "CATEGORIES",
+              "data_type": "VARCHAR2",
+              "primary_key_position": 0,
+              "foreign_key_table": null,
+              "foreign_key_column": null,
+              "key": null,
+              "precision": null,
+              "scale": null
+            }
+          ]
+        }
+      ]
+
+    }
+  },
+  {"_id" : "5ad840203c5994003cc41d52","name" : "Mongo", "connection_type" : "source_and_target", "database_type" : "mongodb", "database_host" : "localhost", "database_username" : "", "database_port" : 12345, "database_name" : "dev", "database_password" : "", "schema" : { "tables" : [  ] } },
+  {
+    "_id": "5ad840203c5994003cc41d53",
+    "name": "inventory",
+    "connection_type": "source",
+    "database_type": "mysql",
+    "database_host": "localhost",
+    "database_username": "unittest",
+    "database_port": 2215,
+    "database_name": "inventory",
+    "database_password": "unittest",
+    "schema": {
+      "tables": [{"table_name":"orders","fields":[{"field_name":"order_date","table_name":"orders","data_type":"date","primary_key_position":0,"foreign_key_table":null,"foreign_key_column":null,"key":null,"precision":null,"scale":null},{"field_name":"order_date_time_long","table_name":"orders","data_type":"datetime","primary_key_position":0,"foreign_key_table":null,"foreign_key_column":null,"key":null,"precision":6,"scale":null},{"field_name":"quantity","table_name":"orders","data_type":"int","primary_key_position":0,"foreign_key_table":null,"foreign_key_column":null,"key":null,"precision":null,"scale":null},{"field_name":"order_date_time","table_name":"orders","data_type":"datetime","primary_key_position":0,"foreign_key_table":null,"foreign_key_column":null,"key":null,"precision":3,"scale":null},{"field_name":"purchaser","table_name":"orders","data_type":"int","primary_key_position":0,"foreign_key_table":"customers","foreign_key_column":"_id","key":null,"precision":null,"scale":null},{"field_name":"order_number","table_name":"orders","data_type":"int","primary_key_position":1,"foreign_key_table":null,"foreign_key_column":null,"key":"PRI","precision":null,"scale":null},{"field_name":"product_id","table_name":"orders","data_type":"int","primary_key_position":0,"foreign_key_table":"products","foreign_key_column":"_id","key":null,"precision":null,"scale":null},{"field_name":"order_timestamp","table_name":"orders","data_type":"timestamp","primary_key_position":0,"foreign_key_table":null,"foreign_key_column":null,"key":null,"precision":6,"scale":null},{"field_name":"order_time","table_name":"orders","data_type":"time","primary_key_position":0,"foreign_key_table":null,"foreign_key_column":null,"key":null,"precision":6,"scale":null}]},{"table_name":"customers","fields":[{"field_name":"last_name","table_name":"customers","data_type":"varchar","primary_key_position":0,"foreign_key_table":null,"foreign_key_column":null,"key":null,"precision":null,"scale":null},{"field_name":"_id","table_name":"customers","data_type":"int","primary_key_position":1,"foreign_key_table":null,"foreign_key_column":null,"key":"PRI","precision":null,"scale":null},{"field_name":"first_name","table_name":"customers","data_type":"varchar","primary_key_position":0,"foreign_key_table":null,"foreign_key_column":null,"key":null,"precision":null,"scale":null},{"field_name":"email","table_name":"customers","data_type":"varchar","primary_key_position":0,"foreign_key_table":null,"foreign_key_column":null,"key":null,"precision":null,"scale":null}]},{"table_name":"products_on_hand","fields":[{"field_name":"quantity","table_name":"products_on_hand","data_type":"int","primary_key_position":0,"foreign_key_table":null,"foreign_key_column":null,"key":null,"precision":null,"scale":null},{"field_name":"product_id","table_name":"products_on_hand","data_type":"int","primary_key_position":1,"foreign_key_table":"products","foreign_key_column":"_id","key":"PRI","precision":null,"scale":null}]},{"table_name":"products","fields":[{"field_name":"name","table_name":"products","data_type":"varchar","primary_key_position":0,"foreign_key_table":null,"foreign_key_column":null,"key":null,"precision":null,"scale":null},{"field_name":"description","table_name":"products","data_type":"varchar","primary_key_position":0,"foreign_key_table":null,"foreign_key_column":null,"key":null,"precision":null,"scale":null},{"field_name":"weight","table_name":"products","data_type":"float","primary_key_position":0,"foreign_key_table":null,"foreign_key_column":null,"key":null,"precision":null,"scale":null},{"field_name":"_id","table_name":"products","data_type":"int","primary_key_position":1,"foreign_key_table":null,"foreign_key_column":null,"key":"PRI","precision":null,"scale":null}]}]
+    }
+  },
+  {
+    "_id": "5ad840203c5994003cc41d54",
+    "name": "mongo_replset",
+    "connection_type" : "source",
+    "database_type" : "mongodb",
+    "database_host" : "",
+    "database_username" : "",
+    "database_port" : 0,
+    "database_uri": "mongodb://localhost:54321,localhost:54322,localhost:54323/demo",
+    "database_name" : "",
+    "database_password" : "",
+    "user_id" : "5a6b1cf96103fb000151d595",
+    "schema" : {
+
+    }
+  }
+]

@@ -25,5 +25,6 @@ public class ShareCacheDetailVo extends BaseVo {
   private String cacheKeys;
   private List<String> fields;
   private Long maxRows;
+  private Integer maxMemory;
 
 }

@@ -1,0 +1,257 @@
+package io.tapdata.connector.doris;
+
+import io.tapdata.base.ConnectorBase;
+import io.tapdata.entity.codec.TapCodecsRegistry;
+import io.tapdata.entity.event.ddl.table.TapClearTableEvent;
+import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
+import io.tapdata.entity.event.ddl.table.TapDropTableEvent;
+import io.tapdata.entity.event.dml.TapRecordEvent;
+import io.tapdata.entity.logger.TapLogger;
+import io.tapdata.entity.schema.TapTable;
+import io.tapdata.entity.schema.value.TapArrayValue;
+import io.tapdata.entity.schema.value.TapBinaryValue;
+import io.tapdata.entity.schema.value.TapBooleanValue;
+import io.tapdata.entity.schema.value.TapDateTimeValue;
+import io.tapdata.entity.schema.value.TapDateValue;
+import io.tapdata.entity.schema.value.TapMapValue;
+import io.tapdata.entity.schema.value.TapRawValue;
+import io.tapdata.entity.schema.value.TapTimeValue;
+import io.tapdata.pdk.apis.TapConnector;
+import io.tapdata.pdk.apis.annotations.TapConnectorClass;
+import io.tapdata.pdk.apis.context.TapConnectionContext;
+import io.tapdata.pdk.apis.context.TapConnectorContext;
+import io.tapdata.pdk.apis.entity.ConnectionOptions;
+import io.tapdata.pdk.apis.entity.FilterResult;
+import io.tapdata.pdk.apis.entity.TapFilter;
+import io.tapdata.pdk.apis.entity.TestItem;
+import io.tapdata.pdk.apis.entity.WriteListResult;
+import io.tapdata.pdk.apis.functions.ConnectorFunctions;
+import org.apache.commons.lang3.StringUtils;
+import io.tapdata.connector.doris.streamload.DorisStreamLoader;
+import io.tapdata.connector.doris.streamload.HttpUtil;
+
+import java.io.IOException;
+import java.util.List;
+import java.util.function.Consumer;
+
+/**
+ * @Author dayun
+ * @Date 7/14/22
+ */
+@TapConnectorClass("spec.json")
+public class DorisConnector extends ConnectorBase implements TapConnector {
+    public static final String TAG = DorisConnector.class.getSimpleName();
+
+    private DorisContext dorisContext;
+    private DorisReader dorisReader;
+    private DorisSchemaLoader dorisSchemaLoader;
+    private DorisStreamLoader dorisStreamLoader;
+
+
+    /**
+     * The method invocation life circle is below,
+     * initiated -> discoverSchema -> ended
+     * <p>
+     * You need to create the connection to your data source and release the connection after usage in this method.
+     * In connectionContext, you can get the connection config which is the user input for your connection application, described in your json file.
+     * <p>
+     * Consumer can accept multiple times, especially huge number of table list.
+     * This is sync method, once the method return, Flow engine will consider schema has been discovered.
+     *
+     * @param connectionContext
+     * @param consumer
+     */
+    @Override
+    public void discoverSchema(TapConnectionContext connectionContext, List<String> tables, int tableSize, Consumer<List<TapTable>> consumer) throws Throwable {
+        dorisSchemaLoader.discoverSchema(connectionContext, dorisContext.getDorisConfig(), tables, consumer, tableSize);
+    }
+
+    /**
+     * The method invocation life circle is below,
+     * initiated -> connectionTest -> ended
+     * <p>
+     * You need to create the connection to your data source and release the connection after usage in this method.
+     * In connectionContext, you can get the connection config which is the user input for your connection application, described in your json file.
+     * <p>
+     * consumer can call accept method multiple times to test different items
+     *
+     * @param connectionContext
+     * @return
+     */
+    @Override
+    public ConnectionOptions connectionTest(TapConnectionContext connectionContext, Consumer<TestItem> consumer) throws Throwable {
+        //Assume below tests are successfully, below tests are recommended, but not required.
+        //Connection test
+        consumer.accept(testItem(TestItem.ITEM_CONNECTION, TestItem.RESULT_SUCCESSFULLY));
+        consumer.accept(testItem(TestItem.ITEM_LOGIN, TestItem.RESULT_SUCCESSFULLY));
+        //Read test
+        //TODO 通过权限检查有没有读权限, 暂时无法通过jdbc方式获取权限信息
+        consumer.accept(testItem(TestItem.ITEM_READ, TestItem.RESULT_SUCCESSFULLY));
+        //Write test
+        //TODO 通过权限检查有没有写权限, 暂时无法通过jdbc方式获取权限信息
+        consumer.accept(testItem(TestItem.ITEM_WRITE, TestItem.RESULT_SUCCESSFULLY));
+        //When test failed
+        // consumer.accept(testItem(TestItem.ITEM_CONNECTION, TestItem.RESULT_FAILED, "Connection refused"));
+        //When test successfully, but some warn is reported.
+        // consumer.accept(testItem(TestItem.ITEM_READ_LOG, TestItem.RESULT_SUCCESSFULLY_WITH_WARN, "CDC not enabled, please check your database settings"));
+        return null;
+    }
+
+    @Override
+    public int tableCount(TapConnectionContext connectionContext) {
+        final String database = this.dorisContext.getDorisConfig().getDatabase();
+        final List<String> tables = this.dorisSchemaLoader.queryAllTables(database, null);
+        return tables.size();
+    }
+
+    /**
+     * Register connector capabilities here.
+     * <p>
+     * To be as a source, please implement at least one of batchReadFunction or streamReadFunction.
+     * To be as a target, please implement WriteRecordFunction.
+     * To be as a source and target, please implement the functions that source and target required.
+     *
+     * @param connectorFunctions
+     * @param codecRegistry
+     */
+    @Override
+    public void registerCapabilities(ConnectorFunctions connectorFunctions, TapCodecsRegistry codecRegistry) {
+
+        connectorFunctions.supportWriteRecord(this::writeRecord);
+        connectorFunctions.supportCreateTable(this::createTable);
+//        connectorFunctions.supportAlterTable(this::alterTable);
+        connectorFunctions.supportClearTable(this::clearTable);
+        connectorFunctions.supportDropTable(this::dropTable);
+        connectorFunctions.supportQueryByFilter(this::queryByFilter);
+
+        codecRegistry.registerFromTapValue(TapRawValue.class, "text", tapRawValue -> {
+            if (tapRawValue != null && tapRawValue.getValue() != null)
+                return toJson(tapRawValue.getValue());
+            return "null";
+        });
+        codecRegistry.registerFromTapValue(TapMapValue.class, "text", tapMapValue -> {
+            if (tapMapValue != null && tapMapValue.getValue() != null)
+                return toJson(tapMapValue.getValue());
+            return "null";
+        });
+        codecRegistry.registerFromTapValue(TapArrayValue.class, "text", tapValue -> {
+            if (tapValue != null && tapValue.getValue() != null)
+                return toJson(tapValue.getValue());
+            return "null";
+        });
+        codecRegistry.registerFromTapValue(TapBooleanValue.class, "boolean", tapValue -> {
+            if (tapValue != null) {
+                Boolean value = tapValue.getValue();
+                if (value != null && value) {
+                    return 1;
+                }
+            }
+            return 0;
+        });
+        codecRegistry.registerFromTapValue(TapBinaryValue.class, "text", tapValue -> {
+            if (tapValue != null && tapValue.getValue() != null)
+                return toJson(tapValue.getValue());
+            return "null";
+        });
+        codecRegistry.registerFromTapValue(TapTimeValue.class, "datetime", tapValue -> {
+            if (tapValue != null && tapValue.getValue() != null)
+                return toJson(tapValue.getValue());
+            return "null";
+        });
+
+        //TapTimeValue, TapDateTimeValue and TapDateValue's value is DateTime, need convert into Date object.
+        codecRegistry.registerFromTapValue(TapTimeValue.class, tapTimeValue -> tapTimeValue.getValue().toTime());
+        codecRegistry.registerFromTapValue(TapDateTimeValue.class, tapDateTimeValue -> tapDateTimeValue.getValue().toTimestamp());
+        codecRegistry.registerFromTapValue(TapDateValue.class, tapDateValue -> tapDateValue.getValue().toSqlDate());
+    }
+
+    private void writeRecord(TapConnectorContext connectorContext, List<TapRecordEvent> tapRecordEvents, TapTable tapTable, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer) throws IOException {
+        if (!useStreamLoad()) {
+            throw new UnsupportedOperationException("doris httpUrl is required for write operation");
+        }
+        dorisStreamLoader.writeRecord(tapRecordEvents, tapTable, writeListResultConsumer);
+    }
+
+    private void queryByFilter(TapConnectionContext connectionContext, List<TapFilter> filters, TapTable tapTable, Consumer<List<FilterResult>> listConsumer) {
+        List<FilterResult> filterResults = dorisReader.queryByFilter(filters, tapTable);
+        listConsumer.accept(filterResults);
+    }
+
+    private void createTable(TapConnectionContext tapConnectorContext, TapCreateTableEvent tapCreateTableEvent) {
+        dorisSchemaLoader.createTable(tapCreateTableEvent.getTable());
+    }
+
+//FIXME DOIRS异步执行alter命令，无回调接口，没次对同一个table同时执行一个alter命令；不能保证某个时刻是否存在alter命令正在执行
+
+//    private void alterTable(TapConnectorContext tapConnectorContext, TapAlterTableEvent tapAlterTableEvent)
+//        // TODO 需要实现修改表的功能， 不过测试只能先从源端模拟一个修改表事件
+//        initConnection(tapConnectorContext.getConnectionConfig());
+//        TapTable tapTable = tapConnectorContext.getTable();
+//        Set<String> fieldNames = tapTable.getNameFieldMap().keySet();
+//        try {
+//            for (TapField insertField : tapAlterTableEvent.getInsertFields()) {
+//                if (insertField.getOriginType() == null || insertField.getDefaultValue() == null) continue;
+//                String sql = "ALTER TABLE " + tapTable.getName() +
+//                        " ADD COLUMN " + insertField.getName() + ' ' + insertField.getOriginType() +
+//                        " DEFAULT '" + insertField.getDefaultValue() + "'";
+//                stmt.execute(sql);
+//            }
+//            for (String deletedFieldName : tapAlterTableEvent.getDeletedFields()) {
+//                if (!fieldNames.contains(deletedFieldName)) continue;
+//                String sql = "ALTER TABLE " + tapTable.getName() +
+//                        " DROP COLUMN " + deletedFieldName;
+//                stmt.execute(sql);
+//            }
+//            // TODO Doris在文档中没有看到修改列名的相关操作
+//
+//        } catch (SQLException e) {
+//            e.printStackTrace();
+//            throw new RuntimeException("ALTER Table " + tapTable.getName() + " Failed! \n ");
+//        }
+//
+//        PDKLogger.info(TAG, "alterTable");
+//    }
+
+    private void clearTable(TapConnectorContext tapConnectorContext, TapClearTableEvent tapClearTableEvent) {
+        final String tableName = tapClearTableEvent.getTableId();
+        final String databaseName = dorisContext.getDorisConfig().getDatabase();
+        dorisSchemaLoader.clearTable(databaseName, tableName);
+    }
+
+    private void dropTable(TapConnectorContext tapConnectorContext, TapDropTableEvent tapDropTableEvent) {
+        final String tableName = tapDropTableEvent.getTableId();
+        final String databaseName = dorisContext.getDorisConfig().getDatabase();
+        dorisSchemaLoader.dropTable(databaseName, tableName);
+    }
+
+    /**
+     * The method invocation life circle is below,
+     * initiated -> sourceFunctions/targetFunctions -> destroy -> ended
+     * <p>
+     * In connectorContext,
+     * you can get the connection/node config which is the user input for your connection/node application, described in your json file.
+     * current instance is serving for the table from connectorContext.
+     */
+    @Override
+    public void onStart(TapConnectionContext connectionContext) {
+        this.dorisContext = new DorisContext(connectionContext);
+        this.dorisReader = new DorisReader(dorisContext);
+        this.dorisSchemaLoader = new DorisSchemaLoader(dorisContext);
+        this.dorisStreamLoader = new DorisStreamLoader(dorisContext, new HttpUtil().getHttpClient());
+        TapLogger.info(TAG, "Doris connector started");
+    }
+
+    @Override
+    public void onStop(TapConnectionContext connectionContext) {
+        try {
+            this.dorisStreamLoader.shutdown();
+            this.dorisContext.close();
+        } catch (Exception e) {
+            TapLogger.error(TAG, "Release connector failed, error: " + e.getMessage() + "\n" + getStackString(e));
+        }
+    }
+
+    private boolean useStreamLoad() {
+        return StringUtils.isNotBlank(dorisContext.getDorisConfig().getDorisHttp());
+    }
+}

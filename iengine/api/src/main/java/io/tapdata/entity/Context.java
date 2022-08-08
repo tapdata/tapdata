@@ -1,7 +1,6 @@
 package io.tapdata.entity;
 
 import com.tapdata.cache.ICacheService;
-import com.tapdata.cache.memory.MemoryCacheService;
 import com.tapdata.constant.ConfigurationCenter;
 import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.entity.Connections;
@@ -15,6 +14,7 @@ import com.tapdata.tm.commons.task.dto.SubTaskDto;
 import io.tapdata.ConverterProvider;
 import io.tapdata.common.SettingService;
 import io.tapdata.debug.DebugProcessor;
+import io.tapdata.milestone.MilestoneService;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.Logger;
 
@@ -44,6 +44,8 @@ public abstract class Context {
 
 	private ConverterProvider converterProvider;
 
+	private MilestoneService milestoneService;
+
 	private DataFlow dataFlow;
 
 	private List<TypeMapping> targetTypeMappings;
@@ -53,6 +55,65 @@ public abstract class Context {
 	private SubTaskDto subTaskDto;
 
 	private Node<?> node;
+
+	public Context(Job job, Logger logger, Object offset, SettingService settingService,
+				   Connections sourceConn, Connections targetConn, DebugProcessor debugProcessor,
+				   List<JavaScriptFunctions> javaScriptFunctions, ICacheService cacheService,
+				   ConverterProvider converterProvider, MilestoneService milestoneService,
+				   ConfigurationCenter configurationCenter) {
+		this.job = job;
+		this.logger = logger;
+		this.offset = offset;
+		this.settingService = settingService;
+		this.sourceConn = sourceConn;
+		this.targetConn = targetConn;
+		this.debugProcessor = debugProcessor;
+		this.javaScriptFunctions = javaScriptFunctions;
+		this.cacheService = cacheService;
+		this.converterProvider = converterProvider;
+		this.milestoneService = milestoneService;
+		this.configurationCenter = configurationCenter;
+	}
+
+	public Context(Job job, Logger logger, Object offset, SettingService settingService,
+				   Connections sourceConn, Connections targetConn, DebugProcessor debugProcessor,
+				   List<JavaScriptFunctions> javaScriptFunctions, ICacheService cacheService,
+				   ConverterProvider converterProvider, MilestoneService milestoneService, DataFlow dataFlow) {
+		this.job = job;
+		this.logger = logger;
+		this.offset = offset;
+		this.settingService = settingService;
+		this.sourceConn = sourceConn;
+		this.targetConn = targetConn;
+		this.debugProcessor = debugProcessor;
+		this.javaScriptFunctions = javaScriptFunctions;
+		this.cacheService = cacheService;
+		this.converterProvider = converterProvider;
+		this.milestoneService = milestoneService;
+		this.dataFlow = dataFlow;
+	}
+
+	public Context(Job job, Logger logger, Object offset, SettingService settingService,
+				   Connections sourceConn, Connections targetConn, DebugProcessor debugProcessor,
+				   List<JavaScriptFunctions> javaScriptFunctions, ICacheService cacheService,
+				   ConverterProvider converterProvider, MilestoneService milestoneService, DataFlow dataFlow,
+				   SubTaskDto subTaskDto, Node<?> node, ConfigurationCenter configurationCenter) {
+		this.job = job;
+		this.logger = logger;
+		this.offset = offset;
+		this.settingService = settingService;
+		this.sourceConn = sourceConn;
+		this.targetConn = targetConn;
+		this.debugProcessor = debugProcessor;
+		this.javaScriptFunctions = javaScriptFunctions;
+		this.cacheService = cacheService;
+		this.converterProvider = converterProvider;
+		this.milestoneService = milestoneService;
+		this.dataFlow = dataFlow;
+		this.subTaskDto = subTaskDto;
+		this.node = node;
+		this.configurationCenter = configurationCenter;
+	}
 
 	public Context(List<Stage> stages, Connections connection) {
 
@@ -104,6 +165,10 @@ public abstract class Context {
 
 	public void setConverterProvider(ConverterProvider converterProvider) {
 		this.converterProvider = converterProvider;
+	}
+
+	public MilestoneService getMilestoneService() {
+		return milestoneService;
 	}
 
 	public List<TypeMapping> getTargetTypeMappings() {

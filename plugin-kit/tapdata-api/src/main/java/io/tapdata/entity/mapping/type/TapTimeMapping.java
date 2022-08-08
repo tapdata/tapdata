@@ -12,6 +12,8 @@ import java.math.BigDecimal;
 import java.sql.Time;
 import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.Map;
 
 /**
@@ -32,11 +34,26 @@ public class TapTimeMapping extends TapDateBase {
 
     @Override
     protected Instant parse(String timeString, String thePattern) {
-        try {
-            return Instant.ofEpochMilli(Time.valueOf(timeString).getTime());
-        } catch(Throwable throwable) {
-            throwable.printStackTrace();
-            TapLogger.error(TAG, "parse time {} pattern {}, failed {}", timeString, thePattern, throwable.getMessage());
+        String patternLowerCase = thePattern.toLowerCase();
+        if(patternLowerCase.startsWith("hh") && !patternLowerCase.endsWith(":ss")) {
+            thePattern = "yyyy-MM-dd " + thePattern;
+            timeString = "1970-01-01 " + timeString;
+
+            try {
+                DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ofPattern(thePattern);
+                LocalDateTime localDateTime = LocalDateTime.parse(timeString, dateTimeFormatter);
+                return localDateTime.atZone(ZoneId.of("GMT-0")).toInstant();
+            } catch (Throwable e) {
+                e.printStackTrace();
+                TapLogger.error(TAG, "Parse time {} pattern {}, failed, {}", timeString, thePattern, e.getMessage());
+            }
+        } else {
+            try {
+                return Instant.ofEpochMilli(Time.valueOf(timeString).getTime());
+            } catch(Throwable throwable) {
+                throwable.printStackTrace();
+                TapLogger.error(TAG, "parse time {} pattern {}, failed {}", timeString, thePattern, throwable.getMessage());
+            }
         }
         return null;
     }

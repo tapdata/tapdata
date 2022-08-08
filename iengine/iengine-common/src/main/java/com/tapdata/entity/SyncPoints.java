@@ -6,10 +6,10 @@
  */
 package com.tapdata.entity;
 
-import java.io.Serializable;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+
+import java.io.Serializable;
 
 public class SyncPoints implements Serializable {
 

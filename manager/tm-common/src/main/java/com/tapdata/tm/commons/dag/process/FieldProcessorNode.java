@@ -1,9 +1,18 @@
 package com.tapdata.tm.commons.dag.process;
 
+import com.tapdata.manager.common.utils.StringUtils;
 import com.tapdata.tm.commons.dag.EqField;
 import com.tapdata.tm.commons.dag.NodeType;
+import com.tapdata.tm.commons.exception.DDLException;
 import com.tapdata.tm.commons.schema.Field;
 import com.tapdata.tm.commons.schema.Schema;
+import io.tapdata.entity.event.ddl.TapDDLEvent;
+import io.tapdata.entity.event.ddl.entity.ValueChange;
+import io.tapdata.entity.event.ddl.table.TapAlterFieldNameEvent;
+import io.tapdata.entity.event.ddl.table.TapDropFieldEvent;
+import io.tapdata.entity.event.ddl.table.TapFieldBaseEvent;
+import io.tapdata.entity.event.ddl.table.TapNewFieldEvent;
+import io.tapdata.entity.schema.TapField;
 import lombok.Data;
 import lombok.Getter;
 import lombok.Setter;
@@ -107,6 +116,56 @@ public class FieldProcessorNode extends ProcessorNode {
 
 
         private String java_type;
+
+
+        public void matchPdkFieldEvent(TapDDLEvent event) throws Exception{
+            if (StringUtils.isNotBlank((tableName))) {
+                if (!tableName.equals(event.getTableId())) {
+                    return;
+                }
+            }
+            if (event instanceof TapNewFieldEvent) {
+                List<TapField> newFields = ((TapNewFieldEvent) event).getNewFields();
+                if (op.equals("CREATE")) {
+                    for (TapField newField : newFields) {
+                        if (newField.getName().equals(field)) {
+                            throw new DDLException("ddl add field name repeat");
+                        }
+                    }
+
+                } else if (op.equals("RENAME")) {
+                    for (TapField newField : newFields) {
+                        if (newField.getName().equals(operand)) {
+                            throw new DDLException("ddl add field name repeat");
+                        }
+                    }
+                }
+
+            } else if (event instanceof TapDropFieldEvent) {
+                String fieldName = ((TapDropFieldEvent) event).getFieldName();
+                if (op.equals("REMOVE")) {
+                    if (fieldName.equals(field)) {
+                        //这个地方不用修改，会导致不能回撤
+                        throw new DDLException("ddl drop field with drop op field");
+                    }
+                } else if (op.equals("RENAME")) {
+                    if (fieldName.equals(field)) {
+                        throw new DDLException("ddl drop field with drop op field");
+                    }
+
+                }
+
+            } else if (event instanceof TapAlterFieldNameEvent) {
+                ValueChange<String> nameChange = ((TapAlterFieldNameEvent) event).getNameChange();
+                if (op.equals("REMOVE") || op.equals("RENAME")) {
+                    if (nameChange.getBefore().equals(field)) {
+                        field = nameChange.getAfter();
+                    }
+                }
+            }
+        }
+
+
 
         @Override
         public boolean equals(Object o) {
@@ -212,5 +271,10 @@ public class FieldProcessorNode extends ProcessorNode {
             return true;
         }
         return false;
+    }
+
+    @Override
+    public void fieldDdlEvent(TapDDLEvent event) throws Exception {
+
     }
 }

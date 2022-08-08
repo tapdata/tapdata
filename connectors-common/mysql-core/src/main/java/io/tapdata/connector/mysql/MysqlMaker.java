@@ -1,6 +1,7 @@
 package io.tapdata.connector.mysql;
 
 import io.tapdata.connector.mysql.entity.MysqlSnapshotOffset;
+import io.tapdata.connector.mysql.util.MysqlUtil;
 import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapField;
@@ -42,7 +43,16 @@ public class MysqlMaker implements SqlMaker {
 		DataMap connectionConfig = tapConnectorContext.getConnectionConfig();
 		String database = connectionConfig.getString("database");
 		// append field
-		String fieldSql = nameFieldMap.values().stream().map(this::createTableAppendField).collect(Collectors.joining(",\n"));
+		String fieldSql = nameFieldMap.values().stream()
+				.map(field -> {
+					try {
+						field.setDataType(MysqlUtil.fixDataType(field.getDataType(), version));
+					} catch (Exception e) {
+						TapLogger.warn(TAG, e.getMessage());
+					}
+					return createTableAppendField(field);
+				})
+				.collect(Collectors.joining(",\n"));
 		// primary key
 		if (CollectionUtils.isNotEmpty(tapTable.primaryKeys())) {
 			fieldSql += ",\n  " + createTableAppendPrimaryKey(tapTable);
@@ -192,6 +202,7 @@ public class MysqlMaker implements SqlMaker {
 	}
 
 	protected String createTableAppendField(TapField tapField) {
+		String datatype = tapField.getDataType().toUpperCase();
 		String fieldSql = "  `" + tapField.getName() + "`" + " " + tapField.getDataType().toUpperCase();
 
 		// auto increment
@@ -212,10 +223,10 @@ public class MysqlMaker implements SqlMaker {
 		}
 
 		// default value
-		/*String defaultValue = tapField.getDefaultValue() == null ? "" : tapField.getDefaultValue().toString();
+		String defaultValue = tapField.getDefaultValue() == null ? "" : tapField.getDefaultValue().toString();
 		if (StringUtils.isNotBlank(defaultValue)) {
 			fieldSql += " DEFAULT '" + defaultValue + "'";
-		}*/
+		}
 
 		// comment
 		String comment = tapField.getComment();

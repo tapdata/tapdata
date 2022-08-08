@@ -4,12 +4,15 @@ import io.debezium.config.Configuration;
 import io.debezium.connector.mysql.MySqlConnectorConfig;
 import io.debezium.embedded.EmbeddedEngine;
 import io.debezium.engine.DebeziumEngine;
+import io.tapdata.connector.mysql.ddl.DDLFactory;
+import io.tapdata.connector.mysql.ddl.DDLParserType;
 import io.tapdata.connector.mysql.entity.MysqlBinlogPosition;
 import io.tapdata.connector.mysql.entity.MysqlSnapshotOffset;
 import io.tapdata.connector.mysql.entity.MysqlStreamEvent;
 import io.tapdata.connector.mysql.entity.MysqlStreamOffset;
 import io.tapdata.connector.mysql.util.StringCompressUtil;
 import io.tapdata.entity.event.TapEvent;
+import io.tapdata.entity.event.ddl.TapDDLEvent;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
@@ -30,6 +33,7 @@ import io.tapdata.entity.utils.cache.KVReadOnlyMap;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.entity.TapAdvanceFilter;
+import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.kafka.connect.data.Field;
 import org.apache.kafka.connect.data.Schema;
@@ -41,6 +45,7 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.sql.ResultSetMetaData;
+import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -51,6 +56,9 @@ import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
+import static io.tapdata.connector.mysql.util.MysqlUtil.randomServerId;
+import static io.tapdata.entity.simplify.TapSimplify.insertRecordEvent;
+
 /**
  * @author samuel
  * @Description
@@ -60,6 +68,8 @@ public class MysqlReader implements Closeable {
 	private static final String TAG = MysqlReader.class.getSimpleName();
 	public static final String SERVER_NAME_KEY = "SERVER_NAME";
 	public static final String MYSQL_SCHEMA_HISTORY = "MYSQL_SCHEMA_HISTORY";
+	private static final String SOURCE_RECORD_DDL_KEY = "ddl";
+	public static final String FIRST_TIME_KEY = "FIRST_TIME";
 	private String serverName;
 	private AtomicBoolean running;
 	private MysqlJdbcContext mysqlJdbcContext;
@@ -69,6 +79,7 @@ public class MysqlReader implements Closeable {
 	private StreamReadConsumer streamReadConsumer;
 	private ScheduledExecutorService mysqlSchemaHistoryMonitor;
 	private KVReadOnlyMap<TapTable> tapTableMap;
+	private DDLParserType ddlParserType = DDLParserType.CCJ_SQL_PARSER;
 	private final int MIN_BATCH_SIZE = 1000;
 
 	public MysqlReader(MysqlJdbcContext mysqlJdbcContext) {
@@ -132,11 +143,12 @@ public class MysqlReader implements Closeable {
 	}
 
 	public void readBinlog(TapConnectorContext tapConnectorContext, List<String> tables,
-						   Object offset, int batchSize, StreamReadConsumer consumer) throws Throwable {
+						   Object offset, int batchSize, DDLParserType ddlParserType, StreamReadConsumer consumer) throws Throwable {
 		try {
 			batchSize = Math.max(batchSize, MIN_BATCH_SIZE);
 			initDebeziumServerName(tapConnectorContext);
 			this.tapTableMap = tapConnectorContext.getTableMap();
+			this.ddlParserType = ddlParserType;
 			String offsetStr = "";
 			JsonParser jsonParser = InstanceFactory.instance(JsonParser.class);
 			MysqlStreamOffset mysqlStreamOffset = null;
@@ -180,8 +192,11 @@ public class MysqlReader implements Closeable {
 			List<String> dbTableNames = tables.stream().map(t -> database + "." + t).collect(Collectors.toList());
 			builder.with(MySqlConnectorConfig.DATABASE_INCLUDE_LIST, database);
 			builder.with(MySqlConnectorConfig.TABLE_INCLUDE_LIST, String.join(",", dbTableNames));
-			builder.with("snapshot.mode", "schema_only");
-//			builder.with("snapshot.mode", "schema_only_recovery");
+			builder.with("snapshot.mode", "schema_only_recovery");
+//			if (Boolean.parseBoolean(tapConnectorContext.getStateMap().get(FIRST_TIME_KEY).toString())) {
+//			} else {
+//				builder.with("snapshot.mode", "schema_only");
+//			}
 			builder.with("database.history", "io.tapdata.connector.mysql.StateMapHistoryBackingStore");
 			builder.with(EmbeddedEngine.OFFSET_STORAGE, "io.tapdata.connector.mysql.PdkPersistenceOffsetBackingStore");
 			if (StringUtils.isNotBlank(offsetStr)) {
@@ -292,15 +307,11 @@ public class MysqlReader implements Closeable {
 		Object serverNameFromStateMap = stateMap.get(SERVER_NAME_KEY);
 		if (serverNameFromStateMap instanceof String) {
 			this.serverName = String.valueOf(serverNameFromStateMap);
+			stateMap.put(FIRST_TIME_KEY, false);
 		} else {
 			stateMap.put(SERVER_NAME_KEY, this.serverName);
+			stateMap.put(FIRST_TIME_KEY, true);
 		}
-	}
-
-	private static int randomServerId() {
-		int lowestServerId = 5400;
-		int highestServerId = Integer.MAX_VALUE;
-		return lowestServerId + new Random().nextInt(highestServerId - lowestServerId);
 	}
 
 	@Override
@@ -316,57 +327,121 @@ public class MysqlReader implements Closeable {
 	}
 
 	private void sourceRecordConsumer(SourceRecord record) {
-		TapRecordEvent tapRecordEvent = null;
 		if (null == record || null == record.value()) return;
-		Struct value = (Struct) record.value();
 		Schema valueSchema = record.valueSchema();
-
+		MysqlStreamEvent mysqlStreamEvent;
 		if (null != valueSchema.field("op")) {
-			Struct source = value.getStruct("source");
-			Long eventTime = source.getInt64("ts_ms");
-			String table = source.getString("table");
-			String op = value.getString("op");
-			MysqlOpType mysqlOpType = MysqlOpType.fromOp(op);
-			if (null == mysqlOpType) {
-				TapLogger.debug(TAG, "Unrecognized operation type: " + op + ", will skip it, record: " + record);
-				return;
+			mysqlStreamEvent = wrapDML(record);
+			Optional.ofNullable(mysqlStreamEvent).ifPresent(this::enqueue);
+		} else if (null != valueSchema.field("ddl")) {
+			List<MysqlStreamEvent> mysqlStreamEvents = wrapDDL(record);
+			if (null != mysqlStreamEvents && mysqlStreamEvents.size() > 0) {
+				mysqlStreamEvents.forEach(this::enqueue);
 			}
-			Map<String, Object> before;
-			Map<String, Object> after;
-			switch (mysqlOpType) {
-				case INSERT:
-					tapRecordEvent = new TapInsertRecordEvent();
-					if (null == valueSchema.field("after"))
-						throw new RuntimeException("Found insert record does not have after: " + record);
-					after = struct2Map(value.getStruct("after"), table);
-					((TapInsertRecordEvent) tapRecordEvent).setAfter(after);
-					break;
-				case UPDATE:
-					tapRecordEvent = new TapUpdateRecordEvent();
-					if (null != valueSchema.field("before")) {
-						before = struct2Map(value.getStruct("before"), table);
-						((TapUpdateRecordEvent) tapRecordEvent).setBefore(before);
-					}
-					if (null == valueSchema.field("after"))
-						throw new RuntimeException("Found update record does not have after: " + record);
-					after = struct2Map(value.getStruct("after"), table);
-					((TapUpdateRecordEvent) tapRecordEvent).setAfter(after);
-					break;
-				case DELETE:
-					tapRecordEvent = new TapDeleteRecordEvent();
-					if (null == valueSchema.field("before"))
-						throw new RuntimeException("Found delete record does not have before: " + record);
+		}
+	}
+
+	private MysqlStreamEvent wrapDML(SourceRecord record) {
+		TapRecordEvent tapRecordEvent = null;
+		MysqlStreamEvent mysqlStreamEvent;
+		Schema valueSchema = record.valueSchema();
+		Struct value = (Struct) record.value();
+		Struct source = value.getStruct("source");
+		Long eventTime = source.getInt64("ts_ms");
+		String table = source.getString("table");
+		String op = value.getString("op");
+		MysqlOpType mysqlOpType = MysqlOpType.fromOp(op);
+		if (null == mysqlOpType) {
+			TapLogger.debug(TAG, "Unrecognized operation type: " + op + ", will skip it, record: " + record);
+			return null;
+		}
+		Map<String, Object> before = null;
+		Map<String, Object> after = null;
+		switch (mysqlOpType) {
+			case INSERT:
+				tapRecordEvent = new TapInsertRecordEvent().init();
+				if (null == valueSchema.field("after"))
+					throw new RuntimeException("Found insert record does not have after: " + record);
+				after = struct2Map(value.getStruct("after"), table);
+				((TapInsertRecordEvent) tapRecordEvent).setAfter(after);
+				break;
+			case UPDATE:
+				tapRecordEvent = new TapUpdateRecordEvent().init();
+				if (null != valueSchema.field("before")) {
 					before = struct2Map(value.getStruct("before"), table);
-					((TapDeleteRecordEvent) tapRecordEvent).setBefore(before);
-					break;
-				default:
-					break;
+					((TapUpdateRecordEvent) tapRecordEvent).setBefore(before);
+				}
+				if (null == valueSchema.field("after"))
+					throw new RuntimeException("Found update record does not have after: " + record);
+				after = struct2Map(value.getStruct("after"), table);
+				((TapUpdateRecordEvent) tapRecordEvent).setAfter(after);
+				break;
+			case DELETE:
+				tapRecordEvent = new TapDeleteRecordEvent().init();
+				if (null == valueSchema.field("before"))
+					throw new RuntimeException("Found delete record does not have before: " + record);
+				before = struct2Map(value.getStruct("before"), table);
+				((TapDeleteRecordEvent) tapRecordEvent).setBefore(before);
+				break;
+			default:
+				break;
+		}
+		tapRecordEvent.setTableId(table);
+		tapRecordEvent.setReferenceTime(eventTime);
+		MysqlStreamOffset mysqlStreamOffset = getMysqlStreamOffset(record);
+		TapLogger.debug(TAG, "Read DML - Table: " + table + "\n  - Operation: " + mysqlOpType.getOp()
+				+ "\n  - Before: " + before + "\n  - After: " + after + "\n  - Offset: " + mysqlStreamOffset);
+		mysqlStreamEvent = new MysqlStreamEvent(tapRecordEvent, mysqlStreamOffset);
+		return mysqlStreamEvent;
+	}
+
+	private List<MysqlStreamEvent> wrapDDL(SourceRecord record) {
+		List<MysqlStreamEvent> mysqlStreamEvents = new ArrayList<>();
+		Object value = record.value();
+		if (!(value instanceof Struct)) {
+			return null;
+		}
+		Struct structValue = (Struct) value;
+		Struct source = structValue.getStruct("source");
+		Long eventTime = source.getInt64("ts_ms");
+		String ddlStr = structValue.getString(SOURCE_RECORD_DDL_KEY);
+		TapLogger.info(TAG, "Read DDL: " + ddlStr + ", about to be packaged as some event(s)");
+		MysqlStreamOffset mysqlStreamOffset = getMysqlStreamOffset(record);
+		if (StringUtils.isNotBlank(ddlStr)) {
+			try {
+				DDLFactory.ddlToTapDDLEvent(
+						ddlParserType,
+						ddlStr,
+						tapTableMap,
+						tapDDLEvent -> {
+							MysqlStreamEvent mysqlStreamEvent = new MysqlStreamEvent(tapDDLEvent, mysqlStreamOffset);
+							tapDDLEvent.setReferenceTime(eventTime);
+							mysqlStreamEvents.add(mysqlStreamEvent);
+						}
+				);
+			} catch (Throwable e) {
+				throw new RuntimeException("Handle ddl failed: " + ddlStr + ", error: " + e.getMessage(), e);
 			}
-			tapRecordEvent.setTableId(table);
-			tapRecordEvent.setReferenceTime(eventTime);
-			MysqlStreamOffset mysqlStreamOffset = getMysqlStreamOffset(record);
-			MysqlStreamEvent mysqlStreamEvent = new MysqlStreamEvent(tapRecordEvent, mysqlStreamOffset);
-			enqueue(mysqlStreamEvent);
+		}
+		printDDLEventLog(mysqlStreamEvents);
+		return mysqlStreamEvents;
+	}
+
+	private void printDDLEventLog(List<MysqlStreamEvent> mysqlStreamEvents) {
+		if (CollectionUtils.isEmpty(mysqlStreamEvents)) {
+			return;
+		}
+		for (MysqlStreamEvent mysqlStreamEvent : mysqlStreamEvents) {
+			if (null == mysqlStreamEvent || null == mysqlStreamEvent.getTapEvent()) {
+				continue;
+			}
+			TapEvent tapEvent = mysqlStreamEvent.getTapEvent();
+			if (!(tapEvent instanceof TapDDLEvent)) {
+				continue;
+			}
+			TapLogger.info(TAG, "DDL event  - Table: " + ((TapDDLEvent) tapEvent).getTableId()
+					+ "\n  - Event type: " + tapEvent.getClass().getSimpleName()
+					+ "\n  - Offset: " + mysqlStreamEvent.getMysqlStreamOffset());
 		}
 	}
 
@@ -390,12 +465,20 @@ public class MysqlReader implements Closeable {
 	private Object handleDatetime(String table, String fieldName, Object value) {
 		TapTable tapTable = tapTableMap.get(table);
 		if (null == tapTable) return value;
+		if (null == tapTable.getNameFieldMap()) {
+			return value;
+		}
 		TapField tapField = tapTable.getNameFieldMap().get(fieldName);
 		if (null == tapField) return value;
 		TapType tapType = tapField.getTapType();
 		if (tapType instanceof TapDateTime) {
 			if (((TapDateTime) tapType).getFraction().equals(0) && value instanceof Long) {
 				value = ((Long) value) / 1000;
+			} else if (value instanceof String) {
+				try {
+					value = Instant.parse((CharSequence) value);
+				} catch (Exception ignored) {
+				}
 			}
 		} else if (tapType instanceof TapDate) {
 			if (value instanceof Integer) {

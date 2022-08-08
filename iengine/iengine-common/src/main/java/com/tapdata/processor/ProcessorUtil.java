@@ -4,7 +4,6 @@ import com.tapdata.constant.DataFlowStageUtil;
 import com.tapdata.entity.dataflow.Stage;
 import com.tapdata.processor.dataflow.*;
 import com.tapdata.processor.dataflow.aggregation.incr.IncrementAggregationProcessor;
-import org.apache.commons.lang3.StringUtils;
 
 import java.util.ArrayList;
 import java.util.List;

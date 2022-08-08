@@ -1,9 +1,9 @@
 package com.tapdata.validator;
 
 import com.tapdata.constant.ConnectorConstant;
-import com.tapdata.processor.Processor;
 import com.tapdata.entity.*;
 import com.tapdata.mongo.ClientMongoOperator;
+import com.tapdata.processor.Processor;
 import io.tapdata.debug.DebugConstant;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.collections.MapUtils;

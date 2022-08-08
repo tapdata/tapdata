@@ -2,8 +2,8 @@ package io.tapdata.debug.impl;
 
 import com.tapdata.entity.DataQualityTag;
 import com.tapdata.mongo.ClientMongoOperator;
-import io.tapdata.debug.DebugConstant;
 import io.tapdata.debug.Debug;
+import io.tapdata.debug.DebugConstant;
 import io.tapdata.debug.DebugException;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.logging.log4j.LogManager;

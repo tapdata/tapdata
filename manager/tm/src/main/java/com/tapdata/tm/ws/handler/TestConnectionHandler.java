@@ -11,7 +11,9 @@ import com.tapdata.manager.common.utils.StringUtils;
 import com.tapdata.tm.base.dto.Field;
 import com.tapdata.tm.commons.base.dto.SchedulableDto;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
+import com.tapdata.tm.commons.schema.DataSourceDefinitionDto;
 import com.tapdata.tm.config.security.UserDetail;
+import com.tapdata.tm.ds.service.impl.DataSourceDefinitionService;
 import com.tapdata.tm.ds.service.impl.DataSourceService;
 import com.tapdata.tm.messagequeue.dto.MessageQueueDto;
 import com.tapdata.tm.messagequeue.service.MessageQueueService;
@@ -20,6 +22,7 @@ import com.tapdata.tm.utils.AES256Util;
 import com.tapdata.tm.utils.MapUtils;
 import static com.tapdata.tm.utils.MongoUtils.toObjectId;
 
+import com.tapdata.tm.utils.MongoUtils;
 import com.tapdata.tm.worker.service.WorkerService;
 import com.tapdata.tm.ws.annotation.WebSocketMessageHandler;
 import com.tapdata.tm.ws.dto.MessageInfo;
@@ -42,15 +45,19 @@ public class TestConnectionHandler implements WebSocketHandler {
 
 	private final DataSourceService dataSourceService;
 
+	private final DataSourceDefinitionService dataSourceDefinitionService;
+
 	private final UserService userService;
 
 	private final WorkerService workerService;
 
-	public TestConnectionHandler(MessageQueueService messageQueueService, DataSourceService dataSourceService, UserService userService, WorkerService workerService) {
+	public TestConnectionHandler(MessageQueueService messageQueueService, DataSourceService dataSourceService, UserService userService
+			, WorkerService workerService, DataSourceDefinitionService dataSourceDefinitionService) {
 		this.messageQueueService = messageQueueService;
 		this.dataSourceService = dataSourceService;
 		this.userService = userService;
 		this.workerService = workerService;
+		this.dataSourceDefinitionService = dataSourceDefinitionService;
 	}
 	@Override
 	public void handleMessage(WebSocketContext context) throws Exception{
@@ -79,17 +86,28 @@ public class TestConnectionHandler implements WebSocketHandler {
 		}
 
 		Object config = data.get("config");
+		UserDetail userDetail = userService.loadUserById(toObjectId(userId));
+		if (userDetail == null){
+			WebSocketManager.sendMessage(context.getSender(), "UserDetail is null");
+			return;
+		}
 		if (config != null) {
 			String database_type = (String)data.get("database_type");
+			if (StringUtils.isBlank(database_type)) {
+				String pdkHash = (String) data.get("pdkHash");
+				DataSourceDefinitionDto definitionDto = dataSourceDefinitionService.findByPdkHash(pdkHash, userDetail, "type");
+				database_type = definitionDto.getType();
+			}
 			Map config1 = (Map) config;
 			String uri = (String) config1.get("uri");
-			if (StringUtils.isNotBlank(database_type) && database_type.toLowerCase(Locale.ROOT).contains("mongo") && StringUtils.isNotBlank(uri)) {
+			if (StringUtils.isNotBlank(database_type) && StringUtils.isNotBlank(database_type) && database_type.toLowerCase(Locale.ROOT).contains("mongo") && StringUtils.isNotBlank(uri)) {
 				if (uri.contains("******")) {
 					data.put("editTest", false);
 				}
 			} else {
 				Object password = config1.get("password");
-				if (password == null || StringUtils.isBlank((String) password)) {
+				Object mqPassword = config1.get("mqPassword");
+				if (Objects.isNull(password) && Objects.isNull(mqPassword)) {
 					Object id = data.get("id");
 					if (id != null) {
 						data.put("editTest", false);
@@ -98,18 +116,10 @@ public class TestConnectionHandler implements WebSocketHandler {
 			}
 		}
 
-			UserDetail userDetail = userService.loadUserById(toObjectId(userId));
-			if (userDetail == null){
-				WebSocketManager.sendMessage(context.getSender(), "UserDetail is null");
-				return;
-			}
-//		List<Worker> workers = workerService.findAvailableAgent(userDetail.getUserId());
-//		List<Worker> workers = workerService.findAvailableAgent(MapUtils.getAsString(data, "userId"));
 			SchedulableDto schedulableDto = new SchedulableDto();
 			schedulableDto.setAgentTags(tags);
 			schedulableDto.setUserId(userDetail.getUserId());
 			workerService.scheduleTaskToEngine(schedulableDto, userDetail, "testConnection", "testConnection");
-//		String receiver = CollectionUtils.isNotEmpty(workers) ? workers.get(0).getProcessId() : null;
 			String receiver = schedulableDto.getAgentId();
 			if (StringUtils.isBlank(receiver)){
 				log.warn("Receiver is blank,context: {}", JsonUtil.toJson(context));
@@ -125,70 +135,70 @@ public class TestConnectionHandler implements WebSocketHandler {
 			String database_type = MapUtils.getAsString(data, "database_type");
 			String database_uri = MapUtils.getAsString(data, "database_uri");
 			boolean containsDatabaseType = Arrays.asList("mongodb", "gridfs").contains(database_type);
-			if (containsDatabaseType && StringUtils.isNotBlank(database_uri)){
-			sendMessage(receiver, context);
-			return;
-		}
-		String id = MapUtils.getAsString(data, "id");
-		Field field = new Field();
-		field.put("database_password", 1);
-		field.put("database_uri", 1);
-		field.put("database_username", 1);
-		if (StringUtils.isNotBlank(id)){
-			DataSourceConnectionDto connectionDto = dataSourceService.findById(new ObjectId(id), field);
-			if (connectionDto != null){
-				Boolean justTest = MapUtils.getAsBoolean(data, "justTest");
-				String database_username = MapUtils.getAsString(data, "database_username");
-				String database_password = MapUtils.getAsString(data, "database_password");
-				String plain_password = MapUtils.getAsString(data, "plain_password");
-				if ((justTest != null && justTest && containsDatabaseType) || (StringUtils.isNotBlank(database_username) && StringUtils.isBlank(database_password)
-						&& StringUtils.isBlank(connectionDto.getDatabase_name()) && StringUtils.isBlank(connectionDto.getDatabase_password()) && containsDatabaseType)) {
+			if (containsDatabaseType && StringUtils.isNotBlank(database_uri)) {
+				sendMessage(receiver, context);
+				return;
+			}
+			String id = MapUtils.getAsString(data, "id");
+			Field field = new Field();
+			field.put("database_password", 1);
+			field.put("database_uri", 1);
+			field.put("database_username", 1);
+			if (StringUtils.isNotBlank(id)) {
+				DataSourceConnectionDto connectionDto = dataSourceService.findById(new ObjectId(id), field);
+				if (connectionDto != null) {
+					Boolean justTest = MapUtils.getAsBoolean(data, "justTest");
+					String database_username = MapUtils.getAsString(data, "database_username");
+					String database_password = MapUtils.getAsString(data, "database_password");
+					String plain_password = MapUtils.getAsString(data, "plain_password");
+					if ((justTest != null && justTest && containsDatabaseType) || (StringUtils.isNotBlank(database_username) && StringUtils.isBlank(database_password)
+							&& StringUtils.isBlank(connectionDto.getDatabase_name()) && StringUtils.isBlank(connectionDto.getDatabase_password()) && containsDatabaseType)) {
 
-					// 兼容老数据，充填mongodb uri
-					data.put("database_uri", connectionDto.getDatabase_uri());
+						// 兼容老数据，充填mongodb uri
+						data.put("database_uri", connectionDto.getDatabase_uri());
 
-					sendMessage(receiver, context);
+						sendMessage(receiver, context);
+					} else {
+						if (StringUtils.isNotBlank(database_username) && StringUtils.isBlank(plain_password)) {
+							// 由于脱敏，如果是编辑，前端不会传回来密码，使用从中间库查出来的密码
+							data.put("database_password", connectionDto.getDatabase_password());
+						} else if (StringUtils.isNotBlank(database_username) && StringUtils.isNotBlank(plain_password)) {
+							data.put("database_password", AES256Util.Aes256Encode(plain_password));
+							data.remove("plain_password");
+						}
+						Boolean isUrl = MapUtils.getAsBoolean(data, "isUrl");
+						if (containsDatabaseType && (isUrl == null || !isUrl)) {
+							constructURI(data);
+						}
+
+						sendMessage(receiver, context);
+					}
 				} else {
-					if (StringUtils.isNotBlank(database_username) && StringUtils.isBlank(plain_password)) {
-						// 由于脱敏，如果是编辑，前端不会传回来密码，使用从中间库查出来的密码
-						data.put("database_password", connectionDto.getDatabase_password());
-					} else if (StringUtils.isNotBlank(database_username) && StringUtils.isNotBlank(plain_password)) {
-						data.put("database_password", AES256Util.Aes256Encode(plain_password));
-						data.remove("plain_password");
-					}
-					Boolean isUrl = MapUtils.getAsBoolean(data, "isUrl");
-					if (containsDatabaseType && (isUrl == null || !isUrl)) {
-						constructURI(data);
-					}
-
-					sendMessage(receiver, context);
+					data.put("status", "error");
+					data.put("msg", "Connection info not found");
+					sendMessage(context.getSender(), context);
 				}
-			}else {
-				data.put("status", "error");
-				data.put("msg", "Connection info not found");
-				sendMessage(context.getSender(), context);
+
+			} else {
+				Boolean isUrl = MapUtils.getAsBoolean(data, "isUrl");
+				if (containsDatabaseType && (isUrl == null || !isUrl)) {
+					constructURI(data);
+				}
+				String database_username = MapUtils.getAsString(data, "database_username");
+				String plain_password = MapUtils.getAsString(data, "plain_password");
+				if (StringUtils.isNotBlank(database_username) && StringUtils.isNotBlank(plain_password)) {
+					data.put("database_password", AES256Util.Aes256Encode(plain_password));
+
+					data.remove("plain_password");
+				}
+
+				log.info("Handler message start,context: {}", JsonUtil.toJson(context));
+				sendMessage(receiver, context);
+				log.info("Handler message end,sessionId: {}", context.getSessionId());
 			}
 
-		}else {
-			Boolean isUrl = MapUtils.getAsBoolean(data, "isUrl");
-			if (containsDatabaseType && (isUrl == null || !isUrl)){
-				constructURI(data);
-			}
-			String database_username = MapUtils.getAsString(data, "database_username");
-			String plain_password = MapUtils.getAsString(data, "plain_password");
-			if (StringUtils.isNotBlank(database_username) && StringUtils.isNotBlank(plain_password)){
-				data.put("database_password", AES256Util.Aes256Encode(plain_password));
 
-				data.remove("plain_password");
-			}
-
-			log.info("Handler message start,context: {}", JsonUtil.toJson(context));
-			sendMessage(receiver, context);
-			log.info("Handler message end,sessionId: {}", context.getSessionId());
 		}
-
-
-	}
 
 	private void constructURI(Map<String, Object> data) {
 		if (MapUtils.isEmpty(data)) {

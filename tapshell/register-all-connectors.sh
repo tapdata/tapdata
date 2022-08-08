@@ -30,3 +30,4 @@ for i in `ls connectors/dist|grep -v tdd-connector`; do
 done
 
 touch "$basepath/.register"
+exit 0

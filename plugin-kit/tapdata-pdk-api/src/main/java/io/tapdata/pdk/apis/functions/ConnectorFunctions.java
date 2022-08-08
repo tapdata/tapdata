@@ -1,79 +1,64 @@
 package io.tapdata.pdk.apis.functions;
 
 import io.tapdata.entity.schema.TapTable;
+import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
+import io.tapdata.pdk.apis.entity.Capability;
 import io.tapdata.pdk.apis.functions.connector.TapFunction;
+import io.tapdata.pdk.apis.functions.connection.GetTableNamesFunction;
 import io.tapdata.pdk.apis.functions.connector.common.ReleaseExternalFunction;
 import io.tapdata.pdk.apis.functions.connector.source.*;
 import io.tapdata.pdk.apis.functions.connector.target.*;
 
 import java.lang.reflect.Field;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
+import java.util.function.Consumer;
 
-public class ConnectorFunctions extends CommonFunctions<ConnectorFunctions> {
-    private ReleaseExternalFunction releaseExternalFunction;
-    private BatchReadFunction batchReadFunction;
-    private StreamReadFunction streamReadFunction;
-    private BatchCountFunction batchCountFunction;
-    private TimestampToStreamOffsetFunction timestampToStreamOffsetFunction;
-    private WriteRecordFunction writeRecordFunction;
-    private QueryByFilterFunction queryByFilterFunction;
-    private QueryByAdvanceFilterFunction queryByAdvanceFilterFunction;
-    private CreateTableFunction createTableFunction;
-    private ClearTableFunction clearTableFunction;
-    private DropTableFunction dropTableFunction;
-    private ControlFunction controlFunction;
-    private CreateIndexFunction createIndexFunction;
-    private DeleteIndexFunction deleteIndexFunction;
-    private QueryIndexesFunction queryIndexesFunction;
-    private AlterDatabaseTimeZoneFunction alterDatabaseTimeZoneFunction;
-    private AlterFieldCheckFunction alterFieldCheckFunction;
-    private AlterFieldCommentFunction alterFieldCommentFunction;
-    private AlterFieldConstraintFunction alterFieldConstraintFunction;
-    private AlterFieldDataTypeFunction alterFieldDataTypeFunction;
-    private AlterFieldDefaultFunction alterFieldDefaultFunction;
-    private AlterFieldNameFunction alterFieldNameFunction;
-    private AlterFieldNotNullFunction alterFieldNotNullFunction;
-    private AlterFieldPrimaryKeyFunction alterFieldPrimaryKeyFunction;
-    private AlterTableCharsetFunction alterTableCharsetFunction;
-    private DropFieldFunction dropFieldFunction;
-    private NewFieldFunction newFieldFunction;
-
+public class ConnectorFunctions extends ConnectionFunctions<ConnectorFunctions> {
+    protected ReleaseExternalFunction releaseExternalFunction;
+    protected BatchReadFunction batchReadFunction;
+    protected StreamReadFunction streamReadFunction;
+    protected BatchCountFunction batchCountFunction;
+    protected TimestampToStreamOffsetFunction timestampToStreamOffsetFunction;
+    protected WriteRecordFunction writeRecordFunction;
+    protected QueryByFilterFunction queryByFilterFunction;
+    protected QueryByAdvanceFilterFunction queryByAdvanceFilterFunction;
+    //create_table_event
+    protected CreateTableFunction createTableFunction;
+    protected CreateTableV2Function createTableV2Function;
+    //clear_table_event
+    protected ClearTableFunction clearTableFunction;
+    //drop_table_event
+    protected DropTableFunction dropTableFunction;
+    protected ControlFunction controlFunction;
+    protected CreateIndexFunction createIndexFunction;
+    protected DeleteIndexFunction deleteIndexFunction;
+    protected QueryIndexesFunction queryIndexesFunction;
+    //alter_database_timezone_event
+    protected AlterDatabaseTimeZoneFunction alterDatabaseTimeZoneFunction;
+    //alter_field_attributes_event
+    protected AlterFieldAttributesFunction alterFieldAttributesFunction;
+    //alter_field_name_event
+    protected AlterFieldNameFunction alterFieldNameFunction;
+    //alter_table_charset_event
+    protected AlterTableCharsetFunction alterTableCharsetFunction;
+    //drop_field_event
+    protected DropFieldFunction dropFieldFunction;
+    //new_field_event
+    protected NewFieldFunction newFieldFunction;
     public ConnectorFunctions supportAlterDatabaseTimeZoneFunction(AlterDatabaseTimeZoneFunction function) {
         alterDatabaseTimeZoneFunction = function;
         return this;
     }
-    public ConnectorFunctions supportAlterFieldCheckFunction(AlterFieldCheckFunction function) {
-        alterFieldCheckFunction = function;
-        return this;
-    }
-    public ConnectorFunctions supportAlterFieldCommentFunction(AlterFieldCommentFunction function) {
-        alterFieldCommentFunction = function;
-        return this;
-    }
-    public ConnectorFunctions supportAlterFieldConstraintFunction(AlterFieldConstraintFunction function) {
-        alterFieldConstraintFunction = function;
-        return this;
-    }
-    public ConnectorFunctions supportAlterFieldDataTypeFunction(AlterFieldDataTypeFunction function) {
-        alterFieldDataTypeFunction = function;
-        return this;
-    }
-    public ConnectorFunctions supportAlterFieldDefaultFunction(AlterFieldDefaultFunction function) {
-        alterFieldDefaultFunction = function;
+    public ConnectorFunctions supportAlterFieldAttributesFunction(AlterFieldAttributesFunction function) {
+        alterFieldAttributesFunction = function;
         return this;
     }
     public ConnectorFunctions supportAlterFieldNameFunction(AlterFieldNameFunction function) {
         alterFieldNameFunction = function;
-        return this;
-    }
-    public ConnectorFunctions supportAlterFieldNotNullFunction(AlterFieldNotNullFunction function) {
-        alterFieldNotNullFunction = function;
-        return this;
-    }
-    public ConnectorFunctions supportAlterFieldPrimaryKeyFunction(AlterFieldPrimaryKeyFunction function) {
-        alterFieldPrimaryKeyFunction = function;
         return this;
     }
     public ConnectorFunctions supportAlterTableCharsetFunction(AlterTableCharsetFunction function) {
@@ -89,10 +74,15 @@ public class ConnectorFunctions extends CommonFunctions<ConnectorFunctions> {
         return this;
     }
 
-    public List<String> getCapabilities() {
-        Field[] fields = ConnectorFunctions.class.getDeclaredFields();
-        List<String> fieldArray = new ArrayList<>();
-        for(Field field : fields) {
+    public List<Capability> getCapabilities() {
+        Field[] connectorFields = ConnectorFunctions.class.getDeclaredFields();
+        Field[] connectionFields = ConnectionFunctions.class.getDeclaredFields();
+
+        List<Field> allFields = new ArrayList<>();
+        allFields.addAll(Arrays.asList(connectorFields));
+        allFields.addAll(Arrays.asList(connectionFields));
+        List<Capability> fieldArray = new ArrayList<>();
+        for(Field field : allFields) {
             try {
                 Object value = field.get(this);
                 if(value instanceof TapFunction) {
@@ -103,12 +93,12 @@ public class ConnectorFunctions extends CommonFunctions<ConnectorFunctions> {
                     StringBuilder fieldNameBuilder = new StringBuilder();
                     for(char c : fieldName.toCharArray()) {
                         if(c >= 'A' && c <= 'Z') {
-                            fieldNameBuilder.append("-");
+                            fieldNameBuilder.append("_");
                             c += 32;
                         }
                         fieldNameBuilder.append(c);
                     }
-                    fieldArray.add(fieldNameBuilder.toString());
+                    fieldArray.add(Capability.create(fieldNameBuilder.toString()).type(Capability.TYPE_FUNCTION));
                 }
             } catch (Throwable ignored) {}
         }
@@ -117,6 +107,12 @@ public class ConnectorFunctions extends CommonFunctions<ConnectorFunctions> {
 
     public static void main(String[] args) {
         ConnectorFunctions connectorFunctions = new ConnectorFunctions();
+        connectorFunctions.supportGetTableNamesFunction(new GetTableNamesFunction() {
+            @Override
+            public void tableNames(TapConnectionContext nodeContext, int batchSize, Consumer<List<String>> consumer) throws Throwable {
+
+            }
+        });
         connectorFunctions.supportReleaseExternalFunction(new ReleaseExternalFunction() {
             @Override
             public void release(TapConnectorContext connectorContext) throws Throwable {
@@ -200,10 +196,26 @@ public class ConnectorFunctions extends CommonFunctions<ConnectorFunctions> {
         return this;
     }
 
+    /**
+     * @deprecated
+     *
+     * Please use supportCreateTableV2 instead.
+     * CreateTableOptions is required as return value to tell engine the table is exists already or not.
+     *
+     * @param function
+     * @return
+     */
+    @Deprecated
     public ConnectorFunctions supportCreateTable(CreateTableFunction function) {
         this.createTableFunction = function;
         return this;
     }
+
+    public ConnectorFunctions supportCreateTableV2(CreateTableV2Function function) {
+        this.createTableV2Function = function;
+        return this;
+    }
+
 
     public ConnectorFunctions supportClearTable(ClearTableFunction function) {
         this.clearTableFunction = function;
@@ -289,36 +301,12 @@ public class ConnectorFunctions extends CommonFunctions<ConnectorFunctions> {
         return alterDatabaseTimeZoneFunction;
     }
 
-    public AlterFieldCheckFunction getAlterFieldCheckFunction() {
-        return alterFieldCheckFunction;
-    }
-
-    public AlterFieldCommentFunction getAlterFieldCommentFunction() {
-        return alterFieldCommentFunction;
-    }
-
-    public AlterFieldConstraintFunction getAlterFieldConstraintFunction() {
-        return alterFieldConstraintFunction;
-    }
-
-    public AlterFieldDataTypeFunction getAlterFieldDataTypeFunction() {
-        return alterFieldDataTypeFunction;
-    }
-
-    public AlterFieldDefaultFunction getAlterFieldDefaultFunction() {
-        return alterFieldDefaultFunction;
+    public AlterFieldAttributesFunction getAlterFieldAttributesFunction() {
+        return alterFieldAttributesFunction;
     }
 
     public AlterFieldNameFunction getAlterFieldNameFunction() {
         return alterFieldNameFunction;
-    }
-
-    public AlterFieldNotNullFunction getAlterFieldNotNullFunction() {
-        return alterFieldNotNullFunction;
-    }
-
-    public AlterFieldPrimaryKeyFunction getAlterFieldPrimaryKeyFunction() {
-        return alterFieldPrimaryKeyFunction;
     }
 
     public AlterTableCharsetFunction getAlterTableCharsetFunction() {
@@ -331,5 +319,9 @@ public class ConnectorFunctions extends CommonFunctions<ConnectorFunctions> {
 
     public NewFieldFunction getNewFieldFunction() {
         return newFieldFunction;
+    }
+
+    public CreateTableV2Function getCreateTableV2Function() {
+        return createTableV2Function;
     }
 }

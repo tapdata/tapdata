@@ -12,29 +12,27 @@ import com.tapdata.tm.base.dto.Where;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.base.service.BaseService;
 import com.tapdata.tm.commons.dag.DAG;
-import com.tapdata.tm.commons.dag.Edge;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.logCollector.LogCollectorNode;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
-import com.tapdata.tm.commons.dag.process.MergeTableNode;
-import com.tapdata.tm.commons.dag.process.ProcessorNode;
+import com.tapdata.tm.commons.dag.process.*;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
+import com.tapdata.tm.commons.schema.DataSourceDefinitionDto;
+import com.tapdata.tm.commons.schema.Field;
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;
+import com.tapdata.tm.commons.schema.bean.Schema;
+import com.tapdata.tm.commons.schema.bean.SourceDto;
+import com.tapdata.tm.commons.schema.bean.Table;
 import com.tapdata.tm.commons.task.dto.MergeTableProperties;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.util.MetaDataBuilderUtils;
+import com.tapdata.tm.commons.util.MetaType;
 import com.tapdata.tm.commons.util.PdkSchemaConvert;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.dag.service.DAGService;
-import com.tapdata.tm.commons.schema.bean.Schema;
-import com.tapdata.tm.commons.schema.bean.Table;
-import com.tapdata.tm.commons.schema.DataSourceDefinitionDto;
 import com.tapdata.tm.ds.service.impl.DataSourceDefinitionService;
 import com.tapdata.tm.ds.service.impl.DataSourceService;
-import com.tapdata.tm.commons.util.MetaType;
-import com.tapdata.tm.commons.schema.Field;
-import com.tapdata.tm.commons.schema.bean.SourceDto;
 import com.tapdata.tm.metadatainstance.entity.MetadataInstancesEntity;
 import com.tapdata.tm.metadatainstance.param.ClassificationParam;
 import com.tapdata.tm.metadatainstance.param.TablesSupportInspectParam;
@@ -53,6 +51,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
+import org.bson.Document;
 import org.bson.types.ObjectId;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -84,6 +83,9 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
     private TaskService taskService;
 
     private DAGService dagService;
+
+
+    private MetaDataHistoryService metaDataHistoryService;
 
     public MetadataInstancesDto add(MetadataInstancesDto record, UserDetail user) {
         return save(record, user);
@@ -659,6 +661,46 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
         return findByQualifiedName(qualified_name, user);
     }
 
+    public MetadataInstancesDto findBySourceIdAndTableName(String sourceId, String tableName, UserDetail userDetail) {
+        Criteria criteria = Criteria
+                .where("meta_type").in("table", "collection", "view")
+                .and("original_name").is(tableName)
+                .and("is_deleted").ne(true)
+                .and("source._id").is(sourceId);
+
+        return findOne(Query.query(criteria), userDetail);
+    }
+
+    public List<MetadataInstancesDto> findBySourceIdAndTableNameList(String sourceId, List<String> tableNames, UserDetail userDetail) {
+        Criteria criteria = Criteria
+                .where("meta_type").in(Lists.of("table", "collection", "view"))
+                .and("is_deleted").ne(true)
+                .and("source._id").is(sourceId);
+
+        if (CollectionUtils.isNotEmpty(tableNames)) {
+            criteria.and("original_name").in(tableNames);
+        }
+
+        return findAllDto(Query.query(criteria), userDetail);
+    }
+
+    public List<MetadataInstancesEntity> findEntityBySourceIdAndTableNameList(String sourceId, List<String> tableNames, UserDetail userDetail) {
+        Criteria criteria = Criteria
+                .where("meta_type").in(Lists.of("table", "collection", "view"))
+                .and("is_deleted").ne(true)
+                .and("source._id").is(sourceId);
+
+        if (CollectionUtils.isNotEmpty(tableNames)) {
+            criteria.and("original_name").in(tableNames);
+        }
+
+        return findAll(Query.query(criteria), userDetail);
+    }
+
+    public Update buildUpdateSet(MetadataInstancesEntity entity) {
+        return repository.buildUpdateSet(entity);
+    }
+
     public List<MetadataInstancesDto> findByQualifiedName(String qualifiedName, UserDetail user) {
         Where where = new Where().and("qualified_name", qualifiedName);
         return findAll(where, user);
@@ -670,6 +712,15 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
         Query query = new Query(criteria);
         return findOne(query, user);
     }
+
+    public List<MetadataInstancesDto> findByQualifiedNameList(List<String> qualifiedNames) {
+        Criteria criteria = Criteria.where("qualified_name").in(qualifiedNames).and("is_deleted").ne(true);
+
+        Query query = new Query(criteria);
+        return findAll(query);
+    }
+
+
 
     public List<MetadataInstancesDto> findByQualifiedNameNotDelete(List<String> qualifiedNames, UserDetail user, String... fieldName) {
         Criteria criteria = Criteria.where("qualified_name").in(qualifiedNames).and("is_deleted").ne(true);
@@ -722,7 +773,8 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
                 update.set("indices", metadataInstancesDto.getIndices());
                 update.set("is_deleted", false);
                 update.set("createSource", metadataInstancesDto.getCreateSource());
-
+                update.set("original_name", metadataInstancesDto.getOriginalName());
+                update.set("name", metadataInstancesDto.getName());
 
                 Query where = Query.query(Criteria.where("id").is(existsMetadataInstance.getId()));
                 repository.applyUserDetail(where, userDetail);
@@ -753,43 +805,90 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
 
 
 
-    public int bulkSave(List<MetadataInstancesDto> metadataInstancesDtos,
-                        Map<String, Update> updateMetaMap, UserDetail userDetail) {
+    public int bulkSave(List<MetadataInstancesDto> insertMetaDataDtos,
+                        Map<String, MetadataInstancesDto> updateMetaMap, UserDetail userDetail, boolean saveHistory, String taskId) {
 
         BulkOperations bulkOperations = repository.bulkOperations(BulkOperations.BulkMode.UNORDERED);
 
         boolean write = false;
-        for (MetadataInstancesDto metadataInstancesDto : metadataInstancesDtos) {
-            MetadataInstancesEntity metadataInstance = convertToEntity(MetadataInstancesEntity.class, metadataInstancesDto);
+
+        if (null == insertMetaDataDtos) {
+            insertMetaDataDtos = new ArrayList<>();
+        }
+
+        if (CollectionUtils.isNotEmpty(insertMetaDataDtos)) {
+            for (MetadataInstancesDto metadataInstancesDto : insertMetaDataDtos) {
+                MetadataInstancesEntity metadataInstance = convertToEntity(MetadataInstancesEntity.class, metadataInstancesDto);
 
 
-            //这个操作有可能是插入操作，所以需要校验字段是否又id，如果没有就set id进去
-            beforeSave(metadataInstancesDto, userDetail);
-            Update update = repository.buildUpdateSet(metadataInstance, userDetail);
-            Query where = Query.query(Criteria.where("qualified_name").is(metadataInstance.getQualifiedName()));
-            repository.applyUserDetail(where, userDetail);
-            repository.beforeUpsert(update, userDetail);
-            bulkOperations.upsert(where, update);
-            write = true;
+                //这个操作有可能是插入操作，所以需要校验字段是否又id，如果没有就set id进去
+                beforeSave(metadataInstancesDto, userDetail);
+                Update update = repository.buildUpdateSet(metadataInstance, userDetail);
+                Query where = Query.query(Criteria.where("qualified_name").is(metadataInstance.getQualifiedName()));
+                repository.applyUserDetail(where, userDetail);
+                repository.beforeUpsert(update, userDetail);
+                bulkOperations.upsert(where, update);
+                write = true;
+            }
         }
 
 
-        for (Map.Entry<String, Update> entry : updateMetaMap.entrySet()) {
-            Query where = Query.query(Criteria.where("id").is(entry.getKey()));
-            repository.applyUserDetail(where, userDetail);
-            repository.beforeUpsert(entry.getValue(), userDetail);
-            bulkOperations.updateOne(where, entry.getValue());
-            write = true;
+        if (updateMetaMap != null) {
+            Set<String> keySet = updateMetaMap.keySet();
+
+            Map<String, MetadataInstancesDto> metaMap = new HashMap<>();
+            if (CollectionUtils.isNotEmpty(keySet)) {
+                List<ObjectId> ObjectIds = keySet.stream().map(MongoUtils::toObjectId).collect(Collectors.toList());
+                Criteria criteria = Criteria.where("_id").in(ObjectIds);
+                Query query = new Query(criteria);
+                query.fields().exclude("histories");
+                List<MetadataInstancesDto> metadataInstancesDtos = findAllDto(query, userDetail);
+                metaMap = metadataInstancesDtos.stream().collect(Collectors.toMap(m -> m.getId().toHexString(), m -> m));
+
+            }
+            for (Map.Entry<String, MetadataInstancesDto> entry : updateMetaMap.entrySet()) {
+                MetadataInstancesDto value = entry.getValue();
+
+
+                value.setHistories(null);
+                value.setSource(null);
+                value.setId(null);
+                MetadataInstancesEntity entity = convertToEntity(MetadataInstancesEntity.class, value);
+                Update update = repository.buildUpdateSet(entity, userDetail);
+
+                if (saveHistory) {
+                    //保存历史，用于自动ddl
+                    MetadataInstancesDto metadataInstancesDto = metaMap.get(entry.getKey());
+                    if (metadataInstancesDto != null) {
+                        metadataInstancesDto.setFields(value.getFields());
+                        metadataInstancesDto.setIndexes(value.getIndexes());
+                        metadataInstancesDto.setDeleted(false);
+                        metadataInstancesDto.setCreateSource(value.getCreateSource());
+                        metadataInstancesDto.setVersion(value.getVersion());
+                        metadataInstancesDto.setHistories(null);
+                        insertMetaDataDtos.add(metadataInstancesDto);
+                    }
+                }
+
+                Query where = Query.query(Criteria.where("_id").is(entry.getKey()));
+
+                bulkOperations.updateOne(where, update);
+                write = true;
+            }
         }
 
         if (write) {
             BulkWriteResult result = bulkOperations.execute();
+
+            //保存历史版本
+            if (saveHistory && CollectionUtils.isNotEmpty(insertMetaDataDtos)) {
+                metaDataHistoryService.saveHistory(insertMetaDataDtos, taskId);
+            }
             return result.getModifiedCount();
         } else {
             return 0;
         }
     }
-
 
     public Pair<Integer, Integer> bulkUpsetByWhere(List<MetadataInstancesDto> metadataInstancesDtos, UserDetail user, Map<String, String> newModelMap) {
 
@@ -804,12 +903,12 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
 
             Criteria criteria = Criteria.where("qualified_name").is(newModelMap.get(dto.getOriginalName()));
             Query query = new Query(criteria);
+            beforeSave(dto, user);
             repository.applyUserDetail(query, user);
             Update update = repository.buildUpdateSet(convertToEntity(MetadataInstancesEntity.class, dto), user);
             repository.beforeUpsert(update, user);
 
             //这个操作有可能是插入操作，所以需要校验字段是否又id，如果没有就set id进去
-            beforeSave(dto, user);
             bulkOperations.upsert(query, update);
             if (num % 1000 == 0) {
                 BulkWriteResult execute = bulkOperations.execute();
@@ -828,7 +927,7 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
     public List<String> tables(String connectId, String sourceType) {
         Criteria criteria = Criteria.where("source._id").is(connectId)
                 .and("sourceType").is(sourceType)
-                .and("is_deleted").is(false)
+                .and("is_deleted").ne(true)
                 .and("meta_type").in(MetaType.collection.name(), MetaType.table.name());
         Query query = new Query(criteria);
         query.fields().include("original_name");
@@ -960,13 +1059,8 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
         Map<String, String> kv = new HashMap<>();
         if (taskDto != null && taskDto.getDag() != null) {
             DAG dag = taskDto.getDag();
-            List<Node> nodes = taskDto.getDag().getNodes();
-
-            if (CollectionUtils.isNotEmpty(nodes)) {
-                Node node = nodes.stream().filter(v -> nodeId.equals(v.getId())).findFirst().orElse(null);
-                kv = getNodeMapping(user, dag, kv, node);
-
-            }
+            Node node = dag.getNode(nodeId);
+            kv = getNodeMapping(user, dag, kv, node);
         }
         return kv;
     }
@@ -1022,7 +1116,7 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
             String tableName = ((TableNode) node).transformTableName(((TableNode) node).getTableName());
             return MetaDataBuilderUtils.generateQualifiedName(metaType, dataSource, tableName);
         } else if (node instanceof ProcessorNode) {
-            return MetaDataBuilderUtils.generateQualifiedName(com.tapdata.tm.commons.util.MetaType.processor_node.name(), node.getId());
+            return MetaDataBuilderUtils.generateQualifiedName(com.tapdata.tm.commons.util.MetaType.processor_node.name(), node.getId(), null);
         }
         return null;
     }
@@ -1043,71 +1137,65 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
 
         List<MetadataInstancesDto> metadatas = new ArrayList<>();
         if (dag != null) {
-            List<Node> nodes = dag.getNodes();
-
-            if (CollectionUtils.isNotEmpty(nodes)) {
-
-                Node node = nodes.stream().filter(v -> nodeId.equals(v.getId())).findFirst().orElse(null);
-
-                if (node != null) {
-                    Criteria criteriaTable = Criteria.where("meta_type").in("table", "collection", "view");
-                    Criteria criteriaNode = Criteria.where("meta_type").is(MetaType.processor_node.name());
-                    Query queryMetadata = new Query();
-                    if (CollectionUtils.isNotEmpty(fields)) {
-                        String[] fieldArrays = fields.toArray(new String[0]);
-                        queryMetadata.fields().include(fieldArrays);
+            Node node = dag.getNode(nodeId);
+            if (node != null) {
+                Criteria criteriaTable = Criteria.where("meta_type").in("table", "collection", "view");
+                Criteria criteriaNode = Criteria.where("meta_type").is(MetaType.processor_node.name());
+                Query queryMetadata = new Query();
+                if (CollectionUtils.isNotEmpty(fields)) {
+                    String[] fieldArrays = fields.toArray(new String[0]);
+                    queryMetadata.fields().include(fieldArrays);
+                }
+                if (node instanceof TableRenameProcessNode || node instanceof MigrateFieldRenameProcessorNode || node instanceof MigrateJsProcessorNode) {
+                    queryMetadata.addCriteria(criteriaNode);
+                    String qualifiedName = MetaDataBuilderUtils.generateQualifiedName(MetaType.processor_node.name(), nodeId, null);
+                    criteriaNode.and("qualified_name").regex("^"+qualifiedName+".*")
+                            .and("is_deleted").ne(true);
+                    metadatas.addAll(findAll(queryMetadata));
+                } else if (Node.NodeCatalog.processor.equals(node.getCatalog())) {
+                    queryMetadata.addCriteria(criteriaNode);
+                    String qualifiedName = MetaDataBuilderUtils.generateQualifiedName(MetaType.processor_node.name(), nodeId, null);
+                    criteriaNode.and("qualified_name").is(qualifiedName).and("is_deleted").ne(true);
+                    metadatas.add(findOne(queryMetadata, user));
+                } else if (node instanceof TableNode) {
+                    queryMetadata.addCriteria(criteriaTable);
+                    TableNode tableNode = (TableNode) node;
+                    if (StringUtils.isBlank(tableNode.getTableName())) {
+                        return metadatas;
                     }
-                    if (Node.NodeCatalog.processor.equals(node.getCatalog())) {
-                        queryMetadata.addCriteria(criteriaNode);
-                        String qualifiedName = MetaDataBuilderUtils.generateQualifiedName(MetaType.processor_node.name(), nodeId);
-                        criteriaNode.and("qualified_name").is(qualifiedName).and("is_deleted").ne(true);
-                        metadatas.add(findOne(queryMetadata, user));
-                    } else if (node instanceof TableNode) {
-                        queryMetadata.addCriteria(criteriaTable);
-                        TableNode tableNode = (TableNode) node;
-                        if (StringUtils.isBlank(tableNode.getTableName())) {
-                            return metadatas;
-                        }
-                        criteriaTable.and("source._id").is(tableNode.getConnectionId())
-                                .and("original_name").is(tableNode.getTableName()).and("is_deleted").ne(true);
-                        metadatas.add(findOne(queryMetadata, user));
-                    } else if (node instanceof DatabaseNode) {
-                        queryMetadata.addCriteria(criteriaTable);
-                        DatabaseNode tableNode = (DatabaseNode) node;
-                        List<Edge> edges = dag.getEdges();
-                        Edge edge = edges.get(0);
-                        String target = edge.getTarget();
-                        List<String> tableNames = new ArrayList<>();
-                        for (Node node1 : nodes) {
-                            if (node1.getId().equals(target)) {
-                                if (((DatabaseNode) node1).getSyncObjects() != null) {
-                                    DatabaseNode tableNode1 = (DatabaseNode) node1;
-                                    //source的表名是没有转化钱的，target可以已经加了前后缀
-                                    if (node.getId().equals(node1.getId())) {
-                                        tableNames = tableNode1.getFilteredTableNames();
-                                    } else {
-                                        tableNames = tableNode1.getSourceNodeTableNames();
-                                    }
+                    criteriaTable.and("source._id").is(tableNode.getConnectionId())
+                            .and("original_name").is(tableNode.getTableName()).and("is_deleted").ne(true);
+                    metadatas.add(findOne(queryMetadata, user));
+                } else if (node instanceof DatabaseNode) {
+                    queryMetadata.addCriteria(criteriaTable);
+                    DatabaseNode tableNode = (DatabaseNode) node;
+                    List<String> tableNames;
+                    if (dag.getSources().contains(tableNode)) {
+                        tableNames = tableNode.getTableNames();
+                    } else if (dag.getTargets().contains(tableNode)) {
+                        tableNames = tableNode.getSyncObjects().get(0).getObjectNames();
+                    } else {
+                        throw new BizException("table node is error nodeId:" + tableNode.getId());
+                    }
 
-                                }
-                            }
-                        }
-                        criteriaTable.and("source._id").is(tableNode.getConnectionId())
-                                .and("originalName").in(tableNames).and("is_deleted").ne(true);
-                        metadatas =  findAllDto(queryMetadata, user);
-                    } else if (node instanceof LogCollectorNode) {
-                        LogCollectorNode logNode = (LogCollectorNode) node;
-                        List<String> connectionIds = logNode.getConnectionIds();
-                        if (CollectionUtils.isNotEmpty(connectionIds)) {
-                            String connectionId = connectionIds.get(0);
-                            queryMetadata.addCriteria(criteriaTable);
-                            criteriaTable.and("source._id").is(connectionId)
-                                    .and("originalName").in(logNode.getTableNames()).and("is_deleted").ne(true);
-                            metadatas =  findAllDto(queryMetadata, user);
-                        }
+                    FunctionUtils.isTure(CollectionUtils.isEmpty(tableNames)).throwMessage("SystemError", "dag node tableNames is null");
+
+                    criteriaTable.and("source._id").is(tableNode.getConnectionId())
+                            .and("originalName").in(tableNames).and("is_deleted").ne(true);
+                    metadatas = findAllDto(queryMetadata, user);
+                } else if (node instanceof LogCollectorNode) {
+                    LogCollectorNode logNode = (LogCollectorNode) node;
+                    List<String> connectionIds = logNode.getConnectionIds();
+                    if (CollectionUtils.isNotEmpty(connectionIds)) {
+                        String connectionId = connectionIds.get(0);
+                        queryMetadata.addCriteria(criteriaTable);
+                        criteriaTable.and("source._id").is(connectionId)
+                                .and("originalName").in(logNode.getTableNames()).and("is_deleted").ne(true);
+                        metadatas = findAllDto(queryMetadata, user);
                     }
                 }
             }
+
         }
         metadatas = metadatas.stream().filter(Objects::nonNull).collect(Collectors.toList());
         return metadatas;

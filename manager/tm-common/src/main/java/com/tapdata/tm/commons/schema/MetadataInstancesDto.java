@@ -26,6 +26,7 @@ public class MetadataInstancesDto extends BaseDto {
     private boolean isDeleted = false;
     @JsonProperty("original_name")
     private String originalName;
+    private String ancestorsName;
     @JsonProperty("dev_version")
     private Integer devVersion;
     private String databaseId;
@@ -86,6 +87,11 @@ public class MetadataInstancesDto extends BaseDto {
     protected String pdkId;
     protected String pdkGroup;
     protected String pdkVersion;
+
+    //auto ddl need this param
+    private Long tmCurrentTime;
+    //auto ddl need this param
+    private String taskId;
 
     /**
      * 是否是虚拟表 'virtual' 'source'

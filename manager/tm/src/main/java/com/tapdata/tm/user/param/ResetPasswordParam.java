@@ -13,4 +13,5 @@ public class ResetPasswordParam {
     private String newPassword;
     private String validateCode;
     private String location_origin;
+
 }

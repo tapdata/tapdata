@@ -6,8 +6,8 @@ import io.tapdata.entity.schema.TapField;
 import java.util.ArrayList;
 import java.util.List;
 
-public class TapNewFieldEvent extends TapTableEvent {
-    public static final int TYPE = 307;
+public class TapNewFieldEvent extends TapFieldBaseEvent {
+    public static final int TYPE = 209;
     private List<TapField> newFields;
     public TapNewFieldEvent field(TapField field) {
         if(newFields == null)
@@ -36,4 +36,5 @@ public class TapNewFieldEvent extends TapTableEvent {
     public void setNewFields(List<TapField> newFields) {
         this.newFields = newFields;
     }
+
 }

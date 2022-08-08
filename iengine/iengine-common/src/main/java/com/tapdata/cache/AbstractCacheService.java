@@ -1,10 +1,15 @@
 package com.tapdata.cache;
 
+import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.entity.dataflow.DataFlow;
 import com.tapdata.entity.dataflow.DataFlowCacheConfig;
+import com.tapdata.mongo.ClientMongoOperator;
+import com.tapdata.tm.commons.task.dto.SubTaskDto;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.springframework.data.mongodb.core.query.Query;
+import org.voovan.tools.collection.CacheMap;
 
 import java.util.List;
 import java.util.Map;
@@ -13,169 +18,175 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Lock;
 
 public abstract class AbstractCacheService implements ICacheService {
-	protected final Logger logger = LogManager.getLogger(AbstractCacheService.class);
+  protected final Logger logger = LogManager.getLogger(AbstractCacheService.class);
 
-	protected Map<String, DataFlowCacheConfig> cacheConfigMap;
+  protected CacheMap<String, DataFlowCacheConfig> cacheConfigMap;
 
-	private Map<String, ICacheStats> cacheStatsMap;
+  private Map<String, ICacheStats> cacheStatsMap;
 
-	private final Map<String, ICacheGetter> cacheGetterMap;
+  private final CacheMap<String, ICacheGetter> cacheGetterMap;
 
-	private final Map<String, ICacheStore> cacheStoreMap;
+  private final Map<String, ICacheStore> cacheStoreMap;
 
-	private final Map<String, Long> lastLogTSMap;
+  private final Map<String, Long> lastLogTSMap;
 
-	private final Map<String, Lock> cacheStatusLockMap;
+  private final Map<String, Lock> cacheStatusLockMap;
 
-	/**
-	 * 保存cache任务状态
-	 */
-	protected Map<String, String> cacheStatusMap;
+  /**
+   * 保存cache任务状态
+   */
+  protected Map<String, String> cacheStatusMap;
 
-	public AbstractCacheService() {
-		this.cacheGetterMap = new ConcurrentHashMap<>();
-		this.cacheStoreMap = new ConcurrentHashMap<>();
-		this.lastLogTSMap = new ConcurrentHashMap<>();
-		this.cacheStatsMap = new ConcurrentHashMap<>();
-		this.cacheStatusLockMap = new ConcurrentHashMap<>();
-	}
+  protected final ClientMongoOperator clientMongoOperator;
 
-	private ICacheGetter getCacheGetter(String cacheName) throws InterruptedException {
-		waitCacheNodeCompletedInitialIfNeed(cacheName);
-		return this.cacheGetterMap.computeIfAbsent(cacheName, f -> getCacheGetterInstance(cacheName));
-	}
+  public AbstractCacheService(ClientMongoOperator clientMongoOperator) {
+    this.clientMongoOperator = clientMongoOperator;
+    this.cacheGetterMap = new CacheMap<>();
+    this.cacheGetterMap.destory((k, getter) -> {
+      getter.close();
+      return -1L;
+    }).autoRemove(true).maxSize(100).interval(60).expire(300).create();
+    this.cacheStoreMap = new ConcurrentHashMap<>();
+    this.lastLogTSMap = new ConcurrentHashMap<>();
+    this.cacheStatsMap = new ConcurrentHashMap<>();
+    this.cacheStatusLockMap = new ConcurrentHashMap<>();
+    this.cacheConfigMap = new CacheMap<>();
+    this.cacheConfigMap.autoRemove(true).maxSize(100).interval(60).expire(300).create();
 
-	private Lock getCacheStatusLock(String cacheName) {
-		return this.cacheStatusLockMap.computeIfAbsent(cacheName, f -> getCacheStatusLockInstance(cacheName));
-	}
+  }
 
-	protected abstract Lock getCacheStatusLockInstance(String cacheName);
+  private ICacheGetter getCacheGetter(String cacheName) throws InterruptedException {
+    waitCacheNodeCompletedInitialIfNeed(cacheName);
+    return this.cacheGetterMap.computeIfAbsent(cacheName, f -> getCacheGetterInstance(cacheName));
+  }
 
-	abstract protected ICacheGetter getCacheGetterInstance(String cacheName);
+  private Lock getCacheStatusLock(String cacheName) {
+    return this.cacheStatusLockMap.computeIfAbsent(cacheName, f -> getCacheStatusLockInstance(cacheName));
+  }
 
-	abstract protected ICacheStats getCacheStats(String cacheName);
+  protected abstract Lock getCacheStatusLockInstance(String cacheName);
 
-	abstract protected ICacheStore getCacheStore(String cacheName);
+  abstract protected ICacheGetter getCacheGetterInstance(String cacheName);
 
-	@Override
-	public void registerCache(DataFlowCacheConfig cacheConfig) {
-		String cacheName = cacheConfig.getCacheName();
-		if (this.cacheConfigMap.containsKey(cacheName)) {
-			throw new RuntimeException(String.format("Cache name %s already exists.", cacheName));
-		}
+  abstract protected ICacheStats getCacheStats(String cacheName);
 
-		this.cacheConfigMap.put(cacheName, cacheConfig);
-		this.lastLogTSMap.put(cacheConfig.getCacheName(), 0L);
-		this.cacheStatusMap.put(cacheName, DataFlow.STATUS_RUNNING);
-	}
+  abstract protected ICacheStore getCacheStore(String cacheName);
 
-	@Override
-	public synchronized void destroy(String cacheName) {
-		try {
-			this.getCacheStore(cacheName).destroy();
-			this.cacheStatusMap.remove(cacheName);
-			this.cacheConfigMap.remove(cacheName);
-		} catch (Exception e) {
-			logger.error("cache destroy error: " + cacheName, e);
-		}
-	}
+  @Override
+  public void registerCache(DataFlowCacheConfig cacheConfig) {
+    String cacheName = cacheConfig.getCacheName();
+    String cacheStatus = this.cacheStatusMap.get(cacheName);
+    if (this.cacheConfigMap.containsKey(cacheName) && StringUtils.equalsAnyIgnoreCase(cacheStatus, DataFlow.STATUS_RUNNING)) {
+      throw new RuntimeException(String.format("Cache name %s already exists.", cacheName));
+    }
 
-	@Override
-	public Map<String, Object> getAndSetCache(String cacheName, Boolean lookup, Object... cacheKeys) throws InterruptedException {
-		return getCacheGetter(cacheName).getAndSetCache(cacheName, lookup, cacheKeys);
-	}
+    this.cacheConfigMap.put(cacheName, cacheConfig);
+    this.lastLogTSMap.put(cacheConfig.getCacheName(), 0L);
+    this.cacheStatusMap.put(cacheName, DataFlow.STATUS_RUNNING);
+  }
 
-	@Override
-	public List<Map<String, Object>> getAndSetCacheArray(String cacheName, Boolean lookup, Object... cacheKeys) throws InterruptedException {
-		return getCacheGetter(cacheName).getAndSetCacheArray(cacheName, lookup, cacheKeys);
-	}
+  @Override
+  public synchronized void destroy(String cacheName) {
+    try {
+      this.getCacheStore(cacheName).destroy();
+      this.cacheStatusMap.remove(cacheName);
+      this.cacheConfigMap.remove(cacheName);
+      ICacheGetter cacheGetter = this.cacheGetterMap.remove(cacheName);
+      if (cacheGetter != null) {
+        cacheGetter.close();
+      }
+    } catch (Exception e) {
+      logger.error("cache destroy error: " + cacheName, e);
+    }
+  }
 
-	@Override
-	public Map<String, Object> getCache(String cacheName, Boolean lookup, Object... cacheKeys) throws InterruptedException {
-		return getCacheGetter(cacheName).getCache(cacheName, lookup, cacheKeys);
-	}
+  @Override
+  public Map<String, Object> getAndSetCache(String cacheName, Boolean lookup, Object... cacheKeys) throws InterruptedException {
+    return getCacheGetter(cacheName).getAndSetCache(cacheName, lookup, cacheKeys);
+  }
 
-	@Override
-	public Object getCacheItem(String cacheName, String field, Object defaultValue, Object... cacheKeys) throws InterruptedException {
-		return getCacheGetter(cacheName).getCacheItem(cacheName, field, defaultValue, cacheKeys);
-	}
+  @Override
+  public List<Map<String, Object>> getAndSetCacheArray(String cacheName, Boolean lookup, Object... cacheKeys) throws InterruptedException {
+    return getCacheGetter(cacheName).getAndSetCacheArray(cacheName, lookup, cacheKeys);
+  }
 
-	@Override
-	public DataFlowCacheConfig getConfig(String cacheName) {
-		return cacheConfigMap.get(cacheName);
-	}
+  @Override
+  public Map<String, Object> getCache(String cacheName, Boolean lookup, Object... cacheKeys) throws InterruptedException {
+    return getCacheGetter(cacheName).getCache(cacheName, lookup, cacheKeys);
+  }
 
-	protected Map<String, ICacheStats> getCacheStatsMap() {
-		return cacheStatsMap;
-	}
+  @Override
+  public Object getCacheItem(String cacheName, String field, Object defaultValue, Object... cacheKeys) throws InterruptedException {
+    return getCacheGetter(cacheName).getCacheItem(cacheName, field, defaultValue, cacheKeys);
+  }
 
-	public void setCacheStatsMap(Map<String, ICacheStats> cacheStatsMap) {
-		this.cacheStatsMap = cacheStatsMap;
-	}
+  @Override
+  public DataFlowCacheConfig getConfig(String cacheName) {
+    return cacheConfigMap.get(cacheName);
+  }
+
+  protected Map<String, ICacheStats> getCacheStatsMap() {
+    return cacheStatsMap;
+  }
+
+  public void setCacheStatsMap(Map<String, ICacheStats> cacheStatsMap) {
+    this.cacheStatsMap = cacheStatsMap;
+  }
 
 
-	protected Map<String, ICacheStore> getCacheStoreMap() {
-		return cacheStoreMap;
-	}
+  protected Map<String, ICacheStore> getCacheStoreMap() {
+    return cacheStoreMap;
+  }
 
-	@Override
-	public void cacheRow(String cacheName, String key, List<Map<String, Object>> rows) {
-		getCacheStore(cacheName).cacheRow(cacheName, key, rows);
-	}
+  @Override
+  public void cacheRow(String cacheName, String key, List<Map<String, Object>> rows) {
+    getCacheStore(cacheName).cacheRow(cacheName, key, rows);
+  }
 
-	@Override
-	public void removeByKey(String cacheName, String cacheKey, String pkKey) {
-		getCacheStore(cacheName).removeByKey(cacheName, cacheKey, pkKey);
-	}
+  @Override
+  public void removeByKey(String cacheName, String cacheKey, String pkKey) {
+    getCacheStore(cacheName).removeByKey(cacheName, cacheKey, pkKey);
+  }
 
-	@Override
-	public void updateCacheStatus(String cacheName, String status) {
-		Lock lock = getCacheStatusLock(cacheName);
-		lock.lock();
-		try {
-			this.cacheStatusMap.put(cacheName, status);
-		} finally {
-			lock.unlock();
-		}
-	}
+  @Override
+  public void updateCacheStatus(String cacheName, String status) {
+    Lock lock = getCacheStatusLock(cacheName);
+    lock.lock();
+    try {
+      this.cacheStatusMap.put(cacheName, status);
+    } finally {
+      lock.unlock();
+    }
+  }
 
-	private void waitCacheNodeCompletedInitialIfNeed(String cacheName) throws InterruptedException {
-//    while (this.cacheConfigMap.get(cacheName) == null && !Thread.interrupted()) {
-//      logger.warn("Waiting cache node complete registered: " + cacheName);
-//      TimeUnit.SECONDS.sleep(3L);
-//    }
-		if (this.cacheConfigMap.get(cacheName) == null) {
-			throw new RuntimeException("cache not registered: " + cacheName);
-		}
+  private void waitCacheNodeCompletedInitialIfNeed(String cacheName) throws InterruptedException {
 
-		Lock lock = getCacheStatusLock(cacheName);
-		if (lock.tryLock(1, TimeUnit.SECONDS)) {
-			// 判断任务状态
-			try {
-				String status = this.cacheStatusMap.get(cacheName);
-				if (!StringUtils.equals(status, DataFlow.STATUS_RUNNING)) {
-					throw new RuntimeException("cache not complete initial:" + cacheName);
-				}
-			} finally {
-				lock.unlock();
-			}
-		}
-//    while (!Thread.interrupted()) {
-//      if (lock.tryLock(1, TimeUnit.SECONDS)) {
-//        // 判断任务状态
-//        try {
-//          String status = this.cacheStatusMap.get(cacheName);
-//          if (StringUtils.equals(status, DataFlow.STATUS_RUNNING)) {
-//            break;
-//          }
-//        } finally {
-//          lock.unlock();
-//        }
-//      }
-//      logger.warn("Waiting all cache node complete initial: " + cacheName);
-//
-//      TimeUnit.SECONDS.sleep(3);
-//    }
+    if (this.cacheConfigMap.get(cacheName) == null) {
+      // 如果不存在，则向tm查询
+      SubTaskDto subTaskDto = clientMongoOperator.findOne(new Query(), ConnectorConstant.SUB_TASK_COLLECTION + "/byCacheName/" + cacheName, SubTaskDto.class);
+      DataFlowCacheConfig cacheConfig = CacheUtil.getCacheConfig(subTaskDto, clientMongoOperator);
+      if (cacheConfig == null) {
+        throw new RuntimeException("cache not exist: " + cacheName);
+      }
+      logger.warn("The cache task [{}] is abnormal, query by tm...", cacheName);
+      registerCache(cacheConfig);
+      this.cacheStatusMap.put(cacheName, subTaskDto.getStatus());
+    }
 
-	}
+    Lock lock = getCacheStatusLock(cacheName);
+    if (lock.tryLock(1, TimeUnit.SECONDS)) {
+      // 判断任务状态
+      try {
+        String status = this.cacheStatusMap.get(cacheName);
+        if (!StringUtils.equals(status, DataFlow.STATUS_RUNNING)) {
+//          throw new RuntimeException("cache not complete initial:" + cacheName);
+          //任务状态非正常时，提示用户启动任务，本次查询走查库
+          logger.warn("The cache task [{}] is abnormal, please check", cacheName);
+        }
+      } finally {
+        lock.unlock();
+      }
+    }
+
+  }
 }

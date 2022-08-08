@@ -53,6 +53,10 @@ public class TestItem {
         this.information = information;
     }
 
+    public boolean isSuccess() {
+		return result == RESULT_SUCCESSFULLY || result == RESULT_SUCCESSFULLY_WITH_WARN;
+    }
+
     @Override
     public String toString() {
         return TestItem.class.getSimpleName() + " item " + item +

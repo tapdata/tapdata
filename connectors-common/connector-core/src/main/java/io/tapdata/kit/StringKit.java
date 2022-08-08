@@ -164,4 +164,23 @@ public class StringKit {
             }
         }
     }
+
+    public static boolean isLowerCase(String str) {
+        if (EmptyKit.isNotEmpty(str)) {
+            for (char c : str.toCharArray()) {
+                if (Character.isUpperCase(c)) {
+                    return false;
+                }
+            }
+            return true;
+        }
+        return false;
+    }
+
+    public static int indexOf(String str, String searchStr) {
+        if (EmptyKit.isNotBlank(str) && EmptyKit.isNotBlank(searchStr)) {
+            return str.indexOf(searchStr);
+        }
+        return -1;
+    }
 }
