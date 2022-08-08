@@ -1,0 +1,107 @@
+{
+  "uid" : "a44ad28268ce4dd3",
+  "name" : "filter column in migrate",
+  "fullName" : "test_pipeline.TestPipeline#test_filter_column_migrate",
+  "historyId" : "ffe2c6b086f953ef99089eb3e0dd569a",
+  "time" : {
+    "start" : 1659947866782,
+    "stop" : 1659947866873,
+    "duration" : 91
+  },
+  "status" : "passed",
+  "flaky" : false,
+  "newFailed" : false,
+  "beforeStages" : [ ],
+  "testStage" : {
+    "status" : "passed",
+    "steps" : [ ],
+    "attachments" : [ {
+      "uid" : "56bda86b978492f0",
+      "name" : "stdout",
+      "source" : "56bda86b978492f0.txt",
+      "type" : "text/plain",
+      "size" : 181
+    } ],
+    "parameters" : [ ],
+    "stepsCount" : 0,
+    "attachmentsCount" : 1,
+    "shouldDisplayMessage" : false,
+    "hasContent" : true
+  },
+  "afterStages" : [ ],
+  "labels" : [ {
+    "name" : "feature",
+    "value" : "pipeline"
+  }, {
+    "name" : "suite",
+    "value" : "test_pipeline"
+  }, {
+    "name" : "subSuite",
+    "value" : "TestPipeline"
+  }, {
+    "name" : "host",
+    "value" : "dfca083d15c8"
+  }, {
+    "name" : "thread",
+    "value" : "837-MainThread"
+  }, {
+    "name" : "framework",
+    "value" : "pytest"
+  }, {
+    "name" : "language",
+    "value" : "cpython3"
+  }, {
+    "name" : "package",
+    "value" : "test_pipeline"
+  }, {
+    "name" : "resultFormat",
+    "value" : "allure2"
+  } ],
+  "parameters" : [ ],
+  "links" : [ ],
+  "hidden" : false,
+  "retry" : false,
+  "extra" : {
+    "severity" : "normal",
+    "retries" : [ ],
+    "categories" : [ ],
+    "history" : {
+      "statistic" : {
+        "failed" : 0,
+        "broken" : 0,
+        "skipped" : 0,
+        "passed" : 4,
+        "unknown" : 0,
+        "total" : 4
+      },
+      "items" : [ {
+        "uid" : "8c1d5851e9ccf8ba",
+        "status" : "passed",
+        "time" : {
+          "start" : 1659335458955,
+          "stop" : 1659335459046,
+          "duration" : 91
+        }
+      }, {
+        "uid" : "9697dc4e7a6fbf51",
+        "status" : "passed",
+        "time" : {
+          "start" : 1659118593801,
+          "stop" : 1659118593860,
+          "duration" : 59
+        }
+      }, {
+        "uid" : "38f2484c01d15f80",
+        "status" : "passed",
+        "time" : {
+          "start" : 1657784553033,
+          "stop" : 1657784553106,
+          "duration" : 73
+        }
+      } ]
+    },
+    "tags" : [ ]
+  },
+  "source" : "a44ad28268ce4dd3.json",
+  "parameterValues" : [ ]
+}
