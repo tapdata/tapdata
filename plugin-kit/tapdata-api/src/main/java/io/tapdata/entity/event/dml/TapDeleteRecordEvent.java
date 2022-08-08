@@ -9,12 +9,20 @@ import java.util.Map;
 
 public class TapDeleteRecordEvent extends TapRecordEvent {
 	public static final int TYPE = 301;
+	private Map<String, Object> filter;
+	public TapDeleteRecordEvent filter(Map<String, Object> filter) {
+		this.filter = filter;
+		return this;
+	}
 	private Map<String, Object> before;
 
 	public TapDeleteRecordEvent() {
 		super(TYPE);
 	}
 
+	public static TapDeleteRecordEvent create() {
+		return new TapDeleteRecordEvent().init();
+	}
 	@Override
 	public void clone(TapEvent tapEvent) {
 		super.clone(tapEvent);
@@ -53,7 +61,15 @@ public class TapDeleteRecordEvent extends TapRecordEvent {
 		this.before = before;
 	}
 
-//	@Override
+	public Map<String, Object> getFilter() {
+		return filter;
+	}
+
+	public void setFilter(Map<String, Object> filter) {
+		this.filter = filter;
+	}
+
+	//	@Override
 //	public String toString() {
 //		return "TapDeleteRecordEvent{" +
 //				"before=" + before +

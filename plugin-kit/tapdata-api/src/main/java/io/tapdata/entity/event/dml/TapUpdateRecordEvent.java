@@ -20,6 +20,10 @@ public class TapUpdateRecordEvent extends TapRecordEvent {
 		super(TYPE);
 	}
 
+	public static TapUpdateRecordEvent create() {
+		return new TapUpdateRecordEvent().init();
+	}
+
 	public TapUpdateRecordEvent after(Map<String, Object> after) {
 		this.after = after;
 		return this;
@@ -51,6 +55,12 @@ public class TapUpdateRecordEvent extends TapRecordEvent {
 		return this;
 	}
 
+	private Map<String, Object> filter;
+	public TapUpdateRecordEvent filter(Map<String, Object> filter) {
+		this.filter = filter;
+		return this;
+	}
+
 	@Override
 	public void clone(TapEvent tapEvent) {
 		super.clone(tapEvent);
@@ -60,6 +70,8 @@ public class TapUpdateRecordEvent extends TapRecordEvent {
 				updateRecordEvent.before = InstanceFactory.instance(TapUtils.class).cloneMap(before);
 			if (after != null)
 				updateRecordEvent.after = InstanceFactory.instance(TapUtils.class).cloneMap(after);
+			if (filter != null)
+				updateRecordEvent.filter = InstanceFactory.instance(TapUtils.class).cloneMap(filter);
 		}
 	}
 
@@ -93,7 +105,15 @@ public class TapUpdateRecordEvent extends TapRecordEvent {
 		}
 	}
 
-//	@Override
+	public Map<String, Object> getFilter() {
+		return filter;
+	}
+
+	public void setFilter(Map<String, Object> filter) {
+		this.filter = filter;
+	}
+
+	//	@Override
 //	public String toString() {
 //		return "TapUpdateRecordEvent{" +
 //				"after=" + after +
