@@ -1,6 +1,6 @@
 package io.tapdata.connector.postgres.ddl.sqlmaker;
 
-import io.tapdata.connector.postgres.ddl.DDLSqlMaker;
+import io.tapdata.common.ddl.DDLSqlMaker;
 import io.tapdata.entity.event.ddl.entity.ValueChange;
 import io.tapdata.entity.event.ddl.table.TapAlterFieldAttributesEvent;
 import io.tapdata.entity.event.ddl.table.TapAlterFieldNameEvent;
