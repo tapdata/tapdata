@@ -33,7 +33,7 @@ jobs:
   Integration-Testing:
     runs-on: ubuntu-latest
     needs: Code-Style-Check
-    if: needs.Code-Style-Check.outputs.check-style != 'false
+    if: needs.Code-Style-Check.outputs.check-style != 'false'
     steps:
       - uses: actions/checkout@v3
       - name: Login to the github container registry
