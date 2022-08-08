@@ -1,0 +1,247 @@
+{
+  "uid" : "f4a7e2b67b8a83ca",
+  "name" : "filter row in sync",
+  "fullName" : "test_pipeline.TestPipeline#test_filter_sync",
+  "historyId" : "bed478de98ce244a78658abafc205420",
+  "time" : {
+    "start" : 1659947975956,
+    "stop" : 1659947978397,
+    "duration" : 2441
+  },
+  "status" : "passed",
+  "flaky" : false,
+  "newFailed" : false,
+  "beforeStages" : [ ],
+  "testStage" : {
+    "status" : "passed",
+    "steps" : [ ],
+    "attachments" : [ {
+      "uid" : "a1377d2367b74528",
+      "name" : "stdout",
+      "source" : "a1377d2367b74528.txt",
+      "type" : "text/plain",
+      "size" : 905
+    } ],
+    "parameters" : [ ],
+    "stepsCount" : 0,
+    "attachmentsCount" : 1,
+    "shouldDisplayMessage" : false,
+    "hasContent" : true
+  },
+  "afterStages" : [ ],
+  "labels" : [ {
+    "name" : "feature",
+    "value" : "pipeline"
+  }, {
+    "name" : "suite",
+    "value" : "test_pipeline"
+  }, {
+    "name" : "subSuite",
+    "value" : "TestPipeline"
+  }, {
+    "name" : "host",
+    "value" : "8ab9a6d98c7d"
+  }, {
+    "name" : "thread",
+    "value" : "831-MainThread"
+  }, {
+    "name" : "framework",
+    "value" : "pytest"
+  }, {
+    "name" : "language",
+    "value" : "cpython3"
+  }, {
+    "name" : "package",
+    "value" : "test_pipeline"
+  }, {
+    "name" : "resultFormat",
+    "value" : "allure2"
+  } ],
+  "parameters" : [ ],
+  "links" : [ ],
+  "hidden" : false,
+  "retry" : false,
+  "extra" : {
+    "severity" : "normal",
+    "retries" : [ ],
+    "categories" : [ ],
+    "history" : {
+      "statistic" : {
+        "failed" : 0,
+        "broken" : 4,
+        "skipped" : 0,
+        "passed" : 44,
+        "unknown" : 0,
+        "total" : 48
+      },
+      "items" : [ {
+        "uid" : "dbba03e54d3414d9",
+        "status" : "passed",
+        "time" : {
+          "start" : 1659806787737,
+          "stop" : 1659806790336,
+          "duration" : 2599
+        }
+      }, {
+        "uid" : "a0a43488dea0db55",
+        "status" : "passed",
+        "time" : {
+          "start" : 1659690752590,
+          "stop" : 1659690755022,
+          "duration" : 2432
+        }
+      }, {
+        "uid" : "d1b9026fcf766c53",
+        "status" : "passed",
+        "time" : {
+          "start" : 1659600621377,
+          "stop" : 1659600624174,
+          "duration" : 2797
+        }
+      }, {
+        "uid" : "cf17c9707866cd0e",
+        "status" : "passed",
+        "time" : {
+          "start" : 1659584788605,
+          "stop" : 1659584791373,
+          "duration" : 2768
+        }
+      }, {
+        "uid" : "73019b51b7088233",
+        "status" : "passed",
+        "time" : {
+          "start" : 1659583896789,
+          "stop" : 1659583899201,
+          "duration" : 2412
+        }
+      }, {
+        "uid" : "ec0731d742ec3f25",
+        "status" : "passed",
+        "time" : {
+          "start" : 1659582253248,
+          "stop" : 1659582255774,
+          "duration" : 2526
+        }
+      }, {
+        "uid" : "749880d195aacfa3",
+        "status" : "passed",
+        "time" : {
+          "start" : 1659465761457,
+          "stop" : 1659465763881,
+          "duration" : 2424
+        }
+      }, {
+        "uid" : "401bff7d72163e3d",
+        "status" : "passed",
+        "time" : {
+          "start" : 1659448017573,
+          "stop" : 1659448019859,
+          "duration" : 2286
+        }
+      }, {
+        "uid" : "6290a77d6cc9a3e3",
+        "status" : "broken",
+        "statusDetails" : "IndexError: tuple index out of range",
+        "time" : {
+          "start" : 1659445453509,
+          "stop" : 1659445453770,
+          "duration" : 261
+        }
+      }, {
+        "uid" : "64825154ed691546",
+        "status" : "broken",
+        "statusDetails" : "IndexError: tuple index out of range",
+        "time" : {
+          "start" : 1659444588525,
+          "stop" : 1659444588704,
+          "duration" : 179
+        }
+      }, {
+        "uid" : "5db33b8f5c89eaf5",
+        "status" : "broken",
+        "statusDetails" : "IndexError: tuple index out of range",
+        "time" : {
+          "start" : 1659441989284,
+          "stop" : 1659441989645,
+          "duration" : 361
+        }
+      }, {
+        "uid" : "79c6cc116220f130",
+        "status" : "broken",
+        "statusDetails" : "IndexError: tuple index out of range",
+        "time" : {
+          "start" : 1659438855454,
+          "stop" : 1659438855609,
+          "duration" : 155
+        }
+      }, {
+        "uid" : "7bc06dd22a95d9dc",
+        "status" : "passed",
+        "time" : {
+          "start" : 1659357272242,
+          "stop" : 1659357274664,
+          "duration" : 2422
+        }
+      }, {
+        "uid" : "a93aa767706753ac",
+        "status" : "passed",
+        "time" : {
+          "start" : 1659350646771,
+          "stop" : 1659350649355,
+          "duration" : 2584
+        }
+      }, {
+        "uid" : "b1095d32074a8b42",
+        "status" : "passed",
+        "time" : {
+          "start" : 1659349755849,
+          "stop" : 1659349758586,
+          "duration" : 2737
+        }
+      }, {
+        "uid" : "b664f65e704e675e",
+        "status" : "passed",
+        "time" : {
+          "start" : 1659347131330,
+          "stop" : 1659347134033,
+          "duration" : 2703
+        }
+      }, {
+        "uid" : "bc2c384a0a07a939",
+        "status" : "passed",
+        "time" : {
+          "start" : 1659345427671,
+          "stop" : 1659345430228,
+          "duration" : 2557
+        }
+      }, {
+        "uid" : "3054e88a4cadb125",
+        "status" : "passed",
+        "time" : {
+          "start" : 1659342961192,
+          "stop" : 1659342963619,
+          "duration" : 2427
+        }
+      }, {
+        "uid" : "83f2f217c1a328c",
+        "status" : "passed",
+        "time" : {
+          "start" : 1659341645269,
+          "stop" : 1659341647748,
+          "duration" : 2479
+        }
+      }, {
+        "uid" : "61f007f789b4c4a2",
+        "status" : "passed",
+        "time" : {
+          "start" : 1659340467706,
+          "stop" : 1659340469971,
+          "duration" : 2265
+        }
+      } ]
+    },
+    "tags" : [ ]
+  },
+  "source" : "f4a7e2b67b8a83ca.json",
+  "parameterValues" : [ ]
+}
