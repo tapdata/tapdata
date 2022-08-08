@@ -27,9 +27,14 @@ import com.tapdata.tm.commons.dag.nodes.CacheNode;
 import com.tapdata.tm.commons.dag.nodes.DataNode;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
-import com.tapdata.tm.commons.dag.process.*;
+import com.tapdata.tm.commons.dag.process.MergeTableNode;
+import com.tapdata.tm.commons.dag.process.MigrateFieldRenameProcessorNode;
+import com.tapdata.tm.commons.dag.process.TableRenameProcessNode;
+import com.tapdata.tm.commons.schema.Schema;
+import com.tapdata.tm.commons.schema.SchemaUtils;
 import com.tapdata.tm.commons.task.dto.SubTaskDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
+import com.tapdata.tm.commons.util.PdkSchemaConvert;
 import io.tapdata.aspect.TaskStartAspect;
 import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.common.SettingService;
@@ -182,15 +187,19 @@ public class HazelcastTaskService implements TaskService<SubTaskDto> {
 				Connections connection = null;
 				DatabaseTypeEnum.DatabaseType databaseType = null;
 				TapTableMap<String, TapTable> tapTableMap;
-				if ((node instanceof MigrateJsProcessorNode || node instanceof JsProcessorNode)
-						&& StringUtils.equalsAnyIgnoreCase(subTaskDto.getParentTask().getSyncType(), TaskDto.SYNC_TYPE_DEDUCE_SCHEMA)) {
+				if (StringUtils.equalsAnyIgnoreCase(subTaskDto.getParentTask().getSyncType(), TaskDto.SYNC_TYPE_DEDUCE_SCHEMA)) {
 					//模型推演阶段，如果没有模型取上一个节点的模型
-					List<Node> predecessors = node.predecessors();
-					if (predecessors.size() != 1) {
-						throw new IllegalArgumentException("Node [" + node.getId() + "] has more than one predecessor");
+					Schema schema = (Schema) node.getSchema();
+					if (schema == null) {
+						List inputSchema = node.getInputSchema();
+						schema = SchemaUtils.mergeSchema(inputSchema, null);
 					}
-					Map<String, String> nameQualifiedNameMap = TapTableUtil.getTableNameQualifiedNameMap(predecessors.get(0).getId());
-					tapTableMap = TapTableMap.create(node.getId(), nameQualifiedNameMap);
+					if (schema != null) {
+						TapTable tapTable = PdkSchemaConvert.toPdk(schema);
+						tapTableMap = TapTableMap.create(node.getId(), tapTable);
+					} else {
+						tapTableMap = TapTableMap.create(node.getId());
+					}
 				} else {
 					tapTableMap = TapTableUtil.getTapTableMapByNodeId(node.getId(), tmCurrentTime);
 				}

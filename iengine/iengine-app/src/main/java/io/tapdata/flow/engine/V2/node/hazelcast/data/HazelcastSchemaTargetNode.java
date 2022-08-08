@@ -5,25 +5,24 @@ import com.hazelcast.jet.core.Inbox;
 import com.tapdata.entity.TapdataEvent;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.tm.commons.dag.Node;
-import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
-import com.tapdata.tm.commons.dag.process.ProcessorNode;
-import com.tapdata.tm.commons.task.dto.TaskDto;
+import com.tapdata.tm.commons.schema.Schema;
+import com.tapdata.tm.commons.schema.SchemaUtils;
+import com.tapdata.tm.commons.util.PdkSchemaConvert;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.value.TapValue;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
-import io.tapdata.schema.TapTableMap;
-import io.tapdata.schema.TapTableUtil;
-import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.MapUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.NotNull;
 import org.voovan.tools.collection.CacheMap;
 
-import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 
 import static com.hazelcast.jet.impl.util.ExceptionUtil.sneakyThrow;
 
@@ -39,8 +38,7 @@ public class HazelcastSchemaTargetNode extends HazelcastVirtualTargetNode {
 
 	private final String schemaKey;
 
-	private final Node<?> prePreNode;
-	private final TapTableMap<String, TapTable> prePreNodeTapTableMap;
+	private final TapTable oldTapTable;
 
 	static {
 		tabTableCacheMap.maxSize(100).autoRemove(true).expire(600).interval(60).create();
@@ -60,18 +58,22 @@ public class HazelcastSchemaTargetNode extends HazelcastVirtualTargetNode {
 		super(dataProcessorContext);
 		this.schemaKey = dataProcessorContext.getSubTaskDto().getId().toHexString() + "-" + dataProcessorContext.getNode().getId();
 
-		List<Node<?>> preNodes = getNode().predecessors();
+		List<Node<Schema>> preNodes = getNode().predecessors();
 		if (preNodes.size() != 1) {
 			throw new IllegalArgumentException("HazelcastSchemaTargetNode only allows one predecessor node");
 		}
-		Node<?> deductionSchemaNode = preNodes.get(0);
-		List<? extends Node<?>> prePreNodes = deductionSchemaNode.predecessors();
-		if (prePreNodes.size() != 1) {
-			throw new IllegalArgumentException("The front node of HazelcastSchemaTargetNode only allows one front node");
-		}
-		this.prePreNode = prePreNodes.get(0);
-		//js节点之前的节点的模型
-		this.prePreNodeTapTableMap = TapTableUtil.getTapTableMapByNodeId("SCHEMA_", prePreNode.getId(), null);
+		Node<Schema> deductionSchemaNode = preNodes.get(0);
+		List<Schema> inputSchema = deductionSchemaNode.getInputSchema();
+		Schema schema = SchemaUtils.mergeSchema(inputSchema, null);
+		this.oldTapTable = PdkSchemaConvert.toPdk(schema);
+
+//		List<? extends Node<?>> prePreNodes = deductionSchemaNode.predecessors();
+//		if (prePreNodes.size() != 1) {
+//			throw new IllegalArgumentException("The front node of HazelcastSchemaTargetNode only allows one front node");
+//		}
+//		this.prePreNode = prePreNodes.get(0);
+//		//js节点之前的节点的模型
+//		this.prePreNodeTapTableMap = TapTableUtil.getTapTableMapByNodeId("SCHEMA_", prePreNode.getId(), null);
 	}
 
 	@Override
@@ -97,11 +99,17 @@ public class HazelcastSchemaTargetNode extends HazelcastVirtualTargetNode {
 							}
 							// 解析模型
 							TapTable tapTable = getNewTapTable(tapEvent);
-							tabTableCacheMap.put(schemaKey, tapTable);
+//							if (StringUtils.equalsAnyIgnoreCase(processorBaseContext.getSubTaskDto().getParentTask().getSyncType(),
+//											TaskDto.SYNC_TYPE_DEDUCE_SCHEMA)) {
+								tabTableCacheMap.put(schemaKey, tapTable);
+//							}
 
-							// 获取差异模型
-							List<SchemaApplyResult> schemaApplyResults = getSchemaApplyResults(tapEvent, tapTable);
-							schemaApplyResultMap.put(schemaKey, schemaApplyResults);
+//							if (StringUtils.equalsAnyIgnoreCase(processorBaseContext.getSubTaskDto().getParentTask().getSyncType(),
+//											TaskDto.SYNC_TYPE_DEDUCE_SCHEMA)) {
+								// 获取差异模型
+								List<SchemaApplyResult> schemaApplyResults = getSchemaApplyResults(tapTable);
+								schemaApplyResultMap.put(schemaKey, schemaApplyResults);
+//							}
 						}
 
 					} else {
@@ -113,12 +121,6 @@ public class HazelcastSchemaTargetNode extends HazelcastVirtualTargetNode {
 			logger.error("Target process failed {}", e.getMessage(), e);
 			throw sneakyThrow(e);
 		}
-	}
-
-	@Override
-	protected void doClose() throws Exception {
-		super.doClose();
-		Optional.ofNullable(this.prePreNodeTapTableMap).ifPresent(TapTableMap::reset);
 	}
 
 	@NotNull
@@ -145,11 +147,11 @@ public class HazelcastSchemaTargetNode extends HazelcastVirtualTargetNode {
 	}
 
 	@NotNull
-	private List<SchemaApplyResult> getSchemaApplyResults(TapRecordEvent tapEvent, TapTable tapTable) {
+	private List<SchemaApplyResult> getSchemaApplyResults(TapTable tapTable) {
 		List<SchemaApplyResult> schemaApplyResults = new ArrayList<>();
 
 		LinkedHashMap<String, TapField> newNameFieldMap = tapTable.getNameFieldMap();
-		LinkedHashMap<String, TapField> oldNameFieldMap = getOldNameFieldMap(tapEvent);
+		LinkedHashMap<String, TapField> oldNameFieldMap = getOldNameFieldMap();
 		if (MapUtils.isNotEmpty(newNameFieldMap) && MapUtils.isNotEmpty(oldNameFieldMap)) {
 			for (Map.Entry<String, TapField> entry : newNameFieldMap.entrySet()) {
 				String newFieldName = entry.getKey();
@@ -177,17 +179,7 @@ public class HazelcastSchemaTargetNode extends HazelcastVirtualTargetNode {
 		return schemaApplyResults;
 	}
 
-	private LinkedHashMap<String, TapField> getOldNameFieldMap(TapRecordEvent tapEvent) {
-		TapTable oldTapTable;
-		if (this.prePreNode instanceof ProcessorNode) {
-			if (multipleTables) {
-				oldTapTable = prePreNodeTapTableMap.get(tapEvent.getTableId());
-			} else {
-				oldTapTable = prePreNodeTapTableMap.get(prePreNode.getId());
-			}
-		} else {
-			oldTapTable = prePreNodeTapTableMap.get(tapEvent.getTableId());
-		}
+	private LinkedHashMap<String, TapField> getOldNameFieldMap() {
 		if (oldTapTable == null) {
 			return null;
 		}
