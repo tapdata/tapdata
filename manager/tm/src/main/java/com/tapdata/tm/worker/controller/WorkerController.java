@@ -291,7 +291,7 @@ public class WorkerController extends BaseController {
             operation = com.tapdata.tm.userLog.constant.Operation.STOP;
         }
         boolean isTcmRequest = update.containsKey("isTCM") && update.getBoolean("isTCM");
-        if (isTcmRequest) {
+        if (isTcmRequest && operation != null) {
             try {
                 Filter filter = new Filter();
                 filter.setWhere(where);

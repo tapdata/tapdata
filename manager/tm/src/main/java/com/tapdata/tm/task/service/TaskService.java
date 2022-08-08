@@ -61,6 +61,8 @@ import com.tapdata.tm.task.vo.ShareCacheVo;
 import com.tapdata.tm.task.vo.TaskDetailVo;
 import com.tapdata.tm.transform.service.MetadataTransformerItemService;
 import com.tapdata.tm.transform.service.MetadataTransformerService;
+import com.tapdata.tm.userLog.constant.Modular;
+import com.tapdata.tm.userLog.service.UserLogService;
 import com.tapdata.tm.utils.*;
 import lombok.*;
 import lombok.extern.slf4j.Slf4j;
@@ -115,6 +117,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     private FileService fileService1;
     private MongoTemplate mongoTemplate;
     private static ThreadPoolExecutor completableFutureThreadPool;
+    private UserLogService userLogService;
 
     static {
         int poolSize = Runtime.getRuntime().availableProcessors();
@@ -689,7 +692,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                 attrs = new HashMap<>();
                 taskDto.setAttrs(attrs);
             }
-            SubTaskDto subTaskDto = subTaskSaves.get(0);
+            SubTaskDto subTaskDto = subTaskSaves.size() > 0 ? subTaskSaves.get(0) : null;
             if (subTaskDto != null) {
                 attrs.put(LOG_COLLECTOR_SAVE_ID, subTaskSaves.get(0).getId().toHexString());
             }
@@ -1027,6 +1030,8 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             taskDto.setDag(build);
         }
 
+        String originalName = taskDto.getName();
+
         //将任务id设置为null,状态改为编辑中
         taskDto.setId(null);
 
@@ -1060,6 +1065,13 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         checkDagAgentConflict(taskDto, false);
         taskDto = taskService.confirmById(taskDto, user, true, true);
         //taskService.flushStatus(taskDto, user);
+
+        try {
+            userLogService.addUserLog(Modular.MIGRATION, com.tapdata.tm.userLog.constant.Operation.COPY, user, id.toHexString(), originalName, taskDto.getName(), false);
+        } catch (Exception e) {
+            log.error("Logging to copy task fail", e);
+        }
+
         return taskDto;
     }
 
@@ -1410,12 +1422,14 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         }
     }
 
-    public void batchDelete(List<ObjectId> taskIds, UserDetail user) {
+    public List<TaskDto> batchDelete(List<ObjectId> taskIds, UserDetail user) {
+        List<TaskDto> deleteTasks = new ArrayList<>();
         for (ObjectId taskId : taskIds) {
             try {
-                remove(taskId, user);
+                TaskDto taskDto = remove(taskId, user);
                 //todo  需不需要手动删除
                 inspectService.deleteByTaskId(taskId.toString());
+                deleteTasks.add(taskDto);
             } catch (Exception e) {
 
                 log.warn("delete task exception, task id = {}, e = {}", taskId, e);
@@ -1424,6 +1438,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                 }
             }
         }
+        return deleteTasks;
     }
 
     public void batchRenew(List<ObjectId> taskIds, UserDetail user) {

@@ -128,6 +128,29 @@ public class TaskAop {
         }
     }
 
+    @Pointcut("execution(* com.tapdata.tm.task.service.TaskService.confirmById(..))")
+    public void confirmById() {
+
+    }
+    @After(value = "confirmById()")
+    public void afterConfirmById(JoinPoint joinPoint) {
+        Object[] args = joinPoint.getArgs();
+
+        if (args.length != 3) {
+            return;
+        }
+
+        TaskDto taskDto = (TaskDto) args[0];
+        UserDetail userDetail = (UserDetail) args[1];
+
+        if (userDetail != null && taskDto != null) {
+            String taskId = taskDto.getId() != null ? taskDto.getId().toHexString() : null;
+            userLogService.addUserLog(Modular.MIGRATION, Operation.UPDATE, userDetail, taskId, taskDto.getName());
+        } else {
+            log.warn("Ignore logging to update task action log when params is null.");
+        }
+    }
+
     @Pointcut("execution(* com.tapdata.tm.task.service.TaskService.start(..))")
     public void startTask() {
 
@@ -150,39 +173,23 @@ public class TaskAop {
         }
     }
 
-    @Pointcut("execution(* com.tapdata.tm.task.service.TaskService.remove(..))")
-    public void remove() {
+    @Pointcut("execution(* com.tapdata.tm.task.service.TaskService.batchDelete(..))")
+    public void batchDelete() {
 
     }
-    @AfterReturning(value = "remove()", returning = "taskDto")
-    public void afterRemove(JoinPoint joinPoint, TaskDto taskDto) {
+    @AfterReturning(value = "batchDelete()", returning = "deleteTasks")
+    public void afterBatchDelete(JoinPoint joinPoint, List<TaskDto> deleteTasks) {
         Object[] args = joinPoint.getArgs();
         UserDetail userDetail = null;
         if (args!= null && args.length > 1)
             userDetail = (UserDetail) args[1];
 
-        if (userDetail != null && taskDto != null) {
-            String taskId = taskDto.getId() != null ? taskDto.getId().toHexString() : null;
-            userLogService.addUserLog(Modular.MIGRATION, Operation.DELETE, userDetail, taskId, taskDto.getName());
-        } else {
-            log.warn("Ignore logging to delete task action log when params is null.");
-        }
-    }
-
-    @Pointcut("execution(* com.tapdata.tm.task.service.TaskService.copy(..))")
-    public void copy() {
-
-    }
-    @AfterReturning(value = "copy()", returning = "taskDto")
-    public void afterCopy(JoinPoint joinPoint, TaskDto taskDto) {
-        Object[] args = joinPoint.getArgs();
-        UserDetail userDetail = null;
-        if (args!= null && args.length > 1)
-            userDetail = (UserDetail) args[1];
-
-        if (userDetail != null && taskDto != null) {
-            String taskId = taskDto.getId() != null ? taskDto.getId().toHexString() : null;
-            userLogService.addUserLog(Modular.MIGRATION, Operation.COPY, userDetail, taskId, taskDto.getName());
+        if (userDetail != null && deleteTasks != null && deleteTasks.size() > 0) {
+            UserDetail finalUserDetail = userDetail;
+            deleteTasks.forEach(taskDto -> {
+                String taskId = taskDto.getId() != null ? taskDto.getId().toHexString() : null;
+                userLogService.addUserLog(Modular.MIGRATION, Operation.DELETE, finalUserDetail, taskId, taskDto.getName());
+            });
         } else {
             log.warn("Ignore logging to delete task action log when params is null.");
         }
