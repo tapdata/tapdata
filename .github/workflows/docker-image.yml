@@ -9,7 +9,6 @@ on:
 env:
   REGISTRY: ghcr.io
   TEST_DATABASE: ${{ secrets.TEST_DATABASE }}
-  STYLE_CHECK_PASS: "1"
 
 
 jobs:
@@ -95,4 +94,3 @@ jobs:
         run: |
           BRANCH_DIR=`echo $BRANCH | sed "s:/:-:g"`
           echo "[Click to view test report](https://tapdata.github.io/tapdata/$BRANCH_DIR/$RUN_SIGN)" >> $GITHUB_STEP_SUMMARY
-
