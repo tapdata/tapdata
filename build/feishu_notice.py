@@ -12,7 +12,7 @@ MAX_LENGTH = 30
 CURRENT_PATH = os.path.dirname(os.path.abspath(__file__))
 ROOT_PATH = "/".join([CURRENT_PATH, ".."])
 OWNER = 'tapdata'
-REPO = 'tapdata-enterprise'
+REPO = 'tapdata'
 
 
 class GithubActionApi:
