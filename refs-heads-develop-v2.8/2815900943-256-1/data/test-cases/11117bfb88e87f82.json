@@ -1,0 +1,72 @@
+{
+  "uid" : "11117bfb88e87f82",
+  "name" : "rename column in migrate",
+  "fullName" : "test_pipeline.TestPipeline#test_rename_migrate",
+  "historyId" : "8dd3f624d11c5720d053b586d1c6f961",
+  "time" : {
+    "start" : 1659941337882,
+    "stop" : 1659941337943,
+    "duration" : 61
+  },
+  "status" : "passed",
+  "flaky" : false,
+  "newFailed" : false,
+  "beforeStages" : [ ],
+  "testStage" : {
+    "status" : "passed",
+    "steps" : [ ],
+    "attachments" : [ {
+      "uid" : "e9440135d4df756c",
+      "name" : "stdout",
+      "source" : "e9440135d4df756c.txt",
+      "type" : "text/plain",
+      "size" : 181
+    } ],
+    "parameters" : [ ],
+    "stepsCount" : 0,
+    "attachmentsCount" : 1,
+    "shouldDisplayMessage" : false,
+    "hasContent" : true
+  },
+  "afterStages" : [ ],
+  "labels" : [ {
+    "name" : "feature",
+    "value" : "pipeline"
+  }, {
+    "name" : "suite",
+    "value" : "test_pipeline"
+  }, {
+    "name" : "subSuite",
+    "value" : "TestPipeline"
+  }, {
+    "name" : "host",
+    "value" : "20fb3c2fc55b"
+  }, {
+    "name" : "thread",
+    "value" : "828-MainThread"
+  }, {
+    "name" : "framework",
+    "value" : "pytest"
+  }, {
+    "name" : "language",
+    "value" : "cpython3"
+  }, {
+    "name" : "package",
+    "value" : "test_pipeline"
+  }, {
+    "name" : "resultFormat",
+    "value" : "allure2"
+  } ],
+  "parameters" : [ ],
+  "links" : [ ],
+  "hidden" : false,
+  "retry" : false,
+  "extra" : {
+    "severity" : "normal",
+    "retries" : [ ],
+    "categories" : [ ],
+    "tags" : [ ]
+  },
+  "source" : "11117bfb88e87f82.json",
+  "parameterValues" : [ ]
+}
