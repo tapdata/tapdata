@@ -9,6 +9,7 @@ on:
 env:
   REGISTRY: ghcr.io
   TEST_DATABASE: ${{ secrets.TEST_DATABASE }}
+  STYLE_CHECK_PASS: "1"
 
 
 jobs:
@@ -23,10 +24,13 @@ jobs:
             (!startsWith(github.event.head_commit.message, 'test')) &&
             (!startsWith(github.event.head_commit.message, 'chore')) &&
             (!startsWith(github.event.head_commit.message, 'Merge'))
-        run: echo ${{ github.event.head_commit.message }} exit 1
+        run: |
+          echo ${{ github.event.head_commit.message }}
+          echo "STYLE_CHECK_PASS=0" >> $GITHUB_ENV
 
   Integration-Testing:
     runs-on: ubuntu-latest
+    if: ${{ env.STYLE_CHECK_PASS == "1" }}
     needs: Code-Style-Check
     steps:
       - uses: actions/checkout@v3
