@@ -6,6 +6,6 @@ import lombok.Data;
 import java.util.HashMap;
 import java.util.Map;
 
-@Schema(description = "批处理请求参数dto")
+@Schema(description = "批处理请求参数dto Map格式 {k:v}")
 public class BatchRequestDto extends HashMap<String, Object> {
 }
