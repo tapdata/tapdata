@@ -6,9 +6,9 @@ on:
   pull_request:
     branches: [ "master", "release-v*.*.*", "develop-v*.*.0", "develop-v*.*", "release-v*.*" ]
   schedule:
-    - cron: "30 9 * * *"
-    - cron: "30 12 * * *"
     - cron: "30 17 * * *"
+    - cron: "30 20 * * *"
+    - cron: "30 1 * * *"
 
 env:
   REGISTRY: ghcr.io
@@ -24,24 +24,32 @@ jobs:
   Code-Style-Check:
     runs-on: ubuntu-latest
     outputs:
-      check-style: ${{ steps.check-style.outputs.pass }}
+      check-style: ${{ steps.check-style.outputs.error }}
     steps:
+      - name: Checkout Code to Get Message
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      - name: Set env
+        run: |
+          message=`git log -1 --pretty=%B`
+          echo "COMMIT_MESSAGE=$message" >> $GITHUB_ENV
       - name: check commit message
         id: check-style
-        if: (!startsWith(github.event.head_commit.message, 'feat')) && 
-            (!startsWith(github.event.head_commit.message, 'fix')) &&
-            (!startsWith(github.event.head_commit.message, 'refactor')) &&
-            (!startsWith(github.event.head_commit.message, 'test')) &&
-            (!startsWith(github.event.head_commit.message, 'chore')) &&
-            (!startsWith(github.event.head_commit.message, 'Merge'))
+        if: (!startsWith(env.COMMIT_MESSAGE, 'feat')) && 
+            (!startsWith(env.COMMIT_MESSAGE, 'fix')) &&
+            (!startsWith(env.COMMIT_MESSAGE, 'refactor')) &&
+            (!startsWith(env.COMMIT_MESSAGE, 'test')) &&
+            (!startsWith(env.COMMIT_MESSAGE, 'chore')) &&
+            (!startsWith(env.COMMIT_MESSAGE, 'Merge'))
         run: |
-          echo ${{ github.event.head_commit.message }}
-          echo "::set-output name=pass::false"
+          echo ${{ env.COMMIT_MESSAGE }}
+          echo "::set-output name=error::true"
 
   Integration-Testing:
     runs-on: ubuntu-latest
     needs: Code-Style-Check
-    if: needs.Code-Style-Check.outputs.check-style != 'false'
+    if: needs.Code-Style-Check.outputs.check-style != 'true'
     steps:
       - name: Set Env if Push
         if: ${{ github.event_name == 'push' }}
