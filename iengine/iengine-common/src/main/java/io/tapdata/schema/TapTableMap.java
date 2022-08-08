@@ -47,6 +47,16 @@ public class TapTableMap<K extends String, V extends TapTable> extends HashMap<K
 
 	}
 
+	public static TapTableMap<String, TapTable> create(String nodeId) {
+		TapTableMap<String, TapTable> tapTableMap = new TapTableMap<>();
+		tapTableMap
+						.nodeId(nodeId)
+						.time(null)
+						.tableNameAndQualifiedNameMap(new HashMap<>())
+						.init(null);
+		return tapTableMap;
+	}
+
 	public static TapTableMap<String, TapTable> create(String nodeId, Map<String, String> tableNameAndQualifiedNameMap) {
 		return create(nodeId, tableNameAndQualifiedNameMap, null);
 	}
@@ -63,6 +73,27 @@ public class TapTableMap<K extends String, V extends TapTable> extends HashMap<K
 				.time(time)
 				.init(prefix);
 		EhcacheService.getInstance().getEhcacheKVMap(tapTableMap.mapKey).clear();
+		return tapTableMap;
+	}
+
+	public static TapTableMap<String, TapTable> create(String nodeId, TapTable tapTable) {
+		return create(nodeId, Collections.singletonList(tapTable), null);
+	}
+	public static TapTableMap<String, TapTable> create(String nodeId, List<TapTable> tapTableList, Long time) {
+		TapTableMap<String, TapTable> tapTableMap = new TapTableMap<>();
+
+		HashMap<String, String> tableNameAndQualifiedNameMap = new HashMap<>();
+		for (TapTable tapTable : tapTableList) {
+			tableNameAndQualifiedNameMap.put(tapTable.getName(), tapTable.getId());
+		}
+		tapTableMap
+						.nodeId(nodeId)
+						.time(time)
+						.tableNameAndQualifiedNameMap(tableNameAndQualifiedNameMap)
+						.init(null);
+		for (TapTable tapTable : tapTableList) {
+			tapTableMap.put(tapTable.getName(), tapTable);
+		}
 		return tapTableMap;
 	}
 
