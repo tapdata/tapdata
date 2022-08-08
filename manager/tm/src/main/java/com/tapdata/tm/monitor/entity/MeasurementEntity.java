@@ -61,6 +61,9 @@ public class MeasurementEntity {
                     if(number == null) {
                         number = entry.getValue();
                     } else {
+                        if (null == entry.getValue()) {
+                            continue;
+                        }
                         number = NumberUtils.addNumbers(number, entry.getValue());
                     }
                     keyValueMap.put(entry.getKey(), number);
