@@ -1,0 +1,91 @@
+{
+  "uid" : "1b99b5e0908056c8",
+  "name" : "test_check",
+  "fullName" : "test_pipeline.TestPipeline#test_check",
+  "historyId" : "fa38c78c99c895035a3d9c2796cb8195",
+  "time" : {
+    "start" : 1659945289356,
+    "stop" : 1659945290724,
+    "duration" : 1368
+  },
+  "status" : "passed",
+  "flaky" : false,
+  "newFailed" : false,
+  "beforeStages" : [ ],
+  "testStage" : {
+    "status" : "passed",
+    "steps" : [ ],
+    "attachments" : [ {
+      "uid" : "52fa900082b227a0",
+      "name" : "stdout",
+      "source" : "52fa900082b227a0.txt",
+      "type" : "text/plain",
+      "size" : 1448
+    } ],
+    "parameters" : [ ],
+    "stepsCount" : 0,
+    "attachmentsCount" : 1,
+    "shouldDisplayMessage" : false,
+    "hasContent" : true
+  },
+  "afterStages" : [ ],
+  "labels" : [ {
+    "name" : "feature",
+    "value" : "pipeline"
+  }, {
+    "name" : "suite",
+    "value" : "test_pipeline"
+  }, {
+    "name" : "subSuite",
+    "value" : "TestPipeline"
+  }, {
+    "name" : "host",
+    "value" : "aead76bd2700"
+  }, {
+    "name" : "thread",
+    "value" : "508-MainThread"
+  }, {
+    "name" : "framework",
+    "value" : "pytest"
+  }, {
+    "name" : "language",
+    "value" : "cpython3"
+  }, {
+    "name" : "package",
+    "value" : "test_pipeline"
+  }, {
+    "name" : "resultFormat",
+    "value" : "allure2"
+  } ],
+  "parameters" : [ ],
+  "links" : [ ],
+  "hidden" : false,
+  "retry" : false,
+  "extra" : {
+    "severity" : "normal",
+    "retries" : [ ],
+    "categories" : [ ],
+    "history" : {
+      "statistic" : {
+        "failed" : 0,
+        "broken" : 0,
+        "skipped" : 0,
+        "passed" : 2,
+        "unknown" : 0,
+        "total" : 2
+      },
+      "items" : [ {
+        "uid" : "9aa960df57b667bb",
+        "status" : "passed",
+        "time" : {
+          "start" : 1659944535948,
+          "stop" : 1659944537799,
+          "duration" : 1851
+        }
+      } ]
+    },
+    "tags" : [ ]
+  },
+  "source" : "1b99b5e0908056c8.json",
+  "parameterValues" : [ ]
+}

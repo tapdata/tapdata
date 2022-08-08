@@ -1,0 +1,91 @@
+{
+  "uid" : "23f5fd12cb57fdab",
+  "name" : "filter column in migrate",
+  "fullName" : "test_pipeline.TestPipeline#test_filter_column_migrate",
+  "historyId" : "ffe2c6b086f953ef99089eb3e0dd569a",
+  "time" : {
+    "start" : 1659945271317,
+    "stop" : 1659945271388,
+    "duration" : 71
+  },
+  "status" : "passed",
+  "flaky" : false,
+  "newFailed" : false,
+  "beforeStages" : [ ],
+  "testStage" : {
+    "status" : "passed",
+    "steps" : [ ],
+    "attachments" : [ {
+      "uid" : "1896d849a80d554c",
+      "name" : "stdout",
+      "source" : "1896d849a80d554c.txt",
+      "type" : "text/plain",
+      "size" : 181
+    } ],
+    "parameters" : [ ],
+    "stepsCount" : 0,
+    "attachmentsCount" : 1,
+    "shouldDisplayMessage" : false,
+    "hasContent" : true
+  },
+  "afterStages" : [ ],
+  "labels" : [ {
+    "name" : "feature",
+    "value" : "pipeline"
+  }, {
+    "name" : "suite",
+    "value" : "test_pipeline"
+  }, {
+    "name" : "subSuite",
+    "value" : "TestPipeline"
+  }, {
+    "name" : "host",
+    "value" : "aead76bd2700"
+  }, {
+    "name" : "thread",
+    "value" : "508-MainThread"
+  }, {
+    "name" : "framework",
+    "value" : "pytest"
+  }, {
+    "name" : "language",
+    "value" : "cpython3"
+  }, {
+    "name" : "package",
+    "value" : "test_pipeline"
+  }, {
+    "name" : "resultFormat",
+    "value" : "allure2"
+  } ],
+  "parameters" : [ ],
+  "links" : [ ],
+  "hidden" : false,
+  "retry" : false,
+  "extra" : {
+    "severity" : "normal",
+    "retries" : [ ],
+    "categories" : [ ],
+    "history" : {
+      "statistic" : {
+        "failed" : 0,
+        "broken" : 0,
+        "skipped" : 0,
+        "passed" : 2,
+        "unknown" : 0,
+        "total" : 2
+      },
+      "items" : [ {
+        "uid" : "db8434d138083e14",
+        "status" : "passed",
+        "time" : {
+          "start" : 1659944509829,
+          "stop" : 1659944509958,
+          "duration" : 129
+        }
+      } ]
+    },
+    "tags" : [ ]
+  },
+  "source" : "23f5fd12cb57fdab.json",
+  "parameterValues" : [ ]
+}
