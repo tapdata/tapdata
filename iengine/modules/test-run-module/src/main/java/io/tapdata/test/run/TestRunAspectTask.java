@@ -27,7 +27,7 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
-@AspectTaskSession(includeTypes = TaskDto.SYNC_TYPE_TEST_RUN)
+@AspectTaskSession(includeTypes = TaskDto.SYNC_TYPE_TEST_RUN, order = Integer.MAX_VALUE)
 public class TestRunAspectTask extends AspectTask {
 
   private final ClassHandlers observerClassHandlers = new ClassHandlers();
