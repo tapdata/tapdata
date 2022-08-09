@@ -1,6 +1,5 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
 	<groupId>io.tapdata</groupId>
 	<modelVersion>4.0.0</modelVersion>
     <artifactId>connectors</artifactId>
@@ -21,7 +20,7 @@
         <module>rocketmq-connector</module>
 		<module>activemq-connector</module>
 		<module>clickhouse-connector</module>
-	</modules>
+  </modules>
 	<properties>
 		<connector.file.name>${project.artifactId}-v${project.version}</connector.file.name>
 		<java.version>8</java.version>
@@ -141,4 +140,3 @@
         </repository>
     </distributionManagement>
 </project>
-

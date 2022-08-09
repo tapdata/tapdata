@@ -1,19 +1,21 @@
 package io.tapdata.entity.event.dml;
 
 
+import io.tapdata.entity.error.CoreException;
+import io.tapdata.entity.error.TapAPIErrorCodes;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.entity.utils.TapUtils;
 
+import java.util.Collection;
+import java.util.Collections;
 import java.util.Map;
+
+import static io.tapdata.entity.simplify.TapSimplify.map;
 
 public class TapDeleteRecordEvent extends TapRecordEvent {
 	public static final int TYPE = 301;
 	private Map<String, Object> filter;
-	public TapDeleteRecordEvent filter(Map<String, Object> filter) {
-		this.filter = filter;
-		return this;
-	}
 	private Map<String, Object> before;
 
 	public TapDeleteRecordEvent() {
@@ -61,12 +63,22 @@ public class TapDeleteRecordEvent extends TapRecordEvent {
 		this.before = before;
 	}
 
-	public Map<String, Object> getFilter() {
+	public Map<String, Object> getFilter(Collection<String> primaryKeys) {
+		if(primaryKeys == null || primaryKeys.isEmpty())
+			throw new CoreException(TapAPIErrorCodes.ERROR_NO_PRIMARY_KEYS, "TapDeleteRecordEvent: no primary keys for tableId {} before {}", tableId, before);
+		if(filter == null) {
+			filter = map();
+			for(String key : primaryKeys) {
+				Object value = null;
+				if(before != null)
+					value = before.get(key);
+				if(value != null)
+					filter.put(key, value);
+				else
+					throw new CoreException(TapAPIErrorCodes.ERROR_MISSING_PRIMARY_VALUE, "TapDeleteRecordEvent: primary key {} is missing value from before {}, all primary keys {} tableId {}", key, before, primaryKeys, tableId);
+			}
+		}
 		return filter;
-	}
-
-	public void setFilter(Map<String, Object> filter) {
-		this.filter = filter;
 	}
 
 	//	@Override
