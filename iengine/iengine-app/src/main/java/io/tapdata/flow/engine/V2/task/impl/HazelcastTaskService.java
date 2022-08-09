@@ -27,7 +27,9 @@ import com.tapdata.tm.commons.dag.nodes.CacheNode;
 import com.tapdata.tm.commons.dag.nodes.DataNode;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
-import com.tapdata.tm.commons.dag.process.*;
+import com.tapdata.tm.commons.dag.process.MergeTableNode;
+import com.tapdata.tm.commons.dag.process.MigrateFieldRenameProcessorNode;
+import com.tapdata.tm.commons.dag.process.TableRenameProcessNode;
 import com.tapdata.tm.commons.task.dto.SubTaskDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.aspect.TaskStartAspect;
@@ -136,9 +138,7 @@ public class HazelcastTaskService implements TaskService<SubTaskDto> {
 	public TaskClient<SubTaskDto> startTestTask(SubTaskDto subTaskDto) {
 		long startTs = System.currentTimeMillis();
 		final JetDag jetDag = task2HazelcastDAG(subTaskDto);
-//		MilestoneFlowServiceJetV2 milestoneFlowServiceJetV2 = initMilestone(subTaskDto);
 		JobConfig jobConfig = new JobConfig();
-//		jobConfig.setName(subTaskDto.getName() + "-" + subTaskDto.getId().toHexString());
 		jobConfig.setProcessingGuarantee(ProcessingGuarantee.NONE);
 		AspectUtils.executeAspect(new TaskStartAspect().task(subTaskDto));
 		logger.info("task2HazelcastDAG cost {}ms", (System.currentTimeMillis() - startTs));
@@ -181,19 +181,7 @@ public class HazelcastTaskService implements TaskService<SubTaskDto> {
 			for (Node node : nodes) {
 				Connections connection = null;
 				DatabaseTypeEnum.DatabaseType databaseType = null;
-				TapTableMap<String, TapTable> tapTableMap;
-				if ((node instanceof MigrateJsProcessorNode || node instanceof JsProcessorNode)
-						&& StringUtils.equalsAnyIgnoreCase(subTaskDto.getParentTask().getSyncType(), TaskDto.SYNC_TYPE_DEDUCE_SCHEMA)) {
-					//模型推演阶段，如果没有模型取上一个节点的模型
-					List<Node> predecessors = node.predecessors();
-					if (predecessors.size() != 1) {
-						throw new IllegalArgumentException("Node [" + node.getId() + "] has more than one predecessor");
-					}
-					Map<String, String> nameQualifiedNameMap = TapTableUtil.getTableNameQualifiedNameMap(predecessors.get(0).getId());
-					tapTableMap = TapTableMap.create(node.getId(), nameQualifiedNameMap);
-				} else {
-					tapTableMap = TapTableUtil.getTapTableMapByNodeId(node.getId(), tmCurrentTime);
-				}
+				TapTableMap<String, TapTable> tapTableMap = getTapTableMap(subTaskDto, tmCurrentTime, node);
 				if (CollectionUtils.isEmpty(tapTableMap.keySet())
 						&& !(node instanceof CacheNode)
 						&& !(node instanceof HazelCastImdgNode)
@@ -268,6 +256,18 @@ public class HazelcastTaskService implements TaskService<SubTaskDto> {
 		}
 
 		return new JetDag(dag, hazelcastBaseNodeMap, typeConvertMap);
+	}
+
+	private static TapTableMap<String, TapTable> getTapTableMap(SubTaskDto subTaskDto, Long tmCurrentTime, Node node) {
+		TapTableMap<String, TapTable> tapTableMap;
+		if (StringUtils.equalsAnyIgnoreCase(subTaskDto.getParentTask().getSyncType(),
+//						TaskDto.SYNC_TYPE_TEST_RUN,
+						TaskDto.SYNC_TYPE_DEDUCE_SCHEMA)) {
+			tapTableMap = TapTableUtil.getTapTableMap(node, tmCurrentTime);
+		} else {
+			tapTableMap = TapTableUtil.getTapTableMapByNodeId(node.getId(), tmCurrentTime);
+		}
+		return tapTableMap;
 	}
 
 	private boolean needForceNodeSchema(SubTaskDto subTaskDto) {
