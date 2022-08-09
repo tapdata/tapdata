@@ -1,8 +1,12 @@
 package io.tapdata.connector.redis;
 
+import com.mongodb.client.MongoClient;
+import com.mongodb.client.MongoClients;
+import com.mongodb.client.MongoDatabase;
 import io.tapdata.base.ConnectorBase;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.event.ddl.table.TapClearTableEvent;
+import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
 import io.tapdata.entity.event.ddl.table.TapDropTableEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.schema.TapTable;
@@ -18,6 +22,7 @@ import org.apache.commons.collections.CollectionUtils;
 import redis.clients.jedis.Jedis;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
 
@@ -32,6 +37,9 @@ public class RedisConnector extends ConnectorBase {
     private RedisContext redisContext;
 
     private  final  static String INIT_TABLE_NAME="tapdata";
+
+
+    private MongoDatabase mongoDatabase;
 
 
 
@@ -63,6 +71,7 @@ public class RedisConnector extends ConnectorBase {
         connectorFunctions.supportWriteRecord(this::writeRecord);
         connectorFunctions.supportClearTable(this::clearTable);
         connectorFunctions.supportDropTable(this::dropTable);
+        connectorFunctions.supportCreateTable(this::createTable);
 
     }
 
@@ -115,7 +124,7 @@ public class RedisConnector extends ConnectorBase {
 
 
     private void writeRecord(TapConnectorContext connectorContext, List<TapRecordEvent> tapRecordEvents, TapTable tapTable, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer) throws Throwable {
-        new RedisRecordWriter(redisContext, tapTable, connectorContext).write(tapRecordEvents, writeListResultConsumer);
+        new RedisRecordWriter(redisContext, tapTable, connectorContext, mongoDatabase).write(tapRecordEvents, tapTable, writeListResultConsumer);
     }
 
 
@@ -138,5 +147,26 @@ public class RedisConnector extends ConnectorBase {
         }
         Jedis jedis = redisContext.getJedis();
         jedis.del(keyName);
+    }
+
+
+    private void createTable(TapConnectorContext tapConnectorContext, TapCreateTableEvent createTableEvent) throws Throwable {
+        Jedis jedis = redisContext.getJedis();
+        MongoClient mongoClient = MongoClients.create("mongodb://localhost:27017/");
+        this.mongoDatabase = mongoClient.getDatabase("tapdata-open-source");
+
+        String schema = "";
+        Map<String, Integer> sortFiled =RedisRecordWriter.sortFiled(createTableEvent.getTable());
+        for (Map.Entry<String, Integer> entry : sortFiled.entrySet()) {
+            schema += "," + entry.getKey();
+        }
+        schema = schema.substring(1);
+        DataMap nodeConfig = tapConnectorContext.getNodeConfig();
+        String keyName = createTableEvent.getTableId();
+        if (nodeConfig != null) {
+            keyName = (String) nodeConfig.get("prefixKey");
+        }
+        jedis.rpush(keyName, schema);
+
     }
 }

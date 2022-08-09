@@ -21,29 +21,29 @@ import java.util.*;
  */
 public class RedisKeySetter {
 
-  private  Map<String, RedisKey> allSet = new HashMap<>();
+  private Map<String, RedisKey> allSet = new HashMap<>();
 
-  private  List arrayList = new ArrayList();
+  private List arrayList = new ArrayList();
 
 
-  public  String getRedisKey(Map<String, Object> value, TapConnectorContext connectorContext, String tableName) {
+  public String getRedisKey(Map<String, Object> value, TapConnectorContext connectorContext, String tableName) {
 
     DataMap nodeConfig = connectorContext.getNodeConfig();
     if (nodeConfig == null) {
       return tableName;
     }
     String valueType = (String) nodeConfig.get("valueType");
-    if(RedisRecordWriter.VALUE_TYPE_LIST.equals(valueType)){
+    if (RedisRecordWriter.VALUE_TYPE_LIST.equals(valueType)) {
 
-      return (String)nodeConfig.get("prefixKey");
+      return (String) nodeConfig.get("prefixKey");
     }
 
-    RedisKey redisKey = getOrAuto(tableName,connectorContext);
+    RedisKey redisKey = getOrAuto(tableName, connectorContext);
 
     StringBuilder buf = new StringBuilder();
     if (StringUtils.isNotBlank(redisKey.getPrefix())) {
       buf.append(redisKey.getPrefix());
-    }else {
+    } else {
       buf.append(tableName);
     }
 
@@ -57,10 +57,10 @@ public class RedisKeySetter {
   }
 
 
-  public RedisKey getOrAuto(String tableName,TapConnectorContext connectorContext) {
+  public RedisKey getOrAuto(String tableName, TapConnectorContext connectorContext) {
     RedisKey val = allSet.get(tableName);
     if (null == val) {
-      val = init(tableName,connectorContext);
+      val = init(tableName, connectorContext);
       allSet.put(tableName, val);
     }
     return val;
@@ -71,7 +71,7 @@ public class RedisKeySetter {
     RedisKey redisKey = new RedisKey();
     DataMap nodeConfig = connectorContext.getNodeConfig();
 
-    List<String> cacheKeys= (List<String>) nodeConfig.get("cacheKeys");
+    List<String> cacheKeys = (List<String>) nodeConfig.get("cacheKeys");
 
     if (CollectionUtils.isEmpty(cacheKeys)) {
       if (StringUtils.isEmpty(tableName)) {
@@ -102,9 +102,9 @@ public class RedisKeySetter {
   }
 
 
-  public boolean tableIsExist(String tableName){
+  public boolean tableIsExist(String tableName) {
 
-    if(!arrayList.contains(tableName)){
+    if (!arrayList.contains(tableName)) {
       arrayList.add(tableName);
       return true;
     }
@@ -112,5 +112,18 @@ public class RedisKeySetter {
   }
 
 
+  public String getValue(Map<String, Object> value, TapConnectorContext connectorContext) {
+    StringBuilder buf = new StringBuilder();
+    DataMap nodeConfig = connectorContext.getNodeConfig();
+
+    List<String> cacheKeys = (List<String>) nodeConfig.get("cacheKeys");
+    for (String key : cacheKeys) {
+      Object object = value.get(key);
+      buf.append("_").append(object2String(object));
+
+    }
+
+    return buf.substring(1);
+  }
 
 }

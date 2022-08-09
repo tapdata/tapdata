@@ -195,8 +195,15 @@
           },
           "x-reactions": "{{useAsyncDataSourceByConfig({service: loadNodeFieldOptions, withoutField: true}, $values.$inputs[0])}}",
           "index": 3
+        },
+        "mongodb": {
+          "type": "string",
+          "title": "${mongdb}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "index": 4,
+          "required": true
         }
-
       }
     }
   },
