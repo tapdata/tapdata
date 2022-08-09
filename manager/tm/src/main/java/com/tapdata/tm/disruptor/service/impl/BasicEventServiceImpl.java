@@ -1,6 +1,5 @@
 package com.tapdata.tm.disruptor.service.impl;
 
-import com.lmax.disruptor.EventHandler;
 import com.lmax.disruptor.SleepingWaitStrategy;
 import com.lmax.disruptor.dsl.Disruptor;
 import com.lmax.disruptor.dsl.ProducerType;
