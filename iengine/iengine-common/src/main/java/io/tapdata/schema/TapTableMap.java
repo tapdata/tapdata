@@ -77,16 +77,23 @@ public class TapTableMap<K extends String, V extends TapTable> extends HashMap<K
 	}
 
 	public static TapTableMap<String, TapTable> create(String nodeId, TapTable tapTable) {
+		return create(nodeId, Collections.singletonList(tapTable), null);
+	}
+	public static TapTableMap<String, TapTable> create(String nodeId, List<TapTable> tapTableList, Long time) {
 		TapTableMap<String, TapTable> tapTableMap = new TapTableMap<>();
 
 		HashMap<String, String> tableNameAndQualifiedNameMap = new HashMap<>();
-		tableNameAndQualifiedNameMap.put(tapTable.getName(), tapTable.getId());
+		for (TapTable tapTable : tapTableList) {
+			tableNameAndQualifiedNameMap.put(tapTable.getName(), tapTable.getId());
+		}
 		tapTableMap
-				.nodeId(nodeId)
-				.time(null)
-				.tableNameAndQualifiedNameMap(tableNameAndQualifiedNameMap)
-				.init(null);
-		tapTableMap.put(tapTable.getName(), tapTable);
+						.nodeId(nodeId)
+						.time(time)
+						.tableNameAndQualifiedNameMap(tableNameAndQualifiedNameMap)
+						.init(null);
+		for (TapTable tapTable : tapTableList) {
+			tapTableMap.put(tapTable.getName(), tapTable);
+		}
 		return tapTableMap;
 	}
 

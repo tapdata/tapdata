@@ -6,13 +6,13 @@ import com.tapdata.entity.TapdataEvent;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.schema.Schema;
-import com.tapdata.tm.commons.schema.SchemaUtils;
-import com.tapdata.tm.commons.util.PdkSchemaConvert;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.value.TapValue;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
+import io.tapdata.schema.TapTableMap;
+import io.tapdata.schema.TapTableUtil;
 import org.apache.commons.collections4.MapUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -37,8 +37,7 @@ public class HazelcastSchemaTargetNode extends HazelcastVirtualTargetNode {
 	private static final CacheMap<String, List<SchemaApplyResult>> schemaApplyResultMap = new CacheMap<>();
 
 	private final String schemaKey;
-
-	private final TapTable oldTapTable;
+	private final TapTableMap oldTapTableMap;
 
 	static {
 		tabTableCacheMap.maxSize(100).autoRemove(true).expire(600).interval(60).create();
@@ -62,18 +61,8 @@ public class HazelcastSchemaTargetNode extends HazelcastVirtualTargetNode {
 		if (preNodes.size() != 1) {
 			throw new IllegalArgumentException("HazelcastSchemaTargetNode only allows one predecessor node");
 		}
-		Node<Schema> deductionSchemaNode = preNodes.get(0);
-		List<Schema> inputSchema = deductionSchemaNode.getInputSchema();
-		Schema schema = SchemaUtils.mergeSchema(inputSchema, null);
-		this.oldTapTable = PdkSchemaConvert.toPdk(schema);
-
-//		List<? extends Node<?>> prePreNodes = deductionSchemaNode.predecessors();
-//		if (prePreNodes.size() != 1) {
-//			throw new IllegalArgumentException("The front node of HazelcastSchemaTargetNode only allows one front node");
-//		}
-//		this.prePreNode = prePreNodes.get(0);
-//		//js节点之前的节点的模型
-//		this.prePreNodeTapTableMap = TapTableUtil.getTapTableMapByNodeId("SCHEMA_", prePreNode.getId(), null);
+		Node<?> deductionSchemaNode = preNodes.get(0);
+		this.oldTapTableMap = TapTableUtil.getTapTableMap(deductionSchemaNode, null);
 	}
 
 	@Override
@@ -129,7 +118,7 @@ public class HazelcastSchemaTargetNode extends HazelcastVirtualTargetNode {
 		if (logger.isDebugEnabled()) {
 			logger.info("after map is [{}]", after);
 		}
-		TapTable tapTable = new TapTable();
+		TapTable tapTable = new TapTable(tapEvent.getTableId());
 		if (MapUtils.isNotEmpty(after)) {
 			for (Map.Entry<String, Object> entry : after.entrySet()) {
 				if (logger.isDebugEnabled()) {
@@ -151,7 +140,7 @@ public class HazelcastSchemaTargetNode extends HazelcastVirtualTargetNode {
 		List<SchemaApplyResult> schemaApplyResults = new ArrayList<>();
 
 		LinkedHashMap<String, TapField> newNameFieldMap = tapTable.getNameFieldMap();
-		LinkedHashMap<String, TapField> oldNameFieldMap = getOldNameFieldMap();
+		LinkedHashMap<String, TapField> oldNameFieldMap = getOldNameFieldMap(tapTable.getName());
 		if (MapUtils.isNotEmpty(newNameFieldMap) && MapUtils.isNotEmpty(oldNameFieldMap)) {
 			for (Map.Entry<String, TapField> entry : newNameFieldMap.entrySet()) {
 				String newFieldName = entry.getKey();
@@ -179,11 +168,11 @@ public class HazelcastSchemaTargetNode extends HazelcastVirtualTargetNode {
 		return schemaApplyResults;
 	}
 
-	private LinkedHashMap<String, TapField> getOldNameFieldMap() {
-		if (oldTapTable == null) {
+	private LinkedHashMap<String, TapField> getOldNameFieldMap(String tableName) {
+		if (oldTapTableMap == null || !oldTapTableMap.containsKey(tableName)) {
 			return null;
 		}
-		return oldTapTable.getNameFieldMap();
+		return oldTapTableMap.get(tableName).getNameFieldMap();
 	}
 
 	public static class SchemaApplyResult {
