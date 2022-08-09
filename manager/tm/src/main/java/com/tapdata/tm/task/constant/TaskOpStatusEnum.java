@@ -12,7 +12,7 @@ import static com.tapdata.tm.commons.task.dto.TaskDto.*;
  * @Description:
  */
 public enum TaskOpStatusEnum {
-    to_start_status(Lists.of(STATUS_EDIT, STATUS_STOP, STATUS_COMPLETE, STATUS_ERROR, STATUS_SCHEDULE_FAILED)),
+    to_start_status(Lists.of(STATUS_EDIT, STATUS_STOP, STATUS_COMPLETE, STATUS_ERROR, STATUS_SCHEDULE_FAILED, STATUS_WAIT_START)),
     to_stop_status(Lists.of(STATUS_RUNNING, STATUS_WAIT_RUN, STATUS_STOPPING)),
     to_renew_status(Lists.of(STATUS_EDIT, STATUS_STOP, STATUS_COMPLETE, STATUS_ERROR, STATUS_SCHEDULE_FAILED)),
     to_error_status(Lists.of(STATUS_RUNNING, STATUS_STOPPING)),
