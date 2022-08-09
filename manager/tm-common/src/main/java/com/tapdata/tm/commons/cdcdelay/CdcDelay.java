@@ -1,6 +1,5 @@
 package com.tapdata.tm.commons.cdcdelay;
 
-import com.sun.istack.internal.NotNull;
 import com.tapdata.tm.commons.util.ConnHeartbeatUtils;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.control.HeartbeatEvent;
@@ -8,6 +7,7 @@ import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.entity.logger.TapLogger;
+import org.springframework.lang.NonNull;
 
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
@@ -74,7 +74,7 @@ public class CdcDelay implements ICdcDelay {
      * @param recordEvent heartbeat record event
      * @return heartbeat event times
      */
-    private static Long parseTs(@NotNull TapRecordEvent recordEvent) {
+    private static Long parseTs(@NonNull TapRecordEvent recordEvent) {
         Object ts = null;
         if (recordEvent instanceof TapInsertRecordEvent) {
             Map<String, Object> after = ((TapInsertRecordEvent) recordEvent).getAfter();
