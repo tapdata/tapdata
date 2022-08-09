@@ -18,10 +18,8 @@ import com.tapdata.tm.commons.dag.nodes.DataNode;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.dag.process.*;
-import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
-import com.tapdata.tm.commons.schema.DataSourceDefinitionDto;
+import com.tapdata.tm.commons.schema.*;
 import com.tapdata.tm.commons.schema.Field;
-import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.commons.schema.bean.Schema;
 import com.tapdata.tm.commons.schema.bean.SourceDto;
 import com.tapdata.tm.commons.schema.bean.Table;
@@ -1414,6 +1412,30 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
         tapTablePage.setTotal(list.getTotal());
         List<TapTable> tapTables = new ArrayList<>();
         List<MetadataInstancesDto> items = list.getItems();
+        for (MetadataInstancesDto item : items) {
+            List<Field> fields = item.getFields();
+            List<String> deleteFieldNames = fields.stream().filter(Field::isDeleted).map(Field::getFieldName).collect(Collectors.toList());
+            item.setFields(fields.stream().filter(f->!f.isDeleted()).collect(Collectors.toList()));
+            List<TableIndex> indices = item.getIndices();
+            List<TableIndex> newIndices = new ArrayList<>();
+
+            for (TableIndex index : indices) {
+                List<TableIndexColumn> columns = index.getColumns();
+                List<TableIndexColumn> newIndexColums = new ArrayList<>();
+                for (TableIndexColumn column : columns) {
+                    if (!deleteFieldNames.contains(column.getColumnName())) {
+                        newIndexColums.add(column);
+                    }
+                }
+                if (newIndexColums.size() > 0) {
+                    index.setColumns(newIndexColums);
+                    newIndices.add(index);
+                }
+            }
+
+            item.setIndices(newIndices);
+
+        }
         if (CollectionUtils.isNotEmpty(items)) {
             tapTables = items.stream().map(PdkSchemaConvert::toPdk).collect(Collectors.toList());
         }
