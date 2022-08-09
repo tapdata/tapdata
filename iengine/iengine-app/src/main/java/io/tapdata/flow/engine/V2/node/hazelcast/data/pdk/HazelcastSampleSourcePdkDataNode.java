@@ -8,6 +8,7 @@ import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.DataParentNode;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
+import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
@@ -19,6 +20,7 @@ import io.tapdata.pdk.core.monitor.PDKMethod;
 import io.tapdata.schema.SampleMockUtil;
 import io.tapdata.schema.TapTableMap;
 import org.apache.commons.collections.CollectionUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.NotNull;
@@ -124,6 +126,12 @@ public class HazelcastSampleSourcePdkDataNode extends HazelcastPdkBaseNode {
             }
             //try again
           }
+        }
+        if (StringUtils.equalsAnyIgnoreCase(processorBaseContext.getSubTaskDto().getParentTask().getSyncType(),
+                TaskDto.SYNC_TYPE_DEDUCE_SCHEMA)) {
+          logger.info("get data from the following table {} to deduce schema, already obtained from table {}, " +
+                  "skip other tables", tables, tableName);
+          break;
         }
       }
 

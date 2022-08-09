@@ -6,6 +6,7 @@ import com.tapdata.entity.TapdataEvent;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.schema.Schema;
+import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
@@ -14,6 +15,7 @@ import io.tapdata.flow.engine.V2.util.TapEventUtil;
 import io.tapdata.schema.TapTableMap;
 import io.tapdata.schema.TapTableUtil;
 import org.apache.commons.collections4.MapUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.NotNull;
@@ -88,17 +90,16 @@ public class HazelcastSchemaTargetNode extends HazelcastVirtualTargetNode {
 							}
 							// 解析模型
 							TapTable tapTable = getNewTapTable(tapEvent);
-//							if (StringUtils.equalsAnyIgnoreCase(processorBaseContext.getSubTaskDto().getParentTask().getSyncType(),
-//											TaskDto.SYNC_TYPE_DEDUCE_SCHEMA)) {
+							if (!multipleTables) {
+								//迁移任务，只有一张表
 								tabTableCacheMap.put(schemaKey, tapTable);
-//							}
+							}
 
-//							if (StringUtils.equalsAnyIgnoreCase(processorBaseContext.getSubTaskDto().getParentTask().getSyncType(),
-//											TaskDto.SYNC_TYPE_DEDUCE_SCHEMA)) {
+							if (multipleTables) {
 								// 获取差异模型
 								List<SchemaApplyResult> schemaApplyResults = getSchemaApplyResults(tapTable);
 								schemaApplyResultMap.put(schemaKey, schemaApplyResults);
-//							}
+							}
 						}
 
 					} else {
