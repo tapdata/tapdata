@@ -79,16 +79,16 @@ public class RegisterMain {
             }
 
 //                "/Users/aplomb/dev/tapdata/GithubProjects/idaas-pdk/dist/empty-connector-v1.1-SNAPSHOT.jar",
-				basePath + "connectors/dist/mysql-connector-v1.0-SNAPSHOT.jar",
-				basePath + "connectors/dist/postgres-connector-v1.0-SNAPSHOT.jar",
-				basePath + "connectors/dist/mongodb-connector-v1.0-SNAPSHOT.jar",
-				basePath + "connectors/dist/elasticsearch-connector-v1.0-SNAPSHOT.jar",
-				basePath + "connectors/dist/oceanbase-connector-v1.0-SNAPSHOT.jar",
-				basePath + "connectors/dist/doris-connector-v1.0-SNAPSHOT.jar",
-				basePath + "connectors/dist/activemq-connector-v1.0-SNAPSHOT.jar",
-				basePath + "connectors/dist/rabbitmq-connector-v1.0-SNAPSHOT.jar",
-				basePath + "connectors/dist/rocketmq-connector-v1.0-SNAPSHOT.jar",
-				basePath + "connectors/dist/kafka-connector-v1.0-SNAPSHOT.jar",
+//				basePath + "connectors/dist/mysql-connector-v1.0-SNAPSHOT.jar",
+//				basePath + "connectors/dist/postgres-connector-v1.0-SNAPSHOT.jar",
+//				basePath + "connectors/dist/mongodb-connector-v1.0-SNAPSHOT.jar",
+//				basePath + "connectors/dist/elasticsearch-connector-v1.0-SNAPSHOT.jar",
+//				basePath + "connectors/dist/oceanbase-connector-v1.0-SNAPSHOT.jar",
+//				basePath + "connectors/dist/doris-connector-v1.0-SNAPSHOT.jar",
+//				basePath + "connectors/dist/activemq-connector-v1.0-SNAPSHOT.jar",
+//				basePath + "connectors/dist/rabbitmq-connector-v1.0-SNAPSHOT.jar",
+//				basePath + "connectors/dist/rocketmq-connector-v1.0-SNAPSHOT.jar",
+//				basePath + "connectors/dist/kafka-connector-v1.0-SNAPSHOT.jar",
 				basePath + "connectors/dist/redis-connector-v1.0-SNAPSHOT.jar",
 		};
 
