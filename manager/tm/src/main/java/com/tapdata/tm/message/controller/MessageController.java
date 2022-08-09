@@ -8,6 +8,7 @@ import com.alibaba.fastjson.JSON;
 import com.tapdata.manager.common.utils.JsonUtil;
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.*;
+import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.message.constant.Level;
 import com.tapdata.tm.message.constant.MsgTypeEnum;
 import com.tapdata.tm.message.constant.SystemEnum;
@@ -140,14 +141,16 @@ public class MessageController extends BaseController {
     @Operation(summary = "Update instances of the model matched by {{where}} from the data source")
     @PostMapping
     @RequestMapping
-    public ResponseMessage read(@RequestBody(required = false) String whereJson) throws IOException {
+    public ResponseMessage read(@RequestBody(required = false) String whereFromBody,
+                                @RequestParam(required = false, name = "where") String whereFromQuery) throws IOException {
         ServletRequestAttributes attributes = (ServletRequestAttributes) RequestContextHolder.currentRequestAttributes();
         HttpServletRequest request = attributes.getRequest();
+
+        String whereJson = StringUtils.isBlank(whereFromBody) ? whereFromQuery : whereFromBody;
 
         //todo  兼容agent传过来的请求，只能这样写，后续优化掉
         String userAgent = request.getHeader("User-Agent");
         if (StringUtils.isNotEmpty(userAgent) && (userAgent.contains("Java") || userAgent.contains("java") || userAgent.contains("nodejs"))) {
-            log.info("agent 传过来的请求");
             String jsonStr = request.getReader().lines().collect(Collectors.joining(System.lineSeparator()));
             Map msgMap=JsonUtil.parseJson(jsonStr, HashMap.class);
             String jobName= MapUtils.getAsString(msgMap,"jobName");
@@ -156,8 +159,10 @@ public class MessageController extends BaseController {
 //            messageService.addMigration(jobName,sourceId,userId);
         }
         else {
-            log.info("页面 传过来的请求");
             JSONObject jsonObject = JSONUtil.parseObj(whereJson);
+            if (jsonObject == null) {
+                throw new BizException("InvalidParameter", "The 'where' parameter can't be empty.");
+            }
             JSONArray jsonArray = jsonObject.getJSONObject("id").getJSONArray("inq");
 
             List<String> idList = JSONUtil.toList(jsonArray, String.class);
