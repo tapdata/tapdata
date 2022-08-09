@@ -112,7 +112,7 @@ public class TapTableMap<K extends String, V extends TapTable> extends HashMap<K
 		EhcacheKVMap<TapTable> tapTableMap = EhcacheKVMap.create(mapKey, TapTable.class)
 				.cachePath(DIST_CACHE_PATH)
 				.maxHeapEntries(MAX_HEAP_ENTRIES)
-				.maxOffHeapMB(CommonUtils.getPropertyInt(TAP_TABLE_OFF_HEAP_MB_KEY, DEFAULT_OFF_HEAP_MB))
+//				.maxOffHeapMB(CommonUtils.getPropertyInt(TAP_TABLE_OFF_HEAP_MB_KEY, DEFAULT_OFF_HEAP_MB))
 				.maxDiskMB(CommonUtils.getPropertyInt(TAP_TABLE_DISK_MB_KEY, DEFAULT_DISK_MB))
 				.init();
 		EhcacheService.getInstance().putEhcacheKVMap(mapKey, tapTableMap);
