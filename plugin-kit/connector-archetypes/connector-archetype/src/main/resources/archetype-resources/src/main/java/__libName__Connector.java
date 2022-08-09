@@ -2,7 +2,6 @@ package ${package};
 
 import io.tapdata.base.ConnectorBase;
 import io.tapdata.entity.codec.TapCodecsRegistry;
-import io.tapdata.entity.event.ddl.table.TapClearTableEvent;
 import io.tapdata.entity.event.ddl.table.TapDropTableEvent;
 import io.tapdata.entity.event.dml.*;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
@@ -11,7 +10,6 @@ import io.tapdata.entity.utils.DataMap;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.entity.utils.cache.KVMap;
 import io.tapdata.entity.schema.TapTable;
-import io.tapdata.entity.utils.cache.KVMapFactory;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.annotations.TapConnectorClass;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
@@ -52,6 +50,7 @@ public class ${libName}Connector extends ConnectorBase {
 	@Override
 	public void discoverSchema(TapConnectionContext connectionContext, List<String> tables, int tableSize, Consumer<List<TapTable>> consumer) throws Throwable {
 		//TODO Load schema from database, connection information in connectionContext#getConnectionConfig
+		TapLogger.info(TAG, "discoverSchema {}", connectionContext.getConnectionConfig());
 		//Sample code to give at least one table.
 		consumer.accept(list(
 				table("Target")
@@ -71,9 +70,11 @@ public class ${libName}Connector extends ConnectorBase {
 	@Override
 	public ConnectionOptions connectionTest(TapConnectionContext connectionContext, Consumer<TestItem> consumer) throws Throwable {
 		//Assume below tests are successfully, below tests are recommended, but not required.
+		TapLogger.info(TAG, "connectionTest {}", connectionContext.getConnectionConfig());
 		try {
 			connect(connectionContext);
 			consumer.accept(testItem(TestItem.ITEM_CONNECTION, TestItem.RESULT_SUCCESSFULLY, "Connect successfully"));
+			TapLogger.info(TAG, "XDBConnector test successfully");
 		} catch (Throwable throwable) {
 			TapLogger.error(TAG, "Connect failed, ", getStackTrace(throwable));
 			consumer.accept(testItem(TestItem.ITEM_CONNECTION, TestItem.RESULT_FAILED, "Connect failed, " + throwable.getMessage()));
@@ -123,6 +124,7 @@ public class ${libName}Connector extends ConnectorBase {
 
 	@Override
 	public int tableCount(TapConnectionContext connectionContext) throws Throwable {
+		TapLogger.info(TAG, "tableCount");
 		//Only one Table return from discoverSchema.
 		return 1;
 	}
@@ -163,6 +165,7 @@ public class ${libName}Connector extends ConnectorBase {
 	 */
 	@Override
 	public void registerCapabilities(ConnectorFunctions connectorFunctions, TapCodecsRegistry codecRegistry) {
+		TapLogger.info(TAG, "registerCapabilities");
 		connectorFunctions.supportWriteRecord(this::writeRecord);
 		connectorFunctions.supportDropTable(this::dropTable);
 
@@ -198,6 +201,7 @@ public class ${libName}Connector extends ConnectorBase {
 		//Should just drop the table specified by tapClearTableEvent.getTableId()
 		//The reset will drop the whole KV database which is only for demo purpose.
 		storageMap.reset();
+		TapLogger.info(TAG, "dropTable {}", tapDropTableEvent.getTableId());
 	}
 
 	/**
@@ -229,15 +233,18 @@ public class ${libName}Connector extends ConnectorBase {
 				case TapInsertRecordEvent.TYPE:
 					TapInsertRecordEvent insertRecordEvent = (TapInsertRecordEvent) recordEvent;
 					storageMap.put(key, insertRecordEvent.getAfter()); //Write insert record into KV Map
+					TapLogger.info(TAG, "Write on key {} record {}", key, toJson(insertRecordEvent.getAfter()));
 					inserted.incrementAndGet();
 					break;
 				case TapUpdateRecordEvent.TYPE:
 					TapUpdateRecordEvent updateRecordEvent = (TapUpdateRecordEvent) recordEvent;
 					storageMap.put(key, updateRecordEvent.getAfter()); //Write update record into KV Map
+					TapLogger.info(TAG, "Update on key {} record {}", key, toJson(updateRecordEvent.getAfter()));
 					updated.incrementAndGet();
 					break;
 				case TapDeleteRecordEvent.TYPE:
 					storageMap.remove(key); //Delete record
+					TapLogger.info(TAG, "Delete on key {}");
 					deleted.incrementAndGet();
 					break;
 			}
@@ -275,6 +282,7 @@ public class ${libName}Connector extends ConnectorBase {
 	@Override
 	public void onStart(TapConnectionContext connectionContext) throws Throwable {
 		connect(connectionContext);
+		TapLogger.info(TAG, "onStart {}", toJson(connectionContext.getConnectionConfig()));
 	}
 
 	/**
@@ -286,5 +294,6 @@ public class ${libName}Connector extends ConnectorBase {
 	@Override
 	public void onStop(TapConnectionContext connectionContext) throws Throwable {
 		storageMap.reset();
+		TapLogger.info(TAG, "onStop {}", toJson(connectionContext.getConnectionConfig()));
 	}
 }
