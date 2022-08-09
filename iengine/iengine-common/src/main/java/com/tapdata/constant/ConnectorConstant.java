@@ -127,7 +127,7 @@ public class ConnectorConstant {
 	public static final String JAVASCRIPT_FUNCTION_COLLECTION = "Javascript_functions";
 	public static final String CDC_EVENTS_COLLECTION = "CdcEvents";
 	public static final String METADATA_HISTROY_COLLECTION = "metadata/history";
-	public static final String SUBTASK_PROGRESS = "SubTaskProgress";
+	public static final String SUBTASK_PROGRESS = "TaskProgress";
 
 	public static final String OFFSET_MONGO_SERVER_URI = "offset.mongo.server.uri";
 
