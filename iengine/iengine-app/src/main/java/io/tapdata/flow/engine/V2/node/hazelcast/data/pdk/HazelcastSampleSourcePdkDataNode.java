@@ -16,6 +16,7 @@ import io.tapdata.pdk.apis.entity.TapAdvanceFilter;
 import io.tapdata.pdk.apis.functions.connector.target.QueryByAdvanceFilterFunction;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
 import io.tapdata.pdk.core.monitor.PDKMethod;
+import io.tapdata.schema.SampleMockUtil;
 import io.tapdata.schema.TapTableMap;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.logging.log4j.LogManager;
@@ -112,14 +113,16 @@ public class HazelcastSampleSourcePdkDataNode extends HazelcastPdkBaseNode {
         }
 
         List<TapdataEvent> tapdataEvents = wrapTapdataEvent(cloneList);
-        if (CollectionUtil.isNotEmpty(tapdataEvents)) {
-          for (TapdataEvent tapdataEvent : tapdataEvents) {
-            while (true) {
-              if (offer(tapdataEvent)) {
-                break;
-              }
-              //try again
+        if (CollectionUtils.isEmpty(tapdataEvents)) {
+          //mock
+          tapdataEvents = SampleMockUtil.mock(tapTable, rows);
+        }
+        for (TapdataEvent tapdataEvent : tapdataEvents) {
+          while (true) {
+            if (offer(tapdataEvent)) {
+              break;
             }
+            //try again
           }
         }
       }
