@@ -161,7 +161,7 @@ public class TaskEntity extends BaseEntity {
 
     private HashSet<String> heartbeatTasks;
 
-    private String migrateModelStatus;
+    private String taskRecordId;
 
     public String getAccessNodeProcessId() {
         return CollectionUtils.isNotEmpty(accessNodeProcessIdList) ? accessNodeProcessIdList.get(0) : "";

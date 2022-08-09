@@ -30,6 +30,7 @@ import com.tapdata.tm.commons.task.dto.progress.TaskSnapshotProgress;
 import com.tapdata.tm.commons.util.CapitalizedEnum;
 import com.tapdata.tm.commons.util.MetaDataBuilderUtils;
 import com.tapdata.tm.config.security.UserDetail;
+import com.tapdata.tm.disruptor.service.BasicEventService;
 import com.tapdata.tm.ds.service.impl.DataSourceService;
 import com.tapdata.tm.file.service.FileService;
 import com.tapdata.tm.inspect.constant.InspectResultEnum;
@@ -52,6 +53,7 @@ import com.tapdata.tm.task.constant.TaskOpStatusEnum;
 import com.tapdata.tm.task.constant.TaskStatusEnum;
 import com.tapdata.tm.task.entity.TaskDagCheckLog;
 import com.tapdata.tm.task.entity.TaskEntity;
+import com.tapdata.tm.task.entity.TaskRecord;
 import com.tapdata.tm.task.param.SaveShareCacheParam;
 import com.tapdata.tm.task.repository.TaskRepository;
 import com.tapdata.tm.task.vo.ShareCacheDetailVo;
@@ -112,22 +114,17 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     private MetadataTransformerService transformerService;
     private MetadataInstancesService metadataInstancesService;
     private MetadataTransformerItemService metadataTransformerItemService;
-
     private MetaDataHistoryService historyService;
-
-
     private TaskSnapshotService taskSnapshotService;
     private WorkerService workerService;
     private FileService fileService1;
-
     private MessageQueueService messageQueueService;
-
     private UserService userService;
-
     private TaskNodeRuntimeInfoService taskNodeRuntimeInfoService;
     private TaskDatabaseRuntimeInfoService taskDatabaseRuntimeInfoService;
-
     private TaskDagCheckLogService taskDagCheckLogService;
+    private BasicEventService<TaskRecord> basicEventService;
+
     public static Set<String> stopStatus = new HashSet<>();
     /**
      * 停止状态
@@ -890,15 +887,9 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
      *
      * @param id   任务id
      * @param user 用户
-     * @return
      */
-    public TaskDto renew(ObjectId id, UserDetail user) {
+    public void renew(ObjectId id, UserDetail user) {
         TaskDto taskDto = checkExistById(id, user);
-        return renew(taskDto, user);
-    }
-
-    public TaskDto renew(TaskDto taskDto, UserDetail user) {
-
         String status = taskDto.getStatus();
 
         //只有暂停或者停止状态可以重置
@@ -914,14 +905,28 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         renewAgentMeasurement(taskDto.getId().toString());
         log.debug("renew task complete, task name = {}", taskDto.getName());
 
+
+        String lastTaskRecordId = new ObjectId().toString();
         //更新任务信息
-        Update update = Update.update("status", TaskDto.STATUS_EDIT).unset("temp");
+        Update update = Update.update("status", TaskDto.STATUS_EDIT)
+                .set(TaskDto.LASTTASKRECORDID, lastTaskRecordId)
+                .unset("temp");
         updateById(taskDto.getId(), update, user);
+
+        // publish queue
+        basicEventService.publish(new TaskRecord(){{
+            setTaskId(taskDto.getId().toHexString());
+            setId(MongoUtils.toObjectId(lastTaskRecordId));
+            TaskEntity taskEntity = convertToEntity(entityClass, taskDto);
+            setTaskSnapshot(taskEntity);
+            setCreateUser(user.getUserId());
+            setCreateAt(new Date());
+        }});
 
         CustomerJobLog customerJobLog = new CustomerJobLog(taskDto.getId().toString(), taskDto.getName());
         customerJobLog.setDataFlowType(CustomerJobLogsService.DataFlowType.sync.getV());
         customerJobLogsService.resetDataFlow(customerJobLog, user);
-        return findById(taskDto.getId());
+        findById(taskDto.getId());
 
 
     }
