@@ -49,6 +49,7 @@ jobs:
   Integration-Testing:
     runs-on: ubuntu-latest
     needs: Code-Style-Check
+    timeout-minutes: 60
     if: needs.Code-Style-Check.outputs.check-style != 'true'
     steps:
       - name: Set Env if Push
