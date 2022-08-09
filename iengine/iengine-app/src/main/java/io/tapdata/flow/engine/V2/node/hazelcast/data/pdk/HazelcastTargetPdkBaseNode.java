@@ -29,6 +29,7 @@ import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.schema.TapTable;
+import io.tapdata.flow.engine.V2.exception.node.NodeException;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.concurrent.PartitionConcurrentProcessor;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.concurrent.partitioner.KeysPartitioner;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.concurrent.selector.TapEventPartitionKeySelector;
@@ -52,6 +53,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 import static com.hazelcast.jet.impl.util.ExceptionUtil.sneakyThrow;
 
@@ -241,6 +243,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 			}
 		} catch (Exception e) {
 			logger.error("Target process failed {}", e.getMessage(), e);
+			errorHandle(e, "Target process failed.");
 			throw sneakyThrow(e);
 		}
 	}
@@ -275,47 +278,63 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 		}
 		AtomicReference<TapdataEvent> lastDmlTapdataEvent = new AtomicReference<>();
 		for (TapdataEvent tapdataEvent : tapdataEvents) {
-			SyncStage syncStage = tapdataEvent.getSyncStage();
-			if (null != syncStage) {
-				if (syncStage == SyncStage.INITIAL_SYNC && firstBatchEvent.compareAndSet(false, true)) {
-					// MILESTONE-WRITE_SNAPSHOT-RUNNING
-					MilestoneUtil.updateMilestone(milestoneService, MilestoneStage.WRITE_SNAPSHOT, MilestoneStatus.RUNNING);
-				} else if (syncStage == SyncStage.CDC && firstStreamEvent.compareAndSet(false, true)) {
-					// MILESTONE-WRITE_CDC_EVENT-FINISH
-					MilestoneUtil.updateMilestone(milestoneService, MilestoneStage.WRITE_CDC_EVENT, MilestoneStatus.FINISH);
-				}
-			}
-			if (tapdataEvent instanceof TapdataHeartbeatEvent) {
-				handleTapdataHeartbeatEvent(tapdataEvent);
-			} else if (tapdataEvent instanceof TapdataCompleteSnapshotEvent) {
-				handleTapdataCompleteSnapshotEvent();
-			} else if (tapdataEvent instanceof TapdataStartCdcEvent) {
-				handleTapdataStartCdcEvent(tapdataEvent);
-			} else if (tapdataEvent instanceof TapdataShareLogEvent) {
-				handleTapdataShareLogEvent(tapdataShareLogEvents, tapdataEvent, lastDmlTapdataEvent::set);
-			} else {
-				if (tapdataEvent.isDML()) {
-					handleTapdataRecordEvent(tapdataEvent, tapEvents, lastDmlTapdataEvent::set);
-				} else if (tapdataEvent.isDDL()) {
-					handleTapdataDDLEvent(tapdataEvent, tapEvents, lastDmlTapdataEvent::set);
-				} else {
-					if (null != tapdataEvent.getTapEvent()) {
-						logger.warn("Tap event type does not supported: " + tapdataEvent.getTapEvent().getClass() + ", will ignore it");
+			try {
+				SyncStage syncStage = tapdataEvent.getSyncStage();
+				if (null != syncStage) {
+					if (syncStage == SyncStage.INITIAL_SYNC && firstBatchEvent.compareAndSet(false, true)) {
+						// MILESTONE-WRITE_SNAPSHOT-RUNNING
+						MilestoneUtil.updateMilestone(milestoneService, MilestoneStage.WRITE_SNAPSHOT, MilestoneStatus.RUNNING);
+					} else if (syncStage == SyncStage.CDC && firstStreamEvent.compareAndSet(false, true)) {
+						// MILESTONE-WRITE_CDC_EVENT-FINISH
+						MilestoneUtil.updateMilestone(milestoneService, MilestoneStage.WRITE_CDC_EVENT, MilestoneStatus.FINISH);
 					}
 				}
+				if (tapdataEvent instanceof TapdataHeartbeatEvent) {
+					handleTapdataHeartbeatEvent(tapdataEvent);
+				} else if (tapdataEvent instanceof TapdataCompleteSnapshotEvent) {
+					handleTapdataCompleteSnapshotEvent();
+				} else if (tapdataEvent instanceof TapdataStartCdcEvent) {
+					handleTapdataStartCdcEvent(tapdataEvent);
+				} else if (tapdataEvent instanceof TapdataShareLogEvent) {
+					handleTapdataShareLogEvent(tapdataShareLogEvents, tapdataEvent, lastDmlTapdataEvent::set);
+				} else {
+					if (tapdataEvent.isDML()) {
+						handleTapdataRecordEvent(tapdataEvent, tapEvents, lastDmlTapdataEvent::set);
+					} else if (tapdataEvent.isDDL()) {
+						handleTapdataDDLEvent(tapdataEvent, tapEvents, lastDmlTapdataEvent::set);
+					} else {
+						if (null != tapdataEvent.getTapEvent()) {
+							logger.warn("Tap event type does not supported: " + tapdataEvent.getTapEvent().getClass() + ", will ignore it");
+						}
+					}
+				}
+			} catch (Throwable throwable) {
+				throw new NodeException(throwable).node(getDataProcessorContext().getNode()).event(tapdataEvent.getTapEvent());
 			}
 		}
 		if (CollectionUtils.isNotEmpty(tapEvents)) {
 			resetInputCounter.inc(tapEvents.size());
 			inputCounter.inc(tapEvents.size());
 			inputQPS.add(tapEvents.size());
-			processEvents(tapEvents);
+			try {
+				processEvents(tapEvents);
+			} catch (Throwable throwable) {
+				throw new NodeException(throwable)
+						.node(getDataProcessorContext().getNode())
+						.events(tapdataEvents.stream().map(TapdataEvent::getTapEvent).collect(Collectors.toList()));
+			}
 		}
 		if (CollectionUtils.isNotEmpty(tapdataShareLogEvents)) {
 			resetInputCounter.inc(tapdataShareLogEvents.size());
 			inputCounter.inc(tapdataShareLogEvents.size());
 			inputQPS.add(tapdataShareLogEvents.size());
-			processShareLog(tapdataShareLogEvents);
+			try {
+				processShareLog(tapdataShareLogEvents);
+			} catch (Throwable throwable) {
+				throw new NodeException(throwable)
+						.node(getDataProcessorContext().getNode())
+						.events(tapdataShareLogEvents.stream().map(TapdataShareLogEvent::getTapEvent).collect(Collectors.toList()));
+			}
 		}
 		flushSyncProgressMap(lastDmlTapdataEvent.get());
 	}

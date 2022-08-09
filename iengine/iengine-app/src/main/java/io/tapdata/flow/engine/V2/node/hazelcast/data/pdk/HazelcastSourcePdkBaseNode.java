@@ -40,6 +40,7 @@ import io.tapdata.exception.SourceException;
 import io.tapdata.flow.engine.V2.common.task.SyncTypeEnum;
 import io.tapdata.flow.engine.V2.ddl.DDLFilter;
 import io.tapdata.flow.engine.V2.ddl.DDLSchemaHandler;
+import io.tapdata.flow.engine.V2.exception.node.NodeException;
 import io.tapdata.flow.engine.V2.monitor.MonitorManager;
 import io.tapdata.flow.engine.V2.monitor.impl.TableMonitor;
 import io.tapdata.flow.engine.V2.progress.SnapshotProgressManager;
@@ -463,11 +464,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 			TapEvent tapEvent = events.get(i);
 			boolean isLast = i == (events.size() - 1);
 			TapdataEvent tapdataEvent;
-			try {
-				tapdataEvent = wrapTapdataEvent(tapEvent, syncStage, offsetObj, isLast);
-			} catch (Throwable throwable) {
-				throw new RuntimeException("Error wrap TapEvent, event: " + tapEvent + ", error: " + throwable.getMessage(), throwable);
-			}
+			tapdataEvent = wrapTapdataEvent(tapEvent, syncStage, offsetObj, isLast);
 			if (null == tapdataEvent) {
 				continue;
 			}
@@ -477,6 +474,20 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 	}
 
 	protected TapdataEvent wrapTapdataEvent(TapEvent tapEvent, SyncStage syncStage, Object offsetObj, boolean isLast) {
+		try {
+			return wrapSingleTapdataEvent(tapEvent, syncStage, offsetObj, isLast);
+		} catch (Throwable throwable) {
+			throw new NodeException("Error wrap TapEvent, event: " + tapEvent + ", error: " + throwable.getMessage(), throwable)
+					.node(getDataProcessorContext().getNode())
+					.event(tapEvent);
+		}
+	}
+
+	private TapdataEvent wrapSingleTapdataEvent(TapEvent tapEvent, SyncStage syncStage, Object offsetObj, boolean isLast) {
+		// add uuid for TapEvent, this is used to trace error events in task logs
+		// TODO(dexter): use more readable identifier instead of uuid
+		tapEvent.addInfo("eventId", UUID.randomUUID().toString());
+
 		tapEvent = cdcDelayCalculation.filterAndCalcDelay(tapEvent, times -> AspectUtils.executeAspect(SourceCDCDelayAspect.class, () -> new SourceCDCDelayAspect().delay(times).dataProcessorContext(dataProcessorContext)));
 
 		TapdataEvent tapdataEvent = null;
@@ -640,6 +651,8 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 				}
 			} catch (InterruptedException e) {
 				break;
+			} catch (Throwable throwable) {
+				throw new NodeException(throwable).node(getDataProcessorContext().getNode()).event(tapdataEvent.getTapEvent());
 			}
 		}
 	}
