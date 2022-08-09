@@ -1,0 +1,123 @@
+{
+  "uid" : "3c532b85295cf502",
+  "name" : "test get job status",
+  "fullName" : "test_pipeline.TestPipeline#test_stats",
+  "historyId" : "7fd126ae87f4bbc0fdebf1dc86f6005c",
+  "time" : {
+    "start" : 1660029202765,
+    "stop" : 1660029207244,
+    "duration" : 4479
+  },
+  "status" : "passed",
+  "flaky" : false,
+  "newFailed" : false,
+  "beforeStages" : [ ],
+  "testStage" : {
+    "status" : "passed",
+    "steps" : [ ],
+    "attachments" : [ {
+      "uid" : "b5e3978c45d3c188",
+      "name" : "stdout",
+      "source" : "b5e3978c45d3c188.txt",
+      "type" : "text/plain",
+      "size" : 1277
+    } ],
+    "parameters" : [ ],
+    "stepsCount" : 0,
+    "attachmentsCount" : 1,
+    "shouldDisplayMessage" : false,
+    "hasContent" : true
+  },
+  "afterStages" : [ ],
+  "labels" : [ {
+    "name" : "feature",
+    "value" : "pipeline"
+  }, {
+    "name" : "suite",
+    "value" : "test_pipeline"
+  }, {
+    "name" : "subSuite",
+    "value" : "TestPipeline"
+  }, {
+    "name" : "host",
+    "value" : "5913d2e63c4b"
+  }, {
+    "name" : "thread",
+    "value" : "832-MainThread"
+  }, {
+    "name" : "framework",
+    "value" : "pytest"
+  }, {
+    "name" : "language",
+    "value" : "cpython3"
+  }, {
+    "name" : "package",
+    "value" : "test_pipeline"
+  }, {
+    "name" : "resultFormat",
+    "value" : "allure2"
+  } ],
+  "parameters" : [ ],
+  "links" : [ ],
+  "hidden" : false,
+  "retry" : false,
+  "extra" : {
+    "severity" : "normal",
+    "retries" : [ ],
+    "categories" : [ ],
+    "history" : {
+      "statistic" : {
+        "failed" : 0,
+        "broken" : 0,
+        "skipped" : 0,
+        "passed" : 6,
+        "unknown" : 0,
+        "total" : 6
+      },
+      "items" : [ {
+        "uid" : "f555f20a96dc73c8",
+        "status" : "passed",
+        "time" : {
+          "start" : 1660027902869,
+          "stop" : 1660027907319,
+          "duration" : 4450
+        }
+      }, {
+        "uid" : "8127dd75710b9287",
+        "status" : "passed",
+        "time" : {
+          "start" : 1659973295852,
+          "stop" : 1659973300272,
+          "duration" : 4420
+        }
+      }, {
+        "uid" : "c2dec0f3008ef26c",
+        "status" : "passed",
+        "time" : {
+          "start" : 1659948014606,
+          "stop" : 1659948019146,
+          "duration" : 4540
+        }
+      }, {
+        "uid" : "3949400e7ae3e02d",
+        "status" : "passed",
+        "time" : {
+          "start" : 1659943912788,
+          "stop" : 1659943917152,
+          "duration" : 4364
+        }
+      }, {
+        "uid" : "be4737a6e1585ef5",
+        "status" : "passed",
+        "time" : {
+          "start" : 1659941355964,
+          "stop" : 1659941360470,
+          "duration" : 4506
+        }
+      } ]
+    },
+    "tags" : [ ]
+  },
+  "source" : "3c532b85295cf502.json",
+  "parameterValues" : [ ]
+}
