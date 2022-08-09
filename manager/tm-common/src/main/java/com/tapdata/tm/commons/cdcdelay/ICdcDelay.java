@@ -1,7 +1,7 @@
 package com.tapdata.tm.commons.cdcdelay;
 
-import com.sun.istack.internal.NotNull;
 import io.tapdata.entity.event.TapEvent;
+import org.springframework.lang.NonNull;
 
 import java.util.List;
 import java.util.function.Consumer;
@@ -16,7 +16,7 @@ public interface ICdcDelay {
      *
      * @param tables cdc tables
      */
-    void addHeartbeatTable(@NotNull List<String> tables);
+    void addHeartbeatTable(@NonNull List<String> tables);
 
     /**
      * filter heartbeat event and calc delay times
@@ -24,5 +24,5 @@ public interface ICdcDelay {
      * @param tapEvent TapEvent
      * @return TapEvent
      */
-    TapEvent filterAndCalcDelay(TapEvent tapEvent, @NotNull Consumer<Long> delayConsumer);
+    TapEvent filterAndCalcDelay(TapEvent tapEvent, @NonNull Consumer<Long> delayConsumer);
 }

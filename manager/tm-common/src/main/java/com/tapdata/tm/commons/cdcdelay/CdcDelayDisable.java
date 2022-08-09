@@ -1,6 +1,7 @@
 package com.tapdata.tm.commons.cdcdelay;
 
 import io.tapdata.entity.event.TapEvent;
+import org.springframework.lang.NonNull;
 
 import java.util.List;
 import java.util.function.Consumer;
@@ -13,12 +14,12 @@ import java.util.function.Consumer;
  */
 public class CdcDelayDisable implements ICdcDelay {
     @Override
-    public void addHeartbeatTable(List<String> tables) {
+    public void addHeartbeatTable(@NonNull List<String> tables) {
 
     }
 
     @Override
-    public TapEvent filterAndCalcDelay(TapEvent tapEvent, Consumer<Long> delayConsumer) {
+    public TapEvent filterAndCalcDelay(TapEvent tapEvent, @NonNull Consumer<Long> delayConsumer) {
         return tapEvent;
     }
 }

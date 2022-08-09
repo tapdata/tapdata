@@ -1,6 +1,5 @@
 package com.tapdata.tm.commons.cdcdelay;
 
-import com.sun.istack.internal.NotNull;
 import com.tapdata.tm.commons.util.ConnHeartbeatUtils;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.control.HeartbeatEvent;
@@ -8,6 +7,7 @@ import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.entity.logger.TapLogger;
+import org.springframework.lang.NonNull;
 
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
@@ -34,7 +34,7 @@ public class CdcDelay implements ICdcDelay {
     }
 
     @Override
-    public void addHeartbeatTable(List<String> tables) {
+    public void addHeartbeatTable(@NonNull List<String> tables) {
         if (tables.contains(ConnHeartbeatUtils.TABLE_NAME)) {
             isFilter = false;
         }
@@ -43,7 +43,7 @@ public class CdcDelay implements ICdcDelay {
     }
 
     @Override
-    public TapEvent filterAndCalcDelay(TapEvent tapEvent, Consumer<Long> delayConsumer) {
+    public TapEvent filterAndCalcDelay(TapEvent tapEvent, @NonNull Consumer<Long> delayConsumer) {
         if (tapEvent instanceof TapRecordEvent) {
             Long sourceTimes;
             TapRecordEvent tapRecordEvent = ((TapRecordEvent) tapEvent);
@@ -74,7 +74,7 @@ public class CdcDelay implements ICdcDelay {
      * @param recordEvent heartbeat record event
      * @return heartbeat event times
      */
-    private static Long parseTs(@NotNull TapRecordEvent recordEvent) {
+    private static Long parseTs(@NonNull TapRecordEvent recordEvent) {
         Object ts = null;
         if (recordEvent instanceof TapInsertRecordEvent) {
             Map<String, Object> after = ((TapInsertRecordEvent) recordEvent).getAfter();

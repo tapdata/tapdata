@@ -1,7 +1,6 @@
 package com.tapdata.tm.commons.util;
 
 import com.mongodb.ConnectionString;
-import com.sun.istack.internal.NotNull;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
 import com.tapdata.tm.commons.schema.DataSourceDefinitionDto;
 import com.tapdata.tm.commons.schema.Field;
@@ -12,6 +11,7 @@ import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.bson.types.ObjectId;
 import org.springframework.beans.BeanUtils;
+import org.springframework.lang.NonNull;
 
 import java.util.*;
 
@@ -27,6 +27,7 @@ public class MetaDataBuilderUtils {
     private static final String QUALIFIED_NAME_SPECIAL_CHARACTERS = "[/.@&:?=%\\s]+";
 
     public static final Map<String, MetaTypeProperty> metaTypePropertyMap;
+
     static {
         metaTypePropertyMap = new HashMap<>();
         metaTypePropertyMap.put(MetaType.database.name(), new MetaTypeProperty("CONN_", false));
@@ -52,8 +53,9 @@ public class MetaDataBuilderUtils {
         }
     }
 
-    public static String generatePdkQualifiedName(@NotNull String metaType, @NotNull String connId, @NotNull String tableName
-            , @NotNull String definitionPdkId, @NotNull String definitionGroup, @NotNull String definitionVersion) {
+    public static String generatePdkQualifiedName(@NonNull String metaType, @NonNull String connId, @NonNull String tableName
+            , @NonNull String definitionPdkId, @NonNull String definitionGroup, @NonNull String definitionVersion) {
+
         String qualifiedName = metaTypePropertyMap.get(metaType).getPrefix();
         qualifiedName += String.join(QUALIFIED_NAME_SEPARATOR, definitionPdkId, definitionGroup, definitionVersion, tableName, connId);
         qualifiedName = qualifiedName.replaceAll(QUALIFIED_NAME_SPECIAL_CHARACTERS, QUALIFIED_NAME_SEPARATOR);
