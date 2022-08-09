@@ -22,6 +22,12 @@ public class TapTableUtil {
 						ConnectorConstant.METADATA_INSTANCE_COLLECTION + "/node/tableMap", Map.class);
 	}
 
+	public static String getHeartbeatQualifiedName(String nodeId) {
+		return BeanUtil.getBean(ClientMongoOperator.class)
+				.findOne(Query.query(where("nodeId").is(nodeId)),
+						ConnectorConstant.METADATA_INSTANCE_COLLECTION + "/node/heartbeatQualifiedName", String.class);
+	}
+
 	public static TapTableMap<String, TapTable> getTapTableMapByNodeId(String nodeId) {
 		Map<String, String> tableNameQualifiedNameMap = getTableNameQualifiedNameMap(nodeId);
 		return TapTableMap.create(nodeId, tableNameQualifiedNameMap);

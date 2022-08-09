@@ -1,6 +1,7 @@
 package com.tapdata.tm.commons.util;
 
 import com.mongodb.ConnectionString;
+import com.sun.istack.internal.NotNull;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
 import com.tapdata.tm.commons.schema.DataSourceDefinitionDto;
 import com.tapdata.tm.commons.schema.Field;
@@ -15,13 +16,15 @@ import org.springframework.beans.BeanUtils;
 import java.util.*;
 
 
-
 /**
  * @Author: Zed
  * @Date: 2021/9/10
  * @Description:
  */
 public class MetaDataBuilderUtils {
+
+    private static final String QUALIFIED_NAME_SEPARATOR = "_";
+    private static final String QUALIFIED_NAME_SPECIAL_CHARACTERS = "[/.@&:?=%\\s]+";
 
     public static final Map<String, MetaTypeProperty> metaTypePropertyMap;
     static {
@@ -45,19 +48,26 @@ public class MetaDataBuilderUtils {
         if (StringUtils.isBlank(tableName)) {
             return metaTypePropertyMap.get(metaType).prefix + nodeId;
         } else {
-            return metaTypePropertyMap.get(metaType).prefix + nodeId + "_" + tableName;
+            return metaTypePropertyMap.get(metaType).prefix + nodeId + QUALIFIED_NAME_SEPARATOR + tableName;
         }
     }
 
-    public static String generateQualifiedName(String metaType, DataSourceConnectionDto connectionDto, String tableName) {
+    public static String generatePdkQualifiedName(@NotNull String metaType, @NotNull String connId, @NotNull String tableName
+            , @NotNull String definitionPdkId, @NotNull String definitionGroup, @NotNull String definitionVersion) {
         String qualifiedName = metaTypePropertyMap.get(metaType).getPrefix();
+        qualifiedName += String.join(QUALIFIED_NAME_SEPARATOR, definitionPdkId, definitionGroup, definitionVersion, tableName, connId);
+        qualifiedName = qualifiedName.replaceAll(QUALIFIED_NAME_SPECIAL_CHARACTERS, QUALIFIED_NAME_SEPARATOR);
+        return qualifiedName;
+    }
+
+    public static String generateQualifiedName(String metaType, DataSourceConnectionDto connectionDto, String tableName) {
         String id = connectionDto.getId().toHexString();
         if (DataSourceDefinitionDto.PDK_TYPE.equals(connectionDto.getPdkType())) {
-            qualifiedName += connectionDto.getDefinitionPdkId() + "_";
-            qualifiedName += connectionDto.getDefinitionGroup() + "_";
-            qualifiedName += connectionDto.getDefinitionVersion() + "_";
-            qualifiedName += tableName + "_" + id;
-        } else if (metaTypePropertyMap.get(metaType).isModel()) {
+            return generatePdkQualifiedName(metaType, id, tableName, connectionDto.getDefinitionPdkId(), connectionDto.getDefinitionGroup(), connectionDto.getDefinitionVersion());
+        }
+
+        String qualifiedName = metaTypePropertyMap.get(metaType).getPrefix();
+        if (metaTypePropertyMap.get(metaType).isModel()) {
             String databaseType = connectionDto.getDatabase_type();
             String databaseName;
             String databaseOwner = "";
@@ -70,25 +80,25 @@ public class MetaDataBuilderUtils {
                 databaseOwner = connectionDto.getDatabase_owner();
             }
 
-            qualifiedName += databaseType + "_";
+            qualifiedName += databaseType + QUALIFIED_NAME_SEPARATOR;
 
             if (StringUtils.isNotBlank(databaseName)) {
-                qualifiedName += databaseName + "_";
+                qualifiedName += databaseName + QUALIFIED_NAME_SEPARATOR;
             }
             if (StringUtils.isNotBlank(databaseOwner)) {
-                qualifiedName += databaseOwner + "_";
+                qualifiedName += databaseOwner + QUALIFIED_NAME_SEPARATOR;
             }
-            qualifiedName += tableName + "_" + id;
+            qualifiedName += tableName + QUALIFIED_NAME_SEPARATOR + id;
 
         } else {
             if ("api".equals(metaType)) {
                 String basePath = StringUtils.isNotBlank(connectionDto.getBasePath()) ? connectionDto.getBasePath() : connectionDto.getPath();
                 String apiVersion = connectionDto.getApiVersion();
-                qualifiedName += basePath + "_" + apiVersion + "_";
+                qualifiedName += basePath + QUALIFIED_NAME_SEPARATOR + apiVersion + QUALIFIED_NAME_SEPARATOR;
             }
             qualifiedName += id;
         }
-        qualifiedName = qualifiedName.replaceAll("[/.@&:?=%\\s]+", "_");
+        qualifiedName = qualifiedName.replaceAll(QUALIFIED_NAME_SPECIAL_CHARACTERS, QUALIFIED_NAME_SEPARATOR);
 
         return qualifiedName;
     }
@@ -106,7 +116,7 @@ public class MetaDataBuilderUtils {
 
 
     public static MetadataInstancesDto build(String metaType, DataSourceConnectionDto source, String userId, String userName) {
-       return build(metaType, source, userId, userName, null, null, null, null, null, null);
+        return build(metaType, source, userId, userName, null, null, null, null, null, null);
     }
 
     public static MetadataInstancesDto build(String metaType, DataSourceConnectionDto source, String userId, String userName, String tableName
@@ -229,12 +239,12 @@ public class MetaDataBuilderUtils {
                     }
                     break;
                 case api:
-                    String basePath = StringUtils.isNotBlank(sourceDto.getBasePath()) ? sourceDto.getBasePath() :sourceDto.getPath();
+                    String basePath = StringUtils.isNotBlank(sourceDto.getBasePath()) ? sourceDto.getBasePath() : sourceDto.getPath();
                     String apiVersion = sourceDto.getApiVersion();
                     String s = StringUtils.isNotBlank(sourceDto.getName()) ? sourceDto.getName() : StringUtils.isNotBlank(sourceDto.getDescription()) ? sourceDto.getDescription() : basePath;
                     metadataObj.setOriginalName(basePath + "_" + apiVersion);
                     break;
-                default :
+                default:
                     break;
 
             }
@@ -263,7 +273,7 @@ public class MetaDataBuilderUtils {
     }
 
 
-    private static void  handleSource(SourceDto source) {
+    private static void handleSource(SourceDto source) {
         if (source == null) {
             return;
         }

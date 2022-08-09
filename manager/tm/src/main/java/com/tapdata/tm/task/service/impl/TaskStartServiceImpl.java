@@ -59,7 +59,7 @@ public class TaskStartServiceImpl implements TaskStartService {
         subTaskService.logCollector(user, taskDto);
 
         //打点任务
-        //subTaskService.startConnHeartbeat(user, taskDto);
+        subTaskService.startConnHeartbeat(user, taskDto);
 
 
         //启动所有的子任务

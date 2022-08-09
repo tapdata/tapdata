@@ -14,6 +14,7 @@ import com.tapdata.tm.base.service.BaseService;
 import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.logCollector.LogCollectorNode;
+import com.tapdata.tm.commons.dag.nodes.DataNode;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.dag.process.*;
@@ -26,6 +27,7 @@ import com.tapdata.tm.commons.schema.bean.SourceDto;
 import com.tapdata.tm.commons.schema.bean.Table;
 import com.tapdata.tm.commons.task.dto.MergeTableProperties;
 import com.tapdata.tm.commons.task.dto.TaskDto;
+import com.tapdata.tm.commons.util.ConnHeartbeatUtils;
 import com.tapdata.tm.commons.util.MetaDataBuilderUtils;
 import com.tapdata.tm.commons.util.MetaType;
 import com.tapdata.tm.commons.util.PdkSchemaConvert;
@@ -51,7 +53,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
-import org.bson.Document;
 import org.bson.types.ObjectId;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -1088,6 +1089,34 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
             }
         }
         return kv;
+    }
+
+    public String findQualifiedNameByNodeId(Filter filter, UserDetail user) {
+        Where where = filter.getWhere();
+        if (where == null) {
+            return null;
+        }
+        String nodeId = (String) where.get("nodeId");
+        return findQualifiedNameByNode(nodeId, user);
+    }
+
+    public String findQualifiedNameByNode(String nodeId, UserDetail user) {
+        Criteria criteria = Criteria.where("dag.nodes.id").is(nodeId);
+        Query query = new Query(criteria);
+        query.fields().include("dag");
+        TaskDto taskDto = taskService.findOne(query, user);
+
+        if (taskDto != null && taskDto.getDag() != null) {
+            DAG dag = taskDto.getDag();
+            Node<?> node = dag.getNode(nodeId);
+            if (node instanceof DataNode) {
+                DataNode dataNode = (DataNode) node;
+                String connectionId = dataNode.getConnectionId();
+                DataSourceConnectionDto dataSource = dataSourceService.findById(MongoUtils.toObjectId(connectionId));
+                return MetaDataBuilderUtils.generatePdkQualifiedName(dataNode.getType(), connectionId, ConnHeartbeatUtils.TABLE_NAME, dataSource.getDefinitionPdkId(), dataSource.getDefinitionGroup(), dataSource.getDefinitionVersion());
+            }
+        }
+        return null;
     }
 
     public String getQualifiedNameByNodeId(Node node, UserDetail user, DataSourceConnectionDto dataSource, DataSourceDefinitionDto definitionDto) {

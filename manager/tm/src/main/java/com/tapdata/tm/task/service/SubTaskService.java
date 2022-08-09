@@ -543,7 +543,7 @@ public class SubTaskService extends BaseService<SubTaskDto, SubTaskEntity, Objec
 
         //打点任务，这个标识主要是防止任务跟子任务重复执行的
         if (startFlag.charAt(1) == '1') {
-            //startConnHeartbeat(user, parentTask);
+            startConnHeartbeat(user, parentTask);
         }
 
         //模型推演,如果模型已经存在，则需要推演
@@ -1291,8 +1291,8 @@ public class SubTaskService extends BaseService<SubTaskDto, SubTaskEntity, Objec
      * @param oldTaskDto 启动任务
      */
     public void startConnHeartbeat(UserDetail user, TaskDto oldTaskDto) {
-        log.info("start connection heartbeat: {}({})", oldTaskDto.getId(), oldTaskDto.getName());
         if (!ConnHeartbeatUtils.checkTask(oldTaskDto.getType(), oldTaskDto.getSyncType())) return;
+        log.info("start connection heartbeat: {}({})", oldTaskDto.getId(), oldTaskDto.getName());
 
         String subTaskId;
         DataSourceConnectionDto heartbeatConnection = null;
