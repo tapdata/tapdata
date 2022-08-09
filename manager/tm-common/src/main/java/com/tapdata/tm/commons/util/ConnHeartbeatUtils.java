@@ -1,5 +1,6 @@
 package com.tapdata.tm.commons.util;
 
+import com.sun.istack.internal.NotNull;
 import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.Edge;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
@@ -16,7 +17,7 @@ import java.util.*;
  * @version v1.0 2022/8/2 14:54 Create
  */
 public class ConnHeartbeatUtils {
-
+    private static final boolean ENABLE = false;
     public static final String PDK_ID = "dummy";
     public static final String PDK_NAME = "Dummy";
     public static final String MODE = "ConnHeartbeat";
@@ -31,10 +32,11 @@ public class ConnHeartbeatUtils {
      * @param taskSyncType task syncType
      * @return can start heartbeat
      */
-    public static boolean checkTask( String taskType,  String taskSyncType) {
-        return StringUtils.containsAny(taskSyncType, TaskDto.SYNC_TYPE_MIGRATE, TaskDto.SYNC_TYPE_SYNC)  //syncType is migrate or sync
-                || !ParentTaskDto.TYPE_INITIAL_SYNC.equals(taskType) //task type is not initial_sync
-                ;
+    public static boolean checkTask(@NotNull String taskType, @NotNull String taskSyncType) {
+        return ENABLE && (
+                StringUtils.containsAny(taskSyncType, TaskDto.SYNC_TYPE_MIGRATE, TaskDto.SYNC_TYPE_SYNC)  //syncType is migrate or sync
+                        || !ParentTaskDto.TYPE_INITIAL_SYNC.equals(taskType) //task type is not initial_sync
+        );
     }
 
     /**
@@ -44,8 +46,8 @@ public class ConnHeartbeatUtils {
      * @param capabilities capabilities has StreamRead and CreateTable and WriteRecord
      * @return can start heartbeat
      */
-    public static boolean checkConnection( String databaseType,  List<Capability> capabilities) {
-        if (PDK_NAME.equals(databaseType)) {
+    public static boolean checkConnection(@NotNull String databaseType, @NotNull List<Capability> capabilities) {
+        if (!ENABLE || PDK_NAME.equals(databaseType)) {
             return false;
         }
 
@@ -73,7 +75,7 @@ public class ConnHeartbeatUtils {
      * @param heartbeatDatabaseType heartbeat database type
      * @return heartbeat task
      */
-    public static TaskDto generateTask( String subTaskId,  String connectionId,  String connectionName,  String databaseType,  String heartbeatConnectionId,  String heartbeatDatabaseType) {
+    public static TaskDto generateTask(@NotNull String subTaskId, @NotNull String connectionId, @NotNull String connectionName, @NotNull String databaseType, @NotNull String heartbeatConnectionId, @NotNull String heartbeatDatabaseType) {
         TableNode sourceNode = new TableNode();
         sourceNode.setId(UUID.randomUUID().toString());
         sourceNode.setTableName(TABLE_NAME);
