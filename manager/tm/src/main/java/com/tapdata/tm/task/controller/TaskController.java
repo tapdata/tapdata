@@ -697,6 +697,7 @@ public class TaskController extends BaseController {
         return success();
     }
 
+    @Operation(summary = "重置任务接口")
     @PatchMapping("batchRenew")
     public ResponseMessage<Void> batchRenew(@RequestParam("taskIds") List<String> taskIds) {
         List<ObjectId> taskObjectIds = taskIds.stream().map(MongoUtils::toObjectId).collect(Collectors.toList());

@@ -31,6 +31,8 @@ public class TaskDto extends ParentTaskDto {
      */
     public static final String SYNC_TYPE_DEDUCE_SCHEMA = "deduceSchema";
 
+    public static final String LASTTASKRECORDID = "lastTaskRecordId";
+
     /** 任务图*/
     @JsonSerialize( using = DagSerialize.class)
     @JsonDeserialize( using = DagDeserialize.class)
@@ -57,8 +59,6 @@ public class TaskDto extends ParentTaskDto {
     private boolean showInspectTips;
 
     private String inspectId;
-
-    private String migrateModelStatus;
 
     /** 编辑中 待启动 */
     public static final String STATUS_EDIT = "edit";
@@ -96,6 +96,8 @@ public class TaskDto extends ParentTaskDto {
     private Boolean resetFlag;
     private Boolean deleteFlag;
     private Long version;
+
+    private String lastTaskRecordId;
 
     public DAG getDag() {
         if (dag != null) {
