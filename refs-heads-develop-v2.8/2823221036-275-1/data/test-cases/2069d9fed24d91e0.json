@@ -1,0 +1,99 @@
+{
+  "uid" : "2069d9fed24d91e0",
+  "name" : "test mysql form valid",
+  "fullName" : "test_datasource.TestDataSource#test_mysql_to_dict",
+  "historyId" : "7c9985d4825733cb93540a6061d9b8f3",
+  "time" : {
+    "start" : 1660027490989,
+    "stop" : 1660027490989,
+    "duration" : 0
+  },
+  "status" : "passed",
+  "flaky" : false,
+  "newFailed" : false,
+  "beforeStages" : [ ],
+  "afterStages" : [ ],
+  "labels" : [ {
+    "name" : "feature",
+    "value" : "datasource"
+  }, {
+    "name" : "suite",
+    "value" : "test_datasource"
+  }, {
+    "name" : "subSuite",
+    "value" : "TestDataSource"
+  }, {
+    "name" : "host",
+    "value" : "5d32baf0461a"
+  }, {
+    "name" : "thread",
+    "value" : "828-MainThread"
+  }, {
+    "name" : "framework",
+    "value" : "pytest"
+  }, {
+    "name" : "language",
+    "value" : "cpython3"
+  }, {
+    "name" : "package",
+    "value" : "test_datasource"
+  }, {
+    "name" : "resultFormat",
+    "value" : "allure2"
+  } ],
+  "parameters" : [ ],
+  "links" : [ ],
+  "hidden" : false,
+  "retry" : false,
+  "extra" : {
+    "severity" : "normal",
+    "retries" : [ ],
+    "categories" : [ ],
+    "history" : {
+      "statistic" : {
+        "failed" : 0,
+        "broken" : 0,
+        "skipped" : 0,
+        "passed" : 5,
+        "unknown" : 0,
+        "total" : 5
+      },
+      "items" : [ {
+        "uid" : "e0f6cd4f982659e0",
+        "status" : "passed",
+        "time" : {
+          "start" : 1659973263829,
+          "stop" : 1659973263829,
+          "duration" : 0
+        }
+      }, {
+        "uid" : "1ae8c55cc1a06e49",
+        "status" : "passed",
+        "time" : {
+          "start" : 1659947982443,
+          "stop" : 1659947982443,
+          "duration" : 0
+        }
+      }, {
+        "uid" : "58acd064c888ad2e",
+        "status" : "passed",
+        "time" : {
+          "start" : 1659943885172,
+          "stop" : 1659943885173,
+          "duration" : 1
+        }
+      }, {
+        "uid" : "ff96bf830a30afa8",
+        "status" : "passed",
+        "time" : {
+          "start" : 1659941322008,
+          "stop" : 1659941322008,
+          "duration" : 0
+        }
+      } ]
+    },
+    "tags" : [ ]
+  },
+  "source" : "2069d9fed24d91e0.json",
+  "parameterValues" : [ ]
+}
