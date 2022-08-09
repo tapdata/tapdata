@@ -85,6 +85,9 @@ public class TaskDto extends ParentTaskDto {
     /** 已暂停 */
     //public static final String STATUS_PAUSE = "pause";
 
+    /** 编辑中 待启动 */
+    public static final String STATUS_WAIT_START = "wait_start";
+
     @JsonSerialize( using = DagSerialize.class)
     @JsonDeserialize( using = DagDeserialize.class)
     private DAG tempDag;

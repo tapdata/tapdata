@@ -353,9 +353,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     public TaskDto updateById(TaskDto taskDto, UserDetail user) {
         checkTaskInspectFlag(taskDto);
 
-        if(taskDto.getDag().getEdges().size()>1){
-            throw new BizException("不支持多条链路，请编辑后重试");
-        }
+
 
         //根据id校验当前需要更新到任务是否存在
         TaskDto oldTaskDto = null;
@@ -566,6 +564,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         checkDDLConflict(taskDto);
 
         //saveInspect(existedTask, taskDto, user);
+        taskDto.setStatus(TaskDto.STATUS_WAIT_START);
         return confirmById(taskDto, user, confirm, false);
     }
 
@@ -3089,6 +3088,8 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
 
     public boolean taskStartCheckLog(TaskDto taskDto, UserDetail userDetail) {
+
+
         taskDagCheckLogService.removeAllByTaskId(taskDto.getId().toHexString());
 
         boolean saveNoPass = false;

@@ -1,5 +1,6 @@
 package com.tapdata.tm.task.service.impl;
 
+import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
@@ -31,6 +32,10 @@ public class TaskCheckInspectServiceImpl implements TaskCheckInspectService {
     public TaskDto getInspectFlagDefaultFlag(TaskDto taskDto, UserDetail userDetail) {
         if (Objects.isNull(taskDto.getDag())) {
             return taskDto;
+        }
+
+        if(taskDto.getDag().getEdges().size()>1){
+            throw new BizException("不支持多条链路，请编辑后重试");
         }
 
         List<String> connectIdList = taskDto.getDag().getNodes().stream()
