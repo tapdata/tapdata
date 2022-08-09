@@ -934,4 +934,15 @@ public class TaskController extends BaseController {
         return taskNodeService.getRun(taskId, jsNodeId, version);
     }
 
+    	@Operation(summary = "更新子任务断点信息")
+	@PostMapping("syncProgress/{taskId}")
+	public ResponseMessage<Void> updateSyncProgress(@PathVariable("taskId") String taskId, @RequestBody String body) {
+		if (StringUtils.isBlank(body)) {
+			return success();
+		}
+		Document document = Document.parse(body);
+		taskService.updateSyncProgress(MongoUtils.toObjectId(taskId), document);
+		return success();
+	}
+
 }
