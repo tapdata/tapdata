@@ -34,7 +34,7 @@ public class CdcDelay implements ICdcDelay {
     }
 
     @Override
-    public void addHeartbeatTable(List<String> tables) {
+    public void addHeartbeatTable(@NonNull List<String> tables) {
         if (tables.contains(ConnHeartbeatUtils.TABLE_NAME)) {
             isFilter = false;
         }
@@ -43,7 +43,7 @@ public class CdcDelay implements ICdcDelay {
     }
 
     @Override
-    public TapEvent filterAndCalcDelay(TapEvent tapEvent, Consumer<Long> delayConsumer) {
+    public TapEvent filterAndCalcDelay(TapEvent tapEvent, @NonNull Consumer<Long> delayConsumer) {
         if (tapEvent instanceof TapRecordEvent) {
             Long sourceTimes;
             TapRecordEvent tapRecordEvent = ((TapRecordEvent) tapEvent);
