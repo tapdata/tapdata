@@ -23,7 +23,7 @@ public class SampleMockUtil {
 
   static {
     sampleDateMap.put(TapString.class, new TapStringValue("sample string"));
-    sampleDateMap.put(TapNumber.class, new TapNumberValue(1.2));
+    sampleDateMap.put(TapNumber.class, new TapNumberValue(1d));
     sampleDateMap.put(TapBoolean.class, new TapBooleanValue(true));
     sampleDateMap.put(TapBinary.class, new TapBinaryValue(new byte[]{1, 2, 3}));
     sampleDateMap.put(TapDate.class, new TapDateValue(new DateTime(Instant.now())));
