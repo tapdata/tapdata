@@ -93,9 +93,7 @@ public class TapdataTaskScheduler {
 			);
 
 			Update update = new Update();
-//      update.set(DataFlow.STATUS_FIELD, DataFlow.STATUS_RUNNING);
 			update.set(DataFlow.PING_TIME_FIELD, System.currentTimeMillis());
-//      update.set(DataFlow.START_TIME_FIELD, new Date());
 			addAgentIdUpdate(update);
 
 			TaskDto taskDto = clientMongoOperator.findAndModify(query, update, TaskDto.class, ConnectorConstant.SUB_TASK_COLLECTION, true);
@@ -194,8 +192,8 @@ public class TapdataTaskScheduler {
 
 	private void removeTask(String taskId) {
 		TaskClient<TaskDto> taskClient;
-		if((taskClient = taskClientMap.remove(taskId)) != null) {
-			if(taskClient.getTask() != null) {
+		if ((taskClient = taskClientMap.remove(taskId)) != null) {
+			if (taskClient.getTask() != null) {
 				AspectUtils.executeAspect(new TaskStopAspect().task(taskClient.getTask()));
 			}
 		}
