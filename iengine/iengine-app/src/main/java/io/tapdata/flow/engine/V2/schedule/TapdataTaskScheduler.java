@@ -93,17 +93,15 @@ public class TapdataTaskScheduler {
 			);
 
 			Update update = new Update();
-//      update.set(DataFlow.STATUS_FIELD, DataFlow.STATUS_RUNNING);
 			update.set(DataFlow.PING_TIME_FIELD, System.currentTimeMillis());
-//      update.set(DataFlow.START_TIME_FIELD, new Date());
 			addAgentIdUpdate(update);
 
-			TaskDto taskDto = clientMongoOperator.findAndModify(query, update, TaskDto.class, ConnectorConstant.SUB_TASK_COLLECTION, true);
+			TaskDto taskDto = clientMongoOperator.findAndModify(query, update, TaskDto.class, ConnectorConstant.TASK_COLLECTION, true);
 			if (taskDto != null) {
 				try {
 					try {
 						final String taskId = taskDto.getId().toHexString();
-						clientMongoOperator.updateById(new Update(), ConnectorConstant.SUB_TASK_COLLECTION + "/running", taskId, TaskDto.class);
+						clientMongoOperator.updateById(new Update(), ConnectorConstant.TASK_COLLECTION + "/running", taskId, TaskDto.class);
 						Log4jUtil.setThreadContext(taskDto);
 						final TaskClient<TaskDto> subTaskDtoTaskClient = hazelcastTaskService.startTask(taskDto);
 						taskClientMap.put(subTaskDtoTaskClient.getTask().getId().toHexString(), subTaskDtoTaskClient);
@@ -111,7 +109,7 @@ public class TapdataTaskScheduler {
 						logger.warn(TapLog.JOB_WARN_0005.getMsg(), taskDto.getName(), Log4jUtil.getStackString(e));
 					} catch (Exception e) {
 						logger.error("Schedule task {} failed {}", taskDto.getName(), e.getMessage(), e);
-						clientMongoOperator.updateById(new Update(), ConnectorConstant.SUB_TASK_COLLECTION + "/runError", taskDto.getId().toHexString(), TaskDto.class);
+						clientMongoOperator.updateById(new Update(), ConnectorConstant.TASK_COLLECTION + "/runError", taskDto.getId().toHexString(), TaskDto.class);
 					}
 				} finally {
 					ThreadContext.clearAll();
@@ -142,7 +140,7 @@ public class TapdataTaskScheduler {
 			List<TaskDto> timeoutStoppingTasks = findStoppingTasks();
 			for (TaskDto timeoutStoppingTask : timeoutStoppingTasks) {
 				final String taskId = timeoutStoppingTask.getId().toHexString();
-				clientMongoOperator.updateById(new Update(), ConnectorConstant.SUB_TASK_COLLECTION + "/stopped", taskId, TaskDto.class);
+				clientMongoOperator.updateById(new Update(), ConnectorConstant.TASK_COLLECTION + "/stopped", taskId, TaskDto.class);
 			}
 		} catch (Exception e) {
 			logger.error("Scan force stopping data flow failed {}", e.getMessage(), e);
@@ -187,15 +185,15 @@ public class TapdataTaskScheduler {
 			return;
 		}
 		final String taskId = subTaskDtoTaskClient.getTask().getId().toHexString();
-		clientMongoOperator.updateById(new Update(), ConnectorConstant.SUB_TASK_COLLECTION + "/runError", taskId, TaskDto.class);
+		clientMongoOperator.updateById(new Update(), ConnectorConstant.TASK_COLLECTION + "/runError", taskId, TaskDto.class);
 		removeTask(taskId);
 		destroyCache(subTaskDtoTaskClient);
 	}
 
 	private void removeTask(String taskId) {
 		TaskClient<TaskDto> taskClient;
-		if((taskClient = taskClientMap.remove(taskId)) != null) {
-			if(taskClient.getTask() != null) {
+		if ((taskClient = taskClientMap.remove(taskId)) != null) {
+			if (taskClient.getTask() != null) {
 				AspectUtils.executeAspect(new TaskStopAspect().task(taskClient.getTask()));
 			}
 		}
@@ -218,7 +216,7 @@ public class TapdataTaskScheduler {
 
 		Query query = new Query(timeoutCriteria);
 		query.fields().include("id").include("status");
-		return clientMongoOperator.find(query, ConnectorConstant.SUB_TASK_COLLECTION, TaskDto.class);
+		return clientMongoOperator.find(query, ConnectorConstant.TASK_COLLECTION, TaskDto.class);
 	}
 
 	/**
@@ -236,7 +234,7 @@ public class TapdataTaskScheduler {
 
 		Query query = new Query(timeoutCriteria);
 		query.fields().include("id").include("status");
-		final List<TaskDto> subTaskDtos = clientMongoOperator.find(query, ConnectorConstant.SUB_TASK_COLLECTION, TaskDto.class);
+		final List<TaskDto> subTaskDtos = clientMongoOperator.find(query, ConnectorConstant.TASK_COLLECTION, TaskDto.class);
 		return CollectionUtil.isNotEmpty(subTaskDtos) ? subTaskDtos.get(0) : null;
 	}
 
@@ -247,7 +245,7 @@ public class TapdataTaskScheduler {
 		final boolean stop = subTaskDtoTaskClient.stop();
 		if (stop) {
 			final String taskId = subTaskDtoTaskClient.getTask().getId().toHexString();
-			clientMongoOperator.updateById(new Update(), ConnectorConstant.SUB_TASK_COLLECTION + "/stopped", taskId, TaskDto.class);
+			clientMongoOperator.updateById(new Update(), ConnectorConstant.TASK_COLLECTION + "/stopped", taskId, TaskDto.class);
 			removeTask(taskId);
 			destroyCache(subTaskDtoTaskClient);
 		}
@@ -258,7 +256,7 @@ public class TapdataTaskScheduler {
 			return;
 		}
 		final String taskId = taskDtoTaskClient.getTask().getId().toHexString();
-		clientMongoOperator.updateById(new Update(), ConnectorConstant.SUB_TASK_COLLECTION + "/complete", taskId, TaskDto.class);
+		clientMongoOperator.updateById(new Update(), ConnectorConstant.TASK_COLLECTION + "/complete", taskId, TaskDto.class);
 		removeTask(taskId);
 		destroyCache(taskDtoTaskClient);
 	}

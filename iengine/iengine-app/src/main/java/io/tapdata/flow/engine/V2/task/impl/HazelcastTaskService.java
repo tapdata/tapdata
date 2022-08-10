@@ -154,8 +154,8 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 			Map<String, Object> params = new HashMap<>();
 			params.put("id", taskDto.getId().toHexString());
 			params.put("time", tmCurrentTime);
-			clientMongoOperator.deleteByMap(params, ConnectorConstant.SUB_TASK_COLLECTION + "/history");
-			taskDtoAtomicReference.set(clientMongoOperator.findOne(params, ConnectorConstant.SUB_TASK_COLLECTION + "/history", TaskDto.class));
+			clientMongoOperator.deleteByMap(params, ConnectorConstant.TASK_COLLECTION + "/history");
+			taskDtoAtomicReference.set(clientMongoOperator.findOne(params, ConnectorConstant.TASK_COLLECTION + "/history", TaskDto.class));
 			if (null == taskDtoAtomicReference.get()) {
 				throw new RuntimeException("Get task history failed, param: " + params + ", result is null");
 			}

@@ -128,7 +128,7 @@ public class MilestoneFlowServiceJetV2 extends MilestoneService {
 		// 从中间库拉取最新的edgeMilestones数据
 		Query query = new Query(Criteria.where("_id").is(milestoneContext.getTaskDto().getId().toHexString()));
 		query.fields().include("attrs.edgeMilestones");
-		TaskDto taskDto = clientMongoOperator.findOne(query, ConnectorConstant.SUB_TASK_COLLECTION, TaskDto.class);
+		TaskDto taskDto = clientMongoOperator.findOne(query, ConnectorConstant.TASK_COLLECTION, TaskDto.class);
 		Map<String, EdgeMilestone> edgeMilestoneMap = new ConcurrentHashMap<>();
 		if (MapUtils.isNotEmpty(taskDto.getAttrs())) {
 			final Map<String, Object> edgeMilestones = (Map) taskDto.getAttrs().getOrDefault("edgeMilestones", new ConcurrentHashMap<>());
@@ -160,7 +160,7 @@ public class MilestoneFlowServiceJetV2 extends MilestoneService {
 		query = new Query(Criteria.where("_id").is(milestoneContext.getTaskDto().getId().toHexString()));
 		Update update = new Update().set(MILESTONES_FIELD_NAME, milestoneContext.getTaskDto().getMilestones());
 //      .set("attrs.edgeMilestones", milestoneContext.getEdgeMilestones());
-		clientMongoOperator.update(query, update, ConnectorConstant.SUB_TASK_COLLECTION);
+		clientMongoOperator.update(query, update, ConnectorConstant.TASK_COLLECTION);
 	}
 
 	/**
@@ -172,6 +172,6 @@ public class MilestoneFlowServiceJetV2 extends MilestoneService {
 	public void updateList(List<Milestone> milestoneList) {
 		Query query = new Query(Criteria.where("_id").is(milestoneContext.getTaskDto().getId().toHexString()));
 		Update update = new Update().set(MILESTONES_FIELD_NAME, milestoneList);
-		clientMongoOperator.update(query, update, ConnectorConstant.SUB_TASK_COLLECTION);
+		clientMongoOperator.update(query, update, ConnectorConstant.TASK_COLLECTION);
 	}
 }

@@ -96,7 +96,7 @@ public class DataSyncEventHandler extends BaseEventHandler {
 	}
 
 	private void destroy(String taskId) {
-		TaskDto subTaskDto = clientMongoOperator.findOne(Query.query(Criteria.where("_id").is(taskId)), ConnectorConstant.SUB_TASK_COLLECTION, TaskDto.class);
+		TaskDto subTaskDto = clientMongoOperator.findOne(Query.query(Criteria.where("_id").is(taskId)), ConnectorConstant.TASK_COLLECTION, TaskDto.class);
 		if (null == subTaskDto) return;
 		List<Node> nodes = subTaskDto.getDag().getNodes();
 		if (CollectionUtils.isEmpty(nodes)) return;

@@ -163,7 +163,7 @@ public abstract class AbstractCacheService implements ICacheService {
 
     if (this.cacheConfigMap.get(cacheName) == null) {
       // 如果不存在，则向tm查询
-      TaskDto taskDto = clientMongoOperator.findOne(new Query(), ConnectorConstant.SUB_TASK_COLLECTION + "/byCacheName/" + cacheName, TaskDto.class);
+      TaskDto taskDto = clientMongoOperator.findOne(new Query(), ConnectorConstant.TASK_COLLECTION + "/byCacheName/" + cacheName, TaskDto.class);
       DataFlowCacheConfig cacheConfig = CacheUtil.getCacheConfig(taskDto, clientMongoOperator);
       if (cacheConfig == null) {
         throw new RuntimeException("cache not exist: " + cacheName);

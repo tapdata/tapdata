@@ -39,7 +39,7 @@ public class TaskPingTimeMonitor extends TaskMonitor<Object> {
 					clientMongoOperator.update(
 							new Query(where("_id").is(taskDto.getId())),
 							new Update().set("pingTime", System.currentTimeMillis()),
-							ConnectorConstant.SUB_TASK_COLLECTION
+							ConnectorConstant.TASK_COLLECTION
 					);
 				}, 0L, PING_INTERVAL_MS, TimeUnit.MILLISECONDS
 		);

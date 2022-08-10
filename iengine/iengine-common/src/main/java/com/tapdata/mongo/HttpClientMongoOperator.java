@@ -680,7 +680,7 @@ public class HttpClientMongoOperator extends ClientMongoOperator {
 	}
 
 	private Object findAndModifyTask(String collection, Query query, Update update, boolean returnNew) {
-		if (ConnectorConstant.SUB_TASK_COLLECTION.equals(collection)) {
+		if (ConnectorConstant.TASK_COLLECTION.equals(collection)) {
 			final org.springframework.data.mongodb.core.query.Field fields = query.fields();
 			if (fields == null || MapUtils.isEmpty(fields.getFieldsObject())) {
 				fields.exclude("editorData");
@@ -728,7 +728,7 @@ public class HttpClientMongoOperator extends ClientMongoOperator {
 			result = (T) findAndModifyJob(collection, query, update, returnNew);
 		} else if (ConnectorConstant.DATA_FLOW_COLLECTION.equals(collection)) {
 			result = (T) findAndModifyDataFlow(collection, query, update, returnNew);
-		} else if (ConnectorConstant.SUB_TASK_COLLECTION.equals(collection)) {
+		} else if (ConnectorConstant.TASK_COLLECTION.equals(collection)) {
 			result = (T) findAndModifyTask(collection, query, update, returnNew);
 		}
 		return result;
