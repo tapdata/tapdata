@@ -1,5 +1,6 @@
-package io.tapdata.common.ddl.ccj;
+package io.tapdata.connector.mysql.ddl.ccj;
 
+import io.tapdata.common.ddl.ccj.CCJBaseDDLWrapper;
 import io.tapdata.entity.event.ddl.TapDDLEvent;
 import io.tapdata.entity.event.ddl.table.TapDropFieldEvent;
 import io.tapdata.entity.schema.TapTable;
@@ -20,9 +21,9 @@ import java.util.function.Consumer;
  * @Description
  * @create 2022-07-05 10:47
  **/
-public class CCJDropColumnDDLWrapper extends CCJBaseDDLWrapper {
+public class MysqlDropColumnDDLWrapper extends CCJBaseDDLWrapper {
 
-    public CCJDropColumnDDLWrapper(String spilt) {
+    public MysqlDropColumnDDLWrapper(String spilt) {
         super(spilt);
     }
 
@@ -32,7 +33,7 @@ public class CCJDropColumnDDLWrapper extends CCJBaseDDLWrapper {
     }
 
     @Override
-    public void wrap(Alter ddl, KVReadOnlyMap<TapTable> tableMap, Consumer<TapDDLEvent> consumer) throws Throwable {
+    public void wrap(Alter ddl, KVReadOnlyMap<TapTable> tableMap, Consumer<TapDDLEvent> consumer) {
         verifyAlter(ddl);
         String tableName = getTableName(ddl);
         List<AlterExpression> alterExpressions = ddl.getAlterExpressions();
@@ -42,7 +43,7 @@ public class CCJDropColumnDDLWrapper extends CCJBaseDDLWrapper {
             }
             TapDropFieldEvent tapDropFieldEvent = new TapDropFieldEvent();
             tapDropFieldEvent.setTableId(tableName);
-            tapDropFieldEvent.setFieldName(StringKit.removeHeadTail(alterExpression.getColumnName(), spilt));
+            tapDropFieldEvent.setFieldName(StringKit.removeHeadTail(alterExpression.getColumnName(), spilt, false));
             consumer.accept(tapDropFieldEvent);
         }
     }

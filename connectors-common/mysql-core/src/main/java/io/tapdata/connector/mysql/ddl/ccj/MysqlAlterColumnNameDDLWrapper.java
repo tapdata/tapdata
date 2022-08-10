@@ -1,5 +1,6 @@
-package io.tapdata.common.ddl.ccj;
+package io.tapdata.connector.mysql.ddl.ccj;
 
+import io.tapdata.common.ddl.ccj.CCJBaseDDLWrapper;
 import io.tapdata.entity.event.ddl.TapDDLEvent;
 import io.tapdata.entity.event.ddl.entity.ValueChange;
 import io.tapdata.entity.event.ddl.table.TapAlterFieldNameEvent;
@@ -22,9 +23,9 @@ import java.util.function.Consumer;
  * @Description
  * @create 2022-07-04 17:52
  **/
-public class CCJAlterColumnNameDDLWrapper extends CCJBaseDDLWrapper {
+public class MysqlAlterColumnNameDDLWrapper extends CCJBaseDDLWrapper {
 
-    public CCJAlterColumnNameDDLWrapper(String spilt) {
+    public MysqlAlterColumnNameDDLWrapper(String spilt) {
         super(spilt);
     }
 
@@ -34,7 +35,7 @@ public class CCJAlterColumnNameDDLWrapper extends CCJBaseDDLWrapper {
     }
 
     @Override
-    public void wrap(Alter ddl, KVReadOnlyMap<TapTable> tableMap, Consumer<TapDDLEvent> consumer) throws Throwable {
+    public void wrap(Alter ddl, KVReadOnlyMap<TapTable> tableMap, Consumer<TapDDLEvent> consumer) {
         verifyAlter(ddl);
         TapAlterFieldNameEvent tapAlterFieldNameEvent = new TapAlterFieldNameEvent();
         String tableName = getTableName(ddl);
@@ -53,7 +54,7 @@ public class CCJAlterColumnNameDDLWrapper extends CCJBaseDDLWrapper {
             if (null == columnDataType || EmptyKit.isBlank(columnDataType.getColumnName())) {
                 return;
             }
-            tapAlterFieldNameEvent.nameChange(ValueChange.create(StringKit.removeHeadTail(alterExpression.getColumnOldName(), spilt), StringKit.removeHeadTail(columnDataType.getColumnName(), spilt)));
+            tapAlterFieldNameEvent.nameChange(ValueChange.create(StringKit.removeHeadTail(alterExpression.getColumnOldName(), spilt, false), StringKit.removeHeadTail(columnDataType.getColumnName(), spilt, false)));
             consumer.accept(tapAlterFieldNameEvent);
         } else if (alterExpression.getOperation() == AlterOperation.RENAME) {
             String columnName = alterExpression.getColumnName();
@@ -61,7 +62,7 @@ public class CCJAlterColumnNameDDLWrapper extends CCJBaseDDLWrapper {
             if (EmptyKit.isBlank(columnName) || EmptyKit.isBlank(columnOldName)) {
                 return;
             }
-            tapAlterFieldNameEvent.nameChange(ValueChange.create(StringKit.removeHeadTail(columnOldName, spilt), StringKit.removeHeadTail(columnName, spilt)));
+            tapAlterFieldNameEvent.nameChange(ValueChange.create(StringKit.removeHeadTail(columnOldName, spilt, false), StringKit.removeHeadTail(columnName, spilt, false)));
             consumer.accept(tapAlterFieldNameEvent);
         }
     }

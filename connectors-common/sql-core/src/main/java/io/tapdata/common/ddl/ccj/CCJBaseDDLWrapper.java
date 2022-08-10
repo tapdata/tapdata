@@ -39,7 +39,7 @@ public abstract class CCJBaseDDLWrapper extends BaseDDLWrapper<Alter> {
 
     protected String getTableName(Alter ddl) {
         Table table = ddl.getTable();
-        return StringKit.removeHeadTail(table.getName(), spilt);
+        return StringKit.removeHeadTail(table.getName(), spilt, null);
     }
 
     protected String getDataType(ColDataType colDataType) {

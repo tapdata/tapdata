@@ -34,7 +34,7 @@ public abstract class LogMiner implements ILogMiner {
 
     private final static String TAG = LogMiner.class.getSimpleName();
     protected static final BeanUtils beanUtils = InstanceFactory.instance(BeanUtils.class); //bean util
-    private final DDLParserType ddlParserType = DDLParserType.CCJ_SQL_PARSER; //ddl parser type
+    protected DDLParserType ddlParserType; //ddl parser type
     protected AtomicBoolean isRunning = new AtomicBoolean(false);
     protected ExecutorService redoLogConsumerThreadPool;
 

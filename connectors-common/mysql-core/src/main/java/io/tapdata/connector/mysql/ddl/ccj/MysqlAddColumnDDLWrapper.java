@@ -1,5 +1,6 @@
-package io.tapdata.common.ddl.ccj;
+package io.tapdata.connector.mysql.ddl.ccj;
 
+import io.tapdata.common.ddl.ccj.CCJBaseDDLWrapper;
 import io.tapdata.entity.event.ddl.TapDDLEvent;
 import io.tapdata.entity.event.ddl.table.TapNewFieldEvent;
 import io.tapdata.entity.schema.TapField;
@@ -24,9 +25,9 @@ import static io.tapdata.pdk.apis.entity.ConnectionOptions.DDL_NEW_FIELD_EVENT;
  * @Description
  * @create 2022-07-01 14:24
  **/
-public class CCJAddColumnDDLWrapper extends CCJBaseDDLWrapper {
+public class MysqlAddColumnDDLWrapper extends CCJBaseDDLWrapper {
 
-    public CCJAddColumnDDLWrapper(String spilt) {
+    public MysqlAddColumnDDLWrapper(String spilt) {
         super(spilt);
     }
 
@@ -36,7 +37,7 @@ public class CCJAddColumnDDLWrapper extends CCJBaseDDLWrapper {
     }
 
     @Override
-    public void wrap(Alter ddl, KVReadOnlyMap<TapTable> tableMap, Consumer<TapDDLEvent> consumer) throws Throwable {
+    public void wrap(Alter ddl, KVReadOnlyMap<TapTable> tableMap, Consumer<TapDDLEvent> consumer) {
         verifyAlter(ddl);
         String tableName = getTableName(ddl);
         TapTable tapTable = null == tableMap ? null : tableMap.get(tableName);
@@ -52,7 +53,7 @@ public class CCJAddColumnDDLWrapper extends CCJBaseDDLWrapper {
             TapNewFieldEvent tapNewFieldEvent = new TapNewFieldEvent();
             tapNewFieldEvent.setTableId(tableName);
             for (AlterExpression.ColumnDataType columnDataType : colDataTypeList) {
-                String columnName = StringKit.removeHeadTail(columnDataType.getColumnName(), spilt);
+                String columnName = StringKit.removeHeadTail(columnDataType.getColumnName(), spilt, false);
                 ColDataType colDataType = columnDataType.getColDataType();
                 String dataType = getDataType(colDataType);
                 TapField tapField = new TapField(columnName, dataType);
@@ -82,10 +83,10 @@ public class CCJAddColumnDDLWrapper extends CCJBaseDDLWrapper {
                             break;
                         default:
                             if ("default".equals(preSpec)) {
-                                tapField.defaultValue(StringKit.removeHeadTail(columnSpec, "'"));
+                                tapField.defaultValue(StringKit.removeHeadTail(columnSpec, "'", null));
                                 preSpec = "";
                             } else if ("comment".equals(preSpec)) {
-                                tapField.comment(StringKit.removeHeadTail(columnSpec, "'"));
+                                tapField.comment(StringKit.removeHeadTail(columnSpec, "'", null));
                                 preSpec = "";
                             }
                             break;

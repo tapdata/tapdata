@@ -1,5 +1,6 @@
-package io.tapdata.common.ddl.ccj;
+package io.tapdata.connector.mysql.ddl.ccj;
 
+import io.tapdata.common.ddl.ccj.CCJBaseDDLWrapper;
 import io.tapdata.entity.event.ddl.TapDDLEvent;
 import io.tapdata.entity.event.ddl.entity.ValueChange;
 import io.tapdata.entity.event.ddl.table.TapAlterFieldAttributesEvent;
@@ -23,9 +24,9 @@ import java.util.function.Consumer;
  * @Description
  * @create 2022-07-04 17:45
  **/
-public class CCJAlterColumnAttrsDDLWrapper extends CCJBaseDDLWrapper {
+public class MysqlAlterColumnAttrsDDLWrapper extends CCJBaseDDLWrapper {
 
-    public CCJAlterColumnAttrsDDLWrapper(String spilt) {
+    public MysqlAlterColumnAttrsDDLWrapper(String spilt) {
         super(spilt);
     }
 
@@ -35,7 +36,7 @@ public class CCJAlterColumnAttrsDDLWrapper extends CCJBaseDDLWrapper {
     }
 
     @Override
-    public void wrap(Alter ddl, KVReadOnlyMap<TapTable> tableMap, Consumer<TapDDLEvent> consumer) throws Throwable {
+    public void wrap(Alter ddl, KVReadOnlyMap<TapTable> tableMap, Consumer<TapDDLEvent> consumer) {
         verifyAlter(ddl);
         String tableName = getTableName(ddl);
         TapTable tapTable = null != tableMap ? tableMap.get(tableName) : null;
@@ -53,39 +54,9 @@ public class CCJAlterColumnAttrsDDLWrapper extends CCJBaseDDLWrapper {
             for (AlterExpression.ColumnDataType columnDataType : colDataTypeList) {
                 TapAlterFieldAttributesEvent tapAlterFieldAttributesEvent = new TapAlterFieldAttributesEvent();
                 tapAlterFieldAttributesEvent.setTableId(tableName);
-                String columnName = StringKit.removeHeadTail(columnDataType.getColumnName(), spilt);
+                String columnName = StringKit.removeHeadTail(columnDataType.getColumnName(), spilt, false);
                 tapAlterFieldAttributesEvent.fieldName(columnName);
                 List<String> columnSpecs = columnDataType.getColumnSpecs();
-                if("set".equalsIgnoreCase(columnDataType.getColDataType().getDataType())) {
-                    String preSpec = "";
-                    StringBuilder dataType = new StringBuilder();
-                    for (String columnSpec : columnSpecs) {
-                        columnSpec = columnSpec.toLowerCase();
-                        switch (columnSpec) {
-                            case "not":
-                            case "default":
-                            case "type":
-                                preSpec = columnSpec;
-                                break;
-                            case "null":
-                                boolean nullable = !"not".equals(preSpec);
-                                tapAlterFieldAttributesEvent.nullable(ValueChange.create(nullable));
-                                preSpec = "";
-                                break;
-                            default:
-                                if ("default".equals(preSpec)) {
-                                    tapAlterFieldAttributesEvent.defaultChange(ValueChange.create(StringKit.removeHeadTail(columnSpec, "'")));
-                                    preSpec = "";
-                                } else if("type".equals(preSpec)) {
-                                    dataType.append(columnSpec);
-                                }
-                                break;
-                        }
-                    }
-                    tapAlterFieldAttributesEvent.dataType(ValueChange.create(dataType.toString()));
-                    consumer.accept(tapAlterFieldAttributesEvent);
-                    return;
-                }
                 String preSpec = "";
                 for (String columnSpec : columnSpecs) {
                     columnSpec = columnSpec.toLowerCase();
@@ -112,10 +83,10 @@ public class CCJAlterColumnAttrsDDLWrapper extends CCJBaseDDLWrapper {
                             break;
                         default:
                             if ("default".equals(preSpec)) {
-                                tapAlterFieldAttributesEvent.defaultChange(ValueChange.create(StringKit.removeHeadTail(columnSpec, "'")));
+                                tapAlterFieldAttributesEvent.defaultChange(ValueChange.create(StringKit.removeHeadTail(columnSpec, "'", null)));
                                 preSpec = "";
                             } else if ("comment".equals(preSpec)) {
-                                tapAlterFieldAttributesEvent.comment(ValueChange.create(StringKit.removeHeadTail(columnSpec, "'")));
+                                tapAlterFieldAttributesEvent.comment(ValueChange.create(StringKit.removeHeadTail(columnSpec, "'", null)));
                                 preSpec = "";
                             }
                             break;

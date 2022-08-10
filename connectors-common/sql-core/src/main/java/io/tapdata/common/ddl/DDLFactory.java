@@ -29,7 +29,7 @@ public class DDLFactory {
         }
         List<String> capabilityIds = new ArrayList<>();
         List<Capability> capabilities = new ArrayList<>();
-        Class<? extends WrapperType> wrapperType = ddlParserType.getWrapperType();
+        Class<? extends WrapperType> wrapperType = ddlParserType.getWrapperTypeClass();
         WrapperType wrapperTypeBean = InstanceFactory.bean(wrapperType);
         List<DDLType> ddlTypes = wrapperTypeBean.getDdlTypes();
         for (DDLType ddlType : ddlTypes) {

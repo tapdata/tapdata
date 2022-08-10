@@ -16,7 +16,7 @@ import java.util.regex.Pattern;
 public class DDLFilter {
 
     public static DDLType testAndGetType(DDLParserType ddlParserType, String ddl) {
-        Class<? extends WrapperType> wrapperType = ddlParserType.getWrapperType();
+        Class<? extends WrapperType> wrapperType = ddlParserType.getWrapperTypeClass();
         WrapperType wrapperBean = InstanceFactory.bean(wrapperType);
         List<DDLType> ddlTypes = wrapperBean.getDdlTypes();
         for (DDLType ddlType : ddlTypes) {

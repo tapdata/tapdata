@@ -43,7 +43,7 @@ import java.util.function.Consumer;
 public class MysqlConnector extends ConnectorBase {
     private static final String TAG = MysqlConnector.class.getSimpleName();
     private static final int MAX_FILTER_RESULT_SIZE = 100;
-    private static final DDLParserType DDL_PARSER_TYPE = DDLParserType.CCJ_SQL_PARSER;
+    private static final DDLParserType DDL_PARSER_TYPE = DDLParserType.MYSQL_CCJ_SQL_PARSER;
     private MysqlJdbcContext mysqlJdbcContext;
     private MysqlReader mysqlReader;
     private MysqlWriter mysqlWriter;
