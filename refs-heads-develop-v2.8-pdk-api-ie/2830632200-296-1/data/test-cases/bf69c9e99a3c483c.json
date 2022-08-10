@@ -1,0 +1,99 @@
+{
+  "uid" : "bf69c9e99a3c483c",
+  "name" : "real time database migrate between mongodb",
+  "fullName" : "test_pipeline.TestPipeline#test_migrate_job",
+  "historyId" : "0657c83763def5bcb63193d5e13b577d",
+  "time" : {
+    "start" : 1660115081514,
+    "stop" : 1660115084833,
+    "duration" : 3319
+  },
+  "status" : "passed",
+  "flaky" : false,
+  "newFailed" : false,
+  "beforeStages" : [ ],
+  "testStage" : {
+    "status" : "passed",
+    "steps" : [ ],
+    "attachments" : [ {
+      "uid" : "32a587dee09b81a8",
+      "name" : "stdout",
+      "source" : "32a587dee09b81a8.txt",
+      "type" : "text/plain",
+      "size" : 905
+    } ],
+    "parameters" : [ ],
+    "stepsCount" : 0,
+    "attachmentsCount" : 1,
+    "shouldDisplayMessage" : false,
+    "hasContent" : true
+  },
+  "afterStages" : [ ],
+  "labels" : [ {
+    "name" : "feature",
+    "value" : "pipeline"
+  }, {
+    "name" : "suite",
+    "value" : "test_pipeline"
+  }, {
+    "name" : "subSuite",
+    "value" : "TestPipeline"
+  }, {
+    "name" : "host",
+    "value" : "322b3da6fbda"
+  }, {
+    "name" : "thread",
+    "value" : "834-MainThread"
+  }, {
+    "name" : "framework",
+    "value" : "pytest"
+  }, {
+    "name" : "language",
+    "value" : "cpython3"
+  }, {
+    "name" : "package",
+    "value" : "test_pipeline"
+  }, {
+    "name" : "resultFormat",
+    "value" : "allure2"
+  } ],
+  "parameters" : [ ],
+  "links" : [ ],
+  "hidden" : false,
+  "retry" : false,
+  "extra" : {
+    "severity" : "normal",
+    "retries" : [ ],
+    "categories" : [ ],
+    "history" : {
+      "statistic" : {
+        "failed" : 0,
+        "broken" : 0,
+        "skipped" : 0,
+        "passed" : 3,
+        "unknown" : 0,
+        "total" : 3
+      },
+      "items" : [ {
+        "uid" : "87add38bb8d0c3f4",
+        "status" : "passed",
+        "time" : {
+          "start" : 1660102213453,
+          "stop" : 1660102216411,
+          "duration" : 2958
+        }
+      }, {
+        "uid" : "18c9cfe8b8601431",
+        "status" : "passed",
+        "time" : {
+          "start" : 1660100541607,
+          "stop" : 1660100544806,
+          "duration" : 3199
+        }
+      } ]
+    },
+    "tags" : [ ]
+  },
+  "source" : "bf69c9e99a3c483c.json",
+  "parameterValues" : [ ]
+}
