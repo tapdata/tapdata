@@ -499,7 +499,6 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 			tags.put("type", "node");
 		}
 		if (processorBaseContext.getTaskDto() != null) {
-			tags.put("subTaskId", processorBaseContext.getTaskDto().getId().toString());
 			tags.put("taskId", processorBaseContext.getTaskDto().getId().toString());
 		}
 		sampleCollector = CollectorFactory.getInstance().getSampleCollectorByTags("nodeSamples", tags);
