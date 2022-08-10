@@ -1,6 +1,4 @@
-package io.tapdata.connector.mysql.ddl.parser;
-
-import io.tapdata.connector.mysql.ddl.DDLParser;
+package io.tapdata.common.ddl.parser;
 
 /**
  * @author samuel

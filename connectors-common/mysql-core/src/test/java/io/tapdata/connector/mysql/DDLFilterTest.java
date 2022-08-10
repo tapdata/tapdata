@@ -1,8 +1,8 @@
 package io.tapdata.connector.mysql;
 
-import io.tapdata.connector.mysql.ddl.DDLFilter;
-import io.tapdata.connector.mysql.ddl.DDLParserType;
-import io.tapdata.connector.mysql.ddl.type.DDLType;
+import io.tapdata.common.ddl.DDLFilter;
+import io.tapdata.common.ddl.type.DDLParserType;
+import io.tapdata.common.ddl.type.DDLType;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 

@@ -1,4 +1,4 @@
-package io.tapdata.connector.mysql.ddl.type;
+package io.tapdata.common.ddl.type;
 
 import java.util.ArrayList;
 import java.util.List;

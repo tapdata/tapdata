@@ -1,6 +1,4 @@
-package io.tapdata.connector.mysql.ddl.wrapper;
-
-import io.tapdata.connector.mysql.ddl.DDLWrapper;
+package io.tapdata.common.ddl.wrapper;
 
 /**
  * @author samuel
