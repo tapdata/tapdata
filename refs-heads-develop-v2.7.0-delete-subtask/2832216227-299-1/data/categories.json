@@ -1,0 +1,104 @@
+{
+  "uid" : "4b4757e66a1912dae1a509f688f20b0f",
+  "children" : [ {
+    "name" : "Test defects",
+    "children" : [ {
+      "name" : "IndexError: tuple index out of range",
+      "children" : [ {
+        "name" : "filter row in sync",
+        "uid" : "e803bd87923c1085",
+        "parentUid" : "2c6752fe25a95e5634d9e2bf3ed0f246",
+        "status" : "broken",
+        "time" : {
+          "start" : 1660131356914,
+          "stop" : 1660131357447,
+          "duration" : 533
+        },
+        "flaky" : false,
+        "newFailed" : false,
+        "parameters" : [ ]
+      }, {
+        "name" : "filter column in sync",
+        "uid" : "e7dd3eacedd30cbd",
+        "parentUid" : "2c6752fe25a95e5634d9e2bf3ed0f246",
+        "status" : "broken",
+        "time" : {
+          "start" : 1660131357875,
+          "stop" : 1660131358311,
+          "duration" : 436
+        },
+        "flaky" : false,
+        "newFailed" : false,
+        "parameters" : [ ]
+      }, {
+        "name" : "rename column in sync",
+        "uid" : "5e0cbd650c262697",
+        "parentUid" : "2c6752fe25a95e5634d9e2bf3ed0f246",
+        "status" : "broken",
+        "time" : {
+          "start" : 1660131358564,
+          "stop" : 1660131359073,
+          "duration" : 509
+        },
+        "flaky" : false,
+        "newFailed" : false,
+        "parameters" : [ ]
+      }, {
+        "name" : "js udf in sync",
+        "uid" : "6fb3b1fd4bb0b015",
+        "parentUid" : "2c6752fe25a95e5634d9e2bf3ed0f246",
+        "status" : "broken",
+        "time" : {
+          "start" : 1660131359642,
+          "stop" : 1660131359914,
+          "duration" : 272
+        },
+        "flaky" : false,
+        "newFailed" : false,
+        "parameters" : [ ]
+      }, {
+        "name" : "table merge in sync",
+        "uid" : "6f69cc7fab7e8da1",
+        "parentUid" : "2c6752fe25a95e5634d9e2bf3ed0f246",
+        "status" : "broken",
+        "time" : {
+          "start" : 1660131360194,
+          "stop" : 1660131360450,
+          "duration" : 256
+        },
+        "flaky" : false,
+        "newFailed" : false,
+        "parameters" : [ ]
+      }, {
+        "name" : "multi layer table merge in sync",
+        "uid" : "8425d6a9949fac7e",
+        "parentUid" : "2c6752fe25a95e5634d9e2bf3ed0f246",
+        "status" : "broken",
+        "time" : {
+          "start" : 1660131360703,
+          "stop" : 1660131360936,
+          "duration" : 233
+        },
+        "flaky" : false,
+        "newFailed" : false,
+        "parameters" : [ ]
+      }, {
+        "name" : "js udf in sync",
+        "uid" : "7ccb907a8cbbef88",
+        "parentUid" : "2c6752fe25a95e5634d9e2bf3ed0f246",
+        "status" : "broken",
+        "time" : {
+          "start" : 1660131361326,
+          "stop" : 1660131361671,
+          "duration" : 345
+        },
+        "flaky" : false,
+        "newFailed" : false,
+        "parameters" : [ ]
+      } ],
+      "uid" : "2c6752fe25a95e5634d9e2bf3ed0f246"
+    } ],
+    "uid" : "bdbf199525818fae7a8651db9eafe741"
+  } ],
+  "name" : "categories"
+}
