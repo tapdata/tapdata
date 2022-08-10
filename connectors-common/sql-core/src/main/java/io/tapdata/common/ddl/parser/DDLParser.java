@@ -1,4 +1,4 @@
-package io.tapdata.connector.mysql.ddl;
+package io.tapdata.common.ddl.parser;
 
 /**
  * @author samuel
@@ -6,5 +6,5 @@ package io.tapdata.connector.mysql.ddl;
  * @create 2022-07-01 14:27
  **/
 public interface DDLParser<T> {
-	T parse(String ddl) throws Throwable;
+    T parse(String ddl) throws Throwable;
 }

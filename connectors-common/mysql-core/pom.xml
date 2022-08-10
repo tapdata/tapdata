@@ -35,7 +35,6 @@
         <java.version>8</java.version>
         <mysql.driver.version>8.0.21</mysql.driver.version>
         <debezium.version>1.5.4.Final</debezium.version>
-        <jsqlparser.version>4.4</jsqlparser.version>
     </properties>
     <dependencyManagement>
         <dependencies>
@@ -64,11 +63,6 @@
                 <groupId>io.debezium</groupId>
                 <artifactId>debezium-connector-mysql</artifactId>
                 <version>${debezium.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>com.github.jsqlparser</groupId>
-                <artifactId>jsqlparser</artifactId>
-                <version>${jsqlparser.version}</version>
             </dependency>
         </dependencies>
     </dependencyManagement>
@@ -103,10 +97,6 @@
         <dependency>
             <groupId>io.debezium</groupId>
             <artifactId>debezium-connector-mysql</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>com.github.jsqlparser</groupId>
-            <artifactId>jsqlparser</artifactId>
         </dependency>
         <dependency>
             <groupId>org.junit.jupiter</groupId>

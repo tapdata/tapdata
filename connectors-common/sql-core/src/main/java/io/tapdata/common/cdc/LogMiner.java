@@ -1,5 +1,7 @@
 package io.tapdata.common.cdc;
 
+import io.tapdata.common.ddl.DDLFactory;
+import io.tapdata.common.ddl.type.DDLParserType;
 import io.tapdata.constant.SqlConstant;
 import io.tapdata.constant.TapLog;
 import io.tapdata.entity.event.TapEvent;
@@ -11,6 +13,7 @@ import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.entity.utils.BeanUtils;
 import io.tapdata.entity.utils.InstanceFactory;
+import io.tapdata.entity.utils.cache.KVReadOnlyMap;
 import io.tapdata.kit.EmptyKit;
 import io.tapdata.kit.StringKit;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
@@ -31,6 +34,7 @@ public abstract class LogMiner implements ILogMiner {
 
     private final static String TAG = LogMiner.class.getSimpleName();
     protected static final BeanUtils beanUtils = InstanceFactory.instance(BeanUtils.class); //bean util
+    private final DDLParserType ddlParserType = DDLParserType.CCJ_SQL_PARSER; //ddl parser type
     protected AtomicBoolean isRunning = new AtomicBoolean(false);
     protected ExecutorService redoLogConsumerThreadPool;
 
@@ -41,6 +45,7 @@ public abstract class LogMiner implements ILogMiner {
     protected final Map<Long, Long> instanceThreadSCNMap = new HashMap<>();
     protected boolean hasRollbackTemp;
 
+    protected KVReadOnlyMap<TapTable> tableMap;
     protected List<String> tableList;
     protected Map<String, TapTable> lobTables;
     protected int recordSize;
@@ -48,8 +53,16 @@ public abstract class LogMiner implements ILogMiner {
 
     //init with pdk params
     @Override
-    public void init(List<String> tableList, List<TapTable> lobTables, Object offsetState, int recordSize, StreamReadConsumer consumer) throws Throwable {
+    public void init(List<String> tableList, KVReadOnlyMap<TapTable> tableMap, Object offsetState, int recordSize, StreamReadConsumer consumer) throws Throwable {
+        this.tableMap = tableMap;
         this.tableList = tableList;
+        List<TapTable> lobTables = new ArrayList<>();
+        tableList.forEach(table -> {
+            TapTable tapTable = tableMap.get(table);
+            if (tapTable.getNameFieldMap().entrySet().stream().anyMatch(field -> field.getValue().getDataType().contains("LOB"))) {
+                lobTables.add(tapTable);
+            }
+        });
         this.lobTables = lobTables.stream().collect(Collectors.toMap(TapTable::getId, Function.identity()));
         this.recordSize = recordSize;
         this.consumer = consumer;
@@ -194,7 +207,7 @@ public abstract class LogMiner implements ILogMiner {
                 for (RedoLogContent txRedoLogContent : redoLogContentList) {
                     redoLogContent = txRedoLogContent;
                 }
-                if (EmptyKit.isNull(Objects.requireNonNull(redoLogContent).getRedoRecord())) {
+                if (EmptyKit.isNull(Objects.requireNonNull(redoLogContent).getRedoRecord()) && !"DDL".equals(Objects.requireNonNull(redoLogContent).getOperation())) {
                     continue;
                 }
                 switch (Objects.requireNonNull(redoLogContent).getOperation()) {
@@ -215,6 +228,13 @@ public abstract class LogMiner implements ILogMiner {
                                 .table(redoLogContent.getTableName())
                                 .before(redoLogContent.getRedoRecord())
                                 .referenceTime(redoLogContent.getTimestamp().getTime()));
+                        break;
+                    case "DDL":
+                        try {
+                            DDLFactory.ddlToTapDDLEvent(ddlParserType, redoLogContent.getSqlRedo(), "\"", tableMap, eventList::add);
+                        } catch (Throwable e) {
+                            throw new RuntimeException(e);
+                        }
                         break;
                     default:
                         break;

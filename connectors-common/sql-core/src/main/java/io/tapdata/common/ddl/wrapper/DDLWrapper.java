@@ -1,4 +1,4 @@
-package io.tapdata.connector.mysql.ddl;
+package io.tapdata.common.ddl.wrapper;
 
 import io.tapdata.entity.event.ddl.TapDDLEvent;
 import io.tapdata.entity.schema.TapTable;

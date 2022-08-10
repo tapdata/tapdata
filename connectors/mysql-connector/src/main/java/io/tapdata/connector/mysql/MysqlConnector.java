@@ -2,8 +2,8 @@ package io.tapdata.connector.mysql;
 
 import io.tapdata.base.ConnectorBase;
 import io.tapdata.common.ddl.DDLSqlMaker;
-import io.tapdata.connector.mysql.ddl.DDLFactory;
-import io.tapdata.connector.mysql.ddl.DDLParserType;
+import io.tapdata.common.ddl.DDLFactory;
+import io.tapdata.common.ddl.type.DDLParserType;
 import io.tapdata.connector.mysql.ddl.sqlmaker.MysqlDDLSqlMaker;
 import io.tapdata.connector.mysql.entity.MysqlSnapshotOffset;
 import io.tapdata.entity.codec.TapCodecsRegistry;
