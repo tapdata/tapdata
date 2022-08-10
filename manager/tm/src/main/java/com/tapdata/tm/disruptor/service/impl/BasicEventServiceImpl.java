@@ -1,7 +1,12 @@
 package com.tapdata.tm.disruptor.service.impl;
 
+import com.lmax.disruptor.EventHandler;
+import com.lmax.disruptor.SleepingWaitStrategy;
 import com.lmax.disruptor.dsl.Disruptor;
-import com.tapdata.tm.disruptor.*;
+import com.lmax.disruptor.dsl.ProducerType;
+import com.tapdata.tm.disruptor.ObjectEvent;
+import com.tapdata.tm.disruptor.ObjectEventFactory;
+import com.tapdata.tm.disruptor.ObjectEventProducer;
 import com.tapdata.tm.disruptor.handler.TaskRecordHandler;
 import com.tapdata.tm.disruptor.service.BasicEventService;
 import lombok.extern.slf4j.Slf4j;
@@ -14,32 +19,33 @@ import java.util.function.Consumer;
 
 @Service
 @Slf4j
-public class  BasicEventServiceImpl<T> implements BasicEventService<T> {
+public class  BasicEventServiceImpl implements BasicEventService {
     private static final int BUFFER_SIZE = 1024;
-    private ObjectEventProducer<T> disruptorQueue;
+    private ObjectEventProducer disruptorQueue;
 
     private final AtomicLong eventCount = new AtomicLong();
 
     @PostConstruct
     private void init() {
-        Disruptor<ObjectEvent<T>> disruptor = new Disruptor<>(new ObjectEventFactory<T>(),
+        Disruptor<ObjectEvent> disruptor = new Disruptor<>(new ObjectEventFactory(),
                 BUFFER_SIZE,
-                new CustomizableThreadFactory("event-handler-"));
+                new CustomizableThreadFactory("event-handler-"),
+                ProducerType.SINGLE, new SleepingWaitStrategy());
 
-        Consumer<?> eventCountPrinter = (Consumer<Object>) o -> {
+        Consumer<Object> eventCountPrinter = o -> {
             long count = eventCount.incrementAndGet();
             log.info("receive [{}] event", count);
         };
 
-        disruptor.handleEventsWith(new TaskRecordHandler<T>(eventCountPrinter));
+        disruptor.handleEventsWith(new TaskRecordHandler<>(eventCountPrinter));
 
         disruptor.start();
 
-        disruptorQueue = new ObjectEventProducer<>(disruptor.getRingBuffer());
+        disruptorQueue = new ObjectEventProducer(disruptor.getRingBuffer());
     }
 
     @Override
-    public void publish(T event) {
+    public void publish(Object event) {
         disruptorQueue.add(event);
     }
 

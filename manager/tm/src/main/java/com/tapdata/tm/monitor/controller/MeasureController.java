@@ -120,5 +120,4 @@ public class MeasureController extends BaseController {
         }
         return success(transmitTotalVo);
     }
-
 }

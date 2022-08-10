@@ -7,6 +7,6 @@ import lombok.ToString;
 @Data
 @ToString
 @NoArgsConstructor
-public class ObjectEvent<T> {
-    private T event;
+public class ObjectEvent {
+    private Object event;
 }

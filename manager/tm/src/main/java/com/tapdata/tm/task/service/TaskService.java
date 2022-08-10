@@ -101,7 +101,6 @@ import java.util.stream.Collectors;
 @Slf4j
 @Setter(onMethod_ = {@Autowired})
 public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, TaskRepository> {
-
     private MessageService messageService;
     private SnapshotEdgeProgressService snapshotEdgeProgressService;
     private MeasurementService measurementService;
@@ -115,22 +114,18 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     private MetadataInstancesService metadataInstancesService;
     private MetadataTransformerItemService metadataTransformerItemService;
     private MetaDataHistoryService historyService;
-    private TaskSnapshotService taskSnapshotService;
     private WorkerService workerService;
     private FileService fileService1;
     private MessageQueueService messageQueueService;
     private UserService userService;
-    private TaskNodeRuntimeInfoService taskNodeRuntimeInfoService;
-    private TaskDatabaseRuntimeInfoService taskDatabaseRuntimeInfoService;
     private TaskDagCheckLogService taskDagCheckLogService;
-    private BasicEventService<TaskRecord> basicEventService;
+    private BasicEventService basicEventService;
 
     public static Set<String> stopStatus = new HashSet<>();
     /**
      * 停止状态
      */
     public static Set<String> runningStatus = new HashSet<>();
-
 
     private LogCollectorService logCollectorService;
 
@@ -904,7 +899,6 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         renewNotSendMq(taskDto, user);
         renewAgentMeasurement(taskDto.getId().toString());
         log.debug("renew task complete, task name = {}", taskDto.getName());
-
 
         String lastTaskRecordId = new ObjectId().toString();
         //更新任务信息
@@ -2332,8 +2326,15 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
         //调度完成之后，改成待运行状态
         Query query1 = new Query(Criteria.where("_id").is(taskDto.getId()).and("status").is(TaskDto.STATUS_SCHEDULING));
-        UpdateResult update1 = update(query1, Update.update("status", TaskDto.STATUS_WAIT_RUN).set("agentId", taskDto.getAgentId()), user);
-        if (update1.getModifiedCount() == 0) {
+        Update waitRunUpdate = Update.update("status", TaskDto.STATUS_WAIT_RUN).set("agentId", taskDto.getAgentId());
+        boolean needCreateRecord = false;
+        if (StringUtils.isBlank(taskDto.getLastTaskRecordId())) {
+            taskDto.setLastTaskRecordId(new ObjectId().toHexString());
+            waitRunUpdate.set(TaskDto.LASTTASKRECORDID, taskDto.getLastTaskRecordId());
+            needCreateRecord = true;
+        }
+        UpdateResult waitRunResult = update(query1, waitRunUpdate, user);
+        if (waitRunResult.getModifiedCount() == 0) {
             log.info("concurrent start operations, this operation don‘t effective, task name = {}", taskDto.getName());
             return;
         }
@@ -2357,9 +2358,16 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         log.debug("build start task websocket context, processId = {}, userId = {}, queueDto = {}", taskDto.getAgentId(), user.getUserId(), queueDto);
         messageQueueService.sendMessage(queueDto);
 
-        //创建任务执行历史记录（任务快照表)
-        //插入任务运行历史记录（TaskRunHistory）
-        createTaskSnapshot(taskDto, user, TaskRunHistoryDto.ACTION_RUN);
+        if (needCreateRecord) {
+            basicEventService.publish(new TaskRecord(){{
+                setTaskId(taskDto.getId().toHexString());
+                setId(MongoUtils.toObjectId(taskDto.getLastTaskRecordId()));
+                TaskEntity taskEntity = convertToEntity(entityClass, taskDto);
+                setTaskSnapshot(taskEntity);
+                setCreateUser(user.getUserId());
+                setCreateAt(new Date());
+            }});
+        }
     }
 
 
@@ -2458,7 +2466,6 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
         //创建任务执行历史记录（任务快照表)
         //插入任务运行历史记录（TaskRunHistory）
-        createTaskSnapshot(taskDto, user, TaskRunHistoryDto.ACTION_STOP);
     }
 
 
@@ -2574,43 +2581,10 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
         //创建任务执行历史记录（任务快照表)
         //插入任务运行历史记录（TaskRunHistory）
-        createTaskSnapshot(TaskDto, user, TaskRunHistoryDto.ACTION_STOP);
     }
 
     public void restarted(ObjectId id, UserDetail user) {
 
-    }
-
-
-    private void createTaskSnapshot(TaskDto taskDto, UserDetail user, String action) {
-
-        long time = System.currentTimeMillis() - 300000L;
-        Date date = new Date(time);
-        Criteria criteriaHistory = Criteria.where("taskId").is(taskDto.getId()).and("createTime").gt(date);
-
-
-        long count = taskSnapshotService.count(new Query(criteriaHistory), user);
-        if (count == 0) {
-            //控制一下，五分钟同一个任务只能记录一条快照，如果是启动总任务，多个子任务同时启动，也只会记录一条记录
-            Criteria criteria = Criteria.where("taskId").is(taskDto.getId());
-            Query query = new Query(criteria);
-            TaskNodeRuntimeInfoDto taskNodeRuntimeInfoDto = taskNodeRuntimeInfoService.findOne(query);
-            TaskDatabaseRuntimeInfoDto taskDatabaseRuntimeInfoDto = taskDatabaseRuntimeInfoService.findOne(query);
-
-            TaskSnapshotsDto taskSnapshotDto = new TaskSnapshotsDto();
-            taskSnapshotDto.setTaskId(taskDto.getId());
-            taskSnapshotDto.setSnapshot(taskDto);
-            taskSnapshotDto.setNodeRunTimeInfo(taskNodeRuntimeInfoDto);
-            taskSnapshotDto.setDatabaseRunNodeTimeInfo(taskDatabaseRuntimeInfoDto);
-
-            taskSnapshotService.save(taskSnapshotDto, user);
-
-        }
-        TaskRunHistoryDto taskRunHistoryDto = new TaskRunHistoryDto();
-        taskRunHistoryDto.setTaskId(taskDto.getId());
-        taskRunHistoryDto.setTaskName(taskDto.getName());
-        taskRunHistoryDto.setAction(action);
-        taskRunHistoryService.save(taskRunHistoryDto, user);
     }
 
     /**

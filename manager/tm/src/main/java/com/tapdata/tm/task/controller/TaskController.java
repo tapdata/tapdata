@@ -30,6 +30,7 @@ import com.tapdata.tm.task.service.*;
 import com.tapdata.tm.task.vo.JsResultDto;
 import com.tapdata.tm.task.vo.JsResultVo;
 import com.tapdata.tm.task.vo.TaskDetailVo;
+import com.tapdata.tm.task.vo.TaskRecordListVo;
 import com.tapdata.tm.utils.Lists;
 import com.tapdata.tm.utils.MongoUtils;
 import io.github.openlg.graphlib.Graph;
@@ -75,8 +76,8 @@ public class TaskController extends BaseController {
     private MetadataInstancesService metadataInstancesService;
     private TaskNodeService taskNodeService;
     private TaskSaveService taskSaveService;
-
     private SnapshotEdgeProgressService snapshotEdgeProgressService;
+    private TaskRecordService taskRecordService;
 
     /**
      * Create a new instance of the model and persist it into the data source
@@ -972,5 +973,13 @@ public class TaskController extends BaseController {
 		taskService.updateSyncProgress(MongoUtils.toObjectId(taskId), document);
 		return success();
 	}
+
+    @Operation(summary = "任务运行记录")
+    @GetMapping("/records/{id}")
+    public ResponseMessage<Page<TaskRecordListVo>> records(@PathVariable String taskId,
+                                                           @RequestParam String offset,
+                                                           @RequestParam Integer limit) {
+        return success(taskRecordService.queryRecords(taskId, offset, limit));
+    }
 
 }

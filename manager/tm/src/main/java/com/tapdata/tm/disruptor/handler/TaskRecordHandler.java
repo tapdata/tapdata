@@ -1,6 +1,7 @@
 package com.tapdata.tm.disruptor.handler;
 
 import com.tapdata.tm.disruptor.ObjectEvent;
+import com.tapdata.tm.task.bean.SyncTaskStatusDto;
 import com.tapdata.tm.task.entity.TaskRecord;
 import com.tapdata.tm.task.service.TaskRecordService;
 import lombok.Setter;
@@ -18,11 +19,18 @@ public class TaskRecordHandler<T> extends ObjectEventHandler<T> {
         super(consumer);
     }
 
-    public void onEvent(ObjectEvent<T> event, long sequence, boolean endOfBatch) {
+    public void onEvent(ObjectEvent event, long sequence, boolean endOfBatch) {
         log.info("sequence [{}], endOfBatch [{}], event : {}", sequence, endOfBatch, event);
 
-        TaskRecord data = (TaskRecord) event.getEvent();
-        taskRecordService.createRecord(data);
+        Object obj = event.getEvent();
+        if (obj instanceof TaskRecord) {
+            TaskRecord data = (TaskRecord) obj;
+            taskRecordService.createRecord(data);
+        } else if (obj instanceof SyncTaskStatusDto) {
+
+        } else {
+
+        }
 
         if (super.consumer != null) {
             super.consumer.accept(null);
