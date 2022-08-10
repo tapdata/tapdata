@@ -165,12 +165,22 @@
           "x-index": 3,
           "enum": [
             {
-              "label": "list",
+              "label": "list with header",
               "value": "list"
             },
             {
               "label": "json",
               "value": "json"
+            }
+          ],
+          "x-reactions": [
+            {
+              "target": ".cacheKeys",
+              "fulfill": {
+                "state": {
+                  "visible": "{{$self.value === 'json'}}"
+                }
+              }
             }
           ],
           "index": 1
@@ -194,8 +204,19 @@
             "multiple": true,
             "filterable": true
           },
-          "x-reactions": "{{useAsyncDataSourceByConfig({service: loadNodeFieldOptions, withoutField: true}, $values.$inputs[0])}}",
-          "index": 3
+          "x-reactions": ["{{useAsyncDataSourceByConfig({service: loadNodeFieldOptions, withoutField: true}, $values.$inputs[0])}}",
+            {
+              "dependencies": [".valueType"],
+              "fulfill": {
+                "state": {
+                  "visible": "{{$deps[0] === 'json'}}"
+                }
+              }
+            }
+          ],
+          "index": 3,
+          "required": true
+
         }
       }
     }

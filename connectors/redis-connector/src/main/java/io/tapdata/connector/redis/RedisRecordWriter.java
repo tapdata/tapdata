@@ -16,7 +16,6 @@ import org.apache.commons.collections.MapUtils;
 import org.apache.commons.lang3.StringUtils;
 import redis.clients.jedis.Jedis;
 import redis.clients.jedis.Pipeline;
-import redis.clients.jedis.Response;
 
 import java.text.SimpleDateFormat;
 import java.util.*;
@@ -32,11 +31,7 @@ public class RedisRecordWriter {
 
     private final RedisContext redisContext;
 
-    private final static int BATCH_SIZE = 100;
-
     public final static String VALUE_TYPE_LIST = "list";
-
-    public final static String JSON_REDIS_TABLES = "tapdataJson";
 
     private final TapConnectorContext connectorContext;
 
@@ -50,19 +45,20 @@ public class RedisRecordWriter {
         this.jedis = redisContext.getJedis();
         this.connectorContext = connectorContext;
         this.tapTable = tapTable;
-       if(MapUtils.isEmpty(filedMap)){
-         this.filedMap = sortFiled(tapTable);
-       }
+        if (MapUtils.isEmpty(filedMap)) {
+            this.filedMap = sortFiled(tapTable);
+        }
 
     }
 
     /**
      * json 格式写入数据
+     *
      * @param tapRecordEvents
      * @param tapTable
      * @param writeListResultConsumer
      */
-    public void write(List<TapRecordEvent> tapRecordEvents, TapTable tapTable,Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer) {
+    public void write(List<TapRecordEvent> tapRecordEvents, TapTable tapTable, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer) {
 
         DataMap nodeConfig = connectorContext.getNodeConfig();
         String valueType;
@@ -92,9 +88,7 @@ public class RedisRecordWriter {
         long delete = 0L;
         Pipeline pipelined = jedis.pipelined();
         try {
-            int handleCount = 0;
             for (TapRecordEvent recordEvent : tapRecordEvents) {
-                handleCount++;
                 if (recordEvent instanceof TapInsertRecordEvent) {
                     TapInsertRecordEvent tapInsertRecordEvent = (TapInsertRecordEvent) recordEvent;
                     Map<String, Object> value = tapInsertRecordEvent.getAfter();
@@ -116,15 +110,9 @@ public class RedisRecordWriter {
                     delete++;
                 }
 
-                if (handleCount >= BATCH_SIZE) {
-                    pipelined.sync();
-                    handleCount = 0;
-                }
-            }
-            if (handleCount > 0) {
-                pipelined.sync();
             }
 
+            pipelined.sync();
             writeListResultConsumer.accept(listResult
                     .insertedCount(insert)
                     .modifiedCount(update)
@@ -160,14 +148,15 @@ public class RedisRecordWriter {
 
     /**
      * handle data for string
+     *
      * @return String
      */
     private String getStrValue(Map<String, Object> map) {
-        if(MapUtils.isEmpty(filedMap)){
+        if (MapUtils.isEmpty(filedMap)) {
             sortFiled(tapTable);
         }
 
-        String [] filedValue = new String[filedMap.size()];
+        String[] filedValue = new String[filedMap.size()];
         for (String key : map.keySet()) {
             Object value;
             if (null == map.get(key)) {
@@ -177,9 +166,17 @@ public class RedisRecordWriter {
                 value = sdf.format(map.get(key));
             } else {
                 value = map.get(key);
+
             }
-            int index  = filedMap.get(key);
-            filedValue[index] = String.valueOf(value);
+
+            int index = filedMap.get(key);
+            String valueStr = String.valueOf(value);
+            // 逗号作为分隔符需要页数处理下
+            if (valueStr.indexOf(",") > -1) {
+                valueStr = valueStr.replace(",", "','");
+            }
+
+            filedValue[index] = valueStr;
         }
         return StringUtils.join(filedValue, ",");
     }
@@ -195,11 +192,9 @@ public class RedisRecordWriter {
         long insert = 0L;
         long update = 0L;
         long delete = 0L;
-        int handleCount = 0;
         Pipeline pipelined = jedis.pipelined();
         try {
             for (TapRecordEvent recordEvent : tapRecordEvents) {
-                handleCount++;
                 if (recordEvent instanceof TapInsertRecordEvent) {
                     TapInsertRecordEvent tapInsertRecordEvent = (TapInsertRecordEvent) recordEvent;
                     Map<String, Object> value = tapInsertRecordEvent.getAfter();
@@ -210,44 +205,28 @@ public class RedisRecordWriter {
                     insert++;
                 }
                 if (recordEvent instanceof TapUpdateRecordEvent) {
-                    long startTime = System.currentTimeMillis();
                     TapUpdateRecordEvent tapUpdateRecordEvent = (TapUpdateRecordEvent) recordEvent;
                     Map<String, Object> afterValue = tapUpdateRecordEvent.getAfter();
                     String tableName = tapUpdateRecordEvent.getTableId();
                     String keyName = redisContext.getRedisKeySetter().getRedisKey(afterValue, connectorContext, tableName);
                     String newValue = getStrValue(afterValue);
-                    String oldValue =  getStrValue(tapUpdateRecordEvent.getBefore());
-                    Response<Long> poc = pipelined.lpos(keyName,oldValue);
-                    pipelined.sync();
-                    handleCount =1;
-                    pipelined.lset(keyName, poc.get(), newValue);
-                    TapLogger.info("update data time:",String.valueOf(System.currentTimeMillis()-startTime));
+                    String oldValue = getStrValue(tapUpdateRecordEvent.getBefore());
+                    pipelined.eval("local pos = redis.call('lpos', KEYS[1], ARGV[1]); if (not pos) then return end; redis.call('lset', KEYS[1], pos, ARGV[2]);", 1, keyName, oldValue, newValue);
                     update++;
                 }
 
                 if (recordEvent instanceof TapDeleteRecordEvent) {
-                    long startTime = System.currentTimeMillis();
                     TapDeleteRecordEvent tapDeleteRecordEvent = (TapDeleteRecordEvent) recordEvent;
                     Map<String, Object> value = tapDeleteRecordEvent.getBefore();
                     String tableName = tapDeleteRecordEvent.getTableId();
                     String keyName = redisContext.getRedisKeySetter().getRedisKey(value, connectorContext, tableName);
                     String oldValue = getStrValue(value);
-                    Response<Long> poc = pipelined.lpos(keyName,oldValue);
-                    pipelined.sync();
-                    handleCount =1;
-                    pipelined.lrem(keyName, poc.get(), oldValue);
-                    TapLogger.info("delete data time:",String.valueOf(System.currentTimeMillis()-startTime));
+                    pipelined.lrem(keyName,1,oldValue);
                     delete++;
                 }
+            }
 
-                if (handleCount >= BATCH_SIZE) {
-                    pipelined.sync();
-                    handleCount = 0;
-                }
-            }
-            if (handleCount > 0) {
-                pipelined.sync();
-            }
+            pipelined.sync();
 
             writeListResultConsumer.accept(listResult
                     .insertedCount(insert)
@@ -263,10 +242,9 @@ public class RedisRecordWriter {
     }
 
 
-
-
     /**
      * DB的字段进行排序安札pos升序排序
+     *
      * @param tapTable
      * @return
      */
