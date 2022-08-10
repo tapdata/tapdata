@@ -538,7 +538,7 @@ public class HazelcastTaskTarget extends HazelcastBaseNode {
 	@Override
 	public boolean saveToSnapshot() {
 		TaskDto taskDto = dataProcessorContext.getTaskDto();
-		String collection = ConnectorConstant.SUB_TASK_COLLECTION + "/syncProgress/" + taskDto.getId();
+		String collection = ConnectorConstant.TASK_COLLECTION + "/syncProgress/" + taskDto.getId();
 		try {
 			clientMongoOperator.insertOne(this.syncProgressMap, collection);
 		} catch (Exception e) {

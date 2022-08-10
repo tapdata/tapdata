@@ -483,7 +483,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 			}
 		}
 		TaskDto taskDto = dataProcessorContext.getTaskDto();
-		String collection = ConnectorConstant.SUB_TASK_COLLECTION + "/syncProgress/" + taskDto.getId();
+		String collection = ConnectorConstant.TASK_COLLECTION + "/syncProgress/" + taskDto.getId();
 		try {
 			clientMongoOperator.insertOne(syncProgressJsonMap, collection);
 		} catch (Exception e) {
@@ -494,7 +494,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 			TaskDto updateTaskDto = new TaskDto();
 			updateTaskDto.setId(taskDto.getId());
 			updateTaskDto.setDag(taskDto.getDag());
-			clientMongoOperator.insertOne(updateTaskDto, ConnectorConstant.SUB_TASK_COLLECTION + "/dag");
+			clientMongoOperator.insertOne(updateTaskDto, ConnectorConstant.TASK_COLLECTION + "/dag");
 			if (MapUtils.isNotEmpty(updateMetadata) || CollectionUtils.isNotEmpty(insertMetadata) || CollectionUtils.isNotEmpty(removeMetadata)) {
 				// Upload Metadata
 				TransformerWsMessageResult wsMessageResult = new TransformerWsMessageResult();

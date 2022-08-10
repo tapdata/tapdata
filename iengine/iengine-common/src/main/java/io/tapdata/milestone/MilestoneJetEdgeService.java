@@ -336,7 +336,7 @@ public class MilestoneJetEdgeService extends MilestoneService {
 		Query query = new Query(Criteria.where("_id").is(milestoneContext.getTaskDto().getId().toHexString()));
 		final Map<String, EdgeMilestone> edgeMilestones = taskMilestoneContext.getEdgeMilestones();
 		Update update = new Update().set("attrs.edgeMilestones", edgeMilestones);
-		clientMongoOperator.update(query, update, ConnectorConstant.SUB_TASK_COLLECTION);
+		clientMongoOperator.update(query, update, ConnectorConstant.TASK_COLLECTION);
 	}
 
 	@Override
@@ -347,7 +347,7 @@ public class MilestoneJetEdgeService extends MilestoneService {
 				this.milestoneContext.getSourceVertexName(), this.milestoneContext.getDestVertexName(),
 				milestoneList
 		));
-		clientMongoOperator.update(query, update, ConnectorConstant.SUB_TASK_COLLECTION);
+		clientMongoOperator.update(query, update, ConnectorConstant.TASK_COLLECTION);
 	}
 
 	@Override
@@ -364,7 +364,7 @@ public class MilestoneJetEdgeService extends MilestoneService {
 			} else {
 				throw new IllegalArgumentException("Source vertex names and desc vertex names cannot both empty");
 			}
-			String collection = ConnectorConstant.SUB_TASK_COLLECTION;
+			String collection = ConnectorConstant.TASK_COLLECTION;
 			for (String vertexName : vertexNames) {
 				String edgeKey;
 				switch (vertexType) {

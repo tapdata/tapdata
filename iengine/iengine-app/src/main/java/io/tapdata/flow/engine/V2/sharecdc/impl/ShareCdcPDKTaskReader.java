@@ -160,7 +160,7 @@ public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializa
 		Connections connections = ((ShareCdcTaskContext) this.shareCdcContext).getConnections();
 		Map<String, String> shareCdcTaskId = taskDto.getShareCdcTaskId();
 		ObjectId logCollectorSubTaskId = new ObjectId(shareCdcTaskId.get(connections.getId()));
-		this.logCollectorTaskDto = this.clientMongoOperator.findOne(new Query(where("_id").is(logCollectorSubTaskId)), ConnectorConstant.SUB_TASK_COLLECTION, TaskDto.class);
+		this.logCollectorTaskDto = this.clientMongoOperator.findOne(new Query(where("_id").is(logCollectorSubTaskId)), ConnectorConstant.TASK_COLLECTION, TaskDto.class);
 		if (this.logCollectorTaskDto == null) {
 			throw new ShareCdcUnsupportedException("Cannot find sub task by id: " + logCollectorSubTaskId + "(" + logCollectorSubTaskId.getClass().getName() + ")", true);
 		}
