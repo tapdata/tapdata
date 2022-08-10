@@ -26,6 +26,8 @@ public class CustomProcessorNode extends ProcessorNode {
 
     private Map<String, Object> form;
 
+    private String declareScript;
+
 
     @Override
     protected Schema loadSchema(List<String> includes) {

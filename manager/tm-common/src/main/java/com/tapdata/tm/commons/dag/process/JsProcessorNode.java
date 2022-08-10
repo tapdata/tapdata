@@ -30,6 +30,9 @@ public class JsProcessorNode extends ProcessorNode {
     @EqField
     private String script;
 
+    @EqField
+    private String declareScript;
+
 
     @Override
     protected Schema loadSchema(List<String> includes) {
