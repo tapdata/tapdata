@@ -33,11 +33,6 @@ public class TaskCheckInspectServiceImpl implements TaskCheckInspectService {
         if (Objects.isNull(taskDto.getDag())) {
             return taskDto;
         }
-
-        if(taskDto.getDag().getEdges().size()>1){
-            throw new BizException("不支持多条链路，请编辑后重试");
-        }
-
         List<String> connectIdList = taskDto.getDag().getNodes().stream()
                 .filter(node -> node instanceof DatabaseNode)
                 .map(node -> ((DatabaseNode) node).getConnectionId())

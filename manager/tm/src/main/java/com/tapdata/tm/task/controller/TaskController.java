@@ -413,11 +413,38 @@ public class TaskController extends BaseController {
      */
     @Operation(summary = "Update instances of the model matched by {{where}} from the data source")
     @PostMapping("update")
-    public ResponseMessage<Map<String, Long>> updateByWhere(@RequestParam("where") String whereJson, @RequestBody TaskDto task) {
+    public ResponseMessage<Map<String, Long>> updateByWhere(@RequestParam("where") String whereJson, @RequestBody String reqBody) {
+        log.info("subTask updateByWhere, whereJson:{},reqBody:{}",whereJson,reqBody);
         Where where = parseWhere(whereJson);
-        long count = taskService.updateByWhere(where, task, getLoginUser());
+        Document update = Document.parse(reqBody);
+        if (!update.containsKey("$set") && !update.containsKey("$setOnInsert") && !update.containsKey("$unset")) {
+            Document _body = new Document();
+            _body.put("$set", update);
+            update = _body;
+        }
+
+        long count = taskService.updateByWhere(where, update, getLoginUser());
         HashMap<String, Long> countValue = new HashMap<>();
         countValue.put("count", count);
+
+        //更新完任务，addMessage
+        try {
+            Object id = where.get("_id");
+            String status = update.getString("status");
+            if (StringUtils.isNotEmpty(status) && null != id) {
+                String idString = id.toString();
+                TaskDto taskDto = taskService.findById(MongoUtils.toObjectId(idString));
+                String name = taskDto.getName();
+                log.info("subtask addMessage ,id :{},name :{},status:{}  ", id, name, status);
+                if ("error".equals(status)) {
+                    messageService.addMigration(name, idString, MsgTypeEnum.STOPPED_BY_ERROR, Level.ERROR, getLoginUser());
+                } else if ("running".equals(status)) {
+                    messageService.addMigration(name, idString, MsgTypeEnum.CONNECTED, Level.INFO, getLoginUser());
+                }
+            }
+        } catch (Exception e) {
+            log.error("任务状态添加 message 异常",e);
+        }
         return success(countValue);
     }
 

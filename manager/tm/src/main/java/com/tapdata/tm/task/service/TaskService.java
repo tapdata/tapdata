@@ -395,7 +395,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                     if (Objects.nonNull(sourceNode) && CollectionUtils.isEmpty(sourceNode.getTableNames())
                             && StringUtils.equals("all", sourceNode.getMigrateTableSelectType())) {
                         String connectionId = sourceNode.getConnectionId();
-                        List<MetadataInstancesDto> metaList = metadataInstancesService.findBySourceIdAndTableNameList(connectionId, null, user);
+                        List<MetadataInstancesDto> metaList = metadataInstancesService.findBySourceIdAndTableNameList(connectionId, null, user, taskDto.getId().toHexString());
                         if (CollectionUtils.isNotEmpty(metaList)) {
                             List<String> collect = metaList.stream().map(MetadataInstancesDto::getOriginalName).collect(Collectors.toList());
                             sourceNode.setTableNames(collect);
@@ -405,7 +405,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                     }
 
                     // supplement migrate_field_rename_processor fieldMapping data
-                    supplementMigrateFieldMapping(dag, user);
+                    supplementMigrateFieldMapping(taskDto, user);
 
                     transformSchemaAsyncService.transformSchema(dag, user, taskDto.getId());
                 }
@@ -424,7 +424,8 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
     }
 
-    private void supplementMigrateFieldMapping(DAG dag, UserDetail userDetail) {
+    private void supplementMigrateFieldMapping(TaskDto taskDto, UserDetail userDetail) {
+        DAG dag = taskDto.getDag();
         dag.getNodes().forEach(node -> {
             if (node instanceof MigrateFieldRenameProcessorNode) {
                 MigrateFieldRenameProcessorNode fieldNode = (MigrateFieldRenameProcessorNode) node;
@@ -442,7 +443,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                             .filter(n -> dag.getSources().contains(n))
                             .findAny().orElse(new DatabaseNode());
 
-                    List<MetadataInstancesDto> metaList = metadataInstancesService.findBySourceIdAndTableNameList(sourceNode.getConnectionId(), tableNames, userDetail);
+                    List<MetadataInstancesDto> metaList = metadataInstancesService.findBySourceIdAndTableNameList(sourceNode.getConnectionId(), tableNames, userDetail, taskDto.getId().toHexString());
                     Map<String, List<com.tapdata.tm.commons.schema.Field>> fieldMap = metaList.stream()
                             .collect(Collectors.toMap(MetadataInstancesDto::getQualifiedName, MetadataInstancesDto::getFields));
                     fieldsMapping.forEach(table -> {
@@ -1159,28 +1160,12 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
      */
     private Page<TaskDto> findDataCopyList(Filter filter, UserDetail userDetail) {
         Where where = filter.getWhere();
-        String statusParam = "";
-        if (null != where.get("status") && where.get("status") instanceof String) {
-            statusParam = (String) where.remove("status");
-        }
+
 
 
         Criteria criteria = Criteria.where("is_deleted").ne(true).and("user_id").is(userDetail.getUserId());
         Criteria orToCriteria = parseOrToCriteria(where);
 
-        Criteria statusesCriteria = new Criteria();
-
-        if ("edit".equals(statusParam)) {
-            Criteria editCriteria = Criteria.where("status").is(TaskStatusEnum.STATUS_EDIT.getValue());
-            Criteria notEmptyStatus = Criteria.where("statuses").is(new ArrayList());
-            statusesCriteria = new Criteria().andOperator(notEmptyStatus, editCriteria);
-        } else if ("ready".equals(statusParam)) {
-            Criteria editCriteria = Criteria.where("status").is(TaskStatusEnum.STATUS_EDIT.getValue());
-            Criteria notEmptyStatus = Criteria.where("statuses").ne(new ArrayList());
-            statusesCriteria = new Criteria().andOperator(editCriteria, notEmptyStatus);
-        } else if (StringUtils.isNotEmpty(statusParam)) {
-            criteria.and("statuses.status").is(statusParam);
-        }
 
         // Supplementary data verification status
         Object inspectResult = where.get("inspectResult");
@@ -1198,7 +1183,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         parseWhereCondition(where, query);
         parseFieldCondition(filter, query);
 
-        criteria.andOperator(orToCriteria, statusesCriteria);
+        criteria.andOperator(orToCriteria);
         query.addCriteria(criteria);
 
         TmPageable tmPageable = new TmPageable();
@@ -1246,77 +1231,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
      * @return
      */
     private Page<TaskDto> findDataDevList(Filter filter, UserDetail userDetail) {
-        Where where = filter.getWhere();
-        String status = "";
-        if (null != where.get("status")) {
-            //已经不通过status 来查找了
-            status = (String) where.remove("status");
-        }
-        Criteria criteria = Criteria.where("is_deleted").ne(true).and("user_id").is(userDetail.getUserId());
-
-        Criteria orToCriteria = parseOrToCriteria(filter.getWhere());
-
-        //处理状态
-        List<String> statues = new ArrayList<>();
-        Criteria statusesCriteria = new Criteria();
-        switch (status) {
-            case "running":
-                statues.addAll(runningStatus);
-                criteria.and("statuses.status").in(statues);
-                break;
-            case "not_running":
-                //子任务的状态是空数组   所以默认父级就显示未运行
-                statues.addAll(stopStatus);
-                Criteria notRunningCri = Criteria.where("statuses.status").in(statues);
-                Criteria emptyStatus = Criteria.where("statuses").is(new ArrayList());
-                List<Criteria> statusCriList = new ArrayList<>();
-
-                statusCriList.add(notRunningCri);
-                statusCriList.add(emptyStatus);
-                statusesCriteria = new Criteria().orOperator(statusCriList);
-                break;
-            case "error":
-                statues.add(TaskDto.STATUS_ERROR);
-                criteria.and("statuses.status").in(statues);
-                break;
-            case "edit":
-                statues.add(TaskDto.STATUS_EDIT);
-                criteria.and("statuses.status").in(statues);
-                break;
-            default:
-                break;
-        }
-
-        criteria.andOperator(orToCriteria, statusesCriteria);
-
-        Query query = new Query();
-        parseWhereCondition(filter.getWhere(), query);
-        parseFieldCondition(filter, query);
-
-        query.addCriteria(criteria);
-
-        TmPageable tmPageable = new TmPageable();
-        Integer page = (filter.getSkip() / filter.getLimit()) + 1;
-        tmPageable.setPage(page);
-        tmPageable.setSize(filter.getLimit());
-
-        String order = filter.getOrder() == null ? "createTime DESC" : String.valueOf(filter.getOrder());
-        if (order.contains("ASC")) {
-            tmPageable.setSort(Sort.by("createTime").ascending());
-        } else {
-            tmPageable.setSort(Sort.by("createTime").descending());
-        }
-
-        Long total = repository.getMongoOperations().count(query, TaskEntity.class);
-        List<TaskEntity> taskEntityList = repository.getMongoOperations().find(query.with(tmPageable), TaskEntity.class);
-
-        List<TaskDto> taskDtoList = com.tapdata.tm.utils.BeanUtil.deepCloneList(taskEntityList, TaskDto.class);
-
-        Page result = new Page();
-        result.setItems(taskDtoList);
-        result.setTotal(total);
-
-        return result;
+        return super.find(filter, userDetail);
     }
 
     private Node getSourceNode(TaskDto taskDto) {
@@ -3116,5 +3031,4 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
         return saveNoPass & startNoPass;
     }
-
 }

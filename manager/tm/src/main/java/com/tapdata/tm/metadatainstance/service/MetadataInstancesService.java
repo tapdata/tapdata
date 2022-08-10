@@ -670,11 +670,12 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
         return findOne(Query.query(criteria), userDetail);
     }
 
-    public List<MetadataInstancesDto> findBySourceIdAndTableNameList(String sourceId, List<String> tableNames, UserDetail userDetail) {
+    public List<MetadataInstancesDto> findBySourceIdAndTableNameList(String sourceId, List<String> tableNames, UserDetail userDetail, String taskId) {
         Criteria criteria = Criteria
                 .where("meta_type").in(Lists.of("table", "collection", "view"))
                 .and("is_deleted").ne(true)
-                .and("source._id").is(sourceId);
+                .and("source._id").is(sourceId)
+                .and("taskId").is(taskId);
 
         if (CollectionUtils.isNotEmpty(tableNames)) {
             criteria.and("original_name").in(tableNames);
@@ -954,6 +955,7 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
         Criteria criteria = Criteria.where("source._id").is(connectId)
                 .and("sourceType").is(sourceType)
                 .and("is_deleted").ne(true)
+                .and("taskId").exists(false)
                 .and("meta_type").in(MetaType.collection.name(), MetaType.table.name());
         Query query = new Query(criteria);
         query.fields().include("original_name");

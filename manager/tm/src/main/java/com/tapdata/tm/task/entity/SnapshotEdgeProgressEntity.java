@@ -15,7 +15,7 @@ import java.io.Serializable;
  * @Description
  * @create 2022-03-11 16:47
  **/
-@Document("SubTaskProgress")
+@Document("TaskProgress")
 @Data
 @EqualsAndHashCode(callSuper=false)
 @AllArgsConstructor

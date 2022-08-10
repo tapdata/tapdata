@@ -73,7 +73,7 @@ public class TaskNodeServiceImpl implements TaskNodeService {
     private DataSourceDefinitionService dataSourceDefinitionService;
 
     @Override
-    public Page<MetadataTransformerItemDto> getNodeTableInfo(String taskId, String nodeId, String searchTableName,
+    public Page<MetadataTransformerItemDto> getNodeTableInfo(final String taskId, String nodeId, String searchTableName,
                                                              Integer page, Integer pageSize, UserDetail userDetail) {
         Page<MetadataTransformerItemDto> result = new Page<>();
 
@@ -94,7 +94,7 @@ public class TaskNodeServiceImpl implements TaskNodeService {
         DatabaseNode targetNode = CollectionUtils.isNotEmpty(dag.getTargetNode()) ? dag.getTargetNode().getLast() : null;
         List<String> tableNames = sourceNode.getTableNames();
         if (CollectionUtils.isEmpty(tableNames) && StringUtils.equals("all", sourceNode.getMigrateTableSelectType())) {
-            List<MetadataInstancesDto> metaInstances = metadataInstancesService.findBySourceIdAndTableNameList(sourceNode.getConnectionId(), null, userDetail);
+            List<MetadataInstancesDto> metaInstances = metadataInstancesService.findBySourceIdAndTableNameList(sourceNode.getConnectionId(), null, userDetail, taskId);
             tableNames = metaInstances.stream().map(MetadataInstancesDto::getOriginalName).collect(Collectors.toList());
         }
 
@@ -196,7 +196,7 @@ public class TaskNodeServiceImpl implements TaskNodeService {
     private Page<MetadataTransformerItemDto> getMetadataTransformerItemDtoPage(String nodeId, UserDetail userDetail
             , Page<MetadataTransformerItemDto> result, DAG dag, DatabaseNode sourceNode, DatabaseNode targetNode
             , List<String> tableNames, List<String> currentTableList, DataSourceConnectionDto targetDataSource
-            , String taskId, List<Node<?>> predecessors, Node<?> currentNode) {
+            , final String taskId, List<Node<?>> predecessors, Node<?> currentNode) {
         if (CollectionUtils.isEmpty(predecessors)) {
             predecessors = Lists.newArrayList();
         }
@@ -232,7 +232,7 @@ public class TaskNodeServiceImpl implements TaskNodeService {
 
         Map<String, MetadataInstancesDto> metaMap = Maps.newHashMap();
         List<MetadataInstancesDto> list = metadataInstancesService.findBySourceIdAndTableNameList(sourceNode.getConnectionId(),
-                currentTableList, userDetail);
+                currentTableList, userDetail, taskId);
         if (CollectionUtils.isNotEmpty(list)) {
             metaMap = list.stream().map(meta -> {
                 // source & target not same database type
