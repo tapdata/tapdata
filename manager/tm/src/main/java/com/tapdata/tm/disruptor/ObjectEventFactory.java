@@ -4,9 +4,9 @@ import com.lmax.disruptor.EventFactory;
 import lombok.NoArgsConstructor;
 
 @NoArgsConstructor
-public class ObjectEventFactory<T> implements EventFactory<ObjectEvent<T>> {
+public class ObjectEventFactory implements EventFactory<ObjectEvent> {
     @Override
-    public ObjectEvent<T> newInstance() {
-        return new ObjectEvent<>();
+    public ObjectEvent newInstance() {
+        return new ObjectEvent();
     }
 }
