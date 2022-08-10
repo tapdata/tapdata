@@ -870,7 +870,7 @@ public class LogCollectorService {
                 taskService.confirmById(oldLogCollectorTask, user, true);
                 updateLogCollectorMap(oldTaskDto.getId(), newLogCollectorMap, user);
                 //这个stop是异步的， 需要重启，重启的逻辑是通过定时任务跑的
-                taskService.stop(oldLogCollectorTask.getId(), user, false, true);
+                taskService.pause(oldLogCollectorTask.getId(), user, false, true);
                 return;
             }
 

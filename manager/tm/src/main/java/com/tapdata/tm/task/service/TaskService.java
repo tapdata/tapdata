@@ -78,7 +78,9 @@ import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import javax.servlet.http.HttpServletResponse;
@@ -954,6 +956,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         //暂停所有的子任务
     }
 
+
     /**
      * 根据id校验任务是否存在
      *
@@ -1011,7 +1014,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     public void batchStop(List<ObjectId> taskIds, UserDetail user) {
         for (ObjectId taskId : taskIds) {
             try {
-                stop(taskId, user, false);
+                pause(taskId, user, false);
             } catch (Exception e) {
                 log.warn("stop task exception, task id = {}, e = {}", taskId, e);
             }
@@ -2379,11 +2382,15 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     /**
      * 暂停子任务  将子任务停止，不清空中间状态
      *
-     * @param taskDto   任务
+     * @param id   任务id
      * @param user       用户
      * @param force      是否强制停止
      */
     //@Transactional
+    public void pause(ObjectId id, UserDetail user, boolean force, boolean restart) {
+        TaskDto taskDto = checkExistById(id, user);
+        pause(taskDto, user, force, restart);
+    }
     public void pause(TaskDto taskDto, UserDetail user, boolean force, boolean restart) {
         //任务暂停的任务状态只能是运行中
         if (!TaskOpStatusEnum.to_stop_status.v().contains(taskDto.getStatus()) && !restart) {
