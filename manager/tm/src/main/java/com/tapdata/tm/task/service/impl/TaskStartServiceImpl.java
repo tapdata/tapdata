@@ -1,14 +1,10 @@
 package com.tapdata.tm.task.service.impl;
 
-import com.tapdata.tm.CustomerJobLogs.CustomerJobLog;
 import com.tapdata.tm.CustomerJobLogs.service.CustomerJobLogsService;
-import com.tapdata.tm.base.exception.BizException;
-import com.tapdata.tm.commons.task.dto.SubTaskDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.message.constant.Level;
 import com.tapdata.tm.task.entity.TaskDagCheckLog;
-import com.tapdata.tm.task.service.SubTaskService;
 import com.tapdata.tm.task.service.TaskDagCheckLogService;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.task.service.TaskStartService;
@@ -32,7 +28,6 @@ import java.util.*;
 @Setter(onMethod_ = {@Autowired})
 public class TaskStartServiceImpl implements TaskStartService {
 
-    private SubTaskService subTaskService;
     private CustomerJobLogsService customerJobLogsService;
     private TaskDagCheckLogService taskDagCheckLogService;
     private TaskService taskService;
@@ -99,7 +94,6 @@ public class TaskStartServiceImpl implements TaskStartService {
                 startNoPass = true;
                 if (!saveNoPass) {
                     taskService.updateStatus(taskDto.getId(), TaskDto.STATUS_EDIT);
-                    subTaskService.updateStatus(taskDto.getId(), SubTaskDto.STATUS_ERROR);
                 }
             }
         }

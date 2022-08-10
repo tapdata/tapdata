@@ -68,6 +68,10 @@ public class MetaDataBuilderUtils {
     }
 
     public static String generateQualifiedName(String metaType, DataSourceConnectionDto connectionDto, String tableName) {
+        return generateQualifiedName(metaType, connectionDto, tableName, null);
+    }
+    public static String generateQualifiedName(String metaType, DataSourceConnectionDto connectionDto, String tableName, String taskId) {
+
         String id = connectionDto.getId().toHexString();
         if (DataSourceDefinitionDto.PDK_TYPE.equals(connectionDto.getPdkType())) {
             return generatePdkQualifiedName(metaType, id, tableName, connectionDto.getDefinitionPdkId(), connectionDto.getDefinitionGroup(), connectionDto.getDefinitionVersion());

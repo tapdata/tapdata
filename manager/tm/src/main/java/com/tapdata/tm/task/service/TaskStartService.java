@@ -6,4 +6,6 @@ import com.tapdata.tm.config.security.UserDetail;
 public interface TaskStartService {
 
     void start0(TaskDto taskDto, UserDetail user);
+
+    boolean taskStartCheckLog(TaskDto taskDto, UserDetail userDetail);
 }

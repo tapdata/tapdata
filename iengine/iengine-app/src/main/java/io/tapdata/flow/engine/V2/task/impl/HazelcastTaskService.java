@@ -179,7 +179,7 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 			for (Node node : nodes) {
 				Connections connection = null;
 				DatabaseTypeEnum.DatabaseType databaseType = null;
-				TapTableMap<String, TapTable> tapTableMap = getTapTableMap(subTaskDto, tmCurrentTime, node);
+				TapTableMap<String, TapTable> tapTableMap = getTapTableMap(taskDto, tmCurrentTime, node);
 				if (CollectionUtils.isEmpty(tapTableMap.keySet())
 						&& !(node instanceof CacheNode)
 						&& !(node instanceof HazelCastImdgNode)
@@ -256,9 +256,9 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 		return new JetDag(dag, hazelcastBaseNodeMap, typeConvertMap);
 	}
 
-	private static TapTableMap<String, TapTable> getTapTableMap(SubTaskDto subTaskDto, Long tmCurrentTime, Node node) {
+	private static TapTableMap<String, TapTable> getTapTableMap(TaskDto taskDto, Long tmCurrentTime, Node node) {
 		TapTableMap<String, TapTable> tapTableMap;
-		if (StringUtils.equalsAnyIgnoreCase(subTaskDto.getParentTask().getSyncType(),
+		if (StringUtils.equalsAnyIgnoreCase(taskDto.getSyncType(),
 //						TaskDto.SYNC_TYPE_TEST_RUN,
 						TaskDto.SYNC_TYPE_DEDUCE_SCHEMA)) {
 			tapTableMap = TapTableUtil.getTapTableMap(node, tmCurrentTime);

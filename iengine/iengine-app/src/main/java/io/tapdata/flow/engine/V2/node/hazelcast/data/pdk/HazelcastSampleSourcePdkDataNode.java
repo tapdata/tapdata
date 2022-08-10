@@ -127,7 +127,7 @@ public class HazelcastSampleSourcePdkDataNode extends HazelcastPdkBaseNode {
             //try again
           }
         }
-        if (StringUtils.equalsAnyIgnoreCase(processorBaseContext.getSubTaskDto().getParentTask().getSyncType(),
+        if (StringUtils.equalsAnyIgnoreCase(processorBaseContext.getTaskDto().getSyncType(),
                 TaskDto.SYNC_TYPE_DEDUCE_SCHEMA)) {
           logger.info("get data from the following table {} to deduce schema, already obtained from table {}, " +
                   "skip other tables", tables, tableName);
