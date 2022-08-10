@@ -175,13 +175,14 @@
           ],
           "index": 1
         },
-        "prefixKey": {
+        "cachePrefix": {
           "type": "string",
           "title": "${cachePrefix}",
           "x-decorator": "FormItem",
           "x-component": "Input",
           "index": 2,
           "required": true
+
         },
         "cacheKeys": {
           "type": "string",
@@ -195,14 +196,6 @@
           },
           "x-reactions": "{{useAsyncDataSourceByConfig({service: loadNodeFieldOptions, withoutField: true}, $values.$inputs[0])}}",
           "index": 3
-        },
-        "mongodb": {
-          "type": "string",
-          "title": "${mongdb}",
-          "x-decorator": "FormItem",
-          "x-component": "Input",
-          "index": 4,
-          "required": true
         }
       }
     }
@@ -225,7 +218,7 @@
       "Address" : "Please enter the server address",
       "sentinelPort": "server port",
       "cacheKey": "cache key",
-      "cachePrefix": "cache prefix",
+      "cachePrefix": "cache key",
       "prompt": "add"
     },
     "zh_CN": {
@@ -244,7 +237,7 @@
       "Address" : "服务器地址",
       "sentinelPort": "端口",
       "cacheKey": "缓存键",
-      "cachePrefix": "缓存前缀",
+      "cachePrefix": "缓存key",
       "prompt": "添加"
     },
     "zh_TW": {
@@ -263,7 +256,7 @@
       "Address" : "服務器地址",
       "sentinelPort": "服務器端口",
       "cacheKey": "緩存鍵",
-      "cachePrefix": "緩存前綴",
+      "cachePrefix": "緩存key",
       "prompt": "添加"
     }
   },

@@ -1,7 +1,5 @@
 package io.tapdata.connector.redis;
 
-import com.mongodb.client.MongoClient;
-import com.mongodb.client.MongoClients;
 import com.mongodb.client.MongoDatabase;
 import io.tapdata.base.ConnectorBase;
 import io.tapdata.entity.codec.TapCodecsRegistry;
@@ -9,6 +7,7 @@ import io.tapdata.entity.event.ddl.table.TapClearTableEvent;
 import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
 import io.tapdata.entity.event.ddl.table.TapDropTableEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
+import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.pdk.apis.annotations.TapConnectorClass;
@@ -21,9 +20,7 @@ import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import org.apache.commons.collections.CollectionUtils;
 import redis.clients.jedis.Jedis;
 
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.function.Consumer;
 
 /**
@@ -36,7 +33,7 @@ public class RedisConnector extends ConnectorBase {
 
     private RedisContext redisContext;
 
-    private  final  static String INIT_TABLE_NAME="tapdata";
+    private  final  static String INIT_TABLE_NAME="ikas";
 
 
     private MongoDatabase mongoDatabase;
@@ -77,23 +74,11 @@ public class RedisConnector extends ConnectorBase {
 
     @Override
     public void discoverSchema(TapConnectionContext connectionContext, List<String> tables, int tableSize, Consumer<List<TapTable>> consumer) throws Throwable {
-        Jedis jedis = redisContext.getJedis();
-        Set<String> cacheTables;
         List<TapTable> tapTableList = list();
         TapTable tapTable  = new TapTable();
         tapTable.setName(INIT_TABLE_NAME);
         tapTableList.add(tapTable);
-        cacheTables = jedis.smembers(RedisRecordWriter.JSON_REDIS_TABLES);
-        if(!CollectionUtils.isEmpty(cacheTables)){
-            for (String tableName:cacheTables){
-                TapTable tapTableTemp  = new TapTable();
-                tapTableTemp.setName(tableName);
-                tapTableList.add(tapTableTemp);
-            }
-
-        }
         consumer.accept(tapTableList);
-
     }
 
     @Override
@@ -114,11 +99,6 @@ public class RedisConnector extends ConnectorBase {
 
     @Override
     public int tableCount(TapConnectionContext connectionContext) throws Throwable {
-        Jedis jedis = redisContext.getJedis();
-        Set<String> cacheTables = jedis.smembers(RedisRecordWriter.JSON_REDIS_TABLES);
-        if(!CollectionUtils.isEmpty(cacheTables)){
-            return cacheTables.size()+1;
-        }
         return 1;
     }
 
@@ -133,7 +113,7 @@ public class RedisConnector extends ConnectorBase {
         DataMap nodeConfig = tapConnectorContext.getNodeConfig();
         String keyName = tapClearTableEvent.getTableId();
         if(nodeConfig !=null) {
-            keyName = (String) nodeConfig.get("prefixKey");
+            keyName = (String) nodeConfig.get("cachePrefix");
         }
         Jedis jedis = redisContext.getJedis();
         jedis.del(keyName);
@@ -143,7 +123,7 @@ public class RedisConnector extends ConnectorBase {
         DataMap nodeConfig = tapConnectorContext.getNodeConfig();
         String keyName = tapDropTableEvent.getTableId();
         if(nodeConfig !=null) {
-           keyName = (String) nodeConfig.get("prefixKey");
+           keyName = (String) nodeConfig.get("cachePrefix");
         }
         Jedis jedis = redisContext.getJedis();
         jedis.del(keyName);
@@ -152,20 +132,30 @@ public class RedisConnector extends ConnectorBase {
 
     private void createTable(TapConnectorContext tapConnectorContext, TapCreateTableEvent createTableEvent) throws Throwable {
         Jedis jedis = redisContext.getJedis();
-        MongoClient mongoClient = MongoClients.create("mongodb://localhost:27017/");
-        this.mongoDatabase = mongoClient.getDatabase("tapdata-open-source");
+        // 获取源表的字段
+        List<TapField> fieldList = new ArrayList<>();
+        LinkedHashMap<String, TapField> hashMap = createTableEvent.getTable().getNameFieldMap();
+        for (Map.Entry<String, TapField> entry : hashMap.entrySet()) {
+            fieldList.add(entry.getValue());
+        }
 
-        String schema = "";
-        Map<String, Integer> sortFiled =RedisRecordWriter.sortFiled(createTableEvent.getTable());
-        for (Map.Entry<String, Integer> entry : sortFiled.entrySet()) {
-            schema += "," + entry.getKey();
+        // 拼装数据库中的schema结构，根据tapFiled pos排序
+        String schema ="";
+        Collections.sort(fieldList, Comparator.comparing(TapField::getPos));
+        for (TapField tapField : fieldList) {
+            schema += "," + tapField.getName();
         }
         schema = schema.substring(1);
+
+        // redis key的表名。如果前缀表名不存在，目标定义的表名
         DataMap nodeConfig = tapConnectorContext.getNodeConfig();
         String keyName = createTableEvent.getTableId();
-        if (nodeConfig != null) {
-            keyName = (String) nodeConfig.get("prefixKey");
+        if (nodeConfig != null && nodeConfig.get("cachePrefix")!=null) {
+            keyName = (String)nodeConfig.get("cachePrefix") ;
         }
+
+        jedis.del(keyName);
+        // 给redis第一行写入schema
         jedis.rpush(keyName, schema);
 
     }

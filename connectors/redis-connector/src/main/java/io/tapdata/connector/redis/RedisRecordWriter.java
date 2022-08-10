@@ -1,8 +1,7 @@
 package io.tapdata.connector.redis;
 
 import com.alibaba.fastjson.JSON;
-import com.mongodb.client.*;
-import com.mongodb.client.model.UpdateOptions;
+import com.mongodb.client.MongoDatabase;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
@@ -15,9 +14,9 @@ import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.entity.WriteListResult;
 import org.apache.commons.collections.MapUtils;
 import org.apache.commons.lang3.StringUtils;
-import org.bson.Document;
 import redis.clients.jedis.Jedis;
 import redis.clients.jedis.Pipeline;
+import redis.clients.jedis.Response;
 
 import java.text.SimpleDateFormat;
 import java.util.*;
@@ -41,8 +40,6 @@ public class RedisRecordWriter {
 
     private final TapConnectorContext connectorContext;
 
-    private MongoDatabase mongoDatabase;
-
     private Map<String, Integer> filedMap;
 
     private TapTable tapTable;
@@ -53,18 +50,18 @@ public class RedisRecordWriter {
         this.jedis = redisContext.getJedis();
         this.connectorContext = connectorContext;
         this.tapTable = tapTable;
-        if (mongoDatabase != null) {
-            this.mongoDatabase = mongoDatabase;
-        } else {
-            this.mongoDatabase = getMongoDatabase();
-        }
        if(MapUtils.isEmpty(filedMap)){
          this.filedMap = sortFiled(tapTable);
        }
 
     }
 
-
+    /**
+     * json 格式写入数据
+     * @param tapRecordEvents
+     * @param tapTable
+     * @param writeListResultConsumer
+     */
     public void write(List<TapRecordEvent> tapRecordEvents, TapTable tapTable,Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer) {
 
         DataMap nodeConfig = connectorContext.getNodeConfig();
@@ -158,16 +155,11 @@ public class RedisRecordWriter {
             pipelined.set(key, strValue);
         }
 
-        boolean flag = redisContext.getRedisKeySetter().tableIsExist(tableName);
-        if (flag) {
-            pipelined.sadd(JSON_REDIS_TABLES, tableName);
-        }
     }
 
 
     /**
      * handle data for string
-     *
      * @return String
      */
     private String getStrValue(Map<String, Object> map) {
@@ -214,26 +206,37 @@ public class RedisRecordWriter {
                     String tableName = tapInsertRecordEvent.getTableId();
                     String keyName = redisContext.getRedisKeySetter().getRedisKey(value, connectorContext, tableName);
                     String strValue = getStrValue(value);
-                    insertData(keyName,value);
                     pipelined.rpush(keyName, strValue);
                     insert++;
                 }
                 if (recordEvent instanceof TapUpdateRecordEvent) {
+                    long startTime = System.currentTimeMillis();
                     TapUpdateRecordEvent tapUpdateRecordEvent = (TapUpdateRecordEvent) recordEvent;
-                    Map<String, Object> value = tapUpdateRecordEvent.getAfter();
+                    Map<String, Object> afterValue = tapUpdateRecordEvent.getAfter();
                     String tableName = tapUpdateRecordEvent.getTableId();
-                    String keyName = redisContext.getRedisKeySetter().getRedisKey(value, connectorContext, tableName);
-                    String strValue = getStrValue(value);
-                    updateData(keyName,value,pipelined, strValue);
+                    String keyName = redisContext.getRedisKeySetter().getRedisKey(afterValue, connectorContext, tableName);
+                    String newValue = getStrValue(afterValue);
+                    String oldValue =  getStrValue(tapUpdateRecordEvent.getBefore());
+                    Response<Long> poc = pipelined.lpos(keyName,oldValue);
+                    pipelined.sync();
+                    handleCount =1;
+                    pipelined.lset(keyName, poc.get(), newValue);
+                    TapLogger.info("update data time:",String.valueOf(System.currentTimeMillis()-startTime));
                     update++;
                 }
+
                 if (recordEvent instanceof TapDeleteRecordEvent) {
+                    long startTime = System.currentTimeMillis();
                     TapDeleteRecordEvent tapDeleteRecordEvent = (TapDeleteRecordEvent) recordEvent;
                     Map<String, Object> value = tapDeleteRecordEvent.getBefore();
                     String tableName = tapDeleteRecordEvent.getTableId();
                     String keyName = redisContext.getRedisKeySetter().getRedisKey(value, connectorContext, tableName);
-                    String strValue = getStrValue(value);
-                    deleteData(keyName,value,strValue);
+                    String oldValue = getStrValue(value);
+                    Response<Long> poc = pipelined.lpos(keyName,oldValue);
+                    pipelined.sync();
+                    handleCount =1;
+                    pipelined.lrem(keyName, poc.get(), oldValue);
+                    TapLogger.info("delete data time:",String.valueOf(System.currentTimeMillis()-startTime));
                     delete++;
                 }
 
@@ -260,85 +263,21 @@ public class RedisRecordWriter {
     }
 
 
-    public void insertData(String keyName,Map<String, Object> value){
-        MongoCollection<Document> mongoCollection= mongoDatabase.getCollection(keyName);
-        String keyValue = redisContext.getRedisKeySetter().getValue(value,connectorContext);
-        mongoCollection.updateOne(new Document("tableName", keyName),
-                new Document("$push", new Document("arr", keyValue)),
-                new UpdateOptions().upsert(true));
-    }
 
 
-    public void deleteData(String keyName, Map<String, Object> value,String strValue) {
-        // 查找key的index值
-        String keyValue = redisContext.getRedisKeySetter().getValue(value, connectorContext);
-        MongoCollection<Document> mongoCollection = mongoDatabase.getCollection(keyName);
-        AggregateIterable<Document> aggregateIterable = mongoCollection.aggregate(Arrays.asList(new Document("$match",
-                        new Document("tableName", keyName)),
-                new Document("$project",
-                        new Document("index", new Document("$indexOfArray", Arrays.asList("$arr", keyValue)))
-                )));
-        int index = 0;
-        for (Document document :  aggregateIterable) {
-            index = (Integer) document.get("index");
-        }
-        Jedis jedis = redisContext.getJedis();
-        jedis.lrem(keyName, index+1, strValue);
-        mongoCollection.updateOne(new Document("tableName", keyName),
-                new Document("$pull", new Document("arr", keyValue)));
-
-    }
-
-    public void updateData(String keyName, Map<String, Object> value, Pipeline pipelined, String strValue) {
-        // 查找key的index值
-        String keyValue = redisContext.getRedisKeySetter().getValue(value, connectorContext);
-        MongoCollection<Document> mongoCollection = mongoDatabase.getCollection(keyName);
-        AggregateIterable<Document> aggregateIterable = mongoCollection.aggregate(Arrays.asList(new Document("$match",
-                        new Document("tableName", keyName)),
-                new Document("$project",
-                        new Document("index", new Document("$indexOfArray", Arrays.asList("$arr", keyValue)))
-                )));
-        int index = 0;
-        for (Document document : aggregateIterable) {
-            index = (Integer) document.get("index");
-        }
-        pipelined.lset(keyName, index + 1, strValue);
-
-    }
-
-    public void updatePocData(String keyName, Map<String, Object> value, Pipeline pipelined, String newValue,String oldVaue) {
-        // 查找key的index值
-        //int index = pipelined.lpoc(keyName,oldVaue);
-        //pipelined.lset(keyName, index, newValue);
-    }
-
-    public void deletePocData(String keyName, Map<String, Object> value, Pipeline pipelined,String oldVaue) {
-        // 查找key的index值
-        //int index = pipelined.lpoc(keyName,oldVaue);
-        //pipelined.lrem(keyName, index, oldVaue);
-    }
-
-    private  MongoDatabase  getMongoDatabase() {
-
-        MongoClient mongoClient = MongoClients.create("mongodb://localhost:27017/");
-        return  mongoClient.getDatabase("tapdata-open-source");
-    }
-
-
+    /**
+     * DB的字段进行排序安札pos升序排序
+     * @param tapTable
+     * @return
+     */
     public static Map<String, Integer> sortFiled(TapTable tapTable) {
-        Map<String, Integer> filed = new HashMap<>();
+        Map<String, Integer> filed = new HashMap<>(32);
         List<TapField> fieldList = new ArrayList<>();
         LinkedHashMap<String, TapField> hashMap = tapTable.getNameFieldMap();
         for (Map.Entry<String, TapField> entry : hashMap.entrySet()) {
             fieldList.add(entry.getValue());
         }
-        fieldList.sort(new Comparator<TapField>() {
-            @Override
-            public int compare(TapField o1, TapField o2) {
-                return o1.getPos() - o2.getPos();
-            }
-        });
-
+        Collections.sort(fieldList, Comparator.comparing(TapField::getPos));
         for (int index = 0; index < fieldList.size(); index++) {
             filed.put(fieldList.get(index).getName(), index);
         }

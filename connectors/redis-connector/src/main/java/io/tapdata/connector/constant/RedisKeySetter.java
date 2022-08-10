@@ -3,15 +3,15 @@ package io.tapdata.connector.constant;
 
 import io.tapdata.connector.redis.RedisRecordWriter;
 import io.tapdata.entity.logger.TapLogger;
-import io.tapdata.entity.schema.TapField;
-import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 
-
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 /**
  * 缓存键设置器
@@ -34,8 +34,7 @@ public class RedisKeySetter {
     }
     String valueType = (String) nodeConfig.get("valueType");
     if (RedisRecordWriter.VALUE_TYPE_LIST.equals(valueType)) {
-
-      return (String) nodeConfig.get("prefixKey");
+      return (String) nodeConfig.get("cachePrefix");
     }
 
     RedisKey redisKey = getOrAuto(tableName, connectorContext);
@@ -80,7 +79,7 @@ public class RedisKeySetter {
     }
 
     redisKey.setVal(String.join(",", cacheKeys));
-    redisKey.setPrefix((String) nodeConfig.get("prefixKey"));
+    redisKey.setPrefix((String) nodeConfig.get("cachePrefix"));
 
     if (StringUtils.isBlank(redisKey.getVal())) {
       TapLogger.error("Set redis redisKey is '{}'", redisKey.getVal());
@@ -101,29 +100,5 @@ public class RedisKeySetter {
     return object.toString();
   }
 
-
-  public boolean tableIsExist(String tableName) {
-
-    if (!arrayList.contains(tableName)) {
-      arrayList.add(tableName);
-      return true;
-    }
-    return false;
-  }
-
-
-  public String getValue(Map<String, Object> value, TapConnectorContext connectorContext) {
-    StringBuilder buf = new StringBuilder();
-    DataMap nodeConfig = connectorContext.getNodeConfig();
-
-    List<String> cacheKeys = (List<String>) nodeConfig.get("cacheKeys");
-    for (String key : cacheKeys) {
-      Object object = value.get(key);
-      buf.append("_").append(object2String(object));
-
-    }
-
-    return buf.substring(1);
-  }
 
 }
