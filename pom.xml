@@ -13,7 +13,6 @@
 		<module>connectors-common</module>
 		<module>manager</module>
         <module>iengine</module>
-        <module>iengine/modules/deduction-module</module>
     </modules>
 
     <build>
