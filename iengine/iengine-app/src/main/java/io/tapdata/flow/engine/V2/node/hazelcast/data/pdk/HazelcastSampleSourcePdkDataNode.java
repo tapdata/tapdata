@@ -2,32 +2,35 @@ package io.tapdata.flow.engine.V2.node.hazelcast.data.pdk;
 
 import com.tapdata.constant.CollectionUtil;
 import com.tapdata.constant.Log4jUtil;
+import com.tapdata.entity.SyncStage;
 import com.tapdata.entity.TapdataEvent;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.DataParentNode;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
-import com.tapdata.tm.commons.dag.nodes.TableNode;
+import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
+import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.pdk.apis.entity.TapAdvanceFilter;
 import io.tapdata.pdk.apis.functions.connector.target.QueryByAdvanceFilterFunction;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
 import io.tapdata.pdk.core.monitor.PDKMethod;
+import io.tapdata.schema.SampleMockUtil;
 import io.tapdata.schema.TapTableMap;
 import org.apache.commons.collections.CollectionUtils;
-import org.apache.commons.collections.map.LRUMap;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.jetbrains.annotations.NotNull;
 import org.voovan.tools.collection.CacheMap;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
-public class HazelcastSampleSourcePdkDataNode extends HazelcastSourcePdkDataNode {
+public class HazelcastSampleSourcePdkDataNode extends HazelcastPdkBaseNode {
 
   private final Logger logger = LogManager.getLogger(HazelcastSampleSourcePdkDataNode.class);
 
@@ -44,6 +47,17 @@ public class HazelcastSampleSourcePdkDataNode extends HazelcastSourcePdkDataNode
   }
 
   @Override
+  protected void doInit(@NotNull Context context) throws Exception {
+    super.doInit(context);
+    try {
+      createPdkConnectorNode(dataProcessorContext, context.hazelcastInstance());
+      connectorNodeInit(dataProcessorContext);
+    } catch (Throwable e) {
+      throw new RuntimeException(e);
+    }
+    startSourceRunner();
+  }
+
   public void startSourceRunner() {
 
     try {
@@ -101,8 +115,23 @@ public class HazelcastSampleSourcePdkDataNode extends HazelcastSourcePdkDataNode
         }
 
         List<TapdataEvent> tapdataEvents = wrapTapdataEvent(cloneList);
-        if (CollectionUtil.isNotEmpty(tapdataEvents)) {
-          tapdataEvents.forEach(this::enqueue);
+        if (CollectionUtils.isEmpty(tapdataEvents)) {
+          //mock
+          tapdataEvents = SampleMockUtil.mock(tapTable, rows);
+        }
+        for (TapdataEvent tapdataEvent : tapdataEvents) {
+          while (true) {
+            if (offer(tapdataEvent)) {
+              break;
+            }
+            //try again
+          }
+        }
+        if (StringUtils.equalsAnyIgnoreCase(processorBaseContext.getSubTaskDto().getParentTask().getSyncType(),
+                TaskDto.SYNC_TYPE_DEDUCE_SCHEMA)) {
+          logger.info("get data from the following table {} to deduce schema, already obtained from table {}, " +
+                  "skip other tables", tables, tableName);
+          break;
         }
       }
 
@@ -115,6 +144,29 @@ public class HazelcastSampleSourcePdkDataNode extends HazelcastSourcePdkDataNode
     } finally {
       logger.info("source runner complete...");
     }
+    //结束
+    this.running.set(false);
+    logger.info("source runner complete... {}", running.get());
+  }
+
+  @Override
+  public boolean complete() {
+    return !isRunning();
+  }
+
+  private List<TapdataEvent> wrapTapdataEvent(List<TapEvent> tapEvents) {
+
+    List<TapdataEvent> tapdataEvents = new ArrayList<>();
+    for (TapEvent tapEvent : tapEvents) {
+      if (tapEvent instanceof TapRecordEvent) {
+        TapRecordEvent tapRecordEvent = (TapRecordEvent) tapEvent;
+        TapdataEvent tapdataEvent = new TapdataEvent();
+        tapdataEvent.setTapEvent(tapRecordEvent);
+        tapdataEvent.setSyncStage(SyncStage.INITIAL_SYNC);
+        tapdataEvents.add(tapdataEvent);
+      }
+    }
+    return tapdataEvents;
   }
 
   private static List<TapEvent> wrapTapEvent(List<Map<String, Object>> results, String table) {

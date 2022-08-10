@@ -11,6 +11,8 @@ import com.tapdata.entity.TapdataShareLogEvent;
 import com.tapdata.entity.dataflow.SyncProgress;
 import com.tapdata.entity.task.NodeUtil;
 import com.tapdata.entity.task.context.DataProcessorContext;
+import com.tapdata.tm.commons.cdcdelay.CdcDelay;
+import com.tapdata.tm.commons.cdcdelay.ICdcDelay;
 import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.DAGDataServiceImpl;
 import com.tapdata.tm.commons.dag.Node;
@@ -22,6 +24,8 @@ import com.tapdata.tm.commons.task.dto.Message;
 import com.tapdata.tm.commons.task.dto.SubTaskDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.Runnable.LoadSchemaRunner;
+import io.tapdata.aspect.SourceCDCDelayAspect;
+import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
 import io.tapdata.entity.conversion.TableFieldTypesGenerator;
 import io.tapdata.entity.event.TapEvent;
@@ -92,9 +96,12 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 	private DAGDataServiceImpl dagDataService;
 
 	private Future<?> sourceRunnerFuture;
+	// on cdc step if TableMap not exists heartbeat table, add heartbeat table to cdc whitelist and filter heartbeat records
+	protected ICdcDelay cdcDelayCalculation;
 
 	public HazelcastSourcePdkBaseNode(DataProcessorContext dataProcessorContext) {
 		super(dataProcessorContext);
+		this.cdcDelayCalculation = new CdcDelay();
 		if (!StringUtils.equalsAnyIgnoreCase(dataProcessorContext.getSubTaskDto().getParentTask().getSyncType(),
 				TaskDto.SYNC_TYPE_DEDUCE_SCHEMA, TaskDto.SYNC_TYPE_TEST_RUN)) {
 			initMilestoneService(MilestoneContext.VertexType.SOURCE);
@@ -477,6 +484,8 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 	}
 
 	protected TapdataEvent wrapTapdataEvent(TapEvent tapEvent, SyncStage syncStage, Object offsetObj, boolean isLast) {
+		tapEvent = cdcDelayCalculation.filterAndCalcDelay(tapEvent, times -> AspectUtils.executeAspect(SourceCDCDelayAspect.class, () -> new SourceCDCDelayAspect().delay(times).dataProcessorContext(dataProcessorContext)));
+
 		TapdataEvent tapdataEvent = null;
 		if (tapEvent instanceof TapRecordEvent) {
 			TapRecordEvent tapRecordEvent = (TapRecordEvent) tapEvent;
