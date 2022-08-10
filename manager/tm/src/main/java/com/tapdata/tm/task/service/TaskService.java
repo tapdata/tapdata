@@ -2483,11 +2483,6 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             log.info("concurrent running operations, this operation don‘t effective, task name = {}", taskDto.getName());
             return null;
         } else {
-            basicEventService.publish(new SyncTaskStatusDto(){{
-                setTaskRecordId(taskDto.getLastTaskRecordId());
-                setTaskStatus(taskDto.getStatus());
-            }});
-
             return id.toHexString();
         }
     }
@@ -2512,11 +2507,6 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             log.info("concurrent runError operations, this operation don‘t effective, task name = {}", taskDto.getName());
             return null;
         } else {
-            basicEventService.publish(new SyncTaskStatusDto(){{
-                setTaskRecordId(taskDto.getLastTaskRecordId());
-                setTaskStatus(taskDto.getStatus());
-            }});
-
             return id.toHexString();
         }
 
@@ -2541,11 +2531,6 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             log.info("concurrent complete operations, this operation don‘t effective, task name = {}", taskDto.getName());
             return null;
         } else {
-            basicEventService.publish(new SyncTaskStatusDto(){{
-                setTaskRecordId(taskDto.getLastTaskRecordId());
-                setTaskStatus(taskDto.getStatus());
-            }});
-
             return id.toHexString();
         }
     }
@@ -2575,11 +2560,6 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             log.info("concurrent stopped operations, this operation don‘t effective, task name = {}", taskDto.getName());
             return null;
         } else {
-            basicEventService.publish(new SyncTaskStatusDto(){{
-                setTaskRecordId(taskDto.getLastTaskRecordId());
-                setTaskStatus(taskDto.getStatus());
-            }});
-
             return id.toHexString();
         }
     }
