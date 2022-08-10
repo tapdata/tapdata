@@ -7,6 +7,7 @@ import io.tapdata.entity.utils.TapUtils;
 
 import java.util.Map;
 
+
 public class TapInsertRecordEvent extends TapRecordEvent {
 	public static final int TYPE = 300;
 	/**

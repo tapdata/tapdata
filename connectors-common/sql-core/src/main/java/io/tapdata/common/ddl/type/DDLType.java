@@ -14,6 +14,7 @@ public class DDLType {
     private final String desc;
     private final Class<? extends DDLWrapper<?>>[] ddlWrappers;
 
+    @SafeVarargs
     public DDLType(Type type, String pattern, boolean caseSensitive, String desc, Class<? extends DDLWrapper<?>>... ddlWrappers) {
         this.type = type;
         this.pattern = pattern;

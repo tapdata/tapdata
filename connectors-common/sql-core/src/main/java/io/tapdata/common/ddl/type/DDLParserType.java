@@ -9,17 +9,19 @@ import io.tapdata.common.ddl.parser.DDLParser;
  * @create 2022-07-01 14:34
  **/
 public enum DDLParserType {
-    CCJ_SQL_PARSER("com.github.jsqlparser", CCJSqlParser.class, CCJWrapperType.class),
+    MYSQL_CCJ_SQL_PARSER("com.github.jsqlparser", CCJSqlParser.class, "io.tapdata.connector.mysql.ddl.ccj.MysqlWrapperType"),
+    DB2_CCJ_SQL_PARSER("com.github.jsqlparser", CCJSqlParser.class, "io.tapdata.connector.db2.ddl.ccj.Db2WrapperType"),
+    ORACLE_CCJ_SQL_PARSER("com.github.jsqlparser", CCJSqlParser.class, "io.tapdata.connector.oracle.ddl.ccj.OracleWrapperType"),
     ;
 
     private final String desc;
     private final Class<? extends DDLParser<?>> parserClz;
-    private final Class<? extends WrapperType> wrapperType;
+    private final String wrapperTypeClassName;
 
-    DDLParserType(String desc, Class<? extends DDLParser<?>> parserClz, Class<? extends WrapperType> wrapperType) {
+    DDLParserType(String desc, Class<? extends DDLParser<?>> parserClz, String wrapperTypeClassName) {
         this.desc = desc;
         this.parserClz = parserClz;
-        this.wrapperType = wrapperType;
+        this.wrapperTypeClassName = wrapperTypeClassName;
     }
 
     public String getDesc() {
@@ -30,7 +32,15 @@ public enum DDLParserType {
         return parserClz;
     }
 
-    public Class<? extends WrapperType> getWrapperType() {
-        return wrapperType;
+    public String getWrapperTypeClassName() {
+        return wrapperTypeClassName;
+    }
+
+    public Class<? extends WrapperType> getWrapperTypeClass() {
+        try {
+            return (Class<? extends WrapperType>) Class.forName(wrapperTypeClassName);
+        } catch (ClassNotFoundException e) {
+            throw new RuntimeException(e);
+        }
     }
 }

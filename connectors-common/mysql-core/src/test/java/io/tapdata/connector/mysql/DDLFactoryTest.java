@@ -26,7 +26,7 @@ import java.util.Map;
  **/
 public class DDLFactoryTest {
 	private static KVReadOnlyMap<TapTable> tableMap;
-	private static final DDLParserType DDL_PARSER_TYPE = DDLParserType.CCJ_SQL_PARSER;
+	private static final DDLParserType DDL_PARSER_TYPE = DDLParserType.MYSQL_CCJ_SQL_PARSER;
 	private static List<TapDDLEvent> tapDDLEvents;
 
 	@BeforeEach

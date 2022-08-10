@@ -20,8 +20,10 @@
         <module>rabbitmq-connector</module>
         <module>rocketmq-connector</module>
 		<module>activemq-connector</module>
+        <module>redis-connector</module>
 		<module>clickhouse-connector</module>
 	</modules>
+
 	<properties>
 		<connector.file.name>${project.artifactId}-v${project.version}</connector.file.name>
 		<java.version>8</java.version>
