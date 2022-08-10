@@ -17,10 +17,15 @@ import com.tapdata.tm.commons.dag.nodes.DataParentNode;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
+import com.tapdata.tm.commons.schema.DataSourceDefinitionDto;
+import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.commons.task.dto.Dag;
 import com.tapdata.tm.commons.task.dto.ParentTaskDto;
 import com.tapdata.tm.commons.task.dto.Status;
 import com.tapdata.tm.commons.task.dto.TaskDto;
+import com.tapdata.tm.commons.util.ConnHeartbeatUtils;
+import com.tapdata.tm.commons.util.CreateTypeEnum;
+import com.tapdata.tm.commons.util.MetaDataBuilderUtils;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.ds.service.impl.DataSourceDefinitionService;
 import com.tapdata.tm.ds.service.impl.DataSourceService;
@@ -917,133 +922,119 @@ public class LogCollectorService {
         updateLogCollectorMap(oldTaskDto.getId(), newLogCollectorMap, user);
     }
 
-//    public void startConnHeartbeat(UserDetail user, TaskDto oldTaskDto) {
-//
-//        if (!TaskDto.SYNC_TYPE_MIGRATE.equals(oldTaskDto.getSyncType()) && !TaskDto.SYNC_TYPE_SYNC.equals(oldTaskDto.getSyncType())) {
-//            //日志挖掘类型的任务，不需要进行日志挖掘
-//            return;
-//        }
-//
-//        //只有全量+增量或者增量的时候可以使用挖掘任务
-//        if (ParentTaskDto.TYPE_INITIAL_SYNC.equals(oldTaskDto.getType())) {
-//            //只是全量任务不用开启共享日志挖掘
-//            return;
-//        }
-//
-//        List<DataSourceConnectionDto> dataSourceDtos = getConnectionByDag(user, oldTaskDto.getDag());
-//
-//        //不同类型数据源的id缓存
-//        Map<String, List<DataSourceConnectionDto>> dataSourceCacheByType = new HashMap<>();
-//
-//
-//        DataSourceConnectionDto heartbeatConnection = null;
-//        String heartbeatTable = "_tapdata_heartbeat_table";
-//        for (DataSourceConnectionDto dataSource : dataSourceDtos) {
-//            List<String> connectionIds = getConnectionIds(user, dataSourceCacheByType, dataSource);
-//            TaskDto oldConnHeartbeatTask = getHeartbeatTaskDto(connectionIds, user);
-//            if (oldConnHeartbeatTask != null) {
-//                HashSet<String> heartbeatTasks = oldConnHeartbeatTask.getHeartbeatTasks();
-//                List<TaskDto> TaskDtos = taskService.findByTaskId(oldTaskDto.getId(), user, "_id");
-//                List<String> collect = TaskDtos.stream().map(s -> s.getId().toHexString()).collect(Collectors.toList());
-//                heartbeatTasks.addAll(collect);
-//                taskService.update(new Query(Criteria.where("_id").is(oldConnHeartbeatTask.getId())), Update.update("heartbeatTasks", heartbeatTasks), user);
-//                if (TaskDto.STATUS_RUNNING.equals(oldConnHeartbeatTask.getStatus())) {
-//                    taskService.start(oldConnHeartbeatTask.getId(), user);
-//                }
-//                return;
-//            }
-//
-//
-//            //循环中只需要获取一次dummy源跟打点模型表
-//            if (heartbeatConnection == null) {
-//                String databaseType = "dummy";
-//                String mode = "ConnHeartbeat";
-//
-//                Query query3 = new Query(Criteria.where("pdkId").is(databaseType));
-//                query3.fields().include("pdkHash", "type");
-//                DataSourceDefinitionDto definitionDto = dataSourceDefinitionService.findOne(query3);
-//                //获取打点的Dummy数据源
-//                Query query2 = new Query(Criteria.where("database_type").is(databaseType)
-//                        .and("config.mode").is(mode)
-//                );
-//                heartbeatConnection = dataSourceService.findOne(query2, user);
-//
-//                boolean addDummy = false;
-//                if (heartbeatConnection == null) {
-//                    heartbeatConnection = new DataSourceConnectionDto();
-//                    heartbeatConnection.setName("tapdata_heartbeat_dummy_connection");
-//                    LinkedHashMap<String, Object> config = new LinkedHashMap<>();
-//                    config.put("mode", mode);
-//
-//                    heartbeatConnection.setConfig(config);
-//                    heartbeatConnection.setConnection_type("source");
-//                    heartbeatConnection.setPdkType("pdk");
-//                    heartbeatConnection.setRetry(0);
-//                    heartbeatConnection.setStatus("testing");
-//                    heartbeatConnection.setShareCdcEnable(false);
-//                    heartbeatConnection.setDatabase_type(definitionDto.getType());
-//                    heartbeatConnection.setPdkHash(definitionDto.getPdkHash());
-//                    heartbeatConnection = dataSourceService.add(heartbeatConnection, user);
-//                    addDummy = true;
-//
-//                }
-//
-//                String qualifiedName = MetaDataBuilderUtils.generateQualifiedName("table", heartbeatConnection, "heartbeatTable");
-//                MetadataInstancesDto metadata = metadataInstancesService.findByQualifiedNameNotDelete(qualifiedName, user, "_id");
-//                if (metadata == null) {
-//                    if (!addDummy) {
-//                        //新增数据源的时候 我自动加载模型
-//                        dataSourceService.sendTestConnection(heartbeatConnection, true, true, user);
-//                    }
-//
-//                    for (int i = 0; i < 8; i++) {
-//                        if (metadataInstancesService.findByQualifiedNameNotDelete(qualifiedName, user, "_id") == null) {
-//                            try {
-//                                Thread.sleep(500 * i);
-//                            } catch (InterruptedException e) {
-//                                throw new BizException("SystemError");
-//                            }
-//                        }
-//
-//                    }
-//                }
-//            }
-//
-//
-//            TableNode sourceNode = new TableNode();
-//            sourceNode.setId(UUID.randomUUID().toString());
-//            sourceNode.setTableName(heartbeatTable);
-//            sourceNode.setConnectionId(heartbeatConnection.getId().toHexString());
-//            sourceNode.setDatabaseType(heartbeatConnection.getDatabase_type());
-//            sourceNode.setName(heartbeatTable);
-//            TableNode targetNode = new TableNode();
-//            targetNode.setId(UUID.randomUUID().toString());
-//            sourceNode.setTableName(heartbeatTable);
-//            sourceNode.setConnectionId(dataSource.getId().toHexString());
-//            sourceNode.setDatabaseType(dataSource.getDatabase_type());
-//            sourceNode.setName(heartbeatTable);
-//
-//            List<Node> nodes = Lists.newArrayList(sourceNode, targetNode);
-//
-//            Edge edge = new Edge(sourceNode.getId(), targetNode.getId());
-//            List<Edge> edges = Lists.newArrayList(edge);
-//            Dag dag1 = new Dag(edges, nodes);
-//            DAG build = DAG.build(dag1);
-//            TaskDto taskDto = new TaskDto();
-//            taskDto.setName("来自" + dataSource.getName() + "的打点任务");
-//            taskDto.setDag(build);
-//            taskDto.setType("cdc");
-//            taskDto.setSyncType(TaskDto.SYNC_TYPE_CONN_HEARTBEAT);
-//            List<TaskDto> TaskDtos = findByTaskId(oldTaskDto.getId(), user, "_id");
-//            HashSet<String> heartbeatTasks = TaskDtos.stream().map(s -> s.getId().toHexString()).collect(Collectors.toCollection(HashSet::new));
-//            taskDto.setHeartbeatTasks(heartbeatTasks);
-//            taskDto = taskService.create(taskDto, user);
-//            taskDto = taskService.confirmById(taskDto, user, true);
-//
-//            taskService.start(taskDto.getId(), user);
-//        }
-//
-//    }
+    /**
+     * 根据同步任务启动连接心跳打点任务
+     * <pre>
+     * 启动条件：
+     *   - 同步任务启动时检查，并启动连接对应打点任务
+     *   - 同步任务类型为：迁移、同步
+     *   - 同步任务包含增量同步（全量+增量、增量）
+     *   - 同步任务源连接非 dummy 节点，并支持增量同步
+     * 打点任务逻辑：
+     *   - 增量任务
+     *   - 一个打点任务对应一个连接的心跳数据生成
+     *   - 源为 dummy 节点，mode=ConnHeartbeat
+     *   - 目标为任务源节点
+     * </pre>
+     *
+     * @param user       操作用户信息
+     * @param taskDto 启动任务
+     */
+    public void startConnHeartbeat(UserDetail user, TaskDto taskDto) {
+        if (!ConnHeartbeatUtils.checkTask(taskDto.getType(), taskDto.getSyncType())) return;
+        log.info("start connection heartbeat: {}({})", taskDto.getId(), taskDto.getName());
+
+        String subTaskId;
+        DataSourceConnectionDto heartbeatConnection = null;
+        List<DataSourceConnectionDto> dataSourceDtos;
+        Set<String> joinConnectionIdSet = new HashSet<>();
+        Map<String, List<DataSourceConnectionDto>> dataSourceCacheByType = new HashMap<>(); //不同类型数据源的id缓存
+
+        subTaskId = taskDto.getId().toHexString();
+        dataSourceDtos = getConnectionByDag(user, taskDto.getDag());
+        for (DataSourceConnectionDto dataSource : dataSourceDtos) {
+            String dataSourceId = dataSource.getId().toHexString();
+            if (!ConnHeartbeatUtils.checkConnection(dataSource.getDatabase_type(), dataSource.getCapabilities()) || joinConnectionIdSet.contains(dataSourceId))
+                continue;
+
+            //如果连接已经有心跳任务，将连接任务编号添加到 heartbeatTasks，并尝试启动任务
+            List<String> connectionIds = getConnectionIds(user, dataSourceCacheByType, dataSource);
+            TaskDto oldConnHeartbeatTask = queryTask(user, connectionIds);
+            if (oldConnHeartbeatTask != null) {
+                HashSet<String> heartbeatTasks = Optional.ofNullable(oldConnHeartbeatTask.getHeartbeatTasks()).orElseGet(HashSet::new);
+                heartbeatTasks.add(subTaskId);
+                taskService.update(new Query(Criteria.where("_id").is(oldConnHeartbeatTask.getId())), Update.update(ConnHeartbeatUtils.TASK_RELATION_FIELD, heartbeatTasks), user);
+                if (!TaskDto.STATUS_RUNNING.equals(oldConnHeartbeatTask.getStatus())) {
+                    taskService.start(oldConnHeartbeatTask.getId(), user);
+                }
+                joinConnectionIdSet.add(dataSourceId);
+                continue;
+            }
+
+            //循环中只需要获取一次dummy源跟打点模型表
+            if (heartbeatConnection == null) {
+                boolean addDummy = false;
+                //获取打点的Dummy数据源
+                Query query2 = new Query(Criteria.where("database_type").is(ConnHeartbeatUtils.PDK_NAME)
+                        .and("createType").is(CreateTypeEnum.System)
+                        .and("config.mode").is(ConnHeartbeatUtils.MODE)
+                );
+                heartbeatConnection = dataSourceService.findOne(query2, user);
+                if (heartbeatConnection == null) {
+                    Query query3 = new Query(Criteria.where("pdkId").is(ConnHeartbeatUtils.PDK_ID));
+                    query3.fields().include("pdkHash", "type");
+                    DataSourceDefinitionDto definitionDto = dataSourceDefinitionService.findOne(query3);
+
+                    heartbeatConnection = new DataSourceConnectionDto();
+                    heartbeatConnection.setName(ConnHeartbeatUtils.CONNECTION_NAME);
+                    heartbeatConnection.setConfig(Optional.of(new LinkedHashMap<String, Object>()).map(m -> {
+                        m.put("mode", ConnHeartbeatUtils.MODE);
+                        m.put("connId", dataSourceId);
+                        return m;
+                    }).get());
+                    heartbeatConnection.setConnection_type("source");
+                    heartbeatConnection.setPdkType("pdk");
+                    heartbeatConnection.setRetry(0);
+                    heartbeatConnection.setStatus("testing");
+                    heartbeatConnection.setShareCdcEnable(false);
+                    heartbeatConnection.setDatabase_type(definitionDto.getType());
+                    heartbeatConnection.setPdkHash(definitionDto.getPdkHash());
+                    heartbeatConnection.setCreateType(CreateTypeEnum.System);
+                    heartbeatConnection = dataSourceService.add(heartbeatConnection, user);
+                    dataSourceService.sendTestConnection(heartbeatConnection, true, true, user); //添加后没加载模型，手动加载一次
+                    addDummy = true;
+                }
+
+                String qualifiedName = MetaDataBuilderUtils.generateQualifiedName("table", heartbeatConnection, "heartbeatTable");
+                MetadataInstancesDto metadata = metadataInstancesService.findByQualifiedNameNotDelete(qualifiedName, user, "_id");
+                if (metadata == null) {
+                    if (!addDummy) {
+                        //新增数据源的时候 我自动加载模型
+                        dataSourceService.sendTestConnection(heartbeatConnection, true, true, user);
+                    }
+
+                    for (int i = 0; i < 8; i++) {
+                        if (metadataInstancesService.findByQualifiedNameNotDelete(qualifiedName, user, "_id") == null) {
+                            try {
+                                Thread.sleep(500 * i);
+                            } catch (InterruptedException e) {
+                                throw new BizException("SystemError");
+                            }
+                        }
+
+                    }
+                }
+            }
+
+            TaskDto taskDto1 = ConnHeartbeatUtils.generateTask(subTaskId, dataSourceId, dataSource.getName(), dataSource.getDatabase_type(), heartbeatConnection.getId().toHexString(), heartbeatConnection.getDatabase_type());
+            taskDto1 = taskService.create(taskDto1, user);
+            taskDto1 = taskService.confirmById(taskDto1, user, true);
+            taskService.start(taskDto1.getId(), user);
+            joinConnectionIdSet.add(dataSourceId);
+        }
+    }
+
+
 
 
     private List<String> getConnectionIds(UserDetail user, Map<String, List<DataSourceConnectionDto>> dataSourceCacheByType, DataSourceConnectionDto dataSource) {
@@ -1071,51 +1062,45 @@ public class LogCollectorService {
         return ids;
     }
 
+    public void endConnHeartbeat(UserDetail user, TaskDto taskDto) {
+        if (null == taskDto) {
+            log.warn("end connections heartbeat not found parent task: {}({})", taskDto.getId(), taskDto.getName());
+            return;
+        }
+        log.info("stop connection heartbeat: {}({})", taskDto.getId(), taskDto.getName());
 
-    private TaskDto getHeartbeatTaskDto(List<String> ids, UserDetail user) {
+        if (!ConnHeartbeatUtils.checkTask(taskDto.getType(), taskDto.getSyncType())) return;
 
+        //不同类型数据源的id缓存
+        Map<String, List<DataSourceConnectionDto>> dataSourceCacheByType = new HashMap<>();
+        List<DataSourceConnectionDto> dataSourceDtos = getConnectionByDag(user, taskDto.getDag());
+        for (DataSourceConnectionDto dataSource : dataSourceDtos) {
+            //获取是否存在这些connectionIds作为源的任务。
+            List<String> connectionIds = getConnectionIds(user, dataSourceCacheByType, dataSource);
+            TaskDto oldConnHeartbeatTask = queryTask(user, connectionIds);
+            if (null == oldConnHeartbeatTask) {
+                log.warn("not found heartbeat task, connId: {}", dataSource.getId().toHexString());
+                continue;
+            }
+            HashSet<String> heartbeatTasks = oldConnHeartbeatTask.getHeartbeatTasks();
+            if (heartbeatTasks.remove(taskDto.getId().toHexString())) {
+                taskService.update(new Query(Criteria.where("_id").is(oldConnHeartbeatTask.getId())), Update.update(ConnHeartbeatUtils.TASK_RELATION_FIELD, heartbeatTasks), user);
+            }
+            if (heartbeatTasks.size() == 0) {
+                taskService.stop(oldConnHeartbeatTask.getId(), user, false);
+            }
+        }
+    }
 
-
-        Criteria criteria1 = Criteria.where("is_deleted").is(false).and("syncType").is(TaskDto.SYNC_TYPE_CONN_HEARTBEAT).and("dag.nodes").elemMatch(Criteria.where("connectionId").in(ids));
+    private TaskDto queryTask(UserDetail user, List<String> ids) {
+        Criteria criteria1 = Criteria.where("is_deleted").is(false)
+                .and("syncType").is(TaskDto.SYNC_TYPE_CONN_HEARTBEAT)
+                .and("dag.nodes").elemMatch(Criteria.where("connectionId").in(ids));
         Query query1 = new Query(criteria1);
-        query1.fields().include("dag", "status", "heartbeatTasks");
+        query1.fields().include("dag", "status", ConnHeartbeatUtils.TASK_RELATION_FIELD);
         TaskDto oldConnHeartbeatTask = taskService.findOne(query1, user);
         return oldConnHeartbeatTask;
     }
-
-
-//    public void endConnHeartbeat(UserDetail user, TaskDto TaskDto) {
-//        TaskDto parentTask = TaskDto.getParentTask();
-//        if (!TaskDto.SYNC_TYPE_MIGRATE.equals(parentTask.getSyncType()) && !TaskDto.SYNC_TYPE_SYNC.equals(parentTask.getSyncType())) {
-//            //日志挖掘类型跟打点类型的任务，不需要进行日志挖掘
-//            return;
-//        }
-//
-//        //只有全量+增量或者增量的时候可以使用挖掘，打点任务
-//        if (ParentTaskDto.TYPE_INITIAL_SYNC.equals(parentTask.getType())) {
-//            //只是全量任务不用开启
-//            return;
-//        }
-//
-//        List<DataSourceConnectionDto> dataSourceDtos = getConnectionByDag(user, TaskDto.getDag());
-//
-//
-//        //不同类型数据源的id缓存
-//        Map<String, List<DataSourceConnectionDto>> dataSourceCacheByType = new HashMap<>();
-//
-//        for (DataSourceConnectionDto dataSource : dataSourceDtos) {
-//            List<String> connectionIds = getConnectionIds(user, dataSourceCacheByType, dataSource);
-//            //获取是否存在这些connectionIds作为源的任务。
-//
-//            TaskDto oldConnHeartbeatTask = getHeartbeatTaskDto(connectionIds, user);
-//            HashSet<String> heartbeatTasks = oldConnHeartbeatTask.getHeartbeatTasks();
-//            heartbeatTasks.remove(TaskDto.getId().toHexString());
-//            taskService.update(new Query(Criteria.where("_id").is(oldConnHeartbeatTask.getId())), Update.update("heartbeatTasks", heartbeatTasks), user);
-//            if (heartbeatTasks.size() == 0) {
-//                taskService.stop(oldConnHeartbeatTask.getId(), user, false);
-//            }
-//        }
-//    }
 
     private List<DataSourceConnectionDto> getConnectionByDag(UserDetail user, DAG dag) {
         List<Node> sources = dag.getSources();
@@ -1124,10 +1109,11 @@ public class LogCollectorService {
         //查询获取所有源的数据源连接
         Criteria criteria = Criteria.where("_id").in(connectionIds);
         Query query = new Query(criteria);
-        query.fields().include("_id", "uniqueName", "database_type", "name");
+        query.fields().include("_id", "uniqueName", "database_type", "name", "capabilities");
         List<DataSourceConnectionDto> dataSourceDtos = dataSourceService.findAllDto(query, user);
         return dataSourceDtos;
     }
+
 
     //由于调用这个方法的都是异步方法，不存在返回时长问题，所以这里直接使用sleep等待
     private void delayCheckSubTaskStatus(ObjectId taskId, String subStatus, UserDetail user) {
