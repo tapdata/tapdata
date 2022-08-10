@@ -44,7 +44,7 @@ public class MigrateJsProcessorNode extends Node<List<Schema>> {
         getPrePre(this, predIds);
         predIds.add(this.getId());
         Dag dag = this.getDag().toDag();
-        dag = JsonUtil.parseJsonUseJackson(JsonUtil.toJsonUseJackson(dag), Dag.class);
+//        dag = JsonUtil.parseJsonUseJackson(JsonUtil.toJsonUseJackson(dag), Dag.class);
         List<Node> nodes = dag.getNodes();
 
         VirtualTargetNode target = new VirtualTargetNode();
@@ -181,7 +181,17 @@ public class MigrateJsProcessorNode extends Node<List<Schema>> {
     @Override
     public List<Schema> mergeSchema(List<List<Schema>> inputSchemas, List<Schema> schemas) {
         //js节点的模型可以是直接虚拟跑出来的。 跑出来就是正确的模型，由引擎负责传值给tm
-        return schemas;
+        if (CollectionUtils.isNotEmpty(schemas)) {
+            return schemas;
+        }
+
+        List<Schema> result = new ArrayList<>();
+        if (CollectionUtils.isNotEmpty(inputSchemas)) {
+            for (List<Schema> inputSchema : inputSchemas) {
+                result.addAll(inputSchema);
+            }
+        }
+        return result;
     }
 
     public MigrateJsProcessorNode() {

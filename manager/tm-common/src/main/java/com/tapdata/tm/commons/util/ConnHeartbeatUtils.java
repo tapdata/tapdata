@@ -8,6 +8,7 @@ import com.tapdata.tm.commons.task.dto.ParentTaskDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.pdk.apis.entity.Capability;
 import org.apache.commons.lang3.StringUtils;
+import org.springframework.lang.NonNull;
 
 import java.util.*;
 
@@ -16,7 +17,7 @@ import java.util.*;
  * @version v1.0 2022/8/2 14:54 Create
  */
 public class ConnHeartbeatUtils {
-
+    private static final boolean ENABLE = false;
     public static final String PDK_ID = "dummy";
     public static final String PDK_NAME = "Dummy";
     public static final String MODE = "ConnHeartbeat";
@@ -31,10 +32,11 @@ public class ConnHeartbeatUtils {
      * @param taskSyncType task syncType
      * @return can start heartbeat
      */
-    public static boolean checkTask( String taskType,  String taskSyncType) {
-        return StringUtils.containsAny(taskSyncType, TaskDto.SYNC_TYPE_MIGRATE, TaskDto.SYNC_TYPE_SYNC)  //syncType is migrate or sync
-                || !ParentTaskDto.TYPE_INITIAL_SYNC.equals(taskType) //task type is not initial_sync
-                ;
+    public static boolean checkTask(@NonNull String taskType, @NonNull String taskSyncType) {
+        return ENABLE && (
+                StringUtils.containsAny(taskSyncType, TaskDto.SYNC_TYPE_MIGRATE, TaskDto.SYNC_TYPE_SYNC)  //syncType is migrate or sync
+                        || !ParentTaskDto.TYPE_INITIAL_SYNC.equals(taskType) //task type is not initial_sync
+        );
     }
 
     /**
@@ -44,8 +46,8 @@ public class ConnHeartbeatUtils {
      * @param capabilities capabilities has StreamRead and CreateTable and WriteRecord
      * @return can start heartbeat
      */
-    public static boolean checkConnection( String databaseType,  List<Capability> capabilities) {
-        if (PDK_NAME.equals(databaseType)) {
+    public static boolean checkConnection(@NonNull String databaseType, @NonNull List<Capability> capabilities) {
+        if (!ENABLE || PDK_NAME.equals(databaseType)) {
             return false;
         }
 
@@ -73,7 +75,7 @@ public class ConnHeartbeatUtils {
      * @param heartbeatDatabaseType heartbeat database type
      * @return heartbeat task
      */
-    public static TaskDto generateTask( String subTaskId,  String connectionId,  String connectionName,  String databaseType,  String heartbeatConnectionId,  String heartbeatDatabaseType) {
+    public static TaskDto generateTask(@NonNull String subTaskId, @NonNull String connectionId, @NonNull String connectionName, @NonNull String databaseType, @NonNull String heartbeatConnectionId, @NonNull String heartbeatDatabaseType) {
         TableNode sourceNode = new TableNode();
         sourceNode.setId(UUID.randomUUID().toString());
         sourceNode.setTableName(TABLE_NAME);

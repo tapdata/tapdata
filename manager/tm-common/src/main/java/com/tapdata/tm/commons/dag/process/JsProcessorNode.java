@@ -37,6 +37,7 @@ public class JsProcessorNode extends ProcessorNode {
         getPrePre(this, predIds);
         predIds.add(this.getId());
         Dag dag = this.getDag().toDag();
+        List<Node> oldNodes = dag.getNodes();
         dag = JsonUtil.parseJsonUseJackson(JsonUtil.toJsonUseJackson(dag), Dag.class);
         List<Node> nodes = dag.getNodes();
 
@@ -44,15 +45,13 @@ public class JsProcessorNode extends ProcessorNode {
         target.setId(UUID.randomUUID().toString());
         target.setName(target.getId());
         if (CollectionUtils.isNotEmpty(nodes)) {
-//            for (Node node : nodes) {
-//                if (node instanceof TableNode) {
-//                    node.setName("js_target");
-//                    node.setId(UUID.randomUUID().toString());
-//                    ((TableNode) node).setTableName("js_target");
-//                    target = node;
-//                    break;
-//                }
-//            }
+            for (Node node : nodes) {
+                Optional<Node> optionalNode = oldNodes.stream().filter(o -> o.getId().equals(node.getId())).findFirst();
+                if (optionalNode.isPresent()) {
+                    node.setSchema(optionalNode.get().getSchema());
+                    node.setOutputSchema(optionalNode.get().getOutputSchema());
+                }
+            }
             nodes = nodes.stream().filter(n -> predIds.contains(n.getId())).collect(Collectors.toList());
             nodes.add(target);
         }

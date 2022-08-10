@@ -296,6 +296,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 		if (streamReadFunction != null) {
 			logger.info("Starting stream read, table list: " + tapTableMap.keySet() + ", offset: " + syncProgress.getOffsetObj());
 			List<String> tables = new ArrayList<>(tapTableMap.keySet());
+			cdcDelayCalculation.addHeartbeatTable(tables);
 			int batchSize = 1;
 			executeDataFuncAspect(StreamReadFuncAspect.class, () -> new StreamReadFuncAspect()
 					.connectorContext(getConnectorNode().getConnectorContext())
@@ -358,6 +359,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 		if (!isRunning()) {
 			return;
 		}
+		cdcDelayCalculation.addHeartbeatTable(new ArrayList<>(dataProcessorContext.getTapTableMap().keySet()));
 		ShareCdcTaskContext shareCdcTaskContext = new ShareCdcTaskPdkContext(getCdcStartTs(), processorBaseContext.getConfigurationCenter(),
 				dataProcessorContext.getTaskDto(), dataProcessorContext.getNode(), dataProcessorContext.getSourceConn(), getConnectorNode());
 		logger.info("Starting incremental sync, read from share log storage...");

@@ -325,7 +325,7 @@ public abstract class Node<S> extends Element{
     /**
      * 获取输入模型
      */
-    protected List<S> getInputSchema() {
+    public List<S> getInputSchema() {
 
         Graph<? extends Element, ? extends Element> graph = getGraph();
         return graph.predecessors(getId()).stream().map(predecessorId -> {

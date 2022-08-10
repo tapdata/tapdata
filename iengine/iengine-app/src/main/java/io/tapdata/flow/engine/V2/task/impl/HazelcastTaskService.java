@@ -27,7 +27,9 @@ import com.tapdata.tm.commons.dag.nodes.CacheNode;
 import com.tapdata.tm.commons.dag.nodes.DataNode;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
-import com.tapdata.tm.commons.dag.process.*;
+import com.tapdata.tm.commons.dag.process.MergeTableNode;
+import com.tapdata.tm.commons.dag.process.MigrateFieldRenameProcessorNode;
+import com.tapdata.tm.commons.dag.process.TableRenameProcessNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.aspect.TaskStartAspect;
 import io.tapdata.aspect.utils.AspectUtils;
@@ -177,19 +179,7 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 			for (Node node : nodes) {
 				Connections connection = null;
 				DatabaseTypeEnum.DatabaseType databaseType = null;
-				TapTableMap<String, TapTable> tapTableMap;
-				if ((node instanceof MigrateJsProcessorNode || node instanceof JsProcessorNode)
-						&& StringUtils.equalsAnyIgnoreCase(taskDto.getSyncType(), TaskDto.SYNC_TYPE_DEDUCE_SCHEMA)) {
-					//模型推演阶段，如果没有模型取上一个节点的模型
-					List<Node> predecessors = node.predecessors();
-					if (predecessors.size() != 1) {
-						throw new IllegalArgumentException("Node [" + node.getId() + "] has more than one predecessor");
-					}
-					Map<String, String> nameQualifiedNameMap = TapTableUtil.getTableNameQualifiedNameMap(predecessors.get(0).getId());
-					tapTableMap = TapTableMap.create(node.getId(), nameQualifiedNameMap);
-				} else {
-					tapTableMap = TapTableUtil.getTapTableMapByNodeId(node.getId(), tmCurrentTime);
-				}
+				TapTableMap<String, TapTable> tapTableMap = getTapTableMap(subTaskDto, tmCurrentTime, node);
 				if (CollectionUtils.isEmpty(tapTableMap.keySet())
 						&& !(node instanceof CacheNode)
 						&& !(node instanceof HazelCastImdgNode)
@@ -264,6 +254,18 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 		}
 
 		return new JetDag(dag, hazelcastBaseNodeMap, typeConvertMap);
+	}
+
+	private static TapTableMap<String, TapTable> getTapTableMap(SubTaskDto subTaskDto, Long tmCurrentTime, Node node) {
+		TapTableMap<String, TapTable> tapTableMap;
+		if (StringUtils.equalsAnyIgnoreCase(subTaskDto.getParentTask().getSyncType(),
+//						TaskDto.SYNC_TYPE_TEST_RUN,
+						TaskDto.SYNC_TYPE_DEDUCE_SCHEMA)) {
+			tapTableMap = TapTableUtil.getTapTableMap(node, tmCurrentTime);
+		} else {
+			tapTableMap = TapTableUtil.getTapTableMapByNodeId(node.getId(), tmCurrentTime);
+		}
+		return tapTableMap;
 	}
 
 	public static HazelcastBaseNode createNode(
