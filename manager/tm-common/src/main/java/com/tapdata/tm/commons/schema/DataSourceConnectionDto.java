@@ -273,6 +273,11 @@ public class DataSourceConnectionDto extends BaseDto {
 
         private Map<String, Object> extParam;
 
+        /** 加载表的规则，true为加载全部，false为加载部分 */
+        private Boolean loadAllTable;
+        /** 自定义的加载表的表名列表 */
+        private List<String> loadTables;
+
         /**
          * 后续 开放可以多选 flow engine 的话，这里一定要删除
          *

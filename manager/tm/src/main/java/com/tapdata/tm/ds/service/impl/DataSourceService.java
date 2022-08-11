@@ -1094,6 +1094,16 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 
 				if (hasSchema) {
 					if (CollectionUtils.isNotEmpty(tables)) {
+
+						//处理自定义加载的表。
+						Boolean loadAllTable = oldConnectionDto.getLoadAllTable();
+						if (loadAllTable != null && !loadAllTable) {
+							List<String> loadTables = oldConnectionDto.getLoadTables();
+							if (CollectionUtils.isNotEmpty(loadTables)) {
+								tables = tables.stream().filter(t->loadTables.contains(t.getName())).collect(Collectors.toList());
+
+							}
+						}
 						for (TapTable table : tables) {
 							String expression = definitionDto.getExpression();
 							PdkSchemaConvert.tableFieldTypesGenerator.autoFill(table.getNameFieldMap() == null ? new LinkedHashMap<>() : table.getNameFieldMap(), DefaultExpressionMatchingMap.map(expression));
