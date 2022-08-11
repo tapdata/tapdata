@@ -351,6 +351,53 @@ public class AspectManagerTest {
 
     }
 
+    @Test
+    public void testIgnoreErrors() {
+        AspectManager aspectManager = ClassFactory.create(AspectManager.class);
+        assertNotNull(aspectManager);
+        AspectObserver<EmptyAspect> observer = aspect -> {
+            throw new NullPointerException();
+        };
+        AspectInterceptor<EmptyAspect> interceptor = aspect -> {
+            throw new NullPointerException();
+        };
+
+        aspectManager.registerAspectObserver(EmptyAspect.class, 1, observer, true);
+        aspectManager.registerAspectInterceptor(EmptyAspect.class, 1, interceptor, true);
+
+        aspectManager.executeAspect(EmptyAspect.class, () -> {
+            return new EmptyAspect();
+        });
+        assertTrue(true);
+
+        aspectManager.unregisterAspectObserver(EmptyAspect.class, observer);
+        aspectManager.unregisterAspectInterceptor(EmptyAspect.class, interceptor);
+
+        aspectManager.registerAspectObserver(EmptyAspect.class, 1, observer, false);
+
+        try {
+            aspectManager.executeAspect(EmptyAspect.class, () -> {
+                return new EmptyAspect();
+            });
+            fail();
+        } catch (Throwable throwable) {
+            assertTrue(true);
+        }
+        aspectManager.unregisterAspectObserver(EmptyAspect.class, observer);
+
+
+        aspectManager.registerAspectInterceptor(EmptyAspect.class, 1, interceptor, false);
+        try {
+            aspectManager.executeAspect(EmptyAspect.class, () -> {
+                return new EmptyAspect();
+            });
+            fail();
+        } catch (Throwable throwable) {
+            assertTrue(true);
+        }
+
+    }
+
     public static void main(String[] args) {
         AspectManager aspectManager = InstanceFactory.instance(AspectManager.class);
         for(int i = 0; i < 100; i++)

@@ -16,6 +16,11 @@ public class AspectObserverClassHolder implements Comparable<AspectObserverClass
         this.aspectClass = aspectClass;
         return this;
     }
+    private boolean ignoreErrors = true;
+    public AspectObserverClassHolder ignoreErrors(boolean ignoreErrors) {
+        this.ignoreErrors = ignoreErrors;
+        return this;
+    }
     private int order;
     public AspectObserverClassHolder order(int order) {
         this.order = order;
@@ -51,5 +56,13 @@ public class AspectObserverClassHolder implements Comparable<AspectObserverClass
 //        if(order == interceptorClassHolder.order)
 //            return 0;
         return order > observerClassHolder.order ? 1 : -1;
+    }
+
+    public boolean isIgnoreErrors() {
+        return ignoreErrors;
+    }
+
+    public void setIgnoreErrors(boolean ignoreErrors) {
+        this.ignoreErrors = ignoreErrors;
     }
 }
