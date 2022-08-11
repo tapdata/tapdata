@@ -5,6 +5,7 @@ import io.tapdata.common.ddl.type.DDLParserType;
 import io.tapdata.common.ddl.type.DDLType;
 import io.tapdata.common.ddl.type.WrapperType;
 import io.tapdata.common.ddl.wrapper.DDLWrapper;
+import io.tapdata.common.ddl.wrapper.DDLWrapperConfig;
 import io.tapdata.entity.event.ddl.TapDDLEvent;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.InstanceFactory;
@@ -49,7 +50,7 @@ public class DDLFactory {
         return capabilities;
     }
 
-    public static <E> void ddlToTapDDLEvent(DDLParserType ddlParserType, String ddl, String spilt, KVReadOnlyMap<TapTable> tableMap, Consumer<TapDDLEvent> consumer) throws Throwable {
+    public static <E> void ddlToTapDDLEvent(DDLParserType ddlParserType, String ddl, DDLWrapperConfig config, KVReadOnlyMap<TapTable> tableMap, Consumer<TapDDLEvent> consumer) throws Throwable {
         DDLType ddlType = DDLFilter.testAndGetType(ddlParserType, ddl);
         if (null == ddlType) {
             return;
@@ -59,7 +60,8 @@ public class DDLFactory {
         E parseResult = ddlParser.parse(ddl);
         Class<? extends DDLWrapper<E>>[] ddlWrappers = (Class<? extends DDLWrapper<E>>[]) ddlType.getDdlWrappers();
         for (Class<? extends DDLWrapper<E>> ddlWrapper : ddlWrappers) {
-            DDLWrapper<E> ddlWrapperBean = ddlWrapper.getConstructor(String.class).newInstance(spilt);
+            DDLWrapper<E> ddlWrapperBean = InstanceFactory.bean(ddlWrapper);
+            ddlWrapperBean.init(config);
             ddlWrapperBean.wrap(parseResult, tableMap, consumer);
         }
     }
