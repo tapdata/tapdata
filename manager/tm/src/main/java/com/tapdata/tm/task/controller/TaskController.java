@@ -130,26 +130,6 @@ public class TaskController extends BaseController {
     }
 
     /**
-     * Find all task run history by filter from the data source
-     *
-     * @param filterJson filterJson
-     * @return TaskRunHistoryDto
-     */
-    @Operation(summary = "查询运行历史记录")
-    @GetMapping("runHistory")
-    public ResponseMessage<Page<TaskRunHistoryDto>> queryTaskRunHistory(
-            @Parameter(in = ParameterIn.QUERY,
-                    description = "Filter defining fields, where, sort, skip, and limit - must be a JSON-encoded string (`{\"where\":{\"something\":\"value\"},\"fields\":{\"something\":true|false},\"sort\": [\"name desc\"],\"page\":1,\"size\":20}`)."
-            )
-            @RequestParam(value = "filter", required = false) String filterJson) {
-        Filter filter = parseFilter(filterJson);
-        if (filter == null) {
-            filter = new Filter();
-        }
-        return success(taskService.queryTaskRunHistory(filter, getLoginUser()));
-    }
-
-    /**
      * Replace an existing model instance or insert a new one into the data source
      *
      * @param task task
@@ -160,7 +140,6 @@ public class TaskController extends BaseController {
     public ResponseMessage<TaskDto> put(@RequestBody TaskDto task) {
         return success(taskService.replaceOrInsert(task, getLoginUser()));
     }
-
 
     /**
      * Check whether a model instance exists in the data source
@@ -249,9 +228,6 @@ public class TaskController extends BaseController {
         return success(taskDto);
     }
 
-
-
-
     /**
      * Find a model instance by {{id}} from the data source
      *
@@ -261,10 +237,16 @@ public class TaskController extends BaseController {
     @Operation(summary = "Find a model instance by {{id}} from the data source")
     @GetMapping("{id}")
     public ResponseMessage<TaskDto> findById(@PathVariable("id") String id,
-                                             @RequestParam(value = "fields", required = false) String fieldsJson) {
+                                             @RequestParam(value = "fields", required = false) String fieldsJson,
+                                             @RequestParam(value = "recordId", required = false) String recordId) {
         Field fields = parseField(fieldsJson);
         UserDetail user = getLoginUser();
-        TaskDto taskDto = taskService.findById(MongoUtils.toObjectId(id), fields, user);
+        TaskDto taskDto;
+        if (StringUtils.isBlank(recordId)) {
+            taskDto = taskService.findById(MongoUtils.toObjectId(id), fields, user);
+        } else {
+            taskDto = taskRecordService.queryTask(recordId, user.getUserId());
+        }
         if (taskDto != null) {
             taskDto.setCreator(StringUtils.isNotBlank(user.getUsername()) ? user.getUsername() : user.getEmail());
             taskCheckInspectService.getInspectFlagDefaultFlag(taskDto, user);
@@ -286,7 +268,6 @@ public class TaskController extends BaseController {
         TaskDetailVo taskDetailVo = taskService.findTaskDetailById(id, fields, getLoginUser());
         return success(taskDetailVo);
     }
-
 
     /**
      * 查询编辑的任务版本，如果temp存在则返回temp的信息
@@ -973,9 +954,9 @@ public class TaskController extends BaseController {
 
     @Operation(summary = "任务运行记录")
     @GetMapping("/records/{id}")
-    public ResponseMessage<Page<TaskRecordListVo>> records(@PathVariable String taskId,
-                                                           @RequestParam String offset,
-                                                           @RequestParam Integer limit) {
+    public ResponseMessage<Page<TaskRecordListVo>> records(@PathVariable(value = "id") String taskId,
+                                                           @RequestParam(required = false) String offset,
+                                                           @RequestParam(defaultValue = "20") Integer limit) {
         return success(taskRecordService.queryRecords(taskId, offset, limit));
     }
 

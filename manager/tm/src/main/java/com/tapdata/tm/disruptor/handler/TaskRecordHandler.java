@@ -1,20 +1,17 @@
 package com.tapdata.tm.disruptor.handler;
 
+import cn.hutool.extra.spring.SpringUtil;
 import com.tapdata.tm.disruptor.ObjectEvent;
 import com.tapdata.tm.task.bean.SyncTaskStatusDto;
 import com.tapdata.tm.task.entity.TaskRecord;
 import com.tapdata.tm.task.service.TaskRecordService;
-import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 
 import java.util.function.Consumer;
 
 @Slf4j
-@Setter(onMethod_ = {@Autowired})
 public class TaskRecordHandler<T> extends ObjectEventHandler<T> {
 
-    private TaskRecordService taskRecordService;
     public TaskRecordHandler(Consumer<?> consumer) {
         super(consumer);
     }
@@ -22,12 +19,13 @@ public class TaskRecordHandler<T> extends ObjectEventHandler<T> {
     public void onEvent(ObjectEvent event, long sequence, boolean endOfBatch) {
         log.info("sequence [{}], endOfBatch [{}], event : {}", sequence, endOfBatch, event);
 
+        TaskRecordService taskRecordService = SpringUtil.getBean(TaskRecordService.class);
+
         Object obj = event.getEvent();
         if (obj instanceof TaskRecord) {
-            TaskRecord data = (TaskRecord) obj;
-            taskRecordService.createRecord(data);
+            taskRecordService.createRecord((TaskRecord) obj);
         } else if (obj instanceof SyncTaskStatusDto) {
-
+            taskRecordService.updateTaskStatus((SyncTaskStatusDto) obj);
         } else {
 
         }

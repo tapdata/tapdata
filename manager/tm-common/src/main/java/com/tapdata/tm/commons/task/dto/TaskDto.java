@@ -31,7 +31,7 @@ public class TaskDto extends ParentTaskDto {
      */
     public static final String SYNC_TYPE_DEDUCE_SCHEMA = "deduceSchema";
 
-    public static final String LASTTASKRECORDID = "lastTaskRecordId";
+    public static final String LASTTASKRECORDID = "taskRecordId";
 
     /** 任务图*/
     @JsonSerialize( using = DagSerialize.class)
@@ -97,7 +97,7 @@ public class TaskDto extends ParentTaskDto {
     private Boolean deleteFlag;
     private Long version;
 
-    private String lastTaskRecordId;
+    private String taskRecordId;
 
     public DAG getDag() {
         if (dag != null) {

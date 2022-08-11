@@ -80,9 +80,7 @@ import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
-import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import javax.servlet.http.HttpServletResponse;
@@ -659,8 +657,11 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             }
         }
 
-        return updateById(taskDto, user);
+        updateById(taskDto, user);
 
+        updateTaskRecordStatus(taskDto,taskDto.getStatus());
+
+        return taskDto;
     }
 
 
@@ -907,15 +908,13 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                 .unset("temp");
         updateById(taskDto.getId(), update, user);
 
+        taskDto.setStatus(TaskDto.STATUS_EDIT);
+        taskDto.setTaskRecordId(lastTaskRecordId);
+
         // publish queue
-        basicEventService.publish(new TaskRecord(){{
-            setTaskId(taskDto.getId().toHexString());
-            setId(MongoUtils.toObjectId(lastTaskRecordId));
-            TaskEntity taskEntity = convertToEntity(entityClass, taskDto);
-            setTaskSnapshot(taskEntity);
-            setCreateUser(user.getUserId());
-            setCreateAt(new Date());
-        }});
+        TaskEntity taskSnapshot = new TaskEntity();
+        BeanUtil.copyProperties(taskDto, taskSnapshot);
+        basicEventService.publish(new TaskRecord(lastTaskRecordId, taskDto.getId().toHexString(), taskSnapshot, user.getUserId(), new Date()));
 
         CustomerJobLog customerJobLog = new CustomerJobLog(taskDto.getId().toString(), taskDto.getName());
         customerJobLog.setDataFlowType(CustomerJobLogsService.DataFlowType.sync.getV());
@@ -2290,6 +2289,8 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             //如果更新失败，则表示可能为并发启动操作，本次不做处理
             log.info("concurrent start operations, this operation don‘t effective, task name = {}", taskDto.getName());
             return;
+        } else {
+            updateTaskRecordStatus(taskDto, TaskDto.STATUS_SCHEDULING);
         }
 
         if (StringUtils.equals(AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER.name(), taskDto.getAccessNodeType())
@@ -2308,6 +2309,8 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             update(query1, Update.update("status", TaskDto.STATUS_SCHEDULE_FAILED), user);
             customerJobLogsService.noAvailableAgents(customerJobLog, user);
             throw new BizException("Task.AgentNotFound");
+        } else {
+            updateTaskRecordStatus(taskDto, TaskDto.STATUS_SCHEDULE_FAILED);
         }
 
         WorkerDto workerDto = workerService.findOne(new Query(Criteria.where("processId").is(taskDto.getAgentId())));
@@ -2318,15 +2321,17 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         Query query1 = new Query(Criteria.where("_id").is(taskDto.getId()).and("status").is(TaskDto.STATUS_SCHEDULING));
         Update waitRunUpdate = Update.update("status", TaskDto.STATUS_WAIT_RUN).set("agentId", taskDto.getAgentId());
         boolean needCreateRecord = false;
-        if (StringUtils.isBlank(taskDto.getLastTaskRecordId())) {
-            taskDto.setLastTaskRecordId(new ObjectId().toHexString());
-            waitRunUpdate.set(TaskDto.LASTTASKRECORDID, taskDto.getLastTaskRecordId());
+        if (StringUtils.isBlank(taskDto.getTaskRecordId())) {
+            taskDto.setTaskRecordId(new ObjectId().toHexString());
+            waitRunUpdate.set(TaskDto.LASTTASKRECORDID, taskDto.getTaskRecordId());
             needCreateRecord = true;
         }
         UpdateResult waitRunResult = update(query1, waitRunUpdate, user);
         if (waitRunResult.getModifiedCount() == 0) {
             log.info("concurrent start operations, this operation don‘t effective, task name = {}", taskDto.getName());
             return;
+        } else {
+            updateTaskRecordStatus(taskDto, TaskDto.STATUS_WAIT_RUN);
         }
         customerJobLog.setJobName(taskDto.getName());
         customerJobLog.setJobInfos(TaskService.printInfos(dag));
@@ -2349,19 +2354,18 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         messageQueueService.sendMessage(queueDto);
 
         if (needCreateRecord) {
-            basicEventService.publish(new TaskRecord(){{
-                setTaskId(taskDto.getId().toHexString());
-                setId(MongoUtils.toObjectId(taskDto.getLastTaskRecordId()));
-                TaskEntity taskEntity = convertToEntity(entityClass, taskDto);
-                setTaskSnapshot(taskEntity);
-                setCreateUser(user.getUserId());
-                setCreateAt(new Date());
-            }});
+            TaskEntity taskSnapshot = new TaskEntity();
+            BeanUtil.copyProperties(taskDto, taskSnapshot);
+            basicEventService.publish(new TaskRecord(taskDto.getTaskRecordId(), taskDto.getId().toHexString(), taskSnapshot, user.getUserId(), new Date()));
         } else {
-            basicEventService.publish(new SyncTaskStatusDto(){{
-                setTaskRecordId(taskDto.getLastTaskRecordId());
-                setTaskStatus(taskDto.getStatus());
-            }});
+            updateTaskRecordStatus(taskDto, taskDto.getStatus());
+        }
+    }
+
+    private void updateTaskRecordStatus(TaskDto dto, String status) {
+        dto.setStatus(status);
+        if (StringUtils.isNotBlank(dto.getTaskRecordId())) {
+            basicEventService.publish(new SyncTaskStatusDto(dto.getTaskRecordId(), status));
         }
     }
 
@@ -2471,7 +2475,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
      */
     public String running(ObjectId id, UserDetail user) {
         //判断子任务是否存在
-        TaskDto taskDto = checkExistById(id, user, "_id", "status", "name");
+        TaskDto taskDto = checkExistById(id, user, "_id", "status", "name", "taskRecordId");
         //将子任务状态改成运行中
         if (!TaskDto.STATUS_WAIT_RUN.equals(taskDto.getStatus())) {
             log.info("concurrent runError operations, this operation don‘t effective, task name = {}", taskDto.getName());
@@ -2479,6 +2483,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         }
         Query query1 = new Query(Criteria.where("_id").is(taskDto.getId()).and("status").is(TaskDto.STATUS_WAIT_RUN));
         UpdateResult update1 = update(query1, Update.update("status", TaskDto.STATUS_RUNNING).set("startTime", new Date()), user);
+        updateTaskRecordStatus(taskDto, TaskDto.STATUS_RUNNING);
         if (update1.getModifiedCount() == 0) {
             log.info("concurrent running operations, this operation don‘t effective, task name = {}", taskDto.getName());
             return null;
@@ -2494,7 +2499,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
      */
     public String runError(ObjectId id, UserDetail user, String errMsg, String errStack) {
         //判断任务是否存在。
-        TaskDto taskDto = checkExistById(id, user, "_id", "status", "name");
+        TaskDto taskDto = checkExistById(id, user, "_id", "status", "name", "taskRecordId");
 
         if (!TaskOpStatusEnum.to_error_status.v().contains(taskDto.getStatus())) {
             log.info("concurrent runError operations, this operation don‘t effective, task name = {}", taskDto.getName());
@@ -2503,10 +2508,12 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         //将子任务状态更新成错误.
         Query query1 = new Query(Criteria.where("_id").is(taskDto.getId()).and("status").in(TaskOpStatusEnum.to_error_status.v()));
         UpdateResult update1 = update(query1, Update.update("status", TaskDto.STATUS_ERROR), user);
+        updateTaskRecordStatus(taskDto, TaskDto.STATUS_ERROR);
         if (update1.getModifiedCount() == 0) {
             log.info("concurrent runError operations, this operation don‘t effective, task name = {}", taskDto.getName());
             return null;
         } else {
+
             return id.toHexString();
         }
 
@@ -2527,6 +2534,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         //将子任务状态更新成为已完成
         Query query1 = new Query(Criteria.where("_id").is(taskDto.getId()).and("status").in(TaskOpStatusEnum.to_complete_status.v()));
         UpdateResult update1 = update(query1, Update.update("status", TaskDto.STATUS_COMPLETE), user);
+        updateTaskRecordStatus(taskDto, TaskDto.STATUS_COMPLETE);
         if (update1.getModifiedCount() == 0) {
             log.info("concurrent complete operations, this operation don‘t effective, task name = {}", taskDto.getName());
             return null;
@@ -2560,6 +2568,8 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             log.info("concurrent stopped operations, this operation don‘t effective, task name = {}", taskDto.getName());
             return null;
         } else {
+            basicEventService.publish(new SyncTaskStatusDto(taskDto.getTaskRecordId(), taskDto.getStatus()));
+
             return id.toHexString();
         }
     }
