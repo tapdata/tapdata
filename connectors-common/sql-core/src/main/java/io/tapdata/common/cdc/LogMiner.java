@@ -1,6 +1,7 @@
 package io.tapdata.common.cdc;
 
 import io.tapdata.common.ddl.DDLFactory;
+import io.tapdata.common.ddl.ccj.CCJBaseDDLWrapper;
 import io.tapdata.common.ddl.type.DDLParserType;
 import io.tapdata.constant.SqlConstant;
 import io.tapdata.constant.TapLog;
@@ -34,6 +35,7 @@ public abstract class LogMiner implements ILogMiner {
 
     private final static String TAG = LogMiner.class.getSimpleName();
     protected static final BeanUtils beanUtils = InstanceFactory.instance(BeanUtils.class); //bean util
+    public static final CCJBaseDDLWrapper.CCJDDLWrapperConfig DDL_WRAPPER_CONFIG = CCJBaseDDLWrapper.CCJDDLWrapperConfig.create().split("\"");
     protected DDLParserType ddlParserType; //ddl parser type
     protected AtomicBoolean isRunning = new AtomicBoolean(false);
     protected ExecutorService redoLogConsumerThreadPool;
@@ -231,7 +233,10 @@ public abstract class LogMiner implements ILogMiner {
                         break;
                     case "DDL":
                         try {
-                            DDLFactory.ddlToTapDDLEvent(ddlParserType, redoLogContent.getSqlRedo(), "\"", tableMap, eventList::add);
+                            DDLFactory.ddlToTapDDLEvent(ddlParserType, redoLogContent.getSqlRedo(),
+                                    DDL_WRAPPER_CONFIG,
+                                    tableMap,
+                                    eventList::add);
                         } catch (Throwable e) {
                             throw new RuntimeException(e);
                         }

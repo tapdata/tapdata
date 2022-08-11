@@ -14,6 +14,7 @@ import java.util.function.Consumer;
  * @create 2022-06-29 20:51
  **/
 public interface DDLWrapper<T> {
+	void init(DDLWrapperConfig config);
 	List<Capability> getCapabilities();
 	void wrap(T ddl, KVReadOnlyMap<TapTable> tableMap, Consumer<TapDDLEvent> consumer) throws Throwable;
 }
