@@ -13,8 +13,8 @@ import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.kit.DbKit;
+import io.tapdata.pdk.apis.charset.DatabaseCharset;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
-import io.tapdata.pdk.apis.context.TapConnectorContext;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 
@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.StringJoiner;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
@@ -56,6 +57,19 @@ public class MysqlSchemaLoader {
 			"        and i.TABLE_NAME %s\n" +
 			"        and i.INDEX_NAME <> 'PRIMARY') t\n" +
 			"where t.CONSTRAINT_NAME is null";
+
+	private static final String SELECT_TABLE_CHAR_SET_SQL = "SELECT\n" +
+			" tab.TABLE_NAME AS TABLE_NAME,\n" +
+			" charset_col.CHARACTER_SET_NAME AS CHAR_SET \n" +
+			" FROM\n" +
+			" INFORMATION_SCHEMA.TABLES AS tab\n" +
+			" LEFT JOIN ( SELECT * FROM INFORMATION_SCHEMA.COLLATION_CHARACTER_SET_APPLICABILITY ) AS charset_col ON tab.TABLE_COLLATION = COLLATION_NAME \n" +
+			" WHERE\n" +
+			" TABLE_SCHEMA = '%s' \n" +
+			" AND TABLE_TYPE = 'BASE TABLE'" +
+			" AND tab.TABLE_NAME in ('%s')";
+
+	private static final String ALL_CHARACTER_SET_SQL = "SELECT CHARACTER_SET_NAME,DESCRIPTION FROM INFORMATION_SCHEMA.CHARACTER_SETS ORDER BY MAXLEN DESC";
 
 
 	private TapConnectionContext tapConnectionContext;
@@ -128,6 +142,7 @@ public class MysqlSchemaLoader {
 				String tableNames = StringUtils.join(tables, "','");
 				List<DataMap> columnList = queryAllColumns(database, tableNames);
 				List<DataMap> indexList = queryAllIndexes(database, tableNames);
+				DataMap charsetMap = queryAllCharset(database, tableNames);
 
 				Map<String, List<DataMap>> columnMap = Maps.newHashMap();
 				if (CollectionUtils.isNotEmpty(columnList)) {
@@ -144,9 +159,9 @@ public class MysqlSchemaLoader {
 				List<TapTable> tempList = new ArrayList<>();
 				tables.forEach(table -> {
 					TapTable tapTable = TapSimplify.table(table);
-
 					discoverFields(finalColumnMap.get(table), tapTable, instance, dataTypesMap);
 					discoverIndexes(finalIndexMap.get(table), tapTable);
+					tapTable.setCharset(charsetMap.getString(table));
 					tempList.add(tapTable);
 				});
 
@@ -243,6 +258,28 @@ public class MysqlSchemaLoader {
 			TapLogger.error(TAG, "Execute queryAllColumns failed, error: " + e.getMessage(), e);
 		}
 		return columnList;
+	}
+
+	/**
+	 * Returns after obtaining the character sets of multiple tables
+	 * @Author Gavin
+	 * @Date 2022-9-15:00
+	 * */
+	private DataMap queryAllCharset(String database, String tableNames) {
+		TapLogger.debug(TAG, "Query all charset, database: {}, tableNames:{}", database, tableNames);
+		String sql = String.format(SELECT_TABLE_CHAR_SET_SQL, database, tableNames);
+		AtomicReference<DataMap> charsetList = new AtomicReference<>();//
+		try {
+			charsetList.set(DataMap.create());
+			mysqlJdbcContext.query(sql, resultSet -> {
+				while (resultSet.next()) {
+					charsetList.get().put(resultSet.getString("TABLE_NAME"),resultSet.getString("CHAR_SET"));
+				}
+			});
+		} catch (Throwable e) {
+			TapLogger.error(TAG, "Execute queryAllCharset failed, error: " + e.getMessage(), e);
+		}
+		return charsetList.get();
 	}
 
 	private List<DataMap> queryAllIndexes(String database, String tableNames) {
@@ -370,5 +407,27 @@ public class MysqlSchemaLoader {
 			listConsumer.accept(list);
 			list.clear();
 		}
+	}
+
+	/**
+	 * 获取数据库支持的全部字符集，返回结果包括：字符集名称+字符集描述
+	 * Get all the character sets supported by the database.
+	 * The returned results include:
+	 *     character set name and charset description
+	 * @Author Gavin
+	 * @Date 2022-9-17:00
+	 * */
+	public List<DatabaseCharset> getAllCharSet() throws Throwable {
+		List<DatabaseCharset> tabCharsetList = new ArrayList<>();
+		mysqlJdbcContext.query(ALL_CHARACTER_SET_SQL,result->{
+			while (result.next()){
+				DatabaseCharset databaseCharset
+						= DatabaseCharset.create()
+						.charset(result.getString("CHARACTER_SET_NAME"))
+						.description(result.getString("DESCRIPTION") );
+				tabCharsetList.add(databaseCharset);
+			}
+		});
+		return tabCharsetList;
 	}
 }

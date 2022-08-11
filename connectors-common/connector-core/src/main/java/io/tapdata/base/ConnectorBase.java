@@ -12,10 +12,14 @@ import io.tapdata.entity.schema.value.DateTime;
 import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.entity.utils.*;
 import io.tapdata.pdk.apis.TapConnector;
+import io.tapdata.pdk.apis.charset.CharsetCategoryFilter;
+import io.tapdata.pdk.apis.charset.CharsetUtils;
+import io.tapdata.pdk.apis.charset.DatabaseCharset;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.entity.TestItem;
 import io.tapdata.pdk.apis.entity.WriteListResult;
+import io.tapdata.pdk.apis.functions.connection.CharsetResult;
 import io.tapdata.pdk.apis.utils.TypeConverter;
 
 import java.io.PrintWriter;
@@ -168,6 +172,10 @@ public abstract class ConnectorBase implements TapConnector {
 
 	public static <T> List<T> list(T... ts) {
 		return TapSimplify.list(ts);
+	}
+
+	public static CharsetResult filterCharsets(List<DatabaseCharset> charsetList, List<CharsetCategoryFilter> filters) {
+		return CharsetUtils.filterCharsets(charsetList, filters);
 	}
 
 	public static <T> List<T> list() {

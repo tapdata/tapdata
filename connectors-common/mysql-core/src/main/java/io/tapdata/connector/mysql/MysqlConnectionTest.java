@@ -34,6 +34,8 @@ public class MysqlConnectionTest {
 	private static final String CHECK_CREATE_TABLE_PRIVILEGES_SQL = "SELECT count(1)\n" +
 			"FROM INFORMATION_SCHEMA.USER_PRIVILEGES\n" +
 			"WHERE GRANTEE LIKE '%%%s%%' and PRIVILEGE_TYPE = 'CREATE'";
+//	private static final String CHECK_DATABASE_CHARSET_SQL = "SHOW VARIABLES LIKE '%character_set_server%'";
+
 	private MysqlJdbcContext mysqlJdbcContext;
 
 	public MysqlConnectionTest(MysqlJdbcContext mysqlJdbcContext) {

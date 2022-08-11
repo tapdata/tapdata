@@ -15,6 +15,8 @@ import io.tapdata.pdk.apis.entity.TapAdvanceFilter;
 public interface SqlMaker {
 	String[] createTable(TapConnectorContext tapConnectorContext, TapCreateTableEvent tapCreateTableEvent, String version) throws Throwable;
 
+	String[] createTableV2(TapConnectorContext tapConnectorContext, TapCreateTableEvent tapCreateTableEvent, String version) throws Throwable;
+
 	String selectSql(TapConnectorContext tapConnectorContext, TapTable tapTable, MysqlSnapshotOffset mysqlSnapshotOffset) throws Throwable;
 
 	String selectSql(TapConnectorContext tapConnectorContext, TapTable tapTable, TapAdvanceFilter tapAdvanceFilter) throws Throwable;

@@ -20,12 +20,16 @@ import io.tapdata.entity.simplify.pretty.BiClassHandlers;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.entity.utils.cache.KVMap;
 import io.tapdata.pdk.apis.annotations.TapConnectorClass;
+import io.tapdata.pdk.apis.charset.CharsetCategoryFilter;
+import io.tapdata.pdk.apis.charset.DatabaseCharset;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.entity.*;
 import io.tapdata.pdk.apis.error.NotSupportedException;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
+import io.tapdata.pdk.apis.functions.connection.CharsetResult;
+import io.tapdata.pdk.apis.functions.connector.target.CreateTableOptions;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 
@@ -91,7 +95,9 @@ public class MysqlConnector extends ConnectorBase {
 		});
 		codecRegistry.registerFromTapValue(TapBooleanValue.class, "tinyint(1)", TapValue::getValue);
 
+		connectorFunctions.supportGetCharsetsFunction(this::getCharsets);
 		connectorFunctions.supportCreateTable(this::createTable);
+		connectorFunctions.supportCreateTableV2(this::createTableV2);
 		connectorFunctions.supportDropTable(this::dropTable);
 		connectorFunctions.supportClearTable(this::clearTable);
 		connectorFunctions.supportBatchCount(this::batchCount);
@@ -107,6 +113,19 @@ public class MysqlConnector extends ConnectorBase {
 		connectorFunctions.supportDropFieldFunction(this::fieldDDLHandler);
 		connectorFunctions.supportGetTableNamesFunction(this::getTableNames);
 		connectorFunctions.supportReleaseExternalFunction(this::releaseExternal);
+	}
+
+	private CharsetResult getCharsets(TapConnectionContext tapConnectionContext) throws Throwable {
+		MysqlSchemaLoader mysqlSchemaLoader = new MysqlSchemaLoader(mysqlJdbcContext);
+		List<DatabaseCharset> charsets = mysqlSchemaLoader.getAllCharSet();
+		CharsetResult charsetResult = filterCharsets(charsets, list(
+				CharsetCategoryFilter.create().category(CharsetResult.CATEGORY_CHINESE_SIMPLIFIED).filter(".*China.*|.*Simplified.*"),
+				CharsetCategoryFilter.create().category(CharsetResult.CATEGORY_CHINESE_TRADITIONAL).filter(".*China.*|.*Traditional.*"),
+				CharsetCategoryFilter.create().category(CharsetResult.CATEGORY_DEFAULT).filter(".*")
+		));
+//		charsetResult.charset(CharsetResult.CATEGORY_CHINESE_TRADITIONAL, "big5");
+//		charsetResult.charset("gb1830");
+		return charsetResult;
 	}
 
 	private void releaseExternal(TapConnectorContext tapConnectorContext) {
@@ -257,6 +276,41 @@ public class MysqlConnector extends ConnectorBase {
 		}
 	}
 
+	/**
+	 * @author Gavin
+	 * @date 2022-8-10 11:10
+	 * @description: Use the charset specified in TapTable to create a table
+	 * */
+	private CreateTableOptions createTableV2(TapConnectorContext tapConnectorContext, TapCreateTableEvent tapCreateTableEvent) throws Throwable {
+		try {
+			if (mysqlJdbcContext.tableExists(tapCreateTableEvent.getTableId())) {
+				DataMap connectionConfig = tapConnectorContext.getConnectionConfig();
+				String database = connectionConfig.getString("database");
+				String tableId = tapCreateTableEvent.getTableId();
+				TapLogger.info(TAG, "Table \"{}.{}\" exists, skip auto create table", database, tableId);
+				return CreateTableOptions.create().tableExists(Boolean.TRUE);
+			} else {
+				String mysqlVersion = mysqlJdbcContext.getMysqlVersion();
+				SqlMaker sqlMaker = new MysqlMaker();
+				if (null == tapCreateTableEvent.getTable()) {
+					TapLogger.warn(TAG, "Create table event's tap table is null, will skip it: " + tapCreateTableEvent);
+					return CreateTableOptions.create().tableExists(Boolean.FALSE);
+				}
+				String[] createTableSqlArr = sqlMaker.createTableV2(tapConnectorContext, tapCreateTableEvent, mysqlVersion);
+				for (String createTableSql : createTableSqlArr) {
+					try {
+						mysqlJdbcContext.execute(createTableSql);
+					} catch (Throwable e) {
+						throw new Exception("Execute create table failed, sql: " + createTableSql + ", message: " + e.getMessage(), e);
+					}
+				}
+				return CreateTableOptions.create().tableExists(Boolean.FALSE);
+			}
+		} catch (Throwable t) {
+			throw new Exception("Create table failed, message: " + t.getMessage(), t);
+		}
+	}
+
 	private void writeRecord(TapConnectorContext tapConnectorContext, List<TapRecordEvent> tapRecordEvents, TapTable tapTable, Consumer<WriteListResult<TapRecordEvent>> consumer) throws Throwable {
 		WriteListResult<TapRecordEvent> writeListResult = this.mysqlWriter.write(tapConnectorContext, tapTable, tapRecordEvents);
 		consumer.accept(writeListResult);
@@ -339,6 +393,7 @@ public class MysqlConnector extends ConnectorBase {
 		return tapRecordEvent;
 	}
 
+
 	@Override
 	public void discoverSchema(TapConnectionContext connectionContext, List<String> tables, int tableSize, Consumer<List<TapTable>> consumer) throws Throwable {
 		MysqlSchemaLoader mysqlSchemaLoader = new MysqlSchemaLoader(mysqlJdbcContext);
@@ -376,6 +431,9 @@ public class MysqlConnector extends ConnectorBase {
 			List<Capability> ddlCapabilities = DDLFactory.getCapabilities(DDL_PARSER_TYPE);
 			ddlCapabilities.forEach(connectionOptions::capability);
 		}
+
+		// return database charset
+		connectionOptions.charset(mysqlJdbcContext.getDatabaseCharset());
 		return connectionOptions;
 	}
 

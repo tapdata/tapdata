@@ -37,6 +37,10 @@ public class MysqlJdbcContext implements AutoCloseable {
 	private static final String CHECK_TABLE_EXISTS_SQL = "SELECT * FROM information_schema.tables WHERE TABLE_SCHEMA='%s' AND TABLE_NAME='%s'";
 	private static final String DROP_TABLE_IF_EXISTS_SQL = "DROP TABLE IF EXISTS `%s`.`%s`";
 	private static final String TRUNCATE_TABLE_SQL = "TRUNCATE TABLE `%s`.`%s`";
+	private static final String TRUNCATE_TABLE_V2_SQL = "TRUNCATE TABLE `%s`.`%s` DEFAULT CHARSET=%s";
+
+	//SQL of get database charset
+	private static final String SELECT_CHARSET_SQL = "SELECT DEFAULT_CHARACTER_SET_NAME FROM information_schema.SCHEMATA WHERE SCHEMA_NAME='%s'";
 
 	private static final Map<String, String> DEFAULT_PROPERTIES = new HashMap<String, String>() {{
 		put("rewriteBatchedStatements", "true");
@@ -343,6 +347,19 @@ public class MysqlJdbcContext implements AutoCloseable {
 			}
 		}
 		return sb.toString();
+	}
+
+	//Get database charset
+	public String getDatabaseCharset() throws Throwable {
+		AtomicReference<String> charset = new AtomicReference<>();
+		DataMap connectionConfig = tapConnectionContext.getConnectionConfig();
+		String database = connectionConfig.getString("database");
+		query(String.format(SELECT_CHARSET_SQL,database), resultSet -> {
+			if (resultSet.next()) {
+				charset.set(resultSet.getString(1));
+			}
+		});
+		return charset.get();
 	}
 
 	@Override

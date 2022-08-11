@@ -67,6 +67,50 @@ public class MysqlMaker implements SqlMaker {
 		return new String[]{sql};
 	}
 
+	/**
+	 * @author； Gavin
+	 * @Date 2022-8-10
+	 * @description Specify the character set when creating a table creation statement
+	 * */
+	@Override
+	public String[] createTableV2(TapConnectorContext tapConnectorContext, TapCreateTableEvent tapCreateTableEvent, String version) throws Throwable {
+		TapTable tapTable = tapCreateTableEvent.getTable();
+		LinkedHashMap<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
+		DataMap connectionConfig = tapConnectorContext.getConnectionConfig();
+		String database = connectionConfig.getString("database");
+		// append field
+		String fieldSql = nameFieldMap.values().stream()
+				.map(field -> {
+					try {
+						field.setDataType(MysqlUtil.fixDataType(field.getDataType(), version));
+					} catch (Exception e) {
+						TapLogger.warn(TAG, e.getMessage());
+					}
+					return createTableAppendField(field);
+				})
+				.collect(Collectors.joining(",\n"));
+		// primary key
+		if (CollectionUtils.isNotEmpty(tapTable.primaryKeys())) {
+			fieldSql += ",\n  " + createTableAppendPrimaryKey(tapTable);
+		}
+		String tablePropertiesSql = "";
+		// table comment
+		if (StringUtils.isNotBlank(tapTable.getComment())) {
+			tablePropertiesSql += " COMMENT='" + tapTable.getComment() + "'";
+		}
+		// table charset
+		if (StringUtils.isNotBlank(tapTable.getCharset())) {
+			tablePropertiesSql += " DEFAULT CHARSET=" + tapTable.getCharset() ;
+		}
+		String sql = String.format(
+				CREATE_TABLE_TEMPLATE,
+				database,
+				tapTable.getId(),
+				fieldSql,
+				tablePropertiesSql);
+		return new String[]{sql};
+	}
+
 	@Override
 	public String selectSql(TapConnectorContext tapConnectorContext, TapTable tapTable, MysqlSnapshotOffset mysqlSnapshotOffset) throws Throwable {
 		DataMap connectionConfig = tapConnectorContext.getConnectionConfig();
