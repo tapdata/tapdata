@@ -20,6 +20,10 @@ public abstract class CCJBaseDDLWrapper extends BaseDDLWrapper<Alter> {
 
     protected final String spilt;
 
+    public CCJBaseDDLWrapper() {
+        this("\"");
+    }
+
     public CCJBaseDDLWrapper(String spilt) {
         this.spilt = spilt;
     }

@@ -27,6 +27,10 @@ import static io.tapdata.pdk.apis.entity.ConnectionOptions.DDL_NEW_FIELD_EVENT;
  **/
 public class MysqlAddColumnDDLWrapper extends CCJBaseDDLWrapper {
 
+    public MysqlAddColumnDDLWrapper() {
+        super("`");
+    }
+
     public MysqlAddColumnDDLWrapper(String spilt) {
         super(spilt);
     }

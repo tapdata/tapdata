@@ -221,6 +221,7 @@ public abstract class LogMiner implements ILogMiner {
                         eventList.add(new TapUpdateRecordEvent()
                                 .table(redoLogContent.getTableName())
                                 .after(redoLogContent.getRedoRecord())
+                                .before(redoLogContent.getUndoRecord())
                                 .referenceTime(redoLogContent.getTimestamp().getTime()));
                         break;
                     case "DELETE":

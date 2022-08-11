@@ -23,6 +23,10 @@ import java.util.function.Consumer;
  **/
 public class MysqlDropColumnDDLWrapper extends CCJBaseDDLWrapper {
 
+    public MysqlDropColumnDDLWrapper() {
+        super("`");
+    }
+
     public MysqlDropColumnDDLWrapper(String spilt) {
         super(spilt);
     }

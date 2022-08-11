@@ -25,6 +25,10 @@ import java.util.function.Consumer;
  **/
 public class MysqlAlterColumnNameDDLWrapper extends CCJBaseDDLWrapper {
 
+    public MysqlAlterColumnNameDDLWrapper() {
+        super("`");
+    }
+
     public MysqlAlterColumnNameDDLWrapper(String spilt) {
         super(spilt);
     }
