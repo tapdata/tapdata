@@ -1,0 +1,115 @@
+{
+  "uid" : "9ce8819f032e116c",
+  "name" : "create datasource with mongodb uri",
+  "fullName" : "test_datasource.TestDataSource#test_mongo_create_datasource_by_uri",
+  "historyId" : "01357ff6cfbebe12ecd764172e6c29d1",
+  "time" : {
+    "start" : 1660203462287,
+    "stop" : 1660203469556,
+    "duration" : 7269
+  },
+  "status" : "passed",
+  "flaky" : false,
+  "newFailed" : false,
+  "beforeStages" : [ ],
+  "testStage" : {
+    "status" : "passed",
+    "steps" : [ ],
+    "attachments" : [ {
+      "uid" : "b7ad477622aa12e9",
+      "name" : "stdout",
+      "source" : "b7ad477622aa12e9.txt",
+      "type" : "text/plain",
+      "size" : 905
+    } ],
+    "parameters" : [ ],
+    "stepsCount" : 0,
+    "attachmentsCount" : 1,
+    "shouldDisplayMessage" : false,
+    "hasContent" : true
+  },
+  "afterStages" : [ ],
+  "labels" : [ {
+    "name" : "feature",
+    "value" : "datasource"
+  }, {
+    "name" : "suite",
+    "value" : "test_datasource"
+  }, {
+    "name" : "subSuite",
+    "value" : "TestDataSource"
+  }, {
+    "name" : "host",
+    "value" : "cf856c84ccb1"
+  }, {
+    "name" : "thread",
+    "value" : "863-MainThread"
+  }, {
+    "name" : "framework",
+    "value" : "pytest"
+  }, {
+    "name" : "language",
+    "value" : "cpython3"
+  }, {
+    "name" : "package",
+    "value" : "test_datasource"
+  }, {
+    "name" : "resultFormat",
+    "value" : "allure2"
+  } ],
+  "parameters" : [ ],
+  "links" : [ ],
+  "hidden" : false,
+  "retry" : false,
+  "extra" : {
+    "severity" : "normal",
+    "retries" : [ ],
+    "categories" : [ ],
+    "history" : {
+      "statistic" : {
+        "failed" : 0,
+        "broken" : 0,
+        "skipped" : 0,
+        "passed" : 5,
+        "unknown" : 0,
+        "total" : 5
+      },
+      "items" : [ {
+        "uid" : "237a0020e6bd836c",
+        "status" : "passed",
+        "time" : {
+          "start" : 1660192556123,
+          "stop" : 1660192563297,
+          "duration" : 7174
+        }
+      }, {
+        "uid" : "928af72083c2d003",
+        "status" : "passed",
+        "time" : {
+          "start" : 1660188024138,
+          "stop" : 1660188038215,
+          "duration" : 14077
+        }
+      }, {
+        "uid" : "78f7c84882f36bf1",
+        "status" : "passed",
+        "time" : {
+          "start" : 1660131326053,
+          "stop" : 1660131332985,
+          "duration" : 6932
+        }
+      }, {
+        "uid" : "5d03e46d5af9f6ac",
+        "status" : "passed",
+        "time" : {
+          "start" : 1660126776306,
+          "stop" : 1660126784150,
+          "duration" : 7844
+        }
+      } ]
+    },
+    "tags" : [ ]
+  },
+  "source" : "9ce8819f032e116c.json",
+  "parameterValues" : [ ]
+}

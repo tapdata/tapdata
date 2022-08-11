@@ -1,0 +1,109 @@
+{
+  "uid" : "4170c703f4554958",
+  "name" : "js udf in sync",
+  "fullName" : "test_pipeline.TestPipeline#test_processor_sync",
+  "historyId" : "5f76061d07be2fa3f1de95bfd0d35e24",
+  "time" : {
+    "start" : 1660203498241,
+    "stop" : 1660203498621,
+    "duration" : 380
+  },
+  "status" : "broken",
+  "statusMessage" : "IndexError: tuple index out of range",
+  "statusTrace" : "self = <lib.cli.Job object at 0x7fa82d0c4590>\n\n    def start(self):\n        try:\n>           status = self.status()\n\n../lib/cli.py:2504: \n_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ \n\nself = <lib.cli.Job object at 0x7fa82d0c4590>, res = None, quiet = True\n\n    def status(self, res=None, quiet=True):\n        if res is None:\n>           res = req.get(\"/Task/\" + self.id).json()\nE           TypeError: can only concatenate str (not \"NoneType\") to str\n\n../lib/cli.py:2531: TypeError\n\nDuring handling of the above exception, another exception occurred:\n\nself = <test.test_pipeline.TestPipeline object at 0x7fa82d0c8fd0>\n\n    @allure.title(\"js udf in sync\")\n    def test_processor_sync(self):\n        p = make_new_pipeline(f\"processor_sync_{random_str()}\")\n        p1 = p.readFrom(source_name)\n        p1.dag.jobType = JobType.sync\n        p2 = p1.js()\n        assert id(p1) != id(p2)\n        p3 = p2.writeTo(sink_name)\n>       p3.start()\n\ntest_pipeline.py:199: \n_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ \n../lib/cli.py:112: in func_wrapper\n    return obj(*args, **kargs)\n../lib/cli.py:1936: in start\n    if job.start():\n../lib/cli.py:2508: in start\n    logger.info(\"job {} save failed.\")\n_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ \n\nself = <lib.log.Logger object at 0x7fa82e6f5a10>\nargs = ('job {} save failed.',), kargs = {}\nmsg = 'job \\x1b[1;32m{}\\x1b[0m save failed.'\n\n    def info(self, *args, **kargs):\n        msg = args[0].replace(\"{}\", \"\\033[1;32m{}\\033[0m\")\n>       self._print(msg.format(*args[1:]), **kargs)\nE       IndexError: tuple index out of range\n\n../lib/log.py:64: IndexError",
+  "flaky" : false,
+  "newFailed" : false,
+  "beforeStages" : [ ],
+  "afterStages" : [ ],
+  "labels" : [ {
+    "name" : "feature",
+    "value" : "pipeline"
+  }, {
+    "name" : "suite",
+    "value" : "test_pipeline"
+  }, {
+    "name" : "subSuite",
+    "value" : "TestPipeline"
+  }, {
+    "name" : "host",
+    "value" : "cf856c84ccb1"
+  }, {
+    "name" : "thread",
+    "value" : "863-MainThread"
+  }, {
+    "name" : "framework",
+    "value" : "pytest"
+  }, {
+    "name" : "language",
+    "value" : "cpython3"
+  }, {
+    "name" : "package",
+    "value" : "test_pipeline"
+  }, {
+    "name" : "resultFormat",
+    "value" : "allure2"
+  } ],
+  "parameters" : [ ],
+  "links" : [ ],
+  "hidden" : false,
+  "retry" : false,
+  "extra" : {
+    "severity" : "normal",
+    "retries" : [ ],
+    "categories" : [ {
+      "name" : "Test defects",
+      "matchedStatuses" : [ ],
+      "flaky" : false
+    } ],
+    "history" : {
+      "statistic" : {
+        "failed" : 0,
+        "broken" : 5,
+        "skipped" : 0,
+        "passed" : 0,
+        "unknown" : 0,
+        "total" : 5
+      },
+      "items" : [ {
+        "uid" : "c91cb014a1e8fd8a",
+        "status" : "broken",
+        "statusDetails" : "IndexError: tuple index out of range",
+        "time" : {
+          "start" : 1660192594033,
+          "stop" : 1660192594441,
+          "duration" : 408
+        }
+      }, {
+        "uid" : "3efde8edfcf89ff",
+        "status" : "broken",
+        "statusDetails" : "IndexError: tuple index out of range",
+        "time" : {
+          "start" : 1660188066201,
+          "stop" : 1660188066536,
+          "duration" : 335
+        }
+      }, {
+        "uid" : "7ccb907a8cbbef88",
+        "status" : "broken",
+        "statusDetails" : "IndexError: tuple index out of range",
+        "time" : {
+          "start" : 1660131361326,
+          "stop" : 1660131361671,
+          "duration" : 345
+        }
+      }, {
+        "uid" : "2fa73604389e55c3",
+        "status" : "broken",
+        "statusDetails" : "IndexError: tuple index out of range",
+        "time" : {
+          "start" : 1660126812324,
+          "stop" : 1660126812590,
+          "duration" : 266
+        }
+      } ]
+    },
+    "tags" : [ ]
+  },
+  "source" : "4170c703f4554958.json",
+  "parameterValues" : [ ]
+}
