@@ -1,0 +1,5 @@
+job [1;32msync_nxjgs[0m start running ...                                                                                                                                         
+job [1;32msync_nxjgs[0m status is: [1;32medit[0m                                                                                                                                
+job [1;32msync_nxjgs[0m status is: [1;32mwait_run[0m                                                                                                                            
+the status is wait_run now, this is 1 times, 5 times remaining                                                                                                                      
+job [1;32msync_nxjgs[0m status is: [1;32mwait_run[0m                                                                                                                            
