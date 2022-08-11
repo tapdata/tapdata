@@ -40,18 +40,27 @@ public class AspectManagerImpl implements AspectManager {
         }
     }
 
-    @SuppressWarnings("unchecked")
-    @Override
     public synchronized  <T extends Aspect> void registerAspectInterceptor(Class<T> aspectClass, int order, AspectInterceptor<T> aspectInterceptor) {
-        registerInterceptor(aspectClass, order, (AspectInterceptor<Aspect>) aspectInterceptor);
+        registerAspectInterceptor(aspectClass, order, aspectInterceptor, true);
     }
     @SuppressWarnings("unchecked")
     @Override
+    public synchronized  <T extends Aspect> void registerAspectInterceptor(Class<T> aspectClass, int order, AspectInterceptor<T> aspectInterceptor, boolean ignoreErrors) {
+        registerInterceptor(aspectClass, order, (AspectInterceptor<Aspect>) aspectInterceptor, ignoreErrors);
+    }
+
+    @Override
     public synchronized void registerInterceptor(Class<? extends Aspect> aspectClass, int order, AspectInterceptor<Aspect> aspectInterceptor) {
+        registerInterceptor(aspectClass, order, aspectInterceptor, true);
+    }
+
+    @SuppressWarnings("unchecked")
+    @Override
+    public synchronized void registerInterceptor(Class<? extends Aspect> aspectClass, int order, AspectInterceptor<Aspect> aspectInterceptor, boolean ignoreErrors) {
         Collection<AspectInterceptorClassHolder> interceptorClassHolders = aspectInterceptorMap.get(aspectClass);
         if(interceptorClassHolders == null) {
             interceptorClassHolders = Collections.synchronizedSortedSet(new TreeSet<>());
-            interceptorClassHolders.add(new AspectInterceptorClassHolder().aspectInterceptor(aspectInterceptor).order(order));
+            interceptorClassHolders.add(new AspectInterceptorClassHolder().aspectInterceptor(aspectInterceptor).order(order).ignoreErrors(ignoreErrors));
             aspectInterceptorMap.put(aspectClass, interceptorClassHolders);
             TapLogger.debug(TAG, "(New array) AspectInterceptor {} for Aspect {} will be applied", aspectInterceptor, aspectClass);
         } else {
@@ -116,10 +125,14 @@ public class AspectManagerImpl implements AspectManager {
 
     @Override
     public synchronized void registerObserver(Class<? extends Aspect> aspectClass, int order, AspectObserver<Aspect> aspectObserver) {
+        registerObserver(aspectClass, order, aspectObserver, true);
+    }
+    @Override
+    public synchronized void registerObserver(Class<? extends Aspect> aspectClass, int order, AspectObserver<Aspect> aspectObserver, boolean ignoreErrors) {
         Collection<AspectObserverClassHolder> observerClassHolders = aspectObserversMap.get(aspectClass);
         if(observerClassHolders == null) {
             observerClassHolders = Collections.synchronizedSortedSet(new TreeSet<>());
-            observerClassHolders.add(new AspectObserverClassHolder().aspectObserver(aspectObserver).order(order));
+            observerClassHolders.add(new AspectObserverClassHolder().aspectObserver(aspectObserver).order(order).ignoreErrors(ignoreErrors));
             aspectObserversMap.put(aspectClass, observerClassHolders);
             TapLogger.debug(TAG, "(New array) AspectObserver {} for Aspect {} will be applied", aspectObserver, aspectClass);
         } else {
@@ -130,16 +143,20 @@ public class AspectManagerImpl implements AspectManager {
                     return;
                 }
             }
-            newObserverClassHolders.add(new AspectObserverClassHolder().aspectObserver(aspectObserver).order(order));
+            newObserverClassHolders.add(new AspectObserverClassHolder().aspectObserver(aspectObserver).order(order).ignoreErrors(ignoreErrors));
             aspectObserversMap.put(aspectClass, newObserverClassHolders);
             aspectObserverInstanceMap.putIfAbsent((Class<? extends AspectObserver<? extends Aspect>>) aspectObserver.getClass(), aspectObserver);
             TapLogger.debug(TAG, "(Exist array) AspectObserver {} for Aspect {} will be applied", aspectObserver, aspectClass);
         }
     }
+
+    public synchronized <T extends Aspect> void registerAspectObserver(Class<T> aspectClass, int order, AspectObserver<T> aspectObserver) {
+        registerAspectObserver(aspectClass, order, aspectObserver, true);
+    }
     @SuppressWarnings("unchecked")
     @Override
-    public synchronized <T extends Aspect> void registerAspectObserver(Class<T> aspectClass, int order, AspectObserver<T> aspectObserver) {
-        registerObserver(aspectClass, order, (AspectObserver<Aspect>) aspectObserver);
+    public synchronized <T extends Aspect> void registerAspectObserver(Class<T> aspectClass, int order, AspectObserver<T> aspectObserver, boolean ignoreErrors) {
+        registerObserver(aspectClass, order, (AspectObserver<Aspect>) aspectObserver, ignoreErrors);
     }
 
     @Override
@@ -245,9 +262,13 @@ public class AspectManagerImpl implements AspectManager {
             }
 
             AspectObserver finalObserver = observer;
-            CommonUtils.ignoreAnyError(() -> {
+            if(observerClass.isIgnoreErrors()) {
+                CommonUtils.ignoreAnyError(() -> {
+                    finalObserver.observe(aspect);
+                }, TAG);
+            } else {
                 finalObserver.observe(aspect);
-            }, TAG);
+            }
         }
     }
 
@@ -295,9 +316,13 @@ public class AspectManagerImpl implements AspectManager {
                 });
             }
             AspectInterceptor finalInterceptor = interceptor;
-            CommonUtils.ignoreAnyError(() -> {
+            if(interceptClass.isIgnoreErrors()) {
+                CommonUtils.ignoreAnyError(() -> {
+                    resultAtomicReference.set(finalInterceptor.intercept(aspect));
+                }, TAG);
+            } else {
                 resultAtomicReference.set(finalInterceptor.intercept(aspect));
-            }, TAG);
+            }
             if(resultAtomicReference.get() != null && resultAtomicReference.get().isIntercepted()) {
                 TapLogger.info(TAG, "Aspect {} intercepted {}", aspect, resultAtomicReference.get());
                 break;
