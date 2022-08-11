@@ -2,33 +2,77 @@ name: LDP Continuous Integration
 
 on:
   push:
-    branches: [ "master", "release-v*.*.*", "develop-v*.*.0" ]
+    branches: [ "master", "release-v*.*.*", "develop-v*.*.0", "develop-v*.*", "release-v*.*" ]
   pull_request:
-    branches: [ "master", "release-v*.*.*", "develop-v*.*.0" ]
+    branches: [ "master", "release-v*.*.*", "develop-v*.*.0", "develop-v*.*", "release-v*.*" ]
+  schedule:
+    - cron: "30 17 * * *"
+    - cron: "30 20 * * *"
+    - cron: "30 1 * * *"
 
 env:
   REGISTRY: ghcr.io
   TEST_DATABASE: ${{ secrets.TEST_DATABASE }}
+  FEISHU_PERSON_IN_CHARGE: ${{ secrets.FEISHU_PERSON_IN_CHARGE }}
+  FEISHU_CHAT_ID: ${{ secrets.FEISHU_CHAT_ID }}
+  FEISHU_APP_ID: ${{ secrets.FEISHU_APP_ID}}
+  FEISHU_APP_SECRET: ${{ secrets.FEISHU_APP_SECRET }}
 
 
 jobs:
 
   Code-Style-Check:
     runs-on: ubuntu-latest
+    outputs:
+      check-style: ${{ steps.check-style.outputs.error }}
     steps:
+      - name: Checkout Code to Get Message
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      - name: Set env
+        run: |
+          message=`git log -1 --pretty=%B`
+          echo "COMMIT_MESSAGE=$message" >> $GITHUB_ENV
       - name: check commit message
-        if: (!startsWith(github.event.head_commit.message, 'feat')) && 
-            (!startsWith(github.event.head_commit.message, 'fix')) &&
-            (!startsWith(github.event.head_commit.message, 'refactor')) &&
-            (!startsWith(github.event.head_commit.message, 'test')) &&
-            (!startsWith(github.event.head_commit.message, 'chore')) &&
-            (!startsWith(github.event.head_commit.message, 'Merge'))
-        run: echo ${{ github.event.head_commit.message }} exit 1
+        id: check-style
+        if: (!startsWith(env.COMMIT_MESSAGE, 'feat')) && 
+            (!startsWith(env.COMMIT_MESSAGE, 'fix')) &&
+            (!startsWith(env.COMMIT_MESSAGE, 'refactor')) &&
+            (!startsWith(env.COMMIT_MESSAGE, 'test')) &&
+            (!startsWith(env.COMMIT_MESSAGE, 'chore')) &&
+            (!startsWith(env.COMMIT_MESSAGE, 'Merge'))
+        run: |
+          echo ${{ env.COMMIT_MESSAGE }}
+          echo "::set-output name=error::true"
 
   Integration-Testing:
     runs-on: ubuntu-latest
     needs: Code-Style-Check
+    timeout-minutes: 60
+    if: needs.Code-Style-Check.outputs.check-style != 'true'
     steps:
+      - name: Set Env if Push
+        if: ${{ github.event_name == 'push' }}
+        run: |
+          echo "CURRENT_BRANCH=${{ github.ref_name }}" >> $GITHUB_ENV
+          echo "TAG_BRANCH=${{ github.ref_name }}" >> $GITHUB_ENV
+      - name: Set Env if Pull Request
+        if: ${{ github.event_name == 'pull_request' }}
+        run: |
+          echo "CURRENT_BRANCH=${{ github.ref }}" >> $GITHUB_ENV
+          echo "TAG_BRANCH=${{ github.base_ref }}" >> $GITHUB_ENV
+      - name: Checkout Enterprise Repo to Set Env if Cron Job
+        if: ${{ github.event_name == 'schedule' }}
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      - name: Set Env if Cron Job
+        if: ${{ github.event_name == 'schedule' }}
+        run: |
+          current_branch="`git branch -r | cut -d "/" -f 2 | grep '^develop-v[0-9]*.[0-9]*.[0-9]*$' | sort -rV | head -n 1`"
+          echo "CURRENT_BRANCH=$current_branch" >> $GITHUB_ENV
+          echo "TAG_BRANCH=$current_branch" >> $GITHUB_ENV
       - uses: actions/checkout@v3
       - name: Login to the github container registry
         uses: docker/login-action@f054a8b539a109f9f41c372932f1ae047eff08c9
@@ -88,3 +132,17 @@ jobs:
         run: |
           BRANCH_DIR=`echo $BRANCH | sed "s:/:-:g"`
           echo "[Click to view test report](https://tapdata.github.io/tapdata/$BRANCH_DIR/$RUN_SIGN)" >> $GITHUB_STEP_SUMMARY
+      - name: Send notices to feishu
+        if : ${{ failure() }}
+        run: |
+          pip install requests GitPython
+          python build/feishu_notice.py \
+            --branch ${{ env.CURRENT_BRANCH}} \
+            --runner "LDP Continuous Integration" \
+            --detail_url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+            --token ${{ secrets.GITHUB_TOKEN }} \
+            --job_id ${{ github.run_id }} \
+            --person_in_charge ${{ env.FEISHU_PERSON_IN_CHARGE }} \
+            --app_id ${{ env.FEISHU_APP_ID }} \
+            --app_secret ${{ env.FEISHU_APP_SECRET}} \
+            --chat_id ${{ env.FEISHU_CHAT_ID }}
