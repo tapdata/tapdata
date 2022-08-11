@@ -14,7 +14,6 @@ import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.ConverterProvider;
 import io.tapdata.common.SettingService;
 import io.tapdata.debug.DebugProcessor;
-import io.tapdata.logging.JobCustomerLogger;
 import io.tapdata.milestone.MilestoneService;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.Logger;
@@ -33,8 +32,6 @@ public class TargetContext extends Context {
 	private boolean isCloud;
 	private ClientMongoOperator tapdataClientOperator;
 	private boolean firstWorkerThread = false;
-
-	private JobCustomerLogger customerLogger;
 
 	public TargetContext(Job job, Logger logger, Object offset, Connections sourceConn,
 						 Connections targetConn, ClientMongoOperator targetClientOperator,
@@ -92,7 +89,6 @@ public class TargetContext extends Context {
 		);
 		this.targetSharedContext = new TargetSharedContext();
 		this.tapdataClientOperator = context.getClientMongoOperator();
-		this.customerLogger = new JobCustomerLogger(taskDto.getId().toHexString(), taskDto.getName(), tapdataClientOperator);
 	}
 
 	public String getSyncStage() {
@@ -176,12 +172,5 @@ public class TargetContext extends Context {
 
 	public boolean needCleanTarget() {
 		return job.getDrop_target() || !job.getKeepSchema();
-	}
-
-	public JobCustomerLogger getCustomerLogger() {
-		if (customerLogger == null) {
-			customerLogger = new JobCustomerLogger();
-		}
-		return customerLogger;
 	}
 }
