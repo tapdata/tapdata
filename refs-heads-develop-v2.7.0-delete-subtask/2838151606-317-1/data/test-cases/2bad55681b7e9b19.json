@@ -1,0 +1,115 @@
+{
+  "uid" : "2bad55681b7e9b19",
+  "name" : "table merge in migrate?",
+  "fullName" : "test_pipeline.TestPipeline#test_merge_migrate",
+  "historyId" : "a2bf619bf438ba2be9e152c97d920447",
+  "time" : {
+    "start" : 1660204137930,
+    "stop" : 1660204138015,
+    "duration" : 85
+  },
+  "status" : "passed",
+  "flaky" : false,
+  "newFailed" : false,
+  "beforeStages" : [ ],
+  "testStage" : {
+    "status" : "passed",
+    "steps" : [ ],
+    "attachments" : [ {
+      "uid" : "1422b167ffc89010",
+      "name" : "stdout",
+      "source" : "1422b167ffc89010.txt",
+      "type" : "text/plain",
+      "size" : 181
+    } ],
+    "parameters" : [ ],
+    "stepsCount" : 0,
+    "attachmentsCount" : 1,
+    "shouldDisplayMessage" : false,
+    "hasContent" : true
+  },
+  "afterStages" : [ ],
+  "labels" : [ {
+    "name" : "feature",
+    "value" : "pipeline"
+  }, {
+    "name" : "suite",
+    "value" : "test_pipeline"
+  }, {
+    "name" : "subSuite",
+    "value" : "TestPipeline"
+  }, {
+    "name" : "host",
+    "value" : "bfa72ab6cbe3"
+  }, {
+    "name" : "thread",
+    "value" : "867-MainThread"
+  }, {
+    "name" : "framework",
+    "value" : "pytest"
+  }, {
+    "name" : "language",
+    "value" : "cpython3"
+  }, {
+    "name" : "package",
+    "value" : "test_pipeline"
+  }, {
+    "name" : "resultFormat",
+    "value" : "allure2"
+  } ],
+  "parameters" : [ ],
+  "links" : [ ],
+  "hidden" : false,
+  "retry" : false,
+  "extra" : {
+    "severity" : "normal",
+    "retries" : [ ],
+    "categories" : [ ],
+    "history" : {
+      "statistic" : {
+        "failed" : 0,
+        "broken" : 0,
+        "skipped" : 0,
+        "passed" : 5,
+        "unknown" : 0,
+        "total" : 5
+      },
+      "items" : [ {
+        "uid" : "743f98c991ff1541",
+        "status" : "passed",
+        "time" : {
+          "start" : 1660192592073,
+          "stop" : 1660192592167,
+          "duration" : 94
+        }
+      }, {
+        "uid" : "fdb6d97a4df16d8f",
+        "status" : "passed",
+        "time" : {
+          "start" : 1660188064921,
+          "stop" : 1660188064985,
+          "duration" : 64
+        }
+      }, {
+        "uid" : "4fc8a2daa74528b1",
+        "status" : "passed",
+        "time" : {
+          "start" : 1660131360118,
+          "stop" : 1660131360192,
+          "duration" : 74
+        }
+      }, {
+        "uid" : "2caa379c98f53e9",
+        "status" : "passed",
+        "time" : {
+          "start" : 1660126811072,
+          "stop" : 1660126811140,
+          "duration" : 68
+        }
+      } ]
+    },
+    "tags" : [ ]
+  },
+  "source" : "2bad55681b7e9b19.json",
+  "parameterValues" : [ ]
+}
