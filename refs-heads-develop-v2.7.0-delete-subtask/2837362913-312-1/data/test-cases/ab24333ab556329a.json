@@ -1,0 +1,100 @@
+{
+  "uid" : "ab24333ab556329a",
+  "name" : "filter row in sync",
+  "fullName" : "test_pipeline.TestPipeline#test_filter_sync",
+  "historyId" : "bed478de98ce244a78658abafc205420",
+  "time" : {
+    "start" : 1660192587843,
+    "stop" : 1660192588568,
+    "duration" : 725
+  },
+  "status" : "broken",
+  "statusMessage" : "IndexError: tuple index out of range",
+  "statusTrace" : "self = <lib.cli.Job object at 0x7f78fc616410>\n\n    def start(self):\n        try:\n>           status = self.status()\n\n../lib/cli.py:2504: \n_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ \n\nself = <lib.cli.Job object at 0x7f78fc616410>, res = None, quiet = True\n\n    def status(self, res=None, quiet=True):\n        if res is None:\n>           res = req.get(\"/Task/\" + self.id).json()\nE           TypeError: can only concatenate str (not \"NoneType\") to str\n\n../lib/cli.py:2531: TypeError\n\nDuring handling of the above exception, another exception occurred:\n\nself = <test.test_pipeline.TestPipeline object at 0x7f78fc618910>\n\n    @allure.title(\"filter row in sync\")\n    def test_filter_sync(self):\n        p = make_new_pipeline(f\"filter_sync_{random_str()}\")\n        p1 = p.readFrom(source_name)\n        p1.dag.jobType = JobType.sync\n        p2 = p1.filter(\"id > 2 and sex=male\").writeTo(sink_name)\n>       p2.start()\n\ntest_pipeline.py:90: \n_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ \n../lib/cli.py:112: in func_wrapper\n    return obj(*args, **kargs)\n../lib/cli.py:1936: in start\n    if job.start():\n../lib/cli.py:2508: in start\n    logger.info(\"job {} save failed.\")\n_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ \n\nself = <lib.log.Logger object at 0x7f78fdc43810>\nargs = ('job {} save failed.',), kargs = {}\nmsg = 'job \\x1b[1;32m{}\\x1b[0m save failed.'\n\n    def info(self, *args, **kargs):\n        msg = args[0].replace(\"{}\", \"\\033[1;32m{}\\033[0m\")\n>       self._print(msg.format(*args[1:]), **kargs)\nE       IndexError: tuple index out of range\n\n../lib/log.py:64: IndexError",
+  "flaky" : false,
+  "newFailed" : false,
+  "beforeStages" : [ ],
+  "afterStages" : [ ],
+  "labels" : [ {
+    "name" : "feature",
+    "value" : "pipeline"
+  }, {
+    "name" : "suite",
+    "value" : "test_pipeline"
+  }, {
+    "name" : "subSuite",
+    "value" : "TestPipeline"
+  }, {
+    "name" : "host",
+    "value" : "81376aecfe88"
+  }, {
+    "name" : "thread",
+    "value" : "863-MainThread"
+  }, {
+    "name" : "framework",
+    "value" : "pytest"
+  }, {
+    "name" : "language",
+    "value" : "cpython3"
+  }, {
+    "name" : "package",
+    "value" : "test_pipeline"
+  }, {
+    "name" : "resultFormat",
+    "value" : "allure2"
+  } ],
+  "parameters" : [ ],
+  "links" : [ ],
+  "hidden" : false,
+  "retry" : false,
+  "extra" : {
+    "severity" : "normal",
+    "retries" : [ ],
+    "categories" : [ {
+      "name" : "Test defects",
+      "matchedStatuses" : [ ],
+      "flaky" : false
+    } ],
+    "history" : {
+      "statistic" : {
+        "failed" : 0,
+        "broken" : 4,
+        "skipped" : 0,
+        "passed" : 0,
+        "unknown" : 0,
+        "total" : 4
+      },
+      "items" : [ {
+        "uid" : "5db3b8cb4bd2bbe0",
+        "status" : "broken",
+        "statusDetails" : "IndexError: tuple index out of range",
+        "time" : {
+          "start" : 1660188062015,
+          "stop" : 1660188062502,
+          "duration" : 487
+        }
+      }, {
+        "uid" : "e803bd87923c1085",
+        "status" : "broken",
+        "statusDetails" : "IndexError: tuple index out of range",
+        "time" : {
+          "start" : 1660131356914,
+          "stop" : 1660131357447,
+          "duration" : 533
+        }
+      }, {
+        "uid" : "1eabe3526d1da722",
+        "status" : "broken",
+        "statusDetails" : "IndexError: tuple index out of range",
+        "time" : {
+          "start" : 1660126808478,
+          "stop" : 1660126808824,
+          "duration" : 346
+        }
+      } ]
+    },
+    "tags" : [ ]
+  },
+  "source" : "ab24333ab556329a.json",
+  "parameterValues" : [ ]
+}
