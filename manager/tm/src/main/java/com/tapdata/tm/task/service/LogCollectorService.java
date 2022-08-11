@@ -828,17 +828,15 @@ public class LogCollectorService {
 
             Criteria criteria1 = Criteria.where("is_deleted").is(false).and("dag.nodes").elemMatch(Criteria.where("type").is("logCollector").and("connectionIds").elemMatch(Criteria.where("$in").is(ids)));
             Query query1 = new Query(criteria1);
-            query1.fields().include("dag", "statuses");
+            query1.fields().include("dag", "status");
             List<String> connectionIds = v.stream().map(d -> d.getId().toHexString()).collect(Collectors.toList());
             TaskDto oldLogCollectorTask = taskService.findOne(query1, user);
             if (oldLogCollectorTask != null) {
                 List<Node> sources1 = oldLogCollectorTask.getDag().getSources();
                 LogCollectorNode logCollectorNode = (LogCollectorNode) sources1.get(0);
                 List<String> oldTableNames = logCollectorNode.getTableNames();
-                List<TaskDto> id1s = new ArrayList<>();//findByTaskId(oldLogCollectorTask.getId(), user, "_id");
-                TaskDto TaskDto = id1s.get(0);
                 for (String id : ids) {
-                    newLogCollectorMap.put(id, TaskDto.getId().toHexString());
+                    newLogCollectorMap.put(id, oldLogCollectorTask.getId().toHexString());
                 }
 
                 List<String> oldConnectionIds = logCollectorNode.getConnectionIds();
@@ -910,10 +908,7 @@ public class LogCollectorService {
 
             //保存新增挖掘任务id到子任务中
             for (String id : ids) {
-                Map<String, Object> attrs = taskDto.getAttrs();
-                if (attrs != null) {
-                    newLogCollectorMap.put(id, (String) attrs.get(TaskService.LOG_COLLECTOR_SAVE_ID));
-                }
+                newLogCollectorMap.put(id, taskDto.getId().toHexString());
             }
 
             taskService.start(taskDto.getId(), user);

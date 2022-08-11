@@ -2120,7 +2120,9 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         }
 
         //重置的时候需要将子任务的temp更新到子任务实体中
-        taskDto.setDag(taskDto.getTempDag());
+        if (taskDto.getTempDag() != null) {
+            taskDto.setDag(taskDto.getTempDag());
+        }
         beforeSave(taskDto, user);
         set.unset("tempDag").set("isEdit", true).set("status", TaskDto.STATUS_EDIT);
 //        Update update = new Update();
