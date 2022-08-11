@@ -13,7 +13,10 @@ import com.tapdata.tm.task.repository.TaskRepository;
 import com.tapdata.tm.task.service.SnapshotEdgeProgressService;
 import com.tapdata.tm.task.service.SubTaskService;
 import com.tapdata.tm.task.vo.SubTaskDetailVo;
+import com.tapdata.tm.utils.MapUtils;
 import com.tapdata.tm.utils.MongoUtils;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.Metrics;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.enums.ParameterIn;
@@ -45,6 +48,8 @@ public class SubTaskController extends BaseController {
     private TaskRepository taskRepository;
     private MessageService messageService;
     private SnapshotEdgeProgressService snapshotEdgeProgressService;
+
+    private final Counter taskPing = Counter.builder("task_ping").register(Metrics.globalRegistry);
 
     /**
      * Create a new instance of the model and persist it into the data source
@@ -242,6 +247,18 @@ public class SubTaskController extends BaseController {
             Document _body = new Document();
             _body.put("$set", update);
             update = _body;
+        }
+
+        if (update.containsKey("$set")) {
+            Document updateSet = update.get("$set", Document.class);
+            if (updateSet != null && updateSet.containsKey("pingTime")) {
+                int size = 1;
+                Object obj = MapUtils.getValueByPatchPath(where, "_id/$in");
+                if (obj instanceof List) {
+                    size = ((List<?>)obj).size();
+                }
+                taskPing.increment(size);
+            }
         }
 
         long count = subTaskService.updateByWhere(where, update, getLoginUser(), reqBody);
