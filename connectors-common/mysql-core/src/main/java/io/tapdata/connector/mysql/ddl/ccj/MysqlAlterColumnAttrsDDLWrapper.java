@@ -26,10 +26,6 @@ import java.util.function.Consumer;
  **/
 public class MysqlAlterColumnAttrsDDLWrapper extends CCJBaseDDLWrapper {
 
-    public MysqlAlterColumnAttrsDDLWrapper(String spilt) {
-        super(spilt);
-    }
-
     @Override
     public List<Capability> getCapabilities() {
         return Collections.singletonList(Capability.create(ConnectionOptions.DDL_ALTER_FIELD_ATTRIBUTES_EVENT).type(Capability.TYPE_DDL));
@@ -54,7 +50,7 @@ public class MysqlAlterColumnAttrsDDLWrapper extends CCJBaseDDLWrapper {
             for (AlterExpression.ColumnDataType columnDataType : colDataTypeList) {
                 TapAlterFieldAttributesEvent tapAlterFieldAttributesEvent = new TapAlterFieldAttributesEvent();
                 tapAlterFieldAttributesEvent.setTableId(tableName);
-                String columnName = StringKit.removeHeadTail(columnDataType.getColumnName(), spilt, false);
+                String columnName = StringKit.removeHeadTail(columnDataType.getColumnName(), ccjddlWrapperConfig.getSplit(), false);
                 tapAlterFieldAttributesEvent.fieldName(columnName);
                 List<String> columnSpecs = columnDataType.getColumnSpecs();
                 String preSpec = "";
