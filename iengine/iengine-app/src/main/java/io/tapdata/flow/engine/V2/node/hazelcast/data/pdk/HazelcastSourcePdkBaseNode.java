@@ -11,7 +11,7 @@ import com.tapdata.entity.TapdataShareLogEvent;
 import com.tapdata.entity.dataflow.SyncProgress;
 import com.tapdata.entity.task.NodeUtil;
 import com.tapdata.entity.task.context.DataProcessorContext;
-import com.tapdata.tm.commons.cdcdelay.CdcDelay;
+import com.tapdata.tm.commons.cdcdelay.CdcDelayDisable;
 import com.tapdata.tm.commons.cdcdelay.ICdcDelay;
 import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.DAGDataServiceImpl;
@@ -101,7 +101,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 
 	public HazelcastSourcePdkBaseNode(DataProcessorContext dataProcessorContext) {
 		super(dataProcessorContext);
-		this.cdcDelayCalculation = new CdcDelay();
+		this.cdcDelayCalculation = new CdcDelayDisable();
 		if (!StringUtils.equalsAnyIgnoreCase(dataProcessorContext.getSubTaskDto().getParentTask().getSyncType(),
 				TaskDto.SYNC_TYPE_DEDUCE_SCHEMA, TaskDto.SYNC_TYPE_TEST_RUN)) {
 			initMilestoneService(MilestoneContext.VertexType.SOURCE);
@@ -199,7 +199,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 					String connectionId = NodeUtil.getConnectionId(dataProcessorContext.getNode());
 					TaskDto.SyncPoint syncPoint = null;
 					if (null != syncPoints) {
-						syncPoint = syncPoints.stream().filter(sp -> sp.getConnectionId().equals(connectionId)).findFirst().orElse(null);
+						syncPoint = syncPoints.stream().filter(sp -> connectionId.equals(sp.getConnectionId())).findFirst().orElse(null);
 					}
 					String pointType = syncPoint == null ? "current" : syncPoint.getPointType();
 					if (StringUtils.isBlank(pointType)) {
@@ -520,6 +520,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 		} else if (tapEvent instanceof HeartbeatEvent) {
 			tapdataEvent = new TapdataHeartbeatEvent(((HeartbeatEvent) tapEvent).getReferenceTime(), offsetObj);
 		} else if (tapEvent instanceof TapDDLEvent) {
+			logger.info("Source node received an ddl event: " + tapEvent);
 			if (null != ddlFilter && !ddlFilter.test((TapDDLEvent) tapEvent)) {
 				logger.warn("DDL events are filtered: " + tapEvent);
 				return null;

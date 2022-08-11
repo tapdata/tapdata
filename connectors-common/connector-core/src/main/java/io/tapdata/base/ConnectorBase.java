@@ -38,6 +38,10 @@ public abstract class ConnectorBase implements TapConnector {
 		TapSimplify.interval(runnable, seconds);
 	}
 
+	public static String getStackTrace(Throwable throwable) {
+		return TapSimplify.getStackTrace(throwable);
+	}
+
 	public static Long toLong(Object value) {
 		return typeConverter.toLong(value);
 	}

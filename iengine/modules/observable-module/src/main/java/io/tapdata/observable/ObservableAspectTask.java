@@ -30,12 +30,12 @@ public class ObservableAspectTask extends AspectTask {
 		switch (streamReadFuncAspect.getState()) {
 			case StreamReadFuncAspect.STATE_START:
 				streamReadFuncAspect.getTime();
-				streamReadFuncAspect.consumer(new Consumer<List<TapdataEvent>>() {
-					@Override
-					public void accept(List<TapdataEvent> tapdataEvents) {
-						System.currentTimeMillis();
-					}
-				});
+//				streamReadFuncAspect.consumer(new Consumer<List<TapdataEvent>>() {
+//					@Override
+//					public void accept(List<TapdataEvent> tapdataEvents) {
+//						System.currentTimeMillis();
+//					}
+//				});
 				break;
 			case StreamReadFuncAspect.STATE_STREAM_STARTED:
 				streamReadFuncAspect.getStreamStartedTime();
@@ -51,12 +51,12 @@ public class ObservableAspectTask extends AspectTask {
 		switch (aspect.getState()) {
 			case BatchReadFuncAspect.STATE_START:
 				aspect.getTime();
-				aspect.consumer(new Consumer<List<TapdataEvent>>() {
-					@Override
-					public void accept(List<TapdataEvent> tapdataEvents) {
-						System.currentTimeMillis();
-					}
-				});
+//				aspect.consumer(new Consumer<List<TapdataEvent>>() {
+//					@Override
+//					public void accept(List<TapdataEvent> tapdataEvents) {
+//						System.currentTimeMillis();
+//					}
+//				});
 				break;
 			case BatchReadFuncAspect.STATE_END:
 				aspect.getEndTime();

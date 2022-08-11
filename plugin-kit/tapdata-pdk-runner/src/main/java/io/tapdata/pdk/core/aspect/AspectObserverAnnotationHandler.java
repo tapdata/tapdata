@@ -35,6 +35,7 @@ public class AspectObserverAnnotationHandler extends ClassAnnotationHandler {
                     Class<? extends AspectObserver<? extends Aspect>> observerClass = (Class<? extends AspectObserver<? extends Aspect>>) clazz;
                     Class<? extends Aspect> aspectClass = aspectObserverClass.value();
                     int order = aspectObserverClass.order();
+                    boolean ignoreErrors = aspectObserverClass.ignoreErrors();
 
                     //Check class can be initialized for non-args constructor
                     String canNotInitialized = null;
@@ -54,11 +55,11 @@ public class AspectObserverAnnotationHandler extends ClassAnnotationHandler {
                     Collection<AspectObserverClassHolder> implClasses = newAspectObserversMap.get(aspectClass);
                     if(implClasses == null) {
                         implClasses = Collections.synchronizedSortedSet(new TreeSet<>());
-                        implClasses.add(new AspectObserverClassHolder().aspectClass(observerClass).order(order));
+                        implClasses.add(new AspectObserverClassHolder().aspectClass(observerClass).order(order).ignoreErrors(ignoreErrors));
                         newAspectObserversMap.put(aspectClass, implClasses);
                         TapLogger.debug(TAG, "(New array) AspectObserver {} for Aspect {} will be applied", observerClass, aspectClass);
                     } else {
-                        implClasses.add(new AspectObserverClassHolder().aspectClass(observerClass).order(order));
+                        implClasses.add(new AspectObserverClassHolder().aspectClass(observerClass).order(order).ignoreErrors(ignoreErrors));
                         TapLogger.debug(TAG, "(Exist array) AspectObserver {} for Aspect {} will be applied", clazz, aspectClass);
                     }
                 }

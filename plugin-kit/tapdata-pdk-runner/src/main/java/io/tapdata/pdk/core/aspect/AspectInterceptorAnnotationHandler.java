@@ -33,6 +33,7 @@ public class AspectInterceptorAnnotationHandler extends ClassAnnotationHandler {
                     Class<? extends AspectInterceptor<? extends Aspect>> interceptorClass = (Class<? extends AspectInterceptor<? extends Aspect>>) clazz;
                     Class<? extends Aspect> aspectClass = aspectInterceptorClass.value();
                     int order = aspectInterceptorClass.order();
+                    boolean ignoreErrors = aspectInterceptorClass.ignoreErrors();
 
                     //Check class can be initialized for non-args constructor
                     String canNotInitialized = null;
@@ -52,7 +53,7 @@ public class AspectInterceptorAnnotationHandler extends ClassAnnotationHandler {
                     Collection<AspectInterceptorClassHolder> aspectInterceptors = newAspectInterceptorsMap.get(aspectClass);
                     if(aspectInterceptors == null) {
                         aspectInterceptors = Collections.synchronizedSortedSet(new TreeSet<>());
-                        aspectInterceptors.add(new AspectInterceptorClassHolder().aspectClass(interceptorClass).order(order));
+                        aspectInterceptors.add(new AspectInterceptorClassHolder().aspectClass(interceptorClass).order(order).ignoreErrors(ignoreErrors));
                         newAspectInterceptorsMap.put(aspectClass, aspectInterceptors);
                         TapLogger.debug(TAG, "(New array) AspectInterceptor {} for Aspect {} order {} will be applied", interceptorClass, aspectClass, order);
                     } else {

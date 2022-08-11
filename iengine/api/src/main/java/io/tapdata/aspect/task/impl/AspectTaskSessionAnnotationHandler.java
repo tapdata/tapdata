@@ -33,6 +33,7 @@ public class AspectTaskSessionAnnotationHandler extends ClassAnnotationHandler {
 					String aspectClass = aspectTaskSession.value();
 					int order = aspectTaskSession.order();
 					String[] includeTypes = aspectTaskSession.includeTypes();
+					boolean ignoreErrors = aspectTaskSession.ignoreErrors();
 					List<String> includeList = new ArrayList<>();
 					if(includeTypes != null) {
 						for(String include : includeTypes) {

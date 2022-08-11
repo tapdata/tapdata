@@ -4,6 +4,7 @@ import io.tapdata.entity.schema.TapTable;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.entity.Capability;
 import io.tapdata.pdk.apis.functions.connection.ConnectionCheckFunction;
+import io.tapdata.pdk.apis.functions.connection.GetCharsetsFunction;
 import io.tapdata.pdk.apis.functions.connector.TapFunction;
 import io.tapdata.pdk.apis.functions.connection.GetTableNamesFunction;
 import io.tapdata.pdk.apis.functions.connector.common.ReleaseExternalFunction;
@@ -20,7 +21,12 @@ import java.util.List;
 public class ConnectionFunctions<T extends ConnectionFunctions<?>> extends CommonFunctions<T> {
     protected GetTableNamesFunction getTableNamesFunction;
     protected ConnectionCheckFunction connectionCheckFunction;
+    protected GetCharsetsFunction getCharsetsFunction;
 
+    public T supportGetCharsetsFunction(GetCharsetsFunction function) {
+        getCharsetsFunction = function;
+        return (T) this;
+    }
     public T supportGetTableNamesFunction(GetTableNamesFunction function) {
         getTableNamesFunction = function;
         return (T) this;
@@ -36,5 +42,9 @@ public class ConnectionFunctions<T extends ConnectionFunctions<?>> extends Commo
 
     public ConnectionCheckFunction getConnectionCheckFunction() {
         return connectionCheckFunction;
+    }
+
+    public GetCharsetsFunction getGetCharsetsFunction() {
+        return getCharsetsFunction;
     }
 }

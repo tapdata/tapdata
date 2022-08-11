@@ -1,7 +1,7 @@
 package io.tapdata.connector.mysql;
 
-import io.tapdata.connector.mysql.ddl.DDLFactory;
-import io.tapdata.connector.mysql.ddl.DDLParserType;
+import io.tapdata.common.ddl.DDLFactory;
+import io.tapdata.common.ddl.type.DDLParserType;
 import io.tapdata.entity.event.ddl.TapDDLEvent;
 import io.tapdata.entity.event.ddl.table.TapAlterFieldAttributesEvent;
 import io.tapdata.entity.event.ddl.table.TapAlterFieldNameEvent;
@@ -26,7 +26,7 @@ import java.util.Map;
  **/
 public class DDLFactoryTest {
 	private static KVReadOnlyMap<TapTable> tableMap;
-	private static final DDLParserType DDL_PARSER_TYPE = DDLParserType.CCJ_SQL_PARSER;
+	private static final DDLParserType DDL_PARSER_TYPE = DDLParserType.MYSQL_CCJ_SQL_PARSER;
 	private static List<TapDDLEvent> tapDDLEvents;
 
 	@BeforeEach
@@ -64,6 +64,7 @@ public class DDLFactoryTest {
 		DDLFactory.ddlToTapDDLEvent(
 				DDL_PARSER_TYPE,
 				"alter table TEST.DDL_TEST add column f1 decimal(5,2) not null comment 'test' key auto_increment",
+				"`",
 				tableMap,
 				tapDDLEvents::add
 		);
@@ -86,6 +87,7 @@ public class DDLFactoryTest {
 		DDLFactory.ddlToTapDDLEvent(
 				DDL_PARSER_TYPE,
 				"alter table TEST.DDL_TEST change column f1 f1_new int(4) null comment 'test_new' unique key key",
+				"`",
 				tableMap,
 				tapDDLEvents::add
 		);
@@ -108,6 +110,7 @@ public class DDLFactoryTest {
 		DDLFactory.ddlToTapDDLEvent(
 				DDL_PARSER_TYPE,
 				"alter table TEST.DDL_TEST drop column f1",
+				"`",
 				tableMap,
 				tapDDLEvents::add
 		);
@@ -122,6 +125,7 @@ public class DDLFactoryTest {
 		DDLFactory.ddlToTapDDLEvent(
 				DDL_PARSER_TYPE,
 				"alter table TEST.DDL_TEST modify column f1 varchar(50) not null default 'test' unique key key",
+				"`",
 				tableMap,
 				tapDDLEvents::add
 		);
@@ -139,6 +143,7 @@ public class DDLFactoryTest {
 		DDLFactory.ddlToTapDDLEvent(
 				DDL_PARSER_TYPE,
 				"alter table TEST.DDL_TEST rename column f1 to f1_new",
+				"`",
 				tableMap,
 				tapDDLEvents::add
 		);

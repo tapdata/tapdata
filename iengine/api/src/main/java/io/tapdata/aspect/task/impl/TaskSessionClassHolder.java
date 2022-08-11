@@ -28,6 +28,12 @@ public class TaskSessionClassHolder implements Comparable<TaskSessionClassHolder
 	private final AspectObserver<Aspect> aspectObserver;
 	private final AspectInterceptor<Aspect> aspectInterceptor;
 
+	private boolean ignoreErrors = true;
+	public TaskSessionClassHolder ignoreErrors(boolean ignoreErrors) {
+		this.ignoreErrors = ignoreErrors;
+		return this;
+	}
+
 	public TaskSessionClassHolder() {
 		aspectObserver = this::observeNodeAspect;
 		aspectInterceptor = this::interceptNodeAspect;
@@ -143,9 +149,9 @@ public class TaskSessionClassHolder implements Comparable<TaskSessionClassHolder
 			if (observerClasses != null && !observerClasses.isEmpty()) {
 				for (Class<? extends Aspect> aspectClass : observerClasses) {
 					if (DataNodeAspect.class.isAssignableFrom(aspectClass) || ProcessorNodeAspect.class.isAssignableFrom(aspectClass)) {
-						aspectManager.registerObserver(aspectClass, order, aspectObserver);
+						aspectManager.registerObserver(aspectClass, order, aspectObserver, ignoreErrors);
 					} else {
-						aspectManager.registerObserver(aspectClass, order, theAspectTask.aspectObserver);
+						aspectManager.registerObserver(aspectClass, order, theAspectTask.aspectObserver, ignoreErrors);
 					}
 				}
 			}
@@ -153,9 +159,9 @@ public class TaskSessionClassHolder implements Comparable<TaskSessionClassHolder
 			if (interceptClasses != null && !interceptClasses.isEmpty()) {
 				for (Class<? extends Aspect> aspectClass : interceptClasses) {
 					if (DataNodeAspect.class.isAssignableFrom(aspectClass) || ProcessorNodeAspect.class.isAssignableFrom(aspectClass)) {
-						aspectManager.registerInterceptor(aspectClass, order, aspectInterceptor);
+						aspectManager.registerInterceptor(aspectClass, order, aspectInterceptor, ignoreErrors);
 					} else {
-						aspectManager.registerInterceptor(aspectClass, order, theAspectTask.aspectInterceptor);
+						aspectManager.registerInterceptor(aspectClass, order, theAspectTask.aspectInterceptor, ignoreErrors);
 					}
 				}
 			}
@@ -254,5 +260,13 @@ public class TaskSessionClassHolder implements Comparable<TaskSessionClassHolder
 			return aspectTaskEx.aspectTask;
 		}
 		return null;
+	}
+
+	public void setIgnoreErrors(boolean ignoreErrors) {
+		this.ignoreErrors = ignoreErrors;
+	}
+
+	public boolean isIgnoreErrors() {
+		return ignoreErrors;
 	}
 }

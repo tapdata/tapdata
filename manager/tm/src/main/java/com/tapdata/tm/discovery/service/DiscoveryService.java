@@ -19,7 +19,7 @@ public interface DiscoveryService {
      * @param id
      * @return
      */
-    DiscoveryStoragePreviewDto storagePreview(String id);
+    Page<Object> storagePreview(String id);
 
     /**
      * 查询存储对象概览
