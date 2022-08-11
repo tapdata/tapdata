@@ -5,7 +5,9 @@ import io.debezium.connector.mysql.MySqlConnectorConfig;
 import io.debezium.embedded.EmbeddedEngine;
 import io.debezium.engine.DebeziumEngine;
 import io.tapdata.common.ddl.DDLFactory;
+import io.tapdata.common.ddl.ccj.CCJBaseDDLWrapper;
 import io.tapdata.common.ddl.type.DDLParserType;
+import io.tapdata.common.ddl.wrapper.DDLWrapperConfig;
 import io.tapdata.connector.mysql.entity.MysqlBinlogPosition;
 import io.tapdata.connector.mysql.entity.MysqlSnapshotOffset;
 import io.tapdata.connector.mysql.entity.MysqlStreamEvent;
@@ -69,6 +71,7 @@ public class MysqlReader implements Closeable {
 	public static final String MYSQL_SCHEMA_HISTORY = "MYSQL_SCHEMA_HISTORY";
 	private static final String SOURCE_RECORD_DDL_KEY = "ddl";
 	public static final String FIRST_TIME_KEY = "FIRST_TIME";
+	private static final DDLWrapperConfig DDL_WRAPPER_CONFIG = CCJBaseDDLWrapper.CCJDDLWrapperConfig.create().split("`");
 	private String serverName;
 	private AtomicBoolean running;
 	private MysqlJdbcContext mysqlJdbcContext;
@@ -411,7 +414,7 @@ public class MysqlReader implements Closeable {
 				DDLFactory.ddlToTapDDLEvent(
 						ddlParserType,
 						ddlStr,
-						"`",
+						DDL_WRAPPER_CONFIG,
 						tapTableMap,
 						tapDDLEvent -> {
 							MysqlStreamEvent mysqlStreamEvent = new MysqlStreamEvent(tapDDLEvent, mysqlStreamOffset);

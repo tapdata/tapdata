@@ -27,10 +27,6 @@ import static io.tapdata.pdk.apis.entity.ConnectionOptions.DDL_NEW_FIELD_EVENT;
  **/
 public class MysqlAddColumnDDLWrapper extends CCJBaseDDLWrapper {
 
-    public MysqlAddColumnDDLWrapper(String spilt) {
-        super(spilt);
-    }
-
     @Override
     public List<Capability> getCapabilities() {
         return Collections.singletonList(Capability.create(DDL_NEW_FIELD_EVENT).type(Capability.TYPE_DDL));
@@ -53,7 +49,7 @@ public class MysqlAddColumnDDLWrapper extends CCJBaseDDLWrapper {
             TapNewFieldEvent tapNewFieldEvent = new TapNewFieldEvent();
             tapNewFieldEvent.setTableId(tableName);
             for (AlterExpression.ColumnDataType columnDataType : colDataTypeList) {
-                String columnName = StringKit.removeHeadTail(columnDataType.getColumnName(), spilt, false);
+                String columnName = StringKit.removeHeadTail(columnDataType.getColumnName(), ccjddlWrapperConfig.getSplit(), false);
                 ColDataType colDataType = columnDataType.getColDataType();
                 String dataType = getDataType(colDataType);
                 TapField tapField = new TapField(columnName, dataType);
