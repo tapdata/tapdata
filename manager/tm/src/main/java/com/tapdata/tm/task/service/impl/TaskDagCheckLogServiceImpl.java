@@ -59,7 +59,7 @@ public class TaskDagCheckLogServiceImpl implements TaskDagCheckLogService {
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public List<TaskDagCheckLog> dagCheck(TaskDto taskDto, UserDetail userDetail, boolean onlySave) {
 
-        if(taskDto.getDag().getEdges().size()>1){
+        if(taskDto.getDag().checkMultiDag()){
             throw new BizException("不支持多条链路，请编辑后重试");
         }
 

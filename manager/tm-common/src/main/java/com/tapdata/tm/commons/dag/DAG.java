@@ -1031,6 +1031,11 @@ public class DAG implements Serializable, Cloneable {
         }
     }
 
+    public boolean checkMultiDag() {
+        List<DAG> split = split();
+        return split.size() > 1;
+    }
+
     @Override
     public DAG clone() throws CloneNotSupportedException {
         Dag dag = this.toDag();
