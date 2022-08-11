@@ -27,7 +27,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
      * @return
      */
     @Override
-    public DiscoveryStoragePreviewDto storagePreview(String id) {
+    public Page<Object> storagePreview(String id) {
         return null;
     }
 
