@@ -3,6 +3,7 @@ package io.tapdata.websocket.handler;
 import com.alibaba.fastjson.JSON;
 import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.constant.JSONUtil;
+import com.tapdata.entity.schema.SchemaApplyResult;
 import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.DAGDataServiceImpl;
@@ -92,7 +93,7 @@ public class DeduceSchemaHandler implements WebSocketEventHandler<WebSocketEvent
 				logger.info("load tapTable task {} {}, cost {}ms", schemaKey, taskClient.getStatus(), (System.currentTimeMillis() - startTs));
 				if (SubTaskDto.STATUS_COMPLETE.equals(taskClient.getStatus())) {
 					//成功
-					List<HazelcastSchemaTargetNode.SchemaApplyResult> schemaApplyResultList = HazelcastSchemaTargetNode.getSchemaApplyResultList(schemaKey);
+					List<SchemaApplyResult> schemaApplyResultList = HazelcastSchemaTargetNode.getSchemaApplyResultList(schemaKey);
 					if (logger.isDebugEnabled()) {
 						logger.debug("derivation results: {}", JSON.toJSONString(schemaApplyResultList));
 					}

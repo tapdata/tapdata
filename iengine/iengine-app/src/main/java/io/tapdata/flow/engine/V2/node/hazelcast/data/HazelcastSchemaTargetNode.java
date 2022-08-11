@@ -3,6 +3,7 @@ package io.tapdata.flow.engine.V2.node.hazelcast.data;
 
 import com.hazelcast.jet.core.Inbox;
 import com.tapdata.entity.TapdataEvent;
+import com.tapdata.entity.schema.SchemaApplyResult;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.processor.ScriptUtil;
 import com.tapdata.processor.constant.JSEngineEnum;
@@ -208,45 +209,4 @@ public class HazelcastSchemaTargetNode extends HazelcastVirtualTargetNode {
 		return oldTapTableMap.get(tableName).getNameFieldMap();
 	}
 
-	public static class SchemaApplyResult {
-		public static final String OP_TYPE_CREATE = "CREATE";
-		public static final String OP_TYPE_REMOVE = "REMOVE";
-		public static final String OP_TYPE_CONVERT = "CONVERT";
-		private String op;
-		private String fieldName;
-		private TapField tapField;
-
-		public SchemaApplyResult() {
-		}
-
-		public SchemaApplyResult(String op, String fieldName, TapField tapField) {
-			this.op = op;
-			this.fieldName = fieldName;
-			this.tapField = tapField;
-		}
-
-		public String getOp() {
-			return op;
-		}
-
-		public void setOp(String op) {
-			this.op = op;
-		}
-
-		public String getFieldName() {
-			return fieldName;
-		}
-
-		public void setFieldName(String fieldName) {
-			this.fieldName = fieldName;
-		}
-
-		public TapField getTapField() {
-			return tapField;
-		}
-
-		public void setTapField(TapField tapField) {
-			this.tapField = tapField;
-		}
-	}
 }
