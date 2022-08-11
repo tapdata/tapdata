@@ -16,7 +16,9 @@ import java.io.File;
 
 import static io.tapdata.entity.simplify.TapSimplify.*;
 
-@Implementation(value = KVMap.class, buildNumber = 0, type = "mongodb")
+@Implementation(value = KVMap.class, buildNumber = 0, type = "persistent")
 public class MongodbKVMap<T> extends EhcacheKVMap<T> {
-
+	public MongodbKVMap() {
+		this.maxDiskMB(1024).maxHeapEntries(10);
+	}
 }

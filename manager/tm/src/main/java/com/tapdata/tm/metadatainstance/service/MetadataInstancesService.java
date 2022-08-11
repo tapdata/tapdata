@@ -1419,17 +1419,19 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
             List<TableIndex> indices = item.getIndices();
             List<TableIndex> newIndices = new ArrayList<>();
 
-            for (TableIndex index : indices) {
-                List<TableIndexColumn> columns = index.getColumns();
-                List<TableIndexColumn> newIndexColums = new ArrayList<>();
-                for (TableIndexColumn column : columns) {
-                    if (!deleteFieldNames.contains(column.getColumnName())) {
-                        newIndexColums.add(column);
+            if(indices != null) {
+                for (TableIndex index : indices) {
+                    List<TableIndexColumn> columns = index.getColumns();
+                    List<TableIndexColumn> newIndexColums = new ArrayList<>();
+                    for (TableIndexColumn column : columns) {
+                        if (!deleteFieldNames.contains(column.getColumnName())) {
+                            newIndexColums.add(column);
+                        }
                     }
-                }
-                if (newIndexColums.size() > 0) {
-                    index.setColumns(newIndexColums);
-                    newIndices.add(index);
+                    if (newIndexColums.size() > 0) {
+                        index.setColumns(newIndexColums);
+                        newIndices.add(index);
+                    }
                 }
             }
 
