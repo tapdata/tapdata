@@ -37,7 +37,7 @@ public class BatchServiceImpl implements BatchService {
     @Override
     public BatchResponeVo batch(BatchRequestDto batchRequestDto) throws ExecutionException, InterruptedException {
 
-        List<CompletableFuture<BatchResponeVo>> futuresList  = Lists.newLinkedList();
+        List<CompletableFuture<BatchResponeVo>> futuresList = Lists.newLinkedList();
 
         batchRequestDto.forEach((k, v) -> {
             BatchUriParamDto req = JsonUtil.parseJsonUseJackson(JsonUtil.toJsonUseJackson(v), BatchUriParamDto.class);

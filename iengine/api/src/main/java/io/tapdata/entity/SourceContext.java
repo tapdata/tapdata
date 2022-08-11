@@ -13,7 +13,6 @@ import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.ConverterProvider;
 import io.tapdata.common.SettingService;
 import io.tapdata.debug.DebugProcessor;
-import io.tapdata.logging.JobCustomerLogger;
 import io.tapdata.milestone.MilestoneService;
 import org.apache.logging.log4j.Logger;
 
@@ -30,8 +29,6 @@ public class SourceContext extends Context {
 	private Integer roleId;
 	private ClientMongoOperator clientMongoOperator;
 	private boolean isCloud;
-
-	private JobCustomerLogger customerLogger;
 
 	public SourceContext(Job job,
 						 Logger logger,
@@ -117,7 +114,6 @@ public class SourceContext extends Context {
 		this.roleId = context.getRoleId();
 		this.clientMongoOperator = context.getClientMongoOperator();
 		this.isCloud = context.isCloud();
-		this.customerLogger = new JobCustomerLogger(taskDto.getId().toHexString(), taskDto.getName(), clientMongoOperator);
 	}
 
 	public SourceContext(List<Stage> stages, Connections connection) {
@@ -162,12 +158,5 @@ public class SourceContext extends Context {
 
 	public void setMessageConsumer(Consumer<List<MessageEntity>> messageConsumer) {
 		this.messageConsumer = messageConsumer;
-	}
-
-	public JobCustomerLogger getCustomerLogger() {
-		if (customerLogger == null) {
-			customerLogger = new JobCustomerLogger();
-		}
-		return customerLogger;
 	}
 }

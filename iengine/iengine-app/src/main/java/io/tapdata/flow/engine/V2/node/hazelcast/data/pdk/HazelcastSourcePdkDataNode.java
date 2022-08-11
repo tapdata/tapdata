@@ -14,6 +14,7 @@ import io.tapdata.aspect.BatchReadFuncAspect;
 import io.tapdata.aspect.SourceStateAspect;
 import io.tapdata.aspect.StreamReadFuncAspect;
 import io.tapdata.aspect.utils.AspectUtils;
+import io.tapdata.aspect.TableCountFuncAspect;
 import io.tapdata.common.sample.sampler.CounterSampler;
 import io.tapdata.common.sample.sampler.ResetCounterSampler;
 import io.tapdata.common.sample.sampler.SpeedSampler;
@@ -29,6 +30,7 @@ import io.tapdata.metrics.TaskSampleRetriever;
 import io.tapdata.milestone.MilestoneStage;
 import io.tapdata.milestone.MilestoneStatus;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
+import io.tapdata.pdk.apis.functions.connector.source.BatchCountFunction;
 import io.tapdata.pdk.apis.functions.connector.source.BatchReadFunction;
 import io.tapdata.pdk.apis.functions.connector.source.StreamReadFunction;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
@@ -251,6 +253,41 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 			}
 		} else {
 			throw new RuntimeException("PDK node does not support batch read: " + dataProcessorContext.getDatabaseType());
+		}
+	}
+
+	/**
+	 *
+	 * TODO(dexter): use multi thread to batch count the table, and use async;
+	 */
+	@SneakyThrows
+	private void doCount() {
+		BatchCountFunction batchCountFunction = getConnectorNode().getConnectorFunctions().getBatchCountFunction();
+		if (null == batchCountFunction) {
+			throw new RuntimeException("PDK node does not support table batch count: " + dataProcessorContext.getDatabaseType());
+		}
+
+		for(String tableName : dataProcessorContext.getTapTableMap().keySet()) {
+			if (!isRunning()) {
+				return;
+			}
+
+			TapTable table = dataProcessorContext.getTapTableMap().get(tableName);
+			executeDataFuncAspect(TableCountFuncAspect.class, () -> new TableCountFuncAspect()
+					.dataProcessorContext(this.getDataProcessorContext())
+					.start(), tableCountFuncAspect -> PDKInvocationMonitor.invoke(getConnectorNode(), PDKMethod.SOURCE_BATCH_COUNT,
+					() -> {
+						try {
+							long count = batchCountFunction.count(getConnectorNode().getConnectorContext(), table);
+							if (null != tableCountFuncAspect) {
+								AspectUtils.accept(tableCountFuncAspect.state(TableCountFuncAspect.STATE_COUNTING).getTableCountConsumerList(), table.getName(), count);
+							}
+						} catch (Exception e) {
+							RuntimeException runtimeException = new RuntimeException("Count " + table.getId() + " failed: " + e.getMessage(), e);
+							logger.warn(runtimeException.getMessage() + "\n" + Log4jUtil.getStackString(e));
+						}
+					}, TAG));
+
 		}
 	}
 

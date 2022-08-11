@@ -198,6 +198,43 @@ public class TaskEntity extends BaseEntity {
     private Boolean deleteFlag;
     private Long version;
 
+    /** 里程碑相关数据 */
+    private List<Milestone> milestones;
+    /** 报错信息 */
+    private List<Message> messages;
+
+    /** 需要用到的共享挖掘的task id, 每个数据源对应一个共享挖掘的任务id */
+    private Map<String, String> shareCdcTaskId;
+    /** 是否编辑中 */
+    private Boolean isEdit;
+
+    //private Date startTime;
+    private Date scheduledTime;
+    private Date stoppingTime;
+    private Date runningTime;
+    private Date errorTime;
+    private Date pausedTime;
+    private Date finishTime;
+    private Date pingTime;
+
+    //需要重启标识
+    private Boolean restartFlag;
+    //重启需要的用户id
+    private String restartUserId;
+
+
+    /** 自动处理ddl */
+    //private Boolean isOpenAutoDDL = true;
+    //todo 这个参数可能要删除掉
+    private String parentSyncType;
+
+    private Long tmCurrentTime;
+
+    //用户对接pdk重置删除的标记
+    private Boolean resetFlag;
+    private Boolean deleteFlag;
+    private Long version;
+
     public String getAccessNodeProcessId() {
         return CollectionUtils.isNotEmpty(accessNodeProcessIdList) ? accessNodeProcessIdList.get(0) : "";
     }
