@@ -94,15 +94,15 @@ public class ConnectorProjectBootCli extends CommonCli {
         if (0 == state){
             setSpecNameAndId();
             System.out.println(outBaos);
-            System.out.println("------------- Template Generation Success -------------");
-            System.out.println("|="+artifactId+" connector project location : " + output + "/" + artifactId.toLowerCase() + "-connector");
-            System.out.println("|="+artifactId+" connector spec file : " + output + "/" + artifactId.toLowerCase() + "-connector/src/main/resources/spec.json");
+            System.out.println("------------- Template generate successfully -------------");
+            System.out.println("|="+artifactId+" connector project location: " + output + "/" + artifactId.toLowerCase() + "-connector");
+            System.out.println("|="+artifactId+" connector spec file: " + output + "/" + artifactId.toLowerCase() + "-connector/src/main/resources/spec.json");
         }
         else {
             System.out.println(outBaos);
             System.out.println(errBaos);
             System.out.println("Please check and remove it if the folder \""+ output + "/" + artifactId.toLowerCase()  +"\" already exists");
-            System.out.println("------------- Template Generation Failed --------------");
+            System.out.println("------------- Template generate failed --------------");
         }
 
         return state;

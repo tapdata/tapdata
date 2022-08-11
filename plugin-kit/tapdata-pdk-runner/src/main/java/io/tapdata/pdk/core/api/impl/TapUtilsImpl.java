@@ -11,6 +11,7 @@ import io.tapdata.pdk.core.dag.TapDAGNode;
 import io.tapdata.pdk.core.executor.ExecutorsManager;
 import io.tapdata.pdk.core.utils.ReflectionUtil;
 import org.apache.commons.lang3.SerializationUtils;
+import org.apache.commons.lang3.exception.ExceptionUtils;
 
 import java.io.Serializable;
 import java.lang.reflect.Field;
@@ -29,6 +30,11 @@ public class TapUtilsImpl implements TapUtils {
     @Override
     public Map<String, Object> cloneMap(Map<String, Object> map) {
         return (Map<String, Object>) clone(map);
+    }
+
+    @Override
+    public String getStackTrace(Throwable throwable) {
+        return ExceptionUtils.getStackTrace(throwable);
     }
 
     public Object clone(Object obj) {

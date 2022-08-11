@@ -59,7 +59,7 @@ public class MessageUtil {
 		}
 
 		if (locale == null){
-			locale = Locale.getDefault();
+			locale = new Locale("en", "US");
 		}
 
 		return locale;

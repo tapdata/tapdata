@@ -12,6 +12,7 @@ import io.tapdata.flow.engine.V2.node.hazelcast.HazelcastBaseNode;
 import io.tapdata.metrics.TaskSampleRetriever;
 import org.jetbrains.annotations.NotNull;
 
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.function.BiConsumer;
@@ -59,17 +60,16 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 	@Override
 	protected final boolean tryProcess(int ordinal, @NotNull Object item) throws Exception {
 		TapdataEvent tapdataEvent = (TapdataEvent) item;
+		AtomicReference<TapdataEvent> processedEvent = new AtomicReference<>();
 		AspectUtils.executeProcessorFuncAspect(ProcessorNodeProcessAspect.class, () -> new ProcessorNodeProcessAspect()
 				.processorBaseContext(getProcessorBaseContext())
 				.inputEvent(tapdataEvent)
 				.start(), (processorNodeProcessAspect) -> {
 			if (null == tapdataEvent.getTapEvent()) {
-				while (running.get()) {
-					if (offer(tapdataEvent)) {
-						if(processorNodeProcessAspect != null)
-							AspectUtils.accept(processorNodeProcessAspect.state(ProcessorNodeProcessAspect.STATE_PROCESSING).getConsumers(), tapdataEvent);
-						break;
-					}
+				// control tapdata event, skip the process consider process is done
+				processedEvent.set(tapdataEvent);
+				if (null != processorNodeProcessAspect) {
+					AspectUtils.accept(processorNodeProcessAspect.state(ProcessorNodeProcessAspect.STATE_PROCESSING).getConsumers(), tapdataEvent);
 				}
 				return;
 			}
@@ -89,15 +89,21 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 						transformToTapValue(event, processorBaseContext.getTapTableMap(), getNode().getId());
 					}
 				}
-				while (running.get()) {
-					if (offer(event)) {
-						if(processorNodeProcessAspect != null)
-							AspectUtils.accept(processorNodeProcessAspect.getConsumers(), event);
-						break;
-					}
+
+				// consider process is done
+				processedEvent.set(event);
+				if (null != processorNodeProcessAspect) {
+					AspectUtils.accept(processorNodeProcessAspect.state(ProcessorNodeProcessAspect.STATE_PROCESSING).getConsumers(), event);
 				}
+
 			});
 		});
+
+		if(processedEvent.get() != null) {
+			while (running.get()) {
+				if (offer(processedEvent.get())) break;
+			}
+		}
 		return true;
 	}
 

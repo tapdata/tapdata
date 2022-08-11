@@ -4,8 +4,8 @@ import io.debezium.config.Configuration;
 import io.debezium.connector.mysql.MySqlConnectorConfig;
 import io.debezium.embedded.EmbeddedEngine;
 import io.debezium.engine.DebeziumEngine;
-import io.tapdata.connector.mysql.ddl.DDLFactory;
-import io.tapdata.connector.mysql.ddl.DDLParserType;
+import io.tapdata.common.ddl.DDLFactory;
+import io.tapdata.common.ddl.type.DDLParserType;
 import io.tapdata.connector.mysql.entity.MysqlBinlogPosition;
 import io.tapdata.connector.mysql.entity.MysqlSnapshotOffset;
 import io.tapdata.connector.mysql.entity.MysqlStreamEvent;
@@ -57,7 +57,6 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static io.tapdata.connector.mysql.util.MysqlUtil.randomServerId;
-import static io.tapdata.entity.simplify.TapSimplify.insertRecordEvent;
 
 /**
  * @author samuel
@@ -79,7 +78,7 @@ public class MysqlReader implements Closeable {
 	private StreamReadConsumer streamReadConsumer;
 	private ScheduledExecutorService mysqlSchemaHistoryMonitor;
 	private KVReadOnlyMap<TapTable> tapTableMap;
-	private DDLParserType ddlParserType = DDLParserType.CCJ_SQL_PARSER;
+	private DDLParserType ddlParserType = DDLParserType.MYSQL_CCJ_SQL_PARSER;
 	private final int MIN_BATCH_SIZE = 1000;
 
 	public MysqlReader(MysqlJdbcContext mysqlJdbcContext) {
@@ -412,6 +411,7 @@ public class MysqlReader implements Closeable {
 				DDLFactory.ddlToTapDDLEvent(
 						ddlParserType,
 						ddlStr,
+						"`",
 						tapTableMap,
 						tapDDLEvent -> {
 							MysqlStreamEvent mysqlStreamEvent = new MysqlStreamEvent(tapDDLEvent, mysqlStreamOffset);

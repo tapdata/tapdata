@@ -1,11 +1,17 @@
 package io.tapdata.entity.event.dml;
 
 
+import io.tapdata.entity.error.CoreException;
+import io.tapdata.entity.error.TapAPIErrorCodes;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.entity.utils.TapUtils;
 
+import java.util.Collection;
+import java.util.Collections;
 import java.util.Map;
+
+import static io.tapdata.entity.simplify.TapSimplify.map;
 
 public class TapInsertRecordEvent extends TapRecordEvent {
 	public static final int TYPE = 300;
@@ -15,8 +21,14 @@ public class TapInsertRecordEvent extends TapRecordEvent {
 	 */
 	private Map<String, Object> after;
 
+	private Map<String, Object> filter;
+
 	public TapInsertRecordEvent() {
 		super(TYPE);
+	}
+
+	public static TapInsertRecordEvent create() {
+		return new TapInsertRecordEvent().init();
 	}
 
 	public void clone(TapEvent tapEvent) {
@@ -54,6 +66,24 @@ public class TapInsertRecordEvent extends TapRecordEvent {
 
 	public void setAfter(Map<String, Object> after) {
 		this.after = after;
+	}
+
+	public Map<String, Object> getFilter(Collection<String> primaryKeys) {
+		if(primaryKeys == null || primaryKeys.isEmpty())
+			throw new CoreException(TapAPIErrorCodes.ERROR_NO_PRIMARY_KEYS, "TapInsertRecordEvent: no primary keys for tableId {} after {}", tableId, after);
+		if(filter == null) {
+			filter = map();
+			for(String key : primaryKeys) {
+				Object value = null;
+				if(after != null)
+					value = after.get(key);
+				if(value != null)
+					filter.put(key, value);
+				else
+					throw new CoreException(TapAPIErrorCodes.ERROR_MISSING_PRIMARY_VALUE, "TapInsertRecordEvent: primary key {} is missing value from after {}, all primary keys {} tableId {}", key, after, primaryKeys, tableId);
+			}
+		}
+		return filter;
 	}
 
 //	@Override

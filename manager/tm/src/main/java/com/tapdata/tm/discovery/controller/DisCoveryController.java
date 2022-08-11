@@ -41,7 +41,7 @@ public class DisCoveryController extends BaseController {
 
     @Operation(summary = "find storage object preview")
     @GetMapping("storage/preview/{id}")
-    public ResponseMessage<DiscoveryStoragePreviewDto> storagePreview(@PathVariable("id") String id) {
+    public ResponseMessage<Page<Object>> storagePreview(@PathVariable("id") String id) {
         return success(discoveryService.storagePreview(id));
     }
 
