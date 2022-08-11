@@ -4,6 +4,7 @@ import cn.hutool.core.lang.Assert;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.common.base.Splitter;
 import com.mongodb.BasicDBObject;
 import com.mongodb.ConnectionString;
 import com.mongodb.client.result.UpdateResult;
@@ -1098,10 +1099,13 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 						//处理自定义加载的表。
 						Boolean loadAllTable = oldConnectionDto.getLoadAllTable();
 						if (loadAllTable != null && !loadAllTable) {
-							List<String> loadTables = oldConnectionDto.getLoadTables();
-							if (CollectionUtils.isNotEmpty(loadTables)) {
-								tables = tables.stream().filter(t->loadTables.contains(t.getName())).collect(Collectors.toList());
+							String table_filter = oldConnectionDto.getTable_filter();
+							if (StringUtils.isNotBlank(table_filter)) {
+								List<String> loadTables = Splitter.on(',').trimResults().omitEmptyStrings().splitToList(table_filter);
+								if (CollectionUtils.isNotEmpty(loadTables)) {
+									tables = tables.stream().filter(t -> loadTables.contains(t.getName())).collect(Collectors.toList());
 
+								}
 							}
 						}
 						for (TapTable table : tables) {
