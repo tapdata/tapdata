@@ -3,6 +3,7 @@ package com.tapdata.tm.monitor.constant;
 public enum TableNameEnum {
     AgentEnvironment("AgentEnvironment"),
     AgentMeasurement("AgentMeasurement"),
+    AgentMeasurementV2("AgentMeasurementV2"),
 
     AgentStatistics("AgentStatistics");
     private String tableName;

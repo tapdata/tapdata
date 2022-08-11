@@ -18,6 +18,8 @@ public class TaskDetailVo extends BaseVo {
 
     @JsonInclude(JsonInclude.Include.ALWAYS)
     private Date startTime;
+    @JsonInclude(JsonInclude.Include.ALWAYS)
+    private Date stopTime;
     /** 描述*/
     @JsonInclude(JsonInclude.Include.ALWAYS)
     private String desc;
