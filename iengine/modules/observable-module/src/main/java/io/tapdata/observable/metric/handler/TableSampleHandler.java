@@ -1,7 +1,7 @@
 package io.tapdata.observable.metric.handler;
 
 import com.tapdata.tm.commons.dag.Node;
-import com.tapdata.tm.commons.task.dto.SubTaskDto;
+import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.common.sample.CollectorFactory;
 import io.tapdata.common.sample.SampleCollector;
 import io.tapdata.common.sample.sampler.CounterSampler;
@@ -14,7 +14,7 @@ import java.util.*;
  */
 public class TableSampleHandler extends AbstractHandler {
     private static final String TAG_KEY_TABLE = "table";
-    public TableSampleHandler(SubTaskDto task) {
+    public TableSampleHandler(TaskDto task) {
         super(task);
     }
 

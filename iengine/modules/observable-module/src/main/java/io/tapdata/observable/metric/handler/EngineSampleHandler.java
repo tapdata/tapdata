@@ -1,6 +1,6 @@
 package io.tapdata.observable.metric.handler;
 
-import com.tapdata.tm.commons.task.dto.SubTaskDto;
+import com.tapdata.tm.commons.task.dto.TaskDto;
 
 import java.util.*;
 
@@ -9,7 +9,7 @@ import java.util.*;
  */
 public class EngineSampleHandler extends AbstractHandler {
     private static final String TAG_KEY_ENGINE = "engine";
-    public EngineSampleHandler(SubTaskDto task) {
+    public EngineSampleHandler(TaskDto task) {
         super(task);
     }
 

@@ -1,7 +1,7 @@
 package io.tapdata.observable.metric.handler;
 
 import com.tapdata.tm.commons.dag.Node;
-import com.tapdata.tm.commons.task.dto.SubTaskDto;
+import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.common.sample.CollectorFactory;
 import io.tapdata.common.sample.SampleCollector;
 import io.tapdata.common.sample.sampler.AverageSampler;
@@ -19,7 +19,7 @@ import java.util.Optional;
  * @author Dexter
  */
 public class ProcessorNodeSampleHandler extends AbstractNodeSampleHandler {
-    public ProcessorNodeSampleHandler(SubTaskDto task) {
+    public ProcessorNodeSampleHandler(TaskDto task) {
         super(task);
     }
 

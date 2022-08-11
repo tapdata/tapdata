@@ -1,6 +1,6 @@
 package io.tapdata.observable.metric.handler;
 
-import com.tapdata.tm.commons.task.dto.SubTaskDto;
+import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.common.sample.CollectorFactory;
 import io.tapdata.common.sample.SampleCollector;
 import io.tapdata.common.sample.sampler.AverageSampler;
@@ -19,7 +19,7 @@ import java.util.*;
 public class TaskSampleHandler extends AbstractHandler {
     private static final String TAG = TaskSampleHandler.class.getSimpleName();
 
-    public TaskSampleHandler(SubTaskDto task) {
+    public TaskSampleHandler(TaskDto task) {
         super(task);
     }
 
@@ -168,7 +168,7 @@ public class TaskSampleHandler extends AbstractHandler {
         for (TapRecordEvent event : events) {
             Long time = event.getTime();
             if (null == time) {
-                TapLogger.warn(TAG, "event from task {} does have time field.", task.getParentTask().getId());
+                TapLogger.warn(TAG, "event from task {} does have time field.", task.getId().toHexString());
                 break;
             }
             timeCostTotal += (current - time);
