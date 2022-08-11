@@ -1,8 +1,6 @@
 package com.tapdata.tm.task.entity;
 
-import cn.hutool.core.bean.BeanUtil;
 import com.tapdata.tm.base.entity.BaseEntity;
-import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.utils.MongoUtils;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
