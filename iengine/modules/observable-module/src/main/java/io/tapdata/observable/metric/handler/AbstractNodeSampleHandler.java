@@ -1,7 +1,7 @@
 package io.tapdata.observable.metric.handler;
 
 import com.tapdata.tm.commons.dag.Node;
-import com.tapdata.tm.commons.task.dto.SubTaskDto;
+import com.tapdata.tm.commons.task.dto.TaskDto;
 
 import java.util.Map;
 
@@ -9,7 +9,7 @@ import java.util.Map;
  * @author Dexter
  */
 abstract class AbstractNodeSampleHandler extends AbstractHandler {
-    AbstractNodeSampleHandler(SubTaskDto task) {
+    AbstractNodeSampleHandler(TaskDto task) {
         super(task);
     }
 

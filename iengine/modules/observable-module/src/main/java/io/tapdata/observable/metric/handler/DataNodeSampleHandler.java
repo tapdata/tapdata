@@ -1,7 +1,7 @@
 package io.tapdata.observable.metric.handler;
 
 import com.tapdata.tm.commons.dag.Node;
-import com.tapdata.tm.commons.task.dto.SubTaskDto;
+import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.common.executor.ExecutorsManager;
 import io.tapdata.common.sample.CollectorFactory;
 import io.tapdata.common.sample.SampleCollector;
@@ -31,7 +31,7 @@ import java.util.concurrent.TimeUnit;
 public class DataNodeSampleHandler extends AbstractNodeSampleHandler {
     private final Logger logger = LogManager.getLogger(DataNodeSampleHandler.class);
     private static final String TAG = DataNodeSampleHandler.class.getSimpleName();
-    public DataNodeSampleHandler(SubTaskDto task) {
+    public DataNodeSampleHandler(TaskDto task) {
         super(task);
     }
 
