@@ -13,7 +13,6 @@ import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.entity.codec.ToTapValueCodec;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
-import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.type.TapType;
 import io.tapdata.entity.schema.value.TapValue;
@@ -124,33 +123,22 @@ public class HazelcastProcessorNode extends HazelcastProcessorBaseNode {
 	@Override
 	protected void transformToTapValue(TapdataEvent tapdataEvent, TapTableMap<String, TapTable> tapTableMap, String tableName) {
 
-		if (null == tapTableMap)
-			throw new IllegalArgumentException("Transform to TapValue failed, tapTableMap is empty, table name: " + tableName);
-		TapTable tapTable = tapTableMap.get(tableName);
-		if (null == tapTable)
-			throw new IllegalArgumentException("Transform to TapValue failed, table schema is empty, table name: " + tableName);
-		LinkedHashMap<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
-		if (MapUtils.isEmpty(nameFieldMap))
-			throw new IllegalArgumentException("Transform to TapValue failed, field map is empty, table name: " + tableName);
 		TapEvent tapEvent = tapdataEvent.getTapEvent();
-		Map<String, Object> before = TapEventUtil.getBefore(tapEvent);
-		if (MapUtils.isNotEmpty(before)) {
-			Map<String, io.tapdata.entity.schema.type.TapType> tapTypeMap = getTapTypeMap(before);
-			codecsFilterManager.transformToTapValueMap(before, nameFieldMap);
-			updateTapType(before, tapTypeMap);
+		Map<String, TapType> afterTapTypeMap = null;
+		if (StringUtils.equalsAnyIgnoreCase(processorBaseContext.getSubTaskDto().getParentTask().getSyncType(), TaskDto.SYNC_TYPE_DEDUCE_SCHEMA)) {
+			Map<String, Object> after = TapEventUtil.getAfter(tapEvent);
+			afterTapTypeMap = getTapTypeMap(after);
 		}
-		Map<String, Object> after = TapEventUtil.getAfter(tapEvent);
-		if (MapUtils.isNotEmpty(after)) {
-			Map<String, TapType> tapTypeMap = getTapTypeMap(after);
-			codecsFilterManager.transformToTapValueMap(after, nameFieldMap);
-			updateTapType(after, tapTypeMap);
+		super.transformToTapValue(tapdataEvent, tapTableMap, tableName);
+		if (StringUtils.equalsAnyIgnoreCase(processorBaseContext.getSubTaskDto().getParentTask().getSyncType(), TaskDto.SYNC_TYPE_DEDUCE_SCHEMA)) {
+			Map<String, Object> after = TapEventUtil.getAfter(tapEvent);
+			updateTapType(after, afterTapTypeMap);
 		}
-
 	}
 
 	private Map<String, TapType> getTapTypeMap(Map<String, Object> map) {
 		Map<String, TapType> tapTypeMap = new HashMap<>();
-		if (org.apache.commons.collections4.MapUtils.isNotEmpty(map)) {
+		if (MapUtils.isNotEmpty(map)) {
 			for (Map.Entry<String, Object> entry : map.entrySet()) {
 				if (entry.getValue() instanceof TapValue) {
 					tapTypeMap.put(entry.getKey(), ((TapValue<?, ?>) entry.getValue()).getTapType());
@@ -166,6 +154,9 @@ public class HazelcastProcessorNode extends HazelcastProcessorBaseNode {
 	}
 
 	private void updateTapType(Map<String, Object> map, Map<String, TapType> tapTypeMap) {
+		if (MapUtils.isEmpty(map) || MapUtils.isEmpty(tapTypeMap)) {
+			return;
+		}
 		Iterator<Map.Entry<String, Object>> iterator = map.entrySet().iterator();
 		while (iterator.hasNext()) {
 			Map.Entry<String, Object> entry = iterator.next();
