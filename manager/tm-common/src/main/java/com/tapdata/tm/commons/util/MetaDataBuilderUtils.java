@@ -62,7 +62,11 @@ public class MetaDataBuilderUtils {
             , @NonNull String definitionPdkId, @NonNull String definitionGroup, @NonNull String definitionVersion) {
 
         String qualifiedName = metaTypePropertyMap.get(metaType).getPrefix();
-        qualifiedName += String.join(QUALIFIED_NAME_SEPARATOR, definitionPdkId, definitionGroup, definitionVersion, tableName, connId);
+        if (StringUtils.isNotBlank(tableName)) {
+            qualifiedName += String.join(QUALIFIED_NAME_SEPARATOR, definitionPdkId, definitionGroup, definitionVersion, tableName, connId);
+        } else {
+            qualifiedName += String.join(QUALIFIED_NAME_SEPARATOR, definitionPdkId, definitionGroup, definitionVersion, connId);
+        }
         qualifiedName = qualifiedName.replaceAll(QUALIFIED_NAME_SPECIAL_CHARACTERS, QUALIFIED_NAME_SEPARATOR);
         return qualifiedName;
     }
