@@ -8,7 +8,6 @@ import io.tapdata.pdk.apis.context.TapConnectorContext;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -23,28 +22,34 @@ public class RedisKeySetter {
 
   private Map<String, RedisKey> allSet = new HashMap<>();
 
-  private List arrayList = new ArrayList();
 
-
+  /**
+   * 获取redis的key
+   */
   public String getRedisKey(Map<String, Object> value, TapConnectorContext connectorContext, String tableName) {
 
+    // 兼容数据复制时不存在指定缓存的key。用源表名作为key。
     DataMap nodeConfig = connectorContext.getNodeConfig();
     if (nodeConfig == null) {
       return tableName;
     }
+    // 在list with header时根据页面的cachePrefix作为key值
     String valueType = (String) nodeConfig.get("valueType");
     if (RedisRecordWriter.VALUE_TYPE_LIST.equals(valueType)) {
       return (String) nodeConfig.get("cachePrefix");
     }
 
-    RedisKey redisKey = getOrAuto(tableName, connectorContext);
+    RedisKey redisKey = getRedisKey(tableName, connectorContext);
+
 
     StringBuilder buf = new StringBuilder();
+    // 如果存在缓存前缀，则直接使用缓存前缀
     if (StringUtils.isNotBlank(redisKey.getPrefix())) {
       buf.append(redisKey.getPrefix());
     } else {
       buf.append(tableName);
     }
+
 
     String[] keys = redisKey.getVal().split(",");
     for (String key : keys) {
@@ -55,16 +60,22 @@ public class RedisKeySetter {
     return buf.toString();
   }
 
-
-  public RedisKey getOrAuto(String tableName, TapConnectorContext connectorContext) {
-    RedisKey val = allSet.get(tableName);
-    if (null == val) {
-      val = init(tableName, connectorContext);
-      allSet.put(tableName, val);
+  /**
+   * 获取redis key的组成字段
+   */
+  public RedisKey getRedisKey(String tableName, TapConnectorContext connectorContext) {
+    // 内存中缓存同一个表名的key值
+    RedisKey redisKey = allSet.get(tableName);
+    if (null == redisKey) {
+      redisKey = init(tableName, connectorContext);
+      allSet.put(tableName, redisKey);
     }
-    return val;
+    return redisKey;
   }
 
+  /**
+   * 初始化redis key的组成
+   */
   private RedisKey init(String tableName, TapConnectorContext connectorContext) {
 
     RedisKey redisKey = new RedisKey();

@@ -17,7 +17,6 @@ import org.apache.commons.lang3.StringUtils;
 import redis.clients.jedis.Jedis;
 import redis.clients.jedis.Pipeline;
 
-import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.function.Consumer;
 
@@ -58,7 +57,7 @@ public class RedisRecordWriter {
      * @param tapTable
      * @param writeListResultConsumer
      */
-    public void write(List<TapRecordEvent> tapRecordEvents, TapTable tapTable, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer) {
+    public void write(List<TapRecordEvent> tapRecordEvents, TapTable tapTable, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer) throws Exception {
 
         DataMap nodeConfig = connectorContext.getNodeConfig();
         String valueType;
@@ -80,7 +79,7 @@ public class RedisRecordWriter {
     /**
      * 处理json格式的数据
      */
-    private void handleJsonData(List<TapRecordEvent> tapRecordEvents, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer) {
+    private void handleJsonData(List<TapRecordEvent> tapRecordEvents, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer) throws Exception {
         //result of these events
         WriteListResult<TapRecordEvent> listResult = new WriteListResult<>();
         long insert = 0L;
@@ -129,7 +128,7 @@ public class RedisRecordWriter {
     /**
      * 组装pipeline数据
      */
-    private void writeData(Map<String, Object> value, TapRecordEvent recordEvent, Pipeline pipelined, String tableName) {
+    private void writeData(Map<String, Object> value, TapRecordEvent recordEvent, Pipeline pipelined, String tableName) throws Exception {
         if (MapUtils.isEmpty(value)) {
             TapLogger.warn("Message data is empty {} will skip it.", JSON.toJSONString(recordEvent));
             return;
@@ -151,7 +150,7 @@ public class RedisRecordWriter {
      *
      * @return String
      */
-    private String getStrValue(Map<String, Object> map) {
+    private String getStrValue(Map<String, Object> map) throws Exception {
         if (MapUtils.isEmpty(filedMap)) {
             sortFiled(tapTable);
         }
@@ -160,15 +159,14 @@ public class RedisRecordWriter {
         for (String key : map.keySet()) {
             Object value;
             if (null == map.get(key)) {
-                value = "";
-            } else if (map.get(key) instanceof Date) {
-                SimpleDateFormat sdf = new SimpleDateFormat("yyyy-mm-dd hh24:mi:ss");
-                value = sdf.format(map.get(key));
+                value = "null";
             } else {
                 value = map.get(key);
-
             }
 
+            if(filedMap.get(key) ==null){
+                throw  new Exception("schema has change ,please reset task ");
+            }
             int index = filedMap.get(key);
             String valueStr = String.valueOf(value);
             // 逗号作为分隔符需要页数处理下
@@ -185,7 +183,7 @@ public class RedisRecordWriter {
     /**
      * 处理list格式的数据
      */
-    private void handleListData(List<TapRecordEvent> tapRecordEvents, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer) {
+    private void handleListData(List<TapRecordEvent> tapRecordEvents, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer) throws Exception {
 
         //result of these events
         WriteListResult<TapRecordEvent> listResult = new WriteListResult<>();
@@ -210,7 +208,11 @@ public class RedisRecordWriter {
                     String tableName = tapUpdateRecordEvent.getTableId();
                     String keyName = redisContext.getRedisKeySetter().getRedisKey(afterValue, connectorContext, tableName);
                     String newValue = getStrValue(afterValue);
+                    if(null == tapUpdateRecordEvent.getBefore()){
+                        throw new Exception("Redis update failed  reason before data is null");
+                    }
                     String oldValue = getStrValue(tapUpdateRecordEvent.getBefore());
+
                     pipelined.eval("local pos = redis.call('lpos', KEYS[1], ARGV[1]); if (not pos) then return end; redis.call('lset', KEYS[1], pos, ARGV[2]);", 1, keyName, oldValue, newValue);
                     update++;
                 }
