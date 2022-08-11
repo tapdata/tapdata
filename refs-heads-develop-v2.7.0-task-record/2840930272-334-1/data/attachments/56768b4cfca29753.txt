@@ -1,0 +1,4 @@
+job [1;32mcheck_jobnqmxc[0m start running ...                                                                                                                                     
+job [1;32mcheck_jobnqmxc[0m status is: [1;32mwait_run[0m                                                                                                                        
+pipeline not start, no status can show                                                                                                                                              
+[1;33mThe status of this task is not in [running, stop, complete], unable to check data.[0m                                                                                       
