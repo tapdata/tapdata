@@ -546,7 +546,6 @@ public class TaskController extends BaseController {
         return success();
     }
 
-
     @Operation(summary = "子任务已经成功运行回调接口")
     @PostMapping("running/{id}")
     public ResponseMessage<TaskOpResp> running(@PathVariable("id") String id) {
@@ -559,8 +558,6 @@ public class TaskController extends BaseController {
 
         return success(taskOpResp);
     }
-
-
 
     /**
      * 收到任务运行失败的消息

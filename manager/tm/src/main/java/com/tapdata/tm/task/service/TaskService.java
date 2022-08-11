@@ -2237,17 +2237,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
      * @param id
      */
     public void start(ObjectId id, UserDetail user) {
-        start(id, user, "11");
-    }
-
-
-    /**
-     * 启动子任务
-     *
-     * @param id
-     * @param id
-     */
-    public void start(ObjectId id, UserDetail user, String startFlag) {
+        String startFlag = "11";
         TaskDto taskDto = checkExistById(id, user);
         checkDagAgentConflict(taskDto, false);
         start(taskDto, user, startFlag);
@@ -2285,9 +2275,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             throw new BizException("Task.StartStatusInvalid");
         }
 
-
         run(taskDto, user);
-
     }
 
     public void run(TaskDto taskDto, UserDetail user) {
@@ -2366,6 +2354,11 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                 setTaskSnapshot(taskEntity);
                 setCreateUser(user.getUserId());
                 setCreateAt(new Date());
+            }});
+        } else {
+            basicEventService.publish(new SyncTaskStatusDto(){{
+                setTaskRecordId(taskDto.getLastTaskRecordId());
+                setTaskStatus(taskDto.getStatus());
             }});
         }
     }
@@ -2488,6 +2481,11 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             log.info("concurrent running operations, this operation don‘t effective, task name = {}", taskDto.getName());
             return null;
         } else {
+            basicEventService.publish(new SyncTaskStatusDto(){{
+                setTaskRecordId(taskDto.getLastTaskRecordId());
+                setTaskStatus(taskDto.getStatus());
+            }});
+
             return id.toHexString();
         }
     }
@@ -2512,6 +2510,11 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             log.info("concurrent runError operations, this operation don‘t effective, task name = {}", taskDto.getName());
             return null;
         } else {
+            basicEventService.publish(new SyncTaskStatusDto(){{
+                setTaskRecordId(taskDto.getLastTaskRecordId());
+                setTaskStatus(taskDto.getStatus());
+            }});
+
             return id.toHexString();
         }
 
@@ -2536,6 +2539,11 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             log.info("concurrent complete operations, this operation don‘t effective, task name = {}", taskDto.getName());
             return null;
         } else {
+            basicEventService.publish(new SyncTaskStatusDto(){{
+                setTaskRecordId(taskDto.getLastTaskRecordId());
+                setTaskStatus(taskDto.getStatus());
+            }});
+
             return id.toHexString();
         }
     }
@@ -2565,6 +2573,11 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             log.info("concurrent stopped operations, this operation don‘t effective, task name = {}", taskDto.getName());
             return null;
         } else {
+            basicEventService.publish(new SyncTaskStatusDto(){{
+                setTaskRecordId(taskDto.getLastTaskRecordId());
+                setTaskStatus(taskDto.getStatus());
+            }});
+
             return id.toHexString();
         }
     }
