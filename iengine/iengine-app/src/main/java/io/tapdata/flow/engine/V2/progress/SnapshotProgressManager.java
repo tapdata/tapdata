@@ -277,7 +277,11 @@ public class SnapshotProgressManager implements Closeable {
 			clientMongoOperator.batch(batchOperationDtoList, ConnectorConstant.SUBTASK_PROGRESS, r -> !running.get());
 			incrementEdgeProgressMap.clear();
 		} finally {
-			Optional.ofNullable(lock).ifPresent(Lock::unlock);
+			Optional.ofNullable(lock).ifPresent(lock -> {
+				if (((ReentrantLock) lock).isHeldByCurrentThread()) {
+					lock.unlock();
+				}
+			});
 		}
 	}
 
