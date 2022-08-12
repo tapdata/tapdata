@@ -4,6 +4,7 @@ import cn.hutool.core.lang.Assert;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.common.base.Splitter;
 import com.mongodb.BasicDBObject;
 import com.mongodb.ConnectionString;
 import com.mongodb.client.result.UpdateResult;
@@ -341,7 +342,7 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 		Map<String, DataSourceConnectionDto> connectMap = new HashMap<>();
 		Map<ObjectId, DataSourceConnectionDto> newResultObj = new HashMap<>();
 
-		List<String> pdkHashList = items.stream().map(DataSourceConnectionDto::getPdkHash).distinct().collect(Collectors.toList());
+		Set<String> pdkHashList = items.stream().map(DataSourceConnectionDto::getPdkHash).collect(Collectors.toSet());
 		List<DataSourceDefinitionDto> definitionDtoList = dataSourceDefinitionService.findByPdkHashList(pdkHashList, user);
 		//Map<String, DataSourceDefinitionDto> definitionMap = definitionDtoList.stream().collect(Collectors.toMap(DataSourceDefinitionDto::getPdkHash, Function.identity(), (f1, f2) -> f1));
 
@@ -1095,6 +1096,19 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 
 				if (hasSchema) {
 					if (CollectionUtils.isNotEmpty(tables)) {
+
+						//处理自定义加载的表。
+						Boolean loadAllTable = oldConnectionDto.getLoadAllTable();
+						if (loadAllTable != null && !loadAllTable) {
+							String table_filter = oldConnectionDto.getTable_filter();
+							if (StringUtils.isNotBlank(table_filter)) {
+								List<String> loadTables = Splitter.on(',').trimResults().omitEmptyStrings().splitToList(table_filter);
+								if (CollectionUtils.isNotEmpty(loadTables)) {
+									tables = tables.stream().filter(t -> loadTables.contains(t.getName())).collect(Collectors.toList());
+
+								}
+							}
+						}
 						for (TapTable table : tables) {
 							String expression = definitionDto.getExpression();
 							PdkSchemaConvert.tableFieldTypesGenerator.autoFill(table.getNameFieldMap() == null ? new LinkedHashMap<>() : table.getNameFieldMap(), DefaultExpressionMatchingMap.map(expression));
