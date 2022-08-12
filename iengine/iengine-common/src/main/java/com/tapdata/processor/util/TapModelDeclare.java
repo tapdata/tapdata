@@ -5,12 +5,14 @@ import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapIndex;
 import io.tapdata.entity.schema.TapIndexField;
 import io.tapdata.entity.schema.TapTable;
+import io.tapdata.entity.schema.type.TapNumber;
 import io.tapdata.entity.schema.type.TapType;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -155,6 +157,12 @@ public class TapModelDeclare {
     if (tapTypeClass == null) {
       throw new IllegalArgumentException("unknown tap type: " + tapType);
     }
-    return new TapField(fieldName, dataType).tapType(tapTypeClass.newInstance());
+    TapType tapTypeInstance;
+    if (tapTypeClass == TapNumber.class) {
+      tapTypeInstance = new TapNumber().maxValue(new BigDecimal(Long.MAX_VALUE)).minValue(new BigDecimal(Long.MIN_VALUE));
+    } else {
+      tapTypeInstance = tapTypeClass.newInstance();
+    }
+    return new TapField(fieldName, dataType).tapType(tapTypeInstance);
   }
 }
