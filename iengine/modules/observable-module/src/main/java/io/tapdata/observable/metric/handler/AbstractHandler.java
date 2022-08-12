@@ -24,6 +24,7 @@ abstract class AbstractHandler {
         return new HashMap<String, String>() {{
             put("type", type);
             put("taskId", task.getId().toHexString());
+            put("taskRecordId", task.getTaskRecordId());
         }};
     }
 
