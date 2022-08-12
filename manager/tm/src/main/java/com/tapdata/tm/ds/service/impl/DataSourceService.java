@@ -1219,13 +1219,6 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 		desensitizeMongoConnection(connectionDto);
 	}
 
-	private boolean isAgentReq() {
-		ServletRequestAttributes attributes = (ServletRequestAttributes) RequestContextHolder.currentRequestAttributes();
-		HttpServletRequest request = attributes.getRequest();
-		String userAgent = request.getHeader("user-agent");
-		return StringUtils.isNotBlank(userAgent) && (userAgent.contains("Java") || userAgent.contains("Node") || userAgent.contains("FlowEngine"));
-	}
-
 	public List<String> distinct(String field, UserDetail user) {
 		List<String> distinct = repository.findDistinct(new Query(), field, user, String.class);
 		return distinct;

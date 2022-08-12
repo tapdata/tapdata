@@ -126,7 +126,23 @@ public class TaskController extends BaseController {
             filter = new Filter();
         }
 
+
+
         return success(taskService.find(filter, getLoginUser()));
+    }
+
+
+    @Operation(summary = "获取数据开发列表")
+    @GetMapping("scanTask")
+    public ResponseMessage<Page<TaskDto>> scanTask(@RequestParam(value = "filter", required = false) String filterJson) {
+        Filter filter = parseFilter(filterJson);
+
+        if (filter == null) {
+            filter = new Filter();
+        }
+
+        Page<TaskDto> taskDtoPage = taskService.scanTask(filter, getLoginUser());
+        return success(taskDtoPage);
     }
 
     /**

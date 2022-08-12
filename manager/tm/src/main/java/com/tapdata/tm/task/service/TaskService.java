@@ -1052,8 +1052,14 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
      * @param userDetail
      * @return
      */
-    @Override
+    public Page<TaskDto> scanTask(Filter filter, UserDetail userDetail) {
+        return super.find(filter, userDetail);
+    }
     public Page<TaskDto> find(Filter filter, UserDetail userDetail) {
+
+        if (isAgentReq()) {
+            return super.find(filter, userDetail);
+        }
 
         Where where = filter.getWhere();
         //过滤掉挖掘任务
