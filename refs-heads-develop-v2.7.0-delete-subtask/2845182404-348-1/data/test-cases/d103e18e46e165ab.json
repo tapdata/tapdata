@@ -1,0 +1,171 @@
+{
+  "uid" : "d103e18e46e165ab",
+  "name" : "test_check",
+  "fullName" : "test_pipeline.TestPipeline#test_check",
+  "historyId" : "fa38c78c99c895035a3d9c2796cb8195",
+  "time" : {
+    "start" : 1660290303892,
+    "stop" : 1660290306520,
+    "duration" : 2628
+  },
+  "status" : "passed",
+  "flaky" : false,
+  "newFailed" : false,
+  "beforeStages" : [ ],
+  "testStage" : {
+    "status" : "passed",
+    "steps" : [ ],
+    "attachments" : [ {
+      "uid" : "584d0ceea6c0d107",
+      "name" : "stdout",
+      "source" : "584d0ceea6c0d107.txt",
+      "type" : "text/plain",
+      "size" : 1267
+    } ],
+    "parameters" : [ ],
+    "stepsCount" : 0,
+    "attachmentsCount" : 1,
+    "shouldDisplayMessage" : false,
+    "hasContent" : true
+  },
+  "afterStages" : [ ],
+  "labels" : [ {
+    "name" : "feature",
+    "value" : "pipeline"
+  }, {
+    "name" : "suite",
+    "value" : "test_pipeline"
+  }, {
+    "name" : "subSuite",
+    "value" : "TestPipeline"
+  }, {
+    "name" : "host",
+    "value" : "dae04fcc9e93"
+  }, {
+    "name" : "thread",
+    "value" : "863-MainThread"
+  }, {
+    "name" : "framework",
+    "value" : "pytest"
+  }, {
+    "name" : "language",
+    "value" : "cpython3"
+  }, {
+    "name" : "package",
+    "value" : "test_pipeline"
+  }, {
+    "name" : "resultFormat",
+    "value" : "allure2"
+  } ],
+  "parameters" : [ ],
+  "links" : [ ],
+  "hidden" : false,
+  "retry" : false,
+  "extra" : {
+    "severity" : "normal",
+    "retries" : [ ],
+    "categories" : [ ],
+    "history" : {
+      "statistic" : {
+        "failed" : 0,
+        "broken" : 0,
+        "skipped" : 0,
+        "passed" : 12,
+        "unknown" : 0,
+        "total" : 12
+      },
+      "items" : [ {
+        "uid" : "799812972c7067ae",
+        "status" : "passed",
+        "time" : {
+          "start" : 1660279306511,
+          "stop" : 1660279309793,
+          "duration" : 3282
+        }
+      }, {
+        "uid" : "3b3ca221c3d080e6",
+        "status" : "passed",
+        "time" : {
+          "start" : 1660277528893,
+          "stop" : 1660277531214,
+          "duration" : 2321
+        }
+      }, {
+        "uid" : "b0cd338bb0fce344",
+        "status" : "passed",
+        "time" : {
+          "start" : 1660275262343,
+          "stop" : 1660275264883,
+          "duration" : 2540
+        }
+      }, {
+        "uid" : "a057e97f17127743",
+        "status" : "passed",
+        "time" : {
+          "start" : 1660218358069,
+          "stop" : 1660218360896,
+          "duration" : 2827
+        }
+      }, {
+        "uid" : "bc912db31d0c01aa",
+        "status" : "passed",
+        "time" : {
+          "start" : 1660213098287,
+          "stop" : 1660213100741,
+          "duration" : 2454
+        }
+      }, {
+        "uid" : "6b047d75cf44f3c4",
+        "status" : "passed",
+        "time" : {
+          "start" : 1660209912462,
+          "stop" : 1660209914937,
+          "duration" : 2475
+        }
+      }, {
+        "uid" : "3a2094733f935997",
+        "status" : "passed",
+        "time" : {
+          "start" : 1660204152232,
+          "stop" : 1660204154582,
+          "duration" : 2350
+        }
+      }, {
+        "uid" : "5de0de850f919d2",
+        "status" : "passed",
+        "time" : {
+          "start" : 1660192607796,
+          "stop" : 1660192610490,
+          "duration" : 2694
+        }
+      }, {
+        "uid" : "3ce56c65558dad2f",
+        "status" : "passed",
+        "time" : {
+          "start" : 1660188079535,
+          "stop" : 1660188081953,
+          "duration" : 2418
+        }
+      }, {
+        "uid" : "377e0829b7fc9e06",
+        "status" : "passed",
+        "time" : {
+          "start" : 1660131374403,
+          "stop" : 1660131376762,
+          "duration" : 2359
+        }
+      }, {
+        "uid" : "2f11f6b2e272d4cd",
+        "status" : "passed",
+        "time" : {
+          "start" : 1660126825209,
+          "stop" : 1660126827708,
+          "duration" : 2499
+        }
+      } ]
+    },
+    "tags" : [ ]
+  },
+  "source" : "d103e18e46e165ab.json",
+  "parameterValues" : [ ]
+}
