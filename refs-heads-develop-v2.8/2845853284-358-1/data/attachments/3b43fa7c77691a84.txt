@@ -1,0 +1,5 @@
+job [1;32mrename_sync_gpimu[0m start running ...                                                                                                                                  
+job [1;32mrename_sync_gpimu[0m status is: [1;32mscheduling[0m                                                                                                                   
+job [1;32mrename_sync_gpimu[0m status is: [1;32mrunning[0m                                                                                                                      
+the status is running now, this is 1 times, 5 times remaining                                                                                                                       
+job [1;32mrename_sync_gpimu[0m status is: [1;32mrunning[0m                                                                                                                      
