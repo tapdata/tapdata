@@ -25,14 +25,6 @@ import java.util.function.Consumer;
  **/
 public class MysqlAlterColumnNameDDLWrapper extends CCJBaseDDLWrapper {
 
-    public MysqlAlterColumnNameDDLWrapper() {
-        super("`");
-    }
-
-    public MysqlAlterColumnNameDDLWrapper(String spilt) {
-        super(spilt);
-    }
-
     @Override
     public List<Capability> getCapabilities() {
         return Collections.singletonList(Capability.create(ConnectionOptions.DDL_ALTER_FIELD_NAME_EVENT).type(Capability.TYPE_DDL));
@@ -58,7 +50,7 @@ public class MysqlAlterColumnNameDDLWrapper extends CCJBaseDDLWrapper {
             if (null == columnDataType || EmptyKit.isBlank(columnDataType.getColumnName())) {
                 return;
             }
-            tapAlterFieldNameEvent.nameChange(ValueChange.create(StringKit.removeHeadTail(alterExpression.getColumnOldName(), spilt, false), StringKit.removeHeadTail(columnDataType.getColumnName(), spilt, false)));
+            tapAlterFieldNameEvent.nameChange(ValueChange.create(StringKit.removeHeadTail(alterExpression.getColumnOldName(), ccjddlWrapperConfig.getSplit(), false), StringKit.removeHeadTail(columnDataType.getColumnName(), ccjddlWrapperConfig.getSplit(), false)));
             consumer.accept(tapAlterFieldNameEvent);
         } else if (alterExpression.getOperation() == AlterOperation.RENAME) {
             String columnName = alterExpression.getColumnName();
@@ -66,7 +58,7 @@ public class MysqlAlterColumnNameDDLWrapper extends CCJBaseDDLWrapper {
             if (EmptyKit.isBlank(columnName) || EmptyKit.isBlank(columnOldName)) {
                 return;
             }
-            tapAlterFieldNameEvent.nameChange(ValueChange.create(StringKit.removeHeadTail(columnOldName, spilt, false), StringKit.removeHeadTail(columnName, spilt, false)));
+            tapAlterFieldNameEvent.nameChange(ValueChange.create(StringKit.removeHeadTail(columnOldName, ccjddlWrapperConfig.getSplit(), false), StringKit.removeHeadTail(columnName, ccjddlWrapperConfig.getSplit(), false)));
             consumer.accept(tapAlterFieldNameEvent);
         }
     }

@@ -23,14 +23,6 @@ import java.util.function.Consumer;
  **/
 public class MysqlDropColumnDDLWrapper extends CCJBaseDDLWrapper {
 
-    public MysqlDropColumnDDLWrapper() {
-        super("`");
-    }
-
-    public MysqlDropColumnDDLWrapper(String spilt) {
-        super(spilt);
-    }
-
     @Override
     public List<Capability> getCapabilities() {
         return Collections.singletonList(Capability.create(ConnectionOptions.DDL_DROP_FIELD_EVENT).type(Capability.TYPE_DDL));
@@ -47,7 +39,7 @@ public class MysqlDropColumnDDLWrapper extends CCJBaseDDLWrapper {
             }
             TapDropFieldEvent tapDropFieldEvent = new TapDropFieldEvent();
             tapDropFieldEvent.setTableId(tableName);
-            tapDropFieldEvent.setFieldName(StringKit.removeHeadTail(alterExpression.getColumnName(), spilt, false));
+            tapDropFieldEvent.setFieldName(StringKit.removeHeadTail(alterExpression.getColumnName(), ccjddlWrapperConfig.getSplit(), false));
             consumer.accept(tapDropFieldEvent);
         }
     }
