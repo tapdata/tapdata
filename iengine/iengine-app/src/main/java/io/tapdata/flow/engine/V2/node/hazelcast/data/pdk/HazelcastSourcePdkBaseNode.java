@@ -81,6 +81,11 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 	protected ExecutorService sourceRunner = new ThreadPoolExecutor(2, 2, 0L, TimeUnit.SECONDS, new SynchronousQueue<>());
 	protected ScheduledExecutorService tableMonitorResultHandler;
 	protected SnapshotProgressManager snapshotProgressManager;
+
+	/**
+	 * This is added as an async control center because pdk and jet have two different thread model. pdk thread is
+	 * blocked when reading data from data source while jet using async when passing the event to next node.
+	 */
 	protected LinkedBlockingQueue<TapdataEvent> eventQueue = new LinkedBlockingQueue<>(10);
 	private TapdataEvent pendingEvent;
 	protected SourceMode sourceMode = SourceMode.NORMAL;
@@ -289,28 +294,18 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 			TaskDto taskDto = dataProcessorContext.getTaskDto();
 			Log4jUtil.setThreadContext(taskDto);
 			TapdataEvent dataEvent;
-			AtomicBoolean isPending = new AtomicBoolean();
 			if (!isRunning()) {
 				return true;
 			}
 			if (pendingEvent != null) {
 				dataEvent = pendingEvent;
 				pendingEvent = null;
-				isPending.compareAndSet(false, true);
 			} else {
 				dataEvent = eventQueue.poll(5, TimeUnit.SECONDS);
-				isPending.compareAndSet(true, false);
 			}
 
 			if (dataEvent != null) {
 				TapEvent tapEvent;
-				if (!isPending.get()) {
-					TapCodecsFilterManager codecsFilterManager = getConnectorNode().getCodecsFilterManager();
-					tapEvent = dataEvent.getTapEvent();
-					if (sourceMode == SourceMode.NORMAL) {
-						tapRecordToTapValue(tapEvent, codecsFilterManager);
-					}
-				}
 				if (!offer(dataEvent)) {
 					pendingEvent = dataEvent;
 					return false;
@@ -632,6 +627,15 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 						break;
 					}
 				}
+
+				// covert to tap value before enqueue the event. when the event is enqueued into the eventQueue,
+				// the event is considered been output to the next node.
+				TapCodecsFilterManager codecsFilterManager = getConnectorNode().getCodecsFilterManager();
+				TapEvent tapEvent = tapdataEvent.getTapEvent();
+				if (sourceMode == SourceMode.NORMAL) {
+					tapRecordToTapValue(tapEvent, codecsFilterManager);
+				}
+
 				if (eventQueue.offer(tapdataEvent, 3, TimeUnit.SECONDS)) {
 					break;
 				}
