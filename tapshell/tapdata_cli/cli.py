@@ -1299,14 +1299,6 @@ class system_command(Magics):
         _l = i18n[_lang]
 
 
-ip = TerminalInteractiveShell.instance()
-ip.register_magics(global_help)
-ip.register_magics(system_command)
-ip.register_magics(show_command)
-ip.register_magics(op_object_command)
-ip.register_magics(ApiCommand)
-
-
 @help_decorate("Enum, used to describe a job status")
 class JobStatus():
     edit = "edit"
@@ -3420,9 +3412,30 @@ op_object_command_class = {
 
 
 def main():
+    # set ipython settings
+    ip = TerminalInteractiveShell.instance()
+    ip.register_magics(global_help)
+    ip.register_magics(system_command)
+    ip.register_magics(show_command)
+    ip.register_magics(op_object_command)
+    ip.register_magics(ApiCommand)
+
     login_with_access_code(server, access_code)
     show_connections(quiet=True)
     show_connectors(quiet=True)
 
 
-main()
+def init(custom_server, custom_access_code):
+    """
+    provide for python sdk to init env
+    """
+    global server, access_code
+    server = custom_server
+    access_code = custom_access_code
+    login_with_access_code(server, access_code)
+    show_connections(quiet=True)
+    show_connectors(quiet=True)
+
+
+if __name__ == "__main__":
+    main()
