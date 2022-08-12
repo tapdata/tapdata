@@ -1,0 +1,12 @@
+[
+  {
+    "name": "Tapdata GitHub Actions",
+    "type": "github",
+    "url": "https://tapdata.github.io/tapdata",
+    "buildOrder": 345,
+    "buildName": "GitHub Actions Run #2844444436",
+    "buildUrl": "https://github.com/tapdata/tapdata/actions/runs/2844444436",
+    "reportName": "Tapdata LDP Test Report",
+    "reportUrl": "https://tapdata.github.io/tapdata/refs-heads-develop-v2.7.0-delete-subtask/2844444436-345-1"
+  }
+]

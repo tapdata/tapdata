@@ -1,0 +1,168 @@
+{
+  "uid" : "79e0c86d4f21c23f",
+  "name" : "js udf in sync",
+  "fullName" : "test_pipeline.TestPipeline#test_processor_sync",
+  "historyId" : "5f76061d07be2fa3f1de95bfd0d35e24",
+  "time" : {
+    "start" : 1660279057915,
+    "stop" : 1660279060807,
+    "duration" : 2892
+  },
+  "status" : "passed",
+  "flaky" : false,
+  "newFailed" : false,
+  "beforeStages" : [ ],
+  "testStage" : {
+    "status" : "passed",
+    "steps" : [ ],
+    "attachments" : [ {
+      "uid" : "79836c25f2310d",
+      "name" : "stdout",
+      "source" : "79836c25f2310d.txt",
+      "type" : "text/plain",
+      "size" : 362
+    } ],
+    "parameters" : [ ],
+    "stepsCount" : 0,
+    "attachmentsCount" : 1,
+    "shouldDisplayMessage" : false,
+    "hasContent" : true
+  },
+  "afterStages" : [ ],
+  "labels" : [ {
+    "name" : "feature",
+    "value" : "pipeline"
+  }, {
+    "name" : "suite",
+    "value" : "test_pipeline"
+  }, {
+    "name" : "subSuite",
+    "value" : "TestPipeline"
+  }, {
+    "name" : "host",
+    "value" : "c5b984fbc758"
+  }, {
+    "name" : "thread",
+    "value" : "872-MainThread"
+  }, {
+    "name" : "framework",
+    "value" : "pytest"
+  }, {
+    "name" : "language",
+    "value" : "cpython3"
+  }, {
+    "name" : "package",
+    "value" : "test_pipeline"
+  }, {
+    "name" : "resultFormat",
+    "value" : "allure2"
+  } ],
+  "parameters" : [ ],
+  "links" : [ ],
+  "hidden" : false,
+  "retry" : false,
+  "extra" : {
+    "severity" : "normal",
+    "retries" : [ ],
+    "categories" : [ ],
+    "history" : {
+      "statistic" : {
+        "failed" : 0,
+        "broken" : 5,
+        "skipped" : 0,
+        "passed" : 6,
+        "unknown" : 0,
+        "total" : 11
+      },
+      "items" : [ {
+        "uid" : "5b7cb1e282036079",
+        "status" : "passed",
+        "time" : {
+          "start" : 1660277513913,
+          "stop" : 1660277515574,
+          "duration" : 1661
+        }
+      }, {
+        "uid" : "124174ea21ede5dd",
+        "status" : "passed",
+        "time" : {
+          "start" : 1660275248177,
+          "stop" : 1660275249827,
+          "duration" : 1650
+        }
+      }, {
+        "uid" : "f48e0d8abb407810",
+        "status" : "passed",
+        "time" : {
+          "start" : 1660218343021,
+          "stop" : 1660218344891,
+          "duration" : 1870
+        }
+      }, {
+        "uid" : "bd91fc900f803063",
+        "status" : "passed",
+        "time" : {
+          "start" : 1660213084246,
+          "stop" : 1660213085824,
+          "duration" : 1578
+        }
+      }, {
+        "uid" : "c1a2ee7fc5f879b4",
+        "status" : "passed",
+        "time" : {
+          "start" : 1660209868278,
+          "stop" : 1660209870473,
+          "duration" : 2195
+        }
+      }, {
+        "uid" : "89c79af1305bda8d",
+        "status" : "broken",
+        "statusDetails" : "IndexError: tuple index out of range",
+        "time" : {
+          "start" : 1660204139275,
+          "stop" : 1660204139601,
+          "duration" : 326
+        }
+      }, {
+        "uid" : "c91cb014a1e8fd8a",
+        "status" : "broken",
+        "statusDetails" : "IndexError: tuple index out of range",
+        "time" : {
+          "start" : 1660192594033,
+          "stop" : 1660192594441,
+          "duration" : 408
+        }
+      }, {
+        "uid" : "3efde8edfcf89ff",
+        "status" : "broken",
+        "statusDetails" : "IndexError: tuple index out of range",
+        "time" : {
+          "start" : 1660188066201,
+          "stop" : 1660188066536,
+          "duration" : 335
+        }
+      }, {
+        "uid" : "7ccb907a8cbbef88",
+        "status" : "broken",
+        "statusDetails" : "IndexError: tuple index out of range",
+        "time" : {
+          "start" : 1660131361326,
+          "stop" : 1660131361671,
+          "duration" : 345
+        }
+      }, {
+        "uid" : "2fa73604389e55c3",
+        "status" : "broken",
+        "statusDetails" : "IndexError: tuple index out of range",
+        "time" : {
+          "start" : 1660126812324,
+          "stop" : 1660126812590,
+          "duration" : 266
+        }
+      } ]
+    },
+    "tags" : [ ]
+  },
+  "source" : "79e0c86d4f21c23f.json",
+  "parameterValues" : [ ]
+}
