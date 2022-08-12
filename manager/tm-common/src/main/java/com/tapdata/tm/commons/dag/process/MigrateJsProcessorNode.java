@@ -17,6 +17,7 @@ import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.bson.types.ObjectId;
+import org.springframework.beans.BeanUtils;
 
 import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
@@ -71,20 +72,22 @@ public class MigrateJsProcessorNode extends Node<List<Schema>> {
         DAG build = DAG.build(dag);
         build.getNodes().forEach(node -> node.getDag().setTaskId(taskId));
 
-        TaskDto subTaskDto = new TaskDto();
-        subTaskDto.setStatus(TaskDto.STATUS_WAIT_RUN);
         TaskDto taskDto = service.getTaskById(taskId == null ? null : taskId.toHexString());
-        taskDto.setDag(null);
-        taskDto.setSyncType(TaskDto.SYNC_TYPE_DEDUCE_SCHEMA);
-        subTaskDto.setDag(build);
-        subTaskDto.setId(new ObjectId());
-        subTaskDto.setName(taskDto.getName() + "(100)");
-        subTaskDto.setParentSyncType(taskDto.getSyncType());
+
+        TaskDto taskDtoCopy = new TaskDto();
+        BeanUtils.copyProperties(taskDto, taskDtoCopy);
+        taskDtoCopy.setStatus(TaskDto.STATUS_WAIT_RUN);
+        taskDtoCopy.setSyncType(TaskDto.SYNC_TYPE_DEDUCE_SCHEMA);
+        taskDtoCopy.setDag(build);
+        taskDtoCopy.setId(new ObjectId());
+        taskDtoCopy.setName(taskDto.getName() + "(100)");
+        taskDtoCopy.setParentSyncType(taskDto.getSyncType());
+
 
         List<Schema> result = Lists.newArrayList();
         List<MigrateJsResultVo> jsResult;
         try {
-            jsResult = service.getJsResult(getId(), target.getId(), subTaskDto);
+            jsResult = service.getJsResult(getId(), target.getId(), taskDtoCopy);
         } catch (Exception e) {
             log.error("MigrateJsProcessorNode getJsResult ERROR", e);
             throw new RuntimeException(e);

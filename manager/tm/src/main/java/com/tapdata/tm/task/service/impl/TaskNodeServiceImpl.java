@@ -362,15 +362,14 @@ public class TaskNodeServiceImpl implements TaskNodeService {
         build.setEdges(edges);
 
         DAG temp = DAG.build(build);
-
-        taskDto.setDag(null);
-        taskDto.setSyncType(TaskDto.SYNC_TYPE_TEST_RUN);
-        TaskDto subTaskDto = new TaskDto();
-        subTaskDto.setStatus(TaskDto.STATUS_WAIT_RUN);
-        subTaskDto.setDag(temp);
-        subTaskDto.setId(new ObjectId());
-        subTaskDto.setName(taskDto.getName() + "(100)");
-        subTaskDto.setVersion(version);
+        TaskDto taskDtoCopy = new TaskDto();
+        BeanUtils.copyProperties(taskDto, taskDtoCopy);
+        taskDtoCopy.setSyncType(TaskDto.SYNC_TYPE_TEST_RUN);
+        taskDtoCopy.setStatus(TaskDto.STATUS_WAIT_RUN);
+        taskDtoCopy.setDag(temp);
+        taskDtoCopy.setId(new ObjectId());
+        taskDtoCopy.setName(taskDto.getName() + "(100)");
+        taskDtoCopy.setVersion(version);
 
         List<Worker> workers = workerService.findAvailableAgentByAccessNode(userDetail, taskDto.getAccessNodeProcessIdList());
         if (CollectionUtils.isEmpty(workers)) {
@@ -379,7 +378,7 @@ public class TaskNodeServiceImpl implements TaskNodeService {
 
         MessageQueueDto queueDto = new MessageQueueDto();
         queueDto.setReceiver(workers.get(0).getProcessId());
-        queueDto.setData(subTaskDto);
+        queueDto.setData(taskDtoCopy);
         queueDto.setType(TaskDto.SYNC_TYPE_TEST_RUN);
         messageQueueService.sendMessage(queueDto);
     }

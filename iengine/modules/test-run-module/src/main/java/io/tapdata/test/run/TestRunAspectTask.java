@@ -22,6 +22,8 @@ import io.tapdata.entity.schema.value.TapDateTimeValue;
 import io.tapdata.entity.simplify.pretty.ClassHandlers;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
 import org.apache.commons.collections.MapUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -29,6 +31,8 @@ import java.util.stream.Collectors;
 
 @AspectTaskSession(includeTypes = TaskDto.SYNC_TYPE_TEST_RUN, order = Integer.MAX_VALUE)
 public class TestRunAspectTask extends AspectTask {
+
+  private final Logger logger = LogManager.getLogger(TestRunAspectTask.class);
 
   private final ClassHandlers observerClassHandlers = new ClassHandlers();
 
@@ -93,6 +97,7 @@ public class TestRunAspectTask extends AspectTask {
     ClientMongoOperator clientMongoOperator = BeanUtil.getBean(ClientMongoOperator.class);
     clientMongoOperator.insertOne(paramMap, "/task/migrate-js/save-result");
 
+    logger.info("return to tm {}", paramMap);
   }
 
   @Override

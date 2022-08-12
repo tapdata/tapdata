@@ -72,18 +72,18 @@ public class JsProcessorNode extends ProcessorNode {
 
         DAG build = DAG.build(dag);
 
-        TaskDto subTaskDto = new TaskDto();
-        subTaskDto.setStatus(TaskDto.STATUS_WAIT_RUN);
         ObjectId taskId = this.getDag().getTaskId();
         TaskDto taskDto = service.getTaskById(taskId == null ? null : taskId.toHexString());
-        taskDto.setDag(null);
-        taskDto.setSyncType(TaskDto.SYNC_TYPE_DEDUCE_SCHEMA);
-        subTaskDto.setDag(build);
-        subTaskDto.setId(new ObjectId());
-        subTaskDto.setName(taskDto.getName() + "(100)");
-//        subTaskDto.setTransformTask(true);
+        TaskDto taskDtoCopy = new TaskDto();
+        BeanUtils.copyProperties(taskDto, taskDtoCopy);
+        taskDtoCopy.setStatus(TaskDto.STATUS_WAIT_RUN);
+        taskDtoCopy.setSyncType(TaskDto.SYNC_TYPE_DEDUCE_SCHEMA);
+        taskDtoCopy.setDag(build);
+        taskDtoCopy.setId(new ObjectId());
+        taskDtoCopy.setName(taskDto.getName() + "(100)");
+
         ////用于预跑数据得到模型
-        TapTable tapTable = service.loadTapTable(getInputSchema(), script, getId(), target.getId(), null, null, subTaskDto);
+        TapTable tapTable = service.loadTapTable(getInputSchema(), script, getId(), target.getId(), null, null, taskDtoCopy);
         Schema schema = PdkSchemaConvert.fromPdkSchema(tapTable);
 
 
