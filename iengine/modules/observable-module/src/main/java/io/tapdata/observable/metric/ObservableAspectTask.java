@@ -165,7 +165,7 @@ public class ObservableAspectTask extends AspectTask {
 					dataNodeSampleHandler.handleStreamReadReadComplete(nodeId, System.currentTimeMillis(), recorder, newestEventTimestamp);
 					taskSampleHandler.handleStreamReadAccept(recorder);
 				});
-				aspect.streamingReadCompleteConsumers(events -> {
+				aspect.streamingEnqueuedConsumers(events -> {
 					dataNodeSampleHandler.handleStreamReadEnqueued(nodeId, System.currentTimeMillis());
 				});
 				break;

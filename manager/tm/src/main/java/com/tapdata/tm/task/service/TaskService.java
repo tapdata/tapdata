@@ -46,6 +46,7 @@ import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
 import com.tapdata.tm.monitor.entity.AgentStatDto;
 import com.tapdata.tm.monitor.entity.MeasurementEntity;
 import com.tapdata.tm.monitor.service.MeasurementService;
+import com.tapdata.tm.monitor.service.MeasurementServiceV2;
 import com.tapdata.tm.task.bean.*;
 import com.tapdata.tm.task.constant.SyncType;
 import com.tapdata.tm.task.constant.TaskEnum;
@@ -102,6 +103,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     private MessageService messageService;
     private SnapshotEdgeProgressService snapshotEdgeProgressService;
     private MeasurementService measurementService;
+    private MeasurementServiceV2 measurementServiceV2;
     private InspectService inspectService;
     private TaskRunHistoryService taskRunHistoryService;
     private TransformSchemaAsyncService transformSchemaAsyncService;
@@ -2081,6 +2083,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         //所有的任务重置操作，都会进这里
         //根据TaskId 把指标数据都删掉
         measurementService.deleteTaskMeasurement(taskId);
+        measurementServiceV2.deleteTaskMeasurement(taskId);
     }
     public void renewNotSendMq(TaskDto taskDto, UserDetail user) {
         log.info("renew task, task name = {}, username = {}", taskDto.getName(), user.getUsername());

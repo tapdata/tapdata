@@ -621,4 +621,14 @@ public class MeasurementServiceV2 {
             bulkOperations.execute();
         }
     }
+
+    public void deleteTaskMeasurement(String taskId) {
+        if (StringUtils.isEmpty(taskId)) {
+            return;
+        }
+        Query query = Query.query(Criteria.where("tags.taskId").is(taskId));
+        DeleteResult result = mongoOperations.remove(query, MeasurementEntity.class, TableNameEnum.AgentMeasurementV2.getValue());
+
+        log.info(" taskId :{}  删除了 {} 条记录", taskId, JsonUtil.toJson(result));
+    }
 }
