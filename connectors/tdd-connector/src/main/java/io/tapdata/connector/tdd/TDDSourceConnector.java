@@ -49,27 +49,27 @@ public class TDDSourceConnector extends ConnectorBase {
                 table("tdd-table")
                         //Define a field named "id", origin field type, whether is primary key and primary key position
                         .add(field("id", "tapString").isPrimaryKey(true).primaryKeyPos(1))
-                        .add(field("tapString", "tapString").isPrimaryKey(true).primaryKeyPos(2))
-                        .add(field("tddUser", "tapString"))
-                        .add(field("tapString10", "tapString(10)"))
-                        .add(field("tapString10Fixed", "tapString(10) fixed"))
-                        .add(field("tapInt", "int"))
-                        .add(field("tapBoolean", "tapBoolean"))
-                        .add(field("tapDate", "tapDate"))
-                        .add(field("tapArrayString", "tapArray"))
-                        .add(field("tapArrayDouble", "tapArray"))
-                        .add(field("tapArrayTDDUser", "tapArray"))
-                        .add(field("tapRawTDDUser", "tapRaw"))
-                        .add(field("tapNumber", "tapNumber"))
+                        .add(field("tap_string", "tapString").isPrimaryKey(true).primaryKeyPos(2))
+                        .add(field("tdd_user", "tapString"))
+                        .add(field("tap_string10", "tapString(10)"))
+                        .add(field("tap_string10_fixed", "tapString(10) fixed"))
+                        .add(field("tap_int", "int"))
+                        .add(field("tap_boolean", "tapBoolean"))
+                        .add(field("tap_date", "tapDate"))
+                        .add(field("tap_array_string", "tapArray"))
+                        .add(field("tap_array_double", "tapArray"))
+                        .add(field("tap_array_tdd_user", "tapArray"))
+                        .add(field("tap_raw_tdd_user", "tapRaw"))
+                        .add(field("tap_number", "tapNumber"))
 //                        .add(field("tapNumber8", "tapNumber(8)"))
-                        .add(field("tapNumber52", "tapNumber(5, 2)"))
-                        .add(field("tapBinary", "tapBinary"))
-                        .add(field("tapTime", "tapTime"))
-                        .add(field("tapMapStringString", "tapMap"))
-                        .add(field("tapMapStringDouble", "tapMap"))
-                        .add(field("tapMapStringTDDUser", "tapMap"))
-                        .add(field("tapDateTime", "tapDateTime"))
-                        .add(field("tapDateTimeTimeZone", "tapDateTime"))
+                        .add(field("tap_number52", "tapNumber(5, 2)"))
+                        .add(field("tap_binary", "tapBinary"))
+                        .add(field("tap_time", "tapTime"))
+                        .add(field("tap_map_string_string", "tapMap"))
+                        .add(field("tap_map_string_double", "tapMap"))
+                        .add(field("tap_map_string_tdd_user", "tapMap"))
+                        .add(field("tap_date_time", "tapDateTime"))
+                        .add(field("tap_date_time_time_zone", "tapDateTime"))
         ));
     }
 
@@ -195,28 +195,28 @@ public class TDDSourceConnector extends ConnectorBase {
             for (int i = 0; i < 1; i++) {
                 TapInsertRecordEvent recordEvent = insertRecordEvent(map(
                         entry("id", "full_1"),
-                        entry("tapString", "123"),
-                        entry("tddUser", new TDDUser("uid_" + counter.get(), "name_" + counter.get(), "desp_" + counter.get(), (int) counter.get(), TDDUser.GENDER_FEMALE)),
-                        entry("tapString10", "1234567890"),
-                        entry("tapString10Fixed", "1"),
-                        entry("tapInt", 1023123),
-                        entry("tapBoolean", true),
-                        entry("tapDate", date),
+                        entry("tap_string", "123"),
+                        entry("tdd_user", new TDDUser("uid_" + counter.get(), "name_" + counter.get(), "desp_" + counter.get(), (int) counter.get(), TDDUser.GENDER_FEMALE)),
+                        entry("tap_string10", "1234567890"),
+                        entry("tap_string10_fixed", "1"),
+                        entry("tap_int", 1023123),
+                        entry("tap_boolean", true),
+                        entry("tap_date", date),
 
-                        entry("tapArrayString", list("1", "2", "3")),
-                        entry("tapArrayDouble", list(1.1, 2.2, 3.3)),
-                        entry("tapArrayTDDUser", list(new TDDUser("a", "n", "d", 1, TDDUser.GENDER_MALE), new TDDUser("b", "a", "b", 2, TDDUser.GENDER_FEMALE))),
-                        entry("tapRawTDDUser", new TDDUser("a1", "n1", "d1", 11, TDDUser.GENDER_MALE)),
-                        entry("tapNumber", 123.0),
+                        entry("tap_array_string", list("1", "2", "3")),
+                        entry("tap_array_double", list(1.1, 2.2, 3.3)),
+                        entry("tap_array_tdd_user", list(new TDDUser("a", "n", "d", 1, TDDUser.GENDER_MALE), new TDDUser("b", "a", "b", 2, TDDUser.GENDER_FEMALE))),
+                        entry("tap_raw_tdd_user", new TDDUser("a1", "n1", "d1", 11, TDDUser.GENDER_MALE)),
+                        entry("tap_number", 123.0),
 //                        entry("tapNumber(8)", 1111),
-                        entry("tapNumber52", 343.22),
-                        entry("tapBinary", new byte[]{123, 21, 3, 2}),
-                        entry("tapTime", date),
-                        entry("tapMapStringString", map(entry("a", "a"), entry("b", "b"))),
-                        entry("tapMapStringDouble", map(entry("a", 1.0), entry("b", 2.0))),
-                        entry("tapMapStringTDDUser", map(entry("a", new TDDUser("a1", "n1", "d1", 11, TDDUser.GENDER_MALE)))),
-                        entry("tapDateTime", date),
-                        entry("tapDateTimeTimeZone", date)
+                        entry("tap_number52", 343.22),
+                        entry("tap_binary", new byte[]{123, 21, 3, 2}),
+                        entry("tap_time", date),
+                        entry("tap_map_string_string", map(entry("a", "a"), entry("b", "b"))),
+                        entry("tap_map_string_double", map(entry("a", 1.0), entry("b", 2.0))),
+                        entry("tap_map_string_tdd_user", map(entry("a", new TDDUser("a1", "n1", "d1", 11, TDDUser.GENDER_MALE)))),
+                        entry("tap_date_time", date),
+                        entry("tap_date_time_time_zone", date)
                 ), table.getId());
                 tapEvents.add(recordEvent);
             }
