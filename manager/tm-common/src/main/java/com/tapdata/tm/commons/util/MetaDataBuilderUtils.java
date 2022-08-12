@@ -1,5 +1,6 @@
 package com.tapdata.tm.commons.util;
 
+import com.google.common.base.Joiner;
 import com.mongodb.ConnectionString;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
 import com.tapdata.tm.commons.schema.DataSourceDefinitionDto;
@@ -62,11 +63,16 @@ public class MetaDataBuilderUtils {
             , @NonNull String definitionPdkId, @NonNull String definitionGroup, @NonNull String definitionVersion, String taskId) {
 
         String qualifiedName = metaTypePropertyMap.get(metaType).getPrefix();
-        if (StringUtils.isNotBlank(tableName)) {
-            qualifiedName += String.join(QUALIFIED_NAME_SEPARATOR, definitionPdkId, definitionGroup, definitionVersion, tableName, connId, taskId);
-        } else {
-            qualifiedName += String.join(QUALIFIED_NAME_SEPARATOR, definitionPdkId, definitionGroup, definitionVersion, connId, taskId);
+
+        Joiner joiner = Joiner.on(QUALIFIED_NAME_SEPARATOR).skipNulls();
+        if (StringUtils.isBlank(tableName)) {
+            tableName = null;
         }
+
+        if (StringUtils.isBlank(taskId)) {
+            taskId = null;
+        }
+        qualifiedName += joiner.join(definitionPdkId, definitionGroup, definitionVersion, tableName, connId, taskId);
         qualifiedName = qualifiedName.replaceAll(QUALIFIED_NAME_SPECIAL_CHARACTERS, QUALIFIED_NAME_SEPARATOR);
         return qualifiedName;
     }
