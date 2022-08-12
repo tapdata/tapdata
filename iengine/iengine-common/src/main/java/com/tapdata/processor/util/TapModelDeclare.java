@@ -56,6 +56,10 @@ public class TapModelDeclare {
                     getTapField(fieldName, tapType, dataType)));
   }
 
+  public static void updateField(TapTable tapTable, String fieldName, String tapType) throws Throwable {
+    tapTable.add(getTapField(fieldName, tapType, null));
+  }
+
   public static void updateField(TapTable tapTable, String fieldName, String tapType, String dataType) throws Throwable {
     if (!tapTable.getNameFieldMap().containsKey(fieldName)) {
       logger.warn("field not found: " + fieldName);
