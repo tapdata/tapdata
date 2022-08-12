@@ -727,6 +727,11 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
         String status = taskDto.getStatus();
 
+        if (TaskOpStatusEnum.to_delete_status.v().contains(status)) {
+            log.warn("task current status not allow to delete, task = {}, status = {}", taskDto.getName(), taskDto.getStatus());
+            throw new BizException("Task.DeleteStatusInvalid");
+        }
+
         //将任务删除标识改成true
         update(new Query(Criteria.where("_id").is(id)), Update.update("is_deleted", true));
 
@@ -735,6 +740,13 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             messageService.addMigration(taskDto.getName(), taskDto.getId().toString(), MsgTypeEnum.DELETED, Level.WARN, user);
         } else if (SyncType.SYNC.getValue().equals(taskDto.getSyncType())) {
             messageService.addSync(taskDto.getName(), taskDto.getId().toString(), MsgTypeEnum.DELETED, "", Level.WARN, user);
+        }
+
+        try {
+            metadataInstancesService.deleteTaskMetadata(id.toHexString(), user);
+            historyService.deleteTaskMetaHistory(id.toHexString(), user);
+        } catch (Exception e) {
+            log.warn("remove task, but remove schema error, task name = {}", taskDto.getName());
         }
 
     }

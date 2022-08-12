@@ -1667,4 +1667,14 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
             log.warn("update logic metadata failed");
         }
     }
+
+
+
+
+    public void deleteTaskMetadata(String taskId, UserDetail user) {
+        Criteria criteria = Criteria.where("taskId").is(taskId);
+
+        Query query = new Query(criteria);
+        deleteAll(query, user);
+    }
 }

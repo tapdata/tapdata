@@ -851,18 +851,14 @@ public class LogCollectorService {
 
                 if (CollectionUtils.isNotEmpty(oldTableNames) && oldTableNames.containsAll(tableNames)) {
                     //检查状态，如果状态不是启动的，需要启动起来
-                    List<Status> statuses = oldLogCollectorTask.getStatuses();
+                    String status = oldLogCollectorTask.getStatus();
                     if (updateConnectionId) {
                         taskService.confirmById(oldLogCollectorTask, user, true);
                     }
-                    if (CollectionUtils.isNotEmpty(statuses)) {
-                        Status subStatus = statuses.get(0);
-                        if (TaskDto.STATUS_RUNNING.equals(subStatus.getStatus())) {
-                            return;
-                        }
+
+                    if (TaskDto.STATUS_RUNNING.equals(status)) {
+                        return;
                     }
-
-
                     taskService.start(oldLogCollectorTask.getId(), user);
                     return;
                 }

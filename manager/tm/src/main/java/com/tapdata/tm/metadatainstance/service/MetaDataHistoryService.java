@@ -92,4 +92,12 @@ public class MetaDataHistoryService {
         mongoTemplate.remove(query, "MetaDataHistory");
     }
 
+
+    public void deleteTaskMetaHistory(String taskId, UserDetail user) {
+        Criteria criteria = Criteria.where("taskId").is(taskId);
+
+        Query query = new Query(criteria);
+        mongoTemplate.remove(query, "MetaDataHistory");
+    }
+
 }
