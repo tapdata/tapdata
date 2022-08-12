@@ -1,6 +1,7 @@
 package io.tapdata.connector.redis;
 
 import com.alibaba.fastjson.JSON;
+import com.alibaba.fastjson.JSONObject;
 import com.mongodb.client.MongoDatabase;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
@@ -135,7 +136,7 @@ public class RedisRecordWriter {
         }
         String key = redisContext.getRedisKeySetter().getRedisKey(value, connectorContext, tableName);
         // json格式平铺
-        String strValue = getStrValue(value);
+        String strValue = getJsonValue(value);
         if (recordEvent instanceof TapDeleteRecordEvent) {
             pipelined.del(key);
         } else {
@@ -144,9 +145,30 @@ public class RedisRecordWriter {
 
     }
 
+    /**
+     * handle data for json
+     * @return String
+     */
+    private String getJsonValue(Map<String, Object> map) throws Exception {
+
+        JSONObject jsonObject  =new JSONObject();
+        for (String key : map.keySet()) {
+            Object value;
+            if (null == map.get(key)) {
+                value = "null";
+            } else {
+                value = map.get(key);
+            }
+            jsonObject.put(key,value);
+
+        }
+        return jsonObject.toJSONString();
+    }
+
+
 
     /**
-     * handle data for string
+     * handle data for list
      *
      * @return String
      */

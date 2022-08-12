@@ -145,10 +145,21 @@ public class RedisConnector extends ConnectorBase {
 
 
     private void createTable(TapConnectorContext tapConnectorContext, TapCreateTableEvent createTableEvent) throws Throwable {
+
+        DataMap nodeConfig = tapConnectorContext.getNodeConfig();
+        // 存储为json模式时，不需要保存schema
+        if(nodeConfig != null){
+            String  valueType = (String) nodeConfig.get("valueType");
+            if(!RedisRecordWriter.VALUE_TYPE_LIST.equals(valueType)){
+                return;
+            }
+        }
+
         Jedis jedis = redisContext.getJedis();
         // 获取源表的字段
         List<TapField> fieldList = new ArrayList<>();
         LinkedHashMap<String, TapField> hashMap = createTableEvent.getTable().getNameFieldMap();
+
         for (Map.Entry<String, TapField> entry : hashMap.entrySet()) {
             fieldList.add(entry.getValue());
         }
@@ -162,7 +173,6 @@ public class RedisConnector extends ConnectorBase {
         schema = schema.substring(1);
 
         // redis key的表名。如果前缀表名不存在，目标定义的表名
-        DataMap nodeConfig = tapConnectorContext.getNodeConfig();
         String keyName = createTableEvent.getTableId();
         if (nodeConfig != null && nodeConfig.get("cachePrefix")!=null) {
             keyName = (String)nodeConfig.get("cachePrefix") ;
