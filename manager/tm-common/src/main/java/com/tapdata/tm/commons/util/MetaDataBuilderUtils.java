@@ -59,13 +59,13 @@ public class MetaDataBuilderUtils {
     }
 
     public static String generatePdkQualifiedName(@NonNull String metaType, @NonNull String connId, @NonNull String tableName
-            , @NonNull String definitionPdkId, @NonNull String definitionGroup, @NonNull String definitionVersion) {
+            , @NonNull String definitionPdkId, @NonNull String definitionGroup, @NonNull String definitionVersion, String taskId) {
 
         String qualifiedName = metaTypePropertyMap.get(metaType).getPrefix();
         if (StringUtils.isNotBlank(tableName)) {
-            qualifiedName += String.join(QUALIFIED_NAME_SEPARATOR, definitionPdkId, definitionGroup, definitionVersion, tableName, connId);
+            qualifiedName += String.join(QUALIFIED_NAME_SEPARATOR, definitionPdkId, definitionGroup, definitionVersion, tableName, connId, taskId);
         } else {
-            qualifiedName += String.join(QUALIFIED_NAME_SEPARATOR, definitionPdkId, definitionGroup, definitionVersion, connId);
+            qualifiedName += String.join(QUALIFIED_NAME_SEPARATOR, definitionPdkId, definitionGroup, definitionVersion, connId, taskId);
         }
         qualifiedName = qualifiedName.replaceAll(QUALIFIED_NAME_SPECIAL_CHARACTERS, QUALIFIED_NAME_SEPARATOR);
         return qualifiedName;
@@ -78,7 +78,7 @@ public class MetaDataBuilderUtils {
 
         String id = connectionDto.getId().toHexString();
         if (DataSourceDefinitionDto.PDK_TYPE.equals(connectionDto.getPdkType())) {
-            return generatePdkQualifiedName(metaType, id, tableName, connectionDto.getDefinitionPdkId(), connectionDto.getDefinitionGroup(), connectionDto.getDefinitionVersion());
+            return generatePdkQualifiedName(metaType, id, tableName, connectionDto.getDefinitionPdkId(), connectionDto.getDefinitionGroup(), connectionDto.getDefinitionVersion(), taskId);
         }
 
         String qualifiedName = metaTypePropertyMap.get(metaType).getPrefix();
