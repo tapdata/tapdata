@@ -11,7 +11,7 @@ public interface TaskRecordService {
 
     void updateTaskStatus(SyncTaskStatusDto dto);
 
-    Page<TaskRecordListVo> queryRecords(String taskId, String offset, Integer limit);
+    Page<TaskRecordListVo> queryRecords(String taskId, Integer page, Integer size);
 
     TaskDto queryTask(String taskRecordId, String userId);
 }

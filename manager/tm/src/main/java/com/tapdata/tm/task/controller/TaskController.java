@@ -14,7 +14,6 @@ import com.tapdata.tm.commons.schema.MetadataTransformerItemDto;
 import com.tapdata.tm.commons.schema.TransformerWsMessageDto;
 import com.tapdata.tm.commons.schema.TransformerWsMessageResult;
 import com.tapdata.tm.commons.task.dto.TaskDto;
-import com.tapdata.tm.commons.task.dto.TaskRunHistoryDto;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.ds.service.impl.DataSourceDefinitionService;
 import com.tapdata.tm.message.constant.Level;
@@ -971,9 +970,9 @@ public class TaskController extends BaseController {
     @Operation(summary = "任务运行记录")
     @GetMapping("/records/{id}")
     public ResponseMessage<Page<TaskRecordListVo>> records(@PathVariable(value = "id") String taskId,
-                                                           @RequestParam(required = false) String offset,
-                                                           @RequestParam(defaultValue = "20") Integer limit) {
-        return success(taskRecordService.queryRecords(taskId, offset, limit));
+                                                           @RequestParam(defaultValue = "1") Integer page,
+                                                           @RequestParam(defaultValue = "20") Integer size) {
+        return success(taskRecordService.queryRecords(taskId, page, size));
     }
 
 }
