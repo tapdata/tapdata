@@ -60,7 +60,8 @@ public class TaskDto extends ParentTaskDto {
     //是否开启数据校验
     private Boolean isAutoInspect;
     public boolean isAutoInspect() {
-        return Boolean.TRUE.equals(isAutoInspect);
+        return false;
+//        return Boolean.TRUE.equals(isAutoInspect);//先屏蔽校验功能
     }
 
     private String creator;
