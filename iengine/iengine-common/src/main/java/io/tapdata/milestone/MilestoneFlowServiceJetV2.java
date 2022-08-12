@@ -5,7 +5,7 @@ import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.constant.JSONUtil;
 import com.tapdata.entity.Milestone;
 import com.tapdata.mongo.ClientMongoOperator;
-import com.tapdata.tm.commons.task.dto.SubTaskDto;
+import com.tapdata.tm.commons.task.dto.TaskDto;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.collections.MapUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -28,11 +28,11 @@ public class MilestoneFlowServiceJetV2 extends MilestoneService {
 
 	public MilestoneFlowServiceJetV2(MilestoneContext milestoneContext) {
 		super(milestoneContext);
-		SubTaskDto subTaskDto = milestoneContext.getSubTaskDto();
-		Map<String, Object> attrs = subTaskDto.getAttrs();
+		TaskDto taskDto = milestoneContext.getTaskDto();
+		Map<String, Object> attrs = taskDto.getAttrs();
 		Object edgeMilestones = null;
 		if (MapUtils.isNotEmpty(attrs)) {
-			edgeMilestones = subTaskDto.getAttrs().get("edgeMilestones");
+			edgeMilestones = taskDto.getAttrs().get("edgeMilestones");
 		}
 		if (edgeMilestones instanceof Map && MapUtils.isNotEmpty((Map<?, ?>) edgeMilestones)) {
 			Map<String, EdgeMilestone> newEdgeMilestones = new ConcurrentHashMap<>();
@@ -64,7 +64,7 @@ public class MilestoneFlowServiceJetV2 extends MilestoneService {
 	 * @return
 	 */
 	public List<Milestone> mergeAndGetMilestones() {
-		if (null == this.milestoneContext.getSubTaskDto() || StringUtils.isBlank(this.milestoneContext.getSubTaskDto().getId().toHexString())) {
+		if (null == this.milestoneContext.getTaskDto() || StringUtils.isBlank(this.milestoneContext.getTaskDto().getId().toHexString())) {
 			throw new IllegalArgumentException("Milestone context missing property: dataflow, dataflow.id");
 		}
 
@@ -126,12 +126,12 @@ public class MilestoneFlowServiceJetV2 extends MilestoneService {
 	public void updateList() {
 
 		// 从中间库拉取最新的edgeMilestones数据
-		Query query = new Query(Criteria.where("_id").is(milestoneContext.getSubTaskDto().getId().toHexString()));
+		Query query = new Query(Criteria.where("_id").is(milestoneContext.getTaskDto().getId().toHexString()));
 		query.fields().include("attrs.edgeMilestones");
-		SubTaskDto subTaskDto = clientMongoOperator.findOne(query, ConnectorConstant.SUB_TASK_COLLECTION, SubTaskDto.class);
+		TaskDto taskDto = clientMongoOperator.findOne(query, ConnectorConstant.TASK_COLLECTION, TaskDto.class);
 		Map<String, EdgeMilestone> edgeMilestoneMap = new ConcurrentHashMap<>();
-		if (MapUtils.isNotEmpty(subTaskDto.getAttrs())) {
-			final Map<String, Object> edgeMilestones = (Map) subTaskDto.getAttrs().getOrDefault("edgeMilestones", new ConcurrentHashMap<>());
+		if (MapUtils.isNotEmpty(taskDto.getAttrs())) {
+			final Map<String, Object> edgeMilestones = (Map) taskDto.getAttrs().getOrDefault("edgeMilestones", new ConcurrentHashMap<>());
 			if (MapUtils.isNotEmpty(edgeMilestones)) {
 				for (Map.Entry<String, Object> objectEntry : edgeMilestones.entrySet()) {
 					final String key = objectEntry.getKey();
@@ -156,11 +156,11 @@ public class MilestoneFlowServiceJetV2 extends MilestoneService {
 			}
 		}
 		// 根据edgeMilestones合并出milestone list
-		milestoneContext.getSubTaskDto().setMilestones(taskMilestones);
-		query = new Query(Criteria.where("_id").is(milestoneContext.getSubTaskDto().getId().toHexString()));
-		Update update = new Update().set(MILESTONES_FIELD_NAME, milestoneContext.getSubTaskDto().getMilestones());
+		milestoneContext.getTaskDto().setMilestones(taskMilestones);
+		query = new Query(Criteria.where("_id").is(milestoneContext.getTaskDto().getId().toHexString()));
+		Update update = new Update().set(MILESTONES_FIELD_NAME, milestoneContext.getTaskDto().getMilestones());
 //      .set("attrs.edgeMilestones", milestoneContext.getEdgeMilestones());
-		clientMongoOperator.update(query, update, ConnectorConstant.SUB_TASK_COLLECTION);
+		clientMongoOperator.update(query, update, ConnectorConstant.TASK_COLLECTION);
 	}
 
 	/**
@@ -170,8 +170,8 @@ public class MilestoneFlowServiceJetV2 extends MilestoneService {
 	 */
 	@Override
 	public void updateList(List<Milestone> milestoneList) {
-		Query query = new Query(Criteria.where("_id").is(milestoneContext.getSubTaskDto().getId().toHexString()));
+		Query query = new Query(Criteria.where("_id").is(milestoneContext.getTaskDto().getId().toHexString()));
 		Update update = new Update().set(MILESTONES_FIELD_NAME, milestoneList);
-		clientMongoOperator.update(query, update, ConnectorConstant.SUB_TASK_COLLECTION);
+		clientMongoOperator.update(query, update, ConnectorConstant.TASK_COLLECTION);
 	}
 }

@@ -21,5 +21,5 @@ public class LogCollectorDetailVo extends LogCollectorVo {
     private Date logTime;
 
     private long delayTime;
-    private String subTaskId;
+    private String taskId;
 }

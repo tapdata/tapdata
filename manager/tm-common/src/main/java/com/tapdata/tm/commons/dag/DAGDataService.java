@@ -3,7 +3,6 @@ package com.tapdata.tm.commons.dag;
 import com.tapdata.tm.commons.dag.vo.MigrateJsResultVo;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
 import com.tapdata.tm.commons.schema.Schema;
-import com.tapdata.tm.commons.task.dto.SubTaskDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.entity.schema.TapTable;
 import org.bson.types.ObjectId;
@@ -39,11 +38,11 @@ public interface DAGDataService {
     public List<Schema> loadSchema(String ownerId, ObjectId dataSourceId, List<String> includes, List<String> excludes);
 
 
-    default TapTable loadTapTable(List<Schema> schemas, String script, String nodeId, String virtualId, String customNodeId, Map<String, Object> form, SubTaskDto subTaskDto) {
+    default TapTable loadTapTable(List<Schema> schemas, String script, String nodeId, String virtualId, String customNodeId, Map<String, Object> form, TaskDto subTaskDto) {
         return null;
     }
 
-    default List<MigrateJsResultVo> getJsResult(String jsNodeId, String virtualTargetId, SubTaskDto subTaskDto) {
+    default List<MigrateJsResultVo> getJsResult(String jsNodeId, String virtualTargetId, TaskDto subTaskDto) {
         return null;
     }
 

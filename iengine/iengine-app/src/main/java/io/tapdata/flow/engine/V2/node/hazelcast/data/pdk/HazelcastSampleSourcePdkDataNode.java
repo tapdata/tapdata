@@ -63,7 +63,7 @@ public class HazelcastSampleSourcePdkDataNode extends HazelcastPdkBaseNode {
     try {
       Node<?> node = dataProcessorContext.getNode();
       Thread.currentThread().setName("PDK-SAMPLE-SOURCE-RUNNER-" + node.getName() + "(" + node.getId() + ")");
-      Log4jUtil.setThreadContext(dataProcessorContext.getSubTaskDto());
+      Log4jUtil.setThreadContext(dataProcessorContext.getTaskDto());
       TapTableMap<String, TapTable> tapTableMap = dataProcessorContext.getTapTableMap();
       List<String> tables = new ArrayList<>(tapTableMap.keySet());
       int rows = 1;
@@ -127,7 +127,7 @@ public class HazelcastSampleSourcePdkDataNode extends HazelcastPdkBaseNode {
             //try again
           }
         }
-        if (StringUtils.equalsAnyIgnoreCase(processorBaseContext.getSubTaskDto().getParentTask().getSyncType(),
+        if (StringUtils.equalsAnyIgnoreCase(processorBaseContext.getTaskDto().getSyncType(),
                 TaskDto.SYNC_TYPE_DEDUCE_SCHEMA)) {
           logger.info("get data from the following table {} to deduce schema, already obtained from table {}, " +
                   "skip other tables", tables, tableName);

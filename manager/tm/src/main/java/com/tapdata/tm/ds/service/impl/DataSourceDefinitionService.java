@@ -11,9 +11,9 @@ import com.tapdata.tm.base.dto.Where;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.base.service.BaseService;
 import com.tapdata.tm.commons.base.dto.BaseDto;
+import com.tapdata.tm.commons.schema.DataSourceDefinitionDto;
 import com.tapdata.tm.commons.util.CapabilityEnum;
 import com.tapdata.tm.config.security.UserDetail;
-import com.tapdata.tm.commons.schema.DataSourceDefinitionDto;
 import com.tapdata.tm.ds.dto.DataSourceDefinitionUpdateDto;
 import com.tapdata.tm.ds.dto.DataSourceTypeDto;
 import com.tapdata.tm.ds.entity.DataSourceDefinitionEntity;
@@ -36,7 +36,7 @@ import org.springframework.stereotype.Service;
 import java.util.*;
 import java.util.stream.Collectors;
 
-import static com.tapdata.tm.utils.MongoUtils.*;
+import static com.tapdata.tm.utils.MongoUtils.toObjectId;
 
 /**
  * @Author: Zed
@@ -177,7 +177,7 @@ public class DataSourceDefinitionService extends BaseService<DataSourceDefinitio
         return dataSourceDefinition;
     }
 
-    public List<DataSourceDefinitionDto> findByPdkHashList(List<String> pdkHashList, UserDetail user) {
+    public List<DataSourceDefinitionDto> findByPdkHashList(Set<String> pdkHashList, UserDetail user) {
         Criteria userCriteria = new Criteria();
         userCriteria.and("customId").is(user.getCustomerId());
         Criteria supplierCriteria = Criteria.where("supplierType").ne("self");
@@ -311,39 +311,40 @@ public class DataSourceDefinitionService extends BaseService<DataSourceDefinitio
         dto.setId(null);
     }
 
-    public boolean checkHasSomeCapability(List<String> pdkHashList, UserDetail userDetail, CapabilityEnum eventType) {
+    public boolean checkHasSomeCapability(Set<String> pdkHashList, UserDetail userDetail, CapabilityEnum... eventTypes) {
+        // Does not contain any events
+        if (null == eventTypes || eventTypes.length == 0) return true;
+
+        // Could not find data source definition information
         List<DataSourceDefinitionDto> definitionList = findByPdkHashList(pdkHashList, userDetail);
-        if (CollectionUtils.isNotEmpty(definitionList)) {
-            Optional<List<Capability>> optional = definitionList.stream()
-                    .map(DataSourceDefinitionDto::getCapabilities)
-                    .filter(cap -> Objects.isNull(cap) || CollectionUtils.isEmpty(cap))
-                    .findFirst();
-            if (optional.isPresent()) {
-                return false;
-            }
+        if (definitionList.isEmpty()) return false;
 
-            List<List<Capability>> capabilities = definitionList.stream()
-                    .map(DataSourceDefinitionDto::getCapabilities)
-                    .filter(Objects::nonNull).collect(Collectors.toList());
-
-            Optional<List<Capability>> reduce = capabilities.stream().reduce((a, b) -> {
-                a.retainAll(b);
-                return a;
-            });
-
-            if (reduce.isPresent()) {
-                List<Capability> intersection = reduce.orElse(new ArrayList<>());
-                for (Capability capability : intersection) {
-                    List<String> alternatives = capability.getAlternatives();
-                    if (CollectionUtils.isNotEmpty(alternatives) && alternatives.contains(eventType.getEvent())) {
-                        return true;
+        // every data source must contain all events
+        for (DataSourceDefinitionDto definitionDto : definitionList) {
+            //Check one data source capabilities
+            if (Optional.ofNullable(definitionDto.getCapabilities()).map(caps -> {
+                //Generating capability sets
+                Set<String> set = new HashSet<>();
+                for (Capability capability : caps) {
+                    set.add(capability.getId());
+                }
+                return set;
+            }).map(capabilities -> {
+                //Check one data source capabilities
+                for (CapabilityEnum eventType : eventTypes) {
+                    if (!capabilities.contains(eventType.getId())) {
+                        return false;
                     }
                 }
-
+                return true;
+            }).orElse(false)) {
+                continue;
             }
 
+            return false;
         }
-        return false;
+
+        return true;
     }
 
 

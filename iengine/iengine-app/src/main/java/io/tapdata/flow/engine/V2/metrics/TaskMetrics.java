@@ -8,7 +8,7 @@ import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.tm.commons.metrics.Metrics;
 import com.tapdata.tm.commons.metrics.MetricsLabel;
 import com.tapdata.tm.commons.metrics.TaskMetricsLabel;
-import com.tapdata.tm.commons.task.dto.SubTaskDto;
+import com.tapdata.tm.commons.task.dto.TaskDto;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 
@@ -22,19 +22,19 @@ import java.util.Map;
  **/
 public class TaskMetrics extends BaseMetrics {
 
-	protected SubTaskDto subTaskDto;
+	protected TaskDto taskDto;
 
-	public TaskMetrics(ClientMongoOperator clientMongoOperator, SubTaskDto subTaskDto, ConfigurationCenter configurationCenter, HazelcastInstance hazelcastInstance) {
+	public TaskMetrics(ClientMongoOperator clientMongoOperator, TaskDto taskDto, ConfigurationCenter configurationCenter, HazelcastInstance hazelcastInstance) {
 		super(clientMongoOperator, configurationCenter, hazelcastInstance);
-		checkInput(subTaskDto);
-		this.subTaskDto = subTaskDto;
+		checkInput(taskDto);
+		this.taskDto = taskDto;
 	}
 
-	private void checkInput(SubTaskDto subTaskDto) {
-		if (subTaskDto == null) {
+	private void checkInput(TaskDto taskDto) {
+		if (taskDto == null) {
 			throw new IllegalArgumentException("Sub task dto cannot be null");
 		}
-		if (subTaskDto.getId() == null) {
+		if (taskDto.getId() == null) {
 			throw new IllegalArgumentException("Sub task id cannot be empty");
 		}
 	}
@@ -42,17 +42,17 @@ public class TaskMetrics extends BaseMetrics {
 	@Override
 	public void close() {
 		doStats();
-		getSubTaskNodeMetricsMap().remove(subTaskDto.getId().toHexString());
+		getSubTaskNodeMetricsMap().remove(taskDto.getId().toHexString());
 		super.close();
 	}
 
 	@Override
 	public void doStats() {
 		IMap<String, Map<String, Map<String, Metrics>>> subTaskMetricsMap = hazelcastInstance.getMap(IMAP_NAME);
-		if (!subTaskMetricsMap.containsKey(subTaskDto.getId().toHexString())) {
+		if (!subTaskMetricsMap.containsKey(taskDto.getId().toHexString())) {
 			return;
 		}
-		Map<String, Map<String, Metrics>> metricsMap = subTaskMetricsMap.get(subTaskDto.getId().toHexString());
+		Map<String, Map<String, Metrics>> metricsMap = subTaskMetricsMap.get(taskDto.getId().toHexString());
 		for (String metricsName : metricsMap.keySet()) {
 			Map<String, Metrics> nodeMetricsMap = metricsMap.get(metricsName);
 			Collection<Metrics> metricsList = nodeMetricsMap.values();
@@ -69,7 +69,7 @@ public class TaskMetrics extends BaseMetrics {
 			Metrics.MetricsType metricsType = Metrics.MetricsType.fromType(firstMetrics.getType());
 			AtomicDouble sumValue = new AtomicDouble(0d);
 			metricsList.stream().map(Metrics::getValue).forEach(sumValue::getAndAdd);
-			MetricsLabel metricsLabel = new TaskMetricsLabel(subTaskDto.getId().toHexString());
+			MetricsLabel metricsLabel = new TaskMetricsLabel(taskDto.getId().toHexString());
 			Metrics metrics = null;
 			switch (metricsType) {
 				case COUNTER:

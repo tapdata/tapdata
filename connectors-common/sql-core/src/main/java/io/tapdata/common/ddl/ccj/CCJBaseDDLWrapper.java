@@ -1,6 +1,7 @@
 package io.tapdata.common.ddl.ccj;
 
 import io.tapdata.common.ddl.wrapper.BaseDDLWrapper;
+import io.tapdata.common.ddl.wrapper.DDLWrapperConfig;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.kit.EmptyKit;
@@ -17,11 +18,14 @@ import java.util.List;
  * @create 2022-07-04 17:33
  **/
 public abstract class CCJBaseDDLWrapper extends BaseDDLWrapper<Alter> {
+    protected CCJDDLWrapperConfig ccjddlWrapperConfig;
 
-    protected final String spilt;
+    public CCJBaseDDLWrapper() {
+    }
 
-    public CCJBaseDDLWrapper(String spilt) {
-        this.spilt = spilt;
+    @Override
+    public void init(DDLWrapperConfig ddlWrapperConfig) {
+        this.ccjddlWrapperConfig = (CCJDDLWrapperConfig) ddlWrapperConfig;
     }
 
     protected void verifyAlter(Alter alter) {
@@ -39,7 +43,7 @@ public abstract class CCJBaseDDLWrapper extends BaseDDLWrapper<Alter> {
 
     protected String getTableName(Alter ddl) {
         Table table = ddl.getTable();
-        return StringKit.removeHeadTail(table.getName(), spilt, null);
+        return StringKit.removeHeadTail(table.getName(), ccjddlWrapperConfig.getSplit(), null);
     }
 
     protected String getDataType(ColDataType colDataType) {
@@ -58,6 +62,23 @@ public abstract class CCJBaseDDLWrapper extends BaseDDLWrapper<Alter> {
             tapField.pos(tapTable.getMaxPos() + 1);
         } else {
             tapField.pos(1);
+        }
+    }
+
+    public static class CCJDDLWrapperConfig extends DDLWrapperConfig {
+        public static CCJDDLWrapperConfig create() {
+            return new CCJDDLWrapperConfig();
+        }
+
+        private String split;
+
+        public CCJDDLWrapperConfig split(String split) {
+            this.split = split;
+            return this;
+        }
+
+        public String getSplit() {
+            return null == split ? "" : split;
         }
     }
 }

@@ -10,7 +10,7 @@ import com.tapdata.entity.TypeMapping;
 import com.tapdata.entity.dataflow.DataFlow;
 import com.tapdata.entity.dataflow.Stage;
 import com.tapdata.tm.commons.dag.Node;
-import com.tapdata.tm.commons.task.dto.SubTaskDto;
+import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.ConverterProvider;
 import io.tapdata.common.SettingService;
 import io.tapdata.debug.DebugProcessor;
@@ -52,7 +52,7 @@ public abstract class Context {
 
 	private ConfigurationCenter configurationCenter;
 
-	private SubTaskDto subTaskDto;
+	private TaskDto taskDto;
 
 	private Node<?> node;
 
@@ -97,7 +97,7 @@ public abstract class Context {
 				   Connections sourceConn, Connections targetConn, DebugProcessor debugProcessor,
 				   List<JavaScriptFunctions> javaScriptFunctions, ICacheService cacheService,
 				   ConverterProvider converterProvider, MilestoneService milestoneService, DataFlow dataFlow,
-				   SubTaskDto subTaskDto, Node<?> node, ConfigurationCenter configurationCenter) {
+				   TaskDto taskDto, Node<?> node, ConfigurationCenter configurationCenter) {
 		this.job = job;
 		this.logger = logger;
 		this.offset = offset;
@@ -110,7 +110,7 @@ public abstract class Context {
 		this.converterProvider = converterProvider;
 		this.milestoneService = milestoneService;
 		this.dataFlow = dataFlow;
-		this.subTaskDto = subTaskDto;
+		this.taskDto = taskDto;
 		this.node = node;
 		this.configurationCenter = configurationCenter;
 	}
@@ -189,8 +189,8 @@ public abstract class Context {
 		return configurationCenter;
 	}
 
-	public SubTaskDto getSubTaskDto() {
-		return subTaskDto;
+	public TaskDto getTaskDto() {
+		return taskDto;
 	}
 
 	public Node<?> getNode() {

@@ -14,6 +14,7 @@ import io.tapdata.aspect.BatchReadFuncAspect;
 import io.tapdata.aspect.SourceStateAspect;
 import io.tapdata.aspect.StreamReadFuncAspect;
 import io.tapdata.aspect.utils.AspectUtils;
+import io.tapdata.aspect.TableCountFuncAspect;
 import io.tapdata.common.sample.sampler.CounterSampler;
 import io.tapdata.common.sample.sampler.ResetCounterSampler;
 import io.tapdata.common.sample.sampler.SpeedSampler;
@@ -29,6 +30,7 @@ import io.tapdata.metrics.TaskSampleRetriever;
 import io.tapdata.milestone.MilestoneStage;
 import io.tapdata.milestone.MilestoneStatus;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
+import io.tapdata.pdk.apis.functions.connector.source.BatchCountFunction;
 import io.tapdata.pdk.apis.functions.connector.source.BatchReadFunction;
 import io.tapdata.pdk.apis.functions.connector.source.StreamReadFunction;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
@@ -84,7 +86,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 		try {
 			Node<?> node = dataProcessorContext.getNode();
 			Thread.currentThread().setName("PDK-SOURCE-RUNNER-" + node.getName() + "(" + node.getId() + ")");
-			Log4jUtil.setThreadContext(dataProcessorContext.getSubTaskDto());
+			Log4jUtil.setThreadContext(dataProcessorContext.getTaskDto());
 			TapTableMap<String, TapTable> tapTableMap = dataProcessorContext.getTapTableMap();
 			try {
 				if (need2InitialSync(syncProgress)) {
@@ -142,9 +144,13 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 	@SneakyThrows
 	private void doSnapshot(List<String> tableList) {
 		syncProgress.setSyncStage(SyncStage.INITIAL_SYNC.name());
-		snapshotProgressManager = new SnapshotProgressManager(dataProcessorContext.getSubTaskDto(), clientMongoOperator,
+		snapshotProgressManager = new SnapshotProgressManager(dataProcessorContext.getTaskDto(), clientMongoOperator,
 				getConnectorNode(), dataProcessorContext.getTapTableMap());
 		snapshotProgressManager.startStatsSnapshotEdgeProgress(dataProcessorContext.getNode());
+
+		// count the data size of the tables;
+		doCount();
+
 		BatchReadFunction batchReadFunction = getConnectorNode().getConnectorFunctions().getBatchReadFunction();
 		if (batchReadFunction != null) {
 			// MILESTONE-READ_SNAPSHOT-RUNNING
@@ -251,6 +257,41 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 			}
 		} else {
 			throw new RuntimeException("PDK node does not support batch read: " + dataProcessorContext.getDatabaseType());
+		}
+	}
+
+	/**
+	 *
+	 * TODO(dexter): use multi thread to batch count the table, and use async;
+	 */
+	@SneakyThrows
+	private void doCount() {
+		BatchCountFunction batchCountFunction = getConnectorNode().getConnectorFunctions().getBatchCountFunction();
+		if (null == batchCountFunction) {
+			throw new RuntimeException("PDK node does not support table batch count: " + dataProcessorContext.getDatabaseType());
+		}
+
+		for(String tableName : dataProcessorContext.getTapTableMap().keySet()) {
+			if (!isRunning()) {
+				return;
+			}
+
+			TapTable table = dataProcessorContext.getTapTableMap().get(tableName);
+			executeDataFuncAspect(TableCountFuncAspect.class, () -> new TableCountFuncAspect()
+					.dataProcessorContext(this.getDataProcessorContext())
+					.start(), tableCountFuncAspect -> PDKInvocationMonitor.invoke(getConnectorNode(), PDKMethod.SOURCE_BATCH_COUNT,
+					() -> {
+						try {
+							long count = batchCountFunction.count(getConnectorNode().getConnectorContext(), table);
+							if (null != tableCountFuncAspect) {
+								AspectUtils.accept(tableCountFuncAspect.state(TableCountFuncAspect.STATE_COUNTING).getTableCountConsumerList(), table.getName(), count);
+							}
+						} catch (Exception e) {
+							RuntimeException runtimeException = new RuntimeException("Count " + table.getId() + " failed: " + e.getMessage(), e);
+							logger.warn(runtimeException.getMessage() + "\n" + Log4jUtil.getStackString(e));
+						}
+					}, TAG));
+
 		}
 	}
 
@@ -371,7 +412,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 		}
 		cdcDelayCalculation.addHeartbeatTable(new ArrayList<>(dataProcessorContext.getTapTableMap().keySet()));
 		ShareCdcTaskContext shareCdcTaskContext = new ShareCdcTaskPdkContext(getCdcStartTs(), processorBaseContext.getConfigurationCenter(),
-				dataProcessorContext.getSubTaskDto(), dataProcessorContext.getNode(), dataProcessorContext.getSourceConn(), getConnectorNode());
+				dataProcessorContext.getTaskDto(), dataProcessorContext.getNode(), dataProcessorContext.getSourceConn(), getConnectorNode());
 		logger.info("Starting incremental sync, read from share log storage...");
 		// Init share cdc reader, if unavailable, will throw ShareCdcUnsupportedException
 		this.shareCdcReader = ShareCdcFactory.shareCdcReader(ReaderType.PDK_TASK_HAZELCAST, shareCdcTaskContext);

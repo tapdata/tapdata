@@ -9,7 +9,6 @@ import com.tapdata.tm.commons.dag.DmlPolicyEnum;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
-import com.tapdata.tm.commons.task.dto.SubTaskDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
 import io.tapdata.entity.event.TapEvent;
@@ -54,7 +53,7 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 
 	public HazelcastPdkBaseNode(DataProcessorContext dataProcessorContext) {
 		super(dataProcessorContext);
-		if (!StringUtils.equalsAnyIgnoreCase(dataProcessorContext.getSubTaskDto().getParentTask().getSyncType(),
+		if (!StringUtils.equalsAnyIgnoreCase(dataProcessorContext.getTaskDto().getSyncType(),
 				TaskDto.SYNC_TYPE_DEDUCE_SCHEMA, TaskDto.SYNC_TYPE_TEST_RUN)) {
 			this.monitorManager = new MonitorManager();
 		}
@@ -69,7 +68,7 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 	}
 
 	protected void createPdkConnectorNode(DataProcessorContext dataProcessorContext, HazelcastInstance hazelcastInstance) {
-		SubTaskDto subTaskDto = dataProcessorContext.getSubTaskDto();
+		TaskDto taskDto = dataProcessorContext.getTaskDto();
 		Map<String, Object> connectionConfig = dataProcessorContext.getConnectionConfig();
 		DatabaseTypeEnum.DatabaseType databaseType = dataProcessorContext.getDatabaseType();
 		PdkTableMap pdkTableMap = new PdkTableMap(dataProcessorContext.getTapTableMap());
@@ -83,7 +82,7 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 			nodeConfig = ((TableNode) node).getNodeConfig();
 		}
 		this.associateId = ConnectorNodeService.getInstance().putConnectorNode(
-				PdkUtil.createNode(subTaskDto.getId().toHexString(),
+				PdkUtil.createNode(taskDto.getId().toHexString(),
 						databaseType,
 						clientMongoOperator,
 						this.getClass().getSimpleName() + "-" + dataProcessorContext.getNode().getId(),

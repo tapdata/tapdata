@@ -21,7 +21,6 @@ import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.commons.schema.TransformerWsMessageDto;
 import com.tapdata.tm.commons.task.dto.Message;
-import com.tapdata.tm.commons.task.dto.SubTaskDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.Runnable.LoadSchemaRunner;
 import io.tapdata.aspect.SourceCDCDelayAspect;
@@ -82,6 +81,11 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 	protected ExecutorService sourceRunner = new ThreadPoolExecutor(2, 2, 0L, TimeUnit.SECONDS, new SynchronousQueue<>());
 	protected ScheduledExecutorService tableMonitorResultHandler;
 	protected SnapshotProgressManager snapshotProgressManager;
+
+	/**
+	 * This is added as an async control center because pdk and jet have two different thread model. pdk thread is
+	 * blocked when reading data from data source while jet using async when passing the event to next node.
+	 */
 	protected LinkedBlockingQueue<TapdataEvent> eventQueue = new LinkedBlockingQueue<>(10);
 	private TapdataEvent pendingEvent;
 	protected SourceMode sourceMode = SourceMode.NORMAL;
@@ -102,7 +106,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 	public HazelcastSourcePdkBaseNode(DataProcessorContext dataProcessorContext) {
 		super(dataProcessorContext);
 		this.cdcDelayCalculation = new CdcDelayDisable();
-		if (!StringUtils.equalsAnyIgnoreCase(dataProcessorContext.getSubTaskDto().getParentTask().getSyncType(),
+		if (!StringUtils.equalsAnyIgnoreCase(dataProcessorContext.getTaskDto().getSyncType(),
 				TaskDto.SYNC_TYPE_DEDUCE_SCHEMA, TaskDto.SYNC_TYPE_TEST_RUN)) {
 			initMilestoneService(MilestoneContext.VertexType.SOURCE);
 		}
@@ -120,17 +124,17 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 			MilestoneUtil.updateMilestone(milestoneService, MilestoneStage.INIT_CONNECTOR, MilestoneStatus.ERROR, e.getMessage() + "\n" + Log4jUtil.getStackString(e));
 			throw new RuntimeException(e);
 		}
-		SubTaskDto subTaskDto = dataProcessorContext.getSubTaskDto();
-		syncProgress = initSyncProgress(subTaskDto.getAttrs());
-		if (!StringUtils.equalsAnyIgnoreCase(subTaskDto.getParentTask().getSyncType(),
+		TaskDto taskDto = dataProcessorContext.getTaskDto();
+		syncProgress = initSyncProgress(taskDto.getAttrs());
+		if (!StringUtils.equalsAnyIgnoreCase(taskDto.getSyncType(),
 				TaskDto.SYNC_TYPE_DEDUCE_SCHEMA, TaskDto.SYNC_TYPE_TEST_RUN)) {
-			initBatchAndStreamOffset(subTaskDto);
+			initBatchAndStreamOffset(taskDto);
 		}
 		initDDLFilter();
 		this.sourceRunnerLock = new ReentrantLock();
 		this.endSnapshotLoop = new AtomicBoolean(false);
 		this.transformerWsMessageDto = clientMongoOperator.findOne(new Query(),
-				ConnectorConstant.TASK_COLLECTION + "/transformParam/" + processorBaseContext.getSubTaskDto().getParentTask().getId().toHexString(),
+				ConnectorConstant.TASK_COLLECTION + "/transformParam/" + processorBaseContext.getTaskDto().getId().toHexString(),
 				TransformerWsMessageDto.class);
 		this.sourceRunnerFirstTime = new AtomicBoolean(true);
 		sourceRunnerFuture = this.sourceRunner.submit(this::startSourceRunner);
@@ -150,7 +154,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 		Node<?> node = dataProcessorContext.getNode();
 		if (node.isDataNode()) {
 			if (needDynamicTable(null)) {
-				TableMonitor tableMonitor = new TableMonitor(dataProcessorContext.getTapTableMap(), associateId, dataProcessorContext.getSubTaskDto());
+				TableMonitor tableMonitor = new TableMonitor(dataProcessorContext.getTapTableMap(), associateId, dataProcessorContext.getTaskDto());
 				this.monitorManager.startMonitor(tableMonitor);
 				this.tableMonitorResultHandler = new ScheduledThreadPoolExecutor(1);
 				this.tableMonitorResultHandler.scheduleAtFixedRate(this::handleTableMonitorResult, 0L, PERIOD_SECOND_HANDLE_TABLE_MONITOR_RESULT, TimeUnit.SECONDS);
@@ -181,7 +185,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 		return true;
 	}
 
-	private void initBatchAndStreamOffset(SubTaskDto subTaskDto) {
+	private void initBatchAndStreamOffset(TaskDto taskDto) {
 		if (syncProgress == null) {
 			syncProgress = new SyncProgress();
 			syncProgress.setBatchOffsetObj(new HashMap<>());
@@ -195,7 +199,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 					syncProgress.setSyncStage(SyncStage.INITIAL_SYNC.name());
 					break;
 				case CDC:
-					List<TaskDto.SyncPoint> syncPoints = subTaskDto.getParentTask().getSyncPoints();
+					List<TaskDto.SyncPoint> syncPoints = taskDto.getSyncPoints();
 					String connectionId = NodeUtil.getConnectionId(dataProcessorContext.getNode());
 					TaskDto.SyncPoint syncPoint = null;
 					if (null != syncPoints) {
@@ -240,7 +244,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 					break;
 				case SHARE_CDC:
 					if (((DataProcessorContext) processorBaseContext).getSourceConn().isShareCdcEnable()
-							&& processorBaseContext.getSubTaskDto().getParentTask().getShareCdcEnable()) {
+							&& taskDto.getShareCdcEnable()) {
 						// continue cdc from share log storage
 						if (StringUtils.isNotBlank(streamOffset)) {
 							syncProgress.setStreamOffsetObj(PdkUtil.decodeOffset(streamOffset, getConnectorNode()));
@@ -287,31 +291,20 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 	@Override
 	final public boolean complete() {
 		try {
-			SubTaskDto subTaskDto = dataProcessorContext.getSubTaskDto();
-			Log4jUtil.setThreadContext(subTaskDto);
+			TaskDto taskDto = dataProcessorContext.getTaskDto();
+			Log4jUtil.setThreadContext(taskDto);
 			TapdataEvent dataEvent;
-			AtomicBoolean isPending = new AtomicBoolean();
 			if (!isRunning()) {
 				return true;
 			}
 			if (pendingEvent != null) {
 				dataEvent = pendingEvent;
 				pendingEvent = null;
-				isPending.compareAndSet(false, true);
 			} else {
 				dataEvent = eventQueue.poll(5, TimeUnit.SECONDS);
-				isPending.compareAndSet(true, false);
 			}
 
 			if (dataEvent != null) {
-				TapEvent tapEvent;
-				if (!isPending.get()) {
-					TapCodecsFilterManager codecsFilterManager = getConnectorNode().getCodecsFilterManager();
-					tapEvent = dataEvent.getTapEvent();
-					if (sourceMode == SourceMode.NORMAL) {
-						tapRecordToTapValue(tapEvent, codecsFilterManager);
-					}
-				}
 				if (!offer(dataEvent)) {
 					pendingEvent = dataEvent;
 					return false;
@@ -337,7 +330,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 	private void handleTableMonitorResult() {
 		Thread.currentThread().setName("Handle-Table-Monitor-Result-" + this.associateId);
 		try {
-			Log4jUtil.setThreadContext(dataProcessorContext.getSubTaskDto());
+			Log4jUtil.setThreadContext(dataProcessorContext.getTaskDto());
 			// Handle dynamic table change
 			Object tableMonitor = monitorManager.getMonitorByType(MonitorManager.MonitorType.TABLE_MONITOR);
 			if (tableMonitor instanceof TableMonitor) {
@@ -500,7 +493,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 			tapdataEvent.setTapEvent(tapRecordEvent);
 			tapdataEvent.setSyncStage(syncStage);
 			if (SyncStage.INITIAL_SYNC == syncStage) {
-				if (isLast && !StringUtils.equalsAnyIgnoreCase(dataProcessorContext.getSubTaskDto().getParentTask().getSyncType(),
+				if (isLast && !StringUtils.equalsAnyIgnoreCase(dataProcessorContext.getTaskDto().getSyncType(),
 						TaskDto.SYNC_TYPE_DEDUCE_SCHEMA, TaskDto.SYNC_TYPE_TEST_RUN)) {
 					Map<String, Object> batchOffsetObj = (Map<String, Object>) syncProgress.getBatchOffsetObj();
 					Map<String, Object> newMap = new HashMap<>();
@@ -550,7 +543,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 			}
 
 			// Refresh task config by ddl event
-			DAG dag = processorBaseContext.getSubTaskDto().getDag();
+			DAG dag = processorBaseContext.getTaskDto().getDag();
 			try {
 				// Update DAG config
 				dag.filedDdlEvent(processorBaseContext.getNode().getId(), (TapDDLEvent) tapEvent);
@@ -569,7 +562,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 				List<String> removeMetadata = new CopyOnWriteArrayList<>();
 				if (null == transformerWsMessageDto) {
 					transformerWsMessageDto = clientMongoOperator.findOne(new Query(),
-							ConnectorConstant.TASK_COLLECTION + "/transformParam/" + processorBaseContext.getSubTaskDto().getParentTask().getId().toHexString(),
+							ConnectorConstant.TASK_COLLECTION + "/transformParam/" + processorBaseContext.getTaskDto().getId().toHexString(),
 							TransformerWsMessageDto.class);
 				}
 				List<MetadataInstancesDto> metadataInstancesDtoList = transformerWsMessageDto.getMetadataInstancesDtoList();
@@ -633,6 +626,15 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 						break;
 					}
 				}
+
+				// covert to tap value before enqueue the event. when the event is enqueued into the eventQueue,
+				// the event is considered been output to the next node.
+				TapCodecsFilterManager codecsFilterManager = getConnectorNode().getCodecsFilterManager();
+				TapEvent tapEvent = tapdataEvent.getTapEvent();
+				if (sourceMode == SourceMode.NORMAL) {
+					tapRecordToTapValue(tapEvent, codecsFilterManager);
+				}
+
 				if (eventQueue.offer(tapdataEvent, 3, TimeUnit.SECONDS)) {
 					break;
 				}

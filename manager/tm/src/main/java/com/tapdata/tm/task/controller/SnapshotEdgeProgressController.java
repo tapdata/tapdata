@@ -3,7 +3,7 @@ package com.tapdata.tm.task.controller;
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.*;
 import com.tapdata.tm.commons.task.dto.progress.BatchOperationDto;
-import com.tapdata.tm.commons.task.dto.progress.SubTaskSnapshotProgress;
+import com.tapdata.tm.commons.task.dto.progress.TaskSnapshotProgress;
 import com.tapdata.tm.task.service.SnapshotEdgeProgressService;
 import com.tapdata.tm.utils.MongoUtils;
 import io.swagger.v3.oas.annotations.Operation;
@@ -25,7 +25,7 @@ import java.util.Map;
  */
 @Tag(name = "snapshotEdgeProgress", description = "snapshotEdgeProgress相关接口")
 @RestController
-@RequestMapping("/api/SubTaskProgress")
+@RequestMapping("/api/TaskProgress")
 public class SnapshotEdgeProgressController extends BaseController {
 
     @Autowired
@@ -33,25 +33,25 @@ public class SnapshotEdgeProgressController extends BaseController {
 
     /**
      * Create a new instance of the model and persist it into the data source
-     * @param subTaskSnapshotProgress
+     * @param taskSnapshotProgress
      * @return
      */
     @Operation(summary = "Create a new instance of the model and persist it into the data source")
     @PostMapping
-    public ResponseMessage<SubTaskSnapshotProgress> save(@RequestBody SubTaskSnapshotProgress subTaskSnapshotProgress) {
-        subTaskSnapshotProgress.setId(null);
-        return success(snapshotEdgeProgressService.save(subTaskSnapshotProgress, getLoginUser()));
+    public ResponseMessage<TaskSnapshotProgress> save(@RequestBody TaskSnapshotProgress taskSnapshotProgress) {
+        taskSnapshotProgress.setId(null);
+        return success(snapshotEdgeProgressService.save(taskSnapshotProgress, getLoginUser()));
     }
 
     /**
      *  Patch an existing model instance or insert a new one into the data source
-     * @param subTaskSnapshotProgress
+     * @param taskSnapshotProgress
      * @return
      */
     @Operation(summary = "Patch an existing model instance or insert a new one into the data source")
     @PatchMapping()
-    public ResponseMessage<SubTaskSnapshotProgress> update(@RequestBody SubTaskSnapshotProgress subTaskSnapshotProgress) {
-        return success(snapshotEdgeProgressService.save(subTaskSnapshotProgress, getLoginUser()));
+    public ResponseMessage<TaskSnapshotProgress> update(@RequestBody TaskSnapshotProgress taskSnapshotProgress) {
+        return success(snapshotEdgeProgressService.save(taskSnapshotProgress, getLoginUser()));
     }
 
 
@@ -62,7 +62,7 @@ public class SnapshotEdgeProgressController extends BaseController {
      */
     @Operation(summary = "Find all instances of the model matched by filter from the data source")
     @GetMapping
-    public ResponseMessage<Page<SubTaskSnapshotProgress>> find(
+    public ResponseMessage<Page<TaskSnapshotProgress>> find(
             @Parameter(in = ParameterIn.QUERY,
                     description = "Filter defining fields, where, sort, skip, and limit - must be a JSON-encoded string (`{\"where\":{\"something\":\"value\"},\"fields\":{\"something\":true|false},\"sort\": [\"name desc\"],\"page\":1,\"size\":20}`)."
             )
@@ -78,14 +78,14 @@ public class SnapshotEdgeProgressController extends BaseController {
 
     /**
      *  Patch attributes for a model instance and persist it into the data source
-     * @param subTaskSnapshotProgress
+     * @param taskSnapshotProgress
      * @return
      */
     @Operation(summary = "Patch attributes for a model instance and persist it into the data source")
     @PatchMapping("{id}")
-    public ResponseMessage<SubTaskSnapshotProgress> updateById(@PathVariable("id") String id, @RequestBody SubTaskSnapshotProgress subTaskSnapshotProgress) {
-        subTaskSnapshotProgress.setId(MongoUtils.toObjectId(id));
-        return success(snapshotEdgeProgressService.save(subTaskSnapshotProgress, getLoginUser()));
+    public ResponseMessage<TaskSnapshotProgress> updateById(@PathVariable("id") String id, @RequestBody TaskSnapshotProgress taskSnapshotProgress) {
+        taskSnapshotProgress.setId(MongoUtils.toObjectId(id));
+        return success(snapshotEdgeProgressService.save(taskSnapshotProgress, getLoginUser()));
     }
 
 
@@ -96,8 +96,8 @@ public class SnapshotEdgeProgressController extends BaseController {
      */
     @Operation(summary = "Find a model instance by {{id}} from the data source")
     @GetMapping("{id}")
-    public ResponseMessage<SubTaskSnapshotProgress> findById(@PathVariable("id") String id,
-															 @RequestParam(value = "fields", required = false) String fieldsJson) {
+    public ResponseMessage<TaskSnapshotProgress> findById(@PathVariable("id") String id,
+                                                          @RequestParam(value = "fields", required = false) String fieldsJson) {
         Field fields = parseField(fieldsJson);
         //getLoginUser();//校验用户
         return success(snapshotEdgeProgressService.findById(MongoUtils.toObjectId(id),  fields));
@@ -143,7 +143,7 @@ public class SnapshotEdgeProgressController extends BaseController {
      */
     @Operation(summary = "Find first instance of the model matched by filter from the data source.")
     @GetMapping("findOne")
-    public ResponseMessage<SubTaskSnapshotProgress> findOne(
+    public ResponseMessage<TaskSnapshotProgress> findOne(
             @Parameter(in = ParameterIn.QUERY,
                     description = "Filter defining fields, where, sort, skip, and limit - must be a JSON-encoded string (`{\"where\":{\"something\":\"value\"},\"field\":{\"something\":true|false},\"sort\": [\"name desc\"],\"page\":1,\"size\":20}`)."
             )
@@ -185,9 +185,9 @@ public class SnapshotEdgeProgressController extends BaseController {
      */
     @Operation(summary = "Update an existing model instance or insert a new one into the data source based on the where criteria.")
     @PostMapping("upsertWithWhere")
-    public ResponseMessage<SubTaskSnapshotProgress> upsertByWhere(@RequestParam("where") String whereJson, @RequestBody SubTaskSnapshotProgress subTaskSnapshotProgress) {
+    public ResponseMessage<TaskSnapshotProgress> upsertByWhere(@RequestParam("where") String whereJson, @RequestBody TaskSnapshotProgress taskSnapshotProgress) {
         Where where = parseWhere(whereJson);
-        return success(snapshotEdgeProgressService.upsertByWhere(where, subTaskSnapshotProgress, getLoginUser()));
+        return success(snapshotEdgeProgressService.upsertByWhere(where, taskSnapshotProgress, getLoginUser()));
     }
 
     @Operation(summary = "batch operation ")

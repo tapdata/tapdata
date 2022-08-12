@@ -1,5 +1,6 @@
 package com.tapdata.tm.task.service.impl;
 
+import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
@@ -15,6 +16,7 @@ import org.springframework.stereotype.Service;
 
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -32,7 +34,6 @@ public class TaskCheckInspectServiceImpl implements TaskCheckInspectService {
         if (Objects.isNull(taskDto.getDag())) {
             return taskDto;
         }
-
         List<String> connectIdList = taskDto.getDag().getNodes().stream()
                 .filter(node -> node instanceof DatabaseNode)
                 .map(node -> ((DatabaseNode) node).getConnectionId())
@@ -47,9 +48,9 @@ public class TaskCheckInspectServiceImpl implements TaskCheckInspectService {
             return taskDto;
         }
 
-        List<String> pdkHashList = connectionDtoList.stream()
+        Set<String> pdkHashList = connectionDtoList.stream()
                 .map(DataSourceConnectionDto::getPdkHash)
-                .collect(Collectors.toList());
+                .collect(Collectors.toSet());
 
         if (CollectionUtils.isEmpty(pdkHashList)) {
             return taskDto;

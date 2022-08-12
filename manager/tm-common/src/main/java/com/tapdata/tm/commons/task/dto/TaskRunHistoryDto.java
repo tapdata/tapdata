@@ -17,10 +17,9 @@ public class TaskRunHistoryDto extends BaseDto {
 
     /** 任务id */
     private ObjectId taskId;
-    /** 子任务id */
-    private ObjectId subTaskId;
-    /** 子任务名称 */
-    private String subTaskName;
+
+    /** 任务名称 */
+    private String taskName;
     /** 动作  run 启动 stop 停止 */
     private String action;
 }

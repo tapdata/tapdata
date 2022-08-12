@@ -5,7 +5,6 @@ import com.tapdata.tm.commons.dag.*;
 import com.tapdata.tm.commons.dag.logCollector.VirtualTargetNode;
 import com.tapdata.tm.commons.schema.*;
 import com.tapdata.tm.commons.task.dto.Dag;
-import com.tapdata.tm.commons.task.dto.SubTaskDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.util.PdkSchemaConvert;
 import io.tapdata.entity.schema.TapTable;
@@ -29,6 +28,9 @@ import java.util.stream.Collectors;
 public class JsProcessorNode extends ProcessorNode {
     @EqField
     private String script;
+
+    @EqField
+    private String declareScript;
 
 
     @Override
@@ -70,20 +72,18 @@ public class JsProcessorNode extends ProcessorNode {
 
         DAG build = DAG.build(dag);
 
-        SubTaskDto subTaskDto = new SubTaskDto();
-        subTaskDto.setStatus(SubTaskDto.STATUS_WAIT_RUN);
         ObjectId taskId = this.getDag().getTaskId();
         TaskDto taskDto = service.getTaskById(taskId == null ? null : taskId.toHexString());
-        taskDto.setDag(null);
-        taskDto.setSyncType(TaskDto.SYNC_TYPE_DEDUCE_SCHEMA);
-        subTaskDto.setParentTask(taskDto);
-        subTaskDto.setDag(build);
-        subTaskDto.setParentId(taskDto.getId());
-        subTaskDto.setId(new ObjectId());
-        subTaskDto.setName(taskDto.getName() + "(100)");
-//        subTaskDto.setTransformTask(true);
+        TaskDto taskDtoCopy = new TaskDto();
+        BeanUtils.copyProperties(taskDto, taskDtoCopy);
+        taskDtoCopy.setStatus(TaskDto.STATUS_WAIT_RUN);
+        taskDtoCopy.setSyncType(TaskDto.SYNC_TYPE_DEDUCE_SCHEMA);
+        taskDtoCopy.setDag(build);
+        taskDtoCopy.setId(new ObjectId());
+        taskDtoCopy.setName(taskDto.getName() + "(100)");
+
         ////用于预跑数据得到模型
-        TapTable tapTable = service.loadTapTable(getInputSchema(), script, getId(), target.getId(), null, null, subTaskDto);
+        TapTable tapTable = service.loadTapTable(getInputSchema(), script, getId(), target.getId(), null, null, taskDtoCopy);
         Schema schema = PdkSchemaConvert.fromPdkSchema(tapTable);
 
 

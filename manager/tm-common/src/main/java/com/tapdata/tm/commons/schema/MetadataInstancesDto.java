@@ -99,6 +99,13 @@ public class MetadataInstancesDto extends BaseDto {
     @JsonInclude(JsonInclude.Include.ALWAYS)
     private String sourceType= SourceTypeEnum.SOURCE.name();
 
+    public String getDatabaseId() {
+        return databaseId;
+    }
+
+    public void setDatabaseId(String databaseId) {
+        this.databaseId = databaseId;
+    }
 
     public static void sortField(List<Field> fields) {
         if (CollectionUtils.isNotEmpty(fields)) {

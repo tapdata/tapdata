@@ -275,7 +275,7 @@ public class DatabaseNode extends DataParentNode<List<Schema>> {
     protected List<Schema> saveSchema(Collection<String> pre, String nodeId, List<Schema> schemaList, DAG.Options options) {
         if (schemaList != null && schemaList.size() > 0) {
             schemaList.forEach(s -> {
-                s.setTaskId(taskId());
+                //s.setTaskId(taskId());
                 s.setNodeId(nodeId);
             });
             schemaList = service.createOrUpdateSchema(ownerId(), toObjectId(connectionId), schemaList, options, this);

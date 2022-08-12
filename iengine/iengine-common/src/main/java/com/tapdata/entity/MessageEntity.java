@@ -101,6 +101,8 @@ public class MessageEntity implements Serializable, Cloneable {
 	 */
 	private Map<String, Object> tapd8MetaData;
 
+	private Long time;
+
 	public MessageEntity() {
 	}
 
@@ -364,6 +366,14 @@ public class MessageEntity implements Serializable, Cloneable {
 		this.offsetJson = offsetJson;
 	}
 
+	public Long getTime() {
+		return time;
+	}
+
+	public void setTime(Long time) {
+		this.time = time;
+	}
+
 	@Override
 	public String toString() {
 		return "MessageEntity{" +
@@ -393,6 +403,7 @@ public class MessageEntity implements Serializable, Cloneable {
 				", ddl='" + ddl + '\'' +
 				", jobMessagePayload=" + jobMessagePayload +
 				", tapd8MetaData=" + tapd8MetaData +
+				", time=" + time +
 				'}';
 	}
 
@@ -402,6 +413,7 @@ public class MessageEntity implements Serializable, Cloneable {
 		newMSG.setTableName(this.tableName);
 		newMSG.setOp(this.op);
 		newMSG.setTimestamp(this.timestamp);
+		newMSG.setTime(this.time);
 		newMSG.setDataQualityTag(this.dataQualityTag);
 		newMSG.setJdbc(this.isJdbc);
 		newMSG.setProcessContext(this.processContext);

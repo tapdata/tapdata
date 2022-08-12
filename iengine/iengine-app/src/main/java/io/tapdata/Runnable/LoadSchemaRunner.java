@@ -90,7 +90,6 @@ public class LoadSchemaRunner implements Runnable {
 
 	public void tableConsumer(TapTable table) {
 		if (table == null) {
-			System.err.println("Last");
 			updateSchema(ConnectorConstant.LOAD_FIELD_STATUS_FINISHED, null);
 		} else {
 			schema.getTapTables().add(table);
@@ -308,7 +307,6 @@ public class LoadSchemaRunner implements Runnable {
 		if (update == null) {
 			return;
 		}
-		System.err.println(loadSchemaProgress.getLoadCount() + "/" + loadSchemaProgress.getTableCount());
 		clientMongoOperator.update(query, update, ConnectorConstant.CONNECTION_COLLECTION);
 	}
 

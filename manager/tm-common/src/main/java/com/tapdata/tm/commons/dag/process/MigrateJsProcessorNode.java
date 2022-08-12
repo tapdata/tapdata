@@ -8,15 +8,10 @@ import com.tapdata.tm.commons.dag.logCollector.VirtualTargetNode;
 import com.tapdata.tm.commons.dag.vo.MigrateJsResultVo;
 import com.tapdata.tm.commons.schema.*;
 import com.tapdata.tm.commons.task.dto.Dag;
-import com.tapdata.tm.commons.task.dto.SubTaskDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.util.PdkSchemaConvert;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
-import io.tapdata.entity.utils.InstanceFactory;
-import io.tapdata.entity.utils.JsonParser;
-import io.tapdata.entity.utils.TypeHolder;
-import io.tapdata.pdk.core.utils.TapConstants;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
@@ -24,7 +19,6 @@ import org.apache.commons.collections4.CollectionUtils;
 import org.bson.types.ObjectId;
 import org.springframework.beans.BeanUtils;
 
-import java.time.OffsetDateTime;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
@@ -44,6 +38,9 @@ import static com.tapdata.tm.commons.base.convert.ObjectIdDeserialize.toObjectId
 public class MigrateJsProcessorNode extends Node<List<Schema>> {
     @EqField
     private String script;
+
+    @EqField
+    private String declareScript;
 
     @Override
     protected List<Schema> loadSchema(List<String> includes) {
@@ -75,22 +72,22 @@ public class MigrateJsProcessorNode extends Node<List<Schema>> {
         DAG build = DAG.build(dag);
         build.getNodes().forEach(node -> node.getDag().setTaskId(taskId));
 
-        SubTaskDto subTaskDto = new SubTaskDto();
-        subTaskDto.setStatus(SubTaskDto.STATUS_WAIT_RUN);
         TaskDto taskDto = service.getTaskById(taskId == null ? null : taskId.toHexString());
-        taskDto.setDag(null);
-        taskDto.setSyncType(TaskDto.SYNC_TYPE_DEDUCE_SCHEMA);
-        subTaskDto.setParentTask(taskDto);
-        subTaskDto.setDag(build);
-        subTaskDto.setParentId(taskDto.getId());
-        subTaskDto.setId(new ObjectId());
-        subTaskDto.setName(taskDto.getName() + "(100)");
-        subTaskDto.setParentSyncType(taskDto.getSyncType());
+
+        TaskDto taskDtoCopy = new TaskDto();
+        BeanUtils.copyProperties(taskDto, taskDtoCopy);
+        taskDtoCopy.setStatus(TaskDto.STATUS_WAIT_RUN);
+        taskDtoCopy.setSyncType(TaskDto.SYNC_TYPE_DEDUCE_SCHEMA);
+        taskDtoCopy.setDag(build);
+        taskDtoCopy.setId(new ObjectId());
+        taskDtoCopy.setName(taskDto.getName() + "(100)");
+        taskDtoCopy.setParentSyncType(taskDto.getSyncType());
+
 
         List<Schema> result = Lists.newArrayList();
         List<MigrateJsResultVo> jsResult;
         try {
-            jsResult = service.getJsResult(getId(), target.getId(), subTaskDto);
+            jsResult = service.getJsResult(getId(), target.getId(), taskDtoCopy);
         } catch (Exception e) {
             log.error("MigrateJsProcessorNode getJsResult ERROR", e);
             throw new RuntimeException(e);
@@ -241,7 +238,7 @@ public class MigrateJsProcessorNode extends Node<List<Schema>> {
     protected List<Schema> saveSchema(Collection<String> predecessors, String nodeId, List<Schema> schema, DAG.Options options) {
         ObjectId taskId = taskId();
         schema.forEach(s -> {
-            s.setTaskId(taskId);
+            //s.setTaskId(taskId);
             s.setNodeId(nodeId);
         });
 

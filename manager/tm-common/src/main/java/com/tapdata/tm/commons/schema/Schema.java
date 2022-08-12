@@ -1,11 +1,13 @@
 package com.tapdata.tm.commons.schema;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.tapdata.tm.commons.base.convert.ObjectIdDeserialize;
 import com.tapdata.tm.commons.base.convert.ObjectIdSerialize;
 import com.tapdata.tm.commons.schema.bean.Relation;
+import com.tapdata.tm.commons.schema.bean.SourceTypeEnum;
 import lombok.Getter;
 import lombok.Setter;
 import org.bson.types.ObjectId;
@@ -28,9 +30,8 @@ public class Schema implements Cloneable, Serializable {
     @JsonDeserialize( using = ObjectIdDeserialize.class)
     private ObjectId id;
 
-    @JsonSerialize( using = ObjectIdSerialize.class)
-    @JsonDeserialize( using = ObjectIdDeserialize.class)
-    private ObjectId taskId;
+
+    private String taskId;
     private String nodeId;
     @JsonProperty("qualified_name")
     private String qualifiedName;
@@ -99,6 +100,15 @@ public class Schema implements Cloneable, Serializable {
     protected String pdkGroup;
     protected String pdkVersion;
 
+    //逻辑表物理表分离所添加的相关属性
+    private String linkTaskId;
+
+    /**
+     * 是否是虚拟表 'virtual' 'source'
+     */
+    @JsonInclude(JsonInclude.Include.ALWAYS)
+    private String sourceType;
+
     public void setSourceNodeDatabaseType(String sourceNodeDatabaseType) {
         this.sourceNodeDatabaseType = sourceNodeDatabaseType;
     }
@@ -106,4 +116,5 @@ public class Schema implements Cloneable, Serializable {
     public String getSourceNodeDatabaseType() {
         return sourceNodeDatabaseType;
     }
+
 }

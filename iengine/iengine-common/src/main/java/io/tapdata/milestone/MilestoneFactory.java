@@ -7,7 +7,7 @@ import com.tapdata.entity.dataflow.DataFlow;
 import com.tapdata.entity.dataflow.Stage;
 import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.tm.commons.dag.Node;
-import com.tapdata.tm.commons.task.dto.SubTaskDto;
+import com.tapdata.tm.commons.task.dto.TaskDto;
 
 import java.util.List;
 
@@ -56,17 +56,17 @@ public class MilestoneFactory {
 		return new MilestoneJetEdgeService(milestoneContext, null);
 	}
 
-	public static MilestoneFlowServiceJetV2 getJetMilestoneService(SubTaskDto subTaskDto, List<String> baseURLs, int retryTime, ConfigurationCenter configurationCenter) {
-		if (null == subTaskDto) {
+	public static MilestoneFlowServiceJetV2 getJetMilestoneService(TaskDto taskDto, List<String> baseURLs, int retryTime, ConfigurationCenter configurationCenter) {
+		if (null == taskDto) {
 			throw new IllegalArgumentException("Get jet subTaskDto milestone service failed, subTaskDto or clientMongoOperator cannot be empty");
 		}
 
-		MilestoneContext milestoneContext = new MilestoneContext(subTaskDto, MilestoneContext.MilestoneType.SUBTASK, baseURLs, retryTime, configurationCenter);
+		MilestoneContext milestoneContext = new MilestoneContext(taskDto, MilestoneContext.MilestoneType.SUBTASK, baseURLs, retryTime, configurationCenter);
 		return new MilestoneFlowServiceJetV2(milestoneContext);
 	}
 
 	public static MilestoneJetEdgeService getJetEdgeMilestoneService(
-			SubTaskDto subTaskDto,
+			TaskDto taskDto,
 			List<String> baseURLs,
 			int retryTime,
 			ConfigurationCenter configurationCenter,
@@ -76,17 +76,17 @@ public class MilestoneFactory {
 			String destVertexName,
 			MilestoneContext taskMilestoneContext
 	) {
-		if (null == subTaskDto) {
+		if (null == taskDto) {
 			throw new IllegalArgumentException("Get jet subTaskDto milestone service failed, subTaskDto or clientMongoOperator cannot be empty");
 		}
 
-		MilestoneContext milestoneContext = new MilestoneContext(subTaskDto, sourceNode, destNode, MilestoneContext.MilestoneType.SUBTASK_EDGE,
+		MilestoneContext milestoneContext = new MilestoneContext(taskDto, sourceNode, destNode, MilestoneContext.MilestoneType.SUBTASK_EDGE,
 				baseURLs, retryTime, configurationCenter, sourceVertexName, destVertexName);
 		return new MilestoneJetEdgeService(milestoneContext, taskMilestoneContext);
 	}
 
 	public static MilestoneJetEdgeService getJetEdgeMilestoneService(
-			SubTaskDto subTaskDto,
+			TaskDto taskDto,
 			List<String> baseURLs,
 			int retryTime,
 			ConfigurationCenter configurationCenter,
@@ -96,11 +96,11 @@ public class MilestoneFactory {
 			MilestoneContext taskMilestoneContext,
 			MilestoneContext.VertexType vertexType
 	) {
-		if (null == subTaskDto) {
+		if (null == taskDto) {
 			throw new IllegalArgumentException("Get jet subTaskDto milestone service failed, subTaskDto or clientMongoOperator cannot be empty");
 		}
 
-		MilestoneContext milestoneContext = new MilestoneContext(subTaskDto, sourceNode, MilestoneContext.MilestoneType.SUBTASK_EDGE,
+		MilestoneContext milestoneContext = new MilestoneContext(taskDto, sourceNode, MilestoneContext.MilestoneType.SUBTASK_EDGE,
 				baseURLs, retryTime, configurationCenter, sourceVertexName, destVertexNames, vertexType);
 		return new MilestoneJetEdgeService(milestoneContext, taskMilestoneContext);
 	}
