@@ -6,6 +6,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import java.io.Serializable;
 import java.util.List;
 import java.util.Map;
 
@@ -14,7 +15,7 @@ import java.util.Map;
 @AllArgsConstructor
 @NoArgsConstructor
 @Schema(description = "js模型推演试运行结果Dto")
-public class JsResultDto {
+public class JsResultDto implements Serializable {
     private String code;
     private String message;
     private String taskId;
