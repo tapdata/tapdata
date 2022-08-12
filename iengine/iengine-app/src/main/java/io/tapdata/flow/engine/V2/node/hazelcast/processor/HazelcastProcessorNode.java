@@ -124,12 +124,12 @@ public class HazelcastProcessorNode extends HazelcastProcessorBaseNode {
 
 		TapEvent tapEvent = tapdataEvent.getTapEvent();
 		Map<String, TapType> afterTapTypeMap = null;
-		if (StringUtils.equalsAnyIgnoreCase(processorBaseContext.getSubTaskDto().getParentTask().getSyncType(), TaskDto.SYNC_TYPE_DEDUCE_SCHEMA)) {
+		if (StringUtils.equalsAnyIgnoreCase(processorBaseContext.getTaskDto().getSyncType(), TaskDto.SYNC_TYPE_DEDUCE_SCHEMA)) {
 			Map<String, Object> after = TapEventUtil.getAfter(tapEvent);
 			afterTapTypeMap = getTapTypeMap(after);
 		}
 		super.transformToTapValue(tapdataEvent, tapTableMap, tableName);
-		if (StringUtils.equalsAnyIgnoreCase(processorBaseContext.getSubTaskDto().getParentTask().getSyncType(), TaskDto.SYNC_TYPE_DEDUCE_SCHEMA)) {
+		if (StringUtils.equalsAnyIgnoreCase(processorBaseContext.getTaskDto().getSyncType(), TaskDto.SYNC_TYPE_DEDUCE_SCHEMA)) {
 			Map<String, Object> after = TapEventUtil.getAfter(tapEvent);
 			updateTapType(after, afterTapTypeMap);
 		}
