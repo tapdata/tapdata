@@ -1,0 +1,160 @@
+{
+  "uid" : "bb9b4cf77da89196",
+  "name" : "table merge in sync",
+  "fullName" : "test_pipeline.TestPipeline#test_merge_sync",
+  "historyId" : "edfd051c418b47aafa88b402eedbe088",
+  "time" : {
+    "start" : 1660277510456,
+    "stop" : 1660277512091,
+    "duration" : 1635
+  },
+  "status" : "passed",
+  "flaky" : false,
+  "newFailed" : false,
+  "beforeStages" : [ ],
+  "testStage" : {
+    "status" : "passed",
+    "steps" : [ ],
+    "attachments" : [ {
+      "uid" : "1ae2c767a4777f6d",
+      "name" : "stdout",
+      "source" : "1ae2c767a4777f6d.txt",
+      "type" : "text/plain",
+      "size" : 362
+    } ],
+    "parameters" : [ ],
+    "stepsCount" : 0,
+    "attachmentsCount" : 1,
+    "shouldDisplayMessage" : false,
+    "hasContent" : true
+  },
+  "afterStages" : [ ],
+  "labels" : [ {
+    "name" : "feature",
+    "value" : "pipeline"
+  }, {
+    "name" : "suite",
+    "value" : "test_pipeline"
+  }, {
+    "name" : "subSuite",
+    "value" : "TestPipeline"
+  }, {
+    "name" : "host",
+    "value" : "bc268d0911cf"
+  }, {
+    "name" : "thread",
+    "value" : "864-MainThread"
+  }, {
+    "name" : "framework",
+    "value" : "pytest"
+  }, {
+    "name" : "language",
+    "value" : "cpython3"
+  }, {
+    "name" : "package",
+    "value" : "test_pipeline"
+  }, {
+    "name" : "resultFormat",
+    "value" : "allure2"
+  } ],
+  "parameters" : [ ],
+  "links" : [ ],
+  "hidden" : false,
+  "retry" : false,
+  "extra" : {
+    "severity" : "normal",
+    "retries" : [ ],
+    "categories" : [ ],
+    "history" : {
+      "statistic" : {
+        "failed" : 0,
+        "broken" : 5,
+        "skipped" : 0,
+        "passed" : 5,
+        "unknown" : 0,
+        "total" : 10
+      },
+      "items" : [ {
+        "uid" : "59a9bd38df398ddd",
+        "status" : "passed",
+        "time" : {
+          "start" : 1660275243546,
+          "stop" : 1660275246089,
+          "duration" : 2543
+        }
+      }, {
+        "uid" : "49a62045059bfd4a",
+        "status" : "passed",
+        "time" : {
+          "start" : 1660218338160,
+          "stop" : 1660218340687,
+          "duration" : 2527
+        }
+      }, {
+        "uid" : "7c2fb774b5088da",
+        "status" : "passed",
+        "time" : {
+          "start" : 1660213079424,
+          "stop" : 1660213081860,
+          "duration" : 2436
+        }
+      }, {
+        "uid" : "59f080787ffd026b",
+        "status" : "passed",
+        "time" : {
+          "start" : 1660209864135,
+          "stop" : 1660209866447,
+          "duration" : 2312
+        }
+      }, {
+        "uid" : "3091ce36b6a5fda0",
+        "status" : "broken",
+        "statusDetails" : "IndexError: tuple index out of range",
+        "time" : {
+          "start" : 1660204138017,
+          "stop" : 1660204138490,
+          "duration" : 473
+        }
+      }, {
+        "uid" : "5d097276fda5ac35",
+        "status" : "broken",
+        "statusDetails" : "IndexError: tuple index out of range",
+        "time" : {
+          "start" : 1660192592170,
+          "stop" : 1660192592817,
+          "duration" : 647
+        }
+      }, {
+        "uid" : "93c39e454fec8980",
+        "status" : "broken",
+        "statusDetails" : "IndexError: tuple index out of range",
+        "time" : {
+          "start" : 1660188064988,
+          "stop" : 1660188065374,
+          "duration" : 386
+        }
+      }, {
+        "uid" : "6f69cc7fab7e8da1",
+        "status" : "broken",
+        "statusDetails" : "IndexError: tuple index out of range",
+        "time" : {
+          "start" : 1660131360194,
+          "stop" : 1660131360450,
+          "duration" : 256
+        }
+      }, {
+        "uid" : "9a0d9f95e0b8c437",
+        "status" : "broken",
+        "statusDetails" : "IndexError: tuple index out of range",
+        "time" : {
+          "start" : 1660126811142,
+          "stop" : 1660126811560,
+          "duration" : 418
+        }
+      } ]
+    },
+    "tags" : [ ]
+  },
+  "source" : "bb9b4cf77da89196.json",
+  "parameterValues" : [ ]
+}
