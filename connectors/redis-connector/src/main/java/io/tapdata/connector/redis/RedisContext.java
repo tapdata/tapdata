@@ -1,7 +1,6 @@
 package io.tapdata.connector.redis;
 
 import io.tapdata.connector.constant.DeployModeEnum;
-import io.tapdata.connector.constant.HostPort;
 import io.tapdata.connector.constant.RedisKeySetter;
 import io.tapdata.entity.logger.TapLogger;
 import org.apache.commons.lang3.StringUtils;
@@ -12,7 +11,10 @@ import redis.clients.jedis.JedisSentinelPool;
 import redis.clients.jedis.exceptions.JedisConnectionException;
 import redis.clients.jedis.util.Pool;
 
-import java.util.*;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Set;
 
 
 /**
@@ -96,6 +98,7 @@ public class RedisContext implements AutoCloseable {
         return jedisPool;
     }
 
+
     public Jedis getJedis() {
         Jedis jedis = null;
         int retryCount = 0;
@@ -113,9 +116,9 @@ public class RedisContext implements AutoCloseable {
                     if (retryCount > GET_JEDIS_TIMEOUT_COUNT) {
                         break;
                     }
-                    TapLogger.warn("Getjedis failed,Try again {} times,retry count: {}", String.valueOf(GET_JEDIS_TIMEOUT_COUNT), retryCount);
+                    TapLogger.warn("Get jedis failed,Try again {} times,retry count: {}", String.valueOf(GET_JEDIS_TIMEOUT_COUNT), retryCount);
                 } else {
-                    TapLogger.error("Getjedis error,message: {}", e.getMessage(), e);
+                    TapLogger.error("Get jedis error,message: {}", e.getMessage(), e);
                     break;
                 }
             }

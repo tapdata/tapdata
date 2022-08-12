@@ -1,12 +1,10 @@
 package io.tapdata.connector.redis;
 
-import io.tapdata.connector.constant.HostPort;
 import io.tapdata.entity.utils.BeanUtils;
 import io.tapdata.entity.utils.InstanceFactory;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
 
 /**

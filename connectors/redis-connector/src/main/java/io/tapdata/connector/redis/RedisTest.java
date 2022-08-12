@@ -2,7 +2,6 @@ package io.tapdata.connector.redis;
 
 import com.alibaba.fastjson.JSONObject;
 import io.tapdata.connector.constant.DeployModeEnum;
-import io.tapdata.connector.constant.HostPort;
 import io.tapdata.constant.DbTestItem;
 import io.tapdata.pdk.apis.entity.TestItem;
 import io.tapdata.util.NetUtil;
@@ -15,13 +14,16 @@ import java.util.List;
 
 import static io.tapdata.base.ConnectorBase.testItem;
 
+/**
+ * @author lemon
+ */
 public class RedisTest {
 
     private final static String PING_RES = "PONG";
 
-    private  RedisConfig redisConfig;
+    private final RedisConfig redisConfig;
 
-    private  RedisContext redisContext;
+    private final RedisContext redisContext;
 
     public RedisTest(RedisConfig redisConfig) throws Exception {
         this.redisConfig = redisConfig;

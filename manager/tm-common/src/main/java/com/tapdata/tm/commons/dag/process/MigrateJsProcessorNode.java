@@ -38,6 +38,9 @@ public class MigrateJsProcessorNode extends Node<List<Schema>> {
     @EqField
     private String script;
 
+    @EqField
+    private String declareScript;
+
     @Override
     protected List<Schema> loadSchema(List<String> includes) {
         final List<String> predIds = new ArrayList<>();
