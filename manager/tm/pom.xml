@@ -428,7 +428,7 @@
 				<configuration>
 					<fork>true</fork>
 					<!--<executable>true</executable>-->
-					<!--<outputDirectory>${project.basedir}/../dist/${project.name}-${project.version}-${profile.active}/lib/</outputDirectory>-->
+					<!--<outputDirectory>${project.basedir}/../dist/${project.name}-${project.version}-${profile.active}/tapdata_cli/</outputDirectory>-->
 				</configuration>
 			</plugin>
 			<plugin>
