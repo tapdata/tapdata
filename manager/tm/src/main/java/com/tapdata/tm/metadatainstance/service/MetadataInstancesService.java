@@ -822,16 +822,28 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
 
         if (CollectionUtils.isNotEmpty(insertMetaDataDtos)) {
 
+
+            List<MetadataInstancesDto> logicMetas = new ArrayList<>();
             if (saveHistory) {
                 for (MetadataInstancesDto insertMetaDataDto : insertMetaDataDtos) {
                     String qualifiedName = insertMetaDataDto.getQualifiedName();
-                    int i = qualifiedName.lastIndexOf("_");
-                    String oldQualifiedName = qualifiedName.substring(0, i);
-                    insertMetaDataDto.setQualifiedName(oldQualifiedName);
-                    qualifiedNames.add(oldQualifiedName);
+                    if (qualifiedName.contains(taskId)) {
+                        int i = qualifiedName.lastIndexOf("_");
+                        String oldQualifiedName = qualifiedName.substring(0, i);
+                        insertMetaDataDto.setQualifiedName(oldQualifiedName);
+                        qualifiedNames.add(oldQualifiedName);
+                    } else {
+                        MetadataInstancesDto metadataInstancesDto = new MetadataInstancesDto();
+                        BeanUtils.copyProperties(insertMetaDataDto, metadataInstancesDto);
+                        metadataInstancesDto.setSourceType(SourceTypeEnum.VIRTUAL.name());
+                        metadataInstancesDto.setQualifiedName(metadataInstancesDto.getQualifiedName() + "_" + taskId);
+                        metadataInstancesDto.setTaskId(taskId);
+                        logicMetas.add(metadataInstancesDto);
+                    }
                 }
             }
 
+            insertMetaDataDtos.addAll(logicMetas);
             for (MetadataInstancesDto metadataInstancesDto : insertMetaDataDtos) {
                 MetadataInstancesEntity metadataInstance = convertToEntity(MetadataInstancesEntity.class, metadataInstancesDto);
 

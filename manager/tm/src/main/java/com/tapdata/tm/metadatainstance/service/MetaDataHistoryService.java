@@ -9,6 +9,7 @@ import com.tapdata.tm.utils.MongoUtils;
 import com.tapdata.tm.utils.SpringContextHelper;
 import io.tapdata.entity.schema.TapTable;
 import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.mongodb.core.BulkOperations;
 import org.springframework.data.mongodb.core.MongoTemplate;
@@ -46,9 +47,11 @@ public class MetaDataHistoryService {
 
         BulkOperations bulkOperations = mongoTemplate.bulkOps(BulkOperations.BulkMode.UNORDERED, MetadataInstancesDto.class, "MetaDataHistory");
         for (MetadataInstancesDto metadataInstancesDto : metadataInstancesDtos) {
+            if (StringUtils.isBlank(metadataInstancesDto.getTaskId())) {
+                continue;
+            }
             metadataInstancesDto.setId(null);
             metadataInstancesDto.setHistories(null);
-            metadataInstancesDto.setTaskId(taskId);
             metadataInstancesDto.setTmCurrentTime(taskDto.getTmCurrentTime());
             bulkOperations.insert(metadataInstancesDto);
         }
