@@ -85,7 +85,7 @@ public class HazelcastSchemaTargetNode extends HazelcastVirtualTargetNode {
 			this.needToDeclare = StringUtils.isNotEmpty(declareScript);
 			if (this.needToDeclare) {
 				if (multipleTables) {
-					declareScript = String.format("function declare(schemaApplyResults){\n %s \n return schemaApplyResults;\n}",  declareScript);
+					declareScript = String.format("function declare(schemaApplyResultList){\n %s \n return schemaApplyResultList;\n}",  declareScript);
 				} else {
 					declareScript = String.format("function declare(tapTable){\n %s \n return tapTable;\n}",  declareScript);
 				}
