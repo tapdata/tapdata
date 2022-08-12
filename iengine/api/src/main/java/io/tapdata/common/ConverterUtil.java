@@ -1,15 +1,12 @@
 package io.tapdata.common;
 
-import com.google.common.collect.ImmutableMap;
 import com.tapdata.entity.Connections;
 import com.tapdata.entity.MessageEntity;
 import com.tapdata.entity.RelateDataBaseTable;
 import com.tapdata.entity.RelateDatabaseField;
 import com.tapdata.entity.values.AbstractTapValue;
 import io.tapdata.ConverterProvider;
-import io.tapdata.common.logging.error.ErrorCodeEnum;
 import io.tapdata.exception.ConvertException;
-import io.tapdata.logging.JobCustomerLogger;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.collections.MapUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -83,43 +80,14 @@ public class ConverterUtil {
 		return converterProvider;
 	}
 
-	public static void targetValueConvert(List<MessageEntity> msgs, ConverterProvider converterProvider, JobCustomerLogger customerLogger) throws ConvertException {
+	public static void targetValueConvert(List<MessageEntity> msgs, ConverterProvider converterProvider) throws ConvertException {
 		if (CollectionUtils.isNotEmpty(msgs) && converterProvider != null) {
 			for (MessageEntity msg : msgs) {
 				Map<String, Object> before = msg.getBefore();
 				Map<String, Object> after = msg.getAfter();
 
-				targetValueConvert(before, converterProvider, customerLogger);
-				targetValueConvert(after, converterProvider, customerLogger);
-			}
-		}
-	}
-
-	public static void targetValueConvert(Map<String, Object> map, ConverterProvider converterProvider, JobCustomerLogger customerLogger) throws ConvertException {
-		if (converterProvider != null && MapUtils.isNotEmpty(map)) {
-
-			Map<String, Object> tempBefore = converterProvider.targetFieldNameConverter(map);
-			if (MapUtils.isNotEmpty(map)) {
-				map.clear();
-				map.putAll(tempBefore);
-			}
-
-			for (Map.Entry<String, Object> entry : map.entrySet()) {
-				String fieldName = entry.getKey();
-				Object value = entry.getValue();
-				try {
-					if (StringUtils.isNotBlank(fieldName)) {
-						value = converterProvider.commTargetValueConverter(value);
-						value = converterProvider.targetValueConverter(value);
-
-						map.put(fieldName, value);
-					} else {
-						continue;
-					}
-				} catch (ConvertException e) {
-					logger.error("Convert field type failed, field name: {}, value: {}, type: {}, message: {}",
-							fieldName, value, value.getClass().getName(), e.getMessage());
-				}
+				targetValueConvert(before, converterProvider);
+				targetValueConvert(after, converterProvider);
 			}
 		}
 	}
@@ -153,7 +121,7 @@ public class ConverterUtil {
 		}
 	}
 
-	public static void targetTapValueConvert(Map<String, String> fieldGetters, Map<String, Map<String, String>> tblFieldDbDataTypes, List<MessageEntity> msgs, ConverterProvider converterProvider, JobCustomerLogger customerLogger) throws ConvertException {
+	public static void targetTapValueConvert(Map<String, String> fieldGetters, Map<String, Map<String, String>> tblFieldDbDataTypes, List<MessageEntity> msgs, ConverterProvider converterProvider) throws ConvertException {
 		if (CollectionUtils.isNotEmpty(msgs) && converterProvider != null) {
 			for (MessageEntity msg : msgs) {
 				Map<String, Object> before = msg.getBefore();
@@ -176,14 +144,14 @@ public class ConverterUtil {
 					tableName = msg.getMapping().getTo_table();
 				}
 
-				msg.setBefore(targetTapValueConvert(fieldGetters, tblFieldDbDataTypes.get(tableName), before, converterProvider, customerLogger));
-				msg.setAfter(targetTapValueConvert(fieldGetters, tblFieldDbDataTypes.get(tableName), after, converterProvider, customerLogger));
+				msg.setBefore(targetTapValueConvert(fieldGetters, tblFieldDbDataTypes.get(tableName), before, converterProvider));
+				msg.setAfter(targetTapValueConvert(fieldGetters, tblFieldDbDataTypes.get(tableName), after, converterProvider));
 
 			}
 		}
 	}
 
-	public static Map<String, Object> targetTapValueConvert(Map<String, String> fieldGetters, Map<String, String> fieldDbDataTypes, Map<String, Object> fieldValueMap, ConverterProvider converterProvider, JobCustomerLogger customerLogger)
+	public static Map<String, Object> targetTapValueConvert(Map<String, String> fieldGetters, Map<String, String> fieldDbDataTypes, Map<String, Object> fieldValueMap, ConverterProvider converterProvider)
 			throws ConvertException {
 		if (converterProvider != null && MapUtils.isNotEmpty(fieldValueMap)) {
 			for (Map.Entry<String, Object> entry : fieldValueMap.entrySet()) {
@@ -217,9 +185,6 @@ public class ConverterUtil {
 						} catch (ConvertException e) {
 							logger.error("Convert field type failed, field name: {}, value: {}, type: {}, message: {}",
 									fieldName, value, value.getClass().getName(), e.getMessage());
-							if (customerLogger != null) {
-								customerLogger.error(ErrorCodeEnum.TARGET_VALUE_CONVERSION_ERROR, ImmutableMap.of("version", convertVersion.getVersion()));
-							}
 						}
 						break;
 					case V2:
@@ -233,9 +198,6 @@ public class ConverterUtil {
 							fieldValueMap.put(fieldName, value);
 						} catch (Exception e) {
 							String errMsg = String.format("Failed to convert data at field %s with getter %s， fieldGetters: %s, filedDbDataTypes: %s, err: %s", fieldName, getter, fieldGetters, fieldDbDataTypes, e.getMessage());
-							if (customerLogger != null) {
-								customerLogger.error(ErrorCodeEnum.TARGET_VALUE_CONVERSION_ERROR, ImmutableMap.of("version", convertVersion.getVersion()));
-							}
 							throw new ConvertException(e, errMsg);
 						}
 						break;

@@ -1,7 +1,7 @@
 package com.tapdata.tm.task.vo;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
-import com.tapdata.tm.commons.task.dto.SubStatus;
+import com.tapdata.tm.commons.task.dto.Status;
 import com.tapdata.tm.vo.BaseVo;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
@@ -22,7 +22,7 @@ public class ShareCacheVo extends BaseVo {
   private String connectionId;
   private String tableName;
   private String status;
-  private List<SubStatus> statuses;
+  private List<Status> statuses;
   private Date createTime;
   private Date cacheTimeAt;
 

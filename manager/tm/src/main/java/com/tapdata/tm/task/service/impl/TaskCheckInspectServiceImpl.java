@@ -1,5 +1,6 @@
 package com.tapdata.tm.task.service.impl;
 
+import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
@@ -33,7 +34,6 @@ public class TaskCheckInspectServiceImpl implements TaskCheckInspectService {
         if (Objects.isNull(taskDto.getDag())) {
             return taskDto;
         }
-
         List<String> connectIdList = taskDto.getDag().getNodes().stream()
                 .filter(node -> node instanceof DatabaseNode)
                 .map(node -> ((DatabaseNode) node).getConnectionId())

@@ -17,8 +17,8 @@ import com.tapdata.tm.monitor.entity.AgentEnvironmentEntity;
 import com.tapdata.tm.monitor.entity.MeasurementEntity;
 import com.tapdata.tm.monitor.vo.GetMeasurementVo;
 import com.tapdata.tm.monitor.vo.GetStaticVo;
-import com.tapdata.tm.task.entity.SubTaskEntity;
-import com.tapdata.tm.task.repository.SubTaskRepository;
+import com.tapdata.tm.task.entity.TaskEntity;
+import com.tapdata.tm.task.repository.TaskRepository;
 import com.tapdata.tm.utils.BeanUtil;
 import com.tapdata.tm.utils.Lists;
 import com.tapdata.tm.utils.TimeUtil;
@@ -59,7 +59,7 @@ public class MeasurementService {
 
 
     @Autowired
-    private SubTaskRepository subTaskRepository;
+    private TaskRepository taskRepository;
 
 
     private static final Long ONE_HOUR = 60 * 60 * 1000L;
@@ -731,17 +731,17 @@ public class MeasurementService {
     /**
      * 任务重置，删除对应的指标
      *
-     * @param subTaskId
+     * @param taskId
      */
-    public void deleteSubTaskMeasurement(String subTaskId) {
-        if (StringUtils.isEmpty(subTaskId)) {
+    public void deleteTaskMeasurement(String taskId) {
+        if (StringUtils.isEmpty(taskId)) {
             return;
         }
-        Query query = Query.query(Criteria.where("tags.subTaskId").is(subTaskId));
+        Query query = Query.query(Criteria.where("tags.taskId").is(taskId));
         DeleteResult deleteResult1 = mongoOperations.remove(query, MeasurementEntity.class, TableNameEnum.AgentMeasurement.getValue());
         DeleteResult deleteResult2 = mongoOperations.remove(query, MeasurementEntity.class, TableNameEnum.AgentStatistics.getValue());
 
-        log.info(" subTaskId :{}  删除了 {} 条 和 {} 记录", subTaskId, JsonUtil.toJson(deleteResult1), JsonUtil.toJson(deleteResult2));
+        log.info(" taskId :{}  删除了 {} 条 和 {} 记录", taskId, JsonUtil.toJson(deleteResult1), JsonUtil.toJson(deleteResult2));
     }
 
     /**
@@ -754,13 +754,13 @@ public class MeasurementService {
      */
     public Map<String, Number> getTransmitTotal(UserDetail userDetail) {
         Map transmitTotalMap = new HashMap();
-        Query querySubTask = Query.query(Criteria.where("user_id").is(userDetail.getUserId()).and("is_deleted").ne(true));
-        querySubTask.fields().include("id");
-        List<SubTaskEntity> subTaskDtos = subTaskRepository.findAll(querySubTask);
-        List<String> subTaskIdList = subTaskDtos.stream().map(SubTaskEntity::getId).map(ObjectId::toString).collect(Collectors.toList());
+        Query queryTask = Query.query(Criteria.where("user_id").is(userDetail.getUserId()).and("is_deleted").ne(true));
+        queryTask.fields().include("id");
+        List<TaskEntity> taskDtos = taskRepository.findAll(queryTask);
+        List<String>  taskIdList = taskDtos.stream().map(TaskEntity::getId).map(ObjectId::toString).collect(Collectors.toList());
 
 
-        Query query = Query.query(Criteria.where("tags.type").is("subTask").and("tags.subTaskId").in(subTaskIdList));
+        Query query = Query.query(Criteria.where("tags.type").is("task").and("tags.task").in(taskIdList));
         List<MeasurementEntity> measurementEntityList = mongoOperations.find(query, MeasurementEntity.class, TableNameEnum.AgentStatistics.getValue());
         List<Map<String, Number>> statisticsList = measurementEntityList.stream().map(MeasurementEntity::getStatistics).collect(Collectors.toList());
 
@@ -778,9 +778,9 @@ public class MeasurementService {
         return transmitTotalMap;
     }
 
-    public MeasurementEntity findBySubTaskId(String subTaskId) {
+    public MeasurementEntity findByTaskId(String taskId) {
         MeasurementEntity measurementEntity = new MeasurementEntity();
-        Query query = Query.query(Criteria.where("tags.type").is("subTask").and("tags.subTaskId").is(subTaskId));
+        Query query = Query.query(Criteria.where("tags.type").is("task").and("tags.taskId").is(taskId));
         measurementEntity = mongoOperations.findOne(query, MeasurementEntity.class, TableNameEnum.AgentStatistics.getValue());
         return measurementEntity;
     }

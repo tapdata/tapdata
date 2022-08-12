@@ -11,7 +11,6 @@ import lombok.Data;
 public class StatTags {
     private String agentId;
     private String nodeId;
-    private String subTaskId;
     private String taskId;
     private String type;
 }

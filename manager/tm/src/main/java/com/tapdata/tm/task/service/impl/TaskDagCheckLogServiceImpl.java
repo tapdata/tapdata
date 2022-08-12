@@ -4,12 +4,12 @@ import cn.hutool.core.date.DatePattern;
 import cn.hutool.core.date.DateUtil;
 import cn.hutool.extra.spring.SpringUtil;
 import com.google.common.base.Splitter;
+import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.commons.dag.Node;
-import com.tapdata.tm.commons.dag.process.MigrateJsProcessorNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.message.constant.Level;
-import com.tapdata.tm.observability.dto.TaskLogDto;
+import com.tapdata.tm.monitor.dto.TaskLogDto;
 import com.tapdata.tm.task.constant.DagOutputTemplateEnum;
 import com.tapdata.tm.task.entity.TaskDagCheckLog;
 import com.tapdata.tm.task.repository.TaskDagCheckLogRepository;
@@ -58,6 +58,11 @@ public class TaskDagCheckLogServiceImpl implements TaskDagCheckLogService {
     @Override
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public List<TaskDagCheckLog> dagCheck(TaskDto taskDto, UserDetail userDetail, boolean onlySave) {
+
+        if(taskDto.getDag().checkMultiDag()){
+            throw new BizException("不支持多条链路，请编辑后重试");
+        }
+
         List<TaskDagCheckLog> result = Lists.newArrayList();
 
         LinkedList<DagOutputTemplateEnum> checkList = onlySave ? DagOutputTemplateEnum.getSaveCheck() : DagOutputTemplateEnum.getStartCheck();

@@ -101,4 +101,7 @@ public class MetadataInstancesEntity extends BaseEntity {
      * 是否是虚拟表 'virtual' 'source'
      */
     private String sourceType= SourceTypeEnum.SOURCE.name();
+
+    //逻辑表物理表分离所添加的相关属性
+    private String taskId;
 }

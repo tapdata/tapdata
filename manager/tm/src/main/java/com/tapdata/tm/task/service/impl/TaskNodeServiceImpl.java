@@ -1,7 +1,6 @@
 package com.tapdata.tm.task.service.impl;
 
 import cn.hutool.core.bean.BeanUtil;
-import cn.hutool.extra.spring.SpringUtil;
 import com.google.common.collect.Maps;
 import com.tapdata.manager.common.utils.JsonUtil;
 import com.tapdata.tm.base.dto.Page;
@@ -19,7 +18,6 @@ import com.tapdata.tm.commons.dag.vo.TableRenameTableInfo;
 import com.tapdata.tm.commons.dag.vo.TestRunDto;
 import com.tapdata.tm.commons.schema.*;
 import com.tapdata.tm.commons.task.dto.Dag;
-import com.tapdata.tm.commons.task.dto.SubTaskDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.util.MetaDataBuilderUtils;
 import com.tapdata.tm.commons.util.MetaType;
@@ -29,9 +27,7 @@ import com.tapdata.tm.ds.service.impl.DataSourceDefinitionService;
 import com.tapdata.tm.ds.service.impl.DataSourceService;
 import com.tapdata.tm.messagequeue.dto.MessageQueueDto;
 import com.tapdata.tm.messagequeue.service.MessageQueueService;
-import com.tapdata.tm.metadatainstance.entity.MetadataInstancesEntity;
 import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
-import com.tapdata.tm.task.service.TaskNodeService;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.task.utils.CacheUtils;
 import com.tapdata.tm.task.vo.JsResultDto;
@@ -57,6 +53,7 @@ import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import com.tapdata.tm.task.service.TaskNodeService;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentMap;
@@ -76,7 +73,7 @@ public class TaskNodeServiceImpl implements TaskNodeService {
     private DataSourceDefinitionService dataSourceDefinitionService;
 
     @Override
-    public Page<MetadataTransformerItemDto> getNodeTableInfo(String taskId, String nodeId, String searchTableName,
+    public Page<MetadataTransformerItemDto> getNodeTableInfo(final String taskId, String nodeId, String searchTableName,
                                                              Integer page, Integer pageSize, UserDetail userDetail) {
         Page<MetadataTransformerItemDto> result = new Page<>();
 
@@ -97,7 +94,7 @@ public class TaskNodeServiceImpl implements TaskNodeService {
         DatabaseNode targetNode = CollectionUtils.isNotEmpty(dag.getTargetNode()) ? dag.getTargetNode().getLast() : null;
         List<String> tableNames = sourceNode.getTableNames();
         if (CollectionUtils.isEmpty(tableNames) && StringUtils.equals("all", sourceNode.getMigrateTableSelectType())) {
-            List<MetadataInstancesDto> metaInstances = metadataInstancesService.findBySourceIdAndTableNameList(sourceNode.getConnectionId(), null, userDetail);
+            List<MetadataInstancesDto> metaInstances = metadataInstancesService.findBySourceIdAndTableNameList(sourceNode.getConnectionId(), null, userDetail, taskId);
             tableNames = metaInstances.stream().map(MetadataInstancesDto::getOriginalName).collect(Collectors.toList());
         }
 
@@ -130,7 +127,7 @@ public class TaskNodeServiceImpl implements TaskNodeService {
         if (preHasJsNode)
             return getMetaByJsNode(nodeId, result, sourceNode, targetNode, tableNames, currentTableList, targetDataSource, predecessors);
         else
-            return getMetadataTransformerItemDtoPage(userDetail, result, sourceNode, targetNode, tableNames, currentTableList, targetDataSource, predecessors, currentNode);
+            return getMetadataTransformerItemDtoPage(nodeId, userDetail, result, dag, sourceNode, targetNode, tableNames, currentTableList, targetDataSource, taskId, predecessors, currentNode);
     }
 
     private Page<MetadataTransformerItemDto> getMetaByJsNode(String nodeId, Page<MetadataTransformerItemDto> result, DatabaseNode sourceNode, DatabaseNode targetNode, List<String> tableNames, List<String> currentTableList, DataSourceConnectionDto targetDataSource, List<Node<?>> predecessors) {
@@ -196,7 +193,15 @@ public class TaskNodeServiceImpl implements TaskNodeService {
     }
 
     @NotNull
-    private Page<MetadataTransformerItemDto> getMetadataTransformerItemDtoPage(UserDetail userDetail, Page<MetadataTransformerItemDto> result, DatabaseNode sourceNode, DatabaseNode targetNode, List<String> tableNames, List<String> currentTableList, DataSourceConnectionDto targetDataSource, List<Node<?>> predecessors, Node<?> currentNode) {
+    private Page<MetadataTransformerItemDto> getMetadataTransformerItemDtoPage(String nodeId, UserDetail userDetail
+            , Page<MetadataTransformerItemDto> result, DAG dag, DatabaseNode sourceNode, DatabaseNode targetNode
+            , List<String> tableNames, List<String> currentTableList, DataSourceConnectionDto targetDataSource
+            , final String taskId, List<Node<?>> predecessors, Node<?> currentNode) {
+        if (CollectionUtils.isEmpty(predecessors)) {
+            predecessors = Lists.newArrayList();
+        }
+        predecessors.add(currentNode);
+
         // table rename
         LinkedList<TableRenameProcessNode> tableRenameProcessNodes = predecessors
                 .stream()
@@ -227,7 +232,7 @@ public class TaskNodeServiceImpl implements TaskNodeService {
 
         Map<String, MetadataInstancesDto> metaMap = Maps.newHashMap();
         List<MetadataInstancesDto> list = metadataInstancesService.findBySourceIdAndTableNameList(sourceNode.getConnectionId(),
-                currentTableList, userDetail);
+                currentTableList, userDetail, taskId);
         if (CollectionUtils.isNotEmpty(list)) {
             metaMap = list.stream().map(meta -> {
                 // source & target not same database type
@@ -257,10 +262,10 @@ public class TaskNodeServiceImpl implements TaskNodeService {
             String sinkQualifiedName = null;
             if (Objects.nonNull(targetDataSource)) {
                 String metaType = "mongodb".equals(targetDataSource.getDatabase_type()) ? "collection" : "table";
-                sinkQualifiedName = MetaDataBuilderUtils.generateQualifiedName(metaType, targetDataSource, tableName);
+                sinkQualifiedName = MetaDataBuilderUtils.generateQualifiedName(metaType, targetDataSource, tableName, taskId);
             }
             String metaType = "mongodb".equals(sourceDataSource.getDatabase_type()) ? "collection" : "table";
-            String sourceQualifiedName = MetaDataBuilderUtils.generateQualifiedName(metaType, sourceDataSource, tableName);
+            String sourceQualifiedName = MetaDataBuilderUtils.generateQualifiedName(metaType, sourceDataSource, tableName, taskId);
 
             if (CollectionUtils.isEmpty(metaMap.get(tableName).getFields())) {
                 continue;
@@ -360,11 +365,9 @@ public class TaskNodeServiceImpl implements TaskNodeService {
 
         taskDto.setDag(null);
         taskDto.setSyncType(TaskDto.SYNC_TYPE_TEST_RUN);
-        SubTaskDto subTaskDto = new SubTaskDto();
-        subTaskDto.setStatus(SubTaskDto.STATUS_WAIT_RUN);
-        subTaskDto.setParentTask(taskDto);
+        TaskDto subTaskDto = new TaskDto();
+        subTaskDto.setStatus(TaskDto.STATUS_WAIT_RUN);
         subTaskDto.setDag(temp);
-        subTaskDto.setParentId(taskDto.getId());
         subTaskDto.setId(new ObjectId());
         subTaskDto.setName(taskDto.getName() + "(100)");
         subTaskDto.setVersion(version);

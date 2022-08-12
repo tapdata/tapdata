@@ -5,7 +5,6 @@ import com.tapdata.tm.commons.dag.*;
 import com.tapdata.tm.commons.dag.logCollector.VirtualTargetNode;
 import com.tapdata.tm.commons.schema.*;
 import com.tapdata.tm.commons.task.dto.Dag;
-import com.tapdata.tm.commons.task.dto.SubTaskDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.util.PdkSchemaConvert;
 import io.tapdata.entity.schema.TapTable;
@@ -73,15 +72,13 @@ public class JsProcessorNode extends ProcessorNode {
 
         DAG build = DAG.build(dag);
 
-        SubTaskDto subTaskDto = new SubTaskDto();
-        subTaskDto.setStatus(SubTaskDto.STATUS_WAIT_RUN);
+        TaskDto subTaskDto = new TaskDto();
+        subTaskDto.setStatus(TaskDto.STATUS_WAIT_RUN);
         ObjectId taskId = this.getDag().getTaskId();
         TaskDto taskDto = service.getTaskById(taskId == null ? null : taskId.toHexString());
         taskDto.setDag(null);
         taskDto.setSyncType(TaskDto.SYNC_TYPE_DEDUCE_SCHEMA);
-        subTaskDto.setParentTask(taskDto);
         subTaskDto.setDag(build);
-        subTaskDto.setParentId(taskDto.getId());
         subTaskDto.setId(new ObjectId());
         subTaskDto.setName(taskDto.getName() + "(100)");
 //        subTaskDto.setTransformTask(true);

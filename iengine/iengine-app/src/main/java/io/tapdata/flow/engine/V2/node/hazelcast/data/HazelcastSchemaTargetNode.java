@@ -69,7 +69,7 @@ public class HazelcastSchemaTargetNode extends HazelcastVirtualTargetNode {
 
 	public HazelcastSchemaTargetNode(DataProcessorContext dataProcessorContext) throws Exception {
 		super(dataProcessorContext);
-		this.schemaKey = dataProcessorContext.getSubTaskDto().getId().toHexString() + "-" + dataProcessorContext.getNode().getId();
+		this.schemaKey = dataProcessorContext.getTaskDto().getId().toHexString() + "-" + dataProcessorContext.getNode().getId();
 
 		List<Node<Schema>> preNodes = getNode().predecessors();
 		if (preNodes.size() != 1) {

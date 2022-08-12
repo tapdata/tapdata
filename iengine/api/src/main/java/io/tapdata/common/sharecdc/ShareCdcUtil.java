@@ -12,7 +12,7 @@ import com.tapdata.entity.hazelcast.HazelcastConstant;
 import com.tapdata.entity.hazelcast.PersistenceStorageConfig;
 import com.tapdata.entity.sharecdc.ShareCdcConstant;
 import com.tapdata.mongo.ClientMongoOperator;
-import com.tapdata.tm.commons.task.dto.SubTaskDto;
+import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.common.SettingService;
 import org.apache.commons.collections.MapUtils;
 import org.apache.logging.log4j.LogManager;
@@ -204,8 +204,8 @@ public class ShareCdcUtil {
 		}
 	}
 
-	public static String getConstructName(SubTaskDto subTaskDto) {
-		return SHARE_CDC_KEY_PREFIX + subTaskDto.getName();
+	public static String getConstructName(TaskDto taskDto) {
+		return SHARE_CDC_KEY_PREFIX + taskDto.getName();
 	}
 
 	public static boolean shareCdcEnable(SettingService settingService) {

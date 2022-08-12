@@ -18,7 +18,7 @@ import com.tapdata.tm.commons.dag.vo.SyncObjects;
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.commons.schema.TransformerWsMessageResult;
 import com.tapdata.tm.commons.task.dto.MergeTableProperties;
-import com.tapdata.tm.commons.task.dto.SubTaskDto;
+import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.common.sample.sampler.AverageSampler;
 import io.tapdata.common.sample.sampler.CounterSampler;
 import io.tapdata.common.sample.sampler.ResetCounterSampler;
@@ -206,7 +206,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 			if (!inbox.isEmpty()) {
 				while (isRunning()) {
 					List<TapdataEvent> tapdataEvents = new ArrayList<>();
-					final int count = inbox.drainTo(tapdataEvents, dataProcessorContext.getSubTaskDto().getParentTask().getReadBatchSize());
+					final int count = inbox.drainTo(tapdataEvents, dataProcessorContext.getTaskDto().getReadBatchSize());
 					if (count > 0) {
 						if (!inCdc) {
 							List<TapdataEvent> partialCdcEvents = new ArrayList<>();
@@ -482,8 +482,8 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 				throw new RuntimeException("Convert offset to json failed, errors: " + e.getMessage(), e);
 			}
 		}
-		SubTaskDto subTaskDto = dataProcessorContext.getSubTaskDto();
-		String collection = ConnectorConstant.SUB_TASK_COLLECTION + "/syncProgress/" + subTaskDto.getId();
+		TaskDto taskDto = dataProcessorContext.getTaskDto();
+		String collection = ConnectorConstant.TASK_COLLECTION + "/syncProgress/" + taskDto.getId();
 		try {
 			clientMongoOperator.insertOne(syncProgressJsonMap, collection);
 		} catch (Exception e) {
@@ -491,17 +491,17 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 		}
 		if (uploadDagService.get()) {
 			// Upload DAG
-			SubTaskDto updateSubTaskDto = new SubTaskDto();
-			updateSubTaskDto.setId(subTaskDto.getId());
-			updateSubTaskDto.setDag(subTaskDto.getDag());
-			clientMongoOperator.insertOne(updateSubTaskDto, ConnectorConstant.SUB_TASK_COLLECTION + "/dag");
+			TaskDto updateTaskDto = new TaskDto();
+			updateTaskDto.setId(taskDto.getId());
+			updateTaskDto.setDag(taskDto.getDag());
+			clientMongoOperator.insertOne(updateTaskDto, ConnectorConstant.TASK_COLLECTION + "/dag");
 			if (MapUtils.isNotEmpty(updateMetadata) || CollectionUtils.isNotEmpty(insertMetadata) || CollectionUtils.isNotEmpty(removeMetadata)) {
 				// Upload Metadata
 				TransformerWsMessageResult wsMessageResult = new TransformerWsMessageResult();
 				wsMessageResult.setBatchInsertMetaDataList(insertMetadata);
 				wsMessageResult.setBatchMetadataUpdateMap(updateMetadata);
 				wsMessageResult.setBatchRemoveMetaDataList(removeMetadata);
-				wsMessageResult.setTaskId(subTaskDto.getId().toHexString());
+				wsMessageResult.setTaskId(taskDto.getId().toHexString());
 				// 返回结果调用接口返回
 				clientMongoOperator.insertOne(wsMessageResult, ConnectorConstant.TASK_COLLECTION + "/transformer/resultWithHistory");
 				insertMetadata.clear();
@@ -517,7 +517,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 	private PartitionConcurrentProcessor initConcurrentProcessor(int cdcConcurrentWriteNum) {
 		return new PartitionConcurrentProcessor(
 				cdcConcurrentWriteNum,
-				dataProcessorContext.getSubTaskDto().getParentTask().getReadBatchSize(),
+				dataProcessorContext.getTaskDto().getReadBatchSize(),
 				new KeysPartitioner(),
 				new TapEventPartitionKeySelector(tapEvent -> {
 					final String tgtTableName = getTgtTableNameFromTapEvent(tapEvent);
@@ -528,8 +528,8 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 				this::handleTapdataEvents,
 				this::flushSyncProgressMap,
 				this::errorHandle,
-				dataProcessorContext.getSubTaskDto().getId().toHexString(),
-				dataProcessorContext.getSubTaskDto().getName()
+				dataProcessorContext.getTaskDto().getId().toHexString(),
+				dataProcessorContext.getTaskDto().getName()
 		);
 	}
 

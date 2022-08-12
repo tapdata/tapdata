@@ -10,7 +10,7 @@ import com.tapdata.entity.AppType;
 import com.tapdata.entity.Version;
 import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.mongo.CloudSignUtil;
-import com.tapdata.tm.commons.task.dto.SubTaskDto;
+import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.common.SettingService;
 import io.tapdata.flow.engine.V2.task.TaskService;
 import org.apache.commons.collections.CollectionUtils;
@@ -111,7 +111,7 @@ public class ManagementWebsocketHandler implements WebSocketHandler {
 	private ClientMongoOperator clientMongoOperator;
 
 	@Autowired
-	private TaskService<SubTaskDto> taskService;
+	private TaskService<TaskDto> taskService;
 
 	WebSocketSession session;
 

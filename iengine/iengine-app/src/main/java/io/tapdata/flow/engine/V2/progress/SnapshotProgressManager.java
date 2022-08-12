@@ -10,9 +10,9 @@ import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.dag.vo.SyncObjects;
-import com.tapdata.tm.commons.task.dto.SubTaskDto;
+import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.task.dto.progress.BatchOperationDto;
-import com.tapdata.tm.commons.task.dto.progress.SubTaskSnapshotProgress;
+import com.tapdata.tm.commons.task.dto.progress.TaskSnapshotProgress;
 import io.tapdata.Source;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.flow.engine.V2.util.GraphUtil;
@@ -51,10 +51,10 @@ public class SnapshotProgressManager implements Closeable {
 
 	private Logger logger = LogManager.getLogger(SnapshotProgressManager.class);
 
-	private SubTaskDto subTaskDto;
+	private TaskDto taskDto;
 	private ClientMongoOperator clientMongoOperator;
-	private Map<String, List<SubTaskSnapshotProgress>> snapshotEdgeProgressMap;
-	private Map<String, List<SubTaskSnapshotProgress>> incrementEdgeProgressMap;
+	private Map<String, List<TaskSnapshotProgress>> snapshotEdgeProgressMap;
+	private Map<String, List<TaskSnapshotProgress>> incrementEdgeProgressMap;
 	private ExecutorService progressThreadPool;
 	private AtomicBoolean running;
 	private ScheduledExecutorService flushEdgeSnapshotProgressThreadPool;
@@ -69,21 +69,21 @@ public class SnapshotProgressManager implements Closeable {
 	private ConnectorNode connectorNode;
 	private TapTableMap<String, TapTable> tapTableMap;
 
-	public SnapshotProgressManager(SubTaskDto subTaskDto, ClientMongoOperator clientMongoOperator) {
-		this.subTaskDto = subTaskDto;
+	public SnapshotProgressManager(TaskDto taskDto, ClientMongoOperator clientMongoOperator) {
+		this.taskDto = taskDto;
 		this.clientMongoOperator = clientMongoOperator;
 	}
 
-	public SnapshotProgressManager(SubTaskDto subTaskDto, ClientMongoOperator clientMongoOperator,
+	public SnapshotProgressManager(TaskDto taskDto, ClientMongoOperator clientMongoOperator,
 								   Source source) {
-		this.subTaskDto = subTaskDto;
+		this.taskDto = taskDto;
 		this.clientMongoOperator = clientMongoOperator;
 		this.source = source;
 	}
 
-	public SnapshotProgressManager(SubTaskDto subTaskDto, ClientMongoOperator clientMongoOperator,
+	public SnapshotProgressManager(TaskDto taskDto, ClientMongoOperator clientMongoOperator,
 								   ConnectorNode connectorNode, TapTableMap<String, TapTable> tapTableMap) {
-		this.subTaskDto = subTaskDto;
+		this.taskDto = taskDto;
 		this.clientMongoOperator = clientMongoOperator;
 		this.connectorNode = connectorNode;
 		this.tapTableMap = tapTableMap;
@@ -100,9 +100,9 @@ public class SnapshotProgressManager implements Closeable {
 			logger.info("Start to asynchronously count the number of rows in the source table(s)");
 			this.progressThreadPool = new ThreadPoolExecutor(1, 1, 0L, TimeUnit.SECONDS, new SynchronousQueue<>());
 			CompletableFuture.runAsync(() -> {
-						Thread.currentThread().setName("Init-Snapshot-Edge-Progress-" + subTaskDto.getName() + "(" + subTaskDto.getId().toHexString() + ")"
+						Thread.currentThread().setName("Init-Snapshot-Edge-Progress-" + taskDto.getName() + "(" + taskDto.getId().toHexString() + ")"
 								+ "-" + srcNode.getId());
-						Log4jUtil.setThreadContext(subTaskDto);
+						Log4jUtil.setThreadContext(taskDto);
 						writeEdgeSnapshotProgresses();
 						countAndUpdateEdgeSnapshotProgresses();
 					}, progressThreadPool)
@@ -135,28 +135,28 @@ public class SnapshotProgressManager implements Closeable {
 	}
 
 	public void flushSubTaskSnapshotProgress() {
-		Thread.currentThread().setName("Flush-SubTask-Snapshot-Progress-" + subTaskDto.getName() + "(" + subTaskDto.getId().toHexString() + ")");
+		Thread.currentThread().setName("Flush-SubTask-Snapshot-Progress-" + taskDto.getName() + "(" + taskDto.getId().toHexString() + ")");
 		try {
 			boolean allDone = true;
 			boolean hasData = false;
-			SubTaskSnapshotProgress subTaskSnapshotProgress = SubTaskSnapshotProgress.getSnapshotSubTaskProgress(subTaskDto.getId().toHexString());
+			TaskSnapshotProgress subTaskSnapshotProgress = TaskSnapshotProgress.getSnapshotSubTaskProgress(taskDto.getId().toHexString());
 			int limit = 20;
 			int pageNum = 1;
 
 			while (true) {
-				Query query = new Query(Criteria.where("subTaskId").is(subTaskDto.getId().toHexString())
-						.and("type").is(SubTaskSnapshotProgress.ProgressType.EDGE_PROGRESS.name()));
+				Query query = new Query(Criteria.where("subTaskId").is(taskDto.getId().toHexString())
+						.and("type").is(TaskSnapshotProgress.ProgressType.EDGE_PROGRESS.name()));
 				query.skip((long) (pageNum - 1) * limit);
 				query.limit(limit);
 
-				List<SubTaskSnapshotProgress> edgeSnapshotProgresses = clientMongoOperator.find(query, ConnectorConstant.SUBTASK_PROGRESS, SubTaskSnapshotProgress.class);
+				List<TaskSnapshotProgress> edgeSnapshotProgresses = clientMongoOperator.find(query, ConnectorConstant.SUBTASK_PROGRESS, TaskSnapshotProgress.class);
 				if (CollectionUtils.isEmpty(edgeSnapshotProgresses) || Thread.currentThread().isInterrupted()) {
 					break;
 				}
 				hasData = true;
 				pageNum++;
 				subTaskSnapshotProgress.setTotalTaleNum(subTaskSnapshotProgress.getTotalTaleNum() + edgeSnapshotProgresses.size());
-				for (SubTaskSnapshotProgress edgeSnapshotProgress : edgeSnapshotProgresses) {
+				for (TaskSnapshotProgress edgeSnapshotProgress : edgeSnapshotProgresses) {
 					Long waitForRunNumber = edgeSnapshotProgress.getWaitForRunNumber();
 					if (waitForRunNumber > 0) {
 						// Accumulate the number of rows to be synchronized
@@ -174,7 +174,7 @@ public class SnapshotProgressManager implements Closeable {
 						// Accumulate the number of synchronized tables
 						subTaskSnapshotProgress.setCompleteTaleNum(subTaskSnapshotProgress.getCompleteTaleNum() + 1);
 					}
-					if (!edgeSnapshotProgress.getStatus().equals(SubTaskSnapshotProgress.ProgressStatus.done)) {
+					if (!edgeSnapshotProgress.getStatus().equals(TaskSnapshotProgress.ProgressStatus.done)) {
 						allDone = false;
 					}
 				}
@@ -183,8 +183,8 @@ public class SnapshotProgressManager implements Closeable {
 			if (allDone && hasData) {
 				subTaskSnapshotProgress.setEndTs(System.currentTimeMillis());
 			}
-			Query query = new Query(Criteria.where("subTaskId").is(subTaskDto.getId().toHexString())
-					.and("type").is(SubTaskSnapshotProgress.ProgressType.SUB_TASK_PROGRESS.name()));
+			Query query = new Query(Criteria.where("subTaskId").is(taskDto.getId().toHexString())
+					.and("type").is(TaskSnapshotProgress.ProgressType.TASK_PROGRESS.name()));
 			List<BatchOperationDto> batchOperationDtoList = new ArrayList<>();
 			BatchOperationDto batchOperationDto = new BatchOperationDto();
 			batchOperationDto.setWhere(query.getQueryObject().toJson());
@@ -218,11 +218,11 @@ public class SnapshotProgressManager implements Closeable {
 					break;
 				}
 			}
-			List<SubTaskSnapshotProgress> subTaskSnapshotProgresses = snapshotEdgeProgressMap.getOrDefault(srcTableName, new ArrayList<>());
+			List<TaskSnapshotProgress> subTaskSnapshotProgresses = snapshotEdgeProgressMap.getOrDefault(srcTableName, new ArrayList<>());
 			if (CollectionUtils.isEmpty(subTaskSnapshotProgresses)) {
 				return;
 			}
-			for (SubTaskSnapshotProgress progress : subTaskSnapshotProgresses) {
+			for (TaskSnapshotProgress progress : subTaskSnapshotProgresses) {
 				Long waitForRunNumber = progress.getWaitForRunNumber();
 				Long finishNumber = progress.getFinishNumber();
 				if (finishNumber >= waitForRunNumber) {
@@ -230,7 +230,7 @@ public class SnapshotProgressManager implements Closeable {
 				}
 				progress.setFinishNumber(finishNumber + 1);
 				if (StringUtils.isBlank(currentTableName) || !currentTableName.equals(srcTableName)) {
-					progress.setStatus(SubTaskSnapshotProgress.ProgressStatus.running);
+					progress.setStatus(TaskSnapshotProgress.ProgressStatus.running);
 				}
 			}
 			incrementEdgeProgressMap.put(srcTableName, subTaskSnapshotProgresses);
@@ -243,7 +243,7 @@ public class SnapshotProgressManager implements Closeable {
 	public void startAutoFlushEdgeProgresses(Node<?> srcNode) {
 		flushEdgeSnapshotProgressThreadPool = new ScheduledThreadPoolExecutor(1);
 		flushEdgeSnapshotProgressThreadPool.scheduleAtFixedRate(() -> {
-					Thread.currentThread().setName("Flush-Snapshot-Edge-Progress-" + subTaskDto.getName() + "(" + subTaskDto.getId().toHexString() + ")"
+					Thread.currentThread().setName("Flush-Snapshot-Edge-Progress-" + taskDto.getName() + "(" + taskDto.getId().toHexString() + ")"
 							+ "-" + srcNode.getId());
 					flushSnapshotEdgeProgress();
 				},
@@ -265,13 +265,13 @@ public class SnapshotProgressManager implements Closeable {
 				return;
 			}
 			List<BatchOperationDto> batchOperationDtoList = new ArrayList<>();
-			for (List<SubTaskSnapshotProgress> value : incrementEdgeProgressMap.values()) {
-				for (SubTaskSnapshotProgress subTaskSnapshotProgress : value) {
-					if (subTaskSnapshotProgress.getWaitForRunNumber() >= 0
-							&& subTaskSnapshotProgress.getFinishNumber() >= subTaskSnapshotProgress.getWaitForRunNumber()) {
-						subTaskSnapshotProgress.setStatus(SubTaskSnapshotProgress.ProgressStatus.done);
+			for (List<TaskSnapshotProgress> value : incrementEdgeProgressMap.values()) {
+				for (TaskSnapshotProgress taskSnapshotProgress : value) {
+					if (taskSnapshotProgress.getWaitForRunNumber() >= 0
+							&& taskSnapshotProgress.getFinishNumber() >= taskSnapshotProgress.getWaitForRunNumber()) {
+						taskSnapshotProgress.setStatus(TaskSnapshotProgress.ProgressStatus.done);
 					}
-					batchOperationDtoList.add(wrapBatchOperation(subTaskSnapshotProgress, BatchOperationDto.BatchOp.update));
+					batchOperationDtoList.add(wrapBatchOperation(taskSnapshotProgress, BatchOperationDto.BatchOp.update));
 				}
 			}
 			clientMongoOperator.batch(batchOperationDtoList, ConnectorConstant.SUBTASK_PROGRESS, r -> !running.get());
@@ -294,11 +294,11 @@ public class SnapshotProgressManager implements Closeable {
 		writeEdgeSnapshotProgresses(this.snapshotEdgeProgressMap);
 	}
 
-	private void writeEdgeSnapshotProgresses(Map<String, List<SubTaskSnapshotProgress>> snapshotEdgeProgressList) {
+	private void writeEdgeSnapshotProgresses(Map<String, List<TaskSnapshotProgress>> snapshotEdgeProgressList) {
 		List<BatchOperationDto> batchOperationDtoList = new ArrayList<>();
-		for (List<SubTaskSnapshotProgress> value : snapshotEdgeProgressList.values()) {
-			for (SubTaskSnapshotProgress subTaskSnapshotProgress : value) {
-				batchOperationDtoList.add(wrapBatchOperation(subTaskSnapshotProgress, BatchOperationDto.BatchOp.upsert));
+		for (List<TaskSnapshotProgress> value : snapshotEdgeProgressList.values()) {
+			for (TaskSnapshotProgress taskSnapshotProgress : value) {
+				batchOperationDtoList.add(wrapBatchOperation(taskSnapshotProgress, BatchOperationDto.BatchOp.upsert));
 				if (batchOperationDtoList.size() == BATCH_SIZE) {
 					clientMongoOperator.batch(batchOperationDtoList, ConnectorConstant.SUBTASK_PROGRESS, o -> !running.get());
 					batchOperationDtoList.clear();
@@ -311,16 +311,16 @@ public class SnapshotProgressManager implements Closeable {
 		}
 	}
 
-	private BatchOperationDto wrapBatchOperation(SubTaskSnapshotProgress snapshotEdgeProgress, BatchOperationDto.BatchOp batchOp) {
+	private BatchOperationDto wrapBatchOperation(TaskSnapshotProgress taskSnapshotProgress, BatchOperationDto.BatchOp batchOp) {
 		BatchOperationDto batchOperationDto;
 		try {
-			Query edgeQuery = getEdgeQuery(snapshotEdgeProgress);
+			Query edgeQuery = getEdgeQuery(taskSnapshotProgress);
 			batchOperationDto = new BatchOperationDto();
 			batchOperationDto.setWhere(edgeQuery.getQueryObject().toJson());
-			batchOperationDto.setDocument(snapshotEdgeProgress);
+			batchOperationDto.setDocument(taskSnapshotProgress);
 			batchOperationDto.setOp(batchOp);
 		} catch (Exception e) {
-			throw new RuntimeException("Wrap snapshot edge progress to document error: " + e.getMessage() + "\nData: " + snapshotEdgeProgress, e);
+			throw new RuntimeException("Wrap snapshot edge progress to document error: " + e.getMessage() + "\nData: " + taskSnapshotProgress, e);
 		}
 		return batchOperationDto;
 	}
@@ -332,11 +332,11 @@ public class SnapshotProgressManager implements Closeable {
 			if (!running.get() || Thread.currentThread().isInterrupted()) {
 				break;
 			}
-			List<SubTaskSnapshotProgress> list = this.snapshotEdgeProgressMap.get(srcTableName);
+			List<TaskSnapshotProgress> list = this.snapshotEdgeProgressMap.get(srcTableName);
 			if (CollectionUtils.isEmpty(list)) {
 				continue;
 			}
-			SubTaskSnapshotProgress snapshotEdgeProgress = list.get(0);
+			TaskSnapshotProgress snapshotEdgeProgress = list.get(0);
 			String srcConnId = snapshotEdgeProgress.getSrcConnId();
 			Connections srcConn;
 			if (connectionsMap.containsKey(srcConnId)) {
@@ -385,17 +385,17 @@ public class SnapshotProgressManager implements Closeable {
 					errorMsg = "Counting is not supported for database " + srcConn.getDatabase_type();
 				}
 			}
-			for (SubTaskSnapshotProgress subTaskSnapshotProgress : list) {
-				subTaskSnapshotProgress.setWaitForRunNumber(count);
+			for (TaskSnapshotProgress taskSnapshotProgress : list) {
+				taskSnapshotProgress.setWaitForRunNumber(count);
 				if (StringUtils.isNotBlank(errorMsg)) {
-					subTaskSnapshotProgress.setErrorMsg(errorMsg);
-					subTaskSnapshotProgress.setStatus(SubTaskSnapshotProgress.ProgressStatus.done);
+					taskSnapshotProgress.setErrorMsg(errorMsg);
+					taskSnapshotProgress.setStatus(TaskSnapshotProgress.ProgressStatus.done);
 				} else {
 					if (count == 0L) {
-						subTaskSnapshotProgress.setStatus(SubTaskSnapshotProgress.ProgressStatus.done);
+						taskSnapshotProgress.setStatus(TaskSnapshotProgress.ProgressStatus.done);
 					}
 				}
-				batchList.add(wrapBatchOperation(subTaskSnapshotProgress, BatchOperationDto.BatchOp.update));
+				batchList.add(wrapBatchOperation(taskSnapshotProgress, BatchOperationDto.BatchOp.update));
 				if (batchList.size() == BATCH_SIZE) {
 					clientMongoOperator.batch(batchList, ConnectorConstant.SUBTASK_PROGRESS, r -> !running.get());
 					batchList.clear();
@@ -408,39 +408,39 @@ public class SnapshotProgressManager implements Closeable {
 		}
 	}
 
-	private Query getEdgeQuery(SubTaskSnapshotProgress subTaskSnapshotProgress) {
-		return new Query(Criteria.where("subTaskId").is(subTaskSnapshotProgress.getSubTaskId())
-				.and("srcNodeId").is(subTaskSnapshotProgress.getSrcNodeId())
-				.and("tgtNodeId").is(subTaskSnapshotProgress.getTgtNodeId())
-				.and("srcTableName").is(subTaskSnapshotProgress.getSrcTableName())
-				.and("tgtTableName").is(subTaskSnapshotProgress.getTgtTableName())
-				.and("type").is(SubTaskSnapshotProgress.ProgressType.EDGE_PROGRESS.name()));
+	private Query getEdgeQuery(TaskSnapshotProgress taskSnapshotProgress) {
+		return new Query(Criteria.where("taskId").is(taskSnapshotProgress.getTaskId())
+				.and("srcNodeId").is(taskSnapshotProgress.getSrcNodeId())
+				.and("tgtNodeId").is(taskSnapshotProgress.getTgtNodeId())
+				.and("srcTableName").is(taskSnapshotProgress.getSrcTableName())
+				.and("tgtTableName").is(taskSnapshotProgress.getTgtTableName())
+				.and("type").is(TaskSnapshotProgress.ProgressType.EDGE_PROGRESS.name()));
 	}
 
 	private void generateEdgeSnapshotProgresses(Node<?> srcNode) {
 		if (!srcNode.isDataNode()) {
 			return;
 		}
-		List<SubTaskSnapshotProgress> srcEdgeProgressList = clientMongoOperator.find(new Query(Criteria.where("srcNodeId").is(srcNode.getId())), ConnectorConstant.SUBTASK_PROGRESS, SubTaskSnapshotProgress.class);
+		List<TaskSnapshotProgress> srcEdgeProgressList = clientMongoOperator.find(new Query(Criteria.where("srcNodeId").is(srcNode.getId())), ConnectorConstant.SUBTASK_PROGRESS, TaskSnapshotProgress.class);
 		List<Node<?>> successors = GraphUtil.successors(srcNode, Node::isDataNode);
 		for (Node<?> tgtNode : successors) {
 			if (srcNode instanceof TableNode && tgtNode instanceof TableNode) {
-				List<SubTaskSnapshotProgress> list;
+				List<TaskSnapshotProgress> list;
 				if (snapshotEdgeProgressMap.containsKey(((TableNode) srcNode).getTableName())) {
 					list = snapshotEdgeProgressMap.get(((TableNode) srcNode).getTableName());
 				} else {
 					list = new ArrayList<>();
 					snapshotEdgeProgressMap.put(((TableNode) srcNode).getTableName(), list);
 				}
-				SubTaskSnapshotProgress foundEdgeProgress = null;
+				TaskSnapshotProgress foundEdgeProgress = null;
 				if (CollectionUtils.isNotEmpty(srcEdgeProgressList)) {
 					foundEdgeProgress = srcEdgeProgressList.stream().filter(s -> s.getTgtNodeId().equals(tgtNode.getId())).findFirst().orElse(null);
 				}
 				if (null != foundEdgeProgress) {
 					list.add(foundEdgeProgress);
 				} else {
-					list.add(SubTaskSnapshotProgress.getSnapshotEdgeProgress(
-							subTaskDto.getId().toHexString(),
+					list.add(TaskSnapshotProgress.getSnapshotEdgeProgress(
+							taskDto.getId().toHexString(),
 							srcNode.getId(), tgtNode.getId(),
 							((TableNode) srcNode).getConnectionId(), ((TableNode) tgtNode).getConnectionId(),
 							((TableNode) srcNode).getTableName(), ((TableNode) tgtNode).getTableName()));
@@ -462,22 +462,22 @@ public class SnapshotProgressManager implements Closeable {
 				for (Map.Entry<String, String> entry : tableNameRelation.entrySet()) {
 					String srcTableName = entry.getKey();
 					String tgtTableName = entry.getValue();
-					List<SubTaskSnapshotProgress> list;
+					List<TaskSnapshotProgress> list;
 					if (snapshotEdgeProgressMap.containsKey(srcTableName)) {
 						list = snapshotEdgeProgressMap.get(srcTableName);
 					} else {
 						list = new ArrayList<>();
 						snapshotEdgeProgressMap.put(srcTableName, list);
 					}
-					SubTaskSnapshotProgress tgtEdgeProgress = null;
+					TaskSnapshotProgress tgtEdgeProgress = null;
 					if (CollectionUtils.isNotEmpty(srcEdgeProgressList)) {
 						tgtEdgeProgress = srcEdgeProgressList.stream().filter(s -> s.getSrcTableName().equals(srcTableName) && s.getTgtTableName().equals(tgtTableName)).findFirst().orElse(null);
 					}
 					if (null != tgtEdgeProgress) {
 						list.add(tgtEdgeProgress);
 					} else {
-						list.add(SubTaskSnapshotProgress.getSnapshotEdgeProgress(
-								subTaskDto.getId().toHexString(),
+						list.add(TaskSnapshotProgress.getSnapshotEdgeProgress(
+								taskDto.getId().toHexString(),
 								srcNode.getId(), tgtNode.getId(),
 								((DatabaseNode) srcNode).getConnectionId(), ((DatabaseNode) tgtNode).getConnectionId(),
 								srcTableName, tgtTableName));

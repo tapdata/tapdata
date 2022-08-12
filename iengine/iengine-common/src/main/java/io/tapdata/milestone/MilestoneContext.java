@@ -7,7 +7,7 @@ import com.tapdata.entity.dataflow.DataFlow;
 import com.tapdata.entity.dataflow.Stage;
 import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.tm.commons.dag.Node;
-import com.tapdata.tm.commons.task.dto.SubTaskDto;
+import com.tapdata.tm.commons.task.dto.TaskDto;
 
 import java.io.Serializable;
 import java.util.List;
@@ -32,8 +32,7 @@ public class MilestoneContext implements Serializable {
 	private List<String> baseUrls;
 	private int retryTime;
 	private ConfigurationCenter configurationCenter;
-
-	private SubTaskDto subTaskDto;
+	private TaskDto taskDto;
 	private Node sourceNode;
 	private Node destNode;
 	private Map<String, EdgeMilestone> edgeMilestones;
@@ -85,8 +84,8 @@ public class MilestoneContext implements Serializable {
 		this.configurationCenter = configurationCenter;
 	}
 
-	public MilestoneContext(SubTaskDto subTaskDto, Node sourceNode, Node destNode, MilestoneType milestoneType, List<String> baseUrls, int retryTime, ConfigurationCenter configurationCenter, String sourceVertexName, String destVertexName) {
-		this.subTaskDto = subTaskDto;
+	public MilestoneContext(TaskDto taskDto, Node sourceNode, Node destNode, MilestoneType milestoneType, List<String> baseUrls, int retryTime, ConfigurationCenter configurationCenter, String sourceVertexName, String destVertexName) {
+		this.taskDto = taskDto;
 		this.sourceNode = sourceNode;
 		this.destNode = destNode;
 		this.milestoneType = milestoneType;
@@ -97,8 +96,8 @@ public class MilestoneContext implements Serializable {
 		this.destVertexName = destVertexName;
 	}
 
-	public MilestoneContext(SubTaskDto subTaskDto, Node node, MilestoneType milestoneType, List<String> baseUrls, int retryTime, ConfigurationCenter configurationCenter, String vertexName, List<String> vertexNames, VertexType type) {
-		this.subTaskDto = subTaskDto;
+	public MilestoneContext(TaskDto taskDto, Node node, MilestoneType milestoneType, List<String> baseUrls, int retryTime, ConfigurationCenter configurationCenter, String vertexName, List<String> vertexNames, VertexType type) {
+		this.taskDto = taskDto;
 		this.milestoneType = milestoneType;
 		this.baseUrls = baseUrls;
 		this.retryTime = retryTime;
@@ -117,8 +116,8 @@ public class MilestoneContext implements Serializable {
 		}
 	}
 
-	public MilestoneContext(SubTaskDto subTaskDto, MilestoneType milestoneType, List<String> baseUrls, int retryTime, ConfigurationCenter configurationCenter) {
-		this.subTaskDto = subTaskDto;
+	public MilestoneContext(TaskDto taskDto, MilestoneType milestoneType, List<String> baseUrls, int retryTime, ConfigurationCenter configurationCenter) {
+		this.taskDto = taskDto;
 		this.milestoneType = milestoneType;
 		this.baseUrls = baseUrls;
 		this.retryTime = retryTime;
@@ -177,12 +176,12 @@ public class MilestoneContext implements Serializable {
 		return configurationCenter;
 	}
 
-	public SubTaskDto getSubTaskDto() {
-		return subTaskDto;
+	public TaskDto getTaskDto() {
+		return taskDto;
 	}
 
-	public void setSubTaskDto(SubTaskDto subTaskDto) {
-		this.subTaskDto = subTaskDto;
+	public void setTaskDto(TaskDto taskDto) {
+		this.taskDto = taskDto;
 	}
 
 	public Node getSourceNode() {

@@ -22,6 +22,7 @@ public class TaskRunHistoryService extends BaseService<TaskRunHistoryDto, TaskRu
         super(repository, TaskRunHistoryDto.class, TaskRunHistoryEntity.class);
     }
 
+    @Override
     protected void beforeSave(TaskRunHistoryDto TaskRunHistory, UserDetail user) {
     }
 }
