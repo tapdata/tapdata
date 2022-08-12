@@ -9,7 +9,7 @@ rules interpretation:
     default - default value
 """
 import json
-from lib.check import ConfigCheck
+from tapdata_cli.check import ConfigCheck
 
 
 MIGRATE = {

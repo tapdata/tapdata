@@ -26,12 +26,12 @@ import os
 os.environ['PYTHONSTARTUP'] = '>>>'
 os.environ["PROJECT_PATH"] = os.sep.join([os.path.dirname(os.path.abspath(__file__)), ".."])
 
-from lib.graph import Node, Graph
-from lib.rules import job_config
-from lib.check import ConfigCheck
-from lib.request import RequestSession
-from lib.log import logger, get_log_level
-from lib.config_parse import Config
+from tapdata_cli.graph import Node, Graph
+from tapdata_cli.rules import job_config
+from tapdata_cli.check import ConfigCheck
+from tapdata_cli.request import RequestSession
+from tapdata_cli.log import logger, get_log_level
+from tapdata_cli.config_parse import Config
 
 config: Config = Config()
 server = config["backend.server"]
@@ -151,7 +151,7 @@ i18n = {
         "invalid": "invalid",
         "testing": "testing",
         "command_help": "tapdata opensource client support command mode usage, type `h command` to list all commands and it's usage",
-        "lib_help": "tapdata opensource client support lib mode usage, type `h lib` to list all Basic Class and it's usage",
+        "lib_help": "tapdata opensource client support tapdata_cli mode usage, type `h tapdata_cli` to list all Basic Class and it's usage",
         "unknown": "unknown"
     },
     "zh": {
@@ -166,7 +166,7 @@ i18n = {
         "invalid": "不可用",
         "testing": "测试中",
         "command_help": "tapdata开源客户端支持command模式用法，键入`h command`列出所有命令及其用法",
-        "lib_help": "tapdata开源客户端支持lib模式用法，键入`h lib`列出所有基类及其用法",
+        "lib_help": "tapdata开源客户端支持lib模式用法，键入`h tapdata_cli`列出所有基类及其用法",
         "unknown": "未知的"
     }
 }
@@ -177,7 +177,7 @@ _l = i18n[_lang]
 
 help_args = {
     "command": "command_help",
-    "lib": "lib_help",
+    "tapdata_cli": "lib_help",
 }
 
 
@@ -228,8 +228,8 @@ def show_help(t):
             "datasource, job, api"
         )
         l = command_help_list
-    if t == "lib":
-        logger.notice("type {} get detail help, for example: h lib Pipeline\n", "h lib $name")
+    if t == "tapdata_cli":
+        logger.notice("type {} get detail help, for example: h tapdata_cli Pipeline\n", "h tapdata_cli $name")
         l = lib_help_list
     if l is None:
         if lib_methods_list.get(t) is not None:
@@ -1297,14 +1297,6 @@ class system_command(Magics):
             return
         _lang = l
         _l = i18n[_lang]
-
-
-ip = TerminalInteractiveShell.instance()
-ip.register_magics(global_help)
-ip.register_magics(system_command)
-ip.register_magics(show_command)
-ip.register_magics(op_object_command)
-ip.register_magics(ApiCommand)
 
 
 @help_decorate("Enum, used to describe a job status")
@@ -3423,9 +3415,30 @@ op_object_command_class = {
 
 
 def main():
+    # set ipython settings
+    ip = TerminalInteractiveShell.instance()
+    ip.register_magics(global_help)
+    ip.register_magics(system_command)
+    ip.register_magics(show_command)
+    ip.register_magics(op_object_command)
+    ip.register_magics(ApiCommand)
+
     login_with_access_code(server, access_code)
     show_connections(quiet=True)
     show_connectors(quiet=True)
 
 
-main()
+def init(custom_server, custom_access_code):
+    """
+    provide for python sdk to init env
+    """
+    global server, access_code
+    server = custom_server
+    access_code = custom_access_code
+    login_with_access_code(server, access_code)
+    show_connections(quiet=True)
+    show_connectors(quiet=True)
+
+
+if __name__ == "__main__":
+    main()
