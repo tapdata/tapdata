@@ -341,7 +341,7 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 		Map<String, DataSourceConnectionDto> connectMap = new HashMap<>();
 		Map<ObjectId, DataSourceConnectionDto> newResultObj = new HashMap<>();
 
-		List<String> pdkHashList = items.stream().map(DataSourceConnectionDto::getPdkHash).distinct().collect(Collectors.toList());
+		Set<String> pdkHashList = items.stream().map(DataSourceConnectionDto::getPdkHash).collect(Collectors.toSet());
 		List<DataSourceDefinitionDto> definitionDtoList = dataSourceDefinitionService.findByPdkHashList(pdkHashList, user);
 		//Map<String, DataSourceDefinitionDto> definitionMap = definitionDtoList.stream().collect(Collectors.toMap(DataSourceDefinitionDto::getPdkHash, Function.identity(), (f1, f2) -> f1));
 
