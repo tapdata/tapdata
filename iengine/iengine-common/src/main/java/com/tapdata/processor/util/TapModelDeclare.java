@@ -159,7 +159,7 @@ public class TapModelDeclare {
     }
     TapType tapTypeInstance;
     if (tapTypeClass == TapNumber.class) {
-      tapTypeInstance = new TapNumber().maxValue(new BigDecimal(1.7976931348623157e+308)).minValue(new BigDecimal(Long.MIN_VALUE));
+      tapTypeInstance = new TapNumber().maxValue(new BigDecimal(Long.MAX_VALUE)).minValue(new BigDecimal(Long.MIN_VALUE));
     } else {
       tapTypeInstance = tapTypeClass.newInstance();
     }
