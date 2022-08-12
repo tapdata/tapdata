@@ -1,10 +1,12 @@
 import os
 import configparser
+import sys
 from typing import TypeVar
 
 
 BASE_DIR = os.environ.get("PROJECT_PATH")
 CONFIG_FILENAME = "config.ini"
+DEFAULT_CONFIG = os.path.sep.join([os.path.dirname(__file__), "default.ini"])
 SEP = "."
 T = TypeVar("T", dict, configparser.SectionProxy, str)
 
@@ -20,7 +22,10 @@ class Config:
         else:
             cls._config = configparser.ConfigParser()
             ini_path = os.sep.join([BASE_DIR, CONFIG_FILENAME])
-            cls._config.read(ini_path)
+            if os.path.exists(ini_path):
+                cls._config.read(ini_path)
+            else:
+                cls._config.read(DEFAULT_CONFIG)
             return super(Config, cls).__new__(cls, *args, **kwargs)
 
     def __getitem__(self, item) -> T:

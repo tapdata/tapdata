@@ -1,7 +1,7 @@
 import time
 import logging
 
-from lib.config_parse import Config
+from tapdata_cli.config_parse import Config
 
 config = Config()
 

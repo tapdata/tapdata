@@ -8,7 +8,7 @@ class ConfigCheck:
     def __init__(self, config: dict, rules: dict, keep_extra=False):
         """
         param config: job config
-        param rules: check rules in lib/rules.py
+        param rules: check rules in tapdata_cli/rules.py
         param keep_extra: Whether values not in the check rules are saved
         """
         self.config = config
