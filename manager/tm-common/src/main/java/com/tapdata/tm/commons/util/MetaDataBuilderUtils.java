@@ -186,7 +186,7 @@ public class MetaDataBuilderUtils {
         metadataObj.setDevVersion(1);
 
         if (CollectionUtils.isNotEmpty(sourceDto.getListtags()) && !metaTypePropertyMap.get(metaType).model) {
-            metadataObj.setClassifications(sourceDto.getListtags());
+            metadataObj.setListtags(sourceDto.getListtags());
         }
 
         metadataObj.setLastUpdBy(userId);
@@ -207,8 +207,8 @@ public class MetaDataBuilderUtils {
                 if (newModel.getDevVersion() == null) {
                     newModel.setDevVersion(metadataObj.getDevVersion());
                 }
-                if (newModel.getClassifications() == null) {
-                    newModel.setClassifications(metadataObj.getClassifications());
+                if (newModel.getListtags() == null) {
+                    newModel.setListtags(metadataObj.getListtags());
                 }
                 if (newModel.getLastUpdBy() == null) {
                     newModel.setLastUpdBy(metadataObj.getLastUpdBy());

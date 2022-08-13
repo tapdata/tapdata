@@ -5,7 +5,7 @@ import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.tapdata.tm.commons.base.convert.ObjectIdDeserialize;
 import com.tapdata.tm.commons.base.convert.ObjectIdSerialize;
-import com.tapdata.tm.ds.bean.Tag;
+import com.tapdata.tm.commons.schema.Tag;
 import lombok.Data;
 import org.bson.types.ObjectId;
 

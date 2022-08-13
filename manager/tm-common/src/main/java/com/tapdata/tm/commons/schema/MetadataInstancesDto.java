@@ -43,7 +43,7 @@ public class MetadataInstancesDto extends BaseDto {
     private SourceDto source;
     private String createSource;
     private Boolean virtual;
-    private List<Tag> classifications;
+    private List<Tag> listtags;
     @JsonProperty("last_user_name")
     private String lastUserName;
     private List<TableIndex> indices;

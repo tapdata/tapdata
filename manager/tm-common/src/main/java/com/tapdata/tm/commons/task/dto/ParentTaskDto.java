@@ -4,6 +4,7 @@ import com.tapdata.tm.commons.base.dto.SchedulableDto;
 import com.tapdata.tm.commons.dag.AccessNodeTypeEnum;
 import com.tapdata.tm.commons.dag.EqField;
 import com.tapdata.tm.commons.dag.SchemaTransformerResult;
+import com.tapdata.tm.commons.schema.Tag;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import org.apache.commons.lang3.StringUtils;
@@ -163,7 +164,7 @@ public class ParentTaskDto extends SchedulableDto {
 
     private double transformProcess;
     private String transformStatus;
-    private List<Map<String,String>> listtags;
+    private List<Tag> listtags;
 
     /**
      * 计划开始事件开关

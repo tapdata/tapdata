@@ -1,6 +1,6 @@
 package com.tapdata.tm.discovery.bean;
 
-import com.tapdata.tm.metadatadefinition.dto.MetadataDefinitionDto;
+import com.tapdata.tm.commons.schema.Tag;
 import lombok.Data;
 
 import java.util.List;
@@ -11,5 +11,5 @@ public class DataDirectoryDto {
     private String name;
     private String type;
     private String desc;
-    private List<MetadataDefinitionDto> listtags;
+    private List<Tag> listtags;
 }

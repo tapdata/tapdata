@@ -1,6 +1,7 @@
 
 package com.tapdata.tm.lineagegraph.bean;
 
+import com.tapdata.tm.commons.schema.Tag;
 import com.tapdata.tm.commons.schema.bean.FileSources;
 import com.tapdata.tm.commons.schema.bean.PlatformInfo;
 import com.tapdata.tm.commons.schema.bean.UrlInfo;
