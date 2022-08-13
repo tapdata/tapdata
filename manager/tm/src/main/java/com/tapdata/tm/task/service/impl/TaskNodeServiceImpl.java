@@ -367,7 +367,7 @@ public class TaskNodeServiceImpl implements TaskNodeService {
         taskDtoCopy.setSyncType(TaskDto.SYNC_TYPE_TEST_RUN);
         taskDtoCopy.setStatus(TaskDto.STATUS_WAIT_RUN);
         taskDtoCopy.setDag(temp);
-        taskDtoCopy.setId(new ObjectId());
+//        taskDtoCopy.setId(new ObjectId());
         taskDtoCopy.setName(taskDto.getName() + "(100)");
         taskDtoCopy.setVersion(version);
 
