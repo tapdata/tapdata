@@ -14,11 +14,11 @@ public class DataDiscoveryDto {
 
     private String id;
     /** 对象分类 */
-    private String category;
+    private DataObjCategoryEnum category;
     /** 对象类型 */
     private String type;
     /** 来源分类 */
-    private String sourceCategory;
+    private DataSourceCategoryEnum sourceCategory;
     /** 来源类型 */
     private String sourceType;
     /** 来源信息 */
@@ -31,5 +31,6 @@ public class DataDiscoveryDto {
     private String businessDesc;
     /** 目录标签 */
     private List<Tag> listtags;
+    private List<Tag> allTags;
 
 }

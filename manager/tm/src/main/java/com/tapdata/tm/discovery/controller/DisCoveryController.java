@@ -30,34 +30,31 @@ public class DisCoveryController extends BaseController {
     @Operation(summary = "find discovery overview list")
     @GetMapping
     public ResponseMessage<Page<DataDiscoveryDto>> find(DiscoveryQueryParam param) {
-        return success(discoveryService.find(param));
+        return success(discoveryService.find(param, getLoginUser()));
     }
 
     @Operation(summary = "find storage object overview")
     @GetMapping("storage/overview/{id}")
     public ResponseMessage<DiscoveryStorageOverviewDto> storageOverview(@PathVariable("id") String id) {
-        return success(discoveryService.storageOverview(id));
+        return success(discoveryService.storageOverview(id, getLoginUser()));
     }
 
     @Operation(summary = "find storage object preview")
     @GetMapping("storage/preview/{id}")
     public ResponseMessage<Page<Object>> storagePreview(@PathVariable("id") String id, @RequestParam(value = "skip", defaultValue = "0") Integer skip,
     @RequestParam(value = "size", defaultValue = "20") Integer size) {
-        return success(discoveryService.storagePreview(id));
+        return success(discoveryService.storagePreview(id, getLoginUser()));
     }
 
     @Operation(summary = "find storage filter type list")
     @GetMapping("filterList")
     public ResponseMessage<Map<ObjectFilterEnum, List<String>>> filterList(@RequestParam("filterType") List<ObjectFilterEnum> filterTypes) {
-        return success(discoveryService.filterList(filterTypes));
+        return success(discoveryService.filterList(filterTypes, getLoginUser()));
     }
 
     @Operation(summary = "find directory data list")
     @GetMapping("directory/data")
     public ResponseMessage<List<DataDirectoryDto>> findDirectoryData(DirectoryQueryParam param) {
-        return success(discoveryService.findDataDirectory(param));
+        return success(discoveryService.findDataDirectory(param, getLoginUser()));
     }
-
-
-
 }

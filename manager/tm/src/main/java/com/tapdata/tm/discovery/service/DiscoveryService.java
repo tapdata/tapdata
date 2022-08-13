@@ -1,6 +1,7 @@
 package com.tapdata.tm.discovery.service;
 
 import com.tapdata.tm.base.dto.Page;
+import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.discovery.bean.*;
 
 import java.util.List;
@@ -12,24 +13,24 @@ public interface DiscoveryService {
      * @param param
      * @return
      */
-    Page<DataDiscoveryDto> find(DiscoveryQueryParam param);
+    Page<DataDiscoveryDto> find(DiscoveryQueryParam param, UserDetail user);
 
     /**
      * 查询存储对象预览
      * @param id
      * @return
      */
-    Page<Object> storagePreview(String id);
+    Page<Object> storagePreview(String id, UserDetail user);
 
     /**
      * 查询存储对象概览
      * @param id
      * @return
      */
-    DiscoveryStorageOverviewDto storageOverview(String id);
+    DiscoveryStorageOverviewDto storageOverview(String id, UserDetail user);
 
 
-    Map<ObjectFilterEnum, List<String>> filterList(List<ObjectFilterEnum> filterTypes);
+    Map<ObjectFilterEnum, List<String>> filterList(List<ObjectFilterEnum> filterTypes, UserDetail user);
 
-    List<DataDirectoryDto> findDataDirectory(DirectoryQueryParam param);
+    List<DataDirectoryDto> findDataDirectory(DirectoryQueryParam param, UserDetail user);
 }

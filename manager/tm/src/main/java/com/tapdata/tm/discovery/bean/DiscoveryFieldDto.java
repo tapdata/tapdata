@@ -17,11 +17,11 @@ public class DiscoveryFieldDto {
     /** 非空 */
     private Boolean notNull;
     /** 默认值 */
-    private Boolean defaultValue;
+    private Object defaultValue;
     /** 业务名称 */
-    private Boolean businessName;
+    private String businessName;
     /** 业务类型 */
-    private Boolean businessType;
+    private String businessType;
     /** 业务描述 */
-    private Boolean businessDesc;
+    private String businessDesc;
 }
