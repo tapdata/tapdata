@@ -3,15 +3,25 @@ package com.tapdata.tm.monitor.service;
 import com.mongodb.bulk.BulkWriteResult;
 import com.mongodb.client.result.DeleteResult;
 import com.tapdata.manager.common.utils.JsonUtil;
+import com.tapdata.tm.base.dto.Page;
+import com.tapdata.tm.commons.task.dto.TaskDto;
+import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.monitor.constant.Granularity;
 import com.tapdata.tm.monitor.constant.TableNameEnum;
+import com.tapdata.tm.monitor.dto.TableSyncStaticDto;
 import com.tapdata.tm.monitor.entity.MeasurementEntity;
 import com.tapdata.tm.monitor.param.AggregateMeasurementParam;
 import com.tapdata.tm.monitor.param.MeasurementQueryParam;
+import com.tapdata.tm.monitor.vo.TableSyncStaticVo;
+import com.tapdata.tm.task.service.TaskNodeService;
+import com.tapdata.tm.task.service.TaskRecordService;
 import com.tapdata.tm.utils.TimeUtil;
-import io.tapdata.common.sample.request.*;
+import io.tapdata.common.sample.request.Sample;
+import io.tapdata.common.sample.request.SampleRequest;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.collections.CollectionUtils;
+import org.apache.commons.collections4.ListUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.bson.Document;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -24,7 +34,10 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 @Service
@@ -32,6 +45,8 @@ import java.util.stream.Collectors;
 @Setter(onMethod_ = {@Autowired})
 public class MeasurementServiceV2 {
     private MongoTemplate mongoOperations;
+    private TaskRecordService taskRecordService;
+    private TaskNodeService taskNodeService;
 
     public void addAgentMeasurement(List<SampleRequest> samples) {
         addBulkAgentMeasurement(samples, Granularity.GRANULARITY_MINUTE);
@@ -630,5 +645,105 @@ public class MeasurementServiceV2 {
         DeleteResult result = mongoOperations.remove(query, MeasurementEntity.class, TableNameEnum.AgentMeasurementV2.getValue());
 
         log.info(" taskId :{}  删除了 {} 条记录", taskId, JsonUtil.toJson(result));
+    }
+
+    public Map<String, Long[]> countEventByTaskRecord(List<String> taskRecordIds) {
+        Map<String, Long[]> result = new HashMap<>();
+
+        Query query = new Query(Criteria.where("tags.taskRecordId").in(taskRecordIds)
+                .and("tags.type").is("task")
+                .and(MeasurementEntity.FIELD_GRANULARITY).is(Granularity.GRANULARITY_MINUTE));
+        List<MeasurementEntity> list = mongoOperations.find(query, MeasurementEntity.class, TableNameEnum.AgentMeasurementV2.getValue());
+        if (CollectionUtils.isEmpty(list)) {
+            return result;
+        }
+
+        for (MeasurementEntity measurement : list) {
+            String taskRecordId = measurement.getTags().get("taskRecordId");
+            List<Sample> samples = measurement.getSamples();
+            if (CollectionUtils.isEmpty(samples)) {
+                result.put(taskRecordId, new Long[]{0L, 0L});
+                continue;
+            }
+
+            Map<String, Number> vs = samples.get(0).getVs();
+            // inputInsertTotal + inputUpdateTotal + inputDeleteTotal + inputDdlTotal + inputOthersTotal
+            AtomicReference<Long> inputTotal = new AtomicReference<>(0L);
+            AtomicReference<Long> outputTotal = new AtomicReference<>(0L);
+            vs.remove("inputQps");
+            vs.remove("outputQps");
+            vs.forEach((k, v) -> {
+                if (StringUtils.startsWith(k, "input")) {
+                    inputTotal.updateAndGet(v1 -> v1 + v.longValue());
+                } else if (StringUtils.startsWith(k, "output")) {
+                    outputTotal.updateAndGet(v1 -> v1 + v.longValue());
+                }
+            });
+            result.put(taskRecordId, new Long[]{inputTotal.get(), outputTotal.get()});
+        }
+
+        return result;
+    }
+
+    public Page<TableSyncStaticVo> querySyncStatic(TableSyncStaticDto dto, UserDetail userDetail) {
+        String taskRecordId = dto.getTaskRecordId();
+        Criteria criteria = Criteria.where("tags.taskRecordId").is(taskRecordId)
+                .and("tags.type").is("table")
+                .and(MeasurementEntity.FIELD_GRANULARITY).is(Granularity.GRANULARITY_MINUTE);
+        Query query = new Query(criteria);
+        long count = mongoOperations.count(query, MeasurementEntity.class, TableNameEnum.AgentMeasurementV2.getValue());
+        if (count == 0) {
+            return new Page<>(0, Collections.emptyList());
+        }
+
+        List<MeasurementEntity> list = mongoOperations.find(query, MeasurementEntity.class, TableNameEnum.AgentMeasurementV2.getValue());
+        if (CollectionUtils.isEmpty(list)) {
+            return new Page<>(0, Collections.emptyList());
+        }
+
+        List<List<MeasurementEntity>> partition = ListUtils.partition(list, dto.getSize());
+        Integer page = dto.getPage();
+        if (page > partition.size()) {
+            page = partition.size();
+        }
+        List<MeasurementEntity> measurementEntities = partition.get(page - 1);
+
+        TaskDto taskDto = taskRecordService.queryTask(taskRecordId, userDetail.getUserId());
+
+        List<TableSyncStaticVo> result = new ArrayList<>();
+        for (MeasurementEntity measurement : measurementEntities) {
+            String originTable = measurement.getTags().get("table");
+
+            List<Sample> samples = measurement.getSamples();
+            if (CollectionUtils.isEmpty(samples)) {
+                continue;
+            }
+
+            Map<String, Number> vs = samples.get(0).getVs();
+            long snapshotInsertTotal = vs.get("snapshotInsertTotal").longValue();
+            long snapshotTotal = vs.get("snapshotTotal").longValue();
+
+            BigDecimal syncRate = BigDecimal.ZERO;
+            if (snapshotTotal != 0) {
+                syncRate = new BigDecimal(snapshotInsertTotal).divide(new BigDecimal(snapshotTotal), 2, RoundingMode.HALF_UP);
+            }
+
+            String fullSyncStatus = "";
+            if (syncRate.compareTo(BigDecimal.ONE) == 0) {
+                fullSyncStatus = "DONE";
+            } else if (syncRate.compareTo(BigDecimal.ZERO) == 0) {
+                fullSyncStatus = "NOT_START";
+            } else if (!TaskDto.STATUS_RUNNING.equals(taskDto.getStatus())) {
+                fullSyncStatus = "NOT_START";
+            }
+
+            TableSyncStaticVo vo = new TableSyncStaticVo();
+            vo.setOriginTable(originTable);
+            vo.setFullSyncStatus(fullSyncStatus);
+            vo.setSyncRate(syncRate);
+
+            result.add(vo);
+        }
+        return new Page<>( count, result);
     }
 }
