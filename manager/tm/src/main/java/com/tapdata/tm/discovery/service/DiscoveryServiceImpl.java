@@ -12,6 +12,7 @@ import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.discovery.bean.*;
 import com.tapdata.tm.metaData.repository.MetaDataRepository;
+import com.tapdata.tm.metadatainstance.repository.MetadataInstancesRepository;
 import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
 import com.tapdata.tm.task.repository.TaskRepository;
 import com.tapdata.tm.task.service.TaskService;
@@ -32,7 +33,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
 
     private MetadataInstancesService metadataInstancesService;
 
-    private MetaDataRepository metaDataRepository;
+    private MetadataInstancesRepository metaDataRepository;
     private TaskRepository taskRepository;
     /**
      * 查询对象概览列表
