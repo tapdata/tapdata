@@ -22,4 +22,6 @@ public class MetadataDefinitionDto extends BaseDto {
     @JsonProperty("item_type")
     private List<String> itemType;
 
+    private String desc;
+
 }

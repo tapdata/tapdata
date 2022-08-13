@@ -1,10 +1,10 @@
 package com.tapdata.tm.discovery.service;
 
 import com.tapdata.tm.base.dto.Page;
-import com.tapdata.tm.discovery.bean.DataDiscoveryDto;
-import com.tapdata.tm.discovery.bean.DiscoveryQueryParam;
-import com.tapdata.tm.discovery.bean.DiscoveryStorageOverviewDto;
-import com.tapdata.tm.discovery.bean.DiscoveryStoragePreviewDto;
+import com.tapdata.tm.discovery.bean.*;
+
+import java.util.List;
+import java.util.Map;
 
 public interface DiscoveryService {
     /**
@@ -27,4 +27,9 @@ public interface DiscoveryService {
      * @return
      */
     DiscoveryStorageOverviewDto storageOverview(String id);
+
+
+    Map<ObjectFilterEnum, List<String>> filterList(List<ObjectFilterEnum> filterTypes);
+
+    List<DataDirectoryDto> findDataDirectory(DirectoryQueryParam param);
 }

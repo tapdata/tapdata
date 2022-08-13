@@ -1,6 +1,10 @@
 package com.tapdata.tm.discovery.bean;
 
+import com.tapdata.tm.metadatadefinition.dto.MetadataDefinitionDto;
 import lombok.Data;
+
+import java.util.List;
+import java.util.Map;
 
 /**
  * 数据发现概览
@@ -25,5 +29,7 @@ public class DataDiscoveryDto {
     private String businessName;
     /** 业务描述 */
     private String businessDesc;
+    /** 目录标签 */
+    private List<MetadataDefinitionDto> listtags;
 
 }
