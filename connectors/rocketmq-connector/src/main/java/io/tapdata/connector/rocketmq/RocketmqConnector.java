@@ -32,6 +32,7 @@ public class RocketmqConnector extends ConnectorBase {
 
     private void initConnection(TapConnectionContext connectorContext) throws Throwable {
         rocketmqConfig = new RocketmqConfig().load(connectorContext.getConnectionConfig());
+        isConnectorStarted(connectorContext, tapConnectorContext -> rocketmqConfig.load(tapConnectorContext.getNodeConfig()));
         rocketmqService = new RocketmqService(rocketmqConfig);
         rocketmqService.init();
     }
