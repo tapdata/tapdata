@@ -29,6 +29,7 @@ public class TapCodecsFilterManagerTest {
                 entry("string", "string"),
                 entry("int", 5555),
                 entry("long", 34324L),
+                entry("float", 324.3f),
                 entry("double", 343.324d)
                 );
 
@@ -36,6 +37,7 @@ public class TapCodecsFilterManagerTest {
         sourceNameFieldMap.put("string", field("string", "varchar").tapType(tapString().bytes(50L)));
         sourceNameFieldMap.put("int", field("int", "number(32)").tapType(tapNumber().bit(32).maxValue(BigDecimal.valueOf(Integer.MAX_VALUE)).minValue(BigDecimal.valueOf(Integer.MIN_VALUE))));
         sourceNameFieldMap.put("long", field("long", "number(64)").tapType(tapNumber().bit(64).minValue(BigDecimal.valueOf(Long.MIN_VALUE)).maxValue(BigDecimal.valueOf(Long.MAX_VALUE))));
+        sourceNameFieldMap.put("float", field("float", "number(32)").tapType(tapNumber().bit(32).scale(3).minValue(BigDecimal.valueOf(Float.MIN_VALUE)).maxValue(BigDecimal.valueOf(Float.MAX_VALUE))));
         sourceNameFieldMap.put("double", field("double", "double").tapType(tapNumber().scale(3).bit(64).minValue(BigDecimal.valueOf(Double.MIN_VALUE)).maxValue(BigDecimal.valueOf(Double.MAX_VALUE))));
 
         //read from source, transform to TapValue out from source connector.
@@ -167,5 +169,38 @@ public class TapCodecsFilterManagerTest {
         assertNotNull(newFieldMap.get("bytes"));
         assertEquals(newFieldMap.get("bytes").getDataType(), "TapBinary");
 
+    }
+
+    @Test
+    public void testScaleForFloatDouble() {
+        TapCodecsFilterManager codecsFilterManager = TapCodecsFilterManager.create(TapCodecsRegistry.create());
+        Map<String, Object> map = map(
+                entry("float", 324.3f),
+                entry("floatMax", Float.MAX_VALUE),
+                entry("floatNegativeMax", -Float.MAX_VALUE),
+                entry("floatMin", Float.MIN_VALUE),
+                entry("floatOverflow", Float.MAX_VALUE + 1),
+                entry("double", 343.324d)
+        );
+
+        Map<String, TapField> sourceNameFieldMap = new HashMap<>();
+        sourceNameFieldMap.put("float", field("float", "number(32)").tapType(tapNumber().bit(32).scale(3).minValue(BigDecimal.valueOf(Float.MIN_VALUE)).maxValue(BigDecimal.valueOf(Float.MAX_VALUE))));
+        sourceNameFieldMap.put("floatMax", field("floatMax", "number(32)").tapType(tapNumber().bit(32).scale(3).minValue(BigDecimal.valueOf(Float.MIN_VALUE)).maxValue(BigDecimal.valueOf(Float.MAX_VALUE))));
+        sourceNameFieldMap.put("floatNegativeMax", field("floatNegativeMax", "number(32)").tapType(tapNumber().bit(32).scale(3).minValue(BigDecimal.valueOf(Float.MIN_VALUE)).maxValue(BigDecimal.valueOf(Float.MAX_VALUE))));
+        sourceNameFieldMap.put("floatMin", field("floatMin", "number(32)").tapType(tapNumber().bit(32).scale(3).minValue(BigDecimal.valueOf(Float.MIN_VALUE)).maxValue(BigDecimal.valueOf(Float.MAX_VALUE))));
+        sourceNameFieldMap.put("floatOverflow", field("floatOverflow", "double").tapType(tapNumber().scale(3).bit(64).minValue(BigDecimal.valueOf(Double.MIN_VALUE)).maxValue(BigDecimal.valueOf(Double.MAX_VALUE))));
+        sourceNameFieldMap.put("double", field("double", "double").tapType(tapNumber().scale(3).fixed(true).bit(64).minValue(BigDecimal.valueOf(Double.MIN_VALUE)).maxValue(BigDecimal.valueOf(Double.MAX_VALUE))));
+
+        //read from source, transform to TapValue out from source connector.
+        codecsFilterManager.transformToTapValueMap(map, sourceNameFieldMap);
+
+        //before enter a processor, transform to value from TapValue.
+        Map<String, TapField> nameFieldMap = codecsFilterManager.transformFromTapValueMap(map);
+        assertEquals(map.get("float"), 324.3f);
+        assertEquals(map.get("floatMax"), Float.MAX_VALUE);
+        assertEquals(map.get("floatNegativeMax"), -Float.MAX_VALUE);
+        assertEquals(map.get("floatMin"), Float.MIN_VALUE);
+        assertEquals(map.get("floatOverflow"), Double.valueOf(String.valueOf(Float.MAX_VALUE + 1)));
+        assertEquals(map.get("double"), 343.324d);
     }
 }

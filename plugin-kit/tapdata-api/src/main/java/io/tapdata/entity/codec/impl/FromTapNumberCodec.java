@@ -39,6 +39,18 @@ public class FromTapNumberCodec implements FromTapValueCodec<TapNumberValue> {
                     return BigDecimal.valueOf(tapValue.getValue());
                 }
             } else {
+                if((tapNumber.getBit() != null && tapNumber.getBit() == 32) && (tapNumber.getFixed() == null || !tapNumber.getFixed())) {
+                    BigDecimal minValue = tapNumber.getMinValue();
+                    BigDecimal maxValue = tapNumber.getMaxValue();
+                    if(minValue != null && maxValue != null &&
+                            minValue.compareTo(BigDecimal.valueOf(-Float.MAX_VALUE)) >= 0 &&
+                            BigDecimal.valueOf(Float.MAX_VALUE).compareTo(maxValue) >= 0) {
+                        Double d = tapValue.getValue();
+                        if(d != null)
+                            return d.floatValue();
+                    }
+
+                }
                 return tapValue.getValue();
             }
         }
