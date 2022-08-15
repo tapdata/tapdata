@@ -350,9 +350,19 @@ public class DiscoveryServiceImpl implements DiscoveryService {
         Criteria criteriaTask = Criteria.where("is_deleted").ne(true)
                 .and("syncType").in(TaskDto.SYNC_TYPE_MIGRATE, TaskDto.SYNC_TYPE_SYNC)
                 .and("agentId").exists(true);
-        query.fields().include("agentId");
-        List<String> taskSourceTypes = taskRepository.findDistinct(query, "agentId", user, String.class);
+        Query query1 = new Query(criteriaTask);
+        query1.fields().include("agentId");
+        List<String> taskSourceTypes = taskRepository.findDistinct(query1, "agentId", user, String.class);
         sourceTypes.addAll(taskSourceTypes);
         return sourceTypes;
+    }
+
+
+    public void updateListTags(String id, String objCategory, List<String> tagIds) {
+
+    }
+
+    public void addListTags(String id, String objCategory, List<String> tagIds) {
+
     }
 }

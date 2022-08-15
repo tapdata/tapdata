@@ -57,4 +57,17 @@ public class DisCoveryController extends BaseController {
     public ResponseMessage<Page<DataDirectoryDto>> findDirectoryData(DirectoryQueryParam param) {
         return success(discoveryService.findDataDirectory(param, getLoginUser()));
     }
+
+
+    @Operation(summary = "discovery object update tags")
+    @GetMapping("directory/data")
+    public ResponseMessage<Void> updateListTags(String id, String objCategory, List<String> tagIds) {
+        return null;
+    }
+
+    @Operation(summary = "discovery object update tags")
+    @GetMapping("directory/data")
+    public ResponseMessage<Void> addListTags(String id, String objCategory, List<String> tagIds) {
+        return null;
+    }
 }
