@@ -163,7 +163,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
         DiscoveryStorageOverviewDto dto = new DiscoveryStorageOverviewDto();
         dto.setCreateAt(metadataInstancesDto.getCreateAt());
         dto.setLastUpdAt(metadataInstancesDto.getLastUpdAt());
-        dto.setFieldNum(metadataInstancesDto.getFields().size());
+        dto.setFieldNum(CollectionUtils.isEmpty(metadataInstancesDto.getFields()) ? 0 : metadataInstancesDto.getFields().size());
         //dto.setRowNum();
         SourceDto source = metadataInstancesDto.getSource();
         if (source != null) {
@@ -177,7 +177,6 @@ public class DiscoveryServiceImpl implements DiscoveryService {
         dto.setType(metadataInstancesDto.getMetaType());
         dto.setSourceCategory(DataSourceCategoryEnum.connection);
         //dto.setSourceInfo();
-        //dto.setName();
         //dto.setBusinessName();
         //dto.setBusinessDesc();
         dto.setListtags(metadataInstancesDto.getListtags());
