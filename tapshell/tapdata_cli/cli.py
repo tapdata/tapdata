@@ -151,7 +151,7 @@ i18n = {
         "invalid": "invalid",
         "testing": "testing",
         "command_help": "tapdata opensource client support command mode usage, type `h command` to list all commands and it's usage",
-        "lib_help": "tapdata opensource client support tapdata_cli mode usage, type `h tapdata_cli` to list all Basic Class and it's usage",
+        "lib_help": "tapdata opensource client support lib mode usage, type `h lib` to list all Basic Class and it's usage",
         "unknown": "unknown"
     },
     "zh": {
@@ -166,7 +166,7 @@ i18n = {
         "invalid": "不可用",
         "testing": "测试中",
         "command_help": "tapdata开源客户端支持command模式用法，键入`h command`列出所有命令及其用法",
-        "lib_help": "tapdata开源客户端支持lib模式用法，键入`h tapdata_cli`列出所有基类及其用法",
+        "lib_help": "tapdata开源客户端支持lib模式用法，键入`h lib`列出所有基类及其用法",
         "unknown": "未知的"
     }
 }
@@ -177,7 +177,7 @@ _l = i18n[_lang]
 
 help_args = {
     "command": "command_help",
-    "tapdata_cli": "lib_help",
+    "lib": "lib_help",
 }
 
 
@@ -228,8 +228,8 @@ def show_help(t):
             "datasource, job, api"
         )
         l = command_help_list
-    if t == "tapdata_cli":
-        logger.notice("type {} get detail help, for example: h tapdata_cli Pipeline\n", "h tapdata_cli $name")
+    if t == "lib":
+        logger.notice("type {} get detail help, for example: h lib Pipeline\n", "h lib $name")
         l = lib_help_list
     if l is None:
         if lib_methods_list.get(t) is not None:

@@ -122,7 +122,7 @@ jobs:
         uses: Gr1N/setup-poetry@v7
       - name: publish pip package if push
 #        if: ${{ success() && env.CURRENT_BRANCH == 'master' && github.event_name == 'push' }}
-        if: ${{ success() && env.CURRENT_BRANCH == 'master' }}
+        if: ${{ success() }}
         run: |
           git diff-tree --name-only HEAD^ HEAD
           git diff-tree --name-only HEAD^ HEAD | grep tapshell > /dev/null
