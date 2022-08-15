@@ -1,6 +1,7 @@
 package com.tapdata.tm.discovery.service;
 
 import com.tapdata.tm.base.dto.Page;
+import com.tapdata.tm.commons.base.dto.BaseDto;
 import com.tapdata.tm.commons.schema.*;
 import com.tapdata.tm.commons.schema.bean.SourceDto;
 import com.tapdata.tm.commons.schema.bean.SourceTypeEnum;
@@ -47,6 +48,14 @@ public class DiscoveryServiceImpl implements DiscoveryService {
      */
     @Override
     public Page<DataDiscoveryDto> find(DiscoveryQueryParam param, UserDetail user) {
+        if (param.getPage() == null) {
+            param.setPage(1);
+        }
+
+        if (param.getPageSize() == null) {
+            param.setPageSize(20);
+        }
+
         Page<DataDiscoveryDto> page = new Page<>();
         page.setItems(Lists.of());
         page.setTotal(0);
@@ -61,22 +70,31 @@ public class DiscoveryServiceImpl implements DiscoveryService {
             }
         }
 
-        Criteria criteria = new Criteria();
+        Criteria criteria = Criteria.where("sourceType").is(SourceTypeEnum.SOURCE.name())
+                .and("taskId").exists(false)
+                .and("is_deleted").ne(true);
         if (StringUtils.isNotBlank(param.getType())) {
             criteria.and("meta_type").is(param.getType());
         }
         if (StringUtils.isNotBlank(param.getSourceType())) {
-            criteria.and("source.database_type.").is(param.getSourceType());
+            criteria.and("source.database_type").is(param.getSourceType());
         }
 
+
+
         if (StringUtils.isNotBlank(param.getQueryKey())) {
-            Criteria.where("originalName").regex(param.getQueryKey());
             criteria.orOperator(
                     Criteria.where("originalName").regex(param.getQueryKey()),
                     Criteria.where("name").regex(param.getQueryKey()),
                     Criteria.where("comment").regex(param.getQueryKey()),
                     Criteria.where("source.database_name").regex(param.getQueryKey()),
                     Criteria.where("alias_name").regex(param.getQueryKey()));
+        }
+
+        if (StringUtils.isNotBlank(param.getTagId())) {
+            List<MetadataDefinitionDto> andChild = metadataDefinitionService.findAndChild(Lists.of(MongoUtils.toObjectId(param.getTagId())));
+            List<ObjectId> tagIds = andChild.stream().map(BaseDto::getId).collect(Collectors.toList());
+            criteria.and("listtags.id").in(tagIds);
         }
 
         Query query = new Query(criteria);
@@ -98,6 +116,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
             dto.setId(metadataInstancesDto.getId().toHexString());
             dto.setCategory(DataObjCategoryEnum.storage);
             dto.setType(metadataInstancesDto.getMetaType());
+            dto.setName(metadataInstancesDto.getOriginalName());
             dto.setSourceCategory(DataSourceCategoryEnum.connection);
             dto.setId(metadataInstancesDto.getId().toHexString());
             //dto.setSourceInfo();
@@ -118,7 +137,6 @@ public class DiscoveryServiceImpl implements DiscoveryService {
 
         page.setItems(items);
         page.setTotal(count);
-
         return page;
     }
 
@@ -145,7 +163,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
         DiscoveryStorageOverviewDto dto = new DiscoveryStorageOverviewDto();
         dto.setCreateAt(metadataInstancesDto.getCreateAt());
         dto.setLastUpdAt(metadataInstancesDto.getLastUpdAt());
-        dto.setFieldNum(metadataInstancesDto.getFields().size());
+        dto.setFieldNum(CollectionUtils.isEmpty(metadataInstancesDto.getFields()) ? 0 : metadataInstancesDto.getFields().size());
         //dto.setRowNum();
         SourceDto source = metadataInstancesDto.getSource();
         if (source != null) {
@@ -155,11 +173,11 @@ public class DiscoveryServiceImpl implements DiscoveryService {
             dto.setSourceType(source.getDatabase_type());
         }
         dto.setId(metadataInstancesDto.getId().toHexString());
+        dto.setName(metadataInstancesDto.getOriginalName());
         dto.setCategory(DataObjCategoryEnum.storage);
         dto.setType(metadataInstancesDto.getMetaType());
         dto.setSourceCategory(DataSourceCategoryEnum.connection);
         //dto.setSourceInfo();
-        //dto.setName();
         //dto.setBusinessName();
         //dto.setBusinessDesc();
         dto.setListtags(metadataInstancesDto.getListtags());
@@ -235,8 +253,67 @@ public class DiscoveryServiceImpl implements DiscoveryService {
     }
 
     @Override
-    public List<DataDirectoryDto> findDataDirectory(DirectoryQueryParam param, UserDetail user) {
-        return null;
+    public Page<DataDirectoryDto> findDataDirectory(DirectoryQueryParam param, UserDetail user) {
+        if (param.getPage() == null) {
+            param.setPage(1);
+        }
+
+        if (param.getPageSize() == null) {
+            param.setPageSize(20);
+        }
+
+        Page<DataDirectoryDto> page = new Page<>();
+        page.setItems(Lists.of());
+        page.setTotal(0);
+        Criteria criteria = Criteria.where("sourceType").is(SourceTypeEnum.SOURCE.name())
+                .and("taskId").exists(false)
+                .and("is_deleted").ne(true);
+        if (StringUtils.isNotBlank(param.getSourceType())) {
+            criteria.and("source.database_type").is(param.getSourceType());
+        }
+
+        if (StringUtils.isNotBlank(param.getQueryKey())) {
+            Criteria.where("name").regex(param.getQueryKey());
+        }
+
+        if (StringUtils.isNotBlank(param.getTagId())) {
+            List<MetadataDefinitionDto> andChild = metadataDefinitionService.findAndChild(Lists.of(MongoUtils.toObjectId(param.getTagId())));
+            List<ObjectId> tagIds = andChild.stream().map(BaseDto::getId).collect(Collectors.toList());
+            criteria.and("listtags.id").in(tagIds);
+        }
+
+        Query query = new Query(criteria);
+
+        long count = metadataInstancesService.count(query, user);
+
+        query.skip((long) (param.getPage() - 1) * param.getPageSize());
+        query.limit(param.getPageSize());
+        List<MetadataInstancesDto> allDto = metadataInstancesService.findAllDto(query, user);
+
+        List<DataDirectoryDto> items = new ArrayList<>();
+        for (MetadataInstancesDto metadataInstancesDto : allDto) {
+            DataDirectoryDto dto = new DataDirectoryDto();
+
+            dto.setId(metadataInstancesDto.getId().toHexString());
+            dto.setName(metadataInstancesDto.getOriginalName());
+            dto.setType(metadataInstancesDto.getMetaType());
+            dto.setDesc(metadataInstancesDto.getComment());
+            List<Tag> listtags = dto.getListtags();
+            if (CollectionUtils.isNotEmpty(listtags)) {
+                List<ObjectId> ids = listtags.stream().map(Tag::getId).collect(Collectors.toList());
+                List<MetadataDefinitionDto> andParents = metadataDefinitionService.findAndParent(null, ids);
+                List<Tag> allTags = andParents.stream().map(s -> new Tag(s.getId(), s.getValue())).collect(Collectors.toList());
+                dto.setAllTags(allTags);
+            }
+            items.add(dto);
+        }
+
+        page.setItems(items);
+        page.setTotal(count);
+        return page;
+
+
+
     }
 
 

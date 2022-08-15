@@ -70,7 +70,7 @@ public class RedisTest {
         } catch (Exception e) {
             return testItem(TestItem.ITEM_CONNECTION, TestItem.RESULT_FAILED, e.getMessage());
         }
-        return testItem(TestItem.ITEM_CONNECTION, TestItem.RESULT_FAILED, "Elasticsearch client ping failed!");
+        return testItem(TestItem.ITEM_CONNECTION, TestItem.RESULT_FAILED, "redis client ping failed!");
     }
 
     public void close() {

@@ -32,5 +32,5 @@ public interface DiscoveryService {
 
     Map<ObjectFilterEnum, List<String>> filterList(List<ObjectFilterEnum> filterTypes, UserDetail user);
 
-    List<DataDirectoryDto> findDataDirectory(DirectoryQueryParam param, UserDetail user);
+    Page<DataDirectoryDto> findDataDirectory(DirectoryQueryParam param, UserDetail user);
 }
