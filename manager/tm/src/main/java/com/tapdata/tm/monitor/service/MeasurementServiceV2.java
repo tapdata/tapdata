@@ -4,8 +4,12 @@ import com.mongodb.bulk.BulkWriteResult;
 import com.mongodb.client.result.DeleteResult;
 import com.tapdata.manager.common.utils.JsonUtil;
 import com.tapdata.tm.base.dto.Page;
+import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
+import com.tapdata.tm.commons.dag.process.TableRenameProcessNode;
+import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
+import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
 import com.tapdata.tm.monitor.constant.Granularity;
 import com.tapdata.tm.monitor.constant.TableNameEnum;
 import com.tapdata.tm.monitor.dto.TableSyncStaticDto;
@@ -13,8 +17,8 @@ import com.tapdata.tm.monitor.entity.MeasurementEntity;
 import com.tapdata.tm.monitor.param.AggregateMeasurementParam;
 import com.tapdata.tm.monitor.param.MeasurementQueryParam;
 import com.tapdata.tm.monitor.vo.TableSyncStaticVo;
-import com.tapdata.tm.task.service.TaskNodeService;
 import com.tapdata.tm.task.service.TaskRecordService;
+import com.tapdata.tm.utils.FunctionUtils;
 import com.tapdata.tm.utils.TimeUtil;
 import io.tapdata.common.sample.request.Sample;
 import io.tapdata.common.sample.request.SampleRequest;
@@ -46,7 +50,7 @@ import java.util.stream.Collectors;
 public class MeasurementServiceV2 {
     private MongoTemplate mongoOperations;
     private TaskRecordService taskRecordService;
-    private TaskNodeService taskNodeService;
+    private MetadataInstancesService metadataInstancesService;
 
     public void addAgentMeasurement(List<SampleRequest> samples) {
         addBulkAgentMeasurement(samples, Granularity.GRANULARITY_MINUTE);
@@ -710,9 +714,25 @@ public class MeasurementServiceV2 {
 
         TaskDto taskDto = taskRecordService.queryTask(taskRecordId, userDetail.getUserId());
 
+        boolean hasTableRenameNode = taskDto.getDag().getNodes().stream().anyMatch(n -> n instanceof TableRenameProcessNode);
+
+        Map<String, String> tableNameMap = new HashMap<>();
+        if (hasTableRenameNode) {
+            DatabaseNode targetNode = taskDto.getDag().getTargetNode().getLast();
+            List<MetadataInstancesDto> metas = metadataInstancesService.findBySourceIdAndTableNameList(targetNode.getConnectionId(),
+                    null, userDetail, taskDto.getId().toHexString());
+            // get table origin name and target name
+            tableNameMap = metas.stream().collect(Collectors.toMap(MetadataInstancesDto::getAncestorsName, MetadataInstancesDto::getName));
+        }
+
         List<TableSyncStaticVo> result = new ArrayList<>();
         for (MeasurementEntity measurement : measurementEntities) {
             String originTable = measurement.getTags().get("table");
+            AtomicReference<String> originTableName = new AtomicReference<>();
+            Map<String, String> finalTableNameMap = tableNameMap;
+            FunctionUtils.isTureOrFalse(hasTableRenameNode).trueOrFalseHandle( 
+                    () -> originTableName.set(finalTableNameMap.get(originTable)), 
+                    () -> originTableName.set(originTable));
 
             List<Sample> samples = measurement.getSamples();
             if (CollectionUtils.isEmpty(samples)) {
@@ -739,7 +759,7 @@ public class MeasurementServiceV2 {
 
             TableSyncStaticVo vo = new TableSyncStaticVo();
             vo.setOriginTable(originTable);
-            vo.setTargetTable(originTable);
+            vo.setTargetTable(originTableName.get());
             vo.setFullSyncStatus(fullSyncStatus);
             vo.setSyncRate(syncRate);
 
