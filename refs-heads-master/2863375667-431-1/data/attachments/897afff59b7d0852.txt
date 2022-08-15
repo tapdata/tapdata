@@ -1,0 +1,1 @@
+[1;33mmigrate job not support filterColumn processor[0m                                                                                                                           
