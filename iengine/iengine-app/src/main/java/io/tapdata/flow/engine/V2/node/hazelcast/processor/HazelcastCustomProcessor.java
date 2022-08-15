@@ -87,7 +87,8 @@ public class HazelcastCustomProcessor extends HazelcastProcessorBaseNode {
 	}
 
 	private static StateMap getStateMap(HazelcastInstance hazelcastInstance, String nodeId) {
-		StateMap stateMap = new StateMap().hazelcastInstance(hazelcastInstance);
+		StateMap stateMap = new StateMap()
+				/*.hazelcastInstance(hazelcastInstance)*/;
 		stateMap.init(getStateMapName(nodeId), Object.class);
 		return stateMap;
 	}
@@ -180,34 +181,36 @@ public class HazelcastCustomProcessor extends HazelcastProcessorBaseNode {
 			return this;
 		}
 
-		private IMap<String, Object> imap;
+//		private IMap<String, Object> map;
+		private Map<String, Object> map;
 
 		@Override
 		public void init(String mapKey, Class<Object> valueClass) {
-			if (null == hazelcastInstance) {
-				throw new IllegalArgumentException("Hazelcast instance cannot be null");
-			}
-			this.imap = hazelcastInstance.getMap(mapKey);
+//			if (null == hazelcastInstance) {
+//				throw new IllegalArgumentException("Hazelcast instance cannot be null");
+//			}
+//			this.map = hazelcastInstance.getMap(mapKey);
+			this.map = new HashMap<>();
 		}
 
 		@Override
 		public void put(String key, Object o) {
-			imap.put(key, o);
+			map.put(key, o);
 		}
 
 		@Override
 		public Object putIfAbsent(String key, Object o) {
-			return imap.putIfAbsent(key, o);
+			return map.putIfAbsent(key, o);
 		}
 
 		@Override
 		public Object remove(String key) {
-			return imap.remove(key);
+			return map.remove(key);
 		}
 
 		@Override
 		public void clear() {
-			imap.clear();
+			map.clear();
 		}
 
 		@Override
@@ -217,7 +220,7 @@ public class HazelcastCustomProcessor extends HazelcastProcessorBaseNode {
 
 		@Override
 		public Object get(String key) {
-			return imap.get(key);
+			return map.get(key);
 		}
 	}
 }
