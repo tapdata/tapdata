@@ -76,7 +76,7 @@ public class RedisContext implements AutoCloseable {
         }
 
         if (deployModeEnum == DeployModeEnum.STANDALONE) {
-            if (StringUtils.isNotBlank(redisConfig.getUser()) && StringUtils.isNotBlank(redisConfig.getPassword())) {
+            if (StringUtils.isNotBlank(redisConfig.getPassword())) {
                 jedisPool = new JedisPool(jedisPoolConfig, redisConfig.getHost(), redisConfig.getPort(), POOL_TIMEOUT, redisConfig.getPassword());
             } else {
                 jedisPool = new JedisPool(jedisPoolConfig, redisConfig.getHost(), redisConfig.getPort(), POOL_TIMEOUT);
@@ -87,7 +87,7 @@ public class RedisContext implements AutoCloseable {
             for (LinkedHashMap<String,Integer> hostPort : hostPorts) {
                   sentinelHostPort.add(hostPort.get("host") + ":" + hostPort.get("port"));
             }
-            if (StringUtils.isNotBlank(redisConfig.getUser()) && StringUtils.isNotBlank(redisConfig.getPassword())) {
+            if (StringUtils.isNotBlank(redisConfig.getPassword())) {
                 jedisPool = new JedisSentinelPool(
                         redisConfig.getSentinelName(), sentinelHostPort, jedisPoolConfig, POOL_TIMEOUT, redisConfig.getPassword());
             } else {
@@ -119,6 +119,9 @@ public class RedisContext implements AutoCloseable {
                     TapLogger.warn("Get jedis failed,Try again {} times,retry count: {}", String.valueOf(GET_JEDIS_TIMEOUT_COUNT), retryCount);
                 } else {
                     TapLogger.error("Get jedis error,message: {}", e.getMessage(), e);
+                    if(jedis == null){
+                      throw new RuntimeException("NOAUTH Authentication required, please write password",e);
+                    }
                     break;
                 }
             }
