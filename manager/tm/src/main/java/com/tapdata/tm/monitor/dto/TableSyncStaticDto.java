@@ -2,6 +2,7 @@ package com.tapdata.tm.monitor.dto;/**
  * Created by jiuyetx on 2022/8/12 18:14
  */
 
+import lombok.AllArgsConstructor;
 import lombok.Data;
 
 /**
@@ -9,6 +10,7 @@ import lombok.Data;
  * @date 2022/8/12
  */
 @Data
+@AllArgsConstructor
 public class TableSyncStaticDto {
     private String taskRecordId;
     private Integer page;

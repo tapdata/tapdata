@@ -739,6 +739,7 @@ public class MeasurementServiceV2 {
 
             TableSyncStaticVo vo = new TableSyncStaticVo();
             vo.setOriginTable(originTable);
+            vo.setTargetTable(originTable);
             vo.setFullSyncStatus(fullSyncStatus);
             vo.setSyncRate(syncRate);
 

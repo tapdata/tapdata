@@ -63,6 +63,10 @@ public class TaskRecordServiceImpl implements TaskRecordService {
 
         List<TaskRecord> taskRecordList = mongoTemplate.find(query, TaskRecord.class);
 
+        if (size > 20) {
+            size = 20;
+        }
+
         List<List<TaskRecord>> partition = ListUtils.partition(taskRecordList, size);
         if (page > partition.size()) {
             page = partition.size();
@@ -78,7 +82,7 @@ public class TaskRecordServiceImpl implements TaskRecordService {
 
             TaskRecordListVo vo = new TaskRecordListVo();
             vo.setTaskId(r.getTaskId());
-            vo.setTaskRecordId(taskRecordId);
+             vo.setTaskRecordId(taskRecordId);
             TaskEntity taskSnapshot = r.getTaskSnapshot();
             vo.setStartDate(DateUtil.toLocalDateTime(taskSnapshot.getStartTime()).format(DateTimeFormatter.ofPattern(DatePattern.NORM_DATETIME_PATTERN)));
             vo.setEndDate(DateUtil.toLocalDateTime(taskSnapshot.getLastUpdAt()).format(DateTimeFormatter.ofPattern(DatePattern.NORM_DATETIME_PATTERN)));
