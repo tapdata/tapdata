@@ -394,7 +394,7 @@ public class Hive1Writer {
             }
             String sql = String.format(UPDATE_SQL_TEMPLATE, database, tableId, String.join(",", setList), String.join(" AND ", whereList));
             try {
-                this.connection = this.hive1JdbcContext.getConnection((Hive1Config) hive1JdbcContext.getConfig());
+//                this.connection = this.hive1JdbcContext.getConnection((Hive1Config) hive1JdbcContext.getConfig());
                 preparedStatement = this.connection.prepareStatement(sql);
             } catch (SQLException e) {
                 throw new Exception("Create update prepared statement error, sql: " + sql + ", message: " + e.getSQLState() + " " + e.getErrorCode() + " " + e.getMessage(), e);
@@ -480,7 +480,7 @@ public class Hive1Writer {
             }
             String sql = String.format(DELETE_SQL_TEMPLATE, database, tableId, String.join(" AND ", whereList));
             try {
-                this.connection = this.hive1JdbcContext.getConnection((Hive1Config) hive1JdbcContext.getConfig());
+//                this.connection = this.hive1JdbcContext.getConnection((Hive1Config) hive1JdbcContext.getConfig());
                 preparedStatement = this.connection.prepareStatement(sql);
             } catch (SQLException e) {
                 throw new Exception("Create delete prepared statement error, sql: " + sql + ", message: " + e.getSQLState() + " " + e.getErrorCode() + " " + e.getMessage(), e);
@@ -604,7 +604,7 @@ public class Hive1Writer {
             String sql = String.format(INSERT_SQL_TEMPLATE, database, tableId, String.join(",", questionMarks));
 
             try {
-                this.connection = this.hive1JdbcContext.getConnection((Hive1Config) hive1JdbcContext.getConfig());
+//                this.connection = this.hive1JdbcContext.getConnection((Hive1Config) hive1JdbcContext.getConfig());
                 preparedStatement = this.connection.prepareStatement(sql);
             } catch (SQLException e) {
                 throw new Exception("Create insert prepared statement error, sql: " + sql + ", message: " + e.getSQLState() + " " + e.getErrorCode() + " " + e.getMessage(), e);

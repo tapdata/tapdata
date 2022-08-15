@@ -21,12 +21,12 @@ public class JdbcUtil {
 	private final static String DRIVER_PREFIX = "jdbc:hive2://";
 
 	public static void closeQuietly(AutoCloseable c) {
-//		try {
-//			if (null != c) {
-//				c.close();
-//			}
-//		} catch (Throwable ignored) {
-//		}
+		try {
+			if (null != c) {
+				c.close();
+			}
+		} catch (Throwable ignored) {
+		}
 	}
 
 	public static Connection createConnection(Hive1Config hive1Config) throws SQLException {
