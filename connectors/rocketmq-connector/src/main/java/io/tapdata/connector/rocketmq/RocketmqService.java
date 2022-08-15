@@ -52,7 +52,7 @@ public class RocketmqService extends AbstractMqService {
     }
 
     @Override
-    public void testConnection(Consumer<TestItem> consumer) {
+    public void testConnect(Consumer<TestItem> consumer) {
         try {
             defaultMQProducer.start();
             consumer.accept(new TestItem(MqTestItem.ROCKET_MQ_CONNECTION.getContent(), TestItem.RESULT_SUCCESSFULLY, null));

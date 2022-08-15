@@ -72,7 +72,7 @@ public class KafkaConnector extends ConnectorBase {
     public ConnectionOptions connectionTest(TapConnectionContext connectionContext, Consumer<TestItem> consumer) throws Throwable {
         kafkaConfig = (KafkaConfig) new KafkaConfig().load(connectionContext.getConnectionConfig());
         KafkaService kafkaService = new KafkaService(kafkaConfig);
-        kafkaService.testConnection(consumer);
+        kafkaService.testConnect(consumer);
         kafkaService.close();
         return null;
     }
