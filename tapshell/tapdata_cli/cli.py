@@ -423,11 +423,11 @@ def get_table_fields(t, whole=False, source=None, cache=True):
 def gen_dag_stage(obj):
     objType = type(obj)
     pdkHash = ""
-    if objType == Source or objType == Sink:
+    if isinstance(obj, Source) or isinstance(obj, Sink):
         if obj.databaseType.lower() in client_cache["connectors"]:
             pdkHash = client_cache["connectors"][obj.databaseType.lower()]["pdkHash"]
 
-    if objType == Source:
+    if isinstance(obj, Source):
         return {
             "attrs": {
                 "accessNodeProcessId": "",
@@ -448,7 +448,7 @@ def gen_dag_stage(obj):
             "increaseReadSize": 100,
 
         }
-    if objType == Sink:
+    if isinstance(obj, Sink):
         return {
             "attrs": {
                 "accessNodeProcessId": "",
@@ -466,7 +466,7 @@ def gen_dag_stage(obj):
             "type": "table"
         }
 
-    if objType == Merge:
+    if isinstance(obj, Merge):
         return obj.to_dict()
 
     if obj.func_header:
@@ -1623,9 +1623,9 @@ class Pipeline:
 
     @help_decorate("read data from source", args="p.readFrom($source)")
     def readFrom(self, source):
-        if type(source) == type(QuickDataSourceMigrateJob()):
+        if isinstance(source, QuickDataSourceMigrateJob):
             source = source.__db__
-        if type(source) == type(""):
+        if isinstance(source, str):
             if "." in source:
                 db = source.split(".")[0]
                 table = source.split(".")[1]
@@ -2323,7 +2323,7 @@ class Api:
             "id": self.id,
             "status": "pending"
         }
-        res = requests.patch("/Modules", json=payload)
+        res = req.patch("/Modules", json=payload)
         res = res.json()
         if res["code"] == "ok":
             logger.info("unpublish {} success", self.id)
@@ -2374,14 +2374,14 @@ class Job:
     @staticmethod
     def list():
         res = req.get(
-            "/DataFlows",
+            "/Task",
             params={"filter": '{"fields":{"id":true,"name":true,"status":true,"agentId":true,"stats":true}}'}
         )
         if res.status_code != 200:
             return None
         res = res.json()
         jobs = []
-        for i in res["data"]:
+        for i in res["data"]['items']:
             jobs.append(Job(id=i["id"]))
         return jobs
 

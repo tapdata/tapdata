@@ -45,7 +45,7 @@ You can ignore it, and run login after start client
 ### 初始化
 1. 可以在 config.ini 填写地址和访问串, 启动时会自动识别并登录
 2. 可以在启动后, 通过 `login(server, access_code)` 进行手动登录
-3. 如果要作为Python Sdk的形式内嵌到您的代码当中，请看[这篇文档](https://github.com/tapdata/tapdata/tree/master/tapshell/docs/Python-Sdk.md)
+3. 如果要作为Python Sdk的形式内嵌到您的代码当中，请看[这篇文档](https://github.com/tapdata/tapdata/tree/master/tapshell/docs/Python-Sdk_zh-hans.md)
 
 ### 列出所有数据连接
 show dbs
