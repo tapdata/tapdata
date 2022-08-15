@@ -121,21 +121,12 @@ jobs:
       - name: Setup Poetry
         uses: Gr1N/setup-poetry@v7
       - name: publish pip package if push
-#        if: ${{ success() && env.CURRENT_BRANCH == "master" }}
-        if: ${{ success() && github.event_name == 'push' && env.CURRENT_BRANCH == 'master' }}
+#        if: ${{ success() && env.CURRENT_BRANCH == "master" && github.event_name == 'push' }}
+        if: ${{ success() }}
         run: |
           tag="${{ env.TAG_BRANCH }}:`git describe --tag`"
           sed -i "/__version__/$tag/" tapshell/pyproject.toml
           git diff-tree --name-only HEAD^ HEAD | grep tapshell > /dev/null
-          if [[ $? -ne 0 ]]; then echo "Do not publish pip package" && exit 0; fi
-          cd tapshell && poetry build && poetry publish --username ${{ env.PYPI_USERNAME }} --password ${{ env.PYPI_PASSWORD }}
-      - name: publish pip package if pull request
-#        if: ${{ success() && env.CURRENT_BRANCH == "master" }}
-        if: ${{ success() && github.event_name == 'pull_request' }}
-        run: |
-          tag="${{ env.TAG_BRANCH }}:`git describe --tag`"
-          sed -i "s/__version__/$tag/g" tapshell/pyproject.toml
-          git diff-tree --name-only ${{ github.base_ref }} HEAD | grep tapshell > /dev/null
           if [[ $? -ne 0 ]]; then echo "Do not publish pip package" && exit 0; fi
           cd tapshell && poetry build && poetry publish --username ${{ env.PYPI_USERNAME }} --password ${{ env.PYPI_PASSWORD }}
 
