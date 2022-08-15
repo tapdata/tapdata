@@ -234,13 +234,11 @@ public class ManagementWebsocketHandler implements WebSocketHandler {
 		});
 
 		Map eventRequestData = event.getData();
-		String messageType = eventRequestData != null && eventRequestData.containsKey("type") && eventRequestData.get("type") != null ?
-				eventRequestData.get("type").toString() : event.getType();
-//@Harvey e827708ec7bf1ee7ad772525c76c3253c69d1bbe 影响连接测试先退
-//		String messageType = event.getType();
-//		if (messageType == null && eventRequestData != null && eventRequestData.containsKey("type") && eventRequestData.get("type") != null) {
-//			messageType = eventRequestData.get("type").toString();
-//		}
+		String messageType = event.getType();
+		if(!org.apache.commons.lang3.StringUtils.equals(messageType, TaskDto.SYNC_TYPE_TEST_RUN)) {
+			messageType = eventRequestData != null && eventRequestData.containsKey("type") && eventRequestData.get("type") != null ?
+							eventRequestData.get("type").toString() : event.getType();
+		}
 
 		WebSocketEventHandler<WebSocketEventResult> eventHandler = eventHandler(messageType);
 

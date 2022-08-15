@@ -21,6 +21,8 @@
 		<module>activemq-connector</module>
         <module>redis-connector</module>
 		<module>clickhouse-connector</module>
+		<module>hive1-connector</module>
+
 	</modules>
 
 	<properties>

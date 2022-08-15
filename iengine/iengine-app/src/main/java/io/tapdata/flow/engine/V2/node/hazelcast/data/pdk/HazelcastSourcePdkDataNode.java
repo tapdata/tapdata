@@ -77,6 +77,8 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 		} catch (Throwable e) {
 			// MILESTONE-INIT_CONNECTOR-ERROR
 			MilestoneUtil.updateMilestone(milestoneService, MilestoneStage.INIT_CONNECTOR, MilestoneStatus.ERROR, e.getMessage() + "\n" + Log4jUtil.getStackString(e));
+			//Notify error for task. 
+			errorHandle(new RuntimeException(e), e.getMessage());
 			throw e;
 		}
 	}
