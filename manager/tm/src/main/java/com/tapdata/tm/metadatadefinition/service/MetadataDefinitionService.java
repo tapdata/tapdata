@@ -6,6 +6,7 @@ import com.tapdata.manager.common.utils.StringUtils;
 import com.tapdata.tm.base.entity.BaseEntity;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.base.service.BaseService;
+import com.tapdata.tm.commons.base.dto.BaseDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.ds.entity.DataSourceEntity;
 import com.tapdata.tm.inspect.bean.Task;
@@ -143,5 +144,26 @@ public class MetadataDefinitionService extends BaseService<MetadataDefinitionDto
         }
 
         return findAndParent(metadataDefinitionDtos, ids);
+    }
+
+
+    public List<MetadataDefinitionDto> findAndChild(List<ObjectId> idList) {
+        Criteria criteria = Criteria.where("_id").in(idList);
+        Query query = new Query(criteria);
+        List<MetadataDefinitionDto> all = findAll(query);
+        return findChild(all, idList);
+    }
+
+
+    private List<MetadataDefinitionDto> findChild(List<MetadataDefinitionDto> metadataDefinitionDtos, List<ObjectId> idList) {
+        Criteria criteria = Criteria.where("parent_id").in(idList);
+        Query query = new Query(criteria);
+        List<MetadataDefinitionDto> all = findAll(query);
+        if (CollectionUtils.isEmpty(all)) {
+            return metadataDefinitionDtos;
+        }
+        metadataDefinitionDtos.addAll(all);
+        List<ObjectId> ids = all.stream().map(BaseDto::getId).collect(Collectors.toList());
+        return findChild(metadataDefinitionDtos, ids);
     }
 }

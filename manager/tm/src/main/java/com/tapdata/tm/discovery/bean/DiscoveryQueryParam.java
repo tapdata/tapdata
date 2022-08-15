@@ -4,6 +4,7 @@ import lombok.Data;
 
 @Data
 public class DiscoveryQueryParam {
+
     /** 对象分类 */
     private String category;
     /** 对象类型 */
@@ -18,4 +19,7 @@ public class DiscoveryQueryParam {
     private Integer pageSize = 20;
     /** 模糊查询key */
     private String queryKey;
+
+    /** 分类id */
+    private String tagId;
 }

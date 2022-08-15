@@ -54,7 +54,7 @@ public class DisCoveryController extends BaseController {
 
     @Operation(summary = "find directory data list")
     @GetMapping("directory/data")
-    public ResponseMessage<List<DataDirectoryDto>> findDirectoryData(DirectoryQueryParam param) {
+    public ResponseMessage<Page<DataDirectoryDto>> findDirectoryData(DirectoryQueryParam param) {
         return success(discoveryService.findDataDirectory(param, getLoginUser()));
     }
 }
