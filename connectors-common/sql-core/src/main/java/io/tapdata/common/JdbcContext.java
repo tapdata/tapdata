@@ -58,6 +58,15 @@ public abstract class JdbcContext {
         }
     }
 
+    public boolean testValid(CommonDbConfig config) {
+        try {
+            getConnection().close();
+            return true;
+        } catch (SQLException e) {
+            return false;
+        }
+    }
+
     /**
      * query version of database
      *

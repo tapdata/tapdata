@@ -9,7 +9,7 @@ public class DirectoryQueryParam {
     /** 来源类型 */
     private String sourceType;
     /**  */
-    private Integer page = 0;
+    private Integer page = 1;
     /**  */
     private Integer pageSize = 20;
     /** 模糊查询key */

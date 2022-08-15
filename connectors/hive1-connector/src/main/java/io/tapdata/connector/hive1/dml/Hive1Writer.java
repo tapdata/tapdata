@@ -359,7 +359,7 @@ public class Hive1Writer {
 //        JsonParser jsonParser = InstanceFactory.instance(JsonParser.class);
 //        TapLogger.info("XXXXXX", "doUpdate tapTable {} tapRecordEvent {}", jsonParser.toJson(tapTable), jsonParser.toJson(tapRecordEvent));
         //不管是否更新成功，api返回的数据条数都是0
-        int row = doUpdate(tapConnectorContext, tapTable, tapRecordEvent);
+        int row = updatePreparedStatement.executeUpdate();
         if (row <= 0 && ConnectionOptions.DML_UPDATE_POLICY_INSERT_ON_NON_EXISTS.equals(updateDmlPolicy)) {
             doInsert(tapConnectorContext, tapTable, tapRecordEvent);
         }
@@ -394,7 +394,7 @@ public class Hive1Writer {
             }
             String sql = String.format(UPDATE_SQL_TEMPLATE, database, tableId, String.join(",", setList), String.join(" AND ", whereList));
             try {
-                this.connection = this.hive1JdbcContext.getConnection((Hive1Config) hive1JdbcContext.getConfig());
+//                this.connection = this.hive1JdbcContext.getConnection((Hive1Config) hive1JdbcContext.getConfig());
                 preparedStatement = this.connection.prepareStatement(sql);
             } catch (SQLException e) {
                 throw new Exception("Create update prepared statement error, sql: " + sql + ", message: " + e.getSQLState() + " " + e.getErrorCode() + " " + e.getMessage(), e);
@@ -480,7 +480,7 @@ public class Hive1Writer {
             }
             String sql = String.format(DELETE_SQL_TEMPLATE, database, tableId, String.join(" AND ", whereList));
             try {
-                this.connection = this.hive1JdbcContext.getConnection((Hive1Config) hive1JdbcContext.getConfig());
+//                this.connection = this.hive1JdbcContext.getConnection((Hive1Config) hive1JdbcContext.getConfig());
                 preparedStatement = this.connection.prepareStatement(sql);
             } catch (SQLException e) {
                 throw new Exception("Create delete prepared statement error, sql: " + sql + ", message: " + e.getSQLState() + " " + e.getErrorCode() + " " + e.getMessage(), e);
@@ -604,7 +604,7 @@ public class Hive1Writer {
             String sql = String.format(INSERT_SQL_TEMPLATE, database, tableId, String.join(",", questionMarks));
 
             try {
-                this.connection = this.hive1JdbcContext.getConnection((Hive1Config) hive1JdbcContext.getConfig());
+//                this.connection = this.hive1JdbcContext.getConnection((Hive1Config) hive1JdbcContext.getConfig());
                 preparedStatement = this.connection.prepareStatement(sql);
             } catch (SQLException e) {
                 throw new Exception("Create insert prepared statement error, sql: " + sql + ", message: " + e.getSQLState() + " " + e.getErrorCode() + " " + e.getMessage(), e);

@@ -18,67 +18,67 @@ import java.util.List;
  * @create 2022-07-04 17:33
  **/
 public abstract class CCJBaseDDLWrapper extends BaseDDLWrapper<Alter> {
-    protected CCJDDLWrapperConfig ccjddlWrapperConfig;
+	protected CCJDDLWrapperConfig ccjddlWrapperConfig;
 
-    public CCJBaseDDLWrapper() {
-    }
+	public CCJBaseDDLWrapper() {
+	}
 
-    @Override
-    public void init(DDLWrapperConfig ddlWrapperConfig) {
-        this.ccjddlWrapperConfig = (CCJDDLWrapperConfig) ddlWrapperConfig;
-    }
+	@Override
+	public void init(DDLWrapperConfig ddlWrapperConfig) {
+		this.ccjddlWrapperConfig = (CCJDDLWrapperConfig) ddlWrapperConfig;
+	}
 
-    protected void verifyAlter(Alter alter) {
-        if (null == alter) {
-            throw new RuntimeException("DDL parser result is null");
-        }
-        Table table = alter.getTable();
-        if (null == table) {
-            throw new RuntimeException("DDL parser result's table object is null");
-        }
-        if (EmptyKit.isBlank(table.getName())) {
-            throw new RuntimeException("DDL parser result's table name is blank");
-        }
-    }
+	protected void verifyAlter(Alter alter) {
+		if (null == alter) {
+			throw new RuntimeException("DDL parser result is null");
+		}
+		Table table = alter.getTable();
+		if (null == table) {
+			throw new RuntimeException("DDL parser result's table object is null");
+		}
+		if (EmptyKit.isBlank(table.getName())) {
+			throw new RuntimeException("DDL parser result's table name is blank");
+		}
+	}
 
-    protected String getTableName(Alter ddl) {
-        Table table = ddl.getTable();
-        return StringKit.removeHeadTail(table.getName(), ccjddlWrapperConfig.getSplit(), null);
-    }
+	protected String getTableName(Alter ddl) {
+		Table table = ddl.getTable();
+		return StringKit.removeHeadTail(table.getName(), ccjddlWrapperConfig.getSplit(), null);
+	}
 
-    protected String getDataType(ColDataType colDataType) {
-        StringBuilder dataType = new StringBuilder(colDataType.getDataType());
-        List<String> argumentsStringList = colDataType.getArgumentsStringList();
-        if (null != argumentsStringList && argumentsStringList.size() > 0) {
-            dataType.append("(")
-                    .append(String.join(",", argumentsStringList))
-                    .append(")");
-        }
-        return dataType.toString();
-    }
+	protected String getDataType(ColDataType colDataType) {
+		StringBuilder dataType = new StringBuilder(colDataType.getDataType());
+		List<String> argumentsStringList = colDataType.getArgumentsStringList();
+		if (null != argumentsStringList && argumentsStringList.size() > 0) {
+			dataType.append("(")
+					.append(String.join(",", argumentsStringList))
+					.append(")");
+		}
+		return dataType.toString();
+	}
 
-    protected void setColumnPos(TapTable tapTable, TapField tapField) {
-        if (null != tapTable) {
-            tapField.pos(tapTable.getMaxPos() + 1);
-        } else {
-            tapField.pos(1);
-        }
-    }
+	protected void setColumnPos(TapTable tapTable, TapField tapField) {
+		if (null != tapTable) {
+			tapField.pos(tapTable.getMaxPos() + 1);
+		} else {
+			tapField.pos(1);
+		}
+	}
 
-    public static class CCJDDLWrapperConfig extends DDLWrapperConfig {
-        public static CCJDDLWrapperConfig create() {
-            return new CCJDDLWrapperConfig();
-        }
+	public static class CCJDDLWrapperConfig extends DDLWrapperConfig {
+		public static CCJDDLWrapperConfig create() {
+			return new CCJDDLWrapperConfig();
+		}
 
-        private String split;
+		private String split;
 
-        public CCJDDLWrapperConfig split(String split) {
-            this.split = split;
-            return this;
-        }
+		public CCJDDLWrapperConfig split(String split) {
+			this.split = split;
+			return this;
+		}
 
-        public String getSplit() {
-            return null == split ? "" : split;
-        }
-    }
+		public String getSplit() {
+			return null == split ? "" : split;
+		}
+	}
 }
