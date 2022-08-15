@@ -71,7 +71,7 @@ public class RabbitmqConnector extends ConnectorBase {
     public ConnectionOptions connectionTest(TapConnectionContext connectionContext, Consumer<TestItem> consumer) {
         rabbitmqConfig = (RabbitmqConfig) new RabbitmqConfig().load(connectionContext.getConnectionConfig());
         RabbitmqService rabbitmqService = new RabbitmqService(rabbitmqConfig);
-        rabbitmqService.testConnection(consumer);
+        rabbitmqService.testConnect(consumer);
         rabbitmqService.close();
         return null;
     }
