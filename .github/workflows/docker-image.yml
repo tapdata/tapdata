@@ -118,12 +118,22 @@ jobs:
 #        run: chmod u+x build/quick-test.sh && build/quick-test.sh && ls -al ./tapshell/test/report/integrate.html/
       - name: Setup Poetry
         uses: Gr1N/setup-poetry@v7
-      - name: publish pip package
+      - name: publish pip package if push
 #        if: ${{ success() && env.CURRENT_BRANCH == "master" }}
-        if: ${{ success() }}
+        if: ${{ success() && github.event_name == 'push' && env.CURRENT_BRANCH == "master" }}
         run: |
+          tag="${{ env.TAG_BRANCH }}:`git describe --tag`"
+          sed -i "/__version__/$tag/" tapshell/pyproject.toml
           git diff-tree --name-only HEAD^ HEAD | grep tapshell > /dev/null
-          sed -i "/__version__/${{ env.TAG }}/" tapshell/pyproject.toml
+          if [[ $? -ne 0 ]]; then echo "Do not publish pip package" && exit 0; fi
+          cd tapshell && poetry build && poetry publish --username ${{ env.PYPI_USERNAME }} --password ${{ env.PYPI_PASSWORD }}
+      - name: publish pip package if pull request
+#        if: ${{ success() && env.CURRENT_BRANCH == "master" }}
+        if: ${{ success() && github.event_name == 'pull_request' && env.CURRENT_BRANCH == 'master' }}
+        run: |
+          tag="${{ env.TAG_BRANCH }}:`git describe --tag`"
+          sed -i "/__version__/$tag/" tapshell/pyproject.toml
+          git diff-tree --name-only ${{ github.base_ref }} ${{ github.ref }} | grep tapshell > /dev/null
           if [[ $? -ne 0 ]]; then echo "Do not publish pip package" && exit 0; fi
           cd tapshell && poetry build && poetry publish --username ${{ env.PYPI_USERNAME }} --password ${{ env.PYPI_PASSWORD }}
 
