@@ -1,10 +1,10 @@
 [tool.poetry]
 name = "tapdata_cli"
-version = "2.0.0"
+version = "2.2.0"
 description = "Tapdata Python Sdk"
 authors = ["Tapdata <team@tapdata.io>"]
 license = "Apache V2"
-readme = "README.md"
+readme = "docs/Python-Sdk.md"
 repository = "https://github.com/tapdata/tapdata/tree/master/tapshell"
 
 [tool.poetry.dependencies]
