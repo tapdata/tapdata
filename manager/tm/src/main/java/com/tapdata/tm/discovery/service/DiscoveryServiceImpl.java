@@ -116,7 +116,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
             dto.setId(metadataInstancesDto.getId().toHexString());
             dto.setCategory(DataObjCategoryEnum.storage);
             dto.setType(metadataInstancesDto.getMetaType());
-            dto.setName(metadataInstancesDto.getName());
+            dto.setName(metadataInstancesDto.getOriginalName());
             dto.setSourceCategory(DataSourceCategoryEnum.connection);
             dto.setId(metadataInstancesDto.getId().toHexString());
             //dto.setSourceInfo();
@@ -294,7 +294,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
             DataDirectoryDto dto = new DataDirectoryDto();
 
             dto.setId(metadataInstancesDto.getId().toHexString());
-            dto.setName(metadataInstancesDto.getName());
+            dto.setName(metadataInstancesDto.getOriginalName());
             dto.setType(metadataInstancesDto.getMetaType());
             dto.setDesc(metadataInstancesDto.getComment());
             List<Tag> listtags = dto.getListtags();
