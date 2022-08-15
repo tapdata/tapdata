@@ -63,13 +63,13 @@ public class MetaMigrateServiceImpl implements MetaMigrateService {
         if (CollectionUtils.isEmpty(databaseNodes)) {
             return;
         }
-        DatabaseNode sourceNode = databaseNodes.getFirst();
-        DatabaseNode targetNode = databaseNodes.getLast();
+        DatabaseNode sourceNode = dag.getSourceNode().getFirst();
+        DatabaseNode targetNode = dag.getTargetNode().getLast();
 
         Map<String, MigrateTableInfoDto.Field> fieldMap = tableInfo.getFields().stream()
                 .collect(Collectors.toMap(MigrateTableInfoDto.Field::getFieldName, Function.identity()));
 
-        MetadataInstancesDto metadataInstancesDto = metadataInstancesService.findBySourceIdAndTableName(targetNode.getConnectionId(), tableName, userDetail);
+        MetadataInstancesDto metadataInstancesDto = metadataInstancesService.findBySourceIdAndTableName(targetNode.getConnectionId(), tableName, taskId, userDetail);
         if (Objects.nonNull(metadataInstancesDto)) {
             metadataInstancesDto.getFields().forEach(f -> {
                 if (fieldMap.containsKey(f.getFieldName())) {
@@ -78,8 +78,7 @@ public class MetaMigrateServiceImpl implements MetaMigrateService {
                     f.setUseDefaultValue(field.isUseDefaultValue());
                     FunctionUtils.isTureOrFalse(field.isUseDefaultValue()).trueOrFalseHandle(
                             () -> f.setDefaultValue(f.getOriginalDefaultValue()),
-                            () -> f.setDefaultValue(null)
-                    );
+                            () -> f.setDefaultValue(null));
                 }
             });
             metadataInstancesService.save(metadataInstancesDto, userDetail);
@@ -93,8 +92,7 @@ public class MetaMigrateServiceImpl implements MetaMigrateService {
                     f.setUseDefaultValue(field.isUseDefaultValue());
                     FunctionUtils.isTureOrFalse(field.isUseDefaultValue()).trueOrFalseHandle(
                             () -> f.setDefaultValue(f.getOriginalDefaultValue()),
-                            () -> f.setDefaultValue(null)
-                            );
+                            () -> f.setDefaultValue(null));
                 }
             });
 
@@ -118,7 +116,8 @@ public class MetaMigrateServiceImpl implements MetaMigrateService {
             return;
         }
 
-        List<MetadataInstancesEntity> tableNameList = metadataInstancesService.findEntityBySourceIdAndTableNameList(targetNode.getConnectionId(), tableNames, userDetail);
+        List<MetadataInstancesEntity> tableNameList = metadataInstancesService.findEntityBySourceIdAndTableNameList(
+                targetNode.getConnectionId(), tableNames, userDetail, taskId);
 
         if (CollectionUtils.isNotEmpty(tableNameList)) {
             List<Pair<Query, Update>> updateList = new ArrayList<>();

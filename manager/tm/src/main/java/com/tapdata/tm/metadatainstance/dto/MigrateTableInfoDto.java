@@ -26,6 +26,6 @@ public class MigrateTableInfoDto {
         private String fieldType;
 //        private String defaultValue;
         @Schema(description = "true 启用默认值，false 不启用默认值")
-        private boolean useDefaultValue;
+        private boolean useDefaultValue = true;
     }
 }

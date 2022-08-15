@@ -18,7 +18,7 @@ public class FieldsMapping {
     private String sourceFieldType;
     private String type;
     private String defaultValue;
-    private boolean useDefaultValue;
+    private boolean useDefaultValue = true;
 
     private Boolean isShow;
     private String migrateType;

@@ -661,12 +661,13 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
         return findByQualifiedName(qualified_name, user);
     }
 
-    public MetadataInstancesDto findBySourceIdAndTableName(String sourceId, String tableName, UserDetail userDetail) {
+    public MetadataInstancesDto findBySourceIdAndTableName(String sourceId, String tableName, String taskId, UserDetail userDetail) {
         Criteria criteria = Criteria
                 .where("meta_type").in("table", "collection", "view")
                 .and("original_name").is(tableName)
                 .and("is_deleted").ne(true)
-                .and("source._id").is(sourceId);
+                .and("source._id").is(sourceId)
+                .and("taskId").is(taskId);
 
         return findOne(Query.query(criteria), userDetail);
     }
@@ -685,11 +686,26 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
         return findAllDto(Query.query(criteria), userDetail);
     }
 
-    public List<MetadataInstancesEntity> findEntityBySourceIdAndTableNameList(String sourceId, List<String> tableNames, UserDetail userDetail) {
+    public List<MetadataInstancesDto> findBySourceIdAndTableNameListNeTaskId(String sourceId, List<String> tableNames, UserDetail userDetail, String taskId) {
         Criteria criteria = Criteria
                 .where("meta_type").in(Lists.of("table", "collection", "view"))
                 .and("is_deleted").ne(true)
-                .and("source._id").is(sourceId);
+                .and("source._id").is(sourceId)
+                .and("taskId").exists(false);
+
+        if (CollectionUtils.isNotEmpty(tableNames)) {
+            criteria.and("original_name").in(tableNames);
+        }
+
+        return findAllDto(Query.query(criteria), userDetail);
+    }
+
+    public List<MetadataInstancesEntity> findEntityBySourceIdAndTableNameList(String sourceId, List<String> tableNames, UserDetail userDetail, String taskId) {
+        Criteria criteria = Criteria
+                .where("meta_type").in(Lists.of("table", "collection", "view"))
+                .and("is_deleted").ne(true)
+                .and("source._id").is(sourceId)
+                .and("taskId").is(taskId);
 
         if (CollectionUtils.isNotEmpty(tableNames)) {
             criteria.and("original_name").in(tableNames);
@@ -714,8 +730,10 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
         return findOne(query, user);
     }
 
-    public List<MetadataInstancesDto> findByQualifiedNameList(List<String> qualifiedNames) {
-        Criteria criteria = Criteria.where("qualified_name").in(qualifiedNames).and("is_deleted").ne(true);
+    public List<MetadataInstancesDto> findByQualifiedNameList(List<String> qualifiedNames, String taskId) {
+        Criteria criteria = Criteria.where("qualified_name").in(qualifiedNames)
+                .and("is_deleted").ne(true)
+                .and("taskId").is(taskId);
 
         Query query = new Query(criteria);
         return findAll(query);
