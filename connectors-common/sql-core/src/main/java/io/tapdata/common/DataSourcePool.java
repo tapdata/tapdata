@@ -18,7 +18,7 @@ public class DataSourcePool {
      */
     public static JdbcContext getJdbcContext(CommonDbConfig config, Class<? extends JdbcContext> clazz, String connectorId) {
         String key = uniqueKeyForDb(config);
-        if (dataPool.containsKey(key) && dataPool.get(key).testValid()) {
+        if (dataPool.containsKey(key) && dataPool.get(key).testValid(config)) {
             return dataPool.get(key).incrementConnector(connectorId);
         } else {
             JdbcContext context = null;
