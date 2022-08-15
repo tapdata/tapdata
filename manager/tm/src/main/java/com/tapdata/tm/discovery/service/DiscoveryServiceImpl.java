@@ -1,10 +1,7 @@
 package com.tapdata.tm.discovery.service;
 
 import com.tapdata.tm.base.dto.Page;
-import com.tapdata.tm.commons.schema.Field;
-import com.tapdata.tm.commons.schema.MetadataInstancesDto;
-import com.tapdata.tm.commons.schema.TableIndex;
-import com.tapdata.tm.commons.schema.TableIndexColumn;
+import com.tapdata.tm.commons.schema.*;
 import com.tapdata.tm.commons.schema.bean.SourceDto;
 import com.tapdata.tm.commons.schema.bean.SourceTypeEnum;
 import com.tapdata.tm.commons.task.dto.ParentTaskDto;
@@ -12,13 +9,18 @@ import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.discovery.bean.*;
 import com.tapdata.tm.metaData.repository.MetaDataRepository;
+import com.tapdata.tm.metadatadefinition.dto.MetadataDefinitionDto;
+import com.tapdata.tm.metadatadefinition.service.MetadataDefinitionService;
 import com.tapdata.tm.metadatainstance.repository.MetadataInstancesRepository;
 import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
 import com.tapdata.tm.task.repository.TaskRepository;
 import com.tapdata.tm.task.service.TaskService;
+import com.tapdata.tm.utils.Lists;
 import com.tapdata.tm.utils.MongoUtils;
 import lombok.Setter;
 import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.lang3.StringUtils;
+import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
@@ -35,6 +37,8 @@ public class DiscoveryServiceImpl implements DiscoveryService {
 
     private MetadataInstancesRepository metaDataRepository;
     private TaskRepository taskRepository;
+
+    private MetadataDefinitionService metadataDefinitionService;
     /**
      * 查询对象概览列表
      *
@@ -43,7 +47,79 @@ public class DiscoveryServiceImpl implements DiscoveryService {
      */
     @Override
     public Page<DataDiscoveryDto> find(DiscoveryQueryParam param, UserDetail user) {
-        return null;
+        Page<DataDiscoveryDto> page = new Page<>();
+        page.setItems(Lists.of());
+        page.setTotal(0);
+        if (StringUtils.isNotBlank(param.getCategory())) {
+            if (!param.getCategory().equals(DataObjCategoryEnum.storage.name())) {
+                return page;
+            }
+        }
+        if (StringUtils.isNotBlank(param.getSourceCategory())) {
+            if (!param.getCategory().equals(DataSourceCategoryEnum.connection.name())) {
+                return page;
+            }
+        }
+
+        Criteria criteria = new Criteria();
+        if (StringUtils.isNotBlank(param.getType())) {
+            criteria.and("meta_type").is(param.getType());
+        }
+        if (StringUtils.isNotBlank(param.getSourceType())) {
+            criteria.and("source.database_type.").is(param.getSourceType());
+        }
+
+        if (StringUtils.isNotBlank(param.getQueryKey())) {
+            Criteria.where("originalName").regex(param.getQueryKey());
+            criteria.orOperator(
+                    Criteria.where("originalName").regex(param.getQueryKey()),
+                    Criteria.where("name").regex(param.getQueryKey()),
+                    Criteria.where("comment").regex(param.getQueryKey()),
+                    Criteria.where("source.database_name").regex(param.getQueryKey()),
+                    Criteria.where("alias_name").regex(param.getQueryKey()));
+        }
+
+        Query query = new Query(criteria);
+
+        long count = metadataInstancesService.count(query, user);
+
+        query.skip((long) (param.getPage() - 1) * param.getPageSize());
+        query.limit(param.getPageSize());
+        List<MetadataInstancesDto> allDto = metadataInstancesService.findAllDto(query, user);
+
+        List<DataDiscoveryDto> items = new ArrayList<>();
+        for (MetadataInstancesDto metadataInstancesDto : allDto) {
+            DataDiscoveryDto dto = new DataDiscoveryDto();
+            //dto.setRowNum();
+            SourceDto source = metadataInstancesDto.getSource();
+            if (source != null) {
+                dto.setSourceType(source.getDatabase_type());
+            }
+            dto.setId(metadataInstancesDto.getId().toHexString());
+            dto.setCategory(DataObjCategoryEnum.storage);
+            dto.setType(metadataInstancesDto.getMetaType());
+            dto.setSourceCategory(DataSourceCategoryEnum.connection);
+            dto.setId(metadataInstancesDto.getId().toHexString());
+            //dto.setSourceInfo();
+            //dto.setName();
+            //dto.setBusinessName();
+            //dto.setBusinessDesc();
+            dto.setListtags(metadataInstancesDto.getListtags());
+            List<Tag> listtags = dto.getListtags();
+            if (CollectionUtils.isNotEmpty(listtags)) {
+                List<ObjectId> ids = listtags.stream().map(Tag::getId).collect(Collectors.toList());
+                List<MetadataDefinitionDto> andParents = metadataDefinitionService.findAndParent(null, ids);
+                List<Tag> allTags = andParents.stream().map(s -> new Tag(s.getId(), s.getValue())).collect(Collectors.toList());
+                dto.setAllTags(allTags);
+            }
+
+            items.add(dto);
+        }
+
+        page.setItems(items);
+        page.setTotal(count);
+
+        return page;
     }
 
     /**
