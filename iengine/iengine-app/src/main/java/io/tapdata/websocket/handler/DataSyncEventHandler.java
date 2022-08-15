@@ -13,6 +13,7 @@ import com.tapdata.tm.commons.dag.logCollector.LogCollectorNode;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.dag.process.AggregationProcessorNode;
+import com.tapdata.tm.commons.dag.process.CustomProcessorNode;
 import com.tapdata.tm.commons.dag.process.MergeTableNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.aspect.TaskResetAspect;
@@ -21,6 +22,7 @@ import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.entity.utils.cache.KVMap;
 import io.tapdata.flow.engine.V2.entity.PdkStateMap;
+import io.tapdata.flow.engine.V2.node.hazelcast.processor.HazelcastCustomProcessor;
 import io.tapdata.flow.engine.V2.node.hazelcast.processor.HazelcastMergeNode;
 import io.tapdata.flow.engine.V2.node.hazelcast.processor.aggregation.HazelcastMultiAggregatorProcessor;
 import io.tapdata.flow.engine.V2.task.impl.HazelcastTaskService;
@@ -107,6 +109,8 @@ public class DataSyncEventHandler extends BaseEventHandler {
 				mergeNodeDestroy(node);
 			} else if (node instanceof AggregationProcessorNode) {
 				aggregateNodeDestroy(node);
+			} else if (node instanceof CustomProcessorNode) {
+				HazelcastCustomProcessor.clearStateMap(node.getId());
 			}
 		}
 	}

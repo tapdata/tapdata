@@ -1,6 +1,9 @@
 package io.tapdata.flow.engine.V2.node.hazelcast.processor;
 
+import com.hazelcast.core.HazelcastInstance;
+import com.hazelcast.map.IMap;
 import com.tapdata.constant.ConnectorConstant;
+import com.tapdata.constant.HazelcastUtil;
 import com.tapdata.constant.MapUtil;
 import com.tapdata.entity.JavaScriptFunctions;
 import com.tapdata.entity.MessageEntity;
@@ -13,6 +16,7 @@ import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.process.CustomProcessorNode;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
+import io.tapdata.entity.utils.cache.KVMap;
 import io.tapdata.flow.engine.V2.common.node.NodeTypeEnum;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
 import org.apache.commons.collections.MapUtils;
@@ -44,6 +48,7 @@ public class HazelcastCustomProcessor extends HazelcastProcessorBaseNode {
 
 	private Logger logger = LogManager.getLogger(HazelcastCustomProcessor.class);
 	private Invocable engine;
+	private StateMap stateMap;
 
 	public HazelcastCustomProcessor(DataProcessorContext dataProcessorContext) {
 		super(dataProcessorContext);
@@ -69,10 +74,31 @@ public class HazelcastCustomProcessor extends HazelcastProcessorBaseNode {
 						customNodeTempDto.getTemplate(),
 						javaScriptFunctions,
 						clientMongoOperator);
+				stateMap = getStateMap(context.hazelcastInstance(), node.getId());
+				((ScriptEngine) engine).put("state", stateMap);
 			} catch (ScriptException e) {
 				throw new RuntimeException("Init script engine error: " + e.getMessage());
 			}
 		}
+	}
+
+	private static String getStateMapName(String nodeId) {
+		return HazelcastCustomProcessor.class.getSimpleName() + "-" + nodeId;
+	}
+
+	private static StateMap getStateMap(HazelcastInstance hazelcastInstance, String nodeId) {
+		StateMap stateMap = new StateMap().hazelcastInstance(hazelcastInstance);
+		stateMap.init(getStateMapName(nodeId), Object.class);
+		return stateMap;
+	}
+
+	public static void clearStateMap(String nodeId) {
+		HazelcastInstance instance = HazelcastUtil.getInstance();
+		if (null == instance) {
+			return;
+		}
+		StateMap map = getStateMap(instance, getStateMapName(nodeId));
+		map.clear();
 	}
 
 	@Override
@@ -143,6 +169,55 @@ public class HazelcastCustomProcessor extends HazelcastProcessorBaseNode {
 			} else {
 				messageEntity.setBefore(before);
 			}
+		}
+	}
+
+	private static class StateMap implements KVMap<Object> {
+		private HazelcastInstance hazelcastInstance;
+
+		public StateMap hazelcastInstance(HazelcastInstance hazelcastInstance) {
+			this.hazelcastInstance = hazelcastInstance;
+			return this;
+		}
+
+		private IMap<String, Object> imap;
+
+		@Override
+		public void init(String mapKey, Class<Object> valueClass) {
+			if (null == hazelcastInstance) {
+				throw new IllegalArgumentException("Hazelcast instance cannot be null");
+			}
+			this.imap = hazelcastInstance.getMap(mapKey);
+		}
+
+		@Override
+		public void put(String key, Object o) {
+			imap.put(key, o);
+		}
+
+		@Override
+		public Object putIfAbsent(String key, Object o) {
+			return imap.putIfAbsent(key, o);
+		}
+
+		@Override
+		public Object remove(String key) {
+			return imap.remove(key);
+		}
+
+		@Override
+		public void clear() {
+			imap.clear();
+		}
+
+		@Override
+		public void reset() {
+			clear();
+		}
+
+		@Override
+		public Object get(String key) {
+			return imap.get(key);
 		}
 	}
 }
