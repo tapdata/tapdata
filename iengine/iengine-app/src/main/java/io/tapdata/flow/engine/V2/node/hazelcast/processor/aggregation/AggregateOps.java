@@ -279,14 +279,15 @@ public class AggregateOps {
     }
 
     private static void postProcessSum(TapRecordEvent tapRecordEvent, BigDecimal sum) {
+        final String sumStr = sum.toPlainString();
         if (tapRecordEvent != null) {
             Map<String, Object> before = TapEventUtil.getBefore(tapRecordEvent);
             if (before != null) {
-                before.put(SUM, sum);
+                before.put(SUM, sumStr);
             }
             Map<String, Object> after = TapEventUtil.getAfter(tapRecordEvent);
             if (after != null) {
-                after.put(SUM, sum);
+                after.put(SUM, sumStr);
             }
         }
     }
@@ -343,14 +344,15 @@ public class AggregateOps {
     }
 
     private static void postProcessAvg(TapRecordEvent tapRecordEvent, BigDecimal sum, BigDecimal counter) {
+        final String avgStr = sum.divide(counter, scale, roundingMode).toPlainString();
         if (tapRecordEvent != null) {
             Map<String, Object> before = TapEventUtil.getBefore(tapRecordEvent);
             if (before != null) {
-                before.put(AVG, sum.divide(counter, scale, roundingMode));
+                before.put(AVG, avgStr);
             }
             Map<String, Object> after = TapEventUtil.getAfter(tapRecordEvent);
             if (after != null) {
-                after.put(AVG, sum.divide(counter, scale, roundingMode));
+                after.put(AVG, avgStr);
             }
         }
     }
@@ -693,13 +695,14 @@ public class AggregateOps {
 
     private static void postProcessMax(TapRecordEvent tapRecordEvent, ArrayList<BigDecimal> groupedMaxList) {
         if (tapRecordEvent != null) {
+            final String maxStr = groupedMaxList.size() > 0 ? groupedMaxList.get(0).toPlainString() : null;
             Map<String, Object> before = TapEventUtil.getBefore(tapRecordEvent);
             if (before != null && groupedMaxList.size() > 0) {
-                before.put(MAX, groupedMaxList.get(0));
+                before.put(MAX, maxStr);
             }
             Map<String, Object> after = TapEventUtil.getAfter(tapRecordEvent);
             if (after != null && groupedMaxList.size() > 0) {
-                after.put(MAX, groupedMaxList.get(0));
+                after.put(MAX, maxStr);
             }
         }
     }
@@ -850,12 +853,13 @@ public class AggregateOps {
     private static void postProcessMin(TapRecordEvent tapRecordEvent, ArrayList<BigDecimal> groupedMinList) {
         if (tapRecordEvent != null) {
             Map<String, Object> before = TapEventUtil.getBefore(tapRecordEvent);
+            final String minStr = groupedMinList.size() > 0 ? groupedMinList.get(0).toPlainString() : null;
             if (before != null && groupedMinList.size() > 0) {
-                before.put(MIN, groupedMinList.get(0));
+                before.put(MIN, minStr);
             }
             Map<String, Object> after = TapEventUtil.getAfter(tapRecordEvent);
             if (after != null && groupedMinList.size() > 0) {
-                after.put(MIN, groupedMinList.get(0));
+                after.put(MIN, minStr);
             }
         }
     }
