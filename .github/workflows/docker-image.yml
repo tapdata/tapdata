@@ -13,6 +13,8 @@ on:
 env:
   REGISTRY: ghcr.io
   TEST_DATABASE: ${{ secrets.TEST_DATABASE }}
+  PYPI_USERNAME: ${{ secrets.PYPI_USERNAME }}
+  PYPI_PASSWORD: ${{ secrets.PYPI_PASSWORD }}
   FEISHU_PERSON_IN_CHARGE: ${{ secrets.FEISHU_PERSON_IN_CHARGE }}
   FEISHU_CHAT_ID: ${{ secrets.FEISHU_CHAT_ID }}
   FEISHU_APP_ID: ${{ secrets.FEISHU_APP_ID}}
@@ -74,75 +76,85 @@ jobs:
           echo "CURRENT_BRANCH=$current_branch" >> $GITHUB_ENV
           echo "TAG_BRANCH=$current_branch" >> $GITHUB_ENV
       - uses: actions/checkout@v3
-      - name: Login to the github container registry
-        uses: docker/login-action@f054a8b539a109f9f41c372932f1ae047eff08c9
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-      - name: get test history
-        uses: actions/checkout@v2
-        if: always()
-        continue-on-error: true
-        with:
-          ref: report-test
-          path: report-test
-      - name: compile plugin-kit module
+#      - name: Login to the github container registry
+#        uses: docker/login-action@f054a8b539a109f9f41c372932f1ae047eff08c9
+#        with:
+#          registry: ${{ env.REGISTRY }}
+#          username: ${{ github.actor }}
+#          password: ${{ secrets.GITHUB_TOKEN }}
+#      - name: get test history
+#        uses: actions/checkout@v2
+#        if: always()
+#        continue-on-error: true
+#        with:
+#          ref: report-test
+#          path: report-test
+#      - name: compile plugin-kit module
+#        run: |
+#          chmod u+x build/build.sh
+#          build/build.sh -c plugin-kit || exit 1
+#      - name: compile connectors-common module
+#        run:
+#          build/build.sh -c connectors-common
+#      - name: compile manager module
+#        run:
+#          build/build.sh -c manager
+#      - name: compile iengine modules
+#        run: |
+#          build/build.sh -c iengine
+#      - name: compile connectors module
+#        run:
+#          build/build.sh -c connectors
+#      - name: package module and make image
+#        run: build/build.sh -p 1 -o image
+#      - name: run unittest
+#        run: ls -al
+#      - name: run integrate test
+#        env:
+#          RUN_ID: ${{ github.run_id }}
+#          RUN_NUMBER: ${{ github.run_number }}
+#          RUN_SIGN: ${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}
+#          BRANCH: ${{ github.ref }}
+#        run: chmod u+x build/quick-test.sh && build/quick-test.sh && ls -al ./tapshell/test/report/integrate.html/
+      - name: Setup Poetry
+        uses: Gr1N/setup-poetry@v7
+      - name: publish pip package
+#        if: ${{ success() && env.CURRENT_BRANCH == "master" }}
+        if: ${{ success() }}
         run: |
-          chmod u+x build/build.sh 
-          build/build.sh -c plugin-kit || exit 1
-      - name: compile connectors-common module
-        run:
-          build/build.sh -c connectors-common
-      - name: compile manager module
-        run:
-          build/build.sh -c manager
-      - name: compile iengine modules
-        run: |
-          build/build.sh -c iengine
-      - name: compile connectors module
-        run:
-          build/build.sh -c connectors
-      - name: package module and make image
-        run: build/build.sh -p 1 -o image
-      - name: run unittest
-        run: ls -al
-      - name: run integrate test
-        env:
-          RUN_ID: ${{ github.run_id }}
-          RUN_NUMBER: ${{ github.run_number }}
-          RUN_SIGN: ${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}
-          BRANCH: ${{ github.ref }}
-        run: chmod u+x build/quick-test.sh && build/quick-test.sh && ls -al ./tapshell/test/report/integrate.html/
+          git diff-tree --name-only HEAD^ HEAD | grep tapshell > /dev/null
+          sed -i "/__version__/${{ env.TAG }}/" tapshell/pyproject.toml
+          if [[ $? -ne 0 ]]; then echo "Do not publish pip package" && exit 0; fi
+          cd tapshell && poetry build && poetry publish --username ${{ env.PYPI_USERNAME }} --password ${{ env.PYPI_PASSWORD }}
 
-      - name: update github page
-        id: gh_pages
-        if: always()
-        uses: peaceiris/actions-gh-pages@v3
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_branch: report-test
-          publish_dir: gh_pages
-          keep_files: true
-      - name: print summary
-        if: ${{ steps.gh_pages.conclusion == 'success' }}
-        env:
-          RUN_SIGN: ${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}
-          BRANCH: ${{ github.ref }}
-        run: |
-          BRANCH_DIR=`echo $BRANCH | sed "s:/:-:g"`
-          echo "[Click to view test report](https://tapdata.github.io/tapdata/$BRANCH_DIR/$RUN_SIGN)" >> $GITHUB_STEP_SUMMARY
-      - name: Send notices to feishu
-        if : ${{ failure() }}
-        run: |
-          pip install requests GitPython
-          python build/feishu_notice.py \
-            --branch ${{ env.CURRENT_BRANCH}} \
-            --runner "LDP Continuous Integration" \
-            --detail_url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
-            --token ${{ secrets.GITHUB_TOKEN }} \
-            --job_id ${{ github.run_id }} \
-            --person_in_charge ${{ env.FEISHU_PERSON_IN_CHARGE }} \
-            --app_id ${{ env.FEISHU_APP_ID }} \
-            --app_secret ${{ env.FEISHU_APP_SECRET}} \
-            --chat_id ${{ env.FEISHU_CHAT_ID }}
+#      - name: update github page
+#        id: gh_pages
+#        if: always()
+#        uses: peaceiris/actions-gh-pages@v3
+#        with:
+#          github_token: ${{ secrets.GITHUB_TOKEN }}
+#          publish_branch: report-test
+#          publish_dir: gh_pages
+#          keep_files: true
+#      - name: print summary
+#        if: ${{ steps.gh_pages.conclusion == 'success' }}
+#        env:
+#          RUN_SIGN: ${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}
+#          BRANCH: ${{ github.ref }}
+#        run: |
+#          BRANCH_DIR=`echo $BRANCH | sed "s:/:-:g"`
+#          echo "[Click to view test report](https://tapdata.github.io/tapdata/$BRANCH_DIR/$RUN_SIGN)" >> $GITHUB_STEP_SUMMARY
+#      - name: Send notices to feishu
+#        if : ${{ failure() }}
+#        run: |
+#          pip install requests GitPython
+#          python build/feishu_notice.py \
+#            --branch ${{ env.CURRENT_BRANCH}} \
+#            --runner "LDP Continuous Integration" \
+#            --detail_url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+#            --token ${{ secrets.GITHUB_TOKEN }} \
+#            --job_id ${{ github.run_id }} \
+#            --person_in_charge ${{ env.FEISHU_PERSON_IN_CHARGE }} \
+#            --app_id ${{ env.FEISHU_APP_ID }} \
+#            --app_secret ${{ env.FEISHU_APP_SECRET}} \
+#            --chat_id ${{ env.FEISHU_CHAT_ID }}
