@@ -1,14 +1,14 @@
 # Tapdata Python Sdk
 
-[中文文档地址](https://github.com/tapdata/tapdata/tree/master/tapshell/docs/Python-Sdk_zh-hans.md)
+[English](https://github.com/tapdata/tapdata/tree/master/tapshell/docs/Python-Sdk.md)
 
-## Install
+## 安装
 
-1. Install python 3.7, pip By Yourself.
-2. Run ```pip install tapdata_cli``` to install sdk.
-3. If you use poetry, please run ```poetry add tapdata_cli``` to install sdk.
+1. 安装 python3.7、pip；
+2. 运行 ```pip install tapdata_cli``` 安装sdk；
+3. 如果使用Poetry，可以运行 ```poetry add tapdata_cli``` 安装依赖。
 
-## Initial
+## 初始化
 
 ```python
 server = "127.0.0.1:3000"
@@ -17,13 +17,13 @@ from tapdata_cli import cli
 cli.init(server, access_code)
 ```
 
-**Multi-thread concurrency is not supported**
+**不支持多线程并发**
 
-It will send a request to the server to obtain the identity information and save it as a global variable. Therefore, after multiple init the 'server' and 'access_code' variable will be overwritten. 
+它将向服务器发送请求以获取身份信息并将其保存为全局变量。因此，在多次初始化后，“server”和“access_code”变量将被覆盖。
 
-For situations where you need to use different servers and access_codes concurrently, use Python's multiprocess.
+对于需要并发使用不同server和 access_codes 的情况，请使用 Python 的多进程。
 
-## Create DataSource
+## 创建数据源
 
 ```python
 # create datasource by uri
@@ -82,7 +82,7 @@ cli.DataSource.get(id="")
 
 ```
 
-## create Pipeline
+## 创建Pipeline
 
 ```python
 from tapdata_cli import cli
@@ -109,7 +109,7 @@ p.status()
 cli.Job.list()
 ```
 
-Job is the underlying implementation of pipeline, so you can use job.start() like pipeline.start().
+Job 是 Pipeline 的底层实现，所以你可以像使用 pipeline.start() 一样使用 job.start() 。
 
 ```python
 # init job (get job info) by id
@@ -119,7 +119,7 @@ job.save() # success -> True, failure -> False
 job.start() # success -> True, failure -> False
 ```
 
-### data operator
+### 数据处理
 
 ```python
 from tapdata_cli import cli
@@ -139,7 +139,7 @@ p = p.filterColumn(["name"], cli.FilterType.delete)
 p = p.rename("name", "player_name")
 
 # valueMap
-p = p.valueMap("position", 1)
+p = p.valueMap("position", 1) # 将 position 字段覆盖为 1
 
 # js
 p = p.js("return record;")
@@ -147,20 +147,18 @@ p = p.js("return record;")
 p.writeTo("target.player")  # target is db, player is table
 ```
 
-## API Operation
+## API 操作
 
-### Publish Api
+### 发布Api
 
 ```python
 from tapdata_cli import cli
 cli.Api(name="test", table="source.player").publish() # source is db, player is table
 ```
 
-### Unpublish APi
+### 取消发布Api
 
 ```python
 from tapdata_cli import cli
 cli.Api(name="test").unpublish()
 ```
-
-
