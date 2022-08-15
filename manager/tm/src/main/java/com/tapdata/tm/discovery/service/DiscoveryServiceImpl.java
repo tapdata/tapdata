@@ -358,11 +358,11 @@ public class DiscoveryServiceImpl implements DiscoveryService {
     }
 
 
-    public void updateListTags(String id, String objCategory, List<String> tagIds) {
+    public void updateListTags(String id, String objCategory, List<String> tagIds, UserDetail user) {
 
     }
 
-    public void addListTags(String id, String objCategory, List<String> tagIds) {
+    public void addListTags(String id, String objCategory, List<String> tagIds, UserDetail user) {
 
     }
 }

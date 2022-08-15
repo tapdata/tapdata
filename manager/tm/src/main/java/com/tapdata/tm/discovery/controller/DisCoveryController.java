@@ -60,14 +60,16 @@ public class DisCoveryController extends BaseController {
 
 
     @Operation(summary = "discovery object update tags")
-    @PatchMapping("tags")
-    public ResponseMessage<Void> updateListTags(String id, String objCategory, List<String> tagIds) {
-        return null;
+    @PatchMapping("tags/{id}")
+    public ResponseMessage<Void> updateListTags(@PathVariable("id") String id, @RequestParam("objCategory") String objCategory, @RequestParam("tagIds") List<String> tagIds) {
+        discoveryService.updateListTags(id, objCategory, tagIds, getLoginUser());
+        return success();
     }
 
     @Operation(summary = "discovery object update tags")
-    @PostMapping("tags")
-    public ResponseMessage<Void> addListTags(String id, String objCategory, List<String> tagIds) {
-        return null;
+    @PostMapping("tags/{id}")
+    public ResponseMessage<Void> addListTags(@PathVariable("id") String id, @RequestParam("objCategory") String objCategory, @RequestParam("tagIds") List<String> tagIds) {
+        discoveryService.addListTags(id, objCategory, tagIds, getLoginUser());
+        return success();
     }
 }
