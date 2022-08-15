@@ -173,8 +173,18 @@ public class TaskNodeServiceImpl implements TaskNodeService {
                     for (Field field : instance.getFields()) {
                         String defaultValue = Objects.isNull(field.getDefaultValue()) ? "" : field.getDefaultValue().toString();
                         int primaryKey = Objects.isNull(field.getPrimaryKeyPosition()) ? 0 : field.getPrimaryKeyPosition();
-                        FieldsMapping mapping = new FieldsMapping(field.getFieldName(), field.getOriginalFieldName(),
-                                field.getDataType(), "auto", defaultValue, true, "system", primaryKey);
+
+                        FieldsMapping mapping = new FieldsMapping(){{
+                            setTargetFieldName(field.getFieldName());
+                            setSourceFieldName(field.getOriginalFieldName());
+                            setSourceFieldType(field.getDataType());
+                            setType("auto");
+                            setDefaultValue(defaultValue);
+                            setIsShow(true);
+                            setMigrateType("system");
+                            setPrimary_key_position(primaryKey);
+                            setUseDefaultValue(field.isUseDefaultValue());
+                        }};
                         fieldsMapping.add(mapping);
                     }
                 }
@@ -280,16 +290,25 @@ public class TaskNodeServiceImpl implements TaskNodeService {
                             .filter(f -> Objects.nonNull(f.getSourceFieldName()))
                             .collect(Collectors.toMap(FieldInfo::getSourceFieldName, Function.identity()));
                 }
-                Map<String, FieldInfo> finalFieldInfoMap = fieldInfoMap;
                 for (Field field : fields) {
                     String defaultValue = Objects.isNull(field.getDefaultValue()) ? "" : field.getDefaultValue().toString();
                     int primaryKey = Objects.isNull(field.getPrimaryKeyPosition()) ? 0 : field.getPrimaryKeyPosition();
                     String fieldName = field.getOriginalFieldName();
-                    FieldsMapping mapping = new FieldsMapping(fieldName, fieldName, field.getDataType(),
-                            "auto", defaultValue, true, "system", primaryKey);
+                    FieldsMapping mapping = new FieldsMapping(){{
+                        setTargetFieldName(fieldName);
+                        setSourceFieldName(fieldName);
+                        setSourceFieldType(field.getDataType());
+                        setType("auto");
+                        setDefaultValue(defaultValue);
+                        setIsShow(true);
+                        setMigrateType("system");
+                        setPrimary_key_position(primaryKey);
+                        setUseDefaultValue(field.isUseDefaultValue());
+                    }};
 
-                    if (Objects.nonNull(finalFieldInfoMap) && finalFieldInfoMap.containsKey(fieldName)) {
-                        FieldInfo fieldInfo = finalFieldInfoMap.get(fieldName);
+
+                    if (Objects.nonNull(fieldInfoMap) && fieldInfoMap.containsKey(fieldName)) {
+                        FieldInfo fieldInfo = fieldInfoMap.get(fieldName);
 
                         if (!(currentNode instanceof MigrateFieldRenameProcessorNode) && !fieldInfo.getIsShow()) {
                             continue;

@@ -13,6 +13,7 @@ import com.tapdata.tm.metadatainstance.entity.MetadataInstancesEntity;
 import com.tapdata.tm.metadatainstance.service.MetaMigrateService;
 import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
 import com.tapdata.tm.task.service.TaskService;
+import com.tapdata.tm.utils.FunctionUtils;
 import com.tapdata.tm.utils.Lists;
 import com.tapdata.tm.utils.MongoUtils;
 import lombok.Setter;
@@ -74,7 +75,11 @@ public class MetaMigrateServiceImpl implements MetaMigrateService {
                 if (fieldMap.containsKey(f.getFieldName())) {
                     MigrateTableInfoDto.Field field = fieldMap.get(f.getFieldName());
                     f.setDataType(field.getFieldType());
-                    f.setDefaultValue(field.getDefaultValue());
+                    f.setUseDefaultValue(field.isUseDefaultValue());
+                    FunctionUtils.isTureOrFalse(field.isUseDefaultValue()).trueOrFalseHandle(
+                            () -> f.setDefaultValue(f.getOriginalDefaultValue()),
+                            () -> f.setDefaultValue(null)
+                    );
                 }
             });
             metadataInstancesService.save(metadataInstancesDto, userDetail);
@@ -85,7 +90,11 @@ public class MetaMigrateServiceImpl implements MetaMigrateService {
                 if (fieldMap.containsKey(f.getFieldName())) {
                     MigrateTableInfoDto.Field field = fieldMap.get(f.getFieldName());
                     f.setDataType(field.getFieldType());
-                    f.setDefaultValue(field.getDefaultValue());
+                    f.setUseDefaultValue(field.isUseDefaultValue());
+                    FunctionUtils.isTureOrFalse(field.isUseDefaultValue()).trueOrFalseHandle(
+                            () -> f.setDefaultValue(f.getOriginalDefaultValue()),
+                            () -> f.setDefaultValue(null)
+                            );
                 }
             });
 

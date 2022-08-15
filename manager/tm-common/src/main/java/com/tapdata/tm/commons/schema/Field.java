@@ -146,4 +146,6 @@ public class Field implements Serializable {
      */
     private Boolean fixed;
     private String createSource; // manual/auto/job_analyze
+
+    private boolean useDefaultValue;
 }
