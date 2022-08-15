@@ -523,13 +523,12 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 					final String tgtTableName = getTgtTableNameFromTapEvent(tapEvent);
 					TapTable tapTable = dataProcessorContext.getTapTableMap().get(tgtTableName);
 					handleTapTablePrimaryKeys(tapTable);
-					return new ArrayList<>(tapTable.primaryKeys());
+					return new ArrayList<>(tapTable.primaryKeys(true));
 				}),
 				this::handleTapdataEvents,
 				this::flushSyncProgressMap,
 				this::errorHandle,
-				dataProcessorContext.getTaskDto().getId().toHexString(),
-				dataProcessorContext.getTaskDto().getName()
+				dataProcessorContext.getTaskDto()
 		);
 	}
 
