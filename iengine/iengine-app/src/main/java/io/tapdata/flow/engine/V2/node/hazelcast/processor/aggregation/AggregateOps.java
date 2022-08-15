@@ -20,8 +20,10 @@ import java.util.Map;
  * 大家一致同意先不要搞太复杂
  * 因此每个聚合节点只支持1个同类算子，比如SUM只能有1个，这样可以简化代码
  * 算子为什么没有处理update，因为前置处理器：CrossGroupP和groupByP 把update拆成了delete+insert
+ *
  * 从source传过来的update事件，都通过前置处理器CrossGroupP和groupByP 把update拆成了delete+insert
  * 从source传过来的insert事件，除了第一条记录，后续都在前置处理器进行转化成update，因此走到算子里的update实际上都为insert
+ *
  * @author alexouyang
  * @Date 2022/4/26
  */
