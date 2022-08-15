@@ -61,7 +61,7 @@ public class KafkaService extends AbstractMqService {
     }
 
     @Override
-    public void testConnection(Consumer<TestItem> consumer) {
+    public void testConnect(Consumer<TestItem> consumer) {
         if (kafkaConfig.getKrb5()) {
             try {
                 Krb5Util.checkKDCDomainsBase64(kafkaConfig.getKrb5Conf());
