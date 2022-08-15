@@ -2,6 +2,7 @@ package com.tapdata.tm.metadatadefinition.service;
 
 import com.mongodb.client.result.UpdateResult;
 import com.tapdata.manager.common.utils.JsonUtil;
+import com.tapdata.manager.common.utils.StringUtils;
 import com.tapdata.tm.base.entity.BaseEntity;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.base.service.BaseService;
@@ -17,6 +18,7 @@ import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
 import com.tapdata.tm.modules.entity.ModulesEntity;
 import com.tapdata.tm.task.entity.TaskEntity;
 import com.tapdata.tm.userLog.constant.Modular;
+import com.tapdata.tm.utils.MongoUtils;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
@@ -35,6 +37,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * @Author:
@@ -125,4 +128,20 @@ public class MetadataDefinitionService extends BaseService<MetadataDefinitionDto
 
     }
 
+
+    public List<MetadataDefinitionDto> findAndParent(List<MetadataDefinitionDto> metadataDefinitionDtos, List<ObjectId> idList) {
+        Criteria criteria = Criteria.where("_id").in(idList);
+        Query query = new Query(criteria);
+        List<MetadataDefinitionDto> all = findAll(query);
+        if (metadataDefinitionDtos == null) {
+            metadataDefinitionDtos = new ArrayList<>();
+        }
+        metadataDefinitionDtos.addAll(all);
+        List<ObjectId> ids = all.stream().filter(a -> StringUtils.isNotBlank(a.getParent_id())).map(a -> MongoUtils.toObjectId(a.getParent_id())).collect(Collectors.toList());
+        if (CollectionUtils.isEmpty(ids)) {
+            return metadataDefinitionDtos;
+        }
+
+        return findAndParent(metadataDefinitionDtos, ids);
+    }
 }
