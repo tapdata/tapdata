@@ -125,7 +125,7 @@ jobs:
         if: ${{ success() }}
         run: |
           tag="${{ env.TAG_BRANCH }}:`git describe --tag`"
-          sed -i "/__version__/$tag/" tapshell/pyproject.toml
+          sed -i "s/__version__/$tag/g" tapshell/pyproject.toml
           git diff-tree --name-only HEAD^ HEAD | grep tapshell > /dev/null
           if [[ $? -ne 0 ]]; then echo "Do not publish pip package" && exit 0; fi
           cd tapshell && poetry build && poetry publish --username ${{ env.PYPI_USERNAME }} --password ${{ env.PYPI_PASSWORD }}
