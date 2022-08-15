@@ -35,22 +35,6 @@
           "apiServerKey": "mq_port",
           "x-index": 3
         },
-        "producerGroup": {
-          "type": "string",
-          "title": "${producerGroup}",
-          "x-decorator": "FormItem",
-          "x-component": "Input",
-          "apiServerKey": "producer_group",
-          "x-index": 4
-        },
-        "consumerGroup": {
-          "type": "string",
-          "title": "${consumerGroup}",
-          "x-decorator": "FormItem",
-          "x-component": "Input",
-          "apiServerKey": "consumer_group",
-          "x-index": 5
-        },
         "mqUsername": {
           "type": "string",
           "title": "${mqUsername}",
@@ -75,6 +59,28 @@
           "x-component": "Switch",
           "apiServerKey": "use_tls",
           "x-index": 8
+        }
+      }
+    },
+    "node": {
+      "type": "object",
+      "properties": {
+        "producerGroup": {
+          "type": "string",
+          "title": "${producerGroup}",
+          "default": "tapdata",
+          "required": true,
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "apiServerKey": "producer_group"
+        },
+        "consumerGroup": {
+          "type": "string",
+          "title": "${consumerGroup}",
+          "required": true,
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "apiServerKey": "consumer_group"
         }
       }
     }

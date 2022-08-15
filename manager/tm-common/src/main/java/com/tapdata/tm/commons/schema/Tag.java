@@ -4,7 +4,9 @@ import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.tapdata.tm.commons.base.convert.ObjectIdDeserialize;
 import com.tapdata.tm.commons.base.convert.ObjectIdSerialize;
+import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 import org.bson.types.ObjectId;
 
 import java.io.Serializable;
@@ -15,6 +17,8 @@ import java.io.Serializable;
  * @Description: connect内嵌tag文档
  */
 @Data
+@AllArgsConstructor
+@NoArgsConstructor
 public class Tag implements Serializable {
 
     /**

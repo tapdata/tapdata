@@ -359,7 +359,7 @@ public class Hive1Writer {
 //        JsonParser jsonParser = InstanceFactory.instance(JsonParser.class);
 //        TapLogger.info("XXXXXX", "doUpdate tapTable {} tapRecordEvent {}", jsonParser.toJson(tapTable), jsonParser.toJson(tapRecordEvent));
         //不管是否更新成功，api返回的数据条数都是0
-        int row = doUpdate(tapConnectorContext, tapTable, tapRecordEvent);
+        int row = updatePreparedStatement.executeUpdate();
         if (row <= 0 && ConnectionOptions.DML_UPDATE_POLICY_INSERT_ON_NON_EXISTS.equals(updateDmlPolicy)) {
             doInsert(tapConnectorContext, tapTable, tapRecordEvent);
         }

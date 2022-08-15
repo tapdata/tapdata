@@ -37,7 +37,8 @@ public abstract class LogMiner implements ILogMiner {
     protected static final BeanUtils beanUtils = InstanceFactory.instance(BeanUtils.class); //bean util
     public static final CCJBaseDDLWrapper.CCJDDLWrapperConfig DDL_WRAPPER_CONFIG = CCJBaseDDLWrapper.CCJDDLWrapperConfig.create().split("\"");
     protected DDLParserType ddlParserType; //ddl parser type
-    protected AtomicBoolean isRunning = new AtomicBoolean(false);
+    protected final AtomicBoolean isRunning = new AtomicBoolean(false);
+    protected final AtomicBoolean ddlStop = new AtomicBoolean(false);
     protected ExecutorService redoLogConsumerThreadPool;
 
     protected final LinkedBlockingQueue<RedoLogContent> logQueue = new LinkedBlockingQueue<>(LOG_QUEUE_SIZE); //queue for logContent
@@ -58,6 +59,12 @@ public abstract class LogMiner implements ILogMiner {
     public void init(List<String> tableList, KVReadOnlyMap<TapTable> tableMap, Object offsetState, int recordSize, StreamReadConsumer consumer) throws Throwable {
         this.tableMap = tableMap;
         this.tableList = tableList;
+        this.recordSize = recordSize;
+        this.consumer = consumer;
+        makeLobTables();
+    }
+
+    protected void makeLobTables() {
         List<TapTable> lobTables = new ArrayList<>();
         tableList.forEach(table -> {
             TapTable tapTable = tableMap.get(table);
@@ -66,8 +73,6 @@ public abstract class LogMiner implements ILogMiner {
             }
         });
         this.lobTables = lobTables.stream().collect(Collectors.toMap(TapTable::getId, Function.identity()));
-        this.recordSize = recordSize;
-        this.consumer = consumer;
     }
 
     protected void enqueueRedoLogContent(RedoLogContent redoLogContent) {
@@ -234,6 +239,14 @@ public abstract class LogMiner implements ILogMiner {
                         break;
                     case "DDL":
                         try {
+                            ddlStop.set(true);
+                            TapSimplify.sleep(5000);
+                            ddlFlush();
+                            ddlStop.set(false);
+                        } catch (Throwable e) {
+                            throw new RuntimeException(e);
+                        }
+                        try {
                             DDLFactory.ddlToTapDDLEvent(ddlParserType, redoLogContent.getSqlRedo(),
                                     DDL_WRAPPER_CONFIG,
                                     tableMap,
@@ -249,6 +262,8 @@ public abstract class LogMiner implements ILogMiner {
             submitEvent(redoLogContent, eventList);
         }
     }
+
+    protected abstract void ddlFlush() throws Throwable;
 
     protected abstract void submitEvent(RedoLogContent redoLogContent, List<TapEvent> list);
 

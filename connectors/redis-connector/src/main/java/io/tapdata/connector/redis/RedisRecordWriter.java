@@ -191,9 +191,9 @@ public class RedisRecordWriter {
             }
             int index = filedMap.get(key);
             String valueStr = String.valueOf(value);
-            // 逗号作为分隔符需要页数处理下
+            // 逗号作为分隔符, 存在则按照整个字段加双引号
             if (valueStr.indexOf(",") > -1) {
-                valueStr = valueStr.replace(",", "','");
+                valueStr ="\""+ valueStr+"\"";
             }
 
             filedValue[index] = valueStr;

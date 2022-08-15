@@ -37,6 +37,14 @@ public class CommonDbConfig implements Serializable {
         return "jdbc:" + dbType + "://%s:%d/%s%s";
     }
 
+    public String getConnectionString() {
+        String connectionString = host + ":" + port + "/" + database;
+        if (EmptyKit.isNotBlank(schema)) {
+            connectionString += "/" + schema;
+        }
+        return connectionString;
+    }
+
     //deal with extend params no matter there is ?
     public String getDatabaseUrl() {
         if (EmptyKit.isNull(this.getExtParams())) {

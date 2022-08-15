@@ -55,7 +55,7 @@ public class ActivemqService extends AbstractMqService {
     }
 
     @Override
-    public void testConnection(Consumer<TestItem> consumer) {
+    public void testConnect(Consumer<TestItem> consumer) {
         try {
             activemqConnection = (ActiveMQConnection) activeMQConnectionFactory.createConnection();
             activemqConnection.start();
