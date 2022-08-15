@@ -1,10 +1,13 @@
 package io.tapdata.flow.engine.V2.util;
 
+import com.google.common.collect.Lists;
 import com.tapdata.tm.commons.dag.Node;
 import org.apache.commons.collections.CollectionUtils;
 
 import java.util.ArrayList;
+import java.util.LinkedList;
 import java.util.List;
+import java.util.Queue;
 import java.util.function.Predicate;
 
 /**
@@ -14,30 +17,24 @@ import java.util.function.Predicate;
  **/
 public class GraphUtil {
 	public static List<Node<?>> successors(Node<?> node, Predicate<Node<?>> nodeFilter) {
-		return successors(node, nodeFilter, null);
-	}
-
-	public static List<Node<?>> successors(Node<?> node, Predicate<Node<?>> nodeFilter, List<Node<?>> successors) {
-		if (null == successors) {
-			successors = new ArrayList<>();
+		final List<Node<?>> successors = Lists.newArrayList();
+		final Queue<Node<?>> queue = new LinkedList<>();
+		if (node == null) {
+			return Lists.newArrayList();
 		}
-		if (null == node) {
-			return successors;
+		List<? extends Node<?>> nodeSuccessors = node.successors();
+		if (CollectionUtils.isEmpty(nodeSuccessors)) {
+			return Lists.newArrayList();
 		}
-		List<? extends Node<?>> nodeSuccessors;
-		if (CollectionUtils.isNotEmpty(successors)) {
-			nodeSuccessors = successors;
-		} else {
-			nodeSuccessors = node.successors();
-		}
-		for (Node<?> nodeSuccessor : nodeSuccessors) {
-			if (null == nodeFilter) {
-				successors.add(nodeSuccessor);
+		nodeSuccessors.forEach(queue::offer);
+		while (!queue.isEmpty()) {
+			Node<?> cur = queue.poll();
+			if (nodeFilter == null || nodeFilter.test(cur)) {
+				successors.add(cur);
 			} else {
-				if (nodeFilter.test(nodeSuccessor)) {
-					successors.add(nodeSuccessor);
-				} else {
-					successors = successors(nodeSuccessor, nodeFilter, successors);
+				List<? extends Node<?>> nextNodes = cur.successors();
+				if (CollectionUtils.isNotEmpty(nextNodes)) {
+					nextNodes.forEach(queue::offer);
 				}
 			}
 		}

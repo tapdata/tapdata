@@ -445,7 +445,7 @@ public class DAG implements Serializable, Cloneable {
                         outputSchemaList = Lists.newArrayList(outputSchema1);
                     }
 
-                    List<MetadataInstancesDto> all = outputSchemaList.stream().map(s ->  ((DAGDataServiceImpl) dagDataService).getMetadata(s.getQualifiedName())).collect(Collectors.toList());
+                    List<MetadataInstancesDto> all = outputSchemaList.stream().map(s ->  ((DAGDataServiceImpl) dagDataService).getMetadata(s.getQualifiedName())).filter(Objects::nonNull).collect(Collectors.toList());
                     Map<String, MetadataInstancesDto> metaMaps = all.stream().collect(Collectors.toMap(MetadataInstancesDto::getQualifiedName, m -> m, (m1, m2) -> m1));
                     for (SchemaTransformerResult schemaTransformerResult : schemaTransformerResults) {
                         if (Objects.isNull(schemaTransformerResult)) {
