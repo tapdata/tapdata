@@ -43,11 +43,11 @@
             <artifactId>hive-metastore</artifactId>
             <version>1.1.0</version>
         </dependency>
-<!--        <dependency>-->
-<!--            <groupId>org.apache.hive</groupId>-->
-<!--            <artifactId>hive-service</artifactId>-->
-<!--            <version>1.1.0</version>-->
-<!--        </dependency>-->
+        <!--        <dependency>-->
+        <!--            <groupId>org.apache.hive</groupId>-->
+        <!--            <artifactId>hive-service</artifactId>-->
+        <!--            <version>1.1.0</version>-->
+        <!--        </dependency>-->
         <dependency>
             <groupId>org.apache.hive</groupId>
             <artifactId>hive-exec</artifactId>
@@ -82,20 +82,20 @@
 
 
         <!--        <dependency>-->
-<!--            <groupId>org.apache.hadoop</groupId>-->
-<!--            <artifactId>hadoop-hdfs</artifactId>-->
-<!--            <version>2.10.1</version>-->
-<!--        </dependency>-->
-<!--        <dependency>-->
-<!--            <groupId>org.apache.hadoop</groupId>-->
-<!--            <artifactId>hadoop-mapreduce-client-core</artifactId>-->
-<!--            <version>2.10.1</version>-->
-<!--        </dependency>-->
-<!--        <dependency>-->
-<!--            <groupId>org.apache.hive</groupId>-->
-<!--            <artifactId>hive-storage-api</artifactId>-->
-<!--            <version>1.1.0</version>-->
-<!--        </dependency>-->
+        <!--            <groupId>org.apache.hadoop</groupId>-->
+        <!--            <artifactId>hadoop-hdfs</artifactId>-->
+        <!--            <version>2.10.1</version>-->
+        <!--        </dependency>-->
+        <!--        <dependency>-->
+        <!--            <groupId>org.apache.hadoop</groupId>-->
+        <!--            <artifactId>hadoop-mapreduce-client-core</artifactId>-->
+        <!--            <version>2.10.1</version>-->
+        <!--        </dependency>-->
+        <!--        <dependency>-->
+        <!--            <groupId>org.apache.hive</groupId>-->
+        <!--            <artifactId>hive-storage-api</artifactId>-->
+        <!--            <version>1.1.0</version>-->
+        <!--        </dependency>-->
 
         <dependency>
             <groupId>org.apache.commons</groupId>
@@ -117,26 +117,24 @@
             <version>5.8.1</version>
             <scope>test</scope>
         </dependency>
-        <dependency>
-            <groupId>com.tapdata</groupId>
-            <artifactId>iengine-common</artifactId>
-            <version>0.5.2-SNAPSHOT</version>
-            <scope>test</scope>
-        </dependency>
 
 
         <!--        <dependency>-->
-<!--            <groupId>mysql</groupId>-->
-<!--            <artifactId>mysql-connector-java</artifactId>-->
-<!--            <version>8.0.26</version>-->
-<!--        </dependency>-->
+        <!--            <groupId>mysql</groupId>-->
+        <!--            <artifactId>mysql-connector-java</artifactId>-->
+        <!--            <version>8.0.26</version>-->
+        <!--        </dependency>-->
         <!-- https://mvnrepository.com/artifact/mysql/mysql-connector-java -->
-<!--        <dependency>-->
-<!--            <groupId>mysql</groupId>-->
-<!--            <artifactId>mysql-connector-java</artifactId>-->
-<!--            <version>5.1.49</version>-->
-<!--        </dependency>-->
-
+        <!--        <dependency>-->
+        <!--            <groupId>mysql</groupId>-->
+        <!--            <artifactId>mysql-connector-java</artifactId>-->
+        <!--            <version>5.1.49</version>-->
+        <!--        </dependency>-->
+        <dependency>
+            <groupId>commons-codec</groupId>
+            <artifactId>commons-codec</artifactId>
+            <version>1.15</version>
+        </dependency>
     </dependencies>
 
     <build>

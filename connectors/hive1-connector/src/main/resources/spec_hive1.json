@@ -46,7 +46,7 @@
           "x-index": 3,
           "required": true
         },
-        "username": {
+        "user": {
           "type": "string",
           "title": "${user}",
           "x-decorator": "FormItem",
@@ -309,7 +309,7 @@
       ],
       "pattern": "yyyy-MM-dd"
     },
-    "TIMESTAMP[($fraction)]": {
+    "TIMESTAMP": {
       "to": "TapDateTime",
       "range": [
         "1970-01-01 00:00:00.000",

@@ -1,6 +1,7 @@
 package io.tapdata.connector.hive1;
 
 import com.zaxxer.hikari.HikariDataSource;
+import io.tapdata.common.CommonDbConfig;
 import io.tapdata.common.JdbcContext;
 import io.tapdata.common.ResultSetConsumer;
 import io.tapdata.connector.hive1.config.Hive1Config;
@@ -34,25 +35,25 @@ public class Hive1JdbcContext extends JdbcContext {
     private final static String HIVE1_ALL_COLUMN2 = "show create table %s.%s ";
     private final static String CK_ALL_INDEX = "";//从异构数据源 同步到clickhouse 索引对应不上
 
-    private Hive1Config hive1Config;
-
-    public void setHive1Config(Hive1Config hive1Config) {
-        this.hive1Config = hive1Config;
-    }
+//    private Hive1Config hive1Config;
+//
+//    public void setHive1Config(Hive1Config hive1Config) {
+//        this.hive1Config = hive1Config;
+//    }
 
     public Hive1JdbcContext(Hive1Config config, HikariDataSource hikariDataSource) {
         super(config, hikariDataSource);
     }
 
-    public static void tryCommit(Connection connection) {
-        try {
-            if (connection != null && connection.isValid(5) && !connection.getAutoCommit()) {
-                connection.commit();
-            }
-        } catch (SQLException e) {
-            throw new RuntimeException(e);
-        }
-    }
+//    public static void tryCommit(Connection connection) {
+//        try {
+//            if (connection != null && connection.isValid(5) && !connection.getAutoCommit()) {
+//                connection.commit();
+//            }
+//        } catch (SQLException e) {
+//            throw new RuntimeException(e);
+//        }
+//    }
 
     public static void tryRollBack(Connection connection) {
         try {
@@ -142,10 +143,10 @@ public class Hive1JdbcContext extends JdbcContext {
     }
 
 
-    public void query1(String sql, ResultSetConsumer resultSetConsumer) throws Throwable {
+    public void query(String sql, ResultSetConsumer resultSetConsumer) throws Throwable {
         TapLogger.debug(TAG, "Execute query, sql: " + sql);
         try (
-                Connection connection = getConnection();
+                Connection connection = getConnection((Hive1Config) getConfig());
                 Statement statement = connection.createStatement()
         ) {
             statement.setFetchSize(1000); //protected from OM
@@ -170,7 +171,7 @@ public class Hive1JdbcContext extends JdbcContext {
         String timeZone = null;
         TapLogger.debug(TAG, "Get timezone sql: " + DATABASE_TIMEZON_SQL);
         try (
-                Connection connection = getConnection();
+                Connection connection = getConnection((Hive1Config) getConfig());
                 Statement statement = connection.createStatement();
                 ResultSet resultSet = statement.executeQuery(DATABASE_TIMEZON_SQL)
         ) {
@@ -182,7 +183,16 @@ public class Hive1JdbcContext extends JdbcContext {
         return timeZone;
     }
 
-    public Connection getConnection() throws SQLException {
+    public boolean testValid(CommonDbConfig config) {
+        try {
+            getConnection((Hive1Config) config).close();
+            return true;
+        } catch (SQLException e) {
+            return false;
+        }
+    }
+
+    public Connection getConnection(Hive1Config hive1Config) throws SQLException {
         return JdbcUtil.createConnection(hive1Config);
     }
 
@@ -190,7 +200,7 @@ public class Hive1JdbcContext extends JdbcContext {
     public void execute(String sql) throws SQLException {
         TapLogger.debug(TAG, "Execute sql: " + sql);
         try (
-                Connection connection = getConnection();
+                Connection connection = getConnection((Hive1Config) getConfig());
                 Statement statement = connection.createStatement()
         ) {
             statement.execute(sql);
@@ -205,7 +215,8 @@ public class Hive1JdbcContext extends JdbcContext {
     public void batchExecute(List<String> sqls) throws SQLException {
         TapLogger.debug(TAG, "batchExecute sqls: " + sqls);
         try (
-                Connection connection = getConnection();
+
+                Connection connection = getConnection((Hive1Config) getConfig());
                 Statement statement = connection.createStatement()
         ) {
             for (String sql : sqls) {

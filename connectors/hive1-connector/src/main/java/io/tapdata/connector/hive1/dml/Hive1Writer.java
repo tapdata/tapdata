@@ -1,6 +1,8 @@
 package io.tapdata.connector.hive1.dml;
 
+import io.tapdata.common.CommonDbConfig;
 import io.tapdata.connector.hive1.Hive1JdbcContext;
+import io.tapdata.connector.hive1.config.Hive1Config;
 import io.tapdata.connector.hive1.util.JdbcUtil;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
@@ -46,7 +48,7 @@ public class Hive1Writer {
     protected Hive1JdbcContext hive1JdbcContext;
     protected Connection connection;
 
-    protected static final String INSERT_SQL_TEMPLATE = "INSERT INTO `%s`.`%s`(%s) values(%s)";
+    protected static final String INSERT_SQL_TEMPLATE = "INSERT INTO `%s`.`%s` values(%s)";
     //ALTER TABLE student UPDATE count=10 where id=0;
     protected static final String UPDATE_SQL_TEMPLATE = "UPDATE `%s`.`%s` set %s WHERE %s";
     //alter table default.student delete where id =0
@@ -61,7 +63,7 @@ public class Hive1Writer {
 
     public Hive1Writer(Hive1JdbcContext hive1JdbcContext) throws Throwable {
         this.hive1JdbcContext = hive1JdbcContext;
-        this.connection = this.hive1JdbcContext.getConnection();
+        this.connection = this.hive1JdbcContext.getConnection((Hive1Config) hive1JdbcContext.getConfig());
     }
 
     public WriteListResult<TapRecordEvent> write(TapConnectorContext tapConnectorContext, TapTable tapTable, List<TapRecordEvent> tapRecordEvents) throws Throwable {
@@ -307,6 +309,7 @@ public class Hive1Writer {
 
     private int doInsert(TapConnectorContext tapConnectorContext, TapTable tapTable, TapRecordEvent tapRecordEvent) throws Throwable {
         PreparedStatement insertPreparedStatement = getInsertPreparedStatement(tapConnectorContext, tapTable, tapRecordEvent, insertMap);
+//        insertPreparedStatement.setQueryTimeout(60);
         setPreparedStatementValues(tapTable, tapRecordEvent, insertPreparedStatement);
         try {
             return insertPreparedStatement.executeUpdate();
@@ -391,6 +394,7 @@ public class Hive1Writer {
             }
             String sql = String.format(UPDATE_SQL_TEMPLATE, database, tableId, String.join(",", setList), String.join(" AND ", whereList));
             try {
+                this.connection = this.hive1JdbcContext.getConnection((Hive1Config) hive1JdbcContext.getConfig());
                 preparedStatement = this.connection.prepareStatement(sql);
             } catch (SQLException e) {
                 throw new Exception("Create update prepared statement error, sql: " + sql + ", message: " + e.getSQLState() + " " + e.getErrorCode() + " " + e.getMessage(), e);
@@ -476,6 +480,7 @@ public class Hive1Writer {
             }
             String sql = String.format(DELETE_SQL_TEMPLATE, database, tableId, String.join(" AND ", whereList));
             try {
+                this.connection = this.hive1JdbcContext.getConnection((Hive1Config) hive1JdbcContext.getConfig());
                 preparedStatement = this.connection.prepareStatement(sql);
             } catch (SQLException e) {
                 throw new Exception("Create delete prepared statement error, sql: " + sql + ", message: " + e.getSQLState() + " " + e.getErrorCode() + " " + e.getMessage(), e);
@@ -596,8 +601,10 @@ public class Hive1Writer {
                 fields.add("`" + fieldName + "`");
             });
             List<String> questionMarks = fields.stream().map(f -> "?").collect(Collectors.toList());
-            String sql = String.format(INSERT_SQL_TEMPLATE, database, tableId, String.join(",", fields), String.join(",", questionMarks));
+            String sql = String.format(INSERT_SQL_TEMPLATE, database, tableId, String.join(",", questionMarks));
+
             try {
+                this.connection = this.hive1JdbcContext.getConnection((Hive1Config) hive1JdbcContext.getConfig());
                 preparedStatement = this.connection.prepareStatement(sql);
             } catch (SQLException e) {
                 throw new Exception("Create insert prepared statement error, sql: " + sql + ", message: " + e.getSQLState() + " " + e.getErrorCode() + " " + e.getMessage(), e);

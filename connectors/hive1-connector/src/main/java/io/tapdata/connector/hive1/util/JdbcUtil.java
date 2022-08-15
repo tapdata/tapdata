@@ -21,12 +21,12 @@ public class JdbcUtil {
 	private final static String DRIVER_PREFIX = "jdbc:hive2://";
 
 	public static void closeQuietly(AutoCloseable c) {
-		try {
-			if (null != c) {
-				c.close();
-			}
-		} catch (Throwable ignored) {
-		}
+//		try {
+//			if (null != c) {
+//				c.close();
+//			}
+//		} catch (Throwable ignored) {
+//		}
 	}
 
 	public static Connection createConnection(Hive1Config hive1Config) throws SQLException {
@@ -44,16 +44,23 @@ public class JdbcUtil {
 		if (StringUtils.isNotBlank(database)) {
 			prop.setProperty("database", database);
 		}
+		//hive.metastore.client.socket.timeout=1800&hive.server.read.socket.timeout=1800&hive.server.write.socket.timeout=1800&
+		// hive.server.thrift.socket.timeout=1800&hive.client.thrift.socket.timeout=1800
+		prop.setProperty("hive.metastore.client.socket.timeout", "180");
+		prop.setProperty("hive.server.read.socket.timeout", "180");
+		prop.setProperty("hive.server.write.socket.timeout", "180");
+		prop.setProperty("hive.server.thrift.socket.timeout", "180");
+		prop.setProperty("hive.client.thrift.socket.timeout", "180");
 
 		Connection conn = null;
 		try {
 			Class.forName(DRIVER_NAME);
 			String jdbcUrl = getJdbcUrl(hive1Config);
-			conn = DriverManager.getDriver(jdbcUrl).connect(jdbcUrl, prop);
-//      conn = DriverManager.getConnection(jdbcUrl, prop);
-			conn.setAutoCommit(false);
+//			conn = DriverManager.getDriver(jdbcUrl).connect(jdbcUrl, prop);
+      conn = DriverManager.getConnection(jdbcUrl, prop);
+//			conn.setAutoCommit(false);
 		} catch (ClassNotFoundException e) {
-			TapLogger.error("Hive Driver class not found,","drinver name is:{}",DRIVER_NAME,e);
+			TapLogger.error("Hive Driver class not found,","driver name is:{}",DRIVER_NAME,e);
 		}
 		return conn;
 	}

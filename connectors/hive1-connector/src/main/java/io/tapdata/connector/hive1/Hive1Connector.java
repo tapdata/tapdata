@@ -73,7 +73,7 @@ public class Hive1Connector extends ConnectorBase {
         hive1Config = (Hive1Config) new Hive1Config().load(connectionContext.getConnectionConfig());
         if (EmptyKit.isNull(hive1JdbcContext) || hive1JdbcContext.isFinish()) {
             hive1JdbcContext = (Hive1JdbcContext) DataSourcePool.getJdbcContext(hive1Config, Hive1JdbcContext.class, connectionContext.getId());
-            hive1JdbcContext.setHive1Config(hive1Config);
+//            hive1JdbcContext.setHive1Config(hive1Config);
         }
 //        clickhouseVersion = clickhouseJdbcContext.queryVersion();
         this.connectionTimezone = connectionContext.getConnectionConfig().getString("timezone");
@@ -269,6 +269,7 @@ public class Hive1Connector extends ConnectorBase {
     }
 
     private void writeRecord(TapConnectorContext tapConnectorContext, List<TapRecordEvent> tapRecordEvents, TapTable tapTable, Consumer<WriteListResult<TapRecordEvent>> consumer) throws Throwable {
+        TapLogger.info(TAG,"tapRecordEvents个数:{}",tapRecordEvents.size());
         WriteListResult<TapRecordEvent> writeListResult = this.hive1Writer.write(tapConnectorContext, tapTable, tapRecordEvents);
         consumer.accept(writeListResult);
     }
@@ -386,7 +387,7 @@ public class Hive1Connector extends ConnectorBase {
         if (testHostPort.getResult() == TestItem.RESULT_FAILED) {
             return null;
         }
-        TestItem testConnect = hive1Test.testConnect();
+        TestItem testConnect = hive1Test.testConnect(hive1Config);
         consumer.accept(testConnect);
         if (testConnect.getResult() == TestItem.RESULT_FAILED) {
             return null;
