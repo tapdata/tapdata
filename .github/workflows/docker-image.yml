@@ -129,7 +129,7 @@ jobs:
           cd tapshell && poetry build && poetry publish --username ${{ env.PYPI_USERNAME }} --password ${{ env.PYPI_PASSWORD }}
       - name: publish pip package if pull request
 #        if: ${{ success() && env.CURRENT_BRANCH == "master" }}
-        if: ${{ success() && github.event_name == 'pull_request' && env.CURRENT_BRANCH == 'master' }}
+        if: ${{ success() && github.event_name == 'pull_request' }}
         run: |
           tag="${{ env.TAG_BRANCH }}:`git describe --tag`"
           sed -i "/__version__/$tag/" tapshell/pyproject.toml
