@@ -60,13 +60,13 @@ public class DisCoveryController extends BaseController {
 
 
     @Operation(summary = "discovery object update tags")
-    @GetMapping("directory/data")
+    @PatchMapping("tags")
     public ResponseMessage<Void> updateListTags(String id, String objCategory, List<String> tagIds) {
         return null;
     }
 
     @Operation(summary = "discovery object update tags")
-    @GetMapping("directory/data")
+    @PostMapping("tags")
     public ResponseMessage<Void> addListTags(String id, String objCategory, List<String> tagIds) {
         return null;
     }
