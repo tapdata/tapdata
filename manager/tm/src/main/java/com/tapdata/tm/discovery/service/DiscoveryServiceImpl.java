@@ -409,6 +409,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
 
         query.skip((long) (param.getPage() - 1) * param.getPageSize());
         query.limit(param.getPageSize());
+        query.with(Sort.by(Sort.Direction.DESC, "createTime"));
         List<MetadataInstancesDto> allDto = metadataInstancesService.findAllDto(query, user);
 
         List<DataDirectoryDto> items = new ArrayList<>();
