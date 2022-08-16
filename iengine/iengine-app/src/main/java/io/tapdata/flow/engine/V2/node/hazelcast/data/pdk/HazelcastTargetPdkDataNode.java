@@ -162,7 +162,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 						() -> createIndexFunction.createIndex(getConnectorNode().getConnectorContext(), tapTable, indexEvent.get()), TAG));
 			}
 		} catch (Throwable throwable) {
-			NodeException nodeException = new NodeException(throwable).node(getDataProcessorContext().getNode());
+			NodeException nodeException = new NodeException(throwable).context(getDataProcessorContext());
 			if (null != indexEvent.get()) {
 				nodeException.event(indexEvent.get());
 			}
@@ -186,7 +186,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 						PDKInvocationMonitor.invoke(getConnectorNode(), PDKMethod.TARGET_CLEAR_TABLE, () -> func.clearTable(getConnectorNode().getConnectorContext(), tapClearTableEvent.get()), TAG));
 			});
 		} catch (Throwable throwable) {
-			NodeException nodeException = new NodeException(throwable).node(getDataProcessorContext().getNode());
+			NodeException nodeException = new NodeException(throwable).context(getDataProcessorContext());
 			if (null != tapClearTableEvent.get()) {
 				nodeException.event(tapClearTableEvent.get());
 			}
@@ -218,7 +218,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 						}, TAG)));
 			}
 		} catch (Throwable throwable) {
-			NodeException nodeException = new NodeException(throwable).node(getDataProcessorContext().getNode());
+			NodeException nodeException = new NodeException(throwable).context(processorBaseContext);
 			if (null != tapCreateTableEvent.get()) {
 				nodeException.event(tapCreateTableEvent.get());
 			}
@@ -243,7 +243,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 						PDKInvocationMonitor.invoke(getConnectorNode(), PDKMethod.TARGET_DROP_TABLE, () -> dropTableFunction.dropTable(getConnectorNode().getConnectorContext(), tapDropTableEvent.get()), TAG)));
 			}
 		} catch (Throwable throwable) {
-			NodeException nodeException = new NodeException(throwable).node(getDataProcessorContext().getNode());
+			NodeException nodeException = new NodeException(throwable).context(getDataProcessorContext());
 			if (null != tapDropTableEvent.get()) {
 				nodeException.event(tapDropTableEvent.get());
 			}
