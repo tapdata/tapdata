@@ -485,13 +485,25 @@ public class DiscoveryServiceImpl implements DiscoveryService {
         Query query = new Query(criteriaTags);
         List<MetadataDefinitionDto> all = metadataDefinitionService.findAll(query);
         List<Tag> allTags = all.stream().map(s -> new Tag(s.getId(), s.getValue())).collect(Collectors.toList());
-        Map<DataObjCategoryEnum, List<TagBindingParam>> categoryEnumListMap = tagBindingParams.stream().collect(Collectors.groupingBy(TagBindingParam::getObjCategory));
-        categoryEnumListMap.forEach((k, v) -> {
-            List<ObjectId> ids = v.stream().filter(Objects::nonNull).map(s -> MongoUtils.toObjectId(s.getId())).collect(Collectors.toList());
-            switch (k) {
+
+
+        for (TagBindingParam tagBindingParam : tagBindingParams) {
+            com.tapdata.tm.base.dto.Field field = new com.tapdata.tm.base.dto.Field();
+            field.put("listtags", true);
+            MetadataInstancesDto metadataInstancesDto = metadataInstancesService.findById(MongoUtils.toObjectId(tagBindingParam.getId()), field);
+            List<Tag> listtags = metadataInstancesDto.getListtags();
+            if (listtags == null) {
+                listtags = new ArrayList<>();
+            }
+            for (Tag allTag : allTags) {
+                if (!listtags.contains(allTag)) {
+                    listtags.remove(allTag);
+                }
+            }
+            switch (tagBindingParam.getObjCategory()) {
                 case storage:
-                    Update update = Update.update("listtags", allTags);
-                    metadataInstancesService.update(new Query(Criteria.where("_id").in(ids)), update, user);
+                    Update update = Update.update("listtags", listtags);
+                    metadataInstancesService.updateById(MongoUtils.toObjectId(tagBindingParam.getId()), update, user);
                     break;
                 case calculate:
                     break;
@@ -500,7 +512,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
                 default:
                     break;
             }
-        });
+        }
 
 
 
