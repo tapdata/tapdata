@@ -716,7 +716,7 @@ public class MeasurementServiceV2 {
 
         List<TableSyncStaticVo> result = new ArrayList<>();
         // match should be at the first param, sort should be the second while group be the last
-        Aggregation aggregation = Aggregation.newAggregation( match, group, sort, skip, limit);
+        Aggregation aggregation = Aggregation.newAggregation( match, sort, group, sort, skip, limit);
         mongoOperations.aggregateStream(aggregation, TableNameEnum.AgentMeasurementV2.getValue(), MeasurementEntity.class).forEachRemaining(measurementEntity -> {
             String originTable = measurementEntity.getTags().get("table");
             AtomicReference<String> originTableName = new AtomicReference<>();

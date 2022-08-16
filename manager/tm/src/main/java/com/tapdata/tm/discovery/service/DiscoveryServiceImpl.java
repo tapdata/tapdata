@@ -370,7 +370,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
             switch (k) {
                 case storage:
                     Update update = Update.update("listtags", allTags);
-                    metadataDefinitionService.update(new Query(Criteria.where("_id").in(ids)), update, user);
+                    metadataInstancesService.update(new Query(Criteria.where("_id").in(ids)), update, user);
                     break;
                 case calculate:
                     break;
@@ -408,7 +408,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
             switch (tagBindingParam.getObjCategory()) {
                 case storage:
                     Update update = Update.update("listtags", listtags);
-                    metadataDefinitionService.updateById(MongoUtils.toObjectId(tagBindingParam.getId()), update, user);
+                    metadataInstancesService.updateById(MongoUtils.toObjectId(tagBindingParam.getId()), update, user);
                     break;
                 case calculate:
                     break;
