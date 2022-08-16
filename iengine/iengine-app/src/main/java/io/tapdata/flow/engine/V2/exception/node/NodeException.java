@@ -1,5 +1,6 @@
 package io.tapdata.flow.engine.V2.exception.node;
 
+import com.tapdata.entity.task.context.ProcessorBaseContext;
 import com.tapdata.tm.commons.dag.Node;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.flow.engine.V2.exception.FlowEngineException;
@@ -28,15 +29,23 @@ public class NodeException extends FlowEngineException {
 	public NodeException() {
 	}
 
-	private Node<?> node;
-	public NodeException node(Node<?> node) {
-		this.node = node;
+	private ProcessorBaseContext context;
+	public NodeException context(ProcessorBaseContext context) {
+		this.context = context;
 		return this;
 	}
 
 	private List<TapEvent> events;
 	public NodeException events(List<TapEvent> events) {
-		this.events = events;
+		if (null == this.events) {
+			this.events = new ArrayList<>();
+		}
+		for (TapEvent event : events) {
+			if (null == event) {
+				continue;
+			}
+			this.events.add(event);
+		}
 		return this;
 	}
 	public NodeException event(TapEvent event) {
@@ -51,9 +60,8 @@ public class NodeException extends FlowEngineException {
 		return this;
 	}
 
-
-	public Node<?> getNode() {
-		return node;
+	public ProcessorBaseContext getContext() {
+		return context;
 	}
 
 	public List<TapEvent> getEvents() {

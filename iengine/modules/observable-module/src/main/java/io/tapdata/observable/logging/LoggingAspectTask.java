@@ -2,6 +2,8 @@ package io.tapdata.observable.logging;
 
 import com.tapdata.constant.BeanUtil;
 import com.tapdata.entity.TapdataEvent;
+import com.tapdata.entity.task.context.DataProcessorContext;
+import com.tapdata.entity.task.context.ProcessorBaseContext;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.aspect.*;
@@ -10,7 +12,9 @@ import io.tapdata.aspect.task.AspectTaskSession;
 import io.tapdata.common.SettingService;
 import io.tapdata.entity.aspect.Aspect;
 import io.tapdata.entity.aspect.AspectInterceptResult;
+import io.tapdata.entity.event.TapBaseEvent;
 import io.tapdata.entity.event.TapEvent;
+import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.simplify.pretty.ClassHandlers;
 import io.tapdata.observable.logging.tag.LogTag;
 import io.tapdata.observable.logging.tag.SourceNodeTag;
@@ -70,26 +74,26 @@ public class LoggingAspectTask extends AspectTask {
 			return;
 		}
 
-		Node<?> node = null;
 		List<TapEvent> events = null;
+		ProcessorBaseContext context = null;
 		if (throwable.getClass().getSimpleName().equals("NodeException")) {
 			try {
-				Method getNode = throwable.getClass().getMethod("getNode");
-				Object nodeObj = getNode.invoke(throwable);
-
-				if (null != nodeObj) {
-					node = (Node<?>) nodeObj;
-				}
-
 				Method getEvents = throwable.getClass().getMethod("getEvents");
 				Object eventsObj = getEvents.invoke(throwable);
 				if (null != eventsObj) {
 					events = new ArrayList<>((List<TapEvent>) eventsObj);
 				}
+
+				Method getContext = throwable.getClass().getMethod("getContext");
+				Object contextObj = getContext.invoke(throwable);
+
+				if (null != contextObj) {
+					context = (ProcessorBaseContext) contextObj;
+				}
 			} catch (Throwable ignore) {}
 		}
 
-		error(throwable, node, events);
+		error(throwable, context, events);
 	}
 
 
@@ -106,6 +110,28 @@ public class LoggingAspectTask extends AspectTask {
 		return LogLevel.lt(level, settingLevel);
 	}
 
+	private Collection<String> getPkFields(ProcessorBaseContext context, String tableName) {
+		if (!(context instanceof DataProcessorContext)) {
+			return Collections.emptyList();
+		}
+
+		TapTable table = context.getTapTableMap().get(tableName);
+		if (null == table) {
+			return Collections.emptyList();
+		}
+
+		Collection<String> pkFields =  table.primaryKeys();
+		if (null == pkFields || pkFields.isEmpty()) {
+			pkFields = table.primaryKeys(true);
+		}
+
+		if (null == pkFields || pkFields.isEmpty()) {
+			pkFields = table.getNameFieldMap().keySet();
+		}
+
+		return pkFields;
+	}
+
 	private void error(Throwable throwable) {
 		if (noNeedLog(LogLevel.ERROR.getLevel())) {
 			return;
@@ -114,11 +140,12 @@ public class LoggingAspectTask extends AspectTask {
 		obsLogger.error(obsLogger::logBaseBuilder, throwable.getMessage());
 	}
 
-	private void error(Throwable throwable, Node<?> node) {
+	private void error(Throwable throwable, ProcessorBaseContext context) {
 		if (noNeedLog(LogLevel.ERROR.getLevel())) {
 			return;
 		}
 
+		Node<?> node = context.getNode();
 		if (null == node) {
 			error(throwable);
 			return;
@@ -135,25 +162,31 @@ public class LoggingAspectTask extends AspectTask {
 		obsLogger.error(() -> obsLogger.logBaseBuilder().record(builder.build().toMap()), throwable.getMessage());
 	}
 
-	private void error(Throwable throwable, Node<?> node, List<TapEvent> events) {
+	private void error(Throwable throwable, ProcessorBaseContext context, List<TapEvent> events) {
 		if (noNeedLog(LogLevel.ERROR.getLevel())) {
 			return;
 		}
 
 		if (null == events || events.isEmpty()) {
-			error(throwable, node);
+			error(throwable, context);
 			return;
 		}
 
+		Node<?> node = context.getNode();
 		List<Map<String, Object>> data = new ArrayList<>();
 		for(TapEvent event : events) {
+			if (null == event) {
+				continue;
+			}
+			TapBaseEvent baseEvent = (TapBaseEvent) event;
+			Collection<String> pkFields = getPkFields(context, baseEvent.getTableId());
 			data.add(LogEventData.builder()
 					.eventType(LogEventData.LOG_EVENT_TYPE_PROCESS)
 					.status(LogEventData.LOG_EVENT_STATUS_ERROR)
 					.message(throwable.getMessage())
 					.time(System.currentTimeMillis())
 					.withNode(node)
-					.withTapEvent(event)
+					.withTapEvent(event, pkFields)
 					.build().toMap());
 		}
 
@@ -161,11 +194,12 @@ public class LoggingAspectTask extends AspectTask {
 		obsLogger.error(() -> obsLogger.logBaseBuilder().data(data), throwable.getMessage());
 	}
 
-	private void debug(String logEventType, Long cost, LogTag tag, Node<?> node) {
+	private void debug(String logEventType, Long cost, LogTag tag, ProcessorBaseContext context) {
 		if (noNeedLog(LogLevel.DEBUG.getLevel())) {
 			return;
 		}
 
+		Node<?> node = context.getNode();
 		if (null == node) {
 			return;
 		}
@@ -182,24 +216,30 @@ public class LoggingAspectTask extends AspectTask {
 	}
 
 
-	private void debug(String logEventType, Long cost, LogTag tag, Node<?> node, List<? extends TapEvent> events) {
+	private void debug(String logEventType, Long cost, LogTag tag, ProcessorBaseContext context, List<? extends TapEvent> events) {
 		if (noNeedLog(LogLevel.DEBUG.getLevel())) {
 			return;
 		}
 
 		if (null == events || events.isEmpty()) {
-			debug(logEventType, cost, tag, node);
+			debug(logEventType, cost, tag, context);
 		}
 
+		Node<?> node = context.getNode();
 		List<Map<String, Object>> data = new ArrayList<>();
 		for (TapEvent event : events) {
+			if (null == event) {
+				continue;
+			}
+			TapBaseEvent baseEvent = (TapBaseEvent) event;
+			Collection<String> pkFields = getPkFields(context, baseEvent.getTableId());
 			data.add(LogEventData.builder()
 					.eventType(logEventType)
 					.status(LogEventData.LOG_EVENT_STATUS_OK)
 					.time(System.currentTimeMillis())
 					.cost(cost)
 					.withNode(node)
-					.withTapEvent(event)
+					.withTapEvent(event, pkFields)
 					.build().toMap());
 
 		}
@@ -208,8 +248,8 @@ public class LoggingAspectTask extends AspectTask {
 		obsLogger.debug(() -> obsLogger.logBaseBuilderWithLogTag(tag).data(data), logEventType);
 	}
 
-	private void debug(String logEventType, Long cost, LogTag tag, Node<?> node, TapEvent event) {
-		debug(logEventType, cost, tag, node, Collections.singletonList(event));
+	private void debug(String logEventType, Long cost, LogTag tag, ProcessorBaseContext context, TapEvent event) {
+		debug(logEventType, cost, tag, context, Collections.singletonList(event));
 	}
 
 	public Void handleSourceState(SourceStateAspect aspect) {
@@ -255,7 +295,8 @@ public class LoggingAspectTask extends AspectTask {
 	private final Map<String, Long> batchReadCompleteLastTs = new HashMap<>();
 	private final Map<String, Long> batchEnqueuedLastTs = new HashMap<>();
 	public Void handleBatchReadFunc(BatchReadFuncAspect aspect) {
-		Node<?> node = aspect.getDataProcessorContext().getNode();
+		ProcessorBaseContext context = aspect.getDataProcessorContext();
+		Node<?> node = context.getNode();
 		String nodeId = node.getId();
 
 		switch (aspect.getState()) {
@@ -266,7 +307,7 @@ public class LoggingAspectTask extends AspectTask {
 				aspect.readCompleteConsumer(events -> {
 					long now = System.currentTimeMillis();
 					debug(LogEventData.LOG_EVENT_TYPE_RECEIVE, now - batchReadCompleteLastTs.get(nodeId),
-							SourceNodeTag.NODE_SOURCE_INITIAL_SYNC, node,
+							SourceNodeTag.NODE_SOURCE_INITIAL_SYNC, context,
 							events.stream().map(TapdataEvent::getTapEvent).collect(Collectors.toList()));
 					batchReadCompleteLastTs.put(nodeId, System.currentTimeMillis());
 				});
@@ -277,7 +318,7 @@ public class LoggingAspectTask extends AspectTask {
 						batchEnqueuedLastTs.put(nodeId, now);
 					}
 					debug(LogEventData.LOG_EVENT_TYPE_SEND, now - batchEnqueuedLastTs.get(nodeId),
-							SourceNodeTag.NODE_SOURCE_INITIAL_SYNC, node,
+							SourceNodeTag.NODE_SOURCE_INITIAL_SYNC, context,
 							events.stream().map(TapdataEvent::getTapEvent).collect(Collectors.toList()));
 				});
 				break;
@@ -290,7 +331,8 @@ public class LoggingAspectTask extends AspectTask {
 	private final Map<String, Long> streamReadCompleteLastTs = new HashMap<>();
 	private final Map<String, Long> streamEnqueuedLastTs = new HashMap<>();
 	public Void handleStreamReadFunc(StreamReadFuncAspect aspect) {
-		Node<?> node = aspect.getDataProcessorContext().getNode();
+		ProcessorBaseContext context = aspect.getDataProcessorContext();
+		Node<?> node = context.getNode();
 		String nodeId = node.getId();
 
 		switch (aspect.getState()) {
@@ -299,7 +341,7 @@ public class LoggingAspectTask extends AspectTask {
 				aspect.streamingReadCompleteConsumers(events -> {
 					Long now = System.currentTimeMillis();
 					debug(LogEventData.LOG_EVENT_TYPE_RECEIVE, now - streamReadCompleteLastTs.get(nodeId),
-							SourceNodeTag.NODE_SOURCE_INCREMENTAL_SYNC, node,
+							SourceNodeTag.NODE_SOURCE_INCREMENTAL_SYNC, context,
 							events.stream().map(TapdataEvent::getTapEvent).collect(Collectors.toList()));
 				});
 				aspect.streamingEnqueuedConsumers(events -> {
@@ -308,7 +350,7 @@ public class LoggingAspectTask extends AspectTask {
 						streamEnqueuedLastTs.put(nodeId, now);
 					}
 					debug(LogEventData.LOG_EVENT_TYPE_SEND, now - streamEnqueuedLastTs.get(nodeId),
-							SourceNodeTag.NODE_SOURCE_INCREMENTAL_SYNC, node,
+							SourceNodeTag.NODE_SOURCE_INCREMENTAL_SYNC, context,
 							events.stream().map(TapdataEvent::getTapEvent).collect(Collectors.toList()));
 				});
 				break;
@@ -319,13 +361,14 @@ public class LoggingAspectTask extends AspectTask {
 	}
 
 	public Void handleDropTableFuc(DropTableFuncAspect aspect) {
-		Node<?> node = aspect.getDataProcessorContext().getNode();
+		ProcessorBaseContext context = aspect.getDataProcessorContext();
+		Node<?> node = context.getNode();
 
 		switch (aspect.getState()) {
 			case DropTableFuncAspect.STATE_START:
-				debug(LogEventData.LOG_EVENT_TYPE_RECEIVE, null, TargetNodeTag.NODE_TARGET_CREATE_TABLE, node,
+				debug(LogEventData.LOG_EVENT_TYPE_RECEIVE, null, TargetNodeTag.NODE_TARGET_CREATE_TABLE, context,
 						aspect.getDropTableEvent());
-				debug(LogEventData.LOG_EVENT_TYPE_PROCESS, null, TargetNodeTag.NODE_TARGET_CREATE_TABLE, node,
+				debug(LogEventData.LOG_EVENT_TYPE_PROCESS, null, TargetNodeTag.NODE_TARGET_CREATE_TABLE, context,
 						aspect.getDropTableEvent());
 				break;
 			case DropTableFuncAspect.STATE_END:
@@ -336,13 +379,14 @@ public class LoggingAspectTask extends AspectTask {
 	}
 
 	public Void handleClearTableFuc(ClearTableFuncAspect aspect) {
-		Node<?> node = aspect.getDataProcessorContext().getNode();
+		ProcessorBaseContext context = aspect.getDataProcessorContext();
+		Node<?> node = context.getNode();
 
 		switch (aspect.getState()) {
 			case ClearTableFuncAspect.STATE_START:
-				debug(LogEventData.LOG_EVENT_TYPE_RECEIVE, null, TargetNodeTag.NODE_TARGET_CREATE_TABLE, node,
+				debug(LogEventData.LOG_EVENT_TYPE_RECEIVE, null, TargetNodeTag.NODE_TARGET_CREATE_TABLE, context,
 						aspect.getClearTableEvent());
-				debug(LogEventData.LOG_EVENT_TYPE_PROCESS, null, TargetNodeTag.NODE_TARGET_CREATE_TABLE, node,
+				debug(LogEventData.LOG_EVENT_TYPE_PROCESS, null, TargetNodeTag.NODE_TARGET_CREATE_TABLE, context,
 						aspect.getClearTableEvent());
 				break;
 			case ClearTableFuncAspect.STATE_END:
@@ -353,13 +397,14 @@ public class LoggingAspectTask extends AspectTask {
 	}
 
 	public Void handleCreateTableFuc(CreateTableFuncAspect aspect) {
-		Node<?> node = aspect.getDataProcessorContext().getNode();
+		ProcessorBaseContext context = aspect.getDataProcessorContext();
+		Node<?> node = context.getNode();
 
 		switch (aspect.getState()) {
 			case CreateTableFuncAspect.STATE_START:
-				debug(LogEventData.LOG_EVENT_TYPE_RECEIVE, null, TargetNodeTag.NODE_TARGET_CREATE_TABLE, node,
+				debug(LogEventData.LOG_EVENT_TYPE_RECEIVE, null, TargetNodeTag.NODE_TARGET_CREATE_TABLE, context,
 						aspect.getCreateTableEvent());
-				debug(LogEventData.LOG_EVENT_TYPE_PROCESS, null, TargetNodeTag.NODE_TARGET_CREATE_TABLE, node,
+				debug(LogEventData.LOG_EVENT_TYPE_PROCESS, null, TargetNodeTag.NODE_TARGET_CREATE_TABLE, context,
 						aspect.getCreateTableEvent());
 				break;
 			case CreateTableFuncAspect.STATE_END:
@@ -373,13 +418,14 @@ public class LoggingAspectTask extends AspectTask {
 	}
 
 	public Void handleCreateIndexFuc(CreateIndexFuncAspect aspect) {
-		Node<?> node = aspect.getDataProcessorContext().getNode();
+		ProcessorBaseContext context = aspect.getDataProcessorContext();
+		Node<?> node = context.getNode();
 
 		switch (aspect.getState()) {
 			case CreateTableFuncAspect.STATE_START:
-				debug(LogEventData.LOG_EVENT_TYPE_RECEIVE, null, TargetNodeTag.NODE_TARGET_CREATE_INDEX, node,
+				debug(LogEventData.LOG_EVENT_TYPE_RECEIVE, null, TargetNodeTag.NODE_TARGET_CREATE_INDEX, context,
 						aspect.getCreateIndexEvent());
-				debug(LogEventData.LOG_EVENT_TYPE_PROCESS, null, TargetNodeTag.NODE_TARGET_CREATE_INDEX, node,
+				debug(LogEventData.LOG_EVENT_TYPE_PROCESS, null, TargetNodeTag.NODE_TARGET_CREATE_INDEX, context,
 						aspect.getCreateIndexEvent());
 				break;
 			case CreateTableFuncAspect.STATE_END:
@@ -391,17 +437,18 @@ public class LoggingAspectTask extends AspectTask {
 
 	private final Map<String, Long> writeRecordAcceptLastTs = new HashMap<>();
 	public Void handleWriteRecordFunc(WriteRecordFuncAspect aspect) {
-		Node<?> node = aspect.getDataProcessorContext().getNode();
+		ProcessorBaseContext context = aspect.getDataProcessorContext();
+		Node<?> node = context.getNode();
 		String nodeId = node.getId();
 
 		switch (aspect.getState()) {
 			case WriteRecordFuncAspect.STATE_START:
 				writeRecordAcceptLastTs.put(nodeId, System.currentTimeMillis());
-				debug(LogEventData.LOG_EVENT_TYPE_RECEIVE, null, null, node, aspect.getRecordEvents());
+				debug(LogEventData.LOG_EVENT_TYPE_RECEIVE, null, null, context, aspect.getRecordEvents());
 				aspect.consumer((events, result) -> {
 					long now = System.currentTimeMillis();
 					debug(LogEventData.LOG_EVENT_TYPE_SEND, now - writeRecordAcceptLastTs.get(nodeId),
-							null, node, events);
+							null, context, events);
 				});
 				break;
 			case WriteRecordFuncAspect.STATE_END:

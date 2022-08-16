@@ -11,6 +11,7 @@ import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import lombok.*;
 import lombok.extern.jackson.Jacksonized;
 
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -86,22 +87,19 @@ public class LogEventData {
             return this;
         }
 
-        public LogEventDataBuilder withTapEvent(TapEvent event) {
+        public LogEventDataBuilder withTapEvent(TapEvent event, Collection<String> fields) {
             if (null == event) {
                 return this;
             }
 
-            Map<String, Object> before = null;
-            Map<String, Object> after = null;
-            String table, message = null;
+            String message;
             Long delay = null;
-            Object ddl = null;
             switch (event.getType()) {
                 case TapInsertRecordEvent.TYPE:
                     TapInsertRecordEvent insert = (TapInsertRecordEvent) event;
+                    this.property("table", insert.getTableId());
+                    this.property("pks", insert.getFilter(fields));
 
-                    after = insert.getAfter();
-                    table = insert.getTableId();
                     message = "insert record event";
                     if (null != insert.getReferenceTime()) {
                         delay = System.currentTimeMillis() - insert.getReferenceTime();
@@ -109,9 +107,9 @@ public class LogEventData {
                     break;
                 case TapDeleteRecordEvent.TYPE:
                     TapDeleteRecordEvent delete = (TapDeleteRecordEvent) event;
+                    this.property("table", delete.getTableId());
+                    this.property("pks", delete.getFilter(fields));
 
-                    before = delete.getBefore();
-                    table = delete.getTableId();
                     message = "delete record event";
                     if (null != delete.getReferenceTime()) {
                         delay = System.currentTimeMillis() - delete.getReferenceTime();
@@ -119,10 +117,9 @@ public class LogEventData {
                     break;
                 case TapUpdateRecordEvent.TYPE:
                     TapUpdateRecordEvent update = (TapUpdateRecordEvent) event;
+                    this.property("table", update.getTableId());
+                    this.property("pks", update.getFilter(fields));
 
-                    after = update.getAfter();
-                    before = update.getBefore();
-                    table = update.getTableId();
                     message = "update record event";
                     if (null != update.getReferenceTime()) {
                         delay = System.currentTimeMillis() - update.getReferenceTime();
@@ -130,9 +127,9 @@ public class LogEventData {
                     break;
                 case TapCreateTableEvent.TYPE:
                     TapCreateTableEvent createTable = (TapCreateTableEvent) event;
+                    this.property("table", createTable.getTableId());
+                    this.property("ddl", createTable.getOriginDDL());
 
-                    ddl = createTable.getOriginDDL();
-                    table = createTable.getTableId();
                     message = "create table event";
                     if (null != createTable.getReferenceTime()) {
                         delay = System.currentTimeMillis() - createTable.getReferenceTime();
@@ -140,9 +137,9 @@ public class LogEventData {
                     break;
                 case TapCreateIndexEvent.TYPE:
                     TapCreateIndexEvent createIndex = (TapCreateIndexEvent) event;
+                    this.property("table", createIndex.getTableId());
+                    this.property("ddl", createIndex.getOriginDDL());
 
-                    ddl = createIndex.getOriginDDL();
-                    table = createIndex.getTableId();
                     message = "create index event";
                     if (null != createIndex.getReferenceTime()) {
                         delay = System.currentTimeMillis() - createIndex.getReferenceTime();
@@ -157,16 +154,6 @@ public class LogEventData {
                 this.delay(delay);
             }
 
-            this.property("table", table);
-            if (before != null) {
-                this.property("before", before);
-            }
-            if (after != null) {
-                this.property("after", after);
-            }
-            if (ddl != null) {
-                this.property("ddl", ddl);
-            }
             return this;
         }
     }
