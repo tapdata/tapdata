@@ -12,6 +12,7 @@
     <artifactId>modules</artifactId>
 
     <modules>
+        <module>autoinspect-module</module>
         <module>observable-module</module>
         <module>test-run-module</module>
         <module>deduction-module</module>
