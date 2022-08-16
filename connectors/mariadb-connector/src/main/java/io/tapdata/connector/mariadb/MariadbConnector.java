@@ -1,12 +1,11 @@
 package io.tapdata.connector.mariadb;
 
 import io.tapdata.base.ConnectorBase;
+import io.tapdata.common.ddl.DDLFactory;
+import io.tapdata.common.ddl.type.DDLParserType;
 import io.tapdata.connector.mariadb.ddl.DDLSqlMaker;
 import io.tapdata.connector.mariadb.ddl.sqlmaker.MariadbDDLSqlMaker;
 import io.tapdata.connector.mysql.*;
-
-import io.tapdata.connector.mysql.ddl.DDLFactory;
-import io.tapdata.connector.mysql.ddl.DDLParserType;
 import io.tapdata.connector.mysql.entity.MysqlSnapshotOffset;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.event.TapEvent;
@@ -41,7 +40,7 @@ import java.util.function.Consumer;
 public class MariadbConnector extends ConnectorBase {
     private static final String TAG = MariadbConnector.class.getSimpleName();
     private static final int MAX_FILTER_RESULT_SIZE = 100;
-    private static final DDLParserType DDL_PARSER_TYPE = DDLParserType.CCJ_SQL_PARSER;
+    private static final DDLParserType DDL_PARSER_TYPE = DDLParserType.MYSQL_CCJ_SQL_PARSER;
     private MysqlJdbcContext mysqlJdbcContext;
     private MysqlReader mysqlReader;
     private MysqlWriter mysqlWriter;
