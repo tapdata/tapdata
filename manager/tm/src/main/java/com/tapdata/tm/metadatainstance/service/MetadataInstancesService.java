@@ -221,7 +221,7 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
         Criteria targetCriteria = Criteria.where("targetConnection.database_type").is("mongodb");
         AggregationOperation match = Aggregation.match(jobCriteria);
         AggregationOperation match1 = Aggregation.match(targetCriteria);
-        ProjectionOperation project = Aggregation.project("classifications", "source.name", "source.stats");
+        ProjectionOperation project = Aggregation.project("listtags", "source.name", "source.stats");
         LimitOperation limitOperation = Aggregation.limit(limit);
         SkipOperation skipOperation = Aggregation.skip(skip);
         Aggregation aggregation = Aggregation.newAggregation(match, lookUp, match1, project, skipOperation, limitOperation);

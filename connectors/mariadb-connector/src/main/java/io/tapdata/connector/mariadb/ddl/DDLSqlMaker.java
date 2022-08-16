@@ -1,6 +1,6 @@
 package io.tapdata.connector.mariadb.ddl;
 
-import io.tapdata.connector.mariadb.MariadbContext;
+import io.tapdata.connector.mysql.MysqlJdbcContext;
 import io.tapdata.entity.event.ddl.table.TapAlterFieldAttributesEvent;
 import io.tapdata.entity.event.ddl.table.TapAlterFieldNameEvent;
 import io.tapdata.entity.event.ddl.table.TapDropFieldEvent;
@@ -23,7 +23,7 @@ public interface DDLSqlMaker {
 		throw new UnsupportedOperationException();
 	}
 
-	default List<String> alterColumnName(TapConnectorContext tapConnectorContext, TapAlterFieldNameEvent tapAlterFieldNameEvent, MariadbContext mariadbContext)  {
+	default List<String> alterColumnName(TapConnectorContext tapConnectorContext, TapAlterFieldNameEvent tapAlterFieldNameEvent, MysqlJdbcContext mysqlJdbcContext)  {
 		throw new UnsupportedOperationException();
 	}
 
