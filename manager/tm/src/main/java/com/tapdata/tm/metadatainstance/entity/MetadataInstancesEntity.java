@@ -46,6 +46,7 @@ public class MetadataInstancesEntity extends BaseEntity {
     private String name;
     private String lienage;
     private List<Relation> relation;
+    private List<Tag> listtags;
     @Field("fields_lienage")
     private String fieldsLienage;
     private List<com.tapdata.tm.commons.schema.Field> fields;
