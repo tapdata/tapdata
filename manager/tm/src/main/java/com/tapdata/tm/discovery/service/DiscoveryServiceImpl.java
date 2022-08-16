@@ -496,9 +496,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
                 listtags = new ArrayList<>();
             }
             for (Tag allTag : allTags) {
-                if (!listtags.contains(allTag)) {
-                    listtags.remove(allTag);
-                }
+                listtags.remove(allTag);
             }
             switch (tagBindingParam.getObjCategory()) {
                 case storage:
