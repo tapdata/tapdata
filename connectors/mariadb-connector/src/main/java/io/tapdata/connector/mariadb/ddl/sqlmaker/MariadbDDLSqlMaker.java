@@ -1,8 +1,8 @@
 package io.tapdata.connector.mariadb.ddl.sqlmaker;
 
 import io.tapdata.connector.mariadb.ddl.DDLSqlMaker;
-import io.tapdata.connector.mariadb.util.MariadbUtil;
 import io.tapdata.connector.mysql.MysqlJdbcContext;
+import io.tapdata.connector.mysql.util.MysqlUtil;
 import io.tapdata.entity.event.ddl.entity.ValueChange;
 import io.tapdata.entity.event.ddl.table.TapAlterFieldAttributesEvent;
 import io.tapdata.entity.event.ddl.table.TapAlterFieldNameEvent;
@@ -56,7 +56,7 @@ public class MariadbDDLSqlMaker implements DDLSqlMaker {
 			}
 			String dataType = newField.getDataType();
 			try {
-				dataType = MariadbUtil.fixDataType(dataType, version);
+				dataType = MysqlUtil.fixDataType(dataType, version);
 			} catch (Exception e) {
 				TapLogger.warn(TAG, e.getMessage());
 			}
@@ -111,7 +111,7 @@ public class MariadbDDLSqlMaker implements DDLSqlMaker {
 		if (StringUtils.isNotBlank(dataTypeChange.getAfter())) {
 			String dataTypeChangeAfter = dataTypeChange.getAfter();
 			try {
-				dataTypeChangeAfter = MariadbUtil.fixDataType(dataTypeChangeAfter, version);
+				dataTypeChangeAfter = MysqlUtil.fixDataType(dataTypeChangeAfter, version);
 			} catch (Exception e) {
 				TapLogger.warn(TAG, e.getMessage());
 			}
