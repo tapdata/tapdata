@@ -25,6 +25,7 @@ import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
@@ -358,11 +359,53 @@ public class DiscoveryServiceImpl implements DiscoveryService {
     }
 
 
-    public void updateListTags(String id, String objCategory, List<String> tagIds, UserDetail user) {
+    public void updateListTags(String id, DataObjCategoryEnum objCategory, List<String> tagIds, UserDetail user) {
+        Criteria criteriaTags = Criteria.where("_id").in(tagIds);
+        Query query = new Query(criteriaTags);
+        List<MetadataDefinitionDto> all = metadataDefinitionService.findAll(query);
+        List<Tag> allTags = all.stream().map(s -> new Tag(s.getId(), s.getValue())).collect(Collectors.toList());
+        switch (objCategory) {
+            case storage:
+                Update update = Update.update("listtags", allTags);
+                metadataDefinitionService.updateById(MongoUtils.toObjectId(id), update, user);
+                break;
+            case calculate:
+                break;
+            case server:
+                break;
+            default:
+                break;
+        }
 
     }
 
-    public void addListTags(String id, String objCategory, List<String> tagIds, UserDetail user) {
+    public void addListTags(String id, DataObjCategoryEnum objCategory, List<String> tagIds, UserDetail user) {
+        Criteria criteriaTags = Criteria.where("_id").in(tagIds);
+        Query query = new Query(criteriaTags);
+        List<MetadataDefinitionDto> all = metadataDefinitionService.findAll(query);
+        List<Tag> allTags = all.stream().map(s -> new Tag(s.getId(), s.getValue())).collect(Collectors.toList());
 
+
+        com.tapdata.tm.base.dto.Field field = new com.tapdata.tm.base.dto.Field();
+        field.put("listtags", true);
+        MetadataInstancesDto metadataInstancesDto = metadataInstancesService.findById(MongoUtils.toObjectId(id), field);
+        List<Tag> listtags = metadataInstancesDto.getListtags();
+        for (Tag allTag : allTags) {
+            if (!listtags.contains(allTag)) {
+                listtags.add(allTag);
+            }
+        }
+        switch (objCategory) {
+            case storage:
+                Update update = Update.update("listtags", listtags);
+                metadataDefinitionService.updateById(MongoUtils.toObjectId(id), update, user);
+                break;
+            case calculate:
+                break;
+            case server:
+                break;
+            default:
+                break;
+        }
     }
 }
