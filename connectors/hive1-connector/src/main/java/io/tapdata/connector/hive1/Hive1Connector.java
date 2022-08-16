@@ -406,4 +406,5 @@ public class Hive1Connector extends ConnectorBase {
     public int tableCount(TapConnectionContext connectionContext) throws Throwable {
         return hive1JdbcContext.queryAllTables(null).size();
     }
+
 }

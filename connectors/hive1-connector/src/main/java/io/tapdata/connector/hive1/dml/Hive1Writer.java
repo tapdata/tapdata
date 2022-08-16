@@ -27,6 +27,7 @@ import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.sql.SQLIntegrityConstraintViolationException;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -35,10 +36,7 @@ public class Hive1Writer {
 
 
     private static final String TAG = Hive1Writer.class.getSimpleName();
-    private final Map<String, PreparedStatement> insertMap = new LRUOnRemoveMap<>(10, entry -> JdbcUtil.closeQuietly(entry.getValue()));
-    private final Map<String, PreparedStatement> updateMap = new LRUOnRemoveMap<>(10, entry -> JdbcUtil.closeQuietly(entry.getValue()));
-    private final Map<String, PreparedStatement> deleteMap = new LRUOnRemoveMap<>(10, entry -> JdbcUtil.closeQuietly(entry.getValue()));
-    private final Map<String, PreparedStatement> checkExistsMap = new LRUOnRemoveMap<>(10, entry -> JdbcUtil.closeQuietly(entry.getValue()));
+	private final Map<String, JdbcCache> jdbcCacheMap = new ConcurrentHashMap<>();
 
     private final Map<String, String> batchInsertColumnSql = new LRUMap<>(10);
 
@@ -265,10 +263,7 @@ public class Hive1Writer {
 
     public void onDestroy() {
         this.running.set(false);
-        this.insertMap.clear();
-        this.updateMap.clear();
-        this.deleteMap.clear();
-        this.checkExistsMap.clear();
+		this.jdbcCacheMap.values().forEach(JdbcCache::clear);
     }
 
     private int doInsertOne(TapConnectorContext tapConnectorContext, TapTable tapTable, TapRecordEvent tapRecordEvent) throws Throwable {
@@ -308,7 +303,8 @@ public class Hive1Writer {
     }
 
     private int doInsert(TapConnectorContext tapConnectorContext, TapTable tapTable, TapRecordEvent tapRecordEvent) throws Throwable {
-        PreparedStatement insertPreparedStatement = getInsertPreparedStatement(tapConnectorContext, tapTable, tapRecordEvent, insertMap);
+		final Map<String, PreparedStatement> insertMap = getJdbcCache().getInsertMap();
+		PreparedStatement insertPreparedStatement = getInsertPreparedStatement(tapConnectorContext, tapTable, tapRecordEvent, insertMap);
 //        insertPreparedStatement.setQueryTimeout(60);
         setPreparedStatementValues(tapTable, tapRecordEvent, insertPreparedStatement);
         try {
@@ -353,7 +349,8 @@ public class Hive1Writer {
                 && null != tapConnectorContext.getConnectorCapabilities().getCapabilityAlternative(ConnectionOptions.DML_UPDATE_POLICY)) {
             updateDmlPolicy = tapConnectorContext.getConnectorCapabilities().getCapabilityAlternative(ConnectionOptions.DML_UPDATE_POLICY);
         }
-        PreparedStatement updatePreparedStatement = getUpdatePreparedStatement(tapConnectorContext, tapTable, tapRecordEvent, updateMap);
+		final Map<String, PreparedStatement> updateMap = getJdbcCache().getUpdateMap();
+		PreparedStatement updatePreparedStatement = getUpdatePreparedStatement(tapConnectorContext, tapTable, tapRecordEvent, updateMap);
         int parameterIndex = setPreparedStatementValues(tapTable, tapRecordEvent, updatePreparedStatement);
         setPreparedStatementWhere(tapTable, tapRecordEvent, updatePreparedStatement, parameterIndex);
 //        JsonParser jsonParser = InstanceFactory.instance(JsonParser.class);
@@ -411,7 +408,8 @@ public class Hive1Writer {
     }
 
     private int doUpdate(TapConnectorContext tapConnectorContext, TapTable tapTable, TapRecordEvent tapRecordEvent) throws Throwable {
-        PreparedStatement updatePreparedStatement = getUpdatePreparedStatement(tapConnectorContext, tapTable, tapRecordEvent, updateMap);
+		final Map<String, PreparedStatement> updateMap = getJdbcCache().getUpdateMap();
+		PreparedStatement updatePreparedStatement = getUpdatePreparedStatement(tapConnectorContext, tapTable, tapRecordEvent, updateMap);
         int parameterIndex = setPreparedStatementValues(tapTable, tapRecordEvent, updatePreparedStatement);
         setPreparedStatementWhere(tapTable, tapRecordEvent, updatePreparedStatement, parameterIndex);
         try {
@@ -450,7 +448,8 @@ public class Hive1Writer {
 
 
     private int doDeleteOne(TapConnectorContext tapConnectorContext, TapTable tapTable, TapRecordEvent tapRecordEvent) throws Throwable {
-        PreparedStatement deletePreparedStatement = getDeletePreparedStatement(tapConnectorContext, tapTable, tapRecordEvent, deleteMap);
+		final Map<String, PreparedStatement> deleteMap = getJdbcCache().getDeleteMap();
+		PreparedStatement deletePreparedStatement = getDeletePreparedStatement(tapConnectorContext, tapTable, tapRecordEvent, deleteMap);
         setPreparedStatementWhere(tapTable, tapRecordEvent, deletePreparedStatement, 1);
         int row;
         try {
@@ -498,7 +497,8 @@ public class Hive1Writer {
             // not have any logic primary key(s)
             return false;
         }
-        PreparedStatement checkRowExistsPreparedStatement = getCheckRowExistsPreparedStatement(tapConnectorContext, tapTable, tapRecordEvent, checkExistsMap);
+		final Map<String, PreparedStatement> checkExistsMap = getJdbcCache().getCheckExistsMap();
+		PreparedStatement checkRowExistsPreparedStatement = getCheckRowExistsPreparedStatement(tapConnectorContext, tapTable, tapRecordEvent, checkExistsMap);
         setPreparedStatementWhere(tapTable, tapRecordEvent, checkRowExistsPreparedStatement, 1);
         AtomicBoolean result = new AtomicBoolean(false);
         try {
@@ -629,6 +629,16 @@ public class Hive1Writer {
         return true;
     }
 
+	private JdbcCache getJdbcCache() {
+		String name = Thread.currentThread().getName();
+		JdbcCache jdbcCache = jdbcCacheMap.get(name);
+		if (null == jdbcCache) {
+			jdbcCache = new JdbcCache();
+			jdbcCacheMap.put(name, jdbcCache);
+		}
+		return jdbcCache;
+	}
+
     protected static class LRUOnRemoveMap<K, V> extends LRUMap<K, V> {
 
         private Consumer<Entry<K, V>> onRemove;
@@ -665,4 +675,34 @@ public class Hive1Writer {
             super.removeMapping(entry, hashIndex, previous);
         }
     }
+
+	private static class JdbcCache {
+		private final Map<String, PreparedStatement> insertMap = new LRUOnRemoveMap<>(10, entry -> JdbcUtil.closeQuietly(entry.getValue()));
+		private final Map<String, PreparedStatement> updateMap = new LRUOnRemoveMap<>(10, entry -> JdbcUtil.closeQuietly(entry.getValue()));
+		private final Map<String, PreparedStatement> deleteMap = new LRUOnRemoveMap<>(10, entry -> JdbcUtil.closeQuietly(entry.getValue()));
+		private final Map<String, PreparedStatement> checkExistsMap = new LRUOnRemoveMap<>(10, entry -> JdbcUtil.closeQuietly(entry.getValue()));
+
+		public Map<String, PreparedStatement> getInsertMap() {
+			return insertMap;
+		}
+
+		public Map<String, PreparedStatement> getUpdateMap() {
+			return updateMap;
+		}
+
+		public Map<String, PreparedStatement> getDeleteMap() {
+			return deleteMap;
+		}
+
+		public Map<String, PreparedStatement> getCheckExistsMap() {
+			return checkExistsMap;
+		}
+
+		public void clear() {
+			this.insertMap.clear();
+			this.updateMap.clear();
+			this.deleteMap.clear();
+			this.checkExistsMap.clear();
+		}
+	}
 }
