@@ -50,7 +50,7 @@ public class AspectTaskManagerImpl implements AspectTaskManager {
 									classHolder.ensureTaskSessionCreated(aspect);
 							}
 						}
-					});
+					}, false);
 					aspectManager.registerAspectObserver(TaskStopAspect.class, order, aspect -> {
 						TaskDto task = aspect.getTask();
 						if (task == null || task.getId() == null) {
@@ -63,7 +63,7 @@ public class AspectTaskManagerImpl implements AspectTaskManager {
 								classHolder.ensureTaskSessionStopped(aspect);
 							}
 						}
-					});
+					}, false);
 				}
 			}
 		}

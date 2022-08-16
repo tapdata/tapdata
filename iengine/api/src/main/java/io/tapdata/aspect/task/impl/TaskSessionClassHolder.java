@@ -164,7 +164,11 @@ public class TaskSessionClassHolder implements Comparable<TaskSessionClassHolder
 					}
 				}
 			}
-			CommonUtils.ignoreAnyError(() -> theAspectTask.aspectTask.onStart(startAspect), TAG);
+			if(ignoreErrors) {
+				CommonUtils.ignoreAnyError(() -> theAspectTask.aspectTask.onStart(startAspect), TAG);
+			} else {
+				CommonUtils.handleAnyError(() -> theAspectTask.aspectTask.onStart(startAspect));
+			}
 		}
 	}
 
@@ -188,7 +192,10 @@ public class TaskSessionClassHolder implements Comparable<TaskSessionClassHolder
 			return;
 		AspectTaskEx aspectTask = aspectTaskMap.remove(taskId);
 		if (aspectTask != null) {
-			CommonUtils.ignoreAnyError(() -> aspectTask.aspectTask.onStop(stopAspect), TAG);
+			if(ignoreErrors)
+				CommonUtils.ignoreAnyError(() -> aspectTask.aspectTask.onStop(stopAspect), TAG);
+			else
+				CommonUtils.handleAnyError(() -> aspectTask.aspectTask.onStop(stopAspect));
 
 			List<Class<? extends Aspect>> observerClasses = aspectTask.aspectTask.observeAspects();
 			AspectManager aspectManager = InstanceFactory.instance(AspectManager.class);

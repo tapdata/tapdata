@@ -22,6 +22,8 @@ import io.tapdata.entity.schema.TapTable;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.bson.types.ObjectId;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.BeanUtils;
 
 import java.io.Serializable;
@@ -31,6 +33,7 @@ import java.util.stream.Collectors;
 
 @Slf4j
 public class DAGDataServiceImpl implements DAGDataService, Serializable {
+    private static Logger logger = LoggerFactory.getLogger(DAGDataServiceImpl.class);
 
     private final Map<String, MetadataInstancesDto> metadataMap;
     private final Map<String, DataSourceConnectionDto> dataSourceMap;
@@ -706,7 +709,16 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
             if (transformer.getFinished() == total) {
                 transformer.setStatus(MetadataTransformerDto.StatusEnum.done.name());
             }
-            Map<String, Boolean> tableNameMap = schemaTransformerResults.stream().collect(Collectors.toMap(SchemaTransformerResult::getSinkObjectName, s -> true, (v1, v2) -> v1));
+            // TODO: find out if it affects other logic if we skip the set
+            Map<String, Boolean> tableNameMap = new HashMap<>();
+            for (SchemaTransformerResult schemaTransformerResult : schemaTransformerResults) {
+                if (null == schemaTransformerResult.getSinkObjectName()) {
+                    logger.error("BUG: the sink object name is null, should find out why");
+                    continue;
+                }
+                tableNameMap.putIfAbsent(schemaTransformerResult.getSinkObjectName(), true);
+            }
+//            Map<String, Boolean> tableNameMap = schemaTransformerResults.stream().collect(Collectors.toMap(SchemaTransformerResult::getSinkObjectName, s -> true, (v1, v2) -> v1));
             transformer.setTableName(tableNameMap);
         } else {
             transformer.setTotal(total);

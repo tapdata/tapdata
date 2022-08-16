@@ -60,6 +60,7 @@ public class PartitionConcurrentProcessor {
 
 	private Consumer<TapdataEvent> flushOffset;
 	private ErrorHandler<Throwable, String> errorHandler;
+	private TaskDto taskDto;
 
 	public PartitionConcurrentProcessor(
 			int partitionSize,
@@ -74,6 +75,7 @@ public class PartitionConcurrentProcessor {
 
 		this.concurrentProcessThreadNamePrefix = "concurrent-process-thread-" + taskDto.getId().toHexString() + "-" + taskDto.getName() + "-";
 
+		this.taskDto = taskDto;
 		this.batchSize = batchSize;
 
 		this.partitionSize = partitionSize;
@@ -139,6 +141,7 @@ public class PartitionConcurrentProcessor {
 			final LinkedBlockingQueue<PartitionEvent<TapdataEvent>> linkedBlockingQueue = partitionsQueue.get(partition);
 			int finalPartition = partition;
 			executorService.submit(() -> {
+				Log4jUtil.setThreadContext(taskDto);
 				Thread.currentThread().setName(concurrentProcessThreadNamePrefix + finalPartition);
 				List<TapdataEvent> processEvents = new ArrayList<>();
 				while (running.get()) {

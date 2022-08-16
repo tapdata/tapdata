@@ -730,7 +730,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
         String status = taskDto.getStatus();
 
-        if (TaskOpStatusEnum.to_delete_status.v().contains(status)) {
+        if (!TaskOpStatusEnum.to_delete_status.v().contains(status)) {
             log.warn("task current status not allow to delete, task = {}, status = {}", taskDto.getName(), taskDto.getStatus());
             throw new BizException("Task.DeleteStatusInvalid");
         }
