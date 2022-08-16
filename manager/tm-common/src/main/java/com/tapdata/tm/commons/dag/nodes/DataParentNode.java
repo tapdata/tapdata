@@ -154,6 +154,7 @@ public abstract class DataParentNode<S> extends Node<S> {
         str.setSourceQualifiedName(originQualifiedName);
         str.setSourceTableId(s.getId() == null ? null : s.getId().toHexString());
         str.setSinkNodeId(getId());
+        str.setSinkObjectName(originTableName);
         str.setSinkDbName(currentDbName);
         str.setSinkStageId(getId());
         str.setSinkDbType(getDatabaseType());

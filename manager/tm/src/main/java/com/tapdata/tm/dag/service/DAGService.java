@@ -795,16 +795,7 @@ public class DAGService implements DAGDataService {
                 transformer.setStatus(MetadataTransformerDto.StatusEnum.done.name());
             }
 
-            // TODO: find out if it affects other logic if we skip the set
-            Map<String, Boolean> tableNameMap = new HashMap<>();
-            for (SchemaTransformerResult schemaTransformerResult : schemaTransformerResults) {
-                if (null == schemaTransformerResult.getSinkObjectName()) {
-                    logger.error("BUG: the sink object name is null, should find out why");
-                    continue;
-                }
-                tableNameMap.putIfAbsent(schemaTransformerResult.getSinkObjectName(), true);
-            }
-//            Map<String, Boolean> tableNameMap = schemaTransformerResults.stream().collect(Collectors.toMap(SchemaTransformerResult::getSinkObjectName, s -> true, (v1, v2) -> v1));
+            Map<String, Boolean> tableNameMap = schemaTransformerResults.stream().collect(Collectors.toMap(SchemaTransformerResult::getSinkObjectName, s -> true, (v1, v2) -> v1));
             transformer.setTableName(tableNameMap);
         } else {
             transformer.setTotal(total);
