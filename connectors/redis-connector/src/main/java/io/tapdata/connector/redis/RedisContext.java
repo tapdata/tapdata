@@ -118,14 +118,7 @@ public class RedisContext implements AutoCloseable {
                     }
                     TapLogger.warn("Get jedis failed,Try again {} times,retry count: {}", String.valueOf(GET_JEDIS_TIMEOUT_COUNT), retryCount);
                 } else {
-                    String errMsg =e.getMessage();
-                    if(jedis ==null){
-                        errMsg= "NOAUTH Authentication required, please write password";
-                    }
-                    TapLogger.error("Get jedis error,message: {}", errMsg, e);
-                    if(jedis ==null){
-                        throw new RuntimeException(errMsg,e);
-                    }
+                    TapLogger.error("Get jedis error,message: {}", e.getMessage(), e);
                     break;
                 }
             }
