@@ -274,7 +274,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
         }
 
         if (StringUtils.isNotBlank(param.getQueryKey())) {
-            Criteria.where("name").regex(param.getQueryKey());
+            Criteria.where("originalName").regex(param.getQueryKey());
         }
 
         if (StringUtils.isNotBlank(param.getTagId())) {
