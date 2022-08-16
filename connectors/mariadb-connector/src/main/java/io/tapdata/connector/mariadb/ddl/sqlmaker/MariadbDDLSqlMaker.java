@@ -1,8 +1,8 @@
 package io.tapdata.connector.mariadb.ddl.sqlmaker;
 
-import io.tapdata.connector.mariadb.MariadbContext;
 import io.tapdata.connector.mariadb.ddl.DDLSqlMaker;
 import io.tapdata.connector.mariadb.util.MariadbUtil;
+import io.tapdata.connector.mysql.MysqlJdbcContext;
 import io.tapdata.entity.event.ddl.entity.ValueChange;
 import io.tapdata.entity.event.ddl.table.TapAlterFieldAttributesEvent;
 import io.tapdata.entity.event.ddl.table.TapAlterFieldNameEvent;
@@ -140,7 +140,7 @@ public class MariadbDDLSqlMaker implements DDLSqlMaker {
 
 	@Override
 	public List<String> alterColumnName(TapConnectorContext tapConnectorContext, TapAlterFieldNameEvent tapAlterFieldNameEvent,
-										MariadbContext mariadbContext)  {
+										MysqlJdbcContext mysqlJdbcContext)  {
 		if (null == tapAlterFieldNameEvent) {
 			return null;
 		}
@@ -163,7 +163,7 @@ public class MariadbDDLSqlMaker implements DDLSqlMaker {
 		}
 		AtomicReference<String> cloumnAttr = new AtomicReference<>("");
 		try {
-			mariadbContext.query(String.format(SELECT_COLUMN_TYPE, database, tableId,before), rs -> {
+			mysqlJdbcContext.query(String.format(SELECT_COLUMN_TYPE, database, tableId,before), rs -> {
 				if (rs.next()) {
 					cloumnAttr.set(rs.getString("COLUMN_TYPE"));
 				}
