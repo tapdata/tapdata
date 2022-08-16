@@ -1,6 +1,11 @@
 package io.tapdata.flow.engine.V2.exception.node;
 
+import com.tapdata.tm.commons.dag.Node;
+import io.tapdata.entity.event.TapEvent;
 import io.tapdata.flow.engine.V2.exception.FlowEngineException;
+
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * @author jackin
@@ -21,5 +26,37 @@ public class NodeException extends FlowEngineException {
 	}
 
 	public NodeException() {
+	}
+
+	private Node<?> node;
+	public NodeException node(Node<?> node) {
+		this.node = node;
+		return this;
+	}
+
+	private List<TapEvent> events;
+	public NodeException events(List<TapEvent> events) {
+		this.events = events;
+		return this;
+	}
+	public NodeException event(TapEvent event) {
+		if (null == event) {
+			return this;
+		}
+
+		if (null == this.events) {
+			this.events = new ArrayList<>();
+		}
+		this.events.add(event);
+		return this;
+	}
+
+
+	public Node<?> getNode() {
+		return node;
+	}
+
+	public List<TapEvent> getEvents() {
+		return events;
 	}
 }

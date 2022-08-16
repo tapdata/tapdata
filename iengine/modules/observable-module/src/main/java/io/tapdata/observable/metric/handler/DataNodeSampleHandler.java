@@ -2,6 +2,7 @@ package io.tapdata.observable.metric.handler;
 
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.task.dto.TaskDto;
+import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.common.executor.ExecutorsManager;
 import io.tapdata.common.sample.CollectorFactory;
 import io.tapdata.common.sample.SampleCollector;
@@ -12,6 +13,7 @@ import io.tapdata.common.sample.sampler.SpeedSampler;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.node.pdk.ConnectorNodeService;
 import io.tapdata.observable.metric.TaskSampleRetriever;
+import io.tapdata.observable.metric.aspect.ConnectionPingAspect;
 import io.tapdata.pdk.apis.entity.WriteListResult;
 import io.tapdata.pdk.apis.functions.connection.ConnectionCheckFunction;
 import io.tapdata.pdk.apis.functions.connection.ConnectionCheckItem;
@@ -120,7 +122,7 @@ public class DataNodeSampleHandler extends AbstractNodeSampleHandler {
 
         if (null != node.getCatalog() && node.getCatalog() == Node.NodeCatalog.data) {
             // run health check
-            runHealthCheck(nodeId, associateId);
+            runHealthCheck(node, associateId);
         }
 
         // cache the initial sample value
@@ -239,10 +241,12 @@ public class DataNodeSampleHandler extends AbstractNodeSampleHandler {
 
     private static final int PERIOD_SECOND = 5;
     private ScheduledExecutorService scheduleExecutorService;
+    private Map<String, Node<?>> nodeMap;
     private Map<String, ConnectorNode> connectorNodeMap;
     private Map<String, NumberSampler<Long>> tcpPingNumbers;
     private Map<String, NumberSampler<Long>> connectPingNumbers;
-    private void runHealthCheck(String nodeId, String associateId) {
+    private void runHealthCheck(Node<?> node, String associateId) {
+        String nodeId = node.getId();
         ConnectorNode connectorNode = ConnectorNodeService.getInstance().getConnectorNode(associateId);
         // if the data source does not implement the function, does not init samples or thread
         if (null == connectorNode.getConnectorFunctions().getConnectionCheckFunction()) {
@@ -253,6 +257,8 @@ public class DataNodeSampleHandler extends AbstractNodeSampleHandler {
         tcpPingNumbers.put(nodeId, collectors.get(nodeId).getNumberCollector("tcpPing", Long.class));
         connectPingNumbers = new HashMap<>();
         connectPingNumbers.put(nodeId, collectors.get(nodeId).getNumberCollector("connectPing", Long.class));
+        nodeMap = new HashMap<>();
+        nodeMap.putIfAbsent(nodeId, node);
         connectorNodeMap = new HashMap<>();
         connectorNodeMap.putIfAbsent(nodeId, connectorNode);
         // start thread to get the tcp ping and connect ping
@@ -261,12 +267,12 @@ public class DataNodeSampleHandler extends AbstractNodeSampleHandler {
             scheduleExecutorService = ExecutorsManager.getInstance().newSingleThreadScheduledExecutor(name);
             scheduleExecutorService.scheduleAtFixedRate(() -> {
                 for (String id : connectorNodeMap.keySet()) {
-                    ConnectorNode node = connectorNodeMap.get(id);
                     ConnectionCheckFunction function = connectorNode.getConnectorFunctions().getConnectionCheckFunction();
                     if (null == function) {
                         continue;
                     }
-                    PDKInvocationMonitor.invoke(connectorNode, PDKMethod.CONNECTION_CHECK, () -> {
+                    ConnectionPingAspect connectionPingAspect = new ConnectionPingAspect().node(nodeMap.get(id));
+                    PDKInvocationMonitor.invoke(connectorNodeMap.get(id), PDKMethod.CONNECTION_CHECK, () -> {
                         function.check(
                                 connectorNode.getConnectorContext(),
                                 Arrays.asList(
@@ -274,28 +280,32 @@ public class DataNodeSampleHandler extends AbstractNodeSampleHandler {
                                         ConnectionCheckItem.ITEM_CONNECTION
                                 ),
                                 item -> {
+                                    Long value;
+                                    // connection check failed, use -1 as value
+                                    if (item.getResult() == ConnectionCheckItem.RESULT_FAILED) {
+                                        value = -1L;
+                                    } else {
+                                        value = item.getTakes();
+                                    }
+
                                     NumberSampler<Long> sampler = null;
                                     switch (item.getItem()) {
                                         case ConnectionCheckItem.ITEM_PING:
                                             sampler = tcpPingNumbers.get(id);
+                                            connectionPingAspect.tcpPing(value);
                                             break;
                                         case ConnectionCheckItem.ITEM_CONNECTION:
                                             sampler = connectPingNumbers.get(id);
+                                            connectionPingAspect.connectPing(value);
                                             break;
                                     }
                                     Optional.ofNullable(sampler).ifPresent(s -> {
-                                        Long value;
-                                        // connection check failed, use -1 as value
-                                        if (item.getResult() == ConnectionCheckItem.RESULT_FAILED) {
-                                            value = -1L;
-                                        } else {
-                                            value = item.getTakes();
-                                        }
                                         s.setValue(Optional.ofNullable(value).orElse(-1L));
                                     });
                                 }
                         );
                     }, TAG);
+                    AspectUtils.executeAspect(connectionPingAspect);
                 }
             }, 0L, PERIOD_SECOND, TimeUnit.SECONDS);
         }

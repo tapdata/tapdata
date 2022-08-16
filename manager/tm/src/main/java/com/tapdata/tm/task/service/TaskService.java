@@ -47,6 +47,7 @@ import com.tapdata.tm.monitor.entity.AgentStatDto;
 import com.tapdata.tm.monitor.entity.MeasurementEntity;
 import com.tapdata.tm.monitor.service.MeasurementService;
 import com.tapdata.tm.monitor.service.MeasurementServiceV2;
+import com.tapdata.tm.monitoringlogs.service.MonitoringLogsService;
 import com.tapdata.tm.task.bean.*;
 import com.tapdata.tm.task.constant.SyncType;
 import com.tapdata.tm.task.constant.TaskEnum;
@@ -67,6 +68,7 @@ import com.tapdata.tm.utils.*;
 import com.tapdata.tm.worker.dto.WorkerDto;
 import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.service.WorkerService;
+import com.tapdata.tm.worker.vo.CalculationEngineVo;
 import com.tapdata.tm.ws.enums.MessageType;
 import lombok.*;
 import lombok.extern.slf4j.Slf4j;
@@ -120,6 +122,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     private UserService userService;
     private TaskDagCheckLogService taskDagCheckLogService;
     private BasicEventService basicEventService;
+    private MonitoringLogsService monitoringLogsService;
 
     public static Set<String> stopStatus = new HashSet<>();
     /**
@@ -2095,7 +2098,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         //所有的任务重置操作，都会进这里
         //根据TaskId 把指标数据都删掉
         measurementService.deleteTaskMeasurement(taskId);
-        measurementServiceV2.deleteTaskMeasurement(taskId);
+//        measurementServiceV2.deleteTaskMeasurement(taskId);
     }
     public void renewNotSendMq(TaskDto taskDto, UserDetail user) {
         log.info("renew task, task name = {}, username = {}", taskDto.getName(), user.getUsername());
@@ -2278,6 +2281,8 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     }
     private void start(TaskDto taskDto, UserDetail user, String startFlag) {
 
+        monitoringLogsService.startTaskMonitoringLog(taskDto, user);
+
         //日志挖掘
         if (startFlag.charAt(0) == '1') {
             logCollectorService.logCollector(user, taskDto);
@@ -2321,7 +2326,8 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             taskDto.setAgentId(null);
         }
 
-        workerService.scheduleTaskToEngine(taskDto, user, "task", taskDto.getName());
+        CalculationEngineVo calculationEngineVo = workerService.scheduleTaskToEngine(taskDto, user, "task", taskDto.getName());
+        monitoringLogsService.agentAssignMonitoringLog(taskDto, calculationEngineVo.getProcessId(), calculationEngineVo.getAvailable(), user);
         CustomerJobLog customerJobLog = new CustomerJobLog(taskDto.getId().toString(), taskDto.getName());
         customerJobLog.setDataFlowType(CustomerJobLogsService.DataFlowType.sync.getV());
         if (StringUtils.isBlank(taskDto.getAgentId())) {
