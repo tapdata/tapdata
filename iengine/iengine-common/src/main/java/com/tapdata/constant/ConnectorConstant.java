@@ -87,6 +87,7 @@ public class ConnectorConstant {
 	public static final String INSPECT_COLLECTION = "Inspects";
 	public static final String INSPECT_RESULT_COLLECTION = "InspectResults";
 	public static final String INSPECT_DETAILS_COLLECTION = "InspectDetails";
+	public static final String AUTO_INSPECT_RESULTS_COLLECTION = "AutoInspectResults";
 
 	public static final String MESSAGE_COLLECTION = "Messages";
 	public static final String JOB_DDL_HISTORIES_COLLECTION = "JobDDLHistories";

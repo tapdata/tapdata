@@ -711,7 +711,8 @@ public class MeasurementServiceV2 {
             List<MetadataInstancesDto> metas = metadataInstancesService.findBySourceIdAndTableNameList(targetNode.getConnectionId(),
                     null, userDetail, taskDto.getId().toHexString());
             // get table origin name and target name
-            tableNameMap.set(metas.stream().collect(Collectors.toMap(MetadataInstancesDto::getAncestorsName, MetadataInstancesDto::getName)));
+            // TODO(dexter): find out why getAncestorsName is null;
+            tableNameMap.set(metas.stream().collect(Collectors.toMap(MetadataInstancesDto::getAncestorsName, MetadataInstancesDto::getName, (k1, k2) -> k1)));
         }
 
         List<TableSyncStaticVo> result = new ArrayList<>();

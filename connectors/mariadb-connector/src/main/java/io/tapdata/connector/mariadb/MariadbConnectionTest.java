@@ -1,6 +1,7 @@
 package io.tapdata.connector.mariadb;
 
-import io.tapdata.connector.mariadb.constant.MariadbTestItem;
+import io.tapdata.connector.mysql.MysqlJdbcContext;
+import io.tapdata.connector.mysql.constant.MysqlTestItem;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.entity.TestItem;
@@ -30,15 +31,15 @@ public class MariadbConnectionTest {
 	private static final String CHECK_CREATE_TABLE_PRIVILEGES_SQL = "SELECT count(1)\n" +
 			"FROM INFORMATION_SCHEMA.USER_PRIVILEGES\n" +
 			"WHERE GRANTEE LIKE '%%%s%%' and PRIVILEGE_TYPE = 'CREATE'";
-	private MariadbContext mariadbContext;
+	private MysqlJdbcContext mysqlJdbcContext;
 
 	private static  final String MARIADB_VERSION_5="5";
 
 	private static  final String MARIADB_VERSION_10="10";
 
 
-	public MariadbConnectionTest(MariadbContext mariadbContext) {
-		this.mariadbContext = mariadbContext;
+	public MariadbConnectionTest(MysqlJdbcContext mysqlJdbcContext) {
+		this.mysqlJdbcContext = mysqlJdbcContext;
 	}
 
 	public TestItem testHostPort(TapConnectionContext tapConnectionContext) {
@@ -47,15 +48,15 @@ public class MariadbConnectionTest {
 		int port = ((Number) connectionConfig.get("port")).intValue();
 		try {
 			NetUtil.validateHostPortWithSocket(host, port);
-			return testItem(MariadbTestItem.HOST_PORT.getContent(), TestItem.RESULT_SUCCESSFULLY);
+			return testItem(MysqlTestItem.HOST_PORT.getContent(), TestItem.RESULT_SUCCESSFULLY);
 		} catch (IOException e) {
-			return testItem(MariadbTestItem.HOST_PORT.getContent(), TestItem.RESULT_FAILED, e.getMessage());
+			return testItem(MysqlTestItem.HOST_PORT.getContent(), TestItem.RESULT_FAILED, e.getMessage());
 		}
 	}
 
 	public TestItem testConnect() {
 		try (
-				Connection connection = mariadbContext.getConnection()
+				Connection connection = mysqlJdbcContext.getConnection()
 		) {
 			return testItem(TestItem.ITEM_CONNECTION, TestItem.RESULT_SUCCESSFULLY);
 		} catch (Exception e) {
@@ -69,16 +70,16 @@ public class MariadbConnectionTest {
 	 */
 	public TestItem testDatabaseVersion() {
 		try {
-			String version = mariadbContext.getMariadbVersion();
+			String version = mysqlJdbcContext.getMysqlVersion();
 			if (StringUtils.isNotBlank(version)) {
 				if (!version.startsWith(MARIADB_VERSION_5) &&  version.startsWith(MARIADB_VERSION_10)) {
-					return testItem(MariadbTestItem.CHECK_VERSION.getContent(), TestItem.RESULT_FAILED, "Unsupported this MYSQL database version: " + version);
+					return testItem(MysqlTestItem.CHECK_VERSION.getContent(), TestItem.RESULT_FAILED, "Unsupported this MYSQL database version: " + version);
 				}
 			}
 		} catch (Throwable e) {
-			return testItem(MariadbTestItem.CHECK_VERSION.getContent(), TestItem.RESULT_FAILED, "Error checking version, reason: " + e.getMessage());
+			return testItem(MysqlTestItem.CHECK_VERSION.getContent(), TestItem.RESULT_FAILED, "Error checking version, reason: " + e.getMessage());
 		}
-		return testItem(MariadbTestItem.CHECK_VERSION.getContent(), TestItem.RESULT_SUCCESSFULLY);
+		return testItem(MysqlTestItem.CHECK_VERSION.getContent(), TestItem.RESULT_SUCCESSFULLY);
 
 	}
 
@@ -88,7 +89,7 @@ public class MariadbConnectionTest {
 		try {
 			StringBuilder missPri = new StringBuilder();
 			List<CdcPrivilege> cdcPrivileges = new ArrayList<>(Arrays.asList(CdcPrivilege.values()));
-			mariadbContext.query(CHECK_DATABASE_PRIVILEGES_SQL, resultSet -> {
+			mysqlJdbcContext.query(CHECK_DATABASE_PRIVILEGES_SQL, resultSet -> {
 				while (resultSet.next()) {
 					String grantSql = resultSet.getString(1);
 					Iterator<CdcPrivilege> iterator = cdcPrivileges.iterator();
@@ -101,7 +102,7 @@ public class MariadbConnectionTest {
 							match = grantSql.contains(privilege);
 							if (match) {
 								if (cdcPrivilege.onlyNeed) {
-									testItem.set(testItem(MariadbTestItem.CHECK_CDC_PRIVILEGES.getContent(), TestItem.RESULT_SUCCESSFULLY));
+									testItem.set(testItem(MysqlTestItem.CHECK_CDC_PRIVILEGES.getContent(), TestItem.RESULT_SUCCESSFULLY));
 									return;
 								}
 								break;
@@ -127,12 +128,12 @@ public class MariadbConnectionTest {
 					}
 
 					missPri.replace(missPri.length() - 2, missPri.length(), "");
-					testItem.set(testItem(MariadbTestItem.CHECK_CDC_PRIVILEGES.getContent(), TestItem.RESULT_SUCCESSFULLY_WITH_WARN,
+					testItem.set(testItem(MysqlTestItem.CHECK_CDC_PRIVILEGES.getContent(), TestItem.RESULT_SUCCESSFULLY_WITH_WARN,
 							"User does not have privileges [" + missPri + "], will not be able to use the incremental sync feature."));
 				}
 			}
 			if (null == testItem.get()) {
-				testItem.set(testItem(MariadbTestItem.CHECK_CDC_PRIVILEGES.getContent(), TestItem.RESULT_SUCCESSFULLY));
+				testItem.set(testItem(MysqlTestItem.CHECK_CDC_PRIVILEGES.getContent(), TestItem.RESULT_SUCCESSFULLY));
 			}
 		} catch (SQLException e) {
 			int errorCode = e.getErrorCode();
@@ -141,13 +142,13 @@ public class MariadbConnectionTest {
 
 			// 如果源库是关闭密码认证时，默认权限校验通过
 			if (errorCode == 1290 && "HY000".equals(sqlState) && StringUtils.isNotBlank(message) && message.contains("--skip-grant-tables")) {
-				return testItem(MariadbTestItem.CHECK_CDC_PRIVILEGES.getContent(), TestItem.RESULT_SUCCESSFULLY);
+				return testItem(MysqlTestItem.CHECK_CDC_PRIVILEGES.getContent(), TestItem.RESULT_SUCCESSFULLY);
 			} else {
-				return testItem(MariadbTestItem.CHECK_CDC_PRIVILEGES.getContent(), TestItem.RESULT_SUCCESSFULLY_WITH_WARN,
+				return testItem(MysqlTestItem.CHECK_CDC_PRIVILEGES.getContent(), TestItem.RESULT_SUCCESSFULLY_WITH_WARN,
 						"Check cdc privileges failed; " + e.getErrorCode() + " " + e.getSQLState() + " " + e.getMessage() + "\n" + getStackString(e));
 			}
 		} catch (Exception e) {
-			return testItem(MariadbTestItem.CHECK_CDC_PRIVILEGES.getContent(), TestItem.RESULT_SUCCESSFULLY_WITH_WARN,
+			return testItem(MysqlTestItem.CHECK_CDC_PRIVILEGES.getContent(), TestItem.RESULT_SUCCESSFULLY_WITH_WARN,
 					"Check cdc privileges failed; " + e.getMessage() + "\n" + getStackString(e));
 		}
 		return testItem.get();
@@ -156,7 +157,7 @@ public class MariadbConnectionTest {
 	public TestItem testBinlogMode() {
 		AtomicReference<TestItem> testItem = new AtomicReference<>();
 		try {
-			mariadbContext.query(CHECK_DATABASE_BINLOG_STATUS_SQL, resultSet -> {
+			mysqlJdbcContext.query(CHECK_DATABASE_BINLOG_STATUS_SQL, resultSet -> {
 				String mode = null;
 				String logbin = null;
 				while (resultSet.next()) {
@@ -168,18 +169,18 @@ public class MariadbConnectionTest {
 				}
 
 				if (!"ROW".equalsIgnoreCase(mode) || !"ON".equalsIgnoreCase(logbin)) {
-					testItem.set(testItem(MariadbTestItem.CHECK_BINLOG_MODE.getContent(), TestItem.RESULT_SUCCESSFULLY_WITH_WARN,
+					testItem.set(testItem(MysqlTestItem.CHECK_BINLOG_MODE.getContent(), TestItem.RESULT_SUCCESSFULLY_WITH_WARN,
 							"MariadbServer dose not open row level binlog mode, will not be able to use the incremental sync feature"));
 				} else {
-					testItem.set(testItem(MariadbTestItem.CHECK_BINLOG_MODE.getContent(), TestItem.RESULT_SUCCESSFULLY));
+					testItem.set(testItem(MysqlTestItem.CHECK_BINLOG_MODE.getContent(), TestItem.RESULT_SUCCESSFULLY));
 				}
 			});
 		} catch (SQLException e) {
-			return testItem(MariadbTestItem.CHECK_BINLOG_MODE.getContent(), TestItem.RESULT_SUCCESSFULLY_WITH_WARN,
+			return testItem(MysqlTestItem.CHECK_BINLOG_MODE.getContent(), TestItem.RESULT_SUCCESSFULLY_WITH_WARN,
 					"Check binlog mode failed; " + e.getErrorCode() + " " + e.getSQLState() + " " + e.getMessage() + "\n" + getStackString(e));
 
 		} catch (Throwable e) {
-			return testItem(MariadbTestItem.CHECK_BINLOG_MODE.getContent(), TestItem.RESULT_SUCCESSFULLY_WITH_WARN,
+			return testItem(MysqlTestItem.CHECK_BINLOG_MODE.getContent(), TestItem.RESULT_SUCCESSFULLY_WITH_WARN,
 					"Check binlog mode failed; " + e.getMessage() + "\n" + getStackString(e));
 		}
 		return testItem.get();
@@ -188,20 +189,20 @@ public class MariadbConnectionTest {
 	public TestItem testBinlogRowImage() {
 		AtomicReference<TestItem> testItem = new AtomicReference<>();
 		try {
-			mariadbContext.query(CHECK_DATABASE_BINLOG_ROW_IMAGE_SQL, resultSet -> {
+			mysqlJdbcContext.query(CHECK_DATABASE_BINLOG_ROW_IMAGE_SQL, resultSet -> {
 				while (resultSet.next()) {
 					String value = resultSet.getString(2);
 					if (!StringUtils.equalsAnyIgnoreCase("FULL", value)) {
-						testItem.set(testItem(MariadbTestItem.CHECK_BINLOG_ROW_IMAGE.getContent(), TestItem.RESULT_SUCCESSFULLY_WITH_WARN,
+						testItem.set(testItem(MysqlTestItem.CHECK_BINLOG_ROW_IMAGE.getContent(), TestItem.RESULT_SUCCESSFULLY_WITH_WARN,
 								"binlog row image is [" + value + "]"));
 					}
 				}
 			});
 			if (null == testItem.get()) {
-				testItem.set(testItem(MariadbTestItem.CHECK_BINLOG_ROW_IMAGE.getContent(), TestItem.RESULT_SUCCESSFULLY));
+				testItem.set(testItem(MysqlTestItem.CHECK_BINLOG_ROW_IMAGE.getContent(), TestItem.RESULT_SUCCESSFULLY));
 			}
 		} catch (Throwable e) {
-			return testItem(MariadbTestItem.CHECK_BINLOG_ROW_IMAGE.getContent(), TestItem.RESULT_SUCCESSFULLY_WITH_WARN,
+			return testItem(MysqlTestItem.CHECK_BINLOG_ROW_IMAGE.getContent(), TestItem.RESULT_SUCCESSFULLY_WITH_WARN,
 					"Check binlog row image failed; " + e.getMessage() + "\n" + getStackString(e));
 		}
 		return testItem.get();
@@ -213,10 +214,10 @@ public class MariadbConnectionTest {
 			String username = String.valueOf(connectionConfig.get("username"));
 			boolean missed = checkMariadbCreateTablePrivilege(username);
 			if (missed) {
-				return testItem(MariadbTestItem.CHECK_CREATE_TABLE_PRIVILEGE.getContent(), TestItem.RESULT_SUCCESSFULLY_WITH_WARN,
+				return testItem(MysqlTestItem.CHECK_CREATE_TABLE_PRIVILEGE.getContent(), TestItem.RESULT_SUCCESSFULLY_WITH_WARN,
 						"User does not have privileges [ create ], will not be able to use the create table(s) feature");
 			}
-			return testItem(MariadbTestItem.CHECK_CREATE_TABLE_PRIVILEGE.getContent(), TestItem.RESULT_SUCCESSFULLY);
+			return testItem(MysqlTestItem.CHECK_CREATE_TABLE_PRIVILEGE.getContent(), TestItem.RESULT_SUCCESSFULLY);
 		} catch (SQLException e) {
 			int errorCode = e.getErrorCode();
 			String sqlState = e.getSQLState();
@@ -224,20 +225,20 @@ public class MariadbConnectionTest {
 
 			// 如果源库是关闭密码认证时，默认权限校验通过
 			if (errorCode == 1290 && "HY000".equals(sqlState) && StringUtils.isNotBlank(message) && message.contains("--skip-grant-tables")) {
-				return testItem(MariadbTestItem.CHECK_CREATE_TABLE_PRIVILEGE.getContent(), TestItem.RESULT_SUCCESSFULLY);
+				return testItem(MysqlTestItem.CHECK_CREATE_TABLE_PRIVILEGE.getContent(), TestItem.RESULT_SUCCESSFULLY);
 			} else {
-				return testItem(MariadbTestItem.CHECK_CREATE_TABLE_PRIVILEGE.getContent(), TestItem.RESULT_SUCCESSFULLY_WITH_WARN,
+				return testItem(MysqlTestItem.CHECK_CREATE_TABLE_PRIVILEGE.getContent(), TestItem.RESULT_SUCCESSFULLY_WITH_WARN,
 						"Check create table privileges failed; " + e.getErrorCode() + " " + e.getSQLState() + " " + e.getMessage() + "\n" + getStackString(e));
 			}
 		} catch (Throwable e) {
-			return testItem(MariadbTestItem.CHECK_CREATE_TABLE_PRIVILEGE.getContent(), TestItem.RESULT_SUCCESSFULLY_WITH_WARN,
+			return testItem(MysqlTestItem.CHECK_CREATE_TABLE_PRIVILEGE.getContent(), TestItem.RESULT_SUCCESSFULLY_WITH_WARN,
 					"Check create table privileges failed; " + e.getMessage() + "\n" + getStackString(e));
 		}
 	}
 
 	private boolean checkMariadbCreateTablePrivilege(String username) throws Throwable {
 		AtomicBoolean result = new AtomicBoolean(true);
-		mariadbContext.query(String.format(CHECK_CREATE_TABLE_PRIVILEGES_SQL, username), resultSet -> {
+		mysqlJdbcContext.query(String.format(CHECK_CREATE_TABLE_PRIVILEGES_SQL, username), resultSet -> {
 			while (resultSet.next()) {
 				if (resultSet.getInt(1) > 0) {
 					result.set(false);
