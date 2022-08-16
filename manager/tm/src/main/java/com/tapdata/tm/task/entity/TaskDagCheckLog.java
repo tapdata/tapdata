@@ -12,7 +12,7 @@ import org.springframework.data.mongodb.core.mapping.Document;
 @Setter
 @AllArgsConstructor
 @NoArgsConstructor
-@Document("task_dag_check_log")
+@Document("TaskDagCheckLog")
 public class TaskDagCheckLog extends BaseEntity {
     private String taskId;
     private String nodeId;
