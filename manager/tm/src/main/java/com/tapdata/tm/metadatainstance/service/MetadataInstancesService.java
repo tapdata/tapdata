@@ -52,6 +52,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
+import org.bson.Document;
 import org.bson.types.ObjectId;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -1564,6 +1565,23 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
 
         tapTablePage.setItems(tapTables);
         return tapTablePage;
+    }
+
+    public Page<TapTable> getTapTable(DatabaseNode node, UserDetail loginUser) {
+        DataSourceConnectionDto dataSource = dataSourceService.findById(toObjectId(node.getConnectionId()));
+        List<String> qualifiedNames = new ArrayList<>();
+        for (String tableName : node.getTableNames()) {
+            qualifiedNames.add(MetaDataBuilderUtils.generateQualifiedName(MetaType.table.name(), dataSource, tableName));
+        }
+
+
+        Filter filter = new Filter();
+        filter.setWhere(new Where()
+                .and("source.id", node.getConnectionId())
+                .and("qualified_name", new Document("$in", qualifiedNames))
+        );
+
+        return getTapTable(filter, loginUser);
     }
 
     public List<Field> getMergeNodeParentField(String taskId, String nodeId, UserDetail user) {
