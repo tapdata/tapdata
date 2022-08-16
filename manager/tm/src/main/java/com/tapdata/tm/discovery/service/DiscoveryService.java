@@ -33,4 +33,8 @@ public interface DiscoveryService {
     Map<ObjectFilterEnum, List<String>> filterList(List<ObjectFilterEnum> filterTypes, UserDetail user);
 
     Page<DataDirectoryDto> findDataDirectory(DirectoryQueryParam param, UserDetail user);
+
+    void updateListTags(String id, DataObjCategoryEnum objCategory, List<String> tagIds, UserDetail user);
+
+    void addListTags(String id, DataObjCategoryEnum objCategory, List<String> tagIds, UserDetail user);
 }

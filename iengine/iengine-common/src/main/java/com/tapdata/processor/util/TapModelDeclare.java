@@ -59,7 +59,7 @@ public class TapModelDeclare {
   }
 
   public static void updateField(TapTable tapTable, String fieldName, String tapType) throws Throwable {
-    tapTable.add(getTapField(fieldName, tapType, null));
+    updateField(tapTable, fieldName, tapType, null);
   }
 
   public static void updateField(TapTable tapTable, String fieldName, String tapType, String dataType) throws Throwable {

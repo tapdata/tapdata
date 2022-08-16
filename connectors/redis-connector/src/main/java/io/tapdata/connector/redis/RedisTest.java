@@ -2,6 +2,7 @@ package io.tapdata.connector.redis;
 
 import com.alibaba.fastjson.JSONObject;
 import io.tapdata.connector.constant.DeployModeEnum;
+import io.tapdata.connector.constant.RedisTestItem;
 import io.tapdata.constant.DbTestItem;
 import io.tapdata.pdk.apis.entity.TestItem;
 import io.tapdata.util.NetUtil;
@@ -41,7 +42,7 @@ public class RedisTest {
             } else {
                 final List<LinkedHashMap<String,Integer>> hostPorts = redisConfig.getSentinelAddress();
                 if (CollectionUtils.isEmpty(hostPorts)) {
-                    return testItem(DbTestItem.HOST_PORT.getContent(), TestItem.RESULT_FAILED, "host/port cannot be empty.");
+                    return testItem(RedisTestItem.HOST_PORT.getContent(), TestItem.RESULT_FAILED, "host/port cannot be empty.");
                 }
 
                 StringBuilder failedHostPort = new StringBuilder();
@@ -53,24 +54,24 @@ public class RedisTest {
                     }
                 }
                 if (StringUtils.isNotBlank(failedHostPort)) {
-                    return testItem(DbTestItem.HOST_PORT.getContent(), TestItem.RESULT_FAILED, JSONObject.toJSONString(failedHostPort));
+                    return testItem(RedisTestItem.HOST_PORT.getContent(), TestItem.RESULT_FAILED, JSONObject.toJSONString(failedHostPort));
                 }
             }
         }catch (IOException e) {
             return testItem(DbTestItem.HOST_PORT.getContent(), TestItem.RESULT_FAILED, e.getMessage());
         }
-        return testItem(TestItem.ITEM_CONNECTION, TestItem.RESULT_SUCCESSFULLY);
+        return testItem(RedisTestItem.HOST_PORT.getContent(), TestItem.RESULT_SUCCESSFULLY);
     }
 
     public TestItem testConnect() {
         try {
             if (PING_RES.equalsIgnoreCase(redisContext.getJedis().ping())) {
-                return testItem(TestItem.ITEM_CONNECTION, TestItem.RESULT_SUCCESSFULLY);
+                return testItem(RedisTestItem.CHECK_AUTH.getContent(), TestItem.RESULT_SUCCESSFULLY);
             }
         } catch (Exception e) {
-            return testItem(TestItem.ITEM_CONNECTION, TestItem.RESULT_FAILED, e.getMessage());
+            return testItem(RedisTestItem.CHECK_AUTH.getContent(), TestItem.RESULT_FAILED, e.getMessage());
         }
-        return testItem(TestItem.ITEM_CONNECTION, TestItem.RESULT_FAILED, "redis client ping failed!");
+        return testItem(RedisTestItem.CHECK_AUTH.getContent(), TestItem.RESULT_FAILED, "redis client ping failed!");
     }
 
     public void close() {
