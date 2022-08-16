@@ -256,13 +256,12 @@ public class TaskController extends BaseController {
                                              @RequestParam(value = "taskRecordId", required = false) String taskRecordId) {
         Field fields = parseField(fieldsJson);
         UserDetail user = getLoginUser();
-        TaskDto taskDto;
-        if (StringUtils.isBlank(taskRecordId)) {
-            taskDto = taskService.findById(MongoUtils.toObjectId(id), fields, user);
-        } else {
-            taskDto = taskRecordService.queryTask(taskRecordId, user.getUserId());
-        }
+        TaskDto taskDto = taskService.findById(MongoUtils.toObjectId(id), fields, user);
         if (taskDto != null) {
+            if (StringUtils.isNotBlank(taskRecordId) && !taskRecordId.equals(taskDto.getTaskRecordId())) {
+                taskDto = taskRecordService.queryTask(taskRecordId, user.getUserId());
+            }
+
             taskDto.setCreator(StringUtils.isNotBlank(user.getUsername()) ? user.getUsername() : user.getEmail());
             taskCheckInspectService.getInspectFlagDefaultFlag(taskDto, user);
         }

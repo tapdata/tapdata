@@ -18,6 +18,7 @@ import lombok.Setter;
 import org.apache.commons.collections4.ListUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
@@ -64,6 +65,7 @@ public class TaskRecordServiceImpl implements TaskRecordService {
             return new Page<>(0, Collections.emptyList());
         }
 
+        query.with(Sort.by("createTime").descending());
         List<TaskRecord> taskRecordList = mongoTemplate.find(query, TaskRecord.class);
 
         if (size > 20) {
