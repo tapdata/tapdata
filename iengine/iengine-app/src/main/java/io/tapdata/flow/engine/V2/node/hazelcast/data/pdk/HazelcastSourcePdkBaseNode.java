@@ -615,7 +615,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 				tapEvent.addInfo(DAG_DATA_SERVICE_INFO_KEY, dagDataService);
 				tapEvent.addInfo(TRANSFORM_SCHEMA_ERROR_MESSAGE_INFO_KEY, errorMessage);
 			} catch (Throwable e) {
-				RuntimeException runtimeException = new RuntimeException("Transform schema by TapDDLEvent failed, error: " + e.getMessage(), e);
+				RuntimeException runtimeException = new RuntimeException("Transform schema by TapDDLEvent " + tapEvent + " failed, error: " + e.getMessage(), e);
 				errorHandle(runtimeException, runtimeException.getMessage());
 				throw runtimeException;
 			}
