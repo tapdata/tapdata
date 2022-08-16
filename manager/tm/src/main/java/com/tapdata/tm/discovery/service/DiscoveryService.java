@@ -34,7 +34,7 @@ public interface DiscoveryService {
 
     Page<DataDirectoryDto> findDataDirectory(DirectoryQueryParam param, UserDetail user);
 
-    void updateListTags(String id, DataObjCategoryEnum objCategory, List<String> tagIds, UserDetail user);
+    void updateListTags(List<TagBindingParam> tagBindingParams, List<String> tagIds, UserDetail user);
 
-    void addListTags(String id, DataObjCategoryEnum objCategory, List<String> tagIds, UserDetail user);
+    void addListTags(List<TagBindingParam> tagBindingParams, List<String> tagIds, UserDetail user);
 }
