@@ -105,6 +105,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
         }
 
         Query query = new Query(criteria);
+        query.with(Sort.by(Sort.Direction.DESC, "createTime"));
 
         long count = metadataInstancesService.count(query, user);
 
