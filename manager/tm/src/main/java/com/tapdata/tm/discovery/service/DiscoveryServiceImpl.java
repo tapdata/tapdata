@@ -397,6 +397,9 @@ public class DiscoveryServiceImpl implements DiscoveryService {
             field.put("listtags", true);
             MetadataInstancesDto metadataInstancesDto = metadataInstancesService.findById(MongoUtils.toObjectId(tagBindingParam.getId()), field);
             List<Tag> listtags = metadataInstancesDto.getListtags();
+            if (listtags == null) {
+                listtags = new ArrayList<>();
+            }
             for (Tag allTag : allTags) {
                 if (!listtags.contains(allTag)) {
                     listtags.add(allTag);
