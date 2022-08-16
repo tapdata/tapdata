@@ -7,14 +7,12 @@ import cn.hutool.core.io.IoUtil;
 import cn.hutool.json.JSONArray;
 import cn.hutool.json.JSONConfig;
 import cn.hutool.json.JSONUtil;
-import com.mongodb.MongoCommandException;
 import com.tapdata.tm.verison.dto.VersionDto;
 import com.tapdata.tm.verison.service.VersionService;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang3.StringUtils;
-import org.bson.BsonDocument;
 import org.bson.Document;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.core.annotation.Order;
@@ -29,6 +27,7 @@ import org.springframework.util.ResourceUtils;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
+import java.util.List;
 
 @Component
 @Order(Integer.MIN_VALUE)
@@ -41,10 +40,31 @@ public class ScriptExecutorRunInit implements ApplicationRunner {
   @Autowired
   private VersionService versionService;
 
+  @Value("#{'${spring.profiles.include:idaas}'.split(',')}")
+  private List<String> productList;
   @Override
   public void run(ApplicationArguments args) throws Exception {
+    executeScript("init", VersionDto.SCRIPT_VERSION_KEY);
+    log.info("Execute the initialization script to complete...");
+
+    if (productList.contains("idaas")) {
+      executeScript("init/idaas", VersionDto.DAAS_SCRIPT_VERSION_KEY);
+      log.info("Execute the daas product initialization script to complete...");
+    }
+    if (productList.contains("dfs")) {
+      executeScript("init/dfs", VersionDto.DFS_SCRIPT_VERSION_KEY);
+      log.info("Execute the dfs product initialization script to complete...");
+    }
+    if (productList.contains("drs")) {
+      executeScript("init/drs", VersionDto.DRS_SCRIPT_VERSION_KEY);
+      log.info("Execute the drs product initialization script to complete...");
+    }
+
+  }
+
+  private void executeScript(String path, String scriptVersionKey) throws IOException {
     PathMatchingResourcePatternResolver pathMatchingResourcePatternResolver = new PathMatchingResourcePatternResolver();
-    Resource versionRes = pathMatchingResourcePatternResolver.getResource(ResourceUtils.CLASSPATH_URL_PREFIX + "init/version");
+    Resource versionRes = pathMatchingResourcePatternResolver.getResource(ResourceUtils.CLASSPATH_URL_PREFIX + path + "/version");
     if (!versionRes.exists()) {
       throw new RuntimeException("init script file does not exist");
     }
@@ -60,7 +80,7 @@ public class ScriptExecutorRunInit implements ApplicationRunner {
     log.info("The version of the latest init script is {}", version);
 
 
-    VersionDto dbVersionDto = versionService.findOne(Query.query(Criteria.where("key").is("script_version")));
+    VersionDto dbVersionDto = versionService.findOne(Query.query(Criteria.where("type").is(scriptVersionKey)));
     VersionComparator versionComparator = new VersionComparator();
     if (dbVersionDto != null && versionComparator.compare(dbVersionDto.getVersion(), version) >= 0) {
       log.info("The data version is up to date and does not need to be updated {}", dbVersionDto.getVersion());
@@ -68,7 +88,7 @@ public class ScriptExecutorRunInit implements ApplicationRunner {
     }
     String dbVersion = dbVersionDto == null ? null : dbVersionDto.getVersion();
     Resource[] resources = pathMatchingResourcePatternResolver
-            .getResources(ResourceUtils.CLASSPATH_URL_PREFIX + "init/*.json");
+            .getResources(ResourceUtils.CLASSPATH_URL_PREFIX + path + "/*.json");
     log.info("The number of init script is {}", resources.length);
     Arrays.sort(resources,
             (r1,r2)-> versionComparator.compare(FileUtil.mainName(r1.getFilename()), FileUtil.mainName(r2.getFilename())));
@@ -96,28 +116,17 @@ public class ScriptExecutorRunInit implements ApplicationRunner {
         try {
           Document document = mongoTemplate.executeCommand(script.toString());
           log.info("execute script: {} -- {}", script, document.toJson());
-        }catch (MongoCommandException e) {
-
-          BsonDocument response = e.getResponse();
-          if (e.getErrorCode() == 26
-                  && StringUtils.contains(response.get("codeName").toString(), "NamespaceNotFound")) {
-            log.warn("execute script: {} -- \n{}\n", script, response.toJson());
-          } else {
-            throw new RuntimeException("execute script error: " + script, e);
-          }
         } catch (Exception e) {
           throw new RuntimeException("execute script error: " + script.toString(), e);
         }
       }
       //update db version
-      VersionDto versionDto = new VersionDto(VersionDto.SCRIPT_VERSION_KEY, currentVersion);
-      versionService.upsert(Query.query(Criteria.where("key").is(VersionDto.SCRIPT_VERSION_KEY)), versionDto);
+      VersionDto versionDto = new VersionDto(scriptVersionKey, currentVersion);
+      versionService.upsert(Query.query(Criteria.where("type").is(scriptVersionKey)), versionDto);
       log.info("Update data script to version {} -> {}", dbVersion,  currentVersion);
       dbVersion = currentVersion;
 
     }
-
-
   }
 
 }
