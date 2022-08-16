@@ -14,6 +14,6 @@ import org.springframework.data.mongodb.core.mapping.Document;
 @Document("version")
 public class VersionEntity extends BaseEntity {
     private String key;
-    private String value;
+    private String version;
 
 }
