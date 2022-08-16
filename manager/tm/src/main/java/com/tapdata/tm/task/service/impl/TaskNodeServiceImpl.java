@@ -28,6 +28,7 @@ import com.tapdata.tm.ds.service.impl.DataSourceService;
 import com.tapdata.tm.messagequeue.dto.MessageQueueDto;
 import com.tapdata.tm.messagequeue.service.MessageQueueService;
 import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
+import com.tapdata.tm.task.service.TaskRecordService;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.task.utils.CacheUtils;
 import com.tapdata.tm.task.vo.JsResultDto;
@@ -56,7 +57,7 @@ import org.springframework.stereotype.Service;
 import com.tapdata.tm.task.service.TaskNodeService;
 
 import java.util.*;
-import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -71,13 +72,21 @@ public class TaskNodeServiceImpl implements TaskNodeService {
     private MessageQueueService messageQueueService;
     private WorkerService workerService;
     private DataSourceDefinitionService dataSourceDefinitionService;
+    private TaskRecordService taskRecordService;
 
     @Override
-    public Page<MetadataTransformerItemDto> getNodeTableInfo(final String taskId, String nodeId, String searchTableName,
+    public Page<MetadataTransformerItemDto> getNodeTableInfo(String taskId, String taskRecordId, String nodeId,
+                                                             String searchTableName,
                                                              Integer page, Integer pageSize, UserDetail userDetail) {
         Page<MetadataTransformerItemDto> result = new Page<>();
 
-        DAG dag = taskService.findById(MongoUtils.toObjectId(taskId)).getDag();
+        AtomicReference<TaskDto> taskDto = new AtomicReference<>();
+        FunctionUtils.isTureOrFalse(StringUtils.isBlank(taskRecordId)).trueOrFalseHandle(
+                () -> taskDto.set(taskService.findById(MongoUtils.toObjectId(taskId))),
+                () -> taskDto.set(taskRecordService.queryTask(taskRecordId, userDetail.getUserId()))
+        );
+
+        DAG dag = taskDto.get().getDag();
         if (CollectionUtils.isEmpty(dag.getEdges()) || Objects.isNull(dag.getPreNodes(nodeId))) {
             return result;
         }

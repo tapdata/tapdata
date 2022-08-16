@@ -2484,8 +2484,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         log.debug("build stop task websocket context, processId = {}, userId = {}, queueDto = {}", taskDto.getAgentId(), user.getUserId(), queueDto);
         messageQueueService.sendMessage(queueDto);
 
-        //创建任务执行历史记录（任务快照表)
-        //插入任务运行历史记录（TaskRunHistory）
+        updateTaskRecordStatus(taskDto, pauseStatus);
     }
 
 
@@ -2547,7 +2546,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
      */
     public String complete(ObjectId id, UserDetail user) {
         //判断子任务是否存在
-        TaskDto taskDto = checkExistById(id, user, "_id", "status", "name");
+        TaskDto taskDto = checkExistById(id, user, "_id", "status", "name", "taskRecordId");
         if (!TaskOpStatusEnum.to_complete_status.v().contains(taskDto.getStatus())) {
             log.info("concurrent complete operations, this operation don‘t effective, task name = {}", taskDto.getName());
             return null;
@@ -2571,7 +2570,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
      */
     public String stopped(ObjectId id, UserDetail user) {
         //判断子任务是否存在。
-        TaskDto taskDto = checkExistById(id, user, "dag", "name", "status", "_id");
+        TaskDto taskDto = checkExistById(id, user, "dag", "name", "status", "_id", "taskRecordId");
 
 
         //如果任务状态为停止中，则将任务更新为已停止，并且清空所有运行信息
@@ -2585,12 +2584,11 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         //endConnHeartbeat(user, TaskDto);
 
         UpdateResult update1 = update(query1, Update.update("status", TaskDto.STATUS_STOP), user);
+        updateTaskRecordStatus(taskDto, TaskDto.STATUS_STOP);
         if (update1.getModifiedCount() == 0) {
             log.info("concurrent stopped operations, this operation don‘t effective, task name = {}", taskDto.getName());
             return null;
         } else {
-            basicEventService.publish(new SyncTaskStatusDto(taskDto.getTaskRecordId(), taskDto.getStatus()));
-
             return id.toHexString();
         }
     }
