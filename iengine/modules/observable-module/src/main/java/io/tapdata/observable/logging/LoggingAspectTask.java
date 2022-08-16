@@ -211,7 +211,7 @@ public class LoggingAspectTask extends AspectTask {
 				.cost(cost)
 				.withNode(node);
 
-		ObsLogger obsLogger = getObsLogger();
+		ObsLogger obsLogger = getObsLogger(node);
 		obsLogger.debug(() -> obsLogger.logBaseBuilderWithLogTag(tag).record(builder.build().toMap()), builder.build().getMessage());
 	}
 
@@ -244,7 +244,7 @@ public class LoggingAspectTask extends AspectTask {
 
 		}
 
-		ObsLogger obsLogger = getObsLogger();
+		ObsLogger obsLogger = getObsLogger(node);
 		obsLogger.debug(() -> obsLogger.logBaseBuilderWithLogTag(tag).data(data), logEventType);
 	}
 
