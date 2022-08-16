@@ -1,5 +1,1229 @@
 [
   {
+    "createIndexes": "AccessToken",
+    "indexes": [
+      {
+        "name": "_id_",
+        "key": {
+          "_id": 1
+        }
+      }
+    ]
+  },
+  {
+    "createIndexes": "AgentEnvironment",
+    "indexes": [
+      {
+        "name": "_id_",
+        "key": {
+          "_id": 1
+        }
+      }
+    ]
+  },
+  {
+    "createIndexes": "ApiCall",
+    "indexes": [
+      {
+        "name": "_id_",
+        "key": {
+          "_id": 1
+        }
+      },
+      {
+        "name": "received_date_1",
+        "key": {
+          "received_date": 1
+        },
+        "expireAfterSeconds": 7776000,
+        "background": true
+      }
+    ]
+  },
+  {
+    "createIndexes": "ApiServer",
+    "indexes": [
+      {
+        "name": "_id_",
+        "key": {
+          "_id": 1
+        }
+      }
+    ]
+  },
+  {
+    "createIndexes": "App",
+    "indexes": [
+      {
+        "name": "_id_",
+        "key": {
+          "_id": 1
+        }
+      }
+    ]
+  },
+  {
+    "createIndexes": "Application",
+    "indexes": [
+      {
+        "name": "_id_",
+        "key": {
+          "_id": 1
+        }
+      }
+    ]
+  },
+  {
+    "createIndexes": "CdcEvents",
+    "indexes": [
+      {
+        "name": "_id_",
+        "key": {
+          "_id": 1
+        }
+      },
+      {
+        "name": "opDate_1",
+        "key": {
+          "opDate": 1
+        },
+        "background": true
+      },
+      {
+        "name": "insertDate_1",
+        "key": {
+          "insertDate": 1
+        },
+        "background": true
+      }
+    ]
+  },
+  {
+    "createIndexes": "ClusterOperation",
+    "indexes": [
+      {
+        "name": "_id_",
+        "key": {
+          "_id": 1
+        }
+      },
+      {
+        "name": "status_1_uuid_1_type_1_ttl_1",
+        "key": {
+          "type": 1,
+          "uuid": 1,
+          "ttl": 1,
+          "status": 1
+        },
+        "background": true
+      }
+    ]
+  },
+  {
+    "createIndexes": "ClusterState",
+    "indexes": [
+      {
+        "name": "_id_",
+        "key": {
+          "_id": 1
+        }
+      }
+    ]
+  },
+  {
+    "createIndexes": "ClusterStateLog",
+    "indexes": [
+      {
+        "name": "_id_",
+        "key": {
+          "_id": 1
+        }
+      },
+      {
+        "name": "insertTime_1",
+        "key": {
+          "insertTime": 1
+        },
+        "expireAfterSeconds": 2592000,
+        "background": true
+      }
+    ]
+  },
+  {
+    "createIndexes": "Connections",
+    "indexes": [
+      {
+        "name": "_id_",
+        "key": {
+          "_id": 1
+        }
+      },
+      {
+        "name": "name_1_user_id_1",
+        "key": {
+          "user_id": 1,
+          "name": 1
+        },
+        "background": true,
+        "unique": true
+      }
+    ]
+  },
+  {
+    "createIndexes": "CustomerJobLogs",
+    "indexes": [
+      {
+        "name": "_id_",
+        "key": {
+          "_id": 1
+        }
+      },
+      {
+        "name": "dataFlowId_1",
+        "key": {
+          "dataFlowId": 1
+        },
+        "background": true
+      },
+      {
+        "name": "level_1",
+        "key": {
+          "level": 1
+        },
+        "background": true
+      },
+      {
+        "name": "user_id_1",
+        "key": {
+          "user_id": 1
+        },
+        "background": true
+      }
+    ]
+  },
+  {
+    "createIndexes": "DataCatalog",
+    "indexes": [
+      {
+        "name": "_id_",
+        "key": {
+          "_id": 1
+        }
+      },
+      {
+        "name": "total_docs_-1",
+        "key": {
+          "total_docs": -1
+        },
+        "background": true
+      }
+    ]
+  },
+  {
+    "createIndexes": "DataFlowInsight",
+    "indexes": [
+      {
+        "name": "_id_",
+        "key": {
+          "_id": 1
+        }
+      },
+      {
+        "name": "last_updated_1",
+        "key": {
+          "last_updated": 1
+        },
+        "expireAfterSeconds": 1814400,
+        "background": true
+      },
+      {
+        "name": "dataFlowId_1_statsType_1_granularity_1_createTime_1_statsTime_1",
+        "key": {
+          "statsType": 1,
+          "dataFlowId": 1,
+          "createTime": 1,
+          "granularity": 1,
+          "statsTime": 1
+        },
+        "background": true
+      },
+      {
+        "name": "statsType_1_granularity_1_createTime_-1_dataFlowId_1",
+        "key": {
+          "statsType": 1,
+          "dataFlowId": 1,
+          "createTime": -1,
+          "granularity": 1
+        },
+        "background": true
+      },
+      {
+        "name": "statsType_1_granularity_1_statsTime_1__id_1_dataFlowId_1",
+        "key": {
+          "statsType": 1,
+          "dataFlowId": 1,
+          "granularity": 1,
+          "_id": 1,
+          "statsTime": 1
+        },
+        "background": true
+      }
+    ]
+  },
+  {
+    "createIndexes": "DataFlowsDebug",
+    "indexes": [
+      {
+        "name": "_id_",
+        "key": {
+          "_id": 1
+        }
+      },
+      {
+        "name": "__tapd8.dataFlowId_1___tapd8.stageId_1___tapd8.tableName_1_createTime_1",
+        "key": {
+          "__tapd8.dataFlowId": 1,
+          "__tapd8.tableName": 1,
+          "createTime": 1,
+          "__tapd8.stageId": 1
+        },
+        "background": true
+      },
+      {
+        "name": "createTime_1",
+        "key": {
+          "createTime": 1
+        },
+        "expireAfterSeconds": 604800,
+        "background": true
+      }
+    ]
+  },
+  {
+    "createIndexes": "DatabaseTypes",
+    "indexes": [
+      {
+        "name": "_id_",
+        "key": {
+          "_id": 1
+        }
+      }
+    ]
+  },
+  {
+    "createIndexes": "DeleteCaches",
+    "indexes": [
+      {
+        "name": "_id_",
+        "key": {
+          "_id": 1
+        }
+      },
+      {
+        "name": "timestamp_1",
+        "key": {
+          "timestamp": 1
+        },
+        "expireAfterSeconds": 604800,
+        "background": true
+      },
+      {
+        "name": "mongodbUri_1_collectionName_1_data._id_1_timestamp_1",
+        "key": {
+          "data._id": 1,
+          "collectionName": 1,
+          "mongodbUri": 1,
+          "timestamp": 1
+        },
+        "background": true
+      }
+    ]
+  },
+  {
+    "createIndexes": "DrsScheduleLock",
+    "indexes": [
+      {
+        "name": "_id_",
+        "key": {
+          "_id": 1
+        }
+      }
+    ]
+  },
+  {
+    "createIndexes": "Events",
+    "indexes": [
+      {
+        "name": "_id_",
+        "key": {
+          "_id": 1
+        }
+      },
+      {
+        "name": "groupId_1",
+        "key": {
+          "groupId": 1
+        },
+        "partialFilterExpression": {
+          "groupId": {
+            "$exists": true
+          }
+        },
+        "background": true,
+        "unique": true
+      },
+      {
+        "name": "event_status_1_sendGroupTTL_1_failed_result.retry_1_failed_result.next_retry_1",
+        "key": {
+          "failed_result.retry": 1,
+          "sendGroupTTL": 1,
+          "failed_result.next_retry": 1,
+          "event_status": 1
+        },
+        "background": true
+      }
+    ]
+  },
+  {
+    "createIndexes": "InconsistentData",
+    "indexes": [
+      {
+        "name": "_id_",
+        "key": {
+          "_id": 1
+        }
+      },
+      {
+        "name": "verificationJobId_1_validateResult_1_nextValidateTime_1",
+        "key": {
+          "nextValidateTime": 1,
+          "verificationJobId": 1,
+          "validateResult": 1
+        },
+        "partialFilterExpression": {
+          "validateResult": "retry"
+        },
+        "background": true
+      }
+    ]
+  },
+  {
+    "createIndexes": "Insights",
+    "indexes": [
+      {
+        "name": "_id_",
+        "key": {
+          "_id": 1
+        }
+      },
+      {
+        "name": "stats_name_1_stats_granularity_1",
+        "key": {
+          "stats_granularity": 1,
+          "stats_name": 1
+        },
+        "background": true
+      },
+      {
+        "name": "stats_name_1_data.name_1",
+        "key": {
+          "data.name": 1,
+          "stats_name": 1
+        },
+        "background": true
+      },
+      {
+        "name": "meta_type_1_is_deleted_1_source.connection_type_1",
+        "key": {
+          "source.connection_type": 1,
+          "meta_type": 1,
+          "is_deleted": 1
+        },
+        "background": true
+      },
+      {
+        "name": "stats_name_1_stats_time_1_api_id_1",
+        "key": {
+          "api_id": 1,
+          "stats_name": 1,
+          "stats_time": 1
+        },
+        "background": true
+      },
+      {
+        "name": "stats_name_1_stats_granularity_1_stats_time_-1_data.total_records_-1",
+        "key": {
+          "stats_granularity": 1,
+          "stats_name": 1,
+          "data.total_records": -1,
+          "stats_time": -1
+        },
+        "background": true
+      }
+    ]
+  },
+  {
+    "createIndexes": "InspectDetails",
+    "indexes": [
+      {
+        "name": "_id_",
+        "key": {
+          "_id": 1
+        }
+      },
+      {
+        "name": "ttlTime_1",
+        "key": {
+          "ttlTime": 1
+        },
+        "expireAfterSeconds": 15552000,
+        "background": true
+      }
+    ]
+  },
+  {
+    "createIndexes": "InspectResult",
+    "indexes": [
+      {
+        "name": "_id_",
+        "key": {
+          "_id": 1
+        }
+      },
+      {
+        "name": "ttlTime_1",
+        "key": {
+          "ttlTime": 1
+        },
+        "expireAfterSeconds": 15552000,
+        "background": true
+      }
+    ]
+  },
+  {
+    "createIndexes": "InviteCode",
+    "indexes": [
+      {
+        "name": "_id_",
+        "key": {
+          "_id": 1
+        }
+      },
+      {
+        "name": "inviteCode_1",
+        "key": {
+          "inviteCode": 1
+        },
+        "background": true
+      },
+      {
+        "name": "quota_1",
+        "key": {
+          "quota": 1
+        },
+        "background": true
+      }
+    ]
+  },
+  {
+    "createIndexes": "JavascriptFunctions",
+    "indexes": [
+      {
+        "name": "_id_",
+        "key": {
+          "_id": 1
+        }
+      },
+      {
+        "name": "function_name_1",
+        "key": {
+          "function_name": 1
+        },
+        "background": true,
+        "unique": true
+      }
+    ]
+  },
+  {
+    "createIndexes": "JobDDLHistories",
+    "indexes": [
+      {
+        "name": "_id_",
+        "key": {
+          "_id": 1
+        }
+      },
+      {
+        "name": "jobId_1_sourceConnId_1",
+        "key": {
+          "sourceConnId": 1,
+          "jobId": 1
+        },
+        "background": true
+      }
+    ]
+  },
+  {
+    "createIndexes": "Jobs",
+    "indexes": [
+      {
+        "name": "_id_",
+        "key": {
+          "_id": 1
+        }
+      },
+      {
+        "name": "sourceConnection.database_name_1",
+        "key": {
+          "sourceConnection.database_name": 1
+        },
+        "background": true
+      },
+      {
+        "name": "sourceConnection.database_type_1",
+        "key": {
+          "sourceConnection.database_type": 1
+        },
+        "background": true
+      },
+      {
+        "name": "targetConnection.name_1",
+        "key": {
+          "targetConnection.name": 1
+        },
+        "background": true
+      },
+      {
+        "name": "status_1",
+        "key": {
+          "status": 1
+        },
+        "background": true
+      },
+      {
+        "name": "dataFlowId_1",
+        "key": {
+          "dataFlowId": 1
+        },
+        "background": true
+      },
+      {
+        "name": "name_1_user_id_1",
+        "key": {
+          "user_id": 1,
+          "name": 1
+        },
+        "background": true
+      }
+    ]
+  },
+  {
+    "createIndexes": "LibSupporteds",
+    "indexes": [
+      {
+        "name": "_id_",
+        "key": {
+          "_id": 1
+        }
+      }
+    ]
+  },
+  {
+    "createIndexes": "LineageGraph",
+    "indexes": [
+      {
+        "name": "_id_",
+        "key": {
+          "_id": 1
+        }
+      },
+      {
+        "name": "v_1_value.type_1",
+        "key": {
+          "value.type": 1,
+          "v": 1
+        },
+        "background": true
+      },
+      {
+        "name": "v_1_w_1_value.type_1",
+        "key": {
+          "value.type": 1,
+          "v": 1,
+          "w": 1
+        },
+        "background": true
+      }
+    ]
+  },
+  {
+    "createIndexes": "Logs",
+    "indexes": [
+      {
+        "name": "_id_",
+        "key": {
+          "_id": 1
+        }
+      },
+      {
+        "name": "date_1",
+        "key": {
+          "date": 1
+        },
+        "expireAfterSeconds": 432000,
+        "background": true
+      },
+      {
+        "name": "level_text_message_text",
+        "key": {
+          "_fts": "text",
+          "_ftsx": 1
+        },
+        "textIndexVersion": 3,
+        "background": true,
+        "weights": {
+          "level": 1,
+          "message": 1
+        },
+        "default_language": "english",
+        "language_override": "language"
+      },
+      {
+        "name": "contextMap.jobId_1_millis_1",
+        "key": {
+          "contextMap.jobId": 1,
+          "millis": 1
+        },
+        "background": true
+      },
+      {
+        "name": "contextMap.dataFlowId_1_millis_1",
+        "key": {
+          "contextMap.dataFlowId": 1,
+          "millis": 1
+        },
+        "background": true
+      }
+    ]
+  },
+  {
+    "createIndexes": "Message",
+    "indexes": [
+      {
+        "name": "_id_",
+        "key": {
+          "_id": 1
+        }
+      },
+      {
+        "name": "userId_1_read_1",
+        "key": {
+          "read": 1,
+          "userId": 1
+        },
+        "background": true
+      },
+      {
+        "name": "groupId_1_read_1",
+        "key": {
+          "read": 1,
+          "groupId": 1
+        },
+        "background": true
+      },
+      {
+        "name": "userId_1_createTime_1",
+        "key": {
+          "userId": 1,
+          "createTime": 1
+        },
+        "background": true
+      }
+    ]
+  },
+  {
+    "createIndexes": "MessageQueue",
+    "indexes": [
+      {
+        "name": "_id_",
+        "key": {
+          "_id": 1
+        }
+      },
+      {
+        "name": "last_updated_1",
+        "key": {
+          "last_updated": 1
+        },
+        "expireAfterSeconds": 2592000,
+        "background": true
+      }
+    ]
+  },
+  {
+    "createIndexes": "MetadataDefinition",
+    "indexes": [
+      {
+        "name": "_id_",
+        "key": {
+          "_id": 1
+        }
+      },
+      {
+        "name": "value_1",
+        "key": {
+          "value": 1
+        },
+        "background": true,
+        "unique": true
+      }
+    ]
+  },
+  {
+    "createIndexes": "MetadataInstances",
+    "indexes": [
+      {
+        "name": "_id_",
+        "key": {
+          "_id": 1
+        }
+      },
+      {
+        "name": "qualified_name_1",
+        "key": {
+          "qualified_name": 1
+        },
+        "background": true,
+        "unique": true
+      },
+      {
+        "name": "is_deleted_1_meta_type_1_create_time_1",
+        "key": {
+          "create_time": 1,
+          "meta_type": 1,
+          "is_deleted": 1
+        },
+        "background": true
+      },
+      {
+        "name": "last_updated_1_name_1",
+        "key": {
+          "last_updated": 1,
+          "name": 1
+        },
+        "background": true
+      },
+      {
+        "name": "original_name_1",
+        "key": {
+          "original_name": 1
+        },
+        "background": true
+      },
+      {
+        "name": "name_1_original_name_1",
+        "key": {
+          "original_name": 1,
+          "name": 1
+        },
+        "background": true
+      },
+      {
+        "name": "is_deleted_1_databaseId_1_schemaVersion_1",
+        "key": {
+          "schemaVersion": 1,
+          "is_deleted": 1,
+          "databaseId": 1
+        },
+        "background": true
+      },
+      {
+        "name": "meta_type_1__id_1_source._id_1",
+        "key": {
+          "source._id": 1,
+          "meta_type": 1,
+          "_id": 1
+        },
+        "background": true
+      },
+      {
+        "name": "source.id_1_meta_type_1",
+        "key": {
+          "source.id": 1,
+          "meta_type": 1
+        },
+        "background": true
+      },
+      {
+        "name": "databaseId_1_is_deleted_1_meta_type_1",
+        "key": {
+          "meta_type": 1,
+          "is_deleted": 1,
+          "databaseId": 1
+        },
+        "background": true
+      }
+    ]
+  },
+  {
+    "createIndexes": "MetadataTransformer",
+    "indexes": [
+      {
+        "name": "_id_",
+        "key": {
+          "_id": 1
+        }
+      },
+      {
+        "name": "dataFlowId_1_version_-1",
+        "key": {
+          "version": -1,
+          "dataFlowId": 1
+        },
+        "background": true
+      },
+      {
+        "name": "stageId_1_version_1",
+        "key": {
+          "version": 1,
+          "stageId": 1
+        },
+        "background": true
+      },
+      {
+        "name": "version_1",
+        "key": {
+          "version": 1
+        },
+        "background": true
+      }
+    ]
+  },
+  {
+    "createIndexes": "MetadataTransformerItem",
+    "indexes": [
+      {
+        "name": "_id_",
+        "key": {
+          "_id": 1
+        }
+      },
+      {
+        "name": "sinkStageId_1_invalid_1",
+        "key": {
+          "invalid": 1,
+          "sinkStageId": 1
+        },
+        "background": true
+      },
+      {
+        "name": "sinkStageId_1_version_1",
+        "key": {
+          "version": 1,
+          "sinkStageId": 1
+        },
+        "background": true
+      },
+      {
+        "name": "sinkStageId_1_sourceQualifiedName_1",
+        "key": {
+          "sourceQualifiedName": 1,
+          "sinkStageId": 1
+        },
+        "background": true
+      },
+      {
+        "name": "dataFlowId_1_invalid_1",
+        "key": {
+          "dataFlowId": 1,
+          "invalid": 1
+        },
+        "background": true
+      },
+      {
+        "name": "dataFlowId_1_version_1",
+        "key": {
+          "version": 1,
+          "dataFlowId": 1
+        },
+        "background": true
+      }
+    ]
+  },
+  {
+    "createIndexes": "Permission",
+    "indexes": [
+      {
+        "name": "_id_",
+        "key": {
+          "_id": 1
+        }
+      },
+      {
+        "name": "name_1",
+        "key": {
+          "name": 1
+        },
+        "unique": true
+      }
+    ]
+  },
+  {
+    "createIndexes": "Role",
+    "indexes": [
+      {
+        "name": "_id_",
+        "key": {
+          "_id": 1
+        }
+      }
+    ]
+  },
+  {
+    "createIndexes": "RoleMapping",
+    "indexes": [
+      {
+        "name": "_id_",
+        "key": {
+          "_id": 1
+        }
+      }
+    ]
+  },
+  {
+    "createIndexes": "ScheduleTasks",
+    "indexes": [
+      {
+        "name": "_id_",
+        "key": {
+          "_id": 1
+        }
+      },
+      {
+        "name": "last_updated_1",
+        "key": {
+          "last_updated": 1
+        },
+        "expireAfterSeconds": 2592000,
+        "background": true
+      },
+      {
+        "name": "task_name_1_last_updated_1",
+        "key": {
+          "task_name": 1,
+          "last_updated": 1
+        },
+        "background": true
+      }
+    ]
+  },
+  {
+    "createIndexes": "Schema",
+    "indexes": [
+      {
+        "name": "_id_",
+        "key": {
+          "_id": 1
+        }
+      },
+      {
+        "name": "name_1",
+        "key": {
+          "name": 1
+        },
+        "background": true,
+        "unique": true
+      },
+      {
+        "name": "table_name_1",
+        "key": {
+          "table_name": 1
+        },
+        "background": true
+      }
+    ]
+  },
+  {
+    "createIndexes": "Settings",
+    "indexes": [
+      {
+        "name": "_id_",
+        "key": {
+          "_id": 1
+        }
+      }
+    ]
+  },
+  {
+    "createIndexes": "SubTaskProgress",
+    "indexes": [
+      {
+        "name": "_id_",
+        "key": {
+          "_id": 1
+        }
+      },
+      {
+        "name": "subTaskId_1_srcTableName_1_tgtTableName_1_srcNodeId_1_tgtNodeId_1_type_1",
+        "key": {
+          "srcTableName": 1,
+          "tgtTableName": 1,
+          "type": 1,
+          "subTaskId": 1,
+          "tgtNodeId": 1,
+          "srcNodeId": 1
+        },
+        "background": true
+      }
+    ]
+  },
+  {
+    "createIndexes": "TaskHistories",
+    "indexes": [
+      {
+        "name": "_id_",
+        "key": {
+          "_id": 1
+        }
+      },
+      {
+        "name": "create_time_1",
+        "key": {
+          "create_time": 1
+        },
+        "expireAfterSeconds": 2592000,
+        "background": true
+      },
+      {
+        "name": "task_id_1_create_time_-1",
+        "key": {
+          "create_time": -1,
+          "task_id": 1
+        },
+        "background": true
+      }
+    ]
+  },
+  {
+    "createIndexes": "User",
+    "indexes": [
+      {
+        "name": "_id_",
+        "key": {
+          "_id": 1
+        }
+      }
+    ]
+  },
+  {
+    "createIndexes": "UserLogs",
+    "indexes": [
+      {
+        "name": "_id_",
+        "key": {
+          "_id": 1
+        }
+      },
+      {
+        "name": "user_id_1_type_1_createTime_-1",
+        "key": {
+          "type": 1,
+          "user_id": 1,
+          "createTime": -1
+        },
+        "background": true
+      },
+      {
+        "name": "last_updated_1",
+        "key": {
+          "last_updated": 1
+        },
+        "expireAfterSeconds": 7776000,
+        "background": true
+      }
+    ]
+  },
+  {
+    "createIndexes": "Workers",
+    "indexes": [
+      {
+        "name": "_id_",
+        "key": {
+          "_id": 1
+        }
+      },
+      {
+        "name": "worker_type_1_process_id_1",
+        "key": {
+          "process_id": 1,
+          "worker_type": 1
+        },
+        "partialFilterExpression": {
+          "worker_type": "tapdata-manager"
+        },
+        "background": true,
+        "unique": true
+      },
+      {
+        "name": "ping_date_1",
+        "key": {
+          "ping_date": 1
+        },
+        "partialFilterExpression": {
+          "worker_type": "system"
+        },
+        "expireAfterSeconds": 1296000,
+        "background": true
+      },
+      {
+        "name": "worker_type_1_worker_ip_1_ping_date_-1",
+        "key": {
+          "worker_type": 1,
+          "worker_ip": 1,
+          "ping_date": -1
+        },
+        "background": 1
+      }
+    ]
+  },
+  {
+    "createIndexes": "fs.chunks",
+    "indexes": [
+      {
+        "name": "_id_",
+        "key": {
+          "_id": 1
+        }
+      },
+      {
+        "name": "files_id_1_n_1",
+        "key": {
+          "n": 1,
+          "files_id": 1
+        },
+        "unique": true
+      }
+    ]
+  },
+  {
+    "createIndexes": "fs.files",
+    "indexes": [
+      {
+        "name": "_id_",
+        "key": {
+          "_id": 1
+        }
+      },
+      {
+        "name": "filename_1_uploadDate_1",
+        "key": {
+          "filename": 1,
+          "uploadDate": 1
+        }
+      }
+    ]
+  },
+  {
     "insert": "ApiServer",
     "documents": [
       {
