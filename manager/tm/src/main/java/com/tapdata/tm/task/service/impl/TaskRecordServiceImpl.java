@@ -5,12 +5,14 @@ import cn.hutool.core.date.DatePattern;
 import cn.hutool.core.date.DateUtil;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.commons.task.dto.TaskDto;
+import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.monitor.service.MeasurementServiceV2;
 import com.tapdata.tm.task.bean.SyncTaskStatusDto;
 import com.tapdata.tm.task.entity.TaskEntity;
 import com.tapdata.tm.task.entity.TaskRecord;
 import com.tapdata.tm.task.service.TaskRecordService;
 import com.tapdata.tm.task.vo.TaskRecordListVo;
+import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.utils.MongoUtils;
 import lombok.Setter;
 import org.apache.commons.collections4.ListUtils;
@@ -34,6 +36,7 @@ import java.util.stream.Collectors;
 public class TaskRecordServiceImpl implements TaskRecordService {
     private MongoTemplate mongoTemplate;
     private MeasurementServiceV2 measurementServiceV2;
+    private UserService userService;
 
     @Override
     public void createRecord(TaskRecord taskRecord) {
@@ -77,6 +80,17 @@ public class TaskRecordServiceImpl implements TaskRecordService {
         List<String> ids = taskRecords.stream().map(t -> t.getId().toHexString()).collect(Collectors.toList());
         Map<String, Long[]> totalMap = measurementServiceV2.countEventByTaskRecord(ids);
 
+        List<String> userIds = taskRecords.stream().map(TaskRecord::getUserId).distinct().collect(Collectors.toList());
+        List<UserDetail> users = userService.getUserByIdList(userIds);
+        Map<String, String> userMap = users.stream().collect(Collectors.toMap(UserDetail::getUserId, u -> {
+            if (StringUtils.isNotBlank(u.getUsername())) {
+                return u.getUsername();
+            } else {
+                return u.getEmail();
+            }
+        }));
+
+
         List<TaskRecordListVo> collect = taskRecords.stream().map(r -> {
             String taskRecordId = r.getId().toHexString();
 
@@ -91,6 +105,10 @@ public class TaskRecordServiceImpl implements TaskRecordService {
             if (totalMap.containsKey(taskRecordId)) {
                 vo.setInputTotal(totalMap.get(taskRecordId)[0]);
                 vo.setOutputTotal(totalMap.get(taskRecordId)[1]);
+            }
+
+            if (userMap.containsKey(r.getUserId())) {
+                vo.setOperator(userMap.get(r.getUserId()));
             }
 
             return vo;
