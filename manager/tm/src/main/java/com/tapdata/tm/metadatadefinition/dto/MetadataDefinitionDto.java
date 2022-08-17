@@ -24,4 +24,6 @@ public class MetadataDefinitionDto extends BaseDto {
 
     private String desc;
 
+    private long objCount;
+
 }

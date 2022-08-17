@@ -3,11 +3,15 @@ package com.tapdata.tm.metadatadefinition.service;
 import com.mongodb.client.result.UpdateResult;
 import com.tapdata.manager.common.utils.JsonUtil;
 import com.tapdata.manager.common.utils.StringUtils;
+import com.tapdata.tm.base.dto.Field;
+import com.tapdata.tm.base.dto.Filter;
+import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.entity.BaseEntity;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.base.service.BaseService;
 import com.tapdata.tm.commons.base.dto.BaseDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
+import com.tapdata.tm.discovery.service.DiscoveryService;
 import com.tapdata.tm.ds.entity.DataSourceEntity;
 import com.tapdata.tm.inspect.bean.Task;
 import com.tapdata.tm.metadatadefinition.dto.MetadataDefinitionDto;
@@ -55,6 +59,9 @@ public class MetadataDefinitionService extends BaseService<MetadataDefinitionDto
 
     @Autowired
     MetadataInstancesService metadataInstancesService;
+
+    @Autowired
+    private DiscoveryService discoveryService;
 
     public MetadataDefinitionService(@NonNull MetadataDefinitionRepository repository) {
         super(repository, MetadataDefinitionDto.class, MetadataDefinitionEntity.class);
@@ -165,5 +172,18 @@ public class MetadataDefinitionService extends BaseService<MetadataDefinitionDto
         metadataDefinitionDtos.addAll(all);
         List<ObjectId> ids = all.stream().map(BaseDto::getId).collect(Collectors.toList());
         return findChild(metadataDefinitionDtos, ids);
+    }
+
+
+    @Override
+    public Page<MetadataDefinitionDto> find(Filter filter, UserDetail user) {
+        Page<MetadataDefinitionDto> dtoPage = super.find(filter, user);
+        Field fields = filter.getFields();
+        Object objCount = fields.get("objCount");
+        if (objCount != null && (objCount.equals(true) || (Double) objCount == 1) && CollectionUtils.isNotEmpty(dtoPage.getItems())) {
+            discoveryService.addObjCount(dtoPage.getItems(), user);
+        }
+
+        return dtoPage;
     }
 }
