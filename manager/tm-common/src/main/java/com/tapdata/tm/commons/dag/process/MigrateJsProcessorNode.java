@@ -44,6 +44,13 @@ public class MigrateJsProcessorNode extends Node<List<Schema>> {
 
     @Override
     protected List<Schema> loadSchema(List<String> includes) {
+        Map<String, List<Schema>> schemaMap = new HashMap<>();
+        Map<String, List<Schema>> outSchemaMap = new HashMap<>();
+        this.getDag().getNodes().forEach(n -> {
+            schemaMap.put(n.getId(), (List<Schema>) n.getSchema());
+            outSchemaMap.put(n.getId(), (List<Schema>) n.getOutputSchema());
+        });
+
         final List<String> predIds = new ArrayList<>();
         getPrePre(this, predIds);
         predIds.add(this.getId());
@@ -55,7 +62,16 @@ public class MigrateJsProcessorNode extends Node<List<Schema>> {
         target.setId(UUID.randomUUID().toString());
         target.setName(target.getId());
         if (CollectionUtils.isNotEmpty(nodes)) {
-            nodes = nodes.stream().filter(n -> predIds.contains(n.getId())).collect(Collectors.toList());
+            nodes = nodes.stream().filter(n -> predIds.contains(n.getId()))
+                    .peek(n -> {
+                        if (schemaMap.containsKey(n.getId())) {
+                            n.setSchema(schemaMap.get(n.getId()));
+                        }
+                        if (outSchemaMap.containsKey(n.getId())) {
+                            n.setOutputSchema(outSchemaMap.get(n.getId()));
+                        }
+                    })
+                    .collect(Collectors.toList());
             nodes.add(target);
         }
 

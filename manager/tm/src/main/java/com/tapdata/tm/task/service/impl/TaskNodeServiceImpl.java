@@ -161,9 +161,9 @@ public class TaskNodeServiceImpl implements TaskNodeService {
             }
 
             if (targetNode != null && nodeId.equals(targetNode.getId())) {
-                qualifiedNames.add(MetaDataBuilderUtils.generateQualifiedName(metaType, targetDataSource, tempName));
+                qualifiedNames.add(MetaDataBuilderUtils.generateQualifiedName(metaType, targetDataSource, tempName, taskId));
             } else {
-                qualifiedNames.add(MetaDataBuilderUtils.generateQualifiedName(MetaType.processor_node.name(), nodeId, tempName));
+                qualifiedNames.add(MetaDataBuilderUtils.generateQualifiedName(MetaType.processor_node.name(), nodeId, tempName, taskId));
             }
         }
 
