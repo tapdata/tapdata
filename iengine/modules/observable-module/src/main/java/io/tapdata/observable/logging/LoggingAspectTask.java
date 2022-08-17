@@ -145,6 +145,11 @@ public class LoggingAspectTask extends AspectTask {
 			return;
 		}
 
+		if (null == context) {
+			error(throwable);
+			return;
+		}
+
 		Node<?> node = context.getNode();
 		if (null == node) {
 			error(throwable);
@@ -158,7 +163,7 @@ public class LoggingAspectTask extends AspectTask {
 				.time(System.currentTimeMillis())
 				.withNode(node);
 
-		ObsLogger obsLogger = getObsLogger();
+		ObsLogger obsLogger = getObsLogger(node);
 		obsLogger.error(() -> obsLogger.logBaseBuilder().record(builder.build().toMap()), throwable.getMessage());
 	}
 
