@@ -72,7 +72,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
             }
         }
         if (StringUtils.isNotBlank(param.getSourceCategory())) {
-            if (!param.getCategory().equals(DataSourceCategoryEnum.connection.name())) {
+            if (!param.getSourceCategory().equals(DataSourceCategoryEnum.connection.name())) {
                 return page;
             }
         }
