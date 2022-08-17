@@ -363,11 +363,19 @@ public class DiscoveryServiceImpl implements DiscoveryService {
                     List<String> sourceTypes = sourceTypeFilterList(user);
                     returnMap.put(ObjectFilterEnum.sourceType, sourceTypes);
                     break;
+                case itemType:
+                    List<String> itemType = itemTypeFilterList();
+                    returnMap.put(ObjectFilterEnum.itemType, itemType);
+                    break;
                 default:
                     break;
             }
         }
         return returnMap;
+    }
+
+    private List<String> itemTypeFilterList() {
+        return Arrays.stream(ItemTypeEnum.values()).map(Enum::name).collect(Collectors.toList());
     }
 
     @Override
