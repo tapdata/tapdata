@@ -40,6 +40,7 @@ import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.value.TapDateTimeValue;
 import io.tapdata.flow.engine.V2.common.node.NodeTypeEnum;
+import io.tapdata.flow.engine.V2.exception.node.NodeException;
 import io.tapdata.flow.engine.V2.node.hazelcast.processor.HazelcastProcessorBaseNode;
 import io.tapdata.flow.engine.V2.node.hazelcast.processor.aggregation.HazelcastMultiAggregatorProcessor;
 import io.tapdata.flow.engine.V2.util.GraphUtil;
@@ -629,6 +630,11 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 		if (null != error) {
 			return;
 		}
+
+		if (!(throwable instanceof NodeException)) {
+			throwable = new NodeException(errorMessage, throwable).context(getProcessorBaseContext());
+		}
+
 		this.error = throwable;
 		this.errorMessage = errorMessage;
 		this.running.set(false);

@@ -2,6 +2,8 @@ package com.tapdata.tm.discovery.bean;
 
 import lombok.Data;
 
+import java.util.List;
+
 @Data
 public class DiscoveryQueryParam {
 
@@ -22,4 +24,6 @@ public class DiscoveryQueryParam {
 
     /** 分类id */
     private String tagId;
+
+    private List<String> itemTypes;
 }

@@ -66,13 +66,15 @@ public class DiscoveryServiceImpl implements DiscoveryService {
         Page<DataDiscoveryDto> page = new Page<>();
         page.setItems(Lists.of());
         page.setTotal(0);
+
+
         if (StringUtils.isNotBlank(param.getCategory())) {
             if (!param.getCategory().equals(DataObjCategoryEnum.storage.name())) {
                 return page;
             }
         }
         if (StringUtils.isNotBlank(param.getSourceCategory())) {
-            if (!param.getCategory().equals(DataSourceCategoryEnum.connection.name())) {
+            if (!param.getSourceCategory().equals(DataSourceCategoryEnum.connection.name())) {
                 return page;
             }
         }
@@ -103,6 +105,26 @@ public class DiscoveryServiceImpl implements DiscoveryService {
             List<ObjectId> tagIds = andChild.stream().map(BaseDto::getId).collect(Collectors.toList());
             criteria.and("listtags.id").in(tagIds);
         }
+
+
+
+//        if (StringUtils.isNotBlank(param.getItemType())) {
+//            List<String> types = new ArrayList<>();
+//            if (ItemTypeEnum.resource.name().equals(param.getItemType())) {
+//                types.add(DataObjCategoryEnum.storage.name());
+//                types.add(DataObjCategoryEnum.server.name());
+//            } else {
+//                types.add(DataObjCategoryEnum.calculate.name());
+//            }
+//
+//            if (StringUtils.isNotBlank(param.getCategory())) {
+//                if (!types.contains(param.getCategory())) {
+//                    return page;
+//                } else {
+//                    types.clear();
+//                }
+//            }
+//        }
 
         Query query = new Query(criteria);
         query.with(Sort.by(Sort.Direction.DESC, "createTime"));
@@ -363,11 +385,19 @@ public class DiscoveryServiceImpl implements DiscoveryService {
                     List<String> sourceTypes = sourceTypeFilterList(user);
                     returnMap.put(ObjectFilterEnum.sourceType, sourceTypes);
                     break;
+                case itemType:
+                    List<String> itemType = itemTypeFilterList();
+                    returnMap.put(ObjectFilterEnum.itemType, itemType);
+                    break;
                 default:
                     break;
             }
         }
         return returnMap;
+    }
+
+    private List<String> itemTypeFilterList() {
+        return Arrays.stream(ItemTypeEnum.values()).map(Enum::name).collect(Collectors.toList());
     }
 
     @Override
@@ -548,6 +578,28 @@ public class DiscoveryServiceImpl implements DiscoveryService {
                 default:
                     break;
             }
+        }
+    }
+
+    @Override
+    public void addObjCount(List<MetadataDefinitionDto> tagDtos, UserDetail user) {
+        for (MetadataDefinitionDto tagDto : tagDtos) {
+            Criteria criteria = Criteria.where("sourceType").is(SourceTypeEnum.SOURCE.name())
+                    .and("taskId").exists(false)
+                    .and("is_deleted").ne(true);
+
+            Criteria criteriaTask = Criteria.where("is_deleted").ne(true)
+                    .and("syncType").in(TaskDto.SYNC_TYPE_MIGRATE, TaskDto.SYNC_TYPE_SYNC)
+                    .and("agentId").exists(true);
+
+            List<MetadataDefinitionDto> andChild = metadataDefinitionService.findAndChild(Lists.of(tagDto.getId()));
+            List<ObjectId> tagIds = andChild.stream().map(BaseDto::getId).collect(Collectors.toList());
+            criteria.and("listtags.id").in(tagIds);
+            criteriaTask.and("listtags.id").in(tagIds);
+
+            long count = metadataInstancesService.count(new Query(criteria), user);
+            long count1 = taskRepository.count(new Query(criteria), user);
+            tagDto.setObjCount(count1 + count);
         }
     }
 }
