@@ -48,7 +48,7 @@ public class MigrateJsProcessorNode extends Node<List<Schema>> {
         getPrePre(this, predIds);
         predIds.add(this.getId());
         Dag dag = this.getDag().toDag();
-//        dag = JsonUtil.parseJsonUseJackson(JsonUtil.toJsonUseJackson(dag), Dag.class);
+        dag = JsonUtil.parseJsonUseJackson(JsonUtil.toJsonUseJackson(dag), Dag.class);
         List<Node> nodes = dag.getNodes();
 
         VirtualTargetNode target = new VirtualTargetNode();
