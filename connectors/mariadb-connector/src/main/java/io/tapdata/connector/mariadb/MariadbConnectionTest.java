@@ -55,11 +55,23 @@ public class MariadbConnectionTest {
 	}
 
 	public TestItem testConnect() {
-		try (
-				Connection connection = mysqlJdbcContext.getConnection()
-		) {
+		try {
+			mysqlJdbcContext.getConnection();
 			return testItem(TestItem.ITEM_CONNECTION, TestItem.RESULT_SUCCESSFULLY);
 		} catch (Exception e) {
+			if (e instanceof SQLException) {
+				String errMsg = e.getMessage();
+				if (errMsg.contains("using password")) {
+					String password = mysqlJdbcContext.getTapConnectionContext().getConnectionConfig().getString("password");
+					if (StringUtils.isNotEmpty(password)) {
+						errMsg = "password or username is error ,please check";
+					} else {
+						errMsg = "password is empty,please enter password";
+					}
+					return testItem(TestItem.ITEM_CONNECTION, TestItem.RESULT_FAILED, errMsg);
+
+				}
+			}
 			return testItem(TestItem.ITEM_CONNECTION, TestItem.RESULT_FAILED, e.getMessage());
 		}
 	}
