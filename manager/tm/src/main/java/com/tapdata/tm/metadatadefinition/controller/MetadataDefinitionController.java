@@ -39,9 +39,7 @@ public class MetadataDefinitionController extends BaseController {
     @PostMapping
     public ResponseMessage<MetadataDefinitionDto> save(@RequestBody MetadataDefinitionDto metadataDefinition) {
         metadataDefinition.setId(null);
-        if (CollectionUtils.isNotEmpty(metadataDefinitionService.findByItemtypeAndValue(metadataDefinition,getLoginUser()))){
-            throw new BizException("MetadataDefinition.Value.Exist");
-        }
+        metadataDefinitionService.findByItemtypeAndValue(metadataDefinition,getLoginUser());
         return success(metadataDefinitionService.save(metadataDefinition, getLoginUser()));
     }
 

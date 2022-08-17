@@ -101,15 +101,23 @@ public class MetadataDefinitionService extends BaseService<MetadataDefinitionDto
 
 
     public List<MetadataDefinitionDto> findByItemtypeAndValue(MetadataDefinitionDto metadataDefinitionDto,UserDetail userDetail){
-        List<String> itemType=metadataDefinitionDto.getItemType();
         String value=metadataDefinitionDto.getValue();
 
-        Query query=Query.query(Criteria.where("item_type").in(itemType).and("value").is(value));
-        List<MetadataDefinitionDto> metadataDefinitionDtos=findAll(query);
+
+        String parentId = metadataDefinitionDto.getParent_id();
+        Criteria criteria = Criteria.where("value").is(value);
+        if (StringUtils.isBlank(parentId)) {
+            criteria.and("parent_id").exists(false);
+        } else {
+            criteria.and("parent_id").is(parentId);
+        }
+
+        Query query=Query.query(criteria);
+        List<MetadataDefinitionDto> metadataDefinitionDtos =findAll(query);
+        if (CollectionUtils.isNotEmpty(metadataDefinitionDtos)){
+            throw new BizException("Tag.RepeatName");
+        }
         return metadataDefinitionDtos;
-       /* if (CollectionUtils.isNotEmpty(metadataDefinitionDtos)){
-            throw new BizException("Inspect.Name.Exist");
-        }*/
     }
 
     /**
@@ -163,7 +171,8 @@ public class MetadataDefinitionService extends BaseService<MetadataDefinitionDto
 
 
     private List<MetadataDefinitionDto> findChild(List<MetadataDefinitionDto> metadataDefinitionDtos, List<ObjectId> idList) {
-        Criteria criteria = Criteria.where("parent_id").in(idList);
+        List<String> collect = idList.stream().map(ObjectId::toHexString).collect(Collectors.toList());
+        Criteria criteria = Criteria.where("parent_id").in(collect);
         Query query = new Query(criteria);
         List<MetadataDefinitionDto> all = findAll(query);
         if (CollectionUtils.isEmpty(all)) {
