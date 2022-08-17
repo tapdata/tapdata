@@ -1,6 +1,6 @@
 ## **Connection configuration help**
 ### **1. POSTGRESQL installation instructions**
-Please follow the instructions below to ensure that the PostgreSQL database is successfully added and used in Tapdata.
+Please follow the instructions below to ensure that the PostgreSQL database is successfully added and used in IKAS.
 ### **2. Supported version**
 PostgreSQL 9.4, 9.5, 9.6, 10.x, 11.x, 12 versions
 ### **3. CDC principle and support**
@@ -21,7 +21,7 @@ This attribute determines the field of the log record when the data occurs `UPDA
 - **NOTHING**-Updates and deletes will not contain any previous values
 - **FULL**-Updates and deletes will include the previous values of all columns
 - **INDEX index name**-update and delete events will contain the previous value of the column included in the index definition named index name
-  If there are scenarios where multiple tables are merged and synchronized, Tapdata needs to adjust this attribute to FULL
+  If there are scenarios where multiple tables are merged and synchronized, IKAS needs to adjust this attribute to FULL
   Example
 ```
 alter table'[schema]'.'[table name]' REPLICA IDENTITY FULL`
@@ -134,15 +134,15 @@ drop table public.test_decode
 ```
 #### **4.5 Exception Handling**
 - **Slot Cleanup**<br>
-  If tapdata is interrupted due to an uncontrollable exception (power failure, process crash, etc.), the slot connection cannot be deleted from the pg master node correctly, and a slot connection quota will always be occupied. You need to manually log in to the master node to delete
+  If IKAS is interrupted due to an uncontrollable exception (power failure, process crash, etc.), the slot connection cannot be deleted from the pg master node correctly, and a slot connection quota will always be occupied. You need to manually log in to the master node to delete
   Query slot information
 ```
-// Check if there is slot_name=tapdata information
+// Check if there is slot_name=IKAS information
  TABLE pg_replication_slots;
 ```
 - **Delete slot node**<br>
 ```
-select * from pg_drop_replication_slot('tapdata');
+select * from pg_drop_replication_slot('IKAS');
 ```
 - **Delete operation**<br>
   When using the wal2json plug-in to decode, if the source table does not have a primary key, the delete operation of incremental synchronization cannot be achieved

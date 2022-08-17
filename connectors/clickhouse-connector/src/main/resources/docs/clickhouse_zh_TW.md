@@ -2,7 +2,7 @@
 
 ### **1. ClickHouse 安裝說明**
 
-請遵循以下說明以確保在 Tapdata 中成功添加和使用 ClickHouse 數據庫。
+請遵循以下說明以確保在 IKAS 中成功添加和使用 ClickHouse 數據庫。
 
 ### **2. 支持版本**
 ClickHouse v21.x

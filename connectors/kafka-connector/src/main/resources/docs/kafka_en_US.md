@@ -1,6 +1,6 @@
 ## **connection configuration description**
 ### **1. Kafka installation instructions**
-Please follow the instructions below to ensure that the Kafka database is successfully added and used in tapdata.
+Please follow the instructions below to ensure that the Kafka database is successfully added and used in IKAS.
 ### **2. use restrictions**
 >- only the message format of JSON object string is supported (such as ` {"Id": 1, "name": "Zhang San"} `)
 >- create a theme in advance

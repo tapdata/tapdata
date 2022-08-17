@@ -2,14 +2,14 @@
 
 ### **1. Doris 安装说明**
 
-请遵循以下说明以确保在 Tapdata 中成功添加和使用Doris数据库。
+请遵循以下说明以确保在 IKAS 中成功添加和使用Doris数据库。
 
 ### **2. 支持版本**
 Doris 5.0、5.1、5.5、5.6、5.7、8.x
 
 ### **3. 先决条件（作为源）**
 #### **3.1 开启 Binlog**
-- 必须开启 Doris 的 binlog ，Tapdata 才能正常完成同步工作。
+- 必须开启 Doris 的 binlog ，IKAS 才能正常完成同步工作。
 - 级连删除（CASCADE DELETE），这类由数据库产生的删除不会记录在binlog内，所以不被支持。
   修改 `$Doris_HOME/Doris.cnf `, 例如:
 ```
@@ -59,14 +59,14 @@ alter user 'username'@'localhost' identified with Doris_native_password by 'pass
 
 ```
 
-#### **3.4 给 tapdata 账号授权**
+#### **3.4 给 IKAS 账号授权**
 对于某个数据库赋于select权限
 ```
-GRANT SELECT, SHOW VIEW, CREATE ROUTINE, LOCK TABLES ON <DATABASE_NAME>.<TABLE_NAME> TO 'tapdata' IDENTIFIED BY 'password';
+GRANT SELECT, SHOW VIEW, CREATE ROUTINE, LOCK TABLES ON <DATABASE_NAME>.<TABLE_NAME> TO 'IKAS' IDENTIFIED BY 'password';
 ```
 对于全局的权限
 ```
-GRANT RELOAD, SHOW DATABASES, REPLICATION SLAVE, REPLICATION CLIENT ON *.* TO 'tapdata' IDENTIFIED BY 'password';
+GRANT RELOAD, SHOW DATABASES, REPLICATION SLAVE, REPLICATION CLIENT ON *.* TO 'IKAS' IDENTIFIED BY 'password';
 ```
 #### **3.5 约束说明**
 ```
@@ -75,16 +75,16 @@ GRANT RELOAD, SHOW DATABASES, REPLICATION SLAVE, REPLICATION CLIENT ON *.* TO 't
 ###  **4. 先决条件（作为目标）**
 对于某个数据库赋于全部权限
 ```
-GRANT ALL PRIVILEGES ON <DATABASE_NAME>.<TABLE_NAME> TO 'tapdata' IDENTIFIED BY 'password';
+GRANT ALL PRIVILEGES ON <DATABASE_NAME>.<TABLE_NAME> TO 'IKAS' IDENTIFIED BY 'password';
 ```
 对于全局的权限
 ```
-GRANT PROCESS ON *.* TO 'tapdata' IDENTIFIED BY 'password';
+GRANT PROCESS ON *.* TO 'IKAS' IDENTIFIED BY 'password';
 ```
 ###  **5. 常见错误**
 
 Unknown error 1044
-如果权限已经grant了，但是通过tapdata还是无法通过测试连接，可以通过下面的步骤检查并修复
+如果权限已经grant了，但是通过IKAS还是无法通过测试连接，可以通过下面的步骤检查并修复
 ```
 SELECT host,user,Grant_priv,Super_priv FROM Doris.user where user='username';
 //查看Grant_priv字段的值是否为Y

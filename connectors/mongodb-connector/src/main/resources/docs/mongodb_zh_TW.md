@@ -2,14 +2,14 @@
 
 ### **1. MYSQL 安裝說明**
 
-請遵循以下說明以確保在 Tapdata 中成功添加和使用MySQL數據庫。
+請遵循以下說明以確保在 IKAS 中成功添加和使用MySQL數據庫。
 
 ### **2. 支持版本**
 MySQL 5.0、5.1、5.5、5.6、5.7、8.x
 
 ### **3. 先決條件（作為源）**
 #### **3.1 開啟 Binlog**
-- 必須開啟 MySQL 的 binlog ，Tapdata 才能正常完成同步工作。
+- 必須開啟 MySQL 的 binlog ，IKAS 才能正常完成同步工作。
 - 級連刪除（CASCADE DELETE），這類由數據庫產生的刪除不會記錄在binlog內，所以不被支持。
   修改 `$MYSQL_HOME/mysql.cnf `, 例如:
 ```
@@ -58,14 +58,14 @@ alter user 'username'@'localhost' identified with mysql_native_password by 'pass
 
 ```
 
-#### **3.4 給 tapdata 賬號授權**
+#### **3.4 給 IKAS 賬號授權**
 對於某個數據庫賦於select權限
 ```
-GRANT SELECT, SHOW VIEW, CREATE ROUTINE, LOCK TABLES ON <DATABASE_NAME>.<TABLE_NAME> TO 'tapdata' IDENTIFIED BY 'password';
+GRANT SELECT, SHOW VIEW, CREATE ROUTINE, LOCK TABLES ON <DATABASE_NAME>.<TABLE_NAME> TO 'IKAS' IDENTIFIED BY 'password';
 ```
 對於全局的權限
 ```
-GRANT RELOAD, SHOW DATABASES, REPLICATION SLAVE, REPLICATION CLIENT ON *.* TO 'tapdata' IDENTIFIED BY 'password';
+GRANT RELOAD, SHOW DATABASES, REPLICATION SLAVE, REPLICATION CLIENT ON *.* TO 'IKAS' IDENTIFIED BY 'password';
 ```
 #### **3.5 約束說明**
 ```
@@ -74,16 +74,16 @@ GRANT RELOAD, SHOW DATABASES, REPLICATION SLAVE, REPLICATION CLIENT ON *.* TO 't
 ###  **4. 先決條件（作為目標）**
 對於某個數據庫賦於全部權限
 ```
-GRANT ALL PRIVILEGES ON <DATABASE_NAME>.<TABLE_NAME> TO 'tapdata' IDENTIFIED BY 'password';
+GRANT ALL PRIVILEGES ON <DATABASE_NAME>.<TABLE_NAME> TO 'IKAS' IDENTIFIED BY 'password';
 ```
 對於全局的權限
 ```
-GRANT PROCESS ON *.* TO 'tapdata' IDENTIFIED BY 'password';
+GRANT PROCESS ON *.* TO 'IKAS' IDENTIFIED BY 'password';
 ```
 ###  **5. 常見錯誤**
 
 Unknown error 1044
-如果權限已經grant了，但是通過tapdata還是無法通過測試連接，可以通過下面的步驟檢查並修復
+如果權限已經grant了，但是通過IKAS還是無法通過測試連接，可以通過下面的步驟檢查並修復
 ```
 SELECT host,user,Grant_priv,Super_priv FROM mysql.user where user='username';
 //查看Grant_priv字段的值是否為Y

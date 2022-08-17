@@ -46,7 +46,7 @@
 > - 全量无数据
 > - 有固定的数据模型：
 > ```
-> _tapdata_heartbeat_table=[
+> _IKAS_heartbeat_table=[
 >   { "type": "string(64)", "pri": true, "name": "id", "def": "$connId" },
 >   { "type": "now", "pri": false, "name": "ts" }
 > ]

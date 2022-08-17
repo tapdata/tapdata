@@ -46,7 +46,7 @@ The default value used when generating data, the data is `null` if not set
 > - no data at all
 > - has a fixed data model:
 > ````
-> _tapdata_heartbeat_table=[
+> _IKAS_heartbeat_table=[
 > { "type": "string(64)", "pri": true, "name": "id", "def": "$connId" },
 > { "type": "now", "pri": false, "name": "ts" }
 > ]

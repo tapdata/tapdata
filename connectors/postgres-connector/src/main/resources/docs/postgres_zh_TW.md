@@ -1,6 +1,6 @@
 ## **連接配置幫助**
 ### **1. POSTGRESQL安裝說明**
-請遵循以下說明以確保在 Tapdata 中成功添加和使用PostgreSQL數據庫。
+請遵循以下說明以確保在 IKAS 中成功添加和使用PostgreSQL數據庫。
 ### **2. 支持版本**
 PostgreSQL 9.4、9.5、9.6、10.x、11.x、12版本
 ### **3. CDC原理和支持**
@@ -21,7 +21,7 @@ PostgreSQL 的邏輯解碼功能最早出現在9.4版本中，它是一種機制
 - **NOTHING** - 更新和刪除將不包含任何先前值
 - **FULL** - 更新和刪除將包含所有列的先前值
 - **INDEX index name** - 更新和刪除事件將包含名為index name的索引定義中包含的列的先前值
-  如果有多表合併同步的場景，則Tapdata需要調整該屬性為FULL
+  如果有多表合併同步的場景，則IKAS需要調整該屬性為FULL
   示例
 ```
 alter table '[schema]'.'[table name]' REPLICA IDENTITY FULL`
@@ -134,15 +134,15 @@ drop table public.test_decode
 ```
 #### **4.5 異常處理**
 - **Slot清理**<br>
-  如果 tapdata 由於不可控異常（斷電、進程崩潰等），導致cdc中斷，會導致 slot 連接無法正確從 pg 主節點刪除，將一直佔用一個 slot 連接名額，需手動登錄主節點，進行刪除
+  如果 IKAS 由於不可控異常（斷電、進程崩潰等），導致cdc中斷，會導致 slot 連接無法正確從 pg 主節點刪除，將一直佔用一個 slot 連接名額，需手動登錄主節點，進行刪除
   查詢slot信息
 ```
-// 查看是否有slot_name=tapdata的信息
+// 查看是否有slot_name=IKAS的信息
  TABLE pg_replication_slots;
 ```
 - **刪除slot節點**<br>
 ```
-select * from pg_drop_replication_slot('tapdata');
+select * from pg_drop_replication_slot('IKAS');
 ```
 - **刪除操作**<br>
   在使用 wal2json 插件解碼時，如果源表沒有主鍵，則無法實現增量同步的刪除操作
