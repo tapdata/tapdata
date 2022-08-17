@@ -8,10 +8,7 @@ import com.tapdata.constant.Log4jUtil;
 import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.CacheNode;
-import com.tapdata.tm.commons.task.dto.SubTaskDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
-import io.tapdata.aspect.utils.AspectUtils;
-import io.tapdata.aspect.TaskStopAspect;
 import io.tapdata.flow.engine.V2.common.HazelcastStatusMappingEnum;
 import io.tapdata.flow.engine.V2.monitor.MonitorManager;
 import io.tapdata.flow.engine.V2.progress.SnapshotProgressManager;
@@ -28,12 +25,12 @@ import java.util.Optional;
  * @author jackin
  * @date 2021/12/7 9:47 PM
  **/
-public class HazelcastTaskClient implements TaskClient<SubTaskDto> {
+public class HazelcastTaskClient implements TaskClient<TaskDto> {
 
 	private Logger logger = LogManager.getLogger(HazelcastTaskClient.class);
 
 	private Job job;
-	private SubTaskDto subTaskDto;
+	private TaskDto taskDto;
 	//  private BaseMetrics taskMetrics;
 //  protected ScheduledExecutorService metricsThreadPool;
 //  protected ScheduledFuture<?> metricsThreadPoolFuture;
@@ -44,30 +41,30 @@ public class HazelcastTaskClient implements TaskClient<SubTaskDto> {
 	private SnapshotProgressManager snapshotProgressManager;
 	private String cacheName;
 
-	public HazelcastTaskClient(Job job, SubTaskDto subTaskDto, ClientMongoOperator clientMongoOperator, ConfigurationCenter configurationCenter, HazelcastInstance hazelcastInstance, MilestoneService milestoneService) {
+	public HazelcastTaskClient(Job job, TaskDto taskDto, ClientMongoOperator clientMongoOperator, ConfigurationCenter configurationCenter, HazelcastInstance hazelcastInstance, MilestoneService milestoneService) {
 		this.job = job;
-		this.subTaskDto = subTaskDto;
+		this.taskDto = taskDto;
 		this.clientMongoOperator = clientMongoOperator;
 		this.configurationCenter = configurationCenter;
 		this.hazelcastInstance = hazelcastInstance;
-		if (!StringUtils.equalsAnyIgnoreCase(subTaskDto.getParentTask().getSyncType(), TaskDto.SYNC_TYPE_DEDUCE_SCHEMA, TaskDto.SYNC_TYPE_TEST_RUN)) {
+		if (!StringUtils.equalsAnyIgnoreCase(taskDto.getSyncType(), TaskDto.SYNC_TYPE_DEDUCE_SCHEMA, TaskDto.SYNC_TYPE_TEST_RUN)) {
 			this.monitorManager = new MonitorManager();
 			try {
-				this.monitorManager.startMonitor(MonitorManager.MonitorType.SUBTASK_MILESTONE_MONITOR, subTaskDto, milestoneService);
+				this.monitorManager.startMonitor(MonitorManager.MonitorType.SUBTASK_MILESTONE_MONITOR, taskDto, milestoneService);
 			} catch (Exception e) {
 				logger.warn("The milestone monitor failed to start, which may affect the milestone functionality; Error: "
 						+ e.getMessage() + "\n" + Log4jUtil.getStackString(e));
 			}
 			try {
-				this.monitorManager.startMonitor(MonitorManager.MonitorType.SUBTASK_PING_TIME, subTaskDto, clientMongoOperator);
+				this.monitorManager.startMonitor(MonitorManager.MonitorType.SUBTASK_PING_TIME, taskDto, clientMongoOperator);
 			} catch (Exception e) {
 				logger.warn("The task ping time monitor failed to start, which may affect the ping time functionality; Error: "
 						+ e.getMessage() + "\n" + Log4jUtil.getStackString(e));
 			}
-			snapshotProgressManager = new SnapshotProgressManager(subTaskDto, clientMongoOperator);
+			snapshotProgressManager = new SnapshotProgressManager(taskDto, clientMongoOperator);
 			snapshotProgressManager.startStatsSubTaskSnapshotProgress();
 		}
-		Optional<Node> cacheNode = subTaskDto.getDag().getNodes().stream().filter(n -> n instanceof CacheNode).findFirst();
+		Optional<Node> cacheNode = taskDto.getDag().getNodes().stream().filter(n -> n instanceof CacheNode).findFirst();
 		cacheNode.ifPresent(c -> cacheName = ((CacheNode) c).getCacheName());
 	}
 
@@ -77,8 +74,8 @@ public class HazelcastTaskClient implements TaskClient<SubTaskDto> {
 	}
 
 	@Override
-	public SubTaskDto getTask() {
-		return subTaskDto;
+	public TaskDto getTask() {
+		return taskDto;
 	}
 
 	@Override

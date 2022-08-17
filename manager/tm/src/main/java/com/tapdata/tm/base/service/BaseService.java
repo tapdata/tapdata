@@ -15,6 +15,7 @@ import com.tapdata.tm.utils.MapUtils;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.StringUtils;
 import org.bson.Document;
 import org.springframework.beans.BeanUtils;
 import org.springframework.data.domain.Sort;
@@ -22,7 +23,10 @@ import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.util.Assert;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 
+import javax.servlet.http.HttpServletRequest;
 import java.io.Serializable;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -42,6 +46,14 @@ public abstract class BaseService<Dto extends BaseDto, Entity extends BaseEntity
     protected Class<Dto> dtoClass;
     @NonNull
     protected Class<Entity> entityClass;
+
+
+    protected boolean isAgentReq() {
+        ServletRequestAttributes attributes = (ServletRequestAttributes) RequestContextHolder.currentRequestAttributes();
+        HttpServletRequest request = attributes.getRequest();
+        String userAgent = request.getHeader("user-agent");
+        return StringUtils.isNotBlank(userAgent) && (userAgent.contains("Java") || userAgent.contains("Node") || userAgent.contains("FlowEngine"));
+    }
 
     /**
      * Paging query

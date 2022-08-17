@@ -4,8 +4,10 @@ import io.debezium.config.Configuration;
 import io.debezium.connector.mysql.MySqlConnectorConfig;
 import io.debezium.embedded.EmbeddedEngine;
 import io.debezium.engine.DebeziumEngine;
-import io.tapdata.connector.mysql.ddl.DDLFactory;
-import io.tapdata.connector.mysql.ddl.DDLParserType;
+import io.tapdata.common.ddl.DDLFactory;
+import io.tapdata.common.ddl.ccj.CCJBaseDDLWrapper;
+import io.tapdata.common.ddl.type.DDLParserType;
+import io.tapdata.common.ddl.wrapper.DDLWrapperConfig;
 import io.tapdata.connector.mysql.entity.MysqlBinlogPosition;
 import io.tapdata.connector.mysql.entity.MysqlSnapshotOffset;
 import io.tapdata.connector.mysql.entity.MysqlStreamEvent;
@@ -57,7 +59,6 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static io.tapdata.connector.mysql.util.MysqlUtil.randomServerId;
-import static io.tapdata.entity.simplify.TapSimplify.insertRecordEvent;
 
 /**
  * @author samuel
@@ -70,6 +71,7 @@ public class MysqlReader implements Closeable {
 	public static final String MYSQL_SCHEMA_HISTORY = "MYSQL_SCHEMA_HISTORY";
 	private static final String SOURCE_RECORD_DDL_KEY = "ddl";
 	public static final String FIRST_TIME_KEY = "FIRST_TIME";
+	private static final DDLWrapperConfig DDL_WRAPPER_CONFIG = CCJBaseDDLWrapper.CCJDDLWrapperConfig.create().split("`");
 	private String serverName;
 	private AtomicBoolean running;
 	private MysqlJdbcContext mysqlJdbcContext;
@@ -79,7 +81,7 @@ public class MysqlReader implements Closeable {
 	private StreamReadConsumer streamReadConsumer;
 	private ScheduledExecutorService mysqlSchemaHistoryMonitor;
 	private KVReadOnlyMap<TapTable> tapTableMap;
-	private DDLParserType ddlParserType = DDLParserType.CCJ_SQL_PARSER;
+	private DDLParserType ddlParserType = DDLParserType.MYSQL_CCJ_SQL_PARSER;
 	private final int MIN_BATCH_SIZE = 1000;
 
 	public MysqlReader(MysqlJdbcContext mysqlJdbcContext) {
@@ -412,6 +414,7 @@ public class MysqlReader implements Closeable {
 				DDLFactory.ddlToTapDDLEvent(
 						ddlParserType,
 						ddlStr,
+						DDL_WRAPPER_CONFIG,
 						tapTableMap,
 						tapDDLEvent -> {
 							MysqlStreamEvent mysqlStreamEvent = new MysqlStreamEvent(tapDDLEvent, mysqlStreamOffset);

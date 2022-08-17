@@ -1,5 +1,6 @@
 package com.tapdata.tm.commons.util;
 
+import com.google.common.base.Joiner;
 import com.mongodb.ConnectionString;
 import com.tapdata.tm.commons.schema.*;
 import com.tapdata.tm.commons.schema.DataSourceEnum;
@@ -9,9 +10,9 @@ import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.bson.types.ObjectId;
 import org.springframework.beans.BeanUtils;
+import org.springframework.lang.NonNull;
 
 import java.util.*;
-
 
 
 /**
@@ -21,7 +22,11 @@ import java.util.*;
  */
 public class MetaDataBuilderUtils {
 
+    private static final String QUALIFIED_NAME_SEPARATOR = "_";
+    private static final String QUALIFIED_NAME_SPECIAL_CHARACTERS = "[/.@&:?=%\\s]+";
+
     public static final Map<String, MetaTypeProperty> metaTypePropertyMap;
+
     static {
         metaTypePropertyMap = new HashMap<>();
         metaTypePropertyMap.put(MetaType.database.name(), new MetaTypeProperty("CONN_", false));
@@ -42,22 +47,48 @@ public class MetaDataBuilderUtils {
     }
 
     public static String generateQualifiedName(String metaType, String nodeId, String tableName) {
+        return generateQualifiedName(metaType, nodeId, tableName, null);
+    }
+
+    /** stay task id*/
+    public static String generateQualifiedName(String metaType, String nodeId, String tableName, String taskId) {
         if (StringUtils.isBlank(tableName)) {
             return metaTypePropertyMap.get(metaType).prefix + nodeId;
         } else {
-            return metaTypePropertyMap.get(metaType).prefix + nodeId + "_" + tableName;
+            return metaTypePropertyMap.get(metaType).prefix + nodeId + QUALIFIED_NAME_SEPARATOR + tableName;
         }
     }
 
-    public static String generateQualifiedName(String metaType, DataSourceConnectionDto connectionDto, String tableName) {
+    public static String generatePdkQualifiedName(@NonNull String metaType, @NonNull String connId, @NonNull String tableName
+            , @NonNull String definitionPdkId, @NonNull String definitionGroup, @NonNull String definitionVersion, String taskId) {
+
         String qualifiedName = metaTypePropertyMap.get(metaType).getPrefix();
+
+        Joiner joiner = Joiner.on(QUALIFIED_NAME_SEPARATOR).skipNulls();
+        if (StringUtils.isBlank(tableName)) {
+            tableName = null;
+        }
+
+        if (StringUtils.isBlank(taskId)) {
+            taskId = null;
+        }
+        qualifiedName += joiner.join(definitionPdkId, definitionGroup, definitionVersion, tableName, connId, taskId);
+        qualifiedName = qualifiedName.replaceAll(QUALIFIED_NAME_SPECIAL_CHARACTERS, QUALIFIED_NAME_SEPARATOR);
+        return qualifiedName;
+    }
+
+    public static String generateQualifiedName(String metaType, DataSourceConnectionDto connectionDto, String tableName) {
+        return generateQualifiedName(metaType, connectionDto, tableName, null);
+    }
+    public static String generateQualifiedName(String metaType, DataSourceConnectionDto connectionDto, String tableName, String taskId) {
+
         String id = connectionDto.getId().toHexString();
         if (DataSourceDefinitionDto.PDK_TYPE.equals(connectionDto.getPdkType())) {
-            qualifiedName += connectionDto.getDefinitionPdkId() + "_";
-            qualifiedName += connectionDto.getDefinitionGroup() + "_";
-            qualifiedName += connectionDto.getDefinitionVersion() + "_";
-            qualifiedName += tableName + "_" + id;
-        } else if (metaTypePropertyMap.get(metaType).isModel()) {
+            return generatePdkQualifiedName(metaType, id, tableName, connectionDto.getDefinitionPdkId(), connectionDto.getDefinitionGroup(), connectionDto.getDefinitionVersion(), taskId);
+        }
+
+        String qualifiedName = metaTypePropertyMap.get(metaType).getPrefix();
+        if (metaTypePropertyMap.get(metaType).isModel()) {
             String databaseType = connectionDto.getDatabase_type();
             String databaseName;
             String databaseOwner = "";
@@ -70,25 +101,28 @@ public class MetaDataBuilderUtils {
                 databaseOwner = connectionDto.getDatabase_owner();
             }
 
-            qualifiedName += databaseType + "_";
+            qualifiedName += databaseType + QUALIFIED_NAME_SEPARATOR;
 
             if (StringUtils.isNotBlank(databaseName)) {
-                qualifiedName += databaseName + "_";
+                qualifiedName += databaseName + QUALIFIED_NAME_SEPARATOR;
             }
             if (StringUtils.isNotBlank(databaseOwner)) {
-                qualifiedName += databaseOwner + "_";
+                qualifiedName += databaseOwner + QUALIFIED_NAME_SEPARATOR;
             }
-            qualifiedName += tableName + "_" + id;
+            qualifiedName += tableName + QUALIFIED_NAME_SEPARATOR + id;
+            if (StringUtils.isNotBlank(taskId)) {
+                qualifiedName += "_" + taskId;
+            }
 
         } else {
             if ("api".equals(metaType)) {
                 String basePath = StringUtils.isNotBlank(connectionDto.getBasePath()) ? connectionDto.getBasePath() : connectionDto.getPath();
                 String apiVersion = connectionDto.getApiVersion();
-                qualifiedName += basePath + "_" + apiVersion + "_";
+                qualifiedName += basePath + QUALIFIED_NAME_SEPARATOR + apiVersion + QUALIFIED_NAME_SEPARATOR;
             }
             qualifiedName += id;
         }
-        qualifiedName = qualifiedName.replaceAll("[/.@&:?=%\\s]+", "_");
+        qualifiedName = qualifiedName.replaceAll(QUALIFIED_NAME_SPECIAL_CHARACTERS, QUALIFIED_NAME_SEPARATOR);
 
         return qualifiedName;
     }
@@ -106,16 +140,30 @@ public class MetaDataBuilderUtils {
 
 
     public static MetadataInstancesDto build(String metaType, DataSourceConnectionDto source, String userId, String userName) {
-       return build(metaType, source, userId, userName, null, null, null, null, null, null);
+        return build(metaType, source, userId, userName, null, null, null, null, null, null, null);
     }
+    public static MetadataInstancesDto build(String metaType, DataSourceConnectionDto source, String userId, String userName, String taskId) {
+       return build(metaType, source, userId, userName, null, null, null, null, null, null, taskId);
+    }
+
 
     public static MetadataInstancesDto build(String metaType, DataSourceConnectionDto source, String userId, String userName, String tableName
             , MetadataInstancesDto newModel, MetadataInstancesDto oldModel, String databaseId) {
-        return build(metaType, source, userId, userName, tableName, newModel, oldModel, databaseId, null, null);
+        return build(metaType, source, userId, userName, tableName, newModel, oldModel, databaseId, null);
+
+    }
+
+    public static MetadataInstancesDto build(String metaType, DataSourceConnectionDto source, String userId, String userName, String tableName
+            , MetadataInstancesDto newModel, MetadataInstancesDto oldModel, String databaseId, String taskId) {
+        return build(metaType, source, userId, userName, tableName, newModel, oldModel, databaseId, null, null, taskId);
     }
 
     public static MetadataInstancesDto build(String metaType, DataSourceConnectionDto source, String userId, String userName, String tableName
             , MetadataInstancesDto newModel, MetadataInstancesDto oldModel, String databaseId, String createSource, Map<String, String> qualifiedNameMap) {
+        return build(metaType, source, userId, userName, tableName, newModel, oldModel, databaseId, createSource, qualifiedNameMap, null);
+    }
+    public static MetadataInstancesDto build(String metaType, DataSourceConnectionDto source, String userId, String userName, String tableName
+            , MetadataInstancesDto newModel, MetadataInstancesDto oldModel, String databaseId, String createSource, Map<String, String> qualifiedNameMap, String taskId) {
 
         if (qualifiedNameMap == null) {
             qualifiedNameMap = new HashMap<>();
@@ -133,12 +181,12 @@ public class MetaDataBuilderUtils {
         metadataObj.setMetaType(metaType);
         metadataObj.setOriginalName(sourceDto.getName());
         String qualifiedName = qualifiedNameMap.get(tableName);
-        metadataObj.setQualifiedName(StringUtils.isBlank(qualifiedName) ? generateQualifiedName(metaType, source, tableName) : qualifiedName);
+        metadataObj.setQualifiedName(StringUtils.isBlank(qualifiedName) ? generateQualifiedName(metaType, source, tableName, taskId) : qualifiedName);
         metadataObj.setSource(sourceDto);
         metadataObj.setDevVersion(1);
 
         if (CollectionUtils.isNotEmpty(sourceDto.getListtags()) && !metaTypePropertyMap.get(metaType).model) {
-            metadataObj.setClassifications(sourceDto.getListtags());
+            metadataObj.setListtags(sourceDto.getListtags());
         }
 
         metadataObj.setLastUpdBy(userId);
@@ -159,8 +207,8 @@ public class MetaDataBuilderUtils {
                 if (newModel.getDevVersion() == null) {
                     newModel.setDevVersion(metadataObj.getDevVersion());
                 }
-                if (newModel.getClassifications() == null) {
-                    newModel.setClassifications(metadataObj.getClassifications());
+                if (newModel.getListtags() == null) {
+                    newModel.setListtags(metadataObj.getListtags());
                 }
                 if (newModel.getLastUpdBy() == null) {
                     newModel.setLastUpdBy(metadataObj.getLastUpdBy());
@@ -173,6 +221,7 @@ public class MetaDataBuilderUtils {
 
             metadataObj.setDatabaseId(databaseId);
             metadataObj.setSource(sourceDto);
+            metadataObj.setTaskId(taskId);
 
             if (sourceDto.getLoadSchemaField() != null && sourceDto.getLoadSchemaField()) {
                 if (oldModel != null && newModel != null && CollectionUtils.isNotEmpty(newModel.getFields())) {
@@ -229,12 +278,12 @@ public class MetaDataBuilderUtils {
                     }
                     break;
                 case api:
-                    String basePath = StringUtils.isNotBlank(sourceDto.getBasePath()) ? sourceDto.getBasePath() :sourceDto.getPath();
+                    String basePath = StringUtils.isNotBlank(sourceDto.getBasePath()) ? sourceDto.getBasePath() : sourceDto.getPath();
                     String apiVersion = sourceDto.getApiVersion();
                     String s = StringUtils.isNotBlank(sourceDto.getName()) ? sourceDto.getName() : StringUtils.isNotBlank(sourceDto.getDescription()) ? sourceDto.getDescription() : basePath;
                     metadataObj.setOriginalName(basePath + "_" + apiVersion);
                     break;
-                default :
+                default:
                     break;
 
             }
@@ -263,7 +312,7 @@ public class MetaDataBuilderUtils {
     }
 
 
-    private static void  handleSource(SourceDto source) {
+    private static void handleSource(SourceDto source) {
         if (source == null) {
             return;
         }

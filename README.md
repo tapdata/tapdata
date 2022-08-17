@@ -20,6 +20,9 @@ Tapdata is a live data platform designed to connect data silos and provide fresh
 1. Please make sure you have Docker installed on your machine before you get starated. 
 2. Currently we only tested on linux OS(No specific flavor requirement).
 3. clone repo: `git clone https://github.com/tapdata/tapdata.git && cd tapdata`
+
+## Last Release Branch
+release-v2.7
  
 ### Quick Use
 This is the easiest way to experiment Tapdata:

@@ -1,7 +1,7 @@
 package io.tapdata.flow.engine.V2.monitor.impl;
 
 import com.tapdata.constant.ExecutorUtil;
-import com.tapdata.tm.commons.task.dto.SubTaskDto;
+import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.milestone.MilestoneFlowServiceJetV2;
 
 import java.io.IOException;
@@ -19,8 +19,8 @@ public class TaskMilestoneMonitor extends TaskMonitor<Object> {
 	private MilestoneFlowServiceJetV2 milestoneService;
 	private ScheduledExecutorService executorService;
 
-	public TaskMilestoneMonitor(SubTaskDto subTaskDto, MilestoneFlowServiceJetV2 milestoneService) {
-		super(subTaskDto);
+	public TaskMilestoneMonitor(TaskDto taskDto, MilestoneFlowServiceJetV2 milestoneService) {
+		super(taskDto);
 		this.milestoneService = milestoneService;
 		this.executorService = new ScheduledThreadPoolExecutor(1);
 	}

@@ -32,6 +32,7 @@ public class ModelPredictionMain {
 				"connectors/dist/mongodb-connector-v1.0-SNAPSHOT.jar",
 //				"connectors/dist/mssql-connector-v1.0-SNAPSHOT.jar",
 				"connectors/dist/mysql-connector-v1.0-SNAPSHOT.jar",
+				"connectors/dist/redis-connector-v1.0-SNAPSHOT.jar",
 //				"connectors/dist/oceanbase-connector-v1.0-SNAPSHOT.jar",
 //				"connectors/dist/oracle-connector-v1.0-SNAPSHOT.jar",
 //				"connectors/dist/postgres-connector-v1.0-SNAPSHOT.jar",

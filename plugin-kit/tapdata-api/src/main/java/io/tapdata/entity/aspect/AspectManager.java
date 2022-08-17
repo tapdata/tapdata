@@ -6,7 +6,13 @@ public interface AspectManager {
     <T extends Aspect> void registerAspectInterceptor(Class<T> aspectClass, int order, AspectInterceptor<T> aspectInterceptor);
 
     @SuppressWarnings("unchecked")
+    <T extends Aspect> void registerAspectInterceptor(Class<T> aspectClass, int order, AspectInterceptor<T> aspectInterceptor, boolean ignoreErrors);
+
+    @SuppressWarnings("unchecked")
     void registerInterceptor(Class<? extends Aspect> aspectClass, int order, AspectInterceptor<Aspect> aspectInterceptor);
+
+    @SuppressWarnings("unchecked")
+    void registerInterceptor(Class<? extends Aspect> aspectClass, int order, AspectInterceptor<Aspect> aspectInterceptor, boolean ignoreErrors);
 
     <T extends Aspect> void unregisterAspectInterceptor(Class<T> aspectClass, Class<? extends AspectInterceptor<T>> observerClass);
 
@@ -16,8 +22,13 @@ public interface AspectManager {
 
     void registerObserver(Class<? extends Aspect> aspectClass, int order, AspectObserver<Aspect> aspectObserver);
 
+    void registerObserver(Class<? extends Aspect> aspectClass, int order, AspectObserver<Aspect> aspectObserver, boolean ignoreErrors);
+
     <T extends Aspect> void registerAspectObserver(Class<T> aspectClass, int order, AspectObserver<T> aspectObserver);
 
+
+    @SuppressWarnings("unchecked")
+    <T extends Aspect> void registerAspectObserver(Class<T> aspectClass, int order, AspectObserver<T> aspectObserver, boolean ignoreErrors);
 
     <T extends Aspect> void unregisterAspectObserver(Class<T> aspectClass, Class<? extends AspectObserver<T>> observerClass);
 

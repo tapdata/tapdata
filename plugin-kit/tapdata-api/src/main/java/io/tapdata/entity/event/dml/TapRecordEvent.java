@@ -4,6 +4,9 @@ import io.tapdata.entity.event.TapBaseEvent;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.schema.TapTable;
 
+import java.util.Collection;
+import java.util.Map;
+
 public abstract class TapRecordEvent extends TapBaseEvent {
     /**
      * 数据源的类型， mysql一类
@@ -44,6 +47,7 @@ public abstract class TapRecordEvent extends TapBaseEvent {
         this.connectorVersion = connectorVersion;
     }
 
+    public abstract Map<String, Object> getFilter(Collection<String> primaryKeys);
 //    @Override
 //    public String toString() {
 //        return "TapRecordEvent{" +

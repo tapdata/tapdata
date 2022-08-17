@@ -1,6 +1,5 @@
 package com.tapdata.tm.task.constant;
 
-import com.tapdata.tm.commons.task.dto.SubTaskDto;
 
 import java.util.ArrayList;
 import java.util.List;

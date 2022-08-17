@@ -262,6 +262,9 @@ public abstract class BaseRepository<Entity extends BaseEntity, ID> {
         }
         for (int i = 0; i < files.length; i++) {
             Field field = files[i];
+            if ("$jacocoData".equals(field.getName())) {
+                continue;
+            }
             Object value = ReflectionUtils.getField(field, entity);
             if (value != null) {
                 /*org.springframework.data.mongodb.core.mapping.Field fieldDef =

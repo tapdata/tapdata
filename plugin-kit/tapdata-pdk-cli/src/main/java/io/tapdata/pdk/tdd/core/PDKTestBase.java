@@ -462,28 +462,28 @@ public class PDKTestBase {
     public DataMap buildInsertRecord() {
         DataMap insertRecord = new DataMap();
         insertRecord.put("id", "id_2");
-        insertRecord.put("tapString", "1234");
-        insertRecord.put("tapString10", "0987654321");
-        insertRecord.put("tapInt", 123123);
-        insertRecord.put("tapBoolean", true);
-        insertRecord.put("tapNumber", 123.0);
-        insertRecord.put("tapNumber52", 343.22);
-        insertRecord.put("tapBinary", new byte[]{123, 21, 3, 2});
+        insertRecord.put("tap_string", "1234");
+        insertRecord.put("tap_string10", "0987654321");
+        insertRecord.put("tap_int", 123123);
+        insertRecord.put("tap_boolean", true);
+        insertRecord.put("tap_number", 123.0);
+        insertRecord.put("tap_number52", 343.22);
+        insertRecord.put("tap_binary", new byte[]{123, 21, 3, 2});
         return insertRecord;
     }
 
     public DataMap buildFilterMap() {
         DataMap filterMap = new DataMap();
         filterMap.put("id", "id_2");
-        filterMap.put("tapString", "1234");
+        filterMap.put("tap_string", "1234");
         return filterMap;
     }
 
     public DataMap buildUpdateMap() {
         DataMap updateMap = new DataMap();
         updateMap.put("id", "id_2");
-        updateMap.put("tapString", "1234");
-        updateMap.put("tapInt", 5555);
+        updateMap.put("tap_string", "1234");
+        updateMap.put("tap_int", 5555);
         return updateMap;
     }
 
@@ -542,7 +542,7 @@ public class PDKTestBase {
         FilterResult filterResult = filterResults(targetNode, filter, targetTable);
         $(() -> assertNotNull(filterResult, "The filter " + InstanceFactory.instance(JsonParser.class).toJson(before) + " can not get any result. Please make sure writeRecord method update record correctly and queryByFilter/queryByAdvanceFilter can query it out for verification. "));
 
-        $(() -> assertNotNull(filterResult.getResult().get("tapInt"), "The value of tapInt should not be null"));
+        $(() -> assertNotNull(filterResult.getResult().get("tap_int"), "The value of tapInt should not be null"));
         for (Map.Entry<String, Object> entry : verifyRecord.entrySet()) {
             $(() -> assertTrue(objectIsEqual(entry.getValue(), filterResult.getResult().get(entry.getKey())), "The value of \"" + entry.getKey() + "\" should be \"" + entry.getValue() + "\",but actual it is \"" + filterResult.getResult().get(entry.getKey()) + "\", please make sure TapUpdateRecordEvent is handled well in writeRecord method"));
         }

@@ -137,6 +137,6 @@ public class DagOutputTemplate {
      * 【INFO】 2022-05-24 21:05:22  【任务A】【节点名称】【数据校验检测】：支持数据校验，其中支持校验表数量为20张，不支持校验表数量为0张
      * 【INFO】 2022-05-24 21:05:22  【任务A】【数据校验检测】：该连接不支持数据校验
      */
-    public static String DATA_INSPECT_INFO = "$date【$taskName】【数据校验检测】：支持数据校验，其中支持校验表数量为20张，不支持校验表数量为0张";
-    public static String DATA_INSPECT_ERROR = "$date【$taskName】【数据校验检测】：该连接不支持数据校验";
+    public static String DATA_INSPECT_INFO = "$date【$taskName】【数据校验检测】：支持数据校验，其中支持校验表数量为{2}张，不支持校验表数量为{3}张";
+    public static String DATA_INSPECT_ERROR = "$date【$taskName】【数据校验检测】：{2}";
 }

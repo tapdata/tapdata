@@ -4,12 +4,10 @@ import com.hazelcast.jet.core.Inbox;
 import com.tapdata.constant.Log4jUtil;
 import com.tapdata.entity.TapdataEvent;
 import com.tapdata.entity.task.context.DataProcessorContext;
-import com.tapdata.tm.commons.task.dto.SubTaskDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
-import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.NotNull;
@@ -36,20 +34,14 @@ public class HazelcastPdkSourceAndTargetTableNode extends HazelcastPdkBaseNode {
 
 	public HazelcastPdkSourceAndTargetTableNode(DataProcessorContext dataProcessorContext) {
 		super(dataProcessorContext);
-		SubTaskDto subTaskDto = dataProcessorContext.getSubTaskDto();
-		if (StringUtils.equalsAnyIgnoreCase(subTaskDto.getParentTask().getSyncType(),
-						TaskDto.SYNC_TYPE_DEDUCE_SCHEMA, TaskDto.SYNC_TYPE_TEST_RUN)) {
-			this.source = new HazelcastSampleSourcePdkDataNode(dataProcessorContext);
-		} else {
-			this.source = new HazelcastSourcePdkDataNode(dataProcessorContext);
-		}
+		this.source = new HazelcastSourcePdkDataNode(dataProcessorContext);
 		this.target = new HazelcastTargetPdkDataNode(dataProcessorContext);
 		this.sourceConsumer = new ThreadPoolExecutor(1, 1, 0L, TimeUnit.MILLISECONDS, new SynchronousQueue<>());
 	}
 
 	@Override
 	public void doInit(@NotNull Context context) throws Exception {
-		Log4jUtil.setThreadContext(dataProcessorContext.getSubTaskDto());
+		Log4jUtil.setThreadContext(dataProcessorContext.getTaskDto());
 		super.doInit(context);
 		this.target.init(context);
 		this.source.init(context);
@@ -59,8 +51,8 @@ public class HazelcastPdkSourceAndTargetTableNode extends HazelcastPdkBaseNode {
 	private void startSourceConsumer() {
 		while (isRunning()) {
 			try {
-				SubTaskDto subTaskDto = dataProcessorContext.getSubTaskDto();
-				Log4jUtil.setThreadContext(subTaskDto);
+				TaskDto taskDto = dataProcessorContext.getTaskDto();
+				Log4jUtil.setThreadContext(taskDto);
 				TapdataEvent dataEvent;
 				AtomicBoolean isPending = new AtomicBoolean();
 				if (pendingEvent != null) {
@@ -99,7 +91,7 @@ public class HazelcastPdkSourceAndTargetTableNode extends HazelcastPdkBaseNode {
 
 	@Override
 	public void doClose() throws Exception {
-		Log4jUtil.setThreadContext(dataProcessorContext.getSubTaskDto());
+		Log4jUtil.setThreadContext(dataProcessorContext.getTaskDto());
 		this.source.close();
 		Optional.ofNullable(this.sourceConsumer).ifPresent(ExecutorService::shutdownNow);
 		this.target.close();
@@ -108,7 +100,7 @@ public class HazelcastPdkSourceAndTargetTableNode extends HazelcastPdkBaseNode {
 
 	@Override
 	public void process(int ordinal, @NotNull Inbox inbox) {
-		Log4jUtil.setThreadContext(dataProcessorContext.getSubTaskDto());
+		Log4jUtil.setThreadContext(dataProcessorContext.getTaskDto());
 		if (null != error) {
 			throw new RuntimeException(error);
 		}

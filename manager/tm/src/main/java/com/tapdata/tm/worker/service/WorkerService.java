@@ -50,7 +50,6 @@ import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
-import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Service;
 
 /**
@@ -222,7 +221,7 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
      * 支持资源池同地域多个实例的负载调度
      *
      */
-    public void scheduleTaskToEngine(SchedulableDto entity, UserDetail userDetail, String type, String name) throws BizException {
+    public CalculationEngineVo scheduleTaskToEngine(SchedulableDto entity, UserDetail userDetail, String type, String name) throws BizException {
 
         CalculationEngineVo calculationEngineVo = calculationEngine(entity, userDetail);
         String processId = calculationEngineVo.getProcessId();
@@ -242,6 +241,8 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
         scheduleTasksDto.setFilter(filter);
         scheduleTasksDto.setThread(threadLog);
         scheduleTasksService.save(scheduleTasksDto, userDetail);
+
+        return calculationEngineVo;
     }
 
     private CalculationEngineVo calculationEngine(SchedulableDto entity, UserDetail userDetail) {
@@ -259,6 +260,7 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
         String agentId = entity.getAgentId();
         if (StringUtils.isNotBlank(agentId)) {
             calculationEngineVo.setProcessId(agentId);
+            calculationEngineVo.setManually(true);
 
             Criteria where = Criteria.where("worker_type").is("connector")
                     .and("ping_time").gte(findTime)
@@ -355,6 +357,8 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
         calculationEngineVo.setProcessId(processId);
         calculationEngineVo.setFilter(where.toString());
         calculationEngineVo.setThreadLog(threadLog);
+        calculationEngineVo.setAvailable(workers.size());
+        calculationEngineVo.setManually(false);
 
         return calculationEngineVo;
     }

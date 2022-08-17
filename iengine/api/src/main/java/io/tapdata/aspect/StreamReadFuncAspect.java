@@ -17,7 +17,8 @@ public class StreamReadFuncAspect extends DataFunctionAspect<StreamReadFuncAspec
 		return this;
 	}
 	public static final int STATE_STREAM_STARTED = 5;
-	public static final int STATE_STREAMING = 10;
+	public static final int STATE_STREAMING_READ_COMPLETED = 10;
+	public static final int STATE_STREAMING_ENQUEUED = 12;
 	private TapConnectorContext connectorContext;
 
 	public StreamReadFuncAspect connectorContext(TapConnectorContext connectorContext) {
@@ -46,13 +47,31 @@ public class StreamReadFuncAspect extends DataFunctionAspect<StreamReadFuncAspec
 		return this;
 	}
 
-	private List<Consumer<List<TapdataEvent>>> consumers = new CopyOnWriteArrayList<>();
-	public StreamReadFuncAspect consumer(Consumer<List<TapdataEvent>> listConsumer) {
-		consumers.add(tapdataEvents -> {
+	private List<Consumer<List<TapdataEvent>>> streamingReadCompleteConsumers = null;
+	public StreamReadFuncAspect streamingReadCompleteConsumers(Consumer<List<TapdataEvent>> listConsumer) {
+		if (null == streamingReadCompleteConsumers) {
+			streamingReadCompleteConsumers = new CopyOnWriteArrayList<>();
+		}
+		streamingReadCompleteConsumers.add(tapdataEvents -> {
 			try {
 				listConsumer.accept(tapdataEvents);
 			} catch(Throwable throwable) {
-				TapLogger.warn(TAG, "Consume tapdataEvents from table {} failed on consumer {}, {}", tables, listConsumer, ExceptionUtils.getStackTrace(throwable));
+				TapLogger.warn(TAG, "Consume tapdataEvents from table {} failed on streaming read complete consumer {}, {}", tables, listConsumer, ExceptionUtils.getStackTrace(throwable));
+			}
+		});
+		return this;
+	}
+
+	private List<Consumer<List<TapdataEvent>>> streamingEnqueuedConsumers = null;
+	public StreamReadFuncAspect streamingEnqueuedConsumers(Consumer<List<TapdataEvent>> listConsumer) {
+		if (null == streamingEnqueuedConsumers) {
+			streamingEnqueuedConsumers = new CopyOnWriteArrayList<>();
+		}
+		streamingEnqueuedConsumers.add(tapdataEvents -> {
+			try {
+				listConsumer.accept(tapdataEvents);
+			} catch(Throwable throwable) {
+				TapLogger.warn(TAG, "Consume tapdataEvents from table {} failed on streaming enqueued consumer {}, {}", tables, listConsumer, ExceptionUtils.getStackTrace(throwable));
 			}
 		});
 		return this;
@@ -98,11 +117,19 @@ public class StreamReadFuncAspect extends DataFunctionAspect<StreamReadFuncAspec
 		this.tables = tables;
 	}
 
-	public List<Consumer<List<TapdataEvent>>> getConsumers() {
-		return consumers;
+	public List<Consumer<List<TapdataEvent>>> getStreamingReadCompleteConsumers() {
+		return streamingReadCompleteConsumers;
 	}
 
-	public void setConsumers(List<Consumer<List<TapdataEvent>>> consumers) {
-		this.consumers = consumers;
+	public void setStreamingReadCompleteConsumers(List<Consumer<List<TapdataEvent>>> streamingReadCompleteConsumers) {
+		this.streamingReadCompleteConsumers = streamingReadCompleteConsumers;
+	}
+
+	public List<Consumer<List<TapdataEvent>>> getStreamingEnqueuedConsumers() {
+		return streamingEnqueuedConsumers;
+	}
+
+	public void setStreamingEnqueuedConsumers(List<Consumer<List<TapdataEvent>>> streamingEnqueuedConsumers) {
+		this.streamingEnqueuedConsumers = streamingEnqueuedConsumers;
 	}
 }

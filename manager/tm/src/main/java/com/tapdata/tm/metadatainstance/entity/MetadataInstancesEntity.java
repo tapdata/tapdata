@@ -4,11 +4,11 @@ import com.tapdata.tm.base.entity.BaseEntity;
 import com.tapdata.tm.commons.schema.FileProperty;
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.commons.schema.TableIndex;
+import com.tapdata.tm.commons.schema.Tag;
 import com.tapdata.tm.commons.schema.bean.DataRules;
 import com.tapdata.tm.commons.schema.bean.Relation;
 import com.tapdata.tm.commons.schema.bean.SourceDto;
 import com.tapdata.tm.commons.schema.bean.Schema;
-import com.tapdata.tm.ds.bean.Tag;
 import com.tapdata.tm.metadatainstance.vo.SourceTypeEnum;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
@@ -46,6 +46,7 @@ public class MetadataInstancesEntity extends BaseEntity {
     private String name;
     private String lienage;
     private List<Relation> relation;
+    private List<Tag> listtags;
     @Field("fields_lienage")
     private String fieldsLienage;
     private List<com.tapdata.tm.commons.schema.Field> fields;
@@ -101,4 +102,7 @@ public class MetadataInstancesEntity extends BaseEntity {
      * 是否是虚拟表 'virtual' 'source'
      */
     private String sourceType= SourceTypeEnum.SOURCE.name();
+
+    //逻辑表物理表分离所添加的相关属性
+    private String taskId;
 }

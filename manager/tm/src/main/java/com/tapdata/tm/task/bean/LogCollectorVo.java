@@ -1,6 +1,6 @@
 package com.tapdata.tm.task.bean;
 
-import com.tapdata.tm.commons.task.dto.SubStatus;
+import com.tapdata.tm.commons.task.dto.Status;
 import lombok.Data;
 import org.apache.commons.lang3.tuple.Pair;
 
@@ -19,7 +19,7 @@ public class LogCollectorVo {
     private List<Pair<String, String>> connections;
     private Date createTime;
     private String status;
-    private List<SubStatus> statuses;
+    private List<Status> statuses;
     private List<String> tableName;
     /** //  current - 从浏览器当前时间
      //  localTZ - 从指定的时间开始(浏览器时区)

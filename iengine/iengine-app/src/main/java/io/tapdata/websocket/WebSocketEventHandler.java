@@ -2,7 +2,7 @@ package io.tapdata.websocket;
 
 
 import com.tapdata.mongo.ClientMongoOperator;
-import com.tapdata.tm.commons.task.dto.SubTaskDto;
+import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.common.SettingService;
 import io.tapdata.flow.engine.V2.task.TaskService;
 
@@ -24,7 +24,7 @@ public interface WebSocketEventHandler<T> {
 	void initialize(ClientMongoOperator clientMongoOperator);
 
 
-	default void initialize(TaskService<SubTaskDto> taskService, ClientMongoOperator clientMongoOperator, SettingService settingService) {
+	default void initialize(TaskService<TaskDto> taskService, ClientMongoOperator clientMongoOperator, SettingService settingService) {
 		initialize(clientMongoOperator, settingService);
 	}
 

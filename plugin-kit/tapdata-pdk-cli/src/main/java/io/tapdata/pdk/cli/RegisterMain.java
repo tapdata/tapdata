@@ -28,6 +28,10 @@ public class RegisterMain {
 		Rocketmq(BASE_PATH + "connectors/dist/rocketmq-connector-v1.0-SNAPSHOT.jar", "all", "rocketmq", "mq"),
 		Kafka(BASE_PATH + "connectors/dist/kafka-connector-v1.0-SNAPSHOT.jar", "all", "kafka", "mq"),
 		Clickhouse(BASE_PATH + "connectors/dist/clickhouse-connector-v1.0-SNAPSHOT.jar", "all", "clickhouse"),
+        Redis(BASE_PATH + "connectors/dist/redis-connector-v1.0-SNAPSHOT.jar", "all", "redis"),
+		Hive1(BASE_PATH + "connectors/dist/hive1-connector-v1.0-SNAPSHOT.jar", "all", "hive1"),
+        Mariadb(BASE_PATH + "connectors/dist/mariadb-connector-v1.0-SNAPSHOT.jar", "all", "mariadb"),
+
         ;
 
         private final String path;
@@ -75,18 +79,18 @@ public class RegisterMain {
     }
 
     private static String basePath() {
-        try {
             URL resource = RegisterMain.class.getClassLoader().getResource("");
             if (null == resource) {
                 return "/";
             }
 
-            Path path = Paths.get(resource.getPath() + "../../../../");
-            String basePath = path.toFile().getCanonicalPath() + "/";
+//            Path path = Paths.get(resource.getPath() + "../../../../");
+//            String basePath = path.toFile().getCanonicalPath() + "/";
+
+            String basePath = "/";
+            if (null != resource) basePath = resource.getPath() + "../../../../";
             System.out.println("basePath:" + basePath);
             return basePath;
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
+
     }
 }

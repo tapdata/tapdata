@@ -1,15 +1,11 @@
 package com.tapdata.tm.metadatainstance.vo;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.tapdata.tm.commons.schema.FileProperty;
-import com.tapdata.tm.commons.schema.MetadataInstancesDto;
-import com.tapdata.tm.commons.schema.TableIndex;
+import com.tapdata.tm.commons.schema.*;
 import com.tapdata.tm.commons.schema.bean.DataRules;
-import com.tapdata.tm.commons.schema.Field;
 import com.tapdata.tm.commons.schema.bean.Relation;
 import com.tapdata.tm.commons.schema.bean.SourceDto;
 import com.tapdata.tm.commons.schema.bean.Schema;
-import com.tapdata.tm.ds.bean.Tag;
 import com.tapdata.tm.vo.BaseVo;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
@@ -53,7 +49,7 @@ public class TableListVo extends BaseVo {
     private SourceDto source;
     private String createSource;
     private Boolean virtual;
-    private List<Tag> classifications;
+    private List<Tag> listtags;
     @JsonProperty("last_user_name")
     private String lastUserName;
     private List<TableIndex> indices;

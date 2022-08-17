@@ -1,6 +1,6 @@
 package io.tapdata.connector.mysql.ddl.sqlmaker;
 
-import io.tapdata.connector.mysql.ddl.DDLSqlMaker;
+import io.tapdata.common.ddl.DDLSqlMaker;
 import io.tapdata.connector.mysql.util.MysqlUtil;
 import io.tapdata.entity.event.ddl.entity.ValueChange;
 import io.tapdata.entity.event.ddl.table.TapAlterFieldAttributesEvent;

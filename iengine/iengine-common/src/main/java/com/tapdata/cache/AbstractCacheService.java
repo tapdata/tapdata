@@ -4,7 +4,7 @@ import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.entity.dataflow.DataFlow;
 import com.tapdata.entity.dataflow.DataFlowCacheConfig;
 import com.tapdata.mongo.ClientMongoOperator;
-import com.tapdata.tm.commons.task.dto.SubTaskDto;
+import com.tapdata.tm.commons.task.dto.TaskDto;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -163,14 +163,14 @@ public abstract class AbstractCacheService implements ICacheService {
 
     if (this.cacheConfigMap.get(cacheName) == null) {
       // 如果不存在，则向tm查询
-      SubTaskDto subTaskDto = clientMongoOperator.findOne(new Query(), ConnectorConstant.SUB_TASK_COLLECTION + "/byCacheName/" + cacheName, SubTaskDto.class);
-      DataFlowCacheConfig cacheConfig = CacheUtil.getCacheConfig(subTaskDto, clientMongoOperator);
+      TaskDto taskDto = clientMongoOperator.findOne(new Query(), ConnectorConstant.TASK_COLLECTION + "/byCacheName/" + cacheName, TaskDto.class);
+      DataFlowCacheConfig cacheConfig = CacheUtil.getCacheConfig(taskDto, clientMongoOperator);
       if (cacheConfig == null) {
         throw new RuntimeException("cache not exist: " + cacheName);
       }
       logger.warn("The cache task [{}] is abnormal, query by tm...", cacheName);
       registerCache(cacheConfig);
-      this.cacheStatusMap.put(cacheName, subTaskDto.getStatus());
+      this.cacheStatusMap.put(cacheName, taskDto.getStatus());
     }
 
     Lock lock = getCacheStatusLock(cacheName);

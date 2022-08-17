@@ -47,7 +47,7 @@ class AgentMeasurementServiceTest extends BaseJunit {
 
     @Test
     void generateMinuteInHourPoint() {
-        aggregationSchedule.execute();
+//        aggregationSchedule.execute();
     }
 
     @Test

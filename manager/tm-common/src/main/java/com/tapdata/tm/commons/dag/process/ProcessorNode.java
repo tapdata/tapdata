@@ -36,7 +36,7 @@ public abstract class ProcessorNode extends Node<Schema> {
 
     @Override
     protected Schema saveSchema(Collection<String> predecessors, String nodeId, Schema schema, DAG.Options options) {
-        schema.setTaskId(taskId());
+        //schema.setTaskId(taskId());
         schema.setNodeId(nodeId);
         List<Schema> result = service.createOrUpdateSchema(ownerId(), null, Collections.singletonList(schema), options, this);
 

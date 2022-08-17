@@ -1,7 +1,7 @@
 package com.tapdata.constant;
 
 import com.tapdata.entity.Job;
-import com.tapdata.tm.commons.task.dto.SubTaskDto;
+import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.debug.DebugConstant;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.ThreadContext;
@@ -25,14 +25,14 @@ public class Log4jUtil {
 		ThreadContext.put("threadName", Thread.currentThread().getName());
 	}
 
-	public static void setThreadContext(SubTaskDto subTaskDto) {
-		if (subTaskDto == null) {
+	public static void setThreadContext(TaskDto taskDto) {
+		if (taskDto == null) {
 			return;
 		}
 		ThreadContext.clearAll();
-		ThreadContext.put("dataFlowId", subTaskDto.getId().toHexString());
-		ThreadContext.put("subTaskId", subTaskDto.getId().toHexString());
-		ThreadContext.put("taskId", subTaskDto.getParentTask().getId().toHexString());
+		ThreadContext.put("dataFlowId", taskDto.getId().toHexString());
+		ThreadContext.put("subTaskId", taskDto.getId().toHexString());
+		ThreadContext.put("taskId", taskDto.getId().toHexString());
 	}
 
 	public static String getStackString(Throwable throwable) {

@@ -20,16 +20,13 @@ import com.tapdata.tm.messagequeue.service.MessageQueueService;
 import com.tapdata.tm.metadatainstance.entity.MetadataInstancesEntity;
 import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
 import com.tapdata.tm.task.constant.DagOutputTemplateEnum;
-import com.tapdata.tm.task.constant.SyncType;
 import com.tapdata.tm.transform.service.MetadataTransformerItemService;
 import com.tapdata.tm.transform.service.MetadataTransformerService;
-import com.tapdata.tm.user.entity.User;
 import com.tapdata.tm.utils.Lists;
 import com.tapdata.tm.utils.UUIDUtil;
 import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.service.WorkerService;
 import com.tapdata.tm.ws.enums.MessageType;
-import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.bson.types.ObjectId;
@@ -198,16 +195,31 @@ public class TransformSchemaService {
                 String connectionId = ((TableNode) node).getConnectionId();
                 DataSourceConnectionDto dataSourceConnectionDto = dataSourceMap.get(connectionId);
                 DataSourceDefinitionDto dataSourceDefinitionDto = definitionDtoMap.get(dataSourceConnectionDto.getDatabase_type());
-                String qualifiedName = metadataInstancesService.getQualifiedNameByNodeId(node, user, dataSourceConnectionDto, dataSourceDefinitionDto);
+                String qualifiedName = metadataInstancesService.getQualifiedNameByNodeId(node, user, dataSourceConnectionDto, dataSourceDefinitionDto, taskDto.getId().toHexString());
                 qualifiedNames.add(qualifiedName);
             } else if (node instanceof DatabaseNode) {
-                List<MetadataInstancesDto> metas = metadataInstancesService.findByNodeId(node.getId(), null, user, dag);
-                metadataList.addAll(metas);
+                String connectionId = ((DatabaseNode) node).getConnectionId();
+                DataSourceConnectionDto dataSourceConnectionDto = dataSourceMap.get(connectionId);
+                DataSourceDefinitionDto dataSourceDefinitionDto = definitionDtoMap.get(dataSourceConnectionDto.getDatabase_type());
+                List<String> metas = metadataInstancesService.findDatabaseNodeQualifiedName(node.getId(), user, taskDto, dataSourceConnectionDto, dataSourceDefinitionDto);
+                qualifiedNames.addAll(metas);
             }
         }
 
         if (CollectionUtils.isNotEmpty(qualifiedNames)) {
+            //优先获取逻辑表，没有找到的话，取物理表的。
             metadataList = metadataInstancesService.findByQualifiedNameNotDelete(qualifiedNames, user);
+            Map<String, MetadataInstancesDto> qualifiedMap = metadataList.stream().collect(Collectors.toMap(MetadataInstancesDto::getQualifiedName, m -> m, (m1, m2) -> m1));
+            qualifiedNames.removeAll(qualifiedMap.keySet());
+            qualifiedNames = qualifiedNames.stream().map(q->{
+                int i = q.lastIndexOf("_");
+                return q.substring(0, i);
+            }).collect(Collectors.toList());
+            List<MetadataInstancesDto> metadataList1 = metadataInstancesService.findByQualifiedNameNotDelete(qualifiedNames, user);
+            for (MetadataInstancesDto metadataInstancesDto : metadataList1) {
+                metadataInstancesDto.setQualifiedName(metadataInstancesDto.getQualifiedName() + "_" + taskDto.getId().toHexString());
+            }
+            metadataList.addAll(metadataList1);
         }
 
 

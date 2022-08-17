@@ -2,21 +2,22 @@ package io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.concurrent;
 
 import com.google.common.collect.Queues;
 import com.tapdata.constant.ExecutorUtil;
+import com.tapdata.constant.Log4jUtil;
 import com.tapdata.entity.TapdataEvent;
+import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.entity.event.TapEvent;
-import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.concurrent.partitioner.KeysPartitioner;
+import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
+import io.tapdata.entity.event.dml.TapInsertRecordEvent;
+import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.concurrent.partitioner.PartitionResult;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.concurrent.partitioner.Partitioner;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.concurrent.selector.PartitionKeySelector;
-import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.concurrent.selector.TapEventPartitionKeySelector;
 import org.apache.commons.collections.CollectionUtils;
+import org.apache.commons.collections.MapUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import java.util.ArrayList;
-import java.util.Date;
-import java.util.List;
-import java.util.Objects;
+import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
@@ -51,7 +52,7 @@ public class PartitionConcurrentProcessor {
 
 	private Partitioner<TapdataEvent, List<Object>> partitioner;
 
-	private PartitionKeySelector<String, TapEvent, Object> keySelector;
+	private PartitionKeySelector<TapEvent, Object, Map<String, Object>> keySelector;
 
 	private AtomicLong eventSeq = new AtomicLong(0L);
 
@@ -59,21 +60,22 @@ public class PartitionConcurrentProcessor {
 
 	private Consumer<TapdataEvent> flushOffset;
 	private ErrorHandler<Throwable, String> errorHandler;
+	private TaskDto taskDto;
 
 	public PartitionConcurrentProcessor(
 			int partitionSize,
 			int batchSize,
 			Partitioner<TapdataEvent, List<Object>> partitioner,
-			PartitionKeySelector<String, TapEvent, Object> keySelector,
+			PartitionKeySelector<TapEvent, Object, Map<String, Object>> keySelector,
 			Consumer<List<TapdataEvent>> eventProcessor,
 			Consumer<TapdataEvent> flushOffset,
 			ErrorHandler<Throwable, String> errorHandler,
-			String taskId,
-			String taskName
+			TaskDto taskDto
 	) {
 
-		this.concurrentProcessThreadNamePrefix = "concurrent-process-thread-" + taskId + "-" + taskName + "-";
+		this.concurrentProcessThreadNamePrefix = "concurrent-process-thread-" + taskDto.getId().toHexString() + "-" + taskDto.getName() + "-";
 
+		this.taskDto = taskDto;
 		this.batchSize = batchSize;
 
 		this.partitionSize = partitionSize;
@@ -109,7 +111,8 @@ public class PartitionConcurrentProcessor {
 		this.flushOffset = flushOffset;
 		this.executorService.submit(() -> {
 			while (running.get()) {
-				Thread.currentThread().setName(taskId + "-" + taskName + "-watermark-event-process");
+				Log4jUtil.setThreadContext(taskDto);
+				Thread.currentThread().setName(taskDto.getId().toHexString() + "-" + taskDto.getName() + "-watermark-event-process");
 				try {
 					final WatermarkEvent watermarkEvent = watermarkQueue.poll(3, TimeUnit.SECONDS);
 					if (watermarkEvent != null) {
@@ -138,6 +141,7 @@ public class PartitionConcurrentProcessor {
 			final LinkedBlockingQueue<PartitionEvent<TapdataEvent>> linkedBlockingQueue = partitionsQueue.get(partition);
 			int finalPartition = partition;
 			executorService.submit(() -> {
+				Log4jUtil.setThreadContext(taskDto);
 				Thread.currentThread().setName(concurrentProcessThreadNamePrefix + finalPartition);
 				List<TapdataEvent> processEvents = new ArrayList<>();
 				while (running.get()) {
@@ -186,8 +190,26 @@ public class PartitionConcurrentProcessor {
 	public void process(List<TapdataEvent> tapdataEvents, boolean async) {
 		if (CollectionUtils.isNotEmpty(tapdataEvents)) {
 			for (TapdataEvent tapdataEvent : tapdataEvents) {
+				if (!running.get()) {
+					break;
+				}
 				if (tapdataEvent.isDML()) {
-					final List<Object> partitionValue = keySelector.select(tapdataEvent.getTapEvent());
+					Map<String, Object> row = null;
+					final TapEvent tapEvent = tapdataEvent.getTapEvent();
+					if (tapEvent instanceof TapInsertRecordEvent) {
+						row = ((TapInsertRecordEvent) tapEvent).getAfter();
+					} else if (tapEvent instanceof TapDeleteRecordEvent) {
+						row = ((TapDeleteRecordEvent) tapEvent).getBefore();
+					} else if (tapEvent instanceof TapUpdateRecordEvent) {
+						// if update partition value, will generate barrier event
+						if (updatePartitionValueEvent(tapEvent)) {
+							generateBarrierEvent();
+							row = ((TapUpdateRecordEvent) tapEvent).getBefore();
+						} else {
+							row = ((TapUpdateRecordEvent) tapEvent).getAfter();
+						}
+					}
+					final List<Object> partitionValue = keySelector.select(tapEvent, row);
 					final PartitionResult<TapdataEvent> partitionResult = partitioner.partition(partitionSize, tapdataEvent, partitionValue);
 					final int partition = partitionResult.getPartition() < 0 ? DEFAULT_PARTITION : partitionResult.getPartition();
  					final LinkedBlockingQueue<PartitionEvent<TapdataEvent>> queue = partitionsQueue.get(partition);
@@ -290,6 +312,26 @@ public class PartitionConcurrentProcessor {
 	public void stop(){
 		running.compareAndSet(true, false);
 		ExecutorUtil.shutdownEx(this.executorService, 60L, TimeUnit.SECONDS);
+	}
+
+	private boolean updatePartitionValueEvent(TapEvent tapEvent) {
+		if (tapEvent instanceof TapUpdateRecordEvent) {
+			List<Object> beforeValue = null;
+			final Map<String, Object> before = ((TapUpdateRecordEvent) tapEvent).getBefore();
+			if (MapUtils.isNotEmpty(before)) {
+				beforeValue = keySelector.select(tapEvent, before);
+			}
+			List<Object> afterValue = null;
+			final Map<String, Object> after = ((TapUpdateRecordEvent) tapEvent).getAfter();
+			if (MapUtils.isNotEmpty(before)) {
+				afterValue = keySelector.select(tapEvent, after);
+			}
+			if (beforeValue != null && afterValue != null) {
+				return Objects.hash(beforeValue) != Objects.hash(afterValue);
+			}
+		}
+
+		return false;
 	}
 
 	@FunctionalInterface

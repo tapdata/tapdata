@@ -3,27 +3,35 @@ package io.tapdata.flow.engine.V2.node.hazelcast.data;
 
 import com.hazelcast.jet.core.Inbox;
 import com.tapdata.entity.TapdataEvent;
+import com.tapdata.entity.schema.SchemaApplyResult;
 import com.tapdata.entity.task.context.DataProcessorContext;
+import com.tapdata.processor.ScriptUtil;
+import com.tapdata.processor.constant.JSEngineEnum;
 import com.tapdata.tm.commons.dag.Node;
-import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
-import com.tapdata.tm.commons.dag.process.ProcessorNode;
-import com.tapdata.tm.commons.task.dto.TaskDto;
+import com.tapdata.tm.commons.dag.process.CustomProcessorNode;
+import com.tapdata.tm.commons.dag.process.JsProcessorNode;
+import com.tapdata.tm.commons.dag.process.MigrateJsProcessorNode;
+import com.tapdata.tm.commons.schema.Schema;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.value.TapValue;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
+import io.tapdata.pdk.core.utils.ReflectionUtil;
 import io.tapdata.schema.TapTableMap;
 import io.tapdata.schema.TapTableUtil;
-import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.MapUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.NotNull;
 import org.voovan.tools.collection.CacheMap;
 
-import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
+import javax.script.Invocable;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 
 import static com.hazelcast.jet.impl.util.ExceptionUtil.sneakyThrow;
 
@@ -36,11 +44,14 @@ public class HazelcastSchemaTargetNode extends HazelcastVirtualTargetNode {
 	 */
 	private static final CacheMap<String, TapTable> tabTableCacheMap = new CacheMap<>();
 	private static final CacheMap<String, List<SchemaApplyResult>> schemaApplyResultMap = new CacheMap<>();
+	public static final String FUNCTION_NAME_DECLARE = "declare";
 
 	private final String schemaKey;
+	private final TapTableMap oldTapTableMap;
 
-	private final Node<?> prePreNode;
-	private final TapTableMap<String, TapTable> prePreNodeTapTableMap;
+	private Invocable engine;
+
+	private boolean needToDeclare;
 
 	static {
 		tabTableCacheMap.maxSize(100).autoRemove(true).expire(600).interval(60).create();
@@ -56,22 +67,31 @@ public class HazelcastSchemaTargetNode extends HazelcastVirtualTargetNode {
 	}
 
 
-	public HazelcastSchemaTargetNode(DataProcessorContext dataProcessorContext) {
+	public HazelcastSchemaTargetNode(DataProcessorContext dataProcessorContext) throws Exception {
 		super(dataProcessorContext);
-		this.schemaKey = dataProcessorContext.getSubTaskDto().getId().toHexString() + "-" + dataProcessorContext.getNode().getId();
+		this.schemaKey = dataProcessorContext.getTaskDto().getId().toHexString() + "-" + dataProcessorContext.getNode().getId();
 
-		List<Node<?>> preNodes = getNode().predecessors();
+		List<Node<Schema>> preNodes = getNode().predecessors();
 		if (preNodes.size() != 1) {
 			throw new IllegalArgumentException("HazelcastSchemaTargetNode only allows one predecessor node");
 		}
 		Node<?> deductionSchemaNode = preNodes.get(0);
-		List<? extends Node<?>> prePreNodes = deductionSchemaNode.predecessors();
-		if (prePreNodes.size() != 1) {
-			throw new IllegalArgumentException("The front node of HazelcastSchemaTargetNode only allows one front node");
+		this.oldTapTableMap = TapTableUtil.getTapTableMap(deductionSchemaNode, null);
+
+		if (deductionSchemaNode instanceof JsProcessorNode
+						|| deductionSchemaNode instanceof MigrateJsProcessorNode
+						|| deductionSchemaNode instanceof CustomProcessorNode) {
+			String declareScript = (String) ReflectionUtil.getFieldValue(deductionSchemaNode, "declareScript");
+			this.needToDeclare = StringUtils.isNotEmpty(declareScript);
+			if (this.needToDeclare) {
+				if (multipleTables) {
+					declareScript = String.format("function declare(schemaApplyResultList){\n %s \n return schemaApplyResultList;\n}",  declareScript);
+				} else {
+					declareScript = String.format("function declare(tapTable){\n %s \n return tapTable;\n}",  declareScript);
+				}
+				this.engine = ScriptUtil.getScriptEngine(JSEngineEnum.NASHORN.getEngineName(), declareScript);
+			}
 		}
-		this.prePreNode = prePreNodes.get(0);
-		//js节点之前的节点的模型
-		this.prePreNodeTapTableMap = TapTableUtil.getTapTableMapByNodeId("SCHEMA_", prePreNode.getId(), null);
 	}
 
 	@Override
@@ -97,11 +117,22 @@ public class HazelcastSchemaTargetNode extends HazelcastVirtualTargetNode {
 							}
 							// 解析模型
 							TapTable tapTable = getNewTapTable(tapEvent);
-							tabTableCacheMap.put(schemaKey, tapTable);
+							if (!multipleTables) {
+								//迁移任务，只有一张表
+								if (needToDeclare) {
+									tapTable = (TapTable) engine.invokeFunction(FUNCTION_NAME_DECLARE, tapTable);
+								}
+								tabTableCacheMap.put(schemaKey, tapTable);
+							}
 
-							// 获取差异模型
-							List<SchemaApplyResult> schemaApplyResults = getSchemaApplyResults(tapEvent, tapTable);
-							schemaApplyResultMap.put(schemaKey, schemaApplyResults);
+							if (multipleTables) {
+								// 获取差异模型
+								List<SchemaApplyResult> schemaApplyResults = getSchemaApplyResults(tapTable);
+								if (needToDeclare) {
+									schemaApplyResults = (List<SchemaApplyResult>) engine.invokeFunction(FUNCTION_NAME_DECLARE, schemaApplyResults);
+								}
+								schemaApplyResultMap.put(schemaKey, schemaApplyResults);
+							}
 						}
 
 					} else {
@@ -115,19 +146,13 @@ public class HazelcastSchemaTargetNode extends HazelcastVirtualTargetNode {
 		}
 	}
 
-	@Override
-	protected void doClose() throws Exception {
-		super.doClose();
-		Optional.ofNullable(this.prePreNodeTapTableMap).ifPresent(TapTableMap::reset);
-	}
-
 	@NotNull
 	private TapTable getNewTapTable(TapRecordEvent tapEvent) {
 		Map<String, Object> after = TapEventUtil.getAfter(tapEvent);
 		if (logger.isDebugEnabled()) {
 			logger.info("after map is [{}]", after);
 		}
-		TapTable tapTable = new TapTable();
+		TapTable tapTable = new TapTable(tapEvent.getTableId());
 		if (MapUtils.isNotEmpty(after)) {
 			for (Map.Entry<String, Object> entry : after.entrySet()) {
 				if (logger.isDebugEnabled()) {
@@ -145,11 +170,11 @@ public class HazelcastSchemaTargetNode extends HazelcastVirtualTargetNode {
 	}
 
 	@NotNull
-	private List<SchemaApplyResult> getSchemaApplyResults(TapRecordEvent tapEvent, TapTable tapTable) {
+	private List<SchemaApplyResult> getSchemaApplyResults(TapTable tapTable) {
 		List<SchemaApplyResult> schemaApplyResults = new ArrayList<>();
 
 		LinkedHashMap<String, TapField> newNameFieldMap = tapTable.getNameFieldMap();
-		LinkedHashMap<String, TapField> oldNameFieldMap = getOldNameFieldMap(tapEvent);
+		LinkedHashMap<String, TapField> oldNameFieldMap = getOldNameFieldMap(tapTable.getName());
 		if (MapUtils.isNotEmpty(newNameFieldMap) && MapUtils.isNotEmpty(oldNameFieldMap)) {
 			for (Map.Entry<String, TapField> entry : newNameFieldMap.entrySet()) {
 				String newFieldName = entry.getKey();
@@ -177,62 +202,11 @@ public class HazelcastSchemaTargetNode extends HazelcastVirtualTargetNode {
 		return schemaApplyResults;
 	}
 
-	private LinkedHashMap<String, TapField> getOldNameFieldMap(TapRecordEvent tapEvent) {
-		TapTable oldTapTable;
-		if (this.prePreNode instanceof ProcessorNode) {
-			if (multipleTables) {
-				oldTapTable = prePreNodeTapTableMap.get(tapEvent.getTableId());
-			} else {
-				oldTapTable = prePreNodeTapTableMap.get(prePreNode.getId());
-			}
-		} else {
-			oldTapTable = prePreNodeTapTableMap.get(tapEvent.getTableId());
-		}
-		if (oldTapTable == null) {
+	private LinkedHashMap<String, TapField> getOldNameFieldMap(String tableName) {
+		if (oldTapTableMap == null || !oldTapTableMap.containsKey(tableName)) {
 			return null;
 		}
-		return oldTapTable.getNameFieldMap();
+		return oldTapTableMap.get(tableName).getNameFieldMap();
 	}
 
-	public static class SchemaApplyResult {
-		public static final String OP_TYPE_CREATE = "CREATE";
-		public static final String OP_TYPE_REMOVE = "REMOVE";
-		public static final String OP_TYPE_CONVERT = "CONVERT";
-		private String op;
-		private String fieldName;
-		private TapField tapField;
-
-		public SchemaApplyResult() {
-		}
-
-		public SchemaApplyResult(String op, String fieldName, TapField tapField) {
-			this.op = op;
-			this.fieldName = fieldName;
-			this.tapField = tapField;
-		}
-
-		public String getOp() {
-			return op;
-		}
-
-		public void setOp(String op) {
-			this.op = op;
-		}
-
-		public String getFieldName() {
-			return fieldName;
-		}
-
-		public void setFieldName(String fieldName) {
-			this.fieldName = fieldName;
-		}
-
-		public TapField getTapField() {
-			return tapField;
-		}
-
-		public void setTapField(TapField tapField) {
-			this.tapField = tapField;
-		}
-	}
 }
