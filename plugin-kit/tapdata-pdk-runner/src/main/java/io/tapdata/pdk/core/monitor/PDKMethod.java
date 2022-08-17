@@ -44,6 +44,8 @@ public enum PDKMethod {
     ALTER_FIELD_ATTRIBUTES,
     GET_TABLE_NAMES,
     CONNECTION_CHECK,
+    GET_CHARSETS,
+//    CREATE_TABLE_V2,
     DROP_FIELD;
 
     PDKMethod() {

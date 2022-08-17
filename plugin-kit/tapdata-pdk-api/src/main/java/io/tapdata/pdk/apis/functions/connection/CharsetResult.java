@@ -40,10 +40,10 @@ public class CharsetResult {
 	@Override
 	public String toString() {
 		StringBuilder value = new StringBuilder();
-		this.getCharsetMap().forEach((charset,listset)->{
+		this.getCharsetMap().forEach((charset,listSet)->{
 			value.append("=======>")
 					.append(charset);
-			for (DatabaseCharset databaseCharset : listset) {
+			for (DatabaseCharset databaseCharset : listSet) {
 				value.append("   ")
 						.append(databaseCharset.getCharset())
 						.append("   ")

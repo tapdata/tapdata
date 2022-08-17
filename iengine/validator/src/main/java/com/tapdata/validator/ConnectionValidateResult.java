@@ -1,9 +1,11 @@
 package com.tapdata.validator;
 
 import com.tapdata.entity.Schema;
+import io.tapdata.pdk.apis.charset.DatabaseCharset;
 import io.tapdata.pdk.apis.entity.ConnectionOptions;
 
 import java.util.List;
+import java.util.Map;
 
 public class ConnectionValidateResult {
 
@@ -91,5 +93,42 @@ public class ConnectionValidateResult {
 
 	public void setConnectionOptions(ConnectionOptions connectionOptions) {
 		this.connectionOptions = connectionOptions;
+	}
+
+	/**
+	 * 连接测试获取到的数据库字符集
+	 * */
+	private String databaseCharset;
+	/**
+	 * 数据库支持的字符集列表并按条件进行的分组结果
+	 * */
+	private Map<String, List<DatabaseCharset>> charsetResultMap;
+	/**
+	 * 数据库支持的字符集列表并按条件进行的分组结果
+	 * */
+	private Map<String, String> tableCharsetMap;
+
+	public String getDatabaseCharset() {
+		return databaseCharset;
+	}
+
+	public void setDatabaseCharset(String databaseCharset) {
+		this.databaseCharset = databaseCharset;
+	}
+
+	public Map<String, List<DatabaseCharset>> getCharsetResultMap() {
+		return charsetResultMap;
+	}
+
+	public void setCharsetResultMap(Map<String, List<DatabaseCharset>> charsetResultMap) {
+		this.charsetResultMap = charsetResultMap;
+	}
+
+	public Map<String, String> getTableCharsetMap() {
+		return tableCharsetMap;
+	}
+
+	public void setTableCharsetMap(Map<String, String> tableCharsetMap) {
+		this.tableCharsetMap = tableCharsetMap;
 	}
 }

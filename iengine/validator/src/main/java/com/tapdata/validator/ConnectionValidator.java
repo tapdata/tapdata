@@ -11,6 +11,9 @@ import io.tapdata.entity.utils.DataMap;
 import io.tapdata.logging.JobCustomerLogger;
 import io.tapdata.pdk.apis.entity.ConnectionOptions;
 import io.tapdata.pdk.apis.entity.TestItem;
+import io.tapdata.pdk.apis.functions.ConnectorFunctions;
+import io.tapdata.pdk.apis.functions.connection.CharsetResult;
+import io.tapdata.pdk.apis.functions.connection.GetCharsetsFunction;
 import io.tapdata.pdk.core.api.ConnectionNode;
 import io.tapdata.pdk.core.api.PDKIntegration;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
@@ -234,6 +237,26 @@ public class ConnectionValidator {
 					connectionOptionsAtomicReference.set(ConnectionOptions.create());
 				}
 				connectionValidateResult.setConnectionOptions(connectionOptionsAtomicReference.get());
+
+				// 在调用connectionTest的时候获得数据库的charset
+				// 通过原有接口保存到TM的Connections数据库中
+				if(null == connectionValidateResult.getConnectionOptions())
+					connectionValidateResult.setConnectionOptions(ConnectionOptions.create());
+				connectionValidateResult.setDatabaseCharset(connectionOptionsAtomicReference.get().getCharset());
+				// 如果PDK数据源实现了GetCharsetsFunction方法
+				// 在连接测试的时候调用此方法
+				// 并通过连接测试向TM汇报的相同接口在TM的Connections数据库中保存charsetMap
+				GetCharsetsFunction charsetsFunction = connectionNode.getConnectionFunctions().getGetCharsetsFunction();
+				if(charsetsFunction != null) {
+					PDKInvocationMonitor.invoke(
+							connectionNode,
+							PDKMethod.GET_CHARSETS,
+							() -> connectionValidateResult.setCharsetResultMap(
+									charsetsFunction.charsets(connectionNode.getConnectionContext()).getCharsetMap()),
+							"Create table",
+							TAG
+					);
+				}
 
 				// Call pdk tableCount function to get the number of resources(table,api,file...)
 				if (CollectionUtils.isNotEmpty(resultDetails)) {

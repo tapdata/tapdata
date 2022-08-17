@@ -240,6 +240,8 @@ public class TestConnectionHandler implements WebSocketEventHandler {
 		} else {
 			update.set("loadSchemaField", false);
 		}
+		update.set("charset",validateResult.getDatabaseCharset());
+		update.set("charsetResultMap",validateResult.getCharsetResultMap());
 		clientMongoOperator.update(connectionIdQuery, update, ConnectorConstant.CONNECTION_COLLECTION);
 		// Update connection options
 		update = new Update().set("options", validateResult.getConnectionOptions());

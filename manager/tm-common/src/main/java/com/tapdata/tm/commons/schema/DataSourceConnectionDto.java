@@ -8,15 +8,13 @@ import com.tapdata.tm.commons.schema.bean.PlatformInfo;
 import com.tapdata.tm.commons.schema.bean.ResponseBody;
 import com.tapdata.tm.commons.schema.bean.UrlInfo;
 import com.tapdata.tm.commons.util.CreateTypeEnum;
+import io.tapdata.pdk.apis.charset.DatabaseCharset;
 import io.tapdata.pdk.apis.entity.Capability;
 import lombok.Data;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.data.mongodb.core.mapping.Field;
 
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.TimeZone;
+import java.util.*;
 
 /**
  * @author lg&lt;lirufei0808@gmail.com&gt;
@@ -289,4 +287,15 @@ public class DataSourceConnectionDto extends BaseDto {
         public boolean isAccessNodeTypeEmpty() {
                 return StringUtils.isBlank(accessNodeType);
         }
+
+
+        /**
+         * 连接测试获取到的数据库字符集
+         * */
+        private String charset ;
+
+        /**
+         * 支持的字符集列表并按条件进行的分组结果
+         * */
+        private Map<String, List<DatabaseCharset>> charsetResultMap ;
 }

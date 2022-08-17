@@ -106,4 +106,12 @@ public class Schema implements Cloneable, Serializable {
     public String getSourceNodeDatabaseType() {
         return sourceNodeDatabaseType;
     }
+
+    public String getCharset() {
+        return charset;
+    }
+
+    public void setCharset(String charset) {
+        this.charset = charset;
+    }
 }

@@ -4,6 +4,7 @@ package com.tapdata.tm.commons.schema;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.tapdata.manager.common.utils.JsonUtil;
 import com.tapdata.tm.commons.base.dto.BaseDto;
+import io.tapdata.pdk.apis.charset.DatabaseCharset;
 import io.tapdata.pdk.apis.entity.Capability;
 import lombok.*;
 
@@ -87,6 +88,19 @@ public class DataSourceDefinitionDto extends BaseDto {
     private LinkedHashMap<String, Object> messages;
 
     private List<Capability> capabilities;
+
+    /**
+     * 连接测试获取到的数据库字符集
+     * */
+    private String charset;
+    /**
+     * 数据库支持的字符集列表并按条件进行的分组结果
+     * */
+    private Map<String, List<DatabaseCharset>> charsetResultMap;
+    /**
+     * 数据库支持的字符集列表并按条件进行的分组结果
+     * */
+    private Map<String, String> tableCharsetMap;
 
 
     public String calculatePdkHash(String customerId){

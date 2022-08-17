@@ -8,6 +8,7 @@ import com.tapdata.tm.commons.schema.bean.Schema;
 import com.tapdata.tm.commons.schema.bean.UrlInfo;
 import com.tapdata.tm.commons.util.CreateTypeEnum;
 import com.tapdata.tm.ds.bean.ResponseBody;
+import io.tapdata.pdk.apis.charset.DatabaseCharset;
 import io.tapdata.pdk.apis.entity.Capability;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
@@ -262,4 +263,12 @@ public class DataSourceEntity extends BaseEntity {
     public String getAccessNodeProcessId() {
         return CollectionUtils.isNotEmpty(accessNodeProcessIdList) ? accessNodeProcessIdList.get(0) : "";
     }
+    /**
+     * 连接测试获取到的数据库字符集
+     * */
+    private String charset;
+    /**
+     * 支持的字符集列表并按条件进行的分组结果
+     * */
+    private Map<String, List<DatabaseCharset>> charsetResultMap;
 }

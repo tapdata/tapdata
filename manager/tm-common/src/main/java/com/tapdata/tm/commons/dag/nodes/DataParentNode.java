@@ -70,6 +70,8 @@ public abstract class DataParentNode<S> extends Node<S> {
 	private Boolean cdcConcurrent;
 	/** 增量写入线程数*/
 	private Integer cdcConcurrentWriteNum;
+
+	private String charset;
     /**
      * constructor for node
      *
@@ -240,5 +242,13 @@ public abstract class DataParentNode<S> extends Node<S> {
             Field field = iterator.next();
 
         }
+    }
+
+    public String getCharset() {
+        return charset;
+    }
+
+    public void setCharset(String charset) {
+        this.charset = charset;
     }
 }
