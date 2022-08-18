@@ -1274,4 +1274,31 @@ class TargetTypesGeneratorTest {
         assertEquals("VARCHAR(200)", characterVarying_200.getDataType());
 
     }
+
+    @Test
+    public void oracleToDb2TimestampTest() {
+
+        String sourceTypeExpression = "{" +
+                "\"TIMESTAMP[($fraction)]\": {\"range\": [\"0001-01-01 00:00:00.000000000\",\"9999-12-31 23:59:59.999999999\"],\"pattern\": \"yyyy-MM-dd HH:mm:ss.SSSSSSSSS\",\"fraction\": [0,12],\"defaultFraction\": 6,\"withTimeZone\": false,\"priority\": 2,\"to\": \"TapDateTime\"}" +
+                "}";
+
+        String targetTypeExpression = "{\n" +
+//                "\"int unsigned\": {\"to\": \"TapNumber\",\"byte\": 32,\"value\": [\"0\", \"4294967295\"]}," +
+                "\"TIMESTAMP[($fraction)]\": {\"range\": [\"1000-01-01 00:00:00.000000000\",\"9999-12-31 23:59:59.999999999\"],\"pattern\": \"yyyy-MM-dd HH:mm:ss.SSSSSSSSS\",\"fraction\": [0,9],\"defaultFraction\": 6,\"withTimeZone\": false,\"priority\": 2,\"to\": \"TapDateTime\"}," +
+                "\"DATE\": {\"range\": [\"1000-01-01 00:00:00.000\",\"9999-12-31 23:59:59.999\"],\"defaultFraction\": 3,\"pattern\": \"yyyy-MM-dd HH:mm:ss.SSS\",\"priority\": 1,\"to\": \"TapDateTime\"}" +
+                "}";
+
+        TapTable sourceTable = table("test");
+        sourceTable
+                .add(field("TIMESTAMP(6)", "TIMESTAMP(6)"))
+        ;
+        tableFieldTypesGenerator.autoFill(sourceTable.getNameFieldMap(), DefaultExpressionMatchingMap.map(sourceTypeExpression));
+        TapResult<LinkedHashMap<String, TapField>> tapResult = targetTypesGenerator.convert(sourceTable.getNameFieldMap(), DefaultExpressionMatchingMap.map(targetTypeExpression), targetCodecFilterManager);
+
+        LinkedHashMap<String, TapField> nameFieldMap = tapResult.getData();
+
+
+        TapField timestamp6 = nameFieldMap.get("TIMESTAMP(6)");
+        assertEquals("TIMESTAMP(6)", timestamp6.getDataType());
+    }
 }
