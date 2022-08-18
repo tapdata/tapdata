@@ -359,7 +359,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 		saveToSnapshot();
 	}
 
-	private void handleTapdataCompleteSnapshotEvent() {
+	protected void handleTapdataCompleteSnapshotEvent() {
 		// MILESTONE-WRITE_SNAPSHOT-FINISH
 		TaskMilestoneFuncAspect.execute(dataProcessorContext, MilestoneStage.WRITE_SNAPSHOT, MilestoneStatus.FINISH);
 		MilestoneUtil.updateMilestone(milestoneService, MilestoneStage.WRITE_SNAPSHOT, MilestoneStatus.FINISH);

@@ -17,16 +17,14 @@ import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.entity.task.context.ProcessorBaseContext;
 import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.mongo.HttpClientMongoOperator;
+import com.tapdata.tm.autoinspect.utils.AutoInspectUtil;
 import com.tapdata.tm.commons.dag.Edge;
 import com.tapdata.tm.commons.dag.Element;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.logCollector.HazelCastImdgNode;
 import com.tapdata.tm.commons.dag.logCollector.LogCollectorNode;
 import com.tapdata.tm.commons.dag.logCollector.VirtualTargetNode;
-import com.tapdata.tm.commons.dag.nodes.CacheNode;
-import com.tapdata.tm.commons.dag.nodes.DataNode;
-import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
-import com.tapdata.tm.commons.dag.nodes.TableNode;
+import com.tapdata.tm.commons.dag.nodes.*;
 import com.tapdata.tm.commons.dag.process.MergeTableNode;
 import com.tapdata.tm.commons.dag.process.MigrateFieldRenameProcessorNode;
 import com.tapdata.tm.commons.dag.process.TableRenameProcessNode;
@@ -189,30 +187,31 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 			// Get merge table map
 			Map<String, MergeTableNode> mergeTableMap = MergeTableUtil.getMergeTableMap(nodes, edges);
 
+			// Generate AutoInspectNode
+			AutoInspectUtil.generateAutoInspectNode(taskDtoAtomicReference.get(), nodes, edges, nodeMap);
+
 			for (Node node : nodes) {
 				Connections connection = null;
 				DatabaseTypeEnum.DatabaseType databaseType = null;
 				TapTableMap<String, TapTable> tapTableMap = getTapTableMap(taskDto, tmCurrentTime, node);
 				if (CollectionUtils.isEmpty(tapTableMap.keySet())
+						&& !(node instanceof AutoInspectNode)
 						&& !(node instanceof CacheNode)
 						&& !(node instanceof HazelCastImdgNode)
 						&& !(node instanceof TableRenameProcessNode)
 						&& !(node instanceof MigrateFieldRenameProcessorNode)
 						&& !(node instanceof VirtualTargetNode)
-						&& !StringUtils.equalsAnyIgnoreCase(taskDto.getSyncType(), TaskDto.SYNC_TYPE_DEDUCE_SCHEMA, TaskDto.SYNC_TYPE_TEST_RUN)) {
+						&& !StringUtils.equalsAnyIgnoreCase(taskDto.getSyncType(), TaskDto.SYNC_TYPE_DEDUCE_SCHEMA, TaskDto.SYNC_TYPE_TEST_RUN)
+				) {
 					throw new NodeException(String.format("Node [id %s, name %s] schema cannot be empty",
 							node.getId(), node.getName()));
 				}
 
-				if (node instanceof TableNode || node instanceof DatabaseNode || node.isLogCollectorNode()) {
-					String connectionId = null;
-					if (node instanceof DataNode) {
-						connectionId = ((DataNode) node).getConnectionId();
-					} else if (node instanceof DatabaseNode) {
-						connectionId = ((DatabaseNode) node).getConnectionId();
-					} else if (node instanceof LogCollectorNode) {
-						connectionId = ((LogCollectorNode) node).getConnectionIds().get(0);
-					}
+				if (node instanceof DataParentNode) {
+					connection = getConnection(((DataParentNode<?>) node).getConnectionId());
+					databaseType = ConnectionUtil.getDatabaseType(clientMongoOperator, connection.getPdkHash());
+				} else if (node.isLogCollectorNode()) {
+					String connectionId = ((LogCollectorNode) node).getConnectionIds().get(0);;
 					connection = getConnection(connectionId);
 					databaseType = ConnectionUtil.getDatabaseType(clientMongoOperator, connection.getPdkHash());
 
@@ -221,7 +220,7 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 //					}
 				} else if (node instanceof CacheNode) {
 					Optional<Edge> edge = edges.stream().filter(e -> e.getTarget().equals(node.getId())).findFirst();
-					Node sourceNode = null;
+					Node<?> sourceNode = null;
 					if (edge.isPresent()) {
 						sourceNode = nodeMap.get(edge.get().getSource());
 						if (sourceNode instanceof TableNode) {
@@ -414,6 +413,25 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 									.withTapTableMap(tapTableMap)
 									.build()
 					);
+				}
+				break;
+			case AUTO_INSPECT:
+				if ("pdk".equals(connection.getPdkType())) {
+					hazelcastNode = new HazelcastTargetPdkAutoInspectNode(
+							DataProcessorContext.newBuilder()
+									.withTaskDto(taskDto)
+									.withNode(node)
+									.withNodes(nodes)
+									.withEdges(edges)
+									.withConfigurationCenter(config)
+									.withConnectionConfig(connection.getConfig())
+									.withDatabaseType(databaseType)
+									.withTapTableMap(tapTableMap)
+									.withCacheService(cacheService)
+									.build()
+					);
+				} else {
+					throw new RuntimeException("un support AutoInspect node " + connection.getPdkType());
 				}
 				break;
 			case VIRTUAL_TARGET:
