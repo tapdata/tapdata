@@ -202,7 +202,13 @@
 	  "password": "password",
 	  "addtionalString": "Connection Parameter String",
 	  "timezone": "timezone",
-	  "doc": "docs/mysql_en_US.md"
+	  "doc": "docs/mysql_en_US.md",
+	  "checkHostPortInvalid": "Check host port is invalid",
+	  "checkDatabaseVersion": "Check database version",
+	  "checkDatabaseCdcPrivileges": "Check database cdc privileges",
+	  "checkBinlogMode": "Check binlog mode",
+	  "checkBinlogRowImage": "Check binlog row image",
+	  "checkCreateTablePrivilege": "Check create table privilege"
 	},
 	"zh_CN": {
 	  "host": "地址",
@@ -212,7 +218,13 @@
 	  "password": "密码",
 	  "addtionalString": "连接参数",
 	  "timezone": "时区",
-	  "doc": "docs/mysql_zh_CN.md"
+	  "doc": "docs/mysql_zh_CN.md",
+	  "checkHostPortInvalid": "检查主机端口是否无效",
+	  "checkDatabaseVersion": "检查数据库版本",
+	  "checkDatabaseCdcPrivileges": "检查数据库CDC权限",
+	  "checkBinlogMode": "检查Binlog模式",
+	  "checkBinlogRowImage": "检查Binlog行图像",
+	  "checkCreateTablePrivilege": "检查“创建表”权限"
 	},
 	"zh_TW": {
 	  "host": "地址",
@@ -222,7 +234,13 @@
 	  "password": "密碼",
 	  "addtionalString": "連接參數",
 	  "timezone": "時區",
-	  "doc": "docs/mysql_zh_TW.md"
+	  "doc": "docs/mysql_zh_TW.md",
+	  "check_host_port_invalid": "檢查主機埠是否無效",
+	  "check_database_version": "檢查資料庫版本",
+	  "check_database_cdc_privileges": "檢查資料庫CDC許可權",
+	  "check_binlog_mode": "檢查Binlog模式 ",
+	  "check_binlog_row_image": "檢查Binlog行影像",
+	  "check_create_table_privilege": "檢查“創建錶”許可權"
 	}
   },
   "dataTypes": {
