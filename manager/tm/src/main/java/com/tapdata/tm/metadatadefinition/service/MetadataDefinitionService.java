@@ -188,9 +188,11 @@ public class MetadataDefinitionService extends BaseService<MetadataDefinitionDto
     public Page<MetadataDefinitionDto> find(Filter filter, UserDetail user) {
         Page<MetadataDefinitionDto> dtoPage = super.find(filter, user);
         Field fields = filter.getFields();
-        Object objCount = fields.get("objCount");
-        if (objCount != null && (objCount.equals(true) || (Double) objCount == 1) && CollectionUtils.isNotEmpty(dtoPage.getItems())) {
-            discoveryService.addObjCount(dtoPage.getItems(), user);
+        if (fields != null) {
+            Object objCount = fields.get("objCount");
+            if (objCount != null && (objCount.equals(true) || (Double) objCount == 1) && CollectionUtils.isNotEmpty(dtoPage.getItems())) {
+                discoveryService.addObjCount(dtoPage.getItems(), user);
+            }
         }
 
         return dtoPage;
