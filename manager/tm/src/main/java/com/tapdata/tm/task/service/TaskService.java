@@ -8,6 +8,7 @@ import cn.hutool.core.map.MapUtil;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.google.common.collect.Maps;
 import com.mongodb.client.result.UpdateResult;
+import com.sun.xml.bind.v2.TODO;
 import com.tapdata.manager.common.utils.JsonUtil;
 import com.tapdata.tm.CustomerJobLogs.CustomerJobLog;
 import com.tapdata.tm.CustomerJobLogs.service.CustomerJobLogsService;
@@ -105,7 +106,6 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     private MessageService messageService;
     private SnapshotEdgeProgressService snapshotEdgeProgressService;
     private MeasurementService measurementService;
-    private MeasurementServiceV2 measurementServiceV2;
     private InspectService inspectService;
     private TaskRunHistoryService taskRunHistoryService;
     private TransformSchemaAsyncService transformSchemaAsyncService;
@@ -2141,10 +2141,11 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 //            taskDatabaseRuntimeInfoService.deleteAll(query);
         }
 
+        //todo jiaxin 之后逻辑补偿完善后再开启
         //重置的时候需要将子任务的temp更新到子任务实体中
-        if (taskDto.getTempDag() != null) {
-            taskDto.setDag(taskDto.getTempDag());
-        }
+//        if (taskDto.getTempDag() != null) {
+//            taskDto.setDag(taskDto.getTempDag());
+//        }
         beforeSave(taskDto, user);
         set.unset("tempDag").set("isEdit", true).set("status", TaskDto.STATUS_EDIT);
 //        Update update = new Update();
