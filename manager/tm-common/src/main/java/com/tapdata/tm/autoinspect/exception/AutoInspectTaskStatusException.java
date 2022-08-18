@@ -1,6 +1,6 @@
 package com.tapdata.tm.autoinspect.exception;
 
-import com.tapdata.tm.autoinspect.constants.AutoInspectTaskStatus;
+import com.tapdata.tm.autoinspect.constants.TaskStatus;
 import com.tapdata.tm.autoinspect.constants.Constants;
 
 /**
@@ -18,16 +18,16 @@ public class AutoInspectTaskStatusException extends AutoInspectException {
         super(String.format("%s '%s' %s", Constants.MODULE_NAME, taskId, message));
     }
 
-    public static void notChangeWithInspectError(AutoInspectTaskStatus.Sync changeStatus, String errMsg) {
+    public static void notChangeWithInspectError(TaskStatus.Sync changeStatus, String errMsg) {
         throw new AutoInspectTaskStatusException(String.format("%s not change sync status to %s error: %s", Constants.MODULE_NAME, changeStatus, errMsg));
     }
 
-    public static void notChangeWithSyncError(AutoInspectTaskStatus.Inspect changeStatus, String errMsg) {
+    public static void notChangeWithSyncError(TaskStatus.Inspect changeStatus, String errMsg) {
         throw new AutoInspectTaskStatusException(String.format("%s not change inspect status to %s error: %s", Constants.MODULE_NAME, changeStatus, errMsg));
     }
 
-    public static void notInspectError(AutoInspectTaskStatus.Inspect status, String err) {
-        if (AutoInspectTaskStatus.Inspect.Error == status) {
+    public static void notInspectError(TaskStatus.Inspect status, String err) {
+        if (TaskStatus.Inspect.Error == status) {
             throw new AutoInspectTaskStatusException("", err);
         }
     }
