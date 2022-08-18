@@ -895,19 +895,50 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
                     findQualifiedNames.add(value.getQualifiedName());
                 }
             }
+
+
             Criteria criteria = Criteria.where("qualified_name").in(findQualifiedNames);
             Query query = new Query(criteria);
             query.fields().exclude("histories");
             List<MetadataInstancesDto> metadataInstancesDtos = findAllDto(query, userDetail);
+
+            List<String> realFindQualifiedNames = findQualifiedNames.stream().map(f -> {
+                if (f.endsWith(taskId)) {
+                    f = f.replace("_" + taskId, "");
+                }
+                return f;
+            }).collect(Collectors.toList());
+
+            Criteria criteria1 = Criteria.where("qualified_name").in(realFindQualifiedNames);
+            Query query1 = new Query(criteria1);
+            query1.fields().exclude("qualified_name");
+            List<MetadataInstancesDto> realMetadataInstancesDtos = findAllDto(query1, userDetail);
+
             metaMap = metadataInstancesDtos.stream().collect(Collectors.toMap(m -> m.getId().toHexString(), m -> m));
+            Map<String, MetadataInstancesDto> realMetaMap = realMetadataInstancesDtos.stream().collect(Collectors.toMap(m -> m.getId().toHexString(), m -> m));
 
             for (Map.Entry<String, MetadataInstancesDto> entry : updateMetaMap.entrySet()) {
                 MetadataInstancesDto value = entry.getValue();
-
-
                 value.setHistories(null);
                 value.setSource(null);
                 value.setId(null);
+
+                MetadataInstancesDto old = metaMap.get(entry.getKey());
+                String realQualifiedName = value.getQualifiedName();
+                if (realQualifiedName.endsWith(taskId)) {
+                    realQualifiedName = realQualifiedName.replace("_" + taskId, "");
+                }
+
+                MetadataInstancesDto realMeta = realMetaMap.get(realQualifiedName);
+
+                if (realMeta != null) {
+                    value.setCharset(null);
+                } else {
+                    if (old == null || old.getCharset().equals(value.getCharset())) {
+                        value.setCharset(null);
+                    }
+                }
+
                 MetadataInstancesEntity entity = convertToEntity(MetadataInstancesEntity.class, value);
                 Update update = repository.buildUpdateSet(entity, userDetail);
 
