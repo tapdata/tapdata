@@ -183,4 +183,20 @@ public class StringKit {
         }
         return -1;
     }
+
+    public static String removeHeadTail(String str, String remove, Boolean upperCase) {
+        if (EmptyKit.isBlank(str) || EmptyKit.isBlank(remove)) {
+            return str;
+        }
+        if (str.startsWith(remove) && str.endsWith(remove) && str.length() > 2 * remove.length()) {
+            return str.substring(remove.length(), str.length() - remove.length());
+        }
+        if (EmptyKit.isNull(upperCase)) {
+            return str;
+        } else if (upperCase) {
+            return str.toUpperCase();
+        } else {
+            return str.toLowerCase();
+        }
+    }
 }

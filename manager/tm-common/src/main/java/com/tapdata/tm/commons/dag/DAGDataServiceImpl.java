@@ -9,7 +9,6 @@ import com.tapdata.tm.commons.dag.vo.MigrateJsResultVo;
 import com.tapdata.tm.commons.schema.*;
 import com.tapdata.tm.commons.schema.bean.SourceDto;
 import com.tapdata.tm.commons.schema.bean.SourceTypeEnum;
-import com.tapdata.tm.commons.task.dto.SubTaskDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.util.MetaDataBuilderUtils;
 import com.tapdata.tm.commons.util.MetaType;
@@ -20,21 +19,21 @@ import io.tapdata.entity.mapping.DefaultExpressionMatchingMap;
 import io.tapdata.entity.result.TapResult;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
-import io.tapdata.entity.utils.InstanceFactory;
-import io.tapdata.entity.utils.JsonParser;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.bson.types.ObjectId;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.BeanUtils;
 
 import java.io.Serializable;
 import java.util.*;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 
 @Slf4j
 public class DAGDataServiceImpl implements DAGDataService, Serializable {
+    private static Logger logger = LoggerFactory.getLogger(DAGDataServiceImpl.class);
 
     private final Map<String, MetadataInstancesDto> metadataMap;
     private final Map<String, DataSourceConnectionDto> dataSourceMap;
@@ -45,6 +44,8 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
 
     private final String userId;
     private final String userName;
+
+    private  String taskId = null;
 
     private final Map<String, MetadataInstancesDto> batchMetadataUpdateMap = new LinkedHashMap<>();
 
@@ -66,6 +67,7 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
         this.definitionDtoMap = transformerWsMessageDto.getDefinitionDtoMap();
         if (transformerWsMessageDto.getTaskDto() != null) {
             taskMap.put(transformerWsMessageDto.getTaskDto().getId().toHexString(), transformerWsMessageDto.getTaskDto());
+            this.taskId = transformerWsMessageDto.getTaskDto().getId().toHexString();
         }
         this.userId = transformerWsMessageDto.getUserId();
         this.userName = transformerWsMessageDto.getUserName();
@@ -82,6 +84,7 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
         this.definitionDtoMap = definitionDtoMap;
         if (taskDto != null) {
             taskMap.put(taskDto.getId().toHexString(), taskDto);
+            this.taskId = taskDto.getId().toHexString();
         }
         this.userId = userId;
         this.userName = userName;
@@ -115,7 +118,7 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
         if (metadataInstances == null)
             return null;
         Schema schema = JsonUtil.parseJsonUseJackson(JsonUtil.toJsonUseJackson(metadataInstances), Schema.class);
-        schema.setFields(schema.getFields()/*.stream().filter(field -> field.getParent() == null).collect(Collectors.toList())*/);
+        //schema.setFields(schema.getFields()/*.stream().filter(field -> field.getParent() == null).collect(Collectors.toList())*/);
 
         // 这里需要 执行字段映射，将 data_type 转换为 通用字段类型，设置到 data_type 字段（不要回写原模型）
         // 修改后的字段类型保存在schema里面
@@ -168,7 +171,7 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
     }
 
     @Override
-    public TapTable loadTapTable(List<Schema> schemas, String script, String nodeId, String virtualId, String customNodeId, Map<String, Object> form, SubTaskDto subTaskDto) {
+    public TapTable loadTapTable(List<Schema> schemas, String script, String nodeId, String virtualId, String customNodeId, Map<String, Object> form, TaskDto taskDto) {
         //TODO 引擎用于js跑虚拟数据产生模型  js节点存在源节点schema跟 script， 自定义节点存在 自定义节点id, 跟 form表单
         //具体参数可以另行再定，反正这里得到的会成为最终的节点入库模型
 //        String json = "{\"defaultPrimaryKeys\":[\"_id\"],\"id\":\"XXX\",\"lastUpdate\":1656129059016,\"name\":\"XXX\",\"nameFieldMap\":{\"_id\":{\"autoInc\":false,\"dataType\":\"OBJECT_ID\",\"name\":\"_id\",\"nullable\":true,\"partitionKey\":false,\"pos\":22,\"primaryKey\":true,\"primaryKeyPos\":1},\"CUSTOMER_ID\":{\"autoInc\":false,\"dataType\":\"STRING\",\"name\":\"CUSTOMER_ID\",\"nullable\":true,\"partitionKey\":false,\"pos\":22,\"primaryKey\":false},\"CITY\":{\"autoInc\":false,\"dataType\":\"STRING\",\"name\":\"CITY\",\"nullable\":true,\"partitionKey\":false,\"pos\":22,\"primaryKey\":false},\"COUNTRY_CODE\":{\"autoInc\":false,\"dataType\":\"STRING\",\"name\":\"COUNTRY_CODE\",\"nullable\":true,\"partitionKey\":false,\"pos\":22,\"primaryKey\":false},\"DATE_OF_BIRTH\":{\"autoInc\":false,\"dataType\":\"DATE_TIME\",\"name\":\"DATE_OF_BIRTH\",\"nullable\":true,\"partitionKey\":false,\"pos\":22,\"primaryKey\":false},\"EMAIL\":{\"autoInc\":false,\"dataType\":\"STRING\",\"name\":\"EMAIL\",\"nullable\":true,\"partitionKey\":false,\"pos\":22,\"primaryKey\":false},\"FIRST_NAME\":{\"autoInc\":false,\"dataType\":\"STRING\",\"name\":\"FIRST_NAME\",\"nullable\":true,\"partitionKey\":false,\"pos\":22,\"primaryKey\":false},\"GENDER\":{\"autoInc\":false,\"dataType\":\"STRING\",\"name\":\"GENDER\",\"nullable\":true,\"partitionKey\":false,\"pos\":22,\"primaryKey\":false},\"JOB\":{\"autoInc\":false,\"dataType\":\"STRING\",\"name\":\"JOB\",\"nullable\":true,\"partitionKey\":false,\"pos\":22,\"primaryKey\":false},\"LAST_CHANGE\":{\"autoInc\":false,\"dataType\":\"DATE_TIME\",\"name\":\"LAST_CHANGE\",\"nullable\":true,\"partitionKey\":false,\"pos\":22,\"primaryKey\":false},\"LAST_NAME\":{\"autoInc\":false,\"dataType\":\"STRING\",\"name\":\"LAST_NAME\",\"nullable\":true,\"partitionKey\":false,\"pos\":22,\"primaryKey\":false},\"MARITAL_STATUS\":{\"autoInc\":false,\"dataType\":\"STRING\",\"name\":\"MARITAL_STATUS\",\"nullable\":true,\"partitionKey\":false,\"pos\":22,\"primaryKey\":false},\"NATIONALITY\":{\"autoInc\":false,\"dataType\":\"STRING\",\"name\":\"NATIONALITY\",\"nullable\":true,\"partitionKey\":false,\"pos\":22,\"primaryKey\":false},\"NUMBER_CHILDREN\":{\"autoInc\":false,\"dataType\":\"INT32\",\"name\":\"NUMBER_CHILDREN\",\"nullable\":true,\"partitionKey\":false,\"pos\":22,\"primaryKey\":false},\"PHONE\":{\"autoInc\":false,\"dataType\":\"STRING\",\"name\":\"PHONE\",\"nullable\":true,\"partitionKey\":false,\"pos\":22,\"primaryKey\":false},\"STREET\":{\"autoInc\":false,\"dataType\":\"STRING\",\"name\":\"STREET\",\"nullable\":true,\"partitionKey\":false,\"pos\":22,\"primaryKey\":false},\"ZIP\":{\"autoInc\":false,\"dataType\":\"STRING\",\"name\":\"ZIP\",\"nullable\":true,\"partitionKey\":false,\"pos\":22,\"primaryKey\":false},\"POLICY_ID\":{\"autoInc\":false,\"dataType\":\"STRING\",\"name\":\"POLICY_ID\",\"nullable\":true,\"partitionKey\":false,\"pos\":22,\"primaryKey\":false},\"CAR_MODEL\":{\"autoInc\":false,\"dataType\":\"STRING\",\"name\":\"CAR_MODEL\",\"nullable\":true,\"partitionKey\":false,\"pos\":22,\"primaryKey\":false},\"COVER_START\":{\"autoInc\":false,\"dataType\":\"DATE_TIME\",\"name\":\"COVER_START\",\"nullable\":true,\"partitionKey\":false,\"pos\":22,\"primaryKey\":false},\"LAST_ANN_PREMIUM_GROSS\":{\"autoInc\":false,\"dataType\":\"DOUBLE\",\"name\":\"LAST_ANN_PREMIUM_GROSS\",\"nullable\":true,\"partitionKey\":false,\"pos\":22,\"primaryKey\":false},\"MAX_COVERED\":{\"autoInc\":false,\"dataType\":\"INT32\",\"name\":\"MAX_COVERED\",\"nullable\":true,\"partitionKey\":false,\"pos\":22,\"primaryKey\":false}}}";
@@ -179,7 +182,7 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
     }
 
     @Override
-    public List<MigrateJsResultVo> getJsResult(String jsNodeId, String virtualTargetId, SubTaskDto subTaskDto) {
+    public List<MigrateJsResultVo> getJsResult(String jsNodeId, String virtualTargetId, TaskDto taskDto) {
         return null;
     }
 
@@ -283,11 +286,11 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
             metadataInstancesDto.setLastUpdBy(userId);
 
             String nodeTableName = appendNodeTableName ? schema.getOriginalName() : null;
-            String qualifiedName = MetaDataBuilderUtils.generateQualifiedName(MetaType.processor_node.name(), nodeId, nodeTableName);
+            String qualifiedName = MetaDataBuilderUtils.generateQualifiedName(MetaType.processor_node.name(), nodeId, nodeTableName, taskId);
             metadataInstancesDto.setQualifiedName(qualifiedName);
 
             MetaDataBuilderUtils.build(_metaType, dataSource, userId, userName, metadataInstancesDto.getOriginalName(),
-                    metadataInstancesDto, null, dataSourceMetadataInstance.getId().toHexString());
+                    metadataInstancesDto, null, dataSourceMetadataInstance.getId().toHexString(), taskId);
 
             metadataInstancesDto.setSourceType(SourceTypeEnum.VIRTUAL.name());
 
@@ -334,6 +337,7 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
             }
         }
 
+
         String databaseQualifiedName = MetaDataBuilderUtils.generateQualifiedName("database", dataSource, null);
         MetadataInstancesDto dataSourceMetadataInstance = metadataMap.get(databaseQualifiedName);
 
@@ -377,10 +381,10 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
             metadataInstancesDto.setLastUpdBy(userId);
 
             metadataInstancesDto.setQualifiedName(
-                    MetaDataBuilderUtils.generateQualifiedName(metadataInstancesDto.getMetaType(), dataSource, schema.getOriginalName()));
+                    MetaDataBuilderUtils.generateQualifiedName(metadataInstancesDto.getMetaType(), dataSource, schema.getOriginalName(), taskId));
 
             metadataInstancesDto = MetaDataBuilderUtils.build(_metaType, dataSource, userId, userName, metadataInstancesDto.getOriginalName(),
-                    metadataInstancesDto, null, dataSourceMetadataInstance.getId().toHexString());
+                    metadataInstancesDto, null, dataSourceMetadataInstance.getId().toHexString(), taskId);
 
             metadataInstancesDto.setSourceType(SourceTypeEnum.VIRTUAL.name());
 
@@ -575,7 +579,7 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
 
 
         metadataInstancesDto = PdkSchemaConvert.fromPdk(tapTable);
-
+        metadataInstancesDto.setAncestorsName(schema.getAncestorsName());
 
         metadataInstancesDto.getFields().forEach(field -> {
             if (field.getId() == null) {
@@ -705,7 +709,16 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
             if (transformer.getFinished() == total) {
                 transformer.setStatus(MetadataTransformerDto.StatusEnum.done.name());
             }
-            Map<String, Boolean> tableNameMap = schemaTransformerResults.stream().collect(Collectors.toMap(SchemaTransformerResult::getSinkObjectName, s -> true, (v1, v2) -> v1));
+            // TODO: find out if it affects other logic if we skip the set
+            Map<String, Boolean> tableNameMap = new HashMap<>();
+            for (SchemaTransformerResult schemaTransformerResult : schemaTransformerResults) {
+                if (null == schemaTransformerResult.getSinkObjectName()) {
+                    logger.error("BUG: the sink object name is null, should find out why");
+                    continue;
+                }
+                tableNameMap.putIfAbsent(schemaTransformerResult.getSinkObjectName(), true);
+            }
+//            Map<String, Boolean> tableNameMap = schemaTransformerResults.stream().collect(Collectors.toMap(SchemaTransformerResult::getSinkObjectName, s -> true, (v1, v2) -> v1));
             transformer.setTableName(tableNameMap);
         } else {
             transformer.setTotal(total);
@@ -826,6 +839,16 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
         // 需要比对现有模型，并记录模型历史
 
         //BulkOperations bulkOperations = repository.bulkOperations(BulkOperations.BulkMode.UNORDERED);
+        List<String> removeKey = new ArrayList<>();
+        existsMetadataInstances.forEach((k, v) -> {
+            if (v.getSourceType().equals(SourceTypeEnum.SOURCE.name())) {
+                removeKey.add(k);
+            }
+        });
+
+        for (String key : removeKey) {
+            existsMetadataInstances.remove(key);
+        }
 
         Map<String, MetadataInstancesDto> metadataUpdateMap = new LinkedHashMap<>();
 
@@ -863,6 +886,7 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
                 update2.setDeleted(false);
                 update2.setCreateSource(metadataInstancesDto.getCreateSource());
                 update2.setVersion(newVersion);
+                update2.setQualifiedName(metadataInstancesDto.getQualifiedName());
                 if (existsMetadataInstance != null && existsMetadataInstance.getId() != null) {
                     metadataInstancesDto.setId(existsMetadataInstance.getId());
                     metadataUpdateMap.put(existsMetadataInstance.getId().toHexString(), update2);
@@ -874,7 +898,8 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
                 MetadataInstancesDto _metadataInstancesDto = MetaDataBuilderUtils.build(
                         metadataInstancesDto.getMetaType(), dataSourceConnectionDto, userId, userName,
                         metadataInstancesDto.getOriginalName(),
-                        metadataInstancesDto, null, metadataInstancesDto.getDatabaseId(), "job_analyze", null);
+                        metadataInstancesDto, null, metadataInstancesDto.getDatabaseId(), "job_analyze",
+                        null, taskId);
                 insertMetaDataList.add(_metadataInstancesDto);
                 BeanUtils.copyProperties(_metadataInstancesDto, metadataInstancesDto);
             }

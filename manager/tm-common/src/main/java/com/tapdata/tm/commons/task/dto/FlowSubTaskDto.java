@@ -5,14 +5,14 @@ import lombok.EqualsAndHashCode;
 
 
 
-/**
- * SubTask
- */
-@EqualsAndHashCode(callSuper = true)
-@Data
-public class FlowSubTaskDto extends ParentSubTaskDto {
-    private Dag dag;
-    private FlowTaskDto parentTask;
-
-    private Dag tempDag;
-}
+///**
+// * SubTask
+// */
+//@EqualsAndHashCode(callSuper = true)
+//@Data
+//public class FlowSubTaskDto extends ParentTaskDto {
+//    private Dag dag;
+//    private FlowTaskDto parentTask;
+//
+//    private Dag tempDag;
+//}

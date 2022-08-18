@@ -87,12 +87,12 @@ public class ConnectorConstant {
 	public static final String INSPECT_COLLECTION = "Inspects";
 	public static final String INSPECT_RESULT_COLLECTION = "InspectResults";
 	public static final String INSPECT_DETAILS_COLLECTION = "InspectDetails";
+	public static final String AUTO_INSPECT_RESULTS_COLLECTION = "AutoInspectResults";
 
 	public static final String MESSAGE_COLLECTION = "Messages";
 	public static final String JOB_DDL_HISTORIES_COLLECTION = "JobDDLHistories";
 	public static final String TYPE_MAPPINGS_COLLECTION = "TypeMappings";
 	public static final String TASK_COLLECTION = "Task";
-	public static final String SUB_TASK_COLLECTION = "SubTask";
 	public static final String TASK_NODE = "node";
 	public static final String METRICS_COLLECTION = "Metrics";
 	public static final String CUSTOMNODETEMP_COLLECTION = "customNode";
@@ -127,7 +127,7 @@ public class ConnectorConstant {
 	public static final String JAVASCRIPT_FUNCTION_COLLECTION = "Javascript_functions";
 	public static final String CDC_EVENTS_COLLECTION = "CdcEvents";
 	public static final String METADATA_HISTROY_COLLECTION = "metadata/history";
-	public static final String SUBTASK_PROGRESS = "SubTaskProgress";
+	public static final String SUBTASK_PROGRESS = "TaskProgress";
 
 	public static final String OFFSET_MONGO_SERVER_URI = "offset.mongo.server.uri";
 

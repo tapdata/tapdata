@@ -1,12 +1,18 @@
 package io.tapdata.entity.event.dml;
 
 
+import io.tapdata.entity.error.CoreException;
+import io.tapdata.entity.error.TapAPIErrorCodes;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.entity.utils.TapUtils;
 
+import java.util.Collection;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
+
+import static io.tapdata.entity.simplify.TapSimplify.map;
 
 public class TapUpdateRecordEvent extends TapRecordEvent {
 	public static final int TYPE = 302;
@@ -56,10 +62,6 @@ public class TapUpdateRecordEvent extends TapRecordEvent {
 	}
 
 	private Map<String, Object> filter;
-	public TapUpdateRecordEvent filter(Map<String, Object> filter) {
-		this.filter = filter;
-		return this;
-	}
 
 	@Override
 	public void clone(TapEvent tapEvent) {
@@ -70,8 +72,6 @@ public class TapUpdateRecordEvent extends TapRecordEvent {
 				updateRecordEvent.before = InstanceFactory.instance(TapUtils.class).cloneMap(before);
 			if (after != null)
 				updateRecordEvent.after = InstanceFactory.instance(TapUtils.class).cloneMap(after);
-			if (filter != null)
-				updateRecordEvent.filter = InstanceFactory.instance(TapUtils.class).cloneMap(filter);
 		}
 	}
 
@@ -105,12 +105,24 @@ public class TapUpdateRecordEvent extends TapRecordEvent {
 		}
 	}
 
-	public Map<String, Object> getFilter() {
+	public Map<String, Object> getFilter(Collection<String> primaryKeys) {
+		if(primaryKeys == null || primaryKeys.isEmpty())
+			throw new CoreException(TapAPIErrorCodes.ERROR_NO_PRIMARY_KEYS, "TapUpdateRecordEvent: no primary keys for tableId {} before {} after {}", tableId, before, after);
+		if(filter == null) {
+			filter = map();
+			for(String key : primaryKeys) {
+				Object value = null;
+				if(before != null)
+					value = before.get(key);
+				if(after != null)
+					value = after.get(key);
+				if(value != null)
+					filter.put(key, value);
+				else
+					throw new CoreException(TapAPIErrorCodes.ERROR_MISSING_PRIMARY_VALUE, "TapUpdateRecordEvent: primary key {} is missing value from before {} or after {}, all primary keys {} tableId {}", key, before, after, primaryKeys, tableId);
+			}
+		}
 		return filter;
-	}
-
-	public void setFilter(Map<String, Object> filter) {
-		this.filter = filter;
 	}
 
 	//	@Override

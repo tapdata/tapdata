@@ -1,5 +1,6 @@
 package com.tapdata.tm.metadatainstance.dto;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -23,6 +24,8 @@ public class MigrateTableInfoDto {
     class Field {
         private String fieldName;
         private String fieldType;
-        private String defaultValue;
+//        private String defaultValue;
+        @Schema(description = "true 启用默认值，false 不启用默认值")
+        private boolean useDefaultValue = true;
     }
 }

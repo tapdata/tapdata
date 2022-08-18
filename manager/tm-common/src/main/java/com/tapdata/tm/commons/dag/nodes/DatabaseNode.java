@@ -117,6 +117,7 @@ public class DatabaseNode extends DataParentNode<List<Schema>> {
 
             List<Schema> existsTables = schemas.stream().map(s -> {
                 if (inputTables.containsKey(s.getOriginalName())) {
+                    s.setAncestorsName(inputTables.get(s.getOriginalName()).getAncestorsName());
                     return SchemaUtils.mergeSchema(Collections.singletonList(inputTables.remove(s.getOriginalName())), s);
                 }
                 return s;
@@ -125,7 +126,6 @@ public class DatabaseNode extends DataParentNode<List<Schema>> {
             outputSchema = Stream.concat(new ArrayList<>(inputTables.values()).stream(), existsTables.stream()).collect(Collectors.toList());
         }
         for (Schema schema : outputSchema) {
-            schema.setAncestorsName(schema.getOriginalName());
             schema.setFields(transformFields(inputFields, schema, inputFieldOriginalNames));
             //  has migrateFieldNode && field not show => will del index where contain field
             schema.setIndices(updateIndexDelField(schema.getIndices(), inputFieldOriginalNames));
@@ -201,11 +201,9 @@ public class DatabaseNode extends DataParentNode<List<Schema>> {
     public List<String> getSourceNodeTableNames() {
         AtomicReference<List<String>> tableNames = new AtomicReference<>();
 
-        Set<String> targetNodeIds = getGraph().getSinks();
-
-        this.getDag().getSources().stream()
+        this.getDag().getSourceNode().stream()
                 .findAny()
-                .ifPresent(t -> tableNames.set(((DatabaseNode) t).getTableNames()));
+                .ifPresent(t -> tableNames.set(t.getTableNames()));
 
         return tableNames.get();
     }
@@ -248,7 +246,11 @@ public class DatabaseNode extends DataParentNode<List<Schema>> {
 
         List<Schema> schemaList = service.loadSchema(ownerId(), toObjectId(connectionId), filteredTableNames, null)
                 .stream().peek(s -> {
-                    s.setAncestorsName(s.getOriginalName());
+
+                    // 源节点 保存原始表名
+                    if (this.getSourceNode().contains(this)) {
+                        s.setAncestorsName(s.getOriginalName());
+                    }
                     s.setNodeId(getId());
                     s.setSourceNodeDatabaseType(getDatabaseType());
                 }).collect(Collectors.toList());
@@ -277,7 +279,7 @@ public class DatabaseNode extends DataParentNode<List<Schema>> {
         if (schemaList != null && schemaList.size() > 0) {
             boolean charsetNotBlank = StringUtils.isNotBlank(this.getCharset());
             schemaList.forEach(s -> {
-                s.setTaskId(taskId());
+                //s.setTaskId(taskId());
                 s.setNodeId(nodeId);
                 if (charsetNotBlank) {
                     s.setCharset(this.getCharset());

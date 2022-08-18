@@ -3,7 +3,7 @@ package com.tapdata.tm.ws.handler;
 import com.tapdata.manager.common.utils.JsonUtil;
 import com.tapdata.tm.commons.task.dto.DataSyncMq;
 import com.tapdata.tm.config.security.UserDetail;
-import com.tapdata.tm.task.service.SubTaskService;
+import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.utils.MongoUtils;
 import com.tapdata.tm.ws.annotation.WebSocketMessageHandler;
@@ -28,10 +28,10 @@ public class DataSyncHandler implements WebSocketHandler{
 
     public static final Map<String, Map<String, String>> dataSyncCache = new ConcurrentHashMap<>();
 
-    private final SubTaskService subTaskService;
+    private final TaskService taskService;
     private final UserService userService;
-    public DataSyncHandler(SubTaskService subTaskService, UserService userService) {
-        this.subTaskService = subTaskService;
+    public DataSyncHandler(TaskService taskService, UserService userService) {
+        this.taskService = taskService;
         this.userService = userService;
     }
 
@@ -76,27 +76,27 @@ public class DataSyncHandler implements WebSocketHandler{
                     //任务状态在运行中，可能收到运行已完成。
                     //收到任务已经运行的消息，将子任务改成已运行状态
                     log.info("subTask running status report by ws, id = {}", objectId);
-                    subTaskService.running(objectId, userDetail);
+                    taskService.running(objectId, userDetail);
                     break;
                 case DataSyncMq.OP_TYPE_STOPPED:
                     //收到任务已停止消息，如果子任务状态为暂停中，则将子任务改成已暂停，如果子任务状态为停止中，则改为已停止
-                    subTaskService.stopped(objectId, userDetail);
+                    taskService.stopped(objectId, userDetail);
                     break;
                 case DataSyncMq.OP_TYPE_ERROR:
                     //任务状态在运行中，可能收到运行错误。
-                    subTaskService.runError(objectId, userDetail, dataSyncMq.getErrMsg(), dataSyncMq.getErrStack());
+                    taskService.runError(objectId, userDetail, dataSyncMq.getErrMsg(), dataSyncMq.getErrStack());
                     break;
                 case DataSyncMq.OP_TYPE_COMPLETE:
                     //任务状态在运行中，可能收到运行已完成。
-                    subTaskService.complete(objectId, userDetail);
+                    taskService.complete(objectId, userDetail);
                     break;
                 case DataSyncMq.OP_TYPE_RESETED:
                     //任务状态在运行中，可能收到运行已完成。
-                    subTaskService.reseted(objectId, userDetail);
+                    taskService.reseted(objectId, userDetail);
                     break;
                 case DataSyncMq.OP_TYPE_DELETED:
                     //任务状态在运行中，可能收到运行已完成。
-                    subTaskService.deleted(objectId, userDetail);
+                    taskService.deleted(objectId, userDetail);
                     break;
                 default:
                     break;
@@ -108,11 +108,11 @@ public class DataSyncHandler implements WebSocketHandler{
         switch (opType) {
             case DataSyncMq.OP_TYPE_DELETE:
                 //任务状态在运行中，可能收到运行已完成。
-                subTaskService.deleted(id, user);
+                taskService.deleted(id, user);
                 break;
             case DataSyncMq.OP_TYPE_RESET:
                 //任务状态在运行中，可能收到运行已完成。
-                subTaskService.reseted(id, user);
+                taskService.reseted(id, user);
                 break;
         }
     }

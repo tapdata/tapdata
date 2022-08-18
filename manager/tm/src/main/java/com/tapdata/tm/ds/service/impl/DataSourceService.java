@@ -4,6 +4,7 @@ import cn.hutool.core.lang.Assert;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.common.base.Splitter;
 import com.mongodb.BasicDBObject;
 import com.mongodb.ConnectionString;
 import com.mongodb.client.result.UpdateResult;
@@ -21,10 +22,7 @@ import com.tapdata.tm.base.service.BaseService;
 import com.tapdata.tm.classification.dto.ClassificationDto;
 import com.tapdata.tm.classification.service.ClassificationService;
 import com.tapdata.tm.commons.dag.AccessNodeTypeEnum;
-import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
-import com.tapdata.tm.commons.schema.DataSourceDefinitionDto;
-import com.tapdata.tm.commons.schema.Field;
-import com.tapdata.tm.commons.schema.MetadataInstancesDto;
+import com.tapdata.tm.commons.schema.*;
 import com.tapdata.tm.commons.schema.bean.DataSourceEnum;
 import com.tapdata.tm.commons.schema.bean.PlatformInfo;
 import com.tapdata.tm.commons.schema.bean.Schema;
@@ -36,7 +34,6 @@ import com.tapdata.tm.commons.util.PdkSchemaConvert;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.dataflow.dto.DataFlowDto;
 import com.tapdata.tm.dataflow.service.DataFlowService;
-import com.tapdata.tm.ds.bean.Tag;
 import com.tapdata.tm.ds.dto.UpdateTagsDto;
 import com.tapdata.tm.ds.entity.DataSourceEntity;
 import com.tapdata.tm.ds.repository.DataSourceRepository;
@@ -70,6 +67,7 @@ import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.lang3.tuple.Pair;
 import org.bson.Document;
 import org.bson.types.ObjectId;
 import org.springframework.beans.BeanUtils;
@@ -340,7 +338,7 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 		Map<String, DataSourceConnectionDto> connectMap = new HashMap<>();
 		Map<ObjectId, DataSourceConnectionDto> newResultObj = new HashMap<>();
 
-		List<String> pdkHashList = items.stream().map(DataSourceConnectionDto::getPdkHash).distinct().collect(Collectors.toList());
+		Set<String> pdkHashList = items.stream().map(DataSourceConnectionDto::getPdkHash).collect(Collectors.toSet());
 		List<DataSourceDefinitionDto> definitionDtoList = dataSourceDefinitionService.findByPdkHashList(pdkHashList, user);
 		//Map<String, DataSourceDefinitionDto> definitionMap = definitionDtoList.stream().collect(Collectors.toMap(DataSourceDefinitionDto::getPdkHash, Function.identity(), (f1, f2) -> f1));
 
@@ -1067,10 +1065,13 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 				Criteria criteria1 = Criteria.where("qualified_name").is(databaseModel.getQualifiedName());
 				MetadataInstancesDto oldMeta = metadataInstancesService.findOne(new Query(criteria1), user);
 
-				if (set != null && StringUtils.isNotBlank((String) set.get("name"))) {
-					databaseModel.setOriginalName((String) set.get("name"));
-					if (databaseModel.getSource() != null) {
-						databaseModel.getSource().setName((String) set.get("name"));
+				if (set != null) {
+					String tableName = (String) set.get("name");
+					if (StringUtils.isNotBlank(tableName)) {
+						databaseModel.setOriginalName(tableName);
+						if (databaseModel.getSource() != null) {
+							databaseModel.getSource().setName(tableName);
+						}
 					}
 				}
 
@@ -1094,12 +1095,29 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 
 				if (hasSchema) {
 					if (CollectionUtils.isNotEmpty(tables)) {
+
+						//处理自定义加载的表。
+						Boolean loadAllTable = oldConnectionDto.getLoadAllTable();
+						if (loadAllTable != null && !loadAllTable) {
+							String table_filter = oldConnectionDto.getTable_filter();
+							if (StringUtils.isNotBlank(table_filter)) {
+								List<String> loadTables = Splitter.on(',').trimResults().omitEmptyStrings().splitToList(table_filter);
+								if (CollectionUtils.isNotEmpty(loadTables)) {
+									tables = tables.stream().filter(t -> loadTables.contains(t.getName())).collect(Collectors.toList());
+
+								}
+							}
+						}
 						for (TapTable table : tables) {
 							String expression = definitionDto.getExpression();
 							PdkSchemaConvert.tableFieldTypesGenerator.autoFill(table.getNameFieldMap() == null ? new LinkedHashMap<>() : table.getNameFieldMap(), DefaultExpressionMatchingMap.map(expression));
 						}
 
-						List<MetadataInstancesDto> newModels = tables.stream().map(PdkSchemaConvert::fromPdk).collect(Collectors.toList());
+						List<MetadataInstancesDto> newModels = tables.stream().map(tapTable -> {
+							MetadataInstancesDto instance = PdkSchemaConvert.fromPdk(tapTable);
+							instance.setAncestorsName(instance.getOriginalName());
+							return instance;
+						}).collect(Collectors.toList());
 						//List<MetadataInstancesDto> newModels = SchemaTransformUtils.oldSchema2newSchema(schema);
 						log.info("upsert new models into MetadataInstance: {}, connection id = {}, connection name = {}",
 								newModels.size(), connectionId, oldConnectionDto.getName());
@@ -1118,7 +1136,15 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 							Long schemaVersion = (Long) set.get("lastUpdate");
 							String loadFieldsStatus = (String) set.get("loadFieldsStatus");
 							oldConnectionDto.setLoadSchemaField(set.get("loadSchemaField") != null ? ((Boolean) set.get("loadSchemaField")) : true);
-							metadataUtil.modelNext(newModels, oldConnectionDto, databaseId, user);
+							List<MetadataInstancesDto> newModelList = metadataUtil.modelNext(newModels, oldConnectionDto, databaseId, user);
+
+							Pair<Integer, Integer> pair = metadataInstancesService.bulkUpsetByWhere(newModelList, user);
+							List<String> qualifiedNames = newModelList.stream().filter(Objects::nonNull).map(MetadataInstancesDto::getQualifiedName)
+									.filter(StringUtils::isNotBlank).collect(Collectors.toList());
+							metadataInstancesService.qualifiedNameLinkLogic(qualifiedNames, user);
+							String name = newModelList.stream().map(MetadataInstancesDto::getOriginalName).collect(Collectors.toList()).toString();
+							log.info("Upsert model, model list = {}, values = {}, modify count = {}, insert count = {}"
+									, newModelList.size(), name, pair.getLeft(), pair.getRight());
 							deleteModels(loadFieldsStatus, databaseId, schemaVersion, user);
 						}
 					}
@@ -1208,13 +1234,6 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 		}
 		//userLogService.addUserLog(Modular.CONNECTION, name, OperationType.UPDATE, user, sourceId);
 		desensitizeMongoConnection(connectionDto);
-	}
-
-	private boolean isAgentReq() {
-		ServletRequestAttributes attributes = (ServletRequestAttributes) RequestContextHolder.currentRequestAttributes();
-		HttpServletRequest request = attributes.getRequest();
-		String userAgent = request.getHeader("user-agent");
-		return StringUtils.isNotBlank(userAgent) && (userAgent.contains("Java") || userAgent.contains("Node") || userAgent.contains("FlowEngine"));
 	}
 
 	public List<String> distinct(String field, UserDetail user) {

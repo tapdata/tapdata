@@ -2,32 +2,39 @@ name: LDP Continuous Integration
 
 on:
   push:
-    branches: [ "master", "release-v*.*.*", "develop-v*.*.0" ]
+    branches: [ "master", "release-v*.*.*", "develop-v*.*.0", "develop-v*.*", "release-v*.*" ]
   pull_request:
-    branches: [ "master", "release-v*.*.*", "develop-v*.*.0" ]
+    branches: [ "master", "release-v*.*.*", "develop-v*.*.0", "develop-v*.*", "release-v*.*" ]
 
 env:
   REGISTRY: ghcr.io
   TEST_DATABASE: ${{ secrets.TEST_DATABASE }}
+  STYLE_CHECK_PASS: "1"
 
 
 jobs:
 
   Code-Style-Check:
     runs-on: ubuntu-latest
+    outputs:
+      check-style: ${{ steps.check-style.outputs.pass }}
     steps:
       - name: check commit message
+        id: check-style
         if: (!startsWith(github.event.head_commit.message, 'feat')) && 
             (!startsWith(github.event.head_commit.message, 'fix')) &&
             (!startsWith(github.event.head_commit.message, 'refactor')) &&
             (!startsWith(github.event.head_commit.message, 'test')) &&
             (!startsWith(github.event.head_commit.message, 'chore')) &&
             (!startsWith(github.event.head_commit.message, 'Merge'))
-        run: echo ${{ github.event.head_commit.message }} exit 1
+        run: |
+          echo ${{ github.event.head_commit.message }}
+          echo "::set-output name=pass::false"
 
   Integration-Testing:
     runs-on: ubuntu-latest
     needs: Code-Style-Check
+    if: needs.Code-Style-Check.outputs.check-style != 'false'
     steps:
       - uses: actions/checkout@v3
       - name: Login to the github container registry
@@ -88,3 +95,4 @@ jobs:
         run: |
           BRANCH_DIR=`echo $BRANCH | sed "s:/:-:g"`
           echo "[Click to view test report](https://tapdata.github.io/tapdata/$BRANCH_DIR/$RUN_SIGN)" >> $GITHUB_STEP_SUMMARY
+

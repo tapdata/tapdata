@@ -27,12 +27,22 @@
     <dependencies>
         <dependency>
             <groupId>com.tapdata</groupId>
+            <artifactId>autoinspect-module</artifactId>
+            <version>0.5.2-SNAPSHOT</version>
+        </dependency>
+        <dependency>
+            <groupId>com.tapdata</groupId>
             <artifactId>observable-module</artifactId>
             <version>0.5.2-SNAPSHOT</version>
         </dependency>
         <dependency>
             <groupId>com.tapdata</groupId>
             <artifactId>test-run-module</artifactId>
+            <version>0.5.2-SNAPSHOT</version>
+        </dependency>
+        <dependency>
+            <groupId>com.tapdata</groupId>
+            <artifactId>deduction-module</artifactId>
             <version>0.5.2-SNAPSHOT</version>
         </dependency>
         <dependency> <!-- exclude掉spring-boot的默认log配置 -->

@@ -161,6 +161,13 @@ public class CommonUtils {
         return value;
     }
 
+    public static String getProperty(String key) {
+        String value = System.getProperty(key);
+        if(value == null)
+            value = System.getenv(key);
+        return value;
+    }
+
     public static boolean getPropertyBool(String key, boolean defaultValue) {
         String value = System.getProperty(key);
         if(value == null)

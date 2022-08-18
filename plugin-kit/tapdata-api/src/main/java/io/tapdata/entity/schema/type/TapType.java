@@ -47,6 +47,34 @@ public abstract class TapType implements Serializable {
         return null;
     }
 
+    public static Class<? extends TapType> getTapTypeClass(String type) {
+        switch (type) {
+            case "TapArray":
+                return TapArray.class;
+            case "TapBinary":
+                return TapBinary.class;
+            case "TapBoolean":
+                return TapBoolean.class;
+            case "TapDate":
+                return TapDate.class;
+            case "TapDateTime":
+                return TapDateTime.class;
+            case "TapMap":
+                return TapMap.class;
+            case "TapNumber":
+                return TapNumber.class;
+            case "TapRaw":
+                return TapRaw.class;
+            case "TapString":
+                return TapString.class;
+            case "TapTime":
+                return TapTime.class;
+            case "TapYear":
+                return TapYear.class;
+        }
+        return null;
+    }
+
     public abstract TapType cloneTapType();
     public abstract Class<? extends TapValue<?, ?>> tapValueClass();
     public abstract ToTapValueCodec<?> toTapValueCodec();

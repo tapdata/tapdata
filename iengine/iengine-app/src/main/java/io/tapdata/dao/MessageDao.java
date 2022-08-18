@@ -10,7 +10,7 @@ import com.tapdata.entity.MessageEntity;
 import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.tm.commons.dag.nodes.CacheNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
-import com.tapdata.tm.commons.task.dto.SubTaskDto;
+import com.tapdata.tm.commons.task.dto.TaskDto;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.stereotype.Component;
@@ -106,12 +106,12 @@ public class MessageDao {
 		CacheUtil.registerCache(job, clientMongoOperator, cacheService);
 	}
 
-	public synchronized void registerCache(CacheNode cacheNode, TableNode sourceNode, Connections sourceConnection, SubTaskDto subTaskDto, ClientMongoOperator clientMongoOperator) {
-		if (cacheRegisterJobIds.contains(subTaskDto.getId().toHexString())) {
-			logger.info("Job cache is registered '{}'", subTaskDto.getId());
+	public synchronized void registerCache(CacheNode cacheNode, TableNode sourceNode, Connections sourceConnection, TaskDto taskDto, ClientMongoOperator clientMongoOperator) {
+		if (cacheRegisterJobIds.contains(taskDto.getId().toHexString())) {
+			logger.info("Job cache is registered '{}'", taskDto.getId());
 			return;
 		}
-		cacheRegisterJobIds.add(subTaskDto.getId().toHexString());
+		cacheRegisterJobIds.add(taskDto.getId().toHexString());
 		CacheUtil.registerCache(cacheNode, sourceNode, sourceConnection, clientMongoOperator, cacheService);
 	}
 
@@ -120,8 +120,8 @@ public class MessageDao {
 		CacheUtil.destroyCache(job, cacheService);
 	}
 
-	public synchronized void destroyCache(SubTaskDto subTaskDto, String cacheName) {
-		cacheRegisterJobIds.remove(subTaskDto.getId().toHexString());
+	public synchronized void destroyCache(TaskDto taskDto, String cacheName) {
+		cacheRegisterJobIds.remove(taskDto.getId().toHexString());
 		cacheService.destroy(cacheName);
 	}
 

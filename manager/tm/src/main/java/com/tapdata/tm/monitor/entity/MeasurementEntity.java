@@ -61,6 +61,9 @@ public class MeasurementEntity {
                     if(number == null) {
                         number = entry.getValue();
                     } else {
+                        if (null == entry.getValue()) {
+                            continue;
+                        }
                         number = NumberUtils.addNumbers(number, entry.getValue());
                     }
                     keyValueMap.put(entry.getKey(), number);
@@ -77,8 +80,11 @@ public class MeasurementEntity {
             if(!keyValueMap.isEmpty()) {
                 for(Map.Entry<String, Number> entry : keyValueMap.entrySet()) {
                     Integer counter = keyCounterMap.get(entry.getKey());
-                    if(counter != null && counter > 0) {
+                    Number value = entry.getValue();
+                    if(counter != null && value != null && counter > 0) {
                         finalKeyValueMap.put(entry.getKey(), NumberUtils.divideNumbers(entry.getValue(), counter));
+                    } else {
+                        finalKeyValueMap.put(entry.getKey(), null);
                     }
                 }
             }

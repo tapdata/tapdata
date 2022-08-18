@@ -1,7 +1,7 @@
 package io.tapdata.flow.engine.V2.task;
 
 
-import com.tapdata.tm.commons.task.dto.SubTaskDto;
+import com.tapdata.tm.commons.task.dto.TaskDto;
 
 import java.util.List;
 
@@ -21,7 +21,7 @@ public interface TaskService<T> {
 	 */
 	TaskClient<T> startTask(T task);
 
-	TaskClient<SubTaskDto> startTestTask(SubTaskDto subTaskDto);
+	TaskClient<TaskDto> startTestTask(TaskDto taskDto);
 
 	/**
 	 * Returns the active or last started task client with the given taskId or {@code

@@ -11,7 +11,7 @@ import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.metrics.Metrics;
 import com.tapdata.tm.commons.metrics.MetricsLabel;
 import com.tapdata.tm.commons.metrics.TaskMetricsLabel;
-import com.tapdata.tm.commons.task.dto.SubTaskDto;
+import com.tapdata.tm.commons.task.dto.TaskDto;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.collections.MapUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -35,9 +35,9 @@ public class TaskNodeMetrics extends TaskMetrics {
 	private Double previousSubTaskTotalInput = 0d;
 	private Double previousSubTaskTotalOutput = 0d;
 
-	public TaskNodeMetrics(SubTaskDto subTaskDto, ClientMongoOperator clientMongoOperator, BaseMetrics.NodeType nodeType, Stats stats, Node<?> node, ConfigurationCenter configurationCenter,
+	public TaskNodeMetrics(TaskDto taskDto, ClientMongoOperator clientMongoOperator, BaseMetrics.NodeType nodeType, Stats stats, Node<?> node, ConfigurationCenter configurationCenter,
 						   HazelcastInstance hazelcastInstance) {
-		super(clientMongoOperator, subTaskDto, configurationCenter, hazelcastInstance);
+		super(clientMongoOperator, taskDto, configurationCenter, hazelcastInstance);
 		checkInput(nodeType, stats, node);
 		this.nodeType = nodeType;
 		this.stats = stats;
@@ -102,14 +102,14 @@ public class TaskNodeMetrics extends TaskMetrics {
 		}
 		Long value = total.getOrDefault(key, 0L);
 		metricsName = SUB_TASK_NODE_METRICS_PREFIX + metricsName;
-		MetricsLabel metricsLabel = new TaskMetricsLabel(subTaskDto.getId().toHexString(), node.getId());
+		MetricsLabel metricsLabel = new TaskMetricsLabel(taskDto.getId().toHexString(), node.getId());
 		Metrics metrics = Metrics.counter(metricsName, Double.valueOf(value.toString()), null, metricsLabel);
 		insertMetrics(metrics);
 	}
 
 	private void subTaskNodeTotalInputQps() {
 		Map<String, Long> total = stats.getTotal();
-		MetricsLabel metricsLabel = new TaskMetricsLabel(subTaskDto.getId().toHexString(), node.getId());
+		MetricsLabel metricsLabel = new TaskMetricsLabel(taskDto.getId().toHexString(), node.getId());
 		String name = SUB_TASK_NODE_METRICS_PREFIX + "total_input_qps";
 		double subTaskTotalInputQps = 0d;
 		if (total != null) {
@@ -123,7 +123,7 @@ public class TaskNodeMetrics extends TaskMetrics {
 
 	private void subTaskTotalOutputQps() {
 		Map<String, Long> total = stats.getTotal();
-		MetricsLabel metricsLabel = new TaskMetricsLabel(subTaskDto.getId().toHexString(), node.getId());
+		MetricsLabel metricsLabel = new TaskMetricsLabel(taskDto.getId().toHexString(), node.getId());
 		String name = SUB_TASK_NODE_METRICS_PREFIX + "total_output_qps";
 		Double subTaskTotalOutputQps = 0d;
 		if (total != null) {
@@ -150,7 +150,7 @@ public class TaskNodeMetrics extends TaskMetrics {
 			String stageId = (String) totalCountMap.get("stageId");
 			Double dataCount = Double.valueOf(totalCountMap.get("dataCount").toString());
 			String name = "totalCount-" + stageId;
-			MetricsLabel metricsLabel = new TaskMetricsLabel(subTaskDto.getId().toHexString(), stageId);
+			MetricsLabel metricsLabel = new TaskMetricsLabel(taskDto.getId().toHexString(), stageId);
 			Metrics metrics = Metrics.counter(name, dataCount, "", metricsLabel);
 			try {
 				insertMetrics(metrics);
@@ -243,13 +243,13 @@ public class TaskNodeMetrics extends TaskMetrics {
 	}
 
 	private void insertLongValue(String name, long value) {
-		MetricsLabel metricsLabel = new TaskMetricsLabel(subTaskDto.getId().toHexString());
+		MetricsLabel metricsLabel = new TaskMetricsLabel(taskDto.getId().toHexString());
 		Metrics metrics = Metrics.counter(name, (double) value, "", metricsLabel);
 		insertMetrics(metrics);
 	}
 
 	private void insertLongValue(String name, long value, String nodeId) {
-		MetricsLabel metricsLabel = new TaskMetricsLabel(subTaskDto.getId().toHexString(), nodeId);
+		MetricsLabel metricsLabel = new TaskMetricsLabel(taskDto.getId().toHexString(), nodeId);
 		Metrics metrics = Metrics.counter(name, (double) value, "", metricsLabel);
 		insertMetrics(metrics);
 	}
@@ -287,8 +287,8 @@ public class TaskNodeMetrics extends TaskMetrics {
 			IMap<String, Map<String, Map<String, Metrics>>> subTaskMetricsMap = hazelcastInstance.getMap(IMAP_NAME);
 			Map<String, Map<String, Metrics>> metricsMap;
 			Map<String, Metrics> nodeMetricsMap;
-			if (subTaskMetricsMap.containsKey(subTaskDto.getId().toHexString())) {
-				metricsMap = subTaskMetricsMap.get(subTaskDto.getId().toHexString());
+			if (subTaskMetricsMap.containsKey(taskDto.getId().toHexString())) {
+				metricsMap = subTaskMetricsMap.get(taskDto.getId().toHexString());
 			} else {
 				metricsMap = new HashMap<>();
 			}
@@ -302,7 +302,7 @@ public class TaskNodeMetrics extends TaskMetrics {
 			}
 			nodeMetricsMap.put(node.getId(), metrics);
 			metricsMap.put(metrics.getName(), nodeMetricsMap);
-			subTaskMetricsMap.put(subTaskDto.getId().toHexString(), metricsMap);
+			subTaskMetricsMap.put(taskDto.getId().toHexString(), metricsMap);
 		}
 	}
 
@@ -310,7 +310,7 @@ public class TaskNodeMetrics extends TaskMetrics {
 	public String toString() {
 		return "TaskMetrics{" +
 				", nodeType=" + nodeType +
-				"subTaskDto=" + subTaskDto.getId() + ", " + subTaskDto.getName() +
+				"subTaskDto=" + taskDto.getId() + ", " + taskDto.getName() +
 				'}';
 	}
 }

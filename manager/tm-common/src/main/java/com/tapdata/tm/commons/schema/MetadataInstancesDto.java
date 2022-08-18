@@ -26,6 +26,7 @@ public class MetadataInstancesDto extends BaseDto {
     private boolean isDeleted = false;
     @JsonProperty("original_name")
     private String originalName;
+    // 原始表名
     private String ancestorsName;
     @JsonProperty("dev_version")
     private Integer devVersion;
@@ -43,7 +44,7 @@ public class MetadataInstancesDto extends BaseDto {
     private SourceDto source;
     private String createSource;
     private Boolean virtual;
-    private List<Tag> classifications;
+    private List<Tag> listtags;
     @JsonProperty("last_user_name")
     private String lastUserName;
     private List<TableIndex> indices;
@@ -99,6 +100,13 @@ public class MetadataInstancesDto extends BaseDto {
     @JsonInclude(JsonInclude.Include.ALWAYS)
     private String sourceType= SourceTypeEnum.SOURCE.name();
 
+    public String getDatabaseId() {
+        return databaseId;
+    }
+
+    public void setDatabaseId(String databaseId) {
+        this.databaseId = databaseId;
+    }
 
     public static void sortField(List<Field> fields) {
         if (CollectionUtils.isNotEmpty(fields)) {

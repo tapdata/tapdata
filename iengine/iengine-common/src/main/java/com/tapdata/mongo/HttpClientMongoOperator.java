@@ -13,7 +13,7 @@ import com.tapdata.constant.DateUtil;
 import com.tapdata.constant.JSONUtil;
 import com.tapdata.entity.*;
 import com.tapdata.entity.dataflow.DataFlow;
-import com.tapdata.tm.commons.task.dto.SubTaskDto;
+import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.exception.ManagementException;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.collections.MapUtils;
@@ -680,7 +680,7 @@ public class HttpClientMongoOperator extends ClientMongoOperator {
 	}
 
 	private Object findAndModifyTask(String collection, Query query, Update update, boolean returnNew) {
-		if (ConnectorConstant.SUB_TASK_COLLECTION.equals(collection)) {
+		if (ConnectorConstant.TASK_COLLECTION.equals(collection)) {
 			final org.springframework.data.mongodb.core.query.Field fields = query.fields();
 			if (fields == null || MapUtils.isEmpty(fields.getFieldsObject())) {
 				fields.exclude("editorData");
@@ -688,12 +688,12 @@ public class HttpClientMongoOperator extends ClientMongoOperator {
 			if (query.getLimit() <= 0) {
 				query.limit(1);
 			}
-			List<SubTaskDto> subTaskDtos = find(query, collection, SubTaskDto.class);
+			List<TaskDto> taskDtos = find(query, collection, TaskDto.class);
 
-			if (CollectionUtils.isNotEmpty(subTaskDtos)) {
+			if (CollectionUtils.isNotEmpty(taskDtos)) {
 
-				for (SubTaskDto subTaskDto : subTaskDtos) {
-					String taskId = subTaskDto.getId().toHexString();
+				for (TaskDto taskDto : taskDtos) {
+					String taskId = taskDto.getId().toHexString();
 
 					query.addCriteria(new Criteria().and("_id").is(taskId));
 					UpdateResult result = update(query, update, collection);
@@ -703,13 +703,13 @@ public class HttpClientMongoOperator extends ClientMongoOperator {
 
 							Query newRecordQuery = new Query(where("_id").is(taskId));
 							newRecordQuery.fields().exclude("graph");
-							final SubTaskDto newSubTaskDto = findOne(newRecordQuery, collection, SubTaskDto.class);
+							final TaskDto newTaskDto = findOne(newRecordQuery, collection, TaskDto.class);
 
-							if (newSubTaskDto != null) {
-								return newSubTaskDto;
+							if (newTaskDto != null) {
+								return newTaskDto;
 							}
 						} else {
-							return subTaskDto;
+							return taskDto;
 						}
 					}
 					break;
@@ -728,7 +728,7 @@ public class HttpClientMongoOperator extends ClientMongoOperator {
 			result = (T) findAndModifyJob(collection, query, update, returnNew);
 		} else if (ConnectorConstant.DATA_FLOW_COLLECTION.equals(collection)) {
 			result = (T) findAndModifyDataFlow(collection, query, update, returnNew);
-		} else if (ConnectorConstant.SUB_TASK_COLLECTION.equals(collection)) {
+		} else if (ConnectorConstant.TASK_COLLECTION.equals(collection)) {
 			result = (T) findAndModifyTask(collection, query, update, returnNew);
 		}
 		return result;

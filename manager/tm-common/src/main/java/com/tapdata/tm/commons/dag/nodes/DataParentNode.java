@@ -105,7 +105,7 @@ public abstract class DataParentNode<S> extends Node<S> {
         LinkedList<FieldInfo> fieldInfos = null;
         String syncType = getSyncType();
         if (TaskDto.SYNC_TYPE_MIGRATE.equals(syncType)) {
-            str.setSinkQulifiedName(MetaDataBuilderUtils.generateQualifiedName(_metaType, dataSource, originTableName));
+            str.setSinkQulifiedName(MetaDataBuilderUtils.generateQualifiedName(_metaType, dataSource, originTableName, getTaskId()));
 
             // 获取字段编辑节点 的字段映射信息
             LinkedList<MigrateFieldRenameProcessorNode> fieldRenameProcessorNodes = predecessors().stream()
@@ -140,7 +140,7 @@ public abstract class DataParentNode<S> extends Node<S> {
         } else if (TaskDto.SYNC_TYPE_SYNC.equals(syncType)) {
             String tableName = transformTableName(this instanceof TableNode ? ((TableNode) this).getTableName() : originTableName);
             s.setOriginalName(tableName);
-            s.setQualifiedName(MetaDataBuilderUtils.generateQualifiedName(_metaType, dataSource, tableName));
+            s.setQualifiedName(MetaDataBuilderUtils.generateQualifiedName(_metaType, dataSource, tableName, getTaskId()));
             str.setSinkQulifiedName(s.getQualifiedName());
         }
 
@@ -156,6 +156,7 @@ public abstract class DataParentNode<S> extends Node<S> {
         str.setSourceQualifiedName(originQualifiedName);
         str.setSourceTableId(s.getId() == null ? null : s.getId().toHexString());
         str.setSinkNodeId(getId());
+        str.setSinkObjectName(originTableName);
         str.setSinkDbName(currentDbName);
         str.setSinkStageId(getId());
         str.setSinkDbType(getDatabaseType());

@@ -14,7 +14,6 @@ import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.commons.schema.Schema;
 import com.tapdata.tm.commons.task.dto.Dag;
 import com.tapdata.tm.commons.task.dto.Message;
-import com.tapdata.tm.commons.task.dto.SubTaskDto;
 import com.tapdata.tm.commons.util.Loader;
 import io.github.openlg.graphlib.Graph;
 import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
@@ -22,7 +21,6 @@ import io.tapdata.entity.event.ddl.table.TapDropTableEvent;
 import lombok.*;
 import io.tapdata.entity.event.ddl.TapDDLEvent;
 import org.apache.commons.collections4.CollectionUtils;
-import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.math.NumberUtils;
 import org.bson.types.ObjectId;
 import org.slf4j.Logger;
@@ -230,134 +228,134 @@ public class DAG implements Serializable, Cloneable {
         return graph.components().stream().map(DAG::new).collect(Collectors.toList());
     }
 
-    /**
-     * 根据新的 dag 更新当前 dag
-     * 这个方法写的过于复杂，但是目前没有想到更合理的方法， 有时间结合flowengin的运行情况，可以好好优化一下、
-     * @param newDags
-     * @param subTaskDtos
-     * @return
-     */
-    public List<SubTaskStatus> update(List<DAG> newDags, List<SubTaskDto> subTaskDtos) {
-        //先给dag赋值一个唯一id方便后面的清查
-        for (DAG newDag : newDags) {
-            newDag.id = UUID.randomUUID().toString();
-        }
-
-
-        Map<String, Integer> levelMap = new HashMap<>();
-        Map<String, ObjectId> subTaskMap = new HashMap<>();
-
-
-        //每个节点赋值权重
-        for (SubTaskDto subTaskDto : subTaskDtos) {
-            if (subTaskDto.getTempDag() != null) {
-                subTaskDto.setDag(subTaskDto.getTempDag());
-            }
-
-            DAG oldDag = subTaskDto.getDag();
-
-            for (Node node : oldDag.getNodes()) {
-                subTaskMap.put(node.getId(), subTaskDto.getId());
-            }
-            Set<String> sources = oldDag.graph.getSources();
-            for (String source : sources) {
-                int level = 1;
-                levelMap.put(source, level);
-                Node node = oldDag.getNode(source);
-                List<Node> successors = node.successors();
-
-                if (CollectionUtils.isNotEmpty(successors)) {
-                    setLevel(levelMap, successors, level);
-                }
-            }
-        }
-
-
-        //新节点确认对应老节点的匹配项
-        Map<String, Map<ObjectId, List<Integer>>> newCache = new HashMap<>();
-        for (DAG newDag : newDags) {
-            Map<ObjectId, List<Integer>> oldLinkMap = new HashMap<>();
-            for (Node node : newDag.getNodes()) {
-                ObjectId subId = subTaskMap.get(node.getId());
-                if (subId != null) {
-                    List<Integer> values = oldLinkMap.get(subId);
-                    if (values == null) {
-                        values = new ArrayList<>();
-                    }
-                    values.add(levelMap.get(node.getId()));
-                    oldLinkMap.put(subId, values);
-                }
-            }
-            newCache.put(newDag.id, oldLinkMap);
-        }
-
-        //节点的最大深度
-        int max = levelMap.values().stream().max(Comparator.naturalOrder()).orElse(0);
-
-        Map<String, DAG> newDagMap = newDags.stream().collect(Collectors.toMap(d -> d.id, d -> d));
-
-
-        List<SubTaskStatus> updateDags = new ArrayList<>();
-
-        //匹配新老节点
-        //已经匹配过了的新节点，不重复匹配
-        Set<String> repeatSet = new HashSet<>();
-        next:
-        for (SubTaskDto subTaskDto : subTaskDtos) {
-
-            //根据最大深度，进行最左原则匹配
-            for (int i = 1; i <= max; i++) {
-
-                Map<String, List<Integer>> newDagsMap = new HashMap<>();
-                for (Map.Entry<String, Map<ObjectId, List<Integer>>> entry : newCache.entrySet()) {
-                    if (repeatSet.contains(entry.getKey())) {
-                        //已经被有缘的老节点匹配上了
-                        continue;
-                    }
-
-                    Map<ObjectId, List<Integer>> value = entry.getValue();
-                    if (value != null) {
-                        List<Integer> values = value.get(subTaskDto.getId());
-                        if (CollectionUtils.isNotEmpty(values)) {
-                            if (values.contains(i)) {
-                                newDagsMap.put(entry.getKey(), values);
-                            }
-                        }
-                    }
-                }
-
-                if (newDagsMap.size() != 0) {
-                    String dagId = compareDag(newDagsMap, i, max);
-                    if (dagId != null) {
-                        repeatSet.add(dagId);
-                        SubTaskStatus subTaskStatus = new SubTaskStatus(newDagMap.get(dagId), subTaskDto.getId(), Action.update.name());
-                        updateDags.add(subTaskStatus);
-                        //当前的老节点已经匹配到新的任务，跳出循环
-                        continue next;
-                    }
-                }
-            }
-        }
-
-        //老节点没有匹配上的则删除
-        //新节点没有匹配上的则新增
-        Set<ObjectId> updateSubTaskIds = updateDags.stream().map(SubTaskStatus::getSubTaskId).collect(Collectors.toSet());
-        for (SubTaskDto subTaskDto : subTaskDtos) {
-            boolean contains = updateSubTaskIds.contains(subTaskDto.getId());
-            if (!contains) {
-                updateDags.add(new SubTaskStatus(subTaskDto.getDag(), subTaskDto.getId(), Action.delete.name()));
-            }
-        }
-
-        for (DAG newDag : newDags) {
-            boolean contains = repeatSet.contains(newDag.id);
-            if (!contains) {
-                updateDags.add(new SubTaskStatus(newDag, null, Action.create.name()));
-            }
-        }
-
-        return updateDags;
-    }
+//    /**
+//     * 根据新的 dag 更新当前 dag
+//     * 这个方法写的过于复杂，但是目前没有想到更合理的方法， 有时间结合flowengin的运行情况，可以好好优化一下、
+//     * @param newDags
+//     * @param subTaskDtos
+//     * @return
+//     */
+//    public List<SubTaskStatus> update(List<DAG> newDags, List<SubTaskDto> subTaskDtos) {
+//        //先给dag赋值一个唯一id方便后面的清查
+//        for (DAG newDag : newDags) {
+//            newDag.id = UUID.randomUUID().toString();
+//        }
+//
+//
+//        Map<String, Integer> levelMap = new HashMap<>();
+//        Map<String, ObjectId> subTaskMap = new HashMap<>();
+//
+//
+//        //每个节点赋值权重
+//        for (SubTaskDto subTaskDto : subTaskDtos) {
+//            if (subTaskDto.getTempDag() != null) {
+//                subTaskDto.setDag(subTaskDto.getTempDag());
+//            }
+//
+//            DAG oldDag = subTaskDto.getDag();
+//
+//            for (Node node : oldDag.getNodes()) {
+//                subTaskMap.put(node.getId(), subTaskDto.getId());
+//            }
+//            Set<String> sources = oldDag.graph.getSources();
+//            for (String source : sources) {
+//                int level = 1;
+//                levelMap.put(source, level);
+//                Node node = oldDag.getNode(source);
+//                List<Node> successors = node.successors();
+//
+//                if (CollectionUtils.isNotEmpty(successors)) {
+//                    setLevel(levelMap, successors, level);
+//                }
+//            }
+//        }
+//
+//
+//        //新节点确认对应老节点的匹配项
+//        Map<String, Map<ObjectId, List<Integer>>> newCache = new HashMap<>();
+//        for (DAG newDag : newDags) {
+//            Map<ObjectId, List<Integer>> oldLinkMap = new HashMap<>();
+//            for (Node node : newDag.getNodes()) {
+//                ObjectId subId = subTaskMap.get(node.getId());
+//                if (subId != null) {
+//                    List<Integer> values = oldLinkMap.get(subId);
+//                    if (values == null) {
+//                        values = new ArrayList<>();
+//                    }
+//                    values.add(levelMap.get(node.getId()));
+//                    oldLinkMap.put(subId, values);
+//                }
+//            }
+//            newCache.put(newDag.id, oldLinkMap);
+//        }
+//
+//        //节点的最大深度
+//        int max = levelMap.values().stream().max(Comparator.naturalOrder()).orElse(0);
+//
+//        Map<String, DAG> newDagMap = newDags.stream().collect(Collectors.toMap(d -> d.id, d -> d));
+//
+//
+//        List<SubTaskStatus> updateDags = new ArrayList<>();
+//
+//        //匹配新老节点
+//        //已经匹配过了的新节点，不重复匹配
+//        Set<String> repeatSet = new HashSet<>();
+//        next:
+//        for (SubTaskDto subTaskDto : subTaskDtos) {
+//
+//            //根据最大深度，进行最左原则匹配
+//            for (int i = 1; i <= max; i++) {
+//
+//                Map<String, List<Integer>> newDagsMap = new HashMap<>();
+//                for (Map.Entry<String, Map<ObjectId, List<Integer>>> entry : newCache.entrySet()) {
+//                    if (repeatSet.contains(entry.getKey())) {
+//                        //已经被有缘的老节点匹配上了
+//                        continue;
+//                    }
+//
+//                    Map<ObjectId, List<Integer>> value = entry.getValue();
+//                    if (value != null) {
+//                        List<Integer> values = value.get(subTaskDto.getId());
+//                        if (CollectionUtils.isNotEmpty(values)) {
+//                            if (values.contains(i)) {
+//                                newDagsMap.put(entry.getKey(), values);
+//                            }
+//                        }
+//                    }
+//                }
+//
+//                if (newDagsMap.size() != 0) {
+//                    String dagId = compareDag(newDagsMap, i, max);
+//                    if (dagId != null) {
+//                        repeatSet.add(dagId);
+//                        SubTaskStatus subTaskStatus = new SubTaskStatus(newDagMap.get(dagId), subTaskDto.getId(), Action.update.name());
+//                        updateDags.add(subTaskStatus);
+//                        //当前的老节点已经匹配到新的任务，跳出循环
+//                        continue next;
+//                    }
+//                }
+//            }
+//        }
+//
+//        //老节点没有匹配上的则删除
+//        //新节点没有匹配上的则新增
+//        Set<ObjectId> updateSubTaskIds = updateDags.stream().map(SubTaskStatus::getSubTaskId).collect(Collectors.toSet());
+//        for (SubTaskDto subTaskDto : subTaskDtos) {
+//            boolean contains = updateSubTaskIds.contains(subTaskDto.getId());
+//            if (!contains) {
+//                updateDags.add(new SubTaskStatus(subTaskDto.getDag(), subTaskDto.getId(), Action.delete.name()));
+//            }
+//        }
+//
+//        for (DAG newDag : newDags) {
+//            boolean contains = repeatSet.contains(newDag.id);
+//            if (!contains) {
+//                updateDags.add(new SubTaskStatus(newDag, null, Action.create.name()));
+//            }
+//        }
+//
+//        return updateDags;
+//    }
 
 
     //根据最左节点院子，多个新节点匹配到老节点时，需要比较后面的节点比较是否匹配，能匹配到最优的新节点
@@ -447,7 +445,7 @@ public class DAG implements Serializable, Cloneable {
                         outputSchemaList = Lists.newArrayList(outputSchema1);
                     }
 
-                    List<MetadataInstancesDto> all = outputSchemaList.stream().map(s ->  ((DAGDataServiceImpl) dagDataService).getMetadata(s.getQualifiedName())).collect(Collectors.toList());
+                    List<MetadataInstancesDto> all = outputSchemaList.stream().map(s ->  ((DAGDataServiceImpl) dagDataService).getMetadata(s.getQualifiedName())).filter(Objects::nonNull).collect(Collectors.toList());
                     Map<String, MetadataInstancesDto> metaMaps = all.stream().collect(Collectors.toMap(MetadataInstancesDto::getQualifiedName, m -> m, (m1, m2) -> m1));
                     for (SchemaTransformerResult schemaTransformerResult : schemaTransformerResults) {
                         if (Objects.isNull(schemaTransformerResult)) {
@@ -1031,6 +1029,11 @@ public class DAG implements Serializable, Cloneable {
                 nextDdlNode(successor, results);
             }
         }
+    }
+
+    public boolean checkMultiDag() {
+        List<DAG> split = split();
+        return split.size() > 1;
     }
 
     @Override

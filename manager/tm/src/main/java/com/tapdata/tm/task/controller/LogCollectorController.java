@@ -109,16 +109,16 @@ public class LogCollectorController extends BaseController {
         return success(logCollectorService.findByTaskId(taskId, getLoginUser()));
     }
 
-    /**
-     *  通过同步子任务查询被用到的挖掘任务列表
-     * @param subTaskId 任务id
-     * @return 挖掘任务列表
-     */
-    @GetMapping("/bySubTaskId/{subTaskId}")
-    @Operation(summary = "通过同步子任务查询被用到的挖掘任务列表")
-    public ResponseMessage<List<LogCollectorVo>> findBySubTaskId(@PathVariable("subTaskId")String subTaskId) {
-        return success(logCollectorService.findBySubTaskId(subTaskId, getLoginUser()));
-    }
+//    /**
+//     *  通过同步子任务查询被用到的挖掘任务列表
+//     * @param subTaskId 任务id
+//     * @return 挖掘任务列表
+//     */
+//    @GetMapping("/bySubTaskId/{subTaskId}")
+//    @Operation(summary = "通过同步子任务查询被用到的挖掘任务列表")
+//    public ResponseMessage<List<LogCollectorVo>> findBySubTaskId(@PathVariable("subTaskId")String subTaskId) {
+//        return success(logCollectorService.findBySubTaskId(subTaskId, getLoginUser()));
+//    }
 
 
     @GetMapping("/system/config")

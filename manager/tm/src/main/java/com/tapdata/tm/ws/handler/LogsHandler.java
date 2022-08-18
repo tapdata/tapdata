@@ -13,9 +13,8 @@ import com.tapdata.tm.changestream.config.ChangeStreamManager;
 import com.tapdata.tm.dataflow.entity.DataFlow;
 import com.tapdata.tm.log.dto.LogDto;
 import com.tapdata.tm.log.service.LogService;
-import com.tapdata.tm.task.entity.SubTaskEntity;
+import com.tapdata.tm.task.entity.TaskEntity;
 import com.tapdata.tm.utils.MapUtils;
-import static com.tapdata.tm.utils.MongoUtils.toObjectId;
 import com.tapdata.tm.ws.annotation.WebSocketMessageHandler;
 import com.tapdata.tm.ws.cs.LogsListener;
 import com.tapdata.tm.ws.dto.LogsCache;
@@ -23,25 +22,24 @@ import com.tapdata.tm.ws.dto.MessageInfo;
 import com.tapdata.tm.ws.dto.WebSocketContext;
 import com.tapdata.tm.ws.endpoint.WebSocketManager;
 import com.tapdata.tm.ws.enums.MessageType;
-import java.util.ArrayList;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.atomic.AtomicLong;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.bson.Document;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.MongoTemplate;
-import static org.springframework.data.mongodb.core.aggregation.Aggregation.match;
-import static org.springframework.data.mongodb.core.aggregation.Aggregation.newAggregation;
 import org.springframework.data.mongodb.core.messaging.MessageListenerContainer;
 import org.springframework.data.mongodb.core.query.Criteria;
-import static org.springframework.data.mongodb.core.query.Criteria.where;
 import org.springframework.data.mongodb.core.query.Query;
+
+import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.atomic.AtomicLong;
+
+import static com.tapdata.tm.utils.MongoUtils.toObjectId;
+import static org.springframework.data.mongodb.core.aggregation.Aggregation.match;
+import static org.springframework.data.mongodb.core.aggregation.Aggregation.newAggregation;
+import static org.springframework.data.mongodb.core.query.Criteria.where;
 
 @WebSocketMessageHandler(type = MessageType.LOGS)
 @Slf4j
@@ -86,7 +84,7 @@ public class LogsHandler implements WebSocketHandler {
 		}else {
 			DataFlow dataFlow = mongoTemplate.findOne(Query.query(Criteria.where("_id").is(toObjectId(dataFlowId)).and("user_id").is(context.getUserId())), DataFlow.class);
 			if (dataFlow == null) {
-				SubTaskEntity entity = mongoTemplate.findOne(Query.query(Criteria.where("_id").is(toObjectId(dataFlowId)).and("user_id").is(context.getUserId())), SubTaskEntity.class);
+				TaskEntity entity = mongoTemplate.findOne(Query.query(Criteria.where("_id").is(toObjectId(dataFlowId)).and("user_id").is(context.getUserId())), TaskEntity.class);
 				if (entity == null) {
 					WebSocketManager.sendMessage(context.getSender(), "DataFlow info was not found");
 					return;

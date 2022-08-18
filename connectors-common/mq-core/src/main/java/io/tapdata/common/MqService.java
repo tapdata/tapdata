@@ -5,6 +5,7 @@ import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.pdk.apis.entity.TestItem;
 import io.tapdata.pdk.apis.entity.WriteListResult;
+import io.tapdata.pdk.apis.functions.connection.ConnectionCheckItem;
 
 import java.util.List;
 import java.util.function.BiConsumer;
@@ -12,7 +13,13 @@ import java.util.function.Consumer;
 
 public interface MqService {
 
-    void testConnection(Consumer<TestItem> consumer);
+//    void testHostAndPort(Consumer<TestItem> consumer);
+
+    void testConnect(Consumer<TestItem> consumer);
+
+//    void testPing(Consumer<ConnectionCheckItem> consumer);
+
+//    void testConnection(Consumer<ConnectionCheckItem> consumer);
 
     void init() throws Throwable;
 

@@ -177,7 +177,7 @@ public class TapTable extends TapItem<TapField> {
 		}
 		int max = 0;
 		for (TapField tapField : nameFieldMap.values()) {
-			if (null != tapField && max < tapField.getPos()) {
+			if (null != tapField && tapField.getPos() != null && max < tapField.getPos()) {
 				max = tapField.getPos();
 			}
 		}

@@ -11,9 +11,9 @@ import com.tapdata.tm.base.dto.Where;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.base.service.BaseService;
 import com.tapdata.tm.commons.base.dto.BaseDto;
+import com.tapdata.tm.commons.schema.DataSourceDefinitionDto;
 import com.tapdata.tm.commons.util.CapabilityEnum;
 import com.tapdata.tm.config.security.UserDetail;
-import com.tapdata.tm.commons.schema.DataSourceDefinitionDto;
 import com.tapdata.tm.ds.dto.DataSourceDefinitionUpdateDto;
 import com.tapdata.tm.ds.dto.DataSourceTypeDto;
 import com.tapdata.tm.ds.entity.DataSourceDefinitionEntity;
@@ -36,7 +36,7 @@ import org.springframework.stereotype.Service;
 import java.util.*;
 import java.util.stream.Collectors;
 
-import static com.tapdata.tm.utils.MongoUtils.*;
+import static com.tapdata.tm.utils.MongoUtils.toObjectId;
 
 /**
  * @Author: Zed
@@ -177,7 +177,7 @@ public class DataSourceDefinitionService extends BaseService<DataSourceDefinitio
         return dataSourceDefinition;
     }
 
-    public List<DataSourceDefinitionDto> findByPdkHashList(List<String> pdkHashList, UserDetail user) {
+    public List<DataSourceDefinitionDto> findByPdkHashList(Set<String> pdkHashList, UserDetail user) {
         Criteria userCriteria = new Criteria();
         userCriteria.and("customId").is(user.getCustomerId());
         Criteria supplierCriteria = Criteria.where("supplierType").ne("self");
@@ -195,10 +195,20 @@ public class DataSourceDefinitionService extends BaseService<DataSourceDefinitio
         if (!Objects.isNull(dataSourceDefinition)
                 && !Objects.isNull(dataSourceDefinition.getProperties())) {
             LinkedHashMap<String, Object> properties = dataSourceDefinition.getProperties();
+            if (properties == null) {
+                return;
+            }
+
             final String[] content = {JSON.toJSONString(properties)};
 
             LinkedHashMap<String, Object> messages = dataSourceDefinition.getMessages();
             String language = MessageUtil.getLanguage();
+
+            //如果message为空，或者语言为空，不能影响主流程
+            if (messages == null || StringUtils.isBlank(language)) {
+                return;
+            }
+
             Object o = messages.get(language);
             LinkedHashMap<String, Object> msgJson = JSON.parseObject(JSON.toJSONString(o), new TypeReference<LinkedHashMap<String, Object>>(){});
 
@@ -218,10 +228,14 @@ public class DataSourceDefinitionService extends BaseService<DataSourceDefinitio
     public List<DataSourceTypeDto> dataSourceTypes(UserDetail user, Filter filter) {
         //根据名称过滤与分页信息，查询数据源定义列表并返还
         //页面查询列表只需要查询数据源定义类型信息，不需要配置信息，所以当filter中查询字段为空时，只查询非配置的信息
-        if (filter.getFields() == null || filter.getFields().size() == 0) {
+        Field fields = filter.getFields();
+        if (fields == null || fields.size() == 0) {
             Field field = new Field();
             field.put("properties", false);
             filter.setFields(field);
+        } else {
+            fields.put("messages", true);
+            fields.put("pdkId", true);
         }
         //如果是官方的，则所有人可以查询，否则只能查询用户自己添加的类型信息
 //        Query query = repository.filterToSimpleQuery(filter);
@@ -297,39 +311,40 @@ public class DataSourceDefinitionService extends BaseService<DataSourceDefinitio
         dto.setId(null);
     }
 
-    public boolean checkHasSomeCapability(List<String> pdkHashList, UserDetail userDetail, CapabilityEnum eventType) {
+    public boolean checkHasSomeCapability(Set<String> pdkHashList, UserDetail userDetail, CapabilityEnum... eventTypes) {
+        // Does not contain any events
+        if (null == eventTypes || eventTypes.length == 0) return true;
+
+        // Could not find data source definition information
         List<DataSourceDefinitionDto> definitionList = findByPdkHashList(pdkHashList, userDetail);
-        if (CollectionUtils.isNotEmpty(definitionList)) {
-            Optional<List<Capability>> optional = definitionList.stream()
-                    .map(DataSourceDefinitionDto::getCapabilities)
-                    .filter(cap -> Objects.isNull(cap) || CollectionUtils.isEmpty(cap))
-                    .findFirst();
-            if (optional.isPresent()) {
-                return false;
-            }
+        if (definitionList.isEmpty()) return false;
 
-            List<List<Capability>> capabilities = definitionList.stream()
-                    .map(DataSourceDefinitionDto::getCapabilities)
-                    .filter(Objects::nonNull).collect(Collectors.toList());
-
-            Optional<List<Capability>> reduce = capabilities.stream().reduce((a, b) -> {
-                a.retainAll(b);
-                return a;
-            });
-
-            if (reduce.isPresent()) {
-                List<Capability> intersection = reduce.orElse(new ArrayList<>());
-                for (Capability capability : intersection) {
-                    List<String> alternatives = capability.getAlternatives();
-                    if (CollectionUtils.isNotEmpty(alternatives) && alternatives.contains(eventType.getEvent())) {
-                        return true;
+        // every data source must contain all events
+        for (DataSourceDefinitionDto definitionDto : definitionList) {
+            //Check one data source capabilities
+            if (Optional.ofNullable(definitionDto.getCapabilities()).map(caps -> {
+                //Generating capability sets
+                Set<String> set = new HashSet<>();
+                for (Capability capability : caps) {
+                    set.add(capability.getId());
+                }
+                return set;
+            }).map(capabilities -> {
+                //Check one data source capabilities
+                for (CapabilityEnum eventType : eventTypes) {
+                    if (!capabilities.contains(eventType.getId())) {
+                        return false;
                     }
                 }
-
+                return true;
+            }).orElse(false)) {
+                continue;
             }
 
+            return false;
         }
-        return false;
+
+        return true;
     }
 
 

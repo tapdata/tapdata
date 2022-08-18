@@ -5,7 +5,6 @@ import com.tapdata.tm.commons.dag.*;
 import com.tapdata.tm.commons.dag.logCollector.VirtualTargetNode;
 import com.tapdata.tm.commons.schema.*;
 import com.tapdata.tm.commons.task.dto.Dag;
-import com.tapdata.tm.commons.task.dto.SubTaskDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.util.PdkSchemaConvert;
 import io.tapdata.entity.schema.TapTable;
@@ -30,6 +29,9 @@ public class JsProcessorNode extends ProcessorNode {
     @EqField
     private String script;
 
+    @EqField
+    private String declareScript;
+
 
     @Override
     protected Schema loadSchema(List<String> includes) {
@@ -38,6 +40,7 @@ public class JsProcessorNode extends ProcessorNode {
         getPrePre(this, predIds);
         predIds.add(this.getId());
         Dag dag = this.getDag().toDag();
+        List<Node> oldNodes = dag.getNodes();
         dag = JsonUtil.parseJsonUseJackson(JsonUtil.toJsonUseJackson(dag), Dag.class);
         List<Node> nodes = dag.getNodes();
 
@@ -45,15 +48,13 @@ public class JsProcessorNode extends ProcessorNode {
         target.setId(UUID.randomUUID().toString());
         target.setName(target.getId());
         if (CollectionUtils.isNotEmpty(nodes)) {
-//            for (Node node : nodes) {
-//                if (node instanceof TableNode) {
-//                    node.setName("js_target");
-//                    node.setId(UUID.randomUUID().toString());
-//                    ((TableNode) node).setTableName("js_target");
-//                    target = node;
-//                    break;
-//                }
-//            }
+            for (Node node : nodes) {
+                Optional<Node> optionalNode = oldNodes.stream().filter(o -> o.getId().equals(node.getId())).findFirst();
+                if (optionalNode.isPresent()) {
+                    node.setSchema(optionalNode.get().getSchema());
+                    node.setOutputSchema(optionalNode.get().getOutputSchema());
+                }
+            }
             nodes = nodes.stream().filter(n -> predIds.contains(n.getId())).collect(Collectors.toList());
             nodes.add(target);
         }
@@ -71,20 +72,18 @@ public class JsProcessorNode extends ProcessorNode {
 
         DAG build = DAG.build(dag);
 
-        SubTaskDto subTaskDto = new SubTaskDto();
-        subTaskDto.setStatus(SubTaskDto.STATUS_WAIT_RUN);
         ObjectId taskId = this.getDag().getTaskId();
         TaskDto taskDto = service.getTaskById(taskId == null ? null : taskId.toHexString());
-        taskDto.setDag(null);
-        taskDto.setSyncType(TaskDto.SYNC_TYPE_DEDUCE_SCHEMA);
-        subTaskDto.setParentTask(taskDto);
-        subTaskDto.setDag(build);
-        subTaskDto.setParentId(taskDto.getId());
-        subTaskDto.setId(new ObjectId());
-        subTaskDto.setName(taskDto.getName() + "(100)");
-//        subTaskDto.setTransformTask(true);
+        TaskDto taskDtoCopy = new TaskDto();
+        BeanUtils.copyProperties(taskDto, taskDtoCopy);
+        taskDtoCopy.setStatus(TaskDto.STATUS_WAIT_RUN);
+        taskDtoCopy.setSyncType(TaskDto.SYNC_TYPE_DEDUCE_SCHEMA);
+        taskDtoCopy.setDag(build);
+        taskDtoCopy.setId(new ObjectId());
+        taskDtoCopy.setName(taskDto.getName() + "(100)");
+
         ////用于预跑数据得到模型
-        TapTable tapTable = service.loadTapTable(getInputSchema(), script, getId(), target.getId(), null, null, subTaskDto);
+        TapTable tapTable = service.loadTapTable(getInputSchema(), script, getId(), target.getId(), null, null, taskDtoCopy);
         Schema schema = PdkSchemaConvert.fromPdkSchema(tapTable);
 
 

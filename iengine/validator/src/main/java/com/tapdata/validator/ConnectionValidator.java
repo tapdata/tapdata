@@ -8,7 +8,6 @@ import com.tapdata.entity.Schema;
 import io.tapdata.entity.BaseConnectionValidateResult;
 import io.tapdata.entity.BaseConnectionValidateResultDetail;
 import io.tapdata.entity.utils.DataMap;
-import io.tapdata.logging.JobCustomerLogger;
 import io.tapdata.pdk.apis.entity.ConnectionOptions;
 import io.tapdata.pdk.apis.entity.TestItem;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
@@ -127,7 +126,7 @@ public class ConnectionValidator {
 			s.close();
 			return true;
 		} catch (Exception e) {
-			logger.error("{}Check ip {} port {} failed {}", JobCustomerLogger.CUSTOMER_ERROR_LOG_PREFIX, databaseHost, databasePort, e.getMessage(), e);
+			logger.error("Check ip {} port {} failed {}", databaseHost, databasePort, e.getMessage(), e);
 			return false;
 		}
 	}

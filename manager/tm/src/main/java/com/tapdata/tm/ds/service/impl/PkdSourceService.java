@@ -215,21 +215,32 @@ public class PkdSourceService {
                 resourceId = one.getIcon();
                 break;
             case MARKDOWN:
-            String language = MessageUtil.getLanguage();
-            Object lan = one.getMessages().get(language);
-            if (Objects.nonNull(lan) && Objects.nonNull(((Map<?, ?>) lan).get("doc"))) {
-                Object docId = ((Map<?, ?>) lan).get("doc");
-                resourceId = docId.toString();
-            } else {
-                resourceId = "";
-            }
-            break;
+                String language = MessageUtil.getLanguage();
+                LinkedHashMap<String, Object> messages = one.getMessages();
+                if(messages != null) {
+                    Object lan = messages.get(language);
+                    if (Objects.nonNull(lan) && Objects.nonNull(((Map<?, ?>) lan).get("doc"))) {
+                        Object docId = ((Map<?, ?>) lan).get("doc");
+                        resourceId = docId.toString();
+                    } else {
+                        resourceId = "";
+                    }
+                } else {
+                    resourceId = "";
+                }
+                break;
             default:
                 resourceId = "";
         }
 
         if (StringUtils.isBlank(resourceId)) {
-            throw new BizException("SystemError");
+//            throw new BizException("SystemError");
+            try {
+                response.sendError(404);
+                return;
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
         }
 
         fileService.viewImg(MongoUtils.toObjectId(resourceId), response);
