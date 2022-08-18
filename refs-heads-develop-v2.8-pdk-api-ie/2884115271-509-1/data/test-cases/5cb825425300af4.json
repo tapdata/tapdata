@@ -1,0 +1,107 @@
+{
+  "uid" : "5cb825425300af4",
+  "name" : "create PG datasource with form",
+  "fullName" : "test_datasource.TestDataSource#test_postgres",
+  "historyId" : "c237dd82ddad2feda3f10d0d2ed5220a",
+  "time" : {
+    "start" : 1660843693435,
+    "stop" : 1660843698584,
+    "duration" : 5149
+  },
+  "status" : "passed",
+  "flaky" : false,
+  "newFailed" : false,
+  "beforeStages" : [ ],
+  "testStage" : {
+    "status" : "passed",
+    "steps" : [ ],
+    "attachments" : [ {
+      "uid" : "556c9197465456e9",
+      "name" : "stdout",
+      "source" : "556c9197465456e9.txt",
+      "type" : "text/plain",
+      "size" : 909
+    } ],
+    "parameters" : [ ],
+    "stepsCount" : 0,
+    "attachmentsCount" : 1,
+    "shouldDisplayMessage" : false,
+    "hasContent" : true
+  },
+  "afterStages" : [ ],
+  "labels" : [ {
+    "name" : "feature",
+    "value" : "datasource"
+  }, {
+    "name" : "suite",
+    "value" : "test_datasource"
+  }, {
+    "name" : "subSuite",
+    "value" : "TestDataSource"
+  }, {
+    "name" : "host",
+    "value" : "2992315509f2"
+  }, {
+    "name" : "thread",
+    "value" : "930-MainThread"
+  }, {
+    "name" : "framework",
+    "value" : "pytest"
+  }, {
+    "name" : "language",
+    "value" : "cpython3"
+  }, {
+    "name" : "package",
+    "value" : "test_datasource"
+  }, {
+    "name" : "resultFormat",
+    "value" : "allure2"
+  } ],
+  "parameters" : [ ],
+  "links" : [ ],
+  "hidden" : false,
+  "retry" : false,
+  "extra" : {
+    "severity" : "normal",
+    "retries" : [ ],
+    "categories" : [ ],
+    "history" : {
+      "statistic" : {
+        "failed" : 0,
+        "broken" : 0,
+        "skipped" : 0,
+        "passed" : 4,
+        "unknown" : 0,
+        "total" : 4
+      },
+      "items" : [ {
+        "uid" : "4b503c13c99ab724",
+        "status" : "passed",
+        "time" : {
+          "start" : 1660115076364,
+          "stop" : 1660115081511,
+          "duration" : 5147
+        }
+      }, {
+        "uid" : "3104773e1749f5b5",
+        "status" : "passed",
+        "time" : {
+          "start" : 1660102208334,
+          "stop" : 1660102213451,
+          "duration" : 5117
+        }
+      }, {
+        "uid" : "a11eead047f0d6bf",
+        "status" : "passed",
+        "time" : {
+          "start" : 1660100536472,
+          "stop" : 1660100541604,
+          "duration" : 5132
+        }
+      } ]
+    },
+    "tags" : [ ]
+  },
+  "source" : "5cb825425300af4.json",
+  "parameterValues" : [ ]
+}

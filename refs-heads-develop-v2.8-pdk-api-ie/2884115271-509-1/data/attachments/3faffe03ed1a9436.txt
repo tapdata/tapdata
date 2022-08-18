@@ -1,0 +1,16 @@
+job [1;32mstats_zifgq[0m start running ...                                                                                                                                        
+job [1;32mstats_zifgq[0m status is: [1;32mwait_run[0m                                                                                                                           
+job [1;32mstats_zifgq[0m status is: [1;32merror[0m                                                                                                                              
+the status is error now, this is 1 times, 5 times remaining                                                                                                                         
+job [1;32mstats_zifgq[0m status is: [1;32merror[0m                                                                                                                              
+job [1;32mstats_zifgq[0m status is: [1;32merror[0m                                                                                                                              
+the status is error now, this is 2 times, 4 times remaining                                                                                                                         
+job [1;32mstats_zifgq[0m status is: [1;32merror[0m                                                                                                                              
+job [1;32mstats_zifgq[0m status is: [1;32merror[0m                                                                                                                              
+the status is error now, this is 3 times, 3 times remaining                                                                                                                         
+job [1;32mstats_zifgq[0m status is: [1;32merror[0m                                                                                                                              
+job [1;32mstats_zifgq[0m status is: [1;32merror[0m                                                                                                                              
+the status is error now, this is 4 times, 2 times remaining                                                                                                                         
+job [1;32mstats_zifgq[0m status is: [1;32merror[0m                                                                                                                              
+job [1;32mstats_zifgq[0m status is: [1;32merror[0m                                                                                                                              
+the status is error now, this is 5 times, 1 times remaining                                                                                                                         

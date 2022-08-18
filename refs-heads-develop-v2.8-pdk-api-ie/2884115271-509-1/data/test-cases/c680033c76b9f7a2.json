@@ -1,0 +1,91 @@
+{
+  "uid" : "c680033c76b9f7a2",
+  "name" : "test mysql form valid",
+  "fullName" : "test_datasource.TestDataSource#test_mysql_to_dict",
+  "historyId" : "7c9985d4825733cb93540a6061d9b8f3",
+  "time" : {
+    "start" : 1660843693428,
+    "stop" : 1660843693429,
+    "duration" : 1
+  },
+  "status" : "passed",
+  "flaky" : false,
+  "newFailed" : false,
+  "beforeStages" : [ ],
+  "afterStages" : [ ],
+  "labels" : [ {
+    "name" : "feature",
+    "value" : "datasource"
+  }, {
+    "name" : "suite",
+    "value" : "test_datasource"
+  }, {
+    "name" : "subSuite",
+    "value" : "TestDataSource"
+  }, {
+    "name" : "host",
+    "value" : "2992315509f2"
+  }, {
+    "name" : "thread",
+    "value" : "930-MainThread"
+  }, {
+    "name" : "framework",
+    "value" : "pytest"
+  }, {
+    "name" : "language",
+    "value" : "cpython3"
+  }, {
+    "name" : "package",
+    "value" : "test_datasource"
+  }, {
+    "name" : "resultFormat",
+    "value" : "allure2"
+  } ],
+  "parameters" : [ ],
+  "links" : [ ],
+  "hidden" : false,
+  "retry" : false,
+  "extra" : {
+    "severity" : "normal",
+    "retries" : [ ],
+    "categories" : [ ],
+    "history" : {
+      "statistic" : {
+        "failed" : 0,
+        "broken" : 0,
+        "skipped" : 0,
+        "passed" : 4,
+        "unknown" : 0,
+        "total" : 4
+      },
+      "items" : [ {
+        "uid" : "abf677df180a3007",
+        "status" : "passed",
+        "time" : {
+          "start" : 1660115076360,
+          "stop" : 1660115076360,
+          "duration" : 0
+        }
+      }, {
+        "uid" : "5472bc61e829442",
+        "status" : "passed",
+        "time" : {
+          "start" : 1660102208332,
+          "stop" : 1660102208332,
+          "duration" : 0
+        }
+      }, {
+        "uid" : "1f22f8cdd68f3e16",
+        "status" : "passed",
+        "time" : {
+          "start" : 1660100536470,
+          "stop" : 1660100536470,
+          "duration" : 0
+        }
+      } ]
+    },
+    "tags" : [ ]
+  },
+  "source" : "c680033c76b9f7a2.json",
+  "parameterValues" : [ ]
+}
