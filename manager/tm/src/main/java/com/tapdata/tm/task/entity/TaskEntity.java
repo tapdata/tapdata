@@ -198,6 +198,8 @@ public class TaskEntity extends BaseEntity {
     private Boolean deleteFlag;
     private Long version;
 
+    private String agentId; //调度到指定的实例上去
+
     public String getAccessNodeProcessId() {
         return CollectionUtils.isNotEmpty(accessNodeProcessIdList) ? accessNodeProcessIdList.get(0) : "";
     }
