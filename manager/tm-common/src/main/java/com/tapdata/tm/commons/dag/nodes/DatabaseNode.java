@@ -25,6 +25,7 @@ import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.ListUtils;
+import org.apache.commons.lang3.StringUtils;
 
 import java.util.*;
 import java.util.concurrent.CountDownLatch;
@@ -274,9 +275,13 @@ public class DatabaseNode extends DataParentNode<List<Schema>> {
     @Override
     protected List<Schema> saveSchema(Collection<String> pre, String nodeId, List<Schema> schemaList, DAG.Options options) {
         if (schemaList != null && schemaList.size() > 0) {
+            boolean charsetNotBlank = StringUtils.isNotBlank(this.getCharset());
             schemaList.forEach(s -> {
                 s.setTaskId(taskId());
                 s.setNodeId(nodeId);
+                if (charsetNotBlank) {
+                    s.setCharset(this.getCharset());
+                }
             });
             schemaList = service.createOrUpdateSchema(ownerId(), toObjectId(connectionId), schemaList, options, this);
         }

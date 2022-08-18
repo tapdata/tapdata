@@ -215,6 +215,9 @@ public class TableNode extends DataNode {
         }
         schema.setNodeId(getId());
         schema.setTaskId(taskId());
+        if (StringUtils.isNotBlank(this.getCharset())) {
+            schema.setCharset(this.getCharset());
+        }
         List<Schema> result = service.createOrUpdateSchema(ownerId(), toObjectId(connectionId), Collections.singletonList(schema), options, this);
 
 
