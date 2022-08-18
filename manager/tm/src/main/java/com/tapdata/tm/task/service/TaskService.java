@@ -843,6 +843,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
         //将任务id设置为null,状态改为编辑中
         taskDto.setId(null);
+        taskDto.setTaskRecordId(null);
 
         //设置复制名称
         String copyName = taskDto.getName() + " - Copy";
