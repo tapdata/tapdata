@@ -1,5 +1,6 @@
 package io.tapdata.entity.schema.value;
 
+import java.sql.Time;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.LocalDateTime;
@@ -70,7 +71,7 @@ public class DateTime {
             throw new IllegalArgumentException("DateTime constructor timestamp is null");
         long time = timestamp.getTime();
         seconds = time / 1000;
-        nano = (int) ((time % 1000) * 1000000);
+        nano = timestamp.getNanos();
     }
 
     public DateTime(Long time, int fraction) {
@@ -101,6 +102,7 @@ public class DateTime {
 
     /**
      * milliseconds
+     *
      * @param time
      */
     public DateTime(Long time) {
@@ -163,20 +165,18 @@ public class DateTime {
         } else {
             return null;
         }
-        return new java.sql.Time(milliseconds);
+        return new Time(milliseconds);
     }
 
     public Timestamp toTimestamp() {
-        long milliseconds;
         if (seconds != null) {
-            milliseconds = seconds * 1000;
+            Timestamp timestamp = new Timestamp(seconds * 1000);
             if (nano != null) {
-                milliseconds = milliseconds + (nano / 1000 / 1000);
+                timestamp.setNanos(nano);
             }
-        } else {
-            return null;
+            return timestamp;
         }
-        return new Timestamp(milliseconds);
+        return null;
     }
 
     @Override
