@@ -1,0 +1,91 @@
+{
+  "uid" : "df447ad9e7ad5e5c",
+  "name" : "rename column in migrate",
+  "fullName" : "test_pipeline.TestPipeline#test_rename_migrate",
+  "historyId" : "8dd3f624d11c5720d053b586d1c6f961",
+  "time" : {
+    "start" : 1660819570399,
+    "stop" : 1660819570446,
+    "duration" : 47
+  },
+  "status" : "passed",
+  "flaky" : false,
+  "newFailed" : false,
+  "beforeStages" : [ ],
+  "testStage" : {
+    "status" : "passed",
+    "steps" : [ ],
+    "attachments" : [ {
+      "uid" : "b1239734bd19569c",
+      "name" : "stdout",
+      "source" : "b1239734bd19569c.txt",
+      "type" : "text/plain",
+      "size" : 181
+    } ],
+    "parameters" : [ ],
+    "stepsCount" : 0,
+    "attachmentsCount" : 1,
+    "shouldDisplayMessage" : false,
+    "hasContent" : true
+  },
+  "afterStages" : [ ],
+  "labels" : [ {
+    "name" : "feature",
+    "value" : "pipeline"
+  }, {
+    "name" : "suite",
+    "value" : "test_pipeline"
+  }, {
+    "name" : "subSuite",
+    "value" : "TestPipeline"
+  }, {
+    "name" : "host",
+    "value" : "04029934e41d"
+  }, {
+    "name" : "thread",
+    "value" : "927-MainThread"
+  }, {
+    "name" : "framework",
+    "value" : "pytest"
+  }, {
+    "name" : "language",
+    "value" : "cpython3"
+  }, {
+    "name" : "package",
+    "value" : "test_pipeline"
+  }, {
+    "name" : "resultFormat",
+    "value" : "allure2"
+  } ],
+  "parameters" : [ ],
+  "links" : [ ],
+  "hidden" : false,
+  "retry" : false,
+  "extra" : {
+    "severity" : "normal",
+    "retries" : [ ],
+    "categories" : [ ],
+    "history" : {
+      "statistic" : {
+        "failed" : 0,
+        "broken" : 0,
+        "skipped" : 0,
+        "passed" : 2,
+        "unknown" : 0,
+        "total" : 2
+      },
+      "items" : [ {
+        "uid" : "99886c1e541718b6",
+        "status" : "passed",
+        "time" : {
+          "start" : 1660806139848,
+          "stop" : 1660806139944,
+          "duration" : 96
+        }
+      } ]
+    },
+    "tags" : [ ]
+  },
+  "source" : "df447ad9e7ad5e5c.json",
+  "parameterValues" : [ ]
+}

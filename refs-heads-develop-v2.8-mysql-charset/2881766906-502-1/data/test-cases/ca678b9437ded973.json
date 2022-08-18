@@ -1,0 +1,91 @@
+{
+  "uid" : "ca678b9437ded973",
+  "name" : "create mongodb datasource with form",
+  "fullName" : "test_datasource.TestDataSource#test_create_datasource_by_form",
+  "historyId" : "ddf870f23649642ae2268b7cafe0abf6",
+  "time" : {
+    "start" : 1660819543024,
+    "stop" : 1660819548158,
+    "duration" : 5134
+  },
+  "status" : "passed",
+  "flaky" : false,
+  "newFailed" : false,
+  "beforeStages" : [ ],
+  "testStage" : {
+    "status" : "passed",
+    "steps" : [ ],
+    "attachments" : [ {
+      "uid" : "86c72397442a4a3c",
+      "name" : "stdout",
+      "source" : "86c72397442a4a3c.txt",
+      "type" : "text/plain",
+      "size" : 991
+    } ],
+    "parameters" : [ ],
+    "stepsCount" : 0,
+    "attachmentsCount" : 1,
+    "shouldDisplayMessage" : false,
+    "hasContent" : true
+  },
+  "afterStages" : [ ],
+  "labels" : [ {
+    "name" : "feature",
+    "value" : "datasource"
+  }, {
+    "name" : "suite",
+    "value" : "test_datasource"
+  }, {
+    "name" : "subSuite",
+    "value" : "TestDataSource"
+  }, {
+    "name" : "host",
+    "value" : "04029934e41d"
+  }, {
+    "name" : "thread",
+    "value" : "927-MainThread"
+  }, {
+    "name" : "framework",
+    "value" : "pytest"
+  }, {
+    "name" : "language",
+    "value" : "cpython3"
+  }, {
+    "name" : "package",
+    "value" : "test_datasource"
+  }, {
+    "name" : "resultFormat",
+    "value" : "allure2"
+  } ],
+  "parameters" : [ ],
+  "links" : [ ],
+  "hidden" : false,
+  "retry" : false,
+  "extra" : {
+    "severity" : "normal",
+    "retries" : [ ],
+    "categories" : [ ],
+    "history" : {
+      "statistic" : {
+        "failed" : 0,
+        "broken" : 0,
+        "skipped" : 0,
+        "passed" : 2,
+        "unknown" : 0,
+        "total" : 2
+      },
+      "items" : [ {
+        "uid" : "d281df8c908a4cc6",
+        "status" : "passed",
+        "time" : {
+          "start" : 1660806112050,
+          "stop" : 1660806117207,
+          "duration" : 5157
+        }
+      } ]
+    },
+    "tags" : [ ]
+  },
+  "source" : "ca678b9437ded973.json",
+  "parameterValues" : [ ]
+}
