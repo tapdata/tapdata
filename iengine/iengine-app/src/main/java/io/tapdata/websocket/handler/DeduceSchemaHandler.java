@@ -122,6 +122,7 @@ public class DeduceSchemaHandler implements WebSocketEventHandler<WebSocketEvent
 		wsMessageResult.setUpsertItems(dagDataService.getUpsertItems());
 		wsMessageResult.setUpsertTransformer(dagDataService.getUpsertTransformer());
 		wsMessageResult.setTransformSchema(transformSchema);
+		wsMessageResult.setTaskId(request.getTaskDto().getId().toHexString());
 
 		//返回结果调用接口返回
 		clientMongoOperator.insertOne(wsMessageResult, ConnectorConstant.TASK_COLLECTION + "/transformer/result");
