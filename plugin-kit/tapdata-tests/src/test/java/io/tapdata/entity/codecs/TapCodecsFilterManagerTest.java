@@ -5,6 +5,7 @@ import io.tapdata.entity.codec.ToTapValueCodec;
 import io.tapdata.entity.codec.detector.impl.NewFieldDetector;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
 import io.tapdata.entity.schema.TapField;
+import io.tapdata.entity.schema.value.DateTime;
 import io.tapdata.entity.schema.value.TapStringValue;
 import io.tapdata.entity.schema.value.TapValue;
 import io.tapdata.entity.utils.InstanceFactory;
@@ -12,6 +13,7 @@ import io.tapdata.entity.utils.JsonParser;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
@@ -202,5 +204,27 @@ public class TapCodecsFilterManagerTest {
         assertEquals(map.get("floatMin"), Float.MIN_VALUE);
         assertEquals(map.get("floatOverflow"), Double.valueOf(String.valueOf(Float.MAX_VALUE + 1)));
         assertEquals(map.get("double"), 343.324d);
+    }
+
+    @Test
+    public void testFractionValue() {
+        TapCodecsFilterManager codecsFilterManager = TapCodecsFilterManager.create(TapCodecsRegistry.create());
+        long time = 1660792574472L;
+        Map<String, Object> map = map(
+                entry("datetime", time),
+                entry("nano", Instant.ofEpochSecond(time / 1000, 123123213))
+        );
+
+        Map<String, TapField> sourceNameFieldMap = new HashMap<>();
+        sourceNameFieldMap.put("datetime", field("datetime", "datetime").tapType(tapDateTime().fraction(3)));
+        sourceNameFieldMap.put("nano", field("nano", "nano").tapType(tapDateTime().fraction(9)));
+
+        //read from source, transform to TapValue out from source connector.
+        codecsFilterManager.transformToTapValueMap(map, sourceNameFieldMap);
+
+        //before enter a processor, transform to value from TapValue.
+        codecsFilterManager.transformFromTapValueMap(map);
+        assertEquals(((DateTime)map.get("datetime")).getNano(), 472000000);
+        assertEquals(((DateTime)map.get("nano")).getNano(), 123123213);
     }
 }
