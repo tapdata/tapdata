@@ -32,6 +32,7 @@ import com.tapdata.tm.commons.dag.process.MigrateFieldRenameProcessorNode;
 import com.tapdata.tm.commons.dag.process.TableRenameProcessNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.aspect.TaskStartAspect;
+import io.tapdata.aspect.TaskStopAspect;
 import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.common.SettingService;
 import io.tapdata.common.sharecdc.ShareCdcUtil;
@@ -122,27 +123,39 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 
 	@Override
 	public TaskClient<TaskDto> startTask(TaskDto taskDto) {
-		final JetDag jetDag = task2HazelcastDAG(taskDto);
-		MilestoneFlowServiceJetV2 milestoneFlowServiceJetV2 = initMilestone(taskDto);
+		try {
+			AspectUtils.executeAspect(new TaskStartAspect().task(taskDto));
 
-		JobConfig jobConfig = new JobConfig();
-		jobConfig.setName(taskDto.getName() + "-" + taskDto.getId().toHexString());
-		jobConfig.setProcessingGuarantee(ProcessingGuarantee.AT_LEAST_ONCE);
-		AspectUtils.executeAspect(new TaskStartAspect().task(taskDto));
-		final Job job = hazelcastInstance.getJet().newJob(jetDag.getDag(), jobConfig);
-		return new HazelcastTaskClient(job, taskDto, clientMongoOperator, configurationCenter, hazelcastInstance, milestoneFlowServiceJetV2);
+			final JetDag jetDag = task2HazelcastDAG(taskDto);
+			MilestoneFlowServiceJetV2 milestoneFlowServiceJetV2 = initMilestone(taskDto);
+
+			JobConfig jobConfig = new JobConfig();
+			jobConfig.setName(taskDto.getName() + "-" + taskDto.getId().toHexString());
+			jobConfig.setProcessingGuarantee(ProcessingGuarantee.AT_LEAST_ONCE);
+			final Job job = hazelcastInstance.getJet().newJob(jetDag.getDag(), jobConfig);
+			return new HazelcastTaskClient(job, taskDto, clientMongoOperator, configurationCenter, hazelcastInstance, milestoneFlowServiceJetV2);
+		} catch (Throwable throwable) {
+			AspectUtils.executeAspect(new TaskStopAspect().task(taskDto).error(throwable));
+			throw throwable;
+		}
 	}
 
 	@Override
 	public TaskClient<TaskDto> startTestTask(TaskDto taskDto) {
-		long startTs = System.currentTimeMillis();
-		final JetDag jetDag = task2HazelcastDAG(taskDto);
-		JobConfig jobConfig = new JobConfig();
-		jobConfig.setProcessingGuarantee(ProcessingGuarantee.NONE);
-		AspectUtils.executeAspect(new TaskStartAspect().task(taskDto));
-		logger.info("task2HazelcastDAG cost {}ms", (System.currentTimeMillis() - startTs));
-		Job job = hazelcastInstance.getJet().newLightJob(jetDag.getDag(), jobConfig);
-		return new HazelcastTaskClient(job, taskDto, clientMongoOperator, configurationCenter, hazelcastInstance, null);
+		try {
+			AspectUtils.executeAspect(new TaskStartAspect().task(taskDto));
+			long startTs = System.currentTimeMillis();
+			final JetDag jetDag = task2HazelcastDAG(taskDto);
+			JobConfig jobConfig = new JobConfig();
+			jobConfig.setProcessingGuarantee(ProcessingGuarantee.NONE);
+			logger.info("task2HazelcastDAG cost {}ms", (System.currentTimeMillis() - startTs));
+			Job job = hazelcastInstance.getJet().newLightJob(jetDag.getDag(), jobConfig);
+			return new HazelcastTaskClient(job, taskDto, clientMongoOperator, configurationCenter, hazelcastInstance, null);
+		} catch (Throwable throwable) {
+			AspectUtils.executeAspect(new TaskStopAspect().task(taskDto).error(throwable));
+			throw throwable;
+		}
+
 	}
 
 	@SneakyThrows
