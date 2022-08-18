@@ -1329,7 +1329,9 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
                     FunctionUtils.isTure(CollectionUtils.isEmpty(tableNames)).throwMessage("SystemError", "dag node tableNames is null");
 
                     criteriaTable.and("source._id").is(tableNode.getConnectionId())
-                            .and("originalName").in(tableNames).and("is_deleted").ne(true);
+                            .and("originalName").in(tableNames)
+                            .and("taskId").is(taskId)
+                            .and("is_deleted").ne(true);
                     metadatas = findAllDto(queryMetadata, user);
                 } else if (node instanceof LogCollectorNode) {
                     LogCollectorNode logNode = (LogCollectorNode) node;
