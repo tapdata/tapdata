@@ -1065,10 +1065,13 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 				Criteria criteria1 = Criteria.where("qualified_name").is(databaseModel.getQualifiedName());
 				MetadataInstancesDto oldMeta = metadataInstancesService.findOne(new Query(criteria1), user);
 
-				if (set != null && StringUtils.isNotBlank((String) set.get("name"))) {
-					databaseModel.setOriginalName((String) set.get("name"));
-					if (databaseModel.getSource() != null) {
-						databaseModel.getSource().setName((String) set.get("name"));
+				if (set != null) {
+					String tableName = (String) set.get("name");
+					if (StringUtils.isNotBlank(tableName)) {
+						databaseModel.setOriginalName(tableName);
+						if (databaseModel.getSource() != null) {
+							databaseModel.getSource().setName(tableName);
+						}
 					}
 				}
 
@@ -1110,7 +1113,11 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 							PdkSchemaConvert.tableFieldTypesGenerator.autoFill(table.getNameFieldMap() == null ? new LinkedHashMap<>() : table.getNameFieldMap(), DefaultExpressionMatchingMap.map(expression));
 						}
 
-						List<MetadataInstancesDto> newModels = tables.stream().map(PdkSchemaConvert::fromPdk).collect(Collectors.toList());
+						List<MetadataInstancesDto> newModels = tables.stream().map(tapTable -> {
+							MetadataInstancesDto instance = PdkSchemaConvert.fromPdk(tapTable);
+							instance.setAncestorsName(instance.getOriginalName());
+							return instance;
+						}).collect(Collectors.toList());
 						//List<MetadataInstancesDto> newModels = SchemaTransformUtils.oldSchema2newSchema(schema);
 						log.info("upsert new models into MetadataInstance: {}, connection id = {}, connection name = {}",
 								newModels.size(), connectionId, oldConnectionDto.getName());

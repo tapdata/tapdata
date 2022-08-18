@@ -3,15 +3,29 @@ package com.tapdata.tm.monitor.service;
 import com.mongodb.bulk.BulkWriteResult;
 import com.mongodb.client.result.DeleteResult;
 import com.tapdata.manager.common.utils.JsonUtil;
+import com.tapdata.tm.base.dto.Page;
+import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
+import com.tapdata.tm.commons.dag.process.TableRenameProcessNode;
+import com.tapdata.tm.commons.schema.MetadataInstancesDto;
+import com.tapdata.tm.commons.task.dto.TaskDto;
+import com.tapdata.tm.config.security.UserDetail;
+import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
 import com.tapdata.tm.monitor.constant.Granularity;
 import com.tapdata.tm.monitor.constant.TableNameEnum;
+import com.tapdata.tm.monitor.dto.TableSyncStaticDto;
 import com.tapdata.tm.monitor.entity.MeasurementEntity;
 import com.tapdata.tm.monitor.param.AggregateMeasurementParam;
 import com.tapdata.tm.monitor.param.MeasurementQueryParam;
+import com.tapdata.tm.monitor.vo.TableSyncStaticVo;
+import com.tapdata.tm.task.service.TaskRecordService;
+import com.tapdata.tm.utils.FunctionUtils;
 import com.tapdata.tm.utils.TimeUtil;
-import io.tapdata.common.sample.request.*;
+import io.tapdata.common.sample.request.Sample;
+import io.tapdata.common.sample.request.SampleRequest;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.collections.CollectionUtils;
+import org.apache.commons.collections4.ListUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.bson.Document;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -22,9 +36,14 @@ import org.springframework.data.mongodb.core.aggregation.*;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
+import org.springframework.data.util.CloseableIterator;
 import org.springframework.stereotype.Service;
 
+import java.io.Closeable;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 @Service
@@ -32,6 +51,8 @@ import java.util.stream.Collectors;
 @Setter(onMethod_ = {@Autowired})
 public class MeasurementServiceV2 {
     private MongoTemplate mongoOperations;
+    private TaskRecordService taskRecordService;
+    private MetadataInstancesService metadataInstancesService;
 
     public void addAgentMeasurement(List<SampleRequest> samples) {
         addBulkAgentMeasurement(samples, Granularity.GRANULARITY_MINUTE);
@@ -69,23 +90,6 @@ public class MeasurementServiceV2 {
         BulkWriteResult bulkWriteResult = bulkOperations.execute();
         log.info("add bulkWriteResult,{}", bulkWriteResult);
     }
-
-
-    /**
-     * 任务重置，删除对应的指标
-     *
-     * @param subTaskId
-     */
-    public void deleteSubTaskMeasurement(String subTaskId) {
-        if (StringUtils.isEmpty(subTaskId)) {
-            return;
-        }
-        Query query = Query.query(Criteria.where("tags.subTaskId").is(subTaskId));
-        DeleteResult deleteResult1 = mongoOperations.remove(query, MeasurementEntity.class, TableNameEnum.AgentMeasurementV2.getValue());
-
-        log.info(" subTaskId :{}  删除了 {} 条记录", subTaskId, JsonUtil.toJson(deleteResult1));
-    }
-
 
     private static final String TAG_FORMAT = String.format("%s.%%s", MeasurementEntity.FIELD_TAGS);
     private static final String FIELD_FORMAT = String.format("%s.%s.%%s",
@@ -630,5 +634,131 @@ public class MeasurementServiceV2 {
         DeleteResult result = mongoOperations.remove(query, MeasurementEntity.class, TableNameEnum.AgentMeasurementV2.getValue());
 
         log.info(" taskId :{}  删除了 {} 条记录", taskId, JsonUtil.toJson(result));
+    }
+
+    public Map<String, Long[]> countEventByTaskRecord(List<String> taskRecordIds) {
+        Map<String, Long[]> result = new HashMap<>();
+
+        Query query = new Query(Criteria.where("tags.taskRecordId").in(taskRecordIds)
+                .and("tags.type").is("task")
+                .and(MeasurementEntity.FIELD_GRANULARITY).is(Granularity.GRANULARITY_MINUTE));
+        List<MeasurementEntity> list = mongoOperations.find(query, MeasurementEntity.class, TableNameEnum.AgentMeasurementV2.getValue());
+        if (CollectionUtils.isEmpty(list)) {
+            return result;
+        }
+
+        for (MeasurementEntity measurement : list) {
+            String taskRecordId = measurement.getTags().get("taskRecordId");
+            List<Sample> samples = measurement.getSamples();
+            if (CollectionUtils.isEmpty(samples)) {
+                result.put(taskRecordId, new Long[]{0L, 0L});
+                continue;
+            }
+
+            Map<String, Number> vs = samples.get(0).getVs();
+            // inputInsertTotal + inputUpdateTotal + inputDeleteTotal + inputDdlTotal + inputOthersTotal
+            AtomicReference<Long> inputTotal = new AtomicReference<>(0L);
+            AtomicReference<Long> outputTotal = new AtomicReference<>(0L);
+            vs.remove("inputQps");
+            vs.remove("outputQps");
+            vs.forEach((k, v) -> {
+                if (StringUtils.startsWith(k, "input")) {
+                    inputTotal.updateAndGet(v1 -> v1 + v.longValue());
+                } else if (StringUtils.startsWith(k, "output")) {
+                    outputTotal.updateAndGet(v1 -> v1 + v.longValue());
+                }
+            });
+            result.put(taskRecordId, new Long[]{inputTotal.get(), outputTotal.get()});
+        }
+
+        return result;
+    }
+
+    public Page<TableSyncStaticVo> querySyncStatic(TableSyncStaticDto dto, UserDetail userDetail) {
+        String taskRecordId = dto.getTaskRecordId();
+        Criteria criteria = Criteria.where("tags.taskRecordId").is(taskRecordId)
+                .and("tags.type").is("table")
+                .and(MeasurementEntity.FIELD_GRANULARITY).is(Granularity.GRANULARITY_MINUTE);
+
+        SortOperation sort = Aggregation.sort(Sort.by(MeasurementEntity.FIELD_DATE).descending())
+                .and(Sort.by(String.format(TAG_FORMAT, "table")).ascending());
+        MatchOperation match = Aggregation.match(criteria);
+        GroupOperation group = Aggregation.group(MeasurementEntity.FIELD_TAGS)
+                .first(MeasurementEntity.FIELD_DATE).as(MeasurementEntity.FIELD_DATE)
+                .first(MeasurementEntity.FIELD_TAGS).as(MeasurementEntity.FIELD_TAGS)
+                .first(MeasurementEntity.FIELD_SAMPLES).as(MeasurementEntity.FIELD_SAMPLES);
+
+        LimitOperation limit = Aggregation.limit(dto.getSize());
+        SkipOperation skip = Aggregation.skip(dto.getSize() * (dto.getPage() - 1));
+
+        // TODO(dexter): find out a more elegant way to get the aggregate size
+        // match should be at the first param, sort should be the second while group be the last
+        Aggregation cntAggregation = Aggregation.newAggregation( match, sort, group);
+        CloseableIterator<MeasurementEntity> results = mongoOperations.aggregateStream(cntAggregation, TableNameEnum.AgentMeasurementV2.getValue(), MeasurementEntity.class);
+        long total = results.stream().count();
+        if (total == 0) {
+            return new Page<>(0, Collections.emptyList());
+        }
+
+
+        TaskDto taskDto = taskRecordService.queryTask(taskRecordId, userDetail.getUserId());
+        boolean hasTableRenameNode = taskDto.getDag().getNodes().stream().anyMatch(n -> n instanceof TableRenameProcessNode);
+
+        AtomicReference<Map<String, String>> tableNameMap = new AtomicReference<>();
+        tableNameMap.set(new HashMap<>());
+        if (hasTableRenameNode) {
+            DatabaseNode targetNode = taskDto.getDag().getTargetNode().getLast();
+            List<MetadataInstancesDto> metas = metadataInstancesService.findBySourceIdAndTableNameList(targetNode.getConnectionId(),
+                    null, userDetail, taskDto.getId().toHexString());
+            // get table origin name and target name
+            // TODO(dexter): find out why getAncestorsName is null;
+            tableNameMap.set(metas.stream().collect(Collectors.toMap(MetadataInstancesDto::getAncestorsName, MetadataInstancesDto::getName, (k1, k2) -> k1)));
+        }
+
+        List<TableSyncStaticVo> result = new ArrayList<>();
+        // match should be at the first param, sort should be the second while group be the last
+        Aggregation aggregation = Aggregation.newAggregation( match, sort, group, sort, skip, limit);
+        mongoOperations.aggregateStream(aggregation, TableNameEnum.AgentMeasurementV2.getValue(), MeasurementEntity.class).forEachRemaining(measurementEntity -> {
+            String originTable = measurementEntity.getTags().get("table");
+            AtomicReference<String> originTableName = new AtomicReference<>();
+            FunctionUtils.isTureOrFalse(hasTableRenameNode).trueOrFalseHandle(
+                    () -> originTableName.set(tableNameMap.get().get(originTable)),
+                    () -> originTableName.set(originTable));
+
+            List<Sample> samples = measurementEntity.getSamples();
+            if (CollectionUtils.isEmpty(samples)) {
+                return;
+            }
+
+            Map<String, Number> vs = samples.get(0).getVs();
+            long snapshotInsertTotal = vs.get("snapshotInsertTotal").longValue();
+            long snapshotTotal = vs.get("snapshotTotal").longValue();
+
+            BigDecimal syncRate = BigDecimal.ZERO;
+            if (snapshotTotal != 0) {
+                syncRate = new BigDecimal(snapshotInsertTotal).divide(new BigDecimal(snapshotTotal), 2, RoundingMode.HALF_UP);
+            } else {
+                syncRate = BigDecimal.ONE;
+            }
+
+            String fullSyncStatus = "";
+            if (syncRate.compareTo(BigDecimal.ONE) == 0) {
+                fullSyncStatus = "DONE";
+            } else if (syncRate.compareTo(BigDecimal.ZERO) == 0) {
+                fullSyncStatus = "NOT_START";
+            } else if (!TaskDto.STATUS_RUNNING.equals(taskDto.getStatus())) {
+                fullSyncStatus = "NOT_START";
+            }
+
+            TableSyncStaticVo vo = new TableSyncStaticVo();
+            vo.setOriginTable(originTable);
+            vo.setTargetTable(originTableName.get());
+            vo.setFullSyncStatus(fullSyncStatus);
+            vo.setSyncRate(syncRate);
+
+            result.add(vo);
+        });
+
+        return new Page<>(total, result);
     }
 }

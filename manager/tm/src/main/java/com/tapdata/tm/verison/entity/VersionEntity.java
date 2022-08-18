@@ -11,9 +11,9 @@ import org.springframework.data.mongodb.core.mapping.Document;
  */
 @EqualsAndHashCode(callSuper = true)
 @Data
-@Document("version")
+@Document("Version")
 public class VersionEntity extends BaseEntity {
-    private String key;
+    private String type;
     private String version;
 
 }

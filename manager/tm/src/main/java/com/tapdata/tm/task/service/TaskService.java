@@ -8,6 +8,7 @@ import cn.hutool.core.map.MapUtil;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.google.common.collect.Maps;
 import com.mongodb.client.result.UpdateResult;
+import com.sun.xml.bind.v2.TODO;
 import com.tapdata.manager.common.utils.JsonUtil;
 import com.tapdata.tm.CustomerJobLogs.CustomerJobLog;
 import com.tapdata.tm.CustomerJobLogs.service.CustomerJobLogsService;
@@ -47,6 +48,7 @@ import com.tapdata.tm.monitor.entity.AgentStatDto;
 import com.tapdata.tm.monitor.entity.MeasurementEntity;
 import com.tapdata.tm.monitor.service.MeasurementService;
 import com.tapdata.tm.monitor.service.MeasurementServiceV2;
+import com.tapdata.tm.monitoringlogs.service.MonitoringLogsService;
 import com.tapdata.tm.task.bean.*;
 import com.tapdata.tm.task.constant.SyncType;
 import com.tapdata.tm.task.constant.TaskEnum;
@@ -67,6 +69,7 @@ import com.tapdata.tm.utils.*;
 import com.tapdata.tm.worker.dto.WorkerDto;
 import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.service.WorkerService;
+import com.tapdata.tm.worker.vo.CalculationEngineVo;
 import com.tapdata.tm.ws.enums.MessageType;
 import lombok.*;
 import lombok.extern.slf4j.Slf4j;
@@ -103,7 +106,6 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     private MessageService messageService;
     private SnapshotEdgeProgressService snapshotEdgeProgressService;
     private MeasurementService measurementService;
-    private MeasurementServiceV2 measurementServiceV2;
     private InspectService inspectService;
     private TaskRunHistoryService taskRunHistoryService;
     private TransformSchemaAsyncService transformSchemaAsyncService;
@@ -120,6 +122,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     private UserService userService;
     private TaskDagCheckLogService taskDagCheckLogService;
     private BasicEventService basicEventService;
+    private MonitoringLogsService monitoringLogsService;
 
     public static Set<String> stopStatus = new HashSet<>();
     /**
@@ -840,6 +843,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
         //将任务id设置为null,状态改为编辑中
         taskDto.setId(null);
+        taskDto.setTaskRecordId(null);
 
         //设置复制名称
         String copyName = taskDto.getName() + " - Copy";
@@ -2095,7 +2099,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         //所有的任务重置操作，都会进这里
         //根据TaskId 把指标数据都删掉
         measurementService.deleteTaskMeasurement(taskId);
-        measurementServiceV2.deleteTaskMeasurement(taskId);
+//        measurementServiceV2.deleteTaskMeasurement(taskId);
     }
     public void renewNotSendMq(TaskDto taskDto, UserDetail user) {
         log.info("renew task, task name = {}, username = {}", taskDto.getName(), user.getUsername());
@@ -2138,10 +2142,11 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 //            taskDatabaseRuntimeInfoService.deleteAll(query);
         }
 
+        //todo jiaxin 之后逻辑补偿完善后再开启
         //重置的时候需要将子任务的temp更新到子任务实体中
-        if (taskDto.getTempDag() != null) {
-            taskDto.setDag(taskDto.getTempDag());
-        }
+//        if (taskDto.getTempDag() != null) {
+//            taskDto.setDag(taskDto.getTempDag());
+//        }
         beforeSave(taskDto, user);
         set.unset("tempDag").set("isEdit", true).set("status", TaskDto.STATUS_EDIT);
 //        Update update = new Update();
@@ -2278,6 +2283,8 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     }
     private void start(TaskDto taskDto, UserDetail user, String startFlag) {
 
+        monitoringLogsService.startTaskMonitoringLog(taskDto, user);
+
         //日志挖掘
         if (startFlag.charAt(0) == '1') {
             logCollectorService.logCollector(user, taskDto);
@@ -2321,7 +2328,8 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             taskDto.setAgentId(null);
         }
 
-        workerService.scheduleTaskToEngine(taskDto, user, "task", taskDto.getName());
+        CalculationEngineVo calculationEngineVo = workerService.scheduleTaskToEngine(taskDto, user, "task", taskDto.getName());
+        monitoringLogsService.agentAssignMonitoringLog(taskDto, calculationEngineVo.getProcessId(), calculationEngineVo.getAvailable(), user);
         CustomerJobLog customerJobLog = new CustomerJobLog(taskDto.getId().toString(), taskDto.getName());
         customerJobLog.setDataFlowType(CustomerJobLogsService.DataFlowType.sync.getV());
         if (StringUtils.isBlank(taskDto.getAgentId())) {
@@ -2484,8 +2492,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         log.debug("build stop task websocket context, processId = {}, userId = {}, queueDto = {}", taskDto.getAgentId(), user.getUserId(), queueDto);
         messageQueueService.sendMessage(queueDto);
 
-        //创建任务执行历史记录（任务快照表)
-        //插入任务运行历史记录（TaskRunHistory）
+        updateTaskRecordStatus(taskDto, pauseStatus);
     }
 
 
@@ -2547,7 +2554,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
      */
     public String complete(ObjectId id, UserDetail user) {
         //判断子任务是否存在
-        TaskDto taskDto = checkExistById(id, user, "_id", "status", "name");
+        TaskDto taskDto = checkExistById(id, user, "_id", "status", "name", "taskRecordId");
         if (!TaskOpStatusEnum.to_complete_status.v().contains(taskDto.getStatus())) {
             log.info("concurrent complete operations, this operation don‘t effective, task name = {}", taskDto.getName());
             return null;
@@ -2571,7 +2578,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
      */
     public String stopped(ObjectId id, UserDetail user) {
         //判断子任务是否存在。
-        TaskDto taskDto = checkExistById(id, user, "dag", "name", "status", "_id");
+        TaskDto taskDto = checkExistById(id, user, "dag", "name", "status", "_id", "taskRecordId");
 
 
         //如果任务状态为停止中，则将任务更新为已停止，并且清空所有运行信息
@@ -2585,12 +2592,11 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         //endConnHeartbeat(user, TaskDto);
 
         UpdateResult update1 = update(query1, Update.update("status", TaskDto.STATUS_STOP), user);
+        updateTaskRecordStatus(taskDto, TaskDto.STATUS_STOP);
         if (update1.getModifiedCount() == 0) {
             log.info("concurrent stopped operations, this operation don‘t effective, task name = {}", taskDto.getName());
             return null;
         } else {
-            basicEventService.publish(new SyncTaskStatusDto(taskDto.getTaskRecordId(), taskDto.getStatus()));
-
             return id.toHexString();
         }
     }

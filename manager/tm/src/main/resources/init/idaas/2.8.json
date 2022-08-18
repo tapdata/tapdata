@@ -18,6 +18,41 @@
         "key": {
           "_id": 1
         }
+      },
+      {
+        "name" : "tags.taskId_1_tags.type_1_tags.nodeId_1_grnty_1_date_-1",
+        "key" : {
+          "tags.taskId" : 1,
+          "tags.type" : 1,
+          "tags.nodeId": 1,
+          "grnty" : 1,
+          "date" : -1
+        },
+        "background": true,
+        "sparse": true
+      }
+    ]
+  },
+  {
+    "createIndexes": "AgentEnvironmentV2",
+    "indexes": [
+      {
+        "name": "_id_",
+        "key": {
+          "_id": 1
+        }
+      },
+      {
+        "name" : "tags.taskId_1_tags.taskRecordId_1_tags.type_1_grnty_1_date_-1",
+        "key" : {
+          "tags.taskId" : 1,
+          "tags.taskRecordId" : 1,
+          "tags.type" : 1,
+          "grnty" : 1,
+          "date" : -1
+        },
+        "background": true,
+        "sparse": true
       }
     ]
   },
@@ -707,6 +742,26 @@
     ]
   },
   {
+    "createIndexes": "MeasureLock",
+    "indexes": [
+      {
+        "name": "_id_",
+        "key": {
+          "_id": 1
+        }
+      },
+      {
+        "name": "date_1",
+        "key": {
+          "date": 1
+        },
+        "expireAfterSeconds": 30,
+        "background": true,
+        "sparse": true
+      }
+    ]
+  },
+  {
     "createIndexes": "Message",
     "indexes": [
       {
@@ -947,6 +1002,29 @@
           "dataFlowId": 1
         },
         "background": true
+      }
+    ]
+  },
+  {
+    "createIndexes": "monitoringLogs",
+    "indexes": [
+      {
+        "name": "_id_",
+        "key": {
+          "_id": 1
+        }
+      },
+      {
+        "name": "taskId_1_taskRecordId_1_nodeId_1_level_1_data_-1",
+        "key": {
+          "taskId" : 1,
+          "taskRecordId" : 1,
+          "nodeId" : 1,
+          "level" : 1,
+          "date" : -1
+        },
+        "background": true,
+        "sparse": true
       }
     ]
   },

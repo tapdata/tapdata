@@ -12,6 +12,7 @@ public enum NodeTypeEnum {
 	DATABASE("database"),
 	TABLE("table"),
 	CACHE("mem_cache"),
+	AUTO_INSPECT("auto_inspect"),
 	VIRTUAL_TARGET("VirtualTarget"),
 	JOIN("join_processor"),
 	CACHE_LOOKUP_PROCESSOR("cache_lookup_processor"),

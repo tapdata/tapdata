@@ -14,7 +14,6 @@ public class TaskRecordListVo {
     private String endDate;
     private String operator;
     private String status;
-    private Long syncNum;
-    private Long diffNum;
-    private String offset;
+    private Long inputTotal;
+    private Long outputTotal;
 }

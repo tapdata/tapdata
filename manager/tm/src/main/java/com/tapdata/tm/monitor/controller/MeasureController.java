@@ -2,9 +2,11 @@ package com.tapdata.tm.monitor.controller;
 
 import com.tapdata.manager.common.utils.JsonUtil;
 import com.tapdata.tm.base.controller.BaseController;
+import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.ResponseMessage;
 import com.tapdata.tm.monitor.dto.BatchRequestDto;
 import com.tapdata.tm.monitor.dto.StatisticVo;
+import com.tapdata.tm.monitor.dto.TableSyncStaticDto;
 import com.tapdata.tm.monitor.dto.TransmitTotalVo;
 import com.tapdata.tm.monitor.param.AggregateMeasurementParam;
 import com.tapdata.tm.monitor.param.MeasurementQueryParam;
@@ -13,6 +15,7 @@ import com.tapdata.tm.monitor.service.MeasurementService;
 import com.tapdata.tm.monitor.service.MeasurementServiceV2;
 import com.tapdata.tm.monitor.vo.BatchResponeVo;
 import com.tapdata.tm.monitor.vo.QueryMeasurementVo;
+import com.tapdata.tm.monitor.vo.TableSyncStaticVo;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -158,5 +161,13 @@ public class MeasureController extends BaseController {
                                                          content = @Content(schema = @Schema(implementation = BatchRequestDto.class)))
                                                  @RequestBody BatchRequestDto batchRequestDto) throws ExecutionException, InterruptedException {
         return success(batchService.batch(batchRequestDto));
+    }
+
+    @Operation(summary = "全量信息接口")
+    @GetMapping("/full_statistics")
+    public ResponseMessage<Page<TableSyncStaticVo>> querySyncStatic (@RequestParam String taskRecordId,
+                                                                     @RequestParam(defaultValue = "1") Integer page,
+                                                                     @RequestParam(defaultValue = "20") Integer size) {
+        return success(measurementServiceV2.querySyncStatic(new TableSyncStaticDto(taskRecordId, page, size), getLoginUser()));
     }
 }

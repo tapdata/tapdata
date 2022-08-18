@@ -14,7 +14,6 @@ import com.tapdata.tm.commons.schema.MetadataTransformerItemDto;
 import com.tapdata.tm.commons.schema.TransformerWsMessageDto;
 import com.tapdata.tm.commons.schema.TransformerWsMessageResult;
 import com.tapdata.tm.commons.task.dto.TaskDto;
-import com.tapdata.tm.commons.task.dto.TaskRunHistoryDto;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.ds.service.impl.DataSourceDefinitionService;
 import com.tapdata.tm.message.constant.Level;
@@ -254,16 +253,15 @@ public class TaskController extends BaseController {
     @GetMapping("{id}")
     public ResponseMessage<TaskDto> findById(@PathVariable("id") String id,
                                              @RequestParam(value = "fields", required = false) String fieldsJson,
-                                             @RequestParam(value = "recordId", required = false) String recordId) {
+                                             @RequestParam(value = "taskRecordId", required = false) String taskRecordId) {
         Field fields = parseField(fieldsJson);
         UserDetail user = getLoginUser();
-        TaskDto taskDto;
-        if (StringUtils.isBlank(recordId)) {
-            taskDto = taskService.findById(MongoUtils.toObjectId(id), fields, user);
-        } else {
-            taskDto = taskRecordService.queryTask(recordId, user.getUserId());
-        }
+        TaskDto taskDto = taskService.findById(MongoUtils.toObjectId(id), fields, user);
         if (taskDto != null) {
+            if (StringUtils.isNotBlank(taskRecordId) && !taskRecordId.equals(taskDto.getTaskRecordId())) {
+                taskDto = taskRecordService.queryTask(taskRecordId, user.getUserId());
+            }
+
             taskDto.setCreator(StringUtils.isNotBlank(user.getUsername()) ? user.getUsername() : user.getEmail());
             taskCheckInspectService.getInspectFlagDefaultFlag(taskDto, user);
         }
@@ -915,11 +913,12 @@ public class TaskController extends BaseController {
     @GetMapping("getNodeTableInfo")
     public ResponseMessage<Page<MetadataTransformerItemDto>> getNodeTableInfo(
             @RequestParam("taskId") String taskId,
+            @RequestParam(value = "taskRecordId", required = false) String taskRecordId,
             @RequestParam("nodeId") String nodeId,
             @RequestParam(value = "searchTable", required = false) String searchTableName,
             @RequestParam(value = "page", defaultValue = "1") Integer page,
             @RequestParam(value = "pageSize", defaultValue = "10") Integer pageSize) {
-        return success(taskNodeService.getNodeTableInfo(taskId, nodeId, searchTableName, page, pageSize, getLoginUser()));
+        return success(taskNodeService.getNodeTableInfo(taskId, taskRecordId, nodeId, searchTableName, page, pageSize, getLoginUser()));
     }
 
 
@@ -971,9 +970,9 @@ public class TaskController extends BaseController {
     @Operation(summary = "任务运行记录")
     @GetMapping("/records/{id}")
     public ResponseMessage<Page<TaskRecordListVo>> records(@PathVariable(value = "id") String taskId,
-                                                           @RequestParam(required = false) String offset,
-                                                           @RequestParam(defaultValue = "20") Integer limit) {
-        return success(taskRecordService.queryRecords(taskId, offset, limit));
+                                                           @RequestParam(defaultValue = "1") Integer page,
+                                                           @RequestParam(defaultValue = "20") Integer size) {
+        return success(taskRecordService.queryRecords(taskId, page, size));
     }
 
 }

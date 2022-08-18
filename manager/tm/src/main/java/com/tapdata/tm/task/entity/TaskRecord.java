@@ -11,7 +11,7 @@ import java.util.Date;
 
 @Data
 @EqualsAndHashCode(callSuper = true)
-@Document("task_record")
+@Document("TaskRecord")
 @NoArgsConstructor
 public class TaskRecord extends BaseEntity {
     private String taskId;

@@ -17,8 +17,11 @@ import lombok.NoArgsConstructor;
 public class VersionDto extends BaseDto {
 
     public static final String SCRIPT_VERSION_KEY = "script_version";
+    public static final String DAAS_SCRIPT_VERSION_KEY = "daas_script_version";
+    public static final String DFS_SCRIPT_VERSION_KEY = "dfs_script_version";
+    public static final String DRS_SCRIPT_VERSION_KEY = "drs_script_version";
 
-    private String key;
+    private String type;
     private String version;
 
 }
