@@ -1,0 +1,26 @@
+{
+  "uid" : "4b4757e66a1912dae1a509f688f20b0f",
+  "children" : [ {
+    "name" : "Product defects",
+    "children" : [ {
+      "name" : "AssertionError: assert False\n +  where False = wait_scheduling(<lib.cli.Pipeline object at 0x7ff4960c9550>, except_status=('running',))",
+      "children" : [ {
+        "name" : "test get job status",
+        "uid" : "1c2c95e2ddeac618",
+        "parentUid" : "b263c9d1fdfaf29167cfa2de0364ae77",
+        "status" : "failed",
+        "time" : {
+          "start" : 1660892847407,
+          "stop" : 1660892854123,
+          "duration" : 6716
+        },
+        "flaky" : false,
+        "newFailed" : false,
+        "parameters" : [ ]
+      } ],
+      "uid" : "b263c9d1fdfaf29167cfa2de0364ae77"
+    } ],
+    "uid" : "8fb3a91ba5aaf9de24cc8a92edc82b5d"
+  } ],
+  "name" : "categories"
+}
