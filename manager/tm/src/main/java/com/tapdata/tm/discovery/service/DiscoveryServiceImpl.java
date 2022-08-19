@@ -1,5 +1,6 @@
 package com.tapdata.tm.discovery.service;
 
+import com.mongodb.ConnectionString;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.commons.base.dto.BaseDto;
 import com.tapdata.tm.commons.schema.*;
@@ -154,6 +155,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
             dto.setName(metadataInstancesDto.getOriginalName());
             dto.setSourceCategory(DataSourceCategoryEnum.connection);
             dto.setSourceType(metadataInstancesDto.getSource() == null ? null : metadataInstancesDto.getSource().getDatabase_type());
+            dto.setSourceInfo(getConnectInfo(metadataInstancesDto));
             //dto.setSourceInfo();
             //dto.setName();
             //dto.setBusinessName();
@@ -322,6 +324,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
         dto.setCategory(DataObjCategoryEnum.storage);
         dto.setType(metadataInstancesDto.getMetaType());
         dto.setSourceCategory(DataSourceCategoryEnum.connection);
+        dto.setSourceInfo(getConnectInfo(metadataInstancesDto));
         //dto.setSourceInfo();
         //dto.setBusinessName();
         //dto.setBusinessDesc();
@@ -609,5 +612,48 @@ public class DiscoveryServiceImpl implements DiscoveryService {
             long count1 = taskRepository.count(new Query(criteria), user);
             tagDto.setObjCount(count1 + count);
         }
+    }
+
+
+    private String getConnectInfo(MetadataInstancesDto metadataInstancesDto) {
+        SourceDto source = metadataInstancesDto.getSource();
+        if (source == null) {
+            return null;
+        }
+
+        StringBuilder ipAndPort = new StringBuilder();
+
+
+
+        Object config = source.getConfig();
+        Map config1 = (Map) config;
+        if (source.getDatabase_type().toLowerCase(Locale.ROOT).contains("mongo")) {
+            String uri1 = (String) config1.get("uri");
+            if (StringUtils.isNotBlank(uri1)) {
+                ConnectionString connectionString = new ConnectionString(uri1);
+                List<String> hosts = connectionString.getHosts();
+                if (CollectionUtils.isNotEmpty(hosts)) {
+                    for (String host : hosts) {
+                        ipAndPort.append(host).append(";");
+                    }
+                    ipAndPort = new StringBuilder(ipAndPort.substring(0, ipAndPort.length() -1));
+                }
+            }
+        } else {
+            Object host = config1.get("host");
+            Object port = config1.get("port");
+            Object database = config1.get("database");
+            if (host == null) {
+                host = config1.get("mqHost");
+                port = config1.get("mqPort");
+            }
+            ipAndPort = new StringBuilder(host + ":" + port);
+
+            if (database != null) {
+                ipAndPort.append("/").append(database);
+            }
+        }
+
+        return ipAndPort + "/" + metadataInstancesDto.getOriginalName();
     }
 }

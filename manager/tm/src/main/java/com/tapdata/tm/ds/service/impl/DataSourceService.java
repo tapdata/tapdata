@@ -219,6 +219,13 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 				}
 			}
 
+			Object mqPassword = config.get("mqPassword");
+			if (mqPassword == null || StringUtils.isBlank((String) mqPassword)) {
+				if (StringUtils.isNotBlank((String) connectionDto.getConfig().get("password"))) {
+					config.put("mqPassword", connectionDto.getConfig().get("mqPassword"));
+				}
+			}
+
 			if (updateDto.getDatabase_type().toLowerCase(Locale.ROOT).contains("mongo") && config.get("uri") != null) {
 				String uri1 = (String) config.get("uri");
 				if (uri1.contains("******")) {
@@ -428,6 +435,9 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 				&& !item.getConfig().isEmpty()) {
 			if (item.getConfig().containsKey("password")) {
 				item.getConfig().put("password", null);
+			}
+			if (item.getConfig().containsKey("mqPassword")) {
+				item.getConfig().put("mqPassword", null);
 			}
 
 
