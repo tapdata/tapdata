@@ -42,12 +42,11 @@ public class KafkaService extends AbstractMqService {
 
     private static final String TAG = KafkaService.class.getSimpleName();
     private static final JsonParser jsonParser = InstanceFactory.instance(JsonParser.class);
-    private final KafkaConfig kafkaConfig;
     private String connectorId;
-    private ExecutorService produceService;
+    private final ExecutorService produceService;
 
-    public KafkaService(KafkaConfig kafkaConfig) {
-        this.kafkaConfig = kafkaConfig;
+    public KafkaService(KafkaConfig mqConfig) {
+        this.mqConfig = mqConfig;
         produceService = Executors.newFixedThreadPool(concurrency);
     }
 
@@ -56,29 +55,30 @@ public class KafkaService extends AbstractMqService {
     }
 
     @Override
-    protected <T> Map<String, Object> analyzeTable(Object object, T topic, TapTable tapTable) throws Exception {
+    protected <T> Map<String, Object> analyzeTable(Object object, T topic, TapTable tapTable) {
         return null;
     }
 
     @Override
-    public void testConnect(Consumer<TestItem> consumer) {
-        if (kafkaConfig.getKrb5()) {
+    public TestItem testConnect() {
+        if (((KafkaConfig) mqConfig).getKrb5()) {
             try {
-                Krb5Util.checkKDCDomainsBase64(kafkaConfig.getKrb5Conf());
-                consumer.accept(new TestItem(MqTestItem.KAFKA_BASE64_CONNECTION.getContent(), TestItem.RESULT_SUCCESSFULLY, null));
+                Krb5Util.checkKDCDomainsBase64(((KafkaConfig) mqConfig).getKrb5Conf());
+                return new TestItem(MqTestItem.KAFKA_BASE64_CONNECTION.getContent(), TestItem.RESULT_SUCCESSFULLY, null);
             } catch (Exception e) {
-                consumer.accept(new TestItem(MqTestItem.KAFKA_BASE64_CONNECTION.getContent(), TestItem.RESULT_FAILED, e.getMessage()));
+                return new TestItem(MqTestItem.KAFKA_BASE64_CONNECTION.getContent(), TestItem.RESULT_FAILED, e.getMessage());
             }
         }
-        AdminConfiguration configuration = new AdminConfiguration(kafkaConfig, connectorId);
+        AdminConfiguration configuration = new AdminConfiguration(((KafkaConfig) mqConfig), connectorId);
         try (Admin admin = new DefaultAdmin(configuration)) {
             if (admin.isClusterConnectable()) {
-                consumer.accept(new TestItem(MqTestItem.KAFKA_MQ_CONNECTION.getContent(), TestItem.RESULT_SUCCESSFULLY, null));
+                return new TestItem(MqTestItem.KAFKA_MQ_CONNECTION.getContent(), TestItem.RESULT_SUCCESSFULLY, null);
             } else {
-                consumer.accept(new TestItem(MqTestItem.KAFKA_MQ_CONNECTION.getContent(), TestItem.RESULT_FAILED, "cluster is not connectable"));
+                return new TestItem(MqTestItem.KAFKA_MQ_CONNECTION.getContent(), TestItem.RESULT_FAILED, "cluster is not connectable");
             }
         } catch (Exception e) {
             e.printStackTrace();
+            return new TestItem(MqTestItem.KAFKA_MQ_CONNECTION.getContent(), TestItem.RESULT_FAILED, "when connect to cluster, error occurred");
         }
     }
 
@@ -90,36 +90,36 @@ public class KafkaService extends AbstractMqService {
     @Override
     public int countTables() throws Throwable {
         int tableCount;
-        if (EmptyKit.isEmpty(kafkaConfig.getMqTopicSet())) {
-            AdminConfiguration configuration = new AdminConfiguration(kafkaConfig, connectorId);
+        if (EmptyKit.isEmpty(mqConfig.getMqTopicSet())) {
+            AdminConfiguration configuration = new AdminConfiguration(((KafkaConfig) mqConfig), connectorId);
             Admin admin = new DefaultAdmin(configuration);
             tableCount = admin.listTopics().size();
             admin.close();
         } else {
-            tableCount = kafkaConfig.getMqTopicSet().size();
+            tableCount = mqConfig.getMqTopicSet().size();
         }
         return tableCount;
     }
 
     @Override
     public void loadTables(int tableSize, Consumer<List<TapTable>> consumer) throws Throwable {
-        AdminConfiguration configuration = new AdminConfiguration(kafkaConfig, connectorId);
+        AdminConfiguration configuration = new AdminConfiguration(((KafkaConfig) mqConfig), connectorId);
         Admin admin = new DefaultAdmin(configuration);
         Set<String> existTopicSet = admin.listTopics();
         Set<String> destinationSet = new HashSet<>();
         Set<String> existTopicNameSet = new HashSet<>();
-        if (EmptyKit.isEmpty(kafkaConfig.getMqTopicSet())) {
+        if (EmptyKit.isEmpty(mqConfig.getMqTopicSet())) {
             destinationSet.addAll(existTopicSet);
         } else {
             //query queue which exists
             for (String topic : existTopicSet) {
-                if (kafkaConfig.getMqTopicSet().contains(topic)) {
+                if (mqConfig.getMqTopicSet().contains(topic)) {
                     destinationSet.add(topic);
                     existTopicNameSet.add(topic);
                 }
             }
             //create queue which not exists
-            Set<String> needCreateTopicSet = kafkaConfig.getMqTopicSet().stream()
+            Set<String> needCreateTopicSet = mqConfig.getMqTopicSet().stream()
                     .filter(i -> !existTopicNameSet.contains(i)).collect(Collectors.toSet());
             if (EmptyKit.isNotEmpty(needCreateTopicSet)) {
                 admin.createTopics(needCreateTopicSet);
@@ -127,11 +127,11 @@ public class KafkaService extends AbstractMqService {
             }
         }
         admin.close();
-        SchemaConfiguration schemaConfiguration = new SchemaConfiguration(kafkaConfig, connectorId);
+        SchemaConfiguration schemaConfiguration = new SchemaConfiguration(((KafkaConfig) mqConfig), connectorId);
         submitPageTables(tableSize, consumer, schemaConfiguration, destinationSet);
     }
 
-    protected void submitPageTables(int tableSize, Consumer<List<TapTable>> consumer, SchemaConfiguration schemaConfiguration, Set<String> destinationSet) throws Exception {
+    protected void submitPageTables(int tableSize, Consumer<List<TapTable>> consumer, SchemaConfiguration schemaConfiguration, Set<String> destinationSet) {
         List<List<String>> tablesList = Lists.partition(new ArrayList<>(destinationSet), tableSize);
         Map<String, Object> config = schemaConfiguration.build();
         tablesList.forEach(tables -> {
@@ -185,8 +185,8 @@ public class KafkaService extends AbstractMqService {
     }
 
     @Override
-    public void produce(List<TapRecordEvent> tapRecordEvents, TapTable tapTable, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer) throws Throwable {
-        ProducerConfiguration producerConfiguration = new ProducerConfiguration(kafkaConfig, connectorId);
+    public void produce(List<TapRecordEvent> tapRecordEvents, TapTable tapTable, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer) {
+        ProducerConfiguration producerConfiguration = new ProducerConfiguration(((KafkaConfig) mqConfig), connectorId);
         KafkaProducer<byte[], byte[]> kafkaProducer = new KafkaProducer<>(producerConfiguration.build());
         AtomicLong insert = new AtomicLong(0);
         AtomicLong update = new AtomicLong(0);
@@ -252,11 +252,11 @@ public class KafkaService extends AbstractMqService {
     }
 
     @Override
-    public void consumeOne(TapTable tapTable, int eventBatchSize, BiConsumer<List<TapEvent>, Object> eventsOffsetConsumer) throws Throwable {
+    public void consumeOne(TapTable tapTable, int eventBatchSize, BiConsumer<List<TapEvent>, Object> eventsOffsetConsumer) {
         consuming.set(true);
         List<TapEvent> list = TapSimplify.list();
         String tableName = tapTable.getId();
-        ConsumerConfiguration consumerConfiguration = new ConsumerConfiguration(kafkaConfig, connectorId, true);
+        ConsumerConfiguration consumerConfiguration = new ConsumerConfiguration(((KafkaConfig) mqConfig), connectorId, true);
         KafkaConsumer<byte[], byte[]> kafkaConsumer = new KafkaConsumer<>(consumerConfiguration.build());
         kafkaConsumer.subscribe(Collections.singleton(tapTable.getId()));
         while (consuming.get()) {
@@ -279,9 +279,9 @@ public class KafkaService extends AbstractMqService {
     }
 
     @Override
-    public void streamConsume(List<String> tableList, int eventBatchSize, BiConsumer<List<TapEvent>, Object> eventsOffsetConsumer) throws Throwable {
+    public void streamConsume(List<String> tableList, int eventBatchSize, BiConsumer<List<TapEvent>, Object> eventsOffsetConsumer) {
         consuming.set(true);
-        ConsumerConfiguration consumerConfiguration = new ConsumerConfiguration(kafkaConfig, connectorId, true);
+        ConsumerConfiguration consumerConfiguration = new ConsumerConfiguration(((KafkaConfig) mqConfig), connectorId, true);
         KafkaConsumer<byte[], byte[]> kafkaConsumer = new KafkaConsumer<>(consumerConfiguration.build());
         kafkaConsumer.subscribe(tableList);
         List<TapEvent> list = TapSimplify.list();
@@ -308,9 +308,7 @@ public class KafkaService extends AbstractMqService {
         Map<String, Object> data = jsonParser.fromJsonBytes(consumerRecord.value(), Map.class);
         AtomicReference<String> mqOpReference = new AtomicReference<>();
         mqOpReference.set(MqOp.INSERT.getOp());
-        consumerRecord.headers().headers("mqOp").forEach(header -> {
-            mqOpReference.set(new String(header.value()));
-        });
+        consumerRecord.headers().headers("mqOp").forEach(header -> mqOpReference.set(new String(header.value())));
         switch (MqOp.fromValue(mqOpReference.get())) {
             case INSERT:
                 list.add(new TapInsertRecordEvent().init().table(tableName).after(data).referenceTime(System.currentTimeMillis()));

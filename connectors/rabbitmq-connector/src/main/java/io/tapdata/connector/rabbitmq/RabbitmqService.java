@@ -32,28 +32,27 @@ public class RabbitmqService extends AbstractMqService {
 
     private static final String TAG = RabbitmqService.class.getSimpleName();
     private static final JsonParser jsonParser = InstanceFactory.instance(JsonParser.class);
-    private final RabbitmqConfig rabbitmqConfig;
     private final ConnectionFactory connectionFactory;
     private Connection rabbitmqConnection;
     private static final String RABBITMQ_URL = "http://%s:%s/api";
 
-    public RabbitmqService(RabbitmqConfig rabbitmqConfig) {
-        this.rabbitmqConfig = rabbitmqConfig;
+    public RabbitmqService(RabbitmqConfig mqConfig) {
+        this.mqConfig = mqConfig;
         connectionFactory = new ConnectionFactory();
-        connectionFactory.setHost(rabbitmqConfig.getMqHost());
-        connectionFactory.setPort(rabbitmqConfig.getMqPort());
-        connectionFactory.setUsername(rabbitmqConfig.getMqUsername());
-        connectionFactory.setPassword(rabbitmqConfig.getMqPassword());
-        connectionFactory.setVirtualHost(rabbitmqConfig.getVirtualHost());
+        connectionFactory.setHost(mqConfig.getMqHost());
+        connectionFactory.setPort(mqConfig.getMqPort());
+        connectionFactory.setUsername(mqConfig.getMqUsername());
+        connectionFactory.setPassword(mqConfig.getMqPassword());
+        connectionFactory.setVirtualHost(mqConfig.getVirtualHost());
     }
 
     @Override
-    public void testConnect(Consumer<TestItem> consumer) {
+    public TestItem testConnect() {
         try {
             rabbitmqConnection = connectionFactory.newConnection();
-            consumer.accept(new TestItem(MqTestItem.RABBIT_MQ_CONNECTION.getContent(), TestItem.RESULT_SUCCESSFULLY, null));
+            return new TestItem(MqTestItem.RABBIT_MQ_CONNECTION.getContent(), TestItem.RESULT_SUCCESSFULLY, null);
         } catch (Throwable t) {
-            consumer.accept(new TestItem(MqTestItem.RABBIT_MQ_CONNECTION.getContent(), TestItem.RESULT_FAILED, t.getMessage()));
+            return new TestItem(MqTestItem.RABBIT_MQ_CONNECTION.getContent(), TestItem.RESULT_FAILED, t.getMessage());
         }
     }
 
@@ -88,35 +87,35 @@ public class RabbitmqService extends AbstractMqService {
 
     @Override
     public int countTables() throws Throwable {
-        if (EmptyKit.isEmpty(rabbitmqConfig.getMqQueueSet())) {
-            Client client = new Client(String.format(RABBITMQ_URL, rabbitmqConfig.getMqHost(), rabbitmqConfig.getApiPort()),
-                    rabbitmqConfig.getMqUsername(), rabbitmqConfig.getMqPassword());
+        if (EmptyKit.isEmpty(mqConfig.getMqQueueSet())) {
+            Client client = new Client(String.format(RABBITMQ_URL, mqConfig.getMqHost(), ((RabbitmqConfig) mqConfig).getApiPort()),
+                    mqConfig.getMqUsername(), mqConfig.getMqPassword());
             return client.getQueues().size();
         } else {
-            return rabbitmqConfig.getMqQueueSet().size();
+            return mqConfig.getMqQueueSet().size();
         }
     }
 
     @Override
     public void loadTables(int tableSize, Consumer<List<TapTable>> consumer) throws Throwable {
-        Client client = new Client(String.format(RABBITMQ_URL, rabbitmqConfig.getMqHost(), rabbitmqConfig.getApiPort()),
-                rabbitmqConfig.getMqUsername(), rabbitmqConfig.getMqPassword());
+        Client client = new Client(String.format(RABBITMQ_URL, mqConfig.getMqHost(), ((RabbitmqConfig) mqConfig).getApiPort()),
+                mqConfig.getMqUsername(), mqConfig.getMqPassword());
         Channel channel = rabbitmqConnection.createChannel();
         Set<String> existQueueSet = client.getQueues().stream().map(QueueInfo::getName).collect(Collectors.toSet());
         Set<String> destinationSet = new HashSet<>();
         Set<String> existQueueNameSet = new HashSet<>();
-        if (EmptyKit.isEmpty(rabbitmqConfig.getMqQueueSet())) {
+        if (EmptyKit.isEmpty(mqConfig.getMqQueueSet())) {
             destinationSet.addAll(existQueueSet);
         } else {
             //query queue which exists
             for (String queue : existQueueSet) {
-                if (rabbitmqConfig.getMqQueueSet().contains(queue)) {
+                if (mqConfig.getMqQueueSet().contains(queue)) {
                     destinationSet.add(queue);
                     existQueueNameSet.add(queue);
                 }
             }
             //create queue which not exists
-            Set<String> needCreateQueueSet = rabbitmqConfig.getMqQueueSet().stream()
+            Set<String> needCreateQueueSet = mqConfig.getMqQueueSet().stream()
                     .filter(i -> !existQueueNameSet.contains(i)).collect(Collectors.toSet());
             if (EmptyKit.isNotEmpty(needCreateQueueSet)) {
                 for (String queue : needCreateQueueSet) {
@@ -209,7 +208,7 @@ public class RabbitmqService extends AbstractMqService {
         channel.queueDeclare(tableName, true, false, false, null);
         channel.basicConsume(tableName, consumer);
         while (consuming.get() && System.currentTimeMillis() - time.get() < 10000) {
-            Thread.sleep(1000);
+            TapSimplify.sleep(1000);
         }
         channel.close();
         if (EmptyKit.isNotEmpty(list)) {
