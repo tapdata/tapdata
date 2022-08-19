@@ -934,7 +934,7 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
                 if (realMeta != null) {
                     value.setCharset(null);
                 } else {
-                    if (old == null || old.getCharset().equals(value.getCharset())) {
+                    if (old == null || null == old.getCharset() ||  old.getCharset().equals(value.getCharset())) {
                         value.setCharset(null);
                     }
                 }
