@@ -2,7 +2,6 @@ package io.tapdata.connector.redis;
 
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONObject;
-import com.mongodb.client.MongoDatabase;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
@@ -40,7 +39,7 @@ public class RedisRecordWriter {
     private TapTable tapTable;
 
 
-    public RedisRecordWriter(RedisContext redisContext, TapTable tapTable, TapConnectorContext connectorContext, MongoDatabase mongoDatabase) {
+    public RedisRecordWriter(RedisContext redisContext, TapTable tapTable, TapConnectorContext connectorContext) {
         this.redisContext = redisContext;
         this.jedis = redisContext.getJedis();
         this.connectorContext = connectorContext;
