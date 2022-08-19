@@ -7,6 +7,7 @@
 package com.tapdata.tm.ws.handler;
 
 import cn.hutool.core.lang.Assert;
+import com.alibaba.fastjson.JSONObject;
 import com.google.common.collect.Maps;
 import com.tapdata.manager.common.utils.JsonUtil;
 import com.tapdata.manager.common.utils.StringUtils;
@@ -42,6 +43,7 @@ import java.util.stream.Stream;
 
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
+import org.bson.json.JsonObject;
 import org.bson.types.ObjectId;
 
 @WebSocketMessageHandler(type = MessageType.TEST_CONNECTION)
@@ -110,8 +112,9 @@ public class TestConnectionHandler implements WebSocketHandler {
 				DataSourceDefinitionDto definitionDto = dataSourceDefinitionService.findByPdkHash(pdkHash, userDetail, "type");
 				database_type = definitionDto.getType();
 			}
-			Map config1 = (Map) config;
-			String uri = (String) config1.get("uri");
+			JSONObject config1 = JsonUtil.parseJsonUseJackson(JsonUtil.toJsonUseJackson(config), JSONObject.class);
+			assert config1 != null;
+			String uri = config1.getString("uri");
 			if (StringUtils.isNotBlank(database_type) && StringUtils.isNotBlank(database_type) && database_type.toLowerCase(Locale.ROOT).contains("mongo") && StringUtils.isNotBlank(uri)) {
 				if (uri.contains("******")) {
 					data.put("editTest", false);
@@ -122,7 +125,14 @@ public class TestConnectionHandler implements WebSocketHandler {
 				if (Objects.isNull(password) && Objects.isNull(mqPassword)) {
 					Object id = data.get("id");
 					if (id != null) {
-						data.put("editTest", false);
+						DataSourceConnectionDto dataSourceConnectionDto = dataSourceService.findById(toObjectId(id.toString()));
+						Map<String, Object> dataSourceConfig = dataSourceConnectionDto.getConfig();
+						if (dataSourceConfig.containsKey("password")) {
+							config1.put("password", dataSourceConfig.get("password"));
+						} else if (dataSourceConfig.containsKey("mqPassword")) {
+							config1.put("mqPassword", dataSourceConfig.get("mqPassword"));
+						}
+						data.put("config", config1);
 					}
 				}
 			}
