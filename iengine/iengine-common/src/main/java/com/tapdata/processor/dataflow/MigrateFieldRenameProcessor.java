@@ -63,6 +63,7 @@ public class MigrateFieldRenameProcessor implements DataFlowProcessor{
 				}
 				Object value = MapUtil.getValueByKey(map, entry.getKey());
 				try {
+					MapUtil.removeValueByKey(map, entry.getKey());
 					MapUtil.putValueInMap(map, fieldInfo.getTargetFieldName(), value);
 				} catch (Exception e) {
 					throw new RuntimeException("Error when modifying field name: " + fieldInfo + "--" + value, e);
