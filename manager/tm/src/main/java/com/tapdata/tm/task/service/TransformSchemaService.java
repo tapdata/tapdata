@@ -198,6 +198,7 @@ public class TransformSchemaService {
 //        transformerWsMessageResult.setBatchInsertMetaDataList(dagDataService1.getBatchInsertMetaDataList());
 //        transformerWsMessageResult.setUpsertItems(dagDataService1.getUpsertItems());
 //        transformerWsMessageResult.setBatchMetadataUpdateMap(dagDataService1.getBatchMetadataUpdateMap());
+//        transformerWsMessageResult.setTaskId(taskDto.getId().toHexString());
 //        transformerResult(user, transformerWsMessageResult);
 //        return transformSchema;
     }
