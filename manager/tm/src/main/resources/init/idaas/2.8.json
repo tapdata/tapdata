@@ -454,6 +454,103 @@
     ]
   },
   {
+    "createIndexes": "InconsistentData",
+    "indexes": [
+      {
+        "name": "_id_",
+        "key": {
+          "_id": 1
+        }
+      },
+      {
+        "name": "verificationJobId_1_validateResult_1_nextValidateTime_1",
+        "key": {
+          "nextValidateTime": 1,
+          "verificationJobId": 1,
+          "validateResult": 1
+        },
+        "partialFilterExpression": {
+          "validateResult": "retry"
+        },
+        "background": true
+      }
+    ]
+  },
+  {
+  "createIndexes": "Task",
+  "indexes": [
+    {
+      "name": "_id_",
+      "key": {
+        "_id": 1
+      }
+    },
+    {
+      "name": "index_task_name",
+      "key": {
+        "name": 1
+      },
+      "background": true
+    },
+    {
+      "name": "index_task_desc",
+      "key": {
+        "desc": 1
+      },
+      "background": true
+    },
+    {
+      "name": "index_task_agent_id",
+      "key": {
+        "agentId": 1
+      },
+      "background": true
+    },
+    {
+      "name": "index_task_start_time",
+      "key": {
+        "startTime": 1
+      },
+      "background": true
+    },
+    {
+      "name": "index_task_create_time",
+      "key": {
+        "createTime": 1
+      },
+      "background": true
+    },
+    {
+      "name": "index_task_stop_time",
+      "key": {
+        "stopTime": 1
+      },
+      "background": true
+    },
+    {
+      "name": "index_task_ping_time",
+      "key": {
+        "pingTime": 1
+      },
+      "background": true
+    },
+    {
+      "name": "index_task_dag_nodes_connectionId",
+      "key": {
+        "dag.nodes.connectionId": 1
+      },
+      "background": true
+    },
+    {
+      "name": "index_task_agent_id",
+      "key": {
+        "agentId": 1
+      },
+      "background": true
+    }
+  ]
+},
+  {
     "createIndexes": "Insights",
     "indexes": [
       {
@@ -926,6 +1023,20 @@
           "meta_type": 1,
           "is_deleted": 1,
           "databaseId": 1
+        },
+        "background": true
+      },
+      {
+        "name": "index_meta_data_instances_create_time",
+        "key": {
+          "createTime": 1
+        },
+        "background": true
+      },
+      {
+        "name": "index_meta_data_instances_source_database_name",
+        "key": {
+          "source.database_name": 1
         },
         "background": true
       }
