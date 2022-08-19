@@ -2,6 +2,7 @@ package com.tapdata.tm.task.entity;
 
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import com.tapdata.tm.autoinspect.constants.ResultStatus;
 import com.tapdata.tm.base.entity.BaseEntity;
 import com.tapdata.tm.commons.base.convert.ObjectIdDeserialize;
 import com.tapdata.tm.commons.base.convert.ObjectIdSerialize;
@@ -19,6 +20,7 @@ import java.util.Map;
 public class TaskAutoInspectResultEntity extends BaseEntity {
 
     private String taskId;
+    private ResultStatus status;
     private String originalTableName;
     private LinkedHashMap<String, Object> originalKeymap;
 
@@ -34,15 +36,5 @@ public class TaskAutoInspectResultEntity extends BaseEntity {
     private String targetConnName; // 不存库
     private String targetTableName;
     private Map<String, Object> targetData;
-
-    public TaskAutoInspectResultEntity() {
-    }
-
-    public TaskAutoInspectResultEntity(String originalTableName, LinkedHashMap<String, Object> originalKeymap, Map<String, Object> sourceData, Map<String, Object> targetData) {
-        this.originalTableName = originalTableName;
-        this.originalKeymap = originalKeymap;
-        this.sourceData = sourceData;
-        this.targetData = targetData;
-    }
 
 }

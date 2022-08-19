@@ -84,6 +84,8 @@ public class DiscoveryServiceImpl implements DiscoveryService {
                 .and("is_deleted").ne(true);
         if (StringUtils.isNotBlank(param.getType())) {
             criteria.and("meta_type").is(param.getType());
+        } else {
+            criteria.and("meta_type").ne("database");
         }
         if (StringUtils.isNotBlank(param.getSourceType())) {
             criteria.and("source.database_type").is(param.getSourceType());
@@ -92,12 +94,15 @@ public class DiscoveryServiceImpl implements DiscoveryService {
 
 
         if (StringUtils.isNotBlank(param.getQueryKey())) {
+            String queryKey = param.getQueryKey();
+            queryKey = MongoUtils.replaceLike(queryKey);
             criteria.orOperator(
-                    Criteria.where("originalName").regex(param.getQueryKey()),
-                    Criteria.where("name").regex(param.getQueryKey()),
-                    Criteria.where("comment").regex(param.getQueryKey()),
-                    Criteria.where("source.database_name").regex(param.getQueryKey()),
-                    Criteria.where("alias_name").regex(param.getQueryKey()));
+                    Criteria.where("originalName").regex(queryKey,"i"),
+                    Criteria.where("name").regex(queryKey,"i"),
+                    Criteria.where("comment").regex(queryKey,"i"),
+                    Criteria.where("source.database_name").regex(queryKey,"i"),
+                    Criteria.where("source.name").regex(queryKey,"i"),
+                    Criteria.where("alias_name").regex(queryKey,"i"));
         }
 
         if (StringUtils.isNotBlank(param.getTagId())) {
@@ -421,10 +426,12 @@ public class DiscoveryServiceImpl implements DiscoveryService {
         }
 
         if (StringUtils.isNotBlank(param.getQueryKey())) {
+            String queryKey = param.getQueryKey();
+            queryKey = MongoUtils.replaceLike(queryKey);
             criteria.orOperator(
-                    Criteria.where("originalName").regex(param.getQueryKey()),
-                    Criteria.where("name").regex(param.getQueryKey()),
-                    Criteria.where("alias_name").regex(param.getQueryKey()));
+                    Criteria.where("originalName").regex(queryKey,"i"),
+                    Criteria.where("name").regex(queryKey,"i"),
+                    Criteria.where("alias_name").regex(queryKey,"i"));
         }
 
         if (StringUtils.isNotBlank(param.getTagId())) {
@@ -480,6 +487,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
         Query query = new Query(criteria);
         query.fields().include("meta_type");
         List<String> objTypes = metaDataRepository.findDistinct(query, "meta_type", user, String.class);
+        objTypes.remove("database");
         objTypes.add(TaskDto.SYNC_TYPE_MIGRATE);
         objTypes.add(TaskDto.SYNC_TYPE_SYNC);
 

@@ -3,8 +3,6 @@ package com.tapdata.tm.autoinspect.dto;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.tapdata.tm.autoinspect.constants.ResultStatus;
-import com.tapdata.tm.autoinspect.constants.CompareStatus;
-import com.tapdata.tm.autoinspect.entity.CompareRecord;
 import com.tapdata.tm.commons.base.convert.ObjectIdDeserialize;
 import com.tapdata.tm.commons.base.convert.ObjectIdSerialize;
 import com.tapdata.tm.commons.base.dto.BaseDto;
@@ -25,14 +23,14 @@ public class TaskAutoInspectResultDto extends BaseDto {
     private String originalTableName;
     private LinkedHashMap<String, Object> originalKeymap;
 
-    @JsonSerialize( using = ObjectIdSerialize.class)
-    @JsonDeserialize( using = ObjectIdDeserialize.class)
+    @JsonSerialize(using = ObjectIdSerialize.class)
+    @JsonDeserialize(using = ObjectIdDeserialize.class)
     private ObjectId sourceConnId;
     private String sourceConnName;
     private Map<String, Object> sourceData;
 
-    @JsonSerialize( using = ObjectIdSerialize.class)
-    @JsonDeserialize( using = ObjectIdDeserialize.class)
+    @JsonSerialize(using = ObjectIdSerialize.class)
+    @JsonDeserialize(using = ObjectIdDeserialize.class)
     private ObjectId targetConnId;
     private String targetConnName;
     private String targetTableName;
@@ -59,35 +57,6 @@ public class TaskAutoInspectResultDto extends BaseDto {
         this.targetConnId = targetConnId;
         this.targetTableName = targetTableName;
         this.targetData = targetData;
-    }
-
-    public TaskAutoInspectResultDto(
-            @NonNull String taskId
-            , @NonNull CompareStatus compareStatus
-            , @NonNull CompareRecord sourceRecord
-            , @NonNull CompareRecord targetRecord) {
-        this.taskId = taskId;
-        this.status = ResultStatus.Completed;
-
-        this.sourceConnId = sourceRecord.getConnectionId();
-        this.originalTableName = sourceRecord.getTableName();
-        this.originalKeymap = sourceRecord.getOriginalKey();
-
-        this.targetConnId = targetRecord.getConnectionId();
-        this.targetTableName = targetRecord.getTableName();
-
-        switch (compareStatus) {
-            case MoveSource:
-                this.targetData = targetRecord.getData();
-                break;
-            case MoveTarget:
-                this.sourceData = sourceRecord.getData();
-                break;
-            default:
-                this.sourceData = sourceRecord.getData();
-                this.targetData = targetRecord.getData();
-                break;
-        }
     }
 
 }

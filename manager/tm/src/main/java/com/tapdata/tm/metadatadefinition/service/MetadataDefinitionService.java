@@ -127,7 +127,10 @@ public class MetadataDefinitionService extends BaseService<MetadataDefinitionDto
      * @return
      */
     public MetadataDefinitionDto save(MetadataDefinitionDto metadataDefinitionDto,UserDetail userDetail){
-        MetadataDefinitionDto exsitedOne=findById(metadataDefinitionDto.getId());
+        MetadataDefinitionDto exsitedOne = null;
+        if (metadataDefinitionDto.getId() != null) {
+            exsitedOne = findById(metadataDefinitionDto.getId());
+        }
         List<String> itemType=metadataDefinitionDto.getItemType();
         if (null!=exsitedOne){
             List<String> itemTypeExisted=  exsitedOne.getItemType();

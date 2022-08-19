@@ -38,10 +38,8 @@ public class AutoInspectResultsController extends BaseController {
         dto.setId(null);
 
         Criteria criteria = Criteria.where("taskId").is(dto.getTaskId())
-                .and("originalTableName").is(dto.getOriginalTableName());
-        for (Map.Entry<String, Object> en : dto.getOriginalKeymap().entrySet()) {
-            criteria.and("originalKeymap." + en.getKey()).is(en.getValue());
-        }
+                .and("originalTableName").is(dto.getOriginalTableName())
+                .and("originalKeymap").is(dto.getOriginalKeymap());
         Query query = Query.query(criteria);
         resultsService.upsert(query, dto, getLoginUser());
         return success(dto);
