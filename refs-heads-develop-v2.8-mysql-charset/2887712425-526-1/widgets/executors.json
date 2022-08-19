@@ -1,0 +1,12 @@
+[
+  {
+    "name": "Tapdata GitHub Actions",
+    "type": "github",
+    "url": "https://tapdata.github.io/tapdata",
+    "buildOrder": 526,
+    "buildName": "GitHub Actions Run #2887712425",
+    "buildUrl": "https://github.com/tapdata/tapdata/actions/runs/2887712425",
+    "reportName": "Tapdata LDP Test Report",
+    "reportUrl": "https://tapdata.github.io/tapdata/refs-heads-develop-v2.8-mysql-charset/2887712425-526-1"
+  }
+]

@@ -1,0 +1,115 @@
+{
+  "uid" : "b5b0b1b763b5f35a",
+  "name" : "rename column in sync",
+  "fullName" : "test_pipeline.TestPipeline#test_rename_sync",
+  "historyId" : "4e70ff02fc8f0e6b5867676cc9ee7a1d",
+  "time" : {
+    "start" : 1660893895581,
+    "stop" : 1660893897184,
+    "duration" : 1603
+  },
+  "status" : "passed",
+  "flaky" : false,
+  "newFailed" : false,
+  "beforeStages" : [ ],
+  "testStage" : {
+    "status" : "passed",
+    "steps" : [ ],
+    "attachments" : [ {
+      "uid" : "60d53a3e9505e3a7",
+      "name" : "stdout",
+      "source" : "60d53a3e9505e3a7.txt",
+      "type" : "text/plain",
+      "size" : 362
+    } ],
+    "parameters" : [ ],
+    "stepsCount" : 0,
+    "attachmentsCount" : 1,
+    "shouldDisplayMessage" : false,
+    "hasContent" : true
+  },
+  "afterStages" : [ ],
+  "labels" : [ {
+    "name" : "feature",
+    "value" : "pipeline"
+  }, {
+    "name" : "suite",
+    "value" : "test_pipeline"
+  }, {
+    "name" : "subSuite",
+    "value" : "TestPipeline"
+  }, {
+    "name" : "host",
+    "value" : "7c56e15b303f"
+  }, {
+    "name" : "thread",
+    "value" : "932-MainThread"
+  }, {
+    "name" : "framework",
+    "value" : "pytest"
+  }, {
+    "name" : "language",
+    "value" : "cpython3"
+  }, {
+    "name" : "package",
+    "value" : "test_pipeline"
+  }, {
+    "name" : "resultFormat",
+    "value" : "allure2"
+  } ],
+  "parameters" : [ ],
+  "links" : [ ],
+  "hidden" : false,
+  "retry" : false,
+  "extra" : {
+    "severity" : "normal",
+    "retries" : [ ],
+    "categories" : [ ],
+    "history" : {
+      "statistic" : {
+        "failed" : 0,
+        "broken" : 0,
+        "skipped" : 0,
+        "passed" : 5,
+        "unknown" : 0,
+        "total" : 5
+      },
+      "items" : [ {
+        "uid" : "d3e86e66e3918662",
+        "status" : "passed",
+        "time" : {
+          "start" : 1660883026949,
+          "stop" : 1660883028582,
+          "duration" : 1633
+        }
+      }, {
+        "uid" : "a9876a7091c2d641",
+        "status" : "passed",
+        "time" : {
+          "start" : 1660820533864,
+          "stop" : 1660820535800,
+          "duration" : 1936
+        }
+      }, {
+        "uid" : "b92c8234ca4b6af0",
+        "status" : "passed",
+        "time" : {
+          "start" : 1660819570448,
+          "stop" : 1660819571976,
+          "duration" : 1528
+        }
+      }, {
+        "uid" : "fe4ee542dc8d5b0d",
+        "status" : "passed",
+        "time" : {
+          "start" : 1660806139946,
+          "stop" : 1660806141494,
+          "duration" : 1548
+        }
+      } ]
+    },
+    "tags" : [ ]
+  },
+  "source" : "b5b0b1b763b5f35a.json",
+  "parameterValues" : [ ]
+}
