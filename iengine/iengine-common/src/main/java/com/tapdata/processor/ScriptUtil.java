@@ -103,7 +103,12 @@ public class ScriptUtil {
 			String scripts = new StringBuilder(script).append(System.lineSeparator()).append(buildInMethod).toString();
 
 			ScriptEngine e = getScriptEngine(jsEngineName);
-			e.eval(scripts);
+			try {
+				e.eval(scripts);
+			} catch (Throwable ex) {
+				logger.error("script eval error--" + jsEngineName + "--" + e + "--" + scripts, ex);
+				throw new RuntimeException(ex);
+			}
 			if (source != null) {
 				e.put("source", source);
 			}
@@ -161,6 +166,9 @@ public class ScriptUtil {
 		processContext.getEvent().setBefore(message.getBefore());
 		Map<String, Object> eventMap = MapUtil.obj2Map(processContext.getEvent());
 		context.put("event", eventMap);
+		if (engine == null) {
+			logger.error("script engine is null, {}", Arrays.asList(Thread.currentThread().getStackTrace()));
+		}
 
 		((ScriptEngine) engine).put("context", context);
 		((ScriptEngine) engine).put("log", logger);
