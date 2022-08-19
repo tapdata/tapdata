@@ -1,11 +1,10 @@
 package io.tapdata.autoinspect;
 
-import com.alibaba.fastjson.JSON;
 import com.tapdata.tm.autoinspect.connector.IConnector;
 import com.tapdata.tm.autoinspect.connector.IDataCursor;
-import com.tapdata.tm.autoinspect.constants.TaskType;
 import com.tapdata.tm.autoinspect.constants.CompareStatus;
 import com.tapdata.tm.autoinspect.constants.Constants;
+import com.tapdata.tm.autoinspect.constants.TaskType;
 import com.tapdata.tm.autoinspect.dto.TaskAutoInspectResultDto;
 import com.tapdata.tm.autoinspect.entity.CompareRecord;
 import com.tapdata.tm.autoinspect.entity.CompareTableItem;
@@ -79,7 +78,7 @@ public abstract class AutoInspectRunner<S extends IConnector, T extends IConnect
                             counts++;
                             targetData = targetCursor.next();
                         }
-                        logger.info("has more target: {}",counts);
+                        logger.info("has more target: {}", counts);
                         break;
                     }
                     if (null == targetData) {

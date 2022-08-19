@@ -6,7 +6,6 @@ import com.tapdata.tm.commons.dag.nodes.AutoInspectNode;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.schema.Schema;
 import com.tapdata.tm.commons.task.dto.TaskDto;
-import io.tapdata.entity.logger.TapLogger;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
