@@ -354,8 +354,8 @@ public class DiscoveryServiceImpl implements DiscoveryService {
 
                 if (field.getIsNullable() != null && field.getIsNullable() instanceof String) {
                     discoveryFieldDto.setNotNull("YES".equals(field.getIsNullable()));
-                } else if (!(field.getIsNullable() instanceof Boolean)) {
-                    discoveryFieldDto.setNotNull(!(boolean)field.getIsNullable());
+                } else if (field.getIsNullable() != null && field.getIsNullable() instanceof Boolean) {
+                    discoveryFieldDto.setNotNull(!(Boolean) field.getIsNullable());
                 }
                 discoveryFieldDto.setDefaultValue(field.getDefaultValue());
                 //discoveryFieldDto.setBusinessName();
