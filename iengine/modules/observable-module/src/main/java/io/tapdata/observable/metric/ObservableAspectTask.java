@@ -124,6 +124,10 @@ public class ObservableAspectTask extends AspectTask {
 			case BatchReadFuncAspect.STATE_START:
 				dataNodeSampleHandler.handleBatchReadStart(nodeId, aspect.getTime());
 				aspect.readCompleteConsumer(events -> {
+					if (null == events || events.size() == 0) {
+						return;
+					}
+
 					int size = events.size();
 					Long newestEventTimestamp = null;
 					TapBaseEvent newestEvent = (TapBaseEvent) events.get(events.size() - 1).getTapEvent();
@@ -155,6 +159,10 @@ public class ObservableAspectTask extends AspectTask {
 			case StreamReadFuncAspect.STATE_START:
 				dataNodeSampleHandler.handleStreamReadStreamStart(nodeId, aspect.getTime());
 				aspect.streamingReadCompleteConsumers(events -> {
+					if (null == events || events.size() == 0) {
+						return;
+					}
+
 					HandlerUtil.EventTypeRecorder recorder = HandlerUtil.countTapdataEvent(events);
 
 					Long newestEventTimestamp = null;
@@ -184,6 +192,10 @@ public class ObservableAspectTask extends AspectTask {
 				HandlerUtil.EventTypeRecorder recorder = HandlerUtil.countTapEvent(aspect.getRecordEvents());
 				dataNodeSampleHandler.handleWriteRecordStart(nodeId, aspect.getTime(), recorder);
 				aspect.consumer((events, result) -> {
+					if (null == events || events.size() == 0) {
+						return;
+					}
+
 					Long newestEventTimestamp = null;
 					TapBaseEvent newestEvent = events.get(events.size() - 1);
 					if (null != newestEvent && null != newestEvent.getReferenceTime()) {
@@ -220,6 +232,9 @@ public class ObservableAspectTask extends AspectTask {
 				HandlerUtil.EventTypeRecorder recorder = HandlerUtil.countTapdataEvent(Collections.singletonList(aspect.getInputEvent()));
 				processorNodeSampleHandler.handleProcessStart(nodeId, recorder);
 				aspect.consumer(event -> {
+					if (null == event) {
+						return;
+					}
 					HandlerUtil.EventTypeRecorder inner = HandlerUtil.countTapdataEvent(Collections.singletonList(event));
 
 					Long newestEventTimestamp = null;
