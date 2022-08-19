@@ -129,6 +129,7 @@ public class DatabaseNode extends DataParentNode<List<Schema>> {
             schema.setFields(transformFields(inputFields, schema, inputFieldOriginalNames));
             //  has migrateFieldNode && field not show => will del index where contain field
             schema.setIndices(updateIndexDelField(schema.getIndices(), inputFieldOriginalNames));
+            schema.setCharset(null);
             long count = schema.getFields().stream().filter(Field::isDeleted).count();
             long count1 = schema.getFields().stream().filter(f -> !f.isDeleted()).filter(field -> field.getFieldName().contains(".")).count();
             for (SchemaTransformerResult result : schemaTransformerResults) {
