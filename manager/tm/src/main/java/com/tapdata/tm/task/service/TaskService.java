@@ -8,10 +8,10 @@ import cn.hutool.core.map.MapUtil;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.google.common.collect.Maps;
 import com.mongodb.client.result.UpdateResult;
-import com.sun.xml.bind.v2.TODO;
 import com.tapdata.manager.common.utils.JsonUtil;
 import com.tapdata.tm.CustomerJobLogs.CustomerJobLog;
 import com.tapdata.tm.CustomerJobLogs.service.CustomerJobLogsService;
+import com.tapdata.tm.autoinspect.service.TaskAutoInspectResultsService;
 import com.tapdata.tm.base.dto.Field;
 import com.tapdata.tm.base.dto.*;
 import com.tapdata.tm.base.exception.BizException;
@@ -47,7 +47,6 @@ import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
 import com.tapdata.tm.monitor.entity.AgentStatDto;
 import com.tapdata.tm.monitor.entity.MeasurementEntity;
 import com.tapdata.tm.monitor.service.MeasurementService;
-import com.tapdata.tm.monitor.service.MeasurementServiceV2;
 import com.tapdata.tm.monitoringlogs.service.MonitoringLogsService;
 import com.tapdata.tm.task.bean.*;
 import com.tapdata.tm.task.constant.SyncType;
@@ -123,6 +122,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     private TaskDagCheckLogService taskDagCheckLogService;
     private BasicEventService basicEventService;
     private MonitoringLogsService monitoringLogsService;
+    private TaskAutoInspectResultsService taskAutoInspectResultsService;
 
     public static Set<String> stopStatus = new HashSet<>();
     /**
@@ -738,6 +738,9 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         //将任务删除标识改成true
         update(new Query(Criteria.where("_id").is(id)), Update.update("is_deleted", true));
 
+        //delete AutoInspectResults
+        taskAutoInspectResultsService.cleanResultsByTask(taskDto);
+
         //add message
         if (SyncType.MIGRATE.getValue().equals(taskDto.getSyncType())) {
             messageService.addMigration(taskDto.getName(), taskDto.getId().toString(), MsgTypeEnum.DELETED, Level.WARN, user);
@@ -928,6 +931,9 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
         taskDto.setStatus(TaskDto.STATUS_EDIT);
         taskDto.setTaskRecordId(lastTaskRecordId);
+
+        //清除校验结果
+        taskAutoInspectResultsService.cleanResultsByTask(taskDto);
 
         // publish queue
         TaskEntity taskSnapshot = new TaskEntity();

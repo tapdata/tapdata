@@ -9,7 +9,7 @@
 	<modelVersion>4.0.0</modelVersion>
 	<artifactId>tm</artifactId>
 	<version>0.0.1-SNAPSHOT</version>
-	<name>tm</name>
+	<name>tm-lib</name>
 	<description>Tapdata Management</description>
 	<packaging>jar</packaging>
 
