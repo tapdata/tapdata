@@ -1,5 +1,6 @@
 package com.tapdata.tm.commons.base.dto;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
@@ -35,6 +36,7 @@ public class BaseDto implements Serializable {
 	private Date createAt;
 
 	@JsonProperty("last_updated")
+	@JsonFormat(pattern="yyyy-MM-dd HH:mm:ss")
 	private Date lastUpdAt;
 
 	@JsonProperty("user_id")

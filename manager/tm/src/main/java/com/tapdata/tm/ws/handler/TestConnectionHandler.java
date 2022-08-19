@@ -6,10 +6,13 @@
  */
 package com.tapdata.tm.ws.handler;
 
+import cn.hutool.core.lang.Assert;
+import com.google.common.collect.Maps;
 import com.tapdata.manager.common.utils.JsonUtil;
 import com.tapdata.manager.common.utils.StringUtils;
 import com.tapdata.tm.base.dto.Field;
 import com.tapdata.tm.commons.base.dto.SchedulableDto;
+import com.tapdata.tm.commons.dag.AccessNodeTypeEnum;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
 import com.tapdata.tm.commons.schema.DataSourceDefinitionDto;
 import com.tapdata.tm.config.security.UserDetail;
@@ -19,10 +22,12 @@ import com.tapdata.tm.messagequeue.dto.MessageQueueDto;
 import com.tapdata.tm.messagequeue.service.MessageQueueService;
 import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.utils.AES256Util;
+import com.tapdata.tm.utils.FunctionUtils;
+import com.tapdata.tm.utils.Lists;
 import com.tapdata.tm.utils.MapUtils;
 import static com.tapdata.tm.utils.MongoUtils.toObjectId;
 
-import com.tapdata.tm.utils.MongoUtils;
+import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.service.WorkerService;
 import com.tapdata.tm.ws.annotation.WebSocketMessageHandler;
 import com.tapdata.tm.ws.dto.MessageInfo;
@@ -31,8 +36,12 @@ import com.tapdata.tm.ws.endpoint.WebSocketManager;
 import com.tapdata.tm.ws.enums.MessageType;
 import java.net.URLEncoder;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.collections4.CollectionUtils;
 import org.bson.types.ObjectId;
 
 @WebSocketMessageHandler(type = MessageType.TEST_CONNECTION)
@@ -70,6 +79,9 @@ public class TestConnectionHandler implements WebSocketHandler {
 			return;
 		}
 		Map<String, Object> data = messageInfo.getData();
+		DataSourceConnectionDto connectionDto = JsonUtil.parseJsonUseJackson(JsonUtil.toJsonUseJackson(data), DataSourceConnectionDto.class);
+		Assert.notNull(connectionDto, "TestConnectionHandler handleMessage connectionDto is null");
+
 		Map platformInfos = MapUtils.getAsMap(data, "platformInfo");
 		List<String> tags = new ArrayList<>();
 		if (MapUtils.isNotEmpty(platformInfos)){
@@ -116,20 +128,49 @@ public class TestConnectionHandler implements WebSocketHandler {
 			}
 		}
 
+		AtomicReference<String> receiver = new AtomicReference<>("");
+		assert connectionDto != null;
+		String accessNodeType = connectionDto.getAccessNodeType();
+		FunctionUtils.isTureOrFalse(AccessNodeTypeEnum.AUTOMATIC_PLATFORM_ALLOCATION.name().equals(accessNodeType)).trueOrFalseHandle(() -> {
 			SchedulableDto schedulableDto = new SchedulableDto();
 			schedulableDto.setAgentTags(tags);
 			schedulableDto.setUserId(userDetail.getUserId());
 			workerService.scheduleTaskToEngine(schedulableDto, userDetail, "testConnection", "testConnection");
-			String receiver = schedulableDto.getAgentId();
-			if (StringUtils.isBlank(receiver)){
-				log.warn("Receiver is blank,context: {}", JsonUtil.toJson(context));
+			receiver.set(schedulableDto.getAgentId());
+		}, () -> {
+			List<String> accessNodeProcessIdList = connectionDto.getAccessNodeProcessIdList();
+			FunctionUtils.isTureOrFalse(CollectionUtils.isNotEmpty(accessNodeProcessIdList)).trueOrFalseHandle(() -> {
+				receiver.set(accessNodeProcessIdList.get(0));
+			}, () -> {
 				data.put("status", "error");
-				data.put("msg", "Worker not found,receiver is blank");
-				sendMessage(context.getSender(), context);
-				return;
+				data.put("msg", "Worker set error, receiver is blank");
+			});
+		});
+
+
+		String agentId = receiver.get();
+		FunctionUtils.isTureOrFalse(StringUtils.isBlank(agentId)).trueOrFalseHandle(() -> {
+			log.warn("Receiver is blank,context: {}", JsonUtil.toJson(context));
+			data.put("status", "error");
+			data.put("msg", "Worker not found, receiver is blank");
+		}, () -> {
+			List<Worker> availableAgents = workerService.findAvailableAgentByAccessNode(userDetail, Lists.newArrayList(agentId));
+			if (CollectionUtils.isEmpty(availableAgents)) {
+				data.put("status", "error");
+				data.put("msg", "Worker " +agentId + " not available, receiver is blank");
 			}
-			handleData(receiver, context);
+		});
+
+		if (Objects.nonNull(data.get("msg"))){
+			Map<String, Object> msg = testConnectErrorData(data.get("id").toString(), data.get("msg").toString());
+			context.getMessageInfo().setData(msg);
+
+			sendMessage(context.getSender(), context);
+			return;
 		}
+
+		handleData(agentId, context);
+	}
 		private void handleData(String receiver, WebSocketContext context) {
 			Map<String, Object> data = context.getMessageInfo().getData();
 			String database_type = MapUtils.getAsString(data, "database_type");
@@ -249,5 +290,29 @@ public class TestConnectionHandler implements WebSocketHandler {
 		messageQueueDto.setData(context.getMessageInfo().getData());
 		messageQueueDto.setType(context.getMessageInfo().getType());
 		messageQueueService.sendMessage(messageQueueDto);
+	}
+
+	private Map<String, Object> testConnectErrorData(String id, String failMessage) {
+		Map<String, Object> validate_details = Stream.of(new Object[][]{
+				{"status", "failed"},
+				{"show_msg", "Connection error"},
+				{"fail_message", failMessage},
+		}).collect(Collectors.toMap(data -> (String) data[0], data -> data[1]));
+
+		Map<String, Object> response_body = Stream.of(new Object[][]{
+				{"validate_details", Collections.singletonList(validate_details)}
+		}).collect(Collectors.toMap(data -> (String) data[0], data -> data[1]));
+
+		Map<String, Object> result = Stream.of(new Object[][]{
+				{"id", id},
+				{"response_body", response_body},
+				{"status", "invalid"},
+		}).collect(Collectors.toMap(data -> (String) data[0], data -> data[1]));
+
+		return Stream.of(new Object[][]{
+				{"type", "testConnectionResult"},
+				{"result", result},
+				{"status", "SUCCESS"},
+		}).collect(Collectors.toMap(data -> (String) data[0], data -> data[1]));
 	}
 }
