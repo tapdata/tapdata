@@ -1,0 +1,338 @@
+{
+  "uid" : "ab17fc5a4eb3bca4b216b548c7f9fcbc",
+  "children" : [ {
+    "name" : "3674f792a5c2",
+    "children" : [ {
+      "name" : "831-MainThread",
+      "children" : [ {
+        "name" : "real time table sync between mongodb",
+        "uid" : "b882849a2ba688fa",
+        "parentUid" : "b0ae46e5298d4c01d00b928cd2eea2a8",
+        "status" : "passed",
+        "time" : {
+          "start" : 1660880593629,
+          "stop" : 1660880596432,
+          "duration" : 2803
+        },
+        "flaky" : false,
+        "newFailed" : false,
+        "parameters" : [ ]
+      }, {
+        "name" : "test monitor job status",
+        "uid" : "d1d87f5ad2770392",
+        "parentUid" : "b0ae46e5298d4c01d00b928cd2eea2a8",
+        "status" : "passed",
+        "time" : {
+          "start" : 1660880652937,
+          "stop" : 1660880656299,
+          "duration" : 3362
+        },
+        "flaky" : false,
+        "newFailed" : false,
+        "parameters" : [ ]
+      }, {
+        "name" : "create PG datasource with form",
+        "uid" : "1545081f0a1c832e",
+        "parentUid" : "b0ae46e5298d4c01d00b928cd2eea2a8",
+        "status" : "passed",
+        "time" : {
+          "start" : 1660880585348,
+          "stop" : 1660880590505,
+          "duration" : 5157
+        },
+        "flaky" : false,
+        "newFailed" : false,
+        "parameters" : [ ]
+      }, {
+        "name" : "test stop job",
+        "uid" : "eca11be35b3527b9",
+        "parentUid" : "b0ae46e5298d4c01d00b928cd2eea2a8",
+        "status" : "passed",
+        "time" : {
+          "start" : 1660880614908,
+          "stop" : 1660880648473,
+          "duration" : 33565
+        },
+        "flaky" : false,
+        "newFailed" : false,
+        "parameters" : [ ]
+      }, {
+        "name" : "create datasource with mongodb uri",
+        "uid" : "c502986e82d94ab2",
+        "parentUid" : "b0ae46e5298d4c01d00b928cd2eea2a8",
+        "status" : "passed",
+        "time" : {
+          "start" : 1660880562423,
+          "stop" : 1660880569941,
+          "duration" : 7518
+        },
+        "flaky" : false,
+        "newFailed" : false,
+        "parameters" : [ ]
+      }, {
+        "name" : "test mysql form valid",
+        "uid" : "54cce7496a8e86ea",
+        "parentUid" : "b0ae46e5298d4c01d00b928cd2eea2a8",
+        "status" : "passed",
+        "time" : {
+          "start" : 1660880585346,
+          "stop" : 1660880585347,
+          "duration" : 1
+        },
+        "flaky" : false,
+        "newFailed" : false,
+        "parameters" : [ ]
+      }, {
+        "name" : "test_check",
+        "uid" : "bba969e2110a7ec2",
+        "parentUid" : "b0ae46e5298d4c01d00b928cd2eea2a8",
+        "status" : "passed",
+        "time" : {
+          "start" : 1660880656305,
+          "stop" : 1660880658650,
+          "duration" : 2345
+        },
+        "flaky" : false,
+        "newFailed" : false,
+        "parameters" : [ ]
+      }, {
+        "name" : "filter column in migrate",
+        "uid" : "b0e6ba57e8f9e1da",
+        "parentUid" : "b0ae46e5298d4c01d00b928cd2eea2a8",
+        "status" : "passed",
+        "time" : {
+          "start" : 1660880599214,
+          "stop" : 1660880599367,
+          "duration" : 153
+        },
+        "flaky" : false,
+        "newFailed" : false,
+        "parameters" : [ ]
+      }, {
+        "name" : "create mongodb datasource with uri",
+        "uid" : "23584291df164515",
+        "parentUid" : "b0ae46e5298d4c01d00b928cd2eea2a8",
+        "status" : "passed",
+        "time" : {
+          "start" : 1660880575099,
+          "stop" : 1660880585344,
+          "duration" : 10245
+        },
+        "flaky" : false,
+        "newFailed" : false,
+        "parameters" : [ ]
+      }, {
+        "name" : "rename column in migrate",
+        "uid" : "45c6b01499062456",
+        "parentUid" : "b0ae46e5298d4c01d00b928cd2eea2a8",
+        "status" : "passed",
+        "time" : {
+          "start" : 1660880601201,
+          "stop" : 1660880601374,
+          "duration" : 173
+        },
+        "flaky" : false,
+        "newFailed" : false,
+        "parameters" : [ ]
+      }, {
+        "name" : "table merge in sync",
+        "uid" : "57df2d0cc6e6b85f",
+        "parentUid" : "b0ae46e5298d4c01d00b928cd2eea2a8",
+        "status" : "passed",
+        "time" : {
+          "start" : 1660880605245,
+          "stop" : 1660880608113,
+          "duration" : 2868
+        },
+        "flaky" : false,
+        "newFailed" : false,
+        "parameters" : [ ]
+      }, {
+        "name" : "js udf in sync",
+        "uid" : "7867e4cd00cd8e7d",
+        "parentUid" : "b0ae46e5298d4c01d00b928cd2eea2a8",
+        "status" : "passed",
+        "time" : {
+          "start" : 1660880611157,
+          "stop" : 1660880612926,
+          "duration" : 1769
+        },
+        "flaky" : false,
+        "newFailed" : false,
+        "parameters" : [ ]
+      }, {
+        "name" : "rename column in sync",
+        "uid" : "2b4e387f48d9dd24",
+        "parentUid" : "b0ae46e5298d4c01d00b928cd2eea2a8",
+        "status" : "passed",
+        "time" : {
+          "start" : 1660880601378,
+          "stop" : 1660880603272,
+          "duration" : 1894
+        },
+        "flaky" : false,
+        "newFailed" : false,
+        "parameters" : [ ]
+      }, {
+        "name" : "test_processor_migrate",
+        "uid" : "c92faaec40d9d7ab",
+        "parentUid" : "b0ae46e5298d4c01d00b928cd2eea2a8",
+        "status" : "passed",
+        "time" : {
+          "start" : 1660880612929,
+          "stop" : 1660880613063,
+          "duration" : 134
+        },
+        "flaky" : false,
+        "newFailed" : false,
+        "parameters" : [ ]
+      }, {
+        "name" : "filter column in sync",
+        "uid" : "f3849eb3f5946a1d",
+        "parentUid" : "b0ae46e5298d4c01d00b928cd2eea2a8",
+        "status" : "passed",
+        "time" : {
+          "start" : 1660880599373,
+          "stop" : 1660880601199,
+          "duration" : 1826
+        },
+        "flaky" : false,
+        "newFailed" : false,
+        "parameters" : [ ]
+      }, {
+        "name" : "multi layer table merge in sync",
+        "uid" : "ab948483c1772fce",
+        "parentUid" : "b0ae46e5298d4c01d00b928cd2eea2a8",
+        "status" : "passed",
+        "time" : {
+          "start" : 1660880608116,
+          "stop" : 1660880611154,
+          "duration" : 3038
+        },
+        "flaky" : false,
+        "newFailed" : false,
+        "parameters" : [ ]
+      }, {
+        "name" : "js udf in migrate",
+        "uid" : "c93f8dc5d7631dda",
+        "parentUid" : "b0ae46e5298d4c01d00b928cd2eea2a8",
+        "status" : "passed",
+        "time" : {
+          "start" : 1660880603275,
+          "stop" : 1660880603425,
+          "duration" : 150
+        },
+        "flaky" : false,
+        "newFailed" : false,
+        "parameters" : [ ]
+      }, {
+        "name" : "real time database migrate between mongodb",
+        "uid" : "c7110047fb54d3d",
+        "parentUid" : "b0ae46e5298d4c01d00b928cd2eea2a8",
+        "status" : "passed",
+        "time" : {
+          "start" : 1660880590508,
+          "stop" : 1660880593626,
+          "duration" : 3118
+        },
+        "flaky" : false,
+        "newFailed" : false,
+        "parameters" : [ ]
+      }, {
+        "name" : "test get job status",
+        "uid" : "d7833e7030bc596e",
+        "parentUid" : "b0ae46e5298d4c01d00b928cd2eea2a8",
+        "status" : "passed",
+        "time" : {
+          "start" : 1660880648476,
+          "stop" : 1660880652934,
+          "duration" : 4458
+        },
+        "flaky" : false,
+        "newFailed" : false,
+        "parameters" : [ ]
+      }, {
+        "name" : "config job",
+        "uid" : "ae7d25d01310cd0",
+        "parentUid" : "b0ae46e5298d4c01d00b928cd2eea2a8",
+        "status" : "passed",
+        "time" : {
+          "start" : 1660880613066,
+          "stop" : 1660880614906,
+          "duration" : 1840
+        },
+        "flaky" : false,
+        "newFailed" : false,
+        "parameters" : [ ]
+      }, {
+        "name" : "create mongodb datasource with form",
+        "uid" : "d3652124ac773054",
+        "parentUid" : "b0ae46e5298d4c01d00b928cd2eea2a8",
+        "status" : "passed",
+        "time" : {
+          "start" : 1660880569945,
+          "stop" : 1660880575096,
+          "duration" : 5151
+        },
+        "flaky" : false,
+        "newFailed" : false,
+        "parameters" : [ ]
+      }, {
+        "name" : "filter row in migrate",
+        "uid" : "44b3a3bc371688ad",
+        "parentUid" : "b0ae46e5298d4c01d00b928cd2eea2a8",
+        "status" : "passed",
+        "time" : {
+          "start" : 1660880596435,
+          "stop" : 1660880596523,
+          "duration" : 88
+        },
+        "flaky" : false,
+        "newFailed" : false,
+        "parameters" : [ ]
+      }, {
+        "name" : "filter row in sync",
+        "uid" : "3f0f265211e54629",
+        "parentUid" : "b0ae46e5298d4c01d00b928cd2eea2a8",
+        "status" : "passed",
+        "time" : {
+          "start" : 1660880596547,
+          "stop" : 1660880599212,
+          "duration" : 2665
+        },
+        "flaky" : false,
+        "newFailed" : false,
+        "parameters" : [ ]
+      }, {
+        "name" : "table merge in migrate?",
+        "uid" : "b5ec9f9d937e439e",
+        "parentUid" : "b0ae46e5298d4c01d00b928cd2eea2a8",
+        "status" : "passed",
+        "time" : {
+          "start" : 1660880605074,
+          "stop" : 1660880605228,
+          "duration" : 154
+        },
+        "flaky" : false,
+        "newFailed" : false,
+        "parameters" : [ ]
+      }, {
+        "name" : "js udf in sync",
+        "uid" : "3a10a43dbc686a20",
+        "parentUid" : "b0ae46e5298d4c01d00b928cd2eea2a8",
+        "status" : "passed",
+        "time" : {
+          "start" : 1660880603428,
+          "stop" : 1660880605071,
+          "duration" : 1643
+        },
+        "flaky" : false,
+        "newFailed" : false,
+        "parameters" : [ ]
+      } ],
+      "uid" : "b0ae46e5298d4c01d00b928cd2eea2a8"
+    } ],
+    "uid" : "f1a8eafb1518b801a5f5c26b7098702f"
+  } ],
+  "name" : "timeline"
+}
