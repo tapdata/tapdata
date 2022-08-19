@@ -1,8 +1,9 @@
-package com.tapdata.tm.task.service;
+package com.tapdata.tm.autoinspect.service;
 
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.service.BaseService;
 import com.tapdata.tm.autoinspect.dto.TaskAutoInspectResultDto;
+import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.task.entity.TaskAutoInspectGroupTableResultEntity;
 import com.tapdata.tm.task.entity.TaskAutoInspectResultEntity;
@@ -13,6 +14,8 @@ import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Service;
 
 /**
@@ -35,5 +38,10 @@ public class TaskAutoInspectResultsService extends BaseService<TaskAutoInspectRe
 
     public Page<TaskAutoInspectGroupTableResultEntity> groupByTable(String taskId, String tableName, long skip, int limit) {
         return repository.groupByTable(taskId, tableName, skip, limit);
+    }
+
+    public long cleanResultsByTask(TaskDto taskDto) {
+        Query query = Query.query(Criteria.where("taskId").is(taskDto.getId().toHexString()));
+        return repository.deleteAll(query);
     }
 }
