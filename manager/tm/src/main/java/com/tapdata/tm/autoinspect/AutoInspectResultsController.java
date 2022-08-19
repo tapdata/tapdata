@@ -3,7 +3,7 @@ package com.tapdata.tm.autoinspect;
 import com.tapdata.tm.autoinspect.dto.TaskAutoInspectResultDto;
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.*;
-import com.tapdata.tm.task.service.TaskAutoInspectResultsService;
+import com.tapdata.tm.autoinspect.service.TaskAutoInspectResultsService;
 import com.tapdata.tm.utils.MongoUtils;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;

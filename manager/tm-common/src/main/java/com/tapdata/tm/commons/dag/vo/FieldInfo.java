@@ -1,9 +1,6 @@
 package com.tapdata.tm.commons.dag.vo;
 
-import lombok.AllArgsConstructor;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
+import lombok.*;
 
 import java.io.Serializable;
 
@@ -11,6 +8,7 @@ import java.io.Serializable;
 @AllArgsConstructor
 @NoArgsConstructor
 @Setter
+@ToString
 public class FieldInfo implements Serializable {
     private String sourceFieldName;
     private String targetFieldName;

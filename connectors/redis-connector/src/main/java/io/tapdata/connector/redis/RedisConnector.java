@@ -1,6 +1,5 @@
 package io.tapdata.connector.redis;
 
-import com.mongodb.client.MongoDatabase;
 import io.tapdata.base.ConnectorBase;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.event.ddl.table.TapClearTableEvent;
@@ -20,7 +19,6 @@ import io.tapdata.pdk.apis.entity.ConnectionOptions;
 import io.tapdata.pdk.apis.entity.TestItem;
 import io.tapdata.pdk.apis.entity.WriteListResult;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
-import org.apache.commons.collections.CollectionUtils;
 import redis.clients.jedis.Jedis;
 
 import java.util.*;
@@ -36,10 +34,8 @@ public class RedisConnector extends ConnectorBase {
 
     private RedisContext redisContext;
 
-    private  final  static String INIT_TABLE_NAME="ikas";
+    private  final  static String INIT_TABLE_NAME="tapdata";
 
-
-    private MongoDatabase mongoDatabase;
 
 
 
@@ -118,7 +114,7 @@ public class RedisConnector extends ConnectorBase {
 
 
     private void writeRecord(TapConnectorContext connectorContext, List<TapRecordEvent> tapRecordEvents, TapTable tapTable, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer) throws Throwable {
-        new RedisRecordWriter(redisContext, tapTable, connectorContext, mongoDatabase).write(tapRecordEvents, tapTable, writeListResultConsumer);
+        new RedisRecordWriter(redisContext, tapTable, connectorContext).write(tapRecordEvents, tapTable, writeListResultConsumer);
     }
 
 

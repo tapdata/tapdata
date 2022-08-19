@@ -127,20 +127,24 @@ public class MetadataDefinitionService extends BaseService<MetadataDefinitionDto
      * @return
      */
     public MetadataDefinitionDto save(MetadataDefinitionDto metadataDefinitionDto,UserDetail userDetail){
-        String value=metadataDefinitionDto.getValue();
-        MetadataDefinitionDto exsitedOne=findOne(Query.query(Criteria.where("value").is(value)));
+        MetadataDefinitionDto exsitedOne=findById(metadataDefinitionDto.getId());
         List<String> itemType=metadataDefinitionDto.getItemType();
         if (null!=exsitedOne){
-            List itemTypeExisted=  exsitedOne.getItemType();
-            itemTypeExisted.addAll(itemType);
-            Update update=new Update().set("item_type",itemTypeExisted);
-            updateById(exsitedOne.getId(),update,userDetail);
-        }
-        else {
-            super.save(metadataDefinitionDto,userDetail);
+            List<String> itemTypeExisted=  exsitedOne.getItemType();
+            if (itemTypeExisted == null) {
+                itemTypeExisted = new ArrayList<>();
+            }
+            metadataDefinitionDto.setItemType(itemTypeExisted);
+            if (CollectionUtils.isNotEmpty(itemType)) {
+                for (String s : itemType) {
+                    if (!itemTypeExisted.contains(s)) {
+                        itemTypeExisted.add(s);
+                    }
+                }
+            }
         }
 
-        return metadataDefinitionDto;
+        return super.save(metadataDefinitionDto,userDetail);
 
     }
 

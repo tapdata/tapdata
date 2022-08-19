@@ -263,16 +263,16 @@ public class DatabaseNode extends DataParentNode<List<Schema>> {
         return schemaList;
     }
 
-    public List<String> getFilteredTableNames() {
-        List<String> filteredTableNames = syncObjects.stream()
-                .filter(s -> s.getObjectNames() != null /*&& "table".equalsIgnoreCase(s.getType())*/) // type: table,topic,queue
-                .flatMap(s -> s.getObjectNames().stream()).map(this::transformTableName)
-                .collect(Collectors.toList());
-        return filteredTableNames;
-    }
-
     public int tableSize() {
-        return getFilteredTableNames().size();
+        if (CollectionUtils.isNotEmpty(tableNames)) {
+            return tableNames.size();
+        } else if (CollectionUtils.isNotEmpty(syncObjects)) {
+            return (int) syncObjects.stream()
+                    .filter(s -> CollectionUtils.isNotEmpty(s.getObjectNames()))
+                    .flatMap(s -> s.getObjectNames().stream()).map(this::transformTableName).count();
+        } else {
+            return 0;
+        }
     }
 
     @Override
