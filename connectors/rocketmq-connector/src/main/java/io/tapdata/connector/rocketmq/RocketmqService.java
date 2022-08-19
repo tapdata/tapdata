@@ -41,23 +41,22 @@ public class RocketmqService extends AbstractMqService {
 
     private static final String TAG = RocketmqService.class.getSimpleName();
     private static final JsonParser jsonParser = InstanceFactory.instance(JsonParser.class);
-    private final RocketmqConfig rocketmqConfig;
     private final DefaultMQProducer defaultMQProducer;
 
-    public RocketmqService(RocketmqConfig rocketmqConfig) {
-        this.rocketmqConfig = rocketmqConfig;
+    public RocketmqService(RocketmqConfig mqConfig) {
+        this.mqConfig = mqConfig;
         this.defaultMQProducer = new DefaultMQProducer(getRPCHook());
-        defaultMQProducer.setNamesrvAddr(rocketmqConfig.getNameSrvAddr());
-        defaultMQProducer.setProducerGroup(rocketmqConfig.getProducerGroup());
+        defaultMQProducer.setNamesrvAddr(mqConfig.getNameSrvAddr());
+        defaultMQProducer.setProducerGroup(mqConfig.getProducerGroup());
     }
 
     @Override
-    public void testConnect(Consumer<TestItem> consumer) {
+    public TestItem testConnect() {
         try {
             defaultMQProducer.start();
-            consumer.accept(new TestItem(MqTestItem.ROCKET_MQ_CONNECTION.getContent(), TestItem.RESULT_SUCCESSFULLY, null));
+            return new TestItem(MqTestItem.ROCKET_MQ_CONNECTION.getContent(), TestItem.RESULT_SUCCESSFULLY, null);
         } catch (Throwable t) {
-            consumer.accept(new TestItem(MqTestItem.ROCKET_MQ_CONNECTION.getContent(), TestItem.RESULT_FAILED, t.getMessage()));
+            return new TestItem(MqTestItem.ROCKET_MQ_CONNECTION.getContent(), TestItem.RESULT_FAILED, t.getMessage());
         }
     }
 
@@ -67,8 +66,8 @@ public class RocketmqService extends AbstractMqService {
     }
 
     public RPCHook getRPCHook() {
-        if (EmptyKit.isNotBlank(rocketmqConfig.getMqUsername()) && EmptyKit.isNotBlank(rocketmqConfig.getMqPassword())) {
-            return new AclClientRPCHook(new SessionCredentials(rocketmqConfig.getMqUsername(), rocketmqConfig.getMqPassword()));
+        if (EmptyKit.isNotBlank(mqConfig.getMqUsername()) && EmptyKit.isNotBlank(mqConfig.getMqPassword())) {
+            return new AclClientRPCHook(new SessionCredentials(mqConfig.getMqUsername(), mqConfig.getMqPassword()));
         }
         return null;
     }
@@ -83,8 +82,8 @@ public class RocketmqService extends AbstractMqService {
 
     @Override
     protected <T> Map<String, Object> analyzeTable(Object object, T topic, TapTable tapTable) throws Exception {
-        DefaultLitePullConsumer litePullConsumer = new DefaultLitePullConsumer(rocketmqConfig.getConsumerGroup(), getRPCHook());
-        litePullConsumer.setNamesrvAddr(rocketmqConfig.getNameSrvAddr());
+        DefaultLitePullConsumer litePullConsumer = new DefaultLitePullConsumer(((RocketmqConfig) mqConfig).getConsumerGroup(), getRPCHook());
+        litePullConsumer.setNamesrvAddr(mqConfig.getNameSrvAddr());
         litePullConsumer.setConsumeFromWhere(ConsumeFromWhere.CONSUME_FROM_FIRST_OFFSET);
         litePullConsumer.start();
         tapTable.setId((String) topic);
@@ -101,39 +100,39 @@ public class RocketmqService extends AbstractMqService {
 
     @Override
     public int countTables() throws Throwable {
-        if (EmptyKit.isEmpty(rocketmqConfig.getMqTopicSet())) {
+        if (EmptyKit.isEmpty(mqConfig.getMqTopicSet())) {
             DefaultMQAdminExt defaultMQAdminExt = new DefaultMQAdminExt();
-            defaultMQAdminExt.setNamesrvAddr(rocketmqConfig.getNameSrvAddr());
+            defaultMQAdminExt.setNamesrvAddr(mqConfig.getNameSrvAddr());
             defaultMQAdminExt.start();
             Set<String> list = defaultMQAdminExt.fetchAllTopicList().getTopicList();
             defaultMQAdminExt.shutdown();
             return (int) list.stream().filter(topic -> !topic.startsWith("%RETRY%")).count();
         } else {
-            return rocketmqConfig.getMqTopicSet().size();
+            return mqConfig.getMqTopicSet().size();
         }
     }
 
     @Override
     public void loadTables(int tableSize, Consumer<List<TapTable>> consumer) throws Throwable {
         DefaultMQAdminExt defaultMQAdminExt = new DefaultMQAdminExt();
-        defaultMQAdminExt.setNamesrvAddr(rocketmqConfig.getNameSrvAddr());
+        defaultMQAdminExt.setNamesrvAddr(mqConfig.getNameSrvAddr());
         defaultMQAdminExt.start();
         Set<String> existTopicSet = defaultMQAdminExt.fetchAllTopicList().getTopicList()
                 .stream().filter(topic -> !topic.startsWith("%RETRY%")).collect(Collectors.toSet());
         Set<String> destinationSet = new HashSet<>();
         Set<String> existTopicNameSet = new HashSet<>();
-        if (EmptyKit.isEmpty(rocketmqConfig.getMqTopicSet())) {
+        if (EmptyKit.isEmpty(mqConfig.getMqTopicSet())) {
             destinationSet.addAll(existTopicSet);
         } else {
             //query queue which exists
             for (String topic : existTopicSet) {
-                if (rocketmqConfig.getMqTopicSet().contains(topic)) {
+                if (mqConfig.getMqTopicSet().contains(topic)) {
                     destinationSet.add(topic);
                     existTopicNameSet.add(topic);
                 }
             }
             //create queue which not exists
-            Set<String> needCreateTopicSet = rocketmqConfig.getMqTopicSet().stream()
+            Set<String> needCreateTopicSet = mqConfig.getMqTopicSet().stream()
                     .filter(i -> !existTopicNameSet.contains(i)).collect(Collectors.toSet());
             if (EmptyKit.isNotEmpty(needCreateTopicSet)) {
                 for (String topic : needCreateTopicSet) {
@@ -217,8 +216,8 @@ public class RocketmqService extends AbstractMqService {
         consuming.set(true);
         List<TapEvent> list = TapSimplify.list();
         String tableName = tapTable.getId();
-        DefaultLitePullConsumer litePullConsumer = new DefaultLitePullConsumer(rocketmqConfig.getConsumerGroup(), getRPCHook());
-        litePullConsumer.setNamesrvAddr(rocketmqConfig.getNameSrvAddr());
+        DefaultLitePullConsumer litePullConsumer = new DefaultLitePullConsumer(((RocketmqConfig) mqConfig).getConsumerGroup(), getRPCHook());
+        litePullConsumer.setNamesrvAddr(mqConfig.getNameSrvAddr());
         litePullConsumer.setConsumeFromWhere(ConsumeFromWhere.CONSUME_FROM_FIRST_OFFSET);
         litePullConsumer.start();
         litePullConsumer.subscribe(tableName, "*");
@@ -260,7 +259,7 @@ public class RocketmqService extends AbstractMqService {
     }
 
     @Override
-    public void streamConsume(List<String> tableList, int eventBatchSize, BiConsumer<List<TapEvent>, Object> eventsOffsetConsumer) throws Throwable {
+    public void streamConsume(List<String> tableList, int eventBatchSize, BiConsumer<List<TapEvent>, Object> eventsOffsetConsumer) {
         consuming.set(true);
         List<List<String>> tablesList = Lists.partition(tableList, (tableList.size() - 1) / concurrency + 1);
         executorService = Executors.newFixedThreadPool(tablesList.size());
@@ -274,8 +273,8 @@ public class RocketmqService extends AbstractMqService {
                     try {
                         DefaultLitePullConsumer litePullConsumer = consumerMap.get(tableName);
                         if (EmptyKit.isNull(litePullConsumer)) {
-                            litePullConsumer = new DefaultLitePullConsumer(rocketmqConfig.getConsumerGroup(), getRPCHook());
-                            litePullConsumer.setNamesrvAddr(rocketmqConfig.getNameSrvAddr());
+                            litePullConsumer = new DefaultLitePullConsumer(((RocketmqConfig) mqConfig).getConsumerGroup(), getRPCHook());
+                            litePullConsumer.setNamesrvAddr(mqConfig.getNameSrvAddr());
                             litePullConsumer.setConsumeFromWhere(ConsumeFromWhere.CONSUME_FROM_FIRST_OFFSET);
                             litePullConsumer.subscribe(tableName, "*");
                             try {
