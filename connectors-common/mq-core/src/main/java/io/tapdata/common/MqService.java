@@ -19,7 +19,7 @@ public interface MqService extends AutoCloseable {
 
     ConnectionCheckItem testPing();
 
-//    void testConnection(Consumer<ConnectionCheckItem> consumer);
+    ConnectionCheckItem testConnection();
 
     void init() throws Throwable;
 

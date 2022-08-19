@@ -21,6 +21,7 @@ import io.tapdata.entity.utils.JsonParser;
 import io.tapdata.kit.EmptyKit;
 import io.tapdata.pdk.apis.entity.TestItem;
 import io.tapdata.pdk.apis.entity.WriteListResult;
+import io.tapdata.pdk.apis.functions.connection.ConnectionCheckItem;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
@@ -80,6 +81,27 @@ public class KafkaService extends AbstractMqService {
             e.printStackTrace();
             return new TestItem(MqTestItem.KAFKA_MQ_CONNECTION.getContent(), TestItem.RESULT_FAILED, "when connect to cluster, error occurred");
         }
+    }
+
+    @Override
+    public ConnectionCheckItem testConnection() {
+        long start = System.currentTimeMillis();
+        ConnectionCheckItem connectionCheckItem = ConnectionCheckItem.create();
+        connectionCheckItem.item(ConnectionCheckItem.ITEM_CONNECTION);
+        AdminConfiguration configuration = new AdminConfiguration(((KafkaConfig) mqConfig), connectorId);
+        try (
+                Admin admin = new DefaultAdmin(configuration)
+        ) {
+            if (admin.isClusterConnectable()) {
+                connectionCheckItem.result(ConnectionCheckItem.RESULT_SUCCESSFULLY);
+            } else {
+                connectionCheckItem.result(ConnectionCheckItem.RESULT_FAILED).information("cluster is not connectable");
+            }
+        } catch (Exception e) {
+            connectionCheckItem.result(ConnectionCheckItem.RESULT_FAILED).information(e.getMessage());
+        }
+        connectionCheckItem.takes(System.currentTimeMillis() - start);
+        return connectionCheckItem;
     }
 
     @Override

@@ -20,6 +20,7 @@ import io.tapdata.entity.utils.JsonParser;
 import io.tapdata.kit.EmptyKit;
 import io.tapdata.pdk.apis.entity.TestItem;
 import io.tapdata.pdk.apis.entity.WriteListResult;
+import io.tapdata.pdk.apis.functions.connection.ConnectionCheckItem;
 
 import java.io.IOException;
 import java.util.*;
@@ -54,6 +55,21 @@ public class RabbitmqService extends AbstractMqService {
         } catch (Throwable t) {
             return new TestItem(MqTestItem.RABBIT_MQ_CONNECTION.getContent(), TestItem.RESULT_FAILED, t.getMessage());
         }
+    }
+
+    @Override
+    public ConnectionCheckItem testConnection() {
+        long start = System.currentTimeMillis();
+        ConnectionCheckItem connectionCheckItem = ConnectionCheckItem.create();
+        connectionCheckItem.item(ConnectionCheckItem.ITEM_CONNECTION);
+        try {
+            rabbitmqConnection.createChannel().close();
+            connectionCheckItem.result(ConnectionCheckItem.RESULT_SUCCESSFULLY);
+        } catch (Exception e) {
+            connectionCheckItem.result(ConnectionCheckItem.RESULT_FAILED).information(e.getMessage());
+        }
+        connectionCheckItem.takes(System.currentTimeMillis() - start);
+        return connectionCheckItem;
     }
 
     @Override

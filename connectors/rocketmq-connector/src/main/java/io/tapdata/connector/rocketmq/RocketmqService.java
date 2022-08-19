@@ -18,6 +18,7 @@ import io.tapdata.entity.utils.JsonParser;
 import io.tapdata.kit.EmptyKit;
 import io.tapdata.pdk.apis.entity.TestItem;
 import io.tapdata.pdk.apis.entity.WriteListResult;
+import io.tapdata.pdk.apis.functions.connection.ConnectionCheckItem;
 import org.apache.rocketmq.acl.common.AclClientRPCHook;
 import org.apache.rocketmq.acl.common.SessionCredentials;
 import org.apache.rocketmq.client.consumer.DefaultLitePullConsumer;
@@ -58,6 +59,21 @@ public class RocketmqService extends AbstractMqService {
         } catch (Throwable t) {
             return new TestItem(MqTestItem.ROCKET_MQ_CONNECTION.getContent(), TestItem.RESULT_FAILED, t.getMessage());
         }
+    }
+
+    @Override
+    public ConnectionCheckItem testConnection() {
+        long start = System.currentTimeMillis();
+        ConnectionCheckItem connectionCheckItem = ConnectionCheckItem.create();
+        connectionCheckItem.item(ConnectionCheckItem.ITEM_CONNECTION);
+        try {
+            new DefaultMQProducer(getRPCHook()).shutdown();
+            connectionCheckItem.result(ConnectionCheckItem.RESULT_SUCCESSFULLY);
+        } catch (Exception e) {
+            connectionCheckItem.result(ConnectionCheckItem.RESULT_FAILED).information(e.getMessage());
+        }
+        connectionCheckItem.takes(System.currentTimeMillis() - start);
+        return connectionCheckItem;
     }
 
     @Override

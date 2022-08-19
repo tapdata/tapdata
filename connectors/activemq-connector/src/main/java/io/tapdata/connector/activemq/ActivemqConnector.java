@@ -74,19 +74,20 @@ public class ActivemqConnector extends ConnectorBase {
         activemqConfig = (ActivemqConfig) new ActivemqConfig().load(connectionContext.getConnectionConfig());
         ConnectionOptions connectionOptions = ConnectionOptions.create();
         connectionOptions.connectionString(activemqConfig.getConnectionString());
-        TestItem testHostAndPort = activemqService.testHostAndPort();
-        consumer.accept(testHostAndPort);
-        if (testHostAndPort.getResult() == TestItem.RESULT_FAILED) {
-            activemqService.close();
-            return connectionOptions;
+        try (
+                ActivemqService activemqService = new ActivemqService(activemqConfig)
+        ) {
+            TestItem testHostAndPort = activemqService.testHostAndPort();
+            consumer.accept(testHostAndPort);
+            if (testHostAndPort.getResult() == TestItem.RESULT_FAILED) {
+                return connectionOptions;
+            }
+            TestItem testConnect = activemqService.testConnect();
+            consumer.accept(testConnect);
+            if (testConnect.getResult() == TestItem.RESULT_FAILED) {
+                return connectionOptions;
+            }
         }
-        TestItem testConnect = activemqService.testConnect();
-        consumer.accept(testConnect);
-        if (testConnect.getResult() == TestItem.RESULT_FAILED) {
-            activemqService.close();
-            return connectionOptions;
-        }
-        activemqService.close();
         return connectionOptions;
     }
 
@@ -112,12 +113,12 @@ public class ActivemqConnector extends ConnectorBase {
     }
 
     private void checkConnection(TapConnectionContext connectionContext, List<String> items, Consumer<ConnectionCheckItem> consumer) {
-//        ConnectionCheckItem testPing = activemqService.testPing();
-//        consumer.accept(testPing);
-//        if (testPing.getResult() == ConnectionCheckItem.RESULT_FAILED) {
-//            return;
-//        }
-//        ConnectionCheckItem testConnection = activemqService.testConnection();
-//        consumer.accept(testConnection);
+        ConnectionCheckItem testPing = activemqService.testPing();
+        consumer.accept(testPing);
+        if (testPing.getResult() == ConnectionCheckItem.RESULT_FAILED) {
+            return;
+        }
+        ConnectionCheckItem testConnection = activemqService.testConnection();
+        consumer.accept(testConnection);
     }
 }

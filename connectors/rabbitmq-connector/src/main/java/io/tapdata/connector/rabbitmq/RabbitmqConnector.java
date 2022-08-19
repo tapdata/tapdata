@@ -19,6 +19,7 @@ import io.tapdata.pdk.apis.entity.ConnectionOptions;
 import io.tapdata.pdk.apis.entity.TestItem;
 import io.tapdata.pdk.apis.entity.WriteListResult;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
+import io.tapdata.pdk.apis.functions.connection.ConnectionCheckItem;
 
 import java.util.List;
 import java.util.function.BiConsumer;
@@ -56,6 +57,7 @@ public class RabbitmqConnector extends ConnectorBase {
         codecRegistry.registerFromTapValue(TapDateTimeValue.class, tapDateTimeValue -> formatTapDateTime(tapDateTimeValue.getValue(), "yyyy-MM-dd HH:mm:ss.SSSSSS"));
         codecRegistry.registerFromTapValue(TapDateValue.class, tapDateValue -> formatTapDateTime(tapDateValue.getValue(), "yyyy-MM-dd"));
 
+        connectorFunctions.supportConnectionCheckFunction(this::checkConnection);
         connectorFunctions.supportWriteRecord(this::writeRecord);
         connectorFunctions.supportBatchRead(this::batchRead);
         connectorFunctions.supportStreamRead(this::streamRead);
@@ -70,10 +72,23 @@ public class RabbitmqConnector extends ConnectorBase {
     @Override
     public ConnectionOptions connectionTest(TapConnectionContext connectionContext, Consumer<TestItem> consumer) {
         rabbitmqConfig = (RabbitmqConfig) new RabbitmqConfig().load(connectionContext.getConnectionConfig());
-        RabbitmqService rabbitmqService = new RabbitmqService(rabbitmqConfig);
-        rabbitmqService.testConnect(consumer);
-        rabbitmqService.close();
-        return null;
+        ConnectionOptions connectionOptions = ConnectionOptions.create();
+        connectionOptions.connectionString(rabbitmqConfig.getConnectionString());
+        try (
+                RabbitmqService rabbitmqService = new RabbitmqService(rabbitmqConfig)
+        ) {
+            TestItem testHostAndPort = rabbitmqService.testHostAndPort();
+            consumer.accept(testHostAndPort);
+            if (testHostAndPort.getResult() == TestItem.RESULT_FAILED) {
+                return connectionOptions;
+            }
+            TestItem testConnect = rabbitmqService.testConnect();
+            consumer.accept(testConnect);
+            if (testConnect.getResult() == TestItem.RESULT_FAILED) {
+                return connectionOptions;
+            }
+        }
+        return connectionOptions;
     }
 
     @Override
@@ -95,5 +110,15 @@ public class RabbitmqConnector extends ConnectorBase {
 
     private Object timestampToStreamOffset(TapConnectorContext connectorContext, Long offsetStartTime) {
         return TapSimplify.list();
+    }
+
+    private void checkConnection(TapConnectionContext connectionContext, List<String> items, Consumer<ConnectionCheckItem> consumer) {
+        ConnectionCheckItem testPing = rabbitmqService.testPing();
+        consumer.accept(testPing);
+        if (testPing.getResult() == ConnectionCheckItem.RESULT_FAILED) {
+            return;
+        }
+        ConnectionCheckItem testConnection = rabbitmqService.testConnection();
+        consumer.accept(testConnection);
     }
 }
