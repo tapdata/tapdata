@@ -3,16 +3,21 @@ package com.tapdata.tm.autoinspect.utils;
 import com.tapdata.tm.commons.dag.Edge;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.AutoInspectNode;
-import com.tapdata.tm.commons.dag.nodes.DataParentNode;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.schema.Schema;
 import com.tapdata.tm.commons.task.dto.TaskDto;
-import io.tapdata.entity.logger.TapLogger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.*;
 
 public class AutoInspectUtil {
-    private static final String TAG = AutoInspectUtil.class.getSimpleName();
+
+    private static final Logger logger = LoggerFactory.getLogger(AutoInspectUtil.class);
+
+    public static void test(String msg) {
+        logger.info(msg);
+    }
 
     public static void generateAutoInspectNode(TaskDto task, List<Node> nodes, List<Edge> edges, Map<String, Node<?>> nodeMap) {
         if (!task.isAutoInspect()) {
@@ -31,7 +36,7 @@ public class AutoInspectUtil {
         LinkedList<DatabaseNode> targetNodes = task.getDag().getTargetNode();
         for (DatabaseNode targetNode : targetNodes) {
             if (isEnableDynamicTable(targetNode)) {
-                TapLogger.warn(TAG, "Enable dynamic table to ignore AutoInspect: {}", targetNode.getName());
+                logger.warn("Enable dynamic table to ignore AutoInspect: {}", targetNode.getName());
                 continue;
             }
 
@@ -69,22 +74,22 @@ public class AutoInspectUtil {
             predecessors = lastNode.predecessors();
             if (predecessors.isEmpty()) {
                 if (targetNode.getId().equals(lastNode.getId())) {
-                    TapLogger.warn(TAG, "AutoInspect filter no edge: {}", targetNode.getName());
+                    logger.warn("AutoInspect filter no edge: {}", targetNode.getName());
                     return null;
                 }
                 if (lastNode instanceof DatabaseNode) {
                     return (DatabaseNode) lastNode;
                 }
-                TapLogger.warn(TAG, "AutoInspect filter no DataParentNode: {}", targetNode.getName());
+                logger.warn("AutoInspect filter no DataParentNode: {}", targetNode.getName());
                 return null;
             } else if (predecessors.size() > 1) {
-                TapLogger.warn(TAG, "AutoInspect filter multi-edge: {}", targetNode.getName());
+                logger.warn("AutoInspect filter multi-edge: {}", targetNode.getName());
                 return null;
             }
             lastNode = predecessors.get(0);
         }
 
-        TapLogger.warn(TAG, "AutoInspect filter repeat edge: {}", targetNode.getName());
+        logger.warn("AutoInspect filter repeat edge: {}", targetNode.getName());
         return null;
     }
 

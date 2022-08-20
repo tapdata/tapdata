@@ -3,7 +3,7 @@ package com.tapdata.tm.autoinspect;
 import com.tapdata.tm.autoinspect.dto.TaskAutoInspectResultDto;
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.*;
-import com.tapdata.tm.task.service.TaskAutoInspectResultsService;
+import com.tapdata.tm.autoinspect.service.TaskAutoInspectResultsService;
 import com.tapdata.tm.utils.MongoUtils;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -38,10 +38,8 @@ public class AutoInspectResultsController extends BaseController {
         dto.setId(null);
 
         Criteria criteria = Criteria.where("taskId").is(dto.getTaskId())
-                .and("originalTableName").is(dto.getOriginalTableName());
-        for (Map.Entry<String, Object> en : dto.getOriginalKeymap().entrySet()) {
-            criteria.and("originalKeymap." + en.getKey()).is(en.getValue());
-        }
+                .and("originalTableName").is(dto.getOriginalTableName())
+                .and("originalKeymap").is(dto.getOriginalKeymap());
         Query query = Query.query(criteria);
         resultsService.upsert(query, dto, getLoginUser());
         return success(dto);

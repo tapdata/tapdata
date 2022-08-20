@@ -1,5 +1,6 @@
 package com.tapdata.tm.discovery.service;
 
+import com.mongodb.ConnectionString;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.commons.base.dto.BaseDto;
 import com.tapdata.tm.commons.schema.*;
@@ -84,6 +85,8 @@ public class DiscoveryServiceImpl implements DiscoveryService {
                 .and("is_deleted").ne(true);
         if (StringUtils.isNotBlank(param.getType())) {
             criteria.and("meta_type").is(param.getType());
+        } else {
+            criteria.and("meta_type").ne("database");
         }
         if (StringUtils.isNotBlank(param.getSourceType())) {
             criteria.and("source.database_type").is(param.getSourceType());
@@ -92,12 +95,15 @@ public class DiscoveryServiceImpl implements DiscoveryService {
 
 
         if (StringUtils.isNotBlank(param.getQueryKey())) {
+            String queryKey = param.getQueryKey();
+            queryKey = MongoUtils.replaceLike(queryKey);
             criteria.orOperator(
-                    Criteria.where("originalName").regex(param.getQueryKey()),
-                    Criteria.where("name").regex(param.getQueryKey()),
-                    Criteria.where("comment").regex(param.getQueryKey()),
-                    Criteria.where("source.database_name").regex(param.getQueryKey()),
-                    Criteria.where("alias_name").regex(param.getQueryKey()));
+                    Criteria.where("originalName").regex(queryKey,"i"),
+                    Criteria.where("name").regex(queryKey,"i"),
+                    Criteria.where("comment").regex(queryKey,"i"),
+                    Criteria.where("source.database_name").regex(queryKey,"i"),
+                    Criteria.where("source.name").regex(queryKey,"i"),
+                    Criteria.where("alias_name").regex(queryKey,"i"));
         }
 
         if (StringUtils.isNotBlank(param.getTagId())) {
@@ -149,6 +155,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
             dto.setName(metadataInstancesDto.getOriginalName());
             dto.setSourceCategory(DataSourceCategoryEnum.connection);
             dto.setSourceType(metadataInstancesDto.getSource() == null ? null : metadataInstancesDto.getSource().getDatabase_type());
+            dto.setSourceInfo(getConnectInfo(metadataInstancesDto));
             //dto.setSourceInfo();
             //dto.setName();
             //dto.setBusinessName();
@@ -317,6 +324,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
         dto.setCategory(DataObjCategoryEnum.storage);
         dto.setType(metadataInstancesDto.getMetaType());
         dto.setSourceCategory(DataSourceCategoryEnum.connection);
+        dto.setSourceInfo(getConnectInfo(metadataInstancesDto));
         //dto.setSourceInfo();
         //dto.setBusinessName();
         //dto.setBusinessDesc();
@@ -349,8 +357,8 @@ public class DiscoveryServiceImpl implements DiscoveryService {
 
                 if (field.getIsNullable() != null && field.getIsNullable() instanceof String) {
                     discoveryFieldDto.setNotNull("YES".equals(field.getIsNullable()));
-                } else if (!(field.getIsNullable() instanceof Boolean)) {
-                    discoveryFieldDto.setNotNull(!(boolean)field.getIsNullable());
+                } else if (field.getIsNullable() != null && field.getIsNullable() instanceof Boolean) {
+                    discoveryFieldDto.setNotNull(!(Boolean) field.getIsNullable());
                 }
                 discoveryFieldDto.setDefaultValue(field.getDefaultValue());
                 //discoveryFieldDto.setBusinessName();
@@ -421,10 +429,12 @@ public class DiscoveryServiceImpl implements DiscoveryService {
         }
 
         if (StringUtils.isNotBlank(param.getQueryKey())) {
+            String queryKey = param.getQueryKey();
+            queryKey = MongoUtils.replaceLike(queryKey);
             criteria.orOperator(
-                    Criteria.where("originalName").regex(param.getQueryKey()),
-                    Criteria.where("name").regex(param.getQueryKey()),
-                    Criteria.where("alias_name").regex(param.getQueryKey()));
+                    Criteria.where("originalName").regex(queryKey,"i"),
+                    Criteria.where("name").regex(queryKey,"i"),
+                    Criteria.where("alias_name").regex(queryKey,"i"));
         }
 
         if (StringUtils.isNotBlank(param.getTagId())) {
@@ -480,6 +490,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
         Query query = new Query(criteria);
         query.fields().include("meta_type");
         List<String> objTypes = metaDataRepository.findDistinct(query, "meta_type", user, String.class);
+        objTypes.remove("database");
         objTypes.add(TaskDto.SYNC_TYPE_MIGRATE);
         objTypes.add(TaskDto.SYNC_TYPE_SYNC);
 
@@ -601,5 +612,48 @@ public class DiscoveryServiceImpl implements DiscoveryService {
             long count1 = taskRepository.count(new Query(criteria), user);
             tagDto.setObjCount(count1 + count);
         }
+    }
+
+
+    private String getConnectInfo(MetadataInstancesDto metadataInstancesDto) {
+        SourceDto source = metadataInstancesDto.getSource();
+        if (source == null) {
+            return null;
+        }
+
+        StringBuilder ipAndPort = new StringBuilder();
+
+
+
+        Object config = source.getConfig();
+        Map config1 = (Map) config;
+        if (source.getDatabase_type().toLowerCase(Locale.ROOT).contains("mongo")) {
+            String uri1 = (String) config1.get("uri");
+            if (StringUtils.isNotBlank(uri1)) {
+                ConnectionString connectionString = new ConnectionString(uri1);
+                List<String> hosts = connectionString.getHosts();
+                if (CollectionUtils.isNotEmpty(hosts)) {
+                    for (String host : hosts) {
+                        ipAndPort.append(host).append(";");
+                    }
+                    ipAndPort = new StringBuilder(ipAndPort.substring(0, ipAndPort.length() -1));
+                }
+            }
+        } else {
+            Object host = config1.get("host");
+            Object port = config1.get("port");
+            Object database = config1.get("database");
+            if (host == null) {
+                host = config1.get("mqHost");
+                port = config1.get("mqPort");
+            }
+            ipAndPort = new StringBuilder(host + ":" + port);
+
+            if (database != null) {
+                ipAndPort.append("/").append(database);
+            }
+        }
+
+        return ipAndPort + "/" + metadataInstancesDto.getOriginalName();
     }
 }
