@@ -352,6 +352,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
                 discoveryFieldDto.setDataType(field.getDataType());
                 discoveryFieldDto.setPrimaryKey(field.getPrimaryKey());
                 discoveryFieldDto.setForeignKey(field.getForeignKey());
+                discoveryFieldDto.setBusinessDesc(field.getTapType());
 
                 discoveryFieldDto.setIndex(indexNames.contains(field.getFieldName()));
 
