@@ -1,0 +1,7 @@
+job [1;32mstop_iwjdm[0m start running ...                                                                                                                                         
+job [1;32mstop_iwjdm[0m status is: [1;32mwait_run[0m                                                                                                                            
+job [1;32mstop_iwjdm[0m status is: [1;32mrunning[0m                                                                                                                             
+the status is running now, this is 1 times, 5 times remaining                                                                                                                       
+job [1;32mstop_iwjdm[0m status is: [1;32mrunning[0m                                                                                                                             
+stop
+job [1;32mstop_iwjdm[0m status is: [1;32mstop[0m                                                                                                                                
