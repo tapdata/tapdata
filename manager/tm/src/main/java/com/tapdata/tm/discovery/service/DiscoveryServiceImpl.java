@@ -1,6 +1,7 @@
 package com.tapdata.tm.discovery.service;
 
 import com.mongodb.ConnectionString;
+import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.commons.base.dto.BaseDto;
 import com.tapdata.tm.commons.schema.*;
@@ -47,6 +48,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
     private TaskRepository taskRepository;
 
     private MetadataDefinitionService metadataDefinitionService;
+
     /**
      * 查询对象概览列表
      *
@@ -596,24 +598,30 @@ public class DiscoveryServiceImpl implements DiscoveryService {
 
     @Override
     public void addObjCount(List<MetadataDefinitionDto> tagDtos, UserDetail user) {
-        for (MetadataDefinitionDto tagDto : tagDtos) {
-            Criteria criteria = Criteria.where("sourceType").is(SourceTypeEnum.SOURCE.name())
-                    .and("taskId").exists(false)
-                    .and("is_deleted").ne(true);
+        Query query = new Query();
+        query.fields().include("_id", "parent_id");
+        List<MetadataDefinitionDto> allDto = metadataDefinitionService.findAllDto(new Query(), user);
+        Map<String, List<MetadataDefinitionDto>> parentMap = allDto.stream().filter(s->StringUtils.isNotBlank(s.getParent_id()))
+                .collect(Collectors.groupingBy(MetadataDefinitionDto::getParent_id));
+        tagDtos.parallelStream().forEach(tagDto -> {
+                    Criteria criteria = Criteria.where("sourceType").is(SourceTypeEnum.SOURCE.name())
+                            .and("taskId").exists(false)
+                            .and("is_deleted").ne(true);
 
-            Criteria criteriaTask = Criteria.where("is_deleted").ne(true)
-                    .and("syncType").in(TaskDto.SYNC_TYPE_MIGRATE, TaskDto.SYNC_TYPE_SYNC)
-                    .and("agentId").exists(true);
+                    Criteria criteriaTask = Criteria.where("is_deleted").ne(true)
+                            .and("syncType").in(TaskDto.SYNC_TYPE_MIGRATE, TaskDto.SYNC_TYPE_SYNC)
+                            .and("agentId").exists(true);
 
-            List<MetadataDefinitionDto> andChild = metadataDefinitionService.findAndChild(Lists.of(tagDto.getId()));
-            List<ObjectId> tagIds = andChild.stream().map(BaseDto::getId).collect(Collectors.toList());
-            criteria.and("listtags.id").in(tagIds);
-            criteriaTask.and("listtags.id").in(tagIds);
+                    List<MetadataDefinitionDto> andChild = metadataDefinitionService.findAndChild(null, tagDto, parentMap);
+                    List<ObjectId> tagIds = andChild.stream().map(BaseDto::getId).collect(Collectors.toList());
+                    criteria.and("listtags.id").in(tagIds);
+                    criteriaTask.and("listtags.id").in(tagIds);
 
-            long count = metadataInstancesService.count(new Query(criteria), user);
-            long count1 = taskRepository.count(new Query(criteria), user);
-            tagDto.setObjCount(count1 + count);
-        }
+                    long count = metadataInstancesService.count(new Query(criteria), user);
+                    long count1 = taskRepository.count(new Query(criteria), user);
+                    tagDto.setObjCount(count1 + count);
+                }
+        );
     }
 
 

@@ -176,8 +176,37 @@ public class MetadataDefinitionService extends BaseService<MetadataDefinitionDto
         return findChild(all, idList);
     }
 
+    public List<MetadataDefinitionDto> findAndChild(List<MetadataDefinitionDto> all, MetadataDefinitionDto dto, Map<String, List<MetadataDefinitionDto>> parentMap) {
+        if (all == null) {
+            all = new ArrayList<>();
+            all.add(dto);
+        }
+
+        List<MetadataDefinitionDto> metadataDefinitionDtos = parentMap.get(dto.getId().toHexString());
+        if (CollectionUtils.isNotEmpty(metadataDefinitionDtos)) {
+            all.addAll(metadataDefinitionDtos);
+            for (MetadataDefinitionDto metadataDefinitionDto : metadataDefinitionDtos) {
+                findAndChild(all, metadataDefinitionDto, parentMap);
+            }
+        }
+        return all;
+    }
+
 
     private List<MetadataDefinitionDto> findChild(List<MetadataDefinitionDto> metadataDefinitionDtos, List<ObjectId> idList) {
+        List<String> collect = idList.stream().map(ObjectId::toHexString).collect(Collectors.toList());
+        Criteria criteria = Criteria.where("parent_id").in(collect);
+        Query query = new Query(criteria);
+        List<MetadataDefinitionDto> all = findAll(query);
+        if (CollectionUtils.isEmpty(all)) {
+            return metadataDefinitionDtos;
+        }
+        metadataDefinitionDtos.addAll(all);
+        List<ObjectId> ids = all.stream().map(BaseDto::getId).collect(Collectors.toList());
+        return findChild(metadataDefinitionDtos, ids);
+    }
+
+    private List<MetadataDefinitionDto> findChild(List<MetadataDefinitionDto> metadataDefinitionDtos, List<ObjectId> idList, Map<String, MetadataDefinitionDto> metaMap) {
         List<String> collect = idList.stream().map(ObjectId::toHexString).collect(Collectors.toList());
         Criteria criteria = Criteria.where("parent_id").in(collect);
         Query query = new Query(criteria);
