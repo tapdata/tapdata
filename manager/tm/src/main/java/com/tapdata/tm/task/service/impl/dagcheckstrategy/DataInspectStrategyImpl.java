@@ -2,8 +2,6 @@ package com.tapdata.tm.task.service.impl.dagcheckstrategy;
 
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.commons.dag.DAG;
-import com.tapdata.tm.commons.dag.Node;
-import com.tapdata.tm.commons.dag.NodeEnum;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
@@ -38,6 +36,10 @@ public class DataInspectStrategyImpl implements DagLogStrategy {
 
         // 没开启数据校验不检查
         if (!taskDto.isAutoInspect()) {
+            return results;
+        }
+        if (!taskDto.isCanOpenInspect()) {
+            results.add(createWarn(taskDto, userDetail, "任务不支持校验"));
             return results;
         }
 
@@ -126,6 +128,17 @@ public class DataInspectStrategyImpl implements DagLogStrategy {
         checkLog.setCreateUser(userDetail.getUserId());
         checkLog.setGrade(Level.INFO.name());
         checkLog.setLog(MessageFormat.format(templateEnum.getInfoTemplate(), checkLog.getCreateAt(), taskDto.getName(), supportTables, notSupportTables));
+        return checkLog;
+    }
+
+    private static TaskDagCheckLog createWarn(TaskDto taskDto, UserDetail userDetail, String msg) {
+        TaskDagCheckLog checkLog = new TaskDagCheckLog();
+        checkLog.setTaskId(taskDto.getId().toHexString());
+        checkLog.setCheckType(templateEnum.name());
+        checkLog.setCreateAt(new Date());
+        checkLog.setCreateUser(userDetail.getUserId());
+        checkLog.setGrade(Level.WARN.name());
+        checkLog.setLog(MessageFormat.format(templateEnum.getErrorTemplate(), checkLog.getCreateAt(), taskDto.getName(), msg));
         return checkLog;
     }
 

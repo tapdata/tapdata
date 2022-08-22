@@ -23,15 +23,14 @@ public class AutoInspectUtil {
         if (!task.isAutoInspect()) {
             return;
         }
-        //todo: check AutoInspect capabilitys
-//        if (!task.isCanOpenInspect()) {
-//            TapLogger.warn(TAG, "can not open AutoInspect: {}", task.getName());
-//            return;
-//        }
-//        if (task.getIsOpenAutoDDL()) {
-//            TapLogger.warn("Turn on automatic DDL to ignore AutoInspect: {}", task.getName());
-//            return;
-//        }
+        if (!task.isCanOpenInspect()) {
+            logger.warn("can not open AutoInspect: {}", task.getName());
+            return;
+        }
+        if (task.getIsOpenAutoDDL()) {
+            logger.warn("Turn on automatic DDL to ignore AutoInspect: {}", task.getName());
+            return;
+        }
 
         LinkedList<DatabaseNode> targetNodes = task.getDag().getTargetNode();
         for (DatabaseNode targetNode : targetNodes) {

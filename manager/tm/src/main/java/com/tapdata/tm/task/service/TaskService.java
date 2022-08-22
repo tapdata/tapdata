@@ -590,9 +590,9 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     }
 
     public void checkTaskInspectFlag (TaskDto taskDto) {
-        if (taskDto.isAutoInspect() && !taskDto.isCanOpenInspect()) {
-            throw new BizException("Task.CanNotSupportInspect");
-        }
+//        if (taskDto.isAutoInspect() && !taskDto.isCanOpenInspect()) {
+//            throw new BizException("Task.CanNotSupportInspect");
+//        }
     }
 
     private void saveInspect(TaskDto existedTask, TaskDto taskDto, UserDetail userDetail) {
