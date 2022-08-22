@@ -879,7 +879,6 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         TaskService taskService = SpringContextHelper.getBean(TaskService.class);
 
         log.info("create new task, task = {}", taskDto);
-        checkDagAgentConflict(taskDto, false);
         taskDto = taskService.confirmById(taskDto, user, true, true);
         //taskService.flushStatus(taskDto, user);
         return taskDto;
@@ -1887,7 +1886,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         String json = JsonUtil.toJsonUseJackson(jsonList);
 
         AtomicReference<String> fileName = new AtomicReference<>("");
-        String yyyymmdd = DateUtil.format(new Date(), "YYYYMMDD");
+        String yyyymmdd = DateUtil.today().replaceAll("-", "");
         FunctionUtils.isTureOrFalse(taskIds.size() > 1).trueOrFalseHandle(
                 () -> fileName.set("task_batch" + "-" + yyyymmdd),
                 () -> fileName.set(taskDtoMap.get(taskIds.get(0)).getName() + "-" + yyyymmdd)
