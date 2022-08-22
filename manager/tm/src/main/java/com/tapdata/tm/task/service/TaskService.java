@@ -877,7 +877,15 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
         log.info("create new task, task = {}", taskDto);
         checkDagAgentConflict(taskDto, false);
-        taskDto = taskService.confirmById(taskDto, user, true, true);
+        try {
+            taskDto = taskService.confirmById(taskDto, user, true, true);
+        } catch (BizException e) {
+            // todo 后续优化这个 将confirmById方法中的各种校验抽出来
+            if (!e.getErrorCode().equals("Task.CanNotSupportInspect")) {
+                log.error("create new task error, task = {}", taskDto, e);
+                throw e;
+            }
+        }
         //taskService.flushStatus(taskDto, user);
         return taskDto;
     }
