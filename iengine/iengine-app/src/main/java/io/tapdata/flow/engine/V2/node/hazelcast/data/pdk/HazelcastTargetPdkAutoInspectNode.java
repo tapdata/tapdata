@@ -5,15 +5,15 @@ import com.tapdata.constant.BeanUtil;
 import com.tapdata.entity.TapdataShareLogEvent;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.mongo.ClientMongoOperator;
+import com.tapdata.tm.autoinspect.compare.IAutoCompare;
+import com.tapdata.tm.autoinspect.connector.IPdkConnector;
 import com.tapdata.tm.autoinspect.constants.TaskType;
 import com.tapdata.tm.autoinspect.dto.TaskAutoInspectResultDto;
+import com.tapdata.tm.autoinspect.entity.AutoInspectProgress;
 import com.tapdata.tm.autoinspect.entity.CompareRecord;
-import com.tapdata.tm.autoinspect.entity.CompareTableItem;
+import com.tapdata.tm.autoinspect.utils.AutoInspectUtil;
 import com.tapdata.tm.commons.dag.nodes.AutoInspectNode;
-import com.tapdata.tm.commons.dag.vo.SyncObjects;
 import com.tapdata.tm.commons.task.dto.TaskDto;
-import io.tapdata.autoinspect.compare.IAutoCompare;
-import io.tapdata.autoinspect.connector.IPdkConnector;
 import io.tapdata.autoinspect.runner.PdkAutoInspectRunner;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
@@ -48,15 +48,17 @@ public class HazelcastTargetPdkAutoInspectNode extends HazelcastTargetPdkBaseNod
         if (!(dataProcessorContext.getNode() instanceof AutoInspectNode)) {
             throw new RuntimeException("not AutoInspectNode instance");
         }
+        AutoInspectNode node = (AutoInspectNode) dataProcessorContext.getNode();
 
         TaskDto task = dataProcessorContext.getTaskDto();
         String taskId = task.getId().toHexString();
         TaskType taskType = TaskType.parseByTaskType(syncType.getSyncType());
-        AutoInspectNode node = (AutoInspectNode) dataProcessorContext.getNode();
+        AutoInspectProgress progress = AutoInspectUtil.parse(task.getAttrs());
         ClientMongoOperator clientMongoOperator = BeanUtil.getBean(ClientMongoOperator.class);
 
         HazelcastTargetPdkAutoInspectNode _thisNode = this;
-        EXECUTORS.submit(new PdkAutoInspectRunner(taskId, taskType, clientMongoOperator, node.getFromNode(), node.getToNode()) {
+        EXECUTORS.submit(new PdkAutoInspectRunner(taskId, taskType, progress, node, clientMongoOperator) {
+
             @Override
             protected void initialCompare(IPdkConnector sourceConnector, IPdkConnector targetConnector, IAutoCompare autoCompare) throws Exception {
                 logger.info("begin initial compare");
@@ -70,27 +72,7 @@ public class HazelcastTargetPdkAutoInspectNode extends HazelcastTargetPdkBaseNod
                 }
                 logger.info("wait initial compare {}ms", System.currentTimeMillis() - beginTimes);
 
-                TapTable tapTable;
-                for (SyncObjects syncObjects : node.getSyncObjects()) {
-                    if (!"table".equals(syncObjects.getType())) continue;
-
-                    for (String tableName : syncObjects.getObjectNames()) {
-                        if (!isRunning()) return;
-
-                        tapTable = sourceConnector.getTapTable(tableName);
-                        if (null == tapTable.primaryKeys() || tapTable.primaryKeys().isEmpty()) {
-                            logger.warn("ignore non primary key table: {}", tableName);
-                            continue;
-                        }
-                        tapTable = targetConnector.getTapTable(tableName);
-                        if (null == tapTable.primaryKeys() || tapTable.primaryKeys().isEmpty()) {
-                            logger.warn("ignore non primary key table: {}", tableName);
-                            continue;
-                        }
-
-                        initialCompare(sourceConnector, targetConnector, autoCompare, new CompareTableItem(tableName));
-                    }
-                }
+                super.initialCompare(sourceConnector, targetConnector, autoCompare);
             }
 
             @Override
@@ -102,7 +84,7 @@ public class HazelcastTargetPdkAutoInspectNode extends HazelcastTargetPdkBaseNod
                         if (!isRunning()) return;
 
                         //Output log every 30 seconds
-                        if (System.currentTimeMillis()/1000 % 30 == 0) {
+                        if (System.currentTimeMillis() / 1000 % 30 == 0) {
                             logger.info("Increment event is empty");
                         }
                     } while (null == tapEvents);

@@ -11,7 +11,9 @@ import com.mongodb.client.result.UpdateResult;
 import com.tapdata.manager.common.utils.JsonUtil;
 import com.tapdata.tm.CustomerJobLogs.CustomerJobLog;
 import com.tapdata.tm.CustomerJobLogs.service.CustomerJobLogsService;
+import com.tapdata.tm.autoinspect.entity.AutoInspectProgress;
 import com.tapdata.tm.autoinspect.service.TaskAutoInspectResultsService;
+import com.tapdata.tm.autoinspect.utils.AutoInspectUtil;
 import com.tapdata.tm.base.dto.Field;
 import com.tapdata.tm.base.dto.*;
 import com.tapdata.tm.base.exception.BizException;
@@ -46,6 +48,7 @@ import com.tapdata.tm.metadatainstance.service.MetaDataHistoryService;
 import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
 import com.tapdata.tm.monitor.entity.AgentStatDto;
 import com.tapdata.tm.monitor.entity.MeasurementEntity;
+import com.tapdata.tm.monitor.param.IdParam;
 import com.tapdata.tm.monitor.service.MeasurementService;
 import com.tapdata.tm.monitoringlogs.service.MonitoringLogsService;
 import com.tapdata.tm.task.bean.*;
@@ -2122,6 +2125,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         if (taskDto.getAttrs() != null) {
             taskDto.getAttrs().remove("syncProgress");
             taskDto.getAttrs().remove("edgeMilestones");
+            taskDto.getAttrs().remove("autoInspectProgress");
 
             set.set("attrs", taskDto.getAttrs());
         }
@@ -3056,5 +3060,28 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         }
 
         return saveNoPass & startNoPass;
+    }
+
+    public Map<String, Object> totalAutoInspectResultsDiffTables(IdParam param) {
+        String taskId = param.getId();
+        Assert.notBlank(taskId, "id not blank");
+
+        Map<String, Object> data = new HashMap<>();
+
+        Query query = Query.query(Criteria.where("_id").is(new ObjectId(taskId)));
+        TaskDto taskDto = findOne(query);
+        if (null != taskDto) {
+            AutoInspectProgress progress = AutoInspectUtil.parse(taskDto.getAttrs());
+            if (null != progress) {
+                data.put("totals", progress.getTableCounts());
+                data.put("ignore", progress.getTableIgnore());
+                Map<String, Object> map = taskAutoInspectResultsService.totalDiffTables(taskId);
+                if (null != map) {
+                    data.put("diffTables", map.get("tables"));
+                    data.put("diffRecords", map.get("totals"));
+                }
+            }
+        }
+        return data;
     }
 }

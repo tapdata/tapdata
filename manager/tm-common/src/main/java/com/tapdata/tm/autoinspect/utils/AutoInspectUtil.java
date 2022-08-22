@@ -1,5 +1,7 @@
 package com.tapdata.tm.autoinspect.utils;
 
+import com.alibaba.fastjson.JSON;
+import com.tapdata.tm.autoinspect.entity.AutoInspectProgress;
 import com.tapdata.tm.commons.dag.Edge;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.AutoInspectNode;
@@ -17,6 +19,17 @@ public class AutoInspectUtil {
 
     public static void test(String msg) {
         logger.info(msg);
+    }
+
+    public static AutoInspectProgress parse(Map<String, Object> taskAttrs) {
+        if (null != taskAttrs) {
+            Object autoInspectProgress = taskAttrs.get("autoInspectProgress");
+            if (autoInspectProgress instanceof Map) {
+                String jsonStr = JSON.toJSONString(autoInspectProgress);
+                return JSON.parseObject(jsonStr, AutoInspectProgress.class);
+            }
+        }
+        return null;
     }
 
     public static void generateAutoInspectNode(TaskDto task, List<Node> nodes, List<Edge> edges, Map<String, Node<?>> nodeMap) {

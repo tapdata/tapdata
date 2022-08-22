@@ -11,8 +11,8 @@ import java.io.Serializable;
  */
 @Data
 public class CompareTableItem implements Serializable {
-    private @NonNull String tableName;
-    private boolean initialed;
+    private @NonNull String tableName;//表名
+    private boolean initialed;//是否完成全量校验
     private Object offset;
 
     public CompareTableItem() {

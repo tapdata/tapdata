@@ -1,4 +1,4 @@
-package io.tapdata.autoinspect.compare;
+package com.tapdata.tm.autoinspect.compare;
 
 import com.tapdata.tm.autoinspect.dto.TaskAutoInspectResultDto;
 import lombok.NonNull;
