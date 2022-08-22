@@ -112,8 +112,7 @@ public class LoggingAspectTask extends AspectTask {
 	}
 
 	public boolean noNeedLog(String level) {
-		String settingLevel = settingService.getSetting("logLevel").getValue();
-		return LogLevel.lt(level, settingLevel);
+		return ((TaskLogger) getObsLogger()).noNeedLog(level);
 	}
 
 	private Collection<String> getPkFields(ProcessorBaseContext context, String tableName) {

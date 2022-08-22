@@ -57,6 +57,7 @@ import com.tapdata.tm.task.constant.TaskStatusEnum;
 import com.tapdata.tm.task.entity.TaskDagCheckLog;
 import com.tapdata.tm.task.entity.TaskEntity;
 import com.tapdata.tm.task.entity.TaskRecord;
+import com.tapdata.tm.task.param.LogSettingParam;
 import com.tapdata.tm.task.param.SaveShareCacheParam;
 import com.tapdata.tm.task.repository.TaskRepository;
 import com.tapdata.tm.task.vo.ShareCacheDetailVo;
@@ -3042,5 +3043,29 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             }
         }
         return data;
+    }
+
+    public void updateTaskLogSetting(String taskId, LogSettingParam logSettingParam, UserDetail userDetail) {
+        ObjectId taskObjectId = new ObjectId(taskId);
+        TaskDto task = findById(taskObjectId);
+        if (null == task) {
+            throw new BizException("Task.NotFound", "The task does not exist");
+        }
+
+        Map<String, Object> logSetting = task.getLogSetting();
+        if (null == logSetting) {
+            logSetting = new HashMap<>();
+        }
+
+        String level = logSettingParam.getLevel();
+        logSetting.put("level", level);
+        if (level.equalsIgnoreCase("DEBUG")) {
+            logSetting.put("recordCeiling", logSettingParam.getRecordCeiling());
+            logSetting.put("intervalCeiling", logSettingParam.getIntervalCeiling());
+        }
+
+        Update update = new Update();
+        update.set("logSetting", logSetting);
+        updateById(taskObjectId, update, userDetail);
     }
 }
