@@ -105,4 +105,6 @@ public class MetadataInstancesEntity extends BaseEntity {
 
     //逻辑表物理表分离所添加的相关属性
     private String taskId;
+
+    private String nodeId;
 }
