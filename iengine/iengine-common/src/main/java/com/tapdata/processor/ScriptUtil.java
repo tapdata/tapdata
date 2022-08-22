@@ -95,23 +95,23 @@ public class ScriptUtil {
 
 		ClassLoader contextClassLoader = Thread.currentThread().getContextClassLoader();
 		try {
-			String buildInMethod = initBuildInMethod(javaScriptFunctions, clientMongoOperator);
-			String scripts = new StringBuilder(script).append(System.lineSeparator()).append(buildInMethod).toString();
-
-			logger.info("scripts: {} {} {}", contextClassLoader, ScriptUtil.class.getClassLoader(), Thread.currentThread().getContextClassLoader());
-			ServiceLoader<ScriptEngineFactory> loader1 = ServiceLoader.load(ScriptEngineFactory.class, contextClassLoader);
-			ServiceLoader<ScriptEngineFactory> loader2 = ServiceLoader.load(ScriptEngineFactory.class, Thread.currentThread().getContextClassLoader());
-			ServiceLoader<ScriptEngineFactory> loader3 = ServiceLoader.load(ScriptEngineFactory.class, ScriptUtil.class.getClassLoader());
-			ServiceLoader<ScriptEngineFactory> loader4 = ServiceLoader.loadInstalled(ScriptEngineFactory.class);
-			loggerLoader(loader1, "1");
-			loggerLoader(loader2, "2");
-			loggerLoader(loader3, "3");
-			loggerLoader(loader4, "4");
 			ScriptEngine e = getScriptEngine(jsEngineName);
+			String buildInMethod = initBuildInMethod(javaScriptFunctions, clientMongoOperator);
+			String scripts = script + System.lineSeparator() + buildInMethod;
+
+//			logger.info("scripts: {} {} {}", contextClassLoader, ScriptUtil.class.getClassLoader(), Thread.currentThread().getContextClassLoader());
+//			ServiceLoader<ScriptEngineFactory> loader1 = ServiceLoader.load(ScriptEngineFactory.class, contextClassLoader);
+//			ServiceLoader<ScriptEngineFactory> loader2 = ServiceLoader.load(ScriptEngineFactory.class, Thread.currentThread().getContextClassLoader());
+//			ServiceLoader<ScriptEngineFactory> loader3 = ServiceLoader.load(ScriptEngineFactory.class, ScriptUtil.class.getClassLoader());
+//			ServiceLoader<ScriptEngineFactory> loader4 = ServiceLoader.loadInstalled(ScriptEngineFactory.class);
+//			loggerLoader(loader1, "1");
+//			loggerLoader(loader2, "2");
+//			loggerLoader(loader3, "3");
+//			loggerLoader(loader4, "4");
 			try {
 				e.eval(scripts);
 			} catch (Throwable ex) {
-				logger.error("script eval error--" + jsEngineName + "--" + e + "--" + scripts, ex);
+				logger.error(String.format("script eval error: %s, %s, %s, %s", jsEngineName, e, scripts, contextClassLoader), ex);
 				throw new RuntimeException(ex);
 			}
 			if (source != null) {

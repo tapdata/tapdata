@@ -132,7 +132,8 @@ public class PostgresCdcRunner extends DebeziumCdcRunner {
         Map<String, ?> offset = null;
         for (SourceRecord sr : sourceRecords) {
             offset = sr.sourceOffset();
-            Long referenceTime = (Long) offset.get("ts_usec");
+            // PG use micros to indicate the time but in pdk api we use millis
+            Long referenceTime = (Long) offset.get("ts_usec") / 1000;
             Struct struct = ((Struct) sr.value());
             if (struct == null) {
                 continue;
