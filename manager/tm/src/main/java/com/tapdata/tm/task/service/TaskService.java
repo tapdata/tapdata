@@ -90,6 +90,7 @@ import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -1844,8 +1845,11 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
     public void batchLoadTask(HttpServletResponse response, List<String> taskIds, UserDetail user) {
         List<TaskUpAndLoadDto> jsonList = new ArrayList<>();
+
+        List<TaskDto> tasks = findAllTasksByIds(taskIds);
+        Map<String, TaskDto> taskDtoMap = tasks.stream().collect(Collectors.toMap(t -> t.getId().toHexString(), Function.identity(), (e1, e2) -> e1));
         for (String taskId : taskIds) {
-            TaskDto taskDto = findById(MongoUtils.toObjectId(taskId), user);
+            TaskDto taskDto = taskDtoMap.get(taskId);
             if (taskDto != null) {
                 taskDto.setCreateUser(null);
                 taskDto.setCustomId(null);
@@ -1887,7 +1891,14 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             }
         }
         String json = JsonUtil.toJsonUseJackson(jsonList);
-        fileService1.viewImg1(json, response);
+
+        AtomicReference<String> fileName = new AtomicReference<>("");
+        String yyyymmdd = DateUtil.format(new Date(), "YYYYMMDD");
+        FunctionUtils.isTureOrFalse(taskIds.size() > 1).trueOrFalseHandle(
+                () -> fileName.set("task_batch" + "-" + yyyymmdd),
+                () -> fileName.set(taskDtoMap.get(taskIds.get(0)).getName() + "-" + yyyymmdd)
+        );
+        fileService1.viewImg1(json, response, fileName.get() + ".json.gz");
     }
 
 
