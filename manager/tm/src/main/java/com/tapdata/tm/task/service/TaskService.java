@@ -1626,17 +1626,8 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
         Map<String, Long> statusToCount = new HashMap<>();
         if (CollectionUtils.isNotEmpty(synList)) {
-            for (int i = 0; i < synList.size(); i++) {
-                TaskDto taskDto = synList.get(i);
-                List<Status> statusList = taskDto.getStatuses();
-                if (CollectionUtils.isNotEmpty(statusList)) {
-                    for (Status status : statusList) {
-                        MapUtils.increase(statusToCount, status.getStatus());
-                    }
-                } else {
-                    //Statuses 为空 就认为是编辑中
-                    MapUtils.increase(statusToCount, TaskEnum.STATUS_EDIT.getValue());
-                }
+            for (TaskDto taskDto : synList) {
+                MapUtils.increase(statusToCount, taskDto.getStatus());
             }
         }
 

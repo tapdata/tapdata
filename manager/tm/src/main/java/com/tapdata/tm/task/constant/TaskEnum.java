@@ -5,7 +5,8 @@ import java.util.List;
 
 public enum TaskEnum {
     STATUS_EDIT("edit"),
-    STATUS_PREPARING("preparing"),
+    //STATUS_PREPARING("preparing"),
+    STATUS_WAIT_START("wait_start"),
     STATUS_SCHEDULING("scheduling"),
     STATUS_SCHEDULE_FAILED("schedule_failed"),
     STATUS_WAIT_RUN("wait_run"),
@@ -14,6 +15,7 @@ public enum TaskEnum {
     STATUS_PAUSING("pausing"),
     STATUS_ERROR("error"),
     STATUS_COMPLETE("complete"),
+
     STATUS_STOP("stop");
 
 
