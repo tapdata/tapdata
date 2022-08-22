@@ -137,7 +137,7 @@ public class LoggingAspectTask extends AspectTask {
 			return;
 		}
 		ObsLogger obsLogger = getObsLogger();
-		obsLogger.error(obsLogger::logBaseBuilder, throwable.getMessage());
+		obsLogger.error(obsLogger::logBaseBuilder, throwable);
 	}
 
 	private void error(Throwable throwable, ProcessorBaseContext context) {
@@ -164,7 +164,7 @@ public class LoggingAspectTask extends AspectTask {
 				.withNode(node);
 
 		ObsLogger obsLogger = getObsLogger(node);
-		obsLogger.error(() -> obsLogger.logBaseBuilder().record(builder.build().toMap()), throwable.getMessage());
+		obsLogger.error(() -> obsLogger.logBaseBuilder().record(builder.build().toMap()), throwable);
 	}
 
 	private void error(Throwable throwable, ProcessorBaseContext context, List<TapEvent> events) {
@@ -196,7 +196,7 @@ public class LoggingAspectTask extends AspectTask {
 		}
 
 		ObsLogger obsLogger = null != node ? getObsLogger(node) : getObsLogger();
-		obsLogger.error(() -> obsLogger.logBaseBuilder().data(data), throwable.getMessage());
+		obsLogger.error(() -> obsLogger.logBaseBuilder().data(data), throwable);
 	}
 
 	private void debug(String logEventType, Long cost, LogTag tag, ProcessorBaseContext context) {

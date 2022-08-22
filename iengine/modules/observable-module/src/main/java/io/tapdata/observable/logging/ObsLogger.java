@@ -13,8 +13,8 @@ public abstract class ObsLogger {
 	abstract void debug(Callable<MonitoringLogsDto.MonitoringLogsDtoBuilder> callable, String message, Object... params);
 	abstract void info(Callable<MonitoringLogsDto.MonitoringLogsDtoBuilder> callable, String message, Object... params);
 	abstract void warn(Callable<MonitoringLogsDto.MonitoringLogsDtoBuilder> callable, String message, Object... params);
-	abstract void error(Callable<MonitoringLogsDto.MonitoringLogsDtoBuilder> callable, String message, Object... params);
-	abstract void fatal(Callable<MonitoringLogsDto.MonitoringLogsDtoBuilder> callable, String message, Object... params);
+	abstract void error(Callable<MonitoringLogsDto.MonitoringLogsDtoBuilder> callable, Throwable throwable, String message, Object... params);
+	abstract void fatal(Callable<MonitoringLogsDto.MonitoringLogsDtoBuilder> callable, Throwable throwable, String message, Object... params);
 
 	// debug level public logger api
 
@@ -56,30 +56,71 @@ public abstract class ObsLogger {
 
 	// error level public logger api
 
+	public void error(Callable<MonitoringLogsDto.MonitoringLogsDtoBuilder> callable, Throwable throwable) {
+		error(callable, throwable, null);
+	}
+
+	public void error(Callable<MonitoringLogsDto.MonitoringLogsDtoBuilder> callable, String message,  Object... params) {
+		error(callable, null, message, params);
+	}
+
+
 	public void error(String message, Object... params) {
-		error(this::logBaseBuilder, message, params);
+		error(this::logBaseBuilder, null, message, params);
 	}
 
 	public void error(LogTag logTag1, String message, Object... params) {
-		error(() -> logBaseBuilderWithLogTag(logTag1), message, params);
+		error(() -> logBaseBuilderWithLogTag(logTag1), null, message, params);
 	}
 
 	public void error(LogTag logTag1, LogTag logTag2, String message, Object... params) {
-		error(() -> logBaseBuilderWithLogTag(logTag1, logTag2), message, params);
+		error(() -> logBaseBuilderWithLogTag(logTag1, logTag2), null, message, params);
+	}
+
+	public void error(Throwable throwable, Object... params) {
+		error(this::logBaseBuilder, throwable, throwable.getMessage(), params);
+	}
+
+	public void error(LogTag logTag1, Throwable throwable, Object... params) {
+		error(() -> logBaseBuilderWithLogTag(logTag1), throwable, throwable.getMessage(), params);
+	}
+
+	public void error(LogTag logTag1, LogTag logTag2, Throwable throwable, Object... params) {
+		error(() -> logBaseBuilderWithLogTag(logTag1, logTag2), throwable, throwable.getMessage(), params);
 	}
 
 	// fatal level public logger api
 
+	public void fatal(Callable<MonitoringLogsDto.MonitoringLogsDtoBuilder> callable, Throwable throwable) {
+		fatal(callable, throwable, null);
+	}
+
+	public void fatal(Callable<MonitoringLogsDto.MonitoringLogsDtoBuilder> callable, String message,  Object... params) {
+		fatal(callable, null, message, params);
+	}
+
 	public void fatal(String message, Object... params) {
-		fatal(this::logBaseBuilder, message, params);
+		fatal(this::logBaseBuilder, null, message, params);
 	}
 
 	public void fatal(LogTag logTag1, String message, Object... params) {
-		fatal(() -> logBaseBuilderWithLogTag(logTag1), message, params);
+		fatal(() -> logBaseBuilderWithLogTag(logTag1), null, message, params);
 	}
 
 	public void fatal(LogTag logTag1, LogTag logTag2, String message, Object... params) {
-		fatal(() -> logBaseBuilderWithLogTag(logTag1, logTag2), message, params);
+		fatal(() -> logBaseBuilderWithLogTag(logTag1, logTag2), null, message, params);
+	}
+
+	public void fatal(Throwable throwable, Object... params) {
+		fatal(this::logBaseBuilder, throwable, throwable.getMessage(), params);
+	}
+
+	public void fatal(LogTag logTag1, Throwable throwable, Object... params) {
+		fatal(() -> logBaseBuilderWithLogTag(logTag1), throwable, throwable.getMessage(), params);
+	}
+
+	public void fatal(LogTag logTag1, LogTag logTag2, Throwable throwable, Object... params) {
+		fatal(() -> logBaseBuilderWithLogTag(logTag1, logTag2), throwable, throwable.getMessage(), params);
 	}
 
 	MonitoringLogsDto.MonitoringLogsDtoBuilder logBaseBuilderWithLogTag(LogTag... logTags) {
