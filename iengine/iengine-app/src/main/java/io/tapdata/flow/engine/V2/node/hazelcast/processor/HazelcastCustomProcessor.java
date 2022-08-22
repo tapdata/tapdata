@@ -18,6 +18,7 @@ import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.utils.cache.KVMap;
 import io.tapdata.flow.engine.V2.common.node.NodeTypeEnum;
+import io.tapdata.flow.engine.V2.exception.node.NodeException;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
 import org.apache.commons.collections.MapUtils;
 import org.apache.logging.log4j.LogManager;
@@ -77,7 +78,7 @@ public class HazelcastCustomProcessor extends HazelcastProcessorBaseNode {
 				stateMap = getStateMap(context.hazelcastInstance(), node.getId());
 				((ScriptEngine) engine).put("state", stateMap);
 			} catch (ScriptException e) {
-				throw new RuntimeException("Init script engine error: " + e.getMessage());
+				throw new NodeException("Init script engine error: " + e.getMessage()).context(getProcessorBaseContext());
 			}
 		}
 	}
