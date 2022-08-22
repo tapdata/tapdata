@@ -39,7 +39,7 @@ public class CommonDbTest implements AutoCloseable {
             NetUtil.validateHostPortWithSocket(commonDbConfig.getHost(), commonDbConfig.getPort());
             connectionCheckItem.result(ConnectionCheckItem.RESULT_SUCCESSFULLY);
         } catch (IOException e) {
-            connectionCheckItem.result(ConnectionCheckItem.RESULT_SUCCESSFULLY).information(e.getMessage());
+            connectionCheckItem.result(ConnectionCheckItem.RESULT_FAILED).information(e.getMessage());
         }
         connectionCheckItem.takes(System.currentTimeMillis() - start);
         return connectionCheckItem;
@@ -65,7 +65,7 @@ public class CommonDbTest implements AutoCloseable {
         ) {
             connectionCheckItem.result(ConnectionCheckItem.RESULT_SUCCESSFULLY);
         } catch (Exception e) {
-            connectionCheckItem.result(ConnectionCheckItem.RESULT_SUCCESSFULLY).information(e.getMessage());
+            connectionCheckItem.result(ConnectionCheckItem.RESULT_FAILED).information(e.getMessage());
         }
         connectionCheckItem.takes(System.currentTimeMillis() - start);
         return connectionCheckItem;

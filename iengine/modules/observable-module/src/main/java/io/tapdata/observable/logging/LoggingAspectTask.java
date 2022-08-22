@@ -137,11 +137,16 @@ public class LoggingAspectTask extends AspectTask {
 			return;
 		}
 		ObsLogger obsLogger = getObsLogger();
-		obsLogger.error(obsLogger::logBaseBuilder, throwable.getMessage());
+		obsLogger.error(obsLogger::logBaseBuilder, throwable);
 	}
 
 	private void error(Throwable throwable, ProcessorBaseContext context) {
 		if (noNeedLog(LogLevel.ERROR.getLevel())) {
+			return;
+		}
+
+		if (null == context) {
+			error(throwable);
 			return;
 		}
 
@@ -158,8 +163,8 @@ public class LoggingAspectTask extends AspectTask {
 				.time(System.currentTimeMillis())
 				.withNode(node);
 
-		ObsLogger obsLogger = getObsLogger();
-		obsLogger.error(() -> obsLogger.logBaseBuilder().record(builder.build().toMap()), throwable.getMessage());
+		ObsLogger obsLogger = getObsLogger(node);
+		obsLogger.error(() -> obsLogger.logBaseBuilder().record(builder.build().toMap()), throwable);
 	}
 
 	private void error(Throwable throwable, ProcessorBaseContext context, List<TapEvent> events) {
@@ -191,7 +196,7 @@ public class LoggingAspectTask extends AspectTask {
 		}
 
 		ObsLogger obsLogger = null != node ? getObsLogger(node) : getObsLogger();
-		obsLogger.error(() -> obsLogger.logBaseBuilder().data(data), throwable.getMessage());
+		obsLogger.error(() -> obsLogger.logBaseBuilder().data(data), throwable);
 	}
 
 	private void debug(String logEventType, Long cost, LogTag tag, ProcessorBaseContext context) {
@@ -408,7 +413,7 @@ public class LoggingAspectTask extends AspectTask {
 						aspect.getCreateTableEvent());
 				break;
 			case CreateTableFuncAspect.STATE_END:
-				if (aspect.getCreateTableOptions().getTableExists()) {
+				if (null != aspect.getCreateTableOptions() && aspect.getCreateTableOptions().getTableExists()) {
 					getObsLogger(node).info("The table {} has already exist.", aspect.getCreateTableEvent().getTable().getName());
 				}
 				break;

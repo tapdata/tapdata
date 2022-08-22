@@ -29,10 +29,7 @@ import org.graalvm.polyglot.Value;
 import org.graalvm.polyglot.proxy.ProxyObject;
 import org.springframework.beans.factory.config.BeanDefinition;
 
-import javax.script.Invocable;
-import javax.script.ScriptEngine;
-import javax.script.ScriptEngineManager;
-import javax.script.ScriptException;
+import javax.script.*;
 import java.io.File;
 import java.net.URL;
 import java.net.URLClassLoader;
@@ -89,7 +86,6 @@ public class ScriptUtil {
 											ClientMongoOperator clientMongoOperator) throws ScriptException {
 		return getScriptEngine(jsEngineName, script, javaScriptFunctions, clientMongoOperator, null, null, null);
 	}
-
 	public static Invocable getScriptEngine(String jsEngineName, String script, List<JavaScriptFunctions> javaScriptFunctions,
 											ClientMongoOperator clientMongoOperator, ScriptConnection source, ScriptConnection target, ICacheGetter memoryCacheGetter) throws ScriptException {
 
@@ -99,11 +95,18 @@ public class ScriptUtil {
 
 		ClassLoader contextClassLoader = Thread.currentThread().getContextClassLoader();
 		try {
-			String buildInMethod = initBuildInMethod(javaScriptFunctions, clientMongoOperator);
-			String scripts = new StringBuilder(script).append(System.lineSeparator()).append(buildInMethod).toString();
-
+			if (contextClassLoader == null) {
+				Thread.currentThread().setContextClassLoader(ScriptUtil.class.getClassLoader());
+			}
 			ScriptEngine e = getScriptEngine(jsEngineName);
-			e.eval(scripts);
+			String buildInMethod = initBuildInMethod(javaScriptFunctions, clientMongoOperator);
+			String scripts = script + System.lineSeparator() + buildInMethod;
+
+			try {
+				e.eval(scripts);
+			} catch (Throwable ex) {
+				throw new RuntimeException(String.format("script eval error: %s, %s, %s, %s", jsEngineName, e, scripts, contextClassLoader), ex);
+			}
 			if (source != null) {
 				e.put("source", source);
 			}
@@ -117,6 +120,12 @@ public class ScriptUtil {
 			return (Invocable) e;
 		} finally {
 			Thread.currentThread().setContextClassLoader(contextClassLoader);
+		}
+	}
+
+	private static void loggerLoader(ServiceLoader<ScriptEngineFactory> loader1, String tag) {
+		for (ScriptEngineFactory factory : loader1) {
+			logger.info("{} factory: {} {}", tag,  factory, factory.getScriptEngine().getClass());
 		}
 	}
 
@@ -161,6 +170,9 @@ public class ScriptUtil {
 		processContext.getEvent().setBefore(message.getBefore());
 		Map<String, Object> eventMap = MapUtil.obj2Map(processContext.getEvent());
 		context.put("event", eventMap);
+		if (engine == null) {
+			logger.error("script engine is null, {}", Arrays.asList(Thread.currentThread().getStackTrace()));
+		}
 
 		((ScriptEngine) engine).put("context", context);
 		((ScriptEngine) engine).put("log", logger);
@@ -302,10 +314,10 @@ public class ScriptUtil {
 				Thread.currentThread().setContextClassLoader(urlClassLoader);
 			}
 		}
-		if (Thread.currentThread().getContextClassLoader() == null) {
-			final URLClassLoader urlClassLoader = new CustomerClassLoader(new URL[0], ScriptUtil.class.getClassLoader());
-			Thread.currentThread().setContextClassLoader(urlClassLoader);
-		}
+//		if (Thread.currentThread().getContextClassLoader() == null) {
+//			final URLClassLoader urlClassLoader = new CustomerClassLoader(new URL[0], ScriptUtil.class.getClassLoader());
+//			Thread.currentThread().setContextClassLoader(urlClassLoader);
+//		}
 
 		return buildInMethod.toString();
 	}
@@ -341,6 +353,8 @@ public class ScriptUtil {
 	}
 
 	public static void main(String[] args) throws ScriptException, NoSuchMethodException, JsonProcessingException {
+		ScriptEngine scriptEngine1 = getScriptEngine(null);
+		System.out.println(scriptEngine1);
 		String script = initBuildInMethod(null, null);
 
 //		script += "function process(record){\n" +

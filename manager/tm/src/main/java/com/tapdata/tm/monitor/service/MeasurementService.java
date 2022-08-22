@@ -754,13 +754,13 @@ public class MeasurementService {
      */
     public Map<String, Number> getTransmitTotal(UserDetail userDetail) {
         Map transmitTotalMap = new HashMap();
-        Query queryTask = Query.query(Criteria.where("user_id").is(userDetail.getUserId()).and("is_deleted").ne(true));
+        Query queryTask = Query.query(Criteria.where("is_deleted").ne(true));
         queryTask.fields().include("id");
-        List<TaskEntity> taskDtos = taskRepository.findAll(queryTask);
+        List<TaskEntity> taskDtos = taskRepository.findAll(queryTask, userDetail);
         List<String>  taskIdList = taskDtos.stream().map(TaskEntity::getId).map(ObjectId::toString).collect(Collectors.toList());
 
 
-        Query query = Query.query(Criteria.where("tags.type").is("task").and("tags.task").in(taskIdList));
+        Query query = Query.query(Criteria.where("tags.type").is("task").and("tags.taskId").in(taskIdList));
         List<MeasurementEntity> measurementEntityList = mongoOperations.find(query, MeasurementEntity.class, TableNameEnum.AgentStatistics.getValue());
         List<Map<String, Number>> statisticsList = measurementEntityList.stream().map(MeasurementEntity::getStatistics).collect(Collectors.toList());
 

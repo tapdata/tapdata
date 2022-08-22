@@ -49,7 +49,6 @@ public class TaskCheckInspectServiceImpl implements TaskCheckInspectService {
             }).orElse(false);
 
             taskDto.setCanOpenInspect(canOpenInspect);//是否支持校验
-            taskDto.setIsAutoInspect(canOpenInspect);//不支持，关自动校验
         }
 
         return taskDto;

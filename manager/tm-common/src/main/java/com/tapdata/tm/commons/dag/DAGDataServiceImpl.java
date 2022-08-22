@@ -579,7 +579,7 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
 
 
         metadataInstancesDto = PdkSchemaConvert.fromPdk(tapTable);
-
+        metadataInstancesDto.setAncestorsName(schema.getAncestorsName());
 
         metadataInstancesDto.getFields().forEach(field -> {
             if (field.getId() == null) {

@@ -6,7 +6,8 @@ import io.tapdata.entity.event.control.HeartbeatEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
-import io.tapdata.entity.logger.TapLogger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.lang.NonNull;
 
 import java.text.ParseException;
@@ -22,7 +23,8 @@ import java.util.function.Consumer;
  * @version v1.0 2022/8/4 10:23 Create
  */
 public class CdcDelay implements ICdcDelay {
-    private static final String TAG = CdcDelay.class.getSimpleName();
+    private static final Logger logger = LoggerFactory.getLogger(CdcDelay.class);
+
     private static final TimeZone UTC_TIME_ZONE = TimeZone.getTimeZone("UTC");
     private static final Long INTERVAL = 5000L;
 
@@ -98,7 +100,7 @@ public class CdcDelay implements ICdcDelay {
                 Date date = sdf.parse(ts.toString());
                 return date.getTime();
             } catch (ParseException e) {
-                TapLogger.warn(TAG, "calc '{}' delay failed: {}", ts, e.getMessage());
+                logger.warn("calc '{}' delay failed: {}", ts, e.getMessage());
             }
         }
         return recordEvent.getReferenceTime();

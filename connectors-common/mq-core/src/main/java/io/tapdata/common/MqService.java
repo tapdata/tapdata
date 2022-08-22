@@ -11,15 +11,15 @@ import java.util.List;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
-public interface MqService {
+public interface MqService extends AutoCloseable {
 
-//    void testHostAndPort(Consumer<TestItem> consumer);
+    TestItem testHostAndPort();
 
-    void testConnect(Consumer<TestItem> consumer);
+    TestItem testConnect();
 
-//    void testPing(Consumer<ConnectionCheckItem> consumer);
+    ConnectionCheckItem testPing();
 
-//    void testConnection(Consumer<ConnectionCheckItem> consumer);
+    ConnectionCheckItem testConnection();
 
     void init() throws Throwable;
 

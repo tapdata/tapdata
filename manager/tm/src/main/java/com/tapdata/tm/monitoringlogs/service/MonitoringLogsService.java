@@ -1,5 +1,6 @@
 package com.tapdata.tm.monitoringlogs.service;
 
+import com.alibaba.fastjson.JSON;
 import com.tapdata.manager.common.utils.IOUtils;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.exception.BizException;
@@ -151,24 +152,11 @@ public class MonitoringLogsService extends BaseService<MonitoringLogsDto, Monito
         CloseableIterator<MonitoringLogsEntity> iter = mongoOperations.stream(query, MonitoringLogsEntity.class);
         AtomicLong count = new AtomicLong();
         iter.forEachRemaining(logEntity -> {
-            StringBuilder sb = new StringBuilder();
-            sb.append("[").append(logEntity.getLevel()).append("]").append(" ");
-            sb.append(logEntity.getDate()).append(" ");
-            if (null != logEntity.getLogTags()) {
-                for (String tag : logEntity.getLogTags()) {
-                    sb.append("[").append(tag).append("]").append(" ");
-                }
-            }
-
-            sb.append("-").append(" ").append(logEntity.getMessage()).append(" ");
-            if (logEntity.getErrorStack() != null) {
-                sb.append(logEntity.getErrorStack());
-            }
-            sb.append("\n");
-
-            count.addAndGet(1);
             try {
-                stream.write(sb.toString().getBytes());
+                MonitoringLogsDto logDto = convertToDto(logEntity, MonitoringLogsDto.class);
+                count.addAndGet(1);
+
+                stream.write((logDto.formatMonitoringLog() + "\n").getBytes());
             } catch (IOException e) {
                 throw new BizException("Export.IOError", e);
             }

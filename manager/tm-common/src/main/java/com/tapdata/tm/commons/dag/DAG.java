@@ -142,6 +142,8 @@ public class DAG implements Serializable, Cloneable {
                 graph.setEdge(edge.getSource(), edge.getTarget(), edge);
 
                 edgeMap.put(edge.getTarget(), edge.getSource());
+                edge.setDag(dag);
+                edge.setGraph(graph);
             }
         }
 

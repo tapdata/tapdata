@@ -5,5 +5,6 @@ public enum ObjectFilterEnum {
     objType,
     sourceCategory,
     sourceType,
+    itemType,
     ;
 }

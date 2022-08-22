@@ -161,9 +161,9 @@ public class TaskNodeServiceImpl implements TaskNodeService {
             }
 
             if (targetNode != null && nodeId.equals(targetNode.getId())) {
-                qualifiedNames.add(MetaDataBuilderUtils.generateQualifiedName(metaType, targetDataSource, tempName));
+                qualifiedNames.add(MetaDataBuilderUtils.generateQualifiedName(metaType, targetDataSource, tempName, taskId));
             } else {
-                qualifiedNames.add(MetaDataBuilderUtils.generateQualifiedName(MetaType.processor_node.name(), nodeId, tempName));
+                qualifiedNames.add(MetaDataBuilderUtils.generateQualifiedName(MetaType.processor_node.name(), nodeId, tempName, taskId));
             }
         }
 
@@ -377,7 +377,7 @@ public class TaskNodeServiceImpl implements TaskNodeService {
         first.setRows(rows);
 
         Dag build = dtoDag.toDag();
-//        build = JsonUtil.parseJsonUseJackson(JsonUtil.toJsonUseJackson(build), Dag.class);
+        build = JsonUtil.parseJsonUseJackson(JsonUtil.toJsonUseJackson(build), Dag.class);
         List<Node<?>> nodes = dtoDag.nodeMap().get(nodeId);
         MigrateJsProcessorNode jsNode = (MigrateJsProcessorNode) dtoDag.getNode(nodeId);
         if (StringUtils.isNotBlank(script)) {

@@ -3,6 +3,7 @@ package com.tapdata.tm.discovery.service;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.discovery.bean.*;
+import com.tapdata.tm.metadatadefinition.dto.MetadataDefinitionDto;
 
 import java.util.List;
 import java.util.Map;
@@ -37,4 +38,6 @@ public interface DiscoveryService {
     void updateListTags(List<TagBindingParam> tagBindingParams, List<String> tagIds, UserDetail user);
 
     void addListTags(List<TagBindingParam> tagBindingParams, List<String> tagIds, UserDetail user);
+
+    void addObjCount(List<MetadataDefinitionDto> tagDtos, UserDetail user);
 }

@@ -11,6 +11,7 @@ import com.mongodb.client.result.UpdateResult;
 import com.tapdata.manager.common.utils.JsonUtil;
 import com.tapdata.tm.CustomerJobLogs.CustomerJobLog;
 import com.tapdata.tm.CustomerJobLogs.service.CustomerJobLogsService;
+import com.tapdata.tm.autoinspect.service.TaskAutoInspectResultsService;
 import com.tapdata.tm.base.dto.Field;
 import com.tapdata.tm.base.dto.*;
 import com.tapdata.tm.base.exception.BizException;
@@ -46,7 +47,6 @@ import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
 import com.tapdata.tm.monitor.entity.AgentStatDto;
 import com.tapdata.tm.monitor.entity.MeasurementEntity;
 import com.tapdata.tm.monitor.service.MeasurementService;
-import com.tapdata.tm.monitor.service.MeasurementServiceV2;
 import com.tapdata.tm.monitoringlogs.service.MonitoringLogsService;
 import com.tapdata.tm.task.bean.*;
 import com.tapdata.tm.task.constant.SyncType;
@@ -93,6 +93,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -108,7 +109,6 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     private MessageService messageService;
     private SnapshotEdgeProgressService snapshotEdgeProgressService;
     private MeasurementService measurementService;
-    private MeasurementServiceV2 measurementServiceV2;
     private InspectService inspectService;
     private TaskRunHistoryService taskRunHistoryService;
     private TransformSchemaAsyncService transformSchemaAsyncService;
@@ -129,6 +129,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     private TaskDagCheckLogService taskDagCheckLogService;
     private BasicEventService basicEventService;
     private MonitoringLogsService monitoringLogsService;
+    private TaskAutoInspectResultsService taskAutoInspectResultsService;
 
     public static Set<String> stopStatus = new HashSet<>();
     /**
@@ -595,9 +596,9 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     }
 
     public void checkTaskInspectFlag (TaskDto taskDto) {
-        if (taskDto.isAutoInspect() && !taskDto.isCanOpenInspect()) {
-            throw new BizException("Task.CanNotSupportInspect");
-        }
+//        if (taskDto.isAutoInspect() && !taskDto.isCanOpenInspect()) {
+//            throw new BizException("Task.CanNotSupportInspect");
+//        }
     }
 
     private void saveInspect(TaskDto existedTask, TaskDto taskDto, UserDetail userDetail) {
@@ -744,6 +745,9 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         //将任务删除标识改成true
         update(new Query(Criteria.where("_id").is(id)), Update.update("is_deleted", true));
 
+        //delete AutoInspectResults
+        taskAutoInspectResultsService.cleanResultsByTask(taskDto);
+
         //add message
         if (SyncType.MIGRATE.getValue().equals(taskDto.getSyncType())) {
             messageService.addMigration(taskDto.getName(), taskDto.getId().toString(), MsgTypeEnum.DELETED, Level.WARN, user);
@@ -853,6 +857,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
         //将任务id设置为null,状态改为编辑中
         taskDto.setId(null);
+        taskDto.setTaskRecordId(null);
 
         //设置复制名称
         String copyName = taskDto.getName() + " - Copy";
@@ -944,6 +949,9 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
         taskDto.setStatus(TaskDto.STATUS_EDIT);
         taskDto.setTaskRecordId(lastTaskRecordId);
+
+        //清除校验结果
+        taskAutoInspectResultsService.cleanResultsByTask(taskDto);
 
         // publish queue
         TaskEntity taskSnapshot = new TaskEntity();
@@ -1630,17 +1638,8 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
         Map<String, Long> statusToCount = new HashMap<>();
         if (CollectionUtils.isNotEmpty(synList)) {
-            for (int i = 0; i < synList.size(); i++) {
-                TaskDto taskDto = synList.get(i);
-                List<Status> statusList = taskDto.getStatuses();
-                if (CollectionUtils.isNotEmpty(statusList)) {
-                    for (Status status : statusList) {
-                        MapUtils.increase(statusToCount, status.getStatus());
-                    }
-                } else {
-                    //Statuses 为空 就认为是编辑中
-                    MapUtils.increase(statusToCount, TaskEnum.STATUS_EDIT.getValue());
-                }
+            for (TaskDto taskDto : synList) {
+                MapUtils.increase(statusToCount, taskDto.getStatus());
             }
         }
 
@@ -1857,8 +1856,11 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
     public void batchLoadTask(HttpServletResponse response, List<String> taskIds, UserDetail user) {
         List<TaskUpAndLoadDto> jsonList = new ArrayList<>();
+
+        List<TaskDto> tasks = findAllTasksByIds(taskIds);
+        Map<String, TaskDto> taskDtoMap = tasks.stream().collect(Collectors.toMap(t -> t.getId().toHexString(), Function.identity(), (e1, e2) -> e1));
         for (String taskId : taskIds) {
-            TaskDto taskDto = findById(MongoUtils.toObjectId(taskId), user);
+            TaskDto taskDto = taskDtoMap.get(taskId);
             if (taskDto != null) {
                 taskDto.setCreateUser(null);
                 taskDto.setCustomId(null);
@@ -1900,7 +1902,14 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             }
         }
         String json = JsonUtil.toJsonUseJackson(jsonList);
-        fileService1.viewImg1(json, response);
+
+        AtomicReference<String> fileName = new AtomicReference<>("");
+        String yyyymmdd = DateUtil.format(new Date(), "YYYYMMDD");
+        FunctionUtils.isTureOrFalse(taskIds.size() > 1).trueOrFalseHandle(
+                () -> fileName.set("task_batch" + "-" + yyyymmdd),
+                () -> fileName.set(taskDtoMap.get(taskIds.get(0)).getName() + "-" + yyyymmdd)
+        );
+        fileService1.viewImg1(json, response, fileName.get() + ".json.gz");
     }
 
 
@@ -2161,10 +2170,11 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 //            taskDatabaseRuntimeInfoService.deleteAll(query);
         }
 
+        //todo jiaxin 之后逻辑补偿完善后再开启
         //重置的时候需要将子任务的temp更新到子任务实体中
-        if (taskDto.getTempDag() != null) {
-            taskDto.setDag(taskDto.getTempDag());
-        }
+//        if (taskDto.getTempDag() != null) {
+//            taskDto.setDag(taskDto.getTempDag());
+//        }
         beforeSave(taskDto, user);
         set.unset("tempDag").set("isEdit", true).set("status", TaskDto.STATUS_EDIT);
 //        Update update = new Update();

@@ -1,5 +1,6 @@
 package com.tapdata.processor.dataflow;
 
+import com.tapdata.constant.MapUtil;
 import com.tapdata.entity.MessageEntity;
 import com.tapdata.entity.dataflow.Stage;
 import com.tapdata.tm.commons.dag.process.MigrateFieldRenameProcessorNode;
@@ -10,16 +11,14 @@ import org.apache.commons.collections.MapUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
 public class MigrateFieldRenameProcessor implements DataFlowProcessor{
 
-	private static Logger logger = LogManager.getLogger(MigrateFieldRenameProcessor.class);
+	private static final Logger logger = LogManager.getLogger(MigrateFieldRenameProcessor.class);
 
 	private ProcessorContext processorContext;
 
@@ -55,18 +54,20 @@ public class MigrateFieldRenameProcessor implements DataFlowProcessor{
 			return map;
 		}
 
-		Set<String> keySet = new HashSet<>(map.keySet());
-		for (String oldFieldName : keySet) {
-			FieldInfo fieldInfo = fieldsMappingMap.get(oldFieldName);
-			if (fieldInfo == null) {
-				logger.warn(String.format("no suitable rename configuration for field [%s]", oldFieldName));
-				continue;
+		for (Map.Entry<String, FieldInfo> entry : fieldsMappingMap.entrySet()) {
+			if (MapUtil.containsKey(map, entry.getKey())) {
+				FieldInfo fieldInfo = entry.getValue();
+				if (fieldInfo.getIsShow() != null && !fieldInfo.getIsShow()) {
+					MapUtil.removeValueByKey(map, entry.getKey());
+					continue;
+				}
+				Object value = MapUtil.getValueByKey(map, entry.getKey());
+				try {
+					MapUtil.replaceKey(fieldInfo.getSourceFieldName(), map, fieldInfo.getTargetFieldName());
+				} catch (Exception e) {
+					throw new RuntimeException("Error when modifying field name: " + fieldInfo + "--" + value, e);
+				}
 			}
-			Object value = map.remove(oldFieldName);
-			if (fieldInfo.getIsShow() != null && !fieldInfo.getIsShow()) {
-				continue;
-			}
-			map.put(fieldInfo.getTargetFieldName(), value);
 		}
 		return map;
 	}

@@ -249,7 +249,8 @@ public class DataNodeSampleHandler extends AbstractNodeSampleHandler {
         String nodeId = node.getId();
         ConnectorNode connectorNode = ConnectorNodeService.getInstance().getConnectorNode(associateId);
         // if the data source does not implement the function, does not init samples or thread
-        if (null == connectorNode.getConnectorFunctions().getConnectionCheckFunction()) {
+        if (null == connectorNode || null == connectorNode.getConnectorFunctions()
+                || null == connectorNode.getConnectorFunctions().getConnectionCheckFunction()) {
             return;
         }
 

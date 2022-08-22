@@ -1402,7 +1402,9 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
                     FunctionUtils.isTure(CollectionUtils.isEmpty(tableNames)).throwMessage("SystemError", "dag node tableNames is null");
 
                     criteriaTable.and("source._id").is(tableNode.getConnectionId())
-                            .and("originalName").in(tableNames).and("is_deleted").ne(true);
+                            .and("originalName").in(tableNames)
+                            .and("taskId").is(taskId)
+                            .and("is_deleted").ne(true);
                     metadatas = findAllDto(queryMetadata, user);
                 } else if (node instanceof LogCollectorNode) {
                     LogCollectorNode logNode = (LogCollectorNode) node;
@@ -1641,18 +1643,22 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
     }
 
     public Page<TapTable> getTapTable(DatabaseNode node, UserDetail loginUser) {
-        DataSourceConnectionDto dataSource = dataSourceService.findById(toObjectId(node.getConnectionId()));
-        List<String> qualifiedNames = new ArrayList<>();
-        for (String tableName : node.getTableNames()) {
-            qualifiedNames.add(MetaDataBuilderUtils.generateQualifiedName(MetaType.table.name(), dataSource, tableName));
-        }
-
-
         Filter filter = new Filter();
         filter.setWhere(new Where()
                 .and("source.id", node.getConnectionId())
-                .and("qualified_name", new Document("$in", qualifiedNames))
+                .and("meta_type", MetaType.table)
+                .and("sourceType", SourceTypeEnum.SOURCE)
         );
+
+        DataSourceConnectionDto dataSource = dataSourceService.findById(toObjectId(node.getConnectionId()));
+        if (!"all".equals(node.getMigrateTableSelectType())) {
+            List<String> qualifiedNames = new ArrayList<>();
+            for (String tableName : node.getTableNames()) {
+                qualifiedNames.add(MetaDataBuilderUtils.generateQualifiedName(MetaType.table.name(), dataSource, tableName));
+            }
+            filter.getWhere().and("qualified_name", new Document("$in", qualifiedNames));
+        }
+
 
         return getTapTable(filter, loginUser);
     }

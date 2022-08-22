@@ -1,6 +1,6 @@
 package com.tapdata.tm.autoinspect.exception;
 
-import com.tapdata.tm.autoinspect.constants.AutoInspectTaskStatus;
+import com.tapdata.tm.autoinspect.constants.TaskStatus;
 import com.tapdata.tm.autoinspect.constants.Constants;
 
 /**
@@ -38,7 +38,7 @@ public class AutoInspectException extends RuntimeException {
         return new AutoInspectException(String.format("%s '%s' start failed: %s", Constants.MODULE_NAME, taskId, cause.getMessage()), cause);
     }
 
-    public static AutoInspectException existRunner(String taskId, AutoInspectTaskStatus.Sync syncStatus, AutoInspectTaskStatus.Inspect inspectStatus) {
+    public static AutoInspectException existRunner(String taskId, TaskStatus.Sync syncStatus, TaskStatus.Inspect inspectStatus) {
         return new AutoInspectException(String.format("%s '%s' exists runner{sync:%s, inspect:%s}", Constants.MODULE_NAME, taskId, syncStatus, inspectStatus));
     }
 

@@ -230,6 +230,13 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 				}
 			}
 
+			Object mqPassword = config.get("mqPassword");
+			if (mqPassword == null || StringUtils.isBlank((String) mqPassword)) {
+				if (StringUtils.isNotBlank((String) connectionDto.getConfig().get("password"))) {
+					config.put("mqPassword", connectionDto.getConfig().get("mqPassword"));
+				}
+			}
+
 			if (updateDto.getDatabase_type().toLowerCase(Locale.ROOT).contains("mongo") && config.get("uri") != null) {
 				String uri1 = (String) config.get("uri");
 				if (uri1.contains("******")) {
@@ -439,6 +446,9 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 				&& !item.getConfig().isEmpty()) {
 			if (item.getConfig().containsKey("password")) {
 				item.getConfig().put("password", null);
+			}
+			if (item.getConfig().containsKey("mqPassword")) {
+				item.getConfig().put("mqPassword", null);
 			}
 
 
@@ -1077,10 +1087,13 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 				Criteria criteria1 = Criteria.where("qualified_name").is(databaseModel.getQualifiedName());
 				MetadataInstancesDto oldMeta = metadataInstancesService.findOne(new Query(criteria1), user);
 
-				if (set != null && StringUtils.isNotBlank((String) set.get("name"))) {
-					databaseModel.setOriginalName((String) set.get("name"));
-					if (databaseModel.getSource() != null) {
-						databaseModel.getSource().setName((String) set.get("name"));
+				if (set != null) {
+					String tableName = (String) set.get("name");
+					if (StringUtils.isNotBlank(tableName)) {
+						databaseModel.setOriginalName(tableName);
+						if (databaseModel.getSource() != null) {
+							databaseModel.getSource().setName(tableName);
+						}
 					}
 				}
 
@@ -1106,7 +1119,7 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 					if (CollectionUtils.isNotEmpty(tables)) {
 
 						//处理自定义加载的表。
-						Boolean loadAllTable = oldConnectionDto.getLoadAllTable();
+						Boolean loadAllTable = oldConnectionDto.getLoadAllTables();
 						if (loadAllTable != null && !loadAllTable) {
 							String table_filter = oldConnectionDto.getTable_filter();
 							if (StringUtils.isNotBlank(table_filter)) {
@@ -1122,7 +1135,11 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 							PdkSchemaConvert.tableFieldTypesGenerator.autoFill(table.getNameFieldMap() == null ? new LinkedHashMap<>() : table.getNameFieldMap(), DefaultExpressionMatchingMap.map(expression));
 						}
 
-						List<MetadataInstancesDto> newModels = tables.stream().map(PdkSchemaConvert::fromPdk).collect(Collectors.toList());
+						List<MetadataInstancesDto> newModels = tables.stream().map(tapTable -> {
+							MetadataInstancesDto instance = PdkSchemaConvert.fromPdk(tapTable);
+							instance.setAncestorsName(instance.getOriginalName());
+							return instance;
+						}).collect(Collectors.toList());
 						//List<MetadataInstancesDto> newModels = SchemaTransformUtils.oldSchema2newSchema(schema);
 						log.info("upsert new models into MetadataInstance: {}, connection id = {}, connection name = {}",
 								newModels.size(), connectionId, oldConnectionDto.getName());

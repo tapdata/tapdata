@@ -40,6 +40,14 @@ public class MqConfig implements Serializable {
         return this;
     }
 
+    public String getConnectionString() {
+        if (EmptyKit.isNotBlank(nameSrvAddr)) {
+            return nameSrvAddr;
+        } else {
+            return mqHost + ":" + mqPort;
+        }
+    }
+
     public MqConfig load(String json) {
         try {
             beanUtils.copyProperties(jsonParser.fromJson(json, this.getClass()), this);

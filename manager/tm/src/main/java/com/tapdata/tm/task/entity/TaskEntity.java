@@ -143,7 +143,8 @@ public class TaskEntity extends BaseEntity {
     private String accessNodeProcessId;
 
     //是否开启数据校验 （true：开启校验；false：关闭校验）
-    private Boolean isAutoInspect =true;
+    private Boolean isAutoInspect = true;
+    private Boolean canOpenInspect = false;
 
     /**
      * 计划开始时间
@@ -197,6 +198,8 @@ public class TaskEntity extends BaseEntity {
     private Boolean resetFlag;
     private Boolean deleteFlag;
     private Long version;
+
+    private String agentId; //调度到指定的实例上去
 
     public String getAccessNodeProcessId() {
         return CollectionUtils.isNotEmpty(accessNodeProcessIdList) ? accessNodeProcessIdList.get(0) : "";

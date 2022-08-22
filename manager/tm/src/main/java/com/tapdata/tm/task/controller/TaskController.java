@@ -30,6 +30,7 @@ import com.tapdata.tm.task.vo.JsResultDto;
 import com.tapdata.tm.task.vo.JsResultVo;
 import com.tapdata.tm.task.vo.TaskDetailVo;
 import com.tapdata.tm.task.vo.TaskRecordListVo;
+import com.tapdata.tm.utils.FunctionUtils;
 import com.tapdata.tm.utils.Lists;
 import com.tapdata.tm.utils.MongoUtils;
 import io.github.openlg.graphlib.Graph;
@@ -200,11 +201,12 @@ public class TaskController extends BaseController {
         taskCheckInspectService.getInspectFlagDefaultFlag(task, user);
 
         boolean noPass = taskSaveService.taskSaveCheckLog(task, user);
-        TaskDto taskDto = task;
-        if (!noPass) {
-            taskDto = taskService.confirmById(task, user, confirm);
+        if (noPass) {
+            return failed("Task.Save.Error");
+        } else {
+            TaskDto taskDto = taskService.confirmById(task, user, confirm);
+            return success(taskDto);
         }
-        return success(taskDto);
     }
 
     /**

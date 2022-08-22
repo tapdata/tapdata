@@ -76,7 +76,6 @@ public class TableRenameProcessNode extends Node<List<Schema>> {
                 //schema.setDatabaseId(null);
                 //schema.setQualifiedName(MetaDataBuilderUtils.generateQualifiedName(MetaType.processor_node.name(), getId()));
             }
-            schema.setAncestorsName(originalName);
         });
 
         return inputSchemas.get(0);
@@ -89,9 +88,7 @@ public class TableRenameProcessNode extends Node<List<Schema>> {
 
     @Override
     protected List<Schema> saveSchema(Collection<String> predecessors, String nodeId, List<Schema> schema, DAG.Options options) {
-        ObjectId taskId = taskId();
         schema.forEach(s -> {
-            //s.setTaskId(taskId);
             s.setNodeId(nodeId);
         });
 

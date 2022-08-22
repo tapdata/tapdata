@@ -18,6 +18,7 @@ import io.tapdata.entity.utils.JsonParser;
 import io.tapdata.kit.EmptyKit;
 import io.tapdata.pdk.apis.entity.TestItem;
 import io.tapdata.pdk.apis.entity.WriteListResult;
+import io.tapdata.pdk.apis.functions.connection.ConnectionCheckItem;
 import org.apache.activemq.ActiveMQConnection;
 import org.apache.activemq.ActiveMQConnectionFactory;
 import org.apache.activemq.command.ActiveMQQueue;
@@ -38,12 +39,11 @@ public class ActivemqService extends AbstractMqService {
 
     private static final String TAG = ActivemqService.class.getSimpleName();
     private static final JsonParser jsonParser = InstanceFactory.instance(JsonParser.class);
-    private final ActivemqConfig activemqConfig;
     private final ActiveMQConnectionFactory activeMQConnectionFactory;
     private ActiveMQConnection activemqConnection;
 
     public ActivemqService(ActivemqConfig activemqConfig) {
-        this.activemqConfig = activemqConfig;
+        this.mqConfig = activemqConfig;
         activeMQConnectionFactory = new ActiveMQConnectionFactory();
         activeMQConnectionFactory.setBrokerURL(activemqConfig.getBrokerURL());
         if (StringUtils.isNotEmpty(activemqConfig.getMqUsername())) {
@@ -55,14 +55,29 @@ public class ActivemqService extends AbstractMqService {
     }
 
     @Override
-    public void testConnect(Consumer<TestItem> consumer) {
+    public TestItem testConnect() {
         try {
             activemqConnection = (ActiveMQConnection) activeMQConnectionFactory.createConnection();
             activemqConnection.start();
-            consumer.accept(new TestItem(MqTestItem.ACTIVE_MQ_CONNECTION.getContent(), TestItem.RESULT_SUCCESSFULLY, null));
+            return new TestItem(MqTestItem.ACTIVE_MQ_CONNECTION.getContent(), TestItem.RESULT_SUCCESSFULLY, null);
         } catch (Throwable t) {
-            consumer.accept(new TestItem(MqTestItem.ACTIVE_MQ_CONNECTION.getContent(), TestItem.RESULT_FAILED, t.getMessage()));
+            return new TestItem(MqTestItem.ACTIVE_MQ_CONNECTION.getContent(), TestItem.RESULT_FAILED, t.getMessage());
         }
+    }
+
+    @Override
+    public ConnectionCheckItem testConnection() {
+        long start = System.currentTimeMillis();
+        ConnectionCheckItem connectionCheckItem = ConnectionCheckItem.create();
+        connectionCheckItem.item(ConnectionCheckItem.ITEM_CONNECTION);
+        try {
+            activemqConnection.createSession(false, Session.AUTO_ACKNOWLEDGE).close();
+            connectionCheckItem.result(ConnectionCheckItem.RESULT_SUCCESSFULLY);
+        } catch (Exception e) {
+            connectionCheckItem.result(ConnectionCheckItem.RESULT_FAILED).information(e.getMessage());
+        }
+        connectionCheckItem.takes(System.currentTimeMillis() - start);
+        return connectionCheckItem;
     }
 
     @Override
@@ -99,10 +114,10 @@ public class ActivemqService extends AbstractMqService {
 
     @Override
     public int countTables() throws Throwable {
-        if (EmptyKit.isEmpty(activemqConfig.getMqQueueSet())) {
+        if (EmptyKit.isEmpty(mqConfig.getMqQueueSet())) {
             return activemqConnection.getDestinationSource().getQueues().size();
         } else {
-            return activemqConfig.getMqQueueSet().size();
+            return mqConfig.getMqQueueSet().size();
         }
     }
 
@@ -111,18 +126,18 @@ public class ActivemqService extends AbstractMqService {
         Set<ActiveMQQueue> existQueueSet = activemqConnection.getDestinationSource().getQueues();
         Set<Destination> destinationSet = new HashSet<>();
         Set<String> existQueueNameSet = new HashSet<>();
-        if (EmptyKit.isEmpty(activemqConfig.getMqQueueSet())) {
+        if (EmptyKit.isEmpty(mqConfig.getMqQueueSet())) {
             destinationSet.addAll(existQueueSet);
         } else {
             //query queue which exists
             for (Queue queue : existQueueSet) {
-                if (activemqConfig.getMqQueueSet().contains(queue.getQueueName())) {
+                if (mqConfig.getMqQueueSet().contains(queue.getQueueName())) {
                     destinationSet.add(queue);
                     existQueueNameSet.add(queue.getQueueName());
                 }
             }
             //create queue which not exists
-            Set<String> needCreateQueueSet = activemqConfig.getMqQueueSet().stream()
+            Set<String> needCreateQueueSet = mqConfig.getMqQueueSet().stream()
                     .filter(i -> !existQueueNameSet.contains(i)).collect(Collectors.toSet());
             if (EmptyKit.isNotEmpty(needCreateQueueSet)) {
                 Session session = activemqConnection.createSession(false, Session.AUTO_ACKNOWLEDGE);
