@@ -15,6 +15,7 @@ import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
 import io.tapdata.schema.SampleMockUtil;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -56,8 +57,15 @@ public class MockAspectTask extends AbstractAspectTask {
   @Override
   public void onStart(TaskStartAspect startAspect) {
     Optional<Node> optional = task.getDag().getNodes().stream().filter(n -> n.getType().equals("virtualTarget")).findFirst();
-    optional.ifPresent(node -> this.nodeIds = task.getDag().predecessors(node.getId()).stream()
-            .map(Element::getId).collect(Collectors.toSet()));
+    if (optional.isPresent()) {
+      Node virtualTargetNode = optional.get();
+      List<Node> targetNodes = task.getDag().predecessors(virtualTargetNode.getId());
+      if (targetNodes == null || targetNodes.size() != 1) {
+        throw new IllegalStateException("targetNodes is null or size is not 1");
+      }
+      Node targetNode = targetNodes.get(0);
+      this.nodeIds = task.getDag().predecessors(targetNode.getId()).stream().map(Element::getId).collect(Collectors.toSet());
+    }
   }
 
 
