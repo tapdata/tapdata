@@ -95,6 +95,8 @@ public class MetadataInstancesDto extends BaseDto {
     //auto ddl need this param
     private String taskId;
 
+    private String nodeId;
+
     /**
      * 是否是虚拟表 'virtual' 'source'
      */

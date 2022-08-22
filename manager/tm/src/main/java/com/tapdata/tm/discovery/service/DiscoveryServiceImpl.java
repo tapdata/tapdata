@@ -1,6 +1,7 @@
 package com.tapdata.tm.discovery.service;
 
 import com.mongodb.ConnectionString;
+import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.commons.base.dto.BaseDto;
 import com.tapdata.tm.commons.schema.*;
@@ -47,6 +48,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
     private TaskRepository taskRepository;
 
     private MetadataDefinitionService metadataDefinitionService;
+
     /**
      * 查询对象概览列表
      *
@@ -70,7 +72,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
 
 
         if (StringUtils.isNotBlank(param.getCategory())) {
-            if (!param.getCategory().equals(DataObjCategoryEnum.storage.name())) {
+            if (!param.getCategory().equals(DataObjCategoryEnum.table.name())) {
                 return page;
             }
         }
@@ -117,10 +119,10 @@ public class DiscoveryServiceImpl implements DiscoveryService {
 //        if (StringUtils.isNotBlank(param.getItemType())) {
 //            List<String> types = new ArrayList<>();
 //            if (ItemTypeEnum.resource.name().equals(param.getItemType())) {
-//                types.add(DataObjCategoryEnum.storage.name());
-//                types.add(DataObjCategoryEnum.server.name());
+//                types.add(DataObjCategoryEnum.table.name());
+//                types.add(DataObjCategoryEnum.api.name());
 //            } else {
-//                types.add(DataObjCategoryEnum.calculate.name());
+//                types.add(DataObjCategoryEnum.job.name());
 //            }
 //
 //            if (StringUtils.isNotBlank(param.getCategory())) {
@@ -150,7 +152,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
                 dto.setSourceType(source.getDatabase_type());
             }
             dto.setId(metadataInstancesDto.getId().toHexString());
-            dto.setCategory(DataObjCategoryEnum.storage);
+            dto.setCategory(DataObjCategoryEnum.table);
             dto.setType(metadataInstancesDto.getMetaType());
             dto.setName(metadataInstancesDto.getOriginalName());
             dto.setSourceCategory(DataSourceCategoryEnum.connection);
@@ -190,7 +192,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
         page.setItems(Lists.of());
         page.setTotal(0);
         if (StringUtils.isNotBlank(param.getCategory())) {
-            if (!param.getCategory().equals(DataObjCategoryEnum.storage.name())) {
+            if (!param.getCategory().equals(DataObjCategoryEnum.table.name())) {
                 return page;
             }
         }
@@ -321,7 +323,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
         }
         dto.setId(metadataInstancesDto.getId().toHexString());
         dto.setName(metadataInstancesDto.getOriginalName());
-        dto.setCategory(DataObjCategoryEnum.storage);
+        dto.setCategory(DataObjCategoryEnum.table);
         dto.setType(metadataInstancesDto.getMetaType());
         dto.setSourceCategory(DataSourceCategoryEnum.connection);
         dto.setSourceInfo(getConnectInfo(metadataInstancesDto));
@@ -352,6 +354,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
                 discoveryFieldDto.setDataType(field.getDataType());
                 discoveryFieldDto.setPrimaryKey(field.getPrimaryKey());
                 discoveryFieldDto.setForeignKey(field.getForeignKey());
+                discoveryFieldDto.setBusinessDesc(field.getTapType());
 
                 discoveryFieldDto.setIndex(indexNames.contains(field.getFieldName()));
 
@@ -517,6 +520,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
         query1.fields().include("agentId");
         List<String> taskSourceTypes = taskRepository.findDistinct(query1, "agentId", user, String.class);
         sourceTypes.addAll(taskSourceTypes);
+        sourceTypes = sourceTypes.stream().filter(StringUtils::isNotBlank).collect(Collectors.toList());
         return sourceTypes;
     }
 
@@ -540,13 +544,13 @@ public class DiscoveryServiceImpl implements DiscoveryService {
                 listtags.remove(allTag);
             }
             switch (tagBindingParam.getObjCategory()) {
-                case storage:
+                case table:
                     Update update = Update.update("listtags", listtags);
                     metadataInstancesService.updateById(MongoUtils.toObjectId(tagBindingParam.getId()), update, user);
                     break;
-                case calculate:
+                case job:
                     break;
-                case server:
+                case api:
                     break;
                 default:
                     break;
@@ -578,13 +582,13 @@ public class DiscoveryServiceImpl implements DiscoveryService {
                 }
             }
             switch (tagBindingParam.getObjCategory()) {
-                case storage:
+                case table:
                     Update update = Update.update("listtags", listtags);
                     metadataInstancesService.updateById(MongoUtils.toObjectId(tagBindingParam.getId()), update, user);
                     break;
-                case calculate:
+                case job:
                     break;
-                case server:
+                case api:
                     break;
                 default:
                     break;
@@ -594,24 +598,30 @@ public class DiscoveryServiceImpl implements DiscoveryService {
 
     @Override
     public void addObjCount(List<MetadataDefinitionDto> tagDtos, UserDetail user) {
-        for (MetadataDefinitionDto tagDto : tagDtos) {
-            Criteria criteria = Criteria.where("sourceType").is(SourceTypeEnum.SOURCE.name())
-                    .and("taskId").exists(false)
-                    .and("is_deleted").ne(true);
+        Query query = new Query();
+        query.fields().include("_id", "parent_id");
+        List<MetadataDefinitionDto> allDto = metadataDefinitionService.findAllDto(new Query(), user);
+        Map<String, List<MetadataDefinitionDto>> parentMap = allDto.stream().filter(s->StringUtils.isNotBlank(s.getParent_id()))
+                .collect(Collectors.groupingBy(MetadataDefinitionDto::getParent_id));
+        tagDtos.parallelStream().forEach(tagDto -> {
+                    Criteria criteria = Criteria.where("sourceType").is(SourceTypeEnum.SOURCE.name())
+                            .and("taskId").exists(false)
+                            .and("is_deleted").ne(true);
 
-            Criteria criteriaTask = Criteria.where("is_deleted").ne(true)
-                    .and("syncType").in(TaskDto.SYNC_TYPE_MIGRATE, TaskDto.SYNC_TYPE_SYNC)
-                    .and("agentId").exists(true);
+                    Criteria criteriaTask = Criteria.where("is_deleted").ne(true)
+                            .and("syncType").in(TaskDto.SYNC_TYPE_MIGRATE, TaskDto.SYNC_TYPE_SYNC)
+                            .and("agentId").exists(true);
 
-            List<MetadataDefinitionDto> andChild = metadataDefinitionService.findAndChild(Lists.of(tagDto.getId()));
-            List<ObjectId> tagIds = andChild.stream().map(BaseDto::getId).collect(Collectors.toList());
-            criteria.and("listtags.id").in(tagIds);
-            criteriaTask.and("listtags.id").in(tagIds);
+                    List<MetadataDefinitionDto> andChild = metadataDefinitionService.findAndChild(null, tagDto, parentMap);
+                    List<ObjectId> tagIds = andChild.stream().map(BaseDto::getId).collect(Collectors.toList());
+                    criteria.and("listtags.id").in(tagIds);
+                    criteriaTask.and("listtags.id").in(tagIds);
 
-            long count = metadataInstancesService.count(new Query(criteria), user);
-            long count1 = taskRepository.count(new Query(criteria), user);
-            tagDto.setObjCount(count1 + count);
-        }
+                    long count = metadataInstancesService.count(new Query(criteria), user);
+                    long count1 = taskRepository.count(new Query(criteria), user);
+                    tagDto.setObjCount(count1 + count);
+                }
+        );
     }
 
 

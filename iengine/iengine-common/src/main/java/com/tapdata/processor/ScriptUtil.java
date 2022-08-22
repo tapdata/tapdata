@@ -95,24 +95,17 @@ public class ScriptUtil {
 
 		ClassLoader contextClassLoader = Thread.currentThread().getContextClassLoader();
 		try {
-			String buildInMethod = initBuildInMethod(javaScriptFunctions, clientMongoOperator);
-			String scripts = new StringBuilder(script).append(System.lineSeparator()).append(buildInMethod).toString();
-
-			logger.info("scripts: {} {} {}", contextClassLoader, ScriptUtil.class.getClassLoader(), Thread.currentThread().getContextClassLoader());
-			ServiceLoader<ScriptEngineFactory> loader1 = ServiceLoader.load(ScriptEngineFactory.class, contextClassLoader);
-			ServiceLoader<ScriptEngineFactory> loader2 = ServiceLoader.load(ScriptEngineFactory.class, Thread.currentThread().getContextClassLoader());
-			ServiceLoader<ScriptEngineFactory> loader3 = ServiceLoader.load(ScriptEngineFactory.class, ScriptUtil.class.getClassLoader());
-			ServiceLoader<ScriptEngineFactory> loader4 = ServiceLoader.loadInstalled(ScriptEngineFactory.class);
-			loggerLoader(loader1, "1");
-			loggerLoader(loader2, "2");
-			loggerLoader(loader3, "3");
-			loggerLoader(loader4, "4");
+			if (contextClassLoader == null) {
+				Thread.currentThread().setContextClassLoader(ScriptUtil.class.getClassLoader());
+			}
 			ScriptEngine e = getScriptEngine(jsEngineName);
+			String buildInMethod = initBuildInMethod(javaScriptFunctions, clientMongoOperator);
+			String scripts = script + System.lineSeparator() + buildInMethod;
+
 			try {
 				e.eval(scripts);
 			} catch (Throwable ex) {
-				logger.error("script eval error--" + jsEngineName + "--" + e + "--" + scripts, ex);
-				throw new RuntimeException(ex);
+				throw new RuntimeException(String.format("script eval error: %s, %s, %s, %s", jsEngineName, e, scripts, contextClassLoader), ex);
 			}
 			if (source != null) {
 				e.put("source", source);
@@ -321,10 +314,10 @@ public class ScriptUtil {
 				Thread.currentThread().setContextClassLoader(urlClassLoader);
 			}
 		}
-		if (Thread.currentThread().getContextClassLoader() == null) {
-			final URLClassLoader urlClassLoader = new CustomerClassLoader(new URL[0], ScriptUtil.class.getClassLoader());
-			Thread.currentThread().setContextClassLoader(urlClassLoader);
-		}
+//		if (Thread.currentThread().getContextClassLoader() == null) {
+//			final URLClassLoader urlClassLoader = new CustomerClassLoader(new URL[0], ScriptUtil.class.getClassLoader());
+//			Thread.currentThread().setContextClassLoader(urlClassLoader);
+//		}
 
 		return buildInMethod.toString();
 	}

@@ -42,19 +42,19 @@ public class FileAppender implements Appender<MonitoringLogsDto>, Serializable {
 			final String level = log.getLevel();
 			switch (level) {
 				case "DEBUG":
-					logger.debug(log.getMessage());
+					logger.debug(log.formatMonitoringLogMessage());
 					break;
 				case "INFO":
-					logger.info(log.getMessage());
+					logger.info(log.formatMonitoringLogMessage());
 					break;
 				case "WARN":
-					logger.warn(log.getMessage());
+					logger.warn(log.formatMonitoringLogMessage());
 					break;
 				case "ERROR":
-					logger.error(log.getMessage() + "\n" + log.getErrorStack());
+					logger.error(log.formatMonitoringLogMessage());
 					break;
 				case "FATAL":
-					logger.fatal(log.getMessage() + "\n" + log.getErrorStack());
+					logger.fatal(log.formatMonitoringLogMessage());
 					break;
 
 			}

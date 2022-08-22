@@ -1,4 +1,4 @@
-package io.tapdata.autoinspect.connector.pdk;
+package io.tapdata.autoinspect.connector;
 
 import com.tapdata.tm.autoinspect.connector.IDataCursor;
 import com.tapdata.tm.autoinspect.entity.CompareRecord;

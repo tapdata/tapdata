@@ -1,10 +1,10 @@
-package io.tapdata.autoinspect.compare.impl;
+package io.tapdata.autoinspect.compare;
 
 import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.mongo.ClientMongoOperator;
+import com.tapdata.tm.autoinspect.compare.IAutoCompare;
+import com.tapdata.tm.autoinspect.connector.IPdkConnector;
 import com.tapdata.tm.autoinspect.dto.TaskAutoInspectResultDto;
-import com.tapdata.tm.autoinspect.connector.IConnector;
-import io.tapdata.autoinspect.compare.IAutoCompare;
 import lombok.NonNull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -16,10 +16,10 @@ import org.apache.logging.log4j.Logger;
 public class AutoPdkCompare implements IAutoCompare {
     private static final Logger logger = LogManager.getLogger(AutoPdkCompare.class);
     private final ClientMongoOperator clientMongoOperator;
-    private final IConnector sourceConnector;
-    private final IConnector targetConnector;
+    private final IPdkConnector sourceConnector;
+    private final IPdkConnector targetConnector;
 
-    public AutoPdkCompare(ClientMongoOperator clientMongoOperator, IConnector sourceConnector, IConnector targetConnector) {
+    public AutoPdkCompare(ClientMongoOperator clientMongoOperator, IPdkConnector sourceConnector, IPdkConnector targetConnector) {
         this.clientMongoOperator = clientMongoOperator;
         this.sourceConnector = sourceConnector;
         this.targetConnector = targetConnector;
@@ -38,15 +38,7 @@ public class AutoPdkCompare implements IAutoCompare {
 
     private void save(TaskAutoInspectResultDto dto) {
         try {
-//            Criteria criteria = Criteria.where("taskId").is(dto.getTaskId())
-//                    .and("originalTableName").is(dto.getOriginalTableName());
-//            for (Map.Entry<String, Object> en : dto.getOriginalKeymap().entrySet()) {
-//                criteria.and("originalKeymap." + en.getKey()).is(en.getValue());
-//            }
-//            Query query = Query.query(criteria);
-//            Map<String, Object> update = MapUtil.obj2Map(dto);
-//            update.remove("id");
-//            clientMongoOperator.upsert(query.getQueryObject(), update, ConnectorConstant.AUTO_INSPECT_RESULTS_COLLECTION);
+            //bug: upsert api can not save most properties
             clientMongoOperator.insertOne(dto, ConnectorConstant.AUTO_INSPECT_RESULTS_COLLECTION);
         } catch (Exception e) {
             logger.warn("save compare results failed: {}", e.getMessage(), e);

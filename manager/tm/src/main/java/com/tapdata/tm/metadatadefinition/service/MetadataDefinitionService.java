@@ -176,6 +176,22 @@ public class MetadataDefinitionService extends BaseService<MetadataDefinitionDto
         return findChild(all, idList);
     }
 
+    public List<MetadataDefinitionDto> findAndChild(List<MetadataDefinitionDto> all, MetadataDefinitionDto dto, Map<String, List<MetadataDefinitionDto>> parentMap) {
+        if (all == null) {
+            all = new ArrayList<>();
+            all.add(dto);
+        }
+
+        List<MetadataDefinitionDto> metadataDefinitionDtos = parentMap.get(dto.getId().toHexString());
+        if (CollectionUtils.isNotEmpty(metadataDefinitionDtos)) {
+            all.addAll(metadataDefinitionDtos);
+            for (MetadataDefinitionDto metadataDefinitionDto : metadataDefinitionDtos) {
+                findAndChild(all, metadataDefinitionDto, parentMap);
+            }
+        }
+        return all;
+    }
+
 
     private List<MetadataDefinitionDto> findChild(List<MetadataDefinitionDto> metadataDefinitionDtos, List<ObjectId> idList) {
         List<String> collect = idList.stream().map(ObjectId::toHexString).collect(Collectors.toList());
@@ -189,7 +205,6 @@ public class MetadataDefinitionService extends BaseService<MetadataDefinitionDto
         List<ObjectId> ids = all.stream().map(BaseDto::getId).collect(Collectors.toList());
         return findChild(metadataDefinitionDtos, ids);
     }
-
 
     @Override
     public Page<MetadataDefinitionDto> find(Filter filter, UserDetail user) {

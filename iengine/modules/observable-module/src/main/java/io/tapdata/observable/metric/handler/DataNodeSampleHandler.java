@@ -26,6 +26,7 @@ import org.apache.logging.log4j.Logger;
 import java.util.*;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * @author Dexter
@@ -235,7 +236,13 @@ public class DataNodeSampleHandler extends AbstractNodeSampleHandler {
         Optional.ofNullable(currentEventTimestamps.get(nodeId)).ifPresent(sampler -> sampler.setValue(newestEventTimestamp));
     }
 
+    AtomicBoolean firstTableCount = new AtomicBoolean(true);
     public void handleTableCountAccept(String nodeId, long count) {
+        if (firstTableCount.get()) {
+            Optional.ofNullable(snapshotRowCounters.get(nodeId)).ifPresent(CounterSampler::reset);
+            firstTableCount.set(false);
+        }
+
         Optional.ofNullable(snapshotRowCounters.get(nodeId)).ifPresent(counter -> counter.inc(count));
     }
 
@@ -249,7 +256,8 @@ public class DataNodeSampleHandler extends AbstractNodeSampleHandler {
         String nodeId = node.getId();
         ConnectorNode connectorNode = ConnectorNodeService.getInstance().getConnectorNode(associateId);
         // if the data source does not implement the function, does not init samples or thread
-        if (null == connectorNode.getConnectorFunctions().getConnectionCheckFunction()) {
+        if (null == connectorNode || null == connectorNode.getConnectorFunctions()
+                || null == connectorNode.getConnectorFunctions().getConnectionCheckFunction()) {
             return;
         }
 

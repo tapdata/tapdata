@@ -36,7 +36,7 @@ public class BaseDto implements Serializable {
 	private Date createAt;
 
 	@JsonProperty("last_updated")
-	@JsonFormat(pattern="yyyy-MM-dd HH:mm:ss")
+//	@JsonFormat(pattern="yyyy-MM-dd HH:mm:ss")
 	private Date lastUpdAt;
 
 	@JsonProperty("user_id")

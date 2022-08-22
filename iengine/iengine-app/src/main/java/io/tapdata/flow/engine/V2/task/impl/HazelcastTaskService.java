@@ -17,7 +17,6 @@ import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.entity.task.context.ProcessorBaseContext;
 import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.mongo.HttpClientMongoOperator;
-import com.tapdata.tm.autoinspect.utils.AutoInspectUtil;
 import com.tapdata.tm.commons.dag.Edge;
 import com.tapdata.tm.commons.dag.Element;
 import com.tapdata.tm.commons.dag.Node;
@@ -32,6 +31,7 @@ import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.aspect.TaskStartAspect;
 import io.tapdata.aspect.TaskStopAspect;
 import io.tapdata.aspect.utils.AspectUtils;
+import io.tapdata.autoinspect.utils.AutoInspectNodeUtil;
 import io.tapdata.common.SettingService;
 import io.tapdata.common.sharecdc.ShareCdcUtil;
 import io.tapdata.dao.MessageDao;
@@ -188,7 +188,7 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 			Map<String, MergeTableNode> mergeTableMap = MergeTableUtil.getMergeTableMap(nodes, edges);
 
 			// Generate AutoInspectNode
-			AutoInspectUtil.generateAutoInspectNode(taskDtoAtomicReference.get(), nodes, edges, nodeMap);
+			AutoInspectNodeUtil.generateAutoInspectNode(taskDtoAtomicReference.get(), nodes, edges, nodeMap);
 
 			for (Node node : nodes) {
 				Connections connection = null;
