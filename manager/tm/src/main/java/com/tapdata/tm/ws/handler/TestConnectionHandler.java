@@ -81,7 +81,11 @@ public class TestConnectionHandler implements WebSocketHandler {
 			return;
 		}
 		Map<String, Object> data = messageInfo.getData();
-//		data.put("last_updated", new Date());
+
+		FunctionUtils.isTureOrFalse(data.containsKey("last_updated")).trueOrFalseHandle(
+				() -> {},
+				() -> data.put("last_updated", new Date())
+		);
 		DataSourceConnectionDto connectionDto = JsonUtil.parseJsonUseJackson(JsonUtil.toJsonUseJackson(data), DataSourceConnectionDto.class);
 		Assert.notNull(connectionDto, "TestConnectionHandler handleMessage connectionDto is null");
 
