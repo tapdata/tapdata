@@ -105,8 +105,7 @@ public class ScriptUtil {
 			try {
 				e.eval(scripts);
 			} catch (Throwable ex) {
-				logger.error(String.format("script eval error: %s, %s, %s, %s", jsEngineName, e, scripts, contextClassLoader), ex);
-				throw new RuntimeException(ex);
+				throw new RuntimeException(String.format("script eval error: %s, %s, %s, %s", jsEngineName, e, scripts, contextClassLoader), ex);
 			}
 			if (source != null) {
 				e.put("source", source);
