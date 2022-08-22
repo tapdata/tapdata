@@ -1,6 +1,5 @@
-package io.tapdata.autoinspect.connector;
+package com.tapdata.tm.autoinspect.connector;
 
-import com.tapdata.tm.autoinspect.connector.IConnector;
 import io.tapdata.entity.schema.TapTable;
 
 /**

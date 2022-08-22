@@ -25,6 +25,10 @@ public class CounterSampler implements Sampler {
         counter.add(value);
     }
 
+    public void reset() {
+        counter.reset();
+    }
+
     @Override
     public Number value() {
         return counter.longValue();

@@ -15,6 +15,7 @@ import org.springframework.stereotype.Repository;
 import org.springframework.util.Assert;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.regex.Pattern;
 
@@ -78,5 +79,22 @@ public class TaskAutoInspectResultRepository extends BaseRepository<TaskAutoInsp
         dataPage.setItems(dataList);
 
         return dataPage;
+    }
+
+    public Map<String, Object> totalDiffTables(String taskId) {
+        Criteria where = Criteria.where("taskId").is(taskId);
+        MatchOperation match = Aggregation.match(where);
+
+        return mongoOperations.aggregate(Aggregation.newAggregation(
+                match
+                , Optional.of(new String[]{"taskId", "originalTableName"}).map(fields -> {
+                    GroupOperation g = Aggregation.group(fields).count().as("counts");
+                    for (String f : fields) {
+                        g = g.first(f).as(f);
+                    }
+                    return g;
+                }).get()
+                , Aggregation.group().count().as("tables").sum("counts").as("totals")
+        ), entityInformation.getCollectionName(), Map.class).getUniqueMappedResult();
     }
 }

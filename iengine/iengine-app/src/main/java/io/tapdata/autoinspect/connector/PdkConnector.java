@@ -1,14 +1,14 @@
-package io.tapdata.autoinspect.connector.pdk;
+package io.tapdata.autoinspect.connector;
 
 import com.tapdata.constant.HazelcastUtil;
 import com.tapdata.entity.Connections;
 import com.tapdata.entity.DatabaseTypeEnum;
 import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.tm.autoinspect.connector.IDataCursor;
+import com.tapdata.tm.autoinspect.connector.IPdkConnector;
 import com.tapdata.tm.autoinspect.entity.CompareEvent;
 import com.tapdata.tm.autoinspect.entity.CompareRecord;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
-import io.tapdata.autoinspect.connector.IPdkConnector;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
 import io.tapdata.entity.schema.TapTable;
