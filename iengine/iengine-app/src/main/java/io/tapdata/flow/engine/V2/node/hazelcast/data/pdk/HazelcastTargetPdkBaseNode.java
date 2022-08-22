@@ -150,7 +150,8 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 			} catch (Throwable e) {
 				TaskMilestoneFuncAspect.execute(dataProcessorContext, MilestoneStage.INIT_TRANSFORMER, MilestoneStatus.ERROR, logger);
 				MilestoneUtil.updateMilestone(milestoneService, MilestoneStage.INIT_TRANSFORMER, MilestoneStatus.ERROR, e.getMessage() + "\n" + Log4jUtil.getStackString(e));
-				throw new NodeException(e).context(getProcessorBaseContext());
+				errorHandle(e, e.getMessage());
+				throw new RuntimeException(e);
 			}
 		}
 		this.uploadDagService = new AtomicBoolean(false);
