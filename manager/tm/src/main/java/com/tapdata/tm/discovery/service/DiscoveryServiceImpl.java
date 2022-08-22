@@ -518,6 +518,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
         query1.fields().include("agentId");
         List<String> taskSourceTypes = taskRepository.findDistinct(query1, "agentId", user, String.class);
         sourceTypes.addAll(taskSourceTypes);
+        sourceTypes = sourceTypes.stream().filter(StringUtils::isNotBlank).collect(Collectors.toList());
         return sourceTypes;
     }
 
