@@ -228,18 +228,22 @@ public class PartitionConcurrentProcessor {
 			generateWatermarkEvent(tapdataEvents.get(tapdataEvents.size() - 1));
 
 			if (!async) {
-				final BarrierEvent barrierEvent = generateBarrierEvent();
-				final CountDownLatch countDownLatch = barrierEvent.getCountDownLatch();
-				try {
-					while (running.get() && !countDownLatch.await(3, TimeUnit.SECONDS)) {
-						if (logger.isInfoEnabled()) {
-							logger.info(LOG_PREFIX + "waiting all events processed for thread");
-						}
-					}
-				} catch (InterruptedException e) {
-					// nothing to do
+				waitingForProcessToCurrent();
+			}
+		}
+	}
+
+	private void waitingForProcessToCurrent() {
+		final BarrierEvent barrierEvent = generateBarrierEvent();
+		final CountDownLatch countDownLatch = barrierEvent.getCountDownLatch();
+		try {
+			while (running.get() && !countDownLatch.await(3, TimeUnit.SECONDS)) {
+				if (logger.isInfoEnabled()) {
+					logger.info(LOG_PREFIX + "waiting all events processed for thread");
 				}
 			}
+		} catch (InterruptedException e) {
+			// nothing to do
 		}
 	}
 
@@ -310,6 +314,13 @@ public class PartitionConcurrentProcessor {
 	}
 
 	public void stop(){
+		waitingForProcessToCurrent();
+		running.compareAndSet(true, false);
+		ExecutorUtil.shutdownEx(this.executorService, 60L, TimeUnit.SECONDS);
+	}
+
+
+	public void forceStop(){
 		running.compareAndSet(true, false);
 		ExecutorUtil.shutdownEx(this.executorService, 60L, TimeUnit.SECONDS);
 	}
