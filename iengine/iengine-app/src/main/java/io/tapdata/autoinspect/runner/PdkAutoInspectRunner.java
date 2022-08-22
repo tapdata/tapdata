@@ -16,8 +16,7 @@ import io.tapdata.autoinspect.AutoInspectRunner;
 import io.tapdata.autoinspect.compare.AutoPdkCompare;
 import io.tapdata.autoinspect.connector.PdkConnector;
 import io.tapdata.entity.schema.TapTable;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import io.tapdata.observable.logging.ObsLogger;
 import org.bson.types.ObjectId;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
@@ -30,13 +29,12 @@ import java.util.*;
  * @version v1.0 2022/8/18 14:57 Create
  */
 public abstract class PdkAutoInspectRunner extends AutoInspectRunner<IPdkConnector, IPdkConnector, IAutoCompare> {
-    private static final Logger logger = LogManager.getLogger(PdkAutoInspectRunner.class);
     private final ClientMongoOperator clientMongoOperator;
     private final AutoInspectNode node;
     private final Map<String, Connections> connectionMap;
 
-    public PdkAutoInspectRunner(String taskId, TaskType taskType, AutoInspectProgress progress, AutoInspectNode node, ClientMongoOperator clientMongoOperator) {
-        super(taskId, taskType, progress);
+    public PdkAutoInspectRunner(ObsLogger userLogger, String taskId, TaskType taskType, AutoInspectProgress progress, AutoInspectNode node, ClientMongoOperator clientMongoOperator) {
+        super(userLogger, taskId, taskType, progress);
         this.clientMongoOperator = clientMongoOperator;
         this.node = node;
         this.connectionMap = getConnectionsByIds(new HashSet<>(Arrays.asList(
@@ -78,13 +76,13 @@ public abstract class PdkAutoInspectRunner extends AutoInspectRunner<IPdkConnect
 
                 tapTable = sourceConnector.getTapTable(tableName);
                 if (null == tapTable.primaryKeys() || tapTable.primaryKeys().isEmpty()) {
-                    logger.warn("ignore non primary key table: {}", tableName);
+                    userLogger.warn("Ignore non primary key table: {}", tableName);
                     progress.addTableIgnore(1);
                     continue;
                 }
                 tapTable = targetConnector.getTapTable(tableName);
                 if (null == tapTable.primaryKeys() || tapTable.primaryKeys().isEmpty()) {
-                    logger.warn("ignore non primary key table: {}", tableName);
+                    userLogger.warn("Ignore non primary key table: {}", tableName);
                     progress.addTableIgnore(1);
                     continue;
                 }

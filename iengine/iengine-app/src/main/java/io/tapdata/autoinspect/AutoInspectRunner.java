@@ -11,8 +11,7 @@ import com.tapdata.tm.autoinspect.dto.TaskAutoInspectResultDto;
 import com.tapdata.tm.autoinspect.entity.AutoInspectProgress;
 import com.tapdata.tm.autoinspect.entity.CompareRecord;
 import com.tapdata.tm.autoinspect.entity.CompareTableItem;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import io.tapdata.observable.logging.ObsLogger;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -23,12 +22,13 @@ import java.util.Map;
  * @version v1.0 2022/8/18 13:12 Create
  */
 public abstract class AutoInspectRunner<S extends IConnector, T extends IConnector, A extends IAutoCompare> implements Runnable {
-    private static final Logger logger = LogManager.getLogger(AutoInspectRunner.class);
+    protected final ObsLogger userLogger;
     protected final String taskId;
     protected final TaskType taskType;
     protected AutoInspectProgress progress;
 
-    public AutoInspectRunner(String taskId, TaskType taskType, AutoInspectProgress progress) {
+    public AutoInspectRunner(ObsLogger userLogger, String taskId, TaskType taskType, AutoInspectProgress progress) {
+        this.userLogger = userLogger;
         this.taskId = taskId;
         this.taskType = taskType;
         this.progress = progress;
@@ -49,21 +49,23 @@ public abstract class AutoInspectRunner<S extends IConnector, T extends IConnect
             }
 
             if (CompareStep.Initial == progress.getStep() && taskType.hasInitial()) {
+                userLogger.info("Start initial compare");
                 long beginTimes = System.currentTimeMillis();
                 initialCompare(sourceConnector, targetConnector, autoCompare);
-                logger.info("completed initial compare use {} ms", System.currentTimeMillis() - beginTimes);
+                userLogger.info("Completed initial compare use {} ms", System.currentTimeMillis() - beginTimes);
             }
 
             progress.setStep(CompareStep.Increment);
             updateProgress(progress);
 
             if (taskType.hasIncrement()) {
+                userLogger.info("Start Incremental compare");
                 long beginTimes = System.currentTimeMillis();
                 incrementalCompare(sourceConnector, targetConnector, autoCompare);
-                logger.info("completed increment compare use {} ms", System.currentTimeMillis() - beginTimes);
+                userLogger.info("Completed increment compare use {} ms", System.currentTimeMillis() - beginTimes);
             }
         } catch (Exception e) {
-            handleError(String.format("execute failed: %s", e.getMessage()), e);
+            handleError(String.format("Execute failed: %s", e.getMessage()), e);
         } finally {
             exit();
         }
@@ -86,7 +88,7 @@ public abstract class AutoInspectRunner<S extends IConnector, T extends IConnect
     }
 
     protected void initialCompare(S sourceConnector, T targetConnector, A autoCompare, CompareTableItem compareItem) throws Exception {
-        logger.info("begin '{}' table initial compare", compareItem.getTableName());
+        userLogger.info("Start '{}' table initial compare", compareItem.getTableName());
         try (IDataCursor<CompareRecord> sourceCursor = sourceConnector.queryAll(compareItem.getTableName(), compareItem.getOffset())) {
             try (IDataCursor<CompareRecord> targetCursor = targetConnector.queryAll(compareItem.getTableName(), compareItem.getOffset())) {
                 CompareRecord sourceData = sourceCursor.next();
@@ -99,7 +101,9 @@ public abstract class AutoInspectRunner<S extends IConnector, T extends IConnect
                             counts++;
                             targetData = targetCursor.next();
                         }
-                        logger.info("has more target: {}", counts);
+                        if (counts > 0) {
+                            userLogger.warn("Target has more data: {}", counts);
+                        }
                         break;
                     }
                     if (null == targetData) {
@@ -131,12 +135,12 @@ public abstract class AutoInspectRunner<S extends IConnector, T extends IConnect
                             targetData = targetCursor.next();
                             break;
                         default:
-                            throw new RuntimeException("no support compare result type: " + compareStatus);
+                            throw new RuntimeException("No support compare result type: " + compareStatus);
                     }
                 } while (isRunning() && !isStopping());
             }
         }
-        logger.info("'{}' table initial compare completed", compareItem.getTableName());
+        userLogger.info("'{}' table initial compare completed", compareItem.getTableName());
     }
 
     protected abstract void incrementalCompare(S sourceConnector, T targetConnector, A autoCompare) throws Exception;
@@ -182,10 +186,10 @@ public abstract class AutoInspectRunner<S extends IConnector, T extends IConnect
     protected abstract boolean isStopping();
 
     protected void handleError(String msg, Throwable e) {
-        logger.warn(msg, e);
+        userLogger.warn(msg, e);
     }
 
     protected void exit() {
-        logger.info("exit");
+        userLogger.info("Exit");
     }
 }
