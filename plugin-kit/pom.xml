@@ -15,9 +15,12 @@
         <module>tapdata-tests</module>
 		<module>connector-archetypes</module>
         <module>tapdata-common</module>
+		<module>tapdata-proxy</module>
+		<module>tapdata-modules</module>
     </modules>
 
 	<properties>
+		<proxy.file.name>${project.artifactId}-v${project.version}</proxy.file.name>
 		<connector.file.name>${project.artifactId}-v${project.version}</connector.file.name>
 		<java.version>8</java.version>
 		<tapdata.pdk.runner.verison>1.2-SNAPSHOT</tapdata.pdk.runner.verison>
