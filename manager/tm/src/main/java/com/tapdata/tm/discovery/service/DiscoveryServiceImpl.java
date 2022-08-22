@@ -70,7 +70,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
 
 
         if (StringUtils.isNotBlank(param.getCategory())) {
-            if (!param.getCategory().equals(DataObjCategoryEnum.storage.name())) {
+            if (!param.getCategory().equals(DataObjCategoryEnum.table.name())) {
                 return page;
             }
         }
@@ -117,10 +117,10 @@ public class DiscoveryServiceImpl implements DiscoveryService {
 //        if (StringUtils.isNotBlank(param.getItemType())) {
 //            List<String> types = new ArrayList<>();
 //            if (ItemTypeEnum.resource.name().equals(param.getItemType())) {
-//                types.add(DataObjCategoryEnum.storage.name());
-//                types.add(DataObjCategoryEnum.server.name());
+//                types.add(DataObjCategoryEnum.table.name());
+//                types.add(DataObjCategoryEnum.api.name());
 //            } else {
-//                types.add(DataObjCategoryEnum.calculate.name());
+//                types.add(DataObjCategoryEnum.job.name());
 //            }
 //
 //            if (StringUtils.isNotBlank(param.getCategory())) {
@@ -150,7 +150,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
                 dto.setSourceType(source.getDatabase_type());
             }
             dto.setId(metadataInstancesDto.getId().toHexString());
-            dto.setCategory(DataObjCategoryEnum.storage);
+            dto.setCategory(DataObjCategoryEnum.table);
             dto.setType(metadataInstancesDto.getMetaType());
             dto.setName(metadataInstancesDto.getOriginalName());
             dto.setSourceCategory(DataSourceCategoryEnum.connection);
@@ -190,7 +190,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
         page.setItems(Lists.of());
         page.setTotal(0);
         if (StringUtils.isNotBlank(param.getCategory())) {
-            if (!param.getCategory().equals(DataObjCategoryEnum.storage.name())) {
+            if (!param.getCategory().equals(DataObjCategoryEnum.table.name())) {
                 return page;
             }
         }
@@ -321,7 +321,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
         }
         dto.setId(metadataInstancesDto.getId().toHexString());
         dto.setName(metadataInstancesDto.getOriginalName());
-        dto.setCategory(DataObjCategoryEnum.storage);
+        dto.setCategory(DataObjCategoryEnum.table);
         dto.setType(metadataInstancesDto.getMetaType());
         dto.setSourceCategory(DataSourceCategoryEnum.connection);
         dto.setSourceInfo(getConnectInfo(metadataInstancesDto));
@@ -541,13 +541,13 @@ public class DiscoveryServiceImpl implements DiscoveryService {
                 listtags.remove(allTag);
             }
             switch (tagBindingParam.getObjCategory()) {
-                case storage:
+                case table:
                     Update update = Update.update("listtags", listtags);
                     metadataInstancesService.updateById(MongoUtils.toObjectId(tagBindingParam.getId()), update, user);
                     break;
-                case calculate:
+                case job:
                     break;
-                case server:
+                case api:
                     break;
                 default:
                     break;
@@ -579,13 +579,13 @@ public class DiscoveryServiceImpl implements DiscoveryService {
                 }
             }
             switch (tagBindingParam.getObjCategory()) {
-                case storage:
+                case table:
                     Update update = Update.update("listtags", listtags);
                     metadataInstancesService.updateById(MongoUtils.toObjectId(tagBindingParam.getId()), update, user);
                     break;
-                case calculate:
+                case job:
                     break;
-                case server:
+                case api:
                     break;
                 default:
                     break;
