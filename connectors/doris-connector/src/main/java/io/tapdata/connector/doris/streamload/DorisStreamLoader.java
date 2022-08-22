@@ -31,7 +31,6 @@ import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Consumer;
 
 import static io.tapdata.base.ConnectorBase.writeListResult;
@@ -51,8 +50,6 @@ public class DorisStreamLoader {
 
     private DorisContext dorisContext;
     private CloseableHttpClient httpClient;
-
-    private ReentrantLock lock;
     private RecordStream recordStream;
 
     private ExecutorService executorService;
@@ -68,7 +65,6 @@ public class DorisStreamLoader {
         this.httpClient = httpClient;
 
         this.recordStream = new RecordStream(Constants.CACHE_BUFFER_SIZE, Constants.CACHE_BUFFER_COUNT);
-        this.lock = new ReentrantLock();
         this.executorService = new ThreadPoolExecutor(1, 1,
                 0L, TimeUnit.MILLISECONDS, new LinkedBlockingDeque<>());
 
@@ -78,7 +74,7 @@ public class DorisStreamLoader {
         this.lastEventFlag = new AtomicInteger(0);
     }
 
-    public void writeRecord(final List<TapRecordEvent> tapRecordEvents, final TapTable table, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer) throws IOException {
+    public synchronized void writeRecord(final List<TapRecordEvent> tapRecordEvents, final TapTable table, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer) throws IOException {
         WriteListResult<TapRecordEvent> listResult = writeListResult();
         for (TapRecordEvent tapRecordEvent : tapRecordEvents) {
             if (needFlush(tapRecordEvent)) {
@@ -126,9 +122,8 @@ public class DorisStreamLoader {
         size += 1;
     }
 
-    public void startLoad(final TapTable table, final DorisConfig config, final TapRecordEvent recordEvent) throws IOException {
+    public void startLoad(final TapTable table, final DorisConfig config, final TapRecordEvent recordEvent) {
         try {
-            lock.lock();
             loadBatchFirstRecord = true;
             final String loadUrl = buildLoadUrl(config.getDorisHttp(), config.getDatabase(), table.getId());
             final String prefix = buildPrefix(table.getId());
@@ -157,9 +152,7 @@ public class DorisStreamLoader {
             });
             lastEventFlag.set(OperationType.getOperationFlag(recordEvent));
         } catch (Exception e) {
-            e.printStackTrace();
-        }finally {
-            lock.unlock();
+            TapLogger.error(TAG, e.getMessage());
         }
     }
 
@@ -184,7 +177,6 @@ public class DorisStreamLoader {
             return null;
         }
         try {
-            lock.lock();
             recordStream.endInput();
             TapLogger.info(TAG, "stream load stopped.");
             Assert.notNull(pendingLoadFuture, "pendingLoadFuture of DorisStreamLoad should never be null");
@@ -195,8 +187,6 @@ public class DorisStreamLoader {
             return respContent;
         } catch (Exception e) {
             throw new DorisRuntimeException(e);
-        } finally {
-            lock.unlock();
         }
     }
 
