@@ -1107,7 +1107,7 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 					if (CollectionUtils.isNotEmpty(tables)) {
 
 						//处理自定义加载的表。
-						Boolean loadAllTable = oldConnectionDto.getLoadAllTable();
+						Boolean loadAllTable = oldConnectionDto.getLoadAllTables();
 						if (loadAllTable != null && !loadAllTable) {
 							String table_filter = oldConnectionDto.getTable_filter();
 							if (StringUtils.isNotBlank(table_filter)) {
