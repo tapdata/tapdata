@@ -35,7 +35,7 @@ mongo.save() # success -> True, Failure -> False
 
 # create datasource by form
 mongo = cli.DataSource("mongodb", name="source")
-mongo.host("localhost:8080").db("source").user("user").password("password").type("source").props("")
+mongo.host("localhost:8080").db("source").username("user").password("password").type("source").props("")
 mongo.validate() # success -> True, Failure -> False
 mongo.save() # success -> True, Failure -> False
 
