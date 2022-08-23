@@ -454,29 +454,6 @@
     ]
   },
   {
-    "createIndexes": "InconsistentData",
-    "indexes": [
-      {
-        "name": "_id_",
-        "key": {
-          "_id": 1
-        }
-      },
-      {
-        "name": "verificationJobId_1_validateResult_1_nextValidateTime_1",
-        "key": {
-          "nextValidateTime": 1,
-          "verificationJobId": 1,
-          "validateResult": 1
-        },
-        "partialFilterExpression": {
-          "validateResult": "retry"
-        },
-        "background": true
-      }
-    ]
-  },
-  {
   "createIndexes": "Task",
   "indexes": [
     {

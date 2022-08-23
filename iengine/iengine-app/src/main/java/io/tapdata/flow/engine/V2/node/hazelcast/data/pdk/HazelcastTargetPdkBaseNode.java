@@ -529,6 +529,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 				wsMessageResult.setBatchMetadataUpdateMap(updateMetadata);
 				wsMessageResult.setBatchRemoveMetaDataList(removeMetadata);
 				wsMessageResult.setTaskId(taskDto.getId().toHexString());
+				wsMessageResult.setTransformSchema(new HashMap<>());
 				// 返回结果调用接口返回
 				clientMongoOperator.insertOne(wsMessageResult, ConnectorConstant.TASK_COLLECTION + "/transformer/resultWithHistory");
 				insertMetadata.clear();
