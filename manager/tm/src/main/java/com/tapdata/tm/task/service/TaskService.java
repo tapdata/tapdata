@@ -654,8 +654,6 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
     public TaskDto confirmById(TaskDto taskDto, UserDetail user, boolean confirm, boolean importTask) {
         DAG dag = taskDto.getDag();
-        // check task flow engine available
-        dataSourceService.checkAccessNodeAvailable(taskDto.getAccessNodeType(), taskDto.getAccessNodeProcessIdList(), user);
 
         if (!taskDto.getShareCache()) {
             if (!importTask) {
