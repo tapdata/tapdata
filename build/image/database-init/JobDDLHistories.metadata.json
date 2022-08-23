@@ -1,1 +1,0 @@
-{"options":{},"indexes":[{"v":2,"key":{"_id":1},"name":"_id_","ns":"tapdata.JobDDLHistories"},{"v":2,"key":{"jobId":1,"sourceConnId":1},"name":"jobId_1_sourceConnId_1","ns":"tapdata.JobDDLHistories","background":true}],"uuid":"aa64dc7abeaa49d2b47adea04fbf1411"}
