@@ -161,6 +161,18 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 		Assert.isFalse(StringUtils.equals(AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER.name(), updateDto.getAccessNodeType())
 				&& CollectionUtils.isEmpty(updateDto.getAccessNodeProcessIdList()), "manually_specified_by_the_user processId is null");
 
+		ObjectId id = updateDto.getId();
+		Map<String, Object> config = updateDto.getConfig();
+		if (Objects.nonNull(id) && Objects.nonNull(config)) {
+			DataSourceConnectionDto connectionDto = findById(id);
+			Map<String, Object> dataConfig = connectionDto.getConfig();
+			if (dataConfig.containsKey("password") && !config.containsKey("password")) {
+				config.put("password", dataConfig.get("password"));
+			} else if (dataConfig.containsKey("mqPassword") && !config.containsKey("mqPassword")) {
+				config.put("mqPassword", dataConfig.get("mqPassword"));
+			}
+		}
+
 		DataSourceEntity entity = convertToEntity(DataSourceEntity.class, updateDto);
 
 		entity = repository.save(entity, user);
