@@ -8,6 +8,7 @@ import io.tapdata.aspect.ProcessorNodeAspect;
 import io.tapdata.aspect.TaskStartAspect;
 import io.tapdata.aspect.TaskStopAspect;
 import io.tapdata.aspect.task.AspectTask;
+import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.entity.aspect.*;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.utils.InstanceFactory;
@@ -140,35 +141,47 @@ public class TaskSessionClassHolder implements Comparable<TaskSessionClassHolder
 			newRef.set(aspectTask);
 			return aspectTask;
 		});
-		if (newRef.get() != null && theAspectTask.equals(newRef.get())) {
-			//new created AspectTask
+		if (newRef.get() == null || !theAspectTask.equals(newRef.get())) {
+			ensureTaskSessionStopped(new TaskStopAspect().task(theAspectTask.aspectTask.getTask())
+					.error(new RuntimeException("Force call stop aspect")));
+
+			aspectTaskMap.computeIfAbsent(taskId, id -> {
+				AspectTaskEx aspectTask = newAspectTask(task);
+				newRef.set(aspectTask);
+				return aspectTask;
+			});
+		}
+
+
+
+		//new created AspectTask
 //			final int order = 10000;
-			List<Class<? extends Aspect>> observerClasses = theAspectTask.aspectTask.observeAspects();
-			AspectManager aspectManager = InstanceFactory.instance(AspectManager.class);
-			if (observerClasses != null && !observerClasses.isEmpty()) {
-				for (Class<? extends Aspect> aspectClass : observerClasses) {
-					if (DataNodeAspect.class.isAssignableFrom(aspectClass) || ProcessorNodeAspect.class.isAssignableFrom(aspectClass)) {
-						aspectManager.registerObserver(aspectClass, order, aspectObserver, ignoreErrors);
-					} else {
-						aspectManager.registerObserver(aspectClass, order, theAspectTask.aspectObserver, ignoreErrors);
-					}
+		AspectTaskEx aspectTaskEx = newRef.get();
+		List<Class<? extends Aspect>> observerClasses = aspectTaskEx.aspectTask.observeAspects();
+		AspectManager aspectManager = InstanceFactory.instance(AspectManager.class);
+		if (observerClasses != null && !observerClasses.isEmpty()) {
+			for (Class<? extends Aspect> aspectClass : observerClasses) {
+				if (DataNodeAspect.class.isAssignableFrom(aspectClass) || ProcessorNodeAspect.class.isAssignableFrom(aspectClass)) {
+					aspectManager.registerObserver(aspectClass, order, aspectObserver, ignoreErrors);
+				} else {
+					aspectManager.registerObserver(aspectClass, order, aspectTaskEx.aspectObserver, ignoreErrors);
 				}
 			}
-			List<Class<? extends Aspect>> interceptClasses = theAspectTask.aspectTask.interceptAspects();
-			if (interceptClasses != null && !interceptClasses.isEmpty()) {
-				for (Class<? extends Aspect> aspectClass : interceptClasses) {
-					if (DataNodeAspect.class.isAssignableFrom(aspectClass) || ProcessorNodeAspect.class.isAssignableFrom(aspectClass)) {
-						aspectManager.registerInterceptor(aspectClass, order, aspectInterceptor, ignoreErrors);
-					} else {
-						aspectManager.registerInterceptor(aspectClass, order, theAspectTask.aspectInterceptor, ignoreErrors);
-					}
+		}
+		List<Class<? extends Aspect>> interceptClasses = aspectTaskEx.aspectTask.interceptAspects();
+		if (interceptClasses != null && !interceptClasses.isEmpty()) {
+			for (Class<? extends Aspect> aspectClass : interceptClasses) {
+				if (DataNodeAspect.class.isAssignableFrom(aspectClass) || ProcessorNodeAspect.class.isAssignableFrom(aspectClass)) {
+					aspectManager.registerInterceptor(aspectClass, order, aspectInterceptor, ignoreErrors);
+				} else {
+					aspectManager.registerInterceptor(aspectClass, order, aspectTaskEx.aspectInterceptor, ignoreErrors);
 				}
 			}
-			if(ignoreErrors) {
-				CommonUtils.ignoreAnyError(() -> theAspectTask.aspectTask.onStart(startAspect), TAG);
-			} else {
-				CommonUtils.handleAnyError(() -> theAspectTask.aspectTask.onStart(startAspect));
-			}
+		}
+		if(ignoreErrors) {
+			CommonUtils.ignoreAnyError(() -> aspectTaskEx.aspectTask.onStart(startAspect), TAG);
+		} else {
+			CommonUtils.handleAnyError(() -> aspectTaskEx.aspectTask.onStart(startAspect));
 		}
 	}
 
