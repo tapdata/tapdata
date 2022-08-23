@@ -590,7 +590,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 				String qualifiedName;
 				Map<String, List<Message>> errorMessage;
 				if (tapEvent instanceof TapCreateTableEvent) {
-					qualifiedName = dagDataService.createNewTable(dataProcessorContext.getSourceConn().getId(), tapTable);
+					qualifiedName = dagDataService.createNewTable(dataProcessorContext.getSourceConn().getId(), tapTable, processorBaseContext.getTaskDto().getId().toHexString());
 					logger.info("Create new table in memory, qualified name: " + qualifiedName);
 					dataProcessorContext.getTapTableMap().putNew(tapTable.getId(), tapTable, qualifiedName);
 					errorMessage = dag.transformSchema(null, dagDataService, transformerWsMessageDto.getOptions());
