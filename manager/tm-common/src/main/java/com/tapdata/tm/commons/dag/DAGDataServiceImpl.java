@@ -1008,7 +1008,7 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
         setMetaDataMap(metadataInstancesDto);
     }
 
-    public String createNewTable(String connectionId, TapTable tapTable) {
+    public String createNewTable(String connectionId, TapTable tapTable, String taskId) {
         DataSourceConnectionDto connectionDto = dataSourceMap.get(connectionId);
         if (connectionDto == null) {
             return null;
@@ -1034,8 +1034,9 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
         MetadataInstancesDto metadataInstancesDto1 = PdkSchemaConvert.fromPdk(tapTable);
         String databaseQualifiedName = MetaDataBuilderUtils.generateQualifiedName("database", connectionDto, null);
         MetadataInstancesDto databaseMeta = metadataMap.get(databaseQualifiedName);
-        metadataInstancesDto1 = MetaDataBuilderUtils.build(MetaType.table.name(), connectionDto, userId, userName, metadataInstancesDto1.getOriginalName(), metadataInstancesDto1, null, databaseMeta.getId().toString());
-
+        metadataInstancesDto1 = MetaDataBuilderUtils.build(MetaType.table.name(), connectionDto, userId, userName, metadataInstancesDto1.getOriginalName(), metadataInstancesDto1, null, databaseMeta.getId().toString(), taskId);
+        metadataInstancesDto1.setCreateSource("job_analyze");
+        metadataInstancesDto1.setSourceType(SourceTypeEnum.VIRTUAL.name());
         if (CollectionUtils.isNotEmpty(metadataInstancesDto1.getFields())) {
 
             for (Field field : metadataInstancesDto1.getFields()) {

@@ -848,16 +848,15 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
                     String qualifiedName = insertMetaDataDto.getQualifiedName();
                     if (qualifiedName.contains(taskId)) {
                         int i = qualifiedName.lastIndexOf("_");
-                        String oldQualifiedName = qualifiedName.substring(0, i);
-                        insertMetaDataDto.setQualifiedName(oldQualifiedName);
-                        qualifiedNames.add(oldQualifiedName);
-                    } else {
                         MetadataInstancesDto metadataInstancesDto = new MetadataInstancesDto();
                         BeanUtils.copyProperties(insertMetaDataDto, metadataInstancesDto);
-                        metadataInstancesDto.setSourceType(SourceTypeEnum.VIRTUAL.name());
-                        metadataInstancesDto.setQualifiedName(metadataInstancesDto.getQualifiedName() + "_" + taskId);
-                        metadataInstancesDto.setTaskId(taskId);
+                        String oldQualifiedName = qualifiedName.substring(0, i);
+                        metadataInstancesDto.setQualifiedName(oldQualifiedName);
+                        metadataInstancesDto.setSourceType(com.tapdata.tm.commons.schema.bean.SourceTypeEnum.SOURCE.name());
+                        metadataInstancesDto.setCreateSource("auto");
+                        metadataInstancesDto.setTaskId(null);
                         logicMetas.add(metadataInstancesDto);
+                        //qualifiedNames.add(oldQualifiedName);
                     }
                 }
             }

@@ -25,8 +25,10 @@ import org.apache.logging.log4j.Logger;
 
 import java.util.*;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * @author Dexter
@@ -36,6 +38,16 @@ public class DataNodeSampleHandler extends AbstractNodeSampleHandler {
     private static final String TAG = DataNodeSampleHandler.class.getSimpleName();
     public DataNodeSampleHandler(TaskDto task) {
         super(task);
+    }
+
+    private boolean running = true;
+
+    public boolean isRunning() {
+        return running;
+    }
+
+    public void setRunning(boolean running) {
+        this.running = running;
     }
 
     private final Map<String, SampleCollector> collectors = new HashMap<>();
@@ -273,7 +285,12 @@ public class DataNodeSampleHandler extends AbstractNodeSampleHandler {
         if (null == scheduleExecutorService) {
             String name = String.format("Task data node health check %s-%s", task.getName(), task.getId());
             scheduleExecutorService = ExecutorsManager.getInstance().newSingleThreadScheduledExecutor(name);
-            scheduleExecutorService.scheduleAtFixedRate(() -> {
+            AtomicReference<ScheduledFuture<?>> futureRef = new AtomicReference<>();
+            ScheduledFuture<?> future = scheduleExecutorService.scheduleAtFixedRate(() -> {
+                if (!running) {
+                    futureRef.get().cancel(true);
+                    scheduleExecutorService.shutdown();
+                }
                 for (String id : connectorNodeMap.keySet()) {
                     ConnectionCheckFunction function = connectorNode.getConnectorFunctions().getConnectionCheckFunction();
                     if (null == function) {
@@ -316,6 +333,7 @@ public class DataNodeSampleHandler extends AbstractNodeSampleHandler {
                     AspectUtils.executeAspect(connectionPingAspect);
                 }
             }, 0L, PERIOD_SECOND, TimeUnit.SECONDS);
+            futureRef.set(future);
         }
     }
 }

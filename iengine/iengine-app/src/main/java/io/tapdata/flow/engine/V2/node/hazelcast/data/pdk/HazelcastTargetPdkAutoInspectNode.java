@@ -23,6 +23,9 @@ import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.observable.logging.ObsLogger;
 import io.tapdata.observable.logging.ObsLoggerFactory;
+import lombok.NonNull;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.bson.types.ObjectId;
 
 import java.util.*;
@@ -36,7 +39,7 @@ import java.util.concurrent.atomic.AtomicLong;
  */
 public class HazelcastTargetPdkAutoInspectNode extends HazelcastTargetPdkBaseNode {
 
-//    private static final Logger logger = LogManager.getLogger(HazelcastTargetPdkAutoInspectNode.class);
+    private static final Logger logger = LogManager.getLogger(HazelcastTargetPdkAutoInspectNode.class);
     private static final ExecutorService EXECUTORS = new ThreadPoolExecutor(0, Integer.MAX_VALUE, 60L, TimeUnit.SECONDS, new SynchronousQueue<>());
     private final AtomicBoolean isInitialed = new AtomicBoolean(false);
     private final AtomicLong incrementDelay = new AtomicLong(5 * 1000);//todo: Use task synchronization delay time
@@ -64,7 +67,7 @@ public class HazelcastTargetPdkAutoInspectNode extends HazelcastTargetPdkBaseNod
         EXECUTORS.submit(new PdkAutoInspectRunner(userLogger, taskId, taskType, progress, node, clientMongoOperator) {
 
             @Override
-            protected void initialCompare(IPdkConnector sourceConnector, IPdkConnector targetConnector, IAutoCompare autoCompare) throws Exception {
+            protected void initialCompare(@NonNull IPdkConnector sourceConnector, @NonNull IPdkConnector targetConnector, @NonNull IAutoCompare autoCompare) throws Exception {
                 long beginTimes = System.currentTimeMillis();
                 while (true) {
                     if (!isRunning()) return;
@@ -78,7 +81,7 @@ public class HazelcastTargetPdkAutoInspectNode extends HazelcastTargetPdkBaseNod
             }
 
             @Override
-            protected void incrementalCompare(IPdkConnector sourceConnector, IPdkConnector targetConnector, IAutoCompare autoCompare) throws Exception {
+            protected void incrementalCompare(@NonNull IPdkConnector sourceConnector, @NonNull IPdkConnector targetConnector, @NonNull IAutoCompare autoCompare) throws Exception {
                 List<TapEvent> tapEvents;
                 while (isRunning()) {
                     do {
@@ -99,7 +102,7 @@ public class HazelcastTargetPdkAutoInspectNode extends HazelcastTargetPdkBaseNod
 
                             Long eventDelay = Optional.ofNullable(((TapRecordEvent) tapEvent).getReferenceTime()).map(times -> {
                                 if (times < 0) {
-                                    userLogger.warn("Incremental event time is negative: {}", JSON.toJSONString(tapEvent));
+                                    logger.warn("Incremental event time is negative: {}", JSON.toJSONString(tapEvent));
                                     return 0L;
                                 }
                                 // not larger 5 minus
@@ -107,19 +110,23 @@ public class HazelcastTargetPdkAutoInspectNode extends HazelcastTargetPdkBaseNod
                             }).orElse(0L);
                             // not less 0
                             if (eventDelay > 0) {
-                                userLogger.warn("Incremental delay times: {}", eventDelay);
-                                Thread.sleep(eventDelay);
+                                long beginTimes = System.currentTimeMillis();
+                                while (System.currentTimeMillis() - beginTimes < eventDelay) {
+                                    Thread.sleep(200);
+                                    if (!isRunning() || isStopping()) return;
+                                }
+                                logger.info("Incremental delay times: {}", System.currentTimeMillis() - beginTimes);
                             }
 
                             if (tapEvent instanceof TapUpdateRecordEvent) {
                                 //update event
-                                sourceRecord = toCompareEvent(sourceConnector.getConnId(), tapTable, ((TapUpdateRecordEvent) tapEvent).getAfter());
+                                sourceRecord = toCompareRecord(sourceConnector.getConnId(), tapTable, ((TapUpdateRecordEvent) tapEvent).getAfter());
                             } else if (tapEvent instanceof TapInsertRecordEvent) {
                                 //insert event
-                                sourceRecord = toCompareEvent(sourceConnector.getConnId(), tapTable, ((TapInsertRecordEvent) tapEvent).getAfter());
+                                sourceRecord = toCompareRecord(sourceConnector.getConnId(), tapTable, ((TapInsertRecordEvent) tapEvent).getAfter());
                             } else if (tapEvent instanceof TapDeleteRecordEvent) {
                                 //delete event
-                                sourceRecord = toCompareEvent(sourceConnector.getConnId(), tapTable, ((TapDeleteRecordEvent) tapEvent).getBefore());
+                                sourceRecord = toCompareRecord(sourceConnector.getConnId(), tapTable, ((TapDeleteRecordEvent) tapEvent).getBefore());
                             } else {
                                 //no support events
                                 continue;
@@ -130,25 +137,25 @@ public class HazelcastTargetPdkAutoInspectNode extends HazelcastTargetPdkBaseNod
                                 keymap.put(k, sourceRecord.getDataValue(k));
                             }
 
-                            CompareRecord targetRecord = targetConnector.queryByKey(tableName, keymap);
+                            CompareRecord targetRecord = targetConnector.queryByKey(tableName, keymap, sourceRecord.getKeyNames());
                             if (tapEvent instanceof TapDeleteRecordEvent) {
                                 if (null != targetRecord) {
                                     targetRecord.getOriginalKey().putAll(sourceRecord.getOriginalKey());
                                     //target has more data
-                                    autoCompare.add(new TaskAutoInspectResultDto(taskId, sourceConnector.getConnId(), sourceRecord.getTableName(), keymap, null, targetConnector.getConnId(), targetRecord.getTableName(), targetRecord.getData()));
+//                                    autoCompare.autoCompare(TaskAutoInspectResultDto.parse(taskId, sourceRecord.getTableName(), sourceConnector.getConnId(), keymap, targetRecord));
                                 }
                             } else if (null == targetRecord) {
                                 //source has more data
-                                autoCompare.add(new TaskAutoInspectResultDto(taskId, sourceConnector.getConnId(), sourceRecord.getTableName(), keymap, sourceRecord.getData(), targetConnector.getConnId(), tableName, null));
+                                autoCompare.autoCompare(TaskAutoInspectResultDto.parse(taskId, sourceRecord, tableName, targetConnector.getConnId()));
                             } else {
                                 targetRecord.getOriginalKey().putAll(sourceRecord.getOriginalKey());
-                                switch (compare(sourceRecord, targetRecord)) {
+                                switch (sourceRecord.compare(targetRecord)) {
                                     case MoveTarget:
                                     case MoveSource:
-                                        userLogger.warn("Difference data keys: {}, {}", JSON.toJSONString(sourceRecord.getData()), JSON.toJSONString(targetRecord.getData()));
+                                        logger.info("Difference data keys '{}': {}, '{}': {}", sourceRecord.getTableName(), JSON.toJSONString(sourceRecord.getOriginalKey()), sourceRecord.getTableName(), JSON.toJSONString(targetRecord.getOriginalKey()));
                                         break;
                                     case Diff:
-                                        autoCompare.add(new TaskAutoInspectResultDto(taskId, sourceConnector.getConnId(), sourceRecord.getTableName(), keymap, sourceRecord.getData(), targetConnector.getConnId(), targetRecord.getTableName(), targetRecord.getData()));
+                                        autoCompare.autoCompare(TaskAutoInspectResultDto.parse(taskId, sourceRecord, targetRecord));
                                         break;
                                     default:
                                         break;
@@ -199,7 +206,7 @@ public class HazelcastTargetPdkAutoInspectNode extends HazelcastTargetPdkBaseNod
         throw new UnsupportedOperationException();
     }
 
-    private CompareRecord toCompareEvent(ObjectId connectionId, TapTable tapTable, Map<String, Object> data) {
+    private CompareRecord toCompareRecord(ObjectId connectionId, TapTable tapTable, Map<String, Object> data) {
         LinkedHashMap<String, Object> keymap = new LinkedHashMap<>();
         for (String pk : tapTable.primaryKeys()) {
             keymap.put(pk, data.get(pk));

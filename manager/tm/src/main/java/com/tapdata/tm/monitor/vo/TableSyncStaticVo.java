@@ -27,6 +27,6 @@ public class TableSyncStaticVo {
     private String constructSyncSatus;
     @Schema(description = "数据同步")
     private BigDecimal syncRate;
-    @Schema(description = "全量同步状态 NOSTART:未同步 PAUSE:已停止 DONE:已完成")
+    @Schema(description = "全量同步状态 NOSTART:未同步 PAUSE:已停止 DONE:已完成 ING:同步中")
     private String fullSyncStatus;
 }

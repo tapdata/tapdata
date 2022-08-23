@@ -214,55 +214,59 @@ public class KafkaService extends AbstractMqService {
         AtomicLong update = new AtomicLong(0);
         AtomicLong delete = new AtomicLong(0);
         WriteListResult<TapRecordEvent> listResult = new WriteListResult<>();
-        List<List<TapRecordEvent>> subEventLists = Lists.partition(tapRecordEvents, (tapRecordEvents.size() - 1) / concurrency + 1);
-        CountDownLatch countDownLatch = new CountDownLatch(concurrency);
+        List<List<TapRecordEvent>> subEventLists = Lists.partition(tapRecordEvents, tapRecordEvents.size() <= concurrency ? tapRecordEvents.size() : (tapRecordEvents.size() - 1) / concurrency + 1);
+        CountDownLatch countDownLatch = new CountDownLatch(subEventLists.size());
         subEventLists.forEach(subEventList -> produceService.submit(() -> {
-            subEventList.forEach(event -> {
-                Map<String, Object> data;
-                MqOp mqOp = MqOp.INSERT;
-                if (event instanceof TapInsertRecordEvent) {
-                    data = ((TapInsertRecordEvent) event).getAfter();
-                } else if (event instanceof TapUpdateRecordEvent) {
-                    data = ((TapUpdateRecordEvent) event).getAfter();
-                    mqOp = MqOp.UPDATE;
-                } else if (event instanceof TapDeleteRecordEvent) {
-                    data = ((TapDeleteRecordEvent) event).getBefore();
-                    mqOp = MqOp.DELETE;
-                } else {
-                    data = new HashMap<>();
-                }
-                byte[] body = jsonParser.toJsonBytes(data);
-                MqOp finalMqOp = mqOp;
-                Callback callback = (metadata, exception) -> {
-                    if (EmptyKit.isNotNull(exception)) {
-                        listResult.addError(event, exception);
+            try {
+                subEventList.forEach(event -> {
+                    Map<String, Object> data;
+                    MqOp mqOp = MqOp.INSERT;
+                    if (event instanceof TapInsertRecordEvent) {
+                        data = ((TapInsertRecordEvent) event).getAfter();
+                    } else if (event instanceof TapUpdateRecordEvent) {
+                        data = ((TapUpdateRecordEvent) event).getAfter();
+                        mqOp = MqOp.UPDATE;
+                    } else if (event instanceof TapDeleteRecordEvent) {
+                        data = ((TapDeleteRecordEvent) event).getBefore();
+                        mqOp = MqOp.DELETE;
+                    } else {
+                        data = new HashMap<>();
                     }
-                    switch (finalMqOp) {
-                        case INSERT:
-                            insert.incrementAndGet();
-                            break;
-                        case UPDATE:
-                            update.incrementAndGet();
-                            break;
-                        case DELETE:
-                            delete.incrementAndGet();
-                            break;
-                    }
-                };
-                ProducerRecord<byte[], byte[]> producerRecord = new ProducerRecord<>(tapTable.getId(),
-                        null, event.getTime(), getKafkaMessageKey(data, tapTable), body,
-                        new RecordHeaders().add("mqOp", mqOp.getOp().getBytes()));
-                kafkaProducer.send(producerRecord, callback);
-            });
-            countDownLatch.countDown();
+                    byte[] body = jsonParser.toJsonBytes(data);
+                    MqOp finalMqOp = mqOp;
+                    Callback callback = (metadata, exception) -> {
+                        if (EmptyKit.isNotNull(exception)) {
+                            listResult.addError(event, exception);
+                        }
+                        switch (finalMqOp) {
+                            case INSERT:
+                                insert.incrementAndGet();
+                                break;
+                            case UPDATE:
+                                update.incrementAndGet();
+                                break;
+                            case DELETE:
+                                delete.incrementAndGet();
+                                break;
+                        }
+                    };
+                    ProducerRecord<byte[], byte[]> producerRecord = new ProducerRecord<>(tapTable.getId(),
+                            null, event.getTime(), getKafkaMessageKey(data, tapTable), body,
+                            new RecordHeaders().add("mqOp", mqOp.getOp().getBytes()));
+                    kafkaProducer.send(producerRecord, callback);
+                });
+            } finally {
+                countDownLatch.countDown();
+            }
         }));
         try {
             countDownLatch.await();
         } catch (InterruptedException e) {
             TapLogger.error(TAG, "error occur when await", e);
+        } finally {
+            kafkaProducer.close();
+            writeListResultConsumer.accept(listResult.insertedCount(insert.get()).modifiedCount(update.get()).removedCount(delete.get()));
         }
-        kafkaProducer.close();
-        writeListResultConsumer.accept(listResult.insertedCount(insert.get()).modifiedCount(update.get()).removedCount(delete.get()));
     }
 
     private byte[] getKafkaMessageKey(Map<String, Object> data, TapTable tapTable) {
