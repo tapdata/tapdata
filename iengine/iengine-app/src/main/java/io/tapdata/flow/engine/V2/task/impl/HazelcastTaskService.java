@@ -69,6 +69,7 @@ import org.springframework.stereotype.Service;
 
 import javax.annotation.PostConstruct;
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
@@ -128,7 +129,12 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 			MilestoneFlowServiceJetV2 milestoneFlowServiceJetV2 = initMilestone(taskDto);
 
 			JobConfig jobConfig = new JobConfig();
-			jobConfig.setName(taskDto.getName() + "-" + taskDto.getId().toHexString());
+			String name = taskDto.getName() + "-" + taskDto.getId().toHexString();
+			if (null != hazelcastInstance.getJet().getJob(name)) {
+				throw new RuntimeException("hazelcast job already exist with job name " + name);
+			}
+
+			jobConfig.setName(name);
 			jobConfig.setProcessingGuarantee(ProcessingGuarantee.AT_LEAST_ONCE);
 			final Job job = hazelcastInstance.getJet().newJob(jetDag.getDag(), jobConfig);
 			return new HazelcastTaskClient(job, taskDto, clientMongoOperator, configurationCenter, hazelcastInstance, milestoneFlowServiceJetV2);
