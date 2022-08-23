@@ -77,6 +77,7 @@ public class OceanbaseWriter {
                         writeListResult.addError(tapRecordEvent, new Exception("Event type \"" + tapRecordEvent.getClass().getSimpleName() + "\" not support: " + tapRecordEvent));
                     }
                 } catch (Throwable e) {
+                    TapLogger.error(TAG, "write data error:{}", e);
                     errorRecord = tapRecordEvent;
                     throw e;
                 }
@@ -98,6 +99,7 @@ public class OceanbaseWriter {
         setPreparedStatementValues(tapTable, tapRecordEvent, insertPreparedStatement);
         int row;
         try {
+            TapLogger.info(TAG, "Insert data failed, sql: " + insertPreparedStatement);
             row = insertPreparedStatement.executeUpdate();
         } catch (Exception e) {
             if (e instanceof SQLIntegrityConstraintViolationException
@@ -112,6 +114,7 @@ public class OceanbaseWriter {
                 throw new Exception("Insert data failed, sql: " + insertPreparedStatement + ", message: " + e.getMessage(), e);
             }
         }
+        insertPreparedStatement.close();
         return row;
     }
 
@@ -159,8 +162,9 @@ public class OceanbaseWriter {
 
     private PreparedStatement getInsertPreparedStatement(TapConnectorContext tapConnectorContext, TapTable tapTable, TapRecordEvent tapRecordEvent, Map<String, PreparedStatement> insertMap) throws Throwable {
         String key = getKey(tapTable, tapRecordEvent);
-        PreparedStatement preparedStatement = insertMap.get(key);
-        if (null == preparedStatement) {
+//        PreparedStatement preparedStatement = insertMap.get(key);
+
+//        if (null == preparedStatement) {
             DataMap connectionConfig = tapConnectorContext.getConnectionConfig();
             String database = connectionConfig.getString("database");
             String name = connectionConfig.getString("name");
@@ -179,15 +183,16 @@ public class OceanbaseWriter {
             List<String> questionMarks = fields.stream().map(f -> "?").collect(Collectors.toList());
             String sql = String.format(INSERT_SQL_TEMPLATE, database, tableId, String.join(",", fields), String.join(",", questionMarks));
             try {
-                preparedStatement = this.connection.prepareStatement(sql);
+                PreparedStatement preparedStatement = this.connection.prepareStatement(sql);
+                return preparedStatement;
             } catch (SQLException e) {
                 throw new Exception("Create insert prepared statement error, sql: " + sql + ", message: " + e.getSQLState() + " " + e.getErrorCode() + " " + e.getMessage(), e);
             } catch (Exception e) {
                 throw new Exception("Create insert prepared statement error, sql: " + sql + ", message: " + e.getMessage(), e);
             }
-            insertMap.put(key, preparedStatement);
-        }
-        return preparedStatement;
+//            insertMap.put(key, preparedStatement);
+//        }
+
     }
 
     private PreparedStatement getUpdatePreparedStatement(TapConnectorContext tapConnectorContext, TapTable tapTable, TapRecordEvent tapRecordEvent, Map<String, PreparedStatement> updateMap) throws Throwable {
