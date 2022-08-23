@@ -737,6 +737,8 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             throw new BizException("Task.DeleteStatusInvalid");
         }
 
+        sendRenewMq(taskDto, user, DataSyncMq.OP_TYPE_DELETE);
+
         //将任务删除标识改成true
         update(new Query(Criteria.where("_id").is(id)), Update.update("is_deleted", true));
 
