@@ -1921,14 +1921,25 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                     connections.add(JsonUtil.parseJsonUseJackson(dtoJson, DataSourceConnectionDto.class));
                 }
             } catch (Exception e) {
-
+                log.error("error", e);
             }
         }
 
-        metadataInstancesService.batchImport(metadataInstancess, user, cover);
-        dataSourceService.batchImport(connections, user, cover);
-
-        batchImport(tasks, user, cover);
+        try {
+            metadataInstancesService.batchImport(metadataInstancess, user, cover);
+        } catch (Exception e) {
+            log.error("metadataInstancesService.batchImport error", e);
+        }
+        try {
+            dataSourceService.batchImport(connections, user, cover);
+        } catch (Exception e) {
+            log.error("dataSourceService.batchImport error", e);
+        }
+        try {
+            batchImport(tasks, user, cover);
+        } catch (Exception e) {
+            log.error("tasks.batchImport error", e);
+        }
     }
 
     public void batchImport(List<TaskDto> taskDtos, UserDetail user, boolean cover) {
@@ -1960,7 +1971,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                         continue;
                     }
                 }
-                checkDagAgentConflict(taskDto, false);
+//                checkDagAgentConflict(taskDto, false);
                 confirmById(taskDto, user, true, true);
             }
         }
