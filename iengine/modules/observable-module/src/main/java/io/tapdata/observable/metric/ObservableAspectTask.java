@@ -64,6 +64,7 @@ public class ObservableAspectTask extends AspectTask {
 	 */
 	@Override
 	public void onStop(TaskStopAspect stopAspect) {
+		dataNodeSampleHandler.setRunning(false);
 		taskSampleHandler.close();
 	}
 
