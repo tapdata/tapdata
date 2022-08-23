@@ -660,9 +660,18 @@ public class DiscoveryServiceImpl implements DiscoveryService {
             Object database = config1.get("database");
             if (host == null) {
                 host = config1.get("mqHost");
+            }
+            if (port == null) {
                 port = config1.get("mqPort");
             }
-            ipAndPort = new StringBuilder(host + ":" + port);
+            if (StringUtils.isNotBlank((String)host)) {
+                ipAndPort = new StringBuilder(host.toString());
+                if (port != null) {
+                    ipAndPort.append(":").append(port);
+                }
+            } else {
+                ipAndPort = new StringBuilder();
+            }
 
             if (database != null) {
                 ipAndPort.append("/").append(database);
