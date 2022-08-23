@@ -2514,14 +2514,20 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
      */
     public String running(ObjectId id, UserDetail user) {
         //判断子任务是否存在
-        TaskDto taskDto = checkExistById(id, user, "_id", "status", "name", "taskRecordId");
+        TaskDto taskDto = checkExistById(id, user, "_id", "status", "name", "taskRecordId", "startTime");
         //将子任务状态改成运行中
         if (!TaskDto.STATUS_WAIT_RUN.equals(taskDto.getStatus())) {
             log.info("concurrent runError operations, this operation don‘t effective, task name = {}", taskDto.getName());
             return null;
         }
         Query query1 = new Query(Criteria.where("_id").is(taskDto.getId()).and("status").is(TaskDto.STATUS_WAIT_RUN));
-        UpdateResult update1 = update(query1, Update.update("status", TaskDto.STATUS_RUNNING).set("startTime", new Date()), user);
+
+        Update update = Update.update("status", TaskDto.STATUS_RUNNING);
+        if (taskDto.getStartTime() != null) {
+            update.set("startTime", new Date());
+        }
+
+        UpdateResult update1 = update(query1, update, user);
         updateTaskRecordStatus(taskDto, TaskDto.STATUS_RUNNING);
         if (update1.getModifiedCount() == 0) {
             log.info("concurrent running operations, this operation don‘t effective, task name = {}", taskDto.getName());
