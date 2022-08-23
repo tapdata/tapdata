@@ -540,13 +540,6 @@
         "dag.nodes.connectionId": 1
       },
       "background": true
-    },
-    {
-      "name": "index_task_agent_id",
-      "key": {
-        "agentId": 1
-      },
-      "background": true
     }
   ]
 },
