@@ -186,14 +186,14 @@ public class TapdataTaskScheduler {
 		}
 		final String taskId = subTaskDtoTaskClient.getTask().getId().toHexString();
 		clientMongoOperator.updateById(new Update(), ConnectorConstant.TASK_COLLECTION + "/runError", taskId, TaskDto.class);
-		removeTask(taskId);
+		removeTask(taskId, false);
 		destroyCache(subTaskDtoTaskClient);
 	}
 
-	private void removeTask(String taskId) {
+	private void removeTask(String taskId, boolean stopAspect) {
 		TaskClient<TaskDto> taskClient;
 		if ((taskClient = taskClientMap.remove(taskId)) != null) {
-			if (taskClient.getTask() != null) {
+			if (stopAspect && taskClient.getTask() != null) {
 				AspectUtils.executeAspect(new TaskStopAspect().task(taskClient.getTask()));
 			}
 		}
@@ -246,7 +246,7 @@ public class TapdataTaskScheduler {
 		if (stop) {
 			final String taskId = subTaskDtoTaskClient.getTask().getId().toHexString();
 			clientMongoOperator.updateById(new Update(), ConnectorConstant.TASK_COLLECTION + "/stopped", taskId, TaskDto.class);
-			removeTask(taskId);
+			removeTask(taskId, true);
 			destroyCache(subTaskDtoTaskClient);
 		}
 	}
@@ -257,7 +257,7 @@ public class TapdataTaskScheduler {
 		}
 		final String taskId = taskDtoTaskClient.getTask().getId().toHexString();
 		clientMongoOperator.updateById(new Update(), ConnectorConstant.TASK_COLLECTION + "/complete", taskId, TaskDto.class);
-		removeTask(taskId);
+		removeTask(taskId, true);
 		destroyCache(taskDtoTaskClient);
 	}
 
