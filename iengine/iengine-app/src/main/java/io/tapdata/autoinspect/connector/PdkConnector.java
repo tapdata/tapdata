@@ -6,7 +6,6 @@ import com.tapdata.entity.DatabaseTypeEnum;
 import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.tm.autoinspect.connector.IDataCursor;
 import com.tapdata.tm.autoinspect.connector.IPdkConnector;
-import com.tapdata.tm.autoinspect.entity.CompareEvent;
 import com.tapdata.tm.autoinspect.entity.CompareRecord;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import io.tapdata.entity.codec.TapCodecsRegistry;
@@ -25,13 +24,10 @@ import io.tapdata.pdk.core.monitor.PDKMethod;
 import io.tapdata.schema.PdkTableMap;
 import io.tapdata.schema.TapTableUtil;
 import lombok.NonNull;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.bson.types.ObjectId;
 
 import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Function;
 import java.util.function.Supplier;
 
 /**
@@ -39,7 +35,6 @@ import java.util.function.Supplier;
  * @version v1.0 2022/8/12 11:31 Create
  */
 public class PdkConnector implements IPdkConnector {
-    private static final Logger logger = LogManager.getLogger(PdkConnector.class);
     private static final String TAG = PdkConnector.class.getSimpleName();
 
     private final Connections connections;
@@ -85,25 +80,21 @@ public class PdkConnector implements IPdkConnector {
     }
 
     @Override
-    public IDataCursor<CompareRecord> queryAll(String tableName, Object offset) {
+    public IDataCursor<CompareRecord> queryAll(@NonNull String tableName, Object offset) {
         DataMap ret = new DataMap();
 //        if (offset instanceof Map) {
 //            ret.putAll((Map)offset);
 //        }
-        return new InitialPdkCursor(connectorNode, tableName, ret, isRunning);
+        return new InitialPdkCursor(connectorNode, new ObjectId(connections.getId()), tableName, ret, isRunning);
     }
 
     @Override
-    public void increment(Function<List<CompareEvent>, Boolean> compareEventConsumer) {
-    }
-
-    @Override
-    public CompareRecord queryByKey(String tableName, LinkedHashMap<String, Object> keymap) {
+    public CompareRecord queryByKey(@NonNull String tableName, @NonNull LinkedHashMap<String, Object> originalKey, @NonNull LinkedHashSet<String> keyNames) {
         TapAdvanceFilter tapAdvanceFilter = TapAdvanceFilter.create();
 
         // add filter
         DataMap match = DataMap.create();
-        match.putAll(keymap);
+        match.putAll(originalKey);
         tapAdvanceFilter.match(match);
         tapAdvanceFilter.setLimit(1);
 
@@ -125,7 +116,7 @@ public class PdkConnector implements IPdkConnector {
                         if (results.isEmpty()) return;
 
                         for (Map<String, Object> result : results) {
-                            CompareRecord record = new CompareRecord(tableName, getConnId(), new LinkedHashMap<>(), new LinkedHashSet<>(keymap.keySet()), result);
+                            CompareRecord record = new CompareRecord(tableName, getConnId(), originalKey, keyNames, result);
                             codecsFilterManager.transformToTapValueMap(record.getData(), tapTable.getNameFieldMap());
                             defaultCodecsFilterManager.transformFromTapValueMap(record.getData());
                             compareRecord.set(record);
