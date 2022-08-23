@@ -481,9 +481,12 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 		try {
 			return wrapSingleTapdataEvent(tapEvent, syncStage, offsetObj, isLast);
 		} catch (Throwable throwable) {
-			throw new NodeException("Error wrap TapEvent, event: " + tapEvent + ", error: " + throwable.getMessage(), throwable)
+			NodeException nodeException = new NodeException("Error wrap TapEvent, event: " + tapEvent + ", error: " + throwable
+					.getMessage(), throwable)
 					.context(getDataProcessorContext())
 					.event(tapEvent);
+			errorHandle(nodeException, throwable.getMessage());
+			throw nodeException;
 		}
 	}
 
@@ -656,7 +659,10 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 			} catch (InterruptedException e) {
 				break;
 			} catch (Throwable throwable) {
-				throw new NodeException(throwable).context(getDataProcessorContext()).event(tapdataEvent.getTapEvent());
+				NodeException nodeException = new NodeException(throwable)
+						.context(getDataProcessorContext()).event(tapdataEvent.getTapEvent());
+				errorHandle(nodeException, nodeException.getMessage());
+				throw nodeException;
 			}
 		}
 	}

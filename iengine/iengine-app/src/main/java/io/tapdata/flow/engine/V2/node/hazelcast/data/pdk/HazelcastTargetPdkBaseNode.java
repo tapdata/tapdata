@@ -315,7 +315,9 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 					}
 				}
 			} catch (Throwable throwable) {
-				throw new NodeException(throwable).context(getDataProcessorContext()).event(tapdataEvent.getTapEvent());
+				NodeException nodeException = new NodeException(throwable).context(getDataProcessorContext()).event(tapdataEvent.getTapEvent());
+				errorHandle(throwable, nodeException.getMessage());
+				throw nodeException;
 			}
 		}
 		if (CollectionUtils.isNotEmpty(tapEvents)) {
@@ -325,9 +327,11 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 			try {
 				processEvents(tapEvents);
 			} catch (Throwable throwable) {
-				throw new NodeException(throwable)
+				NodeException  nodeException =  new NodeException(throwable)
 						.context(getDataProcessorContext())
 						.events(tapdataEvents.stream().map(TapdataEvent::getTapEvent).collect(Collectors.toList()));
+				errorHandle(nodeException, nodeException.getMessage());
+				throw nodeException;
 			}
 		}
 		if (CollectionUtils.isNotEmpty(tapdataShareLogEvents)) {
@@ -337,9 +341,11 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 			try {
 				processShareLog(tapdataShareLogEvents);
 			} catch (Throwable throwable) {
-				throw new NodeException(throwable)
+				NodeException nodeException = new NodeException(throwable)
 						.context(getDataProcessorContext())
 						.events(tapdataShareLogEvents.stream().map(TapdataShareLogEvent::getTapEvent).collect(Collectors.toList()));
+				errorHandle(nodeException, nodeException.getMessage());
+				throw nodeException;
 			}
 		}
 		flushSyncProgressMap(lastDmlTapdataEvent.get());

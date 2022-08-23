@@ -169,6 +169,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 			if (null != indexEvent.get()) {
 				nodeException.event(indexEvent.get());
 			}
+			errorHandle(nodeException, nodeException.getMessage());
 			throw nodeException;
 		}
 	}
@@ -193,6 +194,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 			if (null != tapClearTableEvent.get()) {
 				nodeException.event(tapClearTableEvent.get());
 			}
+			errorHandle(nodeException, nodeException.getMessage());
 			throw nodeException;
 		}
 	}
@@ -225,6 +227,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 			if (null != tapCreateTableEvent.get()) {
 				nodeException.event(tapCreateTableEvent.get());
 			}
+			errorHandle(nodeException, nodeException.getMessage());
 			throw nodeException;
 		}
 
@@ -250,6 +253,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 			if (null != tapDropTableEvent.get()) {
 				nodeException.event(tapDropTableEvent.get());
 			}
+			errorHandle(nodeException, nodeException.getMessage());
 			throw nodeException;
 		}
 

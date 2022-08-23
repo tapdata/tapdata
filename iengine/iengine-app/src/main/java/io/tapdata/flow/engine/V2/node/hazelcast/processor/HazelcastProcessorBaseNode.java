@@ -101,9 +101,11 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 				});
 			});
 		} catch (Throwable throwable) {
-			throw  new NodeException("Error occurred when process events in processor", throwable)
+			NodeException nodeException =  new NodeException("Error occurred when process events in processor", throwable)
 					.context(getProcessorBaseContext())
 					.event(tapdataEvent.getTapEvent());
+			errorHandle(nodeException, nodeException.getMessage());
+			throw nodeException;
 		}
 
 		if(processedEvent.get() != null) {
