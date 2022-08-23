@@ -1,6 +1,8 @@
 package io.tapdata.oceanbase.connector;
 
 import io.tapdata.base.ConnectorBase;
+import io.tapdata.common.CommonDbTest;
+import io.tapdata.common.DataSourcePool;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
 import io.tapdata.entity.event.ddl.table.TapDropTableEvent;
@@ -19,9 +21,12 @@ import io.tapdata.entity.schema.value.TapMapValue;
 import io.tapdata.entity.schema.value.TapRawValue;
 import io.tapdata.entity.schema.value.TapTimeValue;
 import io.tapdata.entity.utils.DataMap;
+import io.tapdata.kit.EmptyKit;
 import io.tapdata.oceanbase.OceanbaseMaker;
 import io.tapdata.oceanbase.OceanbaseSchemaLoader;
+import io.tapdata.oceanbase.OceanbaseTest;
 import io.tapdata.oceanbase.OceanbaseWriter;
+import io.tapdata.oceanbase.bean.OceanbaseConfig;
 import io.tapdata.pdk.apis.annotations.TapConnectorClass;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
@@ -33,6 +38,7 @@ import io.tapdata.pdk.apis.entity.WriteListResult;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import org.apache.commons.lang3.StringUtils;
 
+import java.sql.Connection;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -51,6 +57,7 @@ public class OceanbaseConnector extends ConnectorBase {
     private OceanbaseJdbcContext oceanbaseJdbcContext;
     private OceanbaseWriter oceanbaseWriter;
     private String connectionTimezone;
+    private OceanbaseConfig oceanbaseConfig;
 
     /**
      * The method invocation life circle is below,
@@ -87,23 +94,27 @@ public class OceanbaseConnector extends ConnectorBase {
     public ConnectionOptions connectionTest(TapConnectionContext connectionContext, Consumer<TestItem> consumer) throws Throwable {
         //Assume below tests are successfully, below tests are recommended, but not required.
         //Connection test
-        //TODO execute connection test here
-        consumer.accept(testItem(TestItem.ITEM_CONNECTION, TestItem.RESULT_SUCCESSFULLY));
-        //Login test
-        //TODO execute login test here
-        consumer.accept(testItem(TestItem.ITEM_LOGIN, TestItem.RESULT_SUCCESSFULLY));
-        //Read test
-        //TODO execute read test by checking role permission
-        consumer.accept(testItem(TestItem.ITEM_READ, TestItem.RESULT_SUCCESSFULLY));
-        //Write test
-        //TODO execute write test by checking role permission
-        consumer.accept(testItem(TestItem.ITEM_WRITE, TestItem.RESULT_SUCCESSFULLY));
+        onStart(connectionContext);
+        ConnectionOptions connectionOptions = ConnectionOptions.create();
+
+        OceanbaseTest oceanbaseTest = new OceanbaseTest(oceanbaseConfig);
+        TestItem testHostPort = oceanbaseTest.testHostPort();
+        consumer.accept(testHostPort);
+        if (testHostPort.getResult() == TestItem.RESULT_FAILED) {
+            return null;
+        }
+        TestItem testConnect = oceanbaseTest.testConnect();
+        consumer.accept(testConnect);
+        if (testConnect.getResult() == TestItem.RESULT_FAILED) {
+            return null;
+        }
+        oceanbaseTest.close();
+        return connectionOptions;
 
         //When test failed
 //        consumer.accept(testItem(TestItem.ITEM_CONNECTION, TestItem.RESULT_FAILED, "Connection refused"));
         //When test successfully, but some warn is reported.
 //        consumer.accept(testItem(TestItem.ITEM_READ_LOG, TestItem.RESULT_SUCCESSFULLY_WITH_WARN, "CDC not enabled, please check your database settings"));
-        return null;
     }
 
     @Override
@@ -246,9 +257,14 @@ public class OceanbaseConnector extends ConnectorBase {
 
     @Override
     public void onStart(TapConnectionContext tapConnectionContext) throws Throwable {
-        this.oceanbaseJdbcContext = new OceanbaseJdbcContext(tapConnectionContext);
+        oceanbaseConfig = new OceanbaseConfig().load(tapConnectionContext.getConnectionConfig());
+        if (EmptyKit.isNull(oceanbaseJdbcContext) || oceanbaseJdbcContext.isFinish()) {
+            oceanbaseJdbcContext = (OceanbaseJdbcContext) DataSourcePool.getJdbcContext(oceanbaseConfig, OceanbaseJdbcContext.class, tapConnectionContext.getId());
+            oceanbaseJdbcContext.setTapConnectionContext(tapConnectionContext);
+        }
+        this.oceanbaseWriter = new OceanbaseWriter(oceanbaseJdbcContext);
+
         if (tapConnectionContext instanceof TapConnectorContext) {
-            this.oceanbaseWriter = new OceanbaseWriter(oceanbaseJdbcContext);
             this.connectionTimezone = tapConnectionContext.getConnectionConfig().getString("timezone");
             if ("Database Timezone".equals(this.connectionTimezone) || StringUtils.isBlank(this.connectionTimezone)) {
                 this.connectionTimezone = oceanbaseJdbcContext.timezone();
@@ -258,11 +274,6 @@ public class OceanbaseConnector extends ConnectorBase {
 
     @Override
     public void onStop(TapConnectionContext connectionContext) {
-        try {
-            this.oceanbaseJdbcContext.close();
-        } catch (Exception e) {
-            TapLogger.error(TAG, "Release connector failed, error: " + e.getMessage() + "\n" + getStackString(e));
-        }
         Optional.ofNullable(this.oceanbaseWriter).ifPresent(OceanbaseWriter::onDestroy);
     }
 }
