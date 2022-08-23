@@ -8,7 +8,6 @@ package com.tapdata.tm.ws.handler;
 
 import cn.hutool.core.lang.Assert;
 import com.alibaba.fastjson.JSONObject;
-import com.google.common.collect.Maps;
 import com.tapdata.manager.common.utils.JsonUtil;
 import com.tapdata.manager.common.utils.StringUtils;
 import com.tapdata.tm.base.dto.Field;
@@ -43,7 +42,6 @@ import java.util.stream.Stream;
 
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
-import org.bson.json.JsonObject;
 import org.bson.types.ObjectId;
 
 @WebSocketMessageHandler(type = MessageType.TEST_CONNECTION)
@@ -62,17 +60,21 @@ public class TestConnectionHandler implements WebSocketHandler {
 
 	private final WorkerService workerService;
 
+	private final PipeHandler pipeHandler;
+
 	public TestConnectionHandler(MessageQueueService messageQueueService, DataSourceService dataSourceService, UserService userService
-			, WorkerService workerService, DataSourceDefinitionService dataSourceDefinitionService) {
+			, WorkerService workerService, DataSourceDefinitionService dataSourceDefinitionService, PipeHandler pipeHandler) {
 		this.messageQueueService = messageQueueService;
 		this.dataSourceService = dataSourceService;
 		this.userService = userService;
 		this.workerService = workerService;
 		this.dataSourceDefinitionService = dataSourceDefinitionService;
+		this.pipeHandler = pipeHandler;
 	}
 	@Override
 	public void handleMessage(WebSocketContext context) throws Exception{
 		MessageInfo messageInfo = context.getMessageInfo();
+		String pdkHash = String.valueOf(messageInfo.getData().get("pdkHash"));
 		messageInfo.getData().put("type", messageInfo.getType());
 		messageInfo.setType("pipe");
 		String userId = context.getUserId();
@@ -108,7 +110,7 @@ public class TestConnectionHandler implements WebSocketHandler {
 		if (config != null) {
 			String database_type = (String)data.get("database_type");
 			if (StringUtils.isBlank(database_type)) {
-				String pdkHash = (String) data.get("pdkHash");
+				pdkHash = (String) data.get("pdkHash");
 				DataSourceDefinitionDto definitionDto = dataSourceDefinitionService.findByPdkHash(pdkHash, userDetail, "type");
 				database_type = definitionDto.getType();
 			}
@@ -174,7 +176,9 @@ public class TestConnectionHandler implements WebSocketHandler {
 		if (Objects.nonNull(data.get("msg"))){
 			Map<String, Object> msg = testConnectErrorData(data.get("id").toString(), data.get("msg").toString());
 			context.getMessageInfo().setData(msg);
-
+			context.getMessageInfo().setReceiver(context.getSessionId());
+			pipeHandler.multilingualTestConnection(context);//多语言处理
+			context.getMessageInfo().setReceiver(null);
 			sendMessage(context.getSender(), context);
 			return;
 		}
@@ -305,7 +309,7 @@ public class TestConnectionHandler implements WebSocketHandler {
 	private Map<String, Object> testConnectErrorData(String id, String failMessage) {
 		Map<String, Object> validate_details = Stream.of(new Object[][]{
 				{"status", "failed"},
-				{"show_msg", "Connection error"},
+				{"show_msg", "${test_connection_error}"}, //{"show_msg", "Connection error"},
 				{"fail_message", failMessage},
 		}).collect(Collectors.toMap(data -> (String) data[0], data -> data[1]));
 
