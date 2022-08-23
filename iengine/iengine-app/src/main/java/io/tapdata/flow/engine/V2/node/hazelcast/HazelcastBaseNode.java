@@ -485,6 +485,7 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 			ThreadContext.clearAll();
 			super.close();
 			if (error != null) {
+				errorHandle(error, error.getMessage());
 				throw new RuntimeException(errorMessage, error);
 			}
 		}
