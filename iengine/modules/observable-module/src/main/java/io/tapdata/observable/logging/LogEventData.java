@@ -149,7 +149,10 @@ public class LogEventData {
                     return this;
             }
 
-            this.eventId((String) event.getInfo().get("eventId")).message(message);
+            if (null != event.getInfo() && null != event.getInfo().get("eventId")) {
+                this.eventId((String) event.getInfo().get("eventId"));
+            }
+            this.message(message);
             if (null != delay) {
                 this.delay(delay);
             }

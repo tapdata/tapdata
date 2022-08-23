@@ -83,6 +83,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 			// MILESTONE-INIT_TRANSFORMER-ERROR
 			TaskMilestoneFuncAspect.execute(dataProcessorContext, MilestoneStage.INIT_TRANSFORMER, MilestoneStatus.ERROR, logger);
 			MilestoneUtil.updateMilestone(milestoneService, MilestoneStage.INIT_TRANSFORMER, MilestoneStatus.ERROR, e.getMessage() + "\n" + Log4jUtil.getStackString(e));
+			errorHandle(e, e.getMessage());
 			throw e;
 		}
 		ddlEventHandlers = new ClassHandlers();

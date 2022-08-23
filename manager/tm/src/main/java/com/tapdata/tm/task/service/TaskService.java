@@ -11,7 +11,9 @@ import com.mongodb.client.result.UpdateResult;
 import com.tapdata.manager.common.utils.JsonUtil;
 import com.tapdata.tm.CustomerJobLogs.CustomerJobLog;
 import com.tapdata.tm.CustomerJobLogs.service.CustomerJobLogsService;
+import com.tapdata.tm.autoinspect.entity.AutoInspectProgress;
 import com.tapdata.tm.autoinspect.service.TaskAutoInspectResultsService;
+import com.tapdata.tm.autoinspect.utils.AutoInspectUtil;
 import com.tapdata.tm.base.dto.Field;
 import com.tapdata.tm.base.dto.*;
 import com.tapdata.tm.base.exception.BizException;
@@ -46,6 +48,7 @@ import com.tapdata.tm.metadatainstance.service.MetaDataHistoryService;
 import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
 import com.tapdata.tm.monitor.entity.AgentStatDto;
 import com.tapdata.tm.monitor.entity.MeasurementEntity;
+import com.tapdata.tm.monitor.param.IdParam;
 import com.tapdata.tm.monitor.service.MeasurementService;
 import com.tapdata.tm.monitoringlogs.service.MonitoringLogsService;
 import com.tapdata.tm.task.bean.*;
@@ -90,6 +93,7 @@ import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -589,9 +593,9 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     }
 
     public void checkTaskInspectFlag (TaskDto taskDto) {
-        if (taskDto.isAutoInspect() && !taskDto.isCanOpenInspect()) {
-            throw new BizException("Task.CanNotSupportInspect");
-        }
+//        if (taskDto.isAutoInspect() && !taskDto.isCanOpenInspect()) {
+//            throw new BizException("Task.CanNotSupportInspect");
+//        }
     }
 
     private void saveInspect(TaskDto existedTask, TaskDto taskDto, UserDetail userDetail) {
@@ -650,8 +654,6 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
     public TaskDto confirmById(TaskDto taskDto, UserDetail user, boolean confirm, boolean importTask) {
         DAG dag = taskDto.getDag();
-        // check task flow engine available
-        dataSourceService.checkAccessNodeAvailable(taskDto.getAccessNodeType(), taskDto.getAccessNodeProcessIdList(), user);
 
         if (!taskDto.getShareCache()) {
             if (!importTask) {
@@ -875,7 +877,6 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         TaskService taskService = SpringContextHelper.getBean(TaskService.class);
 
         log.info("create new task, task = {}", taskDto);
-        checkDagAgentConflict(taskDto, false);
         taskDto = taskService.confirmById(taskDto, user, true, true);
         //taskService.flushStatus(taskDto, user);
         return taskDto;
@@ -1617,17 +1618,8 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
         Map<String, Long> statusToCount = new HashMap<>();
         if (CollectionUtils.isNotEmpty(synList)) {
-            for (int i = 0; i < synList.size(); i++) {
-                TaskDto taskDto = synList.get(i);
-                List<Status> statusList = taskDto.getStatuses();
-                if (CollectionUtils.isNotEmpty(statusList)) {
-                    for (Status status : statusList) {
-                        MapUtils.increase(statusToCount, status.getStatus());
-                    }
-                } else {
-                    //Statuses 为空 就认为是编辑中
-                    MapUtils.increase(statusToCount, TaskEnum.STATUS_EDIT.getValue());
-                }
+            for (TaskDto taskDto : synList) {
+                MapUtils.increase(statusToCount, taskDto.getStatus());
             }
         }
 
@@ -1844,8 +1836,11 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
     public void batchLoadTask(HttpServletResponse response, List<String> taskIds, UserDetail user) {
         List<TaskUpAndLoadDto> jsonList = new ArrayList<>();
+
+        List<TaskDto> tasks = findAllTasksByIds(taskIds);
+        Map<String, TaskDto> taskDtoMap = tasks.stream().collect(Collectors.toMap(t -> t.getId().toHexString(), Function.identity(), (e1, e2) -> e1));
         for (String taskId : taskIds) {
-            TaskDto taskDto = findById(MongoUtils.toObjectId(taskId), user);
+            TaskDto taskDto = taskDtoMap.get(taskId);
             if (taskDto != null) {
                 taskDto.setCreateUser(null);
                 taskDto.setCustomId(null);
@@ -1887,7 +1882,14 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             }
         }
         String json = JsonUtil.toJsonUseJackson(jsonList);
-        fileService1.viewImg1(json, response);
+
+        AtomicReference<String> fileName = new AtomicReference<>("");
+        String yyyymmdd = DateUtil.today().replaceAll("-", "");
+        FunctionUtils.isTureOrFalse(taskIds.size() > 1).trueOrFalseHandle(
+                () -> fileName.set("task_batch" + "-" + yyyymmdd),
+                () -> fileName.set(taskDtoMap.get(taskIds.get(0)).getName() + "-" + yyyymmdd)
+        );
+        fileService1.viewImg1(json, response, fileName.get() + ".json.gz");
     }
 
 
@@ -2120,6 +2122,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         if (taskDto.getAttrs() != null) {
             taskDto.getAttrs().remove("syncProgress");
             taskDto.getAttrs().remove("edgeMilestones");
+            taskDto.getAttrs().remove("autoInspectProgress");
 
             set.set("attrs", taskDto.getAttrs());
         }
@@ -2509,14 +2512,20 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
      */
     public String running(ObjectId id, UserDetail user) {
         //判断子任务是否存在
-        TaskDto taskDto = checkExistById(id, user, "_id", "status", "name", "taskRecordId");
+        TaskDto taskDto = checkExistById(id, user, "_id", "status", "name", "taskRecordId", "startTime");
         //将子任务状态改成运行中
         if (!TaskDto.STATUS_WAIT_RUN.equals(taskDto.getStatus())) {
             log.info("concurrent runError operations, this operation don‘t effective, task name = {}", taskDto.getName());
             return null;
         }
         Query query1 = new Query(Criteria.where("_id").is(taskDto.getId()).and("status").is(TaskDto.STATUS_WAIT_RUN));
-        UpdateResult update1 = update(query1, Update.update("status", TaskDto.STATUS_RUNNING).set("startTime", new Date()), user);
+
+        Update update = Update.update("status", TaskDto.STATUS_RUNNING);
+        if (taskDto.getStartTime() == null) {
+            update.set("startTime", new Date());
+        }
+
+        UpdateResult update1 = update(query1, update, user);
         updateTaskRecordStatus(taskDto, TaskDto.STATUS_RUNNING);
         if (update1.getModifiedCount() == 0) {
             log.info("concurrent running operations, this operation don‘t effective, task name = {}", taskDto.getName());
@@ -3054,5 +3063,28 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         }
 
         return saveNoPass & startNoPass;
+    }
+
+    public Map<String, Object> totalAutoInspectResultsDiffTables(IdParam param) {
+        String taskId = param.getId();
+        Assert.notBlank(taskId, "id not blank");
+
+        Map<String, Object> data = new HashMap<>();
+
+        Query query = Query.query(Criteria.where("_id").is(new ObjectId(taskId)));
+        TaskDto taskDto = findOne(query);
+        if (null != taskDto) {
+            AutoInspectProgress progress = AutoInspectUtil.parse(taskDto.getAttrs());
+            if (null != progress) {
+                data.put("totals", progress.getTableCounts());
+                data.put("ignore", progress.getTableIgnore());
+                Map<String, Object> map = taskAutoInspectResultsService.totalDiffTables(taskId);
+                if (null != map) {
+                    data.put("diffTables", map.get("tables"));
+                    data.put("diffRecords", map.get("totals"));
+                }
+            }
+        }
+        return data;
     }
 }

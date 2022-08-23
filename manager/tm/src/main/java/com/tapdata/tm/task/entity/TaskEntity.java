@@ -143,7 +143,8 @@ public class TaskEntity extends BaseEntity {
     private String accessNodeProcessId;
 
     //是否开启数据校验 （true：开启校验；false：关闭校验）
-    private Boolean isAutoInspect =true;
+    private Boolean isAutoInspect = true;
+    private Boolean canOpenInspect = false;
 
     /**
      * 计划开始时间

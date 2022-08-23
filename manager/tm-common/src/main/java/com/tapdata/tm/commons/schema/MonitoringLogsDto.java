@@ -1,8 +1,10 @@
 package com.tapdata.tm.commons.schema;
 
+import com.alibaba.fastjson.JSON;
 import com.tapdata.tm.commons.base.dto.BaseDto;
 import lombok.*;
 import lombok.extern.jackson.Jacksonized;
+import org.apache.commons.lang3.StringUtils;
 
 import java.util.Date;
 import java.util.List;
@@ -34,4 +36,32 @@ public class MonitoringLogsDto extends BaseDto {
     private List<String> logTags;
     @Singular("record")
     private List<Map<String, Object>> data;
+
+    public String formatMonitoringLog() {
+        return "[" + level + "] " + date + " " + formatMonitoringLogMessage();
+    }
+
+    public String formatMonitoringLogMessage() {
+        StringBuilder sb = new StringBuilder();
+        sb.append('[').append(taskName).append(']');
+        if (StringUtils.isNotBlank(nodeName)) {
+            sb.append('[').append(nodeName).append(']');
+        }
+
+        if (null != logTags) {
+            for (String tag : logTags) {
+                sb.append("[").append(tag).append("]").append(" ");
+            }
+        }
+
+        sb.append(" - ").append(message).append(" ");
+        if (errorStack != null) {
+            sb.append(errorStack);
+        }
+        if (null != data && data.size() > 0) {
+            sb.append(JSON.toJSON(data));
+        }
+
+        return sb.toString();
+    }
 }

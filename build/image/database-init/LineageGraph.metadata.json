@@ -1,1 +1,0 @@
-{"options":{},"indexes":[{"v":2,"key":{"_id":1},"name":"_id_","ns":"tapdata.LineageGraph"},{"v":2,"key":{"v":1,"value.type":1},"name":"v_1_value.type_1","ns":"tapdata.LineageGraph","background":true},{"v":2,"key":{"v":1,"w":1,"value.type":1},"name":"v_1_w_1_value.type_1","ns":"tapdata.LineageGraph","background":true}],"uuid":"6c68c8c6fbd4421f975eccbd42430b40"}

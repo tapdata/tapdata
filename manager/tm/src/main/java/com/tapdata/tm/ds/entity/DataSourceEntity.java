@@ -256,7 +256,7 @@ public class DataSourceEntity extends BaseEntity {
     private String connectionString;
 
     /** 加载表的规则，true为加载全部，false为加载部分 */
-    private Boolean loadAllTable;
+    private Boolean loadAllTables;
     /** 自定义的加载表的表名列表 */
     private List<String> loadTables;
 

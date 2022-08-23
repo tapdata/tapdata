@@ -162,7 +162,7 @@ public class TaskDagCheckLogServiceImpl implements TaskDagCheckLogService {
                     .filter(n -> DagOutputTemplateEnum.MODEL_PROCESS_CHECK.name().equals(n.getCheckType()))
                     .anyMatch(n -> {
                         int size = taskDto.getDag().getSourceNode().getFirst().getTableNames().size();
-                        return n.getLog().contains(size + "/" + size);
+                        return n.getLog().contains(size + "/" + size) || n.getGrade().equals(Level.ERROR.getValue());
                     });
             result.setOver(present);
         }

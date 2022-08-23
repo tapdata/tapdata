@@ -117,59 +117,55 @@ class TaskLogger extends ObsLogger implements Serializable {
 		logAppendFactory.appendLog(builder.build());
 	}
 
-	public void error(Callable<MonitoringLogsDto.MonitoringLogsDtoBuilder> callable, String message, Object... params){
+	public void error(Callable<MonitoringLogsDto.MonitoringLogsDtoBuilder> callable, Throwable throwable, String message, Object... params){
 		if (noNeedLog(LogLevel.ERROR.getLevel())) {
 			return;
 		}
 
-		ParameterizedMessage parameterizedMessage = new ParameterizedMessage(message, params);
-		final String formattedMessage = parameterizedMessage.getFormattedMessage();
-
-		StringBuilder errorStackSB = new StringBuilder();
-		Throwable throwable = parameterizedMessage.getThrowable();
-		if (throwable != null) {
-			while (throwable.getCause() != null) {
-				throwable = throwable.getCause();
-
-				errorStackSB.append(throwable.getMessage()).append('\n');
-				for (StackTraceElement stackTraceElement : throwable.getStackTrace()) {
-					errorStackSB.append(stackTraceElement.toString()).append('\n');
-				}
-			}
+		if (null == message && throwable != null) {
+			message = throwable.getMessage();
 		}
+		ParameterizedMessage parameterizedMessage = new ParameterizedMessage(message, params, throwable);
 
 		MonitoringLogsDto.MonitoringLogsDtoBuilder builder = call(callable);
 		builder.level(Level.ERROR.toString());
-		builder.message(formattedMessage);
+		builder.message(parameterizedMessage.getFormattedMessage());
+
+		StringBuilder errorStackSB = new StringBuilder();
+		while (throwable != null) {
+			errorStackSB.append(throwable.getMessage()).append('\n');
+			for (StackTraceElement stackTraceElement : throwable.getStackTrace()) {
+				errorStackSB.append(stackTraceElement.toString()).append('\n');
+			}
+			throwable = throwable.getCause();
+		}
 		builder.errorStack(errorStackSB.toString());
 
 		logAppendFactory.appendLog(builder.build());
 	}
 
-	public void fatal(Callable<MonitoringLogsDto.MonitoringLogsDtoBuilder> callable, String message, Object... params){
+	public void fatal(Callable<MonitoringLogsDto.MonitoringLogsDtoBuilder> callable, Throwable throwable, String message, Object... params){
 		if (noNeedLog(LogLevel.FATAL.getLevel())) {
 			return;
 		}
 
-		ParameterizedMessage parameterizedMessage = new ParameterizedMessage(message, params);
-		final String formattedMessage = parameterizedMessage.getFormattedMessage();
-
-		StringBuilder errorStackSB = new StringBuilder();
-		Throwable throwable = parameterizedMessage.getThrowable();
-		if (throwable != null) {
-			while (throwable.getCause() != null) {
-				throwable = throwable.getCause();
-
-				errorStackSB.append(throwable.getMessage()).append('\n');
-				for (StackTraceElement stackTraceElement : throwable.getStackTrace()) {
-					errorStackSB.append(stackTraceElement.toString()).append('\n');
-				}
-			}
+		if (null == message && throwable != null) {
+			message = throwable.getMessage();
 		}
+		ParameterizedMessage parameterizedMessage = new ParameterizedMessage(message, params, throwable);
 
 		MonitoringLogsDto.MonitoringLogsDtoBuilder builder = call(callable);
 		builder.level(Level.FATAL.toString());
-		builder.message(formattedMessage);
+		builder.message(parameterizedMessage.getFormattedMessage());
+
+		StringBuilder errorStackSB = new StringBuilder();
+		while (throwable != null) {
+			errorStackSB.append(throwable.getMessage()).append('\n');
+			for (StackTraceElement stackTraceElement : throwable.getStackTrace()) {
+				errorStackSB.append(stackTraceElement.toString()).append('\n');
+			}
+			throwable = throwable.getCause();
+		}
 		builder.errorStack(errorStackSB.toString());
 
 		logAppendFactory.appendLog(builder.build());

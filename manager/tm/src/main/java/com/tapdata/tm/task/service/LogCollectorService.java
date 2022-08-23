@@ -139,7 +139,7 @@ public class LogCollectorService {
 
 
         Query taskQuery = new Query(taskCriteria);
-        taskQuery.fields().include("_id", "syncType");
+        taskQuery.fields().include("_id", "syncType", "name", "status");
         List<TaskDto> allDtos = taskService.findAllDto(taskQuery, user);
 
 

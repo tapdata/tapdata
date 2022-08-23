@@ -10,6 +10,7 @@ import com.tapdata.tm.utils.FunctionUtils;
 import com.tapdata.tm.utils.GZIPUtil;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.compress.utils.IOUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.bson.Document;
 import org.bson.types.ObjectId;
 import org.springframework.context.annotation.Bean;
@@ -210,13 +211,15 @@ public class FileService {
     }
 
 
-    public void viewImg1(String json, HttpServletResponse response) {
+    public void viewImg1(String json, HttpServletResponse response, String fileName) {
 
         try {
-
-            String fileName = "task.json.gz";
+            if (StringUtils.isBlank(fileName)) {
+                fileName = "task.json.gz";
+            }
+            String codeFileName = URLEncoder.encode(fileName, "UTF-8");
             OutputStream out = response.getOutputStream();
-            response.setHeader("Content-disposition", "inline; filename=" + fileName);
+            response.setHeader("Content-disposition", "inline; filename=" + codeFileName);
             response.setContentType("application/octet-stream");
             // 不进行压缩的文件大小，单位为bit
             byte[] bytes = json.getBytes(StandardCharsets.UTF_8);
@@ -228,7 +231,7 @@ public class FileService {
             out.flush();
             out.close();
         } catch (Exception e) {
-
+            log.error("viewImg1 error", e);
         }
     }
 

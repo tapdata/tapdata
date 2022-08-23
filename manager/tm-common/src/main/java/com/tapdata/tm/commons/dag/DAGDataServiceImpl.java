@@ -401,8 +401,6 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
         int modifyCount = bulkSave(metadataInstancesDtos, dataSource, existsMetadataInstances);
         log.info("Bulk save metadataInstance {}, cost {}ms", modifyCount, System.currentTimeMillis() - start);
 
-
-
         return metadataInstancesDtos.stream()
                 .map(dto -> JsonUtil.parseJsonUseJackson(JsonUtil.toJsonUseJackson(dto), Schema.class)).collect(Collectors.toList());
     }
@@ -580,6 +578,7 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
 
         metadataInstancesDto = PdkSchemaConvert.fromPdk(tapTable);
         metadataInstancesDto.setAncestorsName(schema.getAncestorsName());
+        metadataInstancesDto.setNodeId(schema.getNodeId());
 
         metadataInstancesDto.getFields().forEach(field -> {
             if (field.getId() == null) {

@@ -150,6 +150,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 			} catch (Throwable e) {
 				TaskMilestoneFuncAspect.execute(dataProcessorContext, MilestoneStage.INIT_TRANSFORMER, MilestoneStatus.ERROR, logger);
 				MilestoneUtil.updateMilestone(milestoneService, MilestoneStage.INIT_TRANSFORMER, MilestoneStatus.ERROR, e.getMessage() + "\n" + Log4jUtil.getStackString(e));
+				errorHandle(e, e.getMessage());
 				throw new RuntimeException(e);
 			}
 		}
@@ -528,6 +529,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 				wsMessageResult.setBatchMetadataUpdateMap(updateMetadata);
 				wsMessageResult.setBatchRemoveMetaDataList(removeMetadata);
 				wsMessageResult.setTaskId(taskDto.getId().toHexString());
+				wsMessageResult.setTransformSchema(new HashMap<>());
 				// 返回结果调用接口返回
 				clientMongoOperator.insertOne(wsMessageResult, ConnectorConstant.TASK_COLLECTION + "/transformer/resultWithHistory");
 				insertMetadata.clear();
@@ -561,8 +563,8 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 	@Override
 	public void doClose() throws Exception {
 		try {
-			CommonUtils.ignoreAnyError(() -> Optional.ofNullable(this.initialPartitionConcurrentProcessor).ifPresent(PartitionConcurrentProcessor::stop), TAG);
-			CommonUtils.ignoreAnyError(() -> Optional.ofNullable(this.cdcPartitionConcurrentProcessor).ifPresent(PartitionConcurrentProcessor::stop), TAG);
+			CommonUtils.ignoreAnyError(() -> Optional.ofNullable(this.initialPartitionConcurrentProcessor).ifPresent(PartitionConcurrentProcessor::forceStop), TAG);
+			CommonUtils.ignoreAnyError(() -> Optional.ofNullable(this.cdcPartitionConcurrentProcessor).ifPresent(PartitionConcurrentProcessor::forceStop), TAG);
 		} finally {
 			super.doClose();
 		}

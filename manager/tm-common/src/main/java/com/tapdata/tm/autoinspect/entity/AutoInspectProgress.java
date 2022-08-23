@@ -5,6 +5,7 @@ import lombok.Data;
 import lombok.NonNull;
 
 import java.io.Serializable;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -14,13 +15,25 @@ import java.util.List;
 @Data
 public class AutoInspectProgress implements Serializable {
 
-    private int tableCounts;
-    private @NonNull CompareStep status;
-    private @NonNull List<CompareTableItem> tableItems;
+    private int tableCounts;//任务总表数量
+    private int tableIgnore;//不支持校验表数量
+    private @NonNull CompareStep step;
+    private @NonNull List<CompareTableItem> tableItems;//表校验状态
 
-    public AutoInspectProgress(int tableCounts, @NonNull List<CompareTableItem> tableItems) {
-        this.status = CompareStep.Initial;
-        this.tableCounts = tableCounts;
-        this.tableItems = tableItems;
+    public AutoInspectProgress() {
+        this.step = CompareStep.Initial;
+        this.tableItems = new ArrayList<>();
+    }
+
+    public void addTableCounts(int size) {
+        this.tableCounts += size;
+    }
+
+    public void addTableIgnore(int size) {
+        this.tableIgnore += size;
+    }
+
+    public void addTableItem(CompareTableItem item) {
+        this.tableItems.add(item);
     }
 }
