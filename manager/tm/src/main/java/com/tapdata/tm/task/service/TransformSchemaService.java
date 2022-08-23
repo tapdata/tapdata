@@ -1,6 +1,7 @@
 package com.tapdata.tm.task.service;
 
 import cn.hutool.core.date.DateUtil;
+import com.alibaba.fastjson.JSON;
 import com.tapdata.manager.common.utils.StringUtils;
 import com.tapdata.tm.commons.dag.*;
 import com.tapdata.tm.commons.dag.nodes.DataParentNode;
@@ -207,6 +208,13 @@ public class TransformSchemaService {
     }
     public void transformerResult(UserDetail user, TransformerWsMessageResult result, boolean saveHistory) {
 
+        Map<String, List<Message>> msgMap = result.getTransformSchema();
+        if (!msgMap.isEmpty()) {
+            log.warn("transformerResult msgMap:"+ JSON.toJSONString(msgMap));
+            // add transformer task log
+//            taskDagCheckLogService.createLog(taskId, user.getUserId(), Level.INFO.getValue(), DagOutputTemplateEnum.MODEL_PROCESS_CHECK,
+//                    false, true, DateUtil.now(), total, total);
+        }
 
         metadataInstancesService.bulkSave(result.getBatchInsertMetaDataList(), result.getBatchMetadataUpdateMap(), user, saveHistory, result.getTaskId());
 
