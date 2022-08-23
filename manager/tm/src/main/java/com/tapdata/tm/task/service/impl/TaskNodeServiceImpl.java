@@ -136,7 +136,7 @@ public class TaskNodeServiceImpl implements TaskNodeService {
         if (preHasJsNode)
             return getMetaByJsNode(nodeId, result, sourceNode, targetNode, tableNames, currentTableList, targetDataSource, predecessors, taskId);
         else
-            return getMetadataTransformerItemDtoPage(nodeId, userDetail, result, dag, sourceNode, targetNode, tableNames, currentTableList, targetDataSource, taskId, predecessors, currentNode);
+            return getMetadataTransformerItemDtoPage(userDetail, result, sourceNode, targetNode, tableNames, currentTableList, targetDataSource, taskId, predecessors, currentNode);
     }
 
     private Page<MetadataTransformerItemDto> getMetaByJsNode(String nodeId, Page<MetadataTransformerItemDto> result, DatabaseNode sourceNode, DatabaseNode targetNode, List<String> tableNames, List<String> currentTableList, DataSourceConnectionDto targetDataSource, List<Node<?>> predecessors, String taskId) {
@@ -212,8 +212,8 @@ public class TaskNodeServiceImpl implements TaskNodeService {
     }
 
     @NotNull
-    private Page<MetadataTransformerItemDto> getMetadataTransformerItemDtoPage(String nodeId, UserDetail userDetail
-            , Page<MetadataTransformerItemDto> result, DAG dag, DatabaseNode sourceNode, DatabaseNode targetNode
+    private Page<MetadataTransformerItemDto> getMetadataTransformerItemDtoPage(UserDetail userDetail
+            , Page<MetadataTransformerItemDto> result, DatabaseNode sourceNode, DatabaseNode targetNode
             , List<String> tableNames, List<String> currentTableList, DataSourceConnectionDto targetDataSource
             , final String taskId, List<Node<?>> predecessors, Node<?> currentNode) {
         if (CollectionUtils.isEmpty(predecessors)) {
@@ -250,7 +250,8 @@ public class TaskNodeServiceImpl implements TaskNodeService {
         DataSourceConnectionDto sourceDataSource = dataSourceService.findById(MongoUtils.toObjectId(sourceNode.getConnectionId()));
 
         Map<String, MetadataInstancesDto> metaMap = Maps.newHashMap();
-        List<MetadataInstancesDto> list = metadataInstancesService.findBySourceIdAndTableNameList(targetNode.getConnectionId(),
+        List<MetadataInstancesDto> list = metadataInstancesService.findBySourceIdAndTableNameList(
+                Objects.isNull(targetNode) ? sourceNode.getConnectionId() : targetNode.getConnectionId(),
                 currentTableList, userDetail, taskId);
         boolean queryFormSource = false;
         if (CollectionUtils.isEmpty(list)) {
