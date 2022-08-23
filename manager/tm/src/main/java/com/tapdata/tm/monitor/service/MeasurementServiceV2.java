@@ -743,13 +743,15 @@ public class MeasurementServiceV2 {
                 syncRate = BigDecimal.ONE;
             }
 
-            String fullSyncStatus = "";
+            String fullSyncStatus;
             if (syncRate.compareTo(BigDecimal.ONE) == 0) {
                 fullSyncStatus = "DONE";
             } else if (syncRate.compareTo(BigDecimal.ZERO) == 0) {
                 fullSyncStatus = "NOT_START";
             } else if (!TaskDto.STATUS_RUNNING.equals(taskDto.getStatus())) {
                 fullSyncStatus = "NOT_START";
+            } else {
+                fullSyncStatus = "ING";
             }
 
             TableSyncStaticVo vo = new TableSyncStaticVo();

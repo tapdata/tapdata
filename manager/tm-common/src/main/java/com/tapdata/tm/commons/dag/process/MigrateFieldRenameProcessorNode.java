@@ -63,13 +63,11 @@ public class MigrateFieldRenameProcessorNode extends Node<List<Schema>> {
                 Map<String, String> fieldMap = tableFieldInfoMap.get(ancestorsName).getFields()
                         .stream().collect(Collectors.toMap(FieldInfo::getSourceFieldName, FieldInfo::getTargetFieldName));
 
-                Iterator<Field> iterator = fields.iterator();
-                while (iterator.hasNext()) {
-                    Field field = iterator.next();
+                for (Field field : fields) {
                     String fieldName = field.getFieldName();
                     Boolean show = showMap.get(fieldName);
                     if (Objects.nonNull(show) && !show) {
-                        iterator.remove();
+//                        field.setDeleted(true);
                     } else if (fieldMap.containsKey(fieldName)) {
                         field.setFieldName(fieldMap.get(fieldName));
                     }
