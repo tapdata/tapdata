@@ -77,11 +77,6 @@ public class ActivemqConnector extends ConnectorBase {
         try (
                 ActivemqService activemqService = new ActivemqService(activemqConfig)
         ) {
-            TestItem testHostAndPort = activemqService.testHostAndPort();
-            consumer.accept(testHostAndPort);
-            if (testHostAndPort.getResult() == TestItem.RESULT_FAILED) {
-                return connectionOptions;
-            }
             TestItem testConnect = activemqService.testConnect();
             consumer.accept(testConnect);
             if (testConnect.getResult() == TestItem.RESULT_FAILED) {
@@ -113,11 +108,6 @@ public class ActivemqConnector extends ConnectorBase {
     }
 
     private void checkConnection(TapConnectionContext connectionContext, List<String> items, Consumer<ConnectionCheckItem> consumer) {
-        ConnectionCheckItem testPing = activemqService.testPing();
-        consumer.accept(testPing);
-        if (testPing.getResult() == ConnectionCheckItem.RESULT_FAILED) {
-            return;
-        }
         ConnectionCheckItem testConnection = activemqService.testConnection();
         consumer.accept(testConnection);
     }
