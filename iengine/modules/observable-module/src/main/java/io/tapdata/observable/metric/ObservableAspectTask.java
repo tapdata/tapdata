@@ -13,6 +13,8 @@ import io.tapdata.entity.aspect.Aspect;
 import io.tapdata.entity.aspect.AspectInterceptResult;
 import io.tapdata.entity.event.TapBaseEvent;
 import io.tapdata.entity.simplify.pretty.ClassHandlers;
+import io.tapdata.entity.utils.InstanceFactory;
+import io.tapdata.module.api.PipelineDelay;
 import io.tapdata.observable.metric.handler.*;
 
 import java.util.*;
@@ -64,6 +66,8 @@ public class ObservableAspectTask extends AspectTask {
 	 */
 	@Override
 	public void onStop(TaskStopAspect stopAspect) {
+		pipelineDelay.clear(stopAspect.getTask().getId().toHexString());
+
 		dataNodeSampleHandler.setRunning(false);
 		taskSampleHandler.close();
 	}
@@ -185,6 +189,8 @@ public class ObservableAspectTask extends AspectTask {
 		return null;
 	}
 
+
+	private PipelineDelayImpl pipelineDelay = (PipelineDelayImpl) InstanceFactory.instance(PipelineDelay.class);
 	public Void handleWriteRecordFunc(WriteRecordFuncAspect aspect) {
 		String nodeId = aspect.getDataProcessorContext().getNode().getId();
 
@@ -197,13 +203,18 @@ public class ObservableAspectTask extends AspectTask {
 						return;
 					}
 
+					Long now = System.currentTimeMillis();
 					Long newestEventTimestamp = null;
 					TapBaseEvent newestEvent = events.get(events.size() - 1);
 					if (null != newestEvent && null != newestEvent.getReferenceTime()) {
 						newestEventTimestamp = newestEvent.getReferenceTime();
 					}
-					dataNodeSampleHandler.handleWriteRecordAccept(nodeId, System.currentTimeMillis(), result, newestEventTimestamp);
+					dataNodeSampleHandler.handleWriteRecordAccept(nodeId, now, result, newestEventTimestamp);
 					taskSampleHandler.handleWriteRecordAccept(result, events);
+					if (null != newestEventTimestamp) {
+						pipelineDelay.refreshDelay(task.getId().toHexString(), nodeId, now, newestEventTimestamp);
+					}
+					System.out.printf("");
 				});
 				break;
 			case WriteRecordFuncAspect.STATE_END:
