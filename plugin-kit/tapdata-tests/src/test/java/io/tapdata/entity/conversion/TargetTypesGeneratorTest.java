@@ -1301,4 +1301,39 @@ class TargetTypesGeneratorTest {
         TapField timestamp6 = nameFieldMap.get("TIMESTAMP(6)");
         assertEquals("TIMESTAMP(6)", timestamp6.getDataType());
     }
+
+    @Test
+    public void db2Varchar50toOracleCLOBTest() {
+
+        String sourceTypeExpression = "{" +
+                "\"VARCHAR($byte)\": {\"byte\": 32672,\"priority\": 1,\"preferByte\": 2000,\"to\": \"TapString\"}" +
+                "}";
+
+        String targetTypeExpression = "{\n" +
+//                "\"int unsigned\": {\"to\": \"TapNumber\",\"byte\": 32,\"value\": [\"0\", \"4294967295\"]}," +
+                "\"CLOB\": {\"byte\": \"4g\",\"pkEnablement\": false,\"priority\": 2,\"to\": \"TapString\"}," +
+                "\"VARCHAR2[($byte)]\": {\"byte\": 4000,\"priority\": 1,\"preferByte\": 2000,\"to\": \"TapString\"}" +
+                "}";
+
+        TapTable sourceTable = table("test");
+        sourceTable
+                .add(field("VARCHAR(50)", "VARCHAR(50)"))
+                .add(field("varchar(50)", "varchar(50)"))
+                .add(field("varchar(70)", " varchar(70) ")) //space in dataType will be trimmed automatically
+        ;
+        tableFieldTypesGenerator.autoFill(sourceTable.getNameFieldMap(), DefaultExpressionMatchingMap.map(sourceTypeExpression));
+        TapResult<LinkedHashMap<String, TapField>> tapResult = targetTypesGenerator.convert(sourceTable.getNameFieldMap(), DefaultExpressionMatchingMap.map(targetTypeExpression), targetCodecFilterManager);
+
+        LinkedHashMap<String, TapField> nameFieldMap = tapResult.getData();
+
+
+        TapField upperVarchar50 = nameFieldMap.get("VARCHAR(50)");
+        assertEquals("VARCHAR2(50)", upperVarchar50.getDataType());
+
+        TapField lowerVarchar50 = nameFieldMap.get("varchar(50)");
+        assertEquals("VARCHAR2(50)", lowerVarchar50.getDataType());
+
+        TapField lowerVarchar70 = nameFieldMap.get("varchar(70)");
+        assertEquals("VARCHAR2(70)", lowerVarchar70.getDataType());
+    }
 }
