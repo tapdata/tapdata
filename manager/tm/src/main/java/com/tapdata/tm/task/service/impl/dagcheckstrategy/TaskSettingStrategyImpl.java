@@ -48,7 +48,7 @@ public class TaskSettingStrategyImpl implements DagLogStrategy {
             grade = Level.ERROR.getValue();
         }
 
-        String content = MessageFormat.format(template, current, taskName);
+        String content = MessageFormat.format(template, current);
         
         TaskDagCheckLog log = new TaskDagCheckLog();
         log.setTaskId(taskId.toHexString());

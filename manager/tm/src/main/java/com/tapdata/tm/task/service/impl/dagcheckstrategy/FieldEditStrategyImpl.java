@@ -49,7 +49,7 @@ public class FieldEditStrategyImpl implements DagLogStrategy {
             template = templateEnum.getInfoTemplate();
             grade = Level.INFO.getValue();
 
-            String content = MessageFormat.format(template, current, taskName);
+            String content = MessageFormat.format(template, current);
 
             TaskDagCheckLog log = new TaskDagCheckLog();
             log.setTaskId(taskId.toHexString());
