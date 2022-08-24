@@ -1053,4 +1053,14 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
         batchRemoveMetaDataList.add(qualifiedName);
         deleteMetaDataMap(qualifiedName);
     }
+
+    public MetadataInstancesDto getSchemaByNodeAndTableName(String nodeId, String tableName) {
+        String qualifiedName = MetaDataBuilderUtils.generateQualifiedName(MetaType.processor_node.name(), nodeId, tableName);
+        for (MetadataInstancesDto metadataInstancesDto : batchInsertMetaDataList) {
+            if (metadataInstancesDto.getQualifiedName().equals(qualifiedName)) {
+                return metadataInstancesDto;
+            }
+        }
+        return null;
+    }
 }
