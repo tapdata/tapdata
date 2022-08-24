@@ -2,8 +2,10 @@ package com.tapdata.tm.commons.dag;
 
 import com.tapdata.manager.common.utils.JsonUtil;
 import com.tapdata.manager.common.utils.StringUtils;
+import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.process.MigrateFieldRenameProcessorNode;
 import com.tapdata.tm.commons.dag.process.MigrateJsProcessorNode;
+import com.tapdata.tm.commons.dag.process.ProcessorNode;
 import com.tapdata.tm.commons.dag.process.TableRenameProcessNode;
 import com.tapdata.tm.commons.dag.vo.MigrateJsResultVo;
 import com.tapdata.tm.commons.schema.*;
@@ -1055,7 +1057,29 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
     }
 
     public MetadataInstancesDto getSchemaByNodeAndTableName(String nodeId, String tableName) {
-        String qualifiedName = MetaDataBuilderUtils.generateQualifiedName(MetaType.processor_node.name(), nodeId, tableName);
+        TaskDto taskDto = getTaskById(taskId);
+        if (taskDto == null) {
+            return null;
+        }
+        DAG dag = taskDto.getDag();
+        if (dag == null) {
+            return null;
+        }
+
+        Node<?> node = dag.getNode(nodeId);
+        String qualifiedName = null;
+        if (node instanceof DatabaseNode) {
+            String connectionId = ((DatabaseNode) node).getConnectionId();
+            DataSourceConnectionDto connectionDto = dataSourceMap.get(connectionId);
+            qualifiedName = MetaDataBuilderUtils.generateQualifiedName(MetaType.table.name(), connectionDto, tableName);
+        } else if (node instanceof ProcessorNode) {
+            qualifiedName = MetaDataBuilderUtils.generateQualifiedName(MetaType.processor_node.name(), nodeId, tableName);
+        }
+
+        if (StringUtils.isBlank(qualifiedName)) {
+            return null;
+        }
+
         for (MetadataInstancesDto metadataInstancesDto : batchInsertMetaDataList) {
             if (metadataInstancesDto.getQualifiedName().equals(qualifiedName)) {
                 return metadataInstancesDto;
