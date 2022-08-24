@@ -72,8 +72,6 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 				tableName = ((TableNode) node).getTableName();
 				updateConditionFields = ((TableNode) node).getUpdateConditionFields();
 				writeStrategy = ((TableNode) node).getWriteStrategy();
-			} else if (node instanceof DatabaseNode) {
-				initDatabaseTableNameMap((DatabaseNode) node);
 			}
 			initTargetDB();
 			// MILESTONE-INIT_TRANSFORMER-FINISH

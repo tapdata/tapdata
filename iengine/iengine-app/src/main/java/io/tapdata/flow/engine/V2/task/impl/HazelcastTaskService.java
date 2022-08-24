@@ -41,9 +41,7 @@ import io.tapdata.flow.engine.V2.exception.node.NodeException;
 import io.tapdata.flow.engine.V2.node.hazelcast.HazelcastBaseNode;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.*;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.*;
-import io.tapdata.flow.engine.V2.node.hazelcast.processor.HazelcastCustomProcessor;
-import io.tapdata.flow.engine.V2.node.hazelcast.processor.HazelcastMergeNode;
-import io.tapdata.flow.engine.V2.node.hazelcast.processor.HazelcastProcessorNode;
+import io.tapdata.flow.engine.V2.node.hazelcast.processor.*;
 import io.tapdata.flow.engine.V2.node.hazelcast.processor.aggregation.HazelcastMultiAggregatorProcessor;
 import io.tapdata.flow.engine.V2.node.hazelcast.processor.join.HazelcastJoinProcessor;
 import io.tapdata.flow.engine.V2.task.TaskClient;
@@ -470,8 +468,6 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 			case FIELD_RENAME_PROCESSOR:
 			case FIELD_MOD_TYPE_PROCESSOR:
 			case FIELD_CALC_PROCESSOR:
-			case TABLE_RENAME_PROCESSOR:
-			case MIGRATE_FIELD_RENAME_PROCESSOR:
 			case FIELD_ADD_DEL_PROCESSOR:
 				hazelcastNode = new HazelcastProcessorNode(
 						DataProcessorContext.newBuilder()
@@ -484,6 +480,29 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 								.withTapTableMap(tapTableMap)
 								.build()
 				);
+				break;
+			case TABLE_RENAME_PROCESSOR:
+				hazelcastNode = new HazelcastRenameTableProcessorNode(DataProcessorContext.newBuilder()
+								.withTaskDto(taskDto)
+								.withNode(node)
+								.withNodes(nodes)
+								.withEdges(edges)
+								.withCacheService(cacheService)
+								.withConfigurationCenter(config)
+								.withTapTableMap(tapTableMap)
+								.build());
+				break;
+			case MIGRATE_FIELD_RENAME_PROCESSOR:
+				hazelcastNode = new HazelcastMigrateFieldRenameProcessorNode(
+								DataProcessorContext.newBuilder()
+												.withTaskDto(taskDto)
+												.withNode(node)
+												.withNodes(nodes)
+												.withEdges(edges)
+												.withCacheService(cacheService)
+												.withConfigurationCenter(config)
+												.withTapTableMap(tapTableMap)
+												.build());
 				break;
 			case LOG_COLLECTOR:
 				hazelcastNode = new HazelcastSourcePdkShareCDCNode(

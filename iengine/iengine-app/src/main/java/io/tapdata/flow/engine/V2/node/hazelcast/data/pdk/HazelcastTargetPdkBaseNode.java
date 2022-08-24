@@ -7,14 +7,12 @@ import com.tapdata.constant.JSONUtil;
 import com.tapdata.constant.Log4jUtil;
 import com.tapdata.constant.MilestoneUtil;
 import com.tapdata.entity.*;
-import com.tapdata.entity.dataflow.Capitalized;
 import com.tapdata.entity.dataflow.SyncProgress;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.DataParentNode;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
-import com.tapdata.tm.commons.dag.vo.SyncObjects;
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.commons.schema.TransformerWsMessageResult;
 import com.tapdata.tm.commons.task.dto.MergeTableProperties;
@@ -182,28 +180,6 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 				}
 			}
 		}
-	}
-
-	protected void initDatabaseTableNameMap(DatabaseNode node) {
-		tableNameMap = new HashMap<>();
-		List<String> tableNames = null;
-		List<SyncObjects> syncObjects = node.getSyncObjects();
-		SyncObjects tableObjects = syncObjects.stream().filter(s -> s.getType().equals(com.tapdata.entity.dataflow.SyncObjects.TABLE_TYPE)).findFirst().orElse(null);
-		if (null != tableObjects) {
-			tableNames = new ArrayList<>(tableObjects.getObjectNames());
-		}
-		if (CollectionUtils.isEmpty(tableNames))
-			throw new RuntimeException("Found database node's table list is empty, will stop task");
-		String tableNameTransform = node.getTableNameTransform();
-		String tablePrefix = node.getTablePrefix();
-		String tableSuffix = node.getTableSuffix();
-		tableNames.forEach(t -> {
-			String targetTableName = t;
-			if (StringUtils.isNotBlank(tablePrefix)) targetTableName = tablePrefix + targetTableName;
-			if (StringUtils.isNotBlank(tableSuffix)) targetTableName = targetTableName + tableSuffix;
-			targetTableName = Capitalized.convert(targetTableName, tableNameTransform);
-			tableNameMap.put(t, targetTableName);
-		});
 	}
 
 	@Override
@@ -396,10 +372,6 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 		TapDDLEvent tapDDLEvent = (TapDDLEvent) tapdataEvent.getTapEvent();
 		if (tapdataEvent.getTapEvent() instanceof TapCreateTableEvent) {
 			updateNode(tapdataEvent);
-			Node<?> node = dataProcessorContext.getNode();
-			if (node instanceof DatabaseNode) {
-				initDatabaseTableNameMap((DatabaseNode) dataProcessorContext.getNode());
-			}
 		}
 		updateMemoryFromDDLInfoMap(tapdataEvent, getTgtTableNameFromTapEvent(tapDDLEvent));
 		Object updateMetadata = tapDDLEvent.getInfo(UPDATE_METADATA_INFO_KEY);
@@ -468,11 +440,8 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 	protected String getTgtTableNameFromTapEvent(TapEvent tapEvent) {
 		if (StringUtils.isNotBlank(tableName)) {
 			return tableName;
-		} else if (null != tableNameMap) {
-			String tableId = TapEventUtil.getTableId(tapEvent);
-			return tableNameMap.get(tableId);
 		} else {
-			return "";
+			return super.getTgtTableNameFromTapEvent(tapEvent);
 		}
 	}
 

@@ -668,9 +668,6 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 		return running.get() && !Thread.currentThread().isInterrupted();
 	}
 
-	protected void updateMemoryFromDDLInfoMap(TapdataEvent tapdataEvent) {
-		updateMemoryFromDDLInfoMap(tapdataEvent, null);
-	}
 
 	protected void updateMemoryFromDDLInfoMap(TapdataEvent tapdataEvent, String tableName) {
 		if (null == tapdataEvent) {
@@ -735,9 +732,10 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 		if (tapEvent instanceof TapCreateTableEvent) {
 			Object insertMetadata = tapEvent.getInfo(INSERT_METADATA_INFO_KEY);
 			if (insertMetadata instanceof List) {
-				String finalTableName = tableName;
-				MetadataInstancesDto metadata = ((DAGDataServiceImpl) dagDataService).getBatchInsertMetaDataList().stream().filter(m -> m.getOriginalName().equals(finalTableName))
-						.findFirst().orElse(null);
+//				String finalTableName = tableName;
+//				MetadataInstancesDto metadata = ((DAGDataServiceImpl) dagDataService).getBatchInsertMetaDataList().stream().filter(m -> m.getOriginalName().equals(finalTableName))
+//						.findFirst().orElse(null);
+				MetadataInstancesDto metadata = ((DAGDataServiceImpl) dagDataService).getSchemaByNodeAndTableName(getNode().getId(), tableName);
 				if (null != metadata) {
 					qualifiedName = metadata.getQualifiedName();
 					((List<MetadataInstancesDto>) insertMetadata).add(metadata);
@@ -782,5 +780,9 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 	}
 
 	protected void updateNodeConfig() {
+	}
+
+	protected String getTgtTableNameFromTapEvent(TapEvent tapEvent) {
+		return TapEventUtil.getTableId(tapEvent);
 	}
 }
