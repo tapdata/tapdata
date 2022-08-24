@@ -932,8 +932,14 @@ public class TaskController extends BaseController {
 
 
     @PostMapping("dag")
+    public ResponseMessage<Void> updateDagAndHistory(@RequestBody TaskDto taskDto) {
+        taskService.updateDag(taskDto, getLoginUser(), true);
+        return success();
+    }
+
+    @PostMapping("dagNotHistory")
     public ResponseMessage<Void> updateDag(@RequestBody TaskDto taskDto) {
-        taskService.updateDag(taskDto, getLoginUser());
+        taskService.updateDag(taskDto, getLoginUser(), false);
         return success();
     }
 

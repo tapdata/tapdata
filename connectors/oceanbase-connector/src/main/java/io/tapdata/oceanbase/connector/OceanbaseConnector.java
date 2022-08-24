@@ -23,8 +23,10 @@ import io.tapdata.entity.schema.value.TapTimeValue;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.kit.EmptyKit;
 import io.tapdata.oceanbase.OceanbaseMaker;
+import io.tapdata.oceanbase.OceanbaseRecordWriter;
 import io.tapdata.oceanbase.OceanbaseSchemaLoader;
 import io.tapdata.oceanbase.OceanbaseTest;
+import io.tapdata.oceanbase.OceanbaseWriteRecorder;
 import io.tapdata.oceanbase.OceanbaseWriter;
 import io.tapdata.oceanbase.bean.OceanbaseConfig;
 import io.tapdata.pdk.apis.annotations.TapConnectorClass;
@@ -208,8 +210,18 @@ public class OceanbaseConnector extends ConnectorBase {
      * @param writeListResultConsumer
      */
     private void writeRecord(TapConnectorContext tapConnectorContext, List<TapRecordEvent> tapRecordEvents, TapTable tapTable, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer) throws Throwable {
-        WriteListResult<TapRecordEvent> writeListResult = this.oceanbaseWriter.write(tapConnectorContext, tapTable, tapRecordEvents);
-        writeListResultConsumer.accept(writeListResult);
+        String insertDmlPolicy = tapConnectorContext.getConnectorCapabilities().getCapabilityAlternative(ConnectionOptions.DML_INSERT_POLICY);
+        if (insertDmlPolicy == null) {
+            insertDmlPolicy = ConnectionOptions.DML_INSERT_POLICY_UPDATE_ON_EXISTS;
+        }
+        String updateDmlPolicy = tapConnectorContext.getConnectorCapabilities().getCapabilityAlternative(ConnectionOptions.DML_UPDATE_POLICY);
+        if (updateDmlPolicy == null) {
+            updateDmlPolicy = ConnectionOptions.DML_UPDATE_POLICY_IGNORE_ON_NON_EXISTS;
+        }
+        new OceanbaseRecordWriter(oceanbaseJdbcContext, tapTable)
+                .setInsertPolicy(insertDmlPolicy)
+                .setUpdatePolicy(updateDmlPolicy)
+                .write(tapRecordEvents, writeListResultConsumer);
     }
 
     /**
@@ -262,7 +274,6 @@ public class OceanbaseConnector extends ConnectorBase {
             oceanbaseJdbcContext = (OceanbaseJdbcContext) DataSourcePool.getJdbcContext(oceanbaseConfig, OceanbaseJdbcContext.class, tapConnectionContext.getId());
             oceanbaseJdbcContext.setTapConnectionContext(tapConnectionContext);
         }
-        this.oceanbaseWriter = new OceanbaseWriter(oceanbaseJdbcContext);
 
         if (tapConnectionContext instanceof TapConnectorContext) {
             this.connectionTimezone = tapConnectionContext.getConnectionConfig().getString("timezone");
