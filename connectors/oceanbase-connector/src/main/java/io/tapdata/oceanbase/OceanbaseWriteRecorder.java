@@ -1,20 +1,27 @@
 package io.tapdata.oceanbase;
 
 import io.tapdata.common.WriteRecorder;
+import io.tapdata.entity.event.dml.TapRecordEvent;
+import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.kit.EmptyKit;
 import io.tapdata.kit.StringKit;
 import io.tapdata.pdk.apis.entity.ConnectionOptions;
+import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.MapUtils;
 
 import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 /**
@@ -22,7 +29,11 @@ import java.util.stream.Collectors;
  * @Date 8/24/22
  */
 public class OceanbaseWriteRecorder extends WriteRecorder {
+    private static final String TAG = OceanbaseWriteRecorder.class.getSimpleName();
     private static final String INSERT_SQL_TEMPLATE = "INSERT INTO `%s`.`%s`(%s) values(%s)";
+    private static final String UPDATE_SQL_TEMPLATE = "UPDATE `%s`.`%s` SET %s WHERE %s";
+    private static final String DELETE_SQL_TEMPLATE = "DELETE FROM `%s`.`%s` WHERE %s";
+    private static final String CHECK_ROW_EXISTS_TEMPLATE = "SELECT COUNT(1) as count FROM `%s`.`%s` WHERE %s";
     public OceanbaseWriteRecorder(Connection connection, TapTable tapTable, String schema) {
         super(connection, tapTable, schema);
     }
@@ -239,6 +250,9 @@ public class OceanbaseWriteRecorder extends WriteRecorder {
             }
             List<String> fields = new ArrayList<>();
             nameFieldMap.forEach((fieldName, field) -> {
+                if (!needAddIntoPreparedStatementValues(field, after)) {
+                    return;
+                }
                 fields.add("`" + fieldName + "`");
             });
             List<String> questionMarks = fields.stream().map(f -> "?").collect(Collectors.toList());
@@ -260,69 +274,192 @@ public class OceanbaseWriteRecorder extends WriteRecorder {
         Map<String, Object> before = new HashMap<>();
         uniqueCondition.forEach(k -> before.put(k, after.get(k)));
         if (updatePolicy.equals(ConnectionOptions.DML_UPDATE_POLICY_INSERT_ON_NON_EXISTS)) {
-            insertUpdate(after, before);
+            if (rowExists(tapTable, before, after)) {
+                justUpdate(before, after);
+            } else {
+                justInsert(after);
+            }
         } else {
-            justUpdate(after, before);
+            justUpdate(before, after);
         }
         preparedStatement.addBatch();
     }
 
-    protected void justUpdate(Map<String, Object> after, Map<String, Object> before) throws SQLException {
+    protected void justUpdate(Map<String, Object> before, Map<String, Object> after) throws SQLException {
+        List<String> fieldSqlList = new ArrayList<>();
+        List<String> fieldList = new ArrayList<>();
         if (EmptyKit.isNull(preparedStatement)) {
-            if (hasPk) {
-                preparedStatement = connection.prepareStatement("UPDATE \"" + schema + "\".\"" + tapTable.getId() + "\" SET " +
-                        after.keySet().stream().map(k -> "\"" + k + "\"=?").collect(Collectors.joining(", ")) + " WHERE " +
-                        before.keySet().stream().map(k -> "\"" + k + "\"=?").collect(Collectors.joining(" AND ")));
-            } else {
-                preparedStatement = connection.prepareStatement("UPDATE \"" + schema + "\".\"" + tapTable.getId() + "\" SET " +
-                        after.keySet().stream().map(k -> "\"" + k + "\"=?").collect(Collectors.joining(", ")) + " WHERE " +
-                        before.keySet().stream().map(k -> "(\"" + k + "\"=? OR (\"" + k + "\" IS NULL AND ?::text IS NULL))")
-                                .collect(Collectors.joining(" AND ")));
+            LinkedHashMap<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
+            if (MapUtils.isEmpty(nameFieldMap)) {
+                throw new SQLException("Create update prepared statement error, table \"" + tapTable.getId() + "\"'s fields is empty");
             }
-        }
-        preparedStatement.clearParameters();
-        int pos = 1;
-        for (String key : after.keySet()) {
-            preparedStatement.setObject(pos++, after.get(key));
-        }
-        dealNullBefore(before, pos);
-    }
-
-    private void insertUpdate(Map<String, Object> after, Map<String, Object> before) throws SQLException {
-        if (EmptyKit.isNull(preparedStatement)) {
-            String updateSql;
-            if (hasPk) {
-                updateSql = "WITH upsert AS (UPDATE \"" + schema + "\".\"" + tapTable.getId() + "\" SET " + allColumn.stream().map(k -> "\"" + k + "\"=?")
-                        .collect(Collectors.joining(", ")) + " WHERE " + before.keySet().stream().map(k -> "\"" + k + "\"=?")
-                        .collect(Collectors.joining(" AND ")) + " RETURNING *) INSERT INTO \"" + schema + "\".\"" + tapTable.getId() + "\" ("
-                        + allColumn.stream().map(k -> "\"" + k + "\"").collect(Collectors.joining(", ")) + ") SELECT "
-                        + StringKit.copyString("?", allColumn.size(), ",") + " WHERE NOT EXISTS (SELECT * FROM upsert)";
-            } else {
-                updateSql = "WITH upsert AS (UPDATE \"" + schema + "\".\"" + tapTable.getId() + "\" SET " + allColumn.stream().map(k -> "\"" + k + "\"=?")
-                        .collect(Collectors.joining(", ")) + " WHERE " + before.keySet().stream().map(k -> "(\"" + k + "\"=? OR (\"" + k + "\" IS NULL AND ?::text IS NULL))")
-                        .collect(Collectors.joining(" AND ")) + " RETURNING *) INSERT INTO \"" + schema + "\".\"" + tapTable.getId() + "\" ("
-                        + allColumn.stream().map(k -> "\"" + k + "\"").collect(Collectors.joining(", ")) + ") SELECT "
-                        + StringKit.copyString("?", allColumn.size(), ",") + " WHERE NOT EXISTS (SELECT * FROM upsert)";
+            nameFieldMap.forEach((fieldName, field) -> {
+                if (!needAddIntoPreparedStatementValues(field, after)) {
+                    return;
+                }
+                fieldSqlList.add("`" + fieldName + "`=?");
+                fieldList.add(fieldName);
+            });
+            List<String> whereList = new ArrayList<>();
+            Collection<String> uniqueKeys = getUniqueKeys(tapTable);
+            for (String uniqueKey : uniqueKeys) {
+                whereList.add("`" + uniqueKey + "`<=>?");
             }
+            final String updateSql = String.format(UPDATE_SQL_TEMPLATE, schema, tapTable.getId(), String.join(",", fieldSqlList), String.join(" AND ", whereList));
             preparedStatement = connection.prepareStatement(updateSql);
         }
         preparedStatement.clearParameters();
         int pos = 1;
-        for (String key : allColumn) {
+        for (String key : fieldList) {
             preparedStatement.setObject(pos++, after.get(key));
         }
-        if (hasPk) {
-            for (String key : before.keySet()) {
-                preparedStatement.setObject(pos++, after.get(key));
+//        if (hasPk) {
+//            for (String key : uniqueCondition) {
+//                preparedStatement.setObject(pos++, after.get(key));
+//            }
+//        } else {
+//            for (String key : uniqueCondition) {
+//                preparedStatement.setObject(pos++, after.get(key));
+//                preparedStatement.setObject(pos++, after.get(key));
+//            }
+//        }
+        dealNullBefore(before, pos);
+    }
+
+    private boolean needAddIntoPreparedStatementValues(TapField field, Map<String, Object> after) {
+        if (null == after) {
+            return false;
+        }
+        if (!after.containsKey(field.getName())) {
+            TapLogger.warn(TAG, "Found schema field not exists in after data, will skip it: " + field.getName());
+            return false;
+        }
+        return true;
+    }
+
+//    private int setPreparedStatementValues(TapTable tapTable, Map<String, Object> after, PreparedStatement preparedStatement) throws Throwable {
+//        LinkedHashMap<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
+//        int parameterIndex = 1;
+//        if (MapUtils.isEmpty(after)) {
+//            throw new Exception("Set prepared statement values failed, after is empty");
+//        }
+//        List<String> afterKeys = new ArrayList<>(after.keySet());
+//        for (String fieldName : nameFieldMap.keySet()) {
+//            TapField tapField = nameFieldMap.get(fieldName);
+//            if (!needAddIntoPreparedStatementValues(tapField, after)) {
+//                continue;
+//            }
+//            Object o = after.get(fieldName);
+//            preparedStatement.setObject(parameterIndex++, o);
+//            afterKeys.remove(fieldName);
+//        }
+//        if (CollectionUtils.isNotEmpty(afterKeys)) {
+//            Map<String, Object> missingAfter = new HashMap<>();
+//            afterKeys.forEach(k -> missingAfter.put(k, after.get(k)));
+//            TapLogger.warn(TAG, "Found fields in after data not exists in schema fields, will skip it: " + missingAfter);
+//        }
+//        return parameterIndex;
+//    }
+
+    private Collection<String> getUniqueKeys(TapTable tapTable) {
+        return tapTable.primaryKeys(true);
+    }
+
+//    private void insertUpdate(Map<String, Object> after, Map<String, Object> before) throws SQLException {
+//        if (EmptyKit.isNull(preparedStatement)) {
+//            String updateSql;
+//            if (hasPk) {
+//                updateSql = "WITH upsert AS (UPDATE \"" + schema + "\".\"" + tapTable.getId() + "\" SET " + allColumn.stream().map(k -> "\"" + k + "\"=?")
+//                        .collect(Collectors.joining(", ")) + " WHERE " + before.keySet().stream().map(k -> "\"" + k + "\"=?")
+//                        .collect(Collectors.joining(" AND ")) + " RETURNING *) INSERT INTO \"" + schema + "\".\"" + tapTable.getId() + "\" ("
+//                        + allColumn.stream().map(k -> "\"" + k + "\"").collect(Collectors.joining(", ")) + ") SELECT "
+//                        + StringKit.copyString("?", allColumn.size(), ",") + " WHERE NOT EXISTS (SELECT * FROM upsert)";
+//            } else {
+//                updateSql = "WITH upsert AS (UPDATE \"" + schema + "\".\"" + tapTable.getId() + "\" SET " + allColumn.stream().map(k -> "\"" + k + "\"=?")
+//                        .collect(Collectors.joining(", ")) + " WHERE " + before.keySet().stream().map(k -> "(\"" + k + "\"=? OR (\"" + k + "\" IS NULL AND ?::text IS NULL))")
+//                        .collect(Collectors.joining(" AND ")) + " RETURNING *) INSERT INTO \"" + schema + "\".\"" + tapTable.getId() + "\" ("
+//                        + allColumn.stream().map(k -> "\"" + k + "\"").collect(Collectors.joining(", ")) + ") SELECT "
+//                        + StringKit.copyString("?", allColumn.size(), ",") + " WHERE NOT EXISTS (SELECT * FROM upsert)";
+//            }
+//            preparedStatement = connection.prepareStatement(updateSql);
+//        }
+//        preparedStatement.clearParameters();
+//        int pos = 1;
+//        for (String key : allColumn) {
+//            preparedStatement.setObject(pos++, after.get(key));
+//        }
+//        if (hasPk) {
+//            for (String key : before.keySet()) {
+//                preparedStatement.setObject(pos++, after.get(key));
+//            }
+//        } else {
+//            for (String key : before.keySet()) {
+//                preparedStatement.setObject(pos++, after.get(key));
+//                preparedStatement.setObject(pos++, after.get(key));
+//            }
+//        }
+//        for (String key : allColumn) {
+//            preparedStatement.setObject(pos++, after.get(key));
+//        }
+//    }
+
+    private boolean rowExists(TapTable tapTable, Map<String, Object> before, Map<String, Object> after) throws SQLException {
+        PreparedStatement checkRowExistsPreparedStatement = getCheckRowExistsPreparedStatement(tapTable);
+        setPreparedStatementWhere(tapTable, before, after, checkRowExistsPreparedStatement, 1);
+        AtomicBoolean result = new AtomicBoolean(false);
+        try {
+            ResultSet rs = checkRowExistsPreparedStatement.executeQuery();
+            if (rs.next()) {
+                int count = rs.getInt("count");
+                result.set(count > 0);
             }
+        } catch (Throwable e) {
+            throw new SQLException("Check row exists failed, sql: " + checkRowExistsPreparedStatement + ", message: " + e.getMessage(), e);
+        }
+        return result.get();
+    }
+
+    private void setPreparedStatementWhere(TapTable tapTable, Map<String, Object> before, Map<String, Object> after, PreparedStatement preparedStatement, int parameterIndex) throws SQLException {
+        if (parameterIndex <= 1) {
+            parameterIndex = 1;
+        }
+        if (MapUtils.isEmpty(before) && MapUtils.isEmpty(after)) {
+            throw new SQLException("Set prepared statement where clause failed, before and after both empty");
+        }
+        Map<String, Object> data;
+        if (MapUtils.isNotEmpty(before)) {
+            data = before;
         } else {
-            for (String key : before.keySet()) {
-                preparedStatement.setObject(pos++, after.get(key));
-                preparedStatement.setObject(pos++, after.get(key));
-            }
+            data = after;
         }
-        for (String key : allColumn) {
-            preparedStatement.setObject(pos++, after.get(key));
+        Collection<String> uniqueKeys = getUniqueKeys(tapTable);
+        for (String uniqueKey : uniqueKeys) {
+            if (!data.containsKey(uniqueKey)) {
+                throw new SQLException("Set prepared statement where clause failed, unique key \"" + uniqueKey + "\" not exists in data: " + after);
+            }
+            Object value = data.get(uniqueKey);
+            preparedStatement.setObject(parameterIndex++, value);
+        }
+    }
+
+    private PreparedStatement getCheckRowExistsPreparedStatement(TapTable tapTable) throws SQLException {
+        String tableId = tapTable.getId();
+        LinkedHashMap<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
+        if (MapUtils.isEmpty(nameFieldMap)) {
+            throw new SQLException("Create check row exists prepared statement error, table \"" + tableId + "\"'s fields is empty");
+        }
+        List<String> whereList = new ArrayList<>();
+        Collection<String> uniqueKeys = getUniqueKeys(tapTable);
+        for (String uniqueKey : uniqueKeys) {
+            whereList.add("`" + uniqueKey + "`<=>?");
+        }
+        String sql = String.format(CHECK_ROW_EXISTS_TEMPLATE, schema, tableId, String.join(" AND ", whereList));
+        try {
+            return connection.prepareStatement(sql);
+        } catch (SQLException e) {
+            throw new SQLException("Create check row exists prepared statement error, sql: " + sql + ", message: " + e.getSQLState() + " " + e.getErrorCode() + " " + e.getMessage(), e);
+        } catch (Exception e) {
+            throw new SQLException("Create check row exists prepared statement error, sql: " + sql + ", message: " + e.getMessage(), e);
         }
     }
 
@@ -335,14 +472,17 @@ public class OceanbaseWriteRecorder extends WriteRecorder {
             before.keySet().removeIf(k -> !uniqueCondition.contains(k));
         }
         if (EmptyKit.isNull(preparedStatement)) {
-            if (hasPk) {
-                preparedStatement = connection.prepareStatement("DELETE FROM \"" + schema + "\".\"" + tapTable.getId() + "\" WHERE " +
-                        before.keySet().stream().map(k -> "\"" + k + "\"=?").collect(Collectors.joining(" AND ")));
-            } else {
-                preparedStatement = connection.prepareStatement("DELETE FROM \"" + schema + "\".\"" + tapTable.getId() + "\" WHERE " +
-                        before.keySet().stream().map(k -> "(\"" + k + "\"=? OR (\"" + k + "\" IS NULL AND ?::text IS NULL))")
-                                .collect(Collectors.joining(" AND ")));
+            LinkedHashMap<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
+            if (MapUtils.isEmpty(nameFieldMap)) {
+                throw new SQLException("Create delete prepared statement error, table \"" + tapTable.getId() + "\"'s fields is empty");
             }
+            List<String> whereList = new ArrayList<>();
+            Collection<String> uniqueKeys = getUniqueKeys(tapTable);
+            for (String uniqueKey : uniqueKeys) {
+                whereList.add("`" + uniqueKey + "`<=>?");
+            }
+            String deleteSql = String.format(DELETE_SQL_TEMPLATE, schema, tapTable.getId(), String.join(" AND ", whereList));
+            preparedStatement = connection.prepareStatement(deleteSql);
         }
         preparedStatement.clearParameters();
         dealNullBefore(before, 1);
