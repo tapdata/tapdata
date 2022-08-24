@@ -10,4 +10,6 @@ import lombok.NonNull;
 public interface IAutoCompare extends AutoCloseable {
 
     void autoCompare(@NonNull TaskAutoInspectResultDto taskAutoInspectResultDto);
+
+    void fix(@NonNull TaskAutoInspectResultDto taskAutoInspectResultDto);
 }

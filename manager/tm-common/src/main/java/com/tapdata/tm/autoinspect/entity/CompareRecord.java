@@ -1,15 +1,13 @@
 package com.tapdata.tm.autoinspect.entity;
 
 import com.tapdata.tm.autoinspect.constants.CompareStatus;
-import lombok.Getter;
+import lombok.Data;
 import lombok.NonNull;
-import lombok.Setter;
 import org.bson.types.ObjectId;
 
 import java.util.*;
 
-@Setter
-@Getter
+@Data
 public class CompareRecord {
 
     private @NonNull String tableName;
@@ -39,10 +37,6 @@ public class CompareRecord {
 
     public Object getDataValue(@NonNull String key) {
         return data.get(key);
-    }
-
-    public boolean isNull() {
-        return null == this.data;
     }
 
     /**

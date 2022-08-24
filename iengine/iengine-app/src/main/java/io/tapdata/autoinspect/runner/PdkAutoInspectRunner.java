@@ -64,7 +64,7 @@ public abstract class PdkAutoInspectRunner extends AutoInspectRunner<IPdkConnect
 
     @Override
     protected IAutoCompare openAutoCompare(@NonNull IPdkConnector sourceConnector, @NonNull IPdkConnector targetConnector) throws Exception {
-        return new PdkAutoCompare(clientMongoOperator, sourceConnector, targetConnector);
+        return new PdkAutoCompare(clientMongoOperator, progress, sourceConnector, targetConnector, this::isRunning, this::errorHandle);
     }
 
     protected void init(@NonNull AutoInspectProgress progress, @NonNull IPdkConnector sourceConnector, @NonNull IPdkConnector targetConnector) throws Exception {

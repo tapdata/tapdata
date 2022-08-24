@@ -11,6 +11,7 @@ import com.tapdata.tm.autoinspect.constants.TaskType;
 import com.tapdata.tm.autoinspect.dto.TaskAutoInspectResultDto;
 import com.tapdata.tm.autoinspect.entity.AutoInspectProgress;
 import com.tapdata.tm.autoinspect.entity.CompareRecord;
+import com.tapdata.tm.autoinspect.entity.CompareTableItem;
 import com.tapdata.tm.autoinspect.utils.AutoInspectUtil;
 import com.tapdata.tm.commons.dag.nodes.AutoInspectNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
@@ -21,6 +22,8 @@ import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.entity.schema.TapTable;
+import io.tapdata.entity.utils.InstanceFactory;
+import io.tapdata.module.api.PipelineDelay;
 import io.tapdata.observable.logging.ObsLogger;
 import io.tapdata.observable.logging.ObsLoggerFactory;
 import lombok.NonNull;
@@ -42,10 +45,13 @@ public class HazelcastTargetPdkAutoInspectNode extends HazelcastTargetPdkBaseNod
     private static final Logger logger = LogManager.getLogger(HazelcastTargetPdkAutoInspectNode.class);
     private static final ExecutorService EXECUTORS = new ThreadPoolExecutor(0, Integer.MAX_VALUE, 60L, TimeUnit.SECONDS, new SynchronousQueue<>());
     private final AtomicBoolean isInitialed = new AtomicBoolean(false);
-    private final AtomicLong incrementDelay = new AtomicLong(5 * 1000);//todo: Use task synchronization delay time
+    private final AtomicLong lastReferenceTimes = new AtomicLong();
+    private final AtomicLong processDelay = new AtomicLong();
+    private final PipelineDelay pipelineDelay = InstanceFactory.instance(PipelineDelay.class);
     private final LinkedBlockingQueue<List<TapEvent>> incrementQueue = new LinkedBlockingQueue<>(1000);//todo: Optimize the queue, restart task maybe lost events
 
     private final ObsLogger userLogger;
+    private final String dataNodeId;
 
     public HazelcastTargetPdkAutoInspectNode(DataProcessorContext dataProcessorContext) {
         super(dataProcessorContext);
@@ -54,6 +60,7 @@ public class HazelcastTargetPdkAutoInspectNode extends HazelcastTargetPdkBaseNod
             throw new RuntimeException("Not AutoInspectNode instance");
         }
         AutoInspectNode node = (AutoInspectNode) dataProcessorContext.getNode();
+        this.dataNodeId = node.getToNode().getId();
 
         TaskDto task = dataProcessorContext.getTaskDto();
         String taskId = task.getId().toHexString();
@@ -94,29 +101,48 @@ public class HazelcastTargetPdkAutoInspectNode extends HazelcastTargetPdkBaseNod
 //                        }
                     } while (null == tapEvents);
 
+                    // update from observable-module
+                    Optional.ofNullable(pipelineDelay.getDelay(taskId, dataNodeId)).ifPresent(processDelay::set);
+                    Optional.ofNullable(pipelineDelay.getEventReferenceTime(taskId, dataNodeId)).ifPresent(lastReferenceTimes::set);
+
+                    CompareTableItem tableItem;
                     CompareRecord sourceRecord;
                     for (TapEvent tapEvent : tapEvents) {
                         if (tapEvent instanceof TapRecordEvent) {
                             String tableName = ((TapRecordEvent) tapEvent).getTableId();
                             TapTable tapTable = sourceConnector.getTapTable(tableName);
 
-                            Long eventDelay = Optional.ofNullable(((TapRecordEvent) tapEvent).getReferenceTime()).map(times -> {
-                                if (times < 0) {
-                                    logger.warn("Incremental event time is negative: {}", JSON.toJSONString(tapEvent));
+                            // filter non-listening table
+                            tableItem = progress.getTableItem(tableName);
+                            if (null == tableItem) continue;
+
+                            // Enter A when the synchronization task is normal, Otherwise use B or C whichever is smaller
+                            // - A: referenceTimes < lastReferenceTimes
+                            // - B: processDelay*1.5 - (SystemTimes - eventTimes)
+                            // - C: 5 * 60 * 1000L
+                            if (Optional.ofNullable(((TapRecordEvent) tapEvent).getReferenceTime()).map(referenceTimes -> {
+                                if (referenceTimes <= lastReferenceTimes.get()) {
                                     return 0L;
+                                } else {
+                                    long delay = 0;
+                                    if (null != tapEvent.getTime()) {
+                                        delay = Math.max(0, (long) (processDelay.get() * 1.5) - (System.currentTimeMillis() - tapEvent.getTime()));
+                                    }
+                                    return Math.min(delay, 5 * 60 * 1000L);
                                 }
-                                // not larger 5 minus
-                                return Math.min(incrementDelay.get() - times, 5 * 60 * 1000L);
-                            }).orElse(0L);
-                            // not less 0
-                            if (eventDelay > 0) {
-                                long beginTimes = System.currentTimeMillis();
-                                while (System.currentTimeMillis() - beginTimes < eventDelay) {
-                                    Thread.sleep(200);
-                                    if (!isRunning() || isStopping()) return;
+                            }).map(delayTimes -> { // wait delay times
+                                try {
+                                    long interval = 200;
+                                    while (delayTimes > 0) {
+                                        Thread.sleep(Math.min(interval, delayTimes));
+                                        if (!isRunning() || isStopping()) return true;
+                                        delayTimes -= interval;
+                                    }
+                                    return false;
+                                } catch (InterruptedException e) {
+                                    return true;
                                 }
-                                logger.info("Incremental delay times: {}", System.currentTimeMillis() - beginTimes);
-                            }
+                            }).orElse(false)) return; // exit in true
 
                             if (tapEvent instanceof TapUpdateRecordEvent) {
                                 //update event
@@ -142,11 +168,10 @@ public class HazelcastTargetPdkAutoInspectNode extends HazelcastTargetPdkBaseNod
                                 if (null != targetRecord) {
                                     targetRecord.getOriginalKey().putAll(sourceRecord.getOriginalKey());
                                     //target has more data
-//                                    autoCompare.autoCompare(TaskAutoInspectResultDto.parse(taskId, sourceRecord.getTableName(), sourceConnector.getConnId(), keymap, targetRecord));
                                 }
                             } else if (null == targetRecord) {
                                 //source has more data
-                                autoCompare.autoCompare(TaskAutoInspectResultDto.parse(taskId, sourceRecord, tableName, targetConnector.getConnId()));
+                                autoCompare.autoCompare(TaskAutoInspectResultDto.parse(taskId, sourceRecord, targetConnector.getConnId(), tableName));
                             } else {
                                 targetRecord.getOriginalKey().putAll(sourceRecord.getOriginalKey());
                                 switch (sourceRecord.compare(targetRecord)) {
@@ -156,6 +181,9 @@ public class HazelcastTargetPdkAutoInspectNode extends HazelcastTargetPdkBaseNod
                                         break;
                                     case Diff:
                                         autoCompare.autoCompare(TaskAutoInspectResultDto.parse(taskId, sourceRecord, targetRecord));
+                                        break;
+                                    case Ok:
+                                        autoCompare.fix(TaskAutoInspectResultDto.parse(taskId, sourceRecord, targetRecord));
                                         break;
                                     default:
                                         break;
@@ -175,6 +203,11 @@ public class HazelcastTargetPdkAutoInspectNode extends HazelcastTargetPdkBaseNod
             @Override
             protected boolean isStopping() {
                 return false;
+            }
+
+            @Override
+            protected void errorHandle(Throwable e, String msg) {
+                _thisNode.errorHandle(e, msg);
             }
         });
     }

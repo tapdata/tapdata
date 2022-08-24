@@ -31,7 +31,7 @@ public class TaskAutoInspectResultDto extends BaseDto {
     @JsonDeserialize(using = ObjectIdDeserialize.class)
     private @NonNull ObjectId sourceConnId;
     private String sourceConnName;
-    private Map<String, Object> sourceData;
+    private @NonNull Map<String, Object> sourceData;
 
     @JsonSerialize(using = ObjectIdSerialize.class)
     @JsonDeserialize(using = ObjectIdDeserialize.class)
@@ -68,16 +68,12 @@ public class TaskAutoInspectResultDto extends BaseDto {
         setTargetData(targetRecord.getData());
     }
 
-    public static TaskAutoInspectResultDto parse(@NonNull String taskId, @NonNull String originalTableName, @NonNull ObjectId sourceConnId, @NonNull LinkedHashMap<String, Object> originalKeymap, @NonNull CompareRecord targetRecord) {
-        TaskAutoInspectResultDto dto = new TaskAutoInspectResultDto();
-        dto.setTaskId(taskId);
-        dto.setSourceConnId(sourceConnId);
-        dto.setOriginalTableName(originalTableName);
-        dto.setOriginalKeymap(originalKeymap);
-        dto.fillTarget(targetRecord);
-        return dto;
-    }
-
+    /**
+     * @param taskId       task id
+     * @param sourceRecord source record info, the sourceRecord.data is not allowed to be null
+     * @param targetRecord target record info
+     * @return difference record
+     */
     public static TaskAutoInspectResultDto parse(@NonNull String taskId, @NonNull CompareRecord sourceRecord, @NonNull CompareRecord targetRecord) {
         TaskAutoInspectResultDto dto = new TaskAutoInspectResultDto();
         dto.setTaskId(taskId);
@@ -86,7 +82,14 @@ public class TaskAutoInspectResultDto extends BaseDto {
         return dto;
     }
 
-    public static TaskAutoInspectResultDto parse(@NonNull String taskId, @NonNull CompareRecord sourceRecord, @NonNull String targetTableName, @NonNull ObjectId targetConnId) {
+    /**
+     * @param taskId          task id
+     * @param sourceRecord    source record info, the sourceRecord.data is not allowed to be null
+     * @param targetTableName target table name
+     * @param targetConnId    target connections id
+     * @return difference record
+     */
+    public static TaskAutoInspectResultDto parse(@NonNull String taskId, @NonNull CompareRecord sourceRecord, @NonNull ObjectId targetConnId, @NonNull String targetTableName) {
         TaskAutoInspectResultDto dto = new TaskAutoInspectResultDto();
         dto.setTaskId(taskId);
         dto.fillSource(sourceRecord);
