@@ -63,6 +63,6 @@ public class PipelineDelayImpl implements PipelineDelay {
 
     @Override
     public void consumeDelay(String taskId, String nodeId, BiConsumer<Long, Long> consumer) {
-        consumer.accept(getEventReferenceTime(taskId, nodeId), getEventReferenceTime(taskId, nodeId));
+        consumer.accept(getEventFinishTime(taskId, nodeId), getEventReferenceTime(taskId, nodeId));
     }
 }
