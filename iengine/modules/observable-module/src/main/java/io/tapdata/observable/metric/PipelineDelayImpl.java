@@ -25,7 +25,8 @@ public class PipelineDelayImpl implements PipelineDelay {
         eventReferenceTimeMap.get(taskId).putIfAbsent(nodeId, eventReferenceTime);
     }
 
-    private Long getEventFinishTime(String taskId, String nodeId) {
+    @Override
+    public Long getEventFinishTime(String taskId, String nodeId) {
         Long eventFinishTime = null;
         Map<String, Long> eventFinishTimeNodeMap = eventFinishTimeMap.get(taskId);
         if (null != eventFinishTimeNodeMap) {
@@ -35,7 +36,9 @@ public class PipelineDelayImpl implements PipelineDelay {
         return eventFinishTime;
     }
 
-    private Long getEventReferenceTime(String taskId, String nodeId) {
+
+    @Override
+    public Long getEventReferenceTime(String taskId, String nodeId) {
         Long eventReferenceTime = null;
         Map<String, Long> eventReferenceTimeNodeMap = eventReferenceTimeMap.get(taskId);
         if (null != eventReferenceTimeNodeMap) {
@@ -61,8 +64,4 @@ public class PipelineDelayImpl implements PipelineDelay {
         return null;
     }
 
-    @Override
-    public void consumeDelay(String taskId, String nodeId, BiConsumer<Long, Long> consumer) {
-        consumer.accept(getEventFinishTime(taskId, nodeId), getEventReferenceTime(taskId, nodeId));
-    }
 }
