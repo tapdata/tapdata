@@ -110,6 +110,7 @@ public class TapDateTimeMapping extends TapDateBase {
     final BigDecimal timeZoneValue = BigDecimal.valueOf(10).pow(17);
     final BigDecimal defaultFractionValue = BigDecimal.valueOf(10).pow(16);
 
+    final BigDecimal minMaxFractionValue = BigDecimal.valueOf(10).pow(16);
     @Override
     public BigDecimal matchingScore(TapField field) {
         if (field.getTapType() instanceof TapDateTime) {
@@ -138,6 +139,10 @@ public class TapDateTimeMapping extends TapDateBase {
 
             if(isFraction() && this.defaultFraction != null) {
                 score = score.add(defaultFractionValue);
+            }
+
+            if(fraction != null && this.minFraction != null && this.maxFraction != null && fraction >= this.minFraction && fraction <= this.maxFraction) {
+                score = score.add(minMaxFractionValue);
             }
 
             if((withTimeZone != null && withTimeZone && this.withTimeZone != null && this.withTimeZone) ||
