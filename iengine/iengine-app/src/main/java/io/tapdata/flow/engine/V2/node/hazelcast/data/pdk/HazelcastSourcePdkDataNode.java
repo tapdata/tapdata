@@ -18,6 +18,7 @@ import io.tapdata.common.sample.sampler.CounterSampler;
 import io.tapdata.common.sample.sampler.ResetCounterSampler;
 import io.tapdata.common.sample.sampler.SpeedSampler;
 import io.tapdata.entity.schema.TapTable;
+import io.tapdata.flow.engine.V2.exception.node.NodeException;
 import io.tapdata.flow.engine.V2.progress.SnapshotProgressManager;
 import io.tapdata.flow.engine.V2.sharecdc.ReaderType;
 import io.tapdata.flow.engine.V2.sharecdc.ShareCdcReader;
@@ -230,7 +231,15 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 											}
 										}
 									}), TAG));
-						} finally {
+						} catch (Throwable throwable) {
+							Throwable throwableWrapper = throwable;
+							if (!(throwableWrapper instanceof NodeException)) {
+								throwableWrapper = new NodeException(throwableWrapper).context(getProcessorBaseContext());
+							}
+							errorHandle(throwableWrapper, throwableWrapper.getMessage());
+							throw throwableWrapper;
+						}
+						finally {
 							try {
 								sourceRunnerLock.unlock();
 							} catch (Exception ignored) {
@@ -340,6 +349,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 						} catch (Exception e) {
 							RuntimeException runtimeException = new RuntimeException("Count " + table.getId() + " failed: " + e.getMessage(), e);
 							logger.warn(runtimeException.getMessage() + "\n" + Log4jUtil.getStackString(e));
+							throw runtimeException;
 						}
 					}, TAG));
 		}
