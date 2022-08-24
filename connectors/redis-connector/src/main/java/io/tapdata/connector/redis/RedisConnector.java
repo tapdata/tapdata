@@ -130,7 +130,11 @@ public class RedisConnector extends ConnectorBase {
             keyName = (String) nodeConfig.get("cachePrefix");
         }
         Jedis jedis = redisContext.getJedis();
-        jedis.del(keyName);
+        try {
+            jedis.del(keyName);
+        }finally {
+            jedis.close();
+        }
     }
 
     private void dropTable(TapConnectorContext tapConnectorContext, TapDropTableEvent tapDropTableEvent) throws Throwable {
@@ -140,47 +144,56 @@ public class RedisConnector extends ConnectorBase {
            keyName = (String) nodeConfig.get("cachePrefix");
         }
         Jedis jedis = redisContext.getJedis();
-        jedis.del(keyName);
+        try {
+            jedis.del(keyName);
+        }finally {
+            jedis.close();
+        }
     }
 
 
     private void createTable(TapConnectorContext tapConnectorContext, TapCreateTableEvent createTableEvent) throws Throwable {
 
+
         DataMap nodeConfig = tapConnectorContext.getNodeConfig();
         // 存储为json模式时，不需要保存schema
-        if(nodeConfig != null){
-            String  valueType = (String) nodeConfig.get("valueType");
-            if(!RedisRecordWriter.VALUE_TYPE_LIST.equals(valueType)){
+        if (nodeConfig != null) {
+            String valueType = (String) nodeConfig.get("valueType");
+            if (!RedisRecordWriter.VALUE_TYPE_LIST.equals(valueType)) {
                 return;
             }
         }
 
         Jedis jedis = redisContext.getJedis();
-        // 获取源表的字段
-        List<TapField> fieldList = new ArrayList<>();
-        LinkedHashMap<String, TapField> hashMap = createTableEvent.getTable().getNameFieldMap();
+        try {
+            // 获取源表的字段
+            List<TapField> fieldList = new ArrayList<>();
+            LinkedHashMap<String, TapField> hashMap = createTableEvent.getTable().getNameFieldMap();
 
-        for (Map.Entry<String, TapField> entry : hashMap.entrySet()) {
-            fieldList.add(entry.getValue());
+            for (Map.Entry<String, TapField> entry : hashMap.entrySet()) {
+                fieldList.add(entry.getValue());
+            }
+
+            // 拼装数据库中的schema结构，根据tapFiled pos排序
+            String schema = "";
+            Collections.sort(fieldList, Comparator.comparing(TapField::getPos));
+            for (TapField tapField : fieldList) {
+                schema += "," + tapField.getName();
+            }
+            schema = schema.substring(1);
+
+            // redis key的表名。如果前缀表名不存在，目标定义的表名
+            String keyName = createTableEvent.getTableId();
+            if (nodeConfig != null && nodeConfig.get("cachePrefix") != null) {
+                keyName = (String) nodeConfig.get("cachePrefix");
+            }
+
+            jedis.del(keyName);
+            // 给redis第一行写入schema
+            jedis.rpush(keyName, schema);
+        } finally {
+            jedis.close();
         }
-
-        // 拼装数据库中的schema结构，根据tapFiled pos排序
-        String schema ="";
-        Collections.sort(fieldList, Comparator.comparing(TapField::getPos));
-        for (TapField tapField : fieldList) {
-            schema += "," + tapField.getName();
-        }
-        schema = schema.substring(1);
-
-        // redis key的表名。如果前缀表名不存在，目标定义的表名
-        String keyName = createTableEvent.getTableId();
-        if (nodeConfig != null && nodeConfig.get("cachePrefix")!=null) {
-            keyName = (String)nodeConfig.get("cachePrefix") ;
-        }
-
-        jedis.del(keyName);
-        // 给redis第一行写入schema
-        jedis.rpush(keyName, schema);
 
     }
 }
