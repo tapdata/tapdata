@@ -128,7 +128,7 @@ public class DeduceSchemaHandler implements WebSocketEventHandler<WebSocketEvent
 		TaskDto updateTaskDto = new TaskDto();
 		updateTaskDto.setId(request.getTaskDto().getId());
 		updateTaskDto.setDag(request.getTaskDto().getDag());
-		clientMongoOperator.insertOne(updateTaskDto, ConnectorConstant.TASK_COLLECTION + "/dag");
+		clientMongoOperator.insertOne(updateTaskDto, ConnectorConstant.TASK_COLLECTION + "/dagNotHistory");
 
 		//返回结果调用接口返回
 		clientMongoOperator.insertOne(wsMessageResult, ConnectorConstant.TASK_COLLECTION + "/transformer/result");

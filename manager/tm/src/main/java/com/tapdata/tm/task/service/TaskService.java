@@ -2995,22 +2995,26 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         return findOne(query, user);
     }
 
-    public void updateDag(TaskDto TaskDto, UserDetail user) {
+    public void updateDag(TaskDto TaskDto, UserDetail user, boolean saveHistory) {
         TaskDto TaskDto1 = checkExistById(TaskDto.getId(), user);
 
         Criteria criteria = Criteria.where("_id").is(TaskDto.getId());
         Update update = Update.update("dag", TaskDto.getDag());
         long tmCurrentTime = System.currentTimeMillis();
-        update.set("tmCurrentTime", tmCurrentTime);
+        if (saveHistory) {
+            update.set("tmCurrentTime", tmCurrentTime);
+        }
         repository.update(new Query(criteria), update, user);
 
-        TaskHistory taskHistory = new TaskHistory();
-        BeanUtils.copyProperties(TaskDto1, taskHistory);
-        taskHistory.setTaskId(TaskDto1.getId().toHexString());
-        taskHistory.setId(ObjectId.get());
+        if (saveHistory) {
+            TaskHistory taskHistory = new TaskHistory();
+            BeanUtils.copyProperties(TaskDto1, taskHistory);
+            taskHistory.setTaskId(TaskDto1.getId().toHexString());
+            taskHistory.setId(ObjectId.get());
 
-        //保存任务历史
-        repository.getMongoOperations().insert(taskHistory, "DDlTaskHistories");
+            //保存任务历史
+            repository.getMongoOperations().insert(taskHistory, "DDlTaskHistories");
+        }
 
     }
 
