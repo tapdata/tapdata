@@ -81,7 +81,6 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 			// MILESTONE-INIT_TRANSFORMER-ERROR
 			TaskMilestoneFuncAspect.execute(dataProcessorContext, MilestoneStage.INIT_TRANSFORMER, MilestoneStatus.ERROR, logger);
 			MilestoneUtil.updateMilestone(milestoneService, MilestoneStage.INIT_TRANSFORMER, MilestoneStatus.ERROR, e.getMessage() + "\n" + Log4jUtil.getStackString(e));
-			errorHandle(e, e.getMessage());
 			throw e;
 		}
 		ddlEventHandlers = new ClassHandlers();
@@ -167,7 +166,6 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 			if (null != indexEvent.get()) {
 				nodeException.event(indexEvent.get());
 			}
-			errorHandle(nodeException, nodeException.getMessage());
 			throw nodeException;
 		}
 	}
@@ -192,7 +190,6 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 			if (null != tapClearTableEvent.get()) {
 				nodeException.event(tapClearTableEvent.get());
 			}
-			errorHandle(nodeException, nodeException.getMessage());
 			throw nodeException;
 		}
 	}
@@ -225,7 +222,6 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 			if (null != tapCreateTableEvent.get()) {
 				nodeException.event(tapCreateTableEvent.get());
 			}
-			errorHandle(nodeException, nodeException.getMessage());
 			throw nodeException;
 		}
 
@@ -251,7 +247,6 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 			if (null != tapDropTableEvent.get()) {
 				nodeException.event(tapDropTableEvent.get());
 			}
-			errorHandle(nodeException, nodeException.getMessage());
 			throw nodeException;
 		}
 

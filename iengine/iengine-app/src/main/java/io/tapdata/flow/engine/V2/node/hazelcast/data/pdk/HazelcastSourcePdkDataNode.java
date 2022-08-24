@@ -236,7 +236,6 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 							if (!(throwableWrapper instanceof NodeException)) {
 								throwableWrapper = new NodeException(throwableWrapper).context(getProcessorBaseContext());
 							}
-							errorHandle(throwableWrapper, throwableWrapper.getMessage());
 							throw throwableWrapper;
 						}
 						finally {

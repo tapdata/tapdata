@@ -11,6 +11,8 @@ import io.tapdata.common.sample.sampler.SpeedSampler;
 import io.tapdata.flow.engine.V2.exception.node.NodeException;
 import io.tapdata.flow.engine.V2.node.hazelcast.HazelcastBaseNode;
 import io.tapdata.metrics.TaskSampleRetriever;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Arrays;
@@ -24,6 +26,7 @@ import java.util.function.BiConsumer;
  * @create 2022-07-12 17:10
  **/
 public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
+	private Logger logger = LogManager.getLogger(HazelcastCustomProcessor.class);
 
 	// statistic and sample related
 	protected ResetCounterSampler resetInputCounter;
@@ -101,10 +104,10 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 				});
 			});
 		} catch (Throwable throwable) {
-			NodeException nodeException =  new NodeException("Error occurred when process events in processor", throwable)
+			NodeException nodeException = new NodeException("Error occurred when process events in processor", throwable)
 					.context(getProcessorBaseContext())
 					.event(tapdataEvent.getTapEvent());
-			errorHandle(nodeException, nodeException.getMessage());
+			logger.error(nodeException);
 			throw nodeException;
 		}
 

@@ -148,8 +148,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 			} catch (Throwable e) {
 				TaskMilestoneFuncAspect.execute(dataProcessorContext, MilestoneStage.INIT_TRANSFORMER, MilestoneStatus.ERROR, logger);
 				MilestoneUtil.updateMilestone(milestoneService, MilestoneStage.INIT_TRANSFORMER, MilestoneStatus.ERROR, e.getMessage() + "\n" + Log4jUtil.getStackString(e));
-				errorHandle(e, e.getMessage());
-				throw new RuntimeException(e);
+				throw new NodeException(e).context(getProcessorBaseContext());
 			}
 		}
 		this.uploadDagService = new AtomicBoolean(false);
@@ -223,7 +222,6 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 			}
 		} catch (Exception e) {
 			logger.error("Target process failed {}", e.getMessage(), e);
-			errorHandle(e, "Target process failed.");
 			throw sneakyThrow(e);
 		}
 	}
@@ -292,7 +290,6 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 				}
 			} catch (Throwable throwable) {
 				NodeException nodeException = new NodeException(throwable).context(getDataProcessorContext()).event(tapdataEvent.getTapEvent());
-				errorHandle(throwable, nodeException.getMessage());
 				throw nodeException;
 			}
 		}
@@ -306,7 +303,6 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 				NodeException  nodeException =  new NodeException(throwable)
 						.context(getDataProcessorContext())
 						.events(tapdataEvents.stream().map(TapdataEvent::getTapEvent).collect(Collectors.toList()));
-				errorHandle(nodeException, nodeException.getMessage());
 				throw nodeException;
 			}
 		}
@@ -320,7 +316,6 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 				NodeException nodeException = new NodeException(throwable)
 						.context(getDataProcessorContext())
 						.events(tapdataShareLogEvents.stream().map(TapdataShareLogEvent::getTapEvent).collect(Collectors.toList()));
-				errorHandle(nodeException, nodeException.getMessage());
 				throw nodeException;
 			}
 		}

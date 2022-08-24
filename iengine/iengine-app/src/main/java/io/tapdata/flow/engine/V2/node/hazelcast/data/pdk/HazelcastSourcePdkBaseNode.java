@@ -126,8 +126,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 		} catch (Throwable e) {
 			TaskMilestoneFuncAspect.execute(dataProcessorContext, MilestoneStage.INIT_CONNECTOR, MilestoneStatus.ERROR, logger);
 			MilestoneUtil.updateMilestone(milestoneService, MilestoneStage.INIT_CONNECTOR, MilestoneStatus.ERROR, e.getMessage() + "\n" + Log4jUtil.getStackString(e));
-			errorHandle(e, e.getMessage());
-			throw new RuntimeException(e);
+			throw new NodeException(e).context(getProcessorBaseContext());
 		}
 		TaskDto taskDto = dataProcessorContext.getTaskDto();
 		syncProgress = initSyncProgress(taskDto.getAttrs());
@@ -481,12 +480,10 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 		try {
 			return wrapSingleTapdataEvent(tapEvent, syncStage, offsetObj, isLast);
 		} catch (Throwable throwable) {
-			NodeException nodeException = new NodeException("Error wrap TapEvent, event: " + tapEvent + ", error: " + throwable
+			throw new NodeException("Error wrap TapEvent, event: " + tapEvent + ", error: " + throwable
 					.getMessage(), throwable)
 					.context(getDataProcessorContext())
 					.event(tapEvent);
-			errorHandle(nodeException, throwable.getMessage());
-			throw nodeException;
 		}
 	}
 
@@ -659,10 +656,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 			} catch (InterruptedException e) {
 				break;
 			} catch (Throwable throwable) {
-				NodeException nodeException = new NodeException(throwable)
-						.context(getDataProcessorContext()).event(tapdataEvent.getTapEvent());
-				errorHandle(nodeException, nodeException.getMessage());
-				throw nodeException;
+				throw  new NodeException(throwable).context(getDataProcessorContext()).event(tapdataEvent.getTapEvent());
 			}
 		}
 	}
