@@ -13,9 +13,9 @@ import io.tapdata.flow.engine.V2.node.hazelcast.HazelcastBaseNode;
 import io.tapdata.metrics.TaskSampleRetriever;
 import org.jetbrains.annotations.NotNull;
 
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.Arrays;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 
 /**
@@ -76,7 +76,7 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 					return;
 				}
 				// Update memory from ddl event info map
-				updateMemoryFromDDLInfoMap(tapdataEvent);
+				updateMemoryFromDDLInfoMap(tapdataEvent, getTgtTableNameFromTapEvent(tapdataEvent.getTapEvent()));
 				if (tapdataEvent.isDML()) {
 					transformFromTapValue(tapdataEvent, null);
 				}
