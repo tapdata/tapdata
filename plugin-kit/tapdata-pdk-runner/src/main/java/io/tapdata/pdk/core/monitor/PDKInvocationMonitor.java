@@ -3,12 +3,11 @@ package io.tapdata.pdk.core.monitor;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.utils.ParagraphFormatter;
-import io.tapdata.pdk.core.api.ConnectorNode;
+import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.core.api.Node;
 import io.tapdata.pdk.core.error.PDKRunnerErrorCodes;
 import io.tapdata.pdk.core.executor.ExecutorsManager;
 import io.tapdata.pdk.core.memory.MemoryFetcher;
-import io.tapdata.pdk.core.memory.MemoryMap;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import org.apache.commons.lang3.exception.ExceptionUtils;
 
