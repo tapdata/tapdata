@@ -33,6 +33,9 @@ public class LoggingAspectTask extends AspectTask {
 	public LoggingAspectTask() {
 		settingService = BeanUtil.getBean(SettingService.class);
 
+		loggingClassHandlers.register(DataNodeInitAspect.class, this::handleDataNodeInit);
+		loggingClassHandlers.register(ProcessorNodeInitAspect.class, this::handleProcessorNodeInit);
+
 		loggingClassHandlers.register(ConnectionPingAspect.class, this::handleConnectionPing);
 
 		loggingClassHandlers.register(SourceStateAspect.class, this::handleSourceState);
@@ -60,9 +63,9 @@ public class LoggingAspectTask extends AspectTask {
 	 */
 	@Override
 	public void onStop(TaskStopAspect stopAspect) {
-		if (null != stopAspect.getError()) {
-			handleTaskErrorStop(stopAspect);
-		}
+//		if (null != stopAspect.getError()) {
+//			handleTaskErrorStop(stopAspect);
+//		}
 
 		// finally remove the logger
 		ObsLoggerFactory.getInstance().removeTaskLogger(task);
@@ -255,6 +258,28 @@ public class LoggingAspectTask extends AspectTask {
 
 	private void debug(String logEventType, Long cost, LogTag tag, ProcessorBaseContext context, TapEvent event) {
 		debug(logEventType, cost, tag, context, Collections.singletonList(event));
+	}
+
+	/**
+	 *  Init the TaskLoggerNodeProxy
+	 * @param aspect
+	 * @return
+	 */
+	public Void handleDataNodeInit(DataNodeInitAspect aspect) {
+		getObsLogger(aspect.getDataProcessorContext().getNode());
+
+		return null;
+	}
+
+	/**
+	 *  Init the TaskLoggerNodeProxy
+	 * @param aspect
+	 * @return
+	 */
+	public Void handleProcessorNodeInit(ProcessorNodeInitAspect aspect) {
+		getObsLogger(aspect.getProcessorBaseContext().getNode());
+
+		return null;
 	}
 
 	public Void handleSourceState(SourceStateAspect aspect) {

@@ -1,7 +1,17 @@
 package io.tapdata.Schedule;
 
 import com.tapdata.constant.ConnectorConstant;
+import com.tapdata.entity.task.context.DataProcessorContext;
+import com.tapdata.entity.task.context.ProcessorBaseContext;
 import com.tapdata.mongo.ClientMongoOperator;
+import com.tapdata.tm.commons.dag.Node;
+import io.tapdata.entity.event.TapBaseEvent;
+import io.tapdata.entity.event.TapEvent;
+import io.tapdata.entity.schema.TapTable;
+import io.tapdata.flow.engine.V2.exception.node.NodeException;
+import io.tapdata.observable.logging.LogEventData;
+import io.tapdata.observable.logging.ObsLogger;
+import io.tapdata.observable.logging.ObsLoggerFactory;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.ThreadContext;
 import org.apache.logging.log4j.core.*;
@@ -13,6 +23,7 @@ import org.apache.logging.log4j.core.config.plugins.PluginFactory;
 import org.apache.logging.log4j.util.ReadOnlyStringMap;
 import org.bson.Document;
 
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
@@ -116,5 +127,130 @@ public class CustomHttpAppender extends AbstractAppender {
 		}
 
 		clientMongoOperator.insertOne(entity, ConnectorConstant.LOG_COLLECTION);
+
+		// append warn and error into monitoring log
+		if (null != contextMap) {
+			String taskId = contextMap.getValue("taskId");
+			if (null != taskId) {
+				ObsLogger obsLogger = ObsLoggerFactory.getInstance().getObsLogger(taskId);
+				if (null != obsLogger) {
+					switch (level.toUpperCase()) {
+						case "WARN":
+							obsLogger.warn(message);
+							break;
+						case "ERROR":
+							if (null == thrown) {
+								obsLogger.error(message);
+								break;
+							}
+
+							List<TapEvent> events = null;
+							ProcessorBaseContext context = null;
+							if (thrown instanceof NodeException) {
+								NodeException nodeException = (NodeException) thrown;
+								events = nodeException.getEvents();
+								context = nodeException.getContext();
+							}
+							if (null == message) {
+								message = thrown.getMessage();
+							}
+
+							error(obsLogger, taskId, message, thrown, events, context);
+							break;
+						default:
+					}
+				}
+			}
+		}
+	}
+
+	private void error(ObsLogger obsLogger, String taskId, String message, Throwable throwable, List<TapEvent> events, ProcessorBaseContext context) {
+		if (null == events || events.isEmpty()) {
+			error(obsLogger, taskId, message, throwable, context);
+			return;
+		}
+
+		Node<?> node = context.getNode();
+		List<Map<String, Object>> data = new ArrayList<>();
+		for(TapEvent event : events) {
+			if (null == event) {
+				continue;
+			}
+			TapBaseEvent baseEvent = (TapBaseEvent) event;
+			Collection<String> pkFields = getPkFields(context, baseEvent.getTableId());
+			data.add(LogEventData.builder()
+					.eventType(LogEventData.LOG_EVENT_TYPE_PROCESS)
+					.status(LogEventData.LOG_EVENT_STATUS_ERROR)
+					.message(message)
+					.time(System.currentTimeMillis())
+					.withNode(node)
+					.withTapEvent(event, pkFields)
+					.build().toMap());
+		}
+		if (null != node) {
+			ObsLogger nodeObsLogger = ObsLoggerFactory.getInstance().getObsLogger(taskId, node.getId());
+			if (null != nodeObsLogger) {
+				obsLogger = nodeObsLogger;
+			}
+		}
+
+		ObsLogger obsLoggerFinal = obsLogger;
+		obsLoggerFinal.error(() -> obsLoggerFinal.logBaseBuilder().data(data), throwable, message);
+	}
+
+	private void error(ObsLogger obsLogger, String taskId, String message, Throwable throwable, ProcessorBaseContext context) {
+		if (null == context) {
+			error(obsLogger, throwable);
+			return;
+		}
+
+		Node<?> node = context.getNode();
+		if (null == node) {
+			error(obsLogger, throwable);
+			return;
+		}
+
+		LogEventData.LogEventDataBuilder builder = LogEventData.builder()
+				.eventType(LogEventData.LOG_EVENT_TYPE_PROCESS)
+				.status(LogEventData.LOG_EVENT_STATUS_ERROR)
+				.message(throwable.getMessage())
+				.time(System.currentTimeMillis())
+				.withNode(node);
+
+		if (null != node) {
+			ObsLogger nodeObsLogger = ObsLoggerFactory.getInstance().getObsLogger(taskId, node.getId());
+			if (null != nodeObsLogger) {
+				obsLogger = nodeObsLogger;
+			}
+		}
+
+		ObsLogger obsLoggerFinal = obsLogger;
+		obsLoggerFinal.error(() -> obsLoggerFinal.logBaseBuilder().record(builder.build().toMap()), throwable);
+	}
+
+	private void error(ObsLogger obsLogger, Throwable throwable) {
+		obsLogger.error(obsLogger::logBaseBuilder, throwable);
+	}
+
+	private Collection<String> getPkFields(ProcessorBaseContext context, String tableName) {
+		if (!(context instanceof DataProcessorContext)) {
+			return Collections.emptyList();
+		}
+
+		TapTable table = context.getTapTableMap().get(tableName);
+		if (null == table) {
+			return Collections.emptyList();
+		}
+
+		Collection<String> pkFields =  table.primaryKeys();
+		if (null == pkFields || pkFields.isEmpty()) {
+			pkFields = table.primaryKeys(true);
+		}
+
+		if (null == pkFields || pkFields.isEmpty()) {
+			pkFields = table.getNameFieldMap().keySet();
+		}
+
+		return pkFields;
 	}
 }
