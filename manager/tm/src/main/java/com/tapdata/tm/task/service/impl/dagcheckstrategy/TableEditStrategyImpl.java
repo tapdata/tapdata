@@ -49,7 +49,7 @@ public class TableEditStrategyImpl implements DagLogStrategy {
             template = templateEnum.getInfoTemplate();
             grade = Level.INFO.getValue();
 
-            String content = MessageFormat.format(template, current);
+            String content = MessageFormat.format(template, current, node.getName());
 
             TaskDagCheckLog log = new TaskDagCheckLog();
             log.setTaskId(taskId.toHexString());
