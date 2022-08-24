@@ -95,26 +95,34 @@ public class MysqlReader implements Closeable {
 		String sql = sqlMaker.selectSql(tapConnectorContext, tapTable, mysqlSnapshotOffset);
 		Collection<String> pks = tapTable.primaryKeys(true);
 		AtomicLong row = new AtomicLong(0L);
-		this.mysqlJdbcContext.queryWithStream(sql, rs -> {
-			ResultSetMetaData metaData = rs.getMetaData();
-			while ((null == stop || !stop.test(null)) && rs.next()) {
-				row.incrementAndGet();
-				Map<String, Object> data = new HashMap<>();
-				for (int i = 0; i < metaData.getColumnCount(); i++) {
-					String columnName = metaData.getColumnName(i + 1);
-					try {
-						Object value = rs.getObject(i + 1);
-						data.put(columnName, value);
-						if (pks.contains(columnName)) {
-							mysqlSnapshotOffset.getOffset().put(columnName, value);
+		try {
+			this.mysqlJdbcContext.queryWithStream(sql, rs -> {
+				ResultSetMetaData metaData = rs.getMetaData();
+				while ((null == stop || !stop.test(null)) && rs.next()) {
+					row.incrementAndGet();
+					Map<String, Object> data = new HashMap<>();
+					for (int i = 0; i < metaData.getColumnCount(); i++) {
+						String columnName = metaData.getColumnName(i + 1);
+						try {
+							Object value = rs.getObject(i + 1);
+							data.put(columnName, value);
+							if (pks.contains(columnName)) {
+								mysqlSnapshotOffset.getOffset().put(columnName, value);
+							}
+						} catch (Exception e) {
+							throw new Exception("Read column value failed, row: " + row.get() + ", column name: " + columnName + ", data: " + data + "; Error: " + e.getMessage(), e);
 						}
-					} catch (Exception e) {
-						throw new Exception("Read column value failed, row: " + row.get() + ", column name: " + columnName + ", data: " + data + "; Error: " + e.getMessage(), e);
 					}
+					consumer.accept(data, mysqlSnapshotOffset);
 				}
-				consumer.accept(data, mysqlSnapshotOffset);
+			});
+		} catch (Throwable e) {
+			if (null != stop && stop.test(null)) {
+				// ignored error
+			} else {
+				throw e;
 			}
-		});
+		}
 	}
 
 	public void readWithFilter(TapConnectorContext tapConnectorContext, TapTable tapTable, TapAdvanceFilter tapAdvanceFilter,
@@ -122,26 +130,34 @@ public class MysqlReader implements Closeable {
 		SqlMaker sqlMaker = new MysqlMaker();
 		String sql = sqlMaker.selectSql(tapConnectorContext, tapTable, tapAdvanceFilter);
 		AtomicLong row = new AtomicLong(0L);
-		this.mysqlJdbcContext.queryWithStream(sql, rs -> {
-			ResultSetMetaData metaData = rs.getMetaData();
-			while (rs.next()) {
-				if (null != stop && stop.test(null)) {
-					break;
-				}
-				row.incrementAndGet();
-				Map<String, Object> data = new HashMap<>();
-				for (int i = 0; i < metaData.getColumnCount(); i++) {
-					String columnName = metaData.getColumnName(i + 1);
-					try {
-						Object value = rs.getObject(i + 1);
-						data.put(columnName, value);
-					} catch (Exception e) {
-						throw new Exception("Read column value failed, row: " + row.get() + ", column name: " + columnName + ", data: " + data + "; Error: " + e.getMessage(), e);
+		try {
+			this.mysqlJdbcContext.queryWithStream(sql, rs -> {
+				ResultSetMetaData metaData = rs.getMetaData();
+				while (rs.next()) {
+					if (null != stop && stop.test(null)) {
+						break;
 					}
+					row.incrementAndGet();
+					Map<String, Object> data = new HashMap<>();
+					for (int i = 0; i < metaData.getColumnCount(); i++) {
+						String columnName = metaData.getColumnName(i + 1);
+						try {
+							Object value = rs.getObject(i + 1);
+							data.put(columnName, value);
+						} catch (Exception e) {
+							throw new Exception("Read column value failed, row: " + row.get() + ", column name: " + columnName + ", data: " + data + "; Error: " + e.getMessage(), e);
+						}
+					}
+					consumer.accept(data);
 				}
-				consumer.accept(data);
+			});
+		} catch (Throwable e) {
+			if (null != stop && stop.test(null)) {
+				// ignored error
+			} else {
+				throw e;
 			}
-		});
+		}
 	}
 
 	public void readBinlog(TapConnectorContext tapConnectorContext, List<String> tables,
