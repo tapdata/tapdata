@@ -69,7 +69,7 @@ public class RegisterMain {
         // -Dserver=http://192.168.1.181:31321
 
         List<String> postList = new ArrayList<>();
-        String server = System.getProperty("server", "http://36.134.131.197:8082/");
+        String server = System.getProperty("server", "http://localhost:3000");
         Collections.addAll(postList, "register", "-a", "3324cfdf-7d3e-4792-bd32-571638d4562f", "-t", server);
 
         String[] tags = System.getProperty("tags", "all").split(",");
