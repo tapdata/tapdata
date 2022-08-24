@@ -94,7 +94,7 @@ public class LogCollectorService {
         query.skip(skip);
         query.limit(limit);
         MongoUtils.applySort(query, sort);
-        query.fields().include("status", "name", "createTime", "dag", "statuses");
+        query.fields().include("status", "name", "createTime", "dag", "statuses", "attrs");
 
         List<TaskDto> allDto = taskService.findAllDto(query, user);
         long count = taskService.count(new Query(criteria), user);
@@ -215,7 +215,7 @@ public class LogCollectorService {
         }
 
         Query query = new Query(criteria1);
-        query.fields().include("status", "name", "createTime", "dag");
+        query.fields().include("status", "name", "createTime", "dag", "attrs");
         if (limit != null) {
             query.limit(limit);
         }

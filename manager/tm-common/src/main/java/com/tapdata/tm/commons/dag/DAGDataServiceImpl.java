@@ -3,10 +3,7 @@ package com.tapdata.tm.commons.dag;
 import com.tapdata.manager.common.utils.JsonUtil;
 import com.tapdata.manager.common.utils.StringUtils;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
-import com.tapdata.tm.commons.dag.process.MigrateFieldRenameProcessorNode;
-import com.tapdata.tm.commons.dag.process.MigrateJsProcessorNode;
-import com.tapdata.tm.commons.dag.process.ProcessorNode;
-import com.tapdata.tm.commons.dag.process.TableRenameProcessNode;
+import com.tapdata.tm.commons.dag.process.*;
 import com.tapdata.tm.commons.dag.vo.MigrateJsResultVo;
 import com.tapdata.tm.commons.schema.*;
 import com.tapdata.tm.commons.schema.bean.SourceDto;
@@ -1072,7 +1069,7 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
             String connectionId = ((DatabaseNode) node).getConnectionId();
             DataSourceConnectionDto connectionDto = dataSourceMap.get(connectionId);
             qualifiedName = MetaDataBuilderUtils.generateQualifiedName(MetaType.table.name(), connectionDto, tableName);
-        } else if (node instanceof ProcessorNode) {
+        } else if (node instanceof ProcessorNode || node instanceof MigrateProcessorNode) {
             qualifiedName = MetaDataBuilderUtils.generateQualifiedName(MetaType.processor_node.name(), nodeId, tableName);
         }
 
