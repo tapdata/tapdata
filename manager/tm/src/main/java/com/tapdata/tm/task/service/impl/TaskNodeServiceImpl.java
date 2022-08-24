@@ -273,6 +273,10 @@ public class TaskNodeServiceImpl implements TaskNodeService {
             }).collect(Collectors.toMap(MetadataInstancesDto::getOriginalName, Function.identity()));
         }
 
+        if (metaMap.isEmpty()) {
+            return result;
+        }
+
         List<MetadataTransformerItemDto> data = Lists.newArrayList();
         for (String tableName : currentTableList) {
             MetadataTransformerItemDto item = new MetadataTransformerItemDto();

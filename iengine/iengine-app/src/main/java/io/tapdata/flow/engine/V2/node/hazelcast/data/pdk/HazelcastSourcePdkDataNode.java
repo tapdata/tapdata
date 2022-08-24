@@ -290,7 +290,8 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 	private void doCount() {
 		BatchCountFunction batchCountFunction = getConnectorNode().getConnectorFunctions().getBatchCountFunction();
 		if (null == batchCountFunction) {
-			throw new RuntimeException("PDK node does not support table batch count: " + dataProcessorContext.getDatabaseType());
+			logger.warn("PDK node does not support table batch count: " + dataProcessorContext.getDatabaseType());
+			return;
 		}
 
 		if (dataProcessorContext.getTapTableMap().keySet().size() > ASYNCLY_COUNT_SNAPSHOT_ROW_SIZE_TABLE_THRESHOLD) {
@@ -322,7 +323,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 	@SneakyThrows
 	private void doCountAsynchronously(BatchCountFunction batchCountFunction) {
 		if (null == batchCountFunction) {
-			throw new RuntimeException("PDK node does not support table batch count: " + dataProcessorContext.getDatabaseType());
+			logger.warn("PDK node does not support table batch count: " + dataProcessorContext.getDatabaseType());
 		}
 
 		for(String tableName : dataProcessorContext.getTapTableMap().keySet()) {
