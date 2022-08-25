@@ -67,8 +67,9 @@ public class LoggingAspectTask extends AspectTask {
 //			handleTaskErrorStop(stopAspect);
 //		}
 
+		// TODO(dexter): temporary not remove the logger
 		// finally remove the logger
-		ObsLoggerFactory.getInstance().removeTaskLogger(task);
+//		ObsLoggerFactory.getInstance().removeTaskLogger(task);
 	}
 
 	public void handleTaskErrorStop(TaskStopAspect aspect) {

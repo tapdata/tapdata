@@ -29,6 +29,7 @@ public final class ObsLoggerFactory {
 
 	public ObsLogger getObsLogger(TaskDto task) {
 		String taskId = task.getId().toHexString();
+		taskLoggersMap.computeIfPresent(taskId, (k, v) -> v.withTask(taskId, task.getName(), task.getTaskRecordId()));
 		taskLoggersMap.putIfAbsent(taskId, new TaskLogger().withTask(taskId, task.getName(), task.getTaskRecordId()));
 		taskLoggersMap.get(taskId).registerTaskFileAppender(taskId);
 
