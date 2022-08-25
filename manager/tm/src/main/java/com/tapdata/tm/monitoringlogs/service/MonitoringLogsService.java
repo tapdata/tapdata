@@ -31,6 +31,7 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.regex.Pattern;
 import java.util.zip.ZipOutputStream;
 
 /**
@@ -87,7 +88,7 @@ public class MonitoringLogsService extends BaseService<MonitoringLogsDto, Monito
 
         // keyword search filter
         if (StringUtils.isNotEmpty(param.getSearch())) {
-            String search = param.getSearch();
+            String search = Pattern.quote(param.getSearch());
             criteria.orOperator(
                     new Criteria("taskName").regex(search),
                     new Criteria("nodeName").regex(search),
