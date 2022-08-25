@@ -24,6 +24,11 @@ public class TapConnectorContext extends TapConnectionContext {
         this.nodeConfig = nodeConfig;
     }
 
+    /**
+     * configContext is only needed when you start a thread. please invoke this method at first line in the thread.
+     * So that the TapLogger can be associated with corresponding task, and you can check the log in task console.
+     *
+     */
     public void configContext() {
         if(configContext != null) {
             configContext.config();
