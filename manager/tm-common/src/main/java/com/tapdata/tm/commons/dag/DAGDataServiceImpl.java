@@ -1068,7 +1068,7 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
         if (node instanceof DatabaseNode) {
             String connectionId = ((DatabaseNode) node).getConnectionId();
             DataSourceConnectionDto connectionDto = dataSourceMap.get(connectionId);
-            qualifiedName = MetaDataBuilderUtils.generateQualifiedName(MetaType.table.name(), connectionDto, tableName);
+            qualifiedName = MetaDataBuilderUtils.generateQualifiedName(MetaType.table.name(), connectionDto, tableName, taskId);
         } else if (node instanceof ProcessorNode || node instanceof MigrateProcessorNode) {
             qualifiedName = MetaDataBuilderUtils.generateQualifiedName(MetaType.processor_node.name(), nodeId, tableName);
         }
