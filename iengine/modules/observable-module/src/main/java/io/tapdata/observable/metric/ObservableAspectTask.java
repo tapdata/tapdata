@@ -211,10 +211,7 @@ public class ObservableAspectTask extends AspectTask {
 					}
 					dataNodeSampleHandler.handleWriteRecordAccept(nodeId, now, result, newestEventTimestamp);
 					taskSampleHandler.handleWriteRecordAccept(result, events);
-					if (null != newestEventTimestamp) {
-						pipelineDelay.refreshDelay(task.getId().toHexString(), nodeId, now, newestEventTimestamp);
-					}
-					System.out.printf("");
+					pipelineDelay.refreshDelay(task.getId().toHexString(), nodeId, recorder.getAvgProcessTime(), newestEventTimestamp);
 				});
 				break;
 			case WriteRecordFuncAspect.STATE_END:
