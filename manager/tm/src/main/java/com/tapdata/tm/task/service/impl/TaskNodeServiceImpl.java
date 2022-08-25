@@ -302,7 +302,7 @@ public class TaskNodeServiceImpl implements TaskNodeService {
             if (CollectionUtils.isEmpty(metaMap.get(tableName).getFields())) {
                 continue;
             }
-            List<Field> fields = metaMap.get(tableName).getFields().stream().filter(t -> !t.isDeleted()).collect(Collectors.toList());
+            List<Field> fields = metaMap.get(tableName).getFields();
 
             // TableRenameProcessNode not need fields
             if (!(currentNode instanceof TableRenameProcessNode)) {

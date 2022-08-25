@@ -78,8 +78,10 @@ public class DatabaseNode extends DataParentNode<List<Schema>> {
     @Override
     public List<Schema> mergeSchema(List<List<Schema>> inputSchemas, List<Schema> schemas) {
         //把inputSchemas的deleted的field给过滤掉
-        for (List<Schema> inputSchema : inputSchemas) {
-            SchemaUtils.removeDeleteFields(inputSchema);
+        if (TaskDto.SYNC_TYPE_SYNC.equals(getDag().getSyncType())) {
+            for (List<Schema> inputSchema : inputSchemas) {
+                SchemaUtils.removeDeleteFields(inputSchema);
+            }
         }
 
         if (schemas == null) {

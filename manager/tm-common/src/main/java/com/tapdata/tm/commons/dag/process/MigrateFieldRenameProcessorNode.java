@@ -67,7 +67,7 @@ public class MigrateFieldRenameProcessorNode extends MigrateProcessorNode {
                     String fieldName = field.getFieldName();
                     Boolean show = showMap.get(fieldName);
                     if (Objects.nonNull(show) && !show) {
-//                        field.setDeleted(true);
+                        field.setDeleted(true);
                     } else if (fieldMap.containsKey(fieldName)) {
                         field.setFieldName(fieldMap.get(fieldName));
                     }
