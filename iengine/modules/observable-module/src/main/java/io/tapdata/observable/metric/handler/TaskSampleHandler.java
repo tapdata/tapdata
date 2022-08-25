@@ -127,7 +127,11 @@ public class TaskSampleHandler extends AbstractHandler {
     }
 
     public void handleCreateTableEnd() {
-        createTableTotal.inc();
+        // if task tables size = 0, must be error stops the table adder, stop the
+        // creating table counter
+        if (taskTables.size() != 0) {
+            createTableTotal.inc();
+        }
     }
 
     public void handleBatchReadAccept(long size) {
