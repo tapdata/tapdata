@@ -23,6 +23,7 @@ import io.tapdata.observable.metric.aspect.ConnectionPingAspect;
 
 import java.lang.reflect.Method;
 import java.time.Instant;
+import java.time.ZoneId;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -489,9 +490,8 @@ public class LoggingAspectTask extends AspectTask {
 					}
 					incrementalRecordTotal += events.size();
 					if (null != newestEventTimestamp && now - incrementalProgressLogAt > INCREMENTAL_SYNC_REF_TIME_INFO_INTERVAL) {
-						// TODO(dexter): temporarily format time with timezone 00:00
 						getObsLogger(node).info("{} incremental records have been processed, current reference time: {}",
-								incrementalRecordTotal, Instant.ofEpochMilli(newestEventTimestamp));
+								incrementalRecordTotal, Instant.ofEpochMilli(newestEventTimestamp).atZone(ZoneId.systemDefault()));
 						incrementalRecordTotal = 0;
 						incrementalProgressLogAt = now;
 					}
