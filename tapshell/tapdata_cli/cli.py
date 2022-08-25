@@ -1209,6 +1209,7 @@ def desc_table(line):
     display_fields = get_table_fields(line, source=connection_id)
 
 
+
 def login_with_access_code(server, access_code):
     global system_server_conf, req
     api = "http://" + server + "/api"
@@ -1996,7 +1997,8 @@ class Pipeline:
                 continue
             stats = self.check_job.stats()
             if self.check_job.status() == "running":
-                logger.info("data check running, progress is: {} %", stats["progress"] * 100, wrap=False, logger_header=True)
+                logger.info("data check running, progress is: {} %", stats["progress"] * 100, wrap=False,
+                            logger_header=True)
                 continue
             if self.check_job.status() == "done":
                 logger.log(
@@ -2848,11 +2850,46 @@ class DataSource():
 
     def to_pdk_dict(self):
         d = {}
+        if self._connector == "kafka":
+            if self._uri:
+                d["nameSrvAddr"] = self._uri.replace("kafka://", "")
+            else:
+                d["nameSrvAddr"] = f"{self._host}:{self._port}"
+            d["kafkaAcks"] = "-1"
+            d["kafkaCompressionType"] = "gzip"
+            d["kafkaIgnoreInvalidRecord"] = False
+            d["kafkaIgnorePushError"] = False
+            d["kafkaSaslMechanism"] = "PLAIN"
+            d["krb5"] = False
+            return d
         for i in self._manual_options:
             d[i] = getattr(self, "_" + i)
         return d
 
+    def make_kafka_dict(self):
+        database_type = self._connector
+        if database_type.lower() not in client_cache["connectors"]:
+            logger.warn("connector {} not support, support list is: {}", database_type, client_cache["connectors"])
+            return
+        return {
+            "accessNodeType": "AUTOMATIC_PLATFORM_ALLOCATION",
+            "config": self.to_pdk_dict(),
+            "connection_type": self._type,
+            "database_type": self._connector,
+            "name": self._name,
+            "nextRetry": None,
+            "pdkHash": client_cache["connectors"][database_type.lower()]["pdkHash"],
+            "pdkType": "pdk",
+            "response_body": {},
+            "retry": 0,
+            "schema": {},
+            "shareCdcEnable": False,
+            "share_cdc_ttl_day": 3,
+        }
+
     def to_dict(self):
+        if self._connector.lower() == "kafka":
+            return self.make_kafka_dict()
         if self.c is not None:
             return self.c
         if type(self._uri) == type(""):
@@ -3294,7 +3331,8 @@ class DataCheck:
             status = self.status()
             stats = self.stats()
             if status == "running":
-                logger.info("data check running, progress is: {} %", stats["progress"] * 100, wrap=False, logger_header=True)
+                logger.info("data check running, progress is: {} %", stats["progress"] * 100, wrap=False,
+                            logger_header=True)
             if status == "done":
                 logger.log(
                     "data check finished, check result is: {}, same row is number is: {}, diff row number is: {}",
