@@ -652,7 +652,7 @@ public class LogCollectorService {
                 return new Date();
             }
 
-            return new Date((Long) o);
+            return new Date(((Double) o).longValue());
 
         } catch (Exception e) {
             return new Date();
