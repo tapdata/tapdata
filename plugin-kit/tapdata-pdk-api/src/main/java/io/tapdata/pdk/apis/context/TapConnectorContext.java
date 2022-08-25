@@ -17,11 +17,19 @@ public class TapConnectorContext extends TapConnectionContext {
     protected KVReadOnlyMap<TapTable> tableMap;
     protected KVMap<Object> stateMap;
     protected KVMap<Object> globalStateMap;
+    protected ConfigContext configContext;
 
     public TapConnectorContext(TapNodeSpecification specification, DataMap connectionConfig, DataMap nodeConfig) {
         super(specification, connectionConfig);
         this.nodeConfig = nodeConfig;
     }
+
+    public void configContext() {
+        if(configContext != null) {
+            configContext.config();
+        }
+    }
+
     public DataMap getNodeConfig() {
         return nodeConfig;
     }
@@ -60,6 +68,14 @@ public class TapConnectorContext extends TapConnectionContext {
 
     public void setConnectorCapabilities(ConnectorCapabilities connectorCapabilities) {
         this.connectorCapabilities = connectorCapabilities;
+    }
+
+    public ConfigContext getConfigContext() {
+        return configContext;
+    }
+
+    public void setConfigContext(ConfigContext configContext) {
+        this.configContext = configContext;
     }
 
     public String toString() {

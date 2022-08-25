@@ -96,7 +96,7 @@ public class TaskSessionClassHolder implements Comparable<TaskSessionClassHolder
 				return;
 			}
 		}
-		TapLogger.debug(TAG, "Observe aspect {} is illegal for taskId {}, no aspect task will handle it. ", aspect, theTaskId);
+//		TapLogger.debug(TAG, "Observe aspect {} is illegal for taskId {}, no aspect task will handle it. ", aspect, theTaskId);
 	}
 
 	@Nullable
@@ -128,7 +128,7 @@ public class TaskSessionClassHolder implements Comparable<TaskSessionClassHolder
 				return aspectTask.aspectTask.onInterceptAspect(aspect);
 			}
 		}
-		TapLogger.debug(TAG, "Intercept aspect {} is illegal for taskId {}, no aspect task will handle it. ", aspect, theTaskId);
+//		TapLogger.debug(TAG, "Intercept aspect {} is illegal for taskId {}, no aspect task will handle it. ", aspect, theTaskId);
 		return null;
 	}
 

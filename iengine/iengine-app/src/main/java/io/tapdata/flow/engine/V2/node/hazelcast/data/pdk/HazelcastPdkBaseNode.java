@@ -1,6 +1,7 @@
 package io.tapdata.flow.engine.V2.node.hazelcast.data.pdk;
 
 import com.hazelcast.core.HazelcastInstance;
+import com.tapdata.constant.Log4jUtil;
 import com.tapdata.entity.DatabaseTypeEnum;
 import com.tapdata.entity.dataflow.SyncProgress;
 import com.tapdata.entity.task.context.DataProcessorContext;
@@ -23,6 +24,7 @@ import io.tapdata.flow.engine.V2.util.TapEventUtil;
 import io.tapdata.node.pdk.ConnectorNodeService;
 import io.tapdata.observable.logging.ObsLogger;
 import io.tapdata.observable.logging.ObsLoggerFactory;
+import io.tapdata.pdk.apis.context.ConfigContext;
 import io.tapdata.pdk.apis.entity.ConnectionOptions;
 import io.tapdata.pdk.apis.entity.ConnectorCapabilities;
 import io.tapdata.pdk.core.api.ConnectorNode;
@@ -99,7 +101,8 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 						pdkTableMap,
 						pdkStateMap,
 						globalStateMap,
-						connectorCapabilities
+						connectorCapabilities,
+						() -> Log4jUtil.setThreadContext(taskDto)
 				)
 		);
 		processorBaseContext.setPdkAssociateId(this.associateId);
