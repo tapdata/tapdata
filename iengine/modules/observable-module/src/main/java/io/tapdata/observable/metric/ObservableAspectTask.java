@@ -112,6 +112,7 @@ public class ObservableAspectTask extends AspectTask {
 	public Void handleCreateTableFunc(CreateTableFuncAspect aspect) {
 		switch (aspect.getState()) {
 			case CreateTableFuncAspect.STATE_START:
+				taskSampleHandler.addTable(aspect.getCreateTableEvent().getTableId());
 				break;
 			case CreateTableFuncAspect.STATE_END:
 				taskSampleHandler.handleCreateTableEnd();
@@ -128,6 +129,7 @@ public class ObservableAspectTask extends AspectTask {
 		switch (aspect.getState()) {
 			case BatchReadFuncAspect.STATE_START:
 				dataNodeSampleHandler.handleBatchReadStart(nodeId, aspect.getTime());
+				taskSampleHandler.addTable(table);
 				aspect.readCompleteConsumer(events -> {
 					if (null == events || events.size() == 0) {
 						return;
