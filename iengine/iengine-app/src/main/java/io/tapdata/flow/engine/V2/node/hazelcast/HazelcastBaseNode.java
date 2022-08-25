@@ -41,6 +41,7 @@ import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.value.TapDateTimeValue;
 import io.tapdata.flow.engine.V2.common.node.NodeTypeEnum;
 import io.tapdata.flow.engine.V2.exception.node.NodeException;
+import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.HazelcastSourcePdkDataNode;
 import io.tapdata.flow.engine.V2.node.hazelcast.processor.HazelcastProcessorBaseNode;
 import io.tapdata.flow.engine.V2.node.hazelcast.processor.aggregation.HazelcastMultiAggregatorProcessor;
 import io.tapdata.flow.engine.V2.util.GraphUtil;
@@ -53,6 +54,8 @@ import io.tapdata.schema.TapTableMap;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.collections.MapUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.ThreadContext;
 import org.bson.types.ObjectId;
 import org.jetbrains.annotations.NotNull;
@@ -68,6 +71,7 @@ import java.util.stream.Collectors;
  * @date 2021/12/7 3:25 PM
  **/
 public abstract class HazelcastBaseNode extends AbstractProcessor {
+	private final Logger logger = LogManager.getLogger(HazelcastSourcePdkDataNode.class);
 	/**
 	 * [sub task id]-[node id]
 	 */
@@ -641,6 +645,7 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 		} else {
 			this.errorMessage = throwable.getMessage();
 		}
+		logger.error(errorMessage, throwable);
 		this.running.set(false);
 		TaskDto taskDto = processorBaseContext.getTaskDto();
 		com.hazelcast.jet.Job hazelcastJob = jetContext.hazelcastInstance().getJet().getJob(taskDto.getName() + "-" + taskDto.getId().toHexString());
