@@ -19,6 +19,11 @@ public class NodeException extends FlowEngineException {
 
 	public NodeException(String message, Throwable cause) {
 		super(message, cause);
+		// unwrap  cause NodeException into this
+		if (cause instanceof  NodeException) {
+			NodeException nodeException = (NodeException) cause;
+			this.context(nodeException.getContext()).events(nodeException.getEvents());
+		}
 	}
 
 	public NodeException(Throwable cause) {

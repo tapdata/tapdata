@@ -139,23 +139,24 @@ public class CustomHttpAppender extends AbstractAppender {
 							obsLogger.warn(message);
 							break;
 						case "ERROR":
-							if (null == thrown) {
+							Throwable throwable = event.getThrown();
+							if (null == throwable) {
 								obsLogger.error(message);
 								break;
 							}
 
 							List<TapEvent> events = null;
 							ProcessorBaseContext context = null;
-							if (thrown instanceof NodeException) {
-								NodeException nodeException = (NodeException) thrown;
+							if (throwable instanceof NodeException) {
+								NodeException nodeException = (NodeException) throwable;
 								events = nodeException.getEvents();
 								context = nodeException.getContext();
 							}
 							if (null == message) {
-								message = thrown.getMessage();
+								message = throwable.getMessage();
 							}
 
-							error(obsLogger, taskId, message, thrown, events, context);
+							error(obsLogger, taskId, message, throwable, events, context);
 							break;
 						default:
 					}

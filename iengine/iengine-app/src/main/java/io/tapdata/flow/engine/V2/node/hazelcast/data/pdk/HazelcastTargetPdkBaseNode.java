@@ -303,6 +303,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 				NodeException  nodeException =  new NodeException(throwable)
 						.context(getDataProcessorContext())
 						.events(tapdataEvents.stream().map(TapdataEvent::getTapEvent).collect(Collectors.toList()));
+				logger.error(nodeException.getMessage(), nodeException);
 				throw nodeException;
 			}
 		}
@@ -316,6 +317,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 				NodeException nodeException = new NodeException(throwable)
 						.context(getDataProcessorContext())
 						.events(tapdataShareLogEvents.stream().map(TapdataShareLogEvent::getTapEvent).collect(Collectors.toList()));
+				logger.error(nodeException.getMessage(), nodeException);
 				throw nodeException;
 			}
 		}

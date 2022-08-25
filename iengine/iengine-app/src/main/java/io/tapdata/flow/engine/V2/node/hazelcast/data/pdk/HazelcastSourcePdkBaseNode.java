@@ -211,7 +211,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 					}
 					String pointType = syncPoint == null ? "current" : syncPoint.getPointType();
 					if (StringUtils.isBlank(pointType)) {
-						throw new RuntimeException("Run cdc task failed, sync point type cannot be empty");
+						throw new NodeException("Run cdc task failed, sync point type cannot be empty").context(getProcessorBaseContext());
 					}
 					switch (pointType) {
 						case "localTZ":
@@ -259,8 +259,8 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 						// switch share cdc to normal task
 						Long eventTime = syncProgress.getEventTime();
 						if (null == eventTime) {
-							throw new RuntimeException("It was found that the task was switched from shared incremental to normal mode and cannot continue execution, reason: lost breakpoint timestamp."
-									+ " Please try to reset and start the task.");
+							throw new NodeException("It was found that the task was switched from shared incremental to normal mode and cannot continue execution, reason: lost breakpoint timestamp."
+									+ " Please try to reset and start the task.").context(getProcessorBaseContext());
 						}
 						initStreamOffsetFromTime(eventTime);
 					}
@@ -281,8 +281,8 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 						logger.warn("Call timestamp to stream offset function failed, will stop task after snapshot, type: " + dataProcessorContext.getDatabaseType()
 								+ ", errors: " + e.getClass().getSimpleName() + "  " + e.getMessage() + "\n" + Log4jUtil.getStackString(e));
 					} else {
-						throw new RuntimeException("Call timestamp to stream offset function failed, will stop task, type: " + dataProcessorContext.getDatabaseType()
-								+ ", errors: " + e.getClass().getSimpleName() + "  " + e.getMessage() + "\n" + Log4jUtil.getStackString(e));
+						throw new NodeException("Call timestamp to stream offset function failed, will stop task, type: " + dataProcessorContext.getDatabaseType()
+								+ ", errors: " + e.getClass().getSimpleName() + "  " + e.getMessage() + "\n" + Log4jUtil.getStackString(e)).context(getProcessorBaseContext());
 					}
 				}
 				syncProgress.setStreamOffsetObj(timeToStreamOffsetResult.get());
@@ -317,7 +317,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 						.ifPresent(s -> s.incrementEdgeFinishNumber(TapEventUtil.getTableId(dataEvent.getTapEvent())));
 			}
 			if (error != null) {
-				throw new RuntimeException(error);
+				throw new NodeException(error).context(getProcessorBaseContext());
 			}
 		} catch (Exception e) {
 			logger.error("Source sync failed {}.", e.getMessage(), e);
@@ -438,7 +438,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 						}
 					} catch (Throwable throwable) {
 						String error = "Handle table monitor result failed, result: " + tableResult + ", error: " + throwable.getMessage();
-						throw new RuntimeException(error, throwable);
+						throw new NodeException(error, throwable).context(getProcessorBaseContext());
 					}
 				});
 			}

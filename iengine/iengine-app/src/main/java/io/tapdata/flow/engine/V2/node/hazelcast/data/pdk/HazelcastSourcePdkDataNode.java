@@ -86,7 +86,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 			TaskMilestoneFuncAspect.execute(dataProcessorContext, MilestoneStage.INIT_CONNECTOR, MilestoneStatus.ERROR, logger);
 			MilestoneUtil.updateMilestone(milestoneService, MilestoneStage.INIT_CONNECTOR, MilestoneStatus.ERROR, e.getMessage() + "\n" + Log4jUtil.getStackString(e));
 			//Notify error for task.
-			errorHandle(new RuntimeException(e), e.getMessage());
+			errorHandle(new NodeException(e).context(getProcessorBaseContext()), e.getMessage());
 			throw e;
 		}
 	}
@@ -281,7 +281,8 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 				}
 			}
 		} else {
-			throw new RuntimeException("PDK node does not support batch read: " + dataProcessorContext.getDatabaseType());
+			throw new NodeException("PDK node does not support batch read: " + dataProcessorContext.getDatabaseType())
+					.context(getProcessorBaseContext());
 		}
 	}
 
@@ -323,6 +324,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 	private void doCountAsynchronously(BatchCountFunction batchCountFunction) {
 		if (null == batchCountFunction) {
 			logger.warn("PDK node does not support table batch count: " + dataProcessorContext.getDatabaseType());
+			return;
 		}
 
 		for(String tableName : dataProcessorContext.getTapTableMap().keySet()) {
@@ -347,9 +349,10 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 								AspectUtils.accept(tableCountFuncAspect.state(TableCountFuncAspect.STATE_COUNTING).getTableCountConsumerList(), table.getName(), count);
 							}
 						} catch (Exception e) {
-							RuntimeException runtimeException = new RuntimeException("Count " + table.getId() + " failed: " + e.getMessage(), e);
-							logger.warn(runtimeException.getMessage() + "\n" + Log4jUtil.getStackString(e));
-							throw runtimeException;
+							NodeException nodeException = new NodeException("Count " + table.getId() + " failed: " + e.getMessage(), e)
+									.context(getProcessorBaseContext());
+							logger.warn(nodeException.getMessage() + "\n" + Log4jUtil.getStackString(e));
+							throw nodeException;
 						}
 					}, TAG));
 		}
@@ -362,7 +365,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 		}
 		this.endSnapshotLoop.set(true);
 		if (null == syncProgress.getStreamOffsetObj()) {
-			throw new RuntimeException("Starting stream read failed, errors: start point offset is null");
+			throw new NodeException("Starting stream read failed, errors: start point offset is null").context(getProcessorBaseContext());
 		} else {
 			TapdataStartCdcEvent tapdataStartCdcEvent = new TapdataStartCdcEvent();
 			tapdataStartCdcEvent.setSyncStage(SyncStage.CDC);
@@ -386,10 +389,10 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 					logger.info("Share cdc unusable, will use normal cdc mode, reason: " + e.getMessage());
 					doNormalCDC();
 				} else {
-					throw new RuntimeException("Read share cdc log failed: " + e.getMessage(), e);
+					throw new NodeException("Read share cdc log failed: " + e.getMessage(), e).context(getProcessorBaseContext());
 				}
 			} catch (Exception e) {
-				throw new RuntimeException("Read share cdc log failed: " + e.getMessage(), e);
+				throw new NodeException("Read share cdc log failed: " + e.getMessage(), e).context(getProcessorBaseContext());
 			}
 		}
 	}
@@ -446,8 +449,8 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 									}
 								} catch (Throwable throwable) {
 									String error = "Error processing incremental data, error: " + throwable.getMessage();
-									RuntimeException runtimeException = new RuntimeException(error, throwable);
-									errorHandle(runtimeException, runtimeException.getMessage());
+									NodeException nodeException = new NodeException(error, throwable).context(getProcessorBaseContext());
+									errorHandle(nodeException, nodeException.getMessage());
 								} finally {
 									try {
 										sourceRunnerLock.unlock();
@@ -464,7 +467,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 								}
 							})), TAG));
 		} else {
-			throw new RuntimeException("PDK node does not support stream read: " + dataProcessorContext.getDatabaseType());
+			throw new NodeException("PDK node does not support stream read: " + dataProcessorContext.getDatabaseType()).context(getProcessorBaseContext());
 		}
 	}
 
@@ -501,7 +504,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 				cdcStartTs = initialFirstStartTime;
 			}
 		} catch (Exception e) {
-			throw new RuntimeException("Get cdc start ts failed; Error: " + e.getMessage(), e);
+			throw new NodeException("Get cdc start ts failed; Error: " + e.getMessage(), e).context(getProcessorBaseContext());
 		}
 		return cdcStartTs;
 	}
