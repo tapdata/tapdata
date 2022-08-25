@@ -394,7 +394,9 @@ public class LogCollectorService {
                 Date eventTime = getAttrsValues(node.getId(), targetNode.getId(), "eventTime", taskDto.getAttrs());
                 Date sourceTime = getAttrsValues(node.getId(), targetNode.getId(), "sourceTime", taskDto.getAttrs());
                 logCollectorVo.setLogTime(eventTime);
-                logCollectorVo.setDelayTime(sourceTime.getTime() - eventTime.getTime());
+                long delayTime = sourceTime.getTime() - eventTime.getTime();
+
+                logCollectorVo.setDelayTime(delayTime > 0 ? delayTime : 0);
                 if (node instanceof LogCollectorNode) {
                     LogCollectorNode logCollectorNode = (LogCollectorNode) node;
                     List<ObjectId> ids = logCollectorNode.getConnectionIds().stream().map(MongoUtils::toObjectId).collect(Collectors.toList());
@@ -639,7 +641,8 @@ public class LogCollectorService {
             Map syncProgressMap = (Map) syncProgress;
             List<String> key = Lists.newArrayList(sourceId, targetId);
 
-            Map valueMap = (Map) syncProgressMap.get(JsonUtil.toJsonUseJackson(key));
+            String valueMapString = (String) syncProgressMap.get(JsonUtil.toJsonUseJackson(key));
+            LinkedHashMap valueMap = JsonUtil.parseJson(valueMapString, LinkedHashMap.class);
             if (valueMap == null) {
                 return new Date();
             }
