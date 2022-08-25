@@ -492,6 +492,9 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 				throw new RuntimeException(errorMessage, error);
 			}
 		}
+
+		// clear thread context
+		ThreadContext.clearAll();
 	}
 
 	public void setMilestoneService(MilestoneService milestoneService) {
