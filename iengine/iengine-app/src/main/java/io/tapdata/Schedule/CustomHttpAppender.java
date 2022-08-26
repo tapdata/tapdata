@@ -134,6 +134,10 @@ public class CustomHttpAppender extends AbstractAppender {
 			if (null != taskId) {
 				ObsLogger obsLogger = ObsLoggerFactory.getInstance().getObsLogger(taskId);
 				if (null != obsLogger) {
+					// only keep pdk loggers
+					if (null == message || !StringUtils.strip(message).startsWith("$$tag::")) {
+						return;
+					}
 					switch (level.toUpperCase()) {
 						case "WARN":
 							obsLogger.warn(message);

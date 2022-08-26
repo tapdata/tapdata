@@ -140,9 +140,10 @@ public class HazelcastTargetPdkShareCDCNode extends HazelcastTargetPdkBaseNode {
 		}
 		if (null == timestamp || timestamp.compareTo(0L) <= 0) {
 			logger.warn("Invalid timestamp value: " + timestamp);
+			obsLogger.warn("Invalid timestamp value: " + timestamp);
 		}
 		if (StringUtils.isBlank(offsetStr)) {
-			logger.warn("Invalid offset string: " + offsetStr);
+			obsLogger.warn("Invalid offset string: " + offsetStr);
 		}
 	}
 }

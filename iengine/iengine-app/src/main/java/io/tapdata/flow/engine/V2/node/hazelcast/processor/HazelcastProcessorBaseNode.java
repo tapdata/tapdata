@@ -11,6 +11,8 @@ import io.tapdata.common.sample.sampler.SpeedSampler;
 import io.tapdata.flow.engine.V2.exception.node.NodeException;
 import io.tapdata.flow.engine.V2.node.hazelcast.HazelcastBaseNode;
 import io.tapdata.metrics.TaskSampleRetriever;
+import io.tapdata.observable.logging.ObsLogger;
+import io.tapdata.observable.logging.ObsLoggerFactory;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.NotNull;
@@ -108,6 +110,7 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 					.context(getProcessorBaseContext())
 					.event(tapdataEvent.getTapEvent());
 			logger.error(nodeException.getMessage(), nodeException);
+			obsLogger.error(nodeException);
 			throw nodeException;
 		}
 

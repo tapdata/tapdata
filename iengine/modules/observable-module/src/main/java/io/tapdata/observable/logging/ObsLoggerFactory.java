@@ -40,7 +40,7 @@ public final class ObsLoggerFactory {
 		return taskLoggersMap.get(taskId);
 	}
 
-	public TaskLoggerNodeProxy getObsLogger(TaskDto task, String nodeId, String nodeName) {
+	public ObsLogger getObsLogger(TaskDto task, String nodeId, String nodeName) {
 		TaskLogger taskLogger = (TaskLogger) getObsLogger(task);
 
 		String taskId = task.getId().toHexString();

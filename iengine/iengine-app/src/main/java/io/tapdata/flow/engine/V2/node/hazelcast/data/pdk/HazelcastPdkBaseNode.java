@@ -22,9 +22,6 @@ import io.tapdata.flow.engine.V2.node.hazelcast.data.HazelcastDataBaseNode;
 import io.tapdata.flow.engine.V2.util.PdkUtil;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
 import io.tapdata.node.pdk.ConnectorNodeService;
-import io.tapdata.observable.logging.ObsLogger;
-import io.tapdata.observable.logging.ObsLoggerFactory;
-import io.tapdata.pdk.apis.context.ConfigContext;
 import io.tapdata.pdk.apis.entity.ConnectionOptions;
 import io.tapdata.pdk.apis.entity.ConnectorCapabilities;
 import io.tapdata.pdk.core.api.ConnectorNode;
@@ -53,7 +50,6 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 	private static final String TAG = HazelcastPdkBaseNode.class.getSimpleName();
 	protected MonitorManager monitorManager;
 	protected SyncProgress syncProgress;
-	protected ObsLogger taskLogger;
 	protected String associateId;
 
 	public HazelcastPdkBaseNode(DataProcessorContext dataProcessorContext) {
@@ -62,11 +58,6 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 				TaskDto.SYNC_TYPE_DEDUCE_SCHEMA, TaskDto.SYNC_TYPE_TEST_RUN)) {
 			this.monitorManager = new MonitorManager();
 		}
-		this.taskLogger = ObsLoggerFactory.getInstance().getObsLogger(
-				dataProcessorContext.getTaskDto(),
-				dataProcessorContext.getNode().getId(),
-				dataProcessorContext.getNode().getName()
-		);
 	}
 
 	protected void connectorNodeInit(DataProcessorContext dataProcessorContext) {
