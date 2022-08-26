@@ -159,7 +159,7 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 		String oldName = updateCheck(user, updateDto);
 
 		if (updateDto.getLoadAllTables() != null && updateDto.getLoadAllTables()) {
-			updateDto.setTable_filter(null);
+			updateDto.setTable_filter("");
 		}
 
 		Assert.isFalse(StringUtils.equals(AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER.name(), updateDto.getAccessNodeType())
