@@ -134,6 +134,14 @@ public class TaskSampleHandler extends AbstractHandler {
         }
     }
 
+    public void handleDdlStart() {
+        inputDdlTotal.inc();
+    }
+
+    public void handleDdlEnd() {
+        outputDdlTotal.inc();
+    }
+
     public void handleBatchReadAccept(long size) {
         inputInsertTotal.inc(size);
         inputQps.add(size);
