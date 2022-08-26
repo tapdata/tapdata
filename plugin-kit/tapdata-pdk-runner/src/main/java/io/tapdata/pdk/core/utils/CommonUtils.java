@@ -85,11 +85,11 @@ public class CommonUtils {
             runnable.run();
         } catch(CoreException coreException) {
             coreException.printStackTrace();
-            TapLogger.error(tag, "Error code {} message {} will be ignored. ", coreException.getCode(), coreException.getMessage());
+            TapLogger.warn(tag, "Error code {} message {} will be ignored. ", coreException.getCode(), coreException.getMessage());
         } catch(Throwable throwable) {
             if(!(throwable instanceof QuiteException)) {
                 throwable.printStackTrace();
-                TapLogger.error(tag, "Unknown error message {} will be ignored. ", throwable.getMessage());
+                TapLogger.warn(tag, "Unknown error message {} will be ignored. ", throwable.getMessage());
             }
         }
     }
