@@ -93,10 +93,12 @@ public class ObservableAspectTask extends AspectTask {
 		Node<?> node = aspect.getDataProcessorContext().getNode();
 		switch (aspect.getState()) {
 			case TableCountFuncAspect.STATE_START:
+				for (String table : aspect.getDataProcessorContext().getTapTableMap().keySet()) {
+					taskSampleHandler.addTable(table);
+				}
 				// retrieve origin data from db
 				tableSampleHandler.retrieve();
 				aspect.tableCountConsumer((table, cnt) -> {
-					taskSampleHandler.addTable(table);
 					tableSampleHandler.init(aspect.getDataProcessorContext().getNode(), table, cnt);
 					dataNodeSampleHandler.handleTableCountAccept(node.getId(), cnt);
 					taskSampleHandler.handleTableCountAccept(cnt);
@@ -128,6 +130,7 @@ public class ObservableAspectTask extends AspectTask {
 		switch (aspect.getState()) {
 			case BatchReadFuncAspect.STATE_START:
 				dataNodeSampleHandler.handleBatchReadStart(nodeId, aspect.getTime());
+				taskSampleHandler.addTable(table);
 				aspect.readCompleteConsumer(events -> {
 					if (null == events || events.size() == 0) {
 						return;
@@ -265,6 +268,11 @@ public class ObservableAspectTask extends AspectTask {
 
 	public Void handleSourceState(SourceStateAspect aspect) {
 		switch (aspect.getState()) {
+			case SourceStateAspect.STATE_INITIAL_SYNC_START:
+				for(String table : aspect.getDataProcessorContext().getTapTableMap().keySet()) {
+					taskSampleHandler.addTable(table);
+				}
+				break;
 			case SourceStateAspect.STATE_INITIAL_SYNC_COMPLETED:
 				taskSampleHandler.handleSnapshotDone(aspect.getInitialSyncCompletedTime());
 				break;

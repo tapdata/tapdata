@@ -183,7 +183,10 @@ public class MysqlReader implements Closeable {
 			this.eventQueue = new LinkedBlockingQueue<>(10);
 			this.streamReadConsumer = consumer;
 			this.streamConsumerThreadPool = new ThreadPoolExecutor(1, 1, 0L, TimeUnit.SECONDS, new SynchronousQueue<>());
-			this.streamConsumerThreadPool.submit(this::eventQueueConsumer);
+			this.streamConsumerThreadPool.submit(() -> {
+				tapConnectorContext.configContext();
+				this.eventQueueConsumer();
+			});
 			DataMap connectionConfig = tapConnectorContext.getConnectionConfig();
 			String database = connectionConfig.getString("database");
 			initMysqlSchemaHistory(tapConnectorContext);
@@ -239,6 +242,7 @@ public class MysqlReader implements Closeable {
 						}
 					})
 					.using((result, message, throwable) -> {
+						tapConnectorContext.configContext();
 						if (result) {
 							if (StringUtils.isNotBlank(message)) {
 								TapLogger.info(TAG, "CDC engine stopped: " + message);
@@ -303,6 +307,7 @@ public class MysqlReader implements Closeable {
 	}
 
 	private void saveMysqlSchemaHistory(TapConnectorContext tapConnectorContext) {
+		tapConnectorContext.configContext();
 		Thread.currentThread().setName("Save-Mysql-Schema-History-" + serverName);
 		if (!MysqlSchemaHistoryTransfer.isSave()) {
 			MysqlSchemaHistoryTransfer.executeWithLock(n -> !running.get(), () -> {

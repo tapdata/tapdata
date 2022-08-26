@@ -1084,4 +1084,9 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
         }
         return null;
     }
+
+
+    public DataSourceDefinitionDto getDefinitionByType(String databaseType) {
+        return definitionDtoMap.get(databaseType);
+    }
 }

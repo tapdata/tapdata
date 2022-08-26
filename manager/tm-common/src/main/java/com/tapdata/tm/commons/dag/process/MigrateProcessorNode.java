@@ -13,6 +13,6 @@ public abstract class MigrateProcessorNode extends Node<List<Schema>> {
      *
      **/
     public MigrateProcessorNode(String type, NodeCatalog catalog) {
-        super(NodeEnum.migrate_field_rename_processor.name(), NodeCatalog.processor);
+        super(type, catalog);
     }
 }

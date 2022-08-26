@@ -293,13 +293,14 @@ public class TaskNodeServiceImpl implements TaskNodeService {
             // set qualifiedName
             String sinkQualifiedName = null;
             if (Objects.nonNull(targetDataSource)) {
+                //TODO 现在的mongodb表也是table的，所以这个逻辑是有问题的，但是由于现在的mongodb在库里的类型不是mongodb所以也不会出错。要改的时候，需要改所有类似的的地方
                 String metaType = "mongodb".equals(targetDataSource.getDatabase_type()) ? "collection" : "table";
                 sinkQualifiedName = MetaDataBuilderUtils.generateQualifiedName(metaType, targetDataSource, tableName, taskId);
             }
             String metaType = "mongodb".equals(sourceDataSource.getDatabase_type()) ? "collection" : "table";
             String sourceQualifiedName = MetaDataBuilderUtils.generateQualifiedName(metaType, sourceDataSource, tableName, taskId);
 
-            if (CollectionUtils.isEmpty(metaMap.get(tableName).getFields())) {
+            if (metaMap.get(tableName) == null || CollectionUtils.isEmpty(metaMap.get(tableName).getFields())) {
                 continue;
             }
             List<Field> fields = metaMap.get(tableName).getFields();
