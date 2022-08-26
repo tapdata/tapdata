@@ -1,12 +1,14 @@
 package com.tapdata.tm.commons.dag.process;
 
 import com.tapdata.manager.common.utils.JsonUtil;
+import com.tapdata.manager.common.utils.StringUtils;
 import com.tapdata.tm.commons.dag.*;
 import com.tapdata.tm.commons.dag.logCollector.VirtualTargetNode;
 import com.tapdata.tm.commons.schema.*;
 import com.tapdata.tm.commons.task.dto.Dag;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.util.PdkSchemaConvert;
+import io.tapdata.entity.mapping.DefaultExpressionMatchingMap;
 import io.tapdata.entity.schema.TapTable;
 import lombok.Getter;
 import lombok.Setter;
@@ -81,16 +83,31 @@ public class JsProcessorNode extends ProcessorNode {
         taskDtoCopy.setDag(build);
         taskDtoCopy.setId(new ObjectId());
         taskDtoCopy.setName(taskDto.getName() + "(100)");
-
-        ////用于预跑数据得到模型
-        TapTable tapTable = service.loadTapTable(getInputSchema(), script, getId(), target.getId(), null, null, taskDtoCopy);
-        Schema schema = PdkSchemaConvert.fromPdkSchema(tapTable);
-
-
         List<Schema> inputSchema = getInputSchema();
         if (CollectionUtils.isEmpty(inputSchema)) {
             return null;
         }
+        ////用于预跑数据得到模型
+        TapTable tapTable = service.loadTapTable(getInputSchema(), script, getId(), target.getId(), null, null, taskDtoCopy);
+
+
+        String expression = null;
+        for (Schema schema : inputSchema) {
+            if (schema.getSource() != null) {
+                if (StringUtils.isNotBlank(schema.getSource().getDatabase_type())) {
+                    DataSourceDefinitionDto definition = ((DAGDataServiceImpl) service).getDefinitionByType(schema.getSource().getDatabase_type());
+                    expression = definition.getExpression();
+                }
+            }
+        }
+
+        if (StringUtils.isNotBlank(expression)) {
+            PdkSchemaConvert.tableFieldTypesGenerator.autoFill(tapTable.getNameFieldMap(), DefaultExpressionMatchingMap.map(expression));
+        }
+        Schema schema = PdkSchemaConvert.fromPdkSchema(tapTable);
+
+
+
 
 
         Schema schema1 = inputSchema.get(0);

@@ -7,6 +7,7 @@ import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.tapdata.tm.commons.base.convert.ObjectIdDeserialize;
 import com.tapdata.tm.commons.base.convert.ObjectIdSerialize;
 import com.tapdata.tm.commons.schema.bean.Relation;
+import com.tapdata.tm.commons.schema.bean.SourceDto;
 import com.tapdata.tm.commons.schema.bean.SourceTypeEnum;
 import lombok.Getter;
 import lombok.Setter;
@@ -55,7 +56,7 @@ public class Schema implements Cloneable, Serializable {
     private String fieldsLienage;
     private List<Field> fields;
     private List<Map<String, Object>> indexes;
-
+    private SourceDto source;
     private String createSource;
     private Boolean virtual;
     private List<Tag> classifications;
