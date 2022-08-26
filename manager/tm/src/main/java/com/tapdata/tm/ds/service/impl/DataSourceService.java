@@ -915,7 +915,7 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 			log.debug("loadFieldsStatus is finished, update model delete flag");
 			// handle delete model, not match schemaVersion will update is_deleted to true
 			Criteria criteria = Criteria.where("is_deleted").ne(true).and("databaseId").is(datasourceId)
-					.and("lastUpdate").ne(schemaVersion);
+					.and("lastUpdate").ne(schemaVersion).and("taskId").exists(false);;
 			log.info("Delete metadata update filter: {}", criteria);
 			Query query = new Query(criteria);
 			Update update = Update.update("is_deleted", true);
