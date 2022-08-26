@@ -19,6 +19,7 @@ import com.tapdata.tm.commons.dag.nodes.DataNode;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.dag.process.*;
+import com.tapdata.tm.commons.dag.vo.TableRenameTableInfo;
 import com.tapdata.tm.commons.schema.*;
 import com.tapdata.tm.commons.schema.Field;
 import com.tapdata.tm.commons.schema.bean.Schema;
@@ -1292,7 +1293,28 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
                     String qualifiedName = MetaDataBuilderUtils.generateQualifiedName(MetaType.processor_node.name(), nodeId, null, taskId);
                     criteriaNode.and("qualified_name").regex("^"+qualifiedName+".*")
                             .and("is_deleted").ne(true);
-                    metadatas.addAll(findAll(queryMetadata));
+                    List<MetadataInstancesDto> all = findAll(queryMetadata);
+                    Map<String, MetadataInstancesDto> currentMap = all.stream()
+                            .collect(Collectors.toMap(MetadataInstancesDto::getOriginalName
+                                    , s->s, (m1, m2) -> m1));
+                    if (node instanceof TableRenameProcessNode) {
+                        LinkedHashSet<TableRenameTableInfo> tableNames = ((TableRenameProcessNode) node).getTableNames();
+                        for (TableRenameTableInfo tableName : tableNames) {
+                            MetadataInstancesDto metadataInstancesDto = currentMap.get(tableName.getCurrentTableName());
+                            if (metadataInstancesDto != null) {
+                                MetadataInstancesDto metadataInstancesDto1 = new MetadataInstancesDto();
+                                MetadataInstancesDto metadataInstancesDto2 = new MetadataInstancesDto();
+                                BeanUtils.copyProperties(metadataInstancesDto, metadataInstancesDto1);
+                                BeanUtils.copyProperties(metadataInstancesDto, metadataInstancesDto2);
+                                metadataInstancesDto1.setOriginalName(tableName.getOriginTableName());
+                                metadataInstancesDto2.setOriginalName(tableName.getPreviousTableName());
+                                all.add(metadataInstancesDto1);
+                                all.add(metadataInstancesDto2);
+                            }
+                        }
+
+                    }
+                    metadatas.addAll(all);
                 } else if (Node.NodeCatalog.processor.equals(node.getCatalog())) {
                     queryMetadata.addCriteria(criteriaNode);
                     String qualifiedName = MetaDataBuilderUtils.generateQualifiedName(MetaType.processor_node.name(), nodeId, null, taskId);
@@ -1348,6 +1370,17 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
         }
         metadatas = metadatas.stream().filter(Objects::nonNull).collect(Collectors.toList());
         return metadatas;
+    }
+
+    public static void main(String[] args) {
+        Criteria criteriaNode = Criteria.where("meta_type").is(MetaType.processor_node.name());
+        Query queryMetadata = new Query();
+        queryMetadata.addCriteria(criteriaNode);
+        String qualifiedName = MetaDataBuilderUtils.generateQualifiedName(MetaType.processor_node.name(), "857f7321-8198-44d1-a73b-ea575897b304", null, "taskId");
+        criteriaNode.and("qualified_name").regex("^"+qualifiedName+".*")
+                .and("is_deleted").ne(true);
+
+        System.out.println(queryMetadata);
     }
 
     public List<Map<String, Object>> search(String type, String keyword, String lastId, Integer pageSize, UserDetail user) {
