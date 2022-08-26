@@ -1,12 +1,9 @@
 package com.tapdata.tm.monitor.service;
 
 import com.tapdata.tm.monitor.entity.MeasureLockEntity;
-import com.tapdata.tm.monitor.entity.MeasurementEntity;
 import com.tapdata.tm.utils.TimeUtil;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang3.RandomUtils;
 import org.apache.commons.lang3.StringUtils;
-import org.jose4j.lang.StringUtil;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.mongodb.core.FindAndModifyOptions;
 import org.springframework.data.mongodb.core.MongoTemplate;
@@ -16,8 +13,6 @@ import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
 
 import java.util.Date;
-import java.util.List;
-import java.util.Random;
 
 
 @Slf4j
@@ -46,7 +41,7 @@ public class MeasureLockService {
     }
 
     public boolean lock(String granularity, Date date, String unique) {
-        Query query = Query.query(Criteria.where("granularity").is(granularity));
+        Query query = Query.query(Criteria.where("granularity").is(granularity).and("time").is(date));
 
         Update update = new Update();
         update.setOnInsert("time", date);
@@ -59,8 +54,8 @@ public class MeasureLockService {
         return StringUtils.equals(measureLockEntity.getUnique(), unique);
     }
 
-    public void unlock(String granularity, String unique) {
-        Query query = Query.query(Criteria.where("granularity").is(granularity).and("unique").is(unique));
+    public void unlock(String granularity, Date date, String unique) {
+        Query query = Query.query(Criteria.where("granularity").is(granularity).and("time").is(date).and("unique").is(unique));
         mongoOperations.findAndRemove(query, MeasureLockEntity.class);
     }
 }
