@@ -92,12 +92,17 @@ public class JsProcessorNode extends ProcessorNode {
 
 
         String expression = null;
+        label:
         for (Schema schema : inputSchema) {
-            if (schema.getSource() != null) {
-                if (StringUtils.isNotBlank(schema.getSource().getDatabase_type())) {
-                    DataSourceDefinitionDto definition = ((DAGDataServiceImpl) service).getDefinitionByType(schema.getSource().getDatabase_type());
+            List<Field> fields = schema.getFields();
+            if (CollectionUtils.isNotEmpty(fields)) {
+                for (Field field : fields) {
+                    String sourceDbType = field.getSourceDbType();
+                    DataSourceDefinitionDto definition = ((DAGDataServiceImpl) service).getDefinitionByType(sourceDbType);
                     expression = definition.getExpression();
+                    break label;
                 }
+
             }
         }
 

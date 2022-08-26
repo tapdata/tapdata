@@ -56,7 +56,6 @@ public class Schema implements Cloneable, Serializable {
     private String fieldsLienage;
     private List<Field> fields;
     private List<Map<String, Object>> indexes;
-    private SourceDto source;
     private String createSource;
     private Boolean virtual;
     private List<Tag> classifications;
