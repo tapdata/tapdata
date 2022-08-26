@@ -461,6 +461,44 @@ public class TaskNodeServiceImpl implements TaskNodeService {
         return res;
     }
 
+    @Override
+    public void checkFieldNode(TaskDto taskDto, UserDetail userDetail) {
+        if (!taskDto.getName().contains("- Copy")) {
+            return;
+        }
+
+        String taskId = taskDto.getId().toHexString();
+
+        DAG dag = taskDto.getDag();
+        List<String> collect = dag.getNodes().stream().filter(node -> {
+            if (node instanceof MigrateFieldRenameProcessorNode) {
+                LinkedList<TableFieldInfo> fieldsMapping = ((MigrateFieldRenameProcessorNode) node).getFieldsMapping();
+
+                return fieldsMapping.stream().anyMatch(table -> !table.getQualifiedName().endsWith(taskId));
+            }
+            return false;
+        }).map(Node::getId)
+        .collect(Collectors.toList());
+
+        if (CollectionUtils.isNotEmpty(collect)) {
+            DatabaseNode sourceNode = dag.getSourceNode().getFirst();
+
+            List<MetadataInstancesDto> metaList = metadataInstancesService.findBySourceIdAndTableNameList(sourceNode.getConnectionId(),
+                    sourceNode.getTableNames(), userDetail, taskDto.getId().toHexString());
+
+            if (CollectionUtils.isNotEmpty(metaList)) {
+                Map<String, String> qualifiedNameMap = metaList.stream()
+                        .collect(Collectors.toMap(MetadataInstancesDto::getName, MetadataInstancesDto::getQualifiedName));
+
+                collect.forEach(nodeId -> {
+                    MigrateFieldRenameProcessorNode fieldNode = (MigrateFieldRenameProcessorNode) dag.getNode(nodeId);
+                    fieldNode.getFieldsMapping().forEach(m -> m.setQualifiedName(qualifiedNameMap.get(m.getOriginTableName())));
+                });
+            }
+        }
+
+    }
+
     /**
      * 根据字段类型映射规则，将模型 schema中的通用字段类型转换为指定数据库字段类型
      * @param schema 包含通用字段类型的模型

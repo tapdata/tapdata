@@ -353,9 +353,6 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     //@Transactional
     public TaskDto updateById(TaskDto taskDto, UserDetail user) {
         checkTaskInspectFlag(taskDto);
-
-
-
         //根据id校验当前需要更新到任务是否存在
         TaskDto oldTaskDto = null;
 
@@ -436,15 +433,10 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                     List<String> tableNames = fieldsMapping.stream()
                             .map(TableFieldInfo::getOriginTableName)
                             .collect(Collectors.toList());
-                    DatabaseNode sourceNode = dag.getNodes().stream()
-                            .filter(n -> n instanceof DatabaseNode)
-                            .map(n -> (DatabaseNode) n)
-                            .collect(Collectors.toCollection(LinkedList::new))
-                            .stream()
-                            .filter(n -> dag.getSources().contains(n))
-                            .findAny().orElse(new DatabaseNode());
+                    DatabaseNode sourceNode = dag.getSourceNode().getFirst();
 
-                    List<MetadataInstancesDto> metaList = metadataInstancesService.findBySourceIdAndTableNameList(sourceNode.getConnectionId(), tableNames, userDetail, taskDto.getId().toHexString());
+                    List<MetadataInstancesDto> metaList = metadataInstancesService.findBySourceIdAndTableNameList(sourceNode.getConnectionId(),
+                            tableNames, userDetail, taskDto.getId().toHexString());
                     Map<String, List<com.tapdata.tm.commons.schema.Field>> fieldMap = metaList.stream()
                             .collect(Collectors.toMap(MetadataInstancesDto::getQualifiedName, MetadataInstancesDto::getFields));
                     fieldsMapping.forEach(table -> {
@@ -482,8 +474,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                                             targetFieldName = StringUtils.lowerCase(targetFieldName);
                                         }
                                     }
-                                    FieldInfo fieldInfo =
-                                            new FieldInfo(field.getFieldName(), targetFieldName, true, "system");
+                                    FieldInfo fieldInfo = new FieldInfo(field.getFieldName(), targetFieldName, true, "system");
                                     fields.add(fieldInfo);
                                 }
                             }
@@ -825,6 +816,8 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                     });
 
                     ((MergeTableNode) node).setMergeProperties(mergeTableProperties);
+                } else if (node instanceof MigrateFieldRenameProcessorNode) {
+
                 }
             }
 

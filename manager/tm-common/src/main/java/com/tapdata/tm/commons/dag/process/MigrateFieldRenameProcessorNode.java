@@ -1,6 +1,7 @@
 package com.tapdata.tm.commons.dag.process;
 
 import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
 import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.NodeEnum;
@@ -48,7 +49,7 @@ public class MigrateFieldRenameProcessorNode extends MigrateProcessorNode {
             return inputSchemas.get(0);
         }
 
-        Map<String, TableFieldInfo> tableFieldInfoMap = fieldsMapping.stream().collect(Collectors.toMap(TableFieldInfo::getOriginTableName, Function.identity()));
+        Map<String, TableFieldInfo> tableFieldInfoMap = fieldsMapping.stream().collect(Collectors.toMap(TableFieldInfo::getOriginTableName, Function.identity(), (e1,e2)->e2));
 
         inputSchemas.get(0).forEach(schema -> {
             //schema.setDatabaseId(null);
