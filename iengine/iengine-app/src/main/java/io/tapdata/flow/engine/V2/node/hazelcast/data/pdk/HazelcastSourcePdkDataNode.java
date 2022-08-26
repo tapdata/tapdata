@@ -290,6 +290,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 	private void doCount() {
 		BatchCountFunction batchCountFunction = getConnectorNode().getConnectorFunctions().getBatchCountFunction();
 		if (null == batchCountFunction) {
+			setDefaultRowSizeMap();
 			logger.warn("PDK node does not support table batch count: " + dataProcessorContext.getDatabaseType());
 			return;
 		}
@@ -323,6 +324,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 	@SneakyThrows
 	private void doCountAsynchronously(BatchCountFunction batchCountFunction) {
 		if (null == batchCountFunction) {
+			setDefaultRowSizeMap();
 			logger.warn("PDK node does not support table batch count: " + dataProcessorContext.getDatabaseType());
 			return;
 		}
@@ -548,6 +550,15 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 		});
 		if (syncProgress != null) {
 			statisticCollector.addSampler("cdcTime", () -> syncProgress.getEventTime());
+		}
+	}
+
+	private void setDefaultRowSizeMap() {
+		for(String tableName : dataProcessorContext.getTapTableMap().keySet()) {
+			if (null == snapshotRowSizeMap) {
+				snapshotRowSizeMap = new HashMap<>();
+			}
+			snapshotRowSizeMap.putIfAbsent(tableName, 0L);
 		}
 	}
 }
