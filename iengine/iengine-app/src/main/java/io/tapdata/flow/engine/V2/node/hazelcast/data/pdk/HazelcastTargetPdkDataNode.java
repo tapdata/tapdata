@@ -72,8 +72,6 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 				tableName = ((TableNode) node).getTableName();
 				updateConditionFields = ((TableNode) node).getUpdateConditionFields();
 				writeStrategy = ((TableNode) node).getWriteStrategy();
-			} else if (node instanceof DatabaseNode) {
-				initDatabaseTableNameMap((DatabaseNode) node);
 			}
 			initTargetDB();
 			// MILESTONE-INIT_TRANSFORMER-FINISH
@@ -83,7 +81,6 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 			// MILESTONE-INIT_TRANSFORMER-ERROR
 			TaskMilestoneFuncAspect.execute(dataProcessorContext, MilestoneStage.INIT_TRANSFORMER, MilestoneStatus.ERROR, logger);
 			MilestoneUtil.updateMilestone(milestoneService, MilestoneStage.INIT_TRANSFORMER, MilestoneStatus.ERROR, e.getMessage() + "\n" + Log4jUtil.getStackString(e));
-			errorHandle(e, e.getMessage());
 			throw e;
 		}
 		ddlEventHandlers = new ClassHandlers();
@@ -94,6 +91,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 		ddlEventHandlers.register(TapCreateTableEvent.class, this::executeCreateTableFunction);
 		ddlEventHandlers.register(TapDropTableEvent.class, tapDropTableEvent -> {
 			logger.warn("Drop table event will be ignored at sink node: " + tapDropTableEvent.getTableId());
+			obsLogger.warn("Drop table event will be ignored at sink node: " + tapDropTableEvent.getTableId());
 			return null;
 		});
 	}
@@ -110,7 +108,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 			}
 			TapTable tapTable = tapTableMap.get(tableId);
 			if (null == tapTable) {
-				throw new RuntimeException("Init target node failed, table \"" + tableId + "\"'s schema is null");
+				throw new NodeException("Init target node failed, table \"" + tableId + "\"'s schema is null").context(getDataProcessorContext());
 			}
 			dropTable(existsDataProcessEnum, tableId);
 			createTable(tapTable);
@@ -138,10 +136,12 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 			}
 			if (null == updateConditionFields) {
 				logger.warn("Table " + tableId + " index fields is null, will not create index automatically");
+				obsLogger.warn("Table " + tableId + " index fields is null, will not create index automatically");
 				return;
 			}
 			if (updateConditionFields.size() > MAX_INDEX_FIELDS_COUNT) {
 				logger.warn("Table " + tableId + " index field exceeds the maximum value of 10, the index will not be created automatically, please create it manually");
+				obsLogger.warn("Table " + tableId + " index field exceeds the maximum value of 10, the index will not be created automatically, please create it manually");
 				return;
 			}
 			if (CollectionUtils.isNotEmpty(updateConditionFields)) {
@@ -169,6 +169,8 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 			if (null != indexEvent.get()) {
 				nodeException.event(indexEvent.get());
 			}
+			logger.error(nodeException.getMessage(), nodeException);
+			obsLogger.error(nodeException.getMessage(), nodeException);
 			throw nodeException;
 		}
 	}
@@ -193,6 +195,8 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 			if (null != tapClearTableEvent.get()) {
 				nodeException.event(tapClearTableEvent.get());
 			}
+			logger.error(nodeException.getMessage(), nodeException);
+			obsLogger.error(nodeException.getMessage(), nodeException);
 			throw nodeException;
 		}
 	}
@@ -225,6 +229,8 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 			if (null != tapCreateTableEvent.get()) {
 				nodeException.event(tapCreateTableEvent.get());
 			}
+			logger.error(nodeException.getMessage(), nodeException);
+			obsLogger.error(nodeException.getMessage(), nodeException);
 			throw nodeException;
 		}
 
@@ -250,6 +256,8 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 			if (null != tapDropTableEvent.get()) {
 				nodeException.event(tapDropTableEvent.get());
 			}
+			logger.error(nodeException.getMessage(), nodeException);
+			obsLogger.error(nodeException.getMessage(), nodeException);
 			throw nodeException;
 		}
 
@@ -303,6 +311,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 			Object result = ddlEventHandlers.handle(tapDDLEvent);
 			if (null == result) {
 				logger.warn("DDL event: " + tapDDLEvent.getClass().getSimpleName() + " does not supported");
+				obsLogger.warn("DDL event: " + tapDDLEvent.getClass().getSimpleName() + " does not supported");
 			}
 		}
 		uploadDagService.compareAndSet(false, true);
@@ -311,7 +320,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 	private boolean executeNewFieldFunction(TapNewFieldEvent tapNewFieldEvent) {
 		TapTable tapTable = dataProcessorContext.getTapTableMap().get(tapNewFieldEvent.getTableId());
 		if (null == tapTable) {
-			throw new RuntimeException("Get tap table failed, table id: " + tapNewFieldEvent.getTableId());
+			throw new NodeException("Get tap table failed, table id: " + tapNewFieldEvent.getTableId()).context(getDataProcessorContext());
 		}
 		LinkedHashMap<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
 		if (MapUtils.isNotEmpty(nameFieldMap)) {
@@ -320,7 +329,8 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 				String fieldName = newField.getName();
 				TapField tapField = tapTable.getNameFieldMap().get(fieldName);
 				if (null == tapField) {
-					throw new RuntimeException("Set data type failed, tap table not contains field [" + fieldName + "]");
+					throw new NodeException("Set data type failed, tap table not contains field [" + fieldName + "]")
+							.context(getDataProcessorContext()).events(Collections.singletonList(tapNewFieldEvent));
 				}
 				newField.setDataType(tapTable.getNameFieldMap().get(fieldName).getDataType());
 			}
@@ -330,6 +340,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 		PDKMethod pdkMethod = PDKMethod.NEW_FIELD;
 		if (null == function) {
 			logger.warn("PDK connector " + connectorNode.getConnectorContext().getSpecification().getId() + " does not support " + pdkMethod);
+			obsLogger.warn("PDK connector " + connectorNode.getConnectorContext().getSpecification().getId() + " does not support " + pdkMethod);
 			return false;
 		}
 		try {
@@ -341,7 +352,8 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 					PDKInvocationMonitor.invoke(connectorNode, pdkMethod,
 							() -> function.newField(connectorNode.getConnectorContext(), tapNewFieldEvent), TAG)));
 		} catch (Exception e) {
-			throw new RuntimeException("Execute " + pdkMethod + " failed, error: " + e.getMessage(), e);
+			throw new NodeException("Execute " + pdkMethod + " failed, error: " + e.getMessage(), e)
+					.context(getDataProcessorContext()).event(tapNewFieldEvent);
 		}
 		return true;
 	}
@@ -352,6 +364,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 		PDKMethod pdkMethod = PDKMethod.ALTER_FIELD_NAME;
 		if (null == function) {
 			logger.warn("PDK connector " + connectorNode.getConnectorContext().getSpecification().getId() + " does not support " + pdkMethod);
+			obsLogger.warn("PDK connector " + connectorNode.getConnectorContext().getSpecification().getId() + " does not support " + pdkMethod);
 			return false;
 		}
 		try {
@@ -364,7 +377,8 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 							() -> function.alterFieldName(connectorNode.getConnectorContext(), tapAlterFieldNameEvent),
 							TAG));
 		} catch (Exception e) {
-			throw new RuntimeException("Execute " + pdkMethod + " failed, error: " + e.getMessage(), e);
+			throw new NodeException("Execute " + pdkMethod + " failed, error: " + e.getMessage(), e)
+					.context(getDataProcessorContext()).event(tapAlterFieldNameEvent);
 		}
 		return true;
 	}
@@ -372,7 +386,8 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 	private boolean executeAlterFieldAttrFunction(TapAlterFieldAttributesEvent tapAlterFieldAttributesEvent) {
 		TapTable tapTable = dataProcessorContext.getTapTableMap().get(tapAlterFieldAttributesEvent.getTableId());
 		if (null == tapTable) {
-			throw new RuntimeException("Get tap table failed, table id: " + tapAlterFieldAttributesEvent.getTableId());
+			throw new NodeException("Get tap table failed, table id: " + tapAlterFieldAttributesEvent.getTableId())
+					.context(getDataProcessorContext());
 		}
 		LinkedHashMap<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
 		if (MapUtils.isNotEmpty(nameFieldMap)) {
@@ -387,6 +402,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 		PDKMethod pdkMethod = PDKMethod.ALTER_FIELD_ATTRIBUTES;
 		if (null == function) {
 			logger.warn("PDK connector " + connectorNode.getConnectorContext().getSpecification().getId() + " does not support " + pdkMethod);
+			obsLogger.warn("PDK connector " + connectorNode.getConnectorContext().getSpecification().getId() + " does not support " + pdkMethod);
 			return false;
 		}
 		try {
@@ -399,7 +415,8 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 							() -> function.alterFieldAttributes(connectorNode.getConnectorContext(), tapAlterFieldAttributesEvent),
 							TAG)));
 		} catch (Exception e) {
-			throw new RuntimeException("Execute " + pdkMethod + " failed, error: " + e.getMessage(), e);
+			throw new NodeException("Execute " + pdkMethod + " failed, error: " + e.getMessage(), e)
+					.context(getDataProcessorContext()).event(tapAlterFieldAttributesEvent);
 		}
 		return true;
 	}
@@ -410,6 +427,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 		PDKMethod pdkMethod = PDKMethod.DROP_FIELD;
 		if (null == function) {
 			logger.warn("PDK connector " + connectorNode.getConnectorContext().getSpecification().getId() + " does not support " + pdkMethod);
+			obsLogger.warn("PDK connector " + connectorNode.getConnectorContext().getSpecification().getId() + " does not support " + pdkMethod);
 			return false;
 		}
 		try {
@@ -422,7 +440,8 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 							() -> function.dropField(connectorNode.getConnectorContext(), tapDropFieldEvent),
 							TAG)));
 		} catch (Exception e) {
-			throw new RuntimeException("Execute " + pdkMethod + " failed, error: " + e.getMessage(), e);
+			throw new NodeException("Execute " + pdkMethod + " failed, error: " + e.getMessage(), e)
+					.context(getDataProcessorContext()).event(tapDropFieldEvent);
 		}
 		return true;
 	}
@@ -441,7 +460,8 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 		String tableId = firstEvent.getTableId();
 		String tgtTableName = getTgtTableNameFromTapEvent(firstEvent);
 		if (StringUtils.isBlank(tgtTableName)) {
-			throw new RuntimeException("Get target table name from event failed, event table id: " + tableId);
+			throw new NodeException("Get target table name from event failed, event table id: " + tableId)
+					.context(getDataProcessorContext()).events(events);
 		}
 		TapTable tapTable = dataProcessorContext.getTapTableMap().get(tgtTableName);
 		handleTapTablePrimaryKeys(tapTable);
@@ -463,7 +483,9 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 									if (MapUtils.isNotEmpty(errorMap)) {
 										for (Map.Entry<TapRecordEvent, Throwable> tapRecordEventThrowableEntry : errorMap.entrySet()) {
 											logger.error(tapRecordEventThrowableEntry.getValue().getMessage(), tapRecordEventThrowableEntry.getValue());
+											obsLogger.error(tapRecordEventThrowableEntry.getValue().getMessage(), tapRecordEventThrowableEntry.getValue());
 											logger.error("Error record: " + tapRecordEventThrowableEntry.getKey());
+											obsLogger.error("Error record: " + tapRecordEventThrowableEntry.getKey());
 										}
 										throw new RuntimeException("Write record failed, will stop task");
 									}
@@ -481,10 +503,11 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 									logger.debug("Wrote {} of record events, {}", tapRecordEvents.size(), LoggerUtils.targetNodeMessage(getConnectorNode()));
 								}), TAG)));
 			} catch (Exception e) {
-				throw sneakyThrow(e);
+				throw new NodeException(e).context(getDataProcessorContext()).events(events);
 			}
 		} else {
-			throw new RuntimeException("PDK connector " + getConnectorNode().getConnectorContext().getSpecification().getId() + " does not support write record function");
+			throw new NodeException("PDK connector " + getConnectorNode().getConnectorContext().getSpecification().getId() + " does not support write record function")
+					.context(getDataProcessorContext()).events(events);
 		}
 	}
 

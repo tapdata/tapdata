@@ -136,7 +136,6 @@ public abstract class Node<S> extends Element{
         transformSchema(null);
     }
     public void transformSchema(DAG.Options options) {
-
         //优化模型推演的顺序
         List<Node<S>> predNodes = predecessors();
         if (CollectionUtils.isNotEmpty(predNodes)) {
@@ -154,7 +153,7 @@ public abstract class Node<S> extends Element{
         }
 
         String nodeId = getId();
-        log.info("Transform schema for node {}({})", nodeId, getType());
+        log.info("Transform schema for node {}({}), type = {}", nodeId, getName(), getType());
 
         boolean result = this.validate();
         if (!result) {
@@ -165,12 +164,14 @@ public abstract class Node<S> extends Element{
         if (schema == null) {
             try {
                 schema = loadSchema(options.getIncludes());
+                log.info("load schema complete, schema = {}", schema);
             } catch (Exception e) {
                 log.error("Load schema failed.", e);
             }
         }
 
         List<S> inputSchemas = getInputSchema();
+        log.info("input schema = {}", inputSchemas);
         // 防止子类直接修改原始模型，这里需要对输入模型（inputSchema）、当前节点原始模型（schema）进行复制
         boolean mergedSchema = false;   // 输入模型为null，不进行merge操作，不需要执行保存更新
         if (inputSchemas != null && inputSchemas.size() > 0) {
@@ -200,6 +201,7 @@ public abstract class Node<S> extends Element{
                 }
             }
             outputSchema = mergeSchema(inputSchemas, cloneSchema(schema));
+            log.info("merge schema complete, result = {}", outputSchema);
             mergedSchema = true;  // 进行merge操作，需要执行保存/更新
         } else {
             this.outputSchema = cloneSchema(schema);
@@ -213,6 +215,7 @@ public abstract class Node<S> extends Element{
                 try {
                     Collection<String> predecessors = getGraph().predecessors(nodeId);
                     //需要保存的地方就可以存储异步推演的内容
+                    log.info("save transform schema, schema = {}", changedSchema);
                     outputSchema = saveSchema(predecessors, nodeId, changedSchema, options);
                     List<String> sourceQualifiedNames;
                     if (outputSchema instanceof List) {

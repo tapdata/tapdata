@@ -2,9 +2,8 @@ package com.tapdata.tm.commons.dag;
 
 import com.tapdata.manager.common.utils.JsonUtil;
 import com.tapdata.manager.common.utils.StringUtils;
-import com.tapdata.tm.commons.dag.process.MigrateFieldRenameProcessorNode;
-import com.tapdata.tm.commons.dag.process.MigrateJsProcessorNode;
-import com.tapdata.tm.commons.dag.process.TableRenameProcessNode;
+import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
+import com.tapdata.tm.commons.dag.process.*;
 import com.tapdata.tm.commons.dag.vo.MigrateJsResultVo;
 import com.tapdata.tm.commons.schema.*;
 import com.tapdata.tm.commons.schema.bean.SourceDto;
@@ -346,6 +345,8 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
             return Collections.emptyList();
         }
 
+        log.info("save schema, found database schema, q_name = {}", databaseQualifiedName);
+
         SourceDto sourceDto = JsonUtil.parseJsonUseJackson(JsonUtil.toJsonUseJackson(dataSource), SourceDto.class);
 
         // 其他类型的 meta type 暂时不做模型推演处理
@@ -398,6 +399,7 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
         long start = System.currentTimeMillis();
 
         Map<String, MetadataInstancesDto> existsMetadataInstances = rollbackOperation(metadataInstancesDtos, rollback, rollbackTable);
+        log.info("bulk save meta data, data = {}", metadataInstancesDtos);
         int modifyCount = bulkSave(metadataInstancesDtos, dataSource, existsMetadataInstances);
         log.info("Bulk save metadataInstance {}, cost {}ms", modifyCount, System.currentTimeMillis() - start);
 
@@ -909,6 +911,9 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
             setMetaDataMap(metadataInstancesDto);
         }
 
+        log.info("save schema update map = {}", metadataUpdateMap);
+        log.info("save schema insert metadata = {}", insertMetaDataList);
+
         batchMetadataUpdateMap.putAll(metadataUpdateMap);
         batchInsertMetaDataList.addAll(insertMetaDataList);
         return metadataUpdateMap.size() + insertMetaDataList.size();
@@ -1008,7 +1013,7 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
         setMetaDataMap(metadataInstancesDto);
     }
 
-    public String createNewTable(String connectionId, TapTable tapTable) {
+    public String createNewTable(String connectionId, TapTable tapTable, String taskId) {
         DataSourceConnectionDto connectionDto = dataSourceMap.get(connectionId);
         if (connectionDto == null) {
             return null;
@@ -1034,8 +1039,9 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
         MetadataInstancesDto metadataInstancesDto1 = PdkSchemaConvert.fromPdk(tapTable);
         String databaseQualifiedName = MetaDataBuilderUtils.generateQualifiedName("database", connectionDto, null);
         MetadataInstancesDto databaseMeta = metadataMap.get(databaseQualifiedName);
-        metadataInstancesDto1 = MetaDataBuilderUtils.build(MetaType.table.name(), connectionDto, userId, userName, metadataInstancesDto1.getOriginalName(), metadataInstancesDto1, null, databaseMeta.getId().toString());
-
+        metadataInstancesDto1 = MetaDataBuilderUtils.build(MetaType.table.name(), connectionDto, userId, userName, metadataInstancesDto1.getOriginalName(), metadataInstancesDto1, null, databaseMeta.getId().toString(), taskId);
+        metadataInstancesDto1.setCreateSource("job_analyze");
+        metadataInstancesDto1.setSourceType(SourceTypeEnum.VIRTUAL.name());
         if (CollectionUtils.isNotEmpty(metadataInstancesDto1.getFields())) {
 
             for (Field field : metadataInstancesDto1.getFields()) {
@@ -1051,5 +1057,42 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
     public void dropTable(String qualifiedName) {
         batchRemoveMetaDataList.add(qualifiedName);
         deleteMetaDataMap(qualifiedName);
+    }
+
+    public MetadataInstancesDto getSchemaByNodeAndTableName(String nodeId, String tableName) {
+        TaskDto taskDto = getTaskById(taskId);
+        if (taskDto == null) {
+            return null;
+        }
+        DAG dag = taskDto.getDag();
+        if (dag == null) {
+            return null;
+        }
+
+        Node<?> node = dag.getNode(nodeId);
+        String qualifiedName = null;
+        if (node instanceof DatabaseNode) {
+            String connectionId = ((DatabaseNode) node).getConnectionId();
+            DataSourceConnectionDto connectionDto = dataSourceMap.get(connectionId);
+            qualifiedName = MetaDataBuilderUtils.generateQualifiedName(MetaType.table.name(), connectionDto, tableName, taskId);
+        } else if (node instanceof ProcessorNode || node instanceof MigrateProcessorNode) {
+            qualifiedName = MetaDataBuilderUtils.generateQualifiedName(MetaType.processor_node.name(), nodeId, tableName);
+        }
+
+        if (StringUtils.isBlank(qualifiedName)) {
+            return null;
+        }
+
+        for (MetadataInstancesDto metadataInstancesDto : batchInsertMetaDataList) {
+            if (metadataInstancesDto.getQualifiedName().equals(qualifiedName)) {
+                return metadataInstancesDto;
+            }
+        }
+        return null;
+    }
+
+
+    public DataSourceDefinitionDto getDefinitionByType(String databaseType) {
+        return definitionDtoMap.get(databaseType);
     }
 }

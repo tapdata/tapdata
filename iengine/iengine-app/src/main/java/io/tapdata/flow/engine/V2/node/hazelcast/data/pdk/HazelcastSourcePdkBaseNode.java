@@ -126,8 +126,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 		} catch (Throwable e) {
 			TaskMilestoneFuncAspect.execute(dataProcessorContext, MilestoneStage.INIT_CONNECTOR, MilestoneStatus.ERROR, logger);
 			MilestoneUtil.updateMilestone(milestoneService, MilestoneStage.INIT_CONNECTOR, MilestoneStatus.ERROR, e.getMessage() + "\n" + Log4jUtil.getStackString(e));
-			errorHandle(e, e.getMessage());
-			throw new RuntimeException(e);
+			throw new NodeException(e).context(getProcessorBaseContext());
 		}
 		TaskDto taskDto = dataProcessorContext.getTaskDto();
 		syncProgress = initSyncProgress(taskDto.getAttrs());
@@ -159,13 +158,13 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 		Node<?> node = dataProcessorContext.getNode();
 		if (node.isDataNode()) {
 			if (needDynamicTable(null)) {
+				this.newTables = new CopyOnWriteArrayList<>();
+				this.removeTables = new CopyOnWriteArrayList<>();
 				TableMonitor tableMonitor = new TableMonitor(dataProcessorContext.getTapTableMap(), associateId, dataProcessorContext.getTaskDto());
 				this.monitorManager.startMonitor(tableMonitor);
 				this.tableMonitorResultHandler = new ScheduledThreadPoolExecutor(1);
 				this.tableMonitorResultHandler.scheduleAtFixedRate(this::handleTableMonitorResult, 0L, PERIOD_SECOND_HANDLE_TABLE_MONITOR_RESULT, TimeUnit.SECONDS);
 				logger.info("Handle dynamic add/remove table thread started, interval: " + PERIOD_SECOND_HANDLE_TABLE_MONITOR_RESULT + " seconds");
-				this.newTables = new CopyOnWriteArrayList<>();
-				this.removeTables = new CopyOnWriteArrayList<>();
 			}
 		}
 	}
@@ -212,7 +211,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 					}
 					String pointType = syncPoint == null ? "current" : syncPoint.getPointType();
 					if (StringUtils.isBlank(pointType)) {
-						throw new RuntimeException("Run cdc task failed, sync point type cannot be empty");
+						throw new NodeException("Run cdc task failed, sync point type cannot be empty").context(getProcessorBaseContext());
 					}
 					switch (pointType) {
 						case "localTZ":
@@ -260,8 +259,8 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 						// switch share cdc to normal task
 						Long eventTime = syncProgress.getEventTime();
 						if (null == eventTime) {
-							throw new RuntimeException("It was found that the task was switched from shared incremental to normal mode and cannot continue execution, reason: lost breakpoint timestamp."
-									+ " Please try to reset and start the task.");
+							throw new NodeException("It was found that the task was switched from shared incremental to normal mode and cannot continue execution, reason: lost breakpoint timestamp."
+									+ " Please try to reset and start the task.").context(getProcessorBaseContext());
 						}
 						initStreamOffsetFromTime(eventTime);
 					}
@@ -281,15 +280,18 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 					if (need2InitialSync(syncProgress)) {
 						logger.warn("Call timestamp to stream offset function failed, will stop task after snapshot, type: " + dataProcessorContext.getDatabaseType()
 								+ ", errors: " + e.getClass().getSimpleName() + "  " + e.getMessage() + "\n" + Log4jUtil.getStackString(e));
-					} else {
-						throw new RuntimeException("Call timestamp to stream offset function failed, will stop task, type: " + dataProcessorContext.getDatabaseType()
+						obsLogger.warn("Call timestamp to stream offset function failed, will stop task after snapshot, type: " + dataProcessorContext.getDatabaseType()
 								+ ", errors: " + e.getClass().getSimpleName() + "  " + e.getMessage() + "\n" + Log4jUtil.getStackString(e));
+					} else {
+						throw new NodeException("Call timestamp to stream offset function failed, will stop task, type: " + dataProcessorContext.getDatabaseType()
+								+ ", errors: " + e.getClass().getSimpleName() + "  " + e.getMessage() + "\n" + Log4jUtil.getStackString(e)).context(getProcessorBaseContext());
 					}
 				}
 				syncProgress.setStreamOffsetObj(timeToStreamOffsetResult.get());
 			}, TAG);
 		} else {
 			logger.warn("Pdk connector does not support timestamp to stream offset function, will stop task after snapshot: " + dataProcessorContext.getDatabaseType());
+			obsLogger.warn("Pdk connector does not support timestamp to stream offset function, will stop task after snapshot: " + dataProcessorContext.getDatabaseType());
 		}
 	}
 
@@ -318,10 +320,11 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 						.ifPresent(s -> s.incrementEdgeFinishNumber(TapEventUtil.getTableId(dataEvent.getTapEvent())));
 			}
 			if (error != null) {
-				throw new RuntimeException(error);
+				throw new NodeException(error).context(getProcessorBaseContext());
 			}
 		} catch (Exception e) {
 			logger.error("Source sync failed {}.", e.getMessage(), e);
+			obsLogger.error("Source sync failed {}.", e.getMessage(), e);
 			throw new SourceException(e, true);
 		}
 
@@ -439,7 +442,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 						}
 					} catch (Throwable throwable) {
 						String error = "Handle table monitor result failed, result: " + tableResult + ", error: " + throwable.getMessage();
-						throw new RuntimeException(error, throwable);
+						throw new NodeException(error, throwable).context(getProcessorBaseContext());
 					}
 				});
 			}
@@ -481,7 +484,8 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 		try {
 			return wrapSingleTapdataEvent(tapEvent, syncStage, offsetObj, isLast);
 		} catch (Throwable throwable) {
-			throw new NodeException("Error wrap TapEvent, event: " + tapEvent + ", error: " + throwable.getMessage(), throwable)
+			throw new NodeException("Error wrap TapEvent, event: " + tapEvent + ", error: " + throwable
+					.getMessage(), throwable)
 					.context(getDataProcessorContext())
 					.event(tapEvent);
 		}
@@ -531,6 +535,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 			logger.info("Source node received an ddl event: " + tapEvent);
 			if (null != ddlFilter && !ddlFilter.test((TapDDLEvent) tapEvent)) {
 				logger.warn("DDL events are filtered: " + tapEvent);
+				obsLogger.warn("DDL events are filtered: " + tapEvent);
 				return null;
 			}
 			tapdataEvent = new TapdataEvent();
@@ -590,7 +595,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 				String qualifiedName;
 				Map<String, List<Message>> errorMessage;
 				if (tapEvent instanceof TapCreateTableEvent) {
-					qualifiedName = dagDataService.createNewTable(dataProcessorContext.getSourceConn().getId(), tapTable);
+					qualifiedName = dagDataService.createNewTable(dataProcessorContext.getSourceConn().getId(), tapTable, processorBaseContext.getTaskDto().getId().toHexString());
 					logger.info("Create new table in memory, qualified name: " + qualifiedName);
 					dataProcessorContext.getTapTableMap().putNew(tapTable.getId(), tapTable, qualifiedName);
 					errorMessage = dag.transformSchema(null, dagDataService, transformerWsMessageDto.getOptions());
@@ -656,7 +661,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 			} catch (InterruptedException e) {
 				break;
 			} catch (Throwable throwable) {
-				throw new NodeException(throwable).context(getDataProcessorContext()).event(tapdataEvent.getTapEvent());
+				throw  new NodeException(throwable).context(getDataProcessorContext()).event(tapdataEvent.getTapEvent());
 			}
 		}
 	}

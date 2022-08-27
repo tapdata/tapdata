@@ -13,6 +13,8 @@ import io.tapdata.entity.aspect.Aspect;
 import io.tapdata.entity.aspect.AspectInterceptResult;
 import io.tapdata.entity.event.TapBaseEvent;
 import io.tapdata.entity.simplify.pretty.ClassHandlers;
+import io.tapdata.entity.utils.InstanceFactory;
+import io.tapdata.module.api.PipelineDelay;
 import io.tapdata.observable.metric.handler.*;
 
 import java.util.*;
@@ -37,7 +39,12 @@ public class ObservableAspectTask extends AspectTask {
 		observerClassHandlers.register(SourceStateAspect.class, this::handleSourceState);
 		// target data node aspects
 		observerClassHandlers.register(WriteRecordFuncAspect.class, this::handleWriteRecordFunc);
+		observerClassHandlers.register(NewFieldFuncAspect.class, this::handleNewFieldFun);
+		observerClassHandlers.register(AlterFieldNameFuncAspect.class, this::handleAlterFieldNameFunc);
+		observerClassHandlers.register(AlterFieldAttributesFuncAspect.class, this::handleAlterFieldAttributesFunc);
+		observerClassHandlers.register(DropFieldFuncAspect.class, this::handleDropFieldFunc);
 		observerClassHandlers.register(CreateTableFuncAspect.class, this::handleCreateTableFunc);
+		observerClassHandlers.register(DropTableFuncAspect.class, this::handleDropTableFunc);
 
 		// processor node aspects
 		observerClassHandlers.register(ProcessorNodeInitAspect.class, this::handleProcessorNodeInit);
@@ -64,6 +71,9 @@ public class ObservableAspectTask extends AspectTask {
 	 */
 	@Override
 	public void onStop(TaskStopAspect stopAspect) {
+		pipelineDelay.clear(stopAspect.getTask().getId().toHexString());
+
+		dataNodeSampleHandler.setRunning(false);
 		taskSampleHandler.close();
 	}
 
@@ -88,10 +98,12 @@ public class ObservableAspectTask extends AspectTask {
 		Node<?> node = aspect.getDataProcessorContext().getNode();
 		switch (aspect.getState()) {
 			case TableCountFuncAspect.STATE_START:
+				for (String table : aspect.getDataProcessorContext().getTapTableMap().keySet()) {
+					taskSampleHandler.addTable(table);
+				}
 				// retrieve origin data from db
 				tableSampleHandler.retrieve();
 				aspect.tableCountConsumer((table, cnt) -> {
-					taskSampleHandler.addTable(table);
 					tableSampleHandler.init(aspect.getDataProcessorContext().getNode(), table, cnt);
 					dataNodeSampleHandler.handleTableCountAccept(node.getId(), cnt);
 					taskSampleHandler.handleTableCountAccept(cnt);
@@ -116,6 +128,76 @@ public class ObservableAspectTask extends AspectTask {
 		return null;
 	}
 
+	public Void handleNewFieldFun(NewFieldFuncAspect aspect) {
+		switch (aspect.getState()) {
+			case NewFieldFuncAspect.STATE_START:
+				dataNodeSampleHandler.handleDdlStart(aspect.getDataProcessorContext().getNode().getId());
+				break;
+			case NewFieldFuncAspect.STATE_END:
+				taskSampleHandler.handleDdlEnd();
+				dataNodeSampleHandler.handleDdlEnd(aspect.getDataProcessorContext().getNode().getId());
+				break;
+		}
+
+		return null;
+	}
+
+	public Void handleAlterFieldNameFunc(AlterFieldNameFuncAspect aspect) {
+		switch (aspect.getState()) {
+			case AlterFieldNameFuncAspect.STATE_START:
+				dataNodeSampleHandler.handleDdlStart(aspect.getDataProcessorContext().getNode().getId());
+				break;
+			case AlterFieldNameFuncAspect.STATE_END:
+				taskSampleHandler.handleDdlEnd();
+				dataNodeSampleHandler.handleDdlEnd(aspect.getDataProcessorContext().getNode().getId());
+				break;
+		}
+
+		return null;
+	}
+
+	public Void handleAlterFieldAttributesFunc(AlterFieldAttributesFuncAspect aspect) {
+		switch (aspect.getState()) {
+			case AlterFieldAttributesFuncAspect.STATE_START:
+				dataNodeSampleHandler.handleDdlStart(aspect.getDataProcessorContext().getNode().getId());
+				break;
+			case AlterFieldAttributesFuncAspect.STATE_END:
+				taskSampleHandler.handleDdlEnd();
+				dataNodeSampleHandler.handleDdlEnd(aspect.getDataProcessorContext().getNode().getId());
+				break;
+		}
+
+		return null;
+	}
+
+	public Void handleDropFieldFunc(DropFieldFuncAspect aspect) {
+		switch (aspect.getState()) {
+			case DropFieldFuncAspect.STATE_START:
+				dataNodeSampleHandler.handleDdlStart(aspect.getDataProcessorContext().getNode().getId());
+				break;
+			case DropFieldFuncAspect.STATE_END:
+				taskSampleHandler.handleDdlEnd();
+				dataNodeSampleHandler.handleDdlEnd(aspect.getDataProcessorContext().getNode().getId());
+				break;
+		}
+
+		return null;
+	}
+
+	public Void handleDropTableFunc(DropTableFuncAspect aspect) {
+		switch (aspect.getState()) {
+			case DropTableFuncAspect.STATE_START:
+				dataNodeSampleHandler.handleDdlStart(aspect.getDataProcessorContext().getNode().getId());
+				break;
+			case DropTableFuncAspect.STATE_END:
+				taskSampleHandler.handleDdlEnd();
+				dataNodeSampleHandler.handleDdlEnd(aspect.getDataProcessorContext().getNode().getId());
+				break;
+		}
+
+		return null;
+	}
+
 	public Void handleBatchReadFunc(BatchReadFuncAspect aspect) {
 		String nodeId = aspect.getDataProcessorContext().getNode().getId();
 		String table = aspect.getTable().getName();
@@ -123,6 +205,7 @@ public class ObservableAspectTask extends AspectTask {
 		switch (aspect.getState()) {
 			case BatchReadFuncAspect.STATE_START:
 				dataNodeSampleHandler.handleBatchReadStart(nodeId, aspect.getTime());
+				taskSampleHandler.addTable(table);
 				aspect.readCompleteConsumer(events -> {
 					if (null == events || events.size() == 0) {
 						return;
@@ -184,6 +267,8 @@ public class ObservableAspectTask extends AspectTask {
 		return null;
 	}
 
+
+	private PipelineDelayImpl pipelineDelay = (PipelineDelayImpl) InstanceFactory.instance(PipelineDelay.class);
 	public Void handleWriteRecordFunc(WriteRecordFuncAspect aspect) {
 		String nodeId = aspect.getDataProcessorContext().getNode().getId();
 
@@ -196,13 +281,15 @@ public class ObservableAspectTask extends AspectTask {
 						return;
 					}
 
+					Long now = System.currentTimeMillis();
 					Long newestEventTimestamp = null;
 					TapBaseEvent newestEvent = events.get(events.size() - 1);
 					if (null != newestEvent && null != newestEvent.getReferenceTime()) {
 						newestEventTimestamp = newestEvent.getReferenceTime();
 					}
-					dataNodeSampleHandler.handleWriteRecordAccept(nodeId, System.currentTimeMillis(), result, newestEventTimestamp);
+					dataNodeSampleHandler.handleWriteRecordAccept(nodeId, now, result, newestEventTimestamp);
 					taskSampleHandler.handleWriteRecordAccept(result, events);
+					pipelineDelay.refreshDelay(task.getId().toHexString(), nodeId, recorder.getAvgProcessTime(), newestEventTimestamp);
 				});
 				break;
 			case WriteRecordFuncAspect.STATE_END:
@@ -256,6 +343,11 @@ public class ObservableAspectTask extends AspectTask {
 
 	public Void handleSourceState(SourceStateAspect aspect) {
 		switch (aspect.getState()) {
+			case SourceStateAspect.STATE_INITIAL_SYNC_START:
+				for(String table : aspect.getDataProcessorContext().getTapTableMap().keySet()) {
+					taskSampleHandler.addTable(table);
+				}
+				break;
 			case SourceStateAspect.STATE_INITIAL_SYNC_COMPLETED:
 				taskSampleHandler.handleSnapshotDone(aspect.getInitialSyncCompletedTime());
 				break;

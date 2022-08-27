@@ -1,7 +1,7 @@
 package com.tapdata.tm.discovery.bean;
 
 public enum DataObjCategoryEnum {
-    table,
+    storage,
     job,
     api,
     ;

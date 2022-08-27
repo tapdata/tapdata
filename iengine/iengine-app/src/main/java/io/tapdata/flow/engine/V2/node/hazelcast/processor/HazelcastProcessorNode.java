@@ -195,12 +195,6 @@ public class HazelcastProcessorNode extends HazelcastProcessorBaseNode {
 				MigrateJsProcessorNode migrateJsProcessorNode = (MigrateJsProcessorNode) node;
 				stage.setScript(migrateJsProcessorNode.getScript());
 				break;
-			case TABLE_RENAME_PROCESSOR:
-				dataFlowProcessor = new TableRenameProcessor((TableRenameProcessNode) node);
-				break;
-			case MIGRATE_FIELD_RENAME_PROCESSOR:
-				dataFlowProcessor = new MigrateFieldRenameProcessor((MigrateFieldRenameProcessorNode) node);
-				break;
 			case FIELD_PROCESSOR:
 			case FIELD_RENAME_PROCESSOR:
 			case FIELD_ADD_DEL_PROCESSOR:

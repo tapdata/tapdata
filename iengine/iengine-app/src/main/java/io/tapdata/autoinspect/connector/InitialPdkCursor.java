@@ -15,8 +15,7 @@ import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
 import io.tapdata.pdk.core.monitor.PDKMethod;
 import lombok.NonNull;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import org.bson.types.ObjectId;
 
 import java.util.*;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -29,7 +28,6 @@ import java.util.function.Supplier;
  * @version v1.0 2022/8/9 10:43 Create
  */
 public class InitialPdkCursor implements IDataCursor<CompareRecord> {
-    private static final Logger logger = LogManager.getLogger(InitialPdkCursor.class);
     private static final String TAG = InitialPdkCursor.class.getSimpleName();
     private static final int BATCH_SIZE = 500;
     private static final boolean fullMatch = true;
@@ -44,15 +42,17 @@ public class InitialPdkCursor implements IDataCursor<CompareRecord> {
     private final AtomicBoolean hasNext = new AtomicBoolean(true);
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private final @NonNull String tableName;
+    private final @NonNull ObjectId connectionId;
     private final @NonNull TapTable tapTable;
     private final @NonNull DataMap offset;
     private Projection projection;
     private final List<SortOn> sortOnList = new ArrayList<>();
     private final Supplier<Boolean> isRunning;
 
-    public InitialPdkCursor(@NonNull ConnectorNode connectorNode, @NonNull String tableName, @NonNull DataMap offset, @NonNull Supplier<Boolean> isRunning) {
+    public InitialPdkCursor(@NonNull ConnectorNode connectorNode, @NonNull ObjectId connectionId, @NonNull String tableName, @NonNull DataMap offset, @NonNull Supplier<Boolean> isRunning) {
         this.isRunning = () -> !closed.get() && isRunning.get();
         this.tableName = tableName;
+        this.connectionId = connectionId;
         this.offset = offset;
         this.connectorNode = connectorNode;
         this.queryByAdvanceFilterFunction = connectorNode.getConnectorFunctions().getQueryByAdvanceFilterFunction();
@@ -126,8 +126,8 @@ public class InitialPdkCursor implements IDataCursor<CompareRecord> {
                         if (results.isEmpty()) return false;
 
                         for (Map<String, Object> result : results) {
-                            CompareRecord record = new CompareRecord();
-                            record.getData().putAll(result);
+                            CompareRecord record = new CompareRecord(tableName, connectionId);
+                            record.setData(result);
                             for (SortOn s : sortOnList) {
                                 record.getKeyNames().add(s.getKey());
                                 record.getOriginalKey().put(s.getKey(), result.get(s.getKey()));

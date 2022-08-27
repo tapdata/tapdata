@@ -94,7 +94,7 @@ public class LogCollectorService {
         query.skip(skip);
         query.limit(limit);
         MongoUtils.applySort(query, sort);
-        query.fields().include("status", "name", "createTime", "dag", "statuses");
+        query.fields().include("status", "name", "createTime", "dag", "statuses", "attrs");
 
         List<TaskDto> allDto = taskService.findAllDto(query, user);
         long count = taskService.count(new Query(criteria), user);
@@ -215,7 +215,7 @@ public class LogCollectorService {
         }
 
         Query query = new Query(criteria1);
-        query.fields().include("status", "name", "createTime", "dag");
+        query.fields().include("status", "name", "createTime", "dag", "attrs");
         if (limit != null) {
             query.limit(limit);
         }
@@ -374,32 +374,40 @@ public class LogCollectorService {
         logCollectorVo.setCreateTime(taskDto.getCreateAt());
         logCollectorVo.setStatus(taskDto.getStatus());
         logCollectorVo.setStatuses(taskDto.getStatuses());
-        List<TaskDto.SyncPoint> syncPoints = taskDto.getSyncPoints();
-        if (CollectionUtils.isNotEmpty(syncPoints)) {
-            TaskDto.SyncPoint syncPoint = syncPoints.get(0);
-            logCollectorVo.setSyncTimePoint(syncPoint.getPointType());
-            logCollectorVo.setSyncTime(new Date(syncPoint.getDateTime()));
-            logCollectorVo.setSyncTimeZone(syncPoint.getTimeZone());
-        }
+//        List<TaskDto.SyncPoint> syncPoints = taskDto.getSyncPoints();
+//        if (CollectionUtils.isNotEmpty(syncPoints)) {
+//            TaskDto.SyncPoint syncPoint = syncPoints.get(0);
+//            logCollectorVo.setSyncTimePoint(syncPoint.getPointType());
+//            logCollectorVo.setSyncTime(new Date(syncPoint.getDateTime()));
+//            logCollectorVo.setSyncTimeZone(syncPoint.getTimeZone());
+//        }
+
+
 
         if (taskDto.getDag() != null) {
             List<Node> sources = taskDto.getDag().getSources();
+            List<Node> targets = taskDto.getDag().getTargets();
 
-            if (CollectionUtils.isNotEmpty(sources)) {
+            if (CollectionUtils.isNotEmpty(sources) && CollectionUtils.isNotEmpty(targets)) {
                 Node node = sources.get(0);
+                Node targetNode = targets.get(0);
+                Date eventTime = getAttrsValues(node.getId(), targetNode.getId(), "eventTime", taskDto.getAttrs());
+                Date sourceTime = getAttrsValues(node.getId(), targetNode.getId(), "sourceTime", taskDto.getAttrs());
+                logCollectorVo.setLogTime(eventTime);
+                long delayTime = sourceTime.getTime() - eventTime.getTime();
+
+                logCollectorVo.setDelayTime(delayTime > 0 ? delayTime : 0);
                 if (node instanceof LogCollectorNode) {
-                    LogCollectorNode logCollectorNode = (LogCollectorNode) sources.get(0);
-                    if (logCollectorNode != null) {
-                        List<ObjectId> ids = logCollectorNode.getConnectionIds().stream().map(MongoUtils::toObjectId).collect(Collectors.toList());
-                        Criteria criteria = Criteria.where("_id").in(ids);
-                        Query query = new Query(criteria);
-                        query.fields().include("name");
-                        List<DataSourceConnectionDto> datasources = dataSourceService.findAll(query);
-                        List<Pair<String, String>> datasourcePairs = datasources.stream().map(d -> ImmutablePair.of(d.getId().toHexString(), d.getName())).collect(Collectors.toList());
-                        logCollectorVo.setConnections(datasourcePairs);
-                        logCollectorVo.setTableName(logCollectorNode.getTableNames());
-                        logCollectorVo.setStorageTime(logCollectorNode.getStorageTime());
-                    }
+                    LogCollectorNode logCollectorNode = (LogCollectorNode) node;
+                    List<ObjectId> ids = logCollectorNode.getConnectionIds().stream().map(MongoUtils::toObjectId).collect(Collectors.toList());
+                    Criteria criteria = Criteria.where("_id").in(ids);
+                    Query query = new Query(criteria);
+                    query.fields().include("name");
+                    List<DataSourceConnectionDto> datasources = dataSourceService.findAll(query);
+                    List<Pair<String, String>> datasourcePairs = datasources.stream().map(d -> ImmutablePair.of(d.getId().toHexString(), d.getName())).collect(Collectors.toList());
+                    logCollectorVo.setConnections(datasourcePairs);
+                    logCollectorVo.setTableName(logCollectorNode.getTableNames());
+                    logCollectorVo.setStorageTime(logCollectorNode.getStorageTime());
                 }
             }
         }
@@ -633,7 +641,8 @@ public class LogCollectorService {
             Map syncProgressMap = (Map) syncProgress;
             List<String> key = Lists.newArrayList(sourceId, targetId);
 
-            Map valueMap = (Map) syncProgressMap.get(JsonUtil.toJsonUseJackson(key));
+            String valueMapString = (String) syncProgressMap.get(JsonUtil.toJsonUseJackson(key));
+            LinkedHashMap valueMap = JsonUtil.parseJson(valueMapString, LinkedHashMap.class);
             if (valueMap == null) {
                 return new Date();
             }
@@ -643,7 +652,7 @@ public class LogCollectorService {
                 return new Date();
             }
 
-            return new Date((Long) o);
+            return new Date(((Double) o).longValue());
 
         } catch (Exception e) {
             return new Date();

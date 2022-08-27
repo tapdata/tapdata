@@ -11,11 +11,15 @@ import io.tapdata.common.sample.sampler.SpeedSampler;
 import io.tapdata.flow.engine.V2.exception.node.NodeException;
 import io.tapdata.flow.engine.V2.node.hazelcast.HazelcastBaseNode;
 import io.tapdata.metrics.TaskSampleRetriever;
+import io.tapdata.observable.logging.ObsLogger;
+import io.tapdata.observable.logging.ObsLoggerFactory;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.NotNull;
 
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.Arrays;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 
 /**
@@ -24,6 +28,7 @@ import java.util.function.BiConsumer;
  * @create 2022-07-12 17:10
  **/
 public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
+	private Logger logger = LogManager.getLogger(HazelcastCustomProcessor.class);
 
 	// statistic and sample related
 	protected ResetCounterSampler resetInputCounter;
@@ -76,7 +81,7 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 					return;
 				}
 				// Update memory from ddl event info map
-				updateMemoryFromDDLInfoMap(tapdataEvent);
+				updateMemoryFromDDLInfoMap(tapdataEvent, getTgtTableNameFromTapEvent(tapdataEvent.getTapEvent()));
 				if (tapdataEvent.isDML()) {
 					transformFromTapValue(tapdataEvent, null);
 				}
@@ -101,9 +106,12 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 				});
 			});
 		} catch (Throwable throwable) {
-			throw  new NodeException("Error occurred when process events in processor", throwable)
+			NodeException nodeException = new NodeException("Error occurred when process events in processor", throwable)
 					.context(getProcessorBaseContext())
 					.event(tapdataEvent.getTapEvent());
+			logger.error(nodeException.getMessage(), nodeException);
+			obsLogger.error(nodeException);
+			throw nodeException;
 		}
 
 		if(processedEvent.get() != null) {

@@ -35,7 +35,7 @@ import static com.tapdata.tm.commons.base.convert.ObjectIdDeserialize.toObjectId
 @Getter
 @Setter
 @Slf4j
-public class MigrateJsProcessorNode extends Node<List<Schema>> {
+public class MigrateJsProcessorNode extends MigrateProcessorNode {
     @EqField
     private String script;
 

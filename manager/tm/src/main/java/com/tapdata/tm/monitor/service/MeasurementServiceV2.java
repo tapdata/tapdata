@@ -676,7 +676,12 @@ public class MeasurementServiceV2 {
 
     public Page<TableSyncStaticVo> querySyncStatic(TableSyncStaticDto dto, UserDetail userDetail) {
         String taskRecordId = dto.getTaskRecordId();
-        Criteria criteria = Criteria.where("tags.taskRecordId").is(taskRecordId)
+
+        TaskDto taskDto = taskRecordService.queryTask(taskRecordId, userDetail.getUserId());
+        boolean hasTableRenameNode = taskDto.getDag().getNodes().stream().anyMatch(n -> n instanceof TableRenameProcessNode);
+
+        Criteria criteria = Criteria.where("tags.taskId").is(taskDto.getId().toHexString())
+                .and("tags.taskRecordId").is(taskRecordId)
                 .and("tags.type").is("table")
                 .and(MeasurementEntity.FIELD_GRANULARITY).is(Granularity.GRANULARITY_MINUTE);
 
@@ -700,10 +705,7 @@ public class MeasurementServiceV2 {
             return new Page<>(0, Collections.emptyList());
         }
 
-
-        TaskDto taskDto = taskRecordService.queryTask(taskRecordId, userDetail.getUserId());
-        boolean hasTableRenameNode = taskDto.getDag().getNodes().stream().anyMatch(n -> n instanceof TableRenameProcessNode);
-
+        // get table map from task dag
         AtomicReference<Map<String, String>> tableNameMap = new AtomicReference<>();
         tableNameMap.set(new HashMap<>());
         if (hasTableRenameNode) {
@@ -743,13 +745,15 @@ public class MeasurementServiceV2 {
                 syncRate = BigDecimal.ONE;
             }
 
-            String fullSyncStatus = "";
+            String fullSyncStatus;
             if (syncRate.compareTo(BigDecimal.ONE) == 0) {
                 fullSyncStatus = "DONE";
             } else if (syncRate.compareTo(BigDecimal.ZERO) == 0) {
                 fullSyncStatus = "NOT_START";
             } else if (!TaskDto.STATUS_RUNNING.equals(taskDto.getStatus())) {
                 fullSyncStatus = "NOT_START";
+            } else {
+                fullSyncStatus = "ING";
             }
 
             TableSyncStaticVo vo = new TableSyncStaticVo();

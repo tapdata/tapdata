@@ -104,37 +104,6 @@ public abstract class DataParentNode<S> extends Node<S> {
         String syncType = getSyncType();
         if (TaskDto.SYNC_TYPE_MIGRATE.equals(syncType)) {
             str.setSinkQulifiedName(MetaDataBuilderUtils.generateQualifiedName(_metaType, dataSource, originTableName, getTaskId()));
-
-            // 获取字段编辑节点 的字段映射信息
-            LinkedList<MigrateFieldRenameProcessorNode> fieldRenameProcessorNodes = predecessors().stream()
-                    .filter(node -> node instanceof MigrateFieldRenameProcessorNode)
-                    .map(node -> (MigrateFieldRenameProcessorNode) node)
-                    .filter(node -> CollectionUtils.isNotEmpty(node.getFieldsMapping()))
-                    .collect(Collectors.toCollection(LinkedList::new));
-            if (CollectionUtils.isNotEmpty(fieldRenameProcessorNodes)) {
-                MigrateFieldRenameProcessorNode lastFieldNode = fieldRenameProcessorNodes.getLast();
-                Map<String, LinkedList<FieldInfo>> fieldInfoMap = lastFieldNode.getFieldsMapping().stream()
-                        .collect(Collectors.toMap(TableFieldInfo::getOriginTableName, TableFieldInfo::getFields));
-                if (fieldInfoMap.containsKey(originTableName)) {
-                    fieldInfos = fieldInfoMap.get(originTableName);
-                }
-            }
-
-            // 如果是数据复制任务&有表编辑节点的话&有表改名 需要转回上一个节点的表名称
-            LinkedList<TableRenameProcessNode> tableRenameProcessNodes = getPreNodes(getId()).stream().filter(node -> node instanceof TableRenameProcessNode)
-                    .map(node -> (TableRenameProcessNode) node)
-                    .filter(n -> Objects.nonNull(n.getTableNames()) && !n.getTableNames().isEmpty())
-                    .collect(Collectors.toCollection(LinkedList::new));
-
-            if (CollectionUtils.isNotEmpty(tableRenameProcessNodes)) {
-                Map<String, TableRenameTableInfo> tableNames = tableRenameProcessNodes.getLast().currentMap();
-                if (tableNames.containsKey(originTableName)) {
-                    String temp = tableNames.get(originTableName).getOriginTableName();
-                    originQualifiedName = StringUtils.replaceOnce(originQualifiedName, originTableName, temp);
-                    originTableName = temp;
-                }
-            }
-
         } else if (TaskDto.SYNC_TYPE_SYNC.equals(syncType)) {
             String tableName = transformTableName(this instanceof TableNode ? ((TableNode) this).getTableName() : originTableName);
             s.setOriginalName(tableName);

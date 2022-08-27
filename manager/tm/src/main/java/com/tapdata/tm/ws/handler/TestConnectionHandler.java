@@ -7,6 +7,7 @@
 package com.tapdata.tm.ws.handler;
 
 import cn.hutool.core.lang.Assert;
+import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONObject;
 import com.google.common.collect.Maps;
 import com.tapdata.manager.common.utils.JsonUtil;
@@ -82,13 +83,6 @@ public class TestConnectionHandler implements WebSocketHandler {
 		}
 		Map<String, Object> data = messageInfo.getData();
 
-		FunctionUtils.isTureOrFalse(data.containsKey("last_updated")).trueOrFalseHandle(
-				() -> {},
-				() -> data.put("last_updated", new Date())
-		);
-		DataSourceConnectionDto connectionDto = JsonUtil.parseJsonUseJackson(JsonUtil.toJsonUseJackson(data), DataSourceConnectionDto.class);
-		Assert.notNull(connectionDto, "TestConnectionHandler handleMessage connectionDto is null");
-
 		Map platformInfos = MapUtils.getAsMap(data, "platformInfo");
 		List<String> tags = new ArrayList<>();
 		if (MapUtils.isNotEmpty(platformInfos)){
@@ -144,24 +138,26 @@ public class TestConnectionHandler implements WebSocketHandler {
 		}
 
 		AtomicReference<String> receiver = new AtomicReference<>("");
-		assert connectionDto != null;
-		String accessNodeType = connectionDto.getAccessNodeType();
-		FunctionUtils.isTureOrFalse(AccessNodeTypeEnum.AUTOMATIC_PLATFORM_ALLOCATION.name().equals(accessNodeType)).trueOrFalseHandle(() -> {
-			SchedulableDto schedulableDto = new SchedulableDto();
-			schedulableDto.setAgentTags(tags);
-			schedulableDto.setUserId(userDetail.getUserId());
-			workerService.scheduleTaskToEngine(schedulableDto, userDetail, "testConnection", "testConnection");
-			receiver.set(schedulableDto.getAgentId());
-		}, () -> {
-			List<String> accessNodeProcessIdList = connectionDto.getAccessNodeProcessIdList();
-			FunctionUtils.isTureOrFalse(CollectionUtils.isNotEmpty(accessNodeProcessIdList)).trueOrFalseHandle(() -> {
-				receiver.set(accessNodeProcessIdList.get(0));
+		try {
+			String accessNodeType = data.get("accessNodeType").toString();
+			FunctionUtils.isTureOrFalse(AccessNodeTypeEnum.AUTOMATIC_PLATFORM_ALLOCATION.name().equals(accessNodeType)).trueOrFalseHandle(() -> {
+				SchedulableDto schedulableDto = new SchedulableDto();
+				schedulableDto.setAgentTags(tags);
+				schedulableDto.setUserId(userDetail.getUserId());
+				workerService.scheduleTaskToEngine(schedulableDto, userDetail, "testConnection", "testConnection");
+				receiver.set(schedulableDto.getAgentId());
 			}, () -> {
-				data.put("status", "error");
-				data.put("msg", "Worker set error, receiver is blank");
+				List<String> accessNodeProcessIdList = JSON.parseArray(JSON.toJSONString(data.get("accessNodeProcessIdList")), String.class);
+				FunctionUtils.isTureOrFalse(CollectionUtils.isNotEmpty(accessNodeProcessIdList)).trueOrFalseHandle(() -> {
+					receiver.set(accessNodeProcessIdList.get(0));
+				}, () -> {
+					data.put("status", "error");
+					data.put("msg", "Worker set error, receiver is blank");
+				});
 			});
-		});
-
+		} catch (Exception e) {
+			log.error("error ", e);
+		}
 
 		String agentId = receiver.get();
 		FunctionUtils.isTureOrFalse(StringUtils.isBlank(agentId)).trueOrFalseHandle(() -> {

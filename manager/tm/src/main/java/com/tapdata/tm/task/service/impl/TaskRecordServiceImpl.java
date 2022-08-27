@@ -13,6 +13,7 @@ import com.tapdata.tm.task.entity.TaskRecord;
 import com.tapdata.tm.task.service.TaskRecordService;
 import com.tapdata.tm.task.vo.TaskRecordListVo;
 import com.tapdata.tm.user.service.UserService;
+import com.tapdata.tm.utils.Lists;
 import com.tapdata.tm.utils.MongoUtils;
 import lombok.Setter;
 import org.apache.commons.collections4.ListUtils;
@@ -26,10 +27,7 @@ import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
 
 import java.time.format.DateTimeFormatter;
-import java.util.Collections;
-import java.util.Date;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
@@ -48,10 +46,13 @@ public class TaskRecordServiceImpl implements TaskRecordService {
     public void updateTaskStatus(SyncTaskStatusDto dto) {
         Query query = new Query(Criteria.where("_id").is(MongoUtils.toObjectId(dto.getTaskRecordId())));
         String taskStatus = dto.getTaskStatus();
-        Update update = new Update().set("taskSnapshot.status", taskStatus)
-                .set("taskSnapshot.last_updated", new Date());
+        Update update = new Update().set("taskSnapshot.status", taskStatus);
+
+        Date now = new Date();
         if (StringUtils.equals(TaskDto.STATUS_RUNNING, taskStatus)) {
-            update.set("taskSnapshot.startTime", new Date());
+            update.set("taskSnapshot.startTime", now);
+        } else {
+            update.set("taskSnapshot.last_updated", now);
         }
 
         mongoTemplate.updateFirst(query, update, TaskRecord.class);
@@ -98,10 +99,15 @@ public class TaskRecordServiceImpl implements TaskRecordService {
 
             TaskRecordListVo vo = new TaskRecordListVo();
             vo.setTaskId(r.getTaskId());
-             vo.setTaskRecordId(taskRecordId);
+            vo.setTaskRecordId(taskRecordId);
             TaskEntity taskSnapshot = r.getTaskSnapshot();
-            vo.setStartDate(DateUtil.toLocalDateTime(taskSnapshot.getStartTime()).format(DateTimeFormatter.ofPattern(DatePattern.NORM_DATETIME_PATTERN)));
-            vo.setEndDate(DateUtil.toLocalDateTime(taskSnapshot.getLastUpdAt()).format(DateTimeFormatter.ofPattern(DatePattern.NORM_DATETIME_PATTERN)));
+            if (Objects.nonNull(taskSnapshot.getStartTime())) {
+                vo.setStartDate(DateUtil.toLocalDateTime(taskSnapshot.getStartTime()).format(DateTimeFormatter.ofPattern(DatePattern.NORM_DATETIME_PATTERN)));
+            }
+            List<String> of = Lists.of(TaskDto.STATUS_ERROR, TaskDto.STATUS_COMPLETE, TaskDto.STATUS_STOP);
+            if (Objects.nonNull(taskSnapshot.getLastUpdAt()) && of.contains(taskSnapshot.getStatus())) {
+                vo.setEndDate(DateUtil.toLocalDateTime(taskSnapshot.getLastUpdAt()).format(DateTimeFormatter.ofPattern(DatePattern.NORM_DATETIME_PATTERN)));
+            }
             vo.setStatus(taskSnapshot.getStatus());
 
             if (totalMap.containsKey(taskRecordId)) {

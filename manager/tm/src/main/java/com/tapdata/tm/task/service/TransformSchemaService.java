@@ -1,6 +1,8 @@
 package com.tapdata.tm.task.service;
 
 import cn.hutool.core.date.DateUtil;
+import com.alibaba.fastjson.JSON;
+import com.google.common.collect.Lists;
 import com.tapdata.manager.common.utils.StringUtils;
 import com.tapdata.tm.commons.dag.*;
 import com.tapdata.tm.commons.dag.nodes.DataParentNode;
@@ -21,6 +23,7 @@ import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
 import com.tapdata.tm.task.constant.DagOutputTemplateEnum;
 import com.tapdata.tm.transform.service.MetadataTransformerItemService;
 import com.tapdata.tm.transform.service.MetadataTransformerService;
+import com.tapdata.tm.utils.MapUtils;
 import com.tapdata.tm.utils.UUIDUtil;
 import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.service.WorkerService;
@@ -28,6 +31,7 @@ import com.tapdata.tm.ws.enums.MessageType;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.bson.types.ObjectId;
+import org.checkerframework.checker.nullness.qual.Nullable;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.mongodb.core.query.Criteria;
@@ -207,6 +211,15 @@ public class TransformSchemaService {
     }
     public void transformerResult(UserDetail user, TransformerWsMessageResult result, boolean saveHistory) {
 
+        Map<String, List<Message>> msgMap = result.getTransformSchema();
+        if (MapUtils.isNotEmpty(msgMap)) {
+            log.warn("transformerResult msgMap:" + JSON.toJSONString(msgMap));
+            // add transformer task log
+            List<String> taskIds = Lists.newArrayList();
+            taskIds.addAll(msgMap.keySet());
+            taskDagCheckLogService.createLog(taskIds.get(0), user.getUserId(), Level.ERROR.getValue(), DagOutputTemplateEnum.MODEL_PROCESS_CHECK,
+                    false, true, DateUtil.now(), msgMap.get(taskIds.get(0)).get(0).getMsg());
+        }
 
         metadataInstancesService.bulkSave(result.getBatchInsertMetaDataList(), result.getBatchMetadataUpdateMap(), user, saveHistory, result.getTaskId());
 

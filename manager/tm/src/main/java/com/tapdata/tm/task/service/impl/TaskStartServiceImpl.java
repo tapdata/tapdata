@@ -27,8 +27,6 @@ import java.util.*;
 @Slf4j
 @Setter(onMethod_ = {@Autowired})
 public class TaskStartServiceImpl implements TaskStartService {
-
-    private CustomerJobLogsService customerJobLogsService;
     private TaskDagCheckLogService taskDagCheckLogService;
     private TaskService taskService;
 
