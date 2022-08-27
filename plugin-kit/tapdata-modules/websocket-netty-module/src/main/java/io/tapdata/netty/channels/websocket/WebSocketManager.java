@@ -9,15 +9,18 @@ import io.netty.channel.socket.nio.NioServerSocketChannel;
 import io.netty.handler.logging.LogLevel;
 import io.netty.handler.logging.LoggingHandler;
 import io.netty.util.ResourceLeakDetector;
+import io.tapdata.entity.annotations.Bean;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.netty.channels.websocket.impl.GatewayHandlerInitializer;
 import io.tapdata.netty.channels.websocket.impl.WebSocketProperties;
 
+@Bean
 public class WebSocketManager {
     private final static String TAG = WebSocketManager.class.getSimpleName();
     private final EventLoopGroup bossGroup = new NioEventLoopGroup(1);
     private final EventLoopGroup workerGroup = new NioEventLoopGroup();
 
+    @Bean
     private WebSocketProperties webSocketProperties;
 
     private boolean started = false;

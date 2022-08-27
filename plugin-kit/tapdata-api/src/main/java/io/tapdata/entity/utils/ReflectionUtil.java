@@ -1,4 +1,4 @@
-package io.tapdata.pdk.core.utils;
+package io.tapdata.entity.utils;
 
 import io.tapdata.entity.logger.TapLogger;
 

@@ -1,5 +1,8 @@
 package io.tapdata.netty.channels.websocket.impl;
 
+import io.tapdata.entity.annotations.Bean;
+
+@Bean
 public class WebSocketProperties {
     /**
      * 对外端口

@@ -19,6 +19,7 @@ public class ImplementationClassFactory {
     private ClassLoader classLoader;
     private List<URL> urls;
     private ImplementationAnnotationHandler implementationAnnotationHandler;
+    private BeanAnnotationHandler beanAnnotationHandler;
 
     public ImplementationClassFactory() {
     }
@@ -41,6 +42,7 @@ public class ImplementationClassFactory {
         this.urls = urls;
 
         implementationAnnotationHandler = new ImplementationAnnotationHandler();
+        beanAnnotationHandler = new BeanAnnotationHandler();
         scan();
 //        implementationAnnotationHandler.apply();
     }
@@ -63,6 +65,7 @@ public class ImplementationClassFactory {
 
         AnnotationUtils.runClassAnnotationHandlers(reflections, new ClassAnnotationHandler[]{
                 implementationAnnotationHandler,
+                beanAnnotationHandler
         }, TAG);
     }
 
