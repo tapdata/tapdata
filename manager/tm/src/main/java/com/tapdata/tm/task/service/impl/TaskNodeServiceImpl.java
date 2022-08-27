@@ -250,25 +250,28 @@ public class TaskNodeServiceImpl implements TaskNodeService {
         DataSourceConnectionDto sourceDataSource = dataSourceService.findById(MongoUtils.toObjectId(sourceNode.getConnectionId()));
 
         Map<String, MetadataInstancesDto> metaMap = Maps.newHashMap();
-        List<MetadataInstancesDto> list = metadataInstancesService.findByNodeId(currentNode.getId(), userDetail);
-        boolean queryFormSource = false;
-        if (CollectionUtils.isEmpty(list) || list.size() != tableNames.size()) {
-            // 可能有这种场景， node detail接口请求比模型加载快，会查不到逻辑表的数据
-            list = metadataInstancesService.findBySourceIdAndTableNameListNeTaskId(sourceNode.getConnectionId(),
+        List<MetadataInstancesDto> list = metadataInstancesService.findBySourceIdAndTableNameListNeTaskId(sourceNode.getConnectionId(),
                     currentTableList, userDetail, taskId);
-            queryFormSource = true;
-        }
+        boolean queryFormSource = true;
+        // 模型推演会推演很多无效数据 findByNodeId 这个方法暂时不能用。
+//        List<MetadataInstancesDto> list = metadataInstancesService.findByNodeId(currentNode.getId(), userDetail);
+//        boolean queryFormSource = false;
+//        if (CollectionUtils.isEmpty(list) || list.size() != tableNames.size()) {
+//            // 可能有这种场景， node detail接口请求比模型加载快，会查不到逻辑表的数据
+//            list = metadataInstancesService.findBySourceIdAndTableNameListNeTaskId(sourceNode.getConnectionId(),
+//                    currentTableList, userDetail, taskId);
+//            queryFormSource = true;
+//        }
         if (CollectionUtils.isNotEmpty(list)) {
-            boolean finalQueryFormSource = queryFormSource;
             metaMap = list.stream().map(meta -> {
                 // source & target not same database type and query from source
-                if (finalQueryFormSource && currentNode instanceof DatabaseNode && !sourceDataSource.getDatabase_type().equals(targetDataSource.getDatabase_type())) {
+                if (currentNode instanceof DatabaseNode && !sourceDataSource.getDatabase_type().equals(targetDataSource.getDatabase_type())) {
                     Schema schema = JsonUtil.parseJsonUseJackson(JsonUtil.toJsonUseJackson(meta), Schema.class);
                     return processFieldToDB(schema, meta, targetDataSource, userDetail);
                 } else {
                     return meta;
                 }
-            }).collect(Collectors.toMap(MetadataInstancesDto::getAncestorsName, Function.identity()));
+            }).collect(Collectors.toMap(MetadataInstancesDto::getAncestorsName, Function.identity(), (e1,e2)->e2));
         }
 
         if (metaMap.isEmpty()) {
