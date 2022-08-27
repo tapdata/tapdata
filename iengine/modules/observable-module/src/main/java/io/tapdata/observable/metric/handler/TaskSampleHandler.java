@@ -191,4 +191,21 @@ public class TaskSampleHandler extends AbstractHandler {
     public void handleSnapshotDone(Long time) {
         snapshotDoneAt = time;
     }
+
+    public void handleSourceDynamicTableAdd(List<String> tables) {
+        if (null == tables || tables.isEmpty()) {
+            return;
+        }
+
+        taskTables.addAll(tables);
+        inputDdlTotal.inc();
+        outputDdlTotal.inc();
+    }
+
+    public void handleSourceDynamicTableRemove(List<String> tables) {
+        if (null == tables || tables.isEmpty()) {
+            return;
+        }
+        return;
+    }
 }

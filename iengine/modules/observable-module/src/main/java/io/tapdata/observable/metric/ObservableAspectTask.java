@@ -37,6 +37,7 @@ public class ObservableAspectTask extends AspectTask {
 		observerClassHandlers.register(BatchReadFuncAspect.class, this::handleBatchReadFunc);
 		observerClassHandlers.register(StreamReadFuncAspect.class, this::handleStreamReadFunc);
 		observerClassHandlers.register(SourceStateAspect.class, this::handleSourceState);
+		observerClassHandlers.register(SourceDynamicTableAspect.class, this::handleSourceDynamicTable);
 		// target data node aspects
 		observerClassHandlers.register(WriteRecordFuncAspect.class, this::handleWriteRecordFunc);
 		observerClassHandlers.register(NewFieldFuncAspect.class, this::handleNewFieldFun);
@@ -44,6 +45,7 @@ public class ObservableAspectTask extends AspectTask {
 		observerClassHandlers.register(AlterFieldAttributesFuncAspect.class, this::handleAlterFieldAttributesFunc);
 		observerClassHandlers.register(DropFieldFuncAspect.class, this::handleDropFieldFunc);
 		observerClassHandlers.register(CreateTableFuncAspect.class, this::handleCreateTableFunc);
+		observerClassHandlers.register(DropTableFuncAspect.class, this::handleDropTableFunc);
 
 		// processor node aspects
 		observerClassHandlers.register(ProcessorNodeInitAspect.class, this::handleProcessorNodeInit);
@@ -118,9 +120,26 @@ public class ObservableAspectTask extends AspectTask {
 	public Void handleCreateTableFunc(CreateTableFuncAspect aspect) {
 		switch (aspect.getState()) {
 			case CreateTableFuncAspect.STATE_START:
+				dataNodeSampleHandler.handleDdlStart(aspect.getDataProcessorContext().getNode().getId());
 				break;
 			case CreateTableFuncAspect.STATE_END:
 				taskSampleHandler.handleCreateTableEnd();
+				taskSampleHandler.handleDdlEnd();
+				dataNodeSampleHandler.handleDdlEnd(aspect.getDataProcessorContext().getNode().getId());
+				break;
+		}
+
+		return null;
+	}
+
+	public Void handleDropTableFunc(DropTableFuncAspect aspect) {
+		switch (aspect.getState()) {
+			case DropTableFuncAspect.STATE_START:
+				dataNodeSampleHandler.handleDdlStart(aspect.getDataProcessorContext().getNode().getId());
+				break;
+			case DropTableFuncAspect.STATE_END:
+				taskSampleHandler.handleDdlEnd();
+				dataNodeSampleHandler.handleDdlEnd(aspect.getDataProcessorContext().getNode().getId());
 				break;
 		}
 
@@ -335,6 +354,24 @@ public class ObservableAspectTask extends AspectTask {
 				break;
 			case SourceStateAspect.STATE_INITIAL_SYNC_COMPLETED:
 				taskSampleHandler.handleSnapshotDone(aspect.getInitialSyncCompletedTime());
+				break;
+			default:
+				break;
+		}
+
+		return null;
+	}
+
+	public Void handleSourceDynamicTable(SourceDynamicTableAspect aspect) {
+		Node<?> node = aspect.getDataProcessorContext().getNode();
+		switch (aspect.getType()) {
+			case SourceDynamicTableAspect.DYNAMIC_TABLE_TYPE_ADD:
+				taskSampleHandler.handleSourceDynamicTableAdd(aspect.getTables());
+				dataNodeSampleHandler.handleSourceDynamicTableAdd(node.getId(), aspect.getTables());
+				break;
+			case SourceDynamicTableAspect.DYNAMIC_TABLE_TYPE_REMOVE:
+				taskSampleHandler.handleSourceDynamicTableRemove(aspect.getTables());
+				dataNodeSampleHandler.handleSourceDynamicTableRemove(node.getId(), aspect.getTables());
 				break;
 			default:
 				break;

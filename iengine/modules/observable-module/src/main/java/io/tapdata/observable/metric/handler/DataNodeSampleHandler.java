@@ -266,6 +266,23 @@ public class DataNodeSampleHandler extends AbstractNodeSampleHandler {
         Optional.ofNullable(outputDdlCounters.get(nodeId)).ifPresent(CounterSampler::inc);
     }
 
+    public void handleSourceDynamicTableAdd(String nodeId, List<String> tables) {
+        if (null == tables || tables.isEmpty()) {
+            return;
+        }
+        nodeTables.putIfAbsent(nodeId, new HashSet<>());
+        tables.forEach(nodeTables.get(nodeId)::add);
+        Optional.ofNullable(inputDdlCounters.get(nodeId)).ifPresent(counter -> counter.inc(tables.size()));
+        Optional.ofNullable(outputDdlCounters.get(nodeId)).ifPresent(counter -> counter.inc(tables.size()));
+    }
+
+    public void handleSourceDynamicTableRemove(String nodeId, List<String> tables) {
+        if (null == tables || tables.isEmpty()) {
+            return;
+        }
+        return;
+    }
+
     private static final int PERIOD_SECOND = 5;
     private ScheduledExecutorService scheduleExecutorService;
     private Map<String, Node<?>> nodeMap;

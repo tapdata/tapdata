@@ -24,6 +24,7 @@ import com.tapdata.tm.commons.task.dto.Message;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.Runnable.LoadSchemaRunner;
 import io.tapdata.aspect.SourceCDCDelayAspect;
+import io.tapdata.aspect.SourceDynamicTableAspect;
 import io.tapdata.aspect.TaskMilestoneFuncAspect;
 import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
@@ -402,6 +403,11 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 								}
 								tapdataEvents.forEach(this::enqueue);
 								this.newTables.addAll(addList);
+								AspectUtils.executeAspect(new SourceDynamicTableAspect()
+										.dataProcessorContext(getDataProcessorContext())
+										.type(SourceDynamicTableAspect.DYNAMIC_TABLE_TYPE_ADD)
+										.tables(addList)
+										.tapdataEvents(tapdataEvents));
 								if (this.endSnapshotLoop.get()) {
 									logger.info("It is detected that the snapshot reading has ended, and the reading thread will be restarted");
 									// Restart source runner
@@ -447,6 +453,11 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 									tapdataEvents.add(tapdataEvent);
 								}
 								tapdataEvents.forEach(this::enqueue);
+								AspectUtils.executeAspect(new SourceDynamicTableAspect()
+										.dataProcessorContext(getDataProcessorContext())
+										.type(SourceDynamicTableAspect.DYNAMIC_TABLE_TYPE_REMOVE)
+										.tables(removeList)
+										.tapdataEvents(tapdataEvents));
 							}
 						}
 					} catch (Throwable throwable) {
