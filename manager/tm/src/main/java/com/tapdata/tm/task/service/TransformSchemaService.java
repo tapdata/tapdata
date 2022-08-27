@@ -3,6 +3,7 @@ package com.tapdata.tm.task.service;
 import cn.hutool.core.date.DateUtil;
 import com.alibaba.fastjson.JSON;
 import com.google.common.collect.Lists;
+import com.mongodb.client.result.UpdateResult;
 import com.tapdata.manager.common.utils.StringUtils;
 import com.tapdata.tm.commons.dag.*;
 import com.tapdata.tm.commons.dag.nodes.DataParentNode;
@@ -244,19 +245,19 @@ public class TransformSchemaService {
 
         if (CollectionUtils.isNotEmpty(result.getUpsertTransformer())) {
             metadataTransformerService.save(result.getUpsertTransformer(), user);
-
-            String taskId = result.getUpsertTransformer().get(0).getDataFlowId();
-            int total = result.getUpsertTransformer().get(0).getTotal();
-
-            // add transformer task log
-            taskDagCheckLogService.createLog(taskId, user.getUserId(), Level.INFO.getValue(), DagOutputTemplateEnum.MODEL_PROCESS_CHECK,
-                    false, true, DateUtil.now(), total, total);
         }
 
         if (StringUtils.isNotBlank(result.getTransformUuid()) && StringUtils.isNotBlank(result.getTaskId())) {
             Criteria criteria = Criteria.where("_id").is(MongoUtils.toObjectId(result.getTaskId()))
                     .and("transformUuid").is(result.getTransformUuid());
-            taskService.update(new Query(criteria), Update.update("transformed", true), user);
+            UpdateResult transformed = taskService.update(new Query(criteria), Update.update("transformed", true), user);
+            if (transformed.getModifiedCount() > 0 && CollectionUtils.isNotEmpty(result.getUpsertTransformer())) {
+                String taskId = result.getTaskId();
+                int total = result.getUpsertTransformer().get(0).getTotal();
+                // add transformer task log
+                taskDagCheckLogService.createLog(taskId, user.getUserId(), Level.INFO.getValue(), DagOutputTemplateEnum.MODEL_PROCESS_CHECK,
+                        false, true, DateUtil.now(), total, total);
+            }
         }
     }
 
