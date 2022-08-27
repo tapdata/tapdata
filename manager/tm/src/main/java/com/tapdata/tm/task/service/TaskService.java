@@ -418,6 +418,9 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
         //更新任务
         log.debug("update task, task dto = {}", taskDto);
+        //推演的时候改的，这里必须清空掉。清空只是不会被修改。
+        taskDto.setTransformed(null);
+        taskDto.setTransformUuid(null);
         return save(taskDto, user);
 
     }
@@ -1800,10 +1803,10 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         return transformSchemaService.getTransformParam(taskDto, user);
     }
 
-    public List<TaskDto> findByTaskId(ObjectId id, String... fields) {
+    public TaskDto findByTaskId(ObjectId id, String... fields) {
         Query query = new Query(Criteria.where("_id").is(id));
         query.fields().include(fields);
-        return findAll(query);
+        return findOne(query);
     }
 
     @Data
@@ -2319,7 +2322,19 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             throw new BizException("Task.StartStatusInvalid");
         }
 
-        run(taskDto, user);
+        for (int i = 0; i < 30; i++) {
+            TaskDto transformedCheck = findByTaskId(taskDto.getId(), "transformed");
+            if (transformedCheck.getTransformed() != null && transformedCheck.getTransformed()) {
+                run(taskDto, user);
+                return;
+            }
+            try {
+                Thread.sleep(500);
+            } catch (InterruptedException e) {
+                throw new BizException("SystemError");
+            }
+        }
+        throw new BizException("Task.StartCheckModelFailed");
     }
 
     public void run(TaskDto taskDto, UserDetail user) {

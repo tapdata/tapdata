@@ -201,6 +201,9 @@ public class TaskEntity extends BaseEntity {
 
     private String agentId; //调度到指定的实例上去
 
+    private String transformUuid;
+    private Boolean transformed;
+
     public String getAccessNodeProcessId() {
         return CollectionUtils.isNotEmpty(accessNodeProcessIdList) ? accessNodeProcessIdList.get(0) : "";
     }

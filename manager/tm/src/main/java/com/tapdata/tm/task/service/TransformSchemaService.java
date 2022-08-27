@@ -24,6 +24,7 @@ import com.tapdata.tm.task.constant.DagOutputTemplateEnum;
 import com.tapdata.tm.transform.service.MetadataTransformerItemService;
 import com.tapdata.tm.transform.service.MetadataTransformerService;
 import com.tapdata.tm.utils.MapUtils;
+import com.tapdata.tm.utils.MongoUtils;
 import com.tapdata.tm.utils.UUIDUtil;
 import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.service.WorkerService;
@@ -36,6 +37,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
@@ -190,6 +192,8 @@ public class TransformSchemaService {
         log.debug("start transform schema, task = {}, user = {}", taskDto, user);
         TransformerWsMessageDto transformParam = getTransformParam(taskDto, user);
 
+        taskService.updateById(taskDto.getId(), Update.update("transformUuid", transformParam.getOptions().getUuid()).set("transformed", false), user);
+
         sendTransformer(transformParam, user);
         return new HashMap<>();
 
@@ -247,6 +251,12 @@ public class TransformSchemaService {
             // add transformer task log
             taskDagCheckLogService.createLog(taskId, user.getUserId(), Level.INFO.getValue(), DagOutputTemplateEnum.MODEL_PROCESS_CHECK,
                     false, true, DateUtil.now(), total, total);
+        }
+
+        if (StringUtils.isNotBlank(result.getTransformUuid()) && StringUtils.isNotBlank(result.getTaskId())) {
+            Criteria criteria = Criteria.where("_id").is(MongoUtils.toObjectId(result.getTaskId()))
+                    .and("transformUuid").is(result.getTransformUuid());
+            taskService.update(new Query(criteria), Update.update("transformed", true), user);
         }
     }
 
