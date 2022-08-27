@@ -50,6 +50,8 @@ import io.tapdata.flow.engine.V2.util.TapEventUtil;
 import io.tapdata.milestone.MilestoneContext;
 import io.tapdata.milestone.MilestoneFactory;
 import io.tapdata.milestone.MilestoneService;
+import io.tapdata.observable.logging.ObsLogger;
+import io.tapdata.observable.logging.ObsLoggerFactory;
 import io.tapdata.schema.TapTableMap;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.collections.MapUtils;
@@ -109,8 +111,15 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 	 */
 	protected final boolean multipleTables;
 
+	protected ObsLogger obsLogger;
+
 	public HazelcastBaseNode(ProcessorBaseContext processorBaseContext) {
 		this.processorBaseContext = processorBaseContext;
+		this.obsLogger = ObsLoggerFactory.getInstance().getObsLogger(
+				processorBaseContext.getTaskDto(),
+				processorBaseContext.getNode().getId(),
+				processorBaseContext.getNode().getName()
+		);
 
 		if (null != processorBaseContext.getConfigurationCenter()) {
 			this.clientMongoOperator = BeanUtil.getBean(ClientMongoOperator.class);
@@ -649,6 +658,7 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 			this.errorMessage = throwable.getMessage();
 		}
 		logger.error(errorMessage, throwable);
+		obsLogger.error(errorMessage, throwable);
 		this.running.set(false);
 		TaskDto taskDto = processorBaseContext.getTaskDto();
 		com.hazelcast.jet.Job hazelcastJob = jetContext.hazelcastInstance().getJet().getJob(taskDto.getName() + "-" + taskDto.getId().toHexString());

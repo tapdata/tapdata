@@ -8,6 +8,7 @@ import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapIndex;
 import io.tapdata.entity.schema.TapIndexField;
 import io.tapdata.entity.schema.TapTable;
+import io.tapdata.entity.schema.type.TapNumber;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.entity.QueryOperator;
@@ -225,8 +226,15 @@ public class MysqlMaker implements SqlMaker {
 		// default value
 		String defaultValue = tapField.getDefaultValue() == null ? "" : tapField.getDefaultValue().toString();
 		if (StringUtils.isNotBlank(defaultValue)) {
-			fieldSql += " DEFAULT '" + defaultValue + "'";
-		}
+               if(defaultValue.contains("'")){
+				   defaultValue = defaultValue.replace("'","");
+			   }
+			   if(tapField.getTapType() instanceof TapNumber){
+				   defaultValue = defaultValue.trim();
+			   }
+				fieldSql += " DEFAULT '" + defaultValue + "'";
+
+			}
 
 		// comment
 		String comment = tapField.getComment();

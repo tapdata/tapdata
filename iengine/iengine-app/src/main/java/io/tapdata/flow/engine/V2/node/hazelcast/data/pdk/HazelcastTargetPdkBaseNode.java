@@ -222,6 +222,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 			}
 		} catch (Exception e) {
 			logger.error("Target process failed {}", e.getMessage(), e);
+			obsLogger.error("Target process failed {}", e.getMessage(), e);
 			throw sneakyThrow(e);
 		}
 	}
@@ -285,6 +286,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 					} else {
 						if (null != tapdataEvent.getTapEvent()) {
 							logger.warn("Tap event type does not supported: " + tapdataEvent.getTapEvent().getClass() + ", will ignore it");
+							obsLogger.warn("Tap event type does not supported: " + tapdataEvent.getTapEvent().getClass() + ", will ignore it");
 						}
 					}
 				}
@@ -304,6 +306,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 						.context(getDataProcessorContext())
 						.events(tapdataEvents.stream().map(TapdataEvent::getTapEvent).collect(Collectors.toList()));
 				logger.error(nodeException.getMessage(), nodeException);
+				obsLogger.error(nodeException.getMessage(), nodeException);
 				throw nodeException;
 			}
 		}
@@ -318,6 +321,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 						.context(getDataProcessorContext())
 						.events(tapdataShareLogEvents.stream().map(TapdataShareLogEvent::getTapEvent).collect(Collectors.toList()));
 				logger.error(nodeException.getMessage(), nodeException);
+				obsLogger.error(nodeException.getMessage(), nodeException);
 				throw nodeException;
 			}
 		}

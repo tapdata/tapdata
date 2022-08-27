@@ -2193,7 +2193,7 @@ public class MongodbUtil extends BaseDatabaseUtil {
 		MongoClientURI mongoClientURI = verifyMongoDBUri(uri);
 		String database = mongoClientURI.getDatabase();
 		if (StringUtils.isBlank(database))
-			throw new IllegalArgumentException("MongoDB client uri missing database: " + uri);
+			throw new IllegalArgumentException("MongoDB client uri missing database: " + maskUriPassword(uri));
 		return mongoClientURI;
 	}
 }

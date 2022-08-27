@@ -258,6 +258,14 @@ public class DataNodeSampleHandler extends AbstractNodeSampleHandler {
         Optional.ofNullable(snapshotRowCounters.get(nodeId)).ifPresent(counter -> counter.inc(count));
     }
 
+    public void handleDdlStart(String nodeId) {
+        Optional.ofNullable(inputDdlCounters.get(nodeId)).ifPresent(CounterSampler::inc);
+    }
+
+    public void handleDdlEnd(String nodeId) {
+        Optional.ofNullable(outputDdlCounters.get(nodeId)).ifPresent(CounterSampler::inc);
+    }
+
     private static final int PERIOD_SECOND = 5;
     private ScheduledExecutorService scheduleExecutorService;
     private Map<String, Node<?>> nodeMap;

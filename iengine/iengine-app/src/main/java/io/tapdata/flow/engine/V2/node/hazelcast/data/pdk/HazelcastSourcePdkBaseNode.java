@@ -280,6 +280,8 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 					if (need2InitialSync(syncProgress)) {
 						logger.warn("Call timestamp to stream offset function failed, will stop task after snapshot, type: " + dataProcessorContext.getDatabaseType()
 								+ ", errors: " + e.getClass().getSimpleName() + "  " + e.getMessage() + "\n" + Log4jUtil.getStackString(e));
+						obsLogger.warn("Call timestamp to stream offset function failed, will stop task after snapshot, type: " + dataProcessorContext.getDatabaseType()
+								+ ", errors: " + e.getClass().getSimpleName() + "  " + e.getMessage() + "\n" + Log4jUtil.getStackString(e));
 					} else {
 						throw new NodeException("Call timestamp to stream offset function failed, will stop task, type: " + dataProcessorContext.getDatabaseType()
 								+ ", errors: " + e.getClass().getSimpleName() + "  " + e.getMessage() + "\n" + Log4jUtil.getStackString(e)).context(getProcessorBaseContext());
@@ -289,6 +291,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 			}, TAG);
 		} else {
 			logger.warn("Pdk connector does not support timestamp to stream offset function, will stop task after snapshot: " + dataProcessorContext.getDatabaseType());
+			obsLogger.warn("Pdk connector does not support timestamp to stream offset function, will stop task after snapshot: " + dataProcessorContext.getDatabaseType());
 		}
 	}
 
@@ -321,6 +324,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 			}
 		} catch (Exception e) {
 			logger.error("Source sync failed {}.", e.getMessage(), e);
+			obsLogger.error("Source sync failed {}.", e.getMessage(), e);
 			throw new SourceException(e, true);
 		}
 
@@ -531,6 +535,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 			logger.info("Source node received an ddl event: " + tapEvent);
 			if (null != ddlFilter && !ddlFilter.test((TapDDLEvent) tapEvent)) {
 				logger.warn("DDL events are filtered: " + tapEvent);
+				obsLogger.warn("DDL events are filtered: " + tapEvent);
 				return null;
 			}
 			tapdataEvent = new TapdataEvent();

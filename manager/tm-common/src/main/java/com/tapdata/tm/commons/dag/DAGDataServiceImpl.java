@@ -345,6 +345,8 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
             return Collections.emptyList();
         }
 
+        log.info("save schema, found database schema, q_name = {}", databaseQualifiedName);
+
         SourceDto sourceDto = JsonUtil.parseJsonUseJackson(JsonUtil.toJsonUseJackson(dataSource), SourceDto.class);
 
         // 其他类型的 meta type 暂时不做模型推演处理
@@ -397,6 +399,7 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
         long start = System.currentTimeMillis();
 
         Map<String, MetadataInstancesDto> existsMetadataInstances = rollbackOperation(metadataInstancesDtos, rollback, rollbackTable);
+        log.info("bulk save meta data, data = {}", metadataInstancesDtos);
         int modifyCount = bulkSave(metadataInstancesDtos, dataSource, existsMetadataInstances);
         log.info("Bulk save metadataInstance {}, cost {}ms", modifyCount, System.currentTimeMillis() - start);
 
@@ -908,6 +911,9 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
             setMetaDataMap(metadataInstancesDto);
         }
 
+        log.info("save schema update map = {}", metadataUpdateMap);
+        log.info("save schema insert metadata = {}", insertMetaDataList);
+
         batchMetadataUpdateMap.putAll(metadataUpdateMap);
         batchInsertMetaDataList.addAll(insertMetaDataList);
         return metadataUpdateMap.size() + insertMetaDataList.size();
@@ -1083,5 +1089,10 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
             }
         }
         return null;
+    }
+
+
+    public DataSourceDefinitionDto getDefinitionByType(String databaseType) {
+        return definitionDtoMap.get(databaseType);
     }
 }

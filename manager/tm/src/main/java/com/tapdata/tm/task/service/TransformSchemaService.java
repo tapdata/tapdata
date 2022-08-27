@@ -81,7 +81,7 @@ public class TransformSchemaService {
         this.taskDagCheckLogService = taskDagCheckLogService;
     }
 
-    @Value("${tm.transform.batch.num:100}")
+    @Value("${tm.transform.batch.num:1000}")
     private int transformBatchNum;
 
 

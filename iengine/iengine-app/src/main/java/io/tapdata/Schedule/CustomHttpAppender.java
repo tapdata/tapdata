@@ -128,13 +128,19 @@ public class CustomHttpAppender extends AbstractAppender {
 
 		clientMongoOperator.insertOne(entity, ConnectorConstant.LOG_COLLECTION);
 
-		// append warn and error into monitoring log
 		if (null != contextMap) {
 			String taskId = contextMap.getValue("taskId");
 			if (null != taskId) {
 				ObsLogger obsLogger = ObsLoggerFactory.getInstance().getObsLogger(taskId);
 				if (null != obsLogger) {
+					// only keep pdk loggers
+					if (null == message || !StringUtils.strip(message).startsWith("$$tag::")) {
+						return;
+					}
 					switch (level.toUpperCase()) {
+						case "INFO":
+							obsLogger.info(message);
+							break;
 						case "WARN":
 							obsLogger.warn(message);
 							break;

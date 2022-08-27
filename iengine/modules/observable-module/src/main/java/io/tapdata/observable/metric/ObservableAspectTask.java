@@ -39,7 +39,12 @@ public class ObservableAspectTask extends AspectTask {
 		observerClassHandlers.register(SourceStateAspect.class, this::handleSourceState);
 		// target data node aspects
 		observerClassHandlers.register(WriteRecordFuncAspect.class, this::handleWriteRecordFunc);
+		observerClassHandlers.register(NewFieldFuncAspect.class, this::handleNewFieldFun);
+		observerClassHandlers.register(AlterFieldNameFuncAspect.class, this::handleAlterFieldNameFunc);
+		observerClassHandlers.register(AlterFieldAttributesFuncAspect.class, this::handleAlterFieldAttributesFunc);
+		observerClassHandlers.register(DropFieldFuncAspect.class, this::handleDropFieldFunc);
 		observerClassHandlers.register(CreateTableFuncAspect.class, this::handleCreateTableFunc);
+		observerClassHandlers.register(DropTableFuncAspect.class, this::handleDropTableFunc);
 
 		// processor node aspects
 		observerClassHandlers.register(ProcessorNodeInitAspect.class, this::handleProcessorNodeInit);
@@ -117,6 +122,76 @@ public class ObservableAspectTask extends AspectTask {
 				break;
 			case CreateTableFuncAspect.STATE_END:
 				taskSampleHandler.handleCreateTableEnd();
+				break;
+		}
+
+		return null;
+	}
+
+	public Void handleNewFieldFun(NewFieldFuncAspect aspect) {
+		switch (aspect.getState()) {
+			case NewFieldFuncAspect.STATE_START:
+				dataNodeSampleHandler.handleDdlStart(aspect.getDataProcessorContext().getNode().getId());
+				break;
+			case NewFieldFuncAspect.STATE_END:
+				taskSampleHandler.handleDdlEnd();
+				dataNodeSampleHandler.handleDdlEnd(aspect.getDataProcessorContext().getNode().getId());
+				break;
+		}
+
+		return null;
+	}
+
+	public Void handleAlterFieldNameFunc(AlterFieldNameFuncAspect aspect) {
+		switch (aspect.getState()) {
+			case AlterFieldNameFuncAspect.STATE_START:
+				dataNodeSampleHandler.handleDdlStart(aspect.getDataProcessorContext().getNode().getId());
+				break;
+			case AlterFieldNameFuncAspect.STATE_END:
+				taskSampleHandler.handleDdlEnd();
+				dataNodeSampleHandler.handleDdlEnd(aspect.getDataProcessorContext().getNode().getId());
+				break;
+		}
+
+		return null;
+	}
+
+	public Void handleAlterFieldAttributesFunc(AlterFieldAttributesFuncAspect aspect) {
+		switch (aspect.getState()) {
+			case AlterFieldAttributesFuncAspect.STATE_START:
+				dataNodeSampleHandler.handleDdlStart(aspect.getDataProcessorContext().getNode().getId());
+				break;
+			case AlterFieldAttributesFuncAspect.STATE_END:
+				taskSampleHandler.handleDdlEnd();
+				dataNodeSampleHandler.handleDdlEnd(aspect.getDataProcessorContext().getNode().getId());
+				break;
+		}
+
+		return null;
+	}
+
+	public Void handleDropFieldFunc(DropFieldFuncAspect aspect) {
+		switch (aspect.getState()) {
+			case DropFieldFuncAspect.STATE_START:
+				dataNodeSampleHandler.handleDdlStart(aspect.getDataProcessorContext().getNode().getId());
+				break;
+			case DropFieldFuncAspect.STATE_END:
+				taskSampleHandler.handleDdlEnd();
+				dataNodeSampleHandler.handleDdlEnd(aspect.getDataProcessorContext().getNode().getId());
+				break;
+		}
+
+		return null;
+	}
+
+	public Void handleDropTableFunc(DropTableFuncAspect aspect) {
+		switch (aspect.getState()) {
+			case DropTableFuncAspect.STATE_START:
+				dataNodeSampleHandler.handleDdlStart(aspect.getDataProcessorContext().getNode().getId());
+				break;
+			case DropTableFuncAspect.STATE_END:
+				taskSampleHandler.handleDdlEnd();
+				dataNodeSampleHandler.handleDdlEnd(aspect.getDataProcessorContext().getNode().getId());
 				break;
 		}
 

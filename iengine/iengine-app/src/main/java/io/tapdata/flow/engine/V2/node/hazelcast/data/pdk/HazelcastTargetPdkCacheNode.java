@@ -72,6 +72,7 @@ public class HazelcastTargetPdkCacheNode extends HazelcastPdkBaseNode {
 							} else {
 								if (null != tapdataEvent.getTapEvent()) {
 									logger.warn("Tap event type does not supported: " + tapdataEvent.getTapEvent().getClass() + ", will ignore it");
+									obsLogger.warn("Tap event type does not supported: " + tapdataEvent.getTapEvent().getClass() + ", will ignore it");
 								}
 							}
 						}
@@ -85,6 +86,7 @@ public class HazelcastTargetPdkCacheNode extends HazelcastPdkBaseNode {
 			}
 		} catch (Exception e) {
 			logger.error("Target process failed {}", e.getMessage(), e);
+			obsLogger.error("Target process failed {}", e.getMessage(), e);
 			throw sneakyThrow(e);
 		}
 	}
@@ -95,6 +97,7 @@ public class HazelcastTargetPdkCacheNode extends HazelcastPdkBaseNode {
 			Map<String, Object> row = TapEventUtil.getAfter(tapEvent);
 			if (MapUtils.isEmpty(row)) {
 				logger.warn("Cache row is empty, will abort it, msg {}", tapEvent);
+				obsLogger.warn("Cache row is empty, will abort it, msg {}", tapEvent);
 				continue;
 			}
 

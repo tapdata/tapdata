@@ -159,7 +159,7 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 		String oldName = updateCheck(user, updateDto);
 
 		if (updateDto.getLoadAllTables() != null && updateDto.getLoadAllTables()) {
-			updateDto.setTable_filter(null);
+			updateDto.setTable_filter("");
 		}
 
 		Assert.isFalse(StringUtils.equals(AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER.name(), updateDto.getAccessNodeType())
@@ -915,7 +915,7 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 			log.debug("loadFieldsStatus is finished, update model delete flag");
 			// handle delete model, not match schemaVersion will update is_deleted to true
 			Criteria criteria = Criteria.where("is_deleted").ne(true).and("databaseId").is(datasourceId)
-					.and("lastUpdate").ne(schemaVersion);
+					.and("lastUpdate").ne(schemaVersion).and("taskId").exists(false);;
 			log.info("Delete metadata update filter: {}", criteria);
 			Query query = new Query(criteria);
 			Update update = Update.update("is_deleted", true);

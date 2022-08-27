@@ -250,11 +250,9 @@ public class TaskNodeServiceImpl implements TaskNodeService {
         DataSourceConnectionDto sourceDataSource = dataSourceService.findById(MongoUtils.toObjectId(sourceNode.getConnectionId()));
 
         Map<String, MetadataInstancesDto> metaMap = Maps.newHashMap();
-        List<MetadataInstancesDto> list = metadataInstancesService.findBySourceIdAndTableNameList(
-                Objects.isNull(targetNode) ? sourceNode.getConnectionId() : targetNode.getConnectionId(),
-                currentTableList, userDetail, taskId);
+        List<MetadataInstancesDto> list = metadataInstancesService.findByNodeId(currentNode.getId(), userDetail);
         boolean queryFormSource = false;
-        if (CollectionUtils.isEmpty(list)) {
+        if (CollectionUtils.isEmpty(list) || list.size() != tableNames.size()) {
             // 可能有这种场景， node detail接口请求比模型加载快，会查不到逻辑表的数据
             list = metadataInstancesService.findBySourceIdAndTableNameListNeTaskId(sourceNode.getConnectionId(),
                     currentTableList, userDetail, taskId);
@@ -270,7 +268,7 @@ public class TaskNodeServiceImpl implements TaskNodeService {
                 } else {
                     return meta;
                 }
-            }).collect(Collectors.toMap(MetadataInstancesDto::getOriginalName, Function.identity()));
+            }).collect(Collectors.toMap(MetadataInstancesDto::getAncestorsName, Function.identity()));
         }
 
         if (metaMap.isEmpty()) {
@@ -460,6 +458,44 @@ public class TaskNodeServiceImpl implements TaskNodeService {
             res.setData(result);
         }
         return res;
+    }
+
+    @Override
+    public void checkFieldNode(TaskDto taskDto, UserDetail userDetail) {
+        if (!taskDto.getName().contains("- Copy")) {
+            return;
+        }
+
+        String taskId = taskDto.getId().toHexString();
+
+        DAG dag = taskDto.getDag();
+        List<String> collect = dag.getNodes().stream().filter(node -> {
+            if (node instanceof MigrateFieldRenameProcessorNode) {
+                LinkedList<TableFieldInfo> fieldsMapping = ((MigrateFieldRenameProcessorNode) node).getFieldsMapping();
+
+                return fieldsMapping.stream().anyMatch(table -> !table.getQualifiedName().endsWith(taskId));
+            }
+            return false;
+        }).map(Node::getId)
+        .collect(Collectors.toList());
+
+        if (CollectionUtils.isNotEmpty(collect)) {
+            DatabaseNode sourceNode = dag.getSourceNode().getFirst();
+
+            List<MetadataInstancesDto> metaList = metadataInstancesService.findBySourceIdAndTableNameList(sourceNode.getConnectionId(),
+                    sourceNode.getTableNames(), userDetail, taskDto.getId().toHexString());
+
+            if (CollectionUtils.isNotEmpty(metaList)) {
+                Map<String, String> qualifiedNameMap = metaList.stream()
+                        .collect(Collectors.toMap(MetadataInstancesDto::getName, MetadataInstancesDto::getQualifiedName));
+
+                collect.forEach(nodeId -> {
+                    MigrateFieldRenameProcessorNode fieldNode = (MigrateFieldRenameProcessorNode) dag.getNode(nodeId);
+                    fieldNode.getFieldsMapping().forEach(m -> m.setQualifiedName(qualifiedNameMap.get(m.getOriginTableName())));
+                });
+            }
+        }
+
     }
 
     /**

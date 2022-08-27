@@ -50,7 +50,6 @@ public class HazelcastTargetPdkAutoInspectNode extends HazelcastTargetPdkBaseNod
     private final PipelineDelay pipelineDelay = InstanceFactory.instance(PipelineDelay.class);
     private final LinkedBlockingQueue<List<TapEvent>> incrementQueue = new LinkedBlockingQueue<>(1000);//todo: Optimize the queue, restart task maybe lost events
 
-    private final ObsLogger userLogger;
     private final String dataNodeId;
 
     public HazelcastTargetPdkAutoInspectNode(DataProcessorContext dataProcessorContext) {
@@ -68,10 +67,8 @@ public class HazelcastTargetPdkAutoInspectNode extends HazelcastTargetPdkBaseNod
         AutoInspectProgress progress = AutoInspectUtil.parse(task.getAttrs());
         ClientMongoOperator clientMongoOperator = BeanUtil.getBean(ClientMongoOperator.class);
 
-        userLogger = ObsLoggerFactory.getInstance().getObsLogger(task, node.getId(), node.getName());
-
         HazelcastTargetPdkAutoInspectNode _thisNode = this;
-        EXECUTORS.submit(new PdkAutoInspectRunner(userLogger, taskId, taskType, progress, node, clientMongoOperator) {
+        EXECUTORS.submit(new PdkAutoInspectRunner(obsLogger, taskId, taskType, progress, node, clientMongoOperator) {
 
             @Override
             protected void initialCompare(@NonNull IPdkConnector sourceConnector, @NonNull IPdkConnector targetConnector, @NonNull IAutoCompare autoCompare) throws Exception {
@@ -82,7 +79,7 @@ public class HazelcastTargetPdkAutoInspectNode extends HazelcastTargetPdkBaseNod
 
                     Thread.sleep(1000L);
                 }
-                userLogger.info("Wait initial {}ms", System.currentTimeMillis() - beginTimes);
+                obsLogger.info("Wait initial {}ms", System.currentTimeMillis() - beginTimes);
 
                 super.initialCompare(sourceConnector, targetConnector, autoCompare);
             }
