@@ -961,6 +961,7 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
 
 
             Criteria criteria = Criteria.where("qualified_name").is(dto.getQualifiedName());
+            dto.setId(null);
             Query query = new Query(criteria);
             beforeSave(dto, user);
             repository.applyUserDetail(query, user);
