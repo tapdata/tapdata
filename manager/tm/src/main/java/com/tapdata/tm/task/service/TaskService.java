@@ -3072,7 +3072,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             }
         }
 
-        return saveNoPass & startNoPass;
+        return saveNoPass || startNoPass;
     }
 
     public Map<String, Object> totalAutoInspectResultsDiffTables(IdParam param) {
