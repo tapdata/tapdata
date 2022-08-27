@@ -309,6 +309,15 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 				pendingEvent = null;
 			} else {
 				dataEvent = eventQueue.poll(5, TimeUnit.SECONDS);
+				if (null != dataEvent) {
+					// covert to tap value before enqueue the event. when the event is enqueued into the eventQueue,
+					// the event is considered been output to the next node.
+					TapCodecsFilterManager codecsFilterManager = getConnectorNode().getCodecsFilterManager();
+					TapEvent tapEvent = dataEvent.getTapEvent();
+					if (sourceMode == SourceMode.NORMAL) {
+						tapRecordToTapValue(tapEvent, codecsFilterManager);
+					}
+				}
 			}
 
 			if (dataEvent != null) {
@@ -645,14 +654,6 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 					if (removeTables != null && removeTables.contains(tableId)) {
 						break;
 					}
-				}
-
-				// covert to tap value before enqueue the event. when the event is enqueued into the eventQueue,
-				// the event is considered been output to the next node.
-				TapCodecsFilterManager codecsFilterManager = getConnectorNode().getCodecsFilterManager();
-				TapEvent tapEvent = tapdataEvent.getTapEvent();
-				if (sourceMode == SourceMode.NORMAL) {
-					tapRecordToTapValue(tapEvent, codecsFilterManager);
 				}
 
 				if (eventQueue.offer(tapdataEvent, 3, TimeUnit.SECONDS)) {

@@ -7,6 +7,7 @@ import io.tapdata.connector.hive1.config.Hive1Config;
 import io.tapdata.connector.hive1.ddl.DDLSqlMaker;
 import io.tapdata.connector.hive1.ddl.impl.Hive1JDBCSqlMaker;
 import io.tapdata.connector.hive1.dml.Hive1Writer;
+import io.tapdata.constant.TapLog;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.ddl.index.TapCreateIndexEvent;
@@ -64,6 +65,7 @@ public class Hive1Connector extends ConnectorBase {
 
     @Override
     public void onStart(TapConnectionContext connectionContext) throws Throwable {
+        TapLogger.info("线程debug","onStart当前线程为:{}",Thread.currentThread().getName());
         initConnection(connectionContext);
         ddlSqlMaker = new Hive1JDBCSqlMaker();
 
@@ -130,6 +132,7 @@ public class Hive1Connector extends ConnectorBase {
 
     @Override
     public void onStop(TapConnectionContext connectionContext) throws Throwable {
+        TapLogger.info("线程debug","onStop当前线程为:{}",Thread.currentThread().getName());
         if (EmptyKit.isNotNull(hive1JdbcContext)) {
             hive1JdbcContext.finish(connectionContext.getId());
         }
@@ -269,7 +272,7 @@ public class Hive1Connector extends ConnectorBase {
     }
 
     private void writeRecord(TapConnectorContext tapConnectorContext, List<TapRecordEvent> tapRecordEvents, TapTable tapTable, Consumer<WriteListResult<TapRecordEvent>> consumer) throws Throwable {
-        TapLogger.info(TAG,"tapRecordEvents个数:{}",tapRecordEvents.size());
+        TapLogger.info("线程debug","writeRecord当前线程为:{},tapRecordEvents个数:{}",Thread.currentThread().getName(),tapRecordEvents.size());
         WriteListResult<TapRecordEvent> writeListResult = this.hive1Writer.write(tapConnectorContext, tapTable, tapRecordEvents);
         consumer.accept(writeListResult);
     }
