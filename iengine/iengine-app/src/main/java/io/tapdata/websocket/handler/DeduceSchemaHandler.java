@@ -123,6 +123,7 @@ public class DeduceSchemaHandler implements WebSocketEventHandler<WebSocketEvent
 		wsMessageResult.setUpsertTransformer(dagDataService.getUpsertTransformer());
 		wsMessageResult.setTransformSchema(transformSchema);
 		wsMessageResult.setTaskId(request.getTaskDto().getId().toHexString());
+		wsMessageResult.setTransformUuid(request.getOptions().getUuid());
 
 		// Update task's dag
 		TaskDto updateTaskDto = new TaskDto();

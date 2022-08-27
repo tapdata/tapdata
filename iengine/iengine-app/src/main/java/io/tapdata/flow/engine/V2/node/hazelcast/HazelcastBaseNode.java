@@ -165,13 +165,13 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 		codecsFilterManager = TapCodecsFilterManager.create(tapCodecsRegistry);
 		initSampleCollector();
 		CollectorFactory.getInstance().recordCurrentValueByTag(tags);
-
-		doInit(context);
+		// execute ProcessorNodeInitAspect before doInit since we need to init the aspect first;
 		if (this instanceof HazelcastProcessorBaseNode || this instanceof HazelcastMultiAggregatorProcessor) {
 			AspectUtils.executeAspect(ProcessorNodeInitAspect.class, () -> new ProcessorNodeInitAspect().processorBaseContext(processorBaseContext));
 		} else {
 			AspectUtils.executeAspect(DataNodeInitAspect.class, () -> new DataNodeInitAspect().dataProcessorContext((DataProcessorContext) processorBaseContext));
 		}
+		doInit(context);
 	}
 
 	public ProcessorBaseContext getProcessorBaseContext() {

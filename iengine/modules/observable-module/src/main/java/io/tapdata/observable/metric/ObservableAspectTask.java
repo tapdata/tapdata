@@ -44,7 +44,6 @@ public class ObservableAspectTask extends AspectTask {
 		observerClassHandlers.register(AlterFieldAttributesFuncAspect.class, this::handleAlterFieldAttributesFunc);
 		observerClassHandlers.register(DropFieldFuncAspect.class, this::handleDropFieldFunc);
 		observerClassHandlers.register(CreateTableFuncAspect.class, this::handleCreateTableFunc);
-		observerClassHandlers.register(DropTableFuncAspect.class, this::handleDropTableFunc);
 
 		// processor node aspects
 		observerClassHandlers.register(ProcessorNodeInitAspect.class, this::handleProcessorNodeInit);
@@ -176,20 +175,6 @@ public class ObservableAspectTask extends AspectTask {
 				dataNodeSampleHandler.handleDdlStart(aspect.getDataProcessorContext().getNode().getId());
 				break;
 			case DropFieldFuncAspect.STATE_END:
-				taskSampleHandler.handleDdlEnd();
-				dataNodeSampleHandler.handleDdlEnd(aspect.getDataProcessorContext().getNode().getId());
-				break;
-		}
-
-		return null;
-	}
-
-	public Void handleDropTableFunc(DropTableFuncAspect aspect) {
-		switch (aspect.getState()) {
-			case DropTableFuncAspect.STATE_START:
-				dataNodeSampleHandler.handleDdlStart(aspect.getDataProcessorContext().getNode().getId());
-				break;
-			case DropTableFuncAspect.STATE_END:
 				taskSampleHandler.handleDdlEnd();
 				dataNodeSampleHandler.handleDdlEnd(aspect.getDataProcessorContext().getNode().getId());
 				break;

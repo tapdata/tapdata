@@ -271,7 +271,7 @@ public class TaskNodeServiceImpl implements TaskNodeService {
                 } else {
                     return meta;
                 }
-            }).collect(Collectors.toMap(MetadataInstancesDto::getAncestorsName, Function.identity(), (e1,e2)->e2));
+            }).collect(Collectors.toMap(MetadataInstancesDto::getOriginalName, Function.identity(), (e1,e2)->e2));
         }
 
         if (metaMap.isEmpty()) {

@@ -89,7 +89,7 @@ public abstract class LogMiner implements ILogMiner {
         TapLogger.info(TAG, "Log Miner is shutting down...");
         isRunning.set(false);
         Thread.sleep(500);
-        redoLogConsumerThreadPool.shutdown();
+        Optional.ofNullable(redoLogConsumerThreadPool).ifPresent(ExecutorService::shutdown);
         redoLogConsumerThreadPool = null;
     }
 
