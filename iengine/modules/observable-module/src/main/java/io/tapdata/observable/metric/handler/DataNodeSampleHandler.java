@@ -280,7 +280,8 @@ public class DataNodeSampleHandler extends AbstractNodeSampleHandler {
         if (null == tables || tables.isEmpty()) {
             return;
         }
-        return;
+        Optional.ofNullable(inputDdlCounters.get(nodeId)).ifPresent(counter -> counter.inc(tables.size()));
+        Optional.ofNullable(outputDdlCounters.get(nodeId)).ifPresent(counter -> counter.inc(tables.size()));
     }
 
     private static final int PERIOD_SECOND = 5;

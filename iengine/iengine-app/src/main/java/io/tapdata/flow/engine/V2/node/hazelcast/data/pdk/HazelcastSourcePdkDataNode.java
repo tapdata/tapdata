@@ -162,7 +162,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 		snapshotProgressManager.startStatsSnapshotEdgeProgress(dataProcessorContext.getNode());
 
 		// count the data size of the tables;
-		doCount();
+		doCount(tableList);
 
 		BatchReadFunction batchReadFunction = getConnectorNode().getConnectorFunctions().getBatchReadFunction();
 		if (batchReadFunction != null) {
@@ -288,7 +288,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 	}
 
 	@SneakyThrows
-	private void doCount() {
+	private void doCount(List<String> tableList) {
 		BatchCountFunction batchCountFunction = getConnectorNode().getConnectorFunctions().getBatchCountFunction();
 		if (null == batchCountFunction) {
 			setDefaultRowSizeMap();
@@ -308,7 +308,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 				Thread.currentThread().setName(name);
 				Log4jUtil.setThreadContext(task.get());
 
-				doCountAsynchronously(batchCountFunction);
+				doCountSynchronously(batchCountFunction, tableList);
 			}, snapshotRowSizeThreadPool)
 			.whenComplete((v, e) -> {
 				if (null != e) {
@@ -321,12 +321,12 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 				ExecutorUtil.shutdown(this.snapshotRowSizeThreadPool, 10L, TimeUnit.SECONDS);
 			});
 		} else {
-			doCountAsynchronously(batchCountFunction);
+			doCountSynchronously(batchCountFunction, tableList);
 		}
 	}
 
 	@SneakyThrows
-	private void doCountAsynchronously(BatchCountFunction batchCountFunction) {
+	private void doCountSynchronously(BatchCountFunction batchCountFunction, List<String> tableList) {
 		if (null == batchCountFunction) {
 			setDefaultRowSizeMap();
 			logger.warn("PDK node does not support table batch count: " + dataProcessorContext.getDatabaseType());
@@ -334,7 +334,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 			return;
 		}
 
-		for(String tableName : dataProcessorContext.getTapTableMap().keySet()) {
+		for(String tableName : tableList) {
 			if (!isRunning()) {
 				return;
 			}

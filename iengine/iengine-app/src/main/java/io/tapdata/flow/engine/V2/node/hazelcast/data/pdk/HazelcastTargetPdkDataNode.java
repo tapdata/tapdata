@@ -90,6 +90,11 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 		ddlEventHandlers.register(TapDropFieldEvent.class, this::executeDropFieldFunction);
 		ddlEventHandlers.register(TapCreateTableEvent.class, this::executeCreateTableFunction);
 		ddlEventHandlers.register(TapDropTableEvent.class, tapDropTableEvent -> {
+			// only execute start function aspect so that it would be cheated as input
+			AspectUtils.executeAspect(new DropTableFuncAspect()
+					.dropTableEvent(tapDropTableEvent)
+					.connectorContext(getConnectorNode().getConnectorContext())
+					.dataProcessorContext(dataProcessorContext).state(DropTableFuncAspect.STATE_START));
 			logger.warn("Drop table event will be ignored at sink node: " + tapDropTableEvent.getTableId());
 			obsLogger.warn("Drop table event will be ignored at sink node: " + tapDropTableEvent.getTableId());
 			return null;
