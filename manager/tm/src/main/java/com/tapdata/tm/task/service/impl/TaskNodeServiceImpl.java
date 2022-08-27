@@ -250,11 +250,9 @@ public class TaskNodeServiceImpl implements TaskNodeService {
         DataSourceConnectionDto sourceDataSource = dataSourceService.findById(MongoUtils.toObjectId(sourceNode.getConnectionId()));
 
         Map<String, MetadataInstancesDto> metaMap = Maps.newHashMap();
-        List<MetadataInstancesDto> list = metadataInstancesService.findBySourceIdAndTableNameList(
-                Objects.isNull(targetNode) ? sourceNode.getConnectionId() : targetNode.getConnectionId(),
-                currentTableList, userDetail, taskId);
+        List<MetadataInstancesDto> list = metadataInstancesService.findByNodeId(currentNode.getId(), userDetail);
         boolean queryFormSource = false;
-        if (CollectionUtils.isEmpty(list)) {
+        if (CollectionUtils.isEmpty(list) || list.size() != tableNames.size()) {
             // 可能有这种场景， node detail接口请求比模型加载快，会查不到逻辑表的数据
             list = metadataInstancesService.findBySourceIdAndTableNameListNeTaskId(sourceNode.getConnectionId(),
                     currentTableList, userDetail, taskId);
@@ -270,7 +268,7 @@ public class TaskNodeServiceImpl implements TaskNodeService {
                 } else {
                     return meta;
                 }
-            }).collect(Collectors.toMap(MetadataInstancesDto::getOriginalName, Function.identity()));
+            }).collect(Collectors.toMap(MetadataInstancesDto::getAncestorsName, Function.identity()));
         }
 
         if (metaMap.isEmpty()) {

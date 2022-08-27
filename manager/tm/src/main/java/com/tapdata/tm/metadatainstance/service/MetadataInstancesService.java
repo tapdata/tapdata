@@ -1266,6 +1266,14 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
         return qualifiedNames;
     }
 
+    public List<MetadataInstancesDto> findByNodeId(String nodeId, UserDetail userDetail) {
+        Criteria criteria = Criteria
+                .where("is_deleted").ne(true)
+                .and("nodeId").is(nodeId);
+
+        return findAllDto(Query.query(criteria), userDetail);
+    }
+
     public List<MetadataInstancesDto> findByNodeId(String nodeId, List<String> fields, UserDetail user, TaskDto taskDto) {
 
         if (taskDto == null || taskDto.getDag() == null) {
