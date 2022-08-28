@@ -20,8 +20,8 @@ import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.dag.process.*;
 import com.tapdata.tm.commons.dag.vo.TableRenameTableInfo;
-import com.tapdata.tm.commons.schema.*;
 import com.tapdata.tm.commons.schema.Field;
+import com.tapdata.tm.commons.schema.*;
 import com.tapdata.tm.commons.schema.bean.Schema;
 import com.tapdata.tm.commons.schema.bean.SourceDto;
 import com.tapdata.tm.commons.schema.bean.Table;
@@ -144,7 +144,17 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
             classficitionIn.put("$in", objectIdList);
         }
 
+        if (Objects.isNull(filter.getWhere().getOrDefault("taskId", null))) {
+            filter.getWhere().put("taskId", ImmutableMap.of("$exists", false));
+        }
+
         Page<MetadataInstancesDto> page = find(filter, user);
+        if (page.getTotal() == 0 && filter.getWhere().containsKey("taskId")) {
+            // maybe model deduction slow then task model not save, could query physics table meta
+            filter.getWhere().remove("taskId");
+            filter.getWhere().put("taskId", ImmutableMap.of("$exists", false));
+            page = find(filter, user);
+        }
         List<MetadataInstancesDto> metadataInstancesDtoList = page.getItems();
 
         afterFindAll(metadataInstancesDtoList, user);
