@@ -11,6 +11,7 @@ import com.tapdata.entity.task.context.ProcessorBaseContext;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.process.AggregationProcessorNode;
 import com.tapdata.tm.commons.task.dto.Aggregation;
+import io.tapdata.common.JSONUtil;
 import io.tapdata.constructImpl.ConstructIMap;
 import io.tapdata.constructImpl.DocumentIMap;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
@@ -164,7 +165,7 @@ public class HazelcastMultiAggregatorProcessor extends HazelcastBaseNode {
 
     @Override
     protected boolean tryProcess(int ordinal, @NotNull Object item) {
-        logger.info("try process aggregator, nodeId: {}", nodeId);
+//        logger.info("try process aggregator, nodeId: {}", nodeId);
         Node<?> node = processorBaseContext.getNode();
         if (logger.isDebugEnabled()) {
             logger.debug(
