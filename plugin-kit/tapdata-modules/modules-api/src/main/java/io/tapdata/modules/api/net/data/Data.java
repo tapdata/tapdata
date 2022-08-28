@@ -2,12 +2,18 @@ package io.tapdata.modules.api.net.data;
 
 
 import io.tapdata.entity.error.CoreException;
+import io.tapdata.entity.logger.TapLogger;
+import io.tapdata.entity.utils.ClassFactory;
+import io.tapdata.entity.utils.InstanceFactory;
+import io.tapdata.entity.utils.JsonParser;
 import io.tapdata.entity.utils.io.DataInputStreamEx;
 import io.tapdata.entity.utils.io.DataOutputStreamEx;
 import io.tapdata.modules.api.net.JavaCustomSerializer;
 import io.tapdata.modules.api.net.error.NetErrors;
+import io.tapdata.modules.api.net.message.TapMessage;
 
 import java.io.*;
+import java.nio.charset.StandardCharsets;
 
 public abstract class Data extends BinaryCodec implements JavaCustomSerializer {
     public static final int CONTENT_ENCODE_OBJECT_SERIALIZABLE = 1;
@@ -15,11 +21,64 @@ public abstract class Data extends BinaryCodec implements JavaCustomSerializer {
 
     public static final int CODE_SUCCESS = 1;
     public static final int CODE_FAILED = 0;
+    private static final String TAG = Data.class.getSimpleName();
 
     private byte type;
 
     public Data(byte type) {
         this.type = type;
+    }
+    protected TapMessage toTapMessage(byte[] content, String contentType, Byte contentEncode) throws IOException {
+        if(content == null || contentType == null || contentEncode == null)
+            return null;
+        TapMessage message = null;
+        switch (contentEncode) {
+            case CONTENT_ENCODE_OBJECT_SERIALIZABLE:
+                message = ClassFactory.create(TapMessage.class, contentType);
+                if(message != null) {
+                    try(ByteArrayInputStream bais = new ByteArrayInputStream(content)) {
+                        message.from(bais);
+                    }
+                } else {
+                    TapLogger.warn(TAG, "(toTapMessage OBJECT_SERIALIZABLE) Content type {} doesn't match any TapMessage for {}, contentEncode {}", contentType, this.getClass().getSimpleName(), contentEncode);
+                }
+                break;
+            case CONTENT_ENCODE_JSON:
+                Class<? extends TapMessage> messageClass = ClassFactory.getImplementationClass(TapMessage.class, contentType);
+                if(messageClass != null) {
+                    String contentStr = new String(content, StandardCharsets.UTF_8);
+                    JsonParser jsonParser = InstanceFactory.instance(JsonParser.class);
+                    message = jsonParser.fromJson(contentStr, messageClass);
+                } else {
+                    TapLogger.warn(TAG, "(toTapMessage JSON) Content type {} doesn't match any TapMessage for {}, contentEncode {}", contentType, this.getClass().getSimpleName(), contentEncode);
+                }
+                break;
+            default:
+                TapLogger.warn(TAG, "(toTapMessage) ContentEncode {} not found for Content Type {}, {}", contentEncode, contentType, this.getClass().getSimpleName());
+                break;
+        }
+        return message;
+    }
+
+    protected byte[] fromTapMessage(TapMessage message, String contentType, Byte contentEncode) throws IOException {
+        byte[] data = null;
+        switch (contentEncode) {
+            case CONTENT_ENCODE_OBJECT_SERIALIZABLE:
+                try (ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
+                    message.to(baos);
+                    data = baos.toByteArray();
+                }
+                break;
+            case CONTENT_ENCODE_JSON:
+                JsonParser jsonParser = InstanceFactory.instance(JsonParser.class);
+                String jsonStr = jsonParser.toJson(message);
+                data = jsonStr.getBytes(StandardCharsets.UTF_8);
+                break;
+            default:
+                TapLogger.warn(TAG, "(fromTapMessage) ContentEncode {} not found for Content Type {}, {}", contentEncode, contentType, this.getClass().getSimpleName());
+                break;
+        }
+        return data;
     }
     public void from(InputStream inputStream) throws IOException {
         DataInputStreamEx dis = dataInputStream(inputStream);
@@ -40,9 +99,8 @@ public abstract class Data extends BinaryCodec implements JavaCustomSerializer {
 
         switch (encode) {
             case ENCODE_JAVA_CUSTOM_SERIALIZER:
-                ByteArrayInputStream bais = new ByteArrayInputStream(data);
-                try {
-                    from(bais);
+                try(ByteArrayInputStream input = new ByteArrayInputStream(data)) {
+                    from(input);
                 } catch (IOException e) {
                     throw new CoreException(NetErrors.JAVA_CUSTOM_DESERIALIZE_FAILED, "Deserialize {} failed, {}", this.getClass().getSimpleName(), e.getMessage());
                 }

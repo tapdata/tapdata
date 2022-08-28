@@ -10,8 +10,10 @@ import io.netty.handler.logging.LogLevel;
 import io.netty.handler.logging.LoggingHandler;
 import io.netty.util.ResourceLeakDetector;
 import io.tapdata.entity.annotations.Bean;
+import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.utils.InstanceFactory;
+import io.tapdata.modules.api.net.error.NetErrors;
 import io.tapdata.wsserver.channels.websocket.impl.GatewayHandlerInitializer;
 import io.tapdata.wsserver.channels.websocket.impl.WebSocketProperties;
 
@@ -44,7 +46,7 @@ public class WebSocketManager {
                 TapLogger.info(TAG, "Websocket server started at port " + webSocketProperties.getPort());
             } catch(Throwable throwable) {
                 throwable.printStackTrace();
-                startFailed = throwable;
+                throw new CoreException(NetErrors.WEBSOCKET_SERVER_START_FAILED, "Websocket server start failed, {}", throwable.getMessage());
             }
         }
     }

@@ -7,8 +7,8 @@
         <artifactId>tapdata-modules</artifactId>
         <version>1.0-SNAPSHOT</version>
     </parent>
-    <artifactId>websocket-netty-module</artifactId>
-    <name>websocket-netty-module</name>
+    <artifactId>websocket-server-module</artifactId>
+    <name>websocket-server-module</name>
     <version>1.0-SNAPSHOT</version>
 
     <properties>

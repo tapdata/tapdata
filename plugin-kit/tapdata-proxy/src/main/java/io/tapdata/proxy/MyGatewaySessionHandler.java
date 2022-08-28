@@ -1,4 +1,4 @@
-package io.tapdata.wsserver.channels;
+package io.tapdata.proxy;
 
 import io.tapdata.modules.api.net.data.ResultData;
 import io.tapdata.wsserver.channels.annotation.GatewaySession;
