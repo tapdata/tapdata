@@ -1,0 +1,99 @@
+package io.tapdata.wsclient.utils;
+
+import com.alibaba.fastjson.JSON;
+import com.alibaba.fastjson.JSONObject;
+
+import org.apache.commons.io.IOUtils;
+import org.apache.commons.lang3.StringUtils;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.nio.charset.StandardCharsets;
+import java.util.Map;
+
+public class HttpUtils {
+    public static JSONObject post(String url, JSONObject data, Map<String, String> headers) throws IOException {
+        HttpURLConnection connection = getUrlConnection(url, "POST", headers);
+        output(connection, data);
+        connection.connect();
+        int code = connection.getResponseCode();
+        if(code >= 200 && code < 300) {
+            return getJSONResult(url, connection);
+        } else {
+            throw new IOException("Url(post) " + url + " occur error, code " + code + " message " + connection.getResponseMessage());
+        }
+    }
+
+    private static void output(HttpURLConnection connection, JSONObject data) throws IOException {
+        if(data != null) {
+            connection.setDoOutput(true);
+            connection.setRequestProperty( "Content-Type", "application/json");
+            OutputStream outputStream = connection.getOutputStream();
+            outputStream.write(JSON.toJSONString(data).getBytes("utf8"));
+        }
+    }
+
+    public static JSONObject get(String url, Map<String, String> headers) throws IOException {
+        HttpURLConnection connection = getUrlConnection(url, "GET", headers);
+        connection.connect();
+        int code = connection.getResponseCode();
+        if(code >= 200 && code < 300) {
+            return getJSONResult(url, connection);
+        } else {
+            throw new IOException("Url(get) " + url + " occur error, code " + code + " message " + connection.getResponseMessage());
+        }
+    }
+
+    public static JSONObject delete(String url, Map<String, String> headers) throws IOException {
+        HttpURLConnection connection = getUrlConnection(url, "DELETE", headers);
+        connection.connect();
+        int code = connection.getResponseCode();
+        if(code >= 200 && code < 300) {
+            return getJSONResult(url, connection);
+        } else {
+            throw new IOException("Url(delete) " + url + " occur error, code " + code + " message " + connection.getResponseMessage());
+        }
+    }
+
+    public static JSONObject put(String url, JSONObject data, Map<String, String> headers) throws IOException {
+        HttpURLConnection connection = getUrlConnection(url, "PUT", headers);
+        output(connection, data);
+        connection.connect();
+        int code = connection.getResponseCode();
+        if(code >= 200 && code < 300) {
+            return getJSONResult(url, connection);
+        } else {
+            throw new IOException("Url(put) " + url + " occur error, code " + code + " message " + connection.getResponseMessage());
+        }
+    }
+
+    private static JSONObject getJSONResult(String url, HttpURLConnection connection) throws IOException {
+        InputStream inputStream = connection.getInputStream();
+        String json = IOUtils.toString(inputStream, StandardCharsets.UTF_8);
+        if(StringUtils.isNotBlank(json)) {
+            JSONObject result = JSON.parseObject(json);
+            if(result != null) {
+                JSONObject data = result.getJSONObject("data");
+                if(data != null) {
+                    return data;
+                }
+            }
+        }
+        throw new IOException("Url " + url + " content illegal, " + json);
+    }
+
+    private static HttpURLConnection getUrlConnection(String url, String method, Map<String, String> headers) throws IOException {
+        URL theUrl = new URL(url);
+        HttpURLConnection connection = (HttpURLConnection) theUrl.openConnection();
+        connection.setRequestMethod(method);
+        if(headers != null) {
+            for(Map.Entry<String, String> entry : headers.entrySet()) {
+                connection.setRequestProperty(entry.getKey(), entry.getValue());
+            }
+        }
+        return connection;
+    }
+}
