@@ -29,13 +29,13 @@ public class IMClientImpl implements IMClient {
     ConcurrentHashMap<String, ResultListenerWrapper> resultMap;
     ConcurrentHashMap<String, Class<? extends IMData>> contentTypeClassMap;
 
-    private MonitorThread monitorThread;
+    private MonitorThread<?> monitorThread;
     static {
         System.setProperty
                 ("java.util.concurrent.ForkJoinPool.common.parallelism", "4");
         System.setProperty
                 ("java.util.concurrent.ForkJoinPool.common.threadFactory", "com.dobybros.tccore.modules.imclient.impls.IMClientThreadFactory");
-        String hp = System.getProperty
+        System.setProperty
                 ("java.util.concurrent.ForkJoinPool.common.exceptionHandler", "com.dobybros.tccore.modules.imclient.impls.IMClientUncaughtExceptionHandler");
     }
 
