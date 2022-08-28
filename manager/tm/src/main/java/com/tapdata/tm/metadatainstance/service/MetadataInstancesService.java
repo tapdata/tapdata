@@ -144,10 +144,6 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
             classficitionIn.put("$in", objectIdList);
         }
 
-        if (Objects.isNull(filter.getWhere().getOrDefault("taskId", null))) {
-            filter.getWhere().put("taskId", ImmutableMap.of("$exists", false));
-        }
-
         Page<MetadataInstancesDto> page = find(filter, user);
         if (page.getTotal() == 0 && filter.getWhere().containsKey("taskId")) {
             // maybe model deduction slow then task model not save, could query physics table meta
