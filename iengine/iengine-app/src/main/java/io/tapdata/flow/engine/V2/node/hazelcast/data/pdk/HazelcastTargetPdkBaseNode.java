@@ -6,7 +6,12 @@ import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.constant.JSONUtil;
 import com.tapdata.constant.Log4jUtil;
 import com.tapdata.constant.MilestoneUtil;
-import com.tapdata.entity.*;
+import com.tapdata.entity.SyncStage;
+import com.tapdata.entity.TapdataCompleteSnapshotEvent;
+import com.tapdata.entity.TapdataEvent;
+import com.tapdata.entity.TapdataHeartbeatEvent;
+import com.tapdata.entity.TapdataShareLogEvent;
+import com.tapdata.entity.TapdataStartCdcEvent;
 import com.tapdata.entity.dataflow.SyncProgress;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.tm.commons.dag.Node;
@@ -167,7 +172,6 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 					this.initialPartitionConcurrentProcessor = initConcurrentProcessor(initialConcurrentWriteNum);
 					this.initialPartitionConcurrentProcessor.start();
 				}
-
 			}
 			final Boolean cdcConcurrent = dataParentNode.getCdcConcurrent();
 			if (cdcConcurrent != null) {
