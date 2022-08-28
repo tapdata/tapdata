@@ -1,19 +1,16 @@
 package io.tapdata.pdk.core.api.impl;
 
+import io.tapdata.entity.annotations.Bean;
 import io.tapdata.entity.annotations.Implementation;
 import io.tapdata.entity.schema.TapTable;
-import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.entity.utils.JsonParser;
 import io.tapdata.entity.utils.ObjectSerializable;
 
 import java.io.*;
 import java.lang.reflect.Method;
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.zip.GZIPInputStream;
-import java.util.zip.GZIPOutputStream;
 
 @Implementation(value = ObjectSerializable.class, buildNumber = 0)
 public class ObjectSerializableImpl implements ObjectSerializable {
@@ -27,7 +24,9 @@ public class ObjectSerializableImpl implements ObjectSerializable {
 	private Class<?> documentClass;
 	private Method documentParseMethod;
 	private Method documentToJsonMethod;
-	public byte[] fromObjectContainer(Object obj) {
+	@Bean
+	private JsonParser jsonParser;
+	public byte[] fromObjectContainer(Object obj, FromObjectOptions fromObjectOptions) {
 		byte[] data = null;
 		if(obj.getClass().getName().equals("org.bson.Document")) {
 			return null;
@@ -43,8 +42,8 @@ public class ObjectSerializableImpl implements ObjectSerializable {
 				for(Map.Entry<?, ?> entry : map.entrySet()) {
 					Object key = entry.getKey();
 					Object value = entry.getValue();
-					writeObjectAllCases(key, oos);
-					writeObjectAllCases(value, oos);
+					writeObjectAllCases(key, oos, fromObjectOptions);
+					writeObjectAllCases(value, oos, fromObjectOptions);
 				}
 				oos.close();
 				data = bos.toByteArray();
@@ -59,7 +58,7 @@ public class ObjectSerializableImpl implements ObjectSerializable {
 				oos.writeUTF(obj.getClass().getName());
 				oos.writeInt(list.size());
 				for(Object objValue : list) {
-					writeObjectAllCases(objValue, oos);
+					writeObjectAllCases(objValue, oos, fromObjectOptions);
 				}
 				oos.close();
 				data = bos.toByteArray();
@@ -68,8 +67,8 @@ public class ObjectSerializableImpl implements ObjectSerializable {
 		return data;
 	}
 
-	private void writeObjectAllCases(Object obj, ObjectOutputStream oos) throws IOException {
-		byte[] containerBytes = fromObjectContainer(obj);
+	private void writeObjectAllCases(Object obj, ObjectOutputStream oos, FromObjectOptions fromObjectOptions) throws IOException {
+		byte[] containerBytes = fromObjectContainer(obj, fromObjectOptions);
 		if(containerBytes == null) {
 			writeObject(obj, oos);
 		} else {
@@ -80,7 +79,7 @@ public class ObjectSerializableImpl implements ObjectSerializable {
 
 	private void writeObject(Object obj, ObjectOutputStream oos) throws IOException {
 		if(obj != null) {
-			byte[] objBytes = fromObjectPrivate(obj);
+			byte[] objBytes = fromObjectPrivate(obj, defaultFromObjectOptions);
 			if(objBytes != null) {
 				oos.writeInt(objBytes.length);
 				oos.write(objBytes);
@@ -101,16 +100,24 @@ public class ObjectSerializableImpl implements ObjectSerializable {
 		}
 		return null;
 	}
-
+	private static  final FromObjectOptions defaultFromObjectOptions = new FromObjectOptions();
 	@Override
 	public byte[] fromObject(Object obj) {
-		byte[] data = fromObjectContainer(obj);
+		return fromObject(obj, defaultFromObjectOptions);
+	}
+
+	@Override
+	public byte[] fromObject(Object obj, FromObjectOptions options) {
+		if(options == null)
+			options = defaultFromObjectOptions;
+		byte[] data = fromObjectContainer(obj, options);
 		if(data == null) {
-			data = fromObjectPrivate(obj);
+			data = fromObjectPrivate(obj, options);
 		}
 		return data;
 	}
-	public byte[] fromObjectPrivate(Object obj) {
+
+	public byte[] fromObjectPrivate(Object obj, FromObjectOptions fromObjectOptions) {
 		if (obj == null)
 			return null;
 		byte[] data = null;
@@ -142,7 +149,7 @@ public class ObjectSerializableImpl implements ObjectSerializable {
 				}
 			}
 		}
-		if (data == null && obj instanceof Serializable) {
+		if (data == null && obj instanceof Serializable && fromObjectOptions.isToJavaPlatform()) {
 			try (ByteArrayOutputStream bos = new ByteArrayOutputStream();
 //				 GZIPOutputStream gos = new GZIPOutputStream(bos);
 				 ObjectOutputStream oos = new ObjectOutputStream(bos)) {
@@ -156,7 +163,7 @@ public class ObjectSerializableImpl implements ObjectSerializable {
 			}
 		}
 		if (data == null) {
-			String str = InstanceFactory.instance(JsonParser.class).toJson(obj);
+			String str = jsonParser.toJson(obj);
 			try (ByteArrayOutputStream bos = new ByteArrayOutputStream();
 //				 GZIPOutputStream gos = new GZIPOutputStream(bos);
 				 ObjectOutputStream oos = new ObjectOutputStream(bos);
@@ -252,7 +259,7 @@ public class ObjectSerializableImpl implements ObjectSerializable {
 					String className = ois.readUTF();
 					String content = ois.readUTF();
 					Class<?> clazz = findClass(options, className);
-					return InstanceFactory.instance(JsonParser.class).fromJson(content, clazz);
+					return jsonParser.fromJson(content, clazz);
 				case TYPE_SERIALIZABLE:
 					try {
 						return ois.readObject();

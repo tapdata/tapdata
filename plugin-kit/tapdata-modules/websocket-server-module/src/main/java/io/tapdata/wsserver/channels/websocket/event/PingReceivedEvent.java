@@ -1,7 +1,7 @@
 package io.tapdata.wsserver.channels.websocket.event;
 
 
-import io.tapdata.wsserver.channels.data.Ping;
+import io.tapdata.modules.api.net.data.Ping;
 
 public class PingReceivedEvent extends NettyEvent<PingReceivedEvent> {
     private Ping ping;

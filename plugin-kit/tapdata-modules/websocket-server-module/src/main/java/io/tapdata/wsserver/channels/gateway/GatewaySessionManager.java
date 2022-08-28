@@ -5,7 +5,7 @@ import io.tapdata.entity.annotations.Bean;
 import io.tapdata.entity.annotations.MainMethod;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.logger.TapLogger;
-import io.tapdata.wsserver.channels.data.*;
+import io.tapdata.modules.api.net.data.*;
 import io.tapdata.wsserver.channels.error.WSErrors;
 import io.tapdata.wsserver.channels.gateway.data.UserChannel;
 import io.tapdata.wsserver.channels.gateway.modules.GatewayChannelModule;

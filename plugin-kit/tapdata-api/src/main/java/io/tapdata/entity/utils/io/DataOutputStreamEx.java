@@ -12,7 +12,7 @@ import java.util.Collection;
 import java.util.Date;
 import java.util.Map;
 
-public class DataOutputStreamEx {
+public class DataOutputStreamEx extends OutputStream {
 	private static final byte HASVALUE = 1;
 	private static final byte NOVALUE = 0;
 	private DataOutputStream dos;
@@ -136,7 +136,21 @@ public class DataOutputStreamEx {
 		  dos.writeBytes(paramString);
   }
 
-  public void write(byte[] paramString)
+  public void writeBytes(byte[] data) throws IOException {
+		if(data == null) {
+			dos.writeInt(0);
+			return;
+		}
+		dos.writeInt(data.length);
+		dos.write(data);
+  }
+
+	@Override
+	public void write(int b) throws IOException {
+		dos.write(b);
+	}
+
+	public void write(byte[] paramString)
 		  throws IOException {
 	  if(writeValueStatus(paramString))
 		  dos.write(paramString);

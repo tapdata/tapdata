@@ -10,10 +10,10 @@ import io.tapdata.entity.annotations.Bean;
 import io.tapdata.entity.annotations.MainMethod;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.utils.JsonParser;
-import io.tapdata.wsserver.channels.data.Data;
-import io.tapdata.wsserver.channels.data.Identity;
-import io.tapdata.wsserver.channels.data.Result;
-import io.tapdata.wsserver.channels.data.ResultData;
+import io.tapdata.modules.api.net.data.Data;
+import io.tapdata.modules.api.net.data.Identity;
+import io.tapdata.modules.api.net.data.Result;
+import io.tapdata.modules.api.net.data.ResultData;
 import io.tapdata.wsserver.channels.error.WSErrors;
 import io.tapdata.wsserver.channels.gateway.GatewaySessionHandler;
 import io.tapdata.wsserver.channels.gateway.GatewaySessionManager;
@@ -43,7 +43,7 @@ public class GatewayChannelModule {
     @Bean
     private JsonParser jsonParser;
 
-    private ConcurrentHashMap<String, ChannelHandlerContext> userIdChannelMap = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, ChannelHandlerContext> userIdChannelMap = new ConcurrentHashMap<>();
     
     public boolean close(String userId, Integer code) {
         ChannelHandlerContext context = userIdChannelMap.remove(userId);

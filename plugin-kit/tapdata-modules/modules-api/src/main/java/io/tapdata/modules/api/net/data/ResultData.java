@@ -1,8 +1,8 @@
-package io.tapdata.wsserver.channels.data;
+package io.tapdata.modules.api.net.data;
 
 public class ResultData {
-    public static final int CONTENT_ENCODE_JSON = 1;
-    static final int CONTENT_ENCODE_JSON_GZIP = 2;
+    public static final byte CONTENT_ENCODE_JSON = 1;
+    static final byte CONTENT_ENCODE_JSON_GZIP = 2;
 
     public static final int CODE_SUCCESS = 1;
     private String forId;
@@ -26,8 +26,8 @@ public class ResultData {
         return this;
     }
 
-    private Integer dataEncode = ResultData.CONTENT_ENCODE_JSON;
-    public ResultData dataEncode(Integer dataEncode) {
+    private Byte dataEncode = ResultData.CONTENT_ENCODE_JSON;
+    public ResultData dataEncode(Byte dataEncode) {
         this.dataEncode = dataEncode;
         return this;
     }
@@ -60,11 +60,11 @@ public class ResultData {
         this.data = data;
     }
 
-    public Integer getDataEncode() {
+    public Byte getDataEncode() {
         return dataEncode;
     }
 
-    public void setDataEncode(Integer dataEncode) {
+    public void setDataEncode(Byte dataEncode) {
         this.dataEncode = dataEncode;
     }
 

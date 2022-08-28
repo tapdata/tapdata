@@ -5,7 +5,7 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.Channel;
 import io.netty.handler.codec.http.websocketx.BinaryWebSocketFrame;
-import io.tapdata.wsserver.channels.data.Data;
+import io.tapdata.modules.api.net.data.Data;
 
 
 public class NetUtils {

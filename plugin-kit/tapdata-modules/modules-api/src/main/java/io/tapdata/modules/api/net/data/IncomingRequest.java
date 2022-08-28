@@ -1,7 +1,13 @@
-package io.tapdata.wsserver.channels.data;
+package io.tapdata.modules.api.net.data;
 
 import io.tapdata.entity.error.CoreException;
-import io.tapdata.wsserver.channels.error.WSErrors;
+import io.tapdata.entity.utils.io.DataInputStreamEx;
+import io.tapdata.entity.utils.io.DataOutputStreamEx;
+import io.tapdata.modules.api.net.error.NetErrors;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 
 public class IncomingRequest extends Data {
     public final static byte TYPE = 60;
@@ -10,7 +16,7 @@ public class IncomingRequest extends Data {
     private String uri; // rest/message/{messageId}?playerId={playerId}
     private String method;
     private String bodyStr;
-    private Integer bodyEncode;
+    private Byte bodyEncode;
 
     public IncomingRequest() {
         super(TYPE);
@@ -23,37 +29,29 @@ public class IncomingRequest extends Data {
         setEncode(encode);
         resurrect();
     }
-    
     @Override
-    public void resurrect() throws CoreException {
-        byte[] bytes = getData();
-        Byte encode = getEncode();
-        if (bytes != null) {
-            if (encode != null) {
-                switch (encode) {
-                    case BinaryCodec.ENCODE_PB:
+    public void from(InputStream inputStream) throws IOException {
+        DataInputStreamEx dis = dataInputStream(inputStream);
+        super.from(dis);
 
-                        break;
-                    default:
-                        throw new CoreException(WSErrors.ERROR_ENCODER_NOT_FOUND, "Encoder type doesn't be found for resurrect");
-                }
-            }
-        }
+        id = dis.readUTF();
+        service = dis.readUTF();
+        uri = dis.readUTF();
+        method = dis.readUTF();
+        bodyEncode = dis.readByte();
+        bodyStr = dis.readUTF();
     }
-    
-    @Override
-    public void persistent() throws CoreException {
-        Byte encode = getEncode();
-        if (encode == null)
-            encode = BinaryCodec.ENCODE_PB;
-//throw new CoreException(CoreErrorCodes.ERROR_RPC_ENCODER_NULL, "Encoder is null for persistent")
-        switch (encode) {
-            case BinaryCodec.ENCODE_PB:
 
-                break;
-            default:
-                throw new CoreException(WSErrors.ERROR_ENCODER_NOT_FOUND, "Encoder type doesn't be found for persistent");
-        }
+    @Override
+    public void to(OutputStream outputStream) throws IOException {
+        DataOutputStreamEx dos = dataOutputStream(outputStream);
+        super.to(outputStream);
+        dos.writeUTF(id);
+        dos.writeUTF(service);
+        dos.writeUTF(uri);
+        dos.writeUTF(method);
+        dos.writeByte(bodyEncode);
+        dos.writeUTF(bodyStr);
     }
     
     @Override
@@ -97,11 +95,11 @@ public class IncomingRequest extends Data {
         this.bodyStr = bodyStr;
     }
 
-    public Integer getBodyEncode() {
+    public Byte getBodyEncode() {
         return bodyEncode;
     }
 
-    public void setBodyEncode(Integer bodyEncode) {
+    public void setBodyEncode(Byte bodyEncode) {
         this.bodyEncode = bodyEncode;
     }
 }

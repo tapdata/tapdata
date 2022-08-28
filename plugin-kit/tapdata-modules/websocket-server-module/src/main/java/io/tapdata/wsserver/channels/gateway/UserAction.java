@@ -1,6 +1,6 @@
 package io.tapdata.wsserver.channels.gateway;
 
-import io.tapdata.wsserver.channels.data.*;
+import io.tapdata.modules.api.net.data.*;
 import io.tapdata.wsserver.channels.gateway.data.UserChannel;
 
 public class UserAction {

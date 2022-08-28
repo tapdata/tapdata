@@ -1,7 +1,18 @@
-package io.tapdata.wsserver.channels.data;
+package io.tapdata.modules.api.net.data;
 
 
-public abstract class Data extends BinaryCodec {
+import io.tapdata.entity.error.CoreException;
+import io.tapdata.entity.utils.io.DataInputStreamEx;
+import io.tapdata.entity.utils.io.DataOutputStreamEx;
+import io.tapdata.modules.api.net.JavaCustomSerializer;
+import io.tapdata.modules.api.net.error.NetErrors;
+
+import java.io.*;
+
+public abstract class Data extends BinaryCodec implements JavaCustomSerializer {
+    public static final int CONTENT_ENCODE_OBJECT_SERIALIZABLE = 1;
+    public static final int CONTENT_ENCODE_JSON = 2;
+
     public static final int CODE_SUCCESS = 1;
     public static final int CODE_FAILED = 0;
 
@@ -9,6 +20,57 @@ public abstract class Data extends BinaryCodec {
 
     public Data(byte type) {
         this.type = type;
+    }
+    public void from(InputStream inputStream) throws IOException {
+        DataInputStreamEx dis = dataInputStream(inputStream);
+        type = dis.readByte();
+    }
+
+    public void to(OutputStream outputStream) throws IOException {
+        DataOutputStreamEx dos = dataOutputStream(outputStream);
+        dos.writeByte(type);
+    }
+
+    @Override
+    public void resurrect() throws CoreException {
+        if(encode == null)
+            encode = ENCODE_JAVA_CUSTOM_SERIALIZER;
+        if(data == null)
+            throw new CoreException(NetErrors.RESURRECT_DATA_NULL, "data is null while resurrect for {}", this.getClass().getSimpleName());
+
+        switch (encode) {
+            case ENCODE_JAVA_CUSTOM_SERIALIZER:
+                ByteArrayInputStream bais = new ByteArrayInputStream(data);
+                try {
+                    from(bais);
+                } catch (IOException e) {
+                    throw new CoreException(NetErrors.JAVA_CUSTOM_DESERIALIZE_FAILED, "Deserialize {} failed, {}", this.getClass().getSimpleName(), e.getMessage());
+                }
+                break;
+            default:
+                throw new CoreException(NetErrors.ENCODE_NOT_SUPPORTED, "Encode {} not supported for identity", encode);
+        }
+    }
+
+    @Override
+    public void persistent() throws CoreException {
+        if(encode == null)
+            encode = ENCODE_JAVA_CUSTOM_SERIALIZER;
+
+        switch (encode) {
+            case BinaryCodec.ENCODE_JAVA_CUSTOM_SERIALIZER:
+                ByteArrayOutputStream output = new ByteArrayOutputStream();
+                try {
+                    to(output);
+                    data = output.toByteArray();
+                } catch (IOException e) {
+                    throw new CoreException(NetErrors.JAVA_CUSTOM_DESERIALIZE_FAILED, "Serialize {} failed, {}", this.getClass().getSimpleName(), e.getMessage());
+                }
+
+                break;
+            default:
+                throw new CoreException(NetErrors.ERROR_ENCODER_NOT_FOUND, "Encode type {} doesn't be found to persistent for {}", encode, this.getClass().getSimpleName());
+        }
     }
 
     public String getId(){

@@ -1,11 +1,11 @@
-package io.tapdata.wsserver.channels.data;
+package io.tapdata.modules.api.net.data;
 
 import io.tapdata.entity.error.CoreException;
 
 public abstract class BinaryCodec {
     public static final byte ENCODE_PB = 1;
     public static final byte ENCODE_JSON = 10;
-    public static final byte ENCODE_JAVABINARY = 20;
+    public static final byte ENCODE_JAVA_CUSTOM_SERIALIZER = 20;
 
     protected Byte encode;
     protected byte[] data;

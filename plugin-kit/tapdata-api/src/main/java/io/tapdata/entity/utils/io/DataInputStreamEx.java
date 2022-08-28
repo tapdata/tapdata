@@ -17,7 +17,7 @@ import java.util.Collection;
 import java.util.Date;
 import java.util.Map;
 
-public class DataInputStreamEx {
+public class DataInputStreamEx extends InputStream {
 	private static final byte HASVALUE = 1;
 	private static final byte NOVALUE = 0;
 	private DataInputStream dis;
@@ -36,6 +36,11 @@ public class DataInputStreamEx {
 		byte hasValue = dis.readByte();
         return hasValue == HASVALUE;
     }
+
+	@Override
+	public int read() throws IOException {
+		return dis.read();
+	}
 
 	public void close() throws IOException {
 		dis.close();
@@ -107,6 +112,16 @@ public class DataInputStreamEx {
 		if(hasValue()) {
 			dis.readFully(buf);
 		}
+	}
+
+	public byte[] readBytes() throws IOException {
+		int length = dis.readInt();
+		if(length > 0) {
+			byte[] data = new byte[length];
+			dis.readFully(data);
+			return data;
+		}
+		return null;
 	}
 
 	public Date readDate(String format) throws IOException {

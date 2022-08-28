@@ -3,8 +3,8 @@ package io.tapdata.wsserver.channels.websocket.event;
 
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandlerContext;
-import io.tapdata.wsserver.channels.data.Ping;
-import io.tapdata.wsserver.channels.data.Result;
+import io.tapdata.modules.api.net.data.Ping;
+import io.tapdata.modules.api.net.data.Result;
 import io.tapdata.wsserver.channels.websocket.utils.NetUtils;
 
 public class NettyEvent<T extends NettyEvent<?>> {

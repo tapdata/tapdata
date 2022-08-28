@@ -1,7 +1,7 @@
 package io.tapdata.wsserver.channels.websocket.event;
 
 
-import io.tapdata.wsserver.channels.data.Identity;
+import io.tapdata.modules.api.net.data.Identity;
 
 public class IdentityReceivedEvent extends NettyEvent<IdentityReceivedEvent> {
     private Identity identity;

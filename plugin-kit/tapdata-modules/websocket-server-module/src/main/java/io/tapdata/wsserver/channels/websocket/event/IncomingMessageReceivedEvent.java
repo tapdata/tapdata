@@ -1,7 +1,7 @@
 package io.tapdata.wsserver.channels.websocket.event;
 
 
-import io.tapdata.wsserver.channels.data.IncomingMessage;
+import io.tapdata.modules.api.net.data.IncomingMessage;
 
 public class IncomingMessageReceivedEvent extends NettyEvent<IncomingMessageReceivedEvent> {
     private IncomingMessage incomingMessage;

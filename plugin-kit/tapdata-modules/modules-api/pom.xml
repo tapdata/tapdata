@@ -16,7 +16,10 @@
     </properties>
     <!--<dependencyManagement>-->
     <dependencies>
-
+        <dependency>
+            <groupId>io.tapdata</groupId>
+            <artifactId>tapdata-api</artifactId>
+        </dependency>
     </dependencies>
     <build>
         <plugins>

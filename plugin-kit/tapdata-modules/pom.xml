@@ -12,7 +12,8 @@
     <packaging>pom</packaging>
     <modules>
 		<module>modules-api</module>
-		<module>websocket-netty-module</module>
+		<module>websocket-server-module</module>
+		<module>websocket-client-module</module>
     </modules>
 
 	<properties>

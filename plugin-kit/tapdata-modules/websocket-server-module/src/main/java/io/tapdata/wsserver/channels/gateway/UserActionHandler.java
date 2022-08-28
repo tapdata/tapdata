@@ -6,7 +6,7 @@ import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.entity.utils.JsonParser;
-import io.tapdata.wsserver.channels.data.*;
+import io.tapdata.modules.api.net.data.*;
 import io.tapdata.wsserver.channels.error.WSErrors;
 import io.tapdata.wsserver.channels.gateway.modules.GatewayChannelModule;
 import io.tapdata.pdk.core.utils.queue.ListErrorHandler;

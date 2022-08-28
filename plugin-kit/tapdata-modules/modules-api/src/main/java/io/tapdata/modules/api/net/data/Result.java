@@ -1,7 +1,13 @@
-package io.tapdata.wsserver.channels.data;
+package io.tapdata.modules.api.net.data;
 
 import io.tapdata.entity.error.CoreException;
-import io.tapdata.wsserver.channels.error.WSErrors;
+import io.tapdata.entity.utils.io.DataInputStreamEx;
+import io.tapdata.entity.utils.io.DataOutputStreamEx;
+import io.tapdata.modules.api.net.error.NetErrors;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 
 public class Result extends Data {
     static final byte TYPE = 100;
@@ -35,8 +41,8 @@ public class Result extends Data {
         this.time = time;
         return this;
     }
-    private Integer contentEncode;
-    public Result contentEncode(Integer contentEncode) {
+    private Byte contentEncode;
+    public Result contentEncode(Byte contentEncode) {
         this.contentEncode = contentEncode;
         return this;
     }
@@ -54,6 +60,36 @@ public class Result extends Data {
     public Result(){
         super(TYPE);
         encode = BinaryCodec.ENCODE_PB;
+    }
+
+    @Override
+    public void from(InputStream inputStream) throws IOException {
+        DataInputStreamEx dis = dataInputStream(inputStream);
+        super.from(dis);
+
+        forId = dis.readUTF();
+        code = dis.readInt();
+        description = dis.readUTF();
+        serverId = dis.readUTF();
+        time = dis.readLong();
+        contentEncode = dis.readByte();
+        content = dis.readUTF();
+        binaryContent = dis.readBytes();
+
+    }
+
+    @Override
+    public void to(OutputStream outputStream) throws IOException {
+        DataOutputStreamEx dos = dataOutputStream(outputStream);
+        super.to(outputStream);
+        dos.writeUTF(forId);
+        dos.writeInt(code);
+        dos.writeUTF(description);
+        dos.writeUTF(serverId);
+        dos.writeLong(time);
+        dos.writeByte(contentEncode);
+        dos.writeUTF(content);
+        dos.writeBytes(binaryContent);
     }
 
     /**
@@ -89,37 +125,6 @@ public class Result extends Data {
         this.forId = forId;
     }
 
-    @Override
-    public void resurrect() throws CoreException {
-        byte[] bytes = getData();
-        Byte encode = getEncode();
-        if(bytes != null) {
-            if(encode != null) {
-                switch(encode) {
-                    case BinaryCodec.ENCODE_PB:
-
-                        break;
-                    default:
-                        throw new CoreException(WSErrors.ERROR_ENCODER_NOT_FOUND, "Encoder type doesn't be found for resurrect");
-                }
-            }
-        }
-    }
-
-    @Override
-    public void persistent() throws CoreException {
-        Byte encode = getEncode();
-        if(encode == null)
-            encode = BinaryCodec.ENCODE_PB;
-//			throw new CoreException(CoreErrorCodes.ERROR_RPC_ENCODER_NULL, "Encoder is null for persistent")
-        switch(encode) {
-            case BinaryCodec.ENCODE_PB:
-
-                break;
-            default:
-                throw new CoreException(WSErrors.ERROR_ENCODER_NOT_FOUND, "Encoder type doesn't be found for persistent");
-        }
-    }
 
     public String getServerId() {
         return serverId;
@@ -137,11 +142,11 @@ public class Result extends Data {
         this.time = time;
     }
 
-    public Integer getContentEncode() {
+    public Byte getContentEncode() {
         return contentEncode;
     }
 
-    public void setContentEncode(Integer contentEncode) {
+    public void setContentEncode(Byte contentEncode) {
         this.contentEncode = contentEncode;
     }
 

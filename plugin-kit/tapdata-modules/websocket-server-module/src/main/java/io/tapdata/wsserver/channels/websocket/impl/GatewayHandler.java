@@ -8,7 +8,7 @@ import io.netty.handler.codec.http.websocketx.BinaryWebSocketFrame;
 import io.netty.handler.timeout.IdleStateEvent;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.logger.TapLogger;
-import io.tapdata.wsserver.channels.data.*;
+import io.tapdata.modules.api.net.data.*;
 import io.tapdata.wsserver.channels.error.WSCoreException;
 import io.tapdata.wsserver.channels.error.WSErrors;
 import io.tapdata.wsserver.channels.websocket.event.*;
