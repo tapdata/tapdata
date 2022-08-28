@@ -78,6 +78,7 @@ public class MetadataInstancesDto extends BaseDto {
     //查询'collection', 'table', 'view', 'mongo_view' 等metatype的时候需要设置的属性
     private String database;
     private String username;
+    private String transformUuid;
 
 
     private List<MetadataInstancesDto> histories;

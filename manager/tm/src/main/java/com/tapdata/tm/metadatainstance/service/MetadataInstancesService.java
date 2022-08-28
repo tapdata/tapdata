@@ -828,7 +828,7 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
 
 
     public int bulkSave(List<MetadataInstancesDto> insertMetaDataDtos,
-                        Map<String, MetadataInstancesDto> updateMetaMap, UserDetail userDetail, boolean saveHistory, String taskId) {
+                        Map<String, MetadataInstancesDto> updateMetaMap, UserDetail userDetail, boolean saveHistory, String taskId, String uuid) {
 
         BulkOperations bulkOperations = repository.bulkOperations(BulkOperations.BulkMode.UNORDERED);
 
@@ -863,7 +863,21 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
             }
 
             insertMetaDataDtos.addAll(logicMetas);
+
+
+            //动态新增表做的兼容处理
+            String insertUuid = uuid;
+            if (saveHistory) {
+                Query query = new Query(Criteria.where("taskId").is(taskId)
+                        .and("is_deleted").ne(true)
+                        .and("transformUuid").exists(true));
+                query.fields().include("transformUuid");
+                MetadataInstancesDto one = findOne(query);
+                insertUuid = one.getTransformUuid();
+            }
+
             for (MetadataInstancesDto metadataInstancesDto : insertMetaDataDtos) {
+                metadataInstancesDto.setTransformUuid(insertUuid);
                 MetadataInstancesEntity metadataInstance = convertToEntity(MetadataInstancesEntity.class, metadataInstancesDto);
 
 
@@ -908,6 +922,9 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
                 value.setHistories(null);
                 value.setSource(null);
                 value.setId(null);
+                if (StringUtils.isNotBlank(uuid) && !saveHistory) {
+                    value.setTransformUuid(uuid);
+                }
                 MetadataInstancesEntity entity = convertToEntity(MetadataInstancesEntity.class, value);
                 Update update = repository.buildUpdateSet(entity, userDetail);
 
@@ -942,6 +959,12 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
 
             if (saveHistory) {
                 qualifiedNameLinkLogic(qualifiedNames, userDetail);
+            }
+
+            if (StringUtils.isNotBlank(uuid) && !saveHistory) {
+                Criteria deleteOldMetadata = Criteria.where("taskId").is(taskId)
+                        .and("transformUuid").ne(uuid);
+                deleteAll(new Query(deleteOldMetadata), userDetail);
             }
             return result.getModifiedCount();
         } else {

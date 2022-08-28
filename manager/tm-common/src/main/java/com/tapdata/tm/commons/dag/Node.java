@@ -249,16 +249,18 @@ public abstract class Node<S> extends Element{
                     saveSchema(predecessors, nodeId, changedSchema, options);
                 }
             } else if (schema instanceof List){
-                List<Schema> updateSchema = new ArrayList<>();
-                for (Schema o : ((List<Schema>) changedSchema)) {
-                    if ( o.getSourceType().equals(SourceTypeEnum.SOURCE.name())) {
-                        updateSchema.add(o);
-                    }
-                }
+//                List<Schema> updateSchema = new ArrayList<>();
+//                for (Schema o : ((List<Schema>) changedSchema)) {
+//                    if ( o.getSourceType().equals(SourceTypeEnum.SOURCE.name())) {
+//                        updateSchema.add(o);
+//                    }
+//                }
+//
+//                if (CollectionUtils.isNotEmpty(updateSchema)) {
+//                    saveSchema(predecessors, nodeId, (S) updateSchema, options);
+//                }
 
-                if (CollectionUtils.isNotEmpty(updateSchema)) {
-                    saveSchema(predecessors, nodeId, (S) updateSchema, options);
-                }
+                saveSchema(predecessors, nodeId, changedSchema, options);
             }
         }
 

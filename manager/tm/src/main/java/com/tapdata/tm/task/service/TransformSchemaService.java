@@ -226,7 +226,7 @@ public class TransformSchemaService {
                     false, true, DateUtil.now(), msgMap.get(taskIds.get(0)).get(0).getMsg());
         }
 
-        metadataInstancesService.bulkSave(result.getBatchInsertMetaDataList(), result.getBatchMetadataUpdateMap(), user, saveHistory, result.getTaskId());
+        metadataInstancesService.bulkSave(result.getBatchInsertMetaDataList(), result.getBatchMetadataUpdateMap(), user, saveHistory, result.getTaskId(), result.getTransformUuid());
 
         if (CollectionUtils.isNotEmpty(result.getBatchRemoveMetaDataList())) {
             Criteria criteria = Criteria.where("qualified_name").in(result.getBatchRemoveMetaDataList());
