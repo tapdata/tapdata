@@ -686,8 +686,6 @@ public class MeasurementServiceV2 {
                 .and("tags.type").is("table")
                 .and(MeasurementEntity.FIELD_GRANULARITY).is(Granularity.GRANULARITY_MINUTE);
 
-        SortOperation sort = Aggregation.sort(Sort.by(MeasurementEntity.FIELD_DATE).descending())
-                .and(Sort.by(String.format(TAG_FORMAT, "table")).ascending());
         MatchOperation match = Aggregation.match(criteria);
         GroupOperation group = Aggregation.group(MeasurementEntity.FIELD_TAGS)
                 .first(MeasurementEntity.FIELD_DATE).as(MeasurementEntity.FIELD_DATE)
@@ -699,7 +697,7 @@ public class MeasurementServiceV2 {
 
         // TODO(dexter): find out a more elegant way to get the aggregate size
         // match should be at the first param, sort should be the second while group be the last
-        Aggregation cntAggregation = Aggregation.newAggregation( match, sort, group);
+        Aggregation cntAggregation = Aggregation.newAggregation(match, group);
         CloseableIterator<MeasurementEntity> results = mongoOperations.aggregateStream(cntAggregation, TableNameEnum.AgentMeasurementV2.getValue(), MeasurementEntity.class);
         long total = results.stream().count();
         if (total == 0) {
@@ -721,8 +719,10 @@ public class MeasurementServiceV2 {
         }
 
         List<TableSyncStaticVo> result = new ArrayList<>();
+        SortOperation sort = Aggregation.sort(Sort.by(MeasurementEntity.FIELD_DATE).descending())
+                .and(Sort.by(String.format(TAG_FORMAT, "table")).ascending());
         // match should be at the first param, sort should be the second while group be the last
-        Aggregation aggregation = Aggregation.newAggregation( match, sort, group, sort, skip, limit);
+        Aggregation aggregation = Aggregation.newAggregation( match, group, sort, skip, limit);
         mongoOperations.aggregateStream(aggregation, TableNameEnum.AgentMeasurementV2.getValue(), MeasurementEntity.class).forEachRemaining(measurementEntity -> {
             String originTable = measurementEntity.getTags().get("table");
             AtomicReference<String> originTableName = new AtomicReference<>();
