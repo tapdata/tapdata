@@ -123,8 +123,8 @@ public class ImplementationClassFactory {
                 }
             }
         }
-
-        throw new CoreException(PDKRunnerErrorCodes.IMPL_CREATE_FAILED, "Create failed, no implementation for interfaceClass " + interfaceClass);
+        return null;
+//        throw new CoreException(PDKRunnerErrorCodes.IMPL_CREATE_FAILED, "Create failed, no implementation for interfaceClass " + interfaceClass);
     }
 
     public <T> T create(Class<T> interfaceClass, String type) {
@@ -139,7 +139,7 @@ public class ImplementationClassFactory {
                 }
             }
         }
-
-        throw new CoreException(PDKRunnerErrorCodes.IMPL_CREATE_TYPE_FAILED, "Create failed, no implementation for interfaceClass " + interfaceClass + " type " + type);
+        return null;
+//        throw new CoreException(PDKRunnerErrorCodes.IMPL_CREATE_TYPE_FAILED, "Create failed, no implementation for interfaceClass " + interfaceClass + " type " + type);
     }
 }

@@ -102,10 +102,10 @@ public class InstanceFactory {
         return bean(beanClass, false);
     }
 
-    public static <T> T bean(Class<T> beanClass, boolean needInjectWhenNew) {
+    public static <T> T bean(Class<T> beanClass, boolean needInject) {
         BeanWrapper beanWrapper = beanMap.get(beanClass);
         if(beanWrapper != null && beanWrapper.object != null) {
-            if(!beanWrapper.isInjected) {
+            if(!beanWrapper.isInjected && needInject) {
                 synchronized (beanWrapper.object) {
                     if(!beanWrapper.isInjected) {
                         injectBean(beanWrapper.object);
@@ -144,7 +144,7 @@ public class InstanceFactory {
                 throw new RuntimeException(e);
             }
         });
-        if(newCreated.get() && needInjectWhenNew && !beanWrapper.isInjected) {
+        if(newCreated.get() && needInject && !beanWrapper.isInjected) {
             synchronized (beanWrapper.object) {
                 if(!beanWrapper.isInjected) {
                     injectBean(beanWrapper.object);

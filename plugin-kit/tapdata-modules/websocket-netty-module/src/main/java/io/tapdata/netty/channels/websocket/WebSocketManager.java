@@ -11,6 +11,7 @@ import io.netty.handler.logging.LoggingHandler;
 import io.netty.util.ResourceLeakDetector;
 import io.tapdata.entity.annotations.Bean;
 import io.tapdata.entity.logger.TapLogger;
+import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.netty.channels.websocket.impl.GatewayHandlerInitializer;
 import io.tapdata.netty.channels.websocket.impl.WebSocketProperties;
 
@@ -32,6 +33,7 @@ public class WebSocketManager {
             started = true;
             try {
                 GatewayHandlerInitializer initializer = new GatewayHandlerInitializer(this.webSocketProperties);
+                InstanceFactory.injectBean(initializer);
                 ServerBootstrap bootstrap = new ServerBootstrap();
                 bootstrap.group(bossGroup, workerGroup).channel(NioServerSocketChannel.class)
                         .handler(new LoggingHandler(LogLevel.DEBUG))

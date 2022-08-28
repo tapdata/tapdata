@@ -7,6 +7,8 @@ import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.unix.Errors;
 import io.netty.util.Attribute;
 import io.netty.util.AttributeKey;
+import io.tapdata.entity.annotations.Bean;
+import io.tapdata.entity.annotations.MainMethod;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.entity.utils.JsonParser;
@@ -26,6 +28,8 @@ import io.tapdata.netty.eventbus.EventBusHolder;
 import java.net.InetSocketAddress;
 import java.util.concurrent.ConcurrentHashMap;
 
+@Bean()
+@MainMethod("main")
 public class GatewayChannelModule {
     public void main() {
         EventBusHolder.getEventBus().register(this);
@@ -34,10 +38,12 @@ public class GatewayChannelModule {
     public static final String KEY_GATEWAY_USER = "gwuser";
     public static final String TAG = GatewayChannelModule.class.getSimpleName();
 
+    @Bean
     private GatewaySessionManager gatewaySessionManager;
     
     private long userSessionCacheExpireSeconds = 1800;
-    private JsonParser jsonParser = InstanceFactory.instance(JsonParser.class);
+    @Bean
+    private JsonParser jsonParser;
 
     private ConcurrentHashMap<String, ChannelHandlerContext> userIdChannelMap = new ConcurrentHashMap<>();
     

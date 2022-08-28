@@ -3,6 +3,7 @@ package io.tapdata.netty.channels.gateway;
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONArray;
 import com.google.common.collect.Maps;
+import io.tapdata.entity.annotations.Bean;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.netty.channels.data.*;
@@ -33,6 +34,7 @@ public abstract class GatewaySessionHandler {
      * 玩家登录后通知该缓存
      */
     private final Map<String, Long> cacheKeyToTimeMap = Maps.newConcurrentMap();
+    @Bean
     private GatewayChannelModule gatewayChannelModule;
 
     public GatewaySessionHandler() {

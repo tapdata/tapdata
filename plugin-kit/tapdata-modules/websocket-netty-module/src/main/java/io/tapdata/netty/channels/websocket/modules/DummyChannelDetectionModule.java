@@ -5,6 +5,8 @@ import com.google.common.eventbus.Subscribe;
 import io.netty.channel.Channel;
 import io.netty.util.Attribute;
 import io.netty.util.AttributeKey;
+import io.tapdata.entity.annotations.Bean;
+import io.tapdata.entity.annotations.MainMethod;
 import io.tapdata.netty.channels.websocket.event.ChannelActiveEvent;
 import io.tapdata.netty.channels.websocket.event.IdentityReceivedEvent;
 import io.tapdata.netty.eventbus.EventBusHolder;
@@ -13,6 +15,8 @@ import io.tapdata.pdk.core.executor.ExecutorsManager;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
+@MainMethod("main")
+@Bean
 public class DummyChannelDetectionModule {
     public void main() {
         EventBusHolder.getEventBus().register(this);

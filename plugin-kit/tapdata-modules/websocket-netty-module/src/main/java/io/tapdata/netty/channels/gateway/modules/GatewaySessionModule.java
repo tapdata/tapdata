@@ -5,6 +5,8 @@ import com.google.common.eventbus.Subscribe;
 import io.netty.channel.Channel;
 import io.netty.util.Attribute;
 import io.netty.util.AttributeKey;
+import io.tapdata.entity.annotations.Bean;
+import io.tapdata.entity.annotations.MainMethod;
 import io.tapdata.netty.channels.data.IncomingData;
 import io.tapdata.netty.channels.data.IncomingInvocation;
 import io.tapdata.netty.channels.data.IncomingMessage;
@@ -18,6 +20,8 @@ import io.tapdata.netty.channels.websocket.event.IncomingMessageReceivedEvent;
 import io.tapdata.netty.channels.websocket.event.PingReceivedEvent;
 import io.tapdata.netty.eventbus.EventBusHolder;
 
+@MainMethod("main")
+@Bean
 public class GatewaySessionModule {
     void main() {
         EventBusHolder.getEventBus().register(this);
@@ -25,6 +29,7 @@ public class GatewaySessionModule {
 
     public static final String TAG = GatewaySessionModule.class.getSimpleName();
 
+    @Bean
     public GatewaySessionManager gatewaySessionManager;
 
     @Subscribe

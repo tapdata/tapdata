@@ -13,6 +13,7 @@ import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.aspect.task.AspectTaskManager;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.utils.InstanceFactory;
+import io.tapdata.pdk.core.runtime.TapRuntime;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
@@ -135,6 +136,7 @@ public class Application {
 				}
 			});
 
+			TapRuntime.getInstance();
 			configurationCenter = run.getBean(ConfigurationCenter.class);
 			configurationCenter.putConfig("version", "@env.VERSION@".equals(buildInfo.get("version")) ? "-" : buildInfo.get("version"));
 			configurationCenter.putConfig("gitCommitId", "@env.DAAS_GIT_VERSION@".equals(buildInfo.get("gitCommitId")) ? "-" : buildInfo.get("gitCommitId"));

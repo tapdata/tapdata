@@ -1,9 +1,12 @@
 package io.tapdata.netty.channels.websocket.impl;
 
 import io.tapdata.entity.annotations.Bean;
+import io.tapdata.netty.channels.websocket.WebSocketManager;
 
 @Bean
 public class WebSocketProperties {
+    @Bean
+    WebSocketManager webSocketManager;
     /**
      * 对外端口
      */

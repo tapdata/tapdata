@@ -10,6 +10,7 @@ import io.netty.handler.ssl.ClientAuth;
 import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslContextBuilder;
 import io.netty.handler.timeout.IdleStateHandler;
+import io.tapdata.entity.annotations.Bean;
 
 import javax.net.ssl.KeyManagerFactory;
 import java.io.FileInputStream;
@@ -17,8 +18,10 @@ import java.io.InputStream;
 import java.security.KeyStore;
 import java.util.concurrent.TimeUnit;
 
+
 public class GatewayHandlerInitializer extends ChannelInitializer<SocketChannel> {
 
+    @Bean
     private WebSocketProperties nettyProperties;
 
     private SslContext sslContext;

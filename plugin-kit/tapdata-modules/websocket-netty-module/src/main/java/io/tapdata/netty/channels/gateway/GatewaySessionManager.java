@@ -3,6 +3,8 @@ package io.tapdata.netty.channels.gateway;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import com.sun.corba.se.spi.ior.ObjectId;
 import io.netty.channel.unix.Errors;
+import io.tapdata.entity.annotations.Bean;
+import io.tapdata.entity.annotations.MainMethod;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.netty.channels.data.*;
@@ -26,6 +28,8 @@ import java.util.concurrent.TimeUnit;
 import static io.tapdata.entity.simplify.TapSimplify.entry;
 import static io.tapdata.entity.simplify.TapSimplify.map;
 
+@MainMethod("start")
+@Bean
 public class GatewaySessionManager {
     public final String TAG = GatewaySessionManager.class.getSimpleName();
 
@@ -43,6 +47,7 @@ public class GatewaySessionManager {
     public static final String JWT_FIELD_TERMINAL = "t";
     public static final String JWT_FIELD_ACTIVE_LOGIN = "a";
 
+    @Bean
     private WebSocketManager webSocketManager;
     private final Object userLock = new Object();
 
@@ -75,6 +80,7 @@ public class GatewaySessionManager {
 
     private ConcurrentHashMap<String, SingleThreadBlockingQueue<UserAction>> userIdSingleThreadMap = new ConcurrentHashMap<>();
 
+    @Bean
     private GatewayChannelModule gatewayChannelModule;
 
     public void start() {
