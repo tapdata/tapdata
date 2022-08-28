@@ -18,6 +18,7 @@ import com.tapdata.tm.monitor.param.AggregateMeasurementParam;
 import com.tapdata.tm.monitor.param.MeasurementQueryParam;
 import com.tapdata.tm.monitor.vo.TableSyncStaticVo;
 import com.tapdata.tm.task.service.TaskRecordService;
+import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.utils.FunctionUtils;
 import com.tapdata.tm.utils.TimeUtil;
 import io.tapdata.common.sample.request.Sample;
@@ -25,7 +26,6 @@ import io.tapdata.common.sample.request.SampleRequest;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections.CollectionUtils;
-import org.apache.commons.collections4.ListUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.bson.Document;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -39,7 +39,6 @@ import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.data.util.CloseableIterator;
 import org.springframework.stereotype.Service;
 
-import java.io.Closeable;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.*;
@@ -53,6 +52,7 @@ public class MeasurementServiceV2 {
     private MongoTemplate mongoOperations;
     private TaskRecordService taskRecordService;
     private MetadataInstancesService metadataInstancesService;
+    private TaskService taskService;
 
     public void addAgentMeasurement(List<SampleRequest> samples) {
         addBulkAgentMeasurement(samples, Granularity.GRANULARITY_MINUTE);
@@ -677,7 +677,8 @@ public class MeasurementServiceV2 {
     public Page<TableSyncStaticVo> querySyncStatic(TableSyncStaticDto dto, UserDetail userDetail) {
         String taskRecordId = dto.getTaskRecordId();
 
-        TaskDto taskDto = taskRecordService.queryTask(taskRecordId, userDetail.getUserId());
+        Query taskQuery = new Query(Criteria.where("taskRecordId").is(taskRecordId));
+        TaskDto taskDto = taskService.findOne(taskQuery, userDetail);
         boolean hasTableRenameNode = taskDto.getDag().getNodes().stream().anyMatch(n -> n instanceof TableRenameProcessNode);
 
         Criteria criteria = Criteria.where("tags.taskId").is(taskDto.getId().toHexString())
