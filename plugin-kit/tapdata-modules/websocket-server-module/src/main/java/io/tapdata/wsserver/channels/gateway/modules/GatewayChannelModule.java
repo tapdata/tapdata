@@ -27,7 +27,7 @@ import java.net.InetSocketAddress;
 import java.util.concurrent.ConcurrentHashMap;
 
 @Bean()
-@MainMethod("main")
+@MainMethod(value = "main", order = 10000)
 public class GatewayChannelModule {
     public void main() {
         EventBusHolder.getEventBus().register(this);

@@ -11,6 +11,8 @@ import java.io.*;
 public class Identity extends Data {
     public static final byte TYPE = 1;
     private String id;
+    //Engine, User
+    private String idType;
     private String token;
     private String reserved;
     private String sign;
@@ -35,7 +37,7 @@ public class Identity extends Data {
         token = dis.readUTF();
         reserved = dis.readUTF();
         sign = dis.readUTF();
-
+        idType = dis.readUTF();
     }
 
     @Override
@@ -46,6 +48,7 @@ public class Identity extends Data {
         dos.writeUTF(token);
         dos.writeUTF(reserved);
         dos.writeUTF(sign);
+        dos.writeUTF(idType);
     }
     public String getId() {
         return id;
@@ -77,5 +80,13 @@ public class Identity extends Data {
 
     public void setSign(String sign) {
         this.sign = sign;
+    }
+
+    public String getIdType() {
+        return idType;
+    }
+
+    public void setIdType(String idType) {
+        this.idType = idType;
     }
 }

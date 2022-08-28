@@ -20,10 +20,10 @@ import io.tapdata.wsserver.channels.websocket.event.IncomingMessageReceivedEvent
 import io.tapdata.wsserver.channels.websocket.event.PingReceivedEvent;
 import io.tapdata.wsserver.eventbus.EventBusHolder;
 
-@MainMethod("main")
+@MainMethod(value = "main", order = 10000)
 @Bean
 public class GatewaySessionModule {
-    void main() {
+    public void main() {
         EventBusHolder.getEventBus().register(this);
     }
 

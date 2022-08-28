@@ -5,7 +5,11 @@ import io.tapdata.entity.annotations.Bean;
 import io.tapdata.entity.annotations.MainMethod;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.logger.TapLogger;
+import io.tapdata.entity.reflection.ClassAnnotationHandler;
 import io.tapdata.modules.api.net.data.*;
+import io.tapdata.modules.api.net.error.NetErrors;
+import io.tapdata.pdk.core.utils.AnnotationUtils;
+import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.wsserver.channels.error.WSErrors;
 import io.tapdata.wsserver.channels.gateway.data.UserChannel;
 import io.tapdata.wsserver.channels.gateway.modules.GatewayChannelModule;
@@ -15,6 +19,9 @@ import io.tapdata.pdk.core.executor.ExecutorsManager;
 import io.tapdata.pdk.core.utils.queue.SingleThreadBlockingQueue;
 import io.tapdata.pdk.core.utils.state.StateMachine;
 import org.apache.commons.lang3.StringUtils;
+import org.reflections.Reflections;
+import org.reflections.scanners.TypeAnnotationsScanner;
+import org.reflections.util.ConfigurationBuilder;
 
 import java.lang.reflect.InvocationTargetException;
 import java.util.*;
@@ -26,7 +33,7 @@ import java.util.concurrent.TimeUnit;
 import static io.tapdata.entity.simplify.TapSimplify.entry;
 import static io.tapdata.entity.simplify.TapSimplify.map;
 
-@MainMethod("start")
+@MainMethod(value = "start", order = 100000)
 @Bean
 public class GatewaySessionManager {
     public final String TAG = GatewaySessionManager.class.getSimpleName();
@@ -46,6 +53,8 @@ public class GatewaySessionManager {
     public static final String JWT_FIELD_ACTIVE_LOGIN = "a";
 
     @Bean
+    private GatewaySessionAnnotationHandler gatewaySessionAnnotationHandler;
+    @Bean
     private WebSocketManager webSocketManager;
     private final Object userLock = new Object();
 
@@ -60,7 +69,6 @@ public class GatewaySessionManager {
     public static final int STATE_STARTED = 20;
     public static final int STATE_PAUSED = 30;
     public static final int STATE_TERMINATED = 120;
-    private Class<? extends GatewaySessionHandler> gatewaySessionHandlerClass;
     private StateMachine<Integer, GatewaySessionManager> stateMachine;
 //    StateOperateRetryHandler reportRetryHandler
 //    ScheduledExecutorService scheduledExecutorService = Executors.newScheduledThreadPool(1, new ThreadFactoryBuilder().setNameFormat("RoomSessionManager-%d").build())
@@ -122,29 +130,24 @@ public class GatewaySessionManager {
 
     private void handleScanRoomSessionState(GatewaySessionManager gatewaySessionManager, StateMachine<Integer, GatewaySessionManager> integerGatewaySessionManagerStateMachine) {
         //TODO use Reflections
-//        Collection<Class<?>> classes = context.getClasses();
-//        if (classes != null) {
-//            for (Class clazz : classes) {
-//                GatewaySession annotation = (GatewaySession) clazz.getAnnotation(GatewaySession)
-//                if (annotation != null) {
-//                    if (!GatewaySessionHandler.class.isAssignableFrom(clazz)) {
-//                        TapLogger.error(TAG, "GatewaySession annotation is found on class $clazz, but not implemented GatewaySessionHandler which is a must. Ignore this class...")
-//                        continue
-//                    }
-//                    if (!ReflectionUtil.canBeInitiated(clazz)) {
-//                        TapLogger.error(TAG, "GatewaySession annotation is found on class $clazz, but not be initialized with empty parameter which is a must. Ignore this class...")
-//                        continue
-//                    }
-//                    gatewaySessionHandlerClass = clazz as Class<? extends GatewaySessionHandler>
-//                            TapLogger.info(TAG, "Found gatewaySessionHandlerClass Class $gatewaySessionHandlerClass, can only support one handler class, scanning will be stopped")
-//                    break
-//                }
-//            }
-//        }
-        if (gatewaySessionHandlerClass == null) {
+        ConfigurationBuilder builder = new ConfigurationBuilder()
+                .addScanners(new TypeAnnotationsScanner())
+//                .forPackages(this.scanPackages)
+                .addClassLoader(this.getClass().getClassLoader());
+        String scanPackage = CommonUtils.getProperty("gateway_scan_package", "io.tapdata,com.tapdata");
+        String[] packages = scanPackage.split(",");
+
+        builder.forPackages(packages);
+        Reflections reflections = new Reflections(builder);
+
+        AnnotationUtils.runClassAnnotationHandlers(reflections, new ClassAnnotationHandler[]{
+                gatewaySessionAnnotationHandler
+        }, TAG);
+
+        if (gatewaySessionAnnotationHandler.isEmpty()) {
             this.stateMachine.gotoState(STATE_TERMINATED, "No gatewaySessionHandler found");
         } else {
-            this.stateMachine.gotoState(STATE_STARTED, "Scanned gatewaySessionHandler " + this.gatewaySessionHandlerClass);
+            this.stateMachine.gotoState(STATE_STARTED, "Scanned gatewaySessionHandler " + gatewaySessionAnnotationHandler);
         }
     }
 
@@ -216,7 +219,7 @@ public class GatewaySessionManager {
         }
     }
 
-    public GatewaySessionHandler preCreateGatewaySessionHandler(String userId, String authorisedExpression, String deviceToken, Integer terminal, Boolean activeLogin, String authorisedToken) {
+    public GatewaySessionHandler preCreateGatewaySessionHandler(String userId, String idType, String authorisedExpression, String deviceToken, Integer terminal, Boolean activeLogin, String authorisedToken) {
         checkState();
         ValidateUtils.checkAllNotNull(userId, deviceToken, terminal);
         if (authorisedExpression == null)
@@ -229,11 +232,14 @@ public class GatewaySessionManager {
         if (gatewaySessionHandler != null) {
             reLogin(gatewaySessionHandler, authorisedExpression, deviceToken, terminal, activeLogin, authorisedToken);
         } else {
+            Class<? extends GatewaySessionHandler> clazz = gatewaySessionAnnotationHandler.getGatewaySessionHandlerClass(idType);
+            if(clazz == null)
+                throw new CoreException(NetErrors.ID_TYPE_NOT_FOUND, "GatewaySessionHandler class not found for idType {}", idType);
             try {
-                gatewaySessionHandler = gatewaySessionHandlerClass.getConstructor().newInstance();
+                gatewaySessionHandler = clazz.getConstructor().newInstance();
             } catch (InstantiationException | IllegalAccessException | InvocationTargetException |
                      NoSuchMethodException e) {
-                throw new RuntimeException(e);
+                throw new CoreException(NetErrors.GATEWAY_SESSION_HANDLER_CLASS_NEW_FAILED, "GatewaySessionHandler class {} new failed, {}", clazz, e.getMessage());
             }
 //        handler.userChannel = userChannel
             gatewaySessionHandler.setUserChannel(new UserChannel().userId(userId).authorisedExpression(authorisedExpression).deviceToken(deviceToken).terminal(terminal).createTime(System.currentTimeMillis()));
@@ -391,8 +397,8 @@ public class GatewaySessionManager {
     public void checkState() {
         if (stateMachine.getCurrentState() != STATE_STARTED)
             throw new CoreException(WSErrors.ERROR_GATEWAY_SESSION_MANAGER_NOT_STARTED, "GatewaySessionManager not started");
-        if (gatewaySessionHandlerClass == null)
-            throw new CoreException(WSErrors.ERROR_GATEWAY_SESSION_HANDLER_CLASS_IS_NULL, "gatewaySessionHandlerClass is null");
+        if (gatewaySessionAnnotationHandler.isEmpty())
+            throw new CoreException(WSErrors.ERROR_GATEWAY_SESSION_HANDLER_CLASS_IS_NULL, "gatewaySessionHandlerClass is not found");
     }
 
     public int roomCounter() {

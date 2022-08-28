@@ -15,7 +15,7 @@ import io.tapdata.pdk.core.executor.ExecutorsManager;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
-@MainMethod("main")
+@MainMethod(value = "main", order = 1000)
 @Bean
 public class DummyChannelDetectionModule {
     public void main() {
