@@ -50,13 +50,18 @@ public class TapEventPartitionKeySelector implements PartitionKeySelector<TapEve
 		}
 	}
 
+	/**
+	 * retrieve original value from TapValue for hash instead of TapValue object for hash
+	 * @param values
+	 * @return
+	 */
 	public List<Object> convert2OriginValue(final List<Object> values) {
 		if (CollectionUtils.isEmpty(values)) {
 			return values;
 		}
 		Object firstElem = values.get(0);
 		if (firstElem instanceof TapValue) {
-			return values.stream().map(v -> ((TapValue)v).getOriginValue()).collect(Collectors.toList());
+			return values.stream().filter(Objects::nonNull).map(v -> ((TapValue)v).getOriginValue()).collect(Collectors.toList());
 		} else {
 			return values;
 		}

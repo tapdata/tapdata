@@ -12,7 +12,10 @@ import org.apache.commons.lang3.StringUtils;
 
 import java.sql.*;
 import java.time.ZoneId;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -369,7 +372,7 @@ public class MysqlJdbcContext implements AutoCloseable {
 			hikariDataSource.setUsername(username);
 			hikariDataSource.setPassword(password);
 			hikariDataSource.setMinimumIdle(1);
-			hikariDataSource.setMaximumPoolSize(20);
+			hikariDataSource.setMaximumPoolSize(100);
 			hikariDataSource.setAutoCommit(false);
 			hikariDataSource.setIdleTimeout(60 * 1000L);
 			hikariDataSource.setKeepaliveTime(60 * 1000L);

@@ -12,6 +12,7 @@ import java.util.Map;
  * @author Dexter
  */
 public class TaskSampleRetriever {
+	private static final int MAX_RETRIEVE_ATTEMPT = 3;
 	private static final TaskSampleRetriever INSTANCE = new TaskSampleRetriever();
 
 	public static TaskSampleRetriever getInstance() {
@@ -65,6 +66,24 @@ public class TaskSampleRetriever {
 		}
 
 		return samples;
+	}
+
+	public Map<String, Number> retrieveWithRetry(Map<String, String> tags, List<String> fields) {
+		int attempt = 1;
+		Throwable error = null;
+		while (attempt <= MAX_RETRIEVE_ATTEMPT) {
+			try {
+				return retrieve(tags, fields);
+			} catch (Throwable throwable) {
+				error = throwable;
+			}
+			attempt += 1;
+		}
+
+		String message = "Failed to retrieve old metric data with tags %s and fields %s after attempt for %s times " +
+				"with error %s, the old metric data will be used as the initial value for the new metric data, if " +
+				"error happens, new metric data won't be init or reported.";
+		throw new RuntimeException(String.format(message, tags, fields, MAX_RETRIEVE_ATTEMPT, error.getMessage()), error);
 	}
 
 	@Data
