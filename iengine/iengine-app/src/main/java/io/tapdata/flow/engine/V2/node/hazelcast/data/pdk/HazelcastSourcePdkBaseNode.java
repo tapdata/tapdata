@@ -173,6 +173,10 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 	private boolean needDynamicTable(Object obj) {
 		Node<?> node = dataProcessorContext.getNode();
 		if (node instanceof DatabaseNode) {
+			String migrateTableSelectType = ((DatabaseNode) node).getMigrateTableSelectType();
+			if (StringUtils.isBlank(migrateTableSelectType) || !"all".equals(migrateTableSelectType)) {
+				return false;
+			}
 			Boolean enableDynamicTable = ((DatabaseNode) node).getEnableDynamicTable();
 			if (null == enableDynamicTable || !enableDynamicTable) {
 				return false;
@@ -673,7 +677,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 			} catch (InterruptedException e) {
 				break;
 			} catch (Throwable throwable) {
-				throw  new NodeException(throwable).context(getDataProcessorContext()).event(tapdataEvent.getTapEvent());
+				throw new NodeException(throwable).context(getDataProcessorContext()).event(tapdataEvent.getTapEvent());
 			}
 		}
 	}
