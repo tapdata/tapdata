@@ -224,9 +224,8 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 					}
 				}
 			}
-		} catch (Exception e) {
-			logger.error("Target process failed {}", e.getMessage(), e);
-			obsLogger.error("Target process failed {}", e.getMessage(), e);
+		} catch (Throwable e) {
+            errorHandle(e, "Target process failed " + e.getMessage());
 			throw sneakyThrow(e);
 		}
 	}

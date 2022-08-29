@@ -127,6 +127,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     private BasicEventService basicEventService;
     private MonitoringLogsService monitoringLogsService;
     private TaskAutoInspectResultsService taskAutoInspectResultsService;
+    private TaskSaveService taskSaveService;
 
     public static Set<String> stopStatus = new HashSet<>();
     /**
@@ -359,6 +360,8 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         if (taskDto.getId() != null) {
             oldTaskDto = findById(taskDto.getId(), user);
             taskDto.setSyncType(oldTaskDto.getSyncType());
+
+            taskSaveService.syncTaskSetting(taskDto, user);
 
             if (StringUtils.isBlank(taskDto.getAccessNodeType())) {
                 taskDto.setAccessNodeType(oldTaskDto.getAccessNodeType());
@@ -877,6 +880,10 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         log.info("create new task, task = {}", taskDto);
         taskDto = taskService.confirmById(taskDto, user, true, true);
         //taskService.flushStatus(taskDto, user);
+
+        // after copy could deduce model
+        transformSchemaAsyncService.transformSchema(dag, user, taskDto.getId());
+
         return taskDto;
     }
 
@@ -2969,7 +2976,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
     public void startPlanMigrateDagTask() {
         Criteria migrateCriteria = Criteria.where("syncType").is("migrate")
-                .and("status").is(TaskDto.STATUS_EDIT)
+                .and("status").is(TaskDto.STATUS_WAIT_START)
                 .and("planStartDateFlag").is(true)
                 .and("planStartDate").lte(System.currentTimeMillis());
         Query taskQuery = new Query(migrateCriteria);
