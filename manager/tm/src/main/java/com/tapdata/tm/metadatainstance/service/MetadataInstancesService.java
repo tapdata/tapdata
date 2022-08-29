@@ -144,11 +144,13 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
             classficitionIn.put("$in", objectIdList);
         }
 
-        // only query Physics table model
-        filter.getWhere().remove("taskId");
-        filter.getWhere().put("taskId", ImmutableMap.of("$exists", false));
-
         Page<MetadataInstancesDto> page = find(filter, user);
+        if (page.getTotal() == 0 && filter.getWhere().containsKey("taskId")) {
+            // maybe model deduction slow then task model not save, could query physics table meta
+            filter.getWhere().remove("taskId");
+            filter.getWhere().put("taskId", ImmutableMap.of("$exists", false));
+            page = find(filter, user);
+        }
         List<MetadataInstancesDto> metadataInstancesDtoList = page.getItems();
 
         afterFindAll(metadataInstancesDtoList, user);
