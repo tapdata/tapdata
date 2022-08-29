@@ -100,6 +100,62 @@ public class ObjectSerializableImplTest {
 
     }
 
+    @Test
+    public void testCustom() {
+        ObjectSerializable objectSerializable = InstanceFactory.instance(ObjectSerializable.class);
+        User user = new User();
+        user.setName("aklsdjflkasdfjlaksdfj");
+        user.setDescription("dskajflkjdfkldsajfkldasjfklasdjflkasdjfdlf");
+        user.setCreateTime(234324234324324324L);
+        user.setUpdateTime(23422413123123111L);
+        user.setGender(5);
+        user.setEmail("aplomb.chen@gmail.com");
+        User newUser = new User();
+        InstanceFactory.instance(BeanUtils.class).copyProperties(user, newUser);
+        user.setUser(newUser);
+
+        UserCustom userCustom = new UserCustom();
+        userCustom.description = user.description;
+        userCustom.name = user.name;
+        userCustom.createTime = user.createTime;
+        userCustom.updateTime = user.updateTime;
+        userCustom.email = user.email;
+        userCustom.gender = user.gender;
+        UserCustom newUserCustom = new UserCustom();
+        InstanceFactory.instance(BeanUtils.class).copyProperties(userCustom, newUserCustom);
+        userCustom.user = newUserCustom;
+
+        UserSerializable userSerializable = new UserSerializable();
+        userSerializable.description = user.description;
+        userSerializable.name = user.name;
+        userSerializable.createTime = user.createTime;
+        userSerializable.updateTime = user.updateTime;
+        userSerializable.email = user.email;
+        userSerializable.gender = user.gender;
+        UserSerializable newUserSerializable = new UserSerializable();
+        InstanceFactory.instance(BeanUtils.class).copyProperties(userSerializable, newUserSerializable);
+        userSerializable.user = newUserSerializable;
+
+        byte[] userBytes = objectSerializable.fromObject(user);
+        User verifyUser = (User) objectSerializable.toObject(userBytes);
+        assertEquals(user.name, verifyUser.name);
+        assertEquals(user.updateTime, verifyUser.updateTime);
+        assertEquals(user.user.name, verifyUser.user.name);
+
+
+        byte[] userCustomBytes = objectSerializable.fromObject(userCustom);
+        UserCustom verifyUserCustom = (UserCustom) objectSerializable.toObject(userCustomBytes);
+        assertEquals(user.name, verifyUserCustom.name);
+        assertEquals(user.updateTime, verifyUserCustom.updateTime);
+        assertEquals(user.user.name, verifyUserCustom.user.name);
+
+        byte[] userSerializableBytes = objectSerializable.fromObject(userSerializable);
+        UserSerializable verifyUserSerializable = (UserSerializable) objectSerializable.toObject(userSerializableBytes);
+        assertEquals(user.name, verifyUserSerializable.name);
+        assertEquals(user.updateTime, verifyUserSerializable.updateTime);
+        assertEquals(user.user.name, verifyUserSerializable.user.name);
+    }
+
     public static void main(String[] args) {
         ObjectSerializable objectSerializable = InstanceFactory.instance(ObjectSerializable.class);
         User user = new User();
