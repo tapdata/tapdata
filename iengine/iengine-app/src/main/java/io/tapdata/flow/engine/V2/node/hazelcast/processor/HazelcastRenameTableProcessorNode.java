@@ -48,7 +48,7 @@ public class HazelcastRenameTableProcessorNode extends HazelcastProcessorBaseNod
         ((TapBaseEvent) tapEvent).setTableId(tableRenameTableInfo.getCurrentTableName());
       }
     }
-    String tableName = tableId;
+    String tableName = TapEventUtil.getTableId(tapEvent);
     if (!multipleTables && StringUtils.equalsAnyIgnoreCase(processorBaseContext.getTaskDto().getSyncType(),
             TaskDto.SYNC_TYPE_DEDUCE_SCHEMA)) {
       tableName = processorBaseContext.getNode().getId();
