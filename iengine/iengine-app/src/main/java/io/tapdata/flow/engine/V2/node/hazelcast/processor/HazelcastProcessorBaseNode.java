@@ -11,8 +11,6 @@ import io.tapdata.common.sample.sampler.SpeedSampler;
 import io.tapdata.flow.engine.V2.exception.node.NodeException;
 import io.tapdata.flow.engine.V2.node.hazelcast.HazelcastBaseNode;
 import io.tapdata.metrics.TaskSampleRetriever;
-import io.tapdata.observable.logging.ObsLogger;
-import io.tapdata.observable.logging.ObsLoggerFactory;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.NotNull;
@@ -38,6 +36,7 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 	protected SpeedSampler inputQPS;
 	protected SpeedSampler outputQPS;
 	protected AverageSampler timeCostAvg;
+	private TapdataEvent pendingEvent;
 
 	public HazelcastProcessorBaseNode(ProcessorBaseContext processorBaseContext) {
 		super(processorBaseContext);
@@ -65,6 +64,13 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 
 	@Override
 	protected final boolean tryProcess(int ordinal, @NotNull Object item) throws Exception {
+		if (null != pendingEvent) {
+			if (offer(pendingEvent)) {
+				pendingEvent = null;
+			} else {
+				return false;
+			}
+		}
 		TapdataEvent tapdataEvent = (TapdataEvent) item;
 		AtomicReference<TapdataEvent> processedEvent = new AtomicReference<>();
 		try {
@@ -114,9 +120,9 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 			throw nodeException;
 		}
 
-		if(processedEvent.get() != null) {
-			while (running.get()) {
-				if (offer(processedEvent.get())) break;
+		if (processedEvent.get() != null) {
+			if (!offer(processedEvent.get())) {
+				pendingEvent = processedEvent.get();
 			}
 		}
 		return true;
