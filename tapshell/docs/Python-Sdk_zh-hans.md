@@ -23,26 +23,74 @@ cli.init(server, access_code)
 
 对于需要并发使用不同server和 access_codes 的情况，请使用 Python 的多进程。
 
-## 创建数据源
+## 数据源
+
+### 创建数据源
+
+目前sdk支持以下数据源的操作：
+
+- Mongo
+- Mysql
+- Postgres
+- Oracle
+- Kafka
+
+创建Mysql/Mongo/Postgres，通过以下方式：
 
 ```python
-# create datasource by uri
 from tapdata_cli import cli
-mongo = cli.DataSource("mongodb", name="source")
-mongo.uri("mongodb://localhost:8080")
-mongo.validate() # available -> True, disabled -> False
-mongo.save() # success -> True, Failure -> False
 
-# create datasource by form
-mongo = cli.DataSource("mongodb", name="source")
-mongo.host("localhost:8080").db("source").username("user").password("password").type("source").props("")
-mongo.validate() # success -> True, Failure -> False
-mongo.save() # success -> True, Failure -> False
+connector = "mongodb"  # 数据源类型，mongodb mysql postgres
+mongo = cli.DataSource("mongodb", name="mongo")
+mongo.uri("mongodb://localhost:8080")  # 数据源uri
+mongo.save()
+```
 
-# list datasource
-res = mongo.list()
+或者，通过以下方式：
 
-# res struct
+```python
+from tapdata_cli import cli
+
+mongo = cli.DataSource("mongodb", name="mongo")
+mongo.host("localhost:27017").db("source").username("user").password("password").props("")
+mongo.type("source")  # 数据源类型，source -> 只可作为源，target -> 只可作为目标，source_and_target -> 可以作为源和目标（默认）
+mongo.save()  # success -> True, Failure -> False
+```
+
+创建Oracle数据源：
+
+```python
+from tapdata_cli import cli
+
+datasource_name = "ds_name"  # 数据源名称，自定义
+oracle = cli.Oracle(datasource_name)
+oracle.thinType("SERVICE_NAME")  # 连接方式 SID/SERVER_NAME (数据库/服务名)
+oracle.host("106.55.169.3").password("Gotapd8!").port("3521").schema("TAPDATA").db("TAPDATA").username("tapdata")
+oracle.save()
+```
+
+创建Kafka数据源：
+
+```python
+from tapdata_cli import cli
+
+database_name = "kafka_name"
+kafka = cli.Kafka(database_name)
+kafka.host("106.55.169.3").port("9092")
+kafka.save()
+```
+
+*关于Kafka/Oracle的创建方式存在异构，未来将以DataSource的方式提供统一的接口，同时向后兼容，不影响现有版本。*
+
+### 数据源列表
+
+```python
+from tapdata_cli import cli
+
+cli.DataSource().list()
+
+# 返回结构如下所示：
+
 {
     "total": 94,
     "items": [{
@@ -59,57 +107,43 @@ res = mongo.list()
         ...
     }]
 }
-
-# get datasource by name/id
-
-cli.DataSource.get(id="")
-
-# return
-
-{
-    "id": "",
-    "lastUpdBy": "",
-    "name": "",
-    "config": {},
-    "connection_type": "",
-    "database_type": "",
-    "definitionScope": "",
-    "definitionVersion": "",
-    "definitionGroup": "",
-    "definitionPdkId": "",
-    ...
-}
-
 ```
 
-## 创建Pipeline
+### 根据ID/name获取数据源信息
 
 ```python
 from tapdata_cli import cli
 
-# pipeline create
+cli.DataSource(id="")  # 根据id获取数据源信息
+cli.DataSource(name="")  # 根据name获取数据源信息
+```
+
+## Pipeline
+
+### 一个简单的数据迁移任务
+
+```python
+from tapdata_cli import cli
+
+# 创建数据源
 source = cli.DataSource("mongodb", name="source").uri("").save()
 target = cli.DataSource("mongodb", name="target").uri("").save()
-p = cli.Pipeline(name="")
+# 创建Pipeline
+p = cli.Pipeline(name="example_job")
 p.readFrom("source").writeTo("target")
-
-# pipeline start
+# 启动
 p.start()
-
-# pipeline stop
+# 停止
 p.stop()
-
-# pipeline delete
+# 删除
 p.delete()
-
-# pipeline status
+# 查看状态
 p.status()
-
-# list job object
+# 查看job列表
 cli.Job.list()
 ```
 
-Job 是 Pipeline 的底层实现，所以你可以像使用 pipeline.start() 一样使用 job.start() 。
+值得一提的是，Job 是 Pipeline 的底层实现，所以你可以像使用 pipeline.start() 一样使用 job.start() 。
 
 ```python
 # init job (get job info) by id
@@ -119,16 +153,23 @@ job.save() # success -> True, failure -> False
 job.start() # success -> True, failure -> False
 ```
 
-### 数据处理
+### 数据开发任务
+
+在进行数据开发任务之前，需要将任务类型修改为sync：
 
 ```python
 from tapdata_cli import cli
+
 source = cli.DataSource("mongodb", name="source").uri("").save()
 target = cli.DataSource("mongodb", name="target").uri("").save()
 p = cli.Pipeline(name="")
 p = p.readFrom("source.player") # source is db, player is table
 p.dag.jobType = cli.JobType.sync
+```
 
+再进行具体的各种操作：
+
+```python
 # filter cli.FilterType.keep (keep data) / cli.FilterType.delete (delete data)
 p = p.filter("id > 2", cli.FilterType.keep)
 
@@ -139,19 +180,45 @@ p = p.filterColumn(["name"], cli.FilterType.delete)
 p = p.rename("name", "player_name")
 
 # valueMap
-p = p.valueMap("position", 1) # 将 position 字段覆盖为 1
+p = p.valueMap("position", 1) 
 
 # js
 p = p.js("return record;")
 
-# merge
-source_2 = cli.DataSource("mongodb", name="source_2").uri("").save()
-p2 = cli.Pipeline(name="source_2")
-p3 = p.merge(p2, [('id', 'id')]).writeTo("target")
-# p3.start()
-
 p.writeTo("target.player")  # target is db, player is table
 ```
+
+主从合并：
+
+```python
+# merge 主从合并
+p2 = cli.Pipeline(name="source_2")  # 创建被合并的Pipeline
+p3 = p.merge(p2, [('id', 'id')]).writeTo("target")  # 将Pipeline合并
+
+p3.writeTo("target.player")  # target is db, player is table
+```
+
+### 创建 全量/增量 任务
+
+默认情况下，通过Pipeline创建的任务均为"全量+增量"任务。
+
+通过以下方式，可以创建一个全量任务：
+
+```python
+from tapdata_cli import cli
+
+p = cli.Pipeline(name="")
+p.readFrom("source").writeTo("target")
+config = {"type": "initial_sync"}  # 全量任务
+p1 = p.config(config=config)
+p1.start()
+```
+
+如上，将config改成 `{"type": "cdc"}` 可以创建一个增量任务。
+
+Pipeline的配置修改操作都是通过Pipeline.config方法通过config默认参数传入，并做了参数校验。
+
+关于更多的配置修改项，可以查看 [这个文件](https://github.com/tapdata/tapdata/blob/master/tapshell/tapdata_cli/rules.py) ，获取更多配置项。
 
 ## API 操作
 

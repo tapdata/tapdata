@@ -23,26 +23,74 @@ It will send a request to the server to obtain the identity information and save
 
 For situations where you need to use different servers and access_codes concurrently, use Python's multiprocess.
 
-## Create DataSource
+## DataSource
+
+### Create DataSource
+
+The SDK supports the following data source operations:
+
+- Mongo
+- Mysql
+- Postgres
+- Oracle
+- Kafka
+
+To create MySQL/Mongo/Postgres:
 
 ```python
-# create datasource by uri
 from tapdata_cli import cli
-mongo = cli.DataSource("mongodb", name="source")
-mongo.uri("mongodb://localhost:8080")
-mongo.validate() # available -> True, disabled -> False
-mongo.save() # success -> True, Failure -> False
 
-# create datasource by form
-mongo = cli.DataSource("mongodb", name="source")
-mongo.host("localhost:8080").db("source").username("user").password("password").type("source").props("")
-mongo.validate() # success -> True, Failure -> False
-mongo.save() # success -> True, Failure -> False
+connector = "mongodb"  # datasource type，mongodb mysql postgres
+mongo = cli.DataSource("mongodb", name="mongo")
+mongo.uri("mongodb://localhost:8080")  # datasource uri
+mongo.save()
+```
 
-# list datasource
-res = mongo.list()
+or:
 
-# res struct
+```python
+from tapdata_cli import cli
+
+mongo = cli.DataSource("mongodb", name="mongo")
+mongo.host("localhost:27017").db("source").username("user").password("password").props("")
+mongo.type("source")  # datasource type，source -> only source，target -> only target，source_and_target -> target and source (default)
+mongo.save()  # success -> True, Failure -> False
+```
+
+To Create Oracle database:
+
+```python
+from tapdata_cli import cli
+
+datasource_name = "ds_name"  # datasource name
+oracle = cli.Oracle(datasource_name)
+oracle.thinType("SERVICE_NAME")  # connect type SID/SERVER_NAME (database name/service name)
+oracle.host("106.55.169.3").password("Gotapd8!").port("3521").schema("TAPDATA").db("TAPDATA").username("tapdata")
+oracle.save()
+```
+
+To create Kafka datasource:
+
+```python
+from tapdata_cli import cli
+
+database_name = "kafka_name"
+kafka = cli.Kafka(database_name)
+kafka.host("106.xx.xx.x").port("9092")
+kafka.save()
+```
+
+*As for Kafka / Oracle, the creation mode is heterogeneous. In the future, a unified interface will be provided in the form of datasource, which is backward compatible and will not affect the existing version.*
+
+### DataSource List
+
+```python
+from tapdata_cli import cli
+
+cli.DataSource().list()
+
+# return struct
+
 {
     "total": 94,
     "items": [{
@@ -59,53 +107,39 @@ res = mongo.list()
         ...
     }]
 }
-
-# get datasource by name/id
-
-cli.DataSource.get(id="")
-
-# return
-
-{
-    "id": "",
-    "lastUpdBy": "",
-    "name": "",
-    "config": {},
-    "connection_type": "",
-    "database_type": "",
-    "definitionScope": "",
-    "definitionVersion": "",
-    "definitionGroup": "",
-    "definitionPdkId": "",
-    ...
-}
-
 ```
 
-## create Pipeline
+### Get datasource according to ID/name
 
 ```python
 from tapdata_cli import cli
 
-# pipeline create
+cli.DataSource(id="")  # by id
+cli.DataSource(name="")  # by name
+```
+
+## Pipeline
+
+### A simple data migration Job
+
+```python
+from tapdata_cli import cli
+
+# Create datasource first
 source = cli.DataSource("mongodb", name="source").uri("").save()
 target = cli.DataSource("mongodb", name="target").uri("").save()
-p = cli.Pipeline(name="")
+# create Pipeline
+p = cli.Pipeline(name="example_job")
 p.readFrom("source").writeTo("target")
-
-# pipeline start
+# start
 p.start()
-
-# pipeline stop
+# stop
 p.stop()
-
-# pipeline delete
+# delete
 p.delete()
-
-# pipeline status
+# status
 p.status()
-
-# list job object
+# get job list
 cli.Job.list()
 ```
 
@@ -119,16 +153,23 @@ job.save() # success -> True, failure -> False
 job.start() # success -> True, failure -> False
 ```
 
-### data operator
+### Data development job
+
+Before performing data development tasks, you need to change the task type to Sync:
 
 ```python
 from tapdata_cli import cli
+
 source = cli.DataSource("mongodb", name="source").uri("").save()
 target = cli.DataSource("mongodb", name="target").uri("").save()
 p = cli.Pipeline(name="")
 p = p.readFrom("source.player") # source is db, player is table
 p.dag.jobType = cli.JobType.sync
+```
 
+Then perform specific operations:
+
+```python
 # filter cli.FilterType.keep (keep data) / cli.FilterType.delete (delete data)
 p = p.filter("id > 2", cli.FilterType.keep)
 
@@ -139,19 +180,45 @@ p = p.filterColumn(["name"], cli.FilterType.delete)
 p = p.rename("name", "player_name")
 
 # valueMap
-p = p.valueMap("position", 1)
+p = p.valueMap("position", 1) 
 
 # js
 p = p.js("return record;")
 
-# merge
-source_2 = cli.DataSource("mongodb", name="source_2").uri("").save()
-p2 = cli.Pipeline(name="source_2")
-p3 = p.merge(p2, [('id', 'id')]).writeTo("target")
-# p3.start()
-
 p.writeTo("target.player")  # target is db, player is table
 ```
+
+master slave merge:
+
+```python
+# merge
+p2 = cli.Pipeline(name="source_2")  # Create merged pipeline
+p3 = p.merge(p2, [('id', 'id')]).writeTo("target")  # Merge pipeline
+
+p3.writeTo("target.player")  # target is db, player is table
+```
+
+### Create initial_sync/cdc job
+
+By default, all tasks created through pipeline are "full + incremental" job.
+
+You can create a initial_sync job by:
+
+```python
+from tapdata_cli import cli
+
+p = cli.Pipeline(name="")
+p.readFrom("source").writeTo("target")
+config = {"type": "initial_sync"}  # initial_sync
+p1 = p.config(config=config)
+p1.start()
+```
+
+As above, changing config to ` {"type": "cdc"}` can create an incremental task.
+
+All pipeline configuration modification operations are passed in through the `pipeline.config` method through the config default parameters, and the parameters are verified.
+
+For more configuration modification items, please see [this file](https://github.com/tapdata/tapdata/blob/master/tapshell/tapdata_cli/rules.py), get more configuration items.
 
 ## API Operation
 
