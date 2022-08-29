@@ -24,6 +24,8 @@ public class JavaTypesToTapTypes {
     public static final String JAVA_Array = "Array";
     public static final String JAVA_Binary = "Binary";
     public static final String JAVA_Boolean = "Boolean";
+    public static final String JAVA_Integer = "Integer";
+
 
     public static TapType toTapType(String javaType) {
         if(javaType == null)
@@ -33,19 +35,21 @@ public class JavaTypesToTapTypes {
             case JAVA_Array:
                 return tapArray();
             case JAVA_Float:
-                return tapNumber().maxValue(BigDecimal.valueOf(Float.MAX_VALUE)).minValue(BigDecimal.valueOf(Float.MIN_VALUE)).fixed(false).scale(8).precision(38);
+                return tapNumber().maxValue(BigDecimal.valueOf(Float.MAX_VALUE)).minValue(BigDecimal.valueOf(-Float.MAX_VALUE)).fixed(false).scale(8).precision(38);
             case JAVA_Date:
                 return tapDateTime().fraction(3);
             case JAVA_BigDecimal:
                 return tapNumber().precision(10000).scale(100).fixed(true);
             case JAVA_Double:
-                return tapNumber().maxValue(BigDecimal.valueOf(Double.MAX_VALUE)).minValue(BigDecimal.valueOf(Double.MIN_VALUE)).scale(17).precision(309).fixed(false);
+                return tapNumber().maxValue(BigDecimal.valueOf(Double.MAX_VALUE)).minValue(BigDecimal.valueOf(-Double.MAX_VALUE)).scale(17).precision(309).fixed(false);
             case JAVA_Long:
                 return tapNumber().maxValue(BigDecimal.valueOf(Long.MAX_VALUE)).minValue(BigDecimal.valueOf(Long.MIN_VALUE));
             case JAVA_Map:
                 return tapMap();
             case JAVA_String:
                 return tapString().bytes(1024L);
+            case JAVA_Integer:
+                return tapNumber().maxValue(BigDecimal.valueOf(Integer.MAX_VALUE)).minValue(BigDecimal.valueOf(Integer.MIN_VALUE)).fixed(false).scale(31);
             case JAVA_Binary:
                 return tapBinary();
             case JAVA_Boolean:

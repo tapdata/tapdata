@@ -124,7 +124,14 @@ public class DummyConnector extends ConnectorBase {
 
         // Generate specified amount of data
         builder.reset(offsetState, SyncStage.Initial);
-        try (IBatchConsumer<TapEvent> batchConsumer = IBatchConsumer.getInstance(eventBatchSize, config.getBatchTimeouts(), (t) -> eventConsumer.accept(t, builder.getOffset()))) {
+        try (
+                IBatchConsumer<TapEvent> batchConsumer =
+                        IBatchConsumer.getInstance(
+                                eventBatchSize,
+                                config.getBatchTimeouts(),
+                                (t) -> eventConsumer.accept(t, builder.getOffset())
+                        )
+        ) {
             // generate insert record event
             TapInsertRecordEvent tapInsertRecordEvent;
             Long initialTotals = config.getInitialTotals();
