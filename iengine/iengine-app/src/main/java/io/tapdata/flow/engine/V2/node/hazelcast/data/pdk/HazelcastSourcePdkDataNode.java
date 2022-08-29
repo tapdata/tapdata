@@ -370,11 +370,8 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 								AspectUtils.accept(tableCountFuncAspect.state(TableCountFuncAspect.STATE_COUNTING).getTableCountConsumerList(), table.getName(), count);
 							}
 						} catch (Exception e) {
-							NodeException nodeException = new NodeException("Count " + table.getId() + " failed: " + e.getMessage(), e)
+							throw new NodeException("Count " + table.getId() + " failed: " + e.getMessage(), e)
 									.context(getProcessorBaseContext());
-							logger.warn(nodeException.getMessage() + "\n" + Log4jUtil.getStackString(e));
-							obsLogger.warn(nodeException.getMessage() + "\n" + Log4jUtil.getStackString(e));
-							throw nodeException;
 						}
 					}, TAG));
 		}
