@@ -94,8 +94,10 @@ public class TaskSaveServiceImpl implements TaskSaveService {
                 tableNode.getTableNames().removeIf(t -> !tableNames.contains(t.getOriginTableName()));
             }
 
-            renameMap = tableNode.getTableNames().stream()
-                    .collect(Collectors.toMap(TableRenameTableInfo::getOriginTableName, TableRenameTableInfo::getCurrentTableName, (e1,e2)->e1));
+            if (CollectionUtils.isNotEmpty(tableNode.getTableNames())) {
+                renameMap = tableNode.getTableNames().stream()
+                        .collect(Collectors.toMap(TableRenameTableInfo::getOriginTableName, TableRenameTableInfo::getCurrentTableName, (e1,e2)->e1));
+            }
 
             nodeCheckData(tableNode.successors(), tableNames, renameMap);
 
@@ -105,7 +107,7 @@ public class TaskSaveServiceImpl implements TaskSaveService {
                 fieldNode.getFieldsMapping().removeIf(t -> !tableNames.contains(t.getOriginTableName()));
             }
 
-            if (!renameMap.isEmpty()) {
+            if (Objects.nonNull(renameMap) && !renameMap.isEmpty()) {
                 for (TableFieldInfo info : fieldNode.getFieldsMapping()) {
                     if (renameMap.containsKey(info.getOriginTableName())) {
                         String rename = renameMap.get(info.getOriginTableName());
