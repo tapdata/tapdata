@@ -9,14 +9,12 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 
-public class IncomingRequest extends Data {
+public class IncomingRequest extends ContentData<IncomingRequest> {
     public final static byte TYPE = 60;
     private String id;
     private String service;
     private String uri; // rest/message/{messageId}?playerId={playerId}
     private String method;
-    private String bodyStr;
-    private Byte bodyEncode;
 
     public IncomingRequest() {
         super(TYPE);
@@ -38,8 +36,6 @@ public class IncomingRequest extends Data {
         service = dis.readUTF();
         uri = dis.readUTF();
         method = dis.readUTF();
-        bodyEncode = dis.readByte();
-        bodyStr = dis.readUTF();
     }
 
     @Override
@@ -50,8 +46,6 @@ public class IncomingRequest extends Data {
         dos.writeUTF(service);
         dos.writeUTF(uri);
         dos.writeUTF(method);
-        dos.writeByte(bodyEncode);
-        dos.writeUTF(bodyStr);
     }
     
     @Override
@@ -87,19 +81,4 @@ public class IncomingRequest extends Data {
         this.method = method;
     }
 
-    public String getBodyStr() {
-        return bodyStr;
-    }
-
-    public void setBodyStr(String bodyStr) {
-        this.bodyStr = bodyStr;
-    }
-
-    public Byte getBodyEncode() {
-        return bodyEncode;
-    }
-
-    public void setBodyEncode(Byte bodyEncode) {
-        this.bodyEncode = bodyEncode;
-    }
 }

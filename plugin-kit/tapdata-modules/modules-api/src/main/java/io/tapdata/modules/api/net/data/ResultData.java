@@ -1,5 +1,7 @@
 package io.tapdata.modules.api.net.data;
 
+import io.tapdata.modules.api.net.message.TapMessage;
+
 public class ResultData {
     public static final byte CONTENT_ENCODE_JSON = 1;
     static final byte CONTENT_ENCODE_JSON_GZIP = 2;
@@ -15,20 +17,20 @@ public class ResultData {
         this.code = code;
         return this;
     }
-    private String message;
-    public ResultData message(String message) {
+    private TapMessage message;
+    public ResultData message(TapMessage message) {
         this.message = message;
         return this;
     }
-    private String data;
-    public ResultData data(String data) {
-        this.data = data;
+
+    private String contentType;
+    public ResultData contentType(String contentType) {
+        this.contentType = contentType;
         return this;
     }
-
-    private Byte dataEncode = ResultData.CONTENT_ENCODE_JSON;
-    public ResultData dataEncode(Byte dataEncode) {
-        this.dataEncode = dataEncode;
+    private Byte contentEncode;
+    public ResultData contentEncode(Byte contentEncode) {
+        this.contentEncode = contentEncode;
         return this;
     }
 
@@ -52,20 +54,12 @@ public class ResultData {
         this.code = code;
     }
 
-    public String getData() {
-        return data;
+    public Byte getContentEncode() {
+        return contentEncode;
     }
 
-    public void setData(String data) {
-        this.data = data;
-    }
-
-    public Byte getDataEncode() {
-        return dataEncode;
-    }
-
-    public void setDataEncode(Byte dataEncode) {
-        this.dataEncode = dataEncode;
+    public void setContentEncode(Byte contentEncode) {
+        this.contentEncode = contentEncode;
     }
 
     public String getForId() {
@@ -76,11 +70,19 @@ public class ResultData {
         this.forId = forId;
     }
 
-    public String getMessage() {
+    public TapMessage getMessage() {
         return message;
     }
 
-    public void setMessage(String message) {
+    public void setMessage(TapMessage message) {
         this.message = message;
+    }
+
+    public String getContentType() {
+        return contentType;
+    }
+
+    public void setContentType(String contentType) {
+        this.contentType = contentType;
     }
 }

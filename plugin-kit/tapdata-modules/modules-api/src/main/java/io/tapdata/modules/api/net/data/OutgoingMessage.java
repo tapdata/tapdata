@@ -9,7 +9,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 
-public class OutgoingMessage extends Data {
+public class OutgoingMessage extends ContentData<OutgoingMessage> {
     final static byte TYPE = 40;
 
     public OutgoingMessage() {
@@ -19,10 +19,6 @@ public class OutgoingMessage extends Data {
     private String fromGroupId;
     private String id;
     private Long time;
-    private String contentType;
-    private Byte contentEncode;
-    private String content;
-    private byte[] binaryContent;
 
     @Override
     public void from(InputStream inputStream) throws IOException {
@@ -33,10 +29,6 @@ public class OutgoingMessage extends Data {
         fromUserId = dis.readUTF();
         fromGroupId = dis.readUTF();
         time = dis.readLong();
-        contentType = dis.readUTF();
-        contentEncode = dis.readByte();
-        content = dis.readUTF();
-        binaryContent = dis.readBytes();
     }
 
     @Override
@@ -47,27 +39,7 @@ public class OutgoingMessage extends Data {
         dos.writeUTF(fromUserId);
         dos.writeUTF(fromGroupId);
         dos.writeLong(time);
-        dos.writeUTF(contentType);
-        dos.writeByte(contentEncode);
-        dos.writeUTF(content);
-        dos.writeBytes(binaryContent);
 
-    }
-
-    public String getContent() {
-        return content;
-    }
-
-    public void setContent(String content) {
-        this.content = content;
-    }
-
-    public String getContentType() {
-        return contentType;
-    }
-
-    public void setContentType(String contentType) {
-        this.contentType = contentType;
     }
 
     public Long getTime() {
@@ -87,14 +59,6 @@ public class OutgoingMessage extends Data {
         this.id = id;
     }
 
-    public Byte getContentEncode() {
-        return contentEncode;
-    }
-
-    public void setContentEncode(Byte contentEncode) {
-        this.contentEncode = contentEncode;
-    }
-
     public String getFromUserId() {
         return fromUserId;
     }
@@ -111,11 +75,4 @@ public class OutgoingMessage extends Data {
         this.fromGroupId = fromGroupId;
     }
 
-    public byte[] getBinaryContent() {
-        return binaryContent;
-    }
-
-    public void setBinaryContent(byte[] binaryContent) {
-        this.binaryContent = binaryContent;
-    }
 }

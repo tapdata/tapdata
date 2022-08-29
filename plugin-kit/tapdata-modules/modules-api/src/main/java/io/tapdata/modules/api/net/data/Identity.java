@@ -1,21 +1,16 @@
 package io.tapdata.modules.api.net.data;
 
-
-import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.utils.io.DataInputStreamEx;
 import io.tapdata.entity.utils.io.DataOutputStreamEx;
-import io.tapdata.modules.api.net.error.NetErrors;
 
 import java.io.*;
 
-public class Identity extends Data {
+public class Identity extends ContentData<Identity> {
     public static final byte TYPE = 1;
     private String id;
     //Engine, User
     private String idType;
     private String token;
-    private String reserved;
-    private String sign;
 
     public Identity() {
         super(TYPE);
@@ -34,10 +29,8 @@ public class Identity extends Data {
         super.from(dis);
 
         id = dis.readUTF();
-        token = dis.readUTF();
-        reserved = dis.readUTF();
-        sign = dis.readUTF();
         idType = dis.readUTF();
+        token = dis.readUTF();
     }
 
     @Override
@@ -45,10 +38,8 @@ public class Identity extends Data {
         DataOutputStreamEx dos = dataOutputStream(outputStream);
         super.to(outputStream);
         dos.writeUTF(id);
-        dos.writeUTF(token);
-        dos.writeUTF(reserved);
-        dos.writeUTF(sign);
         dos.writeUTF(idType);
+        dos.writeUTF(token);
     }
     public String getId() {
         return id;
@@ -64,22 +55,6 @@ public class Identity extends Data {
 
     public void setToken(String token) {
         this.token = token;
-    }
-
-    public String getReserved() {
-        return reserved;
-    }
-
-    public void setReserved(String reserved) {
-        this.reserved = reserved;
-    }
-
-    public String getSign() {
-        return sign;
-    }
-
-    public void setSign(String sign) {
-        this.sign = sign;
     }
 
     public String getIdType() {

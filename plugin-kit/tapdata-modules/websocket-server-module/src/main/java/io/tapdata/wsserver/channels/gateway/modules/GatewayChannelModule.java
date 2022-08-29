@@ -64,7 +64,7 @@ public class GatewayChannelModule {
             TapLogger.error(TAG, "sendResultData ignored, because illegal arguments, userId $userId, resultData $resultData");
             return false;
         }
-        Result result = new Result().code(resultData.getCode()).content(resultData.getData()).forId(resultData.getForId()).time(System.currentTimeMillis()).contentEncode(resultData.getDataEncode());
+        Result result = new Result().code(resultData.getCode()).message(resultData.getMessage()).contentType(resultData.getContentType()).forId(resultData.getForId()).time(System.currentTimeMillis()).contentEncode(resultData.getContentEncode());
 
         return sendData(userId, result);
     }

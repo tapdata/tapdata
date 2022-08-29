@@ -1,22 +1,18 @@
 package io.tapdata.modules.api.net.data;
 
-import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.utils.io.DataInputStreamEx;
 import io.tapdata.entity.utils.io.DataOutputStreamEx;
-import io.tapdata.modules.api.net.error.NetErrors;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 
-public class IncomingInvocation extends Data {
+public class IncomingInvocation extends ContentData<IncomingInvocation> {
     public final static byte TYPE = 50;
     private String id;
     private String service;
     private String className;
     private String methodName;
-    private String args;
-    private Byte contentEncode;
 
     public IncomingInvocation() {
         super(TYPE);
@@ -38,8 +34,6 @@ public class IncomingInvocation extends Data {
         service = dis.readUTF();
         className = dis.readUTF();
         methodName = dis.readUTF();
-        contentEncode = dis.readByte();
-        args = dis.readUTF();
     }
 
     @Override
@@ -50,8 +44,6 @@ public class IncomingInvocation extends Data {
         dos.writeUTF(service);
         dos.writeUTF(className);
         dos.writeUTF(methodName);
-        dos.writeByte(contentEncode);
-        dos.writeUTF(args);
     }
     @Override
     public String getId() {
@@ -60,14 +52,6 @@ public class IncomingInvocation extends Data {
 
     public void setId(String id) {
         this.id = id;
-    }
-
-    public Byte getContentEncode() {
-        return contentEncode;
-    }
-
-    public void setContentEncode(Byte contentEncode) {
-        this.contentEncode = contentEncode;
     }
 
     public String getService() {
@@ -94,11 +78,4 @@ public class IncomingInvocation extends Data {
         this.methodName = methodName;
     }
 
-    public String getArgs() {
-        return args;
-    }
-
-    public void setArgs(String args) {
-        this.args = args;
-    }
 }

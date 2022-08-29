@@ -9,7 +9,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 
-public class Result extends Data {
+public class Result extends ContentData<Result> {
     static final byte TYPE = 100;
 
     public static Result create() {
@@ -41,21 +41,6 @@ public class Result extends Data {
         this.time = time;
         return this;
     }
-    private Byte contentEncode;
-    public Result contentEncode(Byte contentEncode) {
-        this.contentEncode = contentEncode;
-        return this;
-    }
-    private String content;
-    public Result content(String content) {
-        this.content = content;
-        return this;
-    }
-    private byte[] binaryContent;
-    public Result binaryContent(byte[] binaryContent) {
-        this.binaryContent = binaryContent;
-        return this;
-    }
 
     public Result(){
         super(TYPE);
@@ -72,9 +57,6 @@ public class Result extends Data {
         description = dis.readUTF();
         serverId = dis.readUTF();
         time = dis.readLong();
-        contentEncode = dis.readByte();
-        content = dis.readUTF();
-        binaryContent = dis.readBytes();
 
     }
 
@@ -87,9 +69,6 @@ public class Result extends Data {
         dos.writeUTF(description);
         dos.writeUTF(serverId);
         dos.writeLong(time);
-        dos.writeByte(contentEncode);
-        dos.writeUTF(content);
-        dos.writeBytes(binaryContent);
     }
 
     /**
@@ -142,27 +121,4 @@ public class Result extends Data {
         this.time = time;
     }
 
-    public Byte getContentEncode() {
-        return contentEncode;
-    }
-
-    public void setContentEncode(Byte contentEncode) {
-        this.contentEncode = contentEncode;
-    }
-
-    public String getContent() {
-        return content;
-    }
-
-    public void setContent(String content) {
-        this.content = content;
-    }
-
-    public byte[] getBinaryContent() {
-        return binaryContent;
-    }
-
-    public void setBinaryContent(byte[] binaryContent) {
-        this.binaryContent = binaryContent;
-    }
 }
