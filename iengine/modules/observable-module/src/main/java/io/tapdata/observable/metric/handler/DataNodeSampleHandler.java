@@ -25,7 +25,10 @@ import org.apache.logging.log4j.Logger;
 
 import java.util.*;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * @author Dexter
@@ -35,6 +38,16 @@ public class DataNodeSampleHandler extends AbstractNodeSampleHandler {
     private static final String TAG = DataNodeSampleHandler.class.getSimpleName();
     public DataNodeSampleHandler(TaskDto task) {
         super(task);
+    }
+
+    private boolean running = true;
+
+    public boolean isRunning() {
+        return running;
+    }
+
+    public void setRunning(boolean running) {
+        this.running = running;
     }
 
     private final Map<String, SampleCollector> collectors = new HashMap<>();
@@ -235,8 +248,40 @@ public class DataNodeSampleHandler extends AbstractNodeSampleHandler {
         Optional.ofNullable(currentEventTimestamps.get(nodeId)).ifPresent(sampler -> sampler.setValue(newestEventTimestamp));
     }
 
+    AtomicBoolean firstTableCount = new AtomicBoolean(true);
     public void handleTableCountAccept(String nodeId, long count) {
+        if (firstTableCount.get()) {
+            Optional.ofNullable(snapshotRowCounters.get(nodeId)).ifPresent(CounterSampler::reset);
+            firstTableCount.set(false);
+        }
+
         Optional.ofNullable(snapshotRowCounters.get(nodeId)).ifPresent(counter -> counter.inc(count));
+    }
+
+    public void handleDdlStart(String nodeId) {
+        Optional.ofNullable(inputDdlCounters.get(nodeId)).ifPresent(CounterSampler::inc);
+    }
+
+    public void handleDdlEnd(String nodeId) {
+        Optional.ofNullable(outputDdlCounters.get(nodeId)).ifPresent(CounterSampler::inc);
+    }
+
+    public void handleSourceDynamicTableAdd(String nodeId, List<String> tables) {
+        if (null == tables || tables.isEmpty()) {
+            return;
+        }
+        nodeTables.putIfAbsent(nodeId, new HashSet<>());
+        tables.forEach(nodeTables.get(nodeId)::add);
+        Optional.ofNullable(inputDdlCounters.get(nodeId)).ifPresent(counter -> counter.inc(tables.size()));
+        Optional.ofNullable(outputDdlCounters.get(nodeId)).ifPresent(counter -> counter.inc(tables.size()));
+    }
+
+    public void handleSourceDynamicTableRemove(String nodeId, List<String> tables) {
+        if (null == tables || tables.isEmpty()) {
+            return;
+        }
+        Optional.ofNullable(inputDdlCounters.get(nodeId)).ifPresent(counter -> counter.inc(tables.size()));
+        Optional.ofNullable(outputDdlCounters.get(nodeId)).ifPresent(counter -> counter.inc(tables.size()));
     }
 
     private static final int PERIOD_SECOND = 5;
@@ -266,7 +311,12 @@ public class DataNodeSampleHandler extends AbstractNodeSampleHandler {
         if (null == scheduleExecutorService) {
             String name = String.format("Task data node health check %s-%s", task.getName(), task.getId());
             scheduleExecutorService = ExecutorsManager.getInstance().newSingleThreadScheduledExecutor(name);
-            scheduleExecutorService.scheduleAtFixedRate(() -> {
+            AtomicReference<ScheduledFuture<?>> futureRef = new AtomicReference<>();
+            ScheduledFuture<?> future = scheduleExecutorService.scheduleAtFixedRate(() -> {
+                if (!running) {
+                    futureRef.get().cancel(true);
+                    scheduleExecutorService.shutdown();
+                }
                 for (String id : connectorNodeMap.keySet()) {
                     ConnectionCheckFunction function = connectorNode.getConnectorFunctions().getConnectionCheckFunction();
                     if (null == function) {
@@ -309,6 +359,7 @@ public class DataNodeSampleHandler extends AbstractNodeSampleHandler {
                     AspectUtils.executeAspect(connectionPingAspect);
                 }
             }, 0L, PERIOD_SECOND, TimeUnit.SECONDS);
+            futureRef.set(future);
         }
     }
 }

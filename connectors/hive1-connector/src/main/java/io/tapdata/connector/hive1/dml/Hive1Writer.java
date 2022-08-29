@@ -29,6 +29,7 @@ import java.sql.SQLIntegrityConstraintViolationException;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
@@ -38,13 +39,17 @@ public class Hive1Writer {
     private static final String TAG = Hive1Writer.class.getSimpleName();
 	private final Map<String, JdbcCache> jdbcCacheMap = new ConcurrentHashMap<>();
 
+	private final Map<String, Connection> connectionCacheMap = new LRUOnRemoveMap<>(20, entry -> JdbcUtil.closeQuietly(entry.getValue()));
+
     private final Map<String, String> batchInsertColumnSql = new LRUMap<>(10);
 
     private final Map<String, String> batchInsertValueSql = new LRUMap<>(10);
     private AtomicBoolean running = new AtomicBoolean(true);
 
     protected Hive1JdbcContext hive1JdbcContext;
-    protected Connection connection;
+
+    private static ReentrantLock lock = new ReentrantLock();
+//    protected Connection connection;
 
     protected static final String INSERT_SQL_TEMPLATE = "INSERT INTO `%s`.`%s` values(%s)";
     //ALTER TABLE student UPDATE count=10 where id=0;
@@ -61,7 +66,7 @@ public class Hive1Writer {
 
     public Hive1Writer(Hive1JdbcContext hive1JdbcContext) throws Throwable {
         this.hive1JdbcContext = hive1JdbcContext;
-        this.connection = this.hive1JdbcContext.getConnection((Hive1Config) hive1JdbcContext.getConfig());
+//        this.connection = this.hive1JdbcContext.getConnection((Hive1Config) hive1JdbcContext.getConfig());
     }
 
     public WriteListResult<TapRecordEvent> write(TapConnectorContext tapConnectorContext, TapTable tapTable, List<TapRecordEvent> tapRecordEvents) throws Throwable {
@@ -150,7 +155,8 @@ public class Hive1Writer {
             writeListResult.incrementInserted(row);
 
             int parameterIndex = 1;
-            pstmt = this.connection.prepareStatement(StringUtils.removeEnd(insertColumnSql.toString(), ","));
+//            pstmt = this.connection.prepareStatement(StringUtils.removeEnd(insertColumnSql.toString(), ","));
+            pstmt = getConnection().prepareStatement(StringUtils.removeEnd(insertColumnSql.toString(), ","));
             for (TapRecordEvent tapRecordEvent : tapRecordEventList) {
                 Map<String, Object> after = ((TapInsertRecordEvent) tapRecordEvent).getAfter();
                 if (MapUtils.isNotEmpty(after)) {
@@ -180,17 +186,7 @@ public class Hive1Writer {
         return writeListResult;
     }
 
-    protected boolean connectionAvaliable() {
-        try {
-            if (connection != null && connection.isValid(60)) {
-                return true;
-            }
-        } catch (SQLException e) {
-            return false;
-        }
 
-        return false;
-    }
 
     private String getCloneInsertColumnSql(TapConnectorContext tapConnectorContext, TapTable tapTable) throws Exception {
         String table = tapTable.getId();
@@ -255,7 +251,8 @@ public class Hive1Writer {
             writeListResult.setModifiedCount(0);
             writeListResult.setRemovedCount(0);
             if (null != errorRecord) writeListResult.addError(errorRecord, e);
-            Hive1JdbcContext.tryRollBack(connection);
+//            Hive1JdbcContext.tryRollBack(connection);
+            Hive1JdbcContext.tryRollBack(getConnection());
             throw e;
         }
         return writeListResult;
@@ -383,7 +380,7 @@ public class Hive1Writer {
                 }
                 //不更新主键
                 if (!uniqueKeys.contains(fieldName))
-                    setList.add("`" + fieldName + "`=?");
+                    setList.add("`" + fieldName.toLowerCase() + "`=?");
             });
             List<String> whereList = new ArrayList<>();
             for (String uniqueKey : uniqueKeys) {
@@ -392,7 +389,8 @@ public class Hive1Writer {
             String sql = String.format(UPDATE_SQL_TEMPLATE, database, tableId, String.join(",", setList), String.join(" AND ", whereList));
             try {
 //                this.connection = this.hive1JdbcContext.getConnection((Hive1Config) hive1JdbcContext.getConfig());
-                preparedStatement = this.connection.prepareStatement(sql);
+//                preparedStatement = this.connection.prepareStatement(sql);
+                preparedStatement = getConnection().prepareStatement(sql);
             } catch (SQLException e) {
                 throw new Exception("Create update prepared statement error, sql: " + sql + ", message: " + e.getSQLState() + " " + e.getErrorCode() + " " + e.getMessage(), e);
             } catch (Exception e) {
@@ -480,7 +478,8 @@ public class Hive1Writer {
             String sql = String.format(DELETE_SQL_TEMPLATE, database, tableId, String.join(" AND ", whereList));
             try {
 //                this.connection = this.hive1JdbcContext.getConnection((Hive1Config) hive1JdbcContext.getConfig());
-                preparedStatement = this.connection.prepareStatement(sql);
+//                preparedStatement = this.connection.prepareStatement(sql);
+                preparedStatement = getConnection().prepareStatement(sql);
             } catch (SQLException e) {
                 throw new Exception("Create delete prepared statement error, sql: " + sql + ", message: " + e.getSQLState() + " " + e.getErrorCode() + " " + e.getMessage(), e);
             } catch (Exception e) {
@@ -533,7 +532,8 @@ public class Hive1Writer {
             }
             String sql = String.format(CHECK_ROW_EXISTS_TEMPLATE, database, tableId, String.join(" AND ", whereList));
             try {
-                preparedStatement = this.connection.prepareStatement(sql);
+//                preparedStatement = this.connection.prepareStatement(sql);
+                preparedStatement = getConnection().prepareStatement(sql);
             } catch (SQLException e) {
                 throw new Exception("Create check row exists prepared statement error, sql: " + sql + ", message: " + e.getSQLState() + " " + e.getErrorCode() + " " + e.getMessage(), e);
             } catch (Exception e) {
@@ -605,7 +605,9 @@ public class Hive1Writer {
 
             try {
 //                this.connection = this.hive1JdbcContext.getConnection((Hive1Config) hive1JdbcContext.getConfig());
-                preparedStatement = this.connection.prepareStatement(sql);
+                TapLogger.info("线程debug","writeRecord当前线程为:{},connection的hashcode为:{}",Thread.currentThread().getName(),getConnection().hashCode());
+//                preparedStatement = this.connection.prepareStatement(sql);
+                preparedStatement = getConnection().prepareStatement(sql);
             } catch (SQLException e) {
                 throw new Exception("Create insert prepared statement error, sql: " + sql + ", message: " + e.getSQLState() + " " + e.getErrorCode() + " " + e.getMessage(), e);
             } catch (Exception e) {
@@ -705,4 +707,23 @@ public class Hive1Writer {
 			this.checkExistsMap.clear();
 		}
 	}
+
+    public Connection getConnection() {
+        String name = Thread.currentThread().getName();
+        Connection connection2 = connectionCacheMap.get(name);
+        if (connection2 == null) {
+            try {
+                lock.lock();
+                if (connection2 == null) {
+                    connection2 = this.hive1JdbcContext.getConnection((Hive1Config) hive1JdbcContext.getConfig());
+                    connectionCacheMap.put(name, connection2);
+                }
+            } catch (SQLException e) {
+                throw new RuntimeException(e);
+            } finally {
+                lock.unlock();
+            }
+        }
+        return connection2;
+    }
 }

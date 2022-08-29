@@ -9,4 +9,6 @@ import java.util.List;
 public interface PartitionKeySelector<T, R, M> {
 
 	List<R> select(T event, M row);
+
+	List<R> convert2OriginValue(final List<R> values);
 }

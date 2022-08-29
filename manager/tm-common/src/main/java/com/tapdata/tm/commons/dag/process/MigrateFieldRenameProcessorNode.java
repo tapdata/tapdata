@@ -1,6 +1,7 @@
 package com.tapdata.tm.commons.dag.process;
 
 import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
 import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.NodeEnum;
@@ -27,7 +28,7 @@ import static com.tapdata.tm.commons.base.convert.ObjectIdDeserialize.toObjectId
 @Getter
 @Setter
 @Slf4j
-public class MigrateFieldRenameProcessorNode extends Node<List<Schema>> {
+public class MigrateFieldRenameProcessorNode extends MigrateProcessorNode {
     /**
      * 创建处理器节点
      *
@@ -48,7 +49,7 @@ public class MigrateFieldRenameProcessorNode extends Node<List<Schema>> {
             return inputSchemas.get(0);
         }
 
-        Map<String, TableFieldInfo> tableFieldInfoMap = fieldsMapping.stream().collect(Collectors.toMap(TableFieldInfo::getOriginTableName, Function.identity()));
+        Map<String, TableFieldInfo> tableFieldInfoMap = fieldsMapping.stream().collect(Collectors.toMap(TableFieldInfo::getOriginTableName, Function.identity(), (e1,e2)->e2));
 
         inputSchemas.get(0).forEach(schema -> {
             //schema.setDatabaseId(null);
@@ -63,13 +64,11 @@ public class MigrateFieldRenameProcessorNode extends Node<List<Schema>> {
                 Map<String, String> fieldMap = tableFieldInfoMap.get(ancestorsName).getFields()
                         .stream().collect(Collectors.toMap(FieldInfo::getSourceFieldName, FieldInfo::getTargetFieldName));
 
-                Iterator<Field> iterator = fields.iterator();
-                while (iterator.hasNext()) {
-                    Field field = iterator.next();
+                for (Field field : fields) {
                     String fieldName = field.getFieldName();
                     Boolean show = showMap.get(fieldName);
                     if (Objects.nonNull(show) && !show) {
-                        iterator.remove();
+                        field.setDeleted(true);
                     } else if (fieldMap.containsKey(fieldName)) {
                         field.setFieldName(fieldMap.get(fieldName));
                     }
@@ -88,7 +87,7 @@ public class MigrateFieldRenameProcessorNode extends Node<List<Schema>> {
 
     @Override
     protected List<Schema> saveSchema(Collection<String> predecessors, String nodeId, List<Schema> schema, DAG.Options options) {
-        ObjectId taskId = taskId();
+
         schema.forEach(s -> {
             //s.setTaskId(taskId);
             s.setNodeId(nodeId);

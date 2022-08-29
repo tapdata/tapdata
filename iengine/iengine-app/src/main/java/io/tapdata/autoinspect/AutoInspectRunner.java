@@ -1,20 +1,20 @@
 package io.tapdata.autoinspect;
 
+import com.tapdata.tm.autoinspect.compare.IAutoCompare;
 import com.tapdata.tm.autoinspect.connector.IConnector;
 import com.tapdata.tm.autoinspect.connector.IDataCursor;
 import com.tapdata.tm.autoinspect.constants.CompareStatus;
+import com.tapdata.tm.autoinspect.constants.CompareStep;
 import com.tapdata.tm.autoinspect.constants.Constants;
 import com.tapdata.tm.autoinspect.constants.TaskType;
 import com.tapdata.tm.autoinspect.dto.TaskAutoInspectResultDto;
+import com.tapdata.tm.autoinspect.entity.AutoInspectProgress;
 import com.tapdata.tm.autoinspect.entity.CompareRecord;
 import com.tapdata.tm.autoinspect.entity.CompareTableItem;
-import io.tapdata.autoinspect.compare.IAutoCompare;
+import io.tapdata.observable.logging.ObsLogger;
+import lombok.NonNull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
 
 /**
  * @author <a href="mailto:harsen_lin@163.com">Harsen</a>
@@ -22,12 +22,16 @@ import java.util.Map;
  */
 public abstract class AutoInspectRunner<S extends IConnector, T extends IConnector, A extends IAutoCompare> implements Runnable {
     private static final Logger logger = LogManager.getLogger(AutoInspectRunner.class);
+    protected final ObsLogger userLogger;
     protected final String taskId;
     protected final TaskType taskType;
+    protected AutoInspectProgress progress;
 
-    public AutoInspectRunner(String taskId, TaskType taskType) {
+    public AutoInspectRunner(@NonNull ObsLogger userLogger, @NonNull String taskId, @NonNull TaskType taskType, AutoInspectProgress progress) {
+        this.userLogger = userLogger;
         this.taskId = taskId;
         this.taskType = taskType;
+        this.progress = progress;
     }
 
     @Override
@@ -35,22 +39,34 @@ public abstract class AutoInspectRunner<S extends IConnector, T extends IConnect
         Thread.currentThread().setName(String.format("th-%s-%s", Constants.MODULE_NAME, taskId));
         try (
                 S sourceConnector = openSourceConnector();
-                T targetConnector = openTargetConnector();
-                A autoCompare = openAutoCompare(sourceConnector, targetConnector)
+                T targetConnector = openTargetConnector()
         ) {
-            if (taskType.hasInitial()) {
-                long beginTimes = System.currentTimeMillis();
-                initialCompare(sourceConnector, targetConnector, autoCompare);
-                logger.info("completed initial compare use {} ms", System.currentTimeMillis() - beginTimes);
+            if (null == progress) {
+                progress = new AutoInspectProgress();
+                init(progress, sourceConnector, targetConnector);
+                updateProgress(progress);
             }
 
-            if (taskType.hasIncrement()) {
-                long beginTimes = System.currentTimeMillis();
-                incrementalCompare(sourceConnector, targetConnector, autoCompare);
-                logger.info("completed increment compare use {} ms", System.currentTimeMillis() - beginTimes);
+            try (A autoCompare = openAutoCompare(sourceConnector, targetConnector)) {
+                if (CompareStep.Initial == progress.getStep() && taskType.hasInitial()) {
+                    userLogger.info("Start initial compare");
+                    long beginTimes = System.currentTimeMillis();
+                    initialCompare(sourceConnector, targetConnector, autoCompare);
+                    userLogger.info("Completed initial compare use {} ms", System.currentTimeMillis() - beginTimes);
+                }
+
+                progress.setStep(CompareStep.Increment);
+                updateProgress(progress);
+
+                if (taskType.hasIncrement()) {
+                    userLogger.info("Start Incremental compare");
+                    long beginTimes = System.currentTimeMillis();
+                    incrementalCompare(sourceConnector, targetConnector, autoCompare);
+                    userLogger.info("Completed increment compare use {} ms", System.currentTimeMillis() - beginTimes);
+                }
             }
         } catch (Exception e) {
-            handleError(String.format("execute failed: %s", e.getMessage()), e);
+            errorHandle(e, String.format("Execute failed: %s", e.getMessage()));
         } finally {
             exit();
         }
@@ -60,12 +76,20 @@ public abstract class AutoInspectRunner<S extends IConnector, T extends IConnect
 
     protected abstract T openTargetConnector() throws Exception;
 
-    protected abstract A openAutoCompare(S sourceConnector, T targetConnector) throws Exception;
+    protected abstract A openAutoCompare(@NonNull S sourceConnector, @NonNull T targetConnector) throws Exception;
 
-    protected abstract void initialCompare(S sourceConnector, T targetConnector, A autoCompare) throws Exception;
+    protected abstract void init(@NonNull AutoInspectProgress progress, @NonNull S sourceConnector, @NonNull T targetConnector) throws Exception;
 
-    protected void initialCompare(S sourceConnector, T targetConnector, A autoCompare, CompareTableItem compareItem) throws Exception {
-        logger.info("begin '{}' table initial compare", compareItem.getTableName());
+    protected void initialCompare(@NonNull S sourceConnector, @NonNull T targetConnector, @NonNull A autoCompare) throws Exception {
+        for (CompareTableItem tableItem : progress.getTableItems().values()) {
+            initialCompare(sourceConnector, targetConnector, autoCompare, tableItem);
+            tableItem.setInitialed(true);
+            updateProgress(progress);
+        }
+    }
+
+    protected void initialCompare(@NonNull S sourceConnector, @NonNull T targetConnector, @NonNull A autoCompare, @NonNull CompareTableItem compareItem) throws Exception {
+        logger.info("Start '{}' table initial compare", compareItem.getTableName());
         try (IDataCursor<CompareRecord> sourceCursor = sourceConnector.queryAll(compareItem.getTableName(), compareItem.getOffset())) {
             try (IDataCursor<CompareRecord> targetCursor = targetConnector.queryAll(compareItem.getTableName(), compareItem.getOffset())) {
                 CompareRecord sourceData = sourceCursor.next();
@@ -78,30 +102,32 @@ public abstract class AutoInspectRunner<S extends IConnector, T extends IConnect
                             counts++;
                             targetData = targetCursor.next();
                         }
-                        logger.info("has more target: {}", counts);
+                        if (counts > 0) {
+                            userLogger.warn("Target has more data: {}", counts);
+                        }
                         break;
                     }
                     if (null == targetData) {
                         // more source
                         while (isRunning() && null != sourceData) {
-                            autoCompare.add(new TaskAutoInspectResultDto(taskId, sourceConnector.getConnId(), compareItem.getTableName(), sourceData.getOriginalKey(), sourceData.getData(), targetConnector.getConnId(), compareItem.getTableName(), null));
+                            autoCompare.autoCompare(TaskAutoInspectResultDto.parse(taskId, sourceData, targetConnector.getConnId(), compareItem.getTableName()));
                             sourceData = sourceCursor.next();
                         }
                         break;
                     }
 
-                    CompareStatus compareStatus = compare(sourceData, targetData);
+                    CompareStatus compareStatus = sourceData.compare(targetData);
                     switch (compareStatus) {
                         case MoveSource:
-                            autoCompare.add(new TaskAutoInspectResultDto(taskId, sourceConnector.getConnId(), compareItem.getTableName(), sourceData.getOriginalKey(), sourceData.getData(), targetConnector.getConnId(), compareItem.getTableName(), null));
+                            autoCompare.autoCompare(TaskAutoInspectResultDto.parse(taskId, sourceData, targetConnector.getConnId(), compareItem.getTableName()));
                             sourceData = sourceCursor.next();
                             break;
                         case MoveTarget:
-                            autoCompare.add(new TaskAutoInspectResultDto(taskId, sourceConnector.getConnId(), compareItem.getTableName(), sourceData.getOriginalKey(), null, targetConnector.getConnId(), compareItem.getTableName(), targetData.getData()));
+                            // more target data
                             targetData = targetCursor.next();
                             break;
                         case Diff:
-                            autoCompare.add(new TaskAutoInspectResultDto(taskId, sourceConnector.getConnId(), compareItem.getTableName(), sourceData.getOriginalKey(), sourceData.getData(), targetConnector.getConnId(), compareItem.getTableName(), targetData.getData()));
+                            autoCompare.autoCompare(TaskAutoInspectResultDto.parse(taskId, sourceData, targetData));
                             sourceData = sourceCursor.next();
                             targetData = targetCursor.next();
                             break;
@@ -110,59 +136,28 @@ public abstract class AutoInspectRunner<S extends IConnector, T extends IConnect
                             targetData = targetCursor.next();
                             break;
                         default:
-                            throw new RuntimeException("no support compare result type: " + compareStatus);
+                            throw new RuntimeException("No support compare result type: " + compareStatus);
                     }
                 } while (isRunning() && !isStopping());
             }
         }
-        logger.info("'{}' table initial compare completed", compareItem.getTableName());
+        logger.info("Completed '{}' table initial compare", compareItem.getTableName());
     }
 
-    protected abstract void incrementalCompare(S sourceConnector, T targetConnector, A autoCompare) throws Exception;
+    protected abstract void incrementalCompare(@NonNull S sourceConnector, @NonNull T targetConnector, @NonNull A autoCompare) throws Exception;
 
-    protected CompareStatus compare(CompareRecord sourceData, CompareRecord targetData) {
-        CompareStatus compareStatus = sourceData.compareKeys(targetData);
-        if (CompareStatus.Diff == compareStatus) {
-            Object odata;
-            List<String> diffKeys = new ArrayList<>();
-            Map<String, Object> omap = targetData.getData();
-            for (Map.Entry<String, Object> en : sourceData.getData().entrySet()) {
-                //filter keys
-                if (sourceData.getKeyNames().contains(en.getKey())) continue;
-
-                //check null value
-                odata = omap.get(en.getKey());
-                if (null == en.getValue()) {
-                    if (null != odata) {
-                        diffKeys.add(en.getKey());
-                    }
-                    continue;
-                }
-
-                //check value
-                if (!en.getValue().equals(odata)) {
-                    diffKeys.add(en.getKey());
-                }
-            }
-
-            //has not difference
-            if (diffKeys.isEmpty()) {
-                compareStatus = CompareStatus.Ok;
-            }
-        }
-
-        return compareStatus;
-    }
+    protected abstract void updateProgress(@NonNull AutoInspectProgress progress);
 
     protected abstract boolean isRunning();
 
     protected abstract boolean isStopping();
 
-    protected void handleError(String msg, Throwable e) {
+    protected void errorHandle(Throwable e, String msg) {
+        userLogger.warn(msg, e);
         logger.warn(msg, e);
     }
 
     protected void exit() {
-        logger.info("exit");
+        userLogger.info("Exit AutoInspect.");
     }
 }

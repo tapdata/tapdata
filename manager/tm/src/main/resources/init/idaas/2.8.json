@@ -454,29 +454,6 @@
     ]
   },
   {
-    "createIndexes": "InconsistentData",
-    "indexes": [
-      {
-        "name": "_id_",
-        "key": {
-          "_id": 1
-        }
-      },
-      {
-        "name": "verificationJobId_1_validateResult_1_nextValidateTime_1",
-        "key": {
-          "nextValidateTime": 1,
-          "verificationJobId": 1,
-          "validateResult": 1
-        },
-        "partialFilterExpression": {
-          "validateResult": "retry"
-        },
-        "background": true
-      }
-    ]
-  },
-  {
   "createIndexes": "Task",
   "indexes": [
     {
@@ -538,13 +515,6 @@
       "name": "index_task_dag_nodes_connectionId",
       "key": {
         "dag.nodes.connectionId": 1
-      },
-      "background": true
-    },
-    {
-      "name": "index_task_agent_id",
-      "key": {
-        "agentId": 1
       },
       "background": true
     }
@@ -859,9 +829,9 @@
         }
       },
       {
-        "name": "date_1",
+        "name": "createdTime_1",
         "key": {
-          "date": 1
+          "createdTime": 1
         },
         "expireAfterSeconds": 30,
         "background": true,

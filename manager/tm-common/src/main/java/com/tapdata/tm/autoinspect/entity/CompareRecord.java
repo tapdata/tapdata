@@ -1,33 +1,33 @@
 package com.tapdata.tm.autoinspect.entity;
 
 import com.tapdata.tm.autoinspect.constants.CompareStatus;
-import lombok.Getter;
+import lombok.Data;
 import lombok.NonNull;
-import lombok.Setter;
 import org.bson.types.ObjectId;
 
-import java.util.HashMap;
-import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
-import java.util.Map;
+import java.util.*;
 
-@Setter
-@Getter
+@Data
 public class CompareRecord {
 
     private @NonNull String tableName;
     private @NonNull ObjectId connectionId;
     private @NonNull LinkedHashMap<String, Object> originalKey;
     private @NonNull LinkedHashSet<String> keyNames;
-    private @NonNull Map<String, Object> data;
+    private Map<String, Object> data;
 
     public CompareRecord() {
         this.originalKey = new LinkedHashMap<>();
         this.keyNames = new LinkedHashSet<>();
-        this.data = new HashMap<>();
     }
 
-    public CompareRecord(@NonNull String tableName, @NonNull ObjectId connectionId, @NonNull LinkedHashMap<String, Object> originalKey, @NonNull LinkedHashSet<String> keyNames, @NonNull Map<String, Object> data) {
+    public CompareRecord(@NonNull String tableName, @NonNull ObjectId connectionId) {
+        this();
+        this.tableName = tableName;
+        this.connectionId = connectionId;
+    }
+
+    public CompareRecord(@NonNull String tableName, @NonNull ObjectId connectionId, @NonNull LinkedHashMap<String, Object> originalKey, @NonNull LinkedHashSet<String> keyNames, Map<String, Object> data) {
         this.tableName = tableName;
         this.connectionId = connectionId;
         this.originalKey = originalKey;
@@ -39,16 +39,10 @@ public class CompareRecord {
         return data.get(key);
     }
 
-    public void copyFrom(@NonNull CompareRecord o) {
-        this.originalKey.putAll(o.getOriginalKey());
-        this.keyNames.addAll(o.getKeyNames());
-        this.data.putAll(o.getData());
-    }
-
     /**
      * Calculate primary key order
      *
-     * @param o    target value
+     * @param o target value
      * @return
      */
     public CompareStatus compareKeys(@NonNull CompareRecord o) {
@@ -64,7 +58,11 @@ public class CompareRecord {
                 return CompareStatus.MoveTarget;
             }
 
-            compareValue = v1.hashCode() - v2.hashCode();
+            if (v1 instanceof Comparable && v2 instanceof Comparable) {
+                compareValue = ((Comparable) v1).compareTo(v2);
+            } else {
+                compareValue = v1.hashCode() - v2.hashCode();
+            }
             if (0 < compareValue) {
                 return CompareStatus.MoveTarget;
             } else if (0 > compareValue) {
@@ -73,5 +71,39 @@ public class CompareRecord {
         }
 
         return CompareStatus.Diff;
+    }
+
+    public CompareStatus compare(CompareRecord targetData) {
+        CompareStatus compareStatus = this.compareKeys(targetData);
+        if (CompareStatus.Diff == compareStatus) {
+            Object odata;
+            List<String> diffKeys = new ArrayList<>();
+            Map<String, Object> omap = targetData.getData();
+            for (Map.Entry<String, Object> en : this.getData().entrySet()) {
+                //filter keys
+                if (this.getKeyNames().contains(en.getKey())) continue;
+
+                //check null value
+                odata = omap.get(en.getKey());
+                if (null == en.getValue()) {
+                    if (null != odata) {
+                        diffKeys.add(en.getKey());
+                    }
+                    continue;
+                }
+
+                //check value
+                if (!en.getValue().equals(odata)) {
+                    diffKeys.add(en.getKey());
+                }
+            }
+
+            //has not difference
+            if (diffKeys.isEmpty()) {
+                compareStatus = CompareStatus.Ok;
+            }
+        }
+
+        return compareStatus;
     }
 }

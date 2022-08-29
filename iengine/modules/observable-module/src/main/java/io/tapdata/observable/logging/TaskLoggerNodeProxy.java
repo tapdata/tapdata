@@ -39,12 +39,12 @@ class TaskLoggerNodeProxy extends ObsLogger implements Serializable {
 	}
 
 	@Override
-	void error(Callable<MonitoringLogsDto.MonitoringLogsDtoBuilder> callable, Throwable throwable, String message, Object... params) {
+	public void error(Callable<MonitoringLogsDto.MonitoringLogsDtoBuilder> callable, Throwable throwable, String message, Object... params) {
 		taskLogger.error(callable, throwable, message, params);
 	}
 
 	@Override
-	void fatal(Callable<MonitoringLogsDto.MonitoringLogsDtoBuilder> callable, Throwable throwable, String message, Object... params) {
+	public void fatal(Callable<MonitoringLogsDto.MonitoringLogsDtoBuilder> callable, Throwable throwable, String message, Object... params) {
 		taskLogger.fatal(callable, throwable, message, params);
 	}
 

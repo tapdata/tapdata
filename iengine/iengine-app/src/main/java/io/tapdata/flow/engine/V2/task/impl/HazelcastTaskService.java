@@ -17,7 +17,6 @@ import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.entity.task.context.ProcessorBaseContext;
 import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.mongo.HttpClientMongoOperator;
-import com.tapdata.tm.autoinspect.utils.AutoInspectUtil;
 import com.tapdata.tm.commons.dag.Edge;
 import com.tapdata.tm.commons.dag.Element;
 import com.tapdata.tm.commons.dag.Node;
@@ -32,6 +31,7 @@ import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.aspect.TaskStartAspect;
 import io.tapdata.aspect.TaskStopAspect;
 import io.tapdata.aspect.utils.AspectUtils;
+import io.tapdata.autoinspect.utils.AutoInspectNodeUtil;
 import io.tapdata.common.SettingService;
 import io.tapdata.common.sharecdc.ShareCdcUtil;
 import io.tapdata.dao.MessageDao;
@@ -41,9 +41,7 @@ import io.tapdata.flow.engine.V2.exception.node.NodeException;
 import io.tapdata.flow.engine.V2.node.hazelcast.HazelcastBaseNode;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.*;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.*;
-import io.tapdata.flow.engine.V2.node.hazelcast.processor.HazelcastCustomProcessor;
-import io.tapdata.flow.engine.V2.node.hazelcast.processor.HazelcastMergeNode;
-import io.tapdata.flow.engine.V2.node.hazelcast.processor.HazelcastProcessorNode;
+import io.tapdata.flow.engine.V2.node.hazelcast.processor.*;
 import io.tapdata.flow.engine.V2.node.hazelcast.processor.aggregation.HazelcastMultiAggregatorProcessor;
 import io.tapdata.flow.engine.V2.node.hazelcast.processor.join.HazelcastJoinProcessor;
 import io.tapdata.flow.engine.V2.task.TaskClient;
@@ -55,6 +53,7 @@ import io.tapdata.milestone.MilestoneContext;
 import io.tapdata.milestone.MilestoneFactory;
 import io.tapdata.milestone.MilestoneFlowServiceJetV2;
 import io.tapdata.milestone.MilestoneJetEdgeService;
+import io.tapdata.observable.logging.ObsLoggerFactory;
 import io.tapdata.schema.TapTableMap;
 import io.tapdata.schema.TapTableUtil;
 import lombok.SneakyThrows;
@@ -133,6 +132,7 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 			final Job job = hazelcastInstance.getJet().newJob(jetDag.getDag(), jobConfig);
 			return new HazelcastTaskClient(job, taskDto, clientMongoOperator, configurationCenter, hazelcastInstance, milestoneFlowServiceJetV2);
 		} catch (Throwable throwable) {
+			ObsLoggerFactory.getInstance().getObsLogger(taskDto).error(throwable);
 			AspectUtils.executeAspect(new TaskStopAspect().task(taskDto).error(throwable));
 			throw throwable;
 		}
@@ -150,6 +150,7 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 			Job job = hazelcastInstance.getJet().newLightJob(jetDag.getDag(), jobConfig);
 			return new HazelcastTaskClient(job, taskDto, clientMongoOperator, configurationCenter, hazelcastInstance, null);
 		} catch (Throwable throwable) {
+			ObsLoggerFactory.getInstance().getObsLogger(taskDto).error(throwable);
 			AspectUtils.executeAspect(new TaskStopAspect().task(taskDto).error(throwable));
 			throw throwable;
 		}
@@ -188,7 +189,7 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 			Map<String, MergeTableNode> mergeTableMap = MergeTableUtil.getMergeTableMap(nodes, edges);
 
 			// Generate AutoInspectNode
-			AutoInspectUtil.generateAutoInspectNode(taskDtoAtomicReference.get(), nodes, edges, nodeMap);
+			AutoInspectNodeUtil.generateAutoInspectNode(taskDtoAtomicReference.get(), nodes, edges, nodeMap);
 
 			for (Node node : nodes) {
 				Connections connection = null;
@@ -470,8 +471,6 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 			case FIELD_RENAME_PROCESSOR:
 			case FIELD_MOD_TYPE_PROCESSOR:
 			case FIELD_CALC_PROCESSOR:
-			case TABLE_RENAME_PROCESSOR:
-			case MIGRATE_FIELD_RENAME_PROCESSOR:
 			case FIELD_ADD_DEL_PROCESSOR:
 				hazelcastNode = new HazelcastProcessorNode(
 						DataProcessorContext.newBuilder()
@@ -484,6 +483,29 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 								.withTapTableMap(tapTableMap)
 								.build()
 				);
+				break;
+			case TABLE_RENAME_PROCESSOR:
+				hazelcastNode = new HazelcastRenameTableProcessorNode(DataProcessorContext.newBuilder()
+								.withTaskDto(taskDto)
+								.withNode(node)
+								.withNodes(nodes)
+								.withEdges(edges)
+								.withCacheService(cacheService)
+								.withConfigurationCenter(config)
+								.withTapTableMap(tapTableMap)
+								.build());
+				break;
+			case MIGRATE_FIELD_RENAME_PROCESSOR:
+				hazelcastNode = new HazelcastMigrateFieldRenameProcessorNode(
+								DataProcessorContext.newBuilder()
+												.withTaskDto(taskDto)
+												.withNode(node)
+												.withNodes(nodes)
+												.withEdges(edges)
+												.withCacheService(cacheService)
+												.withConfigurationCenter(config)
+												.withTapTableMap(tapTableMap)
+												.build());
 				break;
 			case LOG_COLLECTOR:
 				hazelcastNode = new HazelcastSourcePdkShareCDCNode(

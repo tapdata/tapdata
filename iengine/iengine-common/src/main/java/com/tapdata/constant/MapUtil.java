@@ -600,6 +600,15 @@ public class MapUtil {
 	}
 
 	public static void replaceKey(String oldKey, Object map, String newkey) {
+		if (StringUtils.isBlank(oldKey)) {
+			return;
+		}
+		if (StringUtils.isBlank(newkey)) {
+			return;
+		}
+		if (oldKey.equals(newkey)) {
+			return;
+		}
 		int index = oldKey.indexOf(".");
 		String oldKeyNow = oldKey;
 		if (index > 0) {

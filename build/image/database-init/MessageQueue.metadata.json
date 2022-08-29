@@ -1,1 +1,0 @@
-{"options":{},"indexes":[{"v":2,"key":{"_id":1},"name":"_id_","ns":"tapdata.MessageQueue"},{"v":2,"key":{"last_updated":1},"name":"last_updated_1","ns":"tapdata.MessageQueue","expireAfterSeconds":2592000,"background":true}],"uuid":"397aa5b6d03c49b6beeb21aa0958e57f"}

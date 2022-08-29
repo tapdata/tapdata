@@ -30,7 +30,6 @@ import com.tapdata.tm.task.vo.JsResultDto;
 import com.tapdata.tm.task.vo.JsResultVo;
 import com.tapdata.tm.task.vo.TaskDetailVo;
 import com.tapdata.tm.task.vo.TaskRecordListVo;
-import com.tapdata.tm.utils.FunctionUtils;
 import com.tapdata.tm.utils.Lists;
 import com.tapdata.tm.utils.MongoUtils;
 import io.github.openlg.graphlib.Graph;
@@ -125,8 +124,6 @@ public class TaskController extends BaseController {
         if (filter == null) {
             filter = new Filter();
         }
-
-
 
         return success(taskService.find(filter, getLoginUser()));
     }
@@ -266,6 +263,8 @@ public class TaskController extends BaseController {
 
             taskDto.setCreator(StringUtils.isNotBlank(user.getUsername()) ? user.getUsername() : user.getEmail());
             taskCheckInspectService.getInspectFlagDefaultFlag(taskDto, user);
+
+            taskNodeService.checkFieldNode(taskDto, user);
         }
         return success(taskDto);
     }
@@ -932,8 +931,14 @@ public class TaskController extends BaseController {
 
 
     @PostMapping("dag")
+    public ResponseMessage<Void> updateDagAndHistory(@RequestBody TaskDto taskDto) {
+        taskService.updateDag(taskDto, getLoginUser(), true);
+        return success();
+    }
+
+    @PostMapping("dagNotHistory")
     public ResponseMessage<Void> updateDag(@RequestBody TaskDto taskDto) {
-        taskService.updateDag(taskDto, getLoginUser());
+        taskService.updateDag(taskDto, getLoginUser(), false);
         return success();
     }
 

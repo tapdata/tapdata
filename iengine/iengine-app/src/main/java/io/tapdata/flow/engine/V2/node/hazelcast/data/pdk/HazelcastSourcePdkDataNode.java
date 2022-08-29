@@ -12,12 +12,17 @@ import com.tapdata.entity.dataflow.SyncProgress;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.task.dto.TaskDto;
-import io.tapdata.aspect.*;
+import io.tapdata.aspect.BatchReadFuncAspect;
+import io.tapdata.aspect.SourceStateAspect;
+import io.tapdata.aspect.StreamReadFuncAspect;
+import io.tapdata.aspect.TableCountFuncAspect;
+import io.tapdata.aspect.TaskMilestoneFuncAspect;
 import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.common.sample.sampler.CounterSampler;
 import io.tapdata.common.sample.sampler.ResetCounterSampler;
 import io.tapdata.common.sample.sampler.SpeedSampler;
 import io.tapdata.entity.schema.TapTable;
+import io.tapdata.flow.engine.V2.exception.node.NodeException;
 import io.tapdata.flow.engine.V2.progress.SnapshotProgressManager;
 import io.tapdata.flow.engine.V2.sharecdc.ReaderType;
 import io.tapdata.flow.engine.V2.sharecdc.ShareCdcReader;
@@ -32,6 +37,7 @@ import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
 import io.tapdata.pdk.apis.functions.connector.source.BatchCountFunction;
 import io.tapdata.pdk.apis.functions.connector.source.BatchReadFunction;
 import io.tapdata.pdk.apis.functions.connector.source.StreamReadFunction;
+import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
 import io.tapdata.pdk.core.monitor.PDKMethod;
 import io.tapdata.pdk.core.utils.LoggerUtils;
@@ -42,8 +48,17 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.NotNull;
 
-import java.util.*;
-import java.util.concurrent.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.SynchronousQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
@@ -85,7 +100,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 			TaskMilestoneFuncAspect.execute(dataProcessorContext, MilestoneStage.INIT_CONNECTOR, MilestoneStatus.ERROR, logger);
 			MilestoneUtil.updateMilestone(milestoneService, MilestoneStage.INIT_CONNECTOR, MilestoneStatus.ERROR, e.getMessage() + "\n" + Log4jUtil.getStackString(e));
 			//Notify error for task.
-			errorHandle(new RuntimeException(e), e.getMessage());
+			errorHandle(new NodeException(e).context(getProcessorBaseContext()), e.getMessage());
 			throw e;
 		}
 	}
@@ -122,6 +137,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 					TaskMilestoneFuncAspect.execute(dataProcessorContext, MilestoneStage.READ_CDC_EVENT, MilestoneStatus.ERROR);
 					MilestoneUtil.updateMilestone(milestoneService, MilestoneStage.READ_CDC_EVENT, MilestoneStatus.ERROR, e.getMessage() + "\n" + Log4jUtil.getStackString(e));
 					logger.error("Read CDC failed, error message: " + e.getMessage(), e);
+					obsLogger.error("Read CDC failed, error message: " + e.getMessage(), e);
 					throw e;
 				} finally {
 					AspectUtils.executeAspect(sourceStateAspect.state(SourceStateAspect.STATE_CDC_COMPLETED));
@@ -160,7 +176,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 		snapshotProgressManager.startStatsSnapshotEdgeProgress(dataProcessorContext.getNode());
 
 		// count the data size of the tables;
-		doCount();
+		doCount(tableList);
 
 		BatchReadFunction batchReadFunction = getConnectorNode().getConnectorFunctions().getBatchReadFunction();
 		if (batchReadFunction != null) {
@@ -230,7 +246,14 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 											}
 										}
 									}), TAG));
-						} finally {
+						} catch (Throwable throwable) {
+							Throwable throwableWrapper = throwable;
+							if (!(throwableWrapper instanceof NodeException)) {
+								throwableWrapper = new NodeException(throwableWrapper).context(getProcessorBaseContext());
+							}
+							throw throwableWrapper;
+						}
+						finally {
 							try {
 								sourceRunnerLock.unlock();
 							} catch (Exception ignored) {
@@ -273,15 +296,19 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 				}
 			}
 		} else {
-			throw new RuntimeException("PDK node does not support batch read: " + dataProcessorContext.getDatabaseType());
+			throw new NodeException("PDK node does not support batch read: " + dataProcessorContext.getDatabaseType())
+					.context(getProcessorBaseContext());
 		}
 	}
 
 	@SneakyThrows
-	private void doCount() {
+	private void doCount(List<String> tableList) {
 		BatchCountFunction batchCountFunction = getConnectorNode().getConnectorFunctions().getBatchCountFunction();
 		if (null == batchCountFunction) {
-			throw new RuntimeException("PDK node does not support table batch count: " + dataProcessorContext.getDatabaseType());
+			setDefaultRowSizeMap();
+			logger.warn("PDK node does not support table batch count: " + dataProcessorContext.getDatabaseType());
+			obsLogger.warn("PDK node does not support table batch count: " + dataProcessorContext.getDatabaseType());
+			return;
 		}
 
 		if (dataProcessorContext.getTapTableMap().keySet().size() > ASYNCLY_COUNT_SNAPSHOT_ROW_SIZE_TABLE_THRESHOLD) {
@@ -295,28 +322,33 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 				Thread.currentThread().setName(name);
 				Log4jUtil.setThreadContext(task.get());
 
-				doCountAsynchronously(batchCountFunction);
+				doCountSynchronously(batchCountFunction, tableList);
 			}, snapshotRowSizeThreadPool)
 			.whenComplete((v, e) -> {
 				if (null != e) {
 					logger.warn("Query snapshot row size failed: " + e.getMessage() + "\n" + Log4jUtil.getStackString(e));
+					obsLogger.warn("Query snapshot row size failed: " + e.getMessage() + "\n" + Log4jUtil.getStackString(e));
 				} else {
 					logger.info("Query snapshot row size completed: " + node.get().getName() + "(" + node.get().getId() + ")");
+					obsLogger.info("Query snapshot row size completed: " + node.get().getName() + "(" + node.get().getId() + ")");
 				}
 				ExecutorUtil.shutdown(this.snapshotRowSizeThreadPool, 10L, TimeUnit.SECONDS);
 			});
 		} else {
-			doCountAsynchronously(batchCountFunction);
+			doCountSynchronously(batchCountFunction, tableList);
 		}
 	}
 
 	@SneakyThrows
-	private void doCountAsynchronously(BatchCountFunction batchCountFunction) {
+	private void doCountSynchronously(BatchCountFunction batchCountFunction, List<String> tableList) {
 		if (null == batchCountFunction) {
-			throw new RuntimeException("PDK node does not support table batch count: " + dataProcessorContext.getDatabaseType());
+			setDefaultRowSizeMap();
+			logger.warn("PDK node does not support table batch count: " + dataProcessorContext.getDatabaseType());
+			obsLogger.warn("PDK node does not support table batch count: " + dataProcessorContext.getDatabaseType());
+			return;
 		}
 
-		for(String tableName : dataProcessorContext.getTapTableMap().keySet()) {
+		for(String tableName : tableList) {
 			if (!isRunning()) {
 				return;
 			}
@@ -338,8 +370,11 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 								AspectUtils.accept(tableCountFuncAspect.state(TableCountFuncAspect.STATE_COUNTING).getTableCountConsumerList(), table.getName(), count);
 							}
 						} catch (Exception e) {
-							RuntimeException runtimeException = new RuntimeException("Count " + table.getId() + " failed: " + e.getMessage(), e);
-							logger.warn(runtimeException.getMessage() + "\n" + Log4jUtil.getStackString(e));
+							NodeException nodeException = new NodeException("Count " + table.getId() + " failed: " + e.getMessage(), e)
+									.context(getProcessorBaseContext());
+							logger.warn(nodeException.getMessage() + "\n" + Log4jUtil.getStackString(e));
+							obsLogger.warn(nodeException.getMessage() + "\n" + Log4jUtil.getStackString(e));
+							throw nodeException;
 						}
 					}, TAG));
 		}
@@ -352,7 +387,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 		}
 		this.endSnapshotLoop.set(true);
 		if (null == syncProgress.getStreamOffsetObj()) {
-			throw new RuntimeException("Starting stream read failed, errors: start point offset is null");
+			throw new NodeException("Starting stream read failed, errors: start point offset is null").context(getProcessorBaseContext());
 		} else {
 			TapdataStartCdcEvent tapdataStartCdcEvent = new TapdataStartCdcEvent();
 			tapdataStartCdcEvent.setSyncStage(SyncStage.CDC);
@@ -376,10 +411,10 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 					logger.info("Share cdc unusable, will use normal cdc mode, reason: " + e.getMessage());
 					doNormalCDC();
 				} else {
-					throw new RuntimeException("Read share cdc log failed: " + e.getMessage(), e);
+					throw new NodeException("Read share cdc log failed: " + e.getMessage(), e).context(getProcessorBaseContext());
 				}
 			} catch (Exception e) {
-				throw new RuntimeException("Read share cdc log failed: " + e.getMessage(), e);
+				throw new NodeException("Read share cdc log failed: " + e.getMessage(), e).context(getProcessorBaseContext());
 			}
 		}
 	}
@@ -390,7 +425,12 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 			return;
 		}
 		TapTableMap<String, TapTable> tapTableMap = dataProcessorContext.getTapTableMap();
-		StreamReadFunction streamReadFunction = getConnectorNode().getConnectorFunctions().getStreamReadFunction();
+		ConnectorNode connectorNode = getConnectorNode();
+		if (connectorNode == null) {
+			logger.warn("Failed to get source node");
+			return;
+		}
+		StreamReadFunction streamReadFunction = connectorNode.getConnectorFunctions().getStreamReadFunction();
 		if (streamReadFunction != null) {
 			logger.info("Starting stream read, table list: " + tapTableMap.keySet() + ", offset: " + syncProgress.getOffsetObj());
 			List<String> tables = new ArrayList<>(tapTableMap.keySet());
@@ -436,8 +476,8 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 									}
 								} catch (Throwable throwable) {
 									String error = "Error processing incremental data, error: " + throwable.getMessage();
-									RuntimeException runtimeException = new RuntimeException(error, throwable);
-									errorHandle(runtimeException, runtimeException.getMessage());
+									NodeException nodeException = new NodeException(error, throwable).context(getProcessorBaseContext());
+									errorHandle(nodeException, nodeException.getMessage());
 								} finally {
 									try {
 										sourceRunnerLock.unlock();
@@ -454,7 +494,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 								}
 							})), TAG));
 		} else {
-			throw new RuntimeException("PDK node does not support stream read: " + dataProcessorContext.getDatabaseType());
+			throw new NodeException("PDK node does not support stream read: " + dataProcessorContext.getDatabaseType()).context(getProcessorBaseContext());
 		}
 	}
 
@@ -491,7 +531,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 				cdcStartTs = initialFirstStartTime;
 			}
 		} catch (Exception e) {
-			throw new RuntimeException("Get cdc start ts failed; Error: " + e.getMessage(), e);
+			throw new NodeException("Get cdc start ts failed; Error: " + e.getMessage(), e).context(getProcessorBaseContext());
 		}
 		return cdcStartTs;
 	}
@@ -535,6 +575,15 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 		});
 		if (syncProgress != null) {
 			statisticCollector.addSampler("cdcTime", () -> syncProgress.getEventTime());
+		}
+	}
+
+	private void setDefaultRowSizeMap() {
+		for(String tableName : dataProcessorContext.getTapTableMap().keySet()) {
+			if (null == snapshotRowSizeMap) {
+				snapshotRowSizeMap = new HashMap<>();
+			}
+			snapshotRowSizeMap.putIfAbsent(tableName, 0L);
 		}
 	}
 }

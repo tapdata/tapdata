@@ -18,6 +18,7 @@ import com.tapdata.tm.monitor.param.AggregateMeasurementParam;
 import com.tapdata.tm.monitor.param.MeasurementQueryParam;
 import com.tapdata.tm.monitor.vo.TableSyncStaticVo;
 import com.tapdata.tm.task.service.TaskRecordService;
+import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.utils.FunctionUtils;
 import com.tapdata.tm.utils.TimeUtil;
 import io.tapdata.common.sample.request.Sample;
@@ -25,7 +26,6 @@ import io.tapdata.common.sample.request.SampleRequest;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections.CollectionUtils;
-import org.apache.commons.collections4.ListUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.bson.Document;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -39,7 +39,6 @@ import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.data.util.CloseableIterator;
 import org.springframework.stereotype.Service;
 
-import java.io.Closeable;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.*;
@@ -53,6 +52,7 @@ public class MeasurementServiceV2 {
     private MongoTemplate mongoOperations;
     private TaskRecordService taskRecordService;
     private MetadataInstancesService metadataInstancesService;
+    private TaskService taskService;
 
     public void addAgentMeasurement(List<SampleRequest> samples) {
         addBulkAgentMeasurement(samples, Granularity.GRANULARITY_MINUTE);
@@ -676,12 +676,16 @@ public class MeasurementServiceV2 {
 
     public Page<TableSyncStaticVo> querySyncStatic(TableSyncStaticDto dto, UserDetail userDetail) {
         String taskRecordId = dto.getTaskRecordId();
-        Criteria criteria = Criteria.where("tags.taskRecordId").is(taskRecordId)
+
+        Query taskQuery = new Query(Criteria.where("taskRecordId").is(taskRecordId));
+        TaskDto taskDto = taskService.findOne(taskQuery, userDetail);
+        boolean hasTableRenameNode = taskDto.getDag().getNodes().stream().anyMatch(n -> n instanceof TableRenameProcessNode);
+
+        Criteria criteria = Criteria.where("tags.taskId").is(taskDto.getId().toHexString())
+                .and("tags.taskRecordId").is(taskRecordId)
                 .and("tags.type").is("table")
                 .and(MeasurementEntity.FIELD_GRANULARITY).is(Granularity.GRANULARITY_MINUTE);
 
-        SortOperation sort = Aggregation.sort(Sort.by(MeasurementEntity.FIELD_DATE).descending())
-                .and(Sort.by(String.format(TAG_FORMAT, "table")).ascending());
         MatchOperation match = Aggregation.match(criteria);
         GroupOperation group = Aggregation.group(MeasurementEntity.FIELD_TAGS)
                 .first(MeasurementEntity.FIELD_DATE).as(MeasurementEntity.FIELD_DATE)
@@ -693,31 +697,32 @@ public class MeasurementServiceV2 {
 
         // TODO(dexter): find out a more elegant way to get the aggregate size
         // match should be at the first param, sort should be the second while group be the last
-        Aggregation cntAggregation = Aggregation.newAggregation( match, sort, group);
+        Aggregation cntAggregation = Aggregation.newAggregation(match, group);
         CloseableIterator<MeasurementEntity> results = mongoOperations.aggregateStream(cntAggregation, TableNameEnum.AgentMeasurementV2.getValue(), MeasurementEntity.class);
         long total = results.stream().count();
         if (total == 0) {
             return new Page<>(0, Collections.emptyList());
         }
 
-
-        TaskDto taskDto = taskRecordService.queryTask(taskRecordId, userDetail.getUserId());
-        boolean hasTableRenameNode = taskDto.getDag().getNodes().stream().anyMatch(n -> n instanceof TableRenameProcessNode);
-
+        // get table map from task dag
         AtomicReference<Map<String, String>> tableNameMap = new AtomicReference<>();
         tableNameMap.set(new HashMap<>());
         if (hasTableRenameNode) {
             DatabaseNode targetNode = taskDto.getDag().getTargetNode().getLast();
             List<MetadataInstancesDto> metas = metadataInstancesService.findBySourceIdAndTableNameList(targetNode.getConnectionId(),
                     null, userDetail, taskDto.getId().toHexString());
+            // filter by nodeId ,old data nodeId will null
             // get table origin name and target name
-            // TODO(dexter): find out why getAncestorsName is null;
-            tableNameMap.set(metas.stream().collect(Collectors.toMap(MetadataInstancesDto::getAncestorsName, MetadataInstancesDto::getName, (k1, k2) -> k1)));
+            tableNameMap.set(metas.stream()
+                    .filter(meta -> Objects.nonNull(meta.getNodeId()) && meta.getNodeId().equals(targetNode.getId()))
+                    .collect(Collectors.toMap(MetadataInstancesDto::getAncestorsName, MetadataInstancesDto::getName, (k1, k2) -> k2)));
         }
 
         List<TableSyncStaticVo> result = new ArrayList<>();
+        SortOperation sort = Aggregation.sort(Sort.by(MeasurementEntity.FIELD_DATE).descending())
+                .and(Sort.by(String.format(TAG_FORMAT, "table")).ascending());
         // match should be at the first param, sort should be the second while group be the last
-        Aggregation aggregation = Aggregation.newAggregation( match, sort, group, sort, skip, limit);
+        Aggregation aggregation = Aggregation.newAggregation( match, group, sort, skip, limit);
         mongoOperations.aggregateStream(aggregation, TableNameEnum.AgentMeasurementV2.getValue(), MeasurementEntity.class).forEachRemaining(measurementEntity -> {
             String originTable = measurementEntity.getTags().get("table");
             AtomicReference<String> originTableName = new AtomicReference<>();
@@ -741,13 +746,15 @@ public class MeasurementServiceV2 {
                 syncRate = BigDecimal.ONE;
             }
 
-            String fullSyncStatus = "";
+            String fullSyncStatus;
             if (syncRate.compareTo(BigDecimal.ONE) == 0) {
                 fullSyncStatus = "DONE";
             } else if (syncRate.compareTo(BigDecimal.ZERO) == 0) {
                 fullSyncStatus = "NOT_START";
             } else if (!TaskDto.STATUS_RUNNING.equals(taskDto.getStatus())) {
                 fullSyncStatus = "NOT_START";
+            } else {
+                fullSyncStatus = "ING";
             }
 
             TableSyncStaticVo vo = new TableSyncStaticVo();

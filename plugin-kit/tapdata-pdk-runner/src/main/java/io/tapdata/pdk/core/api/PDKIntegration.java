@@ -9,6 +9,7 @@ import io.tapdata.entity.utils.cache.KVMapFactory;
 import io.tapdata.entity.utils.cache.KVReadOnlyMap;
 import io.tapdata.pdk.apis.TapConnector;
 import io.tapdata.pdk.apis.TapConnectorNode;
+import io.tapdata.pdk.apis.context.ConfigContext;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.entity.ConnectorCapabilities;
 import io.tapdata.pdk.apis.spec.TapNodeSpecification;
@@ -201,6 +202,7 @@ public class PDKIntegration {
         protected List<Map<String, Object>> tasks;
         protected String table;
         protected List<String> tables;
+        protected ConfigContext configContext;
         protected KVReadOnlyMap<TapTable> tableMap;
         protected KVMap<Object> stateMap;
         protected KVMap<Object> globalStateMap;
@@ -239,6 +241,11 @@ public class PDKIntegration {
          */
         public ConnectorBuilder<T> withAssociateId(String associateId) {
             this.associateId = associateId;
+            return this;
+        }
+
+        public ConnectorBuilder<T> withConfigContext(ConfigContext configContext) {
+            this.configContext = configContext;
             return this;
         }
 
@@ -363,6 +370,7 @@ public class PDKIntegration {
             connectorNode.tables = tables;
             connectorNode.tapNodeInfo = nodeInstance.getTapNodeInfo();
             connectorNode.connectorContext = new TapConnectorContext(nodeInstance.getTapNodeInfo().getTapNodeSpecification(), connectionConfig, nodeConfig);
+            connectorNode.connectorContext.setConfigContext(configContext);
             if(connectorCapabilities == null)
                 connectorCapabilities = new ConnectorCapabilities();
             connectorNode.connectorContext.setConnectorCapabilities(connectorCapabilities);

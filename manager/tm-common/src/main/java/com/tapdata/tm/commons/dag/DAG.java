@@ -1,5 +1,7 @@
 package com.tapdata.tm.commons.dag;
 
+import com.alibaba.fastjson.JSON;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.google.common.collect.ImmutableList;
 import com.tapdata.tm.commons.dag.vo.CustomTypeMapping;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -416,50 +418,50 @@ public class DAG implements Serializable, Cloneable {
      * @return 错误消息列表，推演成功返回 0 长度map，推演失败返回错误消息列表
      */
     public Map<String, List<Message>> transformSchema(String nodeId, DAGDataService dagDataService, Options options) {
+        try {
 
+            long start = System.currentTimeMillis();
+            if (dagDataService != null) {
+                graph.getNodes().stream().map(graph::getNode)
+                        .filter(Objects::nonNull)
+                        .forEach(node -> node.setService(dagDataService));
 
-        long start = System.currentTimeMillis();
-        if (dagDataService != null) {
-            graph.getNodes().stream().map(graph::getNode)
-                    .filter(Objects::nonNull)
-                    .forEach(node -> node.setService(dagDataService));
+            }
 
-        }
+            if (dagDataService instanceof DAGDataServiceImpl) {
+                ObjectId taskId1 = ((DAGDataServiceImpl) dagDataService).getTaskId();
+                this.setTaskId(taskId1);
 
-        if (dagDataService instanceof DAGDataServiceImpl) {
-            ObjectId taskId1 = ((DAGDataServiceImpl) dagDataService).getTaskId();
-            this.setTaskId(taskId1);
-
-            addNodeEventListener(new Node.EventListener<Object>() {
-                final Map<String, List<SchemaTransformerResult>> results = new HashMap<>();
-                final Map<String, List<SchemaTransformerResult>> lastBatchResults = new HashMap<>();
-                @Override
-                public void onTransfer(List<Object> inputSchemaList, Object schema, Object outputSchema, String nodeId) {
-                    List<SchemaTransformerResult> schemaTransformerResults = results.get(nodeId);
-                    if (schemaTransformerResults == null) {
-                        return;
-                    }
-                    List<Schema> outputSchemaList;
-                    if (outputSchema instanceof List) {
-                        outputSchemaList = (List) outputSchema;
-
-                    } else {
-                        Schema outputSchema1 = (Schema) outputSchema;
-                        outputSchemaList = Lists.newArrayList(outputSchema1);
-                    }
-
-                    List<MetadataInstancesDto> all = outputSchemaList.stream().map(s ->  ((DAGDataServiceImpl) dagDataService).getMetadata(s.getQualifiedName())).filter(Objects::nonNull).collect(Collectors.toList());
-                    Map<String, MetadataInstancesDto> metaMaps = all.stream().collect(Collectors.toMap(MetadataInstancesDto::getQualifiedName, m -> m, (m1, m2) -> m1));
-                    for (SchemaTransformerResult schemaTransformerResult : schemaTransformerResults) {
-                        if (Objects.isNull(schemaTransformerResult)) {
-                            continue;
+                addNodeEventListener(new Node.EventListener<Object>() {
+                    final Map<String, List<SchemaTransformerResult>> results = new HashMap<>();
+                    final Map<String, List<SchemaTransformerResult>> lastBatchResults = new HashMap<>();
+                    @Override
+                    public void onTransfer(List<Object> inputSchemaList, Object schema, Object outputSchema, String nodeId) {
+                        List<SchemaTransformerResult> schemaTransformerResults = results.get(nodeId);
+                        if (schemaTransformerResults == null) {
+                            return;
                         }
-                        MetadataInstancesDto metadataInstancesEntity = metaMaps.get(schemaTransformerResult.getSinkQulifiedName());
-                        if (metadataInstancesEntity != null && metadataInstancesEntity.getId() != null) {
-                            schemaTransformerResult.setSinkTableId(metadataInstancesEntity.getId().toHexString());
+                        List<Schema> outputSchemaList;
+                        if (outputSchema instanceof List) {
+                            outputSchemaList = (List) outputSchema;
+
+                        } else {
+                            Schema outputSchema1 = (Schema) outputSchema;
+                            outputSchemaList = Lists.newArrayList(outputSchema1);
+                        }
+
+                        List<MetadataInstancesDto> all = outputSchemaList.stream().map(s ->  ((DAGDataServiceImpl) dagDataService).getMetadata(s.getQualifiedName())).filter(Objects::nonNull).collect(Collectors.toList());
+                        Map<String, MetadataInstancesDto> metaMaps = all.stream().collect(Collectors.toMap(MetadataInstancesDto::getQualifiedName, m -> m, (m1, m2) -> m1));
+                        for (SchemaTransformerResult schemaTransformerResult : schemaTransformerResults) {
+                            if (Objects.isNull(schemaTransformerResult)) {
+                                continue;
+                            }
+                            MetadataInstancesDto metadataInstancesEntity = metaMaps.get(schemaTransformerResult.getSinkQulifiedName());
+                            if (metadataInstancesEntity != null && metadataInstancesEntity.getId() != null) {
+                                schemaTransformerResult.setSinkTableId(metadataInstancesEntity.getId().toHexString());
+                            }
                         }
                     }
-                }
 
                 @Override
                 public void schemaTransformResult(String nodeId, Node node, List<SchemaTransformerResult> schemaTransformerResults) {
@@ -472,54 +474,59 @@ public class DAG implements Serializable, Cloneable {
                     lastBatchResults.put(nodeId, schemaTransformerResults);
                 }
 
-                @Override
-                public List<SchemaTransformerResult> getSchemaTransformResult(String nodeId) {
-                    return lastBatchResults.get(nodeId);
-                }
-            });
-        }
+                    @Override
+                    public List<SchemaTransformerResult> getSchemaTransformResult(String nodeId) {
+                        return lastBatchResults.get(nodeId);
+                    }
+                });
+            }
 
-        if (taskId != null && dagDataService != null) {
-            AtomicInteger finishedTransferCount = new AtomicInteger(0);
-            int total = graph.getNodes().size();
-            String id = taskId.toHexString();
-            addNodeEventListener(new Node.EventListener<Object>() {
-                @Override
-                public void onTransfer(List<Object> inputSchemaList, Object schema, Object outputSchema, String nodeId) {
-                    int finished = finishedTransferCount.addAndGet(1);
-                    dagDataService.updateTransformRate(id, total, Math.min(finished, total));
-                }
+            if (taskId != null && dagDataService != null) {
+                AtomicInteger finishedTransferCount = new AtomicInteger(0);
+                int total = graph.getNodes().size();
+                String id = taskId.toHexString();
+                addNodeEventListener(new Node.EventListener<Object>() {
+                    @Override
+                    public void onTransfer(List<Object> inputSchemaList, Object schema, Object outputSchema, String nodeId) {
+                        int finished = finishedTransferCount.addAndGet(1);
+                        dagDataService.updateTransformRate(id, total, Math.min(finished, total));
+                    }
 
                 @Override
                 public void schemaTransformResult(String nodeId, Node node, List<SchemaTransformerResult> schemaTransformerResults) {
 
-                }
+                    }
 
-                @Override
-                public List<SchemaTransformerResult> getSchemaTransformResult(String nodeId) {
-                    return null;
-                }
-            });
-        }
-
-        List<Node> allNodes = getNodes();
-        for (Node allNode : allNodes) {
-            allNode.setSchema(null);
-        }
-        if (nodeId != null) {
-            Node node = graph.getNode(nodeId);
-            clearTransFlag(node);
-            graph.getNode(nodeId).transformSchema(options);
-        } else {
-            List<Node> nodes = this.getNodes();
-            if (CollectionUtils.isNotEmpty(nodes)) {
-                for (Node node : nodes) {
-                    node.setTransformed(false);
-                }
+                    @Override
+                    public List<SchemaTransformerResult> getSchemaTransformResult(String nodeId) {
+                        return null;
+                    }
+                });
             }
-            graph.getSources().forEach(source -> graph.getNode(source).transformSchema(options));
+
+            List<Node> allNodes = getNodes();
+            for (Node allNode : allNodes) {
+                allNode.setSchema(null);
+            }
+            if (nodeId != null) {
+                Node node = graph.getNode(nodeId);
+                clearTransFlag(node);
+                graph.getNode(nodeId).transformSchema(options);
+            } else {
+                List<Node> nodes = this.getNodes();
+                if (CollectionUtils.isNotEmpty(nodes)) {
+                    for (Node node : nodes) {
+                        node.setTransformed(false);
+                    }
+                }
+                graph.getSources().forEach(source -> graph.getNode(source).transformSchema(options));
+            }
+            logger.debug("Transform schema cost {}ms", System.currentTimeMillis() - start);
+        } catch (Exception e) {
+            Map<String, List<Message>> msg = Maps.newHashMap();
+            msg.put(taskId.toHexString(), Lists.newArrayList(new Message("error", e.getMessage(), JSON.toJSONString(e.getStackTrace()), null)));
+            return msg;
         }
-        logger.debug("Transform schema cost {}ms", System.currentTimeMillis() - start);
         return new HashMap<>();
     }
 

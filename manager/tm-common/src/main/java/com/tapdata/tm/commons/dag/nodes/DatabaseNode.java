@@ -87,8 +87,10 @@ public class DatabaseNode extends DataParentNode<List<Schema>> {
     @Override
     public List<Schema> mergeSchema(List<List<Schema>> inputSchemas, List<Schema> schemas, DAG.Options options) {
         //把inputSchemas的deleted的field给过滤掉
-        for (List<Schema> inputSchema : inputSchemas) {
-            SchemaUtils.removeDeleteFields(inputSchema);
+        if (TaskDto.SYNC_TYPE_SYNC.equals(getDag().getSyncType())) {
+            for (List<Schema> inputSchema : inputSchemas) {
+                SchemaUtils.removeDeleteFields(inputSchema);
+            }
         }
 
         if (schemas == null) {
@@ -331,7 +333,9 @@ public class DatabaseNode extends DataParentNode<List<Schema>> {
             tableNames = tableNames == null ? new ArrayList<>() : tableNames;
             if (event instanceof TapCreateTableEvent) {
                 String tableName = ((TapCreateTableEvent) event).getTableId();
-                tableNames.add(tableName);
+                if (!tableNames.contains(tableName)) {
+                    tableNames.add(tableName);
+                }
             } else if (event instanceof TapDropTableEvent) {
                 String tableName = ((TapDropTableEvent) event).getTableId();
                 tableNames.remove(tableName);

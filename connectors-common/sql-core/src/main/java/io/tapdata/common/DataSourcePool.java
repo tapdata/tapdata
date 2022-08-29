@@ -16,20 +16,22 @@ public class DataSourcePool {
      * @param clazz  Class<? extends JdbcContext>
      * @return jdbcContext
      */
-    public static JdbcContext getJdbcContext(CommonDbConfig config, Class<? extends JdbcContext> clazz, String connectorId) {
+    public static JdbcContext  getJdbcContext(CommonDbConfig config, Class<? extends JdbcContext> clazz, String connectorId) {
         String key = uniqueKeyForDb(config);
-        if (dataPool.containsKey(key) && dataPool.get(key).testValid(config)) {
-            return dataPool.get(key).incrementConnector(connectorId);
-        } else {
-            JdbcContext context = null;
-            try {
-                context = clazz.getDeclaredConstructor(config.getClass(), HikariDataSource.class).newInstance(config, HikariConnection.getHikariDataSource(config));
-                context.incrementConnector(connectorId);
-                dataPool.put(key, context);
-            } catch (Exception ignore) {
-            }
-            return context;
-        }
+		synchronized (key.intern()) {
+			if (dataPool.containsKey(key) && dataPool.get(key).testValid(config)) {
+				return dataPool.get(key).incrementConnector(connectorId);
+			} else {
+				JdbcContext context = null;
+				try {
+					context = clazz.getDeclaredConstructor(config.getClass(), HikariDataSource.class).newInstance(config, HikariConnection.getHikariDataSource(config));
+					context.incrementConnector(connectorId);
+					dataPool.put(key, context);
+				} catch (Exception ignore) {
+				}
+				return context;
+			}
+		}
     }
 
     /**
@@ -38,7 +40,10 @@ public class DataSourcePool {
      * @param config DatabaseConfig
      */
     public static void removeJdbcContext(CommonDbConfig config) {
-        dataPool.remove(uniqueKeyForDb(config));
+		final String uniqueKeyForDb = uniqueKeyForDb(config);
+		synchronized (uniqueKeyForDb.intern()) {
+			dataPool.remove(uniqueKeyForDb);
+		}
     }
 
     private static String uniqueKeyForDb(CommonDbConfig config) {
@@ -62,7 +67,7 @@ public class DataSourcePool {
             hikariDataSource.setUsername(config.getUser());
             hikariDataSource.setPassword(config.getPassword());
             hikariDataSource.setMinimumIdle(1);
-            hikariDataSource.setMaximumPoolSize(20);
+            hikariDataSource.setMaximumPoolSize(100);
             hikariDataSource.setAutoCommit(false);
             hikariDataSource.setIdleTimeout(60 * 1000L);
             hikariDataSource.setKeepaliveTime(60 * 1000L);

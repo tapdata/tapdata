@@ -15,6 +15,7 @@ import java.util.List;
 
 import static io.tapdata.entity.simplify.TapSimplify.*;
 import static junit.framework.TestCase.*;
+import static org.junit.Assert.assertNotEquals;
 
 public class AspectTest {
 	@Test
@@ -39,6 +40,7 @@ public class AspectTest {
 		assertNotNull(testSampleTask);
 
 		aspectManager.executeAspect(new TaskStartAspect().task(taskDto));
+		aspectTasks = aspectTaskManager.getAspectTasks(taskDto.getId().toString());
 		TestSampleTask testSampleTaskAnother = null;
 		for(AspectTask aspectTask : aspectTasks) {
 			if(aspectTask.getClass().equals(TestSampleTask.class)) {
@@ -47,9 +49,12 @@ public class AspectTest {
 			}
 		}
 		assertNotNull(testSampleTaskAnother);
-		assertEquals(testSampleTaskAnother, testSampleTask);
+		assertNotEquals(testSampleTaskAnother, testSampleTask);
 		assertEquals(1, testSampleTask.onStartCounter.intValue());
-		assertEquals(0, testSampleTask.onStopCounter.intValue());
+		assertEquals(1, testSampleTask.onStopCounter.intValue());
+
+		// the old task has been removed, use the new task to replace the old one;
+		testSampleTask = testSampleTaskAnother;
 
 		ProcessorBaseContext processorBaseContext = ProcessorBaseContext.newBuilder().withTaskDto(taskDto).build();
 

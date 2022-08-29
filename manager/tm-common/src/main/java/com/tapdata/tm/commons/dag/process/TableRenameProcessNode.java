@@ -27,7 +27,7 @@ import static com.tapdata.tm.commons.base.convert.ObjectIdDeserialize.toObjectId
 @Getter
 @Setter
 @Slf4j
-public class TableRenameProcessNode extends Node<List<Schema>> {
+public class TableRenameProcessNode extends MigrateProcessorNode {
     /**
      * 创建处理器节点
      *

@@ -24,7 +24,7 @@ import java.util.List;
 public class MysqlDDLSqlMaker implements DDLSqlMaker {
 	private final static String ALTER_TABLE_PREFIX = "alter table `%s`.`%s`";
 	public static final String TAG = MysqlDDLSqlMaker.class.getSimpleName();
-	private String version;
+	private final String version;
 
 	public MysqlDDLSqlMaker(String version) {
 		this.version = version;
@@ -159,7 +159,45 @@ public class MysqlDDLSqlMaker implements DDLSqlMaker {
 		if (StringUtils.isBlank(after)) {
 			throw new RuntimeException("Append alter column name ddl sql failed, new column name is blank");
 		}
-		return Collections.singletonList(String.format(ALTER_TABLE_PREFIX, database, tableId) + " rename column `" + before + "` to `" + after + "`");
+		Integer subVersion = MysqlUtil.getSubVersion(version, 1);
+		String sql = String.format(ALTER_TABLE_PREFIX, database, tableId);
+		if (subVersion != null && subVersion >= 8) {
+			return Collections.singletonList(sql + " rename column `" + before + "` to `" + after + "`");
+		} else {
+			TapField oldField = tapAlterFieldNameEvent.getOldField();
+			sql += " change `" + before + "` " + "`" + after + "` " + oldField.getDataType();
+			if (null != oldField.getAutoInc() && oldField.getAutoInc()) {
+				if (oldField.getPrimaryKeyPos() == 1) {
+					sql += " auto_increment";
+				} else {
+					TapLogger.warn(TAG, "Field \"{}\" cannot be auto increment in mysql, there can be only one auto column and it must be defined the first key", oldField.getName());
+				}
+			}
+			if (oldField.getNullable()) {
+				sql += " null";
+			} else {
+				sql += " not null";
+			}
+			// default value
+			String defaultValue = oldField.getDefaultValue() == null ? "" : oldField.getDefaultValue().toString();
+			if (StringUtils.isNotBlank(defaultValue)) {
+				sql += " default '" + defaultValue + "'";
+			}
+
+			// comment
+			String comment = oldField.getComment();
+			if (StringUtils.isNotBlank(comment)) {
+				// try to escape the single quote in comments
+				comment = comment.replace("'", "\\'");
+				sql += " comment '" + comment + "'";
+			}
+
+			Boolean primaryKey = oldField.getPrimaryKey();
+			if (null != primaryKey && primaryKey) {
+				sql += " key";
+			}
+			return Collections.singletonList(sql);
+		}
 	}
 
 	@Override

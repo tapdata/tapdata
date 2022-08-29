@@ -22,6 +22,8 @@ import io.tapdata.observable.logging.tag.TargetNodeTag;
 import io.tapdata.observable.metric.aspect.ConnectionPingAspect;
 
 import java.lang.reflect.Method;
+import java.time.Instant;
+import java.time.ZoneId;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -32,6 +34,9 @@ public class LoggingAspectTask extends AspectTask {
 
 	public LoggingAspectTask() {
 		settingService = BeanUtil.getBean(SettingService.class);
+
+		loggingClassHandlers.register(DataNodeInitAspect.class, this::handleDataNodeInit);
+		loggingClassHandlers.register(ProcessorNodeInitAspect.class, this::handleProcessorNodeInit);
 
 		loggingClassHandlers.register(ConnectionPingAspect.class, this::handleConnectionPing);
 
@@ -60,12 +65,13 @@ public class LoggingAspectTask extends AspectTask {
 	 */
 	@Override
 	public void onStop(TaskStopAspect stopAspect) {
-		if (null != stopAspect.getError()) {
-			handleTaskErrorStop(stopAspect);
-		}
+//		if (null != stopAspect.getError()) {
+//			handleTaskErrorStop(stopAspect);
+//		}
 
+		// TODO(dexter): temporary not remove the logger
 		// finally remove the logger
-		ObsLoggerFactory.getInstance().removeTaskLogger(task);
+//		ObsLoggerFactory.getInstance().removeTaskLogger(task);
 	}
 
 	public void handleTaskErrorStop(TaskStopAspect aspect) {
@@ -257,6 +263,28 @@ public class LoggingAspectTask extends AspectTask {
 		debug(logEventType, cost, tag, context, Collections.singletonList(event));
 	}
 
+	/**
+	 *  Init the TaskLoggerNodeProxy
+	 * @param aspect
+	 * @return
+	 */
+	public Void handleDataNodeInit(DataNodeInitAspect aspect) {
+		getObsLogger(aspect.getDataProcessorContext().getNode());
+
+		return null;
+	}
+
+	/**
+	 *  Init the TaskLoggerNodeProxy
+	 * @param aspect
+	 * @return
+	 */
+	public Void handleProcessorNodeInit(ProcessorNodeInitAspect aspect) {
+		getObsLogger(aspect.getProcessorBaseContext().getNode());
+
+		return null;
+	}
+
 	public Void handleSourceState(SourceStateAspect aspect) {
 		Node<?> node = aspect.getDataProcessorContext().getNode();
 
@@ -440,6 +468,9 @@ public class LoggingAspectTask extends AspectTask {
 		return null;
 	}
 
+	private final long INCREMENTAL_SYNC_REF_TIME_INFO_INTERVAL = 60 * 1000;
+	private long incrementalRecordTotal = 0;
+	private long incrementalProgressLogAt = 0;
 	private final Map<String, Long> writeRecordAcceptLastTs = new HashMap<>();
 	public Void handleWriteRecordFunc(WriteRecordFuncAspect aspect) {
 		ProcessorBaseContext context = aspect.getDataProcessorContext();
@@ -452,6 +483,18 @@ public class LoggingAspectTask extends AspectTask {
 				debug(LogEventData.LOG_EVENT_TYPE_RECEIVE, null, null, context, aspect.getRecordEvents());
 				aspect.consumer((events, result) -> {
 					long now = System.currentTimeMillis();
+					Long newestEventTimestamp = null;
+					TapBaseEvent newestEvent = events.get(events.size() - 1);
+					if (null != newestEvent && null != newestEvent.getReferenceTime()) {
+						newestEventTimestamp = newestEvent.getReferenceTime();
+					}
+					incrementalRecordTotal += events.size();
+					if (null != newestEventTimestamp && now - incrementalProgressLogAt > INCREMENTAL_SYNC_REF_TIME_INFO_INTERVAL) {
+						getObsLogger(node).info("{} incremental records have been processed, current reference time: {}",
+								incrementalRecordTotal, Instant.ofEpochMilli(newestEventTimestamp).atZone(ZoneId.systemDefault()));
+						incrementalRecordTotal = 0;
+						incrementalProgressLogAt = now;
+					}
 					debug(LogEventData.LOG_EVENT_TYPE_SEND, now - writeRecordAcceptLastTs.get(nodeId),
 							null, context, events);
 				});

@@ -2,6 +2,7 @@ package com.tapdata.tm.autoinspect.exception;
 
 import com.tapdata.tm.autoinspect.constants.TaskStatus;
 import com.tapdata.tm.autoinspect.constants.Constants;
+import com.tapdata.tm.autoinspect.entity.CompareTableItem;
 
 /**
  * 增量校验基础异常
@@ -44,5 +45,9 @@ public class AutoInspectException extends RuntimeException {
 
     public static AutoInspectException notFoundSyncType(String taskSyncType) {
         throw new AutoInspectException(String.format("not parse task syncType: %s", taskSyncType));
+    }
+
+    public static AutoInspectException diffMaxSize(long maxSize, CompareTableItem tableItem) {
+        throw new AutoInspectException(String.format("The maximum number %d of table '%s' differences has been reached", maxSize, tableItem.getTableName()));
     }
 }

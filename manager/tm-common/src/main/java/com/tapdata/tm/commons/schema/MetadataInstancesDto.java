@@ -78,6 +78,7 @@ public class MetadataInstancesDto extends BaseDto {
     //查询'collection', 'table', 'view', 'mongo_view' 等metatype的时候需要设置的属性
     private String database;
     private String username;
+    private String transformUuid;
 
 
     private List<MetadataInstancesDto> histories;
@@ -94,6 +95,8 @@ public class MetadataInstancesDto extends BaseDto {
     private Long tmCurrentTime;
     //auto ddl need this param
     private String taskId;
+
+    private String nodeId;
 
     /**
      * 是否是虚拟表 'virtual' 'source'

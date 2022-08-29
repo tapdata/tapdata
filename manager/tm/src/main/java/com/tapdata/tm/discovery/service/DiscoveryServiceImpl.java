@@ -1,6 +1,7 @@
 package com.tapdata.tm.discovery.service;
 
 import com.mongodb.ConnectionString;
+import com.tapdata.manager.common.utils.JsonUtil;
 import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.commons.base.dto.BaseDto;
@@ -22,6 +23,7 @@ import com.tapdata.tm.task.repository.TaskRepository;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.utils.Lists;
 import com.tapdata.tm.utils.MongoUtils;
+import io.tapdata.entity.schema.type.*;
 import lombok.Setter;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -72,7 +74,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
 
 
         if (StringUtils.isNotBlank(param.getCategory())) {
-            if (!param.getCategory().equals(DataObjCategoryEnum.table.name())) {
+            if (!param.getCategory().equals(DataObjCategoryEnum.storage.name())) {
                 return page;
             }
         }
@@ -152,7 +154,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
                 dto.setSourceType(source.getDatabase_type());
             }
             dto.setId(metadataInstancesDto.getId().toHexString());
-            dto.setCategory(DataObjCategoryEnum.table);
+            dto.setCategory(DataObjCategoryEnum.storage);
             dto.setType(metadataInstancesDto.getMetaType());
             dto.setName(metadataInstancesDto.getOriginalName());
             dto.setSourceCategory(DataSourceCategoryEnum.connection);
@@ -192,7 +194,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
         page.setItems(Lists.of());
         page.setTotal(0);
         if (StringUtils.isNotBlank(param.getCategory())) {
-            if (!param.getCategory().equals(DataObjCategoryEnum.table.name())) {
+            if (!param.getCategory().equals(DataObjCategoryEnum.storage.name())) {
                 return page;
             }
         }
@@ -323,7 +325,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
         }
         dto.setId(metadataInstancesDto.getId().toHexString());
         dto.setName(metadataInstancesDto.getOriginalName());
-        dto.setCategory(DataObjCategoryEnum.table);
+        dto.setCategory(DataObjCategoryEnum.storage);
         dto.setType(metadataInstancesDto.getMetaType());
         dto.setSourceCategory(DataSourceCategoryEnum.connection);
         dto.setSourceInfo(getConnectInfo(metadataInstancesDto));
@@ -353,8 +355,8 @@ public class DiscoveryServiceImpl implements DiscoveryService {
                 discoveryFieldDto.setName(field.getFieldName());
                 discoveryFieldDto.setDataType(field.getDataType());
                 discoveryFieldDto.setPrimaryKey(field.getPrimaryKey());
-                discoveryFieldDto.setForeignKey(field.getForeignKey());
-                discoveryFieldDto.setBusinessDesc(field.getTapType());
+                discoveryFieldDto.setForeignKey(field.getForeignKey() != null ? field.getForeignKey() : field.getForeignKeyTable() != null);
+                discoveryFieldDto.setBusinessType(tapTypeString(field.getTapType()));
 
                 discoveryFieldDto.setIndex(indexNames.contains(field.getFieldName()));
 
@@ -366,7 +368,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
                 discoveryFieldDto.setDefaultValue(field.getDefaultValue());
                 //discoveryFieldDto.setBusinessName();
                 //discoveryFieldDto.setBusinessType();
-                //discoveryFieldDto.setBusinessDesc();
+                discoveryFieldDto.setBusinessDesc(field.getComment());
 
                 dataFields.add(discoveryFieldDto);
 
@@ -428,7 +430,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
                 .and("taskId").exists(false)
                 .and("is_deleted").ne(true);
         if (StringUtils.isNotBlank(param.getSourceType())) {
-            criteria.and("source.database_type").is(param.getSourceType());
+            //criteria.and("source.database_type").is(param.getSourceType());
         }
 
         if (StringUtils.isNotBlank(param.getQueryKey())) {
@@ -462,6 +464,9 @@ public class DiscoveryServiceImpl implements DiscoveryService {
             dto.setId(metadataInstancesDto.getId().toHexString());
             dto.setName(metadataInstancesDto.getOriginalName());
             dto.setType(metadataInstancesDto.getMetaType());
+            if (metadataInstancesDto.getSource() != null) {
+                dto.setSourceType(metadataInstancesDto.getSource().getDatabase_type());
+            }
             dto.setDesc(metadataInstancesDto.getComment());
             List<Tag> listtags = dto.getListtags();
             if (CollectionUtils.isNotEmpty(listtags)) {
@@ -544,7 +549,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
                 listtags.remove(allTag);
             }
             switch (tagBindingParam.getObjCategory()) {
-                case table:
+                case storage:
                     Update update = Update.update("listtags", listtags);
                     metadataInstancesService.updateById(MongoUtils.toObjectId(tagBindingParam.getId()), update, user);
                     break;
@@ -582,7 +587,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
                 }
             }
             switch (tagBindingParam.getObjCategory()) {
-                case table:
+                case storage:
                     Update update = Update.update("listtags", listtags);
                     metadataInstancesService.updateById(MongoUtils.toObjectId(tagBindingParam.getId()), update, user);
                     break;
@@ -655,9 +660,18 @@ public class DiscoveryServiceImpl implements DiscoveryService {
             Object database = config1.get("database");
             if (host == null) {
                 host = config1.get("mqHost");
+            }
+            if (port == null) {
                 port = config1.get("mqPort");
             }
-            ipAndPort = new StringBuilder(host + ":" + port);
+            if (StringUtils.isNotBlank((String)host)) {
+                ipAndPort = new StringBuilder(host.toString());
+                if (port != null) {
+                    ipAndPort.append(":").append(port);
+                }
+            } else {
+                ipAndPort = new StringBuilder();
+            }
 
             if (database != null) {
                 ipAndPort.append("/").append(database);
@@ -665,5 +679,34 @@ public class DiscoveryServiceImpl implements DiscoveryService {
         }
 
         return ipAndPort + "/" + metadataInstancesDto.getOriginalName();
+    }
+
+    public String tapTypeString(String tapType) {
+        Map map = JsonUtil.parseJson(tapType, Map.class);
+        byte type = ((Double)map.get("type")).byteValue();
+        switch (type) {
+            case TapType.TYPE_ARRAY:
+                return "数组";
+            case TapType.TYPE_BINARY:
+                return "字节数组";
+            case TapType.TYPE_BOOLEAN:
+                return "布尔值";
+            case TapType.TYPE_DATE:
+                return "日期";
+            case TapType.TYPE_DATETIME:
+                return "日期时间";
+            case TapType.TYPE_MAP:
+                return "映射";
+            case TapType.TYPE_NUMBER:
+                return "数值";
+            case TapType.TYPE_STRING:
+                return "字符串";
+            case TapType.TYPE_TIME:
+                return "时间";
+            case TapType.TYPE_YEAR:
+                return "日期（年）";
+            default:
+                return "未知";
+        }
     }
 }

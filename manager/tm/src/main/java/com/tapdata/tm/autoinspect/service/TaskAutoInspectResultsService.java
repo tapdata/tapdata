@@ -1,10 +1,11 @@
 package com.tapdata.tm.autoinspect.service;
 
+import com.tapdata.tm.autoinspect.dto.TaskAutoInspectResultDto;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.service.BaseService;
-import com.tapdata.tm.autoinspect.dto.TaskAutoInspectResultDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
+import com.tapdata.tm.monitor.param.IdFilterPageParam;
 import com.tapdata.tm.task.entity.TaskAutoInspectGroupTableResultEntity;
 import com.tapdata.tm.task.entity.TaskAutoInspectResultEntity;
 import com.tapdata.tm.task.repository.TaskAutoInspectResultRepository;
@@ -17,6 +18,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Service;
+
+import java.util.Map;
 
 /**
  * @author <a href="mailto:harsen_lin@163.com">Harsen</a>
@@ -36,12 +39,16 @@ public class TaskAutoInspectResultsService extends BaseService<TaskAutoInspectRe
     protected void beforeSave(TaskAutoInspectResultDto dto, UserDetail userDetail) {
     }
 
-    public Page<TaskAutoInspectGroupTableResultEntity> groupByTable(String taskId, String tableName, long skip, int limit) {
-        return repository.groupByTable(taskId, tableName, skip, limit);
+    public Page<TaskAutoInspectGroupTableResultEntity> groupByTable(IdFilterPageParam param) {
+        return repository.groupByTable(param.getId(), param.getFilter(), param.getSkip(), param.getLimit());
     }
 
     public long cleanResultsByTask(TaskDto taskDto) {
         Query query = Query.query(Criteria.where("taskId").is(taskDto.getId().toHexString()));
         return repository.deleteAll(query);
+    }
+
+    public Map<String, Object> totalDiffTables(String taskId) {
+        return repository.totalDiffTables(taskId);
     }
 }
