@@ -173,7 +173,7 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 				AspectUtils.executeAspect(DataNodeInitAspect.class, () -> new DataNodeInitAspect().dataProcessorContext((DataProcessorContext) processorBaseContext));
 			}
 			doInit(context);
-		} catch (Exception e) {
+		} catch (Throwable e) {
 			errorHandle(e, "Node init failed");
 			throw e;
 		}
