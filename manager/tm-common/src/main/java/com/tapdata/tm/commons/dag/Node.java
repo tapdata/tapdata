@@ -207,8 +207,8 @@ public abstract class Node<S> extends Element{
             this.outputSchema = cloneSchema(schema);
         }
 
-        if (mergedSchema && this.outputSchema != null) {
-            S changedSchema = filterChangedSchema(this.outputSchema, options);  // 过滤出修改过的模型
+        if (this.outputSchema != null) {
+            S changedSchema = outputSchema;//filterChangedSchema(this.outputSchema, options);  // 过滤出修改过的模型
             if (changedSchema != null) {
                 String taskId = service.getTaskId().toHexString();
                 String version = options.getUuid();
@@ -243,7 +243,7 @@ public abstract class Node<S> extends Element{
             }
         } else {
             Collection<String> predecessors = getGraph().predecessors(nodeId);
-            S changedSchema = filterChangedSchema(this.outputSchema, options);
+            S changedSchema = outputSchema;//filterChangedSchema(this.outputSchema, options);
             if (schema instanceof Schema) {
                 if (((Schema) schema).getSourceType().equals(SourceTypeEnum.SOURCE.name())) {
                     saveSchema(predecessors, nodeId, changedSchema, options);
