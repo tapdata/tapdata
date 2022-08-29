@@ -8,7 +8,7 @@ import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.entity.utils.JsonParser;
 import io.tapdata.entity.utils.io.DataInputStreamEx;
 import io.tapdata.entity.utils.io.DataOutputStreamEx;
-import io.tapdata.modules.api.net.JavaCustomSerializer;
+import io.tapdata.entity.serializer.JavaCustomSerializer;
 import io.tapdata.modules.api.net.error.NetErrors;
 import io.tapdata.modules.api.net.message.TapMessage;
 

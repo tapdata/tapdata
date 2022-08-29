@@ -1,6 +1,7 @@
 package io.tapdata.entity.utils.io;
 
 import io.tapdata.entity.logger.TapLogger;
+import io.tapdata.entity.serializer.JavaCustomSerializer;
 
 import java.io.DataOutputStream;
 import java.io.IOException;
@@ -268,6 +269,11 @@ public class DataOutputStreamEx extends OutputStream {
 	  if(writeValueStatus(object))
 		  object.persistent(dos);
   }
+
+	public void writeJavaCustomSerializer(JavaCustomSerializer object) throws IOException {
+		if(writeValueStatus(object))
+			object.to(dos);
+	}
 
   public void close() throws IOException {
 	  dos.close();

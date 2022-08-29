@@ -1221,12 +1221,10 @@ class TargetTypesGeneratorTest {
     @Test
     public void intUnsignedForIntTest() {
         String sourceTypeExpression = "{" +
-//                "    \"int1[($bit)][unsigned]\": {\"bit\": 32, \"unsigned\": \"unsigned\", \"to\": \"TapNumber\"},\n" +
                 "\"int unsigned\": {\"to\": \"TapNumber\",\"bit\": 32,\"value\": [\"0\", \"4294967295\"]}" +
                 "}";
 
         String targetTypeExpression = "{\n" +
-//                "\"int unsigned\": {\"to\": \"TapNumber\",\"byte\": 32,\"value\": [\"0\", \"4294967295\"]}," +
                 "\"int\": {\"to\": \"TapNumber\",\"bit\": 32,\"value\": [\"-2147483648\", \"2147483647\"]}," +
                 "\"bigint\": {\"to\": \"TapNumber\",\"bit\": 64,\"value\": [\"-9223372036854775808\", \"9223372036854775807\"]}" +
                 "}";
@@ -1234,17 +1232,15 @@ class TargetTypesGeneratorTest {
         TapTable sourceTable = table("test");
         sourceTable
                 .add(field("int unsigned", "int unsigned"))
-//                .add(field("int unsigned", "int unsigned"))
         ;
         tableFieldTypesGenerator.autoFill(sourceTable.getNameFieldMap(), DefaultExpressionMatchingMap.map(sourceTypeExpression));
-        TapResult<LinkedHashMap<String, TapField>> tapResult = targetTypesGenerator.convert(sourceTable.getNameFieldMap(), DefaultExpressionMatchingMap.map(targetTypeExpression), targetCodecFilterManager);
+        TapResult<LinkedHashMap<String, TapField>> tapResult =
+                targetTypesGenerator.convert(sourceTable.getNameFieldMap(), DefaultExpressionMatchingMap.map(targetTypeExpression), targetCodecFilterManager);
 
         LinkedHashMap<String, TapField> nameFieldMap = tapResult.getData();
 
-
         TapField float10Field = nameFieldMap.get("int unsigned");
-        assertEquals("bigint", float10Field.getDataType());
-
+        assertEquals("bigint", float10Field.getDataType(), "\"int unsigned\" can not fit in \"int\" from target, but \"bigint\" can");
     }
 
     @Test

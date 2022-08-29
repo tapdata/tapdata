@@ -2,6 +2,7 @@ package io.tapdata.pdk.core.api.impl;
 
 import com.alibaba.fastjson.JSONObject;
 import io.tapdata.entity.codecs.TDDUser;
+import io.tapdata.entity.utils.BeanUtils;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.entity.utils.ObjectSerializable;
 import org.bson.BsonTimestamp;
@@ -99,4 +100,80 @@ public class ObjectSerializableImplTest {
 
     }
 
+    public static void main(String[] args) {
+        ObjectSerializable objectSerializable = InstanceFactory.instance(ObjectSerializable.class);
+        User user = new User();
+        user.setName("aklsdjflkasdfjlaksdfj");
+        user.setDescription("dskajflkjdfkldsajfkldasjfklasdjflkasdjfdlf");
+        user.setCreateTime(234324234324324324L);
+        user.setUpdateTime(23422413123123111L);
+        user.setGender(5);
+        user.setEmail("aplomb.chen@gmail.com");
+        User newUser = new User();
+        InstanceFactory.instance(BeanUtils.class).copyProperties(user, newUser);
+        user.setUser(newUser);
+
+        UserCustom userCustom = new UserCustom();
+        userCustom.description = user.description;
+        userCustom.name = user.name;
+        userCustom.createTime = user.createTime;
+        userCustom.updateTime = user.updateTime;
+        userCustom.email = user.email;
+        userCustom.gender = user.gender;
+        UserCustom newUserCustom = new UserCustom();
+        InstanceFactory.instance(BeanUtils.class).copyProperties(userCustom, newUserCustom);
+        userCustom.user = newUserCustom;
+
+        UserSerializable userSerializable = new UserSerializable();
+        userSerializable.description = user.description;
+        userSerializable.name = user.name;
+        userSerializable.createTime = user.createTime;
+        userSerializable.updateTime = user.updateTime;
+        userSerializable.email = user.email;
+        userSerializable.gender = user.gender;
+        UserSerializable newUserSerializable = new UserSerializable();
+        InstanceFactory.instance(BeanUtils.class).copyProperties(userSerializable, newUserSerializable);
+        userSerializable.user = newUserSerializable;
+
+        long time;
+        int times = 1000000;
+        byte[] userBytes = objectSerializable.fromObject(user);
+        time = System.currentTimeMillis();
+        for(int i = 0; i < times; i++) {
+            objectSerializable.fromObject(user);
+        }
+        System.out.println("userJson fromObject takes " + (System.currentTimeMillis() - time) + " userBytes " + userBytes.length);
+//        System.out.println("\tuserBytes " + new String(userBytes));
+        time = System.currentTimeMillis();
+        for(int i = 0; i < times; i++) {
+            objectSerializable.toObject(userBytes);
+        }
+        System.out.println("userJson toObject takes " + (System.currentTimeMillis() - time));
+
+        byte[] userCustomBytes = objectSerializable.fromObject(userCustom);
+        time = System.currentTimeMillis();
+        for(int i = 0; i < times; i++) {
+            objectSerializable.fromObject(userCustom);
+        }
+        System.out.println("userCustom fromObject takes " + (System.currentTimeMillis() - time) + " userCustomBytes " + userCustomBytes.length);
+//        System.out.println("\tuserCustomBytes " + new String(userCustomBytes));
+        time = System.currentTimeMillis();
+        for(int i = 0; i < times; i++) {
+            objectSerializable.toObject(userCustomBytes);
+        }
+        System.out.println("userCustom toObject takes " + (System.currentTimeMillis() - time));
+
+        byte[] userSerializableBytes = objectSerializable.fromObject(userSerializable);
+        time = System.currentTimeMillis();
+        for(int i = 0; i < times; i++) {
+            objectSerializable.fromObject(userSerializable);
+        }
+        System.out.println("userSerializable fromObject takes " + (System.currentTimeMillis() - time) + " userSerializableBytes " + userSerializableBytes.length);
+//        System.out.println("\tuserSerializableBytes " + new String(userSerializableBytes));
+        time = System.currentTimeMillis();
+        for(int i = 0; i < times; i++) {
+            objectSerializable.toObject(userSerializableBytes);
+        }
+        System.out.println("userSerializable toObject takes " + (System.currentTimeMillis() - time));
+    }
 }

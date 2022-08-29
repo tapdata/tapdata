@@ -1,7 +1,6 @@
 package io.tapdata.modules.api.net.message;
 
 import io.tapdata.entity.annotations.Implementation;
-import io.tapdata.modules.api.net.JavaCustomSerializer;
 
 import java.io.IOException;
 import java.io.InputStream;

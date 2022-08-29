@@ -1,4 +1,4 @@
-package io.tapdata.modules.api.net;
+package io.tapdata.entity.serializer;
 
 import io.tapdata.entity.utils.io.DataInputStreamEx;
 import io.tapdata.entity.utils.io.DataOutputStreamEx;
@@ -18,7 +18,7 @@ public interface JavaCustomSerializer {
 	}
 
 	default DataOutputStreamEx dataOutputStream(OutputStream outputStream) {
-		if(outputStream instanceof DataOutputStream) {
+		if(outputStream instanceof DataOutputStreamEx) {
 			return (DataOutputStreamEx) outputStream;
 		} else {
 			return new DataOutputStreamEx(outputStream);

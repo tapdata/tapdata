@@ -2,6 +2,7 @@ package io.tapdata.entity.utils.io;
 
 
 import io.tapdata.entity.logger.TapLogger;
+import io.tapdata.entity.serializer.JavaCustomSerializer;
 import io.tapdata.entity.utils.IteratorEx;
 
 import java.io.ByteArrayOutputStream;
@@ -292,7 +293,22 @@ public class DataInputStreamEx extends InputStream {
 			}
 		}
 	}
-
+	public <T extends JavaCustomSerializer> T readJavaCustomSerializer(Class<T> clazz) throws IOException {
+		if(hasValue()) {
+			try {
+				T object = clazz.getConstructor().newInstance();
+				object.from(dis);
+				return object;
+			} catch (InstantiationException | InvocationTargetException | NoSuchMethodException | IllegalAccessException e) {
+				e.printStackTrace();
+				TapLogger.error("readJavaCustomSerializer", "new class " + clazz + " failed, " + e.getMessage());
+			} catch (Throwable t) {
+				t.printStackTrace();
+				TapLogger.error("readJavaCustomSerializer", "resurrect for class " + clazz + " failed, " + t.getMessage());
+			}
+		}
+		return null;
+	}
 	public <T extends BinarySerializable> T readBinaryObject(Class<T> clazz) throws IOException {
 		if(hasValue()) {
 			try {
