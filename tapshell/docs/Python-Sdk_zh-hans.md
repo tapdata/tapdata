@@ -144,6 +144,12 @@ p = p.valueMap("position", 1) # 将 position 字段覆盖为 1
 # js
 p = p.js("return record;")
 
+# merge
+source_2 = cli.DataSource("mongodb", name="source_2").uri("").save()
+p2 = cli.Pipeline(name="source_2")
+p3 = p.merge(p2, [('id', 'id')]).writeTo("target")
+# p3.start()
+
 p.writeTo("target.player")  # target is db, player is table
 ```
 
