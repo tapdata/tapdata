@@ -227,7 +227,7 @@ public class MysqlMaker implements SqlMaker {
 		String defaultValue = tapField.getDefaultValue() == null ? "" : tapField.getDefaultValue().toString();
 		if (StringUtils.isNotBlank(defaultValue)) {
                if(defaultValue.contains("'")){
-				   defaultValue = defaultValue.replace("'","");
+				   defaultValue = StringUtils.replace(defaultValue, "'", "\\'");
 			   }
 			   if(tapField.getTapType() instanceof TapNumber){
 				   defaultValue = defaultValue.trim();
