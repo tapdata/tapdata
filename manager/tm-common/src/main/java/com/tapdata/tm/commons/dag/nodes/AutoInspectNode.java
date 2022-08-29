@@ -33,7 +33,7 @@ public class AutoInspectNode extends DataParentNode<List<Schema>> {
     }
 
     @Override
-    public List<Schema> mergeSchema(List<List<Schema>> inputSchemas, List<Schema> schemas) {
+    public List<Schema> mergeSchema(List<List<Schema>> inputSchemas, List<Schema> schemas, DAG.Options options) {
         return null;
     }
 
