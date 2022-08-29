@@ -5,6 +5,7 @@ import json
 import shlex
 import sys
 import time
+import traceback
 import uuid
 import re
 from logging import *
@@ -2728,6 +2729,7 @@ class DataSource():
         self._manual_options = []
         self._connector = ""
         self._schema = ""
+        self._sid = ""
         self.c = None
         if connector != "":
             self._connector = connector
@@ -2844,14 +2846,18 @@ class DataSource():
         self._type = connection_type
         return self
 
+    def sid(self, sid):
+        self._sid = sid
+        return self
+
     def props(self, options):
         self._options = options
         return self
 
     def to_pdk_dict(self):
         d = {}
-        if self._connector == "kafka":
-            if self._uri:
+        if self._connector.lower() == "kafka":
+            if isinstance(self._uri, str) and len(self._uri) > 0:
                 d["nameSrvAddr"] = self._uri.replace("kafka://", "")
             else:
                 d["nameSrvAddr"] = f"{self._host}:{self._port}"
@@ -2862,37 +2868,25 @@ class DataSource():
             d["kafkaSaslMechanism"] = "PLAIN"
             d["krb5"] = False
             return d
+        if self._connector.lower() == "oracle":
+            d["host"] = self._host
+            d["logPluginName"] = "logMiner"
+            d["password"] = self._password
+            d["port"] = int(self._port)
+            d["schema"] = self._schema
+            d["sid"] = self._sid
+            d["user"] = self._username
+            d["thinType"] = "SID"
+            d["timezone"] = ""
+            return d
         for i in self._manual_options:
+            if i == "sid":
+                continue
             d[i] = getattr(self, "_" + i)
         return d
 
-    def make_kafka_dict(self):
-        database_type = self._connector
-        if database_type.lower() not in client_cache["connectors"]:
-            logger.warn("connector {} not support, support list is: {}", database_type, client_cache["connectors"])
-            return
-        return {
-            "accessNodeType": "AUTOMATIC_PLATFORM_ALLOCATION",
-            "config": self.to_pdk_dict(),
-            "connection_type": self._type,
-            "database_type": self._connector,
-            "name": self._name,
-            "nextRetry": None,
-            "pdkHash": client_cache["connectors"][database_type.lower()]["pdkHash"],
-            "pdkType": "pdk",
-            "response_body": {},
-            "retry": 0,
-            "schema": {},
-            "shareCdcEnable": False,
-            "share_cdc_ttl_day": 3,
-        }
-
     def to_dict(self):
-        if self._connector.lower() == "kafka":
-            return self.make_kafka_dict()
-        if self.c is not None:
-            return self.c
-        if type(self._uri) == type(""):
+        if isinstance(self._uri, str):
             uri = self._uri
         else:
             uri = ""
@@ -2900,17 +2894,17 @@ class DataSource():
             "additionalString": self._options,
             "connection_type": self._type,
             "database_host": self._host,
-            "database_port": self._port,
+            "database_port": int(self._port),
             "database_name": self._db,
             "database_type": self._connector,
             "database_uri": uri,
             "database_owner": self._schema,
             "database_username": self._username,
             "plain_password": self._password,
-            "isUrl": True if self._uri != "" else False,
+            "isUrl": True if uri != "" else False,
             "name": self._name,
             "user_id": self.user_id,
-            "response_body": {}
+            "response_body": {},
         }
         for k, v in self.custom_options.items():
             d[k[1:]] = v
@@ -2982,6 +2976,9 @@ class DataSource():
             async with websockets.connect(system_server_conf["ws_uri"]) as websocket:
                 data = self.to_dict()
                 data["updateSchema"] = True
+                data.update({
+                    "id": self.id
+                })
                 payload = {
                     "type": "testConnection",
                     "data": data
@@ -2996,7 +2993,7 @@ class DataSource():
                         continue
                     if loadResult["data"]["type"] != "testConnectionResult":
                         continue
-                    if loadResult["data"]["result"]["status"] == None:
+                    if loadResult["data"]["result"]["status"] is None:
                         continue
 
                     if loadResult["data"]["result"]["status"] != "ready":
@@ -3005,7 +3002,7 @@ class DataSource():
                         res = True
 
                     if not quiet:
-                        if loadResult["data"]["result"] == None:
+                        if loadResult["data"]["result"] is None:
                             continue
                         for detail in loadResult["data"]["result"]["response_body"]["validate_details"]:
                             if detail["fail_message"] is not None:
@@ -3021,13 +3018,13 @@ class DataSource():
             asyncio.get_event_loop().run_until_complete(l())
         except Exception as e:
             logger.warn("load schema exception, err is: {}", e)
-
         logger.info("datasource valid finished, will check table schema now, please wait for a while ...")
         start_time = time.time()
         while True:
             try:
                 time.sleep(5)
-                res = req.get("/Connections/" + self.id).json()
+                res = req.get("/Connections/" + self.id)
+                res = res.json()
                 if res["data"] == None:
                     break
                 if "loadFieldsStatus" not in res["data"]:
@@ -3041,6 +3038,56 @@ class DataSource():
                 break
         logger.info("datasource table schema check finished, cost time: {} seconds", int(time.time() - start_time))
         return res
+
+
+class Oracle(DataSource):
+    def __init__(self, name):
+        self.connector = "Oracle"
+        self._thinType = "SID"
+        super(Oracle, self).__init__(name=name, connector=self.connector)
+
+    def thinType(self, thin_type: str):
+        if not thin_type.upper() == "SERVICE_NAME" and not thin_type.upper() == "SID":
+            raise Exception("thinType must be SERVICE_NAME or SID")
+        self._thinType = thin_type
+        return self
+
+    def to_pdk_dict(self):
+        d = {}
+        d["host"] = self._host
+        d["logPluginName"] = "logMiner"
+        d["password"] = self._password
+        d["port"] = int(self._port)
+        d["schema"] = self._schema
+        d["user"] = self._username
+        d["thinType"] = self._thinType
+        d["timezone"] = ""
+        if self._thinType == "SERVICE_NAME":
+            d.update({"database": self._database})
+        elif self._thinType == "SID":
+            d.update({"sid": self._database})
+        print(d)
+        return d
+
+
+class Kafka(DataSource):
+    def __init__(self, name):
+        self.connector = "Kafka"
+        super(Kafka, self).__init__(name=name, connector=self.connector)
+
+    def to_pdk_dict(self):
+        d = {}
+        if isinstance(self._uri, str) and len(self._uri) > 0:
+            d["nameSrvAddr"] = self._uri.replace("kafka://", "")
+        else:
+            d["nameSrvAddr"] = f"{self._host}:{self._port}"
+        d["kafkaAcks"] = "-1"
+        d["kafkaCompressionType"] = "gzip"
+        d["kafkaIgnoreInvalidRecord"] = False
+        d["kafkaIgnorePushError"] = False
+        d["kafkaSaslMechanism"] = "PLAIN"
+        d["krb5"] = False
+        return d
 
 
 class MongoDB(DataSource):
@@ -3076,8 +3123,11 @@ class Postgres(DataSource):
 
     def to_dict(self):
         base_dict = super().to_dict()
+        config = super().to_pdk_dict()
+        config.update({"schema": self._schema, "user": self._username, "logPluginName": "PGOUTPUT"})
+        base_dict["config"] = config
         base_dict["database_owner"] = self._schema
-        base_dict["pgsql_log_decorder_plugin_name"] = "wal2json_streaming"
+        base_dict["pgsql_log_decorder_plugin_name"] = ""
         if self._log_decorder_plugin is not None:
             base_dict["pgsql_log_decorder_plugin_name"] = self._log_decorder_plugin
         return base_dict
