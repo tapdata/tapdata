@@ -2314,7 +2314,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         }
 
         //模型推演,如果模型已经存在，则需要推演
-        DAG dag = taskDto.getDag();
+//        DAG dag = taskDto.getDag();
 
         //校验当前状态是否允许启动。
         if (!TaskOpStatusEnum.to_start_status.v().contains(taskDto.getStatus())) {
