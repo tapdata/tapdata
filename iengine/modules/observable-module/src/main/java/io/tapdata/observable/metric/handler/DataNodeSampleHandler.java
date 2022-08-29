@@ -79,7 +79,7 @@ public class DataNodeSampleHandler extends AbstractNodeSampleHandler {
     private final Map<String, Set<String>> nodeTables = new HashMap<>();
     public void init(Node<?> node, String associateId, Set<String> tables) {
         Map<String, String> tags = nodeTags(node);
-        Map<String, Number> values = TaskSampleRetriever.getInstance().retrieve(tags, Arrays.asList(
+        Map<String, Number> values = TaskSampleRetriever.getInstance().retrieveWithRetry(tags, Arrays.asList(
                 "inputInsertTotal", "inputUpdateTotal", "inputDeleteTotal", "inputDdlTotal", "inputOthersTotal",
                 "outputInsertTotal", "outputUpdateTotal", "outputDeleteTotal", "outputDdlTotal", "outputOthersTotal",
                 "snapshotTableTotal", "snapshotRowTotal", "snapshotInsertRowTotal",

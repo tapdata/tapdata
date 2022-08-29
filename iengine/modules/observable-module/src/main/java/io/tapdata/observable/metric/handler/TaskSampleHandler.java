@@ -57,7 +57,7 @@ public class TaskSampleHandler extends AbstractHandler {
 
     public void init() {
         Map<String, String> tags = taskTags();
-        Map<String, Number> values = TaskSampleRetriever.getInstance().retrieve(tags, Arrays.asList(
+        Map<String, Number> values = TaskSampleRetriever.getInstance().retrieveWithRetry(tags, Arrays.asList(
                 "createTableTotal", "snapshotTableTotal", "snapshotRowTotal", "snapshotInsertRowTotal", "snapshotDoneAt",
                 "inputInsertTotal", "inputUpdateTotal", "inputDeleteTotal", "inputDdlTotal", "inputOthersTotal",
                 "outputInsertTotal", "outputUpdateTotal", "outputDeleteTotal", "outputDdlTotal", "outputOthersTotal"
