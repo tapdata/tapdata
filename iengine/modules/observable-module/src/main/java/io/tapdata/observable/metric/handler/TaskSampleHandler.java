@@ -198,13 +198,13 @@ public class TaskSampleHandler extends AbstractHandler {
         }
 
         taskTables.addAll(tables);
-        inputDdlTotal.inc();
+        inputDdlTotal.inc(tables.size());
     }
 
     public void handleSourceDynamicTableRemove(List<String> tables) {
         if (null == tables || tables.isEmpty()) {
             return;
         }
-        inputDdlTotal.inc();
+        inputDdlTotal.inc(tables.size());
     }
 }
