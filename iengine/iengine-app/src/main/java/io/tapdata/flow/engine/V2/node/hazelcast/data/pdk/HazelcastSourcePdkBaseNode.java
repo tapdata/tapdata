@@ -24,6 +24,7 @@ import com.tapdata.tm.commons.task.dto.Message;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.Runnable.LoadSchemaRunner;
 import io.tapdata.aspect.SourceCDCDelayAspect;
+import io.tapdata.aspect.SourceDynamicTableAspect;
 import io.tapdata.aspect.TaskMilestoneFuncAspect;
 import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
@@ -126,8 +127,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 		} catch (Throwable e) {
 			TaskMilestoneFuncAspect.execute(dataProcessorContext, MilestoneStage.INIT_CONNECTOR, MilestoneStatus.ERROR, logger);
 			MilestoneUtil.updateMilestone(milestoneService, MilestoneStage.INIT_CONNECTOR, MilestoneStatus.ERROR, e.getMessage() + "\n" + Log4jUtil.getStackString(e));
-			errorHandle(e, e.getMessage());
-			throw new RuntimeException(e);
+			throw new NodeException(e).context(getProcessorBaseContext());
 		}
 		TaskDto taskDto = dataProcessorContext.getTaskDto();
 		syncProgress = initSyncProgress(taskDto.getAttrs());
@@ -159,13 +159,13 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 		Node<?> node = dataProcessorContext.getNode();
 		if (node.isDataNode()) {
 			if (needDynamicTable(null)) {
+				this.newTables = new CopyOnWriteArrayList<>();
+				this.removeTables = new CopyOnWriteArrayList<>();
 				TableMonitor tableMonitor = new TableMonitor(dataProcessorContext.getTapTableMap(), associateId, dataProcessorContext.getTaskDto());
 				this.monitorManager.startMonitor(tableMonitor);
 				this.tableMonitorResultHandler = new ScheduledThreadPoolExecutor(1);
 				this.tableMonitorResultHandler.scheduleAtFixedRate(this::handleTableMonitorResult, 0L, PERIOD_SECOND_HANDLE_TABLE_MONITOR_RESULT, TimeUnit.SECONDS);
 				logger.info("Handle dynamic add/remove table thread started, interval: " + PERIOD_SECOND_HANDLE_TABLE_MONITOR_RESULT + " seconds");
-				this.newTables = new CopyOnWriteArrayList<>();
-				this.removeTables = new CopyOnWriteArrayList<>();
 			}
 		}
 	}
@@ -173,6 +173,10 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 	private boolean needDynamicTable(Object obj) {
 		Node<?> node = dataProcessorContext.getNode();
 		if (node instanceof DatabaseNode) {
+			String migrateTableSelectType = ((DatabaseNode) node).getMigrateTableSelectType();
+			if (StringUtils.isBlank(migrateTableSelectType) || !"all".equals(migrateTableSelectType)) {
+				return false;
+			}
 			Boolean enableDynamicTable = ((DatabaseNode) node).getEnableDynamicTable();
 			if (null == enableDynamicTable || !enableDynamicTable) {
 				return false;
@@ -212,7 +216,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 					}
 					String pointType = syncPoint == null ? "current" : syncPoint.getPointType();
 					if (StringUtils.isBlank(pointType)) {
-						throw new RuntimeException("Run cdc task failed, sync point type cannot be empty");
+						throw new NodeException("Run cdc task failed, sync point type cannot be empty").context(getProcessorBaseContext());
 					}
 					switch (pointType) {
 						case "localTZ":
@@ -260,8 +264,8 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 						// switch share cdc to normal task
 						Long eventTime = syncProgress.getEventTime();
 						if (null == eventTime) {
-							throw new RuntimeException("It was found that the task was switched from shared incremental to normal mode and cannot continue execution, reason: lost breakpoint timestamp."
-									+ " Please try to reset and start the task.");
+							throw new NodeException("It was found that the task was switched from shared incremental to normal mode and cannot continue execution, reason: lost breakpoint timestamp."
+									+ " Please try to reset and start the task.").context(getProcessorBaseContext());
 						}
 						initStreamOffsetFromTime(eventTime);
 					}
@@ -281,15 +285,18 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 					if (need2InitialSync(syncProgress)) {
 						logger.warn("Call timestamp to stream offset function failed, will stop task after snapshot, type: " + dataProcessorContext.getDatabaseType()
 								+ ", errors: " + e.getClass().getSimpleName() + "  " + e.getMessage() + "\n" + Log4jUtil.getStackString(e));
-					} else {
-						throw new RuntimeException("Call timestamp to stream offset function failed, will stop task, type: " + dataProcessorContext.getDatabaseType()
+						obsLogger.warn("Call timestamp to stream offset function failed, will stop task after snapshot, type: " + dataProcessorContext.getDatabaseType()
 								+ ", errors: " + e.getClass().getSimpleName() + "  " + e.getMessage() + "\n" + Log4jUtil.getStackString(e));
+					} else {
+						throw new NodeException("Call timestamp to stream offset function failed, will stop task, type: " + dataProcessorContext.getDatabaseType()
+								+ ", errors: " + e.getClass().getSimpleName() + "  " + e.getMessage() + "\n" + Log4jUtil.getStackString(e)).context(getProcessorBaseContext());
 					}
 				}
 				syncProgress.setStreamOffsetObj(timeToStreamOffsetResult.get());
 			}, TAG);
 		} else {
 			logger.warn("Pdk connector does not support timestamp to stream offset function, will stop task after snapshot: " + dataProcessorContext.getDatabaseType());
+			obsLogger.warn("Pdk connector does not support timestamp to stream offset function, will stop task after snapshot: " + dataProcessorContext.getDatabaseType());
 		}
 	}
 
@@ -307,6 +314,15 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 				pendingEvent = null;
 			} else {
 				dataEvent = eventQueue.poll(5, TimeUnit.SECONDS);
+				if (null != dataEvent) {
+					// covert to tap value before enqueue the event. when the event is enqueued into the eventQueue,
+					// the event is considered been output to the next node.
+					TapCodecsFilterManager codecsFilterManager = getConnectorNode().getCodecsFilterManager();
+					TapEvent tapEvent = dataEvent.getTapEvent();
+					if (sourceMode == SourceMode.NORMAL) {
+						tapRecordToTapValue(tapEvent, codecsFilterManager);
+					}
+				}
 			}
 
 			if (dataEvent != null) {
@@ -318,10 +334,11 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 						.ifPresent(s -> s.incrementEdgeFinishNumber(TapEventUtil.getTableId(dataEvent.getTapEvent())));
 			}
 			if (error != null) {
-				throw new RuntimeException(error);
+				throw new NodeException(error).context(getProcessorBaseContext());
 			}
 		} catch (Exception e) {
 			logger.error("Source sync failed {}.", e.getMessage(), e);
+			obsLogger.error("Source sync failed {}.", e.getMessage(), e);
 			throw new SourceException(e, true);
 		}
 
@@ -390,6 +407,11 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 								}
 								tapdataEvents.forEach(this::enqueue);
 								this.newTables.addAll(addList);
+								AspectUtils.executeAspect(new SourceDynamicTableAspect()
+										.dataProcessorContext(getDataProcessorContext())
+										.type(SourceDynamicTableAspect.DYNAMIC_TABLE_TYPE_ADD)
+										.tables(addList)
+										.tapdataEvents(tapdataEvents));
 								if (this.endSnapshotLoop.get()) {
 									logger.info("It is detected that the snapshot reading has ended, and the reading thread will be restarted");
 									// Restart source runner
@@ -435,11 +457,16 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 									tapdataEvents.add(tapdataEvent);
 								}
 								tapdataEvents.forEach(this::enqueue);
+								AspectUtils.executeAspect(new SourceDynamicTableAspect()
+										.dataProcessorContext(getDataProcessorContext())
+										.type(SourceDynamicTableAspect.DYNAMIC_TABLE_TYPE_REMOVE)
+										.tables(removeList)
+										.tapdataEvents(tapdataEvents));
 							}
 						}
 					} catch (Throwable throwable) {
 						String error = "Handle table monitor result failed, result: " + tableResult + ", error: " + throwable.getMessage();
-						throw new RuntimeException(error, throwable);
+						throw new NodeException(error, throwable).context(getProcessorBaseContext());
 					}
 				});
 			}
@@ -481,7 +508,8 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 		try {
 			return wrapSingleTapdataEvent(tapEvent, syncStage, offsetObj, isLast);
 		} catch (Throwable throwable) {
-			throw new NodeException("Error wrap TapEvent, event: " + tapEvent + ", error: " + throwable.getMessage(), throwable)
+			throw new NodeException("Error wrap TapEvent, event: " + tapEvent + ", error: " + throwable
+					.getMessage(), throwable)
 					.context(getDataProcessorContext())
 					.event(tapEvent);
 		}
@@ -531,6 +559,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 			logger.info("Source node received an ddl event: " + tapEvent);
 			if (null != ddlFilter && !ddlFilter.test((TapDDLEvent) tapEvent)) {
 				logger.warn("DDL events are filtered: " + tapEvent);
+				obsLogger.warn("DDL events are filtered: " + tapEvent);
 				return null;
 			}
 			tapdataEvent = new TapdataEvent();
@@ -590,7 +619,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 				String qualifiedName;
 				Map<String, List<Message>> errorMessage;
 				if (tapEvent instanceof TapCreateTableEvent) {
-					qualifiedName = dagDataService.createNewTable(dataProcessorContext.getSourceConn().getId(), tapTable);
+					qualifiedName = dagDataService.createNewTable(dataProcessorContext.getSourceConn().getId(), tapTable, processorBaseContext.getTaskDto().getId().toHexString());
 					logger.info("Create new table in memory, qualified name: " + qualifiedName);
 					dataProcessorContext.getTapTableMap().putNew(tapTable.getId(), tapTable, qualifiedName);
 					errorMessage = dag.transformSchema(null, dagDataService, transformerWsMessageDto.getOptions());
@@ -640,14 +669,6 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 					if (removeTables != null && removeTables.contains(tableId)) {
 						break;
 					}
-				}
-
-				// covert to tap value before enqueue the event. when the event is enqueued into the eventQueue,
-				// the event is considered been output to the next node.
-				TapCodecsFilterManager codecsFilterManager = getConnectorNode().getCodecsFilterManager();
-				TapEvent tapEvent = tapdataEvent.getTapEvent();
-				if (sourceMode == SourceMode.NORMAL) {
-					tapRecordToTapValue(tapEvent, codecsFilterManager);
 				}
 
 				if (eventQueue.offer(tapdataEvent, 3, TimeUnit.SECONDS)) {

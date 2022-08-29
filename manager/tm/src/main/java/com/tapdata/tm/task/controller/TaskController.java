@@ -125,8 +125,6 @@ public class TaskController extends BaseController {
             filter = new Filter();
         }
 
-
-
         return success(taskService.find(filter, getLoginUser()));
     }
 
@@ -265,6 +263,8 @@ public class TaskController extends BaseController {
 
             taskDto.setCreator(StringUtils.isNotBlank(user.getUsername()) ? user.getUsername() : user.getEmail());
             taskCheckInspectService.getInspectFlagDefaultFlag(taskDto, user);
+
+            taskNodeService.checkFieldNode(taskDto, user);
         }
         return success(taskDto);
     }
@@ -931,8 +931,14 @@ public class TaskController extends BaseController {
 
 
     @PostMapping("dag")
+    public ResponseMessage<Void> updateDagAndHistory(@RequestBody TaskDto taskDto) {
+        taskService.updateDag(taskDto, getLoginUser(), true);
+        return success();
+    }
+
+    @PostMapping("dagNotHistory")
     public ResponseMessage<Void> updateDag(@RequestBody TaskDto taskDto) {
-        taskService.updateDag(taskDto, getLoginUser());
+        taskService.updateDag(taskDto, getLoginUser(), false);
         return success();
     }
 

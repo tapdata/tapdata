@@ -13,10 +13,11 @@ import com.tapdata.tm.autoinspect.entity.CompareTableItem;
 import com.tapdata.tm.commons.dag.nodes.AutoInspectNode;
 import com.tapdata.tm.commons.dag.vo.SyncObjects;
 import io.tapdata.autoinspect.AutoInspectRunner;
-import io.tapdata.autoinspect.compare.AutoPdkCompare;
+import io.tapdata.autoinspect.compare.PdkAutoCompare;
 import io.tapdata.autoinspect.connector.PdkConnector;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.observable.logging.ObsLogger;
+import lombok.NonNull;
 import org.bson.types.ObjectId;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
@@ -29,11 +30,11 @@ import java.util.*;
  * @version v1.0 2022/8/18 14:57 Create
  */
 public abstract class PdkAutoInspectRunner extends AutoInspectRunner<IPdkConnector, IPdkConnector, IAutoCompare> {
-    private final ClientMongoOperator clientMongoOperator;
-    private final AutoInspectNode node;
-    private final Map<String, Connections> connectionMap;
+    private final @NonNull ClientMongoOperator clientMongoOperator;
+    private final @NonNull AutoInspectNode node;
+    private final @NonNull Map<String, Connections> connectionMap;
 
-    public PdkAutoInspectRunner(ObsLogger userLogger, String taskId, TaskType taskType, AutoInspectProgress progress, AutoInspectNode node, ClientMongoOperator clientMongoOperator) {
+    public PdkAutoInspectRunner(@NonNull ObsLogger userLogger, @NonNull String taskId, @NonNull TaskType taskType, AutoInspectProgress progress, @NonNull AutoInspectNode node, @NonNull ClientMongoOperator clientMongoOperator) {
         super(userLogger, taskId, taskType, progress);
         this.clientMongoOperator = clientMongoOperator;
         this.node = node;
@@ -62,11 +63,11 @@ public abstract class PdkAutoInspectRunner extends AutoInspectRunner<IPdkConnect
     }
 
     @Override
-    protected IAutoCompare openAutoCompare(IPdkConnector sourceConnector, IPdkConnector targetConnector) throws Exception {
-        return new AutoPdkCompare(clientMongoOperator, sourceConnector, targetConnector);
+    protected IAutoCompare openAutoCompare(@NonNull IPdkConnector sourceConnector, @NonNull IPdkConnector targetConnector) throws Exception {
+        return new PdkAutoCompare(clientMongoOperator, progress, sourceConnector, targetConnector, this::isRunning, this::errorHandle);
     }
 
-    protected void init(AutoInspectProgress progress, IPdkConnector sourceConnector, IPdkConnector targetConnector) throws Exception {
+    protected void init(@NonNull AutoInspectProgress progress, @NonNull IPdkConnector sourceConnector, @NonNull IPdkConnector targetConnector) throws Exception {
         TapTable tapTable;
         for (SyncObjects syncObjects : node.getSyncObjects()) {
             if (!"table".equals(syncObjects.getType())) continue;
@@ -107,7 +108,7 @@ public abstract class PdkAutoInspectRunner extends AutoInspectRunner<IPdkConnect
     }
 
     @Override
-    protected void updateProgress(AutoInspectProgress progress) {
+    protected void updateProgress(@NonNull AutoInspectProgress progress) {
         Query query = Query.query(Criteria.where("_id").is(new ObjectId(taskId)));
         Update update = Update.update("attrs.autoInspectProgress", progress);
         clientMongoOperator.update(query, update, ConnectorConstant.TASK_COLLECTION);

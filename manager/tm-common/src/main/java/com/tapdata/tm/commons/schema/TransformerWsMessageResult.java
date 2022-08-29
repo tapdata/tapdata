@@ -18,4 +18,5 @@ public class TransformerWsMessageResult {
     private List<MetadataTransformerDto> upsertTransformer;
     private Map<String, List<Message>> transformSchema;
     private String taskId;
+    private String transformUuid;
 }

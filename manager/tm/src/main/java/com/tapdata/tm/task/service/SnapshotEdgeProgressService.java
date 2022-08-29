@@ -21,6 +21,7 @@ import com.tapdata.tm.task.bean.FullSyncVO;
 import com.tapdata.tm.task.bean.TableStatus;
 import com.tapdata.tm.task.entity.SnapshotEdgeProgressEntity;
 import com.tapdata.tm.task.entity.TaskEntity;
+import com.tapdata.tm.task.entity.TaskSnapshotsEntity;
 import com.tapdata.tm.task.repository.SnapshotEdgeProgressRepository;
 import com.tapdata.tm.utils.MongoUtils;
 import io.tapdata.common.sample.request.Sample;
@@ -274,7 +275,17 @@ public class SnapshotEdgeProgressService extends BaseService<TaskSnapshotProgres
 
 		for (BatchOperationDto batchUpsertDto : batchUpsertDtoList) {
 			if (BatchOperationDto.BatchOp.insert.equals(batchUpsertDto.getOp())) {
-				bulkOperations.insert(batchUpsertDto.getDocument());
+				TaskSnapshotProgress document = batchUpsertDto.getDocument();
+				ObjectId id = document.getId();
+				if (id !=null) {
+					Query query = new Query(Criteria.where("_id").is(id));
+					SnapshotEdgeProgressEntity snapshotEdgeProgressEntity = convertToEntity(SnapshotEdgeProgressEntity.class, document);
+					Update update = repository.buildUpdateSet(snapshotEdgeProgressEntity);
+					bulkOperations.upsert(query, update);
+				} else {
+					bulkOperations.insert(batchUpsertDto.getDocument());
+				}
+
 			} else {
 				if (StringUtils.isNotBlank(batchUpsertDto.getWhere())) {
 					String whereJson = batchUpsertDto.getWhere();

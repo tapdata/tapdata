@@ -119,7 +119,7 @@ public class RedisContext implements AutoCloseable {
                     TapLogger.warn("Get jedis failed,Try again {} times,retry count: {}", String.valueOf(GET_JEDIS_TIMEOUT_COUNT), retryCount);
                 } else {
                     TapLogger.error("Get jedis error,message: {}", e.getMessage(), e);
-                    break;
+                    throw new RuntimeException(e);
                 }
             }
         }

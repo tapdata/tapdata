@@ -136,7 +136,7 @@ public class TaskNodeServiceImpl implements TaskNodeService {
         if (preHasJsNode)
             return getMetaByJsNode(nodeId, result, sourceNode, targetNode, tableNames, currentTableList, targetDataSource, predecessors, taskId);
         else
-            return getMetadataTransformerItemDtoPage(nodeId, userDetail, result, dag, sourceNode, targetNode, tableNames, currentTableList, targetDataSource, taskId, predecessors, currentNode);
+            return getMetadataTransformerItemDtoPage(userDetail, result, sourceNode, targetNode, tableNames, currentTableList, targetDataSource, taskId, predecessors, currentNode);
     }
 
     private Page<MetadataTransformerItemDto> getMetaByJsNode(String nodeId, Page<MetadataTransformerItemDto> result, DatabaseNode sourceNode, DatabaseNode targetNode, List<String> tableNames, List<String> currentTableList, DataSourceConnectionDto targetDataSource, List<Node<?>> predecessors, String taskId) {
@@ -212,8 +212,8 @@ public class TaskNodeServiceImpl implements TaskNodeService {
     }
 
     @NotNull
-    private Page<MetadataTransformerItemDto> getMetadataTransformerItemDtoPage(String nodeId, UserDetail userDetail
-            , Page<MetadataTransformerItemDto> result, DAG dag, DatabaseNode sourceNode, DatabaseNode targetNode
+    private Page<MetadataTransformerItemDto> getMetadataTransformerItemDtoPage(UserDetail userDetail
+            , Page<MetadataTransformerItemDto> result, DatabaseNode sourceNode, DatabaseNode targetNode
             , List<String> tableNames, List<String> currentTableList, DataSourceConnectionDto targetDataSource
             , final String taskId, List<Node<?>> predecessors, Node<?> currentNode) {
         if (CollectionUtils.isEmpty(predecessors)) {
@@ -250,26 +250,32 @@ public class TaskNodeServiceImpl implements TaskNodeService {
         DataSourceConnectionDto sourceDataSource = dataSourceService.findById(MongoUtils.toObjectId(sourceNode.getConnectionId()));
 
         Map<String, MetadataInstancesDto> metaMap = Maps.newHashMap();
-        List<MetadataInstancesDto> list = metadataInstancesService.findBySourceIdAndTableNameList(targetNode.getConnectionId(),
-                currentTableList, userDetail, taskId);
-        boolean queryFormSource = false;
-        if (CollectionUtils.isEmpty(list)) {
-            // 可能有这种场景， node detail接口请求比模型加载快，会查不到逻辑表的数据
-            list = metadataInstancesService.findBySourceIdAndTableNameListNeTaskId(sourceNode.getConnectionId(),
+        List<MetadataInstancesDto> list = metadataInstancesService.findBySourceIdAndTableNameListNeTaskId(sourceNode.getConnectionId(),
                     currentTableList, userDetail, taskId);
-            queryFormSource = true;
-        }
+        boolean queryFormSource = true;
+        // 模型推演会推演很多无效数据 findByNodeId 这个方法暂时不能用。
+//        List<MetadataInstancesDto> list = metadataInstancesService.findByNodeId(currentNode.getId(), userDetail);
+//        boolean queryFormSource = false;
+//        if (CollectionUtils.isEmpty(list) || list.size() != tableNames.size()) {
+//            // 可能有这种场景， node detail接口请求比模型加载快，会查不到逻辑表的数据
+//            list = metadataInstancesService.findBySourceIdAndTableNameListNeTaskId(sourceNode.getConnectionId(),
+//                    currentTableList, userDetail, taskId);
+//            queryFormSource = true;
+//        }
         if (CollectionUtils.isNotEmpty(list)) {
-            boolean finalQueryFormSource = queryFormSource;
             metaMap = list.stream().map(meta -> {
                 // source & target not same database type and query from source
-                if (finalQueryFormSource && currentNode instanceof DatabaseNode && !sourceDataSource.getDatabase_type().equals(targetDataSource.getDatabase_type())) {
+                if (currentNode instanceof DatabaseNode && !sourceDataSource.getDatabase_type().equals(targetDataSource.getDatabase_type())) {
                     Schema schema = JsonUtil.parseJsonUseJackson(JsonUtil.toJsonUseJackson(meta), Schema.class);
                     return processFieldToDB(schema, meta, targetDataSource, userDetail);
                 } else {
                     return meta;
                 }
-            }).collect(Collectors.toMap(MetadataInstancesDto::getOriginalName, Function.identity()));
+            }).collect(Collectors.toMap(MetadataInstancesDto::getOriginalName, Function.identity(), (e1,e2)->e2));
+        }
+
+        if (metaMap.isEmpty()) {
+            return result;
         }
 
         List<MetadataTransformerItemDto> data = Lists.newArrayList();
@@ -288,16 +294,17 @@ public class TaskNodeServiceImpl implements TaskNodeService {
             // set qualifiedName
             String sinkQualifiedName = null;
             if (Objects.nonNull(targetDataSource)) {
+                //TODO 现在的mongodb表也是table的，所以这个逻辑是有问题的，但是由于现在的mongodb在库里的类型不是mongodb所以也不会出错。要改的时候，需要改所有类似的的地方
                 String metaType = "mongodb".equals(targetDataSource.getDatabase_type()) ? "collection" : "table";
                 sinkQualifiedName = MetaDataBuilderUtils.generateQualifiedName(metaType, targetDataSource, tableName, taskId);
             }
             String metaType = "mongodb".equals(sourceDataSource.getDatabase_type()) ? "collection" : "table";
             String sourceQualifiedName = MetaDataBuilderUtils.generateQualifiedName(metaType, sourceDataSource, tableName, taskId);
 
-            if (CollectionUtils.isEmpty(metaMap.get(tableName).getFields())) {
+            if (metaMap.get(tableName) == null || CollectionUtils.isEmpty(metaMap.get(tableName).getFields())) {
                 continue;
             }
-            List<Field> fields = metaMap.get(tableName).getFields().stream().filter(t -> !t.isDeleted()).collect(Collectors.toList());
+            List<Field> fields = metaMap.get(tableName).getFields();
 
             // TableRenameProcessNode not need fields
             if (!(currentNode instanceof TableRenameProcessNode)) {
@@ -454,6 +461,44 @@ public class TaskNodeServiceImpl implements TaskNodeService {
             res.setData(result);
         }
         return res;
+    }
+
+    @Override
+    public void checkFieldNode(TaskDto taskDto, UserDetail userDetail) {
+        if (!taskDto.getName().contains("- Copy")) {
+            return;
+        }
+
+        String taskId = taskDto.getId().toHexString();
+
+        DAG dag = taskDto.getDag();
+        List<String> collect = dag.getNodes().stream().filter(node -> {
+            if (node instanceof MigrateFieldRenameProcessorNode) {
+                LinkedList<TableFieldInfo> fieldsMapping = ((MigrateFieldRenameProcessorNode) node).getFieldsMapping();
+
+                return fieldsMapping.stream().anyMatch(table -> !table.getQualifiedName().endsWith(taskId));
+            }
+            return false;
+        }).map(Node::getId)
+        .collect(Collectors.toList());
+
+        if (CollectionUtils.isNotEmpty(collect)) {
+            DatabaseNode sourceNode = dag.getSourceNode().getFirst();
+
+            List<MetadataInstancesDto> metaList = metadataInstancesService.findBySourceIdAndTableNameList(sourceNode.getConnectionId(),
+                    sourceNode.getTableNames(), userDetail, taskDto.getId().toHexString());
+
+            if (CollectionUtils.isNotEmpty(metaList)) {
+                Map<String, String> qualifiedNameMap = metaList.stream()
+                        .collect(Collectors.toMap(MetadataInstancesDto::getName, MetadataInstancesDto::getQualifiedName));
+
+                collect.forEach(nodeId -> {
+                    MigrateFieldRenameProcessorNode fieldNode = (MigrateFieldRenameProcessorNode) dag.getNode(nodeId);
+                    fieldNode.getFieldsMapping().forEach(m -> m.setQualifiedName(qualifiedNameMap.get(m.getOriginTableName())));
+                });
+            }
+        }
+
     }
 
     /**

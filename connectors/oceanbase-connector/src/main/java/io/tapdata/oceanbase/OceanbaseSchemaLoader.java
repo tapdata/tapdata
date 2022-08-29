@@ -61,9 +61,9 @@ public class OceanbaseSchemaLoader {
     private TapConnectionContext tapConnectionContext;
     private OceanbaseJdbcContext oceanbaseJdbcContext;
 
-    public OceanbaseSchemaLoader(OceanbaseJdbcContext mysqlJdbcContext) {
-        this.oceanbaseJdbcContext = mysqlJdbcContext;
-        this.tapConnectionContext = mysqlJdbcContext.getTapConnectionContext();
+    public OceanbaseSchemaLoader(OceanbaseJdbcContext oceanbaseJdbcContext) {
+        this.oceanbaseJdbcContext = oceanbaseJdbcContext;
+        this.tapConnectionContext = oceanbaseJdbcContext.getTapConnectionContext();
     }
 
     public void discoverSchema(List<String> filterTable, Consumer<List<TapTable>> consumer, int tableSize) throws Throwable {

@@ -379,7 +379,7 @@ public class SnapshotProgressManager implements Closeable {
 					} catch (Exception e) {
 						RuntimeException runtimeException = new RuntimeException("Count " + tapTable.get().getId() + " failed: " + e.getMessage(), e);
 						logger.warn(runtimeException.getMessage() + "\n" + Log4jUtil.getStackString(e));
-						errorMsg = runtimeException.getMessage() + "\n" + Log4jUtil.getStackString(e);
+						throw runtimeException;
 					}
 				} else {
 					errorMsg = "Counting is not supported for database " + srcConn.getDatabase_type();

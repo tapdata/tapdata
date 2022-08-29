@@ -29,13 +29,18 @@ public final class ObsLoggerFactory {
 
 	public ObsLogger getObsLogger(TaskDto task) {
 		String taskId = task.getId().toHexString();
+		taskLoggersMap.computeIfPresent(taskId, (k, v) -> v.withTask(taskId, task.getName(), task.getTaskRecordId()));
 		taskLoggersMap.putIfAbsent(taskId, new TaskLogger().withTask(taskId, task.getName(), task.getTaskRecordId()));
 		taskLoggersMap.get(taskId).registerTaskFileAppender(taskId);
 
 		return taskLoggersMap.get(taskId);
 	}
 
-	public TaskLoggerNodeProxy getObsLogger(TaskDto task, String nodeId, String nodeName) {
+	public ObsLogger getObsLogger(String taskId) {
+		return taskLoggersMap.get(taskId);
+	}
+
+	public ObsLogger getObsLogger(TaskDto task, String nodeId, String nodeName) {
 		TaskLogger taskLogger = (TaskLogger) getObsLogger(task);
 
 		String taskId = task.getId().toHexString();
@@ -44,6 +49,14 @@ public final class ObsLoggerFactory {
 				new TaskLoggerNodeProxy().withTaskLogger(taskLogger).withNode(nodeId, nodeName));
 
 		return taskLoggerNodeProxyMap.get(taskId).get(nodeId);
+	}
+
+	public ObsLogger getObsLogger(String taskId, String nodeId) {
+		ObsLogger obsLogger = null;
+		if (null != taskLoggerNodeProxyMap.get(taskId) && null != taskLoggerNodeProxyMap.get(taskId).get(nodeId)) {
+			obsLogger = taskLoggerNodeProxyMap.get(taskId).get(nodeId);
+		}
+		return null;
 	}
 
 	public void removeTaskLogger(TaskDto task) {
