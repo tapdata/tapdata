@@ -5,6 +5,8 @@ import cn.hutool.core.date.DateUnit;
 import cn.hutool.core.date.DateUtil;
 import cn.hutool.core.lang.Assert;
 import cn.hutool.core.map.MapUtil;
+import cn.hutool.json.JSONConverter;
+import com.alibaba.fastjson.JSON;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.google.common.collect.Maps;
 import com.mongodb.client.result.UpdateResult;
@@ -128,6 +130,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     private MonitoringLogsService monitoringLogsService;
     private TaskAutoInspectResultsService taskAutoInspectResultsService;
     private TaskSaveService taskSaveService;
+    private TaskDagService taskDagService;
 
     public static Set<String> stopStatus = new HashSet<>();
     /**
@@ -386,6 +389,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
         //校验dag
         DAG dag = taskDto.getDag();
+        int dagHash = 0;
         if (dag != null) {
             if (TaskDto.SYNC_TYPE_MIGRATE.equals(taskDto.getSyncType())) {
                 if (CollectionUtils.isNotEmpty(dag.getSourceNode())) {
@@ -408,7 +412,12 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
                     taskSaveService.syncTaskSetting(taskDto, user);
 
-                    transformSchemaAsyncService.transformSchema(dag, user, taskDto.getId());
+                    dagHash = taskDagService.calculationDagHash(taskDto);
+                    if (dagHash != taskDto.getTransformDagHash()) {
+                        // if compare dag hash equals last dag then not need transformSchema
+                        transformSchemaAsyncService.transformSchema(dag, user, taskDto.getId());
+                    }
+
                 }
             } else {
                 transformSchemaService.transformSchema(dag, user, taskDto.getId());
@@ -424,6 +433,8 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         //推演的时候改的，这里必须清空掉。清空只是不会被修改。
         taskDto.setTransformed(null);
         taskDto.setTransformUuid(null);
+        taskDto.setTransformDagHash(dagHash);
+
         return save(taskDto, user);
 
     }

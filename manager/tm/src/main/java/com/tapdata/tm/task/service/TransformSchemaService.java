@@ -294,7 +294,7 @@ public class TransformSchemaService {
         queueDto.setData(data);
         queueDto.setType("pipe");
 
-        log.info("build send test connection websocket context, processId = {}, userId = {}, queueDto = {}", processId, user.getUserId(), queueDto);
+//        log.info("build send test connection websocket context, processId = {}, userId = {}, queueDto = {}", processId, user.getUserId(), queueDto);
         messageQueueService.sendMessage(queueDto);
 
     }
