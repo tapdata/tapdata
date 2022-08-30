@@ -36,6 +36,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.text.MessageFormat;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
 @Service
@@ -155,18 +156,14 @@ public class TaskDagCheckLogServiceImpl implements TaskDagCheckLogService {
 
             result.setModelList(collect);
 
-            boolean present = false;
+            boolean present = taskDto.getTransformed();
 
-            LinkedList<DatabaseNode> sourceNode = taskDto.getDag().getSourceNode();
-            if (CollectionUtils.isNotEmpty(sourceNode)) {
-                present = modelLogs.stream()
-                        .filter(n -> DagOutputTemplateEnum.MODEL_PROCESS_CHECK.name().equals(n.getCheckType()))
-                        .anyMatch(n -> {
-                            int size = sourceNode.getFirst().getTableNames().size();
-                            return n.getLog().contains(size + "/" + size) || n.getGrade().equals(Level.ERROR.getValue());
-                        });
-            }
             result.setOver(present);
+
+            // over=true => To prevent the front-end parallel request from getting old data
+            if (present) {
+                CompletableFuture.runAsync(() -> removeAllByTaskId(taskId));
+            }
         }
 
         return result;

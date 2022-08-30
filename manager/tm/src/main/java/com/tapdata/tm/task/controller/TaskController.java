@@ -75,6 +75,8 @@ public class TaskController extends BaseController {
     private MetadataInstancesService metadataInstancesService;
     private TaskNodeService taskNodeService;
     private TaskSaveService taskSaveService;
+
+    private TaskStartService taskStartService;
     private SnapshotEdgeProgressService snapshotEdgeProgressService;
     private TaskRecordService taskRecordService;
 
@@ -233,7 +235,7 @@ public class TaskController extends BaseController {
         task.setId(MongoUtils.toObjectId(id));
         UserDetail user = getLoginUser();
 
-        boolean noPass = taskService.taskStartCheckLog(task, user);
+        boolean noPass = taskStartService.taskStartCheckLog(task, user);
         TaskDto taskDto = task;
         if (!noPass) {
             taskDto = taskService.confirmStart(task, user, confirm);

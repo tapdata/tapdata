@@ -89,16 +89,17 @@ public class TransformSchemaService {
     @Value("${tm.transform.batch.num:1000}")
     private int transformBatchNum;
 
-
-    @Lock(value = "taskId", type = LockType.TRANSFORM_SCHEMA)
-    public Map<String, List<Message>> transformSchemaSync(DAG dag, UserDetail user, ObjectId taskId) {
-        return transformSchema(dag, user, taskId);
-    }
-
-    public Map<String, List<Message>> transformSchema(DAG dag, UserDetail user, ObjectId taskId) {
+    public void transformSchema(DAG dag, UserDetail user, ObjectId taskId) {
         TaskDto taskDto = taskService.checkExistById(taskId, user);
         taskDto.setDag(dag);
-        return transformSchema(taskDto, user);
+        try {
+            transformSchema(taskDto, user);
+        } catch (Exception e) {
+            taskDagCheckLogService.createLog(taskId.toHexString(), user.getUserId(), Level.ERROR.getValue(),
+                    DagOutputTemplateEnum.MODEL_PROCESS_CHECK,
+                    false, true, DateUtil.now(), e.getMessage());
+            taskService.update(new Query(Criteria.where("_id").is(taskId)), Update.update("transformDagHash", 0));
+        }
     }
 
     public TransformerWsMessageDto getTransformParam(TaskDto taskDto, UserDetail user) {
@@ -191,26 +192,13 @@ public class TransformSchemaService {
 
     }
 
-    public Map<String, List<Message>> transformSchema(TaskDto taskDto, UserDetail user) {
+    public void transformSchema(TaskDto taskDto, UserDetail user) {
         log.debug("start transform schema, task = {}, user = {}", taskDto, user);
         TransformerWsMessageDto transformParam = getTransformParam(taskDto, user);
 
         taskService.updateById(taskDto.getId(), Update.update("transformUuid", transformParam.getOptions().getUuid()).set("transformed", false), user);
 
         sendTransformer(transformParam, user);
-        return new HashMap<>();
-
-//        DAGDataServiceImpl dagDataService1 = new DAGDataServiceImpl(transformParam);
-//
-//        Map<String, List<Message>> transformSchema = taskDto.getDag().transformSchema(null, dagDataService1, transformParam.getOptions());
-//        TransformerWsMessageResult transformerWsMessageResult = new TransformerWsMessageResult();
-//        transformerWsMessageResult.setTransformSchema(transformSchema);
-//        transformerWsMessageResult.setUpsertTransformer(dagDataService1.getUpsertTransformer());
-//        transformerWsMessageResult.setBatchInsertMetaDataList(dagDataService1.getBatchInsertMetaDataList());
-//        transformerWsMessageResult.setUpsertItems(dagDataService1.getUpsertItems());
-//        transformerWsMessageResult.setBatchMetadataUpdateMap(dagDataService1.getBatchMetadataUpdateMap());
-//        transformerResult(user, transformerWsMessageResult);
-//        return transformSchema;
     }
 
     public void transformerResult(UserDetail user, TransformerWsMessageResult result) {
@@ -226,6 +214,7 @@ public class TransformSchemaService {
             taskIds.addAll(msgMap.keySet());
             taskDagCheckLogService.createLog(taskIds.get(0), user.getUserId(), Level.ERROR.getValue(), DagOutputTemplateEnum.MODEL_PROCESS_CHECK,
                     false, true, DateUtil.now(), msgMap.get(taskIds.get(0)).get(0).getMsg());
+            taskService.update(new Query(Criteria.where("_id").is(taskIds.get(0))), Update.update("transformDagHash", 0));
         }
 
         metadataInstancesService.bulkSave(result.getBatchInsertMetaDataList(), result.getBatchMetadataUpdateMap(), user, saveHistory, result.getTaskId(), result.getTransformUuid());

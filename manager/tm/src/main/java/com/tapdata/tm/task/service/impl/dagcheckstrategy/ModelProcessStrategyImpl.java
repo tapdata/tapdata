@@ -53,26 +53,6 @@ public class ModelProcessStrategyImpl implements DagLogStrategy {
         preLog.setGrade(Level.INFO.getValue());
         result.add(preLog);
 
-        int dagHash = taskDagService.calculationDagHash(taskDto);
-
-        if (dagHash == taskDto.getTransformDagHash() && taskDto.getTransformed()) {
-            if (CollectionUtils.isNotEmpty(sourceNode)) {
-
-                String content = MessageFormat.format(templateEnum.getInfoTemplate(), DateUtil.now(), total, total);
-
-                TaskDagCheckLog log = new TaskDagCheckLog();
-                log.setTaskId(taskId);
-                log.setCheckType(templateEnum.name());
-                log.setCreateAt(DateUtil.date());
-                log.setCreateUser(userDetail.getUserId());
-                log.setLog(content);
-                log.setGrade(Level.INFO.getValue());
-
-                result.add(log);
-                return result;
-            }
-
-        }
         return result;
     }
 }
