@@ -137,7 +137,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 			initBatchAndStreamOffset(taskDto);
 		}
 		initDDLFilter();
-		this.sourceRunnerLock = new ReentrantLock();
+		this.sourceRunnerLock = new ReentrantLock(true);
 		this.endSnapshotLoop = new AtomicBoolean(false);
 		this.transformerWsMessageDto = clientMongoOperator.findOne(new Query(),
 				ConnectorConstant.TASK_COLLECTION + "/transformParam/" + processorBaseContext.getTaskDto().getId().toHexString(),

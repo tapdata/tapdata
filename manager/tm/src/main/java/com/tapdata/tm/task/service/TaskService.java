@@ -393,20 +393,6 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         if (dag != null) {
             if (TaskDto.SYNC_TYPE_MIGRATE.equals(taskDto.getSyncType())) {
                 if (CollectionUtils.isNotEmpty(dag.getSourceNode())) {
-                    //supplier migrate tableSelectType=all tableNames and SyncObjects
-                    DatabaseNode sourceNode = dag.getSourceNode().get(0);
-                    if (Objects.nonNull(sourceNode) && CollectionUtils.isEmpty(sourceNode.getTableNames())
-                            && StringUtils.equals("all", sourceNode.getMigrateTableSelectType())) {
-                        String connectionId = sourceNode.getConnectionId();
-                        List<MetadataInstancesDto> metaList = metadataInstancesService.findBySourceIdAndTableNameList(connectionId, null, user, taskDto.getId().toHexString());
-                        if (CollectionUtils.isNotEmpty(metaList)) {
-                            List<String> collect = metaList.stream().map(MetadataInstancesDto::getOriginalName).collect(Collectors.toList());
-                            sourceNode.setTableNames(collect);
-                            Dag temp = new Dag(dag.getEdges(), dag.getNodes());
-                            dag = DAG.build(temp);
-                        }
-                    }
-
                     // supplement migrate_field_rename_processor fieldMapping data
                     supplementMigrateFieldMapping(taskDto, user);
 
@@ -2993,10 +2979,14 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         Criteria migrateCriteria = Criteria.where("syncType").is("migrate")
                 .and("status").is(TaskDto.STATUS_WAIT_START)
                 .and("planStartDateFlag").is(true)
-                .and("planStartDate").lte(System.currentTimeMillis());
+                .and("planStartDate").lte(DateUtil.now());
         Query taskQuery = new Query(migrateCriteria);
+        log.info("startPlanMigrateDagTask query {}", taskQuery);
         List<TaskDto> taskList = findAll(taskQuery);
         if (CollectionUtils.isNotEmpty(taskList)) {
+            List<String> taskIdList = taskList.stream().map(t -> t.getId().toHexString()).collect(Collectors.toList());
+            log.info("startPlanMigrateDagTask taskIdList {}", taskIdList);
+
             List<String> userIdList = taskList.stream().map(TaskDto::getUserId).distinct().collect(Collectors.toList());
             List<UserDetail> userList = userService.getUserByIdList(userIdList);
 
@@ -3004,12 +2994,6 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             if (CollectionUtils.isNotEmpty(userList)) {
                 userMap = userList.stream().collect(Collectors.toMap(UserDetail::getUserId, Function.identity()));
             }
-//
-//            List<ObjectId> taskIdList = taskList.stream().map(TaskDto::getId).collect(Collectors.toList());
-//
-//            Criteria supTaskCriteria = Criteria.where("parentId").in(taskIdList);
-//            Query supTaskQuery = new Query(supTaskCriteria);
-//            List<TaskDto> taskList = findAll(supTaskQuery);
             if (CollectionUtils.isNotEmpty(taskList)) {
 
                 Map<String, UserDetail> finalUserMap = userMap;

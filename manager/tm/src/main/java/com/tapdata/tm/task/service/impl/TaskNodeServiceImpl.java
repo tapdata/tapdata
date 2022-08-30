@@ -28,6 +28,7 @@ import com.tapdata.tm.ds.service.impl.DataSourceService;
 import com.tapdata.tm.messagequeue.dto.MessageQueueDto;
 import com.tapdata.tm.messagequeue.service.MessageQueueService;
 import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
+import com.tapdata.tm.task.entity.TaskDagCheckLog;
 import com.tapdata.tm.task.service.TaskRecordService;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.task.utils.CacheUtils;
@@ -104,6 +105,9 @@ public class TaskNodeServiceImpl implements TaskNodeService {
         List<String> tableNames = sourceNode.getTableNames();
         if (CollectionUtils.isEmpty(tableNames) && StringUtils.equals("all", sourceNode.getMigrateTableSelectType())) {
             List<MetadataInstancesDto> metaInstances = metadataInstancesService.findBySourceIdAndTableNameList(sourceNode.getConnectionId(), null, userDetail, taskId);
+            if (CollectionUtils.isEmpty(metaInstances)) {
+                metaInstances = metadataInstancesService.findBySourceIdAndTableNameListNeTaskId(sourceNode.getConnectionId(), null, userDetail);
+            }
             tableNames = metaInstances.stream().map(MetadataInstancesDto::getOriginalName).collect(Collectors.toList());
         }
 
@@ -250,28 +254,26 @@ public class TaskNodeServiceImpl implements TaskNodeService {
         DataSourceConnectionDto sourceDataSource = dataSourceService.findById(MongoUtils.toObjectId(sourceNode.getConnectionId()));
 
         Map<String, MetadataInstancesDto> metaMap = Maps.newHashMap();
-        List<MetadataInstancesDto> list = metadataInstancesService.findBySourceIdAndTableNameListNeTaskId(sourceNode.getConnectionId(),
-                    currentTableList, userDetail, taskId);
-        boolean queryFormSource = true;
         // 模型推演会推演很多无效数据 findByNodeId 这个方法暂时不能用。
-//        List<MetadataInstancesDto> list = metadataInstancesService.findByNodeId(currentNode.getId(), userDetail);
-//        boolean queryFormSource = false;
-//        if (CollectionUtils.isEmpty(list) || list.size() != tableNames.size()) {
-//            // 可能有这种场景， node detail接口请求比模型加载快，会查不到逻辑表的数据
-//            list = metadataInstancesService.findBySourceIdAndTableNameListNeTaskId(sourceNode.getConnectionId(),
-//                    currentTableList, userDetail, taskId);
-//            queryFormSource = true;
-//        }
+        List<MetadataInstancesDto> list = metadataInstancesService.findByNodeId(currentNode.getId(), userDetail);
+        boolean queryFormSource = false;
+        if (CollectionUtils.isEmpty(list) || list.size() != tableNames.size()) {
+            // 可能有这种场景， node detail接口请求比模型加载快，会查不到逻辑表的数据
+            list = metadataInstancesService.findBySourceIdAndTableNameListNeTaskId(sourceNode.getConnectionId(),
+                    currentTableList, userDetail);
+            queryFormSource = true;
+        }
         if (CollectionUtils.isNotEmpty(list)) {
+            boolean finalQueryFormSource = queryFormSource;
             metaMap = list.stream().map(meta -> {
                 // source & target not same database type and query from source
-                if (currentNode instanceof DatabaseNode && !sourceDataSource.getDatabase_type().equals(targetDataSource.getDatabase_type())) {
+                if (finalQueryFormSource && currentNode instanceof DatabaseNode && !sourceDataSource.getDatabase_type().equals(targetDataSource.getDatabase_type())) {
                     Schema schema = JsonUtil.parseJsonUseJackson(JsonUtil.toJsonUseJackson(meta), Schema.class);
                     return processFieldToDB(schema, meta, targetDataSource, userDetail);
                 } else {
                     return meta;
                 }
-            }).collect(Collectors.toMap(MetadataInstancesDto::getOriginalName, Function.identity(), (e1,e2)->e2));
+            }).collect(Collectors.toMap(MetadataInstancesDto::getAncestorsName, Function.identity(), (e1,e2)->e2));
         }
 
         if (metaMap.isEmpty()) {
@@ -463,6 +465,11 @@ public class TaskNodeServiceImpl implements TaskNodeService {
         return res;
     }
 
+    /**
+     * The copy migrate task will have dirty data, which can only be processed in the request details interface
+     * @param taskDto taskDto
+     * @param userDetail userDetail
+     */
     @Override
     public void checkFieldNode(TaskDto taskDto, UserDetail userDetail) {
         if (!taskDto.getName().contains("- Copy")) {
@@ -483,20 +490,14 @@ public class TaskNodeServiceImpl implements TaskNodeService {
         .collect(Collectors.toList());
 
         if (CollectionUtils.isNotEmpty(collect) && CollectionUtils.isNotEmpty(dag.getSourceNode())) {
-            DatabaseNode sourceNode = dag.getSourceNode().getFirst();
-
-            List<MetadataInstancesDto> metaList = metadataInstancesService.findBySourceIdAndTableNameList(sourceNode.getConnectionId(),
-                    sourceNode.getTableNames(), userDetail, taskDto.getId().toHexString());
-
-            if (CollectionUtils.isNotEmpty(metaList)) {
-                Map<String, String> qualifiedNameMap = metaList.stream()
-                        .collect(Collectors.toMap(MetadataInstancesDto::getName, MetadataInstancesDto::getQualifiedName));
-
-                collect.forEach(nodeId -> {
-                    MigrateFieldRenameProcessorNode fieldNode = (MigrateFieldRenameProcessorNode) dag.getNode(nodeId);
-                    fieldNode.getFieldsMapping().forEach(m -> m.setQualifiedName(qualifiedNameMap.get(m.getOriginTableName())));
+            collect.forEach(nodeId -> {
+                MigrateFieldRenameProcessorNode fieldNode = (MigrateFieldRenameProcessorNode) dag.getNode(nodeId);
+                fieldNode.getFieldsMapping().forEach(m -> {
+                    String qualifiedName = m.getQualifiedName();
+                    String pre = qualifiedName.substring(0, qualifiedName.lastIndexOf("_") + 1);
+                    m.setQualifiedName(pre + taskId);
                 });
-            }
+            });
         }
 
     }
@@ -568,7 +569,8 @@ public class TaskNodeServiceImpl implements TaskNodeService {
 
 
         metadataInstancesDto = PdkSchemaConvert.fromPdk(tapTable);
-
+        metadataInstancesDto.setAncestorsName(schema.getAncestorsName());
+        metadataInstancesDto.setNodeId(schema.getNodeId());
 
         metadataInstancesDto.getFields().forEach(field -> {
             if (field.getId() == null) {

@@ -36,6 +36,9 @@ public class ModelProcessStrategyImpl implements DagLogStrategy {
 
         String taskId = taskDto.getId().toHexString();
         LinkedList<DatabaseNode> sourceNode = taskDto.getDag().getSourceNode();
+        if (CollectionUtils.isEmpty(sourceNode)) {
+            return null;
+        }
         int total = sourceNode.getFirst().getTableNames().size();
 
         BigDecimal time = new BigDecimal(total).divide(new BigDecimal(50), 1, RoundingMode.HALF_UP);

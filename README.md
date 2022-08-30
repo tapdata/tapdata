@@ -23,6 +23,7 @@ Tapdata is a live data platform designed to connect data silos and provide fresh
 
 ## Last Release Branch
 release-v2.7
+
  
 ### Quick Use
 This is the easiest way to experiment Tapdata:

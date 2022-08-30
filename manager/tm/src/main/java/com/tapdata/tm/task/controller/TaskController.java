@@ -197,11 +197,11 @@ public class TaskController extends BaseController {
         UserDetail user = getLoginUser();
         taskCheckInspectService.getInspectFlagDefaultFlag(task, user);
 
-        boolean noPass = taskSaveService.taskSaveCheckLog(task, user);
+        TaskDto taskDto = taskService.confirmById(task, user, confirm);
+        boolean noPass = taskSaveService.taskSaveCheckLog(taskDto, user);
         if (noPass) {
             return failed("Task.Save.Error");
         } else {
-            TaskDto taskDto = taskService.confirmById(task, user, confirm);
             return success(taskDto);
         }
     }

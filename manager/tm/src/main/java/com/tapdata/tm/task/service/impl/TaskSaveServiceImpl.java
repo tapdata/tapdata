@@ -25,6 +25,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @Service
@@ -60,14 +61,13 @@ public class TaskSaveServiceImpl implements TaskSaveService {
 
         DAG dag = taskDto.getDag();
 
-        boolean needReBuild = false;
         //supplier migrate tableSelectType=all tableNames and SyncObjects
         if (CollectionUtils.isNotEmpty(dag.getSourceNode())) {
             DatabaseNode sourceNode = dag.getSourceNode().getFirst();
             List<String> tableNames = sourceNode.getTableNames();
             if (CollectionUtils.isEmpty(tableNames) && StringUtils.equals("all", sourceNode.getMigrateTableSelectType())) {
                 String connectionId = sourceNode.getConnectionId();
-                List<MetadataInstancesDto> metaList = metadataInstancesService.findBySourceIdAndTableNameList(connectionId, null, userDetail, taskDto.getId().toHexString());
+                List<MetadataInstancesDto> metaList = metadataInstancesService.findBySourceIdAndTableNameListNeTaskId(connectionId, null, userDetail);
                 if (CollectionUtils.isNotEmpty(metaList)) {
                     List<String> collect = metaList.stream().map(MetadataInstancesDto::getOriginalName).collect(Collectors.toList());
                     sourceNode.setTableNames(collect);
@@ -106,14 +106,15 @@ public class TaskSaveServiceImpl implements TaskSaveService {
 
         } else if (node instanceof MigrateFieldRenameProcessorNode) {
             MigrateFieldRenameProcessorNode fieldNode = (MigrateFieldRenameProcessorNode) node;
+            LinkedList<TableFieldInfo> fieldsMapping = fieldNode.getFieldsMapping();
             if (CollectionUtils.isEmpty(tableNames)) {
                 fieldNode.setFieldsMapping(new LinkedList<>());
-            } else if (CollectionUtils.isNotEmpty(fieldNode.getFieldsMapping())) {
-                fieldNode.getFieldsMapping().removeIf(t -> !tableNames.contains(t.getOriginTableName()));
+            } else if (CollectionUtils.isNotEmpty(fieldsMapping)) {
+                fieldsMapping.removeIf(t -> !tableNames.contains(t.getOriginTableName()));
             }
 
-            if (Objects.nonNull(renameMap) && !renameMap.isEmpty()) {
-                for (TableFieldInfo info : fieldNode.getFieldsMapping()) {
+            if (Objects.nonNull(renameMap) && !renameMap.isEmpty() && CollectionUtils.isNotEmpty(fieldsMapping)) {
+                for (TableFieldInfo info : fieldsMapping) {
                     if (renameMap.containsKey(info.getOriginTableName())) {
                         String rename = renameMap.get(info.getOriginTableName());
                         if (!StringUtils.equals(info.getPreviousTableName(), rename)) {
