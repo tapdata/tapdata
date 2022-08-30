@@ -160,14 +160,14 @@ public class TransformSchemaService {
 
         if (CollectionUtils.isNotEmpty(qualifiedNames)) {
             //优先获取逻辑表，没有找到的话，取物理表的。
-            metadataList = metadataInstancesService.findByQualifiedNameNotDelete(qualifiedNames, user);
+            metadataList = metadataInstancesService.findByQualifiedNameNotDelete(qualifiedNames, user, "histories");
             Map<String, MetadataInstancesDto> qualifiedMap = metadataList.stream().collect(Collectors.toMap(MetadataInstancesDto::getQualifiedName, m -> m, (m1, m2) -> m1));
             qualifiedNames.removeAll(qualifiedMap.keySet());
             qualifiedNames = qualifiedNames.stream().map(q->{
                 int i = q.lastIndexOf("_");
                 return q.substring(0, i);
             }).collect(Collectors.toList());
-            List<MetadataInstancesDto> metadataList1 = metadataInstancesService.findByQualifiedNameNotDelete(qualifiedNames, user);
+            List<MetadataInstancesDto> metadataList1 = metadataInstancesService.findByQualifiedNameNotDelete(qualifiedNames, user, "histories");
             for (MetadataInstancesDto metadataInstancesDto : metadataList1) {
                 metadataInstancesDto.setQualifiedName(metadataInstancesDto.getQualifiedName() + "_" + taskDto.getId().toHexString());
             }
@@ -175,7 +175,7 @@ public class TransformSchemaService {
         }
 
 
-        List<MetadataInstancesDto> databaseSchemes = metadataInstancesService.findDatabaseScheme(connectionIds, user);
+        List<MetadataInstancesDto> databaseSchemes = metadataInstancesService.findDatabaseSchemeNoHistory(connectionIds, user);
         metadataList.addAll(databaseSchemes);
 
         Criteria criteria = Criteria.where("dataFlowId").is(taskDto.getId().toHexString());
@@ -294,7 +294,7 @@ public class TransformSchemaService {
         queueDto.setData(data);
         queueDto.setType("pipe");
 
-        log.info("build send test connection websocket context, processId = {}, userId = {}, queueDto = {}", processId, user.getUserId(), queueDto);
+//        log.info("build send test connection websocket context, processId = {}, userId = {}, queueDto = {}", processId, user.getUserId(), queueDto);
         messageQueueService.sendMessage(queueDto);
 
     }

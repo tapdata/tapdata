@@ -116,7 +116,7 @@ public class TaskDagCheckLogServiceImpl implements TaskDagCheckLogService {
                 DagOutputTemplateEnum.SOURCE_CONNECT_CHECK.name(),
                 DagOutputTemplateEnum.TARGET_CONNECT_CHECK.name());
         Query logQuery = new Query(criteria.and("checkType").nin(delayList));
-        logQuery.with(Sort.by("createTime"));
+        logQuery.with(Sort.by("_id"));
         List<TaskDagCheckLog> taskDagCheckLogs = find(logQuery);
         if (CollectionUtils.isEmpty(taskDagCheckLogs)) {
             TaskDagCheckLogVo taskDagCheckLogVo = new TaskDagCheckLogVo();
@@ -125,7 +125,7 @@ public class TaskDagCheckLogServiceImpl implements TaskDagCheckLogService {
         }
 
         Query modelQuery = new Query(modelCriteria.and("checkType").in(delayList));
-        modelQuery.with(Sort.by("createTime"));
+        modelQuery.with(Sort.by("_id"));
         List<TaskDagCheckLog> modelLogs = find(modelQuery);
 
         LinkedList<TaskLogInfoVo> data = taskDagCheckLogs.stream()
@@ -141,10 +141,6 @@ public class TaskDagCheckLogServiceImpl implements TaskDagCheckLogService {
         TaskDagCheckLogVo result = new TaskDagCheckLogVo(nodeMap, data, null, false);
 
         if (CollectionUtils.isNotEmpty(modelLogs)) {
-            // duplication
-            modelLogs = modelLogs.stream()
-                    .collect(Collectors.collectingAndThen(Collectors.toCollection(() ->
-                            new TreeSet<>(Comparator.comparing(TaskDagCheckLog::getLog))), LinkedList::new));
 
             LinkedList<TaskLogInfoVo> collect = modelLogs.stream()
                     .map(g -> {

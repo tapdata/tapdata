@@ -482,7 +482,7 @@ public class TaskNodeServiceImpl implements TaskNodeService {
         }).map(Node::getId)
         .collect(Collectors.toList());
 
-        if (CollectionUtils.isNotEmpty(collect)) {
+        if (CollectionUtils.isNotEmpty(collect) && CollectionUtils.isNotEmpty(dag.getSourceNode())) {
             DatabaseNode sourceNode = dag.getSourceNode().getFirst();
 
             List<MetadataInstancesDto> metaList = metadataInstancesService.findBySourceIdAndTableNameList(sourceNode.getConnectionId(),

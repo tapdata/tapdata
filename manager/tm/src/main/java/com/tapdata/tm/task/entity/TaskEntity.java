@@ -204,6 +204,8 @@ public class TaskEntity extends BaseEntity {
     private String transformUuid;
     private Boolean transformed;
 
+    private int transformDagHash;
+
     public String getAccessNodeProcessId() {
         return CollectionUtils.isNotEmpty(accessNodeProcessIdList) ? accessNodeProcessIdList.get(0) : "";
     }
