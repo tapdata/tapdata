@@ -264,8 +264,10 @@ public class DatabaseNode extends DataParentNode<List<Schema>> {
     }
 
     public int tableSize() {
-        if (CollectionUtils.isNotEmpty(syncObjects) && CollectionUtils.isNotEmpty(syncObjects.get(0).getObjectNames())) {
-            return syncObjects.get(0).getObjectNames().size();
+        if (CollectionUtils.isNotEmpty(syncObjects)) {
+            return (int) syncObjects.stream()
+                    .filter(s -> CollectionUtils.isNotEmpty(s.getObjectNames()))
+                    .flatMap(s -> s.getObjectNames().stream()).map(this::transformTableName).count();
         } else if (CollectionUtils.isNotEmpty(tableNames)) {
             return tableNames.size();
         } else {
