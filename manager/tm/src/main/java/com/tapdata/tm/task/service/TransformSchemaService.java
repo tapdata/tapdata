@@ -4,6 +4,7 @@ import cn.hutool.core.date.DateUtil;
 import com.alibaba.fastjson.JSON;
 import com.google.common.collect.Lists;
 import com.mongodb.client.result.UpdateResult;
+import com.tapdata.manager.common.utils.JsonUtil;
 import com.tapdata.manager.common.utils.StringUtils;
 import com.tapdata.tm.commons.dag.*;
 import com.tapdata.tm.commons.dag.nodes.DataParentNode;
@@ -24,6 +25,7 @@ import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
 import com.tapdata.tm.task.constant.DagOutputTemplateEnum;
 import com.tapdata.tm.transform.service.MetadataTransformerItemService;
 import com.tapdata.tm.transform.service.MetadataTransformerService;
+import com.tapdata.tm.utils.GZIPUtil;
 import com.tapdata.tm.utils.MapUtils;
 import com.tapdata.tm.utils.MongoUtils;
 import com.tapdata.tm.utils.UUIDUtil;
@@ -262,19 +264,20 @@ public class TransformSchemaService {
     }
 
 
-    private void sendTransformer(TransformerWsMessageDto data, UserDetail user) {
-        TaskDto taskDto = data.getTaskDto();
+    private void sendTransformer(TransformerWsMessageDto wsMessageDto, UserDetail user) {
+        TaskDto taskDto = wsMessageDto.getTaskDto();
         if (taskDto == null) {
             return;
         }
 
-        Map<String, DataSourceDefinitionDto> definitionDtoMap = data.getDefinitionDtoMap();
+        Map<String, DataSourceDefinitionDto> definitionDtoMap = wsMessageDto.getDefinitionDtoMap();
         if (definitionDtoMap != null) {
             definitionDtoMap.forEach((k, v) -> {
                 //有些Properties中的字段属性包含了xx.yy.kk,需要过滤掉。不然入库会报错
                 v.setProperties(null);
             });
         }
+
 
         List<Worker> availableAgent;
         if (org.apache.commons.lang3.StringUtils.isBlank(taskDto.getAccessNodeType())
@@ -286,9 +289,15 @@ public class TransformSchemaService {
         if (CollectionUtils.isEmpty(availableAgent)) {
             return;
         }
+        HashMap<Object, Object> data = new HashMap<>();
+        data.put("type", MessageType.TRANSFORMER.getType());
+        String json = JsonUtil.toJson(wsMessageDto);
+        byte[] gzip = GZIPUtil.gzip(json.getBytes());
+        byte[] encode = Base64.getEncoder().encode(gzip);
+        String dataString = new String(encode);
+        data.put("data", dataString);
 
         String processId = availableAgent.get(0).getProcessId();
-        data.setType(MessageType.TRANSFORMER.getType());
         MessageQueueDto queueDto = new MessageQueueDto();
         queueDto.setReceiver(processId);
         queueDto.setData(data);
