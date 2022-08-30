@@ -37,6 +37,9 @@ import java.util.*;
 public class TaskDagServiceImpl implements TaskDagService {
     @Override
     public int calculationDagHash(TaskDto taskDto) {
+        if (true) {
+            return new Random().nextInt();
+        }
         DAG dag = taskDto.getDag();
 
         LinkedList<DatabaseNode> sourceNode = dag.getSourceNode();
