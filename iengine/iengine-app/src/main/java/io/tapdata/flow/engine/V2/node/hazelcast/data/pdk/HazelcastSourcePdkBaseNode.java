@@ -61,6 +61,7 @@ import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.ThreadContext;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.data.mongodb.core.query.Query;
 
@@ -336,14 +337,16 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 			if (error != null) {
 				throw new NodeException(error).context(getProcessorBaseContext());
 			}
+
+			if (sourceRunnerFuture != null && sourceRunnerFuture.isDone() && sourceRunnerFirstTime.get()) {
+				this.running.set(false);
+			}
 		} catch (Exception e) {
 			logger.error("Source sync failed {}.", e.getMessage(), e);
 			obsLogger.error("Source sync failed {}.", e.getMessage(), e);
 			throw new SourceException(e, true);
-		}
-
-		if (sourceRunnerFuture != null && sourceRunnerFuture.isDone() && sourceRunnerFirstTime.get()) {
-			this.running.set(false);
+		} finally {
+			ThreadContext.clearAll();
 		}
 
 		return false;
