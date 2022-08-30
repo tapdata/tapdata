@@ -273,6 +273,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 						if (CollectionUtils.isNotEmpty(newTables)) {
 							tableList.clear();
 							tableList.addAll(newTables);
+							doCount(tableList);
 							newTables.clear();
 						} else {
 							this.endSnapshotLoop.set(true);
