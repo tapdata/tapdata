@@ -178,15 +178,6 @@ public class Hive1JdbcContext extends JdbcContext {
         return timeZone;
     }
 
-    public boolean testValid(CommonDbConfig config) {
-        try {
-            getConnection((Hive1Config) config).close();
-            return true;
-        } catch (SQLException e) {
-            return false;
-        }
-    }
-
     public Connection getConnection(Hive1Config hive1Config) throws SQLException {
         return JdbcUtil.createConnection(hive1Config);
     }

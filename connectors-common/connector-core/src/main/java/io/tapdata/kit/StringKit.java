@@ -74,7 +74,7 @@ public class StringKit {
     }
 
     public static String subStringBetweenTwoString(String sql, String start, String end) {
-        String sub = "";
+        String sub;
 
         if (EmptyKit.isBlank(sql)) {
             return "";

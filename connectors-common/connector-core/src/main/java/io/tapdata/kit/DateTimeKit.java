@@ -10,10 +10,10 @@ public class DateTimeKit {
         if (timestamp == null || sysTimezone == null) {
             return timestamp;
         }
-        // jdbc会获取jvm的默认时区，作为timestamp的时区，需要去除
+        // JDBC will get the default time zone of the JVM as the time zone of timestamp, which needs to be removed
         LocalDateTime localDateTime = timestamp.toLocalDateTime();
 
-        // 根据oracle的system time zone，将timestamp进行时区转换
+        // Convert timestamp to time zone according to Oracle's system time zone
         timestamp = Timestamp.from(localDateTime.atZone(sysTimezone).toInstant());
 
         return timestamp;

@@ -24,19 +24,20 @@ public abstract class WriteRecorder {
     protected final String schema;
     protected List<String> uniqueCondition;
     protected boolean hasPk = false;
-    protected boolean uniqueConditionIsIndex = false;
+    protected boolean uniqueConditionIsIndex = false; //Target table may not have a unique index, used in Postgres
     protected String version;
     protected String insertPolicy;
     protected String updatePolicy;
 
     protected PreparedStatement preparedStatement = null;
-    protected final AtomicLong atomicLong = new AtomicLong(0);
-    protected final List<TapRecordEvent> batchCache = TapSimplify.list();
+    protected final AtomicLong atomicLong = new AtomicLong(0); //record counter
+    protected final List<TapRecordEvent> batchCache = TapSimplify.list(); //event cache
 
     public WriteRecorder(Connection connection, TapTable tapTable, String schema) {
         this.connection = connection;
         this.tapTable = tapTable;
         this.schema = schema;
+        //TM's pos may be null
         this.allColumn = tapTable.getNameFieldMap().entrySet().stream().sorted(Comparator.comparing(v ->
                 EmptyKit.isNull(v.getValue().getPos()) ? 99999 : v.getValue().getPos())).map(Map.Entry::getKey).collect(Collectors.toList());
         analyzeTable();
@@ -57,6 +58,10 @@ public abstract class WriteRecorder {
         }
     }
 
+    /**
+     * batch write events
+     * @param listResult results of WriteRecord
+     */
     public void executeBatch(WriteListResult<TapRecordEvent> listResult) {
         long succeed = batchCache.size();
         if (succeed <= 0) {
@@ -77,6 +82,7 @@ public abstract class WriteRecorder {
         atomicLong.addAndGet(succeed);
     }
 
+    //commit when cacheSize >= 1000
     public void addAndCheckCommit(TapRecordEvent recordEvent, WriteListResult<TapRecordEvent> listResult) {
         batchCache.add(recordEvent);
         if (batchCache.size() >= 1000) {
@@ -110,13 +116,15 @@ public abstract class WriteRecorder {
         return atomicLong;
     }
 
+    //many types of insert data
     public abstract void addInsertBatch(Map<String, Object> after) throws SQLException;
 
-    //before is always empty
+    //(most often) update data
     public void addUpdateBatch(Map<String, Object> after) throws SQLException {
         if (EmptyKit.isEmpty(after) || EmptyKit.isEmpty(uniqueCondition)) {
             return;
         }
+        //in some datasource, before of events is always empty, so before is unreliable
         Map<String, Object> before = new HashMap<>();
         uniqueCondition.forEach(k -> before.put(k, after.get(k)));
         justUpdate(after, before);
@@ -144,6 +152,7 @@ public abstract class WriteRecorder {
         dealNullBefore(before, pos);
     }
 
+    //(most often) delete data
     public void addDeleteBatch(Map<String, Object> before) throws SQLException {
         if (EmptyKit.isEmpty(before)) {
             return;
@@ -166,6 +175,7 @@ public abstract class WriteRecorder {
         preparedStatement.addBatch();
     }
 
+    //Once a field can be null, there can be two placeholders in where clause, but the performance will decrease
     protected void dealNullBefore(Map<String, Object> before, int pos) throws SQLException {
         if (hasPk) {
             for (String key : before.keySet()) {

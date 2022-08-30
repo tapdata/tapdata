@@ -31,6 +31,7 @@ public class CommonDbTest implements AutoCloseable {
         }
     }
 
+    //healthCheck-ping
     public ConnectionCheckItem testPing() {
         long start = System.currentTimeMillis();
         ConnectionCheckItem connectionCheckItem = ConnectionCheckItem.create();
@@ -56,6 +57,7 @@ public class CommonDbTest implements AutoCloseable {
         }
     }
 
+    //healthCheck-connection
     public ConnectionCheckItem testConnection() {
         long start = System.currentTimeMillis();
         ConnectionCheckItem connectionCheckItem = ConnectionCheckItem.create();
