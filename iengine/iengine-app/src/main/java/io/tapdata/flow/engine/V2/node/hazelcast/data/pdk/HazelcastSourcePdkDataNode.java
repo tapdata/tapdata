@@ -18,9 +18,6 @@ import io.tapdata.aspect.StreamReadFuncAspect;
 import io.tapdata.aspect.TableCountFuncAspect;
 import io.tapdata.aspect.TaskMilestoneFuncAspect;
 import io.tapdata.aspect.utils.AspectUtils;
-import io.tapdata.common.sample.sampler.CounterSampler;
-import io.tapdata.common.sample.sampler.ResetCounterSampler;
-import io.tapdata.common.sample.sampler.SpeedSampler;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.flow.engine.V2.exception.node.NodeException;
 import io.tapdata.flow.engine.V2.progress.SnapshotProgressManager;
@@ -30,7 +27,6 @@ import io.tapdata.flow.engine.V2.sharecdc.ShareCdcTaskContext;
 import io.tapdata.flow.engine.V2.sharecdc.ShareCdcTaskPdkContext;
 import io.tapdata.flow.engine.V2.sharecdc.exception.ShareCdcUnsupportedException;
 import io.tapdata.flow.engine.V2.sharecdc.impl.ShareCdcFactory;
-import io.tapdata.metrics.TaskSampleRetriever;
 import io.tapdata.milestone.MilestoneStage;
 import io.tapdata.milestone.MilestoneStatus;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
@@ -49,7 +45,6 @@ import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -72,12 +67,6 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 	private static final int ASYNCLY_COUNT_SNAPSHOT_ROW_SIZE_TABLE_THRESHOLD = 100;
 
 	private ShareCdcReader shareCdcReader;
-	private ResetCounterSampler resetOutputCounter;
-	private CounterSampler outputCounter;
-	private SpeedSampler outputQPS;
-	private ResetCounterSampler resetInitialWriteCounter;
-	private CounterSampler initialWriteCounter;
-	private Long initialTime;
 
 	private final SourceStateAspect sourceStateAspect;
 	private Map<String, Long> snapshotRowSizeMap;
@@ -234,12 +223,6 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 
 												if (batchReadFuncAspect != null)
 													AspectUtils.accept(batchReadFuncAspect.state(BatchReadFuncAspect.STATE_ENQUEUED).getEnqueuedConsumers(), tapdataEvents);
-
-												resetOutputCounter.inc(tapdataEvents.size());
-												outputCounter.inc(tapdataEvents.size());
-												outputQPS.add(tapdataEvents.size());
-												resetInitialWriteCounter.inc(tapdataEvents.size());
-												initialWriteCounter.inc(tapdataEvents.size());
 											}
 										}
 									}), TAG));
@@ -285,7 +268,6 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 				}
 			} finally {
 				if (isRunning()) {
-					initialTime = System.currentTimeMillis();
 					// MILESTONE-READ_SNAPSHOT-FINISH
 					TaskMilestoneFuncAspect.execute(dataProcessorContext, MilestoneStage.READ_SNAPSHOT, MilestoneStatus.FINISH);
 					MilestoneUtil.updateMilestone(milestoneService, MilestoneStage.READ_SNAPSHOT, MilestoneStatus.FINISH);
@@ -462,9 +444,6 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 										if (CollectionUtils.isNotEmpty(tapdataEvents)) {
 											tapdataEvents.forEach(this::enqueue);
 											syncProgress.setStreamOffsetObj(offsetObj);
-											resetOutputCounter.inc(tapdataEvents.size());
-											outputCounter.inc(tapdataEvents.size());
-											outputQPS.add(tapdataEvents.size());
 											if (streamReadFuncAspect != null)
 												AspectUtils.accept(streamReadFuncAspect.state(StreamReadFuncAspect.STATE_STREAMING_ENQUEUED).getStreamingEnqueuedConsumers(), tapdataEvents);
 										}
@@ -508,9 +487,6 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 				return;
 			}
 			tapdataEvent.setType(SyncProgress.Type.SHARE_CDC);
-			resetOutputCounter.inc(1);
-			outputCounter.inc(1);
-			outputQPS.add(1);
 			enqueue(tapdataEvent);
 		});
 	}
@@ -537,37 +513,6 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 			}
 		} finally {
 			super.doClose();
-		}
-	}
-
-	/**
-	 * TODO(dexter): restore from the db;
-	 */
-	@Override
-	protected void initSampleCollector() {
-		super.initSampleCollector();
-
-		// TODO: init outputCounter initial value
-		Map<String, Number> values = TaskSampleRetriever.getInstance().retrieve(tags, Arrays.asList(
-				"outputTotal", "initialWrite"
-		));
-		// init statistic and sample related initialize
-		resetOutputCounter = statisticCollector.getResetCounterSampler("outputTotal");
-		outputCounter = sampleCollector.getCounterSampler("outputTotal");
-		outputCounter.inc(values.getOrDefault("outputTotal", 0).longValue());
-		outputQPS = sampleCollector.getSpeedSampler("outputQPS");
-		resetInitialWriteCounter = statisticCollector.getResetCounterSampler("initialWrite");
-		initialWriteCounter = sampleCollector.getCounterSampler("initialWrite");
-		initialWriteCounter.inc(values.getOrDefault("initialWrite", 0).longValue());
-
-		statisticCollector.addSampler("initialTime", () -> {
-			if (initialTime != null) {
-				return initialTime;
-			}
-			return 0;
-		});
-		if (syncProgress != null) {
-			statisticCollector.addSampler("cdcTime", () -> syncProgress.getEventTime());
 		}
 	}
 

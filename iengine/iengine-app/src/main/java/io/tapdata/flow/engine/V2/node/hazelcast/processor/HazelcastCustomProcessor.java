@@ -135,16 +135,7 @@ public class HazelcastCustomProcessor extends HazelcastProcessorBaseNode {
 
 		Object result;
 		try {
-			int cnt = 1;
-			resetInputCounter.inc(cnt);
-			inputCounter.inc(cnt);
-			inputQPS.add(cnt);
-			long start = System.currentTimeMillis();
 			result = engine.invokeFunction(FUNCTION_NAME, record, ((CustomProcessorNode) node).getForm());
-			timeCostAvg.add(System.currentTimeMillis() - start);
-			resetOutputCounter.inc(cnt);
-			outputCounter.inc(cnt);
-			outputQPS.add(cnt);
 		} catch (ScriptException e) {
 			throw new RuntimeException("Execute script error, record: " + record + ", error: " + e.getMessage());
 		} catch (NoSuchMethodException e) {

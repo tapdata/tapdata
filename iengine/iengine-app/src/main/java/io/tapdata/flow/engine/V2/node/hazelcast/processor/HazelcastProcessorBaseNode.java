@@ -5,20 +5,13 @@ import com.tapdata.entity.TapdataEvent;
 import com.tapdata.entity.task.context.ProcessorBaseContext;
 import io.tapdata.aspect.ProcessorNodeProcessAspect;
 import io.tapdata.aspect.utils.AspectUtils;
-import io.tapdata.common.sample.sampler.AverageSampler;
-import io.tapdata.common.sample.sampler.CounterSampler;
-import io.tapdata.common.sample.sampler.ResetCounterSampler;
-import io.tapdata.common.sample.sampler.SpeedSampler;
 import io.tapdata.flow.engine.V2.exception.node.NodeException;
 import io.tapdata.flow.engine.V2.node.hazelcast.HazelcastBaseNode;
-import io.tapdata.metrics.TaskSampleRetriever;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.ThreadContext;
 import org.jetbrains.annotations.NotNull;
 
-import java.util.Arrays;
-import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 
@@ -30,38 +23,10 @@ import java.util.function.BiConsumer;
 public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 	private Logger logger = LogManager.getLogger(HazelcastCustomProcessor.class);
 
-	// statistic and sample related
-	protected ResetCounterSampler resetInputCounter;
-	protected CounterSampler inputCounter;
-	protected ResetCounterSampler resetOutputCounter;
-	protected CounterSampler outputCounter;
-	protected SpeedSampler inputQPS;
-	protected SpeedSampler outputQPS;
-	protected AverageSampler timeCostAvg;
 	private TapdataEvent pendingEvent;
 
 	public HazelcastProcessorBaseNode(ProcessorBaseContext processorBaseContext) {
 		super(processorBaseContext);
-	}
-
-	@Override
-	protected void initSampleCollector() {
-		super.initSampleCollector();
-
-		// TODO: init outputCounter initial value
-		Map<String, Number> values = TaskSampleRetriever.getInstance().retrieve(tags, Arrays.asList(
-				"inputTotal", "outputTotal"
-		));
-		// init statistic and sample related initialize
-		resetInputCounter = statisticCollector.getResetCounterSampler("inputTotal");
-		inputCounter = sampleCollector.getCounterSampler("inputTotal", values.getOrDefault("inputTotal", 0).longValue());
-		resetOutputCounter = statisticCollector.getResetCounterSampler("outputTotal");
-		outputCounter = sampleCollector.getCounterSampler("outputTotal", values.getOrDefault("outputTotal", 0).longValue());
-		inputQPS = sampleCollector.getSpeedSampler("inputQPS");
-		outputQPS = sampleCollector.getSpeedSampler("outputQPS");
-		timeCostAvg = sampleCollector.getAverageSampler("timeCostAvg");
-
-		super.initSampleCollector();
 	}
 
 	@Override
