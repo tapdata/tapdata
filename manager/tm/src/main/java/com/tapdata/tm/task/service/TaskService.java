@@ -393,20 +393,6 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         if (dag != null) {
             if (TaskDto.SYNC_TYPE_MIGRATE.equals(taskDto.getSyncType())) {
                 if (CollectionUtils.isNotEmpty(dag.getSourceNode())) {
-                    //supplier migrate tableSelectType=all tableNames and SyncObjects
-                    DatabaseNode sourceNode = dag.getSourceNode().get(0);
-                    if (Objects.nonNull(sourceNode) && CollectionUtils.isEmpty(sourceNode.getTableNames())
-                            && StringUtils.equals("all", sourceNode.getMigrateTableSelectType())) {
-                        String connectionId = sourceNode.getConnectionId();
-                        List<MetadataInstancesDto> metaList = metadataInstancesService.findBySourceIdAndTableNameList(connectionId, null, user, taskDto.getId().toHexString());
-                        if (CollectionUtils.isNotEmpty(metaList)) {
-                            List<String> collect = metaList.stream().map(MetadataInstancesDto::getOriginalName).collect(Collectors.toList());
-                            sourceNode.setTableNames(collect);
-                            Dag temp = new Dag(dag.getEdges(), dag.getNodes());
-                            dag = DAG.build(temp);
-                        }
-                    }
-
                     // supplement migrate_field_rename_processor fieldMapping data
                     supplementMigrateFieldMapping(taskDto, user);
 

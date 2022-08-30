@@ -6,6 +6,7 @@ import cn.hutool.extra.spring.SpringUtil;
 import com.google.common.base.Splitter;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.commons.dag.Node;
+import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.message.constant.Level;
@@ -154,12 +155,17 @@ public class TaskDagCheckLogServiceImpl implements TaskDagCheckLogService {
 
             result.setModelList(collect);
 
-            boolean present = modelLogs.stream()
-                    .filter(n -> DagOutputTemplateEnum.MODEL_PROCESS_CHECK.name().equals(n.getCheckType()))
-                    .anyMatch(n -> {
-                        int size = taskDto.getDag().getSourceNode().getFirst().getTableNames().size();
-                        return n.getLog().contains(size + "/" + size) || n.getGrade().equals(Level.ERROR.getValue());
-                    });
+            boolean present = false;
+
+            LinkedList<DatabaseNode> sourceNode = taskDto.getDag().getSourceNode();
+            if (CollectionUtils.isNotEmpty(sourceNode)) {
+                present = modelLogs.stream()
+                        .filter(n -> DagOutputTemplateEnum.MODEL_PROCESS_CHECK.name().equals(n.getCheckType()))
+                        .anyMatch(n -> {
+                            int size = sourceNode.getFirst().getTableNames().size();
+                            return n.getLog().contains(size + "/" + size) || n.getGrade().equals(Level.ERROR.getValue());
+                        });
+            }
             result.setOver(present);
         }
 
