@@ -175,7 +175,7 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 			doInit(context);
 		} catch (Throwable e) {
 			errorHandle(e, "Node init failed");
-			throw e;
+			throw new NodeException(e).context(getProcessorBaseContext());
 		}
 	}
 
