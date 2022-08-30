@@ -398,7 +398,7 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
         long start = System.currentTimeMillis();
 
         Map<String, MetadataInstancesDto> existsMetadataInstances = rollbackOperation(metadataInstancesDtos, rollback, rollbackTable);
-        log.info("bulk save meta data, data = {}", metadataInstancesDtos);
+        log.info("bulk save meta data");
         int modifyCount = bulkSave(metadataInstancesDtos, dataSource, existsMetadataInstances);
         log.info("Bulk save metadataInstance {}, cost {}ms", modifyCount, System.currentTimeMillis() - start);
 

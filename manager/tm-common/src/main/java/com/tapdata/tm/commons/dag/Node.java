@@ -164,7 +164,7 @@ public abstract class Node<S> extends Element{
         if (schema == null) {
             try {
                 schema = loadSchema(options.getIncludes());
-                log.info("load schema complete, schema = {}", schema);
+                log.info("load schema complete");
             } catch (Exception e) {
                 log.error("Load schema failed.", e);
             }
@@ -201,7 +201,7 @@ public abstract class Node<S> extends Element{
                 }
             }
             outputSchema = mergeSchema(inputSchemas, cloneSchema(schema));
-            log.info("merge schema complete, result = {}", outputSchema);
+            log.info("merge schema complete");
             mergedSchema = true;  // 进行merge操作，需要执行保存/更新
         } else {
             this.outputSchema = cloneSchema(schema);
@@ -215,7 +215,7 @@ public abstract class Node<S> extends Element{
                 try {
                     Collection<String> predecessors = getGraph().predecessors(nodeId);
                     //需要保存的地方就可以存储异步推演的内容
-                    log.info("save transform schema, schema = {}", changedSchema);
+                    log.info("save transform schema");
                     outputSchema = saveSchema(predecessors, nodeId, changedSchema, options);
                     List<String> sourceQualifiedNames;
                     if (outputSchema instanceof List) {
