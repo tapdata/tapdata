@@ -205,6 +205,7 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
 
         //为了获取原表的id才讲schema这个实体加上了id这个属性，但是原来是没有这个属性的，可能导致保存的时候id重复，因为是由原来的模型复制过来的
         for (Schema schema : schemas) {
+            schema.setOldId(schema.getId());
             schema.setId(null);
 
 

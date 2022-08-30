@@ -7,6 +7,7 @@ import com.tapdata.tm.commons.schema.bean.*;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import org.apache.commons.collections4.CollectionUtils;
+import org.bson.types.ObjectId;
 import org.springframework.stereotype.Component;
 
 import java.util.*;
@@ -103,6 +104,8 @@ public class MetadataInstancesDto extends BaseDto {
      */
     @JsonInclude(JsonInclude.Include.ALWAYS)
     private String sourceType= SourceTypeEnum.SOURCE.name();
+
+    private ObjectId oldId;
 
     public String getDatabaseId() {
         return databaseId;
