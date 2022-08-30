@@ -910,8 +910,8 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
             setMetaDataMap(metadataInstancesDto);
         }
 
-        log.info("save schema update map = {}", metadataUpdateMap);
-        log.info("save schema insert metadata = {}", insertMetaDataList);
+        //log.info("save schema update map = {}", metadataUpdateMap);
+        //log.info("save schema insert metadata = {}", insertMetaDataList);
 
         batchMetadataUpdateMap.putAll(metadataUpdateMap);
         batchInsertMetaDataList.addAll(insertMetaDataList);

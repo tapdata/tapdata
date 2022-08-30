@@ -291,7 +291,7 @@ public class TransformSchemaService {
         }
         HashMap<Object, Object> data = new HashMap<>();
         data.put("type", MessageType.TRANSFORMER.getType());
-        String json = JsonUtil.toJson(wsMessageDto);
+        String json = JsonUtil.toJsonUseJackson(wsMessageDto);
         byte[] gzip = GZIPUtil.gzip(json.getBytes());
         byte[] encode = Base64.getEncoder().encode(gzip);
         String dataString = new String(encode);

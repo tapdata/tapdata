@@ -26,10 +26,7 @@ import org.apache.commons.collections.CollectionUtils;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
-import java.util.LinkedHashSet;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Objects;
+import java.util.*;
 
 /**
  * @author jiuyetx
@@ -40,6 +37,9 @@ import java.util.Objects;
 public class TaskDagServiceImpl implements TaskDagService {
     @Override
     public int calculationDagHash(TaskDto taskDto) {
+        if (true) {
+            return new Random().nextInt();
+        }
         DAG dag = taskDto.getDag();
 
         LinkedList<DatabaseNode> sourceNode = dag.getSourceNode();

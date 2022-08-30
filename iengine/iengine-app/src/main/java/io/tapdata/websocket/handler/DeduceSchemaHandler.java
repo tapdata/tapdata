@@ -121,7 +121,10 @@ public class DeduceSchemaHandler implements WebSocketEventHandler<WebSocketEvent
 			}
 		};
 
+		long start = System.currentTimeMillis();
+		logger.warn("TEST TRANSFORM-------推演开始， uuid={}", request.getOptions().getUuid());
 		Map<String, List<Message>> transformSchema = request.getTaskDto().getDag().transformSchema(null, dagDataService, request.getOptions());
+		logger.warn("TEST TRANSFORM-------推演结束， 耗时={}", System.currentTimeMillis()-start + "ms");
 
 		TransformerWsMessageResult wsMessageResult = new TransformerWsMessageResult();
 		wsMessageResult.setBatchMetadataUpdateMap(dagDataService.getBatchMetadataUpdateMap());
