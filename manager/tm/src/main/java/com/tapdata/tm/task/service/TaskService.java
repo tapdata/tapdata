@@ -361,8 +361,6 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             oldTaskDto = findById(taskDto.getId(), user);
             taskDto.setSyncType(oldTaskDto.getSyncType());
 
-            taskSaveService.syncTaskSetting(taskDto, user);
-
             if (StringUtils.isBlank(taskDto.getAccessNodeType())) {
                 taskDto.setAccessNodeType(oldTaskDto.getAccessNodeType());
                 taskDto.setAccessNodeProcessId(oldTaskDto.getAccessNodeProcessId());
@@ -407,6 +405,8 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
                     // supplement migrate_field_rename_processor fieldMapping data
                     supplementMigrateFieldMapping(taskDto, user);
+
+                    taskSaveService.syncTaskSetting(taskDto, user);
 
                     transformSchemaAsyncService.transformSchema(dag, user, taskDto.getId());
                 }

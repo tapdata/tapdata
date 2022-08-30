@@ -90,7 +90,10 @@ public class TaskSaveServiceImpl implements TaskSaveService {
         Node<List<Schema>> node = nodes.get(0);
         if (node instanceof TableRenameProcessNode) {
             TableRenameProcessNode tableNode = (TableRenameProcessNode) node;
-            if (CollectionUtils.isNotEmpty(tableNode.getTableNames())) {
+
+            if (CollectionUtils.isEmpty(tableNames)) {
+                tableNode.setTableNames(new LinkedHashSet<>());
+            } else if (CollectionUtils.isNotEmpty(tableNode.getTableNames())) {
                 tableNode.getTableNames().removeIf(t -> !tableNames.contains(t.getOriginTableName()));
             }
 
@@ -103,7 +106,9 @@ public class TaskSaveServiceImpl implements TaskSaveService {
 
         } else if (node instanceof MigrateFieldRenameProcessorNode) {
             MigrateFieldRenameProcessorNode fieldNode = (MigrateFieldRenameProcessorNode) node;
-            if (CollectionUtils.isNotEmpty(fieldNode.getFieldsMapping())) {
+            if (CollectionUtils.isEmpty(tableNames)) {
+                fieldNode.setFieldsMapping(new LinkedList<>());
+            } else if (CollectionUtils.isNotEmpty(fieldNode.getFieldsMapping())) {
                 fieldNode.getFieldsMapping().removeIf(t -> !tableNames.contains(t.getOriginTableName()));
             }
 
