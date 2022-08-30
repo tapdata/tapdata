@@ -2329,19 +2329,23 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             throw new BizException("Task.StartStatusInvalid");
         }
 
-        for (int i = 0; i < 30; i++) {
-            TaskDto transformedCheck = findByTaskId(taskDto.getId(), "transformed");
-            if (transformedCheck.getTransformed() != null && transformedCheck.getTransformed()) {
-                run(taskDto, user);
-                return;
+        if (TaskDto.SYNC_TYPE_MIGRATE.equals(taskDto.getSyncType()) || TaskDto.SYNC_TYPE_SYNC.equals(taskDto.getSyncType())) {
+            for (int i = 0; i < 30; i++) {
+                TaskDto transformedCheck = findByTaskId(taskDto.getId(), "transformed");
+                if (transformedCheck.getTransformed() != null && transformedCheck.getTransformed()) {
+                    run(taskDto, user);
+                    return;
+                }
+                try {
+                    Thread.sleep(500);
+                } catch (InterruptedException e) {
+                    throw new BizException("SystemError");
+                }
             }
-            try {
-                Thread.sleep(500);
-            } catch (InterruptedException e) {
-                throw new BizException("SystemError");
-            }
+            throw new BizException("Task.StartCheckModelFailed");
+        } else {
+            run(taskDto, user);
         }
-        throw new BizException("Task.StartCheckModelFailed");
     }
 
     public void run(TaskDto taskDto, UserDetail user) {
