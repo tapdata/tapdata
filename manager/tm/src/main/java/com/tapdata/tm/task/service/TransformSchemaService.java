@@ -245,9 +245,10 @@ public class TransformSchemaService {
             if (transformed.getModifiedCount() > 0 && CollectionUtils.isNotEmpty(result.getUpsertTransformer())) {
                 String taskId = result.getTaskId();
                 int total = result.getUpsertTransformer().get(0).getTotal();
+                int finished = result.getUpsertTransformer().get(0).getFinished();
                 // add transformer task log
                 taskDagCheckLogService.createLog(taskId, user.getUserId(), Level.INFO.getValue(), DagOutputTemplateEnum.MODEL_PROCESS_CHECK,
-                        false, true, DateUtil.now(), total, total);
+                        false, true, DateUtil.now(), finished, total);
             }
         }
     }
