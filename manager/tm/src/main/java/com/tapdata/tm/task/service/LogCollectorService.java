@@ -139,7 +139,7 @@ public class LogCollectorService {
 
 
         Query taskQuery = new Query(taskCriteria);
-        taskQuery.fields().include("_id", "syncType", "name", "status");
+        taskQuery.fields().include("_id", "syncType", "name", "status", "attrs");
         List<TaskDto> allDtos = taskService.findAllDto(taskQuery, user);
 
 
@@ -423,7 +423,7 @@ public class LogCollectorService {
         logCollectorVo.setStatus(taskDto.getStatus());
         logCollectorVo.setSyncTimestamp(new Date());
         logCollectorVo.setSourceTimestamp(new Date());
-        logCollectorVo.setSyncType(taskDto.getParentSyncType());
+        logCollectorVo.setSyncType(taskDto.getSyncType());
 
         DAG dag = taskDto.getDag();
         try {
