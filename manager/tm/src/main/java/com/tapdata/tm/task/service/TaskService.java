@@ -2981,8 +2981,12 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                 .and("planStartDateFlag").is(true)
                 .and("planStartDate").lte(DateUtil.now());
         Query taskQuery = new Query(migrateCriteria);
+        log.info("startPlanMigrateDagTask query {}", taskQuery);
         List<TaskDto> taskList = findAll(taskQuery);
         if (CollectionUtils.isNotEmpty(taskList)) {
+            List<String> taskIdList = taskList.stream().map(t -> t.getId().toHexString()).collect(Collectors.toList());
+            log.info("startPlanMigrateDagTask taskIdList {}", taskIdList);
+
             List<String> userIdList = taskList.stream().map(TaskDto::getUserId).distinct().collect(Collectors.toList());
             List<UserDetail> userList = userService.getUserByIdList(userIdList);
 
@@ -2990,12 +2994,6 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             if (CollectionUtils.isNotEmpty(userList)) {
                 userMap = userList.stream().collect(Collectors.toMap(UserDetail::getUserId, Function.identity()));
             }
-//
-//            List<ObjectId> taskIdList = taskList.stream().map(TaskDto::getId).collect(Collectors.toList());
-//
-//            Criteria supTaskCriteria = Criteria.where("parentId").in(taskIdList);
-//            Query supTaskQuery = new Query(supTaskCriteria);
-//            List<TaskDto> taskList = findAll(supTaskQuery);
             if (CollectionUtils.isNotEmpty(taskList)) {
 
                 Map<String, UserDetail> finalUserMap = userMap;
