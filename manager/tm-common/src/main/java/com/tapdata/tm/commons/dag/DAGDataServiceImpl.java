@@ -164,7 +164,7 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
         }
 
         long start = System.currentTimeMillis();
-        List<Schema> result = metadataInstances.stream().map(this::convertToSchema).collect(Collectors.toList());
+        List<Schema> result = metadataInstances.parallelStream().map(this::convertToSchema).collect(Collectors.toList());
         log.debug("Convert metadata instances record to Schema cost {} millisecond", System.currentTimeMillis() - start);
         return result;
     }
@@ -264,7 +264,7 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
 
         // 其他类型的 meta type 暂时不做模型推演处理
         final String _metaType = MetaType.processor_node.name();
-        List<MetadataInstancesDto> metadataInstancesDtos = schemas.stream().map(schema -> {
+        List<MetadataInstancesDto> metadataInstancesDtos = schemas.parallelStream().map(schema -> {
             MetadataInstancesDto metadataInstancesDto =
                     JsonUtil.parseJsonUseJackson(JsonUtil.toJsonUseJackson(schema), MetadataInstancesDto.class);
 
@@ -306,7 +306,7 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
         int modifyCount = bulkSave(metadataInstancesDtos, dataSource, existsMetadataInstances);
         log.info("Bulk save metadataInstance {}, cost {}ms", modifyCount, System.currentTimeMillis() - start);
 
-        return metadataInstancesDtos.stream()
+        return metadataInstancesDtos.parallelStream()
                 .map(dto -> JsonUtil.parseJsonUseJackson(JsonUtil.toJsonUseJackson(dto), Schema.class)).collect(Collectors.toList());
     }
 
@@ -356,7 +356,7 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
         }
 
         final String _metaType = metaType;
-        List<MetadataInstancesDto> metadataInstancesDtos = schemas.stream().map(schema -> {
+        List<MetadataInstancesDto> metadataInstancesDtos = schemas.parallelStream().map(schema -> {
             MetadataInstancesDto metadataInstancesDto =
                     JsonUtil.parseJsonUseJackson(JsonUtil.toJsonUseJackson(schema), MetadataInstancesDto.class);
 
@@ -380,7 +380,6 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
             metadataInstancesDto.setCreateSource("job_analyze");
             metadataInstancesDto.setLastUserName(userName);
             metadataInstancesDto.setLastUpdBy(userId);
-
             metadataInstancesDto.setQualifiedName(
                     MetaDataBuilderUtils.generateQualifiedName(metadataInstancesDto.getMetaType(), dataSource, schema.getOriginalName(), taskId));
 
@@ -403,7 +402,7 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
         int modifyCount = bulkSave(metadataInstancesDtos, dataSource, existsMetadataInstances);
         log.info("Bulk save metadataInstance {}, cost {}ms", modifyCount, System.currentTimeMillis() - start);
 
-        return metadataInstancesDtos.stream()
+        return metadataInstancesDtos.parallelStream()
                 .map(dto -> JsonUtil.parseJsonUseJackson(JsonUtil.toJsonUseJackson(dto), Schema.class)).collect(Collectors.toList());
     }
 
