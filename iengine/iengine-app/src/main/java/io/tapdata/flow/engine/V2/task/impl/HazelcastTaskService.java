@@ -463,11 +463,23 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 								.build()
 				);
 				break;
+			case CACHE_LOOKUP_PROCESSOR:
 			case JS_PROCESSOR:
 			case MIGRATE_JS_PROCESSOR:
+				hazelcastNode = new HazelcastJavaScriptProcessorNode(
+								DataProcessorContext.newBuilder()
+												.withTaskDto(taskDto)
+												.withNode(node)
+												.withNodes(nodes)
+												.withEdges(edges)
+												.withCacheService(cacheService)
+												.withConfigurationCenter(config)
+												.withTapTableMap(tapTableMap)
+												.build()
+				);
+				break;
 			case FIELD_PROCESSOR:
 			case ROW_FILTER_PROCESSOR:
-			case CACHE_LOOKUP_PROCESSOR:
 			case FIELD_RENAME_PROCESSOR:
 			case FIELD_MOD_TYPE_PROCESSOR:
 			case FIELD_CALC_PROCESSOR:

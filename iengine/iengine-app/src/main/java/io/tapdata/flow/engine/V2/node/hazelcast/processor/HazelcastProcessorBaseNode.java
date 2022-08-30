@@ -3,6 +3,7 @@ package io.tapdata.flow.engine.V2.node.hazelcast.processor;
 import com.tapdata.constant.Log4jUtil;
 import com.tapdata.entity.TapdataEvent;
 import com.tapdata.entity.task.context.ProcessorBaseContext;
+import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.aspect.ProcessorNodeProcessAspect;
 import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.common.sample.sampler.AverageSampler;
@@ -12,6 +13,7 @@ import io.tapdata.common.sample.sampler.SpeedSampler;
 import io.tapdata.flow.engine.V2.exception.node.NodeException;
 import io.tapdata.flow.engine.V2.node.hazelcast.HazelcastBaseNode;
 import io.tapdata.metrics.TaskSampleRetriever;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.ThreadContext;
@@ -133,6 +135,14 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 			ThreadContext.clearAll();
 		}
 		return true;
+	}
+
+	protected ProcessResult getProcessResult(String tableName) {
+//		if (!multipleTables && StringUtils.equalsAnyIgnoreCase(processorBaseContext.getTaskDto().getSyncType(),
+//						TaskDto.SYNC_TYPE_DEDUCE_SCHEMA)) {
+//			tableName = processorBaseContext.getNode().getId();
+//		}
+		return ProcessResult.create().tableId(tableName);
 	}
 
 	protected abstract void tryProcess(TapdataEvent tapdataEvent, BiConsumer<TapdataEvent, ProcessResult> consumer);
