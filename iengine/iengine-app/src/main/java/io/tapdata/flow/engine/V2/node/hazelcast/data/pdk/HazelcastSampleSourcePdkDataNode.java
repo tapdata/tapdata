@@ -136,7 +136,7 @@ public class HazelcastSampleSourcePdkDataNode extends HazelcastPdkBaseNode {
       }
 
     } catch (Throwable throwable) {
-      error = throwable;
+      errorHandle(throwable, "start source runner failed: " + throwable.getMessage());
     } finally {
       logger.info("source runner complete...");
     }
