@@ -661,23 +661,23 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 	}
 
 	protected void enqueue(TapdataEvent tapdataEvent) {
-		while (isRunning()) {
-			try {
-				if (tapdataEvent.getTapEvent() instanceof TapRecordEvent) {
-					String tableId = ((TapRecordEvent) tapdataEvent.getTapEvent()).getTableId();
-					if (removeTables != null && removeTables.contains(tableId)) {
-						break;
-					}
+		try {
+			if (tapdataEvent.getTapEvent() instanceof TapRecordEvent) {
+				String tableId = ((TapRecordEvent) tapdataEvent.getTapEvent()).getTableId();
+				if (removeTables != null && removeTables.contains(tableId)) {
+					return;
 				}
+			}
 
+			while (isRunning()) {
 				if (eventQueue.offer(tapdataEvent, 3, TimeUnit.SECONDS)) {
 					break;
 				}
-			} catch (InterruptedException e) {
-				break;
-			} catch (Throwable throwable) {
-				throw new NodeException(throwable).context(getDataProcessorContext()).event(tapdataEvent.getTapEvent());
 			}
+		} catch (InterruptedException ignore) {
+			logger.warn("TapdataEvent enqueue thread interrupted");
+		} catch (Throwable throwable) {
+			throw new NodeException(throwable).context(getDataProcessorContext()).event(tapdataEvent.getTapEvent());
 		}
 	}
 

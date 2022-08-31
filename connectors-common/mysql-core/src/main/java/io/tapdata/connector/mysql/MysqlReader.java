@@ -432,7 +432,6 @@ public class MysqlReader implements Closeable {
 		Struct source = structValue.getStruct("source");
 		Long eventTime = source.getInt64("ts_ms");
 		String ddlStr = structValue.getString(SOURCE_RECORD_DDL_KEY);
-		TapLogger.info(TAG, "Read DDL: " + ddlStr + ", about to be packaged as some event(s)");
 		MysqlStreamOffset mysqlStreamOffset = getMysqlStreamOffset(record);
 		if (StringUtils.isNotBlank(ddlStr)) {
 			try {
@@ -445,6 +444,7 @@ public class MysqlReader implements Closeable {
 							MysqlStreamEvent mysqlStreamEvent = new MysqlStreamEvent(tapDDLEvent, mysqlStreamOffset);
 							tapDDLEvent.setReferenceTime(eventTime);
 							mysqlStreamEvents.add(mysqlStreamEvent);
+							TapLogger.info(TAG, "Read DDL: " + ddlStr + ", about to be packaged as some event(s)");
 						}
 				);
 			} catch (Throwable e) {

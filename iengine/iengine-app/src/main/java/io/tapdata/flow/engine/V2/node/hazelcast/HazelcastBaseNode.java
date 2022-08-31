@@ -654,7 +654,7 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 			currentEx = new NodeException(errorMessage, throwable).context(getProcessorBaseContext());
 		}
 
-		if (null != error) {
+		if (null == error) {
 			this.error = currentEx;
 			if (null != errorMessage) {
 				this.errorMessage = errorMessage;
