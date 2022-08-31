@@ -10,9 +10,9 @@
     "node": {
       "type": "object",
       "properties": {
-        "iterationName": {
+        "iterationCodes": {
           "type": "String",
-          "title": "${iterationName}",
+          "title": "${iterationCodes}",
           "x-decorator": "FormItem",
           "x-component": "Input",
           "x-index": 1,
@@ -91,7 +91,7 @@
       "projectName": "project name",
       "teamName": "Team name",
 
-      "iterationName": "Iteration",
+      "iterationCodes": "Iteration",
       "issueType": "Issue Type",
 
       "allIssueType": "All Issue",
@@ -125,7 +125,7 @@
       "projectName": "项目名称",
       "teamName": "团队名称",
 
-      "iterationName": "迭代",
+      "iterationCodes": "迭代",
       "issueType": "事项类型",
 
       "allIssueType": "全部事项",
@@ -159,7 +159,7 @@
       "projectName": "項目名稱",
       "teamName": "團隊名稱",
 
-      "iterationName": "迭代",
+      "iterationCodes": "迭代",
       "issueType": "事項类型",
 
       "allIssueType": "全部事項",
@@ -190,8 +190,31 @@
     }
   },
   "dataTypes": {
-    "String": {"to" : "TapString"},
-    "Integer": {"to": "TapNumber"},
-    "boolean": {"to": "TapBoolean"}
+    "String": {"to" : "TapString","byte" : 1024},
+    "Integer": {
+      "to": "TapNumber",
+      "value" : [-2147483648, 2147483647]
+    },
+    "Boolean": {"to": "TapBoolean"},
+    "Map": {"to" : "TapMap"},
+    "Long": {
+      "to": "TapNumber",
+      "value" : [-9223372036854775808, 9223372036854775807]
+    },
+    "Double": {
+      "to": "TapNumber",
+      "precision": [ 1, 11],
+      "value": [ -1.7976931348623157E+308, 1.7976931348623157E+308],
+      "scale": [ 0, 11],
+      "fixed": false
+    },
+    "Float": {
+      "to": "TapNumber",
+      "precision": [ 1, 30],
+      "value": [ -3.402823466E+38, 3.402823466E+38],
+      "scale": [ 0, 30],
+      "fixed": false
+    },
+    "Array": {"to" : "TapArray"}
   }
 }

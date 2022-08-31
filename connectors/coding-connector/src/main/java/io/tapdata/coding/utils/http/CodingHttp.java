@@ -1,25 +1,27 @@
-package io.tapdata.coding;
+package io.tapdata.coding.utils.http;
 
 import cn.hutool.http.*;
 import cn.hutool.json.JSONUtil;
+import io.tapdata.entity.logger.TapLogger;
 
 import java.util.Collections;
 import java.util.Map;
 import java.util.stream.Collectors;
 
 public class CodingHttp {
+    private static final String TAG = CodingHttp.class.getSimpleName();
     private Map<String,Object> body;
-    private Map<String,Object> heads;
+    private Map<String,String> heads;
     private String url;
     private Boolean keepAlive;
 
-    public static CodingHttp create(Map<String,Object> heads,Map<String,Object> body,String url){
+    public static CodingHttp create(Map<String,String> heads,Map<String,Object> body,String url){
         return new CodingHttp(heads, body, url);
     }
-    public static CodingHttp create(Map<String,Object> heads,String url){
+    public static CodingHttp create(Map<String,String> heads,String url){
         return new CodingHttp(heads,null, url);
     }
-    private CodingHttp(Map<String,Object> heads,Map<String,Object> body,String url){
+    private CodingHttp(Map<String,String> heads,Map<String,Object> body,String url){
         this.body = body;
         this.heads = heads;
         this.url = url;
@@ -51,12 +53,7 @@ public class CodingHttp {
                     .collect(Collectors.toMap(Map.Entry::getKey, e -> (String)e.getValue()))
             );
         }
-        if (null != body){
-            request.body(JSONUtil.toJsonStr(body), ContentType.JSON.getValue());
-        }
-        HttpResponse execute = request.execute();
-        return null == execute || execute.getStatus() != HttpStatus.HTTP_OK ?
-                Collections.emptyMap() : JSONUtil.parseObj(execute.body());
+        return this.post(request);
     }
 
     /**
@@ -64,6 +61,7 @@ public class CodingHttp {
      * @param request
      * @return
      */
+    private int retry = 0;
     public Map<String,Object> post(HttpRequest request){
         if (null == request){
             if (null != heads) {
@@ -76,7 +74,17 @@ public class CodingHttp {
         if (null != body){
             request.body(JSONUtil.toJsonStr(body), ContentType.JSON.getValue());
         }
-        HttpResponse execute = request.execute();
+        HttpResponse execute = null;
+        try {
+            Thread.sleep(50);//防止刷爆别人的接口，设置阻塞
+            execute = request.execute();
+        }catch (Exception e){
+            TapLogger.info(TAG,"Read timed out:{}",e.getMessage());
+            if (retry++>3){
+                return Collections.emptyMap();
+            }
+            return this.post(request);
+        }
         return null == execute || execute.getStatus() != HttpStatus.HTTP_OK ?
                 Collections.emptyMap() : JSONUtil.parseObj(execute.body());
     }

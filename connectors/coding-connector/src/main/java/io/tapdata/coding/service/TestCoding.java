@@ -1,12 +1,10 @@
 package io.tapdata.coding.service;
 
-import cn.hutool.http.ContentType;
-import cn.hutool.http.HttpUtil;
 import cn.hutool.json.*;
-import io.tapdata.coding.CodingHttp;
+import io.tapdata.coding.utils.http.CodingHttp;
 import io.tapdata.coding.enums.CodingTestItem;
+import io.tapdata.coding.utils.http.HttpEntity;
 import io.tapdata.entity.utils.DataMap;
-import io.tapdata.entity.utils.Entry;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.entity.TestItem;
 
@@ -14,7 +12,6 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static io.tapdata.base.ConnectorBase.testItem;
-import static io.tapdata.entity.simplify.TapSimplify.map;
 
 /**
  * @author Gavin
@@ -39,7 +36,7 @@ public class TestCoding extends CodingStarter{
         try {
             DataMap connectionConfig = tapConnectionContext.getConnectionConfig();
             CodingHttp.create(
-                    map(new Entry("Authorization", connectionConfig.getString("token"))),
+                    HttpEntity.create().builder("Authorization",connectionConfig.getString("token")).getEntity(),
                     null,
                     String.format(CONNECTION_URL, connectionConfig.get("teamName"))
             ).post();
@@ -63,7 +60,7 @@ public class TestCoding extends CodingStarter{
           headers.put("Authorization", token);
           connectionConfig.put("token",token);
           Map<String,Object> resultMap = CodingHttp.create(
-                  map(new Entry("Authorization", connectionConfig.getString("token"))),
+                  HttpEntity.create().builder("Authorization",connectionConfig.getString("token")).getEntity(),
                   null,
                   String.format(TOKEN_URL,connectionConfig.get("teamName"))
           ).post();
@@ -83,8 +80,11 @@ public class TestCoding extends CodingStarter{
             DataMap connectionConfig = tapConnectionContext.getConnectionConfig();
 
             Map<String,Object> resultMap = CodingHttp.create(
-                    map(new Entry("Authorization", connectionConfig.getString("token"))),
-                    map(new Entry("Action","DescribeProjectByName"),new Entry("ProjectName",connectionConfig.get("projectName"))),
+                    HttpEntity.create().builder("Authorization",connectionConfig.getString("token")).getEntity(),
+                    HttpEntity.create()
+                            .builder("Action","DescribeProjectByName")
+                            .builder("ProjectName",connectionConfig.get("projectName"))
+                            .getEntity(),
                     String.format(OPEN_API_URL,connectionConfig.get("teamName"))
             ).post();
 

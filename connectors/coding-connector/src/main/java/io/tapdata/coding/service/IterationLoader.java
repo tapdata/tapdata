@@ -1,18 +1,16 @@
 package io.tapdata.coding.service;
 
 import cn.hutool.json.JSONUtil;
-import io.tapdata.coding.CodingHttp;
+import io.tapdata.coding.utils.http.CodingHttp;
+import io.tapdata.coding.utils.http.HttpEntity;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.DataMap;
-import io.tapdata.entity.utils.Entry;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
-
-import static io.tapdata.entity.simplify.TapSimplify.map;
 
 public class IterationLoader extends CodingStarter {
     IterationLoader(TapConnectionContext tapConnectionContext) {
@@ -38,19 +36,16 @@ public class IterationLoader extends CodingStarter {
 
         List<Map> matterList = new ArrayList<>();
         do{
+                HttpEntity<String,String> header = HttpEntity.create()
+                    .builder("Authorization",token);
+                HttpEntity<String,Object> body = HttpEntity.create()
+                    .builder("Action","DescribeIterationList")
+                    .builder("ProjectName",  projectName)
+                    .builder("Limit", tableSize)
+                    .builder("Offset",++queryIndex);
             Map<String,Object> resultMap = CodingHttp.create(
-                    map(new Entry("Authorization", token)),
-                    map(
-                            entry("Action","DescribeIterationList"),
-                            entry("ProjectName",projectName),
-//                            entry("Status", IssueType.ALL.getName()),
-//                            entry("Assignee",""),
-//                            entry("StartDate",""),
-//                            entry("EndDate",""),
-//                            entry("keywords",""),
-                            entry("Limit", tableSize),
-                            entry("Offset",++queryIndex)
-                    ),
+                    header.getEntity(),
+                    body.getEntity(),
                     String.format(OPEN_API_URL,teamName)
             ).post();
             Object response = resultMap.get("Response");

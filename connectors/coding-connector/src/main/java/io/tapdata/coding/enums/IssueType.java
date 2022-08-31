@@ -17,4 +17,15 @@ public enum IssueType {
     public String getName() {
         return name;
     }
+
+    public static String verifyType(String typeName){
+        if (null==typeName || "".equals(typeName)) return ALL.name;
+        IssueType[] values = IssueType.values();
+        for (IssueType value : values) {
+            if (value.name.equals(typeName)){
+                return value.name;
+            }
+        }
+        return ALL.name;
+    }
 }

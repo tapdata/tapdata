@@ -9,16 +9,22 @@ import java.util.Map;
  * @version v1.0 2022/8/23 16:37 Create
  */
 public class CodingOffset {
-    private Map<String, String> tableUpdateTimeMap;
+    private Map<String, Long> tableUpdateTimeMap;
     public CodingOffset() {
         tableUpdateTimeMap = new HashMap<>();
     }
 
-    public Map<String, String> getTableUpdateTimeMap() {
+    public static CodingOffset create(Map<String, Long> tableUpdateTimeMap){
+        CodingOffset offset = new CodingOffset();
+        offset.setTableUpdateTimeMap(tableUpdateTimeMap);
+        return offset;
+    }
+
+    public Map<String, Long> getTableUpdateTimeMap() {
         return tableUpdateTimeMap;
     }
 
-    public void setTableUpdateTimeMap(Map<String, String> tableUpdateTimeMap) {
+    public void setTableUpdateTimeMap(Map<String, Long> tableUpdateTimeMap) {
         this.tableUpdateTimeMap = tableUpdateTimeMap;
     }
 }

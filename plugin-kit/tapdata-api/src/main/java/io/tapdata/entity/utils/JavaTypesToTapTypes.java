@@ -49,7 +49,7 @@ public class JavaTypesToTapTypes {
             case JAVA_String:
                 return tapString().bytes(1024L);
             case JAVA_Integer:
-                return tapNumber().maxValue(BigDecimal.valueOf(Integer.MAX_VALUE)).minValue(BigDecimal.valueOf(Integer.MIN_VALUE)).fixed(false).scale(31);
+                return tapNumber().maxValue(BigDecimal.valueOf(Integer.MAX_VALUE)).minValue(BigDecimal.valueOf(Integer.MIN_VALUE));
             case JAVA_Binary:
                 return tapBinary();
             case JAVA_Boolean:
@@ -85,6 +85,8 @@ public class JavaTypesToTapTypes {
             return toTapType(JAVA_Double);
         } else if(theValue instanceof Long) {
             return toTapType(JAVA_Long);
+        }else if(theValue instanceof Integer) {
+            return toTapType(JAVA_Integer);
         } else if(theValue instanceof Number) {
             return toTapType(JAVA_Double);
         } else if(theValue instanceof Date || theValue instanceof Instant || theValue instanceof DateTime) {
