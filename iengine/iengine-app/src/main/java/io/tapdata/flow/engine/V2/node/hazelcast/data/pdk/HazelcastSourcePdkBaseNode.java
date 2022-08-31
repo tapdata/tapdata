@@ -674,6 +674,8 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 					break;
 				}
 			}
+		} catch (InterruptedException ignore) {
+			logger.warn("TapdataEvent enqueue thread interrupted");
 		} catch (Throwable throwable) {
 			throw new NodeException(throwable).context(getDataProcessorContext()).event(tapdataEvent.getTapEvent());
 		}
