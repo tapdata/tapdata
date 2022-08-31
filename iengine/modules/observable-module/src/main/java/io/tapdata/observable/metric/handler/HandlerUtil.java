@@ -28,9 +28,20 @@ public class HandlerUtil {
 
     public static EventTypeRecorder countTapEvent(List<? extends TapEvent> events) {
         EventTypeRecorder recorder = new EventTypeRecorder();
+        long timeCostTotal = 0, recordTotal = 0;
         for (TapEvent event : events) {
             countEventType(event, recorder);
+            if (null != event.getTime()) {
+                timeCostTotal += System.currentTimeMillis() - event.getTime();
+                recordTotal += 1;
+            }
         }
+
+        long timeCostAvg = 0;
+        if (recordTotal != 0) {
+            timeCostAvg = timeCostTotal / recordTotal;
+        }
+        recorder.setAvgProcessTime(timeCostAvg);
 
         return recorder;
     }
@@ -73,6 +84,7 @@ public class HandlerUtil {
         private long updateTotal;
         private long deleteTotal;
         private long othersTotal;
+        private long avgProcessTime;
 
         public void incrDdlTotal() {
             this.ddlTotal += 1;

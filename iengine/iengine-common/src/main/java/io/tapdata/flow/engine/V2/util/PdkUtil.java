@@ -7,6 +7,7 @@ import io.tapdata.entity.utils.DataMap;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.entity.utils.ObjectSerializable;
 import io.tapdata.flow.engine.V2.entity.PdkStateMap;
+import io.tapdata.pdk.apis.context.ConfigContext;
 import io.tapdata.pdk.apis.entity.ConnectorCapabilities;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.api.PDKIntegration;
@@ -104,6 +105,17 @@ public class PdkUtil {
 										   PdkTableMap pdkTableMap,
 										   PdkStateMap pdkStateMap,
 										   PdkStateMap globalStateMap) {
+		return createNode(dagId, databaseType, clientMongoOperator, associateId, connectionConfig, pdkTableMap, pdkStateMap, globalStateMap, null);
+	}
+	public static ConnectorNode createNode(String dagId,
+										   DatabaseTypeEnum.DatabaseType databaseType,
+										   ClientMongoOperator clientMongoOperator,
+										   String associateId,
+										   Map<String, Object> connectionConfig,
+										   PdkTableMap pdkTableMap,
+										   PdkStateMap pdkStateMap,
+										   PdkStateMap globalStateMap,
+										   ConfigContext configContext) {
 		return createNode(
 				dagId,
 				databaseType,
@@ -114,7 +126,8 @@ public class PdkUtil {
 				pdkTableMap,
 				pdkStateMap,
 				globalStateMap,
-				null
+				null,
+				configContext
 		);
 	}
 
@@ -128,7 +141,8 @@ public class PdkUtil {
 			PdkTableMap pdkTableMap,
 			PdkStateMap pdkStateMap,
 			PdkStateMap globalStateMap,
-			ConnectorCapabilities connectorCapabilities
+			ConnectorCapabilities connectorCapabilities,
+			ConfigContext configContext
 	) {
 		ConnectorNode connectorNode;
 		try {
@@ -137,6 +151,7 @@ public class PdkUtil {
 			PDKIntegration.ConnectorBuilder<ConnectorNode> connectorBuilder = PDKIntegration.createConnectorBuilder()
 					.withDagId(dagId)
 					.withAssociateId(associateId)
+					.withConfigContext(configContext)
 					.withGroup(databaseType.getGroup())
 					.withVersion(databaseType.getVersion())
 					.withPdkId(databaseType.getPdkId())

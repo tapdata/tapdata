@@ -49,12 +49,6 @@ public class HazelcastSampleSourcePdkDataNode extends HazelcastPdkBaseNode {
   @Override
   protected void doInit(@NotNull Context context) throws Exception {
     super.doInit(context);
-    try {
-      createPdkConnectorNode(dataProcessorContext, context.hazelcastInstance());
-      connectorNodeInit(dataProcessorContext);
-    } catch (Throwable e) {
-      throw new RuntimeException(e);
-    }
     startSourceRunner();
   }
 
@@ -86,6 +80,8 @@ public class HazelcastSampleSourcePdkDataNode extends HazelcastPdkBaseNode {
         if (CollectionUtils.isEmpty(tapEventList) || tapEventList.size() < rows) {
           isCache = false;
           tapEventList.clear();
+          createPdkConnectorNode(dataProcessorContext, jetContext.hazelcastInstance());
+          connectorNodeInit(dataProcessorContext);
           QueryByAdvanceFilterFunction queryByAdvanceFilterFunction = getConnectorNode().getConnectorFunctions().getQueryByAdvanceFilterFunction();
           TapAdvanceFilter tapAdvanceFilter = TapAdvanceFilter.create().limit(rows);
           PDKInvocationMonitor.invoke(getConnectorNode(), PDKMethod.SOURCE_QUERY_BY_ADVANCE_FILTER,
@@ -140,7 +136,7 @@ public class HazelcastSampleSourcePdkDataNode extends HazelcastPdkBaseNode {
       }
 
     } catch (Throwable throwable) {
-      error = throwable;
+      errorHandle(throwable, "start source runner failed: " + throwable.getMessage());
     } finally {
       logger.info("source runner complete...");
     }

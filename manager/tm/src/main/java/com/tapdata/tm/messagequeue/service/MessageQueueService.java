@@ -52,6 +52,7 @@ public class MessageQueueService extends BaseService<MessageQueueDto, MessageQue
 				} catch (IOException ignored) {
 					log.error("WebSocket send message failed,message: {}", e.getMessage(), e);
 				}
+				throw new BizException(e);
 			}
 		}else if (StringUtils.isNotBlank(messageDto.getReceiver())){
 			log.info("SessionId not found, save message data to db, messageQueue: {}", JsonUtil.toJson(messageDto));

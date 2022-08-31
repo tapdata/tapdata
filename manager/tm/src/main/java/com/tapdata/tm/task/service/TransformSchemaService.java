@@ -3,11 +3,16 @@ package com.tapdata.tm.task.service;
 import cn.hutool.core.date.DateUtil;
 import com.alibaba.fastjson.JSON;
 import com.google.common.collect.Lists;
+import com.mongodb.client.result.UpdateResult;
+import com.tapdata.manager.common.utils.JsonUtil;
 import com.tapdata.manager.common.utils.StringUtils;
 import com.tapdata.tm.commons.dag.*;
 import com.tapdata.tm.commons.dag.nodes.DataParentNode;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
+import com.tapdata.tm.commons.dag.process.CustomProcessorNode;
+import com.tapdata.tm.commons.dag.process.JsProcessorNode;
+import com.tapdata.tm.commons.dag.process.MigrateJsProcessorNode;
 import com.tapdata.tm.commons.schema.*;
 import com.tapdata.tm.commons.task.dto.Message;
 import com.tapdata.tm.commons.task.dto.TaskDto;
@@ -23,7 +28,9 @@ import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
 import com.tapdata.tm.task.constant.DagOutputTemplateEnum;
 import com.tapdata.tm.transform.service.MetadataTransformerItemService;
 import com.tapdata.tm.transform.service.MetadataTransformerService;
+import com.tapdata.tm.utils.GZIPUtil;
 import com.tapdata.tm.utils.MapUtils;
+import com.tapdata.tm.utils.MongoUtils;
 import com.tapdata.tm.utils.UUIDUtil;
 import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.service.WorkerService;
@@ -36,6 +43,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
@@ -81,19 +89,20 @@ public class TransformSchemaService {
         this.taskDagCheckLogService = taskDagCheckLogService;
     }
 
-    @Value("${tm.transform.batch.num:100}")
+    @Value("${tm.transform.batch.num:1000}")
     private int transformBatchNum;
 
-
-    @Lock(value = "taskId", type = LockType.TRANSFORM_SCHEMA)
-    public Map<String, List<Message>> transformSchemaSync(DAG dag, UserDetail user, ObjectId taskId) {
-        return transformSchema(dag, user, taskId);
-    }
-
-    public Map<String, List<Message>> transformSchema(DAG dag, UserDetail user, ObjectId taskId) {
+    public void transformSchema(DAG dag, UserDetail user, ObjectId taskId) {
         TaskDto taskDto = taskService.checkExistById(taskId, user);
         taskDto.setDag(dag);
-        return transformSchema(taskDto, user);
+        try {
+            transformSchema(taskDto, user);
+        } catch (Exception e) {
+            taskDagCheckLogService.createLog(taskId.toHexString(), user.getUserId(), Level.ERROR.getValue(),
+                    DagOutputTemplateEnum.MODEL_PROCESS_CHECK,
+                    false, true, DateUtil.now(), e.getMessage());
+            taskService.update(new Query(Criteria.where("_id").is(taskId)), Update.update("transformDagHash", 0));
+        }
     }
 
     public TransformerWsMessageDto getTransformParam(TaskDto taskDto, UserDetail user) {
@@ -157,14 +166,14 @@ public class TransformSchemaService {
 
         if (CollectionUtils.isNotEmpty(qualifiedNames)) {
             //优先获取逻辑表，没有找到的话，取物理表的。
-            metadataList = metadataInstancesService.findByQualifiedNameNotDelete(qualifiedNames, user);
+            metadataList = metadataInstancesService.findByQualifiedNameNotDelete(qualifiedNames, user, "histories");
             Map<String, MetadataInstancesDto> qualifiedMap = metadataList.stream().collect(Collectors.toMap(MetadataInstancesDto::getQualifiedName, m -> m, (m1, m2) -> m1));
             qualifiedNames.removeAll(qualifiedMap.keySet());
             qualifiedNames = qualifiedNames.stream().map(q->{
                 int i = q.lastIndexOf("_");
                 return q.substring(0, i);
             }).collect(Collectors.toList());
-            List<MetadataInstancesDto> metadataList1 = metadataInstancesService.findByQualifiedNameNotDelete(qualifiedNames, user);
+            List<MetadataInstancesDto> metadataList1 = metadataInstancesService.findByQualifiedNameNotDelete(qualifiedNames, user, "histories");
             for (MetadataInstancesDto metadataInstancesDto : metadataList1) {
                 metadataInstancesDto.setQualifiedName(metadataInstancesDto.getQualifiedName() + "_" + taskDto.getId().toHexString());
             }
@@ -172,7 +181,7 @@ public class TransformSchemaService {
         }
 
 
-        List<MetadataInstancesDto> databaseSchemes = metadataInstancesService.findDatabaseScheme(connectionIds, user);
+        List<MetadataInstancesDto> databaseSchemes = metadataInstancesService.findDatabaseSchemeNoHistory(connectionIds, user);
         metadataList.addAll(databaseSchemes);
 
         Criteria criteria = Criteria.where("dataFlowId").is(taskDto.getId().toHexString());
@@ -186,24 +195,32 @@ public class TransformSchemaService {
 
     }
 
-    public Map<String, List<Message>> transformSchema(TaskDto taskDto, UserDetail user) {
+    public void transformSchema(TaskDto taskDto, UserDetail user) {
         log.debug("start transform schema, task = {}, user = {}", taskDto, user);
         TransformerWsMessageDto transformParam = getTransformParam(taskDto, user);
 
-        sendTransformer(transformParam, user);
-        return new HashMap<>();
+        taskService.updateById(taskDto.getId(), Update.update("transformUuid", transformParam.getOptions().getUuid()).set("transformed", false), user);
 
-//        DAGDataServiceImpl dagDataService1 = new DAGDataServiceImpl(transformParam);
-//
-//        Map<String, List<Message>> transformSchema = taskDto.getDag().transformSchema(null, dagDataService1, transformParam.getOptions());
-//        TransformerWsMessageResult transformerWsMessageResult = new TransformerWsMessageResult();
-//        transformerWsMessageResult.setTransformSchema(transformSchema);
-//        transformerWsMessageResult.setUpsertTransformer(dagDataService1.getUpsertTransformer());
-//        transformerWsMessageResult.setBatchInsertMetaDataList(dagDataService1.getBatchInsertMetaDataList());
-//        transformerWsMessageResult.setUpsertItems(dagDataService1.getUpsertItems());
-//        transformerWsMessageResult.setBatchMetadataUpdateMap(dagDataService1.getBatchMetadataUpdateMap());
-//        transformerResult(user, transformerWsMessageResult);
-//        return transformSchema;
+        boolean taskContainJs = checkTaskContainJs(taskDto);
+
+        if (taskContainJs) {
+            sendTransformer(transformParam, user);
+            return;
+        }
+
+
+        DAGDataServiceImpl dagDataService1 = new DAGDataServiceImpl(transformParam);
+
+        Map<String, List<Message>> transformSchema = taskDto.getDag().transformSchema(null, dagDataService1, transformParam.getOptions());
+        TransformerWsMessageResult transformerWsMessageResult = new TransformerWsMessageResult();
+        transformerWsMessageResult.setTransformSchema(transformSchema);
+        transformerWsMessageResult.setUpsertTransformer(dagDataService1.getUpsertTransformer());
+        transformerWsMessageResult.setBatchInsertMetaDataList(dagDataService1.getBatchInsertMetaDataList());
+        transformerWsMessageResult.setUpsertItems(dagDataService1.getUpsertItems());
+        transformerWsMessageResult.setBatchMetadataUpdateMap(dagDataService1.getBatchMetadataUpdateMap());
+        transformerWsMessageResult.setTaskId(taskDto.getId().toHexString());
+        transformerWsMessageResult.setTransformUuid(transformParam.getOptions().getUuid());
+        transformerResult(user, transformerWsMessageResult);
     }
 
     public void transformerResult(UserDetail user, TransformerWsMessageResult result) {
@@ -219,9 +236,10 @@ public class TransformSchemaService {
             taskIds.addAll(msgMap.keySet());
             taskDagCheckLogService.createLog(taskIds.get(0), user.getUserId(), Level.ERROR.getValue(), DagOutputTemplateEnum.MODEL_PROCESS_CHECK,
                     false, true, DateUtil.now(), msgMap.get(taskIds.get(0)).get(0).getMsg());
+            taskService.update(new Query(Criteria.where("_id").is(taskIds.get(0))), Update.update("transformDagHash", 0));
         }
 
-        metadataInstancesService.bulkSave(result.getBatchInsertMetaDataList(), result.getBatchMetadataUpdateMap(), user, saveHistory, result.getTaskId());
+        metadataInstancesService.bulkSave(result.getBatchInsertMetaDataList(), result.getBatchMetadataUpdateMap(), user, saveHistory, result.getTaskId(), result.getTransformUuid());
 
         if (CollectionUtils.isNotEmpty(result.getBatchRemoveMetaDataList())) {
             Criteria criteria = Criteria.where("qualified_name").in(result.getBatchRemoveMetaDataList());
@@ -240,30 +258,38 @@ public class TransformSchemaService {
 
         if (CollectionUtils.isNotEmpty(result.getUpsertTransformer())) {
             metadataTransformerService.save(result.getUpsertTransformer(), user);
+        }
 
-            String taskId = result.getUpsertTransformer().get(0).getDataFlowId();
-            int total = result.getUpsertTransformer().get(0).getTotal();
-
-            // add transformer task log
-            taskDagCheckLogService.createLog(taskId, user.getUserId(), Level.INFO.getValue(), DagOutputTemplateEnum.MODEL_PROCESS_CHECK,
-                    false, true, DateUtil.now(), total, total);
+        if (StringUtils.isNotBlank(result.getTransformUuid()) && StringUtils.isNotBlank(result.getTaskId())) {
+            Criteria criteria = Criteria.where("_id").is(MongoUtils.toObjectId(result.getTaskId()))
+                    .and("transformUuid").is(result.getTransformUuid());
+            UpdateResult transformed = taskService.update(new Query(criteria), Update.update("transformed", true), user);
+            if (transformed.getModifiedCount() > 0 && CollectionUtils.isNotEmpty(result.getUpsertTransformer())) {
+                String taskId = result.getTaskId();
+                int total = result.getUpsertTransformer().get(0).getTotal();
+                int finished = result.getUpsertTransformer().get(0).getFinished();
+                // add transformer task log
+                taskDagCheckLogService.createLog(taskId, user.getUserId(), Level.INFO.getValue(), DagOutputTemplateEnum.MODEL_PROCESS_CHECK,
+                        false, true, DateUtil.now(), finished, total);
+            }
         }
     }
 
 
-    private void sendTransformer(TransformerWsMessageDto data, UserDetail user) {
-        TaskDto taskDto = data.getTaskDto();
+    private void sendTransformer(TransformerWsMessageDto wsMessageDto, UserDetail user) {
+        TaskDto taskDto = wsMessageDto.getTaskDto();
         if (taskDto == null) {
             return;
         }
 
-        Map<String, DataSourceDefinitionDto> definitionDtoMap = data.getDefinitionDtoMap();
+        Map<String, DataSourceDefinitionDto> definitionDtoMap = wsMessageDto.getDefinitionDtoMap();
         if (definitionDtoMap != null) {
             definitionDtoMap.forEach((k, v) -> {
                 //有些Properties中的字段属性包含了xx.yy.kk,需要过滤掉。不然入库会报错
                 v.setProperties(null);
             });
         }
+
 
         List<Worker> availableAgent;
         if (org.apache.commons.lang3.StringUtils.isBlank(taskDto.getAccessNodeType())
@@ -275,16 +301,37 @@ public class TransformSchemaService {
         if (CollectionUtils.isEmpty(availableAgent)) {
             return;
         }
+        HashMap<Object, Object> data = new HashMap<>();
+        data.put("type", MessageType.TRANSFORMER.getType());
+        String json = JsonUtil.toJsonUseJackson(wsMessageDto);
+        byte[] gzip = GZIPUtil.gzip(json.getBytes());
+        byte[] encode = Base64.getEncoder().encode(gzip);
+        String dataString = new String(encode);
+        data.put("data", dataString);
 
         String processId = availableAgent.get(0).getProcessId();
-        data.setType(MessageType.TRANSFORMER.getType());
         MessageQueueDto queueDto = new MessageQueueDto();
         queueDto.setReceiver(processId);
         queueDto.setData(data);
         queueDto.setType("pipe");
 
-        log.info("build send test connection websocket context, processId = {}, userId = {}, queueDto = {}", processId, user.getUserId(), queueDto);
+//        log.info("build send test connection websocket context, processId = {}, userId = {}, queueDto = {}", processId, user.getUserId(), queueDto);
         messageQueueService.sendMessage(queueDto);
 
+    }
+
+    public boolean checkTaskContainJs(TaskDto taskDto) {
+        DAG dag = taskDto.getDag();
+        if (dag != null) {
+            List<Node> nodes = dag.getNodes();
+            if (CollectionUtils.isNotEmpty(nodes)) {
+                for (Node node : nodes) {
+                    if (node instanceof JsProcessorNode || node instanceof MigrateJsProcessorNode || node instanceof CustomProcessorNode) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
     }
 }

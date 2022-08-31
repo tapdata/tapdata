@@ -26,6 +26,7 @@ import io.tapdata.schema.TapTableMap;
 import io.tapdata.schema.TapTableUtil;
 import org.apache.commons.collections.CollectionUtils;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
@@ -101,9 +102,8 @@ public class PdkDataSourceRowsGetter implements IDataSourceRowsGetter {
 
     tapAdvanceFilter.match(dataMap);
     PDKInvocationMonitor.invoke(connectorNode, PDKMethod.SOURCE_QUERY_BY_ADVANCE_FILTER,
-            () -> queryByAdvanceFilterFunction.query(connectorNode.getConnectorContext(), tapAdvanceFilter, tapTable, filterResults -> {
-              resultsAtomic.set(filterResults.getResults());
-            }), TAG);
+            () -> queryByAdvanceFilterFunction.query(connectorNode.getConnectorContext(), tapAdvanceFilter, tapTable, filterResults ->
+                    resultsAtomic.set(new ArrayList<>(filterResults.getResults()))), TAG);
     List<Map<String, Object>> maps = resultsAtomic.get();
     if (CollectionUtils.isNotEmpty(maps)) {
       for (Map<String, Object> map : maps) {

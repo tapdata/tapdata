@@ -53,6 +53,7 @@ import io.tapdata.milestone.MilestoneContext;
 import io.tapdata.milestone.MilestoneFactory;
 import io.tapdata.milestone.MilestoneFlowServiceJetV2;
 import io.tapdata.milestone.MilestoneJetEdgeService;
+import io.tapdata.observable.logging.ObsLoggerFactory;
 import io.tapdata.schema.TapTableMap;
 import io.tapdata.schema.TapTableUtil;
 import lombok.SneakyThrows;
@@ -131,6 +132,7 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 			final Job job = hazelcastInstance.getJet().newJob(jetDag.getDag(), jobConfig);
 			return new HazelcastTaskClient(job, taskDto, clientMongoOperator, configurationCenter, hazelcastInstance, milestoneFlowServiceJetV2);
 		} catch (Throwable throwable) {
+			ObsLoggerFactory.getInstance().getObsLogger(taskDto).error(throwable);
 			AspectUtils.executeAspect(new TaskStopAspect().task(taskDto).error(throwable));
 			throw throwable;
 		}
@@ -148,6 +150,7 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 			Job job = hazelcastInstance.getJet().newLightJob(jetDag.getDag(), jobConfig);
 			return new HazelcastTaskClient(job, taskDto, clientMongoOperator, configurationCenter, hazelcastInstance, null);
 		} catch (Throwable throwable) {
+			ObsLoggerFactory.getInstance().getObsLogger(taskDto).error(throwable);
 			AspectUtils.executeAspect(new TaskStopAspect().task(taskDto).error(throwable));
 			throw throwable;
 		}

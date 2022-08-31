@@ -164,7 +164,7 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
         }
 
         long start = System.currentTimeMillis();
-        List<Schema> result = metadataInstances.stream().map(this::convertToSchema).collect(Collectors.toList());
+        List<Schema> result = metadataInstances.parallelStream().map(this::convertToSchema).collect(Collectors.toList());
         log.debug("Convert metadata instances record to Schema cost {} millisecond", System.currentTimeMillis() - start);
         return result;
     }
@@ -205,6 +205,7 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
 
         //为了获取原表的id才讲schema这个实体加上了id这个属性，但是原来是没有这个属性的，可能导致保存的时候id重复，因为是由原来的模型复制过来的
         for (Schema schema : schemas) {
+            schema.setOldId(schema.getId());
             schema.setId(null);
 
 
@@ -264,7 +265,7 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
 
         // 其他类型的 meta type 暂时不做模型推演处理
         final String _metaType = MetaType.processor_node.name();
-        List<MetadataInstancesDto> metadataInstancesDtos = schemas.stream().map(schema -> {
+        List<MetadataInstancesDto> metadataInstancesDtos = schemas.parallelStream().map(schema -> {
             MetadataInstancesDto metadataInstancesDto =
                     JsonUtil.parseJsonUseJackson(JsonUtil.toJsonUseJackson(schema), MetadataInstancesDto.class);
 
@@ -306,7 +307,7 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
         int modifyCount = bulkSave(metadataInstancesDtos, dataSource, existsMetadataInstances);
         log.info("Bulk save metadataInstance {}, cost {}ms", modifyCount, System.currentTimeMillis() - start);
 
-        return metadataInstancesDtos.stream()
+        return metadataInstancesDtos.parallelStream()
                 .map(dto -> JsonUtil.parseJsonUseJackson(JsonUtil.toJsonUseJackson(dto), Schema.class)).collect(Collectors.toList());
     }
 
@@ -345,6 +346,8 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
             return Collections.emptyList();
         }
 
+        log.info("save schema, found database schema, q_name = {}", databaseQualifiedName);
+
         SourceDto sourceDto = JsonUtil.parseJsonUseJackson(JsonUtil.toJsonUseJackson(dataSource), SourceDto.class);
 
         // 其他类型的 meta type 暂时不做模型推演处理
@@ -354,7 +357,7 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
         }
 
         final String _metaType = metaType;
-        List<MetadataInstancesDto> metadataInstancesDtos = schemas.stream().map(schema -> {
+        List<MetadataInstancesDto> metadataInstancesDtos = schemas.parallelStream().map(schema -> {
             MetadataInstancesDto metadataInstancesDto =
                     JsonUtil.parseJsonUseJackson(JsonUtil.toJsonUseJackson(schema), MetadataInstancesDto.class);
 
@@ -378,7 +381,6 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
             metadataInstancesDto.setCreateSource("job_analyze");
             metadataInstancesDto.setLastUserName(userName);
             metadataInstancesDto.setLastUpdBy(userId);
-
             metadataInstancesDto.setQualifiedName(
                     MetaDataBuilderUtils.generateQualifiedName(metadataInstancesDto.getMetaType(), dataSource, schema.getOriginalName(), taskId));
 
@@ -397,10 +399,11 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
         long start = System.currentTimeMillis();
 
         Map<String, MetadataInstancesDto> existsMetadataInstances = rollbackOperation(metadataInstancesDtos, rollback, rollbackTable);
+        log.info("bulk save meta data");
         int modifyCount = bulkSave(metadataInstancesDtos, dataSource, existsMetadataInstances);
         log.info("Bulk save metadataInstance {}, cost {}ms", modifyCount, System.currentTimeMillis() - start);
 
-        return metadataInstancesDtos.stream()
+        return metadataInstancesDtos.parallelStream()
                 .map(dto -> JsonUtil.parseJsonUseJackson(JsonUtil.toJsonUseJackson(dto), Schema.class)).collect(Collectors.toList());
     }
 
@@ -908,6 +911,9 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
             setMetaDataMap(metadataInstancesDto);
         }
 
+        //log.info("save schema update map = {}", metadataUpdateMap);
+        //log.info("save schema insert metadata = {}", insertMetaDataList);
+
         batchMetadataUpdateMap.putAll(metadataUpdateMap);
         batchInsertMetaDataList.addAll(insertMetaDataList);
         return metadataUpdateMap.size() + insertMetaDataList.size();
@@ -1068,7 +1074,7 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
         if (node instanceof DatabaseNode) {
             String connectionId = ((DatabaseNode) node).getConnectionId();
             DataSourceConnectionDto connectionDto = dataSourceMap.get(connectionId);
-            qualifiedName = MetaDataBuilderUtils.generateQualifiedName(MetaType.table.name(), connectionDto, tableName);
+            qualifiedName = MetaDataBuilderUtils.generateQualifiedName(MetaType.table.name(), connectionDto, tableName, taskId);
         } else if (node instanceof ProcessorNode || node instanceof MigrateProcessorNode) {
             qualifiedName = MetaDataBuilderUtils.generateQualifiedName(MetaType.processor_node.name(), nodeId, tableName);
         }
@@ -1083,5 +1089,10 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
             }
         }
         return null;
+    }
+
+
+    public DataSourceDefinitionDto getDefinitionByType(String databaseType) {
+        return definitionDtoMap.get(databaseType);
     }
 }

@@ -139,7 +139,7 @@ public class LogCollectorService {
 
 
         Query taskQuery = new Query(taskCriteria);
-        taskQuery.fields().include("_id", "syncType", "name", "status");
+        taskQuery.fields().include("_id", "syncType", "name", "status", "attrs");
         List<TaskDto> allDtos = taskService.findAllDto(taskQuery, user);
 
 
@@ -374,32 +374,40 @@ public class LogCollectorService {
         logCollectorVo.setCreateTime(taskDto.getCreateAt());
         logCollectorVo.setStatus(taskDto.getStatus());
         logCollectorVo.setStatuses(taskDto.getStatuses());
-        List<TaskDto.SyncPoint> syncPoints = taskDto.getSyncPoints();
-        if (CollectionUtils.isNotEmpty(syncPoints)) {
-            TaskDto.SyncPoint syncPoint = syncPoints.get(0);
-            logCollectorVo.setSyncTimePoint(syncPoint.getPointType());
-            logCollectorVo.setSyncTime(new Date(syncPoint.getDateTime()));
-            logCollectorVo.setSyncTimeZone(syncPoint.getTimeZone());
-        }
+//        List<TaskDto.SyncPoint> syncPoints = taskDto.getSyncPoints();
+//        if (CollectionUtils.isNotEmpty(syncPoints)) {
+//            TaskDto.SyncPoint syncPoint = syncPoints.get(0);
+//            logCollectorVo.setSyncTimePoint(syncPoint.getPointType());
+//            logCollectorVo.setSyncTime(new Date(syncPoint.getDateTime()));
+//            logCollectorVo.setSyncTimeZone(syncPoint.getTimeZone());
+//        }
+
+
 
         if (taskDto.getDag() != null) {
             List<Node> sources = taskDto.getDag().getSources();
+            List<Node> targets = taskDto.getDag().getTargets();
 
-            if (CollectionUtils.isNotEmpty(sources)) {
+            if (CollectionUtils.isNotEmpty(sources) && CollectionUtils.isNotEmpty(targets)) {
                 Node node = sources.get(0);
+                Node targetNode = targets.get(0);
+                Date eventTime = getAttrsValues(node.getId(), targetNode.getId(), "eventTime", taskDto.getAttrs());
+                Date sourceTime = getAttrsValues(node.getId(), targetNode.getId(), "sourceTime", taskDto.getAttrs());
+                logCollectorVo.setLogTime(eventTime);
+                long delayTime = sourceTime.getTime() - eventTime.getTime();
+
+                logCollectorVo.setDelayTime(delayTime > 0 ? delayTime : 0);
                 if (node instanceof LogCollectorNode) {
-                    LogCollectorNode logCollectorNode = (LogCollectorNode) sources.get(0);
-                    if (logCollectorNode != null) {
-                        List<ObjectId> ids = logCollectorNode.getConnectionIds().stream().map(MongoUtils::toObjectId).collect(Collectors.toList());
-                        Criteria criteria = Criteria.where("_id").in(ids);
-                        Query query = new Query(criteria);
-                        query.fields().include("name");
-                        List<DataSourceConnectionDto> datasources = dataSourceService.findAll(query);
-                        List<Pair<String, String>> datasourcePairs = datasources.stream().map(d -> ImmutablePair.of(d.getId().toHexString(), d.getName())).collect(Collectors.toList());
-                        logCollectorVo.setConnections(datasourcePairs);
-                        logCollectorVo.setTableName(logCollectorNode.getTableNames());
-                        logCollectorVo.setStorageTime(logCollectorNode.getStorageTime());
-                    }
+                    LogCollectorNode logCollectorNode = (LogCollectorNode) node;
+                    List<ObjectId> ids = logCollectorNode.getConnectionIds().stream().map(MongoUtils::toObjectId).collect(Collectors.toList());
+                    Criteria criteria = Criteria.where("_id").in(ids);
+                    Query query = new Query(criteria);
+                    query.fields().include("name");
+                    List<DataSourceConnectionDto> datasources = dataSourceService.findAll(query);
+                    List<Pair<String, String>> datasourcePairs = datasources.stream().map(d -> ImmutablePair.of(d.getId().toHexString(), d.getName())).collect(Collectors.toList());
+                    logCollectorVo.setConnections(datasourcePairs);
+                    logCollectorVo.setTableName(logCollectorNode.getTableNames());
+                    logCollectorVo.setStorageTime(logCollectorNode.getStorageTime());
                 }
             }
         }
@@ -415,7 +423,7 @@ public class LogCollectorService {
         logCollectorVo.setStatus(taskDto.getStatus());
         logCollectorVo.setSyncTimestamp(new Date());
         logCollectorVo.setSourceTimestamp(new Date());
-        logCollectorVo.setSyncType(taskDto.getParentSyncType());
+        logCollectorVo.setSyncType(taskDto.getSyncType());
 
         DAG dag = taskDto.getDag();
         try {
@@ -574,18 +582,18 @@ public class LogCollectorService {
      */
     public Boolean checkUpdateConfig(UserDetail user) {
         //查询所有的开启挖掘的任务跟，挖掘任务，是否都停止并且重置
-        Criteria criteria = Criteria.where("shareCdcEnable").is(true).and("is_deleted").is(false).and("statuses").elemMatch(Criteria.where("status").ne(TaskDto.STATUS_EDIT));
+        Criteria criteria = Criteria.where("shareCdcEnable").is(true).and("is_deleted").is(false).and("status").ne(TaskDto.STATUS_EDIT);
         Query query = new Query(criteria);
-        query.fields().include("shareCdcEnable", "is_deleted", "statuses");
+        query.fields().include("shareCdcEnable", "is_deleted", "status");
         TaskDto taskDto = taskService.findOne(query);
         if (taskDto != null) {
             return false;
         }
 
         Criteria criteria1 = Criteria.where("is_deleted").is(false).and("dag.nodes").elemMatch(Criteria.where("type").is("logCollector"))
-                .and("statuses").elemMatch(Criteria.where("status").ne(TaskDto.STATUS_EDIT));
+                .and("status").ne(TaskDto.STATUS_EDIT);
         Query query1 = new Query(criteria1);
-        query1.fields().include("shareCdcEnable", "is_deleted", "statuses");
+        query1.fields().include("shareCdcEnable", "is_deleted", "status");
         TaskDto taskDto1 = taskService.findOne(query1);
         return taskDto1 == null;
     }
@@ -633,7 +641,8 @@ public class LogCollectorService {
             Map syncProgressMap = (Map) syncProgress;
             List<String> key = Lists.newArrayList(sourceId, targetId);
 
-            Map valueMap = (Map) syncProgressMap.get(JsonUtil.toJsonUseJackson(key));
+            String valueMapString = (String) syncProgressMap.get(JsonUtil.toJsonUseJackson(key));
+            LinkedHashMap valueMap = JsonUtil.parseJson(valueMapString, LinkedHashMap.class);
             if (valueMap == null) {
                 return new Date();
             }
@@ -643,7 +652,7 @@ public class LogCollectorService {
                 return new Date();
             }
 
-            return new Date((Long) o);
+            return new Date(((Double) o).longValue());
 
         } catch (Exception e) {
             return new Date();
@@ -1135,8 +1144,8 @@ public class LogCollectorService {
 
     //将启动的挖掘任务id更新到任务中去
     private void updateLogCollectorMap(ObjectId taskId, Map<String, String> newLogCollectorMap, UserDetail user) {
-        List<TaskDto> TaskDtos = taskService.findByTaskId(taskId, "dag", "_id");
-        if (CollectionUtils.isEmpty(TaskDtos)) {
+        TaskDto taskDto = taskService.findByTaskId(taskId, "dag", "_id");
+        if (taskDto == null) {
             return;
         }
 
@@ -1145,29 +1154,25 @@ public class LogCollectorService {
             return;
         }
 
-        for (TaskDto TaskDto : TaskDtos) {
-            DAG dag = TaskDto.getDag();
-            List<Node> sources = dag.getSources();
-            Map<String, String> shareCdcTaskId = TaskDto.getShareCdcTaskId();
-            if (shareCdcTaskId == null) {
-                shareCdcTaskId = new HashMap<>();
-                TaskDto.setShareCdcTaskId(shareCdcTaskId);
-            }
-
-            for (Node source : sources) {
-                if (source instanceof DataParentNode) {
-                    String id = ((DataParentNode<?>) source).getConnectionId();
-                    if (newLogCollectorMap.get(id) != null) {
-                        shareCdcTaskId.put(id, newLogCollectorMap.get(id));
-                    }
-                }
-            }
-
-            Update update = new Update();
-            update.set("shareCdcTaskId", shareCdcTaskId);
-            taskService.updateById(TaskDto.getId(), update, user);
+        DAG dag = taskDto.getDag();
+        List<Node> sources = dag.getSources();
+        Map<String, String> shareCdcTaskId = taskDto.getShareCdcTaskId();
+        if (shareCdcTaskId == null) {
+            shareCdcTaskId = new HashMap<>();
+            taskDto.setShareCdcTaskId(shareCdcTaskId);
         }
 
+        for (Node source : sources) {
+            if (source instanceof DataParentNode) {
+                String id = ((DataParentNode<?>) source).getConnectionId();
+                if (newLogCollectorMap.get(id) != null) {
+                    shareCdcTaskId.put(id, newLogCollectorMap.get(id));
+                }
+            }
+        }
 
+        Update update = new Update();
+        update.set("shareCdcTaskId", shareCdcTaskId);
+        taskService.updateById(taskDto.getId(), update, user);
     }
 }

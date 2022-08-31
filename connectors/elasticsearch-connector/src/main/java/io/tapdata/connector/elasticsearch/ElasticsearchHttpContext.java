@@ -19,7 +19,7 @@ public class ElasticsearchHttpContext {
     private static final String ELASTIC_SEARCH_SCHEME = "http";
     private static final int SOCKET_TIMEOUT_MILLIS = 1000000;
     private static final int CONNECT_TIMEOUT_MILLIS = 5000;
-    private static final int CONNECTION_REQUEST_TIMEOUT_MILLIS = 5000;
+    private static final int CONNECTION_REQUEST_TIMEOUT_MILLIS = 50000;
 
     private final ElasticsearchConfig elasticsearchConfig;
     private final RestHighLevelClient elasticsearchClient;

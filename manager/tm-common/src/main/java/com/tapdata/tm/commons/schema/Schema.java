@@ -7,6 +7,7 @@ import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.tapdata.tm.commons.base.convert.ObjectIdDeserialize;
 import com.tapdata.tm.commons.base.convert.ObjectIdSerialize;
 import com.tapdata.tm.commons.schema.bean.Relation;
+import com.tapdata.tm.commons.schema.bean.SourceDto;
 import com.tapdata.tm.commons.schema.bean.SourceTypeEnum;
 import lombok.Getter;
 import lombok.Setter;
@@ -55,7 +56,6 @@ public class Schema implements Cloneable, Serializable {
     private String fieldsLienage;
     private List<Field> fields;
     private List<Map<String, Object>> indexes;
-
     private String createSource;
     private Boolean virtual;
     private List<Tag> classifications;
@@ -86,6 +86,8 @@ public class Schema implements Cloneable, Serializable {
     private String username;
 
     private List<String> invalidFields; // 无效的字段名称列表，将有问题的字段名称统一记录下来
+
+    private ObjectId oldId;
 
     public Schema copy() throws CloneNotSupportedException {
         return (Schema)clone();

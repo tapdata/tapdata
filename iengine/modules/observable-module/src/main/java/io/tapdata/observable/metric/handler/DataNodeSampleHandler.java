@@ -79,7 +79,7 @@ public class DataNodeSampleHandler extends AbstractNodeSampleHandler {
     private final Map<String, Set<String>> nodeTables = new HashMap<>();
     public void init(Node<?> node, String associateId, Set<String> tables) {
         Map<String, String> tags = nodeTags(node);
-        Map<String, Number> values = TaskSampleRetriever.getInstance().retrieve(tags, Arrays.asList(
+        Map<String, Number> values = TaskSampleRetriever.getInstance().retrieveWithRetry(tags, Arrays.asList(
                 "inputInsertTotal", "inputUpdateTotal", "inputDeleteTotal", "inputDdlTotal", "inputOthersTotal",
                 "outputInsertTotal", "outputUpdateTotal", "outputDeleteTotal", "outputDdlTotal", "outputOthersTotal",
                 "snapshotTableTotal", "snapshotRowTotal", "snapshotInsertRowTotal",
@@ -256,6 +256,32 @@ public class DataNodeSampleHandler extends AbstractNodeSampleHandler {
         }
 
         Optional.ofNullable(snapshotRowCounters.get(nodeId)).ifPresent(counter -> counter.inc(count));
+    }
+
+    public void handleDdlStart(String nodeId) {
+        Optional.ofNullable(inputDdlCounters.get(nodeId)).ifPresent(CounterSampler::inc);
+    }
+
+    public void handleDdlEnd(String nodeId) {
+        Optional.ofNullable(outputDdlCounters.get(nodeId)).ifPresent(CounterSampler::inc);
+    }
+
+    public void handleSourceDynamicTableAdd(String nodeId, List<String> tables) {
+        if (null == tables || tables.isEmpty()) {
+            return;
+        }
+        nodeTables.putIfAbsent(nodeId, new HashSet<>());
+        tables.forEach(nodeTables.get(nodeId)::add);
+        Optional.ofNullable(inputDdlCounters.get(nodeId)).ifPresent(counter -> counter.inc(tables.size()));
+        Optional.ofNullable(outputDdlCounters.get(nodeId)).ifPresent(counter -> counter.inc(tables.size()));
+    }
+
+    public void handleSourceDynamicTableRemove(String nodeId, List<String> tables) {
+        if (null == tables || tables.isEmpty()) {
+            return;
+        }
+        Optional.ofNullable(inputDdlCounters.get(nodeId)).ifPresent(counter -> counter.inc(tables.size()));
+        Optional.ofNullable(outputDdlCounters.get(nodeId)).ifPresent(counter -> counter.inc(tables.size()));
     }
 
     private static final int PERIOD_SECOND = 5;

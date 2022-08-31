@@ -57,7 +57,7 @@ public class TaskSampleHandler extends AbstractHandler {
 
     public void init() {
         Map<String, String> tags = taskTags();
-        Map<String, Number> values = TaskSampleRetriever.getInstance().retrieve(tags, Arrays.asList(
+        Map<String, Number> values = TaskSampleRetriever.getInstance().retrieveWithRetry(tags, Arrays.asList(
                 "createTableTotal", "snapshotTableTotal", "snapshotRowTotal", "snapshotInsertRowTotal", "snapshotDoneAt",
                 "inputInsertTotal", "inputUpdateTotal", "inputDeleteTotal", "inputDdlTotal", "inputOthersTotal",
                 "outputInsertTotal", "outputUpdateTotal", "outputDeleteTotal", "outputDdlTotal", "outputOthersTotal"
@@ -127,7 +127,19 @@ public class TaskSampleHandler extends AbstractHandler {
     }
 
     public void handleCreateTableEnd() {
-        createTableTotal.inc();
+        // if task tables size = 0, must be error stops the table adder, stop the
+        // creating table counter
+        if (taskTables.size() != 0) {
+            createTableTotal.inc();
+        }
+    }
+
+    public void handleDdlStart() {
+        inputDdlTotal.inc();
+    }
+
+    public void handleDdlEnd() {
+        outputDdlTotal.inc();
     }
 
     public void handleBatchReadAccept(long size) {
@@ -178,5 +190,21 @@ public class TaskSampleHandler extends AbstractHandler {
 
     public void handleSnapshotDone(Long time) {
         snapshotDoneAt = time;
+    }
+
+    public void handleSourceDynamicTableAdd(List<String> tables) {
+        if (null == tables || tables.isEmpty()) {
+            return;
+        }
+
+        taskTables.addAll(tables);
+        inputDdlTotal.inc(tables.size());
+    }
+
+    public void handleSourceDynamicTableRemove(List<String> tables) {
+        if (null == tables || tables.isEmpty()) {
+            return;
+        }
+        inputDdlTotal.inc(tables.size());
     }
 }

@@ -64,6 +64,15 @@
         },
         "background": true,
         "sparse": true
+      },
+      {
+        "name" : "grnty_1_date_1",
+        "key" : {
+          "grnty" : 1,
+          "date" : 1
+        },
+        "background": true,
+        "sparse": true
       }
     ]
   },
@@ -829,9 +838,9 @@
         }
       },
       {
-        "name": "date_1",
+        "name": "createdTime_1",
         "key": {
-          "date": 1
+          "createdTime": 1
         },
         "expireAfterSeconds": 30,
         "background": true,

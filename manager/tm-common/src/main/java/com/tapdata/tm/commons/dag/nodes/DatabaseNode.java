@@ -78,8 +78,10 @@ public class DatabaseNode extends DataParentNode<List<Schema>> {
     @Override
     public List<Schema> mergeSchema(List<List<Schema>> inputSchemas, List<Schema> schemas) {
         //把inputSchemas的deleted的field给过滤掉
-        for (List<Schema> inputSchema : inputSchemas) {
-            SchemaUtils.removeDeleteFields(inputSchema);
+        if (TaskDto.SYNC_TYPE_SYNC.equals(getDag().getSyncType())) {
+            for (List<Schema> inputSchema : inputSchemas) {
+                SchemaUtils.removeDeleteFields(inputSchema);
+            }
         }
 
         if (schemas == null) {
@@ -176,24 +178,12 @@ public class DatabaseNode extends DataParentNode<List<Schema>> {
             List<String> includes = new ArrayList<>();
             options.setIncludes(includes);
             List<List<String>> partition = ListUtils.partition(tables, options.getBatchNum());
-            if ("sync".equals(options.getSyncType())) {
-                partition.forEach(list -> {
-                    includes.clear();
-                    includes.addAll(list);
-                    this.setSchema(null);
-                    super.transformSchema(options);
-                });
-            } else {
-                CountDownLatch countDownLatch = ThreadUtil.newCountDownLatch(partition.size());
-                partition.forEach( list -> ThreadUtil.execute(() -> {
-                    includes.clear();
-                    includes.addAll(list);
-                    this.setSchema(null);
-                    super.transformSchema(options);
-                    countDownLatch.countDown();
-                }));
-                countDownLatch.await();
-            }
+            partition.forEach(list -> {
+                includes.clear();
+                includes.addAll(list);
+                this.setSchema(null);
+                super.transformSchema(options);
+            });
         }
     }
 
@@ -262,12 +252,12 @@ public class DatabaseNode extends DataParentNode<List<Schema>> {
     }
 
     public int tableSize() {
-        if (CollectionUtils.isNotEmpty(tableNames)) {
-            return tableNames.size();
-        } else if (CollectionUtils.isNotEmpty(syncObjects)) {
+        if (CollectionUtils.isNotEmpty(syncObjects)) {
             return (int) syncObjects.stream()
                     .filter(s -> CollectionUtils.isNotEmpty(s.getObjectNames()))
-                    .flatMap(s -> s.getObjectNames().stream()).map(this::transformTableName).count();
+                    .mapToLong(s -> s.getObjectNames().size()).sum();
+        } else if (CollectionUtils.isNotEmpty(tableNames)) {
+            return tableNames.size();
         } else {
             return 0;
         }

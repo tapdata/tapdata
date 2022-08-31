@@ -28,6 +28,7 @@ import com.tapdata.tm.ds.service.impl.DataSourceService;
 import com.tapdata.tm.messagequeue.dto.MessageQueueDto;
 import com.tapdata.tm.messagequeue.service.MessageQueueService;
 import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
+import com.tapdata.tm.task.entity.TaskDagCheckLog;
 import com.tapdata.tm.task.service.TaskRecordService;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.task.utils.CacheUtils;
@@ -104,6 +105,9 @@ public class TaskNodeServiceImpl implements TaskNodeService {
         List<String> tableNames = sourceNode.getTableNames();
         if (CollectionUtils.isEmpty(tableNames) && StringUtils.equals("all", sourceNode.getMigrateTableSelectType())) {
             List<MetadataInstancesDto> metaInstances = metadataInstancesService.findBySourceIdAndTableNameList(sourceNode.getConnectionId(), null, userDetail, taskId);
+            if (CollectionUtils.isEmpty(metaInstances)) {
+                metaInstances = metadataInstancesService.findBySourceIdAndTableNameListNeTaskId(sourceNode.getConnectionId(), null, userDetail);
+            }
             tableNames = metaInstances.stream().map(MetadataInstancesDto::getOriginalName).collect(Collectors.toList());
         }
 
@@ -250,14 +254,13 @@ public class TaskNodeServiceImpl implements TaskNodeService {
         DataSourceConnectionDto sourceDataSource = dataSourceService.findById(MongoUtils.toObjectId(sourceNode.getConnectionId()));
 
         Map<String, MetadataInstancesDto> metaMap = Maps.newHashMap();
-        List<MetadataInstancesDto> list = metadataInstancesService.findBySourceIdAndTableNameList(
-                Objects.isNull(targetNode) ? sourceNode.getConnectionId() : targetNode.getConnectionId(),
-                currentTableList, userDetail, taskId);
+        // 模型推演会推演很多无效数据 findByNodeId 这个方法暂时不能用。
+        List<MetadataInstancesDto> list = metadataInstancesService.findByNodeId(currentNode.getId(), userDetail);
         boolean queryFormSource = false;
-        if (CollectionUtils.isEmpty(list)) {
+        if (CollectionUtils.isEmpty(list) || list.size() != tableNames.size()) {
             // 可能有这种场景， node detail接口请求比模型加载快，会查不到逻辑表的数据
             list = metadataInstancesService.findBySourceIdAndTableNameListNeTaskId(sourceNode.getConnectionId(),
-                    currentTableList, userDetail, taskId);
+                    currentTableList, userDetail);
             queryFormSource = true;
         }
         if (CollectionUtils.isNotEmpty(list)) {
@@ -270,7 +273,7 @@ public class TaskNodeServiceImpl implements TaskNodeService {
                 } else {
                     return meta;
                 }
-            }).collect(Collectors.toMap(MetadataInstancesDto::getOriginalName, Function.identity()));
+            }).collect(Collectors.toMap(MetadataInstancesDto::getAncestorsName, Function.identity(), (e1,e2)->e2));
         }
 
         if (metaMap.isEmpty()) {
@@ -293,16 +296,17 @@ public class TaskNodeServiceImpl implements TaskNodeService {
             // set qualifiedName
             String sinkQualifiedName = null;
             if (Objects.nonNull(targetDataSource)) {
+                //TODO 现在的mongodb表也是table的，所以这个逻辑是有问题的，但是由于现在的mongodb在库里的类型不是mongodb所以也不会出错。要改的时候，需要改所有类似的的地方
                 String metaType = "mongodb".equals(targetDataSource.getDatabase_type()) ? "collection" : "table";
                 sinkQualifiedName = MetaDataBuilderUtils.generateQualifiedName(metaType, targetDataSource, tableName, taskId);
             }
             String metaType = "mongodb".equals(sourceDataSource.getDatabase_type()) ? "collection" : "table";
             String sourceQualifiedName = MetaDataBuilderUtils.generateQualifiedName(metaType, sourceDataSource, tableName, taskId);
 
-            if (CollectionUtils.isEmpty(metaMap.get(tableName).getFields())) {
+            if (metaMap.get(tableName) == null || CollectionUtils.isEmpty(metaMap.get(tableName).getFields())) {
                 continue;
             }
-            List<Field> fields = metaMap.get(tableName).getFields().stream().filter(t -> !t.isDeleted()).collect(Collectors.toList());
+            List<Field> fields = metaMap.get(tableName).getFields();
 
             // TableRenameProcessNode not need fields
             if (!(currentNode instanceof TableRenameProcessNode)) {
@@ -462,6 +466,43 @@ public class TaskNodeServiceImpl implements TaskNodeService {
     }
 
     /**
+     * The copy migrate task will have dirty data, which can only be processed in the request details interface
+     * @param taskDto taskDto
+     * @param userDetail userDetail
+     */
+    @Override
+    public void checkFieldNode(TaskDto taskDto, UserDetail userDetail) {
+        if (!taskDto.getName().contains("- Copy")) {
+            return;
+        }
+
+        String taskId = taskDto.getId().toHexString();
+
+        DAG dag = taskDto.getDag();
+        List<String> collect = dag.getNodes().stream().filter(node -> {
+            if (node instanceof MigrateFieldRenameProcessorNode) {
+                LinkedList<TableFieldInfo> fieldsMapping = ((MigrateFieldRenameProcessorNode) node).getFieldsMapping();
+
+                return fieldsMapping.stream().anyMatch(table -> !table.getQualifiedName().endsWith(taskId));
+            }
+            return false;
+        }).map(Node::getId)
+        .collect(Collectors.toList());
+
+        if (CollectionUtils.isNotEmpty(collect) && CollectionUtils.isNotEmpty(dag.getSourceNode())) {
+            collect.forEach(nodeId -> {
+                MigrateFieldRenameProcessorNode fieldNode = (MigrateFieldRenameProcessorNode) dag.getNode(nodeId);
+                fieldNode.getFieldsMapping().forEach(m -> {
+                    String qualifiedName = m.getQualifiedName();
+                    String pre = qualifiedName.substring(0, qualifiedName.lastIndexOf("_") + 1);
+                    m.setQualifiedName(pre + taskId);
+                });
+            });
+        }
+
+    }
+
+    /**
      * 根据字段类型映射规则，将模型 schema中的通用字段类型转换为指定数据库字段类型
      * @param schema 包含通用字段类型的模型
      * @param metadataInstancesDto 将映射后的字段类型保存到这里
@@ -528,7 +569,8 @@ public class TaskNodeServiceImpl implements TaskNodeService {
 
 
         metadataInstancesDto = PdkSchemaConvert.fromPdk(tapTable);
-
+        metadataInstancesDto.setAncestorsName(schema.getAncestorsName());
+        metadataInstancesDto.setNodeId(schema.getNodeId());
 
         metadataInstancesDto.getFields().forEach(field -> {
             if (field.getId() == null) {

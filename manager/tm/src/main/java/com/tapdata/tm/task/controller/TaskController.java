@@ -16,7 +16,6 @@ import com.tapdata.tm.commons.schema.TransformerWsMessageResult;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.ds.service.impl.DataSourceDefinitionService;
-import com.tapdata.tm.ds.service.impl.DataSourceService;
 import com.tapdata.tm.message.constant.Level;
 import com.tapdata.tm.message.constant.MsgTypeEnum;
 import com.tapdata.tm.message.service.MessageService;
@@ -76,6 +75,8 @@ public class TaskController extends BaseController {
     private MetadataInstancesService metadataInstancesService;
     private TaskNodeService taskNodeService;
     private TaskSaveService taskSaveService;
+
+    private TaskStartService taskStartService;
     private SnapshotEdgeProgressService snapshotEdgeProgressService;
     private TaskRecordService taskRecordService;
 
@@ -125,8 +126,6 @@ public class TaskController extends BaseController {
         if (filter == null) {
             filter = new Filter();
         }
-
-
 
         return success(taskService.find(filter, getLoginUser()));
     }
@@ -200,11 +199,11 @@ public class TaskController extends BaseController {
         UserDetail user = getLoginUser();
         taskCheckInspectService.getInspectFlagDefaultFlag(task, user);
 
-        boolean noPass = taskSaveService.taskSaveCheckLog(task, user);
+        TaskDto taskDto = taskService.confirmById(task, user, confirm);
+        boolean noPass = taskSaveService.taskSaveCheckLog(taskDto, user);
         if (noPass) {
             return failed("Task.Save.Error");
         } else {
-            TaskDto taskDto = taskService.confirmById(task, user, confirm);
             return success(taskDto);
         }
     }
@@ -236,7 +235,7 @@ public class TaskController extends BaseController {
         task.setId(MongoUtils.toObjectId(id));
         UserDetail user = getLoginUser();
 
-        boolean noPass = taskService.taskStartCheckLog(task, user);
+        boolean noPass = taskStartService.taskStartCheckLog(task, user);
         TaskDto taskDto = task;
         if (!noPass) {
             taskDto = taskService.confirmStart(task, user, confirm);
@@ -266,6 +265,8 @@ public class TaskController extends BaseController {
 
             taskDto.setCreator(StringUtils.isNotBlank(user.getUsername()) ? user.getUsername() : user.getEmail());
             taskCheckInspectService.getInspectFlagDefaultFlag(taskDto, user);
+
+            taskNodeService.checkFieldNode(taskDto, user);
         }
         return success(taskDto);
     }

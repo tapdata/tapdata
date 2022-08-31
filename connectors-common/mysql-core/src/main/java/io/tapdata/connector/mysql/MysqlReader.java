@@ -183,7 +183,10 @@ public class MysqlReader implements Closeable {
 			this.eventQueue = new LinkedBlockingQueue<>(10);
 			this.streamReadConsumer = consumer;
 			this.streamConsumerThreadPool = new ThreadPoolExecutor(1, 1, 0L, TimeUnit.SECONDS, new SynchronousQueue<>());
-			this.streamConsumerThreadPool.submit(this::eventQueueConsumer);
+			this.streamConsumerThreadPool.submit(() -> {
+				tapConnectorContext.configContext();
+				this.eventQueueConsumer();
+			});
 			DataMap connectionConfig = tapConnectorContext.getConnectionConfig();
 			String database = connectionConfig.getString("database");
 			initMysqlSchemaHistory(tapConnectorContext);
@@ -206,16 +209,20 @@ public class MysqlReader implements Closeable {
 					.with("max.queue.size", batchSize * 8)
 					.with("max.batch.size", batchSize)
 					.with(MySqlConnectorConfig.SERVER_ID, randomServerId())
-					.with("time.precision.mode", "adaptive_time_microseconds");
+					.with("time.precision.mode", "adaptive_time_microseconds")
+					.with("snapshot.locking.mode", "none");
 			List<String> dbTableNames = tables.stream().map(t -> database + "." + t).collect(Collectors.toList());
 			builder.with(MySqlConnectorConfig.DATABASE_INCLUDE_LIST, database);
 			builder.with(MySqlConnectorConfig.TABLE_INCLUDE_LIST, String.join(",", dbTableNames));
-			builder.with("snapshot.mode", "schema_only_recovery");
-//			if (Boolean.parseBoolean(tapConnectorContext.getStateMap().get(FIRST_TIME_KEY).toString())) {
-//			} else {
-//				builder.with("snapshot.mode", "schema_only");
-//			}
-			builder.with("database.history", "io.tapdata.connector.mysql.StateMapHistoryBackingStore");
+			/*
+				todo At present, the schema loading logic will load the schema of all current tables each time it is started. When there is ddl in the historical data, it will cause a parsing error
+				todo The main scenario is shared mining, which dynamically modifies the table include list. If the last cached model list is used, debezium will not load the newly added table model, resulting in a parsing error when reading: whose schema isn't known to this connector
+				todo Best practice, need to change the debezium source code, add a configuration that supports partial update of some table schemas, and logic implementation
+			*/
+			builder.with("snapshot.mode", MySqlConnectorConfig.SnapshotMode.SCHEMA_ONLY_RECOVERY);
+//			builder.with("snapshot.mode", MySqlConnectorConfig.SnapshotMode.SCHEMA_ONLY);
+			builder.with("database.history", "io.debezium.relational.history.MemoryDatabaseHistory");
+//			builder.with("database.history", "io.tapdata.connector.mysql.StateMapHistoryBackingStore");
 			builder.with(EmbeddedEngine.OFFSET_STORAGE, "io.tapdata.connector.mysql.PdkPersistenceOffsetBackingStore");
 			if (StringUtils.isNotBlank(offsetStr)) {
 				builder.with("pdk.offset.string", offsetStr);
@@ -239,6 +246,7 @@ public class MysqlReader implements Closeable {
 						}
 					})
 					.using((result, message, throwable) -> {
+						tapConnectorContext.configContext();
 						if (result) {
 							if (StringUtils.isNotBlank(message)) {
 								TapLogger.info(TAG, "CDC engine stopped: " + message);
@@ -303,6 +311,7 @@ public class MysqlReader implements Closeable {
 	}
 
 	private void saveMysqlSchemaHistory(TapConnectorContext tapConnectorContext) {
+		tapConnectorContext.configContext();
 		Thread.currentThread().setName("Save-Mysql-Schema-History-" + serverName);
 		if (!MysqlSchemaHistoryTransfer.isSave()) {
 			MysqlSchemaHistoryTransfer.executeWithLock(n -> !running.get(), () -> {
@@ -423,7 +432,6 @@ public class MysqlReader implements Closeable {
 		Struct source = structValue.getStruct("source");
 		Long eventTime = source.getInt64("ts_ms");
 		String ddlStr = structValue.getString(SOURCE_RECORD_DDL_KEY);
-		TapLogger.info(TAG, "Read DDL: " + ddlStr + ", about to be packaged as some event(s)");
 		MysqlStreamOffset mysqlStreamOffset = getMysqlStreamOffset(record);
 		if (StringUtils.isNotBlank(ddlStr)) {
 			try {
@@ -436,6 +444,7 @@ public class MysqlReader implements Closeable {
 							MysqlStreamEvent mysqlStreamEvent = new MysqlStreamEvent(tapDDLEvent, mysqlStreamOffset);
 							tapDDLEvent.setReferenceTime(eventTime);
 							mysqlStreamEvents.add(mysqlStreamEvent);
+							TapLogger.info(TAG, "Read DDL: " + ddlStr + ", about to be packaged as some event(s)");
 						}
 				);
 			} catch (Throwable e) {

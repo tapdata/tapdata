@@ -65,7 +65,7 @@ public abstract class AutoInspectRunner<S extends IConnector, T extends IConnect
                     userLogger.info("Completed increment compare use {} ms", System.currentTimeMillis() - beginTimes);
                 }
             }
-        } catch (Exception e) {
+        } catch (Throwable e) {
             errorHandle(e, String.format("Execute failed: %s", e.getMessage()));
         } finally {
             exit();
