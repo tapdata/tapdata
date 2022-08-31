@@ -109,8 +109,8 @@ public class Application {
 
 				@Override
 				public void info(String log) {
-					pdkLogger.info(log);
-//					System.out.println(log);
+//					pdkLogger.info(log);
+					System.out.println(log);
 				}
 
 				@Override
