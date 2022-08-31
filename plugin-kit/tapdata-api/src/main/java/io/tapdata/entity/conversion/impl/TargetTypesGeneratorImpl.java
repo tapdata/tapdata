@@ -117,7 +117,7 @@ public class TargetTypesGeneratorImpl implements TargetTypesGenerator {
         List<ResultItem> resultItems = result.getResultItems();
         if(resultItems != null && !resultItems.isEmpty()) {
             for(ResultItem resultItem : resultItems) {
-                TapLogger.warn(TAG, "findLargestStringMapping " + resultItem.getItem() + ": " + resultItem.getInformation());
+                TapLogger.debug(TAG, "findLargestStringMapping " + resultItem.getItem() + ": " + resultItem.getInformation());
             }
         }
         field.setDataType(result.getData());

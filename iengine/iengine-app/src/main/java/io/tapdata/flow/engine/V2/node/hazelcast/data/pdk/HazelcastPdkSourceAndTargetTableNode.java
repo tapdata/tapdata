@@ -83,7 +83,7 @@ public class HazelcastPdkSourceAndTargetTableNode extends HazelcastPdkBaseNode {
 							.ifPresent(s -> s.incrementEdgeFinishNumber(TapEventUtil.getTableId(dataEvent.getTapEvent())));
 				}
 			} catch (Throwable e) {
-				error = e;
+				errorHandle(e, "start source consumer failed: " + e.getMessage());
 				break;
 			}
 		}
