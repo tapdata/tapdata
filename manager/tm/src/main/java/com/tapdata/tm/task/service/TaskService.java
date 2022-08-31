@@ -399,7 +399,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
                     taskSaveService.syncTaskSetting(taskDto, user);
 
-                    transformSchemaService.transformSchema(dag, user, taskDto.getId());
+                    transformSchemaAsyncService.transformSchema(dag, user, taskDto.getId());
                 }
             } else {
                 transformSchemaService.transformSchema(dag, user, taskDto.getId());
