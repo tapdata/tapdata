@@ -10,7 +10,6 @@ import com.google.protobuf.util.JsonFormat;
 import com.tapdata.constant.UUIDGenerator;
 import com.tapdata.processor.dataflow.pb.DynamicProtoUtil;
 import com.tapdata.processor.dataflow.pb.PbModel;
-import com.tapdata.processor.dataflow.pb.ca.*;
 import jdk.nashorn.api.scripting.ScriptObjectMirror;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -60,26 +59,6 @@ public class CustomTcp {
 		System.arraycopy(messageIdBytes, 0, bytes, 34, 9);
 
 		return bytes;
-	}
-
-	public static byte[] pbConvert_Periodic(Map<String, Object> dataMap) {
-		return pbConvert_util(JSON.toJSONString(dataMap), Periodic.Unit.newBuilder());
-	}
-
-	public static byte[] pbConvert_PlatformLogin(Map<String, Object> dataMap) {
-		return pbConvert_util(JSON.toJSONString(dataMap), PlatformLogin.Unit.newBuilder());
-	}
-
-	public static byte[] pbConvert_PlatformLogout(Map<String, Object> dataMap) {
-		return pbConvert_util(JSON.toJSONString(dataMap), PlatformLogout.Unit.newBuilder());
-	}
-
-	public static byte[] pbConvert_VehicleLogin(Map<String, Object> dataMap) {
-		return pbConvert_util(JSON.toJSONString(dataMap), VehicleLogin.Unit.newBuilder());
-	}
-
-	public static byte[] pbConvert_VehicleLogout(Map<String, Object> dataMap) {
-		return pbConvert_util(JSON.toJSONString(dataMap), VehicleLogout.Unit.newBuilder());
 	}
 
 	public static byte[] pbConvert_util(String jsonStr, Message.Builder builder) {
