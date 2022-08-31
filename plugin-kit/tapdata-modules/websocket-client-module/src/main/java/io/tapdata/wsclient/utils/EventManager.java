@@ -4,23 +4,24 @@ import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 
+@SuppressWarnings("ALL")
 public class EventManager {
 
     public interface EventListener<T> {
         void onMessage(String eventType, T message);
     }
 
-    public class EventHolder {
-        public EventHolder(EventListener eventListener, String type) {
+    public static class EventHolder {
+        public EventHolder(EventListener<?> eventListener, String type) {
             this.eventListener = eventListener;
             this.type = type;
         }
-        EventListener eventListener;
+        EventListener<?> eventListener;
         String type;
     }
 
-    private ConcurrentHashMap<String, List<EventListener>> listenerMap = new ConcurrentHashMap<>();
-    private ConcurrentHashMap<Object, List<EventHolder>> keyMap = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, List<EventListener>> listenerMap = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<Object, List<EventHolder>> keyMap = new ConcurrentHashMap<>();
 
     private static EventManager instance;
 

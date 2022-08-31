@@ -7,6 +7,7 @@ import io.tapdata.entity.annotations.Bean;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.modules.api.net.data.*;
+import io.tapdata.modules.api.net.message.TapMessage;
 import io.tapdata.wsserver.channels.error.WSErrors;
 import io.tapdata.wsserver.channels.gateway.data.GatewayUserSession;
 import io.tapdata.wsserver.channels.gateway.data.UserChannel;
@@ -61,15 +62,15 @@ public abstract class GatewaySessionHandler {
 
     public abstract void onSessionDestroyed();
 
-    public abstract ResultData onDataReceived(String contentType, Map<String, Object> jsonObject, String id);
+    public abstract ResultData onDataReceived(IncomingData data);
 
-    public abstract ResultData onMessageReceived(String toUserId, String toGroupId, String contentType, Map<String, Object> jsonObject, String id);
+    public abstract ResultData onMessageReceived(IncomingMessage message);
 
-    public ResultData onRequest(IncomingRequest incomingRequest, String id) {
-        return new ResultData(ResultData.CODE_SUCCESS, id);
+    public ResultData onRequest(IncomingRequest incomingRequest) {
+        return new ResultData(ResultData.CODE_SUCCESS, incomingRequest.getId());
     }
 
-    public ResultData onInvocation(IncomingInvocation incomingInvocation, String id) {
+    public ResultData onInvocation(IncomingInvocation incomingInvocation) {
         ValidateUtils.checkAllNotNull(incomingInvocation, id);
         Pattern r = Pattern.compile(userChannel.getAuthorisedExpression());
         String matchStr = incomingInvocation.getService() + "_" + incomingInvocation.getClassName() + "_" + incomingInvocation.getMethodName();
@@ -78,16 +79,16 @@ public abstract class GatewaySessionHandler {
             throw new CoreException(WSErrors.ERROR_UNAUTHORISED_SERVICE_CALL, "Unauthorised calling to service $incomingInvocation authorisedExpression $userChannel.authorisedExpression");
         }
         Object[] args = null;
-        if (incomingInvocation.getArgs() != null) {
-            try {
-                JSONArray jsonArray = JSON.parseArray(incomingInvocation.getArgs());
-                args = jsonArray.toArray();
-            } catch (Throwable t) {
-                t.printStackTrace();
-                TapLogger.error(TAG, "Parse args string to json array failed, " + t.getMessage() + " incomingInvocation " + incomingInvocation + " id " + id);
-                throw t;
-            }
-        }
+//        if (incomingInvocation.getArgs() != null) {
+//            try {
+//                JSONArray jsonArray = JSON.parseArray(incomingInvocation.getArgs());
+//                args = jsonArray.toArray();
+//            } catch (Throwable t) {
+//                t.printStackTrace();
+//                TapLogger.error(TAG, "Parse args string to json array failed, " + t.getMessage() + " incomingInvocation " + incomingInvocation + " id " + id);
+//                throw t;
+//            }
+//        }
         GatewayUserSession gatewayUserSession = new GatewayUserSession().userId(this.id).ip(userChannel.getIp()).terminal(userChannel.getTerminal());
         if (args == null) {
             args = new Object[]{gatewayUserSession};
@@ -131,12 +132,8 @@ public abstract class GatewaySessionHandler {
         gatewayChannelModule.sendData(userChannel.getUserId(), outgoingMessage);
     }
 
-    public boolean sendData(String userId, String contentType, String data) {
-        OutgoingData outgoingData = new OutgoingData();
-        outgoingData.setContentType(contentType);
-        outgoingData.setContent(data);
-        outgoingData.setContentEncode(ResultData.CONTENT_ENCODE_JSON);
-        outgoingData.setTime(System.currentTimeMillis());
+    public boolean sendData(String userId, String contentType, TapMessage data) {
+        OutgoingData outgoingData = new OutgoingData().contentType(contentType).message(data).time(System.currentTimeMillis());
         return gatewayChannelModule.sendData(userId, outgoingData);
     }
 

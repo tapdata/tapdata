@@ -1,8 +1,11 @@
 package io.tapdata.wsclient.modules.imclient.impls.data;
 
+import io.tapdata.modules.api.net.data.Data;
+
 import java.io.IOException;
 
 public class Chunk extends Data {
+	public static final byte TYPE = 61;
 	private String id;
 	private Integer originalType;
 	private byte[] content;
@@ -11,40 +14,9 @@ public class Chunk extends Data {
 	private Integer chunkNum;
 
 	public Chunk() {
-		super(HailPack.TYPE_INOUT_CHUNK);
+		super(TYPE);
 	}
 
-	
-	@Override
-	public void resurrect() throws IOException {
-		byte[] bytes = getData();
-		Byte encode = getEncode();
-		if(bytes != null) {
-			if(encode != null) {
-				switch(encode) {
-				case ENCODE_PB:
-
-					break;
-					default:
-						throw new IOException("Encoder type doesn't be found for resurrect");
-				}
-			}
-		}
-	}
-
-	@Override
-	public void persistent() throws IOException {
-		Byte encode = getEncode();
-		if(encode == null)
-			encode = ENCODE_PB;//throw new CoreException(CoreErrorCodes.ERROR_RPC_ENCODER_NULL, "Encoder is null for persistent");
-		switch(encode) {
-		case ENCODE_PB:
-
-			break;
-			default:
-				throw new IOException("Encoder type doesn't be found for persistent");
-		}
-	}
 
 	public String getId() {
 		return id;

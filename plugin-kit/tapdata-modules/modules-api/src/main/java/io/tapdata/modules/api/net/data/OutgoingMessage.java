@@ -10,7 +10,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 
 public class OutgoingMessage extends ContentData<OutgoingMessage> {
-    final static byte TYPE = 40;
+    public final static byte TYPE = 40;
 
     public OutgoingMessage() {
         super(TYPE);

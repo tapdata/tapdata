@@ -8,6 +8,7 @@ import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.reflection.ClassAnnotationHandler;
 import io.tapdata.modules.api.net.data.*;
 import io.tapdata.modules.api.net.error.NetErrors;
+import io.tapdata.modules.api.net.message.TapMessage;
 import io.tapdata.pdk.core.utils.AnnotationUtils;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.wsserver.channels.error.WSErrors;
@@ -440,13 +441,14 @@ public class GatewaySessionManager {
      * @param gatewaySessionHandler
      * @return
      */
-    public Object channelConnected(GatewaySessionHandler gatewaySessionHandler) {
+    public TapMessage channelConnected(GatewaySessionHandler gatewaySessionHandler) {
         try {
             //异步消息
             SingleThreadBlockingQueue<UserAction> queue = getUserActionQueue(gatewaySessionHandler.getId());
             queue.offer(new UserAction().handler(gatewaySessionHandler).userId(gatewaySessionHandler.getId()).action(UserAction.ACTION_USER_CONNECTED));
             //同步消息
-            return map(entry("cacheTimeMap", gatewaySessionHandler.channelConnected()));
+//            return map(entry("cacheTimeMap", gatewaySessionHandler.channelConnected()));
+            return null;
         } catch (Throwable t) {
             TapLogger.error(TAG, "channelConnected userId:{} error:{}", gatewaySessionHandler.getId(), t);
         }

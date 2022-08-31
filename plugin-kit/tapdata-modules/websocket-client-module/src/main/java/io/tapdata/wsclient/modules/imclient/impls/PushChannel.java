@@ -1,10 +1,7 @@
 package io.tapdata.wsclient.modules.imclient.impls;
 
+import io.tapdata.modules.api.net.data.*;
 import io.tapdata.wsclient.modules.imclient.IMStatusListener;
-import io.tapdata.wsclient.modules.imclient.impls.data.IncomingData;
-import io.tapdata.wsclient.modules.imclient.impls.data.IncomingMessage;
-import io.tapdata.wsclient.modules.imclient.impls.data.OutgoingData;
-import io.tapdata.wsclient.modules.imclient.impls.data.OutgoingMessage;
 
 import java.io.IOException;
 
@@ -32,9 +29,7 @@ public abstract class PushChannel {
 	public abstract void selfCheck();
 
 	public abstract void ping() throws IOException;
-	public abstract void sendData(IncomingData data) throws IOException;
-	public abstract void sendMessage(IncomingMessage message) throws IOException;
-
+	public abstract void send(Data data) throws IOException;
 	public IMStatusListener getStatusListener() {
 		return statusListener;
 	}

@@ -1,11 +1,12 @@
 package io.tapdata.wsclient.modules.imclient.impls;
 
+import io.tapdata.entity.logger.TapLogger;
+import io.tapdata.modules.api.net.data.Data;
+import io.tapdata.modules.api.net.data.IncomingData;
+import io.tapdata.modules.api.net.data.IncomingMessage;
+import io.tapdata.modules.api.net.data.Result;
 import io.tapdata.wsclient.modules.imclient.IMClient;
-import io.tapdata.wsclient.modules.imclient.data.IMData;
-import io.tapdata.wsclient.modules.imclient.data.IMMessage;
-import io.tapdata.wsclient.modules.imclient.data.IMResult;
 import io.tapdata.wsclient.modules.imclient.impls.websocket.WebsocketPushChannel;
-import io.tapdata.wsclient.utils.LoggerEx;
 
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
@@ -24,10 +25,10 @@ public class IMClientImpl implements IMClient {
 
     private String prefix;
 
-    LinkedBlockingQueue<IMData> messageQueue;
+    LinkedBlockingQueue<Data> messageQueue;
 //    WorkerQueue<IMData> messageWorkerQueue;
     ConcurrentHashMap<String, ResultListenerWrapper> resultMap;
-    ConcurrentHashMap<String, Class<? extends IMData>> contentTypeClassMap;
+    ConcurrentHashMap<String, Class<? extends Data>> contentTypeClassMap;
 
     private MonitorThread<?> monitorThread;
     static {
@@ -65,8 +66,8 @@ public class IMClientImpl implements IMClient {
     @Override
     public void start() {
         stop();
-        LoggerEx.info(TAG, "IMClient started");
-        monitorThread = new MonitorThread(WebsocketPushChannel.class/*TcpPushChannel.class*/);
+        TapLogger.info(TAG, "IMClient started");
+        monitorThread = new MonitorThread<>(WebsocketPushChannel.class/*TcpPushChannel.class*/);
         monitorThread.setImClient(this);
 //        messageWorkerQueue.setHandler(monitorThread.new PushHandler());
         monitorThread.start();
@@ -81,8 +82,8 @@ public class IMClientImpl implements IMClient {
     }
 
     @Override
-    public CompletableFuture<IMResult> sendData(IMData data) {
-        CompletableFuture<IMResult> future = new CompletableFuture<>();
+    public CompletableFuture<Result> sendData(IncomingData data) {
+        CompletableFuture<Result> future = new CompletableFuture<>();
         String msgId = data.getId();
         if(msgId == null) {
             msgId = "DATA_" + msgCounter.getAndIncrement();
@@ -95,8 +96,8 @@ public class IMClientImpl implements IMClient {
     }
 
     @Override
-    public CompletableFuture<IMResult> sendMessage(IMMessage message) {
-        CompletableFuture<IMResult> future = new CompletableFuture<>();
+    public CompletableFuture<Result> sendMessage(IncomingMessage message) {
+        CompletableFuture<Result> future = new CompletableFuture<>();
         String msgId = message.getId();
         if(msgId == null) {
             msgId = "MSG_" + msgCounter.getAndIncrement();
@@ -109,7 +110,7 @@ public class IMClientImpl implements IMClient {
     }
 
     @Override
-    public void registerDataContentType(String contentType, Class<? extends IMData> dataClass) {
+    public void registerDataContentType(String contentType, Class<? extends Data> dataClass) {
         if(contentType == null || dataClass == null) return;
         contentTypeClassMap.put(contentType, dataClass);
     }
@@ -162,11 +163,11 @@ public class IMClientImpl implements IMClient {
         this.prefix = prefix;
     }
 
-    public LinkedBlockingQueue<IMData> getMessageQueue() {
+    public LinkedBlockingQueue<Data> getMessageQueue() {
         return messageQueue;
     }
 
-    public void setMessageQueue(LinkedBlockingQueue<IMData> messageQueue) {
+    public void setMessageQueue(LinkedBlockingQueue<Data> messageQueue) {
         this.messageQueue = messageQueue;
     }
 
@@ -178,11 +179,11 @@ public class IMClientImpl implements IMClient {
         this.resultMap = resultMap;
     }
 
-    public ConcurrentHashMap<String, Class<? extends IMData>> getContentTypeClassMap() {
+    public ConcurrentHashMap<String, Class<? extends Data>> getContentTypeClassMap() {
         return contentTypeClassMap;
     }
 
-    public void setContentTypeClassMap(ConcurrentHashMap<String, Class<? extends IMData>> contentTypeClassMap) {
+    public void setContentTypeClassMap(ConcurrentHashMap<String, Class<? extends Data>> contentTypeClassMap) {
         this.contentTypeClassMap = contentTypeClassMap;
     }
 }

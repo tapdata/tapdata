@@ -18,4 +18,9 @@ public class InsertRecordMessage implements TapMessage {
 	public void to(OutputStream outputStream) throws IOException {
 
 	}
+
+	@Override
+	public String getContentType() {
+		return "insertRecord";
+	}
 }

@@ -1,7 +1,7 @@
 package io.tapdata.wsclient.modules.imclient;
 
-import io.tapdata.wsclient.modules.imclient.data.IMResult;
+import io.tapdata.modules.api.net.data.Result;
 
 public interface IMMessageResultListener {
-    public void onResult(IMResult result);
+    void onResult(Result result);
 }

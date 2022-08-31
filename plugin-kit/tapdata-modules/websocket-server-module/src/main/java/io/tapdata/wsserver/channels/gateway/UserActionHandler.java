@@ -79,8 +79,7 @@ public class UserActionHandler implements ListHandler<UserAction>, ListErrorHand
             case UserAction.ACTION_USER_DATA:
                 userAction.getHandler().touch();
                 try {
-                    DataMap jsonObject = jsonParser.fromJsonObject(userAction.getIncomingData().getContent());
-                    ResultData resultData = userAction.getHandler().onDataReceived(userAction.getIncomingData().getContentType(), jsonObject, userAction.getIncomingData().getId());
+                    ResultData resultData = userAction.getHandler().onDataReceived(userAction.getIncomingData());
                     if (resultData == null) {
                         resultData = new ResultData().code(ResultData.CODE_SUCCESS).forId(userAction.getIncomingData().getId());
                     }
@@ -89,7 +88,7 @@ public class UserActionHandler implements ListHandler<UserAction>, ListErrorHand
                     resultData.setForId(userAction.getIncomingData().getId());
                     boolean bool = gatewayChannelModule.sendResultData(userAction.getUserId(), resultData);
                     if (!bool) {
-                        TapLogger.warn(TAG, "send result not successfully to userId {}, code {} dataLength {}", userAction.getUserId(), resultData.getCode(), resultData.getData());
+                        TapLogger.warn(TAG, "send result not successfully to userId {}, code {}", userAction.getUserId(), resultData.getCode());
                     }
                 } catch (Throwable throwable) {
                     TapLogger.error(TAG, "onDataReceived contentType {} failed, {}", userAction.getIncomingData().getContentType(), throwable.getMessage());
@@ -109,9 +108,8 @@ public class UserActionHandler implements ListHandler<UserAction>, ListErrorHand
             case UserAction.ACTION_USER_MESSAGE:
                 userAction.getHandler().touch();
                 try {
-                    Map<String, Object> jsonObject = JSON.parseObject(userAction.getIncomingMessage().getContent());
                     IncomingMessage incomingMessage = userAction.getIncomingMessage();
-                    ResultData resultData = userAction.getHandler().onMessageReceived(incomingMessage.getToUserId(), incomingMessage.getToGroupId(), incomingMessage.getContentType(), jsonObject, incomingMessage.getId());
+                    ResultData resultData = userAction.getHandler().onMessageReceived(incomingMessage);
                     if (resultData == null) {
                         resultData = new ResultData().code(ResultData.CODE_SUCCESS).forId(userAction.getIncomingData().getId());
                     }
@@ -149,13 +147,13 @@ public class UserActionHandler implements ListHandler<UserAction>, ListErrorHand
                 userAction.getHandler().touch();
                 try {
                     IncomingInvocation incomingInvocation = userAction.getIncomingInvocation();
-                    ResultData resultData = userAction.getHandler().onInvocation(incomingInvocation, incomingInvocation.getId());
+                    ResultData resultData = userAction.getHandler().onInvocation(incomingInvocation);
                     if (resultData == null) {
                         resultData = new ResultData().code(ResultData.CODE_SUCCESS).forId(userAction.getIncomingInvocation().getId());
                     }
                     boolean bool = gatewayChannelModule.sendResultData(userAction.getUserId(), resultData);
                     if (!bool) {
-                        TapLogger.warn(TAG, "send result not successfully to userId {}, code {} dataLength {}", userAction.getUserId(), resultData.getCode(), resultData.getData());
+                        TapLogger.warn(TAG, "send result not successfully to userId {}, code {} dataLength {}", userAction.getUserId(), resultData.getCode());
                     }
                 } catch (Throwable throwable) {
                     TapLogger.error(TAG, "onInvocation userAction:{} {}", jsonParser.toJson(userAction.getIncomingInvocation()), throwable.getMessage());
@@ -175,17 +173,17 @@ public class UserActionHandler implements ListHandler<UserAction>, ListErrorHand
                 userAction.getHandler().touch();
                 try {
                     IncomingRequest incomingRequest = userAction.getIncomingRequest();
-                    ResultData resultData = userAction.getHandler().onRequest(incomingRequest, incomingRequest.getId());
+                    ResultData resultData = userAction.getHandler().onRequest(incomingRequest);
                     if (resultData == null) {
                         resultData = new ResultData().code(ResultData.CODE_SUCCESS).forId(incomingRequest.getId());
                     }
                     boolean bool = gatewayChannelModule.sendResultData(userAction.getUserId(), resultData);
                     if (!bool) {
-                        TapLogger.warn(TAG, "send result not successfully to userId {}, code {} dataLength {}", userAction.getUserId(), resultData.getCode(), resultData.getData());
+                        TapLogger.warn(TAG, "send result not successfully to userId {}, code {} dataLength {}", userAction.getUserId(), resultData.getCode());
                     }
                 } catch (Throwable throwable) {
                     TapLogger.error(TAG, "onRequest {}", throwable.getMessage());
-                    Result errorResult = new Result().forId(userAction.getIncomingRequest().getId()).time(System.currentTimeMillis()).contentEncode(userAction.getIncomingRequest().getBodyEncode());
+                    Result errorResult = new Result().forId(userAction.getIncomingRequest().getId()).time(System.currentTimeMillis());
                     if (throwable instanceof CoreException) {
                         errorResult.setCode(((CoreException) throwable).getCode());
                     } else {

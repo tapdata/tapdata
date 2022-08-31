@@ -81,13 +81,13 @@ public abstract class Data extends BinaryCodec implements JavaCustomSerializer {
         return data;
     }
     public void from(InputStream inputStream) throws IOException {
-        DataInputStreamEx dis = dataInputStream(inputStream);
-        type = dis.readByte();
+//        DataInputStreamEx dis = dataInputStream(inputStream);
+//        type = dis.readByte();
     }
 
     public void to(OutputStream outputStream) throws IOException {
-        DataOutputStreamEx dos = dataOutputStream(outputStream);
-        dos.writeByte(type);
+//        DataOutputStreamEx dos = dataOutputStream(outputStream);
+//        dos.writeByte(type);
     }
 
     @Override
@@ -132,6 +132,9 @@ public abstract class Data extends BinaryCodec implements JavaCustomSerializer {
     }
 
     public String getId(){
+        return null;
+    }
+    public String getContentType() {
         return null;
     }
 //	

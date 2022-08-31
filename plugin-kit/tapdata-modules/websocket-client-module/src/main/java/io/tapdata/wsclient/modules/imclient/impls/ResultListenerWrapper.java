@@ -1,8 +1,6 @@
 package io.tapdata.wsclient.modules.imclient.impls;
 
-
-import io.tapdata.wsclient.modules.imclient.data.IMResult;
-import com.dobybros.tccore.promise.ResultHandler;
+import io.tapdata.modules.api.net.data.Result;
 
 import java.util.concurrent.CompletableFuture;
 
@@ -10,9 +8,9 @@ public class ResultListenerWrapper {
 
     private String messageId;
     private long time;
-    private CompletableFuture<IMResult> resultHandler;
+    private CompletableFuture<Result> resultHandler;
 
-    public ResultListenerWrapper(String messageId, CompletableFuture<IMResult> resultHandler) {
+    public ResultListenerWrapper(String messageId, CompletableFuture<Result> resultHandler) {
         this.messageId = messageId;
         this.resultHandler = resultHandler;
 
@@ -35,11 +33,11 @@ public class ResultListenerWrapper {
         this.time = time;
     }
 
-    public CompletableFuture<IMResult> getResultHandler() {
+    public CompletableFuture<Result> getResultHandler() {
         return resultHandler;
     }
 
-    public void setResultHandler(CompletableFuture<IMResult> resultHandler) {
+    public void setResultHandler(CompletableFuture<Result> resultHandler) {
         this.resultHandler = resultHandler;
     }
 }

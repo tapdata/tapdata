@@ -1,22 +1,14 @@
 package io.tapdata.wsclient.modules.imclient.impls;
 
-import io.tapdata.wsclient.modules.imclient.data.IMData;
-import io.tapdata.wsclient.modules.imclient.data.DataHelper;
-import io.tapdata.wsclient.modules.imclient.data.IMMessage;
-import io.tapdata.wsclient.modules.imclient.data.IMResult;
-import io.tapdata.wsclient.modules.imclient.impls.data.IncomingData;
-import io.tapdata.wsclient.modules.imclient.impls.data.OutgoingData;
-import io.tapdata.wsclient.modules.imclient.impls.data.Result;
+import io.tapdata.entity.logger.TapLogger;
+import io.tapdata.modules.api.net.data.Data;
+import io.tapdata.modules.api.net.data.Result;
 import io.tapdata.wsclient.modules.imclient.impls.websocket.ChannelStatus;
 import io.tapdata.wsclient.utils.EventManager;
-import io.tapdata.wsclient.utils.LoggerEx;
 
 import io.tapdata.entity.error.CoreException;
-import io.tapdata.wsclient.modules.imclient.impls.data.Const;
-import org.apache.commons.lang3.NotImplementedException;
 
 import java.io.IOException;
-import java.io.UnsupportedEncodingException;
 import java.lang.reflect.Constructor;
 
 public class MonitorThread<T extends PushChannel> extends Thread {
@@ -65,12 +57,12 @@ public class MonitorThread<T extends PushChannel> extends Thread {
             } else {
                 pushChannel.selfCheck();
             }
-            LoggerEx.info(TAG, "MonitorThread already started, notify or self check");
+            TapLogger.info(TAG, "MonitorThread already started, notify or self check");
         } else if(status == STATUS_IDLE) {
             status = STATUS_STARTED;
             if(!this.isAlive()) {
                 super.start();
-                LoggerEx.info(TAG, "MonitorThread started");
+                TapLogger.info(TAG, "MonitorThread started");
             }
         }
     }
@@ -78,21 +70,21 @@ public class MonitorThread<T extends PushChannel> extends Thread {
     public synchronized final void terminate() {
         if(status == STATUS_TERMINATED)
             return;
-        LoggerEx.info(TAG, "MonitorThread terminated");
+        TapLogger.info(TAG, "MonitorThread terminated");
 
         status = STATUS_TERMINATED;
-        LoggerEx.info(TAG, "1111111111111");
+        TapLogger.info(TAG, "1111111111111");
         if(pushChannel != null)
             pushChannel.stop();
-        LoggerEx.info(TAG, "2222222222222");
+        TapLogger.info(TAG, "2222222222222");
         synchronized (lock) {
             idleTime = 0;
             count = 0;
             lock.notifyAll();
         }
-        LoggerEx.info(TAG, "333333333333333");
+        TapLogger.info(TAG, "333333333333333");
         eventManager.unregisterEventListener(this);
-        LoggerEx.info(TAG, "444444444444");
+        TapLogger.info(TAG, "444444444444");
     }
 
     public void wakeupForMessage() {
@@ -108,7 +100,7 @@ public class MonitorThread<T extends PushChannel> extends Thread {
     }
 
     public void restartChannel(boolean hurry) {
-        LoggerEx.info(TAG, "MonitorThread restart channel, " + (hurry ? "" : "no ") + "hurry");
+        TapLogger.info(TAG, "MonitorThread restart channel, " + (hurry ? "" : "no ") + "hurry");
         if(pushChannel != null) {
             pushChannel.stop();
             synchronized (channelLock) {
@@ -138,9 +130,9 @@ public class MonitorThread<T extends PushChannel> extends Thread {
         idleTime = RETRY_TIME;
     }
 
-    void handleMessageSendFailed(IMData imData, String message) {
+    void handleMessageSendFailed(Data imData, String message) {
         if(imData == null) return ;
-        LoggerEx.info(TAG, "send message failed, " + message + " imdata " + imData);
+        TapLogger.info(TAG, "send message failed, " + message + " imdata " + imData);
         ResultListenerWrapper wrapper = imClient.resultMap.get(imData.getId());
         if(wrapper != null) {
             wrapper.getResultHandler().completeExceptionally(new IOException(message));
@@ -150,7 +142,7 @@ public class MonitorThread<T extends PushChannel> extends Thread {
 
     void sendMessageFromQueue() {
         if(!imClient.messageQueue.isEmpty() && pushChannel != null) {
-            IMData imData = null;
+            Data imData = null;
             while((imData = imClient.messageQueue.poll()) != null) {
                 try {
                     if(!MonitorThread.this.send(imData)) {
@@ -173,9 +165,9 @@ public class MonitorThread<T extends PushChannel> extends Thread {
     }
 
     public void run() {
-        LoggerEx.info(TAG, "Monitor Thread is running");
+        TapLogger.info(TAG, "Monitor Thread is running");
         eventManager.registerEventListener(this, imClient.getPrefix() + ".status", (EventManager.EventListener<ChannelStatus>) (eventType, channelStatus) -> {
-            LoggerEx.info(TAG, "status changed, " + channelStatus);
+            TapLogger.info(TAG, "status changed, " + channelStatus);
             switch (channelStatus.getType()) {
                 case ChannelStatus.STATUS_CONNECTED:
                     resetIdelTimes();
@@ -198,17 +190,13 @@ public class MonitorThread<T extends PushChannel> extends Thread {
                     break;
             }
         });
-        eventManager.registerEventListener(this, imClient.getPrefix() + ".data", (EventManager.EventListener<OutgoingData>) (eventType, message) -> {
+        eventManager.registerEventListener(this, imClient.getPrefix() + ".data", (EventManager.EventListener<Data>) (eventType, message) -> {
             if(message != null && message.getContentType() != null) {
-                Class<? extends IMData> dataClass = imClient.contentTypeClassMap.get(message.getContentType());
+                Class<? extends Data> dataClass = imClient.contentTypeClassMap.get(message.getContentType());
                 if(dataClass != null) {
-                    IMData imData = IMData.buildReceivingData(message, dataClass);
-
-                    if(imData != null) {
-                        LoggerEx.info(TAG, "PushChannel receive imdata " + imData);
-                        eventManager.sendEvent(imClient.getPrefix() + ".imdata", imData);
-                        eventManager.sendEvent(imClient.getPrefix() + ".imdata." + imData.getContentType(), imData);
-                    }
+                    TapLogger.info(TAG, "PushChannel receive imdata " + message);
+                    eventManager.sendEvent(imClient.getPrefix() + ".imdata", message);
+                    eventManager.sendEvent(imClient.getPrefix() + ".imdata." + message.getContentType(), message);
                 }
             }
         });
@@ -216,27 +204,17 @@ public class MonitorThread<T extends PushChannel> extends Thread {
 //            if(inteceptErrorResult(result)) {
 //               return;
 //            }
-            IMResult imResult = DataHelper.fromResult(result);
             String id = result.getForId();
             if(id != null) {
                 ResultListenerWrapper wrapper = imClient.resultMap.get(id);
                 if(wrapper != null) {
-                    if(imResult.getCode() == 1) {
-                        wrapper.getResultHandler().complete(imResult);
+                    if(result.getCode() == 1) {
+                        wrapper.getResultHandler().complete(result);
                     } else {
-                        byte[] data = imResult.getData();
-                        String dataStr = null;
-                        if(data != null) {
-                            try {
-                                dataStr = new String(data, "utf8");
-                            } catch (UnsupportedEncodingException e) {
-                                e.printStackTrace();
-                            }
-                        }
-                        wrapper.getResultHandler().completeExceptionally(new CoreException(imResult.getCode(), imResult.getDescription(), dataStr));
+                        wrapper.getResultHandler().completeExceptionally(new CoreException(result.getCode(), result.getDescription()));
                     }
                 } else {
-                    eventManager.sendEvent(imClient.getPrefix() + ".imresult", imResult);
+                    eventManager.sendEvent(imClient.getPrefix() + ".imresult", result);
                 }
             }
         });
@@ -273,11 +251,11 @@ public class MonitorThread<T extends PushChannel> extends Thread {
                             }
                         }
                     }
-//                    LoggerEx.info( "PushControl thread wake up for creating new channel " + pushChannel);
+//                    TapLogger.info( "PushControl thread wake up for creating new channel " + pushChannel);
                 }
             } catch (Exception e) {
                 e.printStackTrace();
-                LoggerEx.error("error occured " + e.getMessage(), e);
+                TapLogger.error(TAG, "error occurred {}", e.getMessage());
             }
         }
 //		try {
@@ -286,28 +264,16 @@ public class MonitorThread<T extends PushChannel> extends Thread {
 //		}
     }
 
-    boolean send(IMData message) throws IOException {
-        if(message instanceof IMMessage) {
-            throw new NotImplementedException("not implemented");
-        } else {
-            IncomingData incomingData = new IncomingData();
-            byte[] bytes = DataHelper.toJsonBytes(message);
-            incomingData.setContent(bytes);
-            incomingData.setContentEncode(Const.CONTENTENCODE_JSON);
-            incomingData.setContentType(message.getContentType());
-            incomingData.setId(message.getId());
-            incomingData.setService(imClient.getService());
-
-            synchronized (channelLock) {
-                if(pushChannel != null) {
-                    LoggerEx.info(TAG, "send IMData " + message);
-                    pushChannel.sendData(incomingData);
-                } else {
-                    LoggerEx.info(TAG, "send IMData failed, channel is not connected, " + message);
-                    return false;
-                }
-                return true;
+    boolean send(Data message) throws IOException {
+        synchronized (channelLock) {
+            if(pushChannel != null) {
+                TapLogger.info(TAG, "send IMData " + message);
+                pushChannel.send(message);
+            } else {
+                TapLogger.info(TAG, "send IMData failed, channel is not connected, " + message);
+                return false;
             }
+            return true;
         }
     }
 

@@ -1,5 +1,7 @@
 package io.tapdata.proxy;
 
+import io.tapdata.modules.api.net.data.IncomingData;
+import io.tapdata.modules.api.net.data.IncomingMessage;
 import io.tapdata.modules.api.net.data.ResultData;
 import io.tapdata.wsserver.channels.annotation.GatewaySession;
 import io.tapdata.wsserver.channels.gateway.GatewaySessionHandler;
@@ -29,12 +31,13 @@ public class MyGatewaySessionHandler extends GatewaySessionHandler {
 	}
 
 	@Override
-	public ResultData onDataReceived(String contentType, Map<String, Object> jsonObject, String id) {
+	public ResultData onDataReceived(IncomingData data) {
 		return null;
 	}
 
 	@Override
-	public ResultData onMessageReceived(String toUserId, String toGroupId, String contentType, Map<String, Object> jsonObject, String id) {
+	public ResultData onMessageReceived(IncomingMessage message) {
 		return null;
 	}
+
 }

@@ -15,7 +15,15 @@ public class OutgoingData extends ContentData<OutgoingData> {
         super(TYPE);
     }
     private String id;
+    public OutgoingData id(String id) {
+        this.id = id;
+        return this;
+    }
     private Long time;
+    public OutgoingData time(Long time) {
+        this.time = time;
+        return this;
+    }
     @Override
     public void from(InputStream inputStream) throws IOException {
         DataInputStreamEx dis = dataInputStream(inputStream);

@@ -1,22 +1,22 @@
 package io.tapdata.wsclient.modules.imclient;
 
-import io.tapdata.wsclient.modules.imclient.data.IMData;
-import io.tapdata.wsclient.modules.imclient.data.IMMessage;
-import io.tapdata.wsclient.modules.imclient.data.IMResult;
-import com.dobybros.tccore.promise.Promise;
+import io.tapdata.modules.api.net.data.Data;
+import io.tapdata.modules.api.net.data.IncomingData;
+import io.tapdata.modules.api.net.data.IncomingMessage;
+import io.tapdata.modules.api.net.data.Result;
 
 import java.util.concurrent.CompletableFuture;
 
 public interface IMClient {
-    public void start();
+    void start();
 
-    public void stop();
+    void stop();
 
-    public CompletableFuture<IMResult> sendData(IMData data);
+    CompletableFuture<Result> sendData(IncomingData data);
 
-    public CompletableFuture<IMResult> sendMessage(IMMessage message);
+    CompletableFuture<Result> sendMessage(IncomingMessage message);
 
-    public void registerDataContentType(String contentType, Class<? extends IMData> dataClass);
+    void registerDataContentType(String contentType, Class<? extends Data> dataClass);
 
-    public String getPrefix();
+    String getPrefix();
 }

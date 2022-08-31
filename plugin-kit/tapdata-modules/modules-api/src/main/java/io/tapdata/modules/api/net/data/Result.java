@@ -10,7 +10,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 
 public class Result extends ContentData<Result> {
-    static final byte TYPE = 100;
+    public static final byte TYPE = 100;
 
     public static Result create() {
         return new Result();
@@ -44,7 +44,6 @@ public class Result extends ContentData<Result> {
 
     public Result(){
         super(TYPE);
-        encode = BinaryCodec.ENCODE_PB;
     }
 
     @Override

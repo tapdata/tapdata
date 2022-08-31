@@ -1,68 +1,41 @@
 package io.tapdata.wsclient.modules.imclient.impls.data;
 
-import io.tapdata.wsclient.utils.LoggerEx;
+import io.tapdata.entity.logger.TapLogger;
+import io.tapdata.modules.api.net.data.*;
 
 import java.io.IOException;
 
 public class DataVersioning{
 	private static final String TAG = DataVersioning.class.getSimpleName();
 
-	public static final byte version = 1;
-	public static final short encodeVersion = 1;
-	public static final byte encode = HailPack.ENCODE_PB;
-
-	public static Pack getDataPack(Data data) {
-		data.setEncodeVersion(encodeVersion);
-		data.setEncode(encode);
-		HailPack hailPack = new HailPack(data);
-		hailPack.setVersion(version);
-		return hailPack;
-	}
-
-	public static Data get(Pack pack) {
-		HailPack hailPack = (HailPack) pack;
-		Data data = get(hailPack.getEncodeVersion(), hailPack.getType());
-		if(data != null) {
-			data.setData(pack.getContent());
-			data.setEncode(hailPack.getEncode());
-			try {
-				data.resurrect();
-				return data;
-			} catch (IOException e) {
-				e.printStackTrace();
-				LoggerEx.error("Resurrect data failed, " + e.getMessage() + " for data " + data, e);
-			}
-		}
-		return null;
-	}
 
 	@SuppressWarnings("unchecked")
 	public static Data get(short encodeVersion, int type) {
 		//new Acknowledge() 比Acknowledge.class.newInstance快1.5倍
 		Data data = null;
 		switch(type) {
-		case HailPack.TYPE_IN_ACKNOWLEDGE:
-			data = new Acknowledge();
-			break;
-		case HailPack.TYPE_IN_IDENTITY:
+//		case HailPack.TYPE_IN_ACKNOWLEDGE:
+//			data = new Acknowledge();
+//			break;
+		case Identity.TYPE:
 			data = new Identity();
 			break;
-		case HailPack.TYPE_IN_INCOMINGMESSAGE:
+		case IncomingMessage.TYPE:
 			data = new IncomingMessage();
 			break;
-		case HailPack.TYPE_OUT_OUTGOINGMESSAGE:
+		case OutgoingMessage.TYPE:
 			data = new OutgoingMessage();
 			break;
-		case HailPack.TYPE_OUT_RESULT:
+		case Result.TYPE:
 			data = new Result();
 			break;
-		case HailPack.TYPE_IN_PING:
+		case Ping.TYPE:
 			data = new Ping();
 			break;
-		case HailPack.TYPE_IN_INCOMINGDATA:
+		case IncomingData.TYPE:
 			data = new IncomingData();
 			break;
-		case HailPack.TYPE_OUT_OUTGOINGDATA:
+		case OutgoingData.TYPE:
 			data = new OutgoingData();
 			break;
 		}
@@ -75,7 +48,7 @@ public class DataVersioning{
 		int count = 1000000;
 		long time = System.currentTimeMillis();
 		for(int i = 0; i < count; i++) {
-			DataVersioning.get((short) 1, HailPack.TYPE_IN_ACKNOWLEDGE);
+//			DataVersioning.get((short) 1, HailPack.TYPE_IN_ACKNOWLEDGE);
 //			new Acknowledge(); //40ms
 //			try {
 //				Acknowledge.class.newInstance(); //100ms

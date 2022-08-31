@@ -1,20 +1,14 @@
 package io.tapdata.wsclient.modules.imclient.impls.websocket;
 
 import com.alibaba.fastjson.JSONObject;
+import io.tapdata.entity.error.CoreException;
+import io.tapdata.entity.logger.TapLogger;
+import io.tapdata.modules.api.net.data.*;
+import io.tapdata.modules.api.net.error.NetErrors;
 import io.tapdata.wsclient.modules.imclient.impls.MonitorThread;
 import io.tapdata.wsclient.modules.imclient.impls.PushChannel;
-import io.tapdata.wsclient.modules.imclient.impls.data.Data;
-import io.tapdata.wsclient.modules.imclient.impls.data.Identity;
-import io.tapdata.wsclient.modules.imclient.impls.data.IncomingData;
-import io.tapdata.wsclient.modules.imclient.impls.data.IncomingMessage;
-import io.tapdata.wsclient.modules.imclient.impls.data.Ping;
-import com.dobybros.tccore.promise.ErrorHandler;
-import com.dobybros.tccore.promise.Handler;
-import com.dobybros.tccore.promise.Promise;
-import com.dobybros.tccore.promise.ThenHandler;
 import io.tapdata.wsclient.utils.EventManager;
 import io.tapdata.wsclient.utils.HttpUtils;
-import io.tapdata.wsclient.utils.LoggerEx;
 import io.tapdata.wsclient.utils.TimerEx;
 
 import java.io.IOException;
@@ -22,7 +16,9 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledFuture;
+import java.util.function.Supplier;
 
 import io.netty.bootstrap.Bootstrap;
 import io.netty.buffer.ByteBuf;
@@ -46,6 +42,8 @@ import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslContextBuilder;
 import io.netty.handler.ssl.util.InsecureTrustManagerFactory;
 
+import javax.net.ssl.SSLException;
+
 
 public class WebsocketPushChannel extends PushChannel {
     private static final String TAG = WebsocketPushChannel.class.getSimpleName();
@@ -66,52 +64,63 @@ public class WebsocketPushChannel extends PushChannel {
     private EventManager eventManager;
     boolean isConnected = false;
 
-    ScheduledFuture pingFuture;
+    ScheduledFuture<?> pingFuture;
 
     @Override
     public void stop() {
-        LoggerEx.info(TAG, "aaaaaaaaaaaaa");
+        TapLogger.info(TAG, "stop");
         if(pingFuture != null) {
             pingFuture.cancel(true);
         }
-        LoggerEx.info(TAG, "bbbbbbbbbbbbb");
         if(channel != null)
             channel.disconnect();
-        LoggerEx.info(TAG, "ccccccccccccc");
     }
 
-    class IOErrorHandler implements ErrorHandler {
-        private String title;
-        private IOErrorHandler(String title) {
-            this.title = title;
-        }
-        @Override
-        public void handle(Throwable throwable) throws IOException {
-            LoggerEx.error(title + " failed, " + throwable.getMessage(), throwable);
-            if(throwable instanceof IOException) {
-                throw (IOException)throwable;
-            }
-            throw new IOException(title + " failed, " + throwable.getMessage(), throwable);
-        }
-    }
+//    class IOErrorHandler implements ErrorHandler {
+//        private String title;
+//        private IOErrorHandler(String title) {
+//            this.title = title;
+//        }
+//        @Override
+//        public void handle(Throwable throwable) throws IOException {
+//            TapLogger.error(title + " failed, " + throwable.getMessage(), throwable);
+//            if(throwable instanceof IOException) {
+//                throw (IOException)throwable;
+//            }
+//            throw new IOException(title + " failed, " + throwable.getMessage(), throwable);
+//        }
+//    }
     @Override
     public void start() {
         if(imClient == null)
             throw new NullPointerException("IMClient is needed for creating channels.");
         eventManager = EventManager.getInstance();
-        LoggerEx.info(TAG, "PushChannel started");
-        Promise.handle((Handler<Void>) () -> {
+        TapLogger.info(TAG, "PushChannel started");
+
+        CompletableFuture.supplyAsync((Supplier<Void>) () -> {
             login();
-            LoggerEx.info(TAG, "Login successfully, " + host + " " + wsPort + " " + server + " " + sid);
+            TapLogger.debug(TAG, "Login successfully, " + host + " " + wsPort + " " + server + " " + sid);
             return null;
-        }).then((ThenHandler<Void, Void>) param -> {
+        }).thenAccept(unused -> {
             connectWS("wss", host, wsPort, null);
-            LoggerEx.info(TAG, "WS connected successfully, " + host + " " + wsPort + " " + server + " " + sid);
-            return null;
-        }).error(throwable -> {
-            LoggerEx.error(TAG, "WS connected failed, " + host + " " + wsPort + " " + server + " " + sid);
+            TapLogger.debug(TAG, "WS connected successfully, " + host + " " + wsPort + " " + server + " " + sid);
+        }).exceptionally(throwable -> {
+            TapLogger.error(TAG, "WS connected failed, " + host + " " + wsPort + " " + server + " " + sid);
             eventManager.sendEvent(imClient.getPrefix() + ".status", new ChannelStatus(this, ChannelStatus.STATUS_DISCONNECTED, MonitorThread.CHANNEL_ERRORS_LOGIN_FAILED));
+            return null;
         });
+//        Promise.handle((Handler<Void>) () -> {
+//            login();
+//            TapLogger.info(TAG, "Login successfully, " + host + " " + wsPort + " " + server + " " + sid);
+//            return null;
+//        }).then((ThenHandler<Void, Void>) param -> {
+//            connectWS("wss", host, wsPort, null);
+//            TapLogger.info(TAG, "WS connected successfully, " + host + " " + wsPort + " " + server + " " + sid);
+//            return null;
+//        }).error(throwable -> {
+//            TapLogger.error(TAG, "WS connected failed, " + host + " " + wsPort + " " + server + " " + sid);
+//            eventManager.sendEvent(imClient.getPrefix() + ".status", new ChannelStatus(this, ChannelStatus.STATUS_DISCONNECTED, MonitorThread.CHANNEL_ERRORS_LOGIN_FAILED));
+//        });
 
     }
 
@@ -121,15 +130,29 @@ public class WebsocketPushChannel extends PushChannel {
     }
 
     @Override
-    public void sendData(IncomingData data) throws IOException {
-        sendDataPrivate(data);
+    public void send(Data data) {
+        byte[] bytes = data.getData();
+        if(bytes == null) {
+            data.persistent();
+            bytes = data.getData();
+        }
+        if(bytes == null)
+            throw new CoreException(NetErrors.PERSISTENT_FAILED, "Persistent identity " + data.getClass() + " failed");
+
+        ByteBuf byteBuf;
+        if(bytes.length > 0) {
+            byteBuf = Unpooled.directBuffer(1 + 1 + bytes.length);
+            byteBuf.writeByte(data.getType());
+            byteBuf.writeByte(Data.ENCODE_JAVA_CUSTOM_SERIALIZER); //encode
+            byteBuf.writeBytes(bytes);
+        } else {
+            byteBuf = Unpooled.directBuffer(1);
+            byteBuf.writeByte(data.getType());
+        }
+        channel.writeAndFlush(new BinaryWebSocketFrame(byteBuf));
     }
 
-    @Override
-    public void sendMessage(IncomingMessage message) {
-    }
-
-    private void login() throws IOException {
+    private void login() {
         String loginUrl = imClient.getLoginUrl();
 
         JSONObject loginObj = new JSONObject();
@@ -140,27 +163,35 @@ public class WebsocketPushChannel extends PushChannel {
         Map<String, String> headers = new HashMap<>();
 //        headers.put("imapitoken", imClient.getToken());
         headers.put("classtoken", imClient.getToken());
-        JSONObject data = HttpUtils.post(loginUrl, loginObj, headers);
+        JSONObject data = null;
+        try {
+            data = HttpUtils.post(loginUrl, loginObj, headers);
+        } catch (IOException e) {
+            throw new CoreException(NetErrors.WEBSOCKET_LOGIN_FAILED, "Login url {} loginObj {} headers {} failed, {}", loginUrl, loginObj, headers, e.getMessage());
+        }
         wsPort = data.getInteger("wsport");
         host = data.getString("host");
         server = data.getString("s");
         sid = data.getString("sid");
 
         if(wsPort == null || host == null || server == null || sid == null) {
-            throw new IOException("Illegal parameters for wsPort " + wsPort + " host " + host + " server " + server + " sid " + sid);
+            throw new CoreException(NetErrors.WEBSOCKET_LOGIN_FAILED, "Illegal parameters for wsPort " + wsPort + " host " + host + " server " + server + " sid " + sid);
         }
     }
 
-    private void connectWS(String protocol, final String host, final int port, ChannelHandlerContext ctx) throws IOException {
-
+    private void connectWS(String protocol, final String host, final int port, ChannelHandlerContext ctx) {
         if (!"ws".equalsIgnoreCase(protocol) && !"wss".equalsIgnoreCase(protocol)) {
-            throw new IOException("Only WS(S) is supported.");
+            throw new CoreException(NetErrors.WEBSOCKET_PROTOCOL_ILLEGAL, "Only WS(S) is supported.");
         }
 
         final boolean ssl = "wss".equalsIgnoreCase(protocol);
         final SslContext sslCtx;
         if (ssl) {
-            sslCtx = SslContextBuilder.forClient().trustManager(InsecureTrustManagerFactory.INSTANCE).build();
+            try {
+                sslCtx = SslContextBuilder.forClient().trustManager(InsecureTrustManagerFactory.INSTANCE).build();
+            } catch (SSLException e) {
+                throw new CoreException(NetErrors.WEBSOCKET_SSL_FAILED, "Build SSL failed, {}", e.getMessage());
+            }
         } else {
             sslCtx = null;
         }
@@ -172,7 +203,7 @@ public class WebsocketPushChannel extends PushChannel {
             e.printStackTrace();
         }
         if(uri == null)
-            throw new IOException("uri illegal, " + protocol + "://" + host + ":" + port);
+            throw new CoreException(NetErrors.WEBSOCKET_URL_ILLEGAL, "uri illegal, " + protocol + "://" + host + ":" + port);
 
         EventLoopGroup group = new NioEventLoopGroup();
         final WebSocketClientHandler handler = new WebSocketClientHandler(ctx, WebSocketClientHandshakerFactory
@@ -199,53 +230,29 @@ public class WebsocketPushChannel extends PushChannel {
             handler.handshakeFuture().sync();
         } catch (InterruptedException e) {
             e.printStackTrace();
-            throw new IOException("Connect and handshake websocket failed, " + e.getMessage(), e);
+            throw new CoreException(NetErrors.WEBSOCKET_CONNECT_FAILED, "Connect and handshake websocket failed, " + e.getMessage(), e);
         }
-        sendServer();
-        LoggerEx.info(TAG, "connectWS: "+"sendServer");
+//        sendServer();
+        TapLogger.info(TAG, "connectWS: "+"sendServer");
         Identity identity = new Identity();
 //        identity.setSessionId(sid);
-        identity.setSdkVersion(sdkVersion);
-        identity.setTerminal(imClient.getTerminal());
-        identity.setService(imClient.getService());
-        identity.setAppId(appId);
-        identity.setCode(sid);
-        identity.setDeviceToken(deviceToken);
-        identity.setSessionId(sid);
-        identity.setUserId(imClient.getUserId());
-        identity.setKey(key);
+//        identity.setSdkVersion(sdkVersion);
+//        identity.setTerminal(imClient.getTerminal());
+//        identity.setService(imClient.getService());
+//        identity.setAppId(appId);
+//        identity.setCode(sid);
+//        identity.setDeviceToken(deviceToken);
+//        identity.setSessionId(sid);
+//        identity.setUserId(imClient.getUserId());
+//        identity.setKey(key);
         sendIdentity(identity);
-        LoggerEx.info(TAG, "connectWS: "+"sendIdentity"+identity);
+        TapLogger.info(TAG, "connectWS: "+"sendIdentity"+identity);
     }
 
-    private void sendServer() throws IOException {
-        if(channel == null) return;
-        ByteBuf byteBuf = Unpooled.directBuffer(6);
-        byteBuf.writeBytes(server.getBytes("utf8"));
-
-        channel.writeAndFlush(new BinaryWebSocketFrame(byteBuf));
-    }
-
-    private void sendIdentity(Identity data) throws IOException {
+    private void sendIdentity(Identity data) {
         if(channel == null) return;
 
-        byte[] bytes = data.getData();
-        if(bytes == null) {
-            data.persistent();
-            bytes = data.getData();
-        }
-        if(bytes == null)
-            throw new IOException("Persistent identity " + data.getClass() + " failed");
-
-        ByteBuf byteBuf = Unpooled.directBuffer(1 + 2 + 1 + 1 + 4 + bytes.length);
-        byteBuf.writeByte(version); //version
-        byteBuf.writeShort(encodeVersion); //encodeVersion
-        byteBuf.writeByte(data.getType());
-        byteBuf.writeByte(Data.ENCODE_PB); //encode
-        byteBuf.writeInt(bytes.length);
-        byteBuf.writeBytes(bytes);
-
-        channel.writeAndFlush(new BinaryWebSocketFrame(byteBuf));
+        send(data);
     }
 
     boolean isAlive() {
@@ -256,36 +263,37 @@ public class WebsocketPushChannel extends PushChannel {
         if(!isAlive()) return;
         if(pingFuture == null) {
             Ping ping = new Ping();
-            ping.setId("ping");
-            sendDataPrivate(ping);
-            LoggerEx.info(TAG, "ping");
+            send(ping);
+//            ping.setId("ping");
+//            sendDataPrivate(ping);
+//            TapLogger.info(TAG, "ping");
             pingFuture = TimerEx.scheduleInSeconds(() -> {
                 pingFuture = null;
                 stop();
-                LoggerEx.info(TAG, "Stop channel because of ping timeout");
+                TapLogger.info(TAG, "Stop channel because of ping timeout");
             }, 10);
         }
     }
 
-    private void sendDataPrivate(Data data) throws IOException {
-        if(!isAlive()) return;
-
-        byte[] bytes = data.getData();
-        if(bytes == null) {
-            data.persistent();
-            bytes = data.getData();
-        }
-        if(bytes == null)
-            throw new IOException("Persistent data " + data.getClass() + " failed");
-
-
-        ByteBuf byteBuf = Unpooled.directBuffer(1 + 4 + bytes.length);
-        byteBuf.writeByte(data.getType());
-        byteBuf.writeInt(bytes.length);
-        byteBuf.writeBytes(bytes);
-
-        channel.writeAndFlush(new BinaryWebSocketFrame(byteBuf));
-    }
+//    private void sendDataPrivate(Data data) throws IOException {
+//        if(!isAlive()) return;
+//
+//        byte[] bytes = data.getData();
+//        if(bytes == null) {
+//            data.persistent();
+//            bytes = data.getData();
+//        }
+//        if(bytes == null)
+//            throw new IOException("Persistent data " + data.getClass() + " failed");
+//
+//
+//        ByteBuf byteBuf = Unpooled.directBuffer(1 + 4 + bytes.length);
+//        byteBuf.writeByte(data.getType());
+//        byteBuf.writeInt(bytes.length);
+//        byteBuf.writeBytes(bytes);
+//
+//        channel.writeAndFlush(new BinaryWebSocketFrame(byteBuf));
+//    }
 
     public Integer getWsPort() {
         return wsPort;

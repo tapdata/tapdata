@@ -14,6 +14,7 @@ import io.tapdata.modules.api.net.data.Data;
 import io.tapdata.modules.api.net.data.Identity;
 import io.tapdata.modules.api.net.data.Result;
 import io.tapdata.modules.api.net.data.ResultData;
+import io.tapdata.modules.api.net.message.TapMessage;
 import io.tapdata.wsserver.channels.error.WSErrors;
 import io.tapdata.wsserver.channels.gateway.GatewaySessionHandler;
 import io.tapdata.wsserver.channels.gateway.GatewaySessionManager;
@@ -119,9 +120,9 @@ public class GatewayChannelModule {
 
         //OnConnected//异步
         //sendCache//同步
-        Object content = gatewaySessionManager.channelConnected(gatewaySessionHandler);
+        TapMessage message = gatewaySessionManager.channelConnected(gatewaySessionHandler);
 
-        identityReceivedEvent.sendResult(new Result().forId(identity.getId()).code(Data.CODE_SUCCESS).content(jsonParser.toJson(content)).time(System.currentTimeMillis()));
+        identityReceivedEvent.sendResult(new Result().forId(identity.getId()).code(Data.CODE_SUCCESS).message(message).time(System.currentTimeMillis()));
     }
 
     @Subscribe

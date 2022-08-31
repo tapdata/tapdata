@@ -1,8 +1,7 @@
 package io.tapdata.wsclient.modules.imclient;
 
-
-import io.tapdata.wsclient.modules.imclient.data.IMMessage;
+import io.tapdata.modules.api.net.data.Data;
 
 public interface IMMessageListener {
-    public void onMessage(IMMessage message);
+    void onMessage(Data message);
 }

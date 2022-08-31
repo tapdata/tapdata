@@ -1,11 +1,11 @@
 package io.tapdata.wsclient.modules.imclient.impls.websocket;
 
-import io.tapdata.wsclient.modules.imclient.impls.data.Data;
-import io.tapdata.wsclient.modules.imclient.impls.data.HailPack;
-import io.tapdata.wsclient.modules.imclient.impls.data.OutgoingData;
-import io.tapdata.wsclient.modules.imclient.impls.data.Result;
+import io.tapdata.entity.logger.TapLogger;
+import io.tapdata.modules.api.net.data.Data;
+import io.tapdata.modules.api.net.data.OutgoingData;
+import io.tapdata.modules.api.net.data.Result;
+import io.tapdata.wsclient.modules.imclient.impls.data.DataVersioning;
 import io.tapdata.wsclient.utils.EventManager;
-import io.tapdata.wsclient.utils.LoggerEx;
 
 import io.netty.bootstrap.Bootstrap;
 import io.netty.buffer.ByteBuf;
@@ -52,19 +52,19 @@ public class WebSocketClientHandler extends SimpleChannelInboundHandler<Object> 
 
     @Override
     public void handlerAdded(ChannelHandlerContext ctx) {
-        LoggerEx.info(TAG, "handlerAdded, " + ctx.name());
+        TapLogger.info(TAG, "handlerAdded, " + ctx.name());
         handshakeFuture = ctx.newPromise();
     }
 
     @Override
     public void channelActive(ChannelHandlerContext ctx) {
-        LoggerEx.info(TAG, "channelActive, " + ctx.name());
+        TapLogger.info(TAG, "channelActive, " + ctx.name());
         handshaker.handshake(ctx.channel());
     }
 
     @Override
     public void channelInactive(ChannelHandlerContext ctx) {
-        LoggerEx.info(TAG, "channelInactive, " + ctx.name());
+        TapLogger.info(TAG, "channelInactive, " + ctx.name());
         pushChannel.isConnected = false;
         eventManager.sendEvent(pushChannel.getImClient().getPrefix() + ".status", new ChannelStatus(pushChannel, ChannelStatus.STATUS_DISCONNECTED));
     }
@@ -93,70 +93,62 @@ public class WebSocketClientHandler extends SimpleChannelInboundHandler<Object> 
 
         WebSocketFrame frame = (WebSocketFrame) msg;
         if(frame instanceof BinaryWebSocketFrame) {
-            LoggerEx.info(TAG, "channel read");
+            TapLogger.info(TAG, "channel read");
             BinaryWebSocketFrame binaryWebSocketFrame = (BinaryWebSocketFrame) frame;
             ByteBuf byteBuf = binaryWebSocketFrame.content();
             byte type = byteBuf.readByte();
-            int length = byteBuf.readInt();
-            byte[] bytes = new byte[length];
+            byte encode = byteBuf.readByte();
+            byte[] bytes = new byte[byteBuf.readableBytes()];
             byteBuf.readBytes(bytes);
-            Data data = null;
-            switch (type) {
-                case HailPack.TYPE_OUT_RESULT:
-                    data = new Result();
-                    break;
-                case HailPack.TYPE_OUT_OUTGOINGDATA:
-                    data = new OutgoingData();
-                    break;
-                default:
-                    LoggerEx.error("illegal message type " + type + " received in websocket channel, ignored");
-                    break;
-            }
+            Data data = DataVersioning.get(encode, type);
             if(data != null) {
-                data.setData(bytes);
-                data.setEncode(Data.ENCODE_PB);
-                data.setEncodeVersion(WebsocketPushChannel.encodeVersion);
                 data.resurrect();
 
                 if(pushChannel != null && pushChannel.getImClient() != null) {
                     String prefix = pushChannel.getImClient().getPrefix();
                     switch (type) {
-                        case HailPack.TYPE_OUT_RESULT:
+                        case Result.TYPE:
                             Result result = (Result) data;
 
-                            String forId = result.getForId();
-                            if(forId != null && forId.equals("ping") && pushChannel.pingFuture != null) {
-                                LoggerEx.info(TAG, "pong");
-                                if(pushChannel.pingFuture != null) {
-                                    pushChannel.pingFuture.cancel(true);
-                                    pushChannel.pingFuture = null;
-                                }
-                            }
+//                            String forId = result.getForId();
+//                            if(forId != null && forId.equals("ping") && pushChannel.pingFuture != null) {
+//                                TapLogger.info(TAG, "pong");
+//                                if(pushChannel.pingFuture != null) {
+//                                    pushChannel.pingFuture.cancel(true);
+//                                    pushChannel.pingFuture = null;
+//                                }
+//                            }
 
                             if(result.getCode() == 1 && !pushChannel.isConnected) {
                                 pushChannel.isConnected = true;
-                                LoggerEx.info(TAG, "PushChannel connected");
+                                TapLogger.info(TAG, "PushChannel connected");
                                 eventManager.sendEvent(prefix + ".status", new ChannelStatus(pushChannel, ChannelStatus.STATUS_CONNECTED));
                             } else if(result.getCode() == 11) {
                                 eventManager.sendEvent(prefix + ".status", new ChannelStatus(pushChannel, ChannelStatus.STATUS_OFFLINEMESSAGECONSUMED));
                             } else if(result.getCode() == 1075) { //kicked
-                                LoggerEx.info(TAG, "PushChannel kicked");
+                                TapLogger.info(TAG, "PushChannel kicked");
                                 eventManager.sendEvent(pushChannel.getImClient().getPrefix() + ".status", new ChannelStatus(pushChannel, ChannelStatus.STATUS_KICKED));
                             } else if(result.getCode() == 1094) {
-                                LoggerEx.info(TAG, "PushChannel byed");
+                                TapLogger.info(TAG, "PushChannel byed");
                                 eventManager.sendEvent(pushChannel.getImClient().getPrefix() + ".status", new ChannelStatus(pushChannel, ChannelStatus.STATUS_BYE));
                             } else {
-                                LoggerEx.info(TAG, "PushChannel receive result " + result);
+                                TapLogger.info(TAG, "PushChannel receive result " + result);
                                 eventManager.sendEvent(prefix + ".result", result);
                             }
                             break;
-                        case HailPack.TYPE_OUT_OUTGOINGDATA:
-                            OutgoingData outgoingData = (OutgoingData) data;
-                            eventManager.sendEvent(prefix + ".data", outgoingData);
-                            eventManager.sendEvent(prefix + ".data." + outgoingData.getContentType(), outgoingData);
+                        default:
+                            eventManager.sendEvent(prefix + "." + data.getClass().getSimpleName(), data);
+                            eventManager.sendEvent(prefix + "." + data.getClass().getSimpleName() + "." + data.getContentType(), data);
                             break;
+//                        case HailPack.TYPE_OUT_OUTGOINGDATA:
+//                            OutgoingData outgoingData = (OutgoingData) data;
+//                            eventManager.sendEvent(prefix + ".data", outgoingData);
+//                            eventManager.sendEvent(prefix + ".data." + outgoingData.getContentType(), outgoingData);
+//                            break;
                     }
                 }
+            } else {
+                TapLogger.error(TAG, "illegal message type " + type + " received in websocket channel, ignored");
             }
         } else if (frame instanceof TextWebSocketFrame) {
             TextWebSocketFrame textFrame = (TextWebSocketFrame) frame;
@@ -202,7 +194,7 @@ public class WebSocketClientHandler extends SimpleChannelInboundHandler<Object> 
 
     @Override
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
-        LoggerEx.error(TAG, "exceptionCaught, " + ctx.name() + " cause " + cause.getMessage(), cause);
+        TapLogger.error(TAG, "exceptionCaught, " + ctx.name() + " cause " + cause.getMessage(), cause);
         cause.printStackTrace();
         if (!handshakeFuture.isDone()) {
             handshakeFuture.setFailure(cause);
