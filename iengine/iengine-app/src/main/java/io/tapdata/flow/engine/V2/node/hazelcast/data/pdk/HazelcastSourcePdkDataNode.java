@@ -100,8 +100,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 			TaskMilestoneFuncAspect.execute(dataProcessorContext, MilestoneStage.INIT_CONNECTOR, MilestoneStatus.ERROR, logger);
 			MilestoneUtil.updateMilestone(milestoneService, MilestoneStage.INIT_CONNECTOR, MilestoneStatus.ERROR, e.getMessage() + "\n" + Log4jUtil.getStackString(e));
 			//Notify error for task.
-			errorHandle(new NodeException(e).context(getProcessorBaseContext()), e.getMessage());
-			throw e;
+			throw errorHandle(e, "init failed");
 		}
 	}
 
@@ -471,9 +470,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 										}
 									}
 								} catch (Throwable throwable) {
-									String error = "Error processing incremental data, error: " + throwable.getMessage();
-									NodeException nodeException = new NodeException(error, throwable).context(getProcessorBaseContext());
-									errorHandle(nodeException, nodeException.getMessage());
+									errorHandle(throwable, "Error processing incremental data, error: " + throwable.getMessage());
 								} finally {
 									try {
 										sourceRunnerLock.unlock();
