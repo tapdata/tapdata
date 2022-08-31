@@ -16,6 +16,7 @@ import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.collections.MapUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.ThreadContext;
 
 import java.util.ArrayList;
 import java.util.Date;
@@ -139,6 +140,8 @@ public class PartitionConcurrentProcessor {
 				} catch (Throwable throwable) {
 					running.compareAndSet(true, false);
 					errorHandler.accept(throwable, "process watermark event failed");
+				} finally {
+					ThreadContext.clearAll();
 				}
 			}
 		});
@@ -149,47 +152,51 @@ public class PartitionConcurrentProcessor {
 			final LinkedBlockingQueue<PartitionEvent<TapdataEvent>> linkedBlockingQueue = partitionsQueue.get(partition);
 			int finalPartition = partition;
 			executorService.submit(() -> {
-				Log4jUtil.setThreadContext(taskDto);
-				Thread.currentThread().setName(concurrentProcessThreadNamePrefix + finalPartition);
-				List<TapdataEvent> processEvents = new ArrayList<>();
-				while (running.get()) {
-					try {
-						List<PartitionEvent<TapdataEvent>> events = new ArrayList<>();
-						Queues.drain(linkedBlockingQueue, events, batchSize, 3, TimeUnit.SECONDS);
-						if (CollectionUtils.isNotEmpty(events)) {
-							for (PartitionEvent partitionEvent : events) {
-								if (partitionEvent instanceof NormalEvent) {
-									final NormalEvent<?> normalEvent = (NormalEvent<?>) partitionEvent;
-									final TapdataEvent event = (TapdataEvent) normalEvent.getEvent();
-									processEvents.add(event);
-								} else if (partitionEvent instanceof WatermarkEvent) {
-									final CountDownLatch countDownLatch = ((WatermarkEvent) partitionEvent).getCountDownLatch();
-									countDownLatch.countDown();
-								} else {
-									if (CollectionUtils.isNotEmpty(processEvents)) {
-										eventProcessor.accept(processEvents);
-										processEvents.clear();
-									}
-									final CountDownLatch countDownLatch = ((BarrierEvent) partitionEvent).getCountDownLatch();
-									countDownLatch.countDown();
-									while (running.get() && !countDownLatch.await(3L, TimeUnit.SECONDS)) {
-										if (logger.isDebugEnabled()) {
-											logger.debug(LOG_PREFIX + "thread-{} process completed, waiting other thread completed.", finalPartition);
+				try {
+					Log4jUtil.setThreadContext(taskDto);
+					Thread.currentThread().setName(concurrentProcessThreadNamePrefix + finalPartition);
+					List<TapdataEvent> processEvents = new ArrayList<>();
+					while (running.get()) {
+						try {
+							List<PartitionEvent<TapdataEvent>> events = new ArrayList<>();
+							Queues.drain(linkedBlockingQueue, events, batchSize, 3, TimeUnit.SECONDS);
+							if (CollectionUtils.isNotEmpty(events)) {
+								for (PartitionEvent partitionEvent : events) {
+									if (partitionEvent instanceof NormalEvent) {
+										final NormalEvent<?> normalEvent = (NormalEvent<?>) partitionEvent;
+										final TapdataEvent event = (TapdataEvent) normalEvent.getEvent();
+										processEvents.add(event);
+									} else if (partitionEvent instanceof WatermarkEvent) {
+										final CountDownLatch countDownLatch = ((WatermarkEvent) partitionEvent).getCountDownLatch();
+										countDownLatch.countDown();
+									} else {
+										if (CollectionUtils.isNotEmpty(processEvents)) {
+											eventProcessor.accept(processEvents);
+											processEvents.clear();
+										}
+										final CountDownLatch countDownLatch = ((BarrierEvent) partitionEvent).getCountDownLatch();
+										countDownLatch.countDown();
+										while (running.get() && !countDownLatch.await(3L, TimeUnit.SECONDS)) {
+											if (logger.isDebugEnabled()) {
+												logger.debug(LOG_PREFIX + "thread-{} process completed, waiting other thread completed.", finalPartition);
+											}
 										}
 									}
 								}
+								if (CollectionUtils.isNotEmpty(processEvents)) {
+									eventProcessor.accept(processEvents);
+									processEvents.clear();
+								}
 							}
-							if (CollectionUtils.isNotEmpty(processEvents)) {
-								eventProcessor.accept(processEvents);
-								processEvents.clear();
-							}
+						} catch (InterruptedException e) {
+							break;
+						} catch (Throwable throwable) {
+							running.compareAndSet(true, false);
+							errorHandler.accept(throwable, "process watermark event failed");
 						}
-					} catch (InterruptedException e) {
-						break;
-					} catch (Throwable throwable) {
-						running.compareAndSet(true, false);
-						errorHandler.accept(throwable, "process watermark event failed");
 					}
+				} finally {
+					ThreadContext.clearAll();
 				}
 			});
 		}

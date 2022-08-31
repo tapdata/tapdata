@@ -271,9 +271,6 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         // 过滤设置
         taskDto.setIsFilter(getBoolValue(taskDto.getIsFilter(), false));
 
-        // 自动处理ddl
-        taskDto.setIsOpenAutoDDL(getBoolValue(taskDto.getIsOpenAutoDDL(), true));
-
         // 定时调度任务
         taskDto.setIsSchedule(getBoolValue(taskDto.getIsSchedule(), false));
 
@@ -399,7 +396,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
                     taskSaveService.syncTaskSetting(taskDto, user);
 
-                    transformSchemaService.transformSchema(dag, user, taskDto.getId());
+                    transformSchemaAsyncService.transformSchema(dag, user, taskDto.getId());
                 }
             } else {
                 transformSchemaService.transformSchema(dag, user, taskDto.getId());

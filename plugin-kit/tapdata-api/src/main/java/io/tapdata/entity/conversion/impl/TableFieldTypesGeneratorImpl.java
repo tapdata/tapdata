@@ -29,7 +29,7 @@ public class TableFieldTypesGeneratorImpl implements TableFieldTypesGenerator {
                     }
                 } else {
                     entry.getValue().setTapType(tapRaw());
-                    TapLogger.warn(TAG, "Field dataType {} didn't match corresponding TapMapping, TapRaw will be used for this dataType. ", entry.getValue().getDataType());
+                    TapLogger.debug(TAG, "Field dataType {} didn't match corresponding TapMapping, TapRaw will be used for this dataType. ", entry.getValue().getDataType());
                 }
             }
         }
@@ -46,7 +46,7 @@ public class TableFieldTypesGeneratorImpl implements TableFieldTypesGenerator {
             }
         } else {
             tapField.setTapType(tapRaw());
-            TapLogger.warn(TAG, "Field originType {} didn't match corresponding TapMapping, TapRaw will be used for this dataType. ", tapField.getDataType());
+            TapLogger.debug(TAG, "Field originType {} didn't match corresponding TapMapping, TapRaw will be used for this dataType. ", tapField.getDataType());
         }
     }
 }
