@@ -6,6 +6,7 @@ import cn.hutool.extra.spring.SpringUtil;
 import com.google.common.base.Splitter;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.commons.dag.Node;
+import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.message.constant.Level;
@@ -35,6 +36,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.text.MessageFormat;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
 @Service
@@ -154,13 +156,14 @@ public class TaskDagCheckLogServiceImpl implements TaskDagCheckLogService {
 
             result.setModelList(collect);
 
-            boolean present = modelLogs.stream()
-                    .filter(n -> DagOutputTemplateEnum.MODEL_PROCESS_CHECK.name().equals(n.getCheckType()))
-                    .anyMatch(n -> {
-                        int size = taskDto.getDag().getSourceNode().getFirst().getTableNames().size();
-                        return n.getLog().contains(size + "/" + size) || n.getGrade().equals(Level.ERROR.getValue());
-                    });
+            boolean present = taskDto.getTransformed();
+
             result.setOver(present);
+
+            // over=true => To prevent the front-end parallel request from getting old data
+            if (present) {
+                CompletableFuture.runAsync(() -> removeAllByTaskId(taskId));
+            }
         }
 
         return result;

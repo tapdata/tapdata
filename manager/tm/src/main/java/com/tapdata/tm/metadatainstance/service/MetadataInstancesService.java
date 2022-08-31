@@ -694,7 +694,7 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
         return findAllDto(Query.query(criteria), userDetail);
     }
 
-    public List<MetadataInstancesDto> findBySourceIdAndTableNameListNeTaskId(String sourceId, List<String> tableNames, UserDetail userDetail, String taskId) {
+    public List<MetadataInstancesDto> findBySourceIdAndTableNameListNeTaskId(String sourceId, List<String> tableNames, UserDetail userDetail) {
         Criteria criteria = Criteria
                 .where("meta_type").in(Lists.of("table", "collection", "view"))
                 .and("is_deleted").ne(true)

@@ -17,6 +17,7 @@ import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * @Author: Zed
@@ -72,6 +73,10 @@ public class TaskStartServiceImpl implements TaskStartService {
 
     @Override
     public boolean taskStartCheckLog(TaskDto taskDto, UserDetail userDetail) {
+        if (!TaskDto.SYNC_TYPE_MIGRATE.equals(taskDto.getSyncType())) {
+            return false;
+        }
+
         taskDagCheckLogService.removeAllByTaskId(taskDto.getId().toHexString());
 
         boolean saveNoPass = false;

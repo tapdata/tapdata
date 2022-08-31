@@ -136,8 +136,6 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 					// MILESTONE-READ_CDC_EVENT-ERROR
 					TaskMilestoneFuncAspect.execute(dataProcessorContext, MilestoneStage.READ_CDC_EVENT, MilestoneStatus.ERROR);
 					MilestoneUtil.updateMilestone(milestoneService, MilestoneStage.READ_CDC_EVENT, MilestoneStatus.ERROR, e.getMessage() + "\n" + Log4jUtil.getStackString(e));
-					logger.error("Read CDC failed, error message: " + e.getMessage(), e);
-					obsLogger.error("Read CDC failed, error message: " + e.getMessage(), e);
 					throw e;
 				} finally {
 					AspectUtils.executeAspect(sourceStateAspect.state(SourceStateAspect.STATE_CDC_COMPLETED));
@@ -273,6 +271,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 						if (CollectionUtils.isNotEmpty(newTables)) {
 							tableList.clear();
 							tableList.addAll(newTables);
+							doCount(tableList);
 							newTables.clear();
 						} else {
 							this.endSnapshotLoop.set(true);

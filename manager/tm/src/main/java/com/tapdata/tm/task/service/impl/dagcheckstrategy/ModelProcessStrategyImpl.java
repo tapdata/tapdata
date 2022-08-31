@@ -36,6 +36,9 @@ public class ModelProcessStrategyImpl implements DagLogStrategy {
 
         String taskId = taskDto.getId().toHexString();
         LinkedList<DatabaseNode> sourceNode = taskDto.getDag().getSourceNode();
+        if (CollectionUtils.isEmpty(sourceNode)) {
+            return null;
+        }
         int total = sourceNode.getFirst().getTableNames().size();
 
         BigDecimal time = new BigDecimal(total).divide(new BigDecimal(50), 1, RoundingMode.HALF_UP);
@@ -50,26 +53,6 @@ public class ModelProcessStrategyImpl implements DagLogStrategy {
         preLog.setGrade(Level.INFO.getValue());
         result.add(preLog);
 
-        int dagHash = taskDagService.calculationDagHash(taskDto);
-
-        if (dagHash == taskDto.getTransformDagHash() && taskDto.getTransformed()) {
-            if (CollectionUtils.isNotEmpty(sourceNode)) {
-
-                String content = MessageFormat.format(templateEnum.getInfoTemplate(), DateUtil.now(), total, total);
-
-                TaskDagCheckLog log = new TaskDagCheckLog();
-                log.setTaskId(taskId);
-                log.setCheckType(templateEnum.name());
-                log.setCreateAt(DateUtil.date());
-                log.setCreateUser(userDetail.getUserId());
-                log.setLog(content);
-                log.setGrade(Level.INFO.getValue());
-
-                result.add(log);
-                return result;
-            }
-
-        }
         return result;
     }
 }
