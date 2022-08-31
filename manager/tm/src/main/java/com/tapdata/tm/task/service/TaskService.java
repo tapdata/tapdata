@@ -2971,7 +2971,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         Criteria migrateCriteria = Criteria.where("syncType").is("migrate")
                 .and("status").is(TaskDto.STATUS_WAIT_START)
                 .and("planStartDateFlag").is(true)
-                .and("planStartDate").lte(DateUtil.now());
+                .and("planStartDate").lte(DateUtil.current());
         Query taskQuery = new Query(migrateCriteria);
         log.info("startPlanMigrateDagTask query {}", taskQuery);
         List<TaskDto> taskList = findAll(taskQuery);
