@@ -137,7 +137,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 			initBatchAndStreamOffset(taskDto);
 		}
 		initDDLFilter();
-		this.sourceRunnerLock = new ReentrantLock();
+		this.sourceRunnerLock = new ReentrantLock(true);
 		this.endSnapshotLoop = new AtomicBoolean(false);
 		this.transformerWsMessageDto = clientMongoOperator.findOne(new Query(),
 				ConnectorConstant.TASK_COLLECTION + "/transformParam/" + processorBaseContext.getTaskDto().getId().toHexString(),
@@ -642,6 +642,9 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 					dagDataService.coverMetaDataByTapTable(qualifiedName, tapTable);
 					errorMessage = dag.transformSchema(null, dagDataService, transformerWsMessageDto.getOptions());
 					MetadataInstancesDto metadata = dagDataService.getMetadata(qualifiedName);
+					if (metadata.getId() == null) {
+						metadata.setId(metadata.getOldId());
+					}
 					updateMetadata.put(metadata.getId().toHexString(), metadata);
 					logger.info("Alter table schema transform finished");
 				}

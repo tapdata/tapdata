@@ -164,14 +164,14 @@ public abstract class Node<S> extends Element{
         if (schema == null) {
             try {
                 schema = loadSchema(options.getIncludes());
-                log.info("load schema complete, schema = {}", schema);
+                log.info("load schema complete");
             } catch (Exception e) {
                 log.error("Load schema failed.", e);
             }
         }
 
         List<S> inputSchemas = getInputSchema();
-        log.info("input schema = {}", inputSchemas);
+        log.info("input schema = {}", inputSchemas == null ? null: inputSchemas.size());
         // 防止子类直接修改原始模型，这里需要对输入模型（inputSchema）、当前节点原始模型（schema）进行复制
         boolean mergedSchema = false;   // 输入模型为null，不进行merge操作，不需要执行保存更新
         if (inputSchemas != null && inputSchemas.size() > 0) {
@@ -201,7 +201,7 @@ public abstract class Node<S> extends Element{
                 }
             }
             outputSchema = mergeSchema(inputSchemas, cloneSchema(schema));
-            log.info("merge schema complete, result = {}", outputSchema);
+            log.info("merge schema complete");
             mergedSchema = true;  // 进行merge操作，需要执行保存/更新
         } else {
             this.outputSchema = cloneSchema(schema);
@@ -215,7 +215,7 @@ public abstract class Node<S> extends Element{
                 try {
                     Collection<String> predecessors = getGraph().predecessors(nodeId);
                     //需要保存的地方就可以存储异步推演的内容
-                    log.info("save transform schema, schema = {}", changedSchema);
+                    log.info("save transform schema");
                     outputSchema = saveSchema(predecessors, nodeId, changedSchema, options);
                     List<String> sourceQualifiedNames;
                     if (outputSchema instanceof List) {

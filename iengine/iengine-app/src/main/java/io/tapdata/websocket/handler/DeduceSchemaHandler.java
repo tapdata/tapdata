@@ -4,7 +4,9 @@ import com.alibaba.fastjson.JSON;
 import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.constant.JSONUtil;
 import com.tapdata.entity.schema.SchemaApplyResult;
+import com.tapdata.manager.common.utils.JsonUtil;
 import com.tapdata.mongo.ClientMongoOperator;
+import com.tapdata.tm.autoinspect.utils.GZIPUtil;
 import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.DAGDataServiceImpl;
 import com.tapdata.tm.commons.dag.vo.MigrateJsResultVo;
@@ -24,6 +26,7 @@ import org.apache.commons.collections.CollectionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -50,7 +53,11 @@ public class DeduceSchemaHandler implements WebSocketEventHandler<WebSocketEvent
 
 	@Override
 	public WebSocketEventResult handle(Map event) {
-		DeduceSchemaRequest request = JSONUtil.map2POJO(event, DeduceSchemaRequest.class);
+		String data = (String) event.get("data");
+		byte[] decode = Base64.getDecoder().decode(data);
+		byte[] bytes = GZIPUtil.unGzip(decode);
+		String json = new String(bytes);
+		DeduceSchemaRequest request = JsonUtil.parseJsonUseJackson(json, DeduceSchemaRequest.class);
 
 		DAGDataServiceImpl dagDataService = new DAGDataServiceImpl(
 			request.getMetadataInstancesDtoList(),
@@ -114,7 +121,9 @@ public class DeduceSchemaHandler implements WebSocketEventHandler<WebSocketEvent
 			}
 		};
 
+		long start = System.currentTimeMillis();
 		Map<String, List<Message>> transformSchema = request.getTaskDto().getDag().transformSchema(null, dagDataService, request.getOptions());
+		logger.info("transformed cons={}", System.currentTimeMillis()-start + "ms");
 
 		TransformerWsMessageResult wsMessageResult = new TransformerWsMessageResult();
 		wsMessageResult.setBatchMetadataUpdateMap(dagDataService.getBatchMetadataUpdateMap());

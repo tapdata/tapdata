@@ -115,8 +115,8 @@ public class Application {
 
 				@Override
 				public void warn(String log) {
-					pdkLogger.warn(log);
-//					System.out.println(log);
+//					pdkLogger.warn(log);
+					System.out.println(log);
 				}
 
 				@Override
