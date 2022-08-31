@@ -20,8 +20,8 @@ import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.dag.process.*;
 import com.tapdata.tm.commons.dag.vo.TableRenameTableInfo;
-import com.tapdata.tm.commons.schema.*;
 import com.tapdata.tm.commons.schema.Field;
+import com.tapdata.tm.commons.schema.*;
 import com.tapdata.tm.commons.schema.bean.Schema;
 import com.tapdata.tm.commons.schema.bean.SourceDto;
 import com.tapdata.tm.commons.schema.bean.Table;
@@ -145,6 +145,12 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
         }
 
         Page<MetadataInstancesDto> page = find(filter, user);
+        if (page.getTotal() == 0 && filter.getWhere().containsKey("taskId")) {
+            // maybe model deduction slow then task model not save, could query physics table meta
+            filter.getWhere().remove("taskId");
+            filter.getWhere().put("taskId", ImmutableMap.of("$exists", false));
+            page = find(filter, user);
+        }
         List<MetadataInstancesDto> metadataInstancesDtoList = page.getItems();
 
         afterFindAll(metadataInstancesDtoList, user);
@@ -688,7 +694,7 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
         return findAllDto(Query.query(criteria), userDetail);
     }
 
-    public List<MetadataInstancesDto> findBySourceIdAndTableNameListNeTaskId(String sourceId, List<String> tableNames, UserDetail userDetail, String taskId) {
+    public List<MetadataInstancesDto> findBySourceIdAndTableNameListNeTaskId(String sourceId, List<String> tableNames, UserDetail userDetail) {
         Criteria criteria = Criteria
                 .where("meta_type").in(Lists.of("table", "collection", "view"))
                 .and("is_deleted").ne(true)
@@ -743,17 +749,19 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
 
 
 
-    public List<MetadataInstancesDto> findByQualifiedNameNotDelete(List<String> qualifiedNames, UserDetail user, String... fieldName) {
+    public List<MetadataInstancesDto> findByQualifiedNameNotDelete(List<String> qualifiedNames, UserDetail user, String... excludeFiled) {
         Criteria criteria = Criteria.where("qualified_name").in(qualifiedNames).and("is_deleted").ne(true);
 
         Query query = new Query(criteria);
+        query.fields().exclude(excludeFiled);
         return findAllDto(query, user);
     }
 
-    public List<MetadataInstancesDto> findDatabaseScheme(List<String> databaseIds, UserDetail user) {
+    public List<MetadataInstancesDto> findDatabaseSchemeNoHistory(List<String> databaseIds, UserDetail user) {
         Criteria criteria = Criteria.where("source._id").in(databaseIds).and("meta_type").is("database").and("is_deleted").ne(true);
 
         Query query = new Query(criteria);
+        query.fields().exclude("histories");
         return findAllDto(query, user);
     }
 
@@ -828,7 +836,7 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
 
 
     public int bulkSave(List<MetadataInstancesDto> insertMetaDataDtos,
-                        Map<String, MetadataInstancesDto> updateMetaMap, UserDetail userDetail, boolean saveHistory, String taskId) {
+                        Map<String, MetadataInstancesDto> updateMetaMap, UserDetail userDetail, boolean saveHistory, String taskId, String uuid) {
 
         BulkOperations bulkOperations = repository.bulkOperations(BulkOperations.BulkMode.UNORDERED);
 
@@ -863,7 +871,21 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
             }
 
             insertMetaDataDtos.addAll(logicMetas);
+
+
+            //动态新增表做的兼容处理
+            String insertUuid = uuid;
+            if (saveHistory) {
+                Query query = new Query(Criteria.where("taskId").is(taskId)
+                        .and("is_deleted").ne(true)
+                        .and("transformUuid").exists(true));
+                query.fields().include("transformUuid");
+                MetadataInstancesDto one = findOne(query);
+                insertUuid = one.getTransformUuid();
+            }
+
             for (MetadataInstancesDto metadataInstancesDto : insertMetaDataDtos) {
+                metadataInstancesDto.setTransformUuid(insertUuid);
                 MetadataInstancesEntity metadataInstance = convertToEntity(MetadataInstancesEntity.class, metadataInstancesDto);
 
 
@@ -908,6 +930,9 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
                 value.setHistories(null);
                 value.setSource(null);
                 value.setId(null);
+                if (StringUtils.isNotBlank(uuid) && !saveHistory) {
+                    value.setTransformUuid(uuid);
+                }
                 MetadataInstancesEntity entity = convertToEntity(MetadataInstancesEntity.class, value);
                 Update update = repository.buildUpdateSet(entity, userDetail);
 
@@ -942,6 +967,12 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
 
             if (saveHistory) {
                 qualifiedNameLinkLogic(qualifiedNames, userDetail);
+            }
+
+            if (StringUtils.isNotBlank(uuid) && !saveHistory) {
+                Criteria deleteOldMetadata = Criteria.where("taskId").is(taskId)
+                        .and("transformUuid").ne(uuid);
+                deleteAll(new Query(deleteOldMetadata), userDetail);
             }
             return result.getModifiedCount();
         } else {
@@ -1264,6 +1295,14 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
         }
 
         return qualifiedNames;
+    }
+
+    public List<MetadataInstancesDto> findByNodeId(String nodeId, UserDetail userDetail) {
+        Criteria criteria = Criteria
+                .where("is_deleted").ne(true)
+                .and("nodeId").is(nodeId);
+
+        return findAllDto(Query.query(criteria), userDetail);
     }
 
     public List<MetadataInstancesDto> findByNodeId(String nodeId, List<String> fields, UserDetail user, TaskDto taskDto) {

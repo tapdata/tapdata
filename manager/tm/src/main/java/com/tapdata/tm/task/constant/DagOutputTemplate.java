@@ -128,6 +128,7 @@ public class DagOutputTemplate {
      * 【WARN】 2022-05-24 21:05:22  【任务A】【模型推演检测】：表名{表名A}检测异常，异常原因：字段推演异常
      */
     public static String MODEL_PROCESS_INFO = "$date【$taskName】【模型推演检测】：推演进度{1}/{2}，检测正常";
+    public static String MODEL_PROCESS_INFO_PRELOG = "$date【$taskName】【模型推演检测】：目标表结构生成中, 需要生成的表数量: {0}, 大约需要 {1}s, 请等待";
     public static String MODEL_PROCESS_ERROR = "$date【$taskName】【模型推演检测】：检测异常，异常原因：{1}";
 
     /**

@@ -1245,7 +1245,7 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 			metadataInstancesService.update(new Query(criteria), update, user);
 		}
 
-		sendTestConnection(connectionDto, false, submit, user);
+		sendTestConnection(connectionDto, true, submit, user);
 		desensitizeMongoConnection(connectionDto);
 	}
 

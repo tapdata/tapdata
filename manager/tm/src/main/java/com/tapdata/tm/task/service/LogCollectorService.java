@@ -139,7 +139,7 @@ public class LogCollectorService {
 
 
         Query taskQuery = new Query(taskCriteria);
-        taskQuery.fields().include("_id", "syncType", "name", "status");
+        taskQuery.fields().include("_id", "syncType", "name", "status", "attrs");
         List<TaskDto> allDtos = taskService.findAllDto(taskQuery, user);
 
 
@@ -423,7 +423,7 @@ public class LogCollectorService {
         logCollectorVo.setStatus(taskDto.getStatus());
         logCollectorVo.setSyncTimestamp(new Date());
         logCollectorVo.setSourceTimestamp(new Date());
-        logCollectorVo.setSyncType(taskDto.getParentSyncType());
+        logCollectorVo.setSyncType(taskDto.getSyncType());
 
         DAG dag = taskDto.getDag();
         try {
@@ -582,18 +582,18 @@ public class LogCollectorService {
      */
     public Boolean checkUpdateConfig(UserDetail user) {
         //查询所有的开启挖掘的任务跟，挖掘任务，是否都停止并且重置
-        Criteria criteria = Criteria.where("shareCdcEnable").is(true).and("is_deleted").is(false).and("statuses").elemMatch(Criteria.where("status").ne(TaskDto.STATUS_EDIT));
+        Criteria criteria = Criteria.where("shareCdcEnable").is(true).and("is_deleted").is(false).and("status").ne(TaskDto.STATUS_EDIT);
         Query query = new Query(criteria);
-        query.fields().include("shareCdcEnable", "is_deleted", "statuses");
+        query.fields().include("shareCdcEnable", "is_deleted", "status");
         TaskDto taskDto = taskService.findOne(query);
         if (taskDto != null) {
             return false;
         }
 
         Criteria criteria1 = Criteria.where("is_deleted").is(false).and("dag.nodes").elemMatch(Criteria.where("type").is("logCollector"))
-                .and("statuses").elemMatch(Criteria.where("status").ne(TaskDto.STATUS_EDIT));
+                .and("status").ne(TaskDto.STATUS_EDIT);
         Query query1 = new Query(criteria1);
-        query1.fields().include("shareCdcEnable", "is_deleted", "statuses");
+        query1.fields().include("shareCdcEnable", "is_deleted", "status");
         TaskDto taskDto1 = taskService.findOne(query1);
         return taskDto1 == null;
     }
@@ -1144,8 +1144,8 @@ public class LogCollectorService {
 
     //将启动的挖掘任务id更新到任务中去
     private void updateLogCollectorMap(ObjectId taskId, Map<String, String> newLogCollectorMap, UserDetail user) {
-        List<TaskDto> TaskDtos = taskService.findByTaskId(taskId, "dag", "_id");
-        if (CollectionUtils.isEmpty(TaskDtos)) {
+        TaskDto taskDto = taskService.findByTaskId(taskId, "dag", "_id");
+        if (taskDto == null) {
             return;
         }
 
@@ -1154,29 +1154,25 @@ public class LogCollectorService {
             return;
         }
 
-        for (TaskDto TaskDto : TaskDtos) {
-            DAG dag = TaskDto.getDag();
-            List<Node> sources = dag.getSources();
-            Map<String, String> shareCdcTaskId = TaskDto.getShareCdcTaskId();
-            if (shareCdcTaskId == null) {
-                shareCdcTaskId = new HashMap<>();
-                TaskDto.setShareCdcTaskId(shareCdcTaskId);
-            }
-
-            for (Node source : sources) {
-                if (source instanceof DataParentNode) {
-                    String id = ((DataParentNode<?>) source).getConnectionId();
-                    if (newLogCollectorMap.get(id) != null) {
-                        shareCdcTaskId.put(id, newLogCollectorMap.get(id));
-                    }
-                }
-            }
-
-            Update update = new Update();
-            update.set("shareCdcTaskId", shareCdcTaskId);
-            taskService.updateById(TaskDto.getId(), update, user);
+        DAG dag = taskDto.getDag();
+        List<Node> sources = dag.getSources();
+        Map<String, String> shareCdcTaskId = taskDto.getShareCdcTaskId();
+        if (shareCdcTaskId == null) {
+            shareCdcTaskId = new HashMap<>();
+            taskDto.setShareCdcTaskId(shareCdcTaskId);
         }
 
+        for (Node source : sources) {
+            if (source instanceof DataParentNode) {
+                String id = ((DataParentNode<?>) source).getConnectionId();
+                if (newLogCollectorMap.get(id) != null) {
+                    shareCdcTaskId.put(id, newLogCollectorMap.get(id));
+                }
+            }
+        }
 
+        Update update = new Update();
+        update.set("shareCdcTaskId", shareCdcTaskId);
+        taskService.updateById(taskDto.getId(), update, user);
     }
 }

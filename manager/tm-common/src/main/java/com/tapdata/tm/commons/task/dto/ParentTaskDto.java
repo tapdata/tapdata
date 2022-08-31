@@ -229,6 +229,11 @@ public class ParentTaskDto extends SchedulableDto {
 
     private Long tmCurrentTime;
 
+    private String transformUuid;
+    private Boolean transformed;
+
+    private int transformDagHash;
+
     public List<String> getAccessNodeProcessIdList() {
         accessNodeProcessIdList = new ArrayList<>();
         if (StringUtils.equals(AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER.name(), accessNodeType)

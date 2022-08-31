@@ -24,6 +24,7 @@ import com.tapdata.tm.commons.task.dto.Message;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.Runnable.LoadSchemaRunner;
 import io.tapdata.aspect.SourceCDCDelayAspect;
+import io.tapdata.aspect.SourceDynamicTableAspect;
 import io.tapdata.aspect.TaskMilestoneFuncAspect;
 import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
@@ -60,6 +61,7 @@ import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.ThreadContext;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.data.mongodb.core.query.Query;
 
@@ -135,7 +137,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 			initBatchAndStreamOffset(taskDto);
 		}
 		initDDLFilter();
-		this.sourceRunnerLock = new ReentrantLock();
+		this.sourceRunnerLock = new ReentrantLock(true);
 		this.endSnapshotLoop = new AtomicBoolean(false);
 		this.transformerWsMessageDto = clientMongoOperator.findOne(new Query(),
 				ConnectorConstant.TASK_COLLECTION + "/transformParam/" + processorBaseContext.getTaskDto().getId().toHexString(),
@@ -172,6 +174,10 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 	private boolean needDynamicTable(Object obj) {
 		Node<?> node = dataProcessorContext.getNode();
 		if (node instanceof DatabaseNode) {
+			String migrateTableSelectType = ((DatabaseNode) node).getMigrateTableSelectType();
+			if (StringUtils.isBlank(migrateTableSelectType) || !"all".equals(migrateTableSelectType)) {
+				return false;
+			}
 			Boolean enableDynamicTable = ((DatabaseNode) node).getEnableDynamicTable();
 			if (null == enableDynamicTable || !enableDynamicTable) {
 				return false;
@@ -309,6 +315,15 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 				pendingEvent = null;
 			} else {
 				dataEvent = eventQueue.poll(5, TimeUnit.SECONDS);
+				if (null != dataEvent) {
+					// covert to tap value before enqueue the event. when the event is enqueued into the eventQueue,
+					// the event is considered been output to the next node.
+					TapCodecsFilterManager codecsFilterManager = getConnectorNode().getCodecsFilterManager();
+					TapEvent tapEvent = dataEvent.getTapEvent();
+					if (sourceMode == SourceMode.NORMAL) {
+						tapRecordToTapValue(tapEvent, codecsFilterManager);
+					}
+				}
 			}
 
 			if (dataEvent != null) {
@@ -322,14 +337,16 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 			if (error != null) {
 				throw new NodeException(error).context(getProcessorBaseContext());
 			}
+
+			if (sourceRunnerFuture != null && sourceRunnerFuture.isDone() && sourceRunnerFirstTime.get()) {
+				this.running.set(false);
+			}
 		} catch (Exception e) {
 			logger.error("Source sync failed {}.", e.getMessage(), e);
 			obsLogger.error("Source sync failed {}.", e.getMessage(), e);
 			throw new SourceException(e, true);
-		}
-
-		if (sourceRunnerFuture != null && sourceRunnerFuture.isDone() && sourceRunnerFirstTime.get()) {
-			this.running.set(false);
+		} finally {
+			ThreadContext.clearAll();
 		}
 
 		return false;
@@ -393,6 +410,11 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 								}
 								tapdataEvents.forEach(this::enqueue);
 								this.newTables.addAll(addList);
+								AspectUtils.executeAspect(new SourceDynamicTableAspect()
+										.dataProcessorContext(getDataProcessorContext())
+										.type(SourceDynamicTableAspect.DYNAMIC_TABLE_TYPE_ADD)
+										.tables(addList)
+										.tapdataEvents(tapdataEvents));
 								if (this.endSnapshotLoop.get()) {
 									logger.info("It is detected that the snapshot reading has ended, and the reading thread will be restarted");
 									// Restart source runner
@@ -438,6 +460,11 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 									tapdataEvents.add(tapdataEvent);
 								}
 								tapdataEvents.forEach(this::enqueue);
+								AspectUtils.executeAspect(new SourceDynamicTableAspect()
+										.dataProcessorContext(getDataProcessorContext())
+										.type(SourceDynamicTableAspect.DYNAMIC_TABLE_TYPE_REMOVE)
+										.tables(removeList)
+										.tapdataEvents(tapdataEvents));
 							}
 						}
 					} catch (Throwable throwable) {
@@ -615,6 +642,9 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 					dagDataService.coverMetaDataByTapTable(qualifiedName, tapTable);
 					errorMessage = dag.transformSchema(null, dagDataService, transformerWsMessageDto.getOptions());
 					MetadataInstancesDto metadata = dagDataService.getMetadata(qualifiedName);
+					if (metadata.getId() == null) {
+						metadata.setId(metadata.getOldId());
+					}
 					updateMetadata.put(metadata.getId().toHexString(), metadata);
 					logger.info("Alter table schema transform finished");
 				}
@@ -647,21 +677,13 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 					}
 				}
 
-				// covert to tap value before enqueue the event. when the event is enqueued into the eventQueue,
-				// the event is considered been output to the next node.
-				TapCodecsFilterManager codecsFilterManager = getConnectorNode().getCodecsFilterManager();
-				TapEvent tapEvent = tapdataEvent.getTapEvent();
-				if (sourceMode == SourceMode.NORMAL) {
-					tapRecordToTapValue(tapEvent, codecsFilterManager);
-				}
-
 				if (eventQueue.offer(tapdataEvent, 3, TimeUnit.SECONDS)) {
 					break;
 				}
 			} catch (InterruptedException e) {
 				break;
 			} catch (Throwable throwable) {
-				throw  new NodeException(throwable).context(getDataProcessorContext()).event(tapdataEvent.getTapEvent());
+				throw new NodeException(throwable).context(getDataProcessorContext()).event(tapdataEvent.getTapEvent());
 			}
 		}
 	}

@@ -7,6 +7,7 @@ import io.tapdata.connector.hive1.config.Hive1Config;
 import io.tapdata.connector.hive1.ddl.DDLSqlMaker;
 import io.tapdata.connector.hive1.ddl.impl.Hive1JDBCSqlMaker;
 import io.tapdata.connector.hive1.dml.Hive1Writer;
+import io.tapdata.connector.hive1.dml.impl.Hive1WriterJDBC;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.ddl.index.TapCreateIndexEvent;
@@ -61,9 +62,9 @@ public class Hive1Connector extends ConnectorBase {
 
     private Hive1Writer hive1Writer;
 
-
     @Override
     public void onStart(TapConnectionContext connectionContext) throws Throwable {
+        TapLogger.info("线程debug", "onStart当前线程为:{}", Thread.currentThread().getName());
         initConnection(connectionContext);
         ddlSqlMaker = new Hive1JDBCSqlMaker();
 
@@ -71,16 +72,20 @@ public class Hive1Connector extends ConnectorBase {
 
     private void initConnection(TapConnectionContext connectionContext) throws Throwable {
         hive1Config = (Hive1Config) new Hive1Config().load(connectionContext.getConnectionConfig());
+//        String hiveConnType = hive1Config.getHiveConnType();
+//        if (StringUtils.isBlank(hiveConnType) || hiveConnType.equals("jdbc")) {
         if (EmptyKit.isNull(hive1JdbcContext) || hive1JdbcContext.isFinish()) {
             hive1JdbcContext = (Hive1JdbcContext) DataSourcePool.getJdbcContext(hive1Config, Hive1JdbcContext.class, connectionContext.getId());
 //            hive1JdbcContext.setHive1Config(hive1Config);
         }
-//        clickhouseVersion = clickhouseJdbcContext.queryVersion();
         this.connectionTimezone = connectionContext.getConnectionConfig().getString("timezone");
         if ("Database Timezone".equals(this.connectionTimezone) || StringUtils.isBlank(this.connectionTimezone)) {
-//            this.connectionTimezone = hive1JdbcContext.timezone();
+            this.connectionTimezone = "08:00:00";
         }
-        this.hive1Writer = new Hive1Writer(hive1JdbcContext);
+        this.hive1Writer = new Hive1WriterJDBC(hive1JdbcContext, hive1Config);
+//        }else{
+//            this.hive1Writer = new Hive1WriterStream(hive1Config);
+//        }
     }
 
     @Override
@@ -89,31 +94,28 @@ public class Hive1Connector extends ConnectorBase {
         List<List<DataMap>> tableLists = Lists.partition(tableList, tableSize);
         try {
             String database = connectionContext.getConnectionConfig().getString("database");
-            tableLists.forEach(subList->{
+            tableLists.forEach(subList -> {
                 List<TapTable> tapTableList = TapSimplify.list();
-//                List<String> subTableNames = subList.stream().map(v -> v.getString("tab_name")).collect(Collectors.toList());
-//                List<DataMap> columnList = hive1JdbcContext.queryAllColumns(subTableNames);
                 List<DataMap> columnList1 = new ArrayList<>();
-//                AtomicInteger primaryPos = new AtomicInteger(1);
-                subList.forEach(subTable->{
+                subList.forEach(subTable -> {
                     //1.table name/comment
                     String table = subTable.getString("tab_name");
-                    List<DataMap> columnList = hive1JdbcContext.queryColumnsOfTable(database,table);
+                    List<DataMap> columnList = hive1JdbcContext.queryColumnsOfTable(database, table);
                     columnList1.addAll(columnList);
                     TapTable tapTable = table(table);
 //                    tapTable.setComment(subTable.getString("comment"));
                     List<String> primaryKey = TapSimplify.list();
-                    AtomicInteger position= new AtomicInteger(1);
-                    columnList.stream().forEach(col->{
-                                String columnName = col.getString("col_name");
-                                String columnType = col.getString("data_type");
-                                Boolean nullable = false;
-                                TapField field = TapSimplify.field(columnName, columnType);
-                                field.nullable(nullable);
+                    AtomicInteger position = new AtomicInteger(1);
+                    columnList.stream().forEach(col -> {
+                        String columnName = col.getString("col_name");
+                        String columnType = col.getString("data_type");
+                        Boolean nullable = false;
+                        TapField field = TapSimplify.field(columnName, columnType);
+                        field.nullable(nullable);
 //                                int ordinalPosition = Integer.parseInt(col.getString("position"));
-                                field.pos(position.getAndIncrement());
-                                tapTable.add(field);
-                            });
+                        field.pos(position.getAndIncrement());
+                        tapTable.add(field);
+                    });
                     tapTableList.add(tapTable);
                 });
                 if (CollectionUtils.isNotEmpty(columnList1)) {
@@ -130,6 +132,7 @@ public class Hive1Connector extends ConnectorBase {
 
     @Override
     public void onStop(TapConnectionContext connectionContext) throws Throwable {
+        TapLogger.info("线程debug", "onStop当前线程为:{}", Thread.currentThread().getName());
         if (EmptyKit.isNotNull(hive1JdbcContext)) {
             hive1JdbcContext.finish(connectionContext.getId());
         }
@@ -152,24 +155,19 @@ public class Hive1Connector extends ConnectorBase {
             return "null";
         });
         codecRegistry.registerFromTapValue(TapBinaryValue.class, "STRING", tapValue -> {
-            if(tapValue != null && tapValue.getValue() != null) return new String(Base64.encodeBase64(tapValue.getValue()));
+            if (tapValue != null && tapValue.getValue() != null)
+                return new String(Base64.encodeBase64(tapValue.getValue()));
             return null;
         });
         codecRegistry.registerFromTapValue(TapTimeValue.class, "STRING", tapTimeValue -> formatTapDateTime(tapTimeValue.getValue(), "HH:mm:ss.SS"));
-        codecRegistry.registerFromTapValue(TapDateValue.class, tapTimeValue -> formatTapDateTime(tapTimeValue.getValue(), "yyyy-MM-dd"));
-        codecRegistry.registerFromTapValue(TapDateTimeValue.class, tapTimeValue -> formatTapDateTime(tapTimeValue.getValue(), "yyyy-MM-dd HH:mm:ss.SSS"));
-
-        //TapTimeValue, TapDateTimeValue and TapDateValue's value is DateTime, need convert into Date object.
-//        codecRegistry.registerFromTapValue(TapTimeValue.class, tapTimeValue -> tapTimeValue.getValue().toTime());
-//        codecRegistry.registerFromTapValue(TapDateTimeValue.class, tapDateTimeValue -> {
-//            DateTime datetime = tapDateTimeValue.getValue();
-//            datetime.setTimeZone(TimeZone.getTimeZone(this.connectionTimezone));
-//            return datetime.toTimestamp();
-//        });
-//        codecRegistry.registerFromTapValue(TapDateValue.class, tapDateValue -> {
-//            DateTime datetime = tapDateValue.getValue();
-//            datetime.setTimeZone(TimeZone.getTimeZone(this.connectionTimezone));
-//            return datetime.toSqlDate();});
+        codecRegistry.registerFromTapValue(TapDateValue.class, tapTimeValue -> {
+            tapTimeValue.getValue().setTimeZone(TimeZone.getTimeZone(this.connectionTimezone));
+            return formatTapDateTime(tapTimeValue.getValue(), "yyyy-MM-dd");
+        });
+        codecRegistry.registerFromTapValue(TapDateTimeValue.class, tapTimeValue -> {
+            tapTimeValue.getValue().setTimeZone(TimeZone.getTimeZone(this.connectionTimezone));
+            return formatTapDateTime(tapTimeValue.getValue(), "yyyy-MM-dd HH:mm:ss.SSS");
+        });
 
         //target
         connectorFunctions.supportCreateTable(this::createTable);
@@ -179,7 +177,6 @@ public class Hive1Connector extends ConnectorBase {
         connectorFunctions.supportWriteRecord(this::writeRecord);
 
 
-
         //source 暂不支持
 //        connectorFunctions.supportBatchCount(this::batchCount);
 //        connectorFunctions.supportBatchRead(this::batchRead);
@@ -187,7 +184,6 @@ public class Hive1Connector extends ConnectorBase {
 //        connectorFunctions.supportTimestampToStreamOffset(this::timestampToStreamOffset);
         //query
         connectorFunctions.supportQueryByAdvanceFilter(this::queryByAdvanceFilter);
-//        connectorFunctions.supportQueryByFilter(this::queryByFilter);
 
         // ddl 暂不支持
 //        connectorFunctions.supportNewFieldFunction(this::fieldDDLHandler);
@@ -196,8 +192,7 @@ public class Hive1Connector extends ConnectorBase {
 //        connectorFunctions.supportDropFieldFunction(this::fieldDDLHandler);
     }
 
-    private void createTable(TapConnectorContext tapConnectorContext, TapCreateTableEvent tapCreateTableEvent) {
-
+    public void createTable(TapConnectorContext tapConnectorContext, TapCreateTableEvent tapCreateTableEvent) {
         TapTable tapTable = tapCreateTableEvent.getTable();
         Collection<String> primaryKeys = tapTable.primaryKeys(true);
         String sql = "CREATE TABLE IF NOT EXISTS " + hive1Config.getDatabase() + "." + tapTable.getId() + "(" + Hive1JDBCSqlMaker.buildColumnDefinition(tapTable, true);
@@ -213,7 +208,7 @@ public class Hive1Connector extends ConnectorBase {
 //                String escapeFieldStr = "`" + field + "`";
 //                clusterBySB.append(escapeFieldStr);
 //            }
-        }else {
+        } else {
 //            logger.warn("Hive as target must have primary key, will use all fields");
             LinkedHashMap<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
 
@@ -232,9 +227,6 @@ public class Hive1Connector extends ConnectorBase {
                 }
             }
             StringUtils.removeEnd(sql, ",");
-//            if (sql.charAt(sql.length() - 1) == ',') {
-//                createTableSqlBuilder.deleteCharAt(createTableSqlBuilder.length() - 1);
-//            }
         }
 
         String clusterStr = StringUtils.removeEnd(clusterBySB.toString(), ",");
@@ -245,12 +237,21 @@ public class Hive1Connector extends ConnectorBase {
         try {
             List<String> sqls = TapSimplify.list();
             sqls.add(sql);
-            TapLogger.info("table 为:","table->{}",tapTable.getId());
+            TapLogger.info("table 为:", "table->{}", tapTable.getId());
             hive1JdbcContext.batchExecute(sqls);
         } catch (Throwable e) {
             e.printStackTrace();
             throw new RuntimeException("Create Table " + tapTable.getId() + " Failed! " + e.getMessage());
         }
+    }
+
+    public void dropTable(TapConnectorContext tapConnectorContext, TapDropTableEvent tapDropTableEvent) {
+        try {
+            hive1JdbcContext.execute("DROP TABLE IF EXISTS " + hive1Config.getDatabase() + "." + tapDropTableEvent.getTableId());
+        } catch (SQLException e) {
+            throw new RuntimeException("Drop Table " + tapDropTableEvent.getTableId() + " Failed! \n ");
+        }
+
     }
 
     private void fieldDDLHandler(TapConnectorContext tapConnectorContext, TapFieldBaseEvent tapFieldBaseEvent) {
@@ -269,7 +270,7 @@ public class Hive1Connector extends ConnectorBase {
     }
 
     private void writeRecord(TapConnectorContext tapConnectorContext, List<TapRecordEvent> tapRecordEvents, TapTable tapTable, Consumer<WriteListResult<TapRecordEvent>> consumer) throws Throwable {
-        TapLogger.info(TAG,"tapRecordEvents个数:{}",tapRecordEvents.size());
+        TapLogger.info("线程debug", "writeRecord当前线程为:{},tapRecordEvents个数:{}", Thread.currentThread().getName(), tapRecordEvents.size());
         WriteListResult<TapRecordEvent> writeListResult = this.hive1Writer.write(tapConnectorContext, tapTable, tapRecordEvents);
         consumer.accept(writeListResult);
     }
@@ -298,7 +299,7 @@ public class Hive1Connector extends ConnectorBase {
         try {
             hive1JdbcContext.query(sql, resultSet -> {
                 FilterResults filterResults = new FilterResults();
-                while (resultSet!=null && resultSet.next()) {
+                while (resultSet != null && resultSet.next()) {
                     filterResults.add(DbKit.getRowFromResultSet(resultSet, DbKit.getColumnsFromResultSet(resultSet)));
                     if (filterResults.getResults().size() == BATCH_ADVANCE_READ_LIMIT) {
                         consumer.accept(filterResults);
@@ -306,7 +307,7 @@ public class Hive1Connector extends ConnectorBase {
                     }
                 }
                 if (EmptyKit.isNotEmpty(filterResults.getResults())) {
-                    filterResults.getResults().stream().forEach(l->l.entrySet().forEach(v->{
+                    filterResults.getResults().stream().forEach(l -> l.entrySet().forEach(v -> {
                         if (v.getValue() instanceof String) {
                             v.setValue(((String) v.getValue()).trim());
                         }
@@ -322,7 +323,7 @@ public class Hive1Connector extends ConnectorBase {
 
     // 不支持偏移量
     private void batchRead(TapConnectorContext tapConnectorContext, TapTable tapTable, Object offsetState, int eventBatchSize, BiConsumer<List<TapEvent>, Object> eventsOffsetConsumer) throws Throwable {
-        String sql = "SELECT * FROM " + hive1Config.getDatabase() + "." + tapTable.getId()+"\"";
+        String sql = "SELECT * FROM " + hive1Config.getDatabase() + "." + tapTable.getId() + "\"";
         hive1JdbcContext.query(sql, resultSet -> {
             List<TapEvent> tapEvents = list();
             //get all column names
@@ -364,18 +365,6 @@ public class Hive1Connector extends ConnectorBase {
         }
     }
 
-    private void dropTable(TapConnectorContext tapConnectorContext, TapDropTableEvent tapDropTableEvent) {
-        try {
-//            if (hiveqJdbcContext.queryAllTables(Collections.singletonList(tapDropTableEvent.getTableId())).size() == 1) {
-//            }
-            hive1JdbcContext.execute("DROP TABLE IF EXISTS " + hive1Config.getDatabase() + "." + tapDropTableEvent.getTableId());
-        } catch (Throwable e) {
-            e.printStackTrace();
-            throw new RuntimeException("Drop Table " + tapDropTableEvent.getTableId() + " Failed! \n ");
-        }
-    }
-
-
 
     @Override
     public ConnectionOptions connectionTest(TapConnectionContext connectionContext, Consumer<TestItem> consumer) throws Throwable {
@@ -387,7 +376,12 @@ public class Hive1Connector extends ConnectorBase {
         if (testHostPort.getResult() == TestItem.RESULT_FAILED) {
             return null;
         }
-        TestItem testConnect = hive1Test.testConnect(hive1Config);
+        TestItem testConnect = null;
+        if (isStreamConnection(hive1Config)) {
+            testConnect = hive1Test.testConnectOfStream(hive1Config);
+        } else {
+            testConnect = hive1Test.testConnect(hive1Config);
+        }
         consumer.accept(testConnect);
         if (testConnect.getResult() == TestItem.RESULT_FAILED) {
             return null;
@@ -404,7 +398,13 @@ public class Hive1Connector extends ConnectorBase {
 
     @Override
     public int tableCount(TapConnectionContext connectionContext) throws Throwable {
-        return hive1JdbcContext.queryAllTables(null).size();
+        return hive1Writer.tableCount(connectionContext);
     }
 
+    public boolean isStreamConnection(Hive1Config hive1Config) {
+        String hiveConnType = hive1Config.getHiveConnType();
+        if (StringUtils.isNotBlank(hiveConnType) && Hive1Writer.HIVE_STREAM_CONN.equals(hiveConnType))
+            return true;
+        return false;
+    }
 }

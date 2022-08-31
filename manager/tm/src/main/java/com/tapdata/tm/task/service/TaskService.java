@@ -5,6 +5,8 @@ import cn.hutool.core.date.DateUnit;
 import cn.hutool.core.date.DateUtil;
 import cn.hutool.core.lang.Assert;
 import cn.hutool.core.map.MapUtil;
+import cn.hutool.json.JSONConverter;
+import com.alibaba.fastjson.JSON;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.google.common.collect.Maps;
 import com.mongodb.client.result.UpdateResult;
@@ -93,6 +95,7 @@ import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -127,6 +130,8 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     private BasicEventService basicEventService;
     private MonitoringLogsService monitoringLogsService;
     private TaskAutoInspectResultsService taskAutoInspectResultsService;
+    private TaskSaveService taskSaveService;
+    private TaskDagService taskDagService;
 
     public static Set<String> stopStatus = new HashSet<>();
     /**
@@ -385,27 +390,16 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
         //校验dag
         DAG dag = taskDto.getDag();
+        int dagHash = 0;
         if (dag != null) {
             if (TaskDto.SYNC_TYPE_MIGRATE.equals(taskDto.getSyncType())) {
                 if (CollectionUtils.isNotEmpty(dag.getSourceNode())) {
-                    //supplier migrate tableSelectType=all tableNames and SyncObjects
-                    DatabaseNode sourceNode = dag.getSourceNode().get(0);
-                    if (Objects.nonNull(sourceNode) && CollectionUtils.isEmpty(sourceNode.getTableNames())
-                            && StringUtils.equals("all", sourceNode.getMigrateTableSelectType())) {
-                        String connectionId = sourceNode.getConnectionId();
-                        List<MetadataInstancesDto> metaList = metadataInstancesService.findBySourceIdAndTableNameList(connectionId, null, user, taskDto.getId().toHexString());
-                        if (CollectionUtils.isNotEmpty(metaList)) {
-                            List<String> collect = metaList.stream().map(MetadataInstancesDto::getOriginalName).collect(Collectors.toList());
-                            sourceNode.setTableNames(collect);
-                            Dag temp = new Dag(dag.getEdges(), dag.getNodes());
-                            dag = DAG.build(temp);
-                        }
-                    }
-
                     // supplement migrate_field_rename_processor fieldMapping data
                     supplementMigrateFieldMapping(taskDto, user);
 
-                    transformSchemaAsyncService.transformSchema(dag, user, taskDto.getId());
+                    taskSaveService.syncTaskSetting(taskDto, user);
+
+                    transformSchemaService.transformSchema(dag, user, taskDto.getId());
                 }
             } else {
                 transformSchemaService.transformSchema(dag, user, taskDto.getId());
@@ -418,6 +412,11 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
         //更新任务
         log.debug("update task, task dto = {}", taskDto);
+        //推演的时候改的，这里必须清空掉。清空只是不会被修改。
+        taskDto.setTransformed(null);
+        taskDto.setTransformUuid(null);
+        taskDto.setTransformDagHash(dagHash);
+
         return save(taskDto, user);
 
     }
@@ -874,6 +873,10 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         log.info("create new task, task = {}", taskDto);
         taskDto = taskService.confirmById(taskDto, user, true, true);
         //taskService.flushStatus(taskDto, user);
+
+        // after copy could deduce model
+        transformSchemaAsyncService.transformSchema(dag, user, taskDto.getId());
+
         return taskDto;
     }
 
@@ -1018,11 +1021,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             checkDagAgentConflict(task, false);
 
             try {
-                boolean noPass = taskStartCheckLog(task, user);
-                if (!noPass) {
-                    start(task, user);
-                }
-
+                start(task, user);
             } catch (Exception e) {
                 log.warn("start task exception, task id = {}, e = {}", task.getId(), e);
             }
@@ -1800,10 +1799,10 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         return transformSchemaService.getTransformParam(taskDto, user);
     }
 
-    public List<TaskDto> findByTaskId(ObjectId id, String... fields) {
+    public TaskDto findByTaskId(ObjectId id, String... fields) {
         Query query = new Query(Criteria.where("_id").is(id));
         query.fields().include(fields);
-        return findAll(query);
+        return findOne(query);
     }
 
     @Data
@@ -2311,7 +2310,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         }
 
         //模型推演,如果模型已经存在，则需要推演
-        DAG dag = taskDto.getDag();
+//        DAG dag = taskDto.getDag();
 
         //校验当前状态是否允许启动。
         if (!TaskOpStatusEnum.to_start_status.v().contains(taskDto.getStatus())) {
@@ -2319,7 +2318,23 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             throw new BizException("Task.StartStatusInvalid");
         }
 
-        run(taskDto, user);
+        if (TaskDto.SYNC_TYPE_MIGRATE.equals(taskDto.getSyncType()) || TaskDto.SYNC_TYPE_SYNC.equals(taskDto.getSyncType())) {
+            for (int i = 0; i < 30; i++) {
+                TaskDto transformedCheck = findByTaskId(taskDto.getId(), "transformed");
+                if (transformedCheck.getTransformed() != null && transformedCheck.getTransformed()) {
+                    run(taskDto, user);
+                    return;
+                }
+                try {
+                    Thread.sleep(500);
+                } catch (InterruptedException e) {
+                    throw new BizException("SystemError");
+                }
+            }
+            throw new BizException("Task.StartCheckModelFailed");
+        } else {
+            run(taskDto, user);
+        }
     }
 
     public void run(TaskDto taskDto, UserDetail user) {
@@ -2556,7 +2571,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         }
         //将子任务状态更新成错误.
         Query query1 = new Query(Criteria.where("_id").is(taskDto.getId()).and("status").in(TaskOpStatusEnum.to_error_status.v()));
-        UpdateResult update1 = update(query1, Update.update("status", TaskDto.STATUS_ERROR), user);
+        UpdateResult update1 = update(query1, Update.update("status", TaskDto.STATUS_ERROR).set("errorTime", new Date()).set("stopTime", new Date()), user);
         updateTaskRecordStatus(taskDto, TaskDto.STATUS_ERROR);
         if (update1.getModifiedCount() == 0) {
             log.info("concurrent runError operations, this operation don‘t effective, task name = {}", taskDto.getName());
@@ -2582,7 +2597,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         }
         //将子任务状态更新成为已完成
         Query query1 = new Query(Criteria.where("_id").is(taskDto.getId()).and("status").in(TaskOpStatusEnum.to_complete_status.v()));
-        UpdateResult update1 = update(query1, Update.update("status", TaskDto.STATUS_COMPLETE), user);
+        UpdateResult update1 = update(query1, Update.update("status", TaskDto.STATUS_COMPLETE).set("finishTime", new Date()).set("stopTime", new Date()), user);
         updateTaskRecordStatus(taskDto, TaskDto.STATUS_COMPLETE);
         if (update1.getModifiedCount() == 0) {
             log.info("concurrent complete operations, this operation don‘t effective, task name = {}", taskDto.getName());
@@ -2612,7 +2627,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
         //endConnHeartbeat(user, TaskDto);
 
-        UpdateResult update1 = update(query1, Update.update("status", TaskDto.STATUS_STOP), user);
+        UpdateResult update1 = update(query1, Update.update("status", TaskDto.STATUS_STOP).set("stopTime", new Date()), user);
         updateTaskRecordStatus(taskDto, TaskDto.STATUS_STOP);
         if (update1.getModifiedCount() == 0) {
             log.info("concurrent stopped operations, this operation don‘t effective, task name = {}", taskDto.getName());
@@ -2954,12 +2969,19 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
     public void startPlanMigrateDagTask() {
         Criteria migrateCriteria = Criteria.where("syncType").is("migrate")
-                .and("status").is(TaskDto.STATUS_EDIT)
+                .and("status").is(TaskDto.STATUS_WAIT_START)
                 .and("planStartDateFlag").is(true)
-                .and("planStartDate").lte(System.currentTimeMillis());
+                .and("planStartDate").lte(DateUtil.current());
         Query taskQuery = new Query(migrateCriteria);
+        log.info("startPlanMigrateDagTask query {}", taskQuery);
         List<TaskDto> taskList = findAll(taskQuery);
         if (CollectionUtils.isNotEmpty(taskList)) {
+            taskList = taskList.stream().filter(t -> Objects.nonNull(t.getTransformed()) && t.getTransformed())
+                    .collect(Collectors.toList());
+
+            List<String> taskIdList = taskList.stream().map(t -> t.getId().toHexString()).collect(Collectors.toList());
+            log.info("startPlanMigrateDagTask taskIdList {}", taskIdList);
+
             List<String> userIdList = taskList.stream().map(TaskDto::getUserId).distinct().collect(Collectors.toList());
             List<UserDetail> userList = userService.getUserByIdList(userIdList);
 
@@ -2967,17 +2989,10 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             if (CollectionUtils.isNotEmpty(userList)) {
                 userMap = userList.stream().collect(Collectors.toMap(UserDetail::getUserId, Function.identity()));
             }
-//
-//            List<ObjectId> taskIdList = taskList.stream().map(TaskDto::getId).collect(Collectors.toList());
-//
-//            Criteria supTaskCriteria = Criteria.where("parentId").in(taskIdList);
-//            Query supTaskQuery = new Query(supTaskCriteria);
-//            List<TaskDto> taskList = findAll(supTaskQuery);
-            if (CollectionUtils.isNotEmpty(taskList)) {
 
-                Map<String, UserDetail> finalUserMap = userMap;
-                taskList.forEach(TaskDto -> start(TaskDto.getId(), finalUserMap.get(TaskDto.getUserId())));
-            }
+            Map<String, UserDetail> finalUserMap = userMap;
+            taskList.forEach(taskDto -> run(taskDto, finalUserMap.get(taskDto.getUserId())));
+
         }
     }
 
@@ -3042,37 +3057,6 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         //清理模型
         //MetaDataHistoryService historyService = SpringContextHelper.getBean(MetaDataHistoryService.class);
         historyService.clean(taskId, time);
-    }
-
-
-    public boolean taskStartCheckLog(TaskDto taskDto, UserDetail userDetail) {
-
-
-        taskDagCheckLogService.removeAllByTaskId(taskDto.getId().toHexString());
-
-        boolean saveNoPass = false;
-        List<TaskDagCheckLog> saveLogs = taskDagCheckLogService.dagCheck(taskDto, userDetail, true);
-        if (org.apache.commons.collections.CollectionUtils.isNotEmpty(saveLogs)) {
-            Optional<TaskDagCheckLog> any = saveLogs.stream().filter(log -> StringUtils.equals(Level.ERROR.getValue(), log.getGrade())).findAny();
-            if (any.isPresent()) {
-                saveNoPass = true;
-                updateStatus(taskDto.getId(), TaskDto.STATUS_EDIT);
-            }
-        }
-
-        boolean startNoPass = false;
-        List<TaskDagCheckLog> startLogs = taskDagCheckLogService.dagCheck(taskDto, userDetail, false);
-        if (org.apache.commons.collections.CollectionUtils.isNotEmpty(startLogs)) {
-            Optional<TaskDagCheckLog> any = startLogs.stream().filter(log -> StringUtils.equals(Level.ERROR.getValue(), log.getGrade())).findAny();
-            if (any.isPresent()) {
-                startNoPass = true;
-                if (!saveNoPass) {
-                    updateStatus(taskDto.getId(), TaskDto.STATUS_EDIT);
-                }
-            }
-        }
-
-        return saveNoPass || startNoPass;
     }
 
     public Map<String, Object> totalAutoInspectResultsDiffTables(IdParam param) {
