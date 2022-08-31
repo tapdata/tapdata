@@ -272,7 +272,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         taskDto.setIsFilter(getBoolValue(taskDto.getIsFilter(), false));
 
         // 自动处理ddl
-        taskDto.setIsOpenAutoDDL(getBoolValue(taskDto.getIsOpenAutoDDL(), true));
+        taskDto.setIsOpenAutoDDL(getBoolValue(taskDto.getIsOpenAutoDDL(), false));
 
         // 定时调度任务
         taskDto.setIsSchedule(getBoolValue(taskDto.getIsSchedule(), false));
