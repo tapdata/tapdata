@@ -2976,6 +2976,9 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         log.info("startPlanMigrateDagTask query {}", taskQuery);
         List<TaskDto> taskList = findAll(taskQuery);
         if (CollectionUtils.isNotEmpty(taskList)) {
+            taskList = taskList.stream().filter(t -> Objects.nonNull(t.getTransformed()) && t.getTransformed())
+                    .collect(Collectors.toList());
+
             List<String> taskIdList = taskList.stream().map(t -> t.getId().toHexString()).collect(Collectors.toList());
             log.info("startPlanMigrateDagTask taskIdList {}", taskIdList);
 
@@ -2986,11 +2989,10 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             if (CollectionUtils.isNotEmpty(userList)) {
                 userMap = userList.stream().collect(Collectors.toMap(UserDetail::getUserId, Function.identity()));
             }
-            if (CollectionUtils.isNotEmpty(taskList)) {
 
-                Map<String, UserDetail> finalUserMap = userMap;
-                taskList.forEach(TaskDto -> start(TaskDto.getId(), finalUserMap.get(TaskDto.getUserId())));
-            }
+            Map<String, UserDetail> finalUserMap = userMap;
+            taskList.forEach(taskDto -> run(taskDto, finalUserMap.get(taskDto.getUserId())));
+
         }
     }
 
