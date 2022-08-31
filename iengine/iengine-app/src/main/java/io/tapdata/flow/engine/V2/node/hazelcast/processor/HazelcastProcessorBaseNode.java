@@ -138,10 +138,10 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 	}
 
 	protected ProcessResult getProcessResult(String tableName) {
-//		if (!multipleTables && StringUtils.equalsAnyIgnoreCase(processorBaseContext.getTaskDto().getSyncType(),
-//						TaskDto.SYNC_TYPE_DEDUCE_SCHEMA)) {
-//			tableName = processorBaseContext.getNode().getId();
-//		}
+		if (!multipleTables && !StringUtils.equalsAnyIgnoreCase(processorBaseContext.getTaskDto().getSyncType(),
+						TaskDto.SYNC_TYPE_DEDUCE_SCHEMA)) {
+			tableName = processorBaseContext.getNode().getId();
+		}
 		return ProcessResult.create().tableId(tableName);
 	}
 
