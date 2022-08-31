@@ -324,7 +324,7 @@ public class AspectManagerImpl implements AspectManager {
                 resultAtomicReference.set(finalInterceptor.intercept(aspect));
             }
             if(resultAtomicReference.get() != null && resultAtomicReference.get().isIntercepted()) {
-                TapLogger.info(TAG, "Aspect {} intercepted {}", aspect, resultAtomicReference.get());
+                TapLogger.debug(TAG, "Aspect {} intercepted {}", aspect, resultAtomicReference.get());
                 break;
             }
         }

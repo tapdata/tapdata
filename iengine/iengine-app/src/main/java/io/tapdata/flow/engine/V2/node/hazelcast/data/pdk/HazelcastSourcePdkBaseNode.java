@@ -583,9 +583,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 					DefaultExpressionMatchingMap dataTypesMap = getConnectorNode().getConnectorContext().getSpecification().getDataTypesMap();
 					tableFieldTypesGenerator.autoFill(tapTable.getNameFieldMap(), dataTypesMap);
 				} catch (Exception e) {
-					RuntimeException runtimeException = new RuntimeException("Modify schema by ddl failed, ddl type: " + tapEvent.getClass() + ", error: " + e.getMessage(), e);
-					errorHandle(runtimeException, runtimeException.getMessage());
-					throw runtimeException;
+					throw errorHandle(e, "Modify schema by ddl failed, ddl type: " + tapEvent.getClass() + ", error: " + e.getMessage());
 				}
 			}
 
@@ -598,9 +596,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 				// Put new DAG into info map
 				tapEvent.addInfo(NEW_DAG_INFO_KEY, cloneDag);
 			} catch (Exception e) {
-				RuntimeException runtimeException = new RuntimeException("Update DAG by TapDDLEvent failed, error: " + e.getMessage(), e);
-				errorHandle(runtimeException, runtimeException.getMessage());
-				throw runtimeException;
+				throw errorHandle(e, "Update DAG by TapDDLEvent failed, error: " + e.getMessage());
 			}
 			// Refresh task schema by ddl event
 			try {
@@ -654,37 +650,34 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 				tapEvent.addInfo(DAG_DATA_SERVICE_INFO_KEY, dagDataService);
 				tapEvent.addInfo(TRANSFORM_SCHEMA_ERROR_MESSAGE_INFO_KEY, errorMessage);
 			} catch (Throwable e) {
-				RuntimeException runtimeException = new RuntimeException("Transform schema by TapDDLEvent " + tapEvent + " failed, error: " + e.getMessage(), e);
-				errorHandle(runtimeException, runtimeException.getMessage());
-				throw runtimeException;
+				throw errorHandle(e, "Transform schema by TapDDLEvent " + tapEvent + " failed, error: " + e.getMessage());
 			}
 		}
 		if (null == tapdataEvent) {
 			RuntimeException runtimeException = new RuntimeException("Found event type does not support: " + tapEvent.getClass().getSimpleName());
-			errorHandle(runtimeException, runtimeException.getMessage());
-			throw runtimeException;
+			throw errorHandle(runtimeException, "Found event type does not support: " + tapEvent.getClass().getSimpleName());
 		}
 		return tapdataEvent;
 	}
 
 	protected void enqueue(TapdataEvent tapdataEvent) {
-		while (isRunning()) {
-			try {
-				if (tapdataEvent.getTapEvent() instanceof TapRecordEvent) {
-					String tableId = ((TapRecordEvent) tapdataEvent.getTapEvent()).getTableId();
-					if (removeTables != null && removeTables.contains(tableId)) {
-						break;
-					}
+		try {
+			if (tapdataEvent.getTapEvent() instanceof TapRecordEvent) {
+				String tableId = ((TapRecordEvent) tapdataEvent.getTapEvent()).getTableId();
+				if (removeTables != null && removeTables.contains(tableId)) {
+					return;
 				}
+			}
 
+			while (isRunning()) {
 				if (eventQueue.offer(tapdataEvent, 3, TimeUnit.SECONDS)) {
 					break;
 				}
-			} catch (InterruptedException e) {
-				break;
-			} catch (Throwable throwable) {
-				throw new NodeException(throwable).context(getDataProcessorContext()).event(tapdataEvent.getTapEvent());
 			}
+		} catch (InterruptedException ignore) {
+			logger.warn("TapdataEvent enqueue thread interrupted");
+		} catch (Throwable throwable) {
+			throw new NodeException(throwable).context(getDataProcessorContext()).event(tapdataEvent.getTapEvent());
 		}
 	}
 

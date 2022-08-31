@@ -34,38 +34,6 @@ public class WrapItem implements Cloneable {
      */
     private TapdataEvent event;
 
-//    public String getCachedGroupByKey() {
-//        return cachedGroupByKey;
-//    }
-//
-//    public void setCachedGroupByKey(String cachedGroupByKey) {
-//        this.cachedGroupByKey = cachedGroupByKey;
-//    }
-//
-//    public Object getMessage() {
-//        return message;
-//    }
-//
-//    public void setMessage(Object message) {
-//        this.message = message;
-//    }
-//
-//    public TapdataEvent getEvent() {
-//        return event;
-//    }
-//
-//    public void setEvent(TapdataEvent event) {
-//        this.event = event;
-//    }
-//
-//    public BigDecimal getCachedRollingAggregateCounter() {
-//        return cachedRollingAggregateCounter;
-//    }
-//
-//    public void setCachedRollingAggregateCounter(BigDecimal cachedRollingAggregateCounter) {
-//        this.cachedRollingAggregateCounter = cachedRollingAggregateCounter;
-//    }
-
     @Override
     public WrapItem clone() {
         WrapItem newItem = new WrapItem();

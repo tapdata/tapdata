@@ -58,7 +58,7 @@ public class TapCodecsFilterManager {
             String fieldName = name;
             if(theValue != null && fieldName != null) {
                 if((theValue instanceof TapValue)) {
-                    TapLogger.warn(TAG, "Value {} for field {} already in TapValue format, no need do ToTapValue conversion. ", theValue, fieldName);
+                    TapLogger.debug(TAG, "Value {} for field {} already in TapValue format, no need do ToTapValue conversion. ", theValue, fieldName);
                    return null;
                 }
 
@@ -87,12 +87,12 @@ public class TapCodecsFilterManager {
                 if(valueCodec != null) {
                     TapValue tapValue = valueCodec.toTapValue(theValue, typeFromSchema);
                     if(tapValue == null && !handleByTypeCodec) {
-                        TapLogger.warn(TAG, "Value Codec {} from model convert TapValue failed, value {}", valueCodec.getClass().getSimpleName(), theValue);
+                        TapLogger.debug(TAG, "Value Codec {} from model convert TapValue failed, value {}", valueCodec.getClass().getSimpleName(), theValue);
                         valueCodec = this.codecsRegistry.getToTapValueCodec(theValue.getClass());
                         if(valueCodec != null) {
                             tapValue = valueCodec.toTapValue(theValue, typeFromSchema);
                             if(tapValue == null) {
-                                TapLogger.warn(TAG, "Value Codec {} from type convert TapValue failed, value {}", valueCodec.getClass().getSimpleName(), theValue);
+                                TapLogger.debug(TAG, "Value Codec {} from type convert TapValue failed, value {}", valueCodec.getClass().getSimpleName(), theValue);
                             } else {
                                 if(typeFromSchema != null && !typeFromSchema.getClass().equals(tapValue.tapTypeClass())) {
                                     typeFromSchema = JavaTypesToTapTypes.toTapType(theValue);
@@ -151,7 +151,7 @@ public class TapCodecsFilterManager {
                     return fromTapValueCodec.fromTapValue(theValue);
                 }
             } else if(object != null) {
-                TapLogger.warn(TAG, "transformFromTapValueMap failed as object is not TapValue, but type {} value {}", object.getClass(), object);
+                TapLogger.debug(TAG, "transformFromTapValueMap failed as object is not TapValue, but type {} value {}", object.getClass(), object);
             }
             return null;
         });

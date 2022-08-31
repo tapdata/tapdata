@@ -50,8 +50,6 @@ public enum TaskStatusEnum {
         String cacheStatus = status;
         if (STATUS_SCHEDULE_FAILED.getValue().equals(status)) {
             cacheStatus = STATUS_ERROR.getValue();
-        } else if (STATUS_WAIT_RUN.getValue().equals(status)  || STATUS_SCHEDULING.equals(status)) {
-            cacheStatus = STATUS_RUNNING.getValue();
         }
         else if (STATUS_PAUSED.getValue().equals(status)) {
             cacheStatus = STATUS_STOP.getValue();
