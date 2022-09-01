@@ -48,8 +48,6 @@ public class CodingConnector extends ConnectorBase {
 
 	private Long lastTimePoint;
 	private List<Integer> lastTimeSplitIssueCode = new ArrayList<>();//hash code list
-//	private Long currentTimePoint;
-//	private List<Integer> currentTimeSplitIssueCode = new ArrayList<>();//hash code list
 
 	@Override
 	public void onStart(TapConnectionContext connectionContext) throws Throwable {
@@ -62,7 +60,6 @@ public class CodingConnector extends ConnectorBase {
 			this.notify();
 		}
 		TapLogger.info(TAG, "Stop connector");
-//		streamReadThread.notify();
 	}
 
 	@Override
