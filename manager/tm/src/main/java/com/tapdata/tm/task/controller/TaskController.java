@@ -482,12 +482,12 @@ public class TaskController extends BaseController {
         return success(snapshotEdgeProgressService.syncTableView(subTaskId, skip, limit));
     }
 
-    @GetMapping("view/increase/{taskId}")
-    public ResponseMessage<List<IncreaseSyncVO>> increaseView(@PathVariable("taskId") String taskId,
-                                                              @RequestParam(value = "skip", required = false, defaultValue = "0") Long skip,
-                                                              @RequestParam(value = "limit", required = false, defaultValue = "20") Integer limit) {
-        return success(taskService.increaseView(taskId, getLoginUser()));
-    }
+//    @GetMapping("view/increase/{taskId}")
+//    public ResponseMessage<List<IncreaseSyncVO>> increaseView(@PathVariable("taskId") String taskId,
+//                                                              @RequestParam(value = "skip", required = false, defaultValue = "0") Long skip,
+//                                                              @RequestParam(value = "limit", required = false, defaultValue = "20") Integer limit) {
+//        return success(taskService.increaseView(taskId, getLoginUser()));
+//    }
 
     @PostMapping("increase/clear/{taskId}")
     public ResponseMessage<List<IncreaseSyncVO>> increaseClear(@PathVariable("taskId") String taskId,
