@@ -99,28 +99,11 @@ public class CodingConnector extends ConnectorBase {
 
 		consumer.streamReadStarted();
 		while (isAlive()) {
-			AtomicReference<Long> lastBreakpointTime = new AtomicReference<>(tableUpdateTimeMap.get(tableList.get(0)));
-			long current = lastBreakpointTime.get();
-			//if (null == current ){
-			//	TapLogger.info(TAG, "continue:stream read lack offsetState");
-			//	continue;
-			//}
-
+			long current = tableUpdateTimeMap.get(tableList.get(0));
 			Long last = Long.MAX_VALUE;
-			//断点起始时间下一秒比当前时间大时，不再继续读取
-			if (current > last){
-				TapLogger.info(TAG, "There is no data to read:start:{}-end:{}",IssueLoader.create(nodeContext).longToDateStr(current),IssueLoader.create(nodeContext).longToDateStr(last));
-				continue;
-			}
-
 			TapLogger.info(TAG, "start {} stream read", currentTable);
-			lastBreakpointTime.set(last);
-
-			//@TODO lastTimePoint ----> current
-			this.read(nodeContext, lastTimePoint, last, currentTable, recordSize, codingOffset, consumer);
+			this.read(nodeContext, current, last, currentTable, recordSize, codingOffset, consumer,tableList.get(0));
 			TapLogger.info(TAG, "compile {} once stream read", currentTable);
-
-			tableUpdateTimeMap.put(tableList.get(0), lastBreakpointTime.get());
 			synchronized (this) {
 				try {
 					this.wait(streamExecutionGap);
@@ -168,7 +151,7 @@ public class CodingConnector extends ConnectorBase {
 		String projectName = connectionConfig.getString("projectName");
 		String token = connectionConfig.getString("token");
 		String teamName = connectionConfig.getString("teamName");
-		this.read(connectorContext,null,readEnd,table.getId(),batchCount,codingOffset,consumer);
+		this.read(connectorContext,null,readEnd,table.getId(),batchCount,codingOffset,consumer,table.getId());
 		TapLogger.info(TAG, "compile {} batch read", table.getName());
 	}
 
@@ -331,7 +314,8 @@ public class CodingConnector extends ConnectorBase {
 			String readTable,
 			int readSize,
 			Object offsetState,
-			BiConsumer<List<TapEvent>, Object> consumer ){
+			BiConsumer<List<TapEvent>, Object> consumer,
+			String table ){
 		if (null == nodeContext){
 			throw new IllegalArgumentException("TapConnectorContext cannot be null");
 		}
@@ -448,7 +432,7 @@ public class CodingConnector extends ConnectorBase {
 					lastTimeSplitIssueCode.add(issueDetialHash);
 				}
 
-				((CodingOffset)offsetState).getTableUpdateTimeMap().put("Issues",referenceTime);
+				((CodingOffset)offsetState).getTableUpdateTimeMap().put(table,referenceTime);
 				if (events[0].size() == readSize) {
 					consumer.accept(events[0], offsetState);
 					events[0] = new ArrayList<>();
