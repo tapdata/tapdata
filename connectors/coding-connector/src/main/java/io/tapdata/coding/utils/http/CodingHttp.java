@@ -85,6 +85,7 @@ public class CodingHttp {
             }
             return this.post(request);
         }
+        retry = 0;
         return null == execute || execute.getStatus() != HttpStatus.HTTP_OK ?
                 Collections.emptyMap() : JSONUtil.parseObj(execute.body());
     }
