@@ -12,7 +12,6 @@ import com.tapdata.tm.utils.MongoUtils;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.HashMap;
@@ -39,7 +38,7 @@ public class ModulesController extends BaseController {
 
   @Operation(summary = "新增module")
   @PostMapping
-  public ResponseMessage<ModulesDto> save(@Validated @RequestBody ModulesDto modulesDto) {
+  public ResponseMessage<ModulesDto> save(@RequestBody ModulesDto modulesDto) {
     modulesDto.setId(null);
     return success(modulesService.save(modulesDto, getLoginUser()));
   }
@@ -52,20 +51,8 @@ public class ModulesController extends BaseController {
    */
   @Operation(summary = "修改 发布  modules")
   @PatchMapping()
-  public ResponseMessage<ModulesDto> update(@Validated @RequestBody ModulesDto module) {
+  public ResponseMessage<ModulesDto> update(@RequestBody ModulesDto module) {
     return success(modulesService.updateModuleById(module, getLoginUser()));
-  }
-
-
-  /**
-   * @author derin
-   * @Description   生成 modules
-   * @Date 2022/9/1
-   */
-  @Operation(summary = "生成  modules")
-  @PatchMapping("generate")
-  public ResponseMessage<ModulesDto> generate(@Validated @RequestBody ModulesDto module) {
-    return success(modulesService.generate(module, getLoginUser()));
   }
 
 

@@ -2,8 +2,6 @@ package com.tapdata.tm.modules.entity;
 
 import com.tapdata.tm.commons.schema.Field;
 import com.tapdata.tm.modules.dto.Param;
-import com.tapdata.tm.modules.dto.Sort;
-import com.tapdata.tm.modules.dto.Where;
 import lombok.Data;
 
 import java.util.List;
@@ -33,6 +31,4 @@ public class Path {
     private String path;
     private String description;
 
-    private List<Where> where;
-    private List<Sort> sort;
 }
