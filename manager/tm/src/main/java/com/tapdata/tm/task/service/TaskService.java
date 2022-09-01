@@ -11,8 +11,6 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.google.common.collect.Maps;
 import com.mongodb.client.result.UpdateResult;
 import com.tapdata.manager.common.utils.JsonUtil;
-import com.tapdata.tm.CustomerJobLogs.CustomerJobLog;
-import com.tapdata.tm.CustomerJobLogs.service.CustomerJobLogsService;
 import com.tapdata.tm.autoinspect.entity.AutoInspectProgress;
 import com.tapdata.tm.autoinspect.service.TaskAutoInspectResultsService;
 import com.tapdata.tm.autoinspect.utils.AutoInspectUtil;
@@ -113,7 +111,6 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     private TaskRunHistoryService taskRunHistoryService;
     private TransformSchemaAsyncService transformSchemaAsyncService;
     private TransformSchemaService transformSchemaService;
-    private CustomerJobLogsService customerJobLogsService;
     private DataSourceService dataSourceService;
     private MetadataTransformerService transformerService;
     private MetadataInstancesService metadataInstancesService;
@@ -933,9 +930,6 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         BeanUtil.copyProperties(taskDto, taskSnapshot);
         basicEventService.publish(new TaskRecord(lastTaskRecordId, taskDto.getId().toHexString(), taskSnapshot, user.getUserId(), new Date()));
 
-        CustomerJobLog customerJobLog = new CustomerJobLog(taskDto.getId().toString(), taskDto.getName());
-        customerJobLog.setDataFlowType(CustomerJobLogsService.DataFlowType.sync.getV());
-        customerJobLogsService.resetDataFlow(customerJobLog, user);
         findById(taskDto.getId());
 
 
@@ -961,13 +955,6 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     public void stop(ObjectId id, UserDetail user, boolean force, boolean restart) {
         //查询任务是否存在
         TaskDto taskDto = checkExistById(id, user);
-        CustomerJobLog customerJobLog = new CustomerJobLog(taskDto.getId().toString(), taskDto.getName());
-        customerJobLog.setDataFlowType(CustomerJobLogsService.DataFlowType.sync.getV());
-        if (force) {
-            customerJobLogsService.stopDataFlow(customerJobLog, user);
-        } else {
-            customerJobLogsService.forceStopDataFlow(customerJobLog, user);
-        }
         //暂停所有的子任务
     }
 
@@ -2161,9 +2148,6 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 //        taskService.update(new Query(Criteria.where("_id").is(taskDto.getParentId())), update.unset("temp"));
         updateById(taskDto.getId(), set, user);
 
-        CustomerJobLog customerJobLog = new CustomerJobLog(taskDto.getId().toString(), taskDto.getName());
-        customerJobLog.setDataFlowType(CustomerJobLogsService.DataFlowType.sync.getV());
-        customerJobLogsService.resetJob(customerJobLog, user);
         resetFlag(taskDto.getId(), user, "resetFlag");
     }
 
@@ -2354,21 +2338,16 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
         CalculationEngineVo calculationEngineVo = workerService.scheduleTaskToEngine(taskDto, user, "task", taskDto.getName());
         monitoringLogsService.agentAssignMonitoringLog(taskDto, calculationEngineVo.getProcessId(), calculationEngineVo.getAvailable(), user);
-        CustomerJobLog customerJobLog = new CustomerJobLog(taskDto.getId().toString(), taskDto.getName());
-        customerJobLog.setDataFlowType(CustomerJobLogsService.DataFlowType.sync.getV());
         if (StringUtils.isBlank(taskDto.getAgentId())) {
             log.warn("No available agent found, task name = {}", taskDto.getName());
             Query query1 = new Query(Criteria.where("_id").is(taskDto.getId()).and("status").is(TaskDto.STATUS_SCHEDULING));
             update(query1, Update.update("status", TaskDto.STATUS_SCHEDULE_FAILED), user);
-            customerJobLogsService.noAvailableAgents(customerJobLog, user);
             throw new BizException("Task.AgentNotFound");
         } else {
             updateTaskRecordStatus(taskDto, TaskDto.STATUS_SCHEDULE_FAILED);
         }
 
         WorkerDto workerDto = workerService.findOne(new Query(Criteria.where("processId").is(taskDto.getAgentId())));
-        customerJobLog.setAgentHost(workerDto.getHostname());
-        customerJobLogsService.assignAgent(customerJobLog, user);
 
         //调度完成之后，改成待运行状态
         Query query1 = new Query(Criteria.where("_id").is(taskDto.getId()).and("status").is(TaskDto.STATUS_SCHEDULING));
@@ -2386,9 +2365,6 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         } else {
             updateTaskRecordStatus(taskDto, TaskDto.STATUS_WAIT_RUN);
         }
-        customerJobLog.setJobName(taskDto.getName());
-        customerJobLog.setJobInfos(TaskService.printInfos(dag));
-        customerJobLogsService.startJob(customerJobLog, user);
         //发送websocket消息，提醒flowengin启动
         DataSyncMq dataSyncMq = new DataSyncMq();
         dataSyncMq.setTaskId(taskDto.getId().toHexString());
@@ -2489,14 +2465,6 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             //没有更新成功，说明可能是并发操作导致
             log.info("concurrent pause operations, this operation don‘t effective, task name = {}", taskDto.getName());
             return;
-        }
-        CustomerJobLog customerJobLog = new CustomerJobLog(taskDto.getId().toString(), taskDto.getName());
-        customerJobLog.setDataFlowType(CustomerJobLogsService.DataFlowType.sync.getV());
-        customerJobLog.setJobName(taskDto.getName());
-        if (force) {
-            customerJobLogsService.forceStopJob(customerJobLog, user);
-        } else {
-            customerJobLogsService.stopJob(customerJobLog, user);
         }
 
         DataSyncMq dataSyncMq = new DataSyncMq();
