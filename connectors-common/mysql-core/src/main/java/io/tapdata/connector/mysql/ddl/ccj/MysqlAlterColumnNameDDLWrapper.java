@@ -1,6 +1,5 @@
 package io.tapdata.connector.mysql.ddl.ccj;
 
-import io.tapdata.common.ddl.ccj.CCJBaseDDLWrapper;
 import io.tapdata.entity.event.ddl.TapDDLEvent;
 import io.tapdata.entity.event.ddl.entity.ValueChange;
 import io.tapdata.entity.event.ddl.table.TapAlterFieldNameEvent;
@@ -25,7 +24,7 @@ import java.util.function.Consumer;
  * @Description
  * @create 2022-07-04 17:52
  **/
-public class MysqlAlterColumnNameDDLWrapper extends CCJBaseDDLWrapper {
+public class MysqlAlterColumnNameDDLWrapper extends MysqlDDLWrapper {
 
     @Override
     public List<Capability> getCapabilities() {
