@@ -105,7 +105,7 @@ public class PdkUtil {
 										   PdkTableMap pdkTableMap,
 										   PdkStateMap pdkStateMap,
 										   PdkStateMap globalStateMap) {
-		return createNode(dagId, databaseType, clientMongoOperator, associateId, connectionConfig, pdkTableMap, pdkStateMap, globalStateMap);
+		return createNode(dagId, databaseType, clientMongoOperator, associateId, connectionConfig, pdkTableMap, pdkStateMap, globalStateMap, null);
 	}
 	public static ConnectorNode createNode(String dagId,
 										   DatabaseTypeEnum.DatabaseType databaseType,

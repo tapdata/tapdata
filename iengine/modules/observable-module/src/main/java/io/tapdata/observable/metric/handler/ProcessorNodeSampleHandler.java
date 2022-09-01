@@ -49,7 +49,7 @@ public class ProcessorNodeSampleHandler extends AbstractNodeSampleHandler {
 
     public void init(Node<?> node) {
         Map<String, String> tags = nodeTags(node);
-        Map<String, Number> values = TaskSampleRetriever.getInstance().retrieve(tags, Arrays.asList(
+        Map<String, Number> values = TaskSampleRetriever.getInstance().retrieveWithRetry(tags, Arrays.asList(
                 "inputInsertTotal", "inputUpdateTotal", "inputDeleteTotal", "inputDdlTotal", "inputOthersTotal",
                 "outputInsertTotal", "outputUpdateTotal", "outputDeleteTotal", "outputDdlTotal", "outputOthersTotal"
         ));

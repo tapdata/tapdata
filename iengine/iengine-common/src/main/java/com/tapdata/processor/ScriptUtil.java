@@ -114,7 +114,7 @@ public class ScriptUtil {
 				e.put("target", target);
 			}
 			if (memoryCacheGetter != null) {
-				e.put("memoryCacheGetter", memoryCacheGetter);
+				e.put("CacheService", memoryCacheGetter);
 			}
 
 			return (Invocable) e;

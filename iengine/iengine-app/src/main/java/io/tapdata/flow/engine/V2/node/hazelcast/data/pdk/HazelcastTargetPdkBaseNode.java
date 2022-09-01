@@ -6,12 +6,7 @@ import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.constant.JSONUtil;
 import com.tapdata.constant.Log4jUtil;
 import com.tapdata.constant.MilestoneUtil;
-import com.tapdata.entity.SyncStage;
-import com.tapdata.entity.TapdataCompleteSnapshotEvent;
-import com.tapdata.entity.TapdataEvent;
-import com.tapdata.entity.TapdataHeartbeatEvent;
-import com.tapdata.entity.TapdataShareLogEvent;
-import com.tapdata.entity.TapdataStartCdcEvent;
+import com.tapdata.entity.*;
 import com.tapdata.entity.dataflow.SyncProgress;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.tm.commons.dag.Node;
@@ -49,6 +44,7 @@ import org.apache.commons.collections.MapUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.ThreadContext;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.*;
@@ -188,6 +184,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 	@Override
 	final public void process(int ordinal, @NotNull Inbox inbox) {
 		try {
+			Log4jUtil.setThreadContext(dataProcessorContext.getTaskDto());
 			if (!inbox.isEmpty()) {
 				while (isRunning()) {
 					List<TapdataEvent> tapdataEvents = new ArrayList<>();
@@ -224,10 +221,11 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 					}
 				}
 			}
-		} catch (Exception e) {
-			logger.error("Target process failed {}", e.getMessage(), e);
-			obsLogger.error("Target process failed {}", e.getMessage(), e);
+		} catch (Throwable e) {
+			errorHandle(e, "Target process failed " + e.getMessage());
 			throw sneakyThrow(e);
+		} finally {
+			ThreadContext.clearAll();
 		}
 	}
 
@@ -306,7 +304,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 			try {
 				processEvents(tapEvents);
 			} catch (Throwable throwable) {
-				NodeException  nodeException =  new NodeException(throwable)
+				NodeException nodeException = new NodeException(throwable)
 						.context(getDataProcessorContext())
 						.events(tapdataEvents.stream().map(TapdataEvent::getTapEvent).collect(Collectors.toList()));
 				logger.error(nodeException.getMessage(), nodeException);
@@ -470,53 +468,58 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 
 	@Override
 	public boolean saveToSnapshot() {
-		if (!flushOffset.get()) return true;
-		if (MapUtils.isEmpty(syncProgressMap)) return true;
-		Map<String, String> syncProgressJsonMap = new HashMap<>(syncProgressMap.size());
-		for (Map.Entry<String, SyncProgress> entry : syncProgressMap.entrySet()) {
-			String key = entry.getKey();
-			SyncProgress syncProgress = entry.getValue();
-			List<String> list = Arrays.asList(key.split(","));
-			if (null != syncProgress.getBatchOffsetObj()) {
-				syncProgress.setBatchOffset(PdkUtil.encodeOffset(syncProgress.getBatchOffsetObj()));
-			}
-			if (null != syncProgress.getStreamOffsetObj()) {
-				syncProgress.setStreamOffset(PdkUtil.encodeOffset(syncProgress.getStreamOffsetObj()));
-			}
-			try {
-				syncProgressJsonMap.put(JSONUtil.obj2Json(list), JSONUtil.obj2Json(syncProgress));
-			} catch (JsonProcessingException e) {
-				throw new RuntimeException("Convert offset to json failed, errors: " + e.getMessage(), e);
-			}
-		}
-		TaskDto taskDto = dataProcessorContext.getTaskDto();
-		String collection = ConnectorConstant.TASK_COLLECTION + "/syncProgress/" + taskDto.getId();
 		try {
-			clientMongoOperator.insertOne(syncProgressJsonMap, collection);
-		} catch (Exception e) {
-			throw new RuntimeException("Save to snapshot failed, collection: " + collection + ", object: " + this.syncProgressMap + "errors: " + e.getMessage(), e);
-		}
-		if (uploadDagService.get()) {
-			// Upload DAG
-			TaskDto updateTaskDto = new TaskDto();
-			updateTaskDto.setId(taskDto.getId());
-			updateTaskDto.setDag(taskDto.getDag());
-			clientMongoOperator.insertOne(updateTaskDto, ConnectorConstant.TASK_COLLECTION + "/dag");
-			if (MapUtils.isNotEmpty(updateMetadata) || CollectionUtils.isNotEmpty(insertMetadata) || CollectionUtils.isNotEmpty(removeMetadata)) {
-				// Upload Metadata
-				TransformerWsMessageResult wsMessageResult = new TransformerWsMessageResult();
-				wsMessageResult.setBatchInsertMetaDataList(insertMetadata);
-				wsMessageResult.setBatchMetadataUpdateMap(updateMetadata);
-				wsMessageResult.setBatchRemoveMetaDataList(removeMetadata);
-				wsMessageResult.setTaskId(taskDto.getId().toHexString());
-				wsMessageResult.setTransformSchema(new HashMap<>());
-				// 返回结果调用接口返回
-				clientMongoOperator.insertOne(wsMessageResult, ConnectorConstant.TASK_COLLECTION + "/transformer/resultWithHistory");
-				insertMetadata.clear();
-				updateMetadata.clear();
-				removeMetadata.clear();
+			Log4jUtil.setThreadContext(dataProcessorContext.getTaskDto());
+			if (!flushOffset.get()) return true;
+			if (MapUtils.isEmpty(syncProgressMap)) return true;
+			Map<String, String> syncProgressJsonMap = new HashMap<>(syncProgressMap.size());
+			for (Map.Entry<String, SyncProgress> entry : syncProgressMap.entrySet()) {
+				String key = entry.getKey();
+				SyncProgress syncProgress = entry.getValue();
+				List<String> list = Arrays.asList(key.split(","));
+				if (null != syncProgress.getBatchOffsetObj()) {
+					syncProgress.setBatchOffset(PdkUtil.encodeOffset(syncProgress.getBatchOffsetObj()));
+				}
+				if (null != syncProgress.getStreamOffsetObj()) {
+					syncProgress.setStreamOffset(PdkUtil.encodeOffset(syncProgress.getStreamOffsetObj()));
+				}
+				try {
+					syncProgressJsonMap.put(JSONUtil.obj2Json(list), JSONUtil.obj2Json(syncProgress));
+				} catch (JsonProcessingException e) {
+					throw new RuntimeException("Convert offset to json failed, errors: " + e.getMessage(), e);
+				}
 			}
-			uploadDagService.compareAndSet(true, false);
+			TaskDto taskDto = dataProcessorContext.getTaskDto();
+			String collection = ConnectorConstant.TASK_COLLECTION + "/syncProgress/" + taskDto.getId();
+			try {
+				clientMongoOperator.insertOne(syncProgressJsonMap, collection);
+			} catch (Exception e) {
+				throw new RuntimeException("Save to snapshot failed, collection: " + collection + ", object: " + this.syncProgressMap + "errors: " + e.getMessage(), e);
+			}
+			if (uploadDagService.get()) {
+				// Upload DAG
+				TaskDto updateTaskDto = new TaskDto();
+				updateTaskDto.setId(taskDto.getId());
+				updateTaskDto.setDag(taskDto.getDag());
+				clientMongoOperator.insertOne(updateTaskDto, ConnectorConstant.TASK_COLLECTION + "/dag");
+				if (MapUtils.isNotEmpty(updateMetadata) || CollectionUtils.isNotEmpty(insertMetadata) || CollectionUtils.isNotEmpty(removeMetadata)) {
+					// Upload Metadata
+					TransformerWsMessageResult wsMessageResult = new TransformerWsMessageResult();
+					wsMessageResult.setBatchInsertMetaDataList(insertMetadata);
+					wsMessageResult.setBatchMetadataUpdateMap(updateMetadata);
+					wsMessageResult.setBatchRemoveMetaDataList(removeMetadata);
+					wsMessageResult.setTaskId(taskDto.getId().toHexString());
+					wsMessageResult.setTransformSchema(new HashMap<>());
+					// 返回结果调用接口返回
+					clientMongoOperator.insertOne(wsMessageResult, ConnectorConstant.TASK_COLLECTION + "/transformer/resultWithHistory");
+					insertMetadata.clear();
+					updateMetadata.clear();
+					removeMetadata.clear();
+				}
+				uploadDagService.compareAndSet(true, false);
+			}
+		} finally {
+			ThreadContext.clearAll();
 		}
 		return true;
 	}

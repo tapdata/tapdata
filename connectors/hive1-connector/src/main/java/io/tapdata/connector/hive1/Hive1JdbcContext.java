@@ -155,11 +155,6 @@ public class Hive1JdbcContext extends JdbcContext {
             resultSet.close();
         } catch (SQLException e) {
             TapLogger.error("query error","error is:{}",e.getMessage(),e);
-//            if (e instanceof ClickHouseUnknownException && e.getMessage().contains("UNKNOWN_TABLE")) {
-//                resultSetConsumer.accept(null);
-//            } else
-//                throw new SQLException("Execute query failed, sql: " + sql + ", code: " + e.getSQLState() + "(" + e.getErrorCode() + "), error: " + e.getMessage(), e);
-
             throw new SQLException("Execute query failed, sql: " + sql + ", code: " + e.getSQLState() + "(" + e.getErrorCode() + "), error: " + e.getMessage(), e);
         }
 

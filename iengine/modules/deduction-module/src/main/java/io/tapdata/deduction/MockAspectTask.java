@@ -37,17 +37,15 @@ public class MockAspectTask extends AbstractAspectTask {
     if (nodeIds.contains(nodeId)) {
       switch (processAspect.getState()) {
         case ProcessorNodeProcessAspect.STATE_START:
-          if (nodeIds.contains(nodeId)) {
-            TapdataEvent inputEvent = processAspect.getInputEvent();
-            TapEvent tapEvent = inputEvent.getTapEvent();
-            if (!(tapEvent instanceof TapRecordEvent)) {
-              return null;
-            }
-            SampleMockUtil.mock(processorBaseContext.getTapTableMap().get(TapEventUtil.getTableId(tapEvent)),
-                    TapEventUtil.getAfter(tapEvent));
-          }
           break;
         case ProcessorFunctionAspect.STATE_END:
+          TapdataEvent inputEvent = processAspect.getInputEvent();
+          TapEvent tapEvent = inputEvent.getTapEvent();
+          if (!(tapEvent instanceof TapRecordEvent)) {
+            return null;
+          }
+          SampleMockUtil.mock(processorBaseContext.getTapTableMap().get(TapEventUtil.getTableId(tapEvent)),
+                  TapEventUtil.getAfter(tapEvent));
           break;
       }
     }

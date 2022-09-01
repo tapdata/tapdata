@@ -61,6 +61,7 @@ import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.ThreadContext;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.data.mongodb.core.query.Query;
 
@@ -136,7 +137,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 			initBatchAndStreamOffset(taskDto);
 		}
 		initDDLFilter();
-		this.sourceRunnerLock = new ReentrantLock();
+		this.sourceRunnerLock = new ReentrantLock(true);
 		this.endSnapshotLoop = new AtomicBoolean(false);
 		this.transformerWsMessageDto = clientMongoOperator.findOne(new Query(),
 				ConnectorConstant.TASK_COLLECTION + "/transformParam/" + processorBaseContext.getTaskDto().getId().toHexString(),
@@ -173,6 +174,10 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 	private boolean needDynamicTable(Object obj) {
 		Node<?> node = dataProcessorContext.getNode();
 		if (node instanceof DatabaseNode) {
+			String migrateTableSelectType = ((DatabaseNode) node).getMigrateTableSelectType();
+			if (StringUtils.isBlank(migrateTableSelectType) || !"all".equals(migrateTableSelectType)) {
+				return false;
+			}
 			Boolean enableDynamicTable = ((DatabaseNode) node).getEnableDynamicTable();
 			if (null == enableDynamicTable || !enableDynamicTable) {
 				return false;
@@ -332,14 +337,16 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 			if (error != null) {
 				throw new NodeException(error).context(getProcessorBaseContext());
 			}
+
+			if (sourceRunnerFuture != null && sourceRunnerFuture.isDone() && sourceRunnerFirstTime.get()) {
+				this.running.set(false);
+			}
 		} catch (Exception e) {
 			logger.error("Source sync failed {}.", e.getMessage(), e);
 			obsLogger.error("Source sync failed {}.", e.getMessage(), e);
 			throw new SourceException(e, true);
-		}
-
-		if (sourceRunnerFuture != null && sourceRunnerFuture.isDone() && sourceRunnerFirstTime.get()) {
-			this.running.set(false);
+		} finally {
+			ThreadContext.clearAll();
 		}
 
 		return false;
@@ -635,6 +642,9 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 					dagDataService.coverMetaDataByTapTable(qualifiedName, tapTable);
 					errorMessage = dag.transformSchema(null, dagDataService, transformerWsMessageDto.getOptions());
 					MetadataInstancesDto metadata = dagDataService.getMetadata(qualifiedName);
+					if (metadata.getId() == null) {
+						metadata.setId(metadata.getOldId());
+					}
 					updateMetadata.put(metadata.getId().toHexString(), metadata);
 					logger.info("Alter table schema transform finished");
 				}
@@ -673,7 +683,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 			} catch (InterruptedException e) {
 				break;
 			} catch (Throwable throwable) {
-				throw  new NodeException(throwable).context(getDataProcessorContext()).event(tapdataEvent.getTapEvent());
+				throw new NodeException(throwable).context(getDataProcessorContext()).event(tapdataEvent.getTapEvent());
 			}
 		}
 	}

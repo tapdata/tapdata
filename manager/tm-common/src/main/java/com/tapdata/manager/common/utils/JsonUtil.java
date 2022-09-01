@@ -13,12 +13,14 @@ import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import io.tapdata.entity.schema.type.TapType;
+import lombok.extern.slf4j.Slf4j;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.lang.reflect.Type;
 
+@Slf4j
 public class JsonUtil {
 	private static Gson gson = null;
 	private static boolean _pretty = false;
@@ -94,6 +96,7 @@ public class JsonUtil {
 				return null;
 			}
 		}
+
 	}
 
 	public static <T> T parseJsonUseJackson(String json, Class<T> clazz) {

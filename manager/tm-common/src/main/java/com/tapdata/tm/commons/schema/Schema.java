@@ -88,6 +88,8 @@ public class Schema implements Cloneable, Serializable {
 
     private List<String> invalidFields; // 无效的字段名称列表，将有问题的字段名称统一记录下来
 
+    private ObjectId oldId;
+
     public Schema copy() throws CloneNotSupportedException {
         return (Schema)clone();
     }

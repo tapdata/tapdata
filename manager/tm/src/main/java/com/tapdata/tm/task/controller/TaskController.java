@@ -75,6 +75,8 @@ public class TaskController extends BaseController {
     private MetadataInstancesService metadataInstancesService;
     private TaskNodeService taskNodeService;
     private TaskSaveService taskSaveService;
+
+    private TaskStartService taskStartService;
     private SnapshotEdgeProgressService snapshotEdgeProgressService;
     private TaskRecordService taskRecordService;
 
@@ -197,11 +199,11 @@ public class TaskController extends BaseController {
         UserDetail user = getLoginUser();
         taskCheckInspectService.getInspectFlagDefaultFlag(task, user);
 
-        boolean noPass = taskSaveService.taskSaveCheckLog(task, user);
+        TaskDto taskDto = taskService.confirmById(task, user, confirm);
+        boolean noPass = taskSaveService.taskSaveCheckLog(taskDto, user);
         if (noPass) {
             return failed("Task.Save.Error");
         } else {
-            TaskDto taskDto = taskService.confirmById(task, user, confirm);
             return success(taskDto);
         }
     }
@@ -233,7 +235,7 @@ public class TaskController extends BaseController {
         task.setId(MongoUtils.toObjectId(id));
         UserDetail user = getLoginUser();
 
-        boolean noPass = taskService.taskStartCheckLog(task, user);
+        boolean noPass = taskStartService.taskStartCheckLog(task, user);
         TaskDto taskDto = task;
         if (!noPass) {
             taskDto = taskService.confirmStart(task, user, confirm);

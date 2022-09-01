@@ -228,6 +228,12 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 								createTableFunction.createTable(getConnectorNode().getConnectorContext(), tapCreateTableEvent.get());
 							}
 						}, TAG)));
+			} else {
+				// only execute start function aspect so that it would be cheated as input
+				AspectUtils.executeAspect(new CreateTableFuncAspect()
+						.createTableEvent(tapCreateTableEvent.get())
+						.connectorContext(getConnectorNode().getConnectorContext())
+						.dataProcessorContext(dataProcessorContext).state(NewFieldFuncAspect.STATE_START));
 			}
 		} catch (Throwable throwable) {
 			NodeException nodeException = new NodeException(throwable).context(processorBaseContext);
@@ -255,6 +261,12 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 						.dataProcessorContext(dataProcessorContext)
 						.start(), (dropTableFuncAspect ->
 						PDKInvocationMonitor.invoke(getConnectorNode(), PDKMethod.TARGET_DROP_TABLE, () -> dropTableFunction.dropTable(getConnectorNode().getConnectorContext(), tapDropTableEvent.get()), TAG)));
+			} else {
+				// only execute start function aspect so that it would be cheated as input
+				AspectUtils.executeAspect(new DropTableFuncAspect()
+						.dropTableEvent(tapDropTableEvent.get())
+						.connectorContext(getConnectorNode().getConnectorContext())
+						.dataProcessorContext(dataProcessorContext).state(NewFieldFuncAspect.STATE_START));
 			}
 		} catch (Throwable throwable) {
 			NodeException nodeException = new NodeException(throwable).context(getDataProcessorContext());
@@ -344,6 +356,11 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 		NewFieldFunction function = connectorNode.getConnectorFunctions().getNewFieldFunction();
 		PDKMethod pdkMethod = PDKMethod.NEW_FIELD;
 		if (null == function) {
+			// only execute start function aspect so that it would be cheated as input
+			AspectUtils.executeAspect(new NewFieldFuncAspect()
+					.newFieldEvent(tapNewFieldEvent)
+					.connectorContext(getConnectorNode().getConnectorContext())
+					.dataProcessorContext(dataProcessorContext).state(NewFieldFuncAspect.STATE_START));
 			logger.warn("PDK connector " + connectorNode.getConnectorContext().getSpecification().getId() + " does not support " + pdkMethod);
 			obsLogger.warn("PDK connector " + connectorNode.getConnectorContext().getSpecification().getId() + " does not support " + pdkMethod);
 			return false;
@@ -368,6 +385,11 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 		AlterFieldNameFunction function = connectorNode.getConnectorFunctions().getAlterFieldNameFunction();
 		PDKMethod pdkMethod = PDKMethod.ALTER_FIELD_NAME;
 		if (null == function) {
+			// only execute start function aspect so that it would be cheated as input
+			AspectUtils.executeAspect(new AlterFieldNameFuncAspect()
+					.alterFieldNameEvent(tapAlterFieldNameEvent)
+					.connectorContext(getConnectorNode().getConnectorContext())
+					.dataProcessorContext(dataProcessorContext).state(AlterFieldNameFuncAspect.STATE_START));
 			logger.warn("PDK connector " + connectorNode.getConnectorContext().getSpecification().getId() + " does not support " + pdkMethod);
 			obsLogger.warn("PDK connector " + connectorNode.getConnectorContext().getSpecification().getId() + " does not support " + pdkMethod);
 			return false;
@@ -406,6 +428,11 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 		AlterFieldAttributesFunction function = connectorNode.getConnectorFunctions().getAlterFieldAttributesFunction();
 		PDKMethod pdkMethod = PDKMethod.ALTER_FIELD_ATTRIBUTES;
 		if (null == function) {
+			// only execute start function aspect so that it would be cheated as input
+			AspectUtils.executeAspect(new AlterFieldAttributesFuncAspect()
+					.alterFieldAttributesEvent(tapAlterFieldAttributesEvent)
+					.connectorContext(getConnectorNode().getConnectorContext())
+					.dataProcessorContext(dataProcessorContext).state(AlterFieldAttributesFuncAspect.STATE_START));
 			logger.warn("PDK connector " + connectorNode.getConnectorContext().getSpecification().getId() + " does not support " + pdkMethod);
 			obsLogger.warn("PDK connector " + connectorNode.getConnectorContext().getSpecification().getId() + " does not support " + pdkMethod);
 			return false;
@@ -431,6 +458,11 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 		DropFieldFunction function = connectorNode.getConnectorFunctions().getDropFieldFunction();
 		PDKMethod pdkMethod = PDKMethod.DROP_FIELD;
 		if (null == function) {
+			// only execute start function aspect so that it would be cheated as input
+			AspectUtils.executeAspect(new DropFieldFuncAspect()
+					.dropFieldEvent(tapDropFieldEvent)
+					.connectorContext(getConnectorNode().getConnectorContext())
+					.dataProcessorContext(dataProcessorContext).state(DropFieldFuncAspect.STATE_START));
 			logger.warn("PDK connector " + connectorNode.getConnectorContext().getSpecification().getId() + " does not support " + pdkMethod);
 			obsLogger.warn("PDK connector " + connectorNode.getConnectorContext().getSpecification().getId() + " does not support " + pdkMethod);
 			return false;

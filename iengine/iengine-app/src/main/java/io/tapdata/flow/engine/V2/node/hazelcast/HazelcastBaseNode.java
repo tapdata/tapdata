@@ -156,22 +156,27 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 
 	@Override
 	public final void init(@NotNull Processor.Context context) throws Exception {
-		this.jetContext = context;
-		super.init(context);
-		Log4jUtil.setThreadContext(processorBaseContext.getTaskDto());
-		running.compareAndSet(false, true);
-		TapCodecsRegistry tapCodecsRegistry = TapCodecsRegistry.create();
-		tapCodecsRegistry.registerFromTapValue(TapDateTimeValue.class, tapValue -> tapValue.getValue().toInstant());
-		codecsFilterManager = TapCodecsFilterManager.create(tapCodecsRegistry);
-		initSampleCollector();
-		CollectorFactory.getInstance().recordCurrentValueByTag(tags);
-		// execute ProcessorNodeInitAspect before doInit since we need to init the aspect first;
-		if (this instanceof HazelcastProcessorBaseNode || this instanceof HazelcastMultiAggregatorProcessor) {
-			AspectUtils.executeAspect(ProcessorNodeInitAspect.class, () -> new ProcessorNodeInitAspect().processorBaseContext(processorBaseContext));
-		} else {
-			AspectUtils.executeAspect(DataNodeInitAspect.class, () -> new DataNodeInitAspect().dataProcessorContext((DataProcessorContext) processorBaseContext));
+		try {
+			this.jetContext = context;
+			super.init(context);
+			Log4jUtil.setThreadContext(processorBaseContext.getTaskDto());
+			running.compareAndSet(false, true);
+			TapCodecsRegistry tapCodecsRegistry = TapCodecsRegistry.create();
+			tapCodecsRegistry.registerFromTapValue(TapDateTimeValue.class, tapValue -> tapValue.getValue().toInstant());
+			codecsFilterManager = TapCodecsFilterManager.create(tapCodecsRegistry);
+			initSampleCollector();
+			CollectorFactory.getInstance().recordCurrentValueByTag(tags);
+			// execute ProcessorNodeInitAspect before doInit since we need to init the aspect first;
+			if (this instanceof HazelcastProcessorBaseNode || this instanceof HazelcastMultiAggregatorProcessor) {
+				AspectUtils.executeAspect(ProcessorNodeInitAspect.class, () -> new ProcessorNodeInitAspect().processorBaseContext(processorBaseContext));
+			} else {
+				AspectUtils.executeAspect(DataNodeInitAspect.class, () -> new DataNodeInitAspect().dataProcessorContext((DataProcessorContext) processorBaseContext));
+			}
+			doInit(context);
+		} catch (Throwable e) {
+			errorHandle(e, "Node init failed");
+			throw new NodeException(e).context(getProcessorBaseContext());
 		}
-		doInit(context);
 	}
 
 	public ProcessorBaseContext getProcessorBaseContext() {
@@ -469,41 +474,41 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 	@Override
 	public final void close() throws Exception {
 		try {
-			doClose();
+			try {
+				doClose();
+			} finally {
+				running.set(false);
+				if (this instanceof HazelcastProcessorBaseNode || this instanceof HazelcastMultiAggregatorProcessor) {
+					AspectUtils.executeAspect(ProcessorNodeCloseAspect.class, () -> new ProcessorNodeCloseAspect().processorBaseContext(processorBaseContext));
+				} else {
+					AspectUtils.executeAspect(DataNodeCloseAspect.class, () -> new DataNodeCloseAspect().dataProcessorContext((DataProcessorContext) processorBaseContext));
+				}
+				//		InstanceFactory.instance(AspectManager.class).executeAspect(DataNodeCloseAspect.class, () -> new DataNodeCloseAspect().node(HazelcastBaseNode.this));
+				if (processorBaseContext.getTaskDto() != null) {
+					if (sampleCollector != null) {
+						CollectorFactory.getInstance().unregisterSampleCollectorFromGroup(processorBaseContext.getTaskDto().getId().toString(), sampleCollector);
+					}
+					if (statisticCollector != null) {
+						CollectorFactory.getInstance().unregisterStatisticCollectorFromGroup(processorBaseContext.getTaskDto().getId().toString(), statisticCollector);
+					}
+				} else {
+					if (sampleCollector != null) {
+						sampleCollector.stop();
+						CollectorFactory.getInstance().removeSampleCollectorByTags(sampleCollector.tags());
+					}
+					if (statisticCollector != null) {
+						statisticCollector.stop();
+						CollectorFactory.getInstance().removeStatisticCollectorByTags(statisticCollector.tags());
+					}
+				}
+				if (error != null) {
+					throw new RuntimeException(errorMessage, error);
+				}
+			}
 		} finally {
-			running.set(false);
-			if (this instanceof HazelcastProcessorBaseNode || this instanceof HazelcastMultiAggregatorProcessor) {
-				AspectUtils.executeAspect(ProcessorNodeCloseAspect.class, () -> new ProcessorNodeCloseAspect().processorBaseContext(processorBaseContext));
-			} else {
-				AspectUtils.executeAspect(DataNodeCloseAspect.class, () -> new DataNodeCloseAspect().dataProcessorContext((DataProcessorContext) processorBaseContext));
-			}
-//		InstanceFactory.instance(AspectManager.class).executeAspect(DataNodeCloseAspect.class, () -> new DataNodeCloseAspect().node(HazelcastBaseNode.this));
-			if (processorBaseContext.getTaskDto() != null) {
-				if (sampleCollector != null) {
-					CollectorFactory.getInstance().unregisterSampleCollectorFromGroup(processorBaseContext.getTaskDto().getId().toString(), sampleCollector);
-				}
-				if (statisticCollector != null) {
-					CollectorFactory.getInstance().unregisterStatisticCollectorFromGroup(processorBaseContext.getTaskDto().getId().toString(), statisticCollector);
-				}
-			} else {
-				if (sampleCollector != null) {
-					sampleCollector.stop();
-					CollectorFactory.getInstance().removeSampleCollectorByTags(sampleCollector.tags());
-				}
-				if (statisticCollector != null) {
-					statisticCollector.stop();
-					CollectorFactory.getInstance().removeStatisticCollectorByTags(statisticCollector.tags());
-				}
-			}
 			ThreadContext.clearAll();
 			super.close();
-			if (error != null) {
-				throw new RuntimeException(errorMessage, error);
-			}
 		}
-
-		// clear thread context
-		ThreadContext.clearAll();
 	}
 
 	public void setMilestoneService(MilestoneService milestoneService) {
