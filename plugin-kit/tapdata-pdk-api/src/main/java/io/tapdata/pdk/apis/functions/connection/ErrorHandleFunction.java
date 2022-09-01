@@ -8,5 +8,5 @@ public interface ErrorHandleFunction extends TapFunction {
     /**
      * @param nodeContext the node context in a DAG
      */
-    boolean needRetry(TapConnectionContext nodeContext, PDKMethod method, Throwable throwable) throws Throwable;
+    RetryOptions needRetry(TapConnectionContext nodeContext, PDKMethod method, Throwable throwable) throws Throwable;
 }
