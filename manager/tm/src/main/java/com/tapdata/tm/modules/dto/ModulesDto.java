@@ -7,8 +7,8 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 import com.tapdata.tm.commons.base.dto.BaseDto;
 import org.bson.types.ObjectId;
-import org.springframework.data.mongodb.core.index.Indexed;
 
+import javax.validation.constraints.NotBlank;
 import java.util.Date;
 import java.util.List;
 
@@ -19,11 +19,15 @@ import java.util.List;
 @EqualsAndHashCode(callSuper = true)
 @Data
 public class ModulesDto extends BaseDto {
+
+    @NotBlank
     private String name;
 
+    @NotBlank
     @JsonProperty("datasource")
     private String dataSource;
 
+    @NotBlank
     @JsonProperty("tablename")
     private String tableName;
 
@@ -44,6 +48,8 @@ public class ModulesDto extends BaseDto {
     private String prefix;
 
     private String path;
+
+    @NotBlank
     private String apiType;
 
     private String status;
@@ -79,4 +85,10 @@ public class ModulesDto extends BaseDto {
 
     private Long reqBytes;
     private Boolean isDeleted;
+
+    @NotBlank
+    private String operationType;
+
+    @NotBlank
+    private String connectionType;
 }

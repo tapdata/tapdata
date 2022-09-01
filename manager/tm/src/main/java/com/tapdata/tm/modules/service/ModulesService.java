@@ -20,6 +20,9 @@ import com.tapdata.tm.commons.schema.DataSourceDefinitionDto;
 import com.tapdata.tm.ds.service.impl.DataSourceDefinitionService;
 import com.tapdata.tm.ds.service.impl.DataSourceService;
 import com.tapdata.tm.commons.schema.Field;
+import com.tapdata.tm.modules.constant.ApiTypeEnum;
+import com.tapdata.tm.modules.constant.ParamTypeEnum;
+import com.tapdata.tm.modules.dto.Param;
 import com.tapdata.tm.modules.vo.ModulesDetailVo;
 import com.tapdata.tm.modules.constant.ModuleStatusEnum;
 import com.tapdata.tm.modules.dto.ModulesDto;
@@ -31,6 +34,7 @@ import com.tapdata.tm.modules.repository.ModulesRepository;
 import com.tapdata.tm.modules.vo.*;
 import com.tapdata.tm.utils.AES256Util;
 import com.tapdata.tm.utils.MongoUtils;
+import com.tapdata.tm.utils.UUIDUtil;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
@@ -150,6 +154,8 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
         //user表  admin@admin.com  的username 没有这个字段?
         modulesDto.setCreateUser(userDetail.getUsername());
         modulesDto.setLastUpdBy(userDetail.getUsername());
+        modulesDto.setStatus(ModuleStatusEnum.GENERATING.getValue());
+        checkoutInputParamIsValid(modulesDto);
         return super.save(modulesDto, userDetail);
 
     }
@@ -167,6 +173,7 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
         }*/
         Where where = new Where();
         where.put("id", modulesDto.getId().toString());
+        checkoutInputParamIsValid(modulesDto);
         return super.upsertByWhere(where, modulesDto, userDetail);
 
     }
@@ -1057,4 +1064,74 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
     }
 
 
+    /**
+     * 生成,compare update function，just add check function
+     * @param modulesDto
+     * @param userDetail
+     * @return
+     */
+    public ModulesDto generate(ModulesDto modulesDto, UserDetail userDetail) {
+        if (findByName(modulesDto.getName()).size() > 1) {
+            throw new BizException("Modules.Name.Existed");
+        }
+        if (isBasePathAndVersionRepeat(modulesDto.getBasePath(), modulesDto.getApiVersion()).size() > 1) {
+            throw new BizException("Modules.BasePathAndVersion.Existed");
+        }
+        checkoutInputParamIsValid(modulesDto);
+        modulesDto.setStatus(ModuleStatusEnum.PENDING.getValue());
+        Where where = new Where();
+        where.put("id", modulesDto.getId().toString());
+        return super.upsertByWhere(where, modulesDto, userDetail);
+    }
+
+    private void checkoutInputParamIsValid(ModulesDto modulesDto) {
+        String apiType = modulesDto.getApiType();
+        List<Path> paths = modulesDto.getPaths();
+        if (CollectionUtils.isNotEmpty(paths)) {
+            for (Path path : paths) {
+                //base param can't be null
+                List<Param> params = path.getParams();
+                if(CollectionUtils.isEmpty(params))
+                    throw new BizException("params can't be null");
+                Map<String, List<Param>> paramMap = params.stream().collect(Collectors.groupingBy(Param::getName));
+                List<Param> pages = paramMap.get("page");
+                List<Param> limits = paramMap.get("limit");
+                List<Param> filters = paramMap.get("filter");
+                if (ApiTypeEnum.DEFAULT_API.getValue().equals(apiType) || ApiTypeEnum.CUSTOMER_QUERY.getValue().equals(apiType)) {
+                    if (CollectionUtils.isEmpty(pages) || StringUtils.isBlank(pages.get(0).getDefaultvalue()))
+                        throw new BizException("paths's page can't be null");
+                    if (CollectionUtils.isEmpty(limits) || StringUtils.isBlank(limits.get(0).getDefaultvalue()))
+                        throw new BizException("paths's limit can't be null");
+                    if (ApiTypeEnum.CUSTOMER_QUERY.getValue().equals(apiType) && (CollectionUtils.isEmpty(filters) || StringUtils.isBlank(filters.get(0).getDefaultvalue())))
+                        throw new BizException("paths's filter can't be null");
+                }
+                //input params type checkout
+                for (Param param : params) {
+                    if (!ParamTypeEnum.isValid(param.getType(), param.getDefaultvalue()))
+                        throw new BizException(param.getName() + " is invalid");
+                }
+            }
+
+/*            List<Param> params = paths.stream().filter(p -> p.getMethod().equalsIgnoreCase("GET") || p.getMethod().equalsIgnoreCase("POST"))
+                    .map(Path::getParams).collect(Collectors.toList()).stream().flatMap(Collection::stream).collect(Collectors.toList());
+            if (CollectionUtils.isNotEmpty(params)) {
+                //type checkout todo
+                Set<String> types = params.stream().map(Param::getType).collect(Collectors.toSet());
+                //if apiType is defaultApi and customerQuery,  limit and page can't null
+                if (ApiTypeEnum.DEFAULT_API.getValue().equals(apiType) || ApiTypeEnum.CUSTOMER_QUERY.getValue().equals(apiType)) {
+                    Map<String, List<Param>> paramMap = params.stream().collect(Collectors.groupingBy(Param::getName));
+                    List<Param> pages = paramMap.get("page");
+                    List<Param> limits = paramMap.get("limit");
+                    List<Param> filters = paramMap.get("filter");
+                    if (CollectionUtils.isEmpty(pages) || StringUtils.isBlank(pages.get(0).getDefaultvalue()))
+                        throw new BizException("paths's page can't be null");
+                    if (CollectionUtils.isEmpty(limits) || StringUtils.isBlank(limits.get(0).getDefaultvalue()))
+                        throw new BizException("paths's limit can't be null");
+                    if (ApiTypeEnum.CUSTOMER_QUERY.getValue().equals(apiType) && (CollectionUtils.isEmpty(filters) || StringUtils.isBlank(filters.get(0).getDefaultvalue())))
+                        throw new BizException("paths's filter can't be null");
+                }
+            }*/
+
+        }
+    }
 }
