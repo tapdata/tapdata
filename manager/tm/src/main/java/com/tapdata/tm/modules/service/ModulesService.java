@@ -1107,6 +1107,8 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
                 }
                 //input params type checkout
                 for (Param param : params) {
+                    if(ApiTypeEnum.DEFAULT_API.getValue().equals(apiType) && StringUtils.isNotBlank(param.getType()) && "object".equalsIgnoreCase(param.getType().trim()))
+                        continue;
                     if (!ParamTypeEnum.isValid(param.getType(), param.getDefaultvalue()))
                         throw new BizException(param.getName() + " is invalid");
                 }

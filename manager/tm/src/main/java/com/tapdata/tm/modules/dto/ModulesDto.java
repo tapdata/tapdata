@@ -28,7 +28,7 @@ public class ModulesDto extends BaseDto {
     private String dataSource;
 
     @NotBlank
-    @JsonProperty("tablename")
+    @JsonProperty("tableName")
     private String tableName;
 
     private String apiVersion;
@@ -91,4 +91,7 @@ public class ModulesDto extends BaseDto {
 
     @NotBlank
     private String connectionType;
+
+    @NotBlank
+    private String connectionName;
 }

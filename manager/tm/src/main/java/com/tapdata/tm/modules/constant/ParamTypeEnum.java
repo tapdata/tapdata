@@ -64,7 +64,7 @@ public enum ParamTypeEnum {
                         break;
                     case TIME:
                         try {
-                            LocalTime parse = LocalTime.parse("16:06:21");
+                            LocalTime parse = LocalTime.parse(defaultValue);
                         } catch (Exception e) {
                             throw new BizException(defaultValue+" must be 'HH:mm:ss' format");
                         }
