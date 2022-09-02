@@ -8,6 +8,7 @@ import io.tapdata.entity.utils.DataMap;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.entity.TestItem;
 
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 

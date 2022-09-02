@@ -21,42 +21,42 @@ public class PDKMethodInvoker {
     private long retryTimes;
     private long retryPeriodSeconds;
 
-    public PDKMethodInvoker setRunnable(CommonUtils.AnyError anyError) {
+    public PDKMethodInvoker runnable(CommonUtils.AnyError anyError) {
         this.runnable = anyError;
         return this;
     }
 
-    public PDKMethodInvoker setMessage(String message) {
+    public PDKMethodInvoker message(String message) {
         this.message = message;
         return this;
     }
 
-    public PDKMethodInvoker setLogTag(String logTag) {
+    public PDKMethodInvoker logTag(String logTag) {
         this.logTag = logTag;
         return this;
     }
 
-    public PDKMethodInvoker setErrorConsumer(Consumer<CoreException> errorConsumer) {
+    public PDKMethodInvoker errorConsumer(Consumer<CoreException> errorConsumer) {
         this.errorConsumer = errorConsumer;
         return this;
     }
 
-    public PDKMethodInvoker setAsync(boolean async) {
+    public PDKMethodInvoker async(boolean async) {
         this.async = async;
         return this;
     }
 
-    public PDKMethodInvoker setContextClassLoader(ClassLoader contextClassLoader) {
+    public PDKMethodInvoker contextClassLoader(ClassLoader contextClassLoader) {
         this.contextClassLoader = contextClassLoader;
         return this;
     }
 
-    public PDKMethodInvoker setRetryTimes(long retryTimes) {
+    public PDKMethodInvoker retryTimes(long retryTimes) {
         this.retryTimes = retryTimes;
         return this;
     }
 
-    public PDKMethodInvoker setRetryPeriodSeconds(long retryPeriodSeconds) {
+    public PDKMethodInvoker retryPeriodSeconds(long retryPeriodSeconds) {
         this.retryPeriodSeconds = retryPeriodSeconds;
         return this;
     }
@@ -92,5 +92,37 @@ public class PDKMethodInvoker {
 
     public String getLogTag() {
         return logTag;
+    }
+
+    public void setRunnable(CommonUtils.AnyError runnable) {
+        this.runnable = runnable;
+    }
+
+    public void setMessage(String message) {
+        this.message = message;
+    }
+
+    public void setLogTag(String logTag) {
+        this.logTag = logTag;
+    }
+
+    public void setErrorConsumer(Consumer<CoreException> errorConsumer) {
+        this.errorConsumer = errorConsumer;
+    }
+
+    public void setAsync(boolean async) {
+        this.async = async;
+    }
+
+    public void setContextClassLoader(ClassLoader contextClassLoader) {
+        this.contextClassLoader = contextClassLoader;
+    }
+
+    public void setRetryTimes(long retryTimes) {
+        this.retryTimes = retryTimes;
+    }
+
+    public void setRetryPeriodSeconds(long retryPeriodSeconds) {
+        this.retryPeriodSeconds = retryPeriodSeconds;
     }
 }

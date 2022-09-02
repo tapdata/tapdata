@@ -1,6 +1,9 @@
 package io.tapdata.pdk.apis.functions.connection;
 
 public class RetryOptions {
+    public static RetryOptions create(){
+        return new RetryOptions();
+    }
     private boolean needRetry;
     public RetryOptions needRetry(boolean needRetry) {
         this.needRetry = needRetry;

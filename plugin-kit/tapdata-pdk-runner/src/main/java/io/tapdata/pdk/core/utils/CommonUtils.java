@@ -5,6 +5,7 @@ import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
+import io.tapdata.pdk.apis.functions.ConnectionFunctions;
 import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.apis.functions.connection.ErrorHandleFunction;
 import io.tapdata.pdk.apis.functions.connection.RetryOptions;
@@ -71,7 +72,7 @@ public class CommonUtils {
     }
 
     public static class AutoRetryParams {
-        public void wakeRetryWait() {
+        public void awakenRetryWait() {
             times.set(0);
             synchronized (this) {
                 this.notifyAll();
@@ -184,7 +185,7 @@ public class CommonUtils {
         }
     }
 
-    public static void wakeupRetryObj(Object syncWaitObj) {
+    public static void awakenRetryObj(Object syncWaitObj) {
         if(syncWaitObj != null) {
             synchronized (syncWaitObj) {
                 syncWaitObj.notifyAll();
@@ -193,21 +194,34 @@ public class CommonUtils {
     }
 
     public static void autoRetry(AutoRetryParams autoRetryParams) {
-        if(autoRetryParams.periodSeconds <= 0)
-            throw new IllegalArgumentException("periodSeconds can not be zero or less than zero");
+        if(autoRetryParams.periodSeconds <= 0) {
+            autoRetryParams.periodSeconds = 10;
+//            throw new IllegalArgumentException("periodSeconds can not be zero or less than zero");
+        }
         try {
             autoRetryParams.runnable.run();
         } catch(Throwable throwable) {
             Node node = autoRetryParams.node;
             ErrorHandleFunction function = null;
             TapConnectionContext tapConnectionContext = null;
+            ConnectionFunctions<?> connectionFunctions = null;
             if(node instanceof ConnectionNode) {
                 ConnectionNode connectionNode = (ConnectionNode) node;
-                function = connectionNode.getConnectionFunctions().getErrorHandleFunction();
+                connectionFunctions = connectionNode.getConnectionFunctions();
+                if (null != connectionFunctions) {
+                    function = connectionFunctions.getErrorHandleFunction();
+                }else {
+                    throw new CoreException("Connectionfunctions must be not null,connectionNode does not contain Connectionfunctions");
+                }
                 tapConnectionContext = connectionNode.getConnectionContext();
             } else if(node instanceof ConnectorNode) {
                 ConnectorNode connectorNode = (ConnectorNode) node;
-                function = ((ConnectorNode) node).getConnectorFunctions().getErrorHandleFunction();
+                connectionFunctions = connectorNode.getConnectorFunctions();
+                if (null != connectionFunctions) {
+                    function = connectionFunctions.getErrorHandleFunction();
+                }else {
+                    throw new CoreException("connectionFunctions must be not null,connectionNode does not contain connectionFunctions");
+                }
                 tapConnectionContext = connectorNode.getConnectorContext();
             }
             if (null == tapConnectionContext){

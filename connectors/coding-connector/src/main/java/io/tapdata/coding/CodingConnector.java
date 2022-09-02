@@ -1,6 +1,5 @@
 package io.tapdata.coding;
 
-import cn.hutool.core.date.DateUtil;
 import cn.hutool.http.HttpRequest;
 import io.tapdata.base.ConnectorBase;
 import io.tapdata.coding.entity.CodingOffset;
@@ -16,7 +15,6 @@ import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.DataMap;
-import io.tapdata.entity.utils.Entry;
 import io.tapdata.pdk.apis.annotations.TapConnectorClass;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
@@ -24,18 +22,14 @@ import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.entity.ConnectionOptions;
 import io.tapdata.pdk.apis.entity.TestItem;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
+import io.tapdata.pdk.apis.functions.PDKMethod;
+import io.tapdata.pdk.apis.functions.connection.RetryOptions;
 
-import java.text.SimpleDateFormat;
-import java.time.LocalDate;
-import java.time.format.DateTimeFormatter;
-import java.time.temporal.ChronoUnit;
+import java.io.IOException;
 import java.util.*;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
-import static io.tapdata.entity.simplify.TapSimplify.list;
-import static io.tapdata.entity.simplify.TapSimplify.map;
 import static io.tapdata.entity.utils.JavaTypesToTapTypes.*;
 
 @TapConnectorClass("spec.json")
@@ -56,8 +50,8 @@ public class CodingConnector extends ConnectorBase {
 
 	@Override
 	public void onStop(TapConnectionContext connectionContext) throws Throwable {
-		synchronized (this) {
-			this.notify();
+		synchronized (streamReadLock) {
+			streamReadLock.notify();
 		}
 		TapLogger.info(TAG, "Stop connector");
 	}
@@ -67,8 +61,20 @@ public class CodingConnector extends ConnectorBase {
 		connectorFunctions.supportBatchRead(this::batchRead)
 				.supportBatchCount(this::batchCount)
 				.supportTimestampToStreamOffset(this::timestampToStreamOffset)
-				.supportStreamRead(this::streamRead);
+				.supportStreamRead(this::streamRead)
+				.supportErrorHandleFunction(this::errorHandelFunction);
 
+	}
+
+	private RetryOptions errorHandelFunction(TapConnectionContext tapConnectionContext, PDKMethod method, Throwable throwable) {
+		if(method.equals(PDKMethod.CONNECTION_CHECK)) {
+			if(throwable instanceof IOException) {
+				return RetryOptions.create().needRetry(true).beforeRetryMethod(()->{
+					System.out.println("Begin retry...");
+				});
+			}
+		}
+		return null;
 	}
 
 	private void streamRead(
@@ -101,9 +107,9 @@ public class CodingConnector extends ConnectorBase {
 			TapLogger.info(TAG, "start {} stream read", currentTable);
 			this.read(nodeContext, current, last, currentTable, recordSize, codingOffset, consumer,tableList.get(0));
 			TapLogger.info(TAG, "compile {} once stream read", currentTable);
-			synchronized (this) {
+			synchronized (streamReadLock) {
 				try {
-					this.wait(streamExecutionGap);
+					streamReadLock.wait(streamExecutionGap);
 				} catch (InterruptedException e) {
 					e.printStackTrace();
 				}
@@ -144,10 +150,6 @@ public class CodingConnector extends ConnectorBase {
 		//current read end as next read begin
 		codingOffset.setTableUpdateTimeMap(new HashMap<String,Long>(){{ put(table.getId(),readEnd);}});
 		IssueLoader.create(connectorContext).verifyConnectionConfig(connectorContext);
-		DataMap connectionConfig = connectorContext.getConnectionConfig();
-		String projectName = connectionConfig.getString("projectName");
-		String token = connectionConfig.getString("token");
-		String teamName = connectionConfig.getString("teamName");
 		this.read(connectorContext,null,readEnd,table.getId(),batchCount,codingOffset,consumer,table.getId());
 		TapLogger.info(TAG, "compile {} batch read", table.getName());
 	}
@@ -264,8 +266,10 @@ public class CodingConnector extends ConnectorBase {
 		}
 	}
 
+	Consumer<TestItem> consumer ;
 	@Override
 	public ConnectionOptions connectionTest(TapConnectionContext connectionContext, Consumer<TestItem> consumer) throws Throwable {
+		this.consumer = consumer;
 		ConnectionOptions connectionOptions = ConnectionOptions.create();
 
 		TestCoding testConnection= TestCoding.create(connectionContext);

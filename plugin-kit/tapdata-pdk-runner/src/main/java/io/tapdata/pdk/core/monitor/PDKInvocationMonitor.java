@@ -89,24 +89,24 @@ public class PDKInvocationMonitor implements MemoryFetcher {
     public void invokePDKMethod(Node node, PDKMethod method, PDKMethodInvoker invoker){
         invokePDKMethod(node,method,invoker.getR(),invoker.getMessage(),invoker.getLogTag(),invoker.getErrorConsumer(),invoker.isAsync(),invoker.getContextClassLoader(),invoker.getRetryTimes(),invoker.getRetryPeriodSeconds());
     }
+//    public void invokePDKMethod(Node node, PDKMethod method, CommonUtils.AnyError r, String message, final String logTag, Consumer<CoreException> errorConsumer, boolean async, ClassLoader contextClassLoader, long retryTimes, long retryPeriodSeconds) {
+//        if(async) {
+//            ExecutorsManager.getInstance().getExecutorService().execute(() -> {
+//                if(contextClassLoader != null)
+//                    Thread.currentThread().setContextClassLoader(contextClassLoader);
+//                if(retryTimes > 0) {
+//                    CommonUtils.autoRetryAsync(() ->
+//                            node.applyClassLoaderContext(() ->
+//                                    invokePDKMethodPrivate(method, r, message, logTag, errorConsumer)), logTag, message, retryTimes, retryPeriodSeconds);
+//                } else {
+//                    node.applyClassLoaderContext(() -> invokePDKMethodPrivate(method, r, message, logTag, errorConsumer));
+//                }
+//            });
+//        } else {
+//            node.applyClassLoaderContext(() -> invokePDKMethodPrivate(method, r, message, logTag, errorConsumer));
+//        }
+//    }
     public void invokePDKMethod(Node node, PDKMethod method, CommonUtils.AnyError r, String message, final String logTag, Consumer<CoreException> errorConsumer, boolean async, ClassLoader contextClassLoader, long retryTimes, long retryPeriodSeconds) {
-        if(async) {
-            ExecutorsManager.getInstance().getExecutorService().execute(() -> {
-                if(contextClassLoader != null)
-                    Thread.currentThread().setContextClassLoader(contextClassLoader);
-                if(retryTimes > 0) {
-                    CommonUtils.autoRetryAsync(() ->
-                            node.applyClassLoaderContext(() ->
-                                    invokePDKMethodPrivate(method, r, message, logTag, errorConsumer)), logTag, message, retryTimes, retryPeriodSeconds);
-                } else {
-                    node.applyClassLoaderContext(() -> invokePDKMethodPrivate(method, r, message, logTag, errorConsumer));
-                }
-            });
-        } else {
-            node.applyClassLoaderContext(() -> invokePDKMethodPrivate(method, r, message, logTag, errorConsumer));
-        }
-    }
-    public void invokePDKMethod(Node node, PDKMethod method, CommonUtils.AnyError r, String message, final String logTag, Consumer<CoreException> errorConsumer, boolean async, ClassLoader contextClassLoader, long retryTimes, long retryPeriodSeconds,Runnable beforeRetryMethod,boolean needRetry) {
         if(async) {
             ExecutorsManager.getInstance().getExecutorService().execute(() -> {
                 if(contextClassLoader != null) {
