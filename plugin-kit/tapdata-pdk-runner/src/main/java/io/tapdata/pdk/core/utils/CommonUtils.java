@@ -13,6 +13,7 @@ import io.tapdata.pdk.apis.spec.TapNodeSpecification;
 import io.tapdata.pdk.core.api.ConnectionNode;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.api.Node;
+import io.tapdata.pdk.core.entity.params.PDKMethodInvoker;
 import io.tapdata.pdk.core.error.PDKRunnerErrorCodes;
 import io.tapdata.pdk.core.error.QuiteException;
 import io.tapdata.pdk.core.executor.ExecutorsManager;
@@ -25,6 +26,7 @@ import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Consumer;
 
 public class CommonUtils {
     static SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss,SSS");
@@ -71,119 +73,7 @@ public class CommonUtils {
         void run() throws Throwable;
     }
 
-    public static class AutoRetryParams {
-        public void awakenRetryWait() {
-            times.set(0);
-            synchronized (this) {
-                this.notifyAll();
-            }
-        }
 
-        private PDKMethod method;
-        public AutoRetryParams method(PDKMethod method) {
-            this.method = method;
-            return this;
-        }
-        private Node node;
-        public AutoRetryParams node(Node node) {
-            this.node = node;
-            return this;
-        }
-        private AnyError runnable;
-        public AutoRetryParams runnable(AnyError runnable) {
-            this.runnable = runnable;
-            return this;
-        }
-        private String tag;
-        public AutoRetryParams tag(String tag) {
-            this.tag = tag;
-            return this;
-        }
-        private String message;
-        public AutoRetryParams message(String message) {
-            this.message = message;
-            return this;
-        }
-        private AtomicLong times;
-        public AutoRetryParams times(AtomicLong times) {
-            this.times = times;
-            return this;
-        }
-        private long periodSeconds;
-        public AutoRetryParams periodSeconds(long periodSeconds) {
-            this.periodSeconds = periodSeconds;
-            return this;
-        }
-        private boolean async;
-        public AutoRetryParams async(boolean async) {
-            this.async = async;
-            return this;
-        }
-
-        public AnyError getRunnable() {
-            return runnable;
-        }
-
-        public void setRunnable(AnyError runnable) {
-            this.runnable = runnable;
-        }
-
-        public String getTag() {
-            return tag;
-        }
-
-        public void setTag(String tag) {
-            this.tag = tag;
-        }
-
-        public String getMessage() {
-            return message;
-        }
-
-        public void setMessage(String message) {
-            this.message = message;
-        }
-
-        public AtomicLong getTimes() {
-            return times;
-        }
-
-        public void setTimes(AtomicLong times) {
-            this.times = times;
-        }
-
-        public long getPeriodSeconds() {
-            return periodSeconds;
-        }
-
-        public void setPeriodSeconds(long periodSeconds) {
-            this.periodSeconds = periodSeconds;
-        }
-
-        public boolean isAsync() {
-            return async;
-        }
-
-        public void setAsync(boolean async) {
-            this.async = async;
-        }
-
-        public Node getNode() {
-            return node;
-        }
-
-        public void setNode(Node node) {
-            this.node = node;
-        }
-
-        public PDKMethod getMethod() {
-            return method;
-        }
-
-        public void setMethod(PDKMethod method) {
-            this.method = method;
-        }
-    }
 
     public static void awakenRetryObj(Object syncWaitObj) {
         if(syncWaitObj != null) {
@@ -193,15 +83,22 @@ public class CommonUtils {
         }
     }
 
-    public static void autoRetry(AutoRetryParams autoRetryParams) {
-        if(autoRetryParams.periodSeconds <= 0) {
-            autoRetryParams.periodSeconds = 10;
-//            throw new IllegalArgumentException("periodSeconds can not be zero or less than zero");
+    public static void autoRetry(Node node,PDKMethod method,PDKMethodInvoker invoker) {
+        CommonUtils.AnyError runable = invoker.getR();
+        String message = invoker.getMessage();
+        final String logTag = invoker.getLogTag();
+        boolean async = invoker.isAsync();
+
+
+        long retryPeriodSeconds = invoker.getRetryPeriodSeconds();
+
+        if(retryPeriodSeconds <= 0) {
+//            autoRetryParams.periodSeconds = 10;
+            throw new IllegalArgumentException("periodSeconds can not be zero or less than zero");
         }
         try {
-            autoRetryParams.runnable.run();
+            runable.run();
         } catch(Throwable throwable) {
-            Node node = autoRetryParams.node;
             ErrorHandleFunction function = null;
             TapConnectionContext tapConnectionContext = null;
             ConnectionFunctions<?> connectionFunctions = null;
@@ -229,44 +126,45 @@ public class CommonUtils {
             }
 
             if(null == function){
-                throw new CoreException( "PDK data source not support retry: " + autoRetryParams.tag);
+                throw new CoreException( "PDK data source not support retry: " + logTag);
             }
 
             ErrorHandleFunction finalFunction = function;
             TapConnectionContext finalTapConnectionContext = tapConnectionContext;
             try {
-                RetryOptions retryOptions = finalFunction.needRetry(finalTapConnectionContext, autoRetryParams.method, throwable);
+                RetryOptions retryOptions = finalFunction.needRetry(finalTapConnectionContext, method, throwable);
                 if(retryOptions == null || !retryOptions.isNeedRetry()) {
                     throw throwable;
                 }
                 if(retryOptions.getBeforeRetryMethod() != null) {
-                    CommonUtils.ignoreAnyError(() -> retryOptions.getBeforeRetryMethod().run(), autoRetryParams.tag);
+                    CommonUtils.ignoreAnyError(() -> retryOptions.getBeforeRetryMethod().run(), logTag);
                 }
             } catch (Throwable e) {
                 e.printStackTrace();
-                throw new CoreException(TapAPIErrorCodes.NEED_RETRY_FAILED, "Need retry failed:"+autoRetryParams.tag);
+                throw new CoreException(TapAPIErrorCodes.NEED_RETRY_FAILED, "Need retry failed:" + logTag);
             }
 
-            TapLogger.error(autoRetryParams.tag, "AutoRetryAsync error {}, execute message {}, retry times {}, periodSeconds {}. ", throwable.getMessage(), autoRetryParams.message, autoRetryParams.times, autoRetryParams.periodSeconds);
-            if(autoRetryParams.times.get() > 0) {
-                autoRetryParams.times.set( autoRetryParams.times.get() - 1 );
-                if(autoRetryParams.async) {
-                    ExecutorsManager.getInstance().getScheduledExecutorService().schedule(() -> autoRetry(autoRetryParams), autoRetryParams.periodSeconds, TimeUnit.SECONDS);
+            TapLogger.error(logTag, "AutoRetryAsync error {}, execute message {}, retry times {}, periodSeconds {}. ", throwable.getMessage(), message, invoker.getRetryTimes(), retryPeriodSeconds);
+            long retryTimes = invoker.getRetryTimes();
+            if(retryTimes > 0) {
+                invoker.setRetryTimes(retryTimes-1);
+                if(async) {
+                    ExecutorsManager.getInstance().getScheduledExecutorService().schedule(() -> autoRetry(node,method,invoker), retryPeriodSeconds, TimeUnit.SECONDS);
                 } else {
-                    synchronized (autoRetryParams) {
+                    synchronized (invoker) {
                         try {
-                            autoRetryParams.wait(autoRetryParams.periodSeconds * 1000);
+                            invoker.wait(retryPeriodSeconds * 1000);
                         } catch (InterruptedException e) {
                             e.printStackTrace();
                         }
                     }
-                    autoRetry(autoRetryParams);
+                    autoRetry(node, method, invoker);
                 }
             } else {
                 if(throwable instanceof CoreException) {
                     throw (CoreException) throwable;
                 }
-                throw new CoreException(PDKRunnerErrorCodes.COMMON_UNKNOWN, autoRetryParams.message + " execute failed, " + throwable.getMessage());
+                throw new CoreException(PDKRunnerErrorCodes.COMMON_UNKNOWN, message + " execute failed, " + throwable.getMessage());
             }
         }
     }
