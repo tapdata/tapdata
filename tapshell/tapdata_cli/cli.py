@@ -1659,7 +1659,7 @@ class Pipeline:
                     db = sink.split(".")[0]
                     self.cache_sinks[sink] = Sink(db)
                 sink = self.cache_sinks[sink]
-        if self.dag.jobType == JobType.sync and type(relation) == type(MultiTableRelation()):
+        if self.dag.jobType == JobType.sync and isinstance(relation, MultiTableRelation):
             auto_association = []
             for pk in self.sources[len(self.sources) - 1].primary_key:
                 auto_association.append((pk, pk))
@@ -2440,13 +2440,11 @@ class Job:
         if self.status() in [JobStatus.running, JobStatus.scheduled]:
             logger.warn("job status is {}, please stop it first before delete it", self.status())
             return
-        res = req.post("/DataFlows/removeAll", params={"where": '{"_id":{"inq":["' + self.id + '"]}}'})
+        res = req.delete("/Task/batchDelete", params={"taskIds": self.id})
         if res.status_code != 200:
             return False
         res = res.json()
         if res["code"] != "ok":
-            return False
-        if len(res["data"]["success"]) != 1:
             return False
         return True
 
@@ -2872,7 +2870,7 @@ class DataSource():
             d["host"] = self._host
             d["logPluginName"] = "logMiner"
             d["password"] = self._password
-            d["port"] = int(self._port)
+            d["port"] = "" if not self._port else int(self._port)
             d["schema"] = self._schema
             d["sid"] = self._sid
             d["user"] = self._username
@@ -2894,7 +2892,7 @@ class DataSource():
             "additionalString": self._options,
             "connection_type": self._type,
             "database_host": self._host,
-            "database_port": int(self._port),
+            "database_port": self._port,
             "database_name": self._db,
             "database_type": self._connector,
             "database_uri": uri,
@@ -3040,6 +3038,12 @@ class DataSource():
         return res
 
 
+class Mysql(DataSource):
+    def __init__(self, name):
+        self.connector = "Mysql"
+        super(Mysql, self).__init__(name=name, connector=self.connector)
+
+
 class Oracle(DataSource):
     def __init__(self, name):
         self.connector = "Oracle"
@@ -3057,7 +3061,7 @@ class Oracle(DataSource):
         d["host"] = self._host
         d["logPluginName"] = "logMiner"
         d["password"] = self._password
-        d["port"] = int(self._port)
+        d["port"] = "" if not self._port else int(self._port)
         d["schema"] = self._schema
         d["user"] = self._username
         d["thinType"] = self._thinType

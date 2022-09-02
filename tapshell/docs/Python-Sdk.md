@@ -35,7 +35,7 @@ The SDK supports the following data source operations:
 - Oracle
 - Kafka
 
-To create MySQL/Mongo/Postgres:
+To create MySQL/Mongo:
 
 ```python
 from tapdata_cli import cli
@@ -80,7 +80,18 @@ kafka.host("106.xx.xx.x").port("9092")
 kafka.save()
 ```
 
-*As for Kafka / Oracle, the creation mode is heterogeneous. In the future, a unified interface will be provided in the form of datasource, which is backward compatible and will not affect the existing version.*
+To create Postgres datasource:
+
+```python
+from tapdata_cli import cli
+
+pg = cli.Postgres("jack_postgre") 
+pg.host("106.55.169.3").port(5496).db("insurance").username("postgres").password("tapdata").type("source").schema("insurance")
+pg.validate()
+pg.save()
+```
+
+*As for Kafka/Oracle/Postgres, the creation mode is heterogeneous. In the future, a unified interface will be provided in the form of datasource, which is backward compatible and will not affect the existing version.*
 
 ### DataSource List
 
@@ -235,5 +246,3 @@ cli.Api(name="test", table="source.player").publish() # source is db, player is 
 from tapdata_cli import cli
 cli.Api(name="test").unpublish()
 ```
-
-
