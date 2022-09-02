@@ -5,14 +5,13 @@ import cn.hutool.core.date.DateUnit;
 import cn.hutool.core.date.DateUtil;
 import cn.hutool.core.lang.Assert;
 import cn.hutool.core.map.MapUtil;
-import cn.hutool.json.JSONConverter;
-import com.alibaba.fastjson.JSON;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.google.common.collect.Maps;
 import com.mongodb.client.result.UpdateResult;
 import com.tapdata.manager.common.utils.JsonUtil;
 import com.tapdata.tm.CustomerJobLogs.CustomerJobLog;
 import com.tapdata.tm.CustomerJobLogs.service.CustomerJobLogsService;
+import com.tapdata.tm.autoinspect.constants.TaskType;
 import com.tapdata.tm.autoinspect.entity.AutoInspectProgress;
 import com.tapdata.tm.autoinspect.service.TaskAutoInspectResultsService;
 import com.tapdata.tm.autoinspect.utils.AutoInspectUtil;
@@ -58,7 +57,6 @@ import com.tapdata.tm.task.constant.SyncType;
 import com.tapdata.tm.task.constant.TaskEnum;
 import com.tapdata.tm.task.constant.TaskOpStatusEnum;
 import com.tapdata.tm.task.constant.TaskStatusEnum;
-import com.tapdata.tm.task.entity.TaskDagCheckLog;
 import com.tapdata.tm.task.entity.TaskEntity;
 import com.tapdata.tm.task.entity.TaskRecord;
 import com.tapdata.tm.task.param.SaveShareCacheParam;
@@ -66,6 +64,7 @@ import com.tapdata.tm.task.repository.TaskRepository;
 import com.tapdata.tm.task.vo.ShareCacheDetailVo;
 import com.tapdata.tm.task.vo.ShareCacheVo;
 import com.tapdata.tm.task.vo.TaskDetailVo;
+import com.tapdata.tm.task.vo.TaskStatsDto;
 import com.tapdata.tm.transform.service.MetadataTransformerItemService;
 import com.tapdata.tm.transform.service.MetadataTransformerService;
 import com.tapdata.tm.userLog.constant.Modular;
@@ -87,6 +86,9 @@ import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.aggregation.AggregationResults;
+import org.springframework.data.mongodb.core.aggregation.Fields;
+import org.springframework.data.mongodb.core.aggregation.GroupOperation;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
@@ -98,10 +100,12 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+
+import static org.springframework.data.mongodb.core.aggregation.Aggregation.group;
+import static org.springframework.data.mongodb.core.aggregation.Aggregation.match;
 
 /**
  * @Author:
@@ -715,7 +719,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         }
     }
 
-     /**
+    /**
      * 删除任务
      *
      * @param id   任务id
@@ -1823,6 +1827,44 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         Query query = new Query(Criteria.where("_id").is(id));
         query.fields().include(fields);
         return findOne(query);
+    }
+
+    public TaskStatsDto stats(UserDetail userDetail) {
+
+        Map<String, Long> taskTypeStats = typeTaskStats(userDetail);
+
+        TaskStatsDto taskStatsDto = new TaskStatsDto();
+        taskStatsDto.setTaskTypeStats(taskTypeStats);
+        return taskStatsDto;
+    }
+
+    private Map<String, Long> typeTaskStats(UserDetail userDetail) {
+        org.springframework.data.mongodb.core.aggregation.Aggregation aggregation =
+                org.springframework.data.mongodb.core.aggregation.Aggregation.newAggregation(
+                        match(Criteria.where("user_id").is(userDetail.getUserId()).and("customId").is(userDetail.getCustomerId())),
+                        group("type").count().as("count")
+                );
+
+        Map<String, Long> taskTypeStats = new HashMap<>();
+
+        AggregationResults<Char1Group> result = repository.aggregate(aggregation, Char1Group.class);
+        Iterator<Char1Group> it = result.iterator();
+        while (it.hasNext()) {
+            Char1Group part = it.next();
+            taskTypeStats.put(part.get_id(), part.getCount());
+        }
+        if (!taskTypeStats.containsKey(ParentTaskDto.TYPE_CDC)) {
+            taskTypeStats.put(ParentTaskDto.TYPE_CDC, 0L);
+        }
+        if (!taskTypeStats.containsKey(ParentTaskDto.TYPE_INITIAL_SYNC)) {
+            taskTypeStats.put(ParentTaskDto.TYPE_INITIAL_SYNC, 0L);
+        }
+        if (!taskTypeStats.containsKey(ParentTaskDto.TYPE_INITIAL_SYNC_CDC)) {
+            taskTypeStats.put(ParentTaskDto.TYPE_INITIAL_SYNC_CDC, 0L);
+        }
+        Long total = taskTypeStats.values().stream().reduce(Long::sum).orElse(0L);
+        taskTypeStats.put("total", total);
+        return taskTypeStats;
     }
 
     @Data

@@ -920,10 +920,10 @@ public abstract class BaseRepository<Entity extends BaseEntity, ID> {
         return findOne(query, userDetail).orElse(entity);
     }
 
-    public <T> AggregationResults<T> aggregate(Class<T> outputType) {
+    public <T> AggregationResults<T> aggregate(Aggregation aggregation, Class<T> outputType) {
 
 
-        Aggregation aggregation = Aggregation.newAggregation(
+        /*Aggregation aggregation = Aggregation.newAggregation(
                 //new MatchOperation(Criteria.where("id").is(toObjectId("5f9400009eb0c95fba755a7b"))),
                 Aggregation.match(where("id").is(toObjectId("5f9400009eb0c95fba755a7b"))),
                 new ProjectionOperation().andInclude("clusterId"),
@@ -931,7 +931,7 @@ public abstract class BaseRepository<Entity extends BaseEntity, ID> {
                         Fields.field("mdb_instance"),
                         Fields.field("clusterId"),
                         Fields.field("clusterId"),
-                        Fields.field("instances")));
+                        Fields.field("instances")));*/
         return mongoOperations.aggregate(aggregation, entityClass, outputType);
     }
 

@@ -26,10 +26,7 @@ import com.tapdata.tm.metadatainstance.vo.SourceTypeEnum;
 import com.tapdata.tm.task.bean.*;
 import com.tapdata.tm.task.entity.TaskEntity;
 import com.tapdata.tm.task.service.*;
-import com.tapdata.tm.task.vo.JsResultDto;
-import com.tapdata.tm.task.vo.JsResultVo;
-import com.tapdata.tm.task.vo.TaskDetailVo;
-import com.tapdata.tm.task.vo.TaskRecordListVo;
+import com.tapdata.tm.task.vo.*;
 import com.tapdata.tm.utils.Lists;
 import com.tapdata.tm.utils.MongoUtils;
 import io.github.openlg.graphlib.Graph;
@@ -982,6 +979,12 @@ public class TaskController extends BaseController {
                                                            @RequestParam(defaultValue = "1") Integer page,
                                                            @RequestParam(defaultValue = "20") Integer size) {
         return success(taskRecordService.queryRecords(taskId, page, size));
+    }
+
+    @Operation(summary = "任务统计数据接口")
+    @GetMapping("/stats")
+    public ResponseMessage<TaskStatsDto> stats() {
+        return success(taskService.stats(getLoginUser()));
     }
 
 }
