@@ -10,14 +10,15 @@ import com.tapdata.tm.commons.dag.*;
 import com.tapdata.tm.commons.dag.nodes.DataParentNode;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
+import com.tapdata.tm.commons.dag.process.CustomProcessorNode;
+import com.tapdata.tm.commons.dag.process.JsProcessorNode;
+import com.tapdata.tm.commons.dag.process.MigrateJsProcessorNode;
 import com.tapdata.tm.commons.schema.*;
 import com.tapdata.tm.commons.task.dto.Message;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.ds.service.impl.DataSourceDefinitionService;
 import com.tapdata.tm.ds.service.impl.DataSourceService;
-import com.tapdata.tm.lock.annotation.Lock;
-import com.tapdata.tm.lock.constant.LockType;
 import com.tapdata.tm.message.constant.Level;
 import com.tapdata.tm.messagequeue.dto.MessageQueueDto;
 import com.tapdata.tm.messagequeue.service.MessageQueueService;
@@ -251,7 +252,26 @@ public class TransformSchemaService {
 
         taskService.updateById(taskDto.getId(), Update.update("transformUuid", transformParam.getOptions().getUuid()).set("transformed", false), user);
 
-        sendTransformer(transformParam, user);
+        boolean taskContainJs = checkTaskContainJs(taskDto);
+
+        if (taskContainJs) {
+            sendTransformer(transformParam, user);
+            return;
+        }
+
+
+        DAGDataServiceImpl dagDataService1 = new DAGDataServiceImpl(transformParam);
+
+        Map<String, List<Message>> transformSchema = taskDto.getDag().transformSchema(null, dagDataService1, transformParam.getOptions());
+        TransformerWsMessageResult transformerWsMessageResult = new TransformerWsMessageResult();
+        transformerWsMessageResult.setTransformSchema(transformSchema);
+        transformerWsMessageResult.setUpsertTransformer(dagDataService1.getUpsertTransformer());
+        transformerWsMessageResult.setBatchInsertMetaDataList(dagDataService1.getBatchInsertMetaDataList());
+        transformerWsMessageResult.setUpsertItems(dagDataService1.getUpsertItems());
+        transformerWsMessageResult.setBatchMetadataUpdateMap(dagDataService1.getBatchMetadataUpdateMap());
+        transformerWsMessageResult.setTaskId(taskDto.getId().toHexString());
+        transformerWsMessageResult.setTransformUuid(transformParam.getOptions().getUuid());
+        transformerResult(user, transformerWsMessageResult);
     }
 
     public void transformerResult(UserDetail user, TransformerWsMessageResult result) {
@@ -349,5 +369,20 @@ public class TransformSchemaService {
 //        log.info("build send test connection websocket context, processId = {}, userId = {}, queueDto = {}", processId, user.getUserId(), queueDto);
         messageQueueService.sendMessage(queueDto);
 
+    }
+
+    public boolean checkTaskContainJs(TaskDto taskDto) {
+        DAG dag = taskDto.getDag();
+        if (dag != null) {
+            List<Node> nodes = dag.getNodes();
+            if (CollectionUtils.isNotEmpty(nodes)) {
+                for (Node node : nodes) {
+                    if (node instanceof JsProcessorNode || node instanceof MigrateJsProcessorNode || node instanceof CustomProcessorNode) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
     }
 }
