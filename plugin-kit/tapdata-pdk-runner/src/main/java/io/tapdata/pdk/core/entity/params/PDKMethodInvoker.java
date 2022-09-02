@@ -27,7 +27,7 @@ public class PDKMethodInvoker {
     private ClassLoader contextClassLoader;
     private long retryTimes;
     private long retryPeriodSeconds;
-    private long maxRetryTimeMinute;
+    private long maxRetryTimeMinute; //util:seconds
 
     public PDKMethodInvoker maxRetryTimeMinute(long maxRetryTimeMinute){
         this.maxRetryTimeMinute = maxRetryTimeMinute;
