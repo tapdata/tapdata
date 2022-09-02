@@ -19,7 +19,7 @@ import java.util.function.Consumer;
 @Service
 @Slf4j
 public class  BasicEventServiceImpl implements BasicEventService {
-    private static final int BUFFER_SIZE = 1024;
+    private static final int BUFFER_SIZE = 128;
     private ObjectEventProducer disruptorQueue;
 
     private final AtomicLong eventCount = new AtomicLong();

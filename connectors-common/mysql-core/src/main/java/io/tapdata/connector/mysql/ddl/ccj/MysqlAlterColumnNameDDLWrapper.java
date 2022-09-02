@@ -3,7 +3,6 @@ package io.tapdata.connector.mysql.ddl.ccj;
 import io.tapdata.entity.event.ddl.TapDDLEvent;
 import io.tapdata.entity.event.ddl.entity.ValueChange;
 import io.tapdata.entity.event.ddl.table.TapAlterFieldNameEvent;
-import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.cache.KVReadOnlyMap;
 import io.tapdata.kit.EmptyKit;
@@ -15,7 +14,6 @@ import net.sf.jsqlparser.statement.alter.AlterExpression;
 import net.sf.jsqlparser.statement.alter.AlterOperation;
 
 import java.util.Collections;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.function.Consumer;
 
@@ -36,14 +34,12 @@ public class MysqlAlterColumnNameDDLWrapper extends MysqlDDLWrapper {
         verifyAlter(ddl);
         TapAlterFieldNameEvent tapAlterFieldNameEvent = new TapAlterFieldNameEvent();
         String tableName = getTableName(ddl);
-        TapTable tapTable = null == tableMap ? null : tableMap.get(tableName);
         tapAlterFieldNameEvent.setTableId(tableName);
         List<AlterExpression> alterExpressions = ddl.getAlterExpressions();
         if (null == alterExpressions || alterExpressions.size() <= 0) {
             return;
         }
         AlterExpression alterExpression = alterExpressions.get(0);
-        LinkedHashMap<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
         if (alterExpression.getOperation() == AlterOperation.CHANGE) {
             List<AlterExpression.ColumnDataType> colDataTypeList = alterExpression.getColDataTypeList();
             if (null == colDataTypeList || colDataTypeList.size() <= 0) {
@@ -57,7 +53,6 @@ public class MysqlAlterColumnNameDDLWrapper extends MysqlDDLWrapper {
             tapAlterFieldNameEvent.nameChange(ValueChange.create(
                     before,
                     StringKit.removeHeadTail(columnDataType.getColumnName(), ccjddlWrapperConfig.getSplit(), false)));
-            tapAlterFieldNameEvent.setOldField(nameFieldMap != null ? nameFieldMap.get(before) : null);
             consumer.accept(tapAlterFieldNameEvent);
         } else if (alterExpression.getOperation() == AlterOperation.RENAME) {
             String columnName = alterExpression.getColumnName();
@@ -69,7 +64,6 @@ public class MysqlAlterColumnNameDDLWrapper extends MysqlDDLWrapper {
             tapAlterFieldNameEvent.nameChange(ValueChange.create(
                     before,
                     StringKit.removeHeadTail(columnName, ccjddlWrapperConfig.getSplit(), false)));
-            tapAlterFieldNameEvent.setOldField(nameFieldMap != null ? nameFieldMap.get(before) : null);
             consumer.accept(tapAlterFieldNameEvent);
         }
     }
