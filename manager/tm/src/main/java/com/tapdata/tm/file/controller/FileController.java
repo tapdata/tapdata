@@ -29,7 +29,7 @@ public class FileController extends BaseController {
 
     @GetMapping("json")
     public void jsonLoad(HttpServletResponse response) {
-        fileService1.viewImg1(null, response);
+        fileService1.viewImg1(null, response, null);
     }
 
     @PostMapping(path = "/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)

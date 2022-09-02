@@ -15,6 +15,7 @@
     <properties>
         <java.version>8</java.version>
         <hikari.version>4.0.3</hikari.version>
+        <jsqlparser.version>4.4</jsqlparser.version>
     </properties>
 
     <dependencies>
@@ -38,6 +39,10 @@
                 </exclusion>
             </exclusions>
         </dependency>
+        <dependency>
+            <groupId>com.github.jsqlparser</groupId>
+            <artifactId>jsqlparser</artifactId>
+        </dependency>
     </dependencies>
 
     <dependencyManagement>
@@ -46,6 +51,11 @@
                 <groupId>com.zaxxer</groupId>
                 <artifactId>HikariCP</artifactId>
                 <version>${hikari.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.github.jsqlparser</groupId>
+                <artifactId>jsqlparser</artifactId>
+                <version>${jsqlparser.version}</version>
             </dependency>
         </dependencies>
     </dependencyManagement>

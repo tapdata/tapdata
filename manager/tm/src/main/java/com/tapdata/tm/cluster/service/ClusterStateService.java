@@ -311,7 +311,7 @@ public class ClusterStateService extends BaseService<ClusterStateDto, ClusterSta
         }
 
         availableAgent.forEach(dto -> {
-            AccessNodeInfo accessNodeInfo = new AccessNodeInfo(dto.getProcessId(), dto.getHostname(), dto.getHostname());
+            AccessNodeInfo accessNodeInfo = new AccessNodeInfo(dto.getProcessId(), dto.getHostname(), dto.getProcessId());
             result.add(accessNodeInfo);
         });
 

@@ -6,7 +6,9 @@ import java.util.List;
  * @author jackin
  * @date 2022/7/26 09:23
  **/
-public interface PartitionKeySelector<K, T, R> {
+public interface PartitionKeySelector<T, R, M> {
 
-	List<R> select(T event);
+	List<R> select(T event, M row);
+
+	List<R> convert2OriginValue(final List<R> values);
 }

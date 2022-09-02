@@ -78,8 +78,10 @@ public class DatabaseNode extends DataParentNode<List<Schema>> {
     @Override
     public List<Schema> mergeSchema(List<List<Schema>> inputSchemas, List<Schema> schemas) {
         //把inputSchemas的deleted的field给过滤掉
-        for (List<Schema> inputSchema : inputSchemas) {
-            SchemaUtils.removeDeleteFields(inputSchema);
+        if (TaskDto.SYNC_TYPE_SYNC.equals(getDag().getSyncType())) {
+            for (List<Schema> inputSchema : inputSchemas) {
+                SchemaUtils.removeDeleteFields(inputSchema);
+            }
         }
 
         if (schemas == null) {
@@ -116,6 +118,7 @@ public class DatabaseNode extends DataParentNode<List<Schema>> {
 
             List<Schema> existsTables = schemas.stream().map(s -> {
                 if (inputTables.containsKey(s.getOriginalName())) {
+                    s.setAncestorsName(inputTables.get(s.getOriginalName()).getAncestorsName());
                     return SchemaUtils.mergeSchema(Collections.singletonList(inputTables.remove(s.getOriginalName())), s);
                 }
                 return s;
@@ -124,7 +127,6 @@ public class DatabaseNode extends DataParentNode<List<Schema>> {
             outputSchema = Stream.concat(new ArrayList<>(inputTables.values()).stream(), existsTables.stream()).collect(Collectors.toList());
         }
         for (Schema schema : outputSchema) {
-            schema.setAncestorsName(schema.getOriginalName());
             schema.setFields(transformFields(inputFields, schema, inputFieldOriginalNames));
             //  has migrateFieldNode && field not show => will del index where contain field
             schema.setIndices(updateIndexDelField(schema.getIndices(), inputFieldOriginalNames));
@@ -176,35 +178,21 @@ public class DatabaseNode extends DataParentNode<List<Schema>> {
             List<String> includes = new ArrayList<>();
             options.setIncludes(includes);
             List<List<String>> partition = ListUtils.partition(tables, options.getBatchNum());
-            if ("sync".equals(options.getSyncType())) {
-                partition.forEach(list -> {
-                    includes.clear();
-                    includes.addAll(list);
-                    this.setSchema(null);
-                    super.transformSchema(options);
-                });
-            } else {
-                CountDownLatch countDownLatch = ThreadUtil.newCountDownLatch(partition.size());
-                partition.forEach( list -> ThreadUtil.execute(() -> {
-                    includes.clear();
-                    includes.addAll(list);
-                    this.setSchema(null);
-                    super.transformSchema(options);
-                    countDownLatch.countDown();
-                }));
-                countDownLatch.await();
-            }
+            partition.forEach(list -> {
+                includes.clear();
+                includes.addAll(list);
+                this.setSchema(null);
+                super.transformSchema(options);
+            });
         }
     }
 
     public List<String> getSourceNodeTableNames() {
         AtomicReference<List<String>> tableNames = new AtomicReference<>();
 
-        Set<String> targetNodeIds = getGraph().getSinks();
-
-        this.getDag().getSources().stream()
+        this.getDag().getSourceNode().stream()
                 .findAny()
-                .ifPresent(t -> tableNames.set(((DatabaseNode) t).getTableNames()));
+                .ifPresent(t -> tableNames.set(t.getTableNames()));
 
         return tableNames.get();
     }
@@ -247,7 +235,11 @@ public class DatabaseNode extends DataParentNode<List<Schema>> {
 
         List<Schema> schemaList = service.loadSchema(ownerId(), toObjectId(connectionId), filteredTableNames, null)
                 .stream().peek(s -> {
-                    s.setAncestorsName(s.getOriginalName());
+
+                    // 源节点 保存原始表名
+                    if (this.getSourceNode().contains(this)) {
+                        s.setAncestorsName(s.getOriginalName());
+                    }
                     s.setNodeId(getId());
                     s.setSourceNodeDatabaseType(getDatabaseType());
                 }).collect(Collectors.toList());
@@ -259,23 +251,23 @@ public class DatabaseNode extends DataParentNode<List<Schema>> {
         return schemaList;
     }
 
-    public List<String> getFilteredTableNames() {
-        List<String> filteredTableNames = syncObjects.stream()
-                .filter(s -> s.getObjectNames() != null /*&& "table".equalsIgnoreCase(s.getType())*/) // type: table,topic,queue
-                .flatMap(s -> s.getObjectNames().stream()).map(this::transformTableName)
-                .collect(Collectors.toList());
-        return filteredTableNames;
-    }
-
     public int tableSize() {
-        return getFilteredTableNames().size();
+        if (CollectionUtils.isNotEmpty(syncObjects)) {
+            return (int) syncObjects.stream()
+                    .filter(s -> CollectionUtils.isNotEmpty(s.getObjectNames()))
+                    .mapToLong(s -> s.getObjectNames().size()).sum();
+        } else if (CollectionUtils.isNotEmpty(tableNames)) {
+            return tableNames.size();
+        } else {
+            return 0;
+        }
     }
 
     @Override
     protected List<Schema> saveSchema(Collection<String> pre, String nodeId, List<Schema> schemaList, DAG.Options options) {
         if (schemaList != null && schemaList.size() > 0) {
             schemaList.forEach(s -> {
-                s.setTaskId(taskId());
+                //s.setTaskId(taskId());
                 s.setNodeId(nodeId);
             });
             schemaList = service.createOrUpdateSchema(ownerId(), toObjectId(connectionId), schemaList, options, this);
@@ -320,7 +312,9 @@ public class DatabaseNode extends DataParentNode<List<Schema>> {
             tableNames = tableNames == null ? new ArrayList<>() : tableNames;
             if (event instanceof TapCreateTableEvent) {
                 String tableName = ((TapCreateTableEvent) event).getTableId();
-                tableNames.add(tableName);
+                if (!tableNames.contains(tableName)) {
+                    tableNames.add(tableName);
+                }
             } else if (event instanceof TapDropTableEvent) {
                 String tableName = ((TapDropTableEvent) event).getTableId();
                 tableNames.remove(tableName);

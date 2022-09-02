@@ -1,21 +1,21 @@
 package io.tapdata.aspect;
 
-import com.tapdata.tm.commons.task.dto.SubTaskDto;
+import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.entity.aspect.Aspect;
 
 public class TaskStartAspect extends Aspect {
-	private SubTaskDto task;
+	private TaskDto task;
 
-	public TaskStartAspect task(SubTaskDto task) {
+	public TaskStartAspect task(TaskDto task) {
 		this.task = task;
 		return this;
 	}
 
-	public SubTaskDto getTask() {
+	public TaskDto getTask() {
 		return task;
 	}
 
-	public void setTask(SubTaskDto task) {
+	public void setTask(TaskDto task) {
 		this.task = task;
 	}
 }

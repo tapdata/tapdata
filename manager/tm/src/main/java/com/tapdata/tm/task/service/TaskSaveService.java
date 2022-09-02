@@ -5,4 +5,6 @@ import com.tapdata.tm.config.security.UserDetail;
 
 public interface TaskSaveService {
     boolean taskSaveCheckLog(TaskDto taskDto, UserDetail userDetail);
+
+    void syncTaskSetting(TaskDto taskDto, UserDetail userDetail);
 }

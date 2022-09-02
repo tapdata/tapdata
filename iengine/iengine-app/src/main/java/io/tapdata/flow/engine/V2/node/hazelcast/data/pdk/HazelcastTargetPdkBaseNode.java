@@ -7,18 +7,17 @@ import com.tapdata.constant.JSONUtil;
 import com.tapdata.constant.Log4jUtil;
 import com.tapdata.constant.MilestoneUtil;
 import com.tapdata.entity.*;
-import com.tapdata.entity.dataflow.Capitalized;
 import com.tapdata.entity.dataflow.SyncProgress;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.DataParentNode;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
-import com.tapdata.tm.commons.dag.vo.SyncObjects;
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.commons.schema.TransformerWsMessageResult;
 import com.tapdata.tm.commons.task.dto.MergeTableProperties;
-import com.tapdata.tm.commons.task.dto.SubTaskDto;
+import com.tapdata.tm.commons.task.dto.TaskDto;
+import io.tapdata.aspect.TaskMilestoneFuncAspect;
 import io.tapdata.common.sample.sampler.AverageSampler;
 import io.tapdata.common.sample.sampler.CounterSampler;
 import io.tapdata.common.sample.sampler.ResetCounterSampler;
@@ -29,6 +28,7 @@ import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.schema.TapTable;
+import io.tapdata.flow.engine.V2.exception.node.NodeException;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.concurrent.PartitionConcurrentProcessor;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.concurrent.partitioner.KeysPartitioner;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.concurrent.selector.TapEventPartitionKeySelector;
@@ -44,6 +44,7 @@ import org.apache.commons.collections.MapUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.ThreadContext;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.*;
@@ -52,6 +53,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 import static com.hazelcast.jet.impl.util.ExceptionUtil.sneakyThrow;
 
@@ -98,6 +100,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 		super(dataProcessorContext);
 		initMilestoneService(MilestoneContext.VertexType.DEST);
 		// MILESTONE-INIT_TRANSFORMER-RUNNING
+		TaskMilestoneFuncAspect.execute(dataProcessorContext, MilestoneStage.INIT_TRANSFORMER, MilestoneStatus.RUNNING);
 		MilestoneUtil.updateMilestone(milestoneService, MilestoneStage.INIT_TRANSFORMER, MilestoneStatus.RUNNING);
 	}
 
@@ -144,8 +147,9 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 				createPdkConnectorNode(dataProcessorContext, context.hazelcastInstance());
 				connectorNodeInit(dataProcessorContext);
 			} catch (Throwable e) {
+				TaskMilestoneFuncAspect.execute(dataProcessorContext, MilestoneStage.INIT_TRANSFORMER, MilestoneStatus.ERROR, logger);
 				MilestoneUtil.updateMilestone(milestoneService, MilestoneStage.INIT_TRANSFORMER, MilestoneStatus.ERROR, e.getMessage() + "\n" + Log4jUtil.getStackString(e));
-				throw new RuntimeException(e);
+				throw new NodeException(e).context(getProcessorBaseContext());
 			}
 		}
 		this.uploadDagService = new AtomicBoolean(false);
@@ -164,7 +168,6 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 					this.initialPartitionConcurrentProcessor = initConcurrentProcessor(initialConcurrentWriteNum);
 					this.initialPartitionConcurrentProcessor.start();
 				}
-
 			}
 			final Boolean cdcConcurrent = dataParentNode.getCdcConcurrent();
 			if (cdcConcurrent != null) {
@@ -178,35 +181,14 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 		}
 	}
 
-	protected void initDatabaseTableNameMap(DatabaseNode node) {
-		tableNameMap = new HashMap<>();
-		List<String> tableNames = null;
-		List<SyncObjects> syncObjects = node.getSyncObjects();
-		SyncObjects tableObjects = syncObjects.stream().filter(s -> s.getType().equals(com.tapdata.entity.dataflow.SyncObjects.TABLE_TYPE)).findFirst().orElse(null);
-		if (null != tableObjects) {
-			tableNames = new ArrayList<>(tableObjects.getObjectNames());
-		}
-		if (CollectionUtils.isEmpty(tableNames))
-			throw new RuntimeException("Found database node's table list is empty, will stop task");
-		String tableNameTransform = node.getTableNameTransform();
-		String tablePrefix = node.getTablePrefix();
-		String tableSuffix = node.getTableSuffix();
-		tableNames.forEach(t -> {
-			String targetTableName = t;
-			if (StringUtils.isNotBlank(tablePrefix)) targetTableName = tablePrefix + targetTableName;
-			if (StringUtils.isNotBlank(tableSuffix)) targetTableName = targetTableName + tableSuffix;
-			targetTableName = Capitalized.convert(targetTableName, tableNameTransform);
-			tableNameMap.put(t, targetTableName);
-		});
-	}
-
 	@Override
 	final public void process(int ordinal, @NotNull Inbox inbox) {
 		try {
+			Log4jUtil.setThreadContext(dataProcessorContext.getTaskDto());
 			if (!inbox.isEmpty()) {
 				while (isRunning()) {
 					List<TapdataEvent> tapdataEvents = new ArrayList<>();
-					final int count = inbox.drainTo(tapdataEvents, dataProcessorContext.getSubTaskDto().getParentTask().getReadBatchSize());
+					final int count = inbox.drainTo(tapdataEvents, dataProcessorContext.getTaskDto().getReadBatchSize());
 					if (count > 0) {
 						if (!inCdc) {
 							List<TapdataEvent> partialCdcEvents = new ArrayList<>();
@@ -239,9 +221,11 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 					}
 				}
 			}
-		} catch (Exception e) {
-			logger.error("Target process failed {}", e.getMessage(), e);
+		} catch (Throwable e) {
+			errorHandle(e, "Target process failed " + e.getMessage());
 			throw sneakyThrow(e);
+		} finally {
+			ThreadContext.clearAll();
 		}
 	}
 
@@ -275,47 +259,62 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 		}
 		AtomicReference<TapdataEvent> lastDmlTapdataEvent = new AtomicReference<>();
 		for (TapdataEvent tapdataEvent : tapdataEvents) {
-			SyncStage syncStage = tapdataEvent.getSyncStage();
-			if (null != syncStage) {
-				if (syncStage == SyncStage.INITIAL_SYNC && firstBatchEvent.compareAndSet(false, true)) {
-					// MILESTONE-WRITE_SNAPSHOT-RUNNING
-					MilestoneUtil.updateMilestone(milestoneService, MilestoneStage.WRITE_SNAPSHOT, MilestoneStatus.RUNNING);
-				} else if (syncStage == SyncStage.CDC && firstStreamEvent.compareAndSet(false, true)) {
-					// MILESTONE-WRITE_CDC_EVENT-FINISH
-					MilestoneUtil.updateMilestone(milestoneService, MilestoneStage.WRITE_CDC_EVENT, MilestoneStatus.FINISH);
-				}
-			}
-			if (tapdataEvent instanceof TapdataHeartbeatEvent) {
-				handleTapdataHeartbeatEvent(tapdataEvent);
-			} else if (tapdataEvent instanceof TapdataCompleteSnapshotEvent) {
-				handleTapdataCompleteSnapshotEvent();
-			} else if (tapdataEvent instanceof TapdataStartCdcEvent) {
-				handleTapdataStartCdcEvent(tapdataEvent);
-			} else if (tapdataEvent instanceof TapdataShareLogEvent) {
-				handleTapdataShareLogEvent(tapdataShareLogEvents, tapdataEvent, lastDmlTapdataEvent::set);
-			} else {
-				if (tapdataEvent.isDML()) {
-					handleTapdataRecordEvent(tapdataEvent, tapEvents, lastDmlTapdataEvent::set);
-				} else if (tapdataEvent.isDDL()) {
-					handleTapdataDDLEvent(tapdataEvent, tapEvents, lastDmlTapdataEvent::set);
-				} else {
-					if (null != tapdataEvent.getTapEvent()) {
-						logger.warn("Tap event type does not supported: " + tapdataEvent.getTapEvent().getClass() + ", will ignore it");
+			try {
+				SyncStage syncStage = tapdataEvent.getSyncStage();
+				if (null != syncStage) {
+					if (syncStage == SyncStage.INITIAL_SYNC && firstBatchEvent.compareAndSet(false, true)) {
+						// MILESTONE-WRITE_SNAPSHOT-RUNNING
+						TaskMilestoneFuncAspect.execute(dataProcessorContext, MilestoneStage.WRITE_SNAPSHOT, MilestoneStatus.RUNNING);
+						MilestoneUtil.updateMilestone(milestoneService, MilestoneStage.WRITE_SNAPSHOT, MilestoneStatus.RUNNING);
+					} else if (syncStage == SyncStage.CDC && firstStreamEvent.compareAndSet(false, true)) {
+						// MILESTONE-WRITE_CDC_EVENT-FINISH
+						TaskMilestoneFuncAspect.execute(dataProcessorContext, MilestoneStage.WRITE_CDC_EVENT, MilestoneStatus.FINISH);
+						MilestoneUtil.updateMilestone(milestoneService, MilestoneStage.WRITE_CDC_EVENT, MilestoneStatus.FINISH);
 					}
 				}
+				if (tapdataEvent instanceof TapdataHeartbeatEvent) {
+					handleTapdataHeartbeatEvent(tapdataEvent);
+				} else if (tapdataEvent instanceof TapdataCompleteSnapshotEvent) {
+					handleTapdataCompleteSnapshotEvent();
+				} else if (tapdataEvent instanceof TapdataStartCdcEvent) {
+					handleTapdataStartCdcEvent(tapdataEvent);
+				} else if (tapdataEvent instanceof TapdataShareLogEvent) {
+					handleTapdataShareLogEvent(tapdataShareLogEvents, tapdataEvent, lastDmlTapdataEvent::set);
+				} else {
+					if (tapdataEvent.isDML()) {
+						handleTapdataRecordEvent(tapdataEvent, tapEvents, lastDmlTapdataEvent::set);
+					} else if (tapdataEvent.isDDL()) {
+						handleTapdataDDLEvent(tapdataEvent, tapEvents, lastDmlTapdataEvent::set);
+					} else {
+						if (null != tapdataEvent.getTapEvent()) {
+							logger.warn("Tap event type does not supported: " + tapdataEvent.getTapEvent().getClass() + ", will ignore it");
+							obsLogger.warn("Tap event type does not supported: " + tapdataEvent.getTapEvent().getClass() + ", will ignore it");
+						}
+					}
+				}
+			} catch (Throwable throwable) {
+				throw errorHandle(throwable, "handel events failed: " + throwable.getMessage());
 			}
 		}
 		if (CollectionUtils.isNotEmpty(tapEvents)) {
 			resetInputCounter.inc(tapEvents.size());
 			inputCounter.inc(tapEvents.size());
 			inputQPS.add(tapEvents.size());
-			processEvents(tapEvents);
+			try {
+				processEvents(tapEvents);
+			} catch (Throwable throwable) {
+				throw errorHandle(throwable, "process events failed: " + throwable.getMessage());
+			}
 		}
 		if (CollectionUtils.isNotEmpty(tapdataShareLogEvents)) {
 			resetInputCounter.inc(tapdataShareLogEvents.size());
 			inputCounter.inc(tapdataShareLogEvents.size());
 			inputQPS.add(tapdataShareLogEvents.size());
-			processShareLog(tapdataShareLogEvents);
+			try {
+				processShareLog(tapdataShareLogEvents);
+			} catch (Throwable throwable) {
+				throw errorHandle(throwable, "process share log failed: " + throwable.getMessage());
+			}
 		}
 		flushSyncProgressMap(lastDmlTapdataEvent.get());
 	}
@@ -329,13 +328,15 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 
 	private void handleTapdataStartCdcEvent(TapdataEvent tapdataEvent) {
 		// MILESTONE-WRITE_CDC_EVENT-RUNNING
+		TaskMilestoneFuncAspect.execute(dataProcessorContext, MilestoneStage.WRITE_CDC_EVENT, MilestoneStatus.RUNNING);
 		MilestoneUtil.updateMilestone(milestoneService, MilestoneStage.WRITE_CDC_EVENT, MilestoneStatus.RUNNING);
 		flushSyncProgressMap(tapdataEvent);
 		saveToSnapshot();
 	}
 
-	private void handleTapdataCompleteSnapshotEvent() {
+	protected void handleTapdataCompleteSnapshotEvent() {
 		// MILESTONE-WRITE_SNAPSHOT-FINISH
+		TaskMilestoneFuncAspect.execute(dataProcessorContext, MilestoneStage.WRITE_SNAPSHOT, MilestoneStatus.FINISH);
 		MilestoneUtil.updateMilestone(milestoneService, MilestoneStage.WRITE_SNAPSHOT, MilestoneStatus.FINISH);
 	}
 
@@ -363,10 +364,6 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 		TapDDLEvent tapDDLEvent = (TapDDLEvent) tapdataEvent.getTapEvent();
 		if (tapdataEvent.getTapEvent() instanceof TapCreateTableEvent) {
 			updateNode(tapdataEvent);
-			Node<?> node = dataProcessorContext.getNode();
-			if (node instanceof DatabaseNode) {
-				initDatabaseTableNameMap((DatabaseNode) dataProcessorContext.getNode());
-			}
 		}
 		updateMemoryFromDDLInfoMap(tapdataEvent, getTgtTableNameFromTapEvent(tapDDLEvent));
 		Object updateMetadata = tapDDLEvent.getInfo(UPDATE_METADATA_INFO_KEY);
@@ -435,11 +432,8 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 	protected String getTgtTableNameFromTapEvent(TapEvent tapEvent) {
 		if (StringUtils.isNotBlank(tableName)) {
 			return tableName;
-		} else if (null != tableNameMap) {
-			String tableId = TapEventUtil.getTableId(tapEvent);
-			return tableNameMap.get(tableId);
 		} else {
-			return "";
+			return super.getTgtTableNameFromTapEvent(tapEvent);
 		}
 	}
 
@@ -463,52 +457,58 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 
 	@Override
 	public boolean saveToSnapshot() {
-		if (!flushOffset.get()) return true;
-		if (MapUtils.isEmpty(syncProgressMap)) return true;
-		Map<String, String> syncProgressJsonMap = new HashMap<>(syncProgressMap.size());
-		for (Map.Entry<String, SyncProgress> entry : syncProgressMap.entrySet()) {
-			String key = entry.getKey();
-			SyncProgress syncProgress = entry.getValue();
-			List<String> list = Arrays.asList(key.split(","));
-			if (null != syncProgress.getBatchOffsetObj()) {
-				syncProgress.setBatchOffset(PdkUtil.encodeOffset(syncProgress.getBatchOffsetObj()));
-			}
-			if (null != syncProgress.getStreamOffsetObj()) {
-				syncProgress.setStreamOffset(PdkUtil.encodeOffset(syncProgress.getStreamOffsetObj()));
-			}
-			try {
-				syncProgressJsonMap.put(JSONUtil.obj2Json(list), JSONUtil.obj2Json(syncProgress));
-			} catch (JsonProcessingException e) {
-				throw new RuntimeException("Convert offset to json failed, errors: " + e.getMessage(), e);
-			}
-		}
-		SubTaskDto subTaskDto = dataProcessorContext.getSubTaskDto();
-		String collection = ConnectorConstant.SUB_TASK_COLLECTION + "/syncProgress/" + subTaskDto.getId();
 		try {
-			clientMongoOperator.insertOne(syncProgressJsonMap, collection);
-		} catch (Exception e) {
-			throw new RuntimeException("Save to snapshot failed, collection: " + collection + ", object: " + this.syncProgressMap + "errors: " + e.getMessage(), e);
-		}
-		if (uploadDagService.get()) {
-			// Upload DAG
-			SubTaskDto updateSubTaskDto = new SubTaskDto();
-			updateSubTaskDto.setId(subTaskDto.getId());
-			updateSubTaskDto.setDag(subTaskDto.getDag());
-			clientMongoOperator.insertOne(updateSubTaskDto, ConnectorConstant.SUB_TASK_COLLECTION + "/dag");
-			if (MapUtils.isNotEmpty(updateMetadata) || CollectionUtils.isNotEmpty(insertMetadata) || CollectionUtils.isNotEmpty(removeMetadata)) {
-				// Upload Metadata
-				TransformerWsMessageResult wsMessageResult = new TransformerWsMessageResult();
-				wsMessageResult.setBatchInsertMetaDataList(insertMetadata);
-				wsMessageResult.setBatchMetadataUpdateMap(updateMetadata);
-				wsMessageResult.setBatchRemoveMetaDataList(removeMetadata);
-				wsMessageResult.setTaskId(subTaskDto.getId().toHexString());
-				// 返回结果调用接口返回
-				clientMongoOperator.insertOne(wsMessageResult, ConnectorConstant.TASK_COLLECTION + "/transformer/resultWithHistory");
-				insertMetadata.clear();
-				updateMetadata.clear();
-				removeMetadata.clear();
+			Log4jUtil.setThreadContext(dataProcessorContext.getTaskDto());
+			if (!flushOffset.get()) return true;
+			if (MapUtils.isEmpty(syncProgressMap)) return true;
+			Map<String, String> syncProgressJsonMap = new HashMap<>(syncProgressMap.size());
+			for (Map.Entry<String, SyncProgress> entry : syncProgressMap.entrySet()) {
+				String key = entry.getKey();
+				SyncProgress syncProgress = entry.getValue();
+				List<String> list = Arrays.asList(key.split(","));
+				if (null != syncProgress.getBatchOffsetObj()) {
+					syncProgress.setBatchOffset(PdkUtil.encodeOffset(syncProgress.getBatchOffsetObj()));
+				}
+				if (null != syncProgress.getStreamOffsetObj()) {
+					syncProgress.setStreamOffset(PdkUtil.encodeOffset(syncProgress.getStreamOffsetObj()));
+				}
+				try {
+					syncProgressJsonMap.put(JSONUtil.obj2Json(list), JSONUtil.obj2Json(syncProgress));
+				} catch (JsonProcessingException e) {
+					throw new RuntimeException("Convert offset to json failed, errors: " + e.getMessage(), e);
+				}
 			}
-			uploadDagService.compareAndSet(true, false);
+			TaskDto taskDto = dataProcessorContext.getTaskDto();
+			String collection = ConnectorConstant.TASK_COLLECTION + "/syncProgress/" + taskDto.getId();
+			try {
+				clientMongoOperator.insertOne(syncProgressJsonMap, collection);
+			} catch (Exception e) {
+				throw new RuntimeException("Save to snapshot failed, collection: " + collection + ", object: " + this.syncProgressMap + "errors: " + e.getMessage(), e);
+			}
+			if (uploadDagService.get()) {
+				// Upload DAG
+				TaskDto updateTaskDto = new TaskDto();
+				updateTaskDto.setId(taskDto.getId());
+				updateTaskDto.setDag(taskDto.getDag());
+				clientMongoOperator.insertOne(updateTaskDto, ConnectorConstant.TASK_COLLECTION + "/dag");
+				if (MapUtils.isNotEmpty(updateMetadata) || CollectionUtils.isNotEmpty(insertMetadata) || CollectionUtils.isNotEmpty(removeMetadata)) {
+					// Upload Metadata
+					TransformerWsMessageResult wsMessageResult = new TransformerWsMessageResult();
+					wsMessageResult.setBatchInsertMetaDataList(insertMetadata);
+					wsMessageResult.setBatchMetadataUpdateMap(updateMetadata);
+					wsMessageResult.setBatchRemoveMetaDataList(removeMetadata);
+					wsMessageResult.setTaskId(taskDto.getId().toHexString());
+					wsMessageResult.setTransformSchema(new HashMap<>());
+					// 返回结果调用接口返回
+					clientMongoOperator.insertOne(wsMessageResult, ConnectorConstant.TASK_COLLECTION + "/transformer/resultWithHistory");
+					insertMetadata.clear();
+					updateMetadata.clear();
+					removeMetadata.clear();
+				}
+				uploadDagService.compareAndSet(true, false);
+			}
+		} finally {
+			ThreadContext.clearAll();
 		}
 		return true;
 	}
@@ -517,27 +517,27 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 	private PartitionConcurrentProcessor initConcurrentProcessor(int cdcConcurrentWriteNum) {
 		return new PartitionConcurrentProcessor(
 				cdcConcurrentWriteNum,
-				dataProcessorContext.getSubTaskDto().getParentTask().getReadBatchSize(),
+				dataProcessorContext.getTaskDto().getReadBatchSize(),
 				new KeysPartitioner(),
 				new TapEventPartitionKeySelector(tapEvent -> {
 					final String tgtTableName = getTgtTableNameFromTapEvent(tapEvent);
 					TapTable tapTable = dataProcessorContext.getTapTableMap().get(tgtTableName);
 					handleTapTablePrimaryKeys(tapTable);
-					return new ArrayList<>(tapTable.primaryKeys());
+					return new ArrayList<>(tapTable.primaryKeys(true));
 				}),
 				this::handleTapdataEvents,
 				this::flushSyncProgressMap,
 				this::errorHandle,
-				dataProcessorContext.getSubTaskDto().getId().toHexString(),
-				dataProcessorContext.getSubTaskDto().getName()
+				this::isRunning,
+				dataProcessorContext.getTaskDto()
 		);
 	}
 
 	@Override
 	public void doClose() throws Exception {
 		try {
-			CommonUtils.ignoreAnyError(() -> Optional.ofNullable(this.initialPartitionConcurrentProcessor).ifPresent(PartitionConcurrentProcessor::stop), TAG);
-			CommonUtils.ignoreAnyError(() -> Optional.ofNullable(this.cdcPartitionConcurrentProcessor).ifPresent(PartitionConcurrentProcessor::stop), TAG);
+			CommonUtils.ignoreAnyError(() -> Optional.ofNullable(this.initialPartitionConcurrentProcessor).ifPresent(PartitionConcurrentProcessor::forceStop), TAG);
+			CommonUtils.ignoreAnyError(() -> Optional.ofNullable(this.cdcPartitionConcurrentProcessor).ifPresent(PartitionConcurrentProcessor::forceStop), TAG);
 		} finally {
 			super.doClose();
 		}

@@ -23,15 +23,15 @@ import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.logCollector.HazelCastImdgNode;
 import com.tapdata.tm.commons.dag.logCollector.LogCollectorNode;
 import com.tapdata.tm.commons.dag.logCollector.VirtualTargetNode;
-import com.tapdata.tm.commons.dag.nodes.CacheNode;
-import com.tapdata.tm.commons.dag.nodes.DataNode;
-import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
-import com.tapdata.tm.commons.dag.nodes.TableNode;
-import com.tapdata.tm.commons.dag.process.*;
-import com.tapdata.tm.commons.task.dto.SubTaskDto;
+import com.tapdata.tm.commons.dag.nodes.*;
+import com.tapdata.tm.commons.dag.process.MergeTableNode;
+import com.tapdata.tm.commons.dag.process.MigrateFieldRenameProcessorNode;
+import com.tapdata.tm.commons.dag.process.TableRenameProcessNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.aspect.TaskStartAspect;
+import io.tapdata.aspect.TaskStopAspect;
 import io.tapdata.aspect.utils.AspectUtils;
+import io.tapdata.autoinspect.utils.AutoInspectNodeUtil;
 import io.tapdata.common.SettingService;
 import io.tapdata.common.sharecdc.ShareCdcUtil;
 import io.tapdata.dao.MessageDao;
@@ -41,9 +41,7 @@ import io.tapdata.flow.engine.V2.exception.node.NodeException;
 import io.tapdata.flow.engine.V2.node.hazelcast.HazelcastBaseNode;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.*;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.*;
-import io.tapdata.flow.engine.V2.node.hazelcast.processor.HazelcastCustomProcessor;
-import io.tapdata.flow.engine.V2.node.hazelcast.processor.HazelcastMergeNode;
-import io.tapdata.flow.engine.V2.node.hazelcast.processor.HazelcastProcessorNode;
+import io.tapdata.flow.engine.V2.node.hazelcast.processor.*;
 import io.tapdata.flow.engine.V2.node.hazelcast.processor.aggregation.HazelcastMultiAggregatorProcessor;
 import io.tapdata.flow.engine.V2.node.hazelcast.processor.join.HazelcastJoinProcessor;
 import io.tapdata.flow.engine.V2.task.TaskClient;
@@ -55,6 +53,7 @@ import io.tapdata.milestone.MilestoneContext;
 import io.tapdata.milestone.MilestoneFactory;
 import io.tapdata.milestone.MilestoneFlowServiceJetV2;
 import io.tapdata.milestone.MilestoneJetEdgeService;
+import io.tapdata.observable.logging.ObsLoggerFactory;
 import io.tapdata.schema.TapTableMap;
 import io.tapdata.schema.TapTableUtil;
 import lombok.SneakyThrows;
@@ -80,7 +79,7 @@ import static org.springframework.data.mongodb.core.query.Criteria.where;
  **/
 @Service
 @DependsOn("tapdataTaskScheduler")
-public class HazelcastTaskService implements TaskService<SubTaskDto> {
+public class HazelcastTaskService implements TaskService<TaskDto> {
 
 	private static final Logger logger = LogManager.getLogger(HazelcastTaskService.class);
 
@@ -120,53 +119,64 @@ public class HazelcastTaskService implements TaskService<SubTaskDto> {
 	}
 
 	@Override
-	public TaskClient<SubTaskDto> startTask(SubTaskDto subTaskDto) {
-		final JetDag jetDag = task2HazelcastDAG(subTaskDto);
-		MilestoneFlowServiceJetV2 milestoneFlowServiceJetV2 = initMilestone(subTaskDto);
+	public TaskClient<TaskDto> startTask(TaskDto taskDto) {
+		try {
+			AspectUtils.executeAspect(new TaskStartAspect().task(taskDto));
 
-		JobConfig jobConfig = new JobConfig();
-		jobConfig.setName(subTaskDto.getName() + "-" + subTaskDto.getId().toHexString());
-		jobConfig.setProcessingGuarantee(ProcessingGuarantee.AT_LEAST_ONCE);
-		AspectUtils.executeAspect(new TaskStartAspect().task(subTaskDto));
-		final Job job = hazelcastInstance.getJet().newJob(jetDag.getDag(), jobConfig);
-		return new HazelcastTaskClient(job, subTaskDto, clientMongoOperator, configurationCenter, hazelcastInstance, milestoneFlowServiceJetV2);
+			final JetDag jetDag = task2HazelcastDAG(taskDto);
+			MilestoneFlowServiceJetV2 milestoneFlowServiceJetV2 = initMilestone(taskDto);
+
+			JobConfig jobConfig = new JobConfig();
+			jobConfig.setName(taskDto.getName() + "-" + taskDto.getId().toHexString());
+			jobConfig.setProcessingGuarantee(ProcessingGuarantee.AT_LEAST_ONCE);
+			final Job job = hazelcastInstance.getJet().newJob(jetDag.getDag(), jobConfig);
+			return new HazelcastTaskClient(job, taskDto, clientMongoOperator, configurationCenter, hazelcastInstance, milestoneFlowServiceJetV2);
+		} catch (Throwable throwable) {
+			ObsLoggerFactory.getInstance().getObsLogger(taskDto).error(throwable);
+			AspectUtils.executeAspect(new TaskStopAspect().task(taskDto).error(throwable));
+			throw throwable;
+		}
 	}
 
 	@Override
-	public TaskClient<SubTaskDto> startTestTask(SubTaskDto subTaskDto) {
-		long startTs = System.currentTimeMillis();
-		final JetDag jetDag = task2HazelcastDAG(subTaskDto);
-//		MilestoneFlowServiceJetV2 milestoneFlowServiceJetV2 = initMilestone(subTaskDto);
-		JobConfig jobConfig = new JobConfig();
-//		jobConfig.setName(subTaskDto.getName() + "-" + subTaskDto.getId().toHexString());
-		jobConfig.setProcessingGuarantee(ProcessingGuarantee.NONE);
-		AspectUtils.executeAspect(new TaskStartAspect().task(subTaskDto));
-		logger.info("task2HazelcastDAG cost {}ms", (System.currentTimeMillis() - startTs));
+	public TaskClient<TaskDto> startTestTask(TaskDto taskDto) {
+		try {
+			AspectUtils.executeAspect(new TaskStartAspect().task(taskDto));
+			long startTs = System.currentTimeMillis();
+			final JetDag jetDag = task2HazelcastDAG(taskDto);
+			JobConfig jobConfig = new JobConfig();
+			jobConfig.setProcessingGuarantee(ProcessingGuarantee.NONE);
+			logger.info("task2HazelcastDAG cost {}ms", (System.currentTimeMillis() - startTs));
+			Job job = hazelcastInstance.getJet().newLightJob(jetDag.getDag(), jobConfig);
+			return new HazelcastTaskClient(job, taskDto, clientMongoOperator, configurationCenter, hazelcastInstance, null);
+		} catch (Throwable throwable) {
+			ObsLoggerFactory.getInstance().getObsLogger(taskDto).error(throwable);
+			AspectUtils.executeAspect(new TaskStopAspect().task(taskDto).error(throwable));
+			throw throwable;
+		}
 
-		Job job = hazelcastInstance.getJet().newLightJob(jetDag.getDag(), jobConfig);
-		return new HazelcastTaskClient(job, subTaskDto, clientMongoOperator, configurationCenter, hazelcastInstance, null);
 	}
 
 	@SneakyThrows
-	private JetDag task2HazelcastDAG(SubTaskDto subTaskDto) {
+	private JetDag task2HazelcastDAG(TaskDto taskDto) {
 
 		DAG dag = new DAG();
-		AtomicReference<SubTaskDto> subTaskDtoAtomicReference = new AtomicReference<>(subTaskDto);
+		AtomicReference<TaskDto> taskDtoAtomicReference = new AtomicReference<>(taskDto);
 
-		Long tmCurrentTime = subTaskDtoAtomicReference.get().getTmCurrentTime();
+		Long tmCurrentTime = taskDtoAtomicReference.get().getTmCurrentTime();
 		if (null != tmCurrentTime && tmCurrentTime.compareTo(0L) > 0) {
 			Map<String, Object> params = new HashMap<>();
-			params.put("id", subTaskDto.getId().toHexString());
+			params.put("id", taskDto.getId().toHexString());
 			params.put("time", tmCurrentTime);
-			clientMongoOperator.deleteByMap(params, ConnectorConstant.SUB_TASK_COLLECTION + "/history");
-			subTaskDtoAtomicReference.set(clientMongoOperator.findOne(params, ConnectorConstant.SUB_TASK_COLLECTION + "/history", SubTaskDto.class));
-			if (null == subTaskDtoAtomicReference.get()) {
+			clientMongoOperator.deleteByMap(params, ConnectorConstant.TASK_COLLECTION + "/history");
+			taskDtoAtomicReference.set(clientMongoOperator.findOne(params, ConnectorConstant.TASK_COLLECTION + "/history", TaskDto.class));
+			if (null == taskDtoAtomicReference.get()) {
 				throw new RuntimeException("Get task history failed, param: " + params + ", result is null");
 			}
 		}
 
-		final List<Node> nodes = subTaskDtoAtomicReference.get().getDag().getNodes();
-		final List<Edge> edges = subTaskDtoAtomicReference.get().getDag().getEdges();
+		final List<Node> nodes = taskDtoAtomicReference.get().getDag().getNodes();
+		final List<Edge> edges = taskDtoAtomicReference.get().getDag().getEdges();
 		Map<String, Vertex> vertexMap = new HashMap<>();
 		Map<String, AbstractProcessor> hazelcastBaseNodeMap = new HashMap<>();
 		Map<String, AbstractProcessor> typeConvertMap = new HashMap<>();
@@ -178,42 +188,31 @@ public class HazelcastTaskService implements TaskService<SubTaskDto> {
 			// Get merge table map
 			Map<String, MergeTableNode> mergeTableMap = MergeTableUtil.getMergeTableMap(nodes, edges);
 
+			// Generate AutoInspectNode
+			AutoInspectNodeUtil.generateAutoInspectNode(taskDtoAtomicReference.get(), nodes, edges, nodeMap);
+
 			for (Node node : nodes) {
 				Connections connection = null;
 				DatabaseTypeEnum.DatabaseType databaseType = null;
-				TapTableMap<String, TapTable> tapTableMap;
-				if ((node instanceof MigrateJsProcessorNode || node instanceof JsProcessorNode)
-						&& StringUtils.equalsAnyIgnoreCase(subTaskDto.getParentTask().getSyncType(), TaskDto.SYNC_TYPE_DEDUCE_SCHEMA)) {
-					//模型推演阶段，如果没有模型取上一个节点的模型
-					List<Node> predecessors = node.predecessors();
-					if (predecessors.size() != 1) {
-						throw new IllegalArgumentException("Node [" + node.getId() + "] has more than one predecessor");
-					}
-					Map<String, String> nameQualifiedNameMap = TapTableUtil.getTableNameQualifiedNameMap(predecessors.get(0).getId());
-					tapTableMap = TapTableMap.create(node.getId(), nameQualifiedNameMap);
-				} else {
-					tapTableMap = TapTableUtil.getTapTableMapByNodeId(node.getId(), tmCurrentTime);
-				}
+				TapTableMap<String, TapTable> tapTableMap = getTapTableMap(taskDto, tmCurrentTime, node);
 				if (CollectionUtils.isEmpty(tapTableMap.keySet())
+						&& !(node instanceof AutoInspectNode)
 						&& !(node instanceof CacheNode)
 						&& !(node instanceof HazelCastImdgNode)
 						&& !(node instanceof TableRenameProcessNode)
 						&& !(node instanceof MigrateFieldRenameProcessorNode)
 						&& !(node instanceof VirtualTargetNode)
-						&& !StringUtils.equalsAnyIgnoreCase(subTaskDto.getParentTask().getSyncType(), TaskDto.SYNC_TYPE_DEDUCE_SCHEMA, TaskDto.SYNC_TYPE_TEST_RUN)) {
+						&& !StringUtils.equalsAnyIgnoreCase(taskDto.getSyncType(), TaskDto.SYNC_TYPE_DEDUCE_SCHEMA, TaskDto.SYNC_TYPE_TEST_RUN)
+				) {
 					throw new NodeException(String.format("Node [id %s, name %s] schema cannot be empty",
 							node.getId(), node.getName()));
 				}
 
-				if (node instanceof TableNode || node instanceof DatabaseNode || node.isLogCollectorNode()) {
-					String connectionId = null;
-					if (node instanceof DataNode) {
-						connectionId = ((DataNode) node).getConnectionId();
-					} else if (node instanceof DatabaseNode) {
-						connectionId = ((DatabaseNode) node).getConnectionId();
-					} else if (node instanceof LogCollectorNode) {
-						connectionId = ((LogCollectorNode) node).getConnectionIds().get(0);
-					}
+				if (node instanceof DataParentNode) {
+					connection = getConnection(((DataParentNode<?>) node).getConnectionId());
+					databaseType = ConnectionUtil.getDatabaseType(clientMongoOperator, connection.getPdkHash());
+				} else if (node.isLogCollectorNode()) {
+					String connectionId = ((LogCollectorNode) node).getConnectionIds().get(0);;
 					connection = getConnection(connectionId);
 					databaseType = ConnectionUtil.getDatabaseType(clientMongoOperator, connection.getPdkHash());
 
@@ -222,14 +221,14 @@ public class HazelcastTaskService implements TaskService<SubTaskDto> {
 //					}
 				} else if (node instanceof CacheNode) {
 					Optional<Edge> edge = edges.stream().filter(e -> e.getTarget().equals(node.getId())).findFirst();
-					Node sourceNode = null;
+					Node<?> sourceNode = null;
 					if (edge.isPresent()) {
 						sourceNode = nodeMap.get(edge.get().getSource());
 						if (sourceNode instanceof TableNode) {
 							connection = getConnection(((TableNode) sourceNode).getConnectionId());
 						}
 					}
-					messageDao.registerCache((CacheNode) node, (TableNode) sourceNode, connection, subTaskDtoAtomicReference.get(), clientMongoOperator);
+					messageDao.registerCache((CacheNode) node, (TableNode) sourceNode, connection, taskDtoAtomicReference.get(), clientMongoOperator);
 				}
 				List<Node> predecessors = node.predecessors();
 				List<Node> successors = node.successors();
@@ -239,9 +238,9 @@ public class HazelcastTaskService implements TaskService<SubTaskDto> {
 				TapTableMap<String, TapTable> finalTapTableMap = tapTableMap;
 				Vertex vertex = new Vertex(NodeUtil.getVertexName(node), () -> {
 					try {
-						Log4jUtil.setThreadContext(subTaskDtoAtomicReference.get());
+						Log4jUtil.setThreadContext(taskDtoAtomicReference.get());
 						return createNode(
-								subTaskDtoAtomicReference.get(),
+								taskDtoAtomicReference.get(),
 								nodes,
 								edges,
 								node,
@@ -270,15 +269,20 @@ public class HazelcastTaskService implements TaskService<SubTaskDto> {
 		return new JetDag(dag, hazelcastBaseNodeMap, typeConvertMap);
 	}
 
-	private boolean needForceNodeSchema(SubTaskDto subTaskDto) {
-		if (subTaskDto.getParentTask().getSyncType().equals("logCollector")) {
-			return false;
+	private static TapTableMap<String, TapTable> getTapTableMap(TaskDto taskDto, Long tmCurrentTime, Node node) {
+		TapTableMap<String, TapTable> tapTableMap;
+		if (StringUtils.equalsAnyIgnoreCase(taskDto.getSyncType(),
+//						TaskDto.SYNC_TYPE_TEST_RUN,
+						TaskDto.SYNC_TYPE_DEDUCE_SCHEMA)) {
+			tapTableMap = TapTableUtil.getTapTableMap(node, tmCurrentTime);
+		} else {
+			tapTableMap = TapTableUtil.getTapTableMapByNodeId(node.getId(), tmCurrentTime);
 		}
-		return true;
+		return tapTableMap;
 	}
 
 	public static HazelcastBaseNode createNode(
-			SubTaskDto subTaskDto,
+			TaskDto taskDto,
 			List<Node> nodes,
 			List<Edge> edges,
 			Node node,
@@ -301,7 +305,7 @@ public class HazelcastTaskService implements TaskService<SubTaskDto> {
 					if ("pdk".equals(connection.getPdkType())) {
 						hazelcastNode = new HazelcastPdkSourceAndTargetTableNode(
 								DataProcessorContext.newBuilder()
-										.withSubTaskDto(subTaskDto)
+										.withTaskDto(taskDto)
 										.withNode(node)
 										.withNodes(nodes)
 										.withEdges(edges)
@@ -314,7 +318,7 @@ public class HazelcastTaskService implements TaskService<SubTaskDto> {
 					} else {
 						hazelcastNode = new HazelcastTaskSourceAndTarget(
 								DataProcessorContext.newBuilder()
-										.withSubTaskDto(subTaskDto)
+										.withTaskDto(taskDto)
 										.withNode(node)
 										.withNodes(nodes)
 										.withEdges(edges)
@@ -326,7 +330,7 @@ public class HazelcastTaskService implements TaskService<SubTaskDto> {
 				} else if (CollectionUtils.isNotEmpty(successors)) {
 					if ("pdk".equals(connection.getPdkType())) {
 						DataProcessorContext processorContext = DataProcessorContext.newBuilder()
-								.withSubTaskDto(subTaskDto)
+								.withTaskDto(taskDto)
 								.withNode(node)
 								.withNodes(nodes)
 								.withEdges(edges)
@@ -336,7 +340,7 @@ public class HazelcastTaskService implements TaskService<SubTaskDto> {
 								.withDatabaseType(databaseType)
 								.withTapTableMap(tapTableMap)
 								.build();
-						if (StringUtils.equalsAnyIgnoreCase(subTaskDto.getParentTask().getSyncType(),
+						if (StringUtils.equalsAnyIgnoreCase(taskDto.getSyncType(),
 								TaskDto.SYNC_TYPE_DEDUCE_SCHEMA, TaskDto.SYNC_TYPE_TEST_RUN)) {
 							hazelcastNode = new HazelcastSampleSourcePdkDataNode(processorContext);
 						} else {
@@ -345,7 +349,7 @@ public class HazelcastTaskService implements TaskService<SubTaskDto> {
 					} else {
 						hazelcastNode = new HazelcastTaskSource(
 								DataProcessorContext.newBuilder()
-										.withSubTaskDto(subTaskDto)
+										.withTaskDto(taskDto)
 										.withNode(node)
 										.withNodes(nodes)
 										.withEdges(edges)
@@ -357,7 +361,7 @@ public class HazelcastTaskService implements TaskService<SubTaskDto> {
 					if ("pdk".equals(connection.getPdkType())) {
 						hazelcastNode = new HazelcastTargetPdkDataNode(
 								DataProcessorContext.newBuilder()
-										.withSubTaskDto(subTaskDto)
+										.withTaskDto(taskDto)
 										.withNode(node)
 										.withNodes(nodes)
 										.withEdges(edges)
@@ -369,7 +373,7 @@ public class HazelcastTaskService implements TaskService<SubTaskDto> {
 					} else {
 						hazelcastNode = new HazelcastTaskTarget(
 								DataProcessorContext.newBuilder()
-										.withSubTaskDto(subTaskDto)
+										.withTaskDto(taskDto)
 										.withNode(node)
 										.withNodes(nodes)
 										.withEdges(edges)
@@ -386,7 +390,7 @@ public class HazelcastTaskService implements TaskService<SubTaskDto> {
 				if ("pdk".equals(connection.getPdkType())) {
 					hazelcastNode = new HazelcastTargetPdkCacheNode(
 							DataProcessorContext.newBuilder()
-									.withSubTaskDto(subTaskDto)
+									.withTaskDto(taskDto)
 									.withNode(node)
 									.withNodes(nodes)
 									.withEdges(edges)
@@ -400,7 +404,7 @@ public class HazelcastTaskService implements TaskService<SubTaskDto> {
 				} else {
 					hazelcastNode = new HazelcastCacheTarget(
 							DataProcessorContext.newBuilder()
-									.withSubTaskDto(subTaskDto)
+									.withTaskDto(taskDto)
 									.withNode(node)
 									.withNodes(nodes)
 									.withEdges(edges)
@@ -412,9 +416,28 @@ public class HazelcastTaskService implements TaskService<SubTaskDto> {
 					);
 				}
 				break;
+			case AUTO_INSPECT:
+				if ("pdk".equals(connection.getPdkType())) {
+					hazelcastNode = new HazelcastTargetPdkAutoInspectNode(
+							DataProcessorContext.newBuilder()
+									.withTaskDto(taskDto)
+									.withNode(node)
+									.withNodes(nodes)
+									.withEdges(edges)
+									.withConfigurationCenter(config)
+									.withConnectionConfig(connection.getConfig())
+									.withDatabaseType(databaseType)
+									.withTapTableMap(tapTableMap)
+									.withCacheService(cacheService)
+									.build()
+					);
+				} else {
+					throw new RuntimeException("un support AutoInspect node " + connection.getPdkType());
+				}
+				break;
 			case VIRTUAL_TARGET:
 				DataProcessorContext processorContext = DataProcessorContext.newBuilder()
-						.withSubTaskDto(subTaskDto)
+						.withTaskDto(taskDto)
 						.withNode(node)
 						.withNodes(nodes)
 						.withEdges(edges)
@@ -423,7 +446,7 @@ public class HazelcastTaskService implements TaskService<SubTaskDto> {
 						.withCacheService(cacheService)
 						.withTapTableMap(tapTableMap)
 						.build();
-				if (TaskDto.SYNC_TYPE_TEST_RUN.equals(subTaskDto.getParentTask().getSyncType())) {
+				if (TaskDto.SYNC_TYPE_TEST_RUN.equals(taskDto.getSyncType())) {
 					hazelcastNode = new HazelcastVirtualTargetNode(processorContext);
 				} else {
 					hazelcastNode = new HazelcastSchemaTargetNode(processorContext);
@@ -433,7 +456,7 @@ public class HazelcastTaskService implements TaskService<SubTaskDto> {
 			case JOIN:
 				hazelcastNode = new HazelcastJoinProcessor(
 						ProcessorBaseContext.newBuilder()
-								.withSubTaskDto(subTaskDto)
+								.withTaskDto(taskDto)
 								.withNode(node)
 								.withNodeSchemas(nodeSchemas)
 								.withTapTableMap(tapTableMap)
@@ -448,12 +471,10 @@ public class HazelcastTaskService implements TaskService<SubTaskDto> {
 			case FIELD_RENAME_PROCESSOR:
 			case FIELD_MOD_TYPE_PROCESSOR:
 			case FIELD_CALC_PROCESSOR:
-			case TABLE_RENAME_PROCESSOR:
-			case MIGRATE_FIELD_RENAME_PROCESSOR:
 			case FIELD_ADD_DEL_PROCESSOR:
 				hazelcastNode = new HazelcastProcessorNode(
 						DataProcessorContext.newBuilder()
-								.withSubTaskDto(subTaskDto)
+								.withTaskDto(taskDto)
 								.withNode(node)
 								.withNodes(nodes)
 								.withEdges(edges)
@@ -463,10 +484,33 @@ public class HazelcastTaskService implements TaskService<SubTaskDto> {
 								.build()
 				);
 				break;
+			case TABLE_RENAME_PROCESSOR:
+				hazelcastNode = new HazelcastRenameTableProcessorNode(DataProcessorContext.newBuilder()
+								.withTaskDto(taskDto)
+								.withNode(node)
+								.withNodes(nodes)
+								.withEdges(edges)
+								.withCacheService(cacheService)
+								.withConfigurationCenter(config)
+								.withTapTableMap(tapTableMap)
+								.build());
+				break;
+			case MIGRATE_FIELD_RENAME_PROCESSOR:
+				hazelcastNode = new HazelcastMigrateFieldRenameProcessorNode(
+								DataProcessorContext.newBuilder()
+												.withTaskDto(taskDto)
+												.withNode(node)
+												.withNodes(nodes)
+												.withEdges(edges)
+												.withCacheService(cacheService)
+												.withConfigurationCenter(config)
+												.withTapTableMap(tapTableMap)
+												.build());
+				break;
 			case LOG_COLLECTOR:
 				hazelcastNode = new HazelcastSourcePdkShareCDCNode(
 						DataProcessorContext.newBuilder()
-								.withSubTaskDto(subTaskDto)
+								.withTaskDto(taskDto)
 								.withNode(node)
 								.withNodes(nodes)
 								.withEdges(edges)
@@ -482,7 +526,7 @@ public class HazelcastTaskService implements TaskService<SubTaskDto> {
 				connections.setDatabase_type(DatabaseTypeEnum.HAZELCAST_IMDG.getType());
 				hazelcastNode = new HazelcastTargetPdkShareCDCNode(
 						DataProcessorContext.newBuilder()
-								.withSubTaskDto(subTaskDto)
+								.withTaskDto(taskDto)
 								.withNode(node)
 								.withNodes(nodes)
 								.withEdges(edges)
@@ -493,7 +537,7 @@ public class HazelcastTaskService implements TaskService<SubTaskDto> {
 			case CUSTOM_PROCESSOR:
 				hazelcastNode = new HazelcastCustomProcessor(
 						DataProcessorContext.newBuilder()
-								.withSubTaskDto(subTaskDto)
+								.withTaskDto(taskDto)
 								.withNode(node)
 								.withConfigurationCenter(config)
 								.withTapTableMap(tapTableMap)
@@ -503,7 +547,7 @@ public class HazelcastTaskService implements TaskService<SubTaskDto> {
 			case MERGETABLE:
 				hazelcastNode = new HazelcastMergeNode(
 						DataProcessorContext.newBuilder()
-								.withSubTaskDto(subTaskDto)
+								.withTaskDto(taskDto)
 								.withNode(node)
 								.withNodes(nodes)
 								.withEdges(edges)
@@ -515,7 +559,7 @@ public class HazelcastTaskService implements TaskService<SubTaskDto> {
 			case AGGREGATION_PROCESSOR:
 				hazelcastNode = new HazelcastMultiAggregatorProcessor(
 						DataProcessorContext.newBuilder()
-								.withSubTaskDto(subTaskDto)
+								.withTaskDto(taskDto)
 								.withNode(node)
 								.withNodes(nodes)
 								.withEdges(edges)
@@ -527,7 +571,7 @@ public class HazelcastTaskService implements TaskService<SubTaskDto> {
 			default:
 				hazelcastNode = new HazelcastBlank(
 						DataProcessorContext.newBuilder()
-								.withSubTaskDto(subTaskDto)
+								.withTaskDto(taskDto)
 								.withNode(node)
 								.build()
 				);
@@ -535,13 +579,6 @@ public class HazelcastTaskService implements TaskService<SubTaskDto> {
 		}
 		MergeTableUtil.setMergeTableIntoHZTarget(mergeTableMap, hazelcastNode);
 		return hazelcastNode;
-	}
-
-	private boolean needAddTypeConverter(SubTaskDto subTaskDto) {
-		if (subTaskDto.getParentTask().getSyncType().equals("logCollector")) {
-			return false;
-		}
-		return true;
 	}
 
 	private void handleEdge(
@@ -573,7 +610,7 @@ public class HazelcastTaskService implements TaskService<SubTaskDto> {
 	}
 
 	@Override
-	public List<TaskClient<SubTaskDto>> getTaskClients() {
+	public List<TaskClient<TaskDto>> getTaskClients() {
 		return null;
 	}
 
@@ -591,16 +628,16 @@ public class HazelcastTaskService implements TaskService<SubTaskDto> {
 		return connections;
 	}
 
-	private MilestoneFlowServiceJetV2 initMilestone(SubTaskDto subTaskDto) {
-		if (null == subTaskDto) {
+	private MilestoneFlowServiceJetV2 initMilestone(TaskDto taskDto) {
+		if (null == taskDto) {
 			throw new IllegalArgumentException("Input parameter subTaskDto,dag cannot be empty");
 		}
 
 		// 初始化dag里面每条连线的里程碑
-		List<Node> nodes = subTaskDto.getDag().getNodes();
+		List<Node> nodes = taskDto.getDag().getNodes();
 		HttpClientMongoOperator httpClientMongoOperator = (HttpClientMongoOperator) clientMongoOperator;
 
-		MilestoneFlowServiceJetV2 jetMilestoneService = MilestoneFactory.getJetMilestoneService(subTaskDto, httpClientMongoOperator.getRestTemplateOperator().getBaseURLs(),
+		MilestoneFlowServiceJetV2 jetMilestoneService = MilestoneFactory.getJetMilestoneService(taskDto, httpClientMongoOperator.getRestTemplateOperator().getBaseURLs(),
 				httpClientMongoOperator.getRestTemplateOperator().getRetryTime(), httpClientMongoOperator.getConfigCenter());
 
 		List<Node> dataNodes = nodes.stream().filter(n -> n.isDataNode() || n instanceof DatabaseNode).collect(Collectors.toList());
@@ -612,7 +649,7 @@ public class HazelcastTaskService implements TaskService<SubTaskDto> {
 				String destVertexName = NodeUtil.getVertexName(successor);
 				MilestoneContext taskMilestoneContext = jetMilestoneService.getMilestoneContext();
 				MilestoneJetEdgeService jetEdgeMilestoneService = MilestoneFactory.getJetEdgeMilestoneService(
-						subTaskDto,
+						taskDto,
 						httpClientMongoOperator.getRestTemplateOperator().getBaseURLs(),
 						httpClientMongoOperator.getRestTemplateOperator().getRetryTime(),
 						httpClientMongoOperator.getConfigCenter(),

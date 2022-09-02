@@ -10,7 +10,7 @@ public class DagOutputTemplate {
      * 【ERROR】 2022-05-24 21:05:22  【任务A】【Agent可用性检测】：当前无可用Agent，任务运行失败
      */
     public static String AGENT_CAN_USE_INFO = "$date【$taskName】【Agent可用性检测】：检查到当前有{1}个可用Agent：[{2}],当前任务将在Agent：'{'{3}}上运行";
-    public static String AGENT_CAN_USE_ERROR = "$date【$taskName】【Agent可用性检测】：当前无可用Agent，任务运行失败";
+    public static String AGENT_CAN_USE_ERROR = "$date【$taskName】【Agent可用性检测】：当前手动指定的Agent：{1}不可用，请尽快恢复，或者重新指定其它Agent。";
 
     /**
      * 任务设置检测
@@ -128,7 +128,8 @@ public class DagOutputTemplate {
      * 【WARN】 2022-05-24 21:05:22  【任务A】【模型推演检测】：表名{表名A}检测异常，异常原因：字段推演异常
      */
     public static String MODEL_PROCESS_INFO = "$date【$taskName】【模型推演检测】：推演进度{1}/{2}，检测正常";
-    public static String MODEL_PROCESS_ERROR = "$date【$taskName】【模型推演检测】：表名：{1}，检测异常，异常原因：字段推演异常";
+    public static String MODEL_PROCESS_INFO_PRELOG = "$date【$taskName】【模型推演检测】：目标表结构生成中, 需要生成的表数量: {0}, 大约需要 {1}s, 请等待";
+    public static String MODEL_PROCESS_ERROR = "$date【$taskName】【模型推演检测】：检测异常，异常原因：{1}";
 
     /**
      * 数据校验检测：（若任务中有处理节点则不进行校验）
@@ -137,6 +138,6 @@ public class DagOutputTemplate {
      * 【INFO】 2022-05-24 21:05:22  【任务A】【节点名称】【数据校验检测】：支持数据校验，其中支持校验表数量为20张，不支持校验表数量为0张
      * 【INFO】 2022-05-24 21:05:22  【任务A】【数据校验检测】：该连接不支持数据校验
      */
-    public static String DATA_INSPECT_INFO = "$date【$taskName】【数据校验检测】：支持数据校验，其中支持校验表数量为20张，不支持校验表数量为0张";
-    public static String DATA_INSPECT_ERROR = "$date【$taskName】【数据校验检测】：该连接不支持数据校验";
+    public static String DATA_INSPECT_INFO = "$date【$taskName】【数据校验检测】：支持数据校验，其中支持校验表数量为{2}张，不支持校验表数量为{3}张";
+    public static String DATA_INSPECT_ERROR = "$date【$taskName】【数据校验检测】：{2}";
 }

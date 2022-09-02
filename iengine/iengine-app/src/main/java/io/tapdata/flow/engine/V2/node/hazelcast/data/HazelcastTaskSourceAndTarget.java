@@ -32,7 +32,7 @@ public class HazelcastTaskSourceAndTarget extends HazelcastDataBaseNode {
 		super(dataProcessorContext);
 		this.source = new HazelcastTaskSource(
 				DataProcessorContext.newBuilder()
-						.withSubTaskDto(dataProcessorContext.getSubTaskDto())
+						.withTaskDto(dataProcessorContext.getTaskDto())
 						.withNode(dataProcessorContext.getNode())
 						.withNodes(dataProcessorContext.getNodes())
 						.withEdges(dataProcessorContext.getEdges())
@@ -42,7 +42,7 @@ public class HazelcastTaskSourceAndTarget extends HazelcastDataBaseNode {
 		);
 		this.target = new HazelcastTaskTarget(
 				DataProcessorContext.newBuilder()
-						.withSubTaskDto(dataProcessorContext.getSubTaskDto())
+						.withTaskDto(dataProcessorContext.getTaskDto())
 						.withNode(dataProcessorContext.getNode())
 						.withNodes(dataProcessorContext.getNodes())
 						.withEdges(dataProcessorContext.getEdges())
@@ -55,7 +55,7 @@ public class HazelcastTaskSourceAndTarget extends HazelcastDataBaseNode {
 
 	@Override
 	protected void doInit(@Nonnull Context context) throws Exception {
-		Log4jUtil.setThreadContext(dataProcessorContext.getSubTaskDto());
+		Log4jUtil.setThreadContext(dataProcessorContext.getTaskDto());
 		source.init(context);
 		target.init(context);
 		sourceThreadPool = new ThreadPoolExecutor(1, 1, 0L, TimeUnit.MILLISECONDS, new SynchronousQueue<>());
@@ -65,7 +65,7 @@ public class HazelcastTaskSourceAndTarget extends HazelcastDataBaseNode {
 
 	public void startSourceWorker() {
 		sourceThreadPool.submit(() -> {
-			Log4jUtil.setThreadContext(dataProcessorContext.getSubTaskDto());
+			Log4jUtil.setThreadContext(dataProcessorContext.getTaskDto());
 			while (source.running.get()) {
 				try {
 					final TapdataEvent dataEvent = source.getEventQueue().poll(5, TimeUnit.SECONDS);
@@ -86,14 +86,14 @@ public class HazelcastTaskSourceAndTarget extends HazelcastDataBaseNode {
 
 	@Override
 	public void doClose() throws Exception {
-		Log4jUtil.setThreadContext(dataProcessorContext.getSubTaskDto());
+		Log4jUtil.setThreadContext(dataProcessorContext.getTaskDto());
 		source.close();
 		target.close();
 	}
 
 	@Override
 	public void process(int ordinal, Inbox inbox) {
-		Log4jUtil.setThreadContext(dataProcessorContext.getSubTaskDto());
+		Log4jUtil.setThreadContext(dataProcessorContext.getTaskDto());
 		target.process(ordinal, inbox);
 	}
 

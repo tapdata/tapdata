@@ -42,6 +42,28 @@ public class MysqlUtil extends JdbcUtil {
 		}
 		// Fix datetime/timestamp when version<5.6
 		dataType = fixDatetime(dataType, version);
+		// Fix json when version<5.7
+		dataType = fixJson(dataType, version);
+		return dataType;
+	}
+
+	private static String fixJson(String dataType, String version) {
+		if (StringUtils.isBlank(version)) {
+			return dataType;
+		}
+		Integer firstVersion = getFirstVersion(version);
+		if (null == firstVersion) {
+			return dataType;
+		}
+		Integer secondVersion = getSecondVersion(version);
+		if (null == secondVersion) {
+			return dataType;
+		}
+		if (firstVersion.compareTo(5) <= 0 && secondVersion.compareTo(7) < 0) {
+			if (StringUtils.equalsIgnoreCase(dataType, "json")) {
+				dataType = "longtext";
+			}
+		}
 		return dataType;
 	}
 

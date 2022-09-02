@@ -125,13 +125,14 @@ public class MetadataInstancesController extends BaseController {
 
     /**
      * findInspect  传过来的参数长度太长，导致get请求报错，统一改为post请求
+     *
      * @return List<MetadataInstancesVo>
      */
     @RequestMapping(value = "findInspectPost",
             method = RequestMethod.POST,
             consumes = MediaType.APPLICATION_JSON_VALUE)
     @ResponseBody
-    public ResponseMessage<List<MetadataInstancesVo>> findInspectPost(HttpServletRequest request ) throws IOException {
+    public ResponseMessage<List<MetadataInstancesVo>> findInspectPost(HttpServletRequest request) throws IOException {
         String filterJson = request.getReader().lines().collect(Collectors.joining(System.lineSeparator()));
         Filter filter = parseFilter(filterJson);
         if (filter == null) {
@@ -164,7 +165,16 @@ public class MetadataInstancesController extends BaseController {
     @GetMapping("node/tableMap")
     public ResponseMessage<Map<String, String>> findTableMapByNodeId(@RequestParam(value = "filter", required = false) String filterJson) {
         Filter filter = parseFilter(filterJson);
-        return success(metadataInstancesService.findTableMapByNodeId(filter, getLoginUser()));
+        log.info("query table map, filter = {}", filter);
+        Map<String, String> tableMap = metadataInstancesService.findTableMapByNodeId(filter, getLoginUser());
+        log.info("the end of query table map, filter = {}, result = {}", filter, tableMap);
+        return success(tableMap);
+    }
+
+    @GetMapping("node/heartbeatQualifiedName")
+    public ResponseMessage<String> findHeartbeatQualifiedNameByNodeId(@RequestParam(value = "filter", required = false) String filterJson) {
+        Filter filter = parseFilter(filterJson);
+        return success(metadataInstancesService.findQualifiedNameByNodeId(filter, getLoginUser()));
     }
 
 
@@ -428,23 +438,25 @@ public class MetadataInstancesController extends BaseController {
     }
 
     @GetMapping("tables")
-    public ResponseMessage<List<String>> tables(String connectionId, @RequestParam(value = "sourceType", defaultValue = "SOURCE")String sourceType) {
+    public ResponseMessage<List<String>> tables(String connectionId, @RequestParam(value = "sourceType", defaultValue = "SOURCE") String sourceType) {
         return success(metadataInstancesService.tables(connectionId, sourceType));
     }
 
 
     /**
      * 判断某张表是否支持数据校验
+     *
      * @param connectionId
      * @return
      */
     @GetMapping("tableSupportInspect")
     public ResponseMessage<TableSupportInspectVo> tableSupportInspect(String connectionId, String tableName) {
-        return success(metadataInstancesService.tableSupportInspect(connectionId,tableName));
+        return success(metadataInstancesService.tableSupportInspect(connectionId, tableName));
     }
 
     /**
      * 判断某张表是否支持数据校验
+     *
      * @param tablesSupportInspectParam
      * @return
      */
@@ -484,7 +496,8 @@ public class MetadataInstancesController extends BaseController {
     }
 
     /**
-     *  前端和产品一致同意 多表选择器可以用分页接口，直接用一次性查全部数据的接口（/tables），暂时先废弃吧
+     * 前端和产品一致同意 多表选择器可以用分页接口，直接用一次性查全部数据的接口（/tables），暂时先废弃吧
+     *
      * @param connectionId
      * @param keyword
      * @param lastId
@@ -503,6 +516,7 @@ public class MetadataInstancesController extends BaseController {
 
     /**
      * 和分页接口搭配使用， 批量校验表名称是否存在
+     *
      * @param connectionId
      * @param names
      * @return
@@ -575,12 +589,12 @@ public class MetadataInstancesController extends BaseController {
         if ("Modules".equals(type)) {
             List<ModulesDto> modulesDtoList = modulesService.findAll(query);
 
-            List<ExportModulesVo> exportModulesVoList=new ArrayList<>();
+            List<ExportModulesVo> exportModulesVoList = new ArrayList<>();
             data.put("collection", "Modules");
             if (CollectionUtils.isNotEmpty(modulesDtoList)) {
                 for (ModulesDto modulesDto : modulesDtoList) {
-                    ExportModulesVo exportModulesVo= BeanUtil.copyProperties(modulesDto,ExportModulesVo.class);
-                    if (null!=modulesDto.getConnection()){
+                    ExportModulesVo exportModulesVo = BeanUtil.copyProperties(modulesDto, ExportModulesVo.class);
+                    if (null != modulesDto.getConnection()) {
                         exportModulesVo.setConnection(modulesDto.getConnection().toString());
                     }
                     exportModulesVo.setUser_id(modulesDto.getUserId());
@@ -650,7 +664,7 @@ public class MetadataInstancesController extends BaseController {
 
     @GetMapping("mergerNode/parent/fields")
     public ResponseMessage<List<com.tapdata.tm.commons.schema.Field>> mergeNodeParentField(@RequestParam("taskId") String taskId,
-                                                                                                  @RequestParam("nodeId") String nodeId) {
+                                                                                           @RequestParam("nodeId") String nodeId) {
         return success(metadataInstancesService.getMergeNodeParentField(taskId, nodeId, getLoginUser()));
 
     }

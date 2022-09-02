@@ -40,11 +40,11 @@ public class DependencyURLClassLoader extends ClassLoader {
                         loader.setAccessible(true);
                         Object jarFile = loader.get(sunMiscURLClassPathJarLoader);
                         JarFile theJarFile = ((JarFile) jarFile);
-                        TapLogger.info(TAG, "Closing jar file {}", theJarFile.getName());
+                        TapLogger.debug(TAG, "Closing jar file {}", theJarFile.getName());
                         theJarFile.close();
                         CommonUtils.ignoreAnyError(() -> {
                             FileUtils.forceDelete(new File(theJarFile.getName()));
-                            TapLogger.info(TAG, "Deleted jar file {} from classloader", theJarFile.getName());
+                            TapLogger.debug(TAG, "Deleted jar file {} from classloader", theJarFile.getName());
                         }, TAG);
                     } catch (Throwable t) {
                         // if we got this far, this is probably not a JAR loader so skip it
@@ -57,7 +57,7 @@ public class DependencyURLClassLoader extends ClassLoader {
             }
             try {
                 childClassLoader.close();
-                TapLogger.info(TAG, "Closing classloader {} urls {}", childClassLoader.hashCode(), Arrays.toString(childClassLoader.getURLs()));
+                TapLogger.debug(TAG, "Closing classloader {} urls {}", childClassLoader.hashCode(), Arrays.toString(childClassLoader.getURLs()));
             } catch (Throwable e) {
 //                e.printStackTrace();
                 TapLogger.warn(TAG, "Closing classloader failed, error {}", e.getMessage());
@@ -67,7 +67,7 @@ public class DependencyURLClassLoader extends ClassLoader {
                         File file = new File(jarUrl.getFile());
                         if(file.exists()) {
                             FileUtils.deleteQuietly(file);
-                            TapLogger.info(TAG, "Deleted jar file {}", file.getName());
+                            TapLogger.debug(TAG, "Deleted jar file {}", file.getName());
                         }
                     }
                 }
@@ -103,30 +103,30 @@ public class DependencyURLClassLoader extends ClassLoader {
             super(urls, null);
 
             this.realParent = realParent;
-//            TapLogger.info(TAG, "ChildURLClassLoader created with urls {} parent class loader {}", Arrays.toString(urls), realParent);
+//            TapLogger.debug(TAG, "ChildURLClassLoader created with urls {} parent class loader {}", Arrays.toString(urls), realParent);
         }
 
         @Override
         public Class<?> findClass(String name) throws ClassNotFoundException {
-//            TapLogger.info(TAG, "Find class {}", name);
+//            TapLogger.debug(TAG, "Find class {}", name);
             Class<?> loaded = super.findLoadedClass(name);
             if( loaded != null ) {
-//                TapLogger.info(TAG, "Found class {} hash {} for name {} in loaded classes", loaded, loaded.hashCode(), name);
+//                TapLogger.debug(TAG, "Found class {} hash {} for name {} in loaded classes", loaded, loaded.hashCode(), name);
                 return loaded;
             }
             try {
                 // first try to use the URLClassLoader findClass
                 Class<?> clazz = super.findClass(name);
-//                TapLogger.info(TAG, "Found class {} hash {} for name {} in PDK jar", clazz, clazz.hashCode(), name);
+//                TapLogger.debug(TAG, "Found class {} hash {} for name {} in PDK jar", clazz, clazz.hashCode(), name);
                 return clazz;
             }
             catch( ClassNotFoundException e ) {
                 // if that fails, we ask our real parent classloader to load the class (we give up)
                 Class<?> clazz = realParent.loadClass(name);
-//                TapLogger.info(TAG, "Found class {} hash {} for name {} in parent", clazz, clazz.hashCode(), name);
+//                TapLogger.debug(TAG, "Found class {} hash {} for name {} in parent", clazz, clazz.hashCode(), name);
                 return clazz;
             } catch (LinkageError linkageError) {
-                TapLogger.info(TAG, "Occurred linkage error for name {}, {}", name, linkageError.getMessage());
+                TapLogger.debug(TAG, "Occurred linkage error for name {}, {}", name, linkageError.getMessage());
                 throw linkageError;
             }
         }
@@ -164,10 +164,10 @@ public class DependencyURLClassLoader extends ClassLoader {
         }
         catch( ClassNotFoundException e ) {
             // didn't find it, try the parent
-//            TapLogger.info(TAG, "Class not found for name {} resolve {}", name, resolve);
+//            TapLogger.debug(TAG, "Class not found for name {} resolve {}", name, resolve);
             return super.loadClass(name, resolve);
         } catch (Throwable t) {
-//            TapLogger.info(TAG, "Unknown error for name {} resolve {} error {}", name, resolve, t.getMessage());
+//            TapLogger.debug(TAG, "Unknown error for name {} resolve {} error {}", name, resolve, t.getMessage());
             throw t;
         }
     }

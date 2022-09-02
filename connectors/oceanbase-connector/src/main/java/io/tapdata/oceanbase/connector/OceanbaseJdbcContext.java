@@ -2,11 +2,13 @@ package io.tapdata.oceanbase.connector;
 
 import com.google.common.collect.Lists;
 import com.zaxxer.hikari.HikariDataSource;
+import io.tapdata.common.JdbcContext;
 import io.tapdata.common.ResultSetConsumer;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.oceanbase.OceanbaseMaker;
+import io.tapdata.oceanbase.bean.OceanbaseConfig;
 import io.tapdata.oceanbase.util.ConnectionUtil;
 import io.tapdata.oceanbase.util.JdbcUtil;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
@@ -37,12 +39,10 @@ import java.util.function.Consumer;
  * @author dayun
  * @date 2022/6/23 16:26
  */
-public class OceanbaseJdbcContext implements AutoCloseable {
+public class OceanbaseJdbcContext extends JdbcContext {
     private static final String TAG = OceanbaseJdbcContext.class.getSimpleName();
     public static final String DATABASE_TIMEZON_SQL = "SELECT TIMEDIFF(NOW(), UTC_TIMESTAMP()) as timezone";
     private TapConnectionContext tapConnectionContext;
-    private String jdbcUrl;
-    private HikariDataSource hikariDataSource;
     private static final String SELECT_SQL_MODE = "select @@sql_mode";
     private static final String SET_CLIENT_SQL_MODE = "set sql_mode = ?";
     private static final String SELECT_TABLE = "SELECT t.* FROM `%s`.`%s` t";
@@ -66,19 +66,8 @@ public class OceanbaseJdbcContext implements AutoCloseable {
         add("NO_ZERO_DATE");
     }};
 
-    public OceanbaseJdbcContext(TapConnectionContext tapConnectionContext) {
-        this.tapConnectionContext = tapConnectionContext;
-        this.jdbcUrl = jdbcUrl();
-        this.hikariDataSource = ConnectionUtil.getHikariDataSource(tapConnectionContext, jdbcUrl);
-    }
-
-    public Connection getConnection() throws SQLException, IllegalArgumentException {
-        Connection connection = this.hikariDataSource.getConnection();
-        try {
-            setIgnoreSqlMode(connection);
-        } catch (Throwable ignored) {
-        }
-        return connection;
+    public OceanbaseJdbcContext(OceanbaseConfig config, HikariDataSource hikariDataSource) {
+        super(config, hikariDataSource);
     }
 
     public static void tryCommit(Connection connection) {
@@ -97,57 +86,6 @@ public class OceanbaseJdbcContext implements AutoCloseable {
             }
         } catch (Throwable ignored) {
         }
-    }
-
-    private String jdbcUrl() {
-        DataMap connectionConfig = tapConnectionContext.getConnectionConfig();
-        String host = String.valueOf(connectionConfig.get("host"));
-        int port = ((Number) connectionConfig.get("port")).intValue();
-        String databaseName = String.valueOf(connectionConfig.get("database"));
-
-        String additionalString = String.valueOf(connectionConfig.get("addtionalString"));
-        additionalString = null == additionalString ? "" : additionalString.trim();
-        if (additionalString.startsWith("?")) {
-            additionalString = additionalString.substring(1);
-        }
-
-        Map<String, String> properties = new HashMap<>();
-        StringBuilder sbURL = new StringBuilder("jdbc:").append("mysql").append("://").append(host).append(":").append(port).append("/").append(databaseName);
-
-        if (StringUtils.isNotBlank(additionalString)) {
-            String[] additionalStringSplit = additionalString.split("&");
-            for (String s : additionalStringSplit) {
-                String[] split = s.split("=");
-                if (split.length == 2) {
-                    properties.put(split[0], split[1]);
-                }
-            }
-        }
-        for (String defaultKey : DEFAULT_PROPERTIES.keySet()) {
-            if (properties.containsKey(defaultKey)) {
-                continue;
-            }
-            properties.put(defaultKey, DEFAULT_PROPERTIES.get(defaultKey));
-        }
-        String timezone = connectionConfig.getString("timezone");
-        if (StringUtils.isNotBlank(timezone)) {
-            try {
-                ZoneId.of(timezone);
-                timezone = "GMT" + timezone;
-                String serverTimezone = timezone.replace("+", "%2B").replace(":00", "");
-                properties.put("serverTimezone", serverTimezone);
-            } catch (Exception ignored) {
-            }
-        }
-        StringBuilder propertiesString = new StringBuilder();
-        properties.forEach((k, v) -> propertiesString.append("&").append(k).append("=").append(v));
-
-        if (propertiesString.length() > 0) {
-            additionalString = StringUtils.removeStart(propertiesString.toString(), "&");
-            sbURL.append("?").append(additionalString);
-        }
-
-        return sbURL.toString();
     }
 
     private void setIgnoreSqlMode(Connection connection) throws Throwable {
@@ -174,7 +112,7 @@ public class OceanbaseJdbcContext implements AutoCloseable {
     }
 
     public List<DataMap> query(String sql, final Set<String> fieldNames) throws Throwable {
-        TapLogger.debug(TAG, "Execute query, sql: " + sql);
+        TapLogger.info(TAG, "Execute query, sql: " + sql);
         try (
                 Connection connection = getConnection();
                 Statement statement = connection.createStatement();
@@ -199,7 +137,7 @@ public class OceanbaseJdbcContext implements AutoCloseable {
     }
 
     public void query(String sql, ResultSetConsumer resultSetConsumer) throws Throwable {
-        TapLogger.debug(TAG, "Execute query, sql: " + sql);
+        TapLogger.info(TAG, "Execute query, sql: " + sql);
         try (
                 Connection connection = getConnection();
                 Statement statement = connection.createStatement();
@@ -215,7 +153,7 @@ public class OceanbaseJdbcContext implements AutoCloseable {
     }
 
     public void query(PreparedStatement preparedStatement, ResultSetConsumer resultSetConsumer) throws Throwable {
-        TapLogger.debug(TAG, "Execute query, sql: " + preparedStatement);
+        TapLogger.info(TAG, "Execute query, sql: " + preparedStatement);
         preparedStatement.setFetchSize(1000);
         try (
                 ResultSet resultSet = preparedStatement.executeQuery()
@@ -228,16 +166,31 @@ public class OceanbaseJdbcContext implements AutoCloseable {
         }
     }
 
-    public void execute(String sql) throws Throwable {
-        TapLogger.debug(TAG, "Execute sql: " + sql);
+    public void execute(String sql) throws SQLException {
+        TapLogger.info(TAG, "Execute sql: " + sql);
         try (
                 Connection connection = getConnection();
                 Statement statement = connection.createStatement()
         ) {
             statement.execute(sql);
         } catch (SQLException e) {
-            throw new Exception("Execute sql failed, sql: " + sql + ", message: " + e.getSQLState() + " " + e.getErrorCode() + " " + e.getMessage(), e);
+            throw new SQLException("Execute sql failed, sql: " + sql + ", message: " + e.getSQLState() + " " + e.getErrorCode() + " " + e.getMessage(), e);
         }
+    }
+
+    @Override
+    public List<DataMap> queryAllTables(List<String> tableNames) {
+        return null;
+    }
+
+    @Override
+    public List<DataMap> queryAllColumns(List<String> tableNames) {
+        return null;
+    }
+
+    @Override
+    public List<DataMap> queryAllIndexes(List<String> tableNames) {
+        return null;
     }
 
     public boolean tableExists(String tableName) throws Throwable {
@@ -343,16 +296,14 @@ public class OceanbaseJdbcContext implements AutoCloseable {
     }
 
     public String getDatabase() {
-        DataMap connectionConfig = tapConnectionContext.getConnectionConfig();
-        return connectionConfig.getString("database");
-    }
-
-    @Override
-    public void close() {
-        JdbcUtil.closeQuietly(hikariDataSource);
+        return this.getConfig().getDatabase();
     }
 
     public TapConnectionContext getTapConnectionContext() {
         return tapConnectionContext;
+    }
+
+    public void setTapConnectionContext(final TapConnectionContext tapConnectionContext) {
+        this.tapConnectionContext = tapConnectionContext;
     }
 }

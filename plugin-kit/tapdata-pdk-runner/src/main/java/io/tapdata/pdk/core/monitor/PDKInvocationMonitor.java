@@ -130,7 +130,7 @@ public class PDKInvocationMonitor implements MemoryFetcher {
         final String invokeId = CommonUtils.processUniqueId();
         InvocationCollector collector = methodInvocationCollectorMap.computeIfAbsent(method, InvocationCollector::new);
         collector.getInvokeIdTimeMap().put(invokeId, System.currentTimeMillis());
-        TapLogger.info(logTag, "methodStart {} invokeId {}", method, invokeId);
+//        TapLogger.info(logTag, "methodStart {} invokeId {}", method, invokeId);
         return invokeId;
     }
 
@@ -145,7 +145,7 @@ public class PDKInvocationMonitor implements MemoryFetcher {
                 if(error != null) {
                     TapLogger.error(logTag, "methodEnd {} invokeId {} failed, message {} takes {} error {}", method, invokeId, message, takes, ExceptionUtils.getStackTrace(error));
                 } else {
-                    TapLogger.info(logTag, "methodEnd {} invokeId {} successfully, message {} takes {}", method, invokeId, message, takes);
+//                    TapLogger.info(logTag, "methodEnd {} invokeId {} successfully, message {} takes {}", method, invokeId, message, takes);
                 }
                 return takes;
             }

@@ -2,10 +2,10 @@
 
 ### Parameter Description
 
-- `Initialized data volume`: The total number of data to be fully synchronized.
-- `Increment Interval + Total Increment Intervals`: Controls the frequency of incremental data generation, indicating that `Increment Intervals` pieces of data are generated within the `Increment Interval` period.
-- `Incremental event type`: Indicates which event type data is generated. If all three are checked, the `insert event` is generated first, then the `update event` is generated, and finally the `delete event` is generated, and the cycle is repeated in this order until the end.
-- `Write Interval + Total Write Interval`: Used as a target to control the frequency of consuming events. Indicates that `total number of write intervals` pieces of data are consumed within the `write interval` time.
+- `Initial data volume`: The total number of data to be fully synchronized, range: `0 ~ 9223372036854775807`.
+- `Increment Interval + Total Increment Intervals`: Controls the frequency of incremental data generation, indicating that `Increment Intervals` pieces of data are generated within the `increment interval` time, range: `0 ~ 2147483647`.
+- `Incremental event type`: Indicates which event types are generated. If all three are checked, the `insert event` is generated first, then the `update event` is generated, and finally the `delete event` is generated, and the cycle is repeated in this order until the end.
+- `Write Interval + Total Write Interval`: Used as a target to control the frequency of consuming events. Indicates the `total number of write intervals` pieces of data consumed within the `write interval`, range: `0 ~ 2147483647`.
 - `Print Write Log`: When on, output received event data.
 - `table name + field definition`: used to define the data model as a source.
 

@@ -20,7 +20,11 @@
         <module>rabbitmq-connector</module>
         <module>rocketmq-connector</module>
 		<module>activemq-connector</module>
+        <module>redis-connector</module>
 		<module>clickhouse-connector</module>
+		<module>mariadb-connector</module>
+		<module>hive1-connector</module>
+
 	</modules>
 	<properties>
 		<connector.file.name>${project.artifactId}-v${project.version}</connector.file.name>

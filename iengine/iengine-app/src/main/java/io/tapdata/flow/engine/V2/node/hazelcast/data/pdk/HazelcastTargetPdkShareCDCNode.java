@@ -1,7 +1,6 @@
 package io.tapdata.flow.engine.V2.node.hazelcast.data.pdk;
 
 import com.hazelcast.core.HazelcastInstance;
-import com.tapdata.constant.HazelcastUtil;
 import com.tapdata.constant.MapUtil;
 import com.tapdata.entity.TapdataShareLogEvent;
 import com.tapdata.entity.hazelcast.PersistenceStorageConfig;
@@ -9,7 +8,7 @@ import com.tapdata.entity.sharecdc.LogContent;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.logCollector.LogCollectorNode;
-import com.tapdata.tm.commons.task.dto.SubTaskDto;
+import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.HazelcastConstruct;
 import io.tapdata.common.sharecdc.ShareCdcUtil;
 import io.tapdata.constructImpl.ConstructRingBuffer;
@@ -56,13 +55,13 @@ public class HazelcastTargetPdkShareCDCNode extends HazelcastTargetPdkBaseNode {
 			PersistenceStorageConfig persistenceStorageConfig = PersistenceStorageConfig.getInstance();
 			shareCdcTtlDay = persistenceStorageConfig.getShareCdcTtlDay();
 		}
-		this.hazelcastConstruct = getHazelcastConstruct(context.hazelcastInstance(), shareCdcTtlDay, processorBaseContext.getSubTaskDto());
+		this.hazelcastConstruct = getHazelcastConstruct(context.hazelcastInstance(), shareCdcTtlDay, processorBaseContext.getTaskDto());
 	}
 
-	private static HazelcastConstruct<Document> getHazelcastConstruct(HazelcastInstance hazelcastInstance, Integer shareCdcTtlDay, SubTaskDto subTaskDto) {
+	private static HazelcastConstruct<Document> getHazelcastConstruct(HazelcastInstance hazelcastInstance, Integer shareCdcTtlDay, TaskDto taskDto) {
 		return new ConstructRingBuffer<>(
 				hazelcastInstance,
-				ShareCdcUtil.getConstructName(subTaskDto),
+				ShareCdcUtil.getConstructName(taskDto),
 				shareCdcTtlDay
 		);
 	}
@@ -141,9 +140,10 @@ public class HazelcastTargetPdkShareCDCNode extends HazelcastTargetPdkBaseNode {
 		}
 		if (null == timestamp || timestamp.compareTo(0L) <= 0) {
 			logger.warn("Invalid timestamp value: " + timestamp);
+			obsLogger.warn("Invalid timestamp value: " + timestamp);
 		}
 		if (StringUtils.isBlank(offsetStr)) {
-			logger.warn("Invalid offset string: " + offsetStr);
+			obsLogger.warn("Invalid offset string: " + offsetStr);
 		}
 	}
 }

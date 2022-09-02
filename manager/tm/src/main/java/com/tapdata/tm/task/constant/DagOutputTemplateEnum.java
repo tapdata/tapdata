@@ -32,7 +32,7 @@ public enum DagOutputTemplateEnum {
     
 
     public static LinkedList<DagOutputTemplateEnum> getSaveCheck() {
-        EnumSet<DagOutputTemplateEnum> enumSet = EnumSet.of(TASK_SETTING_CHECK, SOURCE_SETTING_CHECK, JS_NODE_CHECK, TABLE_EDIT_NODE_CHECK, FIELD_EDIT_NODE_CHECK, TARGET_NODE_CHECK);
+        EnumSet<DagOutputTemplateEnum> enumSet = EnumSet.of(TASK_SETTING_CHECK, SOURCE_SETTING_CHECK, JS_NODE_CHECK, TABLE_EDIT_NODE_CHECK, FIELD_EDIT_NODE_CHECK, TARGET_NODE_CHECK, DATA_INSPECT_CHECK, MODEL_PROCESS_CHECK);
         return Lists.newLinkedList(enumSet);
     }
 

@@ -1274,4 +1274,66 @@ class TargetTypesGeneratorTest {
         assertEquals("VARCHAR(200)", characterVarying_200.getDataType());
 
     }
+
+    @Test
+    public void oracleToDb2TimestampTest() {
+
+        String sourceTypeExpression = "{" +
+                "\"TIMESTAMP[($fraction)]\": {\"range\": [\"0001-01-01 00:00:00.000000000\",\"9999-12-31 23:59:59.999999999\"],\"pattern\": \"yyyy-MM-dd HH:mm:ss.SSSSSSSSS\",\"fraction\": [0,12],\"defaultFraction\": 6,\"withTimeZone\": false,\"priority\": 2,\"to\": \"TapDateTime\"}" +
+                "}";
+
+        String targetTypeExpression = "{\n" +
+//                "\"int unsigned\": {\"to\": \"TapNumber\",\"byte\": 32,\"value\": [\"0\", \"4294967295\"]}," +
+                "\"TIMESTAMP[($fraction)]\": {\"range\": [\"1000-01-01 00:00:00.000000000\",\"9999-12-31 23:59:59.999999999\"],\"pattern\": \"yyyy-MM-dd HH:mm:ss.SSSSSSSSS\",\"fraction\": [0,9],\"defaultFraction\": 6,\"withTimeZone\": false,\"priority\": 2,\"to\": \"TapDateTime\"}," +
+                "\"DATE\": {\"range\": [\"1000-01-01 00:00:00.000\",\"9999-12-31 23:59:59.999\"],\"defaultFraction\": 3,\"pattern\": \"yyyy-MM-dd HH:mm:ss.SSS\",\"priority\": 1,\"to\": \"TapDateTime\"}" +
+                "}";
+
+        TapTable sourceTable = table("test");
+        sourceTable
+                .add(field("TIMESTAMP(6)", "TIMESTAMP(6)"))
+        ;
+        tableFieldTypesGenerator.autoFill(sourceTable.getNameFieldMap(), DefaultExpressionMatchingMap.map(sourceTypeExpression));
+        TapResult<LinkedHashMap<String, TapField>> tapResult = targetTypesGenerator.convert(sourceTable.getNameFieldMap(), DefaultExpressionMatchingMap.map(targetTypeExpression), targetCodecFilterManager);
+
+        LinkedHashMap<String, TapField> nameFieldMap = tapResult.getData();
+
+
+        TapField timestamp6 = nameFieldMap.get("TIMESTAMP(6)");
+        assertEquals("TIMESTAMP(6)", timestamp6.getDataType());
+    }
+
+    @Test
+    public void db2Varchar50toOracleCLOBTest() {
+
+        String sourceTypeExpression = "{" +
+                "\"VARCHAR($byte)\": {\"byte\": 32672,\"priority\": 1,\"preferByte\": 2000,\"to\": \"TapString\"}" +
+                "}";
+
+        String targetTypeExpression = "{\n" +
+//                "\"int unsigned\": {\"to\": \"TapNumber\",\"byte\": 32,\"value\": [\"0\", \"4294967295\"]}," +
+                "\"CLOB\": {\"byte\": \"4g\",\"pkEnablement\": false,\"priority\": 2,\"to\": \"TapString\"}," +
+                "\"VARCHAR2[($byte)]\": {\"byte\": 4000,\"priority\": 1,\"preferByte\": 2000,\"to\": \"TapString\"}" +
+                "}";
+
+        TapTable sourceTable = table("test");
+        sourceTable
+                .add(field("VARCHAR(50)", "VARCHAR(50)"))
+                .add(field("varchar(50)", "varchar(50)"))
+                .add(field("varchar(70)", " varchar(70) ")) //space in dataType will be trimmed automatically
+        ;
+        tableFieldTypesGenerator.autoFill(sourceTable.getNameFieldMap(), DefaultExpressionMatchingMap.map(sourceTypeExpression));
+        TapResult<LinkedHashMap<String, TapField>> tapResult = targetTypesGenerator.convert(sourceTable.getNameFieldMap(), DefaultExpressionMatchingMap.map(targetTypeExpression), targetCodecFilterManager);
+
+        LinkedHashMap<String, TapField> nameFieldMap = tapResult.getData();
+
+
+        TapField upperVarchar50 = nameFieldMap.get("VARCHAR(50)");
+        assertEquals("VARCHAR2(50)", upperVarchar50.getDataType());
+
+        TapField lowerVarchar50 = nameFieldMap.get("varchar(50)");
+        assertEquals("VARCHAR2(50)", lowerVarchar50.getDataType());
+
+        TapField lowerVarchar70 = nameFieldMap.get("varchar(70)");
+        assertEquals("VARCHAR2(70)", lowerVarchar70.getDataType());
+    }
 }

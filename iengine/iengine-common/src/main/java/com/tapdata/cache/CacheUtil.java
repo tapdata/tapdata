@@ -9,7 +9,7 @@ import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.CacheNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
-import com.tapdata.tm.commons.task.dto.SubTaskDto;
+import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.exception.DataFlowException;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.collections.MapUtils;
@@ -202,9 +202,9 @@ public class CacheUtil {
     return bytes / 1024;
   }
 
-  public static DataFlowCacheConfig getCacheConfig(SubTaskDto subTaskDto, ClientMongoOperator clientMongoOperator) {
+  public static DataFlowCacheConfig getCacheConfig(TaskDto taskDto, ClientMongoOperator clientMongoOperator) {
     try {
-      List<Node> nodes = subTaskDto.getDag().getNodes();
+      List<Node> nodes = taskDto.getDag().getNodes();
       CacheNode cacheNode = null;
       TableNode tableNode = null;
       for (Node node : nodes) {

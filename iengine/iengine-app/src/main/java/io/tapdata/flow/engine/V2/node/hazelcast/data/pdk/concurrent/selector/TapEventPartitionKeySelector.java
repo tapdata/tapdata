@@ -5,19 +5,23 @@ import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
+import io.tapdata.entity.schema.value.TapStringValue;
+import io.tapdata.entity.schema.value.TapValue;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.collections.MapUtils;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 /**
  * @author jackin
  * @date 2022/7/26 09:28
  **/
-public class TapEventPartitionKeySelector implements PartitionKeySelector<String, TapEvent, Object> {
+public class TapEventPartitionKeySelector implements PartitionKeySelector<TapEvent, Object, Map<String, Object>> {
 
 	private Function<TapEvent, List<String>> keyFunction;
 
@@ -26,30 +30,40 @@ public class TapEventPartitionKeySelector implements PartitionKeySelector<String
 	}
 
 	@Override
-	public List<Object> select(TapEvent tapEvent) {
+	public List<Object> select(TapEvent tapEvent, Map<String, Object> row) {
 
 		List<Object> partitionValue = null;
 		final List<String> keys = keyFunction.apply(tapEvent);
-		if (CollectionUtils.isNotEmpty(keys)) {
+		if (CollectionUtils.isNotEmpty(keys) && MapUtils.isNotEmpty(row)) {
 			partitionValue = new ArrayList<>(keys.size());
-			if (tapEvent instanceof TapInsertRecordEvent) {
-				final Map<String, Object> after = ((TapInsertRecordEvent) tapEvent).getAfter();
-				getPartitionValue(partitionValue, keys, after);
-			} else if (tapEvent instanceof TapDeleteRecordEvent) {
-				getPartitionValue(partitionValue, keys, ((TapDeleteRecordEvent) tapEvent).getBefore());
-			} else if (tapEvent instanceof TapUpdateRecordEvent) {
-				getPartitionValue(partitionValue, keys, ((TapUpdateRecordEvent) tapEvent).getAfter());
-			}
+			getPartitionValue(partitionValue, keys, row);
 		}
 
 		return partitionValue;
 	}
 
-	private void getPartitionValue(List<Object> partitionValue, List<String> keys, Map<String, Object> after) {
-		if (MapUtils.isNotEmpty(after)) {
+	private void getPartitionValue(List<Object> partitionValue, List<String> keys, Map<String, Object> row) {
+		if (MapUtils.isNotEmpty(row)) {
 			for (String key : keys) {
-				partitionValue.add(MapUtil.getValueByKey(after, key));
+				partitionValue.add(MapUtil.getValueByKey(row, key));
 			}
+		}
+	}
+
+	/**
+	 * retrieve original value from TapValue for hash instead of TapValue object for hash
+	 * @param values
+	 * @return
+	 */
+	public List<Object> convert2OriginValue(final List<Object> values) {
+		if (CollectionUtils.isEmpty(values)) {
+			return values;
+		}
+		Object firstElem = values.get(0);
+		if (firstElem instanceof TapValue) {
+			return values.stream().filter(Objects::nonNull).map(v -> ((TapValue)v).getOriginValue()).collect(Collectors.toList());
+		} else {
+			return values;
 		}
 	}
 }

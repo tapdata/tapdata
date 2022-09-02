@@ -3,7 +3,7 @@ package io.tapdata.flow.engine.V2.monitor.impl;
 import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.constant.ExecutorUtil;
 import com.tapdata.mongo.HttpClientMongoOperator;
-import com.tapdata.tm.commons.task.dto.SubTaskDto;
+import com.tapdata.tm.commons.task.dto.TaskDto;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 
@@ -26,8 +26,8 @@ public class TaskPingTimeMonitor extends TaskMonitor<Object> {
 	private ScheduledExecutorService executorService;
 	private HttpClientMongoOperator clientMongoOperator;
 
-	public TaskPingTimeMonitor(SubTaskDto subTaskDto, HttpClientMongoOperator clientMongoOperator) {
-		super(subTaskDto);
+	public TaskPingTimeMonitor(TaskDto taskDto, HttpClientMongoOperator clientMongoOperator) {
+		super(taskDto);
 		this.executorService = new ScheduledThreadPoolExecutor(1);
 		this.clientMongoOperator = clientMongoOperator;
 	}
@@ -37,9 +37,9 @@ public class TaskPingTimeMonitor extends TaskMonitor<Object> {
 		executorService.scheduleAtFixedRate(
 				() -> {
 					clientMongoOperator.update(
-							new Query(where("_id").is(subTaskDto.getId())),
+							new Query(where("_id").is(taskDto.getId())),
 							new Update().set("pingTime", System.currentTimeMillis()),
-							ConnectorConstant.SUB_TASK_COLLECTION
+							ConnectorConstant.TASK_COLLECTION
 					);
 				}, 0L, PING_INTERVAL_MS, TimeUnit.MILLISECONDS
 		);

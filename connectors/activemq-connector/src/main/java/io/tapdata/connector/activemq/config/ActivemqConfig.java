@@ -10,6 +10,11 @@ public class ActivemqConfig extends MqConfig {
         return brokerURL;
     }
 
+    @Override
+    public String getConnectionString() {
+        return brokerURL;
+    }
+
     public void setBrokerURL(String brokerURL) {
         this.brokerURL = brokerURL;
     }

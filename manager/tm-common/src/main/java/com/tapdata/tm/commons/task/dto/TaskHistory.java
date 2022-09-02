@@ -7,6 +7,6 @@ import java.util.Date;
 
 @EqualsAndHashCode(callSuper = true)
 @Data
-public class TaskHistory extends SubTaskDto {
+public class TaskHistory extends TaskDto {
     private String taskId;
 }

@@ -76,7 +76,9 @@ public class DbKit {
         try {
             ResultSetMetaData resultSetMetaData = resultSet.getMetaData();
             for (int i = 1; i <= resultSetMetaData.getColumnCount(); i++) {
-                columnNames.add(resultSetMetaData.getColumnName(i));
+                String[] columnNameArr = resultSetMetaData.getColumnName(i).split("\\.");
+                String substring = columnNameArr[columnNameArr.length-1];
+                columnNames.add(substring);
             }
         } catch (SQLException e) {
             e.printStackTrace();

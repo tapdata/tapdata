@@ -7,25 +7,26 @@
 package com.tapdata.tm.statemachine.service;
 
 import com.tapdata.tm.base.exception.BizException;
-import com.tapdata.tm.commons.task.dto.SubTaskDto;
+import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.dataflow.dto.DataFlowDto;
 import com.tapdata.tm.dataflow.service.DataFlowService;
 import com.tapdata.tm.statemachine.StateMachine;
 import com.tapdata.tm.statemachine.enums.DataFlowEvent;
 import com.tapdata.tm.statemachine.enums.DataFlowState;
-import com.tapdata.tm.statemachine.enums.SubTaskState;
+import com.tapdata.tm.statemachine.enums.TaskState;
 import com.tapdata.tm.statemachine.model.DataFlowStateTrigger;
 import com.tapdata.tm.statemachine.model.StateMachineResult;
-import com.tapdata.tm.statemachine.model.SubTaskStateTrigger;
-import com.tapdata.tm.task.service.SubTaskService;
+import com.tapdata.tm.statemachine.model.TaskStateTrigger;
+import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.user.service.UserService;
-import static com.tapdata.tm.utils.MongoUtils.toObjectId;
 import lombok.extern.slf4j.Slf4j;
 import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Service;
+
+import static com.tapdata.tm.utils.MongoUtils.toObjectId;
 
 @Service
 @Slf4j
@@ -34,13 +35,13 @@ public class StateMachineService {
 	@Autowired
 	StateMachine<DataFlowState, DataFlowEvent> dataFlowMachine;
 	@Autowired
-	StateMachine<SubTaskState, DataFlowEvent> subTaskMachine;
+	StateMachine<TaskState, DataFlowEvent> taskMachine;
 
 	@Autowired
 	DataFlowService dataFlowService;
 
 	@Autowired
-	private SubTaskService subTaskService;
+	private TaskService taskService;
 
 	@Autowired
 	private UserService userService;
@@ -55,8 +56,8 @@ public class StateMachineService {
 		return dataFlowMachine.handleEvent(dataFlowStateTrigger);
 	}
 
-	public StateMachineResult testSubTask(String id, String event, String status){
-		return executeAboutSubTask(id, event, userService.loadUserById(toObjectId("61408608c4e5c40012663090")));
+	public StateMachineResult testTask(String id, String event, String status){
+		return executeAboutTask(id, event, userService.loadUserById(toObjectId("61408608c4e5c40012663090")));
 	}
 
 	public StateMachineResult executeAboutDataFlow(String dataFlowId, String dataFlowEvent, UserDetail userDetail){
@@ -89,34 +90,34 @@ public class StateMachineService {
 		return dataFlowMachine.handleEvent(trigger);
 	}
 
-	public StateMachineResult executeAboutSubTask(String subTaskId, String subTaskEvent, UserDetail userDetail){
-		DataFlowEvent event = DataFlowEvent.getEvent(subTaskEvent);
+	public StateMachineResult executeAboutTask(String taskId, String taskEvent, UserDetail userDetail){
+		DataFlowEvent event = DataFlowEvent.getEvent(taskEvent);
 		if (event == null){
-			throw new BizException(String.format("SubTask event[%s] does not exist", subTaskEvent));
+			throw new BizException(String.format("task event[%s] does not exist", taskEvent));
 		}
-		return executeAboutSubTask(toObjectId(subTaskId), event , userDetail);
+		return executeAboutTask(toObjectId(taskId), event , userDetail);
 
 	}
 
-	private StateMachineResult executeAboutSubTask(ObjectId subTaskId, DataFlowEvent event, UserDetail userDetail){
-		SubTaskDto dto = subTaskService.findById(subTaskId, userDetail);
+	private StateMachineResult executeAboutTask(ObjectId taskId, DataFlowEvent event, UserDetail userDetail){
+		TaskDto dto = taskService.findById(taskId, userDetail);
 		if (dto == null){
 			throw new BizException("Task.NotFound");
 		}
-		return executeAboutSubTask(dto, event, userDetail);
+		return executeAboutTask(dto, event, userDetail);
 
 	}
 
-	public StateMachineResult executeAboutSubTask(SubTaskDto dto, DataFlowEvent event, UserDetail userDetail){
-		SubTaskStateTrigger trigger = new SubTaskStateTrigger();
-		trigger.setSource(SubTaskState.getState(dto.getStatus()));
+	public StateMachineResult executeAboutTask(TaskDto dto, DataFlowEvent event, UserDetail userDetail){
+		TaskStateTrigger trigger = new TaskStateTrigger();
+		trigger.setSource(TaskState.getState(dto.getStatus()));
 		trigger.setEvent(event);
 		trigger.setUserDetail(userDetail);
 		trigger.setData(dto);
-		return executeAboutSubTask(trigger);
+		return executeAboutTask(trigger);
 	}
 
-	private StateMachineResult executeAboutSubTask(SubTaskStateTrigger trigger){
-		return subTaskMachine.handleEvent(trigger);
+	private StateMachineResult executeAboutTask(TaskStateTrigger trigger){
+		return taskMachine.handleEvent(trigger);
 	}
 }

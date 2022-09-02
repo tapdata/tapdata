@@ -196,7 +196,7 @@ public class StateMachine<K, T> {
 
         StateExecutor<K, T> executor = stateObj.getStateExecutor();
         K lastState = currentState;
-        TapLogger.info(TAG, "{}: [changeState] StateMachine currentState {} goes to {} successfully. reason {} obj {}", name, currentState, state, reason, t);
+        TapLogger.debug(TAG, "{}: [changeState] StateMachine currentState {} goes to {} successfully. reason {} obj {}", name, currentState, state, reason, t);
         currentState = state;
         if(stateBeforeExecutor != null) {
             try {

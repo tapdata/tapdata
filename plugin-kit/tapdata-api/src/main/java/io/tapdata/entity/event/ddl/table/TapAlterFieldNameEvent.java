@@ -1,11 +1,7 @@
 package io.tapdata.entity.event.ddl.table;
 
 import io.tapdata.entity.event.TapEvent;
-import io.tapdata.entity.event.ddl.entity.FieldAttrChange;
 import io.tapdata.entity.event.ddl.entity.ValueChange;
-
-import java.util.ArrayList;
-import java.util.List;
 
 public class TapAlterFieldNameEvent extends TapFieldBaseEvent {
     public static final int TYPE = 202;
