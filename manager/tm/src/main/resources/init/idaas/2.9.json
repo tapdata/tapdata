@@ -1,0 +1,39 @@
+[
+  {
+	"update": "Settings",
+	"updates": [
+	  {
+		"q": {
+		  "key": "retry_interval_second"
+		},
+		"u": {
+		  "$set": {
+			"category": "Job",
+			"default_value": "60",
+			"user_visible": true
+		  },
+		  "$setOnInsert": {
+			"value": "60"
+		  }
+		},
+		"upsert": true
+	  },
+	  {
+		"q": {
+		  "key": "max_retry_time_minute"
+		},
+		"u": {
+		  "$set": {
+			"category": "Job",
+			"default_value": "60",
+			"user_visible": true
+		  },
+		  "$setOnInsert": {
+			"value": "60"
+		  }
+		},
+		"upsert": true
+	  }
+	]
+  }
+]

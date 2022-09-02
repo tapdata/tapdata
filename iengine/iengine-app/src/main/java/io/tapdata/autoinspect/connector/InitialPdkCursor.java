@@ -1,5 +1,6 @@
 package io.tapdata.autoinspect.connector;
 
+import com.tapdata.entity.task.config.TaskRetryConfig;
 import com.tapdata.tm.autoinspect.connector.IDataCursor;
 import com.tapdata.tm.autoinspect.entity.CompareRecord;
 import io.tapdata.entity.codec.TapCodecsRegistry;
@@ -12,6 +13,7 @@ import io.tapdata.pdk.apis.entity.SortOn;
 import io.tapdata.pdk.apis.entity.TapAdvanceFilter;
 import io.tapdata.pdk.apis.functions.connector.target.QueryByAdvanceFilterFunction;
 import io.tapdata.pdk.core.api.ConnectorNode;
+import io.tapdata.pdk.core.entity.params.PDKMethodInvoker;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
 import io.tapdata.pdk.apis.functions.PDKMethod;
 import lombok.NonNull;
@@ -48,8 +50,9 @@ public class InitialPdkCursor implements IDataCursor<CompareRecord> {
     private Projection projection;
     private final List<SortOn> sortOnList = new ArrayList<>();
     private final Supplier<Boolean> isRunning;
+    private final TaskRetryConfig taskRetryConfig;
 
-    public InitialPdkCursor(@NonNull ConnectorNode connectorNode, @NonNull ObjectId connectionId, @NonNull String tableName, @NonNull DataMap offset, @NonNull Supplier<Boolean> isRunning) {
+    public InitialPdkCursor(@NonNull ConnectorNode connectorNode, @NonNull ObjectId connectionId, @NonNull String tableName, @NonNull DataMap offset, @NonNull Supplier<Boolean> isRunning, TaskRetryConfig taskRetryConfig) {
         this.isRunning = () -> !closed.get() && isRunning.get();
         this.tableName = tableName;
         this.connectionId = connectionId;
@@ -60,6 +63,7 @@ public class InitialPdkCursor implements IDataCursor<CompareRecord> {
         this.defaultCodecsFilterManager = TapCodecsFilterManager.create(TapCodecsRegistry.create());
 
         this.tapTable = connectorNode.getConnectorContext().getTableMap().get(tableName);
+        this.taskRetryConfig = taskRetryConfig;
         for (String k : tapTable.primaryKeys()) {
             sortOnList.add(new SortOn(k, SortOn.ASCENDING));
         }
@@ -113,44 +117,46 @@ public class InitialPdkCursor implements IDataCursor<CompareRecord> {
         tapAdvanceFilter.setSortOnList(sortOnList);
         tapAdvanceFilter.setProjection(projection);
 
-        PDKInvocationMonitor.invoke(connectorNode, PDKMethod.SOURCE_QUERY_BY_ADVANCE_FILTER
-                , () -> queryByAdvanceFilterFunction.query(connectorNode.getConnectorContext(), tapAdvanceFilter, tapTable, filterResults -> {
-                    Throwable error = filterResults.getError();
-                    if (null != error) {
-                        throwable = error;
-                        hasNext.set(false);
-                        return;
-                    }
-
-                    hasNext.set(Optional.ofNullable(filterResults.getResults()).map(results -> {
-                        if (results.isEmpty()) return false;
-
-                        for (Map<String, Object> result : results) {
-                            CompareRecord record = new CompareRecord(tableName, connectionId);
-                            record.setData(result);
-                            for (SortOn s : sortOnList) {
-                                record.getKeyNames().add(s.getKey());
-                                record.getOriginalKey().put(s.getKey(), result.get(s.getKey()));
-                            }
-
-                            while (true) {
-                                if (!isRunning.get()) return false;
-                                try {
-                                    if (queue.offer(record, 100L, TimeUnit.MILLISECONDS)) {
-                                        sortOnList.forEach(s -> offset.put(s.getKey(), result.get(s.getKey())));
-                                        break;
+        PDKInvocationMonitor.invoke(connectorNode, PDKMethod.SOURCE_QUERY_BY_ADVANCE_FILTER,
+                PDKMethodInvoker.create().runnable(
+                                () -> queryByAdvanceFilterFunction.query(connectorNode.getConnectorContext(), tapAdvanceFilter, tapTable, filterResults -> {
+                                    Throwable error = filterResults.getError();
+                                    if (null != error) {
+                                        throwable = error;
+                                        hasNext.set(false);
+                                        return;
                                     }
-                                } catch (InterruptedException e) {
-                                    return false;
-                                }
-                            }
-                        }
-                        return true;
-                    }).orElse(false));
-                })
-                , TAG
-        );
 
+                                    hasNext.set(Optional.ofNullable(filterResults.getResults()).map(results -> {
+                                        if (results.isEmpty()) return false;
+
+                                        for (Map<String, Object> result : results) {
+                                            CompareRecord record = new CompareRecord(tableName, connectionId);
+                                            record.setData(result);
+                                            for (SortOn s : sortOnList) {
+                                                record.getKeyNames().add(s.getKey());
+                                                record.getOriginalKey().put(s.getKey(), result.get(s.getKey()));
+                                            }
+
+                                            while (true) {
+                                                if (!isRunning.get()) return false;
+                                                try {
+                                                    if (queue.offer(record, 100L, TimeUnit.MILLISECONDS)) {
+                                                        sortOnList.forEach(s -> offset.put(s.getKey(), result.get(s.getKey())));
+                                                        break;
+                                                    }
+                                                } catch (InterruptedException e) {
+                                                    return false;
+                                                }
+                                            }
+                                        }
+                                        return true;
+                                    }).orElse(false));
+                                })
+                        ).logTag(TAG)
+                        .retryPeriodSeconds(taskRetryConfig.getRetryIntervalSecond())
+                        .maxRetryTimeMinute(taskRetryConfig.getMaxRetryTime(TimeUnit.MINUTES))
+        );
         if (throwable instanceof Exception) {
             throw (Exception) throwable;
         } else if (null != throwable) {

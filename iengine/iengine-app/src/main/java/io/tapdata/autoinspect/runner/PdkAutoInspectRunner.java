@@ -4,6 +4,7 @@ import com.tapdata.constant.ConnectionUtil;
 import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.entity.Connections;
 import com.tapdata.entity.DatabaseTypeEnum;
+import com.tapdata.entity.task.config.TaskConfig;
 import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.tm.autoinspect.compare.IAutoCompare;
 import com.tapdata.tm.autoinspect.connector.IPdkConnector;
@@ -33,8 +34,9 @@ public abstract class PdkAutoInspectRunner extends AutoInspectRunner<IPdkConnect
     private final @NonNull ClientMongoOperator clientMongoOperator;
     private final @NonNull AutoInspectNode node;
     private final @NonNull Map<String, Connections> connectionMap;
+    private final @NonNull TaskConfig taskConfig;
 
-    public PdkAutoInspectRunner(@NonNull ObsLogger userLogger, @NonNull String taskId, @NonNull TaskType taskType, AutoInspectProgress progress, @NonNull AutoInspectNode node, @NonNull ClientMongoOperator clientMongoOperator) {
+    public PdkAutoInspectRunner(@NonNull ObsLogger userLogger, @NonNull String taskId, @NonNull TaskType taskType, AutoInspectProgress progress, @NonNull AutoInspectNode node, @NonNull ClientMongoOperator clientMongoOperator, TaskConfig taskConfig) {
         super(userLogger, taskId, taskType, progress);
         this.clientMongoOperator = clientMongoOperator;
         this.node = node;
@@ -42,6 +44,7 @@ public abstract class PdkAutoInspectRunner extends AutoInspectRunner<IPdkConnect
                 node.getFromNode().getConnectionId(),
                 node.getToNode().getConnectionId()
         )));
+        this.taskConfig = taskConfig;
     }
 
     @Override
