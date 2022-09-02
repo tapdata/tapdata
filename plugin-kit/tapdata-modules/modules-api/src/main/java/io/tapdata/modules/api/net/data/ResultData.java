@@ -1,6 +1,6 @@
 package io.tapdata.modules.api.net.data;
 
-import io.tapdata.modules.api.net.message.TapMessage;
+import io.tapdata.modules.api.net.message.TapEntity;
 
 public class ResultData {
     public static final byte CONTENT_ENCODE_JSON = 1;
@@ -17,8 +17,8 @@ public class ResultData {
         this.code = code;
         return this;
     }
-    private TapMessage message;
-    public ResultData message(TapMessage message) {
+    private TapEntity message;
+    public ResultData message(TapEntity message) {
         this.message = message;
         return this;
     }
@@ -70,11 +70,11 @@ public class ResultData {
         this.forId = forId;
     }
 
-    public TapMessage getMessage() {
+    public TapEntity getMessage() {
         return message;
     }
 
-    public void setMessage(TapMessage message) {
+    public void setMessage(TapEntity message) {
         this.message = message;
     }
 

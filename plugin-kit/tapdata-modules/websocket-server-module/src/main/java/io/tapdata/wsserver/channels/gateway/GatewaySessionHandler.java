@@ -1,13 +1,10 @@
 package io.tapdata.wsserver.channels.gateway;
 
-import com.alibaba.fastjson.JSON;
-import com.alibaba.fastjson.JSONArray;
 import com.google.common.collect.Maps;
 import io.tapdata.entity.annotations.Bean;
 import io.tapdata.entity.error.CoreException;
-import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.modules.api.net.data.*;
-import io.tapdata.modules.api.net.message.TapMessage;
+import io.tapdata.modules.api.net.message.TapEntity;
 import io.tapdata.wsserver.channels.error.WSErrors;
 import io.tapdata.wsserver.channels.gateway.data.GatewayUserSession;
 import io.tapdata.wsserver.channels.gateway.data.UserChannel;
@@ -132,7 +129,7 @@ public abstract class GatewaySessionHandler {
         gatewayChannelModule.sendData(userChannel.getUserId(), outgoingMessage);
     }
 
-    public boolean sendData(String userId, String contentType, TapMessage data) {
+    public boolean sendData(String userId, String contentType, TapEntity data) {
         OutgoingData outgoingData = new OutgoingData().contentType(contentType).message(data).time(System.currentTimeMillis());
         return gatewayChannelModule.sendData(userId, outgoingData);
     }

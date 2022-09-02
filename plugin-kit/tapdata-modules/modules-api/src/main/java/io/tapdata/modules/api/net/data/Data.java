@@ -6,11 +6,9 @@ import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.utils.ClassFactory;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.entity.utils.JsonParser;
-import io.tapdata.entity.utils.io.DataInputStreamEx;
-import io.tapdata.entity.utils.io.DataOutputStreamEx;
 import io.tapdata.entity.serializer.JavaCustomSerializer;
 import io.tapdata.modules.api.net.error.NetErrors;
-import io.tapdata.modules.api.net.message.TapMessage;
+import io.tapdata.modules.api.net.message.TapEntity;
 
 import java.io.*;
 import java.nio.charset.StandardCharsets;
@@ -28,13 +26,13 @@ public abstract class Data extends BinaryCodec implements JavaCustomSerializer {
     public Data(byte type) {
         this.type = type;
     }
-    protected TapMessage toTapMessage(byte[] content, String contentType, Byte contentEncode) throws IOException {
+    protected TapEntity toTapMessage(byte[] content, String contentType, Byte contentEncode) throws IOException {
         if(content == null || contentType == null || contentEncode == null)
             return null;
-        TapMessage message = null;
+        TapEntity message = null;
         switch (contentEncode) {
             case CONTENT_ENCODE_OBJECT_SERIALIZABLE:
-                message = ClassFactory.create(TapMessage.class, contentType);
+                message = ClassFactory.create(TapEntity.class, contentType);
                 if(message != null) {
                     try(ByteArrayInputStream bais = new ByteArrayInputStream(content)) {
                         message.from(bais);
@@ -44,7 +42,7 @@ public abstract class Data extends BinaryCodec implements JavaCustomSerializer {
                 }
                 break;
             case CONTENT_ENCODE_JSON:
-                Class<? extends TapMessage> messageClass = ClassFactory.getImplementationClass(TapMessage.class, contentType);
+                Class<? extends TapEntity> messageClass = ClassFactory.getImplementationClass(TapEntity.class, contentType);
                 if(messageClass != null) {
                     String contentStr = new String(content, StandardCharsets.UTF_8);
                     JsonParser jsonParser = InstanceFactory.instance(JsonParser.class);
@@ -60,7 +58,7 @@ public abstract class Data extends BinaryCodec implements JavaCustomSerializer {
         return message;
     }
 
-    protected byte[] fromTapMessage(TapMessage message, String contentType, Byte contentEncode) throws IOException {
+    protected byte[] fromTapMessage(TapEntity message, String contentType, Byte contentEncode) throws IOException {
         byte[] data = null;
         switch (contentEncode) {
             case CONTENT_ENCODE_OBJECT_SERIALIZABLE:

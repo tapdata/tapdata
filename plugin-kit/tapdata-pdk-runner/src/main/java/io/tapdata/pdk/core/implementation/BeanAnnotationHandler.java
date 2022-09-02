@@ -8,6 +8,7 @@ import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.reflection.ClassAnnotationHandler;
 import io.tapdata.entity.utils.Container;
 import io.tapdata.entity.utils.InstanceFactory;
+import io.tapdata.entity.utils.ReflectionUtil;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Constructor;
@@ -78,10 +79,14 @@ public class BeanAnnotationHandler extends ClassAnnotationHandler {
                 Object beanObj = InstanceFactory.bean(mainMethodWrapper.theClass);
                 if(beanObj != null) {
                     try {
-                        Method method = beanObj.getClass().getMethod(mainMethodWrapper.method);
-                        method.invoke(beanObj);
-                    } catch (NoSuchMethodException e) {
-                        TapLogger.warn(TAG, "Main method {} in class {} doesn't be found, no main method will be invoked", mainMethodWrapper.method, mainMethodWrapper.theClass);
+//                        Method method = beanObj.getClass().getMethod(mainMethodWrapper.method);
+                        Method method = ReflectionUtil.getDeclaredMethod(beanObj.getClass(), mainMethodWrapper.method, new Class<?>[0]);
+                        if(method != null) {
+                            method.setAccessible(true);
+                            method.invoke(beanObj);
+                        } else {
+                            TapLogger.debug(TAG, "Class {} method {} not found, no main method will be invoked", beanObj.getClass(), mainMethodWrapper.method);
+                        }
                     } catch (Throwable e) {
                         TapLogger.warn(TAG, "Invoke main method {} in class {} failed, {}", mainMethodWrapper.method, mainMethodWrapper.theClass, e.getMessage());
                     }

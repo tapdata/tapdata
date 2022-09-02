@@ -2,7 +2,7 @@ package io.tapdata.modules.api.net.data;
 
 import io.tapdata.entity.utils.io.DataInputStreamEx;
 import io.tapdata.entity.utils.io.DataOutputStreamEx;
-import io.tapdata.modules.api.net.message.TapMessage;
+import io.tapdata.modules.api.net.message.TapEntity;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -28,8 +28,8 @@ public abstract class ContentData<T extends ContentData> extends Data {
         //noinspection unchecked
         return (T) this;
     }
-    private TapMessage message;
-    public T message(TapMessage message) {
+    private TapEntity message;
+    public T message(TapEntity message) {
         this.message = message;
         //noinspection unchecked
         return (T) this;
@@ -89,11 +89,11 @@ public abstract class ContentData<T extends ContentData> extends Data {
         this.contentEncode = contentEncode;
     }
 
-    public TapMessage getMessage() {
+    public TapEntity getMessage() {
         return message;
     }
 
-    public void setMessage(TapMessage message) {
+    public void setMessage(TapEntity message) {
         this.message = message;
     }
 }

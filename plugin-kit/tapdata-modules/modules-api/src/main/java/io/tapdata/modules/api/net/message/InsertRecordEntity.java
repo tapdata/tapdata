@@ -6,8 +6,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 
-@Implementation(value = TapMessage.class, type = "insertRecord")
-public class InsertRecordMessage implements TapMessage {
+@Implementation(value = TapEntity.class, type = "insertRecord")
+public class InsertRecordEntity implements TapEntity {
 
 	@Override
 	public void from(InputStream inputStream) throws IOException {
@@ -20,7 +20,7 @@ public class InsertRecordMessage implements TapMessage {
 	}
 
 	@Override
-	public String getContentType() {
+	public String contentType() {
 		return "insertRecord";
 	}
 }

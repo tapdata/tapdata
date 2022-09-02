@@ -8,7 +8,7 @@ import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.reflection.ClassAnnotationHandler;
 import io.tapdata.modules.api.net.data.*;
 import io.tapdata.modules.api.net.error.NetErrors;
-import io.tapdata.modules.api.net.message.TapMessage;
+import io.tapdata.modules.api.net.message.TapEntity;
 import io.tapdata.pdk.core.utils.AnnotationUtils;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.wsserver.channels.error.WSErrors;
@@ -31,7 +31,6 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
-import static io.tapdata.entity.simplify.TapSimplify.entry;
 import static io.tapdata.entity.simplify.TapSimplify.map;
 
 @MainMethod(value = "start", order = 100000)
@@ -441,7 +440,7 @@ public class GatewaySessionManager {
      * @param gatewaySessionHandler
      * @return
      */
-    public TapMessage channelConnected(GatewaySessionHandler gatewaySessionHandler) {
+    public TapEntity channelConnected(GatewaySessionHandler gatewaySessionHandler) {
         try {
             //异步消息
             SingleThreadBlockingQueue<UserAction> queue = getUserActionQueue(gatewaySessionHandler.getId());
