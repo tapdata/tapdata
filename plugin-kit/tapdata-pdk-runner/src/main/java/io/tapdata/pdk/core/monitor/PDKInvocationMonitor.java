@@ -100,6 +100,10 @@ public class PDKInvocationMonitor implements MemoryFetcher {
         Consumer<CoreException> errorConsumer = invoker.getErrorConsumer();
         boolean async = invoker.isAsync();
         ClassLoader contextClassLoader = invoker.getContextClassLoader();
+        long maxRetryTimeMinute = invoker.getMaxRetryTimeMinute();
+        if (maxRetryTimeMinute>0) {
+            invoker.setRetryTimes( (maxRetryTimeMinute * 60 ) / invoker.getRetryPeriodSeconds());
+        }
         long retryTimes = invoker.getRetryTimes();
         if(async) {
             ExecutorsManager.getInstance().getExecutorService().execute(() -> {

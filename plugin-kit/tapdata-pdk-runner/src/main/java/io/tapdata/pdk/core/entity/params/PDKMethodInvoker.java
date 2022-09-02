@@ -15,6 +15,7 @@ public class PDKMethodInvoker {
     public void cancelRetry() {
         synchronized (this) {
             retryTimes = 0;
+            maxRetryTimeMinute = 0;
             this.notifyAll();
         }
     }
@@ -26,6 +27,12 @@ public class PDKMethodInvoker {
     private ClassLoader contextClassLoader;
     private long retryTimes;
     private long retryPeriodSeconds;
+    private long maxRetryTimeMinute;
+
+    public PDKMethodInvoker maxRetryTimeMinute(long maxRetryTimeMinute){
+        this.maxRetryTimeMinute = maxRetryTimeMinute;
+        return this;
+    }
 
     public PDKMethodInvoker runnable(CommonUtils.AnyError anyError) {
         this.runnable = anyError;
@@ -130,5 +137,17 @@ public class PDKMethodInvoker {
 
     public void setRetryPeriodSeconds(long retryPeriodSeconds) {
         this.retryPeriodSeconds = retryPeriodSeconds;
+    }
+
+    public CommonUtils.AnyError getRunnable() {
+        return runnable;
+    }
+
+    public long getMaxRetryTimeMinute() {
+        return maxRetryTimeMinute;
+    }
+
+    public void setMaxRetryTimeMinute(long maxRetryTimeMinute) {
+        this.maxRetryTimeMinute = maxRetryTimeMinute;
     }
 }
