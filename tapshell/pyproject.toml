@@ -1,0 +1,40 @@
+[tool.poetry]
+name = "tapdata_cli"
+version = "2.2.0"
+description = "Tapdata Python Sdk"
+authors = ["Tapdata <team@tapdata.io>"]
+license = "Apache V2"
+readme = "docs/Python-Sdk.md"
+repository = "https://github.com/tapdata/tapdata/tree/master/tapshell"
+
+[tool.poetry.dependencies]
+python = "^3.7"
+asyncio = "3.4.3"
+atomicwrites = "1.4.0"
+attrs = "21.2.0"
+certifi = "2020.12.5"
+chardet = "4.0.0"
+colorama = "0.4.4"
+colorlog = "5.0.1"
+idna = "2.10"
+iniconfig = "1.1.1"
+packaging = "20.9"
+pluggy = "0.13.1"
+py = "1.10.0"
+pyparsing = "2.4.7"
+PyYAML = "5.4.1"
+requests = "2.25.1"
+toml = "0.10.2"
+urllib3 = "1.26.4"
+websockets = "9.0.2"
+pymongo = "4.1.1"
+javascripthon = "^0.12"
+jupyter = "^1.0.0"
+pytest = "^7.1.2"
+allure-pytest = "^2.9.45"
+
+[tool.poetry.dev-dependencies]
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
