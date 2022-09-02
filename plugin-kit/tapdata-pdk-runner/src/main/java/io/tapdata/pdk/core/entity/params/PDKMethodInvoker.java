@@ -12,6 +12,12 @@ public class PDKMethodInvoker {
     }
     private PDKMethodInvoker(){}
 
+    public void cancelRetry() {
+        synchronized (this) {
+            retryTimes = 0;
+            this.notifyAll();
+        }
+    }
     private CommonUtils.AnyError runnable;
     private String message;
     private String logTag;
