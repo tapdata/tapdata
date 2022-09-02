@@ -22,7 +22,7 @@ Tapdata is a live data platform designed to connect data silos and provide fresh
 3. clone repo: `git clone https://github.com/tapdata/tapdata.git && cd tapdata`
 
 ## Last Release Branch
-release-v2.7
+release-v2.8
 
  
 ### Quick Use

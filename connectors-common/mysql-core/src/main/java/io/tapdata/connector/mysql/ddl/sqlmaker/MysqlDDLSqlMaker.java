@@ -9,12 +9,11 @@ import io.tapdata.entity.event.ddl.table.TapDropFieldEvent;
 import io.tapdata.entity.event.ddl.table.TapNewFieldEvent;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapField;
+import io.tapdata.entity.schema.TapTable;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import org.apache.commons.lang3.StringUtils;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
+import java.util.*;
 
 /**
  * @author samuel
@@ -164,35 +163,44 @@ public class MysqlDDLSqlMaker implements DDLSqlMaker {
 		if (subVersion != null && subVersion >= 8) {
 			return Collections.singletonList(sql + " rename column `" + before + "` to `" + after + "`");
 		} else {
-			TapField oldField = tapAlterFieldNameEvent.getOldField();
-			sql += " change `" + before + "` " + "`" + after + "` " + oldField.getDataType();
-			if (null != oldField.getAutoInc() && oldField.getAutoInc()) {
-				if (oldField.getPrimaryKeyPos() == 1) {
+			TapTable tapTable = tapConnectorContext.getTableMap().get(tableId);
+			if (tapTable == null) {
+				throw new RuntimeException("Append alter column name ddl sql failed, tapTable is blank");
+			}
+			Optional<TapField> tapFieldOptional = tapTable.getNameFieldMap().entrySet().stream()
+							.filter(e -> StringUtils.equalsIgnoreCase(e.getKey(), before)).map(Map.Entry::getValue).findFirst();
+			if (!tapFieldOptional.isPresent()) {
+				throw new RuntimeException("Append alter column name ddl sql failed, field is blank");
+			}
+			TapField field = tapFieldOptional.get();
+			sql += " change `" + before + "` " + "`" + after + "` " + field.getDataType();
+			if (null != field.getAutoInc() && field.getAutoInc()) {
+				if (field.getPrimaryKeyPos() == 1) {
 					sql += " auto_increment";
 				} else {
-					TapLogger.warn(TAG, "Field \"{}\" cannot be auto increment in mysql, there can be only one auto column and it must be defined the first key", oldField.getName());
+					TapLogger.warn(TAG, "Field \"{}\" cannot be auto increment in mysql, there can be only one auto column and it must be defined the first key", field.getName());
 				}
 			}
-			if (oldField.getNullable()) {
+			if (field.getNullable()) {
 				sql += " null";
 			} else {
 				sql += " not null";
 			}
 			// default value
-			String defaultValue = oldField.getDefaultValue() == null ? "" : oldField.getDefaultValue().toString();
+			String defaultValue = field.getDefaultValue() == null ? "" : field.getDefaultValue().toString();
 			if (StringUtils.isNotBlank(defaultValue)) {
 				sql += " default '" + defaultValue + "'";
 			}
 
 			// comment
-			String comment = oldField.getComment();
+			String comment = field.getComment();
 			if (StringUtils.isNotBlank(comment)) {
 				// try to escape the single quote in comments
 				comment = comment.replace("'", "\\'");
 				sql += " comment '" + comment + "'";
 			}
 
-			Boolean primaryKey = oldField.getPrimaryKey();
+			Boolean primaryKey = field.getPrimaryKey();
 			if (null != primaryKey && primaryKey) {
 				sql += " key";
 			}
