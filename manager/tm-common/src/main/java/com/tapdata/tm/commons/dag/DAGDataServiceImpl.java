@@ -577,8 +577,9 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
         tapTable.setNameFieldMap(nameFieldMap);
 
 
-
+        ObjectId oldId = metadataInstancesDto.getOldId();
         metadataInstancesDto = PdkSchemaConvert.fromPdk(tapTable);
+        metadataInstancesDto.setOldId(oldId);
         metadataInstancesDto.setAncestorsName(schema.getAncestorsName());
         metadataInstancesDto.setNodeId(schema.getNodeId());
 
