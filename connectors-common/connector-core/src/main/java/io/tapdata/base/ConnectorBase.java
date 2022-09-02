@@ -31,6 +31,7 @@ import java.util.function.Consumer;
 
 public abstract class ConnectorBase implements TapConnector {
 	private static final TypeConverter typeConverter = InstanceFactory.instance(TypeConverter.class);
+	private static final TapUtils tapUtils = InstanceFactory.instance(TapUtils.class);
 	private static final SimpleDateFormat tapDateTimeFormat = new SimpleDateFormat();
 	private static final String TAG = ConnectorBase.class.getSimpleName();
 
@@ -76,6 +77,12 @@ public abstract class ConnectorBase implements TapConnector {
 
 	public static Boolean toBoolean(Object value) {
 		return typeConverter.toBoolean(value);
+	}
+
+	public static void fillFieldsByExample(TapTable table, String exampleJson) {
+		DataMap dataMap = fromJsonObject(exampleJson);
+		//TODO fill fields in table.
+		
 	}
 
 	public static String toJson(Object obj, JsonParser.ToJsonFeature... features) {

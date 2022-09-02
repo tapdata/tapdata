@@ -31,6 +31,7 @@ public class RegisterMain {
         Redis(BASE_PATH + "connectors/dist/redis-connector-v1.0-SNAPSHOT.jar", "all", "redis"),
 		Hive1(BASE_PATH + "connectors/dist/hive1-connector-v1.0-SNAPSHOT.jar", "all", "hive1"),
         Mariadb(BASE_PATH + "connectors/dist/mariadb-connector-v1.0-SNAPSHOT.jar", "all", "mariadb"),
+        Coding(BASE_PATH + "connectors/dist/coding-connector-v1.0-SNAPSHOT.jar", "all", "coding"),
 
         ;
 
