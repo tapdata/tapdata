@@ -35,16 +35,17 @@ public class LoginSuccessfullyObserver implements AspectObserver<LoginSuccessful
                     for(String baseUrl : baseURLs) {
                         if(!baseUrl.endsWith("/"))
                             baseUrl = baseUrl + "/";
-                        newBaseUrls.add(baseUrl + "proxy?access_token" + accessToken);
+                        newBaseUrls.add(baseUrl + "proxy?access_token=" + accessToken);
                     }
                     imClient = new IMClientBuilder()
-                            .withBaseUrl(baseURLs)
+                            .withBaseUrl(newBaseUrls)
                             .withService("engine")
                             .withPrefix("e")
                             .withClientId(ConfigurationCenter.processId)
                             .withTerminal(1)
                             .withToken(accessToken)
                             .build();
+                    imClient.start();
                 }
             }
         }

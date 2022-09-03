@@ -8,6 +8,7 @@ import io.netty.util.Attribute;
 import io.netty.util.AttributeKey;
 import io.tapdata.entity.annotations.Bean;
 import io.tapdata.entity.annotations.MainMethod;
+import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.utils.JsonParser;
 import io.tapdata.modules.api.net.data.Data;
@@ -15,6 +16,8 @@ import io.tapdata.modules.api.net.data.Identity;
 import io.tapdata.modules.api.net.data.Result;
 import io.tapdata.modules.api.net.data.ResultData;
 import io.tapdata.modules.api.net.message.TapEntity;
+import io.tapdata.pdk.core.utils.CommonUtils;
+import io.tapdata.pdk.core.utils.JWTUtils;
 import io.tapdata.wsserver.channels.error.WSErrors;
 import io.tapdata.wsserver.channels.gateway.GatewaySessionHandler;
 import io.tapdata.wsserver.channels.gateway.GatewaySessionManager;
@@ -25,11 +28,15 @@ import io.tapdata.wsserver.channels.websocket.utils.NetUtils;
 import io.tapdata.wsserver.eventbus.EventBusHolder;
 
 import java.net.InetSocketAddress;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Consumer;
 
 @Bean()
 @MainMethod(value = "main", order = 10000)
 public class GatewayChannelModule {
+    private static final String key = "asdfFSDJKFHKLASHJDKQJWKJehrklHDFJKSMhkj3h24jkhhJKASDH723ty4jkhasdkdfjhaksjdfjfhJDJKLHSAfadsf";
+
     public void main() {
         EventBusHolder.getEventBus().register(this);
     }
@@ -93,36 +100,44 @@ public class GatewayChannelModule {
 //        if(identity.sign == null || sign(identity.sign)) {
 //
 //        }
-        String userId = gatewaySessionManager.getTokenUserIdMap().get(identity.getToken());
-        if (userId == null) {
-            identityReceivedEvent.closeChannel(identity.getId(), WSErrors.ERROR_GATEWAY_TOKEN_NOT_FOUND);
-            return;
-        }
-        GatewaySessionHandler gatewaySessionHandler = gatewaySessionManager.getUserIdGatewaySessionHandlerMap().get(userId);
-        if (gatewaySessionHandler == null || gatewaySessionHandler.getUserChannel() == null) {
-            identityReceivedEvent.closeChannel(identity.getId(), WSErrors.ERROR_GATEWAY_USER_NOT_EXIST);
-            return;
-        }
-        ChannelHandlerContext old = userIdChannelMap.put(userId, identityReceivedEvent.getCtx());
-        if (old != null) {
-            identityReceivedEvent.closeChannel(old.channel(), identity.getId(), WSErrors.ERROR_CHANNEL_KICKED);
+        CommonUtils.handleAnyError(() -> {
+            Map<String, Object> claims = JWTUtils.getClaims(key, identity.getToken());
+            String service = (String) claims.get("service");
+            String clientId = (String) claims.get("clientId");
+            Integer terminal = (Integer) claims.get("terminal");
+            String uid = (String) claims.get("uid");
+
+            GatewaySessionHandler gatewaySessionHandler = gatewaySessionManager.preCreateGatewaySessionHandler(clientId, service, null, clientId, terminal, true, null);
+
+            ChannelHandlerContext old = userIdChannelMap.put(clientId, identityReceivedEvent.getCtx());
+            if (old != null) {
+                identityReceivedEvent.closeChannel(old.channel(), identity.getId(), WSErrors.ERROR_CHANNEL_KICKED);
 //            return
-        }
+            }
 
-        Channel channel = identityReceivedEvent.getCtx().channel();
+            Channel channel = identityReceivedEvent.getCtx().channel();
 
-        InetSocketAddress insocket = (InetSocketAddress) channel.remoteAddress();
-        String clientIP = insocket.getAddress().getHostAddress();
-        gatewaySessionHandler.getUserChannel().setIp(clientIP);
+            InetSocketAddress insocket = (InetSocketAddress) channel.remoteAddress();
+            String clientIP = insocket.getAddress().getHostAddress();
+            gatewaySessionHandler.getUserChannel().setIp(clientIP);
 
-        Attribute<UserChannel> attribute = channel.attr(AttributeKey.valueOf(KEY_GATEWAY_USER));
-        attribute.set(gatewaySessionHandler.getUserChannel());
+            Attribute<UserChannel> attribute = channel.attr(AttributeKey.valueOf(KEY_GATEWAY_USER));
+            attribute.set(gatewaySessionHandler.getUserChannel());
 
-        //OnConnected//异步
-        //sendCache//同步
-        TapEntity message = gatewaySessionManager.channelConnected(gatewaySessionHandler);
+            //OnConnected//异步
+            //sendCache//同步
+            TapEntity message = gatewaySessionManager.channelConnected(gatewaySessionHandler);
 
-        identityReceivedEvent.sendResult(new Result().forId(identity.getId()).code(Data.CODE_SUCCESS).message(message).time(System.currentTimeMillis()));
+            identityReceivedEvent.sendResult(new Result().forId(identity.getId()).code(Data.CODE_SUCCESS).message(message).time(System.currentTimeMillis()));
+        }, throwable -> {
+            int code = WSErrors.ERROR_UNKNOWN;
+            if(throwable instanceof CoreException) {
+                CoreException coreException = (CoreException) throwable;
+                code = coreException.getCode();
+            }
+            identityReceivedEvent.closeChannel(identity.getId(), code, throwable.getMessage());
+        });
+
     }
 
     @Subscribe

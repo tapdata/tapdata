@@ -62,7 +62,7 @@ public class ImplementationClassFactory {
             builder.forPackages(this.scanPackages);
         }
         Reflections reflections = new Reflections(builder);
-
+        TapLogger.debug(TAG, "Start scanning implementation classes");
         AnnotationUtils.runClassAnnotationHandlers(reflections, new ClassAnnotationHandler[]{
                 implementationAnnotationHandler,
                 beanAnnotationHandler

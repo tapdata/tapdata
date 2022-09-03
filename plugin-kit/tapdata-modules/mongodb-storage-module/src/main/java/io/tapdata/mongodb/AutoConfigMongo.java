@@ -3,6 +3,7 @@ package io.tapdata.mongodb;
 import com.mongodb.client.MongoClient;
 import io.tapdata.entity.annotations.Bean;
 import io.tapdata.entity.annotations.MainMethod;
+import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.reflection.ClassAnnotationHandler;
 import io.tapdata.mongodb.annotation.MongoDAO;
 import io.tapdata.pdk.core.utils.AnnotationUtils;
@@ -31,6 +32,7 @@ public class AutoConfigMongo {
         builder.forPackages(packages);
         Reflections reflections = new Reflections(builder);
 
+        TapLogger.debug(TAG, "Start scanning mongodb dao classes");
         AnnotationUtils.runClassAnnotationHandlers(reflections, new ClassAnnotationHandler[]{
                 mongoDAOAnnotationHandler
         }, TAG);

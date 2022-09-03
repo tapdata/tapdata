@@ -75,7 +75,7 @@ public class HttpUtils {
         String json = IOUtils.toString(inputStream, StandardCharsets.UTF_8);
         if(StringUtils.isNotBlank(json)) {
             JSONObject result = JSON.parseObject(json);
-            if(result != null) {
+            if(result != null && result.getString("code").equals("ok")) {
                 JSONObject data = result.getJSONObject("data");
                 if(data != null) {
                     return data;

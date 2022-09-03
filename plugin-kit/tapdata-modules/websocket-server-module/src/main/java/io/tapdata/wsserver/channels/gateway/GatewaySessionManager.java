@@ -140,6 +140,7 @@ public class GatewaySessionManager {
         builder.forPackages(packages);
         Reflections reflections = new Reflections(builder);
 
+        TapLogger.debug(TAG, "Start scanning gateway session classes");
         AnnotationUtils.runClassAnnotationHandlers(reflections, new ClassAnnotationHandler[]{
                 gatewaySessionAnnotationHandler
         }, TAG);
@@ -172,11 +173,20 @@ public class GatewaySessionManager {
         SingleThreadBlockingQueue<UserAction> queue = userIdSingleThreadMap.get(userId);
         if (queue == null) {
             UserActionHandler userActionHandler = new UserActionHandler();
-            queue = new SingleThreadBlockingQueue<UserAction>("UserActionQueue_" + userId).withErrorHandler(userActionHandler).withHandler(userActionHandler).withExecutorService(threadPoolExecutor).withHandleSize(100).withMaxSize(500).withMaxWaitMilliSeconds(0);
+            queue = new SingleThreadBlockingQueue<UserAction>("UserActionQueue_" + userId)
+                    .withErrorHandler(userActionHandler)
+                    .withHandler(userActionHandler)
+                    .withExecutorService(threadPoolExecutor)
+                    .withHandleSize(100)
+                    .withMaxSize(500)
+                    .withMaxWaitMilliSeconds(0)
+                    .start();
             SingleThreadBlockingQueue<UserAction> old = userIdSingleThreadMap.putIfAbsent(userId, queue);
-            if (old != null)
+            if (old != null) {
+                queue.stop();
                 queue = old;
-        }
+            }
+         }
         return queue;
     }
 
@@ -245,7 +255,8 @@ public class GatewaySessionManager {
             gatewaySessionHandler.setUserChannel(new UserChannel().userId(userId).authorisedExpression(authorisedExpression).deviceToken(deviceToken).terminal(terminal).createTime(System.currentTimeMillis()));
             gatewaySessionHandler.setId(gatewaySessionHandler.getUserChannel().getUserId());
 
-            verifyAuthorisedToken(gatewaySessionHandler, authorisedToken);
+            if(authorisedToken != null)
+                verifyAuthorisedToken(gatewaySessionHandler, authorisedToken);
 
             boolean exceedMaxChannels = true;
             if (roomCounter < this.maxChannels) {

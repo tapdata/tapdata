@@ -9,6 +9,7 @@ import io.netty.handler.timeout.IdleStateEvent;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.modules.api.net.data.*;
+import io.tapdata.modules.api.net.error.NetErrors;
 import io.tapdata.wsserver.channels.error.WSCoreException;
 import io.tapdata.wsserver.channels.error.WSErrors;
 import io.tapdata.wsserver.channels.websocket.event.*;
@@ -81,35 +82,50 @@ public class GatewayHandler extends AbstractWebSocketServerHandler {
     @Override
     protected void messageReceived(ChannelHandlerContext ctx, BinaryWebSocketFrame webSocketFrame) {
 //        LoggerEx.info(TAG, "messageReceived $ctx $webSocketFrame")
-        byte[] body;
+        byte[] body = null;
 
         ByteBuf byteBuf = webSocketFrame.content();
         byte type = byteBuf.readByte();
         checkType(type, ctx);
-        int readableBytes = byteBuf.readableBytes();
+
+        byte encode = Data.ENCODE_JAVA_CUSTOM_SERIALIZER;
+        if(byteBuf.readableBytes() > 0) {
+            encode = byteBuf.readByte();
+            int readableBytes = byteBuf.readableBytes();
 //        if(readableBytes > 32768)
 //            throw new IllegalArgumentException("Received bytes is bigger than 32768, ignore...")
-        body = new byte[readableBytes];
-        byteBuf.readBytes(body);
+            body = new byte[readableBytes];
+            byteBuf.readBytes(body);
+        }
+
+        switch (encode) {
+            case Data.ENCODE_JAVA_CUSTOM_SERIALIZER:
+            case Data.ENCODE_PB:
+            case Data.ENCODE_JSON:
+                break;
+            default:
+                throw new CoreException(NetErrors.ILLEGAL_ENCODE, "Illegal encode {}", encode);
+        }
+
 
         switch (type) {
             case Identity.TYPE:
-                eventBus.post(new IdentityReceivedEvent().identity(new Identity(body, Data.ENCODE_PB)).ctx(ctx));
+                eventBus.post(new IdentityReceivedEvent().identity(new Identity(body, encode)).ctx(ctx));
                 break;
             case IncomingData.TYPE:
-                eventBus.post(new IncomingDataReceivedEvent().incomingData(new IncomingData(body, Data.ENCODE_PB)).ctx(ctx));
+                eventBus.post(new IncomingDataReceivedEvent().incomingData(new IncomingData(body, encode)).ctx(ctx));
                 break;
             case Ping.TYPE:
                 eventBus.post(new PingReceivedEvent().ping(new Ping()).ctx(ctx));
                 break;
             case IncomingMessage.TYPE:
-                eventBus.post(new IncomingMessageReceivedEvent().incomingMessage(new IncomingMessage(body, Data.ENCODE_PB)).ctx(ctx));
+                eventBus.post(new IncomingMessageReceivedEvent().incomingMessage(new IncomingMessage(body, encode)).ctx(ctx));
                 break;
             case IncomingInvocation.TYPE:
-                eventBus.post(new IncomingInvocationReceivedEvent().incomingInvocation(new IncomingInvocation(body, Data.ENCODE_PB)).ctx(ctx));
+                eventBus.post(new IncomingInvocationReceivedEvent().incomingInvocation(new IncomingInvocation(body, encode)).ctx(ctx));
                 break;
             default:
-                TapLogger.error(TAG, "Unexpected type received $type, length $body.length. Ignored...");
+                TapLogger.error(TAG, "Unexpected type received {}, length {}. Ignored...", type, body != null ? body.length : 0);
                 break;
         }
     }

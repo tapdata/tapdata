@@ -35,19 +35,23 @@ public class NettyEvent<T extends NettyEvent<?>> {
     public boolean sendResult(Channel channel, Result result) {
         return NetUtils.writeAndFlush(channel, result);
     }
-
     public void closeChannel(Channel channel, String forId, int code) {
+        closeChannel(channel, forId, code, null);
+    }
+    public void closeChannel(Channel channel, String forId, int code, String description) {
         if(channel != null && channel.isActive()) {
             try {
-                sendResult(channel, Result.create().forId(forId).code(code).time(System.currentTimeMillis()));
+                sendResult(channel, Result.create().forId(forId).code(code).description(description).time(System.currentTimeMillis()));
             } catch(Throwable ignored) {} finally {
                 channel.close();
             }
         }
     }
-
     public void closeChannel(String forId, int code) {
+        closeChannel(forId, code, null);
+    }
+    public void closeChannel(String forId, int code, String description) {
         Channel channel = ctx.channel();
-        closeChannel(channel, forId, code);
+        closeChannel(channel, forId, code, description);
     }
 }

@@ -12,10 +12,11 @@ import io.tapdata.wsclient.utils.HttpUtils;
 import io.tapdata.wsclient.utils.TimerEx;
 
 import java.io.IOException;
+import java.net.MalformedURLException;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.net.URL;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledFuture;
@@ -25,7 +26,6 @@ import io.netty.bootstrap.Bootstrap;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.Channel;
-import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInitializer;
 import io.netty.channel.ChannelOption;
 import io.netty.channel.ChannelPipeline;
@@ -48,12 +48,14 @@ import javax.net.ssl.SSLException;
 
 public class WebsocketPushChannel extends PushChannel {
     private static final String TAG = WebsocketPushChannel.class.getSimpleName();
+    private String protocol;
     private Integer wsPort;
+    private String path;
     private String host;
     private String server;
     private String sid;
+    private String baseUrl;
 
-    private final String appId = "aculearn";
     private final int sdkVersion = 1;
     private final String key = "akdafasdf";
     private final String deviceToken = "dt";
@@ -92,7 +94,8 @@ public class WebsocketPushChannel extends PushChannel {
 //        }
 //    }
     @Override
-    public void start() {
+    public void start(String baseUrl) {
+        this.baseUrl = baseUrl;
         if(imClient == null)
             throw new NullPointerException("IMClient is needed for creating channels.");
         eventManager = EventManager.getInstance();
@@ -103,7 +106,7 @@ public class WebsocketPushChannel extends PushChannel {
             TapLogger.debug(TAG, "Login successfully, " + host + " " + wsPort + " " + server + " " + sid);
             return null;
         }).thenAccept(unused -> {
-            connectWS("wss", host, wsPort, null);
+            connectWS(protocol, host, wsPort, path);
             TapLogger.debug(TAG, "WS connected successfully, " + host + " " + wsPort + " " + server + " " + sid);
         }).exceptionally(throwable -> {
             TapLogger.error(TAG, "WS connected failed, " + host + " " + wsPort + " " + server + " " + sid);
@@ -154,33 +157,48 @@ public class WebsocketPushChannel extends PushChannel {
     }
 
     private void login() {
-        List<String> baseUrls = imClient.getBaseUrls();
-
         JSONObject loginObj = new JSONObject();
-        loginObj.put("account", imClient.getClientId());
+        loginObj.put("clientId", imClient.getClientId());
         loginObj.put("terminal", imClient.getTerminal());
-        loginObj.put("appId", appId);
         loginObj.put("service", imClient.getService());
         Map<String, String> headers = new HashMap<>();
-//        headers.put("imapitoken", imClient.getToken());
-        headers.put("classtoken", imClient.getToken());
         JSONObject data = null;
         try {
-            data = HttpUtils.post(baseUrls.get(0), loginObj, headers);
+            data = HttpUtils.post(baseUrl, loginObj, headers);
         } catch (IOException e) {
-            throw new CoreException(NetErrors.WEBSOCKET_LOGIN_FAILED, "Login url {} loginObj {} headers {} failed, {}", baseUrls, loginObj, headers, e.getMessage());
+            throw new CoreException(NetErrors.WEBSOCKET_LOGIN_FAILED, "Login url {} loginObj {} headers {} failed, {}", baseUrl, loginObj, headers, e.getMessage());
         }
-        wsPort = data.getInteger("wsport");
-        host = data.getString("host");
-        server = data.getString("s");
-        sid = data.getString("sid");
+        wsPort = data.getInteger("wsPort");
+        sid = data.getString("token");
+        String wsPath = data.getString("wsPath");
+        String wsHost = data.getString("wsHost");
+        String wsProtocol = data.getString("wsProtocol");
+        if(wsProtocol != null) {
+            protocol = wsProtocol;
+        }
+        if(wsHost != null) {
+            host = wsHost;
+        }
+        path = wsPath;
 
-        if(wsPort == null || host == null || server == null || sid == null) {
-            throw new CoreException(NetErrors.WEBSOCKET_LOGIN_FAILED, "Illegal parameters for wsPort " + wsPort + " host " + host + " server " + server + " sid " + sid);
+        try {
+            URL url = new URL(baseUrl);
+            if(protocol == null) {
+                protocol = (url.getProtocol().equals("https") ? "wss" : "ws");
+            }
+            if(host == null) {
+                host = url.getHost();
+            }
+        } catch (MalformedURLException e) {
+            throw new RuntimeException(e);
+        }
+
+        if(protocol == null || wsPort == null || host == null || sid == null) {
+            throw new CoreException(NetErrors.WEBSOCKET_LOGIN_FAILED, "Illegal parameters for wsPort " + wsPort + " host " + host + " server " + server + " sid " + sid + " protocol " + protocol);
         }
     }
 
-    private void connectWS(String protocol, final String host, final int port, ChannelHandlerContext ctx) {
+    private void connectWS(String protocol, final String host, final int port, String path) {
         if (!"ws".equalsIgnoreCase(protocol) && !"wss".equalsIgnoreCase(protocol)) {
             throw new CoreException(NetErrors.WEBSOCKET_PROTOCOL_ILLEGAL, "Only WS(S) is supported.");
         }
@@ -199,7 +217,7 @@ public class WebsocketPushChannel extends PushChannel {
 
         URI uri = null;
         try {
-            uri = new URI(protocol + "://" + host + ":" + port);
+            uri = new URI(protocol + "://" + host + ":" + port + "/" + path);
         } catch (URISyntaxException e) {
             e.printStackTrace();
         }
@@ -207,7 +225,7 @@ public class WebsocketPushChannel extends PushChannel {
             throw new CoreException(NetErrors.WEBSOCKET_URL_ILLEGAL, "uri illegal, " + protocol + "://" + host + ":" + port);
 
         EventLoopGroup group = new NioEventLoopGroup();
-        final WebSocketClientHandler handler = new WebSocketClientHandler(ctx, WebSocketClientHandshakerFactory
+        final WebSocketClientHandler handler = new WebSocketClientHandler(null, WebSocketClientHandshakerFactory
                 .newHandshaker(uri, WebSocketVersion.V13, null, false, new DefaultHttpHeaders()));
         handler.pushChannel = this;
 
@@ -236,16 +254,9 @@ public class WebsocketPushChannel extends PushChannel {
 //        sendServer();
         TapLogger.info(TAG, "connectWS: "+"sendServer");
         Identity identity = new Identity();
-//        identity.setSessionId(sid);
-//        identity.setSdkVersion(sdkVersion);
-//        identity.setTerminal(imClient.getTerminal());
-//        identity.setService(imClient.getService());
-//        identity.setAppId(appId);
-//        identity.setCode(sid);
-//        identity.setDeviceToken(deviceToken);
-//        identity.setSessionId(sid);
-//        identity.setUserId(imClient.getUserId());
-//        identity.setKey(key);
+        identity.setId("id");
+        identity.setToken(sid);
+        identity.setIdType(getImClient().getService());
         sendIdentity(identity);
         TapLogger.info(TAG, "connectWS: "+"sendIdentity"+identity);
     }

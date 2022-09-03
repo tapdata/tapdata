@@ -25,7 +25,7 @@ public abstract class PushChannel {
 	
 	public abstract void stop();
 	
-	public abstract void start();
+	public abstract void start(String lastBaseUrl);
 	public abstract void selfCheck();
 
 	public abstract void ping() throws IOException;

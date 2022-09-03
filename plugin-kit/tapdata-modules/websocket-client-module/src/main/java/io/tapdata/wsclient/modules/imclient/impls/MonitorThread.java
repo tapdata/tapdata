@@ -3,6 +3,7 @@ package io.tapdata.wsclient.modules.imclient.impls;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.modules.api.net.data.Data;
 import io.tapdata.modules.api.net.data.Result;
+import io.tapdata.pdk.core.utils.RandomDraw;
 import io.tapdata.wsclient.modules.imclient.impls.websocket.ChannelStatus;
 import io.tapdata.wsclient.utils.EventManager;
 
@@ -19,6 +20,9 @@ public class MonitorThread<T extends PushChannel> extends Thread {
     public static final int STATUS_TERMINATED = 4;
     private static final String TAG = MonitorThread.class.getSimpleName();
 
+    private String lastBaseUrl;
+    private int baseUrlIndex = 0;
+    private int baseUrlRetryCount = 0;
     public int getStatus() {
         return status;
     }
@@ -73,18 +77,14 @@ public class MonitorThread<T extends PushChannel> extends Thread {
         TapLogger.info(TAG, "MonitorThread terminated");
 
         status = STATUS_TERMINATED;
-        TapLogger.info(TAG, "1111111111111");
         if(pushChannel != null)
             pushChannel.stop();
-        TapLogger.info(TAG, "2222222222222");
         synchronized (lock) {
             idleTime = 0;
             count = 0;
             lock.notifyAll();
         }
-        TapLogger.info(TAG, "333333333333333");
         eventManager.unregisterEventListener(this);
-        TapLogger.info(TAG, "444444444444");
     }
 
     public void wakeupForMessage() {
@@ -234,7 +234,11 @@ public class MonitorThread<T extends PushChannel> extends Thread {
                             Constructor<? extends PushChannel> constructor = pushChannelClass.getConstructor();
                             pushChannel = (T)constructor.newInstance();
                             pushChannel.setImClient(imClient);
-                            pushChannel.start();
+                            if(lastBaseUrl == null) {
+                                lastBaseUrl = imClient.getBaseUrls().get(baseUrlIndex);
+                                //TODO need to choose other base urls to reconnect.
+                            }
+                            pushChannel.start(lastBaseUrl);
                         }
                     }
                 } else {

@@ -1,5 +1,6 @@
 package com.tapdata.tm.proxy.controller;
 
+import cn.hutool.crypto.digest.MD5;
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.ResponseMessage;
 import com.tapdata.tm.base.exception.BizException;
@@ -50,7 +51,7 @@ public class ProxyController extends BaseController {
                 ), 30000L);
         proxyTokenDto.setToken(token);
         proxyTokenDto.setWsPort(wsPort);
-        proxyTokenDto.setWsPath(loginDto.getService());
+        proxyTokenDto.setWsPath(loginDto.getService() + "/" + MD5.create().digestHex(loginDto.getClientId()));
         return success(proxyTokenDto);
     }
 }

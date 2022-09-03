@@ -59,10 +59,12 @@ public abstract class ContentData<T extends ContentData> extends Data {
         super.to(outputStream);
         dos.writeUTF(contentType);
         dos.writeByte(contentEncode);
-        if(message != null) {
-            content = fromTapMessage(message, contentType, contentEncode);
+        if(contentEncode != null) {
+            if(message != null) {
+                content = fromTapMessage(message, contentType, contentEncode);
+            }
+            dos.writeBytes(content);
         }
-        dos.writeBytes(content);
     }
 
     public byte[] getContent() {

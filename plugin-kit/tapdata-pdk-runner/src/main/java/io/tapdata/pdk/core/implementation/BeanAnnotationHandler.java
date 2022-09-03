@@ -68,8 +68,10 @@ public class BeanAnnotationHandler extends ClassAnnotationHandler {
                         TapLogger.warn(TAG, "Bean {} don't have non-args public constructor, will be ignored, message {}", clazz, canNotInitialized);
                         continue;
                     }
-
+                    TapLogger.debug(TAG, "Found implementation class {}", clazz);
+                    long time = System.currentTimeMillis();
                     InstanceFactory.bean(clazz);
+                    TapLogger.debug(TAG, "Bean implementation class {} takes {}", clazz, (System.currentTimeMillis() - time));
                 }
             }
             TapLogger.debug(TAG, "--------------Implementation Classes End-------------");

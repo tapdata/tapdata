@@ -3,6 +3,7 @@ package io.tapdata.wsclient.modules.imclient.impls.websocket;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.modules.api.net.data.Data;
 import io.tapdata.modules.api.net.data.OutgoingData;
+import io.tapdata.modules.api.net.data.Ping;
 import io.tapdata.modules.api.net.data.Result;
 import io.tapdata.wsclient.modules.imclient.impls.data.DataVersioning;
 import io.tapdata.wsclient.utils.EventManager;
@@ -97,58 +98,58 @@ public class WebSocketClientHandler extends SimpleChannelInboundHandler<Object> 
             BinaryWebSocketFrame binaryWebSocketFrame = (BinaryWebSocketFrame) frame;
             ByteBuf byteBuf = binaryWebSocketFrame.content();
             byte type = byteBuf.readByte();
-            byte encode = byteBuf.readByte();
-            byte[] bytes = new byte[byteBuf.readableBytes()];
-            byteBuf.readBytes(bytes);
+            byte encode = Data.ENCODE_JAVA_CUSTOM_SERIALIZER;
+            byte[] bytes = null;
+            if(byteBuf.readableBytes() > 0) {
+                encode = byteBuf.readByte();
+                bytes = new byte[byteBuf.readableBytes()];
+                byteBuf.readBytes(bytes);
+            }
             Data data = DataVersioning.get(encode, type);
-            if(data != null) {
+            if(bytes != null) {
+                data.setData(bytes);
                 data.resurrect();
+            }
 
-                if(pushChannel != null && pushChannel.getImClient() != null) {
-                    String prefix = pushChannel.getImClient().getPrefix();
-                    switch (type) {
-                        case Result.TYPE:
-                            Result result = (Result) data;
-
-//                            String forId = result.getForId();
-//                            if(forId != null && forId.equals("ping") && pushChannel.pingFuture != null) {
-//                                TapLogger.info(TAG, "pong");
-//                                if(pushChannel.pingFuture != null) {
-//                                    pushChannel.pingFuture.cancel(true);
-//                                    pushChannel.pingFuture = null;
-//                                }
-//                            }
-
-                            if(result.getCode() == 1 && !pushChannel.isConnected) {
-                                pushChannel.isConnected = true;
-                                TapLogger.info(TAG, "PushChannel connected");
-                                eventManager.sendEvent(prefix + ".status", new ChannelStatus(pushChannel, ChannelStatus.STATUS_CONNECTED));
-                            } else if(result.getCode() == 11) {
-                                eventManager.sendEvent(prefix + ".status", new ChannelStatus(pushChannel, ChannelStatus.STATUS_OFFLINEMESSAGECONSUMED));
-                            } else if(result.getCode() == 1075) { //kicked
-                                TapLogger.info(TAG, "PushChannel kicked");
-                                eventManager.sendEvent(pushChannel.getImClient().getPrefix() + ".status", new ChannelStatus(pushChannel, ChannelStatus.STATUS_KICKED));
-                            } else if(result.getCode() == 1094) {
-                                TapLogger.info(TAG, "PushChannel byed");
-                                eventManager.sendEvent(pushChannel.getImClient().getPrefix() + ".status", new ChannelStatus(pushChannel, ChannelStatus.STATUS_BYE));
-                            } else {
-                                TapLogger.info(TAG, "PushChannel receive result " + result);
-                                eventManager.sendEvent(prefix + ".result", result);
-                            }
-                            break;
-                        default:
-                            eventManager.sendEvent(prefix + "." + data.getClass().getSimpleName(), data);
-                            eventManager.sendEvent(prefix + "." + data.getClass().getSimpleName() + "." + data.getContentType(), data);
-                            break;
+            if(pushChannel != null && pushChannel.getImClient() != null) {
+                String prefix = pushChannel.getImClient().getPrefix();
+                switch (type) {
+                    case Ping.TYPE:
+                        if(pushChannel.pingFuture != null) {
+//                            TapLogger.info(TAG, "pong");
+                            pushChannel.pingFuture.cancel(true);
+                            pushChannel.pingFuture = null;
+                        }
+                        break;
+                    case Result.TYPE:
+                        Result result = (Result) data;
+                        if(result.getCode() == 1 && !pushChannel.isConnected) {
+                            pushChannel.isConnected = true;
+                            TapLogger.info(TAG, "PushChannel connected");
+                            eventManager.sendEvent(prefix + ".status", new ChannelStatus(pushChannel, ChannelStatus.STATUS_CONNECTED));
+                        } else if(result.getCode() == 11) {
+                            eventManager.sendEvent(prefix + ".status", new ChannelStatus(pushChannel, ChannelStatus.STATUS_OFFLINEMESSAGECONSUMED));
+                        } else if(result.getCode() == 1075) { //kicked
+                            TapLogger.info(TAG, "PushChannel kicked");
+                            eventManager.sendEvent(pushChannel.getImClient().getPrefix() + ".status", new ChannelStatus(pushChannel, ChannelStatus.STATUS_KICKED));
+                        } else if(result.getCode() == 1094) {
+                            TapLogger.info(TAG, "PushChannel byed");
+                            eventManager.sendEvent(pushChannel.getImClient().getPrefix() + ".status", new ChannelStatus(pushChannel, ChannelStatus.STATUS_BYE));
+                        } else {
+                            TapLogger.info(TAG, "PushChannel receive result " + result);
+                            eventManager.sendEvent(prefix + ".result", result);
+                        }
+                        break;
+                    default:
+                        eventManager.sendEvent(prefix + "." + data.getClass().getSimpleName(), data);
+                        eventManager.sendEvent(prefix + "." + data.getClass().getSimpleName() + "." + data.getContentType(), data);
+                        break;
 //                        case HailPack.TYPE_OUT_OUTGOINGDATA:
 //                            OutgoingData outgoingData = (OutgoingData) data;
 //                            eventManager.sendEvent(prefix + ".data", outgoingData);
 //                            eventManager.sendEvent(prefix + ".data." + outgoingData.getContentType(), outgoingData);
 //                            break;
-                    }
                 }
-            } else {
-                TapLogger.error(TAG, "illegal message type " + type + " received in websocket channel, ignored");
             }
         } else if (frame instanceof TextWebSocketFrame) {
             TextWebSocketFrame textFrame = (TextWebSocketFrame) frame;

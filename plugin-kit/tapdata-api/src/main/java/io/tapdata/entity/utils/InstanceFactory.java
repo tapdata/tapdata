@@ -108,7 +108,9 @@ public class InstanceFactory {
             if(!beanWrapper.isInjected && needInject) {
                 synchronized (beanWrapper.object) {
                     if(!beanWrapper.isInjected) {
+                        TapLogger.debug(TAG, "inject bean {} as needed", beanWrapper.object);
                         injectBean(beanWrapper.object);
+                        TapLogger.debug(TAG, "injected bean {} as needed", beanWrapper.object);
                         beanWrapper.isInjected = true;
                     }
                 }
@@ -147,7 +149,9 @@ public class InstanceFactory {
         if(newCreated.get() && needInject && !beanWrapper.isInjected) {
             synchronized (beanWrapper.object) {
                 if(!beanWrapper.isInjected) {
+                    TapLogger.debug(TAG, "inject bean {} for new created", beanWrapper.object);
                     injectBean(beanWrapper.object);
+                    TapLogger.debug(TAG, "injected bean {} for new created", beanWrapper.object);
                     beanWrapper.isInjected = true;
                 }
             }
@@ -175,13 +179,22 @@ public class InstanceFactory {
     public static void injectBeans() {
         if(initialized.compareAndSet(false, true)) {
             for(Class<?> beanClass : beanMap.keySet()) {
+                TapLogger.debug(TAG, "inject bean {}", beanClass);
+                long time = System.currentTimeMillis();
                 bean(beanClass, true);
+                TapLogger.debug(TAG, "injected bean {} takes ", beanClass, (System.currentTimeMillis() - time));
             }
             for(Object instanceObj : instanceMap.values()) {
+                TapLogger.debug(TAG, "inject instanceObj {}", instanceObj);
+                long time = System.currentTimeMillis();
                 injectBean(instanceObj);
+                TapLogger.debug(TAG, "injected instanceObj {} takes ", instanceObj, (System.currentTimeMillis() - time));
             }
             for(Object typeInstanceObj : instanceTypeMap.values()) {
+                TapLogger.debug(TAG, "inject typeInstanceObj {}", typeInstanceObj);
+                long time = System.currentTimeMillis();
                 injectBean(typeInstanceObj);
+                TapLogger.debug(TAG, "injected typeInstanceObj {} takes ", typeInstanceObj, (System.currentTimeMillis() - time));
             }
         }
     }
