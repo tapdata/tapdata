@@ -15,6 +15,7 @@ import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledFuture;
@@ -153,10 +154,10 @@ public class WebsocketPushChannel extends PushChannel {
     }
 
     private void login() {
-        String loginUrl = imClient.getLoginUrl();
+        List<String> baseUrls = imClient.getBaseUrls();
 
         JSONObject loginObj = new JSONObject();
-        loginObj.put("account", imClient.getUserId());
+        loginObj.put("account", imClient.getClientId());
         loginObj.put("terminal", imClient.getTerminal());
         loginObj.put("appId", appId);
         loginObj.put("service", imClient.getService());
@@ -165,9 +166,9 @@ public class WebsocketPushChannel extends PushChannel {
         headers.put("classtoken", imClient.getToken());
         JSONObject data = null;
         try {
-            data = HttpUtils.post(loginUrl, loginObj, headers);
+            data = HttpUtils.post(baseUrls.get(0), loginObj, headers);
         } catch (IOException e) {
-            throw new CoreException(NetErrors.WEBSOCKET_LOGIN_FAILED, "Login url {} loginObj {} headers {} failed, {}", loginUrl, loginObj, headers, e.getMessage());
+            throw new CoreException(NetErrors.WEBSOCKET_LOGIN_FAILED, "Login url {} loginObj {} headers {} failed, {}", baseUrls, loginObj, headers, e.getMessage());
         }
         wsPort = data.getInteger("wsport");
         host = data.getString("host");

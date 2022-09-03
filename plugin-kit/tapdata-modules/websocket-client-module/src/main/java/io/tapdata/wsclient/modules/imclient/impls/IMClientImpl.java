@@ -8,6 +8,7 @@ import io.tapdata.modules.api.net.data.Result;
 import io.tapdata.wsclient.modules.imclient.IMClient;
 import io.tapdata.wsclient.modules.imclient.impls.websocket.WebsocketPushChannel;
 
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -15,9 +16,9 @@ import java.util.concurrent.atomic.AtomicLong;
 
 public class IMClientImpl implements IMClient {
     private static final String TAG = IMClient.class.getSimpleName();
-    private String userId;
+    private String clientId;
     private String service;
-    private String loginUrl;
+    private List<String> baseUrls;
     private String token;
     private Integer terminal;
 
@@ -41,11 +42,11 @@ public class IMClientImpl implements IMClient {
     }
 
 
-    public IMClientImpl(String prefix, String userId, String service, Integer terminal, String token, String loginUrl) {
+    public IMClientImpl(String prefix, String clientId, String service, Integer terminal, String token, List<String> baseUrls) {
         this.prefix = prefix;
-        this.userId = userId;
+        this.clientId = clientId;
         this.service = service;
-        this.loginUrl = loginUrl;
+        this.baseUrls = baseUrls;
         this.token = token;
         this.terminal = terminal;
 
@@ -115,12 +116,12 @@ public class IMClientImpl implements IMClient {
         contentTypeClassMap.put(contentType, dataClass);
     }
 
-    public String getUserId() {
-        return userId;
+    public String getClientId() {
+        return clientId;
     }
 
-    public void setUserId(String userId) {
-        this.userId = userId;
+    public void setClientId(String clientId) {
+        this.clientId = clientId;
     }
 
     public String getService() {
@@ -131,12 +132,12 @@ public class IMClientImpl implements IMClient {
         this.service = service;
     }
 
-    public String getLoginUrl() {
-        return loginUrl;
+    public List<String> getBaseUrls() {
+        return baseUrls;
     }
 
-    public void setLoginUrl(String loginUrl) {
-        this.loginUrl = loginUrl;
+    public void setBaseUrls(List<String> baseUrls) {
+        this.baseUrls = baseUrls;
     }
 
     public String getToken() {

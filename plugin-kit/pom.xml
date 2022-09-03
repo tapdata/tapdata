@@ -15,8 +15,8 @@
         <module>tapdata-tests</module>
 		<module>connector-archetypes</module>
         <module>tapdata-common</module>
-		<module>tapdata-proxy</module>
 		<module>tapdata-modules</module>
+		<module>tapdata-proxy</module>
     </modules>
 
 	<properties>

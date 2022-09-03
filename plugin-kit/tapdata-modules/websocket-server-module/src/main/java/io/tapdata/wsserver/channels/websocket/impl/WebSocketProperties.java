@@ -14,7 +14,7 @@ public class WebSocketProperties {
     /**
      * 监听端口
      */
-    private int port = 8000;
+    private int port = 8246;
 
     /**
      * 读取空闲时间，单位：分钟

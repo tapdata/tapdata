@@ -134,7 +134,7 @@ public class GatewaySessionManager {
                 .addScanners(new TypeAnnotationsScanner())
 //                .forPackages(this.scanPackages)
                 .addClassLoader(this.getClass().getClassLoader());
-        String scanPackage = CommonUtils.getProperty("gateway_scan_package", "io.tapdata,com.tapdata");
+        String scanPackage = CommonUtils.getProperty("gateway_scan_package", "io.tapdata.proxy");
         String[] packages = scanPackage.split(",");
 
         builder.forPackages(packages);

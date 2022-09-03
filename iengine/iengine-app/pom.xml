@@ -27,6 +27,11 @@
     <dependencies>
         <dependency>
             <groupId>com.tapdata</groupId>
+            <artifactId>proxy-client-module</artifactId>
+            <version>0.5.2-SNAPSHOT</version>
+        </dependency>
+        <dependency>
+            <groupId>com.tapdata</groupId>
             <artifactId>observable-module</artifactId>
             <version>0.5.2-SNAPSHOT</version>
         </dependency>

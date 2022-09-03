@@ -6,10 +6,12 @@ import io.tapdata.modules.api.net.data.ResultData;
 import io.tapdata.wsserver.channels.annotation.GatewaySession;
 import io.tapdata.wsserver.channels.gateway.GatewaySessionHandler;
 
-import java.util.Map;
 
 @GatewaySession(idType = "engine")
 public class MyGatewaySessionHandler extends GatewaySessionHandler {
+	public static void main(String[] args) {
+
+	}
 	@Override
 	public void onSessionCreated() {
 
