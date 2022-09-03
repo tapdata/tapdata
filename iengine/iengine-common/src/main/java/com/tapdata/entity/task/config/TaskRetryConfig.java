@@ -1,5 +1,6 @@
 package com.tapdata.entity.task.config;
 
+import java.io.Serializable;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -7,7 +8,8 @@ import java.util.concurrent.TimeUnit;
  * @Description
  * @create 2022-09-03 14:08
  **/
-public class TaskRetryConfig {
+public class TaskRetryConfig implements Serializable {
+	private static final long serialVersionUID = -6473260293451962641L;
 	private Long retryIntervalSecond;
 
 	public TaskRetryConfig retryIntervalSecond(Long retryIntervalSecond) {
