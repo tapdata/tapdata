@@ -12,6 +12,7 @@
     <packaging>pom</packaging>
     <modules>
 		<module>modules-api</module>
+		<module>mongodb-storage-module</module>
 		<module>websocket-server-module</module>
 		<module>websocket-client-module</module>
     </modules>

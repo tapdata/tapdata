@@ -15,7 +15,9 @@ import io.tapdata.modules.api.net.data.Data;
 import io.tapdata.modules.api.net.data.Identity;
 import io.tapdata.modules.api.net.data.Result;
 import io.tapdata.modules.api.net.data.ResultData;
+import io.tapdata.modules.api.net.entity.NodeRegistry;
 import io.tapdata.modules.api.net.message.TapEntity;
+import io.tapdata.modules.api.net.service.NodeRegistryService;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.pdk.core.utils.JWTUtils;
 import io.tapdata.wsserver.channels.error.WSErrors;
@@ -24,6 +26,7 @@ import io.tapdata.wsserver.channels.gateway.GatewaySessionManager;
 import io.tapdata.wsserver.channels.gateway.data.UserChannel;
 import io.tapdata.wsserver.channels.websocket.event.ChannelInActiveEvent;
 import io.tapdata.wsserver.channels.websocket.event.IdentityReceivedEvent;
+import io.tapdata.wsserver.channels.websocket.impl.WebSocketProperties;
 import io.tapdata.wsserver.channels.websocket.utils.NetUtils;
 import io.tapdata.wsserver.eventbus.EventBusHolder;
 
@@ -43,13 +46,17 @@ public class GatewayChannelModule {
 
     public static final String KEY_GATEWAY_USER = "gwuser";
     public static final String TAG = GatewayChannelModule.class.getSimpleName();
-
+    @Bean
+    private WebSocketProperties webSocketProperties;
     @Bean
     private GatewaySessionManager gatewaySessionManager;
     
     private long userSessionCacheExpireSeconds = 1800;
     @Bean
     private JsonParser jsonParser;
+
+    @Bean
+    private NodeRegistryService nodeRegistryService;
 
     private final ConcurrentHashMap<String, ChannelHandlerContext> userIdChannelMap = new ConcurrentHashMap<>();
     
@@ -123,6 +130,9 @@ public class GatewayChannelModule {
 
             Attribute<UserChannel> attribute = channel.attr(AttributeKey.valueOf(KEY_GATEWAY_USER));
             attribute.set(gatewaySessionHandler.getUserChannel());
+
+            int httpPort = 3000; //TODO should read from TM config.
+            nodeRegistryService.save(new NodeRegistry().ip(clientIP).httpPort(httpPort).wsPort(webSocketProperties.getPort()).type(service).time(System.currentTimeMillis()));
 
             //OnConnected//异步
             //sendCache//同步

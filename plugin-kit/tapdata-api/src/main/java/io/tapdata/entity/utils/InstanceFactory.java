@@ -164,6 +164,8 @@ public class InstanceFactory {
         Object obj = instanceMap.get(instanceClass);
         if(obj == null) {
             obj = ClassFactory.create(instanceClass);
+            if(obj == null)
+                return null;
             Object old = instanceMap.putIfAbsent(instanceClass, obj);
             if(old == null && initialized.get()) {
                 injectBean(obj);
@@ -185,7 +187,9 @@ public class InstanceFactory {
         String key = instanceClass.getName() + "#" + type;
         Object obj = instanceTypeMap.get(key);
         if(obj == null) {
-            obj = ClassFactory.create(instanceClass);
+            obj = ClassFactory.create(instanceClass, type);
+            if(obj == null)
+                return null;
             Object old = instanceTypeMap.putIfAbsent(key, obj);
             if(old == null && initialized.get()) {
                 injectBean(obj);
