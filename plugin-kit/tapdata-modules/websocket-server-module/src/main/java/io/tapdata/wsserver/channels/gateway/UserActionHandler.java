@@ -29,7 +29,7 @@ public class UserActionHandler implements ListHandler<UserAction>, ListErrorHand
 
 
     public void execute(UserAction userAction) throws CoreException {
-        switch (userAction.getAction()) {
+            switch (userAction.getAction()) {
             case UserAction.ACTION_SESSION_CREATED:
                 userAction.getHandler().touch();
                 try {

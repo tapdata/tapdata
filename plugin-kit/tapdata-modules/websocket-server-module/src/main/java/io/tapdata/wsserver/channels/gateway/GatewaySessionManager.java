@@ -465,6 +465,15 @@ public class GatewaySessionManager {
         return null;
     }
 
+    public void channelDisconnected(GatewaySessionHandler gatewaySessionHandler) {
+        try {
+            SingleThreadBlockingQueue<UserAction> queue = getUserActionQueue(gatewaySessionHandler.getId());
+            queue.offer(new UserAction().handler(gatewaySessionHandler).userId(gatewaySessionHandler.getId()).action(UserAction.ACTION_USER_DISCONNECTED));
+        } catch (Throwable t) {
+            TapLogger.error(TAG, "channelDisconnected userId:{} error:{}", gatewaySessionHandler.getId(), t);
+        }
+    }
+
     public OutgoingMessageFilter getBroadcastOutgoingMessageFilter() {
         return broadcastOutgoingMessageFilter;
     }

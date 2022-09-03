@@ -145,6 +145,12 @@ public class GatewayChannelModule {
     public void receivedChannelInactive(ChannelInActiveEvent channelInActiveEvent) {
         Channel channel = channelInActiveEvent.getCtx().channel();
         Attribute<UserChannel> attribute = channel.attr(AttributeKey.valueOf(KEY_GATEWAY_USER));
+        UserChannel userChannel = attribute.get();
+
+        GatewaySessionHandler gatewaySessionHandler = gatewaySessionManager.getUserIdGatewaySessionHandlerMap().get(userChannel.getUserId());
+        if(gatewaySessionHandler != null)
+            gatewaySessionManager.channelDisconnected(gatewaySessionHandler);
+
         final UserChannel userSession = attribute.getAndSet(null);
         if (userSession != null) {
             boolean bool = userIdChannelMap.remove(userSession.getUserId(), channelInActiveEvent.getCtx());
