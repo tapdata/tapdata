@@ -1,9 +1,6 @@
 package io.tapdata.mongodb;
 
-import com.mongodb.MongoClientSettings;
-import com.mongodb.ReadConcern;
-import com.mongodb.ReadPreference;
-import com.mongodb.WriteConcern;
+import com.mongodb.*;
 import com.mongodb.client.MongoClient;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoDatabase;
@@ -46,13 +43,8 @@ public class MongoDAOAnnotationHandler extends ClassAnnotationHandler {
 //                        AbstractObject<AbstractMongoDAO> beanObject = context.getAndCreateBean(SwitchCaseUtils.lowerFirstCase(clazz.getSimpleName()), clazz) as AbstractObject<AbstractMongoDAO>
 //                        AbstractMongoDAO dao = beanObject.getObject(false)
 
-					String dbName = mongoDocument.dbName();;
 					String collectionName = mongoDocument.collectionName();
 
-					if(StringUtils.isEmpty(dbName)) {
-						TapLogger.warn(TAG, "MongoDAO annotation is found on class {}, but no dbName specified which is a must. Ignore this class... dbName {}", clazz, dbName);
-						continue;
-					}
 					if(StringUtils.isEmpty(collectionName)) {
 						collectionName = clazz.getSimpleName();
 					}
@@ -66,7 +58,14 @@ public class MongoDAOAnnotationHandler extends ClassAnnotationHandler {
 					}
 					String mongoUri = CommonUtils.getProperty("TAPDATA_MONGO_URI");
 					//初始化mongoClient
-					MongoClient mongoClient = mongoClientFactory.getClient(mongoUri, mongoUri);
+					MongoClientHolder mongoClient = mongoClientFactory.getClient(mongoUri, mongoUri);
+					ConnectionString connectionString = mongoClient.getConnectionString();
+					String dbName = StringUtils.isEmpty(connectionString.getDatabase()) ? mongoDocument.dbName() : connectionString.getDatabase();
+					if(StringUtils.isEmpty(dbName)) {
+						TapLogger.warn(TAG, "MongoDAO annotation is found on class {}, but no dbName specified which is a must. Ignore this class... dbName {}", clazz, dbName);
+						continue;
+					}
+
 					AbstractMongoDAO<?> dao = (AbstractMongoDAO<?>) InstanceFactory.bean(clazz, true);
 
 //					AbstractMongoDAO dao = context.getAndCreateBean(SwitchCaseUtils.lowerFirstCase(clazz.getSimpleName()), clazz) as AbstractMongoDAO
@@ -74,7 +73,7 @@ public class MongoDAOAnnotationHandler extends ClassAnnotationHandler {
 					//MongoCollection
 					CodecRegistry pojoCodecRegistry = fromRegistries(MongoClientSettings.getDefaultCodecRegistry(),
 							fromProviders(PojoCodecProvider.builder().automatic(true).build()));
-					MongoDatabase database = mongoClient.getDatabase(dbName)
+					MongoDatabase database = mongoClient.getMongoClient().getDatabase(dbName)
 							.withCodecRegistry(pojoCodecRegistry)
 							.withWriteConcern(WriteConcern.JOURNALED)//写策略
 							.withReadConcern(ReadConcern.MAJORITY)//读策略：只能读到成功写入大多数节点的数据（所以有可能读到旧的数据）

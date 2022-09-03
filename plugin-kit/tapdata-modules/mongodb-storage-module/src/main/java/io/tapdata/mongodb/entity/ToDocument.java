@@ -4,7 +4,7 @@ import org.bson.Document;
 
 public interface ToDocument {
 	public static final String FIELD_ID = "_id";
-	String getId();
+	Object getId();
 	public
 	Document toDocument(Document document);
 }

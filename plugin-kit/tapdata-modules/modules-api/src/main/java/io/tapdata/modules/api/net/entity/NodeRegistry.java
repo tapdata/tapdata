@@ -1,14 +1,5 @@
 package io.tapdata.modules.api.net.entity;
 
-import io.tapdata.entity.annotations.Implementation;
-import io.tapdata.entity.utils.io.DataInputStreamEx;
-import io.tapdata.entity.utils.io.DataOutputStreamEx;
-import io.tapdata.modules.api.net.message.TapEntity;
-
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
-
 public class NodeRegistry {
 	private String ip;
 	public NodeRegistry ip(String ip) {

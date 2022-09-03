@@ -1,5 +1,6 @@
 package io.tapdata.mongodb;
 
+import com.mongodb.ConnectionString;
 import com.mongodb.client.MongoClient;
 import com.mongodb.client.MongoClients;
 import io.tapdata.entity.annotations.Bean;
@@ -13,7 +14,7 @@ public class MongoClientFactory {
     
     private final String TAG = MongoClientFactory.class.getSimpleName();
     
-    private Map<String, MongoClient> clientMap = new ConcurrentHashMap<>();
+    private final Map<String, MongoClientHolder> clientMap = new ConcurrentHashMap<>();
 
     @Bean
     private MongoClientFactory instance;
@@ -28,13 +29,14 @@ public class MongoClientFactory {
      * @param name
      * @return
      */
-    public MongoClient getClient(String url, String name) {
-        MongoClient mongoClient = clientMap.get(name);
+    public MongoClientHolder getClient(String url, String name) {
+        MongoClientHolder mongoClient = clientMap.get(name);
         if (mongoClient == null) {
             synchronized (this) {
                 mongoClient = clientMap.get(name);
                 if(mongoClient == null) {
-                    mongoClient = MongoClients.create(url);
+                    ConnectionString connectionString = new ConnectionString(url);
+                    mongoClient = new MongoClientHolder().mongoClient(MongoClients.create(connectionString)).connectionString(connectionString);
 
                     clientMap.putIfAbsent(name, mongoClient);
 
