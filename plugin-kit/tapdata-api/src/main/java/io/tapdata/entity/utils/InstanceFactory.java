@@ -161,19 +161,40 @@ public class InstanceFactory {
     }
 
     public static <T> T instance(Class<T> instanceClass) {
-        //noinspection unchecked
-        return (T) instanceMap.computeIfAbsent(instanceClass, aClass -> {
-            Object obj = ClassFactory.create(instanceClass);
-            if(obj != null && initialized.get())
+        Object obj = instanceMap.get(instanceClass);
+        if(obj == null) {
+            obj = ClassFactory.create(instanceClass);
+            Object old = instanceMap.putIfAbsent(instanceClass, obj);
+            if(old == null && initialized.get()) {
                 injectBean(obj);
-            return obj;
-        });
+            }
+        }
+        //noinspection unchecked
+        return (T) obj;
+
+        //noinspection unchecked
+//        return (T) instanceMap.computeIfAbsent(instanceClass, aClass -> {
+//            Object obj = ClassFactory.create(instanceClass);
+//            if(obj != null && initialized.get())
+//                injectBean(obj);
+//            return obj;
+//        });
     }
 
     public static <T> T instance(Class<T> instanceClass, String type) {
         String key = instanceClass.getName() + "#" + type;
+        Object obj = instanceTypeMap.get(key);
+        if(obj == null) {
+            obj = ClassFactory.create(instanceClass);
+            Object old = instanceTypeMap.putIfAbsent(key, obj);
+            if(old == null && initialized.get()) {
+                injectBean(obj);
+            }
+        }
         //noinspection unchecked
-        return (T) instanceTypeMap.computeIfAbsent(key, theKey -> ClassFactory.create(instanceClass, type));
+        return (T) obj;
+        //noinspection unchecked
+//        return (T) instanceTypeMap.computeIfAbsent(key, theKey -> ClassFactory.create(instanceClass, type));
     }
 
     public static void injectBeans() {
