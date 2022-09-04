@@ -128,6 +128,7 @@ public class GatewayChannelModule {
 
             identityReceivedEvent.sendResult(new Result().forId(identity.getId()).code(Data.CODE_SUCCESS).message(message).time(System.currentTimeMillis()));
         }, throwable -> {
+            throwable.printStackTrace();
             int code = WSErrors.ERROR_UNKNOWN;
             if(throwable instanceof CoreException) {
                 CoreException coreException = (CoreException) throwable;

@@ -12,24 +12,24 @@ public class ProxySubscriptionEntity implements ToDocument {
 	private static final String TAG = ProxySubscriptionEntity.class.getSimpleName();
 	public static final String FIELD_SUBSCRIPTION = "subscription";
 	@BsonId
-	private ObjectId id;
+	private String id;
 	private ProxySubscription subscription;
 	public ProxySubscriptionEntity() {
 	}
-	public ProxySubscriptionEntity(ProxySubscription subscription) {
+	public ProxySubscriptionEntity(String id, ProxySubscription subscription) {
 		if(subscription == null) {
 			throw new CoreException(MongodbErrors.ILLEGAL_ARGUMENTS, "ProxySubscription is null");
 		}
-		this.id = new ObjectId();
+		this.id = id;
 		this.subscription = subscription;
 	}
 
 	@Override
-	public ObjectId getId() {
+	public String getId() {
 		return id;
 	}
 
-	public void setId(ObjectId id) {
+	public void setId(String id) {
 		this.id = id;
 	}
 

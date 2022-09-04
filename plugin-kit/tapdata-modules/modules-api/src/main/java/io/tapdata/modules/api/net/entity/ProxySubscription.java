@@ -1,6 +1,7 @@
 package io.tapdata.modules.api.net.entity;
 
 import java.util.List;
+import java.util.Set;
 
 public class ProxySubscription {
 	private String nodeId;
@@ -13,8 +14,8 @@ public class ProxySubscription {
 		this.service = service;
 		return this;
 	}
-	private List<String> subscribeIds;
-	public ProxySubscription subscribeIds(List<String> subscribeIds) {
+	private Set<String> subscribeIds;
+	public ProxySubscription subscribeIds(Set<String> subscribeIds) {
 		this.subscribeIds = subscribeIds;
 		return this;
 	}
@@ -27,11 +28,11 @@ public class ProxySubscription {
 		this.nodeId = nodeId;
 	}
 
-	public List<String> getSubscribeIds() {
+	public Set<String> getSubscribeIds() {
 		return subscribeIds;
 	}
 
-	public void setSubscribeIds(List<String> subscribeIds) {
+	public void setSubscribeIds(Set<String> subscribeIds) {
 		this.subscribeIds = subscribeIds;
 	}
 

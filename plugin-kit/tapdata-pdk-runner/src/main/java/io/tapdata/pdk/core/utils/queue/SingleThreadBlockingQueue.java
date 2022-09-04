@@ -169,35 +169,30 @@ public class SingleThreadBlockingQueue<T> implements Runnable {
 
 
     private synchronized void input(T t) {
-        try {
-            if(queue.isEmpty()){
-                synchronized (lock){
-                    queue.add(t);
-                }
-            } else {
-                queue.add(t);
+        boolean full;
+        if(queue.isEmpty()){
+            synchronized (lock){
+                full = queue.offer(t);
             }
-        } catch(IllegalStateException e) {
-            if(e.getMessage().contains("full")) {
-                isFull.set(true);
-//                TapLogger.info(TAG, "{} queue is full, wait polling to add more {}", name, queue.size());
-                while(isFull.get()) {
-                    try {
-                        this.wait(120000);
-                    } catch (InterruptedException interruptedException) {
-                        interruptedException.printStackTrace();
-                        TapLogger.error(TAG, "{} is interrupted, {}", name, interruptedException.getMessage());
-                        Thread.currentThread().interrupt();
-                    }
-//                    synchronized (this) {
-//
-//                    }
-                }
-//                    TapLogger.info(TAG, "wake up to add {}", t);
-                offer(t);
-//                    TapLogger.info(TAG, "wake up to added {}", t);
-            }
+        } else {
+            full = queue.offer(t);
         }
+        if(!full) {
+            isFull.set(true);
+//                TapLogger.info(TAG, "{} queue is full, wait polling to add more {}", name, queue.size());
+            while(isFull.get()) {
+                try {
+                    this.wait(120000);
+                } catch (InterruptedException interruptedException) {
+                    interruptedException.printStackTrace();
+                    TapLogger.error(TAG, "{} is interrupted, {}", name, interruptedException.getMessage());
+                    Thread.currentThread().interrupt();
+                }
+            }
+//                    TapLogger.info(TAG, "wake up to add {}", t);
+            offer(t);
+        }
+
     }
 
     public void add(T t) {

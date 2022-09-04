@@ -113,13 +113,14 @@ public class WebSocketClientHandler extends SimpleChannelInboundHandler<Object> 
 
             if(pushChannel != null && pushChannel.getImClient() != null) {
                 String prefix = pushChannel.getImClient().getPrefix();
+                //Any data received will cancel the ping timer.
+                if(pushChannel.pingFuture != null) {
+//                            TapLogger.info(TAG, "pong");
+                    pushChannel.pingFuture.cancel(true);
+                    pushChannel.pingFuture = null;
+                }
                 switch (type) {
                     case Ping.TYPE:
-                        if(pushChannel.pingFuture != null) {
-//                            TapLogger.info(TAG, "pong");
-                            pushChannel.pingFuture.cancel(true);
-                            pushChannel.pingFuture = null;
-                        }
                         break;
                     case Result.TYPE:
                         Result result = (Result) data;

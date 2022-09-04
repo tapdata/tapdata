@@ -31,6 +31,10 @@ public abstract class ContentData<T extends ContentData> extends Data {
     private TapEntity message;
     public T message(TapEntity message) {
         this.message = message;
+        if(message != null) {
+            contentType = message.getClass().getSimpleName();
+            contentEncode = ENCODE_JAVA_CUSTOM_SERIALIZER;
+        }
         //noinspection unchecked
         return (T) this;
     }

@@ -34,7 +34,7 @@ public class MonitorThread<T extends PushChannel> extends Thread {
     private final int[] channelLock = new int[0];
 
     private int count = 0;
-    private final long[] idleTimes = new long[]{RETRY_TIME, 5000, 6000, 7000, 8000, 9000, 10000, 20000, 30000, 45000, 60000, 600000};
+    private final long[] idleTimes = new long[]{RETRY_TIME, 1000, 2000, 300, 4000, 5000, 10000};
     private long idleTime = 0;
     private static final long RETRY_TIME = 300;
 
@@ -135,8 +135,9 @@ public class MonitorThread<T extends PushChannel> extends Thread {
         TapLogger.info(TAG, "send message failed, " + message + " imdata " + imData);
         ResultListenerWrapper wrapper = imClient.resultMap.get(imData.getId());
         if(wrapper != null) {
-            wrapper.getResultHandler().completeExceptionally(new IOException(message));
-            imClient.resultMap.remove(imData.getId());
+            wrapper.completeExceptionally(imClient.resultMap, new IOException(message));
+//            wrapper.getResultHandler().completeExceptionally(new IOException(message));
+//            imClient.resultMap.remove(imData.getId());
         }
     }
 
@@ -209,9 +210,9 @@ public class MonitorThread<T extends PushChannel> extends Thread {
                 ResultListenerWrapper wrapper = imClient.resultMap.get(id);
                 if(wrapper != null) {
                     if(result.getCode() == 1) {
-                        wrapper.getResultHandler().complete(result);
+                        wrapper.complete(imClient.resultMap, result);
                     } else {
-                        wrapper.getResultHandler().completeExceptionally(new CoreException(result.getCode(), result.getDescription()));
+                        wrapper.completeExceptionally(imClient.resultMap, new CoreException(result.getCode(), result.getDescription()));
                     }
                 } else {
                     eventManager.sendEvent(imClient.getPrefix() + ".imresult", result);
@@ -243,12 +244,16 @@ public class MonitorThread<T extends PushChannel> extends Thread {
                     }
                 } else {
                     sendMessageFromQueue();
+                    long time = System.currentTimeMillis();
                     synchronized (lock) {
                         try {
                             lock.wait(7000L);
                         } catch (InterruptedException e) {
                             e.printStackTrace();
                         }
+                    }
+                    if(System.currentTimeMillis() - time > 6000L) {
+                        //When message is sending fast, no need to ping. wait at least 6 seconds, then ping.
                         synchronized (channelLock) {
                             if(pushChannel != null) {
                                 pushChannel.ping();

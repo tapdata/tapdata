@@ -2,6 +2,7 @@ package io.tapdata.modules.api.net.data;
 
 import io.tapdata.modules.api.net.message.TapEntity;
 
+@Deprecated
 public class ResultData {
     public static final byte CONTENT_ENCODE_JSON = 1;
     static final byte CONTENT_ENCODE_JSON_GZIP = 2;

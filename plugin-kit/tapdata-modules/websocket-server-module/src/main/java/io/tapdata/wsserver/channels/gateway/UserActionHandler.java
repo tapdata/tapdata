@@ -1,6 +1,7 @@
 package io.tapdata.wsserver.channels.gateway;
 
 import com.alibaba.fastjson.JSON;
+import io.tapdata.entity.annotations.Bean;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.utils.DataMap;
@@ -17,11 +18,10 @@ import java.util.Map;
 
 public class UserActionHandler implements ListHandler<UserAction>, ListErrorHandler<UserAction> {
     public final String TAG = UserActionHandler.class.getSimpleName();
-
-
+    @Bean
     private GatewayChannelModule gatewayChannelModule;
-
-    private JsonParser jsonParser = InstanceFactory.instance(JsonParser.class);
+    @Bean
+    private JsonParser jsonParser;
 
     public UserActionHandler() {
 
@@ -79,18 +79,19 @@ public class UserActionHandler implements ListHandler<UserAction>, ListErrorHand
             case UserAction.ACTION_USER_DATA:
                 userAction.getHandler().touch();
                 try {
-                    ResultData resultData = userAction.getHandler().onDataReceived(userAction.getIncomingData());
+                    Result resultData = userAction.getHandler().onDataReceived(userAction.getIncomingData());
                     if (resultData == null) {
-                        resultData = new ResultData().code(ResultData.CODE_SUCCESS).forId(userAction.getIncomingData().getId());
+                        resultData = new Result().code(Data.CODE_SUCCESS).forId(userAction.getIncomingData().getId());
                     }
                     if (resultData.getCode() == null)
-                        resultData.setCode(ResultData.CODE_SUCCESS);
+                        resultData.setCode(Data.CODE_SUCCESS);
                     resultData.setForId(userAction.getIncomingData().getId());
-                    boolean bool = gatewayChannelModule.sendResultData(userAction.getUserId(), resultData);
+                    boolean bool = gatewayChannelModule.sendData(userAction.getUserId(), resultData);
                     if (!bool) {
                         TapLogger.warn(TAG, "send result not successfully to userId {}, code {}", userAction.getUserId(), resultData.getCode());
                     }
                 } catch (Throwable throwable) {
+                    throwable.printStackTrace();
                     TapLogger.error(TAG, "onDataReceived contentType {} failed, {}", userAction.getIncomingData().getContentType(), throwable.getMessage());
 
                     Result errorResult = new Result().forId(userAction.getIncomingData().getId()).time(System.currentTimeMillis()).contentEncode(userAction.getIncomingData().getContentEncode());
@@ -109,16 +110,16 @@ public class UserActionHandler implements ListHandler<UserAction>, ListErrorHand
                 userAction.getHandler().touch();
                 try {
                     IncomingMessage incomingMessage = userAction.getIncomingMessage();
-                    ResultData resultData = userAction.getHandler().onMessageReceived(incomingMessage);
+                    Result resultData = userAction.getHandler().onMessageReceived(incomingMessage);
                     if (resultData == null) {
-                        resultData = new ResultData().code(ResultData.CODE_SUCCESS).forId(userAction.getIncomingData().getId());
+                        resultData = new Result().code(ResultData.CODE_SUCCESS).forId(userAction.getIncomingData().getId());
                     }
                     if (resultData.getCode() == null)
                         resultData.setCode(ResultData.CODE_SUCCESS);
                     resultData.setForId(userAction.getIncomingData().getId());
-                    boolean bool = gatewayChannelModule.sendResultData(userAction.getUserId(), resultData);
+                    boolean bool = gatewayChannelModule.sendData(userAction.getUserId(), resultData);
                     if (!bool) {
-                        TapLogger.warn(TAG, "send result not successfully to userId $userAction.userId, code $resultData.code dataLength ${resultData.data}");
+                        TapLogger.warn(TAG, "send result not successfully to userId {}, code {} dataLength {}", userAction.getUserId(), resultData.getCode(), resultData.getData());
                     }
                 } catch (Throwable throwable) {
 //                    TapLogger.error(TAG, "onDataReceived contentType $userAction.incomingData.contentType failed, ${throwable.getMessage()}")
@@ -147,11 +148,11 @@ public class UserActionHandler implements ListHandler<UserAction>, ListErrorHand
                 userAction.getHandler().touch();
                 try {
                     IncomingInvocation incomingInvocation = userAction.getIncomingInvocation();
-                    ResultData resultData = userAction.getHandler().onInvocation(incomingInvocation);
+                    Result resultData = userAction.getHandler().onInvocation(incomingInvocation);
                     if (resultData == null) {
-                        resultData = new ResultData().code(ResultData.CODE_SUCCESS).forId(userAction.getIncomingInvocation().getId());
+                        resultData = new Result().code(ResultData.CODE_SUCCESS).forId(userAction.getIncomingInvocation().getId());
                     }
-                    boolean bool = gatewayChannelModule.sendResultData(userAction.getUserId(), resultData);
+                    boolean bool = gatewayChannelModule.sendData(userAction.getUserId(), resultData);
                     if (!bool) {
                         TapLogger.warn(TAG, "send result not successfully to userId {}, code {} dataLength {}", userAction.getUserId(), resultData.getCode());
                     }
@@ -173,11 +174,11 @@ public class UserActionHandler implements ListHandler<UserAction>, ListErrorHand
                 userAction.getHandler().touch();
                 try {
                     IncomingRequest incomingRequest = userAction.getIncomingRequest();
-                    ResultData resultData = userAction.getHandler().onRequest(incomingRequest);
+                    Result resultData = userAction.getHandler().onRequest(incomingRequest);
                     if (resultData == null) {
-                        resultData = new ResultData().code(ResultData.CODE_SUCCESS).forId(incomingRequest.getId());
+                        resultData = new Result().code(ResultData.CODE_SUCCESS).forId(incomingRequest.getId());
                     }
-                    boolean bool = gatewayChannelModule.sendResultData(userAction.getUserId(), resultData);
+                    boolean bool = gatewayChannelModule.sendData(userAction.getUserId(), resultData);
                     if (!bool) {
                         TapLogger.warn(TAG, "send result not successfully to userId {}, code {} dataLength {}", userAction.getUserId(), resultData.getCode());
                     }

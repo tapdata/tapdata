@@ -18,7 +18,7 @@ public class ProxySubscriptionServiceImpl implements ProxySubscriptionService {
 	private ProxySubscriptionDAO proxySubscriptionDAO;
 	@Override
 	public void syncProxySubscription(ProxySubscription proxySubscription) {
-		proxySubscriptionDAO.insertOne(new ProxySubscriptionEntity(proxySubscription));
+		proxySubscriptionDAO.insertOne(new ProxySubscriptionEntity(proxySubscription.getNodeId(), proxySubscription));
 	}
 
 	@Override

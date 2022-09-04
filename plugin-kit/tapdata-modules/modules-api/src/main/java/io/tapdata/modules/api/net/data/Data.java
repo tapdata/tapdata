@@ -14,8 +14,6 @@ import java.io.*;
 import java.nio.charset.StandardCharsets;
 
 public abstract class Data extends BinaryCodec implements JavaCustomSerializer {
-    public static final int CONTENT_ENCODE_OBJECT_SERIALIZABLE = 1;
-    public static final int CONTENT_ENCODE_JSON = 2;
 
     public static final int CODE_SUCCESS = 1;
     public static final int CODE_FAILED = 0;
@@ -31,7 +29,7 @@ public abstract class Data extends BinaryCodec implements JavaCustomSerializer {
             return null;
         TapEntity message = null;
         switch (contentEncode) {
-            case CONTENT_ENCODE_OBJECT_SERIALIZABLE:
+            case ENCODE_JAVA_CUSTOM_SERIALIZER:
                 message = ClassFactory.create(TapEntity.class, contentType);
                 if(message != null) {
                     try(ByteArrayInputStream bais = new ByteArrayInputStream(content)) {
@@ -41,7 +39,7 @@ public abstract class Data extends BinaryCodec implements JavaCustomSerializer {
                     TapLogger.warn(TAG, "(toTapMessage OBJECT_SERIALIZABLE) Content type {} doesn't match any TapMessage for {}, contentEncode {}", contentType, this.getClass().getSimpleName(), contentEncode);
                 }
                 break;
-            case CONTENT_ENCODE_JSON:
+            case ENCODE_JSON:
                 Class<? extends TapEntity> messageClass = ClassFactory.getImplementationClass(TapEntity.class, contentType);
                 if(messageClass != null) {
                     String contentStr = new String(content, StandardCharsets.UTF_8);
@@ -61,13 +59,13 @@ public abstract class Data extends BinaryCodec implements JavaCustomSerializer {
     protected byte[] fromTapMessage(TapEntity message, String contentType, Byte contentEncode) throws IOException {
         byte[] data = null;
         switch (contentEncode) {
-            case CONTENT_ENCODE_OBJECT_SERIALIZABLE:
+            case ENCODE_JAVA_CUSTOM_SERIALIZER:
                 try (ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
                     message.to(baos);
                     data = baos.toByteArray();
                 }
                 break;
-            case CONTENT_ENCODE_JSON:
+            case ENCODE_JSON:
                 JsonParser jsonParser = InstanceFactory.instance(JsonParser.class);
                 String jsonStr = jsonParser.toJson(message);
                 data = jsonStr.getBytes(StandardCharsets.UTF_8);

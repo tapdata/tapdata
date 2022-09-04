@@ -6,6 +6,7 @@ import io.tapdata.entity.annotations.MainMethod;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.reflection.ClassAnnotationHandler;
+import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.modules.api.net.data.*;
 import io.tapdata.modules.api.net.entity.NodeRegistry;
 import io.tapdata.modules.api.net.error.NetErrors;
@@ -138,6 +139,7 @@ public class GatewaySessionManager {
         ipHolder.init();
         int httpPort = 3000; //TODO should read from TM config.
         NodeRegistry nodeRegistry = new NodeRegistry().ip(ipHolder.getIp()).httpPort(httpPort).wsPort(webSocketManager.getWebSocketProperties().getPort()).type("proxy").time(System.currentTimeMillis());
+        CommonUtils.setProperty("tapdata_node_id", nodeRegistry.id());
         nodeRegistryService.save(nodeRegistry);
         TapLogger.debug(TAG, "Register node {}", toJson(nodeRegistry));
 
@@ -187,6 +189,7 @@ public class GatewaySessionManager {
         SingleThreadBlockingQueue<UserAction> queue = userIdSingleThreadMap.get(userId);
         if (queue == null) {
             UserActionHandler userActionHandler = new UserActionHandler();
+            InstanceFactory.injectBean(userActionHandler);
             queue = new SingleThreadBlockingQueue<UserAction>("UserActionQueue_" + userId)
                     .withErrorHandler(userActionHandler)
                     .withHandler(userActionHandler)
@@ -261,6 +264,7 @@ public class GatewaySessionManager {
                 throw new CoreException(NetErrors.ID_TYPE_NOT_FOUND, "GatewaySessionHandler class not found for idType {}", idType);
             try {
                 gatewaySessionHandler = clazz.getConstructor().newInstance();
+                InstanceFactory.injectBean(gatewaySessionHandler);
             } catch (InstantiationException | IllegalAccessException | InvocationTargetException |
                      NoSuchMethodException e) {
                 throw new CoreException(NetErrors.GATEWAY_SESSION_HANDLER_CLASS_NEW_FAILED, "GatewaySessionHandler class {} new failed, {}", clazz, e.getMessage());

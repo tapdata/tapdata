@@ -27,10 +27,7 @@ import java.lang.annotation.Annotation;
 import java.lang.reflect.Modifier;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.function.Consumer;
 
 import static org.bson.codecs.configuration.CodecRegistries.fromProviders;
@@ -51,6 +48,7 @@ public class MongoDAOAnnotationHandler extends ClassAnnotationHandler {
 			for(Class<?> clazz : classes) {
 				MongoDAO mongoDocument = clazz.getAnnotation(MongoDAO.class);
 				EnsureMongoDBIndexes ensureMongoDBIndexes = clazz.getAnnotation(EnsureMongoDBIndexes.class);
+				EnsureMongoDBIndex ensureMongoDBIndex1 = clazz.getAnnotation(EnsureMongoDBIndex.class);
 				if (clazz.isAnnotationPresent(MongoDAO.class) && !clazz.isInterface() && !Modifier.isAbstract(clazz.getModifiers())) {
 //                        AbstractObject<AbstractMongoDAO> beanObject = context.getAndCreateBean(SwitchCaseUtils.lowerFirstCase(clazz.getSimpleName()), clazz) as AbstractObject<AbstractMongoDAO>
 //                        AbstractMongoDAO dao = beanObject.getObject(false)
@@ -108,26 +106,30 @@ public class MongoDAOAnnotationHandler extends ClassAnnotationHandler {
 					dao.setMongoCollection(mongoCollection);
 					dao.setCollectionName(collectionName);
 					TapLogger.debug(TAG, "Initialized collection {} for database {}", collectionName, database);
-					if(ensureMongoDBIndexes != null && ensureMongoDBIndexes.value() != null) {
-						ListIndexesIterable<Document> indexesIterable = mongoCollection.listIndexes();
-						for(EnsureMongoDBIndex ensureMongoDBIndex : ensureMongoDBIndexes.value()) {
-							String indexJson = ensureMongoDBIndex.value();
-							if(!StringUtils.isEmpty(indexJson)) {
-								Document indexDocument = Document.parse(indexJson);
-								boolean hasIndex = false;
-								for(Document document : indexesIterable) {
-									MapDifference<String, Object> difference = Maps.difference(indexDocument, (Map<String, Object>)document.get("key"));
-									if(difference.areEqual()) {
-										hasIndex = true;
-										break;
-									}
+					List<EnsureMongoDBIndex> annotationList = new ArrayList<>();
+					if(ensureMongoDBIndex1 != null) {
+						annotationList.add(ensureMongoDBIndex1);
+					} else if(ensureMongoDBIndexes != null && ensureMongoDBIndexes.value() != null) {
+						annotationList.addAll(Arrays.asList(ensureMongoDBIndexes.value()));
+					}
+					ListIndexesIterable<Document> indexesIterable = mongoCollection.listIndexes();
+					for(EnsureMongoDBIndex ensureMongoDBIndex : annotationList) {
+						String indexJson = ensureMongoDBIndex.value();
+						if(!StringUtils.isEmpty(indexJson)) {
+							Document indexDocument = Document.parse(indexJson);
+							boolean hasIndex = false;
+							for(Document document : indexesIterable) {
+								MapDifference<String, Object> difference = Maps.difference(indexDocument, (Map<String, Object>)document.get("key"));
+								if(difference.areEqual()) {
+									hasIndex = true;
+									break;
 								}
-								if(!hasIndex) {
-									TapLogger.debug(TAG, "Start creating index {}", indexDocument);
-									long time = System.currentTimeMillis();
-									mongoCollection.createIndex(indexDocument, new IndexOptions().unique(ensureMongoDBIndex.unique()).sparse(ensureMongoDBIndex.sparse()).background(ensureMongoDBIndex.background()));
-									TapLogger.debug(TAG, "Index {} created, takes {}", indexDocument, (System.currentTimeMillis() - time));
-								}
+							}
+							if(!hasIndex) {
+								TapLogger.debug(TAG, "Start creating index {}", indexDocument);
+								long time = System.currentTimeMillis();
+								mongoCollection.createIndex(indexDocument, new IndexOptions().unique(ensureMongoDBIndex.unique()).sparse(ensureMongoDBIndex.sparse()).background(ensureMongoDBIndex.background()));
+								TapLogger.debug(TAG, "Index {} created, takes {}", indexDocument, (System.currentTimeMillis() - time));
 							}
 						}
 					}

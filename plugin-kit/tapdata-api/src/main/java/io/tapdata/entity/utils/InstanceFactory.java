@@ -98,6 +98,13 @@ public class InstanceFactory {
         }
     }
 
+    public static <T> T bean(Class<T> beanClass, Object object) {
+        injectBean(object);
+        beanMap.put(beanClass, new BeanWrapper(object, true));
+        //noinspection unchecked
+        return (T) object;
+    }
+
     public static <T> T bean(Class<T> beanClass) {
         return bean(beanClass, false);
     }

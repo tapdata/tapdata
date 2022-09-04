@@ -59,15 +59,15 @@ public abstract class GatewaySessionHandler {
 
     public abstract void onSessionDestroyed();
 
-    public abstract ResultData onDataReceived(IncomingData data);
+    public abstract Result onDataReceived(IncomingData data);
 
-    public abstract ResultData onMessageReceived(IncomingMessage message);
+    public abstract Result onMessageReceived(IncomingMessage message);
 
-    public ResultData onRequest(IncomingRequest incomingRequest) {
-        return new ResultData(ResultData.CODE_SUCCESS, incomingRequest.getId());
+    public Result onRequest(IncomingRequest incomingRequest) {
+        return new Result().code(Result.CODE_SUCCESS).forId(incomingRequest.getId());
     }
 
-    public ResultData onInvocation(IncomingInvocation incomingInvocation) {
+    public Result onInvocation(IncomingInvocation incomingInvocation) {
         ValidateUtils.checkAllNotNull(incomingInvocation, id);
         Pattern r = Pattern.compile(userChannel.getAuthorisedExpression());
         String matchStr = incomingInvocation.getService() + "_" + incomingInvocation.getClassName() + "_" + incomingInvocation.getMethodName();

@@ -5,13 +5,13 @@ import io.tapdata.modules.api.net.data.Data;
 import io.tapdata.modules.api.net.data.IncomingData;
 import io.tapdata.modules.api.net.data.IncomingMessage;
 import io.tapdata.modules.api.net.data.Result;
+import io.tapdata.pdk.core.executor.ExecutorsManager;
 import io.tapdata.wsclient.modules.imclient.IMClient;
 import io.tapdata.wsclient.modules.imclient.impls.websocket.WebsocketPushChannel;
 
+import java.io.IOException;
 import java.util.List;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicLong;
 
 public class IMClientImpl implements IMClient {
@@ -53,7 +53,7 @@ public class IMClientImpl implements IMClient {
         msgCounter = new AtomicLong(0);
         resultMap = new ConcurrentHashMap<>();
         contentTypeClassMap = new ConcurrentHashMap<>();
-        messageQueue = new LinkedBlockingQueue<>();
+        messageQueue = new LinkedBlockingQueue<>(1024);
 
 //        messageWorkerQueue = new WorkerQueue<>();
 //        messageWorkerQueue.setHandler(new WorkerQueue.Handler<IMMessage>() {
@@ -90,7 +90,8 @@ public class IMClientImpl implements IMClient {
             msgId = "DATA_" + msgCounter.getAndIncrement();
             data.setId(msgId);
         }
-        resultMap.put(msgId, new ResultListenerWrapper(msgId, future));
+        ScheduledFuture scheduledFuture = getTimeoutScheduledFuture(data, future);
+        resultMap.put(msgId, new ResultListenerWrapper(msgId, future, scheduledFuture));
         messageQueue.offer(data);
         monitorThread.wakeupForMessage();
         return future;
@@ -104,10 +105,19 @@ public class IMClientImpl implements IMClient {
             msgId = "MSG_" + msgCounter.getAndIncrement();
             message.setId(msgId);
         }
-        resultMap.put(msgId, new ResultListenerWrapper(msgId, future));
+        ScheduledFuture scheduledFuture = getTimeoutScheduledFuture(message, future);
+        resultMap.put(msgId, new ResultListenerWrapper(msgId, future, scheduledFuture));
         messageQueue.offer(message);
         monitorThread.wakeupForMessage();
         return future;
+    }
+
+    private ScheduledFuture getTimeoutScheduledFuture(Data message, CompletableFuture<Result> future) {
+        return ExecutorsManager.getInstance().getScheduledExecutorService().schedule(() -> {
+            if(!future.isDone())
+                future.completeExceptionally(new IOException("Time out"));
+            resultMap.remove(message.getId());
+        }, 30, TimeUnit.SECONDS);
     }
 
     @Override
