@@ -94,7 +94,7 @@ public class WebSocketClientHandler extends SimpleChannelInboundHandler<Object> 
 
         WebSocketFrame frame = (WebSocketFrame) msg;
         if(frame instanceof BinaryWebSocketFrame) {
-            TapLogger.info(TAG, "channel read");
+//            TapLogger.info(TAG, "channel read");
             BinaryWebSocketFrame binaryWebSocketFrame = (BinaryWebSocketFrame) frame;
             ByteBuf byteBuf = binaryWebSocketFrame.content();
             byte type = byteBuf.readByte();
