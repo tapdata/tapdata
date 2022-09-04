@@ -57,4 +57,8 @@ public class WebSocketManager {
             workerGroup.shutdownGracefully();
         }
     }
+
+    public WebSocketProperties getWebSocketProperties() {
+        return webSocketProperties;
+    }
 }

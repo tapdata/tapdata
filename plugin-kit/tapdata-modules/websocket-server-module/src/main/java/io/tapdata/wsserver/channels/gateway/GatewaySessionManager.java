@@ -13,6 +13,7 @@ import io.tapdata.modules.api.net.message.TapEntity;
 import io.tapdata.modules.api.net.service.NodeRegistryService;
 import io.tapdata.pdk.core.utils.AnnotationUtils;
 import io.tapdata.pdk.core.utils.CommonUtils;
+import io.tapdata.pdk.core.utils.IPHolder;
 import io.tapdata.wsserver.channels.error.WSErrors;
 import io.tapdata.wsserver.channels.gateway.data.UserChannel;
 import io.tapdata.wsserver.channels.gateway.modules.GatewayChannelModule;
@@ -34,6 +35,7 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
 import static io.tapdata.entity.simplify.TapSimplify.map;
+import static io.tapdata.entity.simplify.TapSimplify.toJson;
 
 @MainMethod(value = "start", order = 100000)
 @Bean
@@ -132,13 +134,16 @@ public class GatewaySessionManager {
             }
         }, sessionExpireCheckPeriodSeconds, sessionExpireCheckPeriodSeconds, TimeUnit.SECONDS);
 
+        IPHolder ipHolder = new IPHolder();
+        ipHolder.init();
         int httpPort = 3000; //TODO should read from TM config.
-        nodeRegistryService.save(new NodeRegistry().ip(clientIP).httpPort(httpPort).wsPort(webSocketProperties.getPort()).type(service).time(System.currentTimeMillis()));
+        NodeRegistry nodeRegistry = new NodeRegistry().ip(ipHolder.getIp()).httpPort(httpPort).wsPort(webSocketManager.getWebSocketProperties().getPort()).type("proxy").time(System.currentTimeMillis());
+        nodeRegistryService.save(nodeRegistry);
+        TapLogger.debug(TAG, "Register node {}", toJson(nodeRegistry));
 
     }
 
     private void handleScanRoomSessionState(GatewaySessionManager gatewaySessionManager, StateMachine<Integer, GatewaySessionManager> integerGatewaySessionManagerStateMachine) {
-        //TODO use Reflections
         ConfigurationBuilder builder = new ConfigurationBuilder()
                 .addScanners(new TypeAnnotationsScanner())
 //                .forPackages(this.scanPackages)
