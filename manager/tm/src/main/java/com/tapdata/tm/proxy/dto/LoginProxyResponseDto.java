@@ -6,7 +6,7 @@ import lombok.EqualsAndHashCode;
 
 @EqualsAndHashCode(callSuper = true)
 @Data
-public class ProxyTokenDto extends BaseDto {
+public class LoginProxyResponseDto extends BaseDto {
 	private String token;
 	private Integer wsPort;
 	private String wsPath;

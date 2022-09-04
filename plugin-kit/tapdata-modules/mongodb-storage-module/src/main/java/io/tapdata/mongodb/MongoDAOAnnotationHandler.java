@@ -1,19 +1,25 @@
 package io.tapdata.mongodb;
 
+import com.google.common.collect.MapDifference;
+import com.google.common.collect.Maps;
 import com.mongodb.*;
-import com.mongodb.client.MongoClient;
+import com.mongodb.client.ListIndexesIterable;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoDatabase;
+import com.mongodb.client.model.IndexOptions;
 import io.tapdata.entity.annotations.Bean;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.reflection.ClassAnnotationHandler;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.entity.utils.ReflectionUtil;
+import io.tapdata.mongodb.annotation.EnsureMongoDBIndex;
+import io.tapdata.mongodb.annotation.EnsureMongoDBIndexes;
 import io.tapdata.mongodb.annotation.MongoDAO;
 import io.tapdata.mongodb.dao.AbstractMongoDAO;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.bson.Document;
 import org.bson.codecs.configuration.CodecRegistry;
 import org.bson.codecs.pojo.PojoCodecProvider;
 
@@ -21,7 +27,11 @@ import java.lang.annotation.Annotation;
 import java.lang.reflect.Modifier;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.function.Consumer;
 
 import static org.bson.codecs.configuration.CodecRegistries.fromProviders;
 import static org.bson.codecs.configuration.CodecRegistries.fromRegistries;
@@ -40,6 +50,7 @@ public class MongoDAOAnnotationHandler extends ClassAnnotationHandler {
 		if (classes != null) {
 			for(Class<?> clazz : classes) {
 				MongoDAO mongoDocument = clazz.getAnnotation(MongoDAO.class);
+				EnsureMongoDBIndexes ensureMongoDBIndexes = clazz.getAnnotation(EnsureMongoDBIndexes.class);
 				if (clazz.isAnnotationPresent(MongoDAO.class) && !clazz.isInterface() && !Modifier.isAbstract(clazz.getModifiers())) {
 //                        AbstractObject<AbstractMongoDAO> beanObject = context.getAndCreateBean(SwitchCaseUtils.lowerFirstCase(clazz.getSimpleName()), clazz) as AbstractObject<AbstractMongoDAO>
 //                        AbstractMongoDAO dao = beanObject.getObject(false)
@@ -96,7 +107,30 @@ public class MongoDAOAnnotationHandler extends ClassAnnotationHandler {
 					//noinspection unchecked
 					dao.setMongoCollection(mongoCollection);
 					dao.setCollectionName(collectionName);
-					TapLogger.debug(TAG, "init {} DAO finish", collectionName);
+					TapLogger.debug(TAG, "Initialized collection {} for database {}", collectionName, database);
+					if(ensureMongoDBIndexes != null && ensureMongoDBIndexes.value() != null) {
+						ListIndexesIterable<Document> indexesIterable = mongoCollection.listIndexes();
+						for(EnsureMongoDBIndex ensureMongoDBIndex : ensureMongoDBIndexes.value()) {
+							String indexJson = ensureMongoDBIndex.value();
+							if(!StringUtils.isEmpty(indexJson)) {
+								Document indexDocument = Document.parse(indexJson);
+								boolean hasIndex = false;
+								for(Document document : indexesIterable) {
+									MapDifference<String, Object> difference = Maps.difference(indexDocument, (Map<String, Object>)document.get("key"));
+									if(difference.areEqual()) {
+										hasIndex = true;
+										break;
+									}
+								}
+								if(!hasIndex) {
+									TapLogger.debug(TAG, "Start creating index {}", indexDocument);
+									long time = System.currentTimeMillis();
+									mongoCollection.createIndex(indexDocument, new IndexOptions().unique(ensureMongoDBIndex.unique()).sparse(ensureMongoDBIndex.sparse()).background(ensureMongoDBIndex.background()));
+									TapLogger.debug(TAG, "Index {} created, takes {}", indexDocument, (System.currentTimeMillis() - time));
+								}
+							}
+						}
+					}
 				}
 			}
 		}

@@ -13,7 +13,7 @@ public class NodeHealth implements Comparable<NodeHealth> {
 	}
 
 	/**
-	 * The bigger, the better
+	 * The smaller, the better
 	 */
 	private Integer health;
 	public NodeHealth health(Integer health) {
