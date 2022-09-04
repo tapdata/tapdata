@@ -12,9 +12,6 @@ import io.tapdata.wsserver.channels.gateway.GatewaySessionHandler;
 public class MyGatewaySessionHandler extends GatewaySessionHandler {
 	private static final String TAG = MyGatewaySessionHandler.class.getSimpleName();
 
-	public static void main(String[] args) {
-
-	}
 	@Override
 	public void onSessionCreated() {
 		TapLogger.debug(TAG, "onSessionCreated id {} token {} ip {}", getId(), getToken(), getUserChannel().getIp());

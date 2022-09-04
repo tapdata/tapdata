@@ -11,6 +11,9 @@ import com.tapdata.tm.proxy.dto.SubscribeDto;
 import com.tapdata.tm.proxy.dto.SubscribeResponseDto;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import io.tapdata.entity.utils.InstanceFactory;
+import io.tapdata.modules.api.net.message.MessageEntity;
+import io.tapdata.modules.api.net.service.EventQueueService;
 import io.tapdata.pdk.core.utils.JWTUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
@@ -69,22 +72,44 @@ public class ProxyController extends BaseController {
         loginProxyResponseDto.setWsPath(loginProxyDto.getService() + "/" + MD5.create().digestHex(loginProxyDto.getClientId()));
         return success(loginProxyResponseDto);
     }
-    @Operation(summary = "Generate jwt token")
+    @Operation(summary = "Generate callback url token")
     @PostMapping("subscribe")
     public ResponseMessage<SubscribeResponseDto> generateSubscriptionToken(@RequestBody SubscribeDto subscribeDto, HttpServletRequest request) {
         if(subscribeDto == null)
-            throw new BizException("subscribe is illegal");
+            throw new BizException("subscribeDto is null");
+        if(subscribeDto.getSubscribeId() == null)
+            throw new BizException("SubscribeId is null");
+        if(subscribeDto.getService() == null)
+            subscribeDto.setService("engine");
+
+        String token = JWTUtils.createToken(key,
+                map(
+                        entry("service", subscribeDto.getService().toLowerCase()),
+                        entry("subscribeId", subscribeDto.getSubscribeId())
+                ), subscribeDto.getExpireTime());
 
         SubscribeResponseDto subscribeResponseDto = new SubscribeResponseDto();
-        subscribeResponseDto.setToken("aaa");
+        subscribeResponseDto.setToken(token);
         return success(subscribeResponseDto);
     }
-    @Operation(summary = "Generate jwt token")
+    @Operation(summary = "External callback url")
     @PostMapping("callback/{token}")
-    public ResponseMessage<Map<String, Object>> callback(@PathVariable("token") String token, @RequestBody Map<String, Object> content, HttpServletRequest request) {
+    public ResponseMessage<Void> callback(@PathVariable("token") String token, @RequestBody Map<String, Object> content, HttpServletRequest request) {
         if(content == null)
             throw new BizException("content is illegal, " + null);
+        Map<String, Object> claims = JWTUtils.getClaims(key, token);
+        String service = (String) claims.get("service");
+        String subscribeId = (String) claims.get("subscribeId");
+        if(service == null || subscribeId == null) {
+            throw new BizException("Illegal arguments for subscribeId {}, subscribeId {}", service, subscribeId);
+        }
 
-        return success(map(entry("token", token), entry("content", content)));
+        EventQueueService eventQueueService = InstanceFactory.instance(EventQueueService.class);
+        if(eventQueueService != null) {
+            MessageEntity message = new MessageEntity().content(content).time(System.currentTimeMillis()).subscribeId(subscribeId).service(service);
+            eventQueueService.offer(message);
+        }
+
+        return success();
     }
 }

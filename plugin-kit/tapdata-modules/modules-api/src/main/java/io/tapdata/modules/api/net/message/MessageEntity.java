@@ -14,8 +14,26 @@ import java.util.Map;
 @Implementation(value = TapEntity.class, type = "MessageEntity")
 public class MessageEntity implements TapEntity {
 	private Object content;
+	public MessageEntity content(Object content) {
+		this.content = content;
+		return this;
+	}
 	private Long time;
-	private String connectionId;
+	public MessageEntity time(Long time) {
+		this.time = time;
+		return this;
+	}
+	private String subscribeId;
+	public MessageEntity subscribeId(String subscribeId) {
+		this.subscribeId = subscribeId;
+		return this;
+	}
+	private String service;
+	public MessageEntity service(String service) {
+		this.service = service;
+		return this;
+	}
+
 	@Override
 	public void from(InputStream inputStream) throws IOException {
 		DataInputStreamEx dis = dataInputStream(inputStream);
@@ -24,7 +42,7 @@ public class MessageEntity implements TapEntity {
 			ObjectSerializable objectSerializable = InstanceFactory.instance(ObjectSerializable.class);
 			content = objectSerializable.toObject(data);
 			time = dis.readLong();
-			connectionId = dis.readUTF();
+			subscribeId = dis.readUTF();
 		}
 	}
 
@@ -33,7 +51,7 @@ public class MessageEntity implements TapEntity {
 		DataOutputStreamEx dos = dataOutputStream(outputStream);
 		dos.writeBytes(InstanceFactory.instance(ObjectSerializable.class).fromObject(content));
 		dos.writeLong(time);
-		dos.writeUTF(connectionId);
+		dos.writeUTF(subscribeId);
 	}
 
 	public Object getContent() {
@@ -52,11 +70,19 @@ public class MessageEntity implements TapEntity {
 		this.time = time;
 	}
 
-	public String getConnectionId() {
-		return connectionId;
+	public String getSubscribeId() {
+		return subscribeId;
 	}
 
-	public void setConnectionId(String connectionId) {
-		this.connectionId = connectionId;
+	public void setSubscribeId(String subscribeId) {
+		this.subscribeId = subscribeId;
+	}
+
+	public String getService() {
+		return service;
+	}
+
+	public void setService(String service) {
+		this.service = service;
 	}
 }

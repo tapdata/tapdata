@@ -18,15 +18,17 @@ public class ProxySubscriptionServiceImpl implements ProxySubscriptionService {
 	private ProxySubscriptionDAO proxySubscriptionDAO;
 	@Override
 	public void syncProxySubscription(ProxySubscription proxySubscription) {
-		proxySubscriptionDAO.insertOne(new ProxySubscriptionEntity(proxySubscription.getNodeId(), proxySubscription));
+		proxySubscriptionDAO.insertOne(new ProxySubscriptionEntity(proxySubscription));
 	}
 
 	@Override
-	public List<String> subscribedNodeIds(String subscribeId) {
-		List<ProxySubscriptionEntity> subscriptionEntities = proxySubscriptionDAO.find(new Document(ProxySubscriptionEntity.FIELD_SUBSCRIPTION + ".subscribeIds", subscribeId), ProxySubscriptionEntity.FIELD_ID);
+	public List<String> subscribedNodeIds(String service, String subscribeId) {
+		List<ProxySubscriptionEntity> subscriptionEntities = proxySubscriptionDAO.find(new Document(ProxySubscriptionEntity.FIELD_SUBSCRIPTION + ".service", service).append(ProxySubscriptionEntity.FIELD_SUBSCRIPTION + ".subscribeIds", subscribeId), ProxySubscriptionEntity.FIELD_SUBSCRIPTION + ".nodeId");
 		List<String> nodeIds = new ArrayList<>();
 		for(ProxySubscriptionEntity entity : subscriptionEntities) {
-			nodeIds.add(entity.getId());
+			ProxySubscription proxySubscription = entity.getSubscription();
+			if(proxySubscription != null && proxySubscription.getNodeId() != null)
+				nodeIds.add(proxySubscription.getNodeId());
 		}
 		return nodeIds;
 	}

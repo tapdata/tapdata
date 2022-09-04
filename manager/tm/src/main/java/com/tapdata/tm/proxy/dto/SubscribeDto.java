@@ -9,6 +9,7 @@ import java.util.List;
 @EqualsAndHashCode(callSuper = true)
 @Data
 public class SubscribeDto extends BaseDto {
-	private List<String> subscribeIds;
+	private String subscribeId;
 	private String service;
+	private Long expireTime;
 }

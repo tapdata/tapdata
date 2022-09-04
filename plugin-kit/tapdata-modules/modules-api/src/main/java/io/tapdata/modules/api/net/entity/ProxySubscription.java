@@ -8,7 +8,11 @@ public class ProxySubscription {
 		this.nodeId = nodeId;
 		return this;
 	}
-
+	private String service;
+	public ProxySubscription service(String service) {
+		this.service = service;
+		return this;
+	}
 	private List<String> subscribeIds;
 	public ProxySubscription subscribeIds(List<String> subscribeIds) {
 		this.subscribeIds = subscribeIds;
@@ -29,5 +33,13 @@ public class ProxySubscription {
 
 	public void setSubscribeIds(List<String> subscribeIds) {
 		this.subscribeIds = subscribeIds;
+	}
+
+	public String getService() {
+		return service;
+	}
+
+	public void setService(String service) {
+		this.service = service;
 	}
 }
