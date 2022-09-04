@@ -15,9 +15,7 @@ import io.tapdata.modules.api.net.data.Data;
 import io.tapdata.modules.api.net.data.Identity;
 import io.tapdata.modules.api.net.data.Result;
 import io.tapdata.modules.api.net.data.ResultData;
-import io.tapdata.modules.api.net.entity.NodeRegistry;
 import io.tapdata.modules.api.net.message.TapEntity;
-import io.tapdata.modules.api.net.service.NodeRegistryService;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.pdk.core.utils.JWTUtils;
 import io.tapdata.wsserver.channels.error.WSErrors;
@@ -26,14 +24,13 @@ import io.tapdata.wsserver.channels.gateway.GatewaySessionManager;
 import io.tapdata.wsserver.channels.gateway.data.UserChannel;
 import io.tapdata.wsserver.channels.websocket.event.ChannelInActiveEvent;
 import io.tapdata.wsserver.channels.websocket.event.IdentityReceivedEvent;
-import io.tapdata.wsserver.channels.websocket.impl.WebSocketProperties;
 import io.tapdata.wsserver.channels.websocket.utils.NetUtils;
 import io.tapdata.wsserver.eventbus.EventBusHolder;
 
 import java.net.InetSocketAddress;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.function.Consumer;
+
 
 @Bean()
 @MainMethod(value = "main", order = 10000)
@@ -46,17 +43,14 @@ public class GatewayChannelModule {
 
     public static final String KEY_GATEWAY_USER = "gwuser";
     public static final String TAG = GatewayChannelModule.class.getSimpleName();
-    @Bean
-    private WebSocketProperties webSocketProperties;
+    @SuppressWarnings("unused")
     @Bean
     private GatewaySessionManager gatewaySessionManager;
-    
-    private long userSessionCacheExpireSeconds = 1800;
+    @SuppressWarnings("unused")
+    private final long userSessionCacheExpireSeconds = 1800;
+    @SuppressWarnings("unused")
     @Bean
     private JsonParser jsonParser;
-
-    @Bean
-    private NodeRegistryService nodeRegistryService;
 
     private final ConcurrentHashMap<String, ChannelHandlerContext> userIdChannelMap = new ConcurrentHashMap<>();
     
@@ -100,19 +94,16 @@ public class GatewayChannelModule {
     public void receivedIdentity(IdentityReceivedEvent identityReceivedEvent) {
         Identity identity = identityReceivedEvent.getIdentity();
         if (identity == null || identity.getToken() == null) {
-            identityReceivedEvent.closeChannel(identity.getId(), WSErrors.ERROR_ILLEGAL_TOKEN);
+            identityReceivedEvent.closeChannel(identity != null ? identity.getId() : null, WSErrors.ERROR_ILLEGAL_TOKEN);
             return;
         }
-        //TODO identity数据需要实现验证签名逻辑， 保护数据不被修改
-//        if(identity.sign == null || sign(identity.sign)) {
-//
-//        }
+
         CommonUtils.handleAnyError(() -> {
             Map<String, Object> claims = JWTUtils.getClaims(key, identity.getToken());
             String service = (String) claims.get("service");
             String clientId = (String) claims.get("clientId");
             Integer terminal = (Integer) claims.get("terminal");
-            String uid = (String) claims.get("uid");
+//            String uid = (String) claims.get("uid");
 
             GatewaySessionHandler gatewaySessionHandler = gatewaySessionManager.preCreateGatewaySessionHandler(clientId, service, null, clientId, terminal, true, null);
 
@@ -130,9 +121,6 @@ public class GatewayChannelModule {
 
             Attribute<UserChannel> attribute = channel.attr(AttributeKey.valueOf(KEY_GATEWAY_USER));
             attribute.set(gatewaySessionHandler.getUserChannel());
-
-            int httpPort = 3000; //TODO should read from TM config.
-            nodeRegistryService.save(new NodeRegistry().ip(clientIP).httpPort(httpPort).wsPort(webSocketProperties.getPort()).type(service).time(System.currentTimeMillis()));
 
             //OnConnected//异步
             //sendCache//同步
@@ -174,9 +162,7 @@ public class GatewayChannelModule {
         ChannelHandlerContext context = userIdChannelMap.get(userId);
         if (context != null) {
             Channel channel = context.channel();
-            if (channel != null) {
-                return true;
-            }
+            return channel != null;
         }
         return false;
     }

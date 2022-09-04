@@ -30,6 +30,7 @@ import static org.bson.codecs.configuration.CodecRegistries.fromRegistries;
 public class MongoDAOAnnotationHandler extends ClassAnnotationHandler {
 	private static final String TAG = MongoDAOAnnotationHandler.class.getSimpleName();
 
+	@SuppressWarnings("unused")
 	@Bean
 	private MongoClientFactory mongoClientFactory;
 
@@ -90,7 +91,9 @@ public class MongoDAOAnnotationHandler extends ClassAnnotationHandler {
 						TapLogger.warn(TAG, "Data class not found on class {}. Ignore this class...", clazz);
 						continue;
 					}
+					//noinspection rawtypes
 					MongoCollection mongoCollection = database.getCollection(collectionName, domainClass);
+					//noinspection unchecked
 					dao.setMongoCollection(mongoCollection);
 					dao.setCollectionName(collectionName);
 					TapLogger.debug(TAG, "init {} DAO finish", collectionName);

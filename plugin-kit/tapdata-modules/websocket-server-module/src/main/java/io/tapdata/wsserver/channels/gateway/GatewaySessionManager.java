@@ -7,8 +7,10 @@ import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.reflection.ClassAnnotationHandler;
 import io.tapdata.modules.api.net.data.*;
+import io.tapdata.modules.api.net.entity.NodeRegistry;
 import io.tapdata.modules.api.net.error.NetErrors;
 import io.tapdata.modules.api.net.message.TapEntity;
+import io.tapdata.modules.api.net.service.NodeRegistryService;
 import io.tapdata.pdk.core.utils.AnnotationUtils;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.wsserver.channels.error.WSErrors;
@@ -44,6 +46,9 @@ public class GatewaySessionManager {
     private Long sessionExpireCheckPeriodSeconds = 60L;
     private Long sessionInactiveExpireTime = TimeUnit.MINUTES.toMillis(3);
     private String authorisedExpression = ".*_.*Apis_.*";
+
+    @Bean
+    private NodeRegistryService nodeRegistryService;
 
     public final String JWT_FIELD_USER_ID = "u";
 
@@ -126,6 +131,10 @@ public class GatewaySessionManager {
                 TapLogger.error(TAG, "Session expiration handle failed " + t.getMessage());
             }
         }, sessionExpireCheckPeriodSeconds, sessionExpireCheckPeriodSeconds, TimeUnit.SECONDS);
+
+        int httpPort = 3000; //TODO should read from TM config.
+        nodeRegistryService.save(new NodeRegistry().ip(clientIP).httpPort(httpPort).wsPort(webSocketProperties.getPort()).type(service).time(System.currentTimeMillis()));
+
     }
 
     private void handleScanRoomSessionState(GatewaySessionManager gatewaySessionManager, StateMachine<Integer, GatewaySessionManager> integerGatewaySessionManagerStateMachine) {
