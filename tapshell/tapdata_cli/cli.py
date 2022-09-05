@@ -2902,7 +2902,6 @@ class DataSource():
             "database_owner": self._schema,
             "database_username": self._username,
             "plain_password": self._password,
-            "isUrl": True if uri != "" else False,
             "name": self._name,
             "user_id": self.user_id,
             "response_body": {},
@@ -2920,6 +2919,9 @@ class DataSource():
         d["pdkHash"] = connector["pdkHash"]
         d["database_type"] = connector["name"]
         d["config"] = self.to_pdk_dict()
+        d["config"].update({
+            "isUri": True if uri != "" else False,
+        })
         return d
 
     @staticmethod
@@ -2978,7 +2980,8 @@ class DataSource():
                 data = self.to_dict()
                 data["updateSchema"] = True
                 data.update({
-                    "id": self.id
+                    "id": self.id,
+                    "accessNodeType": "AUTOMATIC_PLATFORM_ALLOCATION"
                 })
                 payload = {
                     "type": "testConnection",
@@ -3026,7 +3029,7 @@ class DataSource():
                 time.sleep(5)
                 res = req.get("/Connections/" + self.id)
                 res = res.json()
-                if res["data"] == None:
+                if res["data"] is None:
                     break
                 if "loadFieldsStatus" not in res["data"]:
                     continue
@@ -3060,7 +3063,7 @@ class Oracle(DataSource):
         return self
 
     def to_pdk_dict(self):
-        d = {}
+        d = dict()
         d["host"] = self._host
         d["logPluginName"] = "logMiner"
         d["password"] = self._password
