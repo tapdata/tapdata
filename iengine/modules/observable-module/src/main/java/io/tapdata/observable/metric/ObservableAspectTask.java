@@ -7,7 +7,6 @@ import io.tapdata.aspect.task.AspectTask;
 import io.tapdata.aspect.task.AspectTaskSession;
 import io.tapdata.entity.aspect.Aspect;
 import io.tapdata.entity.aspect.AspectInterceptResult;
-import io.tapdata.entity.event.TapBaseEvent;
 import io.tapdata.entity.simplify.pretty.ClassHandlers;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.module.api.PipelineDelay;
@@ -149,19 +148,13 @@ public class ObservableAspectTask extends AspectTask {
 						return;
 					}
 
-					int size = events.size();
-					Long newestEventTimestamp = null;
-					TapBaseEvent newestEvent = (TapBaseEvent) events.get(events.size() - 1).getTapEvent();
-					if (null != newestEvent && null != newestEvent.getReferenceTime()) {
-						newestEventTimestamp = newestEvent.getReferenceTime();
-					}
-					Long finalNewestEventTimestamp = newestEventTimestamp;
+					HandlerUtil.EventTypeRecorder recorder = HandlerUtil.countTapdataEvent(events);
 					Optional.ofNullable(dataNodeSampleHandlers.get(nodeId)).ifPresent(handler ->
-							handler.handleBatchReadProcessComplete(System.currentTimeMillis(), size, finalNewestEventTimestamp)
+							handler.handleBatchReadProcessComplete(System.currentTimeMillis(), recorder)
 					);
 					// batch read should calculate table snapshot insert counter
 					Optional.ofNullable(tableSampleHandlers.get(table)).ifPresent(
-							handler -> handler.incrTableSnapshotInsertTotal(size)
+							handler -> handler.incrTableSnapshotInsertTotal(recorder.getInsertTotal())
 					);
 				});
 				aspect.enqueuedConsumer(events ->
@@ -194,14 +187,7 @@ public class ObservableAspectTask extends AspectTask {
 
 					HandlerUtil.EventTypeRecorder recorder = HandlerUtil.countTapEvent(events);
 					Optional.ofNullable(dataNodeSampleHandlers.get(nodeId)).ifPresent(
-							handler -> {
-								Long newestEventTimestamp = null;
-								TapBaseEvent newestEvent = (TapBaseEvent) events.get(events.size() - 1);
-								if (null != newestEvent && null != newestEvent.getReferenceTime()) {
-									newestEventTimestamp = newestEvent.getReferenceTime();
-								}
-								handler.handleStreamReadReadComplete(System.currentTimeMillis(), recorder, newestEventTimestamp);
-							}
+							handler -> handler.handleStreamReadReadComplete(System.currentTimeMillis(), recorder)
 					);
 					taskSampleHandler.handleStreamReadAccept(recorder);
 				});
@@ -215,12 +201,7 @@ public class ObservableAspectTask extends AspectTask {
 
 					Optional.ofNullable(dataNodeSampleHandlers.get(nodeId)).ifPresent(
 							handler -> {
-								Long newestEventTimestamp = null;
-								TapBaseEvent newestEvent = (TapBaseEvent) events.get(events.size() - 1).getTapEvent();
-								if (null != newestEvent && null != newestEvent.getReferenceTime()) {
-									newestEventTimestamp = newestEvent.getReferenceTime();
-								}
-								handler.handleStreamReadProcessComplete(System.currentTimeMillis(), recorder, newestEventTimestamp);
+								handler.handleStreamReadProcessComplete(System.currentTimeMillis(), recorder);
 							}
 					);
 				});
@@ -384,19 +365,12 @@ public class ObservableAspectTask extends AspectTask {
 						return;
 					}
 
+					HandlerUtil.EventTypeRecorder inner = HandlerUtil.countTapEvent(events);
 					Optional.ofNullable(dataNodeSampleHandlers.get(nodeId)).ifPresent(
-							handler -> {
-								Long now = System.currentTimeMillis();
-								Long newestEventTimestamp = null;
-								TapBaseEvent newestEvent = events.get(events.size() - 1);
-								if (null != newestEvent && null != newestEvent.getReferenceTime()) {
-									newestEventTimestamp = newestEvent.getReferenceTime();
-								}
-								handler.handleWriteRecordAccept(now, result, newestEventTimestamp);
-								pipelineDelay.refreshDelay(task.getId().toHexString(), nodeId, recorder.getAvgProcessTime(), newestEventTimestamp);
-							}
+							handler -> handler.handleWriteRecordAccept(System.currentTimeMillis(), result, inner.getNewestEventTimestamp())
 					);
 					taskSampleHandler.handleWriteRecordAccept(result, events);
+					pipelineDelay.refreshDelay(task.getId().toHexString(), nodeId, inner.getAvgProcessTime(), inner.getNewestEventTimestamp());
 				});
 				break;
 			case WriteRecordFuncAspect.STATE_END:
@@ -442,14 +416,7 @@ public class ObservableAspectTask extends AspectTask {
 					}
 					HandlerUtil.EventTypeRecorder inner = HandlerUtil.countTapdataEvent(Collections.singletonList(event));
 					Optional.ofNullable(processorNodeSampleHandlers.get(nodeId)).ifPresent(
-							handler -> {
-								Long newestEventTimestamp = null;
-								if (null != event.getTapEvent()) {
-									TapBaseEvent newestEvent = (TapBaseEvent) event.getTapEvent();
-									newestEventTimestamp = newestEvent.getReferenceTime();
-								}
-								handler.handleProcessAccept(inner, newestEventTimestamp);
-							}
+							handler -> handler.handleProcessAccept(inner)
 					);
 				});
 				break;

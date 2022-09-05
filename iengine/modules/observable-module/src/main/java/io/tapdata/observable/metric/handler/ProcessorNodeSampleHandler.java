@@ -23,17 +23,17 @@ public class ProcessorNodeSampleHandler extends AbstractNodeSampleHandler {
         Optional.ofNullable(inputSpeed).ifPresent(SpeedSampler::add);
     }
 
-    public void handleProcessAccept(HandlerUtil.EventTypeRecorder recorder, Long newestEventTimestamp) {
+    public void handleProcessAccept(HandlerUtil.EventTypeRecorder recorder) {
         Optional.ofNullable(outputInsertCounter).ifPresent(counter -> counter.inc(recorder.getInsertTotal()));
         Optional.ofNullable(outputUpdateCounter).ifPresent(counter -> counter.inc(recorder.getUpdateTotal()));
         Optional.ofNullable(outputDeleteCounter).ifPresent(counter -> counter.inc(recorder.getDeleteTotal()));
         Optional.ofNullable(outputDdlCounter).ifPresent(counter -> counter.inc(recorder.getDdlTotal()));
         Optional.ofNullable(outputOthersCounter).ifPresent(counter -> counter.inc(recorder.getOthersTotal()));
         Optional.ofNullable(outputSpeed).ifPresent(speed -> speed.add(recorder.getTotal()));
-        Optional.ofNullable(currentEventTimestamp).ifPresent(number -> number.setValue(newestEventTimestamp));
 
-        if (null != newestEventTimestamp) {
-            Optional.ofNullable(replicateLag).ifPresent(sampler -> sampler.setValue(System.currentTimeMillis() - newestEventTimestamp));
+        if (null != recorder.getNewestEventTimestamp()) {
+            Optional.ofNullable(currentEventTimestamp).ifPresent(number -> number.setValue(recorder.getNewestEventTimestamp()));
+            Optional.ofNullable(replicateLag).ifPresent(sampler -> sampler.setValue(System.currentTimeMillis() - recorder.getNewestEventTimestamp()));
         }
     }
 

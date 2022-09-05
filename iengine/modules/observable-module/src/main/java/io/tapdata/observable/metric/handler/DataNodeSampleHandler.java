@@ -46,6 +46,7 @@ public class DataNodeSampleHandler extends AbstractNodeSampleHandler {
     private CounterSampler snapshotInsertRowCounter;
     private AverageSampler snapshotSourceReadTimeCostAvg;
     private AverageSampler incrementalSourceReadTimeCostAvg;
+    private AverageSampler targetWriteTimeCostAvg;
 
     private final Set<String> nodeTables = new HashSet<>();
 
@@ -70,6 +71,7 @@ public class DataNodeSampleHandler extends AbstractNodeSampleHandler {
         snapshotRowCounter = getCounterSampler(values, SNAPSHOT_ROW_TOTAL);
         snapshotInsertRowCounter = getCounterSampler(values, SNAPSHOT_INSERT_ROW_TOTAL);
         snapshotSourceReadTimeCostAvg = collector.getAverageSampler(SNAPSHOT_SOURCE_READ_TIME_COST_AVG);
+        targetWriteTimeCostAvg = collector.getAverageSampler(TARGET_WRITE_TIME_COST_AVG);
     }
 
     private Long batchAcceptLastTs;
@@ -89,14 +91,17 @@ public class DataNodeSampleHandler extends AbstractNodeSampleHandler {
         batchProcessStartTs = readCompleteAt;
     }
 
-    public void handleBatchReadProcessComplete(Long processCompleteAt, long size, Long newestEventTimestamp) {
+    public void handleBatchReadProcessComplete(Long processCompleteAt, HandlerUtil.EventTypeRecorder recorder) {
+        long size = recorder.getInsertTotal();
         Optional.ofNullable(outputInsertCounter).ifPresent(counter -> counter.inc(size));
         Optional.ofNullable(outputSpeed).ifPresent(speed -> speed.add(size));
 
-        Optional.ofNullable(currentEventTimestamp).ifPresent(number -> number.setValue(newestEventTimestamp));
-        Optional.ofNullable(timeCostAverage).ifPresent(average -> {
-            average.add(size, processCompleteAt - batchProcessStartTs);
-        });
+        if (null != recorder.getNewestEventTimestamp()) {
+            Optional.ofNullable(currentEventTimestamp).ifPresent(number -> number.setValue(recorder.getNewestEventTimestamp()));
+            Optional.ofNullable(timeCostAverage).ifPresent(average -> {
+                average.add(recorder.getInsertTotal(), processCompleteAt - batchProcessStartTs);
+            });
+        }
 
         // snapshot related
         Optional.ofNullable(snapshotInsertRowCounter).ifPresent(counter -> counter.inc(size));
@@ -118,7 +123,7 @@ public class DataNodeSampleHandler extends AbstractNodeSampleHandler {
         incrementalSourceReadTimeCostAvg = collector.getAverageSampler(INCR_SOURCE_READ_TIME_COST_AVG);
     }
 
-    public void handleStreamReadReadComplete(Long readCompleteAt, HandlerUtil.EventTypeRecorder recorder, Long newestEventTimestamp) {
+    public void handleStreamReadReadComplete(Long readCompleteAt, HandlerUtil.EventTypeRecorder recorder) {
         long total = recorder.getTotal();
 
         Optional.ofNullable(inputDdlCounter).ifPresent(counter -> counter.inc(recorder.getDdlTotal()));
@@ -133,17 +138,17 @@ public class DataNodeSampleHandler extends AbstractNodeSampleHandler {
                         streamAcceptLastTs = readCompleteAt;
                     }
                     if (null == streamReferenceTimeLastTs) {
-                        streamReferenceTimeLastTs = newestEventTimestamp;
+                        streamReferenceTimeLastTs = recorder.getNewestEventTimestamp();
                     }
-                    avg.add(total, readCompleteAt - streamAcceptLastTs - (newestEventTimestamp - streamReferenceTimeLastTs));
+                    avg.add(total, readCompleteAt - streamAcceptLastTs - (recorder.getNewestEventTimestamp() - streamReferenceTimeLastTs));
                 }
         );
 
         streamProcessStartTs = readCompleteAt;
-        streamReferenceTimeLastTs = newestEventTimestamp;
+        streamReferenceTimeLastTs = recorder.getNewestEventTimestamp();
     }
 
-    public void handleStreamReadProcessComplete(Long processCompleteAt, HandlerUtil.EventTypeRecorder recorder, Long newestEventTimestamp) {
+    public void handleStreamReadProcessComplete(Long processCompleteAt, HandlerUtil.EventTypeRecorder recorder) {
         long total = recorder.getTotal();
 
         Optional.ofNullable(outputDdlCounter).ifPresent(counter -> counter.inc(recorder.getDdlTotal()));
@@ -153,8 +158,11 @@ public class DataNodeSampleHandler extends AbstractNodeSampleHandler {
         Optional.ofNullable(outputOthersCounter).ifPresent(counter -> counter.inc(recorder.getOthersTotal()));
         Optional.ofNullable(outputSpeed).ifPresent(speed -> speed.add(total));
 
-        Optional.ofNullable(currentEventTimestamp).ifPresent(sampler -> sampler.setValue(newestEventTimestamp));
-        Optional.ofNullable(replicateLag).ifPresent(sampler -> sampler.setValue(processCompleteAt - newestEventTimestamp));
+        if (null != recorder.getNewestEventTimestamp()) {
+            Optional.ofNullable(currentEventTimestamp).ifPresent(sampler -> sampler.setValue(recorder.getNewestEventTimestamp()));
+            Optional.ofNullable(replicateLag).ifPresent(sampler -> sampler.setValue(processCompleteAt - recorder.getNewestEventTimestamp()));
+        }
+
         Optional.ofNullable(timeCostAverage).ifPresent(average -> {
             average.add(total, processCompleteAt - streamProcessStartTs);
         });
@@ -190,7 +198,7 @@ public class DataNodeSampleHandler extends AbstractNodeSampleHandler {
         Optional.ofNullable(outputDeleteCounter).ifPresent(counter -> counter.inc(deleted));
         Optional.ofNullable(outputSpeed).ifPresent(speed -> speed.add(total));
 
-        Optional.ofNullable(timeCostAverage).ifPresent(average -> {
+        Optional.ofNullable(targetWriteTimeCostAvg).ifPresent(average -> {
             average.add(total, acceptTime - writeRecordAcceptLastTs);
             writeRecordAcceptLastTs = acceptTime;
         });
