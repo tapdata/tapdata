@@ -735,12 +735,12 @@ public class MeasurementServiceV2 {
             }
 
             Map<String, Number> vs = samples.get(0).getVs();
-            long snapshotInsertTotal = vs.get("snapshotInsertTotal").longValue();
-            long snapshotTotal = vs.get("snapshotTotal").longValue();
+            long snapshotInsertRowTotal = vs.get("snapshotInsertRowTotal").longValue();
+            long snapshotRowTotal = vs.get("snapshotRowTotal").longValue();
 
             BigDecimal syncRate = BigDecimal.ZERO;
-            if (snapshotTotal != 0) {
-                syncRate = new BigDecimal(snapshotInsertTotal).divide(new BigDecimal(snapshotTotal), 2, RoundingMode.HALF_UP);
+            if (snapshotRowTotal != 0) {
+                syncRate = new BigDecimal(snapshotInsertRowTotal).divide(new BigDecimal(snapshotRowTotal), 2, RoundingMode.HALF_UP);
             } else {
                 syncRate = BigDecimal.ONE;
             }

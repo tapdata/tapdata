@@ -1,6 +1,7 @@
 package io.tapdata.aspect;
 
 import com.tapdata.entity.TapdataEvent;
+import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
@@ -17,6 +18,7 @@ public class BatchReadFuncAspect extends DataFunctionAspect<BatchReadFuncAspect>
 	public static final int STATE_ENQUEUED = 10;
 
 	public static final int STATE_READ_COMPLETE = 11;
+	public static final int STATE_PROCESS_COMPLETE = 12;
 
 	public BatchReadFuncAspect connectorContext(TapConnectorContext connectorContext) {
 		this.connectorContext = connectorContext;
@@ -60,12 +62,28 @@ public class BatchReadFuncAspect extends DataFunctionAspect<BatchReadFuncAspect>
 		return this;
 	}
 
-	private List<Consumer<List<TapdataEvent>>> readCompleteConsumers = null;
-	public BatchReadFuncAspect readCompleteConsumer(Consumer<List<TapdataEvent>> listConsumer) {
+	private List<Consumer<List<TapEvent>>> readCompleteConsumers = null;
+	public BatchReadFuncAspect readCompleteConsumer(Consumer<List<TapEvent>> listConsumer) {
 		if (null == readCompleteConsumers) {
 			readCompleteConsumers = new CopyOnWriteArrayList<>();
 		}
-		this.readCompleteConsumers.add(tapdataEvents -> {
+		this.readCompleteConsumers.add(tapEvents -> {
+			try {
+				listConsumer.accept(tapEvents);
+			} catch(Throwable throwable) {
+				TapLogger.warn(TAG, "Consume tapdataEvents from table {} failed on read complete consumer {}, {}",
+						table, listConsumer, ExceptionUtils.getStackTrace(throwable));
+			}
+		});
+		return this;
+	}
+
+	private List<Consumer<List<TapdataEvent>>> processCompleteConsumers = null;
+	public BatchReadFuncAspect processCompleteConsumer(Consumer<List<TapdataEvent>> listConsumer) {
+		if (null == processCompleteConsumers) {
+			processCompleteConsumers = new CopyOnWriteArrayList<>();
+		}
+		this.processCompleteConsumers.add(tapdataEvents -> {
 			try {
 				listConsumer.accept(tapdataEvents);
 			} catch(Throwable throwable) {
@@ -116,11 +134,19 @@ public class BatchReadFuncAspect extends DataFunctionAspect<BatchReadFuncAspect>
 		this.enqueuedConsumers = enqueuedConsumers;
 	}
 
-	public List<Consumer<List<TapdataEvent>>> getReadCompleteConsumers() {
+	public List<Consumer<List<TapEvent>>> getReadCompleteConsumers() {
 		return readCompleteConsumers;
 	}
 
-	public void setReadCompleteConsumers(List<Consumer<List<TapdataEvent>>> readCompleteConsumers) {
+	public void setReadCompleteConsumers(List<Consumer<List<TapEvent>>> readCompleteConsumers) {
 		this.readCompleteConsumers = readCompleteConsumers;
+	}
+
+	public List<Consumer<List<TapdataEvent>>> getProcessCompleteConsumers() {
+		return processCompleteConsumers;
+	}
+
+	public void setProcessCompleteConsumers(List<Consumer<List<TapdataEvent>>> processCompleteConsumers) {
+		this.processCompleteConsumers = processCompleteConsumers;
 	}
 }

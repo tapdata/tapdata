@@ -340,8 +340,7 @@ public class LoggingAspectTask extends AspectTask {
 				aspect.readCompleteConsumer(events -> {
 					long now = System.currentTimeMillis();
 					debug(LogEventData.LOG_EVENT_TYPE_RECEIVE, now - batchReadCompleteLastTs.get(nodeId),
-							SourceNodeTag.NODE_SOURCE_INITIAL_SYNC, context,
-							events.stream().map(TapdataEvent::getTapEvent).collect(Collectors.toList()));
+							SourceNodeTag.NODE_SOURCE_INITIAL_SYNC, context, events);
 					batchReadCompleteLastTs.put(nodeId, System.currentTimeMillis());
 				});
 
@@ -374,8 +373,7 @@ public class LoggingAspectTask extends AspectTask {
 				aspect.streamingReadCompleteConsumers(events -> {
 					Long now = System.currentTimeMillis();
 					debug(LogEventData.LOG_EVENT_TYPE_RECEIVE, now - streamReadCompleteLastTs.get(nodeId),
-							SourceNodeTag.NODE_SOURCE_INCREMENTAL_SYNC, context,
-							events.stream().map(TapdataEvent::getTapEvent).collect(Collectors.toList()));
+							SourceNodeTag.NODE_SOURCE_INCREMENTAL_SYNC, context, events);
 				});
 				aspect.streamingEnqueuedConsumers(events -> {
 					long now = System.currentTimeMillis();

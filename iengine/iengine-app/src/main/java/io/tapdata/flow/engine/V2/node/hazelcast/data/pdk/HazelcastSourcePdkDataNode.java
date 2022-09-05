@@ -209,6 +209,9 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 									.table(tapTable), batchReadFuncAspect -> PDKInvocationMonitor.invoke(getConnectorNode(), PDKMethod.SOURCE_BATCH_READ,
 									() -> batchReadFunction.batchRead(getConnectorNode().getConnectorContext(), tapTable, tableOffset, eventBatchSize, (events, offsetObject) -> {
 										if (events != null && !events.isEmpty()) {
+											if (batchReadFuncAspect != null)
+												AspectUtils.accept(batchReadFuncAspect.state(BatchReadFuncAspect.STATE_READ_COMPLETE).getReadCompleteConsumers(), events);
+
 											if (logger.isDebugEnabled()) {
 												logger.debug("Batch read {} of events, {}", events.size(), LoggerUtils.sourceNodeMessage(getConnectorNode()));
 											}
@@ -216,7 +219,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 											List<TapdataEvent> tapdataEvents = wrapTapdataEvent(events);
 
 											if (batchReadFuncAspect != null)
-												AspectUtils.accept(batchReadFuncAspect.state(BatchReadFuncAspect.STATE_READ_COMPLETE).getReadCompleteConsumers(), tapdataEvents);
+												AspectUtils.accept(batchReadFuncAspect.state(BatchReadFuncAspect.STATE_PROCESS_COMPLETE).getProcessCompleteConsumers(), tapdataEvents);
 
 											if (CollectionUtil.isNotEmpty(tapdataEvents)) {
 												tapdataEvents.forEach(this::enqueue);
@@ -433,13 +436,17 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 										}
 									}
 									if (events != null && !events.isEmpty()) {
+										if (streamReadFuncAspect != null) {
+											AspectUtils.accept(streamReadFuncAspect.state(StreamReadFuncAspect.STATE_STREAMING_READ_COMPLETED).getStreamingReadCompleteConsumers(), events);
+										}
+
 										List<TapdataEvent> tapdataEvents = wrapTapdataEvent(events, SyncStage.CDC, offsetObj);
 										if (logger.isDebugEnabled()) {
 											logger.debug("Stream read {} of events, {}", events.size(), LoggerUtils.sourceNodeMessage(getConnectorNode()));
 										}
 
 										if (streamReadFuncAspect != null)
-											AspectUtils.accept(streamReadFuncAspect.state(StreamReadFuncAspect.STATE_STREAMING_READ_COMPLETED).getStreamingReadCompleteConsumers(), tapdataEvents);
+											AspectUtils.accept(streamReadFuncAspect.state(StreamReadFuncAspect.STATE_STREAMING_PROCESS_COMPLETED).getStreamingProcessCompleteConsumers(), tapdataEvents);
 
 										if (CollectionUtils.isNotEmpty(tapdataEvents)) {
 											tapdataEvents.forEach(this::enqueue);
