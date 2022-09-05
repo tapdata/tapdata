@@ -30,7 +30,7 @@ import java.util.function.BiConsumer;
  * @create 2022-07-12 17:10
  **/
 public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
-	private Logger logger = LogManager.getLogger(HazelcastCustomProcessor.class);
+	private Logger logger = LogManager.getLogger(HazelcastProcessorBaseNode.class);
 
 	// statistic and sample related
 	protected ResetCounterSampler resetInputCounter;

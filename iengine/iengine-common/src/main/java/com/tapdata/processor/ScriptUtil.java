@@ -18,12 +18,14 @@ import io.tapdata.annotation.DatabaseTypeAnnotations;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.collections.MapUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.bson.BsonUndefined;
 import org.bson.Document;
 import org.bson.types.ObjectId;
 import org.graalvm.polyglot.Context;
+import org.graalvm.polyglot.Engine;
 import org.graalvm.polyglot.HostAccess;
 import org.graalvm.polyglot.Value;
 import org.graalvm.polyglot.proxy.ProxyObject;
@@ -31,6 +33,8 @@ import org.springframework.beans.factory.config.BeanDefinition;
 
 import javax.script.*;
 import java.io.File;
+import java.io.OutputStream;
+import java.io.OutputStreamWriter;
 import java.net.URL;
 import java.net.URLClassLoader;
 import java.nio.file.Files;
@@ -45,33 +49,45 @@ import java.util.*;
  */
 public class ScriptUtil {
 
-	private static Logger logger = LogManager.getLogger(ScriptUtil.class);
+	private static final Logger logger = LogManager.getLogger(ScriptUtil.class);
 
 	public static final String FUNCTION_NAME = "process";
 
 	public static final String SCRIPT_FUNCTION_NAME = "validate";
 
+	public static ScriptEngine getScriptEngine(String jsEngineName) {
+		return getScriptEngine(jsEngineName,
+						new LoggingOutputStream(logger, Level.INFO), new LoggingOutputStream(logger, Level.ERROR));
+	}
 	/**
 	 * 获取js引擎
 	 *
 	 * @param jsEngineName
 	 * @return
 	 */
-	public static ScriptEngine getScriptEngine(String jsEngineName) {
+	public static ScriptEngine getScriptEngine(String jsEngineName, OutputStream out, OutputStream err) {
 		JSEngineEnum jsEngineEnum = JSEngineEnum.getByEngineName(jsEngineName);
 		ScriptEngine scriptEngine;
 		if (jsEngineEnum == JSEngineEnum.GRAALVM_JS) {
 			scriptEngine = GraalJSScriptEngine
-					.create(null,
-							Context.newBuilder("js")
-									.allowAllAccess(true)
-									.allowHostAccess(HostAccess.newBuilder(HostAccess.ALL)
-											.targetTypeMapping(Value.class, Object.class
-													, v -> v.hasArrayElements() && v.hasMembers()
-													, v -> v.as(List.class)
-											).build()
-									)
+					.create(Engine.newBuilder()
+													.allowExperimentalOptions(true)
+													.option("engine.WarnInterpreterOnly", "false")
+													.out(out)
+													.err(err)
+													.build(),
+									Context.newBuilder("js")
+													.allowAllAccess(true)
+													.allowHostAccess(HostAccess.newBuilder(HostAccess.ALL)
+													.targetTypeMapping(Value.class, Object.class,
+																	v -> v.hasArrayElements() && v.hasMembers(), v -> v.as(List.class)).build())
+													.out(out)
+													.err(err)
 					);
+			SimpleScriptContext scriptContext = new SimpleScriptContext();
+			scriptContext.setWriter(new OutputStreamWriter(out));
+			scriptContext.setErrorWriter(new OutputStreamWriter(err));
+			scriptEngine.setContext(scriptContext);
 		} else {
 			scriptEngine = new ScriptEngineManager().getEngineByName(jsEngineEnum.getEngineName());
 		}
@@ -86,8 +102,26 @@ public class ScriptUtil {
 											ClientMongoOperator clientMongoOperator) throws ScriptException {
 		return getScriptEngine(jsEngineName, script, javaScriptFunctions, clientMongoOperator, null, null, null);
 	}
-	public static Invocable getScriptEngine(String jsEngineName, String script, List<JavaScriptFunctions> javaScriptFunctions,
-											ClientMongoOperator clientMongoOperator, ScriptConnection source, ScriptConnection target, ICacheGetter memoryCacheGetter) throws ScriptException {
+
+	public static Invocable getScriptEngine(String jsEngineName,
+																					String script,
+																					List<JavaScriptFunctions> javaScriptFunctions,
+																					ClientMongoOperator clientMongoOperator,
+																					ScriptConnection source,
+																					ScriptConnection target,
+																					ICacheGetter memoryCacheGetter) throws ScriptException {
+		return getScriptEngine(jsEngineName, script, javaScriptFunctions, clientMongoOperator, source, target, memoryCacheGetter,
+						null, null);
+	}
+	public static Invocable getScriptEngine(String jsEngineName,
+																					String script,
+																					List<JavaScriptFunctions> javaScriptFunctions,
+																					ClientMongoOperator clientMongoOperator,
+																					ScriptConnection source,
+																					ScriptConnection target,
+																					ICacheGetter memoryCacheGetter,
+																					OutputStream out,
+																					OutputStream err) throws ScriptException {
 
 		if (StringUtils.isBlank(script)) {
 			return null;
@@ -98,7 +132,7 @@ public class ScriptUtil {
 			if (contextClassLoader == null) {
 				Thread.currentThread().setContextClassLoader(ScriptUtil.class.getClassLoader());
 			}
-			ScriptEngine e = getScriptEngine(jsEngineName);
+			ScriptEngine e = getScriptEngine(jsEngineName, out, err);
 			String buildInMethod = initBuildInMethod(javaScriptFunctions, clientMongoOperator);
 			String scripts = script + System.lineSeparator() + buildInMethod;
 
