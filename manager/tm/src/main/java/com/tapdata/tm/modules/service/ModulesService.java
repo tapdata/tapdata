@@ -142,9 +142,9 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
         if (findByName(modulesDto.getName()).size() > 0) {
             throw new BizException("Modules.Name.Existed");
         }
-        if (!isBasePathAndVersionRepeat(modulesDto.getBasePath(), modulesDto.getApiVersion()).isEmpty()) {
-            throw new BizException("Modules.BasePathAndVersion.Existed");
-        }
+//        if (!isBasePathAndVersionRepeat(modulesDto.getBasePath(), modulesDto.getApiVersion()).isEmpty()) {
+//            throw new BizException("Modules.BasePathAndVersion.Existed");
+//        }
         if (null == modulesDto.getDataSource()) {
             throw new BizException("Modules.Connection.Null");
         }
@@ -155,7 +155,6 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
         modulesDto.setCreateUser(userDetail.getUsername());
         modulesDto.setLastUpdBy(userDetail.getUsername());
         modulesDto.setStatus(ModuleStatusEnum.GENERATING.getValue());
-        checkoutInputParamIsValid(modulesDto);
         return super.save(modulesDto, userDetail);
 
     }
@@ -173,7 +172,8 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
         }*/
         Where where = new Where();
         where.put("id", modulesDto.getId().toString());
-        checkoutInputParamIsValid(modulesDto);
+        if(ModuleStatusEnum.PENDING.getValue().equals(modulesDto.getStatus()))
+            checkoutInputParamIsValid(modulesDto);
         return super.upsertByWhere(where, modulesDto, userDetail);
 
     }
@@ -1102,7 +1102,7 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
                         throw new BizException("paths's page can't be null");
                     if (CollectionUtils.isEmpty(limits) || StringUtils.isBlank(limits.get(0).getDefaultvalue()))
                         throw new BizException("paths's limit can't be null");
-                    if (ApiTypeEnum.CUSTOMER_QUERY.getValue().equals(apiType) && (CollectionUtils.isEmpty(filters) || StringUtils.isBlank(filters.get(0).getDefaultvalue())))
+                    if (ApiTypeEnum.DEFAULT_API.getValue().equals(apiType) && (CollectionUtils.isEmpty(filters) || StringUtils.isBlank(filters.get(0).getDefaultvalue())))
                         throw new BizException("paths's filter can't be null");
                 }
                 //input params type checkout
@@ -1113,27 +1113,6 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
                         throw new BizException(param.getName() + " is invalid");
                 }
             }
-
-/*            List<Param> params = paths.stream().filter(p -> p.getMethod().equalsIgnoreCase("GET") || p.getMethod().equalsIgnoreCase("POST"))
-                    .map(Path::getParams).collect(Collectors.toList()).stream().flatMap(Collection::stream).collect(Collectors.toList());
-            if (CollectionUtils.isNotEmpty(params)) {
-                //type checkout todo
-                Set<String> types = params.stream().map(Param::getType).collect(Collectors.toSet());
-                //if apiType is defaultApi and customerQuery,  limit and page can't null
-                if (ApiTypeEnum.DEFAULT_API.getValue().equals(apiType) || ApiTypeEnum.CUSTOMER_QUERY.getValue().equals(apiType)) {
-                    Map<String, List<Param>> paramMap = params.stream().collect(Collectors.groupingBy(Param::getName));
-                    List<Param> pages = paramMap.get("page");
-                    List<Param> limits = paramMap.get("limit");
-                    List<Param> filters = paramMap.get("filter");
-                    if (CollectionUtils.isEmpty(pages) || StringUtils.isBlank(pages.get(0).getDefaultvalue()))
-                        throw new BizException("paths's page can't be null");
-                    if (CollectionUtils.isEmpty(limits) || StringUtils.isBlank(limits.get(0).getDefaultvalue()))
-                        throw new BizException("paths's limit can't be null");
-                    if (ApiTypeEnum.CUSTOMER_QUERY.getValue().equals(apiType) && (CollectionUtils.isEmpty(filters) || StringUtils.isBlank(filters.get(0).getDefaultvalue())))
-                        throw new BizException("paths's filter can't be null");
-                }
-            }*/
-
         }
     }
 }
