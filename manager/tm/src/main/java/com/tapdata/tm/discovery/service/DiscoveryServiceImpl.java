@@ -443,11 +443,12 @@ public class DiscoveryServiceImpl implements DiscoveryService {
                     Criteria.where("alias_name").regex(queryKey,"i"));
         }
 
-        MetadataDefinitionDto definitionDto = metadataDefinitionService.findById(MongoUtils.toObjectId(param.getTagId()));
-        List<String> itemTypes = definitionDto.getItemType();
+
 
 
         if (StringUtils.isNotBlank(param.getTagId())) {
+            MetadataDefinitionDto definitionDto = metadataDefinitionService.findById(MongoUtils.toObjectId(param.getTagId()));
+            List<String> itemTypes = definitionDto.getItemType();
             boolean isDefault = itemTypes.contains("default");
             List<MetadataDefinitionDto> andChild = metadataDefinitionService.findAndChild(Lists.of(MongoUtils.toObjectId(param.getTagId())));
             if (!isDefault) {
