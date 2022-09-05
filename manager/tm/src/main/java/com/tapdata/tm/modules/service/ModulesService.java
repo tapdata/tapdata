@@ -1105,11 +1105,11 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
                 List<Param> limits = paramMap.get("limit");
                 List<Param> filters = paramMap.get("filter");
                 if (ApiTypeEnum.DEFAULT_API.getValue().equals(apiType) || ApiTypeEnum.CUSTOMER_QUERY.getValue().equals(apiType)) {
-                    if (CollectionUtils.isEmpty(pages) || StringUtils.isBlank(pages.get(0).getDefaultvalue()))
+                    if (CollectionUtils.isEmpty(pages))
                         throw new BizException("paths's page can't be null");
-                    if (CollectionUtils.isEmpty(limits) || StringUtils.isBlank(limits.get(0).getDefaultvalue()))
+                    if (CollectionUtils.isEmpty(limits))
                         throw new BizException("paths's limit can't be null");
-                    if (ApiTypeEnum.DEFAULT_API.getValue().equals(apiType) && (CollectionUtils.isEmpty(filters) || StringUtils.isBlank(filters.get(0).getDefaultvalue())))
+                    if (ApiTypeEnum.DEFAULT_API.getValue().equals(apiType) && CollectionUtils.isEmpty(filters))
                         throw new BizException("paths's filter can't be null");
                 }
                 //input params type checkout
