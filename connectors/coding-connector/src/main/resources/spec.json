@@ -48,6 +48,27 @@
           ],
           "x-index": 2,
           "required": false
+        },
+        "": {
+          "title": "Space List",
+          "type": "string",
+          "required": true,
+          "x-decorator": "FormItem",
+          "x-component": "AsyncSelect",
+          "x-component-props": {
+            "method": "{{loadCommandList}}",
+            "params": "{{ {$values: $values, command: \"spaceList\"} }}"
+          },
+          "x-reactions": [
+            {
+              "dependencies": ["apiUrl", "apiToken"],
+              "fulfill": {
+                "state": {
+                  "display": "{{$deps[0]&&$deps[1] ? \"visible\":\"hidden\"}}"
+                }
+              }
+            }
+          ]
         }
       }
     },
