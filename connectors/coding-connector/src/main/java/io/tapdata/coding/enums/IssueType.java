@@ -28,4 +28,14 @@ public enum IssueType {
         }
         return ALL.name;
     }
+    public static IssueType issueType(String typeName){
+        if (null==typeName || "".equals(typeName)) return ALL;
+        IssueType[] values = IssueType.values();
+        for (IssueType value : values) {
+            if (value.name.equals(typeName)){
+                return value;
+            }
+        }
+        return ALL;
+    }
 }
