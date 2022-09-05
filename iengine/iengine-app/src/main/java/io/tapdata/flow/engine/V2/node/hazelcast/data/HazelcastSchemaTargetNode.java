@@ -6,6 +6,7 @@ import com.tapdata.constant.Log4jUtil;
 import com.tapdata.entity.TapdataEvent;
 import com.tapdata.entity.schema.SchemaApplyResult;
 import com.tapdata.entity.task.context.DataProcessorContext;
+import com.tapdata.processor.LoggingOutputStream;
 import com.tapdata.processor.ScriptUtil;
 import com.tapdata.processor.constant.JSEngineEnum;
 import com.tapdata.tm.commons.dag.Node;
@@ -23,6 +24,7 @@ import io.tapdata.schema.TapTableMap;
 import io.tapdata.schema.TapTableUtil;
 import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.ThreadContext;
@@ -92,7 +94,17 @@ public class HazelcastSchemaTargetNode extends HazelcastVirtualTargetNode {
 				} else {
 					declareScript = String.format("function declare(tapTable){\n %s \n return tapTable;\n}", declareScript);
 				}
-				this.engine = ScriptUtil.getScriptEngine(JSEngineEnum.NASHORN.getEngineName(), declareScript);
+				this.engine = ScriptUtil.getScriptEngine(
+								JSEngineEnum.GRAALVM_JS.getEngineName(),
+								declareScript,
+								null,
+								null,
+								null,
+								null,
+								((DataProcessorContext) processorBaseContext).getCacheService(),
+								new LoggingOutputStream(logger, Level.INFO),
+								new LoggingOutputStream(logger, Level.ERROR)
+				);
 			}
 		}
 	}

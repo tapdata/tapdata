@@ -38,24 +38,19 @@ public class HazelcastJavaScriptProcessorNodeTest extends BaseTest {
   @Test
   public void testLog1() throws ScriptException {
 
+    Thread.currentThread().setName("test-->");
+
+    Engine engine = Engine.newBuilder()
+            .allowExperimentalOptions(true)
+            .option("engine.WarnInterpreterOnly", "false")
+            .build();
     GraalJSScriptEngine graalJSScriptEngine = GraalJSScriptEngine
-            .create(Engine.newBuilder()
-                            .allowExperimentalOptions(true)
-                            .option("engine.WarnInterpreterOnly", "false")
-                            .option("js.v8-compat", "true")
-                            .out(new LoggingOutputStream(logger, Level.INFO))
-                            .err(new LoggingOutputStream(logger, Level.ERROR))
-                            .build(),
+            .create(engine,
                     Context.newBuilder("js")
                             .allowAllAccess(true)
                             .allowHostAccess(HostAccess.newBuilder(HostAccess.ALL)
                                     .targetTypeMapping(Value.class, Object.class,
-                                            v -> v.hasArrayElements() && v.hasMembers(), v -> v.as(List.class))
-                                    .build()
-                            )
-                            .out(new LoggingOutputStream(logger, Level.INFO))
-                            .err(new LoggingOutputStream(logger, Level.ERROR))
-                            .logHandler(new LoggingOutputStream(logger, Level.ERROR))
+                                            v -> v.hasArrayElements() && v.hasMembers(), v -> v.as(List.class)).build())
             );
 
 

@@ -57,7 +57,8 @@ public class ScriptUtil {
 
 	public static ScriptEngine getScriptEngine(String jsEngineName) {
 		return getScriptEngine(jsEngineName,
-						new LoggingOutputStream(logger, Level.INFO), new LoggingOutputStream(logger, Level.ERROR));
+						new LoggingOutputStream(logger, Level.INFO),
+						new LoggingOutputStream(logger, Level.ERROR));
 	}
 	/**
 	 * 获取js引擎
@@ -79,8 +80,8 @@ public class ScriptUtil {
 									Context.newBuilder("js")
 													.allowAllAccess(true)
 													.allowHostAccess(HostAccess.newBuilder(HostAccess.ALL)
-													.targetTypeMapping(Value.class, Object.class,
-																	v -> v.hasArrayElements() && v.hasMembers(), v -> v.as(List.class)).build())
+																	.targetTypeMapping(Value.class, Object.class,
+																					v -> v.hasArrayElements() && v.hasMembers(), v -> v.as(List.class)).build())
 													.out(out)
 													.err(err)
 					);
