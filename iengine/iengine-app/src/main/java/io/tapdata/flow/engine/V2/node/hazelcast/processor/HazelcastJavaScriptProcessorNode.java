@@ -7,7 +7,6 @@ import com.tapdata.entity.JavaScriptFunctions;
 import com.tapdata.entity.TapdataEvent;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.entity.task.context.ProcessorBaseContext;
-import com.tapdata.processor.LoggingOutputStream;
 import com.tapdata.processor.ScriptUtil;
 import com.tapdata.processor.constant.JSEngineEnum;
 import com.tapdata.processor.context.ProcessContext;
@@ -21,7 +20,6 @@ import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
 import lombok.SneakyThrows;
 import org.apache.commons.collections4.MapUtils;
-import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.graalvm.polyglot.proxy.ProxyObject;
@@ -71,10 +69,8 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
               null,
               null,
               ((DataProcessorContext) processorBaseContext).getCacheService(),
-              new LoggingOutputStream(logger, Level.INFO),
-              new LoggingOutputStream(logger, Level.ERROR)
+              logger
       );
-      ((ScriptEngine) this.engine).put("log", logger);
 
     this.processContextThreadLocal = ThreadLocal.withInitial(HashMap::new);
   }

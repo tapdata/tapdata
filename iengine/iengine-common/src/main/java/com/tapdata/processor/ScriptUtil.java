@@ -55,6 +55,11 @@ public class ScriptUtil {
 
 	public static final String SCRIPT_FUNCTION_NAME = "validate";
 
+	public static ScriptEngine getScriptEngine() {
+		return getScriptEngine(JSEngineEnum.GRAALVM_JS.getEngineName(),
+						new LoggingOutputStream(logger, Level.INFO),
+						new LoggingOutputStream(logger, Level.ERROR));
+	}
 	public static ScriptEngine getScriptEngine(String jsEngineName) {
 		return getScriptEngine(jsEngineName,
 						new LoggingOutputStream(logger, Level.INFO),
@@ -95,25 +100,19 @@ public class ScriptUtil {
 		return scriptEngine;
 	}
 
-	public static Invocable getScriptEngine(String jsEngineName, String script) throws ScriptException {
-		return getScriptEngine(jsEngineName, script, null, null);
-	}
-
-	public static Invocable getScriptEngine(String jsEngineName, String script, List<JavaScriptFunctions> javaScriptFunctions,
-											ClientMongoOperator clientMongoOperator) throws ScriptException {
-		return getScriptEngine(jsEngineName, script, javaScriptFunctions, clientMongoOperator, null, null, null);
-	}
-
-	public static Invocable getScriptEngine(String jsEngineName,
-																					String script,
+	public static Invocable getScriptEngine(String script,
 																					List<JavaScriptFunctions> javaScriptFunctions,
 																					ClientMongoOperator clientMongoOperator,
-																					ScriptConnection source,
-																					ScriptConnection target,
-																					ICacheGetter memoryCacheGetter) throws ScriptException {
-		return getScriptEngine(jsEngineName, script, javaScriptFunctions, clientMongoOperator, source, target, memoryCacheGetter,
-						null, null);
+																					ICacheGetter memoryCacheGetter,
+																					Logger logger) throws ScriptException {
+		return getScriptEngine(JSEngineEnum.GRAALVM_JS.getEngineName(),
+						script, javaScriptFunctions, clientMongoOperator,
+						null,
+						null,
+						memoryCacheGetter,
+						logger);
 	}
+
 	public static Invocable getScriptEngine(String jsEngineName,
 																					String script,
 																					List<JavaScriptFunctions> javaScriptFunctions,
@@ -121,8 +120,7 @@ public class ScriptUtil {
 																					ScriptConnection source,
 																					ScriptConnection target,
 																					ICacheGetter memoryCacheGetter,
-																					OutputStream out,
-																					OutputStream err) throws ScriptException {
+																					Logger logger) throws ScriptException {
 
 		if (StringUtils.isBlank(script)) {
 			return null;
@@ -133,7 +131,9 @@ public class ScriptUtil {
 			if (contextClassLoader == null) {
 				Thread.currentThread().setContextClassLoader(ScriptUtil.class.getClassLoader());
 			}
-			ScriptEngine e = getScriptEngine(jsEngineName, out, err);
+			ScriptEngine e = getScriptEngine(jsEngineName,
+							new LoggingOutputStream(logger, Level.INFO),
+							new LoggingOutputStream(logger, Level.ERROR));
 			String buildInMethod = initBuildInMethod(javaScriptFunctions, clientMongoOperator);
 			String scripts = script + System.lineSeparator() + buildInMethod;
 
@@ -152,15 +152,13 @@ public class ScriptUtil {
 				e.put("CacheService", memoryCacheGetter);
 			}
 
+			if (logger != null) {
+				e.put("log", logger);
+			}
+
 			return (Invocable) e;
 		} finally {
 			Thread.currentThread().setContextClassLoader(contextClassLoader);
-		}
-	}
-
-	private static void loggerLoader(ServiceLoader<ScriptEngineFactory> loader1, String tag) {
-		for (ScriptEngineFactory factory : loader1) {
-			logger.info("{} factory: {} {}", tag,  factory, factory.getScriptEngine().getClass());
 		}
 	}
 
@@ -349,10 +347,6 @@ public class ScriptUtil {
 				Thread.currentThread().setContextClassLoader(urlClassLoader);
 			}
 		}
-//		if (Thread.currentThread().getContextClassLoader() == null) {
-//			final URLClassLoader urlClassLoader = new CustomerClassLoader(new URL[0], ScriptUtil.class.getClassLoader());
-//			Thread.currentThread().setContextClassLoader(urlClassLoader);
-//		}
 
 		return buildInMethod.toString();
 	}
@@ -388,8 +382,6 @@ public class ScriptUtil {
 	}
 
 	public static void main(String[] args) throws ScriptException, NoSuchMethodException, JsonProcessingException {
-		ScriptEngine scriptEngine1 = getScriptEngine(null);
-		System.out.println(scriptEngine1);
 		String script = initBuildInMethod(null, null);
 
 //		script += "function process(record){\n" +
@@ -415,7 +407,7 @@ public class ScriptUtil {
 //
 //    System.out.println(s);
 
-		Invocable scriptEngine = getScriptEngine(JSEngineEnum.NASHORN.getEngineName(), script, null, null, null, null, null);
+		Invocable scriptEngine = getScriptEngine(JSEngineEnum.NASHORN.getEngineName(), script, null, null, null, null, null, logger);
 		Object a = scriptEngine.invokeFunction(FUNCTION_NAME, new HashMap() {{
 			put("a", 1);
 			put("instant", Instant.now());
