@@ -196,7 +196,9 @@ public class DataNodeSampleHandler extends AbstractNodeSampleHandler {
         });
 
         Optional.ofNullable(currentEventTimestamp).ifPresent(sampler -> sampler.setValue(newestEventTimestamp));
-        Optional.ofNullable(replicateLag).ifPresent(sampler -> sampler.setValue(System.currentTimeMillis() - newestEventTimestamp));
+        if (null != newestEventTimestamp) {
+            Optional.ofNullable(replicateLag).ifPresent(sampler -> sampler.setValue(System.currentTimeMillis() - newestEventTimestamp));
+        }
     }
 
     AtomicBoolean firstTableCount = new AtomicBoolean(true);

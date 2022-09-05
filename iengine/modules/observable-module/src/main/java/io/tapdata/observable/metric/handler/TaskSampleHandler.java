@@ -229,6 +229,7 @@ public class TaskSampleHandler extends AbstractHandler {
         outputSpeed.add(total);
 
         long timeCostTotal = 0L;
+        Long newestEventTimestamp = null;
         for (TapRecordEvent event : events) {
             Long time = event.getTime();
             if (null == time) {
@@ -236,8 +237,18 @@ public class TaskSampleHandler extends AbstractHandler {
                 break;
             }
             timeCostTotal += (current - time);
+            if (null != event.getReferenceTime()) {
+                if (null == newestEventTimestamp || event.getReferenceTime() > newestEventTimestamp) {
+                    newestEventTimestamp = event.getReferenceTime();
+                }
+            }
         }
         timeCostAverage.add(total, timeCostTotal);
+        Long finalNewestEventTimestamp = newestEventTimestamp;
+        Optional.ofNullable(currentEventTimestamp).ifPresent(number -> number.setValue(finalNewestEventTimestamp));
+        if (null != newestEventTimestamp) {
+            replicateLag.setValue(System.currentTimeMillis() - newestEventTimestamp);
+        }
     }
 
     public void handleSnapshotDone(Long time) {

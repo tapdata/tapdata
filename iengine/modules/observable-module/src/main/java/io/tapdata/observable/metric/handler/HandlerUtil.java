@@ -1,6 +1,7 @@
 package io.tapdata.observable.metric.handler;
 
 import com.tapdata.entity.TapdataEvent;
+import io.tapdata.entity.event.TapBaseEvent;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.*;
 import io.tapdata.entity.event.ddl.table.*;
@@ -75,6 +76,12 @@ public class HandlerUtil {
             default:
                 recorder.incrOthersTotal();
         }
+        Long ts = ((TapBaseEvent) event).getReferenceTime();
+        if (null != ts) {
+            if (null == recorder.getNewestEventTimestamp() || ts > recorder.getNewestEventTimestamp()) {
+                recorder.setNewestEventTimestamp(ts);
+            }
+        }
     }
 
     @Data
@@ -85,6 +92,7 @@ public class HandlerUtil {
         private long deleteTotal;
         private long othersTotal;
         private long avgProcessTime;
+        private Long newestEventTimestamp;
 
         public void incrDdlTotal() {
             this.ddlTotal += 1;
