@@ -2730,6 +2730,7 @@ class DataSource():
         self._manual_options = []
         self._connector = ""
         self._schema = ""
+        self._uri = ""
         self._sid = ""
         self.c = None
         if connector != "":
@@ -2796,9 +2797,9 @@ class DataSource():
 
     def host(self, host):
         self._manual_options.append(sys._getframe().f_code.co_name)
-        self._host = host
+        self._host = host.split(":")[0]
         if ":" in host:
-            self._port = int(host.split(":")[1])
+            self.port(int(host.split(":")[1]))
         if self._connector == "mysql" or self._connector == "oracle":
             self._manual_options.append("port")
             if ":" in host:
@@ -2920,7 +2921,7 @@ class DataSource():
         d["database_type"] = connector["name"]
         d["config"] = self.to_pdk_dict()
         d["config"].update({
-            "isUri": True if uri != "" else False,
+            "isUri": True if uri else False,
         })
         return d
 
@@ -3044,12 +3045,6 @@ class DataSource():
         return res
 
 
-class Mysql(DataSource):
-    def __init__(self, name):
-        self.connector = "Mysql"
-        super(Mysql, self).__init__(name=name, connector=self.connector)
-
-
 class Oracle(DataSource):
     def __init__(self, name):
         self.connector = "Oracle"
@@ -3102,13 +3097,9 @@ class Kafka(DataSource):
 
 class MongoDB(DataSource):
     def __init__(self, name):
+        self._uri = ""
         self.connector = "mongodb"
         super().__init__(name=name, connector="mongodb")
-
-    def uri(self, url):
-        self.url = url
-        self.is_url = True
-        return self
 
 
 class Mysql(DataSource):
