@@ -23,6 +23,7 @@ public class DbDataTypeAlias {
                 return toChar();
             case "varchar":
             case "character varying":
+            case "varchar2":
                 return toVarchar();
             case "decimal":
             case "number":
