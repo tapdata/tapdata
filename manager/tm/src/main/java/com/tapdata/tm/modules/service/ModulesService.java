@@ -172,20 +172,23 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
         }*/
         Where where = new Where();
         where.put("id", modulesDto.getId().toString());
-        if (ModuleStatusEnum.PENDING.getValue().equals(modulesDto.getStatus())) {
-            Query query = new Query();
-            ObjectId id = modulesDto.getId();
-            if (id != null) {
-                Criteria criteria = Criteria.where("_id").is(id);
-                query.addCriteria(criteria);
-            }
-            //点击生成按钮 才校验(撤销发布等不校验)
-            ModulesDto dto = findOne(query, userDetail);
-            if(!ModuleStatusEnum.ACTIVE.getValue().equals(dto.getStatus()))
-                checkoutInputParamIsValid(modulesDto);
-        }
-        return super.upsertByWhere(where, modulesDto, userDetail);
 
+        Query query = new Query();
+        ObjectId id = modulesDto.getId();
+        if (id != null) {
+            Criteria criteria = Criteria.where("_id").is(id);
+            query.addCriteria(criteria);
+        }
+        //没有生成的接口 不能发布
+        ModulesDto dto = findOne(query, userDetail);
+        if (dto == null)
+            throw new BizException("current module not exist");
+        if (ModuleStatusEnum.ACTIVE.getValue().equals(modulesDto.getStatus()) && ModuleStatusEnum.GENERATING.getValue().equals(modulesDto.getStatus()))
+            throw new BizException("generating status can't release");
+        //点击生成按钮 才校验(撤销发布等不校验)
+        if (ModuleStatusEnum.PENDING.getValue().equals(modulesDto.getStatus()) && !ModuleStatusEnum.ACTIVE.getValue().equals(dto.getStatus()))
+            checkoutInputParamIsValid(modulesDto);
+        return super.upsertByWhere(where, modulesDto, userDetail);
     }
 
     public Map batchUpdateListtags(AttrsParam attrsParam, UserDetail userDetail) {
