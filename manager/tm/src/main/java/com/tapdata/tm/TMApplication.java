@@ -1,5 +1,7 @@
 package com.tapdata.tm;
 
+import com.tapdata.tm.config.security.UserDetail;
+import com.tapdata.tm.discovery.service.DefaultDataDirectoryService;
 import com.tapdata.tm.user.dto.UserDto;
 import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.utils.SpringContextHelper;
@@ -46,6 +48,12 @@ public class TMApplication {
 		}
 
 		TimeZone.setDefault(TimeZone.getTimeZone("Asia/Shanghai"));
+
+		DefaultDataDirectoryService bean = applicationContext.getBean(DefaultDataDirectoryService.class);
+		UserDetail userDetail = userService.loadUserByUsername("admin@admin.com");
+
+		bean.addPdkIds(userDetail);
+		bean.addConnections(userDetail);
 
 	}
 }
