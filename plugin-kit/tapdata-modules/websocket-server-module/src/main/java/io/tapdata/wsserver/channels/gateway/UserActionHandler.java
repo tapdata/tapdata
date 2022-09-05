@@ -112,10 +112,10 @@ public class UserActionHandler implements ListHandler<UserAction>, ListErrorHand
                     IncomingMessage incomingMessage = userAction.getIncomingMessage();
                     Result resultData = userAction.getHandler().onMessageReceived(incomingMessage);
                     if (resultData == null) {
-                        resultData = new Result().code(ResultData.CODE_SUCCESS).forId(userAction.getIncomingData().getId());
+                        resultData = new Result().code(Result.CODE_SUCCESS).forId(userAction.getIncomingData().getId());
                     }
                     if (resultData.getCode() == null)
-                        resultData.setCode(ResultData.CODE_SUCCESS);
+                        resultData.setCode(Result.CODE_SUCCESS);
                     resultData.setForId(userAction.getIncomingData().getId());
                     boolean bool = gatewayChannelModule.sendData(userAction.getUserId(), resultData);
                     if (!bool) {
@@ -141,7 +141,14 @@ public class UserActionHandler implements ListHandler<UserAction>, ListErrorHand
 
                     userAction.getHandler().onOutgoingMessageReceived(userAction.getOutgoingMessage());
                 } catch (Throwable throwable) {
-                    TapLogger.error(TAG, "onOutgoingMessageReceived contentType {} failed, {}", userAction.getIncomingData().getContentType(), throwable.getMessage());
+                    TapLogger.error(TAG, "onOutgoingMessageReceived contentType {} failed, {}", userAction.getOutgoingMessage().getContentType(), throwable.getMessage());
+                }
+                break;
+            case UserAction.ACTION_USER_OUTGOING_DATA:
+                try {
+                    userAction.getHandler().onOutgoingDataReceived(userAction.getOutgoingData());
+                } catch (Throwable throwable) {
+                    TapLogger.error(TAG, "onOutgoingDataReceived contentType {} failed, {}", userAction.getOutgoingData().getContentType(), throwable.getMessage());
                 }
                 break;
             case UserAction.ACTION_USER_INVOCATION:

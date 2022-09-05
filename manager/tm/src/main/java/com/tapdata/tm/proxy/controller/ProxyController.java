@@ -21,6 +21,7 @@ import org.springframework.web.bind.annotation.*;
 
 import javax.servlet.http.HttpServletRequest;
 
+import java.util.Date;
 import java.util.Map;
 
 import static io.tapdata.entity.simplify.TapSimplify.entry;
@@ -76,17 +77,19 @@ public class ProxyController extends BaseController {
     @PostMapping("subscribe")
     public ResponseMessage<SubscribeResponseDto> generateSubscriptionToken(@RequestBody SubscribeDto subscribeDto, HttpServletRequest request) {
         if(subscribeDto == null)
-            throw new BizException("subscribeDto is null");
+            throw new BizException("SubscribeDto is null");
         if(subscribeDto.getSubscribeId() == null)
             throw new BizException("SubscribeId is null");
         if(subscribeDto.getService() == null)
             subscribeDto.setService("engine");
-
+        if(subscribeDto.getExpireSeconds() == null)
+            throw new BizException("SubscribeDto expireSeconds is null");
+        UserDetail userDetail = getLoginUser(); //only for check access_token
         String token = JWTUtils.createToken(key,
                 map(
                         entry("service", subscribeDto.getService().toLowerCase()),
                         entry("subscribeId", subscribeDto.getSubscribeId())
-                ), subscribeDto.getExpireTime());
+                ), subscribeDto.getExpireSeconds() * 1000);
 
         SubscribeResponseDto subscribeResponseDto = new SubscribeResponseDto();
         subscribeResponseDto.setToken(token);
@@ -104,9 +107,9 @@ public class ProxyController extends BaseController {
             throw new BizException("Illegal arguments for subscribeId {}, subscribeId {}", service, subscribeId);
         }
 
-        EventQueueService eventQueueService = InstanceFactory.instance(EventQueueService.class);
+        EventQueueService eventQueueService = InstanceFactory.instance(EventQueueService.class, "sync");
         if(eventQueueService != null) {
-            MessageEntity message = new MessageEntity().content(content).time(System.currentTimeMillis()).subscribeId(subscribeId).service(service);
+            MessageEntity message = new MessageEntity().content(content).time(new Date()).subscribeId(subscribeId).service(service);
             eventQueueService.offer(message);
         }
 

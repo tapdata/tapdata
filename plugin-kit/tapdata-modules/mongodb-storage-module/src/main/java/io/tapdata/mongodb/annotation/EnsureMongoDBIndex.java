@@ -12,4 +12,5 @@ public @interface EnsureMongoDBIndex {
     boolean background() default false;
     boolean unique() default false;
     boolean sparse() default false;
+    long expireAfterSeconds() default -1;
 }

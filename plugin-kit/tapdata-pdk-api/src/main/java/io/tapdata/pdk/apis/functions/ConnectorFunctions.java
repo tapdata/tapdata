@@ -49,6 +49,11 @@ public class ConnectorFunctions extends ConnectionFunctions<ConnectorFunctions> 
     protected DropFieldFunction dropFieldFunction;
     //new_field_event
     protected NewFieldFunction newFieldFunction;
+    protected DataCallbackFunction dataCallbackFunction;
+    public ConnectorFunctions supportDataCallbackFunction(DataCallbackFunction function) {
+        dataCallbackFunction = function;
+        return this;
+    }
     public ConnectorFunctions supportAlterDatabaseTimeZoneFunction(AlterDatabaseTimeZoneFunction function) {
         alterDatabaseTimeZoneFunction = function;
         return this;
@@ -323,5 +328,9 @@ public class ConnectorFunctions extends ConnectionFunctions<ConnectorFunctions> 
 
     public CreateTableV2Function getCreateTableV2Function() {
         return createTableV2Function;
+    }
+
+    public DataCallbackFunction getDataCallbackFunction() {
+        return dataCallbackFunction;
     }
 }

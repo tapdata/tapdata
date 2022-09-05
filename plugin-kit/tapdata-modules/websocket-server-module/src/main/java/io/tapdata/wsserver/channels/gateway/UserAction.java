@@ -25,6 +25,7 @@ public class UserAction {
     public static final int ACTION_USER_INVOCATION = 110;
     public static final int ACTION_USER_REQUEST = 115;
     public static final int ACTION_USER_OUTGOING_MESSAGE = 120;
+    public static final int ACTION_USER_OUTGOING_DATA = 130;
 
     public static final int ACTION_USER_CLOSURE = 1000;
     private int action;
@@ -65,6 +66,12 @@ public class UserAction {
     private OutgoingMessage outgoingMessage;
     public UserAction outgoingMessage(OutgoingMessage outgoingMessage) {
         this.outgoingMessage = outgoingMessage;
+        return this;
+    }
+
+    private OutgoingData outgoingData;
+    public UserAction outgoingData(OutgoingData outgoingData) {
+        this.outgoingData = outgoingData;
         return this;
     }
 //
@@ -152,5 +159,13 @@ public class UserAction {
 
     public void setClosure(Runnable closure) {
         this.closure = closure;
+    }
+
+    public OutgoingData getOutgoingData() {
+        return outgoingData;
+    }
+
+    public void setOutgoingData(OutgoingData outgoingData) {
+        this.outgoingData = outgoingData;
     }
 }

@@ -16,10 +16,10 @@ public class NodeMessageEntity implements ToDocument {
 	public NodeMessageEntity() {
 	}
 	public NodeMessageEntity(MessageEntity message) {
-		if(this.message == null) {
-			throw new CoreException(MongodbErrors.ILLEGAL_ARGUMENTS, "id {} or message {} is null", id, this.message);
+		if(message == null) {
+			throw new CoreException(MongodbErrors.ILLEGAL_ARGUMENTS, "message is null");
 		}
-		this.message = this.message;
+		this.message = message;
 	}
 
 	@Override

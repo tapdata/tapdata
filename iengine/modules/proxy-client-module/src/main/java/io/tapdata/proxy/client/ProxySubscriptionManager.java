@@ -5,12 +5,15 @@ import com.tapdata.constant.ConfigurationCenter;
 import io.tapdata.entity.annotations.Bean;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.modules.api.net.data.IncomingData;
+import io.tapdata.modules.api.net.data.OutgoingData;
 import io.tapdata.modules.api.net.entity.ProxySubscription;
+import io.tapdata.modules.api.proxy.data.NewDataReceived;
 import io.tapdata.modules.api.proxy.data.NodeSubscribeInfo;
 import io.tapdata.pdk.core.api.Node;
 import io.tapdata.pdk.core.executor.ExecutorsManager;
 import io.tapdata.wsclient.modules.imclient.IMClient;
 import io.tapdata.wsclient.modules.imclient.IMClientBuilder;
+import io.tapdata.wsclient.utils.EventManager;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -54,10 +57,18 @@ public class ProxySubscriptionManager {
 							.withToken(accessToken)
 							.build();
 					imClient.start();
+					EventManager eventManager = EventManager.getInstance();
+					//prefix + "." + data.getClass().getSimpleName() + "." + data.getContentType()
+					eventManager.registerEventListener(imClient.getPrefix() + "." + OutgoingData.class.getSimpleName() + "." + NewDataReceived.class.getSimpleName(), this::handleNewDataReceived);
 				}
 			}
 		}
 	}
+
+	private void handleNewDataReceived(String contentType, OutgoingData outgoingData) {
+
+	}
+
 	public void addTaskSubscribeInfo(TaskSubscribeInfo taskSubscribeInfo) {
 		taskSubscribeInfos.add(taskSubscribeInfo);
 		if(taskSubscribeInfo.taskId != null) {

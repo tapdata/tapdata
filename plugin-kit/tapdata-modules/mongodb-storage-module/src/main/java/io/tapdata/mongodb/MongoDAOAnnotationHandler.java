@@ -28,6 +28,7 @@ import java.lang.reflect.Modifier;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
 import static org.bson.codecs.configuration.CodecRegistries.fromProviders;
@@ -128,7 +129,12 @@ public class MongoDAOAnnotationHandler extends ClassAnnotationHandler {
 							if(!hasIndex) {
 								TapLogger.debug(TAG, "Start creating index {}", indexDocument);
 								long time = System.currentTimeMillis();
-								mongoCollection.createIndex(indexDocument, new IndexOptions().unique(ensureMongoDBIndex.unique()).sparse(ensureMongoDBIndex.sparse()).background(ensureMongoDBIndex.background()));
+								IndexOptions indexOptions = new IndexOptions().unique(ensureMongoDBIndex.unique()).sparse(ensureMongoDBIndex.sparse()).background(ensureMongoDBIndex.background());
+								long expireAfterSeconds = ensureMongoDBIndex.expireAfterSeconds();
+								if(expireAfterSeconds > 0) {
+									indexOptions.expireAfter(expireAfterSeconds, TimeUnit.SECONDS);
+								}
+								mongoCollection.createIndex(indexDocument, indexOptions);
 								TapLogger.debug(TAG, "Index {} created, takes {}", indexDocument, (System.currentTimeMillis() - time));
 							}
 						}

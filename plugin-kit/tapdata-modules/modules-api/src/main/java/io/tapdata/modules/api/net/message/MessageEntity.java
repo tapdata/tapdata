@@ -9,17 +9,18 @@ import io.tapdata.entity.utils.io.DataOutputStreamEx;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.util.Date;
 import java.util.Map;
 
 @Implementation(value = TapEntity.class, type = "MessageEntity")
 public class MessageEntity implements TapEntity {
-	private Object content;
-	public MessageEntity content(Object content) {
+	private Map<String, Object> content;
+	public MessageEntity content(Map<String, Object> content) {
 		this.content = content;
 		return this;
 	}
-	private Long time;
-	public MessageEntity time(Long time) {
+	private Date time;
+	public MessageEntity time(Date time) {
 		this.time = time;
 		return this;
 	}
@@ -40,8 +41,9 @@ public class MessageEntity implements TapEntity {
 		byte[] data = dis.readBytes();
 		if(data != null) {
 			ObjectSerializable objectSerializable = InstanceFactory.instance(ObjectSerializable.class);
-			content = objectSerializable.toObject(data);
-			time = dis.readLong();
+			assert objectSerializable != null;
+			content = (Map<String, Object>) objectSerializable.toObject(data);
+			time = dis.readDate();
 			subscribeId = dis.readUTF();
 		}
 	}
@@ -49,24 +51,26 @@ public class MessageEntity implements TapEntity {
 	@Override
 	public void to(OutputStream outputStream) throws IOException {
 		DataOutputStreamEx dos = dataOutputStream(outputStream);
-		dos.writeBytes(InstanceFactory.instance(ObjectSerializable.class).fromObject(content));
-		dos.writeLong(time);
+		ObjectSerializable objectSerializable = InstanceFactory.instance(ObjectSerializable.class);
+		assert objectSerializable != null;
+		dos.writeBytes(objectSerializable.fromObject(content));
+		dos.writeDate(time);
 		dos.writeUTF(subscribeId);
 	}
 
-	public Object getContent() {
+	public Map<String, Object> getContent() {
 		return content;
 	}
 
-	public void setContent(Object content) {
+	public void setContent(Map<String, Object> content) {
 		this.content = content;
 	}
 
-	public Long getTime() {
+	public Date getTime() {
 		return time;
 	}
 
-	public void setTime(Long time) {
+	public void setTime(Date time) {
 		this.time = time;
 	}
 

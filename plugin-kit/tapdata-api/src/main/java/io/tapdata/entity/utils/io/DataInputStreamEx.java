@@ -82,6 +82,14 @@ public class DataInputStreamEx extends InputStream {
 		return null;
 	}
 
+	public Date readDate() throws IOException {
+		if(hasValue()) {
+			long time = dis.readLong();
+			return new Date(time);
+		}
+		return null;
+	}
+
 	public Long readLong() throws IOException {
 		if(hasValue()) {
 			return dis.readLong();

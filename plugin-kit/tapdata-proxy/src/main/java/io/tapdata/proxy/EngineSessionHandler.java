@@ -14,21 +14,29 @@ import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.wsserver.channels.annotation.GatewaySession;
 import io.tapdata.wsserver.channels.gateway.GatewaySessionHandler;
 
+import java.util.Set;
+
 
 @GatewaySession(idType = "engine")
-public class MyGatewaySessionHandler extends GatewaySessionHandler {
-	private static final String TAG = MyGatewaySessionHandler.class.getSimpleName();
+public class EngineSessionHandler extends GatewaySessionHandler {
+	private static final String TAG = EngineSessionHandler.class.getSimpleName();
 
 	@Bean
 	private ProxySubscriptionService proxySubscriptionService;
+	@Bean
+	private SubscribeMap subscribeMap;
 	private final TypeHandlers<TapEntity, Result> typeHandlers = new TypeHandlers<>();
-	public MyGatewaySessionHandler() {
+
+	private Set<String> cachedSubscribedIds;
+	public EngineSessionHandler() {
 		typeHandlers.register(NodeSubscribeInfo.class, this::handleNodeSubscribeInfo);
 	}
 
 	private Result handleNodeSubscribeInfo(NodeSubscribeInfo nodeSubscribeInfo) {
 		String nodeId = CommonUtils.getProperty("tapdata_node_id");
 		proxySubscriptionService.syncProxySubscription(new ProxySubscription().service("engine").nodeId(nodeId).subscribeIds(nodeSubscribeInfo.getSubscribeIds()));
+		Set<String> newSubscribedIds = nodeSubscribeInfo.getSubscribeIds();
+		cachedSubscribedIds = subscribeMap.rebindSubscribeIds(this, newSubscribedIds, cachedSubscribedIds);
 		return null;
 	}
 

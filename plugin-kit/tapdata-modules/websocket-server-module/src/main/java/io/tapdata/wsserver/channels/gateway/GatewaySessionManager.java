@@ -448,6 +448,16 @@ public class GatewaySessionManager {
         queue.offer(new UserAction().handler(gatewaySessionHandler).outgoingMessage(outgoingMessage).userId(userId).action(UserAction.ACTION_USER_OUTGOING_MESSAGE));
     }
 
+    public void receiveOutgoingData(String userId, OutgoingData outgoingData) {
+        GatewaySessionHandler gatewaySessionHandler = userIdGatewaySessionHandlerMap.get(userId);
+        if (gatewaySessionHandler == null)
+            throw new CoreException(WSErrors.ERROR_USER_NOT_EXIST, "User {} not exist while receiving outgoingData", userId);
+
+        //接收消息采用房间的消息单线程来处理， 和房间状态单线程分开
+        SingleThreadBlockingQueue<UserAction> queue = getUserActionQueue(userId/* + "_message" 暂时不考虑每个房间收消息是独立的单线程*/);
+        queue.offer(new UserAction().handler(gatewaySessionHandler).outgoingData(outgoingData).userId(userId).action(UserAction.ACTION_USER_OUTGOING_DATA));
+    }
+
     /**
      * 缓存当InstantMessage#cacheTimeKey不为空，
      * 更新时间GatewaySessionHandler#cacheKeyToTimeMap

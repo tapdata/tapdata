@@ -129,6 +129,10 @@ public abstract class GatewaySessionHandler {
         gatewayChannelModule.sendData(userChannel.getUserId(), outgoingMessage);
     }
 
+    void onOutgoingDataReceived(OutgoingData outgoingData) {
+        gatewayChannelModule.sendData(userChannel.getUserId(), outgoingData);
+    }
+
     public boolean sendData(String userId, String contentType, TapEntity data) {
         OutgoingData outgoingData = new OutgoingData().contentType(contentType).message(data).time(System.currentTimeMillis());
         return gatewayChannelModule.sendData(userId, outgoingData);

@@ -113,6 +113,13 @@ public class DataOutputStreamEx extends OutputStream {
 		  dos.writeInt(paramInt);
   }
 
+	public void writeDate(Date date)
+			throws IOException {
+		if(writeValueStatus(date)) {
+			dos.writeLong(date.getTime());
+		}
+	}
+
   public void writeLong(Long paramLong)
     throws IOException {
 	  if(writeValueStatus(paramLong))
