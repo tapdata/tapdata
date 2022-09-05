@@ -172,8 +172,18 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
         }*/
         Where where = new Where();
         where.put("id", modulesDto.getId().toString());
-        if(ModuleStatusEnum.PENDING.getValue().equals(modulesDto.getStatus()))
-            checkoutInputParamIsValid(modulesDto);
+        if (ModuleStatusEnum.PENDING.getValue().equals(modulesDto.getStatus())) {
+            Query query = new Query();
+            ObjectId id = modulesDto.getId();
+            if (id != null) {
+                Criteria criteria = Criteria.where("_id").is(id);
+                query.addCriteria(criteria);
+            }
+            //点击生成按钮 才校验(撤销发布等不校验)
+            ModulesDto dto = findOne(query, userDetail);
+            if(!ModuleStatusEnum.ACTIVE.getValue().equals(dto.getStatus()))
+                checkoutInputParamIsValid(modulesDto);
+        }
         return super.upsertByWhere(where, modulesDto, userDetail);
 
     }
@@ -1087,7 +1097,7 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
     private void checkoutInputParamIsValid(ModulesDto modulesDto) {
         String apiType = modulesDto.getApiType();
         List<Path> paths = modulesDto.getPaths();
-        if(StringUtils.isBlank(modulesDto.getDataSource())) throw new BizException("dataSource can't be null");
+        if(StringUtils.isBlank(modulesDto.getDataSource())) throw new BizException("datasource can't be null");
         if(StringUtils.isBlank(modulesDto.getTableName())) throw new BizException("tableName can't be null");
         if(StringUtils.isBlank(modulesDto.getApiType())) throw new BizException("apiType can't be null");
         if(StringUtils.isBlank(modulesDto.getConnectionId())) throw new BizException("connectionId can't be null");
