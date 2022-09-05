@@ -350,6 +350,8 @@ public class CodingConnector extends ConnectorBase {
 			TapLogger.info(TAG, "Connection node config issueType exception: {} ", token);
 		}
 
+		IssueLoader.create(nodeContext).verifyIssue(nodeContext);
+
 		int currentQueryCount = 0,queryIndex = 0 ;
 		IssueLoader issueLoader = IssueLoader.create(nodeContext);
 		final List<TapEvent>[] events = new List[]{new ArrayList<>()};
@@ -360,7 +362,7 @@ public class CodingConnector extends ConnectorBase {
 				.builder("SortKey","UPDATED_AT")
 				.builder("IssueType",IssueType.verifyType(issueType))
 				.builder("PageSize",readSize)
-				.builder("SortValue","ASC");
+				.builder("SortValue","DESC");
 		List<Map<String,Object>> coditions = list(map(
 				entry("Key","UPDATED_AT"),
 				entry("Value",issueLoader.longToDateStr(readStartTime)+"_"+issueLoader.longToDateStr(readEndTime)))
@@ -380,7 +382,7 @@ public class CodingConnector extends ConnectorBase {
 		CodingHttp authorization = CodingHttp.create(header.getEntity(), String.format(CodingStarter.OPEN_API_URL, teamName));
 		HttpRequest requestDetail = authorization.createHttpRequest();
 		do{
-			pageBody.builder("PageNumber",queryIndex++);
+			pageBody.builder("PageNumber",++queryIndex);
 			Map<String,Object> dataMap = issueLoader.getIssuePage(header.getEntity(),pageBody.getEntity(),String.format(CodingStarter.OPEN_API_URL,teamName));
 			if (null == dataMap || null == dataMap.get("List")) {
 				TapLogger.info(TAG, "Paging result request failed, the Issue list is empty: page index = {}",queryIndex);

@@ -1,10 +1,16 @@
 package io.tapdata.coding.service;
 
+import cn.hutool.http.HttpRequest;
+import io.tapdata.coding.enums.IssueType;
 import io.tapdata.coding.utils.http.CodingHttp;
+import io.tapdata.coding.utils.http.HttpEntity;
+import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.DataMap;
+import io.tapdata.pdk.apis.context.ConfigContext;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
+import io.tapdata.pdk.apis.context.TapConnectorContext;
 
 import java.text.SimpleDateFormat;
 import java.util.*;
@@ -149,6 +155,41 @@ public class IssueLoader extends CodingStarter {
         SimpleDateFormat formatter = new SimpleDateFormat("yyyy-MM-dd");
         String dateStr = formatter.format(new Date(date));
         return dateStr.length()>10?"9999-12-31":dateStr;
+    }
+
+    public void verifyIssue(TapConnectorContext context){
+        DataMap connectionConfigConfigMap = context.getConnectionConfig();
+        String projectName = connectionConfigConfigMap.getString("projectName");
+        String token = connectionConfigConfigMap.getString("token");
+        String teamName = connectionConfigConfigMap.getString("teamName");
+        DataMap nodeConfig = context.getNodeConfig();
+        String IterationIds = nodeConfig.getString("iterationCodes");
+        HttpEntity<String,String> header = HttpEntity.create().builder("Authorization",token);
+        HttpEntity<String,Object> issueDetialBody = HttpEntity.create()
+                .builder("Action","DescribeIteration")
+                .builder("ProjectName",projectName);
+        String [] codes = IterationIds.split(",");
+        StringBuilder errorIds = new StringBuilder();
+        if (codes.length>0){
+            CodingHttp authorization = CodingHttp.create(header.getEntity(), String.format(CodingStarter.OPEN_API_URL, teamName));
+            HttpRequest requestDetail = authorization.createHttpRequest();
+            for (String codeStr : codes) {
+                Integer code = Integer.parseInt(codeStr);
+                //查询事项详情
+                issueDetialBody.builder("IterationCode", code);
+                Map<String,Object> issueDetailResponse = authorization.body(issueDetialBody.getEntity()).post(requestDetail);
+                if ( null!= issueDetailResponse
+                        && null != issueDetailResponse.get("Response")
+                        && null != ((Map<String,Object>)issueDetailResponse.get("Response")).get("Iteration")){
+                    continue;
+                }else {
+                    errorIds.append(codeStr).append(",");
+                }
+            }
+        }
+        if (errorIds.length()>0){
+            throw new CoreException("The following iteration does not exist:"+errorIds.toString());
+        }
     }
 
     public Long dateStrToLong(String date){
