@@ -57,7 +57,6 @@ public class HazelcastSampleSourcePdkDataNode extends HazelcastPdkBaseNode {
 
     try {
       Node<?> node = dataProcessorContext.getNode();
-      Thread.currentThread().setName("PDK-SAMPLE-SOURCE-RUNNER-" + node.getName() + "(" + node.getId() + ")");
       Log4jUtil.setThreadContext(dataProcessorContext.getTaskDto());
       TapTableMap<String, TapTable> tapTableMap = dataProcessorContext.getTapTableMap();
       List<String> tables = new ArrayList<>(tapTableMap.keySet());
