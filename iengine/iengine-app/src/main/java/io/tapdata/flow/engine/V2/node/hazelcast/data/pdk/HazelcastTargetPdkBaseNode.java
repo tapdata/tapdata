@@ -293,8 +293,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 					}
 				}
 			} catch (Throwable throwable) {
-				NodeException nodeException = new NodeException(throwable).context(getDataProcessorContext()).event(tapdataEvent.getTapEvent());
-				throw nodeException;
+				throw errorHandle(throwable, "handel events failed: " + throwable.getMessage());
 			}
 		}
 		if (CollectionUtils.isNotEmpty(tapEvents)) {
@@ -304,12 +303,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 			try {
 				processEvents(tapEvents);
 			} catch (Throwable throwable) {
-				NodeException nodeException = new NodeException(throwable)
-						.context(getDataProcessorContext())
-						.events(tapdataEvents.stream().map(TapdataEvent::getTapEvent).collect(Collectors.toList()));
-				logger.error(nodeException.getMessage(), nodeException);
-				obsLogger.error(nodeException.getMessage(), nodeException);
-				throw nodeException;
+				throw errorHandle(throwable, "process events failed: " + throwable.getMessage());
 			}
 		}
 		if (CollectionUtils.isNotEmpty(tapdataShareLogEvents)) {
@@ -319,12 +313,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 			try {
 				processShareLog(tapdataShareLogEvents);
 			} catch (Throwable throwable) {
-				NodeException nodeException = new NodeException(throwable)
-						.context(getDataProcessorContext())
-						.events(tapdataShareLogEvents.stream().map(TapdataShareLogEvent::getTapEvent).collect(Collectors.toList()));
-				logger.error(nodeException.getMessage(), nodeException);
-				obsLogger.error(nodeException.getMessage(), nodeException);
-				throw nodeException;
+				throw errorHandle(throwable, "process share log failed: " + throwable.getMessage());
 			}
 		}
 		flushSyncProgressMap(lastDmlTapdataEvent.get());
@@ -539,6 +528,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 				this::handleTapdataEvents,
 				this::flushSyncProgressMap,
 				this::errorHandle,
+				this::isRunning,
 				dataProcessorContext.getTaskDto()
 		);
 	}

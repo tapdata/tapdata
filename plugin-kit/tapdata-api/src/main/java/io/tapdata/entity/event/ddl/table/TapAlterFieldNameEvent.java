@@ -2,12 +2,10 @@ package io.tapdata.entity.event.ddl.table;
 
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.ddl.entity.ValueChange;
-import io.tapdata.entity.schema.TapField;
 
 public class TapAlterFieldNameEvent extends TapFieldBaseEvent {
     public static final int TYPE = 202;
     private ValueChange<String> nameChange;
-    private TapField oldField;
     public TapAlterFieldNameEvent nameChange(ValueChange<String> change) {
         this.nameChange = change;
         return this;
@@ -30,13 +28,5 @@ public class TapAlterFieldNameEvent extends TapFieldBaseEvent {
 
     public void setNameChange(ValueChange<String> nameChange) {
         this.nameChange = nameChange;
-    }
-
-    public TapField getOldField() {
-        return oldField;
-    }
-
-    public void setOldField(TapField oldField) {
-        this.oldField = oldField;
     }
 }

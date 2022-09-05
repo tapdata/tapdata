@@ -113,7 +113,7 @@ public class ExternalJarManager {
                 loadAtRuntime();
             }
         } else {
-            TapLogger.warn(TAG, "Already started");
+            TapLogger.debug(TAG, "Already started");
         }
         return this;
     }
@@ -129,7 +129,7 @@ public class ExternalJarManager {
     private void loadAtRuntime() {
         if (loadNewJarAtRuntime || updateJarWhenIdleAtRuntime) {
             int seconds = CommonUtils.getPropertyInt("pdk_load_jar_interval_seconds", 30);
-            TapLogger.info(TAG, "Check jar files every {} seconds for loadNewJarAtRuntime {} updateJarWhenIdleAtRuntime {}", seconds, loadNewJarAtRuntime, updateJarWhenIdleAtRuntime);
+            TapLogger.debug(TAG, "Check jar files every {} seconds for loadNewJarAtRuntime {} updateJarWhenIdleAtRuntime {}", seconds, loadNewJarAtRuntime, updateJarWhenIdleAtRuntime);
 
             ExecutorsManager.getInstance().getScheduledExecutorService().scheduleAtFixedRate(() -> {
                 try {
@@ -219,7 +219,7 @@ public class ExternalJarManager {
                     if(!finalTheRunningFolder.exists()) {
                         FileUtils.forceMkdir(finalTheRunningFolder);
                     } else if(!finalTheRunningFolder.isDirectory()) {
-                        TapLogger.warn(TAG, "tap-running is not a directory, will delete it, create a directory again");
+                        TapLogger.debug(TAG, "tap-running is not a directory, will delete it, create a directory again");
                         FileUtils.forceDelete(finalTheRunningFolder);
                         FileUtils.forceMkdir(finalTheRunningFolder);
                     } else {
@@ -242,8 +242,8 @@ public class ExternalJarManager {
                         )
                         .setUrls(urls)
                         .addClassLoader(dependencyURLClassLoader.getActualClassLoader()));
-                TapLogger.info(TAG, "Analyze jar file {}", targetJarFile.getAbsolutePath());
-                TapLogger.info(TAG, "Tapdata SDK will only scan classes under package 'io' or 'pdk', please ensure your annotated classes are following this rule. ");
+                TapLogger.debug(TAG, "Analyze jar file {}", targetJarFile.getAbsolutePath());
+                TapLogger.debug(TAG, "Tapdata SDK will only scan classes under package 'io' or 'pdk', please ensure your annotated classes are following this rule. ");
                 AnnotationUtils.runClassAnnotationHandlers(reflections, jarAnnotationHandlersListener.annotationHandlers(jar), TAG);
 
 //                Set<Class<?>> connectorClasses = reflections.getTypesAnnotatedWith(OpenAPIConnector.class, true);
@@ -281,7 +281,7 @@ public class ExternalJarManager {
                     urls.add(jar.toURI().toURL());
                 } catch (MalformedURLException e) {
                     e.printStackTrace();
-                    TapLogger.warn(TAG, "MalformedURL {} while load jars, error {}", path, e.getMessage());
+                    TapLogger.debug(TAG, "MalformedURL {} while load jars, error {}", path, e.getMessage());
                 }
             });
             if (!urls.isEmpty()) {
