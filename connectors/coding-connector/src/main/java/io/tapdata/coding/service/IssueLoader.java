@@ -1,6 +1,8 @@
 package io.tapdata.coding.service;
 
+import cn.hutool.http.HttpRequest;
 import io.tapdata.coding.utils.http.CodingHttp;
+import io.tapdata.coding.utils.http.HttpEntity;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.DataMap;
@@ -153,5 +155,35 @@ public class IssueLoader extends CodingStarter {
 
     public Long dateStrToLong(String date){
         return null;
+    }
+
+    public Map<String,Object> readIssueDetail(
+            HttpEntity<String,Object> issueDetailBody,
+            CodingHttp authorization,
+            HttpRequest requestDetail,
+            String code,
+            String projectName,
+            String teamName
+    ){
+        //查询事项详情
+        Integer codeValue = Integer.parseInt(String.valueOf(code));
+        issueDetailBody.builder("IssueCode", codeValue);
+        Map<String,Object> issueDetailResponse = authorization.body(issueDetailBody.getEntity()).post(requestDetail);
+        if (null == issueDetailResponse){
+            TapLogger.info(TAG, "HTTP request exception, Issue Detail acquisition failed: {} ", CodingStarter.OPEN_API_URL+"?Action=DescribeIssue&IssueCode="+code);
+            throw new RuntimeException("HTTP request exception, Issue Detail acquisition failed: "+CodingStarter.OPEN_API_URL+"?Action=DescribeIssue&IssueCode="+code);
+        }
+        issueDetailResponse = (Map<String,Object>)issueDetailResponse.get("Response");
+        if (null == issueDetailResponse){
+            TapLogger.info(TAG, "HTTP request exception, Issue Detail acquisition failed: {} ", CodingStarter.OPEN_API_URL+"?Action=DescribeIssue&IssueCode="+code);
+            throw new RuntimeException("HTTP request exception, Issue Detail acquisition failed: "+CodingStarter.OPEN_API_URL+"?Action=DescribeIssue&IssueCode="+code);
+        }
+        Map<String,Object> issueDetail = (Map<String,Object>)issueDetailResponse.get("Issue");
+        if (null == issueDetail){
+            TapLogger.info(TAG, "Issue Detail acquisition failed: IssueCode {} ", code);
+            throw new RuntimeException("Issue Detail acquisition failed: IssueCode "+code);
+        }
+        this.composeIssue(projectName, teamName, issueDetail);
+        return issueDetail;
     }
 }

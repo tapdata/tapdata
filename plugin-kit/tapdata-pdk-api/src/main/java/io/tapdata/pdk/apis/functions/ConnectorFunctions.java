@@ -49,6 +49,7 @@ public class ConnectorFunctions extends ConnectionFunctions<ConnectorFunctions> 
     protected DropFieldFunction dropFieldFunction;
     //new_field_event
     protected NewFieldFunction newFieldFunction;
+    protected WebHookFunction webHookFunction;
     public ConnectorFunctions supportAlterDatabaseTimeZoneFunction(AlterDatabaseTimeZoneFunction function) {
         alterDatabaseTimeZoneFunction = function;
         return this;
@@ -234,6 +235,10 @@ public class ConnectorFunctions extends ConnectionFunctions<ConnectorFunctions> 
 
     public ConnectorFunctions supportQueryByAdvanceFilter(QueryByAdvanceFilterFunction function) {
         this.queryByAdvanceFilterFunction = function;
+        return this;
+    }
+    public ConnectorFunctions supportWebHookFunctions(WebHookFunction function) {
+        this.webHookFunction = function;
         return this;
     }
 

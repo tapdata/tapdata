@@ -4,6 +4,7 @@ import cn.hutool.core.date.DateUtil;
 import cn.hutool.http.HttpRequest;
 import io.tapdata.base.ConnectorBase;
 import io.tapdata.coding.entity.CodingOffset;
+import io.tapdata.coding.enums.IssueEventTypes;
 import io.tapdata.coding.enums.IssueType;
 import io.tapdata.coding.service.CodingStarter;
 import io.tapdata.coding.service.IssueLoader;
@@ -12,6 +13,7 @@ import io.tapdata.coding.utils.collection.MapUtil;
 import io.tapdata.coding.utils.http.CodingHttp;
 import io.tapdata.coding.utils.http.HttpEntity;
 import io.tapdata.entity.codec.TapCodecsRegistry;
+import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapTable;
@@ -34,6 +36,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
+import static io.tapdata.coding.enums.IssueEventTypes.*;
 import static io.tapdata.entity.simplify.TapSimplify.list;
 import static io.tapdata.entity.simplify.TapSimplify.map;
 import static io.tapdata.entity.utils.JavaTypesToTapTypes.*;
@@ -67,8 +70,64 @@ public class CodingConnector extends ConnectorBase {
 		connectorFunctions.supportBatchRead(this::batchRead)
 				.supportBatchCount(this::batchCount)
 				.supportTimestampToStreamOffset(this::timestampToStreamOffset)
-				.supportStreamRead(this::streamRead);
+				.supportStreamRead(this::streamRead)
+//				.supportWebHookFunctions(this::webHookFunction)
+		;
 
+	}
+
+	private void dataCallback(DataFetcher dataFetcher, List<String> tableList, BiConsumer<List<TapEvent>, Object> consumer) {
+		String table = tableList.get(0);
+		if (null == table || "".equals(table)){
+			TapLogger.info(TAG, "Data Callback error, the tableName is empty.");
+			throw new RuntimeException("Data Callback error, the tableName is empty.");
+		}
+		TapLogger.info(TAG, "Table :{} ,data callBack starting...", table);
+		List<MessageEntity> dataMaps = null;//List<MessageEntity> dataMaps = null;//
+		while((dataMaps = dataFetcher.consumer(100,500)) != null) {  //dataFetcher.consumer(p1,p2)  p1->count,p2->times(ms)
+			dataMaps.forEach(data->{
+				List<TapEvent> tapEvents = this.tapEvent(data, table);
+				if (null != tapEvents && tapEvents.size()>0) {
+					consumer.accept(tapEvents, null);//consumer.accept(tapEventList);
+				}
+			});
+		}
+		TapLogger.info(TAG, "Table :{} ,data callBack over.", table);
+	}
+
+	private void webHookFunction(
+			 DataMap dataMap,
+			 Object offsetState,
+			 BiConsumer<List<TapEvent>, Object> consumer,
+			 String table ) {
+		if (null == dataMap){
+			throw new CoreException("Coding event...");
+		}
+		String webHookEventType = String.valueOf(dataMap.get("event"));
+		Map<String,Object> issue = (Map<String,Object>)dataMap.get("issue");
+		List<TapEvent> tapEventList = new ArrayList<>();
+		switch (webHookEventType){
+			case ISSUE_CREATED: {
+				tapEventList.add( insertRecordEvent(issue, table) );
+				break;
+			}
+			case ISSUE_DELETED:{
+				tapEventList.add( deleteDMLEvent(issue,table) );break;
+			}
+			case ISSUE_UPDATE:;
+//			case ISSUE_COMMENT_CREATED:;
+			case ISSUE_STATUS_UPDATED:;
+			case ISSUE_ASSIGNEE_CHANGED:;
+			case ITERATION_PLANNED:;
+			case ISSUE_RELATIONSHIP_CHANGED:;
+			case UPDATE_WORK_INFORMATION: {
+				tapEventList.add( updateDMLEvent(null,issue,table) );break;
+			}
+			default:break;
+		}
+		if (null != tapEventList && tapEventList.size()>0) {
+			consumer.accept(tapEventList, offsetState);
+		}
 	}
 
 	private void streamRead(
@@ -390,30 +449,30 @@ public class CodingConnector extends ConnectorBase {
 			currentQueryCount = resultList.size();
 			batchReadPageSize = null != dataMap.get("PageSize") ? (int)(dataMap.get("PageSize")) : batchReadPageSize;
 			for (Map<String, Object> stringObjectMap : resultList) {
-				Integer code = Integer.parseInt(String.valueOf(stringObjectMap.get("Code")));
-				//查询事项详情
-				issueDetialBody.builder("IssueCode", code);
-				Map<String,Object> issueDetailResponse = authorization.body(issueDetialBody.getEntity()).post(requestDetail);
-				if (null == issueDetailResponse){
-					TapLogger.info(TAG, "HTTP request exception, Issue Detail acquisition failed: {} ", CodingStarter.OPEN_API_URL+"?Action=DescribeIssue&IssueCode="+code);
-					throw new RuntimeException("HTTP request exception, Issue Detail acquisition failed: "+CodingStarter.OPEN_API_URL+"?Action=DescribeIssue&IssueCode="+code);
-				}
-				issueDetailResponse = (Map<String,Object>)issueDetailResponse.get("Response");
-				if (null == issueDetailResponse){
-					TapLogger.info(TAG, "HTTP request exception, Issue Detail acquisition failed: {} ", CodingStarter.OPEN_API_URL+"?Action=DescribeIssue&IssueCode="+code);
-					throw new RuntimeException("HTTP request exception, Issue Detail acquisition failed: "+CodingStarter.OPEN_API_URL+"?Action=DescribeIssue&IssueCode="+code);
-				}
-				Map<String,Object> issueDetail = (Map<String,Object>)issueDetailResponse.get("Issue");
-				if (null == issueDetail){
-					TapLogger.info(TAG, "Issue Detail acquisition failed: IssueCode {} ", code);
-					throw new RuntimeException("Issue Detail acquisition failed: IssueCode "+code);
-				}
+				//Integer code = Integer.parseInt(String.valueOf(stringObjectMap.get("Code")));
+				////查询事项详情
+				//issueDetialBody.builder("IssueCode", code);
+				//Map<String,Object> issueDetailResponse = authorization.body(issueDetialBody.getEntity()).post(requestDetail);
+				//if (null == issueDetailResponse){
+				//	TapLogger.info(TAG, "HTTP request exception, Issue Detail acquisition failed: {} ", CodingStarter.OPEN_API_URL+"?Action=DescribeIssue&IssueCode="+code);
+				//	throw new RuntimeException("HTTP request exception, Issue Detail acquisition failed: "+CodingStarter.OPEN_API_URL+"?Action=DescribeIssue&IssueCode="+code);
+				//}
+				//issueDetailResponse = (Map<String,Object>)issueDetailResponse.get("Response");
+				//if (null == issueDetailResponse){
+				//	TapLogger.info(TAG, "HTTP request exception, Issue Detail acquisition failed: {} ", CodingStarter.OPEN_API_URL+"?Action=DescribeIssue&IssueCode="+code);
+				//	throw new RuntimeException("HTTP request exception, Issue Detail acquisition failed: "+CodingStarter.OPEN_API_URL+"?Action=DescribeIssue&IssueCode="+code);
+				//}
+				//Map<String,Object> issueDetail = (Map<String,Object>)issueDetailResponse.get("Issue");
+				//if (null == issueDetail){
+				//	TapLogger.info(TAG, "Issue Detail acquisition failed: IssueCode {} ", code);
+				//	throw new RuntimeException("Issue Detail acquisition failed: IssueCode "+code);
+				//}
+				//issueLoader.composeIssue(projectName, teamName, issueDetail);
+				String code = String.valueOf(stringObjectMap.get("Code"));
+				Map<String,Object> issueDetail = issueLoader.readIssueDetail(issueDetialBody,authorization,requestDetail,code,projectName,teamName);
 
-				issueLoader.composeIssue(projectName, teamName, issueDetail);
 				Long referenceTime = (Long)issueDetail.get("UpdatedAt");
-
 				Long currentTimePoint = referenceTime - referenceTime % (24*60*60*1000);//时间片段
-
 				Integer issueDetialHash = MapUtil.create().hashCode(issueDetail);
 
 				//issueDetial的更新时间字段值是否属于当前时间片段，并且issueDiteal的hashcode是否在上一次批量读取同一时间段内
@@ -437,5 +496,43 @@ public class CodingConnector extends ConnectorBase {
 			}
 		}while (currentQueryCount >= batchReadPageSize);
 		if (events[0].size() > 0)  consumer.accept(events[0], offsetState);
+	}
+
+	private List<TapEvent> tapEvent(MessageEntity messageEntity,String table){
+		List<TapEvent> tapEventList = new ArrayList<>();
+		Map<String,Object> issue = messageEntity.getIssue();
+		String webHookEventType = String.valueOf(issue.get("event"));
+
+//		HttpEntity<String,String> header = HttpEntity.create().builder("Authorization",token);
+//		HttpEntity<String,Object> issueDetialBody = HttpEntity.create()
+//				.builder("Action","DescribeIssue")
+//				.builder("ProjectName",projectName);
+//		String code = String.valueOf(stringObjectMap.get("Code"));
+//		Map<String,Object> issueDetail = issueLoader.readIssueDetail(issueDetialBody,authorization,requestDetail,code,projectName,teamName);
+
+		switch (webHookEventType){
+			case ISSUE_CREATED: {
+				Object codeObj = issue.get("Code");
+				if (null!= codeObj){
+					IssueLoader loader = IssueLoader.create(null);
+					tapEventList.add( insertRecordEvent(issue, table) );
+					break;
+				}
+			}
+			case ISSUE_DELETED:{
+				tapEventList.add( deleteDMLEvent(issue, table) );break;
+			}
+			case ISSUE_UPDATE:;
+//			case ISSUE_COMMENT_CREATED:;
+			case ISSUE_STATUS_UPDATED:;
+			case ISSUE_ASSIGNEE_CHANGED:;
+			case ITERATION_PLANNED:;
+			case ISSUE_RELATIONSHIP_CHANGED:;
+			case UPDATE_WORK_INFORMATION: {
+				tapEventList.add( updateDMLEvent(null,issue, table) );break;
+			}
+			default:break;
+		}
+		return tapEventList;
 	}
 }

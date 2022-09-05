@@ -80,6 +80,14 @@
           "apiServerKey": "database_host",
           "x-index": 3,
           "required": true
+        },
+        "webHook": {
+          "type": "String",
+          "title": "${webHook}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "x-index": 4,
+          "required": true
         }
       }
     }
@@ -90,6 +98,7 @@
       "token": "Token",
       "projectName": "project name",
       "teamName": "Team name",
+      "webHook": "Service Hook",
 
       "iterationCodes": "Iteration",
       "issueType": "Issue Type",
@@ -124,6 +133,7 @@
       "token": "令牌",
       "projectName": "项目名称",
       "teamName": "团队名称",
+      "webHook": "服务挂钩",
 
       "iterationCodes": "迭代",
       "issueType": "事项类型",
@@ -158,6 +168,7 @@
       "token": "權杖",
       "projectName": "項目名稱",
       "teamName": "團隊名稱",
+      "webHook": "服務掛鉤",
 
       "iterationCodes": "迭代",
       "issueType": "事項类型",
