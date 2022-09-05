@@ -1087,6 +1087,13 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
     private void checkoutInputParamIsValid(ModulesDto modulesDto) {
         String apiType = modulesDto.getApiType();
         List<Path> paths = modulesDto.getPaths();
+        if(StringUtils.isBlank(modulesDto.getDataSource())) throw new BizException("dataSource can't be null");
+        if(StringUtils.isBlank(modulesDto.getTableName())) throw new BizException("tableName can't be null");
+        if(StringUtils.isBlank(modulesDto.getApiType())) throw new BizException("apiType can't be null");
+        if(StringUtils.isBlank(modulesDto.getConnectionId())) throw new BizException("connectionId can't be null");
+        if(StringUtils.isBlank(modulesDto.getOperationType())) throw new BizException("operationType can't be null");
+        if(StringUtils.isBlank(modulesDto.getConnectionType())) throw new BizException("connectionType can't be null");
+        if(StringUtils.isBlank(modulesDto.getConnectionName())) throw new BizException("connectionName can't be null");
         if (CollectionUtils.isNotEmpty(paths)) {
             for (Path path : paths) {
                 //base param can't be null

@@ -39,7 +39,7 @@ public class ModulesController extends BaseController {
 
   @Operation(summary = "新增module")
   @PostMapping
-  public ResponseMessage<ModulesDto> save(@Validated @RequestBody ModulesDto modulesDto) {
+  public ResponseMessage<ModulesDto> save(@RequestBody ModulesDto modulesDto) {
     modulesDto.setId(null);
     return success(modulesService.save(modulesDto, getLoginUser()));
   }
@@ -52,7 +52,7 @@ public class ModulesController extends BaseController {
    */
   @Operation(summary = "修改 发布  modules")
   @PatchMapping()
-  public ResponseMessage<ModulesDto> update(@Validated @RequestBody ModulesDto module) {
+  public ResponseMessage<ModulesDto> update(@RequestBody ModulesDto module) {
     return success(modulesService.updateModuleById(module, getLoginUser()));
   }
 
