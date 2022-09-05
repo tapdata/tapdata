@@ -46,9 +46,8 @@
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-assembly-plugin</artifactId>
+                <artifactId>maven-shade-plugin</artifactId>
                 <version>3.1.1</version>
-
                 <configuration>
                     <finalName>${connector.file.name}</finalName>
                     <descriptorRefs>
@@ -78,11 +77,21 @@
 
                 <executions>
                     <execution>
-                        <id>make-assembly</id>
                         <phase>package</phase>
                         <goals>
-                            <goal>single</goal>
+                            <goal>shade</goal>
                         </goals>
+                        <configuration>
+                            <createDependencyReducedPom>false</createDependencyReducedPom>
+                            <filters>
+                                <filter>
+                                    <artifact>io.debezium:debezium-core</artifact>
+                                    <excludes>
+                                        <exclude>io/debezium/jdbc/JdbcValueConverters</exclude>
+                                    </excludes>
+                                </filter>
+                            </filters>
+                        </configuration>
                     </execution>
                 </executions>
 
@@ -177,33 +186,6 @@
                         </configuration>
                     </execution>
                 </executions>
-            </plugin>
-            <plugin>
-                <groupId>org.codehaus.mojo</groupId>
-                <artifactId>exec-maven-plugin</artifactId>
-                <version>3.0.0</version>
-                <executions>
-                    <execution>
-                        <phase>install</phase>
-                        <goals>
-                            <goal>exec</goal>
-                        </goals>
-                    </execution>
-                </executions>
-                <configuration>
-                    <executable>build/pdk</executable>
-                    <!-- optional -->
-                    <workingDirectory>../..</workingDirectory>
-                    <arguments>
-                        <argument>jar</argument>
-                        <argument>-m</argument>
-                        <argument>connectors/${project.artifactId}</argument>
-                        <argument>connectors/dist/${project.artifactId}-v${project.version}.jar</argument>
-                    </arguments>
-                    <environmentVariables>
-                        <LANG>en_US</LANG>
-                    </environmentVariables>
-                </configuration>
             </plugin>
         </plugins>
     </build>
