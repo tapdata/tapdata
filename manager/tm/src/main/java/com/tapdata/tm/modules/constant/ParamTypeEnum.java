@@ -32,7 +32,7 @@ public enum ParamTypeEnum {
         if(StringUtils.isBlank(type))
             throw new BizException("params's type can't be null");
         if (StringUtils.isBlank(defaultValue)) {
-            long count = Arrays.stream(values()).filter(p -> p.type.equals(type)).count();
+            long count = Arrays.stream(values()).filter(p -> p.type.equalsIgnoreCase(type)).count();
             if(count<1) throw new BizException(type + " type is nonsupport");
             return true;
         }
