@@ -10,9 +10,12 @@ import io.tapdata.entity.utils.ObjectSerializable;
 import java.io.*;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.zip.GZIPInputStream;
+
+import static io.tapdata.entity.simplify.TapSimplify.*;
 
 @Implementation(value = ObjectSerializable.class, buildNumber = 0)
 public class ObjectSerializableImpl implements ObjectSerializable {
@@ -359,12 +362,47 @@ public class ObjectSerializableImpl implements ObjectSerializable {
 		}
 	}
 
-	public static void main(String[] args) {
+	public static void main(String[] args) throws IOException {
 		TapTable tapTable = new TapTable("aa");
 		ObjectSerializableImpl objectSerializable = new ObjectSerializableImpl();
 		byte[] data = objectSerializable.fromObject(tapTable);
 		Object theObj = objectSerializable.toObject(data);
 
+		Map<String, Object> map = map(
+				entry("abc", "aaaa"),
+				entry("aaa", list(map(entry("aaa", list("234", "234"))), map(entry("aaa", list("234", "234"))))),
+				entry("map", map(entry("aaa", 123)))
+				);
 
+		long time = System.currentTimeMillis();
+		for(int i = 0; i < 100000; i++)
+			objectSerializable.toObject(objectSerializable.fromObject(map));
+		System.out.println("takes " + (System.currentTimeMillis() - time));
+
+		Map<String, Object> aa = (Map<String, Object>) fromJson(toJson(map));
+
+		time = System.currentTimeMillis();
+		for(int i = 0; i < 1000000; i++)
+			fromJson(toJson(map));
+		System.out.println("takes " + (System.currentTimeMillis() - time));
+
+		time = System.currentTimeMillis();
+		for(int i = 0; i < 100000; i++) {
+			byte[] theData = null;
+			try (ByteArrayOutputStream bos = new ByteArrayOutputStream();ObjectOutputStream oos = new ObjectOutputStream(bos)) {
+				oos.writeObject(map);
+				oos.close();
+				theData = bos.toByteArray();
+			} catch (IOException e) {
+//				e.printStackTrace();
+			}
+			Object obj;
+			try(ObjectInputStream oos = new ObjectInputStream(new ByteArrayInputStream(theData))) {
+				obj = oos.readObject();
+			} catch (ClassNotFoundException e) {
+//						e.printStackTrace();
+			}
+		}
+		System.out.println("takes " + (System.currentTimeMillis() - time));
 	}
 }

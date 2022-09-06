@@ -2,6 +2,8 @@ package io.tapdata.entity.utils.io;
 
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.serializer.JavaCustomSerializer;
+import io.tapdata.entity.utils.InstanceFactory;
+import io.tapdata.entity.utils.ObjectSerializable;
 
 import java.io.DataOutputStream;
 import java.io.IOException;
@@ -12,6 +14,8 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Date;
 import java.util.Map;
+
+import static io.tapdata.entity.simplify.TapSimplify.toJson;
 
 public class DataOutputStreamEx extends OutputStream {
 	private static final byte HASVALUE = 1;
@@ -112,6 +116,12 @@ public class DataOutputStreamEx extends OutputStream {
 	  if(writeValueStatus(paramInt))
 		  dos.writeInt(paramInt);
   }
+
+	public void writeJson(Object obj)
+			throws IOException{
+		if(writeValueStatus(obj))
+			dos.writeUTF(toJson(obj));
+	}
 
 	public void writeDate(Date date)
 			throws IOException {
@@ -236,7 +246,7 @@ public class DataOutputStreamEx extends OutputStream {
 	  }
   }
 
-  public <T extends BinarySerializable> void writeCollectionBinaryObject(Collection<T> collectionAcuObjects) throws IOException {
+  public <T extends JavaCustomSerializer> void writeCollectionBinaryObject(Collection<T> collectionAcuObjects) throws IOException {
 		if(collectionAcuObjects == null) {
 			dos.writeInt(NOVALUE);
 			return;
@@ -248,7 +258,7 @@ public class DataOutputStreamEx extends OutputStream {
 				dos.writeByte(NOVALUE);
 			} else {
 				dos.writeByte(HASVALUE);
-				t.persistent(dos);
+				t.to(dos);
 			}
 		}
 	}
@@ -293,4 +303,8 @@ public class DataOutputStreamEx extends OutputStream {
   public DataOutputStream getDataOutputStream() {
 	  return dos;
   }
+
+	public void writeObject(Object object) throws IOException {
+		writeBytes(InstanceFactory.instance(ObjectSerializable.class).fromObject(object));
+	}
 }

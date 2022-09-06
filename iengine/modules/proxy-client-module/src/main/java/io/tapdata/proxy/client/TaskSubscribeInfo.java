@@ -7,9 +7,11 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 class TaskSubscribeInfo {
+	SubscriptionAspectTask subscriptionAspectTask;
 	String taskId;
 	Map<String, List<Node>> typeConnectionIdPDKNodeMap = new ConcurrentHashMap<>();
 	Map<String, Node> nodeIdPDKNodeMap = new ConcurrentHashMap<>();
+	Map<String, String> nodeIdTypeConnectionIdMap = new ConcurrentHashMap<>();
 }
 
 

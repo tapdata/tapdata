@@ -3,12 +3,16 @@ package io.tapdata.proxy;
 import io.tapdata.entity.annotations.Bean;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.simplify.pretty.TypeHandlers;
+import io.tapdata.modules.api.net.data.Data;
 import io.tapdata.modules.api.net.data.IncomingData;
 import io.tapdata.modules.api.net.data.IncomingMessage;
 import io.tapdata.modules.api.net.data.Result;
 import io.tapdata.modules.api.net.entity.ProxySubscription;
 import io.tapdata.modules.api.net.message.TapEntity;
+import io.tapdata.modules.api.net.service.MessageEntityService;
 import io.tapdata.modules.api.net.service.ProxySubscriptionService;
+import io.tapdata.modules.api.proxy.data.FetchNewData;
+import io.tapdata.modules.api.proxy.data.FetchNewDataResult;
 import io.tapdata.modules.api.proxy.data.NodeSubscribeInfo;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.wsserver.channels.annotation.GatewaySession;
@@ -24,12 +28,27 @@ public class EngineSessionHandler extends GatewaySessionHandler {
 	@Bean
 	private ProxySubscriptionService proxySubscriptionService;
 	@Bean
+	private MessageEntityService messageEntityService;
+	@Bean
 	private SubscribeMap subscribeMap;
 	private final TypeHandlers<TapEntity, Result> typeHandlers = new TypeHandlers<>();
 
 	private Set<String> cachedSubscribedIds;
 	public EngineSessionHandler() {
 		typeHandlers.register(NodeSubscribeInfo.class, this::handleNodeSubscribeInfo);
+		typeHandlers.register(FetchNewData.class, this::handleFetchNewData);
+	}
+
+	private Result handleFetchNewData(FetchNewData fetchNewData) {
+		Object offset = fetchNewData.getOffset();
+		if(offset == null) {
+			Long startTime = fetchNewData.getTaskStartTime();
+			if(startTime != null) {
+				offset = messageEntityService.getOffsetByTimestamp(startTime);
+			}
+		}
+		FetchNewDataResult fetchNewDataResult = messageEntityService.getMessageEntityList(fetchNewData.getService(), fetchNewData.getSubscribeId(), offset, fetchNewData.getLimit());
+		return new Result().code(Data.CODE_SUCCESS).message(fetchNewDataResult);
 	}
 
 	private Result handleNodeSubscribeInfo(NodeSubscribeInfo nodeSubscribeInfo) {

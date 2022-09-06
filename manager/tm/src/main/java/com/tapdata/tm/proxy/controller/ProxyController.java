@@ -97,7 +97,7 @@ public class ProxyController extends BaseController {
     }
     @Operation(summary = "External callback url")
     @PostMapping("callback/{token}")
-    public ResponseMessage<Void> callback(@PathVariable("token") String token, @RequestBody Map<String, Object> content, HttpServletRequest request) {
+    public ResponseMessage<Void> rawDataCallback(@PathVariable("token") String token, @RequestBody Map<String, Object> content, HttpServletRequest request) {
         if(content == null)
             throw new BizException("content is illegal, " + null);
         Map<String, Object> claims = JWTUtils.getClaims(key, token);
@@ -112,6 +112,25 @@ public class ProxyController extends BaseController {
             MessageEntity message = new MessageEntity().content(content).time(new Date()).subscribeId(subscribeId).service(service);
             eventQueueService.offer(message);
         }
+
+        return success();
+    }
+
+    @Operation(summary = "External callback url")
+    @PostMapping("command")
+    public ResponseMessage<Void> command(@RequestBody Map<String, Object> content, HttpServletRequest request) {
+        if(content == null)
+            throw new BizException("content is illegal, " + null);
+
+//        if(service == null || subscribeId == null) {
+//            throw new BizException("Illegal arguments for subscribeId {}, subscribeId {}", service, subscribeId);
+//        }
+
+//        EventQueueService eventQueueService = InstanceFactory.instance(EventQueueService.class, "sync");
+//        if(eventQueueService != null) {
+//            MessageEntity message = new MessageEntity().content(content).time(new Date()).subscribeId(subscribeId).service(service);
+//            eventQueueService.offer(message);
+//        }
 
         return success();
     }

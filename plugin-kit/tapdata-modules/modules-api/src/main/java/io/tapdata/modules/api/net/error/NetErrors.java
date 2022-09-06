@@ -16,4 +16,5 @@ public interface NetErrors {
 	int PERSISTENT_FAILED = 8012;
 	int ILLEGAL_ENCODE = 8013;
 	int CURRENT_NODE_ID_NOT_FOUND = 8014;
+	int RESULT_IS_NULL = 8015;
 }

@@ -3,7 +3,9 @@ package io.tapdata.entity.utils.io;
 
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.serializer.JavaCustomSerializer;
+import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.entity.utils.IteratorEx;
+import io.tapdata.entity.utils.ObjectSerializable;
 
 import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
@@ -17,6 +19,8 @@ import java.text.SimpleDateFormat;
 import java.util.Collection;
 import java.util.Date;
 import java.util.Map;
+
+import static io.tapdata.entity.simplify.TapSimplify.fromJson;
 
 public class DataInputStreamEx extends InputStream {
 	private static final byte HASVALUE = 1;
@@ -71,6 +75,20 @@ public class DataInputStreamEx extends InputStream {
 	public Character readChar() throws IOException {
 		if(hasValue()) {
 			return dis.readChar();
+		}
+		return null;
+	}
+
+	public Object readJson() throws IOException {
+		return readJson(null);
+	}
+	public Object readJson(Class<?> clazz) throws IOException {
+		if(hasValue()) {
+			String json = dis.readUTF();
+			if(clazz != null)
+				return fromJson(json, clazz);
+			else
+				return fromJson(json);
 		}
 		return null;
 	}
@@ -250,7 +268,7 @@ public class DataInputStreamEx extends InputStream {
 			}
 		}
 	}
-	public <T extends BinarySerializable> void readCollectionBinaryObject(Collection<T> collectionAcuObjects, Class<T> clazz) throws IOException {
+	public <T extends JavaCustomSerializer> void readCollectionCustomObject(Collection<T> collectionAcuObjects, Class<T> clazz) throws IOException {
 		int length = dis.readInt();
 		if(length != 0) {
 			for(int i = 0; i < length;i++) {
@@ -259,7 +277,7 @@ public class DataInputStreamEx extends InputStream {
 					case HASVALUE:
 						try {
 							T t = clazz.getConstructor().newInstance();
-							t.resurrect(dis);
+							t.from(dis);
 							collectionAcuObjects.add(t);
 						} catch (InstantiationException | IllegalAccessException | NoSuchMethodException | InvocationTargetException e) {
 							e.printStackTrace();
@@ -342,4 +360,9 @@ public class DataInputStreamEx extends InputStream {
     public DataInputStream getDataInputStream() {
     	return dis;
     }
+
+	public Object readObject() throws IOException {
+		byte[] data = readBytes();
+		return InstanceFactory.instance(ObjectSerializable.class).toObject(data);
+	}
 }

@@ -23,7 +23,7 @@ public class SyncEventQueueService implements EventQueueService {
 	@Bean
 	private SubscribeMap subscribeMap;
 
-	private MaxFrequencyLimiter maxFrequencyLimiter;
+	private final MaxFrequencyLimiter maxFrequencyLimiter;
 	private Set<String> cachingChangedSubscribeIds = new ConcurrentSkipListSet<>();
 	@Bean
 	private GatewaySessionManager gatewaySessionManager;
@@ -48,6 +48,9 @@ public class SyncEventQueueService implements EventQueueService {
 			for(Map.Entry<EngineSessionHandler, List<String>> entry : sessionSubscribeIdsMap.entrySet()) {
 				gatewaySessionManager.receiveOutgoingData(entry.getKey().getId(), new OutgoingData().message(new NewDataReceived().subscribeIds(entry.getValue())));
 			}
+			//Above is looking for hit EngineSessionHandler on subscribeIds.
+			//TODO check other proxy servers to send NewDataReceived to EngineSessionHandlers on other proxy servers.
+			//TODO using http between proxy to proxy.
 		});
 	}
 

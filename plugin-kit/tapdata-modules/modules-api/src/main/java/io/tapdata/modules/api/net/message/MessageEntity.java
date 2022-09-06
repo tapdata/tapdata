@@ -40,9 +40,7 @@ public class MessageEntity implements TapEntity {
 		DataInputStreamEx dis = dataInputStream(inputStream);
 		byte[] data = dis.readBytes();
 		if(data != null) {
-			ObjectSerializable objectSerializable = InstanceFactory.instance(ObjectSerializable.class);
-			assert objectSerializable != null;
-			content = (Map<String, Object>) objectSerializable.toObject(data);
+			content = (Map<String, Object>) dis.readJson();
 			time = dis.readDate();
 			subscribeId = dis.readUTF();
 		}
@@ -51,9 +49,7 @@ public class MessageEntity implements TapEntity {
 	@Override
 	public void to(OutputStream outputStream) throws IOException {
 		DataOutputStreamEx dos = dataOutputStream(outputStream);
-		ObjectSerializable objectSerializable = InstanceFactory.instance(ObjectSerializable.class);
-		assert objectSerializable != null;
-		dos.writeBytes(objectSerializable.fromObject(content));
+		dos.writeJson(content);
 		dos.writeDate(time);
 		dos.writeUTF(subscribeId);
 	}

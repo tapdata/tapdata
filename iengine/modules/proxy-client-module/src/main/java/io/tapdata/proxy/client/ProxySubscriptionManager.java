@@ -6,7 +6,6 @@ import io.tapdata.entity.annotations.Bean;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.modules.api.net.data.IncomingData;
 import io.tapdata.modules.api.net.data.OutgoingData;
-import io.tapdata.modules.api.net.entity.ProxySubscription;
 import io.tapdata.modules.api.proxy.data.NewDataReceived;
 import io.tapdata.modules.api.proxy.data.NodeSubscribeInfo;
 import io.tapdata.pdk.core.api.Node;
@@ -26,7 +25,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public class ProxySubscriptionManager {
 	private static final String TAG = ProxySubscriptionManager.class.getSimpleName();
 	private final ConcurrentHashSet<TaskSubscribeInfo> taskSubscribeInfos = new ConcurrentHashSet<>();
-	private ConcurrentHashMap<String, List<Node>> typeConnectionIdPDKNodeMap = new ConcurrentHashMap<>();
+	private ConcurrentHashMap<String, List<TaskSubscribeInfo>> typeConnectionIdSubscribeInfosMap = new ConcurrentHashMap<>();
 	private final ConcurrentHashMap<String, TaskSubscribeInfo> taskIdTaskSubscribeInfoMap = new ConcurrentHashMap<>();
 	private ScheduledFuture<?> workingFuture;
 	private final AtomicBoolean needSync = new AtomicBoolean(false);
@@ -66,7 +65,18 @@ public class ProxySubscriptionManager {
 	}
 
 	private void handleNewDataReceived(String contentType, OutgoingData outgoingData) {
-
+		NewDataReceived newDataReceived = (NewDataReceived) outgoingData.getMessage();
+		if(newDataReceived != null && newDataReceived.getSubscribeIds() != null) {
+			for(String subscribeId : newDataReceived.getSubscribeIds()) {
+				List<TaskSubscribeInfo> taskSubscribeInfoList = typeConnectionIdSubscribeInfosMap.get(subscribeId);
+				if(taskSubscribeInfoList != null) {
+					for(TaskSubscribeInfo taskSubscribeInfo : taskSubscribeInfoList) {
+						
+					}
+				}
+				//TODO
+			}
+		}
 	}
 
 	public void addTaskSubscribeInfo(TaskSubscribeInfo taskSubscribeInfo) {
@@ -115,21 +125,22 @@ public class ProxySubscriptionManager {
 		try {
 			needSync.compareAndSet(true, false);
 
-			ConcurrentHashMap<String, List<Node>> typeConnectionIdPDKNodeMap = new ConcurrentHashMap<>();
+			ConcurrentHashMap<String, List<TaskSubscribeInfo>> typeConnectionIdSubscribeInfosMap = new ConcurrentHashMap<>();
 			for(TaskSubscribeInfo subscribeInfo : taskSubscribeInfos) {
 				for(Map.Entry<String, List<Node>> entry : subscribeInfo.typeConnectionIdPDKNodeMap.entrySet()) {
-					List<Node> nodes = typeConnectionIdPDKNodeMap.get(entry.getKey());
-					if(nodes == null) {
-						nodes = new CopyOnWriteArrayList<>();
-						List<Node> old = typeConnectionIdPDKNodeMap.putIfAbsent(entry.getKey(), nodes);
+					List<TaskSubscribeInfo> subscribeInfos = typeConnectionIdSubscribeInfosMap.get(entry.getKey());
+					if(subscribeInfos == null) {
+						subscribeInfos = new CopyOnWriteArrayList<>();
+						List<TaskSubscribeInfo> old = typeConnectionIdSubscribeInfosMap.putIfAbsent(entry.getKey(), subscribeInfos);
 						if(old != null)
-							nodes = old;
+							subscribeInfos = old;
 					}
-					nodes.addAll(entry.getValue());
+					if(!subscribeInfos.contains(subscribeInfo))
+						subscribeInfos.add(subscribeInfo);
 				}
 			}
-			Set<String> keys = typeConnectionIdPDKNodeMap.keySet(); //all typeConnectionIds
-			this.typeConnectionIdPDKNodeMap = typeConnectionIdPDKNodeMap;
+			Set<String> keys = typeConnectionIdSubscribeInfosMap.keySet(); //all typeConnectionIds
+			this.typeConnectionIdSubscribeInfosMap = typeConnectionIdSubscribeInfosMap;
 
 			IncomingData incomingData = new IncomingData().message(new NodeSubscribeInfo().subscribeIds(keys));
 			enterAsyncProcess = true;
@@ -154,7 +165,7 @@ public class ProxySubscriptionManager {
 		return imClient;
 	}
 
-	public ConcurrentHashMap<String, List<Node>> getTypeConnectionIdPDKNodeMap() {
-		return typeConnectionIdPDKNodeMap;
+	public ConcurrentHashMap<String, List<TaskSubscribeInfo>> getTypeConnectionIdSubscribeInfosMap() {
+		return typeConnectionIdSubscribeInfosMap;
 	}
 }
