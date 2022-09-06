@@ -39,10 +39,10 @@ public class ApplicationStartAspectHandler implements AspectObserver<Application
                 ManagementFactory.getMemoryMXBean().getHeapMemoryUsage().getUsed()
         );
         collector.addSampler("physicalMemTotal", () ->
-                ((com.sun.management.OperatingSystemMXBean) ManagementFactory.getOperatingSystemMXBean()).getFreePhysicalMemorySize()
+                ((com.sun.management.OperatingSystemMXBean) ManagementFactory.getOperatingSystemMXBean()).getTotalPhysicalMemorySize()
         );
         collector.addSampler("memoryRate", () ->
-                (double) ManagementFactory.getMemoryMXBean().getHeapMemoryUsage().getUsed() / ((com.sun.management.OperatingSystemMXBean) ManagementFactory.getOperatingSystemMXBean()).getFreePhysicalMemorySize()
+                (double) ManagementFactory.getMemoryMXBean().getHeapMemoryUsage().getUsed() / ((com.sun.management.OperatingSystemMXBean) ManagementFactory.getOperatingSystemMXBean()).getTotalPhysicalMemorySize()
         );
 
         GcSampler gcSamplerTime = new GcSampler(GcSampler.GcPointEnum.GC_TIME);
