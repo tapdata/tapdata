@@ -139,15 +139,15 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
      */
     @Override
     public ModulesDto save(ModulesDto modulesDto, UserDetail userDetail) {
-        if (findByName(modulesDto.getName()).size() > 0) {
-            throw new BizException("Modules.Name.Existed");
-        }
+//        if (findByName(modulesDto.getName()).size() > 0) {
+//            throw new BizException("Modules.Name.Existed");
+//        }
 //        if (!isBasePathAndVersionRepeat(modulesDto.getBasePath(), modulesDto.getApiVersion()).isEmpty()) {
 //            throw new BizException("Modules.BasePathAndVersion.Existed");
 //        }
-        if (null == modulesDto.getDataSource()) {
-            throw new BizException("Modules.Connection.Null");
-        }
+//        if (null == modulesDto.getDataSource()) {
+//            throw new BizException("Modules.Connection.Null");
+//        }
         modulesDto.setConnection(MongoUtils.toObjectId(modulesDto.getDataSource()));
         modulesDto.setLastUpdAt(new Date());
         modulesDto.setCreateAt(new Date());
@@ -161,15 +161,6 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 
 
     public ModulesDto updateModuleById(ModulesDto modulesDto, UserDetail userDetail) {
-        if (findByName(modulesDto.getName()).size() > 1) {
-            throw new BizException("Modules.Name.Existed");
-        }
-        if (isBasePathAndVersionRepeat(modulesDto.getBasePath(), modulesDto.getApiVersion()).size() > 1) {
-            throw new BizException("Modules.BasePathAndVersion.Existed");
-        }
-       /* if (null == modulesDto.getDataSource()) {
-            throw new BizException("Modules.Connection.Null");
-        }*/
         Where where = new Where();
         where.put("id", modulesDto.getId().toString());
 
@@ -186,8 +177,13 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
         if (ModuleStatusEnum.ACTIVE.getValue().equals(modulesDto.getStatus()) && ModuleStatusEnum.GENERATING.getValue().equals(modulesDto.getStatus()))
             throw new BizException("generating status can't release");
         //点击生成按钮 才校验(撤销发布等不校验)
-        if (ModuleStatusEnum.PENDING.getValue().equals(modulesDto.getStatus()) && !ModuleStatusEnum.ACTIVE.getValue().equals(dto.getStatus()))
+        if (ModuleStatusEnum.PENDING.getValue().equals(modulesDto.getStatus()) && !ModuleStatusEnum.ACTIVE.getValue().equals(dto.getStatus())) {
+            if (findByName(modulesDto.getName()).size() > 1)
+                throw new BizException("Modules.Name.Existed");
+            if (isBasePathAndVersionRepeat(modulesDto.getBasePath(), modulesDto.getApiVersion()).size() > 1)
+                throw new BizException("Modules.BasePathAndVersion.Existed");
             checkoutInputParamIsValid(modulesDto);
+        }
         return super.upsertByWhere(where, modulesDto, userDetail);
     }
 
