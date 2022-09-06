@@ -50,6 +50,7 @@ public class ConnectorFunctions extends ConnectionFunctions<ConnectorFunctions> 
     //new_field_event
     protected NewFieldFunction newFieldFunction;
     protected WebHookFunction webHookFunction;
+    protected RawDataCallbackFilterFunction rawDataCallbackFilterFunction;
     public ConnectorFunctions supportAlterDatabaseTimeZoneFunction(AlterDatabaseTimeZoneFunction function) {
         alterDatabaseTimeZoneFunction = function;
         return this;
@@ -239,6 +240,10 @@ public class ConnectorFunctions extends ConnectionFunctions<ConnectorFunctions> 
     }
     public ConnectorFunctions supportWebHookFunctions(WebHookFunction function) {
         this.webHookFunction = function;
+        return this;
+    }
+    public ConnectorFunctions supportRawDataCallbackFilterFunction(RawDataCallbackFilterFunction function) {
+        this.rawDataCallbackFilterFunction = function;
         return this;
     }
 

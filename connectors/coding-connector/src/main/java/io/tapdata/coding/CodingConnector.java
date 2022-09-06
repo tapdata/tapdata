@@ -72,59 +72,41 @@ public class CodingConnector extends ConnectorBase {
 				.supportBatchCount(this::batchCount)
 				.supportTimestampToStreamOffset(this::timestampToStreamOffset)
 				.supportStreamRead(this::streamRead)
+				.supportRawDataCallbackFilterFunction(this::rawDataCallbackFilterFunction)
 //				.supportWebHookFunctions(this::webHookFunction)
 		;
 
 	}
 
-	private void dataCallback(TapConnectorContext context,DataFetcher dataFetcher, List<String> tableList, BiConsumer<List<TapEvent>, Object> consumer) {
-		String table = tableList.get(0);
-		if (null == table || "".equals(table)){
-			TapLogger.info(TAG, "Data Callback error, the tableName is empty.");
-			throw new RuntimeException("Data Callback error, the tableName is empty.");
-		}
-		TapLogger.info(TAG, "Table :{} ,data callBack starting...", table);
-		List<MessageEntity> dataMaps = null;//List<MessageEntity> dataMaps = null;//
+	private TapEvent rawDataCallbackFilterFunction(TapConnectorContext connectorContext, Map<String, Object> issue) {
+		String webHookEventType = String.valueOf(issue.get("event"));
+		Object codeObj = issue.get("Code");
+		if (null == codeObj || ! (codeObj instanceof String) || "".equals(codeObj)){
 
-		ContextConfig contextConfig = this.veryContextConfigAndNodeConfig(context);
+		}
+		ContextConfig contextConfig = this.veryContextConfigAndNodeConfig(connectorContext);
 
 		HttpEntity<String,String> header = HttpEntity.create().builder("Authorization",contextConfig.getToken());
 		HttpEntity<String,Object> issueDetialBody = HttpEntity.create()
 				.builder("Action","DescribeIssue")
 				.builder("ProjectName",contextConfig.getProjectName());
+		CodingHttp authorization = CodingHttp.create(header.getEntity(), String.format(CodingStarter.OPEN_API_URL, contextConfig.getTeamName() ));
+		HttpRequest requestDetail = authorization.createHttpRequest();
+		Map<String,Object> issueDetail = IssueLoader.create(connectorContext)
+				.readIssueDetail(
+						issueDetialBody,
+						authorization,
+						requestDetail,
+						codeObj.toString(),
+						contextConfig.getProjectName(),
+						contextConfig.getTeamName());
 
-		String issueType = contextConfig.getIssueType().getName();
-		String[] iterationIdArr = contextConfig.getIterationCodes().split(",");
-		String code = String.valueOf(stringObjectMap.get("Code"));
-		while((dataMaps = dataFetcher.consumer(100,500)) != null) {  //dataFetcher.consumer(p1,p2)  p1->count,p2->times(ms)
-			dataMaps.forEach(data->{
-				List<TapEvent> tapEvents = this.tapEvent(data, table);
-				if (null != tapEvents && tapEvents.size()>0) {
-					consumer.accept(tapEvents, null);//consumer.accept(tapEventList);
-				}
-			});
-		}
-		TapLogger.info(TAG, "Table :{} ,data callBack over.", table);
-	}
-
-	private void webHookFunction(
-			 DataMap dataMap,
-			 Object offsetState,
-			 BiConsumer<List<TapEvent>, Object> consumer,
-			 String table ) {
-		if (null == dataMap){
-			throw new CoreException("Coding event...");
-		}
-		String webHookEventType = String.valueOf(dataMap.get("event"));
-		Map<String,Object> issue = (Map<String,Object>)dataMap.get("issue");
-		List<TapEvent> tapEventList = new ArrayList<>();
 		switch (webHookEventType){
 			case ISSUE_CREATED: {
-				tapEventList.add( insertRecordEvent(issue, table) );
-				break;
+					return insertRecordEvent(issue, "Issues") ;
 			}
 			case ISSUE_DELETED:{
-				tapEventList.add( deleteDMLEvent(issue,table) );break;
+				return deleteDMLEvent(issue, "Issues") ;
 			}
 			case ISSUE_UPDATE:;
 //			case ISSUE_COMMENT_CREATED:;
@@ -133,14 +115,77 @@ public class CodingConnector extends ConnectorBase {
 			case ITERATION_PLANNED:;
 			case ISSUE_RELATIONSHIP_CHANGED:;
 			case UPDATE_WORK_INFORMATION: {
-				tapEventList.add( updateDMLEvent(null,issue,table) );break;
+				return updateDMLEvent(null,issue, "Issues") ;
 			}
 			default:break;
 		}
-		if (null != tapEventList && tapEventList.size()>0) {
-			consumer.accept(tapEventList, offsetState);
-		}
+		return insertRecordEvent(issue, "Issues") ;
 	}
+
+//	private void dataCallback(TapConnectorContext context,DataFetcher dataFetcher, List<String> tableList, BiConsumer<List<TapEvent>, Object> consumer) {
+//		String table = tableList.get(0);
+//		if (null == table || "".equals(table)){
+//			TapLogger.info(TAG, "Data Callback error, the tableName is empty.");
+//			throw new RuntimeException("Data Callback error, the tableName is empty.");
+//		}
+//		TapLogger.info(TAG, "Table :{} ,data callBack starting...", table);
+//		List<MessageEntity> dataMaps = null;//List<MessageEntity> dataMaps = null;//
+//
+//		ContextConfig contextConfig = this.veryContextConfigAndNodeConfig(context);
+//
+//		HttpEntity<String,String> header = HttpEntity.create().builder("Authorization",contextConfig.getToken());
+//		HttpEntity<String,Object> issueDetialBody = HttpEntity.create()
+//				.builder("Action","DescribeIssue")
+//				.builder("ProjectName",contextConfig.getProjectName());
+//
+//		String issueType = contextConfig.getIssueType().getName();
+//		String[] iterationIdArr = contextConfig.getIterationCodes().split(",");
+//		String code = String.valueOf(stringObjectMap.get("Code"));
+//		while((dataMaps = dataFetcher.consumer(100,500)) != null) {  //dataFetcher.consumer(p1,p2)  p1->count,p2->times(ms)
+//			dataMaps.forEach(data->{
+//				List<TapEvent> tapEvents = this.tapEvent(data, table);
+//				if (null != tapEvents && tapEvents.size()>0) {
+//					consumer.accept(tapEvents, null);//consumer.accept(tapEventList);
+//				}
+//			});
+//		}
+//		TapLogger.info(TAG, "Table :{} ,data callBack over.", table);
+//	}
+//
+//	private void webHookFunction(
+//			 DataMap dataMap,
+//			 Object offsetState,
+//			 BiConsumer<List<TapEvent>, Object> consumer,
+//			 String table ) {
+//		if (null == dataMap){
+//			throw new CoreException("Coding event...");
+//		}
+//		String webHookEventType = String.valueOf(dataMap.get("event"));
+//		Map<String,Object> issue = (Map<String,Object>)dataMap.get("issue");
+//		List<TapEvent> tapEventList = new ArrayList<>();
+//		switch (webHookEventType){
+//			case ISSUE_CREATED: {
+//				tapEventList.add( insertRecordEvent(issue, table) );
+//				break;
+//			}
+//			case ISSUE_DELETED:{
+//				tapEventList.add( deleteDMLEvent(issue,table) );break;
+//			}
+//			case ISSUE_UPDATE:;
+////			case ISSUE_COMMENT_CREATED:;
+//			case ISSUE_STATUS_UPDATED:;
+//			case ISSUE_ASSIGNEE_CHANGED:;
+//			case ITERATION_PLANNED:;
+//			case ISSUE_RELATIONSHIP_CHANGED:;
+//			case UPDATE_WORK_INFORMATION: {
+//				tapEventList.add( updateDMLEvent(null,issue,table) );break;
+//			}
+//			default:break;
+//		}
+//		if (null != tapEventList && tapEventList.size()>0) {
+//			consumer.accept(tapEventList, offsetState);
+//		}
+//	}
 
 	private void streamRead(
 			TapConnectorContext nodeContext,
@@ -478,38 +523,38 @@ public class CodingConnector extends ConnectorBase {
 		if (events[0].size() > 0)  consumer.accept(events[0], offsetState);
 	}
 
-	private List<TapEvent> tapEvent(MessageEntity messageEntity,String table){
-		List<TapEvent> tapEventList = new ArrayList<>();
-		Map<String,Object> issue = messageEntity.getIssue();
-		String webHookEventType = String.valueOf(issue.get("event"));
-
-//		Map<String,Object> issueDetail = issueLoader.readIssueDetail(issueDetialBody,authorization,requestDetail,code,projectName,teamName);
-
-		switch (webHookEventType){
-			case ISSUE_CREATED: {
-				Object codeObj = issue.get("Code");
-				if (null!= codeObj){
-					IssueLoader loader = IssueLoader.create(null);
-					tapEventList.add( insertRecordEvent(issue, table) );
-					break;
-				}
-			}
-			case ISSUE_DELETED:{
-				tapEventList.add( deleteDMLEvent(issue, table) );break;
-			}
-			case ISSUE_UPDATE:;
-//			case ISSUE_COMMENT_CREATED:;
-			case ISSUE_STATUS_UPDATED:;
-			case ISSUE_ASSIGNEE_CHANGED:;
-			case ITERATION_PLANNED:;
-			case ISSUE_RELATIONSHIP_CHANGED:;
-			case UPDATE_WORK_INFORMATION: {
-				tapEventList.add( updateDMLEvent(null,issue, table) );break;
-			}
-			default:break;
-		}
-		return tapEventList;
-	}
+//	private List<TapEvent> tapEvent(MessageEntity messageEntity,String table){
+//		List<TapEvent> tapEventList = new ArrayList<>();
+//		Map<String,Object> issue = messageEntity.getIssue();
+//		String webHookEventType = String.valueOf(issue.get("event"));
+//
+////		Map<String,Object> issueDetail = issueLoader.readIssueDetail(issueDetialBody,authorization,requestDetail,code,projectName,teamName);
+//
+//		switch (webHookEventType){
+//			case ISSUE_CREATED: {
+//				Object codeObj = issue.get("Code");
+//				if (null!= codeObj){
+//					IssueLoader loader = IssueLoader.create(null);
+//					tapEventList.add( insertRecordEvent(issue, table) );
+//					break;
+//				}
+//			}
+//			case ISSUE_DELETED:{
+//				tapEventList.add( deleteDMLEvent(issue, table) );break;
+//			}
+//			case ISSUE_UPDATE:;
+////			case ISSUE_COMMENT_CREATED:;
+//			case ISSUE_STATUS_UPDATED:;
+//			case ISSUE_ASSIGNEE_CHANGED:;
+//			case ITERATION_PLANNED:;
+//			case ISSUE_RELATIONSHIP_CHANGED:;
+//			case UPDATE_WORK_INFORMATION: {
+//				tapEventList.add( updateDMLEvent(null,issue, table) );break;
+//			}
+//			default:break;
+//		}
+//		return tapEventList;
+//	}
 
 	private ContextConfig veryContextConfigAndNodeConfig(TapConnectorContext context){
 		if (null == context){
