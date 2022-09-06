@@ -253,11 +253,11 @@ public class PDKInvocationMonitor implements MemoryFetcher {
         if (maxRetryTimeMinute > 0) {//最大重试时间大于0
             if (retryPeriodSeconds>0) {//重试间隔时间大于0
                 //计算重试次数，向下取整
-                invoker.setRetryTimes(maxRetryTimeMinute / retryPeriodSeconds);
+                invoker.setRetryTimes(maxRetryTimeMinute*60 / retryPeriodSeconds);
                 return Boolean.TRUE;
             }else {
                 if (retryTimes>0){
-                    invoker.setRetryPeriodSeconds(maxRetryTimeMinute / retryTimes);
+                    invoker.setRetryPeriodSeconds(maxRetryTimeMinute*60 / retryTimes);
                     return Boolean.TRUE;
                 }else {
                     throw new IllegalArgumentException("RetryPeriodSeconds can not be zero or less than zero.");
