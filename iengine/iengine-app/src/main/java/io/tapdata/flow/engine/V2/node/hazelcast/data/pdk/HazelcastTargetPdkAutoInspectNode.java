@@ -68,7 +68,7 @@ public class HazelcastTargetPdkAutoInspectNode extends HazelcastTargetPdkBaseNod
         ClientMongoOperator clientMongoOperator = BeanUtil.getBean(ClientMongoOperator.class);
 
         HazelcastTargetPdkAutoInspectNode _thisNode = this;
-        EXECUTORS.submit(new PdkAutoInspectRunner(obsLogger, taskId, taskType, progress, node, clientMongoOperator) {
+        EXECUTORS.submit(new PdkAutoInspectRunner(obsLogger, taskId, taskType, progress, node, clientMongoOperator, dataProcessorContext.getTaskConfig()) {
 
             @Override
             protected void initialCompare(@NonNull IPdkConnector sourceConnector, @NonNull IPdkConnector targetConnector, @NonNull IAutoCompare autoCompare) throws Exception {
