@@ -221,6 +221,7 @@ public class ObservableAspectTask extends AspectTask {
 	public Void handleSourceState(SourceStateAspect aspect) {
 		switch (aspect.getState()) {
 			case SourceStateAspect.STATE_INITIAL_SYNC_START:
+				taskSampleHandler.handleSnapshotStart(aspect.getInitialSyncStartTime());
 				for(String table : aspect.getDataProcessorContext().getTapTableMap().keySet()) {
 					taskSampleHandler.addTable(table);
 				}

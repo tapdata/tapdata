@@ -24,6 +24,7 @@ public class TaskSampleHandler extends AbstractHandler {
     static final String SNAPSHOT_TABLE_TOTAL                  = "snapshotTableTotal";
     static final String SNAPSHOT_ROW_TOTAL                    = "snapshotRowTotal";
     static final String SNAPSHOT_INSERT_ROW_TOTAL             = "snapshotInsertRowTotal";
+    static final String SNAPSHOT_START_AT                     = "snapshotStartAt";
     static final String SNAPSHOT_DONE_AT                      = "snapshotDoneAt";
     static final String CURR_SNAPSHOT_TABLE                   = "currentSnapshotTable";
     static final String CURR_SNAPSHOT_TABLE_ROW_TOTAL         = "currentSnapshotTableRowTotal";
@@ -54,6 +55,7 @@ public class TaskSampleHandler extends AbstractHandler {
     private CounterSampler snapshotRowTotal;
     private CounterSampler snapshotInsertRowTotal;
 
+    private Long snapshotStartAt = null;
     private Long snapshotDoneAt = null;
 
     private String currentSnapshotTable = null;
@@ -137,6 +139,12 @@ public class TaskSampleHandler extends AbstractHandler {
         snapshotTableTotal = getCounterSampler(values, SNAPSHOT_TABLE_TOTAL);
         snapshotRowTotal = getCounterSampler(values, SNAPSHOT_ROW_TOTAL);
         snapshotInsertRowTotal = getCounterSampler(values, SNAPSHOT_INSERT_ROW_TOTAL);
+
+        Number retrieveSnapshotStartAt = values.getOrDefault(SNAPSHOT_START_AT, null);
+        if (retrieveSnapshotStartAt != null) {
+            snapshotStartAt = retrieveSnapshotStartAt.longValue();
+        }
+        collector.addSampler(SNAPSHOT_START_AT, () -> snapshotStartAt);
 
         Number retrieveSnapshotDoneAt = values.getOrDefault(SNAPSHOT_DONE_AT, null);
         if (retrieveSnapshotDoneAt != null) {
@@ -249,6 +257,10 @@ public class TaskSampleHandler extends AbstractHandler {
         if (null != newestEventTimestamp) {
             replicateLag.setValue(System.currentTimeMillis() - newestEventTimestamp);
         }
+    }
+
+    public void handleSnapshotStart(Long time) {
+        snapshotStartAt = time;
     }
 
     public void handleSnapshotDone(Long time) {
