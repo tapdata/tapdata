@@ -10,7 +10,7 @@ import org.springframework.stereotype.Component;
  * @author jiuyetx
  * @date 2022/9/6
  */
-@Component
+@Component("createRecordEventHandler")
 public class CreateRecordEventHandler implements BaseEventHandler<TaskRecord, Boolean>{
 
     @Override

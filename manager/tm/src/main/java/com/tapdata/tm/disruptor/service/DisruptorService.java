@@ -23,6 +23,7 @@ import java.util.concurrent.ThreadFactory;
 @Slf4j
 @Primary
 @Setter(onMethod_ = {@Autowired})
+@SuppressWarnings({"rawtypes"})
 public class DisruptorService{
 
     private DistributeEventHandler distributeEventHandler;
@@ -40,7 +41,7 @@ public class DisruptorService{
         // 阻塞策略
         BlockingWaitStrategy strategy = new BlockingWaitStrategy();
         // 指定RingBuffer的大小
-        int bufferSize = 16;
+        int bufferSize = 64;
         // 创建disruptor，采用单生产者模式
         elementDisruptor = new Disruptor<>(factory, bufferSize, threadFactory, ProducerType.SINGLE, strategy);
         // 设置EventHandler 并且后置清理消费过的数据
