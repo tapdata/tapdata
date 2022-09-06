@@ -2,21 +2,21 @@ package com.tapdata.tm.alarmrule.service.impl;
 
 import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.extra.spring.SpringUtil;
-import com.tapdata.tm.alarmrule.dto.AlarmRuleDto;
 import com.tapdata.tm.Settings.entity.Alarm;
-import com.tapdata.tm.alarmrule.dto.UpdateRuleDto;
+import com.tapdata.tm.alarmrule.dto.AlarmRuleDto;
 import com.tapdata.tm.alarmrule.entity.AlarmRule;
 import com.tapdata.tm.alarmrule.service.AlarmRuleService;
 import com.tapdata.tm.utils.Lists;
 import lombok.Setter;
+import org.apache.commons.collections4.CollectionUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
-import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * @author jiuyetx
@@ -29,17 +29,23 @@ public class AlarmRuleServiceImpl implements AlarmRuleService {
     private MongoTemplate mongoTemplate;
 
     @Override
-    public void deleteAll() {
-        mongoTemplate.remove(new Query(), Alarm.class);
+    public void delete(List<AlarmRule> data) {
+        if (CollectionUtils.isNotEmpty(data)) {
+
+            List<String> collect = data.stream().map(AlarmRule::getKey).collect(Collectors.toList());
+
+            mongoTemplate.remove(new Query(Criteria.where("key").in(collect)), AlarmRule.class);
+        }
+
     }
 
     @Override
     public void save(List<AlarmRuleDto> rules) {
-        AlarmRuleService alarmRuleService = SpringUtil.getBean(AlarmRuleService.class);
-        alarmRuleService.deleteAll();
-
         List<AlarmRule> data = Lists.newArrayList();
         BeanUtil.copyProperties(rules, data);
+
+        AlarmRuleService alarmRuleService = SpringUtil.getBean(AlarmRuleService.class);
+        alarmRuleService.delete(data);
 
         mongoTemplate.insert(data, AlarmRule.class);
     }

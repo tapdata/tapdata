@@ -8,7 +8,7 @@ import java.util.List;
 
 public interface AlarmService {
 
-    void deleteAll();
+    void delete(List<Alarm> alarmList);
     void save(List<AlarmDto> alarms);
 
     List<AlarmDto> findAll();

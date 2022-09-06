@@ -6,8 +6,10 @@ import com.tapdata.tm.Settings.dto.AlarmDto;
 import com.tapdata.tm.Settings.entity.Alarm;
 import com.tapdata.tm.Settings.service.AlarmService;
 import com.tapdata.tm.alarmrule.dto.UpdateRuleDto;
+import com.tapdata.tm.alarmrule.entity.AlarmRule;
 import com.tapdata.tm.utils.Lists;
 import lombok.Setter;
+import org.apache.commons.collections4.CollectionUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
@@ -16,6 +18,7 @@ import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * @author jiuyetx
@@ -27,17 +30,22 @@ public class AlarmServiceImpl implements AlarmService {
     private MongoTemplate mongoTemplate;
 
     @Override
-    public void deleteAll() {
-        mongoTemplate.remove(new Query(), Alarm.class);
+    public void delete(List<Alarm> data) {
+        if (CollectionUtils.isNotEmpty(data)) {
+
+            List<String> collect = data.stream().map(Alarm::getKey).collect(Collectors.toList());
+
+            mongoTemplate.remove(new Query(Criteria.where("key").in(collect)), Alarm.class);
+        }
     }
 
     @Override
     public void save(List<AlarmDto> alarms) {
-        AlarmService alarmService = SpringUtil.getBean(AlarmService.class);
-        alarmService.deleteAll();
-
         List<Alarm> data = Lists.newArrayList();
         BeanUtil.copyProperties(alarms, data);
+
+        AlarmService alarmService = SpringUtil.getBean(AlarmService.class);
+        alarmService.delete(data);
 
         mongoTemplate.insert(data, Alarm.class);
     }
