@@ -1,5 +1,9 @@
 package io.tapdata.mongodb;
 
+import com.mongodb.MongoNodeIsRecoveringException;
+import com.mongodb.MongoNotPrimaryException;
+import com.mongodb.MongoSocketException;
+import com.mongodb.MongoTimeoutException;
 import com.mongodb.client.*;
 import com.mongodb.client.model.IndexOptions;
 import com.mongodb.client.model.Sorts;
@@ -32,6 +36,8 @@ import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.entity.*;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
+import io.tapdata.pdk.apis.functions.PDKMethod;
+import io.tapdata.pdk.apis.functions.connection.RetryOptions;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.ListUtils;
 import org.apache.commons.collections4.MapUtils;
@@ -356,7 +362,20 @@ public class MongodbConnector extends ConnectorBase {
 		connectorFunctions.supportCreateIndex(this::createIndex);
 		connectorFunctions.supportStreamRead(this::streamRead);
 		connectorFunctions.supportTimestampToStreamOffset(this::streamOffset);
+		connectorFunctions.supportErrorHandleFunction(this::errorHandle);
 //        connectorFunctions.supportStreamOffset((connectorContext, tableList, offsetStartTime, offsetOffsetTimeConsumer) -> streamOffset(connectorContext, tableList, offsetStartTime, offsetOffsetTimeConsumer));
+	}
+
+	private RetryOptions errorHandle(TapConnectionContext tapConnectionContext, PDKMethod pdkMethod, Throwable throwable) {
+		RetryOptions retryOptions = RetryOptions.create();
+		if (null != matchThrowable(throwable, MongoTimeoutException.class)
+				|| null != matchThrowable(throwable, MongoSocketException.class)
+				|| null != matchThrowable(throwable, MongoNotPrimaryException.class)
+				|| null != matchThrowable(throwable, MongoNodeIsRecoveringException.class)) {
+			retryOptions.needRetry(true);
+			return retryOptions;
+		}
+		return retryOptions;
 	}
 
 	private void createIndex(TapConnectorContext tapConnectorContext, TapTable table, TapCreateIndexEvent tapCreateIndexEvent) {

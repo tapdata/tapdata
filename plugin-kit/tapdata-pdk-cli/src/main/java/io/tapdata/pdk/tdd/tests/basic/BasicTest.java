@@ -5,7 +5,7 @@ import io.tapdata.entity.utils.DataMap;
 import io.tapdata.pdk.apis.entity.TestItem;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
-import io.tapdata.pdk.core.monitor.PDKMethod;
+import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.pdk.tdd.core.PDKTestBase;
 import org.junit.jupiter.api.Assertions;

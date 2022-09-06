@@ -1,6 +1,7 @@
 package io.tapdata.pdk.core.monitor;
 
 import io.tapdata.entity.utils.ParagraphFormatter;
+import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.core.memory.MemoryFetcher;
 import io.tapdata.pdk.core.utils.CommonUtils;
 
