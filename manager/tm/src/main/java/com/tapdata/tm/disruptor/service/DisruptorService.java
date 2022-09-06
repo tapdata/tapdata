@@ -9,7 +9,6 @@ import com.tapdata.tm.disruptor.Element;
 import com.tapdata.tm.disruptor.constants.DisruptorTopicEnum;
 import com.tapdata.tm.disruptor.handler.DisruptorExceptionHandler;
 import com.tapdata.tm.disruptor.handler.DistributeEventHandler;
-import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Primary;
@@ -22,13 +21,17 @@ import java.util.concurrent.ThreadFactory;
 @Service
 @Slf4j
 @Primary
-@Setter(onMethod_ = {@Autowired})
 @SuppressWarnings({"rawtypes"})
 public class DisruptorService{
 
-    private DistributeEventHandler distributeEventHandler;
-    private DisruptorExceptionHandler disruptorExceptionHandler;
+    private final DistributeEventHandler distributeEventHandler;
+    private final DisruptorExceptionHandler disruptorExceptionHandler;
     private Disruptor<Element> elementDisruptor;
+
+    public DisruptorService(DistributeEventHandler distributeEventHandler, DisruptorExceptionHandler disruptorExceptionHandler) {
+        this.distributeEventHandler = distributeEventHandler;
+        this.disruptorExceptionHandler = disruptorExceptionHandler;
+    }
 
     @PostConstruct
     @SuppressWarnings("unchecked")
