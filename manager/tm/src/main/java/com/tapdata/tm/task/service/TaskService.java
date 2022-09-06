@@ -2316,14 +2316,19 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         }
 
         if (TaskDto.SYNC_TYPE_MIGRATE.equals(taskDto.getSyncType()) || TaskDto.SYNC_TYPE_SYNC.equals(taskDto.getSyncType())) {
-            for (int i = 0; i < 30; i++) {
+            for (int i = 1; i < 6; i++) {
                 TaskDto transformedCheck = findByTaskId(taskDto.getId(), "transformed");
                 if (transformedCheck.getTransformed() != null && transformedCheck.getTransformed()) {
                     run(taskDto, user);
                     return;
                 }
                 try {
-                    Thread.sleep(500);
+                    long sleepTime = 1;
+                    for (int j = 0; j < i; j++) {
+                        sleepTime = sleepTime * 2;
+                    }
+                    sleepTime = sleepTime * 1000;
+                    Thread.sleep(sleepTime);
                 } catch (InterruptedException e) {
                     throw new BizException("SystemError");
                 }
