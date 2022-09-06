@@ -108,7 +108,7 @@ public class CommonUtils {
                 if (null != connectionFunctions) {
                     function = connectionFunctions.getErrorHandleFunction();
                 }else {
-                    throw new CoreException("Connectionfunctions must be not null,connectionNode does not contain Connectionfunctions");
+                    throw new CoreException("ConnectionFunctions must be not null,connectionNode does not contain ConnectionFunctions");
                 }
                 tapConnectionContext = connectionNode.getConnectionContext();
             } else if(node instanceof ConnectorNode) {
