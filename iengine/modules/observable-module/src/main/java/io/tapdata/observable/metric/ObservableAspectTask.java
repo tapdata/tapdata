@@ -177,7 +177,7 @@ public class ObservableAspectTask extends AspectTask {
 		switch (aspect.getState()) {
 			case StreamReadFuncAspect.STATE_START:
 				Optional.ofNullable(dataNodeSampleHandlers.get(nodeId)).ifPresent(
-						handler -> handler.handleStreamReadStreamStart()
+						handler -> handler.handleStreamReadStreamStart(aspect.getStreamStartedTime())
 				);
 
 				aspect.streamingReadCompleteConsumers(events -> {

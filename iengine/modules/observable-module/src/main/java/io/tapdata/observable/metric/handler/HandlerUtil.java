@@ -30,7 +30,8 @@ public class HandlerUtil {
     public static EventTypeRecorder countTapEvent(List<? extends TapEvent> events) {
         EventTypeRecorder recorder = new EventTypeRecorder();
         long timeCostTotal = 0, recordTotal = 0;
-        for (TapEvent event : events) {
+        for (TapEvent tapEvent : events) {
+            TapBaseEvent event = (TapBaseEvent) tapEvent;
             countEventType(event, recorder);
             if (null != event.getTime()) {
                 timeCostTotal += System.currentTimeMillis() - event.getTime();
@@ -81,6 +82,9 @@ public class HandlerUtil {
             if (null == recorder.getNewestEventTimestamp() || ts > recorder.getNewestEventTimestamp()) {
                 recorder.setNewestEventTimestamp(ts);
             }
+            if (null == recorder.getOldestEventTimestamp() || ts < recorder.getOldestEventTimestamp()) {
+                recorder.setOldestEventTimestamp(ts);
+            }
         }
     }
 
@@ -92,6 +96,7 @@ public class HandlerUtil {
         private long deleteTotal;
         private long othersTotal;
         private long avgProcessTime;
+        private Long oldestEventTimestamp;
         private Long newestEventTimestamp;
 
         public void incrDdlTotal() {

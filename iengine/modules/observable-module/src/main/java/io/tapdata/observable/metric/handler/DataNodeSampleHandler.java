@@ -17,6 +17,9 @@ import io.tapdata.pdk.apis.functions.connection.ConnectionCheckItem;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
 import io.tapdata.pdk.core.monitor.PDKMethod;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import java.util.*;
 import java.util.concurrent.ScheduledExecutorService;
@@ -28,7 +31,10 @@ import java.util.concurrent.atomic.AtomicReference;
 /**
  * @author Dexter
  */
+@Slf4j
 public class DataNodeSampleHandler extends AbstractNodeSampleHandler {
+    private final Logger logger = LogManager.getLogger(DataNodeSampleHandler.class);
+
     static final String TABLE_TOTAL                        = "tableTotal";
     static final String SNAPSHOT_TABLE_TOTAL               = "snapshotTableTotal";
     static final String SNAPSHOT_ROW_TOTAL                 = "snapshotRowTotal";
@@ -119,8 +125,9 @@ public class DataNodeSampleHandler extends AbstractNodeSampleHandler {
     private Long streamAcceptLastTs;
     private Long streamReferenceTimeLastTs;
     private Long streamProcessStartTs;
-    public void handleStreamReadStreamStart() {
+    public void handleStreamReadStreamStart(Long startAt) {
         incrementalSourceReadTimeCostAvg = collector.getAverageSampler(INCR_SOURCE_READ_TIME_COST_AVG);
+        streamAcceptLastTs = startAt;
     }
 
     public void handleStreamReadReadComplete(Long readCompleteAt, HandlerUtil.EventTypeRecorder recorder) {
@@ -134,13 +141,78 @@ public class DataNodeSampleHandler extends AbstractNodeSampleHandler {
         Optional.ofNullable(inputSpeed).ifPresent(speed -> speed.add(total));
         Optional.ofNullable(incrementalSourceReadTimeCostAvg).ifPresent(
                 avg -> {
+                    if (null == recorder.getOldestEventTimestamp() || null == recorder.getNewestEventTimestamp()) {
+                        logger.warn("No reference time found in tap events of incremental sync, skip the " +
+                                "incremental source read time cost calculation");
+                        return;
+                    }
+
                     if (null == streamAcceptLastTs) {
                         streamAcceptLastTs = readCompleteAt;
                     }
                     if (null == streamReferenceTimeLastTs) {
                         streamReferenceTimeLastTs = recorder.getNewestEventTimestamp();
                     }
-                    avg.add(total, readCompleteAt - streamAcceptLastTs - (recorder.getNewestEventTimestamp() - streamReferenceTimeLastTs));
+
+                    // ### Case1
+                    // Condition: newestRefTs > lastEnqueueTs && oldestRefTs > lastEnqueueTs
+                    //
+                    // lastNewestRefTs
+                    //  || lastReadCompleteTs    oldestRefTs    newestRefTs
+                    //  ||  || lastEnqueueTs         ||             || readCompleteTs
+                    //  \/  \/    \/                 \/             \/     \/
+                    // |_*___*_____*__________________*__*__*___*____*______*_____|
+                    //                                |_____________________|
+                    //                                           \/
+                    //                              incrementalSourceReadTimeCost
+                    //
+                    // ### Case2
+                    // Condition: newestRefTs > lastEnqueueTs && oldestRefTs < lastEnqueueTs
+                    //
+                    // lastNewestRefTs
+                    //  || oldestRefTs          lastEnqueueTs
+                    //  ||    || lastReadCompleteTs  || newestRefTs
+                    //  ||    ||    ||               ||     || readCompleteTs
+                    //  \/    \/    \/               \/     \/     \/
+                    // |_*_____*__*__*__*__*___*______*______*______*___|
+                    //                                       |______|
+                    //                                          \/
+                    //                               incrementalSourceReadTimeCost
+                    //
+                    // ### Case3 && Case4
+                    // Condition: newestRefTs < lastEnqueueTs && oldestRefTs < lastEnqueueTs
+                    //
+                    // lastNewestRefTs           lastReadCompleteTs
+                    //  ||     oldestRefTs  newestRefTs  || lastEnqueueTs
+                    //  ||         ||           ||       ||     ||   readCompleteTs
+                    //  \/         \/           \/       \/     \/      \/
+                    // |_*__________*__*__*__*___*________*______*______*____|
+                    //                                           |______|
+                    //                                              \/
+                    //                                   incrementalSourceReadTimeCost
+                    //
+                    // lastNewestRefTs
+                    //  || oldestRefTs          lastEnqueueTs
+                    //  ||    || lastReadCompleteTs  ||
+                    //  ||    ||    ||  newestRefTs  || readCompleteTs
+                    //  \/    \/    \/        \/     \/     \/
+                    // |_*_____*__*__*__*__*___*______*______*____|
+                    //                                |______|
+                    //                                   \/
+                    //                            incrementalSourceReadTimeCost
+                    long oldestRefTs = recorder.getOldestEventTimestamp();
+                    long newestRefTs = recorder.getNewestEventTimestamp();
+                    if (newestRefTs >= streamAcceptLastTs && oldestRefTs >= streamAcceptLastTs) {
+                        avg.add(total, readCompleteAt - oldestRefTs);
+                    } else if (newestRefTs > streamAcceptLastTs && oldestRefTs < streamAcceptLastTs) {
+                        avg.add(total, readCompleteAt - newestRefTs);
+                    } else if (newestRefTs < streamAcceptLastTs && oldestRefTs < streamAcceptLastTs) {
+                        avg.add(total, readCompleteAt - streamAcceptLastTs);
+                    } else {
+                        logger.warn("Another condition happens when calculate incrementalSourceReadTimeCost, " +
+                                "oldestRef: {}, newestRef:{}, lastEnqueueTs: {}, readCompleteTs: {}", oldestRefTs,
+                                newestRefTs, readCompleteAt, streamAcceptLastTs);
+                    }
                 }
         );
 
