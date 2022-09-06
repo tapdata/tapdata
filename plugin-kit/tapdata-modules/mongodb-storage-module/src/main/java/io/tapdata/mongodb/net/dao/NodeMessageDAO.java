@@ -7,7 +7,7 @@ import io.tapdata.mongodb.entity.NodeRegistryEntity;
 
 @MongoDAO(dbName = "proxy")
 @EnsureMongoDBIndex(value = "{\"message.service\" : 1, \"message.subscribeId\" : 1, \"_id\" : 1}")
-@EnsureMongoDBIndex(value = "{\"message.time\" : 1}", expireAfterSeconds = 15) //TODO 10 seconds is for test purpose
+@EnsureMongoDBIndex(value = "{\"message.time\" : 1}", expireAfterSeconds = 604800) //7 days
 public class NodeMessageDAO extends ToDocumentMongoDAO<NodeMessageEntity> {
 
 }

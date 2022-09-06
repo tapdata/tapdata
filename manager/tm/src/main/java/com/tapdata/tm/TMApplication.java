@@ -21,6 +21,8 @@ import org.springframework.scheduling.annotation.EnableAsync;
 
 import java.util.TimeZone;
 
+import static io.tapdata.pdk.core.utils.CommonUtils.dateString;
+
 /**
  * @author lg<lirufei0808 @ gmail.com>
  * @date 2020/9/9 6:54 上午
@@ -55,37 +57,40 @@ public class TMApplication {
 		TimeZone.setDefault(TimeZone.getTimeZone("Asia/Shanghai"));
 
 		TapLogger.setLogListener(new TapLogger.LogListener() {
+			String format(String msg) {
+				return "PDK - " + dateString() + " " + Thread.currentThread().getName() + ": " + msg;
+			}
 			@Override
 			public void debug(String msg) {
-				log.info(msg);
+				log.info(format(msg));
 //				System.out.println(msg);
 			}
 
 			@Override
 			public void info(String msg) {
-				log.info(msg);
+				log.info(format(msg));
 //					System.out.println(log);
 			}
 
 			@Override
 			public void warn(String msg) {
-				log.warn(msg);
+				log.warn(format(msg));
 //				System.out.println(msg);
 			}
 
 			@Override
 			public void error(String msg) {
-				log.error(msg);
+				log.error(format(msg));
 			}
 
 			@Override
 			public void fatal(String msg) {
-				log.error(msg);
+				log.error(format(msg));
 			}
 
 			@Override
 			public void memory(String msg) {
-				log.info(msg);
+				log.info(format(msg));
 			}
 		});
 

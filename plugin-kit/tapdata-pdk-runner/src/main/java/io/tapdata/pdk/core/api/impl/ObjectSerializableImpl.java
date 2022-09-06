@@ -8,6 +8,7 @@ import io.tapdata.entity.utils.JsonParser;
 import io.tapdata.entity.utils.ObjectSerializable;
 
 import java.io.*;
+import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.HashMap;
@@ -23,15 +24,19 @@ public class ObjectSerializableImpl implements ObjectSerializable {
 	public static final byte TYPE_JSON = 2;
 	public static final byte TYPE_MONGODB_DOCUMENT = 3;
 	public static final byte TYPE_JAVA_CUSTOM_SERIALIZER = 4;
+	public static final byte TYPE_MONGODB_OBJECT_ID = 5;
 	public static final byte TYPE_MAP = 100;
 	public static final byte TYPE_LIST = 101;
 	private static final int END = -88888;
 	private Class<?> documentClass;
 	private Method documentParseMethod;
+	private Constructor objectIdConstructor;
 	private Method documentToJsonMethod;
 	@Bean
 	private JsonParser jsonParser;
 	public byte[] fromObjectContainer(Object obj, FromObjectOptions fromObjectOptions) {
+		if(obj == null)
+			return null;
 		byte[] data = null;
 		if(obj.getClass().getName().equals("org.bson.Document")) {
 			return null;
@@ -111,6 +116,8 @@ public class ObjectSerializableImpl implements ObjectSerializable {
 
 	@Override
 	public byte[] fromObject(Object obj, FromObjectOptions options) {
+		if(obj == null)
+			return null;
 		if(options == null)
 			options = defaultFromObjectOptions;
 		byte[] data = fromObjectContainer(obj, options);
@@ -137,31 +144,49 @@ public class ObjectSerializableImpl implements ObjectSerializable {
 				throw new RuntimeException(e);
 			}
 		}
-		if(data == null && obj.getClass().getName().equals("org.bson.Document")) {
-			if(documentToJsonMethod == null) {
-				try {
-					documentToJsonMethod = obj.getClass().getMethod("toJson");
-				} catch (Throwable throwable) {
-					throwable.printStackTrace();
-				}
-			}
-			if(documentToJsonMethod != null) {
-				try {
-					String json = (String) documentToJsonMethod.invoke(obj);
+		if(data == null) {
+			String name = obj.getClass().getName();
+			switch (name) {
+				case "org.bson.Document":
+					if(documentToJsonMethod == null) {
+						try {
+							documentToJsonMethod = obj.getClass().getMethod("toJson");
+						} catch (Throwable throwable) {
+							throwable.printStackTrace();
+						}
+					}
+					if(documentToJsonMethod != null) {
+						try {
+							String json = (String) documentToJsonMethod.invoke(obj);
+							try (ByteArrayOutputStream bos = new ByteArrayOutputStream();
+//						 GZIPOutputStream gos = new GZIPOutputStream(bos);
+								 DataOutputStream oos = new DataOutputStream(bos);
+							) {
+								oos.writeByte(TYPE_MONGODB_DOCUMENT);
+								oos.writeUTF(json);
+								oos.close();
+								data = bos.toByteArray();
+							} catch (IOException e) {
+//						e.printStackTrace();
+							}
+						} catch (Throwable e) {
+//					e.printStackTrace();
+						}
+					}
+					break;
+				case "org.bson.types.ObjectId":
 					try (ByteArrayOutputStream bos = new ByteArrayOutputStream();
 //						 GZIPOutputStream gos = new GZIPOutputStream(bos);
 						 DataOutputStream oos = new DataOutputStream(bos);
 					) {
-						oos.writeByte(TYPE_MONGODB_DOCUMENT);
-						oos.writeUTF(json);
+						oos.writeByte(TYPE_MONGODB_OBJECT_ID);
+						oos.writeUTF(obj.toString());
 						oos.close();
 						data = bos.toByteArray();
 					} catch (IOException e) {
 //						e.printStackTrace();
 					}
-				} catch (Throwable e) {
-//					e.printStackTrace();
-				}
+					break;
 			}
 		}
 		if (data == null && obj instanceof Serializable && fromObjectOptions.isToJavaPlatform()) {
@@ -202,6 +227,8 @@ public class ObjectSerializableImpl implements ObjectSerializable {
 
 	@Override
 	public Object toObject(byte[] data, ToObjectOptions options) {
+		if(data == null)
+			return null;
 		try (ByteArrayInputStream bos = new ByteArrayInputStream(data);
 //			 GZIPInputStream gos = new GZIPInputStream(bos);
 			 DataInputStream dis = new DataInputStream(bos);
@@ -279,6 +306,24 @@ public class ObjectSerializableImpl implements ObjectSerializable {
 //						e.printStackTrace();
 				}
 				break;
+			case TYPE_MONGODB_OBJECT_ID:
+				String idStr = dis.readUTF();
+				if(objectIdConstructor == null) {
+					try {
+						Class<?> objectIdClass = findClass(options, "org.bson.types.ObjectId");
+						objectIdConstructor = objectIdClass.getConstructor(String.class);
+					} catch (Throwable throwable) {
+//							throwable.printStackTrace();
+					}
+				}
+				if(objectIdConstructor != null) {
+					try {
+						return objectIdConstructor.newInstance(idStr);
+					} catch (Throwable e) {
+//							e.printStackTrace();
+					}
+				}
+				break;
 			case TYPE_MONGODB_DOCUMENT:
 				String json = dis.readUTF();
 				if(documentParseMethod == null) {
@@ -351,6 +396,13 @@ public class ObjectSerializableImpl implements ObjectSerializable {
 				try {
 					theClass = options.getClassLoader().loadClass(name);
 				} catch (ClassNotFoundException ignored) {
+					int pos;
+					if((pos = name.indexOf("$")) > 0) {
+						name = name.substring(0, pos);
+						try {
+							theClass = options.getClassLoader().loadClass(name);
+						} catch (Throwable throwable) {}
+					}
 				} catch (Throwable throwable) {
 					throwable.printStackTrace();
 				}

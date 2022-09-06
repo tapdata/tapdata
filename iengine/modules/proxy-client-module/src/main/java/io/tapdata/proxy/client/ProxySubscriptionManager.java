@@ -4,6 +4,7 @@ import cn.hutool.core.collection.ConcurrentHashSet;
 import com.tapdata.constant.ConfigurationCenter;
 import io.tapdata.entity.annotations.Bean;
 import io.tapdata.entity.logger.TapLogger;
+import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.modules.api.net.data.IncomingData;
 import io.tapdata.modules.api.net.data.OutgoingData;
 import io.tapdata.modules.api.proxy.data.NewDataReceived;
@@ -71,7 +72,7 @@ public class ProxySubscriptionManager {
 				List<TaskSubscribeInfo> taskSubscribeInfoList = typeConnectionIdSubscribeInfosMap.get(subscribeId);
 				if(taskSubscribeInfoList != null) {
 					for(TaskSubscribeInfo taskSubscribeInfo : taskSubscribeInfoList) {
-						
+						taskSubscribeInfo.subscriptionAspectTask.enableFetchingNewData(subscribeId);
 					}
 				}
 				//TODO

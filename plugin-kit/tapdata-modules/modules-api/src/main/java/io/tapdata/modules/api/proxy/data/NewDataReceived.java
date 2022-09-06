@@ -38,4 +38,9 @@ public class NewDataReceived implements TapEntity {
 	public void setSubscribeIds(List<String> subscribeIds) {
 		this.subscribeIds = subscribeIds;
 	}
+
+	@Override
+	public String toString() {
+		return contentType() + " subscribeIds " + subscribeIds;
+	}
 }

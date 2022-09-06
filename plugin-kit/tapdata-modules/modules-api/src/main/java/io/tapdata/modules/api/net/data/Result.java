@@ -120,4 +120,8 @@ public class Result extends ContentData<Result> {
         this.time = time;
     }
 
+    @Override
+    public String toString() {
+        return "Result code " + code + " forId " + forId + " description " + description + " time " + time + super.toString();
+    }
 }

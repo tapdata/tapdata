@@ -34,6 +34,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 
 @AspectTaskSession(includeTypes = {TaskDto.SYNC_TYPE_MIGRATE, TaskDto.SYNC_TYPE_SYNC}, ignoreErrors = false, order = 1)
@@ -44,6 +45,12 @@ public class SubscriptionAspectTask extends AbstractAspectTask {
 	StreamReadConsumer streamReadConsumer;
 	Long taskStartTime;
 	private final TaskSubscribeInfo taskSubscribeInfo = new TaskSubscribeInfo();
+	private boolean isStarted;
+	private StreamReadFuncAspect streamReadFuncAspect;
+	private final AtomicBoolean isFetchingNewData = new AtomicBoolean(false);
+	private boolean needFetchingNewData = false;
+
+	private Object currentOffset;
 
 	public SubscriptionAspectTask() {
 		observerHandlers.register(PDKNodeInitAspect.class, this::handlePDKNodeInit);
@@ -51,37 +58,57 @@ public class SubscriptionAspectTask extends AbstractAspectTask {
 	}
 
 	private Void handleStreamRead(StreamReadFuncAspect streamReadFuncAspect) {
+		this.streamReadFuncAspect = streamReadFuncAspect;
 		switch (streamReadFuncAspect.getState()) {
 			case StreamReadFuncAspect.STATE_CALLBACK_RAW_DATA:
 //				((DataParentNode)streamReadFuncAspect.getDataProcessorContext().getNode()).getConnectionId();
-				streamReadConsumer = streamReadFuncAspect.getStreamReadConsumer();
-				if(streamReadConsumer != null) {
-					streamReadConsumer.streamReadStarted();
-					String subscribeId = taskSubscribeInfo.nodeIdTypeConnectionIdMap.get(streamReadFuncAspect.getDataProcessorContext().getNode().getId());
-					Object offset = streamReadFuncAspect.getOffsetState();
+				if(streamReadConsumer == null) {
+					streamReadConsumer = streamReadFuncAspect.getStreamReadConsumer();
+					if(streamReadConsumer != null) {
+						streamReadConsumer.streamReadStarted();
+						String subscribeId = taskSubscribeInfo.nodeIdTypeConnectionIdMap.get(streamReadFuncAspect.getDataProcessorContext().getNode().getId());
+						currentOffset = streamReadFuncAspect.getOffsetState();
 
-					BiConsumer<Result, Throwable> biConsumer = (result, throwable) -> {
-						handleFetchNewDataResult(streamReadFuncAspect, subscribeId, offset, result, throwable);
-					};
-					fetchNewData(subscribeId, offset, biConsumer);
+						BiConsumer<Result, Throwable> biConsumer = (result, throwable) -> {
+							handleFetchNewDataResult(streamReadFuncAspect, subscribeId, result, throwable);
+						};
+						if(startFetchingNewData())
+							fetchNewData(subscribeId, currentOffset, biConsumer);
+					}
+				} else {
+					TapLogger.debug(TAG, "StreamReadFuncAspect.STATE_CALLBACK_RAW_DATA shouldn't enter more than once");
 				}
 				break;
 		}
 		return null;
 	}
 
-	private void handleFetchNewDataResult(StreamReadFuncAspect streamReadFuncAspect, String subscribeId, Object offset, Result result, Throwable throwable) {
+	public synchronized void enableFetchingNewData(String subscribeId) {
+		needFetchingNewData = true;
+		if(isFetchingNewData.compareAndSet(false, true)) {
+			fetchNewData(subscribeId, currentOffset, (result, throwable) -> handleFetchNewDataResult(streamReadFuncAspect, subscribeId, result, throwable));
+		}
+	}
+	private boolean startFetchingNewData() {
+		return isStarted && isFetchingNewData.compareAndSet(false, true);
+	}
+
+	private void handleFetchNewDataResult(StreamReadFuncAspect streamReadFuncAspect, String subscribeId, Result result, Throwable throwable) {
+		if(!isStarted)
+			return;
 		if(throwable != null) {
 			streamReadFuncAspect.noMoreWaitRawData(throwable);
 			return;
 		}
 		if(result == null) {
-			streamReadFuncAspect.noMoreWaitRawData(new CoreException(NetErrors.RESULT_IS_NULL, "Result/Throwable are both null in handleFetchNewDataResult, subscribeId {} offset {}", subscribeId, offset));
+			streamReadFuncAspect.noMoreWaitRawData(new CoreException(NetErrors.RESULT_IS_NULL, "Result/Throwable are both null in handleFetchNewDataResult, subscribeId {} offset {}", subscribeId, currentOffset));
 			return;
 		}
 
 		FetchNewDataResult fetchNewDataResult = (FetchNewDataResult) result.getMessage();
+		Object nextOffset = null;
 		if(fetchNewDataResult != null) {
+			nextOffset = fetchNewDataResult.getOffset();
 			List<MessageEntity> messages = fetchNewDataResult.getMessages();
 			if(messages != null) {
 				String associateId = streamReadFuncAspect.getDataProcessorContext().getPdkAssociateId();
@@ -99,13 +126,33 @@ public class SubscriptionAspectTask extends AbstractAspectTask {
 							}, TAG);
 						}
 						streamReadConsumer.accept(events, fetchNewDataResult.getOffset());
-						if(!messages.isEmpty()) {
-							fetchNewData(subscribeId, offset, (result1, throwable1) -> handleFetchNewDataResult(streamReadFuncAspect, subscribeId, offset, result1, throwable1));
+						currentOffset = fetchNewDataResult.getOffset();
+						synchronized (this) {
+							if(!messages.isEmpty() || needFetchingNewData) {
+								needFetchingNewData = false;
+								fetchNewData(subscribeId, currentOffset, (result1, throwable1) -> handleFetchNewDataResult(streamReadFuncAspect, subscribeId, result1, throwable1));
+								return;
+							}
 						}
 					}
 				}
 			}
 		}
+		synchronized (this) {
+			if(needFetchingNewData) {
+				needFetchingNewData = false;
+				Object finalNextOffset = nextOffset;
+				fetchNewData(subscribeId, currentOffset, (result1, throwable1) -> handleFetchNewDataResult(streamReadFuncAspect, subscribeId, result1, throwable1));
+			} else {
+				if(stopFetchingNewData()) {
+					TapLogger.debug(TAG, "isFetchingNewData is false");
+				}
+			}
+		}
+	}
+
+	private boolean stopFetchingNewData() {
+		return isFetchingNewData.compareAndSet(true, false);
 	}
 
 	private void fetchNewData(String subscribeId, Object offset, BiConsumer<Result, Throwable> biConsumer) {
@@ -117,7 +164,12 @@ public class SubscriptionAspectTask extends AbstractAspectTask {
 			fetchNewData.taskStartTime(taskStartTime);
 		else
 			fetchNewData.offset(offset);
-		proxySubscriptionManager.getImClient().sendData(new IncomingData().message(fetchNewData)).whenComplete(biConsumer);
+		if(isStarted) {
+			TapLogger.debug(TAG, "fetchNewData subscribeId {}, offset {}, taskStartTime {}", subscribeId, offset, taskStartTime);
+			proxySubscriptionManager.getImClient().sendData(new IncomingData().message(fetchNewData)).whenComplete(biConsumer);
+		} else {
+			TapLogger.debug(TAG, "fetchNewData will not start as task stopped subscribeId {}, offset {}, taskStartTime {}", subscribeId, offset, taskStartTime);
+		}
 	}
 
 	private Void handlePDKNodeInit(PDKNodeInitAspect aspect) {
@@ -148,7 +200,9 @@ public class SubscriptionAspectTask extends AbstractAspectTask {
 									pdkNodeList = old;
 								}
 								pdkNodeList.add(connectorNode);
-								taskSubscribeInfo.nodeIdPDKNodeMap.put(node.getId(), connectorNode);
+								io.tapdata.pdk.core.api.Node oldNode = taskSubscribeInfo.nodeIdPDKNodeMap.put(node.getId(), connectorNode);
+								if(oldNode != null) //Node will be recreated when found new table at runtime
+									pdkNodeList.remove(oldNode);
 								taskSubscribeInfo.nodeIdTypeConnectionIdMap.put(node.getId(), typeConnectionId);
 								proxySubscriptionManager.taskSubscribeInfoChanged(taskSubscribeInfo);
 							}
@@ -189,6 +243,7 @@ public class SubscriptionAspectTask extends AbstractAspectTask {
 
 	@Override
 	public void onStart(TaskStartAspect startAspect) {
+		isStarted = true;
 		TaskDto taskDto = startAspect.getTask();
 		taskStartTime = System.currentTimeMillis();
 		if(taskDto != null && taskDto.getId() != null && taskDto.getDag() != null) {
@@ -200,6 +255,9 @@ public class SubscriptionAspectTask extends AbstractAspectTask {
 
 	@Override
 	public void onStop(TaskStopAspect stopAspect) {
+		isStarted = false;
 		proxySubscriptionManager.removeTaskSubscribeInfo(taskSubscribeInfo);
+		if(streamReadFuncAspect != null)
+			streamReadFuncAspect.noMoreWaitRawData();
 	}
 }

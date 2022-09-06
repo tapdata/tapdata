@@ -56,4 +56,8 @@ public class FetchNewDataResult implements TapEntity {
 	public void setOffset(Object offset) {
 		this.offset = offset;
 	}
+	@Override
+	public String toString() {
+		return contentType() + " offset " + offset + " messages length " + (messages != null ? messages.size() : 0) + " messages " + messages;
+	}
 }

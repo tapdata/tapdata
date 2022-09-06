@@ -449,6 +449,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 					.offsetState(syncProgress.getStreamOffsetObj())
 					.start(), streamReadFuncAspect -> PDKInvocationMonitor.invoke(getConnectorNode(), PDKMethod.SOURCE_STREAM_READ,
 					() -> {
+						this.streamReadFuncAspect = streamReadFuncAspect;
 						StreamReadConsumer streamReadConsumer = StreamReadConsumer.create((events, offsetObj) -> {
 							try {
 								while (isRunning()) {

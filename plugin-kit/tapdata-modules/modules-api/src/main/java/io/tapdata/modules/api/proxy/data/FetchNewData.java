@@ -42,24 +42,17 @@ public class FetchNewData implements TapEntity {
 	@Override
 	public void from(InputStream inputStream) throws IOException {
 		DataInputStreamEx dis = dataInputStream(inputStream);
-		byte[] data = dis.readBytes();
-		if(data != null) {
-			ObjectSerializable objectSerializable = InstanceFactory.instance(ObjectSerializable.class);
-			assert objectSerializable != null;
-			offset = objectSerializable.toObject(data);
-			limit = dis.readInt();
-			service = dis.readUTF();
-			subscribeId = dis.readUTF();
-			taskStartTime = dis.readLong();
-		}
+		offset = dis.readObject();
+		limit = dis.readInt();
+		service = dis.readUTF();
+		subscribeId = dis.readUTF();
+		taskStartTime = dis.readLong();
 	}
 
 	@Override
 	public void to(OutputStream outputStream) throws IOException {
 		DataOutputStreamEx dos = dataOutputStream(outputStream);
-		ObjectSerializable objectSerializable = InstanceFactory.instance(ObjectSerializable.class);
-		assert objectSerializable != null;
-		dos.writeBytes(objectSerializable.fromObject(offset));
+		dos.writeObject(offset);
 		dos.writeInt(limit);
 		dos.writeUTF(service);
 		dos.writeUTF(subscribeId);
@@ -104,5 +97,9 @@ public class FetchNewData implements TapEntity {
 
 	public void setTaskStartTime(Long taskStartTime) {
 		this.taskStartTime = taskStartTime;
+	}
+
+	public String toString() {
+		return contentType() + " taskStartTime " + taskStartTime + " offset " + offset + " limit " + limit + " service " + service + " subscribeId " + subscribeId;
 	}
 }

@@ -12,6 +12,8 @@ import java.io.OutputStream;
 import java.util.Date;
 import java.util.Map;
 
+import static io.tapdata.entity.simplify.TapSimplify.toJson;
+
 @Implementation(value = TapEntity.class, type = "MessageEntity")
 public class MessageEntity implements TapEntity {
 	private Map<String, Object> content;
@@ -38,12 +40,9 @@ public class MessageEntity implements TapEntity {
 	@Override
 	public void from(InputStream inputStream) throws IOException {
 		DataInputStreamEx dis = dataInputStream(inputStream);
-		byte[] data = dis.readBytes();
-		if(data != null) {
-			content = (Map<String, Object>) dis.readJson();
-			time = dis.readDate();
-			subscribeId = dis.readUTF();
-		}
+		content = (Map<String, Object>) dis.readJson();
+		time = dis.readDate();
+		subscribeId = dis.readUTF();
 	}
 
 	@Override
@@ -84,5 +83,9 @@ public class MessageEntity implements TapEntity {
 
 	public void setService(String service) {
 		this.service = service;
+	}
+
+	public String toString() {
+		return contentType() + " time " + time + " content " + (content != null ? toJson(content) : "null");
 	}
 }

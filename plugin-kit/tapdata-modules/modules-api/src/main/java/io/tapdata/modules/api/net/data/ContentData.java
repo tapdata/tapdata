@@ -3,6 +3,7 @@ package io.tapdata.modules.api.net.data;
 import io.tapdata.entity.utils.io.DataInputStreamEx;
 import io.tapdata.entity.utils.io.DataOutputStreamEx;
 import io.tapdata.modules.api.net.message.TapEntity;
+import jdk.jfr.ContentType;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -101,5 +102,9 @@ public abstract class ContentData<T extends ContentData> extends Data {
 
     public void setMessage(TapEntity message) {
         this.message = message;
+    }
+    @Override
+    public String toString() {
+        return "ContentData ContentType " + contentType + " ContentEncode " + contentEncode + " message " + message;
     }
 }

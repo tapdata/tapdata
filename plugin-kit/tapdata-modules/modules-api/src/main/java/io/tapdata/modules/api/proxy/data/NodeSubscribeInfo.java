@@ -38,4 +38,9 @@ public class NodeSubscribeInfo implements TapEntity {
 	public void setSubscribeIds(Set<String> subscribeIds) {
 		this.subscribeIds = subscribeIds;
 	}
+
+	@Override
+	public String toString() {
+		return contentType() + " subscribeIds " + subscribeIds;
+	}
 }

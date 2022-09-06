@@ -46,4 +46,9 @@ public class IncomingData extends ContentData<IncomingData> {
         this.id = id;
     }
 
+    @Override
+    public String toString() {
+        return "IncomingData id " + id + " " + super.toString();
+    }
+
 }

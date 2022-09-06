@@ -14,6 +14,8 @@ public interface MessageEntityService {
 
 	FetchNewDataResult getMessageEntityList(String service, String subscribeId, Object offset, Integer limit);
 
+	void remove(String service, String subscribeId);
+
 	interface ChangedSubscribeIdsListener {
 		void changed(List<Subscription> subscriptions);
 	}

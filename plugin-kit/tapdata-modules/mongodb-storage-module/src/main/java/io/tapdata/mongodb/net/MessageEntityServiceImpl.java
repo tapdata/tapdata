@@ -18,10 +18,7 @@ import io.tapdata.mongodb.net.dao.NodeMessageDAO;
 import org.bson.Document;
 import org.bson.types.ObjectId;
 
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 
 import static io.tapdata.entity.simplify.TapSimplify.toJson;
 
@@ -66,7 +63,7 @@ public class MessageEntityServiceImpl implements MessageEntityService {
 	public Object getOffsetByTimestamp(Long startTime) {
 		if(startTime == null)
 			startTime = System.currentTimeMillis();
-		NodeMessageEntity nodeMessageEntity = nodeMessageDAO.findOne(new Document("message.time", new Document("$lte", startTime)), "_id");
+		NodeMessageEntity nodeMessageEntity = nodeMessageDAO.findOne(new Document("message.time", new Document("$lte", new Date(startTime))), "_id");
 		if(nodeMessageEntity != null)
 			return nodeMessageEntity.getId();
 		return null;
@@ -100,5 +97,10 @@ public class MessageEntityServiceImpl implements MessageEntityService {
 				}
 			}
 		}
+	}
+
+	@Override
+	public void remove(String service, String subscribeId) {
+		nodeMessageDAO.delete(new Document("message.service", service).append("message.subscribeId", subscribeId));
 	}
 }
