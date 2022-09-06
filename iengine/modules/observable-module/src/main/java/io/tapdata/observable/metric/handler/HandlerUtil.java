@@ -28,22 +28,15 @@ public class HandlerUtil {
     }
 
     public static EventTypeRecorder countTapEvent(List<? extends TapEvent> events) {
+        long now = System.currentTimeMillis();
+
         EventTypeRecorder recorder = new EventTypeRecorder();
-        long timeCostTotal = 0, recordTotal = 0;
         for (TapEvent tapEvent : events) {
             TapBaseEvent event = (TapBaseEvent) tapEvent;
             countEventType(event, recorder);
-            if (null != event.getTime()) {
-                timeCostTotal += System.currentTimeMillis() - event.getTime();
-                recordTotal += 1;
-            }
+            recorder.incrProcessTimeTotal(now, event.getTime());
+            recorder.incrReplicateLagTotal(now, event.getReferenceTime());
         }
-
-        long timeCostAvg = 0;
-        if (recordTotal != 0) {
-            timeCostAvg = timeCostTotal / recordTotal;
-        }
-        recorder.setAvgProcessTime(timeCostAvg);
 
         return recorder;
     }
@@ -95,7 +88,8 @@ public class HandlerUtil {
         private long updateTotal;
         private long deleteTotal;
         private long othersTotal;
-        private long avgProcessTime;
+        private long processTimeTotal;
+        private Long replicateLagTotal;
         private Long oldestEventTimestamp;
         private Long newestEventTimestamp;
 
@@ -117,6 +111,20 @@ public class HandlerUtil {
         public void incrOthersTotal() {
             this.othersTotal += 1;
         }
+
+        public void incrProcessTimeTotal(Long now, long time) {
+            processTimeTotal += (now - time);
+        }
+
+        public void incrReplicateLagTotal(Long now, Long replicateLag) {
+            if (null == replicateLag) return;
+            if (null == replicateLagTotal) {
+                replicateLagTotal = 0L;
+            }
+            replicateLagTotal += (now - replicateLag);
+        }
+
+
 
         public long getTotal() {
             return ddlTotal + insertTotal + updateTotal + deleteTotal + othersTotal;

@@ -230,10 +230,12 @@ public class DataNodeSampleHandler extends AbstractNodeSampleHandler {
         Optional.ofNullable(outputOthersCounter).ifPresent(counter -> counter.inc(recorder.getOthersTotal()));
         Optional.ofNullable(outputSpeed).ifPresent(speed -> speed.add(total));
 
-        if (null != recorder.getNewestEventTimestamp()) {
-            Optional.ofNullable(currentEventTimestamp).ifPresent(sampler -> sampler.setValue(recorder.getNewestEventTimestamp()));
-            Optional.ofNullable(replicateLag).ifPresent(sampler -> sampler.setValue(processCompleteAt - recorder.getNewestEventTimestamp()));
-        }
+        Optional.ofNullable(currentEventTimestamp).ifPresent(number -> number.setValue(recorder.getNewestEventTimestamp()));
+        Optional.ofNullable(replicateLag).ifPresent(speed -> {
+            if (null != recorder.getReplicateLagTotal()) {
+                speed.add(recorder.getTotal(), recorder.getReplicateLagTotal());
+            }
+        });
 
         Optional.ofNullable(timeCostAverage).ifPresent(average -> {
             average.add(total, processCompleteAt - streamProcessStartTs);
@@ -259,7 +261,7 @@ public class DataNodeSampleHandler extends AbstractNodeSampleHandler {
 
     }
 
-    public void handleWriteRecordAccept(Long acceptTime, WriteListResult<TapRecordEvent> result, Long newestEventTimestamp) {
+    public void handleWriteRecordAccept(Long acceptTime, WriteListResult<TapRecordEvent> result, HandlerUtil.EventTypeRecorder recorder) {
         long inserted = result.getInsertedCount();
         long updated = result.getModifiedCount();
         long deleted = result.getRemovedCount();
@@ -275,10 +277,12 @@ public class DataNodeSampleHandler extends AbstractNodeSampleHandler {
             writeRecordAcceptLastTs = acceptTime;
         });
 
-        Optional.ofNullable(currentEventTimestamp).ifPresent(sampler -> sampler.setValue(newestEventTimestamp));
-        if (null != newestEventTimestamp) {
-            Optional.ofNullable(replicateLag).ifPresent(sampler -> sampler.setValue(System.currentTimeMillis() - newestEventTimestamp));
-        }
+        Optional.ofNullable(currentEventTimestamp).ifPresent(number -> number.setValue(recorder.getNewestEventTimestamp()));
+        Optional.ofNullable(replicateLag).ifPresent(speed -> {
+            if (null != recorder.getReplicateLagTotal()) {
+                speed.add(recorder.getTotal(), recorder.getReplicateLagTotal());
+            }
+        });
     }
 
     AtomicBoolean firstTableCount = new AtomicBoolean(true);

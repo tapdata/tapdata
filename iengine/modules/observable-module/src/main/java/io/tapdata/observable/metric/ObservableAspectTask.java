@@ -359,7 +359,10 @@ public class ObservableAspectTask extends AspectTask {
 			case WriteRecordFuncAspect.STATE_START:
 				HandlerUtil.EventTypeRecorder recorder = HandlerUtil.countTapEvent(aspect.getRecordEvents());
 				Optional.ofNullable(dataNodeSampleHandlers.get(nodeId)).ifPresent(
-						handler -> handler.handleWriteRecordStart(aspect.getTime(), recorder)
+						handler -> {
+							handler.handleWriteRecordStart(aspect.getTime(), recorder);
+							taskSampleHandler.addTargetNodeHandler(nodeId, handler);
+						}
 				);
 				aspect.consumer((events, result) -> {
 					if (null == events || events.size() == 0) {
@@ -368,10 +371,10 @@ public class ObservableAspectTask extends AspectTask {
 
 					HandlerUtil.EventTypeRecorder inner = HandlerUtil.countTapEvent(events);
 					Optional.ofNullable(dataNodeSampleHandlers.get(nodeId)).ifPresent(
-							handler -> handler.handleWriteRecordAccept(System.currentTimeMillis(), result, inner.getNewestEventTimestamp())
+							handler -> handler.handleWriteRecordAccept(System.currentTimeMillis(), result, inner)
 					);
 					taskSampleHandler.handleWriteRecordAccept(result, events);
-					pipelineDelay.refreshDelay(task.getId().toHexString(), nodeId, inner.getAvgProcessTime(), inner.getNewestEventTimestamp());
+					pipelineDelay.refreshDelay(task.getId().toHexString(), nodeId, inner.getProcessTimeTotal() / inner.getTotal(), inner.getNewestEventTimestamp());
 				});
 				break;
 			case WriteRecordFuncAspect.STATE_END:

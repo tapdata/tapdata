@@ -2,15 +2,16 @@ package io.tapdata.observable.metric.handler;
 
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.common.sample.CollectorFactory;
+import io.tapdata.common.sample.Sampler;
 import io.tapdata.common.sample.sampler.AverageSampler;
 import io.tapdata.common.sample.sampler.CounterSampler;
-import io.tapdata.common.sample.sampler.NumberSampler;
 import io.tapdata.common.sample.sampler.SpeedSampler;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.pdk.apis.entity.WriteListResult;
 
 import java.util.*;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * @author Dexter
@@ -46,8 +47,8 @@ public class TaskSampleHandler extends AbstractHandler {
     SpeedSampler inputSpeed;
     SpeedSampler outputSpeed;
     AverageSampler timeCostAverage;
-    NumberSampler<Long> replicateLag;
-    NumberSampler<Long> currentEventTimestamp;
+    Sampler replicateLag;
+    Sampler currentEventTimestamp;
 
 
     private CounterSampler createTableTotal;
@@ -128,12 +129,36 @@ public class TaskSampleHandler extends AbstractHandler {
         outputSpeed = collector.getSpeedSampler(Constants.OUTPUT_QPS);
         timeCostAverage = collector.getAverageSampler(Constants.TIME_COST_AVG);
 
-        Number currentEventTimestampInitial = values.getOrDefault(Constants.CURR_EVENT_TS, null);
-        currentEventTimestamp = collector.getNumberCollector(Constants.CURR_EVENT_TS, Long.class,
-                null == currentEventTimestampInitial ? null : currentEventTimestampInitial.longValue());
-        replicateLag = collector.getNumberCollector(Constants.REPLICATE_LAG, Long.class,
-                null == currentEventTimestampInitial ? null : System.currentTimeMillis() - currentEventTimestampInitial.longValue());
+        collector.addSampler(Constants.CURR_EVENT_TS, () -> {
+            AtomicReference<Long> currentEventTimestampRef = new AtomicReference<>();
+            for (DataNodeSampleHandler h : targetNodeHandlers.values()) {
+                Optional.ofNullable(h.getCurrentEventTimestamp()).ifPresent(sampler -> {
+                    Number value = sampler.value();
+                    if (null == value) return;
+                    long v = value.longValue();
+                    if (null == currentEventTimestampRef.get() || currentEventTimestampRef.get() > v) {
+                        currentEventTimestampRef.set(v);
+                    }
+                });
 
+            }
+            return currentEventTimestampRef.get();
+        });
+        collector.addSampler(Constants.REPLICATE_LAG, () -> {
+            AtomicReference<Long> replicateLagRef = new AtomicReference<>();
+            for (DataNodeSampleHandler h : targetNodeHandlers.values()) {
+                Optional.ofNullable(h.getReplicateLag()).ifPresent(sampler -> {
+                    Number value = sampler.value();
+                    if (null == value) return;
+                    long v = value.longValue();
+                    if (null == replicateLagRef.get() || replicateLagRef.get() < v) {
+                        replicateLagRef.set(v);
+                    }
+                });
+
+            }
+            return replicateLagRef.get();
+        });
 
         createTableTotal = getCounterSampler(values, CREATE_TABLE_TOTAL);
         snapshotTableTotal = getCounterSampler(values, SNAPSHOT_TABLE_TOTAL);
@@ -223,6 +248,11 @@ public class TaskSampleHandler extends AbstractHandler {
         inputSpeed.add(recorder.getTotal());
     }
 
+    private final HashMap<String, DataNodeSampleHandler> targetNodeHandlers = new HashMap<>();
+    public void addTargetNodeHandler(String nodeId, DataNodeSampleHandler handler) {
+        targetNodeHandlers.putIfAbsent(nodeId, handler);
+    }
+
     public void handleWriteRecordAccept(WriteListResult<TapRecordEvent> result, List<TapRecordEvent> events) {
         long current = System.currentTimeMillis();
 
@@ -237,7 +267,6 @@ public class TaskSampleHandler extends AbstractHandler {
         outputSpeed.add(total);
 
         long timeCostTotal = 0L;
-        Long newestEventTimestamp = null;
         for (TapRecordEvent event : events) {
             Long time = event.getTime();
             if (null == time) {
@@ -245,18 +274,8 @@ public class TaskSampleHandler extends AbstractHandler {
                 break;
             }
             timeCostTotal += (current - time);
-            if (null != event.getReferenceTime()) {
-                if (null == newestEventTimestamp || event.getReferenceTime() > newestEventTimestamp) {
-                    newestEventTimestamp = event.getReferenceTime();
-                }
-            }
         }
         timeCostAverage.add(total, timeCostTotal);
-        Long finalNewestEventTimestamp = newestEventTimestamp;
-        Optional.ofNullable(currentEventTimestamp).ifPresent(number -> number.setValue(finalNewestEventTimestamp));
-        if (null != newestEventTimestamp) {
-            replicateLag.setValue(System.currentTimeMillis() - newestEventTimestamp);
-        }
     }
 
     public void handleSnapshotStart(Long time) {
