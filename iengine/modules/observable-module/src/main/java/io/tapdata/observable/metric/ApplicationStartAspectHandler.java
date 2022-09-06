@@ -8,6 +8,7 @@ import com.tapdata.mongo.RestTemplateOperator;
 import io.tapdata.aspect.ApplicationStartAspect;
 import io.tapdata.common.sample.CollectorFactory;
 import io.tapdata.common.sample.SampleCollector;
+import io.tapdata.common.sample.process.GcSampler;
 import io.tapdata.entity.aspect.AspectObserver;
 import io.tapdata.entity.aspect.annotations.AspectObserverClass;
 
@@ -39,6 +40,16 @@ public class ApplicationStartAspectHandler implements AspectObserver<Application
         );
         collector.addSampler("physicalMemTotal", () ->
                 ((com.sun.management.OperatingSystemMXBean) ManagementFactory.getOperatingSystemMXBean()).getFreePhysicalMemorySize()
+        );
+        collector.addSampler("memoryRate", () ->
+                (double) ManagementFactory.getMemoryMXBean().getHeapMemoryUsage().getUsed() / ((com.sun.management.OperatingSystemMXBean) ManagementFactory.getOperatingSystemMXBean()).getFreePhysicalMemorySize()
+        );
+
+        GcSampler gcSamplerTime = new GcSampler(GcSampler.GcPointEnum.GC_TIME);
+        gcSamplerTime.start();
+        collector.addSampler("gcTimeIn5Min", gcSamplerTime);
+        collector.addSampler("gcRate", () ->
+            gcSamplerTime.value().doubleValue() / 300000
         );
     }
 }
