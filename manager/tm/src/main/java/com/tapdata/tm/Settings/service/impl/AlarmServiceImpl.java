@@ -2,8 +2,8 @@ package com.tapdata.tm.Settings.service.impl;
 
 import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.extra.spring.SpringUtil;
-import com.tapdata.tm.Settings.dto.AlarmDto;
-import com.tapdata.tm.Settings.entity.Alarm;
+import com.tapdata.tm.Settings.dto.AlarmSettingDto;
+import com.tapdata.tm.Settings.entity.AlarmSetting;
 import com.tapdata.tm.Settings.service.AlarmService;
 import com.tapdata.tm.alarmrule.dto.UpdateRuleDto;
 import com.tapdata.tm.utils.Lists;
@@ -29,33 +29,33 @@ public class AlarmServiceImpl implements AlarmService {
     private MongoTemplate mongoTemplate;
 
     @Override
-    public void delete(List<Alarm> data) {
+    public void delete(List<AlarmSetting> data) {
         if (CollectionUtils.isNotEmpty(data)) {
 
-            List<String> collect = data.stream().map(Alarm::getKey).collect(Collectors.toList());
+            List<String> collect = data.stream().map(AlarmSetting::getKey).collect(Collectors.toList());
 
-            mongoTemplate.remove(new Query(Criteria.where("key").in(collect)), Alarm.class);
+            mongoTemplate.remove(new Query(Criteria.where("key").in(collect)), AlarmSetting.class);
         }
     }
 
     @Override
-    public void save(List<AlarmDto> alarms) {
-        List<Alarm> data = Lists.newArrayList();
+    public void save(List<AlarmSettingDto> alarms) {
+        List<AlarmSetting> data = Lists.newArrayList();
         BeanUtil.copyProperties(alarms, data);
 
         AlarmService alarmService = SpringUtil.getBean(AlarmService.class);
         alarmService.delete(data);
 
-        mongoTemplate.insert(data, Alarm.class);
+        mongoTemplate.insert(data, AlarmSetting.class);
     }
 
     @Override
-    public List<AlarmDto> findAll() {
-        List<Alarm> alarms = mongoTemplate.find(new Query(), Alarm.class);
+    public List<AlarmSettingDto> findAll() {
+        List<AlarmSetting> alarmSettings = mongoTemplate.find(new Query(), AlarmSetting.class);
 
-        List<AlarmDto> result = Lists.newArrayList();
+        List<AlarmSettingDto> result = Lists.newArrayList();
 
-        BeanUtil.copyProperties(alarms, result);
+        BeanUtil.copyProperties(alarmSettings, result);
 
         return result;
     }
@@ -64,6 +64,6 @@ public class AlarmServiceImpl implements AlarmService {
     public void updateSystemNotify(UpdateRuleDto ruleDto) {
         Query query = new Query(Criteria.where("key").is(ruleDto.getKey()));
         Update update = new Update().set("systemNotify", ruleDto.isNotify());
-        mongoTemplate.updateFirst(query, update, Alarm.class);
+        mongoTemplate.updateFirst(query, update, AlarmSetting.class);
     }
 }

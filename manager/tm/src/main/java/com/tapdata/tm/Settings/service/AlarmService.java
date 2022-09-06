@@ -1,17 +1,17 @@
 package com.tapdata.tm.Settings.service;
 
-import com.tapdata.tm.Settings.dto.AlarmDto;
-import com.tapdata.tm.Settings.entity.Alarm;
+import com.tapdata.tm.Settings.dto.AlarmSettingDto;
+import com.tapdata.tm.Settings.entity.AlarmSetting;
 import com.tapdata.tm.alarmrule.dto.UpdateRuleDto;
 
 import java.util.List;
 
 public interface AlarmService {
 
-    void delete(List<Alarm> alarmList);
-    void save(List<AlarmDto> alarms);
+    void delete(List<AlarmSetting> alarmSettingList);
+    void save(List<AlarmSettingDto> alarms);
 
-    List<AlarmDto> findAll();
+    List<AlarmSettingDto> findAll();
 
     void updateSystemNotify(UpdateRuleDto ruleDto);
 }

@@ -1,7 +1,7 @@
 package com.tapdata.tm.Settings.controller;
 
 import com.tapdata.manager.common.utils.JsonUtil;
-import com.tapdata.tm.Settings.dto.AlarmDto;
+import com.tapdata.tm.Settings.dto.AlarmSettingDto;
 import com.tapdata.tm.Settings.dto.SettingsDto;
 import com.tapdata.tm.Settings.entity.Settings;
 import com.tapdata.tm.Settings.param.EnterpriseUpdateParam;
@@ -89,14 +89,14 @@ public class SettingsController extends BaseController {
 
     @Operation(summary = "alarm save")
     @PostMapping("/alarm_save")
-    public ResponseMessage<Void> alarmSave(@RequestBody List<AlarmDto> alarms) {
+    public ResponseMessage<Void> alarmSave(@RequestBody List<AlarmSettingDto> alarms) {
         alarmService.save(alarms);
         return success();
     }
 
     @Operation(summary = "find all alarms")
     @GetMapping("/alarm_find")
-    public ResponseMessage<List<AlarmDto>> findAllAlarmList() {
+    public ResponseMessage<List<AlarmSettingDto>> findAllAlarmList() {
         return success(alarmService.findAll());
     }
 

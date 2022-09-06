@@ -1,10 +1,10 @@
-package com.tapdata.tm.Settings.dto;
+package com.tapdata.tm.Settings.entity;
 
 import cn.hutool.core.date.DateUnit;
 import com.tapdata.tm.Settings.constant.AlarmTypeEnum;
-import lombok.AllArgsConstructor;
-import lombok.Getter;
-import lombok.Setter;
+import com.tapdata.tm.base.entity.BaseEntity;
+import lombok.*;
+import org.springframework.data.mongodb.core.mapping.Document;
 
 /**
  * @author jiuyetx
@@ -13,7 +13,9 @@ import lombok.Setter;
 @Getter
 @Setter
 @AllArgsConstructor
-public class AlarmDto {
+@NoArgsConstructor
+@Document("Settings_Alarm")
+public class AlarmSetting extends BaseEntity {
     private AlarmTypeEnum type;
     private String key;
     private int sort;

@@ -25,6 +25,7 @@ public class QuartzManager {
      * 添加任务，使用任务组名（不存在就用默认的），触发器名，触发器组名并启动
      * @param info 任务
      */
+    @SuppressWarnings("unchecked")
     public void addJob(ScheduleJobInfo info) {
         try {
             Scheduler scheduler = schedulerFactoryBean.getScheduler();
