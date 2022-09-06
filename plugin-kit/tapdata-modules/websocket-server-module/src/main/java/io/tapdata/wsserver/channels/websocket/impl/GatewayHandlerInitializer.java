@@ -34,7 +34,7 @@ public class GatewayHandlerInitializer extends ChannelInitializer<SocketChannel>
             pipeline.addLast(this.sslContext.newHandler(socketChannel.alloc()));
         }
         pipeline.addLast(new HttpServerCodec());
-        pipeline.addLast(new HttpObjectAggregator(65536));
+        pipeline.addLast(new HttpObjectAggregator(50 * 1024 * 1024));
         pipeline.addLast(new IdleStateHandler(this.nettyProperties.getReadIdleTime(),
                 this.nettyProperties.getWriteIdleTime(), this.nettyProperties.getAllIdleTime(), TimeUnit.MINUTES));
         GatewayHandler gatewayHandler = new GatewayHandler(this.nettyProperties.isSsl());

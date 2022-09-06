@@ -44,7 +44,7 @@ public class ProxyController extends BaseController {
     public ResponseMessage<LoginProxyResponseDto> generateTokenForEngineToProxy(@RequestBody LoginProxyDto loginProxyDto, HttpServletRequest request) {
         if(loginProxyDto == null || loginProxyDto.getClientId() == null || loginProxyDto.getService() == null || loginProxyDto.getTerminal() == null)
             throw new BizException("loginDto is illegal, " + loginProxyDto);
-        if(StringUtils.isEmpty(loginProxyDto.getService()) || !loginProxyDto.getService().equalsIgnoreCase("engine"))
+        if(StringUtils.isEmpty(loginProxyDto.getService()))
             throw new BizException("Illegal service for generating token");
         UserDetail userDetail = getLoginUser();
 

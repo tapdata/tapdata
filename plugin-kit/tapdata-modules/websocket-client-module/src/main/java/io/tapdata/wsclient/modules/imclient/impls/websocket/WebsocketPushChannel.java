@@ -110,7 +110,7 @@ public class WebsocketPushChannel extends PushChannel {
             TapLogger.debug(TAG, "WS connected successfully, " + host + " " + wsPort + " " + server + " " + sid);
         }).exceptionally(throwable -> {
             TapLogger.error(TAG, "WS connected failed, " + host + " " + wsPort + " " + server + " " + sid);
-            eventManager.sendEvent(imClient.getPrefix() + ".status", new ChannelStatus(this, ChannelStatus.STATUS_DISCONNECTED, MonitorThread.CHANNEL_ERRORS_LOGIN_FAILED));
+            eventManager.sendEvent(imClient.getPrefix() + ".status", new ChannelStatus(this, ChannelStatus.STATUS_DISCONNECTED, MonitorThread.CHANNEL_ERRORS_LOGIN_FAILED, throwable.getMessage()));
             return null;
         });
 //        Promise.handle((Handler<Void>) () -> {
@@ -252,7 +252,7 @@ public class WebsocketPushChannel extends PushChannel {
             throw new CoreException(NetErrors.WEBSOCKET_CONNECT_FAILED, "Connect and handshake websocket failed, " + e.getMessage(), e);
         }
 //        sendServer();
-        TapLogger.info(TAG, "connectWS: "+"sendServer");
+//        TapLogger.info(TAG, "connectWS: "+"sendServer");
         Identity identity = new Identity();
         identity.setId("id");
         identity.setToken(sid);
@@ -275,15 +275,13 @@ public class WebsocketPushChannel extends PushChannel {
         if(!isAlive()) return;
         if(pingFuture == null) {
             Ping ping = new Ping();
-            send(ping);
-//            ping.setId("ping");
-//            sendDataPrivate(ping);
-//            TapLogger.info(TAG, "ping");
             pingFuture = TimerEx.scheduleInSeconds(() -> {
                 pingFuture = null;
                 stop();
                 TapLogger.info(TAG, "Stop channel because of ping timeout");
             }, 10);
+            send(ping);
+            TapLogger.info(TAG, "ping");
         }
     }
 

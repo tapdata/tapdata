@@ -3,7 +3,6 @@ package io.tapdata.wsclient.modules.imclient.impls;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.modules.api.net.data.Data;
 import io.tapdata.modules.api.net.data.Result;
-import io.tapdata.pdk.core.utils.RandomDraw;
 import io.tapdata.wsclient.modules.imclient.impls.websocket.ChannelStatus;
 import io.tapdata.wsclient.utils.EventManager;
 
@@ -169,13 +168,14 @@ public class MonitorThread<T extends PushChannel> extends Thread {
         TapLogger.info(TAG, "Monitor Thread is running");
         eventManager.registerEventListener(this, imClient.getPrefix() + ".status", (EventManager.EventListener<ChannelStatus>) (eventType, channelStatus) -> {
             TapLogger.info(TAG, "status changed, " + channelStatus);
-            switch (channelStatus.getType()) {
+            switch (channelStatus.getStatus()) {
                 case ChannelStatus.STATUS_CONNECTED:
                     resetIdelTimes();
                     wakeupForMessage();
                     break;
                 case ChannelStatus.STATUS_DISCONNECTED:
                     if(pushChannel != null && channelStatus.getPushChannel().equals(pushChannel)) {
+                        failedAllPendingMessages();
                         shiftIdleTimes();
                         restartChannel(false);
                     }
@@ -184,6 +184,7 @@ public class MonitorThread<T extends PushChannel> extends Thread {
                     break;
                 case ChannelStatus.STATUS_BYE:
                 case ChannelStatus.STATUS_KICKED:
+                    failedAllPendingMessages();
                     resetIdelTimes();
                     if(pushChannel != null && channelStatus.getPushChannel().equals(pushChannel)) {
                         terminate();
@@ -271,6 +272,16 @@ public class MonitorThread<T extends PushChannel> extends Thread {
 //		} finally {
 //			status = STATUS_TERMINATED;
 //		}
+    }
+
+    private void failedAllPendingMessages() {
+        Data imData;
+        while((imData = imClient.messageQueue.poll()) != null) {
+            handleMessageSendFailed(imData, "Send message because channel just disconnected.");
+        }
+        for(ResultListenerWrapper wrapper : imClient.resultMap.values()) {
+            wrapper.completeExceptionally(imClient.resultMap, new IOException("Send message because channel just disconnected."));
+        }
     }
 
     boolean send(Data message) throws IOException {

@@ -18,8 +18,8 @@ public class FetchNewData implements TapEntity {
 		this.taskStartTime = taskStartTime;
 		return this;
 	}
-	private Object offset;
-	public FetchNewData offset(Object offset) {
+	private String offset;
+	public FetchNewData offset(String offset) {
 		this.offset = offset;
 		return this;
 	}
@@ -42,7 +42,7 @@ public class FetchNewData implements TapEntity {
 	@Override
 	public void from(InputStream inputStream) throws IOException {
 		DataInputStreamEx dis = dataInputStream(inputStream);
-		offset = dis.readObject();
+		offset = dis.readUTF();
 		limit = dis.readInt();
 		service = dis.readUTF();
 		subscribeId = dis.readUTF();
@@ -52,18 +52,18 @@ public class FetchNewData implements TapEntity {
 	@Override
 	public void to(OutputStream outputStream) throws IOException {
 		DataOutputStreamEx dos = dataOutputStream(outputStream);
-		dos.writeObject(offset);
+		dos.writeUTF(offset);
 		dos.writeInt(limit);
 		dos.writeUTF(service);
 		dos.writeUTF(subscribeId);
 		dos.writeLong(taskStartTime);
 	}
 
-	public Object getOffset() {
+	public String getOffset() {
 		return offset;
 	}
 
-	public void setOffset(Object offset) {
+	public void setOffset(String offset) {
 		this.offset = offset;
 	}
 

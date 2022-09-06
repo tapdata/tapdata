@@ -8,34 +8,34 @@ public class ChannelStatus {
     public static final String STATUS_OFFLINEMESSAGECONSUMED = "offlineMessageConsumed";
     public static final String STATUS_KICKED = "kicked";
     public static final String STATUS_BYE = "bye";
-    private String type;
+    private String status;
     private Integer code;
     private String reason;
     private PushChannel pushChannel;
-    public ChannelStatus(PushChannel pushChannel, String type) {
-        this(pushChannel, type, null, null);
+    public ChannelStatus(PushChannel pushChannel, String status) {
+        this(pushChannel, status, null, null);
     }
 
-    public ChannelStatus(PushChannel pushChannel, String type, Integer code) {
-        this(pushChannel, type, code, null);
+    public ChannelStatus(PushChannel pushChannel, String status, Integer code) {
+        this(pushChannel, status, code, null);
     }
-    public ChannelStatus(PushChannel pushChannel, String type, Integer code, String reason) {
+    public ChannelStatus(PushChannel pushChannel, String status, Integer code, String reason) {
         this.pushChannel = pushChannel;
-        this.type = type;
+        this.status = status;
         this.code = code;
         this.reason = reason;
     }
 
     public String toString() {
-        return "ChannelStatus " + type + " " + code + " " + reason;
+        return "ChannelStatus " + status + " " + code + " " + reason;
     }
 
-    public String getType() {
-        return type;
+    public String getStatus() {
+        return status;
     }
 
-    public void setType(String type) {
-        this.type = type;
+    public void setStatus(String status) {
+        this.status = status;
     }
 
     public Integer getCode() {

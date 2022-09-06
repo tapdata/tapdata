@@ -94,7 +94,7 @@ public class UserActionHandler implements ListHandler<UserAction>, ListErrorHand
                     throwable.printStackTrace();
                     TapLogger.error(TAG, "onDataReceived contentType {} failed, {}", userAction.getIncomingData().getContentType(), throwable.getMessage());
 
-                    Result errorResult = new Result().forId(userAction.getIncomingData().getId()).time(System.currentTimeMillis()).contentEncode(userAction.getIncomingData().getContentEncode());
+                    Result errorResult = new Result().description(throwable.getMessage()).forId(userAction.getIncomingData().getId()).time(System.currentTimeMillis()).contentEncode(userAction.getIncomingData().getContentEncode());
                     if (throwable instanceof CoreException) {
                         errorResult.setCode(((CoreException) throwable).getCode());
                     } else {
@@ -123,7 +123,7 @@ public class UserActionHandler implements ListHandler<UserAction>, ListErrorHand
                     }
                 } catch (Throwable throwable) {
 //                    TapLogger.error(TAG, "onDataReceived contentType $userAction.incomingData.contentType failed, ${throwable.getMessage()}")
-                    Result errorResult = new Result().forId(userAction.getIncomingMessage().getId()).time(System.currentTimeMillis()).contentEncode(userAction.getIncomingMessage().getContentEncode());
+                    Result errorResult = new Result().description(throwable.getMessage()).forId(userAction.getIncomingMessage().getId()).time(System.currentTimeMillis()).contentEncode(userAction.getIncomingMessage().getContentEncode());
                     if (throwable instanceof CoreException) {
                         errorResult.setCode(((CoreException) throwable).getCode());
                     } else {
@@ -165,7 +165,7 @@ public class UserActionHandler implements ListHandler<UserAction>, ListErrorHand
                     }
                 } catch (Throwable throwable) {
                     TapLogger.error(TAG, "onInvocation userAction:{} {}", jsonParser.toJson(userAction.getIncomingInvocation()), throwable.getMessage());
-                    Result errorResult = new Result().forId(userAction.getIncomingInvocation().getId()).time(System.currentTimeMillis()).contentEncode(userAction.getIncomingInvocation().getContentEncode());
+                    Result errorResult = new Result().description(throwable.getMessage()).forId(userAction.getIncomingInvocation().getId()).time(System.currentTimeMillis()).contentEncode(userAction.getIncomingInvocation().getContentEncode());
                     if (throwable instanceof CoreException) {
                         errorResult.setCode(((CoreException) throwable).getCode());
                     } else {
@@ -191,7 +191,7 @@ public class UserActionHandler implements ListHandler<UserAction>, ListErrorHand
                     }
                 } catch (Throwable throwable) {
                     TapLogger.error(TAG, "onRequest {}", throwable.getMessage());
-                    Result errorResult = new Result().forId(userAction.getIncomingRequest().getId()).time(System.currentTimeMillis());
+                    Result errorResult = new Result().description(throwable.getMessage()).forId(userAction.getIncomingRequest().getId()).time(System.currentTimeMillis());
                     if (throwable instanceof CoreException) {
                         errorResult.setCode(((CoreException) throwable).getCode());
                     } else {

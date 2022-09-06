@@ -20,8 +20,8 @@ public class FetchNewDataResult implements TapEntity {
 		this.messages = messages;
 		return this;
 	}
-	private Object offset;
-	public FetchNewDataResult offset(Object offset) {
+	private String offset;
+	public FetchNewDataResult offset(String offset) {
 		this.offset = offset;
 		return this;
 	}
@@ -31,14 +31,14 @@ public class FetchNewDataResult implements TapEntity {
 		DataInputStreamEx dis = dataInputStream(inputStream);
 		messages = new ArrayList<>();
 		dis.readCollectionCustomObject(messages, MessageEntity.class);
-		offset = dis.readObject();
+		offset = dis.readUTF();
 	}
 
 	@Override
 	public void to(OutputStream outputStream) throws IOException {
 		DataOutputStreamEx dos = dataOutputStream(outputStream);
 		dos.writeCollectionBinaryObject(messages);
-		dos.writeObject(offset);
+		dos.writeUTF(offset);
 	}
 
 	public List<MessageEntity> getMessages() {
@@ -49,11 +49,11 @@ public class FetchNewDataResult implements TapEntity {
 		this.messages = messages;
 	}
 
-	public Object getOffset() {
+	public String getOffset() {
 		return offset;
 	}
 
-	public void setOffset(Object offset) {
+	public void setOffset(String offset) {
 		this.offset = offset;
 	}
 	@Override

@@ -94,9 +94,9 @@ public class MongodbTest {
 		messageEntityService.save(message3);
 		messageEntityService.save(message4);
 
-		Object offset = messageEntityService.getOffsetByTimestamp(0L);
+		String offset = messageEntityService.getOffsetByTimestamp(0L);
 		assertNull(offset);
-		Object offset1 = messageEntityService.getOffsetByTimestamp(12343254234L);
+		String offset1 = messageEntityService.getOffsetByTimestamp(12343254234L);
 		assertNotNull(offset1);
 		FetchNewDataResult result = messageEntityService.getMessageEntityList("abc", "aaaa", offset1, 2);
 		assertNotNull(result.getOffset());

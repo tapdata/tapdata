@@ -50,7 +50,7 @@ public class SubscriptionAspectTask extends AbstractAspectTask {
 	private final AtomicBoolean isFetchingNewData = new AtomicBoolean(false);
 	private boolean needFetchingNewData = false;
 
-	private Object currentOffset;
+	private String currentOffset;
 
 	public SubscriptionAspectTask() {
 		observerHandlers.register(PDKNodeInitAspect.class, this::handlePDKNodeInit);
@@ -67,7 +67,12 @@ public class SubscriptionAspectTask extends AbstractAspectTask {
 					if(streamReadConsumer != null) {
 						streamReadConsumer.streamReadStarted();
 						String subscribeId = taskSubscribeInfo.nodeIdTypeConnectionIdMap.get(streamReadFuncAspect.getDataProcessorContext().getNode().getId());
-						currentOffset = streamReadFuncAspect.getOffsetState();
+						Object theOffset = streamReadFuncAspect.getOffsetState();
+						if(theOffset instanceof String) {
+							currentOffset = (String) theOffset;
+						} else {
+							currentOffset = null;
+						}
 
 						BiConsumer<Result, Throwable> biConsumer = (result, throwable) -> {
 							handleFetchNewDataResult(streamReadFuncAspect, subscribeId, result, throwable);
@@ -155,7 +160,7 @@ public class SubscriptionAspectTask extends AbstractAspectTask {
 		return isFetchingNewData.compareAndSet(true, false);
 	}
 
-	private void fetchNewData(String subscribeId, Object offset, BiConsumer<Result, Throwable> biConsumer) {
+	private void fetchNewData(String subscribeId, String offset, BiConsumer<Result, Throwable> biConsumer) {
 		FetchNewData fetchNewData = new FetchNewData()
 				.limit(1)
 				.service("engine")

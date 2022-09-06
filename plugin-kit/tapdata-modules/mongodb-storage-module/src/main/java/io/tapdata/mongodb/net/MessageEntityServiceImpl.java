@@ -60,23 +60,23 @@ public class MessageEntityServiceImpl implements MessageEntityService {
 	}
 
 	@Override
-	public Object getOffsetByTimestamp(Long startTime) {
+	public String getOffsetByTimestamp(Long startTime) {
 		if(startTime == null)
 			startTime = System.currentTimeMillis();
 		NodeMessageEntity nodeMessageEntity = nodeMessageDAO.findOne(new Document("message.time", new Document("$lte", new Date(startTime))), "_id");
 		if(nodeMessageEntity != null)
-			return nodeMessageEntity.getId();
+			return nodeMessageEntity.getId().toString();
 		return null;
 	}
 	@Override
-	public FetchNewDataResult getMessageEntityList(String service, String subscribeId, Object offset, Integer limit) {
+	public FetchNewDataResult getMessageEntityList(String service, String subscribeId, String offset, Integer limit) {
 		if(limit == null)
 			limit = 100;
 		MongoCursor<NodeMessageEntity> cursor = null;
 		try {
 			Document filter = new Document("message.service", service).append("message.subscribeId", subscribeId);
 			if(offset != null) {
-				filter.append("_id", new Document("$gt", offset));
+				filter.append("_id", new Document("$gt", new ObjectId(offset)));
 			}
 			FindIterable<NodeMessageEntity> iterable = nodeMessageDAO.getMongoCollection().find(filter).limit(limit);
 			cursor = iterable.cursor();
@@ -87,7 +87,7 @@ public class MessageEntityServiceImpl implements MessageEntityService {
 				list.add(nodeMessageEntity.getMessage());
 				lastObjectId = (ObjectId) nodeMessageEntity.getId();
 			}
-			return new FetchNewDataResult().messages(list).offset(lastObjectId);
+			return new FetchNewDataResult().messages(list).offset(lastObjectId != null ? lastObjectId.toHexString() : null);
 		} finally {
 			if (cursor != null) {
 				try {

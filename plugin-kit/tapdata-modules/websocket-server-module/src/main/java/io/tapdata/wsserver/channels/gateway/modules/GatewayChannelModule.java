@@ -53,13 +53,16 @@ public class GatewayChannelModule {
     private JsonParser jsonParser;
 
     private final ConcurrentHashMap<String, ChannelHandlerContext> userIdChannelMap = new ConcurrentHashMap<>();
-    
+
     public boolean close(String userId, Integer code) {
+        return close(userId, code, null);
+    }
+    public boolean close(String userId, Integer code, String message) {
         ChannelHandlerContext context = userIdChannelMap.remove(userId);
         if (context != null) {
             Channel channel = context.channel();
             if (channel != null && channel.isActive()) {
-                Result result = new Result().code(code);
+                Result result = new Result().code(code).description(message);
                 NetUtils.writeAndFlush(channel, result);
                 channel.close();
                 return true;
