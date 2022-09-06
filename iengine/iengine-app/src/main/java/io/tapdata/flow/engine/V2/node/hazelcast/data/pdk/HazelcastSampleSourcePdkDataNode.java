@@ -9,6 +9,7 @@ import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.DataParentNode;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
+import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
@@ -56,7 +57,6 @@ public class HazelcastSampleSourcePdkDataNode extends HazelcastPdkBaseNode {
 
     try {
       Node<?> node = dataProcessorContext.getNode();
-      Thread.currentThread().setName("PDK-SAMPLE-SOURCE-RUNNER-" + node.getName() + "(" + node.getId() + ")");
       Log4jUtil.setThreadContext(dataProcessorContext.getTaskDto());
       TapTableMap<String, TapTable> tapTableMap = dataProcessorContext.getTapTableMap();
       List<String> tables = new ArrayList<>(tapTableMap.keySet());
@@ -82,6 +82,7 @@ public class HazelcastSampleSourcePdkDataNode extends HazelcastPdkBaseNode {
           tapEventList.clear();
           createPdkConnectorNode(dataProcessorContext, jetContext.hazelcastInstance());
           connectorNodeInit(dataProcessorContext);
+          TapCodecsFilterManager codecsFilterManager = getConnectorNode().getCodecsFilterManager();
           QueryByAdvanceFilterFunction queryByAdvanceFilterFunction = getConnectorNode().getConnectorFunctions().getQueryByAdvanceFilterFunction();
           TapAdvanceFilter tapAdvanceFilter = TapAdvanceFilter.create().limit(rows);
           PDKInvocationMonitor.invoke(getConnectorNode(), PDKMethod.SOURCE_QUERY_BY_ADVANCE_FILTER,
@@ -90,6 +91,7 @@ public class HazelcastSampleSourcePdkDataNode extends HazelcastPdkBaseNode {
                     List<Map<String, Object>> results = filterResults.getResults();
                     List<TapEvent> events = wrapTapEvent(results, tapTable.getId());
                     if (CollectionUtil.isNotEmpty(events)) {
+                      events.forEach(tapEvent -> tapRecordToTapValue(tapEvent, codecsFilterManager));
                       tapEventList.addAll(events);
                     }
                   }), TAG);

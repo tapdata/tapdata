@@ -22,6 +22,6 @@ public enum JSEngineEnum {
 				return engineEnum;
 			}
 		}
-		return NASHORN;
+		return GRAALVM_JS;
 	}
 }
