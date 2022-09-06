@@ -49,11 +49,14 @@ public class TMApplication {
 
 		TimeZone.setDefault(TimeZone.getTimeZone("Asia/Shanghai"));
 
-		DefaultDataDirectoryService bean = applicationContext.getBean(DefaultDataDirectoryService.class);
-		UserDetail userDetail = userService.loadUserByUsername("admin@admin.com");
+		new Thread(() -> {
+			DefaultDataDirectoryService bean = applicationContext.getBean(DefaultDataDirectoryService.class);
+			UserDetail userDetail = userService.loadUserByUsername("admin@admin.com");
 
-		bean.addPdkIds(userDetail);
-		bean.addConnections(userDetail);
+			bean.addPdkIds(userDetail);
+			bean.addConnections(userDetail);
+		}).start();
+
 
 	}
 }

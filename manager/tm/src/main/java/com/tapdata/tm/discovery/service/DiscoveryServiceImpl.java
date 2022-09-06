@@ -448,15 +448,17 @@ public class DiscoveryServiceImpl implements DiscoveryService {
 
         if (StringUtils.isNotBlank(param.getTagId())) {
             MetadataDefinitionDto definitionDto = metadataDefinitionService.findById(MongoUtils.toObjectId(param.getTagId()));
-            List<String> itemTypes = definitionDto.getItemType();
-            boolean isDefault = itemTypes.contains("default");
-            List<MetadataDefinitionDto> andChild = metadataDefinitionService.findAndChild(Lists.of(MongoUtils.toObjectId(param.getTagId())));
-            if (!isDefault) {
-                List<ObjectId> tagIds = andChild.stream().map(BaseDto::getId).collect(Collectors.toList());
-                criteria.and("listtags.id").in(tagIds);
-            } else {
-                List<String> linkIds = andChild.stream().map(MetadataDefinitionDto::getLinkId).filter(Objects::nonNull).collect(Collectors.toList());
-                criteria.and("source._id").in(linkIds);
+            if (definitionDto != null) {
+                List<String> itemTypes = definitionDto.getItemType();
+                boolean isDefault = itemTypes.contains("default");
+                List<MetadataDefinitionDto> andChild = metadataDefinitionService.findAndChild(Lists.of(MongoUtils.toObjectId(param.getTagId())));
+                if (!isDefault) {
+                    List<ObjectId> tagIds = andChild.stream().map(BaseDto::getId).collect(Collectors.toList());
+                    criteria.and("listtags.id").in(tagIds);
+                } else {
+                    List<String> linkIds = andChild.stream().map(MetadataDefinitionDto::getLinkId).filter(Objects::nonNull).collect(Collectors.toList());
+                    criteria.and("source._id").in(linkIds);
+                }
             }
         }
 
