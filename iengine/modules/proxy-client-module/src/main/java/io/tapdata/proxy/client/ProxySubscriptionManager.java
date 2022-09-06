@@ -9,10 +9,12 @@ import io.tapdata.modules.api.net.data.IncomingData;
 import io.tapdata.modules.api.net.data.OutgoingData;
 import io.tapdata.modules.api.proxy.data.NewDataReceived;
 import io.tapdata.modules.api.proxy.data.NodeSubscribeInfo;
+import io.tapdata.modules.api.proxy.data.TestItem;
 import io.tapdata.pdk.core.api.Node;
 import io.tapdata.pdk.core.executor.ExecutorsManager;
 import io.tapdata.wsclient.modules.imclient.IMClient;
 import io.tapdata.wsclient.modules.imclient.IMClientBuilder;
+import io.tapdata.wsclient.modules.imclient.impls.websocket.ChannelStatus;
 import io.tapdata.wsclient.utils.EventManager;
 
 import java.util.ArrayList;
@@ -58,9 +60,23 @@ public class ProxySubscriptionManager {
 							.build();
 					imClient.start();
 					EventManager eventManager = EventManager.getInstance();
+					eventManager.registerEventListener(imClient.getPrefix() + ".status", this::handleStatus);
 					//prefix + "." + data.getClass().getSimpleName() + "." + data.getContentType()
 					eventManager.registerEventListener(imClient.getPrefix() + "." + OutgoingData.class.getSimpleName() + "." + NewDataReceived.class.getSimpleName(), this::handleNewDataReceived);
 				}
+			}
+		}
+	}
+
+	private void handleStatus(String contentType, ChannelStatus channelStatus) {
+		if(channelStatus == null)
+			return;
+		String status = channelStatus.getStatus();
+		if(status != null) {
+			switch (status) {
+				case ChannelStatus.STATUS_CONNECTED:
+					handleTaskSubscribeInfoChanged();
+					break;
 			}
 		}
 	}
