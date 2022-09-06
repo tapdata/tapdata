@@ -6,7 +6,6 @@ import com.tapdata.tm.Settings.dto.AlarmDto;
 import com.tapdata.tm.Settings.entity.Alarm;
 import com.tapdata.tm.Settings.service.AlarmService;
 import com.tapdata.tm.alarmrule.dto.UpdateRuleDto;
-import com.tapdata.tm.alarmrule.entity.AlarmRule;
 import com.tapdata.tm.utils.Lists;
 import lombok.Setter;
 import org.apache.commons.collections4.CollectionUtils;
