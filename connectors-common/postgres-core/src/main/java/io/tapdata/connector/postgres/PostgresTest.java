@@ -18,6 +18,10 @@ import static io.tapdata.base.ConnectorBase.testItem;
 // TODO: 2022/6/9 need to improve test items 
 public class PostgresTest extends CommonDbTest {
 
+    public PostgresTest() {
+        super();
+    }
+
     public PostgresTest(PostgresConfig postgresConfig) {
         super(postgresConfig);
         jdbcContext = DataSourcePool.getJdbcContext(postgresConfig, PostgresJdbcContext.class, uuid);

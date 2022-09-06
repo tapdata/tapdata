@@ -13,9 +13,13 @@ import static io.tapdata.base.ConnectorBase.testItem;
 
 public class CommonDbTest implements AutoCloseable {
 
-    protected final CommonDbConfig commonDbConfig;
+    protected CommonDbConfig commonDbConfig;
     protected JdbcContext jdbcContext;
     protected final String uuid = UUID.randomUUID().toString();
+
+    public CommonDbTest() {
+
+    }
 
     public CommonDbTest(CommonDbConfig commonDbConfig) {
         this.commonDbConfig = commonDbConfig;
