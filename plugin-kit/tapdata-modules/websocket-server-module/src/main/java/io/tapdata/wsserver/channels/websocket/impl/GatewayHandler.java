@@ -81,7 +81,7 @@ public class GatewayHandler extends AbstractWebSocketServerHandler {
 
     @Override
     protected void messageReceived(ChannelHandlerContext ctx, BinaryWebSocketFrame webSocketFrame) {
-        TapLogger.info(TAG, "messageReceived $ctx $webSocketFrame");
+//        TapLogger.info(TAG, "messageReceived $ctx $webSocketFrame");
         byte[] body = null;
 
         ByteBuf byteBuf = webSocketFrame.content();

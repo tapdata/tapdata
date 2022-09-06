@@ -1,6 +1,7 @@
 package imclient;
 
 import com.google.common.collect.Lists;
+import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.modules.api.net.data.IncomingData;
 import io.tapdata.modules.api.net.data.OutgoingData;
 import io.tapdata.modules.api.net.data.Result;
@@ -19,6 +20,8 @@ import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.LongAdder;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -35,6 +38,8 @@ public class IMClientTest extends AsyncTestBase{
 	@Test
 	@Disabled
 	public void test() throws Throwable {
+		TapRuntime.getInstance();
+
 		imClient = new IMClientBuilder()
 				.withBaseUrl(Lists.newArrayList("http://localhost:3000/api/proxy?access_token=ed305eb7ec5c4c85b3095d0af58341c5bf49101b3608485fb8db4ab8d884cf06"))
 				.withService("test")
@@ -60,44 +65,55 @@ public class IMClientTest extends AsyncTestBase{
 			switch (status) {
 				case ChannelStatus.STATUS_CONNECTED:
 					$(() -> {
-						imClient.sendData(new IncomingData().message(new TestItem().action("error"))).thenAccept(result -> {
-							assertNull(result);
-						}).exceptionally(throwable -> {
-							assertNotNull(throwable);
-							return null;
-						}).thenAccept(unused -> {
-							imClient.sendData(new IncomingData().message(new TestItem().action("normal"))).thenAccept(result -> {
-								assertNotNull(result);
-								assertNotNull(result.getCode());
-							}).exceptionally(throwable -> {
-								assertNull(throwable);
-								return null;
-							}).thenAccept(unused1 -> {
-								imClient.sendData(new IncomingData().message(new TestItem().action("normal1"))).thenAccept(result -> {
-									assertNotNull(result);
-									assertNotNull(result.getCode());
-									assertEquals("oops", ((TestItem)result.getMessage()).getAction());
-									completed();
-								}).exceptionally(throwable -> {
-									assertNull(throwable);
-									return null;
-								});
-							});
-//							imClient.sendData(new IncomingData().message(new TestItem().action("kick"))).whenComplete((result, throwable) -> {
-//								assertNotNull(throwable);
-//							});
-						});
-
-//						imClient.sendData(new IncomingData().message(new TestItem().action("error"))).whenComplete((result, throwable) -> {
-//							assertNotNull(throwable);
+//						imClient.sendData(new IncomingData().message(new TestItem().action("error"))).thenAccept(result -> {
 //							assertNull(result);
-//						}).thenRun(() -> {
-//							imClient.sendData(new IncomingData().message(new TestItem().action("kick"))).whenComplete((result, throwable) -> {
-//								assertNotNull(throwable);
+//						}).exceptionally(throwable -> {
+//							assertNotNull(throwable);
+//							return null;
+//						}).thenAccept(unused -> {
+//							imClient.sendData(new IncomingData().message(new TestItem().action("normal"))).thenAccept(result -> {
+//								assertNotNull(result);
+//								assertNotNull(result.getCode());
+//							}).exceptionally(throwable -> {
+//								assertNull(throwable);
+//								return null;
+//							}).thenAccept(unused1 -> {
+//								imClient.sendData(new IncomingData().message(new TestItem().action("normal1"))).thenAccept(result -> {
+//									assertNotNull(result);
+//									assertNotNull(result.getCode());
+//									assertEquals("oops", ((TestItem)result.getMessage()).getAction());
+//									completed();
+//								}).exceptionally(throwable -> {
+//									assertNull(throwable);
+//									return null;
+//								});
 //							});
-//						});
+
+							imClient.sendData(new IncomingData().message(new TestItem().action("kick"))).whenComplete((result, throwable) -> {
+								assertNotNull(throwable);
+							});
+
+//							long times = 1000;
+//							long time = System.currentTimeMillis();
+//							AtomicLong longAdder = new AtomicLong();
+//							for(int i = 0; i < times; i++) {
+//								imClient.sendData(new IncomingData().message(new TestItem().action("normal1"))).thenAccept(result -> {
+//									assertNotNull(result);
+//									assertNotNull(result.getCode());
+//									assertEquals("oops", ((TestItem)result.getMessage()).getAction());
 //
-//						assertTrue(true);
+//									System.out.println("result " + result + " counter " + longAdder.incrementAndGet());
+//									if(longAdder.longValue() == times) {
+//										System.out.println("takes " + (System.currentTimeMillis() - time));
+//										completed();
+//									}
+//								}).exceptionally(throwable -> {
+//									assertNull(throwable);
+//									return null;
+//								});
+//							}
+//						});
+
 					});
 					break;
 			}

@@ -1,10 +1,12 @@
 package io.tapdata.wsclient.modules.imclient.impls;
 
+import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.modules.api.net.data.Data;
 import io.tapdata.modules.api.net.data.IncomingData;
 import io.tapdata.modules.api.net.data.IncomingMessage;
 import io.tapdata.modules.api.net.data.Result;
+import io.tapdata.modules.api.net.error.NetErrors;
 import io.tapdata.pdk.core.executor.ExecutorsManager;
 import io.tapdata.wsclient.modules.imclient.IMClient;
 import io.tapdata.wsclient.modules.imclient.impls.websocket.WebsocketPushChannel;
@@ -25,6 +27,7 @@ public class IMClientImpl implements IMClient {
     private AtomicLong msgCounter;
 
     private String prefix;
+    
 
     LinkedBlockingQueue<Data> messageQueue;
 //    WorkerQueue<IMData> messageWorkerQueue;
@@ -82,42 +85,78 @@ public class IMClientImpl implements IMClient {
         }
     }
 
-    @Override
     public CompletableFuture<Result> sendData(IncomingData data) {
+        return sendData(data, null);
+    }
+    
+    @Override
+    public CompletableFuture<Result> sendData(IncomingData data, Integer expireSeconds) {
+        if(expireSeconds == null)
+            expireSeconds = 600;
         CompletableFuture<Result> future = new CompletableFuture<>();
         String msgId = data.getId();
+        long counter = msgCounter.getAndIncrement();
+        if(counter < 0)
+            TapLogger.error(TAG, "That's amazing that you have use out all the long value... Need reset the using values, but not implemented yet.");
         if(msgId == null) {
-            msgId = "DATA_" + msgCounter.getAndIncrement();
+            msgId = "DATA_" + counter;
             data.setId(msgId);
         }
-        ScheduledFuture scheduledFuture = getTimeoutScheduledFuture(data, future);
-        resultMap.put(msgId, new ResultListenerWrapper(msgId, future, scheduledFuture));
-        messageQueue.offer(data);
-        monitorThread.wakeupForMessage();
+        ScheduledFuture scheduledFuture = getTimeoutScheduledFuture(data, future, expireSeconds);
+        resultMap.put(msgId, new ResultListenerWrapper(data, future, scheduledFuture, counter));
+        sendDataInternal(data);
         return future;
     }
 
-    @Override
+    void sendDataInternal(IncomingData data) {
+        try {
+            if(messageQueue.offer(data, 60, TimeUnit.SECONDS)) {
+                monitorThread.wakeupForMessage();
+            } else {
+                sendFailed(data.getId(), new CoreException(NetErrors.QUEUE_IS_FULL, "WS Client send queue is full"));
+            }
+        } catch (InterruptedException e) {
+            sendFailed(data.getId(), e);
+        }
+    }
+
+    private void sendFailed(String msgId, Throwable e) {
+        ResultListenerWrapper wrapper = resultMap.get(msgId);
+        if(wrapper != null)
+            wrapper.completeExceptionally(resultMap, e);
+    }
+
     public CompletableFuture<Result> sendMessage(IncomingMessage message) {
+        return sendMessage(message, null);
+    }
+    @Override
+    public CompletableFuture<Result> sendMessage(IncomingMessage message, Integer expireSeconds) {
+        if(expireSeconds == null)
+            expireSeconds = 600;
         CompletableFuture<Result> future = new CompletableFuture<>();
         String msgId = message.getId();
+        long counter = msgCounter.getAndIncrement();
+        if(counter < 0)
+            TapLogger.error(TAG, "That's amazing that you have use out all the long value... Need reset the using values, but not implemented yet.");
         if(msgId == null) {
-            msgId = "MSG_" + msgCounter.getAndIncrement();
+            msgId = "MSG_" + counter;
             message.setId(msgId);
         }
-        ScheduledFuture scheduledFuture = getTimeoutScheduledFuture(message, future);
-        resultMap.put(msgId, new ResultListenerWrapper(msgId, future, scheduledFuture));
+        ScheduledFuture scheduledFuture = getTimeoutScheduledFuture(message, future, expireSeconds);
+        resultMap.put(msgId, new ResultListenerWrapper(message, future, scheduledFuture, counter));
         messageQueue.offer(message);
         monitorThread.wakeupForMessage();
         return future;
     }
 
-    private ScheduledFuture getTimeoutScheduledFuture(Data message, CompletableFuture<Result> future) {
+    private ScheduledFuture getTimeoutScheduledFuture(Data message, CompletableFuture<Result> future, Integer expireSeconds) {
         return ExecutorsManager.getInstance().getScheduledExecutorService().schedule(() -> {
-            if(!future.isDone())
-                future.completeExceptionally(new IOException("Time out"));
-            resultMap.remove(message.getId());
-        }, 30, TimeUnit.SECONDS);
+            synchronized (message) {
+                if(!future.isDone())
+                    future.completeExceptionally(new IOException("Connect to Manager time out after " + expireSeconds + " seconds"));
+                resultMap.remove(message.getId());
+            }
+        }, expireSeconds, TimeUnit.SECONDS);
     }
 
     @Override

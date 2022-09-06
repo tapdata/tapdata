@@ -1,26 +1,50 @@
 package io.tapdata.wsclient.modules.imclient.impls;
 
+import io.tapdata.modules.api.net.data.Data;
+import io.tapdata.modules.api.net.data.IncomingData;
+import io.tapdata.modules.api.net.data.IncomingMessage;
 import io.tapdata.modules.api.net.data.Result;
+import io.tapdata.pdk.core.implementation.BeanAnnotationHandler;
 
+import java.util.Collections;
+import java.util.SortedSet;
+import java.util.TreeSet;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledFuture;
 
-public class ResultListenerWrapper {
-
+public class ResultListenerWrapper implements Comparable<ResultListenerWrapper>{
     private String messageId;
     private long time;
     private CompletableFuture<Result> resultHandler;
     private ScheduledFuture timeoutFuture;
+    private long counter;
+    private Data data;
 
-    public ResultListenerWrapper(String messageId, CompletableFuture<Result> resultHandler, ScheduledFuture timeoutFuture) {
-        this.messageId = messageId;
+    public ResultListenerWrapper(IncomingMessage incomingMessage, CompletableFuture<Result> resultHandler, ScheduledFuture timeoutFuture, long counter) {
+        this.data = incomingMessage;
+        this.messageId = incomingMessage.getId();
         this.resultHandler = resultHandler;
         this.timeoutFuture = timeoutFuture;
+        this.counter = counter;
 
         time = System.currentTimeMillis();
     }
+    public ResultListenerWrapper(IncomingData incomingData, CompletableFuture<Result> resultHandler, ScheduledFuture timeoutFuture, long counter) {
+        this.data = incomingData;
+        this.messageId = incomingData.getId();
+        this.resultHandler = resultHandler;
+        this.timeoutFuture = timeoutFuture;
+        this.counter = counter;
 
+        time = System.currentTimeMillis();
+    }
+    @Override
+    public int compareTo(ResultListenerWrapper resultListenerWrapper) {
+//        if(order == interceptorClassHolder.order)
+//            return 0;
+        return counter > resultListenerWrapper.counter ? 1 : -1;
+    }
     public void complete(ConcurrentHashMap<String, ResultListenerWrapper> resultMap, Result result) {
         ResultListenerWrapper wrapper = resultMap.remove(messageId);
         if(wrapper != null) {
@@ -61,5 +85,29 @@ public class ResultListenerWrapper {
 
     public void setResultHandler(CompletableFuture<Result> resultHandler) {
         this.resultHandler = resultHandler;
+    }
+
+    public ScheduledFuture getTimeoutFuture() {
+        return timeoutFuture;
+    }
+
+    public void setTimeoutFuture(ScheduledFuture timeoutFuture) {
+        this.timeoutFuture = timeoutFuture;
+    }
+
+    public long getCounter() {
+        return counter;
+    }
+
+    public void setCounter(long counter) {
+        this.counter = counter;
+    }
+
+    public Data getData() {
+        return data;
+    }
+
+    public void setData(Data data) {
+        this.data = data;
     }
 }

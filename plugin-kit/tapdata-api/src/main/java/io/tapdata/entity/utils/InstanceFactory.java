@@ -150,9 +150,13 @@ public class InstanceFactory {
                 return new BeanWrapper(beanClass.getConstructor().newInstance(), false);
             } catch (InstantiationException | IllegalAccessException | InvocationTargetException |
                      NoSuchMethodException e) {
-                throw new RuntimeException(e);
+//                throw new RuntimeException(e);
+                TapLogger.error(TAG, "Create class {} failed, {}", beanClass, e.getMessage());
+                return null;
             }
         });
+        if(beanWrapper == null)
+            return null;
         if(newCreated.get() && needInject && !beanWrapper.isInjected) {
             synchronized (beanWrapper.object) {
                 if(!beanWrapper.isInjected) {

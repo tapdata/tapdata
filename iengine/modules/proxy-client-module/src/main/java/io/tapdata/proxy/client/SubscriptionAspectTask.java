@@ -130,8 +130,10 @@ public class SubscriptionAspectTask extends AbstractAspectTask {
 									events.add(tapEvent);
 							}, TAG);
 						}
-						streamReadConsumer.accept(events, fetchNewDataResult.getOffset());
-						currentOffset = fetchNewDataResult.getOffset();
+						if(!messages.isEmpty()) {
+							streamReadConsumer.accept(events, fetchNewDataResult.getOffset());
+							currentOffset = fetchNewDataResult.getOffset();
+						}
 						synchronized (this) {
 							if(!messages.isEmpty() || needFetchingNewData) {
 								needFetchingNewData = false;
@@ -162,7 +164,7 @@ public class SubscriptionAspectTask extends AbstractAspectTask {
 
 	private void fetchNewData(String subscribeId, String offset, BiConsumer<Result, Throwable> biConsumer) {
 		FetchNewData fetchNewData = new FetchNewData()
-				.limit(1)
+				.limit(1000)
 				.service("engine")
 				.subscribeId(subscribeId);
 		if(offset == null)

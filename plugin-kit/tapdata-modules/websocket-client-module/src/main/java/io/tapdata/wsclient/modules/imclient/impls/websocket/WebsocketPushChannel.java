@@ -281,7 +281,7 @@ public class WebsocketPushChannel extends PushChannel {
                 TapLogger.info(TAG, "Stop channel because of ping timeout");
             }, 10);
             send(ping);
-            TapLogger.info(TAG, "ping");
+//            TapLogger.info(TAG, "ping");
         }
     }
 

@@ -14,7 +14,11 @@ public interface IMClient {
 
     CompletableFuture<Result> sendData(IncomingData data);
 
+    CompletableFuture<Result> sendData(IncomingData data, Integer expireSeconds);
+
     CompletableFuture<Result> sendMessage(IncomingMessage message);
+
+    CompletableFuture<Result> sendMessage(IncomingMessage message, Integer expireSeconds);
 
     void registerDataContentType(String contentType, Class<? extends Data> dataClass);
 

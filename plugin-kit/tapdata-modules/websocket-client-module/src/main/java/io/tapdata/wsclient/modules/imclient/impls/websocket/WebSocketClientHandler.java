@@ -118,12 +118,10 @@ public class WebSocketClientHandler extends SimpleChannelInboundHandler<Object> 
                     TapLogger.info(TAG, "ping timeout canceled");
                     pushChannel.pingFuture.cancel(true);
                     pushChannel.pingFuture = null;
-                } else {
-                    TapLogger.info(TAG, "ping timeout no need cancel");
                 }
                 switch (type) {
                     case Ping.TYPE:
-                        TapLogger.info(TAG, "pong");
+//                        TapLogger.info(TAG, "pong");
                         break;
                     case Result.TYPE:
                         Result result = (Result) data;

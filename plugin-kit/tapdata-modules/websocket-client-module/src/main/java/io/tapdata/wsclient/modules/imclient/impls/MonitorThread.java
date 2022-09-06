@@ -2,6 +2,8 @@ package io.tapdata.wsclient.modules.imclient.impls;
 
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.modules.api.net.data.Data;
+import io.tapdata.modules.api.net.data.IncomingData;
+import io.tapdata.modules.api.net.data.IncomingMessage;
 import io.tapdata.modules.api.net.data.Result;
 import io.tapdata.wsclient.modules.imclient.impls.websocket.ChannelStatus;
 import io.tapdata.wsclient.utils.EventManager;
@@ -10,6 +12,7 @@ import io.tapdata.entity.error.CoreException;
 
 import java.io.IOException;
 import java.lang.reflect.Constructor;
+import java.util.*;
 
 public class MonitorThread<T extends PushChannel> extends Thread {
     public static final int CHANNEL_ERRORS_LOGIN_FAILED = 110;
@@ -170,6 +173,7 @@ public class MonitorThread<T extends PushChannel> extends Thread {
             TapLogger.info(TAG, "status changed, " + channelStatus);
             switch (channelStatus.getStatus()) {
                 case ChannelStatus.STATUS_CONNECTED:
+                    sendMessageInWaitingResultState();
                     resetIdelTimes();
                     wakeupForMessage();
                     break;
@@ -274,14 +278,57 @@ public class MonitorThread<T extends PushChannel> extends Thread {
 //		}
     }
 
-    private void failedAllPendingMessages() {
+    private void sendMessageInWaitingResultState() {
         Data imData;
-        while((imData = imClient.messageQueue.poll()) != null) {
-            handleMessageSendFailed(imData, "Send message because channel just disconnected.");
+        List<Data> pendingDataList = null;
+        if(!imClient.messageQueue.isEmpty()) {
+            pendingDataList = new ArrayList<>();
+            while((imData = imClient.messageQueue.poll()) != null) {
+                pendingDataList.add(imData);
+            }
         }
-        for(ResultListenerWrapper wrapper : imClient.resultMap.values()) {
-            wrapper.completeExceptionally(imClient.resultMap, new IOException("Send message because channel just disconnected."));
+
+        TreeSet<ResultListenerWrapper> set = new TreeSet<>(imClient.resultMap.values());
+        for(ResultListenerWrapper wrapper : set) {
+            if(wrapper.getData() instanceof IncomingData) {
+                IncomingData incomingData = (IncomingData) wrapper.getData();
+                synchronized (incomingData) {
+                    if(imClient.resultMap.containsKey(incomingData.getId())) {
+                        imClient.sendDataInternal(incomingData);
+                        TapLogger.debug(TAG, "Resend data {} after reconnect", incomingData);
+                    }
+                }
+            } else if(wrapper.getData() instanceof IncomingMessage) {
+                IncomingMessage incomingMessage = (IncomingMessage) wrapper.getData();
+                synchronized (incomingMessage) {
+                    if(imClient.resultMap.containsKey(incomingMessage.getId())) {
+                        imClient.sendMessage(incomingMessage);
+                        TapLogger.debug(TAG, "Resend message {} after reconnect", incomingMessage);
+                    }
+                }
+            }
         }
+        //keep in order.
+        if(pendingDataList != null) {
+            for(Data data : pendingDataList) {
+                if(data instanceof IncomingData)
+                    imClient.sendData((IncomingData) data);
+                else if(data instanceof IncomingMessage)
+                    imClient.sendMessage((IncomingMessage) data);
+            }
+        }
+    }
+
+    private void failedAllPendingMessages() {
+        //Need retry to send
+//        SortedSet<ResultListenerWrapper> list = new TreeSet<>();
+//        Data imData;
+//        while((imData = imClient.messageQueue.poll()) != null) {
+//            handleMessageSendFailed(imData, "Send message because channel just disconnected.");
+//        }
+//        for(ResultListenerWrapper wrapper : imClient.resultMap.values()) {
+//            wrapper.completeExceptionally(imClient.resultMap, new IOException("Send message because channel just disconnected."));
+//        }
     }
 
     boolean send(Data message) throws IOException {
