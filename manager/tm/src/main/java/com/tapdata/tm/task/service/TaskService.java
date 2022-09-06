@@ -5,8 +5,6 @@ import cn.hutool.core.date.DateUnit;
 import cn.hutool.core.date.DateUtil;
 import cn.hutool.core.lang.Assert;
 import cn.hutool.core.map.MapUtil;
-import cn.hutool.json.JSONConverter;
-import com.alibaba.fastjson.JSON;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.google.common.collect.Maps;
 import com.mongodb.client.result.UpdateResult;
@@ -35,7 +33,8 @@ import com.tapdata.tm.commons.task.dto.progress.TaskSnapshotProgress;
 import com.tapdata.tm.commons.util.CapitalizedEnum;
 import com.tapdata.tm.commons.util.MetaDataBuilderUtils;
 import com.tapdata.tm.config.security.UserDetail;
-import com.tapdata.tm.disruptor.service.BasicEventService;
+import com.tapdata.tm.disruptor.constants.DisruptorTopicEnum;
+import com.tapdata.tm.disruptor.service.DisruptorService;
 import com.tapdata.tm.ds.service.impl.DataSourceService;
 import com.tapdata.tm.file.service.FileService;
 import com.tapdata.tm.inspect.constant.InspectResultEnum;
@@ -58,7 +57,6 @@ import com.tapdata.tm.task.constant.SyncType;
 import com.tapdata.tm.task.constant.TaskEnum;
 import com.tapdata.tm.task.constant.TaskOpStatusEnum;
 import com.tapdata.tm.task.constant.TaskStatusEnum;
-import com.tapdata.tm.task.entity.TaskDagCheckLog;
 import com.tapdata.tm.task.entity.TaskEntity;
 import com.tapdata.tm.task.entity.TaskRecord;
 import com.tapdata.tm.task.param.SaveShareCacheParam;
@@ -95,7 +93,6 @@ import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -126,12 +123,10 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     private FileService fileService1;
     private MessageQueueService messageQueueService;
     private UserService userService;
-    private TaskDagCheckLogService taskDagCheckLogService;
-    private BasicEventService basicEventService;
+    private DisruptorService disruptorService;
     private MonitoringLogsService monitoringLogsService;
     private TaskAutoInspectResultsService taskAutoInspectResultsService;
     private TaskSaveService taskSaveService;
-    private TaskDagService taskDagService;
 
     public static Set<String> stopStatus = new HashSet<>();
     /**
@@ -934,7 +929,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         // publish queue
         TaskEntity taskSnapshot = new TaskEntity();
         BeanUtil.copyProperties(taskDto, taskSnapshot);
-        basicEventService.publish(new TaskRecord(lastTaskRecordId, taskDto.getId().toHexString(), taskSnapshot, user.getUserId(), new Date()));
+        disruptorService.sendMessage(DisruptorTopicEnum.CREATE_RECORD, new TaskRecord(lastTaskRecordId, taskDto.getId().toHexString(), taskSnapshot, user.getUserId(), new Date()));
 
         CustomerJobLog customerJobLog = new CustomerJobLog(taskDto.getId().toString(), taskDto.getName());
         customerJobLog.setDataFlowType(CustomerJobLogsService.DataFlowType.sync.getV());
@@ -2412,7 +2407,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         if (needCreateRecord) {
             TaskEntity taskSnapshot = new TaskEntity();
             BeanUtil.copyProperties(taskDto, taskSnapshot);
-            basicEventService.publish(new TaskRecord(taskDto.getTaskRecordId(), taskDto.getId().toHexString(), taskSnapshot, user.getUserId(), new Date()));
+            disruptorService.sendMessage(DisruptorTopicEnum.CREATE_RECORD, new TaskRecord(taskDto.getTaskRecordId(), taskDto.getId().toHexString(), taskSnapshot, user.getUserId(), new Date()));
         } else {
             updateTaskRecordStatus(taskDto, taskDto.getStatus());
         }
@@ -2421,7 +2416,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     private void updateTaskRecordStatus(TaskDto dto, String status) {
         dto.setStatus(status);
         if (StringUtils.isNotBlank(dto.getTaskRecordId())) {
-            basicEventService.publish(new SyncTaskStatusDto(dto.getTaskRecordId(), status));
+            disruptorService.sendMessage(DisruptorTopicEnum.TASK_STATUS, new SyncTaskStatusDto(dto.getTaskRecordId(), status));
         }
     }
 

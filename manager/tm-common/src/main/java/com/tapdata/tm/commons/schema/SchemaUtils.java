@@ -1,5 +1,6 @@
 package com.tapdata.tm.commons.schema;
 
+import com.tapdata.manager.common.utils.JsonUtil;
 import com.tapdata.tm.commons.dag.process.FieldProcessorNode;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.entity.utils.JsonParser;
@@ -176,9 +177,9 @@ public class SchemaUtils {
      * @return
      */
     public static Schema cloneSchema(Schema source) {
-        return InstanceFactory.instance(JsonParser.class).fromJson(InstanceFactory.instance(JsonParser.class).toJson(source), new TypeHolder<Schema>() {
-        }, TapConstants.abstractClassDetectors);
-        //return JsonUtil.parseJsonUseJackson(JsonUtil.toJsonUseJackson(source), Schema.class);
+//        return InstanceFactory.instance(JsonParser.class).fromJson(InstanceFactory.instance(JsonParser.class).toJson(source), new TypeHolder<Schema>() {
+//        }, TapConstants.abstractClassDetectors);
+        return JsonUtil.parseJsonUseJackson(JsonUtil.toJsonUseJackson(source), Schema.class);
     }
 
     public static List<Schema> cloneSchema(List<Schema> schemas) {
