@@ -164,7 +164,6 @@ public class HazelcastJoinProcessor extends HazelcastProcessorBaseNode {
 		before = TapEventUtil.getBefore(dataEvent);
 		after = TapEventUtil.getAfter(dataEvent);
 		opType = TapEventUtil.getOp(dataEvent);
-		tableName = dataEvent.getTableId();
 
 		if (opType == null) {
 			consumer.accept(tapdataEvent, null);
@@ -181,7 +180,7 @@ public class HazelcastJoinProcessor extends HazelcastProcessorBaseNode {
 		if (CollectionUtils.isNotEmpty(joinResults)) {
 			List<TapdataEvent> tapdataEvents = new ArrayList<>();
 			for (JoinResult joinResult : joinResults) {
-				TapRecordEvent joinEvent = joinResult2DataEvent(tableName, joinResult);
+				TapRecordEvent joinEvent = joinResult2DataEvent(dataEvent, joinResult);
 				if (OperationType.INSERT.getOp().equals(TapEventUtil.getOp(joinEvent))) {
 					final TapRecordEvent deleteEvent = generateDeleteEventForModifyJoinKey(joinEvent);
 					if (deleteEvent != null) {
@@ -282,7 +281,7 @@ public class HazelcastJoinProcessor extends HazelcastProcessorBaseNode {
 		return leftNodeId + IMAP_NAME_DELIMITER + name;
 	}
 
-	private TapRecordEvent joinResult2DataEvent(String tableName, JoinResult joinResult) {
+	private TapRecordEvent joinResult2DataEvent(TapRecordEvent originEvent, JoinResult joinResult) {
 
 		TapRecordEvent tapRecordEvent = null;
 		String opType = joinResult.getOpType();
@@ -306,8 +305,9 @@ public class HazelcastJoinProcessor extends HazelcastProcessorBaseNode {
 //        break;
 				throw new IllegalArgumentException("operationType " + operationType + " is unexpected while joinResult2DataEvent");
 		}
-		tapRecordEvent.setTableId(tableName);
+		tapRecordEvent.setTableId(originEvent.getTableId());
 		tapRecordEvent.setTime(System.currentTimeMillis());
+		tapRecordEvent.setReferenceTime(originEvent.getReferenceTime());
 
 		return tapRecordEvent;
 	}
