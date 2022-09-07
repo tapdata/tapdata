@@ -113,7 +113,7 @@ public class ObservableAspectTask extends AspectTask {
 					handler.init();
 
 					Optional.ofNullable(dataNodeSampleHandlers.get(node.getId())).ifPresent(
-							dataNodeSampleHandler -> dataNodeSampleHandler.handleTableCountAccept(cnt)
+							dataNodeSampleHandler -> dataNodeSampleHandler.handleTableCountAccept(table, cnt)
 					);
 					taskSampleHandler.handleTableCountAccept(table, cnt);
 				});
@@ -130,7 +130,7 @@ public class ObservableAspectTask extends AspectTask {
 
 		switch (aspect.getState()) {
 			case BatchReadFuncAspect.STATE_START:
-				Optional.ofNullable(dataNodeSampleHandlers.get(nodeId)).ifPresent(handler -> handler.handleBatchReadFuncStart(aspect.getTime()));
+				Optional.ofNullable(dataNodeSampleHandlers.get(nodeId)).ifPresent(handler -> handler.handleBatchReadFuncStart(table, aspect.getTime()));
 				taskSampleHandler.addTable(table);
 				taskSampleHandler.handleBatchReadStart(table);
 				aspect.readCompleteConsumer(events -> {

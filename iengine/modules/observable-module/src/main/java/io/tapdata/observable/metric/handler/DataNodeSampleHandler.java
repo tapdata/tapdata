@@ -43,6 +43,10 @@ public class DataNodeSampleHandler extends AbstractNodeSampleHandler {
     static final String INCR_SOURCE_READ_TIME_COST_AVG     = "incrementalSourceReadTimeCostAvg";
     static final String TARGET_WRITE_TIME_COST_AVG         = "targetWriteTimeCostAvg";
 
+    static final String CURR_SNAPSHOT_TABLE                   = "currentSnapshotTable";
+    static final String CURR_SNAPSHOT_TABLE_ROW_TOTAL         = "currentSnapshotTableRowTotal";
+    static final String CURR_SNAPSHOT_TABLE_INSERT_ROW_TOTAL  = "currentSnapshotTableInsertRowTotal";
+
     public DataNodeSampleHandler(TaskDto task, Node<?> node) {
         super(task, node);
     }
@@ -56,6 +60,10 @@ public class DataNodeSampleHandler extends AbstractNodeSampleHandler {
 
     private final Set<String> nodeTables = new HashSet<>();
 
+    private String currentSnapshotTable = null;
+    private final Map<String, Long> currentSnapshotTableRowTotalMap = new HashMap<>();
+    private Long currentSnapshotTableInsertRowTotal = null;
+
     @Override
     List<String> samples() {
         List<String> sampleNames = new ArrayList<>(super.samples());
@@ -63,6 +71,9 @@ public class DataNodeSampleHandler extends AbstractNodeSampleHandler {
         sampleNames.add(SNAPSHOT_TABLE_TOTAL);
         sampleNames.add(SNAPSHOT_ROW_TOTAL);
         sampleNames.add(SNAPSHOT_INSERT_ROW_TOTAL);
+        sampleNames.add(CURR_SNAPSHOT_TABLE);
+        sampleNames.add(CURR_SNAPSHOT_TABLE_ROW_TOTAL);
+        sampleNames.add(CURR_SNAPSHOT_TABLE_INSERT_ROW_TOTAL);
 
         return sampleNames;
     }
@@ -78,17 +89,28 @@ public class DataNodeSampleHandler extends AbstractNodeSampleHandler {
         snapshotInsertRowCounter = getCounterSampler(values, SNAPSHOT_INSERT_ROW_TOTAL);
         snapshotSourceReadTimeCostAvg = collector.getAverageSampler(SNAPSHOT_SOURCE_READ_TIME_COST_AVG);
         targetWriteTimeCostAvg = collector.getAverageSampler(TARGET_WRITE_TIME_COST_AVG);
+
+        // TODO(dexter): find a way to record the current table name
+        collector.addSampler(CURR_SNAPSHOT_TABLE, () -> -1);
+        collector.addSampler(CURR_SNAPSHOT_TABLE_ROW_TOTAL, () -> {
+            if (null == currentSnapshotTable) return null;
+            return currentSnapshotTableRowTotalMap.get(currentSnapshotTable);
+        });
+        collector.addSampler(CURR_SNAPSHOT_TABLE_INSERT_ROW_TOTAL, () -> currentSnapshotTableInsertRowTotal);
     }
 
     private Long batchAcceptLastTs;
     private Long batchProcessStartTs;
 
-    public void handleBatchReadFuncStart(Long startAt) {
+    public void handleBatchReadFuncStart(String table, Long startAt) {
         batchAcceptLastTs = startAt;
+        currentSnapshotTable = table;
+        currentSnapshotTableInsertRowTotal = 0L;
     }
 
     public void handleBatchReadReadComplete(Long readCompleteAt, long size) {
         // batch read only has insert events
+        currentSnapshotTableInsertRowTotal += size;
         Optional.ofNullable(inputInsertCounter).ifPresent(counter -> counter.inc(size));
         Optional.ofNullable(inputSpeed).ifPresent(speed -> speed.add(size));
         Optional.ofNullable(snapshotSourceReadTimeCostAvg).ifPresent(
@@ -119,6 +141,8 @@ public class DataNodeSampleHandler extends AbstractNodeSampleHandler {
 
     public void handleBatchReadFuncEnd() {
         Optional.ofNullable(snapshotTableCounter).ifPresent(CounterSampler::inc);
+        currentSnapshotTable = null;
+        currentSnapshotTableInsertRowTotal = null;
     }
 
 
@@ -286,12 +310,13 @@ public class DataNodeSampleHandler extends AbstractNodeSampleHandler {
     }
 
     AtomicBoolean firstTableCount = new AtomicBoolean(true);
-    public void handleTableCountAccept(long count) {
+    public void handleTableCountAccept(String table, long count) {
         if (firstTableCount.get()) {
             Optional.ofNullable(snapshotRowCounter).ifPresent(CounterSampler::reset);
             firstTableCount.set(false);
         }
 
+        currentSnapshotTableRowTotalMap.put(table, count);
         Optional.ofNullable(snapshotRowCounter).ifPresent(counter -> counter.inc(count));
     }
 
