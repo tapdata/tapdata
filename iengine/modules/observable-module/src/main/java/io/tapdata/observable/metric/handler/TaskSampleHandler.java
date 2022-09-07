@@ -11,6 +11,7 @@ import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.pdk.apis.entity.WriteListResult;
 
 import java.util.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
@@ -47,9 +48,6 @@ public class TaskSampleHandler extends AbstractHandler {
     SpeedSampler inputSpeed;
     SpeedSampler outputSpeed;
     AverageSampler timeCostAverage;
-    Sampler replicateLag;
-    Sampler currentEventTimestamp;
-
 
     private CounterSampler createTableTotal;
     private CounterSampler snapshotTableTotal;
@@ -220,9 +218,14 @@ public class TaskSampleHandler extends AbstractHandler {
         outputDdlCounter.inc();
     }
 
+    AtomicBoolean firstBatchRead = new AtomicBoolean(true);
     public void handleBatchReadStart(String table) {
         currentSnapshotTable = table;
         currentSnapshotTableInsertRowTotal = 0L;
+        if (firstBatchRead.get()) {
+            snapshotTableTotal.reset();
+            firstBatchRead.set(false);
+        }
     }
     public void handleBatchReadAccept(long size) {
         inputInsertCounter.inc(size);
