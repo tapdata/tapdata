@@ -17,12 +17,14 @@ import com.tapdata.tm.base.service.BaseService;
 import com.tapdata.tm.cluster.dto.ClusterStateDto;
 import com.tapdata.tm.cluster.dto.SystemInfo;
 import com.tapdata.tm.cluster.service.ClusterStateService;
+import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.dataflow.dto.DataFlowDto;
 import com.tapdata.tm.dataflow.service.DataFlowService;
 import com.tapdata.tm.inspect.dto.InspectDto;
 import com.tapdata.tm.scheduleTasks.dto.ScheduleTasksDto;
 import com.tapdata.tm.scheduleTasks.service.ScheduleTasksService;
+import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.userLog.constant.Modular;
 import com.tapdata.tm.userLog.constant.Operation;
@@ -34,6 +36,7 @@ import com.tapdata.tm.worker.repository.WorkerRepository;
 
 import java.math.BigInteger;
 import java.util.*;
+import java.util.stream.Collectors;
 
 import com.tapdata.tm.worker.vo.ApiWorkerStatusVo;
 import io.firedome.MultiTaggedCounter;
@@ -73,6 +76,9 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
     private SettingsService settingsService;
     @Autowired
     private ScheduleTasksService scheduleTasksService;
+
+    @Autowired
+    private TaskService taskService;
 
     private final MultiTaggedCounter workerPing;
 
@@ -190,10 +196,10 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
 
         workers.forEach(worker -> {
 
-            Query query = Query.query(Criteria.where("agentId").is(worker.getProcessId()).and("status").is("running"));
+            Query query = Query.query(Criteria.where("agentId").is(worker.getProcessId()).and("status").is(TaskDto.STATUS_RUNNING));
             query.fields().include("id", "name");
-            //TODO 同样的这里的dataflow处理， 没有改成task的兼容
-            List<DataFlowDto> dataFlows = dataFlowService.findAll(query);
+            //List<DataFlowDto> dataFlows = dataFlowService.findAll(query);
+            List<TaskDto> tasks = taskService.findAll(query);
 
             query = Query.query(Criteria.where("systemInfo.process_id").is(worker.getProcessId()));
             query.with(Sort.by(Sort.Order.desc("lastUpdAt"))).limit(1);
@@ -201,8 +207,13 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
             SystemInfo systemInfo = clusterState != null && clusterState.size() > 0 ? clusterState.get(0).getSystemInfo() : null;
 
             WorkerProcessInfoDto workerProcessInfo = new WorkerProcessInfoDto();
-            workerProcessInfo.setRunningNum(dataFlows.size());
-            workerProcessInfo.setDataFlows(dataFlows);
+            workerProcessInfo.setRunningNum(tasks.size());
+            workerProcessInfo.setDataFlows(tasks.stream().map(task -> {
+                DataFlowDto dataFlow = new DataFlowDto();
+                dataFlow.setId(task.getId());
+                dataFlow.setName(task.getName());
+                return dataFlow;
+            }).collect(Collectors.toList()));
             workerProcessInfo.setSystemInfo(systemInfo);
 
             result.put(worker.getProcessId(), workerProcessInfo);
