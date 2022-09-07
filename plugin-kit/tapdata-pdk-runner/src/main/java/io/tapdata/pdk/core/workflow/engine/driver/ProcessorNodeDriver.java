@@ -6,7 +6,7 @@ import io.tapdata.pdk.apis.functions.processor.ProcessRecordFunction;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.pdk.core.api.ProcessorNode;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
-import io.tapdata.pdk.core.monitor.PDKMethod;
+import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.core.utils.LoggerUtils;
 import io.tapdata.pdk.core.utils.queue.ListHandler;
 import io.tapdata.pdk.core.utils.queue.SingleThreadBlockingQueue;

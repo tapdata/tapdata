@@ -93,7 +93,7 @@ public class TapTableMap<K extends String, V extends TapTable> extends HashMap<K
 						.tableNameAndQualifiedNameMap(tableNameAndQualifiedNameMap)
 						.init(null);
 		for (TapTable tapTable : tapTableList) {
-			tapTableMap.put(tapTable.getName(), tapTable);
+			tapTableMap.put(tapTable.getId(), tapTable);
 		}
 		return tapTableMap;
 	}

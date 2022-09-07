@@ -10,7 +10,7 @@ Configuration:
       Name: consoleAppender
       Target: SYSTEM_OUT
       PatternLayout:
-        Pattern: "[%-5level] %d{yyyy-MM-dd HH:mm:ss.SSS} [%t] %c{1} - %msg%n"
+        Pattern: "[%-5level] %d{yyyy-MM-dd HH:mm:ss.SSS} %X{taskId} [%t] %c{1} - %msg%n"
 
   Loggers:
     Root:

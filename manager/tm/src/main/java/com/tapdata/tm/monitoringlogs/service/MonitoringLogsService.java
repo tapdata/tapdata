@@ -1,6 +1,5 @@
 package com.tapdata.tm.monitoringlogs.service;
 
-import com.alibaba.fastjson.JSON;
 import com.tapdata.manager.common.utils.IOUtils;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.exception.BizException;
@@ -8,10 +7,12 @@ import com.tapdata.tm.base.service.BaseService;
 import com.tapdata.tm.commons.schema.MonitoringLogsDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.monitoringlogs.entity.MonitoringLogsEntity;
+import com.tapdata.tm.monitoringlogs.param.MonitoringLogCountParam;
 import com.tapdata.tm.monitoringlogs.param.MonitoringLogExportParam;
 import com.tapdata.tm.monitoringlogs.param.MonitoringLogQueryParam;
 import com.tapdata.tm.monitoringlogs.repository.MonitoringLogsRepository;
 import com.tapdata.tm.config.security.UserDetail;
+import com.tapdata.tm.monitoringlogs.vo.MonitoringLogCountVo;
 import lombok.NonNull;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
@@ -21,15 +22,16 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.BulkOperations;
 import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.aggregation.Aggregation;
+import org.springframework.data.mongodb.core.aggregation.GroupOperation;
+import org.springframework.data.mongodb.core.aggregation.MatchOperation;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.util.CloseableIterator;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Date;
-import java.util.List;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.regex.Pattern;
 import java.util.zip.ZipOutputStream;
@@ -134,6 +136,33 @@ public class MonitoringLogsService extends BaseService<MonitoringLogsDto, Monito
         return new Page<>(total, logs);
     }
 
+    public List<MonitoringLogCountVo> count(MonitoringLogCountParam param) {
+        return count(param.getTaskId(), param.getTaskRecordId());
+    }
+
+    public List<MonitoringLogCountVo> count(String taskId, String taskRecordId) {
+       List<MonitoringLogCountVo> data = new ArrayList<>();
+        if (null == taskId || null == taskRecordId) {
+            return data;
+        }
+        Criteria criteria = Criteria.where("taskId").is(taskId).and("taskRecordId").is(taskRecordId);
+        MatchOperation match = Aggregation.match(criteria);
+        GroupOperation group = Aggregation.group("nodeId", "level").count().as("count");
+        Aggregation aggregation = Aggregation.newAggregation(match, group);
+        mongoOperations.aggregateStream(aggregation, "monitoringLogs", Map.class).forEachRemaining(item -> {
+            MonitoringLogCountVo vo = new MonitoringLogCountVo();
+            Map<String, String> _id = (Map<String, String>) item.get("_id");
+            String nodeId = _id.get("nodeId");
+            if (null != nodeId) {
+                vo.setNodeId(nodeId);
+            }
+            vo.setLevel(_id.get("level"));
+            vo.setCount((int) item.get("count"));
+            data.add(vo);
+        });
+
+        return data;
+    }
 
     public void export (MonitoringLogExportParam param, ZipOutputStream stream) {
         if (null == param.getTaskId()) {

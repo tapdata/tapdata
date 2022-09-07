@@ -18,9 +18,11 @@ import io.tapdata.entity.aspect.AspectInterceptResult;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
 import io.tapdata.entity.event.TapEvent;
+import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.value.TapDateTimeValue;
 import io.tapdata.entity.simplify.pretty.ClassHandlers;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
+import io.tapdata.schema.SampleMockUtil;
 import org.apache.commons.collections.MapUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -67,8 +69,14 @@ public class TestRunAspectTask extends AspectTask {
            * {"before":[{}], "after":[{}]}
            */
           resultMap.computeIfAbsent("before", key -> new ArrayList<>()).add(transformFromTapValue(inputEvent));
-          processAspect.consumer(outputEvent ->
-                  resultMap.computeIfAbsent("after", key -> new ArrayList<>()).add(transformFromTapValue(outputEvent)));
+          processAspect.consumer(outputEvent -> {
+            //mock
+            TapEvent tapEvent = outputEvent.getTapEvent();
+            TapTable tapTable = processorBaseContext.getTapTableMap().get(TapEventUtil.getTableId(tapEvent));
+            SampleMockUtil.mock(tapTable, TapEventUtil.getAfter(tapEvent));
+            Map<String, Object> afterMap = transformFromTapValue(outputEvent);
+            resultMap.computeIfAbsent("after", key -> new ArrayList<>()).add(afterMap);
+          });
         }
         break;
       case ProcessorFunctionAspect.STATE_END:

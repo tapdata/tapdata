@@ -1,10 +1,21 @@
 package io.tapdata.observable.logging;
 
 
+import com.tapdata.constant.BeanUtil;
+import com.tapdata.constant.ConnectorConstant;
+import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.tm.commons.task.dto.TaskDto;
+import io.tapdata.common.SettingService;
+import io.tapdata.common.executor.ExecutorsManager;
+import org.bson.types.ObjectId;
+import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.core.query.Update;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 /**
  * @author Dexter
@@ -22,15 +33,44 @@ public final class ObsLoggerFactory {
 		return INSTANCE;
 	}
 
-	private ObsLoggerFactory() {}
+	private ObsLoggerFactory() {
+		this.settingService = BeanUtil.getBean(SettingService.class);
+		this.clientMongoOperator = BeanUtil.getBean(ClientMongoOperator.class);
+		this.scheduleExecutorService = ExecutorsManager.getInstance()
+				.newSingleThreadScheduledExecutor("ObsLogger task log setting renew Thread");
+		scheduleExecutorService.scheduleAtFixedRate(this::renewTaskLogSetting,0L, PERIOD_SECOND, TimeUnit.SECONDS);
+	}
 
+	private static final long PERIOD_SECOND = 10L;
+
+	private final SettingService settingService;
+	private final ClientMongoOperator clientMongoOperator;
 	private final Map<String, TaskLogger> taskLoggersMap = new ConcurrentHashMap<>();
 	private final Map<String, Map<String, TaskLoggerNodeProxy>> taskLoggerNodeProxyMap = new ConcurrentHashMap<>();
+
+	private final ScheduledExecutorService scheduleExecutorService;
+
+	private void renewTaskLogSetting() {
+		for (String taskId : taskLoggersMap.keySet()) {
+			TaskDto task = clientMongoOperator.findOne(
+					new Query(Criteria.where("_id").is(new ObjectId(taskId))), ConnectorConstant.TASK_COLLECTION, TaskDto.class
+			);
+			taskLoggersMap.computeIfPresent(taskId, (id, taskLogger) -> {
+				taskLogger.withTaskLogSetting(getLogSettingLogLevel(task),
+						getLogSettingRecordCeiling(task), getLogSettingIntervalCeiling(task));
+
+				return taskLogger;
+			});
+		}
+	}
 
 	public ObsLogger getObsLogger(TaskDto task) {
 		String taskId = task.getId().toHexString();
 		taskLoggersMap.computeIfPresent(taskId, (k, v) -> v.withTask(taskId, task.getName(), task.getTaskRecordId()));
-		taskLoggersMap.putIfAbsent(taskId, new TaskLogger().withTask(taskId, task.getName(), task.getTaskRecordId()));
+		taskLoggersMap.putIfAbsent(taskId,
+				new TaskLogger(this::closeDebugForTask).withTask(taskId, task.getName(), task.getTaskRecordId()).withTaskLogSetting(
+						getLogSettingLogLevel(task), getLogSettingRecordCeiling(task), getLogSettingIntervalCeiling(task))
+		);
 		taskLoggersMap.get(taskId).registerTaskFileAppender(taskId);
 
 		return taskLoggersMap.get(taskId);
@@ -67,5 +107,41 @@ public final class ObsLoggerFactory {
 
 			return null;
 		});
+	}
+
+	public void closeDebugForTask(String taskId, LogLevel logLevel) {
+		if (null == logLevel) {
+			logLevel = LogLevel.INFO;
+		}
+		clientMongoOperator.updateById(new Update(), ConnectorConstant.TASK_COLLECTION + "/logSetting/" + logLevel.getLevel(), taskId, TaskDto.class);
+	}
+
+	private static final String LOG_SETTING_LEVEL = "level";
+	private static final String LOG_SETTING_RECORD_CEILING = "recordCeiling";
+	private static final String LOG_SETTING_INTERVAL_CEILING = "intervalCeiling";
+
+	private String getLogSettingLogLevel(TaskDto task) {
+		Map<String, Object> logSetting = task.getLogSetting();
+		if (null == logSetting) {
+			return settingService.getSetting("logLevel").getValue();
+		}
+		return (String) logSetting.get(LOG_SETTING_LEVEL);
+	}
+
+	private Long getLogSettingRecordCeiling(TaskDto task) {
+		Map<String, Object> logSetting = task.getLogSetting();
+		if (null != logSetting && null != logSetting.get(LOG_SETTING_RECORD_CEILING)) {
+			return ((Integer) logSetting.get(LOG_SETTING_RECORD_CEILING)).longValue();
+		}
+
+		return null;
+	}
+
+	private Long getLogSettingIntervalCeiling(TaskDto task) {
+		Map<String, Object> logSetting = task.getLogSetting();
+		if (null != logSetting && null != logSetting.get(LOG_SETTING_INTERVAL_CEILING)) {
+			return ((Integer) logSetting.get(LOG_SETTING_INTERVAL_CEILING)).longValue();
+		}
+		return null;
 	}
 }

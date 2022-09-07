@@ -139,7 +139,7 @@ public class TableRowScriptInspectJob extends InspectTableRowJob {
 		}
 
 		List<JavaScriptFunctions> javaScriptFunctions = clientMongoOperator.find(new Query(where("type").ne("system")).with(Sort.by(Sort.Order.asc("last_update"))), ConnectorConstant.JAVASCRIPT_FUNCTION_COLLECTION, JavaScriptFunctions.class);
-		Invocable scriptEngine = ScriptUtil.getScriptEngine(JSEngineEnum.GRAALVM_JS.getEngineName(), inspectTask.getScript(), javaScriptFunctions, clientMongoOperator, sourceConnection, targetConnection, null);
+		Invocable scriptEngine = ScriptUtil.getScriptEngine(JSEngineEnum.GRAALVM_JS.getEngineName(), inspectTask.getScript(), javaScriptFunctions, clientMongoOperator, sourceConnection, targetConnection, null, logger);
 		if (null == scriptEngine)
 			throw new Exception(String.format("Script engine is null, task id: %s", inspectTask.getTaskId()));
 

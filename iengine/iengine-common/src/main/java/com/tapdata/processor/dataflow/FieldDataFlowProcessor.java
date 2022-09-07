@@ -8,6 +8,7 @@ import com.tapdata.processor.FieldProcessUtil;
 import com.tapdata.processor.ProcessorUtil;
 import com.tapdata.processor.ScriptConnection;
 import com.tapdata.processor.ScriptUtil;
+import com.tapdata.processor.constant.JSEngineEnum;
 import io.tapdata.indices.IndicesUtil;
 import net.sf.jsqlparser.parser.CCJSqlParserUtil;
 import net.sf.jsqlparser.statement.Statement;
@@ -85,7 +86,15 @@ public class FieldDataFlowProcessor implements DataFlowProcessor {
 				String script = fieldScript.getScript();
 				ScriptConnection sourceScriptConnection = context.getSourceScriptConnection();
 				ScriptConnection targetScriptConnection = context.getTargetScriptConnection();
-				Invocable engine = ScriptUtil.getScriptEngine(stage.getJsEngineName(), String.format(SCRIPT_TEMPLATE, script), context.getJavaScriptFunctions(), context.getClientMongoOperator(), sourceScriptConnection, targetScriptConnection, null);
+				Invocable engine = ScriptUtil.getScriptEngine(
+								JSEngineEnum.GRAALVM_JS.getEngineName(),
+								String.format(SCRIPT_TEMPLATE, script),
+								context.getJavaScriptFunctions(),
+								context.getClientMongoOperator(),
+								sourceScriptConnection,
+								targetScriptConnection,
+								null,
+								logger);
 
 				fieldScriptEngine.put(fieldName, engine);
 			}

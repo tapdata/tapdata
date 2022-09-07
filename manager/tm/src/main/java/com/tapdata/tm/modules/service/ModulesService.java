@@ -20,6 +20,9 @@ import com.tapdata.tm.commons.schema.DataSourceDefinitionDto;
 import com.tapdata.tm.ds.service.impl.DataSourceDefinitionService;
 import com.tapdata.tm.ds.service.impl.DataSourceService;
 import com.tapdata.tm.commons.schema.Field;
+import com.tapdata.tm.modules.constant.ApiTypeEnum;
+import com.tapdata.tm.modules.constant.ParamTypeEnum;
+import com.tapdata.tm.modules.dto.Param;
 import com.tapdata.tm.modules.vo.ModulesDetailVo;
 import com.tapdata.tm.modules.constant.ModuleStatusEnum;
 import com.tapdata.tm.modules.dto.ModulesDto;
@@ -31,6 +34,7 @@ import com.tapdata.tm.modules.repository.ModulesRepository;
 import com.tapdata.tm.modules.vo.*;
 import com.tapdata.tm.utils.AES256Util;
 import com.tapdata.tm.utils.MongoUtils;
+import com.tapdata.tm.utils.UUIDUtil;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
@@ -135,40 +139,52 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
      */
     @Override
     public ModulesDto save(ModulesDto modulesDto, UserDetail userDetail) {
-        if (findByName(modulesDto.getName()).size() > 0) {
-            throw new BizException("Modules.Name.Existed");
-        }
-        if (!isBasePathAndVersionRepeat(modulesDto.getBasePath(), modulesDto.getApiVersion()).isEmpty()) {
-            throw new BizException("Modules.BasePathAndVersion.Existed");
-        }
-        if (null == modulesDto.getDataSource()) {
-            throw new BizException("Modules.Connection.Null");
-        }
+//        if (findByName(modulesDto.getName()).size() > 0) {
+//            throw new BizException("Modules.Name.Existed");
+//        }
+//        if (!isBasePathAndVersionRepeat(modulesDto.getBasePath(), modulesDto.getApiVersion()).isEmpty()) {
+//            throw new BizException("Modules.BasePathAndVersion.Existed");
+//        }
+//        if (null == modulesDto.getDataSource()) {
+//            throw new BizException("Modules.Connection.Null");
+//        }
         modulesDto.setConnection(MongoUtils.toObjectId(modulesDto.getDataSource()));
         modulesDto.setLastUpdAt(new Date());
         modulesDto.setCreateAt(new Date());
         //user表  admin@admin.com  的username 没有这个字段?
         modulesDto.setCreateUser(userDetail.getUsername());
         modulesDto.setLastUpdBy(userDetail.getUsername());
+        modulesDto.setStatus(ModuleStatusEnum.GENERATING.getValue());
         return super.save(modulesDto, userDetail);
 
     }
 
 
     public ModulesDto updateModuleById(ModulesDto modulesDto, UserDetail userDetail) {
-        if (findByName(modulesDto.getName()).size() > 1) {
-            throw new BizException("Modules.Name.Existed");
-        }
-        if (isBasePathAndVersionRepeat(modulesDto.getBasePath(), modulesDto.getApiVersion()).size() > 1) {
-            throw new BizException("Modules.BasePathAndVersion.Existed");
-        }
-       /* if (null == modulesDto.getDataSource()) {
-            throw new BizException("Modules.Connection.Null");
-        }*/
         Where where = new Where();
         where.put("id", modulesDto.getId().toString());
-        return super.upsertByWhere(where, modulesDto, userDetail);
 
+        Query query = new Query();
+        ObjectId id = modulesDto.getId();
+        if (id != null) {
+            Criteria criteria = Criteria.where("_id").is(id);
+            query.addCriteria(criteria);
+        }
+        //没有生成的接口 不能发布
+        ModulesDto dto = findOne(query, userDetail);
+        if (dto == null)
+            throw new BizException("current module not exist");
+        if (ModuleStatusEnum.ACTIVE.getValue().equals(modulesDto.getStatus()) && ModuleStatusEnum.GENERATING.getValue().equals(modulesDto.getStatus()))
+            throw new BizException("generating status can't release");
+        //点击生成按钮 才校验(撤销发布等不校验)
+        if (ModuleStatusEnum.PENDING.getValue().equals(modulesDto.getStatus()) && !ModuleStatusEnum.ACTIVE.getValue().equals(dto.getStatus())) {
+            if (findByName(modulesDto.getName()).size() > 1)
+                throw new BizException("Modules.Name.Existed");
+            if (isBasePathAndVersionRepeat(modulesDto.getBasePath(), modulesDto.getApiVersion()).size() > 1)
+                throw new BizException("Modules.BasePathAndVersion.Existed");
+            checkoutInputParamIsValid(modulesDto);
+        }
+        return super.upsertByWhere(where, modulesDto, userDetail);
     }
 
     public Map batchUpdateListtags(AttrsParam attrsParam, UserDetail userDetail) {
@@ -1057,4 +1073,62 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
     }
 
 
+    /**
+     * 生成,compare update function，just add check function
+     * @param modulesDto
+     * @param userDetail
+     * @return
+     */
+    public ModulesDto generate(ModulesDto modulesDto, UserDetail userDetail) {
+        if (findByName(modulesDto.getName()).size() > 1) {
+            throw new BizException("Modules.Name.Existed");
+        }
+        if (isBasePathAndVersionRepeat(modulesDto.getBasePath(), modulesDto.getApiVersion()).size() > 1) {
+            throw new BizException("Modules.BasePathAndVersion.Existed");
+        }
+        checkoutInputParamIsValid(modulesDto);
+        modulesDto.setStatus(ModuleStatusEnum.PENDING.getValue());
+        Where where = new Where();
+        where.put("id", modulesDto.getId().toString());
+        return super.upsertByWhere(where, modulesDto, userDetail);
+    }
+
+    private void checkoutInputParamIsValid(ModulesDto modulesDto) {
+        String apiType = modulesDto.getApiType();
+        List<Path> paths = modulesDto.getPaths();
+        if(StringUtils.isBlank(modulesDto.getDataSource())) throw new BizException("datasource can't be null");
+        if(StringUtils.isBlank(modulesDto.getTableName())) throw new BizException("tableName can't be null");
+        if(StringUtils.isBlank(modulesDto.getApiType())) throw new BizException("apiType can't be null");
+        if(StringUtils.isBlank(modulesDto.getConnectionId())) throw new BizException("connectionId can't be null");
+        if(StringUtils.isBlank(modulesDto.getOperationType())) throw new BizException("operationType can't be null");
+        if(StringUtils.isBlank(modulesDto.getConnectionType())) throw new BizException("connectionType can't be null");
+        if(StringUtils.isBlank(modulesDto.getConnectionName())) throw new BizException("connectionName can't be null");
+        if (CollectionUtils.isNotEmpty(paths)) {
+            for (Path path : paths) {
+                //base param can't be null
+                List<Param> params = path.getParams();
+                if(CollectionUtils.isEmpty(params))
+                    throw new BizException("params can't be null");
+                Map<String, List<Param>> paramMap = params.stream().collect(Collectors.groupingBy(Param::getName));
+                List<Param> pages = paramMap.get("page");
+                List<Param> limits = paramMap.get("limit");
+                List<Param> filters = paramMap.get("filter");
+                if (ApiTypeEnum.DEFAULT_API.getValue().equals(apiType) || ApiTypeEnum.CUSTOMER_QUERY.getValue().equals(apiType)) {
+                    if (CollectionUtils.isEmpty(pages))
+                        throw new BizException("paths's page can't be null");
+                    if (CollectionUtils.isEmpty(limits))
+                        throw new BizException("paths's limit can't be null");
+                    if (ApiTypeEnum.DEFAULT_API.getValue().equals(apiType) && CollectionUtils.isEmpty(filters))
+                        throw new BizException("paths's filter can't be null");
+                }
+                //input params type checkout
+                for (Param param : params) {
+                    if(ApiTypeEnum.DEFAULT_API.getValue().equals(apiType) && StringUtils.isNotBlank(param.getType()) && "object".equalsIgnoreCase(param.getType().trim()))
+                        continue;
+                    if (!ParamTypeEnum.isValid(param.getType(), param.getDefaultvalue()))
+                        throw new BizException(param.getName() + " is invalid");
+                }
+            }
+        }
+    }
 }

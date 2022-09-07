@@ -2,115 +2,186 @@ package io.tapdata.observable.metric.handler;
 
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.common.sample.CollectorFactory;
-import io.tapdata.common.sample.SampleCollector;
+import io.tapdata.common.sample.Sampler;
 import io.tapdata.common.sample.sampler.AverageSampler;
 import io.tapdata.common.sample.sampler.CounterSampler;
 import io.tapdata.common.sample.sampler.SpeedSampler;
-import io.tapdata.entity.event.dml.*;
+import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.logger.TapLogger;
-import io.tapdata.observable.metric.TaskSampleRetriever;
 import io.tapdata.pdk.apis.entity.WriteListResult;
 
 import java.util.*;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * @author Dexter
  */
 public class TaskSampleHandler extends AbstractHandler {
     private static final String TAG = TaskSampleHandler.class.getSimpleName();
+    static final String SAMPLE_TYPE_TASK                      = "task";
+
+    static final String TABLE_TOTAL                           = "tableTotal";
+    static final String CREATE_TABLE_TOTAL                    = "createTableTotal";
+    static final String SNAPSHOT_TABLE_TOTAL                  = "snapshotTableTotal";
+    static final String SNAPSHOT_ROW_TOTAL                    = "snapshotRowTotal";
+    static final String SNAPSHOT_INSERT_ROW_TOTAL             = "snapshotInsertRowTotal";
+    static final String SNAPSHOT_START_AT                     = "snapshotStartAt";
+    static final String SNAPSHOT_DONE_AT                      = "snapshotDoneAt";
+    static final String CURR_SNAPSHOT_TABLE                   = "currentSnapshotTable";
+    static final String CURR_SNAPSHOT_TABLE_ROW_TOTAL         = "currentSnapshotTableRowTotal";
+    static final String CURR_SNAPSHOT_TABLE_INSERT_ROW_TOTAL  = "currentSnapshotTableInsertRowTotal";
+
+
+    CounterSampler inputInsertCounter;
+    CounterSampler inputUpdateCounter;
+    CounterSampler inputDeleteCounter;
+    CounterSampler inputDdlCounter;
+    CounterSampler inputOthersCounter;
+
+    CounterSampler outputInsertCounter;
+    CounterSampler outputUpdateCounter;
+    CounterSampler outputDeleteCounter;
+    CounterSampler outputDdlCounter;
+    CounterSampler outputOthersCounter;
+
+    SpeedSampler inputSpeed;
+    SpeedSampler outputSpeed;
+    AverageSampler timeCostAverage;
+
+    private CounterSampler createTableTotal;
+    private CounterSampler snapshotTableTotal;
+    private CounterSampler snapshotRowTotal;
+    private CounterSampler snapshotInsertRowTotal;
+
+    private Long snapshotStartAt = null;
+    private Long snapshotDoneAt = null;
+
+    private String currentSnapshotTable = null;
+    private final Map<String, Long> currentSnapshotTableRowTotalMap = new HashMap<>();
+    private Long currentSnapshotTableInsertRowTotal = null;
+
+    private final Set<String> taskTables = new HashSet<>();
+
+
 
     public TaskSampleHandler(TaskDto task) {
         super(task);
     }
 
-    public Map<String, String> taskTags() {
-        return baseTags(SAMPLE_TYPE_TASK);
+    @Override
+    String type() {
+        return SAMPLE_TYPE_TASK;
     }
 
-    private final Set<String> taskTables = new HashSet<>();
-    public void addTable(String... tables) {
-        taskTables.addAll(Arrays.asList(tables));
+    @Override
+    public Map<String, String> tags() {
+        return super.tags();
     }
 
-    private SampleCollector collector;
-    private CounterSampler createTableTotal;
-    private CounterSampler snapshotTableTotal;
-    private CounterSampler snapshotRowTotal;
-    private CounterSampler snapshotInsertRowTotal;
-    private CounterSampler inputInsertTotal;
-    private CounterSampler inputUpdateTotal;
-    private CounterSampler inputDeleteTotal;
-    private CounterSampler inputOthersTotal;
-    private CounterSampler inputDdlTotal;
-    private SpeedSampler inputQps;
+    @Override
+    List<String> samples() {
+        return Arrays.asList(
+                Constants.INPUT_DDL_TOTAL,
+                Constants.INPUT_INSERT_TOTAL,
+                Constants.INPUT_UPDATE_TOTAL,
+                Constants.INPUT_DELETE_TOTAL,
+                Constants.INPUT_OTHERS_TOTAL,
+                Constants.OUTPUT_DDL_TOTAL,
+                Constants.OUTPUT_INSERT_TOTAL,
+                Constants.OUTPUT_UPDATE_TOTAL,
+                Constants.OUTPUT_DELETE_TOTAL,
+                Constants.OUTPUT_OTHERS_TOTAL,
+                Constants.INPUT_QPS,
+                Constants.OUTPUT_QPS,
+                Constants.TIME_COST_AVG,
+                Constants.REPLICATE_LAG,
+                Constants.CURR_EVENT_TS,
+                CREATE_TABLE_TOTAL,
+                SNAPSHOT_TABLE_TOTAL,
+                SNAPSHOT_ROW_TOTAL,
+                SNAPSHOT_INSERT_ROW_TOTAL,
+                SNAPSHOT_DONE_AT,
+                CURR_SNAPSHOT_TABLE,
+                CURR_SNAPSHOT_TABLE_ROW_TOTAL,
+                CURR_SNAPSHOT_TABLE_INSERT_ROW_TOTAL
+        );
+    }
 
-    private CounterSampler outputInsertTotal;
-    private CounterSampler outputUpdateTotal;
-    private CounterSampler outputDeleteTotal;
-    private CounterSampler outputOthersTotal;
-    private CounterSampler outputDdlTotal;
-    private SpeedSampler outputQps;
+    public void doInit(Map<String, Number> values) {
+        collector.addSampler(TABLE_TOTAL, taskTables::size);
 
-    private AverageSampler timeCostAvg;
+        inputDdlCounter = getCounterSampler(values, Constants.INPUT_DDL_TOTAL);
+        inputInsertCounter = getCounterSampler(values, Constants.INPUT_INSERT_TOTAL);
+        inputUpdateCounter = getCounterSampler(values, Constants.INPUT_UPDATE_TOTAL);
+        inputDeleteCounter = getCounterSampler(values, Constants.INPUT_DELETE_TOTAL);
+        inputOthersCounter = getCounterSampler(values, Constants.INPUT_OTHERS_TOTAL);
 
-    private Long snapshotDoneAt = null;
+        outputDdlCounter = getCounterSampler(values, Constants.OUTPUT_DDL_TOTAL);
+        outputInsertCounter = getCounterSampler(values,Constants.OUTPUT_INSERT_TOTAL);
+        outputUpdateCounter = getCounterSampler(values,Constants.OUTPUT_UPDATE_TOTAL);
+        outputDeleteCounter = getCounterSampler(values,Constants.OUTPUT_DELETE_TOTAL);
+        outputOthersCounter = getCounterSampler(values,Constants.OUTPUT_OTHERS_TOTAL);
 
-    public void init() {
-        Map<String, String> tags = taskTags();
-        Map<String, Number> values = TaskSampleRetriever.getInstance().retrieveWithRetry(tags, Arrays.asList(
-                "createTableTotal", "snapshotTableTotal", "snapshotRowTotal", "snapshotInsertRowTotal", "snapshotDoneAt",
-                "inputInsertTotal", "inputUpdateTotal", "inputDeleteTotal", "inputDdlTotal", "inputOthersTotal",
-                "outputInsertTotal", "outputUpdateTotal", "outputDeleteTotal", "outputDdlTotal", "outputOthersTotal"
-        ));
+        inputSpeed = collector.getSpeedSampler(Constants.INPUT_QPS);
+        outputSpeed = collector.getSpeedSampler(Constants.OUTPUT_QPS);
+        timeCostAverage = collector.getAverageSampler(Constants.TIME_COST_AVG);
 
-        collector = CollectorFactory.getInstance("v2").getSampleCollectorByTags("taskSamplers", tags);
+        collector.addSampler(Constants.CURR_EVENT_TS, () -> {
+            AtomicReference<Long> currentEventTimestampRef = new AtomicReference<>();
+            for (DataNodeSampleHandler h : targetNodeHandlers.values()) {
+                Optional.ofNullable(h.getCurrentEventTimestamp()).ifPresent(sampler -> {
+                    Number value = sampler.value();
+                    if (null == value) return;
+                    long v = value.longValue();
+                    if (null == currentEventTimestampRef.get() || currentEventTimestampRef.get() > v) {
+                        currentEventTimestampRef.set(v);
+                    }
+                });
 
-        collector.addSampler("tableTotal", taskTables::size);
+            }
+            return currentEventTimestampRef.get();
+        });
+        collector.addSampler(Constants.REPLICATE_LAG, () -> {
+            AtomicReference<Long> replicateLagRef = new AtomicReference<>();
+            for (DataNodeSampleHandler h : targetNodeHandlers.values()) {
+                Optional.ofNullable(h.getReplicateLag()).ifPresent(sampler -> {
+                    Number value = sampler.value();
+                    if (null == value) return;
+                    long v = value.longValue();
+                    if (null == replicateLagRef.get() || replicateLagRef.get() < v) {
+                        replicateLagRef.set(v);
+                    }
+                });
 
-        createTableTotal = collector.getCounterSampler("createTableTotal",
-                values.getOrDefault("createTableTotal", 0).longValue());
-        snapshotTableTotal = collector.getCounterSampler("snapshotTableTotal",
-                values.getOrDefault("createTableTotal", 0).longValue());
-        snapshotRowTotal = collector.getCounterSampler("snapshotRowTotal",
-                values.getOrDefault("snapshotRowTotal", 0).longValue());
-        snapshotInsertRowTotal = collector.getCounterSampler("snapshotInsertRowTotal",
-                values.getOrDefault("snapshotInsertRowTotal", 0).longValue());
+            }
+            return replicateLagRef.get();
+        });
 
-        inputInsertTotal = collector.getCounterSampler("inputInsertTotal",
-                values.getOrDefault("inputInsertTotal", 0).longValue());
-        inputUpdateTotal = collector.getCounterSampler("inputUpdateTotal",
-                values.getOrDefault("inputUpdateTotal", 0).longValue());
-        inputDeleteTotal = collector.getCounterSampler("inputDeleteTotal",
-                values.getOrDefault("inputDeleteTotal", 0).longValue());
-        inputOthersTotal = collector.getCounterSampler("inputOthersTotal",
-                values.getOrDefault("inputOthersTotal", 0).longValue());
-        inputDdlTotal = collector.getCounterSampler("inputDdlTotal",
-                values.getOrDefault("inputDdlTotal", 0).longValue());
+        createTableTotal = getCounterSampler(values, CREATE_TABLE_TOTAL);
+        snapshotTableTotal = getCounterSampler(values, SNAPSHOT_TABLE_TOTAL);
+        snapshotRowTotal = getCounterSampler(values, SNAPSHOT_ROW_TOTAL);
+        snapshotInsertRowTotal = getCounterSampler(values, SNAPSHOT_INSERT_ROW_TOTAL);
 
-        outputInsertTotal = collector.getCounterSampler("outputInsertTotal",
-                values.getOrDefault("outputInsertTotal", 0).longValue());
-        outputUpdateTotal = collector.getCounterSampler("outputUpdateTotal",
-                values.getOrDefault("outputUpdateTotal", 0).longValue());
-        outputDeleteTotal = collector.getCounterSampler("outputDeleteTotal",
-                values.getOrDefault("outputDeleteTotal", 0).longValue());
-        outputOthersTotal = collector.getCounterSampler("outputOthersTotal",
-                values.getOrDefault("outputOthersTotal", 0).longValue());
-        outputDdlTotal = collector.getCounterSampler("outputDdlTotal",
-                values.getOrDefault("outputDdlTotal", 0).longValue());
+        Number retrieveSnapshotStartAt = values.getOrDefault(SNAPSHOT_START_AT, null);
+        if (retrieveSnapshotStartAt != null) {
+            snapshotStartAt = retrieveSnapshotStartAt.longValue();
+        }
+        collector.addSampler(SNAPSHOT_START_AT, () -> snapshotStartAt);
 
-        inputQps = collector.getSpeedSampler("inputQps");
-        outputQps = collector.getSpeedSampler("outputQps");
-
-        timeCostAvg = collector.getAverageSampler("timeCostAvg");
-
-        Number retrieveSnapshotDoneAt = values.getOrDefault("snapshotDoneAt", null);
+        Number retrieveSnapshotDoneAt = values.getOrDefault(SNAPSHOT_DONE_AT, null);
         if (retrieveSnapshotDoneAt != null) {
             snapshotDoneAt = retrieveSnapshotDoneAt.longValue();
         }
-        collector.addSampler("snapshotDoneAt", () -> snapshotDoneAt);
+        collector.addSampler(SNAPSHOT_DONE_AT, () -> snapshotDoneAt);
 
-        // cache the initial sample value
-        CollectorFactory.getInstance("v2").recordCurrentValueByTag(tags);
+        // TODO(dexter): find a way to record the current table name
+        collector.addSampler(CURR_SNAPSHOT_TABLE, () -> -1);
+        collector.addSampler(CURR_SNAPSHOT_TABLE_ROW_TOTAL, () -> {
+            if (null == currentSnapshotTable) return null;
+            return currentSnapshotTableRowTotalMap.get(currentSnapshotTable);
+        });
+        collector.addSampler(CURR_SNAPSHOT_TABLE_INSERT_ROW_TOTAL, () -> currentSnapshotTableInsertRowTotal);
     }
 
     public void close() {
@@ -122,8 +193,13 @@ public class TaskSampleHandler extends AbstractHandler {
         });
     }
 
-    public void handleTableCountAccept(long count) {
+    public void addTable(String... tables) {
+        taskTables.addAll(Arrays.asList(tables));
+    }
+
+    public void handleTableCountAccept(String table, long count) {
         snapshotRowTotal.inc(count);
+        currentSnapshotTableRowTotalMap.put(table, count);
     }
 
     public void handleCreateTableEnd() {
@@ -135,32 +211,55 @@ public class TaskSampleHandler extends AbstractHandler {
     }
 
     public void handleDdlStart() {
-        inputDdlTotal.inc();
+        inputDdlCounter.inc();
     }
 
     public void handleDdlEnd() {
-        outputDdlTotal.inc();
+        outputDdlCounter.inc();
     }
 
+    AtomicBoolean firstBatchRead = new AtomicBoolean(true);
+    public void handleBatchReadStart(String table) {
+        currentSnapshotTable = table;
+        currentSnapshotTableInsertRowTotal = 0L;
+        if (firstBatchRead.get()) {
+            snapshotTableTotal.reset();
+            firstBatchRead.set(false);
+        }
+    }
     public void handleBatchReadAccept(long size) {
-        inputInsertTotal.inc(size);
-        inputQps.add(size);
+        inputInsertCounter.inc(size);
+        inputSpeed.add(size);
+        currentSnapshotTableInsertRowTotal += size;
 
         snapshotInsertRowTotal.inc(size);
     }
 
     public void handleBatchReadFuncEnd() {
         snapshotTableTotal.inc();
+        currentSnapshotTable = null;
+        currentSnapshotTableInsertRowTotal = null;
+    }
+
+    public void handleStreamReadStart(List<String> tables) {
+        for(String table : tables) {
+            addTable(table);
+        }
     }
 
     public void handleStreamReadAccept(HandlerUtil.EventTypeRecorder recorder) {
-        inputInsertTotal.inc(recorder.getInsertTotal());
-        inputUpdateTotal.inc(recorder.getUpdateTotal());
-        inputDeleteTotal.inc(recorder.getDeleteTotal());
-        inputDdlTotal.inc(recorder.getDdlTotal());
-        inputOthersTotal.inc(recorder.getOthersTotal());
+        inputInsertCounter.inc(recorder.getInsertTotal());
+        inputUpdateCounter.inc(recorder.getUpdateTotal());
+        inputDeleteCounter.inc(recorder.getDeleteTotal());
+        inputDdlCounter.inc(recorder.getDdlTotal());
+        inputOthersCounter.inc(recorder.getOthersTotal());
 
-        inputQps.add(recorder.getTotal());
+        inputSpeed.add(recorder.getTotal());
+    }
+
+    private final HashMap<String, DataNodeSampleHandler> targetNodeHandlers = new HashMap<>();
+    public void addTargetNodeHandler(String nodeId, DataNodeSampleHandler handler) {
+        targetNodeHandlers.putIfAbsent(nodeId, handler);
     }
 
     public void handleWriteRecordAccept(WriteListResult<TapRecordEvent> result, List<TapRecordEvent> events) {
@@ -171,10 +270,10 @@ public class TaskSampleHandler extends AbstractHandler {
         long deleted = result.getRemovedCount();
         long total = inserted + updated + deleted;
 
-        outputInsertTotal.inc(inserted);
-        outputUpdateTotal.inc(updated);
-        outputDeleteTotal.inc(deleted);
-        outputQps.add(total);
+        outputInsertCounter.inc(inserted);
+        outputUpdateCounter.inc(updated);
+        outputDeleteCounter.inc(deleted);
+        outputSpeed.add(total);
 
         long timeCostTotal = 0L;
         for (TapRecordEvent event : events) {
@@ -185,7 +284,11 @@ public class TaskSampleHandler extends AbstractHandler {
             }
             timeCostTotal += (current - time);
         }
-        timeCostAvg.add(total, timeCostTotal);
+        timeCostAverage.add(total, timeCostTotal);
+    }
+
+    public void handleSnapshotStart(Long time) {
+        snapshotStartAt = time;
     }
 
     public void handleSnapshotDone(Long time) {
@@ -198,13 +301,13 @@ public class TaskSampleHandler extends AbstractHandler {
         }
 
         taskTables.addAll(tables);
-        inputDdlTotal.inc(tables.size());
+        inputDdlCounter.inc(tables.size());
     }
 
     public void handleSourceDynamicTableRemove(List<String> tables) {
         if (null == tables || tables.isEmpty()) {
             return;
         }
-        inputDdlTotal.inc(tables.size());
+        inputDdlCounter.inc(tables.size());
     }
 }
