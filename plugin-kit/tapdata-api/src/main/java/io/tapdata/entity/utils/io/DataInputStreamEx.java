@@ -82,13 +82,13 @@ public class DataInputStreamEx extends InputStream {
 	public Object readJson() throws IOException {
 		return readJson(null);
 	}
-	public Object readJson(Class<?> clazz) throws IOException {
+	public <T> T readJson(Class<T> clazz) throws IOException {
 		if(hasValue()) {
 			String json = dis.readUTF();
 			if(clazz != null)
 				return fromJson(json, clazz);
 			else
-				return fromJson(json);
+				return (T) fromJson(json);
 		}
 		return null;
 	}

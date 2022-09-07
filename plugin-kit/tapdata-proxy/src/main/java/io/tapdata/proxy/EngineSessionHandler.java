@@ -3,22 +3,33 @@ package io.tapdata.proxy;
 import io.tapdata.entity.annotations.Bean;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.simplify.pretty.TypeHandlers;
-import io.tapdata.modules.api.net.data.Data;
-import io.tapdata.modules.api.net.data.IncomingData;
-import io.tapdata.modules.api.net.data.IncomingMessage;
-import io.tapdata.modules.api.net.data.Result;
+import io.tapdata.entity.utils.DataMap;
+import io.tapdata.modules.api.net.data.*;
+import io.tapdata.modules.api.net.message.CommandResultEntity;
+import io.tapdata.pdk.apis.entity.CommandInfo;
 import io.tapdata.modules.api.net.entity.ProxySubscription;
+import io.tapdata.modules.api.net.error.NetErrors;
 import io.tapdata.modules.api.net.message.TapEntity;
 import io.tapdata.modules.api.net.service.MessageEntityService;
 import io.tapdata.modules.api.net.service.ProxySubscriptionService;
+import io.tapdata.modules.api.proxy.data.CommandReceived;
 import io.tapdata.modules.api.proxy.data.FetchNewData;
 import io.tapdata.modules.api.proxy.data.FetchNewDataResult;
 import io.tapdata.modules.api.proxy.data.NodeSubscribeInfo;
+import io.tapdata.pdk.apis.functions.connection.CommandCallbackFunction;
+import io.tapdata.pdk.core.api.ConnectionNode;
+import io.tapdata.pdk.core.api.PDKIntegration;
+import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
+import io.tapdata.pdk.core.monitor.PDKMethod;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.wsserver.channels.annotation.GatewaySession;
 import io.tapdata.wsserver.channels.gateway.GatewaySessionHandler;
 
+import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiConsumer;
 
 
 @GatewaySession(idType = "engine")
@@ -37,6 +48,34 @@ public class EngineSessionHandler extends GatewaySessionHandler {
 	public EngineSessionHandler() {
 		typeHandlers.register(NodeSubscribeInfo.class, this::handleNodeSubscribeInfo);
 		typeHandlers.register(FetchNewData.class, this::handleFetchNewData);
+		typeHandlers.register(CommandReceived.class, this::handleCommandReceived);
+	}
+
+	public void handleCommandInfo(CommandInfo commandInfo, BiConsumer<Map<String, Object>, Throwable> biConsumer) {
+		sendData(new OutgoingData().time(System.currentTimeMillis()).message(new CommandReceived().commandInfo(commandInfo)));
+	}
+
+	private Result handleCommandReceived(CommandReceived commandReceived) {
+		if(commandReceived == null || commandReceived.getCommandInfo() == null)
+			return new Result().code(NetErrors.COMMAND_RECEIVED_ILLEGAL).description("illegal arguments");
+		CommandInfo commandInfo = commandReceived.getCommandInfo();;
+		ConnectionNode connectionNode = PDKIntegration.createConnectionConnectorBuilder()
+				.withConnectionConfig(new DataMap() {{
+					commandInfo.getConnectionConfig();
+				}})
+				.withGroup(commandInfo.getGroup())
+				.withPdkId(commandInfo.getPdkId())
+				.withAssociateId(UUID.randomUUID().toString())
+				.withVersion(commandInfo.getVersion())
+				.build();
+		CommandCallbackFunction commandCallbackFunction = connectionNode.getConnectionFunctions().getCommandCallbackFunction();
+		if(commandCallbackFunction == null) {
+			return new Result().code(NetErrors.PDK_NOT_SUPPORT_COMMAND_CALLBACK).description("pdkId " + commandInfo.getPdkId() + " doesn't support CommandCallbackFunction");
+		}
+		AtomicReference<CommandResultEntity> mapAtomicReference = new AtomicReference<>();
+		PDKInvocationMonitor.invoke(connectionNode, PDKMethod.CONNECTION_TEST,
+				() -> mapAtomicReference.set(new CommandResultEntity().content(commandCallbackFunction.filter(connectionNode.getConnectionContext(), commandInfo))), TAG);
+		return new Result().code(Data.CODE_SUCCESS).message(mapAtomicReference.get());
 	}
 
 	private Result handleFetchNewData(FetchNewData fetchNewData) {

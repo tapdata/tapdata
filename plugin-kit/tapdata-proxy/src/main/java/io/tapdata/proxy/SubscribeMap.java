@@ -2,10 +2,7 @@ package io.tapdata.proxy;
 
 import io.tapdata.entity.annotations.Bean;
 
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 
@@ -58,5 +55,21 @@ public class SubscribeMap {
 
 	public Map<String, List<EngineSessionHandler>> getSubscribeIdSessionMap() {
 		return subscribeIdSessionMap;
+	}
+
+	public Map<EngineSessionHandler, List<String>> getSessionSubscribeIdsMap(Set<String> cachingChangedSubscribeIds) {
+		Map<EngineSessionHandler, List<String>> sessionSubscribeIdsMap = new HashMap<>();
+		for(String subscribeId : cachingChangedSubscribeIds) {
+			List<EngineSessionHandler> engineSessionHandlers = subscribeIdSessionMap.get(subscribeId);
+			if(engineSessionHandlers != null) {
+				for(EngineSessionHandler engineSessionHandler : engineSessionHandlers) {
+					List<String> list = sessionSubscribeIdsMap.computeIfAbsent(engineSessionHandler, engineSessionHandler1 -> new ArrayList<>());
+					if(!list.contains(subscribeId)) {
+						list.add(subscribeId);
+					}
+				}
+			}
+		}
+		return sessionSubscribeIdsMap;
 	}
 }
