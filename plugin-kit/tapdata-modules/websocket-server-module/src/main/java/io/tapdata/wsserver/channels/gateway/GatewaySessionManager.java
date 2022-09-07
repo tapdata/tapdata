@@ -137,7 +137,7 @@ public class GatewaySessionManager {
 
         IPHolder ipHolder = new IPHolder();
         ipHolder.init();
-        int httpPort = 3000; //TODO should read from TM config.
+        int httpPort = CommonUtils.getPropertyInt("tapdata_proxy_server_port", 3000); //TODO should read from TM config.
         NodeRegistry nodeRegistry = new NodeRegistry().ip(ipHolder.getIp()).httpPort(httpPort).wsPort(webSocketManager.getWebSocketProperties().getPort()).type("proxy").time(System.currentTimeMillis());
         CommonUtils.setProperty("tapdata_node_id", nodeRegistry.id());
         nodeRegistryService.save(nodeRegistry);

@@ -31,6 +31,7 @@ import io.tapdata.entity.utils.JsonParser;
 import io.tapdata.pdk.apis.entity.ConnectionOptions;
 import lombok.Setter;
 import org.bson.Document;
+import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
@@ -65,8 +66,11 @@ public class DataSourceController extends BaseController {
      */
     @Operation(summary = "添加数据源连接")
     @PostMapping
-    public ResponseMessage<DataSourceConnectionDto> add(@RequestBody DataSourceConnectionDto connection) {
-        connection.setId(null);
+    public ResponseMessage<DataSourceConnectionDto> add(@RequestBody DataSourceConnectionDto connection, @RequestParam(name = "id") String id) {
+        if(id != null)
+            connection.setId(new ObjectId(id));
+        else
+            connection.setId(null);
 
         return success(dataSourceService.add(connection, getLoginUser()));
     }

@@ -23,6 +23,7 @@ import io.tapdata.pdk.apis.entity.CommandInfo;
 import io.tapdata.pdk.core.utils.JWTUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
+import org.bson.types.ObjectId;
 import org.springframework.web.bind.annotation.*;
 
 import javax.servlet.http.HttpServletRequest;
@@ -190,8 +191,8 @@ public class ProxyController extends BaseController {
     }
 
     @Operation(summary = "External callback url")
-    @GetMapping("test")
-    public ResponseMessage<Void> test(HttpServletRequest request) {
+    @GetMapping("id")
+    public ResponseMessage<String> newId(HttpServletRequest request) {
 
 //        if(service == null || subscribeId == null) {
 //            throw new BizException("Illegal arguments for subscribeId {}, subscribeId {}", service, subscribeId);
@@ -203,6 +204,6 @@ public class ProxyController extends BaseController {
 //            eventQueueService.offer(message);
 //        }
 
-        return success();
+        return success(new ObjectId().toString());
     }
 }
