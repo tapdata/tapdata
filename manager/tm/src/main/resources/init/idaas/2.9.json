@@ -37,5 +37,20 @@
 		"upsert": true
 	  }
 	]
+  },
+  { "dropIndexes": "MetadataDefinition",
+	"index": "value_1"
+  },
+  {
+		"createIndexes": "MetadataDefinition",
+		"indexes": [
+			{
+				"name": "value_1",
+				"key": {
+					"value": 1
+				},
+				"background": true
+			}
+		]
   }
 ]
