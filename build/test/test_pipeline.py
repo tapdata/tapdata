@@ -5,7 +5,7 @@ from typing import List, Iterable
 import pytest, allure
 
 from . import random_str, env
-from lib.cli import DataSource, logger, Pipeline, JobType, get_obj, Source, Sink, Mysql, Postgres
+from tapdata_cli.cli import DataSource, logger, Pipeline, JobType, get_obj, Source, Sink, Mysql, Postgres
 
 
 source_name, sink_name, mysql_name, postgres_name = f"{env['database_1.NAME_PRE']}_{random_str()}",\

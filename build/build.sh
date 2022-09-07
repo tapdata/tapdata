@@ -165,7 +165,8 @@ make_image() {
 
     mkdir -p $basepath/../dist/image
     cp -r $basepath/../build/image/* $basepath/../dist/image
-    cp -r $basepath/../dist/* $basepath/../dist/image
+    ls $basepath/../dist/ | grep -v image | xargs -I {} cp -r $basepath/../dist/{} $basepath/../dist/image/
+#    cp -r $basepath/../dist/* $basepath/../dist/image
     cd $basepath/../dist/image && bash build.sh
     cd $basepath/../
 }

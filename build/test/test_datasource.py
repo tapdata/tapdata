@@ -1,7 +1,7 @@
 import pytest, allure
 
 from . import env, random_str
-from lib.cli import DataSource, logger, MongoDB, Mysql, Postgres
+from tapdata_cli.cli import DataSource, logger, MongoDB, Mysql, Postgres
 
 @allure.feature("datasource")
 class TestDataSource:
