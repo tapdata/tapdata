@@ -12,6 +12,7 @@ import com.tapdata.tm.utils.MongoUtils;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.HashMap;
@@ -53,6 +54,18 @@ public class ModulesController extends BaseController {
   @PatchMapping()
   public ResponseMessage<ModulesDto> update(@RequestBody ModulesDto module) {
     return success(modulesService.updateModuleById(module, getLoginUser()));
+  }
+
+
+  /**
+   * @author derin
+   * @Description   生成 modules
+   * @Date 2022/9/1
+   */
+  @Operation(summary = "生成  modules")
+  @PatchMapping("generate")
+  public ResponseMessage<ModulesDto> generate(@Validated @RequestBody ModulesDto module) {
+    return success(modulesService.generate(module, getLoginUser()));
   }
 
 
