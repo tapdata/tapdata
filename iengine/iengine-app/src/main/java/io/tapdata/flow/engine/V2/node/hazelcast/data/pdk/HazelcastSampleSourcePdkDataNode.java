@@ -81,29 +81,33 @@ public class HazelcastSampleSourcePdkDataNode extends HazelcastPdkBaseNode {
 				List<TapEvent> tapEventList = sampleDataCacheMap.getOrDefault(sampleDataId, new ArrayList<>());
 				boolean isCache = true;
 				if (CollectionUtils.isEmpty(tapEventList) || tapEventList.size() < rows) {
-					isCache = false;
 					tapEventList.clear();
-					createPdkConnectorNode(dataProcessorContext, jetContext.hazelcastInstance());
-					connectorNodeInit(dataProcessorContext);
-					TapCodecsFilterManager codecsFilterManager = getConnectorNode().getCodecsFilterManager();
-					QueryByAdvanceFilterFunction queryByAdvanceFilterFunction = getConnectorNode().getConnectorFunctions().getQueryByAdvanceFilterFunction();
-					TapAdvanceFilter tapAdvanceFilter = TapAdvanceFilter.create().limit(rows);
-					PDKInvocationMonitor.invoke(getConnectorNode(), PDKMethod.SOURCE_QUERY_BY_ADVANCE_FILTER,
-							PDKMethodInvoker.create()
-									.runnable(
-											() -> queryByAdvanceFilterFunction.query(getConnectorNode().getConnectorContext(), tapAdvanceFilter, tapTable, filterResults -> {
+					isCache = false;
+					try {
+						createPdkConnectorNode(dataProcessorContext, jetContext.hazelcastInstance());
+						connectorNodeInit(dataProcessorContext);
+						TapCodecsFilterManager codecsFilterManager = getConnectorNode().getCodecsFilterManager();
+						QueryByAdvanceFilterFunction queryByAdvanceFilterFunction = getConnectorNode().getConnectorFunctions().getQueryByAdvanceFilterFunction();
+						TapAdvanceFilter tapAdvanceFilter = TapAdvanceFilter.create().limit(rows);
+						PDKInvocationMonitor.invoke(getConnectorNode(), PDKMethod.SOURCE_QUERY_BY_ADVANCE_FILTER,
+								PDKMethodInvoker.create()
+										.runnable(
+												() -> queryByAdvanceFilterFunction.query(getConnectorNode().getConnectorContext(), tapAdvanceFilter, tapTable, filterResults -> {
 
-												List<Map<String, Object>> results = filterResults.getResults();
-												List<TapEvent> events = wrapTapEvent(results, tapTable.getId());
-												if (CollectionUtil.isNotEmpty(events)) {
-													events.forEach(tapEvent -> tapRecordToTapValue(tapEvent, codecsFilterManager));
-													tapEventList.addAll(events);
-												}
-											})).logTag(TAG)
-									.retryPeriodSeconds(dataProcessorContext.getTaskConfig().getTaskRetryConfig().getRetryIntervalSecond())
-									.maxRetryTimeMinute(dataProcessorContext.getTaskConfig().getTaskRetryConfig().getMaxRetryTime(TimeUnit.MINUTES))
-					);
-					sampleDataCacheMap.put(sampleDataId, tapEventList);
+													List<Map<String, Object>> results = filterResults.getResults();
+													List<TapEvent> events = wrapTapEvent(results, tapTable.getId());
+													if (CollectionUtil.isNotEmpty(events)) {
+														events.forEach(tapEvent -> tapRecordToTapValue(tapEvent, codecsFilterManager));
+														tapEventList.addAll(events);
+													}
+												})).logTag(TAG)
+										.retryPeriodSeconds(dataProcessorContext.getTaskConfig().getTaskRetryConfig().getRetryIntervalSecond())
+										.maxRetryTimeMinute(dataProcessorContext.getTaskConfig().getTaskRetryConfig().getMaxRetryTime(TimeUnit.MINUTES))
+						);
+						sampleDataCacheMap.put(sampleDataId, tapEventList);
+					} catch (Exception e) {
+						logger.warn("Error getting sample data, will try to simulate: {}", e.getMessage());
+					}
 				}
 
 				if (logger.isDebugEnabled()) {
