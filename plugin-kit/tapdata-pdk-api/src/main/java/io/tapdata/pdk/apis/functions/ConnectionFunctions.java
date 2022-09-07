@@ -25,6 +25,10 @@ public class ConnectionFunctions<T extends ConnectionFunctions<?>> extends Commo
     protected GetCharsetsFunction getCharsetsFunction;
     protected CommandCallbackFunction commandCallbackFunction;
 
+    public T supportCommandCallbackFunction(CommandCallbackFunction function) {
+        commandCallbackFunction = function;
+        return (T) this;
+    }
     public T supportGetCharsetsFunction(GetCharsetsFunction function) {
         getCharsetsFunction = function;
         return (T) this;
@@ -52,5 +56,9 @@ public class ConnectionFunctions<T extends ConnectionFunctions<?>> extends Commo
 
     public GetCharsetsFunction getGetCharsetsFunction() {
         return getCharsetsFunction;
+    }
+
+    public CommandCallbackFunction getCommandCallbackFunction() {
+        return commandCallbackFunction;
     }
 }

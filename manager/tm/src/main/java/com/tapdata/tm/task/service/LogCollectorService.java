@@ -139,7 +139,7 @@ public class LogCollectorService {
 
 
         Query taskQuery = new Query(taskCriteria);
-        taskQuery.fields().include("_id", "syncType", "name", "status");
+        taskQuery.fields().include("_id", "syncType", "name", "status", "attrs");
         List<TaskDto> allDtos = taskService.findAllDto(taskQuery, user);
 
 
@@ -423,7 +423,7 @@ public class LogCollectorService {
         logCollectorVo.setStatus(taskDto.getStatus());
         logCollectorVo.setSyncTimestamp(new Date());
         logCollectorVo.setSourceTimestamp(new Date());
-        logCollectorVo.setSyncType(taskDto.getParentSyncType());
+        logCollectorVo.setSyncType(taskDto.getSyncType());
 
         DAG dag = taskDto.getDag();
         try {
@@ -582,18 +582,18 @@ public class LogCollectorService {
      */
     public Boolean checkUpdateConfig(UserDetail user) {
         //查询所有的开启挖掘的任务跟，挖掘任务，是否都停止并且重置
-        Criteria criteria = Criteria.where("shareCdcEnable").is(true).and("is_deleted").is(false).and("statuses").elemMatch(Criteria.where("status").ne(TaskDto.STATUS_EDIT));
+        Criteria criteria = Criteria.where("shareCdcEnable").is(true).and("is_deleted").is(false).and("status").ne(TaskDto.STATUS_EDIT);
         Query query = new Query(criteria);
-        query.fields().include("shareCdcEnable", "is_deleted", "statuses");
+        query.fields().include("shareCdcEnable", "is_deleted", "status");
         TaskDto taskDto = taskService.findOne(query);
         if (taskDto != null) {
             return false;
         }
 
         Criteria criteria1 = Criteria.where("is_deleted").is(false).and("dag.nodes").elemMatch(Criteria.where("type").is("logCollector"))
-                .and("statuses").elemMatch(Criteria.where("status").ne(TaskDto.STATUS_EDIT));
+                .and("status").ne(TaskDto.STATUS_EDIT);
         Query query1 = new Query(criteria1);
-        query1.fields().include("shareCdcEnable", "is_deleted", "statuses");
+        query1.fields().include("shareCdcEnable", "is_deleted", "status");
         TaskDto taskDto1 = taskService.findOne(query1);
         return taskDto1 == null;
     }

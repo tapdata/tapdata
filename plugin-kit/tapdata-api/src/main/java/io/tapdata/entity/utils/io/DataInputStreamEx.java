@@ -2,7 +2,10 @@ package io.tapdata.entity.utils.io;
 
 
 import io.tapdata.entity.logger.TapLogger;
+import io.tapdata.entity.serializer.JavaCustomSerializer;
+import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.entity.utils.IteratorEx;
+import io.tapdata.entity.utils.ObjectSerializable;
 
 import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
@@ -17,7 +20,9 @@ import java.util.Collection;
 import java.util.Date;
 import java.util.Map;
 
-public class DataInputStreamEx {
+import static io.tapdata.entity.simplify.TapSimplify.fromJson;
+
+public class DataInputStreamEx extends InputStream {
 	private static final byte HASVALUE = 1;
 	private static final byte NOVALUE = 0;
 	private DataInputStream dis;
@@ -36,6 +41,11 @@ public class DataInputStreamEx {
 		byte hasValue = dis.readByte();
         return hasValue == HASVALUE;
     }
+
+	@Override
+	public int read() throws IOException {
+		return dis.read();
+	}
 
 	public void close() throws IOException {
 		dis.close();
@@ -69,9 +79,31 @@ public class DataInputStreamEx {
 		return null;
 	}
 
+	public Object readJson() throws IOException {
+		return readJson(null);
+	}
+	public Object readJson(Class<?> clazz) throws IOException {
+		if(hasValue()) {
+			String json = dis.readUTF();
+			if(clazz != null)
+				return fromJson(json, clazz);
+			else
+				return fromJson(json);
+		}
+		return null;
+	}
+
 	public Integer readInt() throws IOException {
 		if(hasValue()) {
 			return dis.readInt();
+		}
+		return null;
+	}
+
+	public Date readDate() throws IOException {
+		if(hasValue()) {
+			long time = dis.readLong();
+			return new Date(time);
 		}
 		return null;
 	}
@@ -107,6 +139,16 @@ public class DataInputStreamEx {
 		if(hasValue()) {
 			dis.readFully(buf);
 		}
+	}
+
+	public byte[] readBytes() throws IOException {
+		int length = dis.readInt();
+		if(length > 0) {
+			byte[] data = new byte[length];
+			dis.readFully(data);
+			return data;
+		}
+		return null;
 	}
 
 	public Date readDate(String format) throws IOException {
@@ -163,6 +205,7 @@ public class DataInputStreamEx {
 		}
 		return null;
 	}
+
 	public void readCollectionString(Collection<String> collectionStrings) throws IOException {
 		int length = dis.readInt();
 		for (int i = 0;i < length;i++) {
@@ -225,7 +268,7 @@ public class DataInputStreamEx {
 			}
 		}
 	}
-	public <T extends BinarySerializable> void readCollectionBinaryObject(Collection<T> collectionAcuObjects, Class<T> clazz) throws IOException {
+	public <T extends JavaCustomSerializer> void readCollectionCustomObject(Collection<T> collectionAcuObjects, Class<T> clazz) throws IOException {
 		int length = dis.readInt();
 		if(length != 0) {
 			for(int i = 0; i < length;i++) {
@@ -234,7 +277,7 @@ public class DataInputStreamEx {
 					case HASVALUE:
 						try {
 							T t = clazz.getConstructor().newInstance();
-							t.resurrect(dis);
+							t.from(dis);
 							collectionAcuObjects.add(t);
 						} catch (InstantiationException | IllegalAccessException | NoSuchMethodException | InvocationTargetException e) {
 							e.printStackTrace();
@@ -277,7 +320,22 @@ public class DataInputStreamEx {
 			}
 		}
 	}
-
+	public <T extends JavaCustomSerializer> T readJavaCustomSerializer(Class<T> clazz) throws IOException {
+		if(hasValue()) {
+			try {
+				T object = clazz.getConstructor().newInstance();
+				object.from(dis);
+				return object;
+			} catch (InstantiationException | InvocationTargetException | NoSuchMethodException | IllegalAccessException e) {
+				e.printStackTrace();
+				TapLogger.error("readJavaCustomSerializer", "new class " + clazz + " failed, " + e.getMessage());
+			} catch (Throwable t) {
+				t.printStackTrace();
+				TapLogger.error("readJavaCustomSerializer", "resurrect for class " + clazz + " failed, " + t.getMessage());
+			}
+		}
+		return null;
+	}
 	public <T extends BinarySerializable> T readBinaryObject(Class<T> clazz) throws IOException {
 		if(hasValue()) {
 			try {
@@ -302,4 +360,9 @@ public class DataInputStreamEx {
     public DataInputStream getDataInputStream() {
     	return dis;
     }
+
+	public Object readObject() throws IOException {
+		byte[] data = readBytes();
+		return InstanceFactory.instance(ObjectSerializable.class).toObject(data);
+	}
 }

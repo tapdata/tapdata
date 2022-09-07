@@ -2,6 +2,7 @@ package io.tapdata.flow.engine.V2.node.hazelcast.data;
 
 
 import com.hazelcast.jet.core.Inbox;
+import com.tapdata.constant.Log4jUtil;
 import com.tapdata.entity.TapdataEvent;
 import com.tapdata.entity.schema.SchemaApplyResult;
 import com.tapdata.entity.task.context.DataProcessorContext;
@@ -17,13 +18,14 @@ import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.value.TapValue;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
-import io.tapdata.pdk.core.utils.ReflectionUtil;
+import io.tapdata.entity.utils.ReflectionUtil;
 import io.tapdata.schema.TapTableMap;
 import io.tapdata.schema.TapTableUtil;
 import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.ThreadContext;
 import org.jetbrains.annotations.NotNull;
 import org.voovan.tools.collection.CacheMap;
 
@@ -62,6 +64,7 @@ public class HazelcastSchemaTargetNode extends HazelcastVirtualTargetNode {
 	public static TapTable getTapTable(String schemaKey) {
 		return tabTableCacheMap.remove(schemaKey);
 	}
+
 	public static List<SchemaApplyResult> getSchemaApplyResultList(String schemaKey) {
 		return schemaApplyResultMap.remove(schemaKey);
 	}
@@ -79,15 +82,15 @@ public class HazelcastSchemaTargetNode extends HazelcastVirtualTargetNode {
 		this.oldTapTableMap = TapTableUtil.getTapTableMap(deductionSchemaNode, null);
 
 		if (deductionSchemaNode instanceof JsProcessorNode
-						|| deductionSchemaNode instanceof MigrateJsProcessorNode
-						|| deductionSchemaNode instanceof CustomProcessorNode) {
+				|| deductionSchemaNode instanceof MigrateJsProcessorNode
+				|| deductionSchemaNode instanceof CustomProcessorNode) {
 			String declareScript = (String) ReflectionUtil.getFieldValue(deductionSchemaNode, "declareScript");
 			this.needToDeclare = StringUtils.isNotEmpty(declareScript);
 			if (this.needToDeclare) {
 				if (multipleTables) {
-					declareScript = String.format("function declare(schemaApplyResultList){\n %s \n return schemaApplyResultList;\n}",  declareScript);
+					declareScript = String.format("function declare(schemaApplyResultList){\n %s \n return schemaApplyResultList;\n}", declareScript);
 				} else {
-					declareScript = String.format("function declare(tapTable){\n %s \n return tapTable;\n}",  declareScript);
+					declareScript = String.format("function declare(tapTable){\n %s \n return tapTable;\n}", declareScript);
 				}
 				this.engine = ScriptUtil.getScriptEngine(JSEngineEnum.NASHORN.getEngineName(), declareScript);
 			}
@@ -97,6 +100,7 @@ public class HazelcastSchemaTargetNode extends HazelcastVirtualTargetNode {
 	@Override
 	public void process(int ordinal, @NotNull Inbox inbox) {
 		try {
+			Log4jUtil.setThreadContext(dataProcessorContext.getTaskDto());
 			if (!inbox.isEmpty()) {
 				while (isRunning()) {
 					List<TapdataEvent> tapdataEvents = new ArrayList<>();
@@ -143,6 +147,8 @@ public class HazelcastSchemaTargetNode extends HazelcastVirtualTargetNode {
 		} catch (Exception e) {
 			logger.error("Target process failed {}", e.getMessage(), e);
 			throw sneakyThrow(e);
+		} finally {
+			ThreadContext.clearAll();
 		}
 	}
 

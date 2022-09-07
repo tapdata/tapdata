@@ -9,7 +9,7 @@ import io.tapdata.entity.utils.TapUtils;
 import io.tapdata.entity.annotations.Implementation;
 import io.tapdata.pdk.core.dag.TapDAGNode;
 import io.tapdata.pdk.core.executor.ExecutorsManager;
-import io.tapdata.pdk.core.utils.ReflectionUtil;
+import io.tapdata.entity.utils.ReflectionUtil;
 import org.apache.commons.lang3.SerializationUtils;
 import org.apache.commons.lang3.exception.ExceptionUtils;
 

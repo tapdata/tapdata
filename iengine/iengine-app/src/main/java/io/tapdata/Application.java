@@ -13,6 +13,8 @@ import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.aspect.task.AspectTaskManager;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.utils.InstanceFactory;
+import io.tapdata.pdk.core.runtime.TapRuntime;
+import io.tapdata.pdk.core.utils.CommonUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
@@ -74,6 +76,7 @@ public class Application {
 	private static String tapdataWorkDir;
 
 	public static void main(String[] args) {
+		CommonUtils.setProperty("tap_verbose", "true");
 		try {
 			System.setProperty(LoggingSystem.class.getName(), "none");
 			tapdataWorkDir = System.getenv("TAPDATA_WORK_DIR");
@@ -115,8 +118,8 @@ public class Application {
 
 				@Override
 				public void warn(String log) {
-					pdkLogger.warn(log);
-//					System.out.println(log);
+//					pdkLogger.warn(log);
+					System.out.println(log);
 				}
 
 				@Override
@@ -135,6 +138,7 @@ public class Application {
 				}
 			});
 
+			TapRuntime.getInstance();
 			configurationCenter = run.getBean(ConfigurationCenter.class);
 			configurationCenter.putConfig("version", "@env.VERSION@".equals(buildInfo.get("version")) ? "-" : buildInfo.get("version"));
 			configurationCenter.putConfig("gitCommitId", "@env.DAAS_GIT_VERSION@".equals(buildInfo.get("gitCommitId")) ? "-" : buildInfo.get("gitCommitId"));

@@ -694,7 +694,7 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
         return findAllDto(Query.query(criteria), userDetail);
     }
 
-    public List<MetadataInstancesDto> findBySourceIdAndTableNameListNeTaskId(String sourceId, List<String> tableNames, UserDetail userDetail, String taskId) {
+    public List<MetadataInstancesDto> findBySourceIdAndTableNameListNeTaskId(String sourceId, List<String> tableNames, UserDetail userDetail) {
         Criteria criteria = Criteria
                 .where("meta_type").in(Lists.of("table", "collection", "view"))
                 .and("is_deleted").ne(true)
@@ -749,17 +749,19 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
 
 
 
-    public List<MetadataInstancesDto> findByQualifiedNameNotDelete(List<String> qualifiedNames, UserDetail user, String... fieldName) {
+    public List<MetadataInstancesDto> findByQualifiedNameNotDelete(List<String> qualifiedNames, UserDetail user, String... excludeFiled) {
         Criteria criteria = Criteria.where("qualified_name").in(qualifiedNames).and("is_deleted").ne(true);
 
         Query query = new Query(criteria);
+        query.fields().exclude(excludeFiled);
         return findAllDto(query, user);
     }
 
-    public List<MetadataInstancesDto> findDatabaseScheme(List<String> databaseIds, UserDetail user) {
+    public List<MetadataInstancesDto> findDatabaseSchemeNoHistory(List<String> databaseIds, UserDetail user) {
         Criteria criteria = Criteria.where("source._id").in(databaseIds).and("meta_type").is("database").and("is_deleted").ne(true);
 
         Query query = new Query(criteria);
+        query.fields().exclude("histories");
         return findAllDto(query, user);
     }
 
