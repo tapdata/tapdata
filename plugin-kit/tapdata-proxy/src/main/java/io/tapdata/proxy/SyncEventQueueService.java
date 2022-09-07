@@ -33,18 +33,8 @@ public class SyncEventQueueService implements EventQueueService {
 			Set<String> old = cachingChangedSubscribeIds;
 			cachingChangedSubscribeIds = new ConcurrentSkipListSet<>();
 
-			Map<EngineSessionHandler, List<String>> sessionSubscribeIdsMap = new HashMap<>();
-			for(String subscribeId : old) {
-				List<EngineSessionHandler> engineSessionHandlers = subscribeMap.getSubscribeIdSessionMap().get(subscribeId);
-				if(engineSessionHandlers != null) {
-					for(EngineSessionHandler engineSessionHandler : engineSessionHandlers) {
-						List<String> list = sessionSubscribeIdsMap.computeIfAbsent(engineSessionHandler, engineSessionHandler1 -> new ArrayList<>());
-						if(!list.contains(subscribeId)) {
-							list.add(subscribeId);
-						}
-					}
-				}
-			}
+			Map<EngineSessionHandler, List<String>> sessionSubscribeIdsMap = subscribeMap.getSessionSubscribeIdsMap(old);
+
 			for(Map.Entry<EngineSessionHandler, List<String>> entry : sessionSubscribeIdsMap.entrySet()) {
 				gatewaySessionManager.receiveOutgoingData(entry.getKey().getId(), new OutgoingData().message(new NewDataReceived().subscribeIds(entry.getValue())));
 			}

@@ -115,7 +115,7 @@ public class WebSocketClientHandler extends SimpleChannelInboundHandler<Object> 
                 String prefix = pushChannel.getImClient().getPrefix();
                 //Any data received will cancel the ping timer.
                 if(pushChannel.pingFuture != null) {
-                    TapLogger.info(TAG, "ping timeout canceled");
+//                    TapLogger.info(TAG, "ping timeout canceled");
                     pushChannel.pingFuture.cancel(true);
                     pushChannel.pingFuture = null;
                 }

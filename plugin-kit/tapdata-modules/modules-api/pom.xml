@@ -20,6 +20,10 @@
             <groupId>io.tapdata</groupId>
             <artifactId>tapdata-api</artifactId>
         </dependency>
+        <dependency>
+            <groupId>io.tapdata</groupId>
+            <artifactId>tapdata-pdk-api</artifactId>
+        </dependency>
     </dependencies>
     <build>
         <plugins>

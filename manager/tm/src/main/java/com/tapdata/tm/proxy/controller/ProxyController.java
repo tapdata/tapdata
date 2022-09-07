@@ -134,4 +134,21 @@ public class ProxyController extends BaseController {
 
         return success();
     }
+
+    @Operation(summary = "External callback url")
+    @GetMapping("test")
+    public ResponseMessage<Void> test(HttpServletRequest request) {
+
+//        if(service == null || subscribeId == null) {
+//            throw new BizException("Illegal arguments for subscribeId {}, subscribeId {}", service, subscribeId);
+//        }
+
+//        EventQueueService eventQueueService = InstanceFactory.instance(EventQueueService.class, "sync");
+//        if(eventQueueService != null) {
+//            MessageEntity message = new MessageEntity().content(content).time(new Date()).subscribeId(subscribeId).service(service);
+//            eventQueueService.offer(message);
+//        }
+
+        return success();
+    }
 }
