@@ -122,6 +122,7 @@ public class DataNodeSampleHandler extends AbstractNodeSampleHandler {
         nodeTables.addAll(Arrays.asList(tables));
     }
 
+    AtomicBoolean firstBatchRead = new AtomicBoolean(true);
     private Long batchAcceptLastTs;
     private Long batchProcessStartTs;
 
@@ -130,6 +131,10 @@ public class DataNodeSampleHandler extends AbstractNodeSampleHandler {
         batchAcceptLastTs = startAt;
         currentSnapshotTable = table;
         currentSnapshotTableInsertRowTotal = 0L;
+        if (firstBatchRead.get()) {
+            snapshotTableCounter.reset();
+            firstBatchRead.set(false);
+        }
     }
 
     public void handleBatchReadReadComplete(Long readCompleteAt, long size) {
