@@ -517,7 +517,7 @@ public class ManuRedoOracleLogMiner extends DamengLogMiner {
                 (String) logData.get("SQL_REDO")
         );
         if (isRac) {
-            instanceThreadMindedSCNMap.put((Integer) logData.get("THREAD#"), (Long) logData.get("SCN"));
+            instanceThreadMindedSCNMap.put((Long) logData.get("THREAD#"), (Long) logData.get("SCN"));
         }
         if (isRac && onlineRedo && cacheRedoLogContent.contains(redoLogContentId)) {
             return;

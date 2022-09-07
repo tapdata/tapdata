@@ -314,7 +314,7 @@ public class DamengConnector extends ConnectorBase {
     }
 
     private void queryByAdvanceFilter(TapConnectorContext connectorContext, TapAdvanceFilter filter, TapTable table, Consumer<FilterResults> consumer) throws Throwable {
-        String sql = "SELECT * FROM (SELECT A.*,ROWNUM FROM \"" + damengConfig.getSchema() + "\".\"" + table.getId() + "\" A " + CommonSqlMaker.buildOracleSqlByAdvanceFilter(filter);
+        String sql = "SELECT * FROM (SELECT A.*,ROWNUM FROM \"" + damengConfig.getSchema() + "\".\"" + table.getId() + "\" A " + buildDamengSqlByAdvanceFilter(filter, table);
         damengContext.query(sql, resultSet -> {
             FilterResults filterResults = new FilterResults();
             while (resultSet.next()) {
@@ -330,6 +330,16 @@ public class DamengConnector extends ConnectorBase {
                 consumer.accept(filterResults);
             }
         });
+    }
+
+    private String buildDamengSqlByAdvanceFilter(TapAdvanceFilter filter, TapTable tapTable) {
+        StringBuilder builder = new StringBuilder();
+        builder.append("SELECT * FROM (SELECT A.*,ROWNUM FROM \"")
+                .append(damengConfig.getSchema()).append("\".\"").append(tapTable.getId()).append("\" A ");
+        CommonSqlMaker.buildWhereClause(builder, filter);
+        CommonSqlMaker.buildOrderClause(builder, filter);
+        CommonSqlMaker.buildRowNumberClause(builder, filter);
+        return builder.toString();
     }
 
     @Override
