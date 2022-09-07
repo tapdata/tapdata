@@ -60,8 +60,19 @@ public class IterationLoader extends CodingStarter {
         }
         if (Checker.isEmpty(requestBody)) requestBody = HttpEntity.create();
         DataMap connectionConfig = this.tapConnectionContext.getConnectionConfig();
-        Integer page = Integer.parseInt(this.queryMap.get("page").toString());//第几页，从一开始
-        Integer size = Integer.parseInt(this.queryMap.get("size").toString());
+        if (Checker.isEmpty(this.queryMap)){
+            throw new CoreException("QueryMap is must be null or empty");
+        }
+        Object pageObj = this.queryMap.get("page");
+        if (Checker.isEmpty(pageObj)){
+            throw new CoreException("Page is must be null or empty");
+        }
+        Object sizeObj = this.queryMap.get("size");
+        if (Checker.isEmpty(sizeObj)){
+            throw new CoreException("Size is must be null or empty");
+        }
+        Integer page = Integer.parseInt(pageObj.toString());//第几页，从一开始
+        Integer size = Integer.parseInt(sizeObj.toString());
         Object keyWordsObj = this.queryMap.get("key");
         switch (command){
             case "DescribeIterationList":{
@@ -71,7 +82,8 @@ public class IterationLoader extends CodingStarter {
                 }
                 requestBody.builder("Limit",size)
                         .builder("Offset",page-1)
-                        .builder("ProjectName",projectName);
+                        .builder("ProjectName",projectName)
+                        .builder("Action","DescribeIterationList");
                 if (Checker.isNotEmpty(keyWordsObj)){
                     requestBody.builder("keywords",String.valueOf(keyWordsObj).trim());
                 }
@@ -79,7 +91,8 @@ public class IterationLoader extends CodingStarter {
             }
             case "DescribeCodingProjects":{
                 requestBody.builder("PageSize",size)
-                        .builder("PageNumber",page);
+                        .builder("PageNumber",page)
+                        .builder("Action","DescribeCodingProjects");
                 if (Checker.isNotEmpty(keyWordsObj)){
                     requestBody.builder("ProjectName",String.valueOf(keyWordsObj).trim());
                 }
@@ -87,7 +100,7 @@ public class IterationLoader extends CodingStarter {
             }
             default:throw new CoreException("Command only support [DescribeIterationList] or [DescribeCodingProjects] now.");
         }
-        return requestBody.builder("Action",command);
+        return requestBody;
     }
 
     private List<Map> queryAllIteration(int tableSize) throws Exception {

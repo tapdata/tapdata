@@ -27,6 +27,7 @@ import io.tapdata.pdk.apis.annotations.TapConnectorClass;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
+import io.tapdata.pdk.apis.entity.CommandInfo;
 import io.tapdata.pdk.apis.entity.ConnectionOptions;
 import io.tapdata.pdk.apis.entity.TestItem;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
@@ -39,6 +40,8 @@ import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static io.tapdata.coding.enums.IssueEventTypes.*;
 import static io.tapdata.entity.simplify.TapSimplify.list;
@@ -76,40 +79,35 @@ public class CodingConnector extends ConnectorBase {
 				.supportTimestampToStreamOffset(this::timestampToStreamOffset)
 				.supportStreamRead(this::streamRead)
 				.supportRawDataCallbackFilterFunction(this::rawDataCallbackFilterFunction)
-				.supportCommandCallbackFunction(this::command)
+				.supportCommandCallbackFunction(this::handleCommand)
 //				.supportWebHookFunctions(this::webHookFunction)
 		;
 
 	}
 
-	public Object test(
-			TapConnectionContext context,
-			String command,
-			String action,
-			Map<String, Object> argMap){
-		return command(context, command, action, argMap);
-	}
 	//项目的列表分页加载和搜索， 以及迭代的分页加载和搜索
 	//从context里能获得connectionConfig，
 	// 会给你command， 例如getProjectList，
 	// action会有list和search，
 	// argMap里会有page 页码， size一页最大数量， key搜索使用的关键字。
-	private Object command(
-			TapConnectionContext context,
-			String command,
-			String action,
-			Map<String, Object> argMap) {
+	private Map<String, Object> handleCommand(TapConnectionContext tapConnectionContext, CommandInfo commandInfo) {
+		if (Checker.isEmpty(tapConnectionContext)){
+			throw new IllegalArgumentException("TapConnectorContext cannot be null");
+		}
+
+		String command = commandInfo.getCommand();
 		if(Checker.isEmpty(command)){
 			throw new CoreException("Command can not be NULL or not be empty.");
 		}
 
-		if (Checker.isEmpty(action)){
-			throw new CoreException("Action can not be NULL or not be empty.");
-		}
-		if (Checker.isEmpty(context)){
-			throw new IllegalArgumentException("TapConnectorContext cannot be null");
-		}
-		DataMap connectionConfigConfigMap = context.getConnectionConfig();
+		String action = commandInfo.getAction();
+		//if (Checker.isEmpty(action)){
+		//	throw new CoreException("Action can not be NULL or not be empty.");
+		//}
+
+		Map<String, Object> argMap = commandInfo.getArgMap();
+
+		DataMap connectionConfigConfigMap = tapConnectionContext.getConnectionConfig();
 		if (Checker.isEmpty(connectionConfigConfigMap)){
 			throw new IllegalArgumentException("TapTable' ConnectionConfigConfig cannot be null");
 		}
@@ -118,7 +116,7 @@ public class CodingConnector extends ConnectorBase {
 		String teamName = connectionConfigConfigMap.getString("teamName");
 
 		HttpEntity<String,String> header = HttpEntity.create().builder("Authorization",token);
-		HttpEntity<String,Object> body = IterationLoader.create(context,argMap).commandSetter(command,HttpEntity.create());
+		HttpEntity<String,Object> body = IterationLoader.create(tapConnectionContext,argMap).commandSetter(command,HttpEntity.create());
 
 		CodingHttp http = CodingHttp.create(header.getEntity(),body.getEntity(), String.format(CodingStarter.OPEN_API_URL, teamName ));
 		Map<String, Object> postResult = http.post();
@@ -141,6 +139,15 @@ public class CodingConnector extends ConnectorBase {
 			List<Map<String,Object>> searchList = new ArrayList<>();
 			if (Checker.isNotEmpty(listObj)){
 				searchList = (List<Map<String,Object>>)listObj;
+
+//				searchList = searchList.stream().forEach(map->{
+//					map.entrySet().stream()
+//							.peek(obj -> obj.setValue(((Student) obj.getValue()).getName()))
+//							.collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+//				});
+//				searchList.stream().map(someObject -> {
+//					 return someObject.get("Code").toString();
+//				}).collect(Collectors.toList(), someObject.get("")) ;
 			}
 			Integer page = Checker.isEmpty(data.get("Page"))?0:Integer.parseInt(data.get("Page").toString());
 			Integer size = Checker.isEmpty(data.get("PageSize"))?0:Integer.parseInt(data.get("PageSize").toString());
@@ -150,7 +157,7 @@ public class CodingConnector extends ConnectorBase {
 			pageResult.put("size",size);
 			pageResult.put("total",total);
 			pageResult.put("rows",rows);
-			pageResult.put("list",searchList);
+			pageResult.put("items",searchList);
 		}else if("DescribeCodingProjects".equals(command)){
 			Object listObj = data.get("ProjectList");
 			List<Map<String,Object>> searchList = new ArrayList<>();
@@ -163,12 +170,20 @@ public class CodingConnector extends ConnectorBase {
 			pageResult.put("page",page);
 			pageResult.put("size",size);
 			pageResult.put("total",total);
-			pageResult.put("list",searchList);
+			pageResult.put("items",searchList);
 		}else {
 			throw new CoreException("Command only support [DescribeIterationList] or [DescribeCodingProjects] now.");
 		}
-		return pageResult.get("list");
+		return pageResult;
 	}
+
+//	public Object test(
+//			TapConnectionContext context,
+//			String command,
+//			String action,
+//			Map<String, Object> argMap){
+//		return command(context, command, action, argMap);
+//	}
 
 	private TapEvent rawDataCallbackFilterFunction(TapConnectorContext connectorContext, Map<String, Object> issue) {
 		String webHookEventType = String.valueOf(issue.get("event"));

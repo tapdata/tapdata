@@ -240,14 +240,6 @@ public class ConnectorFunctions extends ConnectionFunctions<ConnectorFunctions> 
         this.queryByAdvanceFilterFunction = function;
         return this;
     }
-    public ConnectorFunctions supportWebHookFunctions(WebHookFunction function) {
-        this.webHookFunction = function;
-        return this;
-    }
-    public ConnectorFunctions supportRawDataCallbackFilterFunction(RawDataCallbackFilterFunction function) {
-        this.rawDataCallbackFilterFunction = function;
-        return this;
-    }
 
     public WriteRecordFunction getWriteRecordFunction() {
         return writeRecordFunction;

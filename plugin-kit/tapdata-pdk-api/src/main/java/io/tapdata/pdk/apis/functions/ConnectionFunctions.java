@@ -41,10 +41,6 @@ public class ConnectionFunctions<T extends ConnectionFunctions<?>> extends Commo
         connectionCheckFunction = function;
         return (T) this;
     }
-    public T supportCommandCallbackFunction(CommandCallbackFunction function) {
-        commandCallbackFunction = function;
-        return (T) this;
-    }
 
     public GetTableNamesFunction getGetTableNamesFunction() {
         return getTableNamesFunction;
