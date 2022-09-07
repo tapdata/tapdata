@@ -1,0 +1,153 @@
+package io.tapdata.pdk.core.entity.params;
+
+import io.tapdata.entity.error.CoreException;
+import io.tapdata.pdk.core.utils.CommonUtils;
+
+import java.util.function.Consumer;
+
+public class PDKMethodInvoker {
+
+    public static PDKMethodInvoker create(){
+        return new PDKMethodInvoker();
+    }
+    private PDKMethodInvoker(){}
+
+    public void cancelRetry() {
+        synchronized (this) {
+            retryTimes = 0;
+            maxRetryTimeMinute = 0;
+            this.notifyAll();
+        }
+    }
+    private CommonUtils.AnyError runnable;
+    private String message;
+    private String logTag;
+    private Consumer<CoreException> errorConsumer;
+    private boolean async;
+    private ClassLoader contextClassLoader;
+    private long retryTimes;
+    private long retryPeriodSeconds;
+    private long maxRetryTimeMinute; //util:seconds
+
+    public PDKMethodInvoker maxRetryTimeMinute(long maxRetryTimeMinute){
+        this.maxRetryTimeMinute = maxRetryTimeMinute;
+        return this;
+    }
+
+    public PDKMethodInvoker runnable(CommonUtils.AnyError anyError) {
+        this.runnable = anyError;
+        return this;
+    }
+
+    public PDKMethodInvoker message(String message) {
+        this.message = message;
+        return this;
+    }
+
+    public PDKMethodInvoker logTag(String logTag) {
+        this.logTag = logTag;
+        return this;
+    }
+
+    public PDKMethodInvoker errorConsumer(Consumer<CoreException> errorConsumer) {
+        this.errorConsumer = errorConsumer;
+        return this;
+    }
+
+    public PDKMethodInvoker async(boolean async) {
+        this.async = async;
+        return this;
+    }
+
+    public PDKMethodInvoker contextClassLoader(ClassLoader contextClassLoader) {
+        this.contextClassLoader = contextClassLoader;
+        return this;
+    }
+
+    public PDKMethodInvoker retryTimes(long retryTimes) {
+        this.retryTimes = retryTimes;
+        return this;
+    }
+
+    public PDKMethodInvoker retryPeriodSeconds(long retryPeriodSeconds) {
+        this.retryPeriodSeconds = retryPeriodSeconds;
+        return this;
+    }
+
+
+    public CommonUtils.AnyError getR() {
+        return runnable;
+    }
+
+    public String getMessage() {
+        return message;
+    }
+
+    public Consumer<CoreException> getErrorConsumer() {
+        return errorConsumer;
+    }
+
+    public boolean isAsync() {
+        return async;
+    }
+
+    public ClassLoader getContextClassLoader() {
+        return contextClassLoader;
+    }
+
+    public long getRetryTimes() {
+        return retryTimes;
+    }
+
+    public long getRetryPeriodSeconds() {
+        return retryPeriodSeconds;
+    }
+
+    public String getLogTag() {
+        return logTag;
+    }
+
+    public void setRunnable(CommonUtils.AnyError runnable) {
+        this.runnable = runnable;
+    }
+
+    public void setMessage(String message) {
+        this.message = message;
+    }
+
+    public void setLogTag(String logTag) {
+        this.logTag = logTag;
+    }
+
+    public void setErrorConsumer(Consumer<CoreException> errorConsumer) {
+        this.errorConsumer = errorConsumer;
+    }
+
+    public void setAsync(boolean async) {
+        this.async = async;
+    }
+
+    public void setContextClassLoader(ClassLoader contextClassLoader) {
+        this.contextClassLoader = contextClassLoader;
+    }
+
+    public void setRetryTimes(long retryTimes) {
+        this.retryTimes = retryTimes;
+    }
+
+    public void setRetryPeriodSeconds(long retryPeriodSeconds) {
+        this.retryPeriodSeconds = retryPeriodSeconds;
+    }
+
+    public CommonUtils.AnyError getRunnable() {
+        return runnable;
+    }
+
+    public long getMaxRetryTimeMinute() {
+        return maxRetryTimeMinute;
+    }
+
+    public void setMaxRetryTimeMinute(long maxRetryTimeMinute) {
+        this.maxRetryTimeMinute = maxRetryTimeMinute;
+    }
+}

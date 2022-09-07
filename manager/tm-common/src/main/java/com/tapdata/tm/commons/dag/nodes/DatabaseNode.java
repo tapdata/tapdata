@@ -280,7 +280,7 @@ public class DatabaseNode extends DataParentNode<List<Schema>> {
         if (schemas == null) {
             return Collections.emptyList();
         }
-        return schemas.stream().map(SchemaUtils::cloneSchema).collect(Collectors.toList());
+        return SchemaUtils.cloneSchema(schemas);
     }
 
 

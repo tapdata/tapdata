@@ -2,6 +2,7 @@ package com.tapdata.tm.autoinspect.dto;
 
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import com.tapdata.tm.autoinspect.constants.AutoInspectConstants;
 import com.tapdata.tm.autoinspect.constants.ResultStatus;
 import com.tapdata.tm.autoinspect.entity.CompareRecord;
 import com.tapdata.tm.commons.base.convert.ObjectIdDeserialize;
@@ -21,9 +22,8 @@ import java.util.Map;
 public class TaskAutoInspectResultDto extends BaseDto {
 
     private @NonNull String taskId;
+    private @NonNull String checkAgainSN; //再次校验处理序号
     private @NonNull ResultStatus status;
-    private @NonNull Date created;
-    private @NonNull Date updated;
     private @NonNull String originalTableName;
     private @NonNull LinkedHashMap<String, Object> originalKeymap;
 
@@ -42,9 +42,10 @@ public class TaskAutoInspectResultDto extends BaseDto {
     private Map<String, Object> targetData;
 
     public TaskAutoInspectResultDto() {
-        this.status = ResultStatus.Completed;
-        this.created = new Date();
-        this.updated = new Date();
+        setCheckAgainSN(AutoInspectConstants.CHECK_AGAIN_DEFAULT_SN);
+        setStatus(ResultStatus.Completed);
+        setCreateAt(new Date());
+        setLastUpdAt(new Date());
     }
 
     public CompareRecord toSourceRecord() {
@@ -89,7 +90,7 @@ public class TaskAutoInspectResultDto extends BaseDto {
      * @param targetConnId    target connections id
      * @return difference record
      */
-    public static TaskAutoInspectResultDto parse(@NonNull String taskId, @NonNull CompareRecord sourceRecord, @NonNull ObjectId targetConnId, @NonNull String targetTableName) {
+    public static TaskAutoInspectResultDto parseNoneTarget(@NonNull String taskId, @NonNull CompareRecord sourceRecord, @NonNull ObjectId targetConnId, @NonNull String targetTableName) {
         TaskAutoInspectResultDto dto = new TaskAutoInspectResultDto();
         dto.setTaskId(taskId);
         dto.fillSource(sourceRecord);

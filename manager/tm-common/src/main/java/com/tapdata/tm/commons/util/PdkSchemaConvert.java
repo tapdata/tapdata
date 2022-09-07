@@ -1,6 +1,7 @@
 package com.tapdata.tm.commons.util;
 
 import java.util.*;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -20,6 +21,8 @@ import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.entity.utils.JsonParser;
 import io.tapdata.entity.utils.TypeHolder;
 import io.tapdata.pdk.core.utils.TapConstants;
+import lombok.Getter;
+import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -35,16 +38,16 @@ public class PdkSchemaConvert {
     public static final TableFieldTypesGenerator tableFieldTypesGenerator = InstanceFactory.instance(TableFieldTypesGenerator.class);
     public static final TargetTypesGenerator targetTypesGenerator = InstanceFactory.instance(TargetTypesGenerator.class);
 
+    private static  JsonParser instance = InstanceFactory.instance(JsonParser.class);
+
     public static TapTable toPdk(MetadataInstancesDto schema) {
         TapTable tapTable = new TapTable(schema.getOriginalName() == null ? null : schema.getOriginalName());
-
         //通过databaseId查询到pdk到相关熟悉
         tapTable.pdkId(schema.getPdkId());
         tapTable.pdkGroup(schema.getPdkGroup());
         tapTable.pdkVersion(schema.getPdkVersion());
         tapTable.setStorageEngine(schema.getStorageEngine());
         tapTable.setCharset(schema.getCharset());
-
         if (CollectionUtils.isNotEmpty(schema.getIndices())) {
             List<TapIndex> tapIndexList = schema.getIndices().stream().map(in -> {
                 TapIndex tapIndex = new TapIndex();
@@ -64,7 +67,6 @@ public class PdkSchemaConvert {
             }).collect(Collectors.toList());
             tapTable.setIndexList(tapIndexList);
         }
-
 
         List<Field> fields = schema.getFields();
 
@@ -102,8 +104,8 @@ public class PdkSchemaConvert {
                     TapType tapType = null;
                     try {
 
-                        tapType = InstanceFactory.instance(JsonParser.class).fromJson(field.getTapType(), new TypeHolder<TapType>() {
-                        }, TapConstants.abstractClassDetectors);
+                        Class<? extends TapType> classByJson = getClassByJson(field.getTapType());
+                        tapType = instance.fromJson(field.getTapType(), classByJson);
                     } catch (Exception e) {
                         tapType = JsonUtil.parseJsonUseJackson(field.getTapType(), new TypeReference<TapType>() {
                         });
@@ -115,10 +117,8 @@ public class PdkSchemaConvert {
                 nameFieldMap.put(field.getFieldName(), tapField);
             }
         }
-
         tapTable.setNameFieldMap(nameFieldMap);
         tapTable.setLastUpdate(schema.getLastUpdate());
-
         return tapTable;
     }
 
@@ -130,15 +130,14 @@ public class PdkSchemaConvert {
 //    }
 
     public static TapTable toPdk(Schema schema) {
+        long start = System.currentTimeMillis();
         TapTable tapTable = new TapTable(schema.getOriginalName() == null ? null : schema.getOriginalName());
-
         //通过databaseId查询到pdk到相关熟悉
         tapTable.pdkId(schema.getPdkId());
         tapTable.pdkGroup(schema.getPdkGroup());
         tapTable.pdkVersion(schema.getPdkVersion());
         tapTable.setStorageEngine(schema.getStorageEngine());
         tapTable.setCharset(schema.getCharset());
-
         if (CollectionUtils.isNotEmpty(schema.getIndices())) {
             List<TapIndex> tapIndexList = schema.getIndices().stream().map(in -> {
                 TapIndex tapIndex = new TapIndex();
@@ -159,7 +158,6 @@ public class PdkSchemaConvert {
             tapTable.setIndexList(tapIndexList);
         }
 
-
         List<Field> fields = schema.getFields();
 
         Set<Integer> partitionSet = schema.getPartitionSet();
@@ -169,11 +167,63 @@ public class PdkSchemaConvert {
 
 
         LinkedHashMap<String, TapField> nameFieldMap = new LinkedHashMap<>();
-
         if (CollectionUtils.isNotEmpty(fields)) {
+
             for (Field field : fields) {
+
                 TapFieldEx tapField = new TapFieldEx();
-                BeanUtils.copyProperties(field, tapField);
+                tapField.setId(field.getId());
+                tapField.setAliasName(field.getAliasName());
+                tapField.setVisible(field.getVisible());
+                tapField.setOriginalDataType(field.getOriginalDataType());
+                tapField.setField_type(field.getField_type());
+                tapField.setRequired(field.getRequired());
+                tapField.setExample(field.getExample());
+                tapField.setDictionary(field.getDictionary());
+                tapField.setOldIdList(field.getOldIdList());
+                tapField.setNodeDataType(field.getNodeDataType());
+                tapField.setOriPrecision(field.getOriPrecision());
+                tapField.setOriScale(field.getOriScale());
+                tapField.setOriginalFieldName(field.getOriginalFieldName());
+                tapField.setOriginalJavaType(field.getOriginalJavaType());
+                tapField.setParent(field.getParent());
+                tapField.setPrecision(field.getPrecision());
+                tapField.setPrecisionEdit(field.getIsPrecisionEdit());
+                tapField.setScaleEdit(field.getIsScaleEdit());
+                tapField.setJavaType(field.getJavaType());
+                tapField.setJavaType1(field.getJavaType1());
+                tapField.setDataCode(field.getDataCode());
+                tapField.setDataType1(field.getDataType1());
+                tapField.setCreateSource(field.getCreateSource());
+                tapField.setSource(field.getSource());
+                tapField.setSourceDbType(field.getSourceDbType());
+                tapField.setAutoincrement(field.getAutoincrement());
+                tapField.setColumnSize(field.getColumnSize());
+                tapField.setDataTypeTemp(field.getDataTypeTemp());
+                tapField.setOriginalDefaultValue(field.getOriginalDefaultValue());
+                tapField.setFieldName(field.getFieldName());
+                tapField.setForeignKeyPosition(field.getForeignKeyPosition());
+                tapField.setAnalyze(field.getIsAnalyze());
+                tapField.setAutoAllowed(field.getIsAutoAllowed());
+                tapField.setIsNullable(field.getIsNullable());
+                tapField.setOriginalPrecision(field.getOriginalPrecision());
+                tapField.setPrimaryKey(field.getPrimaryKey());
+                tapField.setPrimaryKeyPosition(field.getPrimaryKeyPosition());
+                tapField.setScale(field.getScale());
+                tapField.setOriginalScale(field.getOriginalScale());
+                tapField.setKey(field.getKey());
+                tapField.setPkConstraintName(field.getPkConstraintName());
+                tapField.setPkConstraintName1(field.getPkConstraintName1());
+                tapField.setForeignKey(field.getForeignKey());
+                tapField.setForeignKeyColumn(field.getForeignKeyColumn());
+                tapField.setTableName(field.getTableName());
+                tapField.setColumnPosition(field.getColumnPosition());
+                tapField.setDefaultValue(field.getDefaultValue());
+                tapField.setForeignKeyTable(field.getForeignKeyTable());
+                tapField.setAutoInc(field.getIsAutoAllowed());
+                tapField.setComment(field.getComment());
+                tapField.setPrimaryKey(field.getPrimaryKey());
+                tapField.setDataType(field.getDataType());
 
                 tapField.setId(field.getId());
                 tapField.setDefaultValue(field.getDefaultValue());
@@ -191,13 +241,14 @@ public class PdkSchemaConvert {
                 tapField.setConstraint(field.getPkConstraintName());
                 tapField.setPrimaryKey(field.getPrimaryKey());
                 tapField.setPartitionKey(partitionSet.contains(field.getColumnPosition()));
+
                 tapField.setDataType(field.getDataType());
                 if (StringUtils.isNotBlank(field.getTapType())) {
                     TapType tapType = null;
                     try {
 
-                        tapType = InstanceFactory.instance(JsonParser.class).fromJson(field.getTapType(), new TypeHolder<TapType>() {
-                        }, TapConstants.abstractClassDetectors);
+                        Class<? extends TapType> classByJson = getClassByJson(field.getTapType());
+                        tapType = instance.fromJson(field.getTapType(), classByJson);
                     } catch (Exception e) {
                         tapType = JsonUtil.parseJsonUseJackson(field.getTapType(), new TypeReference<TapType>() {
                         });
@@ -208,8 +259,8 @@ public class PdkSchemaConvert {
                 }
                 nameFieldMap.put(field.getFieldName(), tapField);
             }
-        }
 
+        }
         tapTable.setNameFieldMap(nameFieldMap);
         tapTable.setLastUpdate(schema.getLastUpdate());
 
@@ -241,7 +292,59 @@ public class PdkSchemaConvert {
                 Field field = new Field();
                 TapField tapField = entry.getValue();
                 if (tapField instanceof TapFieldEx) {
-                    BeanUtils.copyProperties(tapField, field);
+                    TapFieldEx tapField1 = (TapFieldEx) tapField;
+                    field.setId(tapField1.getId());
+                    field.setAliasName(tapField1.getAliasName());
+                    field.setVisible(tapField1.getVisible());
+                    field.setOriginalDataType(tapField1.getOriginalDataType());
+                    field.setField_type(tapField1.getField_type());
+                    field.setRequired(tapField1.getRequired());
+                    field.setExample(tapField1.getExample());
+                    field.setDictionary(tapField1.getDictionary());
+                    field.setOldIdList(tapField1.getOldIdList());
+                    field.setNodeDataType(tapField1.getNodeDataType());
+                    field.setOriPrecision(tapField1.getOriPrecision());
+                    field.setOriScale(tapField1.getOriScale());
+                    field.setOriginalFieldName(tapField1.getOriginalFieldName());
+                    field.setOriginalJavaType(tapField1.getOriginalJavaType());
+                    field.setParent(tapField1.getParent());
+                    field.setPrecision(tapField1.getPrecision());
+                    field.setIsPrecisionEdit(tapField1.getPrecisionEdit());
+                    field.setIsScaleEdit(tapField1.getScaleEdit());
+                    field.setJavaType(tapField1.getJavaType());
+                    field.setJavaType1(tapField1.getJavaType1());
+                    field.setDataCode(tapField1.getDataCode());
+                    field.setDataType1(tapField1.getDataType1());
+                    field.setCreateSource(tapField1.getCreateSource());
+                    field.setSource(tapField1.getSource());
+                    field.setSourceDbType(tapField1.getSourceDbType());
+                    field.setAutoincrement(tapField1.getAutoincrement());
+                    field.setColumnSize(tapField1.getColumnSize());
+                    field.setDataTypeTemp(tapField1.getDataTypeTemp());
+                    field.setOriginalDefaultValue(tapField1.getOriginalDefaultValue());
+                    field.setFieldName(tapField1.getFieldName());
+                    field.setForeignKeyPosition(tapField1.getForeignKeyPosition());
+                    field.setIsAnalyze(tapField1.getAnalyze());
+                    field.setIsAutoAllowed(tapField1.getAutoAllowed());
+                    field.setIsNullable(tapField1.getIsNullable());
+                    field.setOriginalPrecision(tapField1.getOriginalPrecision());
+                    field.setPrimaryKey(tapField1.getPrimaryKey());
+                    field.setPrimaryKeyPosition(tapField1.getPrimaryKeyPosition());
+                    field.setScale(tapField1.getScale());
+                    field.setOriginalScale(tapField1.getOriginalScale());
+                    field.setKey(tapField1.getKey());
+                    field.setPkConstraintName(tapField1.getPkConstraintName());
+                    field.setPkConstraintName1(tapField1.getPkConstraintName1());
+                    field.setForeignKey(tapField1.getForeignKey());
+                    field.setForeignKeyColumn(tapField1.getForeignKeyColumn());
+                    field.setTableName(tapField1.getTableName());
+                    field.setColumnPosition(tapField1.getColumnPosition());
+                    field.setDefaultValue(tapField1.getDefaultValue());
+                    field.setForeignKeyTable(tapField1.getForeignKeyTable());
+                    field.setIsAutoAllowed(tapField1.getAutoAllowed());
+                    field.setComment(tapField1.getComment());
+                    field.setPrimaryKey(tapField1.getPrimaryKey());
+                    field.setDataType(tapField1.getDataType());
                 }
                 field.setDefaultValue(tapField.getDefaultValue());
                 field.setIsNullable(tapField.getNullable());
@@ -257,7 +360,7 @@ public class PdkSchemaConvert {
                 field.setComment(tapField.getComment());
                 field.setPkConstraintName(tapField.getConstraint());
                 field.setPrimaryKey(tapField.getPrimaryKey());
-                field.setTapType(tapField.getTapType() == null ? null : InstanceFactory.instance(JsonParser.class).toJson(tapField.getTapType()));
+                field.setTapType(tapField.getTapType() == null ? null : instance.toJson(tapField.getTapType()));
 
                 if (tapField.getPartitionKey()) {
                     partitionSet.add(tapField.getPos());
@@ -338,7 +441,59 @@ public class PdkSchemaConvert {
                 Field field = new Field();
                 TapField tapField = entry.getValue();
                 if (tapField instanceof TapFieldEx) {
-                    BeanUtils.copyProperties(tapField, field);
+                    TapFieldEx tapField1 = (TapFieldEx) tapField;
+                    field.setId(tapField1.getId());
+                    field.setAliasName(tapField1.getAliasName());
+                    field.setVisible(tapField1.getVisible());
+                    field.setOriginalDataType(tapField1.getOriginalDataType());
+                    field.setField_type(tapField1.getField_type());
+                    field.setRequired(tapField1.getRequired());
+                    field.setExample(tapField1.getExample());
+                    field.setDictionary(tapField1.getDictionary());
+                    field.setOldIdList(tapField1.getOldIdList());
+                    field.setNodeDataType(tapField1.getNodeDataType());
+                    field.setOriPrecision(tapField1.getOriPrecision());
+                    field.setOriScale(tapField1.getOriScale());
+                    field.setOriginalFieldName(tapField1.getOriginalFieldName());
+                    field.setOriginalJavaType(tapField1.getOriginalJavaType());
+                    field.setParent(tapField1.getParent());
+                    field.setPrecision(tapField1.getPrecision());
+                    field.setIsPrecisionEdit(tapField1.getPrecisionEdit());
+                    field.setIsScaleEdit(tapField1.getScaleEdit());
+                    field.setJavaType(tapField1.getJavaType());
+                    field.setJavaType1(tapField1.getJavaType1());
+                    field.setDataCode(tapField1.getDataCode());
+                    field.setDataType1(tapField1.getDataType1());
+                    field.setCreateSource(tapField1.getCreateSource());
+                    field.setSource(tapField1.getSource());
+                    field.setSourceDbType(tapField1.getSourceDbType());
+                    field.setAutoincrement(tapField1.getAutoincrement());
+                    field.setColumnSize(tapField1.getColumnSize());
+                    field.setDataTypeTemp(tapField1.getDataTypeTemp());
+                    field.setOriginalDefaultValue(tapField1.getOriginalDefaultValue());
+                    field.setFieldName(tapField1.getFieldName());
+                    field.setForeignKeyPosition(tapField1.getForeignKeyPosition());
+                    field.setIsAnalyze(tapField1.getAnalyze());
+                    field.setIsAutoAllowed(tapField1.getAutoAllowed());
+                    field.setIsNullable(tapField1.getIsNullable());
+                    field.setOriginalPrecision(tapField1.getOriginalPrecision());
+                    field.setPrimaryKey(tapField1.getPrimaryKey());
+                    field.setPrimaryKeyPosition(tapField1.getPrimaryKeyPosition());
+                    field.setScale(tapField1.getScale());
+                    field.setOriginalScale(tapField1.getOriginalScale());
+                    field.setKey(tapField1.getKey());
+                    field.setPkConstraintName(tapField1.getPkConstraintName());
+                    field.setPkConstraintName1(tapField1.getPkConstraintName1());
+                    field.setForeignKey(tapField1.getForeignKey());
+                    field.setForeignKeyColumn(tapField1.getForeignKeyColumn());
+                    field.setTableName(tapField1.getTableName());
+                    field.setColumnPosition(tapField1.getColumnPosition());
+                    field.setDefaultValue(tapField1.getDefaultValue());
+                    field.setForeignKeyTable(tapField1.getForeignKeyTable());
+                    field.setIsAutoAllowed(tapField1.getAutoAllowed());
+                    field.setComment(tapField1.getComment());
+                    field.setPrimaryKey(tapField1.getPrimaryKey());
+                    field.setDataType(tapField1.getDataType());
                 }
                 field.setDefaultValue(tapField.getDefaultValue());
                 field.setIsNullable(tapField.getNullable());
@@ -354,7 +509,7 @@ public class PdkSchemaConvert {
                 field.setComment(tapField.getComment());
                 field.setPkConstraintName(tapField.getConstraint());
                 field.setPrimaryKey(tapField.getPrimaryKey());
-                field.setTapType(tapField.getTapType() == null ? null : InstanceFactory.instance(JsonParser.class).toJson(tapField.getTapType()));
+                field.setTapType(tapField.getTapType() == null ? null : instance.toJson(tapField.getTapType()));
 
                 if (tapField.getPartitionKey()) {
                     partitionSet.add(tapField.getPos());
@@ -364,14 +519,12 @@ public class PdkSchemaConvert {
             }
         }
 
-
         schema.setFields(fields);
         schema.setPartitionSet(partitionSet);
         schema.setLastUpdate(tapTable.getLastUpdate());
 
 
         List<TapIndex> indexList = tapTable.getIndexList();
-
         if (CollectionUtils.isNotEmpty(indexList)) {
             List<TableIndex> tableIndexList = indexList.stream().map(in -> {
                 TableIndex tableIndex = new TableIndex();
@@ -400,7 +553,21 @@ public class PdkSchemaConvert {
             }).collect(Collectors.toList());
             schema.setIndices(tableIndexList);
         }
+
         return schema;
+    }
+
+
+    public static Class<? extends TapType> getClassByJson(String json) {
+        TypeV typeV = JsonUtil.parseJson(json, TypeV.class);
+        byte type = typeV.getType();
+        return TapType.getTapTypeClass(type);
+    }
+
+    @Setter
+    @Getter
+    private static class TypeV{
+        private byte type;
     }
 
 }

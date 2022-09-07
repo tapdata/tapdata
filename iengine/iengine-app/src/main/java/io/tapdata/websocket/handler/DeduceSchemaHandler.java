@@ -2,7 +2,7 @@ package io.tapdata.websocket.handler;
 
 import com.alibaba.fastjson.JSON;
 import com.tapdata.constant.ConnectorConstant;
-import com.tapdata.constant.JSONUtil;
+import com.tapdata.constant.Log4jUtil;
 import com.tapdata.entity.schema.SchemaApplyResult;
 import com.tapdata.manager.common.utils.JsonUtil;
 import com.tapdata.mongo.ClientMongoOperator;
@@ -114,6 +114,7 @@ public class DeduceSchemaHandler implements WebSocketEventHandler<WebSocketEvent
 			}
 
 			private TaskClient<TaskDto> execTask(TaskDto taskDto) {
+				Log4jUtil.setThreadContext(taskDto);
 				taskDto.setType(ParentTaskDto.TYPE_INITIAL_SYNC);
 				TaskClient<TaskDto> taskClient = taskService.startTestTask(taskDto);
 				taskClient.join();

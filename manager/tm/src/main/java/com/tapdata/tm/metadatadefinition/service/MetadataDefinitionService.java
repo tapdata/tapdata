@@ -172,6 +172,7 @@ public class MetadataDefinitionService extends BaseService<MetadataDefinitionDto
     public List<MetadataDefinitionDto> findAndChild(List<ObjectId> idList) {
         Criteria criteria = Criteria.where("_id").in(idList);
         Query query = new Query(criteria);
+
         List<MetadataDefinitionDto> all = findAll(query);
         return findChild(all, idList);
     }

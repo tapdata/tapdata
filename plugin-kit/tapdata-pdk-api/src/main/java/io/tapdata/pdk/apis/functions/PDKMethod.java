@@ -1,11 +1,11 @@
-package io.tapdata.pdk.core.monitor;
+package io.tapdata.pdk.apis.functions;
 
 import java.util.concurrent.TimeUnit;
 
 public enum PDKMethod {
-    REGISTER_CAPABILITIES(TimeUnit.SECONDS.toMillis(3)),
+    REGISTER_CAPABILITIES,
 
-    PROCESSOR_FUNCTIONS(TimeUnit.SECONDS.toMillis(3)),
+    PROCESSOR_FUNCTIONS,
 
     DISCOVER_SCHEMA,
     CONNECTION_TEST,
@@ -16,21 +16,21 @@ public enum PDKMethod {
     BATCH_OFFSET,
     STREAM_OFFSET,
     TABLE_COUNT,
-    SOURCE_CONNECTION_TEST(TimeUnit.SECONDS.toMillis(10)),
-    TARGET_CONNECTION_TEST(TimeUnit.SECONDS.toMillis(10)),
+    SOURCE_CONNECTION_TEST,
+    TARGET_CONNECTION_TEST,
 
-    SOURCE_BATCH_COUNT(TimeUnit.SECONDS.toMillis(30)),
+    SOURCE_BATCH_COUNT,
 
     SOURCE_BATCH_READ,
     SOURCE_BATCH_OFFSET,
     SOURCE_QUERY_BY_FILTER,
     SOURCE_QUERY_BY_ADVANCE_FILTER,
 
-    TARGET_INSERT(TimeUnit.SECONDS.toMillis(10)),
+    TARGET_INSERT,
 
-    TARGET_WRITE_RECORD(TimeUnit.SECONDS.toMillis(10)),
+    TARGET_WRITE_RECORD,
 
-    PROCESSOR_PROCESS_RECORD(TimeUnit.SECONDS.toMillis(10)),
+    PROCESSOR_PROCESS_RECORD,
     TARGET_DROP_TABLE,
     TARGET_CLEAR_TABLE,
     TARGET_CREATE_TABLE,

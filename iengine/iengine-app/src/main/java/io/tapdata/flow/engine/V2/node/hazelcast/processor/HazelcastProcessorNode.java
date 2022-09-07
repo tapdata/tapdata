@@ -60,7 +60,6 @@ public class HazelcastProcessorNode extends HazelcastProcessorBaseNode {
 	}
 
 	private void initDataFlowProcessor() throws Exception {
-		dataFlowProcessor = new ScriptDataFlowProcessor();
 		final Stage stage = HazelcastUtil.node2CommonStage(processorBaseContext.getNode());
 		dataFlowProcessor = createDataFlowProcessor(processorBaseContext.getNode(), stage);
 		Job job = new Job();
@@ -97,14 +96,7 @@ public class HazelcastProcessorNode extends HazelcastProcessorBaseNode {
 				TapRecordEvent tapRecordEvent = message2TapEvent(processedMessage);
 				if (tapRecordEvent != null) {
 					processedEvent.setTapEvent(tapRecordEvent);
-					String tableName;
-					if (multipleTables || StringUtils.equalsAnyIgnoreCase(processorBaseContext.getTaskDto().getSyncType(),
-									TaskDto.SYNC_TYPE_DEDUCE_SCHEMA)) {
-						tableName = processedMessage.getTableName();
-					} else {
-						tableName = processorBaseContext.getNode().getId();
-					}
-					consumer.accept(processedEvent, ProcessResult.create().tableId(tableName));
+					consumer.accept(processedEvent, getProcessResult(processedMessage.getTableName()));
 				}
 			}
 		}

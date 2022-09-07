@@ -7,4 +7,5 @@ public class TapAPIErrorCodes {
     public static final int ERROR_ILLEGAL_PARAMETERS = 1003;
 	public static final int ERROR_MISSING_PRIMARY_VALUE = 1004;
 	public static final int ERROR_NO_PRIMARY_KEYS = 1005;
+    public static final int NEED_RETRY_FAILED = 1006;
 }

@@ -16,8 +16,8 @@ import io.tapdata.pdk.apis.functions.connection.ConnectionCheckFunction;
 import io.tapdata.pdk.apis.functions.connection.ConnectionCheckItem;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
-import io.tapdata.pdk.core.monitor.PDKMethod;
 import lombok.extern.slf4j.Slf4j;
+import io.tapdata.pdk.apis.functions.PDKMethod;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
