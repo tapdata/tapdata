@@ -1,7 +1,7 @@
 package com.tapdata.tm.autoinspect.exception;
 
 import com.tapdata.tm.autoinspect.constants.TaskStatus;
-import com.tapdata.tm.autoinspect.constants.Constants;
+import com.tapdata.tm.autoinspect.constants.AutoInspectConstants;
 import com.tapdata.tm.autoinspect.entity.CompareTableItem;
 
 /**
@@ -27,20 +27,36 @@ public class AutoInspectException extends RuntimeException {
         super(cause);
     }
 
+    public static AutoInspectException canNotOpen(String taskName) {
+        return new AutoInspectException(String.format("Can not open %s: %s", AutoInspectConstants.MODULE_NAME, taskName));
+    }
+
+    public static AutoInspectException openAutoDDL(String taskName) {
+        return new AutoInspectException(String.format("Turn on automatic DDL to ignore %s: %s", AutoInspectConstants.MODULE_NAME, taskName));
+    }
+
+    public static AutoInspectException enableDynamicTable(String taskName, String tableName) {
+        return new AutoInspectException(String.format("Enable dynamic table to ignore %s: %s.%s", AutoInspectConstants.MODULE_NAME, taskName, tableName));
+    }
+
+    public static AutoInspectException filterSourceNode(String targetNodeName, String msg) {
+        return new AutoInspectException(String.format("%s '%s' filter source node: %s", AutoInspectConstants.MODULE_NAME, targetNodeName, msg));
+    }
+
     public static AutoInspectException notSourceNode(String taskId) {
-        return new AutoInspectException(String.format("%s '%s' not found any source node", Constants.MODULE_NAME, taskId));
+        return new AutoInspectException(String.format("%s '%s' not found any source node", AutoInspectConstants.MODULE_NAME, taskId));
     }
 
     public static AutoInspectException notEmptyTables(String taskId) {
-        return new AutoInspectException(String.format("%s '%s' not found any tables", Constants.MODULE_NAME, taskId));
+        return new AutoInspectException(String.format("%s '%s' not found any tables", AutoInspectConstants.MODULE_NAME, taskId));
     }
 
     public static AutoInspectException startError(String taskId, Throwable cause) {
-        return new AutoInspectException(String.format("%s '%s' start failed: %s", Constants.MODULE_NAME, taskId, cause.getMessage()), cause);
+        return new AutoInspectException(String.format("%s '%s' start failed: %s", AutoInspectConstants.MODULE_NAME, taskId, cause.getMessage()), cause);
     }
 
     public static AutoInspectException existRunner(String taskId, TaskStatus.Sync syncStatus, TaskStatus.Inspect inspectStatus) {
-        return new AutoInspectException(String.format("%s '%s' exists runner{sync:%s, inspect:%s}", Constants.MODULE_NAME, taskId, syncStatus, inspectStatus));
+        return new AutoInspectException(String.format("%s '%s' exists runner{sync:%s, inspect:%s}", AutoInspectConstants.MODULE_NAME, taskId, syncStatus, inspectStatus));
     }
 
     public static AutoInspectException notFoundSyncType(String taskSyncType) {

@@ -8,7 +8,6 @@ import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.tm.autoinspect.connector.IDataCursor;
 import com.tapdata.tm.autoinspect.connector.IPdkConnector;
 import com.tapdata.tm.autoinspect.entity.CompareRecord;
-import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
 import io.tapdata.entity.schema.TapTable;
@@ -48,17 +47,17 @@ public class PdkConnector implements IPdkConnector {
     private final TapCodecsFilterManager defaultCodecsFilterManager;
     private final TaskRetryConfig taskRetryConfig;
 
-    public PdkConnector(ClientMongoOperator clientMongoOperator, @NonNull DatabaseNode node, @NonNull Connections connections, @NonNull DatabaseTypeEnum.DatabaseType sourceDatabaseType, Supplier<Boolean> isRunning, TaskRetryConfig taskRetryConfig) {
+    public PdkConnector(@NonNull ClientMongoOperator clientMongoOperator, @NonNull String taskId, @NonNull String nodeId, @NonNull Connections connections, @NonNull DatabaseTypeEnum.DatabaseType sourceDatabaseType, Supplier<Boolean> isRunning, TaskRetryConfig taskRetryConfig) {
         this.isRunning = isRunning;
         this.connections = connections;
         this.connectorNode = PdkUtil.createNode(
-                node.getTaskId(),
+                taskId,
                 sourceDatabaseType,
                 clientMongoOperator,
-                getClass().getSimpleName() + "-" + node.getId(),
+                getClass().getSimpleName() + "-" + nodeId,
                 connections.getConfig(),
-                new PdkTableMap(TapTableUtil.getTapTableMapByNodeId(node.getId())),
-                new PdkStateMap(node.getId(), HazelcastUtil.getInstance()),
+                new PdkTableMap(TapTableUtil.getTapTableMapByNodeId(nodeId)),
+                new PdkStateMap(nodeId, HazelcastUtil.getInstance()),
                 PdkStateMap.globalStateMap(HazelcastUtil.getInstance())
         );
         PDKInvocationMonitor.invoke(connectorNode, PDKMethod.INIT, connectorNode::connectorInit, TAG);

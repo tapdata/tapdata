@@ -19,6 +19,7 @@ import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.entity.task.context.ProcessorBaseContext;
 import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.mongo.HttpClientMongoOperator;
+import com.tapdata.tm.autoinspect.exception.AutoInspectException;
 import com.tapdata.tm.commons.dag.Edge;
 import com.tapdata.tm.commons.dag.Element;
 import com.tapdata.tm.commons.dag.Node;
@@ -55,6 +56,7 @@ import io.tapdata.milestone.MilestoneContext;
 import io.tapdata.milestone.MilestoneFactory;
 import io.tapdata.milestone.MilestoneFlowServiceJetV2;
 import io.tapdata.milestone.MilestoneJetEdgeService;
+import io.tapdata.observable.logging.ObsLogger;
 import io.tapdata.observable.logging.ObsLoggerFactory;
 import io.tapdata.schema.TapTableMap;
 import io.tapdata.schema.TapTableUtil;
@@ -192,7 +194,18 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 			Map<String, MergeTableNode> mergeTableMap = MergeTableUtil.getMergeTableMap(nodes, edges);
 
 			// Generate AutoInspectNode
-			AutoInspectNodeUtil.generateAutoInspectNode(taskDtoAtomicReference.get(), nodes, edges, nodeMap);
+			try {
+				AutoInspectNode inspectNode = AutoInspectNodeUtil.firstAutoInspectNode(taskDtoAtomicReference.get());
+				if (null != inspectNode) {
+					nodes.add(inspectNode);
+					nodeMap.put(inspectNode.getId(), inspectNode);
+					edges.add(new Edge(inspectNode.getFromNode().getId(), inspectNode.getId()));
+				}
+			} catch (AutoInspectException e) {
+				ObsLogger obsLogger = ObsLoggerFactory.getInstance().getObsLogger(taskDtoAtomicReference.get());
+				obsLogger.warn(e.getMessage());
+				logger.warn(e);
+			}
 
 			for (Node node : nodes) {
 				Connections connection = null;
