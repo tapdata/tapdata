@@ -3,26 +3,40 @@ package io.tapdata.proxy.client;
 import cn.hutool.core.collection.ConcurrentHashSet;
 import com.tapdata.constant.ConfigurationCenter;
 import io.tapdata.entity.annotations.Bean;
+import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.logger.TapLogger;
+import io.tapdata.entity.utils.DataMap;
 import io.tapdata.entity.utils.InstanceFactory;
+import io.tapdata.modules.api.net.data.Data;
 import io.tapdata.modules.api.net.data.IncomingData;
 import io.tapdata.modules.api.net.data.OutgoingData;
+import io.tapdata.modules.api.net.data.Result;
+import io.tapdata.modules.api.net.error.NetErrors;
+import io.tapdata.modules.api.net.message.CommandResultEntity;
+import io.tapdata.modules.api.pdk.PDKUtils;
+import io.tapdata.modules.api.proxy.data.CommandReceived;
 import io.tapdata.modules.api.proxy.data.NewDataReceived;
 import io.tapdata.modules.api.proxy.data.NodeSubscribeInfo;
 import io.tapdata.modules.api.proxy.data.TestItem;
+import io.tapdata.pdk.apis.entity.CommandInfo;
+import io.tapdata.pdk.apis.entity.CommandResult;
+import io.tapdata.pdk.apis.functions.connection.CommandCallbackFunction;
+import io.tapdata.pdk.core.api.ConnectionNode;
 import io.tapdata.pdk.core.api.Node;
+import io.tapdata.pdk.core.api.PDKIntegration;
 import io.tapdata.pdk.core.executor.ExecutorsManager;
+import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
+import io.tapdata.pdk.core.monitor.PDKMethod;
 import io.tapdata.wsclient.modules.imclient.IMClient;
 import io.tapdata.wsclient.modules.imclient.IMClientBuilder;
 import io.tapdata.wsclient.modules.imclient.impls.websocket.ChannelStatus;
 import io.tapdata.wsclient.utils.EventManager;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
 
 @Bean
 public class ProxySubscriptionManager {
@@ -63,8 +77,75 @@ public class ProxySubscriptionManager {
 					eventManager.registerEventListener(imClient.getPrefix() + ".status", this::handleStatus);
 					//prefix + "." + data.getClass().getSimpleName() + "." + data.getContentType()
 					eventManager.registerEventListener(imClient.getPrefix() + "." + OutgoingData.class.getSimpleName() + "." + NewDataReceived.class.getSimpleName(), this::handleNewDataReceived);
+					eventManager.registerEventListener(imClient.getPrefix() + "." + OutgoingData.class.getSimpleName() + "." + CommandReceived.class.getSimpleName(), this::handleCommandReceived);
 				}
 			}
+		}
+	}
+
+	private void handleCommandReceived(String contentType, OutgoingData outgoingData) {
+		CommandReceived commandReceived = (CommandReceived) outgoingData.getMessage();
+		if(commandReceived == null || commandReceived.getCommandInfo() == null) {
+			CommandResultEntity commandResultEntity = new CommandResultEntity()
+					.code(NetErrors.MISSING_COMMAND_INFO)
+					.message("Missing commandInfo");
+			imClient.sendData(new IncomingData().message(commandResultEntity))
+					.exceptionally(throwable -> {
+						TapLogger.error(TAG, "Send CommandResultEntity(MISSING_COMMAND_INFO) failed, {} CommandResultEntity {}", throwable.getMessage(), commandResultEntity);
+						return null;
+					});
+			return;
+		}
+		CommandInfo commandInfo = commandReceived.getCommandInfo();
+		try {
+			PDKUtils pdkUtils = InstanceFactory.instance(PDKUtils.class);
+			if(pdkUtils == null)
+				throw new CoreException(NetErrors.ILLEGAL_PARAMETERS, "pdkUtils is null");
+			PDKUtils.PDKInfo pdkInfo = pdkUtils.downloadPdkFileIfNeed(commandInfo.getPdkHash());
+			ConnectionNode connectionNode = PDKIntegration.createConnectionConnectorBuilder()
+					.withConnectionConfig(DataMap.create(commandInfo.getConnectionConfig()))
+					.withGroup(pdkInfo.getGroup())
+					.withPdkId(pdkInfo.getPdkId())
+					.withAssociateId(UUID.randomUUID().toString())
+					.withVersion(pdkInfo.getVersion())
+					.build();
+			CommandCallbackFunction commandCallbackFunction = connectionNode.getConnectionFunctions().getCommandCallbackFunction();
+			if(commandCallbackFunction == null) {
+				CommandResultEntity commandResultEntity = new CommandResultEntity()
+						.commandId(commandInfo.getId())
+						.code(NetErrors.PDK_NOT_SUPPORT_COMMAND_CALLBACK)
+						.message("pdkId " + pdkInfo.getPdkId() + " doesn't support CommandCallbackFunction");
+				imClient.sendData(new IncomingData().message(commandResultEntity))
+						.exceptionally(throwable -> {
+							TapLogger.error(TAG, "Send CommandResultEntity(PDK_NOT_SUPPORT_COMMAND_CALLBACK) failed, {} CommandResultEntity {}", throwable.getMessage(), commandResultEntity);
+							return null;
+						});
+				return;
+//			return new Result().code(NetErrors.PDK_NOT_SUPPORT_COMMAND_CALLBACK).description("pdkId " + commandInfo.getPdkId() + " doesn't support CommandCallbackFunction");
+			}
+			AtomicReference<CommandResultEntity> mapAtomicReference = new AtomicReference<>();
+			PDKInvocationMonitor.invoke(connectionNode, PDKMethod.CONNECTION_TEST,
+					() -> {
+						CommandResult commandResult = commandCallbackFunction.filter(connectionNode.getConnectionContext(), commandInfo);
+						mapAtomicReference.set(new CommandResultEntity()
+								.content(commandResult != null ? commandResult.getResult() : null)
+								.code(Data.CODE_SUCCESS)
+								.commandId(commandInfo.getId()));
+					}, TAG) ;
+			imClient.sendData(new IncomingData().message(mapAtomicReference.get())).exceptionally(throwable -> {
+				TapLogger.error(TAG, "Send CommandResultEntity failed, {} CommandResultEntity {}", throwable.getMessage(), mapAtomicReference.get());
+				return null;
+			});
+		} catch(Throwable throwable) {
+			CommandResultEntity commandResultEntity = new CommandResultEntity()
+					.commandId(commandInfo.getId())
+					.code(NetErrors.MISSING_COMMAND_EXECUTE_FAILED)
+					.message(throwable.getMessage());
+			imClient.sendData(new IncomingData().message(commandResultEntity))
+					.exceptionally(throwable1 -> {
+						TapLogger.error(TAG, "Send CommandResultEntity(MISSING_COMMAND_INFO) failed, {} CommandResultEntity {}", throwable1.getMessage(), commandResultEntity);
+						return null;
+					});
 		}
 	}
 

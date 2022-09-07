@@ -2,6 +2,7 @@ package io.tapdata.entity.error;
 
 import io.tapdata.entity.utils.FormatUtils;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -10,8 +11,23 @@ import java.util.Map;
 public class CoreException extends RuntimeException {
     private static final long serialVersionUID = -3101325177490138661L;
     private List<CoreException> moreExceptions;
+    public CoreException coreException(CoreException coreException) {
+        if(moreExceptions == null)
+            moreExceptions = new ArrayList<>();
+        if(!moreExceptions.contains(coreException))
+            moreExceptions.add(coreException);
+        return this;
+    }
     private Map<String, Object> infoMap;
+    public CoreException infoMap(Map<String, Object> infoMap) {
+        this.infoMap = infoMap;
+        return this;
+    }
     private Object data;
+    public CoreException data(Object data) {
+        this.data = data;
+        return this;
+    }
     public final static String LEVEL_INFO = "INFO";
     public final static String LEVEL_WARN = "WARN";
     public final static String LEVEL_ERROR = "ERROR";
@@ -24,40 +40,23 @@ public class CoreException extends RuntimeException {
         this.code = code;
     }
 
-    public CoreException(int code, String message, String logLevel) {
-        this(code, message);
-        this.logLevel = logLevel;
-    }
-
-    public CoreException(String logLevel, int code){
-        this.code = code;
-        this.logLevel = logLevel;
-    }
-
     public CoreException(int code, String message, Object... params) {
-        this(code, FormatUtils.format(message, params));
+        this(code, null, message, params);
+    }
+    public CoreException(int code, Throwable throwable, String message, Object... params) {
+        this(code, throwable, FormatUtils.format(message, params));
     }
 
-    public CoreException(int code, Object data, String message) {
-        this(code, message);
-        this.data = data;
-    }
-
-    public CoreException(int code, String message) {
-        super(message);
-        this.code = code;
-    }
-
-    public CoreException(int code, String message, Throwable throwable) {
+    public CoreException(int code, Throwable throwable, String message) {
         super(message, throwable);
         this.code = code;
     }
 
-    public CoreException(String message) {
-        super(message);
+    public CoreException(String message, Object... params) {
+        super(FormatUtils.format(message, params));
     }
 
-    public CoreException(String message, Throwable throwable) {
+    public CoreException(Throwable throwable, String message) {
         super(message, throwable);
     }
 
@@ -69,16 +68,7 @@ public class CoreException extends RuntimeException {
         return code;
     }
 
-    public String getLogLevel() {
-        return logLevel;
-    }
-
-    public void setLogLevel(String logLevel) {
-        this.logLevel = logLevel;
-    }
-
     private int code;
-    private String logLevel = LEVEL_ERROR;
 
     /**
      *
