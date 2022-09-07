@@ -235,6 +235,9 @@ cli.ApiServer(name="test", uri="http://127.0.0.1:3000/").save()
 api_server_id = cli.ApiServer.list()["id"]
 # 2.更新ApiServer
 cli.ApiServer(id=api_server_id, name="test_2", uri="http://127.0.0.1:3000/").save()
+
+# 删除Api服务器
+cli.ApiServer(id=api_server_id).delete()
 ```
 
 ### 发布Api
@@ -249,4 +252,11 @@ cli.Api(name="test", table="source.player").publish() # source is db, player is 
 ```python
 from tapdata_cli import cli
 cli.Api(name="test").unpublish()
+```
+
+### 删除Api
+
+```python
+from tapdata_cli import cli
+cli.Api(name="test").delete()
 ```
