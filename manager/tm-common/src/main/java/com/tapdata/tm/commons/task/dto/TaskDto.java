@@ -7,9 +7,12 @@ import com.tapdata.tm.commons.base.convert.DagSerialize;
 import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.EqField;
 import com.tapdata.tm.commons.dag.Node;
+import com.tapdata.tm.commons.task.dto.alarm.AlarmRuleDto;
+import com.tapdata.tm.commons.task.dto.alarm.AlarmSettingDto;
 import lombok.Data;
 
 import java.io.Serializable;
+import java.util.List;
 
 
 /**
@@ -101,6 +104,9 @@ public class TaskDto extends ParentTaskDto {
     private Long version;
 
     private String taskRecordId;
+
+    private List<AlarmSettingDto> alarmSettings;
+    private List<AlarmRuleDto> alarmRules;
 
     public DAG getDag() {
         if (dag != null) {

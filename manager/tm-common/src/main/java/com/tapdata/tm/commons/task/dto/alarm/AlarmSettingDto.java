@@ -1,7 +1,7 @@
-package com.tapdata.tm.Settings.dto;
+package com.tapdata.tm.commons.task.dto.alarm;
 
 import cn.hutool.core.date.DateUnit;
-import com.tapdata.tm.Settings.constant.AlarmTypeEnum;
+import com.tapdata.tm.commons.task.constant.AlarmTypeEnum;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.Setter;

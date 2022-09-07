@@ -1,4 +1,4 @@
-package com.tapdata.tm.Settings.constant;
+package com.tapdata.tm.commons.task.constant;
 
 public enum AlarmTypeEnum {
     TASK,

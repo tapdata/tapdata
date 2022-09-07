@@ -17,12 +17,19 @@ import java.util.Date;
 @NoArgsConstructor
 @Document(collection = "AlarmInfo")
 public class AlarmInfo extends BaseEntity {
+    @Schema(description = "标记当前告警的状态")
     private String status;
+    @Schema(description = "告警级别")
     private String level;
+    @Schema(description = "引擎告警组件固定为引擎")
     private String component;
+    @Schema(description = "告警类型 同步任务告警、共享缓存告警、共享挖掘告警、数据校验告警、精准延迟告警")
     private String type;
+    @Schema(description = "所属引擎")
     private String agnetId;
+    @Schema(description = "具体的任务名")
     private String name;
+    @Schema(description = "产生告警的节点名，无节点时为空;当为任务告警时，节点直接放任务名")
     private String node;
     @Schema(description = "AlarmKeyEnum key 值")
     private String metric;
@@ -38,7 +45,10 @@ public class AlarmInfo extends BaseEntity {
     private Integer tally;
     @Schema(description = "告警内容")
     private String summary;
+    @Schema(description = "告警恢复时间")
     private Date recoveryTime;
+    @Schema(description = "告警关闭时间")
     private Date closeTime;
+    @Schema(description = "告警被谁关闭")
     private String closeBy;
 }

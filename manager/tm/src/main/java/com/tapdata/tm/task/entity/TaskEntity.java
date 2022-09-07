@@ -1,5 +1,7 @@
 package com.tapdata.tm.task.entity;
 
+import com.tapdata.tm.Settings.entity.AlarmSetting;
+import com.tapdata.tm.alarmrule.entity.AlarmRule;
 import com.tapdata.tm.base.entity.BaseEntity;
 import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.SchemaTransformerResult;
@@ -204,7 +206,8 @@ public class TaskEntity extends BaseEntity {
     private String transformUuid;
     private Boolean transformed;
 
-    private int transformDagHash;
+    private List<AlarmSetting> alarmSettings;
+    private List<AlarmRule> alarmRules;
 
     public String getAccessNodeProcessId() {
         return CollectionUtils.isNotEmpty(accessNodeProcessIdList) ? accessNodeProcessIdList.get(0) : "";

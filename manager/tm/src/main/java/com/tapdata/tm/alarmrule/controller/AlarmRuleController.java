@@ -1,6 +1,6 @@
 package com.tapdata.tm.alarmrule.controller;
 
-import com.tapdata.tm.alarmrule.dto.AlarmRuleDto;
+import com.tapdata.tm.commons.task.dto.alarm.AlarmRuleDto;
 import com.tapdata.tm.alarmrule.service.AlarmRuleService;
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.ResponseMessage;

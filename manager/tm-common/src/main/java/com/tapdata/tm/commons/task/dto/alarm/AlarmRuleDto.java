@@ -1,6 +1,5 @@
-package com.tapdata.tm.alarmrule.dto;
+package com.tapdata.tm.commons.task.dto.alarm;
 
-import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.Setter;
@@ -15,8 +14,8 @@ import lombok.Setter;
 public class AlarmRuleDto {
     private String key;
     private int point;
-    @Schema(description = "-1 小于等于 <= ; 0; 1 大于等于 >= ")
+    //-1 小于等于 <= ; 0; 1 大于等于 >=
     private int equalsFlag;
-    @Schema(description = "毫秒")
+    //毫秒
     private int ms;
 }

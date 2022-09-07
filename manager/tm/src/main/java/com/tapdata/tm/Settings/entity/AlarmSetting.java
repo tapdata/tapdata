@@ -1,7 +1,7 @@
 package com.tapdata.tm.Settings.entity;
 
 import cn.hutool.core.date.DateUnit;
-import com.tapdata.tm.Settings.constant.AlarmTypeEnum;
+import com.tapdata.tm.commons.task.constant.AlarmTypeEnum;
 import com.tapdata.tm.base.entity.BaseEntity;
 import lombok.*;
 import org.springframework.data.mongodb.core.mapping.Document;

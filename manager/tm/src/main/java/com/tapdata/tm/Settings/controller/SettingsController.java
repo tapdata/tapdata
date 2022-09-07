@@ -1,7 +1,7 @@
 package com.tapdata.tm.Settings.controller;
 
 import com.tapdata.manager.common.utils.JsonUtil;
-import com.tapdata.tm.Settings.dto.AlarmSettingDto;
+import com.tapdata.tm.commons.task.dto.alarm.AlarmSettingDto;
 import com.tapdata.tm.Settings.dto.SettingsDto;
 import com.tapdata.tm.Settings.entity.Settings;
 import com.tapdata.tm.Settings.param.EnterpriseUpdateParam;

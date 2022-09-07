@@ -2,7 +2,7 @@ package com.tapdata.tm.alarmrule.service.impl;
 
 import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.extra.spring.SpringUtil;
-import com.tapdata.tm.alarmrule.dto.AlarmRuleDto;
+import com.tapdata.tm.commons.task.dto.alarm.AlarmRuleDto;
 import com.tapdata.tm.alarmrule.entity.AlarmRule;
 import com.tapdata.tm.alarmrule.service.AlarmRuleService;
 import com.tapdata.tm.utils.Lists;
