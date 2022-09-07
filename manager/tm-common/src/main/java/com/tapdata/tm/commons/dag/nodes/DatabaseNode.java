@@ -13,6 +13,7 @@ import com.tapdata.tm.commons.dag.vo.FieldProcess;
 import com.tapdata.tm.commons.dag.vo.SyncObjects;
 import com.tapdata.tm.commons.dag.vo.TableRenameTableInfo;
 import com.tapdata.tm.commons.schema.*;
+import com.tapdata.tm.commons.task.dto.alarm.AlarmRuleDto;
 import io.tapdata.entity.event.ddl.TapDDLEvent;
 import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
 import io.tapdata.entity.event.ddl.table.TapDropTableEvent;
@@ -69,6 +70,8 @@ public class DatabaseNode extends DataParentNode<List<Schema>> {
 
     // 复制任务 全部 or 自定义
     private String migrateTableSelectType;
+
+    private List<AlarmRuleDto> alarmRules;
 
     public DatabaseNode() {
         super("database");

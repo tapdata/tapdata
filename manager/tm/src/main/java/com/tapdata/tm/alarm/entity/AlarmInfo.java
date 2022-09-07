@@ -27,8 +27,10 @@ public class AlarmInfo extends BaseEntity {
     private String type;
     @Schema(description = "所属引擎")
     private String agnetId;
+    private String taskId;
     @Schema(description = "具体的任务名")
     private String name;
+    private String nodeId;
     @Schema(description = "产生告警的节点名，无节点时为空;当为任务告警时，节点直接放任务名")
     private String node;
     @Schema(description = "AlarmKeyEnum key 值")
