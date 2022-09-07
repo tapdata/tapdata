@@ -5,7 +5,7 @@ import com.tapdata.tm.commons.task.dto.alarm.AlarmSettingDto;
 import com.tapdata.tm.Settings.dto.SettingsDto;
 import com.tapdata.tm.Settings.entity.Settings;
 import com.tapdata.tm.Settings.param.EnterpriseUpdateParam;
-import com.tapdata.tm.Settings.service.AlarmService;
+import com.tapdata.tm.Settings.service.AlarmSettingService;
 import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.alarmrule.dto.UpdateRuleDto;
 import com.tapdata.tm.base.controller.BaseController;
@@ -28,7 +28,7 @@ import java.util.Map;
 @Setter(onMethod_ = {@Autowired})
 public class SettingsController extends BaseController {
     private SettingsService settingsService;
-    private AlarmService alarmService;
+    private AlarmSettingService alarmSettingService;
 
     /**
      * flowEgine启动时候调用
@@ -90,20 +90,20 @@ public class SettingsController extends BaseController {
     @Operation(summary = "alarm save")
     @PostMapping("/alarm_save")
     public ResponseMessage<Void> alarmSave(@RequestBody List<AlarmSettingDto> alarms) {
-        alarmService.save(alarms);
+        alarmSettingService.save(alarms);
         return success();
     }
 
     @Operation(summary = "find all alarms")
     @GetMapping("/alarm_find")
     public ResponseMessage<List<AlarmSettingDto>> findAllAlarmList() {
-        return success(alarmService.findAll());
+        return success(alarmSettingService.findAll());
     }
 
     @Operation(summary = "update rule by key")
     @PostMapping("/alarm_update")
     public ResponseMessage<Void> updateAlarm(@RequestBody UpdateRuleDto ruleDto) {
-        alarmService.updateSystemNotify(ruleDto);
+        alarmSettingService.updateSystemNotify(ruleDto);
 
         return success();
     }

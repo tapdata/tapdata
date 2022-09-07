@@ -1,7 +1,7 @@
 package com.tapdata.tm.Settings.entity;
 
 import cn.hutool.core.date.DateUnit;
-import com.tapdata.tm.commons.task.constant.AlarmTypeEnum;
+import com.tapdata.tm.commons.task.constant.AlarmSettingTypeEnum;
 import com.tapdata.tm.base.entity.BaseEntity;
 import lombok.*;
 import org.springframework.data.mongodb.core.mapping.Document;
@@ -16,7 +16,7 @@ import org.springframework.data.mongodb.core.mapping.Document;
 @NoArgsConstructor
 @Document("Settings_Alarm")
 public class AlarmSetting extends BaseEntity {
-    private AlarmTypeEnum type;
+    private AlarmSettingTypeEnum type;
     private String key;
     private int sort;
     private boolean systemNotify;

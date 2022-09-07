@@ -1,7 +1,7 @@
 package com.tapdata.tm.commons.task.dto.alarm;
 
 import cn.hutool.core.date.DateUnit;
-import com.tapdata.tm.commons.task.constant.AlarmTypeEnum;
+import com.tapdata.tm.commons.task.constant.AlarmSettingTypeEnum;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.Setter;
@@ -14,7 +14,7 @@ import lombok.Setter;
 @Setter
 @AllArgsConstructor
 public class AlarmSettingDto {
-    private AlarmTypeEnum type;
+    private AlarmSettingTypeEnum type;
     private String key;
     private int sort;
     private boolean systemNotify;

@@ -36,7 +36,7 @@ public class AlarmController extends BaseController {
 
     @Operation(summary = "find all alarm by task")
     @GetMapping("/list_task")
-    public ResponseMessage<Page<TaskAlarmInfoVo>> findListByTask(@RequestParam(required = false)String status,
+    public ResponseMessage<TaskAlarmInfoVo> findListByTask(@RequestParam(required = false)String status,
                                                        @RequestParam(required = false)String level,
                                                        @RequestParam(required = false)String taskId,
                                                        @RequestParam(required = false)String nodeId) {

@@ -1,15 +1,13 @@
 package com.tapdata.tm.commons.task.dto.alarm;
 
 import lombok.AllArgsConstructor;
-import lombok.Getter;
-import lombok.Setter;
+import lombok.Data;
 
 /**
  * @author jiuyetx
  * @date 2022/9/5
  */
-@Getter
-@Setter
+@Data
 @AllArgsConstructor
 public class AlarmRuleDto {
     private String key;

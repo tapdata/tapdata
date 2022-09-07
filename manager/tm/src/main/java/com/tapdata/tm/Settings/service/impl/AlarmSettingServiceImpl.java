@@ -4,7 +4,7 @@ import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.extra.spring.SpringUtil;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmSettingDto;
 import com.tapdata.tm.Settings.entity.AlarmSetting;
-import com.tapdata.tm.Settings.service.AlarmService;
+import com.tapdata.tm.Settings.service.AlarmSettingService;
 import com.tapdata.tm.alarmrule.dto.UpdateRuleDto;
 import com.tapdata.tm.utils.Lists;
 import lombok.Setter;
@@ -25,7 +25,7 @@ import java.util.stream.Collectors;
  */
 @Service
 @Setter(onMethod_ = {@Autowired})
-public class AlarmServiceImpl implements AlarmService {
+public class AlarmSettingServiceImpl implements AlarmSettingService {
     private MongoTemplate mongoTemplate;
 
     @Override
@@ -43,8 +43,8 @@ public class AlarmServiceImpl implements AlarmService {
         List<AlarmSetting> data = Lists.newArrayList();
         BeanUtil.copyProperties(alarms, data);
 
-        AlarmService alarmService = SpringUtil.getBean(AlarmService.class);
-        alarmService.delete(data);
+        AlarmSettingService alarmSettingService = SpringUtil.getBean(AlarmSettingService.class);
+        alarmSettingService.delete(data);
 
         mongoTemplate.insert(data, AlarmSetting.class);
     }

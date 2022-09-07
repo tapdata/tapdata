@@ -1,9 +1,6 @@
 package com.tapdata.tm.task.bean;
 
-import lombok.AllArgsConstructor;
-import lombok.Data;
-import lombok.NoArgsConstructor;
-import lombok.ToString;
+import lombok.*;
 
 /**
  * @author liujiaxin
@@ -12,7 +9,13 @@ import lombok.ToString;
 @ToString
 @NoArgsConstructor
 @AllArgsConstructor
+@Builder
 public class SyncTaskStatusDto {
+    private String taskId;
+    private String taskName;
     private String taskRecordId;
     private String taskStatus;
+    private String updateBy;
+    private String updatorName;
+    private String agnetId;
 }

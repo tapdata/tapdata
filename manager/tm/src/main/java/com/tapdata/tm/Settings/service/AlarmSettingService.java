@@ -6,7 +6,7 @@ import com.tapdata.tm.alarmrule.dto.UpdateRuleDto;
 
 import java.util.List;
 
-public interface AlarmService {
+public interface AlarmSettingService {
 
     void delete(List<AlarmSetting> alarmSettingList);
     void save(List<AlarmSettingDto> alarms);

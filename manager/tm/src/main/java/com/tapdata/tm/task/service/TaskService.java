@@ -648,7 +648,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
         updateById(taskDto, user);
 
-        updateTaskRecordStatus(taskDto,taskDto.getStatus());
+        updateTaskRecordStatus(taskDto,taskDto.getStatus(), user);
 
         return taskDto;
     }
@@ -2340,7 +2340,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             log.info("concurrent start operations, this operation don‘t effective, task name = {}", taskDto.getName());
             return;
         } else {
-            updateTaskRecordStatus(taskDto, TaskDto.STATUS_SCHEDULING);
+            updateTaskRecordStatus(taskDto, TaskDto.STATUS_SCHEDULING, user);
         }
 
         if (StringUtils.equals(AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER.name(), taskDto.getAccessNodeType())
@@ -2361,7 +2361,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             customerJobLogsService.noAvailableAgents(customerJobLog, user);
             throw new BizException("Task.AgentNotFound");
         } else {
-            updateTaskRecordStatus(taskDto, TaskDto.STATUS_SCHEDULE_FAILED);
+            updateTaskRecordStatus(taskDto, TaskDto.STATUS_SCHEDULE_FAILED, user);
         }
 
         WorkerDto workerDto = workerService.findOne(new Query(Criteria.where("processId").is(taskDto.getAgentId())));
@@ -2382,7 +2382,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             log.info("concurrent start operations, this operation don‘t effective, task name = {}", taskDto.getName());
             return;
         } else {
-            updateTaskRecordStatus(taskDto, TaskDto.STATUS_WAIT_RUN);
+            updateTaskRecordStatus(taskDto, TaskDto.STATUS_WAIT_RUN, user);
         }
         customerJobLog.setJobName(taskDto.getName());
         customerJobLog.setJobInfos(TaskService.printInfos(dag));
@@ -2409,14 +2409,21 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             BeanUtil.copyProperties(taskDto, taskSnapshot);
             disruptorService.sendMessage(DisruptorTopicEnum.CREATE_RECORD, new TaskRecord(taskDto.getTaskRecordId(), taskDto.getId().toHexString(), taskSnapshot, user.getUserId(), new Date()));
         } else {
-            updateTaskRecordStatus(taskDto, taskDto.getStatus());
+            updateTaskRecordStatus(taskDto, taskDto.getStatus(), user);
         }
     }
 
-    private void updateTaskRecordStatus(TaskDto dto, String status) {
+    private void updateTaskRecordStatus(TaskDto dto, String status, UserDetail userDetail) {
         dto.setStatus(status);
         if (StringUtils.isNotBlank(dto.getTaskRecordId())) {
-            disruptorService.sendMessage(DisruptorTopicEnum.TASK_STATUS, new SyncTaskStatusDto(dto.getTaskRecordId(), status));
+            SyncTaskStatusDto.SyncTaskStatusDtoBuilder info = SyncTaskStatusDto.builder()
+                    .taskId(dto.getId().toHexString())
+                    .taskName(dto.getName())
+                    .taskRecordId(dto.getTaskRecordId())
+                    .taskStatus(status)
+                    .updateBy(userDetail.getUserId())
+                    .updatorName(userDetail.getUsername());
+            disruptorService.sendMessage(DisruptorTopicEnum.TASK_STATUS, info);
         }
     }
 
@@ -2514,7 +2521,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         log.debug("build stop task websocket context, processId = {}, userId = {}, queueDto = {}", taskDto.getAgentId(), user.getUserId(), queueDto);
         messageQueueService.sendMessage(queueDto);
 
-        updateTaskRecordStatus(taskDto, pauseStatus);
+        updateTaskRecordStatus(taskDto, pauseStatus, user);
     }
 
 
@@ -2539,7 +2546,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         }
 
         UpdateResult update1 = update(query1, update, user);
-        updateTaskRecordStatus(taskDto, TaskDto.STATUS_RUNNING);
+        updateTaskRecordStatus(taskDto, TaskDto.STATUS_RUNNING, user);
         if (update1.getModifiedCount() == 0) {
             log.info("concurrent running operations, this operation don‘t effective, task name = {}", taskDto.getName());
             return null;
@@ -2564,7 +2571,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         //将子任务状态更新成错误.
         Query query1 = new Query(Criteria.where("_id").is(taskDto.getId()).and("status").in(TaskOpStatusEnum.to_error_status.v()));
         UpdateResult update1 = update(query1, Update.update("status", TaskDto.STATUS_ERROR).set("errorTime", new Date()).set("stopTime", new Date()), user);
-        updateTaskRecordStatus(taskDto, TaskDto.STATUS_ERROR);
+        updateTaskRecordStatus(taskDto, TaskDto.STATUS_ERROR, user);
         if (update1.getModifiedCount() == 0) {
             log.info("concurrent runError operations, this operation don‘t effective, task name = {}", taskDto.getName());
             return null;
@@ -2590,7 +2597,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         //将子任务状态更新成为已完成
         Query query1 = new Query(Criteria.where("_id").is(taskDto.getId()).and("status").in(TaskOpStatusEnum.to_complete_status.v()));
         UpdateResult update1 = update(query1, Update.update("status", TaskDto.STATUS_COMPLETE).set("finishTime", new Date()).set("stopTime", new Date()), user);
-        updateTaskRecordStatus(taskDto, TaskDto.STATUS_COMPLETE);
+        updateTaskRecordStatus(taskDto, TaskDto.STATUS_COMPLETE, user);
         if (update1.getModifiedCount() == 0) {
             log.info("concurrent complete operations, this operation don‘t effective, task name = {}", taskDto.getName());
             return null;
@@ -2620,7 +2627,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         //endConnHeartbeat(user, TaskDto);
 
         UpdateResult update1 = update(query1, Update.update("status", TaskDto.STATUS_STOP).set("stopTime", new Date()), user);
-        updateTaskRecordStatus(taskDto, TaskDto.STATUS_STOP);
+        updateTaskRecordStatus(taskDto, TaskDto.STATUS_STOP, user);
         if (update1.getModifiedCount() == 0) {
             log.info("concurrent stopped operations, this operation don‘t effective, task name = {}", taskDto.getName());
             return null;

@@ -1,6 +1,6 @@
 package com.tapdata.tm.commons.task.constant;
 
-public enum AlarmTypeEnum {
+public enum AlarmSettingTypeEnum {
     TASK,
     DATANODE,
     PROCESSNODE
