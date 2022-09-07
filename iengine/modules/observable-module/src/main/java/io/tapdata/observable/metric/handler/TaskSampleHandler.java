@@ -241,6 +241,12 @@ public class TaskSampleHandler extends AbstractHandler {
         currentSnapshotTableInsertRowTotal = null;
     }
 
+    public void handleStreamReadStart(List<String> tables) {
+        for(String table : tables) {
+            addTable(table);
+        }
+    }
+
     public void handleStreamReadAccept(HandlerUtil.EventTypeRecorder recorder) {
         inputInsertCounter.inc(recorder.getInsertTotal());
         inputUpdateCounter.inc(recorder.getUpdateTotal());

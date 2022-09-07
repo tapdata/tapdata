@@ -176,6 +176,8 @@ public class ObservableAspectTask extends AspectTask {
 
 		switch (aspect.getState()) {
 			case StreamReadFuncAspect.STATE_START:
+				List<String> tables = aspect.getTables();
+				taskSampleHandler.handleStreamReadStart(tables);
 				Optional.ofNullable(dataNodeSampleHandlers.get(nodeId)).ifPresent(
 						handler -> handler.handleStreamReadStreamStart(aspect.getStreamStartedTime())
 				);
