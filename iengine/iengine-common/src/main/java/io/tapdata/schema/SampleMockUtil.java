@@ -1,5 +1,6 @@
 package io.tapdata.schema;
 
+import com.tapdata.constant.MapUtil;
 import com.tapdata.entity.SyncStage;
 import com.tapdata.entity.TapdataEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
@@ -50,6 +51,14 @@ public class SampleMockUtil {
         TapValue tapValue = sampleDateMap.get(type.getClass());
         map.put(name, tapValue);
         logger.info("field {} mock sample --> {}", name, tapValue.getValue());
+      }
+    }
+    Set<String> keySet = new HashSet<>(map.keySet());
+    for (String key : keySet) {
+      TapField tapField = nameFieldMap.get(key);
+      if (tapField == null) {
+        MapUtil.removeValueByKey(map, key);
+        logger.info("field {} will be removed", key);
       }
     }
   }
