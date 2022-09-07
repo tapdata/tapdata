@@ -260,3 +260,10 @@ cli.Api(name="test").unpublish()
 from tapdata_cli import cli
 cli.Api(name="test").delete()
 ```
+
+### Api状态
+
+```python
+from tapdata_cli import cli
+cli.Api().status("test")  # success -> "pending" or "active" / failure -> None
+```

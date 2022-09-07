@@ -308,6 +308,9 @@ client_cache = {
     "apis": {
         "name_index": {}
     },
+    "apiserver": {
+        "name_index": {}
+    },
     "connectors": {}
 }
 
@@ -557,6 +560,33 @@ def show_jobs(quiet=False):
         jobs["id_index"][data[i]["id"]] = data[i]
         jobs["number_index"][str(i)] = data[i]
     client_cache["jobs"] = jobs
+
+
+def show_apiserver(quite=False):
+    global client_cache
+    items = ApiServer.list()
+    if not quite:
+        logger.log(
+            "{} {} {}",
+            pad("id", 20),
+            pad("name", 20),
+            pad("uri", 40),
+            "debug", "debug", "debug"
+        )
+    for i, v in enumerate(items):
+        client_cache["apiserver"]["name_index"][v["clientName"]] = {
+            "id": v["id"],
+            "name": v["clientName"],
+            "uri": v["clientURI"],
+        }
+        if not quite:
+            logger.log(
+                "{} {} {}",
+                pad(v["id"][:6], 20),
+                pad(v["clientName"], 20),
+                pad(v["clientURI"], 40),
+                "notice", "info", "notice"
+            )
 
 
 # show all apis
@@ -1037,6 +1067,7 @@ class show_command(Magics):
         try:
             eval("show_" + line + "()")
         except Exception as e:
+            print(traceback.format_exc())
             eval("show_db('" + line + "')")
 
     @line_magic
@@ -2320,6 +2351,14 @@ class Api:
             return None
         api_id = api["id"]
         self.id = api_id
+
+    def status(self, name):
+        res = req.get("/Modules")
+        data = res.json()["data"]["items"]
+        for i in data:
+            if i["name"] == name:
+                return i["status"]
+        return None
 
     def unpublish(self):
         if self.id is None:
