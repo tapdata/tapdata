@@ -2347,6 +2347,76 @@ class Api:
             logger.warn("delete api {} fail, err is: {}", self.name, res["message"])
 
 
+class ApiServer:
+    def __init__(self, id=None, name=None, uri=None):
+        logger.warn("This feature is expected to be abandoned in the future")
+        self.id = id
+        self.name = name
+        self.uri = uri
+        self.processId = str(uuid.uuid4())
+
+    def save(self):
+        url = "/ApiServers"
+        # update
+        item = False
+        if self.id:
+            item = self.get()
+        if self.id and item:
+            if item.get("createTime"):
+                del item["createTime"]
+            if self.name is not None:
+                item.update({"clientName": self.name})
+            if self.uri is not None:
+                item.update({"clientURI": self.uri})
+            res = req.patch(url, json=item)
+            if res.json()["code"] == "ok":
+                return res.json()["data"]
+            else:
+                return False
+        # create
+        else:
+            if not self.processId or not self.name or not self.uri:
+                logger.error("no attribute: {} not found", 'processId or name or uri')
+                return False
+            payload = {
+                "processId": self.processId,
+                "clientName": self.name,
+                "clientURI": self.uri,
+            }
+            res = req.post(url, json=payload)
+            if res.json()["code"] == "ok":
+                return res.json()["data"]
+            else:
+                return False
+
+    def delete(self):
+        if not isinstance(self.id, str) and not self.id:
+            logger.error("id must be set")
+            return False
+        url = "/ApiServers/" + self.id
+        res = req.delete(url)
+        if res.json()["code"] == "ok":
+            return True
+        else:
+            return False
+
+    def get(self):
+        items = self.list()
+        for item in items:
+            if item["id"] == self.id:
+                return item
+        return False
+
+    @classmethod
+    def list(cls):
+        url = "/ApiServers"
+        res = req.get(url, params={"filter": '{"order":"clientName DESC","skip":0,"where":{}}'})
+        if res.json()["code"] == "ok":
+            return res.json()["data"]["items"]
+        else:
+            return False
+
+
 class Job:
     def __init__(self, name=None, id=None, dag=None, pipeline=None):
         self.id = None
@@ -2391,8 +2461,10 @@ class Job:
         return jobs
 
     def reset(self):
-        res = req.post("/DataFlows/" + self.id + "/reset").json()
-        return True
+        res = req.patch("/Task/batchRenew", params={"taskIds": self.id}).json()
+        if res["code"] == "ok":
+            return True
+        return False
 
     def _get_by_name(self):
         param = '{"where":{"name":{"like":"%s"}}}' % (self.name)

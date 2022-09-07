@@ -222,6 +222,21 @@ Pipeline的配置修改操作都是通过Pipeline.config方法通过config默认
 
 ## API 操作
 
+### 创建/更新 Api服务器
+
+```python
+from tapdata_cli import cli
+
+# 创建
+cli.ApiServer(name="test", uri="http://127.0.0.1:3000/").save()
+
+# 更新
+# 1.获取ApiServer ID
+api_server_id = cli.ApiServer.list()["id"]
+# 2.更新ApiServer
+cli.ApiServer(id=api_server_id, name="test_2", uri="http://127.0.0.1:3000/").save()
+```
+
 ### 发布Api
 
 ```python

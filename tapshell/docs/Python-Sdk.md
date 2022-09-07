@@ -233,6 +233,21 @@ For more configuration modification items, please see [this file](https://github
 
 ## API Operation
 
+### Update/Create ApiServer
+
+```python
+from tapdata_cli import cli
+
+# create
+cli.ApiServer(name="test", uri="http://127.0.0.1:3000/").save()
+
+# update
+# 1.get ApiServer id
+api_server_id = cli.ApiServer.list()["id"]
+# 2.update ApiServer
+cli.ApiServer(id=api_server_id, name="test_2", uri="http://127.0.0.1:3000/").save()
+```
+
 ### Publish Api
 
 ```python
