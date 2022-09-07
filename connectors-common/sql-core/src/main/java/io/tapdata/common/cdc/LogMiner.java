@@ -222,20 +222,20 @@ public abstract class LogMiner implements ILogMiner {
                 }
                 switch (Objects.requireNonNull(redoLogContent).getOperation()) {
                     case "INSERT":
-                        eventList.add(new TapInsertRecordEvent()
+                        eventList.add(new TapInsertRecordEvent().init()
                                 .table(redoLogContent.getTableName())
                                 .after(redoLogContent.getRedoRecord())
                                 .referenceTime(redoLogContent.getTimestamp().getTime()));
                         break;
                     case "UPDATE":
-                        eventList.add(new TapUpdateRecordEvent()
+                        eventList.add(new TapUpdateRecordEvent().init()
                                 .table(redoLogContent.getTableName())
                                 .after(redoLogContent.getRedoRecord())
                                 .before(redoLogContent.getUndoRecord())
                                 .referenceTime(redoLogContent.getTimestamp().getTime()));
                         break;
                     case "DELETE":
-                        eventList.add(new TapDeleteRecordEvent()
+                        eventList.add(new TapDeleteRecordEvent().init()
                                 .table(redoLogContent.getTableName())
                                 .before(redoLogContent.getRedoRecord())
                                 .referenceTime(redoLogContent.getTimestamp().getTime()));
@@ -250,10 +250,15 @@ public abstract class LogMiner implements ILogMiner {
                             throw new RuntimeException(e);
                         }
                         try {
+                            long referenceTime = redoLogContent.getTimestamp().getTime();
                             DDLFactory.ddlToTapDDLEvent(ddlParserType, redoLogContent.getSqlRedo(),
                                     DDL_WRAPPER_CONFIG,
                                     tableMap,
-                                    eventList::add);
+                                    tapDDLEvent -> {
+                                        tapDDLEvent.setTime(System.currentTimeMillis());
+                                        tapDDLEvent.setReferenceTime(referenceTime);
+                                        eventList.add(tapDDLEvent);
+                                    });
                         } catch (Throwable e) {
                             throw new RuntimeException(e);
                         }

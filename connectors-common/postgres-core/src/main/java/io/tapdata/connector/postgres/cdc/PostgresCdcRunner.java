@@ -145,13 +145,13 @@ public class PostgresCdcRunner extends DebeziumCdcRunner {
             switch (op) { //snapshot.mode = 'never'
                 case "c": //after running --insert
                 case "r": //after slot but before running --read
-                    eventList.add(new TapInsertRecordEvent().table(table).after(getMapFromStruct(after)).referenceTime(referenceTime));
+                    eventList.add(new TapInsertRecordEvent().init().table(table).after(getMapFromStruct(after)).referenceTime(referenceTime));
                     break;
                 case "d": //after running --delete
-                    eventList.add(new TapDeleteRecordEvent().table(table).before(getMapFromStruct(before)).referenceTime(referenceTime));
+                    eventList.add(new TapDeleteRecordEvent().init().table(table).before(getMapFromStruct(before)).referenceTime(referenceTime));
                     break;
                 case "u": //after running --update
-                    eventList.add(new TapUpdateRecordEvent().table(table).after(getMapFromStruct(after)).before(getMapFromStruct(before)).referenceTime(referenceTime));
+                    eventList.add(new TapUpdateRecordEvent().init().table(table).after(getMapFromStruct(after)).before(getMapFromStruct(before)).referenceTime(referenceTime));
                     break;
                 default:
                     break;

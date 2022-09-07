@@ -53,6 +53,7 @@ public class MysqlAlterColumnNameDDLWrapper extends MysqlDDLWrapper {
             tapAlterFieldNameEvent.nameChange(ValueChange.create(
                     before,
                     StringKit.removeHeadTail(columnDataType.getColumnName(), ccjddlWrapperConfig.getSplit(), false)));
+            tapAlterFieldNameEvent.setTime(System.currentTimeMillis());
             consumer.accept(tapAlterFieldNameEvent);
         } else if (alterExpression.getOperation() == AlterOperation.RENAME) {
             String columnName = alterExpression.getColumnName();
@@ -64,6 +65,7 @@ public class MysqlAlterColumnNameDDLWrapper extends MysqlDDLWrapper {
             tapAlterFieldNameEvent.nameChange(ValueChange.create(
                     before,
                     StringKit.removeHeadTail(columnName, ccjddlWrapperConfig.getSplit(), false)));
+            tapAlterFieldNameEvent.setTime(System.currentTimeMillis());
             consumer.accept(tapAlterFieldNameEvent);
         }
     }
