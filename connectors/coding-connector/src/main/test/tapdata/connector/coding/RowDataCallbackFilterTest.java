@@ -15,27 +15,27 @@ public class RowDataCallbackFilterTest {
     }
    public void searchIteration(){
        DataMap config = new DataMap();
-       config.put("token","token 68042a4bad082da78dc44118b4d3e3ec4bd44c6d");//token 0190b04d98dec1cdd7a2825388c17a81fdebd08f
-       config.put("teamName","tapdata");//testhookgavin
-       config.put("projectName","DFS");//TestIssue
+       config.put("token","token 0190b04d98dec1cdd7a2825388c17a81fdebd08f");//token 68042a4bad082da78dc44118b4d3e3ec4bd44c6d
+       config.put("teamName","testhookgavin");//tapdata
+       config.put("projectName","TestIssue");//DFS
        TapConnectionContext context = new TapConnectionContext(null,config);
-       String command = "DescribeCodingProjects";//"DescribeIterationList";
+       String command = "DescribeIterationList";//"DescribeIterationList";
        String action = "search";
        Map<String, Object> argMap = map(
                entry("page",1),
                entry("size",10)
-               ,entry("key","DF")
+               ,entry("key","Test")
        );
        CodingConnector codingConnector = new CodingConnector();
        codingConnector.test(context, command, action, argMap);
    }
    public void listIteration(){
        DataMap config = new DataMap();
-       config.put("token","token 68042a4bad082da78dc44118b4d3e3ec4bd44c6d");//token 0190b04d98dec1cdd7a2825388c17a81fdebd08f
-       config.put("teamName","tapdata");//testhookgavin
-       config.put("projectName","DFS");//TestIssue
+       config.put("token","token 0190b04d98dec1cdd7a2825388c17a81fdebd08f");//token 68042a4bad082da78dc44118b4d3e3ec4bd44c6d
+       config.put("teamName","testhookgavin");//tapdata
+       config.put("projectName","TestIssue");//DFS
        TapConnectionContext context = new TapConnectionContext(null,config);
-       String command = "DescribeCodingProjects";//"DescribeIterationList";
+       String command = "DescribeIterationList";//"DescribeIterationList";
        String action = "list";
        Map<String, Object> argMap = map(
                entry("page",1),
@@ -78,8 +78,8 @@ public class RowDataCallbackFilterTest {
 
     public static void main(String[] args) {
         RowDataCallbackFilterTest.create().searchIteration();
-//        RowDataCallbackFilterTest.create().listIteration();
-//        RowDataCallbackFilterTest.create().searchProject();
-//        RowDataCallbackFilterTest.create().listProject();
+        RowDataCallbackFilterTest.create().listIteration();
+        RowDataCallbackFilterTest.create().searchProject();
+        RowDataCallbackFilterTest.create().listProject();
     }
 }

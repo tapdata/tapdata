@@ -123,7 +123,7 @@ public class CodingConnector extends ConnectorBase {
 
 		Object response = postResult.get("Response");
 		Map<String,Object> responseMap = (Map<String, Object>) response;
-		if (null == response ){
+		if (Checker.isEmpty(response)){
 			TapLogger.info(TAG, "HTTP request exception, Issue list acquisition failed: {} ", CodingStarter.OPEN_API_URL+"?Action=DescribeIssueListWithPage");
 			throw new RuntimeException("HTTP request exception, Issue list acquisition failed: " + CodingStarter.OPEN_API_URL+"?Action=DescribeIssueListWithPage");
 		}
@@ -131,7 +131,12 @@ public class CodingConnector extends ConnectorBase {
 		Map<String,Object> pageResult = new HashMap<>();
 		Object dataObj = responseMap.get("Data");
 		if(Checker.isEmpty(dataObj)){
-			throw  new CoreException("Project List is Empty ,please sure you HTTP connection params is ture.");
+			Object errorObj = responseMap.get("Error");
+			String message = "";
+			if (Checker.isNotEmpty(errorObj)){
+				message = String.valueOf(((Map<String,Object>)errorObj).get("Message"));
+			}
+			throw  new CoreException("Project List is Empty ,please sure you HTTP connection params is ture:"+message);
 		}
 		Map<String,Object> data = (Map<String,Object>)dataObj;
 		if ("DescribeIterationList".equals(command)){
@@ -139,15 +144,6 @@ public class CodingConnector extends ConnectorBase {
 			List<Map<String,Object>> searchList = new ArrayList<>();
 			if (Checker.isNotEmpty(listObj)){
 				searchList = (List<Map<String,Object>>)listObj;
-
-//				searchList = searchList.stream().forEach(map->{
-//					map.entrySet().stream()
-//							.peek(obj -> obj.setValue(((Student) obj.getValue()).getName()))
-//							.collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-//				});
-//				searchList.stream().map(someObject -> {
-//					 return someObject.get("Code").toString();
-//				}).collect(Collectors.toList(), someObject.get("")) ;
 			}
 			Integer page = Checker.isEmpty(data.get("Page"))?0:Integer.parseInt(data.get("Page").toString());
 			Integer size = Checker.isEmpty(data.get("PageSize"))?0:Integer.parseInt(data.get("PageSize").toString());
@@ -157,7 +153,11 @@ public class CodingConnector extends ConnectorBase {
 			pageResult.put("size",size);
 			pageResult.put("total",total);
 			pageResult.put("rows",rows);
-			pageResult.put("items",searchList);
+			List<Map<String,Object>> resultList = new ArrayList<>();
+			searchList.forEach(map->{
+				resultList.add(map(entry("label",map.get("Name")),entry("value",map.get("Code"))));
+			});
+			pageResult.put("items",resultList);
 		}else if("DescribeCodingProjects".equals(command)){
 			Object listObj = data.get("ProjectList");
 			List<Map<String,Object>> searchList = new ArrayList<>();
@@ -170,26 +170,35 @@ public class CodingConnector extends ConnectorBase {
 			pageResult.put("page",page);
 			pageResult.put("size",size);
 			pageResult.put("total",total);
-			pageResult.put("items",searchList);
+			List<Map<String,Object>> resultList = new ArrayList<>();
+			searchList.forEach(map->{
+				resultList.add(map(entry("label",map.get("Name")),entry("value",map.get("Id"))));
+			});
+			pageResult.put("items",resultList);
 		}else {
 			throw new CoreException("Command only support [DescribeIterationList] or [DescribeCodingProjects] now.");
 		}
+
 		return pageResult;
 	}
 
-//	public Object test(
-//			TapConnectionContext context,
-//			String command,
-//			String action,
-//			Map<String, Object> argMap){
-//		return command(context, command, action, argMap);
-//	}
+	public Object test(
+			TapConnectionContext context,
+			String command,
+			String action,
+			Map<String, Object> argMap){
+		CommandInfo commandInfo = new CommandInfo();
+		commandInfo.setAction(action);
+		commandInfo.setArgMap(argMap);
+		commandInfo.setCommand(command);
+		return handleCommand(context, commandInfo);
+	}
 
 	private TapEvent rawDataCallbackFilterFunction(TapConnectorContext connectorContext, Map<String, Object> issue) {
 		String webHookEventType = String.valueOf(issue.get("event"));
 		Object codeObj = issue.get("Code");
-		if (null == codeObj || ! (codeObj instanceof String) || "".equals(codeObj)){
-
+		if (Checker.isEmpty(codeObj)){
+			throw new CoreException("Issue Code is must not be null or not be empty,this callBack is stop.");
 		}
 		ContextConfig contextConfig = this.veryContextConfigAndNodeConfig(connectorContext);
 
@@ -383,7 +392,7 @@ public class CodingConnector extends ConnectorBase {
 			DataMap connectionConfig = tapConnectorContext.getConnectionConfig();
 			DataMap nodeConfigMap = tapConnectorContext.getNodeConfig();
 
-			String iterationCodes = nodeConfigMap.getString("iterationCodes");
+			String iterationCodes = nodeConfigMap.getString("DescribeIterationList");//iterationCodes
 			if (null != iterationCodes) iterationCodes = iterationCodes.trim();
 			String issueType = nodeConfigMap.getString("issueType");
 			if (null != issueType ) issueType = issueType.trim();
@@ -574,7 +583,7 @@ public class CodingConnector extends ConnectorBase {
 			pageBody.builder("PageNumber",queryIndex++);
 			Map<String,Object> dataMap = issueLoader.getIssuePage(header.getEntity(),pageBody.getEntity(),String.format(CodingStarter.OPEN_API_URL,teamName));
 			if (null == dataMap || null == dataMap.get("List")) {
-				TapLogger.info(TAG, "Paging result request failed, the Issue list is empty: page index = {}",queryIndex);
+				TapLogger.error(TAG, "Paging result request failed, the Issue list is empty: page index = {}",queryIndex);
 				throw new RuntimeException("Paging result request failed, the Issue list is empty: "+CodingStarter.OPEN_API_URL+"?Action=DescribeIssueListWithPage");
 			}
 			List<Map<String,Object>> resultList = (List<Map<String,Object>>) dataMap.get("List");
@@ -676,7 +685,7 @@ public class CodingConnector extends ConnectorBase {
 				throw new IllegalArgumentException("TapTable' NodeConfig cannot be null");
 			}
 			//iterationName is Multiple selection values separated by commas
-			String iterationCodeArr = nodeConfigMap.getString("iterationCodes");
+			String iterationCodeArr = nodeConfigMap.getString("DescribeIterationList");//iterationCodes
 			if (null != iterationCodeArr) iterationCodeArr = iterationCodeArr.trim();
 			String issueType = nodeConfigMap.getString("issueType");
 			if (null != issueType) issueType = issueType.trim();

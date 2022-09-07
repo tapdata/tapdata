@@ -10,27 +10,21 @@
     "node": {
       "type": "object",
       "properties": {
-        "iterationCodes":
-        {
-          "title": "${iterationCodes}",
+        "DescribeIterationList": {
           "type": "string",
-          "required": true,
+          "title": "${iterationCodes}",
+          "default": "",
           "x-decorator": "FormItem",
-          "x-component": "AsyncSelect",
-          "x-component-props": {
-            "method": "{{loadCommandList}}",
-            "params": "{{ {$values: $values, command: \"spaceList\"} }}"
-          },
-          "x-reactions": [
+          "x-component": "Select",
+          "x-index": 1,
+          "depends" : ["apiUrl", "apiToken"],
+          "command" : "http://tapdata.io/rest/webhook/command",
+          "enum": [
             {
-              "dependencies": ["apiUrl", "apiToken"],
-              "fulfill": {
-                "state": {
-                  "display": "{{$deps[0]&&$deps[1] ? \"visible\":\"hidden\"}}"
-                }
-              }
+              "label": "#998c",
+              "value": 1
             }
-          ]
+           ]
         },
         "issueType": {
           "type": "String",
@@ -95,7 +89,7 @@
           "x-index": 3,
           "required": true
         },
-        "webHook": {
+        "webhook": {
           "type": "String",
           "title": "${webHook}",
           "x-decorator": "FormItem",
@@ -147,7 +141,7 @@
       "token": "令牌",
       "projectName": "项目名称",
       "teamName": "团队名称",
-      "webHook": "服务挂钩",
+      "webHook": "Service Hook",
 
       "iterationCodes": "迭代",
       "issueType": "事项类型",
@@ -182,7 +176,7 @@
       "token": "權杖",
       "projectName": "項目名稱",
       "teamName": "團隊名稱",
-      "webHook": "服務掛鉤",
+      "webHook": "Service Hook",
 
       "iterationCodes": "迭代",
       "issueType": "事項类型",
