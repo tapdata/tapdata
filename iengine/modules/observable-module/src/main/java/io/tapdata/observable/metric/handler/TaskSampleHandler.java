@@ -2,7 +2,6 @@ package io.tapdata.observable.metric.handler;
 
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.common.sample.CollectorFactory;
-import io.tapdata.common.sample.Sampler;
 import io.tapdata.common.sample.sampler.AverageSampler;
 import io.tapdata.common.sample.sampler.CounterSampler;
 import io.tapdata.common.sample.sampler.SpeedSampler;

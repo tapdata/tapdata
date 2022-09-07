@@ -102,6 +102,9 @@ public class ObservableAspectTask extends AspectTask {
 					taskRetrievedTableValues = TableSampleHandler.retrieveAllTables(task);
 				}
 				for (String table : aspect.getDataProcessorContext().getTapTableMap().keySet()) {
+					Optional.ofNullable(dataNodeSampleHandlers.get(node.getId())).ifPresent(
+							dataNodeSampleHandler -> dataNodeSampleHandler.addTable(table)
+					);
 					taskSampleHandler.addTable(table);
 				}
 				aspect.tableCountConsumer((table, cnt) -> {
@@ -132,6 +135,9 @@ public class ObservableAspectTask extends AspectTask {
 			case BatchReadFuncAspect.STATE_START:
 				Optional.ofNullable(dataNodeSampleHandlers.get(nodeId)).ifPresent(handler -> handler.handleBatchReadFuncStart(table, aspect.getTime()));
 				taskSampleHandler.addTable(table);
+				Optional.ofNullable(dataNodeSampleHandlers.get(nodeId)).ifPresent(
+						dataNodeSampleHandler -> dataNodeSampleHandler.addTable(table)
+				);
 				taskSampleHandler.handleBatchReadStart(table);
 				aspect.readCompleteConsumer(events -> {
 					if (null == events || events.size() == 0) {
@@ -163,7 +169,7 @@ public class ObservableAspectTask extends AspectTask {
 				));
 				break;
 			case BatchReadFuncAspect.STATE_END:
-				Optional.ofNullable(dataNodeSampleHandlers.get(nodeId)).ifPresent(DataNodeSampleHandler::handleBatchReadFuncEnd);
+				Optional.ofNullable(dataNodeSampleHandlers.get(nodeId)).ifPresent(handler -> handler.handleBatchReadFuncEnd(System.currentTimeMillis()));
 				taskSampleHandler.handleBatchReadFuncEnd();
 				break;
 		}
@@ -179,7 +185,7 @@ public class ObservableAspectTask extends AspectTask {
 				List<String> tables = aspect.getTables();
 				taskSampleHandler.handleStreamReadStart(tables);
 				Optional.ofNullable(dataNodeSampleHandlers.get(nodeId)).ifPresent(
-						handler -> handler.handleStreamReadStreamStart(aspect.getStreamStartedTime())
+						handler -> handler.handleStreamReadStreamStart(tables, aspect.getStreamStartedTime())
 				);
 
 				aspect.streamingReadCompleteConsumers(events -> {

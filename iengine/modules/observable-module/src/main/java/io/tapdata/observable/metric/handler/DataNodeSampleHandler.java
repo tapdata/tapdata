@@ -37,6 +37,8 @@ public class DataNodeSampleHandler extends AbstractNodeSampleHandler {
 
     static final String TABLE_TOTAL                        = "tableTotal";
     static final String SNAPSHOT_TABLE_TOTAL               = "snapshotTableTotal";
+    static final String SNAPSHOT_START_AT                  = "snapshotStartAt";
+    static final String SNAPSHOT_DONE_AT                   = "snapshotDoneAt";
     static final String SNAPSHOT_ROW_TOTAL                 = "snapshotRowTotal";
     static final String SNAPSHOT_INSERT_ROW_TOTAL          = "snapshotInsertRowTotal";
     static final String SNAPSHOT_SOURCE_READ_TIME_COST_AVG = "snapshotSourceReadTimeCostAvg";
@@ -64,10 +66,15 @@ public class DataNodeSampleHandler extends AbstractNodeSampleHandler {
     private final Map<String, Long> currentSnapshotTableRowTotalMap = new HashMap<>();
     private Long currentSnapshotTableInsertRowTotal = null;
 
+    private Long snapshotStartAt = null;
+    private Long snapshotDoneAt = null;
+
     @Override
     List<String> samples() {
         List<String> sampleNames = new ArrayList<>(super.samples());
         sampleNames.add(TABLE_TOTAL);
+        sampleNames.add(SNAPSHOT_START_AT);
+        sampleNames.add(SNAPSHOT_DONE_AT);
         sampleNames.add(SNAPSHOT_TABLE_TOTAL);
         sampleNames.add(SNAPSHOT_ROW_TOTAL);
         sampleNames.add(SNAPSHOT_INSERT_ROW_TOTAL);
@@ -90,6 +97,18 @@ public class DataNodeSampleHandler extends AbstractNodeSampleHandler {
         snapshotSourceReadTimeCostAvg = collector.getAverageSampler(SNAPSHOT_SOURCE_READ_TIME_COST_AVG);
         targetWriteTimeCostAvg = collector.getAverageSampler(TARGET_WRITE_TIME_COST_AVG);
 
+        Number retrieveSnapshotStartAt = values.getOrDefault(SNAPSHOT_START_AT, null);
+        if (retrieveSnapshotStartAt != null) {
+            snapshotStartAt = retrieveSnapshotStartAt.longValue();
+        }
+        collector.addSampler(SNAPSHOT_START_AT, () -> snapshotStartAt);
+
+        Number retrieveSnapshotDoneAt = values.getOrDefault(SNAPSHOT_DONE_AT, null);
+        if (retrieveSnapshotDoneAt != null) {
+            snapshotDoneAt = retrieveSnapshotDoneAt.longValue();
+        }
+        collector.addSampler(SNAPSHOT_DONE_AT, () -> snapshotDoneAt);
+
         // TODO(dexter): find a way to record the current table name
         collector.addSampler(CURR_SNAPSHOT_TABLE, () -> -1);
         collector.addSampler(CURR_SNAPSHOT_TABLE_ROW_TOTAL, () -> {
@@ -99,10 +118,15 @@ public class DataNodeSampleHandler extends AbstractNodeSampleHandler {
         collector.addSampler(CURR_SNAPSHOT_TABLE_INSERT_ROW_TOTAL, () -> currentSnapshotTableInsertRowTotal);
     }
 
+    public void addTable(String... tables) {
+        nodeTables.addAll(Arrays.asList(tables));
+    }
+
     private Long batchAcceptLastTs;
     private Long batchProcessStartTs;
 
     public void handleBatchReadFuncStart(String table, Long startAt) {
+        snapshotStartAt = startAt;
         batchAcceptLastTs = startAt;
         currentSnapshotTable = table;
         currentSnapshotTableInsertRowTotal = 0L;
@@ -139,19 +163,23 @@ public class DataNodeSampleHandler extends AbstractNodeSampleHandler {
         batchAcceptLastTs = enqueuedTime;
     }
 
-    public void handleBatchReadFuncEnd() {
+    public void handleBatchReadFuncEnd(long endAt) {
         Optional.ofNullable(snapshotTableCounter).ifPresent(CounterSampler::inc);
         currentSnapshotTable = null;
         currentSnapshotTableInsertRowTotal = null;
+        snapshotDoneAt = endAt;
     }
 
 
     private Long streamAcceptLastTs;
     private Long streamReferenceTimeLastTs;
     private Long streamProcessStartTs;
-    public void handleStreamReadStreamStart(Long startAt) {
+    public void handleStreamReadStreamStart(List<String> tables, Long startAt) {
         incrementalSourceReadTimeCostAvg = collector.getAverageSampler(INCR_SOURCE_READ_TIME_COST_AVG);
         streamAcceptLastTs = startAt;
+        for(String table : tables) {
+            addTable(table);
+        }
     }
 
     public void handleStreamReadReadComplete(Long readCompleteAt, HandlerUtil.EventTypeRecorder recorder) {
