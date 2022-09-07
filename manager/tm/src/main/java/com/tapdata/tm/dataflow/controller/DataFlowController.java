@@ -6,8 +6,6 @@
  */
 package com.tapdata.tm.dataflow.controller;
 
-import com.tapdata.tm.CustomerJobLogs.CustomerJobLog;
-import com.tapdata.tm.CustomerJobLogs.service.CustomerJobLogsService;
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Page;
@@ -64,7 +62,6 @@ public class DataFlowController extends BaseController {
     private MessageService messageService;
     private TypeMappingsService typeMappingService;
     private StateMachineService stateMachineService;
-    private CustomerJobLogsService customerJobLogsService;
 
     @Operation(summary = "Find all dataFlow of the model matched by filter from the data source")
     @GetMapping
@@ -150,12 +147,6 @@ public class DataFlowController extends BaseController {
             DataFlowDto dto = dataFlowService.findById(toObjectId(id), userDetail);
             if (dto == null) {
                 throw new BizException("DataFlow.Not.Found");
-            }
-            CustomerJobLog startDataFlowLog = new CustomerJobLog(dto.getId().toString(), dto.getName(), CustomerJobLogsService.DataFlowType.clone);
-            if (DataFlowEvent.START == event) {
-                customerJobLogsService.startDataFlow(startDataFlowLog, userDetail);
-            } else if (DataFlowEvent.STOP == event) {
-                customerJobLogsService.stopDataFlow(startDataFlowLog, userDetail);
             }
             result = stateMachineService.executeAboutDataFlow(dto, event, userDetail);
         } catch (Exception e) {

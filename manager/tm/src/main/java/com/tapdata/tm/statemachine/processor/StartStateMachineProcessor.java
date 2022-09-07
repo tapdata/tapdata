@@ -8,8 +8,6 @@ package com.tapdata.tm.statemachine.processor;
 
 import com.mongodb.client.result.UpdateResult;
 import com.tapdata.manager.common.utils.StringUtils;
-import com.tapdata.tm.CustomerJobLogs.CustomerJobLog;
-import com.tapdata.tm.CustomerJobLogs.service.CustomerJobLogsService;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.dataflow.dto.DataFlowDto;
@@ -39,13 +37,10 @@ public class StartStateMachineProcessor extends AbstractStateMachineProcessor {
 
 	private final MessageService messageService;
 
-	private final CustomerJobLogsService customerJobLogsService;
-
-	public StartStateMachineProcessor(DataFlowService dataFlowService, WorkerService workerService, MessageService messageService, UserService userService, CustomerJobLogsService customerJobLogsService) {
+	public StartStateMachineProcessor(DataFlowService dataFlowService, WorkerService workerService, MessageService messageService, UserService userService) {
 		this.dataFlowService = dataFlowService;
 		this.workerService = workerService;
 		this.messageService=messageService;
-		this.customerJobLogsService = customerJobLogsService;
 	}
 
 	@Override
@@ -55,14 +50,9 @@ public class StartStateMachineProcessor extends AbstractStateMachineProcessor {
 		UserDetail userDetail = stateContext.getUserDetail();
 		workerService.scheduleTaskToEngine(dataFlowDto, userDetail);
 		String processId = dataFlowDto.getAgentId();
-		CustomerJobLog dataFlowLog = new CustomerJobLog(dataFlowDto.getId().toString(),dataFlowDto.getName(), CustomerJobLogsService.DataFlowType.clone);
 		if (StringUtils.isBlank(processId)){
-			customerJobLogsService.noAvailableAgents(dataFlowLog, userDetail);
 			throw new BizException("Agent.Not.Found");
 		}
-		WorkerDto workerDto = workerService.findOne(new Query(Criteria.where("process_id").is(processId)));
-		dataFlowLog.setAgentHost(workerDto.getHostname());
-		customerJobLogsService.assignAgent(dataFlowLog, userDetail);
 		dataFlowService.transformSchema(dataFlowDto, userDetail);
 		Date date = new Date();
 		UpdateResult update = dataFlowService.update(Query.query(Criteria.where("id").is(dataFlowDto.getId()).and("status").is(context.getSource().getName())),

@@ -43,7 +43,7 @@ public class EditFlushListener implements MessageListener<ChangeStreamDocument<D
 				boolean updateStatus = false;
 
 				for (String f : updateFieldNameSet) {
-					if ("status".equals(f) || "transformed".equals(f)) {
+					if ("status".equals(f) || "transformed".equals(f) || "logSetting".equals(f)) {
 						updateStatus = true;
 						break;
 					}
