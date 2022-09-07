@@ -1,5 +1,7 @@
 package io.tapdata.autoinspect;
 
+import com.alibaba.fastjson.JSON;
+import com.mongodb.client.result.UpdateResult;
 import com.tapdata.constant.ConnectionUtil;
 import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.entity.Connections;
@@ -79,6 +81,8 @@ public class CheckAgainRunner implements Runnable {
                 logger.warn("Not found AutoInspectNode: {}", taskId);
                 return;
             }
+            String sourceNodeId = autoInspectNode.getFromNode().getId();
+            String targetNodeId = autoInspectNode.getToNode().getId();
 
             Map<String, Connections> connMap = AutoInspectNodeUtil.getConnectionsByIds(clientMongoOperator, new HashSet<>(Arrays.asList(
                     autoInspectNode.getFromNode().getConnectionId(),
@@ -94,8 +98,8 @@ public class CheckAgainRunner implements Runnable {
             DatabaseTypeEnum.DatabaseType targetDatabaseType = ConnectionUtil.getDatabaseType(clientMongoOperator, targetConn.getPdkHash());
 
             intervalUpdateProgress(progress);
-            try (IPdkConnector sourceConnector = new PdkConnector(clientMongoOperator, taskId, autoInspectNode.getFromNode().getId(), sourceConn, sourceDatabaseType, this::isRunning, taskConfig.getTaskRetryConfig())) {
-                try (IPdkConnector targetConnector = new PdkConnector(clientMongoOperator, taskId, autoInspectNode.getToNode().getId(), targetConn, targetDatabaseType, this::isRunning, taskConfig.getTaskRetryConfig())) {
+            try (IPdkConnector sourceConnector = new PdkConnector(clientMongoOperator, taskId, sourceNodeId, getClass().getSimpleName() + "-" + sourceNodeId, sourceConn, sourceDatabaseType, this::isRunning, taskConfig.getTaskRetryConfig())) {
+                try (IPdkConnector targetConnector = new PdkConnector(clientMongoOperator, taskId, targetNodeId, getClass().getSimpleName() + "-" + targetNodeId, targetConn, targetDatabaseType, this::isRunning, taskConfig.getTaskRetryConfig())) {
                     IQueryCompare queryCompare = new PdkQueryCompare(sourceConnector, targetConnector);
                     intervalUpdateProgress(progress);
 
@@ -133,8 +137,9 @@ public class CheckAgainRunner implements Runnable {
 
             // clear CheckAgain status
             Query query = Query.query(Criteria.where("taskId").is(taskId).and("checkAgainSN").is(progress.getSn()));
-            Update update = Update.update("status", ResultStatus.Completed).set("checkAgainSN", AutoInspectConstants.CHECK_AGAIN_DEFAULT_SN);
-            clientMongoOperator.update(query, update, AutoInspectConstants.AUTO_INSPECT_RESULTS_COLLECTION_NAME);
+            Update update = Update.update("status", ResultStatus.Completed).set("checkAgainSN", AutoInspectConstants.CHECK_AGAIN_DEFAULT_SN).set("last_updated", new Date());
+            UpdateResult update1 = clientMongoOperator.update(query, update, AutoInspectConstants.AUTO_INSPECT_RESULTS_COLLECTION_NAME);
+            logger.warn("Failed reset: {}", JSON.toJSONString(update1));
         } finally {
             progress.setCompletedAt(new Date());
             logger.info("Exit CheckAgainRunner, check {}, fix {}, use {}ms", checkCounts.get(), fixCounts.get(), progress.useTimes());

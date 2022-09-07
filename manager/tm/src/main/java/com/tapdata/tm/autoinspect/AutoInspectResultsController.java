@@ -1,9 +1,10 @@
 package com.tapdata.tm.autoinspect;
 
 import com.tapdata.tm.autoinspect.dto.TaskAutoInspectResultDto;
+import com.tapdata.tm.autoinspect.service.TaskAutoInspectResultsService;
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.*;
-import com.tapdata.tm.autoinspect.service.TaskAutoInspectResultsService;
+import com.tapdata.tm.commons.base.dto.UpdateDto;
 import com.tapdata.tm.utils.MongoUtils;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -122,7 +123,7 @@ public class AutoInspectResultsController extends BaseController {
 
     @Operation(summary = "Update instances of the model matched by {{where}} from the data source")
     @PostMapping("update")
-    public ResponseMessage<Map<String, Long>> updateByWhere(@RequestParam("where") String whereJson, @RequestBody TaskAutoInspectResultDto dto) {
+    public ResponseMessage<Map<String, Long>> updateByWhere(@RequestParam("where") String whereJson, @RequestBody UpdateDto<TaskAutoInspectResultDto> dto) {
         Where where = parseWhere(whereJson);
         long count = resultsService.updateByWhere(where, dto, getLoginUser());
         HashMap<String, Long> countValue = new HashMap<>();
