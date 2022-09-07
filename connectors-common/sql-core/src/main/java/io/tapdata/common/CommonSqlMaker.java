@@ -43,26 +43,38 @@ public class CommonSqlMaker {
                 return "";
             }
             builder.append('\"').append(tapField.getName()).append("\" ").append(tapField.getDataType()).append(' ');
-            //null to omit
-            if (tapField.getNullable() != null && !tapField.getNullable()) {
-                builder.append("NOT NULL").append(' ');
-            }
-            //null to omit
-            if (tapField.getDefaultValue() != null && !"".equals(tapField.getDefaultValue())) {
-                builder.append("DEFAULT").append(' ');
-                if (tapField.getDefaultValue() instanceof Number) {
-                    builder.append(tapField.getDefaultValue()).append(' ');
-                } else {
-                    builder.append("'").append(tapField.getDefaultValue()).append("' ");
-                }
-            }
-            if (needComment && EmptyKit.isNotBlank(tapField.getComment())) {
-                String comment = tapField.getComment();
-                comment = comment.replace("'", "\\'");
-                builder.append("comment '").append(comment).append("' ");
+            buildNullDefinition(builder, tapField);
+            buildDefaultDefinition(builder, tapField);
+            if (needComment) {
+                buildCommentDefinition(builder, tapField);
             }
             return builder.toString();
         }).collect(Collectors.joining(", "));
+    }
+
+    private static void buildNullDefinition(StringBuilder builder, TapField tapField) {
+        if (EmptyKit.isNotNull(tapField.getNullable()) && !tapField.getNullable()) {
+            builder.append("NOT NULL").append(' ');
+        }
+    }
+
+    private static void buildDefaultDefinition(StringBuilder builder, TapField tapField) {
+        if (EmptyKit.isNotNull(tapField.getDefaultValue()) && !"".equals(tapField.getDefaultValue())) {
+            builder.append("DEFAULT").append(' ');
+            if (tapField.getDefaultValue() instanceof Number) {
+                builder.append(tapField.getDefaultValue()).append(' ');
+            } else {
+                builder.append("'").append(tapField.getDefaultValue()).append("' ");
+            }
+        }
+    }
+
+    private static void buildCommentDefinition(StringBuilder builder, TapField tapField) {
+        if (EmptyKit.isNotBlank(tapField.getComment())) {
+            String comment = tapField.getComment();
+            comment = comment.replace("'", "\\'");
+            builder.append("comment '").append(comment).append("' ");
+        }
     }
 
     /**
@@ -73,32 +85,13 @@ public class CommonSqlMaker {
      */
     public static String buildSqlByAdvanceFilter(TapAdvanceFilter filter) {
         StringBuilder builder = new StringBuilder();
-        if (EmptyKit.isNotEmpty(filter.getMatch()) || EmptyKit.isNotEmpty(filter.getOperators())) {
-            builder.append("WHERE ");
-            builder.append(CommonSqlMaker.buildKeyAndValue(filter.getMatch(), "AND", "="));
-        }
-        if (EmptyKit.isNotEmpty(filter.getOperators())) {
-            if (EmptyKit.isNotEmpty(filter.getMatch())) {
-                builder.append("AND ");
-            }
-            builder.append(filter.getOperators().stream().map(v -> v.toString("\"")).collect(Collectors.joining(" AND "))).append(' ');
-        }
-        if (EmptyKit.isNotEmpty(filter.getSortOnList())) {
-            builder.append("ORDER BY ");
-            builder.append(filter.getSortOnList().stream().map(v -> v.toString("\"")).collect(Collectors.joining(", "))).append(' ');
-        }
-        if (null != filter.getLimit()) {
-            builder.append("LIMIT ").append(filter.getLimit()).append(' ');
-        }
-        if (null != filter.getSkip()) {
-            builder.append("OFFSET ").append(filter.getSkip()).append(' ');
-        }
-
+        buildWhereClause(builder, filter);
+        buildOrderClause(builder, filter);
+        buildLimitOffsetClause(builder, filter);
         return builder.toString();
     }
 
-    public static String buildOracleSqlByAdvanceFilter(TapAdvanceFilter filter) {
-        StringBuilder builder = new StringBuilder();
+    public static void buildWhereClause(StringBuilder builder, TapAdvanceFilter filter) {
         if (EmptyKit.isNotEmpty(filter.getMatch()) || EmptyKit.isNotEmpty(filter.getOperators())) {
             builder.append("WHERE ");
             builder.append(CommonSqlMaker.buildKeyAndValue(filter.getMatch(), "AND", "="));
@@ -109,26 +102,40 @@ public class CommonSqlMaker {
             }
             builder.append(filter.getOperators().stream().map(v -> v.toString("\"")).collect(Collectors.joining(" AND "))).append(' ');
         }
+    }
+
+    public static void buildOrderClause(StringBuilder builder, TapAdvanceFilter filter) {
         if (EmptyKit.isNotEmpty(filter.getSortOnList())) {
             builder.append("ORDER BY ");
             builder.append(filter.getSortOnList().stream().map(v -> v.toString("\"")).collect(Collectors.joining(", "))).append(' ');
         }
+    }
+
+    public static void buildLimitOffsetClause(StringBuilder builder, TapAdvanceFilter filter) {
+        if (EmptyKit.isNotNull(filter.getLimit())) {
+            builder.append("LIMIT ").append(filter.getLimit()).append(' ');
+        }
+        if (EmptyKit.isNotNull(filter.getSkip())) {
+            builder.append("OFFSET ").append(filter.getSkip()).append(' ');
+        }
+    }
+
+    public static void buildRowNumberClause(StringBuilder builder, TapAdvanceFilter filter) {
         builder.append(") ");
-        if (null != filter.getSkip() || null != filter.getLimit()) {
+        if (EmptyKit.isNotNull(filter.getSkip()) || EmptyKit.isNotNull(filter.getLimit())) {
             builder.append("WHERE ");
         }
-        if (null != filter.getSkip()) {
+        if (EmptyKit.isNotNull(filter.getSkip())) {
             builder.append("ROWNUM > ").append(filter.getSkip()).append(' ');
         }
-        if (null != filter.getLimit()) {
+        if (EmptyKit.isNotNull(filter.getLimit())) {
             Integer skip = 0;
-            if (null != filter.getSkip()) {
+            if (EmptyKit.isNotNull(filter.getSkip())) {
                 builder.append("AND ");
                 skip = filter.getSkip();
             }
             builder.append("ROWNUM <= ").append(filter.getLimit() + skip).append(' ');
         }
-        return builder.toString();
     }
 
     /**
@@ -157,6 +164,12 @@ public class CommonSqlMaker {
         return builder.toString();
     }
 
+    /**
+     * order by used in batchRead offset
+     *
+     * @param tapTable table
+     * @return order by clause
+     */
     public static String getOrderByUniqueKey(TapTable tapTable) {
         StringBuilder orderBy = new StringBuilder();
         orderBy.append(" ORDER BY ");

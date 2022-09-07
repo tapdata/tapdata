@@ -31,26 +31,26 @@ import java.util.stream.Collectors;
 public abstract class LogMiner implements ILogMiner {
 
     protected final static int ROLLBACK_TEMP_LIMIT = 50; //max temp which can be rollback
-    protected final static int LOG_QUEUE_SIZE = 1000; //size of queue which read logs
+    protected final static int LOG_QUEUE_SIZE = 5000; //size of queue which read logs
 
     private final static String TAG = LogMiner.class.getSimpleName();
     protected static final BeanUtils beanUtils = InstanceFactory.instance(BeanUtils.class); //bean util
-    public static final CCJBaseDDLWrapper.CCJDDLWrapperConfig DDL_WRAPPER_CONFIG = CCJBaseDDLWrapper.CCJDDLWrapperConfig.create().split("\"");
-    protected DDLParserType ddlParserType; //ddl parser type
-    protected final AtomicBoolean isRunning = new AtomicBoolean(false);
-    protected final AtomicBoolean ddlStop = new AtomicBoolean(false);
-    protected ExecutorService redoLogConsumerThreadPool;
+    public static final CCJBaseDDLWrapper.CCJDDLWrapperConfig DDL_WRAPPER_CONFIG = CCJBaseDDLWrapper.CCJDDLWrapperConfig.create().split("\""); //DDL parser config
+    protected DDLParserType ddlParserType; //DDL parser type
+    protected final AtomicBoolean isRunning = new AtomicBoolean(false); //task running sign
+    protected final AtomicBoolean ddlStop = new AtomicBoolean(false); //DDL task needs to stop DML flag
+    protected ExecutorService redoLogConsumerThreadPool; //Log parsing thread
 
     protected final LinkedBlockingQueue<RedoLogContent> logQueue = new LinkedBlockingQueue<>(LOG_QUEUE_SIZE); //queue for logContent
     protected final LinkedHashMap<String, LogTransaction> transactionBucket = new LinkedHashMap<>(); //transaction cache
     protected RedoLogContent csfLogContent = null; //when redo or undo is too long, append them
-    protected final Map<Integer, Long> instanceThreadMindedSCNMap = new HashMap<>();
-    protected final Map<Long, Long> instanceThreadSCNMap = new HashMap<>();
-    protected boolean hasRollbackTemp;
+    protected final Map<Long, Long> instanceThreadMindedSCNMap = new HashMap<>(); //Map<Thread#, SCN>
+    protected final Map<Long, Long> instanceThreadSCNMap = new HashMap<>(); //Map<Thread#, SCN>
+    protected boolean hasRollbackTemp; //whether rollback temp exists
 
-    protected KVReadOnlyMap<TapTable> tableMap;
-    protected List<String> tableList;
-    protected Map<String, TapTable> lobTables;
+    protected KVReadOnlyMap<TapTable> tableMap; //pdk tableMap in streamRead
+    protected List<String> tableList; //tableName list
+    protected Map<String, TapTable> lobTables; //table those have lob type
     protected int recordSize;
     protected StreamReadConsumer consumer;
 
@@ -64,6 +64,9 @@ public abstract class LogMiner implements ILogMiner {
         makeLobTables();
     }
 
+    /**
+     * collect tables which
+     */
     protected void makeLobTables() {
         List<TapTable> lobTables = new ArrayList<>();
         tableList.forEach(table -> {

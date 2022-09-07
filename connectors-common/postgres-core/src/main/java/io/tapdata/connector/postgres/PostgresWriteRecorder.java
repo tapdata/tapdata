@@ -293,16 +293,7 @@ public class PostgresWriteRecorder extends WriteRecorder {
         for (String key : allColumn) {
             preparedStatement.setObject(pos++, after.get(key));
         }
-        if (hasPk) {
-            for (String key : before.keySet()) {
-                preparedStatement.setObject(pos++, after.get(key));
-            }
-        } else {
-            for (String key : before.keySet()) {
-                preparedStatement.setObject(pos++, after.get(key));
-                preparedStatement.setObject(pos++, after.get(key));
-            }
-        }
+        dealNullBefore(before, pos);
         for (String key : allColumn) {
             preparedStatement.setObject(pos++, after.get(key));
         }
