@@ -10,13 +10,27 @@
     "node": {
       "type": "object",
       "properties": {
-        "iterationCodes": {
-          "type": "String",
+        "iterationCodes":
+        {
           "title": "${iterationCodes}",
+          "type": "string",
+          "required": true,
           "x-decorator": "FormItem",
-          "x-component": "Input",
-          "x-index": 1,
-          "required": true
+          "x-component": "AsyncSelect",
+          "x-component-props": {
+            "method": "{{loadCommandList}}",
+            "params": "{{ {$values: $values, command: \"spaceList\"} }}"
+          },
+          "x-reactions": [
+            {
+              "dependencies": ["apiUrl", "apiToken"],
+              "fulfill": {
+                "state": {
+                  "display": "{{$deps[0]&&$deps[1] ? \"visible\":\"hidden\"}}"
+                }
+              }
+            }
+          ]
         },
         "issueType": {
           "type": "String",

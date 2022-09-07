@@ -9,10 +9,12 @@ import io.tapdata.coding.enums.IssueEventTypes;
 import io.tapdata.coding.enums.IssueType;
 import io.tapdata.coding.service.CodingStarter;
 import io.tapdata.coding.service.IssueLoader;
+import io.tapdata.coding.service.IterationLoader;
 import io.tapdata.coding.service.TestCoding;
 import io.tapdata.coding.utils.collection.MapUtil;
 import io.tapdata.coding.utils.http.CodingHttp;
 import io.tapdata.coding.utils.http.HttpEntity;
+import io.tapdata.coding.utils.tool.Checker;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.event.TapEvent;
@@ -20,6 +22,7 @@ import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.entity.utils.Entry;
+import io.tapdata.kit.StringKit;
 import io.tapdata.pdk.apis.annotations.TapConnectorClass;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
@@ -73,9 +76,98 @@ public class CodingConnector extends ConnectorBase {
 				.supportTimestampToStreamOffset(this::timestampToStreamOffset)
 				.supportStreamRead(this::streamRead)
 				.supportRawDataCallbackFilterFunction(this::rawDataCallbackFilterFunction)
+				.supportCommandCallbackFunction(this::command)
 //				.supportWebHookFunctions(this::webHookFunction)
 		;
 
+	}
+
+	public Object test(
+			TapConnectionContext context,
+			String command,
+			String action,
+			Map<String, Object> argMap){
+		return command(context, command, action, argMap);
+	}
+	//项目的列表分页加载和搜索， 以及迭代的分页加载和搜索
+	//从context里能获得connectionConfig，
+	// 会给你command， 例如getProjectList，
+	// action会有list和search，
+	// argMap里会有page 页码， size一页最大数量， key搜索使用的关键字。
+	private Object command(
+			TapConnectionContext context,
+			String command,
+			String action,
+			Map<String, Object> argMap) {
+		if(Checker.isEmpty(command)){
+			throw new CoreException("Command can not be NULL or not be empty.");
+		}
+
+		if (Checker.isEmpty(action)){
+			throw new CoreException("Action can not be NULL or not be empty.");
+		}
+		if (Checker.isEmpty(context)){
+			throw new IllegalArgumentException("TapConnectorContext cannot be null");
+		}
+		DataMap connectionConfigConfigMap = context.getConnectionConfig();
+		if (Checker.isEmpty(connectionConfigConfigMap)){
+			throw new IllegalArgumentException("TapTable' ConnectionConfigConfig cannot be null");
+		}
+		//String projectName = connectionConfigConfigMap.getString("projectName");
+		String token = connectionConfigConfigMap.getString("token");
+		String teamName = connectionConfigConfigMap.getString("teamName");
+
+		HttpEntity<String,String> header = HttpEntity.create().builder("Authorization",token);
+		HttpEntity<String,Object> body = IterationLoader.create(context,argMap).commandSetter(command,HttpEntity.create());
+
+		CodingHttp http = CodingHttp.create(header.getEntity(),body.getEntity(), String.format(CodingStarter.OPEN_API_URL, teamName ));
+		Map<String, Object> postResult = http.post();
+
+		Object response = postResult.get("Response");
+		Map<String,Object> responseMap = (Map<String, Object>) response;
+		if (null == response ){
+			TapLogger.info(TAG, "HTTP request exception, Issue list acquisition failed: {} ", CodingStarter.OPEN_API_URL+"?Action=DescribeIssueListWithPage");
+			throw new RuntimeException("HTTP request exception, Issue list acquisition failed: " + CodingStarter.OPEN_API_URL+"?Action=DescribeIssueListWithPage");
+		}
+		//List<Map<String,Object>> searchList = null;
+		Map<String,Object> pageResult = new HashMap<>();
+		Object dataObj = responseMap.get("Data");
+		if(Checker.isEmpty(dataObj)){
+			throw  new CoreException("Project List is Empty ,please sure you HTTP connection params is ture.");
+		}
+		Map<String,Object> data = (Map<String,Object>)dataObj;
+		if ("DescribeIterationList".equals(command)){
+			Object listObj = data.get("List");
+			List<Map<String,Object>> searchList = new ArrayList<>();
+			if (Checker.isNotEmpty(listObj)){
+				searchList = (List<Map<String,Object>>)listObj;
+			}
+			Integer page = Checker.isEmpty(data.get("Page"))?0:Integer.parseInt(data.get("Page").toString());
+			Integer size = Checker.isEmpty(data.get("PageSize"))?0:Integer.parseInt(data.get("PageSize").toString());
+			Integer total = Checker.isEmpty(data.get("TotalPage"))?0:Integer.parseInt(data.get("TotalPage").toString());
+			Integer rows = Checker.isEmpty(data.get("TotalRow"))?0:Integer.parseInt(data.get("TotalRow").toString());
+			pageResult.put("page",page);
+			pageResult.put("size",size);
+			pageResult.put("total",total);
+			pageResult.put("rows",rows);
+			pageResult.put("list",searchList);
+		}else if("DescribeCodingProjects".equals(command)){
+			Object listObj = data.get("ProjectList");
+			List<Map<String,Object>> searchList = new ArrayList<>();
+			if (Checker.isNotEmpty(listObj)){
+				searchList = (List<Map<String,Object>>)listObj;
+			}
+			Integer page = Checker.isEmpty(data.get("PageNumber"))?0:Integer.parseInt(data.get("PageNumber").toString());
+			Integer size = Checker.isEmpty(data.get("PageSize"))?0:Integer.parseInt(data.get("PageSize").toString());
+			Integer total = Checker.isEmpty(data.get("TotalCount"))?0:Integer.parseInt(data.get("TotalCount").toString());
+			pageResult.put("page",page);
+			pageResult.put("size",size);
+			pageResult.put("total",total);
+			pageResult.put("list",searchList);
+		}else {
+			throw new CoreException("Command only support [DescribeIterationList] or [DescribeCodingProjects] now.");
+		}
+		return pageResult.get("list");
 	}
 
 	private TapEvent rawDataCallbackFilterFunction(TapConnectorContext connectorContext, Map<String, Object> issue) {
@@ -474,25 +566,6 @@ public class CodingConnector extends ConnectorBase {
 			currentQueryCount = resultList.size();
 			batchReadPageSize = null != dataMap.get("PageSize") ? (int)(dataMap.get("PageSize")) : batchReadPageSize;
 			for (Map<String, Object> stringObjectMap : resultList) {
-				//Integer code = Integer.parseInt(String.valueOf(stringObjectMap.get("Code")));
-				////查询事项详情
-				//issueDetialBody.builder("IssueCode", code);
-				//Map<String,Object> issueDetailResponse = authorization.body(issueDetialBody.getEntity()).post(requestDetail);
-				//if (null == issueDetailResponse){
-				//	TapLogger.info(TAG, "HTTP request exception, Issue Detail acquisition failed: {} ", CodingStarter.OPEN_API_URL+"?Action=DescribeIssue&IssueCode="+code);
-				//	throw new RuntimeException("HTTP request exception, Issue Detail acquisition failed: "+CodingStarter.OPEN_API_URL+"?Action=DescribeIssue&IssueCode="+code);
-				//}
-				//issueDetailResponse = (Map<String,Object>)issueDetailResponse.get("Response");
-				//if (null == issueDetailResponse){
-				//	TapLogger.info(TAG, "HTTP request exception, Issue Detail acquisition failed: {} ", CodingStarter.OPEN_API_URL+"?Action=DescribeIssue&IssueCode="+code);
-				//	throw new RuntimeException("HTTP request exception, Issue Detail acquisition failed: "+CodingStarter.OPEN_API_URL+"?Action=DescribeIssue&IssueCode="+code);
-				//}
-				//Map<String,Object> issueDetail = (Map<String,Object>)issueDetailResponse.get("Issue");
-				//if (null == issueDetail){
-				//	TapLogger.info(TAG, "Issue Detail acquisition failed: IssueCode {} ", code);
-				//	throw new RuntimeException("Issue Detail acquisition failed: IssueCode "+code);
-				//}
-				//issueLoader.composeIssue(projectName, teamName, issueDetail);
 				String code = String.valueOf(stringObjectMap.get("Code"));
 				Map<String,Object> issueDetail = issueLoader.readIssueDetail(issueDetialBody,authorization,requestDetail,code,projectName,teamName);
 
@@ -556,7 +629,7 @@ public class CodingConnector extends ConnectorBase {
 //		return tapEventList;
 //	}
 
-	private ContextConfig veryContextConfigAndNodeConfig(TapConnectorContext context){
+	private ContextConfig veryContextConfigAndNodeConfig(TapConnectionContext context){
 		if (null == context){
 			throw new IllegalArgumentException("TapConnectorContext cannot be null");
 		}
@@ -579,28 +652,28 @@ public class CodingConnector extends ConnectorBase {
 			TapLogger.error(TAG, "Connection parameter exception: {} ", teamName);
 			throw new IllegalArgumentException("Connection parameter exception: teamName ");
 		}
-
-		DataMap nodeConfigMap = context.getNodeConfig();
-		if (null == nodeConfigMap){
-			throw new IllegalArgumentException("TapTable' NodeConfig cannot be null");
-		}
-		//iterationName is Multiple selection values separated by commas
-		String iterationCodeArr = nodeConfigMap.getString("iterationCodes");
-		if (null!=iterationCodeArr) iterationCodeArr = iterationCodeArr.trim();
-		String issueType = nodeConfigMap.getString("issueType");
-		if (null != issueType ) issueType = issueType.trim();
-
-		if ( null == iterationCodeArr || "".equals(iterationCodeArr)){
-			TapLogger.info(TAG, "Connection node config iterationName exception: {} ", projectName);
-		}
-		if ( null == issueType || "".equals(issueType) ){
-			TapLogger.info(TAG, "Connection node config issueType exception: {} ", token);
-		}
-		return ContextConfig.create()
-				.projectName(projectName)
+		ContextConfig config = ContextConfig.create().projectName(projectName)
 				.teamName(teamName)
-				.token(token)
-				.issueType(issueType)
-				.iterationCodes(iterationCodeArr);
+				.token(token);
+		if (context instanceof TapConnectorContext) {
+			DataMap nodeConfigMap = ((TapConnectorContext)context).getNodeConfig();
+			if (null == nodeConfigMap) {
+				throw new IllegalArgumentException("TapTable' NodeConfig cannot be null");
+			}
+			//iterationName is Multiple selection values separated by commas
+			String iterationCodeArr = nodeConfigMap.getString("iterationCodes");
+			if (null != iterationCodeArr) iterationCodeArr = iterationCodeArr.trim();
+			String issueType = nodeConfigMap.getString("issueType");
+			if (null != issueType) issueType = issueType.trim();
+
+			if (null == iterationCodeArr || "".equals(iterationCodeArr)) {
+				TapLogger.info(TAG, "Connection node config iterationName exception: {} ", projectName);
+			}
+			if (null == issueType || "".equals(issueType)) {
+				TapLogger.info(TAG, "Connection node config issueType exception: {} ", token);
+			}
+			config.issueType(issueType).iterationCodes(iterationCodeArr);
+		}
+		return config;
 	}
 }
