@@ -68,7 +68,8 @@ import org.springframework.stereotype.Service;
 import java.util.*;
 import java.util.stream.Collectors;
 
-import static com.tapdata.tm.utils.MongoUtils.toObjectId;
+import static com.tapdata.tm.utils.MongoUtils.*;
+import static com.tapdata.tm.utils.MongoUtils.applySort;
 
 /**
  * @Author: Zed
@@ -144,11 +145,31 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
             classficitionIn.put("$in", objectIdList);
         }
 
-        Page<MetadataInstancesDto> page = find(filter, user);
-        if (page.getTotal() == 0 && filter.getWhere().containsKey("taskId")) {
+        Page<MetadataInstancesDto> page = null;
+        if (filter.getWhere().containsKey("taskId")) {
+            Object taskId = filter.getWhere().remove("taskId");
+            Criteria criteria = repository.whereToCriteria(filter.getWhere());
+            criteria.orOperator(Criteria.where("taskId").is(taskId), Criteria.where("taskId").exists(false));
             // maybe model deduction slow then task model not save, could query physics table meta
-            filter.getWhere().remove("taskId");
-            filter.getWhere().put("taskId", ImmutableMap.of("$exists", false));
+
+            Query query = new Query(criteria);
+
+            long count = count(query, user);
+
+            if (filter.getLimit() > 0) {
+                query.limit(filter.getLimit());
+            } else {
+                query.limit(20);
+            }
+            query.skip(Math.max(filter.getSkip(), 0));
+
+            applyField(query, filter.getFields());
+            applySort(query, filter.getSort());
+            List<MetadataInstancesDto> allDto = findAllDto(query, user);
+            page = new Page<>();
+            page.setTotal(count);
+            page.setItems(allDto);
+        } else {
             page = find(filter, user);
         }
         List<MetadataInstancesDto> metadataInstancesDtoList = page.getItems();

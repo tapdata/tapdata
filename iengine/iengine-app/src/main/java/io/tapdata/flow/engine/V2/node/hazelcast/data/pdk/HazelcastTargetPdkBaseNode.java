@@ -18,10 +18,6 @@ import com.tapdata.tm.commons.schema.TransformerWsMessageResult;
 import com.tapdata.tm.commons.task.dto.MergeTableProperties;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.aspect.TaskMilestoneFuncAspect;
-import io.tapdata.common.sample.sampler.AverageSampler;
-import io.tapdata.common.sample.sampler.CounterSampler;
-import io.tapdata.common.sample.sampler.ResetCounterSampler;
-import io.tapdata.common.sample.sampler.SpeedSampler;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.ddl.TapDDLEvent;
 import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
@@ -34,7 +30,6 @@ import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.concurrent.partitioner.
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.concurrent.selector.TapEventPartitionKeySelector;
 import io.tapdata.flow.engine.V2.util.PdkUtil;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
-import io.tapdata.metrics.TaskSampleRetriever;
 import io.tapdata.milestone.MilestoneContext;
 import io.tapdata.milestone.MilestoneStage;
 import io.tapdata.milestone.MilestoneStatus;
@@ -73,16 +68,6 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 	protected List<String> updateConditionFields;
 	protected String writeStrategy = "updateOrInsert";
 	private AtomicBoolean flushOffset = new AtomicBoolean(false);
-	protected ResetCounterSampler resetInputCounter;
-	protected CounterSampler inputCounter;
-	protected ResetCounterSampler resetInsertedCounter;
-	protected CounterSampler insertedCounter;
-	protected ResetCounterSampler resetUpdatedCounter;
-	protected CounterSampler updatedCounter;
-	protected ResetCounterSampler resetDeletedCounter;
-	protected CounterSampler deletedCounter;
-	protected SpeedSampler inputQPS;
-	protected AverageSampler timeCostAvg;
 	protected AtomicBoolean uploadDagService;
 	private List<MetadataInstancesDto> insertMetadata;
 	private Map<String, MetadataInstancesDto> updateMetadata;
@@ -102,41 +87,6 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 		// MILESTONE-INIT_TRANSFORMER-RUNNING
 		TaskMilestoneFuncAspect.execute(dataProcessorContext, MilestoneStage.INIT_TRANSFORMER, MilestoneStatus.RUNNING);
 		MilestoneUtil.updateMilestone(milestoneService, MilestoneStage.INIT_TRANSFORMER, MilestoneStatus.RUNNING);
-	}
-
-	@Override
-	protected void initSampleCollector() {
-		super.initSampleCollector();
-
-		// init statistic and sample related initialize
-		// TODO: init outputCounter initial value
-		Map<String, Number> values = TaskSampleRetriever.getInstance().retrieve(tags, Arrays.asList("inputTotal", "insertedTotal", "updatedTotal", "deletedTotal"));
-		resetInputCounter = statisticCollector.getResetCounterSampler("inputTotal");
-		inputCounter = sampleCollector.getCounterSampler("inputTotal");
-		inputCounter.inc(values.getOrDefault("inputTotal", 0).longValue());
-		resetInsertedCounter = statisticCollector.getResetCounterSampler("insertedTotal");
-		insertedCounter = sampleCollector.getCounterSampler("insertedTotal");
-		insertedCounter.inc(values.getOrDefault("insertedTotal", 0).longValue());
-		resetUpdatedCounter = statisticCollector.getResetCounterSampler("updatedTotal");
-		updatedCounter = sampleCollector.getCounterSampler("updatedTotal");
-		updatedCounter.inc(values.getOrDefault("updatedTotal", 0).longValue());
-		resetDeletedCounter = statisticCollector.getResetCounterSampler("deletedTotal");
-		deletedCounter = sampleCollector.getCounterSampler("deletedTotal");
-		deletedCounter.inc(values.getOrDefault("deletedTotal", 0).longValue());
-		inputQPS = sampleCollector.getSpeedSampler("inputQPS");
-		timeCostAvg = sampleCollector.getAverageSampler("timeCostAvg");
-
-		statisticCollector.addSampler("replicateLag", () -> {
-			Long ts = null;
-			for (SyncProgress progress : syncProgressMap.values()) {
-				if (null == progress.getSourceTime()) continue;
-				if (ts == null || ts > progress.getSourceTime()) {
-					ts = progress.getSourceTime();
-				}
-			}
-
-			return ts == null ? 0 : System.currentTimeMillis() - ts;
-		});
 	}
 
 	@Override
@@ -297,9 +247,6 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 			}
 		}
 		if (CollectionUtils.isNotEmpty(tapEvents)) {
-			resetInputCounter.inc(tapEvents.size());
-			inputCounter.inc(tapEvents.size());
-			inputQPS.add(tapEvents.size());
 			try {
 				processEvents(tapEvents);
 			} catch (Throwable throwable) {
@@ -307,9 +254,6 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 			}
 		}
 		if (CollectionUtils.isNotEmpty(tapdataShareLogEvents)) {
-			resetInputCounter.inc(tapdataShareLogEvents.size());
-			inputCounter.inc(tapdataShareLogEvents.size());
-			inputQPS.add(tapdataShareLogEvents.size());
 			try {
 				processShareLog(tapdataShareLogEvents);
 			} catch (Throwable throwable) {

@@ -179,14 +179,15 @@ public class SchemaUtils {
      * @return
      */
     public static Schema cloneSchema(Schema source) {
-        return JsonUtil.parseJsonUseJackson(JsonUtil.toJsonUseJackson(source), Schema.class);
+        return InstanceFactory.instance(JsonParser.class).fromJson(InstanceFactory.instance(JsonParser.class).toJson(source), new TypeHolder<Schema>() {
+        });
     }
 
     public static List<Schema> cloneSchema(List<Schema> schemas) {
-//        return InstanceFactory.instance(JsonParser.class)
-//                .fromJson(InstanceFactory.instance(JsonParser.class)
-//                        .toJson(schemas), new TypeHolder<List<Schema>>() {}, TapConstants.abstractClassDetectors);
-        return JsonUtil.parseJsonUseJackson(JsonUtil.toJsonUseJackson(schemas), new TypeReference<List<Schema>>() {});
+        return InstanceFactory.instance(JsonParser.class)
+                .fromJson(InstanceFactory.instance(JsonParser.class)
+                        .toJson(schemas), new TypeHolder<List<Schema>>() {});
+        //return JsonUtil.parseJsonUseJackson(JsonUtil.toJsonUseJackson(schemas), new TypeReference<List<Schema>>() {});
     }
 
     public static Field createField(FieldProcessorNode.Operation operation) {

@@ -4,21 +4,19 @@ import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.common.executor.ExecutorsManager;
-import io.tapdata.common.sample.CollectorFactory;
 import io.tapdata.common.sample.SampleCollector;
 import io.tapdata.common.sample.sampler.AverageSampler;
 import io.tapdata.common.sample.sampler.CounterSampler;
 import io.tapdata.common.sample.sampler.NumberSampler;
-import io.tapdata.common.sample.sampler.SpeedSampler;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.node.pdk.ConnectorNodeService;
-import io.tapdata.observable.metric.TaskSampleRetriever;
 import io.tapdata.observable.metric.aspect.ConnectionPingAspect;
 import io.tapdata.pdk.apis.entity.WriteListResult;
 import io.tapdata.pdk.apis.functions.connection.ConnectionCheckFunction;
 import io.tapdata.pdk.apis.functions.connection.ConnectionCheckItem;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
+import lombok.extern.slf4j.Slf4j;
 import io.tapdata.pdk.apis.functions.PDKMethod;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -33,333 +31,443 @@ import java.util.concurrent.atomic.AtomicReference;
 /**
  * @author Dexter
  */
+@Slf4j
 public class DataNodeSampleHandler extends AbstractNodeSampleHandler {
     private final Logger logger = LogManager.getLogger(DataNodeSampleHandler.class);
-    private static final String TAG = DataNodeSampleHandler.class.getSimpleName();
-    public DataNodeSampleHandler(TaskDto task) {
-        super(task);
+
+    static final String TABLE_TOTAL                        = "tableTotal";
+    static final String SNAPSHOT_TABLE_TOTAL               = "snapshotTableTotal";
+    static final String SNAPSHOT_START_AT                  = "snapshotStartAt";
+    static final String SNAPSHOT_DONE_AT                   = "snapshotDoneAt";
+    static final String SNAPSHOT_ROW_TOTAL                 = "snapshotRowTotal";
+    static final String SNAPSHOT_INSERT_ROW_TOTAL          = "snapshotInsertRowTotal";
+    static final String SNAPSHOT_SOURCE_READ_TIME_COST_AVG = "snapshotSourceReadTimeCostAvg";
+    static final String INCR_SOURCE_READ_TIME_COST_AVG     = "incrementalSourceReadTimeCostAvg";
+    static final String TARGET_WRITE_TIME_COST_AVG         = "targetWriteTimeCostAvg";
+
+    static final String CURR_SNAPSHOT_TABLE                   = "currentSnapshotTable";
+    static final String CURR_SNAPSHOT_TABLE_ROW_TOTAL         = "currentSnapshotTableRowTotal";
+    static final String CURR_SNAPSHOT_TABLE_INSERT_ROW_TOTAL  = "currentSnapshotTableInsertRowTotal";
+
+    public DataNodeSampleHandler(TaskDto task, Node<?> node) {
+        super(task, node);
     }
 
-    private boolean running = true;
+    private CounterSampler snapshotTableCounter;
+    private CounterSampler snapshotRowCounter;
+    private CounterSampler snapshotInsertRowCounter;
+    private AverageSampler snapshotSourceReadTimeCostAvg;
+    private AverageSampler incrementalSourceReadTimeCostAvg;
+    private AverageSampler targetWriteTimeCostAvg;
 
-    public boolean isRunning() {
-        return running;
+    private final Set<String> nodeTables = new HashSet<>();
+
+    private String currentSnapshotTable = null;
+    private final Map<String, Long> currentSnapshotTableRowTotalMap = new HashMap<>();
+    private Long currentSnapshotTableInsertRowTotal = null;
+
+    private Long snapshotStartAt = null;
+    private Long snapshotDoneAt = null;
+
+    @Override
+    List<String> samples() {
+        List<String> sampleNames = new ArrayList<>(super.samples());
+        sampleNames.add(TABLE_TOTAL);
+        sampleNames.add(SNAPSHOT_START_AT);
+        sampleNames.add(SNAPSHOT_DONE_AT);
+        sampleNames.add(SNAPSHOT_TABLE_TOTAL);
+        sampleNames.add(SNAPSHOT_ROW_TOTAL);
+        sampleNames.add(SNAPSHOT_INSERT_ROW_TOTAL);
+        sampleNames.add(CURR_SNAPSHOT_TABLE);
+        sampleNames.add(CURR_SNAPSHOT_TABLE_ROW_TOTAL);
+        sampleNames.add(CURR_SNAPSHOT_TABLE_INSERT_ROW_TOTAL);
+
+        return sampleNames;
     }
 
-    public void setRunning(boolean running) {
-        this.running = running;
-    }
-
-    private final Map<String, SampleCollector> collectors = new HashMap<>();
-    private final Map<String, CounterSampler> snapshotTableCounters = new HashMap<>();
-    private final Map<String, CounterSampler> snapshotRowCounters = new HashMap<>();
-    private final Map<String, CounterSampler> snapshotInsertRowCounters = new HashMap<>();
-
-    // event related metrics
-    private final Map<String, CounterSampler> inputInsertCounters = new HashMap<>();
-    private final Map<String, CounterSampler> inputUpdateCounters = new HashMap<>();
-    private final Map<String, CounterSampler> inputDeleteCounters = new HashMap<>();
-    private final Map<String, CounterSampler> inputDdlCounters = new HashMap<>();
-    private final Map<String, CounterSampler> inputOthersCounters = new HashMap<>();
-
-
-    private final Map<String, CounterSampler> outputInsertCounters = new HashMap<>();
-    private final Map<String, CounterSampler> outputUpdateCounters = new HashMap<>();
-    private final Map<String, CounterSampler> outputDeleteCounters = new HashMap<>();
-    private final Map<String, CounterSampler> outputDdlCounters = new HashMap<>();
-    private final Map<String, CounterSampler> outputOthersCounters = new HashMap<>();
-
-    private final Map<String, SpeedSampler> inputQpsSpeeds = new HashMap<>();
-    private final Map<String, SpeedSampler> outputQpsSpeeds = new HashMap<>();
-
-    private final Map<String, AverageSampler> timeCostAverages = new HashMap<>();
-
-    private final Map<String, NumberSampler<Long>>  currentEventTimestamps = new HashMap<>();
-
-    private final Map<String, Set<String>> nodeTables = new HashMap<>();
-    public void init(Node<?> node, String associateId, Set<String> tables) {
-        Map<String, String> tags = nodeTags(node);
-        Map<String, Number> values = TaskSampleRetriever.getInstance().retrieveWithRetry(tags, Arrays.asList(
-                "inputInsertTotal", "inputUpdateTotal", "inputDeleteTotal", "inputDdlTotal", "inputOthersTotal",
-                "outputInsertTotal", "outputUpdateTotal", "outputDeleteTotal", "outputDdlTotal", "outputOthersTotal",
-                "snapshotTableTotal", "snapshotRowTotal", "snapshotInsertRowTotal",
-                "currentEventTimestamp", "createTableTotal"
-        ));
-        String nodeId = node.getId();
-        SampleCollector collector = CollectorFactory.getInstance("v2").getSampleCollectorByTags("nodeSamplers", tags);
-        collectors.put(nodeId, collector);
+    @Override
+    void doInit(Map<String, Number> values) {
+        super.doInit(values);
 
         // table samples for node
-        nodeTables.putIfAbsent(nodeId, new HashSet<>());
-        nodeTables.get(nodeId).addAll(tables);
-        collector.addSampler("tableTotal", () ->  nodeTables.get(nodeId).size());
-        snapshotTableCounters.put(nodeId, collector.getCounterSampler("snapshotTableTotal",
-                values.getOrDefault("snapshotTableTotal", 0).longValue()));
-        snapshotRowCounters.put(nodeId, collector.getCounterSampler("snapshotRowTotal",
-                values.getOrDefault("snapshotRowTotal", 0).longValue()));
-        snapshotInsertRowCounters.put(nodeId, collector.getCounterSampler("snapshotInsertRowTotal",
-                values.getOrDefault("snapshotInsertRowTotal", 0).longValue()));
+        collector.addSampler(TABLE_TOTAL, nodeTables::size);
+        snapshotTableCounter = getCounterSampler(values, SNAPSHOT_TABLE_TOTAL);
+        snapshotRowCounter = getCounterSampler(values, SNAPSHOT_ROW_TOTAL);
+        snapshotInsertRowCounter = getCounterSampler(values, SNAPSHOT_INSERT_ROW_TOTAL);
+        snapshotSourceReadTimeCostAvg = collector.getAverageSampler(SNAPSHOT_SOURCE_READ_TIME_COST_AVG);
+        targetWriteTimeCostAvg = collector.getAverageSampler(TARGET_WRITE_TIME_COST_AVG);
 
+        Number retrieveSnapshotStartAt = values.getOrDefault(SNAPSHOT_START_AT, null);
+        if (retrieveSnapshotStartAt != null) {
+            snapshotStartAt = retrieveSnapshotStartAt.longValue();
+        }
+        collector.addSampler(SNAPSHOT_START_AT, () -> snapshotStartAt);
 
-        // only data nodes have events metrics
-        inputInsertCounters.put(nodeId, collector.getCounterSampler("inputInsertTotal",
-                values.getOrDefault("inputInsertTotal", 0).longValue()));
-        inputUpdateCounters.put(nodeId, collector.getCounterSampler("inputUpdateTotal",
-                values.getOrDefault("inputUpdateTotal", 0).longValue()));
-        inputDeleteCounters.put(nodeId, collector.getCounterSampler("inputDeleteTotal",
-                values.getOrDefault("inputDeleteTotal", 0).longValue()));
-        inputDdlCounters.put(nodeId, collector.getCounterSampler("inputDdlTotal",
-                values.getOrDefault("inputDdlTotal", 0).longValue()));
-        inputOthersCounters.put(nodeId, collector.getCounterSampler("inputOthersTotal",
-                values.getOrDefault("inputOthersTotal", 0).longValue()));
+        Number retrieveSnapshotDoneAt = values.getOrDefault(SNAPSHOT_DONE_AT, null);
+        if (retrieveSnapshotDoneAt != null) {
+            snapshotDoneAt = retrieveSnapshotDoneAt.longValue();
+        }
+        collector.addSampler(SNAPSHOT_DONE_AT, () -> snapshotDoneAt);
 
-        outputInsertCounters.put(nodeId, collector.getCounterSampler("outputInsertTotal",
-                values.getOrDefault("outputInsertTotal", 0).longValue()));
-        outputUpdateCounters.put(nodeId, collector.getCounterSampler("outputUpdateTotal",
-                values.getOrDefault("outputUpdateTotal", 0).longValue()));
-        outputDeleteCounters.put(nodeId, collector.getCounterSampler("outputDeleteTotal",
-                values.getOrDefault("outputDeleteTotal", 0).longValue()));
-        outputDdlCounters.put(nodeId, collector.getCounterSampler("outputDdlTotal",
-                values.getOrDefault("outputDdlTotal", 0).longValue()));
-        outputOthersCounters.put(nodeId, collector.getCounterSampler("outputOthersTotal",
-                values.getOrDefault("outputOthersTotal", 0).longValue()));
+        // TODO(dexter): find a way to record the current table name
+        collector.addSampler(CURR_SNAPSHOT_TABLE, () -> -1);
+        collector.addSampler(CURR_SNAPSHOT_TABLE_ROW_TOTAL, () -> {
+            if (null == currentSnapshotTable) return null;
+            return currentSnapshotTableRowTotalMap.get(currentSnapshotTable);
+        });
+        collector.addSampler(CURR_SNAPSHOT_TABLE_INSERT_ROW_TOTAL, () -> currentSnapshotTableInsertRowTotal);
+    }
 
-        inputQpsSpeeds.put(nodeId, collector.getSpeedSampler("inputQps"));
-        outputQpsSpeeds.put(nodeId, collector.getSpeedSampler("outputQps"));
+    public void addTable(String... tables) {
+        nodeTables.addAll(Arrays.asList(tables));
+    }
 
-        timeCostAverages.put(nodeId, collector.getAverageSampler("timeCostAvg"));
+    AtomicBoolean firstBatchRead = new AtomicBoolean(true);
+    private Long batchAcceptLastTs;
+    private Long batchProcessStartTs;
 
-        Number currentEventTimestampInitial = values.getOrDefault("currentEventTimestamp", null);
-        currentEventTimestamps.put(nodeId, collector.getNumberCollector("currentEventTimestamp", Long.class,
-                null == currentEventTimestampInitial ? null : currentEventTimestampInitial.longValue()));
+    public void handleBatchReadFuncStart(String table, Long startAt) {
+        snapshotStartAt = startAt;
+        batchAcceptLastTs = startAt;
+        currentSnapshotTable = table;
+        currentSnapshotTableInsertRowTotal = 0L;
+        if (firstBatchRead.get()) {
+            snapshotTableCounter.reset();
+            firstBatchRead.set(false);
+        }
+    }
 
-        if (null != node.getCatalog() && node.getCatalog() == Node.NodeCatalog.data) {
-            // run health check
-            runHealthCheck(node, associateId);
+    public void handleBatchReadReadComplete(Long readCompleteAt, long size) {
+        // batch read only has insert events
+        currentSnapshotTableInsertRowTotal += size;
+        Optional.ofNullable(inputInsertCounter).ifPresent(counter -> counter.inc(size));
+        Optional.ofNullable(inputSpeed).ifPresent(speed -> speed.add(size));
+        Optional.ofNullable(snapshotSourceReadTimeCostAvg).ifPresent(
+                avg -> avg.add(size, readCompleteAt - batchAcceptLastTs));
+
+        batchProcessStartTs = readCompleteAt;
+    }
+
+    public void handleBatchReadProcessComplete(Long processCompleteAt, HandlerUtil.EventTypeRecorder recorder) {
+        long size = recorder.getInsertTotal();
+        Optional.ofNullable(outputInsertCounter).ifPresent(counter -> counter.inc(size));
+        Optional.ofNullable(outputSpeed).ifPresent(speed -> speed.add(size));
+
+        if (null != recorder.getNewestEventTimestamp()) {
+            Optional.ofNullable(currentEventTimestamp).ifPresent(number -> number.setValue(recorder.getNewestEventTimestamp()));
+            Optional.ofNullable(timeCostAverage).ifPresent(average -> {
+                average.add(recorder.getInsertTotal(), processCompleteAt - batchProcessStartTs);
+            });
         }
 
-        // cache the initial sample value
-        CollectorFactory.getInstance("v2").recordCurrentValueByTag(tags);
-
-    }
-
-    public void close(Node<?> node) {
-        String nodeId = node.getId();
-        Optional.ofNullable(collectors.get(nodeId)).ifPresent(collector -> {
-            Map<String, String> tags = collector.tags();
-            // cache the last sample value
-            CollectorFactory.getInstance("v2").recordCurrentValueByTag(tags);
-            CollectorFactory.getInstance("v2").removeSampleCollectorByTags(tags);
-        });
-    }
-
-    private final Map<String, Long> batchAcceptLastTs = new HashMap<>();
-    public void handleBatchReadStart(String nodeId, Long startAt) {
-        batchAcceptLastTs.put(nodeId, startAt);
-    }
-
-    public void handleBatchReadReadComplete(String nodeId, Long acceptTime, long size, Long newestEventTimestamp) {
-        // batch read only has insert events
-        Optional.ofNullable(inputInsertCounters.get(nodeId)).ifPresent(counter -> counter.inc(size));
-        Optional.ofNullable(inputQpsSpeeds.get(nodeId)).ifPresent(speed -> speed.add(size));
-
-        Optional.ofNullable(outputInsertCounters.get(nodeId)).ifPresent(counter -> counter.inc(size));
-        Optional.ofNullable(outputQpsSpeeds.get(nodeId)).ifPresent(speed -> speed.add(size));
-
-        Optional.ofNullable(currentEventTimestamps.get(nodeId)).ifPresent(number -> number.setValue(newestEventTimestamp));
-        Optional.ofNullable(timeCostAverages.get(nodeId)).ifPresent(average -> {
-            average.add(size, acceptTime - batchAcceptLastTs.get(nodeId));
-        });
-
         // snapshot related
-        Optional.ofNullable(snapshotInsertRowCounters.get(nodeId)).ifPresent(counter -> counter.inc(size));
+        Optional.ofNullable(snapshotInsertRowCounter).ifPresent(counter -> counter.inc(size));
     }
 
-    public void handleBatchReadEnqueued(String nodeId, Long enqueuedTime) {
-        batchAcceptLastTs.put(nodeId, enqueuedTime);
+    public void handleBatchReadEnqueued(Long enqueuedTime) {
+        batchAcceptLastTs = enqueuedTime;
     }
 
-    public void handleBatchReadFuncEnd(String nodeId) {
-        Optional.ofNullable(snapshotTableCounters.get(nodeId)).ifPresent(CounterSampler::inc);
+    public void handleBatchReadFuncEnd(long endAt) {
+        Optional.ofNullable(snapshotTableCounter).ifPresent(CounterSampler::inc);
+        currentSnapshotTable = null;
+        currentSnapshotTableInsertRowTotal = null;
+        snapshotDoneAt = endAt;
     }
 
-    private final Map<String, Long> streamAcceptLastTs = new HashMap<>();
-    public void handleStreamReadStreamStart(String nodeId, Long startAt) {
-        streamAcceptLastTs.put(nodeId, startAt);
+
+    private Long streamAcceptLastTs;
+    private Long streamReferenceTimeLastTs;
+    private Long streamProcessStartTs;
+    public void handleStreamReadStreamStart(List<String> tables, Long startAt) {
+        incrementalSourceReadTimeCostAvg = collector.getAverageSampler(INCR_SOURCE_READ_TIME_COST_AVG);
+        streamAcceptLastTs = startAt;
+        for(String table : tables) {
+            addTable(table);
+        }
     }
 
-    public void handleStreamReadReadComplete(String nodeId, Long acceptTime, HandlerUtil.EventTypeRecorder recorder, Long newestEventTimestamp) {
+    public void handleStreamReadReadComplete(Long readCompleteAt, HandlerUtil.EventTypeRecorder recorder) {
         long total = recorder.getTotal();
 
-        Optional.ofNullable(inputInsertCounters.get(nodeId)).ifPresent(counter -> counter.inc(recorder.getInsertTotal()));
-        Optional.ofNullable(inputUpdateCounters.get(nodeId)).ifPresent(counter -> counter.inc(recorder.getUpdateTotal()));
-        Optional.ofNullable(inputDeleteCounters.get(nodeId)).ifPresent(counter -> counter.inc(recorder.getDeleteTotal()));
-        Optional.ofNullable(inputDdlCounters.get(nodeId)).ifPresent(counter -> counter.inc(recorder.getDdlTotal()));
-        Optional.ofNullable(inputOthersCounters.get(nodeId)).ifPresent(counter -> counter.inc(recorder.getOthersTotal()));
-        Optional.ofNullable(inputQpsSpeeds.get(nodeId)).ifPresent(speed -> speed.add(total));
+        Optional.ofNullable(inputDdlCounter).ifPresent(counter -> counter.inc(recorder.getDdlTotal()));
+        Optional.ofNullable(inputInsertCounter).ifPresent(counter -> counter.inc(recorder.getInsertTotal()));
+        Optional.ofNullable(inputUpdateCounter).ifPresent(counter -> counter.inc(recorder.getUpdateTotal()));
+        Optional.ofNullable(inputDeleteCounter).ifPresent(counter -> counter.inc(recorder.getDeleteTotal()));
+        Optional.ofNullable(inputOthersCounter).ifPresent(counter -> counter.inc(recorder.getOthersTotal()));
+        Optional.ofNullable(inputSpeed).ifPresent(speed -> speed.add(total));
+        Optional.ofNullable(incrementalSourceReadTimeCostAvg).ifPresent(
+                avg -> {
+                    if (null == recorder.getOldestEventTimestamp() || null == recorder.getNewestEventTimestamp()) {
+                        logger.warn("No reference time found in tap events of incremental sync, skip the " +
+                                "incremental source read time cost calculation");
+                        return;
+                    }
 
-        Optional.ofNullable(outputInsertCounters.get(nodeId)).ifPresent(counter -> counter.inc(recorder.getInsertTotal()));
-        Optional.ofNullable(outputUpdateCounters.get(nodeId)).ifPresent(counter -> counter.inc(recorder.getUpdateTotal()));
-        Optional.ofNullable(outputDeleteCounters.get(nodeId)).ifPresent(counter -> counter.inc(recorder.getDeleteTotal()));
-        Optional.ofNullable(outputDdlCounters.get(nodeId)).ifPresent(counter -> counter.inc(recorder.getDdlTotal()));
-        Optional.ofNullable(outputOthersCounters.get(nodeId)).ifPresent(counter -> counter.inc(recorder.getOthersTotal()));
-        Optional.ofNullable(outputQpsSpeeds.get(nodeId)).ifPresent(speed -> speed.add(total));
+                    if (null == streamAcceptLastTs) {
+                        streamAcceptLastTs = readCompleteAt;
+                    }
+                    if (null == streamReferenceTimeLastTs) {
+                        streamReferenceTimeLastTs = recorder.getNewestEventTimestamp();
+                    }
 
-        Optional.ofNullable(currentEventTimestamps.get(nodeId)).ifPresent(sampler -> sampler.setValue(newestEventTimestamp));
-        Optional.ofNullable(timeCostAverages.get(nodeId)).ifPresent(average -> {
-            average.add(total, acceptTime - streamAcceptLastTs.get(nodeId));
+                    // ### Case1
+                    // Condition: newestRefTs > lastEnqueueTs && oldestRefTs > lastEnqueueTs
+                    //
+                    // lastNewestRefTs
+                    //  || lastReadCompleteTs    oldestRefTs    newestRefTs
+                    //  ||  || lastEnqueueTs         ||             || readCompleteTs
+                    //  \/  \/    \/                 \/             \/     \/
+                    // |_*___*_____*__________________*__*__*___*____*______*_____|
+                    //                                |_____________________|
+                    //                                           \/
+                    //                              incrementalSourceReadTimeCost
+                    //
+                    // ### Case2
+                    // Condition: newestRefTs > lastEnqueueTs && oldestRefTs < lastEnqueueTs
+                    //
+                    // lastNewestRefTs
+                    //  || oldestRefTs          lastEnqueueTs
+                    //  ||    || lastReadCompleteTs  || newestRefTs
+                    //  ||    ||    ||               ||     || readCompleteTs
+                    //  \/    \/    \/               \/     \/     \/
+                    // |_*_____*__*__*__*__*___*______*______*______*___|
+                    //                                       |______|
+                    //                                          \/
+                    //                               incrementalSourceReadTimeCost
+                    //
+                    // ### Case3 && Case4
+                    // Condition: newestRefTs < lastEnqueueTs && oldestRefTs < lastEnqueueTs
+                    //
+                    // lastNewestRefTs           lastReadCompleteTs
+                    //  ||     oldestRefTs  newestRefTs  || lastEnqueueTs
+                    //  ||         ||           ||       ||     ||   readCompleteTs
+                    //  \/         \/           \/       \/     \/      \/
+                    // |_*__________*__*__*__*___*________*______*______*____|
+                    //                                           |______|
+                    //                                              \/
+                    //                                   incrementalSourceReadTimeCost
+                    //
+                    // lastNewestRefTs
+                    //  || oldestRefTs          lastEnqueueTs
+                    //  ||    || lastReadCompleteTs  ||
+                    //  ||    ||    ||  newestRefTs  || readCompleteTs
+                    //  \/    \/    \/        \/     \/     \/
+                    // |_*_____*__*__*__*__*___*______*______*____|
+                    //                                |______|
+                    //                                   \/
+                    //                            incrementalSourceReadTimeCost
+                    long oldestRefTs = recorder.getOldestEventTimestamp();
+                    long newestRefTs = recorder.getNewestEventTimestamp();
+                    if (newestRefTs >= streamAcceptLastTs && oldestRefTs >= streamAcceptLastTs) {
+                        avg.add(total, readCompleteAt - oldestRefTs);
+                    } else if (newestRefTs > streamAcceptLastTs && oldestRefTs < streamAcceptLastTs) {
+                        avg.add(total, readCompleteAt - newestRefTs);
+                    } else if (newestRefTs < streamAcceptLastTs && oldestRefTs < streamAcceptLastTs) {
+                        avg.add(total, readCompleteAt - streamAcceptLastTs);
+                    } else {
+                        logger.warn("Another condition happens when calculate incrementalSourceReadTimeCost, " +
+                                "oldestRef: {}, newestRef:{}, lastEnqueueTs: {}, readCompleteTs: {}", oldestRefTs,
+                                newestRefTs, readCompleteAt, streamAcceptLastTs);
+                    }
+                }
+        );
+
+        streamProcessStartTs = readCompleteAt;
+        streamReferenceTimeLastTs = recorder.getNewestEventTimestamp();
+    }
+
+    public void handleStreamReadProcessComplete(Long processCompleteAt, HandlerUtil.EventTypeRecorder recorder) {
+        long total = recorder.getTotal();
+
+        Optional.ofNullable(outputDdlCounter).ifPresent(counter -> counter.inc(recorder.getDdlTotal()));
+        Optional.ofNullable(outputInsertCounter).ifPresent(counter -> counter.inc(recorder.getInsertTotal()));
+        Optional.ofNullable(outputUpdateCounter).ifPresent(counter -> counter.inc(recorder.getUpdateTotal()));
+        Optional.ofNullable(outputDeleteCounter).ifPresent(counter -> counter.inc(recorder.getDeleteTotal()));
+        Optional.ofNullable(outputOthersCounter).ifPresent(counter -> counter.inc(recorder.getOthersTotal()));
+        Optional.ofNullable(outputSpeed).ifPresent(speed -> speed.add(total));
+
+        Optional.ofNullable(currentEventTimestamp).ifPresent(number -> number.setValue(recorder.getNewestEventTimestamp()));
+        Optional.ofNullable(replicateLag).ifPresent(speed -> {
+            if (null != recorder.getReplicateLagTotal()) {
+                speed.add(recorder.getTotal(), recorder.getReplicateLagTotal());
+            }
+        });
+
+        Optional.ofNullable(timeCostAverage).ifPresent(average -> {
+            average.add(total, processCompleteAt - streamProcessStartTs);
         });
     }
 
-    public void handleStreamReadEnqueued(String nodeId, Long enqueuedTime) {
-        streamAcceptLastTs.put(nodeId, enqueuedTime);
+
+    public void handleStreamReadEnqueued(Long enqueuedTime) {
+        streamAcceptLastTs = enqueuedTime;
     }
 
-    private final Map<String, Long> writeRecordAcceptLastTs = new HashMap<>();
+    private Long writeRecordAcceptLastTs;
 
-    public void handleWriteRecordStart(String nodeId, Long startAt, HandlerUtil.EventTypeRecorder recorder) {
-        writeRecordAcceptLastTs.put(nodeId, startAt);
+    public void handleWriteRecordStart(Long startAt, HandlerUtil.EventTypeRecorder recorder) {
+        writeRecordAcceptLastTs = startAt;
 
-        Optional.ofNullable(inputInsertCounters.get(nodeId)).ifPresent(counter -> counter.inc(recorder.getInsertTotal()));
-        Optional.ofNullable(inputUpdateCounters.get(nodeId)).ifPresent(counter -> counter.inc(recorder.getUpdateTotal()));
-        Optional.ofNullable(inputDeleteCounters.get(nodeId)).ifPresent(counter -> counter.inc(recorder.getDeleteTotal()));
-        Optional.ofNullable(inputDdlCounters.get(nodeId)).ifPresent(counter -> counter.inc(recorder.getDdlTotal()));
-        Optional.ofNullable(inputOthersCounters.get(nodeId)).ifPresent(counter -> counter.inc(recorder.getOthersTotal()));
-        Optional.ofNullable(inputQpsSpeeds.get(nodeId)).ifPresent(speed -> speed.add(recorder.getTotal()));
+        Optional.ofNullable(inputDdlCounter).ifPresent(counter -> counter.inc(recorder.getDdlTotal()));
+        Optional.ofNullable(inputInsertCounter).ifPresent(counter -> counter.inc(recorder.getInsertTotal()));
+        Optional.ofNullable(inputUpdateCounter).ifPresent(counter -> counter.inc(recorder.getUpdateTotal()));
+        Optional.ofNullable(inputDeleteCounter).ifPresent(counter -> counter.inc(recorder.getDeleteTotal()));
+        Optional.ofNullable(inputOthersCounter).ifPresent(counter -> counter.inc(recorder.getOthersTotal()));
+        Optional.ofNullable(inputSpeed).ifPresent(speed -> speed.add(recorder.getTotal()));
 
     }
 
-    public void handleWriteRecordAccept(String nodeId, Long acceptTime, WriteListResult<TapRecordEvent> result, Long newestEventTimestamp) {
+    public void handleWriteRecordAccept(Long acceptTime, WriteListResult<TapRecordEvent> result, HandlerUtil.EventTypeRecorder recorder) {
         long inserted = result.getInsertedCount();
         long updated = result.getModifiedCount();
         long deleted = result.getRemovedCount();
         long total = inserted + updated + deleted;
 
-        Optional.ofNullable(outputInsertCounters.get(nodeId)).ifPresent(counter -> counter.inc(inserted));
-        Optional.ofNullable(outputUpdateCounters.get(nodeId)).ifPresent(counter -> counter.inc(updated));
-        Optional.ofNullable(outputDeleteCounters.get(nodeId)).ifPresent(counter -> counter.inc(deleted));
-        Optional.ofNullable(outputQpsSpeeds.get(nodeId)).ifPresent(speed -> speed.add(total));
+        Optional.ofNullable(outputInsertCounter).ifPresent(counter -> counter.inc(inserted));
+        Optional.ofNullable(outputUpdateCounter).ifPresent(counter -> counter.inc(updated));
+        Optional.ofNullable(outputDeleteCounter).ifPresent(counter -> counter.inc(deleted));
+        Optional.ofNullable(outputSpeed).ifPresent(speed -> speed.add(total));
 
-        Optional.ofNullable(timeCostAverages.get(nodeId)).ifPresent(average -> {
-            average.add(total, acceptTime - writeRecordAcceptLastTs.get(nodeId));
-            writeRecordAcceptLastTs.put(nodeId, acceptTime);
+        Optional.ofNullable(targetWriteTimeCostAvg).ifPresent(average -> {
+            average.add(total, acceptTime - writeRecordAcceptLastTs);
+            writeRecordAcceptLastTs = acceptTime;
         });
 
-        Optional.ofNullable(currentEventTimestamps.get(nodeId)).ifPresent(sampler -> sampler.setValue(newestEventTimestamp));
+        Optional.ofNullable(currentEventTimestamp).ifPresent(number -> number.setValue(recorder.getNewestEventTimestamp()));
+        Optional.ofNullable(replicateLag).ifPresent(speed -> {
+            if (null != recorder.getReplicateLagTotal()) {
+                speed.add(recorder.getTotal(), recorder.getReplicateLagTotal());
+            }
+        });
     }
 
     AtomicBoolean firstTableCount = new AtomicBoolean(true);
-    public void handleTableCountAccept(String nodeId, long count) {
+    public void handleTableCountAccept(String table, long count) {
         if (firstTableCount.get()) {
-            Optional.ofNullable(snapshotRowCounters.get(nodeId)).ifPresent(CounterSampler::reset);
+            Optional.ofNullable(snapshotRowCounter).ifPresent(CounterSampler::reset);
             firstTableCount.set(false);
         }
 
-        Optional.ofNullable(snapshotRowCounters.get(nodeId)).ifPresent(counter -> counter.inc(count));
+        currentSnapshotTableRowTotalMap.put(table, count);
+        Optional.ofNullable(snapshotRowCounter).ifPresent(counter -> counter.inc(count));
     }
 
-    public void handleDdlStart(String nodeId) {
-        Optional.ofNullable(inputDdlCounters.get(nodeId)).ifPresent(CounterSampler::inc);
+    public void handleDdlStart() {
+        Optional.ofNullable(inputDdlCounter).ifPresent(CounterSampler::inc);
     }
 
-    public void handleDdlEnd(String nodeId) {
-        Optional.ofNullable(outputDdlCounters.get(nodeId)).ifPresent(CounterSampler::inc);
+    public void handleDdlEnd() {
+        Optional.ofNullable(outputDdlCounter).ifPresent(CounterSampler::inc);
     }
 
-    public void handleSourceDynamicTableAdd(String nodeId, List<String> tables) {
+    public void handleSourceDynamicTableAdd(List<String> tables) {
         if (null == tables || tables.isEmpty()) {
             return;
         }
-        nodeTables.putIfAbsent(nodeId, new HashSet<>());
-        tables.forEach(nodeTables.get(nodeId)::add);
-        Optional.ofNullable(inputDdlCounters.get(nodeId)).ifPresent(counter -> counter.inc(tables.size()));
-        Optional.ofNullable(outputDdlCounters.get(nodeId)).ifPresent(counter -> counter.inc(tables.size()));
+        nodeTables.addAll(tables);
+        Optional.ofNullable(inputDdlCounter).ifPresent(counter -> counter.inc(tables.size()));
+        Optional.ofNullable(outputDdlCounter).ifPresent(counter -> counter.inc(tables.size()));
     }
 
-    public void handleSourceDynamicTableRemove(String nodeId, List<String> tables) {
+    public void handleSourceDynamicTableRemove(List<String> tables) {
         if (null == tables || tables.isEmpty()) {
             return;
         }
-        Optional.ofNullable(inputDdlCounters.get(nodeId)).ifPresent(counter -> counter.inc(tables.size()));
-        Optional.ofNullable(outputDdlCounters.get(nodeId)).ifPresent(counter -> counter.inc(tables.size()));
+        Optional.ofNullable(inputDdlCounter).ifPresent(counter -> counter.inc(tables.size()));
+        Optional.ofNullable(outputDdlCounter).ifPresent(counter -> counter.inc(tables.size()));
     }
 
-    private static final int PERIOD_SECOND = 5;
-    private ScheduledExecutorService scheduleExecutorService;
-    private Map<String, Node<?>> nodeMap;
-    private Map<String, ConnectorNode> connectorNodeMap;
-    private Map<String, NumberSampler<Long>> tcpPingNumbers;
-    private Map<String, NumberSampler<Long>> connectPingNumbers;
-    private void runHealthCheck(Node<?> node, String associateId) {
-        String nodeId = node.getId();
-        ConnectorNode connectorNode = ConnectorNodeService.getInstance().getConnectorNode(associateId);
-        // if the data source does not implement the function, does not init samples or thread
-        if (null == connectorNode || null == connectorNode.getConnectorFunctions()
-                || null == connectorNode.getConnectorFunctions().getConnectionCheckFunction()) {
-            return;
+    static class HealthCheckRunner {
+        private static final String TAG = HealthCheckRunner.class.getSimpleName();
+        private static final int PERIOD_SECOND = 5;
+        private ScheduledExecutorService scheduleExecutorService;
+        private Map<String, Node<?>> nodeMap;
+        private Map<String, ConnectorNode> connectorNodeMap;
+        private Map<String, NumberSampler<Long>> tcpPingNumbers;
+        private Map<String, NumberSampler<Long>> connectPingNumbers;
+
+        private boolean running = true;
+
+        public boolean isRunning() {
+            return running;
         }
 
-        tcpPingNumbers = new HashMap<>();
-        tcpPingNumbers.put(nodeId, collectors.get(nodeId).getNumberCollector("tcpPing", Long.class));
-        connectPingNumbers = new HashMap<>();
-        connectPingNumbers.put(nodeId, collectors.get(nodeId).getNumberCollector("connectPing", Long.class));
-        nodeMap = new HashMap<>();
-        nodeMap.putIfAbsent(nodeId, node);
-        connectorNodeMap = new HashMap<>();
-        connectorNodeMap.putIfAbsent(nodeId, connectorNode);
-        // start thread to get the tcp ping and connect ping
-        if (null == scheduleExecutorService) {
-            String name = String.format("Task data node health check %s-%s", task.getName(), task.getId());
-            scheduleExecutorService = ExecutorsManager.getInstance().newSingleThreadScheduledExecutor(name);
-            AtomicReference<ScheduledFuture<?>> futureRef = new AtomicReference<>();
-            ScheduledFuture<?> future = scheduleExecutorService.scheduleAtFixedRate(() -> {
-                if (!running) {
-                    futureRef.get().cancel(true);
-                    scheduleExecutorService.shutdown();
-                }
-                for (String id : connectorNodeMap.keySet()) {
-                    ConnectionCheckFunction function = connectorNode.getConnectorFunctions().getConnectionCheckFunction();
-                    if (null == function) {
-                        continue;
+        public void setRunning(boolean running) {
+            this.running = running;
+        }
+
+        private void runHealthCheck(TaskDto task, SampleCollector collector, Node<?> node, String associateId) {
+            String nodeId = node.getId();
+            ConnectorNode connectorNode = ConnectorNodeService.getInstance().getConnectorNode(associateId);
+            // if the data source does not implement the function, does not init samples or thread
+            if (null == connectorNode || null == connectorNode.getConnectorFunctions()
+                    || null == connectorNode.getConnectorFunctions().getConnectionCheckFunction()) {
+                return;
+            }
+
+            tcpPingNumbers = new HashMap<>();
+            tcpPingNumbers.put(nodeId, collector.getNumberCollector("tcpPing", Long.class));
+            connectPingNumbers = new HashMap<>();
+            connectPingNumbers.put(nodeId, collector.getNumberCollector("connectPing", Long.class));
+            nodeMap = new HashMap<>();
+            nodeMap.putIfAbsent(nodeId, node);
+            connectorNodeMap = new HashMap<>();
+            connectorNodeMap.putIfAbsent(nodeId, connectorNode);
+            // start thread to get the tcp ping and connect ping
+            if (null == scheduleExecutorService) {
+                String name = String.format("Task data node health check %s-%s", task.getName(), task.getId());
+                scheduleExecutorService = ExecutorsManager.getInstance().newSingleThreadScheduledExecutor(name);
+                AtomicReference<ScheduledFuture<?>> futureRef = new AtomicReference<>();
+                ScheduledFuture<?> future = scheduleExecutorService.scheduleAtFixedRate(() -> {
+                    if (!running) {
+                        futureRef.get().cancel(true);
+                        scheduleExecutorService.shutdown();
                     }
-                    ConnectionPingAspect connectionPingAspect = new ConnectionPingAspect().node(nodeMap.get(id));
-                    PDKInvocationMonitor.invoke(connectorNodeMap.get(id), PDKMethod.CONNECTION_CHECK, () -> {
-                        function.check(
-                                connectorNode.getConnectorContext(),
-                                Arrays.asList(
-                                        ConnectionCheckItem.ITEM_PING,
-                                        ConnectionCheckItem.ITEM_CONNECTION
-                                ),
-                                item -> {
-                                    Long value;
-                                    // connection check failed, use -1 as value
-                                    if (item.getResult() == ConnectionCheckItem.RESULT_FAILED) {
-                                        value = -1L;
-                                    } else {
-                                        value = item.getTakes();
-                                    }
+                    for (String id : connectorNodeMap.keySet()) {
+                        ConnectionCheckFunction function = connectorNode.getConnectorFunctions().getConnectionCheckFunction();
+                        if (null == function) {
+                            continue;
+                        }
+                        ConnectionPingAspect connectionPingAspect = new ConnectionPingAspect().node(nodeMap.get(id));
+                        PDKInvocationMonitor.invoke(connectorNodeMap.get(id), PDKMethod.CONNECTION_CHECK, () -> {
+                            function.check(
+                                    connectorNode.getConnectorContext(),
+                                    Arrays.asList(
+                                            ConnectionCheckItem.ITEM_PING,
+                                            ConnectionCheckItem.ITEM_CONNECTION
+                                    ),
+                                    item -> {
+                                        Long value;
+                                        // connection check failed, use -1 as value
+                                        if (item.getResult() == ConnectionCheckItem.RESULT_FAILED) {
+                                            value = -1L;
+                                        } else {
+                                            value = item.getTakes();
+                                        }
 
-                                    NumberSampler<Long> sampler = null;
-                                    switch (item.getItem()) {
-                                        case ConnectionCheckItem.ITEM_PING:
-                                            sampler = tcpPingNumbers.get(id);
-                                            connectionPingAspect.tcpPing(value);
-                                            break;
-                                        case ConnectionCheckItem.ITEM_CONNECTION:
-                                            sampler = connectPingNumbers.get(id);
-                                            connectionPingAspect.connectPing(value);
-                                            break;
+                                        NumberSampler<Long> sampler = null;
+                                        switch (item.getItem()) {
+                                            case ConnectionCheckItem.ITEM_PING:
+                                                sampler = tcpPingNumbers.get(id);
+                                                connectionPingAspect.tcpPing(value);
+                                                break;
+                                            case ConnectionCheckItem.ITEM_CONNECTION:
+                                                sampler = connectPingNumbers.get(id);
+                                                connectionPingAspect.connectPing(value);
+                                                break;
+                                        }
+                                        Optional.ofNullable(sampler).ifPresent(s -> {
+                                            s.setValue(Optional.ofNullable(value).orElse(-1L));
+                                        });
                                     }
-                                    Optional.ofNullable(sampler).ifPresent(s -> {
-                                        s.setValue(Optional.ofNullable(value).orElse(-1L));
-                                    });
-                                }
-                        );
-                    }, TAG);
-                    AspectUtils.executeAspect(connectionPingAspect);
-                }
-            }, 0L, PERIOD_SECOND, TimeUnit.SECONDS);
-            futureRef.set(future);
+                            );
+                        }, TAG);
+                        AspectUtils.executeAspect(connectionPingAspect);
+                    }
+                }, 0L, PERIOD_SECOND, TimeUnit.SECONDS);
+                futureRef.set(future);
+            }
         }
     }
 }

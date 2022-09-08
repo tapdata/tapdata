@@ -8,13 +8,15 @@ import com.tapdata.entity.task.config.TaskConfig;
 import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.tm.autoinspect.compare.IAutoCompare;
 import com.tapdata.tm.autoinspect.connector.IPdkConnector;
+import com.tapdata.tm.autoinspect.constants.AutoInspectConstants;
 import com.tapdata.tm.autoinspect.constants.TaskType;
 import com.tapdata.tm.autoinspect.entity.AutoInspectProgress;
 import com.tapdata.tm.autoinspect.entity.CompareTableItem;
 import com.tapdata.tm.commons.dag.nodes.AutoInspectNode;
 import com.tapdata.tm.commons.dag.vo.SyncObjects;
 import io.tapdata.autoinspect.AutoInspectRunner;
-import io.tapdata.autoinspect.compare.PdkAutoCompare;
+import io.tapdata.autoinspect.compare.AutoCompare;
+import io.tapdata.autoinspect.compare.PdkQueryCompare;
 import io.tapdata.autoinspect.connector.PdkConnector;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.observable.logging.ObsLogger;
@@ -36,7 +38,7 @@ public abstract class PdkAutoInspectRunner extends AutoInspectRunner<IPdkConnect
     private final @NonNull Map<String, Connections> connectionMap;
     private final @NonNull TaskConfig taskConfig;
 
-    public PdkAutoInspectRunner(@NonNull ObsLogger userLogger, @NonNull String taskId, @NonNull TaskType taskType, AutoInspectProgress progress, @NonNull AutoInspectNode node, @NonNull ClientMongoOperator clientMongoOperator, TaskConfig taskConfig) {
+    public PdkAutoInspectRunner(@NonNull ObsLogger userLogger, @NonNull String taskId, @NonNull TaskType taskType, AutoInspectProgress progress, @NonNull AutoInspectNode node, @NonNull ClientMongoOperator clientMongoOperator, @NonNull TaskConfig taskConfig) {
         super(userLogger, taskId, taskType, progress);
         this.clientMongoOperator = clientMongoOperator;
         this.node = node;
@@ -53,7 +55,7 @@ public abstract class PdkAutoInspectRunner extends AutoInspectRunner<IPdkConnect
             throw new RuntimeException("create node failed because source connection not found: " + s);
         });
         DatabaseTypeEnum.DatabaseType databaseType = ConnectionUtil.getDatabaseType(clientMongoOperator, conn.getPdkHash());
-        return new PdkConnector(clientMongoOperator, node.getFromNode(), conn, databaseType, this::isRunning, taskConfig.getTaskRetryConfig());
+        return new PdkConnector(clientMongoOperator, taskId, node.getFromNode().getId(), getClass().getSimpleName() + "-" + node.getFromNode().getId(), conn, databaseType, this::isRunning, taskConfig.getTaskRetryConfig());
     }
 
     @Override
@@ -62,12 +64,12 @@ public abstract class PdkAutoInspectRunner extends AutoInspectRunner<IPdkConnect
             throw new RuntimeException("create node failed because target connection not found: " + s);
         });
         DatabaseTypeEnum.DatabaseType databaseType = ConnectionUtil.getDatabaseType(clientMongoOperator, conn.getPdkHash());
-        return new PdkConnector(clientMongoOperator, node.getToNode(), conn, databaseType, this::isRunning, taskConfig.getTaskRetryConfig());
+        return new PdkConnector(clientMongoOperator, taskId, node.getToNode().getId(), getClass().getSimpleName() + "-" + node.getToNode().getId(), conn, databaseType, this::isRunning, taskConfig.getTaskRetryConfig());
     }
 
     @Override
     protected IAutoCompare openAutoCompare(@NonNull IPdkConnector sourceConnector, @NonNull IPdkConnector targetConnector) throws Exception {
-        return new PdkAutoCompare(clientMongoOperator, progress, sourceConnector, targetConnector, this::isRunning, this::errorHandle);
+        return new AutoCompare(clientMongoOperator, progress, new PdkQueryCompare(sourceConnector, targetConnector), this::isRunning, this::errorHandle);
     }
 
     protected void init(@NonNull AutoInspectProgress progress, @NonNull IPdkConnector sourceConnector, @NonNull IPdkConnector targetConnector) throws Exception {
@@ -113,7 +115,7 @@ public abstract class PdkAutoInspectRunner extends AutoInspectRunner<IPdkConnect
     @Override
     protected void updateProgress(@NonNull AutoInspectProgress progress) {
         Query query = Query.query(Criteria.where("_id").is(new ObjectId(taskId)));
-        Update update = Update.update("attrs.autoInspectProgress", progress);
+        Update update = Update.update(AutoInspectConstants.AUTO_INSPECT_PROGRESS_PATH, progress);
         clientMongoOperator.update(query, update, ConnectorConstant.TASK_COLLECTION);
     }
 }

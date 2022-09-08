@@ -59,6 +59,7 @@ build_component() {
         else
             error "$_component build fail, cost time: $duration seconds, stop building..."
         fi
+        exit 1
     fi
     cd $p
     end_time=`date '+%s'`

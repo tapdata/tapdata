@@ -1,6 +1,7 @@
 package io.tapdata.observable.metric.handler;
 
 import com.tapdata.entity.TapdataEvent;
+import io.tapdata.entity.event.TapBaseEvent;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.*;
 import io.tapdata.entity.event.ddl.table.*;
@@ -27,21 +28,15 @@ public class HandlerUtil {
     }
 
     public static EventTypeRecorder countTapEvent(List<? extends TapEvent> events) {
-        EventTypeRecorder recorder = new EventTypeRecorder();
-        long timeCostTotal = 0, recordTotal = 0;
-        for (TapEvent event : events) {
-            countEventType(event, recorder);
-            if (null != event.getTime()) {
-                timeCostTotal += System.currentTimeMillis() - event.getTime();
-                recordTotal += 1;
-            }
-        }
+        long now = System.currentTimeMillis();
 
-        long timeCostAvg = 0;
-        if (recordTotal != 0) {
-            timeCostAvg = timeCostTotal / recordTotal;
+        EventTypeRecorder recorder = new EventTypeRecorder();
+        for (TapEvent tapEvent : events) {
+            TapBaseEvent event = (TapBaseEvent) tapEvent;
+            countEventType(event, recorder);
+            recorder.incrProcessTimeTotal(now, event.getTime());
+            recorder.incrReplicateLagTotal(now, event.getReferenceTime());
         }
-        recorder.setAvgProcessTime(timeCostAvg);
 
         return recorder;
     }
@@ -75,6 +70,15 @@ public class HandlerUtil {
             default:
                 recorder.incrOthersTotal();
         }
+        Long ts = ((TapBaseEvent) event).getReferenceTime();
+        if (null != ts) {
+            if (null == recorder.getNewestEventTimestamp() || ts > recorder.getNewestEventTimestamp()) {
+                recorder.setNewestEventTimestamp(ts);
+            }
+            if (null == recorder.getOldestEventTimestamp() || ts < recorder.getOldestEventTimestamp()) {
+                recorder.setOldestEventTimestamp(ts);
+            }
+        }
     }
 
     @Data
@@ -84,7 +88,10 @@ public class HandlerUtil {
         private long updateTotal;
         private long deleteTotal;
         private long othersTotal;
-        private long avgProcessTime;
+        private long processTimeTotal;
+        private Long replicateLagTotal;
+        private Long oldestEventTimestamp;
+        private Long newestEventTimestamp;
 
         public void incrDdlTotal() {
             this.ddlTotal += 1;
@@ -104,6 +111,20 @@ public class HandlerUtil {
         public void incrOthersTotal() {
             this.othersTotal += 1;
         }
+
+        public void incrProcessTimeTotal(Long now, long time) {
+            processTimeTotal += (now - time);
+        }
+
+        public void incrReplicateLagTotal(Long now, Long replicateLag) {
+            if (null == replicateLag) return;
+            if (null == replicateLagTotal) {
+                replicateLagTotal = 0L;
+            }
+            replicateLagTotal += (now - replicateLag);
+        }
+
+
 
         public long getTotal() {
             return ddlTotal + insertTotal + updateTotal + deleteTotal + othersTotal;

@@ -442,6 +442,7 @@ public class MysqlReader implements Closeable {
 						tapTableMap,
 						tapDDLEvent -> {
 							MysqlStreamEvent mysqlStreamEvent = new MysqlStreamEvent(tapDDLEvent, mysqlStreamOffset);
+							tapDDLEvent.setTime(System.currentTimeMillis());
 							tapDDLEvent.setReferenceTime(eventTime);
 							mysqlStreamEvents.add(mysqlStreamEvent);
 							TapLogger.info(TAG, "Read DDL: " + ddlStr + ", about to be packaged as some event(s)");
