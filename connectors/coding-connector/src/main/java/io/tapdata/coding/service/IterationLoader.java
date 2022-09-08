@@ -76,13 +76,8 @@ public class IterationLoader extends CodingStarter {
         Object keyWordsObj = this.queryMap.get("key");
         switch (command){
             case "DescribeIterationList":{
-                String projectName = connectionConfig.getString("projectName");
-                if (Checker.isEmpty(projectName)){
-                    throw new CoreException("ProjectName must be not Empty or not null.");
-                }
                 requestBody.builder("Limit",size)
                         .builder("Offset",page-1)
-                        .builder("ProjectName",projectName)
                         .builder("Action","DescribeIterationList");
                 if (Checker.isNotEmpty(keyWordsObj)){
                     requestBody.builder("keywords",String.valueOf(keyWordsObj).trim());

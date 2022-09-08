@@ -158,15 +158,15 @@ public class AsyncContextManager {
     public <T> void applyAsyncJobResult(String jobId, T jobResult, Throwable throwable) {
         if(jobId == null)
             throw new IllegalArgumentException("JobId can not be null when apply async job result");
-        if(jobResult == null && throwable == null)
-            throw new IllegalArgumentException("jobResult and throwable can not both be null when apply async job result");
+//        if(jobResult == null && throwable == null)
+//            throw new IllegalArgumentException("jobResult and throwable can not both be null when apply async job result");
 
         AsyncJobHolder<T> asyncJobHolder = jobIdWaiterMap.get(jobId);
         if(asyncJobHolder != null && asyncJobHolder.isWaiting()) {
-            if(jobResult != null) {
-                asyncJobHolder.executeSuccessfully(jobResult);
-            } else {
+            if(throwable != null) {
                 asyncJobHolder.executeFailed(throwable);
+            } else {
+                asyncJobHolder.executeSuccessfully(jobResult);
             }
         }
     }

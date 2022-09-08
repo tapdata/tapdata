@@ -27,7 +27,7 @@ public class RowDataCallbackFilterTest {
                ,entry("key","Test")
        );
        CodingConnector codingConnector = new CodingConnector();
-       codingConnector.test(context, command, action, argMap);
+       //codingConnector.test(context, command, action, argMap);
    }
    public void listIteration(){
        DataMap config = new DataMap();
@@ -42,7 +42,7 @@ public class RowDataCallbackFilterTest {
                entry("size",10)
        );
        CodingConnector codingConnector = new CodingConnector();
-       codingConnector.test(context, command, action, argMap);
+       //codingConnector.test(context, command, action, argMap);
    }
    public void searchProject(){
        DataMap config = new DataMap();
@@ -58,7 +58,7 @@ public class RowDataCallbackFilterTest {
                ,entry("key","TestIssue")
        );
        CodingConnector codingConnector = new CodingConnector();
-       codingConnector.test(context, command, action, argMap);
+       //codingConnector.test(context, command, action, argMap);
    }
    public void listProject(){
        DataMap config = new DataMap();
@@ -73,7 +73,7 @@ public class RowDataCallbackFilterTest {
                entry("size",10)
        );
        CodingConnector codingConnector = new CodingConnector();
-       codingConnector.test(context, command, action, argMap);
+       //codingConnector.test(context, command, action, argMap);
    }
 
     public static void main(String[] args) {

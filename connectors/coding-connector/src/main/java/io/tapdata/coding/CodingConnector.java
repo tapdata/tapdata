@@ -86,38 +86,54 @@ public class CodingConnector extends ConnectorBase {
 
 	}
 
-	//项目的列表分页加载和搜索， 以及迭代的分页加载和搜索
-	//从context里能获得connectionConfig，
-	// 会给你command， 例如getProjectList，
-	// action会有list和search，
-	// argMap里会有page 页码， size一页最大数量， key搜索使用的关键字。
 	private CommandResult handleCommand(TapConnectionContext tapConnectionContext, CommandInfo commandInfo) {
-		if (Checker.isEmpty(tapConnectionContext)){
-			throw new IllegalArgumentException("TapConnectorContext cannot be null");
-		}
-
 		String command = commandInfo.getCommand();
 		if(Checker.isEmpty(command)){
 			throw new CoreException("Command can not be NULL or not be empty.");
 		}
 
 		String action = commandInfo.getAction();
-		//if (Checker.isEmpty(action)){
-		//	throw new CoreException("Action can not be NULL or not be empty.");
-		//}
-
 		Map<String, Object> argMap = commandInfo.getArgMap();
+		String token = null;
+		String teamName = null;
+		String projectName = null;
 
-		DataMap connectionConfigConfigMap = tapConnectionContext.getConnectionConfig();
-		if (Checker.isEmpty(connectionConfigConfigMap)){
-			throw new IllegalArgumentException("TapTable' ConnectionConfigConfig cannot be null");
+		Map<String,Object> connectionConfig = commandInfo.getConnectionConfig();
+		if (Checker.isEmpty(connectionConfig)){
+			throw new IllegalArgumentException("ConnectionConfig cannot be null");
 		}
-		//String projectName = connectionConfigConfigMap.getString("projectName");
-		String token = connectionConfigConfigMap.getString("token");
-		String teamName = connectionConfigConfigMap.getString("teamName");
+
+		Object tokenObj = connectionConfig.get("token");
+		Object teamNameObj = connectionConfig.get("teamName");
+		if (Checker.isNotEmpty(tokenObj)){
+			token = (tokenObj instanceof String)?(String) tokenObj : String.valueOf(tokenObj);
+		}
+		if (Checker.isNotEmpty(teamNameObj)){
+			teamName = (teamNameObj instanceof String)?(String) teamNameObj : String.valueOf(teamNameObj);
+		}
+
+		Object projectNameObj = connectionConfig.get("projectName");
+		if (Checker.isNotEmpty(projectNameObj)){
+			projectName = (projectNameObj instanceof String)?(String) projectNameObj : String.valueOf(projectNameObj);
+		}
+		if ("DescribeIterationList".equals(command) && Checker.isEmpty(projectName)){
+			throw new CoreException("ProjectName must be not Empty or not null.");
+		}
+		if (Checker.isEmpty(token)){
+			TapLogger.warn(TAG,"token must be not null or not empty.");
+			throw new CoreException("token must be not null or not empty.");
+		}
+		if (Checker.isEmpty(teamName)){
+			TapLogger.warn(TAG,"teamName must be not null or not empty.");
+			throw new CoreException("teamName must be not null or not empty.");
+		}
 
 		HttpEntity<String,String> header = HttpEntity.create().builder("Authorization",token);
-		HttpEntity<String,Object> body = IterationLoader.create(tapConnectionContext,argMap).commandSetter(command,HttpEntity.create());
+		HttpEntity<String,Object> body = IterationLoader.create(tapConnectionContext,argMap)
+				.commandSetter(command,HttpEntity.create());
+		if ("DescribeIterationList".equals(command) && Checker.isNotEmpty(projectName)) {
+			body.builder("ProjectName", projectName);
+		}
 
 		CodingHttp http = CodingHttp.create(header.getEntity(),body.getEntity(), String.format(CodingStarter.OPEN_API_URL, teamName ));
 		Map<String, Object> postResult = http.post();
@@ -125,10 +141,10 @@ public class CodingConnector extends ConnectorBase {
 		Object response = postResult.get("Response");
 		Map<String,Object> responseMap = (Map<String, Object>) response;
 		if (Checker.isEmpty(response)){
-			TapLogger.info(TAG, "HTTP request exception, Issue list acquisition failed: {} ", CodingStarter.OPEN_API_URL+"?Action=DescribeIssueListWithPage");
-			throw new RuntimeException("HTTP request exception, Issue list acquisition failed: " + CodingStarter.OPEN_API_URL+"?Action=DescribeIssueListWithPage");
+			TapLogger.info(TAG, "HTTP request exception, list acquisition failed: {} ", CodingStarter.OPEN_API_URL+"?Action="+command);
+			throw new RuntimeException("Get list failed: " + CodingStarter.OPEN_API_URL+"?Action="+command);
 		}
-		//List<Map<String,Object>> searchList = null;
+
 		Map<String,Object> pageResult = new HashMap<>();
 		Object dataObj = responseMap.get("Data");
 		if(Checker.isEmpty(dataObj)){
@@ -137,7 +153,11 @@ public class CodingConnector extends ConnectorBase {
 			if (Checker.isNotEmpty(errorObj)){
 				message = String.valueOf(((Map<String,Object>)errorObj).get("Message"));
 			}
-			throw  new CoreException("Project List is Empty ,please sure you HTTP connection params is ture:"+message);
+			if ("ProjectIssueNotInit".equals(message)) {
+				throw new CoreException(" " );
+			}else {
+				throw new CoreException("Project list is empty, please ensure your params are correct: " + message);
+			}
 		}
 		Map<String,Object> data = (Map<String,Object>)dataObj;
 		if ("DescribeIterationList".equals(command)){
@@ -173,64 +193,60 @@ public class CodingConnector extends ConnectorBase {
 			pageResult.put("total",total);
 			List<Map<String,Object>> resultList = new ArrayList<>();
 			searchList.forEach(map->{
-				resultList.add(map(entry("label",map.get("Name")),entry("value",map.get("Id"))));
+				resultList.add(map(entry("label",map.get("Name")),entry("value",map.get("Name"))));
 			});
 			pageResult.put("items",resultList);
 		}else {
-			throw new CoreException("Command only support [DescribeIterationList] or [DescribeCodingProjects] now.");
+			throw new CoreException("Command only support [DescribeIterationList] or [DescribeCodingProjects].");
 		}
-
 		return new CommandResult().result(pageResult);
-	}
-
-	public Object test(
-			TapConnectionContext context,
-			String command,
-			String action,
-			Map<String, Object> argMap){
-		CommandInfo commandInfo = new CommandInfo();
-		commandInfo.setAction(action);
-		commandInfo.setArgMap(argMap);
-		commandInfo.setCommand(command);
-		return handleCommand(context, commandInfo);
 	}
 
 	private TapEvent rawDataCallbackFilterFunction(TapConnectorContext connectorContext, Map<String, Object> issueEventData) {
 		if (Checker.isEmpty(issueEventData)){
-			throw new CoreException("Data change message is must not be null or not be empty,this callBack is stop.");
+			TapLogger.warn(TAG,"An event with Event Data is null or empty,this callBack is stop.The data has been discarded. Data detial is:"+issueEventData);
+			return null;
 		}
 		Object issueObj = issueEventData.get("issue");
 		if (Checker.isEmpty(issueObj)){
-			throw new CoreException("Issue Data is must not be null or not be empty,this callBack is stop.");
+			TapLogger.warn(TAG,"An event with Issue Data is null or empty,this callBack is stop.The data has been discarded. Data detial is:"+issueEventData);
+			return null;
 		}
 		String webHookEventType = String.valueOf(issueEventData.get("event"));
 		Object codeObj = ((Map<String, Object>)issueObj).get("code");
 		if (Checker.isEmpty(codeObj)){
-			throw new CoreException("Issue Code is must not be null or not be empty,this callBack is stop.");
+			TapLogger.warn(TAG,"An event with Issue Code is be null or be empty,this callBack is stop.The data has been discarded. Data detial is:"+issueEventData);
+			return null;
 		}
 		ContextConfig contextConfig = this.veryContextConfigAndNodeConfig(connectorContext);
 
-		HttpEntity<String,String> header = HttpEntity.create().builder("Authorization",contextConfig.getToken());
-		HttpEntity<String,Object> issueDetialBody = HttpEntity.create()
-				.builder("Action","DescribeIssue")
-				.builder("ProjectName",contextConfig.getProjectName());
-		CodingHttp authorization = CodingHttp.create(header.getEntity(), String.format(CodingStarter.OPEN_API_URL, contextConfig.getTeamName() ));
-		HttpRequest requestDetail = authorization.createHttpRequest();
-		Map<String,Object> issueDetail = IssueLoader.create(connectorContext)
-				.readIssueDetail(
-						issueDetialBody,
-						authorization,
-						requestDetail,
-						(codeObj instanceof Integer)?(Integer) codeObj:Integer.parseInt(codeObj.toString()),
-						contextConfig.getProjectName(),
-						contextConfig.getTeamName());
+
 		TapEvent event = null;
 		long referenceTime = System.currentTimeMillis();
 		CodingEvent issueEvent = CodingEvent.event(webHookEventType);
-		if (Checker.isNotEmpty(event)){
-			switch (issueEvent.getEventType()){
+
+		Map<String, Object> issueDetail = null;
+		if (!DELETED_EVENT.equals(issueEvent)) {
+			HttpEntity<String, String> header = HttpEntity.create().builder("Authorization", contextConfig.getToken());
+			HttpEntity<String, Object> issueDetialBody = HttpEntity.create()
+					.builder("Action", "DescribeIssue")
+					.builder("ProjectName", contextConfig.getProjectName());
+			CodingHttp authorization = CodingHttp.create(header.getEntity(), String.format(CodingStarter.OPEN_API_URL, contextConfig.getTeamName()));
+			HttpRequest requestDetail = authorization.createHttpRequest();
+			issueDetail = IssueLoader.create(connectorContext)
+					.readIssueDetail(
+							issueDetialBody,
+							authorization,
+							requestDetail,
+							(codeObj instanceof Integer) ? (Integer) codeObj : Integer.parseInt(codeObj.toString()),
+							contextConfig.getProjectName(),
+							contextConfig.getTeamName());
+		}
+		if (Checker.isNotEmpty(issueEvent)){
+			String evenType = issueEvent.getEventType();
+			switch (evenType){
 				case DELETED_EVENT:{
-					event = deleteDMLEvent(issueDetail, "Issues").referenceTime(referenceTime)  ;
+					event = deleteDMLEvent((Map<String, Object>) issueObj, "Issues").referenceTime(referenceTime)  ;
 				};break;
 				case UPDATE_EVENT:{
 					event = updateDMLEvent(null,issueDetail, "Issues").referenceTime(referenceTime) ;
@@ -240,28 +256,8 @@ public class CodingConnector extends ConnectorBase {
 				};break;
 			}
 		}else {
-
+			TapLogger.warn(TAG,"An event type with unknown origin was found and cannot be processed - ["+event+"]. The data has been discarded. Data to be processed:"+issueDetail);
 		}
-//		switch (webHookEventType){
-//			case ISSUE_CREATED:
-//				event = insertRecordEvent(issueDetail, "Issues").referenceTime(referenceTime)  ;
-//				break;
-//			case ISSUE_DELETED:
-//				event = deleteDMLEvent(issueDetail, "Issues").referenceTime(referenceTime)  ;
-//				break;
-//			case ISSUE_UPDATE:;
-////			case ISSUE_COMMENT_CREATED:;
-//			case ISSUE_STATUS_UPDATED:;
-//			case ISSUE_ASSIGNEE_CHANGED:;
-//			case ITERATION_PLANNED:;
-//			case ISSUE_RELATIONSHIP_CHANGED:;
-//			case UPDATE_WORK_INFORMATION:
-//				event = updateDMLEvent(null,issueDetail, "Issues").referenceTime(referenceTime) ;
-//				break;
-//			default:
-//				event = insertRecordEvent(issueDetail, "Issues").referenceTime(referenceTime);
-//				break;
-//		}
 		return event;
 	}
 
@@ -280,7 +276,8 @@ public class CodingConnector extends ConnectorBase {
 						? (CodingOffset)offsetState : new CodingOffset();
 		Map<String, Long> tableUpdateTimeMap = codingOffset.getTableUpdateTimeMap();
 		if (null == tableUpdateTimeMap || tableUpdateTimeMap.size()==0){
-			//throw new RuntimeException("offsetState is Empty or not Exist!");
+			TapLogger.warn(TAG,"offsetState is Empty or not Exist!");
+			return;
 		}
 
 		String currentTable = tableList.get(0);
@@ -520,11 +517,14 @@ public class CodingConnector extends ConnectorBase {
 				entry("Value",issueLoader.longToDateStr(readStartTime)+"_"+issueLoader.longToDateStr(readEndTime)))
 		);
 		String iterationCodes = contextConfig.getIterationCodes();
-		if (null != iterationCodes && !"".equals(iterationCodes) && !",".equals(iterationCodes)){
-			//String[] iterationCodeArr = iterationCodes.split(",");
-			//@TODO 输入的迭代编号需要验证，否则，查询事项列表时作为查询条件的迭代不存在时，查询会报错
-			//选择的迭代编号不需要验证
-			coditions.add(map(entry("Key","ITERATION"),entry("Value",iterationCodes)));
+		if (null != iterationCodes && !"".equals(iterationCodes) && !",".equals(iterationCodes)) {
+			if (!"-1".equals(iterationCodes)) {
+				//-1时表示全选
+				//String[] iterationCodeArr = iterationCodes.split(",");
+				//@TODO 输入的迭代编号需要验证，否则，查询事项列表时作为查询条件的迭代不存在时，查询会报错
+				//选择的迭代编号不需要验证
+				coditions.add(map(entry("Key", "ITERATION"), entry("Value", iterationCodes)));
+			}
 		}
 		pageBody.builder("Conditions",coditions);
 

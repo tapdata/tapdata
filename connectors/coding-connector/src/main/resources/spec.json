@@ -10,22 +10,18 @@
     "node": {
       "type": "object",
       "properties": {
-        "DescribeIterationList": {
-          "type": "string",
-          "title": "${iterationCodes}",
-          "default": "",
-          "x-decorator": "FormItem",
-          "x-component": "Select",
-          "x-index": 1,
-          "depends" : ["apiUrl", "apiToken"],
-          "command" : "http://tapdata.io/rest/webhook/command",
-          "enum": [
-            {
-              "label": "#998c",
-              "value": 1
+        "DescribeIterationList":  {
+            "title": "${iterationCodes}",
+            "type": "string",
+            "required": true,
+            "x-decorator": "FormItem",
+            "x-component": "AsyncSelect",
+            "x-index": 1,
+            "x-component-props": {
+              "method": "{{loadCommandList}}",
+              "params": "{{ {$values: $values, command: \"DescribeIterationList\"} }}"
             }
-           ]
-        },
+          },
         "issueType": {
           "type": "String",
           "default": "ALL",
@@ -81,13 +77,27 @@
           "required": true
         },
         "projectName": {
-          "type": "String",
           "title": "${projectName}",
+          "type": "string",
+          "required": true,
           "x-decorator": "FormItem",
-          "x-component": "Input",
-          "apiServerKey": "database_host",
-          "x-index": 3,
-          "required": true
+          "x-component": "AsyncSelect",
+          "x-component-props": {
+            "method": "{{loadCommandList}}",
+            "params": "{{ {$values: $values, command: \"DescribeCodingProjects\"} }}",
+            "itemValue": "label"
+          },
+          "x-index": 4,
+          "x-reactions": [
+            {
+              "dependencies": ["teamName", "token"],
+              "fulfill": {
+                "state": {
+                  "display": "{{$deps[0]&&$deps[1] ? \"visible\":\"hidden\"}}"
+                }
+              }
+            }
+          ]
         },
         "webhook": {
           "type": "String",

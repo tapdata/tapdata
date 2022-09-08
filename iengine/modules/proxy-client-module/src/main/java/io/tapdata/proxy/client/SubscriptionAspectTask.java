@@ -110,51 +110,55 @@ public class SubscriptionAspectTask extends AbstractAspectTask {
 			return;
 		}
 
-		FetchNewDataResult fetchNewDataResult = (FetchNewDataResult) result.getMessage();
-		Object nextOffset = null;
-		if(fetchNewDataResult != null) {
-			nextOffset = fetchNewDataResult.getOffset();
-			List<MessageEntity> messages = fetchNewDataResult.getMessages();
-			if(messages != null) {
-				String associateId = streamReadFuncAspect.getDataProcessorContext().getPdkAssociateId();
-				if(associateId != null) {
-					ConnectorNode connectorNode = ConnectorNodeService.getInstance().getConnectorNode(associateId);
-					RawDataCallbackFilterFunction function = connectorNode.getConnectorFunctions().getRawDataCallbackFilterFunction();
-					if(function != null) {
-						List<TapEvent> events = new ArrayList<>();
+		try {
+			FetchNewDataResult fetchNewDataResult = (FetchNewDataResult) result.getMessage();
+			Object nextOffset = null;
+			if(fetchNewDataResult != null) {
+				nextOffset = fetchNewDataResult.getOffset();
+				List<MessageEntity> messages = fetchNewDataResult.getMessages();
+				if(messages != null) {
+					String associateId = streamReadFuncAspect.getDataProcessorContext().getPdkAssociateId();
+					if(associateId != null) {
+						ConnectorNode connectorNode = ConnectorNodeService.getInstance().getConnectorNode(associateId);
+						RawDataCallbackFilterFunction function = connectorNode.getConnectorFunctions().getRawDataCallbackFilterFunction();
+						if(function != null) {
+							List<TapEvent> events = new ArrayList<>();
 
-						for(MessageEntity message : messages) {
-							PDKInvocationMonitor.invoke(connectorNode, PDKMethod.RAW_DATA_CALLBACK_FILTER, () -> {
-								TapEvent tapEvent = function.filter(connectorNode.getConnectorContext(), message.getContent());
-								if(tapEvent != null)
-									events.add(tapEvent);
-							}, TAG);
-						}
-						if(!messages.isEmpty()) {
-							streamReadConsumer.accept(events, fetchNewDataResult.getOffset());
-							currentOffset = fetchNewDataResult.getOffset();
-						}
-						synchronized (this) {
-							if(!messages.isEmpty() || needFetchingNewData) {
-								needFetchingNewData = false;
-								fetchNewData(subscribeId, currentOffset, (result1, throwable1) -> handleFetchNewDataResult(streamReadFuncAspect, subscribeId, result1, throwable1));
-								return;
+							for(MessageEntity message : messages) {
+								PDKInvocationMonitor.invoke(connectorNode, PDKMethod.RAW_DATA_CALLBACK_FILTER, () -> {
+									TapEvent tapEvent = function.filter(connectorNode.getConnectorContext(), message.getContent());
+									if(tapEvent != null)
+										events.add(tapEvent);
+								}, TAG);
+							}
+							if(!messages.isEmpty()) {
+								streamReadConsumer.accept(events, fetchNewDataResult.getOffset());
+								currentOffset = fetchNewDataResult.getOffset();
+							}
+							synchronized (this) {
+								if(!messages.isEmpty() || needFetchingNewData) {
+									needFetchingNewData = false;
+									fetchNewData(subscribeId, currentOffset, (result1, throwable1) -> handleFetchNewDataResult(streamReadFuncAspect, subscribeId, result1, throwable1));
+									return;
+								}
 							}
 						}
 					}
 				}
 			}
-		}
-		synchronized (this) {
-			if(needFetchingNewData) {
-				needFetchingNewData = false;
-				Object finalNextOffset = nextOffset;
-				fetchNewData(subscribeId, currentOffset, (result1, throwable1) -> handleFetchNewDataResult(streamReadFuncAspect, subscribeId, result1, throwable1));
-			} else {
-				if(stopFetchingNewData()) {
-					TapLogger.debug(TAG, "isFetchingNewData is false");
+			synchronized (this) {
+				if(needFetchingNewData) {
+					needFetchingNewData = false;
+					Object finalNextOffset = nextOffset;
+					fetchNewData(subscribeId, currentOffset, (result1, throwable1) -> handleFetchNewDataResult(streamReadFuncAspect, subscribeId, result1, throwable1));
+				} else {
+					if(stopFetchingNewData()) {
+						TapLogger.debug(TAG, "isFetchingNewData is false");
+					}
 				}
 			}
+		} catch (Throwable throwable1) {
+			streamReadFuncAspect.noMoreWaitRawData(throwable1);
 		}
 	}
 
