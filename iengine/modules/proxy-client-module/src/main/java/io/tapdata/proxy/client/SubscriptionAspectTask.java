@@ -25,10 +25,10 @@ import io.tapdata.modules.api.proxy.data.FetchNewDataResult;
 import io.tapdata.modules.api.proxy.utils.NodeUtils;
 import io.tapdata.node.pdk.ConnectorNodeService;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
+import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.apis.functions.connector.source.RawDataCallbackFilterFunction;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
-import io.tapdata.pdk.core.monitor.PDKMethod;
 
 import java.util.ArrayList;
 import java.util.Collection;
