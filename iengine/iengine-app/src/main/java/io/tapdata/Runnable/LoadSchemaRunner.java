@@ -23,7 +23,7 @@ import io.tapdata.pdk.core.api.ConnectionNode;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.api.PDKIntegration;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
-import io.tapdata.pdk.core.monitor.PDKMethod;
+import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.schema.SchemaProxy;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.collections4.MapUtils;

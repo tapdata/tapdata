@@ -209,6 +209,8 @@ public class TaskEntity extends BaseEntity {
     private List<AlarmSetting> alarmSettings;
     private List<AlarmRule> alarmRules;
 
+    private Map<String, Object> logSetting;
+
     public String getAccessNodeProcessId() {
         return CollectionUtils.isNotEmpty(accessNodeProcessIdList) ? accessNodeProcessIdList.get(0) : "";
     }

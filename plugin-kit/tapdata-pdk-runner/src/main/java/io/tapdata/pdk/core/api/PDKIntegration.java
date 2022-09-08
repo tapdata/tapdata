@@ -1,6 +1,6 @@
 package io.tapdata.pdk.core.api;
 
-import io.tapdata.entity.codec.TapCodecsRegistry;
+import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.entity.utils.InstanceFactory;
@@ -8,24 +8,21 @@ import io.tapdata.entity.utils.cache.KVMap;
 import io.tapdata.entity.utils.cache.KVMapFactory;
 import io.tapdata.entity.utils.cache.KVReadOnlyMap;
 import io.tapdata.pdk.apis.TapConnector;
-import io.tapdata.pdk.apis.TapConnectorNode;
+import io.tapdata.pdk.apis.TapProcessor;
 import io.tapdata.pdk.apis.context.ConfigContext;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
-import io.tapdata.pdk.apis.entity.ConnectorCapabilities;
-import io.tapdata.pdk.apis.spec.TapNodeSpecification;
-import io.tapdata.pdk.apis.TapProcessor;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.context.TapProcessorContext;
+import io.tapdata.pdk.apis.entity.ConnectorCapabilities;
+import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.apis.functions.ProcessorFunctions;
-import io.tapdata.pdk.apis.functions.ConnectorFunctions;
+import io.tapdata.pdk.apis.spec.TapNodeSpecification;
 import io.tapdata.pdk.core.connector.TapConnectorManager;
 import io.tapdata.pdk.core.dag.TapDAGNode;
-import io.tapdata.entity.error.CoreException;
 import io.tapdata.pdk.core.error.PDKRunnerErrorCodes;
 import io.tapdata.pdk.core.memory.MemoryFetcher;
 import io.tapdata.pdk.core.memory.MemoryManager;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
-import io.tapdata.pdk.core.monitor.PDKMethod;
 import io.tapdata.pdk.core.tapnode.TapNodeInstance;
 
 import java.text.MessageFormat;

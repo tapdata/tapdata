@@ -5,7 +5,6 @@ import com.tapdata.entity.TapdataEvent;
 import com.tapdata.entity.task.context.ProcessorBaseContext;
 import com.tapdata.tm.commons.dag.process.TableRenameProcessNode;
 import com.tapdata.tm.commons.dag.vo.TableRenameTableInfo;
-import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.entity.event.TapBaseEvent;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
@@ -48,12 +47,7 @@ public class HazelcastRenameTableProcessorNode extends HazelcastProcessorBaseNod
         ((TapBaseEvent) tapEvent).setTableId(tableRenameTableInfo.getCurrentTableName());
       }
     }
-    String tableName = TapEventUtil.getTableId(tapEvent);
-    if (!multipleTables && StringUtils.equalsAnyIgnoreCase(processorBaseContext.getTaskDto().getSyncType(),
-            TaskDto.SYNC_TYPE_DEDUCE_SCHEMA)) {
-      tableName = processorBaseContext.getNode().getId();
-    }
-    consumer.accept(tapdataEvent, ProcessResult.create().tableId(tableName));
+    consumer.accept(tapdataEvent, getProcessResult(TapEventUtil.getTableId(tapEvent)));
   }
 
   @Override

@@ -37,4 +37,12 @@ public class TapAlterFieldPrimaryKeyEvent extends TapTableEvent {
     public void setPrimaryKeyChanges(List<FieldAttrChange<List<String>>> primaryKeyChanges) {
         this.primaryKeyChanges = primaryKeyChanges;
     }
+
+    @Override
+    public String toString() {
+        return "TapAlterFieldPrimaryKeyEvent{" +
+                "tableId='" + tableId + '\'' +
+                ", primaryKeyChanges=" + primaryKeyChanges +
+                '}';
+    }
 }

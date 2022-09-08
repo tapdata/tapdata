@@ -1,6 +1,5 @@
 package io.tapdata.connector.mysql.ddl.ccj;
 
-import io.tapdata.common.ddl.ccj.CCJBaseDDLWrapper;
 import io.tapdata.entity.event.ddl.TapDDLEvent;
 import io.tapdata.entity.event.ddl.table.TapNewFieldEvent;
 import io.tapdata.entity.schema.TapField;
@@ -25,7 +24,7 @@ import static io.tapdata.pdk.apis.entity.ConnectionOptions.DDL_NEW_FIELD_EVENT;
  * @Description
  * @create 2022-07-01 14:24
  **/
-public class MysqlAddColumnDDLWrapper extends CCJBaseDDLWrapper {
+public class MysqlAddColumnDDLWrapper extends MysqlDDLWrapper {
 
     @Override
     public List<Capability> getCapabilities() {

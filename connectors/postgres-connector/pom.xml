@@ -33,16 +33,6 @@
             <artifactId>tapdata-pdk-runner</artifactId>
             <scope>test</scope>
         </dependency>
-        <dependency>
-            <groupId>io.debezium</groupId>
-            <artifactId>debezium-embedded</artifactId>
-            <version>1.5.4.Final</version>
-        </dependency>
-        <dependency>
-            <groupId>io.debezium</groupId>
-            <artifactId>debezium-connector-postgres</artifactId>
-            <version>1.5.4.Final</version>
-        </dependency>
     </dependencies>
 
     <build>

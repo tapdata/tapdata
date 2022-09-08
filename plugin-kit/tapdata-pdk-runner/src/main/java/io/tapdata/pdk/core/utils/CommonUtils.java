@@ -1,21 +1,32 @@
 package io.tapdata.pdk.core.utils;
 
+import io.tapdata.entity.error.TapAPIErrorCodes;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.error.CoreException;
+import io.tapdata.pdk.apis.context.TapConnectionContext;
+import io.tapdata.pdk.apis.functions.ConnectionFunctions;
+import io.tapdata.pdk.apis.functions.PDKMethod;
+import io.tapdata.pdk.apis.functions.connection.ErrorHandleFunction;
+import io.tapdata.pdk.apis.functions.connection.RetryOptions;
 import io.tapdata.pdk.apis.spec.TapNodeSpecification;
+import io.tapdata.pdk.core.api.ConnectionNode;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.api.Node;
+import io.tapdata.pdk.core.entity.params.PDKMethodInvoker;
 import io.tapdata.pdk.core.error.PDKRunnerErrorCodes;
 import io.tapdata.pdk.core.error.QuiteException;
 import io.tapdata.pdk.core.executor.ExecutorsManager;
+import org.apache.commons.io.output.AppendableOutputStream;
 
+import javax.naming.CommunicationException;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Consumer;
 
 public class CommonUtils {
     static SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss,SSS");
@@ -60,6 +71,102 @@ public class CommonUtils {
 
     public interface AnyError {
         void run() throws Throwable;
+    }
+
+
+
+    public static void awakenRetryObj(Object syncWaitObj) {
+        if(syncWaitObj != null) {
+            synchronized (syncWaitObj) {
+                syncWaitObj.notifyAll();
+            }
+        }
+    }
+
+    public static void autoRetry(Node node,PDKMethod method,PDKMethodInvoker invoker) {
+        CommonUtils.AnyError runable = invoker.getR();
+        String message = invoker.getMessage();
+        final String logTag = invoker.getLogTag();
+        boolean async = invoker.isAsync();
+
+
+        long retryPeriodSeconds = invoker.getRetryPeriodSeconds();
+
+        if(retryPeriodSeconds <= 0) {
+//            autoRetryParams.periodSeconds = 10;
+            throw new IllegalArgumentException("periodSeconds can not be zero or less than zero");
+        }
+        try {
+            runable.run();
+        } catch(Throwable throwable) {
+            ErrorHandleFunction function = null;
+            TapConnectionContext tapConnectionContext = null;
+            ConnectionFunctions<?> connectionFunctions = null;
+            if(node instanceof ConnectionNode) {
+                ConnectionNode connectionNode = (ConnectionNode) node;
+                connectionFunctions = connectionNode.getConnectionFunctions();
+                if (null != connectionFunctions) {
+                    function = connectionFunctions.getErrorHandleFunction();
+                }else {
+                    throw new CoreException("ConnectionFunctions must be not null,connectionNode does not contain ConnectionFunctions");
+                }
+                tapConnectionContext = connectionNode.getConnectionContext();
+            } else if(node instanceof ConnectorNode) {
+                ConnectorNode connectorNode = (ConnectorNode) node;
+                connectionFunctions = connectorNode.getConnectorFunctions();
+                if (null != connectionFunctions) {
+                    function = connectionFunctions.getErrorHandleFunction();
+                }else {
+                    throw new CoreException("connectionFunctions must be not null,connectionNode does not contain connectionFunctions");
+                }
+                tapConnectionContext = connectorNode.getConnectorContext();
+            }
+            if (null == tapConnectionContext){
+                throw new IllegalArgumentException("NeedTry filed ,cause tapConnectionContext:[ConnectionContext or ConnectorContext] is Null,the param must not be null!");
+            }
+
+            if(null == function){
+                throw new CoreException( "PDK data source not support retry: " + logTag);
+            }
+
+            ErrorHandleFunction finalFunction = function;
+            TapConnectionContext finalTapConnectionContext = tapConnectionContext;
+            try {
+                RetryOptions retryOptions = finalFunction.needRetry(finalTapConnectionContext, method, throwable);
+                if(retryOptions == null || !retryOptions.isNeedRetry()) {
+                    throw throwable;
+                }
+                if(retryOptions.getBeforeRetryMethod() != null) {
+                    CommonUtils.ignoreAnyError(() -> retryOptions.getBeforeRetryMethod().run(), logTag);
+                }
+            } catch (Throwable e) {
+                e.printStackTrace();
+                throw new CoreException(TapAPIErrorCodes.NEED_RETRY_FAILED, "Need retry failed:" + logTag);
+            }
+
+            TapLogger.error(logTag, "AutoRetryAsync error {}, execute message {}, retry times {}, periodSeconds {}. ", throwable.getMessage(), message, invoker.getRetryTimes(), retryPeriodSeconds);
+            long retryTimes = invoker.getRetryTimes();
+            if(retryTimes > 0) {
+                invoker.setRetryTimes(retryTimes-1);
+                if(async) {
+                    ExecutorsManager.getInstance().getScheduledExecutorService().schedule(() -> autoRetry(node,method,invoker), retryPeriodSeconds, TimeUnit.SECONDS);
+                } else {
+                    synchronized (invoker) {
+                        try {
+                            invoker.wait(retryPeriodSeconds * 1000);
+                        } catch (InterruptedException e) {
+                            e.printStackTrace();
+                        }
+                    }
+                    autoRetry(node, method, invoker);
+                }
+            } else {
+                if(throwable instanceof CoreException) {
+                    throw (CoreException) throwable;
+                }
+                throw new CoreException(PDKRunnerErrorCodes.COMMON_UNKNOWN, message + " execute failed, " + throwable.getMessage());
+            }
+        }
     }
 
     public static void autoRetryAsync(AnyError runnable, String tag, String message, long times, long periodSeconds) {

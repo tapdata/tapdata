@@ -6,6 +6,7 @@ import com.tapdata.tm.monitor.param.IdFilterPageParam;
 import com.tapdata.tm.monitor.param.IdParam;
 import com.tapdata.tm.monitor.param.MeasurementQueryParam;
 import com.tapdata.tm.monitor.service.MeasurementServiceV2;
+import com.tapdata.tm.monitoringlogs.param.MonitoringLogCountParam;
 import com.tapdata.tm.monitoringlogs.param.MonitoringLogQueryParam;
 import com.tapdata.tm.monitoringlogs.service.MonitoringLogsService;
 import com.tapdata.tm.task.service.TaskDagCheckLogService;
@@ -17,7 +18,8 @@ import lombok.Getter;
 @Getter
 public enum BatchServiceEnum {
     TASKCONSOLE(TaskDagCheckLogService.class.getName(), "getLogs", "/api/task-console", TaskLogDto.class.getName()),
-    TASK_MONITORING_LOG(MonitoringLogsService.class.getName(), "query", "/api/MonitoringLogs/query", MonitoringLogQueryParam.class.getName()),
+    TASK_MONITORING_LOG_QUERY(MonitoringLogsService.class.getName(), "query", "/api/MonitoringLogs/query", MonitoringLogQueryParam.class.getName()),
+    TASK_MONITORING_LOG_COUNT(MonitoringLogsService.class.getName(), "count", "/api/MonitoringLogs/count", MonitoringLogCountParam.class.getName()),
     TASK_AUTO_INSPECT_RESULTS_TOTAL(TaskService.class.getName(), "totalAutoInspectResultsDiffTables", "/api/task/auto-inspect-totals", IdParam.class.getName()),
     TASK_AUTO_INSPECT_RESULTS_GROUP_BY_TABLE(TaskAutoInspectResultsService.class.getName(), "groupByTable", "/api/task/auto-inspect-results-group-by-table", IdFilterPageParam.class.getName()),
     MEASUREMENTQUERY(MeasurementServiceV2.class.getName(), "getSamples", "/api/measurement/query/v2", MeasurementQueryParam.class.getName()),

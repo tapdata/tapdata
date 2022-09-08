@@ -16,6 +16,7 @@ import com.tapdata.tm.commons.dag.process.MigrateJsProcessorNode;
 import com.tapdata.tm.commons.schema.*;
 import com.tapdata.tm.commons.task.dto.Message;
 import com.tapdata.tm.commons.task.dto.TaskDto;
+import com.tapdata.tm.commons.util.PdkSchemaConvert;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.ds.service.impl.DataSourceDefinitionService;
 import com.tapdata.tm.ds.service.impl.DataSourceService;
@@ -119,7 +120,8 @@ public class TransformSchemaService {
         options.setSyncType(taskDto.getSyncType());
         options.setBatchNum(transformBatchNum);
         if (StringUtils.isBlank(options.getUuid())) {
-            options.setUuid(UUIDUtil.getUUID());
+            //考虑到先后问题，采用毫秒级时间戳更好一点
+            options.setUuid(String.valueOf(System.currentTimeMillis()));
         }
         // update metaTransformer version
         dag.getTargets().forEach(target -> metadataTransformerService.updateVersion(taskDto.getId().toHexString(), target.getId(), options.getUuid()));
@@ -211,7 +213,10 @@ public class TransformSchemaService {
 
         DAGDataServiceImpl dagDataService1 = new DAGDataServiceImpl(transformParam);
 
+        long startTime = System.currentTimeMillis();
         Map<String, List<Message>> transformSchema = taskDto.getDag().transformSchema(null, dagDataService1, transformParam.getOptions());
+        long endTime = System.currentTimeMillis();
+        log.warn("推演花费 ={}毫秒", (endTime-startTime));
         TransformerWsMessageResult transformerWsMessageResult = new TransformerWsMessageResult();
         transformerWsMessageResult.setTransformSchema(transformSchema);
         transformerWsMessageResult.setUpsertTransformer(dagDataService1.getUpsertTransformer());
@@ -227,6 +232,23 @@ public class TransformSchemaService {
         transformerResult(user, result, false);
     }
     public void transformerResult(UserDetail user, TransformerWsMessageResult result, boolean saveHistory) {
+
+        String taskId = result.getTaskId();
+        TaskDto taskDto = taskService.checkExistById(MongoUtils.toObjectId(taskId), user, "transformUuid");
+
+        if (taskDto == null) {
+            return;
+        }
+
+        if (!saveHistory) {
+            String transformUuid = taskDto.getTransformUuid();
+            long tv = Long.parseLong(transformUuid);
+            long rv = Long.parseLong(result.getTransformUuid());
+
+            if (rv < tv) {
+                return;
+            }
+        }
 
         Map<String, List<Message>> msgMap = result.getTransformSchema();
         if (MapUtils.isNotEmpty(msgMap)) {
@@ -260,17 +282,20 @@ public class TransformSchemaService {
             metadataTransformerService.save(result.getUpsertTransformer(), user);
         }
 
-        if (StringUtils.isNotBlank(result.getTransformUuid()) && StringUtils.isNotBlank(result.getTaskId())) {
-            Criteria criteria = Criteria.where("_id").is(MongoUtils.toObjectId(result.getTaskId()))
-                    .and("transformUuid").is(result.getTransformUuid());
-            UpdateResult transformed = taskService.update(new Query(criteria), Update.update("transformed", true), user);
-            if (transformed.getModifiedCount() > 0 && CollectionUtils.isNotEmpty(result.getUpsertTransformer())) {
-                String taskId = result.getTaskId();
-                int total = result.getUpsertTransformer().get(0).getTotal();
-                int finished = result.getUpsertTransformer().get(0).getFinished();
-                // add transformer task log
-                taskDagCheckLogService.createLog(taskId, user.getUserId(), Level.INFO.getValue(), DagOutputTemplateEnum.MODEL_PROCESS_CHECK,
-                        false, true, DateUtil.now(), finished, total);
+
+        if (!saveHistory) {
+            if (StringUtils.isNotBlank(result.getTransformUuid()) && StringUtils.isNotBlank(result.getTaskId())) {
+                Criteria criteria = Criteria.where("_id").is(MongoUtils.toObjectId(result.getTaskId()))
+                        .and("transformUuid").lte(result.getTransformUuid());
+                UpdateResult transformed = taskService.update(new Query(criteria),
+                        Update.update("transformed", true).set("transformUuid", result.getTransformUuid()), user);
+                if (transformed.getModifiedCount() > 0 && CollectionUtils.isNotEmpty(result.getUpsertTransformer())) {
+                    int total = result.getUpsertTransformer().get(0).getTotal();
+                    int finished = result.getUpsertTransformer().get(0).getFinished();
+                    // add transformer task log
+                    taskDagCheckLogService.createLog(taskId, user.getUserId(), Level.INFO.getValue(), DagOutputTemplateEnum.MODEL_PROCESS_CHECK,
+                            false, true, DateUtil.now(), finished, total);
+                }
             }
         }
     }

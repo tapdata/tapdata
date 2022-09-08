@@ -54,6 +54,7 @@ public class TaskRecordServiceImpl implements TaskRecordService {
         } else {
             update.set("taskSnapshot.last_updated", now);
         }
+        update.push("statusStack", new TaskRecord.TaskStatusUpdate(taskStatus, now));
 
         mongoTemplate.updateFirst(query, update, TaskRecord.class);
     }
@@ -118,6 +119,23 @@ public class TaskRecordServiceImpl implements TaskRecordService {
 
             if (userMap.containsKey(r.getUserId())) {
                 vo.setOperator(userMap.get(r.getUserId()));
+            }
+
+            List<TaskRecord.TaskStatusUpdate> statusStack = r.getStatusStack();
+            if (null != statusStack && !statusStack.isEmpty()) {
+                Date lastStartDate = null;
+                int idx = statusStack.size() - 1;
+                while (idx >= 0) {
+                    TaskRecord.TaskStatusUpdate taskStatusUpdate = statusStack.get(idx);
+                    if (taskStatusUpdate.getStatus().equals(TaskDto.STATUS_RUNNING)) {
+                        lastStartDate = taskStatusUpdate.getTimestamp();
+                        break;
+                    }
+                    idx -= 1;
+                }
+                if (null != lastStartDate) {
+                    vo.setLastStartDate(DateUtil.toLocalDateTime(lastStartDate).format(DateTimeFormatter.ofPattern(DatePattern.NORM_DATETIME_PATTERN)));
+                }
             }
 
             return vo;

@@ -8,8 +8,6 @@ package com.tapdata.tm.statemachine.config;
 
 import com.mongodb.client.result.UpdateResult;
 import com.tapdata.manager.common.utils.StringUtils;
-import com.tapdata.tm.CustomerJobLogs.CustomerJobLog;
-import com.tapdata.tm.CustomerJobLogs.service.CustomerJobLogsService;
 import com.tapdata.tm.Settings.constant.CategoryEnum;
 import com.tapdata.tm.Settings.constant.KeyEnum;
 import com.tapdata.tm.Settings.service.SettingsService;
@@ -43,9 +41,6 @@ public class DataFlowStateMachineActionConfig {
 
 	@Autowired
 	private SettingsService settingsService;
-
-	@Autowired
-	private CustomerJobLogsService customerJobLogsService;
 
 	@OnAction(Transitions.SUBTASK_SCHEDULE_SUCEESS)
 	public StateMachineResult scheduleSuccess(DataFlowStateContext context){
@@ -93,15 +88,6 @@ public class DataFlowStateMachineActionConfig {
 		UpdateResult updateResult = dataFlowService.update(Query.query(Criteria.where("_id").is(dataFlowDto.getId())
 						.and("status").is(context.getSource().getName())),
 				update, context.getUserDetail());
-		if (updateResult.wasAcknowledged() && updateResult.getModifiedCount() > 0){
-			if (!isCloud && StringUtils.isNotBlank(processId)){
-				CustomerJobLog dataFlowLog = new CustomerJobLog(dataFlowDto.getId().toString(),dataFlowDto.getName(), CustomerJobLogsService.DataFlowType.clone);
-				WorkerDto workerDto = workerService.findOne(new Query(Criteria.where("process_id").is(processId)));
-				dataFlowLog.setAgentHost(workerDto.getHostname());
-				customerJobLogsService.assignAgent(dataFlowLog, userDetail);
-			}
-
-		}
 
 		return StateMachineResult.ok(updateResult.getModifiedCount());
 	}

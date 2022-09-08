@@ -21,7 +21,6 @@ import io.tapdata.debug.DebugConstant;
 import io.tapdata.websocket.EventHandlerAnnotation;
 import io.tapdata.websocket.WebSocketEventHandler;
 import io.tapdata.websocket.WebSocketEventResult;
-import jdk.nashorn.api.scripting.NashornScriptEngine;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
@@ -30,6 +29,7 @@ import org.bson.Document;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.query.Query;
 
+import javax.script.Invocable;
 import java.io.Serializable;
 import java.util.*;
 
@@ -75,9 +75,9 @@ public class ExecuteScriptEventHandler extends BaseEventHandler implements WebSo
 			targetScriptConnection = ScriptUtil.initScriptConnection(targetConn);
 
 			ICacheService dataFlowMemoryCacheService = validateResult.getDataFlowCacheData();
-			NashornScriptEngine scriptEngine = (NashornScriptEngine) ScriptUtil.getScriptEngine(JSEngineEnum.NASHORN.getEngineName(),
-					script, javaScriptFunctions, clientMongoOperator, sourceScriptConnection,
-					targetScriptConnection, dataFlowMemoryCacheService);
+			Invocable scriptEngine = ScriptUtil.getScriptEngine(JSEngineEnum.GRAALVM_JS.getEngineName(),
+							script, javaScriptFunctions, clientMongoOperator, sourceScriptConnection,
+							targetScriptConnection, dataFlowMemoryCacheService, logger);
 
 			List<Map> debugData = validateResult.getDebugData();
 
@@ -86,7 +86,6 @@ public class ExecuteScriptEventHandler extends BaseEventHandler implements WebSo
 			for (Map debugDatum : debugData) {
 				// debug摸下的自定义的日志工具
 				JsDebugLogger jsDebugLogger = new JsDebugLogger();
-				scriptEngine.put("log", jsDebugLogger);
 
 				JsDebugRowResult debugRowResult = new JsDebugRowResult();
 				long startTs = System.currentTimeMillis();

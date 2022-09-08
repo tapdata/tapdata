@@ -1,6 +1,5 @@
 package io.tapdata.connector.mysql.ddl.ccj;
 
-import io.tapdata.common.ddl.ccj.CCJBaseDDLWrapper;
 import io.tapdata.entity.event.ddl.TapDDLEvent;
 import io.tapdata.entity.event.ddl.table.TapDropFieldEvent;
 import io.tapdata.entity.schema.TapTable;
@@ -21,7 +20,7 @@ import java.util.function.Consumer;
  * @Description
  * @create 2022-07-05 10:47
  **/
-public class MysqlDropColumnDDLWrapper extends CCJBaseDDLWrapper {
+public class MysqlDropColumnDDLWrapper extends MysqlDDLWrapper {
 
     @Override
     public List<Capability> getCapabilities() {

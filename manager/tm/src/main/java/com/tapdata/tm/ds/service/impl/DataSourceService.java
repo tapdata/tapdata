@@ -34,6 +34,7 @@ import com.tapdata.tm.commons.util.PdkSchemaConvert;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.dataflow.dto.DataFlowDto;
 import com.tapdata.tm.dataflow.service.DataFlowService;
+import com.tapdata.tm.discovery.service.DefaultDataDirectoryService;
 import com.tapdata.tm.ds.dto.UpdateTagsDto;
 import com.tapdata.tm.ds.entity.DataSourceEntity;
 import com.tapdata.tm.ds.repository.DataSourceRepository;
@@ -113,6 +114,8 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 	private SettingsService settingsService;
 	private DataSourceDefinitionService dataSourceDefinitionService;
 
+	private DefaultDataDirectoryService defaultDataDirectoryService;
+
 	public DataSourceService(@NonNull DataSourceRepository repository) {
 		super(repository, DataSourceConnectionDto.class, DataSourceEntity.class);
 	}
@@ -124,6 +127,7 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 
 		desensitizeMongoConnection(connectionDto);
 		sendTestConnection(connectionDto, false, submit, userDetail);
+		defaultDataDirectoryService.addConnection(connectionDto, userDetail);
 		return connectionDto;
 	}
 
@@ -600,6 +604,8 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 			metadataInstancesService.update(query2, update2, user);
 		}
 
+		defaultDataDirectoryService.removeConnection(id, user);
+
 		return connectionDto;
 	}
 
@@ -650,7 +656,7 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 		//将新的数据源连接返回
 		DataSourceConnectionDto connectionDto = convertToDto(entity, DataSourceConnectionDto.class);
 		sendTestConnection(connectionDto, true, true, user);
-
+		defaultDataDirectoryService.addConnection(connectionDto, user);
 		return connectionDto;
 	}
 

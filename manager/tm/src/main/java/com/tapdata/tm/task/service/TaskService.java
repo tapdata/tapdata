@@ -9,8 +9,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.google.common.collect.Maps;
 import com.mongodb.client.result.UpdateResult;
 import com.tapdata.manager.common.utils.JsonUtil;
-import com.tapdata.tm.CustomerJobLogs.CustomerJobLog;
-import com.tapdata.tm.CustomerJobLogs.service.CustomerJobLogsService;
+import com.tapdata.tm.autoinspect.constants.AutoInspectConstants;
 import com.tapdata.tm.autoinspect.entity.AutoInspectProgress;
 import com.tapdata.tm.autoinspect.service.TaskAutoInspectResultsService;
 import com.tapdata.tm.autoinspect.utils.AutoInspectUtil;
@@ -47,10 +46,8 @@ import com.tapdata.tm.messagequeue.dto.MessageQueueDto;
 import com.tapdata.tm.messagequeue.service.MessageQueueService;
 import com.tapdata.tm.metadatainstance.service.MetaDataHistoryService;
 import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
-import com.tapdata.tm.monitor.entity.AgentStatDto;
 import com.tapdata.tm.monitor.entity.MeasurementEntity;
 import com.tapdata.tm.monitor.param.IdParam;
-import com.tapdata.tm.monitor.service.MeasurementService;
 import com.tapdata.tm.monitoringlogs.service.MonitoringLogsService;
 import com.tapdata.tm.task.bean.*;
 import com.tapdata.tm.task.constant.SyncType;
@@ -59,6 +56,7 @@ import com.tapdata.tm.task.constant.TaskOpStatusEnum;
 import com.tapdata.tm.task.constant.TaskStatusEnum;
 import com.tapdata.tm.task.entity.TaskEntity;
 import com.tapdata.tm.task.entity.TaskRecord;
+import com.tapdata.tm.task.param.LogSettingParam;
 import com.tapdata.tm.task.param.SaveShareCacheParam;
 import com.tapdata.tm.task.repository.TaskRepository;
 import com.tapdata.tm.task.vo.ShareCacheDetailVo;
@@ -108,12 +106,10 @@ import java.util.stream.Collectors;
 public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, TaskRepository> {
     private MessageService messageService;
     private SnapshotEdgeProgressService snapshotEdgeProgressService;
-    private MeasurementService measurementService;
     private InspectService inspectService;
     private TaskRunHistoryService taskRunHistoryService;
     private TransformSchemaAsyncService transformSchemaAsyncService;
     private TransformSchemaService transformSchemaService;
-    private CustomerJobLogsService customerJobLogsService;
     private DataSourceService dataSourceService;
     private MetadataTransformerService transformerService;
     private MetadataInstancesService metadataInstancesService;
@@ -931,9 +927,6 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         BeanUtil.copyProperties(taskDto, taskSnapshot);
         disruptorService.sendMessage(DisruptorTopicEnum.CREATE_RECORD, new TaskRecord(lastTaskRecordId, taskDto.getId().toHexString(), taskSnapshot, user.getUserId(), new Date()));
 
-        CustomerJobLog customerJobLog = new CustomerJobLog(taskDto.getId().toString(), taskDto.getName());
-        customerJobLog.setDataFlowType(CustomerJobLogsService.DataFlowType.sync.getV());
-        customerJobLogsService.resetDataFlow(customerJobLog, user);
         findById(taskDto.getId());
 
 
@@ -959,13 +952,6 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     public void stop(ObjectId id, UserDetail user, boolean force, boolean restart) {
         //查询任务是否存在
         TaskDto taskDto = checkExistById(id, user);
-        CustomerJobLog customerJobLog = new CustomerJobLog(taskDto.getId().toString(), taskDto.getName());
-        customerJobLog.setDataFlowType(CustomerJobLogsService.DataFlowType.sync.getV());
-        if (force) {
-            customerJobLogsService.stopDataFlow(customerJobLog, user);
-        } else {
-            customerJobLogsService.forceStopDataFlow(customerJobLog, user);
-        }
         //暂停所有的子任务
     }
 
@@ -1379,19 +1365,19 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                         shareCacheVo.setFields((List<String>) sourceNode.getAttrs().get("fields"));
                     }
 
-                    MeasurementEntity measurementEntity = measurementService.findByTaskIdAndNodeId(taskDto.getId().toString(), sourceNode.getId());
-                    if (null != measurementEntity && null != measurementEntity.getStatistics() && null != measurementEntity.getStatistics().get("cdcTime")) {
-                        Map<String, Number> statistics = measurementEntity.getStatistics();
-                        //cdc 值为integer or long 需要处理，cdcTime   也可能为0 需要处理
-                        Number cdcTime = statistics.get("cdcTime");
-                        Date cdcTimeDate = null;
-                        if (cdcTime instanceof Integer) {
-                            cdcTimeDate = new Date(cdcTime.longValue());
-                        } else if (cdcTime instanceof Long) {
-                            cdcTimeDate = new Date((Long) cdcTime);
-                        }
-                        shareCacheVo.setCacheTimeAt(cdcTimeDate);
-                    }
+//                    MeasurementEntity measurementEntity = measurementService.findByTaskIdAndNodeId(taskDto.getId().toString(), sourceNode.getId());
+//                    if (null != measurementEntity && null != measurementEntity.getStatistics() && null != measurementEntity.getStatistics().get("cdcTime")) {
+//                        Map<String, Number> statistics = measurementEntity.getStatistics();
+//                        //cdc 值为integer or long 需要处理，cdcTime   也可能为0 需要处理
+//                        Number cdcTime = statistics.get("cdcTime");
+//                        Date cdcTimeDate = null;
+//                        if (cdcTime instanceof Integer) {
+//                            cdcTimeDate = new Date(cdcTime.longValue());
+//                        } else if (cdcTime instanceof Long) {
+//                            cdcTimeDate = new Date((Long) cdcTime);
+//                        }
+//                        shareCacheVo.setCacheTimeAt(cdcTimeDate);
+//                    }
                 }
 
                 CacheNode cacheNode = (CacheNode) getTargetNode(taskDto);
@@ -1534,7 +1520,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         resultChart.put("chart3", getDataDevChart(syncTypeToTaskList));
 //        resultChart.put("chart4", dataDev);
         resultChart.put("chart5", inspectService.inspectPreview(user));
-        resultChart.put("chart6", measurementService.getTransmitTotal(user));
+//        resultChart.put("chart6", measurementService.getTransmitTotal(user));
         return resultChart;
     }
 
@@ -1670,12 +1656,12 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                 Date cdcStartTime = getMillstoneTime(taskDto, "READ_CDC_EVENT", "cdc");
                 taskDetailVo.setCdcStartTime(cdcStartTime);
 
-                // 增量所处时间点
-                Date eventTime = getEventTime(taskId);
-                taskDetailVo.setEventTime(eventTime);
-
-                //增量最大滞后时间
-                taskDetailVo.setCdcDelayTime(getCdcDelayTime(taskId));
+//                // 增量所处时间点
+//                Date eventTime = getEventTime(taskId);
+//                taskDetailVo.setEventTime(eventTime);
+//
+//                //增量最大滞后时间
+//                taskDetailVo.setCdcDelayTime(getCdcDelayTime(taskId));
 
             } else if ("initial_sync+cdc".equals(type)) {
                 //全量开始时间
@@ -1686,12 +1672,12 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                 Date cdcStartTime = getMillstoneTime(taskDto, "READ_CDC_EVENT", "cdc");
                 taskDetailVo.setCdcStartTime(cdcStartTime);
 
-                // 增量所处时间点
-                Date eventTime = getEventTime(taskId);
-                taskDetailVo.setEventTime(eventTime);
-
-                //增量最大滞后时间
-                taskDetailVo.setCdcDelayTime(getCdcDelayTime(taskId));
+//                // 增量所处时间点
+//                Date eventTime = getEventTime(taskId);
+//                taskDetailVo.setEventTime(eventTime);
+//
+//                //增量最大滞后时间
+//                taskDetailVo.setCdcDelayTime(getCdcDelayTime(taskId));
             }
 
             // 总时长  开始时间和结束时间都有才行
@@ -1746,39 +1732,39 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         return millstoneTime;
     }
 
-    /**
-     * 增量延迟时间
-     *
-     * @return
-     */
-    private Long getCdcDelayTime(String taskId) {
-        Long cdcDelayTime = null;
-        MeasurementEntity measurementEntity = measurementService.findByTaskId(taskId);
-        if (null != measurementEntity && null != measurementEntity.getStatistics() && null != measurementEntity.getStatistics().get("replicateLag")) {
-            Number cdcDelayTimeNumber = (Number) measurementEntity.getStatistics().get("replicateLag");
-            cdcDelayTime = cdcDelayTimeNumber.longValue();
-        }
-        return cdcDelayTime;
-    }
+//    /**
+//     * 增量延迟时间
+//     *
+//     * @return
+//     */
+//    private Long getCdcDelayTime(String taskId) {
+//        Long cdcDelayTime = null;
+//        MeasurementEntity measurementEntity = measurementService.findByTaskId(taskId);
+//        if (null != measurementEntity && null != measurementEntity.getStatistics() && null != measurementEntity.getStatistics().get("replicateLag")) {
+//            Number cdcDelayTimeNumber = (Number) measurementEntity.getStatistics().get("replicateLag");
+//            cdcDelayTime = cdcDelayTimeNumber.longValue();
+//        }
+//        return cdcDelayTime;
+//    }
 
 
-    /**
-     * 获取增量所处时间点
-     *
-     * @return
-     */
-    private Date getEventTime(String taskId) {
-        Date eventTime = null;
-        MeasurementEntity measurementEntity = measurementService.findByTaskId(taskId);
-        if (null != measurementEntity) {
-            Number cdcTimestamp = measurementEntity.getStatistics().getOrDefault("cdcTime", 0L);
-            Long cdcMillSeconds = cdcTimestamp.longValue();
-            if (cdcMillSeconds > 0) {
-                eventTime = new Date(cdcMillSeconds);
-            }
-        }
-        return eventTime;
-    }
+//    /**
+//     * 获取增量所处时间点
+//     *
+//     * @return
+//     */
+//    private Date getEventTime(String taskId) {
+//        Date eventTime = null;
+//        MeasurementEntity measurementEntity = measurementService.findByTaskId(taskId);
+//        if (null != measurementEntity) {
+//            Number cdcTimestamp = measurementEntity.getStatistics().getOrDefault("cdcTime", 0L);
+//            Long cdcMillSeconds = cdcTimestamp.longValue();
+//            if (cdcMillSeconds > 0) {
+//                eventTime = new Date(cdcMillSeconds);
+//            }
+//        }
+//        return eventTime;
+//    }
 
 
     public Boolean checkRun(String taskId, UserDetail user) {
@@ -1881,15 +1867,31 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
     public void batchUpTask(MultipartFile multipartFile, UserDetail user, boolean cover) {
         byte[] bytes = new byte[0];
+        List<TaskUpAndLoadDto> taskUpAndLoadDtos;
+
+        if (!multipartFile.getName().endsWith("json.gz")) {
+            //不支持其他的格式文件
+            throw new BizException("Task.ImportFormatError");
+        }
+
         try {
             bytes = GZIPUtil.unGzip(multipartFile.getBytes());
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-        String json = new String(bytes, StandardCharsets.UTF_8);
 
-        List<TaskUpAndLoadDto> taskUpAndLoadDtos = JsonUtil.parseJsonUseJackson(json, new TypeReference<List<TaskUpAndLoadDto>>() {
-        });
+            String json = new String(bytes, StandardCharsets.UTF_8);
+
+            taskUpAndLoadDtos = JsonUtil.parseJsonUseJackson(json, new TypeReference<List<TaskUpAndLoadDto>>() {
+            });
+        } catch (Exception e) {
+            //e.printStackTrace();
+            //不支持其他的格式文件
+            throw new BizException("Task.ImportFormatError");
+        }
+
+        if (taskUpAndLoadDtos == null) {
+            //不支持其他的格式文件
+            throw new BizException("Task.ImportFormatError");
+        }
+
         List<MetadataInstancesDto> metadataInstancess = new ArrayList<>();
         List<TaskDto> tasks = new ArrayList<>();
         List<DataSourceConnectionDto> connections = new ArrayList<>();
@@ -2103,7 +2105,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     public void renewAgentMeasurement(String taskId) {
         //所有的任务重置操作，都会进这里
         //根据TaskId 把指标数据都删掉
-        measurementService.deleteTaskMeasurement(taskId);
+//        measurementService.deleteTaskMeasurement(taskId);
 //        measurementServiceV2.deleteTaskMeasurement(taskId);
     }
     public void renewNotSendMq(TaskDto taskDto, UserDetail user) {
@@ -2119,7 +2121,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         if (taskDto.getAttrs() != null) {
             taskDto.getAttrs().remove("syncProgress");
             taskDto.getAttrs().remove("edgeMilestones");
-            taskDto.getAttrs().remove("autoInspectProgress");
+            AutoInspectUtil.removeProgress(taskDto.getAttrs());
 
             set.set("attrs", taskDto.getAttrs());
         }
@@ -2159,9 +2161,6 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 //        taskService.update(new Query(Criteria.where("_id").is(taskDto.getParentId())), update.unset("temp"));
         updateById(taskDto.getId(), set, user);
 
-        CustomerJobLog customerJobLog = new CustomerJobLog(taskDto.getId().toString(), taskDto.getName());
-        customerJobLog.setDataFlowType(CustomerJobLogsService.DataFlowType.sync.getV());
-        customerJobLogsService.resetJob(customerJobLog, user);
         resetFlag(taskDto.getId(), user, "resetFlag");
     }
 
@@ -2311,14 +2310,19 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         }
 
         if (TaskDto.SYNC_TYPE_MIGRATE.equals(taskDto.getSyncType()) || TaskDto.SYNC_TYPE_SYNC.equals(taskDto.getSyncType())) {
-            for (int i = 0; i < 30; i++) {
+            for (int i = 1; i < 6; i++) {
                 TaskDto transformedCheck = findByTaskId(taskDto.getId(), "transformed");
                 if (transformedCheck.getTransformed() != null && transformedCheck.getTransformed()) {
                     run(taskDto, user);
                     return;
                 }
                 try {
-                    Thread.sleep(500);
+                    long sleepTime = 1;
+                    for (int j = 0; j < i; j++) {
+                        sleepTime = sleepTime * 2;
+                    }
+                    sleepTime = sleepTime * 1000;
+                    Thread.sleep(sleepTime);
                 } catch (InterruptedException e) {
                     throw new BizException("SystemError");
                 }
@@ -2352,21 +2356,16 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
         CalculationEngineVo calculationEngineVo = workerService.scheduleTaskToEngine(taskDto, user, "task", taskDto.getName());
         monitoringLogsService.agentAssignMonitoringLog(taskDto, calculationEngineVo.getProcessId(), calculationEngineVo.getAvailable(), user);
-        CustomerJobLog customerJobLog = new CustomerJobLog(taskDto.getId().toString(), taskDto.getName());
-        customerJobLog.setDataFlowType(CustomerJobLogsService.DataFlowType.sync.getV());
         if (StringUtils.isBlank(taskDto.getAgentId())) {
             log.warn("No available agent found, task name = {}", taskDto.getName());
             Query query1 = new Query(Criteria.where("_id").is(taskDto.getId()).and("status").is(TaskDto.STATUS_SCHEDULING));
             update(query1, Update.update("status", TaskDto.STATUS_SCHEDULE_FAILED), user);
-            customerJobLogsService.noAvailableAgents(customerJobLog, user);
             throw new BizException("Task.AgentNotFound");
         } else {
             updateTaskRecordStatus(taskDto, TaskDto.STATUS_SCHEDULE_FAILED, user);
         }
 
         WorkerDto workerDto = workerService.findOne(new Query(Criteria.where("processId").is(taskDto.getAgentId())));
-        customerJobLog.setAgentHost(workerDto.getHostname());
-        customerJobLogsService.assignAgent(customerJobLog, user);
 
         //调度完成之后，改成待运行状态
         Query query1 = new Query(Criteria.where("_id").is(taskDto.getId()).and("status").is(TaskDto.STATUS_SCHEDULING));
@@ -2384,9 +2383,6 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         } else {
             updateTaskRecordStatus(taskDto, TaskDto.STATUS_WAIT_RUN, user);
         }
-        customerJobLog.setJobName(taskDto.getName());
-        customerJobLog.setJobInfos(TaskService.printInfos(dag));
-        customerJobLogsService.startJob(customerJobLog, user);
         //发送websocket消息，提醒flowengin启动
         DataSyncMq dataSyncMq = new DataSyncMq();
         dataSyncMq.setTaskId(taskDto.getId().toHexString());
@@ -2497,14 +2493,6 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             //没有更新成功，说明可能是并发操作导致
             log.info("concurrent pause operations, this operation don‘t effective, task name = {}", taskDto.getName());
             return;
-        }
-        CustomerJobLog customerJobLog = new CustomerJobLog(taskDto.getId().toString(), taskDto.getName());
-        customerJobLog.setDataFlowType(CustomerJobLogsService.DataFlowType.sync.getV());
-        customerJobLog.setJobName(taskDto.getName());
-        if (force) {
-            customerJobLogsService.forceStopJob(customerJobLog, user);
-        } else {
-            customerJobLogsService.stopJob(customerJobLog, user);
         }
 
         DataSyncMq dataSyncMq = new DataSyncMq();
@@ -2708,80 +2696,80 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         });
     }
 
-    public List<IncreaseSyncVO> increaseView(String taskId, UserDetail user) {
-        TaskDto TaskDto = checkExistById(MongoUtils.toObjectId(taskId), user);
-        Criteria criteria = Criteria.where("tags.taskId").is(taskId).and("tags.type").is("node");
-        Query query = new Query(criteria);
-        MongoTemplate mongoTemplate = repository.getMongoOperations();
-        List<AgentStatDto> agentStatDtos = mongoTemplate.find(query, AgentStatDto.class);
-        Map<String, AgentStatDto> agentStatMap = agentStatDtos.stream().collect(Collectors.toMap(a -> a.getTags().getNodeId(), a -> a, (a, a1)->a1));
-        DAG dag = TaskDto.getDag();
-        List<Edge> fullEdges = fullEdges(dag);
-
-        List<IncreaseSyncVO> increaseSyncVOS = new ArrayList<>();
-        for (Edge edge : fullEdges) {
-            String source = edge.getSource();
-            String target = edge.getTarget();
-
-            DataParentNode sourceNode = (DataParentNode) dag.getNode(source);
-            DataParentNode targetNode = (DataParentNode) dag.getNode(target);
-
-            AgentStatDto sourceAgentStatDto = agentStatMap.get(source);
-            AgentStatDto targetAgentStatDto = agentStatMap.get(target);
-
-
-            IncreaseSyncVO increaseSyncVO = new IncreaseSyncVO();
-            increaseSyncVO.setSrcId(sourceNode.getId());
-            increaseSyncVO.setSrcConnId(sourceNode.getConnectionId());
-            if (sourceNode instanceof TableNode) {
-                increaseSyncVO.setSrcTableName(((TableNode) sourceNode).getTableName());
-            }
-            increaseSyncVO.setTgtId(targetNode.getId());
-            increaseSyncVO.setTgtConnId(targetNode.getConnectionId());
-            if (targetNode instanceof TableNode) {
-                increaseSyncVO.setTgtTableName(((TableNode) targetNode).getTableName());
-            }
-            increaseSyncVO.setDelay(0L);
-            if (targetAgentStatDto != null) {
-                double delay = targetAgentStatDto.getStatistics().getReplicateLag();
-                if (delay > 0) {
-                    increaseSyncVO.setDelay((long) delay);
-                }
-            }
-
-            if (sourceAgentStatDto != null) {
-                double cdcTime = sourceAgentStatDto.getStatistics().getCdcTime();
-                if (cdcTime != 0) {
-                    increaseSyncVO.setCdcTime(new Date((long) cdcTime));
-                }
-            }
-
-            increaseSyncVOS.add(increaseSyncVO);
-
-        }
-
-        List<String> connectionIds = new ArrayList<>();
-        for (IncreaseSyncVO increaseSyncVO : increaseSyncVOS) {
-            if (StringUtils.isNotBlank(increaseSyncVO.getSrcId())) {
-                connectionIds.add(increaseSyncVO.getSrcConnId());
-            }
-
-            if (StringUtils.isNotBlank(increaseSyncVO.getTgtId())) {
-                connectionIds.add(increaseSyncVO.getTgtConnId());
-            }
-        }
-
-        Criteria idCriteria = Criteria.where("_id").in(connectionIds);
-        Query query1 = new Query(idCriteria);
-        List<DataSourceConnectionDto> connections = dataSourceService.findAll(query1);
-        Map<String, String> connectionNameMap = connections.stream().collect(Collectors.toMap(d -> d.getId().toHexString(), DataSourceConnectionDto::getName));
-        for (IncreaseSyncVO increaseSyncVO : increaseSyncVOS) {
-            increaseSyncVO.setSrcName(connectionNameMap.get(increaseSyncVO.getSrcConnId()));
-            increaseSyncVO.setTgtName(connectionNameMap.get(increaseSyncVO.getTgtConnId()));
-        }
-
-        return increaseSyncVOS;
-    }
+//    public List<IncreaseSyncVO> increaseView(String taskId, UserDetail user) {
+//        TaskDto TaskDto = checkExistById(MongoUtils.toObjectId(taskId), user);
+//        Criteria criteria = Criteria.where("tags.taskId").is(taskId).and("tags.type").is("node");
+//        Query query = new Query(criteria);
+//        MongoTemplate mongoTemplate = repository.getMongoOperations();
+//        List<AgentStatDto> agentStatDtos = mongoTemplate.find(query, AgentStatDto.class);
+//        Map<String, AgentStatDto> agentStatMap = agentStatDtos.stream().collect(Collectors.toMap(a -> a.getTags().getNodeId(), a -> a, (a, a1)->a1));
+//        DAG dag = TaskDto.getDag();
+//        List<Edge> fullEdges = fullEdges(dag);
+//
+//        List<IncreaseSyncVO> increaseSyncVOS = new ArrayList<>();
+//        for (Edge edge : fullEdges) {
+//            String source = edge.getSource();
+//            String target = edge.getTarget();
+//
+//            DataParentNode sourceNode = (DataParentNode) dag.getNode(source);
+//            DataParentNode targetNode = (DataParentNode) dag.getNode(target);
+//
+//            AgentStatDto sourceAgentStatDto = agentStatMap.get(source);
+//            AgentStatDto targetAgentStatDto = agentStatMap.get(target);
+//
+//
+//            IncreaseSyncVO increaseSyncVO = new IncreaseSyncVO();
+//            increaseSyncVO.setSrcId(sourceNode.getId());
+//            increaseSyncVO.setSrcConnId(sourceNode.getConnectionId());
+//            if (sourceNode instanceof TableNode) {
+//                increaseSyncVO.setSrcTableName(((TableNode) sourceNode).getTableName());
+//            }
+//            increaseSyncVO.setTgtId(targetNode.getId());
+//            increaseSyncVO.setTgtConnId(targetNode.getConnectionId());
+//            if (targetNode instanceof TableNode) {
+//                increaseSyncVO.setTgtTableName(((TableNode) targetNode).getTableName());
+//            }
+//            increaseSyncVO.setDelay(0L);
+//            if (targetAgentStatDto != null) {
+//                double delay = targetAgentStatDto.getStatistics().getReplicateLag();
+//                if (delay > 0) {
+//                    increaseSyncVO.setDelay((long) delay);
+//                }
+//            }
+//
+//            if (sourceAgentStatDto != null) {
+//                double cdcTime = sourceAgentStatDto.getStatistics().getCdcTime();
+//                if (cdcTime != 0) {
+//                    increaseSyncVO.setCdcTime(new Date((long) cdcTime));
+//                }
+//            }
+//
+//            increaseSyncVOS.add(increaseSyncVO);
+//
+//        }
+//
+//        List<String> connectionIds = new ArrayList<>();
+//        for (IncreaseSyncVO increaseSyncVO : increaseSyncVOS) {
+//            if (StringUtils.isNotBlank(increaseSyncVO.getSrcId())) {
+//                connectionIds.add(increaseSyncVO.getSrcConnId());
+//            }
+//
+//            if (StringUtils.isNotBlank(increaseSyncVO.getTgtId())) {
+//                connectionIds.add(increaseSyncVO.getTgtConnId());
+//            }
+//        }
+//
+//        Criteria idCriteria = Criteria.where("_id").in(connectionIds);
+//        Query query1 = new Query(idCriteria);
+//        List<DataSourceConnectionDto> connections = dataSourceService.findAll(query1);
+//        Map<String, String> connectionNameMap = connections.stream().collect(Collectors.toMap(d -> d.getId().toHexString(), DataSourceConnectionDto::getName));
+//        for (IncreaseSyncVO increaseSyncVO : increaseSyncVOS) {
+//            increaseSyncVO.setSrcName(connectionNameMap.get(increaseSyncVO.getSrcConnId()));
+//            increaseSyncVO.setTgtName(connectionNameMap.get(increaseSyncVO.getTgtConnId()));
+//        }
+//
+//        return increaseSyncVOS;
+//    }
 
 
     public List<Edge> fullEdges(DAG dag) {
@@ -3067,10 +3055,9 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
         Map<String, Object> data = new HashMap<>();
 
-        Query query = Query.query(Criteria.where("_id").is(new ObjectId(taskId)));
-        TaskDto taskDto = findOne(query);
+        TaskDto taskDto = findByTaskId(new ObjectId(taskId), AutoInspectConstants.AUTO_INSPECT_PROGRESS_PATH);
         if (null != taskDto) {
-            AutoInspectProgress progress = AutoInspectUtil.parse(taskDto.getAttrs());
+            AutoInspectProgress progress = AutoInspectUtil.toAutoInspectProgress(taskDto.getAttrs());
             if (null != progress) {
                 data.put("totals", progress.getTableCounts());
                 data.put("ignore", progress.getTableIgnore());
@@ -3082,5 +3069,29 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             }
         }
         return data;
+    }
+
+    public void updateTaskLogSetting(String taskId, LogSettingParam logSettingParam, UserDetail userDetail) {
+        ObjectId taskObjectId = new ObjectId(taskId);
+        TaskDto task = findById(taskObjectId);
+        if (null == task) {
+            throw new BizException("Task.NotFound", "The task does not exist");
+        }
+
+        Map<String, Object> logSetting = task.getLogSetting();
+        if (null == logSetting) {
+            logSetting = new HashMap<>();
+        }
+
+        String level = logSettingParam.getLevel();
+        logSetting.put("level", level);
+        if (level.equalsIgnoreCase("DEBUG")) {
+            logSetting.put("recordCeiling", logSettingParam.getRecordCeiling());
+            logSetting.put("intervalCeiling", logSettingParam.getIntervalCeiling());
+        }
+
+        Update update = new Update();
+        update.set("logSetting", logSetting);
+        updateById(taskObjectId, update, userDetail);
     }
 }

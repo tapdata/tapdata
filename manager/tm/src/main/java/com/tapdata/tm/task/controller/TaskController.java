@@ -25,6 +25,7 @@ import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
 import com.tapdata.tm.metadatainstance.vo.SourceTypeEnum;
 import com.tapdata.tm.task.bean.*;
 import com.tapdata.tm.task.entity.TaskEntity;
+import com.tapdata.tm.task.param.LogSettingParam;
 import com.tapdata.tm.task.service.*;
 import com.tapdata.tm.task.vo.JsResultDto;
 import com.tapdata.tm.task.vo.JsResultVo;
@@ -482,12 +483,12 @@ public class TaskController extends BaseController {
         return success(snapshotEdgeProgressService.syncTableView(subTaskId, skip, limit));
     }
 
-    @GetMapping("view/increase/{taskId}")
-    public ResponseMessage<List<IncreaseSyncVO>> increaseView(@PathVariable("taskId") String taskId,
-                                                              @RequestParam(value = "skip", required = false, defaultValue = "0") Long skip,
-                                                              @RequestParam(value = "limit", required = false, defaultValue = "20") Integer limit) {
-        return success(taskService.increaseView(taskId, getLoginUser()));
-    }
+//    @GetMapping("view/increase/{taskId}")
+//    public ResponseMessage<List<IncreaseSyncVO>> increaseView(@PathVariable("taskId") String taskId,
+//                                                              @RequestParam(value = "skip", required = false, defaultValue = "0") Long skip,
+//                                                              @RequestParam(value = "limit", required = false, defaultValue = "20") Integer limit) {
+//        return success(taskService.increaseView(taskId, getLoginUser()));
+//    }
 
     @PostMapping("increase/clear/{taskId}")
     public ResponseMessage<List<IncreaseSyncVO>> increaseClear(@PathVariable("taskId") String taskId,
@@ -982,6 +983,24 @@ public class TaskController extends BaseController {
                                                            @RequestParam(defaultValue = "1") Integer page,
                                                            @RequestParam(defaultValue = "20") Integer size) {
         return success(taskRecordService.queryRecords(taskId, page, size));
+    }
+
+    @Operation(summary = "任务日志设置")
+    @PutMapping("/logSetting/{taskId}")
+    public ResponseMessage<Void> logSetting (@PathVariable("taskId") String taskId,
+                                             @RequestBody LogSettingParam logSettingParam) {
+        taskService.updateTaskLogSetting(taskId, logSettingParam, getLoginUser());
+        return success();
+    }
+
+    @Operation(summary = "任务日志设置")
+    @PostMapping("/logSetting/{level}/{taskId}")
+    public ResponseMessage<Void> logSettingPost (@PathVariable("taskId") String taskId,
+                                                 @PathVariable("level") String level) {
+        LogSettingParam logSettingParam = new LogSettingParam();
+        logSettingParam.setLevel(level);
+        taskService.updateTaskLogSetting(taskId, logSettingParam, getLoginUser());
+        return success();
     }
 
 }

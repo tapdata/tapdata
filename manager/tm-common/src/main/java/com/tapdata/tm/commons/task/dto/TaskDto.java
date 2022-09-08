@@ -12,6 +12,7 @@ import com.tapdata.tm.commons.task.dto.alarm.AlarmSettingDto;
 import lombok.Data;
 
 import java.io.Serializable;
+import java.util.Map;
 import java.util.List;
 
 
@@ -65,6 +66,8 @@ public class TaskDto extends ParentTaskDto {
     private boolean showInspectTips;
 
     private String inspectId;
+
+    private Map<String, Object> logSetting;
 
     /** 编辑中 待启动 */
     public static final String STATUS_EDIT = "edit";

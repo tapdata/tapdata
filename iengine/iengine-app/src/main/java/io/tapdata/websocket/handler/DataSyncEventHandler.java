@@ -32,7 +32,7 @@ import io.tapdata.pdk.apis.functions.connector.common.ReleaseExternalFunction;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.api.PDKIntegration;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
-import io.tapdata.pdk.core.monitor.PDKMethod;
+import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.schema.PdkTableMap;
 import io.tapdata.schema.TapTableUtil;
 import io.tapdata.websocket.EventHandlerAnnotation;

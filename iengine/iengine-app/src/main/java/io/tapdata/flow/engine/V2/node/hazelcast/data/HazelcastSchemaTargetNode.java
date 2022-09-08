@@ -7,7 +7,6 @@ import com.tapdata.entity.TapdataEvent;
 import com.tapdata.entity.schema.SchemaApplyResult;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.processor.ScriptUtil;
-import com.tapdata.processor.constant.JSEngineEnum;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.process.CustomProcessorNode;
 import com.tapdata.tm.commons.dag.process.JsProcessorNode;
@@ -92,7 +91,13 @@ public class HazelcastSchemaTargetNode extends HazelcastVirtualTargetNode {
 				} else {
 					declareScript = String.format("function declare(tapTable){\n %s \n return tapTable;\n}", declareScript);
 				}
-				this.engine = ScriptUtil.getScriptEngine(JSEngineEnum.NASHORN.getEngineName(), declareScript);
+				this.engine = ScriptUtil.getScriptEngine(
+								declareScript,
+								null,
+								null,
+								((DataProcessorContext) processorBaseContext).getCacheService(),
+								logger
+				);
 			}
 		}
 	}

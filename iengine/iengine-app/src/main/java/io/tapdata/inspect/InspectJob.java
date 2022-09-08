@@ -9,7 +9,7 @@ import com.tapdata.entity.MysqlJson;
 import io.tapdata.entity.schema.value.DateTime;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
-import io.tapdata.pdk.core.monitor.PDKMethod;
+import io.tapdata.pdk.apis.functions.PDKMethod;
 import org.apache.commons.collections.MapUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.bson.types.ObjectId;

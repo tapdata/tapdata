@@ -24,6 +24,7 @@ import java.text.SimpleDateFormat;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -31,6 +32,7 @@ import java.util.function.Consumer;
 
 public abstract class ConnectorBase implements TapConnector {
 	private static final TypeConverter typeConverter = InstanceFactory.instance(TypeConverter.class);
+	private static final TapUtils tapUtils = InstanceFactory.instance(TapUtils.class);
 	private static final SimpleDateFormat tapDateTimeFormat = new SimpleDateFormat();
 	private static final String TAG = ConnectorBase.class.getSimpleName();
 
@@ -76,6 +78,12 @@ public abstract class ConnectorBase implements TapConnector {
 
 	public static Boolean toBoolean(Object value) {
 		return typeConverter.toBoolean(value);
+	}
+
+	public static void fillFieldsByExample(TapTable table, String exampleJson) {
+		DataMap dataMap = fromJsonObject(exampleJson);
+		//TODO fill fields in table.
+		
 	}
 
 	public static String toJson(Object obj, JsonParser.ToJsonFeature... features) {
@@ -289,5 +297,48 @@ public abstract class ConnectorBase implements TapConnector {
 				contextConsumer.accept((TapConnectorContext) connectionContext);
 			}
 		}
+	}
+
+	protected Throwable getRootThrowable(Throwable throwable) {
+		if (null == throwable) {
+			return null;
+		}
+		List<Throwable> throwables = new ArrayList<>();
+		throwables.add(throwable);
+		while (!Thread.currentThread().isInterrupted()) {
+			Throwable cause = throwables.get(throwables.size() - 1).getCause();
+			if (null == cause) {
+				break;
+			}
+			if (throwables.contains(cause)) {
+				break;
+			}
+			throwables.add(cause);
+		}
+		return throwables.get(throwables.size() - 1);
+	}
+
+	protected Throwable matchThrowable(Throwable throwable, Class<? extends Throwable> match) {
+		if (null == throwable) {
+			return null;
+		}
+		List<Throwable> throwables = new ArrayList<>();
+		throwables.add(throwable);
+		Throwable matched = null;
+		while (!Thread.currentThread().isInterrupted()) {
+			Throwable cause = throwables.get(throwables.size() - 1).getCause();
+			if (null == cause) {
+				break;
+			}
+			if (throwables.contains(cause)) {
+				break;
+			}
+			if (cause.getClass().getName().equals(match.getName())) {
+				matched = cause;
+				break;
+			}
+			throwables.add(cause);
+		}
+		return matched;
 	}
 }

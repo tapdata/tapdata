@@ -28,8 +28,15 @@ public class TableFieldTypesGeneratorImpl implements TableFieldTypesGenerator {
                         entry.getValue().setTapType(tapMapping.toTapType(entry.getValue().getDataType(), result.getParams()));
                     }
                 } else {
-                    entry.getValue().setTapType(tapRaw());
-                    TapLogger.debug(TAG, "Field dataType {} didn't match corresponding TapMapping, TapRaw will be used for this dataType. ", entry.getValue().getDataType());
+//<<<<<<< HEAD
+//                    entry.getValue().setTapType(tapRaw());
+//                    TapLogger.debug(TAG, "Field dataType {} didn't match corresponding TapMapping, TapRaw will be used for this dataType. ", entry.getValue().getDataType());
+//=======
+                    if(entry.getValue().getTapType() == null) {
+                        entry.getValue().setTapType(tapRaw());
+                        TapLogger.warn(TAG, "Field dataType {} didn't match corresponding TapMapping, TapRaw will be used for this dataType. ", entry.getValue().getDataType());
+                    }
+//>>>>>>> develop-v2.9-coding-connector
                 }
             }
         }
@@ -45,8 +52,15 @@ public class TableFieldTypesGeneratorImpl implements TableFieldTypesGenerator {
                 tapField.setTapType(tapMapping.toTapType(tapField.getDataType(), result.getParams()));
             }
         } else {
-            tapField.setTapType(tapRaw());
-            TapLogger.debug(TAG, "Field originType {} didn't match corresponding TapMapping, TapRaw will be used for this dataType. ", tapField.getDataType());
+//<<<<<<< HEAD
+//            tapField.setTapType(tapRaw());
+//            TapLogger.debug(TAG, "Field originType {} didn't match corresponding TapMapping, TapRaw will be used for this dataType. ", tapField.getDataType());
+//=======
+            if(tapField.getTapType() == null) {
+                tapField.setTapType(tapRaw());
+                TapLogger.warn(TAG, "Field originType {} didn't match corresponding TapMapping, TapRaw will be used for this dataType. ", tapField.getDataType());
+            }
+//>>>>>>> develop-v2.9-coding-connector
         }
     }
 }

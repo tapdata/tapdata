@@ -30,6 +30,7 @@ import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.entity.*;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
+import io.tapdata.pdk.apis.functions.connector.target.CreateTableOptions;
 
 import java.sql.SQLException;
 import java.util.*;
@@ -123,24 +124,27 @@ public class PostgresConnector extends ConnectorBase {
     // TODO: 2022/6/9 need to improve test items
     @Override
     public ConnectionOptions connectionTest(TapConnectionContext connectionContext, Consumer<TestItem> consumer) {
-        ConnectionOptions connectionOptions = ConnectionOptions.create();
         postgresConfig = (PostgresConfig) new PostgresConfig().load(connectionContext.getConnectionConfig());
-        PostgresTest postgresTest = new PostgresTest(postgresConfig);
-        TestItem testHostPort = postgresTest.testHostPort();
-        consumer.accept(testHostPort);
-        if (testHostPort.getResult() == TestItem.RESULT_FAILED) {
-            return null;
+        ConnectionOptions connectionOptions = ConnectionOptions.create();
+        connectionOptions.connectionString(postgresConfig.getConnectionString());
+        try (
+                PostgresTest postgresTest = new PostgresTest(postgresConfig)
+        ) {
+            TestItem testHostPort = postgresTest.testHostPort();
+            consumer.accept(testHostPort);
+            if (testHostPort.getResult() == TestItem.RESULT_FAILED) {
+                return connectionOptions;
+            }
+            TestItem testConnect = postgresTest.testConnect();
+            consumer.accept(testConnect);
+            if (testConnect.getResult() == TestItem.RESULT_FAILED) {
+                return connectionOptions;
+            }
+            consumer.accept(postgresTest.testPrivilege());
+            consumer.accept(postgresTest.testReplication());
+            consumer.accept(postgresTest.testLogPlugin());
+            return connectionOptions;
         }
-        TestItem testConnect = postgresTest.testConnect();
-        consumer.accept(testConnect);
-        if (testConnect.getResult() == TestItem.RESULT_FAILED) {
-            return null;
-        }
-        consumer.accept(postgresTest.testPrivilege());
-        consumer.accept(postgresTest.testReplication());
-        consumer.accept(postgresTest.testLogPlugin());
-        postgresTest.close();
-        return connectionOptions;
     }
 
     @Override
@@ -155,7 +159,7 @@ public class PostgresConnector extends ConnectorBase {
         connectorFunctions.supportReleaseExternalFunction(this::onDestroy);
         // target
         connectorFunctions.supportWriteRecord(this::writeRecord);
-        connectorFunctions.supportCreateTable(this::createTable);
+        connectorFunctions.supportCreateTableV2(this::createTableV2);
         connectorFunctions.supportClearTable(this::clearTable);
         connectorFunctions.supportDropTable(this::dropTable);
         connectorFunctions.supportCreateIndex(this::createIndex);
@@ -317,8 +321,13 @@ public class PostgresConnector extends ConnectorBase {
     }
 
     //create table with info which comes from tapTable
-    private void createTable(TapConnectorContext tapConnectorContext, TapCreateTableEvent tapCreateTableEvent) {
+    private CreateTableOptions createTableV2(TapConnectorContext tapConnectorContext, TapCreateTableEvent tapCreateTableEvent) {
         TapTable tapTable = tapCreateTableEvent.getTable();
+        CreateTableOptions createTableOptions = new CreateTableOptions();
+        if (postgresJdbcContext.queryAllTables(Collections.singletonList(tapTable.getId())).size() > 0) {
+            createTableOptions.setTableExists(true);
+            return createTableOptions;
+        }
         Collection<String> primaryKeys = tapTable.primaryKeys();
         //pgsql UNIQUE INDEX use 'UNIQUE' not 'UNIQUE KEY' but here use 'PRIMARY KEY'
         String sql = "CREATE TABLE IF NOT EXISTS \"" + postgresConfig.getSchema() + "\".\"" + tapTable.getId() + "\"(" + CommonSqlMaker.buildColumnDefinition(tapTable, false);
@@ -345,6 +354,8 @@ public class PostgresConnector extends ConnectorBase {
             e.printStackTrace();
             throw new RuntimeException("Create Table " + tapTable.getId() + " Failed! " + e.getMessage());
         }
+        createTableOptions.setTableExists(false);
+        return createTableOptions;
     }
 
     private void clearTable(TapConnectorContext tapConnectorContext, TapClearTableEvent tapClearTableEvent) {

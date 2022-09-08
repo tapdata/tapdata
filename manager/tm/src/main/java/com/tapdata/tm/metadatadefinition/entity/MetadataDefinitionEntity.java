@@ -24,4 +24,6 @@ public class MetadataDefinitionEntity extends BaseEntity {
     @Field("item_type")
     private List<String> itemType;
     private String desc;
+    private String linkId;
+    private Boolean readOnly;
 }

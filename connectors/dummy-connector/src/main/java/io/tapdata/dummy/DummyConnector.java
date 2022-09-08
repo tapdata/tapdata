@@ -7,6 +7,7 @@ import io.tapdata.dummy.po.DummyOffset;
 import io.tapdata.dummy.utils.TapEventBuilder;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.event.TapEvent;
+import io.tapdata.entity.event.ddl.table.TapFieldBaseEvent;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
@@ -79,6 +80,11 @@ public class DummyConnector extends ConnectorBase {
 //        connectorFunctions.supportDropTable(this::supportDropTable);
 //        connectorFunctions.supportClearTable(this::supportClearTable);
 //        connectorFunctions.supportCreateIndex(this::supportCreateIndex);
+        connectorFunctions.supportNewFieldFunction(this::fieldDDLHandler);
+        connectorFunctions.supportAlterFieldNameFunction(this::fieldDDLHandler);
+        connectorFunctions.supportAlterFieldAttributesFunction(this::fieldDDLHandler);
+        connectorFunctions.supportDropFieldFunction(this::fieldDDLHandler);
+        connectorFunctions.supportGetTableNamesFunction(this::getTableNames);
         // target DML
         connectorFunctions.supportWriteRecord(this::supportWriteRecord);
         // test and inspect
@@ -124,7 +130,14 @@ public class DummyConnector extends ConnectorBase {
 
         // Generate specified amount of data
         builder.reset(offsetState, SyncStage.Initial);
-        try (IBatchConsumer<TapEvent> batchConsumer = IBatchConsumer.getInstance(eventBatchSize, config.getBatchTimeouts(), (t) -> eventConsumer.accept(t, builder.getOffset()))) {
+        try (
+                IBatchConsumer<TapEvent> batchConsumer =
+                        IBatchConsumer.getInstance(
+                                eventBatchSize,
+                                config.getBatchTimeouts(),
+                                (t) -> eventConsumer.accept(t, builder.getOffset())
+                        )
+        ) {
             // generate insert record event
             TapInsertRecordEvent tapInsertRecordEvent;
             Long initialTotals = config.getInitialTotals();
@@ -221,6 +234,26 @@ public class DummyConnector extends ConnectorBase {
                     .insertedCount(insert.get())
                     .modifiedCount(update.get())
                     .removedCount(delete.get()));
+        }
+    }
+
+    private void fieldDDLHandler(TapConnectorContext tapConnectorContext, TapFieldBaseEvent tapFieldBaseEvent) {
+        if (writeLog) {
+            TapLogger.info(TAG, "Show field DDL: {}", tapFieldBaseEvent.toString());
+        }
+    }
+
+    private void getTableNames(TapConnectionContext tapConnectionContext, int batchSize, Consumer<List<String>> listConsumer) {
+        List<String> batchList = new ArrayList<>();
+        for (String table : schemas.keySet()) {
+            batchList.add(table);
+            if (batchList.size() >= batchSize) {
+                listConsumer.accept(batchList);
+                batchList = new ArrayList<>();
+            }
+        }
+        if (!batchList.isEmpty()) {
+            listConsumer.accept(batchList);
         }
     }
 }

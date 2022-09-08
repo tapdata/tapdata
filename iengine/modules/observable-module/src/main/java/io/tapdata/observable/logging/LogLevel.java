@@ -34,6 +34,34 @@ public enum LogLevel {
         this.value = value;
     }
 
+    public boolean isTrace() {
+        return this == TRACE;
+    }
+
+    public boolean isDebug() {
+        return this == DEBUG;
+    }
+
+    public boolean isInfo() {
+        return this == INFO;
+    }
+
+    public boolean isWarn() {
+        return this == WARN;
+    }
+
+    public boolean isError() {
+        return this == ERROR;
+    }
+
+    public boolean isFatal() {
+        return this == FATAL;
+    }
+
+    public boolean shouldLog(String level) {
+        return value <= getLogLevel(level).value;
+    }
+
     public static LogLevel getLogLevel(String level) {
         if (null == level || !LOG_LEVEL_MAP.containsKey(level.toUpperCase())) {
             throw new RuntimeException("Invalid log level, should be in TRACE, DEBUG, INFO, WARN, ERROR and FATAL");
@@ -41,11 +69,6 @@ public enum LogLevel {
 
         return LOG_LEVEL_MAP.get(level.toUpperCase());
     }
-
-    public static boolean lt(String level1, String level2) {
-        return getLogLevel(level1).value < getLogLevel(level2).value;
-    }
-
 
     public String getLevel() {
         return level;

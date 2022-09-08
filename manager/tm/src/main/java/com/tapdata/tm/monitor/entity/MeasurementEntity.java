@@ -13,14 +13,7 @@ import java.util.Map;
 
 @Data
 public class MeasurementEntity {
-    @BsonId
-    private String id;
-
-    public static final String GRANULARITY_MINUTE = "minute";
-    public static final String GRANULARITY_HOUR = "hour";
-    //    public static final String GRANULARITY_SECOND = "second";
-    public static final String GRANULARITY_DAY = "day";
-    public static final String GRANULARITY_MONTH = "month";
+    public static final String COLLECTION_NAME = "AgentMeasurementV2";
 
     public static final String FIELD_GRANULARITY = "grnty";
     public static final String FIELD_DATE = "date";
@@ -29,7 +22,9 @@ public class MeasurementEntity {
     public static final String FIELD_LAST = "last";
     public static final String FIELD_TAGS = "tags";
     public static final String FIELD_SAMPLES = "ss";
-    public static final String FIELD_STATISTICS = "statistics";
+
+    @BsonId
+    private String id;
 
     @Field(FIELD_GRANULARITY)
     private String granularity;
@@ -46,8 +41,6 @@ public class MeasurementEntity {
     private Map<String, String> tags;
     @Field(FIELD_SAMPLES)
     private List<Sample> samples;
-    @Field(FIELD_STATISTICS)
-    private Map<String, Number> statistics;
 
     public Map<String, Number> averageValues() {
         Map<String, Number> finalKeyValueMap = new HashMap<>();
