@@ -66,6 +66,7 @@ import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.bson.json.JsonWriterSettings;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.DependsOn;
 import org.springframework.data.mongodb.core.query.Criteria;
@@ -735,10 +736,13 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 			}
 		}
 		Criteria criteria = new Criteria().orOperator(
-				where("id").in(ids),
+				where("_id").in(ids),
 				where("defaultStorage").is(true)
 		);
 		List<ExternalStorageDto> externalStorageDtoList = clientMongoOperator.find(Query.query(criteria), ConnectorConstant.EXTERNAL_STORAGE_COLLECTION, ExternalStorageDto.class);
+		if (CollectionUtils.isEmpty(externalStorageDtoList)) {
+			throw new RuntimeException(String.format("Not found any external storage config: %s", criteria.getCriteriaObject().toJson(JsonWriterSettings.builder().indent(true).build())));
+		}
 		return externalStorageDtoMap;
 	}
 }
