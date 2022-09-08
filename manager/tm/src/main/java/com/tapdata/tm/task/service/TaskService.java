@@ -1868,15 +1868,31 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
     public void batchUpTask(MultipartFile multipartFile, UserDetail user, boolean cover) {
         byte[] bytes = new byte[0];
+        List<TaskUpAndLoadDto> taskUpAndLoadDtos;
+
+        if (!multipartFile.getName().endsWith("json.gz")) {
+            //不支持其他的格式文件
+            throw new BizException("Task.ImportFormatError");
+        }
+
         try {
             bytes = GZIPUtil.unGzip(multipartFile.getBytes());
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-        String json = new String(bytes, StandardCharsets.UTF_8);
 
-        List<TaskUpAndLoadDto> taskUpAndLoadDtos = JsonUtil.parseJsonUseJackson(json, new TypeReference<List<TaskUpAndLoadDto>>() {
-        });
+            String json = new String(bytes, StandardCharsets.UTF_8);
+
+            taskUpAndLoadDtos = JsonUtil.parseJsonUseJackson(json, new TypeReference<List<TaskUpAndLoadDto>>() {
+            });
+        } catch (Exception e) {
+            //e.printStackTrace();
+            //不支持其他的格式文件
+            throw new BizException("Task.ImportFormatError");
+        }
+
+        if (taskUpAndLoadDtos == null) {
+            //不支持其他的格式文件
+            throw new BizException("Task.ImportFormatError");
+        }
+
         List<MetadataInstancesDto> metadataInstancess = new ArrayList<>();
         List<TaskDto> tasks = new ArrayList<>();
         List<DataSourceConnectionDto> connections = new ArrayList<>();
