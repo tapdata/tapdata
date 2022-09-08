@@ -43,14 +43,6 @@ public class AccessTokenService {
     @Autowired
     UserLogService userLogService;
 
-    public static AccessTokenService instance;
-    public AccessTokenService() {
-        instance = this;
-    }
-    public static AccessTokenService instance() {
-        return instance;
-    }
-
     /**
      * 根据前端传进来的accessCode 先到user表里面找，
      * 如果找到，就认为登录成功，生成64位的  accessToken,并更新到accessToken表，，返回前端

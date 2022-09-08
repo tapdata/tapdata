@@ -95,8 +95,9 @@ public class TMApplication {
 		});
 
 		TapLogger.debug(TAG, "TapRuntime will start");
-		//TODO should use TM way to get the mongo uri.
-		CommonUtils.setProperty("TAPDATA_MONGO_URI", "mongodb://127.0.0.1:27017/tapdata?authSource=admin");
+
+		CommonUtils.setProperty("tapdata_proxy_mongodb_uri", userService.getMongodbUri());
+		CommonUtils.setProperty("tapdata_proxy_server_port", userService.getServerPort());
 		TapRuntime.getInstance();
 		TapLogger.debug(TAG, "TapRuntime initialized");
 	}

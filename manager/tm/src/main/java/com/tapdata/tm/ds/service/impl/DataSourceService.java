@@ -28,7 +28,6 @@ import com.tapdata.tm.commons.schema.bean.PlatformInfo;
 import com.tapdata.tm.commons.schema.bean.Schema;
 import com.tapdata.tm.commons.schema.bean.Table;
 import com.tapdata.tm.commons.task.dto.TaskDto;
-import com.tapdata.tm.commons.util.CreateTypeEnum;
 import com.tapdata.tm.commons.util.MetaDataBuilderUtils;
 import com.tapdata.tm.commons.util.PdkSchemaConvert;
 import com.tapdata.tm.config.security.UserDetail;
@@ -113,15 +112,9 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 	private SettingsService settingsService;
 	private DataSourceDefinitionService dataSourceDefinitionService;
 
-	private static DataSourceService instance;
 	public DataSourceService(@NonNull DataSourceRepository repository) {
 		super(repository, DataSourceConnectionDto.class, DataSourceEntity.class);
-		instance = this;
 	}
-	public static DataSourceService instance() {
-		return instance;
-	}
-
 	public DataSourceConnectionDto add(DataSourceConnectionDto connectionDto, UserDetail userDetail) {
 		Boolean submit = connectionDto.getSubmit();
 		connectionDto.setLastUpdAt(new Date());
