@@ -1,6 +1,7 @@
 package io.tapdata.proxy;
 
 import io.tapdata.entity.annotations.Bean;
+import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.simplify.pretty.TypeHandlers;
 import io.tapdata.entity.utils.DataMap;
@@ -19,6 +20,7 @@ import io.tapdata.modules.api.proxy.data.NodeSubscribeInfo;
 import io.tapdata.pdk.apis.functions.connection.CommandCallbackFunction;
 import io.tapdata.pdk.core.api.ConnectionNode;
 import io.tapdata.pdk.core.api.PDKIntegration;
+import io.tapdata.pdk.core.executor.ExecutorsManager;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
 import io.tapdata.pdk.core.monitor.PDKMethod;
 import io.tapdata.pdk.core.utils.CommonUtils;
@@ -28,6 +30,10 @@ import io.tapdata.wsserver.channels.gateway.GatewaySessionHandler;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 
@@ -45,37 +51,107 @@ public class EngineSessionHandler extends GatewaySessionHandler {
 	private final TypeHandlers<TapEntity, Result> typeHandlers = new TypeHandlers<>();
 
 	private Set<String> cachedSubscribedIds;
+	private final Map<String, CommandInfoExecutor> commandIdExecutorMap = new ConcurrentHashMap<>();
 	public EngineSessionHandler() {
 		typeHandlers.register(NodeSubscribeInfo.class, this::handleNodeSubscribeInfo);
 		typeHandlers.register(FetchNewData.class, this::handleFetchNewData);
-		typeHandlers.register(CommandReceived.class, this::handleCommandReceived);
+		typeHandlers.register(CommandResultEntity.class, this::handleCommandResultEntity);
 	}
 
-	public void handleCommandInfo(CommandInfo commandInfo, BiConsumer<Map<String, Object>, Throwable> biConsumer) {
-		sendData(new OutgoingData().time(System.currentTimeMillis()).message(new CommandReceived().commandInfo(commandInfo)));
-	}
-
-	private Result handleCommandReceived(CommandReceived commandReceived) {
-		if(commandReceived == null || commandReceived.getCommandInfo() == null)
-			return new Result().code(NetErrors.COMMAND_RECEIVED_ILLEGAL).description("illegal arguments");
-		CommandInfo commandInfo = commandReceived.getCommandInfo();;
-		ConnectionNode connectionNode = PDKIntegration.createConnectionConnectorBuilder()
-				.withConnectionConfig(new DataMap() {{
-					commandInfo.getConnectionConfig();
-				}})
-				.withGroup(commandInfo.getGroup())
-				.withPdkId(commandInfo.getPdkId())
-				.withAssociateId(UUID.randomUUID().toString())
-				.withVersion(commandInfo.getVersion())
-				.build();
-		CommandCallbackFunction commandCallbackFunction = connectionNode.getConnectionFunctions().getCommandCallbackFunction();
-		if(commandCallbackFunction == null) {
-			return new Result().code(NetErrors.PDK_NOT_SUPPORT_COMMAND_CALLBACK).description("pdkId " + commandInfo.getPdkId() + " doesn't support CommandCallbackFunction");
+	private Result handleCommandResultEntity(CommandResultEntity commandResultEntity) {
+		if(commandResultEntity == null) {
+			return new Result().code(NetErrors.ILLEGAL_PARAMETERS).description("commandResultEntity is null");
 		}
-		AtomicReference<CommandResultEntity> mapAtomicReference = new AtomicReference<>();
-		PDKInvocationMonitor.invoke(connectionNode, PDKMethod.CONNECTION_TEST,
-				() -> mapAtomicReference.set(new CommandResultEntity().content(commandCallbackFunction.filter(connectionNode.getConnectionContext(), commandInfo))), TAG);
-		return new Result().code(Data.CODE_SUCCESS).message(mapAtomicReference.get());
+		String commandId = commandResultEntity.getCommandId();
+		Integer code = commandResultEntity.getCode();
+		String message = commandResultEntity.getMessage();
+		Map<String, Object> content = commandResultEntity.getContent();
+		if(commandId == null) {
+			return new Result().code(NetErrors.ILLEGAL_PARAMETERS).description("code {} or commandId {} is null");
+		}
+		CommandInfoExecutor commandInfoExecutor = commandIdExecutorMap.get(commandId);
+		if(code == null || code != Data.CODE_SUCCESS) {
+			if(commandInfoExecutor != null)
+				commandInfoExecutor.result(null, new CoreException(code, message));
+			return new Result().code(code).description(message);
+		}
+
+		if(commandInfoExecutor != null) {
+			try {
+				if(!commandInfoExecutor.result(content, null)) {
+					TapLogger.debug(TAG, "Command result was not accept successfully, maybe already handled somewhere else, id {}", commandId);
+				}
+			} catch (Throwable throwable) {
+				int resultCode = NetErrors.CONSUME_COMMAND_RESULT_FAILED;
+				if(throwable instanceof CoreException) {
+					CoreException coreException = (CoreException) throwable;
+					resultCode = coreException.getCode();
+				}
+				return new Result().code(resultCode).description("Consumer command result failed, " + throwable.getMessage());
+			}
+		} else {
+			return new Result().code(NetErrors.NO_WAITING_COMMAND).description("Command " + commandId + " is expired already");
+		}
+		return null;
+	}
+
+	public static class CommandInfoExecutor {
+		private CommandInfo commandInfo;
+		private volatile BiConsumer<Map<String, Object>, Throwable> biConsumer;
+		private volatile ScheduledFuture<?> scheduledFuture;
+		public CommandInfoExecutor(CommandInfo commandInfo, BiConsumer<Map<String, Object>, Throwable> biConsumer) {
+			this(commandInfo, biConsumer, null);
+		}
+		public CommandInfoExecutor(CommandInfo commandInfo, BiConsumer<Map<String, Object>, Throwable> biConsumer, ScheduledFuture<?> scheduledFuture) {
+			this.commandInfo = commandInfo;
+			this.biConsumer = biConsumer;
+			this.scheduledFuture = scheduledFuture;
+		}
+
+		public boolean result(Map<String, Object> result, Throwable throwable) {
+			if(cancelTimer()) {
+				if(biConsumer != null) {
+					synchronized (this) {
+						if(biConsumer != null) {
+							biConsumer.accept(result, throwable);
+							biConsumer = null;
+							return true;
+						}
+					}
+				}
+			}
+			return false;
+		}
+
+		public boolean cancelTimer() {
+			if(scheduledFuture != null) {
+				synchronized (this) {
+					if(scheduledFuture != null) {
+						scheduledFuture.cancel(true);
+						scheduledFuture = null;
+						return true;
+					}
+				}
+			}
+			return false;
+		}
+	}
+	public void handleCommandInfo(CommandInfo commandInfo, BiConsumer<Map<String, Object>, Throwable> biConsumer) {
+		if(commandInfo == null || biConsumer == null)
+			throw new CoreException(NetErrors.ILLEGAL_PARAMETERS, "handleCommandInfo missing parameters, commandInfo {}, biConsumer {}", commandInfo, biConsumer);
+		if(sendData(new OutgoingData().time(System.currentTimeMillis()).message(new CommandReceived().commandInfo(commandInfo)))) {
+			CommandInfoExecutor commandInfoExecutor = new CommandInfoExecutor(commandInfo, biConsumer);
+			commandInfoExecutor.scheduledFuture = ExecutorsManager.getInstance().getScheduledExecutorService().schedule(() -> {
+				commandInfoExecutor.result(null, new TimeoutException("Time out"));
+			}, 30, TimeUnit.SECONDS);
+			CommandInfoExecutor old = commandIdExecutorMap.put(commandInfo.getId(), commandInfoExecutor);
+			if(old != null) {
+				TapLogger.debug(TAG, "Command info id {} already exists, will use new one instead, timer will be another 30 seconds", commandInfo.getId());
+				old.cancelTimer();
+			}
+		} else {
+			throw new CoreException(NetErrors.ENGINE_CHANNEL_OFFLINE, "Engine is offline");
+		}
 	}
 
 	private Result handleFetchNewData(FetchNewData fetchNewData) {

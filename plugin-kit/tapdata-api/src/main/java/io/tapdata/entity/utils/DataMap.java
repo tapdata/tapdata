@@ -9,6 +9,11 @@ import java.util.Map;
  *
  */
 public class DataMap extends LinkedHashMap<String, Object> {
+	public static DataMap create(Map<String, Object> map) {
+		DataMap dataMap = new DataMap();
+		dataMap.putAll(map);
+		return dataMap;
+	}
 	public static DataMap create() {
 		return new DataMap();
 	}

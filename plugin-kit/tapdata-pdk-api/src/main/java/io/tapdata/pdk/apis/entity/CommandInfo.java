@@ -4,9 +4,8 @@ import java.util.Date;
 import java.util.Map;
 
 public class CommandInfo {
-	private String pdkId;
-	private String group;
-	private String version;
+	private String id;
+	private String pdkHash;
 	private Map<String, Object> connectionConfig;
 	private Map<String, Object> nodeConfig;
 	private String command;
@@ -16,31 +15,15 @@ public class CommandInfo {
 
 	@Override
 	public String toString() {
-		return "CommandInfo pdkId " + pdkId + " group " + group + " version " + version + " command " + command + " action " + action + " time " + new Date(time) + " connectionConfig " + connectionConfig + " nodeConfig " + nodeConfig + ";";
+		return "CommandInfo id " + id + " pdkHash " + pdkHash + " command " + command + " action " + action + " time " + (time != null ? new Date(time) : null) + " connectionConfig " + connectionConfig + " nodeConfig " + nodeConfig + ";";
 	}
 
-	public String getPdkId() {
-		return pdkId;
+	public String getPdkHash() {
+		return pdkHash;
 	}
 
-	public void setPdkId(String pdkId) {
-		this.pdkId = pdkId;
-	}
-
-	public String getGroup() {
-		return group;
-	}
-
-	public void setGroup(String group) {
-		this.group = group;
-	}
-
-	public String getVersion() {
-		return version;
-	}
-
-	public void setVersion(String version) {
-		this.version = version;
+	public void setPdkHash(String pdkHash) {
+		this.pdkHash = pdkHash;
 	}
 
 	public Map<String, Object> getConnectionConfig() {
@@ -89,5 +72,13 @@ public class CommandInfo {
 
 	public void setTime(Long time) {
 		this.time = time;
+	}
+
+	public String getId() {
+		return id;
+	}
+
+	public void setId(String id) {
+		this.id = id;
 	}
 }

@@ -2,10 +2,10 @@ package io.tapdata.proxy;
 
 import io.tapdata.entity.annotations.Bean;
 import io.tapdata.entity.annotations.Implementation;
-import io.tapdata.modules.api.net.data.OutgoingData;
+import io.tapdata.entity.error.CoreException;
+import io.tapdata.modules.api.net.error.NetErrors;
 import io.tapdata.pdk.apis.entity.CommandInfo;
 import io.tapdata.modules.api.net.service.CommandExecutionService;
-import io.tapdata.modules.api.proxy.data.CommandReceived;
 import io.tapdata.wsserver.channels.gateway.GatewaySessionHandler;
 import io.tapdata.wsserver.channels.gateway.GatewaySessionManager;
 
@@ -24,8 +24,11 @@ public class CommandExecutionServiceImpl implements CommandExecutionService {
 		for(GatewaySessionHandler gatewaySessionHandler : gatewaySessionHandlers) {
 			if(gatewaySessionHandler instanceof EngineSessionHandler) {
 				EngineSessionHandler engineSessionHandler = (EngineSessionHandler) gatewaySessionHandler;
-//				new CommandReceived().commandInfo(commandInfo)
+				//TODO choose any engine, but should not be the one all the time. if no engine in this proxy, should find one from other proxies.
+				engineSessionHandler.handleCommandInfo(commandInfo, biConsumer);
+				return;
 			}
 		}
+		throw new CoreException(NetErrors.NO_AVAILABLE_ENGINE, "No available engine to run this command");
 	}
 }

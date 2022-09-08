@@ -113,8 +113,13 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 	private SettingsService settingsService;
 	private DataSourceDefinitionService dataSourceDefinitionService;
 
+	private static DataSourceService instance;
 	public DataSourceService(@NonNull DataSourceRepository repository) {
 		super(repository, DataSourceConnectionDto.class, DataSourceEntity.class);
+		instance = this;
+	}
+	public static DataSourceService instance() {
+		return instance;
 	}
 
 	public DataSourceConnectionDto add(DataSourceConnectionDto connectionDto, UserDetail userDetail) {
