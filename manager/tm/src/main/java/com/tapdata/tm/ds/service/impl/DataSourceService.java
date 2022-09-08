@@ -37,6 +37,7 @@ import com.tapdata.tm.commons.util.PdkSchemaConvert;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.dataflow.dto.DataFlowDto;
 import com.tapdata.tm.dataflow.service.DataFlowService;
+import com.tapdata.tm.ds.dto.ConnectionStats;
 import com.tapdata.tm.ds.dto.UpdateTagsDto;
 import com.tapdata.tm.ds.entity.DataSourceEntity;
 import com.tapdata.tm.ds.repository.DataSourceRepository;
@@ -68,6 +69,7 @@ import io.tapdata.entity.utils.TypeHolder;
 import io.tapdata.pdk.apis.entity.Capability;
 import io.tapdata.pdk.apis.entity.ConnectionOptions;
 import io.tapdata.pdk.core.utils.TapConstants;
+import lombok.Data;
 import lombok.NonNull;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
@@ -79,6 +81,8 @@ import org.bson.types.ObjectId;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Sort;
+import org.springframework.data.mongodb.core.aggregation.Aggregation;
+import org.springframework.data.mongodb.core.aggregation.AggregationResults;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
@@ -91,8 +95,11 @@ import javax.servlet.http.HttpServletRequest;
 import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static com.tapdata.tm.utils.MongoUtils.toObjectId;
+import static org.springframework.data.mongodb.core.aggregation.Aggregation.group;
+import static org.springframework.data.mongodb.core.aggregation.Aggregation.match;
 
 /**
  * @Author: Zed
@@ -209,10 +216,10 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 			throw new BizException("Datasource.NotFound", "Data source connections not found or not belong to current user");
 		}
 
-        // should encode the password even if the username not exist
-        if (StringUtils.isNotBlank(updateDto.getPlain_password())) {
-            restoreAccessNodeType(updateDto, connectionDto);
-        }
+		// should encode the password even if the username not exist
+		if (StringUtils.isNotBlank(updateDto.getPlain_password())) {
+			restoreAccessNodeType(updateDto, connectionDto);
+		}
 
 		checkAccessNodeAvailable(updateDto.getAccessNodeType(), updateDto.getAccessNodeProcessIdList(), user);
 
@@ -314,10 +321,10 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 	}
 
 
-    private String patchDataFilter(DataSourceConnectionDto updateDto, String databasePassword) {
-        log.debug("build mongo uri, update dto = {}, databasePassword = {}", updateDto, databasePassword);
-        String result = null;
-        if (DataSourceEnum.isMongoDB(updateDto.getDatabase_type()) || DataSourceEnum.isGridFs(updateDto.getDatabase_type())) {
+	private String patchDataFilter(DataSourceConnectionDto updateDto, String databasePassword) {
+		log.debug("build mongo uri, update dto = {}, databasePassword = {}", updateDto, databasePassword);
+		String result = null;
+		if (DataSourceEnum.isMongoDB(updateDto.getDatabase_type()) || DataSourceEnum.isGridFs(updateDto.getDatabase_type())) {
 
 			if (StringUtils.isNotBlank(updateDto.getDatabase_username()) && StringUtils.isBlank(updateDto.getPlain_password())) {
 				updateDto.setDatabase_password(databasePassword);
@@ -376,13 +383,13 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 		List<DataSourceDefinitionDto> definitionDtoList = dataSourceDefinitionService.findByPdkHashList(pdkHashList, user);
 		//Map<String, DataSourceDefinitionDto> definitionMap = definitionDtoList.stream().collect(Collectors.toMap(DataSourceDefinitionDto::getPdkHash, Function.identity(), (f1, f2) -> f1));
 
-        for (DataSourceConnectionDto item : items) {
-            if (!isAgentReq()) {
-                if ((DataSourceEnum.isMongoDB(item.getDatabase_type()) || DataSourceEnum.isGridFs(item.getDatabase_type()))
-                        && StringUtils.isNotBlank(item.getDatabase_uri())) {
-                    item.setDatabase_uri(UriRootConvertUtils.hidePassword(item.getDatabase_uri()));
-                }
-            }
+		for (DataSourceConnectionDto item : items) {
+			if (!isAgentReq()) {
+				if ((DataSourceEnum.isMongoDB(item.getDatabase_type()) || DataSourceEnum.isGridFs(item.getDatabase_type()))
+						&& StringUtils.isNotBlank(item.getDatabase_uri())) {
+					item.setDatabase_uri(UriRootConvertUtils.hidePassword(item.getDatabase_uri()));
+				}
+			}
 
 			//不需要这个操作了。引擎会更新这个东西，另外每次更新databasetypes的时候，需要更新这个  参考： updateCapabilities方法
 //            if (definitionMap.containsKey(item.getPdkHash())) {
@@ -637,26 +644,26 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 			throw new BizException("Datasource.NotFound", "data source connection not found");
 		}
 
-        DataSourceEntity entity = optional.get();
-        entity.setId(null);
-        //将数据源连接的名称修改成为名称后面+_copy
-        String connectionName = entity.getName() + " - Copy";
-        while (true) {
-            try {
-                //插入复制的数据源
-                entity.setName(connectionName);
-                entity.setStatus(DataSourceEntity.STATUS_INVALID);
-                entity.setLoadFieldsStatus(null);
-                entity = repository.save(entity, user);
-                break;
-            } catch (Exception e) {
-                if (e.getMessage().contains("duplicate key error")) {
-                    connectionName = connectionName + " - Copy";
-                } else {
-                    throw e;
-                }
-            }
-        }
+		DataSourceEntity entity = optional.get();
+		entity.setId(null);
+		//将数据源连接的名称修改成为名称后面+_copy
+		String connectionName = entity.getName() + " - Copy";
+		while (true) {
+			try {
+				//插入复制的数据源
+				entity.setName(connectionName);
+				entity.setStatus(DataSourceEntity.STATUS_INVALID);
+				entity.setLoadFieldsStatus(null);
+				entity = repository.save(entity, user);
+				break;
+			} catch (Exception e) {
+				if (e.getMessage().contains("duplicate key error")) {
+					connectionName = connectionName + " - Copy";
+				} else {
+					throw e;
+				}
+			}
+		}
 
 		log.debug("copy datasource success, datasource name = {}", connectionName);
 
@@ -736,13 +743,13 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 				throw new BizException("Datasource.TableNotFound", "Tables is not found");
 			}
 
-            List<Table> tableSchemas = tables.parallelStream().map(t -> {
-                Table table = new Table();
-                table.setTableId(t.getId().toHexString());
-                table.setTableName(StringUtils.isNotBlank(t.getName()) ? t.getName() : t.getOriginalName());
-                table.setCdcEnabled(true);
-                return table;
-            }).collect(Collectors.toList());
+			List<Table> tableSchemas = tables.parallelStream().map(t -> {
+				Table table = new Table();
+				table.setTableId(t.getId().toHexString());
+				table.setTableName(StringUtils.isNotBlank(t.getName()) ? t.getName() : t.getOriginalName());
+				table.setCdcEnabled(true);
+				return table;
+			}).collect(Collectors.toList());
 
 			Schema schemaDto = new Schema();
 			schemaDto.setTables(tableSchemas);
@@ -754,19 +761,19 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 		return connectionDto;
 	}
 
-    public static void desensitizeMongoConnection(DataSourceConnectionDto connectionDto) {
-        if (DataSourceEnum.isMongoDB(connectionDto.getDatabase_type()) && !DataSourceEnum.isGridFs(connectionDto.getDatabase_type())) {
-            String databaseUri = connectionDto.getDatabase_uri();
-            log.debug("parser mongo uri, result = {}", databaseUri);
-            if (com.tapdata.manager.common.utils.StringUtils.isBlank(databaseUri))
-                return;
-            //将databaseUri解析成为标准模式的参数
-            ConnectionString connectionString = null;
-            try {
-                connectionString = new ConnectionString(databaseUri);
-            } catch (Exception e) {
-                log.error("Parse connection string failed ({})", databaseUri, e);
-            }
+	public static void desensitizeMongoConnection(DataSourceConnectionDto connectionDto) {
+		if (DataSourceEnum.isMongoDB(connectionDto.getDatabase_type()) && !DataSourceEnum.isGridFs(connectionDto.getDatabase_type())) {
+			String databaseUri = connectionDto.getDatabase_uri();
+			log.debug("parser mongo uri, result = {}", databaseUri);
+			if (com.tapdata.manager.common.utils.StringUtils.isBlank(databaseUri))
+				return;
+			//将databaseUri解析成为标准模式的参数
+			ConnectionString connectionString = null;
+			try {
+				connectionString = new ConnectionString(databaseUri);
+			} catch (Exception e) {
+				log.error("Parse connection string failed ({})", databaseUri, e);
+			}
 
 			if (connectionString != null) {
 				StringBuilder hosts = new StringBuilder();
@@ -829,10 +836,10 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 		//schema 不能入库，应该是通过update接口存在metadataInstance里面
 		connection.setSchema(null);
 
-        //mongo的特殊处理
-        if ((DataSourceEnum.isMongoDB(connection.getDatabase_type()) || DataSourceEnum.isGridFs(connection.getDatabase_type()))
-                && StringUtils.isBlank(connection.getDatabase_uri())) {
-            log.debug("set the uri of the mongo type data source");
+		//mongo的特殊处理
+		if ((DataSourceEnum.isMongoDB(connection.getDatabase_type()) || DataSourceEnum.isGridFs(connection.getDatabase_type()))
+				&& StringUtils.isBlank(connection.getDatabase_uri())) {
+			log.debug("set the uri of the mongo type data source");
 
 			connection.setDatabase_uri(UriRootConvertUtils.constructUri(connection));
 			parserMongo(connection);
@@ -1161,121 +1168,121 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 								newModels.size(), connectionId, oldConnectionDto.getName());
 
 						Map<String, List<TypeMappingsEntity>> typeMapping =
-                                typeMappingsService.getTypeMapping(oldConnectionDto.getDatabase_type(), TypeMappingDirection.TO_TAPTYPE);
-                        String dbVersion = oldConnectionDto.getDb_version();
-                        if (com.tapdata.manager.common.utils.StringUtils.isBlank(dbVersion)) {
-                            dbVersion = "*";
-                        }
-                        String finalDbVersion = dbVersion;
+								typeMappingsService.getTypeMapping(oldConnectionDto.getDatabase_type(), TypeMappingDirection.TO_TAPTYPE);
+						String dbVersion = oldConnectionDto.getDb_version();
+						if (com.tapdata.manager.common.utils.StringUtils.isBlank(dbVersion)) {
+							dbVersion = "*";
+						}
+						String finalDbVersion = dbVersion;
 
-                        newModels.forEach(model -> {
-                            if (model.getFields() != null) {
-                                model.getFields().forEach(field -> {
-                                    String originalDataType = field.getDataType();
-                                    if (StringUtils.isEmpty(field.getOriginalDataType())) {
-                                        field.setOriginalDataType(originalDataType);
-                                    }
+						newModels.forEach(model -> {
+							if (model.getFields() != null) {
+								model.getFields().forEach(field -> {
+									String originalDataType = field.getDataType();
+									if (StringUtils.isEmpty(field.getOriginalDataType())) {
+										field.setOriginalDataType(originalDataType);
+									}
 
-                                    String cacheKey = originalDataType + "-" + finalDbVersion;
-                                    List<TypeMappingsEntity> typeMappings = null;
-                                    if (typeMapping.containsKey(cacheKey)) {
-                                        typeMappings = typeMapping.get(cacheKey);
-                                    } else if (typeMapping.containsKey(originalDataType + "-*")) {
-                                        cacheKey = originalDataType + "-*";
-                                        typeMappings = typeMapping.get(cacheKey);
-                                    }
-                                    if (typeMappings == null || typeMappings.size() == 0) {
-                                        log.error("Not found tap type mapping rule for databaseType={}, dbVersion={}, dbFieldType={}",
-                                                oldConnectionDto.getDatabase_type(), finalDbVersion, originalDataType);
-                                        return;
-                                    }
-                                    if (typeMappings.size() == 1) {
-                                        field.setTapType(typeMappings.get(0).getTapType());
-                                    } else {
-                                        Integer precision = field.getPrecision();
-                                        Integer scale = field.getScale();
-                                        String dataType = field.getDataType();
-                                        TypeMappingsEntity optimalType = null;
+									String cacheKey = originalDataType + "-" + finalDbVersion;
+									List<TypeMappingsEntity> typeMappings = null;
+									if (typeMapping.containsKey(cacheKey)) {
+										typeMappings = typeMapping.get(cacheKey);
+									} else if (typeMapping.containsKey(originalDataType + "-*")) {
+										cacheKey = originalDataType + "-*";
+										typeMappings = typeMapping.get(cacheKey);
+									}
+									if (typeMappings == null || typeMappings.size() == 0) {
+										log.error("Not found tap type mapping rule for databaseType={}, dbVersion={}, dbFieldType={}",
+												oldConnectionDto.getDatabase_type(), finalDbVersion, originalDataType);
+										return;
+									}
+									if (typeMappings.size() == 1) {
+										field.setTapType(typeMappings.get(0).getTapType());
+									} else {
+										Integer precision = field.getPrecision();
+										Integer scale = field.getScale();
+										String dataType = field.getDataType();
+										TypeMappingsEntity optimalType = null;
 
-                                        Function<TypeMappingsEntity, Integer> sortFactor = (TypeMappingsEntity tm1) -> {
-                                            long factorPrecision = 0;
-                                            long factorScale = 0;
-                                            if (precision != null) {
-                                                Long tm1MinPrecision = tm1.getMinPrecision();
-                                                Long tm1MaxPrecision = tm1.getMaxPrecision();
-                                                factorPrecision = (tm1MaxPrecision != null ? tm1MaxPrecision : 0L) -
-                                                        (tm1MinPrecision != null ? tm1MinPrecision : 0L);
-                                            }
-                                            if (scale != null) {
-                                                Long tm1MinScale = tm1.getMinScale();
-                                                Long tm1MaxScale = tm1.getMaxScale();
-                                                factorScale = (tm1MaxScale != null ? tm1MaxScale : 0L) -
-                                                        (tm1MinScale != null ? tm1MinScale : 0L);
-                                            }
-                                            return Long.valueOf(factorPrecision + factorScale).intValue();
-                                        };
+										Function<TypeMappingsEntity, Integer> sortFactor = (TypeMappingsEntity tm1) -> {
+											long factorPrecision = 0;
+											long factorScale = 0;
+											if (precision != null) {
+												Long tm1MinPrecision = tm1.getMinPrecision();
+												Long tm1MaxPrecision = tm1.getMaxPrecision();
+												factorPrecision = (tm1MaxPrecision != null ? tm1MaxPrecision : 0L) -
+														(tm1MinPrecision != null ? tm1MinPrecision : 0L);
+											}
+											if (scale != null) {
+												Long tm1MinScale = tm1.getMinScale();
+												Long tm1MaxScale = tm1.getMaxScale();
+												factorScale = (tm1MaxScale != null ? tm1MaxScale : 0L) -
+														(tm1MinScale != null ? tm1MinScale : 0L);
+											}
+											return Long.valueOf(factorPrecision + factorScale).intValue();
+										};
 
-                                        List<TypeMappingsEntity> optimalTypeList = typeMappings.stream().filter(tm -> {
-                                            if (precision != null) { // 过滤掉 type mapping 中 precision 为 null 或者 min max 范围不包含 字段长度的规则
-                                                if (tm.getMinPrecision() == null || tm.getMinPrecision() > precision)
-                                                    return false;
-                                                if (tm.getMaxPrecision() == null || tm.getMaxPrecision() < precision)
-                                                    return false;
-                                            }
-                                            if (scale != null && !"String".equalsIgnoreCase(dataType)) { //过滤掉 type mapping 中 scale 为 null 或者 min max 范围不包含 字段精度的规则
-                                                if (tm.getMinScale() == null || tm.getMinScale() > scale)
-                                                    return false;
-                                                if (tm.getMaxScale() == null || tm.getMaxScale() < scale)
-                                                    return false;
-                                            }
+										List<TypeMappingsEntity> optimalTypeList = typeMappings.stream().filter(tm -> {
+											if (precision != null) { // 过滤掉 type mapping 中 precision 为 null 或者 min max 范围不包含 字段长度的规则
+												if (tm.getMinPrecision() == null || tm.getMinPrecision() > precision)
+													return false;
+												if (tm.getMaxPrecision() == null || tm.getMaxPrecision() < precision)
+													return false;
+											}
+											if (scale != null && !"String".equalsIgnoreCase(dataType)) { //过滤掉 type mapping 中 scale 为 null 或者 min max 范围不包含 字段精度的规则
+												if (tm.getMinScale() == null || tm.getMinScale() > scale)
+													return false;
+												if (tm.getMaxScale() == null || tm.getMaxScale() < scale)
+													return false;
+											}
 
-                                            if (precision == null && scale == null) {
-                                                return tm.getMaxPrecision() == null && tm.getMinPrecision() == null &&
-                                                        tm.getMaxScale() == null && tm.getMinScale() == null;
-                                            } else if (precision == null) {
-                                                return tm.getMaxPrecision() == null && tm.getMinPrecision() == null;
-                                            } else if (scale == null) {
-                                                return tm.getMaxScale() == null && tm.getMinScale() == null;
-                                            }
+											if (precision == null && scale == null) {
+												return tm.getMaxPrecision() == null && tm.getMinPrecision() == null &&
+														tm.getMaxScale() == null && tm.getMinScale() == null;
+											} else if (precision == null) {
+												return tm.getMaxPrecision() == null && tm.getMinPrecision() == null;
+											} else if (scale == null) {
+												return tm.getMaxScale() == null && tm.getMinScale() == null;
+											}
 
-                                            return true;
-                                        }).sorted((tm1, tm2) -> { // 按照 长度范围、精度范围排序，将最符合的排在上面
+											return true;
+										}).sorted((tm1, tm2) -> { // 按照 长度范围、精度范围排序，将最符合的排在上面
 
-                                            int tm1Factor = sortFactor.apply(tm1);
-                                            int tm2Factor = sortFactor.apply(tm2);
+											int tm1Factor = sortFactor.apply(tm1);
+											int tm2Factor = sortFactor.apply(tm2);
 
-                                            return tm1Factor - tm2Factor;
+											return tm1Factor - tm2Factor;
 
-                                        }).collect(Collectors.toList());
+										}).collect(Collectors.toList());
 
-                                        //optimalTypeList = _optimalTypeList.size() > 0 ? _optimalTypeList : typeMappings;
-                                        //}
+										//optimalTypeList = _optimalTypeList.size() > 0 ? _optimalTypeList : typeMappings;
+										//}
 
-                                        if (optimalTypeList.size() == 1) {
-                                            optimalType = optimalTypeList.get(0);
-                                        }
+										if (optimalTypeList.size() == 1) {
+											optimalType = optimalTypeList.get(0);
+										}
 
-                                        if (optimalType == null) {
-                                            optimalType = typeMappings.get(0);
-                                        }
+										if (optimalType == null) {
+											optimalType = typeMappings.get(0);
+										}
 
-                                        if (optimalType != null) {
-                                            field.setTapType(optimalType.getTapType());
-                                        }
-                                    }
-                                });
-                            }
-                        });
+										if (optimalType != null) {
+											field.setTapType(optimalType.getTapType());
+										}
+									}
+								});
+							}
+						});
 
-                        if (CollectionUtils.isNotEmpty(newModels)) {
-                            for (MetadataInstancesDto newModel : newModels) {
-                                List<Field> fields = newModel.getFields();
-                                if (CollectionUtils.isNotEmpty(fields)) {
-                                    for (Field field : fields) {
-                                        field.setSourceDbType(oldConnectionDto.getDatabase_type());
-                                    }
-                                }
-                            }
+						if (CollectionUtils.isNotEmpty(newModels)) {
+							for (MetadataInstancesDto newModel : newModels) {
+								List<Field> fields = newModel.getFields();
+								if (CollectionUtils.isNotEmpty(fields)) {
+									for (Field field : fields) {
+										field.setSourceDbType(oldConnectionDto.getDatabase_type());
+									}
+								}
+							}
 
 							Long schemaVersion = (Long) set.get("lastUpdate");
 							String loadFieldsStatus = (String) set.get("loadFieldsStatus");
@@ -1632,5 +1639,42 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 		query.limit(limit);
 		query.with(Sort.by(Sort.Direction.ASC, "_id"));
 		return taskService.findAllDto(query, userDetail);
+	}
+
+	public ConnectionStats stats(UserDetail userDetail) {
+
+		Aggregation aggregation = Aggregation.newAggregation(
+				match(Criteria.where("user_id").is(userDetail.getUserId()).and("customId").is(userDetail.getCustomerId())),
+				group("status").count().as("count")
+		);
+
+		AggregationResults<Part> result = repository.aggregate(aggregation, Part.class);
+
+		Iterator<Part> it = result.iterator();
+		Map<String, Long> data = new HashMap<>();
+		while(it.hasNext()) {
+			Part part = it.next();
+			data.put(part.get_id(), part.getCount());
+		}
+
+		ConnectionStats connectionStats = new ConnectionStats();
+		if (data.containsKey(DataSourceConnectionDto.STATUS_INVALID)) {
+			connectionStats.setInvalid(data.get(DataSourceConnectionDto.STATUS_INVALID));
+		}
+		if (data.containsKey(DataSourceConnectionDto.STATUS_READY)) {
+			connectionStats.setInvalid(data.get(DataSourceConnectionDto.STATUS_READY));
+		}
+		if (data.containsKey(DataSourceConnectionDto.STATUS_TESTING)) {
+			connectionStats.setInvalid(data.get(DataSourceConnectionDto.STATUS_TESTING));
+		}
+		connectionStats.setTotal(connectionStats.getInvalid() + connectionStats.getReady() + connectionStats.getTesting());
+
+		return connectionStats;
+	}
+
+	@Data
+	protected static class Part{
+		private String _id;
+		private long count;
 	}
 }
