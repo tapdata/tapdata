@@ -106,7 +106,7 @@ public class TaskDto extends ParentTaskDto {
     private String taskRecordId;
 
     // Share cdc external storage id
-    private String ShareCDCExternalStorageId;
+    private String shareCDCExternalStorageId;
 
     public DAG getDag() {
         if (dag != null) {
