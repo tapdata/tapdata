@@ -6,6 +6,7 @@ import com.tapdata.tm.Settings.constant.AlarmKeyEnum;
 import com.tapdata.tm.alarm.constant.*;
 import com.tapdata.tm.alarm.entity.AlarmInfo;
 import com.tapdata.tm.alarm.service.AlarmService;
+import com.tapdata.tm.autoinspect.service.TaskAutoInspectResultsService;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmSettingDto;
 import com.tapdata.tm.config.security.UserDetail;
@@ -29,10 +30,10 @@ import java.util.Objects;
  */
 @Component
 @Setter(onMethod_ = {@Autowired})
-public class TaskStatusErrorJob implements Job {
+public class TaskInspectErrorJob implements Job {
 
     private TaskService taskService;
-    private UserService userService;
+    private TaskAutoInspectResultsService inspectResultsService;
     private AlarmService alarmService;
 
     @Override
@@ -41,22 +42,19 @@ public class TaskStatusErrorJob implements Job {
         String taskId = dataMap.getString("taskId");
         AlarmSettingDto alarmSetting = JSON.parseObject(JSON.toJSONString(dataMap.get("alarmSetting")), AlarmSettingDto.class);
 
+        long count = inspectResultsService.countByTaskId(taskId);
         TaskDto data = taskService.findById(MongoUtils.toObjectId(taskId));
 
-        if (Objects.nonNull(data) && TaskDto.STATUS_ERROR.equals(data.getStatus())) {
-            UserDetail user = userService.loadUserById(MongoUtils.toObjectId(data.getLastUpdBy()));
-            String userName = "";
-            if (Objects.nonNull(user)) {
-                userName = Objects.nonNull(user.getUsername()) ? user.getUsername() : user.getEmail();
-            }
+        if (Objects.nonNull(data) && count > 0) {
+            String summary = MessageFormat.format(AlarmContentTemplate.TASK_INSPECT_ERROR, DateUtil.now());
 
             if (alarmSetting.isSystemNotify()) {
-                String errorSummary = MessageFormat.format(AlarmContentTemplate.TASK_STATUS_STOP_ERROR, userName, DateUtil.now());
-                AlarmInfo errorInfo = AlarmInfo.builder().status(AlarmStatusEnum.ING).level(AlarmLevelEnum.EMERGENCY).component(AlarmComponentEnum.FE)
+                AlarmInfo alarmInfo = AlarmInfo.builder().status(AlarmStatusEnum.ING).level(AlarmLevelEnum.WARNING)
+                        .component(AlarmComponentEnum.FE)
                         .type(AlarmTypeEnum.SYNCHRONIZATIONTASK_ALARM).agnetId(data.getAgentId()).taskId(taskId)
-                        .name(data.getName()).summary(errorSummary).metric(AlarmKeyEnum.TASK_STATUS_ERROR)
+                        .name(data.getName()).summary(summary).metric(AlarmKeyEnum.TASK_INSPECT_ERROR)
                         .build();
-                alarmService.save(errorInfo);
+                alarmService.save(alarmInfo);
             }
 
             if (alarmSetting.isEmailNotify()) {

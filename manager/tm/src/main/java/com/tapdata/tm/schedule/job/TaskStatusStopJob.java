@@ -28,7 +28,7 @@ import java.util.Objects;
  * @author jiuyetx
  * @date 2022/9/6
  */
-@Component("taskStatusStopJob")
+@Component
 @Setter(onMethod_ = {@Autowired})
 public class TaskStatusStopJob implements Job {
 
