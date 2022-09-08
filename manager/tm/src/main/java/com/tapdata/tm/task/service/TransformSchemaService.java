@@ -240,12 +240,14 @@ public class TransformSchemaService {
             return;
         }
 
-        String transformUuid = taskDto.getTransformUuid();
-        long tv = Long.parseLong(transformUuid);
-        long rv = Long.parseLong(result.getTransformUuid());
+        if (!saveHistory) {
+            String transformUuid = taskDto.getTransformUuid();
+            long tv = Long.parseLong(transformUuid);
+            long rv = Long.parseLong(result.getTransformUuid());
 
-        if (rv < tv) {
-            return;
+            if (rv < tv) {
+                return;
+            }
         }
 
         Map<String, List<Message>> msgMap = result.getTransformSchema();
@@ -280,17 +282,20 @@ public class TransformSchemaService {
             metadataTransformerService.save(result.getUpsertTransformer(), user);
         }
 
-        if (StringUtils.isNotBlank(result.getTransformUuid()) && StringUtils.isNotBlank(result.getTaskId())) {
-            Criteria criteria = Criteria.where("_id").is(MongoUtils.toObjectId(result.getTaskId()))
-                    .and("transformUuid").lte(result.getTransformUuid());
-            UpdateResult transformed = taskService.update(new Query(criteria),
-                    Update.update("transformed", true).set("transformUuid", result.getTransformUuid()), user);
-            if (transformed.getModifiedCount() > 0 && CollectionUtils.isNotEmpty(result.getUpsertTransformer())) {
-                int total = result.getUpsertTransformer().get(0).getTotal();
-                int finished = result.getUpsertTransformer().get(0).getFinished();
-                // add transformer task log
-                taskDagCheckLogService.createLog(taskId, user.getUserId(), Level.INFO.getValue(), DagOutputTemplateEnum.MODEL_PROCESS_CHECK,
-                        false, true, DateUtil.now(), finished, total);
+
+        if (!saveHistory) {
+            if (StringUtils.isNotBlank(result.getTransformUuid()) && StringUtils.isNotBlank(result.getTaskId())) {
+                Criteria criteria = Criteria.where("_id").is(MongoUtils.toObjectId(result.getTaskId()))
+                        .and("transformUuid").lte(result.getTransformUuid());
+                UpdateResult transformed = taskService.update(new Query(criteria),
+                        Update.update("transformed", true).set("transformUuid", result.getTransformUuid()), user);
+                if (transformed.getModifiedCount() > 0 && CollectionUtils.isNotEmpty(result.getUpsertTransformer())) {
+                    int total = result.getUpsertTransformer().get(0).getTotal();
+                    int finished = result.getUpsertTransformer().get(0).getFinished();
+                    // add transformer task log
+                    taskDagCheckLogService.createLog(taskId, user.getUserId(), Level.INFO.getValue(), DagOutputTemplateEnum.MODEL_PROCESS_CHECK,
+                            false, true, DateUtil.now(), finished, total);
+                }
             }
         }
     }
