@@ -1,8 +1,11 @@
 package com.tapdata.entity.task.config;
 
+import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
+import org.apache.commons.collections.MapUtils;
 
 import java.io.Serializable;
+import java.util.Map;
 
 /**
  * @author samuel
@@ -36,5 +39,23 @@ public class TaskConfig implements Serializable {
 
 	public TaskDto getTaskDto() {
 		return taskDto;
+	}
+
+	private Map<String, ExternalStorageDto> externalStorageDtoMap;
+
+	public TaskConfig externalStorageDtoMap(Map<String, ExternalStorageDto> externalStorageDtoMap) {
+		this.externalStorageDtoMap = externalStorageDtoMap;
+		return this;
+	}
+
+	public Map<String, ExternalStorageDto> getExternalStorageDtoMap() {
+		return externalStorageDtoMap;
+	}
+
+	public ExternalStorageDto getDefaultExternalStorage() {
+		if (MapUtils.isEmpty(externalStorageDtoMap)) {
+			return null;
+		}
+		return externalStorageDtoMap.values().stream().filter(ExternalStorageDto::isDefaultStorage).findFirst().orElse(null);
 	}
 }

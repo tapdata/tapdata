@@ -106,6 +106,8 @@ public class ConnectorConstant {
 	 */
 	public static final String AGENT_INFO_COLLECTION = "agentEnvironment";
 
+	public static final String EXTERNAL_STORAGE_COLLECTION = "ExternalStorage";
+
 	public static final String JOB_STATUS_FIELD = "status";
 
 	public static final String JOB_CONNECTOR_STOPPED_FIELD = "connectorStopped";

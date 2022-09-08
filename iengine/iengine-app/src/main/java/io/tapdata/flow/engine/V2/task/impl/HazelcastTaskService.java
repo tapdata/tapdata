@@ -30,6 +30,7 @@ import com.tapdata.tm.commons.dag.nodes.*;
 import com.tapdata.tm.commons.dag.process.MergeTableNode;
 import com.tapdata.tm.commons.dag.process.MigrateFieldRenameProcessorNode;
 import com.tapdata.tm.commons.dag.process.TableRenameProcessNode;
+import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.aspect.TaskStartAspect;
 import io.tapdata.aspect.TaskStopAspect;
@@ -67,6 +68,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.DependsOn;
+import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Service;
 
@@ -490,15 +492,15 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 			case JS_PROCESSOR:
 			case MIGRATE_JS_PROCESSOR:
 				hazelcastNode = new HazelcastJavaScriptProcessorNode(
-								DataProcessorContext.newBuilder()
-												.withTaskDto(taskDto)
-												.withNode(node)
-												.withNodes(nodes)
-												.withEdges(edges)
-												.withCacheService(cacheService)
-												.withConfigurationCenter(config)
-												.withTapTableMap(tapTableMap)
-												.build()
+						DataProcessorContext.newBuilder()
+								.withTaskDto(taskDto)
+								.withNode(node)
+								.withNodes(nodes)
+								.withEdges(edges)
+								.withCacheService(cacheService)
+								.withConfigurationCenter(config)
+								.withTapTableMap(tapTableMap)
+								.build()
 				);
 				break;
 			case FIELD_PROCESSOR:
@@ -707,12 +709,36 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 	}
 
 	private TaskConfig getTaskConfig(TaskDto taskDto) {
+		return TaskConfig.create()
+				.taskDto(taskDto)
+				.taskRetryConfig(getTaskRetryConfig())
+				.externalStorageDtoMap(getExternalStorageMap(taskDto));
+	}
+
+	private TaskRetryConfig getTaskRetryConfig() {
 		long retryIntervalSecond = settingService.getLong("retry_interval_second", 60L);
 		long maxRetryTimeMinute = settingService.getLong("max_retry_time_minute", 60L);
 		long maxRetryTimeSecond = maxRetryTimeMinute * 60;
-		TaskRetryConfig taskRetryConfig = TaskRetryConfig.create()
+		return TaskRetryConfig.create()
 				.retryIntervalSecond(retryIntervalSecond)
 				.maxRetryTimeSecond(maxRetryTimeSecond);
-		return TaskConfig.create().taskDto(taskDto).taskRetryConfig(taskRetryConfig);
+	}
+
+	private Map<String, ExternalStorageDto> getExternalStorageMap(TaskDto taskDto) {
+		Map<String, ExternalStorageDto> externalStorageDtoMap = new HashMap<>();
+		com.tapdata.tm.commons.dag.DAG dag = taskDto.getDag();
+		List<Node> nodes = dag.getNodes();
+		Set<String> ids = new HashSet<>();
+		for (Node node : nodes) {
+			if (StringUtils.isNotBlank(node.getExternalStorageId())) {
+				ids.add(node.getExternalStorageId());
+			}
+		}
+		Criteria criteria = new Criteria().orOperator(
+				where("id").in(ids),
+				where("defaultStorage").is(true)
+		);
+		List<ExternalStorageDto> externalStorageDtoList = clientMongoOperator.find(Query.query(criteria), ConnectorConstant.EXTERNAL_STORAGE_COLLECTION, ExternalStorageDto.class);
+		return externalStorageDtoMap;
 	}
 }
