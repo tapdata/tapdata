@@ -77,10 +77,7 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.context.request.RequestContextHolder;
-import org.springframework.web.context.request.ServletRequestAttributes;
 
-import javax.servlet.http.HttpServletRequest;
 import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -119,6 +116,20 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 		Boolean submit = connectionDto.getSubmit();
 		connectionDto.setLastUpdAt(new Date());
 		connectionDto = save(connectionDto, userDetail);
+
+		desensitizeMongoConnection(connectionDto);
+		sendTestConnection(connectionDto, false, submit, userDetail);
+		return connectionDto;
+	}
+	public DataSourceConnectionDto addWithSpecifiedId(DataSourceConnectionDto connectionDto, UserDetail userDetail) {
+		Boolean submit = connectionDto.getSubmit();
+		connectionDto.setLastUpdAt(new Date());
+
+		beforeSave(connectionDto, userDetail);
+
+		repository.insert(convertToEntity(DataSourceEntity.class, connectionDto), userDetail);
+
+		connectionDto = findById(connectionDto.getId(), userDetail);
 
 		desensitizeMongoConnection(connectionDto);
 		sendTestConnection(connectionDto, false, submit, userDetail);
