@@ -46,6 +46,15 @@
 		  "x-index": 3,
 		  "required": true
 		},
+		"schema": {
+			  "required": true,
+			  "type": "string",
+			  "title": "${schema}",
+			  "x-decorator": "FormItem",
+			  "x-component": "Input",
+			  "apiServerKey": "database_owner",
+			  "x-index": 7
+		  },
 		"user": {
 		  "type": "string",
 		  "title": "${user}",

@@ -166,7 +166,7 @@ public class RedoLogContent {
         this.xid = logData.get("XID") == null ? "" : logData.get("XID").toString();
         this.operationCode = logData.get("OPERATION_CODE") == null ? null : Integer.valueOf(logData.get("OPERATION_CODE").toString());
         this.segOwner = logData.get("SEG_OWNER") == null ? "" : logData.get("SEG_OWNER").toString();
-        this.rollback = logData.get("ROLLBACK") == null ? 0 : Integer.parseInt(logData.get("ROLLBACK").toString());
+        this.rollback = logData.get("ROLL_BACK") == null ? 0 : Integer.parseInt(logData.get("ROLL_BACK").toString());
         this.thread = logData.get("THREAD#") == null ? 0 : Integer.parseInt(logData.get("THREAD#").toString());
         this.info = logData.get("INFO") == null ? "" : logData.get("INFO").toString();
 
