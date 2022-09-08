@@ -226,12 +226,13 @@ public class WebsocketPushChannel extends PushChannel {
 
         EventLoopGroup group = new NioEventLoopGroup();
         final WebSocketClientHandler handler = new WebSocketClientHandler(null, WebSocketClientHandshakerFactory
-                .newHandshaker(uri, WebSocketVersion.V13, null, false, new DefaultHttpHeaders()));
+                .newHandshaker(uri, WebSocketVersion.V13, null, false, new DefaultHttpHeaders(), 50 * 1024 * 1024));
         handler.pushChannel = this;
 
         Bootstrap b = new Bootstrap();
         b.option(ChannelOption.SO_KEEPALIVE,true)
                 .option(ChannelOption.TCP_NODELAY,true)
+                .option(ChannelOption.SO_RCVBUF, 1024 * 1024)
 //                .option(ChannelOption.SO_BACKLOG,1024*1024*10)
                 .group(group).channel(NioSocketChannel.class).handler(new ChannelInitializer<SocketChannel>() {
             @Override
