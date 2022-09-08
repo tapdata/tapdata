@@ -99,6 +99,13 @@ public class DefaultDataDirectoryServiceImpl implements DefaultDataDirectoryServ
         addConnections(allDto, user);
     }
 
+    @Override
+    public void deleteDefault(UserDetail user) {
+        Criteria criteria = Criteria.where("item_type").is("default");
+        Query query = new Query(criteria);
+        metadataDefinitionService.deleteAll(query, user);
+    }
+
     public void addConnections(List<DataSourceConnectionDto> connectionDtos, UserDetail user) {
         Set<String> pdkIds = new HashSet<>();
         for (DataSourceConnectionDto connectionDto : connectionDtos) {
@@ -120,10 +127,10 @@ public class DefaultDataDirectoryServiceImpl implements DefaultDataDirectoryServ
 
         List<MetadataDefinitionDto> insertConnections = new ArrayList<>();
         for (DataSourceConnectionDto connectionDto : connectionDtos) {
-            boolean exists = checkConnExists(connectionDto.getId().toHexString(), user);
-            if (exists) {
-                continue;
-            }
+//            boolean exists = checkConnExists(connectionDto.getId().toHexString(), user);
+//            if (exists) {
+//                continue;
+//            }
             MetadataDefinitionDto metadataDefinitionDto = new MetadataDefinitionDto();
             metadataDefinitionDto.setValue(getConnectInfo(connectionDto));
             metadataDefinitionDto.setItemType(Lists.newArrayList("default"));
@@ -161,7 +168,7 @@ public class DefaultDataDirectoryServiceImpl implements DefaultDataDirectoryServ
 
         for (String pdkId : pdkIds) {
             if (pdkDefinitionDtoMap.get(pdkId) != null) {
-                return;
+                continue;
             }
 
             MetadataDefinitionDto metadataDefinitionDto = new MetadataDefinitionDto();
@@ -269,8 +276,6 @@ public class DefaultDataDirectoryServiceImpl implements DefaultDataDirectoryServ
                     ipAndPort.append(":").append(port);
                 }
                 ipAndPort.append(")");
-            } else {
-                ipAndPort = new StringBuilder();
             }
         }
 

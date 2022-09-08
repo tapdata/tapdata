@@ -13,6 +13,8 @@ public interface DefaultDataDirectoryService {
     void removeConnection(String connectionId, UserDetail user);
     void addConnection(DataSourceConnectionDto connectionDto, UserDetail user);
     void addConnections(UserDetail user);
+
+    void deleteDefault(UserDetail user);
     void addConnections(List<DataSourceConnectionDto> connectionDto, UserDetail user);
 
     void addPdkIds(UserDetail user);
