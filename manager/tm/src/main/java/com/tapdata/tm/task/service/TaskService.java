@@ -2422,7 +2422,10 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                     .taskRecordId(dto.getTaskRecordId())
                     .taskStatus(status)
                     .updateBy(userDetail.getUserId())
-                    .updatorName(userDetail.getUsername());
+                    .updatorName(userDetail.getUsername())
+                    .agnetId(dto.getAgentId())
+                    .syncType(dto.getSyncType())
+                    ;
             disruptorService.sendMessage(DisruptorTopicEnum.TASK_STATUS, info);
         }
     }

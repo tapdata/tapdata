@@ -3,6 +3,7 @@ package com.tapdata.tm.schedule.job;
 import cn.hutool.core.date.DateUtil;
 import com.alibaba.fastjson.JSON;
 import com.tapdata.tm.Settings.constant.AlarmKeyEnum;
+import com.tapdata.tm.Settings.entity.AlarmSetting;
 import com.tapdata.tm.alarm.constant.*;
 import com.tapdata.tm.alarm.entity.AlarmInfo;
 import com.tapdata.tm.alarm.service.AlarmService;
@@ -27,9 +28,9 @@ import java.util.Objects;
  * @author jiuyetx
  * @date 2022/9/6
  */
-@Component("taskStatusErrorJob")
+@Component("taskStatusStopJob")
 @Setter(onMethod_ = {@Autowired})
-public class TaskStatusErrorJob implements Job {
+public class TaskStatusStopJob implements Job {
 
     private TaskService taskService;
     private UserService userService;
@@ -50,13 +51,14 @@ public class TaskStatusErrorJob implements Job {
                 userName = Objects.nonNull(user.getUsername()) ? user.getUsername() : user.getEmail();
             }
 
+            String summary = MessageFormat.format(AlarmContentTemplate.TASK_STATUS_STOP_MANUAL, userName, DateUtil.now());
+
             if (alarmSetting.isSystemNotify()) {
-                String errorSummary = MessageFormat.format(AlarmContentTemplate.TASK_STATUS_STOP_ERROR, userName, DateUtil.now());
-                AlarmInfo errorInfo = AlarmInfo.builder().status(AlarmStatusEnum.ING).level(AlarmLevelEnum.EMERGENCY).component(AlarmComponentEnum.FE)
+                AlarmInfo alarmInfo = AlarmInfo.builder().status(AlarmStatusEnum.ING).level(AlarmLevelEnum.WARNING).component(AlarmComponentEnum.FE)
                         .type(AlarmTypeEnum.SYNCHRONIZATIONTASK_ALARM).agnetId(data.getAgentId()).taskId(taskId)
-                        .name(data.getName()).summary(errorSummary).metric(AlarmKeyEnum.TASK_STATUS_ERROR)
+                        .name(data.getName()).summary(summary).metric(AlarmKeyEnum.TASK_STATUS_STOP)
                         .build();
-                alarmService.save(errorInfo);
+                alarmService.save(alarmInfo);
             }
 
             if (alarmSetting.isEmailNotify()) {

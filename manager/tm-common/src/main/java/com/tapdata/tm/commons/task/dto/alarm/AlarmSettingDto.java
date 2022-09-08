@@ -15,6 +15,7 @@ import lombok.Setter;
 @AllArgsConstructor
 public class AlarmSettingDto {
     private AlarmSettingTypeEnum type;
+    private boolean open;
     private String key;
     private int sort;
     private boolean systemNotify;

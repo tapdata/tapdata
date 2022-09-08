@@ -18,4 +18,5 @@ public class SyncTaskStatusDto {
     private String updateBy;
     private String updatorName;
     private String agnetId;
+    private String syncType;
 }

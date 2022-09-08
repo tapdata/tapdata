@@ -17,6 +17,7 @@ import org.springframework.data.mongodb.core.mapping.Document;
 @Document("Settings_Alarm")
 public class AlarmSetting extends BaseEntity {
     private AlarmSettingTypeEnum type;
+    private boolean open;
     private String key;
     private int sort;
     private boolean systemNotify;

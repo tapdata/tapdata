@@ -11,6 +11,7 @@ import com.tapdata.tm.commons.dag.vo.TableRenameTableInfo;
 import com.tapdata.tm.commons.schema.Schema;
 import com.tapdata.tm.commons.schema.SchemaUtils;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmRuleDto;
+import com.tapdata.tm.commons.task.dto.alarm.AlarmSettingDto;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
@@ -42,6 +43,7 @@ public class TableRenameProcessNode extends MigrateProcessorNode {
      */
     private LinkedHashSet<TableRenameTableInfo> tableNames;
 
+    private List<AlarmSettingDto> alarmSettings;
     private List<AlarmRuleDto> alarmRules;
 
     public Map<String, TableRenameTableInfo> originalMap () {

@@ -80,6 +80,7 @@ public class TaskRecordServiceImpl implements TaskRecordService {
 
         List<TaskRecord> taskRecords = partition.get(page - 1);
 
+        // todo reset 的时候 保存一下 最新的就实时查
         List<String> ids = taskRecords.stream().map(t -> t.getId().toHexString()).collect(Collectors.toList());
         Map<String, Long[]> totalMap = measurementServiceV2.countEventByTaskRecord(ids);
 

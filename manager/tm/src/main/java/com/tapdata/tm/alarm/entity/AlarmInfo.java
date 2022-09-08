@@ -40,7 +40,7 @@ public class AlarmInfo extends BaseEntity {
     @Schema(description = "产生告警的节点名，无节点时为空;当为任务告警时，节点直接放任务名")
     private String node;
     @Schema(description = "AlarmKeyEnum key 值")
-    private String metric;
+    private AlarmKeyEnum metric;
     @Schema(description = "触发告警的指标值")
     private Integer currentValue;
     @Schema(description = "触发告警的指标阈值")
@@ -60,4 +60,8 @@ public class AlarmInfo extends BaseEntity {
     private Date closeTime;
     @Schema(description = "告警被谁关闭")
     private String closeBy;
+
+    public Integer getTally() {
+        return tally == null ? 0 : tally;
+    }
 }

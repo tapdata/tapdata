@@ -26,7 +26,7 @@ public class QuartzManager {
      * @param info 任务
      */
     @SuppressWarnings("unchecked")
-    public void addJob(ScheduleJobInfo info) {
+    public void addJob(ScheduleJobInfo info, JobDataMap map) {
         try {
             Scheduler scheduler = schedulerFactoryBean.getScheduler();
 
@@ -36,9 +36,6 @@ public class QuartzManager {
                 log.info("{}， {} 定时任务已经存在", info.getJobName(), info.getGroupName());
                 return;
             }
-
-            JobDataMap map = new JobDataMap();
-            map.put("taskData", "测试的存放的数据");
 
             // JobDetail 是具体Job实例
             jobDetail = JobBuilder.newJob((Class<? extends Job>) Class.forName(info.getClassName()))
