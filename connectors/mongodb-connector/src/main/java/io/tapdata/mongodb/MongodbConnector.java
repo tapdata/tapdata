@@ -1,5 +1,9 @@
 package io.tapdata.mongodb;
 
+import com.mongodb.MongoNodeIsRecoveringException;
+import com.mongodb.MongoNotPrimaryException;
+import com.mongodb.MongoSocketException;
+import com.mongodb.MongoTimeoutException;
 import com.mongodb.client.*;
 import com.mongodb.client.model.IndexOptions;
 import com.mongodb.client.model.Sorts;
@@ -32,6 +36,8 @@ import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.entity.*;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
+import io.tapdata.pdk.apis.functions.PDKMethod;
+import io.tapdata.pdk.apis.functions.connection.RetryOptions;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.ListUtils;
 import org.apache.commons.collections4.MapUtils;
@@ -356,16 +362,42 @@ public class MongodbConnector extends ConnectorBase {
 		connectorFunctions.supportCreateIndex(this::createIndex);
 		connectorFunctions.supportStreamRead(this::streamRead);
 		connectorFunctions.supportTimestampToStreamOffset(this::streamOffset);
+		connectorFunctions.supportErrorHandleFunction(this::errorHandle);
 //        connectorFunctions.supportStreamOffset((connectorContext, tableList, offsetStartTime, offsetOffsetTimeConsumer) -> streamOffset(connectorContext, tableList, offsetStartTime, offsetOffsetTimeConsumer));
+	}
+
+	private RetryOptions errorHandle(TapConnectionContext tapConnectionContext, PDKMethod pdkMethod, Throwable throwable) {
+		RetryOptions retryOptions = RetryOptions.create();
+		if (null != matchThrowable(throwable, MongoTimeoutException.class)
+				|| null != matchThrowable(throwable, MongoSocketException.class)
+				|| null != matchThrowable(throwable, MongoNotPrimaryException.class)
+				|| null != matchThrowable(throwable, MongoNodeIsRecoveringException.class)) {
+			retryOptions.needRetry(true);
+			return retryOptions;
+		}
+		return retryOptions;
 	}
 
 	private void createIndex(TapConnectorContext tapConnectorContext, TapTable table, TapCreateIndexEvent tapCreateIndexEvent) {
 		final List<TapIndex> indexList = tapCreateIndexEvent.getIndexList();
+		final MongoCollection<Document> collection = mongoDatabase.getCollection(table.getName());
+		//get current indexes
+		ListIndexesIterable<Document> currentIndexes = collection.listIndexes();
+		Set<String> indexNames = new HashSet<>();
+		try (
+				MongoCursor<Document> cursor = currentIndexes.iterator()
+		) {
+			while (cursor.hasNext()) {
+				Document next = cursor.next();
+				String name = next.get("name").toString();
+				indexNames.add(name);
+			}
+		}
 		if (CollectionUtils.isNotEmpty(indexList)) {
+			indexList.removeIf(v -> indexNames.contains(v.getName()));
 			for (TapIndex tapIndex : indexList) {
 				final List<TapIndexField> indexFields = tapIndex.getIndexFields();
 				if (CollectionUtils.isNotEmpty(indexFields)) {
-					final MongoCollection<Document> collection = mongoDatabase.getCollection(table.getName());
 					Document keys = new Document();
 					for (TapIndexField indexField : indexFields) {
 						keys.append(indexField.getName(), 1);

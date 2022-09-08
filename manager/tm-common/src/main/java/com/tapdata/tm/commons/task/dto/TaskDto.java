@@ -10,6 +10,7 @@ import com.tapdata.tm.commons.dag.Node;
 import lombok.Data;
 
 import java.io.Serializable;
+import java.util.Map;
 
 
 /**
@@ -62,6 +63,8 @@ public class TaskDto extends ParentTaskDto {
     private boolean showInspectTips;
 
     private String inspectId;
+
+    private Map<String, Object> logSetting;
 
     /** 编辑中 待启动 */
     public static final String STATUS_EDIT = "edit";

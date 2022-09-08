@@ -60,7 +60,6 @@ public class HazelcastProcessorNode extends HazelcastProcessorBaseNode {
 	}
 
 	private void initDataFlowProcessor() throws Exception {
-		dataFlowProcessor = new ScriptDataFlowProcessor();
 		final Stage stage = HazelcastUtil.node2CommonStage(processorBaseContext.getNode());
 		dataFlowProcessor = createDataFlowProcessor(processorBaseContext.getNode(), stage);
 		Job job = new Job();
@@ -90,30 +89,14 @@ public class HazelcastProcessorNode extends HazelcastProcessorBaseNode {
 		TapEvent tapEvent = tapdataEvent.getTapEvent();
 		MessageEntity messageEntity = tapEvent2Message((TapRecordEvent) tapEvent);
 		messageEntity.setOffset(tapdataEvent.getOffset());
-		int cnt = messageEntity.isDml() ? 1 : 0;
-		resetInputCounter.inc(cnt);
-		inputCounter.inc(cnt);
-		inputQPS.add(cnt);
-		long start = System.currentTimeMillis();
 		final List<MessageEntity> processedMessages = dataFlowProcessor.process(Collections.singletonList(messageEntity));
-		timeCostAvg.add(System.currentTimeMillis() - start);
-		resetOutputCounter.inc(cnt);
-		outputCounter.inc(cnt);
-		outputQPS.add(cnt);
 		if (CollectionUtils.isNotEmpty(processedMessages)) {
 			for (MessageEntity processedMessage : processedMessages) {
 				TapdataEvent processedEvent = new TapdataEvent();
 				TapRecordEvent tapRecordEvent = message2TapEvent(processedMessage);
 				if (tapRecordEvent != null) {
 					processedEvent.setTapEvent(tapRecordEvent);
-					String tableName;
-					if (multipleTables || StringUtils.equalsAnyIgnoreCase(processorBaseContext.getTaskDto().getSyncType(),
-									TaskDto.SYNC_TYPE_DEDUCE_SCHEMA)) {
-						tableName = processedMessage.getTableName();
-					} else {
-						tableName = processorBaseContext.getNode().getId();
-					}
-					consumer.accept(processedEvent, ProcessResult.create().tableId(tableName));
+					consumer.accept(processedEvent, getProcessResult(processedMessage.getTableName()));
 				}
 			}
 		}

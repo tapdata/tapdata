@@ -106,8 +106,8 @@ public class Application {
 			TapLogger.setLogListener(new TapLogger.LogListener() {
 				@Override
 				public void debug(String log) {
-//					pdkLogger.debug(log);
-					System.out.println(log);
+					pdkLogger.debug(log);
+//					System.out.println(log);
 				}
 
 				@Override
@@ -118,8 +118,8 @@ public class Application {
 
 				@Override
 				public void warn(String log) {
-//					pdkLogger.warn(log);
-					System.out.println(log);
+					pdkLogger.warn(log);
+//					System.out.println(log);
 				}
 
 				@Override
@@ -238,7 +238,7 @@ public class Application {
 		final LoggerContext ctx = (LoggerContext) LogManager.getContext(false);
 		final org.apache.logging.log4j.core.config.Configuration config = ctx.getConfiguration();
 		PatternLayout patternLayout = PatternLayout.newBuilder()
-				.withPattern("[%-5level] %date{yyyy-MM-dd HH:mm:ss.SSS} [%t] %c{1} - %msg%n")
+				.withPattern("[%-5level] %date{yyyy-MM-dd HH:mm:ss.SSS} %X{taskId} [%t] %c{1} - %msg%n")
 				.build();
 
 		TimeBasedTriggeringPolicy timeBasedTriggeringPolicy = TimeBasedTriggeringPolicy.newBuilder().withInterval(1).withModulate(true).build();

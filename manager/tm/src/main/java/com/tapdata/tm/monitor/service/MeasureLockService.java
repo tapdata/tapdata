@@ -1,7 +1,6 @@
 package com.tapdata.tm.monitor.service;
 
 import com.tapdata.tm.monitor.entity.MeasureLockEntity;
-import com.tapdata.tm.utils.TimeUtil;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -20,25 +19,6 @@ import java.util.Date;
 public class MeasureLockService {
     @Autowired
     private MongoTemplate mongoOperations;
-
-    /**
-     * TM每小时竞争锁, 多个实例同时尝试写入tm的进程id,只有一个实例可以写入成功,并返回被写入的doc,这个实例就是获得执行权的实例
-     * setOnInsert 操作符会将指定的值赋值给指定的字段，如果要更新的文档存在那么$setOnInsert操作符不做任何处理；
-     *
-     * @return
-     */
-    @Deprecated
-    public MeasureLockEntity tryGetLock(String tmProcessName) {
-        Date now = new Date();
-        Date hour = TimeUtil.cleanTimeAfterHour(now);
-        Query query = Query.query(Criteria.where("hour").is(hour).and("tmProcessName").is(tmProcessName));
-
-        Update update = new Update();
-        update.setOnInsert("tmProcessName", tmProcessName );
-        update.set("createdTime",new Date());
-        MeasureLockEntity measureLockEntity = mongoOperations.findAndModify(query, update, FindAndModifyOptions.options().returnNew(true).upsert(true), MeasureLockEntity.class);
-        return measureLockEntity;
-    }
 
     public boolean lock(String granularity, Date date, String unique) {
         Query query = Query.query(Criteria.where("granularity").is(granularity).and("time").is(date));

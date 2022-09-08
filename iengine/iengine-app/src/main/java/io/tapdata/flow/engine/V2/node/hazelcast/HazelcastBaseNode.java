@@ -22,8 +22,6 @@ import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.aspect.*;
 import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.common.SettingService;
-import io.tapdata.common.sample.CollectorFactory;
-import io.tapdata.common.sample.SampleCollector;
 import io.tapdata.entity.OnData;
 import io.tapdata.entity.aspect.Aspect;
 import io.tapdata.entity.aspect.AspectInterceptResult;
@@ -95,10 +93,8 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 	protected SettingService settingService;
 
 	protected Map<String, String> tags;
-	protected SampleCollector sampleCollector;
-	protected SampleCollector statisticCollector;
 	protected MilestoneService milestoneService;
-	protected Throwable error;
+	protected NodeException error;
 	protected String errorMessage;
 	protected ProcessorBaseContext processorBaseContext;
 	protected String threadName;
@@ -164,8 +160,6 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 			TapCodecsRegistry tapCodecsRegistry = TapCodecsRegistry.create();
 			tapCodecsRegistry.registerFromTapValue(TapDateTimeValue.class, tapValue -> tapValue.getValue().toInstant());
 			codecsFilterManager = TapCodecsFilterManager.create(tapCodecsRegistry);
-			initSampleCollector();
-			CollectorFactory.getInstance().recordCurrentValueByTag(tags);
 			// execute ProcessorNodeInitAspect before doInit since we need to init the aspect first;
 			if (this instanceof HazelcastProcessorBaseNode || this instanceof HazelcastMultiAggregatorProcessor) {
 				AspectUtils.executeAspect(ProcessorNodeInitAspect.class, () -> new ProcessorNodeInitAspect().processorBaseContext(processorBaseContext));
@@ -174,8 +168,7 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 			}
 			doInit(context);
 		} catch (Throwable e) {
-			errorHandle(e, "Node init failed");
-			throw new NodeException(e).context(getProcessorBaseContext());
+			throw errorHandle(e, "Node init failed");
 		}
 	}
 
@@ -484,23 +477,6 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 					AspectUtils.executeAspect(DataNodeCloseAspect.class, () -> new DataNodeCloseAspect().dataProcessorContext((DataProcessorContext) processorBaseContext));
 				}
 				//		InstanceFactory.instance(AspectManager.class).executeAspect(DataNodeCloseAspect.class, () -> new DataNodeCloseAspect().node(HazelcastBaseNode.this));
-				if (processorBaseContext.getTaskDto() != null) {
-					if (sampleCollector != null) {
-						CollectorFactory.getInstance().unregisterSampleCollectorFromGroup(processorBaseContext.getTaskDto().getId().toString(), sampleCollector);
-					}
-					if (statisticCollector != null) {
-						CollectorFactory.getInstance().unregisterStatisticCollectorFromGroup(processorBaseContext.getTaskDto().getId().toString(), statisticCollector);
-					}
-				} else {
-					if (sampleCollector != null) {
-						sampleCollector.stop();
-						CollectorFactory.getInstance().removeSampleCollectorByTags(sampleCollector.tags());
-					}
-					if (statisticCollector != null) {
-						statisticCollector.stop();
-						CollectorFactory.getInstance().removeStatisticCollectorByTags(statisticCollector.tags());
-					}
-				}
 				if (error != null) {
 					throw new RuntimeException(errorMessage, error);
 				}
@@ -513,24 +489,6 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 
 	public void setMilestoneService(MilestoneService milestoneService) {
 		this.milestoneService = milestoneService;
-	}
-
-	protected void initSampleCollector() {
-		// new version of metrics and statistics collector
-		tags = new HashMap<>();
-		if (processorBaseContext.getNode() != null) {
-			tags.put("nodeId", processorBaseContext.getNode().getId());
-			tags.put("type", "node");
-		}
-		if (processorBaseContext.getTaskDto() != null) {
-			tags.put("taskId", processorBaseContext.getTaskDto().getId().toString());
-		}
-		sampleCollector = CollectorFactory.getInstance().getSampleCollectorByTags("nodeSamples", tags);
-		statisticCollector = CollectorFactory.getInstance().getStatisticCollectorByTags("nodeStatistics", tags);
-		if (processorBaseContext.getTaskDto() != null) {
-			CollectorFactory.getInstance().registerSampleCollectorToGroup(processorBaseContext.getTaskDto().getId().toString(), sampleCollector);
-			CollectorFactory.getInstance().registerStatisticCollectorToGroup(processorBaseContext.getTaskDto().getId().toString(), statisticCollector);
-		}
 	}
 
 	protected void onDataStats(OnData onData, Stats stats) {
@@ -647,30 +605,33 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 		this.milestoneService = MilestoneFactory.getJetEdgeMilestoneService(processorBaseContext.getTaskDto(), httpClientMongoOperator.getRestTemplateOperator().getBaseURLs(), httpClientMongoOperator.getRestTemplateOperator().getRetryTime(), httpClientMongoOperator.getConfigCenter(), node, vertexName, vertexNames, null, vertexType);
 	}
 
-	protected synchronized void errorHandle(Throwable throwable, String errorMessage) {
-		if (null != error) {
-			return;
-		}
-
-		if (!(throwable instanceof NodeException)) {
-			throwable = new NodeException(errorMessage, throwable).context(getProcessorBaseContext());
-		}
-
-		this.error = throwable;
-		if (null != errorMessage) {
-			this.errorMessage = errorMessage;
+	protected synchronized NodeException errorHandle(Throwable throwable, String errorMessage) {
+		NodeException currentEx;
+		if (throwable instanceof NodeException) {
+			currentEx = (NodeException) throwable;
 		} else {
-			this.errorMessage = throwable.getMessage();
+			currentEx = new NodeException(errorMessage, throwable).context(getProcessorBaseContext());
 		}
-		logger.error(errorMessage, throwable);
-		obsLogger.error(errorMessage, throwable);
-		this.running.set(false);
-		TaskDto taskDto = processorBaseContext.getTaskDto();
-		com.hazelcast.jet.Job hazelcastJob = jetContext.hazelcastInstance().getJet().getJob(taskDto.getName() + "-" + taskDto.getId().toHexString());
-		if (hazelcastJob != null) {
-			AspectUtils.executeAspect(new TaskStopAspect().task(taskDto).error(throwable));
-			hazelcastJob.cancel();
+
+		if (null == error) {
+			this.error = currentEx;
+			if (null != errorMessage) {
+				this.errorMessage = errorMessage;
+			} else {
+				this.errorMessage = currentEx.getMessage();
+			}
+			logger.error(errorMessage, currentEx);
+			obsLogger.error(errorMessage, currentEx);
+			this.running.set(false);
+			TaskDto taskDto = processorBaseContext.getTaskDto();
+			com.hazelcast.jet.Job hazelcastJob = jetContext.hazelcastInstance().getJet().getJob(taskDto.getName() + "-" + taskDto.getId().toHexString());
+			if (hazelcastJob != null) {
+				AspectUtils.executeAspect(new TaskStopAspect().task(taskDto).error(currentEx));
+				hazelcastJob.cancel();
+			}
 		}
+
+		return currentEx;
 	}
 
 	protected boolean taskHasBeenRun() {

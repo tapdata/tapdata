@@ -1,7 +1,7 @@
 package com.tapdata.tm.commons.dag.nodes;
 
+import com.tapdata.tm.autoinspect.constants.AutoInspectConstants;
 import com.tapdata.tm.commons.dag.DAG;
-import com.tapdata.tm.commons.dag.EqField;
 import com.tapdata.tm.commons.dag.NodeType;
 import com.tapdata.tm.commons.dag.vo.SyncObjects;
 import com.tapdata.tm.commons.schema.Schema;
@@ -29,7 +29,7 @@ public class AutoInspectNode extends DataParentNode<List<Schema>> {
     private List<SyncObjects> syncObjects;
 
     public AutoInspectNode() {
-        super("auto_inspect");
+        super(AutoInspectConstants.NODE_TYPE);
     }
 
     @Override

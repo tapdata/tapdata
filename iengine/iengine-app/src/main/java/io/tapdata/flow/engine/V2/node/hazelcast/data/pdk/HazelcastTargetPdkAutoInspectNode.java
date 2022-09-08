@@ -24,8 +24,6 @@ import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.module.api.PipelineDelay;
-import io.tapdata.observable.logging.ObsLogger;
-import io.tapdata.observable.logging.ObsLoggerFactory;
 import lombok.NonNull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -64,11 +62,11 @@ public class HazelcastTargetPdkAutoInspectNode extends HazelcastTargetPdkBaseNod
         TaskDto task = dataProcessorContext.getTaskDto();
         String taskId = task.getId().toHexString();
         TaskType taskType = TaskType.parseByTaskType(syncType.getSyncType());
-        AutoInspectProgress progress = AutoInspectUtil.parse(task.getAttrs());
+        AutoInspectProgress progress = AutoInspectUtil.toAutoInspectProgress(task.getAttrs());
         ClientMongoOperator clientMongoOperator = BeanUtil.getBean(ClientMongoOperator.class);
 
         HazelcastTargetPdkAutoInspectNode _thisNode = this;
-        EXECUTORS.submit(new PdkAutoInspectRunner(obsLogger, taskId, taskType, progress, node, clientMongoOperator) {
+        EXECUTORS.submit(new PdkAutoInspectRunner(obsLogger, taskId, taskType, progress, node, clientMongoOperator, dataProcessorContext.getTaskConfig()) {
 
             @Override
             protected void initialCompare(@NonNull IPdkConnector sourceConnector, @NonNull IPdkConnector targetConnector, @NonNull IAutoCompare autoCompare) throws Exception {
@@ -168,7 +166,7 @@ public class HazelcastTargetPdkAutoInspectNode extends HazelcastTargetPdkBaseNod
                                 }
                             } else if (null == targetRecord) {
                                 //source has more data
-                                autoCompare.autoCompare(TaskAutoInspectResultDto.parse(taskId, sourceRecord, targetConnector.getConnId(), tableName));
+                                autoCompare.autoCompare(TaskAutoInspectResultDto.parseNoneTarget(taskId, sourceRecord, targetConnector.getConnId(), tableName));
                             } else {
                                 targetRecord.getOriginalKey().putAll(sourceRecord.getOriginalKey());
                                 switch (sourceRecord.compare(targetRecord)) {

@@ -1,5 +1,7 @@
 package com.tapdata.tm;
 
+import com.tapdata.tm.config.security.UserDetail;
+import com.tapdata.tm.discovery.service.DefaultDataDirectoryService;
 import com.tapdata.tm.user.dto.UserDto;
 import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.utils.SpringContextHelper;
@@ -55,7 +57,6 @@ public class TMApplication {
 		}
 
 		TimeZone.setDefault(TimeZone.getTimeZone("Asia/Shanghai"));
-
 		TapLogger.setLogListener(new TapLogger.LogListener() {
 			String format(String msg) {
 				return "PDK - " + dateString() + " " + Thread.currentThread().getName() + ": " + msg;
@@ -100,5 +101,15 @@ public class TMApplication {
 		CommonUtils.setProperty("tapdata_proxy_server_port", userService.getServerPort());
 		TapRuntime.getInstance();
 		TapLogger.debug(TAG, "TapRuntime initialized");
+
+		new Thread(() -> {
+			DefaultDataDirectoryService bean = applicationContext.getBean(DefaultDataDirectoryService.class);
+			UserDetail userDetail = userService.loadUserByUsername("admin@admin.com");
+
+			bean.deleteDefault(userDetail);
+			bean.addPdkIds(userDetail);
+			bean.addConnections(userDetail);
+		}).start();
+
 	}
 }

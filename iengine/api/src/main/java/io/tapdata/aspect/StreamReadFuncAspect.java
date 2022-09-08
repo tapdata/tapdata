@@ -1,6 +1,7 @@
 package io.tapdata.aspect;
 
 import com.tapdata.entity.TapdataEvent;
+import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
@@ -31,6 +32,7 @@ public class StreamReadFuncAspect extends DataFunctionAspect<StreamReadFuncAspec
 	}
 	public static final int STATE_STREAM_STARTED = 5;
 	public static final int STATE_STREAMING_READ_COMPLETED = 10;
+	public static final int STATE_STREAMING_PROCESS_COMPLETED = 11;
 	public static final int STATE_STREAMING_ENQUEUED = 12;
 	public static final int STATE_CALLBACK_RAW_DATA = 15;
 	private TapConnectorContext connectorContext;
@@ -61,12 +63,27 @@ public class StreamReadFuncAspect extends DataFunctionAspect<StreamReadFuncAspec
 		return this;
 	}
 
-	private List<Consumer<List<TapdataEvent>>> streamingReadCompleteConsumers = null;
-	public StreamReadFuncAspect streamingReadCompleteConsumers(Consumer<List<TapdataEvent>> listConsumer) {
+	private List<Consumer<List<TapEvent>>> streamingReadCompleteConsumers = null;
+	public StreamReadFuncAspect streamingReadCompleteConsumers(Consumer<List<TapEvent>> listConsumer) {
 		if (null == streamingReadCompleteConsumers) {
 			streamingReadCompleteConsumers = new CopyOnWriteArrayList<>();
 		}
-		streamingReadCompleteConsumers.add(tapdataEvents -> {
+		streamingReadCompleteConsumers.add(tapEvents -> {
+			try {
+				listConsumer.accept(tapEvents);
+			} catch(Throwable throwable) {
+				TapLogger.warn(TAG, "Consume tapdataEvents from table {} failed on streaming read complete consumer {}, {}", tables, listConsumer, ExceptionUtils.getStackTrace(throwable));
+			}
+		});
+		return this;
+	}
+
+	private List<Consumer<List<TapdataEvent>>> streamingProcessCompleteConsumers = null;
+	public StreamReadFuncAspect streamingProcessCompleteConsumers(Consumer<List<TapdataEvent>> listConsumer) {
+		if (null == streamingProcessCompleteConsumers) {
+			streamingProcessCompleteConsumers = new CopyOnWriteArrayList<>();
+		}
+		streamingProcessCompleteConsumers.add(tapdataEvents -> {
 			try {
 				listConsumer.accept(tapdataEvents);
 			} catch(Throwable throwable) {
@@ -131,12 +148,20 @@ public class StreamReadFuncAspect extends DataFunctionAspect<StreamReadFuncAspec
 		this.tables = tables;
 	}
 
-	public List<Consumer<List<TapdataEvent>>> getStreamingReadCompleteConsumers() {
+	public List<Consumer<List<TapEvent>>> getStreamingReadCompleteConsumers() {
 		return streamingReadCompleteConsumers;
 	}
 
-	public void setStreamingReadCompleteConsumers(List<Consumer<List<TapdataEvent>>> streamingReadCompleteConsumers) {
+	public void setStreamingReadCompleteConsumers(List<Consumer<List<TapEvent>>> streamingReadCompleteConsumers) {
 		this.streamingReadCompleteConsumers = streamingReadCompleteConsumers;
+	}
+
+	public List<Consumer<List<TapdataEvent>>> getStreamingProcessCompleteConsumers() {
+		return streamingProcessCompleteConsumers;
+	}
+
+	public void setStreamingProcessCompleteConsumers(List<Consumer<List<TapdataEvent>>> streamingProcessCompleteConsumers) {
+		this.streamingProcessCompleteConsumers = streamingProcessCompleteConsumers;
 	}
 
 	public List<Consumer<List<TapdataEvent>>> getStreamingEnqueuedConsumers() {

@@ -15,7 +15,6 @@ import com.tapdata.tm.commons.task.dto.progress.BatchOperationDto;
 import com.tapdata.tm.commons.task.dto.progress.TaskSnapshotProgress;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.ds.service.impl.DataSourceService;
-import com.tapdata.tm.monitor.constant.TableNameEnum;
 import com.tapdata.tm.monitor.entity.MeasurementEntity;
 import com.tapdata.tm.task.bean.FullSyncVO;
 import com.tapdata.tm.task.bean.TableStatus;
@@ -188,19 +187,19 @@ public class SnapshotEdgeProgressService extends BaseService<TaskSnapshotProgres
 			Query query1 = new Query(criteria1);
 			query1.with(Sort.by(Sort.Order.desc("date")));
 			int outputQps = 0;
-			MeasurementEntity entity = mongoOperations.findOne(query1, MeasurementEntity.class, TableNameEnum.AgentMeasurement.getValue());
-			if (entity != null) {
-				List<Sample> samples = entity.getSamples();
-				if (CollectionUtils.isNotEmpty(samples)) {
-					samples.sort(Comparator.comparing(Sample::getDate).reversed());
-					Sample sample = samples.get(0);
-					Map<String, Number> vs = sample.getVs();
-					if (vs != null) {
-						Number outputQps1 = vs.get("outputQPS");
-						outputQps = outputQps1.intValue();
-					}
-				}
-			}
+//			MeasurementEntity entity = mongoOperations.findOne(query1, MeasurementEntity.class, TableNameEnum.AgentMeasurement.getValue());
+//			if (entity != null) {
+//				List<Sample> samples = entity.getSamples();
+//				if (CollectionUtils.isNotEmpty(samples)) {
+//					samples.sort(Comparator.comparing(Sample::getDate).reversed());
+//					Sample sample = samples.get(0);
+//					Map<String, Number> vs = sample.getVs();
+//					if (vs != null) {
+//						Number outputQps1 = vs.get("outputQPS");
+//						outputQps = outputQps1.intValue();
+//					}
+//				}
+//			}
 
 			if (outputQps == 0 || !TaskDto.STATUS_RUNNING.equals(taskDto.getStatus())) {
 				fullSyncVO.setFinishDuration(-1L);

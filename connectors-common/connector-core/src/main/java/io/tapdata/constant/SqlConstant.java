@@ -8,81 +8,64 @@ import java.util.Map;
  */
 public class SqlConstant {
 
-  /**
-   * online redo log (USING REDO LOG)
-   */
-  public static final String REDO_LOG_STATUS_CURRENT = "CURRENT";
+    public static final String REDO_LOG_OPERATION_COMMIT = "COMMIT";
+    public static final String REDO_LOG_OPERATION_ROLLBACK = "ROLLBACK";
+    public static final String REDO_LOG_OPERATION_INSERT = "INSERT";
+    public static final String REDO_LOG_OPERATION_UPDATE = "UPDATE";
+    public static final String REDO_LOG_OPERATION_DELETE = "DELETE";
+    public static final String REDO_LOG_OPERATION_DDL = "DDL";
 
-  /**
-   * redo log 记录的操作类型 - start 开启事务
-   */
-  public static final String REDO_LOG_OPERATION_START = "START";
+    public static final String REDO_LOG_OPERATION_LOB_TRIM = "LOB_TRIM";
+    public static final String REDO_LOG_OPERATION_LOB_WRITE = "LOB_WRITE";
+    public static final String REDO_LOG_OPERATION_SEL_LOB_LOCATOR = "SEL_LOB_LOCATOR";
+    public static final String REDO_LOG_OPERATION_SELECT_FOR_UPDATE = "SELECT_FOR_UPDATE";
 
-  /**
-   * redo log 记录的操作类型 - commit 开启事务
-   */
-  public static final String REDO_LOG_OPERATION_COMMIT = "COMMIT";
+    public static final String REDO_LOG_OPERATION_UNSUPPORTED = "UNSUPPORTED";
 
-  public static final String REDO_LOG_OPERATION_INSERT = "INSERT";
+    public enum OracleDataTypeConvertEnum {
+        DATE("DATE", "DATE"),
+        NUMBER("NUMBER", "DOUBLE"),
+        FLOAT("FLOAT", "DOUBLE"),
+        CHAR("CHAR", "STRING"),
+        NCHAR("NCHAR", "STRING"),
+        VARCHAR("VARCHAR", "STRING"),
+        VARCHAR2("VARCHAR2", "STRING"),
+        NVARCHAR2("NVARCHAR2", "STRING"),
+        CLOB("CLOB", "STRING"),
+        NCLOB("NCLOB", "STRING"),
+        LONG("LONG", "STRING"),
+        RAW("RAW", "BYTE"),
+        BLOB("BLOB", "BYTE"),
+        ;
 
-  public static final String REDO_LOG_OPERATION_UPDATE = "UPDATE";
+        final String jdbcType;
 
-  public static final String REDO_LOG_OPERATION_DELETE = "DELETE";
+        final String javaType;
 
-  public static final String REDO_LOG_OPERATION_LOB_TRIM = "LOB_TRIM";
-  public static final String REDO_LOG_OPERATION_LOB_WRITE = "LOB_WRITE";
-  public static final String REDO_LOG_OPERATION_SEL_LOB_LOCATOR = "SEL_LOB_LOCATOR";
-  public static final String REDO_LOG_OPERATION_SELECT_FOR_UPDATE = "SELECT_FOR_UPDATE";
+        private static final Map<String, OracleDataTypeConvertEnum> map = new HashMap<>();
 
-  public static final String REDO_LOG_OPERATION_DDL = "DDL";
+        static {
+            for (OracleDataTypeConvertEnum dataTypeConvertEnum : OracleDataTypeConvertEnum.values()) {
+                map.put(dataTypeConvertEnum.getJdbcType(), dataTypeConvertEnum);
+            }
+        }
 
-  public static final String REDO_LOG_OPERATION_ROLLBACK = "ROLLBACK";
-  public static final String REDO_LOG_OPERATION_UNSUPPORTED = "UNSUPPORTED";
+        OracleDataTypeConvertEnum(String jdbcType, String javaType) {
+            this.jdbcType = jdbcType;
+            this.javaType = javaType;
+        }
 
-  public enum OracleDataTypeConvertEnum {
-    DATE("DATE", "DATE"),
-    NUMBER("NUMBER", "DOUBLE"),
-    FLOAT("FLOAT", "DOUBLE"),
-    CHAR("CHAR", "STRING"),
-    NCHAR("NCHAR", "STRING"),
-    VARCHAR("VARCHAR", "STRING"),
-    VARCHAR2("VARCHAR2", "STRING"),
-    NVARCHAR2("NVARCHAR2", "STRING"),
-    CLOB("CLOB", "STRING"),
-    NCLOB("NCLOB", "STRING"),
-    LONG("LONG", "STRING"),
-    RAW("RAW", "BYTE"),
-    BLOB("BLOB", "BYTE"),
-    ;
+        public String getJdbcType() {
+            return jdbcType;
+        }
 
-    final String jdbcType;
+        public String getJavaType() {
+            return javaType;
+        }
 
-    final String javaType;
-
-    private static final Map<String, OracleDataTypeConvertEnum> map = new HashMap<>();
-
-    static {
-      for (OracleDataTypeConvertEnum dataTypeConvertEnum : OracleDataTypeConvertEnum.values()) {
-        map.put(dataTypeConvertEnum.getJdbcType(), dataTypeConvertEnum);
-      }
+        public static OracleDataTypeConvertEnum fromJdbcType(String jdbcType) {
+            return map.get(jdbcType);
+        }
     }
-
-    OracleDataTypeConvertEnum(String jdbcType, String javaType) {
-      this.jdbcType = jdbcType;
-      this.javaType = javaType;
-    }
-
-    public String getJdbcType() {
-      return jdbcType;
-    }
-
-    public String getJavaType() {
-      return javaType;
-    }
-
-    public static OracleDataTypeConvertEnum fromJdbcType(String jdbcType) {
-      return map.get(jdbcType);
-    }
-  }
 
 }
