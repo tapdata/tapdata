@@ -1,4 +1,4 @@
-package com.tapdata.tm.externalStorage.dto;
+package com.tapdata.tm.commons.externalStorage;
 
 import com.tapdata.tm.commons.base.dto.BaseDto;
 import lombok.Data;

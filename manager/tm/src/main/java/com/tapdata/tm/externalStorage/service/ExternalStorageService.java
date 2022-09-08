@@ -2,15 +2,17 @@ package com.tapdata.tm.externalStorage.service;
 
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.base.service.BaseService;
+import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
 import com.tapdata.tm.config.security.UserDetail;
-import com.tapdata.tm.externalStorage.dto.ExternalStorageDto;
 import com.tapdata.tm.externalStorage.entity.ExternalStorageEntity;
 import com.tapdata.tm.externalStorage.entity.ExternalStorageType;
 import com.tapdata.tm.externalStorage.repository.ExternalStorageRepository;
+import com.tapdata.tm.task.service.TaskService;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.bson.types.ObjectId;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Service;
@@ -25,6 +27,9 @@ import org.springframework.stereotype.Service;
 public class ExternalStorageService extends BaseService<ExternalStorageDto, ExternalStorageEntity, ObjectId, ExternalStorageRepository> {
 
 	public static final int DEFAULT_TTL_DAY = 3;
+
+	@Autowired
+	private TaskService taskService;
 
 	public ExternalStorageService(@NonNull ExternalStorageRepository repository) {
 		super(repository, ExternalStorageDto.class, ExternalStorageEntity.class);
@@ -66,5 +71,9 @@ public class ExternalStorageService extends BaseService<ExternalStorageDto, Exte
 		if (null == ttlDay || ttlDay.compareTo(0) <= 0) {
 			externalStorage.setTtlDay(DEFAULT_TTL_DAY);
 		}
+	}
+
+	private boolean canDelete(ExternalStorageDto externalStorageDto) {
+		return true;
 	}
 }

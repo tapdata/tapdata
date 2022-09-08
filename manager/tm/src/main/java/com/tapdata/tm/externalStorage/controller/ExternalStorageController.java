@@ -2,8 +2,7 @@ package com.tapdata.tm.externalStorage.controller;
 
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.*;
-import com.tapdata.tm.base.exception.BizException;
-import com.tapdata.tm.externalStorage.dto.ExternalStorageDto;
+import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
 import com.tapdata.tm.externalStorage.service.ExternalStorageService;
 import com.tapdata.tm.utils.MongoUtils;
 import io.swagger.v3.oas.annotations.Operation;

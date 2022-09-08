@@ -72,6 +72,8 @@ public abstract class Node<S> extends Element{
 
     protected transient EventListener<S> listener;
 
+    protected String externalStorageId;
+
 //    private String subTaskId;
 
     /**
