@@ -207,6 +207,12 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 									PDKMethodInvoker.create()
 											.runnable(() -> batchReadFunction.batchRead(getConnectorNode().getConnectorContext(), tapTable, tableOffset, eventBatchSize, (events, offsetObject) -> {
 														if (events != null && !events.isEmpty()) {
+															events.forEach(event -> {
+																if (null == event.getTime()) {
+																	throw new NodeException("Invalid TapEvent, `TapEvent.time` should be NonNUll").context(getProcessorBaseContext()).event(event);
+																}
+															});
+
 															if (batchReadFuncAspect != null)
 																AspectUtils.accept(batchReadFuncAspect.state(BatchReadFuncAspect.STATE_READ_COMPLETE).getReadCompleteConsumers(), events);
 
@@ -447,6 +453,12 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 														}
 													}
 													if (events != null && !events.isEmpty()) {
+														events.forEach(event -> {
+															if (null == event.getTime()) {
+																throw new NodeException("Invalid TapEvent, `TapEvent.time` should be NonNUll").context(getProcessorBaseContext()).event(event);
+															}
+														});
+
 														if (streamReadFuncAspect != null) {
 															AspectUtils.accept(streamReadFuncAspect.state(StreamReadFuncAspect.STATE_STREAMING_READ_COMPLETED).getStreamingReadCompleteConsumers(), events);
 														}
