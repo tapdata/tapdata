@@ -933,6 +933,7 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
                     value.setQualifiedName(oldQualifiedName);
                     qualifiedNames.add(oldQualifiedName);
                     findQualifiedNames.add(oldQualifiedName);
+                    value.setTaskId(null);
                 } else {
                     qualifiedNames.add(value.getQualifiedName());
                     findQualifiedNames.add(value.getQualifiedName());

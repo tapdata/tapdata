@@ -100,24 +100,24 @@ public class MetadataDefinitionService extends BaseService<MetadataDefinitionDto
     }
 
 
-    public List<MetadataDefinitionDto> findByItemtypeAndValue(MetadataDefinitionDto metadataDefinitionDto,UserDetail userDetail){
+    public void findByItemtypeAndValue(MetadataDefinitionDto metadataDefinitionDto,UserDetail userDetail){
         String value=metadataDefinitionDto.getValue();
 
 
         String parentId = metadataDefinitionDto.getParent_id();
         Criteria criteria = Criteria.where("value").is(value);
         if (StringUtils.isBlank(parentId)) {
-            criteria.and("parent_id").exists(false);
+            criteria.and("parent_id").exists(false).and("item_type").in(metadataDefinitionDto.getItemType());
         } else {
             criteria.and("parent_id").is(parentId);
         }
 
         Query query=Query.query(criteria);
+        query.fields().exclude("_id");
         List<MetadataDefinitionDto> metadataDefinitionDtos =findAll(query);
         if (CollectionUtils.isNotEmpty(metadataDefinitionDtos)){
             throw new BizException("Tag.RepeatName");
         }
-        return metadataDefinitionDtos;
     }
 
     /**
