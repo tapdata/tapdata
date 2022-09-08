@@ -5,6 +5,10 @@ import java.util.Map;
 
 public class CommandInfo {
 	private String id;
+	private String connectionId;
+	public static final String TYPE_NODE = "node";
+	public static final String TYPE_CONNECTION  = "connection";
+	private String type;
 	private String pdkHash;
 	private Map<String, Object> connectionConfig;
 	private Map<String, Object> nodeConfig;
@@ -15,7 +19,7 @@ public class CommandInfo {
 
 	@Override
 	public String toString() {
-		return "CommandInfo id " + id + " pdkHash " + pdkHash + " command " + command + " action " + action + " time " + (time != null ? new Date(time) : null) + " connectionConfig " + connectionConfig + " nodeConfig " + nodeConfig + ";";
+		return "CommandInfo id " + id + " type " + type + " connectionId " + connectionId + " pdkHash " + pdkHash + " command " + command + " action " + action + " time " + (time != null ? new Date(time) : null) + " connectionConfig " + connectionConfig + " nodeConfig " + nodeConfig + ";";
 	}
 
 	public String getPdkHash() {
@@ -80,5 +84,21 @@ public class CommandInfo {
 
 	public void setId(String id) {
 		this.id = id;
+	}
+
+	public String getConnectionId() {
+		return connectionId;
+	}
+
+	public void setConnectionId(String connectionId) {
+		this.connectionId = connectionId;
+	}
+
+	public String getType() {
+		return type;
+	}
+
+	public void setType(String type) {
+		this.type = type;
 	}
 }

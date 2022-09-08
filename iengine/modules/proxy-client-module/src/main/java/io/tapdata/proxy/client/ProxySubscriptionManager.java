@@ -101,14 +101,23 @@ public class ProxySubscriptionManager {
 			PDKUtils pdkUtils = InstanceFactory.instance(PDKUtils.class);
 			if(pdkUtils == null)
 				throw new CoreException(NetErrors.ILLEGAL_PARAMETERS, "pdkUtils is null");
+			if(commandInfo == null)
+				throw new CoreException(NetErrors.ILLEGAL_PARAMETERS, "commandInfo is null");
+			if(commandInfo.getType() == null || commandInfo.getCommand() == null || commandInfo.getPdkHash() == null || commandInfo.getConnectionId() == null)
+				throw new CoreException(NetErrors.ILLEGAL_PARAMETERS, "some parameter are null, type {}, command {}, pdkHash {}, connectionId {}", commandInfo.getType(), commandInfo.getCommand(), commandInfo.getPdkHash(), commandInfo.getConnectionId());
+
 			PDKUtils.PDKInfo pdkInfo = pdkUtils.downloadPdkFileIfNeed(commandInfo.getPdkHash());
 			ConnectionNode connectionNode = PDKIntegration.createConnectionConnectorBuilder()
-					.withConnectionConfig(DataMap.create(commandInfo.getConnectionConfig()))
+//					.withConnectionConfig(DataMap.create(commandInfo.getConnectionConfig()))
 					.withGroup(pdkInfo.getGroup())
 					.withPdkId(pdkInfo.getPdkId())
 					.withAssociateId(UUID.randomUUID().toString())
 					.withVersion(pdkInfo.getVersion())
 					.build();
+
+			if(commandInfo.getType().equals(CommandInfo.TYPE_NODE) && commandInfo.getConnectionConfig() == null) {
+				commandInfo.setConnectionConfig(pdkUtils.getConnectionConfig(commandInfo.getConnectionId()));
+			}
 			CommandCallbackFunction commandCallbackFunction = connectionNode.getConnectionFunctions().getCommandCallbackFunction();
 			if(commandCallbackFunction == null) {
 				CommandResultEntity commandResultEntity = new CommandResultEntity()

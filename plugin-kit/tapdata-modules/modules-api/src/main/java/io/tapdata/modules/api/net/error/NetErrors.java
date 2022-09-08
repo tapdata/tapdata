@@ -31,4 +31,5 @@ public interface NetErrors {
 	int UNKNOWN_ERROR = 8027;
 	int PDK_HASH_NOT_FOUND = 8028;
 	int UNEXPECTED_MONGO_OPERATOR = 8029;
+	int CONNECTIONS_NOT_FOUND = 8030;
 }
