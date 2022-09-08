@@ -103,8 +103,8 @@ public class ProxySubscriptionManager {
 				throw new CoreException(NetErrors.ILLEGAL_PARAMETERS, "pdkUtils is null");
 			if(commandInfo == null)
 				throw new CoreException(NetErrors.ILLEGAL_PARAMETERS, "commandInfo is null");
-			if(commandInfo.getType() == null || commandInfo.getCommand() == null || commandInfo.getPdkHash() == null || commandInfo.getConnectionId() == null)
-				throw new CoreException(NetErrors.ILLEGAL_PARAMETERS, "some parameter are null, type {}, command {}, pdkHash {}, connectionId {}", commandInfo.getType(), commandInfo.getCommand(), commandInfo.getPdkHash(), commandInfo.getConnectionId());
+			if(commandInfo.getType() == null || commandInfo.getCommand() == null || commandInfo.getPdkHash() == null)
+				throw new CoreException(NetErrors.ILLEGAL_PARAMETERS, "some parameter are null, type {}, command {}, pdkHash {}", commandInfo.getType(), commandInfo.getCommand(), commandInfo.getPdkHash());
 
 			PDKUtils.PDKInfo pdkInfo = pdkUtils.downloadPdkFileIfNeed(commandInfo.getPdkHash());
 			ConnectionNode connectionNode = PDKIntegration.createConnectionConnectorBuilder()
@@ -115,7 +115,7 @@ public class ProxySubscriptionManager {
 					.withVersion(pdkInfo.getVersion())
 					.build();
 
-			if(commandInfo.getType().equals(CommandInfo.TYPE_NODE) && commandInfo.getConnectionConfig() == null) {
+			if(commandInfo.getType().equals(CommandInfo.TYPE_NODE) && commandInfo.getConnectionConfig() == null && commandInfo.getConnectionId() != null) {
 				commandInfo.setConnectionConfig(pdkUtils.getConnectionConfig(commandInfo.getConnectionId()));
 			}
 			CommandCallbackFunction commandCallbackFunction = connectionNode.getConnectionFunctions().getCommandCallbackFunction();
@@ -147,7 +147,7 @@ public class ProxySubscriptionManager {
 			});
 		} catch(Throwable throwable) {
 			CommandResultEntity commandResultEntity = new CommandResultEntity()
-					.commandId(commandInfo.getId())
+					.commandId(commandInfo != null ? commandInfo.getId() : null)
 					.code(NetErrors.MISSING_COMMAND_EXECUTE_FAILED)
 					.message(throwable.getMessage());
 			imClient.sendData(new IncomingData().message(commandResultEntity))
