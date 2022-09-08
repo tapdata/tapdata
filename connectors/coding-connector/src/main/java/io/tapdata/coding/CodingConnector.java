@@ -5,6 +5,7 @@ import cn.hutool.http.HttpRequest;
 import io.tapdata.base.ConnectorBase;
 import io.tapdata.coding.entity.CodingOffset;
 import io.tapdata.coding.entity.ContextConfig;
+import io.tapdata.coding.enums.CodingEvent;
 import io.tapdata.coding.enums.IssueEventTypes;
 import io.tapdata.coding.enums.IssueType;
 import io.tapdata.coding.service.CodingStarter;
@@ -28,6 +29,7 @@ import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.entity.CommandInfo;
+import io.tapdata.pdk.apis.entity.CommandResult;
 import io.tapdata.pdk.apis.entity.ConnectionOptions;
 import io.tapdata.pdk.apis.entity.TestItem;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
@@ -80,7 +82,6 @@ public class CodingConnector extends ConnectorBase {
 				.supportStreamRead(this::streamRead)
 				.supportRawDataCallbackFilterFunction(this::rawDataCallbackFilterFunction)
 				.supportCommandCallbackFunction(this::handleCommand)
-//				.supportWebHookFunctions(this::webHookFunction)
 		;
 
 	}
@@ -90,7 +91,7 @@ public class CodingConnector extends ConnectorBase {
 	// 会给你command， 例如getProjectList，
 	// action会有list和search，
 	// argMap里会有page 页码， size一页最大数量， key搜索使用的关键字。
-	private Map<String, Object> handleCommand(TapConnectionContext tapConnectionContext, CommandInfo commandInfo) {
+	private CommandResult handleCommand(TapConnectionContext tapConnectionContext, CommandInfo commandInfo) {
 		if (Checker.isEmpty(tapConnectionContext)){
 			throw new IllegalArgumentException("TapConnectorContext cannot be null");
 		}
@@ -179,7 +180,7 @@ public class CodingConnector extends ConnectorBase {
 			throw new CoreException("Command only support [DescribeIterationList] or [DescribeCodingProjects] now.");
 		}
 
-		return pageResult;
+		return new CommandResult().result(pageResult);
 	}
 
 	public Object test(
@@ -194,9 +195,16 @@ public class CodingConnector extends ConnectorBase {
 		return handleCommand(context, commandInfo);
 	}
 
-	private TapEvent rawDataCallbackFilterFunction(TapConnectorContext connectorContext, Map<String, Object> issue) {
-		String webHookEventType = String.valueOf(issue.get("event"));
-		Object codeObj = issue.get("Code");
+	private TapEvent rawDataCallbackFilterFunction(TapConnectorContext connectorContext, Map<String, Object> issueEventData) {
+		if (Checker.isEmpty(issueEventData)){
+			throw new CoreException("Data change message is must not be null or not be empty,this callBack is stop.");
+		}
+		Object issueObj = issueEventData.get("issue");
+		if (Checker.isEmpty(issueObj)){
+			throw new CoreException("Issue Data is must not be null or not be empty,this callBack is stop.");
+		}
+		String webHookEventType = String.valueOf(issueEventData.get("event"));
+		Object codeObj = ((Map<String, Object>)issueObj).get("code");
 		if (Checker.isEmpty(codeObj)){
 			throw new CoreException("Issue Code is must not be null or not be empty,this callBack is stop.");
 		}
@@ -213,95 +221,49 @@ public class CodingConnector extends ConnectorBase {
 						issueDetialBody,
 						authorization,
 						requestDetail,
-						codeObj.toString(),
+						(codeObj instanceof Integer)?(Integer) codeObj:Integer.parseInt(codeObj.toString()),
 						contextConfig.getProjectName(),
 						contextConfig.getTeamName());
+		TapEvent event = null;
+		long referenceTime = System.currentTimeMillis();
+		CodingEvent issueEvent = CodingEvent.event(webHookEventType);
+		if (Checker.isNotEmpty(event)){
+			switch (issueEvent.getEventType()){
+				case DELETED_EVENT:{
+					event = deleteDMLEvent(issueDetail, "Issues").referenceTime(referenceTime)  ;
+				};break;
+				case UPDATE_EVENT:{
+					event = updateDMLEvent(null,issueDetail, "Issues").referenceTime(referenceTime) ;
+				};break;
+				case CREATED_EVENT:{
+					event = insertRecordEvent(issueDetail, "Issues").referenceTime(referenceTime)  ;
+				};break;
+			}
+		}else {
 
-		switch (webHookEventType){
-			case ISSUE_CREATED: {
-					return insertRecordEvent(issue, "Issues") ;
-			}
-			case ISSUE_DELETED:{
-				return deleteDMLEvent(issue, "Issues") ;
-			}
-			case ISSUE_UPDATE:;
-//			case ISSUE_COMMENT_CREATED:;
-			case ISSUE_STATUS_UPDATED:;
-			case ISSUE_ASSIGNEE_CHANGED:;
-			case ITERATION_PLANNED:;
-			case ISSUE_RELATIONSHIP_CHANGED:;
-			case UPDATE_WORK_INFORMATION: {
-				return updateDMLEvent(null,issue, "Issues") ;
-			}
-			default:break;
 		}
-		return insertRecordEvent(issue, "Issues") ;
-	}
-
-//	private void dataCallback(TapConnectorContext context,DataFetcher dataFetcher, List<String> tableList, BiConsumer<List<TapEvent>, Object> consumer) {
-//		String table = tableList.get(0);
-//		if (null == table || "".equals(table)){
-//			TapLogger.info(TAG, "Data Callback error, the tableName is empty.");
-//			throw new RuntimeException("Data Callback error, the tableName is empty.");
-//		}
-//		TapLogger.info(TAG, "Table :{} ,data callBack starting...", table);
-//		List<MessageEntity> dataMaps = null;//List<MessageEntity> dataMaps = null;//
-//
-//		ContextConfig contextConfig = this.veryContextConfigAndNodeConfig(context);
-//
-//		HttpEntity<String,String> header = HttpEntity.create().builder("Authorization",contextConfig.getToken());
-//		HttpEntity<String,Object> issueDetialBody = HttpEntity.create()
-//				.builder("Action","DescribeIssue")
-//				.builder("ProjectName",contextConfig.getProjectName());
-//
-//		String issueType = contextConfig.getIssueType().getName();
-//		String[] iterationIdArr = contextConfig.getIterationCodes().split(",");
-//		String code = String.valueOf(stringObjectMap.get("Code"));
-//		while((dataMaps = dataFetcher.consumer(100,500)) != null) {  //dataFetcher.consumer(p1,p2)  p1->count,p2->times(ms)
-//			dataMaps.forEach(data->{
-//				List<TapEvent> tapEvents = this.tapEvent(data, table);
-//				if (null != tapEvents && tapEvents.size()>0) {
-//					consumer.accept(tapEvents, null);//consumer.accept(tapEventList);
-//				}
-//			});
-//		}
-//		TapLogger.info(TAG, "Table :{} ,data callBack over.", table);
-//	}
-//
-//	private void webHookFunction(
-//			 DataMap dataMap,
-//			 Object offsetState,
-//			 BiConsumer<List<TapEvent>, Object> consumer,
-//			 String table ) {
-//		if (null == dataMap){
-//			throw new CoreException("Coding event...");
-//		}
-//		String webHookEventType = String.valueOf(dataMap.get("event"));
-//		Map<String,Object> issue = (Map<String,Object>)dataMap.get("issue");
-//		List<TapEvent> tapEventList = new ArrayList<>();
 //		switch (webHookEventType){
-//			case ISSUE_CREATED: {
-//				tapEventList.add( insertRecordEvent(issue, table) );
+//			case ISSUE_CREATED:
+//				event = insertRecordEvent(issueDetail, "Issues").referenceTime(referenceTime)  ;
 //				break;
-//			}
-//			case ISSUE_DELETED:{
-//				tapEventList.add( deleteDMLEvent(issue,table) );break;
-//			}
+//			case ISSUE_DELETED:
+//				event = deleteDMLEvent(issueDetail, "Issues").referenceTime(referenceTime)  ;
+//				break;
 //			case ISSUE_UPDATE:;
 ////			case ISSUE_COMMENT_CREATED:;
 //			case ISSUE_STATUS_UPDATED:;
 //			case ISSUE_ASSIGNEE_CHANGED:;
 //			case ITERATION_PLANNED:;
 //			case ISSUE_RELATIONSHIP_CHANGED:;
-//			case UPDATE_WORK_INFORMATION: {
-//				tapEventList.add( updateDMLEvent(null,issue,table) );break;
-//			}
-//			default:break;
+//			case UPDATE_WORK_INFORMATION:
+//				event = updateDMLEvent(null,issueDetail, "Issues").referenceTime(referenceTime) ;
+//				break;
+//			default:
+//				event = insertRecordEvent(issueDetail, "Issues").referenceTime(referenceTime);
+//				break;
 //		}
-//		if (null != tapEventList && tapEventList.size()>0) {
-//			consumer.accept(tapEventList, offsetState);
-//		}
-//	}
+		return event;
+	}
 
 	private void streamRead(
 			TapConnectorContext nodeContext,
@@ -341,12 +303,6 @@ public class CodingConnector extends ConnectorBase {
 				}
 			}
 		}
-
-		//consumer.asyncMethodAndNoRetry();
-		//new Thread(() -> {
-		//
-		//},"StreamReadThread").start();
-		//consumer.accept(null, offsetState);
 	}
 
 
@@ -435,31 +391,31 @@ public class CodingConnector extends ConnectorBase {
 			consumer.accept(list(
 					table("Issues")
 							.add(field("Code", JAVA_Integer).isPrimaryKey(true).primaryKeyPos(3))        //事项 Code
-							.add(field("ProjectName", JAVA_String).isPrimaryKey(true).primaryKeyPos(2))   //项目名称
-							.add(field("TeamName", JAVA_String).isPrimaryKey(true).primaryKeyPos(1))      //团队名称
-							.add(field("ParentType", JAVA_String))                                       //父事项类型
-							.add(field("Type", JAVA_String))                                         //事项类型：DEFECT - 缺陷;REQUIREMENT - 需求;MISSION - 任务;EPIC - 史诗;SUB_TASK - 子工作项
+							.add(field("ProjectName", "StringMinor").isPrimaryKey(true).primaryKeyPos(2))   //项目名称
+							.add(field("TeamName", "StringMinor").isPrimaryKey(true).primaryKeyPos(1))      //团队名称
+							.add(field("ParentType", "StringMinor"))                                       //父事项类型
+							.add(field("Type", "StringMinor"))                                         //事项类型：DEFECT - 缺陷;REQUIREMENT - 需求;MISSION - 任务;EPIC - 史诗;SUB_TASK - 子工作项
 
 
 							.add(field("IssueTypeDetailId", JAVA_Integer))                               //事项类型ID
 							.add(field("IssueTypeDetail", JAVA_Map))                                         //事项类型具体信息
-							.add(field("Name", JAVA_String))                                              //名称
-							.add(field("Description", JAVA_String))                                       //描述
+							.add(field("Name", "StringMinor"))                                              //名称
+							.add(field("Description", "StringLonger"))                                       //描述
 							.add(field("IterationId", JAVA_Integer))                                     //迭代 Id
 							.add(field("IssueStatusId", JAVA_Integer))                                   //事项状态 Id
-							.add(field("IssueStatusName", JAVA_String))                                   //事项状态名称
-							.add(field("IssueStatusType", JAVA_String))                                   //事项状态类型
-							.add(field("Priority", JAVA_String))                                          //优先级:"0" - 低;"1" - 中;"2" - 高;"3" - 紧急;"" - 未指定
+							.add(field("IssueStatusName", "StringMinor"))                                   //事项状态名称
+							.add(field("IssueStatusType", "StringMinor"))                                   //事项状态类型
+							.add(field("Priority", "StringBit"))                                          //优先级:"0" - 低;"1" - 中;"2" - 高;"3" - 紧急;"" - 未指定
 
 							.add(field("AssigneeId", JAVA_Integer))                                      //Assignee.Id 等于 0 时表示未指定
 							.add(field("Assignee", JAVA_Map))                                                //处理人
 							.add(field("StartDate", JAVA_Long))                                             //开始日期时间戳
 							.add(field("DueDate", JAVA_Long))                                               //截止日期时间戳
-							.add(field("WorkingHours", JAVA_Double))                                      //工时（小时）
+							.add(field("WorkingHours", "WorkingHours"))                                      //工时（小时）
 
 							.add(field("CreatorId", JAVA_Integer))                                       //创建人Id
 							.add(field("Creator", JAVA_Map))                                                 //创建人
-							.add(field("StoryPoint", JAVA_String))                                        //故事点
+							.add(field("StoryPoint", "StringMinor"))                                        //故事点
 							.add(field("CreatedAt", JAVA_Long))                                             //创建时间
 							.add(field("UpdatedAt", JAVA_Long))                                             //修改时间
 							.add(field("CompletedAt", JAVA_Long))                                           //完成时间
@@ -475,7 +431,7 @@ public class CodingConnector extends ConnectorBase {
 
 							.add(field("FileIdArr", JAVA_Array))                                           //附件Id列表
 							.add(field("Files", JAVA_Array))                                               //附件列表
-							.add(field("RequirementType", JAVA_String))                                   //需求类型
+							.add(field("RequirementType", "StringSmaller"))                                   //需求类型
 
 							.add(field("DefectType", JAVA_Map))                                              //缺陷类型
 							.add(field("CustomFields", JAVA_Array))                                        //自定义字段列表
@@ -590,8 +546,14 @@ public class CodingConnector extends ConnectorBase {
 			currentQueryCount = resultList.size();
 			batchReadPageSize = null != dataMap.get("PageSize") ? (int)(dataMap.get("PageSize")) : batchReadPageSize;
 			for (Map<String, Object> stringObjectMap : resultList) {
-				String code = String.valueOf(stringObjectMap.get("Code"));
-				Map<String,Object> issueDetail = issueLoader.readIssueDetail(issueDetialBody,authorization,requestDetail,code,projectName,teamName);
+				Object code = stringObjectMap.get("Code");
+				Map<String,Object> issueDetail = issueLoader.readIssueDetail(
+						issueDetialBody,
+						authorization,
+						requestDetail,
+						(code instanceof Integer)?(Integer)code:Integer.parseInt(code.toString()),
+						projectName,
+						teamName);
 
 				Long referenceTime = (Long)issueDetail.get("UpdatedAt");
 				Long currentTimePoint = referenceTime - referenceTime % (24*60*60*1000);//时间片段
@@ -619,39 +581,6 @@ public class CodingConnector extends ConnectorBase {
 		}while (currentQueryCount >= batchReadPageSize);
 		if (events[0].size() > 0)  consumer.accept(events[0], offsetState);
 	}
-
-//	private List<TapEvent> tapEvent(MessageEntity messageEntity,String table){
-//		List<TapEvent> tapEventList = new ArrayList<>();
-//		Map<String,Object> issue = messageEntity.getIssue();
-//		String webHookEventType = String.valueOf(issue.get("event"));
-//
-////		Map<String,Object> issueDetail = issueLoader.readIssueDetail(issueDetialBody,authorization,requestDetail,code,projectName,teamName);
-//
-//		switch (webHookEventType){
-//			case ISSUE_CREATED: {
-//				Object codeObj = issue.get("Code");
-//				if (null!= codeObj){
-//					IssueLoader loader = IssueLoader.create(null);
-//					tapEventList.add( insertRecordEvent(issue, table) );
-//					break;
-//				}
-//			}
-//			case ISSUE_DELETED:{
-//				tapEventList.add( deleteDMLEvent(issue, table) );break;
-//			}
-//			case ISSUE_UPDATE:;
-////			case ISSUE_COMMENT_CREATED:;
-//			case ISSUE_STATUS_UPDATED:;
-//			case ISSUE_ASSIGNEE_CHANGED:;
-//			case ITERATION_PLANNED:;
-//			case ISSUE_RELATIONSHIP_CHANGED:;
-//			case UPDATE_WORK_INFORMATION: {
-//				tapEventList.add( updateDMLEvent(null,issue, table) );break;
-//			}
-//			default:break;
-//		}
-//		return tapEventList;
-//	}
 
 	private ContextConfig veryContextConfigAndNodeConfig(TapConnectionContext context){
 		if (null == context){

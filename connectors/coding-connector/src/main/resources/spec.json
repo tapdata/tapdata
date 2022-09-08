@@ -71,15 +71,15 @@
           "x-index": 1,
           "required": true
         },
-       "token": {
-         "type": "String",
-         "title": "${token}",
-         "x-decorator": "FormItem",
-         "x-component": "Input",
-         "apiServerKey": "database_host",
-         "x-index": 2,
-         "required": true
-       },
+        "token": {
+          "type": "String",
+          "title": "${token}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "apiServerKey": "database_host",
+          "x-index": 2,
+          "required": true
+        },
         "projectName": {
           "type": "String",
           "title": "${projectName}",
@@ -96,6 +96,27 @@
           "x-component": "Input",
           "x-index": 4,
           "required": true
+        },
+        "hookButton": {
+          "type": "void",
+          "title": "${hookButton}",
+          "x-decorator": "FormItem",
+          "x-component-props": {
+            "onClick": "{{useAsyncDataSourceByConfig({service: getToken, withoutField: true}, {name:'hookText'}, $values, $form)}}"
+          },
+          "x-content": "hookButton",
+          "x-component": "Button",
+          "x-index": 5
+        },
+        "hookText": {
+          "type": "string",
+          "title": " ",
+          "x-decorator": "FormItem",
+          "x-decorator-props": {
+            "colon": false
+          },
+          "x-component": "Input",
+          "x-index": 6
         }
       }
     }
@@ -107,6 +128,7 @@
       "projectName": "project name",
       "teamName": "Team name",
       "webHook": "Service Hook",
+      "hookButton": "Hook Button",
 
       "iterationCodes": "Iteration",
       "issueType": "Issue Type",
@@ -142,6 +164,7 @@
       "projectName": "项目名称",
       "teamName": "团队名称",
       "webHook": "Service Hook",
+      "hookButton": "Hook Button",
 
       "iterationCodes": "迭代",
       "issueType": "事项类型",
@@ -177,6 +200,7 @@
       "projectName": "項目名稱",
       "teamName": "團隊名稱",
       "webHook": "Service Hook",
+      "hookButton": "Hook Button",
 
       "iterationCodes": "迭代",
       "issueType": "事項类型",
@@ -209,7 +233,26 @@
     }
   },
   "dataTypes": {
-    "String": {"to" : "TapString","byte" : 1024},
+    "StringLonger": {
+      "to" : "TapString",
+      "byte" : 1024
+    },
+    "StringNormal": {
+      "to" : "TapString",
+      "byte" : 512
+    },
+    "StringSmaller": {
+      "to" : "TapString",
+      "byte" : 128
+    },
+    "StringMinor": {
+      "to" : "TapString",
+      "byte" : 64
+    },
+    "StringBit": {
+      "to" : "TapString",
+      "byte" : 5
+    },
     "Integer": {
       "to": "TapNumber",
       "value" : [-2147483648, 2147483647]
@@ -220,12 +263,10 @@
       "to": "TapNumber",
       "value" : [-9223372036854775808, 9223372036854775807]
     },
-    "Double": {
+    "WorkingHours": {
       "to": "TapNumber",
-      "precision": [ 1, 11],
-      "value": [ -1.7976931348623157E+308, 1.7976931348623157E+308],
-      "scale": [ 0, 11],
-      "fixed": false
+      "value": [ 0.00 , 10000.00],
+      "scale": [ 0, 2]
     },
     "Float": {
       "to": "TapNumber",

@@ -161,13 +161,12 @@ public class IssueLoader extends CodingStarter {
             HttpEntity<String,Object> issueDetailBody,
             CodingHttp authorization,
             HttpRequest requestDetail,
-            String code,
+            Integer code,
             String projectName,
             String teamName
     ){
         //查询事项详情
-        Integer codeValue = Integer.parseInt(String.valueOf(code));
-        issueDetailBody.builder("IssueCode", codeValue);
+        issueDetailBody.builder("IssueCode", code);
         Map<String,Object> issueDetailResponse = authorization.body(issueDetailBody.getEntity()).post(requestDetail);
         if (null == issueDetailResponse){
             TapLogger.info(TAG, "HTTP request exception, Issue Detail acquisition failed: {} ", CodingStarter.OPEN_API_URL+"?Action=DescribeIssue&IssueCode="+code);
