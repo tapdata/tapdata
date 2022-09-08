@@ -246,7 +246,10 @@ public class CodingConnector extends ConnectorBase {
 			String evenType = issueEvent.getEventType();
 			switch (evenType){
 				case DELETED_EVENT:{
-					event = deleteDMLEvent((Map<String, Object>) issueObj, "Issues").referenceTime(referenceTime)  ;
+					issueDetail = (Map<String, Object>) issueObj;
+					issueDetail.put("teamName",contextConfig.getTeamName());
+					issueDetail.put("projectName",contextConfig.getProjectName());
+					event = deleteDMLEvent(issueDetail, "Issues").referenceTime(referenceTime)  ;
 				};break;
 				case UPDATE_EVENT:{
 					event = updateDMLEvent(null,issueDetail, "Issues").referenceTime(referenceTime) ;
