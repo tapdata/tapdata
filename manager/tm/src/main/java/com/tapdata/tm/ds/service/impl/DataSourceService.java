@@ -636,6 +636,7 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 		entity.setId(null);
 		//将数据源连接的名称修改成为名称后面+_copy
 		String connectionName = entity.getName() + " - Copy";
+		entity.setLastUpdAt(new Date());
 		while (true) {
 			try {
 				//插入复制的数据源
@@ -1249,6 +1250,11 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 			Criteria criteria = Criteria.where("source.id").is(connectionDto.getId()).and("meta_type").is("database");
 			Update update = Update.update("original_name", connectionDto.getName()).set("source.name", connectionDto.getName());
 			metadataInstancesService.update(new Query(criteria), update, user);
+		}
+
+		//更新数据目录
+		if (StringUtils.isNotBlank(oldName)) {
+			defaultDataDirectoryService.updateConnection(connectionDto, user);
 		}
 
 		sendTestConnection(connectionDto, true, submit, user);
