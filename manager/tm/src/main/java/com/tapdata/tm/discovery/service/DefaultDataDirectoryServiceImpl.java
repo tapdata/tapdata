@@ -167,7 +167,7 @@ public class DefaultDataDirectoryServiceImpl implements DefaultDataDirectoryServ
                 .and("is_deleted").ne(true);
         Query queryDefinition = new Query(criteriaDefinition);
         List<DataSourceDefinitionDto> dataSourceDefinitionDtos = definitionService.findAllDto(queryDefinition, user);
-        List<String> pdkIds = dataSourceDefinitionDtos.stream().map(DataSourceDefinitionDto::getPdkId).collect(Collectors.toList());
+        List<String> pdkIds = dataSourceDefinitionDtos.stream().map(DataSourceDefinitionDto::getPdkId).distinct().collect(Collectors.toList());
 
         //检查是否存在storage目录。如果不存在的话则需要创建storage的目录
         Criteria criteria = Criteria.where("item_type").is("storage");

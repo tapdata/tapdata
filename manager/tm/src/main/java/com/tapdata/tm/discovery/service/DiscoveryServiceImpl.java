@@ -625,10 +625,12 @@ public class DiscoveryServiceImpl implements DiscoveryService {
     @Override
     public void addObjCount(List<MetadataDefinitionDto> tagDtos, UserDetail user) {
         Query query = new Query();
-        query.fields().include("_id", "parent_id");
+        query.fields().include("_id", "parent_id", "item_type");
         List<MetadataDefinitionDto> allDto = metadataDefinitionService.findAllDto(new Query(), user);
         Map<String, List<MetadataDefinitionDto>> parentMap = allDto.stream().filter(s->StringUtils.isNotBlank(s.getParent_id()))
                 .collect(Collectors.groupingBy(MetadataDefinitionDto::getParent_id));
+
+        Map<ObjectId, MetadataDefinitionDto> metadataDefinitionDtoMap = allDto.stream().collect(Collectors.toMap(BaseDto::getId, s -> s));
         tagDtos.parallelStream().forEach(tagDto -> {
                     Criteria criteria = Criteria.where("sourceType").is(SourceTypeEnum.SOURCE.name())
                             .and("taskId").exists(false)
@@ -639,7 +641,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
                             .and("syncType").in(TaskDto.SYNC_TYPE_MIGRATE, TaskDto.SYNC_TYPE_SYNC)
                             .and("agentId").exists(true);
 
-                    MetadataDefinitionDto definitionDto = metadataDefinitionService.findById(tagDto.getId());
+                    MetadataDefinitionDto definitionDto = metadataDefinitionDtoMap.get(tagDto.getId());
                     List<String> itemTypes = definitionDto.getItemType();
 
                     List<MetadataDefinitionDto> andChild = metadataDefinitionService.findAndChild(null, tagDto, parentMap);
