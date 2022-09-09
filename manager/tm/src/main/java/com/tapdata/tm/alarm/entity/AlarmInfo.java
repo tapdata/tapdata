@@ -61,6 +61,8 @@ public class AlarmInfo extends BaseEntity {
     @Schema(description = "告警被谁关闭")
     private String closeBy;
 
+
+
     public Integer getTally() {
         return tally == null ? 0 : tally;
     }

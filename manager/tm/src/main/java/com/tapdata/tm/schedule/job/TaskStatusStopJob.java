@@ -52,18 +52,12 @@ public class TaskStatusStopJob implements Job {
             }
 
             String summary = MessageFormat.format(AlarmContentTemplate.TASK_STATUS_STOP_MANUAL, userName, DateUtil.now());
+            AlarmInfo alarmInfo = AlarmInfo.builder().status(AlarmStatusEnum.ING).level(AlarmLevelEnum.WARNING).component(AlarmComponentEnum.FE)
+                    .type(AlarmTypeEnum.SYNCHRONIZATIONTASK_ALARM).agnetId(data.getAgentId()).taskId(taskId)
+                    .name(data.getName()).summary(summary).metric(AlarmKeyEnum.TASK_STATUS_STOP)
+                    .build();
+            alarmService.save(alarmInfo);
 
-            if (alarmSetting.isSystemNotify()) {
-                AlarmInfo alarmInfo = AlarmInfo.builder().status(AlarmStatusEnum.ING).level(AlarmLevelEnum.WARNING).component(AlarmComponentEnum.FE)
-                        .type(AlarmTypeEnum.SYNCHRONIZATIONTASK_ALARM).agnetId(data.getAgentId()).taskId(taskId)
-                        .name(data.getName()).summary(summary).metric(AlarmKeyEnum.TASK_STATUS_STOP)
-                        .build();
-                alarmService.save(alarmInfo);
-            }
-
-            if (alarmSetting.isEmailNotify()) {
-
-            }
         }
     }
 }

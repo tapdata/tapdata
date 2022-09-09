@@ -3,8 +3,11 @@ package com.tapdata.tm.Settings.entity;
 import cn.hutool.core.date.DateUnit;
 import com.tapdata.tm.commons.task.constant.AlarmSettingTypeEnum;
 import com.tapdata.tm.base.entity.BaseEntity;
+import com.tapdata.tm.commons.task.constant.NotifyEnum;
 import lombok.*;
 import org.springframework.data.mongodb.core.mapping.Document;
+
+import java.util.List;
 
 /**
  * @author jiuyetx
@@ -20,8 +23,7 @@ public class AlarmSetting extends BaseEntity {
     private boolean open;
     private String key;
     private int sort;
-    private boolean systemNotify;
-    private boolean emailNotify;
+    private List<NotifyEnum> notify;
     private int interval;
     private DateUnit unit;
 }

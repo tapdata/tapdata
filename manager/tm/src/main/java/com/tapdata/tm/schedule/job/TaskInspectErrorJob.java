@@ -45,21 +45,16 @@ public class TaskInspectErrorJob implements Job {
         long count = inspectResultsService.countByTaskId(taskId);
         TaskDto data = taskService.findById(MongoUtils.toObjectId(taskId));
 
-        if (Objects.nonNull(data) && count > 0) {
+        if (count > 0) {
             String summary = MessageFormat.format(AlarmContentTemplate.TASK_INSPECT_ERROR, DateUtil.now());
 
-            if (alarmSetting.isSystemNotify()) {
                 AlarmInfo alarmInfo = AlarmInfo.builder().status(AlarmStatusEnum.ING).level(AlarmLevelEnum.WARNING)
                         .component(AlarmComponentEnum.FE)
                         .type(AlarmTypeEnum.SYNCHRONIZATIONTASK_ALARM).agnetId(data.getAgentId()).taskId(taskId)
-                        .name(data.getName()).summary(summary).metric(AlarmKeyEnum.TASK_INSPECT_ERROR)
+                        .name(data.getName()).summary(summary).metric(AlarmKeyEnum.TASK_STATUS_STOP)
                         .build();
                 alarmService.save(alarmInfo);
-            }
 
-            if (alarmSetting.isEmailNotify()) {
-
-            }
         }
     }
 }
