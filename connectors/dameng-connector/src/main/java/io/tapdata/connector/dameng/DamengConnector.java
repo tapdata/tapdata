@@ -424,18 +424,19 @@ public class DamengConnector extends ConnectorBase {
         return damengContext.queryAllTables(null).size();
     }
 
-    private void streamRead(TapConnectorContext nodeContext, List<String> tableList, Object offsetState, int recordSize, StreamReadConsumer consumer) throws Throwable {
-
-        if (EmptyKit.isNull(cdcRunner)) {
-            cdcRunner = new DamengCdcRunner(damengContext, nodeContext.getId()).init(
-                    tableList,
-                    nodeContext.getTableMap(),
-                    offsetState,
-                    recordSize,
-                    consumer
-            );
-        }
-        cdcRunner.startCdcRunner();
+   private void streamRead(TapConnectorContext nodeContext, List<String> tableList, Object offsetState, int recordSize, StreamReadConsumer consumer) throws Throwable {
+//
+//        if (EmptyKit.isNull(cdcRunner)) {
+//            cdcRunner = new DamengCdcRunner(damengContext, nodeContext.getId()).init(
+//                    tableList,
+//                    nodeContext.getTableMap(),
+//                    offsetState,
+//                    recordSize,
+//                    consumer
+//            );
+//        }
+//        cdcRunner.startCdcRunner();
+    return;
     }
 
     private Object timestampToStreamOffset(TapConnectorContext connectorContext, Long offsetStartTime) {

@@ -320,7 +320,7 @@ public class ManuRedoOracleLogMiner extends DamengLogMiner {
             valueOut.writeString(String.valueOf(logData.get("SEG_OWNER")));
             valueOut.writeString(String.valueOf(logData.get("CSF")));
             valueOut.writeString(String.valueOf(logData.get("UNDO_OPERATION")));
-            valueOut.writeString(String.valueOf(logData.get("ROLLBACK")));
+            valueOut.writeString(String.valueOf(logData.get("ROLL_BACK")));
 
             valueOut.writeString(String.valueOf(logData.get("INFO")));
             valueOut.writeString(String.valueOf(logData.get("THREAD#")));
