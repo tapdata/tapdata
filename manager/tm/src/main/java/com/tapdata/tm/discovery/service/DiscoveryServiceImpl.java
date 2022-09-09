@@ -430,9 +430,12 @@ public class DiscoveryServiceImpl implements DiscoveryService {
                 .and("taskId").exists(false)
                 .and("is_deleted").ne(true)
                 .and("meta_type").is("table");
-        if (StringUtils.isNotBlank(param.getSourceType())) {
-            //criteria.and("source.database_type").is(param.getSourceType());
+        if (StringUtils.isNotBlank(param.getObjType())) {
+           if (!param.getObjType().equals("table")) {
+               return page;
+            }
         }
+
 
         if (StringUtils.isNotBlank(param.getQueryKey())) {
             String queryKey = param.getQueryKey();
@@ -669,7 +672,8 @@ public class DiscoveryServiceImpl implements DiscoveryService {
 
         Object config = source.getConfig();
         Map config1 = (Map) config;
-        if (source.getDatabase_type().toLowerCase(Locale.ROOT).contains("mongo")) {
+        Object isUri = config1.get("isUri");
+        if (source.getDatabase_type().toLowerCase(Locale.ROOT).contains("mongo") && isUri != null && (boolean) isUri) {
             String uri1 = (String) config1.get("uri");
             if (StringUtils.isNotBlank(uri1)) {
                 ConnectionString connectionString = new ConnectionString(uri1);
@@ -681,6 +685,21 @@ public class DiscoveryServiceImpl implements DiscoveryService {
                     ipAndPort = new StringBuilder(ipAndPort.substring(0, ipAndPort.length() -1));
                 }
             }
+        } else if (source.getDatabase_type().toLowerCase(Locale.ROOT).contains("activemq")) {
+            Object brokerURL = config1.get("brokerURL");
+            if (brokerURL instanceof String) {
+                String ipPort = ((String) brokerURL).substring(6);
+                ipAndPort.append(ipPort);
+            }
+
+
+        }  else if (source.getDatabase_type().toLowerCase(Locale.ROOT).contains("kafka")) {
+            Object nameSrvAddr = config1.get("nameSrvAddr");
+            if (nameSrvAddr instanceof String) {
+                ipAndPort.append(nameSrvAddr);
+            }
+
+
         } else {
             Object host = config1.get("host");
             Object port = config1.get("port");
