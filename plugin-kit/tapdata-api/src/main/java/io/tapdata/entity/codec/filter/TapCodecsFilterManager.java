@@ -13,6 +13,8 @@ import io.tapdata.entity.event.ddl.table.TapNewFieldEvent;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.type.TapType;
+import io.tapdata.entity.schema.value.TapArrayValue;
+import io.tapdata.entity.schema.value.TapMapValue;
 import io.tapdata.entity.schema.value.TapValue;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.entity.utils.JavaTypesToTapTypes;
@@ -21,8 +23,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static io.tapdata.entity.simplify.TapSimplify.field;
-import static io.tapdata.entity.simplify.TapSimplify.tapRaw;
+import static io.tapdata.entity.simplify.TapSimplify.*;
 
 public class TapCodecsFilterManager {
     private static final String TAG = TapCodecsFilterManager.class.getSimpleName();
@@ -137,7 +138,17 @@ public class TapCodecsFilterManager {
                 TapValue<?, ?> theValue = (TapValue<?, ?>) object;
 //                String fieldName = stringTapValueEntry.getKey();
                 if(fieldName != null) {
-                    FromTapValueCodec<TapValue<?, ?>> fromTapValueCodec = this.codecsRegistry.getFromTapValueCodec((Class<TapValue<?, ?>>) theValue.getClass());
+                    FromTapValueCodec<TapValue<?, ?>> fromTapValueCodec = this.codecsRegistry.getCustomFromTapValueCodec((Class<TapValue<?, ?>>) theValue.getClass());
+                    if(fromTapValueCodec != null) {
+                        if(theValue instanceof TapMapValue) {
+                            transformFromTapValueMap(((TapMapValue) theValue).getValue());
+                        } /*else if(theValue instanceof TapArrayValue) {
+                            Map<String, Object> map = map(entry("____tapdata_map", theValue));
+                            transformFromTapValueMap(map);
+                        }*/
+                    } else {
+                        fromTapValueCodec = this.codecsRegistry.getDefaultFromTapValueCodec((Class<TapValue<?, ?>>) theValue.getClass());
+                    }
                     if(fromTapValueCodec == null)
                         throw new UnknownCodecException("fromTapValueMap codecs not found for value class " + theValue.getClass());
 

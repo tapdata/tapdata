@@ -1,13 +1,13 @@
 package io.tapdata.entity.codecs;
 
+import io.tapdata.entity.codec.FromTapValueCodec;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.codec.ToTapValueCodec;
 import io.tapdata.entity.codec.detector.impl.NewFieldDetector;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
 import io.tapdata.entity.schema.TapField;
-import io.tapdata.entity.schema.value.DateTime;
-import io.tapdata.entity.schema.value.TapStringValue;
-import io.tapdata.entity.schema.value.TapValue;
+import io.tapdata.entity.schema.type.TapMap;
+import io.tapdata.entity.schema.value.*;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.entity.utils.JsonParser;
 import org.junit.jupiter.api.Test;
@@ -226,5 +226,32 @@ public class TapCodecsFilterManagerTest {
         codecsFilterManager.transformFromTapValueMap(map);
         assertEquals(((DateTime)map.get("datetime")).getNano(), 472000000);
         assertEquals(((DateTime)map.get("nano")).getNano(), 123123213);
+    }
+
+    @Test
+    public void testTapMapInMap() {
+        //TODO need pass this case.
+//        TapCodecsRegistry codecsRegistry = TapCodecsRegistry.create();
+//        codecsRegistry.registerFromTapValue(TapMapValue.class, tapValue -> toJson(tapValue.getValue()));
+//        codecsRegistry.registerFromTapValue(TapArrayValue.class, tapValue -> toJson(tapValue.getValue()));
+//        TapCodecsFilterManager codecsFilterManager = TapCodecsFilterManager.create(codecsRegistry);
+//        long time = 1660792574472L;
+//        Map<String, Object> map = map(
+////                entry("map", map(entry("map", map(entry("a", 1), entry("a", list(map(entry("aaa", "bbb")))))))),
+////                entry("list", list(map(entry("11", "aa"), entry("aaa", "a"))))
+//                entry("list", list("1", "12"))
+//        );
+//
+//        Map<String, TapField> sourceNameFieldMap = new HashMap<>();
+//        sourceNameFieldMap.put("map", field("map", "map").tapType(tapMap()));
+//        sourceNameFieldMap.put("list", field("list", "list").tapType(tapArray()));
+//
+//        //read from source, transform to TapValue out from source connector.
+//        codecsFilterManager.transformToTapValueMap(map, sourceNameFieldMap);
+//
+//        //before enter a processor, transform to value from TapValue.
+//        codecsFilterManager.transformFromTapValueMap(map);
+//        assertEquals(((DateTime)map.get("datetime")).getNano(), 472000000);
+//        assertEquals(((DateTime)map.get("nano")).getNano(), 123123213);
     }
 }

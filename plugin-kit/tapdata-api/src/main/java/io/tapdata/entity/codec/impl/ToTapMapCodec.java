@@ -17,7 +17,7 @@ public class ToTapMapCodec implements ToTapValueCodec<TapMapValue> {
     public TapMapValue toTapValue(Object value, TapType typeFromSchema) {
 
         if(value instanceof Map) {
-            return new TapMapValue((Map<?, ?>) value);
+            return new TapMapValue((Map<String, Object>) value);
         } else if(value instanceof String) {
             try {
                 return new TapMapValue(InstanceFactory.instance(JsonParser.class).fromJsonObject((String) value));
