@@ -1130,17 +1130,17 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 					if (CollectionUtils.isNotEmpty(tables)) {
 
 						//处理自定义加载的表。
-						Boolean loadAllTable = oldConnectionDto.getLoadAllTables();
-						if (loadAllTable != null && !loadAllTable) {
-							String table_filter = oldConnectionDto.getTable_filter();
-							if (StringUtils.isNotBlank(table_filter)) {
-								List<String> loadTables = Splitter.on(',').trimResults().omitEmptyStrings().splitToList(table_filter);
-								if (CollectionUtils.isNotEmpty(loadTables)) {
-									tables = tables.stream().filter(t -> loadTables.contains(t.getName())).collect(Collectors.toList());
-
-								}
-							}
-						}
+//						Boolean loadAllTable = oldConnectionDto.getLoadAllTables();
+//						if (loadAllTable != null && !loadAllTable) {
+//							String table_filter = oldConnectionDto.getTable_filter();
+//							if (StringUtils.isNotBlank(table_filter)) {
+//								List<String> loadTables = Splitter.on(',').trimResults().omitEmptyStrings().splitToList(table_filter);
+//								if (CollectionUtils.isNotEmpty(loadTables)) {
+//									tables = tables.stream().filter(t -> loadTables.contains(t.getName())).collect(Collectors.toList());
+//
+//								}
+//							}
+//						}
 						for (TapTable table : tables) {
 							String expression = definitionDto.getExpression();
 							PdkSchemaConvert.tableFieldTypesGenerator.autoFill(table.getNameFieldMap() == null ? new LinkedHashMap<>() : table.getNameFieldMap(), DefaultExpressionMatchingMap.map(expression));

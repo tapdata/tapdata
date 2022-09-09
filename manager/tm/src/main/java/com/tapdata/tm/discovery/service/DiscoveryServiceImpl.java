@@ -313,6 +313,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
         MetadataInstancesDto metadataInstancesDto = metadataInstancesService.findById(MongoUtils.toObjectId(id), user);
         DiscoveryStorageOverviewDto dto = new DiscoveryStorageOverviewDto();
         dto.setCreateAt(metadataInstancesDto.getCreateAt());
+        dto.setVersion(metadataInstancesDto.getSchemaVersion());
         dto.setLastUpdAt(metadataInstancesDto.getLastUpdAt());
         dto.setFieldNum(CollectionUtils.isEmpty(metadataInstancesDto.getFields()) ? 0 : metadataInstancesDto.getFields().size());
         //dto.setRowNum();
@@ -322,6 +323,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
             dto.setConnectionType(source.getDatabase_type());
             dto.setConnectionDesc(source.getDescription());
             dto.setSourceType(source.getDatabase_type());
+
         }
         dto.setId(metadataInstancesDto.getId().toHexString());
         dto.setName(metadataInstancesDto.getOriginalName());
