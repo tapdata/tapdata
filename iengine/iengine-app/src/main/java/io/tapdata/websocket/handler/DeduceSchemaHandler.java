@@ -57,7 +57,7 @@ public class DeduceSchemaHandler implements WebSocketEventHandler<WebSocketEvent
 		String data = (String) event.get("data");
 		byte[] decode = Base64.getDecoder().decode(data);
 		byte[] bytes = GZIPUtil.unGzip(decode);
-		String json = new String(bytes);
+		String json = new String(bytes, StandardCharsets.UTF_8);
 		DeduceSchemaRequest request = JsonUtil.parseJsonUseJackson(json, DeduceSchemaRequest.class);
 
 		DAGDataServiceImpl dagDataService = new DAGDataServiceImpl(
