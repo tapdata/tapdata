@@ -904,7 +904,6 @@ public class LogCollectorService {
             Dag dag1 = new Dag(edges, nodes);
             DAG build = DAG.build(dag1);
             TaskDto taskDto = new TaskDto();
-            taskDto.setShareCDCExternalStorageId(oldTaskDto.getShareCDCExternalStorageId());
             taskDto.setName("来自" + dataSource.getName() + "的共享挖掘任务");
             taskDto.setDag(build);
             taskDto.setType("cdc");

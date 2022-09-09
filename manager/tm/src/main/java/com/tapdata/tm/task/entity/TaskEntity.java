@@ -207,7 +207,6 @@ public class TaskEntity extends BaseEntity {
     private int transformDagHash;
 
     private Map<String, Object> logSetting;
-    private String shareCDCExternalStorageId;
 
     public String getAccessNodeProcessId() {
         return CollectionUtils.isNotEmpty(accessNodeProcessIdList) ? accessNodeProcessIdList.get(0) : "";

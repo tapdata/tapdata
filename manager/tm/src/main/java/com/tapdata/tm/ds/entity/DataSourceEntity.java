@@ -258,6 +258,8 @@ public class DataSourceEntity extends BaseEntity {
     /** 加载表的规则，true为加载全部，false为加载部分 */
     private Boolean loadAllTables;
     private Integer increaseReadSize;
+    // Share cdc external storage id
+    private String shareCDCExternalStorageId;
 
     /**
      * 后续 开放可以多选 flow engine 的话，这里一定要删除

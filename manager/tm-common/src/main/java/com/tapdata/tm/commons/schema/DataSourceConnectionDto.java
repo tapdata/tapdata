@@ -275,6 +275,8 @@ public class DataSourceConnectionDto extends BaseDto {
         private String connectionString;
 
         private Map<String, Object> extParam;
+        // Share cdc external storage id
+        private String shareCDCExternalStorageId;
 
         /**
          * 后续 开放可以多选 flow engine 的话，这里一定要删除
