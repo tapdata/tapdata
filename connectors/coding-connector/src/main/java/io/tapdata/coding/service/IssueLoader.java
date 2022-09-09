@@ -180,7 +180,8 @@ public class IssueLoader extends CodingStarter {
         Map<String,Object> issueDetail = (Map<String,Object>)issueDetailResponse.get("Issue");
         if (null == issueDetail){
             TapLogger.info(TAG, "Issue Detail acquisition failed: IssueCode {} ", code);
-            throw new RuntimeException("Issue Detail acquisition failed: IssueCode "+code);
+            return null;
+            //throw new RuntimeException("Issue Detail acquisition failed: IssueCode "+code);
         }
         this.composeIssue(projectName, teamName, issueDetail);
         return issueDetail;

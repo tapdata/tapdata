@@ -245,7 +245,7 @@
   "dataTypes": {
     "StringLonger": {
       "to" : "TapString",
-      "byte" : 1024
+      "byte" : "1m"
     },
     "StringNormal": {
       "to" : "TapString",

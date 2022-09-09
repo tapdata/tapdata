@@ -15,7 +15,7 @@ public class JWTTest {
 	@Test
 	public void test() {
 		String key = "asdfFSDJKFHKLASHJDKQJWKJehrklHDFJKSMhkj3h24jkhhJKASDH723ty4jkhasdkdfjhaksjdfjfhJDJKLHSAfadsf";
-		String token = JWTUtils.createToken(key, map(entry("aaa", "bbb"), entry("ccc", 111)), 1000L);
+		String token = JWTUtils.createToken(key, map(entry("aaa", "bbb"), entry("ccc", 111)), 10000L);
 		assertNotNull(token);
 		Map<String, Object> claims = JWTUtils.getClaims(key, token);
 		assertNotNull(claims);

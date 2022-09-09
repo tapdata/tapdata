@@ -127,7 +127,7 @@ public class CommonUtils {
             }
 
             if(null == function){
-                throw new CoreException( "PDK data source not support retry: " + logTag);
+                throw new RuntimeException(throwable);
             }
 
             ErrorHandleFunction finalFunction = function;

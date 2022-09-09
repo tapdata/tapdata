@@ -141,7 +141,7 @@ public class GatewaySessionManager {
         NodeRegistry nodeRegistry = new NodeRegistry().ip(ipHolder.getIp()).httpPort(httpPort).wsPort(webSocketManager.getWebSocketProperties().getPort()).type("proxy").time(System.currentTimeMillis());
         CommonUtils.setProperty("tapdata_node_id", nodeRegistry.id());
         nodeRegistryService.save(nodeRegistry);
-        TapLogger.debug(TAG, "Register node {}", toJson(nodeRegistry));
+        TapLogger.debug(TAG, "Register node {}", nodeRegistry);
 
     }
 

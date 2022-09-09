@@ -152,7 +152,8 @@ public class CodingConnector extends ConnectorBase {
 			if ("ProjectIssueNotInit".equals(message)) {
 				throw new CoreException(" " );
 			}else {
-				throw new CoreException("Project list is empty, please ensure your params are correct: " + message);
+				//"Project list is empty, please ensure your params are correct: " +
+				throw new CoreException(message);
 			}
 		}
 		Map<String,Object> data = (Map<String,Object>)dataObj;
@@ -199,30 +200,60 @@ public class CodingConnector extends ConnectorBase {
 	}
 
 	private TapEvent rawDataCallbackFilterFunction(TapConnectorContext connectorContext, Map<String, Object> issueEventData) {
+		ContextConfig contextConfig = this.veryContextConfigAndNodeConfig(connectorContext);
+
 		if (Checker.isEmpty(issueEventData)){
 			TapLogger.warn(TAG,"An event with Event Data is null or empty,this callBack is stop.The data has been discarded. Data detial is:"+issueEventData);
 			return null;
 		}
 		Object issueObj = issueEventData.get("issue");
+		Map<String, Object> issueMap = (Map<String, Object>)issueObj;
 		if (Checker.isEmpty(issueObj)){
 			TapLogger.warn(TAG,"An event with Issue Data is null or empty,this callBack is stop.The data has been discarded. Data detial is:"+issueEventData);
 			return null;
 		}
+
+		DataMap nodeConfigMap = connectorContext.getNodeConfig();
+		if (Checker.isNotEmpty(nodeConfigMap)) {
+			String issueType = nodeConfigMap.getString("issueType");
+			if (Checker.isEmpty(issueType)){
+				throw new CoreException("IssueType in NodeConfig must be not null or not be empty.");
+			}
+			String iterationCodes = nodeConfigMap.getString("DescribeIterationList");
+			if (Checker.isEmpty(iterationCodes)){
+				throw new CoreException("IterationCodes in NodeConfig must be not null or not be empty.");
+			}
+			List<String> iterationCodesArr = new ArrayList<>(Arrays.asList(iterationCodes.split(",")));
+
+			Object eventIssueTypeObj = issueMap.get("type");
+			String eventIssueType = Checker.isEmpty(eventIssueTypeObj)?"":(String)eventIssueTypeObj;
+			Object eventIterationObj = issueMap.get("iteration");
+			Integer eventIterationId = 0;
+			if (Checker.isNotEmpty(eventIterationObj)){
+				eventIterationId = (Integer)(((Map<String,Object>)eventIterationObj).get("code"));
+			}
+
+			if ( !( ( "ALL".equals(issueType) || eventIssueType.equals(issueType) ) &&
+					( "-1".equals(iterationCodes) || iterationCodesArr.contains(String.valueOf(eventIterationId)) || eventIterationId.equals(0)) ) ) {
+				return null;
+			}
+		}else {
+			throw new CoreException("Node config must be not null or not be empty.");
+		}
+
 		String webHookEventType = String.valueOf(issueEventData.get("event"));
-		Object codeObj = ((Map<String, Object>)issueObj).get("code");
+		Object codeObj = issueMap.get("code");
 		if (Checker.isEmpty(codeObj)){
 			TapLogger.warn(TAG,"An event with Issue Code is be null or be empty,this callBack is stop.The data has been discarded. Data detial is:"+issueEventData);
 			return null;
 		}
-		ContextConfig contextConfig = this.veryContextConfigAndNodeConfig(connectorContext);
-
 
 		TapEvent event = null;
 		long referenceTime = System.currentTimeMillis();
 		CodingEvent issueEvent = CodingEvent.event(webHookEventType);
 
 		Map<String, Object> issueDetail = null;
-		if (!DELETED_EVENT.equals(issueEvent)) {
+		if (null != issueEvent && !DELETED_EVENT.equals(issueEvent.getEventType())) {
 			HttpEntity<String, String> header = HttpEntity.create().builder("Authorization", contextConfig.getToken());
 			HttpEntity<String, Object> issueDetialBody = HttpEntity.create()
 					.builder("Action", "DescribeIssue")
@@ -237,21 +268,30 @@ public class CodingConnector extends ConnectorBase {
 							(codeObj instanceof Integer) ? (Integer) codeObj : Integer.parseInt(codeObj.toString()),
 							contextConfig.getProjectName(),
 							contextConfig.getTeamName());
+			if (null == issueDetail){
+				TapLogger.warn(TAG,"A piece of non-existent data is not existed. It seems to be an item that has been deleted. Its issueCode is: "+codeObj+".");
+				return null;
+			}
+		}else{
+			issueDetail = (Map<String, Object>) issueObj;
+			issueDetail.put("TeamName",contextConfig.getTeamName());
+			issueDetail.put("ProjectName",contextConfig.getProjectName());
+			Integer code = (Integer) issueDetail.remove("code");
+			if(code != null) {
+				issueDetail.put("Code", code);
+			}
 		}
 		if (Checker.isNotEmpty(issueEvent)){
 			String evenType = issueEvent.getEventType();
 			switch (evenType){
 				case DELETED_EVENT:{
-					issueDetail = (Map<String, Object>) issueObj;
-					issueDetail.put("teamName",contextConfig.getTeamName());
-					issueDetail.put("projectName",contextConfig.getProjectName());
 					event = deleteDMLEvent(issueDetail, "Issues").referenceTime(referenceTime)  ;
 				};break;
 				case UPDATE_EVENT:{
-					event = updateDMLEvent(null,issueDetail, "Issues").referenceTime(referenceTime) ;
+					event = updateDMLEvent(null, issueDetail, "Issues").referenceTime(referenceTime);
 				};break;
 				case CREATED_EVENT:{
-					event = insertRecordEvent(issueDetail, "Issues").referenceTime(referenceTime)  ;
+					event = insertRecordEvent(issueDetail, "Issues").referenceTime(referenceTime);
 				};break;
 			}
 		}else {
@@ -551,7 +591,9 @@ public class CodingConnector extends ConnectorBase {
 						(code instanceof Integer)?(Integer)code:Integer.parseInt(code.toString()),
 						projectName,
 						teamName);
-
+				if (null == issueDetail){
+					throw new RuntimeException("Issue Detail acquisition failed: IssueCode "+code);
+				}
 				Long referenceTime = (Long)issueDetail.get("UpdatedAt");
 				Long currentTimePoint = referenceTime - referenceTime % (24*60*60*1000);//时间片段
 				Integer issueDetialHash = MapUtil.create().hashCode(issueDetail);

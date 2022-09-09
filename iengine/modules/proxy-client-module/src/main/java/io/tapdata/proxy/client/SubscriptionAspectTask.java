@@ -168,7 +168,7 @@ public class SubscriptionAspectTask extends AbstractAspectTask {
 
 	private void fetchNewData(String subscribeId, String offset, BiConsumer<Result, Throwable> biConsumer) {
 		FetchNewData fetchNewData = new FetchNewData()
-				.limit(1)
+				.limit(1000)
 				.service("engine")
 				.subscribeId(subscribeId);
 		if(offset == null)

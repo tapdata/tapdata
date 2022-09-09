@@ -67,7 +67,7 @@ public class DataSourceController extends BaseController {
     @Operation(summary = "添加数据源连接")
     @PostMapping
     public ResponseMessage<DataSourceConnectionDto> add(@RequestBody DataSourceConnectionDto connection, @RequestParam(name = "id") String id) {
-        if(id != null) {
+        if(id != null && ObjectId.isValid(id)) {
             connection.setId(new ObjectId(id));
             return success(dataSourceService.addWithSpecifiedId(connection, getLoginUser()));
         } else {
