@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 ulimit -c unlimited
+
 sbin_file="tm-*.jar"
 mvn clean install || exit 1
 
