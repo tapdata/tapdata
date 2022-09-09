@@ -22,6 +22,22 @@
 		  "$set": {
 			"type": "memory",
 			"canEdit": false,
+			"canDelete": false,
+			"defaultStorage": false
+		  }
+		},
+		"upsert": true
+	  },
+	  {
+		"q": {
+		  "name": "Tapdata MongoDB External Storage"
+		},
+		"u": {
+		  "$set": {
+			"type": "mongodb",
+			"uri": "${TAPDATA.MONGODB.URI}",
+			"table": "TapExternalStorage",
+			"canEdit": false,
 			"canDelete": false
 		  },
 		  "$setOnInsert": {
