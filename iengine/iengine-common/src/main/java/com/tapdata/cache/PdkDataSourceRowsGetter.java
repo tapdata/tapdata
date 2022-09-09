@@ -8,12 +8,14 @@ import com.tapdata.entity.DatabaseTypeEnum;
 import com.tapdata.entity.dataflow.DataFlowCacheConfig;
 import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.tm.commons.dag.Node;
+import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.value.TapDateTimeValue;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.flow.engine.V2.entity.PdkStateMap;
+import io.tapdata.flow.engine.V2.util.ExternalStorageUtil;
 import io.tapdata.flow.engine.V2.util.PdkUtil;
 import io.tapdata.pdk.apis.entity.TapAdvanceFilter;
 import io.tapdata.pdk.apis.functions.connector.target.QueryByAdvanceFilterFunction;
@@ -54,8 +56,9 @@ public class PdkDataSourceRowsGetter implements IDataSourceRowsGetter {
     DatabaseTypeEnum.DatabaseType databaseType = ConnectionUtil.getDatabaseType(clientMongoOperator, sourceConnection.getPdkHash());
     TapTableMap<String, TapTable> tapTableMap = TapTableUtil.getTapTableMapByNodeId(sourceNode.getId());
     PdkTableMap pdkTableMap = new PdkTableMap(tapTableMap);
-    PdkStateMap pdkStateMap = new PdkStateMap(sourceNode.getId(), hazelcastInstance);
-    PdkStateMap globalStateMap = PdkStateMap.globalStateMap(hazelcastInstance);
+    ExternalStorageDto pdkStateMapExternalStorage = ExternalStorageUtil.getPdkStateMapExternalStorage(sourceNode, sourceConnection, clientMongoOperator);
+    PdkStateMap pdkStateMap = new PdkStateMap(sourceNode.getId(), hazelcastInstance, pdkStateMapExternalStorage);
+    PdkStateMap globalStateMap = PdkStateMap.globalStateMap(hazelcastInstance, pdkStateMapExternalStorage);
     this.tapTable = tapTableMap.get(dataFlowCacheConfig.getTableName());
     this.associateId = this.getClass().getSimpleName() + "-" + sourceNode.getId() + "-" + UUIDGenerator.uuid();
     this.connectorNode = PdkUtil.createNode(dataFlowCacheConfig.getCacheName(),

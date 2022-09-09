@@ -16,6 +16,7 @@ import com.tapdata.tm.commons.dag.Edge;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
+import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.commons.task.dto.Dag;
 import com.tapdata.tm.commons.task.dto.TaskDto;
@@ -42,6 +43,7 @@ import io.tapdata.flow.engine.V2.exception.node.NodeException;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.HazelcastSourcePdkDataNode;
 import io.tapdata.flow.engine.V2.node.hazelcast.processor.HazelcastProcessorBaseNode;
 import io.tapdata.flow.engine.V2.node.hazelcast.processor.aggregation.HazelcastMultiAggregatorProcessor;
+import io.tapdata.flow.engine.V2.util.ExternalStorageUtil;
 import io.tapdata.flow.engine.V2.util.GraphUtil;
 import io.tapdata.flow.engine.V2.util.NodeUtil;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
@@ -109,6 +111,8 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 
 	protected ObsLogger obsLogger;
 
+	protected ExternalStorageDto externalStorageDto;
+
 	public HazelcastBaseNode(ProcessorBaseContext processorBaseContext) {
 		this.processorBaseContext = processorBaseContext;
 		this.obsLogger = ObsLoggerFactory.getInstance().getObsLogger(
@@ -131,8 +135,17 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 
 		threadName = String.format(THREAD_NAME_TEMPLATE, processorBaseContext.getTaskDto().getId().toHexString(), processorBaseContext.getNode() != null ? processorBaseContext.getNode().getName() : null);
 
-		//如果为迁移任务、且源节点为数据库类型
+		// 如果为迁移任务、且源节点为数据库类型
 		this.multipleTables = CollectionUtils.isNotEmpty(processorBaseContext.getTaskDto().getDag().getSourceNode());
+
+		// Init external storage config
+		externalStorageDto = ExternalStorageUtil.getExternalStorage(
+				processorBaseContext.getTaskConfig().getExternalStorageDtoMap(),
+				processorBaseContext.getNode(),
+				clientMongoOperator,
+				processorBaseContext.getNodes(),
+				(processorBaseContext instanceof DataProcessorContext ? ((DataProcessorContext) processorBaseContext).getConnections() : null)
+		);
 	}
 
 	public <T extends DataFunctionAspect<T>> AspectInterceptResult executeDataFuncAspect(Class<T> aspectClass, Callable<T> aspectCallable, Consumer<T> consumer) {

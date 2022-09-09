@@ -1,7 +1,8 @@
-package io.tapdata.constructImpl;
+package io.tapdata.construct.constructImpl;
 
 import com.hazelcast.core.HazelcastInstance;
 import com.hazelcast.map.IMap;
+import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
 
 /**
  * @author samuel
@@ -13,6 +14,12 @@ public class ConstructIMap<T> extends BaseConstruct<T> {
 	protected IMap<String, Object> iMap;
 
 	public ConstructIMap(HazelcastInstance hazelcastInstance, String name) {
+		super();
+		this.iMap = hazelcastInstance.getMap(name);
+	}
+
+	public ConstructIMap(HazelcastInstance hazelcastInstance, String name, ExternalStorageDto externalStorageDto) {
+		super(name, externalStorageDto);
 		this.iMap = hazelcastInstance.getMap(name);
 	}
 

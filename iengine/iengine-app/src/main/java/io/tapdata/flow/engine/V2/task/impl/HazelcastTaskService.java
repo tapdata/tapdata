@@ -30,7 +30,6 @@ import com.tapdata.tm.commons.dag.nodes.*;
 import com.tapdata.tm.commons.dag.process.MergeTableNode;
 import com.tapdata.tm.commons.dag.process.MigrateFieldRenameProcessorNode;
 import com.tapdata.tm.commons.dag.process.TableRenameProcessNode;
-import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.aspect.TaskStartAspect;
 import io.tapdata.aspect.TaskStopAspect;
@@ -50,6 +49,7 @@ import io.tapdata.flow.engine.V2.node.hazelcast.processor.aggregation.HazelcastM
 import io.tapdata.flow.engine.V2.node.hazelcast.processor.join.HazelcastJoinProcessor;
 import io.tapdata.flow.engine.V2.task.TaskClient;
 import io.tapdata.flow.engine.V2.task.TaskService;
+import io.tapdata.flow.engine.V2.util.ExternalStorageUtil;
 import io.tapdata.flow.engine.V2.util.GraphUtil;
 import io.tapdata.flow.engine.V2.util.MergeTableUtil;
 import io.tapdata.flow.engine.V2.util.NodeUtil;
@@ -66,10 +66,8 @@ import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.bson.json.JsonWriterSettings;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.DependsOn;
-import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Service;
 
@@ -232,13 +230,8 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 					databaseType = ConnectionUtil.getDatabaseType(clientMongoOperator, connection.getPdkHash());
 				} else if (node.isLogCollectorNode()) {
 					String connectionId = ((LogCollectorNode) node).getConnectionIds().get(0);
-					;
 					connection = getConnection(connectionId);
 					databaseType = ConnectionUtil.getDatabaseType(clientMongoOperator, connection.getPdkHash());
-
-//					if ("pdk".equals(connection.getPdkType())) {
-//						PdkUtil.downloadPdkFileIfNeed((HttpClientMongoOperator) clientMongoOperator, databaseType.getPdkHash(), databaseType.getJarFile(), databaseType.getJarRid());
-//					}
 				} else if (node instanceof CacheNode) {
 					Optional<Edge> edge = edges.stream().filter(e -> e.getTarget().equals(node.getId())).findFirst();
 					Node<?> sourceNode = null;
@@ -653,8 +646,18 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 	}
 
 	private Connections getConnection(String connectionId) {
+		return getConnection(connectionId, null);
+	}
+
+	private Connections getConnection(String connectionId, List<String> includeFields) {
+		Query query = new Query(where("_id").is(connectionId));
+		if (CollectionUtils.isNotEmpty(includeFields)) {
+			for (String includeField : includeFields) {
+				query.fields().include(includeField);
+			}
+		}
 		final Connections connections = clientMongoOperator.findOne(
-				new Query(where("_id").is(connectionId)),
+				query,
 				ConnectorConstant.CONNECTION_COLLECTION,
 				Connections.class
 		);
@@ -713,7 +716,7 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 		return TaskConfig.create()
 				.taskDto(taskDto)
 				.taskRetryConfig(getTaskRetryConfig())
-				.externalStorageDtoMap(getExternalStorageMap(taskDto));
+				.externalStorageDtoMap(ExternalStorageUtil.getExternalStorageMap(taskDto, clientMongoOperator));
 	}
 
 	private TaskRetryConfig getTaskRetryConfig() {
@@ -723,26 +726,5 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 		return TaskRetryConfig.create()
 				.retryIntervalSecond(retryIntervalSecond)
 				.maxRetryTimeSecond(maxRetryTimeSecond);
-	}
-
-	private Map<String, ExternalStorageDto> getExternalStorageMap(TaskDto taskDto) {
-		Map<String, ExternalStorageDto> externalStorageDtoMap = new HashMap<>();
-		com.tapdata.tm.commons.dag.DAG dag = taskDto.getDag();
-		List<Node> nodes = dag.getNodes();
-		Set<String> ids = new HashSet<>();
-		for (Node node : nodes) {
-			if (StringUtils.isNotBlank(node.getExternalStorageId())) {
-				ids.add(node.getExternalStorageId());
-			}
-		}
-		Criteria criteria = new Criteria().orOperator(
-				where("_id").in(ids),
-				where("defaultStorage").is(true)
-		);
-		List<ExternalStorageDto> externalStorageDtoList = clientMongoOperator.find(Query.query(criteria), ConnectorConstant.EXTERNAL_STORAGE_COLLECTION, ExternalStorageDto.class);
-		if (CollectionUtils.isEmpty(externalStorageDtoList)) {
-			throw new RuntimeException(String.format("Not found any external storage config: %s", criteria.getCriteriaObject().toJson(JsonWriterSettings.builder().indent(true).build())));
-		}
-		return externalStorageDtoMap;
 	}
 }

@@ -1,4 +1,4 @@
-package io.tapdata;
+package io.tapdata.construct;
 
 import java.util.Map;
 

@@ -166,7 +166,7 @@
         <module>iengine-common</module>
         <module>validator</module>
         <module>api</module>
-        <module>hazelcast-lib</module>
+<!--        <module>hazelcast-lib</module>-->
         <module>modules</module>
     </modules>
 

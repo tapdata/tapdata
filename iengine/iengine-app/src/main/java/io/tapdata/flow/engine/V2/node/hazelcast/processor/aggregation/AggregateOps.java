@@ -2,7 +2,7 @@ package io.tapdata.flow.engine.V2.node.hazelcast.processor.aggregation;
 
 import com.tapdata.entity.MessageEntity;
 import com.tapdata.entity.OperationType;
-import io.tapdata.constructImpl.ConstructIMap;
+import io.tapdata.construct.constructImpl.ConstructIMap;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;

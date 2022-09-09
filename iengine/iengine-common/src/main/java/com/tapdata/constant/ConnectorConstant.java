@@ -338,4 +338,6 @@ public class ConnectorConstant {
 
 	public static final String TAPDATA_WORKER_DIR = System.getenv("TAPDATA_WORK_DIR");
 
+	public static final String TAPDATA_MONGO_DB_EXTERNAL_STORAGE_NAME = "Tapdata MongoDB External Storage";
+
 }

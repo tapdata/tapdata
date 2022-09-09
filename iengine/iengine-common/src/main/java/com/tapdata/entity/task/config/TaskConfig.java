@@ -1,5 +1,6 @@
 package com.tapdata.entity.task.config;
 
+import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import org.apache.commons.collections.MapUtils;
@@ -56,6 +57,10 @@ public class TaskConfig implements Serializable {
 		if (MapUtils.isEmpty(externalStorageDtoMap)) {
 			return null;
 		}
-		return externalStorageDtoMap.values().stream().filter(ExternalStorageDto::isDefaultStorage).findFirst().orElse(null);
+		ExternalStorageDto externalStorageDto = externalStorageDtoMap.values().stream().filter(ExternalStorageDto::isDefaultStorage).findFirst().orElse(null);
+		if (null == externalStorageDto) {
+			externalStorageDto = externalStorageDtoMap.values().stream().filter(e -> e.getName().equals(ConnectorConstant.TAPDATA_MONGO_DB_EXTERNAL_STORAGE_NAME)).findFirst().orElse(null);
+		}
+		return externalStorageDto;
 	}
 }

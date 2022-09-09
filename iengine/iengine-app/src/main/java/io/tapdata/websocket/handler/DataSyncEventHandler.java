@@ -15,6 +15,7 @@ import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.dag.process.AggregationProcessorNode;
 import com.tapdata.tm.commons.dag.process.CustomProcessorNode;
 import com.tapdata.tm.commons.dag.process.MergeTableNode;
+import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.aspect.TaskResetAspect;
 import io.tapdata.aspect.utils.AspectUtils;
@@ -26,6 +27,7 @@ import io.tapdata.flow.engine.V2.node.hazelcast.processor.HazelcastCustomProcess
 import io.tapdata.flow.engine.V2.node.hazelcast.processor.HazelcastMergeNode;
 import io.tapdata.flow.engine.V2.node.hazelcast.processor.aggregation.HazelcastMultiAggregatorProcessor;
 import io.tapdata.flow.engine.V2.task.impl.HazelcastTaskService;
+import io.tapdata.flow.engine.V2.util.ExternalStorageUtil;
 import io.tapdata.flow.engine.V2.util.PdkUtil;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.functions.connector.common.ReleaseExternalFunction;
@@ -146,8 +148,9 @@ public class DataSyncEventHandler extends BaseEventHandler {
 		databaseType = ConnectionUtil.getDatabaseType(clientMongoOperator, connections.getPdkHash());
 		if (null == databaseType) return;
 		Connections finalConnections = connections;
-		PdkStateMap pdkStateMap = new PdkStateMap(node.getId(), HazelcastTaskService.getHazelcastInstance());
-		PdkStateMap globalStateMap = PdkStateMap.globalStateMap(HazelcastTaskService.getHazelcastInstance());
+		ExternalStorageDto pdkStateMapExternalStorage = ExternalStorageUtil.getPdkStateMapExternalStorage(node, connections, clientMongoOperator);
+		PdkStateMap pdkStateMap = new PdkStateMap(node.getId(), HazelcastTaskService.getHazelcastInstance(), pdkStateMapExternalStorage);
+		PdkStateMap globalStateMap = PdkStateMap.globalStateMap(HazelcastTaskService.getHazelcastInstance(), pdkStateMapExternalStorage);
 		PdkUtil.downloadPdkFileIfNeed((HttpClientMongoOperator) clientMongoOperator,
 				databaseType.getPdkHash(), databaseType.getJarFile(), databaseType.getJarRid());
 		ConnectorNode connectorNode = PDKIntegration.createConnectorBuilder()

@@ -98,8 +98,8 @@ public class CheckAgainRunner implements Runnable {
             DatabaseTypeEnum.DatabaseType targetDatabaseType = ConnectionUtil.getDatabaseType(clientMongoOperator, targetConn.getPdkHash());
 
             intervalUpdateProgress(progress);
-            try (IPdkConnector sourceConnector = new PdkConnector(clientMongoOperator, taskId, sourceNodeId, getClass().getSimpleName() + "-" + sourceNodeId, sourceConn, sourceDatabaseType, this::isRunning, taskConfig.getTaskRetryConfig())) {
-                try (IPdkConnector targetConnector = new PdkConnector(clientMongoOperator, taskId, targetNodeId, getClass().getSimpleName() + "-" + targetNodeId, targetConn, targetDatabaseType, this::isRunning, taskConfig.getTaskRetryConfig())) {
+            try (IPdkConnector sourceConnector = new PdkConnector(clientMongoOperator, taskId, autoInspectNode.getFromNode(), getClass().getSimpleName() + "-" + sourceNodeId, sourceConn, sourceDatabaseType, this::isRunning, taskConfig.getTaskRetryConfig())) {
+                try (IPdkConnector targetConnector = new PdkConnector(clientMongoOperator, taskId, autoInspectNode.getToNode(), getClass().getSimpleName() + "-" + targetNodeId, targetConn, targetDatabaseType, this::isRunning, taskConfig.getTaskRetryConfig())) {
                     IQueryCompare queryCompare = new PdkQueryCompare(sourceConnector, targetConnector);
                     intervalUpdateProgress(progress);
 
