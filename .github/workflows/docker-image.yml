@@ -146,16 +146,6 @@ jobs:
           sed -i "/__version__/${{ env.TAG }}/" tapshell/pyproject.toml
           if [[ $? -ne 0 ]]; then echo "Do not publish pip package" && exit 0; fi
           cd tapshell && poetry build && poetry publish --username ${{ env.PYPI_USERNAME }} --password ${{ env.PYPI_PASSWORD }}
-
-      - name: update github page
-        id: gh_pages
-        if: always()
-        uses: peaceiris/actions-gh-pages@v3
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_branch: report-test
-          publish_dir: gh_pages
-          keep_files: true
       - name: print summary
         if: ${{ steps.gh_pages.conclusion == 'success' }}
         env:
