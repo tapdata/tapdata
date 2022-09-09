@@ -61,6 +61,12 @@ public class ApplicationController extends BaseController {
         if (filter == null) {
             filter = new Filter();
         }
+        Where where = filter.getWhere();
+        if (where == null) {
+            where = new Where();
+            filter.setWhere(where);
+        }
+        where.putIfAbsent("is_deleted", true);
 
         return success(applicationService.find(filter, getLoginUser()));
     }
