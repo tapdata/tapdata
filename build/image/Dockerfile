@@ -12,10 +12,12 @@ COPY docker-entrypoint.sh /tapdata/docker-entrypoint.sh
 RUN chmod +x /tapdata/docker-entrypoint.sh
 
 COPY tapshell /tapdata/apps/tapshell
-RUN cd /tapdata/apps/tapshell && pip3 install -r requirements.txt
 
-RUN mkdir -p /tapdata/database-init/
-COPY database-init/ /tapdata/database-init/
+RUN cd /tapdata/apps/tapshell && \
+    pip3 install poetry && \
+    poetry export -f requirements.txt --output requirements.txt --without-hashes && \
+    pip3 install --no-cache-dir -r requirements.txt
+
 RUN mkdir -p /tapdata/data/db/
 
 ENTRYPOINT [ "bash", "-c", "/tapdata/docker-entrypoint.sh" ]

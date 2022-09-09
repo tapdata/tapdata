@@ -38,4 +38,4 @@ while [[ 1 ]]; do
 done
 
 info "Welcome to Tapdata Live Data Platform, Enjoy Your Data Trip !"
-ipython3 --profile-dir=$basepath/lib --profile=ipython_config -i $basepath/lib/cli.py --no-banner
+ipython3 --profile-dir=$basepath/tapdata_cli --profile=ipython_config -i $basepath/tapdata_cli/cli.py --no-banner

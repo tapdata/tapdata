@@ -26,12 +26,12 @@ import websockets
 from bson.objectid import ObjectId
 from bson.json_util import dumps
 
-from lib.graph import Node, Graph
-from lib.rules import job_config
-from lib.check import ConfigCheck
-from lib.request import RequestSession
-from lib.log import logger, get_log_level
-from lib.config_parse import Config
+from tapdata_cli.graph import Node, Graph
+from tapdata_cli.rules import job_config
+from tapdata_cli.check import ConfigCheck
+from tapdata_cli.request import RequestSession
+from tapdata_cli.log import logger, get_log_level
+from tapdata_cli.config_parse import Config
 
 
 config: Config = Config()
@@ -1209,7 +1209,7 @@ def desc_table(line):
         return
 
     display_fields = get_table_fields(line, source=connection_id)
-    print(json.dumps(display_fields, indent=4))
+
 
 def login_with_access_code(server, access_code):
     global system_server_conf, req
