@@ -2,6 +2,7 @@ package com.tapdata.tm.alarmrule.service.impl;
 
 import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.extra.spring.SpringUtil;
+import com.tapdata.tm.Settings.constant.AlarmKeyEnum;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmRuleDto;
 import com.tapdata.tm.alarmrule.entity.AlarmRule;
 import com.tapdata.tm.alarmrule.service.AlarmRuleService;
@@ -31,7 +32,7 @@ public class AlarmRuleServiceImpl implements AlarmRuleService {
     public void delete(List<AlarmRule> data) {
         if (CollectionUtils.isNotEmpty(data)) {
 
-            List<String> collect = data.stream().map(AlarmRule::getKey).collect(Collectors.toList());
+            List<AlarmKeyEnum> collect = data.stream().map(AlarmRule::getKey).collect(Collectors.toList());
 
             mongoTemplate.remove(new Query(Criteria.where("key").in(collect)), AlarmRule.class);
         }

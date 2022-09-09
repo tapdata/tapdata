@@ -52,5 +52,188 @@
 				"background": true
 			}
 		]
-  }
+  },
+	{
+		"insert": "Settings_Alarm",
+		"documents": [
+			{
+				"_id": {
+					"$oid": "5d0c286d81baf819b6f014b1"
+				},
+				"type": "TASK",
+				"open": true,
+				"key": "TASK_STATUS_ERROR",
+				"sort": 1,
+				"notify": ["SYSTEM","EMAIL"],
+				"interval": 500,
+				"unit": "MS"
+			},
+			{
+				"_id": {
+					"$oid": "5d0c286d81baf819b6f014b2"
+				},
+				"type": "TASK",
+				"open": true,
+				"key": "TASK_INSPECT_ERROR",
+				"sort": 1,
+				"notify": ["SYSTEM","EMAIL"],
+				"interval": 500,
+				"unit": "MS"
+			},
+			{
+				"_id": {
+					"$oid": "5d0c286d81baf819b6f014b3"
+				},
+				"type": "TASK",
+				"open": true,
+				"key": "TASK_FULL_COMPLETE",
+				"sort": 1,
+				"notify": ["SYSTEM","EMAIL"],
+				"interval": 500,
+				"unit": "MS"
+			},
+			{
+				"_id": {
+					"$oid": "5d0c286d81baf819b6f014b4"
+				},
+				"type": "TASK",
+				"open": true,
+				"key": "TASK_INCREMENT_COMPLETE",
+				"sort": 1,
+				"notify": ["SYSTEM","EMAIL"],
+				"interval": 500,
+				"unit": "MS"
+			},
+			{
+				"_id": {
+					"$oid": "5d0c286d81baf819b6f014b5"
+				},
+				"type": "TASK",
+				"open": true,
+				"key": "TASK_STATUS_STOP",
+				"sort": 1,
+				"notify": ["SYSTEM","EMAIL"],
+				"interval": 500,
+				"unit": "MS"
+			},
+			{
+				"_id": {
+					"$oid": "5d0c286d81baf819b6f014b6"
+				},
+				"type": "TASK",
+				"open": true,
+				"key": "TASK_INCREMENT_DELAY",
+				"sort": 1,
+				"notify": ["SYSTEM","EMAIL"],
+				"interval": 500,
+				"unit": "MS"
+			},
+			{
+				"_id": {
+					"$oid": "5d0c286d81baf819b6f014b7"
+				},
+				"type": "DATANODE",
+				"open": true,
+				"key": "DATANODE_CANNOT_CONNECT",
+				"sort": 1,
+				"notify": ["SYSTEM","EMAIL"],
+				"interval": 500,
+				"unit": "MS"
+			},
+			{
+				"_id": {
+					"$oid": "5d0c286d81baf819b6f014b8"
+				},
+				"type": "DATANODE",
+				"open": true,
+				"key": "DATANODE_HTTP_CONNECT_CONSUME",
+				"sort": 1,
+				"notify": ["SYSTEM","EMAIL"],
+				"interval": 500,
+				"unit": "MS"
+			},
+			{
+				"_id": {
+					"$oid": "5d0c286d81baf819b6f014b9"
+				},
+				"type": "DATANODE",
+				"open": true,
+				"key": "DATANODE_TCP_CONNECT_CONSUME",
+				"sort": 1,
+				"notify": ["SYSTEM","EMAIL"],
+				"interval": 500,
+				"unit": "MS"
+			},
+			{
+				"_id": {
+					"$oid": "5d0c286d81baf819b6f01410"
+				},
+				"type": "DATANODE",
+				"open": true,
+				"key": "DATANODE_AVERAGE_HANDLE_CONSUME",
+				"sort": 1,
+				"notify": ["SYSTEM","EMAIL"],
+				"interval": 500,
+				"unit": "MS"
+			},
+			{
+				"_id": {
+					"$oid": "5d0c286d81baf819b6f01411"
+				},
+				"type": "PROCESSNODE",
+				"open": true,
+				"key": "PROCESSNODE_AVERAGE_HANDLE_CONSUME",
+				"sort": 1,
+				"notify": ["SYSTEM","EMAIL"],
+				"interval": 500,
+				"unit": "MS"
+			}
+		]
+	},
+	{
+		"insert": "Settings_Alarm_Rule",
+		"documents": [
+			{
+				"_id": {
+					"$oid": "5d0c286d81baf819b6f01461"
+				},
+				"key": "TASK_INCREMENT_DELAY",
+				"point": 3,
+				"equalsFlag": 1,
+				"ms": 500
+			}, {
+				"_id": {
+					"$oid": "5d0c286d81baf819b6f01462"
+				},
+				"key": "DATANODE_HTTP_CONNECT_CONSUME",
+				"point": 3,
+				"equalsFlag": 1,
+				"ms": 500
+			}, {
+				"_id": {
+					"$oid": "5d0c286d81baf819b6f01463"
+				},
+				"key": "DATANODE_TCP_CONNECT_CONSUME",
+				"point": 3,
+				"equalsFlag": 1,
+				"ms": 500
+			}, {
+				"_id": {
+					"$oid": "5d0c286d81baf819b6f01464"
+				},
+				"key": "DATANODE_AVERAGE_HANDLE_CONSUME",
+				"point": 3,
+				"equalsFlag": 1,
+				"ms": 500
+			}, {
+				"_id": {
+					"$oid": "5d0c286d81baf819b6f01465"
+				},
+				"key": "PROCESSNODE_AVERAGE_HANDLE_CONSUME",
+				"point": 3,
+				"equalsFlag": 1,
+				"ms": 500
+			}
+		]
+	}
 ]

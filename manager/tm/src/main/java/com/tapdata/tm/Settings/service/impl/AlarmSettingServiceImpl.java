@@ -2,6 +2,7 @@ package com.tapdata.tm.Settings.service.impl;
 
 import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.extra.spring.SpringUtil;
+import com.tapdata.tm.Settings.constant.AlarmKeyEnum;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmSettingDto;
 import com.tapdata.tm.Settings.entity.AlarmSetting;
 import com.tapdata.tm.Settings.service.AlarmSettingService;
@@ -32,7 +33,7 @@ public class AlarmSettingServiceImpl implements AlarmSettingService {
     public void delete(List<AlarmSetting> data) {
         if (CollectionUtils.isNotEmpty(data)) {
 
-            List<String> collect = data.stream().map(AlarmSetting::getKey).collect(Collectors.toList());
+            List<AlarmKeyEnum> collect = data.stream().map(AlarmSetting::getKey).collect(Collectors.toList());
 
             mongoTemplate.remove(new Query(Criteria.where("key").in(collect)), AlarmSetting.class);
         }

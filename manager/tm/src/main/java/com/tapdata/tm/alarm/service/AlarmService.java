@@ -14,4 +14,6 @@ public interface AlarmService {
     List<AlarmRuleDto> findAllRule(String taskId);
 
     void notifyAlarm();
+
+    void close(String id);
 }

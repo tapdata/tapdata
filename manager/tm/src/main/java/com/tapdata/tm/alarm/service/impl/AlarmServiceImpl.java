@@ -29,6 +29,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
@@ -183,4 +184,12 @@ public class AlarmServiceImpl implements AlarmService {
         });
 
     }
+
+    @Override
+    public void close(String id) {
+        Query query = new Query(Criteria.where("_id").is(MongoUtils.toObjectId(id)));
+        Update update = new Update().set("status", AlarmStatusEnum.CLOESED.name());
+        mongoTemplate.updateFirst(query, update, AlarmInfo.class);
+    }
+
 }

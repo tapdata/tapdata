@@ -1,5 +1,6 @@
 package com.tapdata.tm.alarmrule.entity;
 
+import com.tapdata.tm.Settings.constant.AlarmKeyEnum;
 import com.tapdata.tm.base.entity.BaseEntity;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.*;
@@ -15,7 +16,7 @@ import org.springframework.data.mongodb.core.mapping.Document;
 @NoArgsConstructor
 @Document("Settings_Alarm_Rule")
 public class AlarmRule extends BaseEntity {
-    private String key;
+    private AlarmKeyEnum key;
     private int point;
     @Schema(description = "-1 小于等于 <= ; 0; 1 大于等于 >= ")
     private int equalsFlag;
