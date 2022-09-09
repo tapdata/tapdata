@@ -109,7 +109,7 @@ public class PostgresJdbcContext extends JdbcContext {
         return indexList;
     }
 
-    public final static String PG_ALL_TABLE =
+    private final static String PG_ALL_TABLE =
             "SELECT t.table_name,\n" +
                     "       (select max(cast(obj_description(relfilenode, 'pg_class') as varchar)) as comment\n" +
                     "        from pg_class c\n" +

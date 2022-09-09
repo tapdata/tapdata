@@ -17,9 +17,6 @@ public class PostgresRecordWriter extends RecordWriter {
         insertRecorder = new PostgresWriteRecorder(connection, tapTable, jdbcContext.getConfig().getSchema(), makeSureHasUnique(jdbcContext, tapTable));
         updateRecorder = new PostgresWriteRecorder(connection, tapTable, jdbcContext.getConfig().getSchema());
         deleteRecorder = new PostgresWriteRecorder(connection, tapTable, jdbcContext.getConfig().getSchema());
-        // TODO: 2022/6/29 加insert、update策略
-//        insertRecorder.setInsertPolicy("");
-//        updateRecorder.setUpdatePolicy("");
     }
 
     private void openIdentity(JdbcContext jdbcContext) throws SQLException {
