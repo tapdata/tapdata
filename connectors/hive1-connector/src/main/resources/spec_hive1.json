@@ -235,7 +235,9 @@
     },
     "char($byte)": {
       "to": "TapString",
-      "byte": "255"
+      "byte": "255",
+      "byteRatio": 3,
+      "fixed": true
     },
     "varchar($byte)": {
       "to": "TapString",
