@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
 ulimit -c unlimited
-echo "env PRODUCT is: ${PRODUCT}"
-exit 1
 sbin_file="tm-*.jar"
 mvn clean install || exit 1
 
