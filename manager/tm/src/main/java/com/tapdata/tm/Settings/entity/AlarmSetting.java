@@ -1,14 +1,11 @@
 package com.tapdata.tm.Settings.entity;
 
 import cn.hutool.core.date.DateUnit;
-import com.tapdata.tm.Settings.constant.AlarmKeyEnum;
+import com.tapdata.tm.commons.task.constant.AlarmKeyEnum;
 import com.tapdata.tm.base.entity.BaseEntity;
 import com.tapdata.tm.commons.task.constant.AlarmSettingTypeEnum;
 import com.tapdata.tm.commons.task.constant.NotifyEnum;
-import lombok.AllArgsConstructor;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
+import lombok.*;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import java.util.List;
@@ -17,8 +14,8 @@ import java.util.List;
  * @author jiuyetx
  * @date 2022/9/5
  */
-@Getter
-@Setter
+@Data
+@EqualsAndHashCode(callSuper = true)
 @AllArgsConstructor
 @NoArgsConstructor
 @Document("Settings_Alarm")

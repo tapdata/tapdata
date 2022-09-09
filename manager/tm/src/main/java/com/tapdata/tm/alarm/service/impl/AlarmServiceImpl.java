@@ -4,12 +4,12 @@ import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.date.DateUtil;
 import com.tapdata.tm.Settings.service.AlarmSettingService;
 import com.tapdata.tm.alarm.constant.AlarmStatusEnum;
-import com.tapdata.tm.alarm.constant.AlarmTypeEnum;
 import com.tapdata.tm.alarm.entity.AlarmInfo;
 import com.tapdata.tm.alarm.service.AlarmService;
 import com.tapdata.tm.alarmrule.service.AlarmRuleService;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.process.TableRenameProcessNode;
+import com.tapdata.tm.commons.task.constant.AlarmKeyEnum;
 import com.tapdata.tm.commons.task.constant.NotifyEnum;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmRuleDto;
@@ -72,12 +72,12 @@ public class AlarmServiceImpl implements AlarmService {
     }
 
     @Override
-    public boolean checkOpen(String taskId, String key, NotifyEnum type) {
+    public boolean checkOpen(String taskId, AlarmKeyEnum key, NotifyEnum type) {
         TaskDto taskDto = taskService.findById(MongoUtils.toObjectId(taskId));
         return checkOpen(taskDto, key, type);
     }
 
-    private boolean checkOpen(TaskDto taskDto, String key, NotifyEnum type) {
+    private boolean checkOpen(TaskDto taskDto, AlarmKeyEnum key, NotifyEnum type) {
         boolean openTask = false;
         if (Objects.nonNull(taskDto)) {
             List<AlarmSettingDto> alarmSettingDtos = Lists.newArrayList();
@@ -126,7 +126,7 @@ public class AlarmServiceImpl implements AlarmService {
                 }
             });
             if (CollectionUtils.isNotEmpty(ruleDtos)) {
-                Map<String, AlarmRuleDto> collect = ruleDtos.stream()
+                Map<AlarmKeyEnum, AlarmRuleDto> collect = ruleDtos.stream()
                         .collect(Collectors.toMap(AlarmRuleDto::getKey, Function.identity(), (e1, e2) -> e1));
 
                 List<AlarmRuleDto> alarmRuleDtos = alarmRuleService.findAll();
@@ -162,7 +162,7 @@ public class AlarmServiceImpl implements AlarmService {
 
         alarmInfos.forEach(info -> {
             TaskDto taskDto = taskDtoMap.get(info.getTaskId());
-            if (checkOpen(taskDto, info.getAlarmKey().name(), NotifyEnum.SYSTEM)) {
+            if (checkOpen(taskDto, info.getAlarmKey(), NotifyEnum.SYSTEM)) {
                 MessageEntity messageEntity = new MessageEntity();
                 messageEntity.setLevel(info.getLevel().name());
 //                messageEntity.setServerName("");
@@ -177,7 +177,7 @@ public class AlarmServiceImpl implements AlarmService {
                 messageService.addMessage(messageEntity);
             }
 
-            if (checkOpen(taskDto, info.getAlarmKey().name(), NotifyEnum.EMAIL)) {
+            if (checkOpen(taskDto, info.getAlarmKey(), NotifyEnum.EMAIL)) {
 
             }
 

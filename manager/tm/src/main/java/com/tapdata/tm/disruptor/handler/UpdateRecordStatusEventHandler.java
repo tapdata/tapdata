@@ -2,7 +2,7 @@ package com.tapdata.tm.disruptor.handler;
 
 import cn.hutool.core.date.DateUtil;
 import cn.hutool.extra.spring.SpringUtil;
-import com.tapdata.tm.Settings.constant.AlarmKeyEnum;
+import com.tapdata.tm.commons.task.constant.AlarmKeyEnum;
 import com.tapdata.tm.alarm.constant.AlarmComponentEnum;
 import com.tapdata.tm.alarm.constant.AlarmContentTemplate;
 import com.tapdata.tm.alarm.constant.AlarmStatusEnum;

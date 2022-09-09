@@ -1,8 +1,9 @@
 package com.tapdata.tm.Settings.service.impl;
 
 import cn.hutool.core.bean.BeanUtil;
+import cn.hutool.extra.cglib.CglibUtil;
 import cn.hutool.extra.spring.SpringUtil;
-import com.tapdata.tm.Settings.constant.AlarmKeyEnum;
+import com.tapdata.tm.commons.task.constant.AlarmKeyEnum;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmSettingDto;
 import com.tapdata.tm.Settings.entity.AlarmSetting;
 import com.tapdata.tm.Settings.service.AlarmSettingService;
@@ -54,11 +55,7 @@ public class AlarmSettingServiceImpl implements AlarmSettingService {
     public List<AlarmSettingDto> findAll() {
         List<AlarmSetting> alarmSettings = mongoTemplate.find(new Query(), AlarmSetting.class);
 
-        List<AlarmSettingDto> result = Lists.newArrayList();
-
-        BeanUtil.copyProperties(alarmSettings, result);
-
-        return result;
+        return CglibUtil.copyList(alarmSettings, AlarmSettingDto::new);
     }
 
     @Override

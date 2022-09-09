@@ -1,8 +1,9 @@
 package com.tapdata.tm.alarmrule.service.impl;
 
 import cn.hutool.core.bean.BeanUtil;
+import cn.hutool.extra.cglib.CglibUtil;
 import cn.hutool.extra.spring.SpringUtil;
-import com.tapdata.tm.Settings.constant.AlarmKeyEnum;
+import com.tapdata.tm.commons.task.constant.AlarmKeyEnum;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmRuleDto;
 import com.tapdata.tm.alarmrule.entity.AlarmRule;
 import com.tapdata.tm.alarmrule.service.AlarmRuleService;
@@ -53,10 +54,7 @@ public class AlarmRuleServiceImpl implements AlarmRuleService {
     @Override
     public List<AlarmRuleDto> findAll() {
         List<AlarmRule> alarmRules = mongoTemplate.find(new Query(), AlarmRule.class);
-        List<AlarmRuleDto> result = Lists.newArrayList();
 
-        BeanUtil.copyProperties(alarmRules, result);
-
-        return result;
+        return CglibUtil.copyList(alarmRules, AlarmRuleDto::new);
     }
 }

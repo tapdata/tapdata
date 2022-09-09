@@ -1,17 +1,20 @@
 package com.tapdata.tm.alarmrule.entity;
 
-import com.tapdata.tm.Settings.constant.AlarmKeyEnum;
+import com.tapdata.tm.commons.task.constant.AlarmKeyEnum;
 import com.tapdata.tm.base.entity.BaseEntity;
 import io.swagger.v3.oas.annotations.media.Schema;
-import lombok.*;
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.EqualsAndHashCode;
+import lombok.NoArgsConstructor;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 /**
  * @author jiuyetx
  * @date 2022/9/5
  */
-@Getter
-@Setter
+@Data
+@EqualsAndHashCode(callSuper = true)
 @AllArgsConstructor
 @NoArgsConstructor
 @Document("Settings_Alarm_Rule")

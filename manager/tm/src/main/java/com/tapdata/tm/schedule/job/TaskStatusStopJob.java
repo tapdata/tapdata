@@ -2,7 +2,7 @@ package com.tapdata.tm.schedule.job;
 
 import cn.hutool.core.date.DateUtil;
 import com.alibaba.fastjson.JSON;
-import com.tapdata.tm.Settings.constant.AlarmKeyEnum;
+import com.tapdata.tm.commons.task.constant.AlarmKeyEnum;
 import com.tapdata.tm.alarm.constant.AlarmComponentEnum;
 import com.tapdata.tm.alarm.constant.AlarmContentTemplate;
 import com.tapdata.tm.alarm.constant.AlarmStatusEnum;
