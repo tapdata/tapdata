@@ -42,8 +42,7 @@ public class AlarmRuleServiceImpl implements AlarmRuleService {
 
     @Override
     public void save(List<AlarmRuleDto> rules) {
-        List<AlarmRule> data = Lists.newArrayList();
-        BeanUtil.copyProperties(rules, data);
+        List<AlarmRule> data = CglibUtil.copyList(rules, AlarmRule::new);
 
         AlarmRuleService alarmRuleService = SpringUtil.getBean(AlarmRuleService.class);
         alarmRuleService.delete(data);

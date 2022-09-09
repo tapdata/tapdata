@@ -1,14 +1,12 @@
 package com.tapdata.tm.Settings.service.impl;
 
-import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.extra.cglib.CglibUtil;
 import cn.hutool.extra.spring.SpringUtil;
-import com.tapdata.tm.commons.task.constant.AlarmKeyEnum;
-import com.tapdata.tm.commons.task.dto.alarm.AlarmSettingDto;
 import com.tapdata.tm.Settings.entity.AlarmSetting;
 import com.tapdata.tm.Settings.service.AlarmSettingService;
 import com.tapdata.tm.alarmrule.dto.UpdateRuleDto;
-import com.tapdata.tm.utils.Lists;
+import com.tapdata.tm.commons.task.constant.AlarmKeyEnum;
+import com.tapdata.tm.commons.task.dto.alarm.AlarmSettingDto;
 import lombok.Setter;
 import org.apache.commons.collections4.CollectionUtils;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -42,8 +40,7 @@ public class AlarmSettingServiceImpl implements AlarmSettingService {
 
     @Override
     public void save(List<AlarmSettingDto> alarms) {
-        List<AlarmSetting> data = Lists.newArrayList();
-        BeanUtil.copyProperties(alarms, data);
+        List<AlarmSetting> data = CglibUtil.copyList(alarms, AlarmSetting::new);
 
         AlarmSettingService alarmSettingService = SpringUtil.getBean(AlarmSettingService.class);
         alarmSettingService.delete(data);
