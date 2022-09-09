@@ -147,34 +147,34 @@ jobs:
           if [[ $? -ne 0 ]]; then echo "Do not publish pip package" && exit 0; fi
           cd tapshell && poetry build && poetry publish --username ${{ env.PYPI_USERNAME }} --password ${{ env.PYPI_PASSWORD }}
 
-#      - name: update github page
-#        id: gh_pages
-#        if: always()
-#        uses: peaceiris/actions-gh-pages@v3
-#        with:
-#          github_token: ${{ secrets.GITHUB_TOKEN }}
-#          publish_branch: report-test
-#          publish_dir: gh_pages
-#          keep_files: true
-#      - name: print summary
-#        if: ${{ steps.gh_pages.conclusion == 'success' }}
-#        env:
-#          RUN_SIGN: ${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}
-#          BRANCH: ${{ github.ref }}
-#        run: |
-#          BRANCH_DIR=`echo $BRANCH | sed "s:/:-:g"`
-#          echo "[Click to view test report](https://tapdata.github.io/tapdata/$BRANCH_DIR/$RUN_SIGN)" >> $GITHUB_STEP_SUMMARY
-#      - name: Send notices to feishu
-#        if : ${{ failure() }}
-#        run: |
-#          pip install requests GitPython
-#          python build/feishu_notice.py \
-#            --branch ${{ env.CURRENT_BRANCH}} \
-#            --runner "LDP Continuous Integration" \
-#            --detail_url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
-#            --token ${{ secrets.GITHUB_TOKEN }} \
-#            --job_id ${{ github.run_id }} \
-#            --person_in_charge ${{ env.FEISHU_PERSON_IN_CHARGE }} \
-#            --app_id ${{ env.FEISHU_APP_ID }} \
-#            --app_secret ${{ env.FEISHU_APP_SECRET}} \
-#            --chat_id ${{ env.FEISHU_CHAT_ID }}
+      - name: update github page
+        id: gh_pages
+        if: always()
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_branch: report-test
+          publish_dir: gh_pages
+          keep_files: true
+      - name: print summary
+        if: ${{ steps.gh_pages.conclusion == 'success' }}
+        env:
+          RUN_SIGN: ${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}
+          BRANCH: ${{ github.ref }}
+        run: |
+          BRANCH_DIR=`echo $BRANCH | sed "s:/:-:g"`
+          echo "[Click to view test report](https://tapdata.github.io/tapdata/$BRANCH_DIR/$RUN_SIGN)" >> $GITHUB_STEP_SUMMARY
+      - name: Send notices to feishu
+        if : ${{ failure() }}
+        run: |
+          pip install requests GitPython
+          python build/feishu_notice.py \
+            --branch ${{ env.CURRENT_BRANCH}} \
+            --runner "LDP Continuous Integration" \
+            --detail_url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+            --token ${{ secrets.GITHUB_TOKEN }} \
+            --job_id ${{ github.run_id }} \
+            --person_in_charge ${{ env.FEISHU_PERSON_IN_CHARGE }} \
+            --app_id ${{ env.FEISHU_APP_ID }} \
+            --app_secret ${{ env.FEISHU_APP_SECRET}} \
+            --chat_id ${{ env.FEISHU_CHAT_ID }}
