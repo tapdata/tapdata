@@ -215,7 +215,6 @@ public class ManuRedoOracleLogMiner extends DamengLogMiner {
             if (EmptyKit.isNotEmpty(redoLogAnalysisBatches)) {
 
                 Collections.sort(redoLogAnalysisBatches);
-                currentOnlineLogPstmt = damengContext.getConnection().prepareStatement(CHECK_CURRENT_ONLINE_LOG);
                 String addLogminorSql = createAddLogminorSql(redoLogAnalysisBatches);
                 statement.execute(addLogminorSql);
 
@@ -239,14 +238,14 @@ public class ManuRedoOracleLogMiner extends DamengLogMiner {
                     }
                     for (RedoLogAnalysisBatch redoLogAnalysisBatch : redoLogAnalysisBatches) {
                         try {
-                            statement.execute(START_LOG_MINOR_SQL);
-                            TapLogger.info(TAG,
-                                    "Start log miner to analysis redo logs size:{}" +
-                                            ", start logminer sql: {}, add log file sql {}",
-                                    redoLogAnalysisBatch.getRedoLogs().size(),
-                                    START_LOG_MINOR_SQL,
-                                    addLogminorSql
-                            );
+                           statement.execute("");
+//                            TapLogger.info(TAG,
+//                                    "Start log miner to analysis redo logs size:{}" +
+//                                            ", start logminer sql: {}, add log file sql {}",
+//                                    redoLogAnalysisBatch.getRedoLogs().size(),
+//                                    START_LOG_MINOR_SQL,
+//                                    addLogminorSql
+//                            );
                         } catch (SQLException e) {
                             String message = e.getMessage();
                             if (StringUtils.isNotBlank(message) && message.contains("ORA-00600") && !onlineRedo) {
@@ -516,9 +515,7 @@ public class ManuRedoOracleLogMiner extends DamengLogMiner {
                 (Integer) logData.get("CSF"),
                 (String) logData.get("SQL_REDO")
         );
-        if (isRac) {
-            instanceThreadMindedSCNMap.put((Long) logData.get("THREAD#"), (Long) logData.get("SCN"));
-        }
+
         if (isRac && onlineRedo && cacheRedoLogContent.contains(redoLogContentId)) {
             return;
         }
