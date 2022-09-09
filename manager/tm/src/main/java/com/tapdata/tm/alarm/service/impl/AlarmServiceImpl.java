@@ -4,6 +4,7 @@ import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.date.DateUtil;
 import com.tapdata.tm.Settings.service.AlarmSettingService;
 import com.tapdata.tm.alarm.constant.AlarmStatusEnum;
+import com.tapdata.tm.alarm.constant.AlarmTypeEnum;
 import com.tapdata.tm.alarm.entity.AlarmInfo;
 import com.tapdata.tm.alarm.service.AlarmService;
 import com.tapdata.tm.alarmrule.service.AlarmRuleService;
@@ -13,22 +14,24 @@ import com.tapdata.tm.commons.task.constant.NotifyEnum;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmRuleDto;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmSettingDto;
+import com.tapdata.tm.message.constant.MsgTypeEnum;
+import com.tapdata.tm.message.constant.SystemEnum;
+import com.tapdata.tm.message.entity.MessageEntity;
+import com.tapdata.tm.message.service.MessageService;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.utils.Lists;
 import com.tapdata.tm.utils.MongoUtils;
 import lombok.Setter;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.jetbrains.annotations.Nullable;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Service;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
+import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -44,6 +47,7 @@ public class AlarmServiceImpl implements AlarmService {
     private TaskService taskService;
     private AlarmSettingService alarmSettingService;
     private AlarmRuleService alarmRuleService;
+    private MessageService messageService;
 
     @Override
     public void save(AlarmInfo info) {
@@ -68,8 +72,12 @@ public class AlarmServiceImpl implements AlarmService {
 
     @Override
     public boolean checkOpen(String taskId, String key, NotifyEnum type) {
-        boolean openTask = false;
         TaskDto taskDto = taskService.findById(MongoUtils.toObjectId(taskId));
+        return checkOpen(taskDto, key, type);
+    }
+
+    private boolean checkOpen(TaskDto taskDto, String key, NotifyEnum type) {
+        boolean openTask = false;
         if (Objects.nonNull(taskDto)) {
             List<AlarmSettingDto> alarmSettingDtos = Lists.newArrayList();
             alarmSettingDtos.addAll(taskDto.getAlarmSettings());
@@ -100,6 +108,11 @@ public class AlarmServiceImpl implements AlarmService {
     @Override
     public List<AlarmRuleDto> findAllRule(String taskId) {
         TaskDto taskDto = taskService.findById(MongoUtils.toObjectId(taskId));
+        return getAlarmRuleDtos(taskDto);
+    }
+
+    @Nullable
+    private ArrayList<AlarmRuleDto> getAlarmRuleDtos(TaskDto taskDto) {
         if (Objects.nonNull(taskDto)) {
             List<AlarmRuleDto> ruleDtos = Lists.newArrayList();
             ruleDtos.addAll(taskDto.getAlarmRules());
@@ -139,7 +152,35 @@ public class AlarmServiceImpl implements AlarmService {
             return;
         }
 
-//        alarmInfos.stream().map(AlarmInfo::getTaskId)
+        List<String> taskIds = alarmInfos.stream().map(AlarmInfo::getTaskId).collect(Collectors.toList());
+        List<TaskDto> tasks = taskService.findAllTasksByIds(taskIds);
+        if (CollectionUtils.isEmpty(tasks)) {
+            return;
+        }
+        Map<String, TaskDto> taskDtoMap = tasks.stream().collect(Collectors.toMap(t -> t.getId().toHexString(), Function.identity(), (e1, e2) -> e1));
+
+        alarmInfos.forEach(info -> {
+            TaskDto taskDto = taskDtoMap.get(info.getTaskId());
+            if (checkOpen(taskDto, info.getAlarmKey().name(), NotifyEnum.SYSTEM)) {
+                MessageEntity messageEntity = new MessageEntity();
+                messageEntity.setLevel(info.getLevel().name());
+//                messageEntity.setServerName("");
+                messageEntity.setMsg(MsgTypeEnum.ALARM.getValue());
+                messageEntity.setTitle(info.getSummary());
+//                messageEntity.setSourceId();
+                messageEntity.setSystem(SystemEnum.MIGRATION.getValue());
+                messageEntity.setCreateAt(new Date());
+                messageEntity.setLastUpdAt(new Date());
+                messageEntity.setUserId(taskDto.getUserId());
+                messageEntity.setRead(false);
+                messageService.addMessage(messageEntity);
+            }
+
+            if (checkOpen(taskDto, info.getAlarmKey().name(), NotifyEnum.EMAIL)) {
+
+            }
+
+        });
 
     }
 }

@@ -2,10 +2,10 @@ package com.tapdata.tm.alarm.entity;
 
 import com.tapdata.tm.Settings.constant.AlarmKeyEnum;
 import com.tapdata.tm.alarm.constant.AlarmComponentEnum;
-import com.tapdata.tm.alarm.constant.AlarmLevelEnum;
 import com.tapdata.tm.alarm.constant.AlarmStatusEnum;
 import com.tapdata.tm.alarm.constant.AlarmTypeEnum;
 import com.tapdata.tm.base.entity.BaseEntity;
+import com.tapdata.tm.message.constant.Level;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.*;
 import org.springframework.data.mongodb.core.mapping.Document;
@@ -26,7 +26,7 @@ public class AlarmInfo extends BaseEntity {
     @Schema(description = "标记当前告警的状态")
     private AlarmStatusEnum status;
     @Schema(description = "告警级别")
-    private AlarmLevelEnum level;
+    private Level level;
     @Schema(description = "引擎告警组件固定为引擎")
     private AlarmComponentEnum component;
     @Schema(description = "告警类型 同步任务告警、共享缓存告警、共享挖掘告警、数据校验告警、精准延迟告警")

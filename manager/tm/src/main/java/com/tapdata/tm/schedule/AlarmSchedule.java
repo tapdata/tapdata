@@ -1,5 +1,8 @@
 package com.tapdata.tm.schedule;
 
+import com.tapdata.tm.alarm.service.AlarmService;
+import lombok.Setter;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
@@ -8,9 +11,12 @@ import org.springframework.stereotype.Component;
  * @date 2022/9/9
  */
 @Component
+@Setter(onMethod_ = {@Autowired})
 public class AlarmSchedule {
+    private AlarmService alarmService;
+
     @Scheduled(cron = "0 */1 * * * ?")
     public void schedule() {
-
+        alarmService.notifyAlarm();
     }
 }

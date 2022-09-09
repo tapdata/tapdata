@@ -1,6 +1,11 @@
 package com.tapdata.tm.message.constant;
 
 public enum Level {
+    RECOVERY("RECOVERY"),
+    NORMAL("NORMAL"),
+    WARNING("WARNING"),
+    CRITICAL("CRITICAL"),
+    EMERGENCY("EMERGENCY"),
 
     ERROR("ERROR"),
 
