@@ -891,9 +891,9 @@
 #------------------------------------------------------------------------------
 ## The default pretty-printer.
 #  
-#      This uses :mod:`IPython.lib.pretty` to compute the format data of
+#      This uses :mod:`IPython.tapdata_cli.pretty` to compute the format data of
 #      the object. If the object cannot be pretty printed, :func:`repr` is used.
-#      See the documentation of :mod:`IPython.lib.pretty` for details on
+#      See the documentation of :mod:`IPython.tapdata_cli.pretty` for details on
 #      how to write pretty printers.  Here is a simple example::
 #  
 #          def dtype_pprinter(obj, p, cycle):

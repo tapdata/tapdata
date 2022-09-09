@@ -13,6 +13,7 @@ cd $basepath
 
 if [[ $force -eq 1 ]]; then
     docker rm -f $dev_container_name
+    docker rm -f $build_container_name
     docker rmi -f `cat image/tag`
 fi
 
