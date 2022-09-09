@@ -54,7 +54,7 @@ public class DummyConnector extends ConnectorBase {
         Integer writeIntervalTotals = config.getWriteIntervalTotals();
         writeRate = IRate.getInstance(writeInterval, writeIntervalTotals);
         writeLog = config.isWriteLog();
-        delayCalculation = new DelayCalculation(writeIntervalTotals);
+        delayCalculation = new DelayCalculation(writeInterval);
 
         schemas = new LinkedHashMap<>();
         config.getSchemas().forEach(table -> {
