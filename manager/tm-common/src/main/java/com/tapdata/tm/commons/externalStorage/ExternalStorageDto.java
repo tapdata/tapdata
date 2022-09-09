@@ -16,7 +16,7 @@ public class ExternalStorageDto extends BaseDto {
     private String uri;
     private String table;
     private Integer ttlDay;
-	private boolean canEdit = true;
+	private boolean canEdit = false;
 	private boolean canDelete = true;
 	private boolean defaultStorage = false;
 }

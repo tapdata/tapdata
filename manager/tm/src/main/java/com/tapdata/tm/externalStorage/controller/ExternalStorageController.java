@@ -2,7 +2,9 @@ package com.tapdata.tm.externalStorage.controller;
 
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.*;
+import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
+import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.externalStorage.service.ExternalStorageService;
 import com.tapdata.tm.utils.MongoUtils;
 import io.swagger.v3.oas.annotations.Operation;
@@ -10,6 +12,7 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.enums.ParameterIn;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.collections.CollectionUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
@@ -17,7 +20,9 @@ import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 
 /**
@@ -80,19 +85,6 @@ public class ExternalStorageController extends BaseController {
 	}
 
 	/**
-	 * Replace an existing model instance or insert a new one into the data source
-	 *
-	 * @param externalStorage
-	 * @return
-	 */
-	@Operation(summary = "Replace an existing model instance or insert a new one into the data source")
-	@PutMapping
-	public ResponseMessage<ExternalStorageDto> put(@RequestBody ExternalStorageDto externalStorage) {
-		return success(externalStorageService.replaceOrInsert(externalStorage, getLoginUser()));
-	}
-
-
-	/**
 	 * Check whether a model instance exists in the data source
 	 *
 	 * @return
@@ -135,31 +127,6 @@ public class ExternalStorageController extends BaseController {
 	}
 
 	/**
-	 * Replace attributes for a model instance and persist it into the data source.
-	 *
-	 * @param externalStorage
-	 * @return
-	 */
-	@Operation(summary = "Replace attributes for a model instance and persist it into the data source.")
-	@PutMapping("{id}")
-	public ResponseMessage<ExternalStorageDto> replceById(@PathVariable("id") String id, @RequestBody ExternalStorageDto externalStorage) {
-		return success(externalStorageService.replaceById(MongoUtils.toObjectId(id), externalStorage, getLoginUser()));
-	}
-
-	/**
-	 * Replace attributes for a model instance and persist it into the data source.
-	 *
-	 * @param externalStorage
-	 * @return
-	 */
-	@Operation(summary = "Replace attributes for a model instance and persist it into the data source.")
-	@PostMapping("{id}/replace")
-	public ResponseMessage<ExternalStorageDto> replaceById2(@PathVariable("id") String id, @RequestBody ExternalStorageDto externalStorage) {
-		return success(externalStorageService.replaceById(MongoUtils.toObjectId(id), externalStorage, getLoginUser()));
-	}
-
-
-	/**
 	 * Delete a model instance by {{id}} from the data source
 	 *
 	 * @param id
@@ -168,8 +135,14 @@ public class ExternalStorageController extends BaseController {
 	@Operation(summary = "Delete a model instance by {{id}} from the data source")
 	@DeleteMapping("{id}")
 	public ResponseMessage<Void> delete(@PathVariable("id") String id) {
-		externalStorageService.deleteById(MongoUtils.toObjectId(id), getLoginUser());
-		return success();
+		List<TaskDto> usingTasks = externalStorageService.findUsingTasks(id);
+		if (CollectionUtils.isEmpty(usingTasks)) {
+			externalStorageService.deleteById(MongoUtils.toObjectId(id), getLoginUser());
+			return success();
+		} else {
+			String taskName = usingTasks.stream().map(TaskDto::getName).collect(Collectors.joining(","));
+			throw new BizException("External.Storage.Cannot.Delete", usingTasks.size(), taskName);
+		}
 	}
 
 	/**
