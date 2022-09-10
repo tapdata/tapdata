@@ -244,7 +244,7 @@ public class PostgresConnector extends ConnectorBase {
             cdcRunner = null;
         }
         if (EmptyKit.isNotNull(slotName)) {
-            clearSlot(slotName.toString());
+            clearSlot();
         }
         if (EmptyKit.isNotNull(postgresJdbcContext)) {
             postgresJdbcContext.finish(connectorContext.getId());
@@ -253,12 +253,17 @@ public class PostgresConnector extends ConnectorBase {
     }
 
     //clear postgres slot
-    private void clearSlot(String slotName) throws Throwable {
+    private void clearSlot() throws Throwable {
         postgresJdbcContext.queryWithNext("SELECT COUNT(*) FROM pg_replication_slots WHERE slot_name='" + slotName + "' AND active='false'", resultSet -> {
             if (resultSet.getInt(1) > 0) {
                 postgresJdbcContext.execute("SELECT pg_drop_replication_slot('" + slotName + "')");
             }
         });
+    }
+
+    private void buildSlot() throws Throwable {
+        slotName = "tapdata_cdc_" + UUID.randomUUID().toString().replaceAll("-", "_");
+        postgresJdbcContext.execute("SELECT pg_create_logical_replication_slot('" + slotName + "','" + postgresConfig.getLogPluginName() + "')");
     }
 
     @Override
@@ -442,6 +447,11 @@ public class PostgresConnector extends ConnectorBase {
     }
 
     private void batchRead(TapConnectorContext tapConnectorContext, TapTable tapTable, Object offsetState, int eventBatchSize, BiConsumer<List<TapEvent>, Object> eventsOffsetConsumer) throws Throwable {
+        //test streamRead log plugin
+        if (postgresTest.testLogPlugin().getResult() == TestItem.RESULT_SUCCESSFULLY && EmptyKit.isNull(slotName)) {
+            buildSlot();
+            tapConnectorContext.getStateMap().put("tapdata_pg_slot", slotName);
+        }
         PostgresOffset postgresOffset;
         //beginning
         if (null == offsetState) {
@@ -467,8 +477,8 @@ public class PostgresConnector extends ConnectorBase {
             //last events those less than eventBatchSize
             if (EmptyKit.isNotEmpty(tapEvents)) {
                 postgresOffset.setOffsetValue(postgresOffset.getOffsetValue() + tapEvents.size());
+                eventsOffsetConsumer.accept(tapEvents, postgresOffset);
             }
-            eventsOffsetConsumer.accept(tapEvents, postgresOffset);
         });
 
     }
@@ -477,11 +487,10 @@ public class PostgresConnector extends ConnectorBase {
         if (EmptyKit.isNull(cdcRunner)) {
             cdcRunner = new PostgresCdcRunner(postgresJdbcContext);
             if (EmptyKit.isNull(slotName)) {
-                cdcRunner.watch(tableList).offset(offsetState).registerConsumer(consumer, recordSize);
-                nodeContext.getStateMap().put("tapdata_pg_slot", cdcRunner.getRunnerName());
-            } else {
-                cdcRunner.useSlot(slotName.toString()).watch(tableList).offset(offsetState).registerConsumer(consumer, recordSize);
+                buildSlot();
+                nodeContext.getStateMap().put("tapdata_pg_slot", slotName);
             }
+            cdcRunner.useSlot(slotName.toString()).watch(tableList).offset(offsetState).registerConsumer(consumer, recordSize);
         }
         cdcRunner.startCdcRunner();
         if (EmptyKit.isNotNull(cdcRunner) && EmptyKit.isNotNull(cdcRunner.getThrowable().get())) {
