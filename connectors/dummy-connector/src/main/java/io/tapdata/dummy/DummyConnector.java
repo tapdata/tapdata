@@ -14,6 +14,7 @@ import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapTable;
+import io.tapdata.entity.utils.DelayCalculation;
 import io.tapdata.pdk.apis.annotations.TapConnectorClass;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
@@ -43,6 +44,7 @@ public class DummyConnector extends ConnectorBase {
     private IRate writeRate;
     private IDummyConfig config;
     private final TapEventBuilder builder = new TapEventBuilder();
+    private DelayCalculation delayCalculation;
 
     @Override
     public void onStart(TapConnectionContext connectionContext) throws Throwable {
@@ -53,6 +55,7 @@ public class DummyConnector extends ConnectorBase {
         Integer writeIntervalTotals = config.getWriteIntervalTotals();
         writeRate = IRate.getInstance(writeInterval, writeIntervalTotals);
         writeLog = config.isWriteLog();
+        delayCalculation = new DelayCalculation(writeIntervalTotals);
 
         schemas = new LinkedHashMap<>();
         config.getSchemas().forEach(table -> {
@@ -62,7 +65,11 @@ public class DummyConnector extends ConnectorBase {
 
     @Override
     public void onStop(TapConnectionContext connectionContext) throws Throwable {
-        TapLogger.info(TAG, "Stop connector");
+        if (delayCalculation.hasData()) {
+            TapLogger.info(TAG, "Stop connector: {}", delayCalculation);
+        } else {
+            TapLogger.info(TAG, "Stop connector");
+        }
     }
 
     @Override
@@ -210,6 +217,8 @@ public class DummyConnector extends ConnectorBase {
             AtomicLong delete = new AtomicLong();
             for (TapRecordEvent e : recordEvents) {
                 if (!(isAlive() && writeRate.addReturn())) return;
+
+                delayCalculation.log(e.getTime());
 
                 if (e instanceof TapInsertRecordEvent) {
                     insert.addAndGet(1);

@@ -4,6 +4,7 @@ import com.oracle.truffle.js.scriptengine.GraalJSScriptEngine;
 import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.constant.MapUtil;
 import com.tapdata.entity.JavaScriptFunctions;
+import com.tapdata.entity.SyncStage;
 import com.tapdata.entity.TapdataEvent;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.entity.task.context.ProcessorBaseContext;
@@ -103,7 +104,8 @@ public class HazelcastJavaScriptProcessorNode extends HazelcastProcessorBaseNode
     long eventTime = referenceTime == null ? 0 : referenceTime;
     processContext.setEventTime(eventTime);
     processContext.setTs(eventTime);
-    processContext.setSyncType(tapdataEvent.getSyncStage().name());
+    SyncStage syncStage = tapdataEvent.getSyncStage();
+    processContext.setSyncType(syncStage == null ? SyncStage.INITIAL_SYNC.name() : syncStage.name());
 
     if (processContext.getEvent() == null) {
       processContext.setEvent(new ProcessContextEvent(op, tableName, processContext.getSyncType(), eventTime));

@@ -636,6 +636,7 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 		entity.setId(null);
 		//将数据源连接的名称修改成为名称后面+_copy
 		String connectionName = entity.getName() + " - Copy";
+		entity.setLastUpdAt(new Date());
 		while (true) {
 			try {
 				//插入复制的数据源
@@ -1129,17 +1130,17 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 					if (CollectionUtils.isNotEmpty(tables)) {
 
 						//处理自定义加载的表。
-						Boolean loadAllTable = oldConnectionDto.getLoadAllTables();
-						if (loadAllTable != null && !loadAllTable) {
-							String table_filter = oldConnectionDto.getTable_filter();
-							if (StringUtils.isNotBlank(table_filter)) {
-								List<String> loadTables = Splitter.on(',').trimResults().omitEmptyStrings().splitToList(table_filter);
-								if (CollectionUtils.isNotEmpty(loadTables)) {
-									tables = tables.stream().filter(t -> loadTables.contains(t.getName())).collect(Collectors.toList());
-
-								}
-							}
-						}
+//						Boolean loadAllTable = oldConnectionDto.getLoadAllTables();
+//						if (loadAllTable != null && !loadAllTable) {
+//							String table_filter = oldConnectionDto.getTable_filter();
+//							if (StringUtils.isNotBlank(table_filter)) {
+//								List<String> loadTables = Splitter.on(',').trimResults().omitEmptyStrings().splitToList(table_filter);
+//								if (CollectionUtils.isNotEmpty(loadTables)) {
+//									tables = tables.stream().filter(t -> loadTables.contains(t.getName())).collect(Collectors.toList());
+//
+//								}
+//							}
+//						}
 						for (TapTable table : tables) {
 							String expression = definitionDto.getExpression();
 							PdkSchemaConvert.tableFieldTypesGenerator.autoFill(table.getNameFieldMap() == null ? new LinkedHashMap<>() : table.getNameFieldMap(), DefaultExpressionMatchingMap.map(expression));
@@ -1249,6 +1250,11 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 			Criteria criteria = Criteria.where("source.id").is(connectionDto.getId()).and("meta_type").is("database");
 			Update update = Update.update("original_name", connectionDto.getName()).set("source.name", connectionDto.getName());
 			metadataInstancesService.update(new Query(criteria), update, user);
+		}
+
+		//更新数据目录
+		if (StringUtils.isNotBlank(oldName)) {
+			defaultDataDirectoryService.updateConnection(connectionDto, user);
 		}
 
 		sendTestConnection(connectionDto, true, submit, user);

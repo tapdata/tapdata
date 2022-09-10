@@ -11,6 +11,7 @@ import java.util.List;
 public interface DefaultDataDirectoryService {
     void addConnection(String connectionId, UserDetail user);
     void removeConnection(String connectionId, UserDetail user);
+    void updateConnection(DataSourceConnectionDto connectionDto, UserDetail user);
     void addConnection(DataSourceConnectionDto connectionDto, UserDetail user);
     void addConnections(UserDetail user);
 

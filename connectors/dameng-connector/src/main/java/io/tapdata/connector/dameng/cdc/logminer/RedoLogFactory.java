@@ -47,20 +47,14 @@ public class RedoLogFactory {
     public synchronized OracleRedoLogBatch produceRedoLog(Long lastScn) throws SQLException, InterruptedException {
         Connection connection = damengContext.getConnection();
         PreparedStatement archivedLogStmt = null;
-        PreparedStatement onlineLogStmt = null;
-
         OracleRedoLogBatch oracleRedoLogBatch;
         try {
             archivedLogStmt = connection.prepareStatement(OracleSqlConstant.ARCHIVED_LOG_SQL);
-            onlineLogStmt = connection.prepareStatement(OracleSqlConstant.ONLINE_LOG_SQL);
-            oracleRedoLogBatch = batchLoadLogs(archivedLogStmt, onlineLogStmt, lastScn, 1);
+            oracleRedoLogBatch = batchLoadLogs(archivedLogStmt, lastScn, 1);
         } catch (Exception e) {
             TapLogger.error(TAG, TapLog.CONN_ERROR_0001.getMsg(), e.getMessage(), e);
             throw e;
         } finally {
-            if (onlineLogStmt != null) {
-                onlineLogStmt.close();
-            }
             if (archivedLogStmt != null) {
                 archivedLogStmt.close();
             }
@@ -68,7 +62,7 @@ public class RedoLogFactory {
         return oracleRedoLogBatch;
     }
 
-    private OracleRedoLogBatch batchLoadLogs(PreparedStatement archivedLogStmt, PreparedStatement onlineLogStmt, Long lastScn, int batchSize) throws SQLException, InterruptedException {
+    private OracleRedoLogBatch batchLoadLogs(PreparedStatement archivedLogStmt, Long lastScn, int batchSize) throws SQLException, InterruptedException {
         OracleRedoLogBatch oracleRedoLogBatch = null;
         while (isRunning.get()) {
             List<RedoLog> redoLogList = batchLoadArchivedLogs(archivedLogStmt, lastScn, batchSize);
@@ -76,12 +70,7 @@ public class RedoLogFactory {
                 oracleRedoLogBatch = new OracleRedoLogBatch(redoLogList, false);
                 break;
             }
-//            redoLogList = batchLoadOnlineLogs(onlineLogStmt, lastScn, batchSize);
-//            if (EmptyKit.isNotEmpty(redoLogList)) {
-//                oracleRedoLogBatch = new OracleRedoLogBatch(redoLogList, true);
-//                break;
-//            }
-//            Thread.sleep(1000);
+           Thread.sleep(1000);
         }
         return oracleRedoLogBatch;
     }
