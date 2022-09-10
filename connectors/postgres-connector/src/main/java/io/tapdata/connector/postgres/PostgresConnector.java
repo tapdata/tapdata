@@ -30,6 +30,7 @@ import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.entity.*;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
+import io.tapdata.pdk.apis.functions.connection.ConnectionCheckItem;
 import io.tapdata.pdk.apis.functions.connector.target.CreateTableOptions;
 
 import java.sql.SQLException;
@@ -54,6 +55,7 @@ public class PostgresConnector extends ConnectorBase {
 
     private PostgresConfig postgresConfig;
     private PostgresJdbcContext postgresJdbcContext;
+    private PostgresTest postgresTest;
     private PostgresCdcRunner cdcRunner; //only when task start-pause this variable can be shared
     private Object slotName; //must be stored in stateMap
     private String postgresVersion;
@@ -64,12 +66,6 @@ public class PostgresConnector extends ConnectorBase {
     @Override
     public void onStart(TapConnectionContext connectorContext) {
         initConnection(connectorContext);
-        ddlSqlGenerator = new PostgresDDLSqlGenerator();
-        fieldDDLHandlers = new BiClassHandlers<>();
-        fieldDDLHandlers.register(TapNewFieldEvent.class, this::newField);
-        fieldDDLHandlers.register(TapAlterFieldAttributesEvent.class, this::alterFieldAttr);
-        fieldDDLHandlers.register(TapAlterFieldNameEvent.class, this::alterFieldName);
-        fieldDDLHandlers.register(TapDropFieldEvent.class, this::dropField);
     }
 
     @Override
@@ -154,7 +150,8 @@ public class PostgresConnector extends ConnectorBase {
 
     @Override
     public void registerCapabilities(ConnectorFunctions connectorFunctions, TapCodecsRegistry codecRegistry) {
-
+        //test
+        connectorFunctions.supportConnectionCheckFunction(this::checkConnection);
         //need to clear resource outer
         connectorFunctions.supportReleaseExternalFunction(this::onDestroy);
         // target
@@ -270,6 +267,9 @@ public class PostgresConnector extends ConnectorBase {
             cdcRunner.closeCdcRunner();
             cdcRunner = null;
         }
+        if (EmptyKit.isNotNull(postgresTest)) {
+            postgresTest.close();
+        }
         if (EmptyKit.isNotNull(postgresJdbcContext)) {
             postgresJdbcContext.finish(connectionContext.getId());
         }
@@ -278,11 +278,18 @@ public class PostgresConnector extends ConnectorBase {
     //initialize jdbc context, slot name, version
     private void initConnection(TapConnectionContext connectorContext) {
         postgresConfig = (PostgresConfig) new PostgresConfig().load(connectorContext.getConnectionConfig());
+        postgresTest = new PostgresTest(postgresConfig);
         if (EmptyKit.isNull(postgresJdbcContext) || postgresJdbcContext.isFinish()) {
             postgresJdbcContext = (PostgresJdbcContext) DataSourcePool.getJdbcContext(postgresConfig, PostgresJdbcContext.class, connectorContext.getId());
         }
         isConnectorStarted(connectorContext, tapConnectorContext -> slotName = tapConnectorContext.getStateMap().get("tapdata_pg_slot"));
         postgresVersion = postgresJdbcContext.queryVersion();
+        ddlSqlGenerator = new PostgresDDLSqlGenerator();
+        fieldDDLHandlers = new BiClassHandlers<>();
+        fieldDDLHandlers.register(TapNewFieldEvent.class, this::newField);
+        fieldDDLHandlers.register(TapAlterFieldAttributesEvent.class, this::alterFieldAttr);
+        fieldDDLHandlers.register(TapAlterFieldNameEvent.class, this::alterFieldName);
+        fieldDDLHandlers.register(TapDropFieldEvent.class, this::dropField);
     }
 
     //one filter can only match one record
@@ -484,6 +491,16 @@ public class PostgresConnector extends ConnectorBase {
 
     private Object timestampToStreamOffset(TapConnectorContext connectorContext, Long offsetStartTime) {
         return new PostgresOffset();
+    }
+
+    private void checkConnection(TapConnectionContext connectionContext, List<String> items, Consumer<ConnectionCheckItem> consumer) {
+        ConnectionCheckItem testPing = postgresTest.testPing();
+        consumer.accept(testPing);
+        if (testPing.getResult() == ConnectionCheckItem.RESULT_FAILED) {
+            return;
+        }
+        ConnectionCheckItem testConnection = postgresTest.testConnection();
+        consumer.accept(testConnection);
     }
 
 }
