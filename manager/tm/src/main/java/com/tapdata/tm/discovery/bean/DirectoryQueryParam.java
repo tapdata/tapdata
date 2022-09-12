@@ -7,7 +7,7 @@ public class DirectoryQueryParam {
     /** directoryId */
     private String id;
     /** 来源类型 */
-    private String sourceType;
+    private String objType;
     /**  */
     private Integer page = 1;
     /**  */

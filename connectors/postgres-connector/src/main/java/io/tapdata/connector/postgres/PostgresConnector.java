@@ -30,6 +30,7 @@ import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.entity.*;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
+import io.tapdata.pdk.apis.functions.connection.ConnectionCheckItem;
 import io.tapdata.pdk.apis.functions.connector.target.CreateTableOptions;
 
 import java.sql.SQLException;
@@ -54,6 +55,7 @@ public class PostgresConnector extends ConnectorBase {
 
     private PostgresConfig postgresConfig;
     private PostgresJdbcContext postgresJdbcContext;
+    private PostgresTest postgresTest;
     private PostgresCdcRunner cdcRunner; //only when task start-pause this variable can be shared
     private Object slotName; //must be stored in stateMap
     private String postgresVersion;
@@ -64,12 +66,6 @@ public class PostgresConnector extends ConnectorBase {
     @Override
     public void onStart(TapConnectionContext connectorContext) {
         initConnection(connectorContext);
-        ddlSqlGenerator = new PostgresDDLSqlGenerator();
-        fieldDDLHandlers = new BiClassHandlers<>();
-        fieldDDLHandlers.register(TapNewFieldEvent.class, this::newField);
-        fieldDDLHandlers.register(TapAlterFieldAttributesEvent.class, this::alterFieldAttr);
-        fieldDDLHandlers.register(TapAlterFieldNameEvent.class, this::alterFieldName);
-        fieldDDLHandlers.register(TapDropFieldEvent.class, this::dropField);
     }
 
     @Override
@@ -154,7 +150,8 @@ public class PostgresConnector extends ConnectorBase {
 
     @Override
     public void registerCapabilities(ConnectorFunctions connectorFunctions, TapCodecsRegistry codecRegistry) {
-
+        //test
+        connectorFunctions.supportConnectionCheckFunction(this::checkConnection);
         //need to clear resource outer
         connectorFunctions.supportReleaseExternalFunction(this::onDestroy);
         // target
@@ -247,7 +244,7 @@ public class PostgresConnector extends ConnectorBase {
             cdcRunner = null;
         }
         if (EmptyKit.isNotNull(slotName)) {
-            clearSlot(slotName.toString());
+            clearSlot();
         }
         if (EmptyKit.isNotNull(postgresJdbcContext)) {
             postgresJdbcContext.finish(connectorContext.getId());
@@ -256,7 +253,7 @@ public class PostgresConnector extends ConnectorBase {
     }
 
     //clear postgres slot
-    private void clearSlot(String slotName) throws Throwable {
+    private void clearSlot() throws Throwable {
         postgresJdbcContext.queryWithNext("SELECT COUNT(*) FROM pg_replication_slots WHERE slot_name='" + slotName + "' AND active='false'", resultSet -> {
             if (resultSet.getInt(1) > 0) {
                 postgresJdbcContext.execute("SELECT pg_drop_replication_slot('" + slotName + "')");
@@ -264,11 +261,19 @@ public class PostgresConnector extends ConnectorBase {
         });
     }
 
+    private void buildSlot() throws Throwable {
+        slotName = "tapdata_cdc_" + UUID.randomUUID().toString().replaceAll("-", "_");
+        postgresJdbcContext.execute("SELECT pg_create_logical_replication_slot('" + slotName + "','" + postgresConfig.getLogPluginName() + "')");
+    }
+
     @Override
     public void onStop(TapConnectionContext connectionContext) throws Throwable {
         if (EmptyKit.isNotNull(cdcRunner)) {
             cdcRunner.closeCdcRunner();
             cdcRunner = null;
+        }
+        if (EmptyKit.isNotNull(postgresTest)) {
+            postgresTest.close();
         }
         if (EmptyKit.isNotNull(postgresJdbcContext)) {
             postgresJdbcContext.finish(connectionContext.getId());
@@ -278,11 +283,18 @@ public class PostgresConnector extends ConnectorBase {
     //initialize jdbc context, slot name, version
     private void initConnection(TapConnectionContext connectorContext) {
         postgresConfig = (PostgresConfig) new PostgresConfig().load(connectorContext.getConnectionConfig());
+        postgresTest = new PostgresTest(postgresConfig);
         if (EmptyKit.isNull(postgresJdbcContext) || postgresJdbcContext.isFinish()) {
             postgresJdbcContext = (PostgresJdbcContext) DataSourcePool.getJdbcContext(postgresConfig, PostgresJdbcContext.class, connectorContext.getId());
         }
         isConnectorStarted(connectorContext, tapConnectorContext -> slotName = tapConnectorContext.getStateMap().get("tapdata_pg_slot"));
         postgresVersion = postgresJdbcContext.queryVersion();
+        ddlSqlGenerator = new PostgresDDLSqlGenerator();
+        fieldDDLHandlers = new BiClassHandlers<>();
+        fieldDDLHandlers.register(TapNewFieldEvent.class, this::newField);
+        fieldDDLHandlers.register(TapAlterFieldAttributesEvent.class, this::alterFieldAttr);
+        fieldDDLHandlers.register(TapAlterFieldNameEvent.class, this::alterFieldName);
+        fieldDDLHandlers.register(TapDropFieldEvent.class, this::dropField);
     }
 
     //one filter can only match one record
@@ -435,6 +447,11 @@ public class PostgresConnector extends ConnectorBase {
     }
 
     private void batchRead(TapConnectorContext tapConnectorContext, TapTable tapTable, Object offsetState, int eventBatchSize, BiConsumer<List<TapEvent>, Object> eventsOffsetConsumer) throws Throwable {
+        //test streamRead log plugin
+        if (postgresTest.testLogPlugin().getResult() == TestItem.RESULT_SUCCESSFULLY && EmptyKit.isNull(slotName)) {
+            buildSlot();
+            tapConnectorContext.getStateMap().put("tapdata_pg_slot", slotName);
+        }
         PostgresOffset postgresOffset;
         //beginning
         if (null == offsetState) {
@@ -460,8 +477,8 @@ public class PostgresConnector extends ConnectorBase {
             //last events those less than eventBatchSize
             if (EmptyKit.isNotEmpty(tapEvents)) {
                 postgresOffset.setOffsetValue(postgresOffset.getOffsetValue() + tapEvents.size());
+                eventsOffsetConsumer.accept(tapEvents, postgresOffset);
             }
-            eventsOffsetConsumer.accept(tapEvents, postgresOffset);
         });
 
     }
@@ -470,11 +487,10 @@ public class PostgresConnector extends ConnectorBase {
         if (EmptyKit.isNull(cdcRunner)) {
             cdcRunner = new PostgresCdcRunner(postgresJdbcContext);
             if (EmptyKit.isNull(slotName)) {
-                cdcRunner.watch(tableList).offset(offsetState).registerConsumer(consumer, recordSize);
-                nodeContext.getStateMap().put("tapdata_pg_slot", cdcRunner.getRunnerName());
-            } else {
-                cdcRunner.useSlot(slotName.toString()).watch(tableList).offset(offsetState).registerConsumer(consumer, recordSize);
+                buildSlot();
+                nodeContext.getStateMap().put("tapdata_pg_slot", slotName);
             }
+            cdcRunner.useSlot(slotName.toString()).watch(tableList).offset(offsetState).registerConsumer(consumer, recordSize);
         }
         cdcRunner.startCdcRunner();
         if (EmptyKit.isNotNull(cdcRunner) && EmptyKit.isNotNull(cdcRunner.getThrowable().get())) {
@@ -484,6 +500,16 @@ public class PostgresConnector extends ConnectorBase {
 
     private Object timestampToStreamOffset(TapConnectorContext connectorContext, Long offsetStartTime) {
         return new PostgresOffset();
+    }
+
+    private void checkConnection(TapConnectionContext connectionContext, List<String> items, Consumer<ConnectionCheckItem> consumer) {
+        ConnectionCheckItem testPing = postgresTest.testPing();
+        consumer.accept(testPing);
+        if (testPing.getResult() == ConnectionCheckItem.RESULT_FAILED) {
+            return;
+        }
+        ConnectionCheckItem testConnection = postgresTest.testConnection();
+        consumer.accept(testConnection);
     }
 
 }

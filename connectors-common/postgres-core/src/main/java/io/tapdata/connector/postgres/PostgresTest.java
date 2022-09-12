@@ -80,7 +80,7 @@ public class PostgresTest extends CommonDbTest {
         }
     }
 
-    private int tableCount() throws Throwable {
+    protected int tableCount() throws Throwable {
         AtomicInteger tableCount = new AtomicInteger();
         jdbcContext.queryWithNext(PG_TABLE_NUM, resultSet -> tableCount.set(resultSet.getInt(1)));
         return tableCount.get();

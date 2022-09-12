@@ -1233,7 +1233,18 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
      * @return
      */
     private Page<TaskDto> findDataDevList(Filter filter, UserDetail userDetail) {
-        return super.find(filter, userDetail);
+        Query query = repository.filterToQuery(filter);
+        query.limit(100000);
+        query.skip(0);
+        long count = repository.count(query, userDetail);
+        query.skip(filter.getSkip());
+        query.limit(filter.getLimit());
+        List<TaskEntity> taskEntityList = repository.findAll(query, userDetail);
+        List<TaskDto> taskDtoList = com.tapdata.tm.utils.BeanUtil.deepCloneList(taskEntityList, TaskDto.class);
+        Page<TaskDto> taskDtoPage = new Page<>();
+        taskDtoPage.setTotal(count);
+        taskDtoPage.setItems(taskDtoList);
+        return taskDtoPage;
     }
 
     private Node getSourceNode(TaskDto taskDto) {

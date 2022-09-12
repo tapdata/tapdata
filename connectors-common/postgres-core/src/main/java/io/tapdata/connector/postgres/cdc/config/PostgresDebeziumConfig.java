@@ -6,7 +6,6 @@ import io.tapdata.kit.EmptyKit;
 
 import java.util.HashMap;
 import java.util.List;
-import java.util.UUID;
 import java.util.stream.Collectors;
 
 /**
@@ -34,12 +33,6 @@ public class PostgresDebeziumConfig {
     public PostgresDebeziumConfig watch(List<String> observedTableList) {
         this.observedTableList = observedTableList;
         //unique and can find it
-        if (EmptyKit.isNull(slotName)) {
-//            this.slotName = "tapdata_cdc_" + UUID.nameUUIDFromBytes((TapSimplify.toJson(postgresConfig) + (EmptyKit.isNotEmpty(observedTableList) ?
-//                            TapSimplify.toJson(observedTableList.stream().sorted().collect(Collectors.toList())) : "null")).getBytes())
-//                    .toString().replaceAll("-", "_");
-            this.slotName = "tapdata_cdc_" + UUID.randomUUID().toString().replaceAll("-", "_");
-        }
         this.namespace = slotName + "-postgres-connector";
         return this;
     }

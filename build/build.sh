@@ -84,21 +84,18 @@ build() {
                 docker run --name=tapdata-build-container -v $sourcepath:/tapdata-source/ -id $tapdata_build_image bash
             fi
         fi
-        docker exec -i tapdata-build-container bash -c "cd /tapdata-source && bash build/build.sh -c $components"
+        # when add env PRODUCT=idaas, tm will init database
+        docker exec -e PRODUCT=idaas -i tapdata-build-container bash -c "cd /tapdata-source && bash build/build.sh -c $components"
         if [[ $? -ne 0 ]]; then
             exit 1
         fi
-
         return
     fi
-
+#    echo "env PRODUCT is: ${PRODUCT}"
     check_env
     for component in ${all_components[*]}
     do
-        if [[ $components =~ $component || $components =~ "all" ]]; then
-            if [[ $component == "connectors" ]]; then
-                build_component "connectors-common"
-            fi
+        if [[ $components == $component || $components == "all" ]]; then
             build_component $component
         fi
     done
@@ -108,7 +105,6 @@ package() {
     start_time=`date '+%s'`
     tmp_build=$basepath/../tmp_dist
     final_build=$basepath/../dist
-    pwd
     rm -rf $tmp_build
     mkdir -p $tmp_build
     for component in ${package_all_components[*]}
@@ -159,14 +155,14 @@ clean() {
 }
 
 make_image() {
-    which docker
+    which docker &> /dev/null
     if [[ $? -ne 0 ]]; then
         error "no docker find in system, please install it before making a image"
     fi
 
     mkdir -p $basepath/../dist/image
     cp -r $basepath/../build/image/* $basepath/../dist/image
-    cp -r $basepath/../dist/* $basepath/../dist/image
+    ls $basepath/../dist/ | grep -v image | xargs -I {} cp -r $basepath/../dist/{} $basepath/../dist/image/
     cd $basepath/../dist/image && bash build.sh
     cd $basepath/../
 }

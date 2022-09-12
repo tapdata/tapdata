@@ -313,6 +313,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
         MetadataInstancesDto metadataInstancesDto = metadataInstancesService.findById(MongoUtils.toObjectId(id), user);
         DiscoveryStorageOverviewDto dto = new DiscoveryStorageOverviewDto();
         dto.setCreateAt(metadataInstancesDto.getCreateAt());
+        dto.setVersion(metadataInstancesDto.getSchemaVersion());
         dto.setLastUpdAt(metadataInstancesDto.getLastUpdAt());
         dto.setFieldNum(CollectionUtils.isEmpty(metadataInstancesDto.getFields()) ? 0 : metadataInstancesDto.getFields().size());
         //dto.setRowNum();
@@ -322,6 +323,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
             dto.setConnectionType(source.getDatabase_type());
             dto.setConnectionDesc(source.getDescription());
             dto.setSourceType(source.getDatabase_type());
+
         }
         dto.setId(metadataInstancesDto.getId().toHexString());
         dto.setName(metadataInstancesDto.getOriginalName());
@@ -430,9 +432,12 @@ public class DiscoveryServiceImpl implements DiscoveryService {
                 .and("taskId").exists(false)
                 .and("is_deleted").ne(true)
                 .and("meta_type").is("table");
-        if (StringUtils.isNotBlank(param.getSourceType())) {
-            //criteria.and("source.database_type").is(param.getSourceType());
+        if (StringUtils.isNotBlank(param.getObjType())) {
+           if (!param.getObjType().equals("table")) {
+               return page;
+            }
         }
+
 
         if (StringUtils.isNotBlank(param.getQueryKey())) {
             String queryKey = param.getQueryKey();
@@ -620,10 +625,12 @@ public class DiscoveryServiceImpl implements DiscoveryService {
     @Override
     public void addObjCount(List<MetadataDefinitionDto> tagDtos, UserDetail user) {
         Query query = new Query();
-        query.fields().include("_id", "parent_id");
+        query.fields().include("_id", "parent_id", "item_type");
         List<MetadataDefinitionDto> allDto = metadataDefinitionService.findAllDto(new Query(), user);
         Map<String, List<MetadataDefinitionDto>> parentMap = allDto.stream().filter(s->StringUtils.isNotBlank(s.getParent_id()))
                 .collect(Collectors.groupingBy(MetadataDefinitionDto::getParent_id));
+
+        Map<ObjectId, MetadataDefinitionDto> metadataDefinitionDtoMap = allDto.stream().collect(Collectors.toMap(BaseDto::getId, s -> s));
         tagDtos.parallelStream().forEach(tagDto -> {
                     Criteria criteria = Criteria.where("sourceType").is(SourceTypeEnum.SOURCE.name())
                             .and("taskId").exists(false)
@@ -634,7 +641,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
                             .and("syncType").in(TaskDto.SYNC_TYPE_MIGRATE, TaskDto.SYNC_TYPE_SYNC)
                             .and("agentId").exists(true);
 
-                    MetadataDefinitionDto definitionDto = metadataDefinitionService.findById(tagDto.getId());
+                    MetadataDefinitionDto definitionDto = metadataDefinitionDtoMap.get(tagDto.getId());
                     List<String> itemTypes = definitionDto.getItemType();
 
                     List<MetadataDefinitionDto> andChild = metadataDefinitionService.findAndChild(null, tagDto, parentMap);
@@ -669,7 +676,8 @@ public class DiscoveryServiceImpl implements DiscoveryService {
 
         Object config = source.getConfig();
         Map config1 = (Map) config;
-        if (source.getDatabase_type().toLowerCase(Locale.ROOT).contains("mongo")) {
+        Object isUri = config1.get("isUri");
+        if (source.getDatabase_type().toLowerCase(Locale.ROOT).contains("mongo") && isUri != null && (boolean) isUri) {
             String uri1 = (String) config1.get("uri");
             if (StringUtils.isNotBlank(uri1)) {
                 ConnectionString connectionString = new ConnectionString(uri1);
@@ -681,6 +689,21 @@ public class DiscoveryServiceImpl implements DiscoveryService {
                     ipAndPort = new StringBuilder(ipAndPort.substring(0, ipAndPort.length() -1));
                 }
             }
+        } else if (source.getDatabase_type().toLowerCase(Locale.ROOT).contains("activemq")) {
+            Object brokerURL = config1.get("brokerURL");
+            if (brokerURL instanceof String) {
+                String ipPort = ((String) brokerURL).substring(6);
+                ipAndPort.append(ipPort);
+            }
+
+
+        }  else if (source.getDatabase_type().toLowerCase(Locale.ROOT).contains("kafka")) {
+            Object nameSrvAddr = config1.get("nameSrvAddr");
+            if (nameSrvAddr instanceof String) {
+                ipAndPort.append(nameSrvAddr);
+            }
+
+
         } else {
             Object host = config1.get("host");
             Object port = config1.get("port");
