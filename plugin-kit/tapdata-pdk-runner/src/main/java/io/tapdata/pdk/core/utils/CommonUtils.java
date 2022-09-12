@@ -144,7 +144,7 @@ public class CommonUtils {
                 throw new CoreException(TapAPIErrorCodes.NEED_RETRY_FAILED, "Need retry failed:" + logTag);
             }
 
-            TapLogger.error(logTag, "AutoRetryAsync error {}, execute message {}, retry times {}, periodSeconds {}. ", throwable.getMessage(), message, invoker.getRetryTimes(), retryPeriodSeconds);
+            TapLogger.info(logTag, "AutoRetryAsync info: \n\t- execute message: {} \n\t- retry times: {} \n\t- periodSeconds: {}. \n\t Please wait...", message, invoker.getRetryTimes(), retryPeriodSeconds);
             long retryTimes = invoker.getRetryTimes();
             if(retryTimes > 0) {
                 invoker.setRetryTimes(retryTimes-1);
