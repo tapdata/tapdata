@@ -1,12 +1,19 @@
 package com.tapdata.tm.alarm.service.impl;
 
-import cn.hutool.core.bean.BeanUtil;
+import cn.hutool.core.date.DateField;
+import cn.hutool.core.date.DateTime;
+import cn.hutool.core.date.DateUnit;
 import cn.hutool.core.date.DateUtil;
+import cn.hutool.core.lang.Assert;
+import com.sun.jna.platform.win32.Variant;
 import com.tapdata.tm.Settings.service.AlarmSettingService;
 import com.tapdata.tm.alarm.constant.AlarmStatusEnum;
+import com.tapdata.tm.alarm.dto.AlarmListInfoVo;
 import com.tapdata.tm.alarm.entity.AlarmInfo;
 import com.tapdata.tm.alarm.service.AlarmService;
 import com.tapdata.tm.alarmrule.service.AlarmRuleService;
+import com.tapdata.tm.base.dto.Page;
+import com.tapdata.tm.base.dto.TmPageable;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.process.TableRenameProcessNode;
 import com.tapdata.tm.commons.task.constant.AlarmKeyEnum;
@@ -14,6 +21,8 @@ import com.tapdata.tm.commons.task.constant.NotifyEnum;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmRuleDto;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmSettingDto;
+import com.tapdata.tm.config.security.UserDetail;
+import com.tapdata.tm.message.constant.MessageMetadata;
 import com.tapdata.tm.message.constant.MsgTypeEnum;
 import com.tapdata.tm.message.constant.SystemEnum;
 import com.tapdata.tm.message.entity.MessageEntity;
@@ -24,6 +33,7 @@ import com.tapdata.tm.utils.MongoUtils;
 import lombok.Setter;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.mongodb.core.MongoTemplate;
@@ -60,9 +70,10 @@ public class AlarmServiceImpl implements AlarmService {
         Query query = new Query(criteria);
         AlarmInfo one = mongoTemplate.findOne(query, AlarmInfo.class);
         if (Objects.nonNull(one)) {
-            BeanUtil.copyProperties(info, one);
+            one.setSummary(info.getSummary());
             one.setTally(one.getTally() + 1);
             one.setLastUpdAt(DateUtil.date());
+            one.setLastOccurrenceTime(DateUtil.date());
 
             mongoTemplate.save(one);
         } else {
@@ -79,17 +90,8 @@ public class AlarmServiceImpl implements AlarmService {
 
     private boolean checkOpen(TaskDto taskDto, AlarmKeyEnum key, NotifyEnum type) {
         boolean openTask = false;
-        if (Objects.nonNull(taskDto)) {
-            List<AlarmSettingDto> alarmSettingDtos = Lists.newArrayList();
-            alarmSettingDtos.addAll(taskDto.getAlarmSettings());
-
-            taskDto.getDag().getNodes().forEach(node -> {
-                if (node instanceof DatabaseNode) {
-                    alarmSettingDtos.addAll(((DatabaseNode) node).getAlarmSettings());
-                } else if (node instanceof TableRenameProcessNode) {
-                    alarmSettingDtos.addAll(((TableRenameProcessNode) node).getAlarmSettings());
-                }
-            });
+        if (Objects.nonNull(taskDto) && CollectionUtils.isNotEmpty(taskDto.getAlarmSettings())) {
+            List<AlarmSettingDto> alarmSettingDtos = getAlarmSettingDtos(taskDto);
             if (CollectionUtils.isNotEmpty(alarmSettingDtos)) {
                 openTask = alarmSettingDtos.stream().anyMatch(t ->
                         t.getKey().equals(key) && t.isOpen() && t.getNotify().contains(type));
@@ -104,6 +106,27 @@ public class AlarmServiceImpl implements AlarmService {
         }
 
         return openTask && openSys;
+    }
+
+    @NotNull
+    private static List<AlarmSettingDto> getAlarmSettingDtos(TaskDto taskDto) {
+        List<AlarmSettingDto> alarmSettingDtos = Lists.newArrayList();
+        alarmSettingDtos.addAll(taskDto.getAlarmSettings());
+
+        taskDto.getDag().getNodes().forEach(node -> {
+            if (node instanceof DatabaseNode && CollectionUtils.isNotEmpty(((DatabaseNode) node).getAlarmSettings())) {
+                alarmSettingDtos.addAll(((DatabaseNode) node).getAlarmSettings());
+            } else if (node instanceof TableRenameProcessNode && CollectionUtils.isNotEmpty(((TableRenameProcessNode) node).getAlarmSettings())) {
+                alarmSettingDtos.addAll(((TableRenameProcessNode) node).getAlarmSettings());
+            }
+        });
+        return alarmSettingDtos;
+    }
+
+    private AlarmSettingDto getAlartSettingByKey(TaskDto taskDto, AlarmKeyEnum key) {
+        List<AlarmSettingDto> alarmSettingDtos = getAlarmSettingDtos(taskDto);
+        Assert.notEmpty(alarmSettingDtos);
+        return alarmSettingDtos.stream().filter(t -> key.equals(t.getKey())).findAny().orElse(null);
     }
 
     @Override
@@ -146,7 +169,9 @@ public class AlarmServiceImpl implements AlarmService {
 
     @Override
     public void notifyAlarm() {
-        Query needNotifyQuery = new Query(Criteria.where("status").ne(AlarmStatusEnum.CLOESED));
+        Criteria criteria = Criteria.where("status").ne(AlarmStatusEnum.CLOESED);
+        criteria.orOperator(Criteria.where("lastNotifyTime").is(null), Criteria.where("lastNotifyTime").lte(DateUtil.date()));
+        Query needNotifyQuery = new Query(criteria);
         List<AlarmInfo> alarmInfos = mongoTemplate.find(needNotifyQuery, AlarmInfo.class);
 
         if (CollectionUtils.isEmpty(alarmInfos)) {
@@ -162,22 +187,34 @@ public class AlarmServiceImpl implements AlarmService {
 
         alarmInfos.forEach(info -> {
             TaskDto taskDto = taskDtoMap.get(info.getTaskId());
-            if (checkOpen(taskDto, info.getAlarmKey(), NotifyEnum.SYSTEM)) {
+            if (checkOpen(taskDto, info.getMetric(), NotifyEnum.SYSTEM)) {
+                String taskId = taskDto.getId().toHexString();
+
                 MessageEntity messageEntity = new MessageEntity();
                 messageEntity.setLevel(info.getLevel().name());
-//                messageEntity.setServerName("");
+                messageEntity.setAgentId(taskDto.getAgentId());
+                messageEntity.setServerName(taskDto.getAgentId());
                 messageEntity.setMsg(MsgTypeEnum.ALARM.getValue());
-                messageEntity.setTitle(info.getSummary());
+                String title = StringUtils.replace(info.getSummary(),"$taskName", info.getName());
+                messageEntity.setTitle(title);
 //                messageEntity.setSourceId();
+                MessageMetadata metadata = new MessageMetadata(taskDto.getName(), taskId);
+                messageEntity.setMessageMetadata(metadata);
                 messageEntity.setSystem(SystemEnum.MIGRATION.getValue());
                 messageEntity.setCreateAt(new Date());
                 messageEntity.setLastUpdAt(new Date());
                 messageEntity.setUserId(taskDto.getUserId());
                 messageEntity.setRead(false);
                 messageService.addMessage(messageEntity);
+
+                // update alarmInfo date
+                AlarmSettingDto setting = getAlartSettingByKey(taskDto, info.getMetric());
+                DateTime lastNotifyTime = DateUtil.offset(DateUtil.date(), parseDateUnit(setting.getUnit()), setting.getInterval());
+                info.setLastNotifyTime(lastNotifyTime);
+                mongoTemplate.save(info);
             }
 
-            if (checkOpen(taskDto, info.getAlarmKey(), NotifyEnum.EMAIL)) {
+            if (checkOpen(taskDto, info.getMetric(), NotifyEnum.EMAIL)) {
 
             }
 
@@ -185,11 +222,59 @@ public class AlarmServiceImpl implements AlarmService {
 
     }
 
+    private DateField parseDateUnit(DateUnit dateUnit) {
+        if (Objects.isNull(dateUnit)) {
+            return DateField.MILLISECOND;
+        }
+
+        if (dateUnit == DateUnit.MS) {
+            return DateField.MILLISECOND;
+        } else if (dateUnit == DateUnit.SECOND) {
+            return DateField.SECOND;
+        } else if (dateUnit == DateUnit.MINUTE) {
+            return DateField.MINUTE;
+        } else if (dateUnit == DateUnit.HOUR) {
+            return DateField.HOUR;
+        } else if (dateUnit == DateUnit.WEEK) {
+            return DateField.WEEK_OF_MONTH;
+        }
+
+        return DateField.MILLISECOND;
+    }
+
     @Override
-    public void close(String id) {
+    public void close(String id, UserDetail userDetail) {
         Query query = new Query(Criteria.where("_id").is(MongoUtils.toObjectId(id)));
-        Update update = new Update().set("status", AlarmStatusEnum.CLOESED.name());
+        Update update = new Update().set("status", AlarmStatusEnum.CLOESED.name())
+                .set("closeTime", DateUtil.date())
+                .set("closeBy", userDetail.getUserId())
+                ;
         mongoTemplate.updateFirst(query, update, AlarmInfo.class);
+    }
+
+    @Override
+    public Page<AlarmListInfoVo> list(String status, Long start, Long end, String keyword, Integer page, Integer size, UserDetail userDetail) {
+        TmPageable pageable = new TmPageable();
+        pageable.setPage(page);
+        pageable.setSize(size);
+
+        Query query = new Query();
+        long count = mongoTemplate.count(query, AlarmInfo.class);
+
+        List<AlarmInfo> alarmInfos = mongoTemplate.find(query.with(pageable), AlarmInfo.class);
+
+        List<AlarmListInfoVo> collect = alarmInfos.stream()
+                .map(t -> AlarmListInfoVo.builder()
+                        .id(t.getId().toHexString())
+                        .level(t.getLevel().getValue())
+                        .status(t.getStatus().name())
+                        .summary(t.getSummary())
+                        .firstOccurrenceTime(t.getFirstOccurrenceTime())
+                        .lastOccurrenceTime(t.getLastOccurrenceTime())
+                        .taskId(t.getTaskId())
+                .build()).collect(Collectors.toList());
+
+        return new Page<>(count, collect);
     }
 
 }

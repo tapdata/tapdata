@@ -5,6 +5,7 @@ import cn.hutool.core.date.DateUnit;
 import cn.hutool.core.date.DateUtil;
 import cn.hutool.core.lang.Assert;
 import cn.hutool.core.map.MapUtil;
+import cn.hutool.extra.cglib.CglibUtil;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.google.common.collect.Maps;
 import com.mongodb.client.result.UpdateResult;
@@ -2082,7 +2083,9 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         List<ObjectId> ids = list.stream().map(ObjectId::new).collect(Collectors.toList());
 
         Query query = new Query(Criteria.where("_id").in(ids));
-        return findAll(query);
+        List<TaskEntity> entityList = findAllEntity(query);
+        return CglibUtil.copyList(entityList, TaskDto::new);
+//        return findAll(query);
     }
 
     public void updateStatus(ObjectId taskId, String status) {
@@ -2409,7 +2412,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     private void updateTaskRecordStatus(TaskDto dto, String status, UserDetail userDetail) {
         dto.setStatus(status);
         if (StringUtils.isNotBlank(dto.getTaskRecordId())) {
-            SyncTaskStatusDto.SyncTaskStatusDtoBuilder info = SyncTaskStatusDto.builder()
+            SyncTaskStatusDto info = SyncTaskStatusDto.builder()
                     .taskId(dto.getId().toHexString())
                     .taskName(dto.getName())
                     .taskRecordId(dto.getTaskRecordId())
@@ -2418,7 +2421,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                     .updatorName(userDetail.getUsername())
                     .agentId(dto.getAgentId())
                     .syncType(dto.getSyncType())
-                    ;
+                    .build();
             disruptorService.sendMessage(DisruptorTopicEnum.TASK_STATUS, info);
         }
     }

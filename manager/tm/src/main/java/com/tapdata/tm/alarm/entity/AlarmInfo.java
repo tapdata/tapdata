@@ -49,9 +49,10 @@ public class AlarmInfo extends BaseEntity {
     private Date firstOccurrenceTime;
     @Schema(description = "告警最近发生时间")
     private Date lastOccurrenceTime;
+    @Schema(description = "下一次告警通知时间")
+    private Date lastNotifyTime;
     @Schema(description = "告警发生次数")
     private Integer tally;
-    private AlarmKeyEnum alarmKey;
     @Schema(description = "告警内容")
     private String summary;
     @Schema(description = "告警恢复时间")

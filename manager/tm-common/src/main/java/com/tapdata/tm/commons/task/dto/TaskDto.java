@@ -12,8 +12,8 @@ import com.tapdata.tm.commons.task.dto.alarm.AlarmSettingDto;
 import lombok.Data;
 
 import java.io.Serializable;
-import java.util.Map;
 import java.util.List;
+import java.util.Map;
 
 
 /**

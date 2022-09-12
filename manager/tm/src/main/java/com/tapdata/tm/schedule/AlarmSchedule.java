@@ -15,7 +15,7 @@ import org.springframework.stereotype.Component;
 public class AlarmSchedule {
     private AlarmService alarmService;
 
-    @Scheduled(cron = "0 */1 * * * ?")
+    @Scheduled(cron = "0/30 * * * * ?")
     public void schedule() {
         alarmService.notifyAlarm();
     }
