@@ -173,7 +173,7 @@ public class CommonUtils {
         try {
             runnable.run();
         } catch(Throwable throwable) {
-            TapLogger.error(tag, "AutoRetryAsync error {}, execute message {}, retry times {}, periodSeconds {}. ", throwable.getMessage(), message, times, periodSeconds);
+            TapLogger.info(tag, "AutoRetryAsync info: \n\t- execute message: {} \n\t- retry times: {} \n\t- periodSeconds: {}. \n\t Please wait...", message, times, periodSeconds);
             if(times > 0) {
                 ExecutorsManager.getInstance().getScheduledExecutorService().schedule(() -> {
                     autoRetryAsync(runnable, tag, message, times - 1, periodSeconds);
