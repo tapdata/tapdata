@@ -6,7 +6,11 @@ import cn.hutool.core.date.DateUnit;
 import cn.hutool.core.date.DateUtil;
 import cn.hutool.core.lang.Assert;
 import com.google.common.collect.Maps;
+import com.tapdata.tm.Settings.dto.MailAccountDto;
+import com.tapdata.tm.Settings.entity.Settings;
 import com.tapdata.tm.Settings.service.AlarmSettingService;
+import com.tapdata.tm.Settings.service.SettingsService;
+import com.tapdata.tm.alarm.constant.AlarmMailTemplate;
 import com.tapdata.tm.alarm.constant.AlarmStatusEnum;
 import com.tapdata.tm.alarm.dto.*;
 import com.tapdata.tm.alarm.entity.AlarmInfo;
@@ -30,7 +34,9 @@ import com.tapdata.tm.message.constant.SystemEnum;
 import com.tapdata.tm.message.entity.MessageEntity;
 import com.tapdata.tm.message.service.MessageService;
 import com.tapdata.tm.task.service.TaskService;
+import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.utils.Lists;
+import com.tapdata.tm.utils.MailUtils;
 import com.tapdata.tm.utils.MongoUtils;
 import lombok.Setter;
 import org.apache.commons.collections.CollectionUtils;
@@ -45,6 +51,7 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
 
+import java.text.MessageFormat;
 import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -62,6 +69,8 @@ public class AlarmServiceImpl implements AlarmService {
     private AlarmSettingService alarmSettingService;
     private AlarmRuleService alarmRuleService;
     private MessageService messageService;
+    private SettingsService settingsService;
+    private UserService userService;
 
     @Override
     public void save(AlarmInfo info) {
@@ -228,6 +237,33 @@ public class AlarmServiceImpl implements AlarmService {
             }
 
             if (checkOpen(taskDto, info.getNodeId(), info.getMetric(), NotifyEnum.EMAIL)) {
+                String title;
+                String content;
+                switch (info.getMetric()) {
+                    case TASK_STATUS_STOP:
+                        boolean manual = info.getSummary().contains("已被用户");
+                        title = manual ? MessageFormat.format(AlarmMailTemplate.TASK_STATUS_STOP_MANUAL_TITLE, info.getName())
+                                : MessageFormat.format(AlarmMailTemplate.TASK_STATUS_STOP_ERROR_TITLE, info.getName());
+
+                        String userName = "";
+                        if (Objects.nonNull(info.getCloseBy())) {
+                            UserDetail userDetail = userService.loadUserById(MongoUtils.toObjectId(info.getCloseBy()));
+                            userName = userDetail.getUsername();
+                        }
+
+                        content = manual ? MessageFormat.format(AlarmMailTemplate.TASK_STATUS_STOP_MANUAL, info.getName(), info.getFirstOccurrenceTime(), userName)
+                                : MessageFormat.format(AlarmMailTemplate.TASK_STATUS_STOP_ERROR, info.getName(), info.getFirstOccurrenceTime());
+
+                        MailAccountDto mailAccount = getMailAccount();
+                        MailUtils.sendHtmlEmail(mailAccount, mailAccount.getReceivers(), title, content);
+
+                        break;
+                    case TASK_STATUS_ERROR:
+
+                        break;
+                    default:
+
+                }
 
             }
 
@@ -356,6 +392,22 @@ public class AlarmServiceImpl implements AlarmService {
                 .alarmList(collect)
                 .alarmNum(new AlarmNumVo(alert, error))
                 .build();
+    }
+
+    private MailAccountDto getMailAccount() {
+        List<Settings> all = settingsService.findAll();
+        Map<String, Settings> collect = all.stream().collect(Collectors.toMap(Settings::getKey, Function.identity(), (e1, e2) -> e1));
+
+        String host = (String) collect.get("smtp.server.host").getValue();
+        Integer port = (Integer) collect.get("smtp.server.port").getValue();
+        String from = (String) collect.get("email.send.address").getValue();
+        String user = (String) collect.get("smtp.server.user").getValue();
+        Object pwd = collect.get("smtp.server.password").getValue();
+        String password = Objects.nonNull(pwd) ? pwd.toString() : null;
+        String receivers = (String) collect.get("email.receivers").getValue();
+        String[] split = receivers.split(",");
+
+        return MailAccountDto.builder().host(host).port(port).from(from).user(user).pass(password).receivers(Arrays.asList(split)).build();
     }
 
 }

@@ -11,6 +11,7 @@ import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.ResponseMessage;
 import com.tapdata.tm.base.dto.Where;
+import com.tapdata.tm.message.constant.Level;
 import com.tapdata.tm.message.constant.MsgTypeEnum;
 import com.tapdata.tm.message.constant.SystemEnum;
 import com.tapdata.tm.message.dto.MessageDto;
@@ -67,11 +68,11 @@ public class MessageController extends BaseController {
     @Operation(summary = "get notify list")
     @GetMapping("/list")
     public ResponseMessage<Page<MessageListVo>> find(@RequestParam MsgTypeEnum msgType,
+                                                     @RequestParam(required = false) String level,
                                                      @RequestParam(defaultValue = "1") Integer page,
                                                      @RequestParam(defaultValue = "20") Integer size) {
-        return success(messageService.list(msgType, page, size, getLoginUser()));
+        return success(messageService.list(msgType, level, page, size, getLoginUser()));
     }
-
 
     /**
      * 获取维度消息的数字
@@ -84,7 +85,6 @@ public class MessageController extends BaseController {
         Where where = parseWhere(filterJson);
         return success(messageService.count(where, getLoginUser()));
     }
-
 
     /**
      * Find a model instance by {{id}} from the data source

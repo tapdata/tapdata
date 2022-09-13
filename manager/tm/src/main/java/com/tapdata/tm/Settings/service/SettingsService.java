@@ -39,7 +39,6 @@ import org.springframework.stereotype.Service;
 @Setter(onMethod_ = {@Autowired})
 public class SettingsService {
     private SettingsRepository settingsRepository;
-    private MailUtils mailUtils;
     private MongoTemplate mongoTemplate;
 
     /**
@@ -235,6 +234,10 @@ public class SettingsService {
         Query query = new Query(criteria);
         Update update = Update.update("value", value);
         mongoTemplate.updateFirst(query, update, Settings.class);
+    }
+
+    public List<Settings> findAll() {
+        return mongoTemplate.find(new Query(), Settings.class);
     }
 
 }
