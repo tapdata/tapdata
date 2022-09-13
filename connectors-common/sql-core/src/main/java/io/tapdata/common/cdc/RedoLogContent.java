@@ -57,7 +57,7 @@ public class RedoLogContent {
 
     private Timestamp timestamp;
 
-    private long status;
+    private Long status;
 
     private String sqlRedo;
 
@@ -233,11 +233,11 @@ public class RedoLogContent {
         this.timestamp = timestamp;
     }
 
-    public long getStatus() {
+    public Long getStatus() {
         return status;
     }
 
-    public void setStatus(long status) {
+    public void setStatus(Long status) {
         this.status = status;
     }
 

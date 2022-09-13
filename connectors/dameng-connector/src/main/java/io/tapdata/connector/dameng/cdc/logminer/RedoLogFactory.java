@@ -88,16 +88,5 @@ public class RedoLogFactory {
         return redoLogList;
     }
 
-    private List<RedoLog> batchLoadOnlineLogs(PreparedStatement onlineLogStmt, Long lastScn, int batchSize) throws SQLException {
-        List<RedoLog> redoLogList = new ArrayList<>();
-        onlineLogStmt.setLong(1, lastScn);
-        onlineLogStmt.setInt(2, batchSize);
-        ResultSet resultSet = onlineLogStmt.executeQuery();
-        while (resultSet.next()) {
-            RedoLog analysisRedoLog = RedoLog.archivedLog(resultSet);
-            redoLogList.add(analysisRedoLog);
-        }
-        return redoLogList;
-    }
 
 }
