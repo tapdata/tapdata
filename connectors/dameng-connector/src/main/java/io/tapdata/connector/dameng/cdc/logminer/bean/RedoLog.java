@@ -45,6 +45,8 @@ public class RedoLog implements Comparable<RedoLog> {
 
     private long sizeInMB;
 
+    private long nextChangeScn;
+
     public RedoLog() {
     }
 
@@ -60,7 +62,7 @@ public class RedoLog implements Comparable<RedoLog> {
         long blocks = resultSet.getLong("BLOCKS");
         long blockSize = resultSet.getLong("BLOCK_SIZE");
         redoLog.setSizeInMB(blocks * blockSize / 1024 / 1024);
-
+        redoLog.setNextChangeScn(resultSet.getLong("NEXT_CHANGE#"));
         return redoLog;
     }
 
@@ -162,5 +164,13 @@ public class RedoLog implements Comparable<RedoLog> {
             return -1;
         }
         return 0;
+    }
+
+    public long getNextChangeScn() {
+        return nextChangeScn;
+    }
+
+    public void setNextChangeScn(long nextChangeScn) {
+        this.nextChangeScn = nextChangeScn;
     }
 }
