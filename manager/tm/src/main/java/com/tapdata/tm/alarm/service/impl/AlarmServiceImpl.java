@@ -128,7 +128,9 @@ public class AlarmServiceImpl implements AlarmService {
             }
         } else {
             taskDto.getDag().getNodes().forEach(node -> {
-                alarmSettingDtos.addAll(node.getAlarmSettings());
+                if (CollectionUtils.isNotEmpty(node.getAlarmSettings())) {
+                    alarmSettingDtos.addAll(node.getAlarmSettings());
+                }
             });
         }
 
