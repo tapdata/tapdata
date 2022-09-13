@@ -438,23 +438,6 @@
       ],
       "fixed": false
     },
-    "double[($precision,$scale)][unsigned]": {
-      "to": "TapNumber",
-      "precision": [
-        1,
-        255
-      ],
-      "scale": [
-        0,
-        30
-      ],
-      "value": [
-        "-1.7976931348623157E+308",
-        "1.7976931348623157E+308"
-      ],
-      "unsigned": "unsigned",
-      "fixed": false
-    },
     "date": {
       "to": "TapDate",
       "range": [
