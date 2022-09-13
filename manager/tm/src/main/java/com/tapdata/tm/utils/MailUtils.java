@@ -72,6 +72,7 @@ public class MailUtils {
             sendStatus.setErrorMessage("agentName 为空");
             return sendStatus;
         }
+        doc.getElementById("sysName").html("您的Agent：");
         doc.getElementById("agentName").html(agentName);
         doc.getElementById("mailContent").html(maiContent);
         doc.getElementById("clickHref").attr("href", emailHref);
