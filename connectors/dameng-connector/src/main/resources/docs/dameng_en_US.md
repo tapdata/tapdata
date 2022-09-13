@@ -1,61 +1,36 @@
 ## **连接配置帮助**
+### **1. DM 安装说明**
+请遵循以下说明以确保在 Tapdata 中成功添加和使用DM数据库，注意：DM 实时同步基于DM Redo Log，因此需要提前执行某些配置。
+### **2. 先决条件（作为源）**
+#### **2.1 开启 LogMiner**
+- 以具有 DBA 权限的用户身份登录数据库
+- 查看数据库的是否开启归档以及归档日志 :`select para_name, para_value from v$dm_ini where para_name in ('ARCH_INI','RLOG_APPEND_LOGIC');`
+  ARCH_INI 归档日志 0为未开启 1为开启
+- 开启操作：
+- ALTER DATABASE MOUNT;
+- ALTER DATABASE ADD ARCHIVELOG 'TYPE=LOCAL,DEST=/bak/archlog,FILE_SIZE=64,SPACE_LIMIT=1024';
+- ALTER DATABASE ARCHIVELOG;
+- ALTER DATABASE OPEN;
 
-### **1. MariaDB 安装说明**
+  设置日志地址参数:
+  - DEST:
+    归档文件存放目录(本地/远程), 如果所指向的本地目录不存在会自动创建.
+  - TYPE=归档类型,  :
+    远程实时归档(REALTIME)
+    远程异步归档(ASYNC)
+    远程同步归档(SYNC)
+    本地归档(LOCAL)
+    MPP远程归档(MARCH)
+    FILE_SIZE=归档文件大小,space_limit=空间大小限制
 
-请遵循以下说明以确保在 Tapdata 中成功添加和使用MariaDB数据库。
+- RLOG_APPEND_LOGIC ,附加日志:
+-  0	不启用
+   1	如果有主键列，记录update和delete操作时只包含主键列信息，若没有主键列则包含所有列信息
+   2	不论是否有主键列，记录update和delete操作时都包含所有列的信息
+   3	记录update时包含更新列的信息以及rowid，记录delete时只有rowid
+- 建议附加日志设置1
+- alter system set 'RLOG_APPEND_LOGIC'=1 MEMORY;
 
-### **2. 支持版本**
-MariaDB 10.x
 
-### **3. 先决条件（作为源）**
-#### **3.1 开启 Binlog**
-- 必须开启 MariaDB 的 binlog ，Tapdata 才能正常完成同步工作。
-- 级连删除（CASCADE DELETE），这类由数据库产生的删除不会记录在binlog内，所以不被支持。
-  修改 `$MYSQL_HOME/mysql.cnf `, 例如:
-```
-server_id         = 223344
-log_bin           = mysql-bin
-expire_logs_days  = 1
-binlog_format     = row
-```
-配置解释：<br>
-server-id: 对于 MariaDB 中的每个服务器和复制客户端必须是唯一的<br>
-binlog_format：必须设置为 row 或者 ROW<br>
-expire_logs_days：二进制日志文件保留的天数，到期会自动删除<br>
-log_bin：binlog 序列文件的基本名称<br>
 
-#### **3.2 重启 MariaDB**
 
-```
-/etc/inint.d/mysqld restart
-```
-验证 binlog 已启用，请在 mysql shell 执行以下命令
-```
-show variables like 'binlog_format';
-```
-输出的结果中，format value 应该是"ROW"
-
-#### **3.3 创建MariaDB账号**
-##### **3.3.1 10.x版本**
-```
-create user 'username'@'localhost' identified by 'password';
-```
-
-#### **3.4 给 tapdata 账号授权**
-对于某个数据库赋于select权限
-```
-GRANT SELECT, SHOW VIEW, CREATE ROUTINE, LOCK TABLES ON <DATABASE_NAME>.<TABLE_NAME> TO 'tapdata' IDENTIFIED BY 'password';
-```
-对于全局的权限
-```
-GRANT RELOAD, SHOW DATABASES, REPLICATION SLAVE, REPLICATION CLIENT, SUPER ON *.* TO 'tapdata' IDENTIFIED BY 'password';
-```
-###  **4. 先决条件（作为目标）**
-对于某个数据库赋于全部权限
-```
-GRANT ALL PRIVILEGES ON <DATABASE_NAME>.<TABLE_NAME> TO 'tapdata' IDENTIFIED BY 'password';
-```
-对于全局的权限
-```
-GRANT PROCESS ON *.* TO 'tapdata' IDENTIFIED BY 'password';
-```
