@@ -1336,4 +1336,64 @@ class TargetTypesGeneratorTest {
         TapField lowerVarchar70 = nameFieldMap.get("varchar(70)");
         assertEquals("VARCHAR2(70)", lowerVarchar70.getDataType());
     }
+
+    @Test
+    public void oracleNumberToMySQLDecimal() {
+
+        String sourceTypeExpression = "{" +
+                "\"NUMBER[($precision,$scale)]\": {\"precision\": [1,38],\"scale\": [-84,127],\"fixed\": true,\"preferPrecision\": 20,\"defaultPrecision\": 38,\"preferScale\": 8,\"defaultScale\": 0,\"priority\": 1,\"to\": \"TapNumber\"}" +
+                "}";
+
+        String targetTypeExpression = "{\n" +
+//                "\"int unsigned\": {\"to\": \"TapNumber\",\"byte\": 32,\"value\": [\"0\", \"4294967295\"]}," +
+                "\"decimal[($precision,$scale)][unsigned]\": {\n" +
+                "\t  \"to\": \"TapNumber\",\n" +
+                "\t  \"precision\": [\n" +
+                "\t\t1,\n" +
+                "\t\t65\n" +
+                "\t  ],\n" +
+                "\t  \"scale\": [\n" +
+                "\t\t0,\n" +
+                "\t\t30\n" +
+                "\t  ],\n" +
+                "\t  \"defaultPrecision\": 10,\n" +
+                "\t  \"defaultScale\": 0,\n" +
+                "\t  \"unsigned\": \"unsigned\",\n" +
+                "\t  \"fixed\": true\n" +
+                "\t}," +
+
+                "\"float($precision,$scale)[unsigned]\": {\n" +
+                "\t  \"to\": \"TapNumber\",\n" +
+                "\t  \"name\": \"float\",\n" +
+                "\t  \"precision\": [\n" +
+                "\t\t1,\n" +
+                "\t\t30\n" +
+                "\t  ],\n" +
+                "\t  \"scale\": [\n" +
+                "\t\t0,\n" +
+                "\t\t30\n" +
+                "\t  ],\n" +
+                "\t  \"value\": [\n" +
+                "\t\t\"-3.402823466E+38\",\n" +
+                "\t\t\"3.402823466E+38\"\n" +
+                "\t  ],\n" +
+                "\t  \"unsigned\": \"unsigned\",\n" +
+                "\t  \"fixed\": false\n" +
+                "\t}" +
+                "}";
+
+        TapTable sourceTable = table("test");
+        sourceTable
+                .add(field("NUMBER", "NUMBER"))
+        ;
+
+        tableFieldTypesGenerator.autoFill(sourceTable.getNameFieldMap(), DefaultExpressionMatchingMap.map(sourceTypeExpression));
+        TapResult<LinkedHashMap<String, TapField>> tapResult = targetTypesGenerator.convert(sourceTable.getNameFieldMap(), DefaultExpressionMatchingMap.map(targetTypeExpression), targetCodecFilterManager);
+
+        LinkedHashMap<String, TapField> nameFieldMap = tapResult.getData();
+
+
+        TapField upperVarchar50 = nameFieldMap.get("NUMBER");
+        assertEquals("decimal(20,8)", upperVarchar50.getDataType());
+    }
 }
