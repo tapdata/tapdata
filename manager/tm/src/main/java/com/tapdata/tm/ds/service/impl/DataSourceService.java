@@ -248,8 +248,15 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 
 			if (updateDto.getDatabase_type().toLowerCase(Locale.ROOT).contains("mongo") && config.get("uri") != null) {
 				String uri1 = (String) config.get("uri");
-				if (uri1.contains("******")) {
-					config.put("uri", connectionDto.getConfig().get("uri"));
+				if (StringUtils.isNotBlank(uri1) && uri1.contains("******")) {
+					ConnectionString uri2 = new ConnectionString((String) connectionDto.getConfig().get("uri"));
+					if (uri2.getPassword() != null) {
+						String password1 = new String(uri2.getPassword());
+						uri1 = uri1.replace("******", password1);
+						config.put("uri", uri1);
+					} else {
+						config.put("uri", connectionDto.getConfig().get("uri"));
+					}
 				}
 			}
 		}
