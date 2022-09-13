@@ -130,10 +130,6 @@ public class MessageService extends BaseService {
     }
 
     public Page<MessageListVo> list(MsgTypeEnum type, String level, Boolean read, Integer page, Integer size, UserDetail userDetail) {
-        TmPageable tmPageable = new TmPageable();
-        tmPageable.setPage(page);
-        tmPageable.setSize(size);
-
         Criteria criteria = Criteria.where("msg").is(type.getValue());
         if (StringUtils.isNotBlank(level)) {
             criteria.and("level").is(level);
@@ -144,7 +140,8 @@ public class MessageService extends BaseService {
         Query query = new Query(criteria);
         String userId = userDetail.getUserId();
         query.addCriteria(new Criteria().orOperator(Criteria.where("oldUserId").is(userId), Criteria.where("user_id").is(userId)));
-        query.with(tmPageable);
+        query.skip((long) (page - 1) * size);
+        query.limit(size);
         return getMessageListVoPage(query);
     }
 

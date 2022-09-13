@@ -57,7 +57,7 @@ public class UpdateRecordStatusEventHandler implements BaseEventHandler<SyncTask
 
                 break;
             case TaskDto.STATUS_ERROR:
-                String errorSummary = MessageFormat.format(AlarmContentTemplate.TASK_STATUS_STOP_ERROR, data.getUpdatorName(), DateUtil.now());
+                String errorSummary = MessageFormat.format(AlarmContentTemplate.TASK_STATUS_STOP_ERROR, DateUtil.now());
                 AlarmInfo errorInfo = AlarmInfo.builder().status(AlarmStatusEnum.ING).level(Level.EMERGENCY).component(AlarmComponentEnum.FE)
                         .type(AlarmTypeEnum.SYNCHRONIZATIONTASK_ALARM).agnetId(data.getAgentId()).taskId(taskId)
                         .name(data.getTaskName()).summary(errorSummary).metric(AlarmKeyEnum.TASK_STATUS_ERROR)
