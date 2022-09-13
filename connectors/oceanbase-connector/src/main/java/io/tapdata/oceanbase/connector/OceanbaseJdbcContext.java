@@ -6,7 +6,9 @@ import io.tapdata.common.JdbcContext;
 import io.tapdata.common.ResultSetConsumer;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapTable;
+import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.entity.utils.DataMap;
+import io.tapdata.kit.DbKit;
 import io.tapdata.oceanbase.OceanbaseMaker;
 import io.tapdata.oceanbase.bean.OceanbaseConfig;
 import io.tapdata.oceanbase.util.ConnectionUtil;
@@ -31,6 +33,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.StringJoiner;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -48,6 +51,26 @@ public class OceanbaseJdbcContext extends JdbcContext {
     private static final String SELECT_TABLE = "SELECT t.* FROM `%s`.`%s` t";
     private static final String SELECT_COUNT = "SELECT count(*) FROM `%s`.`%s` t";
     private static final String CHECK_TABLE_EXISTS_SQL = "SELECT * FROM information_schema.tables WHERE TABLE_SCHEMA='%s' AND TABLE_NAME='%s'";
+    private final static String SELECT_ALL_INDEX_SQL = "select *\n" +
+            "from (select i.TABLE_NAME,\n" +
+            "             i.INDEX_NAME,\n" +
+            "             i.INDEX_TYPE,\n" +
+            "             i.COLLATION,\n" +
+            "             i.NON_UNIQUE,\n" +
+            "             i.COLUMN_NAME,\n" +
+            "             i.SEQ_IN_INDEX,\n" +
+            "             (select k.CONSTRAINT_NAME\n" +
+            "              from INFORMATION_SCHEMA.KEY_COLUMN_USAGE k\n" +
+            "              where k.TABLE_SCHEMA = '%s'\n" +
+            "                and k.TABLE_NAME = i.TABLE_NAME\n" +
+            "                and i.INDEX_NAME = CONCAT(k.CONSTRAINT_NAME, '_idx')\n" +
+            "                and i.COLUMN_NAME = k.COLUMN_NAME) CONSTRAINT_NAME\n" +
+            "      from INFORMATION_SCHEMA.STATISTICS i\n" +
+            "\n" +
+            "      where i.TABLE_SCHEMA = '%s'\n" +
+            "        and i.TABLE_NAME %s\n" +
+            "        and i.INDEX_NAME <> 'PRIMARY') t\n" +
+            "where t.CONSTRAINT_NAME is null";
     private static final String DROP_TABLE_IF_EXISTS_SQL = "DROP TABLE IF EXISTS `%s`.`%s`";
     private static final String TRUNCATE_TABLE_SQL = "TRUNCATE TABLE `%s`.`%s`";
 
@@ -190,7 +213,18 @@ public class OceanbaseJdbcContext extends JdbcContext {
 
     @Override
     public List<DataMap> queryAllIndexes(List<String> tableNames) {
-        return null;
+        String database = getDatabase();
+        TapLogger.debug(TAG, "Query all indexes, database: {}, tableNames:{}", database, tableNames);
+        List<DataMap> indexList = TapSimplify.list();
+        String tableNamesStr = StringUtils.join(tableNames, "','");
+        String inTableName = new StringJoiner(tableNamesStr).add("IN ('").add("')").toString();
+        String sql = String.format(SELECT_ALL_INDEX_SQL, database, database, inTableName);
+        try {
+            query(sql, rs -> indexList.addAll(DbKit.getDataFromResultSet(rs)));
+        } catch (Throwable e) {
+            TapLogger.error(TAG, "Execute queryAllIndexes failed, sql: {}, error: {}", sql, e.getMessage(), e);
+        }
+        return indexList;
     }
 
     public boolean tableExists(String tableName) throws Throwable {
