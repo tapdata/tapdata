@@ -1,18 +1,18 @@
 package com.tapdata.tm.message.constant;
 
 public enum Level {
-    RECOVERY("RECOVERY"),
-    NORMAL("NORMAL"),
-    WARNING("WARNING"),
-    CRITICAL("CRITICAL"),
-    EMERGENCY("EMERGENCY"),
+    RECOVERY("Recovery"),
+    NORMAL("Normal"),
+    WARNING("Warning"),
+    CRITICAL("Critical"),
+    EMERGENCY("Emergency"),
 
-    ERROR("ERROR"),
+    ERROR("Error"),
 
     //校验内容有差异
-    WARN("WARN"),
+    WARN("Warn"),
 
-    INFO("INFO");
+    INFO("Info");
 
     private final String value;
     public String getValue() {

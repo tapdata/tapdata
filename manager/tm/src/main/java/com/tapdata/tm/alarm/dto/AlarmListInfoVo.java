@@ -1,5 +1,8 @@
 package com.tapdata.tm.alarm.dto;
 
+import com.tapdata.tm.alarm.constant.AlarmStatusEnum;
+import com.tapdata.tm.commons.task.constant.AlarmKeyEnum;
+import com.tapdata.tm.message.constant.Level;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Builder;
 import lombok.Data;
@@ -15,9 +18,9 @@ import java.util.Date;
 public class AlarmListInfoVo {
     private String id;
     @Schema(description = "告警级别")
-    private String level;
+    private Level level;
     @Schema(description = "标记当前告警的状态")
-    private String status;
+    private AlarmStatusEnum status;
     @Schema(description = "具体的任务名")
     private String name;
     @Schema(description = "告警内容")
@@ -27,4 +30,6 @@ public class AlarmListInfoVo {
     @Schema(description = "告警最近发生时间")
     private Date lastOccurrenceTime;
     private String taskId;
+    private String nodeId;
+    private AlarmKeyEnum metric;
 }

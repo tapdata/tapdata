@@ -4,19 +4,15 @@ package com.tapdata.tm.commons.dag.process;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.tapdata.tm.commons.dag.DAG;
-import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.NodeEnum;
 import com.tapdata.tm.commons.dag.NodeType;
 import com.tapdata.tm.commons.dag.vo.TableRenameTableInfo;
 import com.tapdata.tm.commons.schema.Schema;
 import com.tapdata.tm.commons.schema.SchemaUtils;
-import com.tapdata.tm.commons.task.dto.alarm.AlarmRuleDto;
-import com.tapdata.tm.commons.task.dto.alarm.AlarmSettingDto;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
-import org.bson.types.ObjectId;
 
 import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
@@ -43,8 +39,6 @@ public class TableRenameProcessNode extends MigrateProcessorNode {
      */
     private LinkedHashSet<TableRenameTableInfo> tableNames;
 
-    private List<AlarmSettingDto> alarmSettings;
-    private List<AlarmRuleDto> alarmRules;
 
     public Map<String, TableRenameTableInfo> originalMap () {
         if (Objects.isNull(tableNames) || tableNames.isEmpty()) {

@@ -5,15 +5,18 @@ import cn.hutool.core.date.DateTime;
 import cn.hutool.core.date.DateUnit;
 import cn.hutool.core.date.DateUtil;
 import cn.hutool.core.lang.Assert;
-import com.sun.jna.platform.win32.Variant;
+import com.google.common.collect.Maps;
 import com.tapdata.tm.Settings.service.AlarmSettingService;
 import com.tapdata.tm.alarm.constant.AlarmStatusEnum;
 import com.tapdata.tm.alarm.dto.AlarmListInfoVo;
+import com.tapdata.tm.alarm.dto.TaskAlarmInfoVo;
+import com.tapdata.tm.alarm.dto.TaskAlarmNodeInfoVo;
 import com.tapdata.tm.alarm.entity.AlarmInfo;
 import com.tapdata.tm.alarm.service.AlarmService;
 import com.tapdata.tm.alarmrule.service.AlarmRuleService;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.TmPageable;
+import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.process.TableRenameProcessNode;
 import com.tapdata.tm.commons.task.constant.AlarmKeyEnum;
@@ -22,6 +25,7 @@ import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmRuleDto;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmSettingDto;
 import com.tapdata.tm.config.security.UserDetail;
+import com.tapdata.tm.message.constant.Level;
 import com.tapdata.tm.message.constant.MessageMetadata;
 import com.tapdata.tm.message.constant.MsgTypeEnum;
 import com.tapdata.tm.message.constant.SystemEnum;
@@ -33,6 +37,7 @@ import com.tapdata.tm.utils.MongoUtils;
 import lombok.Setter;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.bson.types.ObjectId;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -83,15 +88,15 @@ public class AlarmServiceImpl implements AlarmService {
     }
 
     @Override
-    public boolean checkOpen(String taskId, AlarmKeyEnum key, NotifyEnum type) {
+    public boolean checkOpen(String taskId, String nodeId, AlarmKeyEnum key, NotifyEnum type) {
         TaskDto taskDto = taskService.findById(MongoUtils.toObjectId(taskId));
-        return checkOpen(taskDto, key, type);
+        return checkOpen(taskDto, nodeId, key, type);
     }
 
-    private boolean checkOpen(TaskDto taskDto, AlarmKeyEnum key, NotifyEnum type) {
+    private boolean checkOpen(TaskDto taskDto, String nodeId, AlarmKeyEnum key, NotifyEnum type) {
         boolean openTask = false;
         if (Objects.nonNull(taskDto) && CollectionUtils.isNotEmpty(taskDto.getAlarmSettings())) {
-            List<AlarmSettingDto> alarmSettingDtos = getAlarmSettingDtos(taskDto);
+            List<AlarmSettingDto> alarmSettingDtos = getAlarmSettingDtos(taskDto, nodeId);
             if (CollectionUtils.isNotEmpty(alarmSettingDtos)) {
                 openTask = alarmSettingDtos.stream().anyMatch(t ->
                         t.getKey().equals(key) && t.isOpen() && t.getNotify().contains(type));
@@ -109,22 +114,30 @@ public class AlarmServiceImpl implements AlarmService {
     }
 
     @NotNull
-    private static List<AlarmSettingDto> getAlarmSettingDtos(TaskDto taskDto) {
+    @SuppressWarnings("unchecked")
+    private static List<AlarmSettingDto> getAlarmSettingDtos(TaskDto taskDto, String nodeId) {
         List<AlarmSettingDto> alarmSettingDtos = Lists.newArrayList();
         alarmSettingDtos.addAll(taskDto.getAlarmSettings());
 
-        taskDto.getDag().getNodes().forEach(node -> {
-            if (node instanceof DatabaseNode && CollectionUtils.isNotEmpty(((DatabaseNode) node).getAlarmSettings())) {
-                alarmSettingDtos.addAll(((DatabaseNode) node).getAlarmSettings());
-            } else if (node instanceof TableRenameProcessNode && CollectionUtils.isNotEmpty(((TableRenameProcessNode) node).getAlarmSettings())) {
-                alarmSettingDtos.addAll(((TableRenameProcessNode) node).getAlarmSettings());
+        if (Objects.nonNull(nodeId)) {
+            for (Node node : taskDto.getDag().getNodes()) {
+                if (node.getId().equals(nodeId)) {
+                    alarmSettingDtos.addAll(node.getAlarmSettings());
+                    break;
+                }
             }
-        });
+        } else {
+            taskDto.getDag().getNodes().forEach(node -> {
+                alarmSettingDtos.addAll(node.getAlarmSettings());
+            });
+        }
+
+
         return alarmSettingDtos;
     }
 
-    private AlarmSettingDto getAlartSettingByKey(TaskDto taskDto, AlarmKeyEnum key) {
-        List<AlarmSettingDto> alarmSettingDtos = getAlarmSettingDtos(taskDto);
+    private AlarmSettingDto getAlartSettingByKey(TaskDto taskDto, String nodeId, AlarmKeyEnum key) {
+        List<AlarmSettingDto> alarmSettingDtos = getAlarmSettingDtos(taskDto, nodeId);
         Assert.notEmpty(alarmSettingDtos);
         return alarmSettingDtos.stream().filter(t -> key.equals(t.getKey())).findAny().orElse(null);
     }
@@ -169,7 +182,7 @@ public class AlarmServiceImpl implements AlarmService {
 
     @Override
     public void notifyAlarm() {
-        Criteria criteria = Criteria.where("status").ne(AlarmStatusEnum.CLOESED);
+        Criteria criteria = Criteria.where("status").ne(AlarmStatusEnum.CLOESE);
         criteria.orOperator(Criteria.where("lastNotifyTime").is(null), Criteria.where("lastNotifyTime").lte(DateUtil.date()));
         Query needNotifyQuery = new Query(criteria);
         List<AlarmInfo> alarmInfos = mongoTemplate.find(needNotifyQuery, AlarmInfo.class);
@@ -187,7 +200,7 @@ public class AlarmServiceImpl implements AlarmService {
 
         alarmInfos.forEach(info -> {
             TaskDto taskDto = taskDtoMap.get(info.getTaskId());
-            if (checkOpen(taskDto, info.getMetric(), NotifyEnum.SYSTEM)) {
+            if (checkOpen(taskDto, info.getNodeId(), info.getMetric(), NotifyEnum.SYSTEM)) {
                 String taskId = taskDto.getId().toHexString();
 
                 MessageEntity messageEntity = new MessageEntity();
@@ -208,13 +221,13 @@ public class AlarmServiceImpl implements AlarmService {
                 messageService.addMessage(messageEntity);
 
                 // update alarmInfo date
-                AlarmSettingDto setting = getAlartSettingByKey(taskDto, info.getMetric());
+                AlarmSettingDto setting = getAlartSettingByKey(taskDto, info.getNodeId(), info.getMetric());
                 DateTime lastNotifyTime = DateUtil.offset(DateUtil.date(), parseDateUnit(setting.getUnit()), setting.getInterval());
                 info.setLastNotifyTime(lastNotifyTime);
                 mongoTemplate.save(info);
             }
 
-            if (checkOpen(taskDto, info.getMetric(), NotifyEnum.EMAIL)) {
+            if (checkOpen(taskDto, info.getNodeId(), info.getMetric(), NotifyEnum.EMAIL)) {
 
             }
 
@@ -243,9 +256,11 @@ public class AlarmServiceImpl implements AlarmService {
     }
 
     @Override
-    public void close(String id, UserDetail userDetail) {
-        Query query = new Query(Criteria.where("_id").is(MongoUtils.toObjectId(id)));
-        Update update = new Update().set("status", AlarmStatusEnum.CLOESED.name())
+    public void close(String[] ids, UserDetail userDetail) {
+        List<ObjectId> collect = Arrays.stream(ids).map(MongoUtils::toObjectId).collect(Collectors.toList());
+
+        Query query = new Query(Criteria.where("_id").in(collect));
+        Update update = new Update().set("status", AlarmStatusEnum.CLOESE.name())
                 .set("closeTime", DateUtil.date())
                 .set("closeBy", userDetail.getUserId())
                 ;
@@ -266,15 +281,69 @@ public class AlarmServiceImpl implements AlarmService {
         List<AlarmListInfoVo> collect = alarmInfos.stream()
                 .map(t -> AlarmListInfoVo.builder()
                         .id(t.getId().toHexString())
-                        .level(t.getLevel().getValue())
-                        .status(t.getStatus().name())
+                        .level(t.getLevel())
+                        .status(t.getStatus())
                         .summary(t.getSummary())
                         .firstOccurrenceTime(t.getFirstOccurrenceTime())
                         .lastOccurrenceTime(t.getLastOccurrenceTime())
                         .taskId(t.getTaskId())
+                        .metric(t.getMetric())
                 .build()).collect(Collectors.toList());
 
         return new Page<>(count, collect);
+    }
+
+    @Override
+    public TaskAlarmInfoVo listByTask(AlarmStatusEnum status, Level level, String taskId, String nodeId, UserDetail loginUser) {
+        Criteria criteria = Criteria.where("taskId").is(taskId);
+        if (Objects.nonNull(status)) {
+            criteria.and("status").is(status.name());
+        }
+        if (Objects.nonNull(level)) {
+            criteria.and("level").is(level.name());
+        }
+        if (Objects.nonNull(nodeId)) {
+            criteria.and("nodeId").is(nodeId);
+        }
+        Query query = new Query();
+        List<AlarmInfo> alarmInfos = mongoTemplate.find(query, AlarmInfo.class);
+
+        Map<String, Integer> nodeNumMap = Maps.newHashMap();
+        List<AlarmListInfoVo> collect = Lists.newArrayList();
+        alarmInfos.forEach( t -> {
+            AlarmListInfoVo build = AlarmListInfoVo.builder()
+                    .id(t.getId().toHexString())
+                    .level(t.getLevel())
+                    .status(t.getStatus())
+                    .summary(t.getSummary())
+                    .firstOccurrenceTime(t.getFirstOccurrenceTime())
+                    .lastOccurrenceTime(t.getLastOccurrenceTime())
+                    .taskId(t.getTaskId())
+                    .metric(t.getMetric())
+                    .build();
+
+            collect.add(build);
+
+            String nId = t.getNodeId();
+            if (Objects.nonNull(nId)) {
+                if (nodeNumMap.containsKey(nId)) {
+                    nodeNumMap.put(nId, nodeNumMap.get(nId) + 1);
+                } else {
+                    nodeNumMap.put(nId, 1);
+                }
+            }
+        });
+
+        TaskDto taskDto = taskService.findById(MongoUtils.toObjectId(taskId));
+        List<TaskAlarmNodeInfoVo> taskAlarmNodeInfoVos = taskDto.getDag().getNodes().stream().map(t ->
+                TaskAlarmNodeInfoVo.builder()
+                        .nodeId(t.getId())
+                        .nodeName(t.getName())
+                        .num(nodeNumMap.get(t.getId()))
+                        .build()
+        ).collect(Collectors.toList());
+
+        return TaskAlarmInfoVo.builder().nodeInfos(taskAlarmNodeInfoVos).alarmList(collect).build();
     }
 
 }

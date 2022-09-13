@@ -1,11 +1,13 @@
 package com.tapdata.tm.alarm.controller;
 
+import com.tapdata.tm.alarm.constant.AlarmStatusEnum;
 import com.tapdata.tm.alarm.dto.AlarmListInfoVo;
 import com.tapdata.tm.alarm.dto.TaskAlarmInfoVo;
 import com.tapdata.tm.alarm.service.AlarmService;
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.ResponseMessage;
+import com.tapdata.tm.message.constant.Level;
 import io.swagger.v3.oas.annotations.Operation;
 import lombok.Setter;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -29,23 +31,22 @@ public class AlarmController extends BaseController {
                                                        @RequestParam(required = false)String keyword,
                                                        @RequestParam(defaultValue = "1")Integer page,
                                                        @RequestParam(defaultValue = "20")Integer size) {
-        return success(alarmService.list(status, start, end, keyword, page, size, null));
+        return success(alarmService.list(status, start, end, keyword, page, size, getLoginUser()));
     }
 
     @Operation(summary = "find all alarm by task")
     @GetMapping("list_task")
-    public ResponseMessage<TaskAlarmInfoVo> findListByTask(@RequestParam(required = false)String status,
-                                                       @RequestParam(required = false)String level,
-                                                       @RequestParam(required = false)String taskId,
+    public ResponseMessage<TaskAlarmInfoVo> findListByTask(@RequestParam(required = false) AlarmStatusEnum status,
+                                                       @RequestParam(required = false) Level level,
+                                                       @RequestParam String taskId,
                                                        @RequestParam(required = false)String nodeId) {
-
-        return success();
+        return success(alarmService.listByTask(status, level, taskId, nodeId, getLoginUser()));
     }
 
     @Operation(summary = "close alarm")
     @PostMapping("close")
-    public ResponseMessage<Void> close(@RequestParam String id) {
-        alarmService.close(id, getLoginUser());
+    public ResponseMessage<Void> close(@RequestParam String[] ids) {
+        alarmService.close(ids, getLoginUser());
         return success();
     }
 }

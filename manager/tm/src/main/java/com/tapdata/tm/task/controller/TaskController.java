@@ -219,6 +219,7 @@ public class TaskController extends BaseController {
     public ResponseMessage<TaskDto> confirmById(@RequestParam(value = "confirm", required = false, defaultValue = "false") Boolean confirm,
                                                 @RequestBody TaskDto task) {
         UserDetail user = getLoginUser();
+
         return success(taskService.confirmById(task, user, confirm));
     }
 
@@ -1001,5 +1002,4 @@ public class TaskController extends BaseController {
         taskService.updateTaskLogSetting(taskId, logSettingParam, getLoginUser());
         return success();
     }
-
 }
