@@ -2212,13 +2212,13 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
             //检查是否完成重置，设置8秒的超时时间
             boolean checkFlag = false;
-            for (int i = 0; i < 16; i++) {
+            for (int i = 0; i < 60; i++) {
                 checkFlag = DataSyncMq.OP_TYPE_RESET.equals(opType) ? checkResetFlag(taskDto.getId(), user) : checkDeleteFlag(taskDto.getId(), user);
                 if (checkFlag) {
                     break;
                 }
                 try {
-                    Thread.sleep(500L);
+                    Thread.sleep(1000L);
                 } catch (InterruptedException e) {
                     throw new BizException("SystemError");
                 }
