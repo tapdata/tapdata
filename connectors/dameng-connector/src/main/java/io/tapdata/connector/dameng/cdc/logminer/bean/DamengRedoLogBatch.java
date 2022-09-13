@@ -5,7 +5,7 @@ import io.tapdata.kit.EmptyKit;
 import java.util.Collections;
 import java.util.List;
 
-public class OracleRedoLogBatch {
+public class DamengRedoLogBatch {
 
     /**
      * key: instance thread
@@ -15,7 +15,7 @@ public class OracleRedoLogBatch {
 
     private boolean isOnlineRedo;
 
-    public OracleRedoLogBatch(List<RedoLog> redoLogList, boolean isOnlineRedo) {
+    public DamengRedoLogBatch(List<RedoLog> redoLogList, boolean isOnlineRedo) {
         if (EmptyKit.isNotEmpty(redoLogList)) {
                 if (EmptyKit.isNotEmpty(redoLogList)) {
                     Collections.sort(redoLogList);

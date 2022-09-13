@@ -55,11 +55,8 @@ public class PostgresCdcRunner extends DebeziumCdcRunner {
     public PostgresCdcRunner watch(List<String> observedTableList) {
         postgresDebeziumConfig = new PostgresDebeziumConfig()
                 .use(postgresConfig)
+                .useSlot(runnerName)
                 .watch(observedTableList);
-        if (EmptyKit.isNotNull(runnerName)) {
-            postgresDebeziumConfig.useSlot(runnerName);
-        }
-        this.runnerName = postgresDebeziumConfig.getSlotName();
         return this;
     }
 
@@ -77,7 +74,7 @@ public class PostgresCdcRunner extends DebeziumCdcRunner {
         return throwableAtomicReference;
     }
 
-    public PostgresCdcRunner registerConsumer(StreamReadConsumer consumer, int recordSize) {
+    public void registerConsumer(StreamReadConsumer consumer, int recordSize) {
         this.recordSize = recordSize;
         this.consumer = consumer;
         //build debezium engine
@@ -122,7 +119,6 @@ public class PostgresCdcRunner extends DebeziumCdcRunner {
                     consumer.streamReadEnded();
                 })
                 .build();
-        return this;
     }
 
     @Override

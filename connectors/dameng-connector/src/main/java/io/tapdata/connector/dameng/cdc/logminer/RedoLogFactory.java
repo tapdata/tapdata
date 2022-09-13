@@ -1,10 +1,10 @@
 package io.tapdata.connector.dameng.cdc.logminer;
 
 import io.tapdata.connector.dameng.DamengContext;
-import io.tapdata.connector.dameng.cdc.logminer.bean.OracleInstanceInfo;
-import io.tapdata.connector.dameng.cdc.logminer.bean.OracleRedoLogBatch;
+import io.tapdata.connector.dameng.cdc.logminer.bean.DamengInstanceInfo;
+import io.tapdata.connector.dameng.cdc.logminer.bean.DamengRedoLogBatch;
 import io.tapdata.connector.dameng.cdc.logminer.bean.RedoLog;
-import io.tapdata.connector.dameng.cdc.logminer.constant.OracleSqlConstant;
+import io.tapdata.connector.dameng.cdc.logminer.constant.DamengSqlConstant;
 import io.tapdata.constant.TapLog;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.kit.EmptyKit;
@@ -26,7 +26,7 @@ public class RedoLogFactory {
 
     private DamengContext damengContext;
     private AtomicBoolean isRunning;
-    private List<OracleInstanceInfo> oracleInstanceInfos;
+    private List<DamengInstanceInfo> oracleInstanceInfos;
 
     public RedoLogFactory() {
     }
@@ -36,21 +36,21 @@ public class RedoLogFactory {
         this.isRunning = isRunning;
     }
 
-    public List<OracleInstanceInfo> getOracleInstanceInfos() {
+    public List<DamengInstanceInfo> getOracleInstanceInfos() {
         return oracleInstanceInfos;
     }
 
-    public void setOracleInstanceInfos(List<OracleInstanceInfo> oracleInstanceInfos) {
+    public void setOracleInstanceInfos(List<DamengInstanceInfo> oracleInstanceInfos) {
         this.oracleInstanceInfos = oracleInstanceInfos;
     }
 
-    public synchronized OracleRedoLogBatch produceRedoLog(Long lastScn) throws SQLException, InterruptedException {
+    public synchronized DamengRedoLogBatch produceRedoLog(Long lastScn,Long nextScn) throws SQLException, InterruptedException {
         Connection connection = damengContext.getConnection();
         PreparedStatement archivedLogStmt = null;
-        OracleRedoLogBatch oracleRedoLogBatch;
+        DamengRedoLogBatch oracleRedoLogBatch;
         try {
-            archivedLogStmt = connection.prepareStatement(OracleSqlConstant.ARCHIVED_LOG_SQL);
-            oracleRedoLogBatch = batchLoadLogs(archivedLogStmt, lastScn, 1);
+            archivedLogStmt = connection.prepareStatement(DamengSqlConstant.ARCHIVED_LOG_SQL);
+            oracleRedoLogBatch = batchLoadLogs(archivedLogStmt, lastScn, nextScn, 1);
         } catch (Exception e) {
             TapLogger.error(TAG, TapLog.CONN_ERROR_0001.getMsg(), e.getMessage(), e);
             throw e;
@@ -62,12 +62,12 @@ public class RedoLogFactory {
         return oracleRedoLogBatch;
     }
 
-    private OracleRedoLogBatch batchLoadLogs(PreparedStatement archivedLogStmt, Long lastScn, int batchSize) throws SQLException, InterruptedException {
-        OracleRedoLogBatch oracleRedoLogBatch = null;
+    private DamengRedoLogBatch batchLoadLogs(PreparedStatement archivedLogStmt, Long lastScn,Long nextScn, int batchSize) throws SQLException, InterruptedException {
+        DamengRedoLogBatch oracleRedoLogBatch = null;
         while (isRunning.get()) {
-            List<RedoLog> redoLogList = batchLoadArchivedLogs(archivedLogStmt, lastScn, batchSize);
+            List<RedoLog> redoLogList = batchLoadArchivedLogs(archivedLogStmt, lastScn,nextScn, batchSize);
             if (EmptyKit.isNotEmpty(redoLogList)) {
-                oracleRedoLogBatch = new OracleRedoLogBatch(redoLogList, false);
+                oracleRedoLogBatch = new DamengRedoLogBatch(redoLogList, false);
                 break;
             }
            Thread.sleep(1000);
@@ -75,28 +75,18 @@ public class RedoLogFactory {
         return oracleRedoLogBatch;
     }
 
-    private  List<RedoLog> batchLoadArchivedLogs(PreparedStatement archivedLogStmt,  Long lastScn, int batchSize) throws SQLException {
-            List<RedoLog> redoLogList = new ArrayList<>();
-            archivedLogStmt.setLong(1, lastScn);
-            archivedLogStmt.setInt(2, batchSize);
-            ResultSet resultSet = archivedLogStmt.executeQuery();
-            while (resultSet.next()) {
-                RedoLog analysisRedoLog = RedoLog.archivedLog(resultSet);
-                redoLogList.add(analysisRedoLog);
-            }
-         return redoLogList;
-    }
-
-    private List<RedoLog> batchLoadOnlineLogs(PreparedStatement onlineLogStmt, Long lastScn, int batchSize) throws SQLException {
+    private List<RedoLog> batchLoadArchivedLogs(PreparedStatement archivedLogStmt, Long lastScn, Long nextScn, int batchSize) throws SQLException {
         List<RedoLog> redoLogList = new ArrayList<>();
-        onlineLogStmt.setLong(1, lastScn);
-        onlineLogStmt.setInt(2, batchSize);
-        ResultSet resultSet = onlineLogStmt.executeQuery();
+        archivedLogStmt.setLong(1, lastScn);
+        archivedLogStmt.setLong(2, nextScn);
+        archivedLogStmt.setInt(3, batchSize);
+        ResultSet resultSet = archivedLogStmt.executeQuery();
         while (resultSet.next()) {
             RedoLog analysisRedoLog = RedoLog.archivedLog(resultSet);
             redoLogList.add(analysisRedoLog);
         }
         return redoLogList;
     }
+
 
 }
