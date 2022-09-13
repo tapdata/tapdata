@@ -103,13 +103,16 @@ public class DummyConnector extends ConnectorBase {
         TapLogger.info(TAG, "Discover dummy schema");
 
         // 过滤表
+        List<TapTable> tableSchemas = new ArrayList<>();
         if (null != tables && !tables.isEmpty()) {
             for (String tn : tables) {
-                schemas.remove(tn);
+                tableSchemas.add(schemas.get(tn));
             }
+        } else {
+            tableSchemas.addAll(schemas.values());
         }
 
-        consumer.accept(new ArrayList<>(schemas.values()));
+        consumer.accept(tableSchemas);
     }
 
     @Override
