@@ -105,6 +105,11 @@ public class PDKInvocationMonitor implements MemoryFetcher {
             return;
         }
         long retryTimes = invoker.getRetryTimes();
+        TapLogger.info(logTag, "AutoRetry start: " +
+                "\n\t- Execute message is : {} " +
+                "\n\t- Maximum retry time: {} minutes " +
+                "\n\t- The interval between retries is {} seconds. " +
+                "\n\t- It is estimated that {} retries are required. ", message, invoker.getMaxRetryTimeMinute(), invoker.getRetryPeriodSeconds(),retryTimes);
         if(async) {
             ExecutorsManager.getInstance().getExecutorService().execute(() -> {
                 if(contextClassLoader != null) {
