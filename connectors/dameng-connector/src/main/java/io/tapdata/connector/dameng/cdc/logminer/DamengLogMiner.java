@@ -7,7 +7,6 @@ import io.tapdata.common.ddl.type.DDLParserType;
 import io.tapdata.connector.dameng.DamengConfig;
 import io.tapdata.connector.dameng.DamengContext;
 import io.tapdata.connector.dameng.cdc.DamengOffset;
-import io.tapdata.connector.dameng.cdc.logminer.bean.RedoLog;
 import io.tapdata.connector.dameng.cdc.logminer.handler.DateTimeColumnHandler;
 import io.tapdata.connector.dameng.cdc.logminer.handler.RawTypeHandler;
 import io.tapdata.connector.dameng.cdc.logminer.handler.UnicodeStringColumnHandler;
@@ -36,10 +35,9 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
-import static io.tapdata.connector.dameng.cdc.logminer.constant.OracleSqlConstant.*;
+import static io.tapdata.connector.dameng.cdc.logminer.constant.DamengSqlConstant.*;
 
 
 public abstract class DamengLogMiner extends LogMiner implements ILogMiner {
@@ -105,7 +103,6 @@ public abstract class DamengLogMiner extends LogMiner implements ILogMiner {
 
     /**
      * find current scn of database
-     *
      * @return scn Long
      * @throws Throwable SQLException
      */
@@ -134,16 +131,7 @@ public abstract class DamengLogMiner extends LogMiner implements ILogMiner {
         }
 
 
-    protected RedoLog firstOnlineRedoLog(long scn) throws Throwable {
-        AtomicReference<RedoLog> redoLog = new AtomicReference<>();
-        boolean useOldVersionSql = StringUtils.equalsAnyIgnoreCase(version, "9i", "10g");
-        String firstOnlineSQL = useOldVersionSql ? GET_FIRST_ONLINE_REDO_LOG_FILE_FOR_10G_AND_9I : GET_FIRST_ONLINE_REDO_LOG_FILE;
-        if (scn > 0) {
-            firstOnlineSQL = useOldVersionSql ? String.format(GET_FIRST_ONLINE_REDO_LOG_FILE_BY_SCN_FOR_10G_AND_9I, scn) : String.format(GET_FIRST_ONLINE_REDO_LOG_FILE_BY_SCN, scn);
-        }
-        damengContext.queryWithNext(firstOnlineSQL, resultSet -> redoLog.set(RedoLog.onlineLog(resultSet)));
-        return redoLog.get();
-    }
+
 
     protected void setSession() throws SQLException {
         statement = damengContext.getConnection().createStatement();
@@ -178,12 +166,9 @@ public abstract class DamengLogMiner extends LogMiner implements ILogMiner {
                         // parse sql
                         if (canParse(redoLogContent)) {
                             RedoLogContent.OperationEnum operationEnum = RedoLogContent.OperationEnum.fromOperationCode(redoLogContent.getOperationCode());
-                            String sqlRedo;
-                            if (operationEnum == RedoLogContent.OperationEnum.DELETE) {
-                                sqlRedo = redoLogContent.getSqlUndo();
-                                operationEnum = RedoLogContent.OperationEnum.INSERT;
-                            } else {
-                                sqlRedo = redoLogContent.getSqlRedo();
+                            String sqlRedo=redoLogContent.getSqlRedo();
+                            if (operationEnum == RedoLogContent.OperationEnum.DELETE || operationEnum == RedoLogContent.OperationEnum.UPDATE) {
+                                sqlRedo = sqlRedo+" ";
                             }
                             redoLogContent.setRedoRecord(new DamengCDCSQLParser().from(sqlRedo).getData());
                             convertStringToObject(redoLogContent);
@@ -257,7 +242,6 @@ public abstract class DamengLogMiner extends LogMiner implements ILogMiner {
                 case Types.DISTINCT:
                 case Types.JAVA_OBJECT:
                 case Types.NULL:
-                case Types.OTHER:
                 case Types.REF:
                 case Types.REF_CURSOR:
                 case Types.SQLXML:
@@ -315,7 +299,6 @@ public abstract class DamengLogMiner extends LogMiner implements ILogMiner {
                     break;
                 case Types.BLOB:
                 case Types.CLOB:
-                case Types.NCLOB:
                     if ("EMPTY_BLOB()".equals(value)) {
                         stringObjectEntry.setValue(null);
                     }
@@ -352,8 +335,8 @@ public abstract class DamengLogMiner extends LogMiner implements ILogMiner {
                 SqlConstant.REDO_LOG_OPERATION_DELETE)) {
             return false;
         }
-        return !StringUtils.equalsAny(operation, SqlConstant.REDO_LOG_OPERATION_DELETE)
-                || !StringUtils.isEmpty(redoLogContent.getSqlUndo());
+
+        return true;
     }
 
     @Override
@@ -381,7 +364,7 @@ public abstract class DamengLogMiner extends LogMiner implements ILogMiner {
         sql = String.format(
                     sql,
                     scn,
-                    " AND SEG_OWNER='" + damengConfig.getSchema() + "'",
+                    " SEG_OWNER='" + damengConfig.getSchema() + "'",
                     " AND TABLE_NAME IN (" + StringKit.joinString(tableList, "'", ", ") + ")"
             );
         return sql;

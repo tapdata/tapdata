@@ -3,7 +3,7 @@ package io.tapdata.connector.dameng.cdc;
 import io.tapdata.common.cdc.CdcRunner;
 import io.tapdata.common.cdc.ILogMiner;
 import io.tapdata.connector.dameng.DamengContext;
-import io.tapdata.connector.dameng.cdc.logminer.ManuRedoOracleLogMiner;
+import io.tapdata.connector.dameng.cdc.logminer.ManuRedoDamengLogMiner;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.cache.KVReadOnlyMap;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
@@ -15,7 +15,7 @@ public class DamengCdcRunner implements CdcRunner {
     private ILogMiner logMiner;
 
     public DamengCdcRunner(DamengContext damengContext, String connectorId) throws Throwable {
-        logMiner = new ManuRedoOracleLogMiner(damengContext,connectorId);
+        logMiner = new ManuRedoDamengLogMiner(damengContext,connectorId);
 
     }
 

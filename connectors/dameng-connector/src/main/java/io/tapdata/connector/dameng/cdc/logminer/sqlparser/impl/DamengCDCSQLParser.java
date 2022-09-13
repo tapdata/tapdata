@@ -38,4 +38,6 @@ public class DamengCDCSQLParser extends CDCSQLParser {
     }
     return super.loadValue(sr);
   }
+
+
 }
