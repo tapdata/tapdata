@@ -1,28 +1,43 @@
 package io.tapdata.pdk.core.utils;
 
+import io.tapdata.entity.error.CoreException;
+import io.tapdata.entity.error.TapAPIErrorCodes;
 import io.tapdata.entity.logger.TapLogger;
 
+import java.net.Inet4Address;
 import java.net.InetAddress;
 import java.net.NetworkInterface;
 import java.net.SocketException;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Enumeration;
+import java.util.List;
 
 public class IPHolder {
 	private static final String TAG = IPHolder.class.getSimpleName();
 	private String ipPrefix;
 	private String ethPrefix;
 	
-	private String ip;
+	private List<String> ips;
 
 	public void init() {
-		if(ipPrefix == null)
-			ipPrefix = CommonUtils.getProperty("tapdata_net_interface_ip_prefix");
-		if(ethPrefix == null)
-			ethPrefix = CommonUtils.getProperty("tapdata_net_interface_eth_prefix");
-		ip = getLocalHostIp(ipPrefix, ethPrefix);
-		if(ip == null)
-			ip = "127.0.0.1";
-		TapLogger.info(TAG, "Server ip is " + ip + " by ipPrefix " + ipPrefix + " ethPrefix " + ethPrefix);
+		String ip = CommonUtils.getProperty("tapdata_net_interface_ip"); //specified fixed IP
+		if(ip == null) {
+			if(ipPrefix == null)
+				ipPrefix = CommonUtils.getProperty("tapdata_net_interface_ip_prefix");
+			if(ethPrefix == null)
+				ethPrefix = CommonUtils.getProperty("tapdata_net_interface_eth_prefix");
+		}
+		List<String> ips = getAllIps();
+		if(ip == null && ips.isEmpty()) {
+			ip = getLocalHostIp(ipPrefix, ethPrefix);
+		}
+		if(ip != null) {
+			this.ips = new ArrayList<>(Collections.singleton(ip));
+		} else {
+			this.ips = ips;
+		}
+		TapLogger.info(TAG, "Server ip is " + this.ips + " by ipPrefix " + ipPrefix + " ethPrefix " + ethPrefix);
 	}
 	public String getIpPrefix() {
 		return ipPrefix;
@@ -40,12 +55,8 @@ public class IPHolder {
 		this.ethPrefix = ethPrefix;
 	}
 
-	public String getIp() {
-		return ip;
-	}
-
-	public void setIp(String ip) {
-		this.ip = ip;
+	public void setIps(List<String> ips) {
+		this.ips = ips;
 	}
 
 	private static String getLocalHostIpPrivate() {
@@ -60,6 +71,36 @@ public class IPHolder {
 
 	public static String getLocalHostIp() {
 		return getLocalHostIp(null, null);
+	}
+
+	public static void main(String[] args) {
+		System.out.println(IPHolder.getAllIps());
+	}
+	public static List<String> getAllIps() {
+		return getAllIps(true);
+	}
+	public static List<String> getAllIps(boolean onlyIPv4) {
+		List<String> allIps = new ArrayList<>();
+		try {
+			for (Enumeration<NetworkInterface> ifaces = NetworkInterface.getNetworkInterfaces(); ifaces.hasMoreElements(); ) {
+				NetworkInterface iface = ifaces.nextElement();
+//				String ethr = iface.getDisplayName();
+
+				for (Enumeration<InetAddress> ips = iface.getInetAddresses(); ips.hasMoreElements(); ) {
+					InetAddress ia = ips.nextElement();
+					String anyIp = ia.getHostAddress();
+					if(onlyIPv4) {
+						if(ia instanceof Inet4Address)
+							allIps.add(anyIp);
+					} else {
+						allIps.add(anyIp);
+					}
+				}
+			}
+		} catch (SocketException e) {
+			throw new CoreException(TapAPIErrorCodes.ERROR_ALL_IPS_FAILED, "Get all ips failed, {}", e.getMessage());
+		}
+		return allIps;
 	}
 
 	public static String getLocalHostIp(String ipStartWith, String faceStartWith) {
@@ -109,5 +150,9 @@ public class IPHolder {
 			}
 		}
 		return false;
+	}
+
+	public List<String> getIps() {
+		return ips;
 	}
 }

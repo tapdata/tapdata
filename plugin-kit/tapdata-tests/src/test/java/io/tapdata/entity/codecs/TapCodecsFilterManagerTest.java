@@ -230,7 +230,6 @@ public class TapCodecsFilterManagerTest {
 
     @Test
     public void testTapMapInMap() {
-        //TODO need pass this case.
         TapCodecsRegistry codecsRegistry = TapCodecsRegistry.create();
         codecsRegistry.registerFromTapValue(TapMapValue.class, tapValue -> {
             return toJson(tapValue.getValue());

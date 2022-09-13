@@ -1,9 +1,31 @@
 package io.tapdata.modules.api.net.entity;
 
+import io.tapdata.modules.api.utils.APIUtils;
+
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.List;
+
 public class NodeRegistry {
-	private String ip;
+	private List<String> ips;
 	public NodeRegistry ip(String ip) {
-		this.ip = ip;
+		if(ips == null)
+			ips = new ArrayList<>();
+		ips.add(ip);
+		return this;
+	}
+	public NodeRegistry ips(List<String> ips) {
+		if(ips == null)
+			return this;
+		if(this.ips != null) {
+			for(String newIp : ips) {
+				if(!this.ips.contains(newIp)) {
+					this.ips.add(newIp);
+				}
+			}
+			return this;
+		}
+		this.ips = ips;
 		return this;
 	}
 	private Integer wsPort;
@@ -27,6 +49,10 @@ public class NodeRegistry {
 		return this;
 	}
 
+	@Override
+	public String toString() {
+		return "NodeRegistry ips " + ips + " httpPort " + httpPort + " wsPort " + wsPort + " type " + type + " time " + (time != null ? new Date(time) : null) + "; ";
+	}
 
 //	@Override
 //	public void from(InputStream inputStream) throws IOException {
@@ -48,12 +74,12 @@ public class NodeRegistry {
 //		dos.writeLong(time);
 //	}
 
-	public String getIp() {
-		return ip;
+	public List<String> getIps() {
+		return ips;
 	}
 
-	public void setIp(String ip) {
-		this.ip = ip;
+	public void setIps(List<String> ips) {
+		this.ips = ips;
 	}
 
 	public Integer getWsPort() {
@@ -73,7 +99,7 @@ public class NodeRegistry {
 	}
 
 	public String id() {
-		return ip + ":" + httpPort;
+		return APIUtils.idForList(ips);
 	}
 
 	public String getType() {
@@ -91,4 +117,5 @@ public class NodeRegistry {
 	public void setTime(Long time) {
 		this.time = time;
 	}
+
 }

@@ -24,7 +24,7 @@ import static org.junit.jupiter.api.Assertions.*;
 public class MongodbTest {
 	@BeforeEach
 	public void before() {
-		CommonUtils.setProperty("TAPDATA_MONGO_URI", "mongodb://127.0.0.1:27017/tapdata?authSource=admin");
+		CommonUtils.setProperty("tapdata_proxy_mongodb_uri", "mongodb://127.0.0.1:27017/tapdata?authSource=admin");
 		TapRuntime.getInstance();
 	}
 
@@ -35,14 +35,20 @@ public class MongodbTest {
 		NodeRegistry nodeRegistry = new NodeRegistry().ip("localhost").httpPort(8080).wsPort(5000).type("proxy").time(System.currentTimeMillis());
 		nodeRegistryService.save(nodeRegistry);
 
-		NodeRegistry newNodeRegistry = nodeRegistryService.get("localhost:8080");
+		NodeRegistry newNodeRegistry = nodeRegistryService.get(nodeRegistry.id());
 		assertNotNull(newNodeRegistry);
 		assertEquals(8080, newNodeRegistry.getHttpPort());
 		assertEquals(5000, newNodeRegistry.getWsPort());
-		assertEquals("localhost", newNodeRegistry.getIp());
+		assertEquals("localhost", newNodeRegistry.getIps().get(0));
 
-		nodeRegistryService.delete("localhost:8080");
-		newNodeRegistry = nodeRegistryService.get("localhost:8080");
+		nodeRegistry = new NodeRegistry().ip("localhost").httpPort(8080).wsPort(8246).type("proxy").time(System.currentTimeMillis());
+		nodeRegistryService.save(nodeRegistry);
+
+		newNodeRegistry = nodeRegistryService.get(nodeRegistry.id());
+		assertEquals(8246, newNodeRegistry.getWsPort());
+
+		nodeRegistryService.delete(nodeRegistry.id());
+		newNodeRegistry = nodeRegistryService.get(nodeRegistry.id());
 		assertNull(newNodeRegistry);
 
 		NodeHealthService nodeHealthService = InstanceFactory.bean(NodeHealthService.class);

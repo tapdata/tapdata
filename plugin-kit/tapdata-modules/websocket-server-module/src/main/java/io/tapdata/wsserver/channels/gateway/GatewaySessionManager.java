@@ -8,9 +8,11 @@ import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.reflection.ClassAnnotationHandler;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.modules.api.net.data.*;
+import io.tapdata.modules.api.net.entity.NodeHealth;
 import io.tapdata.modules.api.net.entity.NodeRegistry;
 import io.tapdata.modules.api.net.error.NetErrors;
 import io.tapdata.modules.api.net.message.TapEntity;
+import io.tapdata.modules.api.net.service.NodeHealthService;
 import io.tapdata.modules.api.net.service.NodeRegistryService;
 import io.tapdata.pdk.core.utils.AnnotationUtils;
 import io.tapdata.pdk.core.utils.CommonUtils;
@@ -52,6 +54,11 @@ public class GatewaySessionManager {
 
     @Bean
     private NodeRegistryService nodeRegistryService;
+    @Bean
+    private NodeHealthService nodeHealthService;
+
+    @Bean
+    private NodeHealthManager nodeHealthManager;
 
     public final String JWT_FIELD_USER_ID = "u";
 
@@ -138,11 +145,12 @@ public class GatewaySessionManager {
         IPHolder ipHolder = new IPHolder();
         ipHolder.init();
         int httpPort = CommonUtils.getPropertyInt("tapdata_proxy_server_port", 3000); //TODO should read from TM config.
-        NodeRegistry nodeRegistry = new NodeRegistry().ip(ipHolder.getIp()).httpPort(httpPort).wsPort(webSocketManager.getWebSocketProperties().getPort()).type("proxy").time(System.currentTimeMillis());
+        NodeRegistry nodeRegistry = new NodeRegistry().ips(ipHolder.getIps()).httpPort(httpPort).wsPort(webSocketManager.getWebSocketProperties().getPort()).type("proxy").time(System.currentTimeMillis());
         CommonUtils.setProperty("tapdata_node_id", nodeRegistry.id());
         nodeRegistryService.save(nodeRegistry);
         TapLogger.debug(TAG, "Register node {}", nodeRegistry);
-
+        nodeHealthManager.start();
+//        NodeHealth nodeHealth = new NodeHealth().id(NodeHealth  )
     }
 
     private void handleScanRoomSessionState(GatewaySessionManager gatewaySessionManager, StateMachine<Integer, GatewaySessionManager> integerGatewaySessionManagerStateMachine) {

@@ -21,13 +21,13 @@ import org.apache.commons.lang3.exception.ExceptionUtils;
 
 
 import javax.naming.CommunicationException;
+import java.nio.charset.StandardCharsets;
 import java.text.SimpleDateFormat;
-import java.util.Date;
-import java.util.List;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
+import java.util.zip.CRC32;
 
 public class CommonUtils {
     static SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss,SSS");
@@ -37,9 +37,7 @@ public class CommonUtils {
     public static String dateString(Date date) {
         return sdf.format(date);
     }
-    public static String uuid() {
-        return UUID.randomUUID().toString().replace("-", "");
-    }
+
     public static int getJavaVersion() {
         String version = System.getProperty("java.version");
         if(version.startsWith("1.")) {

@@ -11,4 +11,5 @@ public class TapAPIErrorCodes {
 	public static final int ERROR_CREATE_CLASS_WITH_TYPE_FAILED = 1007;
 	public static final int ERROR_CREATE_CLASS_FAILED = 1008;
     public static final int NEED_RETRY_FAILED = 1009;
+	public static final int ERROR_ALL_IPS_FAILED = 1010;
 }

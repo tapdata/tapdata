@@ -5,6 +5,7 @@ import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.value.DateTime;
+import io.tapdata.entity.schema.value.TapNumberValue;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.entity.utils.JsonParser;
 import io.tapdata.entity.utils.TypeUtils;
@@ -34,18 +35,10 @@ import static io.tapdata.entity.simplify.TapSimplify.map;
 
 public class test {
 	public static void main(String... args) throws Throwable {
-		AtomicLong longAdder = new AtomicLong();
-        System.out.println("hello " + longAdder.get());
-		longAdder.addAndGet(Long.MAX_VALUE);
-
-		System.out.println("hello " + longAdder.get());
-
-		longAdder.incrementAndGet();
-		System.out.println("hello " + longAdder.get());
-		longAdder.incrementAndGet();
-		System.out.println("hello " + longAdder.get());
-		longAdder.incrementAndGet();
-		System.out.println("hello " + longAdder.get());
-
+		long time = System.currentTimeMillis();
+		for(int i = 0; i < 10000000; i++) {
+			new TapNumberValue(34d);
+		}
+		System.out.println("takes " + (System.currentTimeMillis() - time));
     }
 }
