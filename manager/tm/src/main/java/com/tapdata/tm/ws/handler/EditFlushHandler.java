@@ -32,9 +32,8 @@ import java.util.concurrent.atomic.AtomicLong;
  * @Date: 2021/11/25
  * @Description: 前端编辑的刷新控制处理，包括最新的版本推送，模型推演的进度推送
  */
-//@WebSocketMessageHandler(type = MessageType.EDIT_FLUSH)
+@WebSocketMessageHandler(type = MessageType.EDIT_FLUSH)
 @Slf4j
-@Deprecated
 public class EditFlushHandler implements WebSocketHandler {
 
 	private final MongoTemplate mongoTemplate;
