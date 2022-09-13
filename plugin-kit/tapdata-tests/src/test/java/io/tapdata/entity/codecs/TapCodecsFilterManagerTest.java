@@ -231,27 +231,32 @@ public class TapCodecsFilterManagerTest {
     @Test
     public void testTapMapInMap() {
         //TODO need pass this case.
-//        TapCodecsRegistry codecsRegistry = TapCodecsRegistry.create();
-//        codecsRegistry.registerFromTapValue(TapMapValue.class, tapValue -> toJson(tapValue.getValue()));
-//        codecsRegistry.registerFromTapValue(TapArrayValue.class, tapValue -> toJson(tapValue.getValue()));
-//        TapCodecsFilterManager codecsFilterManager = TapCodecsFilterManager.create(codecsRegistry);
-//        long time = 1660792574472L;
-//        Map<String, Object> map = map(
-////                entry("map", map(entry("map", map(entry("a", 1), entry("a", list(map(entry("aaa", "bbb")))))))),
-////                entry("list", list(map(entry("11", "aa"), entry("aaa", "a"))))
-//                entry("list", list("1", "12"))
-//        );
-//
-//        Map<String, TapField> sourceNameFieldMap = new HashMap<>();
-//        sourceNameFieldMap.put("map", field("map", "map").tapType(tapMap()));
-//        sourceNameFieldMap.put("list", field("list", "list").tapType(tapArray()));
-//
-//        //read from source, transform to TapValue out from source connector.
-//        codecsFilterManager.transformToTapValueMap(map, sourceNameFieldMap);
-//
-//        //before enter a processor, transform to value from TapValue.
-//        codecsFilterManager.transformFromTapValueMap(map);
-//        assertEquals(((DateTime)map.get("datetime")).getNano(), 472000000);
-//        assertEquals(((DateTime)map.get("nano")).getNano(), 123123213);
+        TapCodecsRegistry codecsRegistry = TapCodecsRegistry.create();
+        codecsRegistry.registerFromTapValue(TapMapValue.class, tapValue -> {
+            return toJson(tapValue.getValue());
+        });
+        codecsRegistry.registerFromTapValue(TapArrayValue.class, tapValue -> {
+            return toJson(tapValue.getValue());
+        });
+        TapCodecsFilterManager codecsFilterManager = TapCodecsFilterManager.create(codecsRegistry);
+        long time = 1660792574472L;
+        Map<String, Object> map = map(
+                entry("map", map(entry("map", map(entry("a", 1), entry("a", list(map(entry("aaa", "bbb")))))))),
+                entry("list", list(map(entry("11", "aa"), entry("aaa", "a")))),
+                entry("list1", list("1", "12"))
+        );
+
+        Map<String, TapField> sourceNameFieldMap = new HashMap<>();
+        sourceNameFieldMap.put("map", field("map", "map").tapType(tapMap()));
+        sourceNameFieldMap.put("list", field("list", "list").tapType(tapArray()));
+
+        //read from source, transform to TapValue out from source connector.
+        codecsFilterManager.transformToTapValueMap(map, sourceNameFieldMap);
+
+        //before enter a processor, transform to value from TapValue.
+        codecsFilterManager.transformFromTapValueMap(map);
+        assertEquals("[{\"11\":\"aa\",\"aaa\":\"a\"}]", map.get("list"));
+        assertEquals("[\"1\",\"12\"]", map.get("list1"));
+        assertEquals("{\"map\":\"{\\\"a\\\":\\\"[{\\\\\\\"aaa\\\\\\\":\\\\\\\"bbb\\\\\\\"}]\\\"}\"}", map.get("map"));
     }
 }
