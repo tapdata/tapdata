@@ -3,8 +3,8 @@ package io.tapdata.connector.dameng.cdc.logminer;
 import io.tapdata.common.cdc.LogTransaction;
 import io.tapdata.connector.dameng.DamengConfig;
 import io.tapdata.connector.dameng.DamengContext;
-import io.tapdata.connector.dameng.cdc.logminer.bean.OracleInstanceInfo;
-import io.tapdata.connector.dameng.cdc.logminer.bean.OracleRedoLogBatch;
+import io.tapdata.connector.dameng.cdc.logminer.bean.DamengInstanceInfo;
+import io.tapdata.connector.dameng.cdc.logminer.bean.DamengRedoLogBatch;
 import io.tapdata.connector.dameng.cdc.logminer.bean.RedoLog;
 import io.tapdata.connector.dameng.cdc.logminer.bean.RedoLogAnalysisBatch;
 import io.tapdata.connector.dameng.cdc.logminer.util.JdbcUtil;
@@ -16,14 +16,11 @@ import io.tapdata.kit.EmptyKit;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
 import net.openhft.chronicle.queue.ChronicleQueue;
 import net.openhft.chronicle.queue.ExcerptAppender;
-import net.openhft.chronicle.queue.ExcerptTailer;
-import net.openhft.chronicle.queue.impl.single.SingleChronicleQueueBuilder;
 import net.openhft.chronicle.wire.ValueIn;
 import net.openhft.chronicle.wire.ValueOut;
 import org.apache.commons.lang3.StringUtils;
 
 import java.io.File;
-import java.math.BigDecimal;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.sql.ResultSetMetaData;
@@ -36,27 +33,32 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
-import static io.tapdata.connector.dameng.cdc.logminer.constant.OracleSqlConstant.*;
+import static io.tapdata.connector.dameng.cdc.logminer.constant.DamengSqlConstant.*;
 
-public class ManuRedoOracleLogMiner extends DamengLogMiner {
+public class ManuRedoDamengLogMiner extends DamengLogMiner {
 
-    private final static String TAG = ManuRedoOracleLogMiner.class.getSimpleName();
+    private final static String TAG = ManuRedoDamengLogMiner.class.getSimpleName();
     private final int redoLogConcurrency;
-    private final LinkedBlockingQueue<AnalysisRedoLogBundle> redoLogBundleForAnalysisQueue;
+    private final LinkedBlockingQueue<DamengRedoLogBatch> redoLogBundleForAnalysisQueue;
     private final LinkedBlockingQueue<AnalysisRedoLogBundle> redoLogBundlesForConsume;
     private final ConcurrentHashMap<String, String> cacheRedoLogContent = new ConcurrentHashMap<>();
-    private final List<OracleInstanceInfo> oracleInstanceInfos;
+    private final List<DamengInstanceInfo> oracleInstanceInfos;
     private RedoLogFactory redoLogFactory;
     private boolean isRac;
     private final ScheduledExecutorService scheduledExecutorService;
     private final ExecutorService executorService;
     private final String rootDirectory;
 
-    public AtomicReference<Long> fristLsn;
+    protected  int first=0 ;
 
-    private boolean addFile = Boolean.FALSE;
+    long lastScn =0L;
 
-    public ManuRedoOracleLogMiner(DamengContext damengContext, String connectorId) throws Throwable {
+    public Long fristLsn;
+
+    private Long nextScn ;
+
+
+    public ManuRedoDamengLogMiner(DamengContext damengContext, String connectorId) throws Throwable {
         super(damengContext);
         redoLogConcurrency = damengConfig.getConcurrency();
         oracleInstanceInfos = getInstanceInfos();
@@ -76,44 +78,54 @@ public class ManuRedoOracleLogMiner extends DamengLogMiner {
         redoLogFactory = new RedoLogFactory(damengContext, isRunning);
         redoLogFactory.setOracleInstanceInfos(oracleInstanceInfos);
         Long lastScn = damengOffset.getPendingScn() > 0 && damengOffset.getPendingScn() < damengOffset.getLastScn() ? damengOffset.getPendingScn() : damengOffset.getLastScn();
-        fristLsn = new AtomicReference<>(0L);
+        //Long lastScn = 122240L;
+
+        AtomicReference<Long> fristLsnTem = new AtomicReference<>(0L);
+
         damengContext.query(String.format(GET_LAST_PROCESS_ARCHIVED_REDO_LOG_FILE_SQL, lastScn, lastScn), archivedResultSet -> {
             if (archivedResultSet.next()) {
-                fristLsn.set(archivedResultSet.getLong(1));
+                fristLsnTem.set(archivedResultSet.getLong(1));
             }
 
         });
-
+        fristLsn =fristLsnTem.get();
+        nextScn = fristLsn;
         scheduledExecutorService.scheduleWithFixedDelay(() -> {
-            if (isRunning.get()) {
+            int count = 0;
+            while (isRunning.get()) {
+                count++;
                 try {
-                    final OracleRedoLogBatch oracleRedoLogBatch = this.redoLogFactory.produceRedoLog(fristLsn.get());
+                    if (count % 10 == 0) {
+                        break;
+                    }
+                    final DamengRedoLogBatch oracleRedoLogBatch = this.redoLogFactory.produceRedoLog(fristLsn,nextScn);
                     if (oracleRedoLogBatch != null) {
-                        StringBuilder sb = new StringBuilder();
+//                        StringBuilder sb = new StringBuilder();
                         final List<RedoLog> redoLogList = oracleRedoLogBatch.getRedoLogList();
-                        for (RedoLog redoLog : redoLogList) {
-                            final long sequence = redoLog.getSequence();
-                            sb.append(sequence).append("_");
-                        }
-                        sb.replace(sb.length() - 1, sb.length(), "");
+//                        for (RedoLog redoLog : redoLogList) {
+//                            final long sequence = redoLog.getSequence();
+//                            sb.append(sequence).append("_");
+//                        }
+//                        sb.replace(sb.length() - 1, sb.length(), "");
+//
+//                        AnalysisRedoLogBundle analysisRedoLogBundle = new AnalysisRedoLogBundle(
+//                                oracleRedoLogBatch,
+//                                SingleChronicleQueueBuilder.binary(rootDirectory + File.separator + sb)
+//                                        .build());
 
-                        AnalysisRedoLogBundle analysisRedoLogBundle = new AnalysisRedoLogBundle(
-                                oracleRedoLogBatch,
-                                SingleChronicleQueueBuilder.binary(rootDirectory + File.separator + sb)
-                                        .build());
-
-                        while (isRunning.get() && !redoLogBundleForAnalysisQueue.offer(analysisRedoLogBundle, 20, TimeUnit.SECONDS)) {
+                        while (isRunning.get() && !redoLogBundleForAnalysisQueue.offer(oracleRedoLogBatch, 20, TimeUnit.SECONDS)) {
                             // nothing to do
                             TapLogger.info(TAG, "Redo log queue for analysis is full, redo log {} waiting to enqueue", oracleRedoLogBatch);
                         }
 
-                        while (isRunning.get() && !redoLogBundlesForConsume.offer(analysisRedoLogBundle, 20, TimeUnit.SECONDS)) {
-                            // nothing to do
-                            TapLogger.info(TAG, "Redo log queue for consume is full, redo log {} waiting to enqueue", oracleRedoLogBatch);
-                        }
+//                        while (isRunning.get() && !redoLogBundlesForConsume.offer(analysisRedoLogBundle, 20, TimeUnit.SECONDS)) {
+//                            // nothing to do
+//                            TapLogger.info(TAG, "Redo log queue for consume is full, redo log {} waiting to enqueue", oracleRedoLogBatch);
+//                        }
+                       nextScn = redoLogList.get(0).getNextChangeScn();
 
                     }
-                } catch (Exception e) {
+                } catch (Throwable e) {
                     TapLogger.warn(TAG, "Get redo log failed {}, error stack {}.", e.getMessage());
                 }
             }
@@ -123,84 +135,68 @@ public class ManuRedoOracleLogMiner extends DamengLogMiner {
     @Override
     public void startMiner() throws Throwable {
         setSession();
-        try {
-            executorService.submit(() -> {
-                try {
-                    while (isRunning.get()) {
-                        final AnalysisRedoLogBundle analysisRedoLogBundle;
-                        try {
-                            analysisRedoLogBundle = redoLogBundleForAnalysisQueue.poll(5, TimeUnit.SECONDS);
-                        } catch (InterruptedException e) {
-                            break;
-                        }
-                        if (analysisRedoLogBundle != null) {
-                            final ChronicleQueue redoLogContentQueue = analysisRedoLogBundle.getRedoLogContentQueue();
-                            final ExcerptAppender redoLogContentQueueAppender = redoLogContentQueue.acquireAppender();
-
-                            OracleRedoLogBatch oracleRedoLogBatch = analysisRedoLogBundle.getOracleRedoLogBatch();
-                            TapLogger.info(TAG, "Starting analysis redo log {}", analysisRedoLogBundle.getOracleRedoLogBatch());
-
-                            doMine(oracleRedoLogBatch,
-                                    logData -> enqueue(redoLogContentQueueAppender, logData));
-
-                            // publish finished signal, empty RedoLogContent
-                            enqueue(redoLogContentQueueAppender, new HashMap<>());
-                        }
-                    }
-                } catch (Exception ignored) {
-                }
-            });
-
-
-            while (isRunning.get()) {
-
-                final AnalysisRedoLogBundle analysisRedoLogBundle = redoLogBundlesForConsume.poll(5, TimeUnit.SECONDS);
-                if (analysisRedoLogBundle != null) {
-
-                    final OracleRedoLogBatch oracleRedoLogBatch = analysisRedoLogBundle.getOracleRedoLogBatch();
-                    final ChronicleQueue redoLogContentQueue = analysisRedoLogBundle.getRedoLogContentQueue();
-                    TapLogger.info(TAG, "Start consume {} logs analysis result.", oracleRedoLogBatch);
-
-                    final ExcerptTailer tailer = redoLogContentQueue.createTailer();
-                    while (isRunning.get()) {
-                        Map<String, Object> logData = new HashMap<>();
-                        boolean success = tailer.readDocument(r -> decodeFromWireIn(r.getValueIn(), logData));
-
-                        if (success) {
-                            if (StringUtils.isEmpty((CharSequence) logData.get("OPERATION"))) {
-                                TapLogger.info(TAG, "Completed consume redo log {}", oracleRedoLogBatch);
-                                redoLogContentQueue.file().delete();
-                                redoLogContentQueue.close();
-                                break;
-                            } else {
-                                logDataProcess(
-                                        this::sendTransaction,
-                                        logData
-                                );
-                            }
-                        }
-                    }
-                }
-            }
-        } finally {
-            if (EmptyKit.isNotEmpty(redoLogBundleForAnalysisQueue)) {
-                for (AnalysisRedoLogBundle analysisRedoLogBundle : redoLogBundleForAnalysisQueue) {
-                    final ChronicleQueue redoLogContentQueue = analysisRedoLogBundle.getRedoLogContentQueue();
+     //   try {
+//            for (int i = 0; i < redoLogConcurrency; i++) {
+//                executorService.submit(() -> {
+            try {
+                while (isRunning.get()) {
+                    final DamengRedoLogBatch oracleRedoLogBatch;
                     try {
-                        redoLogContentQueue.file().delete();
-                        redoLogContentQueue.close();
-                    } catch (Exception e) {
-                        // do nothing
+                        oracleRedoLogBatch = redoLogBundleForAnalysisQueue.poll(5, TimeUnit.SECONDS);
+                    } catch (InterruptedException e) {
+                        break;
+                    }
+                    if (oracleRedoLogBatch != null) {
+                        TapLogger.info(TAG, "Starting analysis redo log {}");
+
+                        doMine(oracleRedoLogBatch);
+
+                        // publish finished signal, empty RedoLogContent
+                        // enqueue(redoLogContentQueueAppender, new HashMap<>());
                     }
                 }
+            } catch (Exception ignored) {
             }
-            Files.deleteIfExists(Paths.get(rootDirectory));
         }
-    }
 
-    protected void doMine(OracleRedoLogBatch oracleRedoLogBatch,
-                          Consumer<Map<String, Object>> redoLogContentConsumer) throws Exception {
-        Long lastScn = damengOffset.getPendingScn() > 0 && damengOffset.getPendingScn() < damengOffset.getLastScn() ? damengOffset.getPendingScn() : damengOffset.getLastScn();
+            //}
+//            while (isRunning.get()) {
+//
+//                final AnalysisRedoLogBundle analysisRedoLogBundle = redoLogBundlesForConsume.poll(5, TimeUnit.SECONDS);
+//                if (analysisRedoLogBundle != null) {
+//
+//                    final DamengRedoLogBatch oracleRedoLogBatch = analysisRedoLogBundle.getOracleRedoLogBatch();
+//                    final ChronicleQueue redoLogContentQueue = analysisRedoLogBundle.getRedoLogContentQueue();
+//                    TapLogger.info(TAG, "Start consume {} logs analysis result.", oracleRedoLogBatch);
+//
+//                    final ExcerptTailer tailer = redoLogContentQueue.createTailer();
+//                    if (isRunning.get()) {
+//                        Map<String, Object> logData = new HashMap<>();
+//                        boolean success = tailer.readDocument(r -> decodeFromWireIn(r.getValueIn(), logData));
+//
+//                        if (success) {
+//                            if (StringUtils.isEmpty((CharSequence) logData.get("OPERATION"))) {
+//                                TapLogger.info(TAG, "Completed consume redo log {}", oracleRedoLogBatch);
+//                                redoLogContentQueue.file().delete();
+//                                redoLogContentQueue.close();
+//                                break;
+//                            } else {
+//                                logDataProcess(
+//                                        this::sendTransaction,
+//                                        logData
+//                                );
+//                            }
+//                        }
+//                    }
+//                }
+//            }
+        //}
+  //  }
+
+    protected void doMine(DamengRedoLogBatch oracleRedoLogBatch) throws Exception {
+       Long offsetScn = damengOffset.getPendingScn() > 0 && damengOffset.getPendingScn() < damengOffset.getLastScn() ? damengOffset.getPendingScn() : damengOffset.getLastScn();
+       lastScn = lastScn>offsetScn?lastScn:offsetScn;
+       // Long lastScn =122240L;
         try {
             List<RedoLog> redoLogList = oracleRedoLogBatch.getRedoLogList();
 
@@ -211,6 +207,10 @@ public class ManuRedoOracleLogMiner extends DamengLogMiner {
                 Collections.sort(redoLogAnalysisBatches);
                 String addLogminorSql = createAddLogminorSql(redoLogAnalysisBatches, addedRedoLogNames);
                 if (StringUtils.isNotEmpty(addLogminorSql)) {
+                    try {
+                        statement.execute(END_LOG_MINOR_SQL);
+                    }catch (Exception e){
+                    }
                     statement.execute(addLogminorSql);
                 }
 
@@ -234,23 +234,14 @@ public class ManuRedoOracleLogMiner extends DamengLogMiner {
                                 resultSet,
                                 damengConfig.getSysZoneId()
                         );
-
-                        redoLogContentConsumer.accept(logData);
-                        if (logData.get("SCN") != null && logData.get("SCN") instanceof BigDecimal) {
-                            lastScn = ((BigDecimal) logData.get("SCN")).longValue();
+                        logData.put("ROLLBACK",logData.get("ROLL_BACK"));
+                        logData.put("STATUS",0);
+                        analyzeLog(logData);
+                        if (logData.get("SCN") != null && logData.get("SCN") instanceof Long) {
+                            lastScn = ((Long) logData.get("SCN"));
                         }
                     }
-
-                    addFile = false;
-                    damengContext.query(String.format(GET_LAST_PROCESS_ARCHIVED_REDO_LOG_FILE_SQL, lastScn, lastScn), archivedResultSet -> {
-                        if (archivedResultSet.next()) {
-                            fristLsn.set(archivedResultSet.getLong(1));
-                        }
-
-                    });
-                    statement.execute(END_LOG_MINOR_SQL);
-
-                }
+                 }
 
             }
 
@@ -422,11 +413,11 @@ public class ManuRedoOracleLogMiner extends DamengLogMiner {
     }
 
 
-    private List<OracleInstanceInfo> getInstanceInfos() throws Throwable {
-        List<OracleInstanceInfo> oracleInstanceInfos = new ArrayList<>();
+    private List<DamengInstanceInfo> getInstanceInfos() throws Throwable {
+        List<DamengInstanceInfo> oracleInstanceInfos = new ArrayList<>();
         damengContext.query(GET_INSTANCES_INFO_SQL, resultSet -> {
             while (resultSet.next()) {
-                oracleInstanceInfos.add(new OracleInstanceInfo(resultSet));
+                oracleInstanceInfos.add(new DamengInstanceInfo(resultSet));
             }
         });
         return oracleInstanceInfos;
@@ -441,20 +432,20 @@ public class ManuRedoOracleLogMiner extends DamengLogMiner {
 
     static class AnalysisRedoLogBundle {
 
-        private OracleRedoLogBatch oracleRedoLogBatch;
+        private DamengRedoLogBatch oracleRedoLogBatch;
 
         private final ChronicleQueue redoLogContentQueue;
 
-        public AnalysisRedoLogBundle(OracleRedoLogBatch oracleRedoLogBatch, ChronicleQueue redoLogContentQueue) {
+        public AnalysisRedoLogBundle(DamengRedoLogBatch oracleRedoLogBatch, ChronicleQueue redoLogContentQueue) {
             this.oracleRedoLogBatch = oracleRedoLogBatch;
             this.redoLogContentQueue = redoLogContentQueue;
         }
 
-        public OracleRedoLogBatch getOracleRedoLogBatch() {
+        public DamengRedoLogBatch getOracleRedoLogBatch() {
             return oracleRedoLogBatch;
         }
 
-        public void setOracleRedoLogBatch(OracleRedoLogBatch oracleRedoLogBatch) {
+        public void setOracleRedoLogBatch(DamengRedoLogBatch oracleRedoLogBatch) {
             this.oracleRedoLogBatch = oracleRedoLogBatch;
         }
 
