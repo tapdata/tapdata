@@ -97,6 +97,7 @@ public class TaskSaveServiceImpl implements TaskSaveService {
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     public void supplementAlarm(TaskDto taskDto, UserDetail userDetail) {
         if (CollectionUtils.isEmpty(taskDto.getAlarmSettings())) {
             List<AlarmSettingDto> settingDtos = alarmSettingService.findAll();
@@ -108,18 +109,36 @@ public class TaskSaveServiceImpl implements TaskSaveService {
             List<AlarmSettingDto> alarmSettingDtos = Lists.newArrayList();
             List<AlarmRuleDto> alarmRuleDtos = Lists.newArrayList();
 
-            alarmSettingDtos.add(settingDtoMap.get(AlarmKeyEnum.DATANODE_CANNOT_CONNECT));
-            alarmSettingDtos.add(settingDtoMap.get(AlarmKeyEnum.DATANODE_HTTP_CONNECT_CONSUME));
-            alarmSettingDtos.add(settingDtoMap.get(AlarmKeyEnum.DATANODE_TCP_CONNECT_CONSUME));
-            alarmSettingDtos.add(settingDtoMap.get(AlarmKeyEnum.DATANODE_AVERAGE_HANDLE_CONSUME));
+            alarmSettingDtos.add(settingDtoMap.get(AlarmKeyEnum.TASK_STATUS_ERROR));
+            alarmSettingDtos.add(settingDtoMap.get(AlarmKeyEnum.TASK_INSPECT_ERROR));
+            alarmSettingDtos.add(settingDtoMap.get(AlarmKeyEnum.TASK_FULL_COMPLETE));
+            alarmSettingDtos.add(settingDtoMap.get(AlarmKeyEnum.TASK_INCREMENT_COMPLETE));
+            alarmSettingDtos.add(settingDtoMap.get(AlarmKeyEnum.TASK_STATUS_STOP));
+            alarmSettingDtos.add(settingDtoMap.get(AlarmKeyEnum.TASK_INCREMENT_DELAY));
 
-            alarmRuleDtos.add(ruleDtoMap.get(AlarmKeyEnum.DATANODE_TCP_CONNECT_CONSUME));
-            alarmRuleDtos.add(ruleDtoMap.get(AlarmKeyEnum.DATANODE_AVERAGE_HANDLE_CONSUME));
+            alarmRuleDtos.add(ruleDtoMap.get(AlarmKeyEnum.TASK_INCREMENT_DELAY));
 
             taskDto.setAlarmSettings(alarmSettingDtos);
             taskDto.setAlarmRules(alarmRuleDtos);
 
+            for (Node node : taskDto.getDag().getNodes()) {
+                alarmSettingDtos = Lists.newArrayList();
+                alarmRuleDtos = Lists.newArrayList();
+                if (node.isDataNode()) {
+                    alarmSettingDtos.add(settingDtoMap.get(AlarmKeyEnum.DATANODE_CANNOT_CONNECT));
+                    alarmSettingDtos.add(settingDtoMap.get(AlarmKeyEnum.DATANODE_HTTP_CONNECT_CONSUME));
+                    alarmSettingDtos.add(settingDtoMap.get(AlarmKeyEnum.DATANODE_TCP_CONNECT_CONSUME));
+                    alarmSettingDtos.add(settingDtoMap.get(AlarmKeyEnum.DATANODE_AVERAGE_HANDLE_CONSUME));
 
+                    alarmRuleDtos.add(ruleDtoMap.get(AlarmKeyEnum.DATANODE_TCP_CONNECT_CONSUME));
+                    alarmRuleDtos.add(ruleDtoMap.get(AlarmKeyEnum.DATANODE_AVERAGE_HANDLE_CONSUME));
+                } else {
+                    alarmSettingDtos.add(settingDtoMap.get(AlarmKeyEnum.PROCESSNODE_AVERAGE_HANDLE_CONSUME));
+                    alarmRuleDtos.add(ruleDtoMap.get(AlarmKeyEnum.PROCESSNODE_AVERAGE_HANDLE_CONSUME));
+                }
+                node.setAlarmSettings(alarmSettingDtos);
+                node.setAlarmRules(alarmRuleDtos);
+            }
 
         }
     }

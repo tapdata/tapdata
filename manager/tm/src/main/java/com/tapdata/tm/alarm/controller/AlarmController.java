@@ -1,13 +1,12 @@
 package com.tapdata.tm.alarm.controller;
 
-import com.tapdata.tm.alarm.constant.AlarmStatusEnum;
 import com.tapdata.tm.alarm.dto.AlarmListInfoVo;
+import com.tapdata.tm.alarm.dto.AlarmListReqDto;
 import com.tapdata.tm.alarm.dto.TaskAlarmInfoVo;
 import com.tapdata.tm.alarm.service.AlarmService;
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.ResponseMessage;
-import com.tapdata.tm.message.constant.Level;
 import io.swagger.v3.oas.annotations.Operation;
 import lombok.Setter;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -35,12 +34,9 @@ public class AlarmController extends BaseController {
     }
 
     @Operation(summary = "find all alarm by task")
-    @GetMapping("list_task")
-    public ResponseMessage<TaskAlarmInfoVo> findListByTask(@RequestParam(required = false) AlarmStatusEnum status,
-                                                       @RequestParam(required = false) Level level,
-                                                       @RequestParam String taskId,
-                                                       @RequestParam(required = false)String nodeId) {
-        return success(alarmService.listByTask(status, level, taskId, nodeId, getLoginUser()));
+    @PostMapping("list_task")
+    public ResponseMessage<TaskAlarmInfoVo> findListByTask(@RequestBody AlarmListReqDto dto) {
+        return success(alarmService.listByTask(dto));
     }
 
     @Operation(summary = "close alarm")

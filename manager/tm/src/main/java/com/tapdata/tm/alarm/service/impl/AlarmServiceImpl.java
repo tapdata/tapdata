@@ -8,9 +8,7 @@ import cn.hutool.core.lang.Assert;
 import com.google.common.collect.Maps;
 import com.tapdata.tm.Settings.service.AlarmSettingService;
 import com.tapdata.tm.alarm.constant.AlarmStatusEnum;
-import com.tapdata.tm.alarm.dto.AlarmListInfoVo;
-import com.tapdata.tm.alarm.dto.TaskAlarmInfoVo;
-import com.tapdata.tm.alarm.dto.TaskAlarmNodeInfoVo;
+import com.tapdata.tm.alarm.dto.*;
 import com.tapdata.tm.alarm.entity.AlarmInfo;
 import com.tapdata.tm.alarm.service.AlarmService;
 import com.tapdata.tm.alarmrule.service.AlarmRuleService;
@@ -296,7 +294,12 @@ public class AlarmServiceImpl implements AlarmService {
     }
 
     @Override
-    public TaskAlarmInfoVo listByTask(AlarmStatusEnum status, Level level, String taskId, String nodeId, UserDetail loginUser) {
+    public TaskAlarmInfoVo listByTask(AlarmListReqDto dto) {
+        String taskId = dto.getTaskId();
+        AlarmStatusEnum status = dto.getStatus();
+        Level level = dto.getLevel();
+        String nodeId = dto.getNodeId();
+
         Criteria criteria = Criteria.where("taskId").is(taskId);
         if (Objects.nonNull(status)) {
             criteria.and("status").is(status.name());
@@ -345,7 +348,14 @@ public class AlarmServiceImpl implements AlarmService {
                         .build()
         ).collect(Collectors.toList());
 
-        return TaskAlarmInfoVo.builder().nodeInfos(taskAlarmNodeInfoVos).alarmList(collect).build();
+        long alert = alarmInfos.stream().filter(t -> Lists.of(Level.NORMAL, Level.WARNING).contains(t.getLevel())).count();
+        long error = alarmInfos.stream().filter(t -> Lists.of(Level.CRITICAL, Level.EMERGENCY).contains(t.getLevel())).count();
+
+        return TaskAlarmInfoVo.builder()
+                .nodeInfos(taskAlarmNodeInfoVos)
+                .alarmList(collect)
+                .alarmNum(new AlarmNumVo(alert, error))
+                .build();
     }
 
 }

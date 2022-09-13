@@ -75,7 +75,7 @@
 				"type": "TASK",
 				"open": true,
 				"key": "TASK_INSPECT_ERROR",
-				"sort": 1,
+				"sort": 2,
 				"notify": ["SYSTEM","EMAIL"],
 				"interval": 500,
 				"unit": "MS"
@@ -87,7 +87,7 @@
 				"type": "TASK",
 				"open": true,
 				"key": "TASK_FULL_COMPLETE",
-				"sort": 1,
+				"sort": 3,
 				"notify": ["SYSTEM","EMAIL"],
 				"interval": 500,
 				"unit": "MS"
@@ -99,7 +99,7 @@
 				"type": "TASK",
 				"open": true,
 				"key": "TASK_INCREMENT_COMPLETE",
-				"sort": 1,
+				"sort": 4,
 				"notify": ["SYSTEM","EMAIL"],
 				"interval": 500,
 				"unit": "MS"
@@ -111,7 +111,7 @@
 				"type": "TASK",
 				"open": true,
 				"key": "TASK_STATUS_STOP",
-				"sort": 1,
+				"sort": 5,
 				"notify": ["SYSTEM","EMAIL"],
 				"interval": 500,
 				"unit": "MS"
@@ -123,7 +123,7 @@
 				"type": "TASK",
 				"open": true,
 				"key": "TASK_INCREMENT_DELAY",
-				"sort": 1,
+				"sort": 6,
 				"notify": ["SYSTEM","EMAIL"],
 				"interval": 500,
 				"unit": "MS"
@@ -147,7 +147,7 @@
 				"type": "DATANODE",
 				"open": true,
 				"key": "DATANODE_HTTP_CONNECT_CONSUME",
-				"sort": 1,
+				"sort": 2,
 				"notify": ["SYSTEM","EMAIL"],
 				"interval": 500,
 				"unit": "MS"
@@ -159,7 +159,7 @@
 				"type": "DATANODE",
 				"open": true,
 				"key": "DATANODE_TCP_CONNECT_CONSUME",
-				"sort": 1,
+				"sort": 3,
 				"notify": ["SYSTEM","EMAIL"],
 				"interval": 500,
 				"unit": "MS"
@@ -171,7 +171,7 @@
 				"type": "DATANODE",
 				"open": true,
 				"key": "DATANODE_AVERAGE_HANDLE_CONSUME",
-				"sort": 1,
+				"sort": 4,
 				"notify": ["SYSTEM","EMAIL"],
 				"interval": 500,
 				"unit": "MS"

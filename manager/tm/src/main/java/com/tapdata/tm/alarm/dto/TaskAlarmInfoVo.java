@@ -12,6 +12,7 @@ import java.util.List;
 @Builder
 @Data
 public class TaskAlarmInfoVo {
-    List<TaskAlarmNodeInfoVo> nodeInfos;
-    List<AlarmListInfoVo> alarmList;
+    private List<TaskAlarmNodeInfoVo> nodeInfos;
+    private List<AlarmListInfoVo> alarmList;
+    private AlarmNumVo alarmNum;
 }

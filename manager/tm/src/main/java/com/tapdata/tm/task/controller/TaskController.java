@@ -104,6 +104,7 @@ public class TaskController extends BaseController {
     public ResponseMessage<TaskDto> update(@RequestBody TaskDto task) {
         UserDetail user = getLoginUser();
         taskCheckInspectService.getInspectFlagDefaultFlag(task, user);
+        taskSaveService.supplementAlarm(task, user);
         return success(taskService.updateById(task, user));
     }
 
@@ -181,6 +182,7 @@ public class TaskController extends BaseController {
         task.setId(MongoUtils.toObjectId(id));
         UserDetail user = getLoginUser();
         taskCheckInspectService.getInspectFlagDefaultFlag(task, user);
+        taskSaveService.supplementAlarm(task, user);
         TaskDto taskDto = taskService.updateById(task, user);
         return success(taskDto);
     }
@@ -198,7 +200,7 @@ public class TaskController extends BaseController {
         task.setId(MongoUtils.toObjectId(id));
         UserDetail user = getLoginUser();
         taskCheckInspectService.getInspectFlagDefaultFlag(task, user);
-
+        taskSaveService.supplementAlarm(task, user);
         TaskDto taskDto = taskService.confirmById(task, user, confirm);
         boolean noPass = taskSaveService.taskSaveCheckLog(taskDto, user);
         if (noPass) {
@@ -219,7 +221,7 @@ public class TaskController extends BaseController {
     public ResponseMessage<TaskDto> confirmById(@RequestParam(value = "confirm", required = false, defaultValue = "false") Boolean confirm,
                                                 @RequestBody TaskDto task) {
         UserDetail user = getLoginUser();
-
+        taskSaveService.supplementAlarm(task, user);
         return success(taskService.confirmById(task, user, confirm));
     }
 
