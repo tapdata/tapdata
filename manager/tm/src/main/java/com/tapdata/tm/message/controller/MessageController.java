@@ -19,6 +19,8 @@ import com.tapdata.tm.message.service.MessageService;
 import com.tapdata.tm.message.vo.MessageListVo;
 import com.tapdata.tm.utils.MapUtils;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
@@ -69,9 +71,10 @@ public class MessageController extends BaseController {
     @GetMapping("/list")
     public ResponseMessage<Page<MessageListVo>> find(@RequestParam MsgTypeEnum msgType,
                                                      @RequestParam(required = false) String level,
+                                                     @RequestParam(required = false) Boolean read,
                                                      @RequestParam(defaultValue = "1") Integer page,
                                                      @RequestParam(defaultValue = "20") Integer size) {
-        return success(messageService.list(msgType, level, page, size, getLoginUser()));
+        return success(messageService.list(msgType, level, read, page, size, getLoginUser()));
     }
 
     /**
