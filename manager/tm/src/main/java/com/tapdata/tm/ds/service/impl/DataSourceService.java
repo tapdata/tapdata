@@ -1662,10 +1662,10 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 			connectionStats.setInvalid(data.get(DataSourceConnectionDto.STATUS_INVALID));
 		}
 		if (data.containsKey(DataSourceConnectionDto.STATUS_READY)) {
-			connectionStats.setInvalid(data.get(DataSourceConnectionDto.STATUS_READY));
+			connectionStats.setReady(data.get(DataSourceConnectionDto.STATUS_READY));
 		}
 		if (data.containsKey(DataSourceConnectionDto.STATUS_TESTING)) {
-			connectionStats.setInvalid(data.get(DataSourceConnectionDto.STATUS_TESTING));
+			connectionStats.setTesting(data.get(DataSourceConnectionDto.STATUS_TESTING));
 		}
 		connectionStats.setTotal(connectionStats.getInvalid() + connectionStats.getReady() + connectionStats.getTesting());
 

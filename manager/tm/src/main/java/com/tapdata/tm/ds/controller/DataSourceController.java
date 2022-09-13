@@ -521,6 +521,7 @@ public class DataSourceController extends BaseController {
     }
 
     @Operation(summary = "Connection statistics api")
+    @GetMapping("/stats")
     public ResponseMessage<ConnectionStats> stats() {
 
         return success(dataSourceService.stats(getLoginUser()));
