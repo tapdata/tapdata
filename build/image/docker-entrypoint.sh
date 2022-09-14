@@ -70,11 +70,10 @@ start_server() {
 _main() {
     start_mongo
     start_server
-    sleep infinity
 }
 
 _main "$@"
 
-while [[ 1 ]]; do
+while [[ $mode != "test" ]]; do
     sleep 10
 done
