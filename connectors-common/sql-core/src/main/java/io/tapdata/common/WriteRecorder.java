@@ -1,6 +1,7 @@
 package io.tapdata.common;
 
 import io.tapdata.entity.event.dml.TapRecordEvent;
+import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapIndex;
 import io.tapdata.entity.schema.TapIndexField;
 import io.tapdata.entity.schema.TapTable;
@@ -17,6 +18,8 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 public abstract class WriteRecorder {
+
+    private static final String TAG = WriteRecorder.class.getSimpleName();
 
     protected final Connection connection;
     protected final TapTable tapTable;
@@ -72,6 +75,7 @@ public abstract class WriteRecorder {
             Map<TapRecordEvent, Throwable> map = batchCache.stream().collect(Collectors.toMap(Function.identity(), (v) -> e));
             listResult.addErrors(map);
             succeed = 0;
+            TapLogger.error(TAG, "failed to execute sql:{}", preparedStatement.toString(), e);
             e.printStackTrace();
         }
         atomicLong.addAndGet(succeed);
