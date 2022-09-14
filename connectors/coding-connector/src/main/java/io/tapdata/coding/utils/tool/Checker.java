@@ -1,7 +1,5 @@
 package io.tapdata.coding.utils.tool;
 
-import io.tapdata.entity.error.CoreException;
-
 public class Checker {
     public static boolean isEmpty(Object obj){
         if (null == obj) return Boolean.TRUE;

@@ -24,36 +24,6 @@ public class IterationLoader extends CodingStarter {
         this.queryMap = queryMap;
     }
 
-
-    public List<Object> loadIteration(List<String> filterTable, Consumer<List<TapTable>> consumer, int tableSize){
-        if (null == consumer) {
-            throw new IllegalArgumentException("Consumer cannot be null");
-        }
-        //queryAllIteration();
-        return null;
-    }
-    public HttpEntity<String,Object> actionSetter(String action,HttpEntity<String,Object> requestBody){
-//        if (Checker.isEmpty(action)){
-//            throw new CoreException("Action must be not null or not empty.");
-//        }
-//        if (Checker.isEmpty(requestBody)) requestBody = HttpEntity.create();
-//        Object iterationKeyWordsObj = this.queryMap.get("key");
-//        switch (action){
-//            case "list":{
-//                requestBody.builder("",action);
-//                break;
-//            }
-//            case "search":{
-//                if (Checker.isNotEmpty(iterationKeyWordsObj)){
-//                    requestBody.builder("keywords",String.valueOf(iterationKeyWordsObj));
-//                }
-//                break;
-//            }
-//            default:throw new CoreException("Action only support [list] or [search] now.");
-//        }
-//        return requestBody;
-        return null;
-    }
     public HttpEntity<String,Object> commandSetter(String command,HttpEntity<String,Object> requestBody){
         if (Checker.isEmpty(command)){
             throw new CoreException("Command must be not null or not empty.");
