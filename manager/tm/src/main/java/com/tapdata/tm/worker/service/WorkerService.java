@@ -119,7 +119,7 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
         if (CollectionUtils.isNotEmpty(processIdList)) {
             query.addCriteria(Criteria.where("process_id").in(processIdList));
         }
-        return repository.findAll(query);
+        return repository.findAll(query, userDetail);
     }
 
     @Override
