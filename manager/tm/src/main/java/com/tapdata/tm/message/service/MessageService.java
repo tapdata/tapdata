@@ -110,13 +110,13 @@ public class MessageService extends BaseService {
         Query query = parseWhereCondition(filter.getWhere(), userDetail);
         query.addCriteria(Criteria.where("msg").ne(MsgTypeEnum.ALARM.getValue()));
         query.with(tmPageable);
-        return getMessageListVoPage(query);
+        return getMessageListVoPage(query, tmPageable);
     }
 
     @NotNull
-    private Page<MessageListVo> getMessageListVoPage(Query query) {
+    private Page<MessageListVo> getMessageListVoPage(Query query, TmPageable tmPageable) {
         long total = messageRepository.getMongoOperations().count(query, MessageEntity.class);
-        List<MessageEntity> messageEntityList = messageRepository.getMongoOperations().find(query, MessageEntity.class);
+        List<MessageEntity> messageEntityList = messageRepository.getMongoOperations().find(query.with(tmPageable), MessageEntity.class);
 
         List<MessageListVo> messageListVoList;
         messageListVoList = com.tapdata.tm.utils.BeanUtil.deepCloneList(messageEntityList, MessageListVo.class);
@@ -140,9 +140,12 @@ public class MessageService extends BaseService {
         Query query = new Query(criteria);
         String userId = userDetail.getUserId();
         query.addCriteria(new Criteria().orOperator(Criteria.where("oldUserId").is(userId), Criteria.where("user_id").is(userId)));
-        query.skip((long) (page - 1) * size);
-        query.limit(size);
-        return getMessageListVoPage(query);
+
+        TmPageable tmPageable = new TmPageable();
+        tmPageable.setPage(page);
+        tmPageable.setSize(size);
+
+        return getMessageListVoPage(query, tmPageable);
     }
 
     /**
