@@ -81,7 +81,7 @@ public class TaskRecordServiceImpl implements TaskRecordService {
         List<TaskRecord> taskRecords = partition.get(page - 1);
 
         List<String> ids = taskRecords.stream().map(t -> t.getId().toHexString()).collect(Collectors.toList());
-        Map<String, Long[]> totalMap = measurementServiceV2.countEventByTaskRecord(ids);
+        Map<String, Long[]> totalMap = measurementServiceV2.countEventByTaskRecord(taskId, ids);
 
         List<String> userIds = taskRecords.stream().map(TaskRecord::getUserId).distinct().collect(Collectors.toList());
         List<UserDetail> users = userService.getUserByIdList(userIds);

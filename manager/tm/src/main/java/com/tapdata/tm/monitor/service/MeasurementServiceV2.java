@@ -636,10 +636,11 @@ public class MeasurementServiceV2 {
         log.info(" taskId :{}  删除了 {} 条记录", taskId, JsonUtil.toJson(result));
     }
 
-    public Map<String, Long[]> countEventByTaskRecord(List<String> taskRecordIds) {
+    public Map<String, Long[]> countEventByTaskRecord(String taskId, List<String> taskRecordIds) {
         Map<String, Long[]> result = new HashMap<>();
 
-        Query query = new Query(Criteria.where("tags.taskRecordId").in(taskRecordIds)
+        Query query = new Query(Criteria.where("taskId").is(taskId)
+                .and("tags.taskRecordId").in(taskRecordIds)
                 .and("tags.type").is("task")
                 .and(MeasurementEntity.FIELD_GRANULARITY).is(Granularity.GRANULARITY_MINUTE));
         List<MeasurementEntity> list = mongoOperations.find(query, MeasurementEntity.class, TableNameEnum.AgentMeasurementV2.getValue());
