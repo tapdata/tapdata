@@ -120,6 +120,15 @@ jobs:
           RUN_SIGN: ${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}
           BRANCH: ${{ github.ref }}
         run: chmod u+x build/quick-test.sh && build/quick-test.sh && ls -al ./tapshell/test/report/integrate.html/
+      - name: Setup Poetry
+        uses: Gr1N/setup-poetry@v7
+      - name: publish pip package if push
+        if: ${{ success() && env.CURRENT_BRANCH == 'master' && github.event_name == 'push' }}
+        run: |
+          git diff-tree --name-only HEAD^ HEAD | grep tapshell > /dev/null
+          if [[ $? -ne 0 ]]; then echo "Do not publish pip package" && exit 0; fi
+          cd tapshell && poetry build && poetry publish --username ${{ env.PYPI_USERNAME }} --password ${{ env.PYPI_PASSWORD }}
+
       - name: update github page
         id: gh_pages
         if: always()
@@ -135,18 +144,8 @@ jobs:
           RUN_SIGN: ${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}
           BRANCH: ${{ github.ref }}
         run: |
-          git diff-tree --name-only HEAD^ HEAD | grep tapshell > /dev/null
-          sed -i "/__version__/${{ env.TAG }}/" tapshell/pyproject.toml
-          if [[ $? -ne 0 ]]; then echo "Do not publish pip package" && exit 0; fi
-          cd tapshell && poetry build && poetry publish --username ${{ env.PYPI_USERNAME }} --password ${{ env.PYPI_PASSWORD }}
-      - name: Setup Poetry
-        uses: Gr1N/setup-poetry@v7
-      - name: publish pip package if push
-        if: ${{ success() && env.CURRENT_BRANCH == 'master' && github.event_name == 'push' }}
-        run: |
-          git diff-tree --name-only HEAD^ HEAD | grep tapshell > /dev/null
-          if [[ $? -ne 0 ]]; then echo "Do not publish pip package" && exit 0; fi
-          cd tapshell && poetry build && poetry publish --username ${{ env.PYPI_USERNAME }} --password ${{ env.PYPI_PASSWORD }}
+          BRANCH_DIR=`echo $BRANCH | sed "s:/:-:g"`
+          echo "[Click to view test report](https://tapdata.github.io/tapdata/$BRANCH_DIR/$RUN_SIGN)" >> $GITHUB_STEP_SUMMARY
 #      - name: Send notices to feishu
 #        if : ${{ failure() }}
 #        run: |

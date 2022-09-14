@@ -2,9 +2,9 @@ name: Trigger Enterprise Build by RestApi
 
 on:
   push:
-    branches: [ "master", "release-v*.*.*", "develop-v*.*.0", "release-v*.*", "develop-v*.*" ]
+    branches: [ "release-v*.*.*", "release-v*.*", "develop-v*.*" ]
   pull_request:
-    branches: [ "master", "release-v*.*.*", "develop-v*.*.0", "release-v*.*", "develop-v*.*" ]
+    branches: [ "release-v*.*.*", "release-v*.*", "develop-v*.*" ]
 
 jobs:
   Trigger:
