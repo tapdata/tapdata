@@ -1,5 +1,6 @@
 package io.tapdata.mongodb.net;
 
+import com.mongodb.client.result.DeleteResult;
 import io.tapdata.entity.annotations.Bean;
 import io.tapdata.entity.annotations.Implementation;
 import io.tapdata.modules.api.net.entity.NodeHealth;
@@ -8,6 +9,7 @@ import io.tapdata.mongodb.entity.NodeHealthMapEntity;
 import io.tapdata.mongodb.net.dao.NodeHealthDAO;
 
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 
 @Implementation(NodeHealthService.class)
 public class NodeHealthServiceImpl implements NodeHealthService {
@@ -23,8 +25,8 @@ public class NodeHealthServiceImpl implements NodeHealthService {
 	}
 
 	@Override
-	public void delete(String id) {
-		nodeHealthDAO.deleteNodeHealth(id);
+	public boolean delete(String id) {
+		return nodeHealthDAO.deleteNodeHealth(id);
 	}
 
 	@Override
@@ -43,7 +45,7 @@ public class NodeHealthServiceImpl implements NodeHealthService {
 				if(nodeHealth.getTime() == null || nodeHealth.getHealth() == null) {
 					continue;
 				}
-				if(nodeHealth.getHealth() >= 0 && System.currentTimeMillis() - nodeHealth.getTime() <= unhealthySeconds * 1000) {
+				if(nodeHealth.getHealth() >= 0 && System.currentTimeMillis() - nodeHealth.getTime() <= TimeUnit.SECONDS.toMillis(unhealthySeconds)) {
 					nodeHealthSortedSet.add(nodeHealth.id(id));
 				}
 			}

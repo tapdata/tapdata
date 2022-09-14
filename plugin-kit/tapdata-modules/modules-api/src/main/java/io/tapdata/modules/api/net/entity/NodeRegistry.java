@@ -99,7 +99,11 @@ public class NodeRegistry {
 	}
 
 	public String id() {
-		return APIUtils.idForList(ips);
+		List<String> strings = new ArrayList<>(ips);
+		strings.add(String.valueOf(httpPort));
+		strings.add(String.valueOf(wsPort));
+		strings.add(type);
+		return APIUtils.idForList(strings);
 	}
 
 	public String getType() {

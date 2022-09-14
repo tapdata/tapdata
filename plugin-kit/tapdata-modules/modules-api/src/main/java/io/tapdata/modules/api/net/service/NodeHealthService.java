@@ -6,7 +6,7 @@ import java.util.Collection;
 
 public interface NodeHealthService {
 	void save(NodeHealth nodeHealth);
-	void delete(String id);
+	boolean delete(String id);
 	NodeHealth get(String id);
 	Collection<NodeHealth> getHealthNodes();
 

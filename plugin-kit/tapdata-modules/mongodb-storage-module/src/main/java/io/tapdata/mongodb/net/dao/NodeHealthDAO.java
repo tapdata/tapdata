@@ -1,5 +1,6 @@
 package io.tapdata.mongodb.net.dao;
 
+import com.mongodb.client.result.UpdateResult;
 import io.tapdata.modules.api.net.entity.NodeHealth;
 import io.tapdata.mongodb.annotation.MongoDAO;
 import io.tapdata.mongodb.entity.NodeHealthMapEntity;
@@ -44,8 +45,9 @@ public class NodeHealthDAO extends ToDocumentMongoDAO<NodeHealthMapEntity> {
 		return null;
 	}
 
-	public void deleteNodeHealth(String id) {
-		updateOne(idFilter, new Document("$unset", new Document(NodeHealthMapEntity.FIELD_MAP + "." + id, 1)));
+	public boolean deleteNodeHealth(String id) {
+		UpdateResult updateResult = updateOne(idFilter, new Document("$unset", new Document(NodeHealthMapEntity.FIELD_MAP + "." + id, 1)));
+		return updateResult != null && updateResult.getModifiedCount() > 0;
 	}
 
 	public NodeHealth getNodeHealth(String id) {
