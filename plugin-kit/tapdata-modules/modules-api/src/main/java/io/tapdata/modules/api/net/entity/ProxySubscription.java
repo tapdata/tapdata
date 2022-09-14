@@ -4,6 +4,11 @@ import java.util.List;
 import java.util.Set;
 
 public class ProxySubscription {
+	private Long time;
+	public ProxySubscription time(Long time) {
+		this.time = time;
+		return this;
+	}
 	private String nodeId;
 	public ProxySubscription nodeId(String nodeId) {
 		this.nodeId = nodeId;
@@ -42,5 +47,13 @@ public class ProxySubscription {
 
 	public void setService(String service) {
 		this.service = service;
+	}
+
+	public Long getTime() {
+		return time;
+	}
+
+	public void setTime(Long time) {
+		this.time = time;
 	}
 }

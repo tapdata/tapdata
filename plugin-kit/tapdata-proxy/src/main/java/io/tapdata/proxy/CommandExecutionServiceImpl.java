@@ -29,6 +29,7 @@ public class CommandExecutionServiceImpl implements CommandExecutionService {
 				return;
 			}
 		}
+
 		throw new CoreException(NetErrors.NO_AVAILABLE_ENGINE, "No available engine to run this command");
 	}
 }

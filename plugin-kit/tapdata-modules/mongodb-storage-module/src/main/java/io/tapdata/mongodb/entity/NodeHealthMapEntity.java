@@ -8,8 +8,10 @@ import java.util.Map;
 
 public class NodeHealthMapEntity implements ToDocument {
 	public static final String FIELD_MAP = "map";
+	public static final String FIELD_CLEANER = "cleaner";
 	@BsonId
 	private String id;
+	private String cleaner;
 	private Map<String, NodeHealth> map;
 
 	public String getId() {
@@ -19,6 +21,7 @@ public class NodeHealthMapEntity implements ToDocument {
 	@Override
 	public Document toDocument(Document document) {
 		return document.append(FIELD_ID, id)
+				.append(FIELD_CLEANER, cleaner)
 				.append(FIELD_MAP, map);
 	}
 
@@ -32,5 +35,13 @@ public class NodeHealthMapEntity implements ToDocument {
 
 	public void setMap(Map<String, NodeHealth> map) {
 		this.map = map;
+	}
+
+	public String getCleaner() {
+		return cleaner;
+	}
+
+	public void setCleaner(String cleaner) {
+		this.cleaner = cleaner;
 	}
 }

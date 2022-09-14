@@ -43,11 +43,21 @@ public class NodeHealthServiceImpl implements NodeHealthService {
 				if(nodeHealth.getTime() == null || nodeHealth.getHealth() == null) {
 					continue;
 				}
-				if(nodeHealth.getHealth() > 0 && System.currentTimeMillis() - nodeHealth.getTime() <= unhealthySeconds * 1000) {
+				if(nodeHealth.getHealth() >= 0 && System.currentTimeMillis() - nodeHealth.getTime() <= unhealthySeconds * 1000) {
 					nodeHealthSortedSet.add(nodeHealth.id(id));
 				}
 			}
 		}
 		return nodeHealthSortedSet;
+	}
+
+	@Override
+	public String getCleaner() {
+		return nodeHealthDAO.getCleaner();
+	}
+
+	@Override
+	public boolean applyToBeCleaner(String oldCleaner, String newCleaner) {
+		return nodeHealthDAO.assignCleaner(oldCleaner, newCleaner);
 	}
 }

@@ -8,7 +8,6 @@ import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.reflection.ClassAnnotationHandler;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.modules.api.net.data.*;
-import io.tapdata.modules.api.net.entity.NodeHealth;
 import io.tapdata.modules.api.net.entity.NodeRegistry;
 import io.tapdata.modules.api.net.error.NetErrors;
 import io.tapdata.modules.api.net.message.TapEntity;
@@ -20,6 +19,8 @@ import io.tapdata.pdk.core.utils.IPHolder;
 import io.tapdata.wsserver.channels.error.WSErrors;
 import io.tapdata.wsserver.channels.gateway.data.UserChannel;
 import io.tapdata.wsserver.channels.gateway.modules.GatewayChannelModule;
+import io.tapdata.wsserver.channels.health.HealthWeightListener;
+import io.tapdata.wsserver.channels.health.NodeHealthManager;
 import io.tapdata.wsserver.channels.websocket.WebSocketManager;
 import io.tapdata.wsserver.channels.websocket.utils.ValidateUtils;
 import io.tapdata.pdk.core.executor.ExecutorsManager;
@@ -38,11 +39,10 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
 import static io.tapdata.entity.simplify.TapSimplify.map;
-import static io.tapdata.entity.simplify.TapSimplify.toJson;
 
 @MainMethod(value = "start", order = 100000)
 @Bean
-public class GatewaySessionManager {
+public class GatewaySessionManager implements HealthWeightListener {
     public final String TAG = GatewaySessionManager.class.getSimpleName();
 
     private String jwtKey = "adfJ#R$LKLKFJERL(*$#@FD";
@@ -149,7 +149,7 @@ public class GatewaySessionManager {
         CommonUtils.setProperty("tapdata_node_id", nodeRegistry.id());
         nodeRegistryService.save(nodeRegistry);
         TapLogger.debug(TAG, "Register node {}", nodeRegistry);
-        nodeHealthManager.start();
+        nodeHealthManager.start(this);
 //        NodeHealth nodeHealth = new NodeHealth().id(NodeHealth  )
     }
 
@@ -524,5 +524,15 @@ public class GatewaySessionManager {
 
     public ConcurrentHashMap<String, GatewaySessionHandler> getUserIdGatewaySessionHandlerMap() {
         return userIdGatewaySessionHandlerMap;
+    }
+
+    @Override
+    public int weight() {
+        return 100;
+    }
+
+    @Override
+    public int health() {
+        return roomCounter * 10000 / maxChannels;
     }
 }

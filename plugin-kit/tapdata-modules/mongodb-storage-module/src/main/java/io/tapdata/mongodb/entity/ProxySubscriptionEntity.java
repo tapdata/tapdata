@@ -13,7 +13,17 @@ public class ProxySubscriptionEntity implements ToDocument {
 	public static final String FIELD_SUBSCRIPTION = "subscription";
 	@BsonId
 	private String id;
+	public ProxySubscriptionEntity id(String id) {
+		this.id = id;
+		return this;
+	}
+
 	private ProxySubscription subscription;
+	public ProxySubscriptionEntity subscription(ProxySubscription subscription) {
+		this.subscription = subscription;
+		return this;
+	}
+
 	public ProxySubscriptionEntity() {
 	}
 	public ProxySubscriptionEntity(String id, ProxySubscription subscription) {
@@ -49,4 +59,5 @@ public class ProxySubscriptionEntity implements ToDocument {
 		}
 		return document;
 	}
+
 }

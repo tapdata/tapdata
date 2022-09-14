@@ -12,6 +12,7 @@ import static io.tapdata.mongodb.entity.ToDocument.FIELD_ID;
 @MongoDAO(dbName = "proxy")
 public class NodeHealthDAO extends ToDocumentMongoDAO<NodeHealthMapEntity> {
 	private static final String id = "Nodes_Health";
+	private static final String NO_CLEANER = "none";
 	private final Bson idFilter = new Document(FIELD_ID, id);
 
 	public NodeHealthMapEntity get() {
@@ -22,7 +23,25 @@ public class NodeHealthDAO extends ToDocumentMongoDAO<NodeHealthMapEntity> {
 		updateOne(idFilter, new Document("$set",
 				new Document(NodeHealthMapEntity.FIELD_MAP + "." + nodeHealth.getId(),
 						new Document("time", nodeHealth.getTime())
-								.append("health", nodeHealth.getHealth()))), true);
+								.append("health", nodeHealth.getHealth())))
+				.append("$setOnInsert", new Document(NodeHealthMapEntity.FIELD_CLEANER, NO_CLEANER)), true);
+	}
+
+	public boolean assignCleaner(String oldNodeId, String nodeId) {
+		if(oldNodeId != null && nodeId != null) {
+			NodeHealthMapEntity after = findAndModify(new Document(FIELD_ID, id).append(NodeHealthMapEntity.FIELD_CLEANER, oldNodeId),
+					new Document("$set", new Document(NodeHealthMapEntity.FIELD_CLEANER, nodeId)));
+			return after != null && nodeId.equals(after.getCleaner());
+		}
+		return false;
+	}
+
+	public String getCleaner() {
+		NodeHealthMapEntity nodeHealthMapEntity = findOne(idFilter, NodeHealthMapEntity.FIELD_CLEANER);
+		if(nodeHealthMapEntity != null) {
+			return nodeHealthMapEntity.getCleaner();
+		}
+		return null;
 	}
 
 	public void deleteNodeHealth(String id) {
