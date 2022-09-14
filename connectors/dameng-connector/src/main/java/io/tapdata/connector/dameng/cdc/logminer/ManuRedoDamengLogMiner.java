@@ -234,8 +234,9 @@ public class ManuRedoDamengLogMiner extends DamengLogMiner {
                                 resultSet,
                                 damengConfig.getSysZoneId()
                         );
+                        // dameng 查询不能使用ROLLBACK，为了使用公共ROLLBACK做一下修改
                         logData.put("ROLLBACK",logData.get("ROLL_BACK"));
-                        logData.put("STATUS",0);
+                        logData.put("XID",bytesToHexString((byte[]) logData.get("XID")));
                         analyzeLog(logData);
                         if (logData.get("SCN") != null && logData.get("SCN") instanceof Long) {
                             lastScn = ((Long) logData.get("SCN"));
@@ -421,6 +422,26 @@ public class ManuRedoDamengLogMiner extends DamengLogMiner {
             }
         });
         return oracleInstanceInfos;
+    }
+
+
+
+
+    private static String bytesToHexString(byte[] bytes) {
+        StringBuilder sb = new StringBuilder(bytes.length);
+
+        for (int index = 0; index < bytes.length; ++index) {
+            byte aByte = bytes[index];
+            String temp = Integer.toHexString(255 & aByte);
+            if (temp.length() < 2) {
+                sb.append(0);
+            }
+
+            sb.append(temp);
+        }
+
+        return sb.toString();
+
     }
 
     @Override
