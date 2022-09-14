@@ -1,0 +1,54 @@
+name: Auto Post Commit Message to Coding Work Order
+
+on:
+  push:
+    branches: [ "release-v*.*", "develop-v*.*" ]
+  pull_request:
+    branches: [ "release-v*.*", "develop-v*.*" ]
+
+jobs:
+
+  Check-Commit-Style:
+    runs-on: ubuntu-latest
+    outputs:
+      check-style: ${{ steps.check-style.outputs.error }}
+      commit-message: ${{ steps.check-style.outputs.commit-message }}
+      issue-code: ${{ steps.check-style.outputs.issue-code }}
+      commit-id: ${{ steps.check-style.outputs.commit-id }}
+    steps:
+      - name: Checkout Enterprise Branch
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      - name: Commit Message End With \#$number
+        id: check-style
+        run: |
+          message=`git log -1 --pretty=%B`
+          echo "::set-output name=commit-message::$message"
+          commit_id=`git rev-parse HEAD`
+          echo "::set-output name=commit-id::$commit_id"
+          echo $message | egrep "#[0-9]+" -o | egrep "[0-9]+" -o > /tmp/commit_msg | cat /tmp/commit_msg
+          echo "::set-output name=issue-code::`cat /tmp/commit_msg`"
+          flag=`cat /tmp/commit_msg`
+          if [[ "X${flag}" != "X" ]]; then isPost='true'; else isPost='false'; fi
+          echo "::set-output name=error::$isPost"
+
+  Post-Commit-Message:
+    runs-on: ubuntu-latest
+    needs: Check-Commit-Style
+    if: needs.Check-Commit-Style.outputs.check-style == 'true'
+    steps:
+      - name: Post Commit Message to Work Order
+        run: |
+          echo "${{ needs.Check-Commit-Style.outputs.check-style }}"
+          curl \
+          -X POST \
+          -H "Accept: */*" \
+          -H "Authorization: token ${{ secrets.CODING_TOKEN }}" \
+          https://tapdata.coding.net/open-api?Action=CreateIssueComment \
+          -d '{
+            "Action": "CreateIssueComment",
+            "ProjectName": "tapdata",
+            "IssueCode": ${{ needs.Check-Commit-Style.outputs.issue-code }},
+            "Content": "'"[${{ needs.Check-Commit-Style.outputs.commit-message }}]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/commit/$GITHUB_SHA)"'"
+          }'
