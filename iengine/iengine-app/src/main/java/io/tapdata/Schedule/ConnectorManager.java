@@ -252,14 +252,6 @@ public class ConnectorManager {
 			// init script task schedule
 			initScriptTaskSchedule(clientMongoOperator);
 
-			// init samples and statistics
-			CollectorFactory.getInstance().start(
-					new TaskSampleReporter(clientMongoOperator),
-					new InfoSampleCollector.AgentInfoReporter(clientMongoOperator)
-			);
-			(new InfoSampleCollector()).registerInfo(configCenter, version);
-			TaskSampleRetriever.getInstance().start(restTemplateOperator);
-
 			// init type mappings
       /*try {
         long startTs = System.currentTimeMillis();
@@ -271,6 +263,14 @@ public class ConnectorManager {
         throw new Exception(msg, e);
       }*/
 		}
+
+		// init samples and statistics
+		CollectorFactory.getInstance().start(
+				new TaskSampleReporter(clientMongoOperator),
+				new InfoSampleCollector.AgentInfoReporter(clientMongoOperator)
+		);
+		(new InfoSampleCollector()).registerInfo(configCenter, version);
+		TaskSampleRetriever.getInstance().start(restTemplateOperator);
 
 		configCenter.putConfig(ConfigurationCenter.BASR_URLS, baseURLs);
 		configCenter.putConfig(ConfigurationCenter.RETRY_TIME, restRetryTime);
