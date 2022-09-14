@@ -36,7 +36,6 @@ import io.tapdata.aspect.TaskStopAspect;
 import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.autoinspect.utils.AutoInspectNodeUtil;
 import io.tapdata.common.SettingService;
-import io.tapdata.common.sharecdc.ShareCdcUtil;
 import io.tapdata.dao.MessageDao;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.flow.engine.V2.exception.node.NodeException;
@@ -113,7 +112,11 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 	public void init() {
 		String agentId = (String) configurationCenter.getConfig(ConfigurationCenter.AGENT_ID);
 		Config config = HazelcastUtil.getConfig(agentId);
-		ShareCdcUtil.initHazelcastPersistenceStorage(config, settingService, clientMongoOperator);
+		try {
+			ExternalStorageUtil.initHazelcastDefaultPersistence(clientMongoOperator, config);
+		} catch (Exception e) {
+			logger.warn(e.getMessage(), e);
+		}
 		hazelcastInstance = Hazelcast.newHazelcastInstance(config);
 		cacheService = new HazelcastCacheService(hazelcastInstance, clientMongoOperator);
 		messageDao.setCacheService(cacheService);

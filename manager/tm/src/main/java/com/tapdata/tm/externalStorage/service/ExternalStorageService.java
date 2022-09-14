@@ -6,7 +6,7 @@ import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.externalStorage.entity.ExternalStorageEntity;
-import com.tapdata.tm.externalStorage.entity.ExternalStorageType;
+import com.tapdata.tm.commons.externalStorage.ExternalStorageType;
 import com.tapdata.tm.externalStorage.repository.ExternalStorageRepository;
 import com.tapdata.tm.task.entity.TaskEntity;
 import com.tapdata.tm.task.repository.TaskRepository;

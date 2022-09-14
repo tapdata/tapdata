@@ -15,17 +15,5 @@ public class ShareCdcHZReader extends ShareCdcBaseReader {
 	@Override
 	public void init(ShareCdcContext shareCdcContext) throws ShareCdcUnsupportedException {
 		super.init(shareCdcContext);
-		// Check hazelcast persistence storage setting
-		if (!PersistenceStorageConfig.getInstance().isEnable()) {
-			String err = "Hazelcast persistence storage setting is invalid; ";
-			ShareCdcUnsupportedException shareCdcUnsupportedException;
-			if (PersistenceStorageConfig.getInstance().getThrowable() != null) {
-				err += "Error: " + PersistenceStorageConfig.getInstance().getThrowable().getMessage() + "\n" + Log4jUtil.getStackString(PersistenceStorageConfig.getInstance().getThrowable());
-				shareCdcUnsupportedException = new ShareCdcUnsupportedException(err, PersistenceStorageConfig.getInstance().getThrowable(), true);
-			} else {
-				shareCdcUnsupportedException = new ShareCdcUnsupportedException(err, true);
-			}
-			throw shareCdcUnsupportedException;
-		}
 	}
 }
