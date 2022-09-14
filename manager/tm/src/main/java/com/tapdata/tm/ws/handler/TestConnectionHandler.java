@@ -149,9 +149,9 @@ public class TestConnectionHandler implements WebSocketHandler {
 				workerService.scheduleTaskToEngine(schedulableDto, userDetail, "testConnection", "testConnection");
 				receiver.set(schedulableDto.getAgentId());
 			}, () -> {
-				String accessNodeProcessId = JSON.toJSONString(data.get("accessNodeProcessId"));
-				FunctionUtils.isTureOrFalse(StringUtils.isNotBlank(accessNodeProcessId)).trueOrFalseHandle(() -> {
-					receiver.set(accessNodeProcessId);
+				Object accessNodeProcessId = data.get("accessNodeProcessId");
+				FunctionUtils.isTureOrFalse(Objects.nonNull(accessNodeProcessId)).trueOrFalseHandle(() -> {
+					receiver.set(accessNodeProcessId.toString());
 				}, () -> {
 					data.put("status", "error");
 					data.put("msg", "Worker set error, receiver is blank");
