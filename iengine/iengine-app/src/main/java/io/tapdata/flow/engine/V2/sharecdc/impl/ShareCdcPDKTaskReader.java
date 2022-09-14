@@ -8,10 +8,11 @@ import com.tapdata.entity.Connections;
 import com.tapdata.entity.OperationType;
 import com.tapdata.entity.sharecdc.LogContent;
 import com.tapdata.entity.task.NodeUtil;
+import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
+import io.tapdata.common.sharecdc.ShareCdcUtil;
 import io.tapdata.construct.ConstructIterator;
 import io.tapdata.construct.HazelcastConstruct;
-import io.tapdata.common.sharecdc.ShareCdcUtil;
 import io.tapdata.construct.constructImpl.ConstructRingBuffer;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
@@ -119,7 +120,11 @@ public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializa
 		this.logCollectorTaskDto = getLogCollectorSubTask();
 		logger.info(logWrapper(++step, "Found log collector task: " + this.logCollectorTaskDto.getName()));
 
-		this.hazelcastConstruct = new ConstructRingBuffer<>(hazelcastInstance, ShareCdcUtil.getConstructName(this.logCollectorTaskDto));
+		// Get log collector external storage config
+		String shareCDCExternalStorageId = connections.getShareCDCExternalStorageId();
+		ExternalStorageDto logCollectorExternalStorage = clientMongoOperator.findOne(Query.query(where("_id").is(shareCDCExternalStorageId)), ConnectorConstant.EXTERNAL_STORAGE_COLLECTION, ExternalStorageDto.class);
+
+		this.hazelcastConstruct = new ConstructRingBuffer<>(hazelcastInstance, ShareCdcUtil.getConstructName(this.logCollectorTaskDto), logCollectorExternalStorage);
 		logger.info(logWrapper(++step, "Init hazelcast construct completed"));
 
 		// Check cdc start timestamp is available in log storage

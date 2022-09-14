@@ -39,8 +39,8 @@ import io.tapdata.common.SettingService;
 import io.tapdata.common.sharecdc.ShareCdcUtil;
 import io.tapdata.dao.MessageDao;
 import io.tapdata.entity.schema.TapTable;
-import io.tapdata.flow.engine.V2.common.node.NodeTypeEnum;
 import io.tapdata.flow.engine.V2.exception.node.NodeException;
+import io.tapdata.flow.engine.V2.node.NodeTypeEnum;
 import io.tapdata.flow.engine.V2.node.hazelcast.HazelcastBaseNode;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.*;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.*;
@@ -324,6 +324,7 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 										.withNodes(nodes)
 										.withEdges(edges)
 										.withConfigurationCenter(config)
+										.withConnections(connection)
 										.withConnectionConfig(connection.getConfig())
 										.withDatabaseType(databaseType)
 										.withTapTableMap(tapTableMap)
@@ -351,6 +352,7 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 								.withEdges(edges)
 								.withConfigurationCenter(config)
 								.withSourceConn(connection)
+								.withConnections(connection)
 								.withConnectionConfig(connection.getConfig())
 								.withDatabaseType(databaseType)
 								.withTapTableMap(tapTableMap)
@@ -382,6 +384,8 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 										.withNodes(nodes)
 										.withEdges(edges)
 										.withConfigurationCenter(config)
+										.withTargetConn(connection)
+										.withConnections(connection)
 										.withConnectionConfig(connection.getConfig())
 										.withDatabaseType(databaseType)
 										.withTapTableMap(tapTableMap)

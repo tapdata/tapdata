@@ -81,9 +81,11 @@ public class HazelcastMultiAggregatorProcessor extends HazelcastBaseNode {
 
     private void initCache(String nodeId, HazelcastInstance hazelcastInstance) {
         cacheNumbers = new DocumentIMap<>(hazelcastInstance,
-                nodeId + "-" + "AggregatorCache");
+                nodeId + "-" + "AggregatorCache",
+                externalStorageDto);
         cacheList = new DocumentIMap<>(hazelcastInstance,
-                nodeId + "-" + "AggregatorCacheList");
+                nodeId + "-" + "AggregatorCacheList",
+                externalStorageDto);
     }
 
     public static void clearCache(String nodeId, HazelcastInstance hazelcastInstance) {

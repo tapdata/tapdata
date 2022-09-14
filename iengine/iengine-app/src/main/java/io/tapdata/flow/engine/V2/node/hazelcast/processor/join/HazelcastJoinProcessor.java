@@ -119,11 +119,13 @@ public class HazelcastJoinProcessor extends HazelcastProcessorBaseNode {
 		pkChecker();
 		this.leftJoinCache = new ConstructIMap<>(
 				context.hazelcastInstance(),
-				joinCacheMapName(leftNodeId, "leftJoinCache")
+				joinCacheMapName(leftNodeId, "leftJoinCache"),
+				externalStorageDto
 		);
 		this.rightJoinCache = new ConstructIMap<>(
 				context.hazelcastInstance(),
-				joinCacheMapName(rightNodeId, "rightCache")
+				joinCacheMapName(rightNodeId, "rightCache"),
+				externalStorageDto
 		);
 		if (!taskHasBeenRun()) {
 			leftJoinCache.clear();
