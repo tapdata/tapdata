@@ -111,8 +111,8 @@ jobs:
         run: build/build.sh -p 1 -o image
       - name: run unittest
         run: ls -al
-      - name: Setup tmate session
-        uses: mxschmitt/action-tmate@v3
+#      - name: Setup tmate session
+#        uses: mxschmitt/action-tmate@v3
       - name: run integrate test
         env:
           RUN_ID: ${{ github.run_id }}
