@@ -73,9 +73,7 @@ _main() {
     sleep infinity
 }
 
-if ! _is_sourced; then
-	_main "$@"
-fi
+_main "$@"
 
 while [[ 1 ]]; do
     sleep 10

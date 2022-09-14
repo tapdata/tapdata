@@ -18,7 +18,6 @@
 *.pyc
 .env
 .venv
-*.lock
 .cache
 *.iml
 connector/agent.yml
