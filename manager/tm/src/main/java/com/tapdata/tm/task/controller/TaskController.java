@@ -15,6 +15,7 @@ import com.tapdata.tm.commons.schema.TransformerWsMessageDto;
 import com.tapdata.tm.commons.schema.TransformerWsMessageResult;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
+import com.tapdata.tm.dataflowinsight.dto.DataFlowInsightStatisticsDto;
 import com.tapdata.tm.ds.service.impl.DataSourceDefinitionService;
 import com.tapdata.tm.message.constant.Level;
 import com.tapdata.tm.message.constant.MsgTypeEnum;
@@ -985,6 +986,13 @@ public class TaskController extends BaseController {
     @GetMapping("/stats")
     public ResponseMessage<TaskStatsDto> stats() {
         return success(taskService.stats(getLoginUser()));
+    }
+
+
+    @Operation(summary = "任务数据量统计")
+    @GetMapping("/stats/transport")
+    public ResponseMessage<DataFlowInsightStatisticsDto> statsTransport(@RequestParam("granularity") String granularity) {
+        return success(taskService.statsTransport(getLoginUser()));
     }
 
 }

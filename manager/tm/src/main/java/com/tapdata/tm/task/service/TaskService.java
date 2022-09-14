@@ -34,6 +34,7 @@ import com.tapdata.tm.commons.task.dto.progress.TaskSnapshotProgress;
 import com.tapdata.tm.commons.util.CapitalizedEnum;
 import com.tapdata.tm.commons.util.MetaDataBuilderUtils;
 import com.tapdata.tm.config.security.UserDetail;
+import com.tapdata.tm.dataflowinsight.dto.DataFlowInsightStatisticsDto;
 import com.tapdata.tm.disruptor.service.BasicEventService;
 import com.tapdata.tm.ds.service.impl.DataSourceService;
 import com.tapdata.tm.file.service.FileService;
@@ -76,10 +77,12 @@ import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.service.WorkerService;
 import com.tapdata.tm.worker.vo.CalculationEngineVo;
 import com.tapdata.tm.ws.enums.MessageType;
+import io.tapdata.common.sample.request.Sample;
 import lombok.*;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.lang3.time.DateUtils;
 import org.bson.Document;
 import org.bson.types.ObjectId;
 import org.springframework.beans.BeanUtils;
@@ -98,8 +101,13 @@ import org.springframework.web.multipart.MultipartFile;
 import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -150,6 +158,8 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     public static Set<String> runningStatus = new HashSet<>();
 
     private LogCollectorService logCollectorService;
+
+    private static final DateTimeFormatter format = DateTimeFormatter.ofPattern("yyyyMMdd");
 
     static {
 
@@ -1838,16 +1848,14 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     private Map<String, Long> typeTaskStats(UserDetail userDetail) {
         org.springframework.data.mongodb.core.aggregation.Aggregation aggregation =
                 org.springframework.data.mongodb.core.aggregation.Aggregation.newAggregation(
-                        match(Criteria.where("user_id").is(userDetail.getUserId()).and("customId").is(userDetail.getCustomerId())),
+                        match(Criteria.where("user_id").is(userDetail.getUserId()).and("customId").is(userDetail.getCustomerId()).and("is_deleted").ne(true)),
                         group("type").count().as("count")
                 );
 
         Map<String, Long> taskTypeStats = new HashMap<>();
 
         AggregationResults<Char1Group> result = repository.aggregate(aggregation, Char1Group.class);
-        Iterator<Char1Group> it = result.iterator();
-        while (it.hasNext()) {
-            Char1Group part = it.next();
+        for (Char1Group part : result) {
             taskTypeStats.put(part.get_id(), part.getCount());
         }
         if (!taskTypeStats.containsKey(ParentTaskDto.TYPE_CDC)) {
@@ -1862,6 +1870,67 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         Long total = taskTypeStats.values().stream().reduce(Long::sum).orElse(0L);
         taskTypeStats.put("total", total);
         return taskTypeStats;
+    }
+
+    public DataFlowInsightStatisticsDto statsTransport(UserDetail userDetail) {
+
+        Criteria criteria = Criteria.where("is_deleted").ne(true);
+        Query query = new Query(criteria);
+        query.fields().include("_id");
+        List<TaskDto> allDto = findAllDto(query, userDetail);
+        List<String> ids = new ArrayList<>();
+
+        List<LocalDate> localDates = new ArrayList<>();
+        LocalDate now = LocalDate.now();
+        LocalDate lastMonthDay = now.minusMonths(1);
+        while (!now.equals(lastMonthDay)) {
+            localDates.add(now);
+            now = now.minusDays(1);
+        }
+        List<Date> localDateTimes = new ArrayList<>();
+        for (LocalDate localDate : localDates) {
+            for (int i = 0; i < 24; i++) {
+                LocalDateTime localDateTime = LocalDateTime.of(localDate.getYear(), localDate.getMonthValue(), localDate.getDayOfMonth(), i, 0, 0);
+                Date date = Date.from(localDateTime.atZone(ZoneId.systemDefault()).toInstant());
+                localDateTimes.add(date);
+            }
+        }
+
+
+        Criteria in = Criteria.where("tags.taskId").in(ids)
+                .and("date").in(localDateTimes)
+                .and("grnty").is("hour")
+                .and("tags.type").is("task");
+        Query query1 = new Query(in);
+        query1.fields().include("ss");
+        List<MeasurementEntity> measurementEntities = repository.getMongoOperations().find(query1, MeasurementEntity.class);
+        Map<String, List<Sample>> sampleMap = measurementEntities.stream().flatMap(m -> m.getSamples().stream()).collect(Collectors.groupingBy(s -> {
+            Date date = s.getDate();
+            LocalDate localDate = date.toInstant().atZone(ZoneId.systemDefault()).toLocalDate();
+            return localDate.format(format);
+        }));
+
+        AtomicLong totalInputDataCount = new AtomicLong();
+        List<DataFlowInsightStatisticsDto.DataStatisticInfo> inputDataStatistics = new ArrayList<>();
+        sampleMap.forEach((k, v) -> {
+            long value = 0;
+            for (Sample sample : v) {
+                Map<String, Number> vs = sample.getVs();
+                value += (int) vs.get("inputInsertTotal");
+                value += (int) vs.get("inputOthersTotal");
+                value += (int) vs.get("inputDdlTotal");
+                value += (int) vs.get("inputUpdateTotal");
+                value += (int) vs.get("inputDeleteTotal");
+            }
+            totalInputDataCount.addAndGet(value);
+            inputDataStatistics.add(new DataFlowInsightStatisticsDto.DataStatisticInfo(k, value));
+        });
+
+        DataFlowInsightStatisticsDto dataFlowInsightStatisticsDto = new DataFlowInsightStatisticsDto();
+        dataFlowInsightStatisticsDto.setInputDataStatistics(inputDataStatistics);
+        dataFlowInsightStatisticsDto.setTotalInputDataCount(totalInputDataCount.get());
+        dataFlowInsightStatisticsDto.setGranularity("month");
+        return dataFlowInsightStatisticsDto;
     }
 
     @Data
