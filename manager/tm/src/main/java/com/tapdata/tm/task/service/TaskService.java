@@ -47,6 +47,7 @@ import com.tapdata.tm.metadatainstance.service.MetaDataHistoryService;
 import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
 import com.tapdata.tm.monitor.entity.MeasurementEntity;
 import com.tapdata.tm.monitor.param.IdParam;
+import com.tapdata.tm.monitor.service.MeasurementServiceV2;
 import com.tapdata.tm.monitoringlogs.service.MonitoringLogsService;
 import com.tapdata.tm.task.bean.*;
 import com.tapdata.tm.task.constant.SyncType;
@@ -124,6 +125,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     private TaskAutoInspectResultsService taskAutoInspectResultsService;
     private TaskSaveService taskSaveService;
     private TaskDagService taskDagService;
+    private MeasurementServiceV2 measurementServiceV2;
 
     public static Set<String> stopStatus = new HashSet<>();
     /**
@@ -2118,7 +2120,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         //所有的任务重置操作，都会进这里
         //根据TaskId 把指标数据都删掉
 //        measurementService.deleteTaskMeasurement(taskId);
-//        measurementServiceV2.deleteTaskMeasurement(taskId);
+        measurementServiceV2.deleteTaskMeasurement(taskId);
     }
     public void renewNotSendMq(TaskDto taskDto, UserDetail user) {
         log.info("renew task, task name = {}, username = {}", taskDto.getName(), user.getUsername());
@@ -2424,7 +2426,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     private void updateTaskRecordStatus(TaskDto dto, String status) {
         dto.setStatus(status);
         if (StringUtils.isNotBlank(dto.getTaskRecordId())) {
-            basicEventService.publish(new SyncTaskStatusDto(dto.getTaskRecordId(), status));
+            basicEventService.publish(new SyncTaskStatusDto(dto.getId().toHexString(), dto.getTaskRecordId(), status));
         }
     }
 
