@@ -3092,9 +3092,10 @@ class DataSource():
                 data = self.to_dict()
                 data["updateSchema"] = True
                 data.update({
-                    "id": self.id,
                     "accessNodeType": "AUTOMATIC_PLATFORM_ALLOCATION"
                 })
+                if isinstance(self.id, str):
+                    data.update({"id": self.id})
                 payload = {
                     "type": "testConnection",
                     "data": data
@@ -3133,7 +3134,7 @@ class DataSource():
         try:
             asyncio.get_event_loop().run_until_complete(l())
         except Exception as e:
-            logger.warn("load schema exception, err is: {}", e)
+            logger.warn("load schema exception, err is: {}", traceback.format_exc())
         logger.info("datasource valid finished, will check table schema now, please wait for a while ...")
         start_time = time.time()
         while True:
