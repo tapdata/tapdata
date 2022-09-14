@@ -1878,7 +1878,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         Query query = new Query(criteria);
         query.fields().include("_id");
         List<TaskDto> allDto = findAllDto(query, userDetail);
-        List<String> ids = new ArrayList<>();
+        List<String> ids = allDto.stream().map(a->a.getId().toHexString()).collect(Collectors.toList());
 
         List<LocalDate> localDates = new ArrayList<>();
         LocalDate now = LocalDate.now();
@@ -1903,7 +1903,8 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                 .and("tags.type").is("task");
         Query query1 = new Query(in);
         query1.fields().include("ss");
-        List<MeasurementEntity> measurementEntities = repository.getMongoOperations().find(query1, MeasurementEntity.class);
+        DateTimeFormatter format = DateTimeFormatter.ofPattern("yyyyMMdd");
+        List<MeasurementEntity> measurementEntities = repository.getMongoOperations().find(query1, MeasurementEntity.class, "AgentMeasurementV2");
         Map<String, List<Sample>> sampleMap = measurementEntities.stream().flatMap(m -> m.getSamples().stream()).collect(Collectors.groupingBy(s -> {
             Date date = s.getDate();
             LocalDate localDate = date.toInstant().atZone(ZoneId.systemDefault()).toLocalDate();

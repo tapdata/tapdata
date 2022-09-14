@@ -8,6 +8,7 @@ import com.tapdata.tm.dataflowinsight.dto.DataFlowInsightDto;
 import com.tapdata.tm.dataflowinsight.dto.RuntimeMonitorReq;
 import com.tapdata.tm.dataflowinsight.dto.RuntimeMonitorResp;
 import com.tapdata.tm.dataflowinsight.service.DataFlowInsightService;
+import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.utils.MongoUtils;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -36,6 +37,8 @@ public class DataFlowInsightController extends BaseController {
 
     @Autowired
     private BehaviorService behaviorService;
+    @Autowired
+    private TaskService taskService;
 
     /**
      * Create a new instance of the model and persist it into the data source
@@ -271,7 +274,7 @@ public class DataFlowInsightController extends BaseController {
     @Operation(summary = "DataFlowInsight statistics")
     @GetMapping("/statistics")
     public ResponseMessage<Object> statistics(@RequestParam("granularity") String granularity) {
-        return success(dataFlowInsightService.statistics(granularity, getLoginUser()));
+        return success(taskService.statsTransport(getLoginUser()));
     }
 
 }
