@@ -139,8 +139,11 @@ public class TestConnectionHandler implements WebSocketHandler {
 
 		AtomicReference<String> receiver = new AtomicReference<>("");
 		try {
-			String accessNodeType = data.get("accessNodeType").toString();
-			FunctionUtils.isTureOrFalse(AccessNodeTypeEnum.AUTOMATIC_PLATFORM_ALLOCATION.name().equals(accessNodeType)).trueOrFalseHandle(() -> {
+
+			boolean accessNodeTypeEmpty = (Boolean) data.getOrDefault("accessNodeTypeEmpty", false);
+			Object accessNodeType = data.get("accessNodeType");
+			FunctionUtils.isTureOrFalse(accessNodeTypeEmpty || AccessNodeTypeEnum.AUTOMATIC_PLATFORM_ALLOCATION.name().equals(accessNodeType))
+					.trueOrFalseHandle(() -> {
 				SchedulableDto schedulableDto = new SchedulableDto();
 				schedulableDto.setAgentTags(tags);
 				schedulableDto.setUserId(userDetail.getUserId());
