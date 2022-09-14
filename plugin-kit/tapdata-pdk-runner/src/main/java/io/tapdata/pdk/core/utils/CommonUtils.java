@@ -123,8 +123,9 @@ public class CommonUtils {
             }
 
             if(null == function){
-                TapLogger.warn(logTag,"This PDK data source not support retry : "+logTag);
-                throw new CoreException( "This PDK data source not support retry ." );
+                TapLogger.debug(logTag,"This PDK data source not support retry : "+logTag);
+                return;
+                //throw new CoreException( "This PDK data source not support retry ." );
             }
 
             ErrorHandleFunction finalFunction = function;
