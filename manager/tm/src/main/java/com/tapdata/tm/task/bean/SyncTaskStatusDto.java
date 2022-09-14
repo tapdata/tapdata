@@ -13,6 +13,7 @@ import lombok.ToString;
 @NoArgsConstructor
 @AllArgsConstructor
 public class SyncTaskStatusDto {
+    private String taskId;
     private String taskRecordId;
     private String taskStatus;
 }
