@@ -1,11 +1,12 @@
 # TAPDATA OpenSource Terminal Client
 
 ## Install
-1. Install python 3.x, pip, ipython By Yourself
+1. Install python 3.7, pip, ipython By Yourself
 2. Run `pip3 install -r requirements.txt`, install client requirements
+3. If you want to embed it into your code as Python SDK, please [read this article](https://github.com/tapdata/tapdata/tree/master/tapshell/docs/Python-Sdk.md).
 
 ## Prepare
-1. Edit conf.json, set server as iDaas Server address, and access_code as auth
+1. Edit config.ini, set server as iDaas Server address, and access_code as auth
 
 You can ignore it, and run login after start client
 
@@ -42,8 +43,9 @@ You can ignore it, and run login after start client
 
 ## Document
 ### 初始化
-1. 可以在 conf.json 填写地址和访问串, 启动时会自动识别并登录
+1. 可以在 config.ini 填写地址和访问串, 启动时会自动识别并登录
 2. 可以在启动后, 通过 `login(server, access_code)` 进行手动登录
+3. 如果要作为Python Sdk的形式内嵌到您的代码当中，请看[这篇文档](https://github.com/tapdata/tapdata/tree/master/tapshell/docs/Python-Sdk_zh-hans.md)
 
 ### 列出所有数据连接
 show dbs

@@ -46,13 +46,22 @@
 		  "x-index": 3,
 		  "required": true
 		},
+		"schema": {
+			  "required": true,
+			  "type": "string",
+			  "title": "${schema}",
+			  "x-decorator": "FormItem",
+			  "x-component": "Input",
+			  "apiServerKey": "database_owner",
+			  "x-index": 4
+		  },
 		"user": {
 		  "type": "string",
 		  "title": "${user}",
 		  "x-decorator": "FormItem",
 		  "x-component": "Input",
 		  "apiServerKey": "database_username",
-		  "x-index": 4,
+		  "x-index": 5,
 		  "required": true
 		},
 		"password": {
@@ -61,7 +70,7 @@
 		  "x-decorator": "FormItem",
 		  "x-component": "Password",
 		  "apiServerKey": "database_password",
-		  "x-index": 5
+		  "x-index": 6
 		},
 		"addtionalString": {
 		  "type": "string",
@@ -69,7 +78,7 @@
 		  "x-decorator": "FormItem",
 		  "x-component": "Input",
 		  "apiServerKey": "additionalString",
-		  "x-index": 6
+		  "x-index": 7
 		},
 		"timezone": {
 		  "type": "string",
@@ -77,7 +86,7 @@
 		  "default": "",
 		  "x-decorator": "FormItem",
 		  "x-component": "Select",
-		  "x-index": 7,
+		  "x-index":8,
 		  "enum": [
 			{
 			  "label": "Database Timezone",
@@ -202,7 +211,8 @@
 	  "password": "password",
 	  "addtionalString": "Connection Parameter String",
 	  "timezone": "timezone",
-	  "doc": "docs/dameng_en_US.md"
+	  "doc": "docs/dameng_en_US.md",
+	  "schema": "schema"
 	},
 	"zh_CN": {
 	  "host": "地址",
@@ -212,7 +222,8 @@
 	  "password": "密码",
 	  "addtionalString": "连接参数",
 	  "timezone": "时区",
-	  "doc": "docs/dameng_zh_CN.md"
+	  "doc": "docs/dameng_zh_CN.md",
+	  "schema": "模型"
 	},
 	"zh_TW": {
 	  "host": "地址",
@@ -222,7 +233,8 @@
 	  "password": "密碼",
 	  "addtionalString": "連接參數",
 	  "timezone": "時區",
-	  "doc": "docs/dameng_zh_TW.md"
+	  "doc": "docs/dameng_zh_TW.md",
+	  "schema": "模型"
 	}
   },
   "dataTypes": {
@@ -264,21 +276,7 @@
 	  "byte": "4g",
 	  "pkEnablement": false
 	},
-	"binary[($byte)]": {
-	  "to": "TapBinary",
-	  "byte": 255,
-	  "defaultByte": 1,
-	  "fixed": true
-	},
-	"varbinary[($byte)]": {
-	  "to": "TapBinary",
-	  "byte": 65532,
-	  "defaultByte": 1
-	},
-	"tinyblob": {
-	  "to": "TapBinary",
-	  "byte": 255
-	},
+
 	"blob": {
 	  "to": "TapBinary",
 	  "byte": "64k"
@@ -287,10 +285,7 @@
 	  "to": "TapBinary",
 	  "byte": "16m"
 	},
-	"longblob": {
-	  "to": "TapBinary",
-	  "byte": "4g"
-	},
+
 	"bit[($bit)]": {
 	  "to": "TapNumber",
 	  "bit": 64,
@@ -506,49 +501,64 @@
 	  "defaultFraction": 0,
 	  "withTimeZone": true
 	},
-	"enum($enums)": {
-	  "name": "enum",
-	  "to": "TapString",
-	  "queryOnly": true,
-	  "byte": 16383
-	},
-	"set($sets)": {
-	  "name": "set",
-	  "to": "TapString",
-	  "queryOnly": true,
-	  "byte": 16383
-	},
-	"point": {
-	  "to": "TapBinary",
-	  "queryOnly": true
-	},
-	"linestring": {
-	  "to": "TapBinary",
-	  "queryOnly": true
-	},
-	"polygon": {
-	  "to": "TapBinary",
-	  "queryOnly": true
-	},
-	"geometry": {
-	  "to": "TapBinary",
-	  "queryOnly": true
-	},
-	"multipoint": {
-	  "to": "TapBinary",
-	  "queryOnly": true
-	},
-	"multilinestring": {
-	  "to": "TapBinary",
-	  "queryOnly": true
-	},
-	"multipolygon": {
-	  "to": "TapBinary",
-	  "queryOnly": true
-	},
-	"geomcollection": {
-	  "to": "TapBinary",
-	  "queryOnly": true
-	}
+	  "BLOB": {
+		  "byte": "4g",
+		  "pkEnablement": false,
+		  "priority": 2,
+		  "to": "TapBinary"
+	  },
+	  "CLOB": {
+		  "byte": "4g",
+		  "pkEnablement": false,
+		  "priority": 2,
+		  "to": "TapString"
+	  },
+	  "INTEGER": {
+		  "defaultPrecision": 38,
+		  "priority": 1,
+		  "to": "TapNumber"
+	  },
+	  "NUMBER(*,$scale)": {
+		  "scale": [
+			  -84,
+			  127
+		  ],
+		  "precision": [
+			  1,
+			  38
+		  ],
+		  "fixed": true,
+		  "preferPrecision": 20,
+		  "defaultPrecision": 38,
+		  "preferScale": 8,
+		  "defaultScale": 0,
+		  "priority": 1,
+		  "to": "TapNumber"
+	  },
+	  "NUMBER[($precision,$scale)]": {
+		  "precision": [
+			  1,
+			  38
+		  ],
+		  "scale": [
+			  -84,
+			  127
+		  ],
+		  "fixed": true,
+		  "preferPrecision": 20,
+		  "defaultPrecision": 38,
+		  "preferScale": 8,
+		  "defaultScale": 0,
+		  "priority": 1,
+		  "to": "TapNumber"
+	  },
+	  "numeric[($precision,$scale)]": {
+		  "to": "TapNumber",
+		  "precision": [1, 38],
+		  "defaultPrecision": 18,
+		  "scale": [0, 38],
+		  "defaultScale": 0,
+		  "fixed": true
+	  }
   }
 }

@@ -88,6 +88,9 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
     }
 
     public List<Worker> findAvailableAgentByAccessNode(UserDetail userDetail, List<String> processIdList) {
+        if (Objects.isNull(userDetail)) {
+            return null;
+        }
         // 引擎定时任务是5秒
         Query query = Query.query(Criteria.where("worker_type").is("connector")
                 .and("ping_time").gte(System.currentTimeMillis() - 1000 * 5 * 2)
@@ -95,7 +98,7 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
         if (CollectionUtils.isNotEmpty(processIdList)) {
             query.addCriteria(Criteria.where("process_id").in(processIdList));
         }
-        return repository.findAll(query, userDetail);
+        return repository.findAll(query);
     }
 
     @Override

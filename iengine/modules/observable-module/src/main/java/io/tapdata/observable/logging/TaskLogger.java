@@ -120,6 +120,10 @@ class TaskLogger extends ObsLogger implements Serializable {
 		}
 
 		if (noNeedLog && this.level.isDebug()) {
+			// fix NPE when task start as DEBUG level
+			if (null == formerLevel) {
+				formerLevel = LogLevel.INFO;
+			}
 			this.level = formerLevel;
 			this.recordCeiling = null;
 			this.intervalCeiling = null;

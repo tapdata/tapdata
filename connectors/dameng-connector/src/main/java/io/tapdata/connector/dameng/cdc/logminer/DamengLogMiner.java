@@ -7,11 +7,10 @@ import io.tapdata.common.ddl.type.DDLParserType;
 import io.tapdata.connector.dameng.DamengConfig;
 import io.tapdata.connector.dameng.DamengContext;
 import io.tapdata.connector.dameng.cdc.DamengOffset;
-import io.tapdata.connector.dameng.cdc.logminer.bean.RedoLog;
 import io.tapdata.connector.dameng.cdc.logminer.handler.DateTimeColumnHandler;
 import io.tapdata.connector.dameng.cdc.logminer.handler.RawTypeHandler;
 import io.tapdata.connector.dameng.cdc.logminer.handler.UnicodeStringColumnHandler;
-import io.tapdata.connector.dameng.cdc.logminer.parser.ParseSQLRedoLogParser;
+import io.tapdata.connector.dameng.cdc.logminer.sqlparser.impl.DamengCDCSQLParser;
 import io.tapdata.constant.SqlConstant;
 import io.tapdata.constant.TapLog;
 import io.tapdata.entity.event.TapEvent;
@@ -28,22 +27,23 @@ import org.apache.commons.lang3.StringUtils;
 
 import java.math.BigDecimal;
 import java.sql.*;
-import java.util.*;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
-import static io.tapdata.connector.dameng.cdc.logminer.constant.OracleSqlConstant.*;
+import static io.tapdata.connector.dameng.cdc.logminer.constant.DamengSqlConstant.*;
 
 
 public abstract class DamengLogMiner extends LogMiner implements ILogMiner {
 
     private final static String TAG = DamengLogMiner.class.getSimpleName();
-    //oracle-timestamp
-    // https://docs.oracle.com/cd/E16338_01/appdev.112/e13995/constant-values.html#oracle_jdbc_OracleTypes_TIMESTAMPTZ
+
     protected final static int TIMESTAMP_TZ_TYPE = -101;
     protected final static int TIMESTAMP_LTZ_TYPE = -102;
 
@@ -60,9 +60,11 @@ public abstract class DamengLogMiner extends LogMiner implements ILogMiner {
     protected ResultSet resultSet;
     protected final String version;
 
-    protected Map<String, Integer> columnTypeMap = new HashMap<>(); //Map<table.column, java.dataType>
-    protected Map<String, String> dateTimeTypeMap = new HashMap<>(); //Map<table.column, db.dataType>
-    protected final Map<Long, String> tableObjectId = new HashMap<>(); //for oracle-9i
+    //Map<table.column, java.dataType>
+    protected Map<String, Integer> columnTypeMap = new HashMap<>();
+
+    //Map<table.column, db.dataType>
+    protected Map<String, String> dateTimeTypeMap = new HashMap<>();
 
     protected DamengOffset damengOffset;
 
@@ -74,7 +76,7 @@ public abstract class DamengLogMiner extends LogMiner implements ILogMiner {
         ddlParserType = DDLParserType.ORACLE_CCJ_SQL_PARSER;
     }
 
-    //init with pdk params
+    // init with pdk params
     @Override
     public void init(List<String> tableList, KVReadOnlyMap<TapTable> tableMap, Object offsetState, int recordSize, StreamReadConsumer consumer) throws Throwable {
         super.init(tableList, tableMap, offsetState, recordSize, consumer);
@@ -82,7 +84,7 @@ public abstract class DamengLogMiner extends LogMiner implements ILogMiner {
         getColumnType();
     }
 
-    //store dataType in Map
+    // store dataType in Map
     private void getColumnType() {
         tableList.forEach(table -> {
             try {
@@ -104,7 +106,6 @@ public abstract class DamengLogMiner extends LogMiner implements ILogMiner {
 
     /**
      * find current scn of database
-     *
      * @return scn Long
      * @throws Throwable SQLException
      */
@@ -133,16 +134,7 @@ public abstract class DamengLogMiner extends LogMiner implements ILogMiner {
         }
 
 
-    protected RedoLog firstOnlineRedoLog(long scn) throws Throwable {
-        AtomicReference<RedoLog> redoLog = new AtomicReference<>();
-        boolean useOldVersionSql = StringUtils.equalsAnyIgnoreCase(version, "9i", "10g");
-        String firstOnlineSQL = useOldVersionSql ? GET_FIRST_ONLINE_REDO_LOG_FILE_FOR_10G_AND_9I : GET_FIRST_ONLINE_REDO_LOG_FILE;
-        if (scn > 0) {
-            firstOnlineSQL = useOldVersionSql ? String.format(GET_FIRST_ONLINE_REDO_LOG_FILE_BY_SCN_FOR_10G_AND_9I, scn) : String.format(GET_FIRST_ONLINE_REDO_LOG_FILE_BY_SCN, scn);
-        }
-        damengContext.queryWithNext(firstOnlineSQL, resultSet -> redoLog.set(RedoLog.onlineLog(resultSet)));
-        return redoLog.get();
-    }
+
 
     protected void setSession() throws SQLException {
         statement = damengContext.getConnection().createStatement();
@@ -177,14 +169,11 @@ public abstract class DamengLogMiner extends LogMiner implements ILogMiner {
                         // parse sql
                         if (canParse(redoLogContent)) {
                             RedoLogContent.OperationEnum operationEnum = RedoLogContent.OperationEnum.fromOperationCode(redoLogContent.getOperationCode());
-                            String sqlRedo;
-                            if (operationEnum == RedoLogContent.OperationEnum.DELETE) {
-                                sqlRedo = redoLogContent.getSqlUndo();
-                                operationEnum = RedoLogContent.OperationEnum.INSERT;
-                            } else {
-                                sqlRedo = redoLogContent.getSqlRedo();
+                            String sqlRedo=redoLogContent.getSqlRedo();
+                            if (operationEnum == RedoLogContent.OperationEnum.DELETE || operationEnum == RedoLogContent.OperationEnum.UPDATE) {
+                                sqlRedo = sqlRedo+" ";
                             }
-                            redoLogContent.setRedoRecord(new ParseSQLRedoLogParser().parseSQL(sqlRedo, operationEnum));
+                            redoLogContent.setRedoRecord(new DamengCDCSQLParser().from(sqlRedo).getData());
                             convertStringToObject(redoLogContent);
                         }
                         // process and callback
@@ -256,7 +245,6 @@ public abstract class DamengLogMiner extends LogMiner implements ILogMiner {
                 case Types.DISTINCT:
                 case Types.JAVA_OBJECT:
                 case Types.NULL:
-                case Types.OTHER:
                 case Types.REF:
                 case Types.REF_CURSOR:
                 case Types.SQLXML:
@@ -314,7 +302,6 @@ public abstract class DamengLogMiner extends LogMiner implements ILogMiner {
                     break;
                 case Types.BLOB:
                 case Types.CLOB:
-                case Types.NCLOB:
                     if ("EMPTY_BLOB()".equals(value)) {
                         stringObjectEntry.setValue(null);
                     }
@@ -351,10 +338,11 @@ public abstract class DamengLogMiner extends LogMiner implements ILogMiner {
                 SqlConstant.REDO_LOG_OPERATION_DELETE)) {
             return false;
         }
-        return !StringUtils.equalsAny(operation, SqlConstant.REDO_LOG_OPERATION_DELETE)
-                || !StringUtils.isEmpty(redoLogContent.getSqlUndo());
+
+        return true;
     }
 
+    @Override
     protected void ddlFlush() {
         columnTypeMap.clear();
         dateTimeTypeMap.clear();
@@ -374,38 +362,14 @@ public abstract class DamengLogMiner extends LogMiner implements ILogMiner {
         }
     }
 
-    private Set<String> getTableObjectIds() throws Throwable {
-        String sql = String.format(GET_TABLE_OBJECT_ID_WITH_CLAUSE, "'" + damengConfig.getSchema() + "'", StringKit.joinString(tableList, "'", ", "));
-        Set<String> tableObjectIds = new HashSet<>();
-        damengContext.query(sql, resultSet -> {
-            while (resultSet.next()) {
-                tableObjectIds.add(resultSet.getString("OBJECT_ID"));
-                tableObjectId.put(resultSet.getLong(2), resultSet.getString(1));
-            }
-        });
-        return tableObjectIds;
-    }
-
     protected String analyzeLogSql(Long scn) {
         String sql = GET_REDO_LOG_RESULT_ORACLE_LOG_COLLECT_SQL;
-        if (version.equals("9i")) {
-            Set<String> tableObjectIds;
-            try {
-                tableObjectIds = getTableObjectIds();
-            } catch (Throwable throwable) {
-                throw new RuntimeException(String.format("Get table object id failed, message: %s", throwable.getMessage()));
-            }
-            String tableObjectIdsInClause = " AND OBJECT_ID IN (" + StringKit.joinString(tableObjectIds, "'", ", ") + ")";
-            sql = String.format(sql, scn, " AND SEG_OWNER='" + damengConfig.getSchema() + "'", tableObjectIdsInClause);
-        } else {
-            sql = String.format(
+        sql = String.format(
                     sql,
-                    "",
                     scn,
-                    " AND SEG_OWNER='" + damengConfig.getSchema() + "'",
+                    " SEG_OWNER='" + damengConfig.getSchema() + "'",
                     " AND TABLE_NAME IN (" + StringKit.joinString(tableList, "'", ", ") + ")"
             );
-        }
         return sql;
     }
 
@@ -439,17 +403,10 @@ public abstract class DamengLogMiner extends LogMiner implements ILogMiner {
     private RedoLogContent buildRedoLogContent(Object logData) throws SQLException {
         RedoLogContent redoLogContent;
         if (logData instanceof ResultSet) {
-            if (version.equals("9i")) {
-                redoLogContent = new RedoLogContent(resultSet, tableObjectId, damengConfig.getSysZoneId());
-            } else {
-                redoLogContent = new RedoLogContent(resultSet, damengConfig.getSysZoneId());
-            }
+            redoLogContent = new RedoLogContent(resultSet, damengConfig.getSysZoneId());
+
         } else if (logData instanceof Map) {
-            if (version.equals("9i")) {
-                redoLogContent = new RedoLogContent((Map) logData, tableObjectId);
-            } else {
-                redoLogContent = new RedoLogContent((Map) logData);
-            }
+            redoLogContent = new RedoLogContent((Map) logData);
         } else {
             redoLogContent = null;
         }
@@ -547,9 +504,9 @@ public abstract class DamengLogMiner extends LogMiner implements ILogMiner {
 
         return false;
     }
-
+    @Override
     public abstract void startMiner() throws Throwable;
-
+    @Override
     public void stopMiner() throws Throwable {
         super.stopMiner();
         if (EmptyKit.isNotNull(statement)) {

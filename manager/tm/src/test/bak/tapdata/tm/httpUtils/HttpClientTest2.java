@@ -1,4 +1,4 @@
-package tapdata.tm.httpUtils;
+package bak.tapdata.tm.httpUtils;
 
 import org.apache.commons.codec.CharEncoding;
 import org.apache.http.HttpEntity;
@@ -78,11 +78,13 @@ public class HttpClientTest2 {
     }
 
     public static void main(String[] args) {
-        String url = "{url}";
-        String access_token = "{access_token}";
-        String param = "{param}";
-        doGet(url, access_token, param);
-        doPost(url, access_token, param);
+        String url = "http://36.134.131.197:3080/api/iz0znun2tu2";
+        String access_token = "eyJraWQiOiI5YWZjZjhkMS1iY2FhLTRmZTMtYjQ0Yy03ZjQ0ZDQ3NDMzOGIiLCJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9.eyJzdWIiOiI1YzBlNzUwYjdhNWNkNDI0NjRhNTA5OWQiLCJjbGllbnRJZCI6IjVjMGU3NTBiN2E1Y2Q0MjQ2NGE1MDk5ZCIsInJvbGVzIjpbIiRldmVyeW9uZSIsImFkbWluIl0sImlzcyI6Imh0dHA6XC9cLzEyNy4wLjAuMTozMDAwIiwiZXhwaXJlZGF0ZSI6MTY2MzgyNzE1NzQwMCwiYXVkIjoiNWMwZTc1MGI3YTVjZDQyNDY0YTUwOTlkIiwiY3JlYXRlZEF0IjoxNjYyNjE3NTU3NDAwLCJuYmYiOjE2NjI2MTc1NTcsInNjb3BlIjpbImFkbWluIl0sImV4cCI6MTY2MzgyNzE1NywiaWF0IjoxNjYyNjE3NTU3LCJqdGkiOiJkNzY2YTYzNy0xNGE3LTRmYjEtYmFiOS01NTM4Y2I3ODhhZjUifQ.TOWRGiLFg9XaSlu4y22inpfJDCB0lZo4VcUUl6iI4bq3HlMyX9C33k0lFlHutlXLWKGaEmC-AA6rGb40iim93rKmFPuYAgHqjtomyZTjYgWzW5FV-M4p5Ma47j70TewUlI45oLPm6-beTUW4pDzzfqutBDWc5ait15jCwSWcYoRwRvHzPXoLmzU6WmacaReaox5rec9rhYyqAYA8KZ2BR84R5dVlA02jritUEqZUXeMYmhpD_4_pJRNnT4tyR-Ln2nZkpjPul8SsUyqJjp6ue4T_PFwzTWSM2WX-EXu7WmoBgV67nfMl0yXoVIsi8JsCYJS9w8eS1QZ97VPMmT5qMA";
+        String param = "{\"page\": 1,\"limit\": 20}";
+        String result1 = doGet(url, access_token, param);
+        System.out.println(result1);
+        String result2 = doPost(url+"/find", access_token, param);
+        System.out.println(result2);
     }
 
 

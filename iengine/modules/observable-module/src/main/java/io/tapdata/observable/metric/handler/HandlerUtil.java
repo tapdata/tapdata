@@ -88,7 +88,7 @@ public class HandlerUtil {
         private long updateTotal;
         private long deleteTotal;
         private long othersTotal;
-        private long processTimeTotal;
+        private Long processTimeTotal;
         private Long replicateLagTotal;
         private Long oldestEventTimestamp;
         private Long newestEventTimestamp;
@@ -112,7 +112,11 @@ public class HandlerUtil {
             this.othersTotal += 1;
         }
 
-        public void incrProcessTimeTotal(Long now, long time) {
+        public void incrProcessTimeTotal(Long now, Long time) {
+            if (null == time) return;
+            if (null == processTimeTotal) {
+                processTimeTotal = 0L;
+            }
             processTimeTotal += (now - time);
         }
 

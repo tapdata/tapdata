@@ -60,7 +60,7 @@ public class LobWriteUtil {
                     LobWriteUtil lobWriteUtil = new LobWriteUtil(content.getSqlRedo());
                     if (null == lastContent || lastContent.getScn() != content.getScn()) {
                         lastContent = content;
-                        lastContent.setStatus(0);
+                        lastContent.setStatus(0L);
                         lastContent.setOperationCode(3);
                         lastContent.setOperation(SqlConstant.REDO_LOG_OPERATION_UPDATE);
                         lastContent.setRedoRecord(new HashMap<>());

@@ -53,6 +53,7 @@ public class TMApplication {
 			DefaultDataDirectoryService bean = applicationContext.getBean(DefaultDataDirectoryService.class);
 			UserDetail userDetail = userService.loadUserByUsername("admin@admin.com");
 
+			bean.deleteDefault(userDetail);
 			bean.addPdkIds(userDetail);
 			bean.addConnections(userDetail);
 		}).start();

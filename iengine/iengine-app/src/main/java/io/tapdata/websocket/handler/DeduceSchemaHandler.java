@@ -26,6 +26,7 @@ import org.apache.commons.collections.CollectionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.List;
 import java.util.Map;
@@ -56,7 +57,7 @@ public class DeduceSchemaHandler implements WebSocketEventHandler<WebSocketEvent
 		String data = (String) event.get("data");
 		byte[] decode = Base64.getDecoder().decode(data);
 		byte[] bytes = GZIPUtil.unGzip(decode);
-		String json = new String(bytes);
+		String json = new String(bytes, StandardCharsets.UTF_8);
 		DeduceSchemaRequest request = JsonUtil.parseJsonUseJackson(json, DeduceSchemaRequest.class);
 
 		DAGDataServiceImpl dagDataService = new DAGDataServiceImpl(

@@ -47,6 +47,7 @@ import com.tapdata.tm.metadatainstance.service.MetaDataHistoryService;
 import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
 import com.tapdata.tm.monitor.entity.MeasurementEntity;
 import com.tapdata.tm.monitor.param.IdParam;
+import com.tapdata.tm.monitor.service.MeasurementServiceV2;
 import com.tapdata.tm.monitoringlogs.service.MonitoringLogsService;
 import com.tapdata.tm.task.bean.*;
 import com.tapdata.tm.task.constant.SyncType;
@@ -124,6 +125,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     private TaskAutoInspectResultsService taskAutoInspectResultsService;
     private TaskSaveService taskSaveService;
     private TaskDagService taskDagService;
+    private MeasurementServiceV2 measurementServiceV2;
 
     public static Set<String> stopStatus = new HashSet<>();
     /**
@@ -1236,7 +1238,18 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
      * @return
      */
     private Page<TaskDto> findDataDevList(Filter filter, UserDetail userDetail) {
-        return super.find(filter, userDetail);
+        Query query = repository.filterToQuery(filter);
+        query.limit(100000);
+        query.skip(0);
+        long count = repository.count(query, userDetail);
+        query.skip(filter.getSkip());
+        query.limit(filter.getLimit());
+        List<TaskEntity> taskEntityList = repository.findAll(query, userDetail);
+        List<TaskDto> taskDtoList = com.tapdata.tm.utils.BeanUtil.deepCloneList(taskEntityList, TaskDto.class);
+        Page<TaskDto> taskDtoPage = new Page<>();
+        taskDtoPage.setTotal(count);
+        taskDtoPage.setItems(taskDtoList);
+        return taskDtoPage;
     }
 
     private Node getSourceNode(TaskDto taskDto) {
@@ -1868,15 +1881,31 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
     public void batchUpTask(MultipartFile multipartFile, UserDetail user, boolean cover) {
         byte[] bytes = new byte[0];
+        List<TaskUpAndLoadDto> taskUpAndLoadDtos;
+
+        if (!multipartFile.getName().endsWith("json.gz")) {
+            //不支持其他的格式文件
+            throw new BizException("Task.ImportFormatError");
+        }
+
         try {
             bytes = GZIPUtil.unGzip(multipartFile.getBytes());
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-        String json = new String(bytes, StandardCharsets.UTF_8);
 
-        List<TaskUpAndLoadDto> taskUpAndLoadDtos = JsonUtil.parseJsonUseJackson(json, new TypeReference<List<TaskUpAndLoadDto>>() {
-        });
+            String json = new String(bytes, StandardCharsets.UTF_8);
+
+            taskUpAndLoadDtos = JsonUtil.parseJsonUseJackson(json, new TypeReference<List<TaskUpAndLoadDto>>() {
+            });
+        } catch (Exception e) {
+            //e.printStackTrace();
+            //不支持其他的格式文件
+            throw new BizException("Task.ImportFormatError");
+        }
+
+        if (taskUpAndLoadDtos == null) {
+            //不支持其他的格式文件
+            throw new BizException("Task.ImportFormatError");
+        }
+
         List<MetadataInstancesDto> metadataInstancess = new ArrayList<>();
         List<TaskDto> tasks = new ArrayList<>();
         List<DataSourceConnectionDto> connections = new ArrayList<>();
@@ -2091,7 +2120,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         //所有的任务重置操作，都会进这里
         //根据TaskId 把指标数据都删掉
 //        measurementService.deleteTaskMeasurement(taskId);
-//        measurementServiceV2.deleteTaskMeasurement(taskId);
+        measurementServiceV2.deleteTaskMeasurement(taskId);
     }
     public void renewNotSendMq(TaskDto taskDto, UserDetail user) {
         log.info("renew task, task name = {}, username = {}", taskDto.getName(), user.getUsername());
@@ -2185,13 +2214,13 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
             //检查是否完成重置，设置8秒的超时时间
             boolean checkFlag = false;
-            for (int i = 0; i < 16; i++) {
+            for (int i = 0; i < 60; i++) {
                 checkFlag = DataSyncMq.OP_TYPE_RESET.equals(opType) ? checkResetFlag(taskDto.getId(), user) : checkDeleteFlag(taskDto.getId(), user);
                 if (checkFlag) {
                     break;
                 }
                 try {
-                    Thread.sleep(500L);
+                    Thread.sleep(1000L);
                 } catch (InterruptedException e) {
                     throw new BizException("SystemError");
                 }
@@ -2397,7 +2426,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     private void updateTaskRecordStatus(TaskDto dto, String status) {
         dto.setStatus(status);
         if (StringUtils.isNotBlank(dto.getTaskRecordId())) {
-            basicEventService.publish(new SyncTaskStatusDto(dto.getTaskRecordId(), status));
+            basicEventService.publish(new SyncTaskStatusDto(dto.getId().toHexString(), dto.getTaskRecordId(), status));
         }
     }
 

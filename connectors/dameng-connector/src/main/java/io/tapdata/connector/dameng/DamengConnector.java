@@ -97,12 +97,19 @@ public class DamengConnector extends ConnectorBase {
     @Override
     public void onStop(TapConnectionContext connectionContext) throws Throwable {
 
+        if (EmptyKit.isNotNull(cdcRunner)) {
+            cdcRunner.closeCdcRunner();
+            cdcRunner =null;
+        }
+
         if (EmptyKit.isNotNull(damengTest)) {
             damengTest.close();
         }
         if (EmptyKit.isNotNull(damengContext)) {
             damengContext.finish(connectionContext.getId());
         }
+
+
 
     }
 
@@ -427,19 +434,19 @@ public class DamengConnector extends ConnectorBase {
         return damengContext.queryAllTables(null).size();
     }
 
-    private void streamRead(TapConnectorContext nodeContext, List<String> tableList, Object offsetState, int recordSize, StreamReadConsumer consumer) throws Throwable {
+   private void streamRead(TapConnectorContext nodeContext, List<String> tableList, Object offsetState, int recordSize, StreamReadConsumer consumer) throws Throwable {
 
-//        if (EmptyKit.isNull(cdcRunner)) {
-//            cdcRunner = new DamengCdcRunner(damengContext, nodeContext.getId()).init(
-//                    tableList,
-//                    nodeContext.getTableMap(),
-//                    offsetState,
-//                    recordSize,
-//                    consumer
-//            );
-//        }
-        return ;
-        //cdcRunner.startCdcRunner();
+        if (EmptyKit.isNull(cdcRunner)) {
+            cdcRunner = new DamengCdcRunner(damengContext, nodeContext.getId()).init(
+                    tableList,
+                    nodeContext.getTableMap(),
+                    offsetState,
+                    recordSize,
+                    consumer
+            );
+        }
+        cdcRunner.startCdcRunner();
+
     }
 
     private Object timestampToStreamOffset(TapConnectorContext connectorContext, Long offsetStartTime) {

@@ -1,7 +1,11 @@
 import pytest, allure
 
 from . import env, random_str
-from lib.cli import DataSource, logger, MongoDB, Mysql, Postgres
+from tapdata_cli.cli import DataSource, logger, MongoDB, Mysql, Postgres, main
+
+
+main()
+
 
 @allure.feature("datasource")
 class TestDataSource:
@@ -12,16 +16,14 @@ class TestDataSource:
         test_ds.save()
         return test_ds
 
-
     @allure.title("create datasource with mongodb uri")
     def test_mongo_create_datasource_by_uri(self):
         ds = DataSource("mongodb", name=f"uri_{random_str()}").uri(env['database_1.URI'])
         assert ds.save()
         assert ds.desc() is not None
-        assert ds.status() is not None
+        assert ds.status() == "ready"
         DataSource().list()
         ds.delete()
-
 
     @allure.title("create mongodb datasource with form")
     def test_create_datasource_by_form(self):
@@ -29,8 +31,8 @@ class TestDataSource:
         ds.host(env['database_1.HOST']).db(env['database_1.DB']).username(env['database_1.USERNAME'])\
             .password(env['database_1.PASSWORD']).type("source").props(env['database_1.PROPS'])
         assert ds.save()
+        assert ds.status() == "ready"
         ds.delete()
-
 
     @allure.title("create mongodb datasource with uri")
     def test_mongo_create_by_uri(self):
@@ -38,6 +40,7 @@ class TestDataSource:
         mongo_test.uri(env['database_1.URI'])
         assert mongo_test.save()
         assert mongo_test.validate()
+        assert mongo_test.status() == "ready"
         mongo_test.delete()
 
     @allure.title("test mysql form valid")
@@ -46,7 +49,6 @@ class TestDataSource:
         test_ds.host(env['mysql.HOST']).db(env['mysql.DB']).username(env['mysql.USERNAME'])\
             .password(env['mysql.PASSWORD']).type("source").props(env['mysql.PROPS'])
         test_ds.to_dict()
-
 
     @allure.title("create PG datasource with form")
     def test_postgres(self):
@@ -60,4 +62,5 @@ class TestDataSource:
         test_ds.set_log_decorder_plugin(plugin)
         assert test_ds.to_dict().get('pgsql_log_decorder_plugin_name') == plugin
         assert test_ds.save()
+        assert test_ds.status() == "ready"
         test_ds.delete()

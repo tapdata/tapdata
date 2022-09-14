@@ -1,7 +1,7 @@
 spring:
   profiles:
-    active: 'dev'
-    include: 'dfs,default'
+    active: '@profile.active@'
+    include: '@env.PRODUCT@,default'
 
   data:
     mongodb:

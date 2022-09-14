@@ -38,10 +38,7 @@ import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.data.mongodb.core.query.UpdateDefinition;
 import org.springframework.stereotype.Service;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.stream.Collectors;
 
 /**
@@ -100,24 +97,24 @@ public class MetadataDefinitionService extends BaseService<MetadataDefinitionDto
     }
 
 
-    public List<MetadataDefinitionDto> findByItemtypeAndValue(MetadataDefinitionDto metadataDefinitionDto,UserDetail userDetail){
+    public void findByItemtypeAndValue(MetadataDefinitionDto metadataDefinitionDto,UserDetail userDetail){
         String value=metadataDefinitionDto.getValue();
 
 
         String parentId = metadataDefinitionDto.getParent_id();
         Criteria criteria = Criteria.where("value").is(value);
         if (StringUtils.isBlank(parentId)) {
-            criteria.and("parent_id").exists(false);
+            criteria.and("parent_id").exists(false).and("item_type").in(metadataDefinitionDto.getItemType());
         } else {
             criteria.and("parent_id").is(parentId);
         }
 
         Query query=Query.query(criteria);
+        query.fields().exclude("_id");
         List<MetadataDefinitionDto> metadataDefinitionDtos =findAll(query);
         if (CollectionUtils.isNotEmpty(metadataDefinitionDtos)){
             throw new BizException("Tag.RepeatName");
         }
-        return metadataDefinitionDtos;
     }
 
     /**
@@ -210,6 +207,11 @@ public class MetadataDefinitionService extends BaseService<MetadataDefinitionDto
     @Override
     public Page<MetadataDefinitionDto> find(Filter filter, UserDetail user) {
         Page<MetadataDefinitionDto> dtoPage = super.find(filter, user);
+        dtoPage.getItems().sort(Comparator.comparing(MetadataDefinitionDto::getValue));
+        dtoPage.getItems().sort(Comparator.comparing(s -> {
+            List<String> itemType = s.getItemType();
+            return !itemType.contains("default");
+        }));
         Field fields = filter.getFields();
         if (fields != null) {
             Object objCount = fields.get("objCount");
