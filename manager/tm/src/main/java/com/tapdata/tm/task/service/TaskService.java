@@ -1928,6 +1928,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         });
 
         DataFlowInsightStatisticsDto dataFlowInsightStatisticsDto = new DataFlowInsightStatisticsDto();
+        inputDataStatistics.sort(Comparator.comparing(DataFlowInsightStatisticsDto.DataStatisticInfo::getTime));
         dataFlowInsightStatisticsDto.setInputDataStatistics(inputDataStatistics);
         dataFlowInsightStatisticsDto.setTotalInputDataCount(totalInputDataCount.get());
         dataFlowInsightStatisticsDto.setGranularity("month");
