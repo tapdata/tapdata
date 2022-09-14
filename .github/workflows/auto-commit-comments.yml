@@ -50,5 +50,5 @@ jobs:
             "Action": "CreateIssueComment",
             "ProjectName": "tapdata",
             "IssueCode": ${{ needs.Check-Commit-Style.outputs.issue-code }},
-            "Content": "'"[${{ needs.Check-Commit-Style.outputs.commit-message }}]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/commit/$GITHUB_SHA)"'"
+            "Content": "'"$GITHUB_ACTOR Commit: [${{ needs.Check-Commit-Style.outputs.commit-message }}]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/commit/$GITHUB_SHA)"'"
           }'
