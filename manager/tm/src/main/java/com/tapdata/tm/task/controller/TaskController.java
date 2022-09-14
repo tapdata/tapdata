@@ -1003,4 +1003,10 @@ public class TaskController extends BaseController {
         return success();
     }
 
+
+    @GetMapping("task/statsTransport")
+    public ResponseMessage<Object> statsTransport(@RequestParam("granularity") String granularity) {
+        return success(taskService.statsTransport(getLoginUser()));
+    }
+
 }

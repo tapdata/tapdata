@@ -70,6 +70,7 @@ import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.service.WorkerService;
 import com.tapdata.tm.worker.vo.CalculationEngineVo;
 import com.tapdata.tm.ws.enums.MessageType;
+import io.tapdata.common.sample.request.Sample;
 import lombok.*;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
@@ -89,7 +90,12 @@ import org.springframework.web.multipart.MultipartFile;
 import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -3095,5 +3101,47 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         Update update = new Update();
         update.set("logSetting", logSetting);
         updateById(taskObjectId, update, userDetail);
+    }
+
+    public Object statsTransport(UserDetail userDetail) {
+
+        Criteria criteria = Criteria.where("is_deleted").ne(true);
+        Query query = new Query(criteria);
+        query.fields().include("_id");
+        List<TaskDto> allDto = findAllDto(query, userDetail);
+        List<String> ids = allDto.stream().map(a->a.getId().toHexString()).collect(Collectors.toList());
+
+        List<LocalDate> localDates = new ArrayList<>();
+        LocalDate now = LocalDate.now();
+        LocalDate lastMonthDay = now.minusMonths(1);
+        while (!now.equals(lastMonthDay)) {
+            localDates.add(now);
+            now = now.minusDays(1);
+        }
+        List<Date> localDateTimes = new ArrayList<>();
+        for (LocalDate localDate : localDates) {
+            for (int i = 0; i < 24; i++) {
+                LocalDateTime localDateTime = LocalDateTime.of(localDate.getYear(), localDate.getMonthValue(), localDate.getDayOfMonth(), i, 0, 0);
+                Date date = Date.from(localDateTime.atZone(ZoneId.systemDefault()).toInstant());
+                localDateTimes.add(date);
+            }
+        }
+
+
+        Criteria in = Criteria.where("tags.taskId").in(ids)
+                .and("date").in(localDateTimes)
+                .and("grnty").is("hour")
+                .and("tags.type").is("task");
+        Query query1 = new Query(in);
+        query1.fields().include("ss");
+        DateTimeFormatter format = DateTimeFormatter.ofPattern("yyyyMMdd");
+        List<MeasurementEntity> measurementEntities = repository.getMongoOperations().find(query1, MeasurementEntity.class, "AgentMeasurementV2");
+        Map<String, List<Sample>> sampleMap = measurementEntities.stream().flatMap(m -> m.getSamples().stream()).collect(Collectors.groupingBy(s -> {
+            Date date = s.getDate();
+            LocalDate localDate = date.toInstant().atZone(ZoneId.systemDefault()).toLocalDate();
+            return localDate.format(format);
+        }));
+
+        return new Object();
     }
 }

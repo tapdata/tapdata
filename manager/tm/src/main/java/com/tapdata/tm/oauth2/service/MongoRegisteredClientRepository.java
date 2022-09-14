@@ -51,7 +51,7 @@ public class MongoRegisteredClientRepository implements RegisteredClientReposito
         this.objectMapper.registerModule(new OAuth2AuthorizationServerJackson2Module());
     }
 
-    @PostConstruct
+    //@PostConstruct
     public void init() {
         RegisteredClient registeredClient = RegisteredClient.withId("5c0e750b7a5cd42464a5099d")
                 .clientId("5c0e750b7a5cd42464a5099d")

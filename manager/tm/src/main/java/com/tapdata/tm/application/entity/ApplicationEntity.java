@@ -48,7 +48,7 @@ import java.util.List;
  */
 @EqualsAndHashCode(callSuper = true)
 @Data
-@Document("Application")
+@Document("Application1")
 public class ApplicationEntity extends BaseEntity {
 
     private String name;

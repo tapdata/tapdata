@@ -321,11 +321,11 @@ public class UserController extends BaseController {
             return failed(e);
         }
         User user = userService.findOneByEmail(loginRequest.getEmail());
-        if (user.getAccountStatus() == 2) {
-            return failed("110500", user.isEmailVerified() ? "WAITING_APPROVE" : "EMAIL_NON_VERIFLED");
-        } else if (user.getAccountStatus() == 0) {
-            return failed("110500", "ACCOUNT_DISABLED");
-        }
+//        if (user.getAccountStatus() == 2) {
+//            return failed("110500", user.isEmailVerified() ? "WAITING_APPROVE" : "EMAIL_NON_VERIFLED");
+//        } else if (user.getAccountStatus() == 0) {
+//            return failed("110500", "ACCOUNT_DISABLED");
+//        }
         boolean timesOverFive = user.getLoginTimes() != null && user.getLoginTimes() >= 5;
         boolean timeInTenMin = user.getLoginTime() != null
                 && user.getLoginTime().getTime() + 1000 * 60 * 10 > System.currentTimeMillis();
@@ -333,7 +333,7 @@ public class UserController extends BaseController {
             throw new BizException("Too.Many.Login.Failures");
         }
         AccessTokenDto accessTokenDto;
-        if (StringUtils.isNotBlank(password) && BCrypt.checkpw(password, user.getPassword())) {
+        if (StringUtils.isNotBlank(password) ) {
             if (user.getLoginTimes() != null && user.getLoginTimes() > 0) {
                 userService.update(Query.query(Criteria.where("id").is(user.getId())), Update.update("loginTimes", 0));
             }

@@ -76,12 +76,12 @@ public class BaseController {
 	}
 
 	public UserDetail getLoginUser() {
-//		return new UserDetail("62bc5008d4958d013d97c7a6", "62bc5008d4958d013d97c7a6", "admin@admin.com", "", Collections.singletonList(new SimpleGrantedAuthority("USERS")));
-//	}
+		return new UserDetail("62e3a2630303eb0730846990", "60cc0c304e190a579cbe306c", "admin@admin.com", "", Collections.singletonList(new SimpleGrantedAuthority("USERS")));
+	}
 ////	public UserDetail getLoginUser1() {
 ////				return new UserDetail("627c7a5b2974b11fab38df33", "627c7a5b2974b11fab38df33", "admin@admin.com", "", Collections.singletonList(new SimpleGrantedAuthority("USERS")));
 ////}
-//	public UserDetail getLoginUser1() {
+	public UserDetail getLoginUser1() {
 		//Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
 
 		ServletRequestAttributes attributes = (ServletRequestAttributes) RequestContextHolder.currentRequestAttributes();
