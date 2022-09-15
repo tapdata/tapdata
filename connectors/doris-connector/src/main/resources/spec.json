@@ -263,6 +263,24 @@
       "bit": 32,
       "to": "TapNumber"
     },
+    "int[($zerofill)]": {
+      "to": "TapNumber",
+      "bit": 32,
+      "precision": 10,
+      "value": [
+        -2147483648,
+        2147483647
+      ]
+    },
+    "int[($zerofill)] unsigned": {
+      "to": "TapNumber",
+      "bit": 32,
+      "precision": 10,
+      "value": [
+        0,
+        4294967295
+      ]
+    },
     "bigint": {
       "bit": 64,
       "to": "TapNumber"
