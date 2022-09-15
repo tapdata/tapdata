@@ -1335,10 +1335,10 @@ class TargetTypesGeneratorTest {
 
     public static void main(String[] args) {
         TargetTypesGenerator targetTypesGenerator = InstanceFactory.instance(TargetTypesGenerator.class);
-        if(targetTypesGenerator == null)
+        if (targetTypesGenerator == null)
             throw new CoreException(PDKRunnerErrorCodes.SOURCE_TARGET_TYPES_GENERATOR_NOT_FOUND, "TargetTypesGenerator's implementation is not found in current classloader");
         TableFieldTypesGenerator tableFieldTypesGenerator = InstanceFactory.instance(TableFieldTypesGenerator.class);
-        if(tableFieldTypesGenerator == null)
+        if (tableFieldTypesGenerator == null)
             throw new CoreException(PDKRunnerErrorCodes.SOURCE_TABLE_FIELD_TYPES_GENERATOR_NOT_FOUND, "TableFieldTypesGenerator's implementation is not found in current classloader");
         TapCodecsRegistry codecRegistry = TapCodecsRegistry.create();
         TapCodecsFilterManager targetCodecFilterManager = TapCodecsFilterManager.create(codecRegistry);
@@ -1399,7 +1399,7 @@ class TargetTypesGeneratorTest {
 
         int count = 10000;
         long time = System.currentTimeMillis();
-        for(int i = 0; i < count; i++) {
+        for (int i = 0; i < count; i++) {
             TapTable sourceTable = table("test");
             sourceTable
                     .add(field("int(32) unsigned", "int(32) unsigned"))
@@ -1420,6 +1420,64 @@ class TargetTypesGeneratorTest {
             TapResult<LinkedHashMap<String, TapField>> tapResult = targetTypesGenerator.convert(sourceTable.getNameFieldMap(), targetMap, targetCodecFilterManager);
         }
         System.out.println("takes " + (System.currentTimeMillis() - time));
+    }
+    @Test
+    public void oracleNumberToMySQLDecimal() {
 
+        String sourceTypeExpression = "{" +
+                "\"NUMBER[($precision,$scale)]\": {\"precision\": [1,38],\"scale\": [-84,127],\"fixed\": true,\"preferPrecision\": 20,\"defaultPrecision\": 38,\"preferScale\": 8,\"defaultScale\": 0,\"priority\": 1,\"to\": \"TapNumber\"}" +
+                "}";
+
+        String targetTypeExpression = "{\n" +
+//                "\"int unsigned\": {\"to\": \"TapNumber\",\"byte\": 32,\"value\": [\"0\", \"4294967295\"]}," +
+                "\"decimal[($precision,$scale)][unsigned]\": {\n" +
+                "\t  \"to\": \"TapNumber\",\n" +
+                "\t  \"precision\": [\n" +
+                "\t\t1,\n" +
+                "\t\t65\n" +
+                "\t  ],\n" +
+                "\t  \"scale\": [\n" +
+                "\t\t0,\n" +
+                "\t\t30\n" +
+                "\t  ],\n" +
+                "\t  \"defaultPrecision\": 10,\n" +
+                "\t  \"defaultScale\": 0,\n" +
+                "\t  \"unsigned\": \"unsigned\",\n" +
+                "\t  \"fixed\": true\n" +
+                "\t}," +
+
+                "\"float($precision,$scale)[unsigned]\": {\n" +
+                "\t  \"to\": \"TapNumber\",\n" +
+                "\t  \"name\": \"float\",\n" +
+                "\t  \"precision\": [\n" +
+                "\t\t1,\n" +
+                "\t\t30\n" +
+                "\t  ],\n" +
+                "\t  \"scale\": [\n" +
+                "\t\t0,\n" +
+                "\t\t30\n" +
+                "\t  ],\n" +
+                "\t  \"value\": [\n" +
+                "\t\t\"-3.402823466E+38\",\n" +
+                "\t\t\"3.402823466E+38\"\n" +
+                "\t  ],\n" +
+                "\t  \"unsigned\": \"unsigned\",\n" +
+                "\t  \"fixed\": false\n" +
+                "\t}" +
+                "}";
+
+        TapTable sourceTable = table("test");
+        sourceTable
+                .add(field("NUMBER", "NUMBER"))
+        ;
+
+        tableFieldTypesGenerator.autoFill(sourceTable.getNameFieldMap(), DefaultExpressionMatchingMap.map(sourceTypeExpression));
+        TapResult<LinkedHashMap<String, TapField>> tapResult = targetTypesGenerator.convert(sourceTable.getNameFieldMap(), DefaultExpressionMatchingMap.map(targetTypeExpression), targetCodecFilterManager);
+
+        LinkedHashMap<String, TapField> nameFieldMap = tapResult.getData();
+
+
+        TapField upperVarchar50 = nameFieldMap.get("NUMBER");
+        assertEquals("decimal(20,8)", upperVarchar50.getDataType());
     }
 }

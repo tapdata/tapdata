@@ -45,6 +45,8 @@ import java.util.zip.ZipOutputStream;
 @Slf4j
 @Setter(onMethod_ = {@Autowired})
 public class MonitoringLogsService extends BaseService<MonitoringLogsDto, MonitoringLogsEntity, ObjectId, MonitoringLogsRepository> {
+    private static final int MAX_DATA_SIZE = 100;
+    private static final int MAX_MESSAGE_CHAR_LENGTH = 2000;
     private MongoTemplate mongoOperations;
 
     public MonitoringLogsService(@NonNull MonitoringLogsRepository repository) {
@@ -131,7 +133,16 @@ public class MonitoringLogsService extends BaseService<MonitoringLogsDto, Monito
         query.skip((param.getPage() - 1) * param.getPageSize());
         query.limit(param.getPageSize().intValue());
         List<MonitoringLogsEntity> logEntities = mongoOperations.find(query, MonitoringLogsEntity.class);
-        List<MonitoringLogsDto> logs = convertToDto(logEntities, MonitoringLogsDto.class);
+        List<MonitoringLogsDto> logs = new ArrayList<>();
+        for (MonitoringLogsEntity logEntity : logEntities) {
+            if (null != logEntity.getData() && logEntity.getData().size() > MAX_DATA_SIZE) {
+                logEntity.setData(logEntity.getData().subList(0, MAX_DATA_SIZE - 1));
+            }
+            if (null != logEntity.getMessage() && logEntity.getMessage().length() > MAX_MESSAGE_CHAR_LENGTH) {
+                logEntity.setMessage((logEntity.getMessage().substring(0, MAX_MESSAGE_CHAR_LENGTH - 1)) + "...");
+            }
+            logs.add(convertToDto(logEntity, MonitoringLogsDto.class));
+        }
 
         return new Page<>(total, logs);
     }

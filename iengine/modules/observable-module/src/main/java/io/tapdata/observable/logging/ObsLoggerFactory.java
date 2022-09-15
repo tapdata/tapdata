@@ -96,7 +96,7 @@ public final class ObsLoggerFactory {
 		if (null != taskLoggerNodeProxyMap.get(taskId) && null != taskLoggerNodeProxyMap.get(taskId).get(nodeId)) {
 			obsLogger = taskLoggerNodeProxyMap.get(taskId).get(nodeId);
 		}
-		return null;
+		return obsLogger;
 	}
 
 	public void removeTaskLogger(TaskDto task) {

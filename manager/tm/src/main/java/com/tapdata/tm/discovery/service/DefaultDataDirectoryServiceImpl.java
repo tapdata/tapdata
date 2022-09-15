@@ -2,6 +2,7 @@ package com.tapdata.tm.discovery.service;
 import com.google.common.collect.Lists;
 
 import com.mongodb.ConnectionString;
+import com.mongodb.client.result.UpdateResult;
 import com.tapdata.tm.commons.schema.DataSourceDefinitionDto;
 import com.tapdata.tm.metadatadefinition.service.MetadataDefinitionService;
 
@@ -17,6 +18,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
@@ -59,6 +61,20 @@ public class DefaultDataDirectoryServiceImpl implements DefaultDataDirectoryServ
     }
 
     @Override
+    public void updateConnection(DataSourceConnectionDto connectionDto, UserDetail user) {
+        //检查是否已经存在
+        boolean exists = checkConnExists(connectionDto.getId().toHexString(), user);
+        if (!exists) {
+            addConnection(connectionDto, user);
+        }
+        Criteria criteriaC = Criteria.where("item_type").is("default").and("linkId").is(connectionDto.getId().toHexString());
+
+        String name = getConnectInfo(connectionDto);
+        UpdateResult value = metadataDefinitionService.update(new Query(criteriaC), Update.update("value", name), user);
+        value.getModifiedCount();
+
+    }
+        @Override
     public void addConnection(DataSourceConnectionDto connectionDto, UserDetail user) {
         //检查是否已经存在
         boolean exists = checkConnExists(connectionDto.getId().toHexString(), user);
@@ -151,7 +167,7 @@ public class DefaultDataDirectoryServiceImpl implements DefaultDataDirectoryServ
                 .and("is_deleted").ne(true);
         Query queryDefinition = new Query(criteriaDefinition);
         List<DataSourceDefinitionDto> dataSourceDefinitionDtos = definitionService.findAllDto(queryDefinition, user);
-        List<String> pdkIds = dataSourceDefinitionDtos.stream().map(DataSourceDefinitionDto::getPdkId).collect(Collectors.toList());
+        List<String> pdkIds = dataSourceDefinitionDtos.stream().map(DataSourceDefinitionDto::getPdkId).distinct().collect(Collectors.toList());
 
         //检查是否存在storage目录。如果不存在的话则需要创建storage的目录
         Criteria criteria = Criteria.where("item_type").is("storage");
@@ -240,45 +256,69 @@ public class DefaultDataDirectoryServiceImpl implements DefaultDataDirectoryServ
 
     private String getConnectInfo(DataSourceConnectionDto source) {
         String name = source.getName();
-        StringBuilder ipAndPort = new StringBuilder(name);
+        try {
+            StringBuilder ipAndPort = new StringBuilder(name);
 
 
-
-        Object config = source.getConfig();
-        Map config1 = (Map) config;
-        if (source.getDatabase_type().toLowerCase(Locale.ROOT).contains("mongo")) {
-            String uri1 = (String) config1.get("uri");
-            if (StringUtils.isNotBlank(uri1)) {
-                ConnectionString connectionString = new ConnectionString(uri1);
-                List<String> hosts = connectionString.getHosts();
-                if (CollectionUtils.isNotEmpty(hosts)) {
-                    ipAndPort.append("(");
-                    for (String host : hosts) {
-                        ipAndPort.append(host).append(";");
+            Object config = source.getConfig();
+            Map config1 = (Map) config;
+            Object isUri = config1.get("isUri");
+            if (source.getDatabase_type().toLowerCase(Locale.ROOT).contains("mongo") && isUri != null && (boolean) isUri) {
+                String uri1 = (String) config1.get("uri");
+                if (StringUtils.isNotBlank(uri1)) {
+                    ConnectionString connectionString = new ConnectionString(uri1);
+                    List<String> hosts = connectionString.getHosts();
+                    if (CollectionUtils.isNotEmpty(hosts)) {
+                        ipAndPort.append("(");
+                        for (String host : hosts) {
+                            ipAndPort.append(host).append(";");
+                        }
+                        ipAndPort = new StringBuilder(ipAndPort.substring(0, ipAndPort.length() - 1));
+                        ipAndPort.append(")");
                     }
-                    ipAndPort = new StringBuilder(ipAndPort.substring(0, ipAndPort.length() -1));
+                }
+            } else if (source.getDatabase_type().toLowerCase(Locale.ROOT).contains("activemq")) {
+                Object brokerURL = config1.get("brokerURL");
+                if (brokerURL instanceof String) {
+                    String ipPort = ((String) brokerURL).substring(6);
+                    ipAndPort.append("(");
+                    ipAndPort.append(ipPort);
+                    ipAndPort.append(")");
+                }
+
+                
+            }  else if (source.getDatabase_type().toLowerCase(Locale.ROOT).contains("kafka")) {
+                Object nameSrvAddr = config1.get("nameSrvAddr");
+                if (nameSrvAddr instanceof String) {
+                    ipAndPort.append("(");
+                    ipAndPort.append(nameSrvAddr);
+                    ipAndPort.append(")");
+                }
+
+
+            } else {
+                Object host = config1.get("host");
+                Object port = config1.get("port");
+                if (host == null) {
+                    host = config1.get("mqHost");
+                }
+                if (port == null) {
+                    port = config1.get("mqPort");
+                }
+                if (StringUtils.isNotBlank((String) host)) {
+                    ipAndPort.append("(");
+                    ipAndPort.append(host.toString());
+                    if (port != null) {
+                        ipAndPort.append(":").append(port);
+                    }
                     ipAndPort.append(")");
                 }
             }
-        } else {
-            Object host = config1.get("host");
-            Object port = config1.get("port");
-            if (host == null) {
-                host = config1.get("mqHost");
-            }
-            if (port == null) {
-                port = config1.get("mqPort");
-            }
-            if (StringUtils.isNotBlank((String)host)) {
-                ipAndPort.append("(");
-                ipAndPort.append(host.toString());
-                if (port != null) {
-                    ipAndPort.append(":").append(port);
-                }
-                ipAndPort.append(")");
-            }
-        }
 
-        return ipAndPort.toString();
+            return ipAndPort.toString();
+        } catch (Exception e) {
+
+        }
+        return name;
     }
 }

@@ -380,24 +380,11 @@ public class MongodbConnector extends ConnectorBase {
 
 	private void createIndex(TapConnectorContext tapConnectorContext, TapTable table, TapCreateIndexEvent tapCreateIndexEvent) {
 		final List<TapIndex> indexList = tapCreateIndexEvent.getIndexList();
-		final MongoCollection<Document> collection = mongoDatabase.getCollection(table.getName());
-		//get current indexes
-		ListIndexesIterable<Document> currentIndexes = collection.listIndexes();
-		Set<String> indexNames = new HashSet<>();
-		try (
-				MongoCursor<Document> cursor = currentIndexes.iterator()
-		) {
-			while (cursor.hasNext()) {
-				Document next = cursor.next();
-				String name = next.get("name").toString();
-				indexNames.add(name);
-			}
-		}
 		if (CollectionUtils.isNotEmpty(indexList)) {
-			indexList.removeIf(v -> indexNames.contains(v.getName()));
 			for (TapIndex tapIndex : indexList) {
 				final List<TapIndexField> indexFields = tapIndex.getIndexFields();
 				if (CollectionUtils.isNotEmpty(indexFields)) {
+					final MongoCollection<Document> collection = mongoDatabase.getCollection(table.getName());
 					Document keys = new Document();
 					for (TapIndexField indexField : indexFields) {
 						keys.append(indexField.getName(), 1);
