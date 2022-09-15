@@ -12,10 +12,9 @@ import io.tapdata.pdk.core.memory.MemoryFetcher;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import org.apache.commons.lang3.exception.ExceptionUtils;
 
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 
@@ -30,6 +29,23 @@ public class PDKInvocationMonitor implements MemoryFetcher {
     private Map<PDKMethod, InvocationCollector> methodInvocationCollectorMap = new ConcurrentHashMap<>();
 
     private Consumer<String> errorListener;
+
+    private static Map<Node,List<PDKMethodInvoker>> nodeStopInvokerMap = new ConcurrentHashMap<>();
+    public void invokerEnter(Node node,PDKMethodInvoker invoker){
+        nodeStopInvokerMap.computeIfAbsent(node, list-> new CopyOnWriteArrayList<>()).add(invoker);
+    }
+
+    public static void closeTasks(Node closeNode){
+        List<PDKMethodInvoker> invokerList = nodeStopInvokerMap.get(closeNode);
+        if (null == invokerList || invokerList.isEmpty()) {
+            return;
+        }
+        for (PDKMethodInvoker pdkMethodInvoker : invokerList) {
+            pdkMethodInvoker.cancelRetry();
+            TapLogger.debug(TAG," This task is closed, the PDKMethodInvoker info is: {}",pdkMethodInvoker);
+        }
+        nodeStopInvokerMap.remove(closeNode);
+    }
 
     private PDKInvocationMonitor() {}
 
@@ -105,19 +121,21 @@ public class PDKInvocationMonitor implements MemoryFetcher {
             return;
         }
         long retryTimes = invoker.getRetryTimes();
-       if(async) {
+        this.invokerEnter(node,invoker);
+        if(async) {
             ExecutorsManager.getInstance().getExecutorService().execute(() -> {
                 if(contextClassLoader != null) {
                     Thread.currentThread().setContextClassLoader(contextClassLoader);
                 }
                 if(retryTimes > 0) {
-                    CommonUtils.autoRetry(node,method,invoker.runnable(() -> node.applyClassLoaderContext(() -> invokePDKMethodPrivate(method, r, message, logTag, errorConsumer) )));
+                    CommonUtils.autoRetry(node,method,invoker.runnable(() -> node.applyClassLoaderContext(() -> invokePDKMethodPrivate(method, r, message, null, errorConsumer) )));
                 } else {
                     node.applyClassLoaderContext(() -> invokePDKMethodPrivate(method, r, message, logTag, errorConsumer));
+                    PDKInvocationMonitor.closeTasks(node);
                 }
             });
         } else {
-           CommonUtils.autoRetry(node,method,invoker.runnable(() -> node.applyClassLoaderContext(() -> invokePDKMethodPrivate(method, r, message, logTag, errorConsumer) )));
+           CommonUtils.autoRetry(node,method,invoker.runnable(() -> node.applyClassLoaderContext(() -> invokePDKMethodPrivate(method, r, message, null, errorConsumer) )));
         }
     }
     private void invokePDKMethodPrivate(PDKMethod method, CommonUtils.AnyError r, String message, String logTag, Consumer<CoreException> errorConsumer) {
@@ -172,7 +190,7 @@ public class PDKInvocationMonitor implements MemoryFetcher {
                 collector.getCounter().increment();
                 long takes = System.currentTimeMillis() - time;
                 collector.getTotalTakes().add(takes);
-                if(error != null) {
+                if(error != null && logTag != null) {
                     TapLogger.error(logTag, "methodEnd {} invokeId {} failed, message {} takes {} error {}", method, invokeId, message, takes, ExceptionUtils.getStackTrace(error));
                 } else {
 //                    TapLogger.info(logTag, "methodEnd {} invokeId {} successfully, message {} takes {}", method, invokeId, message, takes);

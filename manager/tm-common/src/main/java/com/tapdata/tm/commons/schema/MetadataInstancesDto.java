@@ -115,6 +115,10 @@ public class MetadataInstancesDto extends BaseDto {
         this.databaseId = databaseId;
     }
 
+    public String getAncestorsName() {
+        return Objects.isNull(ancestorsName) ? originalName : ancestorsName;
+    }
+
     public static void sortField(List<Field> fields) {
         if (CollectionUtils.isNotEmpty(fields)) {
             List<Field> noPrimarys = fields.stream().filter(f -> {

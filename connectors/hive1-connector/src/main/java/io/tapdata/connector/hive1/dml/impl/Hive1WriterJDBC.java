@@ -117,6 +117,40 @@ public class Hive1WriterJDBC implements Hive1Writer {
         return writeListResult;
     }
 
+//    public class WriteCache {
+//        private TapConnectorContext tapConnectorContext;
+//
+//        private Map<String, TapTable> tapTableMap = new ConcurrentHashMap<>();
+//        private Map<String, List<TapRecordEvent>> tapRecordEventMap = new ConcurrentHashMap<>();
+//
+//        private ReentrantLock lock = new ReentrantLock();
+//
+//        public WriteCache(TapConnectorContext tapConnectorContext) {
+//            this.tapConnectorContext = tapConnectorContext;
+//        }
+//        public void addEvent(TapTable tapTable,TapRecordEvent tapRecordEvent) {
+//            String tabId = tapTable.getId();
+//            tapTableMap.putIfAbsent(tabId, tapTable);
+//
+//            if (tapRecordEventMap.containsKey(tabId)) {
+//                tapRecordEventMap.get(tabId).add(tapRecordEvent);
+//            } else {
+//                try {
+//                    lock.lock();
+//                    if (tapRecordEventMap.containsKey(tabId)) {
+//                        tapRecordEventMap.get(tabId).add(tapRecordEvent);
+//                    } else {
+//                        List<TapRecordEvent> list = new CopyOnWriteArrayList<>();
+//                        list.add(tapRecordEvent);
+//                        tapRecordEventMap.put(tabId, list);
+//                    }
+//                } finally {
+//                    lock.unlock();
+//                }
+//            }
+//        }
+//    }
+
 
     public WriteListResult<TapRecordEvent> batchInsert(TapConnectorContext tapConnectorContext, TapTable tapTable, List<TapRecordEvent> tapRecordEventList) throws Throwable {
         WriteListResult<TapRecordEvent> writeListResult = new WriteListResult<>(0L, 0L, 0L, new HashMap<>());
@@ -597,9 +631,6 @@ public class Hive1WriterJDBC implements Hive1Writer {
             String sql = String.format(INSERT_SQL_TEMPLATE, database, tableId, String.join(",", questionMarks));
 
             try {
-//                this.connection = this.hive1JdbcContext.getConnection((Hive1Config) hive1JdbcContext.getConfig());
-                TapLogger.info("线程debug", "writeRecord当前线程为:{},connection的hashcode为:{}", Thread.currentThread().getName(), getConnection().hashCode());
-//                preparedStatement = this.connection.prepareStatement(sql);
                 preparedStatement = getConnection().prepareStatement(sql);
             } catch (SQLException e) {
                 throw new Exception("Create insert prepared statement error, sql: " + sql + ", message: " + e.getSQLState() + " " + e.getErrorCode() + " " + e.getMessage(), e);
@@ -707,6 +738,7 @@ public class Hive1WriterJDBC implements Hive1Writer {
         if (connection2 == null) {
             try {
                 lock.lock();
+                connection2 = connectionCacheMap.get(name);
                 if (connection2 == null) {
                     connection2 = this.hive1JdbcContext.getConnection((Hive1Config) hive1JdbcContext.getConfig());
                     connectionCacheMap.put(name, connection2);

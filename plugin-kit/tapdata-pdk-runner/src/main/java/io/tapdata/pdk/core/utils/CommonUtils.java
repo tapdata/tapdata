@@ -17,6 +17,7 @@ import io.tapdata.pdk.core.entity.params.PDKMethodInvoker;
 import io.tapdata.pdk.core.error.PDKRunnerErrorCodes;
 import io.tapdata.pdk.core.error.QuiteException;
 import io.tapdata.pdk.core.executor.ExecutorsManager;
+import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
 import org.apache.commons.io.output.AppendableOutputStream;
 
 import javax.naming.CommunicationException;
@@ -140,8 +141,9 @@ public class CommonUtils {
                 }
             } catch (Throwable e) {
                 e.printStackTrace();
-                TapLogger.warn(logTag,TapAPIErrorCodes.NEED_RETRY_FAILED+"Need retry failed:" + logTag);
-                throw new CoreException(TapAPIErrorCodes.NEED_RETRY_FAILED, "Need retry failed." );
+                TapLogger.info(logTag,TapAPIErrorCodes.NEED_RETRY_FAILED+" Error retry failed: Not need retry." + logTag);
+                throw (CoreException) throwable;
+                //throw new CoreException(TapAPIErrorCodes.NEED_RETRY_FAILED, "Error retry failed." );
             }
 
             long retryTimes = invoker.getRetryTimes();
@@ -161,6 +163,7 @@ public class CommonUtils {
                     autoRetry(node, method, invoker);
                 }
             } else {
+                PDKInvocationMonitor.closeTasks(node);
                 if(throwable instanceof CoreException) {
                     throw (CoreException) throwable;
                 }
