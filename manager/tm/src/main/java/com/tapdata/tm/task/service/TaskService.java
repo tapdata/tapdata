@@ -1915,7 +1915,12 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         List<DataFlowInsightStatisticsDto.DataStatisticInfo> inputDataStatistics = new ArrayList<>();
         sampleMap.forEach((k, v) -> {
             long value = 0;
+            Set<Date> dateSet = new HashSet<>();
             for (Sample sample : v) {
+                if (dateSet.contains(sample.getDate())) {
+                    continue;
+                }
+                dateSet.add(sample.getDate());
                 Map<String, Number> vs = sample.getVs();
                 value += (int) vs.get("inputInsertTotal");
                 value += (int) vs.get("inputOthersTotal");
