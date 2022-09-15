@@ -1,14 +1,9 @@
 package io.tapdata.pdk.core.api.impl;
 
-import com.alibaba.fastjson.JSON;
-import com.alibaba.fastjson.JSONObject;
 import io.tapdata.entity.codec.TapCodecsRegistry;
-import io.tapdata.entity.mapping.DefaultExpressionMatchingMap;
 import io.tapdata.entity.schema.TapTable;
-import io.tapdata.entity.utils.DataMap;
 import io.tapdata.pdk.apis.TapConnector;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
-import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.entity.ConnectionOptions;
 import io.tapdata.pdk.apis.entity.TestItem;
 import io.tapdata.pdk.apis.functions.ConnectionFunctions;
@@ -134,18 +129,18 @@ public class RetryTest {
                 .errorConsumer(null)
                 .async(false)
                 .contextClassLoader(null)
-                .retryTimes(1<<20)
-                .retryPeriodSeconds(1);
+                .retryTimes(10)
+                .retryPeriodSeconds(10);
 
         final AtomicBoolean success = new AtomicBoolean(false);
         final Object obj = new Object();
         new Thread(() -> {
             try {
-                Thread.sleep(5000L);
+                Thread.sleep(50L);
                 System.out.println("=====>cancel retry...");
                 invoker.cancelRetry();
                 synchronized (obj) {
-                    obj.wait(10000L);
+                    obj.wait(100L);
                 }
             } catch (InterruptedException e) {
                 e.printStackTrace();
@@ -169,6 +164,184 @@ public class RetryTest {
         assertEquals(true, success.get(),"===>cancel retry succeed");
     }
 
+    //测试能否中断重试
+    @Test
+    public void testAwakenV2() throws NoSuchFieldException, IllegalAccessException {
+        ConnectionNode node = new ConnectionNode();
+        Field field = ReflectionUtil.getField(ConnectionNode.class, "connectionContext");
+        field.setAccessible(true);
+        field.set(node, new TapConnectionContext(null, null));
+
+        node.init(new TapConnectorTest());
+        ConnectionFunctions<?> connectionFunctions = node.getConnectionFunctions();
+        connectionFunctions.supportErrorHandleFunction((nodeContext, method, throwable) -> {
+            return RetryOptions.create().needRetry(true).beforeRetryMethod(() -> {
+                System.out.println("begin retry...");
+            });
+        });
+        PDKMethodInvoker invoker = PDKMethodInvoker.create()
+                .runnable(()->{
+                    System.out.println("Begin retry...");
+                    throw new IOException("test retry...");
+                })
+                .message("call connection functions coding@io.tapdata-v1.0-SNAPSHOT associateId codingSource_1662088750311")
+                .logTag("")
+                .errorConsumer(null)
+                .async(false)
+                .contextClassLoader(null)
+                .retryTimes(20)
+                .retryPeriodSeconds(2);
+
+        final AtomicBoolean success = new AtomicBoolean(false);
+        final Object obj = new Object();
+        new Thread(() -> {
+            try {
+                Thread.sleep(800L);
+                System.out.println("=====>cancel retry...");
+                //invoker.cancelRetry();
+                PDKInvocationMonitor.closeTasks(node);
+                synchronized (obj) {
+                    obj.wait(500L);
+                }
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        }).start();
+
+       try {
+           PDKInvocationMonitor.invoke(
+                   node,
+                   PDKMethod.REGISTER_CAPABILITIES,
+                   invoker
+           );
+       }catch (Exception e){
+
+       }
+
+        success.set(true);
+        synchronized (obj) {
+            obj.notify();
+        }
+        assertEquals(true, success.get(),"===>cancel retry succeed");
+    }    //测试能否中断重试
+
+
+    @Test
+    public void testAwakenV3() throws NoSuchFieldException, IllegalAccessException {
+        ConnectionNode node = new ConnectionNode();
+        Field field = ReflectionUtil.getField(ConnectionNode.class, "connectionContext");
+        field.setAccessible(true);
+        field.set(node, new TapConnectionContext(null, null));
+
+        node.init(new TapConnectorTest());
+        ConnectionFunctions<?> connectionFunctions = node.getConnectionFunctions();
+        connectionFunctions.supportErrorHandleFunction((nodeContext, method, throwable) -> {
+            return RetryOptions.create().needRetry(true).beforeRetryMethod(() -> {
+                System.out.println(" Thread-1 begin retry...");
+            });
+        });
+
+
+        ConnectionNode node2 = new ConnectionNode();
+        Field field2 = ReflectionUtil.getField(ConnectionNode.class, "connectionContext");
+        field2.setAccessible(true);
+        field2.set(node2, new TapConnectionContext(null, null));
+
+        node2.init(new TapConnectorTest());
+        ConnectionFunctions<?> connectionFunctions2 = node2.getConnectionFunctions();
+        connectionFunctions2.supportErrorHandleFunction((nodeContext, method, throwable) -> {
+            return RetryOptions.create().needRetry(true).beforeRetryMethod(() -> {
+                System.out.println(" Thread-2 begin retry...");
+            });
+        });
+
+
+        PDKMethodInvoker invoker = PDKMethodInvoker.create()
+                .runnable(()->{
+                    System.out.println(" Thread-1 Begin retry...");
+                    throw new IOException(" Thread-1 test retry...");
+                })
+                .message("call connection functions coding@io.tapdata-v1.0-SNAPSHOT associateId codingSource_1662088750311")
+                .logTag("")
+                .errorConsumer(null)
+                .async(false)
+                .contextClassLoader(null)
+                .retryTimes(20)
+                .retryPeriodSeconds(1);
+
+        PDKMethodInvoker invoker2 = PDKMethodInvoker.create()
+                .runnable(()->{
+                    System.out.println(" Thread-2 Begin retry...");
+                    throw new IOException(" Thread-2 test retry...");
+                })
+                .message("call connection functions coding@io.tapdata-v1.0-SNAPSHOT associateId codingSource_1662088750311")
+                .logTag("")
+                .errorConsumer(null)
+                .async(false)
+                .contextClassLoader(null)
+                .retryTimes(2)
+                .retryPeriodSeconds(1);
+
+        final AtomicBoolean success = new AtomicBoolean(false);
+        final Object obj = new Object();
+        new Thread(() -> {
+            try {
+                Thread.sleep(1000L);
+                System.out.println("=====> Thread-1 cancel retry...");
+                //invoker.cancelRetry();
+                PDKInvocationMonitor.closeTasks(node);
+                synchronized (obj) {
+                    obj.wait(500L);
+                }
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        }).start();
+
+
+        final AtomicBoolean success2 = new AtomicBoolean(false);
+        final Object obj2 = new Object();
+        new Thread(() -> {
+            try {
+                Thread.sleep(50L);
+                System.out.println("=====> Thread-2 cancel retry...");
+                //invoker.cancelRetry();
+                PDKInvocationMonitor.closeTasks(node);
+                synchronized (obj2) {
+                    obj2.wait(500L);
+                }
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        }).start();
+//        new Thread(() -> {
+//            try {
+//                PDKInvocationMonitor.invoke(
+//                        node2,
+//                        PDKMethod.REGISTER_CAPABILITIES,
+//                        invoker2
+//                );
+//            }catch (Exception e){
+//
+//            }
+//        }).start();
+
+       try {
+           PDKInvocationMonitor.invoke(
+                   node,
+                   PDKMethod.REGISTER_CAPABILITIES,
+                   invoker
+           );
+       }catch (Exception e){
+
+       }
+
+        success.set(true);
+        synchronized (obj) {
+            obj.notify();
+        }
+        assertEquals(true, success.get(),"===>cancel retry succeed");
+    }    //测试能否中断重试
 
 
     class TapConnectorTest implements TapConnector{
