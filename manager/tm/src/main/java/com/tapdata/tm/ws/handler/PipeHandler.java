@@ -65,8 +65,8 @@ public class PipeHandler implements WebSocketHandler {
 							JSONObject responseBody = jsonObject.getJSONObject("response_body");
 							JSONArray validateDetails = responseBody.getJSONArray("validate_details");
 
-							String grade = ("passed").equals(validateDetails.getJSONObject(0).getString("status")) ?
-									Level.INFO.getValue() : Level.ERROR.getValue();
+							Level grade = ("passed").equals(validateDetails.getJSONObject(0).getString("status")) ?
+									Level.INFO : Level.ERROR;
 
 							taskDagCheckLogService.createLog(taskId, userId, grade, DagOutputTemplateEnum.valueOf(templateEnum),
 									true, true, DateUtil.now(), jsonObject.getJSONObject("response_body").toJSONString());

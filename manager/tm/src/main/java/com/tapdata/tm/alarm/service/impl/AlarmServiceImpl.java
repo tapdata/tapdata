@@ -87,11 +87,12 @@ public class AlarmServiceImpl implements AlarmService {
             one.setTally(one.getTally() + 1);
             one.setLastUpdAt(DateUtil.date());
             one.setLastOccurrenceTime(DateUtil.date());
+            one.setStatus(info.getStatus());
 
             mongoTemplate.save(one);
         } else {
-            mongoTemplate.insert(info);
             info.setFirstOccurrenceTime(DateUtil.date());
+            mongoTemplate.insert(info);
         }
     }
 
@@ -330,7 +331,7 @@ public class AlarmServiceImpl implements AlarmService {
                         .level(t.getLevel())
                         .status(t.getStatus())
                         .name(t.getName())
-                        .summary(t.getSummary())
+                        .summary(StringUtils.replace(t.getSummary(), "$taskName", t.getName()))
                         .firstOccurrenceTime(t.getFirstOccurrenceTime())
                         .lastOccurrenceTime(t.getLastOccurrenceTime())
                         .taskId(t.getTaskId())
@@ -350,6 +351,8 @@ public class AlarmServiceImpl implements AlarmService {
         Criteria criteria = Criteria.where("taskId").is(taskId);
         if (Objects.nonNull(status)) {
             criteria.and("status").is(status.name());
+        } else {
+            criteria.and("status").ne(AlarmStatusEnum.CLOESE.name());
         }
         if (Objects.nonNull(level)) {
             criteria.and("level").is(level.name());
@@ -357,7 +360,7 @@ public class AlarmServiceImpl implements AlarmService {
         if (Objects.nonNull(nodeId)) {
             criteria.and("nodeId").is(nodeId);
         }
-        Query query = new Query();
+        Query query = new Query(criteria);
         List<AlarmInfo> alarmInfos = mongoTemplate.find(query, AlarmInfo.class);
 
         Map<String, Integer> nodeNumMap = Maps.newHashMap();
@@ -368,7 +371,7 @@ public class AlarmServiceImpl implements AlarmService {
                     .level(t.getLevel())
                     .status(t.getStatus())
                     .name(t.getName())
-                    .summary(t.getSummary())
+                    .summary(StringUtils.replace(t.getSummary(), "$taskName", t.getName()))
                     .firstOccurrenceTime(t.getFirstOccurrenceTime())
                     .lastOccurrenceTime(t.getLastOccurrenceTime())
                     .taskId(t.getTaskId())

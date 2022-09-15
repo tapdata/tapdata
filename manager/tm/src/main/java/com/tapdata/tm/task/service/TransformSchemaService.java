@@ -99,7 +99,7 @@ public class TransformSchemaService {
         try {
             transformSchema(taskDto, user);
         } catch (Exception e) {
-            taskDagCheckLogService.createLog(taskId.toHexString(), user.getUserId(), Level.ERROR.getValue(),
+            taskDagCheckLogService.createLog(taskId.toHexString(), user.getUserId(), Level.ERROR,
                     DagOutputTemplateEnum.MODEL_PROCESS_CHECK,
                     false, true, DateUtil.now(), e.getMessage());
             taskService.update(new Query(Criteria.where("_id").is(taskId)), Update.update("transformDagHash", 0));
@@ -256,7 +256,7 @@ public class TransformSchemaService {
             // add transformer task log
             List<String> taskIds = Lists.newArrayList();
             taskIds.addAll(msgMap.keySet());
-            taskDagCheckLogService.createLog(taskIds.get(0), user.getUserId(), Level.ERROR.getValue(), DagOutputTemplateEnum.MODEL_PROCESS_CHECK,
+            taskDagCheckLogService.createLog(taskIds.get(0), user.getUserId(), Level.ERROR, DagOutputTemplateEnum.MODEL_PROCESS_CHECK,
                     false, true, DateUtil.now(), msgMap.get(taskIds.get(0)).get(0).getMsg());
             taskService.update(new Query(Criteria.where("_id").is(taskIds.get(0))), Update.update("transformDagHash", 0));
         }
@@ -293,7 +293,7 @@ public class TransformSchemaService {
                     int total = result.getUpsertTransformer().get(0).getTotal();
                     int finished = result.getUpsertTransformer().get(0).getFinished();
                     // add transformer task log
-                    taskDagCheckLogService.createLog(taskId, user.getUserId(), Level.INFO.getValue(), DagOutputTemplateEnum.MODEL_PROCESS_CHECK,
+                    taskDagCheckLogService.createLog(taskId, user.getUserId(), Level.INFO, DagOutputTemplateEnum.MODEL_PROCESS_CHECK,
                             false, true, DateUtil.now(), finished, total);
                 }
             }

@@ -126,7 +126,7 @@ public class DataInspectStrategyImpl implements DagLogStrategy {
         checkLog.setCheckType(templateEnum.name());
         checkLog.setCreateAt(new Date());
         checkLog.setCreateUser(userDetail.getUserId());
-        checkLog.setGrade(Level.INFO.name());
+        checkLog.setGrade(Level.INFO);
         checkLog.setLog(MessageFormat.format(templateEnum.getInfoTemplate(), checkLog.getCreateAt(), taskDto.getName(), supportTables, notSupportTables));
         return checkLog;
     }
@@ -137,7 +137,7 @@ public class DataInspectStrategyImpl implements DagLogStrategy {
         checkLog.setCheckType(templateEnum.name());
         checkLog.setCreateAt(new Date());
         checkLog.setCreateUser(userDetail.getUserId());
-        checkLog.setGrade(Level.WARN.name());
+        checkLog.setGrade(Level.WARN);
         checkLog.setLog(MessageFormat.format(templateEnum.getErrorTemplate(), checkLog.getCreateAt(), taskDto.getName(), msg));
         return checkLog;
     }
@@ -148,7 +148,7 @@ public class DataInspectStrategyImpl implements DagLogStrategy {
         checkLog.setCheckType(templateEnum.name());
         checkLog.setCreateAt(new Date());
         checkLog.setCreateUser(userDetail.getUserId());
-        checkLog.setGrade(Level.ERROR.name());
+        checkLog.setGrade(Level.ERROR);
         checkLog.setLog(MessageFormat.format(templateEnum.getErrorTemplate(), checkLog.getCreateAt(), taskDto.getName(), msg));
         return checkLog;
     }

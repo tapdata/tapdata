@@ -56,7 +56,7 @@ public class TaskSaveServiceImpl implements TaskSaveService {
         boolean noPass = false;
         List<TaskDagCheckLog> taskDagCheckLogs = taskDagCheckLogService.dagCheck(taskDto, userDetail, true);
         if (CollectionUtils.isNotEmpty(taskDagCheckLogs)) {
-            Optional<TaskDagCheckLog> any = taskDagCheckLogs.stream().filter(log -> StringUtils.equals(Level.ERROR.getValue(), log.getGrade())).findAny();
+            Optional<TaskDagCheckLog> any = taskDagCheckLogs.stream().filter(log -> Level.ERROR.equals(log.getGrade())).findAny();
             if (any.isPresent()) {
                 noPass = true;
 
