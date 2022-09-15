@@ -8,6 +8,7 @@ import io.tapdata.entity.schema.TapTable;
 import io.tapdata.kit.EmptyKit;
 import io.tapdata.kit.StringKit;
 import io.tapdata.pdk.apis.entity.ConnectionOptions;
+import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.MapUtils;
 
 import java.sql.Connection;
@@ -50,6 +51,9 @@ public class OceanbaseWriteRecorder extends WriteRecorder {
     }
 
     public int executeBatchInsert() throws SQLException {
+        if (CollectionUtils.isEmpty(insertParamMaps)) {
+            return 0;
+        }
         if (EmptyKit.isNotEmpty(uniqueCondition)) {
             if (insertPolicy.equals(ConnectionOptions.DML_INSERT_POLICY_IGNORE_ON_EXISTS)) {
                 conflictIgnoreInsert();
@@ -148,6 +152,7 @@ public class OceanbaseWriteRecorder extends WriteRecorder {
     }
 
     public int executeUpdate(Map<String, Object> after) throws SQLException {
+        int succeed = 0;
         if (EmptyKit.isEmpty(after) || EmptyKit.isEmpty(uniqueCondition)) {
             return 0;
         }
@@ -159,12 +164,9 @@ public class OceanbaseWriteRecorder extends WriteRecorder {
         } else {
             justUpdate(after, before);
         }
-        int succeed = 0;
         try {
-            boolean result = preparedStatement.execute();
-            if (result) {
-                succeed = 1;
-            }
+            preparedStatement.execute();
+            succeed = 1;
         } catch (SQLException sqle) {
             TapLogger.error(TAG, "update failed, sql:{}", preparedStatement.toString(), sqle.getMessage());
             return succeed;
