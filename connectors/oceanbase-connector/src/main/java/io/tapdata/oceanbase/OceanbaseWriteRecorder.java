@@ -307,10 +307,8 @@ public class OceanbaseWriteRecorder extends WriteRecorder {
         justDelete(before);
         int succeed = 0;
         try {
-            boolean result = preparedStatement.execute();
-            if (result) {
-                succeed = 1;
-            }
+            preparedStatement.execute();
+            succeed = 1;
         } catch (SQLException sqle) {
             TapLogger.error(TAG, "delete failed, sql:{}", preparedStatement.toString(), sqle.getMessage());
             return succeed;
