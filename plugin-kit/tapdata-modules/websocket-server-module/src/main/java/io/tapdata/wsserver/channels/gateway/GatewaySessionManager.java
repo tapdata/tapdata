@@ -48,8 +48,8 @@ public class GatewaySessionManager implements HealthWeightListener {
     private String jwtKey = "adfJ#R$LKLKFJERL(*$#@FD";
     private Integer jwtExpireSeconds = 60 * 60 * 12;
 
-    private Long sessionExpireCheckPeriodSeconds = 60L;
-    private Long sessionInactiveExpireTime = TimeUnit.MINUTES.toMillis(3);
+    private Long sessionExpireCheckPeriodSeconds = 30L;
+    private Long sessionInactiveExpireTime = TimeUnit.SECONDS.toMillis(30);
     private String authorisedExpression = ".*_.*Apis_.*";
 
     @Bean

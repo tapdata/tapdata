@@ -17,13 +17,17 @@ import java.util.Map;
 public class HttpUtils {
     public static JSONObject post(String url, JSONObject data, Map<String, String> headers) throws IOException {
         HttpURLConnection connection = getUrlConnection(url, "POST", headers);
-        output(connection, data);
-        connection.connect();
-        int code = connection.getResponseCode();
-        if(code >= 200 && code < 300) {
-            return getJSONResult(url, connection);
-        } else {
-            throw new IOException("Url(post) " + url + " occur error, code " + code + " message " + connection.getResponseMessage());
+        try {
+            output(connection, data);
+            connection.connect();
+            int code = connection.getResponseCode();
+            if(code >= 200 && code < 300) {
+                return getJSONResult(url, connection);
+            } else {
+                throw new IOException("Url(post) " + url + " occur error, code " + code + " message " + connection.getResponseMessage());
+            }
+        } finally {
+          connection.disconnect();
         }
     }
 
@@ -31,58 +35,72 @@ public class HttpUtils {
         if(data != null) {
             connection.setDoOutput(true);
             connection.setRequestProperty( "Content-Type", "application/json");
-            OutputStream outputStream = connection.getOutputStream();
-            outputStream.write(JSON.toJSONString(data).getBytes("utf8"));
+            try(OutputStream outputStream = connection.getOutputStream()) {
+                outputStream.write(JSON.toJSONString(data).getBytes("utf8"));
+            }
         }
     }
 
     public static JSONObject get(String url, Map<String, String> headers) throws IOException {
         HttpURLConnection connection = getUrlConnection(url, "GET", headers);
-        connection.connect();
-        int code = connection.getResponseCode();
-        if(code >= 200 && code < 300) {
-            return getJSONResult(url, connection);
-        } else {
-            throw new IOException("Url(get) " + url + " occur error, code " + code + " message " + connection.getResponseMessage());
+        try {
+            connection.connect();
+            int code = connection.getResponseCode();
+            if(code >= 200 && code < 300) {
+                return getJSONResult(url, connection);
+            } else {
+                throw new IOException("Url(get) " + url + " occur error, code " + code + " message " + connection.getResponseMessage());
+            }
+        } finally {
+            connection.disconnect();
         }
     }
 
     public static JSONObject delete(String url, Map<String, String> headers) throws IOException {
         HttpURLConnection connection = getUrlConnection(url, "DELETE", headers);
-        connection.connect();
-        int code = connection.getResponseCode();
-        if(code >= 200 && code < 300) {
-            return getJSONResult(url, connection);
-        } else {
-            throw new IOException("Url(delete) " + url + " occur error, code " + code + " message " + connection.getResponseMessage());
+        try {
+            connection.connect();
+            int code = connection.getResponseCode();
+            if(code >= 200 && code < 300) {
+                return getJSONResult(url, connection);
+            } else {
+                throw new IOException("Url(delete) " + url + " occur error, code " + code + " message " + connection.getResponseMessage());
+            }
+        } finally {
+            connection.disconnect();
         }
     }
 
     public static JSONObject put(String url, JSONObject data, Map<String, String> headers) throws IOException {
         HttpURLConnection connection = getUrlConnection(url, "PUT", headers);
-        output(connection, data);
-        connection.connect();
-        int code = connection.getResponseCode();
-        if(code >= 200 && code < 300) {
-            return getJSONResult(url, connection);
-        } else {
-            throw new IOException("Url(put) " + url + " occur error, code " + code + " message " + connection.getResponseMessage());
+        try {
+            output(connection, data);
+            connection.connect();
+            int code = connection.getResponseCode();
+            if(code >= 200 && code < 300) {
+                return getJSONResult(url, connection);
+            } else {
+                throw new IOException("Url(put) " + url + " occur error, code " + code + " message " + connection.getResponseMessage());
+            }
+        } finally {
+            connection.disconnect();
         }
     }
 
     private static JSONObject getJSONResult(String url, HttpURLConnection connection) throws IOException {
-        InputStream inputStream = connection.getInputStream();
-        String json = IOUtils.toString(inputStream, StandardCharsets.UTF_8);
-        if(StringUtils.isNotBlank(json)) {
-            JSONObject result = JSON.parseObject(json);
-            if(result != null && result.getString("code").equals("ok")) {
-                JSONObject data = result.getJSONObject("data");
-                if(data != null) {
-                    return data;
+        try(InputStream inputStream = connection.getInputStream()) {
+            String json = IOUtils.toString(inputStream, StandardCharsets.UTF_8);
+            if(StringUtils.isNotBlank(json)) {
+                JSONObject result = JSON.parseObject(json);
+                if(result != null && result.getString("code").equals("ok")) {
+                    JSONObject data = result.getJSONObject("data");
+                    if(data != null) {
+                        return data;
+                    }
                 }
             }
+            throw new IOException("Url " + url + " content illegal, " + json);
         }
-        throw new IOException("Url " + url + " content illegal, " + json);
     }
 
     private static HttpURLConnection getUrlConnection(String url, String method, Map<String, String> headers) throws IOException {

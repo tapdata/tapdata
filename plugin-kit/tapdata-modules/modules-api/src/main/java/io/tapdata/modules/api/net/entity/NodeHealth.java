@@ -1,5 +1,9 @@
 package io.tapdata.modules.api.net.entity;
 
+import io.tapdata.modules.api.net.data.Data;
+
+import java.util.Date;
+
 public class NodeHealth implements Comparable<NodeHealth> {
 	private String id;
 	public NodeHealth id(String id) {
@@ -67,4 +71,8 @@ public class NodeHealth implements Comparable<NodeHealth> {
 		return health > sessionClassHolder.health ? -1 : 1;
 	}
 
+	@Override
+	public String toString() {
+		return "NodeHealth id " + id + " health " + health + " time " + (time != null ? new Date(time) : null) + "; ";
+	}
 }

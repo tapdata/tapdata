@@ -17,14 +17,15 @@ import java.io.Serializable;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.util.*;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
 @Implementation(TapUtils.class)
 public class TapUtilsImpl implements TapUtils {
 
     @Override
-    public void interval(Runnable runnable, int seconds) {
-        ExecutorsManager.getInstance().getScheduledExecutorService().schedule(runnable, seconds, TimeUnit.SECONDS);
+    public ScheduledFuture<?> interval(Runnable runnable, int seconds) {
+        return ExecutorsManager.getInstance().getScheduledExecutorService().schedule(runnable, seconds, TimeUnit.SECONDS);
     }
 
     @Override

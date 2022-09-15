@@ -135,10 +135,10 @@ public class EngineSessionHandler extends GatewaySessionHandler {
 			return false;
 		}
 	}
-	public void handleCommandInfo(CommandInfo commandInfo, BiConsumer<Map<String, Object>, Throwable> biConsumer) {
+	public boolean handleCommandInfo(CommandInfo commandInfo, BiConsumer<Map<String, Object>, Throwable> biConsumer) {
 		if(commandInfo == null || biConsumer == null)
 			throw new CoreException(NetErrors.ILLEGAL_PARAMETERS, "handleCommandInfo missing parameters, commandInfo {}, biConsumer {}", commandInfo, biConsumer);
-		if(sendData(new OutgoingData().time(System.currentTimeMillis()).message(new CommandReceived().commandInfo(commandInfo)))) {
+		if(isChannelActive()) {
 			CommandInfoExecutor commandInfoExecutor = new CommandInfoExecutor(commandInfo, biConsumer);
 			commandInfoExecutor.scheduledFuture = ExecutorsManager.getInstance().getScheduledExecutorService().schedule(() -> {
 				commandInfoExecutor.result(null, new TimeoutException("Time out"));
@@ -148,8 +148,13 @@ public class EngineSessionHandler extends GatewaySessionHandler {
 				TapLogger.debug(TAG, "Command info id {} already exists, will use new one instead, timer will be another 30 seconds", commandInfo.getId());
 				old.cancelTimer();
 			}
+			if(!sendData(new OutgoingData().time(System.currentTimeMillis()).message(new CommandReceived().commandInfo(commandInfo)))) {
+				commandInfoExecutor.result(null, new CoreException(NetErrors.ENGINE_CHANNEL_OFFLINE, "Engine channel is offline, please try again"));
+			}
+			return true;
 		} else {
-			throw new CoreException(NetErrors.ENGINE_CHANNEL_OFFLINE, "Engine is offline");
+			return false;
+//			throw new CoreException(NetErrors.ENGINE_CHANNEL_OFFLINE, "Engine is offline");
 		}
 	}
 

@@ -14,21 +14,23 @@ import io.tapdata.pdk.core.executor.ExecutorsManager;
 import io.tapdata.pdk.core.utils.CommonUtils;
 
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Function;
 
 @Bean
 public class NodeHealthManager {
 	private static final String TAG = NodeHealthManager.class.getSimpleName();
 	@Bean
 	private NodeHealthService nodeHealthService;
+	private final Map<String, NodeHandler> idNodeHandlerMap = new ConcurrentHashMap<>();
 
 	private final List<HealthWeightListener> healthWeightListeners = new CopyOnWriteArrayList<>();
 	private final AtomicBoolean started = new AtomicBoolean(false);
 
-	private NodeHealth nodeHealth;
-	private Collection<NodeHealth> healthyNodes;
+	private NodeHealth currentNodeHealth;
 	private int nodeDeadExpiredSeconds = 120;
 	@Bean
 	private NodeRegistryService nodeRegistryService;
@@ -46,12 +48,12 @@ public class NodeHealthManager {
 			if(nodeId == null)
 				throw new CoreException(NetErrors.CURRENT_NODE_ID_NOT_FOUND, "Current nodeId for NodeHealthManager#start not found");
 
-			nodeHealth = new NodeHealth().id(nodeId);
-			nodeHealthService.save(nodeHealth.health(score()).time(System.currentTimeMillis()));
+			currentNodeHealth = new NodeHealth().id(nodeId);
+			nodeHealthService.save(currentNodeHealth.health(score()).time(System.currentTimeMillis()));
 			ExecutorsManager.getInstance().getScheduledExecutorService().scheduleWithFixedDelay(() -> {
 				CommonUtils.ignoreAnyError(() -> {
-					nodeHealthService.save(nodeHealth.health(score()).time(System.currentTimeMillis()));
-					healthyNodes = nodeHealthService.getHealthNodes();
+					nodeHealthService.save(currentNodeHealth.health(score()).time(System.currentTimeMillis()));
+					loadNodes();
 				}, TAG);
 			}, checkHealthPeriodSeconds, checkHealthPeriodSeconds, TimeUnit.SECONDS);
 
@@ -62,9 +64,18 @@ public class NodeHealthManager {
 						TapLogger.error(TAG, "Unexpected cleaner, the initial value should be \"none\", not null");
 						return;
 					}
-					NodeHealth cleanerNodeHealth = getAliveNode(cleaner);
-					if(cleanerNodeHealth == null) {
+					NodeHandler nodeHandler = getAliveNode(cleaner);
+					NodeHealth cleanerNodeHealth;
+					if(nodeHandler == null && !this.currentNodeHealth.getId().equals(cleaner)) {
 						cleanerNodeHealth = nodeHealthService.get(cleaner);
+						NodeRegistry nodeRegistry = nodeRegistryService.get(cleaner);
+						if(cleanerNodeHealth != null && nodeRegistry != null) {
+							NodeHandler handler = idNodeHandlerMap.putIfAbsent(cleaner, new NodeHandler().nodeHealth(cleanerNodeHealth).nodeRegistry(nodeRegistry));
+							if(handler == null)
+								TapLogger.debug(TAG, "Node {} added into healthy node list as cleaner, nodeHealth {}, nodeRegistry {}", cleaner, cleanerNodeHealth, nodeRegistry);
+						}
+					} else {
+						cleanerNodeHealth = nodeHandler.getNodeHealth();
 					}
 					if(cleaner.equals(nodeId)) {
 						cleanUpDeadNodes();
@@ -81,34 +92,54 @@ public class NodeHealthManager {
 		}
 	}
 
-	private boolean isNodeAlive(String nodeId) {
-		boolean hit = false;
-		for(NodeHealth nodeHealth1 : healthyNodes) {
-			if(nodeHealth1.getId().equals(nodeId)) {
-				hit = true;
-				break;
+	private void loadNodes() {
+		Collection<NodeHealth> healthyNodes = nodeHealthService.getHealthNodes();
+		Set<String> nodeIds = new HashSet<>();
+		for(NodeHealth nodeHealth : healthyNodes) {
+			if(nodeHealth.getId() != null && !this.currentNodeHealth.getId().equals(nodeHealth.getId())) {
+				nodeIds.add(nodeHealth.getId());
+				idNodeHandlerMap.computeIfAbsent(nodeHealth.getId(), id -> {
+					NodeRegistry nodeRegistry = nodeRegistryService.get(id);
+					if(nodeRegistry != null) {
+						TapLogger.debug(TAG, "Node {} added into healthy node list, nodeHealth {}, nodeRegistry {}", id, nodeHealth, nodeRegistry);
+						return new NodeHandler().nodeHealth(nodeHealth).nodeRegistry(nodeRegistry);
+					} else {
+						TapLogger.debug(TAG, "Node id {} can not find NodeRegistry, ignored... nodeHealth {}", id, nodeHealth);
+						return null;
+					}
+				});
 			}
 		}
-		return hit;
+
+		Set<String> deleted = new HashSet<>();
+		for(String id : idNodeHandlerMap.keySet()) {
+			if(!nodeIds.contains(id)) {
+				deleted.add(id);
+			}
+		}
+
+		for(String deletedId : deleted) {
+			NodeHandler nodeHandler = idNodeHandlerMap.remove(deletedId);
+			if(nodeHandler != null) {
+				TapLogger.debug(TAG, "Node {} has been removed from healthy node list, nodeHealth {}, nodeRegistry {}", deletedId, nodeHandler.getNodeHealth(), nodeHandler.getNodeRegistry());
+			}
+		}
 	}
 
-	private NodeHealth getAliveNode(String nodeId) {
-		for(NodeHealth nodeHealth1 : healthyNodes) {
-			if(nodeHealth1.getId().equals(nodeId)) {
-				return nodeHealth1;
-			}
-		}
-		return null;
+	private boolean isNodeAlive(String nodeId) {
+		return idNodeHandlerMap.containsKey(nodeId);
+	}
+
+	private NodeHandler getAliveNode(String nodeId) {
+		return idNodeHandlerMap.get(nodeId);
 	}
 
 	private void cleanUpDeadNodes() {
-		if(healthyNodes == null)
-			return;
 		List<NodeRegistry> nodes = nodeRegistryService.getNodes();
 		for(NodeRegistry nodeRegistry : nodes) {
 			String id = nodeRegistry.id();
-			NodeHealth nodeHealth1 = getAliveNode(id);
-			if(stillAlive(nodeHealth1))
+			NodeHandler aliveNode = getAliveNode(id);
+			if(stillAlive(aliveNode.getNodeHealth()))
 				continue; //ignore alive node or dead node which was alive within 120 seconds
 			if(nodeRegistryService.delete(id, nodeRegistry.getTime())) {
 				TapLogger.debug(TAG, "Found dead node registration {} time {}, deleted", id, nodeRegistry.getTime() != null ? new Date(nodeRegistry.getTime()) : null);
@@ -131,8 +162,8 @@ public class NodeHealthManager {
 		}
 	}
 
-	private boolean stillAlive(NodeHealth nodeHealth1) {
-		return nodeHealth1 != null && nodeHealth1.getTime() != null && (System.currentTimeMillis() - nodeHealth1.getTime()) < TimeUnit.SECONDS.toMillis(nodeDeadExpiredSeconds);
+	private boolean stillAlive(NodeHealth nodeHealth) {
+		return nodeHealth != null && nodeHealth.getTime() != null && (System.currentTimeMillis() - nodeHealth.getTime()) < TimeUnit.SECONDS.toMillis(nodeDeadExpiredSeconds);
 	}
 
 	public int score() {
@@ -149,11 +180,11 @@ public class NodeHealthManager {
 		return started.get();
 	}
 
-	public NodeHealth getNodeHealth() {
-		return nodeHealth;
+	public NodeHealth getCurrentNodeHealth() {
+		return currentNodeHealth;
 	}
 
-	public Collection<NodeHealth> getHealthyNodes() {
-		return healthyNodes;
+	public Map<String, NodeHandler> getIdNodeHandlerMap() {
+		return idNodeHandlerMap;
 	}
 }

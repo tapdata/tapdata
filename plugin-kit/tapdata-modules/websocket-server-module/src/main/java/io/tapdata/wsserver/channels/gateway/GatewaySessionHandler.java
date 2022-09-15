@@ -137,6 +137,10 @@ public abstract class GatewaySessionHandler {
         return gatewayChannelModule.sendData(userChannel.getUserId(), data);
     }
 
+    public boolean isChannelActive() {
+        return gatewayChannelModule.isChannelActive(userChannel.getUserId());
+    }
+
     public boolean sendData(String userId, String contentType, TapEntity data) {
         OutgoingData outgoingData = new OutgoingData().contentType(contentType).message(data).time(System.currentTimeMillis());
         return gatewayChannelModule.sendData(userId, outgoingData);
