@@ -5,9 +5,9 @@ import io.tapdata.entity.schema.type.TapType;
 
 import java.util.List;
 
-public class TapArrayValue extends TapValue<List<?>, TapArray> {
+public class TapArrayValue extends TapValue<List<Object>, TapArray> {
     public TapArrayValue() {}
-    public TapArrayValue(List<?> value) {
+    public TapArrayValue(List<Object> value) {
         this.value = value;
     }
 
