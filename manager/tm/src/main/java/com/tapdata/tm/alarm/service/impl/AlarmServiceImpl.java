@@ -394,8 +394,10 @@ public class AlarmServiceImpl implements AlarmService {
                         .build()
         ).collect(Collectors.toList());
 
-        long alert = alarmInfos.stream().filter(t -> Lists.of(Level.NORMAL, Level.WARNING).contains(t.getLevel())).count();
-        long error = alarmInfos.stream().filter(t -> Lists.of(Level.CRITICAL, Level.EMERGENCY).contains(t.getLevel())).count();
+        long alert = alarmInfos.stream().filter(t -> !AlarmStatusEnum.CLOESE.equals(t.getStatus())
+                && Lists.of(Level.NORMAL, Level.WARNING).contains(t.getLevel())).count();
+        long error = alarmInfos.stream().filter(t -> !AlarmStatusEnum.CLOESE.equals(t.getStatus())
+                && Lists.of(Level.CRITICAL, Level.EMERGENCY).contains(t.getLevel())).count();
 
         return TaskAlarmInfoVo.builder()
                 .nodeInfos(taskAlarmNodeInfoVos)
