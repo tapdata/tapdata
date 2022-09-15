@@ -4,10 +4,13 @@ import com.google.common.collect.Lists;
 import io.tapdata.base.ConnectorBase;
 import io.tapdata.common.CommonSqlMaker;
 import io.tapdata.common.DataSourcePool;
+import io.tapdata.common.ddl.DDLFactory;
 import io.tapdata.common.ddl.DDLSqlGenerator;
+import io.tapdata.common.ddl.type.DDLParserType;
 import io.tapdata.connector.dameng.bean.DamengColumn;
 import io.tapdata.connector.dameng.cdc.DamengCdcRunner;
 import io.tapdata.connector.dameng.cdc.DamengOffset;
+import io.tapdata.connector.dameng.ddl.DamengDDLSqlGenerator;
 import io.tapdata.connector.dameng.dml.DamengRecordWriter;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.event.TapEvent;
@@ -85,7 +88,7 @@ public class DamengConnector extends ConnectorBase {
             damengConfig.setSysZoneId(ZoneId.of(sysTimezone));
         }
         damengVersion = damengContext.queryVersion();
-        //ddlSqlGenerator = new OracleDDLSqlGenerator();
+        ddlSqlGenerator = new DamengDDLSqlGenerator();
         fieldDDLHandlers = new BiClassHandlers<>();
         fieldDDLHandlers.register(TapNewFieldEvent.class, this::newField);
         fieldDDLHandlers.register(TapAlterFieldAttributesEvent.class, this::alterFieldAttr);
@@ -132,10 +135,10 @@ public class DamengConnector extends ConnectorBase {
         connectorFunctions.supportQueryByAdvanceFilter(this::queryByAdvanceFilter);
         connectorFunctions.supportGetTableNamesFunction(this::getTableNames);
 //        //ddl
-//        connectorFunctions.supportNewFieldFunction(this::fieldDDLHandler);
-//        connectorFunctions.supportAlterFieldNameFunction(this::fieldDDLHandler);
-//        connectorFunctions.supportAlterFieldAttributesFunction(this::fieldDDLHandler);
-//        connectorFunctions.supportDropFieldFunction(this::fieldDDLHandler);
+        connectorFunctions.supportNewFieldFunction(this::fieldDDLHandler);
+        connectorFunctions.supportAlterFieldNameFunction(this::fieldDDLHandler);
+        connectorFunctions.supportAlterFieldAttributesFunction(this::fieldDDLHandler);
+        connectorFunctions.supportDropFieldFunction(this::fieldDDLHandler);
 
 
         codecRegistry.registerFromTapValue(TapMapValue.class, "CLOB", tapMapValue -> {
@@ -208,13 +211,16 @@ public class DamengConnector extends ConnectorBase {
         }
 
         Collection<String> primaryKeys = tapTable.primaryKeys();
-        String sql = "CREATE TABLE \"" + damengConfig.getSchema() + "\".\"" + tapTable.getId() + "\"(" + CommonSqlMaker.buildColumnDefinition(tapTable, false);
+        String sql = "CREATE TABLE \"" + damengConfig.getSchema() + "\".\"" + tapTable.getId() + "\"(" ;
+        String column=  CommonSqlMaker.buildColumnDefinition(tapTable, false);
+        // 达梦不支持 unsigned
+        if(column.contains("unsigned") || column.contains("UNSIGNED")){
+            column = column.replaceAll("unsigned","");
+            column = column.replaceAll("UNSIGNED","");
+        }
+        sql+=column;
         if (EmptyKit.isNotEmpty(tapTable.primaryKeys())) {
             sql += "," + " PRIMARY KEY (\"" + String.join("\",\"", primaryKeys) + "\" )";
-        }
-        // 达梦不支持 unsigned
-        if(sql.contains("unsigned") || sql.contains("UNSIGNED")){
-            sql = sql.replaceAll("unsigned","");
         }
         sql += ")";
         try {
@@ -414,8 +420,8 @@ public class DamengConnector extends ConnectorBase {
                 return connectionOptions;
             }
         }
-//        List<Capability> ddlCapabilities = DDLFactory.getCapabilities(DDLParserType.ORACLE_CCJ_SQL_PARSER);
-//        ddlCapabilities.forEach(connectionOptions::capability);
+        List<Capability> ddlCapabilities = DDLFactory.getCapabilities(DDLParserType.DAMENG_CCJ_SQL_PARSER);
+        ddlCapabilities.forEach(connectionOptions::capability);
         return connectionOptions;
     }
 
