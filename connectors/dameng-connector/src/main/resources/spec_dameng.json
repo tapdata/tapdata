@@ -359,9 +359,7 @@
 			38
 		],
 		"fixed": true,
-		"preferPrecision": 20,
 		"defaultPrecision": 38,
-		"preferScale": 8,
 		"defaultScale": 0,
 		"priority": 1,
 		"to": "TapNumber"
@@ -376,13 +374,27 @@
 			127
 		],
 		"fixed": true,
-		"preferPrecision": 20,
 		"defaultPrecision": 38,
-		"preferScale": 8,
 		"defaultScale": 0,
 		"priority": 1,
 		"to": "TapNumber"
+	},
+	"FLOAT[($precision)]": {
+		"precision": [
+			1,
+			126
+		],
+		"scale": 125,
+		"preferScale": 8,
+		"fixed": false,
+		"defaultPrecision": 126,
+		"priority": 2,
+		"to": "TapNumber"
+	},
+	"image": {
+		"to": "TapBinary",
+		"byte": 2147483647,
+		"queryOnly": true
 	}
-
 }
 }
