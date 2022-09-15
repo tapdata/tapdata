@@ -657,7 +657,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
                     }
 
                     long count = metadataInstancesService.count(new Query(criteria), user);
-                    long count1 = taskRepository.count(new Query(criteria), user);
+                    long count1 = 0;//taskRepository.count(new Query(criteria), user);
                     tagDto.setObjCount(count1 + count);
                 }
         );
