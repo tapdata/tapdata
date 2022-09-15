@@ -126,7 +126,7 @@ public class AlarmServiceImpl implements AlarmService {
     @SuppressWarnings("unchecked")
     private static List<AlarmSettingDto> getAlarmSettingDtos(TaskDto taskDto, String nodeId) {
         List<AlarmSettingDto> alarmSettingDtos = Lists.newArrayList();
-        alarmSettingDtos.addAll(taskDto.getAlarmSettings());
+        alarmSettingDtos.addAll(Optional.ofNullable(taskDto.getAlarmSettings()).orElse(Collections.emptyList()));
 
         if (Objects.nonNull(nodeId)) {
             for (Node node : taskDto.getDag().getNodes()) {
@@ -136,11 +136,7 @@ public class AlarmServiceImpl implements AlarmService {
                 }
             }
         } else {
-            taskDto.getDag().getNodes().forEach(node -> {
-                if (CollectionUtils.isNotEmpty(node.getAlarmSettings())) {
-                    alarmSettingDtos.addAll(node.getAlarmSettings());
-                }
-            });
+            taskDto.getDag().getNodes().forEach(node -> alarmSettingDtos.addAll(Optional.ofNullable(node.getAlarmSettings()).orElse(Collections.emptyList())));
         }
 
 
@@ -160,33 +156,16 @@ public class AlarmServiceImpl implements AlarmService {
     }
 
     @Nullable
-    private ArrayList<AlarmRuleDto> getAlarmRuleDtos(TaskDto taskDto) {
+    @SuppressWarnings("unchecked")
+    private List<AlarmRuleDto> getAlarmRuleDtos(TaskDto taskDto) {
         if (Objects.nonNull(taskDto)) {
             List<AlarmRuleDto> ruleDtos = Lists.newArrayList();
-            ruleDtos.addAll(taskDto.getAlarmRules());
+            ruleDtos.addAll(Optional.ofNullable(taskDto.getAlarmRules()).orElse(Collections.emptyList()));
 
             taskDto.getDag().getNodes().forEach(node -> {
-                if (node instanceof DatabaseNode) {
-                    ruleDtos.addAll(((DatabaseNode) node).getAlarmRules());
-                } else if (node instanceof TableRenameProcessNode) {
-                    ruleDtos.addAll(((TableRenameProcessNode) node).getAlarmRules());
-                }
+                ruleDtos.addAll(Optional.ofNullable(node.getAlarmRules()).orElse(Collections.emptyList()));
             });
-            if (CollectionUtils.isNotEmpty(ruleDtos)) {
-                Map<AlarmKeyEnum, AlarmRuleDto> collect = ruleDtos.stream()
-                        .collect(Collectors.toMap(AlarmRuleDto::getKey, Function.identity(), (e1, e2) -> e1));
-
-                List<AlarmRuleDto> alarmRuleDtos = alarmRuleService.findAll();
-                if (CollectionUtils.isNotEmpty(alarmRuleDtos)) {
-                    alarmRuleDtos.forEach(t -> {
-                        if (!collect.containsKey(t.getKey())) {
-                            collect.remove(t.getKey());
-                        }
-                    });
-                }
-
-                return new ArrayList<>(collect.values());
-            }
+            return ruleDtos;
         }
         return null;
     }
