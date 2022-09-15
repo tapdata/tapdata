@@ -94,6 +94,7 @@ public class ManuRedoDamengLogMiner extends DamengLogMiner {
                     if (oracleRedoLogBatch != null) {
                         final List<RedoLog> redoLogList = oracleRedoLogBatch.getRedoLogList();
                         while (isRunning.get() && !redoLogBundleForAnalysisQueue.offer(oracleRedoLogBatch, 20, TimeUnit.SECONDS)) {
+                            // nothing to do
                             TapLogger.info(TAG, "Redo log queue for analysis is full, redo log {} waiting to enqueue", oracleRedoLogBatch);
                         }
 
@@ -120,7 +121,9 @@ public class ManuRedoDamengLogMiner extends DamengLogMiner {
                     }
                     if (oracleRedoLogBatch != null) {
                         TapLogger.info(TAG, "Starting analysis redo log {}");
+
                         doMine(oracleRedoLogBatch);
+
                     }
                 }
             } catch (Exception ignored) {
@@ -131,6 +134,7 @@ public class ManuRedoDamengLogMiner extends DamengLogMiner {
     protected void doMine(DamengRedoLogBatch oracleRedoLogBatch) throws Exception {
        Long offsetScn = damengOffset.getPendingScn() > 0 && damengOffset.getPendingScn() < damengOffset.getLastScn() ? damengOffset.getPendingScn() : damengOffset.getLastScn();
        lastScn = lastScn>offsetScn?lastScn:offsetScn;
+       // Long lastScn =122240L;
         try {
             List<RedoLog> redoLogList = oracleRedoLogBatch.getRedoLogList();
 
@@ -169,6 +173,8 @@ public class ManuRedoDamengLogMiner extends DamengLogMiner {
                                 damengConfig.getSysZoneId()
                         );
                         logData.put("ROLLBACK",logData.get("ROLL_BACK"));
+                        logData.put("XID",bytesToHexString((byte[])logData.get("XID")));
+                        logData.put("STATUS",0);
                         analyzeLog(logData);
                         if (logData.get("SCN") != null && logData.get("SCN") instanceof Long) {
                             lastScn = ((Long) logData.get("SCN"));
@@ -223,6 +229,8 @@ public class ManuRedoDamengLogMiner extends DamengLogMiner {
     }
 
 
+
+
     private List<DamengInstanceInfo> getInstanceInfos() throws Throwable {
         List<DamengInstanceInfo> oracleInstanceInfos = new ArrayList<>();
         damengContext.query(GET_INSTANCES_INFO_SQL, resultSet -> {
@@ -231,6 +239,26 @@ public class ManuRedoDamengLogMiner extends DamengLogMiner {
             }
         });
         return oracleInstanceInfos;
+    }
+
+
+
+
+    private static String bytesToHexString(byte[] bytes) {
+        StringBuilder sb = new StringBuilder(bytes.length);
+
+        for (int index = 0; index < bytes.length; ++index) {
+            byte aByte = bytes[index];
+            String temp = Integer.toHexString(255 & aByte);
+            if (temp.length() < 2) {
+                sb.append(0);
+            }
+
+            sb.append(temp);
+        }
+
+        return sb.toString();
+
     }
 
     @Override

@@ -255,6 +255,10 @@ public class KafkaService extends AbstractMqService {
                             new RecordHeaders().add("mqOp", mqOp.getOp().getBytes()));
                     kafkaProducer.send(producerRecord, callback);
                 });
+            } catch (RejectedExecutionException e) {
+                TapLogger.warn(TAG, "task stopped, some data produce failed!", e);
+            } catch (Exception e) {
+                TapLogger.error(TAG, "produce error, or task interrupted!", e);
             } finally {
                 countDownLatch.countDown();
             }

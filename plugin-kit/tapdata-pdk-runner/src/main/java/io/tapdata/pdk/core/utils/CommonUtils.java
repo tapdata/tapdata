@@ -88,13 +88,10 @@ public class CommonUtils {
         String message = invoker.getMessage();
         final String logTag = invoker.getLogTag();
         boolean async = invoker.isAsync();
-
-
         long retryPeriodSeconds = invoker.getRetryPeriodSeconds();
 
         if(retryPeriodSeconds <= 0) {
-//            autoRetryParams.periodSeconds = 10;
-            throw new IllegalArgumentException("periodSeconds can not be zero or less than zero");
+            throw new IllegalArgumentException("PeriodSeconds can not be zero or less than zero");
         }
         try {
             runable.run();
@@ -117,7 +114,7 @@ public class CommonUtils {
                 if (null != connectionFunctions) {
                     function = connectionFunctions.getErrorHandleFunction();
                 }else {
-                    throw new CoreException("connectionFunctions must be not null,connectionNode does not contain connectionFunctions");
+                    throw new CoreException("ConnectionFunctions must be not null,connectionNode does not contain connectionFunctions");
                 }
                 tapConnectionContext = connectorNode.getConnectorContext();
             }
@@ -126,7 +123,9 @@ public class CommonUtils {
             }
 
             if(null == function){
-                throw new CoreException( "PDK data source not support retry: " + logTag);
+                TapLogger.debug(logTag,"This PDK data source not support retry. ");
+                return;
+//                throw new CoreException( "This PDK data source not support retry ." );
             }
 
             ErrorHandleFunction finalFunction = function;
@@ -141,12 +140,13 @@ public class CommonUtils {
                 }
             } catch (Throwable e) {
                 e.printStackTrace();
-                throw new CoreException(TapAPIErrorCodes.NEED_RETRY_FAILED, "Need retry failed:" + logTag);
+                TapLogger.warn(logTag,TapAPIErrorCodes.NEED_RETRY_FAILED+"Need retry failed:" + logTag);
+                throw new CoreException(TapAPIErrorCodes.NEED_RETRY_FAILED, "Need retry failed." );
             }
 
-            TapLogger.error(logTag, "AutoRetryAsync error {}, execute message {}, retry times {}, periodSeconds {}. ", throwable.getMessage(), message, invoker.getRetryTimes(), retryPeriodSeconds);
             long retryTimes = invoker.getRetryTimes();
             if(retryTimes > 0) {
+                TapLogger.info(logTag, "AutoRetry info: retry times ({}) | periodSeconds ({}). Please wait...\n", message, invoker.getRetryTimes(), retryPeriodSeconds);
                 invoker.setRetryTimes(retryTimes-1);
                 if(async) {
                     ExecutorsManager.getInstance().getScheduledExecutorService().schedule(() -> autoRetry(node,method,invoker), retryPeriodSeconds, TimeUnit.SECONDS);
@@ -173,7 +173,7 @@ public class CommonUtils {
         try {
             runnable.run();
         } catch(Throwable throwable) {
-            TapLogger.error(tag, "AutoRetryAsync error {}, execute message {}, retry times {}, periodSeconds {}. ", throwable.getMessage(), message, times, periodSeconds);
+            TapLogger.info(tag, "AutoRetryAsync info: retry times ({}) | periodSeconds ({}). Please wait...\\n\"", message, times, periodSeconds);
             if(times > 0) {
                 ExecutorsManager.getInstance().getScheduledExecutorService().schedule(() -> {
                     autoRetryAsync(runnable, tag, message, times - 1, periodSeconds);
@@ -325,26 +325,37 @@ public class CommonUtils {
     }
 
     public static void main(String[] args) {
-        AtomicLong counter = new AtomicLong();
+//        AtomicLong counter = new AtomicLong();
+//
+//        int times = 2000000;
+//        long time = System.currentTimeMillis();
+//        for(int i = 0; i < times; i++) {
+//            Runnable r = new Runnable() {
+//                @Override
+//                public void run() {
+//                    counter.incrementAndGet();
+//                }
+//            };
+//            r.run();
+//        }
+//        System.out.println("1takes " + (System.currentTimeMillis() - time));
+//
+//        time = System.currentTimeMillis();
+//        for(int i = 0; i < times; i++) {
+//            Runnable r = () -> counter.incrementAndGet();
+//            r.run();
+//        }
+//        System.out.println("2takes " + (System.currentTimeMillis() - time));
+        fun(10,100);
+    }
 
-        int times = 2000000;
-        long time = System.currentTimeMillis();
-        for(int i = 0; i < times; i++) {
-            Runnable r = new Runnable() {
-                @Override
-                public void run() {
-                    counter.incrementAndGet();
-                }
-            };
-            r.run();
+    public static void fun(int j,int k){
+        final int i = k;
+        System.out.println(i+"---"+k);
+        if (j-->0){
+            fun(j,k);
+        }else {
+            return;
         }
-        System.out.println("1takes " + (System.currentTimeMillis() - time));
-
-        time = System.currentTimeMillis();
-        for(int i = 0; i < times; i++) {
-            Runnable r = () -> counter.incrementAndGet();
-            r.run();
-        }
-        System.out.println("2takes " + (System.currentTimeMillis() - time));
     }
 }
