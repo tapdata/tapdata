@@ -123,9 +123,9 @@ public class CommonUtils {
             }
 
             if(null == function){
-                TapLogger.debug(logTag,"This PDK data source not support retry : "+logTag);
+                TapLogger.debug(logTag,"This PDK data source not support retry. ");
                 return;
-                //throw new CoreException( "This PDK data source not support retry ." );
+//                throw new CoreException( "This PDK data source not support retry ." );
             }
 
             ErrorHandleFunction finalFunction = function;
@@ -146,11 +146,7 @@ public class CommonUtils {
 
             long retryTimes = invoker.getRetryTimes();
             if(retryTimes > 0) {
-                TapLogger.info(logTag, "AutoRetry info: " +
-                        "\n\t- execute message: {} " +
-                        "\n\t- retry times: {} " +
-                        "\n\t- periodSeconds: {}. " +
-                        "\n\t Please wait...", message, invoker.getRetryTimes(), retryPeriodSeconds);
+                TapLogger.info(logTag, "AutoRetry info: retry times ({}) | periodSeconds ({}). Please wait...\n", message, invoker.getRetryTimes(), retryPeriodSeconds);
                 invoker.setRetryTimes(retryTimes-1);
                 if(async) {
                     ExecutorsManager.getInstance().getScheduledExecutorService().schedule(() -> autoRetry(node,method,invoker), retryPeriodSeconds, TimeUnit.SECONDS);
@@ -177,7 +173,7 @@ public class CommonUtils {
         try {
             runnable.run();
         } catch(Throwable throwable) {
-            TapLogger.info(tag, "AutoRetryAsync info: \n\t- execute message: {} \n\t- retry times: {} \n\t- periodSeconds: {}. \n\t Please wait...", message, times, periodSeconds);
+            TapLogger.info(tag, "AutoRetryAsync info: retry times ({}) | periodSeconds ({}). Please wait...\\n\"", message, times, periodSeconds);
             if(times > 0) {
                 ExecutorsManager.getInstance().getScheduledExecutorService().schedule(() -> {
                     autoRetryAsync(runnable, tag, message, times - 1, periodSeconds);

@@ -105,12 +105,7 @@ public class PDKInvocationMonitor implements MemoryFetcher {
             return;
         }
         long retryTimes = invoker.getRetryTimes();
-        TapLogger.info(logTag, "AutoRetry start: " +
-                "\n\t- Execute message is : {} " +
-                "\n\t- Maximum retry time: {} minutes " +
-                "\n\t- The interval between retries is {} seconds. " +
-                "\n\t- It is estimated that {} retries are required. ", message, invoker.getMaxRetryTimeMinute(), invoker.getRetryPeriodSeconds(),retryTimes);
-        if(async) {
+       if(async) {
             ExecutorsManager.getInstance().getExecutorService().execute(() -> {
                 if(contextClassLoader != null) {
                     Thread.currentThread().setContextClassLoader(contextClassLoader);
@@ -122,7 +117,7 @@ public class PDKInvocationMonitor implements MemoryFetcher {
                 }
             });
         } else {
-            CommonUtils.autoRetry(node,method,invoker.runnable(() -> node.applyClassLoaderContext(() -> invokePDKMethodPrivate(method, r, message, logTag, errorConsumer) )));
+           CommonUtils.autoRetry(node,method,invoker.runnable(() -> node.applyClassLoaderContext(() -> invokePDKMethodPrivate(method, r, message, logTag, errorConsumer) )));
         }
     }
     private void invokePDKMethodPrivate(PDKMethod method, CommonUtils.AnyError r, String message, String logTag, Consumer<CoreException> errorConsumer) {
