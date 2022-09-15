@@ -1915,12 +1915,9 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         List<DataFlowInsightStatisticsDto.DataStatisticInfo> inputDataStatistics = new ArrayList<>();
         sampleMap.forEach((k, v) -> {
             long value = 0;
-            Set<Date> dateSet = new HashSet<>();
-            for (Sample sample : v) {
-                if (dateSet.contains(sample.getDate())) {
-                    continue;
-                }
-                dateSet.add(sample.getDate());
+            Optional<Sample> max = v.stream().max(Comparator.comparing(Sample::getDate));
+            if (max.isPresent()) {
+                Sample sample = max.get();
                 Map<String, Number> vs = sample.getVs();
                 value += (int) vs.get("inputInsertTotal");
                 value += (int) vs.get("inputOthersTotal");
@@ -1939,7 +1936,6 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         dataFlowInsightStatisticsDto.setGranularity("month");
         return dataFlowInsightStatisticsDto;
     }
-
     @Data
     @AllArgsConstructor
     @NoArgsConstructor
