@@ -46,7 +46,6 @@ set build/env.sh tapdata_build_env to "local"
 run `bash build/clean.sh` If you want to clean build target
 
 ### Quick Steps
-
 If everything is ok, now you should be in a terminal window, follow next steps, have a try!
 
 #### Create New DataSource

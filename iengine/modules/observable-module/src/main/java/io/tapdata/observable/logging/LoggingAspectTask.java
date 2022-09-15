@@ -1,6 +1,5 @@
 package io.tapdata.observable.logging;
 
-import com.tapdata.constant.BeanUtil;
 import com.tapdata.entity.TapdataEvent;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.entity.task.context.ProcessorBaseContext;
@@ -9,7 +8,6 @@ import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.aspect.*;
 import io.tapdata.aspect.task.AspectTask;
 import io.tapdata.aspect.task.AspectTaskSession;
-import io.tapdata.common.SettingService;
 import io.tapdata.entity.aspect.Aspect;
 import io.tapdata.entity.aspect.AspectInterceptResult;
 import io.tapdata.entity.event.TapBaseEvent;
@@ -30,11 +28,8 @@ import java.util.stream.Collectors;
 @AspectTaskSession(includeTypes = {TaskDto.SYNC_TYPE_MIGRATE, TaskDto.SYNC_TYPE_SYNC})
 public class LoggingAspectTask extends AspectTask {
 	private final ClassHandlers loggingClassHandlers = new ClassHandlers();
-	private final SettingService settingService;
 
 	public LoggingAspectTask() {
-		settingService = BeanUtil.getBean(SettingService.class);
-
 		loggingClassHandlers.register(DataNodeInitAspect.class, this::handleDataNodeInit);
 		loggingClassHandlers.register(ProcessorNodeInitAspect.class, this::handleProcessorNodeInit);
 
@@ -50,6 +45,8 @@ public class LoggingAspectTask extends AspectTask {
 		loggingClassHandlers.register(CreateTableFuncAspect.class, this::handleCreateTableFuc);
 		loggingClassHandlers.register(CreateIndexFuncAspect.class, this::handleCreateIndexFuc);
 		loggingClassHandlers.register(WriteRecordFuncAspect.class, this::handleWriteRecordFunc);
+
+		loggingClassHandlers.register(ProcessorNodeProcessAspect.class, this::handleProcessorNodeProcessFunc);
 	}
 
 	/**
@@ -120,7 +117,10 @@ public class LoggingAspectTask extends AspectTask {
 			return Collections.emptyList();
 		}
 
-		TapTable table = context.getTapTableMap().get(tableName);
+		TapTable table = null;
+		try {
+			table = context.getTapTableMap().get(tableName);
+		} catch (Throwable ignore) {}
 		if (null == table) {
 			return Collections.emptyList();
 		}
@@ -253,6 +253,32 @@ public class LoggingAspectTask extends AspectTask {
 					.build().toMap());
 
 		}
+
+		ObsLogger obsLogger = getObsLogger(node);
+		obsLogger.debug(() -> obsLogger.logBaseBuilderWithLogTag(tag).data(data), logEventType);
+	}
+
+	private void debug(String logEventType, Long cost, LogTag tag, ProcessorBaseContext context, TapdataEvent event) {
+		if (noNeedLog(LogLevel.DEBUG.getLevel())) {
+			return;
+		}
+
+		if (null == event || null == event.getTapEvent()) {
+			debug(logEventType, cost, tag, context);
+		}
+
+		Node<?> node = context.getNode();
+		List<Map<String, Object>> data = new ArrayList<>();
+		TapBaseEvent baseEvent = (TapBaseEvent) event.getTapEvent();
+		Collection<String> pkFields = getPkFields(context, baseEvent.getTableId());
+		data.add(LogEventData.builder()
+				.eventType(logEventType)
+				.status(LogEventData.LOG_EVENT_STATUS_OK)
+				.time(System.currentTimeMillis())
+				.cost(cost)
+				.withNode(node)
+				.withTapEvent(baseEvent, pkFields)
+				.build().toMap());
 
 		ObsLogger obsLogger = getObsLogger(node);
 		obsLogger.debug(() -> obsLogger.logBaseBuilderWithLogTag(tag).data(data), logEventType);
@@ -504,6 +530,25 @@ public class LoggingAspectTask extends AspectTask {
 	}
 
 	public Void handleConnectionPing(ConnectionPingAspect aspect) {
+		return null;
+	}
+
+	public Void handleProcessorNodeProcessFunc(ProcessorNodeProcessAspect aspect) {
+		ProcessorBaseContext context = aspect.getProcessorBaseContext();
+		Node<?> node = context.getNode();
+
+		switch (aspect.getState()) {
+			case ProcessorNodeProcessAspect.STATE_START:
+				aspect.consumer(event -> {
+					debug(LogEventData.LOG_EVENT_TYPE_RECEIVE, 0L, null, context, event);
+				});
+				break;
+			case ProcessorFunctionAspect.STATE_END:
+				debug(LogEventData.LOG_EVENT_TYPE_SEND, aspect.getTime(), null, context, aspect.getInputEvent());
+				break;
+			default:
+		}
+
 		return null;
 	}
 

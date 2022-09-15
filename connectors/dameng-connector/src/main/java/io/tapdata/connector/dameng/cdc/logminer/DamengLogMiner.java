@@ -60,8 +60,11 @@ public abstract class DamengLogMiner extends LogMiner implements ILogMiner {
     protected ResultSet resultSet;
     protected final String version;
 
-    protected Map<String, Integer> columnTypeMap = new HashMap<>(); //Map<table.column, java.dataType>
-    protected Map<String, String> dateTimeTypeMap = new HashMap<>(); //Map<table.column, db.dataType>
+    //Map<table.column, java.dataType>
+    protected Map<String, Integer> columnTypeMap = new HashMap<>();
+
+    //Map<table.column, db.dataType>
+    protected Map<String, String> dateTimeTypeMap = new HashMap<>();
 
     protected DamengOffset damengOffset;
 
@@ -73,7 +76,7 @@ public abstract class DamengLogMiner extends LogMiner implements ILogMiner {
         ddlParserType = DDLParserType.ORACLE_CCJ_SQL_PARSER;
     }
 
-    //init with pdk params
+    // init with pdk params
     @Override
     public void init(List<String> tableList, KVReadOnlyMap<TapTable> tableMap, Object offsetState, int recordSize, StreamReadConsumer consumer) throws Throwable {
         super.init(tableList, tableMap, offsetState, recordSize, consumer);
@@ -81,7 +84,7 @@ public abstract class DamengLogMiner extends LogMiner implements ILogMiner {
         getColumnType();
     }
 
-    //store dataType in Map
+    // store dataType in Map
     private void getColumnType() {
         tableList.forEach(table -> {
             try {

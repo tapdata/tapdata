@@ -26,8 +26,6 @@ import java.util.List;
 @Setter(onMethod_ = {@Autowired})
 public class ModelProcessStrategyImpl implements DagLogStrategy {
 
-    private TaskDagService taskDagService;
-
     private final DagOutputTemplateEnum templateEnum = DagOutputTemplateEnum.MODEL_PROCESS_CHECK;
 
     @Override
@@ -37,6 +35,9 @@ public class ModelProcessStrategyImpl implements DagLogStrategy {
         String taskId = taskDto.getId().toHexString();
         LinkedList<DatabaseNode> sourceNode = taskDto.getDag().getSourceNode();
         if (CollectionUtils.isEmpty(sourceNode)) {
+            return null;
+        }
+        if (CollectionUtils.isEmpty(sourceNode.getFirst().getTableNames())) {
             return null;
         }
         int total = sourceNode.getFirst().getTableNames().size();

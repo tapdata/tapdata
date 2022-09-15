@@ -52,6 +52,7 @@ public class MetaMigrateServiceImpl implements MetaMigrateService {
     public void saveMigrateTableInfo(MigrateTableInfoDto tableInfo, UserDetail userDetail) {
         String taskId = tableInfo.getTaskId();
         String tableName = tableInfo.getTableName();
+        String nodeId = tableInfo.getNodeId();
 
         TaskDto taskDto = taskService.findById(MongoUtils.toObjectId(taskId));
 
@@ -63,8 +64,8 @@ public class MetaMigrateServiceImpl implements MetaMigrateService {
         if (CollectionUtils.isEmpty(databaseNodes)) {
             return;
         }
-        DatabaseNode sourceNode = dag.getSourceNode().getFirst();
-        DatabaseNode targetNode = dag.getTargetNode().getLast();
+        DatabaseNode sourceNode = dag.getSourceNode(nodeId);
+        DatabaseNode targetNode = dag.getTargetNode(nodeId);
 
         Map<String, MigrateTableInfoDto.Field> fieldMap = tableInfo.getFields().stream()
                 .collect(Collectors.toMap(MigrateTableInfoDto.Field::getFieldName, Function.identity()));
@@ -72,12 +73,14 @@ public class MetaMigrateServiceImpl implements MetaMigrateService {
         MetadataInstancesDto metadataInstancesDto = metadataInstancesService.findBySourceIdAndTableName(targetNode.getConnectionId(), tableName, taskId, userDetail);
         if (Objects.nonNull(metadataInstancesDto)) {
             metadataInstancesDto.getFields().forEach(f -> {
-                if (fieldMap.containsKey(f.getFieldName())) {
-                    MigrateTableInfoDto.Field field = fieldMap.get(f.getFieldName());
-                    f.setDataType(field.getFieldType());
+                if (fieldMap.containsKey(f.getOriginalFieldName())) {
+                    MigrateTableInfoDto.Field field = fieldMap.get(f.getOriginalFieldName());
+//                    f.setDefaultValue(field.getDefaultValue());
+                    // Modification type is not supported at present
+//                    f.setDataType(field.getFieldType());
                     f.setUseDefaultValue(field.isUseDefaultValue());
                     FunctionUtils.isTureOrFalse(field.isUseDefaultValue()).trueOrFalseHandle(
-                            () -> f.setDefaultValue(f.getOriginalDefaultValue()),
+                            () -> f.setDefaultValue(Objects.isNull(field.getDefaultValue()) ? f.getOriginalDefaultValue() : field.getDefaultValue()),
                             () -> f.setDefaultValue(null));
                 }
             });
@@ -104,12 +107,13 @@ public class MetaMigrateServiceImpl implements MetaMigrateService {
     @Override
     public void migrateResetAllTable(MigrateResetTableDto dto, UserDetail userDetail) {
         String taskId = dto.getTaskId();
+        String nodeId = dto.getNodeId();
 
         TaskDto taskDto = taskService.findById(MongoUtils.toObjectId(taskId));
 
         DAG dag = taskDto.getDag();
-        DatabaseNode sourceNode = dag.getSourceNode().getFirst();
-        DatabaseNode targetNode = dag.getTargetNode().getLast();
+        DatabaseNode sourceNode = dag.getSourceNode(nodeId);
+        DatabaseNode targetNode = dag.getTargetNode(nodeId);
 
         List<String> tableNames = sourceNode.getTableNames();
         if (CollectionUtils.isEmpty(tableNames) && !StringUtils.equals("all", sourceNode.getMigrateTableSelectType())) {

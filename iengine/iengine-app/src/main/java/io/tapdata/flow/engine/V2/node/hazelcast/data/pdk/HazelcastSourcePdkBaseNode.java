@@ -519,10 +519,6 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 	}
 
 	private TapdataEvent wrapSingleTapdataEvent(TapEvent tapEvent, SyncStage syncStage, Object offsetObj, boolean isLast) {
-		// add uuid for TapEvent, this is used to trace error events in task logs
-		// TODO(dexter): use more readable identifier instead of uuid
-		tapEvent.addInfo("eventId", UUID.randomUUID().toString());
-
 		tapEvent = cdcDelayCalculation.filterAndCalcDelay(tapEvent, times -> AspectUtils.executeAspect(SourceCDCDelayAspect.class, () -> new SourceCDCDelayAspect().delay(times).dataProcessorContext(dataProcessorContext)));
 
 		TapdataEvent tapdataEvent = null;

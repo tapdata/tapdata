@@ -635,42 +635,33 @@ public class MeasurementServiceV2 {
         log.info(" taskId :{}  删除了 {} 条记录", taskId, JsonUtil.toJson(result));
     }
 
-    public Map<String, Long[]> countEventByTaskRecord(List<String> taskRecordIds) {
-        Map<String, Long[]> result = new HashMap<>();
-
-        Query query = new Query(Criteria.where("tags.taskRecordId").in(taskRecordIds)
+    public Long[] countEventByTaskRecord(String taskId, String taskRecordId) {
+        Query query = new Query(Criteria.where("tags.taskId").is(taskId)
+                .and("tags.taskRecordId").is(taskRecordId)
                 .and("tags.type").is("task")
-                .and(MeasurementEntity.FIELD_GRANULARITY).is(Granularity.GRANULARITY_MINUTE));
-        List<MeasurementEntity> list = mongoOperations.find(query, MeasurementEntity.class, MeasurementEntity.COLLECTION_NAME);
-        if (CollectionUtils.isEmpty(list)) {
-            return result;
+                .and(MeasurementEntity.FIELD_GRANULARITY).is(Granularity.GRANULARITY_MINUTE)
+                .and(MeasurementEntity.FIELD_DATE).lte(new Date()));
+        query.with(Sort.by(MeasurementEntity.FIELD_DATE).descending());
+        MeasurementEntity measurementEntity = mongoOperations.findOne(query, MeasurementEntity.class, MeasurementEntity.COLLECTION_NAME);
+        if (null == measurementEntity || null == measurementEntity.getSamples() || measurementEntity.getSamples().isEmpty()) {
+            return null;
         }
 
-        for (MeasurementEntity measurement : list) {
-            String taskRecordId = measurement.getTags().get("taskRecordId");
-            List<Sample> samples = measurement.getSamples();
-            if (CollectionUtils.isEmpty(samples)) {
-                result.put(taskRecordId, new Long[]{0L, 0L});
-                continue;
+        Map<String, Number> vs = measurementEntity.getSamples().get(0).getVs();
+        // inputInsertTotal + inputUpdateTotal + inputDeleteTotal + inputDdlTotal + inputOthersTotal
+        AtomicReference<Long> inputTotal = new AtomicReference<>(0L);
+        AtomicReference<Long> outputTotal = new AtomicReference<>(0L);
+        vs.remove("inputQps");
+        vs.remove("outputQps");
+        vs.forEach((k, v) -> {
+            if (StringUtils.startsWith(k, "input")) {
+                inputTotal.updateAndGet(v1 -> v1 + v.longValue());
+            } else if (StringUtils.startsWith(k, "output")) {
+                outputTotal.updateAndGet(v1 -> v1 + v.longValue());
             }
+        });
 
-            Map<String, Number> vs = samples.get(0).getVs();
-            // inputInsertTotal + inputUpdateTotal + inputDeleteTotal + inputDdlTotal + inputOthersTotal
-            AtomicReference<Long> inputTotal = new AtomicReference<>(0L);
-            AtomicReference<Long> outputTotal = new AtomicReference<>(0L);
-            vs.remove("inputQps");
-            vs.remove("outputQps");
-            vs.forEach((k, v) -> {
-                if (StringUtils.startsWith(k, "input")) {
-                    inputTotal.updateAndGet(v1 -> v1 + v.longValue());
-                } else if (StringUtils.startsWith(k, "output")) {
-                    outputTotal.updateAndGet(v1 -> v1 + v.longValue());
-                }
-            });
-            result.put(taskRecordId, new Long[]{inputTotal.get(), outputTotal.get()});
-        }
-
-        return result;
+        return new Long[]{inputTotal.get(), outputTotal.get()};
     }
 
     public Page<TableSyncStaticVo> querySyncStatic(TableSyncStaticDto dto, UserDetail userDetail) {

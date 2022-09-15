@@ -625,7 +625,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
     @Override
     public void addObjCount(List<MetadataDefinitionDto> tagDtos, UserDetail user) {
         Query query = new Query();
-        query.fields().include("_id", "parent_id", "item_type");
+        query.fields().include("_id", "parent_id", "item_type", "linkId");
         List<MetadataDefinitionDto> allDto = metadataDefinitionService.findAllDto(new Query(), user);
         Map<String, List<MetadataDefinitionDto>> parentMap = allDto.stream().filter(s->StringUtils.isNotBlank(s.getParent_id()))
                 .collect(Collectors.groupingBy(MetadataDefinitionDto::getParent_id));
@@ -657,7 +657,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
                     }
 
                     long count = metadataInstancesService.count(new Query(criteria), user);
-                    long count1 = taskRepository.count(new Query(criteria), user);
+                    long count1 = 0;//taskRepository.count(new Query(criteria), user);
                     tagDto.setObjCount(count1 + count);
                 }
         );
