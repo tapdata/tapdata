@@ -101,11 +101,11 @@ public class PDKInvocationMonitor implements MemoryFetcher {
         boolean async = invoker.isAsync();
         ClassLoader contextClassLoader = invoker.getContextClassLoader();
         if (!this.invokerRetrySetter(invoker)){
-            TapLogger.error(logTag, "Do not retry :maxRetryTimeMinute {}, retryPeriodSeconds {}, retryTimes {}. ",invoker.getMaxRetryTimeMinute(),invoker.getRetryPeriodSeconds(),invoker.getRetryTimes());
+            TapLogger.debug(logTag, "Do not retry :maxRetryTimeMinute {}, retryPeriodSeconds {}, retryTimes {}. ",invoker.getMaxRetryTimeMinute(),invoker.getRetryPeriodSeconds(),invoker.getRetryTimes());
             return;
         }
         long retryTimes = invoker.getRetryTimes();
-        if(async) {
+       if(async) {
             ExecutorsManager.getInstance().getExecutorService().execute(() -> {
                 if(contextClassLoader != null) {
                     Thread.currentThread().setContextClassLoader(contextClassLoader);
@@ -117,7 +117,7 @@ public class PDKInvocationMonitor implements MemoryFetcher {
                 }
             });
         } else {
-            CommonUtils.autoRetry(node,method,invoker.runnable(() -> node.applyClassLoaderContext(() -> invokePDKMethodPrivate(method, r, message, logTag, errorConsumer) )));
+           CommonUtils.autoRetry(node,method,invoker.runnable(() -> node.applyClassLoaderContext(() -> invokePDKMethodPrivate(method, r, message, logTag, errorConsumer) )));
         }
     }
     private void invokePDKMethodPrivate(PDKMethod method, CommonUtils.AnyError r, String message, String logTag, Consumer<CoreException> errorConsumer) {

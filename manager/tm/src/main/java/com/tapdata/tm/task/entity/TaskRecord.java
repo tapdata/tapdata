@@ -19,6 +19,8 @@ public class TaskRecord extends BaseEntity {
     private String taskId;
     private TaskEntity taskSnapshot;
     private List<TaskStatusUpdate> statusStack;
+    private Long inputTotal;
+    private Long outputTotal;
 
     public TaskRecord(String id, String taskId, TaskEntity taskSnapshot, String userId, Date createAt) {
         this.taskId = taskId;

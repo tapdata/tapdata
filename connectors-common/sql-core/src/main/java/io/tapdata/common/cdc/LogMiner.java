@@ -211,63 +211,63 @@ public abstract class LogMiner implements ILogMiner {
         for (Map.Entry<String, LogTransaction> txEntry : txMap.entrySet()) {
             LogTransaction logTransaction = txEntry.getValue();
             List<TapEvent> eventList = TapSimplify.list();
+            RedoLogContent lastRedoLogContent = null;
             Map<String, List<RedoLogContent>> redoLogContents = logTransaction.getRedoLogContents();
-            RedoLogContent redoLogContent = null;
             for (List<RedoLogContent> redoLogContentList : redoLogContents.values()) {
-                for (RedoLogContent txRedoLogContent : redoLogContentList) {
-                    redoLogContent = txRedoLogContent;
-                }
-                if (EmptyKit.isNull(Objects.requireNonNull(redoLogContent).getRedoRecord()) && !"DDL".equals(Objects.requireNonNull(redoLogContent).getOperation())) {
-                    continue;
-                }
-                switch (Objects.requireNonNull(redoLogContent).getOperation()) {
-                    case "INSERT":
-                        eventList.add(new TapInsertRecordEvent().init()
-                                .table(redoLogContent.getTableName())
-                                .after(redoLogContent.getRedoRecord())
-                                .referenceTime(redoLogContent.getTimestamp().getTime()));
-                        break;
-                    case "UPDATE":
-                        eventList.add(new TapUpdateRecordEvent().init()
-                                .table(redoLogContent.getTableName())
-                                .after(redoLogContent.getRedoRecord())
-                                .before(redoLogContent.getUndoRecord())
-                                .referenceTime(redoLogContent.getTimestamp().getTime()));
-                        break;
-                    case "DELETE":
-                        eventList.add(new TapDeleteRecordEvent().init()
-                                .table(redoLogContent.getTableName())
-                                .before(redoLogContent.getRedoRecord())
-                                .referenceTime(redoLogContent.getTimestamp().getTime()));
-                        break;
-                    case "DDL":
-                        try {
-                            ddlStop.set(true);
-                            TapSimplify.sleep(5000);
-                            ddlFlush();
-                            ddlStop.set(false);
-                        } catch (Throwable e) {
-                            throw new RuntimeException(e);
-                        }
-                        try {
-                            long referenceTime = redoLogContent.getTimestamp().getTime();
-                            DDLFactory.ddlToTapDDLEvent(ddlParserType, redoLogContent.getSqlRedo(),
-                                    DDL_WRAPPER_CONFIG,
-                                    tableMap,
-                                    tapDDLEvent -> {
-                                        tapDDLEvent.setTime(System.currentTimeMillis());
-                                        tapDDLEvent.setReferenceTime(referenceTime);
-                                        eventList.add(tapDDLEvent);
-                                    });
-                        } catch (Throwable e) {
-                            throw new RuntimeException(e);
-                        }
-                        break;
-                    default:
-                        break;
+                for (RedoLogContent redoLogContent : redoLogContentList) {
+                    if (EmptyKit.isNull(Objects.requireNonNull(redoLogContent).getRedoRecord()) && !"DDL".equals(Objects.requireNonNull(redoLogContent).getOperation())) {
+                        continue;
+                    }
+                    switch (Objects.requireNonNull(redoLogContent).getOperation()) {
+                        case "INSERT":
+                            eventList.add(new TapInsertRecordEvent().init()
+                                    .table(redoLogContent.getTableName())
+                                    .after(redoLogContent.getRedoRecord())
+                                    .referenceTime(redoLogContent.getTimestamp().getTime()));
+                            break;
+                        case "UPDATE":
+                            eventList.add(new TapUpdateRecordEvent().init()
+                                    .table(redoLogContent.getTableName())
+                                    .after(redoLogContent.getRedoRecord())
+                                    .before(redoLogContent.getUndoRecord())
+                                    .referenceTime(redoLogContent.getTimestamp().getTime()));
+                            break;
+                        case "DELETE":
+                            eventList.add(new TapDeleteRecordEvent().init()
+                                    .table(redoLogContent.getTableName())
+                                    .before(redoLogContent.getRedoRecord())
+                                    .referenceTime(redoLogContent.getTimestamp().getTime()));
+                            break;
+                        case "DDL":
+                            try {
+                                ddlStop.set(true);
+                                TapSimplify.sleep(5000);
+                                ddlFlush();
+                                ddlStop.set(false);
+                            } catch (Throwable e) {
+                                throw new RuntimeException(e);
+                            }
+                            try {
+                                long referenceTime = redoLogContent.getTimestamp().getTime();
+                                DDLFactory.ddlToTapDDLEvent(ddlParserType, redoLogContent.getSqlRedo(),
+                                        DDL_WRAPPER_CONFIG,
+                                        tableMap,
+                                        tapDDLEvent -> {
+                                            tapDDLEvent.setTime(System.currentTimeMillis());
+                                            tapDDLEvent.setReferenceTime(referenceTime);
+                                            eventList.add(tapDDLEvent);
+                                        });
+                            } catch (Throwable e) {
+                                throw new RuntimeException(e);
+                            }
+                            break;
+                        default:
+                            break;
+                    }
+                    lastRedoLogContent = redoLogContent;
                 }
             }
-            submitEvent(redoLogContent, eventList);
+            submitEvent(lastRedoLogContent, eventList);
         }
     }
 

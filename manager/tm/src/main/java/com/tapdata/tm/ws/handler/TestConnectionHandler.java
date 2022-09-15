@@ -139,17 +139,20 @@ public class TestConnectionHandler implements WebSocketHandler {
 
 		AtomicReference<String> receiver = new AtomicReference<>("");
 		try {
-			String accessNodeType = data.get("accessNodeType").toString();
-			FunctionUtils.isTureOrFalse(AccessNodeTypeEnum.AUTOMATIC_PLATFORM_ALLOCATION.name().equals(accessNodeType)).trueOrFalseHandle(() -> {
+
+			boolean accessNodeTypeEmpty = (Boolean) data.getOrDefault("accessNodeTypeEmpty", false);
+			Object accessNodeType = data.get("accessNodeType");
+			FunctionUtils.isTureOrFalse(accessNodeTypeEmpty || AccessNodeTypeEnum.AUTOMATIC_PLATFORM_ALLOCATION.name().equals(accessNodeType))
+					.trueOrFalseHandle(() -> {
 				SchedulableDto schedulableDto = new SchedulableDto();
 				schedulableDto.setAgentTags(tags);
 				schedulableDto.setUserId(userDetail.getUserId());
 				workerService.scheduleTaskToEngine(schedulableDto, userDetail, "testConnection", "testConnection");
 				receiver.set(schedulableDto.getAgentId());
 			}, () -> {
-				String accessNodeProcessId = JSON.toJSONString(data.get("accessNodeProcessId"));
-				FunctionUtils.isTureOrFalse(StringUtils.isNotBlank(accessNodeProcessId)).trueOrFalseHandle(() -> {
-					receiver.set(accessNodeProcessId);
+				Object accessNodeProcessId = data.get("accessNodeProcessId");
+				FunctionUtils.isTureOrFalse(Objects.nonNull(accessNodeProcessId)).trueOrFalseHandle(() -> {
+					receiver.set(accessNodeProcessId.toString());
 				}, () -> {
 					data.put("status", "error");
 					data.put("msg", "Worker set error, receiver is blank");

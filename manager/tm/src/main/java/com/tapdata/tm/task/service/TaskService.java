@@ -48,6 +48,7 @@ import com.tapdata.tm.messagequeue.service.MessageQueueService;
 import com.tapdata.tm.metadatainstance.service.MetaDataHistoryService;
 import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
 import com.tapdata.tm.monitor.param.IdParam;
+import com.tapdata.tm.monitor.service.MeasurementServiceV2;
 import com.tapdata.tm.monitoringlogs.service.MonitoringLogsService;
 import com.tapdata.tm.task.bean.*;
 import com.tapdata.tm.task.constant.SyncType;
@@ -121,6 +122,8 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     private MonitoringLogsService monitoringLogsService;
     private TaskAutoInspectResultsService taskAutoInspectResultsService;
     private TaskSaveService taskSaveService;
+    private TaskDagService taskDagService;
+    private MeasurementServiceV2 measurementServiceV2;
 
     public static Set<String> stopStatus = new HashSet<>();
     /**
@@ -909,12 +912,12 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
         String lastTaskRecordId = new ObjectId().toString();
         //更新任务信息
-        Update update = Update.update("status", TaskDto.STATUS_EDIT)
+        Update update = Update.update("status", TaskDto.STATUS_WAIT_START)
                 .set(TaskDto.LASTTASKRECORDID, lastTaskRecordId)
                 .unset("temp");
         updateById(taskDto.getId(), update, user);
 
-        taskDto.setStatus(TaskDto.STATUS_EDIT);
+        taskDto.setStatus(TaskDto.STATUS_WAIT_START);
         taskDto.setTaskRecordId(lastTaskRecordId);
 
         //清除校验结果
@@ -2117,7 +2120,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         //所有的任务重置操作，都会进这里
         //根据TaskId 把指标数据都删掉
 //        measurementService.deleteTaskMeasurement(taskId);
-//        measurementServiceV2.deleteTaskMeasurement(taskId);
+        measurementServiceV2.deleteTaskMeasurement(taskId);
     }
     public void renewNotSendMq(TaskDto taskDto, UserDetail user) {
         log.info("renew task, task name = {}, username = {}", taskDto.getName(), user.getUsername());
@@ -2167,7 +2170,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 //            taskDto.setDag(taskDto.getTempDag());
 //        }
         beforeSave(taskDto, user);
-        set.unset("tempDag").set("isEdit", true).set("status", TaskDto.STATUS_EDIT);
+        set.unset("tempDag").set("isEdit", true).set("status", TaskDto.STATUS_WAIT_START);
 //        Update update = new Update();
 //        taskService.update(new Query(Criteria.where("_id").is(taskDto.getParentId())), update.unset("temp"));
         updateById(taskDto.getId(), set, user);
@@ -2211,13 +2214,13 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
             //检查是否完成重置，设置8秒的超时时间
             boolean checkFlag = false;
-            for (int i = 0; i < 16; i++) {
+            for (int i = 0; i < 60; i++) {
                 checkFlag = DataSyncMq.OP_TYPE_RESET.equals(opType) ? checkResetFlag(taskDto.getId(), user) : checkDeleteFlag(taskDto.getId(), user);
                 if (checkFlag) {
                     break;
                 }
                 try {
-                    Thread.sleep(500L);
+                    Thread.sleep(1000L);
                 } catch (InterruptedException e) {
                     throw new BizException("SystemError");
                 }

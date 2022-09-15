@@ -1,6 +1,7 @@
 package com.tapdata.tm.commons.dag;
 
 import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
@@ -10,6 +11,7 @@ import lombok.NoArgsConstructor;
  * @Description:
  */
 @Data
+@Builder
 @AllArgsConstructor
 @NoArgsConstructor
 public class FieldsMapping {
