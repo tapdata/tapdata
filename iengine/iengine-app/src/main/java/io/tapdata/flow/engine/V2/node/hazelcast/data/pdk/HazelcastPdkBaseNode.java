@@ -11,6 +11,8 @@ import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
+import io.tapdata.aspect.PDKNodeInitAspect;
+import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
@@ -97,6 +99,7 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 				)
 		);
 		processorBaseContext.setPdkAssociateId(this.associateId);
+		AspectUtils.executeAspect(PDKNodeInitAspect.class, () -> new PDKNodeInitAspect().dataProcessorContext((DataProcessorContext) processorBaseContext));
 	}
 
 	private void initDmlPolicy(Node<?> node, ConnectorCapabilities connectorCapabilities) {
