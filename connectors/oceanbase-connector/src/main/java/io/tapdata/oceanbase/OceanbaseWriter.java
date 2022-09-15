@@ -1,5 +1,6 @@
 package io.tapdata.oceanbase;
 
+import io.tapdata.common.CommonDbConfig;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
@@ -7,11 +8,9 @@ import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
-import io.tapdata.entity.utils.DataMap;
 import io.tapdata.oceanbase.connector.OceanbaseJdbcContext;
 import io.tapdata.oceanbase.util.JdbcUtil;
 import io.tapdata.oceanbase.util.LRUOnRemoveMap;
-import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.entity.WriteListResult;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.MapUtils;
@@ -49,11 +48,11 @@ public class OceanbaseWriter {
     private AtomicBoolean running = new AtomicBoolean(true);
     private OceanbaseJdbcContext oceanbaseJdbcContext;
     
-    public OceanbaseWriter(final OceanbaseJdbcContext oceanbaseJdbcContext) throws Throwable {
+    public OceanbaseWriter(final OceanbaseJdbcContext oceanbaseJdbcContext) {
         this.oceanbaseJdbcContext = oceanbaseJdbcContext;
     }
 
-    public WriteListResult<TapRecordEvent> write(TapConnectorContext tapConnectorContext, TapTable tapTable, List<TapRecordEvent> tapRecordEvents) throws Throwable {
+    public WriteListResult<TapRecordEvent> write(TapTable tapTable, List<TapRecordEvent> tapRecordEvents) throws Throwable {
         WriteListResult<TapRecordEvent> writeListResult = new WriteListResult<>(0L, 0L, 0L, new HashMap<>());
         TapRecordEvent errorRecord = null;
         try (Connection connection = oceanbaseJdbcContext.getConnection()) {
@@ -63,13 +62,13 @@ public class OceanbaseWriter {
                 }
                 try {
                     if (tapRecordEvent instanceof TapInsertRecordEvent) {
-                        int insertRow = doInsertOne(tapConnectorContext, tapTable, tapRecordEvent, writeListResult);
+                        int insertRow = doInsertOne(tapTable, tapRecordEvent, writeListResult);
                         writeListResult.incrementInserted(insertRow);
                     } else if (tapRecordEvent instanceof TapUpdateRecordEvent) {
-                        int updateRow = doUpdateOne(tapConnectorContext, tapTable, tapRecordEvent, writeListResult);
+                        int updateRow = doUpdateOne(tapTable, tapRecordEvent, writeListResult);
                         writeListResult.incrementModified(updateRow);
                     } else if (tapRecordEvent instanceof TapDeleteRecordEvent) {
-                        int deleteRow = doDeleteOne(tapConnectorContext, tapTable, tapRecordEvent, writeListResult);
+                        int deleteRow = doDeleteOne(tapTable, tapRecordEvent, writeListResult);
                         writeListResult.incrementRemove(deleteRow);
                     } else {
                         writeListResult.addError(tapRecordEvent, new Exception("Event type \"" + tapRecordEvent.getClass().getSimpleName() + "\" not support: " + tapRecordEvent));
@@ -91,19 +90,19 @@ public class OceanbaseWriter {
         return writeListResult;
     }
 
-    private int doInsertOne(TapConnectorContext tapConnectorContext, TapTable tapTable, TapRecordEvent tapRecordEvent, WriteListResult<TapRecordEvent> writeListResult) throws Throwable {
-        PreparedStatement insertPreparedStatement = getInsertPreparedStatement(tapConnectorContext, tapTable, tapRecordEvent, insertMap);
+    private int doInsertOne(TapTable tapTable, TapRecordEvent tapRecordEvent, WriteListResult<TapRecordEvent> writeListResult) throws Throwable {
+        PreparedStatement insertPreparedStatement = getInsertPreparedStatement(tapTable, tapRecordEvent, insertMap);
         setPreparedStatementValues(tapTable, tapRecordEvent, insertPreparedStatement);
         int row;
         try {
-            TapLogger.info(TAG, "Insert data failed, sql: " + insertPreparedStatement);
+            TapLogger.info(TAG, "Insert data, sql: " + insertPreparedStatement);
             row = insertPreparedStatement.executeUpdate();
         } catch (Exception e) {
             if (e instanceof SQLIntegrityConstraintViolationException
                     && CollectionUtils.isNotEmpty(tapTable.primaryKeys(true))) {
                 TapLogger.warn(TAG, "Execute insert failed, will retry update or insert after check record exists");
-                if (rowExists(tapConnectorContext, tapTable, tapRecordEvent)) {
-                    row = doUpdateOne(tapConnectorContext, tapTable, tapRecordEvent, writeListResult);
+                if (rowExists(tapTable, tapRecordEvent)) {
+                    row = doUpdateOne(tapTable, tapRecordEvent, writeListResult);
                 } else {
                     throw new Exception("Insert data failed, sql: " + insertPreparedStatement + ", message: " + e.getMessage(), e);
                 }
@@ -115,8 +114,8 @@ public class OceanbaseWriter {
         return row;
     }
 
-    private int doUpdateOne(TapConnectorContext tapConnectorContext, TapTable tapTable, TapRecordEvent tapRecordEvent, WriteListResult<TapRecordEvent> writeListResult) throws Throwable {
-        PreparedStatement updatePreparedStatement = getUpdatePreparedStatement(tapConnectorContext, tapTable, tapRecordEvent, updateMap);
+    private int doUpdateOne(TapTable tapTable, TapRecordEvent tapRecordEvent, WriteListResult<TapRecordEvent> writeListResult) throws Throwable {
+        PreparedStatement updatePreparedStatement = getUpdatePreparedStatement(tapTable, tapRecordEvent, updateMap);
         int parameterIndex = setPreparedStatementValues(tapTable, tapRecordEvent, updatePreparedStatement);
         setPreparedStatementWhere(tapTable, tapRecordEvent, updatePreparedStatement, parameterIndex);
         int row;
@@ -128,8 +127,8 @@ public class OceanbaseWriter {
         return row;
     }
 
-    private int doDeleteOne(TapConnectorContext tapConnectorContext, TapTable tapTable, TapRecordEvent tapRecordEvent, WriteListResult<TapRecordEvent> writeListResult) throws Throwable {
-        PreparedStatement deletePreparedStatement = getDeletePreparedStatement(tapConnectorContext, tapTable, tapRecordEvent, deleteMap);
+    private int doDeleteOne(TapTable tapTable, TapRecordEvent tapRecordEvent, WriteListResult<TapRecordEvent> writeListResult) throws Throwable {
+        PreparedStatement deletePreparedStatement = getDeletePreparedStatement(tapTable, tapRecordEvent, deleteMap);
         setPreparedStatementWhere(tapTable, tapRecordEvent, deletePreparedStatement, 1);
         int row;
         try {
@@ -140,8 +139,8 @@ public class OceanbaseWriter {
         return row;
     }
 
-    private boolean rowExists(TapConnectorContext tapConnectorContext, TapTable tapTable, TapRecordEvent tapRecordEvent) throws Throwable {
-        PreparedStatement checkRowExistsPreparedStatement = getCheckRowExistsPreparedStatement(tapConnectorContext, tapTable, tapRecordEvent, checkExistsMap);
+    private boolean rowExists(TapTable tapTable, TapRecordEvent tapRecordEvent) throws Throwable {
+        PreparedStatement checkRowExistsPreparedStatement = getCheckRowExistsPreparedStatement(tapTable, tapRecordEvent, checkExistsMap);
         setPreparedStatementWhere(tapTable, tapRecordEvent, checkRowExistsPreparedStatement, 1);
         AtomicBoolean result = new AtomicBoolean(false);
         try {
@@ -157,14 +156,15 @@ public class OceanbaseWriter {
         return result.get();
     }
 
-    private PreparedStatement getInsertPreparedStatement(TapConnectorContext tapConnectorContext, TapTable tapTable, TapRecordEvent tapRecordEvent, Map<String, PreparedStatement> insertMap) throws Throwable {
+    private PreparedStatement getInsertPreparedStatement(TapTable tapTable, TapRecordEvent tapRecordEvent, Map<String, PreparedStatement> insertMap) throws Throwable {
         String key = getKey(tapTable, tapRecordEvent);
 //        PreparedStatement preparedStatement = insertMap.get(key);
 
 //        if (null == preparedStatement) {
-            DataMap connectionConfig = tapConnectorContext.getConnectionConfig();
-            String database = connectionConfig.getString("database");
-            String name = connectionConfig.getString("name");
+//            DataMap connectionConfig = tapConnectorContext.getConnectionConfig();
+            CommonDbConfig config = this.oceanbaseJdbcContext.getConfig();
+            String database = config.getDatabase();
+            String name = config.getSchema();
             String tableId = tapTable.getId();
             LinkedHashMap<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
             if (MapUtils.isEmpty(nameFieldMap)) {
@@ -192,13 +192,13 @@ public class OceanbaseWriter {
 
     }
 
-    private PreparedStatement getUpdatePreparedStatement(TapConnectorContext tapConnectorContext, TapTable tapTable, TapRecordEvent tapRecordEvent, Map<String, PreparedStatement> updateMap) throws Throwable {
+    private PreparedStatement getUpdatePreparedStatement(TapTable tapTable, TapRecordEvent tapRecordEvent, Map<String, PreparedStatement> updateMap) throws Throwable {
         String key = getKey(tapTable, tapRecordEvent);
         PreparedStatement preparedStatement = updateMap.get(key);
         if (null == preparedStatement) {
-            DataMap connectionConfig = tapConnectorContext.getConnectionConfig();
-            String database = connectionConfig.getString("database");
-            String name = connectionConfig.getString("name");
+            CommonDbConfig config = this.oceanbaseJdbcContext.getConfig();
+            String database = config.getDatabase();
+            String name = config.getSchema();
             String tableId = tapTable.getId();
             LinkedHashMap<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
             if (MapUtils.isEmpty(nameFieldMap)) {
@@ -229,13 +229,13 @@ public class OceanbaseWriter {
         return preparedStatement;
     }
 
-    private PreparedStatement getDeletePreparedStatement(TapConnectorContext tapConnectorContext, TapTable tapTable, TapRecordEvent tapRecordEvent, Map<String, PreparedStatement> deleteMap) throws Throwable {
+    private PreparedStatement getDeletePreparedStatement(TapTable tapTable, TapRecordEvent tapRecordEvent, Map<String, PreparedStatement> deleteMap) throws Throwable {
         String key = getKey(tapTable, tapRecordEvent);
         PreparedStatement preparedStatement = deleteMap.get(key);
         if (null == preparedStatement) {
-            DataMap connectionConfig = tapConnectorContext.getConnectionConfig();
-            String database = connectionConfig.getString("database");
-            String name = connectionConfig.getString("name");
+            CommonDbConfig config = this.oceanbaseJdbcContext.getConfig();
+            String database = config.getDatabase();
+            String name = config.getSchema();
             String tableId = tapTable.getId();
             LinkedHashMap<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
             if (MapUtils.isEmpty(nameFieldMap)) {
@@ -259,13 +259,13 @@ public class OceanbaseWriter {
         return preparedStatement;
     }
 
-    protected PreparedStatement getCheckRowExistsPreparedStatement(TapConnectorContext tapConnectorContext, TapTable tapTable, TapRecordEvent tapRecordEvent, Map<String, PreparedStatement> checkExistsMap) throws Throwable {
+    protected PreparedStatement getCheckRowExistsPreparedStatement(TapTable tapTable, TapRecordEvent tapRecordEvent, Map<String, PreparedStatement> checkExistsMap) throws Throwable {
         String key = getKey(tapTable, tapRecordEvent);
         PreparedStatement preparedStatement = checkExistsMap.get(key);
         if (null == preparedStatement) {
-            DataMap connectionConfig = tapConnectorContext.getConnectionConfig();
-            String database = connectionConfig.getString("database");
-            String name = connectionConfig.getString("name");
+            CommonDbConfig config = this.oceanbaseJdbcContext.getConfig();
+            String database = config.getDatabase();
+            String name = config.getSchema();
             String tableId = tapTable.getId();
             LinkedHashMap<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
             if (MapUtils.isEmpty(nameFieldMap)) {
