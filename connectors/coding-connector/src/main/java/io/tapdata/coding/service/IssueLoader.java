@@ -85,6 +85,8 @@ public class IssueLoader extends CodingStarter {
         String projectName = connectionConfig.getString("projectName");
         String token = connectionConfig.getString("token");
         String teamName = connectionConfig.getString("teamName");
+        String streamReadType = connectionConfig.getString("streamReadType");
+        String connectionMode = connectionConfig.getString("connectionMode");
         if ( null == projectName || "".equals(projectName)){
             TapLogger.info(TAG, "Connection parameter exception: {} ", projectName);
         }
@@ -93,6 +95,12 @@ public class IssueLoader extends CodingStarter {
         }
         if ( null == teamName || "".equals(teamName) ){
             TapLogger.info(TAG, "Connection parameter exception: {} ", teamName);
+        }
+        if ( null == streamReadType || "".equals(streamReadType) ){
+            TapLogger.info(TAG, "Connection parameter streamReadType exception: {} ", token);
+        }
+        if ( null == connectionMode || "".equals(connectionMode) ){
+            TapLogger.info(TAG, "Connection parameter connectionMode exception: {} ", teamName);
         }
         this.isVerify = Boolean.TRUE;
     }
@@ -267,9 +275,13 @@ public class IssueLoader extends CodingStarter {
         String projectName = connectionConfigConfigMap.getString("projectName");
         String token = connectionConfigConfigMap.getString("token");
         String teamName = connectionConfigConfigMap.getString("teamName");
+        String streamReadType = connectionConfigConfigMap.getString("streamReadType");
+        String connectionMode = connectionConfigConfigMap.getString("connectionMode");
         ContextConfig config = ContextConfig.create().projectName(projectName)
                 .teamName(teamName)
-                .token(token);
+                .token(token)
+                .streamReadType(streamReadType)
+                .connectionMode(connectionMode);
         if (this.tapConnectionContext instanceof TapConnectorContext) {
             DataMap nodeConfigMap = ((TapConnectorContext)this.tapConnectionContext).getNodeConfig();
             if (null == nodeConfigMap) {

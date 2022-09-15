@@ -67,17 +67,21 @@ public class CodingConnector extends ConnectorBase {
 	private Long lastTimePoint;
 	private List<Integer> lastTimeSplitIssueCode = new ArrayList<>();//hash code list
 
-//	private RecordStream recordStream;
-//	private boolean loadBatchFirstRecord;
-//	private int size;
-//	public CodingConnector(){
-//		this.recordStream = new RecordStream(Constants.CACHE_BUFFER_SIZE, Constants.CACHE_BUFFER_COUNT);
-//		loadBatchFirstRecord = Boolean.TRUE;
-//		this.size = 0;
-//	}
 	@Override
 	public void onStart(TapConnectionContext connectionContext) throws Throwable {
-
+		//isConnectorStarted(connectionContext, connectorContext -> {});
+		IssueLoader.create(connectionContext).verifyConnectionConfig();
+		DataMap connectionConfig = connectionContext.getConnectionConfig();
+		String streamReadType = connectionConfig.getString("streamReadType");
+		if (Checker.isEmpty(streamReadType)){
+			throw new CoreException("Error in connection parameter [streamReadType], please go to verify");
+		}
+		switch (streamReadType){
+			case "WebHook":this.connectorFunctions.supportStreamRead(null);break;
+			case "Polling":this.connectorFunctions.supportRawDataCallbackFilterFunction(null);break;
+//			default:
+//				throw new CoreException("Error in connection parameters [streamReadType],just be [WebHook] or [Polling], please go to verify");
+		}
 	}
 
 	@Override
@@ -88,6 +92,7 @@ public class CodingConnector extends ConnectorBase {
 		TapLogger.info(TAG, "Stop connector");
 	}
 
+	private ConnectorFunctions connectorFunctions;
 	@Override
 	public void registerCapabilities(ConnectorFunctions connectorFunctions, TapCodecsRegistry codecRegistry) {
 		connectorFunctions.supportBatchRead(this::batchRead)
@@ -97,7 +102,7 @@ public class CodingConnector extends ConnectorBase {
 				.supportRawDataCallbackFilterFunction(this::rawDataCallbackFilterFunction)
 				.supportCommandCallbackFunction(this::handleCommand)
 		;
-
+		this.connectorFunctions = connectorFunctions;
 	}
 
 	private CommandResult handleCommand(TapConnectionContext tapConnectionContext, CommandInfo commandInfo) {
@@ -234,7 +239,6 @@ public class CodingConnector extends ConnectorBase {
 		}
 		IssueLoader loader = IssueLoader.create(connectorContext);
 		ContextConfig contextConfig = loader.veryContextConfigAndNodeConfig();
-
 
 		TapEvent event = null;
 		long referenceTime = System.currentTimeMillis();
@@ -410,81 +414,15 @@ public class CodingConnector extends ConnectorBase {
 	public void discoverSchema(TapConnectionContext connectionContext, List<String> tables, int tableSize, Consumer<List<TapTable>> consumer) throws Throwable {
 		//return TapTable for each project. Issue
 		//IssueLoader.create(connectionContext).setTableSize(tableSize).discoverIssue(tables,consumer);
-
 		String modeName = connectionContext.getConnectionConfig().getString("connectionMode");
 		ConnectionMode connectionMode = ConnectionMode.getInstanceByName(modeName);
 		if (null == connectionMode){
 			throw new CoreException("Connection Mode is not empty or not null.");
 		}
 		List<TapTable> tapTables = connectionMode.discoverSchema(connectionContext, tables, tableSize);
-
 		if (null != tapTables){
 			consumer.accept(tapTables);
 		}
-
-//		if(tables == null || tables.isEmpty()) {
-//			consumer.accept(list(
-//					table("Issues")
-//							.add(field("Code", JAVA_Integer).isPrimaryKey(true).primaryKeyPos(3))        //事项 Code
-//							.add(field("ProjectName", "StringMinor").isPrimaryKey(true).primaryKeyPos(2))   //项目名称
-//							.add(field("TeamName", "StringMinor").isPrimaryKey(true).primaryKeyPos(1))      //团队名称
-//							.add(field("ParentType", "StringMinor"))                                       //父事项类型
-//							.add(field("Type", "StringMinor"))                                         //事项类型：DEFECT - 缺陷;REQUIREMENT - 需求;MISSION - 任务;EPIC - 史诗;SUB_TASK - 子工作项
-//
-//
-//							.add(field("IssueTypeDetailId", JAVA_Integer))                               //事项类型ID
-//							.add(field("IssueTypeDetail", JAVA_Map))                                         //事项类型具体信息
-//							.add(field("Name", "StringMinor"))                                              //名称
-//							.add(field("Description", "StringLonger"))                                       //描述
-//							.add(field("IterationId", JAVA_Integer))                                     //迭代 Id
-//							.add(field("IssueStatusId", JAVA_Integer))                                   //事项状态 Id
-//							.add(field("IssueStatusName", "StringMinor"))                                   //事项状态名称
-//							.add(field("IssueStatusType", "StringMinor"))                                   //事项状态类型
-//							.add(field("Priority", "StringBit"))                                          //优先级:"0" - 低;"1" - 中;"2" - 高;"3" - 紧急;"" - 未指定
-//
-//							.add(field("AssigneeId", JAVA_Integer))                                      //Assignee.Id 等于 0 时表示未指定
-//							.add(field("Assignee", JAVA_Map))                                                //处理人
-//							.add(field("StartDate", JAVA_Long))                                             //开始日期时间戳
-//							.add(field("DueDate", JAVA_Long))                                               //截止日期时间戳
-//							.add(field("WorkingHours", "WorkingHours"))                                      //工时（小时）
-//
-//							.add(field("CreatorId", JAVA_Integer))                                       //创建人Id
-//							.add(field("Creator", JAVA_Map))                                                 //创建人
-//							.add(field("StoryPoint", "StringMinor"))                                        //故事点
-//							.add(field("CreatedAt", JAVA_Long))                                             //创建时间
-//							.add(field("UpdatedAt", JAVA_Long))                                             //修改时间
-//							.add(field("CompletedAt", JAVA_Long))                                           //完成时间
-//
-//							.add(field("ProjectModuleId", JAVA_Integer))                                 //ProjectModule.Id 等于 0 时表示未指定
-//							.add(field("ProjectModule", JAVA_Map))                                           //项目模块
-//
-//							.add(field("WatcherIdArr", JAVA_Array))                                        //关注人Id列表
-//							.add(field("Watchers", JAVA_Array))                                            //关注人
-//
-//							.add(field("LabelIdArr", JAVA_Array))                                          //标签Id列表
-//							.add(field("Labels", JAVA_Array))                                              //标签列表
-//
-//							.add(field("FileIdArr", JAVA_Array))                                           //附件Id列表
-//							.add(field("Files", JAVA_Array))                                               //附件列表
-//							.add(field("RequirementType", "StringSmaller"))                                   //需求类型
-//
-//							.add(field("DefectType", JAVA_Map))                                              //缺陷类型
-//							.add(field("CustomFields", JAVA_Array))                                        //自定义字段列表
-//							.add(field("ThirdLinks", JAVA_Array))                                          //第三方链接列表
-//
-//							.add(field("SubTaskCodeArr", JAVA_Array))                                      //子工作项Code列表
-//							.add(field("SubTasks", JAVA_Array))                                            //子工作项列表
-//
-//							.add(field("ParentCode", JAVA_Integer))                                      //父事项Code
-//							.add(field("Parent", JAVA_Map))                                                  //父事项
-//
-//							.add(field("EpicCode", JAVA_Integer))                                        //所属史诗Code
-//							.add(field("Epic", JAVA_Map))                                                    //所属史诗
-//
-//							.add(field("IterationCode", JAVA_Integer))                                   //所属迭代Code
-//							.add(field("Iteration", JAVA_Map))                                               //所属迭代
-//			));
-//		}
 	}
 
 	@Override
@@ -504,10 +442,8 @@ public class CodingConnector extends ConnectorBase {
 			return connectionOptions;
 		}
 
-
 		TestItem testProject = testConnection.testProject();
 		consumer.accept(testProject);
-
 		return connectionOptions;
 	}
 
@@ -564,14 +500,7 @@ public class CodingConnector extends ConnectorBase {
 			}
 		}
 		pageBody.builder("Conditions",coditions);
-
-//		HttpEntity<String,Object> issueDetialBody = HttpEntity.create()
-//				.builder("Action","DescribeIssue")
-//				.builder("ProjectName",projectName);
-
 		String teamName = contextConfig.getTeamName();
-//		CodingHttp authorization = CodingHttp.create(header.getEntity(), String.format(CodingStarter.OPEN_API_URL, teamName ));
-//		HttpRequest requestDetail = authorization.createHttpRequest();
 		do{
 			pageBody.builder("PageNumber",queryIndex++);
 			Map<String,Object> dataMap = issueLoader.getIssuePage(header.getEntity(),pageBody.getEntity(),String.format(CodingStarter.OPEN_API_URL,teamName));
@@ -583,14 +512,6 @@ public class CodingConnector extends ConnectorBase {
 			currentQueryCount = resultList.size();
 			batchReadPageSize = null != dataMap.get("PageSize") ? (int)(dataMap.get("PageSize")) : batchReadPageSize;
 			for (Map<String, Object> stringObjectMap : resultList) {
-//				Object code = stringObjectMap.get("Code");
-//				Map<String,Object> issueDetail = issueLoader.readIssueDetail(
-//						issueDetialBody,
-//						authorization,
-//						requestDetail,
-//						(code instanceof Integer)?(Integer)code:Integer.parseInt(code.toString()),
-//						projectName,
-//						teamName);
 				String modeName = nodeContext.getConnectionConfig().getString("connectionMode");
 				ConnectionMode instance = ConnectionMode.getInstanceByName(modeName);
 				if (null == instance){
@@ -623,154 +544,5 @@ public class CodingConnector extends ConnectorBase {
 			}
 		}while (currentQueryCount >= batchReadPageSize);
 		if (events[0].size() > 0)  consumer.accept(events[0], offsetState);
-	}
-
-
-	private Map<String,Object> createFiledMap(){
-		String fileds = "{\n" +
-				"  \"Issue\": {\n" +
-				"    \"ParentType\": \"MISSION\",\n" +
-				"    \"Code\": \"ID\",\n" +
-				"    \"Type\": \"事项类型\",\n" +
-				"    \"Name\": \"标题\",\n" +
-				"    \"Description\": \"描述\",\n" +
-				"    \"IterationId\": 0,\n" +
-				"    \"IssueStatusId\": 1587660,\n" +
-				"    \"IssueStatusName\": \"未开始\",\n" +
-				"    \"IssueStatusType\": \"TODO\",\n" +
-				"    \"CreatedAt\": \"创建时间\",\n" +
-				"    \"UpdatedAt\": \"更新时间\",\n" +
-				"    \"Priority\": \"2\",\n" +
-				"    \"Epic\": {\n" +
-				"      \"Code\": 0,\n" +
-				"      \"Type\": \"\",\n" +
-				"      \"Name\": \"\",\n" +
-				"      \"IssueStatusId\": 0,\n" +
-				"      \"IssueStatusName\": \"\",\n" +
-				"      \"Priority\": \"\",\n" +
-				"      \"Assignee\": {\n" +
-				"        \"Id\": 0,\n" +
-				"        \"Status\": 0,\n" +
-				"        \"Avatar\": \"\",\n" +
-				"        \"Name\": \"\",\n" +
-				"        \"Email\": \"\",\n" +
-				"        \"TeamId\": 0,\n" +
-				"        \"Phone\": \"\",\n" +
-				"        \"GlobalKey\": \"\",\n" +
-				"        \"TeamGlobalKey\": \"\"\n" +
-				"      }\n" +
-				"    },\n" +
-				"    \"Assignee\": {\n" +
-				"      \"Id\": 0,\n" +
-				"      \"Status\": 0,\n" +
-				"      \"Avatar\": \"\",\n" +
-				"      \"Name\": \"\",\n" +
-				"      \"Email\": \"\",\n" +
-				"      \"TeamId\": 0,\n" +
-				"      \"Phone\": \"\",\n" +
-				"      \"GlobalKey\": \"\",\n" +
-				"      \"TeamGlobalKey\": \"\"\n" +
-				"    },\n" +
-				"    \"StartDate\": 0,\n" +
-				"    \"DueDate\": 0,\n" +
-				"    \"WorkingHours\": 0,\n" +
-				"    \"Creator\": {\n" +
-				"      \"Id\": 8054404,\n" +
-				"      \"Status\": 1,\n" +
-				"      \"Avatar\": \"https://coding-net-production-static-ci.codehub.cn/WM-TEXT-AVATAR-eIKPrrFIbZvWEBGUurtc.jpg\",\n" +
-				"      \"Name\": \"Berry\",\n" +
-				"      \"Email\": \"\",\n" +
-				"      \"TeamId\": 0,\n" +
-				"      \"Phone\": \"\",\n" +
-				"      \"GlobalKey\": \"\",\n" +
-				"      \"TeamGlobalKey\": \"\"\n" +
-				"    },\n" +
-				"    \"StoryPoint\": \"\",\n" +
-				"    \"CompletedAt\": 0,\n" +
-				"    \"ProjectModule\": {\n" +
-				"      \"Id\": 0,\n" +
-				"      \"Name\": \"\"\n" +
-				"    },\n" +
-				"    \"Watchers\": [\n" +
-				"      {\n" +
-				"        \"Id\": 8054404,\n" +
-				"        \"Status\": 1,\n" +
-				"        \"Avatar\": \"https://coding-net-production-static-ci.codehub.cn/WM-TEXT-AVATAR-eIKPrrFIbZvWEBGUurtc.jpg\",\n" +
-				"        \"Name\": \"Berry\",\n" +
-				"        \"Email\": \"\",\n" +
-				"        \"TeamId\": 0,\n" +
-				"        \"Phone\": \"\",\n" +
-				"        \"GlobalKey\": \"\",\n" +
-				"        \"TeamGlobalKey\": \"\"\n" +
-				"      }\n" +
-				"    ],\n" +
-				"    \"Labels\": [\n" +
-				"      \n" +
-				"    ],\n" +
-				"    \"Files\": [\n" +
-				"      \n" +
-				"    ],\n" +
-				"    \"RequirementType\": {\n" +
-				"      \"Id\": 0,\n" +
-				"      \"Name\": \"\"\n" +
-				"    },\n" +
-				"    \"DefectType\": {\n" +
-				"      \"Id\": 0,\n" +
-				"      \"Name\": \"\",\n" +
-				"      \"IconUrl\": \"\"\n" +
-				"    },\n" +
-				"    \"CustomFields\": [\n" +
-				"      \n" +
-				"    ],\n" +
-				"    \"ThirdLinks\": [\n" +
-				"      \n" +
-				"    ],\n" +
-				"    \"SubTasks\": [\n" +
-				"      \n" +
-				"    ],\n" +
-				"    \"Parent\": {\n" +
-				"      \"Code\": 2,\n" +
-				"      \"Type\": \"MISSION\",\n" +
-				"      \"Name\": \"云版首页设计\",\n" +
-				"      \"IssueStatusId\": 1587684,\n" +
-				"      \"IssueStatusName\": \"已完成\",\n" +
-				"      \"Priority\": \"2\",\n" +
-				"      \"Assignee\": {\n" +
-				"        \"Id\": 0,\n" +
-				"        \"Status\": 0,\n" +
-				"        \"Avatar\": \"\",\n" +
-				"        \"Name\": \"\",\n" +
-				"        \"Email\": \"\",\n" +
-				"        \"TeamId\": 0,\n" +
-				"        \"Phone\": \"\",\n" +
-				"        \"GlobalKey\": \"\",\n" +
-				"        \"TeamGlobalKey\": \"\"\n" +
-				"      },\n" +
-				"      \"IssueStatusType\": \"COMPLETED\",\n" +
-				"      \"IssueTypeDetail\": {\n" +
-				"        \"Id\": 0,\n" +
-				"        \"Name\": \"\",\n" +
-				"        \"IssueType\": \"\",\n" +
-				"        \"Description\": \"\",\n" +
-				"        \"IsSystem\": false\n" +
-				"      }\n" +
-				"    },\n" +
-				"    \"Iteration\": {\n" +
-				"      \"Code\": 0,\n" +
-				"      \"Name\": \"\",\n" +
-				"      \"Status\": \"\",\n" +
-				"      \"Id\": 0\n" +
-				"    },\n" +
-				"    \"IssueTypeDetail\": {\n" +
-				"      \"Id\": 104985,\n" +
-				"      \"Name\": \"子工作项\",\n" +
-				"      \"IssueType\": \"SUB_TASK\",\n" +
-				"      \"Description\": \"在敏捷模式下，将一个事项拆分成更小的块。\",\n" +
-				"      \"IsSystem\": true\n" +
-				"    },\n" +
-				"    \"IssueTypeId\": 104985\n" +
-				"  }\n" +
-				"}";
-		return JSONUtil.parseObj(fileds,false,true);
 	}
 }

@@ -156,7 +156,7 @@ public class CSVMode implements ConnectionMode {
         if (Checker.isNotEmpty(customFieldMap)){
             issueDetail.putAll(customFieldMap);
         }
-        //@TODO 统计需要操作的属性
+        //@TODO 统计需要操作的属性,子属性用点分割；数据组结果会以|分隔返回，大文本会以""包裹
         putMap(stringObjectMap,issueDetail,
                 "Code",
                 //"ProjectName",
@@ -311,7 +311,7 @@ public class CSVMode implements ConnectionMode {
                     });
                     return map(entry(finalKey,joiner.toString()));
                 }catch (Exception e){
-                    //@TODO
+                    //@TODO 多层list嵌套时目前不支持解析，返回null
                     return null;
                     //List<List<Object>> catchList = (List<List<Object>>) value;
                     //catchList.forEach(list->{

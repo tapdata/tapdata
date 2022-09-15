@@ -15,9 +15,20 @@ public class ContextConfig {
     private String teamName;
     private String iterationCodes;
     private IssueType issueType;
+    private String connectionMode;
+    private String streamReadType;
 
     public ContextConfig projectName(String projectName){
         this.projectName = projectName;
+        return this;
+    }
+    public ContextConfig streamReadType(String streamReadType){
+        this.streamReadType = streamReadType;
+        return this;
+    }
+
+    public ContextConfig connectionMode(String connectionMode){
+        this.connectionMode = connectionMode;
         return this;
     }
     public ContextConfig token(String token){
@@ -83,5 +94,21 @@ public class ContextConfig {
 
     public void setIssueType(IssueType issueType) {
         this.issueType = issueType;
+    }
+
+    public String getConnectionMode() {
+        return connectionMode;
+    }
+
+    public void setConnectionMode(String connectionMode) {
+        this.connectionMode = connectionMode;
+    }
+
+    public String getStreamReadType() {
+        return streamReadType;
+    }
+
+    public void setStreamReadType(String streamReadType) {
+        this.streamReadType = streamReadType;
     }
 }

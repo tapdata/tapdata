@@ -2,10 +2,6 @@ package tapdata.connector.coding;
 
 import io.tapdata.coding.CodingConnector;
 import io.tapdata.coding.entity.ContextConfig;
-import io.tapdata.coding.enums.Constants;
-import io.tapdata.coding.service.IssueLoader;
-import io.tapdata.coding.utils.collection.MapUtil;
-import io.tapdata.coding.utils.file.RecordStream;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 
@@ -112,13 +108,13 @@ public class RowDataCallbackFilterTest {
        ContextConfig configs = ContextConfig.create()
                .issueType("ALL").projectName("TestIssue").iterationCodes("1").teamName("testhookgavin").token("token 0190b04d98dec1cdd7a2825388c17a81fdebd08f");
 
-       IssueLoader.create(context)
-               .exportCSV(
-                       100,
-                       "D://issue.csv",
-                       MapUtil.fileds(),
-                       configs
-               );
+//       IssueLoader.create(context)
+//               .exportCSV(
+//                       100,
+//                       "D://issue.csv",
+//                       MapUtil.fileds(),
+//                       configs
+//               );
    }
 
     public static void main(String[] args) {
