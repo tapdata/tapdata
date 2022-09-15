@@ -146,7 +146,7 @@ public class AlarmServiceImpl implements AlarmService {
         return alarmSettingDtos;
     }
 
-    private AlarmSettingDto getAlartSettingByKey(TaskDto taskDto, String nodeId, AlarmKeyEnum key) {
+    private AlarmSettingDto getAlarmSettingByKey(TaskDto taskDto, String nodeId, AlarmKeyEnum key) {
         List<AlarmSettingDto> alarmSettingDtos = getAlarmSettingDtos(taskDto, nodeId);
         Assert.notEmpty(alarmSettingDtos);
         return alarmSettingDtos.stream().filter(t -> key.equals(t.getKey())).findAny().orElse(null);
@@ -241,7 +241,7 @@ public class AlarmServiceImpl implements AlarmService {
             messageService.addMessage(messageEntity);
 
             // update alarmInfo date
-            AlarmSettingDto setting = getAlartSettingByKey(taskDto, info.getNodeId(), info.getMetric());
+            AlarmSettingDto setting = getAlarmSettingByKey(taskDto, info.getNodeId(), info.getMetric());
             DateTime lastNotifyTime = DateUtil.offset(DateUtil.date(), parseDateUnit(setting.getUnit()), setting.getInterval());
             info.setLastNotifyTime(lastNotifyTime);
             mongoTemplate.save(info);
