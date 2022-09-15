@@ -378,96 +378,90 @@ public class DataNodeSampleHandler extends AbstractNodeSampleHandler {
         Optional.ofNullable(outputDdlCounter).ifPresent(counter -> counter.inc(tables.size()));
     }
 
-    static class HealthCheckRunner {
+    public static class HealthCheckRunner {
         private static final String TAG = HealthCheckRunner.class.getSimpleName();
+        private static final Logger logger = LogManager.getLogger(DataNodeSampleHandler.class);
+        private static final HealthCheckRunner INSTANCE = new HealthCheckRunner();
+
+        public static HealthCheckRunner getInstance() {
+            return INSTANCE;
+        }
+
         private static final int PERIOD_SECOND = 5;
-        private ScheduledExecutorService scheduleExecutorService;
-        private Map<String, Node<?>> nodeMap;
-        private Map<String, ConnectorNode> connectorNodeMap;
-        private Map<String, NumberSampler<Long>> tcpPingNumbers;
-        private Map<String, NumberSampler<Long>> connectPingNumbers;
+        private final Map<String, Node<?>> nodeMap;
+        private final ScheduledExecutorService scheduleExecutorService;
 
-        private boolean running = true;
-
-        public boolean isRunning() {
-            return running;
+        private HealthCheckRunner() {
+            nodeMap = new HashMap<>();
+            scheduleExecutorService = ExecutorsManager.getInstance().newSingleThreadScheduledExecutor("data node health check for tasks running on engine");
         }
 
-        public void setRunning(boolean running) {
-            this.running = running;
-        }
-
-        private void runHealthCheck(TaskDto task, SampleCollector collector, Node<?> node, String associateId) {
+        public void runHealthCheck(SampleCollector collector, Node<?> node, String associateId) {
             String nodeId = node.getId();
-            ConnectorNode connectorNode = ConnectorNodeService.getInstance().getConnectorNode(associateId);
+            nodeMap.putIfAbsent(nodeId, node);
+
             // if the data source does not implement the function, does not init samples or thread
+            ConnectorNode connectorNode = ConnectorNodeService.getInstance().getConnectorNode(associateId);
             if (null == connectorNode || null == connectorNode.getConnectorFunctions()
                     || null == connectorNode.getConnectorFunctions().getConnectionCheckFunction()) {
                 return;
             }
+            ConnectionCheckFunction function = connectorNode.getConnectorFunctions().getConnectionCheckFunction();
 
-            tcpPingNumbers = new HashMap<>();
-            tcpPingNumbers.put(nodeId, collector.getNumberCollector("tcpPing", Long.class));
-            connectPingNumbers = new HashMap<>();
-            connectPingNumbers.put(nodeId, collector.getNumberCollector("connectPing", Long.class));
-            nodeMap = new HashMap<>();
-            nodeMap.putIfAbsent(nodeId, node);
-            connectorNodeMap = new HashMap<>();
-            connectorNodeMap.putIfAbsent(nodeId, connectorNode);
+            NumberSampler<Long> tcpPing = collector.getNumberCollector("tcpPing", Long.class);
+            NumberSampler<Long> connectPing = collector.getNumberCollector("connectPing", Long.class);
             // start thread to get the tcp ping and connect ping
-            if (null == scheduleExecutorService) {
-                String name = String.format("Task data node health check %s-%s", task.getName(), task.getId());
-                scheduleExecutorService = ExecutorsManager.getInstance().newSingleThreadScheduledExecutor(name);
-                AtomicReference<ScheduledFuture<?>> futureRef = new AtomicReference<>();
-                ScheduledFuture<?> future = scheduleExecutorService.scheduleAtFixedRate(() -> {
-                    if (!running) {
+            AtomicReference<ScheduledFuture<?>> futureRef = new AtomicReference<>();
+            ScheduledFuture<?> future = scheduleExecutorService.scheduleAtFixedRate(() -> {
+                try {
+                    if (!nodeMap.containsKey(nodeId)) {
                         futureRef.get().cancel(true);
-                        scheduleExecutorService.shutdown();
                     }
-                    for (String id : connectorNodeMap.keySet()) {
-                        ConnectionCheckFunction function = connectorNode.getConnectorFunctions().getConnectionCheckFunction();
-                        if (null == function) {
-                            continue;
-                        }
-                        ConnectionPingAspect connectionPingAspect = new ConnectionPingAspect().node(nodeMap.get(id));
-                        PDKInvocationMonitor.invoke(connectorNodeMap.get(id), PDKMethod.CONNECTION_CHECK, () -> {
-                            function.check(
-                                    connectorNode.getConnectorContext(),
-                                    Arrays.asList(
-                                            ConnectionCheckItem.ITEM_PING,
-                                            ConnectionCheckItem.ITEM_CONNECTION
-                                    ),
-                                    item -> {
-                                        Long value;
-                                        // connection check failed, use -1 as value
-                                        if (item.getResult() == ConnectionCheckItem.RESULT_FAILED) {
-                                            value = -1L;
-                                        } else {
-                                            value = item.getTakes();
-                                        }
 
-                                        NumberSampler<Long> sampler = null;
-                                        switch (item.getItem()) {
-                                            case ConnectionCheckItem.ITEM_PING:
-                                                sampler = tcpPingNumbers.get(id);
-                                                connectionPingAspect.tcpPing(value);
-                                                break;
-                                            case ConnectionCheckItem.ITEM_CONNECTION:
-                                                sampler = connectPingNumbers.get(id);
-                                                connectionPingAspect.connectPing(value);
-                                                break;
-                                        }
-                                        Optional.ofNullable(sampler).ifPresent(s -> {
-                                            s.setValue(Optional.ofNullable(value).orElse(-1L));
-                                        });
+                    ConnectionPingAspect connectionPingAspect = new ConnectionPingAspect().node(nodeMap.get(nodeId));
+                    PDKInvocationMonitor.invoke(connectorNode, PDKMethod.CONNECTION_CHECK, () -> {
+                        function.check(
+                                connectorNode.getConnectorContext(),
+                                Arrays.asList(
+                                        ConnectionCheckItem.ITEM_PING,
+                                        ConnectionCheckItem.ITEM_CONNECTION
+                                ),
+                                item -> {
+                                    Long value;
+                                    // connection check failed, use -1 as value
+                                    if (item.getResult() == ConnectionCheckItem.RESULT_FAILED) {
+                                        value = -1L;
+                                    } else {
+                                        value = item.getTakes();
                                     }
-                            );
-                        }, TAG);
-                        AspectUtils.executeAspect(connectionPingAspect);
-                    }
-                }, 0L, PERIOD_SECOND, TimeUnit.SECONDS);
-                futureRef.set(future);
-            }
+
+                                    NumberSampler<Long> sampler = null;
+                                    switch (item.getItem()) {
+                                        case ConnectionCheckItem.ITEM_PING:
+                                            sampler = tcpPing;
+                                            connectionPingAspect.tcpPing(value);
+                                            break;
+                                        case ConnectionCheckItem.ITEM_CONNECTION:
+                                            sampler = connectPing;
+                                            connectionPingAspect.connectPing(value);
+                                            break;
+                                    }
+                                    Optional.ofNullable(sampler).ifPresent(s -> {
+                                        s.setValue(Optional.ofNullable(value).orElse(-1L));
+                                    });
+                                }
+                        );
+                    }, TAG);
+                    AspectUtils.executeAspect(connectionPingAspect);
+                } catch (Throwable throwable) {
+                    logger.warn("Failed to check tcp ping or connect ping for node: {}, err: " + node.getId(), throwable.getMessage());
+                }
+            }, 0L, PERIOD_SECOND, TimeUnit.SECONDS);
+            futureRef.set(future);
+        }
+
+        public void stopHealthCheck(String nodeId) {
+            nodeMap.remove(nodeId);
         }
     }
 }

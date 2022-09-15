@@ -120,7 +120,7 @@ public class ManuRedoDamengLogMiner extends DamengLogMiner {
                         break;
                     }
                     if (oracleRedoLogBatch != null) {
-                        TapLogger.info(TAG, "Starting analysis redo log {}");
+                        TapLogger.info(TAG, "Starting analysis redo log {}",oracleRedoLogBatch.toString());
 
                         doMine(oracleRedoLogBatch);
 

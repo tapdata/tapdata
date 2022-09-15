@@ -92,16 +92,12 @@ public class TaskNodeServiceImpl implements TaskNodeService {
             return result;
         }
 
-        LinkedList<DatabaseNode> databaseNodes = dag.getNodes().stream()
-                .filter(node -> node instanceof DatabaseNode)
-                .map(node -> (DatabaseNode) node)
-                .collect(Collectors.toCollection(LinkedList::new));
-        if (CollectionUtils.isEmpty(databaseNodes)) {
+        if (CollectionUtils.isEmpty(dag.getSourceNode())) {
             return result;
         }
 
-        DatabaseNode sourceNode = dag.getSourceNode().getFirst();
-        DatabaseNode targetNode = CollectionUtils.isNotEmpty(dag.getTargetNode()) ? dag.getTargetNode().getLast() : null;
+        DatabaseNode sourceNode = dag.getSourceNode(nodeId);
+        DatabaseNode targetNode = CollectionUtils.isNotEmpty(dag.getTargetNode()) ? dag.getTargetNode(nodeId) : null;
         List<String> tableNames = sourceNode.getTableNames();
         if (CollectionUtils.isEmpty(tableNames) && StringUtils.equals("all", sourceNode.getMigrateTableSelectType())) {
             List<MetadataInstancesDto> metaInstances = metadataInstancesService.findBySourceIdAndTableNameList(sourceNode.getConnectionId(), null, userDetail, taskId);
@@ -254,7 +250,6 @@ public class TaskNodeServiceImpl implements TaskNodeService {
         DataSourceConnectionDto sourceDataSource = dataSourceService.findById(MongoUtils.toObjectId(sourceNode.getConnectionId()));
 
         Map<String, MetadataInstancesDto> metaMap = Maps.newHashMap();
-        // 模型推演会推演很多无效数据 findByNodeId 这个方法暂时不能用。
         List<MetadataInstancesDto> list = metadataInstancesService.findByNodeId(currentNode.getId(), userDetail);
         boolean queryFormSource = false;
         if (CollectionUtils.isEmpty(list) || list.size() != tableNames.size()) {
@@ -265,9 +260,12 @@ public class TaskNodeServiceImpl implements TaskNodeService {
         }
         if (CollectionUtils.isNotEmpty(list)) {
             boolean finalQueryFormSource = queryFormSource;
-            metaMap = list.stream().map(meta -> {
+            metaMap = list.stream()
+                    .filter(t -> currentTableList.contains(t.getAncestorsName()))
+                    .map(meta -> {
                 // source & target not same database type and query from source
-                if (finalQueryFormSource && currentNode instanceof DatabaseNode && !sourceDataSource.getDatabase_type().equals(targetDataSource.getDatabase_type())) {
+                if (finalQueryFormSource && currentNode instanceof DatabaseNode
+                        && !sourceDataSource.getDatabase_type().equals(targetDataSource.getDatabase_type())) {
                     Schema schema = JsonUtil.parseJsonUseJackson(JsonUtil.toJsonUseJackson(meta), Schema.class);
                     return processFieldToDB(schema, meta, targetDataSource, userDetail);
                 } else {
@@ -303,7 +301,8 @@ public class TaskNodeServiceImpl implements TaskNodeService {
             String metaType = "mongodb".equals(sourceDataSource.getDatabase_type()) ? "collection" : "table";
             String sourceQualifiedName = MetaDataBuilderUtils.generateQualifiedName(metaType, sourceDataSource, tableName, taskId);
 
-            if (metaMap.get(tableName) == null || CollectionUtils.isEmpty(metaMap.get(tableName).getFields())) {
+            // || CollectionUtils.isEmpty(metaMap.get(tableName).getFields())
+            if (metaMap.get(tableName) == null) {
                 continue;
             }
             List<Field> fields = metaMap.get(tableName).getFields();
@@ -324,18 +323,16 @@ public class TaskNodeServiceImpl implements TaskNodeService {
                     int primaryKey = Objects.isNull(field.getPrimaryKeyPosition()) ? 0 : field.getPrimaryKeyPosition();
                     String fieldName = field.getOriginalFieldName();
                     String finalDefaultValue = defaultValue;
-                    FieldsMapping mapping = new FieldsMapping(){{
-                        setTargetFieldName(fieldName);
-                        setSourceFieldName(fieldName);
-                        setSourceFieldType(field.getDataType());
-                        setType("auto");
-                        setIsShow(true);
-                        setMigrateType("system");
-                        setPrimary_key_position(primaryKey);
-                        setUseDefaultValue(field.getUseDefaultValue());
-                        setDefaultValue(finalDefaultValue);
-                    }};
-
+                    FieldsMapping mapping = FieldsMapping.builder()
+                            .targetFieldName(fieldName)
+                            .sourceFieldName(fieldName)
+                            .sourceFieldType(field.getDataType())
+                            .type("auto")
+                            .isShow(true)
+                            .migrateType("system")
+                            .primary_key_position(primaryKey)
+                            .useDefaultValue(field.getUseDefaultValue())
+                            .defaultValue(finalDefaultValue).build();
 
                     if (Objects.nonNull(fieldInfoMap) && fieldInfoMap.containsKey(fieldName)) {
                         FieldInfo fieldInfo = fieldInfoMap.get(fieldName);

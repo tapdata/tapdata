@@ -8,6 +8,8 @@ import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.ds.service.impl.DataSourceService;
 import com.tapdata.tm.message.constant.Level;
+import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
+import com.tapdata.tm.metadatainstance.vo.SourceTypeEnum;
 import com.tapdata.tm.task.constant.DagOutputTemplate;
 import com.tapdata.tm.task.constant.DagOutputTemplateEnum;
 import com.tapdata.tm.task.entity.TaskDagCheckLog;
@@ -29,6 +31,7 @@ import java.util.*;
 public class SourceSettingStrategyImpl implements DagLogStrategy {
 
     private DataSourceService dataSourceService;
+    private MetadataInstancesService metadataInstancesService;
 
     private final DagOutputTemplateEnum templateEnum = DagOutputTemplateEnum.SOURCE_SETTING_CHECK;
 
@@ -79,8 +82,10 @@ public class SourceSettingStrategyImpl implements DagLogStrategy {
             String connectionId = node.getConnectionId();
             DataSourceConnectionDto connectionDto = dataSourceService.findById(MongoUtils.toObjectId(connectionId));
             Optional.ofNullable(connectionDto).ifPresent(dto -> {
+                List<String> tables = metadataInstancesService.tables(connectionId, SourceTypeEnum.SOURCE.name());
+
                 int loadCount = Objects.nonNull(dto.getLoadCount()) ? dto.getLoadCount() : 0;
-                if (loadCount == 0) {
+                if (CollectionUtils.isEmpty(tables)) {
                     TaskDagCheckLog schemaLog = new TaskDagCheckLog();
                     schemaLog.setTaskId(taskId.toHexString());
                     schemaLog.setCheckType(templateEnum.name());
@@ -89,9 +94,10 @@ public class SourceSettingStrategyImpl implements DagLogStrategy {
                     schemaLog.setLog(MessageFormat.format(DagOutputTemplate.SOURCE_SETTING_ERROR_SCHEMA, name));
                     schemaLog.setGrade(Level.ERROR.getValue());
                     schemaLog.setNodeId(node.getId());
+                    result.add(schemaLog);
                 } else {
                     int tableCount = Objects.nonNull(dto.getTableCount()) ? dto.getTableCount().intValue() : 0;
-                    if (tableCount != loadCount) {
+                    if (loadCount < tableCount) {
                         TaskDagCheckLog schemaLog = new TaskDagCheckLog();
                         schemaLog.setTaskId(taskId.toHexString());
                         schemaLog.setCheckType(templateEnum.name());
@@ -100,13 +106,10 @@ public class SourceSettingStrategyImpl implements DagLogStrategy {
                         schemaLog.setLog(MessageFormat.format(DagOutputTemplate.SOURCE_SETTING_ERROR_SCHEMA_LOAD, name));
                         schemaLog.setGrade(Level.ERROR.getValue());
                         schemaLog.setNodeId(node.getId());
+                        result.add(schemaLog);
                     }
-
                 }
-
-
             });
-
         });
 
         return result;

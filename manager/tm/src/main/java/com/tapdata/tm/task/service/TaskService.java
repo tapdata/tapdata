@@ -914,12 +914,12 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
         String lastTaskRecordId = new ObjectId().toString();
         //更新任务信息
-        Update update = Update.update("status", TaskDto.STATUS_EDIT)
+        Update update = Update.update("status", TaskDto.STATUS_WAIT_START)
                 .set(TaskDto.LASTTASKRECORDID, lastTaskRecordId)
                 .unset("temp");
         updateById(taskDto.getId(), update, user);
 
-        taskDto.setStatus(TaskDto.STATUS_EDIT);
+        taskDto.setStatus(TaskDto.STATUS_WAIT_START);
         taskDto.setTaskRecordId(lastTaskRecordId);
 
         //清除校验结果
@@ -2170,7 +2170,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 //            taskDto.setDag(taskDto.getTempDag());
 //        }
         beforeSave(taskDto, user);
-        set.unset("tempDag").set("isEdit", true).set("status", TaskDto.STATUS_EDIT);
+        set.unset("tempDag").set("isEdit", true).set("status", TaskDto.STATUS_WAIT_START);
 //        Update update = new Update();
 //        taskService.update(new Query(Criteria.where("_id").is(taskDto.getParentId())), update.unset("temp"));
         updateById(taskDto.getId(), set, user);
