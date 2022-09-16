@@ -1,8 +1,10 @@
 package io.tapdata.oceanbase.connector;
 
+import com.google.common.collect.Maps;
 import io.tapdata.base.ConnectorBase;
 import io.tapdata.common.CommonDbTest;
 import io.tapdata.common.DataSourcePool;
+import io.tapdata.common.RecordWriter;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
 import io.tapdata.entity.event.ddl.table.TapDropTableEvent;
@@ -41,7 +43,9 @@ import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import org.apache.commons.lang3.StringUtils;
 
 import java.sql.Connection;
+import java.sql.SQLException;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
@@ -57,9 +61,10 @@ public class OceanbaseConnector extends ConnectorBase {
     public static final String TAG = OceanbaseConnector.class.getSimpleName();
 
     private OceanbaseJdbcContext oceanbaseJdbcContext;
-    private OceanbaseWriter oceanbaseWriter;
     private String connectionTimezone;
     private OceanbaseConfig oceanbaseConfig;
+
+    private Map<String, OceanbaseRecordWriter> recorderMap;
 
     /**
      * The method invocation life circle is below,
@@ -210,18 +215,22 @@ public class OceanbaseConnector extends ConnectorBase {
      * @param writeListResultConsumer
      */
     private void writeRecord(TapConnectorContext tapConnectorContext, List<TapRecordEvent> tapRecordEvents, TapTable tapTable, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer) throws Throwable {
-        String insertDmlPolicy = tapConnectorContext.getConnectorCapabilities().getCapabilityAlternative(ConnectionOptions.DML_INSERT_POLICY);
-        if (insertDmlPolicy == null) {
-            insertDmlPolicy = ConnectionOptions.DML_INSERT_POLICY_UPDATE_ON_EXISTS;
-        }
-        String updateDmlPolicy = tapConnectorContext.getConnectorCapabilities().getCapabilityAlternative(ConnectionOptions.DML_UPDATE_POLICY);
-        if (updateDmlPolicy == null) {
-            updateDmlPolicy = ConnectionOptions.DML_UPDATE_POLICY_IGNORE_ON_NON_EXISTS;
-        }
-        OceanbaseRecordWriter recordWriter = new OceanbaseRecordWriter(oceanbaseJdbcContext, tapTable);
-        recordWriter.setInsertPolicy(insertDmlPolicy);
-        recordWriter.setUpdatePolicy(updateDmlPolicy);
+        final OceanbaseRecordWriter recordWriter = getOrCreateOceanbaseRecordWriter(recorderMap, tapConnectorContext, tapTable);
+
         recordWriter.writeRecord(tapRecordEvents, writeListResultConsumer);
+    }
+
+    private OceanbaseRecordWriter getOrCreateOceanbaseRecordWriter(Map<String, OceanbaseRecordWriter> recordWriterMap, TapConnectorContext tapConnectorContext, TapTable tapTable) {
+        String key = Thread.currentThread().getName() + tapTable.getId();
+        return recordWriterMap.computeIfAbsent(key, k -> {
+            try {
+                OceanbaseRecordWriter writer = new OceanbaseRecordWriter(oceanbaseJdbcContext, tapTable);
+                setPolicy(writer, tapConnectorContext);
+                return writer;
+            } catch (SQLException e) {
+                throw new RuntimeException(e);
+            }
+        });
     }
 
     /**
@@ -274,6 +283,7 @@ public class OceanbaseConnector extends ConnectorBase {
             oceanbaseJdbcContext = (OceanbaseJdbcContext) DataSourcePool.getJdbcContext(oceanbaseConfig, OceanbaseJdbcContext.class, tapConnectionContext.getId());
             oceanbaseJdbcContext.setTapConnectionContext(tapConnectionContext);
         }
+        this.initRecordWriterMap();
 
         if (tapConnectionContext instanceof TapConnectorContext) {
             this.connectionTimezone = tapConnectionContext.getConnectionConfig().getString("timezone");
@@ -285,6 +295,33 @@ public class OceanbaseConnector extends ConnectorBase {
 
     @Override
     public void onStop(TapConnectionContext connectionContext) {
-        Optional.ofNullable(this.oceanbaseWriter).ifPresent(OceanbaseWriter::onDestroy);
+        try {
+            for (Map.Entry<String, OceanbaseRecordWriter> entry : recorderMap.entrySet()) {
+                final OceanbaseRecordWriter recordWriter = entry.getValue();
+                recordWriter.close();
+            }
+        } catch (Exception e){
+            e.printStackTrace();
+        }
+    }
+
+    private void initRecordWriterMap() {
+        this.recorderMap = Maps.newConcurrentMap();
+        this.recorderMap = Maps.newConcurrentMap();
+        this.recorderMap = Maps.newConcurrentMap();
+    }
+
+    private void setPolicy(OceanbaseRecordWriter oceanbaseRecordWriter, TapConnectionContext tapConnectionContext) {
+        TapConnectorContext tapConnectorContext = (TapConnectorContext) tapConnectionContext;
+        String insertDmlPolicy = tapConnectorContext.getConnectorCapabilities().getCapabilityAlternative(ConnectionOptions.DML_INSERT_POLICY);
+        if (insertDmlPolicy == null) {
+            insertDmlPolicy = ConnectionOptions.DML_INSERT_POLICY_UPDATE_ON_EXISTS;
+        }
+        String updateDmlPolicy = tapConnectorContext.getConnectorCapabilities().getCapabilityAlternative(ConnectionOptions.DML_UPDATE_POLICY);
+        if (updateDmlPolicy == null) {
+            updateDmlPolicy = ConnectionOptions.DML_UPDATE_POLICY_IGNORE_ON_NON_EXISTS;
+        }
+        oceanbaseRecordWriter.setInsertPolicy(insertDmlPolicy);
+        oceanbaseRecordWriter.setUpdatePolicy(updateDmlPolicy);
     }
 }

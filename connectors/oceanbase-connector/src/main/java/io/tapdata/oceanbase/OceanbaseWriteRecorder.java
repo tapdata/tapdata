@@ -37,17 +37,23 @@ public class OceanbaseWriteRecorder extends WriteRecorder {
     private static final String DELETE_SQL_TEMPLATE = "DELETE FROM `%s`.`%s` WHERE %s";
     private static final String CHECK_ROW_EXISTS_TEMPLATE = "SELECT COUNT(1) as count FROM `%s`.`%s` WHERE %s";
 
-    private List<Map<String, Object>> insertParamMaps = Lists.newArrayList();
+    private static final int BATCH_LIMIT = 5;
+
+    private final List<Map<String, Object>> insertParamMaps = Lists.newArrayList();
     public OceanbaseWriteRecorder(Connection connection, TapTable tapTable, String schema) {
         super(connection, tapTable, schema);
     }
 
     @Override
-    public void addInsertBatch(Map<String, Object> after) {
+    public void addInsertBatch(Map<String, Object> after) throws SQLException {
         if (EmptyKit.isEmpty(after)) {
             return;
         }
+        TapLogger.info(TAG, "add params, thread-Id:{}", Thread.currentThread().getName());
         insertParamMaps.add(after);
+        if (insertParamMaps.size() >= BATCH_LIMIT) {
+            executeBatchInsert();
+        }
     }
 
     public int executeBatchInsert() throws SQLException {
@@ -58,7 +64,7 @@ public class OceanbaseWriteRecorder extends WriteRecorder {
             if (insertPolicy.equals(ConnectionOptions.DML_INSERT_POLICY_IGNORE_ON_EXISTS)) {
                 conflictIgnoreInsert();
             } else {
-                conflictUpdateInsert();
+                 conflictUpdateInsert();
             }
         } else {
             justInsert();
@@ -71,16 +77,17 @@ public class OceanbaseWriteRecorder extends WriteRecorder {
         } catch (SQLException sqle) {
             TapLogger.error("batch insert failed, sql:{}, msg:{}", preparedStatement.toString(), sqle.getMessage());
             insertParamMaps.clear();
-            succeed = 0;
+            throw new SQLException(sqle);
         }
 
         return succeed;
     }
 
     private void conflictIgnoreInsert() throws SQLException {
+        final int size = insertParamMaps.size();
         if (EmptyKit.isNull(preparedStatement)) {
             final String allColumnNames = allColumn.stream().map(k -> "`" + k + "`").collect(Collectors.joining(", "));
-            final String placeHolder = buildValuesPlaceHolderStr();
+            final String placeHolder = buildValuesPlaceHolderStr(size);
             final String insertSql = String.format(INSERT_IGNORE_SQL_TEMPLATE, schema, tapTable.getId(), allColumnNames, placeHolder);
 
             preparedStatement = connection.prepareStatement(insertSql);
@@ -95,13 +102,13 @@ public class OceanbaseWriteRecorder extends WriteRecorder {
         }
     }
 
-    private String buildValuesPlaceHolderStr() {
+    private String buildValuesPlaceHolderStr(int size) {
         StringBuilder sb = new StringBuilder();
-        for (int i = 0; i < insertParamMaps.size(); i++) {
+        for (int i = 0; i < size; i++) {
             sb.append("(");
             sb.append(StringKit.copyString("?", allColumn.size(), ","));
             sb.append(")");
-            if (i < insertParamMaps.size() - 1) {
+            if (i < size - 1) {
                 sb.append(",");
             }
         }
@@ -116,9 +123,10 @@ public class OceanbaseWriteRecorder extends WriteRecorder {
 
     //on conflict
     private void conflictUpdateInsert() throws SQLException {
+        int size = insertParamMaps.size();
         if (EmptyKit.isNull(preparedStatement)) {
             final String allColumnNames = allColumn.stream().map(k -> "`" + k + "`").collect(Collectors.joining(", "));
-            final String placeHolder = buildValuesPlaceHolderStr();
+            final String placeHolder = buildValuesPlaceHolderStr(size);
             final String allColumnNamesAndValues = allColumn.stream().filter(k -> !uniqueCondition.contains(k)).
                     map(k -> "`" + k + "`=values(" + k + ")").collect(Collectors.joining(", "));
             final String insertSql = String.format(INSERT_UPDATE_SQL_TEMPLATE, schema, tapTable.getId(), allColumnNames, placeHolder, allColumnNamesAndValues);
@@ -130,15 +138,21 @@ public class OceanbaseWriteRecorder extends WriteRecorder {
         int pos = 1;
         for (Map<String, Object> after : insertParamMaps) {
             for (String key : allColumn) {
-                preparedStatement.setObject(pos++, after.get(key));
+                try {
+                    System.out.print("pos:" + pos +" key: " + key);
+                    preparedStatement.setObject(pos++, after.get(key));
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
             }
         }
     }
 
     private void justInsert() throws SQLException {
+        int size = insertParamMaps.size();
         if (EmptyKit.isNull(preparedStatement)) {
             final String allColumnNames = allColumn.stream().map(k -> "`" + k + "`").collect(Collectors.joining(", "));
-            String questionMarks = buildValuesPlaceHolderStr();
+            String questionMarks = buildValuesPlaceHolderStr(size);
             String insertSql = String.format(INSERT_SQL_TEMPLATE, schema, tapTable.getId(), allColumnNames, questionMarks);
             preparedStatement = connection.prepareStatement(insertSql);
         }
