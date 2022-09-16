@@ -97,7 +97,7 @@ public abstract class JdbcContext {
                 Connection connection = getConnection();
                 Statement statement = connection.createStatement(ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY)
         ) {
-            statement.setFetchSize(15000); //protected from OM
+            statement.setFetchSize(5000); //protected from OM
             ResultSet resultSet = statement.executeQuery(sql);
             resultSetConsumer.accept(resultSet);
             resultSet.close();
