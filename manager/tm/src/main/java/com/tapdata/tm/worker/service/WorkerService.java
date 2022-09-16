@@ -38,6 +38,8 @@ import lombok.NonNull;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
+import org.bson.BsonDocument;
+import org.bson.BsonValue;
 import org.bson.types.ObjectId;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -377,6 +379,9 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
         update.set("updateStatus", "fail");
         update.set("updateMsg", "time out");
         UpdateResult updateResult = update(query, update);
+
+        BsonValue upsertedId = updateResult.getUpsertedId();
+        BsonDocument bsonDocument = upsertedId.asDocument();
 
         log.info("clean worker :{}", updateResult.getModifiedCount());
     }

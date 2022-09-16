@@ -187,6 +187,18 @@
 				"notify": ["SYSTEM","EMAIL"],
 				"interval": 500,
 				"unit": "MS"
+			},
+			{
+				"_id": {
+					"$oid": "5d0c286d81baf819b6f01421"
+				},
+				"type": "SYSTEM",
+				"open": true,
+				"key": "SYSTEM_FLOW_EGINGE_DOWN",
+				"sort": 1,
+				"notify": ["SYSTEM","EMAIL"],
+				"interval": 500,
+				"unit": "MS"
 			}
 		]
 	},
