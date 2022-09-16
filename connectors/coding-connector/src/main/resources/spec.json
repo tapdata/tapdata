@@ -64,7 +64,7 @@
           "x-decorator": "FormItem",
           "x-component": "Input",
           "apiServerKey": "database_host",
-          "x-index": 1,
+          "x-index": 10,
           "required": true
         },
         "token": {
@@ -73,7 +73,7 @@
           "x-decorator": "FormItem",
           "x-component": "Input",
           "apiServerKey": "database_host",
-          "x-index": 2,
+          "x-index": 20,
           "required": true
         },
         "projectName": {
@@ -87,7 +87,7 @@
             "params": "{{ {$values: $values, command: \"DescribeCodingProjects\"} }}",
             "itemValue": "label"
           },
-          "x-index": 4,
+          "x-index": 30,
           "x-reactions": [
             {
               "dependencies": ["teamName", "token"],
@@ -99,13 +99,45 @@
             }
           ]
         },
-        "webhook": {
+        "connectionMode": {
           "type": "String",
-          "title": "${webHook}",
+          "required": true,
+          "default": "DocumentMode",
+          "title": "${connectionMode}",
           "x-decorator": "FormItem",
-          "x-component": "Input",
-          "x-index": 4,
-          "required": true
+          "x-component": "Select",
+          "enum": [
+            {
+              "label": "${document}",
+              "value": "DocumentMode"
+            },
+            {
+              "label": "${csv}",
+              "value": "CSVMode"
+            }
+          ],
+          "x-index": 40,
+          "required": false
+        },
+        "streamReadType": {
+          "type": "String",
+          "default": "WebHook",
+          "required": true,
+          "title": "${streamReadType}",
+          "x-decorator": "FormItem",
+          "x-component": "Select",
+          "enum": [
+            {
+              "label": "${webHookRead}",
+              "value": "WebHook"
+            },
+            {
+              "label": "${pollingRead}",
+              "value": "Polling"
+            }
+          ],
+          "x-index": 50,
+          "required": false
         },
         "hookButton": {
           "type": "void",
@@ -114,9 +146,17 @@
           "x-component-props": {
             "onClick": "{{useAsyncDataSourceByConfig({service: getToken, withoutField: true}, {name:'hookText'}, $values, $form)}}"
           },
+          "x-reactions": {
+            "dependencies": ["streamReadType"],
+            "fulfill": {
+              "state": {
+                "display": "{{$deps[0] === \"WebHook\" ? \"visible\" : \"hidden\"}}"
+              }
+            }
+          },
           "x-content": "hookButton",
           "x-component": "Button",
-          "x-index": 5
+          "x-index": 60
         },
         "hookText": {
           "type": "string",
@@ -125,8 +165,16 @@
           "x-decorator-props": {
             "colon": false
           },
+          "x-reactions": {
+            "dependencies": ["streamReadType"],
+            "fulfill": {
+              "state": {
+                "display": "{{$deps[0] === \"WebHook\" ? \"visible\" : \"hidden\"}}"
+              }
+            }
+          },
           "x-component": "Input",
-          "x-index": 6
+          "x-index": 70
         }
       }
     }
@@ -148,6 +196,15 @@
       "requirementIssue": "Requirement",
       "missionIssue": "Mission",
       "epicIssue": "Epic",
+
+      "connectionMode": "Connection mode",
+      "document": "General document",
+      "csv": "CSV format",
+
+      "streamReadType": "Incremental mode",
+      "webHookRead": "Web Hook",
+      "pollingRead": "Polling Read",
+
 
       "doc": "docs/coding_en_US.md",
       "df_initial_totals": "Initial data amount",
@@ -185,6 +242,14 @@
       "missionIssue": "任务",
       "epicIssue": "史诗",
 
+      "connectionMode": "连接模式",
+      "document": "普通文档格式",
+      "csv": "CSV格式",
+
+      "streamReadType": "增量方式",
+      "webHookRead": "Web Hook",
+      "pollingRead": "轮询式",
+
       "doc": "docs/coding_zh_CN.md",
       "df_initial_totals": "初始化数据量",
       "df_incremental_interval": "增量间隔（毫秒）",
@@ -220,6 +285,14 @@
       "requirementIssue": "需求",
       "missionIssue": "任務",
       "epicIssue": "史詩",
+
+      "connectionMode": "連接模式",
+      "document": "普通文檔格式",
+      "csv": "CSV格式",
+
+      "streamReadType": "增量方式",
+      "webHookRead": "Web Hook",
+      "pollingRead": "輪詢式",
 
       "doc": "docs/coding_zh_TW.md",
       "df_initial_totals": "初始化數據量",

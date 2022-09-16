@@ -76,7 +76,7 @@ public class CodingHttp {
         }
         HttpResponse execute = null;
         try {
-            Thread.sleep(50);//防止刷爆别人的接口，设置阻塞
+            Thread.sleep(10);//防止刷爆别人的接口，设置阻塞
             execute = request.execute();
         }catch (Exception e){
             TapLogger.info(TAG,"Read timed out:{}",e.getMessage());

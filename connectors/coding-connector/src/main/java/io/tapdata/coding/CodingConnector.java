@@ -1,16 +1,21 @@
 package io.tapdata.coding;
 
+import cn.hutool.core.date.DateUtil;
 import cn.hutool.http.HttpRequest;
+import cn.hutool.json.JSONUtil;
 import io.tapdata.base.ConnectorBase;
 import io.tapdata.coding.entity.CodingOffset;
 import io.tapdata.coding.entity.ContextConfig;
 import io.tapdata.coding.enums.CodingEvent;
+import io.tapdata.coding.enums.Constants;
 import io.tapdata.coding.enums.IssueEventTypes;
 import io.tapdata.coding.enums.IssueType;
 import io.tapdata.coding.service.CodingStarter;
 import io.tapdata.coding.service.IssueLoader;
 import io.tapdata.coding.service.IterationLoader;
 import io.tapdata.coding.service.TestCoding;
+import io.tapdata.coding.service.connectionMode.CSVMode;
+import io.tapdata.coding.service.connectionMode.ConnectionMode;
 import io.tapdata.coding.utils.collection.MapUtil;
 import io.tapdata.coding.utils.http.CodingHttp;
 import io.tapdata.coding.utils.http.HttpEntity;
@@ -32,15 +37,20 @@ import io.tapdata.pdk.apis.entity.CommandResult;
 import io.tapdata.pdk.apis.entity.ConnectionOptions;
 import io.tapdata.pdk.apis.entity.TestItem;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
-import io.tapdata.pdk.apis.functions.PDKMethod;
-import io.tapdata.pdk.apis.functions.connection.RetryOptions;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.text.SimpleDateFormat;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
+import java.time.temporal.ChronoUnit;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
 import static io.tapdata.coding.enums.IssueEventTypes.*;
 import static io.tapdata.entity.simplify.TapSimplify.list;
 import static io.tapdata.entity.simplify.TapSimplify.map;
@@ -59,17 +69,30 @@ public class CodingConnector extends ConnectorBase {
 
 	@Override
 	public void onStart(TapConnectionContext connectionContext) throws Throwable {
-
+		//isConnectorStarted(connectionContext, connectorContext -> {});
+		IssueLoader.create(connectionContext).verifyConnectionConfig();
+		DataMap connectionConfig = connectionContext.getConnectionConfig();
+		String streamReadType = connectionConfig.getString("streamReadType");
+		if (Checker.isEmpty(streamReadType)){
+			throw new CoreException("Error in connection parameter [streamReadType], please go to verify");
+		}
+		switch (streamReadType){
+			case "WebHook":this.connectorFunctions.supportStreamRead(null);break;
+			case "Polling":this.connectorFunctions.supportRawDataCallbackFilterFunction(null);break;
+//			default:
+//				throw new CoreException("Error in connection parameters [streamReadType],just be [WebHook] or [Polling], please go to verify");
+		}
 	}
 
 	@Override
 	public void onStop(TapConnectionContext connectionContext) throws Throwable {
-		synchronized (streamReadLock) {
-			streamReadLock.notify();
+		synchronized (this) {
+			this.notify();
 		}
 		TapLogger.info(TAG, "Stop connector");
 	}
 
+	private ConnectorFunctions connectorFunctions;
 	@Override
 	public void registerCapabilities(ConnectorFunctions connectorFunctions, TapCodecsRegistry codecRegistry) {
 		connectorFunctions.supportBatchRead(this::batchRead)
@@ -79,7 +102,7 @@ public class CodingConnector extends ConnectorBase {
 				.supportRawDataCallbackFilterFunction(this::rawDataCallbackFilterFunction)
 				.supportCommandCallbackFunction(this::handleCommand)
 		;
-
+		this.connectorFunctions = connectorFunctions;
 	}
 
 	private CommandResult handleCommand(TapConnectionContext tapConnectionContext, CommandInfo commandInfo) {
@@ -152,8 +175,7 @@ public class CodingConnector extends ConnectorBase {
 			if ("ProjectIssueNotInit".equals(message)) {
 				throw new CoreException(" " );
 			}else {
-				//"Project list is empty, please ensure your params are correct: " +
-				throw new CoreException(message);
+				throw new CoreException("Project list is empty, please ensure your params are correct: " + message);
 			}
 		}
 		Map<String,Object> data = (Map<String,Object>)dataObj;
@@ -200,98 +222,67 @@ public class CodingConnector extends ConnectorBase {
 	}
 
 	private TapEvent rawDataCallbackFilterFunction(TapConnectorContext connectorContext, Map<String, Object> issueEventData) {
-		ContextConfig contextConfig = this.veryContextConfigAndNodeConfig(connectorContext);
-
 		if (Checker.isEmpty(issueEventData)){
 			TapLogger.warn(TAG,"An event with Event Data is null or empty,this callBack is stop.The data has been discarded. Data detial is:"+issueEventData);
 			return null;
 		}
 		Object issueObj = issueEventData.get("issue");
-		Map<String, Object> issueMap = (Map<String, Object>)issueObj;
 		if (Checker.isEmpty(issueObj)){
 			TapLogger.warn(TAG,"An event with Issue Data is null or empty,this callBack is stop.The data has been discarded. Data detial is:"+issueEventData);
 			return null;
 		}
-
-		DataMap nodeConfigMap = connectorContext.getNodeConfig();
-		if (Checker.isNotEmpty(nodeConfigMap)) {
-			String issueType = nodeConfigMap.getString("issueType");
-			if (Checker.isEmpty(issueType)){
-				throw new CoreException("IssueType in NodeConfig must be not null or not be empty.");
-			}
-			String iterationCodes = nodeConfigMap.getString("DescribeIterationList");
-			if (Checker.isEmpty(iterationCodes)){
-				throw new CoreException("IterationCodes in NodeConfig must be not null or not be empty.");
-			}
-			List<String> iterationCodesArr = new ArrayList<>(Arrays.asList(iterationCodes.split(",")));
-
-			Object eventIssueTypeObj = issueMap.get("type");
-			String eventIssueType = Checker.isEmpty(eventIssueTypeObj)?"":(String)eventIssueTypeObj;
-			Object eventIterationObj = issueMap.get("iteration");
-			Integer eventIterationId = 0;
-			if (Checker.isNotEmpty(eventIterationObj)){
-				eventIterationId = (Integer)(((Map<String,Object>)eventIterationObj).get("code"));
-			}
-
-			if ( !( ( "ALL".equals(issueType) || eventIssueType.equals(issueType) ) &&
-					( "-1".equals(iterationCodes) || iterationCodesArr.contains(String.valueOf(eventIterationId)) || eventIterationId.equals(0)) ) ) {
-				return null;
-			}
-		}else {
-			throw new CoreException("Node config must be not null or not be empty.");
-		}
-
 		String webHookEventType = String.valueOf(issueEventData.get("event"));
-		Object codeObj = issueMap.get("code");
+		Object codeObj = ((Map<String, Object>)issueObj).get("code");
 		if (Checker.isEmpty(codeObj)){
 			TapLogger.warn(TAG,"An event with Issue Code is be null or be empty,this callBack is stop.The data has been discarded. Data detial is:"+issueEventData);
 			return null;
 		}
+		IssueLoader loader = IssueLoader.create(connectorContext);
+		ContextConfig contextConfig = loader.veryContextConfigAndNodeConfig();
 
 		TapEvent event = null;
 		long referenceTime = System.currentTimeMillis();
 		CodingEvent issueEvent = CodingEvent.event(webHookEventType);
 
 		Map<String, Object> issueDetail = null;
-		if (null != issueEvent && !DELETED_EVENT.equals(issueEvent.getEventType())) {
+		if (!DELETED_EVENT.equals(issueEvent)) {
 			HttpEntity<String, String> header = HttpEntity.create().builder("Authorization", contextConfig.getToken());
 			HttpEntity<String, Object> issueDetialBody = HttpEntity.create()
 					.builder("Action", "DescribeIssue")
 					.builder("ProjectName", contextConfig.getProjectName());
 			CodingHttp authorization = CodingHttp.create(header.getEntity(), String.format(CodingStarter.OPEN_API_URL, contextConfig.getTeamName()));
 			HttpRequest requestDetail = authorization.createHttpRequest();
-			issueDetail = IssueLoader.create(connectorContext)
-					.readIssueDetail(
+
+			issueDetail = loader.readIssueDetail(
 							issueDetialBody,
 							authorization,
 							requestDetail,
 							(codeObj instanceof Integer) ? (Integer) codeObj : Integer.parseInt(codeObj.toString()),
 							contextConfig.getProjectName(),
 							contextConfig.getTeamName());
-			if (null == issueDetail){
-				TapLogger.warn(TAG,"A piece of non-existent data is not existed. It seems to be an item that has been deleted. Its issueCode is: "+codeObj+".");
-				return null;
+			String modeName = connectorContext.getConnectionConfig().getString("connectionMode");
+			ConnectionMode instance = ConnectionMode.getInstanceByName(modeName);
+			if (null == instance){
+				throw new CoreException("Connection Mode is not empty or not null.");
 			}
-		}else{
-			issueDetail = (Map<String, Object>) issueObj;
-			issueDetail.put("TeamName",contextConfig.getTeamName());
-			issueDetail.put("ProjectName",contextConfig.getProjectName());
-			Integer code = (Integer) issueDetail.remove("code");
-			if(code != null) {
-				issueDetail.put("Code", code);
+			if (instance instanceof CSVMode) {
+				issueDetail = instance.attributeAssignment(connectorContext, issueDetail);
 			}
 		}
 		if (Checker.isNotEmpty(issueEvent)){
 			String evenType = issueEvent.getEventType();
 			switch (evenType){
 				case DELETED_EVENT:{
+					issueDetail = (Map<String, Object>) issueObj;
+					issueDetail.put("teamName",contextConfig.getTeamName());
+					issueDetail.put("projectName",contextConfig.getProjectName());
 					event = deleteDMLEvent(issueDetail, "Issues").referenceTime(referenceTime)  ;
 				};break;
 				case UPDATE_EVENT:{
-					event = updateDMLEvent(null, issueDetail, "Issues").referenceTime(referenceTime);
+					event = updateDMLEvent(null,issueDetail, "Issues").referenceTime(referenceTime) ;
 				};break;
 				case CREATED_EVENT:{
-					event = insertRecordEvent(issueDetail, "Issues").referenceTime(referenceTime);
+					event = insertRecordEvent(issueDetail, "Issues").referenceTime(referenceTime)  ;
 				};break;
 			}
 		}else {
@@ -331,9 +322,9 @@ public class CodingConnector extends ConnectorBase {
 			TapLogger.info(TAG, "start {} stream read", currentTable);
 			this.read(nodeContext, current, last, currentTable, recordSize, codingOffset, consumer,tableList.get(0));
 			TapLogger.info(TAG, "compile {} once stream read", currentTable);
-			synchronized (streamReadLock) {
+			synchronized (this) {
 				try {
-					streamReadLock.wait(streamExecutionGap);
+					this.wait(streamExecutionGap);
 				} catch (InterruptedException e) {
 					e.printStackTrace();
 				}
@@ -367,7 +358,11 @@ public class CodingConnector extends ConnectorBase {
 		CodingOffset codingOffset =  new CodingOffset();
 		//current read end as next read begin
 		codingOffset.setTableUpdateTimeMap(new HashMap<String,Long>(){{ put(table.getId(),readEnd);}});
-		IssueLoader.create(connectorContext).verifyConnectionConfig(connectorContext);
+		IssueLoader.create(connectorContext).verifyConnectionConfig();
+		DataMap connectionConfig = connectorContext.getConnectionConfig();
+		String projectName = connectionConfig.getString("projectName");
+		String token = connectionConfig.getString("token");
+		String teamName = connectionConfig.getString("teamName");
 		this.read(connectorContext,null,readEnd,table.getId(),batchCount,codingOffset,consumer,table.getId());
 		TapLogger.info(TAG, "compile {} batch read", table.getName());
 	}
@@ -375,7 +370,7 @@ public class CodingConnector extends ConnectorBase {
 	private long batchCount(TapConnectorContext tapConnectorContext, TapTable tapTable) throws Throwable {
 		long count = 0;
 		IssueLoader issueLoader = IssueLoader.create(tapConnectorContext);
-		issueLoader.verifyConnectionConfig(tapConnectorContext);
+		issueLoader.verifyConnectionConfig();
 		try {
 			DataMap connectionConfig = tapConnectorContext.getConnectionConfig();
 			DataMap nodeConfigMap = tapConnectorContext.getNodeConfig();
@@ -419,75 +414,19 @@ public class CodingConnector extends ConnectorBase {
 	public void discoverSchema(TapConnectionContext connectionContext, List<String> tables, int tableSize, Consumer<List<TapTable>> consumer) throws Throwable {
 		//return TapTable for each project. Issue
 		//IssueLoader.create(connectionContext).setTableSize(tableSize).discoverIssue(tables,consumer);
-		if(tables == null || tables.isEmpty()) {
-			consumer.accept(list(
-					table("Issues")
-							.add(field("Code", JAVA_Integer).isPrimaryKey(true).primaryKeyPos(3))        //事项 Code
-							.add(field("ProjectName", "StringMinor").isPrimaryKey(true).primaryKeyPos(2))   //项目名称
-							.add(field("TeamName", "StringMinor").isPrimaryKey(true).primaryKeyPos(1))      //团队名称
-							.add(field("ParentType", "StringMinor"))                                       //父事项类型
-							.add(field("Type", "StringMinor"))                                         //事项类型：DEFECT - 缺陷;REQUIREMENT - 需求;MISSION - 任务;EPIC - 史诗;SUB_TASK - 子工作项
-
-
-							.add(field("IssueTypeDetailId", JAVA_Integer))                               //事项类型ID
-							.add(field("IssueTypeDetail", JAVA_Map))                                         //事项类型具体信息
-							.add(field("Name", "StringMinor"))                                              //名称
-							.add(field("Description", "StringLonger"))                                       //描述
-							.add(field("IterationId", JAVA_Integer))                                     //迭代 Id
-							.add(field("IssueStatusId", JAVA_Integer))                                   //事项状态 Id
-							.add(field("IssueStatusName", "StringMinor"))                                   //事项状态名称
-							.add(field("IssueStatusType", "StringMinor"))                                   //事项状态类型
-							.add(field("Priority", "StringBit"))                                          //优先级:"0" - 低;"1" - 中;"2" - 高;"3" - 紧急;"" - 未指定
-
-							.add(field("AssigneeId", JAVA_Integer))                                      //Assignee.Id 等于 0 时表示未指定
-							.add(field("Assignee", JAVA_Map))                                                //处理人
-							.add(field("StartDate", JAVA_Long))                                             //开始日期时间戳
-							.add(field("DueDate", JAVA_Long))                                               //截止日期时间戳
-							.add(field("WorkingHours", "WorkingHours"))                                      //工时（小时）
-
-							.add(field("CreatorId", JAVA_Integer))                                       //创建人Id
-							.add(field("Creator", JAVA_Map))                                                 //创建人
-							.add(field("StoryPoint", "StringMinor"))                                        //故事点
-							.add(field("CreatedAt", JAVA_Long))                                             //创建时间
-							.add(field("UpdatedAt", JAVA_Long))                                             //修改时间
-							.add(field("CompletedAt", JAVA_Long))                                           //完成时间
-
-							.add(field("ProjectModuleId", JAVA_Integer))                                 //ProjectModule.Id 等于 0 时表示未指定
-							.add(field("ProjectModule", JAVA_Map))                                           //项目模块
-
-							.add(field("WatcherIdArr", JAVA_Array))                                        //关注人Id列表
-							.add(field("Watchers", JAVA_Array))                                            //关注人
-
-							.add(field("LabelIdArr", JAVA_Array))                                          //标签Id列表
-							.add(field("Labels", JAVA_Array))                                              //标签列表
-
-							.add(field("FileIdArr", JAVA_Array))                                           //附件Id列表
-							.add(field("Files", JAVA_Array))                                               //附件列表
-							.add(field("RequirementType", "StringSmaller"))                                   //需求类型
-
-							.add(field("DefectType", JAVA_Map))                                              //缺陷类型
-							.add(field("CustomFields", JAVA_Array))                                        //自定义字段列表
-							.add(field("ThirdLinks", JAVA_Array))                                          //第三方链接列表
-
-							.add(field("SubTaskCodeArr", JAVA_Array))                                      //子工作项Code列表
-							.add(field("SubTasks", JAVA_Array))                                            //子工作项列表
-
-							.add(field("ParentCode", JAVA_Integer))                                      //父事项Code
-							.add(field("Parent", JAVA_Map))                                                  //父事项
-
-							.add(field("EpicCode", JAVA_Integer))                                        //所属史诗Code
-							.add(field("Epic", JAVA_Map))                                                    //所属史诗
-
-							.add(field("IterationCode", JAVA_Integer))                                   //所属迭代Code
-							.add(field("Iteration", JAVA_Map))                                               //所属迭代
-			));
+		String modeName = connectionContext.getConnectionConfig().getString("connectionMode");
+		ConnectionMode connectionMode = ConnectionMode.getInstanceByName(modeName);
+		if (null == connectionMode){
+			throw new CoreException("Connection Mode is not empty or not null.");
+		}
+		List<TapTable> tapTables = connectionMode.discoverSchema(connectionContext, tables, tableSize);
+		if (null != tapTables){
+			consumer.accept(tapTables);
 		}
 	}
 
-	Consumer<TestItem> consumer ;
 	@Override
 	public ConnectionOptions connectionTest(TapConnectionContext connectionContext, Consumer<TestItem> consumer) throws Throwable {
-		this.consumer = consumer;
 		ConnectionOptions connectionOptions = ConnectionOptions.create();
 
 		TestCoding testConnection= TestCoding.create(connectionContext);
@@ -503,10 +442,8 @@ public class CodingConnector extends ConnectorBase {
 			return connectionOptions;
 		}
 
-
 		TestItem testProject = testConnection.testProject();
 		consumer.accept(testProject);
-
 		return connectionOptions;
 	}
 
@@ -515,7 +452,6 @@ public class CodingConnector extends ConnectorBase {
 		//check how many projects
 		return 1;
 	}
-
 
 	/**
 	 * 分页读取事项列表，并依次查询事项详情
@@ -535,10 +471,10 @@ public class CodingConnector extends ConnectorBase {
 			Object offsetState,
 			BiConsumer<List<TapEvent>, Object> consumer,
 			String table ){
-		ContextConfig contextConfig = this.veryContextConfigAndNodeConfig(nodeContext);
+		IssueLoader issueLoader = IssueLoader.create(nodeContext);
+		ContextConfig contextConfig = issueLoader.veryContextConfigAndNodeConfig();
 
 		int currentQueryCount = 0,queryIndex = 0 ;
-		IssueLoader issueLoader = IssueLoader.create(nodeContext);
 		final List<TapEvent>[] events = new List[]{new ArrayList<>()};
 		HttpEntity<String,String> header = HttpEntity.create().builder("Authorization",contextConfig.getToken());
 		String projectName = contextConfig.getProjectName();
@@ -564,14 +500,7 @@ public class CodingConnector extends ConnectorBase {
 			}
 		}
 		pageBody.builder("Conditions",coditions);
-
-		HttpEntity<String,Object> issueDetialBody = HttpEntity.create()
-				.builder("Action","DescribeIssue")
-				.builder("ProjectName",projectName);
-
 		String teamName = contextConfig.getTeamName();
-		CodingHttp authorization = CodingHttp.create(header.getEntity(), String.format(CodingStarter.OPEN_API_URL, teamName ));
-		HttpRequest requestDetail = authorization.createHttpRequest();
 		do{
 			pageBody.builder("PageNumber",queryIndex++);
 			Map<String,Object> dataMap = issueLoader.getIssuePage(header.getEntity(),pageBody.getEntity(),String.format(CodingStarter.OPEN_API_URL,teamName));
@@ -583,17 +512,13 @@ public class CodingConnector extends ConnectorBase {
 			currentQueryCount = resultList.size();
 			batchReadPageSize = null != dataMap.get("PageSize") ? (int)(dataMap.get("PageSize")) : batchReadPageSize;
 			for (Map<String, Object> stringObjectMap : resultList) {
-				Object code = stringObjectMap.get("Code");
-				Map<String,Object> issueDetail = issueLoader.readIssueDetail(
-						issueDetialBody,
-						authorization,
-						requestDetail,
-						(code instanceof Integer)?(Integer)code:Integer.parseInt(code.toString()),
-						projectName,
-						teamName);
-				if (null == issueDetail){
-					throw new RuntimeException("Issue Detail acquisition failed: IssueCode "+code);
+				String modeName = nodeContext.getConnectionConfig().getString("connectionMode");
+				ConnectionMode instance = ConnectionMode.getInstanceByName(modeName);
+				if (null == instance){
+					throw new CoreException("Connection Mode is not empty or not null.");
 				}
+				Map<String,Object> issueDetail = instance.attributeAssignment(nodeContext,stringObjectMap);
+
 				Long referenceTime = (Long)issueDetail.get("UpdatedAt");
 				Long currentTimePoint = referenceTime - referenceTime % (24*60*60*1000);//时间片段
 				Integer issueDetialHash = MapUtil.create().hashCode(issueDetail);
@@ -619,53 +544,5 @@ public class CodingConnector extends ConnectorBase {
 			}
 		}while (currentQueryCount >= batchReadPageSize);
 		if (events[0].size() > 0)  consumer.accept(events[0], offsetState);
-	}
-
-	private ContextConfig veryContextConfigAndNodeConfig(TapConnectionContext context){
-		if (null == context){
-			throw new IllegalArgumentException("TapConnectorContext cannot be null");
-		}
-		DataMap connectionConfigConfigMap = context.getConnectionConfig();
-		if (null == connectionConfigConfigMap){
-			throw new IllegalArgumentException("TapTable' ConnectionConfigConfig cannot be null");
-		}
-		String projectName = connectionConfigConfigMap.getString("projectName");
-		String token = connectionConfigConfigMap.getString("token");
-		String teamName = connectionConfigConfigMap.getString("teamName");
-		if ( null == projectName || "".equals(projectName)){
-			TapLogger.error(TAG, "Connection parameter exception: {} ", projectName);
-			throw new IllegalArgumentException("Connection parameter exception: projectName ");
-		}
-		if ( null == token || "".equals(token) ){
-			TapLogger.error(TAG, "Connection parameter exception: {} ", token);
-			throw new IllegalArgumentException("Connection parameter exception: token ");
-		}
-		if ( null == teamName || "".equals(teamName) ){
-			TapLogger.error(TAG, "Connection parameter exception: {} ", teamName);
-			throw new IllegalArgumentException("Connection parameter exception: teamName ");
-		}
-		ContextConfig config = ContextConfig.create().projectName(projectName)
-				.teamName(teamName)
-				.token(token);
-		if (context instanceof TapConnectorContext) {
-			DataMap nodeConfigMap = ((TapConnectorContext)context).getNodeConfig();
-			if (null == nodeConfigMap) {
-				throw new IllegalArgumentException("TapTable' NodeConfig cannot be null");
-			}
-			//iterationName is Multiple selection values separated by commas
-			String iterationCodeArr = nodeConfigMap.getString("DescribeIterationList");//iterationCodes
-			if (null != iterationCodeArr) iterationCodeArr = iterationCodeArr.trim();
-			String issueType = nodeConfigMap.getString("issueType");
-			if (null != issueType) issueType = issueType.trim();
-
-			if (null == iterationCodeArr || "".equals(iterationCodeArr)) {
-				TapLogger.info(TAG, "Connection node config iterationName exception: {} ", projectName);
-			}
-			if (null == issueType || "".equals(issueType)) {
-				TapLogger.info(TAG, "Connection node config issueType exception: {} ", token);
-			}
-			config.issueType(issueType).iterationCodes(iterationCodeArr);
-		}
-		return config;
 	}
 }
