@@ -24,6 +24,7 @@ import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.utils.Lists;
 import com.tapdata.tm.utils.MongoUtils;
 import io.tapdata.entity.schema.type.*;
+import lombok.Data;
 import lombok.Setter;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -631,8 +632,39 @@ public class DiscoveryServiceImpl implements DiscoveryService {
                 .collect(Collectors.groupingBy(MetadataDefinitionDto::getParent_id));
 
         Map<ObjectId, MetadataDefinitionDto> metadataDefinitionDtoMap = allDto.stream().collect(Collectors.toMap(BaseDto::getId, s -> s));
+        Criteria criteria1 = Criteria.where("sourceType").is(SourceTypeEnum.SOURCE.name())
+                .and("taskId").exists(false)
+                .and("is_deleted").ne(true)
+                .and("meta_type").is("table")
+                .and("source._id").ne(null);
+        MatchOperation match = Aggregation.match(criteria1);
+        ProjectionOperation count2 = Aggregation.project("source._id", "count");
+
+        GroupOperation g = Aggregation.group("source._id").count().as("count");
+
+
+        Aggregation aggregation = Aggregation.newAggregation(match, g);
+        AggregationResults<GroupMetadata> metadataInstances = taskRepository.getMongoOperations().aggregate(aggregation, "MetadataInstances", GroupMetadata.class);
+        List<GroupMetadata> mappedResults = metadataInstances.getMappedResults();
+
+        final Map<String, Long> connectMap;
+        if (CollectionUtils.isNotEmpty(mappedResults)) {
+            connectMap = mappedResults.stream().collect(Collectors.toMap(GroupMetadata::get_id, GroupMetadata::getCount, (m1, m2) -> m1));
+        } else {
+            connectMap = new HashMap<>();
+        }
+
+
         tagDtos.parallelStream().forEach(tagDto -> {
                     try {
+                        long count = 0;
+                        MetadataDefinitionDto definitionDto = metadataDefinitionDtoMap.get(tagDto.getId());
+                        List<String> itemTypes = definitionDto.getItemType();
+                        boolean isDefault = itemTypes.contains("default");
+
+                        List<MetadataDefinitionDto> andChild = metadataDefinitionService.findAndChild(null, definitionDto, parentMap);
+
+                        if (!isDefault) {
                         Criteria criteria = Criteria.where("sourceType").is(SourceTypeEnum.SOURCE.name())
                                 .and("taskId").exists(false)
                                 .and("is_deleted").ne(true)
@@ -642,26 +674,24 @@ public class DiscoveryServiceImpl implements DiscoveryService {
                                 .and("syncType").in(TaskDto.SYNC_TYPE_MIGRATE, TaskDto.SYNC_TYPE_SYNC)
                                 .and("agentId").exists(true);
 
-                        MetadataDefinitionDto definitionDto = metadataDefinitionDtoMap.get(tagDto.getId());
-                        List<String> itemTypes = definitionDto.getItemType();
 
-                        List<MetadataDefinitionDto> andChild = metadataDefinitionService.findAndChild(null, definitionDto, parentMap);
-                        boolean isDefault = itemTypes.contains("default");
-                        if (!isDefault) {
                             List<ObjectId> tagIds = andChild.stream().map(BaseDto::getId).collect(Collectors.toList());
 
                             criteria.and("listtags.id").in(tagIds);
                             criteriaTask.and("listtags.id").in(tagIds);
+                            count = metadataInstancesService.count(new Query(criteria), user);
+                            long count1 = 0;//taskRepository.count(new Query(criteria), user);
                         } else {
                             List<String> linkIds = andChild.stream().map(MetadataDefinitionDto::getLinkId).filter(Objects::nonNull).collect(Collectors.toList());
-                            criteria.and("source._id").in(linkIds);
+                            for (String linkId : linkIds) {
+                                count += connectMap.getOrDefault(linkId, 0L);
+                            }
                         }
 
-                        long count = metadataInstancesService.count(new Query(criteria), user);
-                        long count1 = 0;//taskRepository.count(new Query(criteria), user);
-                        tagDto.setObjCount(count1 + count);
-                    } catch (Exception e) {
+                        tagDto.setObjCount(count);
 
+                    } catch (Exception e) {
+                        e.printStackTrace();
                     }
                 }
         );
@@ -763,4 +793,12 @@ public class DiscoveryServiceImpl implements DiscoveryService {
                 return "未知";
         }
     }
+
+    @Data
+    private static class GroupMetadata{
+        private String _id;
+        private long count;
+    }
 }
+
+
