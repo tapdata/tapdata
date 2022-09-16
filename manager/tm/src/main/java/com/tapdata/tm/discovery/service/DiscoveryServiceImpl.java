@@ -26,6 +26,7 @@ import com.tapdata.tm.utils.MongoUtils;
 import io.tapdata.entity.schema.type.*;
 import lombok.Data;
 import lombok.Setter;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.bson.Document;
@@ -42,6 +43,7 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
+@Slf4j
 @Setter(onMethod_ = {@Autowired})
 public class DiscoveryServiceImpl implements DiscoveryService {
 
@@ -691,7 +693,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
                         tagDto.setObjCount(count);
 
                     } catch (Exception e) {
-                        e.printStackTrace();
+                       log.warn("count stat failed, value = {}", tagDto.getValue());
                     }
                 }
         );
