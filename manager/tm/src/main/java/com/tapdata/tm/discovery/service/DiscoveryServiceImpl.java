@@ -631,7 +631,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
                 .collect(Collectors.groupingBy(MetadataDefinitionDto::getParent_id));
 
         Map<ObjectId, MetadataDefinitionDto> metadataDefinitionDtoMap = allDto.stream().collect(Collectors.toMap(BaseDto::getId, s -> s));
-        tagDtos.stream().forEach(tagDto -> {
+        tagDtos.parallelStream().forEach(tagDto -> {
                     try {
                         Criteria criteria = Criteria.where("sourceType").is(SourceTypeEnum.SOURCE.name())
                                 .and("taskId").exists(false)
