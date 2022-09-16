@@ -97,18 +97,16 @@ public class TaskSaveServiceImpl implements TaskSaveService {
     }
 
     @Override
-    @SuppressWarnings("unchecked")
     public void supplementAlarm(TaskDto taskDto, UserDetail userDetail) {
+        List<AlarmSettingDto> settingDtos = alarmSettingService.findAll();
+        List<AlarmRuleDto> ruleDtos = alarmRuleService.findAll();
+
+        Map<AlarmKeyEnum, AlarmSettingDto> settingDtoMap = settingDtos.stream().collect(Collectors.toMap(AlarmSettingDto::getKey, Function.identity(), (e1, e2) -> e1));
+        Map<AlarmKeyEnum, AlarmRuleDto> ruleDtoMap = ruleDtos.stream().collect(Collectors.toMap(AlarmRuleDto::getKey, Function.identity(), (e1, e2) -> e1));
+
+        List<AlarmSettingDto> alarmSettingDtos = Lists.newArrayList();
+        List<AlarmRuleDto> alarmRuleDtos = Lists.newArrayList();
         if (CollectionUtils.isEmpty(taskDto.getAlarmSettings())) {
-            List<AlarmSettingDto> settingDtos = alarmSettingService.findAll();
-            List<AlarmRuleDto> ruleDtos = alarmRuleService.findAll();
-
-            Map<AlarmKeyEnum, AlarmSettingDto> settingDtoMap = settingDtos.stream().collect(Collectors.toMap(AlarmSettingDto::getKey, Function.identity(), (e1, e2) -> e1));
-            Map<AlarmKeyEnum, AlarmRuleDto> ruleDtoMap = ruleDtos.stream().collect(Collectors.toMap(AlarmRuleDto::getKey, Function.identity(), (e1, e2) -> e1));
-
-            List<AlarmSettingDto> alarmSettingDtos = Lists.newArrayList();
-            List<AlarmRuleDto> alarmRuleDtos = Lists.newArrayList();
-
             alarmSettingDtos.add(settingDtoMap.get(AlarmKeyEnum.TASK_STATUS_ERROR));
             alarmSettingDtos.add(settingDtoMap.get(AlarmKeyEnum.TASK_INSPECT_ERROR));
             alarmSettingDtos.add(settingDtoMap.get(AlarmKeyEnum.TASK_FULL_COMPLETE));
@@ -120,27 +118,45 @@ public class TaskSaveServiceImpl implements TaskSaveService {
 
             taskDto.setAlarmSettings(alarmSettingDtos);
             taskDto.setAlarmRules(alarmRuleDtos);
+        }
 
-            for (Node node : taskDto.getDag().getNodes()) {
+        if (CollectionUtils.isNotEmpty(taskDto.getDag().getNodes())) {
+            for (Node<?> node : taskDto.getDag().getNodes()) {
                 alarmSettingDtos = Lists.newArrayList();
                 alarmRuleDtos = Lists.newArrayList();
                 if (node.isDataNode()) {
-                    alarmSettingDtos.add(settingDtoMap.get(AlarmKeyEnum.DATANODE_CANNOT_CONNECT));
-                    alarmSettingDtos.add(settingDtoMap.get(AlarmKeyEnum.DATANODE_HTTP_CONNECT_CONSUME));
-                    alarmSettingDtos.add(settingDtoMap.get(AlarmKeyEnum.DATANODE_TCP_CONNECT_CONSUME));
-                    alarmSettingDtos.add(settingDtoMap.get(AlarmKeyEnum.DATANODE_AVERAGE_HANDLE_CONSUME));
+                    if (CollectionUtils.isEmpty(node.getAlarmSettings())) {
+                        alarmSettingDtos.add(settingDtoMap.get(AlarmKeyEnum.DATANODE_CANNOT_CONNECT));
+                        alarmSettingDtos.add(settingDtoMap.get(AlarmKeyEnum.DATANODE_HTTP_CONNECT_CONSUME));
+                        alarmSettingDtos.add(settingDtoMap.get(AlarmKeyEnum.DATANODE_TCP_CONNECT_CONSUME));
+                        alarmSettingDtos.add(settingDtoMap.get(AlarmKeyEnum.DATANODE_AVERAGE_HANDLE_CONSUME));
+                    }
 
-                    alarmRuleDtos.add(ruleDtoMap.get(AlarmKeyEnum.DATANODE_TCP_CONNECT_CONSUME));
-                    alarmRuleDtos.add(ruleDtoMap.get(AlarmKeyEnum.DATANODE_AVERAGE_HANDLE_CONSUME));
+                    if (CollectionUtils.isEmpty(node.getAlarmRules())) {
+                        alarmRuleDtos.add(ruleDtoMap.get(AlarmKeyEnum.DATANODE_TCP_CONNECT_CONSUME));
+                        alarmRuleDtos.add(ruleDtoMap.get(AlarmKeyEnum.DATANODE_AVERAGE_HANDLE_CONSUME));
+                    }
+
                 } else {
-                    alarmSettingDtos.add(settingDtoMap.get(AlarmKeyEnum.PROCESSNODE_AVERAGE_HANDLE_CONSUME));
-                    alarmRuleDtos.add(ruleDtoMap.get(AlarmKeyEnum.PROCESSNODE_AVERAGE_HANDLE_CONSUME));
+
+                    if (CollectionUtils.isEmpty(node.getAlarmSettings())) {
+                        alarmSettingDtos.add(settingDtoMap.get(AlarmKeyEnum.PROCESSNODE_AVERAGE_HANDLE_CONSUME));
+                    }
+
+                    if (CollectionUtils.isEmpty(node.getAlarmRules())) {
+                        alarmRuleDtos.add(ruleDtoMap.get(AlarmKeyEnum.PROCESSNODE_AVERAGE_HANDLE_CONSUME));
+                    }
                 }
-                node.setAlarmSettings(alarmSettingDtos);
-                node.setAlarmRules(alarmRuleDtos);
+                if (CollectionUtils.isNotEmpty(alarmSettingDtos)) {
+                    node.setAlarmSettings(alarmSettingDtos);
+                }
+                if (CollectionUtils.isNotEmpty(alarmRuleDtos)) {
+                    node.setAlarmRules(alarmRuleDtos);
+                }
             }
 
         }
+
     }
 
     private void nodeCheckData(List<Node<List<Schema>>> nodes, List<String> tableNames, Map<String, String> renameMap) {
