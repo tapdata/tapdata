@@ -1,54 +1,33 @@
 package io.tapdata.oceanbase.connector;
 
-import com.google.common.collect.Maps;
 import io.tapdata.base.ConnectorBase;
-import io.tapdata.common.CommonDbTest;
 import io.tapdata.common.DataSourcePool;
-import io.tapdata.common.RecordWriter;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
 import io.tapdata.entity.event.ddl.table.TapDropTableEvent;
-import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
-import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
-import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapTable;
-import io.tapdata.entity.schema.value.TapArrayValue;
-import io.tapdata.entity.schema.value.TapBinaryValue;
-import io.tapdata.entity.schema.value.TapBooleanValue;
-import io.tapdata.entity.schema.value.TapDateTimeValue;
-import io.tapdata.entity.schema.value.TapDateValue;
-import io.tapdata.entity.schema.value.TapMapValue;
-import io.tapdata.entity.schema.value.TapRawValue;
-import io.tapdata.entity.schema.value.TapTimeValue;
+import io.tapdata.entity.schema.value.*;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.kit.EmptyKit;
 import io.tapdata.oceanbase.OceanbaseMaker;
 import io.tapdata.oceanbase.OceanbaseRecordWriter;
 import io.tapdata.oceanbase.OceanbaseSchemaLoader;
 import io.tapdata.oceanbase.OceanbaseTest;
-import io.tapdata.oceanbase.OceanbaseWriteRecorder;
-import io.tapdata.oceanbase.OceanbaseWriter;
 import io.tapdata.oceanbase.bean.OceanbaseConfig;
+import io.tapdata.oceanbase.util.JdbcUtil;
+import io.tapdata.oceanbase.util.LRUOnRemoveMap;
 import io.tapdata.pdk.apis.annotations.TapConnectorClass;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
-import io.tapdata.pdk.apis.entity.ConnectionOptions;
-import io.tapdata.pdk.apis.entity.FilterResult;
-import io.tapdata.pdk.apis.entity.TapFilter;
-import io.tapdata.pdk.apis.entity.TestItem;
-import io.tapdata.pdk.apis.entity.WriteListResult;
+import io.tapdata.pdk.apis.entity.*;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 import org.apache.commons.lang3.StringUtils;
 
-import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 
 /**
@@ -64,7 +43,7 @@ public class OceanbaseConnector extends ConnectorBase {
     private String connectionTimezone;
     private OceanbaseConfig oceanbaseConfig;
 
-    private Map<String, OceanbaseRecordWriter> recorderMap;
+    private final Map<String, OceanbaseRecordWriter> recorderMap = new LRUOnRemoveMap<>(10, entry -> JdbcUtil.closeQuietly(entry.getValue()));
 
     /**
      * The method invocation life circle is below,
@@ -173,8 +152,9 @@ public class OceanbaseConnector extends ConnectorBase {
         //If database need insert record before table created, please implement the custom codec for the TapValue that data types in spec.json didn't cover.
         //TapTimeValue, TapMapValue, TapDateValue, TapArrayValue, TapYearValue, TapNumberValue, TapBooleanValue, TapDateTimeValue, TapBinaryValue, TapRawValue, TapStringValue
         codecRegistry.registerFromTapValue(TapRawValue.class, "text", tapRawValue -> {
-            if (tapRawValue != null && tapRawValue.getValue() != null)
+            if (tapRawValue != null && tapRawValue.getValue() != null) {
                 return toJson(tapRawValue.getValue());
+            }
             return "null";
         });
         codecRegistry.registerFromTapValue(TapMapValue.class, "text", tapMapValue -> {
@@ -208,21 +188,19 @@ public class OceanbaseConnector extends ConnectorBase {
     }
 
     /**
-     *
      * @param tapConnectorContext
      * @param tapRecordEvents
      * @param tapTable
      * @param writeListResultConsumer
      */
     private void writeRecord(TapConnectorContext tapConnectorContext, List<TapRecordEvent> tapRecordEvents, TapTable tapTable, Consumer<WriteListResult<TapRecordEvent>> writeListResultConsumer) throws Throwable {
-        final OceanbaseRecordWriter recordWriter = getOrCreateOceanbaseRecordWriter(recorderMap, tapConnectorContext, tapTable);
-
+        OceanbaseRecordWriter recordWriter = getRecordWriter(tapConnectorContext, tapTable);
         recordWriter.writeRecord(tapRecordEvents, writeListResultConsumer);
     }
 
-    private OceanbaseRecordWriter getOrCreateOceanbaseRecordWriter(Map<String, OceanbaseRecordWriter> recordWriterMap, TapConnectorContext tapConnectorContext, TapTable tapTable) {
+    private synchronized OceanbaseRecordWriter getRecordWriter(TapConnectorContext tapConnectorContext, TapTable tapTable) {
         String key = Thread.currentThread().getName() + tapTable.getId();
-        return recordWriterMap.computeIfAbsent(key, k -> {
+        return recorderMap.computeIfAbsent(key, k -> {
             try {
                 OceanbaseRecordWriter writer = new OceanbaseRecordWriter(oceanbaseJdbcContext, tapTable);
                 setPolicy(writer, tapConnectorContext);
@@ -283,7 +261,6 @@ public class OceanbaseConnector extends ConnectorBase {
             oceanbaseJdbcContext = (OceanbaseJdbcContext) DataSourcePool.getJdbcContext(oceanbaseConfig, OceanbaseJdbcContext.class, tapConnectionContext.getId());
             oceanbaseJdbcContext.setTapConnectionContext(tapConnectionContext);
         }
-        this.initRecordWriterMap();
 
         if (tapConnectionContext instanceof TapConnectorContext) {
             this.connectionTimezone = tapConnectionContext.getConnectionConfig().getString("timezone");
@@ -295,20 +272,13 @@ public class OceanbaseConnector extends ConnectorBase {
 
     @Override
     public void onStop(TapConnectionContext connectionContext) {
-        try {
-            for (Map.Entry<String, OceanbaseRecordWriter> entry : recorderMap.entrySet()) {
-                final OceanbaseRecordWriter recordWriter = entry.getValue();
-                recordWriter.close();
+        recorderMap.forEach((k, writer) -> {
+            try {
+                writer.close();
+            } catch (Exception e) {
+                TapLogger.warn(TAG, "close writer failed: {}", e.getMessage());
             }
-        } catch (Exception e){
-            e.printStackTrace();
-        }
-    }
-
-    private void initRecordWriterMap() {
-        this.recorderMap = Maps.newConcurrentMap();
-        this.recorderMap = Maps.newConcurrentMap();
-        this.recorderMap = Maps.newConcurrentMap();
+        });
     }
 
     private void setPolicy(OceanbaseRecordWriter oceanbaseRecordWriter, TapConnectionContext tapConnectionContext) {
