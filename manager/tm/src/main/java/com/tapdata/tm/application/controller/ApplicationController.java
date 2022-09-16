@@ -15,6 +15,7 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.enums.ParameterIn;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.NonNull;
+import org.bson.Document;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.web.bind.annotation.*;
@@ -66,7 +67,9 @@ public class ApplicationController extends BaseController {
             where = new Where();
             filter.setWhere(where);
         }
-        where.putIfAbsent("is_deleted", true);
+        Document document = new Document();
+        document.put("$ne", true);
+        where.putIfAbsent("is_deleted", document);
 
         return success(applicationService.find(filter, getLoginUser()));
     }
