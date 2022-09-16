@@ -1,5 +1,6 @@
 package io.tapdata.oceanbase;
 
+import com.google.common.collect.Maps;
 import io.tapdata.common.CommonDbConfig;
 import io.tapdata.common.JdbcContext;
 import io.tapdata.common.RecordWriter;
@@ -13,23 +14,23 @@ import io.tapdata.kit.EmptyKit;
 import io.tapdata.oceanbase.connector.OceanbaseJdbcContext;
 import io.tapdata.pdk.apis.entity.WriteListResult;
 
+import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Consumer;
 
 /**
  * @Author dayun
  * @Date 8/24/22
  */
-public class OceanbaseRecordWriter extends RecordWriter {
+public class OceanbaseRecordWriter extends RecordWriter implements AutoCloseable {
 
-    private OceanbaseWriteRecorder singleInsertRecorder;
-    private OceanbaseWriteRecorder singleUpdateRecorder;
-    private OceanbaseWriteRecorder singleDeleteRecorder;
-
-//    private OceanbaseWriter writer;
+    private final OceanbaseWriteRecorder singleInsertRecorder;
+    private final OceanbaseWriteRecorder singleUpdateRecorder;
+    private final OceanbaseWriteRecorder singleDeleteRecorder;
 
     public OceanbaseRecordWriter(OceanbaseJdbcContext jdbcContext, TapTable tapTable) throws SQLException {
         super(jdbcContext, tapTable);
@@ -59,8 +60,8 @@ public class OceanbaseRecordWriter extends RecordWriter {
             } else if (recordEvent instanceof TapUpdateRecordEvent) {
                 int cachedInsertSucceed = singleInsertRecorder.executeBatchInsert();
                 singleInsertRecorder.addAndCheckCommit(cachedInsertSucceed);
-                TapUpdateRecordEvent updateRecordEvent = (TapUpdateRecordEvent) recordEvent;
 
+                TapUpdateRecordEvent updateRecordEvent = (TapUpdateRecordEvent) recordEvent;
                 int updateSucceed = singleUpdateRecorder.executeUpdate(updateRecordEvent.getAfter());
                 singleUpdateRecorder.addAndCheckCommit(updateSucceed);
             } else if (recordEvent instanceof TapDeleteRecordEvent) {
@@ -78,18 +79,27 @@ public class OceanbaseRecordWriter extends RecordWriter {
         if (!connection.getAutoCommit()) {
             connection.commit();
         }
-        singleInsertRecorder.releaseResource();
-        singleUpdateRecorder.releaseResource();
-        singleDeleteRecorder.releaseResource();
-        connection.close();
+
         writeListResultConsumer.accept(listResult
                 .insertedCount(singleInsertRecorder.getAtomicLong().get())
                 .modifiedCount(singleUpdateRecorder.getAtomicLong().get())
                 .removedCount(singleDeleteRecorder.getAtomicLong().get()));
+        singleInsertRecorder.getAtomicLong().set(0);
+        singleUpdateRecorder.getAtomicLong().set(0);
+        singleDeleteRecorder.getAtomicLong().set(0);
+    }
+
+    @Override
+    public void close() throws Exception {
+        singleInsertRecorder.releaseResource();
+        singleUpdateRecorder.releaseResource();
+        singleDeleteRecorder.releaseResource();
+        connection.close();
     }
 
     // todo by dayun
 //    private boolean makeSureHasUnique(OceanbaseJdbcContext jdbcContext, TapTable tapTable) {
 //        return jdbcContext.queryAllIndexes(Collections.singletonList(tapTable.getId())).stream().anyMatch(v -> (boolean) v.get("is_unique"));
 //    }
+
 }
