@@ -128,14 +128,14 @@ public class PDKInvocationMonitor implements MemoryFetcher {
                     Thread.currentThread().setContextClassLoader(contextClassLoader);
                 }
                 if(retryTimes > 0) {
-                    CommonUtils.autoRetry(node,method,invoker.runnable(() -> node.applyClassLoaderContext(() -> invokePDKMethodPrivate(method, r, message, null, errorConsumer) )));
+                    CommonUtils.autoRetry(node,method,invoker.runnable(() -> node.applyClassLoaderContext(() -> invokePDKMethodPrivate(method, r, message, logTag, errorConsumer) )));
                 } else {
                     node.applyClassLoaderContext(() -> invokePDKMethodPrivate(method, r, message, logTag, errorConsumer));
                     PDKInvocationMonitor.closeTasks(node);
                 }
             });
         } else {
-           CommonUtils.autoRetry(node,method,invoker.runnable(() -> node.applyClassLoaderContext(() -> invokePDKMethodPrivate(method, r, message, null, errorConsumer) )));
+           CommonUtils.autoRetry(node,method,invoker.runnable(() -> node.applyClassLoaderContext(() -> invokePDKMethodPrivate(method, r, message, logTag, errorConsumer) )));
         }
     }
     private void invokePDKMethodPrivate(PDKMethod method, CommonUtils.AnyError r, String message, String logTag, Consumer<CoreException> errorConsumer) {
@@ -191,7 +191,7 @@ public class PDKInvocationMonitor implements MemoryFetcher {
                 long takes = System.currentTimeMillis() - time;
                 collector.getTotalTakes().add(takes);
                 if(error != null && logTag != null) {
-                    TapLogger.warn(logTag, "methodEnd {} invokeId {} failed, message {} takes {} error {}", method, invokeId, message, takes, ExceptionUtils.getStackTrace(error));
+                    TapLogger.warn(logTag, "methodEnd - {} | message - ({})", method, error.getMessage());//ExceptionUtils.getStackTrace(error)
                 } else {
 //                    TapLogger.info(logTag, "methodEnd {} invokeId {} successfully, message {} takes {}", method, invokeId, message, takes);
                 }
