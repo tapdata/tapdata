@@ -67,7 +67,6 @@ public class Hive1WriterJDBC implements Hive1Writer {
     public Hive1WriterJDBC(Hive1JdbcContext hive1JdbcContext, Hive1Config hive1Config) throws Throwable {
         this.hive1JdbcContext = hive1JdbcContext;
         this.hive1Config = hive1Config;
-//        this.connection = this.hive1JdbcContext.getConnection((Hive1Config) hive1JdbcContext.getConfig());
     }
 
     public WriteListResult<TapRecordEvent> write(TapConnectorContext tapConnectorContext, TapTable tapTable, List<TapRecordEvent> tapRecordEvents) throws Throwable {
@@ -185,7 +184,6 @@ public class Hive1WriterJDBC implements Hive1Writer {
             writeListResult.incrementInserted(row);
 
             int parameterIndex = 1;
-//            pstmt = this.connection.prepareStatement(StringUtils.removeEnd(insertColumnSql.toString(), ","));
             pstmt = getConnection().prepareStatement(StringUtils.removeEnd(insertColumnSql.toString(), ","));
             for (TapRecordEvent tapRecordEvent : tapRecordEventList) {
                 Map<String, Object> after = ((TapInsertRecordEvent) tapRecordEvent).getAfter();
@@ -223,11 +221,7 @@ public class Hive1WriterJDBC implements Hive1Writer {
             if (MapUtils.isEmpty(nameFieldMap)) {
                 throw new Exception("get insert column error, table \"" + tapTable.getId() + "\"'s fields is empty");
             }
-            //This version does not support field insertion
-//            List<String> fields = new ArrayList<>();
-//            nameFieldMap.keySet().forEach(k -> fields.add("`" + k + "`"));
             String database = tapConnectorContext.getConnectionConfig().getString("database");
-//            sql = String.format(BATCH_INSERT_SQL,database, table.toLowerCase(), String.join(",", fields));
             sql = String.format(BATCH_INSERT_SQL, database, table.toLowerCase());
             batchInsertColumnSql.put(table, sql);
         }
@@ -355,8 +349,6 @@ public class Hive1WriterJDBC implements Hive1Writer {
         }
         List<String> afterKeys = new ArrayList<>(after.keySet());
         Collection<String> uniqueKeys = getUniqueKeys(tapTable);
-//        Collection<String> primaryKeys = tapTable.primaryKeys(true);
-//        Collection<String> logicPrimaryKeys = EmptyKit.isNotEmpty(primaryKeys) ? Collections.emptyList() : tapTable.primaryKeys(true);
         for (String fieldName : nameFieldMap.keySet()) {
             TapField tapField = nameFieldMap.get(fieldName);
             if (!needAddIntoPreparedStatementValues(tapField, tapRecordEvent)) {
@@ -399,7 +391,6 @@ public class Hive1WriterJDBC implements Hive1Writer {
         if (null == preparedStatement) {
             DataMap connectionConfig = tapConnectorContext.getConnectionConfig();
             String database = connectionConfig.getString("database");
-//            String name = connectionConfig.getString("name");
             String tableId = tapTable.getId();
             LinkedHashMap<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
             if (MapUtils.isEmpty(nameFieldMap)) {
@@ -421,8 +412,6 @@ public class Hive1WriterJDBC implements Hive1Writer {
             }
             String sql = String.format(UPDATE_SQL_TEMPLATE, database, tableId, String.join(",", setList), String.join(" AND ", whereList));
             try {
-//                this.connection = this.hive1JdbcContext.getConnection((Hive1Config) hive1JdbcContext.getConfig());
-//                preparedStatement = this.connection.prepareStatement(sql);
                 preparedStatement = getConnection().prepareStatement(sql);
             } catch (SQLException e) {
                 throw new Exception("Create update prepared statement error, sql: " + sql + ", message: " + e.getSQLState() + " " + e.getErrorCode() + " " + e.getMessage(), e);
@@ -495,7 +484,6 @@ public class Hive1WriterJDBC implements Hive1Writer {
         if (null == preparedStatement) {
             DataMap connectionConfig = tapConnectorContext.getConnectionConfig();
             String database = connectionConfig.getString("database");
-//            String name = connectionConfig.getString("name");
             String tableId = tapTable.getId();
             LinkedHashMap<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
             if (MapUtils.isEmpty(nameFieldMap)) {
@@ -762,14 +750,7 @@ public class Hive1WriterJDBC implements Hive1Writer {
                 String escapeFieldStr = "`" + field + "`";
                 clusterBySB.append(escapeFieldStr).append(",");
             }
-//            List<String> pks = (List<String>) primaryKeys;
-//            for (int i = 0; i < pks.size(); i++) {
-//                String field = pks.get(i);
-//                String escapeFieldStr = "`" + field + "`";
-//                clusterBySB.append(escapeFieldStr);
-//            }
         } else {
-//            logger.warn("Hive as target must have primary key, will use all fields");
             LinkedHashMap<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
 
             List<Map.Entry<String, TapField>> nameFields = nameFieldMap.entrySet().stream().sorted(Comparator.comparing(v ->
@@ -779,7 +760,6 @@ public class Hive1WriterJDBC implements Hive1Writer {
             for (int i = 0; i < nameFields.size(); i++) {
                 Map.Entry<String, TapField> tapFieldEntry = nameFields.get(i);
                 TapField field = tapFieldEntry.getValue();
-//                RelateDatabaseField field = fields.get(i);
                 String escapeFieldStr = "`" + field.getName() + "`";
                 clusterBySB.append(escapeFieldStr);
                 if (i < (nameFields.size() - 1)) {
@@ -787,9 +767,6 @@ public class Hive1WriterJDBC implements Hive1Writer {
                 }
             }
             StringUtils.removeEnd(sql, ",");
-//            if (sql.charAt(sql.length() - 1) == ',') {
-//                createTableSqlBuilder.deleteCharAt(createTableSqlBuilder.length() - 1);
-//            }
         }
 
         String clusterStr = StringUtils.removeEnd(clusterBySB.toString(), ",");
