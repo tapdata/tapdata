@@ -69,7 +69,7 @@ public class OceanbaseWriteRecorder extends WriteRecorder {
             succeed = insertParamMaps.size();
             insertParamMaps.clear();
         } catch (SQLException sqle) {
-            TapLogger.error("batch insert failed, sql:{}, msg:{}", preparedStatement.toString(), sqle.getMessage());
+            TapLogger.error(TAG, "batch insert failed, sql:{}, msg:{}", preparedStatement.toString(), sqle.getMessage());
             insertParamMaps.clear();
             succeed = 0;
         }
