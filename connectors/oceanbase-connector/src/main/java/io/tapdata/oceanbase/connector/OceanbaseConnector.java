@@ -218,10 +218,10 @@ public class OceanbaseConnector extends ConnectorBase {
         if (updateDmlPolicy == null) {
             updateDmlPolicy = ConnectionOptions.DML_UPDATE_POLICY_IGNORE_ON_NON_EXISTS;
         }
-        new OceanbaseRecordWriter(oceanbaseJdbcContext, tapTable)
-                .setInsertPolicy(insertDmlPolicy)
-                .setUpdatePolicy(updateDmlPolicy)
-                .write(tapRecordEvents, writeListResultConsumer);
+        OceanbaseRecordWriter recordWriter = new OceanbaseRecordWriter(oceanbaseJdbcContext, tapTable);
+        recordWriter.setInsertPolicy(insertDmlPolicy);
+        recordWriter.setUpdatePolicy(updateDmlPolicy);
+        recordWriter.writeRecord(tapRecordEvents, writeListResultConsumer);
     }
 
     /**
