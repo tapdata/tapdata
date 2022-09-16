@@ -631,34 +631,38 @@ public class DiscoveryServiceImpl implements DiscoveryService {
                 .collect(Collectors.groupingBy(MetadataDefinitionDto::getParent_id));
 
         Map<ObjectId, MetadataDefinitionDto> metadataDefinitionDtoMap = allDto.stream().collect(Collectors.toMap(BaseDto::getId, s -> s));
-        tagDtos.parallelStream().forEach(tagDto -> {
-                    Criteria criteria = Criteria.where("sourceType").is(SourceTypeEnum.SOURCE.name())
-                            .and("taskId").exists(false)
-                            .and("is_deleted").ne(true)
-                            .and("meta_type").is("table");
+        tagDtos.stream().forEach(tagDto -> {
+                    try {
+                        Criteria criteria = Criteria.where("sourceType").is(SourceTypeEnum.SOURCE.name())
+                                .and("taskId").exists(false)
+                                .and("is_deleted").ne(true)
+                                .and("meta_type").is("table");
 
-                    Criteria criteriaTask = Criteria.where("is_deleted").ne(true)
-                            .and("syncType").in(TaskDto.SYNC_TYPE_MIGRATE, TaskDto.SYNC_TYPE_SYNC)
-                            .and("agentId").exists(true);
+                        Criteria criteriaTask = Criteria.where("is_deleted").ne(true)
+                                .and("syncType").in(TaskDto.SYNC_TYPE_MIGRATE, TaskDto.SYNC_TYPE_SYNC)
+                                .and("agentId").exists(true);
 
-                    MetadataDefinitionDto definitionDto = metadataDefinitionDtoMap.get(tagDto.getId());
-                    List<String> itemTypes = definitionDto.getItemType();
+                        MetadataDefinitionDto definitionDto = metadataDefinitionDtoMap.get(tagDto.getId());
+                        List<String> itemTypes = definitionDto.getItemType();
 
-                    List<MetadataDefinitionDto> andChild = metadataDefinitionService.findAndChild(null, tagDto, parentMap);
-                    boolean isDefault = itemTypes.contains("default");
-                    if (!isDefault) {
-                        List<ObjectId> tagIds = andChild.stream().map(BaseDto::getId).collect(Collectors.toList());
+                        List<MetadataDefinitionDto> andChild = metadataDefinitionService.findAndChild(null, definitionDto, parentMap);
+                        boolean isDefault = itemTypes.contains("default");
+                        if (!isDefault) {
+                            List<ObjectId> tagIds = andChild.stream().map(BaseDto::getId).collect(Collectors.toList());
 
-                        criteria.and("listtags.id").in(tagIds);
-                        criteriaTask.and("listtags.id").in(tagIds);
-                    } else {
-                        List<String> linkIds = andChild.stream().map(MetadataDefinitionDto::getLinkId).filter(Objects::nonNull).collect(Collectors.toList());
-                        criteria.and("source._id").in(linkIds);
+                            criteria.and("listtags.id").in(tagIds);
+                            criteriaTask.and("listtags.id").in(tagIds);
+                        } else {
+                            List<String> linkIds = andChild.stream().map(MetadataDefinitionDto::getLinkId).filter(Objects::nonNull).collect(Collectors.toList());
+                            criteria.and("source._id").in(linkIds);
+                        }
+
+                        long count = metadataInstancesService.count(new Query(criteria), user);
+                        long count1 = 0;//taskRepository.count(new Query(criteria), user);
+                        tagDto.setObjCount(count1 + count);
+                    } catch (Exception e) {
+
                     }
-
-                    long count = metadataInstancesService.count(new Query(criteria), user);
-                    long count1 = 0;//taskRepository.count(new Query(criteria), user);
-                    tagDto.setObjCount(count1 + count);
                 }
         );
     }
