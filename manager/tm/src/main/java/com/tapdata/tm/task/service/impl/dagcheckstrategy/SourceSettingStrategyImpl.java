@@ -58,25 +58,22 @@ public class SourceSettingStrategyImpl implements DagLogStrategy {
                 value = nameMap.get(name) + 1;
                 template = templateEnum.getErrorTemplate();
                 grade = Level.ERROR.getValue();
+
+                String content = MessageFormat.format(template, current, name);
+                TaskDagCheckLog log = new TaskDagCheckLog();
+                log.setTaskId(taskId.toHexString());
+                log.setCheckType(templateEnum.name());
+                log.setCreateAt(now);
+                log.setCreateUser(userDetail.getUserId());
+                log.setLog(content);
+                log.setGrade(grade);
+                log.setNodeId(node.getId());
+
+                result.add(log);
             } else {
                 value = NumberUtils.INTEGER_ZERO;
-                template = templateEnum.getInfoTemplate();
-                grade = Level.INFO.getValue();
             }
             nameMap.put(name, value);
-
-            String content = MessageFormat.format(template, current, name);
-
-            TaskDagCheckLog log = new TaskDagCheckLog();
-            log.setTaskId(taskId.toHexString());
-            log.setCheckType(templateEnum.name());
-            log.setCreateAt(now);
-            log.setCreateUser(userDetail.getUserId());
-            log.setLog(content);
-            log.setGrade(grade);
-            log.setNodeId(node.getId());
-
-            result.add(log);
 
             // check schema
             String connectionId = node.getConnectionId();
@@ -111,6 +108,20 @@ public class SourceSettingStrategyImpl implements DagLogStrategy {
                 }
             });
         });
+
+        if (CollectionUtils.isEmpty(result)) {
+            TaskDagCheckLog log = new TaskDagCheckLog();
+            String content = MessageFormat.format(templateEnum.getInfoTemplate(), current);
+            log.setTaskId(taskId.toHexString());
+            log.setCheckType(templateEnum.name());
+            log.setCreateAt(now);
+            log.setCreateUser(userDetail.getUserId());
+            log.setLog(content);
+            log.setGrade(Level.INFO.getValue());
+            log.setNodeId(taskDto.getDag().getSourceNode().getFirst().getId());
+
+            result.add(log);
+        }
 
         return result;
     }
