@@ -37,7 +37,7 @@ public class OceanbaseWriteRecorder extends WriteRecorder {
     private static final String DELETE_SQL_TEMPLATE = "DELETE FROM `%s`.`%s` WHERE %s";
     private static final String CHECK_ROW_EXISTS_TEMPLATE = "SELECT COUNT(1) as count FROM `%s`.`%s` WHERE %s";
 
-    private static final int BATCH_LIMIT = 5;
+    private static final int BATCH_LIMIT = 50;
 
     private final List<Map<String, Object>> insertParamMaps = Lists.newArrayList();
     public OceanbaseWriteRecorder(Connection connection, TapTable tapTable, String schema) {
@@ -49,7 +49,6 @@ public class OceanbaseWriteRecorder extends WriteRecorder {
         if (EmptyKit.isEmpty(after)) {
             return;
         }
-        TapLogger.info(TAG, "add params, thread-Id:{}", Thread.currentThread().getName());
         insertParamMaps.add(after);
         if (insertParamMaps.size() >= BATCH_LIMIT) {
             executeBatchInsert();
@@ -76,6 +75,7 @@ public class OceanbaseWriteRecorder extends WriteRecorder {
             insertParamMaps.clear();
         } catch (SQLException sqle) {
             TapLogger.error("batch insert failed, sql:{}, msg:{}", preparedStatement.toString(), sqle.getMessage());
+            System.out.println(Thread.currentThread().getName());
             insertParamMaps.clear();
             throw new SQLException(sqle);
         }
@@ -124,26 +124,21 @@ public class OceanbaseWriteRecorder extends WriteRecorder {
     //on conflict
     private void conflictUpdateInsert() throws SQLException {
         int size = insertParamMaps.size();
-        if (EmptyKit.isNull(preparedStatement)) {
-            final String allColumnNames = allColumn.stream().map(k -> "`" + k + "`").collect(Collectors.joining(", "));
-            final String placeHolder = buildValuesPlaceHolderStr(size);
-            final String allColumnNamesAndValues = allColumn.stream().filter(k -> !uniqueCondition.contains(k)).
-                    map(k -> "`" + k + "`=values(" + k + ")").collect(Collectors.joining(", "));
-            final String insertSql = String.format(INSERT_UPDATE_SQL_TEMPLATE, schema, tapTable.getId(), allColumnNames, placeHolder, allColumnNamesAndValues);
+        final String allColumnNames = allColumn.stream().map(k -> "`" + k + "`").collect(Collectors.joining(", "));
+        final String placeHolder = buildValuesPlaceHolderStr(size);
+        final String allColumnNamesAndValues = allColumn.stream().filter(k -> !uniqueCondition.contains(k)).
+                map(k -> "`" + k + "`=values(" + k + ")").collect(Collectors.joining(", "));
+        final String insertSql = String.format(INSERT_UPDATE_SQL_TEMPLATE, schema, tapTable.getId(), allColumnNames, placeHolder, allColumnNamesAndValues);
 
-            preparedStatement = connection.prepareStatement(insertSql);
-        }
+        preparedStatement = connection.prepareStatement(insertSql);
         preparedStatement.clearParameters();
         // fill placeHolders
         int pos = 1;
+        System.out.println("map size: "+ insertParamMaps.size());
         for (Map<String, Object> after : insertParamMaps) {
             for (String key : allColumn) {
-                try {
-                    System.out.print("pos:" + pos +" key: " + key);
-                    preparedStatement.setObject(pos++, after.get(key));
-                } catch (Exception e) {
-                    e.printStackTrace();
-                }
+                preparedStatement.setObject(pos++, after.get(key));
+
             }
         }
     }
