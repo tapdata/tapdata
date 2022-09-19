@@ -1,5 +1,7 @@
 package io.tapdata.pdk.cli;
 
+import org.apache.commons.io.FilenameUtils;
+
 import java.io.IOException;
 import java.net.URL;
 import java.nio.file.Path;
@@ -80,18 +82,17 @@ public class RegisterMain {
     }
 
     private static String basePath() {
-            URL resource = RegisterMain.class.getClassLoader().getResource("");
-            if (null == resource) {
-                return "/";
-            }
-
-//            Path path = Paths.get(resource.getPath() + "../../../../");
-//            String basePath = path.toFile().getCanonicalPath() + "/";
-
-            String basePath = "/";
-            if (null != resource) basePath = resource.getPath() + "../../../../";
+        URL resource = RegisterMain.class.getClassLoader().getResource("");
+        if (null == resource) {
+            return "/";
+        }
+        try {
+            Path path = Paths.get(resource.getPath() + "../../../../");
+            String basePath = path.toFile().getCanonicalPath() + "/";
             System.out.println("basePath:" + basePath);
             return basePath;
-
+        } catch (Throwable throwable) {
+            return FilenameUtils.concat(resource.getPath(), "../../../../");
+        }
     }
 }
