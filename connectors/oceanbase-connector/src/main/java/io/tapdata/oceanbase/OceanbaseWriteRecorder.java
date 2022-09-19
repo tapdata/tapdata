@@ -95,11 +95,8 @@ public class OceanbaseWriteRecorder extends WriteRecorder {
         preparedStatement.clearParameters();
         // fill placeHolders
         int pos = 1;
-        TapLogger.info(TAG,"insertParamMaps size:{},allColumn size:{}",insertParamMaps.size(),allColumn.size());
         for (final Map<String, Object> after : insertParamMaps) {
-            TapLogger.info(TAG,"after value:{}",after.toString());
             for (String key : allColumn) {
-                TapLogger.info(TAG,"key:{},pos:{},value:{}",key,pos,after.get(key));
                 preparedStatement.setObject(pos++, after.get(key));
             }
         }
@@ -137,9 +134,11 @@ public class OceanbaseWriteRecorder extends WriteRecorder {
         preparedStatement.clearParameters();
         // fill placeHolders
         int pos = 1;
-        System.out.println("map size: "+ insertParamMaps.size());
+        TapLogger.info(TAG,"insertParamMaps size:{},allColumn size:{}",insertParamMaps.size(),allColumn.size());
         for (Map<String, Object> after : insertParamMaps) {
+            TapLogger.info(TAG,"after value:{}",after.toString());
             for (String key : allColumn) {
+                TapLogger.info(TAG,"key:{},pos:{},value:{}",key,pos,after.get(key));
                 preparedStatement.setObject(pos++, after.get(key));
 
             }
