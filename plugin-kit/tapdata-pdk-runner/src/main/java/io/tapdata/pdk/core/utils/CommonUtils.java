@@ -163,7 +163,7 @@ public class CommonUtils {
                     autoRetry(node, method, invoker);
                 }
             } else {
-                PDKInvocationMonitor.closeTasks(node);
+                PDKInvocationMonitor.stop(node);
                 if(throwable instanceof CoreException) {
                     throw (CoreException) throwable;
                 }

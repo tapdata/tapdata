@@ -79,8 +79,8 @@ public class IssueLoader extends CodingStarter {
         Object response = resultMap.get("Response");
         Map<String,Object> responseMap = (Map<String, Object>) response;
         if (null == response ){
-            TapLogger.info(TAG, "HTTP request exception, Issue list acquisition failed: {} ", CodingStarter.OPEN_API_URL+"?Action=DescribeIssueListWithPage");
-            throw new RuntimeException("HTTP request exception, Issue list acquisition failed: " + CodingStarter.OPEN_API_URL+"?Action=DescribeIssueListWithPage");
+            TapLogger.info(TAG, "HTTP request exception, Issue list acquisition failed: {} ", url+"?Action=DescribeIssueListWithPage");
+            throw new RuntimeException("HTTP request exception, Issue list acquisition failed: " + url+"?Action=DescribeIssueListWithPage");
         }
         Object data = responseMap.get("Data");
         return null != data ? (Map<String,Object>)data: null;

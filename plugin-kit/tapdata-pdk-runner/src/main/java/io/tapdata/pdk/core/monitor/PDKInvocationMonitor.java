@@ -35,7 +35,7 @@ public class PDKInvocationMonitor implements MemoryFetcher {
         nodeStopInvokerMap.computeIfAbsent(node, list-> new CopyOnWriteArrayList<>()).add(invoker);
     }
 
-    public static void closeTasks(Node closeNode){
+    public static void stop(Node closeNode){
         List<PDKMethodInvoker> invokerList = nodeStopInvokerMap.get(closeNode);
         if (null == invokerList || invokerList.isEmpty()) {
             return;
@@ -131,7 +131,7 @@ public class PDKInvocationMonitor implements MemoryFetcher {
                     CommonUtils.autoRetry(node,method,invoker.runnable(() -> node.applyClassLoaderContext(() -> invokePDKMethodPrivate(method, r, message, logTag, errorConsumer) )));
                 } else {
                     node.applyClassLoaderContext(() -> invokePDKMethodPrivate(method, r, message, logTag, errorConsumer));
-                    PDKInvocationMonitor.closeTasks(node);
+                    PDKInvocationMonitor.stop(node);
                 }
             });
         } else {

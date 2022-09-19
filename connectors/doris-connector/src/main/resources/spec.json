@@ -251,21 +251,98 @@
       "unsigned" : "",
       "to": "TapNumber"
     },
-    "tinyint": {
+    "tinyint[($zerofill)]": {
+      "to": "TapNumber",
       "bit": 8,
-      "to": "TapNumber"
+      "precision": 3,
+      "value": [
+        -128,
+        127
+      ]
     },
-    "smallint": {
+    "tinyint[($zerofill)] unsigned": {
+      "to": "TapNumber",
+      "bit": 8,
+      "precision": 3,
+      "value": [
+        0,
+        255
+      ],
+      "unsigned": "unsigned"
+    },
+    "smallint[($zerofill)]": {
+      "to": "TapNumber",
       "bit": 16,
-      "to": "TapNumber"
+      "value": [
+        -32768,
+        32767
+      ],
+      "precision": 5
     },
-    "int": {
+    "smallint[($zerofill)] unsigned": {
+      "to": "TapNumber",
+      "bit": 16,
+      "precision": 5,
+      "value": [
+        0,
+        65535
+      ],
+      "unsigned": "unsigned"
+    },
+    "mediumint[($zerofill)]": {
+      "to": "TapNumber",
+      "bit": 24,
+      "precision": 7,
+      "value": [
+        -8388608,
+        8388607
+      ]
+    },
+    "mediumint[($zerofill)] unsigned": {
+      "to": "TapNumber",
+      "bit": 24,
+      "precision": 8,
+      "value": [
+        0,
+        16777215
+      ],
+      "unsigned": "unsigned"
+    },
+    "int[($zerofill)]": {
+      "to": "TapNumber",
       "bit": 32,
-      "to": "TapNumber"
+      "precision": 10,
+      "value": [
+        -2147483648,
+        2147483647
+      ]
     },
-    "bigint": {
+    "int[($zerofill)] unsigned": {
+      "to": "TapNumber",
+      "bit": 32,
+      "precision": 10,
+      "value": [
+        0,
+        4294967295
+      ]
+    },
+    "bigint[($zerofill)]": {
+      "to": "TapNumber",
       "bit": 64,
-      "to": "TapNumber"
+      "precision": 19,
+      "value": [
+        -9223372036854775808,
+        9223372036854775807
+      ]
+    },
+    "bigint[($zerofill)] unsigned": {
+      "to": "TapNumber",
+      "bit": 64,
+      "precision": 20,
+      "value": [
+        0,
+        18446744073709551615
+      ]
     },
     "largeint": {
       "bit": 128,
