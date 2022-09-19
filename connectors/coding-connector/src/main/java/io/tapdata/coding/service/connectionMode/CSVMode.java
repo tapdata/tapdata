@@ -26,44 +26,48 @@ import static io.tapdata.entity.simplify.TapSimplify.field;
 import static io.tapdata.entity.utils.JavaTypesToTapTypes.*;
 
 public class CSVMode implements ConnectionMode {
+    TapConnectionContext connectionContext;
+    IssueLoader loader;
+    ContextConfig contextConfig;
     @Override
-    public List<TapTable> discoverSchema(TapConnectionContext connectionContext, List<String> tables, int tableSize) {
+    public ConnectionMode config(TapConnectionContext connectionContext) {
+        this.connectionContext = connectionContext;
+        this.loader = IssueLoader.create(connectionContext);
+        this.contextConfig = loader.veryContextConfigAndNodeConfig();
+        return this;
+    }
+
+    @Override
+    public List<TapTable> discoverSchema(List<String> tables, int tableSize) {
         ContextConfig contextConfig = IssueLoader.create(connectionContext).veryContextConfigAndNodeConfig();
 
         if(tables == null || tables.isEmpty()) {
-//            ID,事项类型,
-//            标题,描述,状态,创建时间,创建人,更新时间,所属迭代,处理人,
-//            缺陷类型,优先级,开始日期,截止日期,模块,标签,关注人,预估工时,进度,已登记工时,分数,次数,页面链接
+            //ID,事项类型,
+            //标题,描述,状态,创建时间,创建人,更新时间,所属迭代,处理人,
+            //缺陷类型,优先级,开始日期,截止日期,模块,标签,关注人,预估工时,进度,已登记工时,分数,次数,页面链接
             TapTable tapTable = table("Issues")
-                    .add(field("Code", JAVA_Integer).isPrimaryKey(true).primaryKeyPos(3))        //事项 Code
-                    .add(field("ProjectName", "StringMinor").isPrimaryKey(true).primaryKeyPos(2))   //项目名称
-                    .add(field("TeamName", "StringMinor").isPrimaryKey(true).primaryKeyPos(1))      //团队名称
-                    .add(field("Type", "StringMinor"))                                         //事项类型：DEFECT - 缺陷;REQUIREMENT - 需求;MISSION - 任务;EPIC - 史诗;SUB_TASK - 子工作项
-                    .add(field("Name", "StringMinor"))                                              //名称
-                    .add(field("Description", "StringLonger"))                                       //描述
-                    .add(field("IssueStatusName", "StringMinor"))                                   //事项状态名称
-                    .add(field("CreatedAt", JAVA_Long))                                             //创建时间
-                    .add(field("CreatorId", JAVA_Integer))                                       //创建人Id
-                    .add(field("UpdatedAt", JAVA_Long))                                             //修改时间
-
-                    .add(field("IterationName", JAVA_String))                                               //所属迭代
-                    .add(field("AssigneeName", JAVA_String))                                                //处理人
-                    .add(field("DefectTypeName", JAVA_String))                                              //缺陷类型
-                    .add(field("ParentCode", JAVA_Integer))                                              //缺陷类型
-
-                    .add(field("StartDate", JAVA_Long))                                             //开始日期时间戳
-                    .add(field("DueDate", JAVA_Long))                                               //截止日期时间戳
-                    .add(field("Priority", JAVA_String))                                               //优先级
-
-                    .add(field("ProjectModuleName", JAVA_String))                                           //项目模块
-                    .add(field("LabelName", JAVA_String))                                          //标签s
-                    .add(field("WatcherName", JAVA_String))                                            //关注人s
-
-
-                    .add(field("WorkingHours", "WorkingHours"))                                      //工时（小时）
+                    .add(field("Code",              "Integer").isPrimaryKey(true).primaryKeyPos(3))        //事项 Code
+                    .add(field("ProjectName",       "StringMinor").isPrimaryKey(true).primaryKeyPos(2))    //项目名称
+                    .add(field("TeamName",          "StringMinor").isPrimaryKey(true).primaryKeyPos(1))    //团队名称
+                    .add(field("Type",              "StringMinor"))                                        //事项类型：DEFECT - 缺陷;REQUIREMENT - 需求;MISSION - 任务;EPIC - 史诗;SUB_TASK - 子工作项
+                    .add(field("Name",              "StringMinor"))                                        //名称
+                    .add(field("Description",       "StringLonger"))                                       //描述
+                    .add(field("IssueStatusName",   "StringMinor"))                                        //事项状态名称
+                    .add(field("CreatedAt",               JAVA_Long))                                             //创建时间
+                    .add(field("CreatorId",         "Integer"))                                            //创建人Id
+                    .add(field("UpdatedAt",               JAVA_Long))                                             //修改时间
+                    .add(field("IterationName",     "StringNormal"))                                       //所属迭代
+                    .add(field("AssigneeName",      "StringNormal"))                                       //处理人
+                    .add(field("DefectTypeName",    "StringNormal"))                                       //缺陷类型
+                    .add(field("ParentCode",        "Integer"))                                            //缺陷类型
+                    .add(field("StartDate",               JAVA_Long))                                             //开始日期时间戳
+                    .add(field("DueDate",                 JAVA_Long))                                             //截止日期时间戳
+                    .add(field("Priority",          "StringNormal"))                                       //优先级
+                    .add(field("ProjectModuleName", "StringNormal"))                                       //项目模块
+                    .add(field("LabelName",         "StringNormal"))                                       //标签s
+                    .add(field("WatcherName",       "StringNormal"))                                       //关注人s
+                    .add(field("WorkingHours",      "WorkingHours"))                                       //工时（小时）
                     ;
-
-
             // 查询自定义属性列表
             Map<Integer,Map<String,Object>> customFields = new HashMap<>();
             List<Map<String, Object>> allIssueType = IssueLoader.create(connectionContext).getAllIssueType();
@@ -130,9 +134,7 @@ public class CSVMode implements ConnectionMode {
     }
 
     @Override
-    public Map<String,Object> attributeAssignment(TapConnectorContext nodeContext, Map<String,Object> stringObjectMap) {
-        IssueLoader loader = IssueLoader.create(nodeContext);
-        ContextConfig contextConfig = loader.veryContextConfigAndNodeConfig();
+    public Map<String,Object> attributeAssignment(Map<String,Object> stringObjectMap) {
         Object code = stringObjectMap.get("Code");
         HttpEntity<String,String> header = HttpEntity.create().builder("Authorization",contextConfig.getToken());
         String projectName = contextConfig.getProjectName();

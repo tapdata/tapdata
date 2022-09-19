@@ -195,7 +195,7 @@ public class CodingConnector extends ConnectorBase {
 			pageResult.put("rows",rows);
 			List<Map<String,Object>> resultList = new ArrayList<>();
 			searchList.forEach(map->{
-				resultList.add(map(entry("label",map.get("Name")),entry("value",map.get("Code"))));
+				resultList.add(map(entry("label",map.get("DisplayName")),entry("value",map.get("Code"))));
 			});
 			pageResult.put("items",resultList);
 		}else if("DescribeCodingProjects".equals(command)){
@@ -232,7 +232,8 @@ public class CodingConnector extends ConnectorBase {
 			return null;
 		}
 		String webHookEventType = String.valueOf(issueEventData.get("event"));
-		Object codeObj = ((Map<String, Object>)issueObj).get("code");
+		Map<String, Object> issueMap = (Map<String, Object>)issueObj;
+		Object codeObj = issueMap.get("code");
 		if (Checker.isEmpty(codeObj)){
 			TapLogger.warn(TAG,"An event with Issue Code is be null or be empty,this callBack is stop.The data has been discarded. Data detial is:"+issueEventData);
 			return null;
@@ -240,6 +241,26 @@ public class CodingConnector extends ConnectorBase {
 		IssueLoader loader = IssueLoader.create(connectorContext);
 		ContextConfig contextConfig = loader.veryContextConfigAndNodeConfig();
 
+		IssueType issueType = contextConfig.getIssueType();
+		if (Checker.isNotEmpty(issueType)){
+			String issueTypeName = issueType.getName();
+			Object o = issueMap.get("type");
+			if (Checker.isNotEmpty(o) && !"ALL".equals(issueTypeName) && !issueTypeName.equals(o)){
+				return null;
+			}
+		}
+		String iterationCodes = contextConfig.getIterationCodes();
+		if (Checker.isNotEmpty(iterationCodes)){
+			Object iterationObj = issueMap.get("iteration");
+			if (Checker.isNotEmpty(iterationObj)) {
+				Object iteration = ((Map<String, Object>) iterationObj).get("code");
+				if (Checker.isNotEmpty(iteration) && !iterationCodes.matches(".*"+String.valueOf(iteration)+".*")) {
+					return null;
+				}
+			}
+		}
+
+		TapLogger.info(TAG, "Start {} stream read [WebHook]", "Issues");
 		TapEvent event = null;
 		long referenceTime = System.currentTimeMillis();
 		CodingEvent issueEvent = CodingEvent.event(webHookEventType);
@@ -261,12 +282,12 @@ public class CodingConnector extends ConnectorBase {
 							contextConfig.getProjectName(),
 							contextConfig.getTeamName());
 			String modeName = connectorContext.getConnectionConfig().getString("connectionMode");
-			ConnectionMode instance = ConnectionMode.getInstanceByName(modeName);
+			ConnectionMode instance = ConnectionMode.getInstanceByName(connectorContext, modeName);
 			if (null == instance){
 				throw new CoreException("Connection Mode is not empty or not null.");
 			}
 			if (instance instanceof CSVMode) {
-				issueDetail = instance.attributeAssignment(connectorContext, issueDetail);
+				issueDetail = instance.attributeAssignment(issueDetail);
 			}
 		}
 		if (Checker.isNotEmpty(issueEvent)){
@@ -285,6 +306,7 @@ public class CodingConnector extends ConnectorBase {
 					event = insertRecordEvent(issueDetail, "Issues").referenceTime(referenceTime)  ;
 				};break;
 			}
+			TapLogger.info(TAG, "End {} stream read [WebHook]", "Issues");
 		}else {
 			TapLogger.warn(TAG,"An event type with unknown origin was found and cannot be processed - ["+event+"]. The data has been discarded. Data to be processed:"+issueDetail);
 		}
@@ -319,9 +341,9 @@ public class CodingConnector extends ConnectorBase {
 		while (isAlive()) {
 			long current = tableUpdateTimeMap.get(tableList.get(0));
 			Long last = Long.MAX_VALUE;
-			TapLogger.info(TAG, "start {} stream read", currentTable);
+			TapLogger.info(TAG, "start {} stream read [Polling]", currentTable);
 			this.read(nodeContext, current, last, currentTable, recordSize, codingOffset, consumer,tableList.get(0));
-			TapLogger.info(TAG, "compile {} once stream read", currentTable);
+			TapLogger.info(TAG, "compile {} once stream read [Polling]", currentTable);
 			synchronized (this) {
 				try {
 					this.wait(streamExecutionGap);
@@ -373,28 +395,33 @@ public class CodingConnector extends ConnectorBase {
 		issueLoader.verifyConnectionConfig();
 		try {
 			DataMap connectionConfig = tapConnectorContext.getConnectionConfig();
-			DataMap nodeConfigMap = tapConnectorContext.getNodeConfig();
-
-			String iterationCodes = nodeConfigMap.getString("DescribeIterationList");//iterationCodes
-			if (null != iterationCodes) iterationCodes = iterationCodes.trim();
-			String issueType = nodeConfigMap.getString("issueType");
-			if (null != issueType ) issueType = issueType.trim();
 
 			HttpEntity<String,String> header = HttpEntity.create()
-				.builder("Authorization",connectionConfig.getString("token"));
+					.builder("Authorization",connectionConfig.getString("token"));
 			HttpEntity<String,Object> body = HttpEntity.create()
-				.builder("Action",       "DescribeIssueListWithPage")
-				.builder("ProjectName",  connectionConfig.getString("projectName"))
-				.builder("PageSize",     1)
-				.builder("IssueType",    IssueType.verifyType(issueType))
-				.builder("PageNumber",   1);
-			if (null != iterationCodes && !"".equals(iterationCodes)){
-				//String[] iterationCodeArr = iterationCodes.split(",");
-				//@TODO 输入的迭代编号需要验证，否则，查询事项列表时作为查询条件的迭代不存在时，查询会报错
-				//选择的迭代编号不需要验证
-				body.builder("Conditions",list(map(entry("Key","ITERATION"),entry("Value",iterationCodes))));
-			}
+					.builder("Action",       "DescribeIssueListWithPage")
+					.builder("ProjectName",  connectionConfig.getString("projectName"))
+					.builder("PageSize",     1)
+					.builder("PageNumber",   1);
+			try {
+				DataMap nodeConfigMap = tapConnectorContext.getNodeConfig();
 
+				String iterationCodes = nodeConfigMap.getString("DescribeIterationList");//iterationCodes
+				if (null != iterationCodes) iterationCodes = iterationCodes.trim();
+				String issueType = nodeConfigMap.getString("issueType");
+				if (null != issueType ) issueType = issueType.trim();
+
+				body.builder("IssueType",    IssueType.verifyType(issueType));
+
+				if (null != iterationCodes && !"".equals(iterationCodes) && !",".equals(iterationCodes) && !"-1".equals(iterationCodes)){
+					//String[] iterationCodeArr = iterationCodes.split(",");
+					//@TODO 输入的迭代编号需要验证，否则，查询事项列表时作为查询条件的迭代不存在时，查询会报错
+					//选择的迭代编号不需要验证
+					body.builder("Conditions",list(map(entry("Key","ITERATION"),entry("Value",iterationCodes))));
+				}
+			}catch (Exception e){
+				TapLogger.debug(TAG,"Count table error: {}" ,tapTable.getName(), e.getMessage());
+			}
 			Map<String,Object> dataMap = issueLoader.getIssuePage(
 					header.getEntity(),
 					body.getEntity(),
@@ -405,7 +432,7 @@ public class CodingConnector extends ConnectorBase {
 				if (null != obj ) count = Long.parseLong(String.valueOf(obj));
 			}
 		} catch (Exception e) {
-			throw new RuntimeException("Count table " + tapTable.getName() + " error: " + e.getMessage(), e);
+			throw new RuntimeException();
 		}
 		return count;
 	}
@@ -415,11 +442,11 @@ public class CodingConnector extends ConnectorBase {
 		//return TapTable for each project. Issue
 		//IssueLoader.create(connectionContext).setTableSize(tableSize).discoverIssue(tables,consumer);
 		String modeName = connectionContext.getConnectionConfig().getString("connectionMode");
-		ConnectionMode connectionMode = ConnectionMode.getInstanceByName(modeName);
+		ConnectionMode connectionMode = ConnectionMode.getInstanceByName(connectionContext, modeName);
 		if (null == connectionMode){
 			throw new CoreException("Connection Mode is not empty or not null.");
 		}
-		List<TapTable> tapTables = connectionMode.discoverSchema(connectionContext, tables, tableSize);
+		List<TapTable> tapTables = connectionMode.discoverSchema(tables, tableSize);
 		if (null != tapTables){
 			consumer.accept(tapTables);
 		}
@@ -482,9 +509,13 @@ public class CodingConnector extends ConnectorBase {
 				.builder("Action","DescribeIssueListWithPage")
 				.builder("ProjectName",projectName)
 				.builder("SortKey","UPDATED_AT")
-				.builder("IssueType",IssueType.verifyType(contextConfig.getIssueType().getName()))
 				.builder("PageSize",readSize)
 				.builder("SortValue","ASC");
+		if (Checker.isNotEmpty(contextConfig) && Checker.isNotEmpty(contextConfig.getIssueType())){
+			pageBody.builder("IssueType",IssueType.verifyType(contextConfig.getIssueType().getName()));
+		}else {
+			pageBody.builder("IssueType","ALL");
+		}
 		List<Map<String,Object>> coditions = list(map(
 				entry("Key","UPDATED_AT"),
 				entry("Value",issueLoader.longToDateStr(readStartTime)+"_"+issueLoader.longToDateStr(readEndTime)))
@@ -501,6 +532,11 @@ public class CodingConnector extends ConnectorBase {
 		}
 		pageBody.builder("Conditions",coditions);
 		String teamName = contextConfig.getTeamName();
+		String modeName = contextConfig.getConnectionMode();
+		ConnectionMode instance = ConnectionMode.getInstanceByName(nodeContext,modeName);
+		if (null == instance){
+			throw new CoreException("Connection Mode is not empty or not null.");
+		}
 		do{
 			pageBody.builder("PageNumber",queryIndex++);
 			Map<String,Object> dataMap = issueLoader.getIssuePage(header.getEntity(),pageBody.getEntity(),String.format(CodingStarter.OPEN_API_URL,teamName));
@@ -512,13 +548,7 @@ public class CodingConnector extends ConnectorBase {
 			currentQueryCount = resultList.size();
 			batchReadPageSize = null != dataMap.get("PageSize") ? (int)(dataMap.get("PageSize")) : batchReadPageSize;
 			for (Map<String, Object> stringObjectMap : resultList) {
-				String modeName = nodeContext.getConnectionConfig().getString("connectionMode");
-				ConnectionMode instance = ConnectionMode.getInstanceByName(modeName);
-				if (null == instance){
-					throw new CoreException("Connection Mode is not empty or not null.");
-				}
-				Map<String,Object> issueDetail = instance.attributeAssignment(nodeContext,stringObjectMap);
-
+				Map<String,Object> issueDetail = instance.attributeAssignment(stringObjectMap);
 				Long referenceTime = (Long)issueDetail.get("UpdatedAt");
 				Long currentTimePoint = referenceTime - referenceTime % (24*60*60*1000);//时间片段
 				Integer issueDetialHash = MapUtil.create().hashCode(issueDetail);

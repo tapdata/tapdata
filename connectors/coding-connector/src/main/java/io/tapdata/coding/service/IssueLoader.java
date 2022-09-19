@@ -285,21 +285,25 @@ public class IssueLoader extends CodingStarter {
         if (this.tapConnectionContext instanceof TapConnectorContext) {
             DataMap nodeConfigMap = ((TapConnectorContext)this.tapConnectionContext).getNodeConfig();
             if (null == nodeConfigMap) {
-                throw new IllegalArgumentException("TapTable' NodeConfig cannot be null");
-            }
-            //iterationName is Multiple selection values separated by commas
-            String iterationCodeArr = nodeConfigMap.getString("DescribeIterationList");//iterationCodes
-            if (null != iterationCodeArr) iterationCodeArr = iterationCodeArr.trim();
-            String issueType = nodeConfigMap.getString("issueType");
-            if (null != issueType) issueType = issueType.trim();
+                config.issueType(IssueType.ALL);
+                config.iterationCodes("-1");
+                TapLogger.debug(TAG,"TapTable' NodeConfig is empty. ");
+                //throw new IllegalArgumentException("TapTable' NodeConfig cannot be null");
+            }else{
+                //iterationName is Multiple selection values separated by commas
+                String iterationCodeArr = nodeConfigMap.getString("DescribeIterationList");//iterationCodes
+                if (null != iterationCodeArr) iterationCodeArr = iterationCodeArr.trim();
+                String issueType = nodeConfigMap.getString("issueType");
+                if (null != issueType) issueType = issueType.trim();
 
-            if (null == iterationCodeArr || "".equals(iterationCodeArr)) {
-                TapLogger.info(TAG, "Connection node config iterationName exception: {} ", projectName);
+                if (null == iterationCodeArr || "".equals(iterationCodeArr)) {
+                    TapLogger.info(TAG, "Connection node config iterationName exception: {} ", projectName);
+                }
+                if (null == issueType || "".equals(issueType)) {
+                    TapLogger.info(TAG, "Connection node config issueType exception: {} ", token);
+                }
+                config.issueType(issueType).iterationCodes(iterationCodeArr);
             }
-            if (null == issueType || "".equals(issueType)) {
-                TapLogger.info(TAG, "Connection node config issueType exception: {} ", token);
-            }
-            config.issueType(issueType).iterationCodes(iterationCodeArr);
         }
         return config;
     }
