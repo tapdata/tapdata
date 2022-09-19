@@ -37,6 +37,7 @@ import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.value.TapDateTimeValue;
+import io.tapdata.entity.schema.value.TapValue;
 import io.tapdata.flow.engine.V2.common.node.NodeTypeEnum;
 import io.tapdata.flow.engine.V2.exception.node.NodeException;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.HazelcastSourcePdkDataNode;
@@ -201,22 +202,26 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 		return null;
 	}
 
-	protected void transformFromTapValue(TapdataEvent tapdataEvent, Map<String, TapField> sourceNameFieldMap) {
-		if (null == tapdataEvent.getTapEvent()) return;
+	protected TapValueTransform transformFromTapValue(TapdataEvent tapdataEvent) {
+		if (null == tapdataEvent.getTapEvent()) return null;
 		TapEvent tapEvent = tapdataEvent.getTapEvent();
+		TapValueTransform tapValueTransform = TapValueTransform.create();
 		Map<String, Object> before = TapEventUtil.getBefore(tapEvent);
 		if (MapUtils.isNotEmpty(before)) {
-			if (null == sourceNameFieldMap) codecsFilterManager.transformFromTapValueMap(before);
-			else codecsFilterManager.transformFromTapValueMap(before, sourceNameFieldMap);
+			tapValueTransform.before(codecsFilterManager.transformFromTapValueMap(before));
 		}
 		Map<String, Object> after = TapEventUtil.getAfter(tapEvent);
 		if (MapUtils.isNotEmpty(after)) {
-			if (null == sourceNameFieldMap) codecsFilterManager.transformFromTapValueMap(after);
-			else codecsFilterManager.transformFromTapValueMap(after, sourceNameFieldMap);
+			tapValueTransform.after(codecsFilterManager.transformFromTapValueMap(after));
 		}
+		return tapValueTransform;
 	}
 
 	protected void transformToTapValue(TapdataEvent tapdataEvent, TapTableMap<String, TapTable> tapTableMap, String tableName) {
+		transformToTapValue(tapdataEvent, tapTableMap, tableName, null);
+	}
+
+	protected void transformToTapValue(TapdataEvent tapdataEvent, TapTableMap<String, TapTable> tapTableMap, String tableName, TapValueTransform tapValueTransform) {
 		if (!(tapdataEvent.getTapEvent() instanceof TapRecordEvent)) return;
 		if (null == tapTableMap)
 			throw new IllegalArgumentException("Transform to TapValue failed, tapTableMap is empty, table name: " + tableName);
@@ -227,10 +232,18 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 		if (MapUtils.isEmpty(nameFieldMap))
 			throw new IllegalArgumentException("Transform to TapValue failed, field map is empty, table name: " + tableName);
 		TapEvent tapEvent = tapdataEvent.getTapEvent();
+
 		Map<String, Object> before = TapEventUtil.getBefore(tapEvent);
-		if (MapUtils.isNotEmpty(before)) codecsFilterManager.transformToTapValueMap(before, nameFieldMap);
 		Map<String, Object> after = TapEventUtil.getAfter(tapEvent);
-		if (MapUtils.isNotEmpty(after)) codecsFilterManager.transformToTapValueMap(after, nameFieldMap);
+		if (null != tapValueTransform) {
+			if (MapUtils.isNotEmpty(before))
+				codecsFilterManager.transformToTapValueMap(before, nameFieldMap, tapValueTransform.getBefore());
+			if (MapUtils.isNotEmpty(after))
+				codecsFilterManager.transformToTapValueMap(after, nameFieldMap, tapValueTransform.getAfter());
+		} else {
+			if (MapUtils.isNotEmpty(before)) codecsFilterManager.transformToTapValueMap(before, nameFieldMap);
+			if (MapUtils.isNotEmpty(after)) codecsFilterManager.transformToTapValueMap(after, nameFieldMap);
+		}
 	}
 
 	protected MessageEntity tapEvent2Message(TapRecordEvent dataEvent) {
@@ -768,5 +781,35 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 
 	protected String getTgtTableNameFromTapEvent(TapEvent tapEvent) {
 		return TapEventUtil.getTableId(tapEvent);
+	}
+
+	public static class TapValueTransform {
+		private Map<String, TapValue<?, ?>> before;
+		private Map<String, TapValue<?, ?>> after;
+
+		private TapValueTransform() {
+		}
+
+		public static TapValueTransform create() {
+			return new TapValueTransform();
+		}
+
+		public TapValueTransform before(Map<String, TapValue<?, ?>> before) {
+			this.before = before;
+			return this;
+		}
+
+		public TapValueTransform after(Map<String, TapValue<?, ?>> after) {
+			this.after = after;
+			return this;
+		}
+
+		public Map<String, TapValue<?, ?>> getBefore() {
+			return before;
+		}
+
+		public Map<String, TapValue<?, ?>> getAfter() {
+			return after;
+		}
 	}
 }
