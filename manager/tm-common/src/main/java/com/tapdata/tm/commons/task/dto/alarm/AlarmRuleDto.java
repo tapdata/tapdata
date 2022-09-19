@@ -5,6 +5,8 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.io.Serializable;
+
 /**
  * @author jiuyetx
  * @date 2022/9/5
@@ -12,7 +14,7 @@ import lombok.NoArgsConstructor;
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
-public class AlarmRuleDto {
+public class AlarmRuleDto implements Serializable {
     private AlarmKeyEnum key;
     private int point;
     //-1 小于等于 <= ; 0; 1 大于等于 >=

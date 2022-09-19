@@ -8,6 +8,7 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.io.Serializable;
 import java.util.List;
 
 /**
@@ -17,7 +18,7 @@ import java.util.List;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-public class AlarmSettingDto {
+public class AlarmSettingDto implements Serializable {
     private AlarmSettingTypeEnum type;
     private boolean open;
     private AlarmKeyEnum key;
