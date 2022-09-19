@@ -18,6 +18,7 @@ import com.tapdata.tm.utils.Lists;
 import com.tapdata.tm.utils.MongoUtils;
 import lombok.Setter;
 import org.apache.commons.collections.CollectionUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.math.NumberUtils;
 import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -93,8 +94,7 @@ public class SourceSettingStrategyImpl implements DagLogStrategy {
                     schemaLog.setNodeId(node.getId());
                     result.add(schemaLog);
                 } else {
-                    int tableCount = Objects.nonNull(dto.getTableCount()) ? dto.getTableCount().intValue() : 0;
-                    if (loadCount < tableCount) {
+                    if (!StringUtils.equals("finished", connectionDto.getLoadFieldsStatus())) {
                         TaskDagCheckLog schemaLog = new TaskDagCheckLog();
                         schemaLog.setTaskId(taskId.toHexString());
                         schemaLog.setCheckType(templateEnum.name());
