@@ -712,7 +712,7 @@ public class MeasurementServiceV2 {
         SortOperation sort = Aggregation.sort(Sort.by(MeasurementEntity.FIELD_DATE).descending())
                 .and(Sort.by(String.format(TAG_FORMAT, "table")).ascending());
         // match should be at the first param, sort should be the second while group be the last
-        Aggregation aggregation = Aggregation.newAggregation( match, group, sort, skip, limit);
+        Aggregation aggregation = Aggregation.newAggregation( match, sort, group, sort, skip, limit);
         mongoOperations.aggregateStream(aggregation, MeasurementEntity.COLLECTION_NAME, MeasurementEntity.class).forEachRemaining(measurementEntity -> {
             String originTable = measurementEntity.getTags().get("table");
             AtomicReference<String> originTableName = new AtomicReference<>();
