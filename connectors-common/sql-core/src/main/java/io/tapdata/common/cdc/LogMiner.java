@@ -250,6 +250,7 @@ public abstract class LogMiner implements ILogMiner {
                             }
                             try {
                                 long referenceTime = redoLogContent.getTimestamp().getTime();
+                                TapLogger.warn(TAG, "DDL [{}] is synchronizing...", redoLogContent.getSqlRedo());
                                 DDLFactory.ddlToTapDDLEvent(ddlParserType, redoLogContent.getSqlRedo(),
                                         DDL_WRAPPER_CONFIG,
                                         tableMap,
