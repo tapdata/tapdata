@@ -3,6 +3,7 @@ package com.tapdata.tm.ds.controller;
 import com.alibaba.fastjson.JSONObject;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.tapdata.manager.common.utils.JsonUtil;
+import com.tapdata.manager.common.utils.StringUtils;
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.Field;
 import com.tapdata.tm.base.dto.Page;
@@ -67,7 +68,7 @@ public class DataSourceController extends BaseController {
     @Operation(summary = "添加数据源连接")
     @PostMapping
     public ResponseMessage<DataSourceConnectionDto> add(@RequestBody DataSourceConnectionDto connection, @RequestParam(name = "id") String id) {
-        if(id != null) {
+        if(StringUtils.isNotBlank(id)) {
             connection.setId(new ObjectId(id));
             return success(dataSourceService.addWithSpecifiedId(connection, getLoginUser()));
         } else {
