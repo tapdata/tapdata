@@ -606,6 +606,7 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 	public void doClose() throws Exception {
 		try {
 			if (null != getConnectorNode()) {
+				PDKInvocationMonitor.stop(getConnectorNode());
 				PDKInvocationMonitor.invoke(getConnectorNode(), PDKMethod.STOP, () -> getConnectorNode().connectorStop(), TAG);
 			}
 		} finally {
