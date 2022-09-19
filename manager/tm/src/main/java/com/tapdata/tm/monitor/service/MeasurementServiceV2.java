@@ -691,7 +691,6 @@ public class MeasurementServiceV2 {
         AggregationResults<MeasurementEntity> results = mongoOperations.aggregate(cntAggregation, MeasurementEntity.COLLECTION_NAME, MeasurementEntity.class);
         long total = results.getMappedResults().size();
         if (total == 0) {
-            log.info("DEX -> The table sync progress size is 0, aggregate is: {}", cntAggregation);
             return new Page<>(0, Collections.emptyList());
         }
 
