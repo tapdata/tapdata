@@ -70,10 +70,9 @@ public class TapCodecsRegistry {
     }
 
     public ToTapValueCodec<?> getToTapValueCodec(Class<?> clazz) {
-        ToTapValueCodec<?> codec = classToTapValueCodecMap.get(clazz);
-        if(codec == null) {
-            codec = TapDefaultCodecs.instance.getToTapValueCodec(clazz);
-        }
+        ToTapValueCodec<?> codec = TapDefaultCodecs.instance.getToTapValueCodec(clazz);
+        if(codec == null)
+            codec = TapDefaultCodecs.instance.isRawCodec(clazz);
         return codec;
     }
 
@@ -82,6 +81,16 @@ public class TapCodecsRegistry {
         if(codec == null) {
             codec = (FromTapValueCodec<T>) TapDefaultCodecs.instance.getFromTapValueCodec(clazz);
         }
+        return codec;
+    }
+
+    public <T extends TapValue<?, ?>> FromTapValueCodec<T> getCustomFromTapValueCodec(Class<T> clazz) {
+        FromTapValueCodec<T> codec = (FromTapValueCodec<T>) classFromTapValueCodecMap.get(clazz);
+        return codec;
+    }
+
+    public <T extends TapValue<?, ?>> FromTapValueCodec<T> getDefaultFromTapValueCodec(Class<T> clazz) {
+        FromTapValueCodec<T> codec = (FromTapValueCodec<T>) TapDefaultCodecs.instance.getFromTapValueCodec(clazz);
         return codec;
     }
 
