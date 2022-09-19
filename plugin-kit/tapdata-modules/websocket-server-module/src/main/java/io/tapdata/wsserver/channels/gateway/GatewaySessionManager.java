@@ -7,6 +7,7 @@ import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.reflection.ClassAnnotationHandler;
 import io.tapdata.entity.utils.InstanceFactory;
+import io.tapdata.entity.utils.JsonParser;
 import io.tapdata.modules.api.net.data.*;
 import io.tapdata.modules.api.net.entity.NodeRegistry;
 import io.tapdata.modules.api.net.error.NetErrors;
@@ -83,6 +84,8 @@ public class GatewaySessionManager {
     private ThreadPoolExecutor threadPoolExecutor;
 
     private int maxChannels = 8000;
+    @Bean
+    private JsonParser jsonParser;
 
     OutgoingMessageFilter broadcastOutgoingMessageFilter;
 
@@ -141,7 +144,7 @@ public class GatewaySessionManager {
         NodeRegistry nodeRegistry = new NodeRegistry().ip(ipHolder.getIp()).httpPort(httpPort).wsPort(webSocketManager.getWebSocketProperties().getPort()).type("proxy").time(System.currentTimeMillis());
         CommonUtils.setProperty("tapdata_node_id", nodeRegistry.id());
         nodeRegistryService.save(nodeRegistry);
-        TapLogger.debug(TAG, "Register node {}", toJson(nodeRegistry));
+        TapLogger.debug(TAG, "Register node {}", jsonParser.toJson(nodeRegistry));
 
     }
 
