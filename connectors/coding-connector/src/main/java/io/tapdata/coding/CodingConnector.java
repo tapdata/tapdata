@@ -223,19 +223,19 @@ public class CodingConnector extends ConnectorBase {
 
 	private TapEvent rawDataCallbackFilterFunction(TapConnectorContext connectorContext, Map<String, Object> issueEventData) {
 		if (Checker.isEmpty(issueEventData)){
-			TapLogger.warn(TAG,"An event with Event Data is null or empty,this callBack is stop.The data has been discarded. Data detial is:"+issueEventData);
+			TapLogger.debug(TAG,"An event with Event Data is null or empty,this callBack is stop.The data has been discarded. Data detial is:"+issueEventData);
 			return null;
 		}
 		Object issueObj = issueEventData.get("issue");
 		if (Checker.isEmpty(issueObj)){
-			TapLogger.warn(TAG,"An event with Issue Data is null or empty,this callBack is stop.The data has been discarded. Data detial is:"+issueEventData);
+			TapLogger.debug(TAG,"An event with Issue Data is null or empty,this callBack is stop.The data has been discarded. Data detial is:"+issueEventData);
 			return null;
 		}
 		String webHookEventType = String.valueOf(issueEventData.get("event"));
 		Map<String, Object> issueMap = (Map<String, Object>)issueObj;
 		Object codeObj = issueMap.get("code");
 		if (Checker.isEmpty(codeObj)){
-			TapLogger.warn(TAG,"An event with Issue Code is be null or be empty,this callBack is stop.The data has been discarded. Data detial is:"+issueEventData);
+			TapLogger.debug(TAG,"An event with Issue Code is be null or be empty,this callBack is stop.The data has been discarded. Data detial is:"+issueEventData);
 			return null;
 		}
 		IssueLoader loader = IssueLoader.create(connectorContext);
@@ -260,7 +260,7 @@ public class CodingConnector extends ConnectorBase {
 			}
 		}
 
-		TapLogger.info(TAG, "Start {} stream read [WebHook]", "Issues");
+		TapLogger.debug(TAG, "Start {} stream read [WebHook]", "Issues");
 		TapEvent event = null;
 		long referenceTime = System.currentTimeMillis();
 		CodingEvent issueEvent = CodingEvent.event(webHookEventType);
@@ -306,9 +306,9 @@ public class CodingConnector extends ConnectorBase {
 					event = insertRecordEvent(issueDetail, "Issues").referenceTime(referenceTime)  ;
 				};break;
 			}
-			TapLogger.info(TAG, "End {} stream read [WebHook]", "Issues");
+			TapLogger.debug(TAG, "End {} stream read [WebHook]", "Issues");
 		}else {
-			TapLogger.warn(TAG,"An event type with unknown origin was found and cannot be processed - ["+event+"]. The data has been discarded. Data to be processed:"+issueDetail);
+			TapLogger.debug(TAG,"An event type with unknown origin was found and cannot be processed - ["+event+"]. The data has been discarded. Data to be processed:"+issueDetail);
 		}
 		return event;
 	}
@@ -341,9 +341,9 @@ public class CodingConnector extends ConnectorBase {
 		while (isAlive()) {
 			long current = tableUpdateTimeMap.get(tableList.get(0));
 			Long last = Long.MAX_VALUE;
-			TapLogger.info(TAG, "start {} stream read [Polling]", currentTable);
+			TapLogger.debug(TAG, "start {} stream read [Polling]", currentTable);
 			this.read(nodeContext, current, last, currentTable, recordSize, codingOffset, consumer,tableList.get(0));
-			TapLogger.info(TAG, "compile {} once stream read [Polling]", currentTable);
+			TapLogger.debug(TAG, "compile {} once stream read [Polling]", currentTable);
 			synchronized (this) {
 				try {
 					this.wait(streamExecutionGap);
@@ -375,7 +375,7 @@ public class CodingConnector extends ConnectorBase {
 			Object offset,
 			int batchCount,
 			BiConsumer<List<TapEvent>, Object> consumer) {
-		TapLogger.info(TAG, "start {} batch read", table.getName());
+		TapLogger.debug(TAG, "start {} batch read", table.getName());
 		Long readEnd = System.currentTimeMillis();
 		CodingOffset codingOffset =  new CodingOffset();
 		//current read end as next read begin
@@ -386,7 +386,7 @@ public class CodingConnector extends ConnectorBase {
 		String token = connectionConfig.getString("token");
 		String teamName = connectionConfig.getString("teamName");
 		this.read(connectorContext,null,readEnd,table.getId(),batchCount,codingOffset,consumer,table.getId());
-		TapLogger.info(TAG, "compile {} batch read", table.getName());
+		TapLogger.debug(TAG, "compile {} batch read", table.getName());
 	}
 
 	private long batchCount(TapConnectorContext tapConnectorContext, TapTable tapTable) throws Throwable {
