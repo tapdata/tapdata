@@ -51,6 +51,7 @@ import io.tapdata.milestone.MilestoneFactory;
 import io.tapdata.milestone.MilestoneService;
 import io.tapdata.observable.logging.ObsLogger;
 import io.tapdata.observable.logging.ObsLoggerFactory;
+import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.schema.TapTableMap;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.collections.MapUtils;
@@ -473,9 +474,8 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 	}
 
 	protected void doClose() throws Exception {
+		CommonUtils.ignoreAnyError(() -> Optional.ofNullable(processorBaseContext.getTapTableMap()).ifPresent(TapTableMap::reset), TAG);
 	}
-
-	;
 
 	@Override
 	public final void close() throws Exception {
