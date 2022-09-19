@@ -131,7 +131,7 @@ public class PDKInvocationMonitor implements MemoryFetcher {
                     CommonUtils.autoRetry(node,method,invoker.runnable(() -> node.applyClassLoaderContext(() -> invokePDKMethodPrivate(method, r, message, logTag, errorConsumer) )));
                 } else {
                     node.applyClassLoaderContext(() -> invokePDKMethodPrivate(method, r, message, logTag, errorConsumer));
-                    PDKInvocationMonitor.closeTasks(node);
+                    PDKInvocationMonitor.stop(node);
                 }
             });
         } else {
