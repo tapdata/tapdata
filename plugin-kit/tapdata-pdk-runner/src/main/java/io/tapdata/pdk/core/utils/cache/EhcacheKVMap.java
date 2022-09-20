@@ -20,7 +20,7 @@ import static io.tapdata.entity.simplify.TapSimplify.*;
 @Implementation(value = KVMap.class, buildNumber = 0, type = "ehcache")
 public class EhcacheKVMap<T> implements KVMap<T>, Serializable {
     private static final String TAG = EhcacheKVMap.class.getSimpleName();
-    private static PersistentCacheManager persistentCacheManager = null;
+    private volatile static PersistentCacheManager persistentCacheManager = null;
     private Cache<String, T> cache;
     private String cacheKey;
     private Class<T> valueClass;
@@ -190,6 +190,7 @@ public class EhcacheKVMap<T> implements KVMap<T>, Serializable {
 
     @Override
     public void reset() {
+        clear();
         CommonUtils.ignoreAnyError(() -> persistentCacheManager.destroyCache(cacheKey), TAG);
     }
 
