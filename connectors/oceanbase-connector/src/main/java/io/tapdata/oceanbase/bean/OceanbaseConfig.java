@@ -1,6 +1,7 @@
 package io.tapdata.oceanbase.bean;
 
 import io.tapdata.common.CommonDbConfig;
+import org.apache.commons.lang3.StringUtils;
 
 import java.io.Serializable;
 import java.util.Map;
@@ -11,13 +12,13 @@ import java.util.Map;
  */
 public class OceanbaseConfig extends CommonDbConfig implements Serializable {
     private static final long serialVersionUID = 1L;
-    private String databaseUrlPattern = "jdbc:mysql://%s:%s/%s?rewriteBatchedStatements=true";
+    private String databaseUrlPattern = "jdbc:mysql://%s:%s/%s?rewriteBatchedStatements=true&useSSL=false";
     private int insertBatchSize = 1000;
 
     //customize
     public OceanbaseConfig() {
         setDbType("oceanbase");
-        setJdbcDriver("com.mysql.cj.jdbc.Driver");
+        setJdbcDriver("com.mysql.jdbc.Driver");
     }
 
     public OceanbaseConfig load(Map<String, Object> map) {
@@ -25,6 +26,10 @@ public class OceanbaseConfig extends CommonDbConfig implements Serializable {
     }
 
     public String getDatabaseUrl() {
-        return String.format(this.databaseUrlPattern, this.getHost(), this.getPort(), this.getDatabase());
+        String url = this.databaseUrlPattern;
+        if (StringUtils.isNotBlank(getExtParams())) {
+            url += "?" + getExtParams();
+        }
+        return String.format(url, this.getHost(), this.getPort(), this.getDatabase());
     }
 }

@@ -27,7 +27,8 @@ public class DataSourcePool {
 					context = clazz.getDeclaredConstructor(config.getClass(), HikariDataSource.class).newInstance(config, HikariConnection.getHikariDataSource(config));
 					context.incrementConnector(connectorId);
 					dataPool.put(key, context);
-				} catch (Exception ignore) {
+				} catch (Exception e) {
+                    throw new RuntimeException(e);
 				}
 				return context;
 			}
