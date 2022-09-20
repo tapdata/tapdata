@@ -3,6 +3,7 @@ package com.tapdata.tm.task.entity;
 import com.tapdata.tm.base.entity.BaseEntity;
 import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.SchemaTransformerResult;
+import com.tapdata.tm.commons.schema.Tag;
 import com.tapdata.tm.commons.task.dto.*;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
@@ -126,7 +127,7 @@ public class TaskEntity extends BaseEntity {
      */
     private List<SchemaTransformerResult> metadataMappings;
 
-    private List<Map<String,String>> listtags;
+    private List<Tag> listtags;
 
     /**
      * 访问节点
