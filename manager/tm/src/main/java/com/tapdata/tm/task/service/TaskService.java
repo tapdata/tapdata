@@ -7,6 +7,7 @@ import cn.hutool.core.lang.Assert;
 import cn.hutool.core.map.MapUtil;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.google.common.collect.Maps;
+import com.google.gson.reflect.TypeToken;
 import com.mongodb.client.result.UpdateResult;
 import com.tapdata.manager.common.utils.JsonUtil;
 import com.tapdata.tm.autoinspect.constants.AutoInspectConstants;
@@ -71,6 +72,7 @@ import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.service.WorkerService;
 import com.tapdata.tm.worker.vo.CalculationEngineVo;
 import com.tapdata.tm.ws.enums.MessageType;
+import jdk.nashorn.internal.parser.TokenType;
 import lombok.*;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
@@ -1069,6 +1071,15 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             logCollectorFilter.put("$ne", "logCollector");
             where.put("syncType", logCollectorFilter);
         }
+        // 处理tag搜索
+        Object listTags = where.remove("listtags.id");
+        if (Objects.nonNull(listTags)) {
+            if (listTags instanceof Map) {
+                Object inStr = ((Map<?, ?>) listTags).get("$in");
+                List<String> collect = JsonUtil.parseJson(inStr.toString(), new TypeToken<List<String>>(){}.getType());
+                where.put("listtags._id", collect.stream().map(ObjectId::new).collect(Collectors.toList()));
+            }
+        }
 
         //过滤调共享缓存任务
         HashMap<String, Object> notShareCache = new HashMap<>();
@@ -1843,31 +1854,35 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                 DAG dag = taskDto.getDag();
                 List<Node> nodes = dag.getNodes();
                 if (CollectionUtils.isNotEmpty(nodes)) {
-                    for (Node node : nodes) {
-                        List<MetadataInstancesDto> metadataInstancesDtos = metadataInstancesService.findByNodeId(node.getId(), null, user, taskDto);
-                        if (CollectionUtils.isNotEmpty(metadataInstancesDtos)) {
-                            for (MetadataInstancesDto metadataInstancesDto : metadataInstancesDtos) {
-                                metadataInstancesDto.setCreateUser(null);
-                                metadataInstancesDto.setCustomId(null);
-                                metadataInstancesDto.setLastUpdBy(null);
-                                metadataInstancesDto.setUserId(null);
-                                jsonList.add(new TaskUpAndLoadDto("MetadataInstances", JsonUtil.toJsonUseJackson(metadataInstancesDto)));
+                    try {
+                        for (Node node : nodes) {
+                            List<MetadataInstancesDto> metadataInstancesDtos = metadataInstancesService.findByNodeId(node.getId(), null, user, taskDto);
+                            if (CollectionUtils.isNotEmpty(metadataInstancesDtos)) {
+                                for (MetadataInstancesDto metadataInstancesDto : metadataInstancesDtos) {
+                                    metadataInstancesDto.setCreateUser(null);
+                                    metadataInstancesDto.setCustomId(null);
+                                    metadataInstancesDto.setLastUpdBy(null);
+                                    metadataInstancesDto.setUserId(null);
+                                    jsonList.add(new TaskUpAndLoadDto("MetadataInstances", JsonUtil.toJsonUseJackson(metadataInstancesDto)));
+                                }
+                            }
+
+                            if (node instanceof DataParentNode) {
+                                String connectionId = ((DataParentNode<?>) node).getConnectionId();
+                                DataSourceConnectionDto dataSourceConnectionDto = dataSourceService.findById(MongoUtils.toObjectId(connectionId), user);
+                                dataSourceConnectionDto.setCreateUser(null);
+                                dataSourceConnectionDto.setCustomId(null);
+                                dataSourceConnectionDto.setLastUpdBy(null);
+                                dataSourceConnectionDto.setUserId(null);
+                                String databaseQualifiedName = MetaDataBuilderUtils.generateQualifiedName("database", dataSourceConnectionDto, null);
+                                MetadataInstancesDto dataSourceMetadataInstance = metadataInstancesService.findOne(
+                                        Query.query(Criteria.where("qualified_name").is(databaseQualifiedName).and("is_deleted").ne(true)), user);
+                                jsonList.add(new TaskUpAndLoadDto("MetadataInstances", JsonUtil.toJsonUseJackson(dataSourceMetadataInstance)));
+                                jsonList.add(new TaskUpAndLoadDto("Connections", JsonUtil.toJsonUseJackson(dataSourceConnectionDto)));
                             }
                         }
-
-                        if (node instanceof DataParentNode) {
-                            String connectionId = ((DataParentNode<?>) node).getConnectionId();
-                            DataSourceConnectionDto dataSourceConnectionDto = dataSourceService.findById(MongoUtils.toObjectId(connectionId), user);
-                            dataSourceConnectionDto.setCreateUser(null);
-                            dataSourceConnectionDto.setCustomId(null);
-                            dataSourceConnectionDto.setLastUpdBy(null);
-                            dataSourceConnectionDto.setUserId(null);
-                            String databaseQualifiedName = MetaDataBuilderUtils.generateQualifiedName("database", dataSourceConnectionDto, null);
-                            MetadataInstancesDto dataSourceMetadataInstance = metadataInstancesService.findOne(
-                                    Query.query(Criteria.where("qualified_name").is(databaseQualifiedName).and("is_deleted").ne(true)), user);
-                            jsonList.add(new TaskUpAndLoadDto("MetadataInstances", JsonUtil.toJsonUseJackson(dataSourceMetadataInstance)));
-                            jsonList.add(new TaskUpAndLoadDto("Connections", JsonUtil.toJsonUseJackson(dataSourceConnectionDto)));
-                        }
+                    } catch (Exception e) {
+                        log.error("node data error", e);
                     }
                 }
             }
@@ -1884,11 +1899,11 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     }
 
 
-    public void batchUpTask(MultipartFile multipartFile, UserDetail user, boolean cover) {
-        byte[] bytes = new byte[0];
+    public void batchUpTask(MultipartFile multipartFile, UserDetail user, boolean cover, List<Tag> tags) {
+        byte[] bytes;
         List<TaskUpAndLoadDto> taskUpAndLoadDtos;
 
-        if (!multipartFile.getName().endsWith("json.gz")) {
+        if (!Objects.requireNonNull(multipartFile.getOriginalFilename()).endsWith("json.gz")) {
             //不支持其他的格式文件
             throw new BizException("Task.ImportFormatError");
         }
@@ -1943,13 +1958,13 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             log.error("dataSourceService.batchImport error", e);
         }
         try {
-            batchImport(tasks, user, cover);
+            batchImport(tasks, user, cover, tags);
         } catch (Exception e) {
             log.error("tasks.batchImport error", e);
         }
     }
 
-    public void batchImport(List<TaskDto> taskDtos, UserDetail user, boolean cover) {
+    public void batchImport(List<TaskDto> taskDtos, UserDetail user, boolean cover, List<Tag> tags) {
         for (TaskDto taskDto : taskDtos) {
             Query query = new Query(Criteria.where("_id").is(taskDto.getId()).and("is_deleted").ne(true));
             query.fields().include("id");
@@ -1978,7 +1993,8 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                         continue;
                     }
                 }
-//                checkDagAgentConflict(taskDto, false);
+
+                taskDto.setListtags(tags);
                 confirmById(taskDto, user, true, true);
             }
         }
