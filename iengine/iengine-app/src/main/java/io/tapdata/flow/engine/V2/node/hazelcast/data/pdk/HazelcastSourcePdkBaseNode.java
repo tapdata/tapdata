@@ -140,7 +140,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 		this.sourceRunnerLock = new ReentrantLock(true);
 		this.endSnapshotLoop = new AtomicBoolean(false);
 		this.transformerWsMessageDto = clientMongoOperator.findOne(new Query(),
-				ConnectorConstant.TASK_COLLECTION + "/transformParam/" + processorBaseContext.getTaskDto().getId().toHexString(),
+				ConnectorConstant.TASK_COLLECTION + "/transformAllParam/" + processorBaseContext.getTaskDto().getId().toHexString(),
 				TransformerWsMessageDto.class);
 		this.sourceRunnerFirstTime = new AtomicBoolean(true);
 		sourceRunnerFuture = this.sourceRunner.submit(this::startSourceRunner);
@@ -601,7 +601,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 				List<String> removeMetadata = new CopyOnWriteArrayList<>();
 				if (null == transformerWsMessageDto) {
 					transformerWsMessageDto = clientMongoOperator.findOne(new Query(),
-							ConnectorConstant.TASK_COLLECTION + "/transformParam/" + processorBaseContext.getTaskDto().getId().toHexString(),
+							ConnectorConstant.TASK_COLLECTION + "/transformAllParam/" + processorBaseContext.getTaskDto().getId().toHexString(),
 							TransformerWsMessageDto.class);
 				}
 				List<MetadataInstancesDto> metadataInstancesDtoList = transformerWsMessageDto.getMetadataInstancesDtoList();
