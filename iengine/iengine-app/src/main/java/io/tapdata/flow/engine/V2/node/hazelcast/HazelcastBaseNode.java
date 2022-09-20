@@ -769,11 +769,6 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 				((Map<String, MetadataInstancesDto>) updateMetadataObj).put(metadata.getId().toHexString(), metadata);
 			}
 		}
-		if (tapTableMap.containsKey(tableName)) {
-
-		} else {
-
-		}
 	}
 
 	protected void updateNodeConfig() {
