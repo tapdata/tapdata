@@ -1838,31 +1838,35 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                 DAG dag = taskDto.getDag();
                 List<Node> nodes = dag.getNodes();
                 if (CollectionUtils.isNotEmpty(nodes)) {
-                    for (Node node : nodes) {
-                        List<MetadataInstancesDto> metadataInstancesDtos = metadataInstancesService.findByNodeId(node.getId(), null, user, taskDto);
-                        if (CollectionUtils.isNotEmpty(metadataInstancesDtos)) {
-                            for (MetadataInstancesDto metadataInstancesDto : metadataInstancesDtos) {
-                                metadataInstancesDto.setCreateUser(null);
-                                metadataInstancesDto.setCustomId(null);
-                                metadataInstancesDto.setLastUpdBy(null);
-                                metadataInstancesDto.setUserId(null);
-                                jsonList.add(new TaskUpAndLoadDto("MetadataInstances", JsonUtil.toJsonUseJackson(metadataInstancesDto)));
+                    try {
+                        for (Node node : nodes) {
+                            List<MetadataInstancesDto> metadataInstancesDtos = metadataInstancesService.findByNodeId(node.getId(), null, user, taskDto);
+                            if (CollectionUtils.isNotEmpty(metadataInstancesDtos)) {
+                                for (MetadataInstancesDto metadataInstancesDto : metadataInstancesDtos) {
+                                    metadataInstancesDto.setCreateUser(null);
+                                    metadataInstancesDto.setCustomId(null);
+                                    metadataInstancesDto.setLastUpdBy(null);
+                                    metadataInstancesDto.setUserId(null);
+                                    jsonList.add(new TaskUpAndLoadDto("MetadataInstances", JsonUtil.toJsonUseJackson(metadataInstancesDto)));
+                                }
+                            }
+
+                            if (node instanceof DataParentNode) {
+                                String connectionId = ((DataParentNode<?>) node).getConnectionId();
+                                DataSourceConnectionDto dataSourceConnectionDto = dataSourceService.findById(MongoUtils.toObjectId(connectionId), user);
+                                dataSourceConnectionDto.setCreateUser(null);
+                                dataSourceConnectionDto.setCustomId(null);
+                                dataSourceConnectionDto.setLastUpdBy(null);
+                                dataSourceConnectionDto.setUserId(null);
+                                String databaseQualifiedName = MetaDataBuilderUtils.generateQualifiedName("database", dataSourceConnectionDto, null);
+                                MetadataInstancesDto dataSourceMetadataInstance = metadataInstancesService.findOne(
+                                        Query.query(Criteria.where("qualified_name").is(databaseQualifiedName).and("is_deleted").ne(true)), user);
+                                jsonList.add(new TaskUpAndLoadDto("MetadataInstances", JsonUtil.toJsonUseJackson(dataSourceMetadataInstance)));
+                                jsonList.add(new TaskUpAndLoadDto("Connections", JsonUtil.toJsonUseJackson(dataSourceConnectionDto)));
                             }
                         }
-
-                        if (node instanceof DataParentNode) {
-                            String connectionId = ((DataParentNode<?>) node).getConnectionId();
-                            DataSourceConnectionDto dataSourceConnectionDto = dataSourceService.findById(MongoUtils.toObjectId(connectionId), user);
-                            dataSourceConnectionDto.setCreateUser(null);
-                            dataSourceConnectionDto.setCustomId(null);
-                            dataSourceConnectionDto.setLastUpdBy(null);
-                            dataSourceConnectionDto.setUserId(null);
-                            String databaseQualifiedName = MetaDataBuilderUtils.generateQualifiedName("database", dataSourceConnectionDto, null);
-                            MetadataInstancesDto dataSourceMetadataInstance = metadataInstancesService.findOne(
-                                    Query.query(Criteria.where("qualified_name").is(databaseQualifiedName).and("is_deleted").ne(true)), user);
-                            jsonList.add(new TaskUpAndLoadDto("MetadataInstances", JsonUtil.toJsonUseJackson(dataSourceMetadataInstance)));
-                            jsonList.add(new TaskUpAndLoadDto("Connections", JsonUtil.toJsonUseJackson(dataSourceConnectionDto)));
-                        }
+                    } catch (Exception e) {
+                        log.error("node data error", e);
                     }
                 }
             }
@@ -1883,7 +1887,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         byte[] bytes = new byte[0];
         List<TaskUpAndLoadDto> taskUpAndLoadDtos;
 
-        if (!multipartFile.getName().endsWith("json.gz")) {
+        if (!Objects.requireNonNull(multipartFile.getOriginalFilename()).endsWith("json.gz")) {
             //不支持其他的格式文件
             throw new BizException("Task.ImportFormatError");
         }
