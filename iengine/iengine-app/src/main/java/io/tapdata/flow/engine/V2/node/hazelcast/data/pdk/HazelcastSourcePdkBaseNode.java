@@ -90,7 +90,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 	 * This is added as an async control center because pdk and jet have two different thread model. pdk thread is
 	 * blocked when reading data from data source while jet using async when passing the event to next node.
 	 */
-	protected LinkedBlockingQueue<TapdataEvent> eventQueue = new LinkedBlockingQueue<>(10);
+	protected LinkedBlockingQueue<TapdataEvent> eventQueue = new LinkedBlockingQueue<>(100);
 	private TapdataEvent pendingEvent;
 	protected SourceMode sourceMode = SourceMode.NORMAL;
 	protected Long initialFirstStartTime = System.currentTimeMillis();
