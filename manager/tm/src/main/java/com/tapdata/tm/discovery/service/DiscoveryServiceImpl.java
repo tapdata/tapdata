@@ -40,6 +40,7 @@ import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @Service
@@ -61,8 +62,8 @@ public class DiscoveryServiceImpl implements DiscoveryService {
      * @return
      */
 
-    @Override
-    public Page<DataDiscoveryDto> find(DiscoveryQueryParam param, UserDetail user) {
+
+    public Page<DataDiscoveryDto> find1(DiscoveryQueryParam param, UserDetail user) {
         if (param.getPage() == null) {
             param.setPage(1);
         }
@@ -162,7 +163,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
             dto.setName(metadataInstancesDto.getOriginalName());
             dto.setSourceCategory(DataSourceCategoryEnum.connection);
             dto.setSourceType(metadataInstancesDto.getSource() == null ? null : metadataInstancesDto.getSource().getDatabase_type());
-            dto.setSourceInfo(getConnectInfo(metadataInstancesDto));
+            dto.setSourceInfo(getConnectInfo(metadataInstancesDto.getSource(), metadataInstancesDto.getOriginalName()));
             //dto.setSourceInfo();
             //dto.setName();
             //dto.setBusinessName();
@@ -184,7 +185,8 @@ public class DiscoveryServiceImpl implements DiscoveryService {
         return page;
     }
 
-    public Page<DataDiscoveryDto> find1(DiscoveryQueryParam param, UserDetail user) {
+    @Override
+    public Page<DataDiscoveryDto> find(DiscoveryQueryParam param, UserDetail user) {
         if (param.getPage() == null) {
             param.setPage(1);
         }
@@ -208,21 +210,20 @@ public class DiscoveryServiceImpl implements DiscoveryService {
         }
         Criteria taskCriteria = Criteria.where("is_deleted").ne(true);
 
-        Criteria metadataCriteria = Criteria.where("type1").is(SourceTypeEnum.SOURCE.name())
+        Criteria metadataCriteria = Criteria.where("sourceType").is(SourceTypeEnum.SOURCE.name())
                 .and("taskId").exists(false)
                 .and("is_deleted").ne(true);
         if (StringUtils.isNotBlank(param.getType())) {
-            metadataCriteria.and("type").is(param.getType());
-            taskCriteria.and("type").is(param.getType());
+            metadataCriteria.and("meta_type").is(param.getType());
+            taskCriteria.and("syncType").is(param.getType());
         } else {
-            taskCriteria.and("type").in(TaskDto.SYNC_TYPE_MIGRATE, TaskDto.SYNC_TYPE_SYNC);
+            taskCriteria.and("syncType").in(TaskDto.SYNC_TYPE_MIGRATE, TaskDto.SYNC_TYPE_SYNC);
         }
         if (StringUtils.isNotBlank(param.getSourceType())) {
-            metadataCriteria.and("sourceType").is(param.getSourceType());
-            taskCriteria.and("sourceType").is(param.getSourceType());
+            metadataCriteria.and("source.database_type").is(param.getSourceType());
+            taskCriteria.and("agentId").is(param.getSourceType());
         } else {
-
-            taskCriteria.and("sourceType").exists(true);
+            taskCriteria.and("agentId").exists(true);
         }
 
 
@@ -249,35 +250,32 @@ public class DiscoveryServiceImpl implements DiscoveryService {
 
         UnionWithOperation taskUnion = UnionWithOperation.unionWith("Task")
                 .pipeline(
-                        Aggregation.project("createTime", "_id", "listtags")
-                                .and("syncType").as("type")
-                                .and("name").as("name")
-                                .and("agentId").as("sourceType")
-                                .and("pipe").as("sourceCategory")
-                                .and("calculate").as("category"),
+                        Aggregation.project("createTime", "_id", "listtags", "syncType", "name", "agentId"),
                         Aggregation.match(taskCriteria)
                 );
 
         UnionWithOperation metadataUnion = UnionWithOperation.unionWith("MetadataInstances")
                 .pipeline(
-                        Aggregation.project("createTime", "_id", "listtags")
-                                .and("meta_type").as("type")
-                                .and("original_name").as("name")
-                                .and("source.database_type").as("sourceType")
-                                .and("connection").as("sourceCategory")
-                                .and("storage").as("category")
-                                .and("sourceType").as("type1"),
+                        Aggregation.project("createTime", "_id", "listtags", "meta_type", "original_name"
+                                        , "source"),
                         Aggregation.match(metadataCriteria)
                 );
-
+        MatchOperation match = Aggregation.match(metadataCriteria);
+        ProjectionOperation project = Aggregation.project("createTime", "_id", "listtags", "meta_type", "original_name"
+                , "source", "syncType", "name", "agentId");
         LimitOperation limitOperation = Aggregation.limit(param.getPageSize());
         SkipOperation skipOperation = Aggregation.skip((long) (param.getPage() - 1) * param.getPageSize());
         SortOperation sortOperation = Aggregation.sort(Sort.Direction.DESC, "createTime");
-        Aggregation aggregation = Aggregation.newAggregation(taskUnion, metadataUnion, skipOperation, limitOperation, sortOperation);
+        Aggregation aggregation = Aggregation.newAggregation(match, taskUnion, project, sortOperation, skipOperation, limitOperation);
+        AggregationResults<UnionQueryResult> results = metaDataRepository.getMongoOperations().aggregate(aggregation, "MetadataInstances", UnionQueryResult.class);
+        List<UnionQueryResult> unionQueryResults = results.getMappedResults();
         long count1 = metadataInstancesService.count(new Query(metadataCriteria), user);
-        long count2 = taskRepository.count(new Query(metadataCriteria), user);
-        AggregationResults<DataDiscoveryDto> results = metaDataRepository.getMongoOperations().aggregate(aggregation, "sdfasdfsdfsadassdfsaf", DataDiscoveryDto.class);
-        List<DataDiscoveryDto> dataDiscoveryDtos = results.getMappedResults();
+        long count2 = taskRepository.count(new Query(taskCriteria), user);
+        if (CollectionUtils.isEmpty(unionQueryResults)) {
+            return page;
+        }
+
+        List<DataDiscoveryDto> dataDiscoveryDtos = unionQueryResults.stream().map(this::convertToDataDiscovery).collect(Collectors.toList());
 
         for (DataDiscoveryDto dataDiscoveryDto : dataDiscoveryDtos) {
             List<Tag> listtags = dataDiscoveryDto.getListtags();
@@ -333,7 +331,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
         dto.setCategory(DataObjCategoryEnum.storage);
         dto.setType(metadataInstancesDto.getMetaType());
         dto.setSourceCategory(DataSourceCategoryEnum.connection);
-        dto.setSourceInfo(getConnectInfo(metadataInstancesDto));
+        dto.setSourceInfo(getConnectInfo(metadataInstancesDto.getSource(), metadataInstancesDto.getOriginalName()));
         //dto.setSourceInfo();
         //dto.setBusinessName();
         //dto.setBusinessDesc();
@@ -700,8 +698,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
     }
 
 
-    private String getConnectInfo(MetadataInstancesDto metadataInstancesDto) {
-        SourceDto source = metadataInstancesDto.getSource();
+    private String getConnectInfo(SourceDto source, String name) {
         if (source == null) {
             return null;
         }
@@ -764,7 +761,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
             }
         }
 
-        return ipAndPort + "/" + metadataInstancesDto.getOriginalName();
+        return ipAndPort + "/" + name;
     }
 
     public String tapTypeString(String tapType) {
@@ -796,6 +793,36 @@ public class DiscoveryServiceImpl implements DiscoveryService {
         }
     }
 
+    private DataDiscoveryDto convertToDataDiscovery(UnionQueryResult unionQueryResult) {
+        DataDiscoveryDto dataDiscoveryDto = new DataDiscoveryDto();
+        dataDiscoveryDto.setId(unionQueryResult.get_id().toHexString());
+        if (StringUtils.isNotBlank(unionQueryResult.getMeta_type())) {
+            dataDiscoveryDto.setCategory(DataObjCategoryEnum.storage);
+            dataDiscoveryDto.setType(unionQueryResult.getMeta_type());
+            dataDiscoveryDto.setSourceCategory(DataSourceCategoryEnum.connection);
+            dataDiscoveryDto.setSourceType(unionQueryResult.getSource() != null ? unionQueryResult.getSource().getDatabase_type() : null);
+            dataDiscoveryDto.setSourceInfo(getConnectInfo(unionQueryResult.getSource(), unionQueryResult.getOriginal_name()));
+            dataDiscoveryDto.setName(unionQueryResult.getOriginal_name());
+        } else if (StringUtils.isNotBlank(unionQueryResult.getSyncType())) {
+            dataDiscoveryDto.setCategory(DataObjCategoryEnum.job);
+            dataDiscoveryDto.setType(unionQueryResult.getSyncType());
+            dataDiscoveryDto.setSourceCategory(DataSourceCategoryEnum.pipe);
+            dataDiscoveryDto.setSourceType(unionQueryResult.getAgentId());
+            // TODO 查询woker表  得到引擎的地址跟端口
+            // dataDiscoveryDto.setSourceInfo();
+            dataDiscoveryDto.setName(unionQueryResult.getName());
+        }
+
+        dataDiscoveryDto.setListtags(unionQueryResult.getListtags());
+        List<Tag> listtags = dataDiscoveryDto.getListtags();
+        if (CollectionUtils.isNotEmpty(listtags)) {
+            List<ObjectId> ids = listtags.stream().map(Tag::getId).collect(Collectors.toList());
+            List<MetadataDefinitionDto> andParents = metadataDefinitionService.findAndParent(null, ids);
+            List<Tag> allTags = andParents.stream().map(s -> new Tag(s.getId(), s.getValue())).collect(Collectors.toList());
+            dataDiscoveryDto.setAllTags(allTags);
+        }
+        return dataDiscoveryDto;
+    }
     @Data
     private static class GroupMetadata{
         private String _id;
