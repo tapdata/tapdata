@@ -860,9 +860,8 @@ public class TaskController extends BaseController {
 
     @Operation(summary = "任务导出")
     @GetMapping("batch/load")
-    public ResponseMessage<Void> batchLoadTasks(@RequestParam("taskId") List<String> taskId, HttpServletResponse response) {
+    public void batchLoadTasks(@RequestParam("taskId") List<String> taskId, HttpServletResponse response) {
         taskService.batchLoadTask(response, taskId, getLoginUser());
-        return success();
     }
 
     @Operation(summary = "任务导入")
