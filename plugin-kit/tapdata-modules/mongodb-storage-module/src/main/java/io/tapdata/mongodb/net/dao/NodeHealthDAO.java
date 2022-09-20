@@ -24,6 +24,7 @@ public class NodeHealthDAO extends ToDocumentMongoDAO<NodeHealthMapEntity> {
 		updateOne(idFilter, new Document("$set",
 				new Document(NodeHealthMapEntity.FIELD_MAP + "." + nodeHealth.getId(),
 						new Document("time", nodeHealth.getTime())
+								.append("online", nodeHealth.getOnline())
 								.append("health", nodeHealth.getHealth())))
 				.append("$setOnInsert", new Document(NodeHealthMapEntity.FIELD_CLEANER, NO_CLEANER)), true);
 	}

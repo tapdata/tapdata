@@ -25,6 +25,12 @@ public class NodeHealth implements Comparable<NodeHealth> {
 		return this;
 	}
 
+	private Integer online;
+	public NodeHealth online(Integer online) {
+		this.online = online;
+		return this;
+	}
+
 	public String getId() {
 		return id;
 	}
@@ -73,6 +79,21 @@ public class NodeHealth implements Comparable<NodeHealth> {
 
 	@Override
 	public String toString() {
-		return "NodeHealth id " + id + " health " + health + " time " + (time != null ? new Date(time) : null) + "; ";
+		return "NodeHealth id " + id + " health " + health + " online " + online + " time " + (time != null ? new Date(time) : null) + "; ";
+	}
+
+	public Integer getOnline() {
+		return online;
+	}
+
+	public void setOnline(Integer online) {
+		this.online = online;
+	}
+
+	public void clone(NodeHealth nodeHealth) {
+		this.health = nodeHealth.health;
+		this.time = nodeHealth.time;
+		this.online = nodeHealth.online;
+		this.id = nodeHealth.id;
 	}
 }

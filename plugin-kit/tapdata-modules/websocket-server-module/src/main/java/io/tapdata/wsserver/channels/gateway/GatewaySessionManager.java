@@ -11,8 +11,10 @@ import io.tapdata.modules.api.net.data.*;
 import io.tapdata.modules.api.net.entity.NodeRegistry;
 import io.tapdata.modules.api.net.error.NetErrors;
 import io.tapdata.modules.api.net.message.TapEntity;
-import io.tapdata.modules.api.net.service.NodeHealthService;
-import io.tapdata.modules.api.net.service.NodeRegistryService;
+import io.tapdata.modules.api.net.service.node.NodeHealthService;
+import io.tapdata.modules.api.net.service.node.NodeRegistryService;
+import io.tapdata.modules.api.net.service.node.connection.NodeConnection;
+import io.tapdata.modules.api.net.service.node.connection.NodeConnectionFactory;
 import io.tapdata.pdk.core.utils.AnnotationUtils;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.pdk.core.utils.IPHolder;
@@ -37,6 +39,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 
 import static io.tapdata.entity.simplify.TapSimplify.map;
 
@@ -104,6 +107,10 @@ public class GatewaySessionManager implements HealthWeightListener {
     @Bean
     private GatewayChannelModule gatewayChannelModule;
 
+    @Bean
+    private NodeConnectionFactory nodeConnectionFactory;
+
+    private NodeRegistry nodeRegistry;
     public void start() {
         threadPoolExecutor = new ThreadPoolExecutor(roomSessionManagerCoreSize, roomSessionManagerMaximumPoolSize, roomSessionManagerKeepAliveSeconds, TimeUnit.SECONDS, new LinkedBlockingQueue<>(roomSessionManagerQueueCapacity), new ThreadFactoryBuilder().setNameFormat("GatewaySessionManager-%d").build());
         threadPoolExecutor.allowCoreThreadTimeOut(true);
@@ -145,10 +152,16 @@ public class GatewaySessionManager implements HealthWeightListener {
         IPHolder ipHolder = new IPHolder();
         ipHolder.init();
         int httpPort = CommonUtils.getPropertyInt("tapdata_proxy_server_port", 3000); //TODO should read from TM config.
-        NodeRegistry nodeRegistry = new NodeRegistry().ips(ipHolder.getIps()).httpPort(httpPort).wsPort(webSocketManager.getWebSocketProperties().getPort()).type("proxy").time(System.currentTimeMillis());
+        nodeRegistry = new NodeRegistry().ips(ipHolder.getIps()).httpPort(httpPort).wsPort(webSocketManager.getWebSocketProperties().getPort()).type("proxy").time(System.currentTimeMillis());
         CommonUtils.setProperty("tapdata_node_id", nodeRegistry.id());
         nodeRegistryService.save(nodeRegistry);
         TapLogger.debug(TAG, "Register node {}", nodeRegistry);
+        nodeHealthManager.setNewNodeConsumer(addedNodeRegistry -> nodeConnectionFactory.getNodeConnection(addedNodeRegistry.id()));
+        nodeHealthManager.setDeleteNodeConsumer(deletedNodeRegistry -> {
+            NodeConnection nodeConnection = nodeConnectionFactory.removeNodeConnection(deletedNodeRegistry.id());
+            if(nodeConnection != null)
+                nodeConnection.close();
+        });
         nodeHealthManager.start(this);
 //        NodeHealth nodeHealth = new NodeHealth().id(NodeHealth  )
     }
@@ -534,5 +547,9 @@ public class GatewaySessionManager implements HealthWeightListener {
     @Override
     public int health() {
         return roomCounter * 10000 / maxChannels;
+    }
+
+    public NodeRegistry getNodeRegistry() {
+        return nodeRegistry;
     }
 }

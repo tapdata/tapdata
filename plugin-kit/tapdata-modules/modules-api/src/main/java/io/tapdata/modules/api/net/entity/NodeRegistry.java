@@ -98,12 +98,20 @@ public class NodeRegistry {
 		this.httpPort = httpPort;
 	}
 
+	private volatile String cachedId = null;
 	public String id() {
-		List<String> strings = new ArrayList<>(ips);
-		strings.add(String.valueOf(httpPort));
-		strings.add(String.valueOf(wsPort));
-		strings.add(type);
-		return APIUtils.idForList(strings);
+		if(cachedId == null) {
+			synchronized (this) {
+				if(cachedId == null) {
+					List<String> strings = new ArrayList<>(ips);
+					strings.add(String.valueOf(httpPort));
+					strings.add(String.valueOf(wsPort));
+					strings.add(type);
+					cachedId = APIUtils.idForList(strings);
+				}
+			}
+		}
+		return cachedId;
 	}
 
 	public String getType() {

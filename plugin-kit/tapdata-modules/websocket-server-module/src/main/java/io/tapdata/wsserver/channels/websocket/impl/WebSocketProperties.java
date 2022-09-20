@@ -1,9 +1,12 @@
 package io.tapdata.wsserver.channels.websocket.impl;
 
 import io.tapdata.entity.annotations.Bean;
+import io.tapdata.entity.annotations.MainMethod;
+import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.wsserver.channels.websocket.WebSocketManager;
 
 @Bean
+@MainMethod("init")
 public class WebSocketProperties {
     @Bean
     WebSocketManager webSocketManager;
@@ -41,6 +44,9 @@ public class WebSocketProperties {
      */
     private boolean ssl = false;
 
+    public void init() {
+        port = CommonUtils.getPropertyInt("tapdata_websocket_port", 8246);
+    }
     public int getPort() {
         return port;
     }

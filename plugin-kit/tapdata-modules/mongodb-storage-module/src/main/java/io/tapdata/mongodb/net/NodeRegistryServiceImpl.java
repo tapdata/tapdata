@@ -1,10 +1,9 @@
 package io.tapdata.mongodb.net;
 
-import com.mongodb.client.result.DeleteResult;
 import io.tapdata.entity.annotations.Bean;
 import io.tapdata.entity.annotations.Implementation;
 import io.tapdata.modules.api.net.entity.NodeRegistry;
-import io.tapdata.modules.api.net.service.NodeRegistryService;
+import io.tapdata.modules.api.net.service.node.NodeRegistryService;
 import io.tapdata.mongodb.entity.NodeRegistryEntity;
 import io.tapdata.mongodb.net.dao.NodeRegistryDAO;
 import org.bson.Document;

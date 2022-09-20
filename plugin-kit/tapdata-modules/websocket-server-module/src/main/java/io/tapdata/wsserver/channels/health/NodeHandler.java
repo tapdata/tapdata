@@ -30,4 +30,9 @@ public class NodeHandler {
 	public void setNodeRegistry(NodeRegistry nodeRegistry) {
 		this.nodeRegistry = nodeRegistry;
 	}
+
+	@Override
+	public String toString() {
+		return "NodeHandler: nodeRegistry " + nodeRegistry + " nodeHealth " + nodeHealth;
+	}
 }

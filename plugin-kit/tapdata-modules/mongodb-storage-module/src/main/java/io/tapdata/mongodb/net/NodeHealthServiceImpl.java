@@ -1,10 +1,9 @@
 package io.tapdata.mongodb.net;
 
-import com.mongodb.client.result.DeleteResult;
 import io.tapdata.entity.annotations.Bean;
 import io.tapdata.entity.annotations.Implementation;
 import io.tapdata.modules.api.net.entity.NodeHealth;
-import io.tapdata.modules.api.net.service.NodeHealthService;
+import io.tapdata.modules.api.net.service.node.NodeHealthService;
 import io.tapdata.mongodb.entity.NodeHealthMapEntity;
 import io.tapdata.mongodb.net.dao.NodeHealthDAO;
 

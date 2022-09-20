@@ -1,4 +1,4 @@
-package io.tapdata.modules.api.net.service;
+package io.tapdata.modules.api.net.service.node;
 
 import io.tapdata.modules.api.net.entity.NodeHealth;
 

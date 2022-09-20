@@ -12,7 +12,6 @@ import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.lang3.exception.ExceptionUtils;
 
 import java.io.File;
-import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.ConcurrentHashMap;
@@ -119,7 +118,7 @@ public class MemoryManager {
             throw new CoreException(PDKRunnerErrorCodes.COMMON_ILLEGAL_PARAMETERS, "Illegal parameter for key when unregister");
         return keyMemoryFetcherMap.remove(key);
     }
-    public static MemoryManager build() {
+    public static MemoryManager create() {
         return new MemoryManager();
     }
 

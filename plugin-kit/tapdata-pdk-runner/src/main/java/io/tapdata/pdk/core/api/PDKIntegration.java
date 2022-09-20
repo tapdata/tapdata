@@ -405,7 +405,7 @@ public class PDKIntegration {
     public static void init() {
         if(tapConnectorManager == null) {
             tapConnectorManager = TapConnectorManager.getInstance().start();
-            memoryManager = MemoryManager.build();
+            memoryManager = MemoryManager.create();
             memoryManager.register(TapConnectorManager.class.getSimpleName(), tapConnectorManager);
             memoryManager.register(PDKInvocationMonitor.class.getSimpleName(), PDKInvocationMonitor.getInstance());
         }

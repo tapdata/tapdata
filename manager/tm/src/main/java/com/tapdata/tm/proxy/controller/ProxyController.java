@@ -13,16 +13,24 @@ import com.tapdata.tm.proxy.dto.SubscribeResponseDto;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import io.tapdata.entity.error.CoreException;
-import io.tapdata.entity.error.TapAPIErrorCodes;
+import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.utils.InstanceFactory;
+import io.tapdata.modules.api.net.data.Data;
+import io.tapdata.modules.api.net.data.Result;
 import io.tapdata.modules.api.net.error.NetErrors;
 import io.tapdata.modules.api.net.message.MessageEntity;
 import io.tapdata.modules.api.net.service.CommandExecutionService;
 import io.tapdata.modules.api.net.service.EventQueueService;
+import io.tapdata.modules.api.net.service.node.connection.NodeConnectionFactory;
+import io.tapdata.modules.api.net.service.node.connection.entity.NodeMessage;
+import io.tapdata.modules.api.proxy.constants.ProxyConstants;
 import io.tapdata.pdk.apis.entity.CommandInfo;
+import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.pdk.core.utils.JWTUtils;
+import io.tapdata.wsserver.channels.health.NodeHealthManager;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.bson.types.ObjectId;
 import org.springframework.web.bind.annotation.*;
 
@@ -30,8 +38,10 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
 import java.io.IOException;
+import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.Date;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -44,6 +54,7 @@ import static io.tapdata.entity.simplify.TapSimplify.toJson;
 @RestController
 @RequestMapping("/api/proxy")
 public class ProxyController extends BaseController {
+    private static final String TAG = ProxyController.class.getSimpleName();
     private final AsyncContextManager asyncContextManager = new AsyncContextManager();
     private static final String key = "asdfFSDJKFHKLASHJDKQJWKJehrklHDFJKSMhkj3h24jkhhJKASDH723ty4jkhasdkdfjhaksjdfjfhJDJKLHSAfadsf";
     private static final int wsPort = 8246;
@@ -193,17 +204,87 @@ public class ProxyController extends BaseController {
     @Operation(summary = "External callback url")
     @GetMapping("id")
     public ResponseMessage<String> newId(HttpServletRequest request) {
-
-//        if(service == null || subscribeId == null) {
-//            throw new BizException("Illegal arguments for subscribeId {}, subscribeId {}", service, subscribeId);
-//        }
-
-//        EventQueueService eventQueueService = InstanceFactory.instance(EventQueueService.class, "sync");
-//        if(eventQueueService != null) {
-//            MessageEntity message = new MessageEntity().content(content).time(new Date()).subscribeId(subscribeId).service(service);
-//            eventQueueService.offer(message);
-//        }
-
         return success(new ObjectId().toString());
+    }
+
+
+    @Operation(summary = "External callback url")
+    @PostMapping("internal")
+    public void proxyCall(HttpServletRequest request,
+                          HttpServletResponse response,
+                          @RequestParam(name = "key", required = true) String key,
+                          @RequestParam(name = "ping", required = false) String pingNodeId) {
+        try {
+            if(!key.equals(ProxyConstants.INTERNAL_KEY))
+                throw new BizException("Permission denied");
+
+            String nodeId = CommonUtils.getProperty("tapdata_node_id");
+            if(nodeId == null)
+                throw new BizException("Current nodeId not found");
+
+            if(pingNodeId != null) {
+                if(pingNodeId.equals(nodeId)) {
+                    response.setStatus(202);
+                    return;
+                } else
+                    throw new BizException("Try to visit nodeId " + pingNodeId + " but is " + nodeId);
+            }
+
+            NodeMessage nodeMessage = new NodeMessage();
+            try {
+                nodeMessage.from(request.getInputStream());
+            } catch (IOException e) {
+                throw new BizException("PostRequest resurrect failed, {}", e.getMessage());
+            }
+
+            if(!nodeId.equals(nodeMessage.getToNodeId()))
+                throw new BizException("PostRequest's nodeId {} is not current, wrong node? ", nodeMessage.getToNodeId());
+
+            NodeConnectionFactory nodeConnectionFactory = InstanceFactory.instance(NodeConnectionFactory.class);
+            if(nodeConnectionFactory == null)
+                throw new BizException("nodeConnectionFactory is not initialized");
+
+            Object responseObj = nodeConnectionFactory.received(nodeMessage.getFromNodeId(), nodeMessage.getType(), nodeMessage.getEncode(), nodeMessage.getData());
+            try (OutputStream os = response.getOutputStream()) {
+                NodeMessage responseMessage = new NodeMessage();
+                responseMessage.id(nodeMessage.getId())
+                        .fromNodeId(nodeId)
+                        .toNodeId(nodeMessage.getFromNodeId())
+                        .type(nodeMessage.getType())
+                        .time(System.currentTimeMillis())
+                        .encode(Data.ENCODE_JSON)
+                        .data(toJson(responseObj).getBytes(StandardCharsets.UTF_8));
+                responseMessage.to(os);
+            }
+            return;
+        } catch (Throwable throwable) {
+            int code = 8888;
+            CoreException coreException = null;
+            if(throwable instanceof CoreException) {
+                coreException = (CoreException) throwable;
+                code = coreException.getCode();
+            }
+            TapLogger.debug(TAG, "Internal proxy call failed, {}", ExceptionUtils.getStackTrace(throwable));
+            response.setStatus(208);
+            Result result = new Result().forId(throwable.getClass().getSimpleName()).description(throwable.getMessage()).code(code).time(System.currentTimeMillis());
+            try(OutputStream os = response.getOutputStream()) {
+                result.to(os);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+            return;
+//            try {
+//                response.sendError(code, throwable.getMessage());
+//            } catch (Throwable ignored) {
+//            }
+        }
+
+    }
+
+    @Operation(summary = "External callback url")
+    @GetMapping("cleanup")
+    public ResponseMessage<List<String>> cleanUp(HttpServletRequest request) {
+        NodeHealthManager nodeHealthManager = InstanceFactory.bean(NodeHealthManager.class);
+        return success(nodeHealthManager.cleanUpDeadNodes());
     }
 }
