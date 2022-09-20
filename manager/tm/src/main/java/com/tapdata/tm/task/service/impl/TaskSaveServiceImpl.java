@@ -133,6 +133,7 @@ public class TaskSaveServiceImpl implements TaskSaveService {
                     }
 
                     if (CollectionUtils.isEmpty(node.getAlarmRules())) {
+                        alarmRuleDtos.add(ruleDtoMap.get(AlarmKeyEnum.DATANODE_HTTP_CONNECT_CONSUME));
                         alarmRuleDtos.add(ruleDtoMap.get(AlarmKeyEnum.DATANODE_TCP_CONNECT_CONSUME));
                         alarmRuleDtos.add(ruleDtoMap.get(AlarmKeyEnum.DATANODE_AVERAGE_HANDLE_CONSUME));
                     }

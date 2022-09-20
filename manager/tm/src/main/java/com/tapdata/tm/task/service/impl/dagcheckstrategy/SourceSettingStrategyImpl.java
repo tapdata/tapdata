@@ -117,7 +117,7 @@ public class SourceSettingStrategyImpl implements DagLogStrategy {
             log.setCreateAt(now);
             log.setCreateUser(userDetail.getUserId());
             log.setLog(content);
-            log.setGrade(Level.INFO.getValue());
+            log.setGrade(Level.INFO);
             log.setNodeId(taskDto.getDag().getSourceNode().getFirst().getId());
 
             result.add(log);
