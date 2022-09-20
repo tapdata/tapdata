@@ -27,33 +27,14 @@ public class Hive1JdbcContext extends JdbcContext {
 
     //todo  query time zone method not found yet
     public static final String DATABASE_TIMEZON_SQL = "SELECT timeZone()";
-//    private final static String HIVE_ALL_TABLE = "select database,name from system.tables where database !='system' and database='%s' ";
     private final static String HIVE_ALL_TABLE = "show tables";
-//    private final static String HIVE1_ALL_COLUMN = "select * from system.columns where database='%s'";
     private final static String HIVE1_ALL_COLUMN = "desc `%s` ";
 
-    private final static String HIVE1_ALL_COLUMN2 = "show create table %s.%s ";
     private final static String CK_ALL_INDEX = "";//从异构数据源 同步到clickhouse 索引对应不上
-
-//    private Hive1Config hive1Config;
-//
-//    public void setHive1Config(Hive1Config hive1Config) {
-//        this.hive1Config = hive1Config;
-//    }
 
     public Hive1JdbcContext(Hive1Config config, HikariDataSource hikariDataSource) {
         super(config, hikariDataSource);
     }
-
-//    public static void tryCommit(Connection connection) {
-//        try {
-//            if (connection != null && connection.isValid(5) && !connection.getAutoCommit()) {
-//                connection.commit();
-//            }
-//        } catch (SQLException e) {
-//            throw new RuntimeException(e);
-//        }
-//    }
 
     public static void tryRollBack(Connection connection) {
         try {

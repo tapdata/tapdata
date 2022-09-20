@@ -18,6 +18,7 @@ import com.tapdata.tm.utils.Lists;
 import com.tapdata.tm.utils.MongoUtils;
 import lombok.Setter;
 import org.apache.commons.collections.CollectionUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.math.NumberUtils;
 import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -58,25 +59,22 @@ public class SourceSettingStrategyImpl implements DagLogStrategy {
                 value = nameMap.get(name) + 1;
                 template = templateEnum.getErrorTemplate();
                 grade = Level.ERROR;
+
+                String content = MessageFormat.format(template, current, name);
+                TaskDagCheckLog log = new TaskDagCheckLog();
+                log.setTaskId(taskId.toHexString());
+                log.setCheckType(templateEnum.name());
+                log.setCreateAt(now);
+                log.setCreateUser(userDetail.getUserId());
+                log.setLog(content);
+                log.setGrade(grade);
+                log.setNodeId(node.getId());
+
+                result.add(log);
             } else {
                 value = NumberUtils.INTEGER_ZERO;
-                template = templateEnum.getInfoTemplate();
-                grade = Level.INFO;
             }
             nameMap.put(name, value);
-
-            String content = MessageFormat.format(template, current, name);
-
-            TaskDagCheckLog log = new TaskDagCheckLog();
-            log.setTaskId(taskId.toHexString());
-            log.setCheckType(templateEnum.name());
-            log.setCreateAt(now);
-            log.setCreateUser(userDetail.getUserId());
-            log.setLog(content);
-            log.setGrade(grade);
-            log.setNodeId(node.getId());
-
-            result.add(log);
 
             // check schema
             String connectionId = node.getConnectionId();
@@ -96,8 +94,7 @@ public class SourceSettingStrategyImpl implements DagLogStrategy {
                     schemaLog.setNodeId(node.getId());
                     result.add(schemaLog);
                 } else {
-                    int tableCount = Objects.nonNull(dto.getTableCount()) ? dto.getTableCount().intValue() : 0;
-                    if (loadCount < tableCount) {
+                    if (!StringUtils.equals("finished", connectionDto.getLoadFieldsStatus())) {
                         TaskDagCheckLog schemaLog = new TaskDagCheckLog();
                         schemaLog.setTaskId(taskId.toHexString());
                         schemaLog.setCheckType(templateEnum.name());
@@ -111,6 +108,20 @@ public class SourceSettingStrategyImpl implements DagLogStrategy {
                 }
             });
         });
+
+        if (CollectionUtils.isEmpty(result)) {
+            TaskDagCheckLog log = new TaskDagCheckLog();
+            String content = MessageFormat.format(templateEnum.getInfoTemplate(), current);
+            log.setTaskId(taskId.toHexString());
+            log.setCheckType(templateEnum.name());
+            log.setCreateAt(now);
+            log.setCreateUser(userDetail.getUserId());
+            log.setLog(content);
+            log.setGrade(Level.INFO.getValue());
+            log.setNodeId(taskDto.getDag().getSourceNode().getFirst().getId());
+
+            result.add(log);
+        }
 
         return result;
     }

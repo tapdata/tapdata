@@ -68,8 +68,10 @@ public class ObservableAspectTask extends AspectTask {
 	@Override
 	public void onStop(TaskStopAspect stopAspect) {
 		pipelineDelay.clear(stopAspect.getTask().getId().toHexString());
-		for (TableSampleHandler handler : tableSampleHandlers.values()) {
-			handler.close();
+		if (null != tableSampleHandlers) {
+			for (TableSampleHandler handler : tableSampleHandlers.values()) {
+				handler.close();
+			}
 		}
 		taskSampleHandler.close();
 	}
