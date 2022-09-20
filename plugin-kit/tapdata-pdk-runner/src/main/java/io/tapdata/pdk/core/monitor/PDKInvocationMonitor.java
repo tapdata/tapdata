@@ -46,11 +46,10 @@ public class PDKInvocationMonitor implements MemoryFetcher {
 
     public static void stop(Node closeNode){
         List<PDKMethodInvoker> invokerList = nodeStopInvokerMap.get(closeNode);
-        if (null == invokerList || invokerList.isEmpty()) {
-            return;
-        }
-        for (PDKMethodInvoker pdkMethodInvoker : invokerList) {
-            pdkMethodInvoker.cancelRetry();
+        if ( !( null == invokerList || invokerList.isEmpty() ) ) {
+            for (PDKMethodInvoker pdkMethodInvoker : invokerList) {
+                pdkMethodInvoker.cancelRetry();
+            }
         }
         nodeStopInvokerMap.remove(closeNode);
     }
