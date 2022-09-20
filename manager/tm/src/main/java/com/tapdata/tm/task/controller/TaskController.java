@@ -940,6 +940,12 @@ public class TaskController extends BaseController {
         return success(dto);
     }
 
+    @GetMapping("transformAllParam/{taskId}")
+    public ResponseMessage<TransformerWsMessageDto> findTransformAllParam(@PathVariable("taskId") String taskId) {
+        TransformerWsMessageDto dto = taskService.findTransformAllParam(taskId, getLoginUser());
+        return success(dto);
+    }
+
 
     @PostMapping("dag")
     public ResponseMessage<Void> updateDagAndHistory(@RequestBody TaskDto taskDto) {
