@@ -657,6 +657,7 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 				//插入复制的数据源
 				entity.setName(connectionName);
 				entity.setLoadCount(0);
+				entity.setLoadFieldsStatus("");
 				entity = repository.save(entity, user);
 				break;
 			} catch (Exception e) {
