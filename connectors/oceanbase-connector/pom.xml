@@ -20,7 +20,7 @@
         <!--外部依赖-->
         <HikariCP.version>4.0.3</HikariCP.version>
         <commons-lang.version>3.12.0</commons-lang.version>
-        <mysql.driver.version>8.0.21</mysql.driver.version>
+        <mysql.driver.version>5.1.47</mysql.driver.version>
         <guava.version>31.0.1-jre</guava.version>
     </properties>
 
@@ -69,6 +69,11 @@
             <groupId>com.google.guava</groupId>
             <artifactId>guava</artifactId>
             <version>${guava.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>io.tapdata</groupId>
+            <artifactId>tapdata-pdk-runner</artifactId>
+            <scope>test</scope>
         </dependency>
     </dependencies>
     <build>
