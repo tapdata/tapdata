@@ -1336,6 +1336,10 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
             taskDto = taskService.findOne(query, user);
         }
 
+        if (taskDto == null) {
+            throw new BizException("Task.nodeRefresh");
+        }
+
         String taskId = taskDto.getId().toHexString();
 
         List<MetadataInstancesDto> metadatas = new ArrayList<>();
