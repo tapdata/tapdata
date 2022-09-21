@@ -878,7 +878,7 @@ public class TaskController extends BaseController {
         List<String> tags = JsonUtil.parseJson(listtags, new TypeToken<List<String>>() {}.getType());
         List<Map<String, String>> collect = tags.stream().map(id -> {
             Map<String, String> map = Maps.newHashMap();
-            map.put(id, "");
+            map.put("id", id);
             return map;
         }).collect(Collectors.toList());
         taskService.batchUpTask(file, getLoginUser(), cover, collect);
