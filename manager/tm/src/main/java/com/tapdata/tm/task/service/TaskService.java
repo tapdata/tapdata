@@ -1071,15 +1071,6 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             logCollectorFilter.put("$ne", "logCollector");
             where.put("syncType", logCollectorFilter);
         }
-        // 处理tag搜索
-        Object listTags = where.remove("listtags.id");
-        if (Objects.nonNull(listTags)) {
-            if (listTags instanceof Map) {
-                Object inStr = ((Map<?, ?>) listTags).get("$in");
-                List<String> collect = JsonUtil.parseJson(inStr.toString(), new TypeToken<List<String>>(){}.getType());
-                where.put("listtags._id", collect.stream().map(ObjectId::new).collect(Collectors.toList()));
-            }
-        }
 
         //过滤调共享缓存任务
         HashMap<String, Object> notShareCache = new HashMap<>();
@@ -1899,7 +1890,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     }
 
 
-    public void batchUpTask(MultipartFile multipartFile, UserDetail user, boolean cover, List<Tag> tags) {
+    public void batchUpTask(MultipartFile multipartFile, UserDetail user, boolean cover, List<Map<String, String>> tags) {
         byte[] bytes;
         List<TaskUpAndLoadDto> taskUpAndLoadDtos;
 
@@ -1964,7 +1955,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         }
     }
 
-    public void batchImport(List<TaskDto> taskDtos, UserDetail user, boolean cover, List<Tag> tags) {
+    public void batchImport(List<TaskDto> taskDtos, UserDetail user, boolean cover, List<Map<String, String>> tags) {
         for (TaskDto taskDto : taskDtos) {
             Query query = new Query(Criteria.where("_id").is(taskDto.getId()).and("is_deleted").ne(true));
             query.fields().include("id");
@@ -1979,6 +1970,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                     taskDto.setName(taskDto.getName() + "_import");
                 }
 
+                taskDto.setListtags(tags);
                 if (one == null) {
                     taskDto.setId(null);
                     TaskEntity taskEntity = repository.importEntity(convertToEntity(TaskEntity.class, taskDto), user);
@@ -1994,7 +1986,6 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                     }
                 }
 
-                taskDto.setListtags(tags);
                 confirmById(taskDto, user, true, true);
             }
         }

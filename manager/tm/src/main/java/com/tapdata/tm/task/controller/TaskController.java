@@ -2,6 +2,7 @@ package com.tapdata.tm.task.controller;
 
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONArray;
+import com.google.common.collect.Maps;
 import com.google.gson.reflect.TypeToken;
 import com.tapdata.manager.common.utils.JsonUtil;
 import com.tapdata.tm.base.controller.BaseController;
@@ -874,9 +875,12 @@ public class TaskController extends BaseController {
     public ResponseMessage<Void> upload(@RequestParam(value = "file") MultipartFile file,
                                         @RequestParam(value = "cover", required = false, defaultValue = "false") boolean cover,
                                         @RequestParam String listtags) {
-        List<String> tags = JsonUtil.parseJson(listtags, new TypeToken<List<String>>(){}.getType());
-        List<com.tapdata.tm.commons.schema.Tag> collect = tags.stream().map(id ->
-                new com.tapdata.tm.commons.schema.Tag(new ObjectId(id), "")).collect(Collectors.toList());
+        List<String> tags = JsonUtil.parseJson(listtags, new TypeToken<List<String>>() {}.getType());
+        List<Map<String, String>> collect = tags.stream().map(id -> {
+            Map<String, String> map = Maps.newHashMap();
+            map.put("id", id);
+            return map;
+        }).collect(Collectors.toList());
         taskService.batchUpTask(file, getLoginUser(), cover, collect);
         return success();
     }
