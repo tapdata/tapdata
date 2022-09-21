@@ -85,10 +85,6 @@ public class TapTableWriter implements IWriter<TapRecordEvent, WriteListResult<T
                     throw new RuntimeException("Record event after data is null: " + updateRecordEvent);
                 } else if (updateRecordEvent.getAfter().isEmpty()) {
                     throw new RuntimeException("Record event after data is empty: " + updateRecordEvent);
-                } else if (null == updateRecordEvent.getBefore()) {
-                    throw new RuntimeException("Record event before data is null: " + updateRecordEvent);
-                } else if (updateRecordEvent.getBefore().isEmpty()) {
-                    throw new RuntimeException("Record event before data is empty: " + updateRecordEvent);
                 }
                 lastStatement = getUpdateStatement(statementKey, updateRecordEvent);
                 doUpdate(updateRecordEvent);
@@ -179,10 +175,16 @@ public class TapTableWriter implements IWriter<TapRecordEvent, WriteListResult<T
     }
 
     protected void doUpdate(TapUpdateRecordEvent event) throws Exception {
+        // Not all sources can provide Before data and need to be compatible
+        Map<String, Object> beforeData = event.getBefore();
+        if (null == beforeData || beforeData.isEmpty()) {
+            beforeData = event.getAfter();
+        }
+
         int i = 1;
         if (ConnectionOptions.DML_UPDATE_POLICY_INSERT_ON_NON_EXISTS.equals(updatePolicy)) {
             for (String field : uniqueCondition) {
-                lastStatement.setObject(i, event.getBefore().get(field));
+                lastStatement.setObject(i, beforeData.get(field));
                 i++;
             }
             for (Map.Entry<String, Object> en : event.getAfter().entrySet()) {
@@ -201,7 +203,7 @@ public class TapTableWriter implements IWriter<TapRecordEvent, WriteListResult<T
                 i++;
             }
             for (String field : uniqueCondition) {
-                lastStatement.setObject(i, event.getBefore().get(field));
+                lastStatement.setObject(i, beforeData.get(field));
                 i++;
             }
         }
@@ -257,6 +259,12 @@ public class TapTableWriter implements IWriter<TapRecordEvent, WriteListResult<T
         Object afterValue, beforeValue;
         Map<String, Object> afterData = recordEvent.getAfter();
         Map<String, Object> beforeData = recordEvent.getBefore();
+
+        // Not all sources can provide Before data and need to be compatible
+        if (null == beforeData || beforeData.isEmpty()) {
+            beforeData = recordEvent.getAfter();
+        }
+
         for (String field : uniqueCondition) {
             afterValue = afterData.get(field);
             beforeValue = beforeData.get(field);
@@ -269,6 +277,7 @@ public class TapTableWriter implements IWriter<TapRecordEvent, WriteListResult<T
             }
             throw new RuntimeException("Not support change condition keys: " + recordEvent);
         }
+
         return statementMap.computeIfAbsent(statementKey, k -> {
             try {
                 StringBuilder sql = new StringBuilder();

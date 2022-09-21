@@ -22,14 +22,17 @@ public class OceanbaseWriter implements IPartitionsWriter<OceanbaseJdbcContext, 
     private String updatePolicy = ConnectionOptions.DML_UPDATE_POLICY_IGNORE_ON_NON_EXISTS;
 
     @Override
-    public synchronized TapTableWriter partition(OceanbaseJdbcContext jdbcContext, TapTable tapTable, Supplier<Boolean> isRunning) throws Exception {
+    public TapTableWriter partition(OceanbaseJdbcContext jdbcContext, TapTable tapTable, Supplier<Boolean> isRunning) throws Exception {
         String partition = partitionKey();
-        TapTableWriter writer = writerMap.get(partition);
-        if (null == writer) {
-            writer = new TapTableWriter(jdbcContext.getConnection(), tapTable, isRunning, insertPolicy, updatePolicy);
-            writerMap.put(partition, writer);
+
+        synchronized (writerMap) {
+            TapTableWriter writer = writerMap.get(partition);
+            if (null == writer) {
+                writer = new TapTableWriter(jdbcContext.getConnection(), tapTable, isRunning, insertPolicy, updatePolicy);
+                writerMap.put(partition, writer);
+            }
+            return writer;
         }
-        return writer;
     }
 
     @Override
