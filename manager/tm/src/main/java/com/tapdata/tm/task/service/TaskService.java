@@ -1802,6 +1802,11 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         return transformSchemaService.getTransformParam(taskDto, user);
     }
 
+    public TransformerWsMessageDto findTransformAllParam(String taskId, UserDetail user) {
+        TaskDto taskDto = checkExistById(MongoUtils.toObjectId(taskId), user);
+        return transformSchemaService.getTransformParam(taskDto, user, true);
+    }
+
     public TaskDto findByTaskId(ObjectId id, String... fields) {
         Query query = new Query(Criteria.where("_id").is(id));
         query.fields().include(fields);

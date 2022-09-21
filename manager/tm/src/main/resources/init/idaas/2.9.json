@@ -52,5 +52,20 @@
 				"background": true
 			}
 		]
-  }
+  },
+	{ "dropIndexes": "MetadataInstances",
+		"index": "index_task_id"
+	},
+	{
+		"createIndexes": "MetadataInstances",
+		"indexes": [
+			{
+				"name": "index_task_id",
+				"key": {
+					"taskId": 1
+				},
+				"background": true
+			}
+		]
+	}
 ]

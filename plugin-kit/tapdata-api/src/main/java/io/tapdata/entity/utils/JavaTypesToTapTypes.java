@@ -39,7 +39,7 @@ public class JavaTypesToTapTypes {
             case JAVA_Date:
                 return tapDateTime().fraction(3);
             case JAVA_BigDecimal:
-                return tapNumber().precision(10000).scale(100).fixed(true);
+                return tapNumber().maxValue(BigDecimal.valueOf(Double.MAX_VALUE)).minValue(BigDecimal.valueOf(-Double.MAX_VALUE)).precision(10000).scale(100).fixed(true);
             case JAVA_Double:
                 return tapNumber().maxValue(BigDecimal.valueOf(Double.MAX_VALUE)).minValue(BigDecimal.valueOf(-Double.MAX_VALUE)).scale(17).precision(309).fixed(false);
             case JAVA_Long:
