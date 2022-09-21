@@ -1,5 +1,9 @@
 package com.tapdata.tm.task.controller;
 
+import com.alibaba.fastjson.JSON;
+import com.alibaba.fastjson.JSONArray;
+import com.google.gson.reflect.TypeToken;
+import com.tapdata.manager.common.utils.JsonUtil;
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.*;
 import com.tapdata.tm.commons.dag.DAG;
@@ -38,6 +42,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.enums.ParameterIn;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import io.tapdata.entity.utils.JsonParser;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
@@ -866,9 +871,13 @@ public class TaskController extends BaseController {
 
     @Operation(summary = "任务导入")
     @PostMapping(path = "batch/import", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ResponseMessage<Void> upload(@RequestParam(value = "file") MultipartFile file
-            , @RequestParam(value = "cover", required = false, defaultValue = "false") boolean cover) {
-        taskService.batchUpTask(file, getLoginUser(), cover);
+    public ResponseMessage<Void> upload(@RequestParam(value = "file") MultipartFile file,
+                                        @RequestParam(value = "cover", required = false, defaultValue = "false") boolean cover,
+                                        @RequestParam String listtags) {
+        List<String> tags = JsonUtil.parseJson(listtags, new TypeToken<List<String>>(){}.getType());
+        List<com.tapdata.tm.commons.schema.Tag> collect = tags.stream().map(id ->
+                new com.tapdata.tm.commons.schema.Tag(new ObjectId(id), "")).collect(Collectors.toList());
+        taskService.batchUpTask(file, getLoginUser(), cover, collect);
         return success();
     }
 
@@ -928,6 +937,12 @@ public class TaskController extends BaseController {
     @GetMapping("transformParam/{taskId}")
     public ResponseMessage<TransformerWsMessageDto> findTransformParam(@PathVariable("taskId") String taskId) {
         TransformerWsMessageDto dto = taskService.findTransformParam(taskId, getLoginUser());
+        return success(dto);
+    }
+
+    @GetMapping("transformAllParam/{taskId}")
+    public ResponseMessage<TransformerWsMessageDto> findTransformAllParam(@PathVariable("taskId") String taskId) {
+        TransformerWsMessageDto dto = taskService.findTransformAllParam(taskId, getLoginUser());
         return success(dto);
     }
 

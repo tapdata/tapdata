@@ -15,7 +15,9 @@ import com.tapdata.tm.commons.schema.Schema;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
+import io.tapdata.entity.schema.type.TapType;
 import io.tapdata.entity.schema.value.TapValue;
+import io.tapdata.entity.utils.JavaTypesToTapTypes;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
 import io.tapdata.pdk.core.utils.ReflectionUtil;
 import io.tapdata.schema.TapTableMap;
@@ -171,8 +173,17 @@ public class HazelcastSchemaTargetNode extends HazelcastVirtualTargetNode {
 				}
 				if (entry.getValue() instanceof TapValue) {
 					TapValue<?, ?> tapValue = (TapValue<?, ?>) entry.getValue();
-					TapField tapField = new TapField(entry.getKey(), tapValue.getOriginType());
+					TapField tapField = new TapField()
+									.name(entry.getKey())
+									.dataType(tapValue.getOriginType())
+									.tapType(tapValue.getTapType());
 					tapField.setTapType(tapValue.getTapType());
+					tapTable.add(tapField);
+				} else {
+					TapType tapType = JavaTypesToTapTypes.toTapType(entry.getValue());
+					TapField tapField = new TapField()
+									.name(entry.getKey())
+									.tapType(tapType);
 					tapTable.add(tapField);
 				}
 			}
