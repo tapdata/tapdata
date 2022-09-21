@@ -1351,14 +1351,16 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
                     queryMetadata.fields().include(fieldArrays);
                 }
                 if (node instanceof TableRenameProcessNode || node instanceof MigrateFieldRenameProcessorNode || node instanceof MigrateJsProcessorNode) {
-                    queryMetadata.addCriteria(criteriaNode);
-                    String qualifiedName = MetaDataBuilderUtils.generateQualifiedName(MetaType.processor_node.name(), nodeId, null, taskId);
-                    criteriaNode.and("qualified_name").regex("^"+qualifiedName+".*")
-                            .and("is_deleted").ne(true);
-                    List<MetadataInstancesDto> all = findAll(queryMetadata);
+//                    queryMetadata.addCriteria(criteriaNode);
+//                    String qualifiedName = MetaDataBuilderUtils.generateQualifiedName(MetaType.processor_node.name(), nodeId, null, taskId);
+//                    criteriaNode.and("qualified_name").regex("^"+qualifiedName+".*")
+//                            .and("is_deleted").ne(true);
+                    Query nodeQuery = new Query(Criteria.where("nodeId").is(nodeId).and("is_deleted").ne(true));
+                    List<MetadataInstancesDto> all = findAll(nodeQuery);
                     Map<String, MetadataInstancesDto> currentMap = all.stream()
                             .collect(Collectors.toMap(MetadataInstancesDto::getOriginalName
                                     , s->s, (m1, m2) -> m1));
+                    // todo 下面逻辑可能会出现问题，相当于copy一份原表名的模型，数据上存在"错误"，加入表A改名B 表B改名A
                     if (node instanceof TableRenameProcessNode) {
                         LinkedHashSet<TableRenameTableInfo> tableNames = ((TableRenameProcessNode) node).getTableNames();
                         for (TableRenameTableInfo tableName : tableNames) {
