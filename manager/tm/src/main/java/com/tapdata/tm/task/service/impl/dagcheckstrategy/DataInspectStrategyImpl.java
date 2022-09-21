@@ -2,6 +2,8 @@ package com.tapdata.tm.task.service.impl.dagcheckstrategy;
 
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.commons.dag.DAG;
+import com.tapdata.tm.commons.dag.Node;
+import com.tapdata.tm.commons.dag.NodeEnum;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
@@ -46,23 +48,24 @@ public class DataInspectStrategyImpl implements DagLogStrategy {
         try {
             DAG dag = taskDto.getDag();
 
-//            // 不能有处理节点
-//            List<String> filterNames = new ArrayList<>();
-//            for (Node<?> node : dag.getNodes()) {
-//                switch (NodeEnum.valueOf(node.getType())) {
-//                    case table:
-//                    case database:
+            // 不能有处理节点
+            List<String> filterNames = new ArrayList<>();
+            for (Node<?> node : dag.getNodes()) {
+                switch (NodeEnum.valueOf(node.getType())) {
+                    case table:
+                    case database:
+                    case js_processor:
 //                    case table_rename_processor:
 //                    case migrate_field_rename_processor:
-//                        break;
-//                    default:
-//                        filterNames.add(node.getName() + "(" + node.getType() + ")");
-//                        break;
-//                }
-//            }
-//            if (!filterNames.isEmpty()) {
-//                results.add(createError(taskDto, userDetail, String.format("节点 %s 不支持校验，请删除节点或关闭校验", String.join(",", filterNames))));
-//            }
+                        break;
+                    default:
+                        filterNames.add(node.getName() + "(" + node.getType() + ")");
+                        break;
+                }
+            }
+            if (!filterNames.isEmpty()) {
+                results.add(createError(taskDto, userDetail, String.format("节点 %s 不支持校验，请删除节点或关闭校验", String.join(",", filterNames))));
+            }
 
             // 数据节点支持查询接口
             // 不能开启动态新增表
