@@ -14,6 +14,7 @@ import com.tapdata.tm.alarm.constant.AlarmMailTemplate;
 import com.tapdata.tm.alarm.constant.AlarmStatusEnum;
 import com.tapdata.tm.alarm.dto.*;
 import com.tapdata.tm.alarm.entity.AlarmInfo;
+import com.tapdata.tm.alarm.scheduler.Rule;
 import com.tapdata.tm.alarm.service.AlarmService;
 import com.tapdata.tm.alarmrule.service.AlarmRuleService;
 import com.tapdata.tm.base.dto.Page;
@@ -158,6 +159,27 @@ public class AlarmServiceImpl implements AlarmService {
     @Nullable
     @SuppressWarnings("unchecked")
     private List<AlarmRuleDto> getAlarmRuleDtos(TaskDto taskDto) {
+        if (Objects.nonNull(taskDto)) {
+            List<AlarmRuleDto> ruleDtos = Lists.newArrayList();
+            ruleDtos.addAll(Optional.ofNullable(taskDto.getAlarmRules()).orElse(Collections.emptyList()));
+
+            taskDto.getDag().getNodes().forEach(node -> {
+                ruleDtos.addAll(Optional.ofNullable(node.getAlarmRules()).orElse(Collections.emptyList()));
+            });
+            return ruleDtos;
+        }
+        return null;
+    }
+
+    @Override
+    public List<Rule> findAllRuleWithMoreInfo(String taskId) {
+        TaskDto taskDto = taskService.findById(MongoUtils.toObjectId(taskId));
+        return getAlarmRules(taskDto);
+    }
+
+    @Nullable
+    @SuppressWarnings("unchecked")
+    private List<Rule> getAlarmRules(TaskDto taskDto) {
         if (Objects.nonNull(taskDto)) {
             List<AlarmRuleDto> ruleDtos = Lists.newArrayList();
             ruleDtos.addAll(Optional.ofNullable(taskDto.getAlarmRules()).orElse(Collections.emptyList()));
