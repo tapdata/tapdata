@@ -8,6 +8,7 @@ import net.jodah.typetools.TypeResolver;
 
 import java.lang.reflect.Type;
 import java.nio.charset.StandardCharsets;
+import java.util.function.BiConsumer;
 
 import static io.tapdata.entity.simplify.TapSimplify.fromJson;
 
@@ -30,7 +31,7 @@ public class ReceiverEntity<Response, Request> {
 		requestClass = (Class<Request>) types[1];
 	}
 
-	public Response receive(String nodeId, Byte encode, byte[] data) {
+	public void receive(String nodeId, Byte encode, byte[] data, BiConsumer<Object, Throwable> biConsumer) {
 		if(encode == null)
 			encode = Data.ENCODE_JSON;
 		Request request = null;
@@ -41,10 +42,11 @@ public class ReceiverEntity<Response, Request> {
 				request = fromJson(jsonStr, requestClass);
 				break;
 			default:
-				throw new CoreException(NetErrors.UNSUPPORTED_ENCODE, "Unsupported encode {} for ReceiverEntity", encode);
+				biConsumer.accept(null, new CoreException(NetErrors.UNSUPPORTED_ENCODE, "Unsupported encode {} for ReceiverEntity", encode));
+				return;
 		}
 		//noinspection unchecked
-		return receiver.received(nodeId, request);
+		receiver.received(nodeId, request, biConsumer);
 	}
 
 	public Receiver<Response, Request> getReceiver() {

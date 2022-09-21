@@ -99,6 +99,10 @@ public class JsonParserImpl implements JsonParser {
     }
 
     @Override
+    public <T> T fromJson(String json, Type clazz) {
+        return JSON.parseObject(json, clazz, Feature.OrderedField, /*Feature.UseNativeJavaObject, */Feature.DisableCircularReferenceDetect);
+    }
+    @Override
     public <T> T fromJson(String json, Class<T> clazz) {
         return JSON.parseObject(json, clazz, Feature.OrderedField, /*Feature.UseNativeJavaObject, */Feature.DisableCircularReferenceDetect);
     }

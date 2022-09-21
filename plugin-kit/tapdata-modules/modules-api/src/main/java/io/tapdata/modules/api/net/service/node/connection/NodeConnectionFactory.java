@@ -1,5 +1,6 @@
 package io.tapdata.modules.api.net.service.node.connection;
 
+import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 
 public interface NodeConnectionFactory {
@@ -11,5 +12,5 @@ public interface NodeConnectionFactory {
 
 	<Request, Response> void registerReceiver(String type, Receiver<Response, Request> receiver);
 
-	Object received(String nodeId, String type, Byte encode, byte[] data);
+	void received(String nodeId, String type, Byte encode, byte[] data, BiConsumer<Object, Throwable> biConsumer);
 }

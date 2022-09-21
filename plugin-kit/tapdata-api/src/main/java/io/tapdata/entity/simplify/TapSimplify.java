@@ -21,6 +21,7 @@ import io.tapdata.entity.utils.*;
 
 import java.io.PrintWriter;
 import java.io.StringWriter;
+import java.lang.reflect.Type;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
@@ -65,6 +66,10 @@ public class TapSimplify {
 	}
 
 	public static <T> T fromJson(String json, Class<T> clazz) {
+		return jsonParser.fromJson(json, clazz);
+	}
+
+	public static <T> T fromJson(String json, Type clazz) {
 		return jsonParser.fromJson(json, clazz);
 	}
 

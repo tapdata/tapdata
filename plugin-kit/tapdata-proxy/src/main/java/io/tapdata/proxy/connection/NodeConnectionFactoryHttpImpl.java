@@ -19,6 +19,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentSkipListSet;
+import java.util.function.BiConsumer;
 
 @Implementation(NodeConnectionFactory.class)
 public class NodeConnectionFactoryHttpImpl implements NodeConnectionFactory {
@@ -77,7 +78,7 @@ public class NodeConnectionFactoryHttpImpl implements NodeConnectionFactory {
 	}
 
 	@Override
-	public Object received(String nodeId, String type, Byte encode, byte[] data) {
+	public void received(String nodeId, String type, Byte encode, byte[] data, BiConsumer<Object, Throwable> biConsumer) {
 		if(type == null)
 			throw new CoreException(NetErrors.ILLEGAL_PARAMETERS, "Missing type while receiving request");
 		if(nodeId == null)
@@ -94,19 +95,18 @@ public class NodeConnectionFactoryHttpImpl implements NodeConnectionFactory {
 			throw new CoreException(NetErrors.NO_FUNCTION_ON_TYPE, "No receiver on type {} while receiving request from nodeId {}", type, nodeId);
 
 		//noinspection unchecked
-		return receiverEntity.receive(nodeId, encode, data);
+		receiverEntity.receive(nodeId, encode, data, biConsumer);
 	}
 
 	public static void main(String[] args) {
 		NodeConnectionFactory nodeConnectionFactory = InstanceFactory.instance(NodeConnectionFactory.class);
 		nodeConnectionFactory.registerReceiver("aaa", new Receiver<NodeConnectionFactory, String>() {
 			@Override
-			public NodeConnectionFactory received(String nodeId, String s) {
-				return null;
+			public void received(String nodeId, String s, BiConsumer<Object, Throwable> biConsumer) {
 			}
 		});
 
-		nodeConnectionFactory.registerReceiver("aaa", (Receiver<ReceiverEntity, Proxy>) (nodeId, proxy) -> null);
+		nodeConnectionFactory.registerReceiver("aaa", (Receiver<ReceiverEntity, Proxy>) (nodeId, proxy, biConsumer) -> {});
 
 	}
 }

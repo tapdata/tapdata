@@ -3,6 +3,7 @@ package io.tapdata.wsserver.channels.health;
 import io.tapdata.entity.annotations.Bean;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.logger.TapLogger;
+import io.tapdata.entity.utils.TypeHolder;
 import io.tapdata.modules.api.net.entity.NodeHealth;
 import io.tapdata.modules.api.net.entity.NodeRegistry;
 import io.tapdata.modules.api.net.entity.ProxySubscription;
@@ -10,17 +11,23 @@ import io.tapdata.modules.api.net.error.NetErrors;
 import io.tapdata.modules.api.net.service.node.NodeHealthService;
 import io.tapdata.modules.api.net.service.node.NodeRegistryService;
 import io.tapdata.modules.api.net.service.ProxySubscriptionService;
+import io.tapdata.modules.api.net.service.node.connection.NodeConnection;
 import io.tapdata.modules.api.net.service.node.connection.NodeConnectionFactory;
+import io.tapdata.pdk.apis.entity.CommandInfo;
 import io.tapdata.pdk.core.executor.ExecutorsManager;
 import io.tapdata.pdk.core.utils.CommonUtils;
+import io.tapdata.pdk.core.utils.RandomDraw;
 import io.tapdata.wsserver.channels.gateway.GatewaySessionManager;
 
+import java.io.IOException;
+import java.lang.reflect.Type;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
 @Bean
@@ -242,5 +249,49 @@ public class NodeHealthManager {
 
 	public void setDeleteNodeConsumer(Consumer<NodeRegistry> deleteNodeConsumer) {
 		this.deleteNodeConsumer = deleteNodeConsumer;
+	}
+
+	public <T> void send(String type, CommandInfo commandInfo, TypeHolder<T> typeHolder, BiConsumer<T, Throwable> biConsumer) {
+		//noinspection unchecked
+		send(type, commandInfo, typeHolder.getType(), biConsumer);
+	}
+	public <T> void send(String type, CommandInfo commandInfo, Type tClass, BiConsumer<T, Throwable> biConsumer) {
+		List<String> list = new ArrayList<>();
+		Map<String, NodeHandler> healthyNodes = getIdNodeHandlerMap();
+		if(healthyNodes != null) {
+			for(NodeHandler nodeHandler : healthyNodes.values()) {
+				NodeHealth nodeHealth = nodeHandler.getNodeHealth();
+				NodeHealth currentNodeHealth = getCurrentNodeHealth();
+				if(!currentNodeHealth.getId().equals(nodeHealth.getId()) && nodeHealth.getOnline() != null && nodeHealth.getOnline() > 0) {
+					list.add(nodeHealth.getId());
+				}
+			}
+		}
+
+		Throwable error = null;
+		if(!list.isEmpty()) {
+			RandomDraw randomDraw = new RandomDraw(list.size());
+			int index;
+			while ((index = randomDraw.next()) != -1) {
+				String id = list.get(index);
+				NodeConnection nodeConnection = nodeConnectionFactory.getNodeConnection(id);
+				if (nodeConnection != null && nodeConnection.isReady()) {
+					try {
+						//noinspection unchecked
+						T response = nodeConnection.send(type, commandInfo, tClass);
+						biConsumer.accept(response, null);
+						return;
+					} catch (IOException ioException) {
+						TapLogger.debug(TAG, "Send to nodeId {} failed {} and will try next, command {}", id, ioException.getMessage(), commandInfo);
+						error = ioException;
+					}
+				}
+			}
+		}
+		if(error != null) {
+			biConsumer.accept(null, error);
+		} else {
+			biConsumer.accept(null, new CoreException(NetErrors.NO_AVAILABLE_ENGINE, "No available engine"));
+		}
 	}
 }

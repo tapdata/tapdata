@@ -44,6 +44,7 @@ import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.function.BiConsumer;
 
 import static io.tapdata.entity.simplify.TapSimplify.*;
 import static io.tapdata.entity.simplify.TapSimplify.toJson;
@@ -207,10 +208,83 @@ public class ProxyController extends BaseController {
         return success(new ObjectId().toString());
     }
 
+//
+//    @Operation(summary = "External callback url")
+//    @PostMapping("internal")
+//    public void proxyCall(HttpServletRequest request,
+//                          HttpServletResponse response,
+//                          @RequestParam(name = "key", required = true) String key,
+//                          @RequestParam(name = "ping", required = false) String pingNodeId) {
+//        try {
+//            if(!key.equals(ProxyConstants.INTERNAL_KEY))
+//                throw new BizException("Permission denied");
+//
+//            String nodeId = CommonUtils.getProperty("tapdata_node_id");
+//            if(nodeId == null)
+//                throw new BizException("Current nodeId not found");
+//
+//            if(pingNodeId != null) {
+//                if(pingNodeId.equals(nodeId)) {
+//                    response.setStatus(202);
+//                    return;
+//                } else
+//                    throw new BizException("Try to visit nodeId " + pingNodeId + " but is " + nodeId);
+//            }
+//
+//            NodeMessage nodeMessage = new NodeMessage();
+//            try {
+//                nodeMessage.from(request.getInputStream());
+//            } catch (IOException e) {
+//                throw new BizException("PostRequest resurrect failed, {}", e.getMessage());
+//            }
+//
+//            if(!nodeId.equals(nodeMessage.getToNodeId()))
+//                throw new BizException("PostRequest's nodeId {} is not current, wrong node? ", nodeMessage.getToNodeId());
+//
+//            NodeConnectionFactory nodeConnectionFactory = InstanceFactory.instance(NodeConnectionFactory.class);
+//            if(nodeConnectionFactory == null)
+//                throw new BizException("nodeConnectionFactory is not initialized");
+//
+//            Object responseObj = nodeConnectionFactory.received(nodeMessage.getFromNodeId(), nodeMessage.getType(), nodeMessage.getEncode(), nodeMessage.getData());
+//            try (OutputStream os = response.getOutputStream()) {
+//                NodeMessage responseMessage = new NodeMessage();
+//                responseMessage.id(nodeMessage.getId())
+//                        .fromNodeId(nodeId)
+//                        .toNodeId(nodeMessage.getFromNodeId())
+//                        .type(nodeMessage.getType())
+//                        .time(System.currentTimeMillis())
+//                        .encode(Data.ENCODE_JSON)
+//                        .data(toJson(responseObj).getBytes(StandardCharsets.UTF_8));
+//                responseMessage.to(os);
+//            }
+//            return;
+//        } catch (Throwable throwable) {
+//            int code = 8888;
+//            CoreException coreException = null;
+//            if(throwable instanceof CoreException) {
+//                coreException = (CoreException) throwable;
+//                code = coreException.getCode();
+//            }
+//            TapLogger.debug(TAG, "Internal proxy call failed, {}", ExceptionUtils.getStackTrace(throwable));
+//            response.setStatus(208);
+//            Result result = new Result().forId(throwable.getClass().getSimpleName()).description(throwable.getMessage()).code(code).time(System.currentTimeMillis());
+//            try(OutputStream os = response.getOutputStream()) {
+//                result.to(os);
+//            } catch (IOException e) {
+//                throw new RuntimeException(e);
+//            }
+//            return;
+////            try {
+////                response.sendError(code, throwable.getMessage());
+////            } catch (Throwable ignored) {
+////            }
+//        }
+//
+//    }
 
     @Operation(summary = "External callback url")
     @PostMapping("internal")
-    public void proxyCall(HttpServletRequest request,
+    public void proxyCallNew(HttpServletRequest request,
                           HttpServletResponse response,
                           @RequestParam(name = "key", required = true) String key,
                           @RequestParam(name = "ping", required = false) String pingNodeId) {
@@ -236,6 +310,8 @@ public class ProxyController extends BaseController {
             } catch (IOException e) {
                 throw new BizException("PostRequest resurrect failed, {}", e.getMessage());
             }
+            if(nodeMessage.getId() == null)
+                nodeMessage.id(UUID.randomUUID().toString().replace("-", ""));
 
             if(!nodeId.equals(nodeMessage.getToNodeId()))
                 throw new BizException("PostRequest's nodeId {} is not current, wrong node? ", nodeMessage.getToNodeId());
@@ -244,41 +320,51 @@ public class ProxyController extends BaseController {
             if(nodeConnectionFactory == null)
                 throw new BizException("nodeConnectionFactory is not initialized");
 
-            Object responseObj = nodeConnectionFactory.received(nodeMessage.getFromNodeId(), nodeMessage.getType(), nodeMessage.getEncode(), nodeMessage.getData());
-            try (OutputStream os = response.getOutputStream()) {
-                NodeMessage responseMessage = new NodeMessage();
-                responseMessage.id(nodeMessage.getId())
-                        .fromNodeId(nodeId)
-                        .toNodeId(nodeMessage.getFromNodeId())
-                        .type(nodeMessage.getType())
-                        .time(System.currentTimeMillis())
-                        .encode(Data.ENCODE_JSON)
-                        .data(toJson(responseObj).getBytes(StandardCharsets.UTF_8));
-                responseMessage.to(os);
+            asyncContextManager.registerAsyncJob(nodeMessage.getId(), request, (result, error) -> {
+                if(error == null) {
+                    try (OutputStream os = response.getOutputStream()) {
+                        NodeMessage responseMessage = new NodeMessage();
+                        responseMessage.id(nodeMessage.getId())
+                                .fromNodeId(nodeId)
+                                .toNodeId(nodeMessage.getFromNodeId())
+                                .type(nodeMessage.getType())
+                                .time(System.currentTimeMillis())
+                                .encode(Data.ENCODE_JSON)
+                                .data(toJson(result).getBytes(StandardCharsets.UTF_8));
+                        responseMessage.to(os);
+                        return;
+                    } catch (Throwable throwable1) {
+                        error = throwable1;
+                    }
+                }
+                handleError(response, error);
+            });
+            try {
+                nodeConnectionFactory.received(nodeMessage.getFromNodeId(), nodeMessage.getType(), nodeMessage.getEncode(), nodeMessage.getData(), (responseObj, throwable) -> {
+                    asyncContextManager.applyAsyncJobResult(nodeMessage.getId(), responseObj, throwable);
+                });
+            } catch(Throwable throwable) {
+                asyncContextManager.applyAsyncJobResult(nodeMessage.getId(), null, throwable);
             }
-            return;
         } catch (Throwable throwable) {
-            int code = 8888;
-            CoreException coreException = null;
-            if(throwable instanceof CoreException) {
-                coreException = (CoreException) throwable;
-                code = coreException.getCode();
-            }
-            TapLogger.debug(TAG, "Internal proxy call failed, {}", ExceptionUtils.getStackTrace(throwable));
-            response.setStatus(208);
-            Result result = new Result().forId(throwable.getClass().getSimpleName()).description(throwable.getMessage()).code(code).time(System.currentTimeMillis());
-            try(OutputStream os = response.getOutputStream()) {
-                result.to(os);
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
-            return;
-//            try {
-//                response.sendError(code, throwable.getMessage());
-//            } catch (Throwable ignored) {
-//            }
+            handleError(response, throwable);
         }
+    }
 
+    private void handleError(HttpServletResponse response, Throwable error) {
+        int code = NetErrors.UNKNOWN_ERROR;
+        if(error instanceof CoreException) {
+            CoreException coreException = (CoreException) error;
+            code = coreException.getCode();
+        }
+        TapLogger.debug(TAG, "Internal proxy call failed, {}", ExceptionUtils.getStackTrace(error));
+        response.setStatus(208);
+        Result theResult = new Result().forId(error.getClass().getSimpleName()).description(error.getMessage()).code(code).time(System.currentTimeMillis());
+        try(OutputStream os = response.getOutputStream()) {
+            theResult.to(os);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     @Operation(summary = "External callback url")

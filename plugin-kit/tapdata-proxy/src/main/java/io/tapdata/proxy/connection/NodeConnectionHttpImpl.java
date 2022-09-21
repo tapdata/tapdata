@@ -17,6 +17,7 @@ import io.tapdata.pdk.core.utils.state.StateMachine;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.lang.reflect.Type;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
@@ -227,7 +228,7 @@ public class NodeConnectionHttpImpl implements NodeConnection {
 	}
 
 	@Override
-	public <Request, Response> Response send(String type, Request request, Class<Response> responseClass) throws IOException {
+	public <Request, Response> Response send(String type, Request request, Type responseClass) throws IOException {
 		if(!stateMachine.getCurrentState().equals(STATE_READY))
 			throw new IOException(FormatUtils.format("NodeConnection's state is not ready, nodeRegistry {}", nodeRegistry));
 
