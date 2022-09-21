@@ -110,3 +110,4 @@ tmp_dist/
 tap_table_ehcache/
 **/logs/
 CacheObserveLogs/
+/node_modules/
