@@ -860,6 +860,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         taskDto.setName(copyName);
         taskDto.setStatus(TaskDto.STATUS_EDIT);
         taskDto.setStatuses(new ArrayList<>());
+        taskDto.setStartTime(null);
         //taskDto.setTemp(null);
 
         //创建新任务， 直接调用事务不会生效
