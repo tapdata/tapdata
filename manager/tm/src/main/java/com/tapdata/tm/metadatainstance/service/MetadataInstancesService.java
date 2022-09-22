@@ -926,18 +926,7 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
             List<String> findQualifiedNames = new ArrayList<>();
             Map<String, MetadataInstancesDto> metaMap = new HashMap<>();
             for (MetadataInstancesDto value : updateMetaMap.values()) {
-                if (saveHistory) {
-                    String qualifiedName = value.getQualifiedName();
-                    int i = qualifiedName.lastIndexOf("_");
-                    String oldQualifiedName = qualifiedName.substring(0, i);
-                    value.setQualifiedName(oldQualifiedName);
-                    qualifiedNames.add(oldQualifiedName);
-                    findQualifiedNames.add(oldQualifiedName);
-                    value.setTaskId(null);
-                } else {
-                    qualifiedNames.add(value.getQualifiedName());
-                    findQualifiedNames.add(value.getQualifiedName());
-                }
+                findQualifiedNames.add(value.getQualifiedName());
             }
             Criteria criteria = Criteria.where("qualified_name").in(findQualifiedNames);
             Query query = new Query(criteria);
@@ -948,15 +937,17 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
             for (Map.Entry<String, MetadataInstancesDto> entry : updateMetaMap.entrySet()) {
                 MetadataInstancesDto value = entry.getValue();
 
-
                 value.setHistories(null);
                 value.setSource(null);
                 value.setId(null);
+
+
                 if (StringUtils.isNotBlank(uuid) && !saveHistory) {
                     value.setTransformUuid(uuid);
                 }
                 MetadataInstancesEntity entity = convertToEntity(MetadataInstancesEntity.class, value);
                 Update update = repository.buildUpdateSet(entity, userDetail);
+
 
                 if (saveHistory) {
                     //保存历史，用于自动ddl
@@ -976,6 +967,23 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
 
                 bulkOperations.updateOne(where, update);
                 write = true;
+                if (saveHistory) {
+                    String qualifiedName = value.getQualifiedName();
+                    int i = qualifiedName.lastIndexOf("_");
+                    String oldQualifiedName = qualifiedName.substring(0, i);
+                    value.setQualifiedName(oldQualifiedName);
+                    qualifiedNames.add(oldQualifiedName);
+                    value.setTaskId(null);
+
+                    value.setCreateSource(null);
+                    value.setSourceType(null);
+
+                    MetadataInstancesEntity entityOld = convertToEntity(MetadataInstancesEntity.class, value);
+                    Update updateOld = repository.buildUpdateSet(entityOld, userDetail);
+                    Query whereOld = Query.query(Criteria.where("qualified_name").is(value.getQualifiedName()));
+
+                    bulkOperations.updateOne(whereOld, updateOld);
+                }
             }
         }
 
