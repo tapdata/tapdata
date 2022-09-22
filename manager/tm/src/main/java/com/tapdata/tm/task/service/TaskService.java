@@ -2316,9 +2316,6 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         start(taskDto, user, "11");
     }
     private void start(TaskDto taskDto, UserDetail user, String startFlag) {
-
-        monitoringLogsService.startTaskMonitoringLog(taskDto, user);
-
         //日志挖掘
         if (startFlag.charAt(0) == '1') {
             logCollectorService.logCollector(user, taskDto);
@@ -2364,7 +2361,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
     public void run(TaskDto taskDto, UserDetail user) {
         //将子任务的状态改成启动
-        DAG dag = taskDto.getDag();
+//        DAG dag = taskDto.getDag();
         Query query = new Query(Criteria.where("id").is(taskDto.getId()).and("status").is(taskDto.getStatus()));
         //需要将重启标识清除
         UpdateResult update = update(query, Update.update("status", TaskDto.STATUS_SCHEDULING).set("isEdit", false).set("restartFlag", false), user);
@@ -2394,7 +2391,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             updateTaskRecordStatus(taskDto, TaskDto.STATUS_SCHEDULE_FAILED);
         }
 
-        WorkerDto workerDto = workerService.findOne(new Query(Criteria.where("processId").is(taskDto.getAgentId())));
+//        WorkerDto workerDto = workerService.findOne(new Query(Criteria.where("processId").is(taskDto.getAgentId())));
 
         //调度完成之后，改成待运行状态
         Query query1 = new Query(Criteria.where("_id").is(taskDto.getId()).and("status").is(TaskDto.STATUS_SCHEDULING));
@@ -2541,6 +2538,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
      * @param id
      */
     public String running(ObjectId id, UserDetail user) {
+
         //判断子任务是否存在
         TaskDto taskDto = checkExistById(id, user, "_id", "status", "name", "taskRecordId", "startTime");
         //将子任务状态改成运行中
@@ -2551,9 +2549,12 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         Query query1 = new Query(Criteria.where("_id").is(taskDto.getId()).and("status").is(TaskDto.STATUS_WAIT_RUN));
 
         Update update = Update.update("status", TaskDto.STATUS_RUNNING);
+        Date now = DateUtil.date();
         if (taskDto.getStartTime() == null) {
-            update.set("startTime", new Date());
+            update.set("startTime", now);
         }
+
+        monitoringLogsService.startTaskMonitoringLog(taskDto, user, now);
 
         UpdateResult update1 = update(query1, update, user);
         updateTaskRecordStatus(taskDto, TaskDto.STATUS_RUNNING);
