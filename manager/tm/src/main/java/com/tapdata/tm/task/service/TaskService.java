@@ -350,6 +350,8 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
      */
     //@Transactional
     public TaskDto updateById(TaskDto taskDto, UserDetail user) {
+        //不接受前端修改传过来的状态
+        taskDto.setStatus(null);
         checkTaskInspectFlag(taskDto);
         //根据id校验当前需要更新到任务是否存在
         TaskDto oldTaskDto = null;
