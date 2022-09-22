@@ -1,9 +1,6 @@
 package io.tapdata.mongodb;
 
-import com.mongodb.MongoNodeIsRecoveringException;
-import com.mongodb.MongoNotPrimaryException;
-import com.mongodb.MongoSocketException;
-import com.mongodb.MongoTimeoutException;
+import com.mongodb.*;
 import com.mongodb.client.*;
 import com.mongodb.client.model.IndexOptions;
 import com.mongodb.client.model.Sorts;
@@ -371,6 +368,7 @@ public class MongodbConnector extends ConnectorBase {
 		if (null != matchThrowable(throwable, MongoTimeoutException.class)
 				|| null != matchThrowable(throwable, MongoSocketException.class)
 				|| null != matchThrowable(throwable, MongoNotPrimaryException.class)
+				|| null != matchThrowable(throwable, MongoServerUnavailableException.class)
 				|| null != matchThrowable(throwable, MongoNodeIsRecoveringException.class)) {
 			retryOptions.needRetry(true);
 			return retryOptions;
