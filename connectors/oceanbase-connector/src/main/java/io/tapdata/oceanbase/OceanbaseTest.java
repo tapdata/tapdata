@@ -1,10 +1,7 @@
 package io.tapdata.oceanbase;
 
-import com.zaxxer.hikari.HikariDataSource;
-import io.tapdata.common.CommonDbConfig;
 import io.tapdata.common.CommonDbTest;
 import io.tapdata.common.DataSourcePool;
-import io.tapdata.common.JdbcContext;
 import io.tapdata.constant.DbTestItem;
 import io.tapdata.oceanbase.bean.OceanbaseConfig;
 import io.tapdata.oceanbase.connector.OceanbaseJdbcContext;
@@ -13,7 +10,6 @@ import io.tapdata.util.NetUtil;
 
 import java.io.IOException;
 import java.sql.Connection;
-import java.util.UUID;
 
 import static io.tapdata.base.ConnectorBase.testItem;
 
