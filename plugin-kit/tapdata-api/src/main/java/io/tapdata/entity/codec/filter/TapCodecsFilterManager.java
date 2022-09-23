@@ -20,10 +20,6 @@ import io.tapdata.entity.schema.value.TapValue;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.entity.utils.JavaTypesToTapTypes;
 
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
@@ -68,7 +64,7 @@ public class TapCodecsFilterManager {
             if(theValue != null && fieldName != null) {
                 if((theValue instanceof TapValue)) {
                     TapLogger.debug(TAG, "Value {} for field {} already in TapValue format, no need do ToTapValue conversion. ", theValue, fieldName);
-                   return null;
+                    return null;
                 }
 
                 String dataType = null;
@@ -217,70 +213,6 @@ public class TapCodecsFilterManager {
             return null;
         });
         return valueMap;
-    }
-
-    public Map<String, TapField> transformFromTapValueMap(String theFieldName, TapArrayValue tapValueArray, Map<String, TapField> sourceNameFieldMap) {
-        Map<String, TapField> nameFieldMap = sourceNameFieldMap != null ? sourceNameFieldMap : new LinkedHashMap<>();
-
-        EntryFilter entryFilter = (fieldName, object, recursive) -> {
-//            Object object = stringTapValueEntry.getValue();
-            if(object instanceof TapValue) {
-                TapValue<?, ?> theValue = (TapValue<?, ?>) object;
-//                String fieldName = stringTapValueEntry.getKey();
-                if(fieldName != null) {
-                    FromTapValueCodec<TapValue<?, ?>> fromTapValueCodec = this.codecsRegistry.getCustomFromTapValueCodec((Class<TapValue<?, ?>>) theValue.getClass());
-                    if(fromTapValueCodec != null) {
-                        if(theValue instanceof TapMapValue) {
-                            transformFromTapValueMap(((TapMapValue) theValue).getValue());
-                        } else if(theValue instanceof TapArrayValue) {
-                            transformFromTapValueMap(theFieldName, (TapArrayValue) theValue, sourceNameFieldMap);
-                        } else {
-
-                        }
-                    } else {
-                        fromTapValueCodec = this.codecsRegistry.getDefaultFromTapValueCodec((Class<TapValue<?, ?>>) theValue.getClass());
-                    }
-                    if(fromTapValueCodec == null)
-                        throw new UnknownCodecException("fromTapValueMap codecs not found for value class " + theValue.getClass());
-
-//                    stringTapValueEntry.setValue(fromTapValueCodec.fromTapValue(theValue));
-                    if(!nameFieldMap.containsKey(fieldName)) {
-                        //Handle inserted new field
-                        nameFieldMap.put(fieldName, field(fieldName, theValue.getOriginType()).tapType(theValue.getTapType()));
-                    }
-                    //TODO Handle updated tapType field?
-                    //TODO Handle deleted field?
-                    return fromTapValueCodec.fromTapValue(theValue);
-                }
-            } else if(object != null) {
-                TapLogger.debug(TAG, "transformFromTapValueMap failed as object is not TapValue, but type {} value {}", object.getClass(), object);
-            }
-            return null;
-        };
-
-        int i = 0;
-        List<Object> newList = new ArrayList<>();
-        for(Object obj : tapValueArray.getValue()) {
-            if(obj instanceof TapMapValue) {
-                transformFromTapValueMap(((TapMapValue) obj).getValue(), sourceNameFieldMap);
-                newList.add(((TapMapValue) obj).getValue());
-//                mapIteratorFromTapValue.iterate(((TapMapValue) obj).getValue(), entryFilter);
-            } else if(obj instanceof TapArrayValue){
-                transformFromTapValueMap(theFieldName, (TapArrayValue) obj, sourceNameFieldMap);
-                newList.add(((TapArrayValue) obj).getValue());
-            } else {
-                Object newValue = entryFilter.filter(theFieldName + "." + i, obj, true);
-                if(newValue != null) {
-                    newList.add(newValue);
-                } else {
-                    newList.add(obj);
-                }
-            }
-            i++;
-        }
-        tapValueArray.setValue(newList);
-
-        return nameFieldMap;
     }
 
     public Map<String, TapField> transformFromTapValueMap(String theFieldName, TapArrayValue tapValueArray, Map<String, TapField> sourceNameFieldMap) {
