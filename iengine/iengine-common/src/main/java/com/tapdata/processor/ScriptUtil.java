@@ -123,7 +123,9 @@ public class ScriptUtil {
 																					Logger logger) throws ScriptException {
 
 		if (StringUtils.isBlank(script)) {
-			return null;
+			script = "function process(record){\n" +
+							"\treturn record;\n" +
+							"}";
 		}
 
 		ClassLoader contextClassLoader = Thread.currentThread().getContextClassLoader();

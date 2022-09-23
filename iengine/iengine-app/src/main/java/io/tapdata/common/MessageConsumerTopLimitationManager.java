@@ -71,31 +71,34 @@ public class MessageConsumerTopLimitationManager {
 	public void pushMessage(List<MessageEntity> msgs, Consumer<List<MessageEntity>> offerMessages) {
 		init();
 		lock.lock();
-		List<MessageEntity> processMsgs = new ArrayList<>();
-		for (MessageEntity msg : msgs) {
-			long idx = System.currentTimeMillis() / 1000;
-			// reset counter and offer the message
-			if (idx != counterIdx) {
-				offerMessages.accept(processMsgs);
-				counterPerSec = 0;
-				counterIdx = idx;
-				processMsgs.clear();
-			}
-			if (counterPerSec >= topLimitationTotal) {
-				offerMessages.accept(processMsgs);
-				processMsgs.clear();
-				logger.info("push speed is over the top limitation setting, stop pushing messages...");
-				try {
-					// sleep until next second
-					Thread.sleep((counterIdx + 1) * 1000 - System.currentTimeMillis());
-				} catch (InterruptedException ignore) {
+		try {
+			List<MessageEntity> processMsgs = new ArrayList<>();
+			for (MessageEntity msg : msgs) {
+				long idx = System.currentTimeMillis() / 1000;
+				// reset counter and offer the message
+				if (idx != counterIdx) {
+					offerMessages.accept(processMsgs);
+					counterPerSec = 0;
+					counterIdx = idx;
+					processMsgs.clear();
 				}
+				if (counterPerSec >= topLimitationTotal) {
+					offerMessages.accept(processMsgs);
+					processMsgs.clear();
+					logger.info("push speed is over the top limitation setting, stop pushing messages...");
+					try {
+						// sleep until next second
+						Thread.sleep((counterIdx + 1) * 1000 - System.currentTimeMillis());
+					} catch (InterruptedException ignore) {
+					}
+				}
+				processMsgs.add(msg);
+				counterPerSec += 1;
 			}
-			processMsgs.add(msg);
-			counterPerSec += 1;
+			offerMessages.accept(processMsgs);
+		} finally {
+			lock.unlock();
 		}
-		offerMessages.accept(processMsgs);
-		lock.unlock();
 	}
 }
 

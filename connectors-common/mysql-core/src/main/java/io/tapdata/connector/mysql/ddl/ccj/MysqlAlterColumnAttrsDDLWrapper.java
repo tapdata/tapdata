@@ -49,7 +49,7 @@ public class MysqlAlterColumnAttrsDDLWrapper extends MysqlDDLWrapper {
             for (AlterExpression.ColumnDataType columnDataType : colDataTypeList) {
                 TapAlterFieldAttributesEvent tapAlterFieldAttributesEvent = new TapAlterFieldAttributesEvent();
                 tapAlterFieldAttributesEvent.setTableId(tableName);
-                String columnName = StringKit.removeHeadTail(columnDataType.getColumnName(), ccjddlWrapperConfig.getSplit(), false);
+                String columnName = StringKit.removeHeadTail(columnDataType.getColumnName(), ccjddlWrapperConfig.getSplit(), null);
                 tapAlterFieldAttributesEvent.fieldName(columnName);
                 List<String> columnSpecs = columnDataType.getColumnSpecs();
                 String preSpec = "";

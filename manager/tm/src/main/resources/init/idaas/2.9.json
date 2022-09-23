@@ -53,9 +53,6 @@
 			}
 		]
   },
-	{ "dropIndexes": "MetadataInstances",
-		"index": "index_task_id"
-	},
 	{
 		"createIndexes": "MetadataInstances",
 		"indexes": [

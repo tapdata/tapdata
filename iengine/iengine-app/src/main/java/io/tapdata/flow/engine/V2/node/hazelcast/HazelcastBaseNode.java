@@ -170,7 +170,7 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 			}
 			doInit(context);
 		} catch (Throwable e) {
-			throw errorHandle(e, "Node init failed");
+			throw errorHandle(e, "Node init failed: " + e.getMessage());
 		}
 	}
 
@@ -625,23 +625,43 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 		} else {
 			currentEx = new NodeException(errorMessage, throwable).context(getProcessorBaseContext());
 		}
+		try {
+			if (null == error) {
+				this.error = currentEx;
+				if (null != errorMessage) {
+					this.errorMessage = errorMessage;
+				} else {
+					this.errorMessage = currentEx.getMessage();
+				}
+				logger.error(errorMessage, currentEx);
+				obsLogger.error(errorMessage, currentEx);
+				this.running.set(false);
+				TaskDto taskDto = processorBaseContext.getTaskDto();
 
-		if (null == error) {
-			this.error = currentEx;
-			if (null != errorMessage) {
-				this.errorMessage = errorMessage;
-			} else {
-				this.errorMessage = currentEx.getMessage();
+				// jetContext async injection, Attempt 5 times to get the instance every 500ms
+				com.hazelcast.jet.Job hazelcastJob = null;
+				for (int i = 5; i > 0; i--) {
+					if (null != jetContext) {
+						hazelcastJob = jetContext.hazelcastInstance().getJet().getJob(taskDto.getName() + "-" + taskDto.getId().toHexString());
+					}
+
+					if (null != hazelcastJob) break;
+					try {
+						Thread.sleep(500);
+					} catch (InterruptedException ignore) {
+						break;
+					}
+				}
+
+				if (hazelcastJob != null) {
+					AspectUtils.executeAspect(new TaskStopAspect().task(taskDto).error(currentEx));
+					hazelcastJob.cancel();
+				} else {
+					logger.warn("The jet instance cannot be found and needs to be stopped manually", currentEx);
+				}
 			}
-			logger.error(errorMessage, currentEx);
-			obsLogger.error(errorMessage, currentEx);
-			this.running.set(false);
-			TaskDto taskDto = processorBaseContext.getTaskDto();
-			com.hazelcast.jet.Job hazelcastJob = jetContext.hazelcastInstance().getJet().getJob(taskDto.getName() + "-" + taskDto.getId().toHexString());
-			if (hazelcastJob != null) {
-				AspectUtils.executeAspect(new TaskStopAspect().task(taskDto).error(currentEx));
-				hazelcastJob.cancel();
-			}
+		} catch (Exception e) {
+			logger.warn("error handler failed: " + e.getMessage(), e);
 		}
 
 		return currentEx;
