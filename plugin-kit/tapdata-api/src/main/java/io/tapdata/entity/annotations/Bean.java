@@ -6,4 +6,5 @@ import java.lang.annotation.*;
 @Retention(value = RetentionPolicy.RUNTIME)
 @Documented
 public @interface Bean {
+	String type() default "";
 }

@@ -59,8 +59,9 @@ public class InstanceFactory {
             Bean bean = field.getAnnotation(Bean.class);
             if (bean != null) {
                 Class<?> gClass = field.getType();
+                String type = (bean.type() != null && !bean.type().equals("")) ? bean.type() : null;
 
-                Object beanValue = bean(gClass);
+                Object beanValue = bean(gClass, type);
 
                 if (beanValue != null) {
                     field.setAccessible(true);
@@ -98,18 +99,24 @@ public class InstanceFactory {
         }
     }
 
-    public static <T> T bean(Class<T> beanClass, Object object) {
+    public static <T> T registerBean(Class<T> beanClass, Object object) {
         injectBean(object);
         beanMap.put(beanClass, new BeanWrapper(object, true));
         //noinspection unchecked
         return (T) object;
     }
 
+    public static <T> T bean(Class<T> beanClass, String type) {
+        return bean(beanClass, false, type);
+    }
     public static <T> T bean(Class<T> beanClass) {
-        return bean(beanClass, false);
+        return bean(beanClass, false, null);
     }
 
     public static <T> T bean(Class<T> beanClass, boolean needInject) {
+        return bean(beanClass, needInject, null);
+    }
+    public static <T> T bean(Class<T> beanClass, boolean needInject, String type) {
         BeanWrapper beanWrapper = beanMap.get(beanClass);
         if(beanWrapper != null && beanWrapper.object != null) {
             if(!beanWrapper.isInjected && needInject) {
@@ -134,7 +141,12 @@ public class InstanceFactory {
             }
         }
         if(beanValue.get() == null) {
-            Object obj = instance(beanClass);
+            Object obj;
+            if(type != null) {
+                obj = instance(beanClass, type);
+            } else {
+                obj = instance(beanClass);
+            }
             if(obj != null) {
                 beanValue.set(obj);
             }

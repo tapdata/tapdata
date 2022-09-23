@@ -47,6 +47,11 @@ public class AsyncEventQueueService implements EventQueueService {
 		mongoBulkSavingQueue.offer(message);
 	}
 
+	@Override
+	public void newDataReceived(List<String> subscribeIds) {
+
+	}
+
 	private void handleBatch(List<MessageEntity> messageEntities) {
 		messageEntityService.save(messageEntities, subscriptions -> {
 

@@ -5,7 +5,9 @@ import io.tapdata.entity.annotations.MainMethod;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.modules.api.net.error.NetErrors;
 import io.tapdata.modules.api.net.service.CommandExecutionService;
+import io.tapdata.modules.api.net.service.EventQueueService;
 import io.tapdata.modules.api.net.service.node.connection.NodeConnectionFactory;
+import io.tapdata.modules.api.proxy.data.NewDataReceived;
 import io.tapdata.pdk.apis.entity.CommandInfo;
 
 import java.util.Map;
@@ -21,8 +23,17 @@ public class ProxyMain {
 	private NodeConnectionFactory nodeConnectionFactory;
 	@Bean
 	private CommandExecutionService commandExecutionService;
+
+	@Bean(type = "sync")
+	private EventQueueService eventQueueService;
 	public void main() {
 		nodeConnectionFactory.registerReceiver(CommandInfo.class.getSimpleName(), this::handleCommandInfo);
+		nodeConnectionFactory.registerReceiver(NewDataReceived.class.getSimpleName(), this::handleNewDataReceived);
+	}
+
+	private void handleNewDataReceived(String nodeId, NewDataReceived newDataReceived, BiConsumer<Object, Throwable> biConsumer) {
+		eventQueueService.newDataReceived(newDataReceived.getSubscribeIds());
+		biConsumer.accept(null, null);
 	}
 
 	private void handleCommandInfo(String nodeId, CommandInfo commandInfo, BiConsumer<Object, Throwable> biConsumer) {

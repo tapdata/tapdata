@@ -14,6 +14,8 @@ public interface NodeConnection {
 
 	<Request, Response> Response send(String type, Request request, Type responseClass) throws IOException;
 
+	<Request, Response> void sendAsync(String type, Request request, Type responseClass, BiConsumer<Response, Throwable> biConsumer) throws IOException;
+
 	boolean isReady();
 
 	long getTouch();

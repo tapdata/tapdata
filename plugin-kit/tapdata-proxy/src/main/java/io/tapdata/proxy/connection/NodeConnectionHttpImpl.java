@@ -11,7 +11,9 @@ import io.tapdata.modules.api.net.error.NetErrors;
 import io.tapdata.modules.api.net.service.node.connection.NodeConnection;
 import io.tapdata.modules.api.net.service.node.connection.entity.NodeMessage;
 import io.tapdata.modules.api.proxy.constants.ProxyConstants;
+import io.tapdata.pdk.core.executor.ExecutorsManager;
 import io.tapdata.pdk.core.utils.CommonUtils;
+import io.tapdata.pdk.core.utils.queue.SingleThreadBlockingQueue;
 import io.tapdata.pdk.core.utils.state.StateMachine;
 
 import java.io.IOException;
@@ -46,6 +48,7 @@ public class NodeConnectionHttpImpl implements NodeConnection {
 	private long touch;
 
 	private final List<String> workableIps = new CopyOnWriteArrayList<>();
+	private SingleThreadBlockingQueue<NodeMessage> asyncQueue;
 	@Override
 	public void init(NodeRegistry nodeRegistry, BiConsumer<NodeRegistry, String> nodeRegistryReasonSelfDestroy) {
 		if(stateMachine == null) {
@@ -63,9 +66,51 @@ public class NodeConnectionHttpImpl implements NodeConnection {
 			stateMachine.gotoState(STATE_FIND_BEST_IP, "Started");
 //			stateMachine.enableAsync(Executors.newSingleThreadExecutor()); //Use one thread for a worker
 //			stateMachine.gotoState(STATE_FIND_BEST_IP, "Start finding best ip from node registry " + nodeRegistry);
+			asyncQueue = new SingleThreadBlockingQueue<NodeMessage>("NodeConnection " + nodeRegistry.id())
+					.withHandleSize(10)
+					.withMaxSize(200)
+					.withMaxWaitMilliSeconds(0)
+					.withExecutorService(ExecutorsManager.getInstance().getExecutorService())
+					.withHandler(this::handleBatch)
+					.withErrorHandler(this::handleBatchError)
+					.start();
 			touch();
 		} else {
 			throw new CoreException(NetErrors.ILLEGAL_STATE, "Node connection has been initialized already");
+		}
+	}
+
+	private void handleBatchError(List<NodeMessage> nodeMessages, Throwable throwable) {
+		TapLogger.debug(TAG, "Send {} messages to {} failed, {}", nodeMessages.size(), nodeRegistry.id(), throwable.getMessage());
+		for(NodeMessage nodeMessage : nodeMessages) {
+			nodeMessage.accept(null, throwable);
+		}
+	}
+
+	private void handleBatch(List<NodeMessage> nodeMessages) throws IOException {
+		if(nodeMessages != null) {
+			if(workableIps.isEmpty()) {
+				TapLogger.debug(TAG, "workableIps is empty, {} messages was ignored", nodeMessages.size());
+				Throwable throwable = new CoreException(NetErrors.NO_WORKABLE_IP, "No workable ip for node {} to send {} messages", nodeRegistry.id(), nodeMessages.size());
+				for(NodeMessage nodeMessage : nodeMessages) {
+					nodeMessage.accept(null, throwable);
+				}
+				return;
+			}
+			Integer port = nodeRegistry.getHttpPort();
+			String ip = workableIps.get(0);
+			String url = "http://" + ip + ":" + port + "/api/proxy/internal?key=" + ProxyConstants.INTERNAL_KEY;
+			for(NodeMessage nodeMessage : nodeMessages) {
+				try {
+					NodeMessage responseMessage = post(url, nodeMessage);
+					if(responseMessage != null && responseMessage.getData() != null && nodeMessage.getResponseClass() != null)
+						nodeMessage.accept(fromJson(new String(responseMessage.getData(), StandardCharsets.UTF_8), nodeMessage.getResponseClass()), null);
+					else
+						nodeMessage.accept(null, new CoreException(NetErrors.ILLEGAL_PARAMETERS, "ResponseMessage is not legal, {}", responseMessage));
+				} catch(Throwable throwable1) {
+					nodeMessage.accept(null, throwable1);
+				}
+			}
 		}
 	}
 
@@ -249,6 +294,27 @@ public class NodeConnectionHttpImpl implements NodeConnection {
 		if(responseMessage != null && responseMessage.getData() != null)
 			return fromJson(new String(responseMessage.getData(), StandardCharsets.UTF_8), responseClass);
 		return null;
+	}
+
+	@Override
+	public <Request, Response> void sendAsync(String type, Request request, Type responseClass, BiConsumer<Response, Throwable> biConsumer) throws IOException {
+		if(!stateMachine.getCurrentState().equals(STATE_READY))
+			throw new IOException(FormatUtils.format("NodeConnection's state is not ready, nodeRegistry {}", nodeRegistry));
+
+		if(workableIps.isEmpty())
+			throw new IOException(FormatUtils.format("NodeConnection's workableIps is empty, nodeRegistry {}", nodeRegistry));
+
+		String nodeId = CommonUtils.getProperty("tapdata_node_id");
+		NodeMessage nodeMessage = new NodeMessage()
+				.toNodeId(nodeRegistry.id())
+				.fromNodeId(nodeId)
+				.type(type)
+				.encode(Data.ENCODE_JSON)
+				.data(toJson(request).getBytes(StandardCharsets.UTF_8))
+				.time(System.currentTimeMillis())
+				.biConsumer((BiConsumer<Object, Throwable>) biConsumer)
+				.responseClass(responseClass);
+		asyncQueue.offer(nodeMessage);
 	}
 
 	@Override

@@ -250,48 +250,4 @@ public class NodeHealthManager {
 	public void setDeleteNodeConsumer(Consumer<NodeRegistry> deleteNodeConsumer) {
 		this.deleteNodeConsumer = deleteNodeConsumer;
 	}
-
-	public <T> void send(String type, CommandInfo commandInfo, TypeHolder<T> typeHolder, BiConsumer<T, Throwable> biConsumer) {
-		//noinspection unchecked
-		send(type, commandInfo, typeHolder.getType(), biConsumer);
-	}
-	public <T> void send(String type, CommandInfo commandInfo, Type tClass, BiConsumer<T, Throwable> biConsumer) {
-		List<String> list = new ArrayList<>();
-		Map<String, NodeHandler> healthyNodes = getIdNodeHandlerMap();
-		if(healthyNodes != null) {
-			for(NodeHandler nodeHandler : healthyNodes.values()) {
-				NodeHealth nodeHealth = nodeHandler.getNodeHealth();
-				NodeHealth currentNodeHealth = getCurrentNodeHealth();
-				if(!currentNodeHealth.getId().equals(nodeHealth.getId()) && nodeHealth.getOnline() != null && nodeHealth.getOnline() > 0) {
-					list.add(nodeHealth.getId());
-				}
-			}
-		}
-
-		Throwable error = null;
-		if(!list.isEmpty()) {
-			RandomDraw randomDraw = new RandomDraw(list.size());
-			int index;
-			while ((index = randomDraw.next()) != -1) {
-				String id = list.get(index);
-				NodeConnection nodeConnection = nodeConnectionFactory.getNodeConnection(id);
-				if (nodeConnection != null && nodeConnection.isReady()) {
-					try {
-						//noinspection unchecked
-						T response = nodeConnection.send(type, commandInfo, tClass);
-						biConsumer.accept(response, null);
-						return;
-					} catch (IOException ioException) {
-						TapLogger.debug(TAG, "Send to nodeId {} failed {} and will try next, command {}", id, ioException.getMessage(), commandInfo);
-						error = ioException;
-					}
-				}
-			}
-		}
-		if(error != null) {
-			biConsumer.accept(null, error);
-		} else {
-			biConsumer.accept(null, new CoreException(NetErrors.NO_AVAILABLE_ENGINE, "No available engine"));
-		}
-	}
 }

@@ -9,6 +9,7 @@ import io.tapdata.mongodb.net.dao.ProxySubscriptionDAO;
 import org.bson.Document;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 
 import static io.tapdata.mongodb.entity.ToDocument.FIELD_ID;
@@ -24,7 +25,17 @@ public class ProxySubscriptionServiceImpl implements ProxySubscriptionService {
 
 	@Override
 	public List<String> subscribedNodeIds(String service, String subscribeId) {
-		List<ProxySubscriptionEntity> subscriptionEntities = proxySubscriptionDAO.find(new Document(ProxySubscriptionEntity.FIELD_SUBSCRIPTION + ".service", service).append(ProxySubscriptionEntity.FIELD_SUBSCRIPTION + ".subscribeIds", subscribeId), ProxySubscriptionEntity.FIELD_SUBSCRIPTION + ".nodeId");
+		return getSubscribedNodeIds(service, new Document().append(ProxySubscriptionEntity.FIELD_SUBSCRIPTION + ".subscribeIds", subscribeId));
+	}
+
+	@Override
+	public List<String> subscribedNodeIds(String service, Collection<String> subscribeIds) {
+		return getSubscribedNodeIds(service, new Document().append(ProxySubscriptionEntity.FIELD_SUBSCRIPTION + ".subscribeIds", new Document("$in", subscribeIds)));
+	}
+
+	private List<String> getSubscribedNodeIds(String service, Document filter) {
+		filter.append(ProxySubscriptionEntity.FIELD_SUBSCRIPTION + ".service", service);
+		List<ProxySubscriptionEntity> subscriptionEntities = proxySubscriptionDAO.find(filter, ProxySubscriptionEntity.FIELD_SUBSCRIPTION + ".nodeId");
 		List<String> nodeIds = new ArrayList<>();
 		for(ProxySubscriptionEntity entity : subscriptionEntities) {
 			ProxySubscription proxySubscription = entity.getSubscription();

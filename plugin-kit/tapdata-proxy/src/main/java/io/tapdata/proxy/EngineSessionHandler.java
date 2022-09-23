@@ -174,7 +174,7 @@ public class EngineSessionHandler extends GatewaySessionHandler {
 		String nodeId = CommonUtils.getProperty("tapdata_node_id");
 		proxySubscriptionService.syncProxySubscription(new ProxySubscription().service("engine").nodeId(nodeId).subscribeIds(nodeSubscribeInfo.getSubscribeIds()));
 		Set<String> newSubscribedIds = nodeSubscribeInfo.getSubscribeIds();
-			cachedSubscribedIds = subscribeMap.rebindSubscribeIds(this, newSubscribedIds, cachedSubscribedIds);
+		cachedSubscribedIds = subscribeMap.rebindSubscribeIds(this, newSubscribedIds, cachedSubscribedIds);
 		return null;
 	}
 

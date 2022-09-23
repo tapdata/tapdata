@@ -7,6 +7,8 @@ import io.tapdata.entity.utils.io.DataOutputStreamEx;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.lang.reflect.Type;
+import java.util.function.BiConsumer;
 
 public class NodeMessage implements JavaCustomSerializer {
 	private String id;
@@ -42,6 +44,18 @@ public class NodeMessage implements JavaCustomSerializer {
 	private byte[] data;
 	public NodeMessage data(byte[] data) {
 		this.data = data;
+		return this;
+	}
+
+	private volatile BiConsumer<Object, Throwable> biConsumer;
+	public NodeMessage biConsumer(BiConsumer<Object, Throwable> biConsumer) {
+		this.biConsumer = biConsumer;
+		return this;
+	}
+
+	private Type responseClass;
+	public NodeMessage responseClass(Type responseClass) {
+		this.responseClass = responseClass;
 		return this;
 	}
 
@@ -123,5 +137,34 @@ public class NodeMessage implements JavaCustomSerializer {
 
 	public void setTime(Long time) {
 		this.time = time;
+	}
+
+	public void accept(Object response, Throwable throwable) {
+		if(biConsumer != null) {
+			synchronized (this) {
+				if(biConsumer != null) {
+					try {
+						biConsumer.accept(response, throwable);
+					} finally {
+						biConsumer = null;
+					}
+				}
+			}
+		}
+	}
+	public BiConsumer<Object, Throwable> getBiConsumer() {
+		return biConsumer;
+	}
+
+	public void setBiConsumer(BiConsumer<Object, Throwable> biConsumer) {
+		this.biConsumer = biConsumer;
+	}
+
+	public Type getResponseClass() {
+		return responseClass;
+	}
+
+	public void setResponseClass(Type responseClass) {
+		this.responseClass = responseClass;
 	}
 }

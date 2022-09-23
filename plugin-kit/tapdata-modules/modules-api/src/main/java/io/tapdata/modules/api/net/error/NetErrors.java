@@ -37,4 +37,5 @@ public interface NetErrors {
 	int UNSUPPORTED_ENCODE = 8033;
 	int ILLEGAL_STATE = 8034;
 	int NODE_POST_HTTP_CODE = 8035;
+	int NO_WORKABLE_IP = 8036;
 }

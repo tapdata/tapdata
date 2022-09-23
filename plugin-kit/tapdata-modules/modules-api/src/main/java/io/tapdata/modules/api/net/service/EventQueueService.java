@@ -6,4 +6,6 @@ import java.util.List;
 
 public interface EventQueueService {
 	void offer(MessageEntity messages);
+
+	void newDataReceived(List<String> subscribeIds);
 }

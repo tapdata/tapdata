@@ -1,10 +1,14 @@
 package io.tapdata.mongodb.test;
 
+import com.google.common.collect.MapDifference;
+import com.google.common.collect.Sets;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.modules.api.net.entity.NodeHealth;
 import io.tapdata.modules.api.net.entity.NodeRegistry;
+import io.tapdata.modules.api.net.entity.ProxySubscription;
 import io.tapdata.modules.api.net.message.MessageEntity;
 import io.tapdata.modules.api.net.service.MessageEntityService;
+import io.tapdata.modules.api.net.service.ProxySubscriptionService;
 import io.tapdata.modules.api.net.service.node.NodeHealthService;
 import io.tapdata.modules.api.net.service.node.NodeRegistryService;
 import io.tapdata.modules.api.proxy.data.FetchNewDataResult;
@@ -14,8 +18,10 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Date;
+import java.util.List;
 
 import static io.tapdata.entity.simplify.TapSimplify.entry;
 import static io.tapdata.entity.simplify.TapSimplify.map;
@@ -117,6 +123,81 @@ public class MongodbTest {
 		assertEquals(4, result.getMessages().get(0).getContent().get("aa"));
 		assertEquals(5, result.getMessages().get(1).getContent().get("aa"));
 
+		ProxySubscriptionService proxySubscriptionService = InstanceFactory.instance(ProxySubscriptionService.class);
+		assertNotNull(proxySubscriptionService);
+		ProxySubscription proxySubscription = new ProxySubscription().service("engine").subscribeIds(Sets.newHashSet("a", "b", "c")).nodeId("n1").time(123L);
+		ProxySubscription proxySubscription1 = new ProxySubscription().service("engine").subscribeIds(Sets.newHashSet("b", "d")).nodeId("n2").time(234L);
+		ProxySubscription proxySubscription2 = new ProxySubscription().service("engine").subscribeIds(Sets.newHashSet("e", "f")).nodeId("n3").time(345L);
+		proxySubscriptionService.syncProxySubscription(proxySubscription);
+		proxySubscriptionService.syncProxySubscription(proxySubscription1);
+		proxySubscriptionService.syncProxySubscription(proxySubscription2);
+
+		ProxySubscription proxySubscriptionToVerify = proxySubscriptionService.get("n1");
+		assertNotNull(proxySubscriptionToVerify);
+		assertEquals("n1", proxySubscriptionToVerify.getNodeId());
+		assertEquals(123L, proxySubscriptionToVerify.getTime());
+		ProxySubscription proxySubscriptionToVerify1 = proxySubscriptionService.get("n2");
+		assertNotNull(proxySubscriptionToVerify1);
+		assertEquals("n2", proxySubscriptionToVerify1.getNodeId());
+		assertEquals(234L, proxySubscriptionToVerify1.getTime());
+		ProxySubscription proxySubscriptionToVerify2 = proxySubscriptionService.get("n3");
+		assertNotNull(proxySubscriptionToVerify2);
+		assertEquals("n3", proxySubscriptionToVerify2.getNodeId());
+		assertEquals(345L, proxySubscriptionToVerify2.getTime());
+
+		List<String> nodeIds = proxySubscriptionService.subscribedNodeIds("engine", "b");
+		assertNotNull(nodeIds);
+		assertEquals(2, nodeIds.size());
+		nodeIds.removeAll(Sets.newHashSet("n1", "n2"));
+		assertEquals(0, nodeIds.size());
+
+		nodeIds = proxySubscriptionService.subscribedNodeIds("engine", "g");
+		assertNotNull(nodeIds);
+		assertEquals(0, nodeIds.size());
+
+		nodeIds = proxySubscriptionService.subscribedNodeIds("engine", "f");
+		assertNotNull(nodeIds);
+		assertEquals(1, nodeIds.size());
+		nodeIds.removeAll(Sets.newHashSet("n3"));
+		assertEquals(0, nodeIds.size());
+
+		nodeIds = proxySubscriptionService.subscribedNodeIds("engine", Arrays.asList("b", "f"));
+		assertNotNull(nodeIds);
+		assertEquals(3, nodeIds.size());
+		nodeIds.removeAll(Sets.newHashSet("n3", "n2", "n1"));
+		assertEquals(0, nodeIds.size());
+
+		nodeIds = proxySubscriptionService.subscribedNodeIds("engine", Arrays.asList("c", "f"));
+		assertNotNull(nodeIds);
+		assertEquals(2, nodeIds.size());
+		nodeIds.removeAll(Sets.newHashSet("n3", "n1"));
+		assertEquals(0, nodeIds.size());
+
+		nodeIds = proxySubscriptionService.subscribedNodeIds("engine", Arrays.asList("a", "f1323"));
+		assertNotNull(nodeIds);
+		assertEquals(1, nodeIds.size());
+		nodeIds.removeAll(Sets.newHashSet("n1"));
+		assertEquals(0, nodeIds.size());
+
+		nodeIds = proxySubscriptionService.subscribedNodeIds("engine", Arrays.asList("f1323"));
+		assertNotNull(nodeIds);
+		assertEquals(0, nodeIds.size());
+
+		boolean bool = proxySubscriptionService.delete("n1", 123123L);
+		assertFalse(bool);
+		assertNotNull(proxySubscriptionService.get("n1"));
+
+		bool = proxySubscriptionService.delete("n1", 123L);
+		assertTrue(bool);
+		assertNull(proxySubscriptionService.get("n1"));
+
+		bool = proxySubscriptionService.delete("n2");
+		assertTrue(bool);
+		assertNull(proxySubscriptionService.get("n2"));
+
+		bool = proxySubscriptionService.delete("n3");
+		assertTrue(bool);
+		assertNull(proxySubscriptionService.get("n3"));
 	}
 
 

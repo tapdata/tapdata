@@ -63,7 +63,9 @@ public class SubscribeMap {
 			List<EngineSessionHandler> engineSessionHandlers = subscribeIdSessionMap.get(subscribeId);
 			if(engineSessionHandlers != null) {
 				for(EngineSessionHandler engineSessionHandler : engineSessionHandlers) {
-					List<String> list = sessionSubscribeIdsMap.computeIfAbsent(engineSessionHandler, engineSessionHandler1 -> new ArrayList<>());
+					List<String> list = sessionSubscribeIdsMap.get(engineSessionHandler);
+					if(list == null)
+						list = sessionSubscribeIdsMap.computeIfAbsent(engineSessionHandler, engineSessionHandler1 -> new ArrayList<>());
 					if(!list.contains(subscribeId)) {
 						list.add(subscribeId);
 					}
