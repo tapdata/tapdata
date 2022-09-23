@@ -89,8 +89,8 @@ public class MonitoringLogsService extends BaseService<MonitoringLogsDto, Monito
             criteria.and("taskRecordId").is(param.getTaskRecordId());
         }
 
-        Date startDate = DateUtil.offsetSecond(DateUtil.date(param.getStart()), -30);
-        Date endDate = DateUtil.offsetSecond(DateUtil.date(param.getEnd()), 30);
+        Date startDate = DateUtil.offsetMinute(DateUtil.date(param.getStart()), -1);
+        Date endDate = DateUtil.offsetMinute(DateUtil.date(param.getEnd()), 10);
         criteria.and("date").gte(startDate).lt(endDate);
 
         if (StringUtils.isNotEmpty(param.getNodeId())) {
