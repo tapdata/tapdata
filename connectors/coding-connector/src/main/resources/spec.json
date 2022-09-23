@@ -101,7 +101,6 @@
         },
         "connectionMode": {
           "type": "String",
-          "required": true,
           "default": "DocumentMode",
           "title": "${connectionMode}",
           "x-decorator": "FormItem",
@@ -122,7 +121,6 @@
         "streamReadType": {
           "type": "String",
           "default": "WebHook",
-          "required": true,
           "title": "${streamReadType}",
           "x-decorator": "FormItem",
           "x-component": "Select",
@@ -358,6 +356,9 @@
       "scale": [ 0, 30],
       "fixed": false
     },
-    "Array": {"to" : "TapArray"}
+    "Array": {"to" : "TapArray"},
+    "NULL": {
+      "to": "TapRaw"
+    }
   }
 }

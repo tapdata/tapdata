@@ -23,6 +23,9 @@ import java.util.List;
 
 @Implementation(JsonParser.class)
 public class JsonParserImpl implements JsonParser {
+    public JsonParserImpl() {
+
+    }
 
     @Override
     public String toJsonWithClass(Object obj) {
