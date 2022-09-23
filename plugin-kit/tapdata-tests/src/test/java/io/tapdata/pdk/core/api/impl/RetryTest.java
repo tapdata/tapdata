@@ -200,7 +200,7 @@ public class RetryTest {
                 Thread.sleep(800L);
                 System.out.println("=====>cancel retry...");
                 //invoker.cancelRetry();
-                PDKInvocationMonitor.closeTasks(node);
+                PDKInvocationMonitor.stop(node);
                 synchronized (obj) {
                     obj.wait(500L);
                 }
@@ -290,7 +290,7 @@ public class RetryTest {
                 Thread.sleep(1000L);
                 System.out.println("=====> Thread-1 cancel retry...");
                 //invoker.cancelRetry();
-                PDKInvocationMonitor.closeTasks(node);
+                PDKInvocationMonitor.stop(node);
                 synchronized (obj) {
                     obj.wait(500L);
                 }
@@ -307,7 +307,7 @@ public class RetryTest {
                 Thread.sleep(50L);
                 System.out.println("=====> Thread-2 cancel retry...");
                 //invoker.cancelRetry();
-                PDKInvocationMonitor.closeTasks(node);
+                PDKInvocationMonitor.stop(node);
                 synchronized (obj2) {
                     obj2.wait(500L);
                 }

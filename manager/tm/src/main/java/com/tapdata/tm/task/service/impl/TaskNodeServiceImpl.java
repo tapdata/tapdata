@@ -97,6 +97,9 @@ public class TaskNodeServiceImpl implements TaskNodeService {
         }
 
         DatabaseNode sourceNode = dag.getSourceNode(nodeId);
+        if (Objects.isNull(sourceNode)) {
+            return result;
+        }
         DatabaseNode targetNode = CollectionUtils.isNotEmpty(dag.getTargetNode()) ? dag.getTargetNode(nodeId) : null;
         List<String> tableNames = sourceNode.getTableNames();
         if (CollectionUtils.isEmpty(tableNames) && StringUtils.equals("all", sourceNode.getMigrateTableSelectType())) {
@@ -119,9 +122,12 @@ public class TaskNodeServiceImpl implements TaskNodeService {
 
         currentTableList = ListUtils.partition(tableNames, pageSize).get(page - 1);
 
-        DataSourceConnectionDto targetDataSource = null;
+        DataSourceConnectionDto targetDataSource;
         if (targetNode != null) {
             targetDataSource = dataSourceService.findById(MongoUtils.toObjectId(targetNode.getConnectionId()));
+        } else {
+            targetNode = sourceNode;
+            targetDataSource = dataSourceService.findById(MongoUtils.toObjectId(sourceNode.getConnectionId()));
         }
 
         List<Node<?>> predecessors = dag.nodeMap().get(nodeId);

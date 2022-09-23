@@ -38,7 +38,7 @@ public class MysqlDropColumnDDLWrapper extends MysqlDDLWrapper {
             }
             TapDropFieldEvent tapDropFieldEvent = new TapDropFieldEvent();
             tapDropFieldEvent.setTableId(tableName);
-            tapDropFieldEvent.setFieldName(StringKit.removeHeadTail(alterExpression.getColumnName(), ccjddlWrapperConfig.getSplit(), false));
+            tapDropFieldEvent.setFieldName(StringKit.removeHeadTail(alterExpression.getColumnName(), ccjddlWrapperConfig.getSplit(), null));
             consumer.accept(tapDropFieldEvent);
         }
     }

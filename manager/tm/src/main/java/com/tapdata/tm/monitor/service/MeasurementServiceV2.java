@@ -688,8 +688,8 @@ public class MeasurementServiceV2 {
         // TODO(dexter): find out a more elegant way to get the aggregate size
         // match should be at the first param, sort should be the second while group be the last
         Aggregation cntAggregation = Aggregation.newAggregation(match, group);
-        CloseableIterator<MeasurementEntity> results = mongoOperations.aggregateStream(cntAggregation, MeasurementEntity.COLLECTION_NAME, MeasurementEntity.class);
-        long total = results.stream().count();
+        AggregationResults<MeasurementEntity> results = mongoOperations.aggregate(cntAggregation, MeasurementEntity.COLLECTION_NAME, MeasurementEntity.class);
+        long total = results.getMappedResults().size();
         if (total == 0) {
             return new Page<>(0, Collections.emptyList());
         }
@@ -712,7 +712,7 @@ public class MeasurementServiceV2 {
         SortOperation sort = Aggregation.sort(Sort.by(MeasurementEntity.FIELD_DATE).descending())
                 .and(Sort.by(String.format(TAG_FORMAT, "table")).ascending());
         // match should be at the first param, sort should be the second while group be the last
-        Aggregation aggregation = Aggregation.newAggregation( match, group, sort, skip, limit);
+        Aggregation aggregation = Aggregation.newAggregation( match, sort, group, sort, skip, limit);
         mongoOperations.aggregateStream(aggregation, MeasurementEntity.COLLECTION_NAME, MeasurementEntity.class).forEachRemaining(measurementEntity -> {
             String originTable = measurementEntity.getTags().get("table");
             AtomicReference<String> originTableName = new AtomicReference<>();

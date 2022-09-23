@@ -7,9 +7,11 @@ import io.tapdata.entity.codec.detector.impl.NewFieldDetector;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.type.TapMap;
+import io.tapdata.entity.schema.type.TapType;
 import io.tapdata.entity.schema.value.*;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.entity.utils.JsonParser;
+import org.bson.types.ObjectId;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
@@ -18,6 +20,7 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 import static io.tapdata.entity.simplify.TapSimplify.*;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -46,7 +49,8 @@ public class TapCodecsFilterManagerTest {
         codecsFilterManager.transformToTapValueMap(map, sourceNameFieldMap);
 
         //before enter a processor, transform to value from TapValue.
-        Map<String, TapField> nameFieldMap = codecsFilterManager.transformFromTapValueMap(map);
+        Map<String, TapField> nameFieldMap = new ConcurrentHashMap<>();
+        codecsFilterManager.transformFromTapValueMap(map, nameFieldMap);
 
         //Processor add a new field.
         map.put("dateTime", new Date());
@@ -57,7 +61,8 @@ public class TapCodecsFilterManagerTest {
         TapValue tapValue = (TapValue) map.get("dateTime");
         assertEquals(tapValue.getTapType().getClass().getSimpleName(), "TapDateTime");
 
-        nameFieldMap = codecsFilterManager.transformFromTapValueMap(map);
+        nameFieldMap = new ConcurrentHashMap<>();
+        codecsFilterManager.transformFromTapValueMap(map, nameFieldMap);
         assertNotNull(nameFieldMap.get("dateTime"));
         TapField dateTimeField = nameFieldMap.get("dateTime");
         assertEquals(dateTimeField.getTapType().getClass().getSimpleName(), "TapDateTime");
@@ -104,7 +109,8 @@ public class TapCodecsFilterManagerTest {
 
         codecsFilterManager.transformToTapValueMap(map, sourceNameFieldMap);
 
-        Map<String, TapField> nameFieldMap = codecsFilterManager.transformFromTapValueMap(map);
+        Map<String, TapField> nameFieldMap = new ConcurrentHashMap<>();
+        codecsFilterManager.transformFromTapValueMap(map, nameFieldMap);
 
         assertEquals("v", ((Map)((List)((Map)((List)map.get("tapArrayMap")).get(1)).get("n")).get(2)).get("k"));
     }
@@ -129,7 +135,8 @@ public class TapCodecsFilterManagerTest {
         codecsFilterManager.transformToTapValueMap(map, sourceNameFieldMap);
 
         //before enter a processor, transform to value from TapValue.
-        Map<String, TapField> nameFieldMap = codecsFilterManager.transformFromTapValueMap(map);
+        Map<String, TapField> nameFieldMap = new ConcurrentHashMap<>();
+        codecsFilterManager.transformFromTapValueMap(map ,nameFieldMap);
 
         //Processor add a new field.
         map.put("dateTime", new Date());
@@ -144,7 +151,7 @@ public class TapCodecsFilterManagerTest {
         Map<String, TapField> newFieldMap = new HashMap<>();
         NewFieldDetector newFieldDetector = newField -> newFieldMap.put(newField.getName(), newField);
         //transform to TapValue out from processor. nameFieldMap will add new field.
-        codecsFilterManager.transformToTapValueMap(map, nameFieldMap, newFieldDetector);
+        codecsFilterManager.transformToTapValueMap(map, sourceNameFieldMap, newFieldDetector);
 
         assertEquals(8, newFieldMap.size());
         assertNotNull(newFieldMap.get("dateTime"));
@@ -197,12 +204,13 @@ public class TapCodecsFilterManagerTest {
         codecsFilterManager.transformToTapValueMap(map, sourceNameFieldMap);
 
         //before enter a processor, transform to value from TapValue.
-        Map<String, TapField> nameFieldMap = codecsFilterManager.transformFromTapValueMap(map);
+        Map<String, TapField> nameFieldMap = new ConcurrentHashMap<>();
+        codecsFilterManager.transformFromTapValueMap(map, nameFieldMap);
         assertEquals(map.get("float"), 324.3f);
         assertEquals(map.get("floatMax"), Float.MAX_VALUE);
         assertEquals(map.get("floatNegativeMax"), -Float.MAX_VALUE);
         assertEquals(map.get("floatMin"), Float.MIN_VALUE);
-        assertEquals(map.get("floatOverflow"), Double.valueOf(String.valueOf(Float.MAX_VALUE + 1)));
+        assertEquals(map.get("floatOverflow"), Float.valueOf(String.valueOf(Float.MAX_VALUE + 1)));
         assertEquals(map.get("double"), 343.324d);
     }
 
@@ -257,5 +265,74 @@ public class TapCodecsFilterManagerTest {
         assertEquals("[{\"11\":\"aa\",\"aaa\":\"a\"}]", map.get("list"));
         assertEquals("[\"1\",\"12\"]", map.get("list1"));
         assertEquals("{\"map\":\"{\\\"a\\\":\\\"[{\\\\\\\"aaa\\\\\\\":\\\\\\\"bbb\\\\\\\"}]\\\"}\"}", map.get("map"));
+    }
+
+    @Test
+    public void testOnlyNecessaryTapValue() {
+        TapCodecsRegistry codecsRegistry = TapCodecsRegistry.create();
+        TapCodecsFilterManager codecsFilterManager = TapCodecsFilterManager.create(codecsRegistry);
+        codecsRegistry.registerToTapValue(ObjectId.class, (ToTapValueCodec<TapValue<?, ?>>) (value, tapType) -> {
+            ObjectId objValue = (ObjectId) value;
+            return new TapStringValue(objValue.toHexString());
+        });
+        codecsRegistry.registerFromTapValue(TapStringValue.class, tapValue -> {
+            Object originValue = tapValue.getOriginValue();
+            if (originValue instanceof ObjectId) {
+                return originValue;
+            }
+            //If not ObjectId, use default TapValue Codec to convert.
+            return codecsRegistry.getValueFromDefaultTapValueCodec(tapValue);
+        });
+        long time = 1660792574472L;
+        ObjectId objectId = new ObjectId();
+        Map<String, Object> map = map(
+                entry("datetime", time),
+                entry("string", "hello"),
+                entry("map", map(entry("map", map(entry("a", 1), entry("a", list(map(entry("aaa", "bbb")))))))),
+                entry("list", list(map(entry("11", "aa"), entry("aaa", "a"), entry("objectId", new ObjectId())))),
+                entry("list1", list("1", "12")),
+                entry("datetime1", new DateTime(new Date(time))),
+                entry("objectId", objectId),
+                entry("float", 213.23f),
+                entry("double", 3423.234234324d),
+                entry("int", 123),
+                entry("nano", Instant.ofEpochSecond(time / 1000, 123123213))
+        );
+
+        Map<String, TapField> sourceNameFieldMap = new HashMap<>();
+        sourceNameFieldMap.put("float", field("float", "float").tapType(tapNumber().scale(3).bit(32).minValue(BigDecimal.valueOf(-Float.MAX_VALUE)).maxValue(BigDecimal.valueOf(Float.MAX_VALUE))));
+        sourceNameFieldMap.put("double", field("double", "double").tapType(tapNumber().scale(17).bit(64).maxValue(BigDecimal.valueOf(Double.MAX_VALUE)).minValue(BigDecimal.valueOf(-Double.MAX_VALUE))));
+        sourceNameFieldMap.put("int", field("int", "int").tapType(tapNumber().minValue(BigDecimal.valueOf(-Integer.MAX_VALUE)).maxValue(BigDecimal.valueOf(Integer.MAX_VALUE)).bit(32)));
+        sourceNameFieldMap.put("datetime", field("datetime", "datetime").tapType(tapDateTime().fraction(3)));
+        sourceNameFieldMap.put("datetime1", field("datetime1", "datetime").tapType(tapDateTime().fraction(3)));
+        sourceNameFieldMap.put("nano", field("nano", "nano").tapType(tapDateTime().fraction(9)));
+        sourceNameFieldMap.put("map", field("map", "map").tapType(tapMap()));
+        sourceNameFieldMap.put("string", field("string", "string").tapType(tapString().bytes(1024L)));
+        sourceNameFieldMap.put("list", field("list", "list").tapType(tapArray()));
+        sourceNameFieldMap.put("list1", field("list1", "list").tapType(tapArray()));
+        sourceNameFieldMap.put("objectId", field("objectId", "string").tapType(tapString().bytes(24L)));
+
+        //read from source, transform to TapValue out from source connector.
+        codecsFilterManager.transformToTapValueMap(map, sourceNameFieldMap);
+
+        TapCodecsFilterManager newCodecsFilterManager = TapCodecsFilterManager.create(TapCodecsRegistry.create());
+        Map<String, TapValue<?, ?>> valueMap = newCodecsFilterManager.transformFromTapValueMap(map, sourceNameFieldMap);
+
+        newCodecsFilterManager.transformToTapValueMap(map, sourceNameFieldMap, valueMap);
+
+        //before enter a processor, transform to value from TapValue.
+        codecsFilterManager.transformFromTapValueMap(map);
+        assertEquals(472000000, ((DateTime)map.get("datetime")).getNano());
+        assertEquals(123123213, ((DateTime)map.get("nano")).getNano());
+
+        assertEquals("hello", map.get("string"));
+        assertEquals("aa", ((Map)((List)map.get("list")).get(0)).get("11"));
+        assertEquals("1", ((List)map.get("list1")).get(0));
+        assertEquals(objectId, map.get("objectId"));
+        assertEquals(123, map.get("int"));
+        assertEquals(213.23f, map.get("float"));
+        assertEquals(3423.234234324d, map.get("double"));
+
+
     }
 }

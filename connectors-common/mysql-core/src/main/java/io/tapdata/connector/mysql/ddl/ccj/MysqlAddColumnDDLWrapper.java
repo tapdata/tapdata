@@ -48,7 +48,7 @@ public class MysqlAddColumnDDLWrapper extends MysqlDDLWrapper {
             TapNewFieldEvent tapNewFieldEvent = new TapNewFieldEvent();
             tapNewFieldEvent.setTableId(tableName);
             for (AlterExpression.ColumnDataType columnDataType : colDataTypeList) {
-                String columnName = StringKit.removeHeadTail(columnDataType.getColumnName(), ccjddlWrapperConfig.getSplit(), false);
+                String columnName = StringKit.removeHeadTail(columnDataType.getColumnName(), ccjddlWrapperConfig.getSplit(), null);
                 ColDataType colDataType = columnDataType.getColDataType();
                 String dataType = getDataType(colDataType);
                 TapField tapField = new TapField(columnName, dataType);

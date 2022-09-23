@@ -3,6 +3,7 @@ package com.tapdata.tm.modules.service;
 import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.date.DateUnit;
 import cn.hutool.core.date.DateUtil;
+import com.mongodb.ConnectionString;
 import com.mongodb.client.result.UpdateResult;
 import com.tapdata.manager.common.utils.JsonUtil;
 import com.tapdata.manager.common.utils.StringUtils;
@@ -39,6 +40,7 @@ import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.bson.types.ObjectId;
+import org.hibernate.validator.internal.engine.constraintvalidation.PredefinedScopeConstraintValidatorManagerImpl;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.query.Criteria;
@@ -46,7 +48,10 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
 
+import java.io.UnsupportedEncodingException;
 import java.math.BigDecimal;
+import java.net.URLEncoder;
+import java.nio.charset.Charset;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -314,6 +319,57 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 
             //设置上pdk的APIserverkey属性
             for (DataSourceConnectionDto dataSourceConnectionDto : dataSourceConnectionDtoList) {
+
+                Map<String, Object> config = dataSourceConnectionDto.getConfig();
+                if (dataSourceConnectionDto.getDatabase_type().toLowerCase(Locale.ROOT).contains("mongo")) {
+                    if (config.get("uri") == null) {
+                        StringBuilder sb = new StringBuilder("mongodb://");
+                        if (config.get("user") != null) {
+                            String user = (String) config.get("user");
+                            String password = (String) config.get("password");
+                            try {
+                                user = URLEncoder.encode(user, "UTF-8");
+                                password = URLEncoder.encode(password, "UTF-8");
+                            } catch (Exception e) {
+                                throw new BizException("SystemError");
+                            }
+                            sb.append(user).append(":")
+                                    .append(password).append("@");
+                        }
+                        sb.append(config.get("host")).append("/").append(config.get("database"));
+                        if (config.get("additionalString") != null) {
+                            sb.append("?").append(config.get("additionalString"));
+                        }
+
+                        config.put("uri", sb.toString());
+                    } else {
+                        String uri = (String) config.get("uri");
+                        ConnectionString connectionString = new ConnectionString(uri);
+                        String username = connectionString.getUsername();
+                        char[] passwordChar = connectionString.getPassword();
+                        String password = null;
+                        if (passwordChar != null) {
+                            password = new String(passwordChar);
+                        }
+
+                        try {
+                            if (StringUtils.isNotBlank(username)) {
+                                String newUsername = URLEncoder.encode(username, "UTF-8");
+                                uri = uri.replace(username, newUsername);
+                            }
+
+                            if (StringUtils.isNotBlank(password)) {
+                                String newPassword = URLEncoder.encode(password, "UTF-8");
+                                uri = uri.replace(password, newPassword);
+                            }
+                        } catch (Exception e) {
+                            throw new BizException("SystemError");
+                        }
+                        config.put("uri", uri);
+
+                    }
+
+                }
                 DataSourceDefinitionDto definitionDto = dataSourceDefinitionService.getByDataSourceType(dataSourceConnectionDto.getDatabase_type(), userDetail);
                 Map<String, Object> properties = definitionDto.getProperties();
                 LinkedHashMap connection = (LinkedHashMap) properties.get("connection");

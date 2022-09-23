@@ -390,6 +390,22 @@
       "defaultPrecision": 10,
       "defaultScale": 0
     },
+    "Date": {
+      "to": "TapDate",
+      "range": [
+        "1970-01-01",
+        "9999-12-31"
+      ],
+      "pattern": "yyyy-MM-dd"
+    },
+    "Date32": {
+      "to": "TapDate",
+      "range": [
+        "1925-01-01",
+        "9999-12-31"
+      ],
+      "pattern": "yyyy-MM-dd"
+    },
     "DateTime[($fraction)]": {
       "to": "TapDateTime",
       "range": [

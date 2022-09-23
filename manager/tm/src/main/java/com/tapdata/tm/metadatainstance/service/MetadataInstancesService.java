@@ -926,18 +926,7 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
             List<String> findQualifiedNames = new ArrayList<>();
             Map<String, MetadataInstancesDto> metaMap = new HashMap<>();
             for (MetadataInstancesDto value : updateMetaMap.values()) {
-                if (saveHistory) {
-                    String qualifiedName = value.getQualifiedName();
-                    int i = qualifiedName.lastIndexOf("_");
-                    String oldQualifiedName = qualifiedName.substring(0, i);
-                    value.setQualifiedName(oldQualifiedName);
-                    qualifiedNames.add(oldQualifiedName);
-                    findQualifiedNames.add(oldQualifiedName);
-                    value.setTaskId(null);
-                } else {
-                    qualifiedNames.add(value.getQualifiedName());
-                    findQualifiedNames.add(value.getQualifiedName());
-                }
+                findQualifiedNames.add(value.getQualifiedName());
             }
             Criteria criteria = Criteria.where("qualified_name").in(findQualifiedNames);
             Query query = new Query(criteria);
@@ -948,15 +937,17 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
             for (Map.Entry<String, MetadataInstancesDto> entry : updateMetaMap.entrySet()) {
                 MetadataInstancesDto value = entry.getValue();
 
-
                 value.setHistories(null);
                 value.setSource(null);
                 value.setId(null);
+
+
                 if (StringUtils.isNotBlank(uuid) && !saveHistory) {
                     value.setTransformUuid(uuid);
                 }
                 MetadataInstancesEntity entity = convertToEntity(MetadataInstancesEntity.class, value);
                 Update update = repository.buildUpdateSet(entity, userDetail);
+
 
                 if (saveHistory) {
                     //保存历史，用于自动ddl
@@ -976,6 +967,23 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
 
                 bulkOperations.updateOne(where, update);
                 write = true;
+                if (saveHistory) {
+                    String qualifiedName = value.getQualifiedName();
+                    int i = qualifiedName.lastIndexOf("_");
+                    String oldQualifiedName = qualifiedName.substring(0, i);
+                    value.setQualifiedName(oldQualifiedName);
+                    qualifiedNames.add(oldQualifiedName);
+                    value.setTaskId(null);
+
+                    value.setCreateSource(null);
+                    value.setSourceType(null);
+
+                    MetadataInstancesEntity entityOld = convertToEntity(MetadataInstancesEntity.class, value);
+                    Update updateOld = repository.buildUpdateSet(entityOld, userDetail);
+                    Query whereOld = Query.query(Criteria.where("qualified_name").is(value.getQualifiedName()));
+
+                    bulkOperations.updateOne(whereOld, updateOld);
+                }
             }
         }
 
@@ -1336,6 +1344,10 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
             taskDto = taskService.findOne(query, user);
         }
 
+        if (taskDto == null) {
+            throw new BizException("Task.nodeRefresh");
+        }
+
         String taskId = taskDto.getId().toHexString();
 
         List<MetadataInstancesDto> metadatas = new ArrayList<>();
@@ -1351,14 +1363,16 @@ public class MetadataInstancesService extends BaseService<MetadataInstancesDto, 
                     queryMetadata.fields().include(fieldArrays);
                 }
                 if (node instanceof TableRenameProcessNode || node instanceof MigrateFieldRenameProcessorNode || node instanceof MigrateJsProcessorNode) {
-                    queryMetadata.addCriteria(criteriaNode);
-                    String qualifiedName = MetaDataBuilderUtils.generateQualifiedName(MetaType.processor_node.name(), nodeId, null, taskId);
-                    criteriaNode.and("qualified_name").regex("^"+qualifiedName+".*")
-                            .and("is_deleted").ne(true);
-                    List<MetadataInstancesDto> all = findAll(queryMetadata);
+//                    queryMetadata.addCriteria(criteriaNode);
+//                    String qualifiedName = MetaDataBuilderUtils.generateQualifiedName(MetaType.processor_node.name(), nodeId, null, taskId);
+//                    criteriaNode.and("qualified_name").regex("^"+qualifiedName+".*")
+//                            .and("is_deleted").ne(true);
+                    Query nodeQuery = new Query(Criteria.where("nodeId").is(nodeId).and("is_deleted").ne(true));
+                    List<MetadataInstancesDto> all = findAll(nodeQuery);
                     Map<String, MetadataInstancesDto> currentMap = all.stream()
                             .collect(Collectors.toMap(MetadataInstancesDto::getOriginalName
                                     , s->s, (m1, m2) -> m1));
+                    // todo 下面逻辑可能会出现问题，相当于copy一份原表名的模型，数据上存在"错误"，加入表A改名B 表B改名A
                     if (node instanceof TableRenameProcessNode) {
                         LinkedHashSet<TableRenameTableInfo> tableNames = ((TableRenameProcessNode) node).getTableNames();
                         for (TableRenameTableInfo tableName : tableNames) {

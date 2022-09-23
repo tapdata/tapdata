@@ -72,8 +72,9 @@ public class FileAppender implements Appender<MonitoringLogsDto>, Serializable {
 		final LoggerContext ctx = (LoggerContext) LogManager.getContext(false);
 		final Configuration config = ctx.getConfiguration();
 		PatternLayout patternLayout = PatternLayout.newBuilder()
-			.withPattern("[%-5level] %date{yyyy-MM-dd HH:mm:ss.SSS} - %msg%n")
-			.build();
+				.withPattern("[%-5level] %date{yyyy-MM-dd HH:mm:ss.SSS} - %msg%n")
+				.withConfiguration(config)
+				.build();
 
 		TimeBasedTriggeringPolicy timeBasedTriggeringPolicy = TimeBasedTriggeringPolicy.newBuilder().withInterval(1).withModulate(true).build();
 		CompositeTriggeringPolicy compositeTriggeringPolicy = CompositeTriggeringPolicy.createPolicy(timeBasedTriggeringPolicy);
@@ -81,7 +82,7 @@ public class FileAppender implements Appender<MonitoringLogsDto>, Serializable {
 			.withConfig(config).build();
 
 		RollingFileAppender rollingFileAppender = RollingFileAppender.newBuilder()
-			.withName("rollingFileAppender")
+			.withName("rollingFileAppender-" + taskId)
 			.withFileName(logsPath.toString() + "/observe-log-" + taskId + ".log")
 			.withFilePattern(logsPath.toString() + "/observe-log-" + taskId + ".log.%d{yyyyMMdd}-%i.gz")
 			.withLayout(patternLayout)
@@ -100,10 +101,11 @@ public class FileAppender implements Appender<MonitoringLogsDto>, Serializable {
 	}
 
 	public void removeRollingFileAppender(String taskId) {
-		rollingFileAppenderMap.computeIfAbsent(taskId, key -> {
+		rollingFileAppenderMap.computeIfPresent(taskId, (k, v) -> {
 			org.apache.logging.log4j.core.Logger coreLogger = (org.apache.logging.log4j.core.Logger) logger;
-			RollingFileAppender appender = rollingFileAppenderMap.get(key);
+			RollingFileAppender appender = rollingFileAppenderMap.get(k);
 			appender.stop();
+			appender.getManager().close();
 			coreLogger.removeAppender(appender);
 
 			return null;

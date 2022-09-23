@@ -59,8 +59,9 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 					}
 					// Update memory from ddl event info map
 					updateMemoryFromDDLInfoMap(tapdataEvent, getTgtTableNameFromTapEvent(tapdataEvent.getTapEvent()));
+					AtomicReference<TapValueTransform> tapValueTransform = new AtomicReference<>();
 					if (tapdataEvent.isDML()) {
-						transformFromTapValue(tapdataEvent, null);
+						tapValueTransform.set(transformFromTapValue(tapdataEvent));
 					}
 					tryProcess(tapdataEvent, (event, processResult) -> {
 						if (null == event) {
@@ -68,9 +69,9 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 						}
 						if (tapdataEvent.isDML()) {
 							if (null != processResult && null != processResult.getTableId()) {
-								transformToTapValue(event, processorBaseContext.getTapTableMap(), processResult.getTableId());
+								transformToTapValue(event, processorBaseContext.getTapTableMap(), processResult.getTableId(), tapValueTransform.get());
 							} else {
-								transformToTapValue(event, processorBaseContext.getTapTableMap(), getNode().getId());
+								transformToTapValue(event, processorBaseContext.getTapTableMap(), getNode().getId(), tapValueTransform.get());
 							}
 						}
 
@@ -104,7 +105,7 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 
 	protected ProcessResult getProcessResult(String tableName) {
 		if (!multipleTables && !StringUtils.equalsAnyIgnoreCase(processorBaseContext.getTaskDto().getSyncType(),
-						TaskDto.SYNC_TYPE_DEDUCE_SCHEMA)) {
+				TaskDto.SYNC_TYPE_DEDUCE_SCHEMA)) {
 			tableName = processorBaseContext.getNode().getId();
 		}
 		return ProcessResult.create().tableId(tableName);

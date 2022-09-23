@@ -70,10 +70,9 @@ public class TapCodecsRegistry {
     }
 
     public ToTapValueCodec<?> getToTapValueCodec(Class<?> clazz) {
-        ToTapValueCodec<?> codec = classToTapValueCodecMap.get(clazz);
-        if(codec == null) {
-            codec = TapDefaultCodecs.instance.getToTapValueCodec(clazz);
-        }
+        ToTapValueCodec<?> codec = TapDefaultCodecs.instance.getToTapValueCodec(clazz);
+        if(codec == null)
+            codec = TapDefaultCodecs.instance.isRawCodec(clazz);
         return codec;
     }
 

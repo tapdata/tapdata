@@ -55,10 +55,11 @@ public class MariadbConnectionTest {
 	}
 
 	public TestItem testConnect() {
-		try {
-			mysqlJdbcContext.getConnection();
+		try (
+				Connection connection = mysqlJdbcContext.getConnection();
+        ) {
 			return testItem(TestItem.ITEM_CONNECTION, TestItem.RESULT_SUCCESSFULLY);
-		} catch (Exception e) {
+		}catch (Exception e) {
 			if (e instanceof SQLException) {
 				String errMsg = e.getMessage();
 				if (errMsg.contains("using password")) {

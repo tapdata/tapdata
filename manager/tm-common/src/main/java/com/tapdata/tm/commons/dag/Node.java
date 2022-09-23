@@ -446,13 +446,6 @@ public abstract class Node<S> extends Element{
                         String fieldName = field.getFieldName();
                         fieldName = fieldName.toUpperCase();
                         field.setFieldName(fieldName);
-                        List<String> oldIdList = field.getOldIdList();
-                        if (oldIdList == null) {
-                            oldIdList = new ArrayList<>();
-                            field.setOldIdList(oldIdList);
-                        }
-                        oldIdList.add(field.getId());
-                        field.setId(new ObjectId().toHexString());
                     }
                 });
             } else if ("toLowerCase".equalsIgnoreCase(fieldsNameTransform)) {
@@ -461,13 +454,6 @@ public abstract class Node<S> extends Element{
                         String fieldName = field.getFieldName();
                         fieldName = fieldName.toLowerCase();
                         field.setFieldName(fieldName);
-                        List<String> oldIdList = field.getOldIdList();
-                        if (oldIdList == null) {
-                            oldIdList = new ArrayList<>();
-                            field.setOldIdList(oldIdList);
-                        }
-                        oldIdList.add(field.getId());
-                        field.setId(new ObjectId().toHexString());
                     }
                 });
             }

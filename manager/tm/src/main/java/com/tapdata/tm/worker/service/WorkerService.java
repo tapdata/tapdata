@@ -17,6 +17,7 @@ import com.tapdata.tm.base.service.BaseService;
 import com.tapdata.tm.cluster.dto.ClusterStateDto;
 import com.tapdata.tm.cluster.dto.SystemInfo;
 import com.tapdata.tm.cluster.service.ClusterStateService;
+import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.dataflow.dto.DataFlowDto;
 import com.tapdata.tm.dataflow.service.DataFlowService;
@@ -462,5 +463,14 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
         );
 
         return worker;
+    }
+
+    public void setHostName(TaskDto dto) {
+        String agentId = dto.getAgentId();
+        Query query = new Query(Criteria.where("process_id").is(agentId));
+        WorkerDto one = findOne(query);
+        if (Objects.nonNull(one)) {
+            dto.setHostName(one.getHostname());
+        }
     }
 }
