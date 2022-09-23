@@ -1,6 +1,5 @@
 package io.tapdata.connector.mysql.ddl.ccj;
 
-import io.tapdata.common.ddl.ccj.CCJBaseDDLWrapper;
 import io.tapdata.entity.event.ddl.TapDDLEvent;
 import io.tapdata.entity.event.ddl.entity.ValueChange;
 import io.tapdata.entity.event.ddl.table.TapAlterFieldAttributesEvent;
@@ -24,7 +23,7 @@ import java.util.function.Consumer;
  * @Description
  * @create 2022-07-04 17:45
  **/
-public class MysqlAlterColumnAttrsDDLWrapper extends CCJBaseDDLWrapper {
+public class MysqlAlterColumnAttrsDDLWrapper extends MysqlDDLWrapper {
 
     @Override
     public List<Capability> getCapabilities() {
@@ -50,7 +49,7 @@ public class MysqlAlterColumnAttrsDDLWrapper extends CCJBaseDDLWrapper {
             for (AlterExpression.ColumnDataType columnDataType : colDataTypeList) {
                 TapAlterFieldAttributesEvent tapAlterFieldAttributesEvent = new TapAlterFieldAttributesEvent();
                 tapAlterFieldAttributesEvent.setTableId(tableName);
-                String columnName = StringKit.removeHeadTail(columnDataType.getColumnName(), ccjddlWrapperConfig.getSplit(), false);
+                String columnName = StringKit.removeHeadTail(columnDataType.getColumnName(), ccjddlWrapperConfig.getSplit(), null);
                 tapAlterFieldAttributesEvent.fieldName(columnName);
                 List<String> columnSpecs = columnDataType.getColumnSpecs();
                 String preSpec = "";

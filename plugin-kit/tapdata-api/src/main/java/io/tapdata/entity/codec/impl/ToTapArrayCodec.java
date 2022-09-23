@@ -20,10 +20,10 @@ public class ToTapArrayCodec implements ToTapValueCodec<TapArrayValue> {
 
         TapArrayValue arrayValue = null;
         if (List.class.isAssignableFrom(value.getClass())) {
-            arrayValue = new TapArrayValue((List<?>) value);
+            arrayValue = new TapArrayValue((List<Object>) value);
         } else if(value instanceof String) {
             try {
-                return new TapArrayValue(InstanceFactory.instance(JsonParser.class).fromJsonArray((String) value));
+                return new TapArrayValue((List<Object>) InstanceFactory.instance(JsonParser.class).fromJsonArray((String) value));
             } catch(Throwable throwable) {
                 throwable.printStackTrace();
             }

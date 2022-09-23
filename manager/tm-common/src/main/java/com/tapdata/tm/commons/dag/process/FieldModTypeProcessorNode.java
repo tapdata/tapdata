@@ -49,13 +49,6 @@ public class FieldModTypeProcessorNode extends FieldProcessorNode {
                         if (operation.getId().equals(field.getId())) {
                             field.setTapType(calTapType(operation.getOperand()));
                             field.setDataTypeTemp(null);
-                            List<String> oldIdList = field.getOldIdList();
-                            if (oldIdList == null) {
-                                oldIdList = new ArrayList<>();
-                                field.setOldIdList(oldIdList);
-                            }
-                            oldIdList.add(field.getId());
-                            field.setId(new ObjectId().toHexString());
                         }
                     });
                 }

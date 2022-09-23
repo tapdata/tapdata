@@ -7,7 +7,6 @@ import com.tapdata.entity.TapdataEvent;
 import com.tapdata.entity.schema.SchemaApplyResult;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.processor.ScriptUtil;
-import com.tapdata.processor.constant.JSEngineEnum;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.process.CustomProcessorNode;
 import com.tapdata.tm.commons.dag.process.JsProcessorNode;
@@ -16,7 +15,9 @@ import com.tapdata.tm.commons.schema.Schema;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
+import io.tapdata.entity.schema.type.TapType;
 import io.tapdata.entity.schema.value.TapValue;
+import io.tapdata.entity.utils.JavaTypesToTapTypes;
 import io.tapdata.flow.engine.V2.util.TapEventUtil;
 import io.tapdata.pdk.core.utils.ReflectionUtil;
 import io.tapdata.schema.TapTableMap;
@@ -92,7 +93,13 @@ public class HazelcastSchemaTargetNode extends HazelcastVirtualTargetNode {
 				} else {
 					declareScript = String.format("function declare(tapTable){\n %s \n return tapTable;\n}", declareScript);
 				}
-				this.engine = ScriptUtil.getScriptEngine(JSEngineEnum.NASHORN.getEngineName(), declareScript);
+				this.engine = ScriptUtil.getScriptEngine(
+								declareScript,
+								null,
+								null,
+								((DataProcessorContext) processorBaseContext).getCacheService(),
+								logger
+				);
 			}
 		}
 	}
@@ -166,8 +173,17 @@ public class HazelcastSchemaTargetNode extends HazelcastVirtualTargetNode {
 				}
 				if (entry.getValue() instanceof TapValue) {
 					TapValue<?, ?> tapValue = (TapValue<?, ?>) entry.getValue();
-					TapField tapField = new TapField(entry.getKey(), tapValue.getOriginType());
+					TapField tapField = new TapField()
+									.name(entry.getKey())
+									.dataType(tapValue.getOriginType())
+									.tapType(tapValue.getTapType());
 					tapField.setTapType(tapValue.getTapType());
+					tapTable.add(tapField);
+				} else {
+					TapType tapType = JavaTypesToTapTypes.toTapType(entry.getValue());
+					TapField tapField = new TapField()
+									.name(entry.getKey())
+									.tapType(tapType);
 					tapTable.add(tapField);
 				}
 			}

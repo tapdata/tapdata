@@ -406,4 +406,12 @@ public class DataSourceDefinitionService extends BaseService<DataSourceDefinitio
         }
         return null;
     }
+
+
+    public boolean checkExistsByPdkId(String pdkId, UserDetail user) {
+        Criteria criteria = Criteria.where("pdkId").is(pdkId);
+        Query query = new Query(criteria);
+        long count = count(query, user);
+        return count > 0;
+    }
 }

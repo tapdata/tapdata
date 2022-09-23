@@ -65,6 +65,10 @@ public class HazelcastMultiAggregatorProcessor extends HazelcastBaseNode {
 
     private final List<String> targetFieldsName = new ArrayList<>();
 
+    private TapRecordEvent originalTapRecordEvent;
+
+    private TapValueTransform tapValueTransform;
+
     public HazelcastMultiAggregatorProcessor(ProcessorBaseContext processorBaseContext) {
         super(processorBaseContext);
         Node<?> node = processorBaseContext.getNode();
@@ -181,7 +185,10 @@ public class HazelcastMultiAggregatorProcessor extends HazelcastBaseNode {
             }
             return true;
         }
-        transformFromTapValue(tapdataEvent, null);
+        tapValueTransform = transformFromTapValue(tapdataEvent);
+        if (tapdataEvent.getTapEvent() instanceof TapRecordEvent) {
+            originalTapRecordEvent = (TapRecordEvent) tapdataEvent.getTapEvent();
+        }
 
         // initialize input
         Object initialInput = tapdataEvent;
@@ -999,16 +1006,19 @@ public class HazelcastMultiAggregatorProcessor extends HazelcastBaseNode {
                                 TapDeleteRecordEvent cloneDelete = new TapDeleteRecordEvent();
                                 tapRecordEvent.clone(cloneDelete);
                                 cloneDelete.setBefore(((TapDeleteRecordEvent) tapRecordEvent).getBefore());
+                                cloneDelete.setReferenceTime(originalTapRecordEvent.getReferenceTime());
                                 event.setTapEvent(cloneDelete);
                             } else if (tapRecordEvent instanceof TapInsertRecordEvent) {
                                 TapInsertRecordEvent cloneInsert = new TapInsertRecordEvent();
                                 tapRecordEvent.clone(cloneInsert);
                                 cloneInsert.setAfter(((TapInsertRecordEvent) tapRecordEvent).getAfter());
+                                cloneInsert.setReferenceTime(originalTapRecordEvent.getReferenceTime());
                                 event.setTapEvent(cloneInsert);
                             } else if (tapRecordEvent instanceof TapUpdateRecordEvent) {
                                 TapUpdateRecordEvent cloneUpdate = new TapUpdateRecordEvent();
                                 tapRecordEvent.clone(cloneUpdate);
                                 cloneUpdate.setAfter(((TapUpdateRecordEvent) tapRecordEvent).getAfter());
+                                cloneUpdate.setReferenceTime(originalTapRecordEvent.getReferenceTime());
                                 event.setTapEvent(cloneUpdate);
                             }
                         } else {
@@ -1020,11 +1030,12 @@ public class HazelcastMultiAggregatorProcessor extends HazelcastBaseNode {
                                 TapDeleteRecordEvent cloneDelete = new TapDeleteRecordEvent();
                                 tapRecordEvent.clone(cloneDelete);
                                 cloneDelete.setBefore(((TapUpdateRecordEvent) tapRecordEvent).getBefore());
+                                cloneDelete.setReferenceTime(originalTapRecordEvent.getReferenceTime());
                                 event.setTapEvent(cloneDelete);
                             }
                         }
                     }
-                    transformToTapValue(event, processorBaseContext.getTapTableMap(), processorBaseContext.getNode().getId());
+                    transformToTapValue(event, processorBaseContext.getTapTableMap(), processorBaseContext.getNode().getId(), tapValueTransform);
                     offer(event);
                 } else {
                     throw new RuntimeException("not implement");

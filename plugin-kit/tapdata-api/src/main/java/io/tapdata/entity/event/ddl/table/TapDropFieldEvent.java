@@ -33,4 +33,12 @@ public class TapDropFieldEvent extends TapFieldBaseEvent {
     public void setFieldName(String fieldName) {
         this.fieldName = fieldName;
     }
+
+    @Override
+    public String toString() {
+        return "TapDropFieldEvent{" +
+                "tableId='" + tableId + '\'' +
+                ", fieldName='" + fieldName + '\'' +
+                '}';
+    }
 }

@@ -37,6 +37,7 @@ import com.tapdata.tm.commons.util.PdkSchemaConvert;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.dataflow.dto.DataFlowDto;
 import com.tapdata.tm.dataflow.service.DataFlowService;
+import com.tapdata.tm.discovery.service.DefaultDataDirectoryService;
 import com.tapdata.tm.ds.dto.ConnectionStats;
 import com.tapdata.tm.ds.dto.UpdateTagsDto;
 import com.tapdata.tm.ds.entity.DataSourceEntity;
@@ -128,6 +129,8 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
     private SettingsService settingsService;
 	private DataSourceDefinitionService dataSourceDefinitionService;
 
+	private DefaultDataDirectoryService defaultDataDirectoryService;
+
 	public DataSourceService(@NonNull DataSourceRepository repository) {
 		super(repository, DataSourceConnectionDto.class, DataSourceEntity.class);
 	}
@@ -139,6 +142,7 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 
 		desensitizeMongoConnection(connectionDto);
 		sendTestConnection(connectionDto, false, submit, userDetail);
+		defaultDataDirectoryService.addConnection(connectionDto, userDetail);
 		return connectionDto;
 	}
 
@@ -412,6 +416,14 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 				item.setAccessNodeType(AccessNodeTypeEnum.AUTOMATIC_PLATFORM_ALLOCATION.name());
 			}
 
+			// --！
+			int loadCount = Objects.nonNull(item.getLoadCount()) ? item.getLoadCount() : 0;
+			int tableCount = Objects.nonNull(item.getTableCount()) ? item.getTableCount().intValue() : 0;
+			if (loadCount > tableCount) {
+				item.setLoadCount(tableCount);
+			}
+
+
 			String id = item.getId().toHexString();
 			connectMap.put(id, item);
 			newResultObj.put(item.getId(), item);
@@ -625,6 +637,8 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 			metadataInstancesService.update(query2, update2, user);
 		}
 
+		defaultDataDirectoryService.removeConnection(id, user);
+
 		return connectionDto;
 	}
 
@@ -655,12 +669,15 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 		entity.setId(null);
 		//将数据源连接的名称修改成为名称后面+_copy
 		String connectionName = entity.getName() + " - Copy";
+		entity.setLastUpdAt(new Date());
 		while (true) {
 			try {
 				//插入复制的数据源
 				entity.setName(connectionName);
 				entity.setStatus(DataSourceEntity.STATUS_INVALID);
 				entity.setLoadFieldsStatus(null);
+				entity.setLoadCount(0);
+				entity.setLoadFieldsStatus("");
 				entity = repository.save(entity, user);
 				break;
 			} catch (Exception e) {
@@ -677,7 +694,7 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 		//将新的数据源连接返回
 		DataSourceConnectionDto connectionDto = convertToDto(entity, DataSourceConnectionDto.class);
 		sendTestConnection(connectionDto, true, true, user);
-
+		defaultDataDirectoryService.addConnection(connectionDto, user);
 		return connectionDto;
 	}
 
@@ -1149,17 +1166,17 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 					if (CollectionUtils.isNotEmpty(tables)) {
 
 						//处理自定义加载的表。
-						Boolean loadAllTable = oldConnectionDto.getLoadAllTables();
-						if (loadAllTable != null && !loadAllTable) {
-							String table_filter = oldConnectionDto.getTable_filter();
-							if (StringUtils.isNotBlank(table_filter)) {
-								List<String> loadTables = Splitter.on(',').trimResults().omitEmptyStrings().splitToList(table_filter);
-								if (CollectionUtils.isNotEmpty(loadTables)) {
-									tables = tables.stream().filter(t -> loadTables.contains(t.getName())).collect(Collectors.toList());
-
-								}
-							}
-						}
+//						Boolean loadAllTable = oldConnectionDto.getLoadAllTables();
+//						if (loadAllTable != null && !loadAllTable) {
+//							String table_filter = oldConnectionDto.getTable_filter();
+//							if (StringUtils.isNotBlank(table_filter)) {
+//								List<String> loadTables = Splitter.on(',').trimResults().omitEmptyStrings().splitToList(table_filter);
+//								if (CollectionUtils.isNotEmpty(loadTables)) {
+//									tables = tables.stream().filter(t -> loadTables.contains(t.getName())).collect(Collectors.toList());
+//
+//								}
+//							}
+//						}
 						for (TapTable table : tables) {
 							String expression = definitionDto.getExpression();
 							PdkSchemaConvert.tableFieldTypesGenerator.autoFill(table.getNameFieldMap() == null ? new LinkedHashMap<>() : table.getNameFieldMap(), DefaultExpressionMatchingMap.map(expression));
@@ -1375,6 +1392,11 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 			Criteria criteria = Criteria.where("source.id").is(connectionDto.getId()).and("meta_type").is("database");
 			Update update = Update.update("original_name", connectionDto.getName()).set("source.name", connectionDto.getName());
 			metadataInstancesService.update(new Query(criteria), update, user);
+		}
+
+		//更新数据目录
+		if (StringUtils.isNotBlank(oldName)) {
+			defaultDataDirectoryService.updateConnection(connectionDto, user);
 		}
 
 		sendTestConnection(connectionDto, true, submit, user);

@@ -10,8 +10,6 @@ import com.mongodb.client.result.UpdateResult;
 import com.tapdata.manager.common.utils.IOUtils;
 import com.tapdata.manager.common.utils.JsonUtil;
 import com.tapdata.manager.common.utils.StringUtils;
-import com.tapdata.tm.CustomerJobLogs.CustomerJobLog;
-import com.tapdata.tm.CustomerJobLogs.service.CustomerJobLogsService;
 import com.tapdata.tm.Settings.constant.CategoryEnum;
 import com.tapdata.tm.Settings.constant.KeyEnum;
 import com.tapdata.tm.Settings.service.SettingsService;
@@ -61,7 +59,6 @@ public class StateMachineScheduleTask {
 	private UserService userService;
 	private DataFlowService dataFlowService;
 	private WorkerService workerService;
-	private CustomerJobLogsService customerJobLogsService;
 	private SettingsService settingsService;
 	private TaskService taskService;
 
@@ -143,17 +140,6 @@ public class StateMachineScheduleTask {
 					dataFlowDto.setAgentId(null);
 					workerService.scheduleTaskToEngine(dataFlowDto, userDetail);
 					String processId = dataFlowDto.getAgentId();
-					if (StringUtils.isNotBlank(processId)){
-						UpdateResult result = dataFlowService.update(
-								query(Criteria.where("_id").is(dataFlowDto.getId()).and("status").is(DataFlowState.SCHEDULING.getName())),
-								Update.update("agentId", processId).set("pingTime", System.currentTimeMillis()), userDetail);
-						if (result.wasAcknowledged() && result.getModifiedCount() > 0){
-							CustomerJobLog dataFlowLog = new CustomerJobLog(dataFlowDto.getId().toString(),dataFlowDto.getName(), CustomerJobLogsService.DataFlowType.clone);
-							WorkerDto workerDto = workerService.findOne(new Query(Criteria.where("process_id").is(processId)));
-							dataFlowLog.setAgentHost(workerDto.getHostname());
-							customerJobLogsService.assignAgent(dataFlowLog, userDetail);
-						}
-					}
 					log.info("checkScheduledTask complete,dataFlowId: {}, processId: {}", dataFlowDto.getId().toHexString(), processId);
 				}else {
 					StateMachineResult result = stateMachineService.executeAboutDataFlow(dataFlowDto, DataFlowEvent.OVERTIME, userDetail);

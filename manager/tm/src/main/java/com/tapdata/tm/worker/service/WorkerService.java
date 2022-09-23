@@ -500,4 +500,13 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
 
         return worker;
     }
+
+    public void setHostName(TaskDto dto) {
+        String agentId = dto.getAgentId();
+        Query query = new Query(Criteria.where("process_id").is(agentId));
+        WorkerDto one = findOne(query);
+        if (Objects.nonNull(one)) {
+            dto.setHostName(one.getHostname());
+        }
+    }
 }

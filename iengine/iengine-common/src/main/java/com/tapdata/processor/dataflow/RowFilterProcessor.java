@@ -63,7 +63,7 @@ public class RowFilterProcessor implements DataFlowProcessor {
 		ScriptConnection targetScriptConnection = context.getTargetScriptConnection();
 
 		try {
-			this.engine = ScriptUtil.getScriptEngine(stage.getJsEngineName(), script, context.getJavaScriptFunctions(), context.getClientMongoOperator(), sourceScriptConnection, targetScriptConnection, null);
+			this.engine = ScriptUtil.getScriptEngine(stage.getJsEngineName(), script, context.getJavaScriptFunctions(), context.getClientMongoOperator(), sourceScriptConnection, targetScriptConnection, null, logger);
 		} catch (ScriptException e) {
 			throw new RuntimeException(String.format("Initial row filter expression %s failed, format script %s", expression, script));
 		}

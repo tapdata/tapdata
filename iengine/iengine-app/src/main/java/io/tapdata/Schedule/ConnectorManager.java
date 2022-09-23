@@ -21,9 +21,8 @@ import io.tapdata.common.sample.CollectorFactory;
 import io.tapdata.dao.MessageDao;
 import io.tapdata.entity.*;
 import io.tapdata.metric.MetricManager;
-import io.tapdata.metrics.InfoSampleCollector;
-import io.tapdata.metrics.TaskSampleReporter;
-import io.tapdata.metrics.TaskSampleRetriever;
+import io.tapdata.observable.metric.TaskSampleReporter;
+import io.tapdata.observable.metric.TaskSampleRetriever;
 import io.tapdata.schema.SchemaProxy;
 import io.tapdata.task.TapdataTaskScheduler;
 import org.apache.commons.collections.CollectionUtils;
@@ -263,15 +262,6 @@ public class ConnectorManager {
         throw new Exception(msg, e);
       }*/
 		}
-
-		// init samples and statistics
-		CollectorFactory.getInstance().start(
-				new TaskSampleReporter(clientMongoOperator),
-				new InfoSampleCollector.AgentInfoReporter(clientMongoOperator)
-		);
-		(new InfoSampleCollector()).registerInfo(configCenter, version);
-		TaskSampleRetriever.getInstance().start(restTemplateOperator);
-
 		configCenter.putConfig(ConfigurationCenter.BASR_URLS, baseURLs);
 		configCenter.putConfig(ConfigurationCenter.RETRY_TIME, restRetryTime);
 		configCenter.putConfig(ConfigurationCenter.AGENT_ID, instanceNo);

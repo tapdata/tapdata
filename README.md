@@ -22,7 +22,7 @@ Tapdata is a live data platform designed to connect data silos and provide fresh
 3. clone repo: `git clone https://github.com/tapdata/tapdata.git && cd tapdata`
 
 ## Last Release Branch
-release-v2.7
+release-v2.8
 
  
 ### Quick Use
@@ -46,7 +46,6 @@ set build/env.sh tapdata_build_env to "local"
 run `bash build/clean.sh` If you want to clean build target
 
 ### Quick Steps
-
 If everything is ok, now you should be in a terminal window, follow next steps, have a try!
 
 #### Create New DataSource

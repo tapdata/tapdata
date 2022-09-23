@@ -54,12 +54,13 @@ public class FieldRenameProcessorNode extends FieldProcessorNode {
 
                 String operand = operation.getOp();
                 if (StringUtils.isBlank(operand) || "RENAME".equalsIgnoreCase(operand)) {
-                    outputSchema.getFields().forEach(field -> {
+                    for (Field field : outputSchema.getFields()) {
                         if (operation.getId().equals(field.getId())) {
                             field.setFieldName(operation.getOperand());
+                            return;
                             //field.setOriginalFieldName(operation.getOperand());
                         }
-                    });
+                    }
                 }
 
             });

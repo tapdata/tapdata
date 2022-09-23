@@ -31,8 +31,6 @@ public interface Hive1Writer {
 
     public static final int MAX_BATCH_SAVE_SIZE = 10000;
 
-    public AtomicBoolean running = new AtomicBoolean(true);
-
 
     public WriteListResult<TapRecordEvent> write(TapConnectorContext tapConnectorContext, TapTable tapTable, List<TapRecordEvent> tapRecordEvents) throws Throwable;
 
@@ -41,10 +39,10 @@ public interface Hive1Writer {
 
     public WriteListResult<TapRecordEvent> batchInsert(TapConnectorContext tapConnectorContext, TapTable tapTable, List<TapRecordEvent> tapRecordEventList) throws Throwable;
 
-        default public void sumResult(WriteListResult<TapRecordEvent> writeListResult, WriteListResult<TapRecordEvent> result) {
-        writeListResult.incrementInserted(writeListResult.getInsertedCount()+ result.getInsertedCount());
-        writeListResult.incrementRemove(writeListResult.getRemovedCount()+ result.getRemovedCount());
-        writeListResult.incrementModified(writeListResult.getModifiedCount()+ result.getModifiedCount());
+    default public void sumResult(WriteListResult<TapRecordEvent> writeListResult, WriteListResult<TapRecordEvent> result) {
+        writeListResult.incrementInserted(writeListResult.getInsertedCount() + result.getInsertedCount());
+        writeListResult.incrementRemove(writeListResult.getRemovedCount() + result.getRemovedCount());
+        writeListResult.incrementModified(writeListResult.getModifiedCount() + result.getModifiedCount());
     }
 
     void createTable(TapConnectorContext tapConnectorContext, TapCreateTableEvent tapCreateTableEvent);

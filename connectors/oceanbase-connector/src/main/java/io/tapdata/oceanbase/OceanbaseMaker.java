@@ -5,7 +5,6 @@ import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.DataMap;
-import io.tapdata.kit.EmptyKit;
 import io.tapdata.oceanbase.util.QueryOperatorEnum;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.entity.QueryOperator;
@@ -16,11 +15,7 @@ import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.apache.commons.lang3.StringUtils;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.stream.Collectors;
 
 /**
@@ -124,54 +119,6 @@ public class OceanbaseMaker {
         }
         constraintName += RandomStringUtils.randomAlphabetic(4).toUpperCase();
         return constraintName;
-    }
-
-    /**
-     * build subSql after where for advance query
-     *
-     * @param filter condition of advance query
-     * @return where substring
-     */
-    public static String buildSqlByAdvanceFilter(TapAdvanceFilter filter) {
-        StringBuilder builder = new StringBuilder();
-        if (EmptyKit.isNotEmpty(filter.getMatch()) || EmptyKit.isNotEmpty(filter.getOperators())) {
-            builder.append("WHERE ");
-            builder.append(OceanbaseMaker.buildKeyAndValue(filter.getMatch(), "AND", "="));
-        }
-        if (EmptyKit.isNotEmpty(filter.getOperators())) {
-            if (EmptyKit.isNotEmpty(filter.getMatch())) {
-                builder.append("AND ");
-            }
-            builder.append(filter.getOperators().stream().map(v -> v.toString("\"")).collect(Collectors.joining(" AND "))).append(' ');
-        }
-        if (EmptyKit.isNotEmpty(filter.getSortOnList())) {
-            builder.append("ORDER BY ");
-            builder.append(filter.getSortOnList().stream().map(v -> v.toString("\"")).collect(Collectors.joining(", "))).append(' ');
-        }
-        if (null != filter.getSkip()) {
-            builder.append("OFFSET ").append(filter.getSkip()).append(' ');
-        }
-        if (null != filter.getLimit()) {
-            builder.append("LIMIT ").append(filter.getLimit()).append(' ');
-        }
-        return builder.toString();
-    }
-
-    public static String buildKeyAndValue(Map<String, Object> record, String splitSymbol, String operator) {
-        StringBuilder builder = new StringBuilder();
-        if (EmptyKit.isNotEmpty(record)) {
-            record.forEach((fieldName, value) -> {
-                builder.append('\"').append(fieldName).append('\"').append(operator);
-                if (!(value instanceof Number)) {
-                    builder.append('\'').append(value).append('\'');
-                } else {
-                    builder.append(value);
-                }
-                builder.append(' ').append(splitSymbol).append(' ');
-            });
-            builder.delete(builder.length() - splitSymbol.length() - 1, builder.length());
-        }
-        return builder.toString();
     }
 
     public static String selectSql(TapConnectorContext tapConnectorContext, TapTable tapTable, TapAdvanceFilter tapAdvanceFilter) {

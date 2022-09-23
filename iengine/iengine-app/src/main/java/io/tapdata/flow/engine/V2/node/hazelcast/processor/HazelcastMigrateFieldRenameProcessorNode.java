@@ -6,7 +6,6 @@ import com.tapdata.entity.task.context.ProcessorBaseContext;
 import com.tapdata.tm.commons.dag.process.MigrateFieldRenameProcessorNode;
 import com.tapdata.tm.commons.dag.vo.FieldInfo;
 import com.tapdata.tm.commons.dag.vo.TableFieldInfo;
-import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.entity.event.TapBaseEvent;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.ddl.entity.FieldAttrChange;
@@ -144,12 +143,7 @@ public class HazelcastMigrateFieldRenameProcessorNode  extends HazelcastProcesso
     }
 
     if (processedEvent.get() != null) {
-      String tableName = tableId;
-      if (!multipleTables && StringUtils.equalsAnyIgnoreCase(processorBaseContext.getTaskDto().getSyncType(),
-              TaskDto.SYNC_TYPE_DEDUCE_SCHEMA)) {
-        tableName = processorBaseContext.getNode().getId();
-      }
-      consumer.accept(processedEvent.get(), ProcessResult.create().tableId(tableName));
+      consumer.accept(processedEvent.get(), getProcessResult(tableId));
     } else {
       if (logger.isDebugEnabled()) {
         logger.debug("The event does not need to continue to be processed {}", tapdataEvent);

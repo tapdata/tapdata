@@ -1,0 +1,10 @@
+spring:
+  profiles:
+    active: '@profile.active@'
+    include: '@env.PRODUCT@,default'
+
+  data:
+    mongodb:
+      uri: 'mongodb://127.0.0.1:27017/tapdata_v29'
+      cursorBatchSize: 1000
+

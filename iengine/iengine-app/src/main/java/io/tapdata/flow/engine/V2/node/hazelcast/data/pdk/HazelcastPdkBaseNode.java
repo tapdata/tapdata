@@ -11,6 +11,8 @@ import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
+import io.tapdata.aspect.PDKNodeInitAspect;
+import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
@@ -27,7 +29,7 @@ import io.tapdata.pdk.apis.entity.ConnectorCapabilities;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.api.PDKIntegration;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
-import io.tapdata.pdk.core.monitor.PDKMethod;
+import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.schema.PdkTableMap;
 import io.tapdata.schema.TapTableMap;
@@ -97,6 +99,7 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 				)
 		);
 		processorBaseContext.setPdkAssociateId(this.associateId);
+		AspectUtils.executeAspect(PDKNodeInitAspect.class, () -> new PDKNodeInitAspect().dataProcessorContext((DataProcessorContext) processorBaseContext));
 	}
 
 	private void initDmlPolicy(Node<?> node, ConnectorCapabilities connectorCapabilities) {
@@ -143,7 +146,6 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 			if (this.monitorManager != null) {
 				this.monitorManager.close();
 			}
-			CommonUtils.ignoreAnyError(() -> Optional.ofNullable(dataProcessorContext.getTapTableMap()).ifPresent(TapTableMap::reset), TAG);
 			CommonUtils.ignoreAnyError(() -> {
 				logger.info("Starting stop and release PDK connector node: " + associateId);
 				Optional.ofNullable(getConnectorNode())

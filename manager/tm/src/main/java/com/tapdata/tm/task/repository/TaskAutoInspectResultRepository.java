@@ -1,15 +1,13 @@
 package com.tapdata.tm.task.repository;
 
+import com.tapdata.tm.autoinspect.constants.ResultStatus;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.reporitory.BaseRepository;
 import com.tapdata.tm.task.entity.TaskAutoInspectGroupTableResultEntity;
 import com.tapdata.tm.task.entity.TaskAutoInspectResultEntity;
 import org.bson.types.ObjectId;
 import org.springframework.data.mongodb.core.MongoTemplate;
-import org.springframework.data.mongodb.core.aggregation.Aggregation;
-import org.springframework.data.mongodb.core.aggregation.GroupOperation;
-import org.springframework.data.mongodb.core.aggregation.LookupOperation;
-import org.springframework.data.mongodb.core.aggregation.MatchOperation;
+import org.springframework.data.mongodb.core.aggregation.*;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.stereotype.Repository;
 import org.springframework.util.Assert;
@@ -72,7 +70,9 @@ public class TaskAutoInspectResultRepository extends BaseRepository<TaskAutoInsp
                 Aggregation.unwind("sourceConn"),
                 LookupOperation.newLookup().from("Connections").localField("targetConnId").foreignField("_id").as("targetConn"),
                 Aggregation.unwind("targetConn"),
-                group.first("sourceConn.name").as("sourceConnName").first("targetConn.name").as("targetConnName"),
+                group.sum(ConditionalOperators.when(Criteria.where("status").is(ResultStatus.ToBeCompared)).then(1).otherwise(0)).as("toBeCompared")
+                        .first("sourceConn.name").as("sourceConnName")
+                        .first("targetConn.name").as("targetConnName"),
                 Aggregation.skip(skip),
                 Aggregation.limit(limit)
         ), entityInformation.getCollectionName(), TaskAutoInspectGroupTableResultEntity.class).getMappedResults();

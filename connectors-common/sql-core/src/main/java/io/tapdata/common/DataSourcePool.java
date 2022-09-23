@@ -16,10 +16,10 @@ public class DataSourcePool {
      * @param clazz  Class<? extends JdbcContext>
      * @return jdbcContext
      */
-    public static JdbcContext  getJdbcContext(CommonDbConfig config, Class<? extends JdbcContext> clazz, String connectorId) {
+    public static JdbcContext getJdbcContext(CommonDbConfig config, Class<? extends JdbcContext> clazz, String connectorId) {
         String key = uniqueKeyForDb(config);
 		synchronized (key.intern()) {
-			if (dataPool.containsKey(key) && dataPool.get(key).testValid(config)) {
+			if (dataPool.containsKey(key) && dataPool.get(key).testValid()) {
 				return dataPool.get(key).incrementConnector(connectorId);
 			} else {
 				JdbcContext context = null;
@@ -27,7 +27,8 @@ public class DataSourcePool {
 					context = clazz.getDeclaredConstructor(config.getClass(), HikariDataSource.class).newInstance(config, HikariConnection.getHikariDataSource(config));
 					context.incrementConnector(connectorId);
 					dataPool.put(key, context);
-				} catch (Exception ignore) {
+				} catch (Exception e) {
+                    throw new RuntimeException(e);
 				}
 				return context;
 			}
@@ -67,7 +68,7 @@ public class DataSourcePool {
             hikariDataSource.setUsername(config.getUser());
             hikariDataSource.setPassword(config.getPassword());
             hikariDataSource.setMinimumIdle(1);
-            hikariDataSource.setMaximumPoolSize(100);
+            hikariDataSource.setMaximumPoolSize(100); //-1 may be not limited
             hikariDataSource.setAutoCommit(false);
             hikariDataSource.setIdleTimeout(60 * 1000L);
             hikariDataSource.setKeepaliveTime(60 * 1000L);

@@ -8,6 +8,7 @@ import org.bson.types.ObjectId;
 import org.springframework.data.mongodb.core.mapping.Document;
 import org.springframework.data.mongodb.core.mapping.Field;
 
+import javax.validation.constraints.NotBlank;
 import java.util.List;
 
 
@@ -24,8 +25,8 @@ public class ModulesEntity extends BaseEntity {
     @JsonProperty("datasource")
     private String dataSource;
 
-    @Field("tablename")
-    @JsonProperty("tablename")
+//    @Field("tablename")
+    @JsonProperty("tableName")
     private String tableName;
 
     private String apiVersion;
@@ -77,4 +78,12 @@ public class ModulesEntity extends BaseEntity {
 
     @Field("req_bytes")
     private Long reqBytes;
+
+    private String connectionId;
+
+    private String operationType;
+
+    private String connectionType;
+
+    private String connectionName;
 }

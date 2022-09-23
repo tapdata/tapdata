@@ -41,6 +41,7 @@ public class DummyConfig implements IDummyConfig {
                     if (Optional.ofNullable((Boolean) dummyField.get("pri")).orElse(false)) {
                         table.getDefaultPrimaryKeys().add(field.getName());
                         field.setPos(i);
+                        field.setPrimaryKey(true);
                         field.primaryKeyPos(table.getDefaultPrimaryKeys().size());
                     }
                     table.add(field);

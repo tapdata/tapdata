@@ -14,6 +14,7 @@ public class TaskAutoInspectGroupTableResultEntity implements Serializable {
 
     private String taskId;
     private String originalTableName;
+    private Integer toBeCompared;
 
     @JsonSerialize( using = ObjectIdSerialize.class)
     @JsonDeserialize( using = ObjectIdDeserialize.class)

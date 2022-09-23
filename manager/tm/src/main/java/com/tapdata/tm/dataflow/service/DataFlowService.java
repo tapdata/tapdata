@@ -9,8 +9,6 @@ package com.tapdata.tm.dataflow.service;
 import com.mongodb.client.result.UpdateResult;
 import com.tapdata.manager.common.utils.JsonUtil;
 import com.tapdata.manager.common.utils.StringUtils;
-import com.tapdata.tm.CustomerJobLogs.CustomerJobLog;
-import com.tapdata.tm.CustomerJobLogs.service.CustomerJobLogsService;
 import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.exception.BizException;
@@ -133,9 +131,6 @@ public class DataFlowService extends BaseService<DataFlowDto, DataFlow, ObjectId
 
 	@Autowired
 	private DAGDataService dagDataService;
-
-	@Autowired
-	private CustomerJobLogsService customerJobLogsService;
 
 	@Autowired
 	private DataFlowRecordService dataFlowRecordService;
@@ -261,8 +256,6 @@ public class DataFlowService extends BaseService<DataFlowDto, DataFlow, ObjectId
 		}
 		String status = MapUtils.getAsString(dto, "status");
 		if (StateMachineConstant.DATAFLOW_STATUS_FORCE_STOPPING.equals(status)){
-			CustomerJobLog forceStopDataFlowLog = new CustomerJobLog(dataFlowDto.getId().toString(),dataFlowDto.getName(), CustomerJobLogsService.DataFlowType.clone);
-			customerJobLogsService.forceStopDataFlow(forceStopDataFlowLog, userDetail);
 			updateById(toObjectId(id), Update.update("status", status).set("forceStoppingTime", new Date()), userDetail);
 
 			messageQueueService.sendMessage(dataFlowDto.getAgentId(),
@@ -282,15 +275,11 @@ public class DataFlowService extends BaseService<DataFlowDto, DataFlow, ObjectId
 		trigger.setSource(state);
 		switch (status){
 			case "scheduled":
-				CustomerJobLog startDataFlowLog = new CustomerJobLog(dataFlowDto.getId().toString(),dataFlowDto.getName(), CustomerJobLogsService.DataFlowType.clone);
-				customerJobLogsService.startDataFlow(startDataFlowLog, userDetail);
 				trigger.setEvent(DataFlowEvent.START);
 				dataFlowDto.setStartType(StartType.manual.name());
 				behaviorService.trace(dataFlowDto, userDetail, BehaviorCode.startDataFlow);
 				break;
 			case "stopping":
-				CustomerJobLog stopDataFlowLog = new CustomerJobLog(dataFlowDto.getId().toString(),dataFlowDto.getName(), CustomerJobLogsService.DataFlowType.clone);
-				customerJobLogsService.stopDataFlow(stopDataFlowLog, userDetail);
 				trigger.setEvent(DataFlowEvent.STOP);
 				behaviorService.trace(dataFlowDto, userDetail, BehaviorCode.stopDataFlow);
 				break;
@@ -499,12 +488,6 @@ public class DataFlowService extends BaseService<DataFlowDto, DataFlow, ObjectId
 			jobDDLHistoriesService.deleteAll(Query.query(Criteria.where("dataFlowId").in(removeIds)));
 		}, completableFutureThreadPool)).join();
 		removeIds.forEach(dataFlowResetAllResDto::addSuccess);
-		dataFlowList.stream().filter(dataFlow -> removeIds.contains(dataFlow.getId().toHexString()))
-				.map(dataFlow -> new CustomerJobLog(dataFlow.getId().toString(), dataFlow.getName(), CustomerJobLogsService.DataFlowType.clone))
-				.forEach(resetDataFlowLog -> customerJobLogsService.resetDataFlow(resetDataFlowLog, userDetail));
-		removeIds.forEach(id -> {
-			behaviorService.trace(id, userDetail, BehaviorCode.resetDataFlow);
-		});
 		return dataFlowResetAllResDto;
 	}
 

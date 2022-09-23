@@ -3,6 +3,7 @@ package io.tapdata.connector.hive1;
 import io.tapdata.common.CommonDbTest;
 import io.tapdata.common.DataSourcePool;
 import io.tapdata.connector.hive1.config.Hive1Config;
+import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.pdk.apis.entity.TestItem;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.metastore.HiveMetaStoreClient;
@@ -16,9 +17,16 @@ import static io.tapdata.base.ConnectorBase.testItem;
 
 public class Hive1Test extends CommonDbTest {
 
+    public static final String TAG = Hive1Test.class.getSimpleName();
+
     public Hive1Test(Hive1Config hive1Config) {
         super(hive1Config);
-        jdbcContext = DataSourcePool.getJdbcContext(hive1Config, Hive1JdbcContext.class, uuid);
+        try {
+            jdbcContext = (Hive1JdbcContext) DataSourcePool.getJdbcContext(hive1Config, Hive1JdbcContext.class, uuid);
+        } catch (Exception e) {
+            TapLogger.error(TAG,"create Hive1JdbcContext error:{}",e.getMessage());
+            throw new RuntimeException(e);
+        }
 
     }
 

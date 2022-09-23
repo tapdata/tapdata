@@ -14,6 +14,9 @@
       {
         "id": "dml_update_policy",
         "alternatives": ["ignore_on_nonexists", "insert_on_nonexists"]
+      },
+      {
+        "id": "api_server_supported"
       }
     ],
     "connection": {

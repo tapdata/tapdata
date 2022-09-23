@@ -1,17 +1,20 @@
 package com.tapdata.tm.monitoringlogs.service;
 
-import com.alibaba.fastjson.JSON;
+import cn.hutool.core.date.DateUtil;
 import com.tapdata.manager.common.utils.IOUtils;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.base.service.BaseService;
 import com.tapdata.tm.commons.schema.MonitoringLogsDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
+import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.monitoringlogs.entity.MonitoringLogsEntity;
+import com.tapdata.tm.monitoringlogs.param.MonitoringLogCountParam;
 import com.tapdata.tm.monitoringlogs.param.MonitoringLogExportParam;
 import com.tapdata.tm.monitoringlogs.param.MonitoringLogQueryParam;
 import com.tapdata.tm.monitoringlogs.repository.MonitoringLogsRepository;
-import com.tapdata.tm.config.security.UserDetail;
+import com.tapdata.tm.monitoringlogs.vo.MonitoringLogCountVo;
+import com.tapdata.tm.utils.QuartzCronDateUtils;
 import lombok.NonNull;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
@@ -21,6 +24,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.BulkOperations;
 import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.aggregation.Aggregation;
+import org.springframework.data.mongodb.core.aggregation.GroupOperation;
+import org.springframework.data.mongodb.core.aggregation.MatchOperation;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.util.CloseableIterator;
@@ -30,6 +36,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.regex.Pattern;
 import java.util.zip.ZipOutputStream;
@@ -43,6 +50,8 @@ import java.util.zip.ZipOutputStream;
 @Slf4j
 @Setter(onMethod_ = {@Autowired})
 public class MonitoringLogsService extends BaseService<MonitoringLogsDto, MonitoringLogsEntity, ObjectId, MonitoringLogsRepository> {
+    private static final int MAX_DATA_SIZE = 100;
+    private static final int MAX_MESSAGE_CHAR_LENGTH = 2000;
     private MongoTemplate mongoOperations;
 
     public MonitoringLogsService(@NonNull MonitoringLogsRepository repository) {
@@ -80,7 +89,9 @@ public class MonitoringLogsService extends BaseService<MonitoringLogsDto, Monito
             criteria.and("taskRecordId").is(param.getTaskRecordId());
         }
 
-        criteria.and("date").gte(new Date(param.getStart())).lt(new Date(param.getEnd()));
+        Date startDate = DateUtil.offsetSecond(DateUtil.date(param.getStart()), -30);
+        Date endDate = DateUtil.offsetSecond(DateUtil.date(param.getEnd()), 30);
+        criteria.and("date").gte(startDate).lt(endDate);
 
         if (StringUtils.isNotEmpty(param.getNodeId())) {
             criteria.and("nodeId").is(param.getNodeId());
@@ -129,11 +140,47 @@ public class MonitoringLogsService extends BaseService<MonitoringLogsDto, Monito
         query.skip((param.getPage() - 1) * param.getPageSize());
         query.limit(param.getPageSize().intValue());
         List<MonitoringLogsEntity> logEntities = mongoOperations.find(query, MonitoringLogsEntity.class);
-        List<MonitoringLogsDto> logs = convertToDto(logEntities, MonitoringLogsDto.class);
+        List<MonitoringLogsDto> logs = new ArrayList<>();
+        for (MonitoringLogsEntity logEntity : logEntities) {
+            if (null != logEntity.getData() && logEntity.getData().size() > MAX_DATA_SIZE) {
+                logEntity.setData(logEntity.getData().subList(0, MAX_DATA_SIZE - 1));
+            }
+            if (null != logEntity.getMessage() && logEntity.getMessage().length() > MAX_MESSAGE_CHAR_LENGTH) {
+                logEntity.setMessage((logEntity.getMessage().substring(0, MAX_MESSAGE_CHAR_LENGTH - 1)) + "...");
+            }
+            logs.add(convertToDto(logEntity, MonitoringLogsDto.class));
+        }
 
         return new Page<>(total, logs);
     }
 
+    public List<MonitoringLogCountVo> count(MonitoringLogCountParam param) {
+        return count(param.getTaskId(), param.getTaskRecordId());
+    }
+
+    public List<MonitoringLogCountVo> count(String taskId, String taskRecordId) {
+       List<MonitoringLogCountVo> data = new ArrayList<>();
+        if (null == taskId || null == taskRecordId) {
+            return data;
+        }
+        Criteria criteria = Criteria.where("taskId").is(taskId).and("taskRecordId").is(taskRecordId);
+        MatchOperation match = Aggregation.match(criteria);
+        GroupOperation group = Aggregation.group("nodeId", "level").count().as("count");
+        Aggregation aggregation = Aggregation.newAggregation(match, group);
+        mongoOperations.aggregateStream(aggregation, "monitoringLogs", Map.class).forEachRemaining(item -> {
+            MonitoringLogCountVo vo = new MonitoringLogCountVo();
+            Map<String, String> _id = (Map<String, String>) item.get("_id");
+            String nodeId = _id.get("nodeId");
+            if (null != nodeId) {
+                vo.setNodeId(nodeId);
+            }
+            vo.setLevel(_id.get("level"));
+            vo.setCount((int) item.get("count"));
+            data.add(vo);
+        });
+
+        return data;
+    }
 
     public void export (MonitoringLogExportParam param, ZipOutputStream stream) {
         if (null == param.getTaskId()) {
@@ -174,14 +221,13 @@ public class MonitoringLogsService extends BaseService<MonitoringLogsDto, Monito
 
     //
 
-    public void startTaskMonitoringLog(TaskDto taskDto, UserDetail user) {
+    public void startTaskMonitoringLog(TaskDto taskDto, UserDetail user, Date date) {
         MonitoringLogsDto.MonitoringLogsDtoBuilder builder = MonitoringLogsDto.builder();
-        long now = System.currentTimeMillis();
         builder.taskId(taskDto.getId().toHexString())
                 .taskName(taskDto.getName())
                 .taskRecordId(taskDto.getTaskRecordId())
-                .date(new Date(now))
-                .timestamp(now)
+                .date(date)
+                .timestamp(System.currentTimeMillis())
                 .level("INFO")
                 .message("Start task...")
                 ;

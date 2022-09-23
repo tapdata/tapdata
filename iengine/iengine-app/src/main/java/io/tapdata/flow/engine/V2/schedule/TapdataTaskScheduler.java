@@ -100,6 +100,7 @@ public class TapdataTaskScheduler {
 			if (taskDto != null) {
 				try {
 					try {
+						Log4jUtil.setThreadContext(taskDto);
 						final String taskId = taskDto.getId().toHexString();
 						clientMongoOperator.updateById(new Update(), ConnectorConstant.TASK_COLLECTION + "/running", taskId, TaskDto.class);
 						Log4jUtil.setThreadContext(taskDto);
