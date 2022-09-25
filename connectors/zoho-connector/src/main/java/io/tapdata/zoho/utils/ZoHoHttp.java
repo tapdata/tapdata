@@ -1,35 +1,48 @@
 package io.tapdata.zoho.utils;
 
-import com.sun.org.apache.xerces.internal.impl.xpath.regex.Match;
-import io.tapdata.entity.error.CoreException;
+import cn.hutool.http.HttpRequest;
+import cn.hutool.http.HttpResponse;
+import cn.hutool.http.HttpStatus;
+import cn.hutool.http.HttpUtil;
+import cn.hutool.json.JSONObject;
+import cn.hutool.json.JSONUtil;
+import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.zoho.entity.HttpEntity;
+import io.tapdata.zoho.entity.HttpResult;
 import io.tapdata.zoho.entity.HttpType;
+import io.tapdata.zoho.enums.HttpCode;
 
+import java.util.Collections;
 import java.util.Map;
 
 public class ZoHoHttp {
-    HttpEntity<String,String> heard;
-    HttpEntity<String,Object> body;
-    HttpType httpType;
-    String url;
-    HttpEntity<String,String> resetFull;
+    private static final String TAG = ZoHoHttp.class.getSimpleName();
+    private HttpEntity<String,String> heard;
+    private HttpEntity<String,Object> body;
+    private HttpEntity<String,Object> form;
+    private HttpType httpType;
+    private String url;
+    private HttpEntity<String,String> resetFull;
+    private String refreshToken;
+    private final HttpResult EMPTY = HttpResult.create(HttpCode.ERROR,HttpEntity.create().build(HttpCode.ERROR.getCode(), HttpCode.EMPTY.getMessage()).entity());
 
     private ZoHoHttp(){}
     public static ZoHoHttp create(){
         return new ZoHoHttp();
     }
+    public static ZoHoHttp create(String url,HttpType httpType){
+        return new ZoHoHttp().url(url).httpType(httpType);
+    }
     public static ZoHoHttp create(String url,HttpType httpType,HttpEntity<String,String> heard){
         return new ZoHoHttp().url(url).httpType(httpType).header(heard);
     }
-    public static ZoHoHttp create(String url,String httpType,HttpEntity<String,String> heard){
-        return new ZoHoHttp().url(url).httpType(httpType).header(heard);
-    }
-    public static ZoHoHttp create(String url,String httpType,HttpEntity<String,String> heard,HttpEntity<String,Object> body){
+    public static ZoHoHttp create(String url,HttpType httpType,HttpEntity<String,String> heard,HttpEntity<String,Object> body){
         return new ZoHoHttp().url(url).httpType(httpType).header(heard).body(body);
     }
-
-
-
+    public ZoHoHttp body(String refreshToken){
+        this.refreshToken = refreshToken;
+        return this;
+    }
     public ZoHoHttp body(HttpEntity<String,Object> body){
         this.body = body;
         return this;
@@ -54,66 +67,171 @@ public class ZoHoHttp {
         this.resetFull = resetFull;
         return this;
     }
+    public ZoHoHttp form(HttpEntity<String,Object> form){
+        this.form = form;
+        return this;
+    }
 
     private void beforeSend(){
-        Checker checker = Checker.create();
-        if (checker.isEmpty(this.httpType)){
+        if (Checker.isEmpty(this.refreshToken)){
+//            TapLogger.debug(TAG,"refresh_token is empty.");
+        }
+        if (Checker.isEmpty(this.httpType)){
             throw new RuntimeException("HTTP Method is not define Type :[POST | GET]");
         }
-        if (checker.isEmpty(this.url)){
+        if (Checker.isEmpty(this.url)){
             throw new RuntimeException("HTTP URL must be not null or not be empty.");
         }
-        if (checker.isNotEmpty(this.resetFull)){
+        if (Checker.isNotEmpty(this.resetFull)){
             for (Map.Entry<String,String> entity : this.resetFull.entity().entrySet()){
-                int start = this.url.indexOf(entity.getKey());
-                int end = start + entity.getKey().length();
-                this.url.replaceAll("{"+entity.getKey()+"}",entity.getValue());
+                this.url = this.url.replaceAll("\\{"+entity.getKey()+"}",entity.getValue());
             }
         }
     }
-
-
-    public Map<String,Object> post(){
+    private HttpResult afterSend(HttpResponse execute){
+        if (Checker.isEmpty(execute) || !execute.isOk()){
+            return EMPTY;
+        }
+        String body = execute.body();
+        if (Checker.isEmpty(body)){
+            return EMPTY;
+        }
+        JSONObject executeObject = JSONUtil.parseObj(body);
+        String executeResult = executeObject.getStr("errorCode");
+        if (Checker.isNotEmpty(executeResult) || Checker.isNotEmpty(executeResult = executeObject.getStr("error"))) {
+            HttpCode httpCode = HttpCode.code(executeResult);
+            if (null == httpCode){
+                return HttpResult.create(
+                        HttpCode.ERROR,
+                        HttpEntity.create()
+                                .build(HttpCode.ERROR.getCode(), executeObject.get("message")).entity());
+            }
+            return HttpResult.create(
+                    httpCode,
+                    HttpEntity.create()
+                            .build(httpCode.getCode(),httpCode.getMessage()).entity());
+        }
+        return HttpResult.create(HttpCode.SUCCEED,executeObject);
+    }
+//    public static void main(String[] args) {
+//        HttpEntity<String,Object> form = HttpEntity.create()
+//                .build("code","1000.ad37cdc0e742873d79755a3c0aa46cde.f8bd1ce9b2d63db913a0b09f78810e1e")
+//                .build("client_id","1000.IIOULMMPS1V8C0YYNKI70TPI7EW2GX")
+//                .build("client_secret","35854927862d2abda4c1ef31457048213ad5f95675")
+//                .build("redirect_uri","https://www.zylker.com/oauthgrant")
+//                .build("grant_type","authorization_code");
+//        ZoHoHttp http = ZoHoHttp.create(String.format("https://accounts.zoho.com.cn/oauth/v2/token"), HttpType.GET).form(form);
+//        //TapLogger.debug(TAG,"Try to get AccessToken and RefreshToken.");
+//        HttpResult post = http.get();
+//        System.out.println(post.getResult().get("asscessToken")+"\n"+post.getResult().get("refreshToken"));
+//    }
+    public HttpResult post(){
         this.beforeSend();
+        HttpRequest request = HttpUtil.createPost(url);
+        if (Checker.isNotEmpty(heard)){
+            request.addHeaders(heard.entity());
+        }
+        if (Checker.isNotEmpty(form)){
+            request.form(form.entity());
+        }
+        if (Checker.isNotEmpty(body)){
+            request.body(JSONUtil.toJsonStr(body.entity()));
+        }
+        HttpResponse execute = null;
+        try {
+            execute = request.execute();
+        }catch (Exception e){
+//            TapLogger.info(TAG,"Http[POST] read timed out:{}",e.getMessage());
+            return EMPTY;
+        }
 
-        return null;
+        return null == execute || execute.getStatus() != HttpStatus.HTTP_OK ?
+                EMPTY:this.afterSend(execute);
     }
-
-    public Map<String,Object> get(){
+    public HttpResult get(){
         this.beforeSend();
-
-        return null;
+        HttpRequest request = HttpUtil.createGet(url);
+        if (Checker.isNotEmpty(heard)){
+            request.addHeaders(heard.entity());
+        }
+        if (Checker.isNotEmpty(form)){
+            request.form(form.entity());
+        }
+        HttpResponse execute = null;
+        try {
+            execute = request.execute();
+        }catch (Exception e){
+            TapLogger.info(TAG,"Http[Get] read timed out:{}",e.getMessage());
+            return EMPTY;
+        }
+        return null == execute || execute.getStatus() != HttpStatus.HTTP_OK ?
+                EMPTY:this.afterSend(execute);
     }
-
-    public static void main(String[] args) {
-        StringBuilder resetParam = new StringBuilder();
-        resetParam.append("x").append("j").append("h");
-        System.out.println(resetParam.toString());
-        //resetParam.delete(0,resetParam.length());
-        System.out.println(resetParam.toString());
-    }
-
     public HttpEntity<String, String> getHeard() {
         return heard;
     }
-
     public HttpEntity<String, Object> getBody() {
         return body;
     }
-
     public HttpType getHttpType() {
         return httpType;
     }
-
     public String getUrl() {
         return url;
     }
-
     public HttpEntity<String, String> getResetFull() {
         return resetFull;
     }
 
+//    public static void main(String[] args) {
+//        HttpEntity<String,Object> form = HttpEntity.create()
+//                .build("refresh_token","1000.a664d08e653ce402c62b609f7ab6051a.bf5b49d68b7fc8428561b304ef1f4874")
+//                .build("client_id","1000.RXERF0BIW3RBP7NOJMK615YT9ATRFB")
+//                .build("client_secret","2d5d8f1518a0232cfa33ff45b8ac9566d9c5344cc5")
+//                .build("scope","Desk.tickets.ALL,Desk.contacts.READ,Desk.contacts.WRITE,Desk.contacts.UPDATE,Desk.contacts.CREATE,Desk.tasks.ALL,Desk.basic.READ,Desk.basic.CREATE,Desk.settings.ALL,Desk.events.ALL,Desk.articles.READ,Desk.articles.CREATE,Desk.articles.UPDATE,Desk.articles.DELETE")
+//                .build("redirect_uri","https://www.zylker.com/oauthgrant")
+//                .build("grant_type","refresh_token");
+//        ZoHoHttp http = ZoHoHttp.create(String.format("https://accounts.zoho.com.cn%s","/oauth/v2/token"), HttpType.POST).form(form);
+//        HttpResult post = http.post();
+//        String code = post.getCode();
+//        if (HttpCode.SUCCEED.getCode().equals(code)){
+//            RefreshTokenEntity refreshTokenEntity = RefreshTokenEntity.create(post.getResult());
+//            System.out.println(refreshTokenEntity.getAccessToken());
+//        }else {
+////            TapLogger.error(TAG,"{} | {}",code,post.getResult().get(HttpCode.ERROR.getCode()));
+//            throw new RuntimeException(code+"|"+post.getResult().get(HttpCode.ERROR.getCode()));
+//        }
+//    }
 
+    static class HttpAfter{
+        HttpEntity<String,Object> after;
+        HttpResponse execute;
+        private HttpAfter( HttpResponse execute){
+            this.execute = execute;
+        }
+        public static HttpAfter create(HttpResponse execute){
+            return new HttpAfter(execute);
+        }
+        public Map<String,Object> after(){
+            if (Checker.isEmpty(execute)){
+                return Collections.emptyMap();
+            }
+            String body = execute.body();
+            if (Checker.isEmpty(body)){
+                return Collections.emptyMap();
+            }
+            JSONObject executeObject = JSONUtil.parseObj(body);
+            String executeResult = executeObject.getStr("");
+            if (Checker.isNotEmpty(executeResult) && HttpCode.INVALID_OAUTH.getCode().equals(executeResult)){
+                TapLogger.debug(TAG,"{},start refresh token...",HttpCode.INVALID_OAUTH.getMessage());
+                return null;
+            }
+            return executeObject;
+        }
+        public HttpEntity<String,Object> result(){
+            return this.after;
+        }
+    }
     /**
      * Ticket detail
      * {

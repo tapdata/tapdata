@@ -10,94 +10,80 @@
     "node": {
       "type": "object",
       "properties": {
-        "DescribeIterationList":  {
-            "title": "${iterationCodes}",
-            "type": "string",
-            "required": true,
-            "x-decorator": "FormItem",
-            "x-component": "AsyncSelect",
-            "x-index": 1,
-            "x-component-props": {
-              "method": "{{loadCommandList}}",
-              "params": "{{ {$values: $values, command: \"DescribeIterationList\"} }}"
-            }
-          },
-        "issueType": {
+      }
+    },
+    "stateMap": {
+      "type": "object",
+      "properties": {
+        "refreshToken": {
           "type": "String",
-          "default": "ALL",
-          "title": "${issueType}",
+          "title": "${refreshToken}",
           "x-decorator": "FormItem",
-          "x-component": "Select",
-          "enum": [
-            {
-              "label": "${allIssueType}",
-              "value": "ALL"
-            },
-            {
-              "label": "${defectIssue}",
-              "value": "DEFECT"
-            },
-            {
-              "label": "${requirementIssue}",
-              "value": "REQUIREMENT"
-            },
-            {
-              "label": "${missionIssue}",
-              "value": "MISSION"
-            },
-            {
-              "label": "${epicIssue}",
-              "value": "EPIC"
-            }
-          ],
-          "x-index": 2,
-          "required": false
+          "x-component": "Input",
+          "apiServerKey": "database_host",
+          "x-index": 50,
+          "required": true
+        },
+        "accessToken": {
+          "type": "String",
+          "title": "${accessToken}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "apiServerKey": "database_host",
+          "x-index": 60,
+          "required": true
         }
       }
     },
     "connection": {
       "type": "object",
       "properties": {
-        "teamName": {
+        "clientID": {
           "type": "String",
-          "title": "${teamName}",
-          "x-decorator": "FormItem",
-          "x-component": "Input",
-          "apiServerKey": "database_host",
-          "x-index": 10,
-          "required": true
-        },
-        "token": {
-          "type": "String",
-          "title": "${token}",
+          "title": "${clientID}",
           "x-decorator": "FormItem",
           "x-component": "Input",
           "apiServerKey": "database_host",
           "x-index": 20,
           "required": true
         },
-        "projectName": {
-          "title": "${projectName}",
-          "type": "string",
-          "required": true,
+        "clientSecret": {
+          "type": "String",
+          "title": "${clientSecret}",
           "x-decorator": "FormItem",
-          "x-component": "AsyncSelect",
-          "x-component-props": {
-            "method": "{{loadCommandList}}",
-            "params": "{{ {$values: $values, command: \"DescribeCodingProjects\"} }}",
-            "itemValue": "label"
-          },
+          "x-component": "Input",
+          "apiServerKey": "database_host",
           "x-index": 30,
-          "x-reactions": [
-            {
-              "dependencies": ["teamName", "token"],
-              "fulfill": {
-                "state": {
-                  "display": "{{$deps[0]&&$deps[1] ? \"visible\":\"hidden\"}}"
-                }
-              }
-            }
-          ]
+          "required": true
+        },
+        "generateCode": {
+          "type": "String",
+          "title": "${generateCode}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "apiServerKey": "database_host",
+          "x-index": 40,
+          "required": true
+        },
+        "refreshToken": {
+          "type": "String",
+          "title": "${refreshToken}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "apiServerKey": "database_host",
+          "x-index": 50,
+          "hidden": true,
+          "required": true
+        },
+        "accessToken": {
+          "type": "String",
+          "title": "${accessToken}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "apiServerKey": "database_host",
+          "x-index": 60,
+          "hidden": true,
+          "required": true
         },
         "connectionMode": {
           "type": "String",
@@ -115,7 +101,7 @@
               "value": "CSVMode"
             }
           ],
-          "x-index": 40,
+          "x-index": 80,
           "required": false
         },
         "streamReadType": {
@@ -134,7 +120,7 @@
               "value": "Polling"
             }
           ],
-          "x-index": 50,
+          "x-index": 90,
           "required": false
         },
         "hookButton": {
@@ -154,7 +140,7 @@
           },
           "x-content": "hookButton",
           "x-component": "Button",
-          "x-index": 60
+          "x-index": 1000
         },
         "hookText": {
           "type": "string",
@@ -172,7 +158,7 @@
             }
           },
           "x-component": "Input",
-          "x-index": 70
+          "x-index": 110
         }
       }
     }
@@ -180,9 +166,12 @@
   "messages": {
     "default": "en_US",
     "en_US": {
-      "token": "Token",
-      "projectName": "project name",
-      "teamName": "Team name",
+      "clientID": "Client ID",
+      "clientSecret": "Client Secret",
+      "generateCode": "Generate Code",
+      "refreshToken": "Refresh Token",
+      "accessToken": "AccessToken",
+      "orgId": "Organization",
       "webHook": "Service Hook",
       "hookButton": "Hook Button",
 
@@ -225,20 +214,14 @@
       "df_table_field_btn_add": "Add field"
     },
     "zh_CN": {
-      "token": "令牌",
-      "projectName": "项目名称",
-      "teamName": "团队名称",
+      "clientID": "客户端ID码",
+      "clientSecret": "客户端机密码",
+      "generateCode": "应用生成码",
+      "refreshToken": "刷新令牌",
+      "accessToken": "访问令牌",
+      "orgId": "组织",
       "webHook": "Service Hook",
       "hookButton": "Hook Button",
-
-      "iterationCodes": "迭代",
-      "issueType": "事项类型",
-
-      "allIssueType": "全部事项",
-      "defectIssue": "缺陷",
-      "requirementIssue": "需求",
-      "missionIssue": "任务",
-      "epicIssue": "史诗",
 
       "connectionMode": "连接模式",
       "document": "普通文档格式",
@@ -269,20 +252,14 @@
       "df_table_field_btn_add": "增加字段"
     },
     "zh_TW": {
-      "token": "權杖",
-      "projectName": "項目名稱",
-      "teamName": "團隊名稱",
+      "clientID": "用戶端ID碼",
+      "clientSecret": "用戶端機密碼",
+      "generateCode": "應用生成碼",
+      "refreshToken": "重繪權杖",
+      "accessToken": "訪問權杖",
+      "orgId": "組織",
       "webHook": "Service Hook",
       "hookButton": "Hook Button",
-
-      "iterationCodes": "迭代",
-      "issueType": "事項类型",
-
-      "allIssueType": "全部事項",
-      "defectIssue": "缺陷",
-      "requirementIssue": "需求",
-      "missionIssue": "任務",
-      "epicIssue": "史詩",
 
       "connectionMode": "連接模式",
       "document": "普通文檔格式",
@@ -314,17 +291,59 @@
     }
   },
   "dataTypes": {
-    "StringLonger": {
-      "to" : "TapString",
-      "byte" : 1024
+    "Textarea": {"to": "TapString","byte": 5000},
+    "Text": {"to": "TapString","byte": 255},
+    "Number": {"to": "TapNumber","value": [0,999999999]},
+    "Percent": {
+      "to": "TapNumber",
+      "precision": [ 1, 5],
+      "value": [0.0,99999.0],
+      "scale": [ 0, 2]
     },
+    "Decimal": {
+      "to": "TapNumber",
+      "precision": [ 1, 16],
+      "value": [0.0,99999.0],
+      "scale": [ 0, 9]
+    },
+    "Currency": {
+      "to": "TapNumber",
+      "precision": [ 1, 16],
+      "value": [0.0,99999.0],
+      "scale": [ 0, 9]
+    },
+    "Date": {
+      "to": "TapString",
+      "byte": 20
+    },
+    "DateTime": {
+      "to": "TapString",
+      "byte": 120
+    },
+    "Email": {
+      "to": "TapString",
+      "byte": 254
+    },
+    "Phone": {
+      "to": "TapString",
+      "byte": 255
+    },
+    "Picklist": {
+      "to": "TapString",
+      "byte": 120
+    },
+    "Multiselect": {
+      "to": "TapString",
+      "byte": 120
+    },
+    "URL": {
+      "to": "TapString",
+      "byte": 2083
+    },
+    "Boolean": {"to": "TapBoolean"},
     "StringNormal": {
       "to" : "TapString",
       "byte" : 512
-    },
-    "StringSmaller": {
-      "to" : "TapString",
-      "byte" : 128
     },
     "StringMinor": {
       "to" : "TapString",
@@ -338,7 +357,6 @@
       "to": "TapNumber",
       "value" : [-2147483648, 2147483647]
     },
-    "Boolean": {"to": "TapBoolean"},
     "Map": {"to" : "TapMap"},
     "Long": {
       "to": "TapNumber",

@@ -16,8 +16,11 @@ import io.tapdata.pdk.apis.entity.CommandResult;
 import io.tapdata.pdk.apis.entity.ConnectionOptions;
 import io.tapdata.pdk.apis.entity.TestItem;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
+import io.tapdata.zoho.service.connectionMode.ConnectionMode;
 import io.tapdata.zoho.service.zoho.TicketLoader;
+import io.tapdata.zoho.service.zoho.ZoHoConnectionTest;
 import io.tapdata.zoho.utils.Checker;
+import io.tapdata.zoho.utils.ZoHoHttp;
 
 import java.util.List;
 import java.util.Map;
@@ -109,12 +112,28 @@ public class ZoHoConnector extends ConnectorBase {
 
 	@Override
 	public void discoverSchema(TapConnectionContext connectionContext, List<String> tables, int tableSize, Consumer<List<TapTable>> consumer) throws Throwable {
-
+		String modeName = connectionContext.getConnectionConfig().getString("connectionMode");
+		ConnectionMode connectionMode = ConnectionMode.getInstanceByName(connectionContext, modeName);
+		if (null == connectionMode){
+			throw new CoreException("Connection Mode is not empty or not null.");
+		}
+		List<TapTable> tapTables = connectionMode.discoverSchema(tables, tableSize);
+		if (null != tapTables){
+			consumer.accept(tapTables);
+		}
 	}
 
 	@Override
 	public ConnectionOptions connectionTest(TapConnectionContext connectionContext, Consumer<TestItem> consumer) throws Throwable {
-		return null;
+		ConnectionOptions connectionOptions = ConnectionOptions.create();
+
+		ZoHoConnectionTest testConnection= ZoHoConnectionTest.create(connectionContext);
+		TestItem testItem = testConnection.testToken();
+		consumer.accept(testItem);
+		//if (testItem.getResult()==TestItem.RESULT_FAILED){
+		//	return connectionOptions;
+		//}
+		return connectionOptions;
 	}
 
 
@@ -127,8 +146,7 @@ public class ZoHoConnector extends ConnectorBase {
 	}
 
 	private long batchCount(TapConnectorContext tapConnectorContext, TapTable tapTable) throws Throwable {
-		long count = 0;
-		return count;
+		return TicketLoader.create(tapConnectorContext).count();
 	}
 
 	@Override

@@ -18,7 +18,7 @@ public enum HttpType {
         this.type = type;
     }
     public static HttpType set(String typeName){
-        if (Checker.create().isEmpty(typeName)) return POST;
+        if (Checker.isEmpty(typeName)) return POST;
         HttpType[] values = HttpType.values();
         for (HttpType value : values) {
             if (value.type.equals(typeName)){

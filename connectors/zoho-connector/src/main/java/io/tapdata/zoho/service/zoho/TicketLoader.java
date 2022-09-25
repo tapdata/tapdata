@@ -1,12 +1,14 @@
 package io.tapdata.zoho.service.zoho;
 
+import cn.hutool.core.util.NumberUtil;
+import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
-import io.tapdata.zoho.entity.ContextConfig;
-import io.tapdata.zoho.entity.HttpEntity;
-import io.tapdata.zoho.entity.HttpType;
+import io.tapdata.zoho.entity.*;
+import io.tapdata.zoho.enums.HttpCode;
+import io.tapdata.zoho.utils.Checker;
 import io.tapdata.zoho.utils.ZoHoHttp;
 
 import java.util.List;
@@ -25,15 +27,35 @@ public class TicketLoader extends ZoHoStarter implements ZoHoBase {
     /**
      * 根据工单ID获取一个工单详情
      * */
-    public Map<String,Object> getOne(){
-        String ticketId = "";
+    public Map<String,Object> getOne(String ticketId){
+        if (Checker.isEmpty(ticketId)){
+            TapLogger.debug(TAG,"Ticket Id can not be null or not be empty.");
+        }
         String url = "/api/v1/tickets/{ticketID}";
-
+        ContextConfig contextConfig = this.veryContextConfigAndNodeConfig();
+        String accessToken = "";
         HttpEntity<String,String> header = HttpEntity.create()
-                .build("Authorization","");
+                .build("Authorization",accessToken);
         HttpEntity<String,String> resetFull = HttpEntity.create().build("ticketID",ticketId);
         ZoHoHttp http = ZoHoHttp.create(String.format(ZO_HO_BASE_URL,url), HttpType.POST,header).resetFull(resetFull);
-        return null;
+        HttpResult httpResult = http.post();
+        if (Checker.isEmpty(httpResult) ){
+            TapLogger.debug(TAG,"Try to get ticket list , but AccessToken is.");
+        }
+        String code = httpResult.getCode();
+        if (HttpCode.INVALID_OAUTH.getCode().equals(code)){
+            RefreshTokenEntity refreshTokenEntity = TokenLoader.create(tapConnectionContext).refreshToken();
+            String token = refreshTokenEntity.getAccessToken();
+            tapConnectionContext.getConnectionConfig().put("accessToken",token);
+            contextConfig.setAccessToken(token);
+            header.build("Authorization",token);
+            httpResult = http.get();
+            if (Checker.isEmpty(httpResult) || Checker.isEmpty(httpResult.getResult()) || Checker.isEmpty(httpResult.getResult().get("data"))){
+                throw new CoreException("Try to get ticket list , but faild.");
+            }
+        }
+        TapLogger.debug(TAG,"Get ticket list succeed.");
+        return (Map<String,Object>)httpResult.getResult().get("data");
     }
 
     /**
@@ -41,10 +63,48 @@ public class TicketLoader extends ZoHoStarter implements ZoHoBase {
      *
      * */
     public List<Map<String,Object>> list(){
-        return null;
+        String url = "/api/v1/tickets";
+        ContextConfig contextConfig = this.veryContextConfigAndNodeConfig();
+        String accessToken = contextConfig.getAccessToken();
+        String orgId = contextConfig.getOrgId();
+        HttpEntity<String,Object> form = HttpEntity.create().build("include","contacts,assignee,departments,team,isRead");
+        HttpEntity<String,String> heards = HttpEntity.create().build("orgId",orgId).build("Authorization",accessToken);
+        ZoHoHttp http = ZoHoHttp.create(String.format(ZO_HO_BASE_URL,url), HttpType.GET,heards).header(heards).form(form);
+        HttpResult httpResult = http.get();
+        if (Checker.isEmpty(httpResult) ){
+            TapLogger.debug(TAG,"Try to get ticket list , but AccessToken is.");
+        }
+        String code = httpResult.getCode();
+        if (HttpCode.INVALID_OAUTH.getCode().equals(code)){
+            RefreshTokenEntity refreshTokenEntity = TokenLoader.create(tapConnectionContext).refreshToken();
+            String token = refreshTokenEntity.getAccessToken();
+            tapConnectionContext.getConnectionConfig().put("accessToken",token);
+            contextConfig.setAccessToken(token);
+            heards.build("Authorization",token);
+            httpResult = http.get();
+            if (Checker.isEmpty(httpResult) || Checker.isEmpty(httpResult.getResult()) || Checker.isEmpty(httpResult.getResult().get("data"))){
+                throw new CoreException("Try to get ticket list , but faild.");
+            }
+        }
+        TapLogger.debug(TAG,"Get ticket list succeed.");
+        return (List<Map<String,Object>>)httpResult.getResult().get("data");
     }
 
-    public static void main(String[] args) {
+    /**
+     * 获取全部工单数
+     *
+     * */
+    public Integer count(){
+        List<Map<String, Object>> list = this.list();
+        if (Checker.isNotEmpty(list) && !list.isEmpty()){
+            return list.size();
+        }else {
+            TapLogger.debug(TAG,"Try to get all ticketa count , but not result,count: {}.",0);
+            return 0;
+        }
+    }
+
+    public static void fun(){
         String url = "/api/v1/tickets/{ticketID}";
         System.out.println(String.format(ZO_HO_BASE_URL,url));
 
@@ -56,79 +116,4 @@ public class TicketLoader extends ZoHoStarter implements ZoHoBase {
         System.out.println(http.getUrl());
     }
 
-
-    /**
-     * 校验connectionConfig配置字段
-     */
-    public void verifyConnectionConfig(){
-        if(this.isVerify){
-            return;
-        }
-        if (null == this.tapConnectionContext){
-            throw new IllegalArgumentException("TapConnectorContext cannot be null");
-        }
-        DataMap connectionConfig = this.tapConnectionContext.getConnectionConfig();
-        if (null == connectionConfig ){
-            throw new IllegalArgumentException("TapTable' DataMap cannot be null");
-        }
-        String projectName = connectionConfig.getString("projectName");
-        String token = connectionConfig.getString("token");
-        String teamName = connectionConfig.getString("teamName");
-        String streamReadType = connectionConfig.getString("streamReadType");
-        String connectionMode = connectionConfig.getString("connectionMode");
-        if ( null == projectName || "".equals(projectName)){
-            TapLogger.info(TAG, "Connection parameter exception: {} ", projectName);
-        }
-        if ( null == token || "".equals(token) ){
-            TapLogger.info(TAG, "Connection parameter exception: {} ", token);
-        }
-        if ( null == teamName || "".equals(teamName) ){
-            TapLogger.info(TAG, "Connection parameter exception: {} ", teamName);
-        }
-        if ( null == streamReadType || "".equals(streamReadType) ){
-            TapLogger.info(TAG, "Connection parameter streamReadType exception: {} ", token);
-        }
-        if ( null == connectionMode || "".equals(connectionMode) ){
-            TapLogger.info(TAG, "Connection parameter connectionMode exception: {} ", teamName);
-        }
-        this.isVerify = Boolean.TRUE;
-    }
-    public ContextConfig veryContextConfigAndNodeConfig(){
-        this.verifyConnectionConfig();
-        DataMap connectionConfigConfigMap = this.tapConnectionContext.getConnectionConfig();
-        String projectName = connectionConfigConfigMap.getString("projectName");
-        String token = connectionConfigConfigMap.getString("token");
-        String teamName = connectionConfigConfigMap.getString("teamName");
-        String streamReadType = connectionConfigConfigMap.getString("streamReadType");
-        String connectionMode = connectionConfigConfigMap.getString("connectionMode");
-        ContextConfig config = ContextConfig.create().projectName(projectName)
-                .teamName(teamName)
-                .token(token)
-                .streamReadType(streamReadType)
-                .connectionMode(connectionMode);
-        if (this.tapConnectionContext instanceof TapConnectorContext) {
-            DataMap nodeConfigMap = ((TapConnectorContext)this.tapConnectionContext).getNodeConfig();
-            if (null == nodeConfigMap) {
-//                config.issueType(IssueType.ALL);
-                config.iterationCodes("-1");
-                TapLogger.debug(TAG,"TapTable' NodeConfig is empty. ");
-                //throw new IllegalArgumentException("TapTable' NodeConfig cannot be null");
-            }else{
-                //iterationName is Multiple selection values separated by commas
-                String iterationCodeArr = nodeConfigMap.getString("DescribeIterationList");//iterationCodes
-                if (null != iterationCodeArr) iterationCodeArr = iterationCodeArr.trim();
-                String issueType = nodeConfigMap.getString("issueType");
-                if (null != issueType) issueType = issueType.trim();
-
-                if (null == iterationCodeArr || "".equals(iterationCodeArr)) {
-                    TapLogger.info(TAG, "Connection node config iterationName exception: {} ", projectName);
-                }
-                if (null == issueType || "".equals(issueType)) {
-                    TapLogger.info(TAG, "Connection node config issueType exception: {} ", token);
-                }
-//                config.issueType(issueType).iterationCodes(iterationCodeArr);
-            }
-        }
-        return config;
-    }
 }

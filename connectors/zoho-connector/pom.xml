@@ -53,6 +53,12 @@
             <artifactId>commonmark-ext-heading-anchor</artifactId>
             <version>0.17.0</version>
         </dependency>
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <version>1.18.24</version>
+            <scope>compile</scope>
+        </dependency>
 
         <!--扩展 表格-->
 <!--        <dependency>-->

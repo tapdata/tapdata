@@ -212,7 +212,7 @@ public class CodingConnector extends ConnectorBase {
 			pageResult.put("total",total);
 			List<Map<String,Object>> resultList = new ArrayList<>();
 			searchList.forEach(map->{
-				resultList.add(map(entry("label",map.get("DisplayName")),entry("value",map.get("DisplayName"))));
+				resultList.add(map(entry("label",map.get("DisplayName")),entry("value",map.get("Name"))));
 			});
 			pageResult.put("items",resultList);
 		}else {
@@ -434,6 +434,7 @@ public class CodingConnector extends ConnectorBase {
 		} catch (Exception e) {
 			throw new RuntimeException();
 		}
+		TapLogger.debug(TAG,"Batch count is " + count);
 		return count;
 	}
 
