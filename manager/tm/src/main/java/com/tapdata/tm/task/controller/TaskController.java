@@ -38,6 +38,7 @@ import com.tapdata.tm.task.vo.TaskDetailVo;
 import com.tapdata.tm.task.vo.TaskRecordListVo;
 import com.tapdata.tm.utils.Lists;
 import com.tapdata.tm.utils.MongoUtils;
+import com.tapdata.tm.worker.service.WorkerService;
 import io.github.openlg.graphlib.Graph;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -82,10 +83,10 @@ public class TaskController extends BaseController {
     private MetadataInstancesService metadataInstancesService;
     private TaskNodeService taskNodeService;
     private TaskSaveService taskSaveService;
-
     private TaskStartService taskStartService;
     private SnapshotEdgeProgressService snapshotEdgeProgressService;
     private TaskRecordService taskRecordService;
+    private WorkerService workerService;
 
     /**
      * Create a new instance of the model and persist it into the data source
@@ -274,6 +275,9 @@ public class TaskController extends BaseController {
             taskCheckInspectService.getInspectFlagDefaultFlag(taskDto, user);
 
             taskNodeService.checkFieldNode(taskDto, user);
+
+            // set hostName;
+            workerService.setHostName(taskDto);
         }
         return success(taskDto);
     }
