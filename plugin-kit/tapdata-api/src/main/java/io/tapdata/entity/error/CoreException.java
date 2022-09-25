@@ -28,6 +28,12 @@ public class CoreException extends RuntimeException {
         this.data = data;
         return this;
     }
+    public CoreException cause(Throwable cause) {
+        if(this.getCause() == null) {
+            this.initCause(cause);
+        }
+        return this;
+    }
     public final static String LEVEL_INFO = "INFO";
     public final static String LEVEL_WARN = "WARN";
     public final static String LEVEL_ERROR = "ERROR";

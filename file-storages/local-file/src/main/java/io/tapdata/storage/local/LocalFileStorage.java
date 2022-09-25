@@ -2,10 +2,15 @@ package io.tapdata.storage.local;
 
 import io.tapdata.file.TapFile;
 import io.tapdata.file.TapFileStorage;
+import io.tapdata.file.TapFileStorageBuilder;
 
 import java.io.InputStream;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
+
+import static io.tapdata.entity.simplify.TapSimplify.entry;
+import static io.tapdata.entity.simplify.TapSimplify.map;
 
 public class LocalFileStorage implements TapFileStorage {
 	@Override
@@ -49,12 +54,14 @@ public class LocalFileStorage implements TapFileStorage {
 	}
 
 	@Override
-	public List<TapFile> getFilesInDirectory(String directoryPath, List<String> matchingReg, boolean recursive) {
-		return null;
+	public void getFilesInDirectory(String directoryPath, String matchingReg, boolean recursive, int batchSize, Consumer<List<TapFile>> consumer) {
+
 	}
+
 
 	@Override
 	public boolean isDirectoryExist(String path) {
 		return false;
 	}
+
 }
