@@ -174,7 +174,8 @@ public class MongodbV4StreamReader implements MongodbStreamReader {
 												TapLogger.error(TAG, "offset " + offset + " is too old, will stop, error " + getStackString(throwable));
 										}
 								} else {
-										TapLogger.error(TAG, "Read change stream from {}, failed {}, error {}", MongodbUtil.maskUriPassword(mongodbConfig.getUri()), throwable.getMessage(), getStackString(throwable));
+									//TapLogger.warn(TAG,"Read change stream from {}, failed {} " ,MongodbUtil.maskUriPassword(mongodbConfig.getUri()), throwable.getMessage());
+									//TapLogger.debug(TAG, "Read change stream from {}, failed {}, error {}", MongodbUtil.maskUriPassword(mongodbConfig.getUri()), throwable.getMessage(), getStackString(throwable));
 								}
 								throw throwable;
 						}
