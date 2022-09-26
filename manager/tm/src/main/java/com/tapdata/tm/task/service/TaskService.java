@@ -549,7 +549,6 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         checkDDLConflict(taskDto);
 
         //saveInspect(existedTask, taskDto, user);
-        taskDto.setStatus(TaskDto.STATUS_WAIT_START);
         return confirmById(taskDto, user, confirm, false);
     }
 
@@ -636,6 +635,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     }
 
     public TaskDto confirmById(TaskDto taskDto, UserDetail user, boolean confirm, boolean importTask) {
+        taskDto.setStatus(TaskDto.STATUS_WAIT_START);
         DAG dag = taskDto.getDag();
 
         if (!taskDto.getShareCache()) {
@@ -856,7 +856,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         log.debug("copy task success, task name = {}", copyName);
 
         taskDto.setName(copyName);
-        taskDto.setStatus(TaskDto.STATUS_EDIT);
+        //taskDto.setStatus(TaskDto.STATUS_EDIT);
         taskDto.setStatuses(new ArrayList<>());
         taskDto.setStartTime(null);
         //taskDto.setTemp(null);
