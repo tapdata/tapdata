@@ -1,6 +1,5 @@
 package io.tapdata.zoho.service.zoho;
 
-import cn.hutool.core.util.NumberUtil;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.utils.DataMap;
@@ -11,6 +10,7 @@ import io.tapdata.zoho.enums.HttpCode;
 import io.tapdata.zoho.utils.Checker;
 import io.tapdata.zoho.utils.ZoHoHttp;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -57,7 +57,7 @@ public class TicketLoader extends ZoHoStarter implements ZoHoBase {
     }
 
     /**
-     * 获取工单列表
+     * 获取查询条件下的全部工单列表
      *
      * */
     public List<Map<String,Object>> list(){
@@ -65,7 +65,7 @@ public class TicketLoader extends ZoHoStarter implements ZoHoBase {
         ContextConfig contextConfig = this.veryContextConfigAndNodeConfig();
         String accessToken = contextConfig.getAccessToken();
         String orgId = contextConfig.getOrgId();
-        HttpEntity<String,Object> form = HttpEntity.create().build("include","contacts,assignee,departments,team,isRead");
+        HttpEntity<String,Object> form = this.getTickPageParam();
         HttpEntity<String,String> heards = HttpEntity.create().build("orgId",orgId).build("Authorization",accessToken);
         ZoHoHttp http = ZoHoHttp.create(String.format(ZO_HO_BASE_URL,url), HttpType.GET,heards).header(heards).form(form);
         HttpResult httpResult = http.get();
@@ -84,21 +84,54 @@ public class TicketLoader extends ZoHoStarter implements ZoHoBase {
             }
         }
         TapLogger.debug(TAG,"Get ticket list succeed.");
-        return (List<Map<String,Object>>)httpResult.getResult().get("data");
+        Object data = httpResult.getResult().get("data");
+        return Checker.isEmpty(data)?new ArrayList<>():(List<Map<String,Object>>)data;
     }
 
     /**
-     * 获取全部工单数
+     * 获取查询条件下的全部工单数
      *
      * */
     public Integer count(){
-        List<Map<String, Object>> list = this.list();
-        if (Checker.isNotEmpty(list) && !list.isEmpty()){
-            return list.size();
-        }else {
-            TapLogger.debug(TAG,"Try to get all ticketa count , but not result,count: {}.",0);
-            return 0;
+        int totalCount = 0;
+        final int pageMaxSize = 100;
+        int startPage = 0;
+        String url = "/api/v1/tickets";
+        ContextConfig contextConfig = this.veryContextConfigAndNodeConfig();
+        String accessToken = contextConfig.getAccessToken();
+        String orgId = contextConfig.getOrgId();
+        HttpEntity<String,Object> form = this.getTickPageParam().build("limit",pageMaxSize);
+        HttpEntity<String,String> heards = HttpEntity.create().build("orgId",orgId).build("Authorization",accessToken);
+        ZoHoHttp http = ZoHoHttp.create(String.format(ZO_HO_BASE_URL,url), HttpType.GET,heards).header(heards).form(form);
+        List<Map<String,Object>> list = new ArrayList<>();
+        while (true){
+            form.build("from",startPage);
+            HttpResult httpResult = http.get();
+            if (Checker.isEmpty(httpResult) ){
+                TapLogger.debug(TAG,"Try to get ticket list , but AccessToken is.");
+            }
+            String code = httpResult.getCode();
+            if (HttpCode.INVALID_OAUTH.getCode().equals(code)){
+                //重新获取超时的AccessToken，并添加到stateMap
+                String newAccessToken = this.refreshAndBackAccessToken();
+                this.addNewAccessTokenToStateMap(newAccessToken);
+                heards.build("Authorization",newAccessToken);
+                httpResult = http.get();
+                if (Checker.isEmpty(httpResult) || Checker.isEmpty(httpResult.getResult()) || Checker.isEmpty(httpResult.getResult().get("data"))){
+                    throw new CoreException("Try to get ticket list , but faild.");
+                }
+            }
+            Object data = httpResult.getResult().get("data");
+            list = Checker.isEmpty(data)?null:(List<Map<String,Object>>)data;
+            int pageSizeBatch = 0;
+            if (Checker.isEmpty(list) || list.isEmpty() || (pageSizeBatch = list.size()) < pageMaxSize){
+                totalCount += pageSizeBatch;
+                break;
+            }
+            totalCount += pageMaxSize;
+            startPage += pageMaxSize;
         }
+        return totalCount;
     }
 
     public static void fun(){
@@ -113,4 +146,18 @@ public class TicketLoader extends ZoHoStarter implements ZoHoBase {
         System.out.println(http.getUrl());
     }
 
+    private HttpEntity<String,Object> getTickPageParam(){
+
+        HttpEntity<String,Object> form =HttpEntity.create().build("include", "contacts,assignee,departments,team,isRead");
+        if (Checker.isNotEmpty(this.tapConnectionContext) && this.tapConnectionContext instanceof TapConnectorContext) {
+            TapConnectorContext connectorContext = (TapConnectorContext)this.tapConnectionContext;
+            DataMap nodeConfig = connectorContext.getNodeConfig();
+            //@TODO 构建查询条件
+            return form
+                    .build("limit",100)
+                    .build("","");
+        }else {
+            return form;
+        }
+    }
 }

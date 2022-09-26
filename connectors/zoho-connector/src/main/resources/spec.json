@@ -35,7 +35,7 @@
         }
       }
     },
-    "connection": {
+    "connection":{
       "type": "object",
       "properties": {
         "clientID": {
@@ -63,13 +63,68 @@
           "x-component": "Input",
           "apiServerKey": "database_host",
           "x-index": 40,
-          "required": true
+          "required": true,
+          "x-reactions": {
+            "dependencies": ["clientID","clientSecret"],
+            "fulfill": {
+              "state": {
+                "display": "{{$deps[0]&&$deps[1] ? \"visible\" : \"hidden\"}}"
+              }
+            }
+          }
+        },
+        "getTokenButton": {
+          "type": "void",
+          "title": "${refreshTokenButton}",
+          "x-decorator": "FormItem",
+          "x-component-props": {
+            "onClick": "{{useAsyncDataSourceByConfig({service: getTokenCommand, withoutField: true}, {name:'refreshToken'}, $values, $form, { command: 'TokenCommand', fill: ['refreshToken', 'accessToken'] })}}"
+          },
+          "x-reactions": [{
+            "dependencies": ["generateCode"],
+            "fulfill": {
+              "state": {
+                "display": "{{$deps[0] ? \"visible\" : \"hidden\"}}"
+              }
+            }
+          },{
+            "dependencies": ["refreshToken"],
+            "fulfill": {
+              "state": {
+                "content": "{{$deps[0] ? \"已授权，点击将会重新授权\" : \"请点击授权\"}}"
+              }
+            }
+          }],
+          "x-content": "hookButton",
+          "x-component": "Button",
+          "x-index": 41
+        },
+        "getRefreshTokenButton": {
+          "type": "void",
+          "title": "${refreshTokenButton}",
+          "x-decorator": "FormItem",
+          "x-component-props": {
+            "onClick": "{{useAsyncDataSourceByConfig({service: refreshTokenCommand, withoutField: true}, {name:'refreshToken'}, $values, $form, { command: 'refreshTokenCommand', fill: ['refreshToken', 'accessToken'] })}}"
+          },
+          "x-reactions": [{
+            "fulfill": {
+              "state": {
+                "visible": "{{isEdit}}"
+              }
+            }
+          }],
+          "x-content": "FDSAJKFDSAJLKFDSAJLKFDSAJ",
+          "x-component": "Button",
+          "x-index": 42
         },
         "refreshToken": {
           "type": "String",
           "title": "${refreshToken}",
           "x-decorator": "FormItem",
           "x-component": "Input",
+          "x-component-props": {
+            "readOnly": true
+          },
           "apiServerKey": "database_host",
           "x-index": 50,
           "hidden": true,
@@ -80,6 +135,9 @@
           "title": "${accessToken}",
           "x-decorator": "FormItem",
           "x-component": "Input",
+          "x-component-props": {
+            "readOnly": true
+          },
           "apiServerKey": "database_host",
           "x-index": 60,
           "hidden": true,

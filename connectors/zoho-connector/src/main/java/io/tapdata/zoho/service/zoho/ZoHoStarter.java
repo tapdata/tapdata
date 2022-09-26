@@ -40,19 +40,19 @@ public abstract class ZoHoStarter {
         String streamReadType = connectionConfig.getString("streamReadType");
         String connectionMode = connectionConfig.getString("connectionMode");
         if ( null == projectName || "".equals(projectName)){
-            TapLogger.info(TAG, "Connection parameter exception: {} ", projectName);
+            TapLogger.debug(TAG, "Connection parameter exception: {} ", projectName);
         }
         if ( null == token || "".equals(token) ){
-            TapLogger.info(TAG, "Connection parameter exception: {} ", token);
+            TapLogger.debug(TAG, "Connection parameter exception: {} ", token);
         }
         if ( null == teamName || "".equals(teamName) ){
-            TapLogger.info(TAG, "Connection parameter exception: {} ", teamName);
+            TapLogger.debug(TAG, "Connection parameter exception: {} ", teamName);
         }
         if ( null == streamReadType || "".equals(streamReadType) ){
-            TapLogger.info(TAG, "Connection parameter streamReadType exception: {} ", token);
+            TapLogger.debug(TAG, "Connection parameter streamReadType exception: {} ", token);
         }
         if ( null == connectionMode || "".equals(connectionMode) ){
-            TapLogger.info(TAG, "Connection parameter connectionMode exception: {} ", teamName);
+            TapLogger.debug(TAG, "Connection parameter connectionMode exception: {} ", teamName);
         }
         this.isVerify = Boolean.TRUE;
     }
@@ -84,10 +84,10 @@ public abstract class ZoHoStarter {
                 if (null != issueType) issueType = issueType.trim();
 
                 if (null == iterationCodeArr || "".equals(iterationCodeArr)) {
-                    TapLogger.info(TAG, "Connection node config iterationName exception: {} ", projectName);
+                    TapLogger.debug(TAG, "Connection node config iterationName exception: {} ", projectName);
                 }
                 if (null == issueType || "".equals(issueType)) {
-                    TapLogger.info(TAG, "Connection node config issueType exception: {} ", token);
+                    TapLogger.debug(TAG, "Connection node config issueType exception: {} ", token);
                 }
 //                config.issueType(issueType).iterationCodes(iterationCodeArr);
             }
@@ -95,6 +95,7 @@ public abstract class ZoHoStarter {
         return config;
     }
 
+    /**取AccessToken*/
     public String accessTokenFromConfig(){
         String accessToken = null;
         if (tapConnectionContext instanceof TapConnectorContext){
@@ -109,11 +110,13 @@ public abstract class ZoHoStarter {
         }
         return accessToken;
     }
+    /**取refreshToken*/
     public String refreshTokenFromConfig(){
         DataMap connectionConfig = tapConnectionContext.getConnectionConfig();
         Object refreshTokenObj = connectionConfig.get("refreshToken");
         return Checker.isNotEmpty(refreshTokenObj)?(String)refreshTokenObj:"";
     }
+    /**添加accessToken和refreshToken到stateMap*/
     public void addTokenToStateMap(){
         if (Checker.isEmpty(this.tapConnectionContext) || !(this.tapConnectionContext instanceof TapConnectorContext)){
             return;
@@ -132,6 +135,7 @@ public abstract class ZoHoStarter {
         KVMap<Object> stateMap = connectorContext.getStateMap();
         stateMap.put("accessToken",accessToken);
     }
+    /**刷新AccessToken并返回AccessToken*/
     public String refreshAndBackAccessToken(){
         RefreshTokenEntity refreshTokenEntity = TokenLoader.create(tapConnectionContext).refreshToken();
         String accessToken = refreshTokenEntity.getAccessToken();
@@ -140,4 +144,5 @@ public abstract class ZoHoStarter {
         }
         return accessToken;
     }
+
 }

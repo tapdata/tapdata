@@ -89,7 +89,7 @@ public class ZoHoConnector extends ConnectorBase {
 	@Override
 	public void registerCapabilities(ConnectorFunctions connectorFunctions, TapCodecsRegistry codecRegistry) {
 		connectorFunctions.supportBatchRead(this::batchRead)
-				.supportBatchCount(this::batchCount)
+				//.supportBatchCount(this::batchCount)
 				.supportTimestampToStreamOffset(this::timestampToStreamOffset)
 				.supportStreamRead(this::streamRead)
 				.supportRawDataCallbackFilterFunction(this::rawDataCallbackFilterFunction)
@@ -163,7 +163,8 @@ public class ZoHoConnector extends ConnectorBase {
 	}
 
 	private long batchCount(TapConnectorContext tapConnectorContext, TapTable tapTable) throws Throwable {
-		return TicketLoader.create(tapConnectorContext).count();
+		//return TicketLoader.create(tapConnectorContext).count();
+		return 0;
 	}
 
 	@Override
