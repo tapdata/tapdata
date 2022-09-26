@@ -61,6 +61,7 @@ public class CodingHttp {
      * @param request
      * @return
      */
+    private int retry = 0;
     public Map<String,Object> post(HttpRequest request){
         if (null == request){
             if (null != heads) {
@@ -75,11 +76,16 @@ public class CodingHttp {
         }
         HttpResponse execute = null;
         try {
+            Thread.sleep(10);//防止刷爆别人的接口，设置阻塞
             execute = request.execute();
         }catch (Exception e){
             TapLogger.info(TAG,"Read timed out:{}",e.getMessage());
-            return Collections.emptyMap();
+            if (retry++>3){
+                return Collections.emptyMap();
+            }
+            return this.post(request);
         }
+        retry = 0;
         return null == execute || execute.getStatus() != HttpStatus.HTTP_OK ?
                 Collections.emptyMap() : JSONUtil.parseObj(execute.body());
     }
