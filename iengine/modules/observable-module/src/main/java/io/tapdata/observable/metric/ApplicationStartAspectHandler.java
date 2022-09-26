@@ -1,5 +1,6 @@
 package io.tapdata.observable.metric;
 
+import cn.hutool.core.date.DateUtil;
 import com.sun.management.OperatingSystemMXBean;
 import com.tapdata.constant.BeanUtil;
 import com.tapdata.constant.ConfigurationCenter;
@@ -35,14 +36,15 @@ public class ApplicationStartAspectHandler implements AspectObserver<Application
         collector.addSampler("cpuUsage", () ->
                 ManagementFactory.getPlatformMXBean(OperatingSystemMXBean.class).getProcessCpuLoad()
         );
-        collector.addSampler("memUsed", () ->
-                ManagementFactory.getMemoryMXBean().getHeapMemoryUsage().getUsed()
+        collector.addSampler("memUsed", () -> ManagementFactory.getMemoryMXBean().getHeapMemoryUsage().getUsed()
         );
         collector.addSampler("physicalMemTotal", () ->
                 ((com.sun.management.OperatingSystemMXBean) ManagementFactory.getOperatingSystemMXBean()).getTotalPhysicalMemorySize()
         );
+        collector.addSampler("heapMemTotal", () -> ManagementFactory.getMemoryMXBean().getHeapMemoryUsage().getMax()
+        );
         collector.addSampler("memoryRate", () ->
-                (double) ManagementFactory.getMemoryMXBean().getHeapMemoryUsage().getUsed() / ((com.sun.management.OperatingSystemMXBean) ManagementFactory.getOperatingSystemMXBean()).getTotalPhysicalMemorySize()
+                (double) ManagementFactory.getMemoryMXBean().getHeapMemoryUsage().getUsed() / ManagementFactory.getMemoryMXBean().getHeapMemoryUsage().getMax()
         );
 
         GcSampler gcSamplerTime = new GcSampler(GcSampler.GcPointEnum.GC_TIME);
@@ -51,5 +53,6 @@ public class ApplicationStartAspectHandler implements AspectObserver<Application
         collector.addSampler("gcRate", () ->
             gcSamplerTime.value().doubleValue() / 300000
         );
+        collector.addSampler("date", System::currentTimeMillis);
     }
 }
