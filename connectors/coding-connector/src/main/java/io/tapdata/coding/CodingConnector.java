@@ -53,7 +53,7 @@ public class CodingConnector extends ConnectorBase {
 		synchronized (streamReadLock) {
 			streamReadLock.notify();
 		}
-		TapLogger.info(TAG, "Stop connector");
+		TapLogger.debug(TAG, "Stop connector");
 	}
 
 	@Override
@@ -70,7 +70,7 @@ public class CodingConnector extends ConnectorBase {
 		if(method.equals(PDKMethod.CONNECTION_CHECK)) {
 			if(throwable instanceof IOException) {
 				return RetryOptions.create().needRetry(true).beforeRetryMethod(()->{
-					System.out.println("Begin retry...");
+					TapLogger.debug(TAG,"Begin retry...");
 				});
 			}
 		}
@@ -104,9 +104,9 @@ public class CodingConnector extends ConnectorBase {
 		while (isAlive()) {
 			long current = tableUpdateTimeMap.get(tableList.get(0));
 			Long last = Long.MAX_VALUE;
-			TapLogger.info(TAG, "start {} stream read", currentTable);
+			TapLogger.debug(TAG, "start {} stream read", currentTable);
 			this.read(nodeContext, current, last, currentTable, recordSize, codingOffset, consumer,tableList.get(0));
-			TapLogger.info(TAG, "compile {} once stream read", currentTable);
+			TapLogger.debug(TAG, "compile {} once stream read", currentTable);
 			synchronized (streamReadLock) {
 				try {
 					streamReadLock.wait(streamExecutionGap);
@@ -144,14 +144,14 @@ public class CodingConnector extends ConnectorBase {
 			Object offset,
 			int batchCount,
 			BiConsumer<List<TapEvent>, Object> consumer) {
-		TapLogger.info(TAG, "start {} batch read", table.getName());
+		TapLogger.debug(TAG, "start {} batch read", table.getName());
 		Long readEnd = System.currentTimeMillis();
 		CodingOffset codingOffset =  new CodingOffset();
 		//current read end as next read begin
 		codingOffset.setTableUpdateTimeMap(new HashMap<String,Long>(){{ put(table.getId(),readEnd);}});
 		IssueLoader.create(connectorContext).verifyConnectionConfig(connectorContext);
 		this.read(connectorContext,null,readEnd,table.getId(),batchCount,codingOffset,consumer,table.getId());
-		TapLogger.info(TAG, "compile {} batch read", table.getName());
+		TapLogger.debug(TAG, "compile {} batch read", table.getName());
 	}
 
 	private long batchCount(TapConnectorContext tapConnectorContext, TapTable tapTable) throws Throwable {
@@ -348,10 +348,10 @@ public class CodingConnector extends ConnectorBase {
 		if (null != issueType ) issueType = issueType.trim();
 
 		if ( null == iterationCodeArr || "".equals(iterationCodeArr)){
-			TapLogger.info(TAG, "Connection node config iterationName exception: {} ", projectName);
+			TapLogger.debug(TAG, "Connection node config iterationName exception: {} ", projectName);
 		}
 		if ( null == issueType || "".equals(issueType) ){
-			TapLogger.info(TAG, "Connection node config issueType exception: {} ", token);
+			TapLogger.debug(TAG, "Connection node config issueType exception: {} ", token);
 		}
 
 		int currentQueryCount = 0,queryIndex = 0 ;
@@ -387,7 +387,7 @@ public class CodingConnector extends ConnectorBase {
 			pageBody.builder("PageNumber",queryIndex++);
 			Map<String,Object> dataMap = issueLoader.getIssuePage(header.getEntity(),pageBody.getEntity(),String.format(CodingStarter.OPEN_API_URL,teamName));
 			if (null == dataMap || null == dataMap.get("List")) {
-				TapLogger.info(TAG, "Paging result request failed, the Issue list is empty: page index = {}",queryIndex);
+				TapLogger.debug(TAG, "Paging result request failed, the Issue list is empty: page index = {}",queryIndex);
 				throw new RuntimeException("Paging result request failed, the Issue list is empty: "+CodingStarter.OPEN_API_URL+"?Action=DescribeIssueListWithPage");
 			}
 			List<Map<String,Object>> resultList = (List<Map<String,Object>>) dataMap.get("List");
@@ -399,17 +399,17 @@ public class CodingConnector extends ConnectorBase {
 				issueDetialBody.builder("IssueCode", code);
 				Map<String,Object> issueDetailResponse = authorization.body(issueDetialBody.getEntity()).post(requestDetail);
 				if (null == issueDetailResponse){
-					TapLogger.info(TAG, "HTTP request exception, Issue Detail acquisition failed: {} ", CodingStarter.OPEN_API_URL+"?Action=DescribeIssue&IssueCode="+code);
+					TapLogger.debug(TAG, "HTTP request exception, Issue Detail acquisition failed: {} ", CodingStarter.OPEN_API_URL+"?Action=DescribeIssue&IssueCode="+code);
 					throw new RuntimeException("HTTP request exception, Issue Detail acquisition failed: "+CodingStarter.OPEN_API_URL+"?Action=DescribeIssue&IssueCode="+code);
 				}
 				issueDetailResponse = (Map<String,Object>)issueDetailResponse.get("Response");
 				if (null == issueDetailResponse){
-					TapLogger.info(TAG, "HTTP request exception, Issue Detail acquisition failed: {} ", CodingStarter.OPEN_API_URL+"?Action=DescribeIssue&IssueCode="+code);
+					TapLogger.debug(TAG, "HTTP request exception, Issue Detail acquisition failed: {} ", CodingStarter.OPEN_API_URL+"?Action=DescribeIssue&IssueCode="+code);
 					throw new RuntimeException("HTTP request exception, Issue Detail acquisition failed: "+CodingStarter.OPEN_API_URL+"?Action=DescribeIssue&IssueCode="+code);
 				}
 				Map<String,Object> issueDetail = (Map<String,Object>)issueDetailResponse.get("Issue");
 				if (null == issueDetail){
-					TapLogger.info(TAG, "Issue Detail acquisition failed: IssueCode {} ", code);
+					TapLogger.debug(TAG, "Issue Detail acquisition failed: IssueCode {} ", code);
 					throw new RuntimeException("Issue Detail acquisition failed: IssueCode "+code);
 				}
 
