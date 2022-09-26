@@ -13,9 +13,9 @@ public class Main {
 	@Test
 	public void test() {
 		TapFileStorage storage = new TapFileStorageBuilder()
-				.withClassLoader(LocalFileStorage.class.getClassLoader())
+				.withClassLoader(LocalFileStorage.class.getClassLoader()) //PDK's classloader
 				.withParams(map(entry("rootPath", "/root/")))
-				.withStorageClassName(LocalFileStorage.class.getName())
+				.withStorageClassName("io.tapdata.storage.local.LocalFileStorage")
 				.build();
 		assertNotNull(storage);
 	}
