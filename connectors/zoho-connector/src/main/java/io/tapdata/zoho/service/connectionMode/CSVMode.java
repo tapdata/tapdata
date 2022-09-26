@@ -31,8 +31,6 @@ public class CSVMode implements ConnectionMode {
     @Override
     public ConnectionMode config(TapConnectionContext connectionContext) {
         this.connectionContext = connectionContext;
-
-//        this.contextConfig = loader.veryContextConfigAndNodeConfig();
         return this;
     }
 
@@ -126,6 +124,7 @@ public class CSVMode implements ConnectionMode {
             // 查询自定义属性列表
             Map<String, Map<String, Object>> customFieldMap = OrganizationFieldLoader.create(connectionContext)
                     .customFieldMap(FieldModelType.TICKETS);
+            //accessToken过期 @TODO
             if (Checker.isEmpty(customFieldMap) || customFieldMap.isEmpty()){
                 throw new CoreException("Get custom fields error.");
             }
@@ -209,28 +208,6 @@ public class CSVMode implements ConnectionMode {
                 "timeEntryCount"//@TODO 工单搁置时间
         );
         return ticketCSVDetail;
-    }
-
-    private Map<Integer,Map<String,Object>> getIssueCustomFieldMap(String issueType, ContextConfig contextConfig){
-//        HttpEntity<String,String> heard = HttpEntity.create().builder("Authorization",contextConfig.getToken());
-//        HttpEntity<String,Object> body = HttpEntity.create()
-//                .builder("Action","DescribeProjectIssueFieldList")
-//                .builder("ProjectName",contextConfig.getProjectName())
-//                .builder("IssueType",issueType);
-//        Map<String, Object> post = CodingHttp.create(heard.getEntity(), body.getEntity(), String.format(CodingStarter.OPEN_API_URL, contextConfig.getTeamName())).post();
-//        Object response = post.get("Response");
-//        Map<String,Object> responseMap = (Map<String, Object>) response;
-//        if (null == response ){
-//            throw new CoreException("HTTP request exception, Issue CustomField acquisition failed: " + CodingStarter.OPEN_API_URL+"?Action=DescribeProjectIssueFieldList");
-//        }
-//        Object data = responseMap.get("ProjectIssueFieldList");
-//        if (null != data && data instanceof JSONArray){
-//            if (((JSONArray)data).size()>0) {
-//                List<Map<String, Object>> list = (List<Map<String, Object>>) data;
-//                return list.stream().collect(Collectors.toMap(item -> (Integer) item.get("IssueFieldId"), item -> item));
-//            }
-//        }
-        return null;
     }
 
     //CustomFields

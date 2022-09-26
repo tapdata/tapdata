@@ -19,13 +19,10 @@ import static io.tapdata.entity.utils.JavaTypesToTapTypes.*;
 public class DocumentMode implements ConnectionMode {
     private static final String TAG = DocumentMode.class.getSimpleName();
     TapConnectionContext connectionContext;
-    ContextConfig contextConfig;
 
     @Override
     public ConnectionMode config(TapConnectionContext connectionContext) {
         this.connectionContext = connectionContext;
-//        this.loader = IssueLoader.create(connectionContext);
-//        this.contextConfig = loader.veryContextConfigAndNodeConfig();
         return this;
     }
     @Override
@@ -33,9 +30,6 @@ public class DocumentMode implements ConnectionMode {
         if(tables == null || tables.isEmpty()) {
             return list(
                     table("Ticket")
-//                            .add(field("Code", JAVA_Integer).isPrimaryKey(true).primaryKeyPos(3))        //事项 Code
-//                            .add(field("ProjectName", "StringMinor").isPrimaryKey(true).primaryKeyPos(2))   //项目名称
-//                            .add(field("TeamName", "StringMinor").isPrimaryKey(true).primaryKeyPos(1))      //团队名称
                             .add(field("id","Long").isPrimaryKey(true).primaryKeyPos(1))
                             .add(field("modifiedTime","String"))
                             .add(field("subCategory","Object"))

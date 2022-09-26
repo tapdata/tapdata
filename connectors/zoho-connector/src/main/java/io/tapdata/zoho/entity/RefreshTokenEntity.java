@@ -4,6 +4,7 @@ import io.tapdata.zoho.service.zoho.ZoHoBase;
 import lombok.Data;
 
 import java.io.Serializable;
+import java.util.HashMap;
 import java.util.Map;
 
 @Data
@@ -20,6 +21,7 @@ public class RefreshTokenEntity implements Serializable {
     private String apiDomain;
     private String tokenType;
     private int expiresIn;
+    private String message;
     public RefreshTokenEntity(){}
 
     public RefreshTokenEntity(String accessToken, String apiDomain, String tokenType, int expiresIn) {
@@ -45,6 +47,15 @@ public class RefreshTokenEntity implements Serializable {
             this.expiresIn = (Integer)(expiresInObj);
         }
     }
+    public Map<String,Object> map(){
+        Map<String, Object> stringObjectHashMap = new HashMap<>();
+        stringObjectHashMap.put("accessToken", this.accessToken);
+        stringObjectHashMap.put("apiDomain",   this.apiDomain);
+        stringObjectHashMap.put("tokenType",   this.tokenType);
+        stringObjectHashMap.put("expiresIn",   this.expiresIn);
+        stringObjectHashMap.put("message",     this.message);
+        return stringObjectHashMap;
+    }
     public static RefreshTokenEntity create(){return new RefreshTokenEntity();}
     public static RefreshTokenEntity create(String accessToken, String apiDomain, String tokenType, int expiresIn){
         return new RefreshTokenEntity(accessToken, apiDomain, tokenType, expiresIn);
@@ -52,5 +63,8 @@ public class RefreshTokenEntity implements Serializable {
     public static RefreshTokenEntity create(Map<String,Object> map){
         return new RefreshTokenEntity(map);
     }
-
+    public RefreshTokenEntity message(String message){
+        this.message = message;
+        return this;
+    }
 }

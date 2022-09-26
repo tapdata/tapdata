@@ -8,7 +8,9 @@ public enum HttpCode {
     INVALID_OAUTH("INVALID_OAUTH","The OAuth Token you provided is invalid."),
     EMPTY("EMPTY","HTTP connect failed."),
     GENERAL_ERROR("general_error","General error."),
-    INVALID_CODE("invalid_code","Invalid Code."),
+    INVALID_CODE("invalid_code","Invalid generate code."),
+    INVALID_CLIENT("invalid_client","Invalid client ID."),
+    INVALID_CLIENT_SECRET("invalid_client_secret","Invalid client secret ID."),
     ;
     String code;
     String message;

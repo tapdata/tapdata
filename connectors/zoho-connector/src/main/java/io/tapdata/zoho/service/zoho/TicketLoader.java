@@ -32,8 +32,7 @@ public class TicketLoader extends ZoHoStarter implements ZoHoBase {
             TapLogger.debug(TAG,"Ticket Id can not be null or not be empty.");
         }
         String url = "/api/v1/tickets/{ticketID}";
-        ContextConfig contextConfig = this.veryContextConfigAndNodeConfig();
-        String accessToken = "";
+        String accessToken = this.accessTokenFromConfig();
         HttpEntity<String,String> header = HttpEntity.create()
                 .build("Authorization",accessToken);
         HttpEntity<String,String> resetFull = HttpEntity.create().build("ticketID",ticketId);
@@ -44,11 +43,10 @@ public class TicketLoader extends ZoHoStarter implements ZoHoBase {
         }
         String code = httpResult.getCode();
         if (HttpCode.INVALID_OAUTH.getCode().equals(code)){
-            RefreshTokenEntity refreshTokenEntity = TokenLoader.create(tapConnectionContext).refreshToken();
-            String token = refreshTokenEntity.getAccessToken();
-            tapConnectionContext.getConnectionConfig().put("accessToken",token);
-            contextConfig.setAccessToken(token);
-            header.build("Authorization",token);
+            //重新获取超时的AccessToken，并添加到stateMap
+            String newAccessToken = this.refreshAndBackAccessToken();
+            this.addNewAccessTokenToStateMap(newAccessToken);
+            header.build("Authorization",newAccessToken);
             httpResult = http.get();
             if (Checker.isEmpty(httpResult) || Checker.isEmpty(httpResult.getResult()) || Checker.isEmpty(httpResult.getResult().get("data"))){
                 throw new CoreException("Try to get ticket list , but faild.");
@@ -76,11 +74,10 @@ public class TicketLoader extends ZoHoStarter implements ZoHoBase {
         }
         String code = httpResult.getCode();
         if (HttpCode.INVALID_OAUTH.getCode().equals(code)){
-            RefreshTokenEntity refreshTokenEntity = TokenLoader.create(tapConnectionContext).refreshToken();
-            String token = refreshTokenEntity.getAccessToken();
-            tapConnectionContext.getConnectionConfig().put("accessToken",token);
-            contextConfig.setAccessToken(token);
-            heards.build("Authorization",token);
+            //重新获取超时的AccessToken，并添加到stateMap
+            String newAccessToken = this.refreshAndBackAccessToken();
+            this.addNewAccessTokenToStateMap(newAccessToken);
+            heards.build("Authorization",newAccessToken);
             httpResult = http.get();
             if (Checker.isEmpty(httpResult) || Checker.isEmpty(httpResult.getResult()) || Checker.isEmpty(httpResult.getResult().get("data"))){
                 throw new CoreException("Try to get ticket list , but faild.");

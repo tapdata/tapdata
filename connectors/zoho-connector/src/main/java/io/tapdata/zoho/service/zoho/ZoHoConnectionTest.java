@@ -21,21 +21,12 @@ public class ZoHoConnectionTest extends ZoHoStarter implements ZoHoBase  {
 
     public TestItem testToken(){
         try {
-            DataMap connectionConfig = tapConnectionContext.getConnectionConfig();
-            //@TODO 获取accessToken
-            String accessToken = "";
             //随便掉一个接口看看accessToken是否过期
             String url = "/api/v1/organizations";
-            HttpEntity<String,String> heard = HttpEntity.create().build("Authorization",accessToken);
+            HttpEntity<String,String> heard = HttpEntity.create().build("Authorization",accessTokenFromConfig());
             HttpResult httpResult = ZoHoHttp.create(String.format(ZO_HO_BASE_URL, url), HttpType.GET, heard).get();
             if (httpResult.isInvalidOauth()){
-                TokenLoader tokenLoader = TokenLoader.create(tapConnectionContext);
-                HttpResult refresh = tokenLoader.refresh();
-                if (refresh.isInvalidOauth()){
-                    return testItem(ZoHoTestItem.TOKEN_TEST.getContent(),TestItem.RESULT_FAILED,"Expired token.");
-                }else {
-                    //@TODO 更新AccessToken
-                }
+                return testItem(ZoHoTestItem.TOKEN_TEST.getContent(),TestItem.RESULT_FAILED,"Expired token.");
             }
             return testItem(ZoHoTestItem.TOKEN_TEST.getContent(),TestItem.RESULT_SUCCESSFULLY);
         }catch (Exception e){

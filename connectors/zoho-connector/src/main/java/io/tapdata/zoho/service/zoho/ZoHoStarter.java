@@ -1,10 +1,14 @@
 package io.tapdata.zoho.service.zoho;
 
+import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.utils.DataMap;
+import io.tapdata.entity.utils.cache.KVMap;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.zoho.entity.ContextConfig;
+import io.tapdata.zoho.entity.RefreshTokenEntity;
+import io.tapdata.zoho.utils.Checker;
 
 public abstract class ZoHoStarter {
     private static final String TAG = ZoHoStarter.class.getSimpleName();
@@ -89,5 +93,51 @@ public abstract class ZoHoStarter {
             }
         }
         return config;
+    }
+
+    public String accessTokenFromConfig(){
+        String accessToken = null;
+        if (tapConnectionContext instanceof TapConnectorContext){
+            TapConnectorContext connectorContext = (TapConnectorContext) this.tapConnectionContext;
+            KVMap<Object> stateMap = connectorContext.getStateMap();
+            accessToken = Checker.isNotEmpty(stateMap)?(String)(Checker.isEmpty(stateMap.get("accessToken"))?"":stateMap.get("accessToken")):"";
+        }
+        if(Checker.isEmpty(accessToken)){
+            DataMap connectionConfig = tapConnectionContext.getConnectionConfig();
+            Object accessTokenObj = connectionConfig.get("accessToken");
+            accessToken = Checker.isNotEmpty(accessTokenObj)?(String)accessTokenObj:"";
+        }
+        return accessToken;
+    }
+    public String refreshTokenFromConfig(){
+        DataMap connectionConfig = tapConnectionContext.getConnectionConfig();
+        Object refreshTokenObj = connectionConfig.get("refreshToken");
+        return Checker.isNotEmpty(refreshTokenObj)?(String)refreshTokenObj:"";
+    }
+    public void addTokenToStateMap(){
+        if (Checker.isEmpty(this.tapConnectionContext) || !(this.tapConnectionContext instanceof TapConnectorContext)){
+            return;
+        }
+        ContextConfig contextConfig = this.veryContextConfigAndNodeConfig();
+        TapConnectorContext connectorContext = (TapConnectorContext)this.tapConnectionContext;
+        KVMap<Object> stateMap = connectorContext.getStateMap();
+        stateMap.putIfAbsent("refreshToken",contextConfig.getRefreshToken());
+        stateMap.put("accessToken",contextConfig.getRefreshToken());
+    }
+    public void addNewAccessTokenToStateMap(String accessToken){
+        if (Checker.isEmpty(this.tapConnectionContext) || !(this.tapConnectionContext instanceof TapConnectorContext)){
+            return;
+        }
+        TapConnectorContext connectorContext = (TapConnectorContext)this.tapConnectionContext;
+        KVMap<Object> stateMap = connectorContext.getStateMap();
+        stateMap.put("accessToken",accessToken);
+    }
+    public String refreshAndBackAccessToken(){
+        RefreshTokenEntity refreshTokenEntity = TokenLoader.create(tapConnectionContext).refreshToken();
+        String accessToken = refreshTokenEntity.getAccessToken();
+        if (Checker.isEmpty(accessToken)){
+            throw new CoreException("Refresh accessToken failed.");
+        }
+        return accessToken;
     }
 }
