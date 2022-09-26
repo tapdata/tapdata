@@ -929,8 +929,8 @@ class TargetTypesGeneratorTest {
 //                "\"bigint[unsigned]\": {\"to\": \"TapNumber\",\"bit\": 64,\"precision\": 19,\"value\": [ -9223372036854775808, 9223372036854775807], \"unsignedValue\": [ 0, 18446744073709551615],\"unsigned\": \"unsigned\"},\n" +
                 "\"float($precision,$scale)[unsigned]\": {\"to\": \"TapNumber\",\"precision\": [ 1, 30],\"scale\": [ 0, 30],\"value\": [ \"-3.402823466E+38\", \"3.402823466E+38\"],\"unsigned\": \"unsigned\",\"fixed\": false},\n" +
                 "\"float\": {\"to\": \"TapNumber\",\"precision\": [ 1, 6],\"scale\": [ 0, 6],\"fixed\": false},\n" +
-                "\"double\": {\"to\": \"TapNumber\",\"precision\": [ 1, 11],\"scale\": [ 0, 11],\"fixed\": false},\n" +
-                "\"double[($precision,$scale)][unsigned]\": {\"to\": \"TapNumber\",\"precision\": [ 1, 255],\"defaultPrecision\": 10,\"scale\": [ 0, 30],\"value\": [ \"-1.7976931348623157E+308\", \"1.7976931348623157E+308\"],\"unsigned\": \"unsigned\",\"fixed\": false},\n" +
+                "\"double\": {\"to\": \"TapNumber\",\"precision\": [ 1, 11],\"scale\": [ 0, 11],\"fixed\": true},\n" +
+                "\"double[($precision,$scale)][unsigned]\": {\"to\": \"TapNumber\",\"precision\": [ 1, 255],\"defaultPrecision\": 10,\"scale\": [ 0, 30],\"value\": [ \"-1.7976931348623157E+308\", \"1.7976931348623157E+308\"],\"unsigned\": \"unsigned\",\"fixed\": true},\n" +
 //                "\"date\": {\"to\": \"TapDate\",\"range\": [ \"1000-01-01\", \"9999-12-31\"],\"pattern\": \"yyyy-MM-dd\"},\n" +
 //                "\"time\": {\"to\": \"TapTime\",\"range\": [\"-838:59:59\",\"838:59:59\"]},\n" +
 //                "\"datetime[($fraction)]\": {\"to\": \"TapDateTime\",\"range\": [ \"1000-01-01 00:00:00.000000\", \"9999-12-31 23:59:59.999999\"],\"pattern\": \"yyyy-MM-dd HH:mm:ss.SSSSSS\",\"fraction\": [ 0, 6],\"defaultFraction\": 0},\n" +
@@ -1485,7 +1485,7 @@ class TargetTypesGeneratorTest {
     @Test
     public void tapNumber52ToPGNumber() {
 
-        String sourceTypeExpression = "{\"tapNumber[($precision, $scale)]\": {\"precision\" : [1, 40], \"fixed\" : true, \"defaultPrecision\" : 4, \"scale\" : [0, 10], \"defaultScale\" : 1, \"to\": \"TapNumber\"}}";
+        String sourceTypeExpression = "{\"tapNumber[($precision, $scale)]\": {\"precision\" : [1, 40], \"fixed\" : true, \"precisionDefault\" : 4, \"scale\" : [0, 10], \"scaleDefault\" : 1, \"to\": \"TapNumber\"}}";
 
         String targetTypeExpression = "{\"numeric[($precision,$scale)]\": {\n" +
                 "      \"precision\": [\n" +
@@ -1502,6 +1502,7 @@ class TargetTypesGeneratorTest {
                 "      \"priority\": 1,\n" +
                 "      \"to\": \"TapNumber\"\n" +
                 "    },\n" +
+                "    \"myint[($bit)][unsigned]\":{\"bit\":48, \"bitRatio\": 2, \"unsigned\":\"unsigned\", \"to\":\"TapNumber\"},\n" +
                 "    \"real\": {\n" +
                 "      \"bit\": 32,\n" +
                 "      \"priority\": 2,\n" +
@@ -1513,7 +1514,6 @@ class TargetTypesGeneratorTest {
                 "        0,\n" +
                 "        6\n" +
                 "      ],\n" +
-//                "       \"value\": [ \"-3.402823466E+38\", \"3.402823466E+38\"]," +
                 "      \"fixed\": false,\n" +
                 "      \"to\": \"TapNumber\"\n" +
                 "    }" +
@@ -1529,6 +1529,7 @@ class TargetTypesGeneratorTest {
         TapResult<LinkedHashMap<String, TapField>> tapResult = targetTypesGenerator.convert(sourceTable.getNameFieldMap(), DefaultExpressionMatchingMap.map(targetTypeExpression), targetCodecFilterManager);
 
         LinkedHashMap<String, TapField> nameFieldMap = tapResult.getData();
+
 
         TapField upperVarchar50 = nameFieldMap.get("tapNumber(5, 2)");
         assertEquals("numeric(5,2)", upperVarchar50.getDataType());
