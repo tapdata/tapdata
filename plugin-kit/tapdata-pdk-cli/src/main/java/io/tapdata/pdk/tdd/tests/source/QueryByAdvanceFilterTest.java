@@ -133,41 +133,41 @@ public class QueryByAdvanceFilterTest extends PDKTestBase {
                 TapAdvanceFilter.create().match(DataMap.create().kv("id", "full_1")), targetTable, filterResults -> {
             $(() -> Assertions.assertNotNull(filterResults.getResults(), "Query results should be not null"));
             $(() -> Assertions.assertEquals(1, filterResults.getResults().size(), "Should return 1 result"));
-            $(() -> Assertions.assertEquals("123", filterResults.getResults().get(0).get("tapString"), "tapString field should equal 123"));
-              $(() -> Assertions.assertTrue(objectIsEqual(123.0, filterResults.getResults().get(0).get("tapNumber")), "tapNumber field should equal 123.0"));
+            $(() -> Assertions.assertEquals("123", filterResults.getResults().get(0).get("tap_string"), "tapString field should equal 123"));
+              $(() -> Assertions.assertTrue(objectIsEqual(123.0, filterResults.getResults().get(0).get("tap_number")), "tapNumber field should equal 123.0"));
         });
 
         connectorFunctions.getQueryByAdvanceFilterFunction().query(targetNode.getConnectorContext(),
-                TapAdvanceFilter.create().op(QueryOperator.lt("tapInt", 1023123)), targetTable, filterResults -> {
+                TapAdvanceFilter.create().op(QueryOperator.lt("tap_int", 1023123)), targetTable, filterResults -> {
                     $(() -> Assertions.assertNotNull(filterResults.getResults(), "Query results should be not null"));
                     $(() -> Assertions.assertEquals(10, filterResults.getResults().size(), "Should return 10 result"));
-                    $(() -> Assertions.assertTrue(objectIsEqual("1234", filterResults.getResults().get(0).get("tapString")), "tapString field should equal 1234"));
-                    $(() -> Assertions.assertTrue(objectIsEqual(123.0, filterResults.getResults().get(0).get("tapNumber")), "tapNumber field should equal 123.0"));
-                    $(() -> Assertions.assertTrue(objectIsEqual(123123, filterResults.getResults().get(0).get("tapInt")), "tapInt field should equal 123123"));
+                    $(() -> Assertions.assertTrue(objectIsEqual("1234", filterResults.getResults().get(0).get("tap_string")), "tapString field should equal 1234"));
+                    $(() -> Assertions.assertTrue(objectIsEqual(123.0, filterResults.getResults().get(0).get("tap_number")), "tapNumber field should equal 123.0"));
+                    $(() -> Assertions.assertTrue(objectIsEqual(123123, filterResults.getResults().get(0).get("tap_int")), "tapInt field should equal 123123"));
                 });
         connectorFunctions.getQueryByAdvanceFilterFunction().query(targetNode.getConnectorContext(),
-                TapAdvanceFilter.create().op(QueryOperator.lte("tapInt", 1023123)), targetTable, filterResults -> {
+                TapAdvanceFilter.create().op(QueryOperator.lte("tap_int", 1023123)), targetTable, filterResults -> {
                     $(() -> Assertions.assertNotNull(filterResults.getResults(), "Query results should be not null"));
                     $(() -> Assertions.assertEquals(11, filterResults.getResults().size(), "Should return 11 result"));
 
-                    $(() -> Assertions.assertTrue(objectIsEqual(1023123, filterResults.getResults().get(0).get("tapInt")), "First record, tapInt field should equal 1023123"));
-                    $(() -> Assertions.assertTrue(objectIsEqual(123123, filterResults.getResults().get(1).get("tapInt")), "Second record, tapInt field should equal 123123"));
+                    $(() -> Assertions.assertTrue(objectIsEqual(1023123, filterResults.getResults().get(0).get("tap_int")), "First record, tapInt field should equal 1023123"));
+                    $(() -> Assertions.assertTrue(objectIsEqual(123123, filterResults.getResults().get(1).get("tap_int")), "Second record, tapInt field should equal 123123"));
                 });
 
         connectorFunctions.getQueryByAdvanceFilterFunction().query(targetNode.getConnectorContext(),
-                TapAdvanceFilter.create().op(QueryOperator.lte("tapInt", 1023123)).skip(1).limit(1), targetTable, filterResults -> {
+                TapAdvanceFilter.create().op(QueryOperator.lte("tap_int", 1023123)).skip(1).limit(1), targetTable, filterResults -> {
                     $(() -> Assertions.assertNotNull(filterResults.getResults(), "Query results should be not null"));
                     $(() -> Assertions.assertEquals(1, filterResults.getResults().size(), "Should return 1 result"));
 
-                    $(() -> Assertions.assertTrue(objectIsEqual(123123, filterResults.getResults().get(0).get("tapInt")), "First record, tapInt field should equal 123123"));
+                    $(() -> Assertions.assertTrue(objectIsEqual(123123, filterResults.getResults().get(0).get("tap_int")), "First record, tapInt field should equal 123123"));
                 });
 
         connectorFunctions.getQueryByAdvanceFilterFunction().query(targetNode.getConnectorContext(),
-                TapAdvanceFilter.create().op(QueryOperator.lte("tapInt", 1023123)).skip(1).limit(1).projection(Projection.create().include("tapInt")), targetTable, filterResults -> {
+                TapAdvanceFilter.create().op(QueryOperator.lte("tap_int", 1023123)).skip(1).limit(1).projection(Projection.create().include("tap_int")), targetTable, filterResults -> {
                     $(() -> Assertions.assertNotNull(filterResults.getResults(), "Query results should be not null"));
                     $(() -> Assertions.assertEquals(1, filterResults.getResults().size(), "Should return 1 result"));
 
-                    $(() -> Assertions.assertTrue(objectIsEqual(123123, filterResults.getResults().get(0).get("tapInt")), "First record, tapInt field should equal 123123"));
+                    $(() -> Assertions.assertTrue(objectIsEqual(123123, filterResults.getResults().get(0).get("tap_int")), "First record, tapInt field should equal 123123"));
 //                    $(() -> Assertions.assertNull(filterResults.getResults().get(0).get("tapString"), "tapString should be removed by projection"));
                 });
 
