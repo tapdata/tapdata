@@ -29,6 +29,8 @@ public interface DiscoveryService {
      * @return
      */
     DiscoveryStorageOverviewDto storageOverview(String id, UserDetail user);
+    DiscoveryTaskOverviewDto taskOverview(String id, UserDetail user);
+    DiscoveryApiOverviewDto apiOverview(String id, UserDetail user);
 
 
     Map<ObjectFilterEnum, List<String>> filterList(List<ObjectFilterEnum> filterTypes, UserDetail user);

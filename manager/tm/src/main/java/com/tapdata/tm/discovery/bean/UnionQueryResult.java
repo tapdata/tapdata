@@ -12,7 +12,7 @@ import java.util.List;
 public class UnionQueryResult {
     private Date createTime;
     private ObjectId _id;
-    private List<Tag> listtags;
+    private List listtags;
     private String meta_type;
     private String original_name;
     private String syncType;
@@ -20,4 +20,8 @@ public class UnionQueryResult {
     private String agentId;
     private SourceDto source;
     private String type;
+    private String apiType;
+    private String tableName;
+    private String comment;
+    private String desc;
 }
