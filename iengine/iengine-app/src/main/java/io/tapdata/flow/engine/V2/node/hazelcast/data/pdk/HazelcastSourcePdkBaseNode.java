@@ -339,8 +339,16 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 				throw new NodeException(error).context(getProcessorBaseContext());
 			}
 
-			if (sourceRunnerFuture != null && sourceRunnerFuture.isDone() && sourceRunnerFirstTime.get()) {
-				this.running.set(false);
+			if (sourceRunnerFuture != null && sourceRunnerFuture.isDone() && sourceRunnerFirstTime.get()
+					&& null == pendingEvent && eventQueue.isEmpty()) {
+				if (TaskDto.TYPE_INITIAL_SYNC.equals(taskDto.getType())) {
+					Object completedInitial = getGlobalMap(getCompletedInitialKey());
+					if (completedInitial instanceof Boolean && (Boolean) completedInitial) {
+						this.running.set(false);
+					}
+				} else {
+					this.running.set(false);
+				}
 			}
 		} catch (Exception e) {
 			logger.error("Source sync failed {}.", e.getMessage(), e);

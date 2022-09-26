@@ -121,26 +121,6 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 			}
 		} catch (Throwable throwable) {
 			errorHandle(throwable, throwable.getMessage());
-		} finally {
-			try {
-				while (isRunning()) {
-					try {
-						if (sourceRunnerLock.tryLock(1L, TimeUnit.SECONDS)) {
-							break;
-						}
-					} catch (InterruptedException e) {
-						break;
-					}
-				}
-				if (this.sourceRunnerFirstTime.get()) {
-					this.running.set(false);
-				}
-			} finally {
-				try {
-					sourceRunnerLock.unlock();
-				} catch (Exception ignored) {
-				}
-			}
 		}
 	}
 
