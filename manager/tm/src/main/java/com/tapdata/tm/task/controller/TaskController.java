@@ -110,6 +110,7 @@ public class TaskController extends BaseController {
     public ResponseMessage<TaskDto> update(@RequestBody TaskDto task) {
         UserDetail user = getLoginUser();
         taskCheckInspectService.getInspectFlagDefaultFlag(task, user);
+        task.setStatus(null);
         return success(taskService.updateById(task, user));
     }
 
@@ -187,6 +188,7 @@ public class TaskController extends BaseController {
         task.setId(MongoUtils.toObjectId(id));
         UserDetail user = getLoginUser();
         taskCheckInspectService.getInspectFlagDefaultFlag(task, user);
+        task.setStatus(null);
         TaskDto taskDto = taskService.updateById(task, user);
         return success(taskDto);
     }

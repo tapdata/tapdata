@@ -72,8 +72,9 @@ public class FileAppender implements Appender<MonitoringLogsDto>, Serializable {
 		final LoggerContext ctx = (LoggerContext) LogManager.getContext(false);
 		final Configuration config = ctx.getConfiguration();
 		PatternLayout patternLayout = PatternLayout.newBuilder()
-			.withPattern("[%-5level] %date{yyyy-MM-dd HH:mm:ss.SSS} - %msg%n")
-			.build();
+				.withPattern("[%-5level] %date{yyyy-MM-dd HH:mm:ss.SSS} - %msg%n")
+				.withConfiguration(config)
+				.build();
 
 		TimeBasedTriggeringPolicy timeBasedTriggeringPolicy = TimeBasedTriggeringPolicy.newBuilder().withInterval(1).withModulate(true).build();
 		CompositeTriggeringPolicy compositeTriggeringPolicy = CompositeTriggeringPolicy.createPolicy(timeBasedTriggeringPolicy);
@@ -104,6 +105,7 @@ public class FileAppender implements Appender<MonitoringLogsDto>, Serializable {
 			org.apache.logging.log4j.core.Logger coreLogger = (org.apache.logging.log4j.core.Logger) logger;
 			RollingFileAppender appender = rollingFileAppenderMap.get(k);
 			appender.stop();
+			appender.getManager().close();
 			coreLogger.removeAppender(appender);
 
 			return null;

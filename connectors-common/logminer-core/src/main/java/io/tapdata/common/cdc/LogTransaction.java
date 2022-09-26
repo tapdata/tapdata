@@ -1,7 +1,10 @@
 package io.tapdata.common.cdc;
 
 import io.tapdata.kit.EmptyKit;
+import net.openhft.chronicle.map.ChronicleMap;
 
+import java.io.File;
+import java.io.IOException;
 import java.util.*;
 
 /**
@@ -13,6 +16,8 @@ public class LogTransaction {
     public static final String TX_TYPE_DML = "dml";
     public static final String TX_TYPE_COMMIT = "commit";
     public static final long LARGE_TRANSACTION_UPPER_LIMIT = 1000L;
+
+    private String connectorId;
 
     /**
      * transaction first rs id
@@ -29,7 +34,9 @@ public class LogTransaction {
      * key: rs id
      * value: same rs id redo log event
      */
-    private Map<String, List<RedoLogContent>> redoLogContents;
+    private Map<String, List> redoLogContents;
+
+    private ChronicleMap<String, List> chronicleMap;
 
     private long size;
 
@@ -49,14 +56,14 @@ public class LogTransaction {
 
     private long receivedCommitTs;
 
-    public LogTransaction(String rsId, long scn, String xid, Map<String, List<RedoLogContent>> redoLogContents) {
+    public LogTransaction(String rsId, long scn, String xid, Map<String, List> redoLogContents) {
         this.rsId = rsId;
         this.scn = scn;
         this.xid = xid;
         this.redoLogContents = redoLogContents;
     }
 
-    public LogTransaction(String rsId, long scn, String xid, Map<String, List<RedoLogContent>> redoLogContents, Long firstTimestamp) {
+    public LogTransaction(String rsId, long scn, String xid, Map<String, List> redoLogContents, Long firstTimestamp) {
         this.rsId = rsId;
         this.scn = scn;
         this.xid = xid;
@@ -64,17 +71,48 @@ public class LogTransaction {
         this.firstTimestamp = firstTimestamp;
     }
 
-    public void addRedoLogContent(RedoLogContent redoLogContent) {
+    public void setConnectorId(String connectorId) {
+        this.connectorId = connectorId;
+    }
+
+    public void addRedoLogContent(RedoLogContent redoLogContent) throws IOException {
         String rsId = redoLogContent.getRsId();
-        if (redoLogContents == null) {
+        if (EmptyKit.isNull(redoLogContents)) {
             redoLogContents = new LinkedHashMap<>();
         }
-
-        if (!redoLogContents.containsKey(rsId)) {
-            redoLogContents.put(rsId, new ArrayList<>());
+        if (size >= 1000L) {
+            if (EmptyKit.isNull(chronicleMap)) {
+                File cacheDir = new File("cacheTransaction" + File.separator + connectorId);
+                if (!cacheDir.exists()) {
+                    cacheDir.mkdirs();
+                }
+                File cacheFile = new File("cacheTransaction" + File.separator + connectorId + File.separator + xid + ".data");
+                if (!cacheFile.exists()) {
+                    cacheFile.createNewFile();
+                }
+                chronicleMap = ChronicleMap
+                        .of(String.class, List.class)
+                        .name("xid" + xid)
+                        .averageKey(xid)
+                        .averageValue(Collections.singletonList(redoLogContent))
+                        .entries(2000000L)
+                        .maxBloatFactor(50)
+                        .createPersistedTo(cacheFile);
+                chronicleMap.putAll(redoLogContents);
+            }
+            if (!chronicleMap.containsKey(rsId)) {
+                chronicleMap.put(rsId, Collections.singletonList(redoLogContent));
+            } else {
+                List<RedoLogContent> list = chronicleMap.get(rsId);
+                list.add(redoLogContent);
+                chronicleMap.put(rsId, list);
+            }
+        } else {
+            if (!redoLogContents.containsKey(rsId)) {
+                redoLogContents.put(rsId, new ArrayList<>());
+            }
+            redoLogContents.get(rsId).add(redoLogContent);
         }
-
-        redoLogContents.get(rsId).add(redoLogContent);
         if ("UPDATE".equals(redoLogContent.getOperation())) {
             txUpdatedRowIds.add(redoLogContent.getRowId());
         }
@@ -84,6 +122,14 @@ public class LogTransaction {
         if (EmptyKit.isNotEmpty(redoLogContents)) {
             redoLogContents.clear();
             txUpdatedRowIds.clear();
+        }
+        if (EmptyKit.isNotEmpty(chronicleMap)) {
+            chronicleMap.clear();
+            chronicleMap.close();
+        }
+        File cacheFile = new File("cacheTransaction" + File.separator + connectorId + File.separator + xid + ".data");
+        if (cacheFile.exists()) {
+            cacheFile.delete();
         }
     }
 
@@ -119,11 +165,15 @@ public class LogTransaction {
         this.xid = xid;
     }
 
-    public Map<String, List<RedoLogContent>> getRedoLogContents() {
-        return redoLogContents;
+    public Map<String, List> getRedoLogContents() {
+        if (isLarge()) {
+            return chronicleMap;
+        } else {
+            return redoLogContents;
+        }
     }
 
-    public void setRedoLogContents(Map<String, List<RedoLogContent>> redoLogContents) {
+    public void setRedoLogContents(Map<String, List> redoLogContents) {
         this.redoLogContents = redoLogContents;
     }
 
