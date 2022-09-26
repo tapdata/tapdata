@@ -350,8 +350,6 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
      */
     //@Transactional
     public TaskDto updateById(TaskDto taskDto, UserDetail user) {
-        //不接受前端修改传过来的状态
-        taskDto.setStatus(null);
         checkTaskInspectFlag(taskDto);
         //根据id校验当前需要更新到任务是否存在
         TaskDto oldTaskDto = null;
@@ -551,7 +549,6 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         checkDDLConflict(taskDto);
 
         //saveInspect(existedTask, taskDto, user);
-        taskDto.setStatus(TaskDto.STATUS_WAIT_START);
         return confirmById(taskDto, user, confirm, false);
     }
 
@@ -638,6 +635,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     }
 
     public TaskDto confirmById(TaskDto taskDto, UserDetail user, boolean confirm, boolean importTask) {
+        taskDto.setStatus(TaskDto.STATUS_WAIT_START);
         DAG dag = taskDto.getDag();
 
         if (!taskDto.getShareCache()) {
@@ -858,7 +856,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         log.debug("copy task success, task name = {}", copyName);
 
         taskDto.setName(copyName);
-        taskDto.setStatus(TaskDto.STATUS_EDIT);
+        //taskDto.setStatus(TaskDto.STATUS_EDIT);
         taskDto.setStatuses(new ArrayList<>());
         taskDto.setStartTime(null);
         //taskDto.setTemp(null);
