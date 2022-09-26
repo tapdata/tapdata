@@ -69,12 +69,16 @@ public class TargetNodeDriver extends Driver implements ListHandler<List<TapEven
     private Void handleCreateTableEvent(TapCreateTableEvent createTableEvent) {
         PDKInvocationMonitor pdkInvocationMonitor = PDKInvocationMonitor.getInstance();
         CreateTableFunction createTableFunction = targetNode.getConnectorFunctions().getCreateTableFunction();
-        if(createTableFunction != null) {
+        CreateTableV2Function createTableV2Function = targetNode.getConnectorFunctions().getCreateTableV2Function();
+        if (createTableV2Function != null || createTableFunction != null) {
             TapLogger.debug(TAG, "Create table {} before start. {}", createTableEvent.getTable(), LoggerUtils.targetNodeMessage(targetNode));
 
-
-            pdkInvocationMonitor.invokePDKMethod(targetNode, PDKMethod.TARGET_CREATE_TABLE, () -> {
-                createTableFunction.createTable(targetNode.getConnectorContext(), createTableEvent);
+            PDKInvocationMonitor.invoke(targetNode, PDKMethod.TARGET_CREATE_TABLE, () -> {
+                if (createTableV2Function != null) {
+                    CreateTableOptions createTableOptions = createTableV2Function.createTable(targetNode.getConnectorContext(), createTableEvent);
+                } else {
+                    createTableFunction.createTable(targetNode.getConnectorContext(), createTableEvent);
+                }
             }, "Create table " + LoggerUtils.targetNodeMessage(targetNode), TAG);
         }
         return null;
