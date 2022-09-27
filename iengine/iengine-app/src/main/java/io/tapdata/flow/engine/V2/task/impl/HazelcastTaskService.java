@@ -553,6 +553,7 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 								.withTapTableMap(tapTableMap)
 								.withConnectionConfig(connection.getConfig())
 								.withDatabaseType(databaseType)
+								.withTaskConfig(taskConfig)
 								.build()
 				);
 				break;
