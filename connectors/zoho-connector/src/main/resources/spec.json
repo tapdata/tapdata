@@ -78,7 +78,7 @@
           "title": "${refreshTokenButton}",
           "x-decorator": "FormItem",
           "x-component-props": {
-            "onClick": "{{useAsyncDataSourceByConfig({service: getTokenCommand, withoutField: true}, {name:'refreshToken'}, $values, $form, { command: 'TokenCommand', fill: ['refreshToken', 'accessToken'] })}}"
+            "onClick": "{{useAsyncDataSourceByConfig({service: getTokenCommand, withoutField: true}, $values, $form, { command: 'TokenCommand', fill: ['refreshToken', 'accessToken'] })}}"
           },
           "x-reactions": [{
             "dependencies": ["generateCode"],
@@ -99,12 +99,33 @@
           "x-component": "Button",
           "x-index": 41
         },
+        "getTokenButtonMessage": {
+          "type": "String",
+          "title": " ",
+          "x-decorator": "FormItem",
+          "x-decorator-props": {
+            "colon": false
+          },
+          "x-component": "PreviewText.Input",
+          "x-component-props": {
+            "content": "{{$self.value || \"-\"}}"
+          },
+          "x-reactions": [{
+            "dependencies": ["generateCode"],
+            "fulfill": {
+              "state": {
+                "display": "{{$deps[0]&&$self.value ? \"visible\" : \"hidden\"}}"
+              }
+            }
+          }],
+          "x-index": 42
+        },
         "getRefreshTokenButton": {
           "type": "void",
           "title": "${refreshTokenButton}",
           "x-decorator": "FormItem",
           "x-component-props": {
-            "onClick": "{{useAsyncDataSourceByConfig({service: refreshTokenCommand, withoutField: true}, {name:'refreshToken'}, $values, $form, { command: 'refreshTokenCommand', fill: ['refreshToken', 'accessToken'] })}}"
+            "onClick": "{{useAsyncDataSourceByConfig({service: refreshTokenCommand, withoutField: true}, {name:'getRefreshTokenButton'}, $values, $form, { command: 'refreshTokenCommand', fill: ['refreshToken', 'accessToken'] })}}"
           },
           "x-reactions": [{
             "fulfill": {
@@ -115,7 +136,7 @@
           }],
           "x-content": "FDSAJKFDSAJLKFDSAJLKFDSAJ",
           "x-component": "Button",
-          "x-index": 42
+          "x-index": 43
         },
         "refreshToken": {
           "type": "String",
@@ -172,10 +193,6 @@
             {
               "label": "${webHookRead}",
               "value": "WebHook"
-            },
-            {
-              "label": "${pollingRead}",
-              "value": "Polling"
             }
           ],
           "x-index": 90,

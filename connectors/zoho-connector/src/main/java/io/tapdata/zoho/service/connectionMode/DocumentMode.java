@@ -29,7 +29,7 @@ public class DocumentMode implements ConnectionMode {
     public List<TapTable> discoverSchema(List<String> tables, int tableSize ) {
         if(tables == null || tables.isEmpty()) {
             return list(
-                    table("Ticket")
+                    table("Tickets")
                             .add(field("id","Long").isPrimaryKey(true).primaryKeyPos(1))
                             .add(field("modifiedTime","String"))
                             .add(field("subCategory","Object"))

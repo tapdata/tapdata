@@ -59,6 +59,10 @@
             <version>1.18.24</version>
             <scope>compile</scope>
         </dependency>
+        <dependency>
+            <groupId>io.tapdata</groupId>
+            <artifactId>connector-core</artifactId>
+        </dependency>
 
         <!--扩展 表格-->
 <!--        <dependency>-->

@@ -1,5 +1,6 @@
 package io.tapdata.zoho.entity;
 
+import io.tapdata.zoho.enums.HttpCode;
 import io.tapdata.zoho.service.zoho.ZoHoBase;
 import lombok.Data;
 
@@ -8,7 +9,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 @Data
-public class RefreshTokenEntity implements Serializable {
+public class RefreshTokenEntity extends HttpBaseEntity implements Serializable {
     private final static long serialVersionID = 1L;
     /**
     {
@@ -17,18 +18,32 @@ public class RefreshTokenEntity implements Serializable {
             "token_type": "Bearer",
             "expires_in": 3600
     }**/
-    private String accessToken;
-    private String apiDomain;
-    private String tokenType;
-    private int expiresIn;
-    private String message;
+    protected String accessToken;
+    protected String apiDomain;
+    protected String tokenType;
+    protected int expiresIn;
     public RefreshTokenEntity(){}
-
+    public String accessToken(){
+        return this.accessToken;
+    }
+    public String apiDomain(){
+        return this.apiDomain;
+    }
+    public String tokenType(){
+        return this.tokenType;
+    }
+    public int expiresIn(){
+        return this.expiresIn;
+    }
     public RefreshTokenEntity(String accessToken, String apiDomain, String tokenType, int expiresIn) {
         this.accessToken = accessToken;
         this.apiDomain = apiDomain;
         this.tokenType = tokenType;
         this.expiresIn = expiresIn;
+    }
+    public RefreshTokenEntity entity(HttpResult result){
+
+        return this;
     }
     public RefreshTokenEntity(Map<String,Object> map) {
         if (null != map && !map.isEmpty()){
@@ -47,15 +62,7 @@ public class RefreshTokenEntity implements Serializable {
             this.expiresIn = (Integer)(expiresInObj);
         }
     }
-    public Map<String,Object> map(){
-        Map<String, Object> stringObjectHashMap = new HashMap<>();
-        stringObjectHashMap.put("accessToken", this.accessToken);
-        stringObjectHashMap.put("apiDomain",   this.apiDomain);
-        stringObjectHashMap.put("tokenType",   this.tokenType);
-        stringObjectHashMap.put("expiresIn",   this.expiresIn);
-        stringObjectHashMap.put("message",     this.message);
-        return stringObjectHashMap;
-    }
+
     public static RefreshTokenEntity create(){return new RefreshTokenEntity();}
     public static RefreshTokenEntity create(String accessToken, String apiDomain, String tokenType, int expiresIn){
         return new RefreshTokenEntity(accessToken, apiDomain, tokenType, expiresIn);
@@ -65,6 +72,10 @@ public class RefreshTokenEntity implements Serializable {
     }
     public RefreshTokenEntity message(String message){
         this.message = message;
+        return this;
+    }
+    public RefreshTokenEntity code(String code){
+        this.code = code;
         return this;
     }
 }

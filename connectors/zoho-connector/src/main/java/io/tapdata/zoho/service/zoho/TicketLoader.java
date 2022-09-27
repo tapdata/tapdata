@@ -11,6 +11,7 @@ import io.tapdata.zoho.utils.Checker;
 import io.tapdata.zoho.utils.ZoHoHttp;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -53,19 +54,19 @@ public class TicketLoader extends ZoHoStarter implements ZoHoBase {
             }
         }
         TapLogger.debug(TAG,"Get ticket list succeed.");
-        return (Map<String,Object>)httpResult.getResult().get("data");
+        Object data = httpResult.getResult().get("data");
+        return Checker.isEmpty(data)? new HashMap<>():(Map<String,Object>)data;
     }
 
     /**
      * 获取查询条件下的全部工单列表
      *
      * */
-    public List<Map<String,Object>> list(){
+    public List<Map<String,Object>> list(HttpEntity<String,Object> form){
         String url = "/api/v1/tickets";
         ContextConfig contextConfig = this.veryContextConfigAndNodeConfig();
         String accessToken = contextConfig.getAccessToken();
         String orgId = contextConfig.getOrgId();
-        HttpEntity<String,Object> form = this.getTickPageParam();
         HttpEntity<String,String> heards = HttpEntity.create().build("orgId",orgId).build("Authorization",accessToken);
         ZoHoHttp http = ZoHoHttp.create(String.format(ZO_HO_BASE_URL,url), HttpType.GET,heards).header(heards).form(form);
         HttpResult httpResult = http.get();
@@ -146,9 +147,9 @@ public class TicketLoader extends ZoHoStarter implements ZoHoBase {
         System.out.println(http.getUrl());
     }
 
-    private HttpEntity<String,Object> getTickPageParam(){
+    public HttpEntity<String,Object> getTickPageParam(){
 
-        HttpEntity<String,Object> form =HttpEntity.create().build("include", "contacts,assignee,departments,team,isRead");
+        HttpEntity<String,Object> form = HttpEntity.create().build("include", "contacts,assignee,departments,team,isRead");
         if (Checker.isNotEmpty(this.tapConnectionContext) && this.tapConnectionContext instanceof TapConnectorContext) {
             TapConnectorContext connectorContext = (TapConnectorContext)this.tapConnectionContext;
             DataMap nodeConfig = connectorContext.getNodeConfig();

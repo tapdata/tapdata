@@ -31,10 +31,11 @@ public class TokenLoader extends ZoHoStarter implements ZoHoBase {
         HttpResult post = refresh(refreshToken, clientId, clientSecret);
         String code = post.getCode();
         if (HttpCode.SUCCEED.getCode().equals(code)){
-            return RefreshTokenEntity.create(post.getResult()).message(HttpCode.SUCCEED.getMessage());
+            return RefreshTokenEntity.create(post.getResult()).message(HttpCode.SUCCEED.getMessage()).code(HttpCode.SUCCEED.getCode());
         }else {
-            TapLogger.error(TAG,"{} | {}",code,post.getResult().get(HttpCode.ERROR.getCode()));
-            throw new CoreException(code+"|"+post.getResult().get(HttpCode.ERROR.getCode()));
+            TapLogger.info(TAG,"{} | {}",code,post.getResult().get(HttpCode.ERROR.getCode()));
+            return RefreshTokenEntity.create(post.getResult()).message(code).code(HttpCode.ERROR.getCode());
+            //throw new CoreException(code+"|"+post.getResult().get(HttpCode.ERROR.getCode()));
         }
     }
     public HttpResult refresh(){

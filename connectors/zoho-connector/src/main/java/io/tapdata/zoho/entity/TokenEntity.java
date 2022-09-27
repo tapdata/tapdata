@@ -7,12 +7,11 @@ import io.tapdata.zoho.utils.ZoHoString;
 import java.util.HashMap;
 import java.util.Map;
 
-public class TokenEntity{
-    private String accessToken;
-    private String refreshToken;
-    private String tokenType;
-    private int expiresIn;
-    private String message;
+public class TokenEntity extends HttpBaseEntity{
+    protected String accessToken;
+    protected String refreshToken;
+    protected String tokenType;
+    protected int expiresIn;
 
     public static TokenEntity create(){
         return new TokenEntity();
@@ -36,9 +35,10 @@ public class TokenEntity{
             Object errorObj = postResult.get("error");
             if (errorObj instanceof String){
                 HttpCode httpCode = HttpCode.code((String)errorObj);
-                return this.message(Checker.isEmpty(httpCode)?"Error.":httpCode.getMessage());
+                return this.message(Checker.isEmpty(httpCode)?"Error.":httpCode.getMessage())
+                        .code(Checker.isEmpty(httpCode)?"ERROR":httpCode.getCode());
             }else {
-                return this.message("Error.");
+                return this.message("Error.").code("ERROR");
             }
         }
         Map<String,Object> resultMap = result.getResult();
@@ -50,17 +50,10 @@ public class TokenEntity{
                    .refreshToken(Checker.isEmpty(refreshTokenObj)?"":(String)refreshTokenObj)
                    .tokenType(Checker.isEmpty(tokenTypeObj)?"":(String)tokenTypeObj)
                    .expiresIn(Checker.isEmpty(expiresInObj)?0:(Integer) expiresInObj)
-                   .message(HttpCode.SUCCEED.getCode());
+                   .message(HttpCode.SUCCEED.getMessage())
+                    .code(HttpCode.SUCCEED.getCode());
     }
-    public Map<String,Object> map(){
-        Map<String, Object> stringObjectHashMap = new HashMap<>();
-        stringObjectHashMap.put("accessToken", this.accessToken);
-        stringObjectHashMap.put("refreshToken",this.refreshToken);
-        stringObjectHashMap.put("tokenType",   this.tokenType);
-        stringObjectHashMap.put("expiresIn",   this.expiresIn);
-        stringObjectHashMap.put("message",     this.message);
-        return stringObjectHashMap;
-    }
+
     public TokenEntity accessToken(String accessToken){
         this.accessToken = accessToken;
         return this;
@@ -79,6 +72,10 @@ public class TokenEntity{
     }
     public TokenEntity message(String message){
         this.message = message;
+        return this;
+    }
+    public TokenEntity code(String code){
+        this.code = code;
         return this;
     }
     public String accessToken(){

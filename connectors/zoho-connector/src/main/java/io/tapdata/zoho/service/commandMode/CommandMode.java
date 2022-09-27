@@ -7,7 +7,6 @@ import io.tapdata.zoho.utils.Checker;
 
 public interface CommandMode {
     public CommandResult command(TapConnectionContext connectionContext,CommandInfo commandInfo);
-
     /**
      * Strategy to realize Command,Different names implement different methods .please in sub class Override the Function :
      *      public CommandResult command(TapConnectionContext connectionContext,CommandInfo commandInfo);

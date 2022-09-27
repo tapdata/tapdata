@@ -1,6 +1,7 @@
 package io.tapdata.zoho;
 
 
+import cn.hutool.core.date.DateUtil;
 import io.tapdata.base.ConnectorBase;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.error.CoreException;
@@ -18,6 +19,7 @@ import io.tapdata.pdk.apis.entity.CommandResult;
 import io.tapdata.pdk.apis.entity.ConnectionOptions;
 import io.tapdata.pdk.apis.entity.TestItem;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
+import io.tapdata.zoho.entity.HttpEntity;
 import io.tapdata.zoho.entity.ZoHoOffset;
 import io.tapdata.zoho.service.commandMode.CommandMode;
 import io.tapdata.zoho.service.connectionMode.ConnectionMode;
@@ -59,7 +61,7 @@ public class ZoHoConnector extends ConnectorBase {
 
 	private final Object streamReadLock = new Object();
 	private final long streamExecutionGap = 5000;//util: ms
-	private int batchReadPageSize = 100;//ZoHo ticket page size 1~100,
+	private int batchReadMaxPageSize = 100;//ZoHo ticket page size 1~100,
 
 	private Long lastTimePoint;
 	private List<Integer> lastTimeSplitIssueCode = new ArrayList<>();//hash code list
@@ -91,7 +93,7 @@ public class ZoHoConnector extends ConnectorBase {
 		connectorFunctions.supportBatchRead(this::batchRead)
 				//.supportBatchCount(this::batchCount)
 				.supportTimestampToStreamOffset(this::timestampToStreamOffset)
-				.supportStreamRead(this::streamRead)
+				//.supportStreamRead(this::streamRead)
 				.supportRawDataCallbackFilterFunction(this::rawDataCallbackFilterFunction)
 				.supportCommandCallbackFunction(this::handleCommand)
 		;
@@ -106,17 +108,17 @@ public class ZoHoConnector extends ConnectorBase {
 		return null;
 	}
 
-	private void streamRead(
-			TapConnectorContext nodeContext,
-			List<String> tableList,
-			Object offsetState,
-			int recordSize,
-			StreamReadConsumer consumer ) {
-
-	}
+	//private void streamRead(
+	//		TapConnectorContext nodeContext,
+	//		List<String> tableList,
+	//		Object offsetState,
+	//		int recordSize,
+	//		StreamReadConsumer consumer ) {
+	//}
 
 	private Object timestampToStreamOffset(TapConnectorContext tapConnectorContext, Long time) {
-		return null;
+		long date = time != null ? time: System.currentTimeMillis();
+		return ZoHoOffset.create(new HashMap<String,Long>(){{put("Tickets", date);}});
 	}
 
 	@Override
@@ -153,19 +155,19 @@ public class ZoHoConnector extends ConnectorBase {
 			int batchCount,
 			BiConsumer<List<TapEvent>, Object> consumer) {
 		TokenLoader.create(connectorContext).addTokenToStateMap();
-		TapLogger.debug(TAG, "start {} batch read", table.getName());
+		//TapLogger.debug(TAG, "start {} batch read", table.getName());
 		Long readEnd = System.currentTimeMillis();
 		ZoHoOffset zoHoOffset =  new ZoHoOffset();
 		//current read end as next read begin
 		zoHoOffset.setTableUpdateTimeMap(new HashMap<String,Long>(){{ put(table.getId(),readEnd);}});
-		this.read(connectorContext,null,readEnd,table.getId(),batchCount,zoHoOffset,consumer,table.getId());
-		TapLogger.debug(TAG, "compile {} batch read", table.getName());
+		this.read(connectorContext,batchCount,zoHoOffset,consumer,table.getId());
+		//TapLogger.debug(TAG, "compile {} batch read", table.getName());
 	}
 
-	private long batchCount(TapConnectorContext tapConnectorContext, TapTable tapTable) throws Throwable {
-		//return TicketLoader.create(tapConnectorContext).count();
-		return 0;
-	}
+	//private long batchCount(TapConnectorContext tapConnectorContext, TapTable tapTable) throws Throwable {
+	//	//return TicketLoader.create(tapConnectorContext).count();
+	//	return 0;
+	//}
 
 	@Override
 	public int tableCount(TapConnectionContext connectionContext) throws Throwable {
@@ -176,9 +178,6 @@ public class ZoHoConnector extends ConnectorBase {
 	/**
 	 * 分页读取事项列表，并依次查询事项详情
 	 * @param nodeContext
-	 * @param readStartTime
-	 * @param readEndTime
-	 * @param readTable
 	 * @param readSize
 	 * @param consumer
 	 *
@@ -198,16 +197,69 @@ public class ZoHoConnector extends ConnectorBase {
 	 * -fields                   string(MaxLen:100)      Key that returns the values of mentioned fields (both pre-defined and custom) in your portal. All field types except multi-text are supported. Standard, non-editable fields are supported too. These fields include: statusType, webUrl, layoutId. Maximum of 30 fields is supported as comma separated values.
 	 * -priority                 string(MaxLen:100)      Key that filters tickets by priority. Multiple priority levels can be passed as comma-separated values.
 	 */
-	public void read(
-			TapConnectorContext nodeContext,
-			Long readStartTime,
-			Long readEndTime,
-			String readTable,
-			int readSize,
-			Object offsetState,
-			BiConsumer<List<TapEvent>, Object> consumer,
-			String table ){
+	public void read(TapConnectorContext nodeContext,
+					 int readSize,
+					 Object offsetState,
+					 BiConsumer<List<TapEvent>, Object> consumer,
+					 String table ){
 		TicketLoader ticketLoader = TicketLoader.create(nodeContext);
+		List<TapEvent> events = new ArrayList<>();
+		int pageSize = Math.min(readSize, this.batchReadMaxPageSize);
+		HttpEntity<String, Object> tickPageParam = ticketLoader.getTickPageParam()
+				.build("limit", pageSize);//分页数
+		int fromPageIndex = 1;//从第几个工单开始分页
+		do{
+			tickPageParam.build("from", fromPageIndex);
+			List<Map<String, Object>> list = ticketLoader.list(tickPageParam);
+			fromPageIndex += pageSize;
+			String modeName = nodeContext.getConnectionConfig().getString("connectionMode");
+			ConnectionMode connectionMode = ConnectionMode.getInstanceByName(nodeContext, modeName);
+			if (null == connectionMode){
+				throw new CoreException("Connection Mode is not empty or not null.");
+			}
+			if (Checker.isEmpty(list) && !list.isEmpty()){
+				list.stream().forEach(ticket->{
+					Object ticketIdObj = ticket.get("");
+					if (Checker.isEmpty(ticketIdObj)){
+						return;
+					}
+					String ticketId = (String)ticketIdObj;
+					Map<String, Object> oneTicket = ticketLoader.getOne(ticketId);
+					if (Checker.isEmpty(oneTicket) && !oneTicket.isEmpty()){
+						Map<String, Object> entityResult = connectionMode.attributeAssignment(oneTicket);
+						Object modifiedTimeObj = entityResult.get("modifiedTime");
+						long referenceTime = System.currentTimeMillis();
+						if (Checker.isNotEmpty(modifiedTimeObj) && modifiedTimeObj instanceof String) {
+							String referenceTimeStr = (String) modifiedTimeObj;
+							referenceTime = DateUtil.parse(
+									referenceTimeStr.replaceAll("Z", "").replaceAll("T", " "),
+									"yyyy-MM-dd HH:mm:ss.SSS").getTime();
+							((ZoHoOffset) offsetState).getTableUpdateTimeMap().put(table, referenceTime);
+						}
+						events.add(insertRecordEvent(entityResult,table).referenceTime(referenceTime));
+					}
+					if (events.size() == readSize){
+						consumer.accept(events, offsetState);
+					}
+				});
+				if (events.size()>0){
+					consumer.accept(events, offsetState);
+				}
+			}else {
+				break;
+			}
+		}while (true);
+	}
+//	public void read(
+//			TapConnectorContext nodeContext,
+//			Long readStartTime,
+//			Long readEndTime,
+//			String readTable,
+//			int readSize,
+//			Object offsetState,
+//			BiConsumer<List<TapEvent>, Object> consumer,
+//			String table ){
+//		TicketLoader ticketLoader = TicketLoader.create(nodeContext);
 
 //		int currentQueryCount = 0,queryIndex = 0 ;
 //		final List<TapEvent>[] events = new List[]{new ArrayList<>()};
@@ -282,5 +334,5 @@ public class ZoHoConnector extends ConnectorBase {
 //			}
 //		}while (currentQueryCount >= batchReadPageSize);
 //		if (events[0].size() > 0)  consumer.accept(events[0], offsetState);
-	}
+//	}
 }

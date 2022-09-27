@@ -4,21 +4,28 @@ import io.tapdata.entity.error.CoreException;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.entity.CommandInfo;
 import io.tapdata.pdk.apis.entity.CommandResult;
+import io.tapdata.zoho.entity.CommandResultV2;
+import io.tapdata.zoho.entity.HttpEntity;
+import io.tapdata.zoho.entity.TokenEntity;
 import io.tapdata.zoho.service.zoho.TokenLoader;
 import io.tapdata.zoho.utils.Checker;
 
+import java.util.HashMap;
 import java.util.Map;
+
+import static io.tapdata.entity.simplify.TapSimplify.entry;
+import static io.tapdata.entity.simplify.TapSimplify.map;
+
 //command -> TokenCommand
-public class TokenCommand extends ConfigContextChecker implements CommandMode {
+public class TokenCommand extends ConfigContextChecker<TokenEntity> implements CommandMode {
     String clientID;
     String clientSecret;
     String generateCode;
     @Override
     public CommandResult command(TapConnectionContext connectionContext, CommandInfo commandInfo) {
         this.checkerConfig(commandInfo.getConnectionConfig());
-        return new CommandResult().result(TokenLoader.create(connectionContext)
-                .getToken(this.clientID,this.clientSecret,this.generateCode)
-                .map());
+        TokenEntity token = TokenLoader.create(connectionContext).getToken(this.clientID, this.clientSecret, this.generateCode);
+        return this.command(token);
     }
 
     @Override
@@ -42,5 +49,20 @@ public class TokenCommand extends ConfigContextChecker implements CommandMode {
         this.clientSecret = (String)clientSecretObj;
         this.generateCode = (String)generateCodeObj;
         return true;
+    }
+
+    @Override
+    protected CommandResultV2 command(TokenEntity token) {
+        Map<String, Object> stringObjectHashMap = new HashMap<>();
+        stringObjectHashMap.put("accessToken", map(entry("data",token.accessToken())));
+        stringObjectHashMap.put("refreshToken",map(entry("data",token.refreshToken())));
+        stringObjectHashMap.put("getTokenMsg", map(entry("data",token.message())));
+        return CommandResultV2.create(map(entry("setValue",stringObjectHashMap)));
+//        Map<String, Object> stringObjectHashMap = new HashMap<>();
+//        stringObjectHashMap.put("accessToken", map(entry("data",token.accessToken())));
+//        stringObjectHashMap.put("refreshToken",map(entry("data",token.refreshToken()));
+//        stringObjectHashMap.put("getTokenMsg", HttpEntity.create().build("data",token.message()));
+//        CommandResultV2 commandResultV2 = CommandResultV2.create(new HashMap<String,Object>(){{put("setValue",stringObjectHashMap);}});
+//        return commandResultV2;
     }
 }

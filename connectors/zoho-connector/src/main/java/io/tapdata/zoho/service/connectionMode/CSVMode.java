@@ -15,6 +15,7 @@ import io.tapdata.zoho.enums.FieldModelType;
 import io.tapdata.zoho.service.zoho.OrganizationFieldLoader;
 import io.tapdata.zoho.service.zoho.TicketLoader;
 import io.tapdata.zoho.utils.Checker;
+import io.tapdata.zoho.utils.MapUtil;
 import io.tapdata.zoho.utils.ZoHoString;
 
 import java.util.HashMap;
@@ -41,18 +42,15 @@ public class CSVMode implements ConnectionMode {
             //"To Address",
             // "Time to Respond",Team,"Team Id",
             // Tags,工单搁置时间,Language
-            TapTable tapTable = table("Issues")
-//                    .add(field("Code",              "Integer").isPrimaryKey(true).primaryKeyPos(3))        //事项 Code
-//                    .add(field("ProjectName",       "StringMinor").isPrimaryKey(true).primaryKeyPos(2))    //项目名称
-//                    .add(field("TeamName",          "StringMinor").isPrimaryKey(true).primaryKeyPos(1))    //团队名称
+            TapTable tapTable = table("Tickets")
                     .add(field("id","Long").isPrimaryKey(true).primaryKeyPos(1))    //"Ticket Reference Id"
                     .add(field("ticketNumber","Long"))
-                    .add(field("departmentName","String"))    //"Department"   SSS  department（需要从分页中需添加到详情） ->  department.name（掉方法打平）
+                    .add(field("departmentName","String"))    //"Department"     department（需要从分页中需添加到详情） ->  department.name（掉方法打平）
                     .add(field("departmentId","Long"))
-                    .add(field("contactAccountAccountName","Long"))//contact   SSS   contact（需要从分页中需添加到详情）->contact.account.accountName（掉方法打平）
-                    .add(field("contactAccountId","Long"))//contactID   SSS   contact（需要从分页中需添加到详情）->contact.account.id（掉方法打平）
-                    .add(field("contactLastName","Long"))//联系人名称   SSS   contact（需要从分页中需添加到详情）->contact.lastName（掉方法打平）
-                    .add(field("contactId","Long"))//联系人名称 Id   SSS   contact（需要从分页中需添加到详情）->contact.id（掉方法打平）
+                    .add(field("contactAccountAccountName","Long"))//contact      contact（需要从分页中需添加到详情）->contact.account.accountName（掉方法打平）
+                    .add(field("contactAccountId","Long"))//contactID      contact（需要从分页中需添加到详情）->contact.account.id（掉方法打平）
+                    .add(field("contactLastName","Long"))//联系人名称      contact（需要从分页中需添加到详情）->contact.lastName（掉方法打平）
+                    .add(field("contactId","Long"))//联系人名称 Id      contact（需要从分页中需添加到详情）->contact.id（掉方法打平）
                     .add(field("email","String"))
                     .add(field("phone","Long"))
                     .add(field("subject","String"))
@@ -60,8 +58,8 @@ public class CSVMode implements ConnectionMode {
                     .add(field("status","String"))
                     .add(field("productName","String"))//产品名称
                     .add(field("productId","Long"))//产品名称 Id
-                    .add(field("assigneeName","String"))//工单所有者 SSS  assignee（需要从分页中需添加到详情）->assignee.lastName（掉方法打平）
-                    .add(field("assigneeId","Long"))//工单所有者 Id  SSS  assignee（需要从分页中需添加到详情）->assignee.id（掉方法打平）
+                    .add(field("assigneeName","String"))//工单所有者   assignee（需要从分页中需添加到详情）->assignee.lastName（掉方法打平）
+                    .add(field("assigneeId","Long"))//工单所有者 Id    assignee（需要从分页中需添加到详情）->assignee.id（掉方法打平）
                     .add(field("createdByName","String"))
                     .add(field("createdBy","Long"))
                     .add(field("modifiedByName","String"))
@@ -80,7 +78,7 @@ public class CSVMode implements ConnectionMode {
                     .add(field("subCategory","Object"))
                     .add(field("customerResponseTime","String"))
                     .add(field("teamId","Long"))
-                    .add(field("teamName","Object"))//工单所有者 Id  SSS  team（需要从分页中需添加到详情）->team.name  （掉方法打平）
+                    .add(field("teamName","Object"))//工单所有者 Id    team（需要从分页中需添加到详情）->team.name  （掉方法打平）
                     .add(field("tags","String")) //@TODO
                     .add(field("language","String"))
                     .add(field("timeEntryCount","Integer"))//@TODO 工单搁置时间
@@ -136,7 +134,7 @@ public class CSVMode implements ConnectionMode {
                         Object fieldTypeObj = field.get("type");
                         tapTable.add(field(
                                 Constants.CUSTOM_FIELD_SUFFIX + filedName,
-                                Checker.isEmpty(fieldTypeObj)?"":(String)fieldTypeObj));
+                                Checker.isEmpty(fieldTypeObj)?"NULL":(String)fieldTypeObj));
                                 //CustomFieldType.type(Checker.isEmpty(fieldTypeObj)?null:String.valueOf(fieldTypeObj))));
                     }
                 }
@@ -166,15 +164,15 @@ public class CSVMode implements ConnectionMode {
             ticketCSVDetail.putAll(customFieldMap);
         }
         //@TODO 统计需要操作的属性,子属性用点分割；数据组结果会以|分隔返回，大文本会以""包裹
-        putMap(ticketDetail,ticketCSVDetail,
+        MapUtil.putMapSplitByDotKeyNameFirstUpper(ticketDetail, ticketCSVDetail,
                 "id",    //"Ticket Reference Id"
                 "ticketNumber",
-                "department.name",//"Department"   SSS  department（需要从分页中需添加到详情） ->  department.name（掉方法打平）
+                "department.name",//"Department"     department（需要从分页中需添加到详情） ->  department.name（掉方法打平）
                 "departmentId",
-                "contact.account.accountName",//contact   SSS   contact（需要从分页中需添加到详情）->contact.account.accountName（掉方法打平）
-                "contact.account.id",//contactID   SSS   contact（需要从分页中需添加到详情）->contact.account.id（掉方法打平）
-                "contact.lastName",//联系人名称   SSS   contact（需要从分页中需添加到详情）->contact.lastName（掉方法打平）
-                "contact.id",//联系人名称 Id   SSS   contact（需要从分页中需添加到详情）->contact.id（掉方法打平）
+                "contact.account.accountName",//contact      contact（需要从分页中需添加到详情）->contact.account.accountName（掉方法打平）
+                "contact.account.id",//contactID      contact（需要从分页中需添加到详情）->contact.account.id（掉方法打平）
+                "contact.lastName",//联系人名称      contact（需要从分页中需添加到详情）->contact.lastName（掉方法打平）
+                "contact.id",//联系人名称 Id      contact（需要从分页中需添加到详情）->contact.id（掉方法打平）
                 "email",
                 "phone",
                 "subject",
@@ -182,8 +180,8 @@ public class CSVMode implements ConnectionMode {
                 "status",
                 "productName",//产品名称
                 "productId",//产品名称 Id
-                "assignee.lastName",//工单所有者 SSS  assignee（需要从分页中需添加到详情）->assignee.lastName（掉方法打平）
-                "assignee.id",//工单所有者 Id  SSS  assignee（需要从分页中需添加到详情）->assignee.id（掉方法打平）
+                "assignee.lastName",//工单所有者   assignee（需要从分页中需添加到详情）->assignee.lastName（掉方法打平）
+                "assignee.id",//工单所有者 Id    assignee（需要从分页中需添加到详情）->assignee.id（掉方法打平）
                 "createdByName",
                 "createdBy",
                 "modifiedByName",
@@ -202,7 +200,7 @@ public class CSVMode implements ConnectionMode {
                 "subCategory",
                 "customerResponseTime",
                 "teamId",
-                "teamName",//工单所有者 Id  SSS  team（需要从分页中需添加到详情）->team.name  （掉方法打平）
+                "teamName",//工单所有者 Id    team（需要从分页中需添加到详情）->team.name  （掉方法打平）
                 "tags", //@TODO
                 "language",
                 "timeEntryCount"//@TODO 工单搁置时间
@@ -269,51 +267,5 @@ public class CSVMode implements ConnectionMode {
             stringObjectMap.putAll(result);
         }
         return result;
-    }
-
-    private void putMap(Map<String,Object> map,Map<String,Object> targetMap,String ... keys){
-        for (String key : keys) {
-            Map<String, Object> entry = getEntry(ZoHoString.fistUpper(key,"."),key, map);
-            if (Checker.isNotEmpty(entry)) {
-                targetMap.putAll(entry);
-            }
-        }
-    }
-    private Map<String,Object> getEntry(final String finalKey,String key,Map<String,Object> map){
-        int index = key.contains(".")?key.indexOf("."):key.length();
-        String currentKey = key.substring(0, index);
-        Object value = map.get(currentKey);
-        if (Checker.isEmpty(value)){
-            return null;
-        }
-        if (index<key.length()-1){
-            String nextKey = key.substring(index + 1);
-            if ((value instanceof JSONObject) || (value instanceof Map)){
-                Map<String,Object> obj = (Map<String,Object>)value;
-                return getEntry(finalKey,nextKey,obj);
-            }else if(value instanceof JSONArray || value instanceof List){
-                try {
-                    List<Map<String, Object>> list = (List<Map<String, Object>>) value;
-                    StringJoiner joiner = new StringJoiner(Constants.ARRAY_SPLIT_CHAR);
-                    list.forEach(l->{
-                        Object nextKeyObj = l.get(nextKey);
-                        if (Checker.isNotEmpty(nextKeyObj)) {
-                            joiner.add(String.valueOf(nextKeyObj));
-                        }
-                    });
-                    return map(entry(finalKey,joiner.toString()));
-                }catch (Exception e){
-                    //@TODO 多层list嵌套时目前不支持解析，返回null
-                    return null;
-                    //List<List<Object>> catchList = (List<List<Object>>) value;
-                    //catchList.forEach(list->{
-                    //
-                    //});
-                }
-            }else {
-                return null;
-            }
-        }
-        return map(entry(finalKey,value));
     }
 }
