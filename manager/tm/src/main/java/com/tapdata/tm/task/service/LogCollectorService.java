@@ -604,7 +604,7 @@ public class LogCollectorService {
      */
     public Boolean checkUpdateConfig(UserDetail user) {
         //查询所有的开启挖掘的任务跟，挖掘任务，是否都停止并且重置
-        Criteria criteria = Criteria.where("shareCdcEnable").is(true).and("is_deleted").is(false).and("status").ne(TaskDto.STATUS_EDIT);
+        Criteria criteria = Criteria.where("shareCdcEnable").is(true).and("is_deleted").is(false).and("status").nin(TaskDto.STATUS_EDIT, TaskDto.STATUS_WAIT_START);
         Query query = new Query(criteria);
         query.fields().include("shareCdcEnable", "is_deleted", "status");
         TaskDto taskDto = taskService.findOne(query);
@@ -613,7 +613,7 @@ public class LogCollectorService {
         }
 
         Criteria criteria1 = Criteria.where("is_deleted").is(false).and("dag.nodes").elemMatch(Criteria.where("type").is("logCollector"))
-                .and("status").ne(TaskDto.STATUS_EDIT);
+                .and("status").nin(TaskDto.STATUS_EDIT, TaskDto.STATUS_WAIT_START);
         Query query1 = new Query(criteria1);
         query1.fields().include("shareCdcEnable", "is_deleted", "status");
         TaskDto taskDto1 = taskService.findOne(query1);

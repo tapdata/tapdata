@@ -405,6 +405,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 			List<String> tables = new ArrayList<>(tapTableMap.keySet());
 			cdcDelayCalculation.addHeartbeatTable(tables);
 			int batchSize = 1;
+			PDKMethodInvoker pdkMethodInvoker = PDKMethodInvoker.create();
 			executeDataFuncAspect(StreamReadFuncAspect.class, () -> new StreamReadFuncAspect()
 					.connectorContext(getConnectorNode().getConnectorContext())
 					.dataProcessorContext(getDataProcessorContext())
@@ -412,8 +413,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 					.eventBatchSize(batchSize)
 					.offsetState(syncProgress.getStreamOffsetObj())
 					.start(), streamReadFuncAspect -> PDKInvocationMonitor.invoke(getConnectorNode(), PDKMethod.SOURCE_STREAM_READ,
-					PDKMethodInvoker.create()
-							.runnable(
+					pdkMethodInvoker.runnable(
 									() -> streamReadFunction.streamRead(getConnectorNode().getConnectorContext(), tables,
 											syncProgress.getStreamOffsetObj(), batchSize, StreamReadConsumer.create((events, offsetObj) -> {
 												try {
@@ -462,6 +462,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 													}
 												}
 											}).stateListener((oldState, newState) -> {
+												PDKInvocationMonitor.invokerRetrySetter(pdkMethodInvoker);
 												if (null != newState && StreamReadConsumer.STATE_STREAM_READ_STARTED == newState) {
 													// MILESTONE-READ_CDC_EVENT-FINISH
 													if (streamReadFuncAspect != null)
