@@ -109,9 +109,26 @@ public class MonitorThread<T extends PushChannel> extends Thread {
                 pushChannel = null;
             }
         }
+        final int MAX = 5;
+        if(count > MAX) {
+            //Switch to another baseUrls to reconnect.
+            hurry = true;
+            List<String> baseUrls = imClient.getBaseUrls();
+            int baseUrlSize = baseUrls.size();
+            if(baseUrlSize > 1) {
+                if(baseUrlIndex + 1 >= baseUrlSize) {
+                    baseUrlIndex = 0;
+                } else {
+                    baseUrlIndex++;
+                }
+                String old = lastBaseUrl;
+                lastBaseUrl = baseUrls.get(baseUrlIndex);
+                TapLogger.debug(TAG, "Will reconnect other url {} as already retry {} times on url {}", lastBaseUrl, MAX, old);
+            }
+        }
         synchronized (lock) {
             if(hurry) {
-                resetIdelTimes();
+                resetIdleTimes();
             }
             lock.notifyAll();
         }
@@ -127,7 +144,7 @@ public class MonitorThread<T extends PushChannel> extends Thread {
         }
     }
 
-    private void resetIdelTimes() {
+    private void resetIdleTimes() {
         count = 0;
         idleTime = RETRY_TIME;
     }
@@ -174,7 +191,7 @@ public class MonitorThread<T extends PushChannel> extends Thread {
             switch (channelStatus.getStatus()) {
                 case ChannelStatus.STATUS_CONNECTED:
                     sendMessageInWaitingResultState();
-                    resetIdelTimes();
+                    resetIdleTimes();
                     wakeupForMessage();
                     break;
                 case ChannelStatus.STATUS_DISCONNECTED:
@@ -189,7 +206,7 @@ public class MonitorThread<T extends PushChannel> extends Thread {
                 case ChannelStatus.STATUS_BYE:
                 case ChannelStatus.STATUS_KICKED:
                     failedAllPendingMessages();
-                    resetIdelTimes();
+                    resetIdleTimes();
                     if(pushChannel != null && channelStatus.getPushChannel().equals(pushChannel)) {
                         terminate();
                     }

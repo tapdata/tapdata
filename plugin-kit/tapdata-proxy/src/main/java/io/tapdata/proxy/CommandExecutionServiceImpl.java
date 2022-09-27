@@ -50,7 +50,6 @@ public class CommandExecutionServiceImpl implements CommandExecutionService {
 		for(GatewaySessionHandler gatewaySessionHandler : gatewaySessionHandlers) {
 			if(gatewaySessionHandler instanceof EngineSessionHandler) {
 				EngineSessionHandler engineSessionHandler = (EngineSessionHandler) gatewaySessionHandler;
-				//TODO choose any engine, but should not be the one all the time. if no engine in this proxy, should find one from other proxies.
 				if(engineSessionHandler.handleCommandInfo(commandInfo, biConsumer))
 					return true;
 			}
