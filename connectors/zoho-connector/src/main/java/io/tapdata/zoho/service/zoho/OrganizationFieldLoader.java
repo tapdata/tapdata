@@ -29,8 +29,11 @@ public class OrganizationFieldLoader extends ZoHoStarter implements ZoHoBase {
         }
         ContextConfig contextConfig = super.veryContextConfigAndNodeConfig();
         HttpEntity<String,String> header = HttpEntity.create()
-                .build("Authorization",contextConfig.getAccessToken())
-                .build("orgId",contextConfig.getOrgId());
+                .build("Authorization",this.accessTokenFromConfig());
+        String orgId = contextConfig.getOrgId();
+        if (Checker.isNotEmpty(orgId)){
+            header.build("orgId",orgId);
+        }
         HttpEntity<String,Object> form = HttpEntity.create().build("module",model.getModel());
         ZoHoHttp http = ZoHoHttp.create(String.format(ZO_HO_BASE_URL,"/api/v1/organizationFields"), HttpType.GET,header).form(form);
         HttpResult httpResult = http.get();
@@ -76,7 +79,7 @@ public class OrganizationFieldLoader extends ZoHoStarter implements ZoHoBase {
         Map<String,Map<String,Object>> fieldMap = new HashMap<>();
         HttpResult get = this.allOrganizationFields(model);
         if (!Checker.isEmpty(get)){
-            List<Map<String,Object>> fieldArr = (ArrayList)get.getResult().get("data");
+            List<Map<String,Object>> fieldArr = (List<Map<String,Object>>)get.getResult().get("data");
             /**
              * {
              *     "data": [

@@ -31,15 +31,11 @@ public class TokenEntity extends HttpBaseEntity{
              *     "error": "invalid_client_secret"
              * }
              * */
+            String code = result.getCode();
+            HttpCode httpCode = HttpCode.code(code);
+            return this.message(Checker.isEmpty(httpCode)?"ERROR":httpCode.getMessage())
+                        .code(Checker.isEmpty(code)?"ERROR":httpCode.getCode());
 
-            Object errorObj = postResult.get("error");
-            if (errorObj instanceof String){
-                HttpCode httpCode = HttpCode.code((String)errorObj);
-                return this.message(Checker.isEmpty(httpCode)?"Error.":httpCode.getMessage())
-                        .code(Checker.isEmpty(httpCode)?"ERROR":httpCode.getCode());
-            }else {
-                return this.message("Error.").code("ERROR");
-            }
         }
         Map<String,Object> resultMap = result.getResult();
         Object accessTokenObj =  resultMap.get("access_token");

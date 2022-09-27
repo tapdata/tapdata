@@ -89,7 +89,7 @@ public class ZoHoHttp {
         }
     }
     private HttpResult afterSend(HttpResponse execute){
-        if (Checker.isEmpty(execute) || !execute.isOk()){
+        if (Checker.isEmpty(execute) ){
             return EMPTY;
         }
         String body = execute.body();
@@ -145,7 +145,7 @@ public class ZoHoHttp {
             return EMPTY;
         }
 
-        return null == execute || execute.getStatus() != HttpStatus.HTTP_OK ?
+        return null == execute ?
                 EMPTY:this.afterSend(execute);
     }
     public HttpResult get(){
@@ -164,7 +164,7 @@ public class ZoHoHttp {
             TapLogger.info(TAG,"Http[Get] read timed out:{}",e.getMessage());
             return EMPTY;
         }
-        return null == execute || execute.getStatus() != HttpStatus.HTTP_OK ?
+        return null == execute ?
                 EMPTY:this.afterSend(execute);
     }
     public HttpEntity<String, String> getHeard() {

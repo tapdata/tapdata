@@ -75,8 +75,8 @@ public class ZoHoConnector extends ConnectorBase {
 			throw new CoreException("Error in connection parameter [streamReadType], please go to verify");
 		}
 		switch (streamReadType){
-			case "WebHook":this.connectorFunctions.supportStreamRead(null);break;
-			case "Polling":this.connectorFunctions.supportRawDataCallbackFilterFunction(null);break;
+			//case "WebHook":this.connectorFunctions.supportStreamRead(null);break;
+			case "WebHook":this.connectorFunctions.supportRawDataCallbackFilterFunction(null);break;
 //			default:
 //				throw new CoreException("Error in connection parameters [streamReadType],just be [WebHook] or [Polling], please go to verify");
 		}
@@ -91,7 +91,7 @@ public class ZoHoConnector extends ConnectorBase {
 	@Override
 	public void registerCapabilities(ConnectorFunctions connectorFunctions, TapCodecsRegistry codecRegistry) {
 		connectorFunctions.supportBatchRead(this::batchRead)
-				//.supportBatchCount(this::batchCount)
+				.supportBatchCount(this::batchCount)
 				.supportTimestampToStreamOffset(this::timestampToStreamOffset)
 				//.supportStreamRead(this::streamRead)
 				.supportRawDataCallbackFilterFunction(this::rawDataCallbackFilterFunction)
@@ -164,10 +164,10 @@ public class ZoHoConnector extends ConnectorBase {
 		//TapLogger.debug(TAG, "compile {} batch read", table.getName());
 	}
 
-	//private long batchCount(TapConnectorContext tapConnectorContext, TapTable tapTable) throws Throwable {
-	//	//return TicketLoader.create(tapConnectorContext).count();
-	//	return 0;
-	//}
+	private long batchCount(TapConnectorContext tapConnectorContext, TapTable tapTable) throws Throwable {
+		//return TicketLoader.create(tapConnectorContext).count();
+		return 0;
+	}
 
 	@Override
 	public int tableCount(TapConnectionContext connectionContext) throws Throwable {

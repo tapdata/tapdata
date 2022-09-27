@@ -4,9 +4,10 @@ import io.tapdata.entity.error.CoreException;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.entity.CommandInfo;
 import io.tapdata.pdk.apis.entity.CommandResult;
+import io.tapdata.zoho.annonation.LanguageEnum;
 import io.tapdata.zoho.entity.CommandResultV2;
-import io.tapdata.zoho.entity.HttpEntity;
 import io.tapdata.zoho.entity.TokenEntity;
+import io.tapdata.zoho.enums.HttpCode;
 import io.tapdata.zoho.service.zoho.TokenLoader;
 import io.tapdata.zoho.utils.Checker;
 
@@ -24,8 +25,10 @@ public class TokenCommand extends ConfigContextChecker<TokenEntity> implements C
     @Override
     public CommandResult command(TapConnectionContext connectionContext, CommandInfo commandInfo) {
         this.checkerConfig(commandInfo.getConnectionConfig());
+        String language = commandInfo.getLocale();
+        this.language(Checker.isEmpty(language)? LanguageEnum.EN.getLanguage():language);
         TokenEntity token = TokenLoader.create(connectionContext).getToken(this.clientID, this.clientSecret, this.generateCode);
-        return this.command(token);
+        return this.commandResult(token);
     }
 
     @Override
@@ -52,11 +55,11 @@ public class TokenCommand extends ConfigContextChecker<TokenEntity> implements C
     }
 
     @Override
-    protected CommandResultV2 command(TokenEntity token) {
+    protected CommandResultV2 commandResult(TokenEntity token) {
         Map<String, Object> stringObjectHashMap = new HashMap<>();
-        stringObjectHashMap.put("accessToken", map(entry("data",token.accessToken())));
-        stringObjectHashMap.put("refreshToken",map(entry("data",token.refreshToken())));
-        stringObjectHashMap.put("getTokenMsg", map(entry("data",token.message())));
+        stringObjectHashMap.put("accessToken", map(entry("data", token.accessToken())));
+        stringObjectHashMap.put("refreshToken",map(entry("data", token.refreshToken())));
+        stringObjectHashMap.put("getTokenMsg", map(entry("data", HttpCode.message(this.language,token.code()))));
         return CommandResultV2.create(map(entry("setValue",stringObjectHashMap)));
 //        Map<String, Object> stringObjectHashMap = new HashMap<>();
 //        stringObjectHashMap.put("accessToken", map(entry("data",token.accessToken())));

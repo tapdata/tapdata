@@ -108,7 +108,7 @@ public abstract class ZoHoStarter {
             Object accessTokenObj = connectionConfig.get("accessToken");
             accessToken = Checker.isNotEmpty(accessTokenObj)?(String)accessTokenObj:"";
         }
-        return accessToken;
+        return accessToken.startsWith(ZoHoBase.ZO_HO_ACCESS_TOKEN_PREFIX)?accessToken:ZoHoBase.ZO_HO_ACCESS_TOKEN_PREFIX+accessToken;
     }
     /**取refreshToken*/
     public String refreshTokenFromConfig(){
@@ -124,8 +124,9 @@ public abstract class ZoHoStarter {
         ContextConfig contextConfig = this.veryContextConfigAndNodeConfig();
         TapConnectorContext connectorContext = (TapConnectorContext)this.tapConnectionContext;
         KVMap<Object> stateMap = connectorContext.getStateMap();
-        stateMap.putIfAbsent("refreshToken",contextConfig.getRefreshToken());
-        stateMap.put("accessToken",contextConfig.getRefreshToken());
+        stateMap.put("refreshToken",contextConfig.getRefreshToken());
+        String accessToken = contextConfig.getAccessToken();
+        stateMap.put("accessToken",accessToken.startsWith(ZoHoBase.ZO_HO_ACCESS_TOKEN_PREFIX)?accessToken:ZoHoBase.ZO_HO_ACCESS_TOKEN_PREFIX+accessToken);
     }
     public void addNewAccessTokenToStateMap(String accessToken){
         if (Checker.isEmpty(this.tapConnectionContext) || !(this.tapConnectionContext instanceof TapConnectorContext)){
@@ -142,7 +143,7 @@ public abstract class ZoHoStarter {
         if (Checker.isEmpty(accessToken)){
             throw new CoreException("Refresh accessToken failed.");
         }
-        return accessToken;
+        return accessToken.startsWith(ZoHoBase.ZO_HO_ACCESS_TOKEN_PREFIX)?accessToken:ZoHoBase.ZO_HO_ACCESS_TOKEN_PREFIX+accessToken;
     }
 
 }

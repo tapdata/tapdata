@@ -4,10 +4,10 @@ import io.tapdata.entity.error.CoreException;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.entity.CommandInfo;
 import io.tapdata.pdk.apis.entity.CommandResult;
+import io.tapdata.zoho.annonation.LanguageEnum;
 import io.tapdata.zoho.entity.CommandResultV2;
-import io.tapdata.zoho.entity.HttpEntity;
 import io.tapdata.zoho.entity.RefreshTokenEntity;
-import io.tapdata.zoho.entity.TokenEntity;
+import io.tapdata.zoho.enums.HttpCode;
 import io.tapdata.zoho.service.zoho.TokenLoader;
 import io.tapdata.zoho.utils.Checker;
 
@@ -25,10 +25,11 @@ public class RefreshTokenCommand extends ConfigContextChecker<RefreshTokenEntity
     @Override
     public CommandResult command(TapConnectionContext connectionContext, CommandInfo commandInfo) {
         this.checkerConfig(commandInfo.getConnectionConfig());
-
+        String language = commandInfo.getLocale();
+        this.language(Checker.isEmpty(language)? LanguageEnum.EN.getLanguage():language);
         RefreshTokenEntity refreshTokenEntity = TokenLoader.create(connectionContext)
                 .refreshToken(this.refreshToken, this.clientID, this.clientSecret);
-        return this.command(refreshTokenEntity);
+        return this.commandResult(refreshTokenEntity);
     }
 
     @Override
@@ -55,10 +56,10 @@ public class RefreshTokenCommand extends ConfigContextChecker<RefreshTokenEntity
     }
 
     @Override
-    protected CommandResultV2 command(RefreshTokenEntity entity) {
+    protected CommandResultV2 commandResult(RefreshTokenEntity entity) {
         Map<String, Object> stringObjectHashMap = new HashMap<>();
         stringObjectHashMap.put("accessToken", map(entry("data",entity.accessToken())));
-        stringObjectHashMap.put("getTokenMsg", map(entry("data",entity.message())));
+        stringObjectHashMap.put("getTokenMsg", map(entry("data", HttpCode.message(this.language,entity.code()))));
         return CommandResultV2.create(map(entry("setValue",stringObjectHashMap)));
     }
 }

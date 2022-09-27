@@ -65,10 +65,13 @@ public class TicketLoader extends ZoHoStarter implements ZoHoBase {
     public List<Map<String,Object>> list(HttpEntity<String,Object> form){
         String url = "/api/v1/tickets";
         ContextConfig contextConfig = this.veryContextConfigAndNodeConfig();
-        String accessToken = contextConfig.getAccessToken();
+        String accessToken = this.accessTokenFromConfig();
+        HttpEntity<String,String> header = HttpEntity.create().build("Authorization",accessToken);
         String orgId = contextConfig.getOrgId();
-        HttpEntity<String,String> heards = HttpEntity.create().build("orgId",orgId).build("Authorization",accessToken);
-        ZoHoHttp http = ZoHoHttp.create(String.format(ZO_HO_BASE_URL,url), HttpType.GET,heards).header(heards).form(form);
+        if (Checker.isNotEmpty(orgId)){
+            header.build("orgId",orgId);
+        }
+        ZoHoHttp http = ZoHoHttp.create(String.format(ZO_HO_BASE_URL,url), HttpType.GET,header).header(header).form(form);
         HttpResult httpResult = http.get();
         if (Checker.isEmpty(httpResult) ){
             TapLogger.debug(TAG,"Try to get ticket list , but AccessToken is.");
@@ -78,7 +81,7 @@ public class TicketLoader extends ZoHoStarter implements ZoHoBase {
             //重新获取超时的AccessToken，并添加到stateMap
             String newAccessToken = this.refreshAndBackAccessToken();
             this.addNewAccessTokenToStateMap(newAccessToken);
-            heards.build("Authorization",newAccessToken);
+            header.build("Authorization",newAccessToken);
             httpResult = http.get();
             if (Checker.isEmpty(httpResult) || Checker.isEmpty(httpResult.getResult()) || Checker.isEmpty(httpResult.getResult().get("data"))){
                 throw new CoreException("Try to get ticket list , but faild.");
@@ -99,7 +102,7 @@ public class TicketLoader extends ZoHoStarter implements ZoHoBase {
         int startPage = 0;
         String url = "/api/v1/tickets";
         ContextConfig contextConfig = this.veryContextConfigAndNodeConfig();
-        String accessToken = contextConfig.getAccessToken();
+        String accessToken = this.accessTokenFromConfig();
         String orgId = contextConfig.getOrgId();
         HttpEntity<String,Object> form = this.getTickPageParam().build("limit",pageMaxSize);
         HttpEntity<String,String> heards = HttpEntity.create().build("orgId",orgId).build("Authorization",accessToken);
@@ -149,7 +152,7 @@ public class TicketLoader extends ZoHoStarter implements ZoHoBase {
 
     public HttpEntity<String,Object> getTickPageParam(){
 
-        HttpEntity<String,Object> form = HttpEntity.create().build("include", "contacts,assignee,departments,team,isRead");
+        HttpEntity<String,Object> form = HttpEntity.create();;//.build("include", "contacts,assignee,departments,team,isRead");
         if (Checker.isNotEmpty(this.tapConnectionContext) && this.tapConnectionContext instanceof TapConnectorContext) {
             TapConnectorContext connectorContext = (TapConnectorContext)this.tapConnectionContext;
             DataMap nodeConfig = connectorContext.getNodeConfig();

@@ -1,9 +1,11 @@
 package io.tapdata.zoho.entity;
 
+import io.tapdata.zoho.annonation.Language;
 import lombok.Data;
 
 @Data
 public class HttpBaseEntity {
+    @Language
     protected String message;
     protected String code;
     public String message(){
