@@ -5,6 +5,7 @@ import io.tapdata.common.sample.CollectorFactory;
 import io.tapdata.common.sample.SampleCollector;
 import io.tapdata.common.sample.sampler.CounterSampler;
 import io.tapdata.observable.metric.TaskSampleRetriever;
+import lombok.Getter;
 
 import java.util.HashMap;
 import java.util.List;
@@ -15,6 +16,7 @@ import java.util.Map;
  */
 abstract class AbstractHandler {
     final TaskDto task;
+    @Getter
     SampleCollector collector;
 
     AbstractHandler(TaskDto task) {

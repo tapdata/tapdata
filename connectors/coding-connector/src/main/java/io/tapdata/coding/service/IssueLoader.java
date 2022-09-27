@@ -57,13 +57,13 @@ public class IssueLoader extends CodingStarter {
         String token = connectionConfig.getString("token");
         String teamName = connectionConfig.getString("teamName");
         if ( null == projectName || "".equals(projectName)){
-            TapLogger.info(TAG, "Connection parameter exception: {} ", projectName);
+            TapLogger.debug(TAG, "Connection parameter exception: {} ", projectName);
         }
         if ( null == token || "".equals(token) ){
-            TapLogger.info(TAG, "Connection parameter exception: {} ", token);
+            TapLogger.debug(TAG, "Connection parameter exception: {} ", token);
         }
         if ( null == teamName || "".equals(teamName) ){
-            TapLogger.info(TAG, "Connection parameter exception: {} ", teamName);
+            TapLogger.debug(TAG, "Connection parameter exception: {} ", teamName);
         }
     }
     /**一次获取事项分页查询并返回Map结果
@@ -79,8 +79,8 @@ public class IssueLoader extends CodingStarter {
         Object response = resultMap.get("Response");
         Map<String,Object> responseMap = (Map<String, Object>) response;
         if (null == response ){
-            TapLogger.info(TAG, "HTTP request exception, Issue list acquisition failed: {} ", CodingStarter.OPEN_API_URL+"?Action=DescribeIssueListWithPage");
-            throw new RuntimeException("HTTP request exception, Issue list acquisition failed: " + CodingStarter.OPEN_API_URL+"?Action=DescribeIssueListWithPage");
+            TapLogger.debug(TAG, "HTTP request exception, Issue list acquisition failed: {} ", url+"?Action=DescribeIssueListWithPage");
+            throw new RuntimeException("HTTP request exception, Issue list acquisition failed: " + url+"?Action=DescribeIssueListWithPage");
         }
         Object data = responseMap.get("Data");
         return null != data ? (Map<String,Object>)data: null;

@@ -66,9 +66,8 @@ public class LoggingAspectTask extends AspectTask {
 //			handleTaskErrorStop(stopAspect);
 //		}
 
-		// TODO(dexter): temporary not remove the logger
 		// finally remove the logger
-//		ObsLoggerFactory.getInstance().removeTaskLogger(task);
+		ObsLoggerFactory.getInstance().removeTaskLoggerMarkRemove(task);
 	}
 
 	public void handleTaskErrorStop(TaskStopAspect aspect) {
@@ -491,9 +490,6 @@ public class LoggingAspectTask extends AspectTask {
 		return null;
 	}
 
-	private final long INCREMENTAL_SYNC_REF_TIME_INFO_INTERVAL = 60 * 1000;
-	private long incrementalRecordTotal = 0;
-	private long incrementalProgressLogAt = 0;
 	private final Map<String, Long> writeRecordAcceptLastTs = new HashMap<>();
 	public Void handleWriteRecordFunc(WriteRecordFuncAspect aspect) {
 		ProcessorBaseContext context = aspect.getDataProcessorContext();
@@ -506,18 +502,6 @@ public class LoggingAspectTask extends AspectTask {
 				debug(LogEventData.LOG_EVENT_TYPE_RECEIVE, null, null, context, aspect.getRecordEvents());
 				aspect.consumer((events, result) -> {
 					long now = System.currentTimeMillis();
-					Long newestEventTimestamp = null;
-					TapBaseEvent newestEvent = events.get(events.size() - 1);
-					if (null != newestEvent && null != newestEvent.getReferenceTime()) {
-						newestEventTimestamp = newestEvent.getReferenceTime();
-					}
-					incrementalRecordTotal += events.size();
-					if (null != newestEventTimestamp && now - incrementalProgressLogAt > INCREMENTAL_SYNC_REF_TIME_INFO_INTERVAL) {
-						getObsLogger(node).info("{} incremental records have been processed, current reference time: {}",
-								incrementalRecordTotal, Instant.ofEpochMilli(newestEventTimestamp).atZone(ZoneId.systemDefault()));
-						incrementalRecordTotal = 0;
-						incrementalProgressLogAt = now;
-					}
 					debug(LogEventData.LOG_EVENT_TYPE_SEND, now - writeRecordAcceptLastTs.get(nodeId),
 							null, context, events);
 				});

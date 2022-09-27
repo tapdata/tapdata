@@ -29,6 +29,7 @@ public class ObservableAspectTask extends AspectTask {
 	public ObservableAspectTask() {
 		// data node aspects
 		observerClassHandlers.register(DataNodeInitAspect.class, this::handleDataNodeInit);
+		observerClassHandlers.register(PDKNodeInitAspect.class, this::handlePDKNodeInit);
 		observerClassHandlers.register(DataNodeCloseAspect.class, this::handleDataNodeClose);
 		// source data node aspects
 		observerClassHandlers.register(TableCountFuncAspect.class, this::handleTableCount);
@@ -67,8 +68,10 @@ public class ObservableAspectTask extends AspectTask {
 	@Override
 	public void onStop(TaskStopAspect stopAspect) {
 		pipelineDelay.clear(stopAspect.getTask().getId().toHexString());
-		for (TableSampleHandler handler : tableSampleHandlers.values()) {
-			handler.close();
+		if (null != tableSampleHandlers) {
+			for (TableSampleHandler handler : tableSampleHandlers.values()) {
+				handler.close();
+			}
 		}
 		taskSampleHandler.close();
 	}
@@ -90,6 +93,18 @@ public class ObservableAspectTask extends AspectTask {
 	public Void handleDataNodeClose(DataNodeCloseAspect aspect) {
 		String nodeId = aspect.getDataProcessorContext().getNode().getId();
 		Optional.ofNullable(dataNodeSampleHandlers.get(nodeId)).ifPresent(DataNodeSampleHandler::close);
+		DataNodeSampleHandler.HealthCheckRunner.getInstance().stopHealthCheck(nodeId);
+
+		return null;
+	}
+
+	public Void handlePDKNodeInit(PDKNodeInitAspect aspect) {
+		Node<?> node = aspect.getDataProcessorContext().getNode();
+		DataNodeSampleHandler handler = dataNodeSampleHandlers.get(node.getId());
+		if (null != handler) {
+			DataNodeSampleHandler.HealthCheckRunner.getInstance().runHealthCheck(
+					handler.getCollector(), node,  aspect.getDataProcessorContext().getPdkAssociateId());
+		}
 
 		return null;
 	}

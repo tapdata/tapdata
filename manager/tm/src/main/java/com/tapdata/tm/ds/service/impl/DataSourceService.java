@@ -398,6 +398,14 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 				item.setAccessNodeType(AccessNodeTypeEnum.AUTOMATIC_PLATFORM_ALLOCATION.name());
 			}
 
+			// --！
+			int loadCount = Objects.nonNull(item.getLoadCount()) ? item.getLoadCount() : 0;
+			int tableCount = Objects.nonNull(item.getTableCount()) ? item.getTableCount().intValue() : 0;
+			if (loadCount > tableCount) {
+				item.setLoadCount(tableCount);
+			}
+
+
 			String id = item.getId().toHexString();
 			connectMap.put(id, item);
 			newResultObj.put(item.getId(), item);
@@ -648,6 +656,8 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 			try {
 				//插入复制的数据源
 				entity.setName(connectionName);
+				entity.setLoadCount(0);
+				entity.setLoadFieldsStatus("");
 				entity = repository.save(entity, user);
 				break;
 			} catch (Exception e) {

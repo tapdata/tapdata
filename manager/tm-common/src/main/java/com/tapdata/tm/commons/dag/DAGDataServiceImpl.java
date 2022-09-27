@@ -572,7 +572,8 @@ public class DAGDataServiceImpl implements DAGDataService, Serializable {
 
         data.forEach((k, v) -> {
             TapField tapField = nameFieldMap.get(k);
-            BeanUtils.copyProperties(v, tapField);
+            tapField.setDataType(v.getDataType());
+            tapField.setTapType(v.getTapType());
         });
         tapTable.setNameFieldMap(nameFieldMap);
 

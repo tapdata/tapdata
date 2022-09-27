@@ -1,6 +1,6 @@
 package com.tapdata.tm.disruptor.service.impl;
 
-import com.lmax.disruptor.SleepingWaitStrategy;
+import com.lmax.disruptor.BlockingWaitStrategy;
 import com.lmax.disruptor.dsl.Disruptor;
 import com.lmax.disruptor.dsl.ProducerType;
 import com.tapdata.tm.disruptor.ObjectEvent;
@@ -28,8 +28,8 @@ public class  BasicEventServiceImpl implements BasicEventService {
     private void init() {
         Disruptor<ObjectEvent> disruptor = new Disruptor<>(new ObjectEventFactory(),
                 BUFFER_SIZE,
-                new CustomizableThreadFactory("event-handler-"),
-                ProducerType.SINGLE, new SleepingWaitStrategy());
+                new CustomizableThreadFactory("disruptor-event-handler-"),
+                ProducerType.SINGLE, new BlockingWaitStrategy());
 
         Consumer<Object> eventCountPrinter = o -> {
             long count = eventCount.incrementAndGet();

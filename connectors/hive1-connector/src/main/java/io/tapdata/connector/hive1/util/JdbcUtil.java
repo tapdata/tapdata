@@ -44,8 +44,6 @@ public class JdbcUtil {
 		if (StringUtils.isNotBlank(database)) {
 			prop.setProperty("database", database);
 		}
-		//hive.metastore.client.socket.timeout=1800&hive.server.read.socket.timeout=1800&hive.server.write.socket.timeout=1800&
-		// hive.server.thrift.socket.timeout=1800&hive.client.thrift.socket.timeout=1800
 		prop.setProperty("hive.metastore.client.socket.timeout", "180");
 		prop.setProperty("hive.server.read.socket.timeout", "180");
 		prop.setProperty("hive.server.write.socket.timeout", "180");
@@ -56,11 +54,10 @@ public class JdbcUtil {
 		try {
 			Class.forName(DRIVER_NAME);
 			String jdbcUrl = getJdbcUrl(hive1Config);
-//			conn = DriverManager.getDriver(jdbcUrl).connect(jdbcUrl, prop);
-      conn = DriverManager.getConnection(jdbcUrl, prop);
+			conn = DriverManager.getConnection(jdbcUrl, prop);
 //			conn.setAutoCommit(false);
 		} catch (ClassNotFoundException e) {
-			TapLogger.error("Hive Driver class not found,","driver name is:{}",DRIVER_NAME,e);
+			TapLogger.error("Hive Driver class not found,", "driver name is:{}", DRIVER_NAME, e);
 		}
 		return conn;
 	}

@@ -1,5 +1,7 @@
 package com.tapdata.tm.utils;
 
+import lombok.extern.slf4j.Slf4j;
+
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -11,52 +13,37 @@ import java.util.zip.GZIPOutputStream;
  * @date 2021/9/23 下午3:59
  * @description
  */
+@Slf4j
 public class GZIPUtil {
 
     public static byte[] gzip(byte[] content) {
         if (content == null || content.length == 0) {
             return new byte[0];
         }
-        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-        GZIPOutputStream gzipOutputStream;
-        try {
-            gzipOutputStream = new GZIPOutputStream(outputStream);
+        try (ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+             GZIPOutputStream gzipOutputStream = new GZIPOutputStream(outputStream)) {
             gzipOutputStream.write(content);
             gzipOutputStream.flush();
             gzipOutputStream.close();
             return outputStream.toByteArray();
         } catch (IOException e) {
-            e.printStackTrace();
+            log.error("gzip error", e);
         }
         return null;
     }
 
     public static byte[] unGzip(byte[] content) {
-        ByteArrayInputStream inputStream = new ByteArrayInputStream(content);
-        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-
-        try {
-            GZIPInputStream gzipInputStream = new GZIPInputStream(inputStream);
+        try (ByteArrayInputStream inputStream = new ByteArrayInputStream(content);
+             ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+             GZIPInputStream gzipInputStream = new GZIPInputStream(inputStream)) {
             byte[] buffer = new byte[1024];
-            int length = 0;
+            int length;
             while ( (length = gzipInputStream.read(buffer)) >= 0 ) {
                 outputStream.write(buffer, 0, length);
             }
-            gzipInputStream.close();
             return outputStream.toByteArray();
         } catch (IOException e) {
-            e.printStackTrace();
-        } finally {
-            try {
-                outputStream.close();
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-            try {
-                inputStream.close();
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
+            log.error("unGzip error", e);
         }
         return null;
     }

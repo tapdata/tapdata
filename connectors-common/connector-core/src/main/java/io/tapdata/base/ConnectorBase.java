@@ -322,6 +322,9 @@ public abstract class ConnectorBase implements TapConnector {
 		if (null == throwable) {
 			return null;
 		}
+		if (throwable.getClass().equals(match)){
+			return throwable;
+		}
 		List<Throwable> throwables = new ArrayList<>();
 		throwables.add(throwable);
 		Throwable matched = null;

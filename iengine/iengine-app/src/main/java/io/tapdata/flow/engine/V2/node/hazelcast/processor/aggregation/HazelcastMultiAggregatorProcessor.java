@@ -31,15 +31,7 @@ import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.NotNull;
 
 import java.math.BigDecimal;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
-import java.util.Queue;
-import java.util.Set;
+import java.util.*;
 
 /**
  * DAG上的聚合节点的实现类（内置多个聚合器Aggregator）
@@ -66,6 +58,8 @@ public class HazelcastMultiAggregatorProcessor extends HazelcastBaseNode {
     private final List<String> targetFieldsName = new ArrayList<>();
 
     private TapRecordEvent originalTapRecordEvent;
+
+    private TapValueTransform tapValueTransform;
 
     public HazelcastMultiAggregatorProcessor(ProcessorBaseContext processorBaseContext) {
         super(processorBaseContext);
@@ -185,7 +179,7 @@ public class HazelcastMultiAggregatorProcessor extends HazelcastBaseNode {
             }
             return true;
         }
-        transformFromTapValue(tapdataEvent, null);
+        tapValueTransform = transformFromTapValue(tapdataEvent);
         if (tapdataEvent.getTapEvent() instanceof TapRecordEvent) {
             originalTapRecordEvent = (TapRecordEvent) tapdataEvent.getTapEvent();
         }
@@ -926,8 +920,7 @@ public class HazelcastMultiAggregatorProcessor extends HazelcastBaseNode {
             public List<Object> tryProcess(Object item) {
 
                 WrapItem wrappedItem = (WrapItem) item;
-                final String stage = wrappedItem.getEvent().getSyncStage().name();
-                if (SyncStage.INITIAL_SYNC.name().equals(stage)) {
+                if (wrappedItem.getEvent() == null || wrappedItem.getEvent().getSyncStage() != SyncStage.CDC) {
                     return Lists.newArrayList(item);
                 }
                 Object event = wrappedItem.getMessage();
@@ -1035,7 +1028,7 @@ public class HazelcastMultiAggregatorProcessor extends HazelcastBaseNode {
                             }
                         }
                     }
-                    transformToTapValue(event, processorBaseContext.getTapTableMap(), processorBaseContext.getNode().getId());
+                    transformToTapValue(event, processorBaseContext.getTapTableMap(), processorBaseContext.getNode().getId(), tapValueTransform);
                     offer(event);
                 } else {
                     throw new RuntimeException("not implement");

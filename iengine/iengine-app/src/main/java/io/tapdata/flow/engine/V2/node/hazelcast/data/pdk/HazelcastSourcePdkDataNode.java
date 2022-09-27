@@ -33,6 +33,7 @@ import io.tapdata.pdk.apis.functions.connector.source.StreamReadFunction;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.entity.params.PDKMethodInvoker;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
+import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.pdk.core.utils.LoggerUtils;
 import io.tapdata.schema.TapTableMap;
 import lombok.SneakyThrows;
@@ -42,11 +43,7 @@ import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.*;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.SynchronousQueue;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
@@ -124,26 +121,6 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 			}
 		} catch (Throwable throwable) {
 			errorHandle(throwable, throwable.getMessage());
-		} finally {
-			try {
-				while (isRunning()) {
-					try {
-						if (sourceRunnerLock.tryLock(1L, TimeUnit.SECONDS)) {
-							break;
-						}
-					} catch (InterruptedException e) {
-						break;
-					}
-				}
-				if (this.sourceRunnerFirstTime.get()) {
-					this.running.set(false);
-				}
-			} finally {
-				try {
-					sourceRunnerLock.unlock();
-				} catch (Exception ignored) {
-				}
-			}
 		}
 	}
 
@@ -428,6 +405,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 			List<String> tables = new ArrayList<>(tapTableMap.keySet());
 			cdcDelayCalculation.addHeartbeatTable(tables);
 			int batchSize = 1;
+			PDKMethodInvoker pdkMethodInvoker = PDKMethodInvoker.create();
 			executeDataFuncAspect(StreamReadFuncAspect.class, () -> new StreamReadFuncAspect()
 					.connectorContext(getConnectorNode().getConnectorContext())
 					.dataProcessorContext(getDataProcessorContext())
@@ -435,8 +413,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 					.eventBatchSize(batchSize)
 					.offsetState(syncProgress.getStreamOffsetObj())
 					.start(), streamReadFuncAspect -> PDKInvocationMonitor.invoke(getConnectorNode(), PDKMethod.SOURCE_STREAM_READ,
-					PDKMethodInvoker.create()
-							.runnable(
+					pdkMethodInvoker.runnable(
 									() -> streamReadFunction.streamRead(getConnectorNode().getConnectorContext(), tables,
 											syncProgress.getStreamOffsetObj(), batchSize, StreamReadConsumer.create((events, offsetObj) -> {
 												try {
@@ -485,6 +462,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 													}
 												}
 											}).stateListener((oldState, newState) -> {
+												PDKInvocationMonitor.invokerRetrySetter(pdkMethodInvoker);
 												if (null != newState && StreamReadConsumer.STATE_STREAM_READ_STARTED == newState) {
 													// MILESTONE-READ_CDC_EVENT-FINISH
 													if (streamReadFuncAspect != null)
@@ -541,7 +519,8 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 	public void doClose() throws Exception {
 		try {
 			if (null != getConnectorNode()) {
-				PDKInvocationMonitor.invoke(getConnectorNode(), PDKMethod.STOP, () -> getConnectorNode().connectorStop(), TAG);
+				CommonUtils.ignoreAnyError(() -> PDKInvocationMonitor.stop(getConnectorNode()), TAG);
+				CommonUtils.ignoreAnyError(() -> PDKInvocationMonitor.invoke(getConnectorNode(), PDKMethod.STOP, () -> getConnectorNode().connectorStop(), TAG), TAG);
 			}
 		} finally {
 			super.doClose();

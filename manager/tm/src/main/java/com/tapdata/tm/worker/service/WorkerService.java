@@ -17,6 +17,7 @@ import com.tapdata.tm.base.service.BaseService;
 import com.tapdata.tm.cluster.dto.ClusterStateDto;
 import com.tapdata.tm.cluster.dto.SystemInfo;
 import com.tapdata.tm.cluster.service.ClusterStateService;
+import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.dataflow.dto.DataFlowDto;
 import com.tapdata.tm.dataflow.service.DataFlowService;
@@ -238,26 +239,27 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
         // 53迭代Task上增加了指定Flow Engine的功能 --start
         String agentId = entity.getAgentId();
         if (StringUtils.isNotBlank(agentId)) {
-            calculationEngineVo.setProcessId(agentId);
-            calculationEngineVo.setManually(true);
-
             Criteria where = Criteria.where("worker_type").is("connector")
                     .and("ping_time").gte(findTime)
                     .and("isDeleted").ne(true)
                     .and("stopping").ne(true)
                     .and("process_id").is(agentId);
-            calculationEngineVo.setFilter(where.toString());
             Worker worker = repository.findOne(Query.query(where)).orElse(null);
-            ArrayList<BasicDBObject> threadLog = new ArrayList<>();
-            assert worker != null;
-            threadLog.add(new BasicDBObject()
-                    .append("process_id", worker.getProcessId())
-                    .append("weight", worker.getWeight())
-                    .append("running_thread", worker.getRunningThread())
-            );
-            calculationEngineVo.setThreadLog(threadLog);
+            if (Objects.nonNull(worker)) {
+                calculationEngineVo.setProcessId(agentId);
+                calculationEngineVo.setManually(true);
 
-            return calculationEngineVo;
+                calculationEngineVo.setFilter(where.toString());
+                ArrayList<BasicDBObject> threadLog = new ArrayList<>();
+                threadLog.add(new BasicDBObject()
+                        .append("process_id", worker.getProcessId())
+                        .append("weight", worker.getWeight())
+                        .append("running_thread", worker.getRunningThread())
+                );
+                calculationEngineVo.setThreadLog(threadLog);
+
+                return calculationEngineVo;
+            }
         }
         // 53迭代Task上增加了指定Flow Engine的功能 --end
 
@@ -462,5 +464,14 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
         );
 
         return worker;
+    }
+
+    public void setHostName(TaskDto dto) {
+        String agentId = dto.getAgentId();
+        Query query = new Query(Criteria.where("process_id").is(agentId));
+        WorkerDto one = findOne(query);
+        if (Objects.nonNull(one)) {
+            dto.setHostName(one.getHostname());
+        }
     }
 }
