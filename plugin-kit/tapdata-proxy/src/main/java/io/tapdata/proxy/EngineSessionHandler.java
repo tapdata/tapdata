@@ -3,8 +3,10 @@ package io.tapdata.proxy;
 import io.tapdata.entity.annotations.Bean;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.logger.TapLogger;
+import io.tapdata.entity.memory.MemoryFetcher;
 import io.tapdata.entity.simplify.pretty.TypeHandlers;
 import io.tapdata.entity.utils.DataMap;
+import io.tapdata.entity.utils.ParagraphFormatter;
 import io.tapdata.modules.api.net.data.*;
 import io.tapdata.modules.api.net.message.CommandResultEntity;
 import io.tapdata.pdk.apis.entity.CommandInfo;
@@ -26,9 +28,7 @@ import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.wsserver.channels.annotation.GatewaySession;
 import io.tapdata.wsserver.channels.gateway.GatewaySessionHandler;
 
-import java.util.Map;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
@@ -94,32 +94,39 @@ public class EngineSessionHandler extends GatewaySessionHandler {
 		return null;
 	}
 
-	public static class CommandInfoExecutor {
+	public static class CommandInfoExecutor implements MemoryFetcher {
 		private CommandInfo commandInfo;
 		private volatile BiConsumer<Map<String, Object>, Throwable> biConsumer;
 		private volatile ScheduledFuture<?> scheduledFuture;
-		public CommandInfoExecutor(CommandInfo commandInfo, BiConsumer<Map<String, Object>, Throwable> biConsumer) {
-			this(commandInfo, biConsumer, null);
-		}
-		public CommandInfoExecutor(CommandInfo commandInfo, BiConsumer<Map<String, Object>, Throwable> biConsumer, ScheduledFuture<?> scheduledFuture) {
+		private Runnable doneRunnable;
+
+		public CommandInfoExecutor(CommandInfo commandInfo, BiConsumer<Map<String, Object>, Throwable> biConsumer, Runnable doneRunnable) {
 			this.commandInfo = commandInfo;
 			this.biConsumer = biConsumer;
-			this.scheduledFuture = scheduledFuture;
+			this.doneRunnable = doneRunnable;
 		}
 
 		public boolean result(Map<String, Object> result, Throwable throwable) {
+			boolean done = false;
 			if(cancelTimer()) {
 				if(biConsumer != null) {
 					synchronized (this) {
 						if(biConsumer != null) {
-							biConsumer.accept(result, throwable);
-							biConsumer = null;
-							return true;
+							try {
+								biConsumer.accept(result, throwable);
+							} catch (Throwable throwable1) {
+								TapLogger.debug(TAG, "CommandInfoExecutor commandInfo {} accept result {} failed {}", commandInfo, result, throwable1.getMessage());
+							} finally {
+								biConsumer = null;
+								done = true;
+							}
 						}
 					}
 				}
 			}
-			return false;
+			if(done && doneRunnable != null)
+				doneRunnable.run();
+			return done;
 		}
 
 		public boolean cancelTimer() {
@@ -134,12 +141,19 @@ public class EngineSessionHandler extends GatewaySessionHandler {
 			}
 			return false;
 		}
+
+		@Override
+		public DataMap memory(List<String> mapKeys, String memoryLevel) {
+			return DataMap.create()
+					.kv("scheduledFuture", scheduledFuture != null ? scheduledFuture.toString() : null)
+					.kv("commandInfo", commandInfo);
+		}
 	}
 	public boolean handleCommandInfo(CommandInfo commandInfo, BiConsumer<Map<String, Object>, Throwable> biConsumer) {
 		if(commandInfo == null || biConsumer == null)
 			throw new CoreException(NetErrors.ILLEGAL_PARAMETERS, "handleCommandInfo missing parameters, commandInfo {}, biConsumer {}", commandInfo, biConsumer);
 		if(isChannelActive()) {
-			CommandInfoExecutor commandInfoExecutor = new CommandInfoExecutor(commandInfo, biConsumer);
+			CommandInfoExecutor commandInfoExecutor = new CommandInfoExecutor(commandInfo, biConsumer, () -> commandIdExecutorMap.remove(commandInfo.getId()));
 			commandInfoExecutor.scheduledFuture = ExecutorsManager.getInstance().getScheduledExecutorService().schedule(() -> {
 				commandInfoExecutor.result(null, new TimeoutException("Time out"));
 			}, 30, TimeUnit.SECONDS);
@@ -210,4 +224,20 @@ public class EngineSessionHandler extends GatewaySessionHandler {
 		return null;
 	}
 
+	public DataMap memory(List<String> mapKeys, String memoryLevel) {
+		DataMap dataMap = DataMap.create()
+				.kv("touch", new Date(getTouch()))
+				.kv("token", getToken())
+				.kv("id", getId())
+				.kv("userChannel", getUserChannel())
+				.kv("subscribeMap", subscribeMap.memory(mapKeys, memoryLevel))
+				.kv("cachedSubscribedIds", cachedSubscribedIds)
+				;
+		DataMap commandIdExecutorMap = DataMap.create();
+		dataMap.kv("commandIdExecutorMap", commandIdExecutorMap);
+		for(Map.Entry<String, CommandInfoExecutor> entry : this.commandIdExecutorMap.entrySet()) {
+			commandIdExecutorMap.kv(entry.getKey(), entry.getValue().memory(mapKeys, memoryLevel));
+		}
+		return dataMap;
+	}
 }

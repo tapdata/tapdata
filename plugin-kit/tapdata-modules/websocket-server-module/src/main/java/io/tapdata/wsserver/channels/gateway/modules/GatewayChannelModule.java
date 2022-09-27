@@ -10,6 +10,7 @@ import io.tapdata.entity.annotations.Bean;
 import io.tapdata.entity.annotations.MainMethod;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.logger.TapLogger;
+import io.tapdata.entity.utils.DataMap;
 import io.tapdata.entity.utils.FormatUtils;
 import io.tapdata.entity.utils.JsonParser;
 import io.tapdata.modules.api.net.data.Data;
@@ -17,6 +18,7 @@ import io.tapdata.modules.api.net.data.Identity;
 import io.tapdata.modules.api.net.data.Result;
 import io.tapdata.modules.api.net.data.ResultData;
 import io.tapdata.modules.api.net.message.TapEntity;
+import io.tapdata.entity.memory.MemoryFetcher;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.pdk.core.utils.JWTUtils;
 import io.tapdata.wsserver.channels.error.WSErrors;
@@ -29,13 +31,14 @@ import io.tapdata.wsserver.channels.websocket.utils.NetUtils;
 import io.tapdata.wsserver.eventbus.EventBusHolder;
 
 import java.net.InetSocketAddress;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 
 @Bean()
 @MainMethod(value = "main", order = 10000)
-public class GatewayChannelModule {
+public class GatewayChannelModule implements MemoryFetcher {
     private static final String key = "asdfFSDJKFHKLASHJDKQJWKJehrklHDFJKSMhkj3h24jkhhJKASDH723ty4jkhasdkdfjhaksjdfjfhJDJKLHSAfadsf";
 
     public void main() {
@@ -178,5 +181,14 @@ public class GatewayChannelModule {
             return channel != null;
         }
         return false;
+    }
+
+    @Override
+    public DataMap memory(List<String> mapKeys, String memoryLevel) {
+        DataMap dataMap = DataMap.create();
+        for(Map.Entry<String, ChannelHandlerContext> entry : userIdChannelMap.entrySet()) {
+            dataMap.put(entry.getKey(), entry.getValue().toString());
+        }
+        return dataMap;
     }
 }

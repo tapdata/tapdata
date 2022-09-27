@@ -1,13 +1,15 @@
 package io.tapdata.proxy;
 
 import io.tapdata.entity.annotations.Bean;
+import io.tapdata.entity.utils.DataMap;
+import io.tapdata.entity.memory.MemoryFetcher;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 @Bean
-public class SubscribeMap {
+public class SubscribeMap implements MemoryFetcher {
 	private final Map<String, List<EngineSessionHandler>> subscribeIdSessionMap = new ConcurrentHashMap<>();
 
 	public Set<String> rebindSubscribeIds(EngineSessionHandler engineSessionHandler, Set<String> newSubscribeIds, Set<String> oldSubscribeIds) {
@@ -73,5 +75,21 @@ public class SubscribeMap {
 			}
 		}
 		return sessionSubscribeIdsMap;
+	}
+
+	@Override
+	public DataMap memory(List<String> mapKeys, String memoryLevel) {
+		DataMap dataMap = DataMap.create();
+		for(Map.Entry<String, List<EngineSessionHandler>> entry : subscribeIdSessionMap.entrySet()) {
+			List<EngineSessionHandler> handlers = entry.getValue();
+			if(handlers != null) {
+				List<String> handlerIds = new ArrayList<>();
+				for(EngineSessionHandler handler : handlers) {
+					handlerIds.add(handler.getId());
+				}
+				dataMap.put(entry.getKey(), handlerIds);
+			}
+		}
+		return dataMap;
 	}
 }

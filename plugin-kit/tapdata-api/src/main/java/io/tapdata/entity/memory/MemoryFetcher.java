@@ -1,4 +1,6 @@
-package io.tapdata.pdk.core.memory;
+package io.tapdata.entity.memory;
+
+import io.tapdata.entity.utils.DataMap;
 
 import java.util.List;
 
@@ -13,5 +15,5 @@ public interface MemoryFetcher {
      * @param memoryLevel output in summary or detail
      * @return MemoryMap
      */
-    String memory(List<String> mapKeys, String memoryLevel);
+    DataMap memory(List<String> mapKeys, String memoryLevel);
 }
