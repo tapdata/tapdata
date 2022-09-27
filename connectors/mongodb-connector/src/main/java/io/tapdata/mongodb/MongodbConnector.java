@@ -346,8 +346,15 @@ public class MongodbConnector extends ConnectorBase {
 		//We need check the TapStringValue, when will write to mongodb, if the originValue is ObjectId, then use originValue instead of the converted String value.
 		codecRegistry.registerFromTapValue(TapStringValue.class, tapValue -> {
 			Object originValue = tapValue.getOriginValue();
+			String value = tapValue.getValue();
 			if (originValue instanceof ObjectId) {
 				return originValue;
+			} else if (originValue instanceof byte[]) {
+				byte[] bytes = (byte[]) originValue;
+				if (bytes.length == 26 && bytes[0] == 99 && bytes[bytes.length - 1] == 23
+						&& null != value && value.length() == 24) {
+					return new ObjectId(tapValue.getValue());
+				}
 			}
 			//If not ObjectId, use default TapValue Codec to convert.
 			return codecRegistry.getValueFromDefaultTapValueCodec(tapValue);
