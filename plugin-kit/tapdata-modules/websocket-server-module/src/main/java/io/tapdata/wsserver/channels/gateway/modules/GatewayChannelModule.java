@@ -10,6 +10,7 @@ import io.tapdata.entity.annotations.Bean;
 import io.tapdata.entity.annotations.MainMethod;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.logger.TapLogger;
+import io.tapdata.entity.utils.FormatUtils;
 import io.tapdata.entity.utils.JsonParser;
 import io.tapdata.modules.api.net.data.Data;
 import io.tapdata.modules.api.net.data.Identity;
@@ -106,6 +107,14 @@ public class GatewayChannelModule {
             String service = (String) claims.get("service");
             String clientId = (String) claims.get("clientId");
             Integer terminal = (Integer) claims.get("terminal");
+            String nodeId = (String) claims.get("nodeId");
+
+            String currentNodeId = CommonUtils.getProperty("tapdata_node_id");
+            if(currentNodeId != null && !currentNodeId.equals(nodeId)) {
+                identityReceivedEvent.closeChannel(identity.getId(), WSErrors.ERROR_WRONG_NODE, FormatUtils.format("Visited wrong node {}, current node is {}", nodeId, currentNodeId));
+                return;
+            }
+
 //            String uid = (String) claims.get("uid");
 
             GatewaySessionHandler gatewaySessionHandler = gatewaySessionManager.preCreateGatewaySessionHandler(clientId, service, null, clientId, terminal, true, null);
