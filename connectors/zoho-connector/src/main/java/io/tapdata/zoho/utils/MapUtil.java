@@ -1,6 +1,7 @@
 package io.tapdata.zoho.utils;
 
 import cn.hutool.json.JSONArray;
+import cn.hutool.json.JSONNull;
 import cn.hutool.json.JSONObject;
 import io.tapdata.zoho.enums.Constants;
 
@@ -71,11 +72,14 @@ public class MapUtil {
         String currentKey = key.substring(0, index);
         Object value = map.get(currentKey);
         if (Checker.isEmpty(value)){
-            return null;
+            return "";//@TODO null
         }
         if (index<key.length()-1){
             String nextKey = key.substring(index + 1);
-            if ((value instanceof JSONObject) || (value instanceof Map)){
+            if (value instanceof JSONNull){
+                return "";
+            }
+            else if ((value instanceof JSONObject) || (value instanceof Map)){
                 Map<String,Object> obj = (Map<String,Object>)value;
                 return getValue(nextKey,split,obj);
             }else if(value instanceof JSONArray || value instanceof List){
@@ -91,16 +95,16 @@ public class MapUtil {
                     return joiner.toString();
                 }catch (Exception e){
                     //@TODO 多层list嵌套时目前不支持解析，返回null
-                    return null;
+                    return "";//@TODO null
                     //List<List<Object>> catchList = (List<List<Object>>) value;
                     //catchList.forEach(list->{
                     //
                     //});
                 }
             }else {
-                return null;
+                return "";//@TODO null
             }
         }
-        return value;
+        return null == value ? "":value;//@TODO null
     }
 }

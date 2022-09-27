@@ -1,6 +1,7 @@
 package io.tapdata.zoho.service.connectionMode;
 
 import cn.hutool.json.JSONArray;
+import cn.hutool.json.JSONNull;
 import cn.hutool.json.JSONObject;
 import cn.hutool.json.JSONUtil;
 import io.tapdata.entity.logger.TapLogger;
@@ -32,26 +33,26 @@ public class DocumentMode implements ConnectionMode {
                     table("Tickets")
                             .add(field("id","Long").isPrimaryKey(true).primaryKeyPos(1))
                             .add(field("modifiedTime","String"))
-                            .add(field("subCategory","Object"))
+                            .add(field("subCategory","String"))//Object
                             .add(field("statusType","String"))
                             .add(field("subject","String"))
                             .add(field("dueDate","String"))
                             .add(field("departmentId","Long"))
                             .add(field("channel","String"))
-                            .add(field("onholdTime","Object"))
+                            .add(field("onholdTime","String"))//Object
                             .add(field("language","String"))
                             .add(field("source","Map"))
-                            .add(field("resolution","Object"))
+                            .add(field("resolution","String"))//Object
                             .add(field("sharedDepartments","JAVA_Array"))
-                            .add(field("closedTime","Object"))
+                            .add(field("closedTime","String"))//Object
                             .add(field("approvalCount","Integer"))
-                            .add(field("isOverDue","Object"))
-                            .add(field("isTrashed","Object"))
+                            .add(field("isOverDue","String"))//Object
+                            .add(field("isTrashed","String"))//Boolean
                             .add(field("contact","Map"))
                             .add(field("createdTime","String"))
-                            .add(field("isResponseOverdue","Object"))
+                            .add(field("isResponseOverdue","String"))//Object
                             .add(field("customerResponseTime","String"))
-                            .add(field("productId","Object"))
+                            .add(field("productId","String"))//Object
                             .add(field("contactId","Long"))
                             .add(field("threadCount","Integer"))
                             .add(field("secondaryContacts","JAVA_Array"))
@@ -59,41 +60,44 @@ public class DocumentMode implements ConnectionMode {
                             .add(field("classification","String"))
                             .add(field("commentCount","Integer"))
                             .add(field("taskCount","Integer"))
-                            .add(field("accountId","Object"))
+                            .add(field("accountId","String"))//Object
                             .add(field("phone","Long"))
                             .add(field("webUrl","String"))
                             .add(field("assignee","Map"))
-                            .add(field("isSpam","Object"))
+                            .add(field("isSpam","String"))//Object
                             .add(field("status","String"))
                             .add(field("entitySkills","JAVA_Array"))
                             .add(field("ticketNumber","Integer"))
-                            .add(field("sentiment","Object"))
+                            .add(field("sentiment","String"))//Object
                             .add(field("customFields","Map"))
-                            .add(field("isArchived","Object"))
-                            .add(field("description","String"))
+                            .add(field("isArchived","String"))//Object
+                            .add(field("Textarea","String"))
                             .add(field("timeEntryCount","Integer"))
-                            .add(field("channelRelatedInfo","Object"))
-                            .add(field("responseDueDate","Object"))
-                            .add(field("isDeleted","Object"))
+                            .add(field("channelRelatedInfo","String"))//Object
+                            .add(field("responseDueDate","String"))//Object
+                            .add(field("isDeleted","String"))//Object
                             .add(field("modifiedBy","Long"))
                             .add(field("department","Map"))
                             .add(field("followerCount","Integer"))
                             .add(field("email","String"))
                             .add(field("layoutDetails","Map"))
-                            .add(field("channelCode","Object"))
-                            .add(field("product","Object"))
-                            .add(field("isFollowing","Object"))
+                            .add(field("channelCode","String"))//Object
+                            .add(field("product","String"))//Object
+                            .add(field("isFollowing","String"))//Object
                             .add(field("cf","Map"))
                             .add(field("slaId","Long"))
-                            .add(field("team","Object"))
+                            .add(field("team","String"))//Object
                             .add(field("layoutId","Long"))
                             .add(field("assigneeId","Long"))
                             .add(field("createdBy","Long"))
-                            .add(field("teamId","Object"))
+                            .add(field("teamId","String"))//Object
                             .add(field("tagCount","Integer"))
                             .add(field("attachmentCount","Integer"))
-                            .add(field("isEscalated","Object"))
-                            .add(field("category","Object"))
+                            .add(field("isEscalated","String"))//Object
+                            .add(field("category","String"))//Object
+                            .add(field("department","Map"))
+                            .add(field("contact","Map"))//Object
+                            .add(field("assignee","Map"))//Object
             );
         }
         return null;
@@ -105,7 +109,12 @@ public class DocumentMode implements ConnectionMode {
         if (Checker.isEmpty(ticketIdObj)){
             TapLogger.debug(TAG,"Ticket Id can not be null or not be empty.");
         }
-        return TicketLoader.create(connectionContext).getOne((String)ticketIdObj);
+        Map<String, Object> one = TicketLoader.create(connectionContext).getOne((String) ticketIdObj);
+        one.put("department",stringObjectMap.get("department"));
+        one.put("contact",stringObjectMap.get("contact"));
+        one.put("assignee",stringObjectMap.get("assignee"));
+        one.replaceAll((key,value)->(value instanceof JSONNull ?"":value));
+        return one;
     }
 
     /***

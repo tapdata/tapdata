@@ -1,6 +1,7 @@
 package io.tapdata.zoho.service.connectionMode;
 
 import cn.hutool.json.JSONArray;
+import cn.hutool.json.JSONNull;
 import cn.hutool.json.JSONObject;
 import cn.hutool.json.JSONUtil;
 import io.tapdata.entity.error.CoreException;
@@ -54,7 +55,7 @@ public class CSVMode implements ConnectionMode {
                     .add(field("email","String"))
                     .add(field("phone","Long"))
                     .add(field("subject","String"))
-                    .add(field("description","String"))
+                    .add(field("description","Textarea"))
                     .add(field("status","String"))
                     .add(field("productName","String"))//产品名称
                     .add(field("productId","Long"))//产品名称 Id
@@ -73,12 +74,12 @@ public class CSVMode implements ConnectionMode {
                     .add(field("isOverDue","Boolean"))
                     .add(field("isEscalated","Boolean"))
                     .add(field("classification","String"))
-                    .add(field("resolution","Object"))
-                    .add(field("category","Object"))
-                    .add(field("subCategory","Object"))
+                    .add(field("resolution","String"))//object
+                    .add(field("category","String"))//object
+                    .add(field("subCategory","String"))//object
                     .add(field("customerResponseTime","String"))
                     .add(field("teamId","Long"))
-                    .add(field("teamName","Object"))//工单所有者 Id    team（需要从分页中需添加到详情）->team.name  （掉方法打平）
+                    .add(field("teamName","String"))//object工单所有者 Id    team（需要从分页中需添加到详情）->team.name  （掉方法打平）
                     .add(field("tags","String")) //@TODO
                     .add(field("language","String"))
                     .add(field("timeEntryCount","Integer"))//@TODO 工单搁置时间
@@ -149,6 +150,7 @@ public class CSVMode implements ConnectionMode {
         Object ticketIdObj = stringObjectMap.get("id");
         if (Checker.isEmpty(ticketIdObj)){
             TapLogger.debug(TAG,"Ticket Id can not be null or not be empty.");
+            return null;
         }
         TicketLoader ticketLoader = TicketLoader.create(connectionContext);
         Map<String, Object> ticketDetail = ticketLoader.getOne((String) ticketIdObj);
@@ -205,6 +207,7 @@ public class CSVMode implements ConnectionMode {
                 "language",
                 "timeEntryCount"//@TODO 工单搁置时间
         );
+        ticketCSVDetail.replaceAll((key,value)->(value instanceof JSONNull?"":value));
         return ticketCSVDetail;
     }
 
@@ -219,7 +222,10 @@ public class CSVMode implements ConnectionMode {
         if (null == customFields || customFields.size()<=0){
             return result;
         }
-        result.putAll(customFields);
+        customFields.forEach((key,value)->{
+            if (value instanceof JSONNull) value = "";
+            result.put(key,value);
+        });
         /**
             customFields.forEach((field,value)->{
             String customField = Constants.CUSTOM_FIELD_SUFFIX + field;

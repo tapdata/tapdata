@@ -93,7 +93,7 @@ public class ZoHoConnector extends ConnectorBase {
 		connectorFunctions.supportBatchRead(this::batchRead)
 				.supportBatchCount(this::batchCount)
 				.supportTimestampToStreamOffset(this::timestampToStreamOffset)
-				//.supportStreamRead(this::streamRead)
+				.supportStreamRead(this::streamRead)
 				.supportRawDataCallbackFilterFunction(this::rawDataCallbackFilterFunction)
 				.supportCommandCallbackFunction(this::handleCommand)
 		;
@@ -108,13 +108,13 @@ public class ZoHoConnector extends ConnectorBase {
 		return null;
 	}
 
-	//private void streamRead(
-	//		TapConnectorContext nodeContext,
-	//		List<String> tableList,
-	//		Object offsetState,
-	//		int recordSize,
-	//		StreamReadConsumer consumer ) {
-	//}
+	private void streamRead(
+			TapConnectorContext nodeContext,
+			List<String> tableList,
+			Object offsetState,
+			int recordSize,
+			StreamReadConsumer consumer ) {
+	}
 
 	private Object timestampToStreamOffset(TapConnectorContext tapConnectorContext, Long time) {
 		long date = time != null ? time: System.currentTimeMillis();
@@ -203,31 +203,25 @@ public class ZoHoConnector extends ConnectorBase {
 					 BiConsumer<List<TapEvent>, Object> consumer,
 					 String table ){
 		TicketLoader ticketLoader = TicketLoader.create(nodeContext);
-		List<TapEvent> events = new ArrayList<>();
+		final List<TapEvent>[] events = new List[]{new ArrayList<>()};
 		int pageSize = Math.min(readSize, this.batchReadMaxPageSize);
 		HttpEntity<String, Object> tickPageParam = ticketLoader.getTickPageParam()
 				.build("limit", pageSize);//分页数
 		int fromPageIndex = 1;//从第几个工单开始分页
-		do{
+		String modeName = nodeContext.getConnectionConfig().getString("connectionMode");
+		ConnectionMode connectionMode = ConnectionMode.getInstanceByName(nodeContext, modeName);
+		if (null == connectionMode){
+			throw new CoreException("Connection Mode is not empty or not null.");
+		}
+		while (true){
 			tickPageParam.build("from", fromPageIndex);
 			List<Map<String, Object>> list = ticketLoader.list(tickPageParam);
-			fromPageIndex += pageSize;
-			String modeName = nodeContext.getConnectionConfig().getString("connectionMode");
-			ConnectionMode connectionMode = ConnectionMode.getInstanceByName(nodeContext, modeName);
-			if (null == connectionMode){
-				throw new CoreException("Connection Mode is not empty or not null.");
-			}
-			if (Checker.isEmpty(list) && !list.isEmpty()){
+			if (Checker.isNotEmpty(list) && !list.isEmpty()){
+				fromPageIndex += pageSize;
 				list.stream().forEach(ticket->{
-					Object ticketIdObj = ticket.get("");
-					if (Checker.isEmpty(ticketIdObj)){
-						return;
-					}
-					String ticketId = (String)ticketIdObj;
-					Map<String, Object> oneTicket = ticketLoader.getOne(ticketId);
-					if (Checker.isEmpty(oneTicket) && !oneTicket.isEmpty()){
-						Map<String, Object> entityResult = connectionMode.attributeAssignment(oneTicket);
-						Object modifiedTimeObj = entityResult.get("modifiedTime");
+					Map<String, Object> oneTicket = connectionMode.attributeAssignment(ticket);
+					if (Checker.isNotEmpty(oneTicket) && !oneTicket.isEmpty()){
+						Object modifiedTimeObj = oneTicket.get("modifiedTime");
 						long referenceTime = System.currentTimeMillis();
 						if (Checker.isNotEmpty(modifiedTimeObj) && modifiedTimeObj instanceof String) {
 							String referenceTimeStr = (String) modifiedTimeObj;
@@ -236,103 +230,19 @@ public class ZoHoConnector extends ConnectorBase {
 									"yyyy-MM-dd HH:mm:ss.SSS").getTime();
 							((ZoHoOffset) offsetState).getTableUpdateTimeMap().put(table, referenceTime);
 						}
-						events.add(insertRecordEvent(entityResult,table).referenceTime(referenceTime));
-					}
-					if (events.size() == readSize){
-						consumer.accept(events, offsetState);
+						events[0].add(insertRecordEvent(oneTicket,table).referenceTime(referenceTime));
+						if (events[0].size() == readSize){
+							consumer.accept(events[0], offsetState);
+							events[0] = new ArrayList<>();
+						}
 					}
 				});
-				if (events.size()>0){
-					consumer.accept(events, offsetState);
+				if (events[0].size()>0){
+					consumer.accept(events[0], offsetState);
 				}
 			}else {
 				break;
 			}
-		}while (true);
+		}
 	}
-//	public void read(
-//			TapConnectorContext nodeContext,
-//			Long readStartTime,
-//			Long readEndTime,
-//			String readTable,
-//			int readSize,
-//			Object offsetState,
-//			BiConsumer<List<TapEvent>, Object> consumer,
-//			String table ){
-//		TicketLoader ticketLoader = TicketLoader.create(nodeContext);
-
-//		int currentQueryCount = 0,queryIndex = 0 ;
-//		final List<TapEvent>[] events = new List[]{new ArrayList<>()};
-//		HttpEntity<String,String> header = HttpEntity.create().builder("Authorization",contextConfig.getToken());
-//		String projectName = contextConfig.getProjectName();
-//		HttpEntity<String,Object> pageBody = HttpEntity.create()
-//				.builder("Action","DescribeIssueListWithPage")
-//				.builder("ProjectName",projectName)
-//				.builder("SortKey","UPDATED_AT")
-//				.builder("PageSize",readSize)
-//				.builder("SortValue","ASC");
-//		if (Checker.isNotEmpty(contextConfig) && Checker.isNotEmpty(contextConfig.getIssueType())){
-//			pageBody.builder("IssueType",IssueType.verifyType(contextConfig.getIssueType().getName()));
-//		}else {
-//			pageBody.builder("IssueType","ALL");
-//		}
-//		List<Map<String,Object>> coditions = list(map(
-//				entry("Key","UPDATED_AT"),
-//				entry("Value",issueLoader.longToDateStr(readStartTime)+"_"+issueLoader.longToDateStr(readEndTime)))
-//		);
-//		String iterationCodes = contextConfig.getIterationCodes();
-//		if (null != iterationCodes && !"".equals(iterationCodes) && !",".equals(iterationCodes)) {
-//			if (!"-1".equals(iterationCodes)) {
-//				//-1时表示全选
-//				//String[] iterationCodeArr = iterationCodes.split(",");
-//				//@TODO 输入的迭代编号需要验证，否则，查询事项列表时作为查询条件的迭代不存在时，查询会报错
-//				//选择的迭代编号不需要验证
-//				coditions.add(map(entry("Key", "ITERATION"), entry("Value", iterationCodes)));
-//			}
-//		}
-//		pageBody.builder("Conditions",coditions);
-//		String teamName = contextConfig.getTeamName();
-//		String modeName = contextConfig.getConnectionMode();
-//		ConnectionMode instance = ConnectionMode.getInstanceByName(nodeContext,modeName);
-//		if (null == instance){
-//			throw new CoreException("Connection Mode is not empty or not null.");
-//		}
-//		do{
-//			pageBody.builder("PageNumber",queryIndex++);
-//			Map<String,Object> dataMap = issueLoader.getIssuePage(header.getEntity(),pageBody.getEntity(),String.format(CodingStarter.OPEN_API_URL,teamName));
-//			if (null == dataMap || null == dataMap.get("List")) {
-//				TapLogger.error(TAG, "Paging result request failed, the Issue list is empty: page index = {}",queryIndex);
-//				throw new RuntimeException("Paging result request failed, the Issue list is empty: "+CodingStarter.OPEN_API_URL+"?Action=DescribeIssueListWithPage");
-//			}
-//			List<Map<String,Object>> resultList = (List<Map<String,Object>>) dataMap.get("List");
-//			currentQueryCount = resultList.size();
-//			batchReadPageSize = null != dataMap.get("PageSize") ? (int)(dataMap.get("PageSize")) : batchReadPageSize;
-//			for (Map<String, Object> stringObjectMap : resultList) {
-//				Map<String,Object> issueDetail = instance.attributeAssignment(stringObjectMap);
-//				Long referenceTime = (Long)issueDetail.get("UpdatedAt");
-//				Long currentTimePoint = referenceTime - referenceTime % (24*60*60*1000);//时间片段
-//				Integer issueDetialHash = MapUtil.create().hashCode(issueDetail);
-//
-//				//issueDetial的更新时间字段值是否属于当前时间片段，并且issueDiteal的hashcode是否在上一次批量读取同一时间段内
-//				//如果不在，说明时全新增加或修改的数据，需要在本次读取这条数据
-//				//如果在，说明上一次批量读取中以及读取了这条数据，本次不在需要读取 !currentTimePoint.equals(lastTimePoint) &&
-//				if (!lastTimeSplitIssueCode.contains(issueDetialHash)) {
-//					events[0].add(insertRecordEvent(issueDetail, readTable).referenceTime(referenceTime));
-//
-//					if (null == currentTimePoint || !currentTimePoint.equals(this.lastTimePoint)){
-//						this.lastTimePoint = currentTimePoint;
-//						lastTimeSplitIssueCode = new ArrayList<Integer>();
-//					}
-//					lastTimeSplitIssueCode.add(issueDetialHash);
-//				}
-//
-//				((CodingOffset)offsetState).getTableUpdateTimeMap().put(table,referenceTime);
-//				if (events[0].size() == readSize) {
-//					consumer.accept(events[0], offsetState);
-//					events[0] = new ArrayList<>();
-//				}
-//			}
-//		}while (currentQueryCount >= batchReadPageSize);
-//		if (events[0].size() > 0)  consumer.accept(events[0], offsetState);
-//	}
 }

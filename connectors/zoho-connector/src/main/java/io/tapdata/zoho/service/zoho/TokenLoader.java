@@ -25,7 +25,7 @@ public class TokenLoader extends ZoHoStarter implements ZoHoBase {
      * */
     public RefreshTokenEntity refreshToken(){
         ContextConfig contextConfig = super.veryContextConfigAndNodeConfig();
-        return refreshToken(this.refreshTokenFromConfig(),contextConfig.getClientId(),contextConfig.getClientSecret());
+        return refreshToken(this.refreshTokenFromConfig(),contextConfig.clientId(),contextConfig.clientSecret());
     }
     public RefreshTokenEntity refreshToken(String refreshToken,String clientId,String clientSecret){
         HttpResult post = refresh(refreshToken, clientId, clientSecret);
@@ -40,7 +40,7 @@ public class TokenLoader extends ZoHoStarter implements ZoHoBase {
     }
     public HttpResult refresh(){
         ContextConfig contextConfig = super.veryContextConfigAndNodeConfig();
-        return this.refresh(this.refreshTokenFromConfig(),contextConfig.getClientId(),contextConfig.getClientSecret());
+        return this.refresh(this.refreshTokenFromConfig(),contextConfig.clientId(),contextConfig.clientSecret());
     }
 
     public HttpResult refresh(String refreshToken,String clientId,String clientSecret){
@@ -58,14 +58,14 @@ public class TokenLoader extends ZoHoStarter implements ZoHoBase {
         if (HttpCode.SUCCEED.getCode().equals(post.getCode()) && Checker.isNotEmpty(post.getResult())){
             Object accessTokenObj = post.getResult().get("access_token");
             if (Checker.isNotEmpty(accessTokenObj)) {
-                this.addNewAccessTokenToStateMap((String)accessTokenObj);
+                this.addNewAccessTokenToStateMap(ZoHoBase.builderAccessToken((String)accessTokenObj));
             }
         }
         return post;
     }
     public TokenEntity getToken(){
         ContextConfig contextConfig = super.veryContextConfigAndNodeConfig();
-        return this.getToken(contextConfig.getClientId(),contextConfig.getClientSecret(),contextConfig.getGenerateCode());
+        return this.getToken(contextConfig.clientId(),contextConfig.clientSecret(),contextConfig.generateCode());
     }
     public TokenEntity getToken(String clientId,String clientSecret,String generateCode){
         HttpEntity<String,Object> form = HttpEntity.create()

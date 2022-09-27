@@ -34,62 +34,56 @@ public abstract class ZoHoStarter {
         if (null == connectionConfig ){
             throw new IllegalArgumentException("TapTable' DataMap cannot be null");
         }
-        String projectName = connectionConfig.getString("projectName");
-        String token = connectionConfig.getString("token");
-        String teamName = connectionConfig.getString("teamName");
-        String streamReadType = connectionConfig.getString("streamReadType");
-        String connectionMode = connectionConfig.getString("connectionMode");
-        if ( null == projectName || "".equals(projectName)){
-            TapLogger.debug(TAG, "Connection parameter exception: {} ", projectName);
+        String refreshToken = connectionConfig.getString("refreshToken");
+        String accessToken = connectionConfig.getString("accessToken");
+        accessToken = accessToken.startsWith(ZoHoBase.ZO_HO_ACCESS_TOKEN_PREFIX)?accessToken:ZoHoBase.ZO_HO_ACCESS_TOKEN_PREFIX+accessToken;
+        String clientId = connectionConfig.getString("clientID");
+        String clientSecret = connectionConfig.getString("clientSecret");
+        String orgId = connectionConfig.getString("orgId");
+        String generateCode = connectionConfig.getString("generateCode");
+        if ( null == refreshToken || "".equals(refreshToken)){
+            TapLogger.debug(TAG, "Connection parameter exception: {} ", refreshToken);
         }
-        if ( null == token || "".equals(token) ){
-            TapLogger.debug(TAG, "Connection parameter exception: {} ", token);
+        if ( null == clientId || "".equals(clientId) ){
+            TapLogger.debug(TAG, "Connection parameter exception: {} ", clientId);
         }
-        if ( null == teamName || "".equals(teamName) ){
-            TapLogger.debug(TAG, "Connection parameter exception: {} ", teamName);
+        if ( null == clientSecret || "".equals(clientSecret) ){
+            TapLogger.debug(TAG, "Connection parameter exception: {} ", clientSecret);
         }
-        if ( null == streamReadType || "".equals(streamReadType) ){
-            TapLogger.debug(TAG, "Connection parameter streamReadType exception: {} ", token);
+        if ( null == generateCode || "".equals(generateCode) ){
+            TapLogger.debug(TAG, "Connection parameter streamReadType exception: {} ", generateCode);
         }
-        if ( null == connectionMode || "".equals(connectionMode) ){
-            TapLogger.debug(TAG, "Connection parameter connectionMode exception: {} ", teamName);
+        if ( null == accessToken || "".equals(accessToken) ){
+            TapLogger.debug(TAG, "Connection parameter connectionMode exception: {} ", accessToken);
         }
         this.isVerify = Boolean.TRUE;
     }
     public ContextConfig veryContextConfigAndNodeConfig(){
         this.verifyConnectionConfig();
         DataMap connectionConfigConfigMap = this.tapConnectionContext.getConnectionConfig();
-        String projectName = connectionConfigConfigMap.getString("projectName");
-        String token = connectionConfigConfigMap.getString("token");
-        String teamName = connectionConfigConfigMap.getString("teamName");
-        String streamReadType = connectionConfigConfigMap.getString("streamReadType");
-        String connectionMode = connectionConfigConfigMap.getString("connectionMode");
-        ContextConfig config = ContextConfig.create().projectName(projectName)
-                .teamName(teamName)
-                .token(token)
-                .streamReadType(streamReadType)
-                .connectionMode(connectionMode);
-        if (this.tapConnectionContext instanceof TapConnectorContext) {
-            DataMap nodeConfigMap = ((TapConnectorContext)this.tapConnectionContext).getNodeConfig();
-            if (null == nodeConfigMap) {
-//                config.issueType(IssueType.ALL);
-                config.iterationCodes("-1");
-                TapLogger.debug(TAG,"TapTable' NodeConfig is empty. ");
-                //throw new IllegalArgumentException("TapTable' NodeConfig cannot be null");
-            }else{
-                //iterationName is Multiple selection values separated by commas
-                String iterationCodeArr = nodeConfigMap.getString("DescribeIterationList");//iterationCodes
-                if (null != iterationCodeArr) iterationCodeArr = iterationCodeArr.trim();
-                String issueType = nodeConfigMap.getString("issueType");
-                if (null != issueType) issueType = issueType.trim();
 
-                if (null == iterationCodeArr || "".equals(iterationCodeArr)) {
-                    TapLogger.debug(TAG, "Connection node config iterationName exception: {} ", projectName);
+        String refreshToken = connectionConfigConfigMap.getString("refreshToken");
+        String accessToken = connectionConfigConfigMap.getString("accessToken");
+        accessToken = accessToken.startsWith(ZoHoBase.ZO_HO_ACCESS_TOKEN_PREFIX)?accessToken:ZoHoBase.ZO_HO_ACCESS_TOKEN_PREFIX+accessToken;
+        String clientId = connectionConfigConfigMap.getString("clientID");
+        String clientSecret = connectionConfigConfigMap.getString("clientSecret");
+        String orgId = connectionConfigConfigMap.getString("orgId");
+        String generateCode = connectionConfigConfigMap.getString("generateCode");
+        ContextConfig config = ContextConfig.create().refreshToken(refreshToken)
+                .accessToken(accessToken)
+                .clientId(clientId)
+                .clientSecret(clientSecret)
+                .orgId(orgId)
+                .generateCode(generateCode);
+        if (this.tapConnectionContext instanceof TapConnectorContext) {
+            KVMap<Object> stateMap = ((TapConnectorContext) this.tapConnectionContext).getStateMap();
+            if (null != stateMap) {
+                Object refreshTokenObj = stateMap.get("refreshToken");
+                Object accessTokenObj = stateMap.get("accessToken");
+                if ( Checker.isEmpty(refreshTokenObj) ){
+                    stateMap.put("refreshToken",refreshToken);
+                    stateMap.put("accessToken",accessToken);
                 }
-                if (null == issueType || "".equals(issueType)) {
-                    TapLogger.debug(TAG, "Connection node config issueType exception: {} ", token);
-                }
-//                config.issueType(issueType).iterationCodes(iterationCodeArr);
             }
         }
         return config;
@@ -108,7 +102,7 @@ public abstract class ZoHoStarter {
             Object accessTokenObj = connectionConfig.get("accessToken");
             accessToken = Checker.isNotEmpty(accessTokenObj)?(String)accessTokenObj:"";
         }
-        return accessToken.startsWith(ZoHoBase.ZO_HO_ACCESS_TOKEN_PREFIX)?accessToken:ZoHoBase.ZO_HO_ACCESS_TOKEN_PREFIX+accessToken;
+        return ZoHoBase.builderAccessToken(accessToken);
     }
     /**取refreshToken*/
     public String refreshTokenFromConfig(){
@@ -124,9 +118,9 @@ public abstract class ZoHoStarter {
         ContextConfig contextConfig = this.veryContextConfigAndNodeConfig();
         TapConnectorContext connectorContext = (TapConnectorContext)this.tapConnectionContext;
         KVMap<Object> stateMap = connectorContext.getStateMap();
-        stateMap.put("refreshToken",contextConfig.getRefreshToken());
-        String accessToken = contextConfig.getAccessToken();
-        stateMap.put("accessToken",accessToken.startsWith(ZoHoBase.ZO_HO_ACCESS_TOKEN_PREFIX)?accessToken:ZoHoBase.ZO_HO_ACCESS_TOKEN_PREFIX+accessToken);
+        stateMap.put("refreshToken",contextConfig.refreshToken());
+        String accessToken = contextConfig.accessToken();
+        stateMap.put("accessToken",ZoHoBase.builderAccessToken(accessToken));
     }
     public void addNewAccessTokenToStateMap(String accessToken){
         if (Checker.isEmpty(this.tapConnectionContext) || !(this.tapConnectionContext instanceof TapConnectorContext)){
@@ -143,7 +137,7 @@ public abstract class ZoHoStarter {
         if (Checker.isEmpty(accessToken)){
             throw new CoreException("Refresh accessToken failed.");
         }
-        return accessToken.startsWith(ZoHoBase.ZO_HO_ACCESS_TOKEN_PREFIX)?accessToken:ZoHoBase.ZO_HO_ACCESS_TOKEN_PREFIX+accessToken;
+        return ZoHoBase.builderAccessToken(accessToken);
     }
 
 }

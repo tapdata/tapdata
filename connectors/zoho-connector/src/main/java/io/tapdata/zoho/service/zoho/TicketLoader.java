@@ -37,10 +37,10 @@ public class TicketLoader extends ZoHoStarter implements ZoHoBase {
         HttpEntity<String,String> header = HttpEntity.create()
                 .build("Authorization",accessToken);
         HttpEntity<String,String> resetFull = HttpEntity.create().build("ticketID",ticketId);
-        ZoHoHttp http = ZoHoHttp.create(String.format(ZO_HO_BASE_URL,url), HttpType.POST,header).resetFull(resetFull);
-        HttpResult httpResult = http.post();
+        ZoHoHttp http = ZoHoHttp.create(String.format(ZO_HO_BASE_URL,url), HttpType.GET,header).resetFull(resetFull);
+        HttpResult httpResult = http.get();
         if (Checker.isEmpty(httpResult) ){
-            TapLogger.debug(TAG,"Try to get ticket list , but AccessToken is.");
+            TapLogger.debug(TAG,"Try to get ticket list , but AccessToken is timeout.");
         }
         String code = httpResult.getCode();
         if (HttpCode.INVALID_OAUTH.getCode().equals(code)){
@@ -54,8 +54,8 @@ public class TicketLoader extends ZoHoStarter implements ZoHoBase {
             }
         }
         TapLogger.debug(TAG,"Get ticket list succeed.");
-        Object data = httpResult.getResult().get("data");
-        return Checker.isEmpty(data)? new HashMap<>():(Map<String,Object>)data;
+        Map<String,Object> data = httpResult.getResult();
+        return Checker.isEmpty(data)? new HashMap<>():data;
     }
 
     /**
@@ -67,7 +67,7 @@ public class TicketLoader extends ZoHoStarter implements ZoHoBase {
         ContextConfig contextConfig = this.veryContextConfigAndNodeConfig();
         String accessToken = this.accessTokenFromConfig();
         HttpEntity<String,String> header = HttpEntity.create().build("Authorization",accessToken);
-        String orgId = contextConfig.getOrgId();
+        String orgId = contextConfig.orgId();
         if (Checker.isNotEmpty(orgId)){
             header.build("orgId",orgId);
         }
@@ -103,7 +103,7 @@ public class TicketLoader extends ZoHoStarter implements ZoHoBase {
         String url = "/api/v1/tickets";
         ContextConfig contextConfig = this.veryContextConfigAndNodeConfig();
         String accessToken = this.accessTokenFromConfig();
-        String orgId = contextConfig.getOrgId();
+        String orgId = contextConfig.orgId();
         HttpEntity<String,Object> form = this.getTickPageParam().build("limit",pageMaxSize);
         HttpEntity<String,String> heards = HttpEntity.create().build("orgId",orgId).build("Authorization",accessToken);
         ZoHoHttp http = ZoHoHttp.create(String.format(ZO_HO_BASE_URL,url), HttpType.GET,heards).header(heards).form(form);

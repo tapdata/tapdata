@@ -30,7 +30,7 @@ public class OrganizationFieldLoader extends ZoHoStarter implements ZoHoBase {
         ContextConfig contextConfig = super.veryContextConfigAndNodeConfig();
         HttpEntity<String,String> header = HttpEntity.create()
                 .build("Authorization",this.accessTokenFromConfig());
-        String orgId = contextConfig.getOrgId();
+        String orgId = contextConfig.orgId();
         if (Checker.isNotEmpty(orgId)){
             header.build("orgId",orgId);
         }

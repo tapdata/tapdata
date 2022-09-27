@@ -1,6 +1,7 @@
 package io.tapdata.zoho.entity;
 
 import io.tapdata.zoho.enums.HttpCode;
+import io.tapdata.zoho.service.zoho.ZoHoBase;
 import io.tapdata.zoho.utils.Checker;
 import io.tapdata.zoho.utils.ZoHoString;
 
@@ -42,7 +43,7 @@ public class TokenEntity extends HttpBaseEntity{
         Object refreshTokenObj = resultMap.get("refresh_token");
         Object tokenTypeObj =    resultMap.get("token_type");
         Object expiresInObj =    resultMap.get("expires_in");
-        return this.accessToken(Checker.isEmpty(accessTokenObj)?"":(String)accessTokenObj)
+        return this.accessToken(Checker.isEmpty(accessTokenObj)?"": ZoHoBase.builderAccessToken((String)accessTokenObj))
                    .refreshToken(Checker.isEmpty(refreshTokenObj)?"":(String)refreshTokenObj)
                    .tokenType(Checker.isEmpty(tokenTypeObj)?"":(String)tokenTypeObj)
                    .expiresIn(Checker.isEmpty(expiresInObj)?0:(Integer) expiresInObj)
@@ -51,7 +52,7 @@ public class TokenEntity extends HttpBaseEntity{
     }
 
     public TokenEntity accessToken(String accessToken){
-        this.accessToken = accessToken;
+        this.accessToken = ZoHoBase.builderAccessToken(accessToken);
         return this;
     }
     public TokenEntity refreshToken(String refreshToken){
