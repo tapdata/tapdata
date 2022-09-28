@@ -15,6 +15,7 @@
         <module>observable-module</module>
         <module>test-run-module</module>
         <module>deduction-module</module>
+        <module>proxy-client-module</module>
     </modules>
     <dependencies>
         <dependency>

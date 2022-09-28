@@ -3,6 +3,7 @@ package io.tapdata.pdk.apis.functions;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.pdk.apis.entity.Capability;
+import io.tapdata.pdk.apis.functions.connection.CommandCallbackFunction;
 import io.tapdata.pdk.apis.functions.connection.ConnectionCheckFunction;
 import io.tapdata.pdk.apis.functions.connection.ErrorHandleFunction;
 import io.tapdata.pdk.apis.functions.connection.GetCharsetsFunction;
@@ -23,8 +24,13 @@ public class ConnectionFunctions<T extends ConnectionFunctions<?>> extends Commo
     protected GetTableNamesFunction getTableNamesFunction;
     protected ConnectionCheckFunction connectionCheckFunction;
     protected GetCharsetsFunction getCharsetsFunction;
+    protected CommandCallbackFunction commandCallbackFunction;
     protected ErrorHandleFunction errorHandleFunction;
 
+    public T supportCommandCallbackFunction(CommandCallbackFunction function) {
+        commandCallbackFunction = function;
+        return (T) this;
+    }
     public T supportGetCharsetsFunction(GetCharsetsFunction function) {
         getCharsetsFunction = function;
         return (T) this;
@@ -52,6 +58,9 @@ public class ConnectionFunctions<T extends ConnectionFunctions<?>> extends Commo
 
     public GetCharsetsFunction getGetCharsetsFunction() {
         return getCharsetsFunction;
+    }
+    public CommandCallbackFunction getCommandCallbackFunction() {
+        return commandCallbackFunction;
     }
     public ErrorHandleFunction getErrorHandleFunction() {
         return errorHandleFunction;

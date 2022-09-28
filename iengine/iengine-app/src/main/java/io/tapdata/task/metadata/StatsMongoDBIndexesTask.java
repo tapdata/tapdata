@@ -80,7 +80,7 @@ public class StatsMongoDBIndexesTask implements Task {
 							queryTaskFilter.addCriteria(where("last_updated").gt(lastProcessOffset));
 						}
 
-						logger.info("Start stats create/delete indexes task, start offset is {}", lastProcessOffset == null ? lastProcessOffset : "scan all task.");
+//						logger.info("Start stats create/delete indexes task, start offset is {}", lastProcessOffset == null ? lastProcessOffset : "scan all task.");
 						for (Document scheduleTask : metaDatabase.getCollection(ConnectorConstant.SCHEDULE_TASK_COLLECTION).find(queryTaskFilter.getQueryObject()).sort(new Document("last_updated", 1))) {
 							if (MapUtils.isNotEmpty(scheduleTask) && scheduleTask.containsKey("task_data")) {
 								Document taskData = (Document) scheduleTask.get("task_data");
@@ -154,7 +154,7 @@ public class StatsMongoDBIndexesTask implements Task {
 							);
 						}
 
-						logger.info("Completed stats create/delete indexes task, last process offset is {}", lastProcessOffset);
+//						logger.info("Completed stats create/delete indexes task, last process offset is {}", lastProcessOffset);
 					}
 				}
 			}
@@ -165,7 +165,7 @@ public class StatsMongoDBIndexesTask implements Task {
 	}
 
 	private void statsMongoDBIndexes() {
-		logger.info("Start stats target mongodb indexes.");
+//		logger.info("Start stats target mongodb indexes.");
 		ClientMongoOperator clientMongoOperator = taskContext.getClientMongoOperator();
 
 		try {
@@ -255,7 +255,7 @@ public class StatsMongoDBIndexesTask implements Task {
 			throw new RuntimeException("Stats target mongodb indexes failed ", e);
 		}
 
-		logger.info("Completed stats target mongodb indexes.");
+//		logger.info("Completed stats target mongodb indexes.");
 	}
 
 	private void replaceInvalidKeys(Map<String, Object> map) {

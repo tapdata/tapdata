@@ -188,6 +188,7 @@ public class TaskSessionClassHolder implements Comparable<TaskSessionClassHolder
 	private AspectTaskEx newAspectTask(TaskDto task) {
 		try {
 			AspectTask aspectTask = taskClass.getConstructor().newInstance();
+			InstanceFactory.injectBean(aspectTask);
 			aspectTask.setTask(task);
 			return new AspectTaskEx(aspectTask);
 		} catch (InstantiationException | IllegalAccessException | InvocationTargetException |

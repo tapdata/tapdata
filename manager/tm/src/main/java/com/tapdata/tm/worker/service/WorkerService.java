@@ -10,13 +10,13 @@ import com.tapdata.manager.common.utils.StringUtils;
 import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.base.dto.Filter;
 import com.tapdata.tm.base.dto.Page;
-import com.tapdata.tm.commons.base.dto.SchedulableDto;
 import com.tapdata.tm.base.dto.Where;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.base.service.BaseService;
 import com.tapdata.tm.cluster.dto.ClusterStateDto;
 import com.tapdata.tm.cluster.dto.SystemInfo;
 import com.tapdata.tm.cluster.service.ClusterStateService;
+import com.tapdata.tm.commons.base.dto.SchedulableDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.dataflow.dto.DataFlowDto;
@@ -33,15 +33,10 @@ import com.tapdata.tm.worker.dto.WorkerDto;
 import com.tapdata.tm.worker.dto.WorkerProcessInfoDto;
 import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.repository.WorkerRepository;
-
-import java.math.BigInteger;
-import java.util.*;
-import java.util.stream.Collectors;
-
 import com.tapdata.tm.worker.vo.ApiWorkerStatusVo;
+import com.tapdata.tm.worker.vo.CalculationEngineVo;
 import io.firedome.MultiTaggedCounter;
 import io.micrometer.core.instrument.Metrics;
-import com.tapdata.tm.worker.vo.CalculationEngineVo;
 import lombok.NonNull;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
@@ -54,6 +49,10 @@ import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
+
+import java.math.BigInteger;
+import java.util.*;
+import java.util.stream.Collectors;
 
 /**
  * @author lg<lirufei0808 @ gmail.com>
@@ -76,6 +75,7 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
     private SettingsService settingsService;
     @Autowired
     private ScheduleTasksService scheduleTasksService;
+    private TaskService taskService;
 
     @Autowired
     private TaskService taskService;
@@ -261,6 +261,8 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
 
     private CalculationEngineVo calculationEngine(SchedulableDto entity, UserDetail userDetail) {
         CalculationEngineVo calculationEngineVo = new CalculationEngineVo();
+        String filter;
+        int availableNum;
 
         Object jobHeartTimeout = settingsService.getByCategoryAndKey("Job", "jobHeartTimeout");
         Object buildProfile = settingsService.getByCategoryAndKey("System", "buildProfile");
@@ -296,28 +298,6 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
             }
         }
         // 53迭代Task上增加了指定Flow Engine的功能 --end
-
-        Criteria where = Criteria.where("worker_type").is("connector")
-                .and("ping_time").gte(findTime)
-                .and("isDeleted").ne(true)
-                .and("stopping").ne(true);
-        if (isCloud) {
-            where.and("user_id").is(userDetail.getUserId());
-        }
-
-        if (isCloud && entity.getAgentTags() != null && entity.getAgentTags().size() > 0) {
-            List<String> agentTags = new ArrayList<>();
-            for (int i = 0; i < entity.getAgentTags().size(); i++) {
-                String s = entity.getAgentTags().get(i);
-                if (!s.equals("unidirectional")) {
-                    agentTags.add(s);
-                }
-            }
-            where.and("agentTags").all(agentTags);
-        }
-
-        Query query = Query.query(where);
-        List<Worker> workers = repository.findAll(query);
         BasicDBObject thread = new BasicDBObject();
         //优先调度到用户自己的agent上。用于内部测试使用。不要修改此逻辑！！！
         //和steven确认了 之前指定agent的逻辑是 work中process_id存的是entity.getUserId()
@@ -329,6 +309,9 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
         Worker selfWorkers = repository.findOne(Query.query(whereSelf)).orElse(null);
         ArrayList<BasicDBObject> threadLog = new ArrayList<>();
         if(selfWorkers != null){
+            filter = whereSelf.toString();
+            availableNum = 1;
+
             thread.append("process_id",selfWorkers.getProcessId());
             threadLog.add(new BasicDBObject()
                     .append("process_id", selfWorkers.getProcessId())
@@ -336,16 +319,45 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
                     .append("running_thread", selfWorkers.getRunningThread())
             );
         } else {
-            boolean isFirst = true;
-            for (Worker worker : workers) {
+            Criteria where = Criteria.where("worker_type").is("connector")
+                    .and("ping_time").gte(findTime)
+                    .and("isDeleted").ne(true)
+                    .and("stopping").ne(true);
+            if (isCloud) {
+                where.and("user_id").is(userDetail.getUserId());
+            }
+
+            if (isCloud && entity.getAgentTags() != null && entity.getAgentTags().size() > 0) {
+                List<String> agentTags = new ArrayList<>();
+                for (int i = 0; i < entity.getAgentTags().size(); i++) {
+                    String s = entity.getAgentTags().get(i);
+                    if (!s.equals("unidirectional")) {
+                        agentTags.add(s);
+                    }
+                }
+                where.and("agentTags").all(agentTags);
+            }
+
+            Query query = Query.query(where);
+            List<Worker> workers = repository.findAll(query);
+            for (int i = 0; i < workers.size(); i++) {
+                Worker worker = workers.get(i);
                 if (worker.getWeight() == null) {
                     worker.setWeight(1);
                 }
                 ArrayList<String> status = new ArrayList<>();
                 status.add("scheduled");
                 status.add("running");
-                Where q = new Where().and("status", new BasicDBObject().append("$in", status)).and("agentId", worker.getProcessId());
-                long workNum = dataFlowService.count(q, userService.loadUserById(new ObjectId(entity.getUserId())));
+                Where q = new Where().and("status", new BasicDBObject().append("$in", status))
+                        .and("agentId", worker.getProcessId());
+                long workNum;
+                if (isCloud) {
+                    workNum = dataFlowService.count(q, userService.loadUserById(new ObjectId(entity.getUserId())));
+                } else {
+                    workNum = taskService.count(Query.query(Criteria.where("agentId").is(worker.getProcessId())
+                            .and("is_deleted").ne(true)
+                            .and("status").in(Lists.newArrayList(TaskDto.STATUS_RUNNING, TaskDto.STATUS_STOPPING, TaskDto.STATUS_ERROR))));
+                }
                 worker.setRunningThread((int) workNum);
                 threadLog.add(new BasicDBObject()
                         .append("process_id", worker.getProcessId())
@@ -353,15 +365,17 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
                         .append("running_thread", worker.getRunningThread())
                 );
                 float load = (float) (worker.getRunningThread() / worker.getWeight());
-                if (isFirst) {
+                if (i == 0) {
                     thread.append("load", load);
                     thread.append("process_id", worker.getProcessId());
-                    isFirst = false;
                 } else if (load < (float) thread.get("load")) {
                     thread.append("load", load);
                     thread.append("process_id", worker.getProcessId());
                 }
             }
+
+            filter = where.toString();
+            availableNum = workers.size();
         }
 
         String processId = (String) thread.get("process_id");
@@ -370,9 +384,9 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
         entity.setScheduleTime(System.currentTimeMillis());
 
         calculationEngineVo.setProcessId(processId);
-        calculationEngineVo.setFilter(where.toString());
+        calculationEngineVo.setFilter(filter);
         calculationEngineVo.setThreadLog(threadLog);
-        calculationEngineVo.setAvailable(workers.size());
+        calculationEngineVo.setAvailable(availableNum);
         calculationEngineVo.setManually(false);
 
         return calculationEngineVo;

@@ -32,10 +32,10 @@ public class ExecutorsManager {
 
     private void init(int cpuCores) {
         if(initDone.compareAndSet(false, true)) {
-            int coreSize = CommonUtils.getPropertyInt("pdk_thread_core_size", cpuCores);
+            int coreSize = CommonUtils.getPropertyInt("pdk_thread_core_size", 10);
             int maximumPoolSize = CommonUtils.getPropertyInt("pdk_thread_maximum_size", 10);
             int keepAlive = CommonUtils.getPropertyInt("pdk_thread_keepAlive", 120);
-            int queueSize = CommonUtils.getPropertyInt("pdk_thread_queue_size", 100);
+            int queueSize = CommonUtils.getPropertyInt("pdk_thread_queue_size", 1000);
             ThreadPoolExecutor theExecutorService = new ThreadPoolExecutor(coreSize, maximumPoolSize, keepAlive, TimeUnit.SECONDS, new LinkedBlockingDeque<>(queueSize), new io.tapdata.pdk.core.executor.ThreadFactory("EM"), (r, executor) -> {
                 TapLogger.error(TAG, "Thread is rejected, runnable {} pool {}", r, executor);
             });

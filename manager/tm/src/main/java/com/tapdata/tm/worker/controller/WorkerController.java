@@ -34,6 +34,15 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/Workers")
 public class WorkerController extends BaseController {
+    @PostMapping("/test")
+    public String postTest() {
+        return "post success";
+    }
+
+    @GetMapping("/test")
+    public String getTest() {
+        return "get success";
+    }
 
     private final UserLogService userLogService;
     private WorkerService workerService;

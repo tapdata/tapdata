@@ -46,6 +46,7 @@ import org.bson.types.ObjectId;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
@@ -70,7 +71,10 @@ public class UserService extends BaseService<UserDto, User, ObjectId, UserReposi
     public UserService(@NonNull UserRepository repository) {
         super(repository, UserDto.class, User.class);
     }
-
+    @Value("${spring.data.mongodb.uri}")
+    private String mongodbUri;
+    @Value("${server.port}")
+    private String serverPort;
     @Autowired
     TcmService tcmService;
 
@@ -448,4 +452,11 @@ public class UserService extends BaseService<UserDto, User, ObjectId, UserReposi
         UpdateResult updateResult = repository.getMongoOperations().updateFirst(query, update, User.class);
     }
 
+    public String getMongodbUri() {
+        return mongodbUri;
+    }
+
+    public String getServerPort() {
+        return serverPort;
+    }
 }
