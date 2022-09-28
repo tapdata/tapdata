@@ -688,8 +688,8 @@ public class MeasurementServiceV2 {
         // TODO(dexter): find out a more elegant way to get the aggregate size
         // match should be at the first param, sort should be the second while group be the last
         Aggregation cntAggregation = Aggregation.newAggregation(match, group);
-        CloseableIterator<MeasurementEntity> results = mongoOperations.aggregateStream(cntAggregation, MeasurementEntity.COLLECTION_NAME, MeasurementEntity.class);
-        long total = results.stream().count();
+        AggregationResults<MeasurementEntity> results = mongoOperations.aggregate(cntAggregation, MeasurementEntity.COLLECTION_NAME, MeasurementEntity.class);
+        long total = results.getMappedResults().size();
         if (total == 0) {
             return new Page<>(0, Collections.emptyList());
         }

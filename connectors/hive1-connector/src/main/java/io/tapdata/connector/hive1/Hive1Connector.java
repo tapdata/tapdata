@@ -202,14 +202,7 @@ public class Hive1Connector extends ConnectorBase {
                 String escapeFieldStr = "`" + field + "`";
                 clusterBySB.append(escapeFieldStr).append(",");
             }
-//            List<String> pks = (List<String>) primaryKeys;
-//            for (int i = 0; i < pks.size(); i++) {
-//                String field = pks.get(i);
-//                String escapeFieldStr = "`" + field + "`";
-//                clusterBySB.append(escapeFieldStr);
-//            }
         } else {
-//            logger.warn("Hive as target must have primary key, will use all fields");
             LinkedHashMap<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
 
             List<Map.Entry<String, TapField>> nameFields = nameFieldMap.entrySet().stream().sorted(Comparator.comparing(v ->
@@ -219,7 +212,6 @@ public class Hive1Connector extends ConnectorBase {
             for (int i = 0; i < nameFields.size(); i++) {
                 Map.Entry<String, TapField> tapFieldEntry = nameFields.get(i);
                 TapField field = tapFieldEntry.getValue();
-//                RelateDatabaseField field = fields.get(i);
                 String escapeFieldStr = "`" + field.getName() + "`";
                 clusterBySB.append(escapeFieldStr);
                 if (i < (nameFields.size() - 1)) {

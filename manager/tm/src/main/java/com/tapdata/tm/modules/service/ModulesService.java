@@ -314,6 +314,22 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
 
             //设置上pdk的APIserverkey属性
             for (DataSourceConnectionDto dataSourceConnectionDto : dataSourceConnectionDtoList) {
+
+                Map<String, Object> config = dataSourceConnectionDto.getConfig();
+                if (dataSourceConnectionDto.getDatabase_type().toLowerCase(Locale.ROOT).contains("mongo") && config.get("uri") == null) {
+                    StringBuilder sb = new StringBuilder("mongodb://");
+                    if (config.get("user") != null) {
+                        sb.append(config.get("user")).append(":")
+                                .append(config.get("password")).append("@");
+                    }
+                    sb.append(config.get("host")).append("/").append(config.get("database"));
+                    if (config.get("additionalString") != null) {
+                        sb.append("?").append(config.get("additionalString"));
+                    }
+
+                    config.put("uri", sb.toString());
+
+                }
                 DataSourceDefinitionDto definitionDto = dataSourceDefinitionService.getByDataSourceType(dataSourceConnectionDto.getDatabase_type(), userDetail);
                 Map<String, Object> properties = definitionDto.getProperties();
                 LinkedHashMap connection = (LinkedHashMap) properties.get("connection");

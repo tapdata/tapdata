@@ -19,6 +19,7 @@ import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.aspect.TaskResetAspect;
 import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.entity.logger.TapLogger;
+import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.entity.utils.cache.KVMap;
 import io.tapdata.flow.engine.V2.entity.PdkStateMap;
@@ -34,6 +35,7 @@ import io.tapdata.pdk.core.api.PDKIntegration;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
 import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.schema.PdkTableMap;
+import io.tapdata.schema.TapTableMap;
 import io.tapdata.schema.TapTableUtil;
 import io.tapdata.websocket.EventHandlerAnnotation;
 import io.tapdata.websocket.WebSocketEventResult;
@@ -44,6 +46,7 @@ import org.springframework.data.mongodb.core.query.Query;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import static org.springframework.data.mongodb.core.query.Criteria.where;
 
@@ -150,6 +153,8 @@ public class DataSyncEventHandler extends BaseEventHandler {
 		PdkStateMap globalStateMap = PdkStateMap.globalStateMap(HazelcastTaskService.getHazelcastInstance());
 		PdkUtil.downloadPdkFileIfNeed((HttpClientMongoOperator) clientMongoOperator,
 				databaseType.getPdkHash(), databaseType.getJarFile(), databaseType.getJarRid());
+		TapTableMap<String, TapTable> tapTableMapByNodeId = TapTableUtil.getTapTableMapByNodeId(node.getId());
+		PdkTableMap pdkTableMap = new PdkTableMap(tapTableMapByNodeId);
 		ConnectorNode connectorNode = PDKIntegration.createConnectorBuilder()
 				.withDagId(taskDto.getId().toHexString())
 				.withAssociateId(this.getClass().getSimpleName() + "-" + node.getId())
@@ -159,7 +164,7 @@ public class DataSyncEventHandler extends BaseEventHandler {
 				.withGroup(databaseType.getGroup())
 				.withVersion(databaseType.getVersion())
 				.withPdkId(databaseType.getPdkId())
-				.withTableMap(new PdkTableMap(TapTableUtil.getTapTableMapByNodeId(node.getId())))
+				.withTableMap(pdkTableMap)
 				.withStateMap(pdkStateMap)
 				.withGlobalStateMap(globalStateMap)
 				.build();
@@ -185,6 +190,7 @@ public class DataSyncEventHandler extends BaseEventHandler {
 
 			PDKInvocationMonitor.invoke(connectorNode, PDKMethod.STOP, connectorNode::connectorStop, TAG);
 		} finally {
+			tapTableMapByNodeId.reset();
 			PDKIntegration.releaseAssociateId(this.getClass().getSimpleName() + "-" + node.getId());
 		}
 	}

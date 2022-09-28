@@ -215,6 +215,7 @@ public abstract class LogMiner implements ILogMiner {
             Map<String, List<RedoLogContent>> redoLogContents = logTransaction.getRedoLogContents();
             for (List<RedoLogContent> redoLogContentList : redoLogContents.values()) {
                 for (RedoLogContent redoLogContent : redoLogContentList) {
+                    lastRedoLogContent = redoLogContent;
                     if (EmptyKit.isNull(Objects.requireNonNull(redoLogContent).getRedoRecord()) && !"DDL".equals(Objects.requireNonNull(redoLogContent).getOperation())) {
                         continue;
                     }
@@ -249,6 +250,7 @@ public abstract class LogMiner implements ILogMiner {
                             }
                             try {
                                 long referenceTime = redoLogContent.getTimestamp().getTime();
+                                TapLogger.warn(TAG, "DDL [{}] is synchronizing...", redoLogContent.getSqlRedo());
                                 DDLFactory.ddlToTapDDLEvent(ddlParserType, redoLogContent.getSqlRedo(),
                                         DDL_WRAPPER_CONFIG,
                                         tableMap,
@@ -264,7 +266,6 @@ public abstract class LogMiner implements ILogMiner {
                         default:
                             break;
                     }
-                    lastRedoLogContent = redoLogContent;
                 }
             }
             submitEvent(lastRedoLogContent, eventList);

@@ -165,7 +165,7 @@ public class ActivemqService extends AbstractMqService {
         AtomicLong update = new AtomicLong(0);
         AtomicLong delete = new AtomicLong(0);
         WriteListResult<TapRecordEvent> listResult = new WriteListResult<>();
-        Session session = activemqConnection.createSession(false, Session.AUTO_ACKNOWLEDGE);
+        Session session = activemqConnection.createSession(true, Session.AUTO_ACKNOWLEDGE);
         MessageProducer producer = session.createProducer(null);
         String tableName = tapTable.getId();
         Destination destination = session.createQueue(tableName);
@@ -201,6 +201,7 @@ public class ActivemqService extends AbstractMqService {
                 listResult.addError(event, e);
             }
         }
+        session.commit();
         writeListResultConsumer.accept(listResult.insertedCount(insert.get()).modifiedCount(update.get()).removedCount(delete.get()));
     }
 

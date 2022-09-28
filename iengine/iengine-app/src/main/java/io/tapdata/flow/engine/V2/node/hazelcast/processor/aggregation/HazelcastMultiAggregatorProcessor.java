@@ -67,6 +67,8 @@ public class HazelcastMultiAggregatorProcessor extends HazelcastBaseNode {
 
     private TapRecordEvent originalTapRecordEvent;
 
+    private TapValueTransform tapValueTransform;
+
     public HazelcastMultiAggregatorProcessor(ProcessorBaseContext processorBaseContext) {
         super(processorBaseContext);
         Node<?> node = processorBaseContext.getNode();
@@ -183,7 +185,7 @@ public class HazelcastMultiAggregatorProcessor extends HazelcastBaseNode {
             }
             return true;
         }
-        transformFromTapValue(tapdataEvent, null);
+        tapValueTransform = transformFromTapValue(tapdataEvent);
         if (tapdataEvent.getTapEvent() instanceof TapRecordEvent) {
             originalTapRecordEvent = (TapRecordEvent) tapdataEvent.getTapEvent();
         }
@@ -1033,7 +1035,7 @@ public class HazelcastMultiAggregatorProcessor extends HazelcastBaseNode {
                             }
                         }
                     }
-                    transformToTapValue(event, processorBaseContext.getTapTableMap(), processorBaseContext.getNode().getId());
+                    transformToTapValue(event, processorBaseContext.getTapTableMap(), processorBaseContext.getNode().getId(), tapValueTransform);
                     offer(event);
                 } else {
                     throw new RuntimeException("not implement");

@@ -20,6 +20,7 @@ import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.gridfs.GridFsResource;
 import org.springframework.data.mongodb.gridfs.GridFsTemplate;
+import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 
 import javax.annotation.Resource;
@@ -97,8 +98,7 @@ public class FileService {
      */
     public long readFileById(GridFSFile gridFSFile, OutputStream outputStream) {
         GridFsResource resource = gridFsTemplate.getResource(gridFSFile);
-        try {
-            InputStream inputStream = resource.getInputStream();
+        try (InputStream inputStream = resource.getInputStream();) {
             long count = IOUtils.copy(inputStream, outputStream);
 
             IOUtils.closeQuietly(inputStream);
@@ -123,12 +123,9 @@ public class FileService {
 
         response.setContentType("application/octet-stream");
         response.addHeader("Content-Disposition", "attachment; filename=" + URLEncoder.encode(resource.getFilename(), "UTF-8"));
-        try {
-            InputStream inputStream = resource.getInputStream();
+        try (InputStream inputStream = resource.getInputStream()) {
             long count = IOUtils.copy(inputStream, response.getOutputStream());
-
             IOUtils.closeQuietly(inputStream);
-
             return count;
         } catch (IOException e) {
             log.error("Read file({}) failed", gridFSFile.getId(), e);
@@ -155,13 +152,13 @@ public class FileService {
     }
     public void viewImg(ObjectId fileId, HttpServletResponse response) {
 
-        try {
-            GridFSFile file = gridFsTemplate.findOne(Query.query(Criteria.where("_id").is(fileId)));
-            if (null == file) {
-                throw new RuntimeException("ID对应文件不存在");
-            }
-            String fileName = file.getFilename();
-            OutputStream out = response.getOutputStream();
+        GridFSFile file = gridFsTemplate.findOne(Query.query(Criteria.where("_id").is(fileId)));
+        if (null == file) {
+            throw new RuntimeException("ID对应文件不存在");
+        }
+        String fileName = file.getFilename();
+        try (InputStream in = convertGridFSFile2Resource(file).getInputStream();
+             OutputStream out = response.getOutputStream()) {
             //取后缀
             String filename = file.getFilename();
             String fileType = filename.substring(filename.lastIndexOf(".") + 1);
@@ -176,10 +173,9 @@ public class FileService {
                 log.info("图片类型,进入预览");
                 response.setHeader("Content-disposition", "inline; filename=" + fileName);
                 FunctionUtils.isTureOrFalse(file.getFilename().contains(".svg")).trueOrFalseHandle(
-                        () -> {response.setContentType("image/svg+xml");},
-                        () ->{response.setContentType("image/jpeg");});
+                        () -> response.setContentType("image/svg+xml"),
+                        () -> response.setContentType("image/jpeg"));
                 // 不进行压缩的文件大小，单位为bit
-                InputStream in = convertGridFSFile2Resource(file).getInputStream();
                 int contentLength = (int) convertGridFSFile2Resource(file).contentLength();
                 byte[] data = new byte[contentLength];
                 in.read(data);
@@ -188,19 +184,16 @@ public class FileService {
                 out.write(data);
                 /** 采用压缩方式，则需注释调这段代码-结束 **/
                 out.flush();
-                out.close();
             } else {
                 log.info("非图片类型,进入下载");
                 //转成GridFsResource类取文件类型
-                response.setContentType("application/octet-stream");
+                response.setContentType(MediaType.APPLICATION_OCTET_STREAM_VALUE);
                 response.setHeader("Content-Disposition", "attachment; filename=" + fileName);
                 //文件长度
                 response.setHeader("Content-Length", String.valueOf(file.getLength()));
                 try {
                     //IO复制
-                    InputStream in = convertGridFSFile2Resource(file).getInputStream();
-                    IOUtils.copy(
-                            in, out);
+                    IOUtils.copy(in, out);
                 } catch (IOException e) {
                     log.error(e.getMessage());
                 }
@@ -213,14 +206,14 @@ public class FileService {
 
     public void viewImg1(String json, HttpServletResponse response, String fileName) {
 
-        try {
+        try (OutputStream out = response.getOutputStream()) {
             if (StringUtils.isBlank(fileName)) {
                 fileName = "task.json.gz";
             }
             String codeFileName = URLEncoder.encode(fileName, "UTF-8");
-            OutputStream out = response.getOutputStream();
+
             response.setHeader("Content-disposition", "inline; filename=" + codeFileName);
-            response.setContentType("application/octet-stream");
+            response.setContentType(MediaType.APPLICATION_OCTET_STREAM_VALUE);
             // 不进行压缩的文件大小，单位为bit
             byte[] bytes = json.getBytes(StandardCharsets.UTF_8);
             byte[] gzip = GZIPUtil.gzip(bytes);
@@ -229,7 +222,6 @@ public class FileService {
             out.write(gzip);
             /** 采用压缩方式，则需注释调这段代码-结束 **/
             out.flush();
-            out.close();
         } catch (Exception e) {
             log.error("viewImg1 error", e);
         }

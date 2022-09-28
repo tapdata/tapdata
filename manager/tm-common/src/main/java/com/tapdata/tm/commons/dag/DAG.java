@@ -947,7 +947,8 @@ public class DAG implements Serializable, Cloneable {
 
     public DatabaseNode getSourceNode(String nodeId) {
         String sourceNodeId = getSourceNodeIdByNode(nodeId);
-        return (DatabaseNode) graph.getNode(sourceNodeId);
+        Node<?> node = graph.getNode(sourceNodeId);
+        return node instanceof DatabaseNode ? (DatabaseNode) node : null;
     }
 
     private String getSourceNodeIdByNode(String nodeId) {
@@ -979,7 +980,8 @@ public class DAG implements Serializable, Cloneable {
     }
 
     public DatabaseNode getTargetNode(String nodeId) {
-        return (DatabaseNode) graph.getNode(getTargetNodeIdByMigrateNode(nodeId));
+        Node<?> node = graph.getNode(getTargetNodeIdByMigrateNode(nodeId));
+        return node instanceof DatabaseNode ? (DatabaseNode) node : null;
     }
 
     @Data
