@@ -239,26 +239,27 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
         // 53迭代Task上增加了指定Flow Engine的功能 --start
         String agentId = entity.getAgentId();
         if (StringUtils.isNotBlank(agentId)) {
-            calculationEngineVo.setProcessId(agentId);
-            calculationEngineVo.setManually(true);
-
             Criteria where = Criteria.where("worker_type").is("connector")
                     .and("ping_time").gte(findTime)
                     .and("isDeleted").ne(true)
                     .and("stopping").ne(true)
                     .and("process_id").is(agentId);
-            calculationEngineVo.setFilter(where.toString());
             Worker worker = repository.findOne(Query.query(where)).orElse(null);
-            ArrayList<BasicDBObject> threadLog = new ArrayList<>();
-            assert worker != null;
-            threadLog.add(new BasicDBObject()
-                    .append("process_id", worker.getProcessId())
-                    .append("weight", worker.getWeight())
-                    .append("running_thread", worker.getRunningThread())
-            );
-            calculationEngineVo.setThreadLog(threadLog);
+            if (Objects.nonNull(worker)) {
+                calculationEngineVo.setProcessId(agentId);
+                calculationEngineVo.setManually(true);
 
-            return calculationEngineVo;
+                calculationEngineVo.setFilter(where.toString());
+                ArrayList<BasicDBObject> threadLog = new ArrayList<>();
+                threadLog.add(new BasicDBObject()
+                        .append("process_id", worker.getProcessId())
+                        .append("weight", worker.getWeight())
+                        .append("running_thread", worker.getRunningThread())
+                );
+                calculationEngineVo.setThreadLog(threadLog);
+
+                return calculationEngineVo;
+            }
         }
         // 53迭代Task上增加了指定Flow Engine的功能 --end
 

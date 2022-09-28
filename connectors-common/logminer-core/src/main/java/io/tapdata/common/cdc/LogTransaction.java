@@ -95,8 +95,8 @@ public class LogTransaction {
                         .name("xid" + xid)
                         .averageKey(xid)
                         .averageValue(Collections.singletonList(redoLogContent))
-                        .entries(2000000L)
-                        .maxBloatFactor(50)
+                        .entries(500000L)
+                        .maxBloatFactor(200)
                         .createPersistedTo(cacheFile);
                 chronicleMap.putAll(redoLogContents);
             }
