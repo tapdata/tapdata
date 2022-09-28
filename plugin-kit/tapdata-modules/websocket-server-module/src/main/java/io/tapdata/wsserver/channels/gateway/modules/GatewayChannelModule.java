@@ -31,7 +31,6 @@ import io.tapdata.wsserver.channels.websocket.utils.NetUtils;
 import io.tapdata.wsserver.eventbus.EventBusHolder;
 
 import java.net.InetSocketAddress;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -184,8 +183,8 @@ public class GatewayChannelModule implements MemoryFetcher {
     }
 
     @Override
-    public DataMap memory(List<String> mapKeys, String memoryLevel) {
-        DataMap dataMap = DataMap.create();
+    public DataMap memory(String keyRegex, String memoryLevel) {
+        DataMap dataMap = DataMap.create().keyRegex(keyRegex);
         for(Map.Entry<String, ChannelHandlerContext> entry : userIdChannelMap.entrySet()) {
             dataMap.put(entry.getKey(), entry.getValue().toString());
         }

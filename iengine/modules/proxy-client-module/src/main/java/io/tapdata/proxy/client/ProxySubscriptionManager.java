@@ -5,19 +5,18 @@ import com.tapdata.constant.ConfigurationCenter;
 import io.tapdata.entity.annotations.Bean;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.logger.TapLogger;
+import io.tapdata.entity.memory.MemoryFetcher;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.modules.api.net.data.Data;
 import io.tapdata.modules.api.net.data.IncomingData;
 import io.tapdata.modules.api.net.data.OutgoingData;
-import io.tapdata.modules.api.net.data.Result;
 import io.tapdata.modules.api.net.error.NetErrors;
 import io.tapdata.modules.api.net.message.CommandResultEntity;
 import io.tapdata.modules.api.pdk.PDKUtils;
 import io.tapdata.modules.api.proxy.data.CommandReceived;
 import io.tapdata.modules.api.proxy.data.NewDataReceived;
 import io.tapdata.modules.api.proxy.data.NodeSubscribeInfo;
-import io.tapdata.modules.api.proxy.data.TestItem;
 import io.tapdata.pdk.apis.entity.CommandInfo;
 import io.tapdata.pdk.apis.entity.CommandResult;
 import io.tapdata.pdk.apis.functions.PDKMethod;
@@ -36,10 +35,9 @@ import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Function;
 
 @Bean
-public class ProxySubscriptionManager {
+public class ProxySubscriptionManager implements MemoryFetcher {
 	private static final String TAG = ProxySubscriptionManager.class.getSimpleName();
 	private final ConcurrentHashSet<TaskSubscribeInfo> taskSubscribeInfos = new ConcurrentHashSet<>();
 	private ConcurrentHashMap<String, List<TaskSubscribeInfo>> typeConnectionIdSubscribeInfosMap = new ConcurrentHashMap<>();
@@ -274,5 +272,18 @@ public class ProxySubscriptionManager {
 
 	public ConcurrentHashMap<String, List<TaskSubscribeInfo>> getTypeConnectionIdSubscribeInfosMap() {
 		return typeConnectionIdSubscribeInfosMap;
+	}
+
+	@Override
+	public DataMap memory(String keyRegex, String memoryLevel) {
+		DataMap dataMap = DataMap.create().keyRegex(keyRegex)
+				.kv("workingFuture", workingFuture.toString())
+				.kv("needSync", needSync.get())
+//				.kv("imClient", imClient.memory(keyRegex, memoryLevel))
+				;
+
+		//TODO not finished
+
+		return null;
 	}
 }

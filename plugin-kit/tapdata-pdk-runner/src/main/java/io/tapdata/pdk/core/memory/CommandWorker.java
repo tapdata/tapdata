@@ -75,7 +75,7 @@ public class CommandWorker implements Runnable {
         String outputType = execution.getOutputType();
         String outputPath = execution.getOutputFile();
 
-        String outputString = toString(finalMap, execution.getMapKeys(), execution.getMemoryLevel());
+        String outputString = toString(finalMap, execution.getKeyRegex(), execution.getMemoryLevel());
 
         if(outputPath != null) {
             File outputFile = new File(outputPath);
@@ -95,20 +95,20 @@ public class CommandWorker implements Runnable {
         }
     }
 
-    public String output(List<String> mapKeys) {
-        return output(mapKeys, null);
+    public String output(String keyRegex) {
+        return output(keyRegex, null);
     }
-    public String output(List<String> mapKeys, String mapType) {
-        return toString(keyMemoryFetcherMap, mapKeys, mapType);
+    public String output(String keyRegex, String mapType) {
+        return toString(keyMemoryFetcherMap, keyRegex, mapType);
     }
 
-    private String toString(Map<String, MemoryFetcher> finalMap, List<String> mapKeys, String mapType) {
+    private String toString(Map<String, MemoryFetcher> finalMap, String keyRegex, String mapType) {
         if(mapType == null) {
             mapType = MemoryFetcher.MEMORY_LEVEL_SUMMARY;
         }
         DataMap allMap = DataMap.create();
         for(Map.Entry<String, MemoryFetcher> entry : finalMap.entrySet()) {
-            allMap.kv(entry.getKey(), entry.getValue().memory(mapKeys, mapType));
+            allMap.kv(entry.getKey(), entry.getValue().memory(keyRegex, mapType));
         }
         return JSON.toJSONString(allMap, true);
     }
