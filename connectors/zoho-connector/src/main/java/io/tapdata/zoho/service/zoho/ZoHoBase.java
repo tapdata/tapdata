@@ -1,6 +1,7 @@
 package io.tapdata.zoho.service.zoho;
 
 public interface ZoHoBase {
+    String AUTHORIZATION_KEY = "Authorization";
     String ZO_HO_BASE_URL = "https://desk.zoho.com.cn%s";
     String ZO_HO_BASE_TOKEN_URL="https://accounts.zoho.com.cn%s";
     public String ZO_HO_ACCESS_TOKEN_PREFIX = "Zoho-oauthtoken ";

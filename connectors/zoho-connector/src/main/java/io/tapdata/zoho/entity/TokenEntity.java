@@ -19,7 +19,7 @@ public class TokenEntity extends HttpBaseEntity{
     }
     public TokenEntity entity(HttpResult result){
         if (Checker.isEmpty(result) || !HttpCode.SUCCEED.getCode().equals(result.getCode())) {
-            Map<String, Object> postResult = result.getResult();
+            Map<String, Object> postResult = (Map<String, Object>) result.getResult();
             //取通过Http请求过来的error属性
             /**
              * {
@@ -38,7 +38,7 @@ public class TokenEntity extends HttpBaseEntity{
                         .code(Checker.isEmpty(code)?"ERROR":httpCode.getCode());
 
         }
-        Map<String,Object> resultMap = result.getResult();
+        Map<String,Object> resultMap = (Map<String, Object>) result.getResult();
         Object accessTokenObj =  resultMap.get("access_token");
         Object refreshTokenObj = resultMap.get("refresh_token");
         Object tokenTypeObj =    resultMap.get("token_type");

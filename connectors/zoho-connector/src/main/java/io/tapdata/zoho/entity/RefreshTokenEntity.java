@@ -8,7 +8,6 @@ import java.io.Serializable;
 import java.util.HashMap;
 import java.util.Map;
 
-@Data
 public class RefreshTokenEntity extends HttpBaseEntity implements Serializable {
     private final static long serialVersionID = 1L;
     /**
@@ -77,5 +76,37 @@ public class RefreshTokenEntity extends HttpBaseEntity implements Serializable {
     public RefreshTokenEntity code(String code){
         this.code = code;
         return this;
+    }
+
+    public String getAccessToken() {
+        return accessToken;
+    }
+
+    public void setAccessToken(String accessToken) {
+        this.accessToken = accessToken;
+    }
+
+    public String getApiDomain() {
+        return apiDomain;
+    }
+
+    public void setApiDomain(String apiDomain) {
+        this.apiDomain = apiDomain;
+    }
+
+    public String getTokenType() {
+        return tokenType;
+    }
+
+    public void setTokenType(String tokenType) {
+        this.tokenType = tokenType;
+    }
+
+    public int getExpiresIn() {
+        return expiresIn;
+    }
+
+    public void setExpiresIn(int expiresIn) {
+        this.expiresIn = expiresIn;
     }
 }

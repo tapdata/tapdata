@@ -59,7 +59,7 @@ public class RefreshTokenCommand extends ConfigContextChecker<RefreshTokenEntity
     protected CommandResultV2 commandResult(RefreshTokenEntity entity) {
         Map<String, Object> stringObjectHashMap = new HashMap<>();
         stringObjectHashMap.put("accessToken", map(entry("data",entity.accessToken())));
-        stringObjectHashMap.put("getTokenMsg", map(entry("data", HttpCode.message(this.language,entity.code()))));
+        stringObjectHashMap.put("getRefreshMsg", map(entry("data", HttpCode.message(this.language,entity.code()))));
         return CommandResultV2.create(map(entry("setValue",stringObjectHashMap)));
     }
 }

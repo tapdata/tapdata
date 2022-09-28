@@ -75,7 +75,7 @@
         },
         "getTokenButton": {
           "type": "void",
-          "title": "${refreshTokenButton}",
+          "title": " ",
           "x-decorator": "FormItem",
           "x-component-props": {
             "onClick": "{{useAsyncDataSourceByConfig({service: getTokenCommand, withoutField: true}, $values, $form, { command: 'TokenCommand', fill: ['refreshToken', 'accessToken'] })}}"
@@ -99,7 +99,7 @@
           "x-component": "Button",
           "x-index": 41
         },
-        "getTokenButtonMessage": {
+        "getTokenMsg": {
           "type": "String",
           "title": " ",
           "x-decorator": "FormItem",
@@ -122,21 +122,43 @@
         },
         "getRefreshTokenButton": {
           "type": "void",
-          "title": "${refreshTokenButton}",
+          "title": " ",
           "x-decorator": "FormItem",
           "x-component-props": {
-            "onClick": "{{useAsyncDataSourceByConfig({service: refreshTokenCommand, withoutField: true}, {name:'getRefreshTokenButton'}, $values, $form, { command: 'refreshTokenCommand', fill: ['refreshToken', 'accessToken'] })}}"
+            "onClick": "{{useAsyncDataSourceByConfig({service: refreshTokenCommand, withoutField: true}, {name:'getRefreshTokenButton'}, $values, $form, { command: 'RefreshTokenCommand', fill: ['accessToken','getRefreshMsg'] })}}"
           },
           "x-reactions": [{
+            "dependencies": ["refreshToken"],
             "fulfill": {
               "state": {
                 "visible": "{{isEdit}}"
               }
             }
           }],
-          "x-content": "FDSAJKFDSAJLKFDSAJLKFDSAJ",
+          "x-content": "重新授权",
           "x-component": "Button",
           "x-index": 43
+        },
+        "getRefreshMsg": {
+          "type": "String",
+          "title": " ",
+          "x-decorator": "FormItem",
+          "x-decorator-props": {
+            "colon": false
+          },
+          "x-component": "PreviewText.Input",
+          "x-component-props": {
+            "content": "{{$self.value || \"-\"}}"
+          },
+          "x-reactions": [{
+            "dependencies": ["refreshToken"],
+            "fulfill": {
+              "state": {
+                "display": "{{$deps[0]&&$self.value ? \"visible\" : \"hidden\"}}"
+              }
+            }
+          }],
+          "x-index": 42
         },
         "refreshToken": {
           "type": "String",

@@ -1,28 +1,22 @@
 package io.tapdata.zoho.service.connectionMode;
 
-import cn.hutool.json.JSONArray;
 import cn.hutool.json.JSONNull;
 import cn.hutool.json.JSONObject;
-import cn.hutool.json.JSONUtil;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.zoho.entity.ContextConfig;
-import io.tapdata.zoho.entity.HttpEntity;
 import io.tapdata.zoho.enums.Constants;
-import io.tapdata.zoho.enums.CustomFieldType;
 import io.tapdata.zoho.enums.FieldModelType;
 import io.tapdata.zoho.service.zoho.OrganizationFieldLoader;
 import io.tapdata.zoho.service.zoho.TicketLoader;
 import io.tapdata.zoho.utils.Checker;
 import io.tapdata.zoho.utils.MapUtil;
-import io.tapdata.zoho.utils.ZoHoString;
 
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.StringJoiner;
 
 import static io.tapdata.base.ConnectorBase.*;
 
@@ -207,7 +201,7 @@ public class CSVMode implements ConnectionMode {
                 "language",
                 "timeEntryCount"//@TODO 工单搁置时间
         );
-        ticketCSVDetail.replaceAll((key,value)->(value instanceof JSONNull?"":value));
+        this.removeJsonNull(ticketCSVDetail);
         return ticketCSVDetail;
     }
 
@@ -222,10 +216,7 @@ public class CSVMode implements ConnectionMode {
         if (null == customFields || customFields.size()<=0){
             return result;
         }
-        customFields.forEach((key,value)->{
-            if (value instanceof JSONNull) value = "";
-            result.put(key,value);
-        });
+        customFields.forEach(result::put);
         /**
             customFields.forEach((field,value)->{
             String customField = Constants.CUSTOM_FIELD_SUFFIX + field;

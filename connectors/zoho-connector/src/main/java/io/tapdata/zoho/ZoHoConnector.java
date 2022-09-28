@@ -6,10 +6,8 @@ import io.tapdata.base.ConnectorBase;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.event.TapEvent;
-import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.DataMap;
-import io.tapdata.entity.utils.cache.KVMap;
 import io.tapdata.pdk.apis.annotations.TapConnectorClass;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
@@ -84,7 +82,9 @@ public class ZoHoConnector extends ConnectorBase {
 
 	@Override
 	public void onStop(TapConnectionContext connectionContext) throws Throwable {
-
+		synchronized (this) {
+			this.notify();
+		}
 	}
 
 	private ConnectorFunctions connectorFunctions;
@@ -105,6 +105,8 @@ public class ZoHoConnector extends ConnectorBase {
 	}
 
 	private TapEvent rawDataCallbackFilterFunction(TapConnectorContext connectorContext, Map<String, Object> issueEventData) {
+		//@TODO 获取筛选条件
+
 		return null;
 	}
 
@@ -114,6 +116,15 @@ public class ZoHoConnector extends ConnectorBase {
 			Object offsetState,
 			int recordSize,
 			StreamReadConsumer consumer ) {
+		while (isAlive()){
+			synchronized (this) {
+				try {
+					this.wait(streamExecutionGap);
+				} catch (InterruptedException e) {
+					e.printStackTrace();
+				}
+			}
+		}
 	}
 
 	private Object timestampToStreamOffset(TapConnectorContext tapConnectorContext, Long time) {

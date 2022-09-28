@@ -36,21 +36,22 @@ public class OrganizationFieldLoader extends ZoHoStarter implements ZoHoBase {
         }
         HttpEntity<String,Object> form = HttpEntity.create().build("module",model.getModel());
         ZoHoHttp http = ZoHoHttp.create(String.format(ZO_HO_BASE_URL,"/api/v1/organizationFields"), HttpType.GET,header).form(form);
-        HttpResult httpResult = http.get();
+        HttpResult httpResult = this.readyAccessToken(http);
+        //HttpResult httpResult = http.get();
         String code = httpResult.getCode();
-        if (HttpCode.INVALID_OAUTH.getCode().equals(code)){
-            //重新获取超时的AccessToken，并添加到stateMap
-            String newAccessToken = this.refreshAndBackAccessToken();
-            this.addNewAccessTokenToStateMap(newAccessToken);
-            header.build("Authorization",newAccessToken);
-            httpResult = http.get();
-            code = httpResult.getCode();
-            if (Checker.isEmpty(httpResult) || Checker.isEmpty(httpResult.getResult()) || Checker.isEmpty(httpResult.getResult().get("data"))){
-                throw new CoreException("Try to get ticket list , but faild.");
-            }
-        }
+        //if (HttpCode.INVALID_OAUTH.getCode().equals(code)){
+        //    //重新获取超时的AccessToken，并添加到stateMap
+        //    String newAccessToken = this.refreshAndBackAccessToken();
+        //    this.addNewAccessTokenToStateMap(newAccessToken);
+        //    header.build("Authorization",newAccessToken);
+        //    httpResult = http.get();
+        //    code = httpResult.getCode();
+        //    if (Checker.isEmpty(httpResult) || Checker.isEmpty(httpResult.getResult()) || Checker.isEmpty(httpResult.getResult().get("data"))){
+        //        throw new CoreException("Try to get ticket list , but faild.");
+        //    }
+        //}
         if (HttpCode.SUCCEED.getCode().equals(code)){
-            Map<String,Object> resultObj = httpResult.getResult();
+            Map<String,Object> resultObj = (Map<String,Object>)httpResult.getResult();
             if (Checker.isEmpty(resultObj)) return null;
             Object fieldListObj = resultObj.get("data");
             if (Checker.isEmpty(fieldListObj)) return null;
@@ -66,7 +67,7 @@ public class OrganizationFieldLoader extends ZoHoStarter implements ZoHoBase {
         Map<String,Map<String,Object>> fieldMap = new HashMap<>();
         HttpResult get = this.allOrganizationFields(model);
         if (!Checker.isEmpty(get)){
-            List<Map<String,Object>> fieldArr = (ArrayList)get.getResult().get("data");
+            List<Map<String,Object>> fieldArr = (List<Map<String,Object>>)(((Map<String,Object>)get.getResult()).get("data"));
             fieldMap = fieldArr.stream().collect(Collectors.toMap(field->(String)field.get("apiName"), field -> field));
         }
         return fieldMap;
@@ -79,7 +80,7 @@ public class OrganizationFieldLoader extends ZoHoStarter implements ZoHoBase {
         Map<String,Map<String,Object>> fieldMap = new HashMap<>();
         HttpResult get = this.allOrganizationFields(model);
         if (!Checker.isEmpty(get)){
-            List<Map<String,Object>> fieldArr = (List<Map<String,Object>>)get.getResult().get("data");
+            List<Map<String,Object>> fieldArr = (List<Map<String,Object>>)(((Map<String,Object>)get.getResult()).get("data"));
             /**
              * {
              *     "data": [

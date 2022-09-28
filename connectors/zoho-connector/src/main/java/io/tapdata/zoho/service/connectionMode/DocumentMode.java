@@ -3,19 +3,17 @@ package io.tapdata.zoho.service.connectionMode;
 import cn.hutool.json.JSONArray;
 import cn.hutool.json.JSONNull;
 import cn.hutool.json.JSONObject;
-import cn.hutool.json.JSONUtil;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
-import io.tapdata.zoho.entity.ContextConfig;
 import io.tapdata.zoho.service.zoho.TicketLoader;
 import io.tapdata.zoho.utils.Checker;
 
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
 import static io.tapdata.entity.simplify.TapSimplify.*;
-import static io.tapdata.entity.utils.JavaTypesToTapTypes.*;
 
 public class DocumentMode implements ConnectionMode {
     private static final String TAG = DocumentMode.class.getSimpleName();
@@ -33,7 +31,7 @@ public class DocumentMode implements ConnectionMode {
                     table("Tickets")
                             .add(field("id","Long").isPrimaryKey(true).primaryKeyPos(1))
                             .add(field("modifiedTime","String"))
-                            .add(field("subCategory","String"))//Object
+                            .add(field("subCategory","Map"))//Object
                             .add(field("statusType","String"))
                             .add(field("subject","String"))
                             .add(field("dueDate","String"))
@@ -46,13 +44,13 @@ public class DocumentMode implements ConnectionMode {
                             .add(field("sharedDepartments","JAVA_Array"))
                             .add(field("closedTime","String"))//Object
                             .add(field("approvalCount","Integer"))
-                            .add(field("isOverDue","String"))//Object
-                            .add(field("isTrashed","String"))//Boolean
+                            .add(field("isOverDue","Boolean"))//Object
+                            .add(field("isTrashed","Boolean"))//Boolean
                             .add(field("contact","Map"))
                             .add(field("createdTime","String"))
-                            .add(field("isResponseOverdue","String"))//Object
+                            .add(field("isResponseOverdue","Boolean"))//Object
                             .add(field("customerResponseTime","String"))
-                            .add(field("productId","String"))//Object
+                            .add(field("productId","Long"))//Object
                             .add(field("contactId","Long"))
                             .add(field("threadCount","Integer"))
                             .add(field("secondaryContacts","JAVA_Array"))
@@ -64,18 +62,18 @@ public class DocumentMode implements ConnectionMode {
                             .add(field("phone","Long"))
                             .add(field("webUrl","String"))
                             .add(field("assignee","Map"))
-                            .add(field("isSpam","String"))//Object
+                            .add(field("isSpam","Boolean"))//Object
                             .add(field("status","String"))
                             .add(field("entitySkills","JAVA_Array"))
                             .add(field("ticketNumber","Integer"))
-                            .add(field("sentiment","String"))//Object
+                            .add(field("sentiment","Map"))//Object
                             .add(field("customFields","Map"))
                             .add(field("isArchived","String"))//Object
                             .add(field("Textarea","String"))
                             .add(field("timeEntryCount","Integer"))
-                            .add(field("channelRelatedInfo","String"))//Object
+                            .add(field("channelRelatedInfo","Map"))//Object
                             .add(field("responseDueDate","String"))//Object
-                            .add(field("isDeleted","String"))//Object
+                            .add(field("isDeleted","Boolean"))//Object
                             .add(field("modifiedBy","Long"))
                             .add(field("department","Map"))
                             .add(field("followerCount","Integer"))
@@ -83,18 +81,18 @@ public class DocumentMode implements ConnectionMode {
                             .add(field("layoutDetails","Map"))
                             .add(field("channelCode","String"))//Object
                             .add(field("product","String"))//Object
-                            .add(field("isFollowing","String"))//Object
+                            .add(field("isFollowing","Boolean"))//Object
                             .add(field("cf","Map"))
                             .add(field("slaId","Long"))
-                            .add(field("team","String"))//Object
+                            .add(field("team","Map"))//Object
                             .add(field("layoutId","Long"))
                             .add(field("assigneeId","Long"))
                             .add(field("createdBy","Long"))
-                            .add(field("teamId","String"))//Object
+                            .add(field("teamId","Long"))//Object
                             .add(field("tagCount","Integer"))
                             .add(field("attachmentCount","Integer"))
-                            .add(field("isEscalated","String"))//Object
-                            .add(field("category","String"))//Object
+                            .add(field("isEscalated","Boolean"))//Object
+                            .add(field("category","Map"))//Object
                             .add(field("department","Map"))
                             .add(field("contact","Map"))//Object
                             .add(field("assignee","Map"))//Object
@@ -109,14 +107,13 @@ public class DocumentMode implements ConnectionMode {
         if (Checker.isEmpty(ticketIdObj)){
             TapLogger.debug(TAG,"Ticket Id can not be null or not be empty.");
         }
-        Map<String, Object> one = TicketLoader.create(connectionContext).getOne((String) ticketIdObj);
-        one.put("department",stringObjectMap.get("department"));
-        one.put("contact",stringObjectMap.get("contact"));
-        one.put("assignee",stringObjectMap.get("assignee"));
-        one.replaceAll((key,value)->(value instanceof JSONNull ?"":value));
-        return one;
+        Map<String, Object> ticketDetail = TicketLoader.create(connectionContext).getOne((String) ticketIdObj);
+        ticketDetail.put("department",stringObjectMap.get("department"));
+        ticketDetail.put("contact",stringObjectMap.get("contact"));
+        ticketDetail.put("assignee",stringObjectMap.get("assignee"));
+        this.removeJsonNull(ticketDetail);
+        return ticketDetail;
     }
-
     /***
     public static void main(String[] args) {
         String json = ticket;

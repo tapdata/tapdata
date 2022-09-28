@@ -20,7 +20,7 @@ public class FieldsCommand extends ConfigContextChecker<Object> implements Comma
         this.language(Checker.isEmpty(language)? LanguageEnum.EN.getLanguage():language);
         return new CommandResult()
                 .result(
-                        OrganizationFieldLoader.create(connectionContext)
+                        (Map<String, Object>) OrganizationFieldLoader.create(connectionContext)
                                 .allOrganizationFields(FieldModelType.TICKETS).getResult()
                 );
     }

@@ -7,8 +7,14 @@ import io.tapdata.entity.utils.cache.KVMap;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.zoho.entity.ContextConfig;
+import io.tapdata.zoho.entity.HttpEntity;
+import io.tapdata.zoho.entity.HttpResult;
 import io.tapdata.zoho.entity.RefreshTokenEntity;
+import io.tapdata.zoho.enums.HttpCode;
 import io.tapdata.zoho.utils.Checker;
+import io.tapdata.zoho.utils.ZoHoHttp;
+
+import java.util.Map;
 
 public abstract class ZoHoStarter {
     private static final String TAG = ZoHoStarter.class.getSimpleName();
@@ -130,7 +136,10 @@ public abstract class ZoHoStarter {
         KVMap<Object> stateMap = connectorContext.getStateMap();
         stateMap.put("accessToken",accessToken);
     }
-    /**刷新AccessToken并返回AccessToken*/
+
+    /**
+     * @deprecated
+     * 刷新AccessToken并返回AccessToken*/
     public String refreshAndBackAccessToken(){
         RefreshTokenEntity refreshTokenEntity = TokenLoader.create(tapConnectionContext).refreshToken();
         String accessToken = refreshTokenEntity.getAccessToken();
@@ -138,6 +147,31 @@ public abstract class ZoHoStarter {
             throw new CoreException("Refresh accessToken failed.");
         }
         return ZoHoBase.builderAccessToken(accessToken);
+    }
+
+    /**
+     * 每次执行异常http请求后验证是否AccessToken过期
+     * 过期刷新后重试异常
+     * 没过期直接返回执行结果
+     * */
+    public HttpResult readyAccessToken(ZoHoHttp http){
+        HttpEntity header = http.getHeard();
+        HttpResult httpResult = http.http();
+        if (Checker.isEmpty(httpResult) ){
+            TapLogger.debug(TAG,"Try to send once HTTP request, but AccessToken is timeout.");
+        }
+        String code = httpResult.getCode();
+        if (HttpCode.INVALID_OAUTH.getCode().equals(code)){
+            //重新获取超时的AccessToken，并添加到stateMap
+            String newAccessToken = this.refreshAndBackAccessToken();
+            this.addNewAccessTokenToStateMap(newAccessToken);
+            header.build("Authorization",newAccessToken);
+            httpResult = http.http();
+            if (Checker.isEmpty(httpResult) || Checker.isEmpty(httpResult.getResult()) || Checker.isEmpty(((Map<String,Object>)httpResult.getResult()).get("data"))){
+                throw new CoreException("Try to get ticket list , but faild.");
+            }
+        }
+        return httpResult;
     }
 
 }

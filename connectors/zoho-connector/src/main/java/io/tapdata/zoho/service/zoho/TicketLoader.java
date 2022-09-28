@@ -38,23 +38,9 @@ public class TicketLoader extends ZoHoStarter implements ZoHoBase {
                 .build("Authorization",accessToken);
         HttpEntity<String,String> resetFull = HttpEntity.create().build("ticketID",ticketId);
         ZoHoHttp http = ZoHoHttp.create(String.format(ZO_HO_BASE_URL,url), HttpType.GET,header).resetFull(resetFull);
-        HttpResult httpResult = http.get();
-        if (Checker.isEmpty(httpResult) ){
-            TapLogger.debug(TAG,"Try to get ticket list , but AccessToken is timeout.");
-        }
-        String code = httpResult.getCode();
-        if (HttpCode.INVALID_OAUTH.getCode().equals(code)){
-            //重新获取超时的AccessToken，并添加到stateMap
-            String newAccessToken = this.refreshAndBackAccessToken();
-            this.addNewAccessTokenToStateMap(newAccessToken);
-            header.build("Authorization",newAccessToken);
-            httpResult = http.get();
-            if (Checker.isEmpty(httpResult) || Checker.isEmpty(httpResult.getResult()) || Checker.isEmpty(httpResult.getResult().get("data"))){
-                throw new CoreException("Try to get ticket list , but faild.");
-            }
-        }
+        HttpResult httpResult = this.readyAccessToken(http);
         TapLogger.debug(TAG,"Get ticket list succeed.");
-        Map<String,Object> data = httpResult.getResult();
+        Map<String,Object> data = (Map<String,Object>)httpResult.getResult();
         return Checker.isEmpty(data)? new HashMap<>():data;
     }
 
@@ -72,23 +58,24 @@ public class TicketLoader extends ZoHoStarter implements ZoHoBase {
             header.build("orgId",orgId);
         }
         ZoHoHttp http = ZoHoHttp.create(String.format(ZO_HO_BASE_URL,url), HttpType.GET,header).header(header).form(form);
-        HttpResult httpResult = http.get();
-        if (Checker.isEmpty(httpResult) ){
-            TapLogger.debug(TAG,"Try to get ticket list , but AccessToken is.");
-        }
-        String code = httpResult.getCode();
-        if (HttpCode.INVALID_OAUTH.getCode().equals(code)){
-            //重新获取超时的AccessToken，并添加到stateMap
-            String newAccessToken = this.refreshAndBackAccessToken();
-            this.addNewAccessTokenToStateMap(newAccessToken);
-            header.build("Authorization",newAccessToken);
-            httpResult = http.get();
-            if (Checker.isEmpty(httpResult) || Checker.isEmpty(httpResult.getResult()) || Checker.isEmpty(httpResult.getResult().get("data"))){
-                throw new CoreException("Try to get ticket list , but faild.");
-            }
-        }
+        HttpResult httpResult = this.readyAccessToken(http);
+//        HttpResult httpResult = http.get();
+//        if (Checker.isEmpty(httpResult) ){
+//            TapLogger.debug(TAG,"Try to get ticket list , but AccessToken is.");
+//        }
+//        String code = httpResult.getCode();
+//        if (HttpCode.INVALID_OAUTH.getCode().equals(code)){
+//            //重新获取超时的AccessToken，并添加到stateMap
+//            String newAccessToken = this.refreshAndBackAccessToken();
+//            this.addNewAccessTokenToStateMap(newAccessToken);
+//            header.build("Authorization",newAccessToken);
+//            httpResult = http.get();
+//            if (Checker.isEmpty(httpResult) || Checker.isEmpty(httpResult.getResult()) || Checker.isEmpty(httpResult.getResult().get("data"))){
+//                throw new CoreException("Try to get ticket list , but faild.");
+//            }
+//        }
         TapLogger.debug(TAG,"Get ticket list succeed.");
-        Object data = httpResult.getResult().get("data");
+        Object data = ((Map<String,Object>)httpResult.getResult()).get("data");
         return Checker.isEmpty(data)?new ArrayList<>():(List<Map<String,Object>>)data;
     }
 
@@ -110,22 +97,23 @@ public class TicketLoader extends ZoHoStarter implements ZoHoBase {
         List<Map<String,Object>> list = new ArrayList<>();
         while (true){
             form.build("from",startPage);
-            HttpResult httpResult = http.get();
-            if (Checker.isEmpty(httpResult) ){
-                TapLogger.debug(TAG,"Try to get ticket list , but AccessToken is.");
-            }
-            String code = httpResult.getCode();
-            if (HttpCode.INVALID_OAUTH.getCode().equals(code)){
-                //重新获取超时的AccessToken，并添加到stateMap
-                String newAccessToken = this.refreshAndBackAccessToken();
-                this.addNewAccessTokenToStateMap(newAccessToken);
-                heards.build("Authorization",newAccessToken);
-                httpResult = http.get();
-                if (Checker.isEmpty(httpResult) || Checker.isEmpty(httpResult.getResult()) || Checker.isEmpty(httpResult.getResult().get("data"))){
-                    throw new CoreException("Try to get ticket list , but faild.");
-                }
-            }
-            Object data = httpResult.getResult().get("data");
+            HttpResult httpResult = this.readyAccessToken(http);
+            //HttpResult httpResult = http.get();
+            //if (Checker.isEmpty(httpResult) ){
+            //    TapLogger.debug(TAG,"Try to get ticket list , but AccessToken is.");
+            //}
+            //String code = httpResult.getCode();
+            //if (HttpCode.INVALID_OAUTH.getCode().equals(code)){
+            //    //重新获取超时的AccessToken，并添加到stateMap
+            //    String newAccessToken = this.refreshAndBackAccessToken();
+            //    this.addNewAccessTokenToStateMap(newAccessToken);
+            //    heards.build("Authorization",newAccessToken);
+            //    httpResult = http.get();
+            //    if (Checker.isEmpty(httpResult) || Checker.isEmpty(httpResult.getResult()) || Checker.isEmpty(httpResult.getResult().get("data"))){
+            //        throw new CoreException("Try to get ticket list , but faild.");
+            //    }
+            //}
+            Object data = ((Map<String,Object>)httpResult.getResult()).get("data");
             list = Checker.isEmpty(data)?null:(List<Map<String,Object>>)data;
             int pageSizeBatch = 0;
             if (Checker.isEmpty(list) || list.isEmpty() || (pageSizeBatch = list.size()) < pageMaxSize){

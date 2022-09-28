@@ -11,6 +11,8 @@ import io.tapdata.zoho.enums.HttpCode;
 import io.tapdata.zoho.utils.Checker;
 import io.tapdata.zoho.utils.ZoHoHttp;
 
+import java.util.Map;
+
 public class TokenLoader extends ZoHoStarter implements ZoHoBase {
     private static final String TAG = TokenLoader.class.getSimpleName();
     protected TokenLoader(TapConnectionContext tapConnectionContext) {
@@ -31,10 +33,10 @@ public class TokenLoader extends ZoHoStarter implements ZoHoBase {
         HttpResult post = refresh(refreshToken, clientId, clientSecret);
         String code = post.getCode();
         if (HttpCode.SUCCEED.getCode().equals(code)){
-            return RefreshTokenEntity.create(post.getResult()).message(HttpCode.SUCCEED.getMessage()).code(HttpCode.SUCCEED.getCode());
+            return RefreshTokenEntity.create((Map<String,Object>)post.getResult()).message(HttpCode.SUCCEED.getMessage()).code(HttpCode.SUCCEED.getCode());
         }else {
-            TapLogger.info(TAG,"{} | {}",code,post.getResult().get(HttpCode.ERROR.getCode()));
-            return RefreshTokenEntity.create(post.getResult()).message(code).code(HttpCode.ERROR.getCode());
+            TapLogger.info(TAG,"{} | {}",code,((Map<String,Object>)post.getResult()).get(HttpCode.ERROR.getCode()));
+            return RefreshTokenEntity.create((Map<String,Object>)post.getResult()).message(code).code(HttpCode.ERROR.getCode());
             //throw new CoreException(code+"|"+post.getResult().get(HttpCode.ERROR.getCode()));
         }
     }
@@ -56,7 +58,7 @@ public class TokenLoader extends ZoHoStarter implements ZoHoBase {
         HttpResult post = http.post();
         //刷新AccessToken后把心token更新到stateMap中，方便同一任务下次HTTP请求使用
         if (HttpCode.SUCCEED.getCode().equals(post.getCode()) && Checker.isNotEmpty(post.getResult())){
-            Object accessTokenObj = post.getResult().get("access_token");
+            Object accessTokenObj = ((Map<String,Object>)post.getResult()).get("access_token");
             if (Checker.isNotEmpty(accessTokenObj)) {
                 this.addNewAccessTokenToStateMap(ZoHoBase.builderAccessToken((String)accessTokenObj));
             }
