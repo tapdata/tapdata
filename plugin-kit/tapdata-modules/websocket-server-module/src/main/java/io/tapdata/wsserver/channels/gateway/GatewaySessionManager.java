@@ -55,7 +55,7 @@ public class GatewaySessionManager implements HealthWeightListener, MemoryFetche
     private Integer jwtExpireSeconds = 60 * 60 * 12;
 
     private Long sessionExpireCheckPeriodSeconds = 30L;
-    private Long sessionInactiveExpireTime = TimeUnit.SECONDS.toMillis(30);
+    private Long sessionInactiveExpireTime = TimeUnit.SECONDS.toMillis(10);
     private String authorisedExpression = ".*_.*Apis_.*";
 
     @Bean
