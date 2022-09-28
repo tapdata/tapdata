@@ -24,7 +24,7 @@ public class DummyChannelDetectionModule {
 
 
     public final String ATTR_EXPIRE_TIMER = "DUMMY_ATTR_EXPIRE_TIMER";
-    private long expireSeconds = 8000000; //TODO should be 8, only for test.
+    private long expireSeconds = 8; //TODO should be 8, only for test.
 
     @Subscribe
     @AllowConcurrentEvents

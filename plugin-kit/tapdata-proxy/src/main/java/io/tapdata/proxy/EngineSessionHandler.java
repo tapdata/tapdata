@@ -205,6 +205,8 @@ public class EngineSessionHandler extends GatewaySessionHandler {
 	@Override
 	public void onChannelDisconnected() {
 		TapLogger.debug(TAG, "onChannelDisconnected");
+		subscribeMap.unbindSubscribeIds(this);
+		cachedSubscribedIds.clear();
 	}
 
 	@Override
@@ -230,6 +232,7 @@ public class EngineSessionHandler extends GatewaySessionHandler {
 				.kv("token", getToken())
 				.kv("id", getId())
 				.kv("userChannel", getUserChannel())
+				.kv("isConnected", isChannelActive())
 				.kv("subscribeMap", subscribeMap.memory(mapKeys, memoryLevel))
 				.kv("cachedSubscribedIds", cachedSubscribedIds)
 				;

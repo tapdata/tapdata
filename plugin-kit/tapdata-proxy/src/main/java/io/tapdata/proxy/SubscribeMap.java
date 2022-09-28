@@ -1,16 +1,53 @@
 package io.tapdata.proxy;
 
 import io.tapdata.entity.annotations.Bean;
+import io.tapdata.entity.annotations.MainMethod;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.entity.memory.MemoryFetcher;
+import io.tapdata.pdk.core.executor.ExecutorsManager;
+import io.tapdata.pdk.core.utils.CommonUtils;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.TimeUnit;
 
 @Bean
+@MainMethod("start")
 public class SubscribeMap implements MemoryFetcher {
 	private final Map<String, List<EngineSessionHandler>> subscribeIdSessionMap = new ConcurrentHashMap<>();
+	private final int[] cleanupLock = new int[0];
+	private void start() {
+		int subscribeMapCleanupPeriod = CommonUtils.getPropertyInt("tapdata_subscribe_map_cleanup_period", 60);
+		ExecutorsManager.getInstance().getScheduledExecutorService().scheduleWithFixedDelay(() -> {
+			Set<String> deleteList = new HashSet<>();
+			for(Map.Entry<String, List<EngineSessionHandler>> entry : subscribeIdSessionMap.entrySet()) {
+				List<EngineSessionHandler> list = entry.getValue();
+				if(list != null && list.isEmpty()) {
+					deleteList.add(entry.getKey());
+				}
+			}
+			for(String delete : deleteList) {
+				List<EngineSessionHandler> list = subscribeIdSessionMap.get(delete);
+				if(list != null && list.isEmpty()) {
+					synchronized (cleanupLock) {
+						list = subscribeIdSessionMap.get(delete);
+						if(list != null && list.isEmpty()) {
+							subscribeIdSessionMap.remove(delete);
+						}
+					}
+				}
+			}
+		}, subscribeMapCleanupPeriod, subscribeMapCleanupPeriod, TimeUnit.SECONDS);
+	}
+	public void unbindSubscribeIds(EngineSessionHandler engineSessionHandler) {
+		for(Map.Entry<String, List<EngineSessionHandler>> entry : subscribeIdSessionMap.entrySet()) {
+			List<EngineSessionHandler> list = entry.getValue();
+			if(list != null) {
+				list.remove(engineSessionHandler);
+			}
+		}
+	}
 
 	public Set<String> rebindSubscribeIds(EngineSessionHandler engineSessionHandler, Set<String> newSubscribeIds, Set<String> oldSubscribeIds) {
 		if(newSubscribeIds == null && oldSubscribeIds == null)
@@ -39,16 +76,26 @@ public class SubscribeMap implements MemoryFetcher {
 		}
 		if(added != null) {
 			for(String addStr : added) {
-				List<EngineSessionHandler> engineSessionHandlers = subscribeIdSessionMap.computeIfAbsent(addStr, s -> new CopyOnWriteArrayList<>());
-				if(!engineSessionHandlers.contains(engineSessionHandler)) {
-					engineSessionHandlers.add(engineSessionHandler);
+				synchronized (cleanupLock) {
+					List<EngineSessionHandler> engineSessionHandlers = subscribeIdSessionMap.get(addStr);
+					if(engineSessionHandlers == null) {
+						engineSessionHandlers = subscribeIdSessionMap.computeIfAbsent(addStr, s -> new CopyOnWriteArrayList<>());
+					}
+
+					if(!engineSessionHandlers.contains(engineSessionHandler)) {
+						engineSessionHandlers.add(engineSessionHandler);
+					}
 				}
 			}
 		}
 		if(deleted != null) {
 			for(String deleteStr : deleted) {
-				List<EngineSessionHandler> engineSessionHandlers = subscribeIdSessionMap.computeIfAbsent(deleteStr, s -> new CopyOnWriteArrayList<>());
-				engineSessionHandlers.remove(engineSessionHandler);
+				List<EngineSessionHandler> engineSessionHandlers = subscribeIdSessionMap.get(deleteStr);
+//				if(engineSessionHandlers == null)
+//					engineSessionHandlers = subscribeIdSessionMap.computeIfAbsent(deleteStr, s -> new CopyOnWriteArrayList<>());
+
+				if(engineSessionHandlers != null)
+					engineSessionHandlers.remove(engineSessionHandler);
 			}
 		}
 
