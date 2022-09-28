@@ -26,6 +26,7 @@ import io.tapdata.pdk.core.api.Node;
 import io.tapdata.pdk.core.api.PDKIntegration;
 import io.tapdata.pdk.core.executor.ExecutorsManager;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
+import io.tapdata.pdk.core.utils.timer.MaxFrequencyLimiter;
 import io.tapdata.wsclient.modules.imclient.IMClient;
 import io.tapdata.wsclient.modules.imclient.IMClientBuilder;
 import io.tapdata.wsclient.modules.imclient.impls.websocket.ChannelStatus;
@@ -42,15 +43,18 @@ public class ProxySubscriptionManager implements MemoryFetcher {
 	private final ConcurrentHashSet<TaskSubscribeInfo> taskSubscribeInfos = new ConcurrentHashSet<>();
 	private ConcurrentHashMap<String, List<TaskSubscribeInfo>> typeConnectionIdSubscribeInfosMap = new ConcurrentHashMap<>();
 	private final ConcurrentHashMap<String, TaskSubscribeInfo> taskIdTaskSubscribeInfoMap = new ConcurrentHashMap<>();
-	private ScheduledFuture<?> workingFuture;
-	private final AtomicBoolean needSync = new AtomicBoolean(false);
+//	private ScheduledFuture<?> workingFuture;
+//	private final AtomicBoolean needSync = new AtomicBoolean(false);
 	private IMClient imClient;
+
+	private MaxFrequencyLimiter maxFrequencyLimiter;
 
 	public ProxySubscriptionManager() {
 //		String nodeId = CommonUtils.getProperty("tapdata_node_id");
 //		if(nodeId == null)
 //			throw new CoreException(NetErrors.CURRENT_NODE_ID_NOT_FOUND, "Current nodeId is not found");
 //		proxySubscription = new ProxySubscription().nodeId(nodeId).service("engine");
+		maxFrequencyLimiter = new MaxFrequencyLimiter(500, this::syncSubscribeIds);
 	}
 	public void startIMClient(List<String> baseURLs, String accessToken) {
 		if(imClient == null) {
@@ -203,32 +207,34 @@ public class ProxySubscriptionManager implements MemoryFetcher {
 	}
 
 	private void handleTaskSubscribeInfoChanged() {
-		if(workingFuture == null && !needSync.get()) {
-			synchronized (this) {
-				if(workingFuture == null && needSync.compareAndSet(false, true)) {
-					workingFuture = ExecutorsManager.getInstance().getScheduledExecutorService().schedule(this::syncSubscribeIds, 500, TimeUnit.MILLISECONDS);
-				}
-			}
-		} else {
-			TapLogger.debug(TAG, "workingFuture {}", workingFuture);
-		}
+//		if(workingFuture == null && !needSync.get()) {
+//			synchronized (this) {
+//				if(workingFuture == null && needSync.compareAndSet(false, true)) {
+//					workingFuture = ExecutorsManager.getInstance().getScheduledExecutorService().schedule(this::syncSubscribeIds, 500, TimeUnit.MILLISECONDS);
+//				}
+//			}
+//		} else {
+//			TapLogger.debug(TAG, "workingFuture {}", workingFuture);
+//		}
+		maxFrequencyLimiter.touch();
 	}
 
 	private void handleTaskSubscribeInfoAfterComplete() {
-		workingFuture = null;
-		if(needSync.get()) {
-			synchronized (this) {
-				if(workingFuture == null) {
-					workingFuture = ExecutorsManager.getInstance().getScheduledExecutorService().schedule(this::syncSubscribeIds, 500, TimeUnit.MILLISECONDS);
-				}
-			}
-		}
+//		maxFrequencyLimiter.touch();
+//		workingFuture = null;
+//		if(needSync.get()) {
+//			synchronized (this) {
+//				if(workingFuture == null) {
+//					workingFuture = ExecutorsManager.getInstance().getScheduledExecutorService().schedule(this::syncSubscribeIds, 500, TimeUnit.MILLISECONDS);
+//				}
+//			}
+//		}
 	}
 
 	private void syncSubscribeIds() {
 		boolean enterAsyncProcess = false;
 		try {
-			needSync.compareAndSet(true, false);
+//			needSync.compareAndSet(true, false);
 
 			ConcurrentHashMap<String, List<TaskSubscribeInfo>> typeConnectionIdSubscribeInfosMap = new ConcurrentHashMap<>();
 			for(TaskSubscribeInfo subscribeInfo : taskSubscribeInfos) {
@@ -254,7 +260,7 @@ public class ProxySubscriptionManager implements MemoryFetcher {
 					TapLogger.error(TAG, "Send NodeSubscribeInfo failed, {}", throwable.getMessage());
 				if(result1 != null && result1.getCode() != 1)
 					TapLogger.error(TAG, "Send NodeSubscribeInfo failed, code {} message {}", result1.getCode(), result1.getMessage());
-				handleTaskSubscribeInfoAfterComplete();
+//				handleTaskSubscribeInfoAfterComplete();
 			});
 		} catch(Throwable throwable) {
 			TapLogger.error(TAG, "syncSubscribeIds failed, {}", throwable.getMessage());
@@ -277,8 +283,8 @@ public class ProxySubscriptionManager implements MemoryFetcher {
 	@Override
 	public DataMap memory(String keyRegex, String memoryLevel) {
 		DataMap dataMap = DataMap.create().keyRegex(keyRegex)
-				.kv("workingFuture", workingFuture.toString())
-				.kv("needSync", needSync.get())
+//				.kv("maxFrequencyLimiter", maxFrequencyLimiter.toString())
+//				.kv("needSync", needSync.get())
 //				.kv("imClient", imClient.memory(keyRegex, memoryLevel))
 				;
 
