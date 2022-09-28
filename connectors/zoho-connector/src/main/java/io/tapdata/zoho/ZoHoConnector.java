@@ -24,9 +24,9 @@ import io.tapdata.zoho.entity.ZoHoOffset;
 import io.tapdata.zoho.entity.webHook.EventBaseEntity;
 import io.tapdata.zoho.service.commandMode.CommandMode;
 import io.tapdata.zoho.service.connectionMode.ConnectionMode;
-import io.tapdata.zoho.service.zoho.TicketLoader;
-import io.tapdata.zoho.service.zoho.TokenLoader;
-import io.tapdata.zoho.service.zoho.ZoHoConnectionTest;
+import io.tapdata.zoho.service.zoho.impl.TicketLoader;
+import io.tapdata.zoho.service.zoho.impl.TokenLoader;
+import io.tapdata.zoho.service.zoho.impl.ZoHoConnectionTest;
 import io.tapdata.zoho.utils.Checker;
 
 import java.util.ArrayList;
@@ -64,8 +64,8 @@ public class ZoHoConnector extends ConnectorBase {
 	private final long streamExecutionGap = 5000;//util: ms
 	private int batchReadMaxPageSize = 100;//ZoHo ticket page size 1~100,
 
-	private Long lastTimePoint;
-	private List<Integer> lastTimeSplitIssueCode = new ArrayList<>();//hash code list
+	//private Long lastTimePoint;
+	//private List<Integer> lastTimeSplitIssueCode = new ArrayList<>();//hash code list
 
 	@Override
 	public void onStart(TapConnectionContext connectionContext) throws Throwable {
@@ -78,8 +78,8 @@ public class ZoHoConnector extends ConnectorBase {
 		switch (streamReadType){
 			//case "Polling":this.connectorFunctions.supportStreamRead(this::streamRead);break;
 			case "WebHook":this.connectorFunctions.supportRawDataCallbackFilterFunction(this::rawDataCallbackFilterFunction);break;
-//			default:
-//				throw new CoreException("Error in connection parameters [streamReadType],just be [WebHook] or [Polling], please go to verify");
+			default:
+				throw new CoreException("Error in connection parameters [streamReadType],just be [WebHook], please go to verify");
 		}
 	}
 
@@ -119,6 +119,7 @@ public class ZoHoConnector extends ConnectorBase {
 		EventBaseEntity instanceByEventType = EventBaseEntity.getInstanceByEventType(issueEventData);
 		if (Checker.isEmpty(instanceByEventType)){
 			TapLogger.debug(TAG,"An event type with unknown origin was found and cannot be processed .");
+			return null;
 		}
 		return instanceByEventType.outputTapEvent("Tickets");
 	}
@@ -179,13 +180,11 @@ public class ZoHoConnector extends ConnectorBase {
 			int batchCount,
 			BiConsumer<List<TapEvent>, Object> consumer) {
 		TokenLoader.create(connectorContext).addTokenToStateMap();
-		//TapLogger.debug(TAG, "start {} batch read", table.getName());
 		Long readEnd = System.currentTimeMillis();
 		ZoHoOffset zoHoOffset =  new ZoHoOffset();
 		//current read end as next read begin
 		zoHoOffset.setTableUpdateTimeMap(new HashMap<String,Long>(){{ put(table.getId(),readEnd);}});
 		this.read(connectorContext,batchCount,zoHoOffset,consumer,table.getId());
-		//TapLogger.debug(TAG, "compile {} batch read", table.getName());
 	}
 
 	private long batchCount(TapConnectorContext tapConnectorContext, TapTable tapTable) throws Throwable {

@@ -1,10 +1,12 @@
-package io.tapdata.zoho.service.zoho;
+package io.tapdata.zoho.service.zoho.impl;
 
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.zoho.entity.HttpEntity;
 import io.tapdata.zoho.entity.HttpResult;
 import io.tapdata.zoho.entity.HttpType;
+import io.tapdata.zoho.service.zoho.ZoHoBase;
+import io.tapdata.zoho.service.zoho.ZoHoStarter;
 import io.tapdata.zoho.utils.Checker;
 import io.tapdata.zoho.utils.ZoHoHttp;
 
@@ -13,7 +15,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class TicketCommentLoader extends ZoHoStarter implements ZoHoBase  {
+public class TicketCommentLoader extends ZoHoStarter implements ZoHoBase {
     private static final String TAG = TicketCommentLoader.class.getSimpleName();
     protected TicketCommentLoader(TapConnectionContext tapConnectionContext) {
         super(tapConnectionContext);
@@ -47,7 +49,7 @@ public class TicketCommentLoader extends ZoHoStarter implements ZoHoBase  {
         Map<String,Object> data = (Map<String,Object>)httpResult.getResult();
         return Checker.isEmpty(data)? new HashMap<>():data;
     }
-    //PATCH
+
     public Map<String,Object> updateComment(String ticketId,String commentId,Map<String,Object> commentBody){
         if (Checker.isEmpty(ticketId)){
             TapLogger.debug(TAG,"Ticket Id can not be null or not be empty.");
@@ -59,7 +61,7 @@ public class TicketCommentLoader extends ZoHoStarter implements ZoHoBase  {
         HttpEntity<String,String> header = HttpEntity.create().build(AUTHORIZATION_KEY,accessToken);
         HttpEntity<String,Object> body = HttpEntity.create(commentBody);
         HttpEntity<String,String> resetFull = HttpEntity.create().build(TICKET_ID_KEY,ticketId).build(COMMENT_ID_KEY,commentId);
-        ZoHoHttp http = ZoHoHttp.create(String.format(ZO_HO_BASE_URL,UPDATE_COMMENT_URL), HttpType.POST,header)
+        ZoHoHttp http = ZoHoHttp.create(String.format(ZO_HO_BASE_URL,UPDATE_COMMENT_URL), HttpType.PATCH,header)
                 .body(body)
                 .resetFull(resetFull);
         HttpResult httpResult = this.readyAccessToken(http);
@@ -67,7 +69,7 @@ public class TicketCommentLoader extends ZoHoStarter implements ZoHoBase  {
         Map<String,Object> data = (Map<String,Object>)httpResult.getResult();
         return Checker.isEmpty(data)? new HashMap<>():data;
     }
-    //DELETE
+
     public Integer delComment(String ticketId,String commentId){
         if (Checker.isEmpty(ticketId)){
             TapLogger.debug(TAG,"Ticket Id can not be null or not be empty.");
@@ -78,7 +80,7 @@ public class TicketCommentLoader extends ZoHoStarter implements ZoHoBase  {
         String accessToken = this.accessTokenFromConfig();
         HttpEntity<String,String> header = HttpEntity.create().build(AUTHORIZATION_KEY,accessToken);
         HttpEntity<String,String> resetFull = HttpEntity.create().build(TICKET_ID_KEY,ticketId).build(COMMENT_ID_KEY,commentId);
-        ZoHoHttp http = ZoHoHttp.create(String.format(ZO_HO_BASE_URL,DEL_COMMENT_URL), HttpType.POST,header).resetFull(resetFull);
+        ZoHoHttp http = ZoHoHttp.create(String.format(ZO_HO_BASE_URL,DEL_COMMENT_URL), HttpType.DELETE,header).resetFull(resetFull);
         HttpResult httpResult = this.readyAccessToken(http);
         TapLogger.debug(TAG,"Update ticket succeed.");
         Integer data = (Integer) httpResult.getResult();

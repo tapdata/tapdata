@@ -7,8 +7,8 @@ import java.util.HashMap;
 import java.util.Map;
 
 public enum HttpCode {
-    SUCCEED("SUCCEED","SUCCEED"),
-    ERROR("ERROR","ERROR"),
+    SUCCEED("SUCCEED","Succeed."),
+    ERROR("ERROR","Error."),
     INVALID_OAUTH("INVALID_OAUTH","The OAuth Token you provided is invalid."),
     EMPTY("EMPTY","HTTP connect failed."),
     GENERAL_ERROR("general_error","General error."),

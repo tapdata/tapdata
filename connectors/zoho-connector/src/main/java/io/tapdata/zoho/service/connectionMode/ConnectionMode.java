@@ -39,7 +39,7 @@ public interface ConnectionMode {
         if (Checker.isEmpty(name)) return null;
         Class clz = null;
         try {
-            clz = Class.forName("io.tapdata.zoho.service.connectionMode."+name);
+            clz = Class.forName("io.tapdata.zoho.service.connectionMode.impl."+name);
             return ((ConnectionMode)clz.newInstance()).config(connectionContext);
         } catch (ClassNotFoundException e) {
             e.printStackTrace();

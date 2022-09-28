@@ -26,7 +26,7 @@ public abstract class EventBaseEntity<T> {
             if (Checker.isEmpty(typeObj)) return null;
             WebHookEvent event = WebHookEvent.event((String) typeObj);
             if (Checker.isEmpty(event)) return null;
-            clz = Class.forName("io.tapdata.zoho.entity.webHook."+event.getTapEvent()+"Entity");
+            clz = Class.forName("io.tapdata.zoho.entity.webHook.doMain."+event.getTapEvent()+"Entity");
             return (EventBaseEntity) ((EventBaseEntity)clz.newInstance()).event(issueEventData);
         } catch (ClassNotFoundException e) {
             TapLogger.debug(TAG,"Class not found | EventBaseEntity");

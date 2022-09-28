@@ -4,7 +4,10 @@ import io.tapdata.zoho.utils.Checker;
 
 public enum HttpType {
     POST("POST"),
-    GET("GET");
+    GET("GET"),
+    DELETE("DELETE"),
+    PATCH("PATCH"),
+    PUT("PUT");
     String type;
     HttpType(String type){
         this.type = type;

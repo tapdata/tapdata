@@ -118,6 +118,9 @@ public class ZoHoHttp {
         switch (this.httpType){
             case POST:return post();
             case GET:return get();
+            case PATCH:return patch();
+            case DELETE:return delete();
+            case PUT:return put();
         }
         return post();
     }
@@ -169,6 +172,64 @@ public class ZoHoHttp {
         return null == execute ?
                 EMPTY:this.afterSend(execute);
     }
+    private HttpResult delete(){
+        this.beforeSend();
+        HttpRequest request = HttpRequest.delete(url);
+        if (Checker.isNotEmpty(heard)){
+            request.addHeaders(heard.entity());
+        }
+        if (Checker.isNotEmpty(form)){
+            request.form(form.entity());
+        }
+        HttpResponse execute = null;
+        try {
+            execute = request.execute();
+        }catch (Exception e){
+            TapLogger.info(TAG,"Http[Get] read timed out:{}",e.getMessage());
+            return EMPTY;
+        }
+        return null == execute ?
+                EMPTY:this.afterSend(execute);
+    }
+    private HttpResult patch(){
+        this.beforeSend();
+        HttpRequest request = HttpRequest.patch(url);
+        if (Checker.isNotEmpty(heard)){
+            request.addHeaders(heard.entity());
+        }
+        if (Checker.isNotEmpty(form)){
+            request.form(form.entity());
+        }
+        HttpResponse execute = null;
+        try {
+            execute = request.execute();
+        }catch (Exception e){
+            TapLogger.info(TAG,"Http[Get] read timed out:{}",e.getMessage());
+            return EMPTY;
+        }
+        return null == execute ?
+                EMPTY:this.afterSend(execute);
+    }
+    private HttpResult put(){
+        this.beforeSend();
+        HttpRequest request = HttpRequest.put(url);
+        if (Checker.isNotEmpty(heard)){
+            request.addHeaders(heard.entity());
+        }
+        if (Checker.isNotEmpty(form)){
+            request.form(form.entity());
+        }
+        HttpResponse execute = null;
+        try {
+            execute = request.execute();
+        }catch (Exception e){
+            TapLogger.info(TAG,"Http[Get] read timed out:{}",e.getMessage());
+            return EMPTY;
+        }
+        return null == execute ?
+                EMPTY:this.afterSend(execute);
+    }
+
     public HttpEntity<String, String> getHeard() {
         return heard;
     }

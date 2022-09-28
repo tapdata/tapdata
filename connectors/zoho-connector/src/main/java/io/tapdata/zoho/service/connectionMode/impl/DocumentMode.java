@@ -1,15 +1,12 @@
-package io.tapdata.zoho.service.connectionMode;
+package io.tapdata.zoho.service.connectionMode.impl;
 
-import cn.hutool.json.JSONArray;
-import cn.hutool.json.JSONNull;
-import cn.hutool.json.JSONObject;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
-import io.tapdata.zoho.service.zoho.TicketLoader;
+import io.tapdata.zoho.service.connectionMode.ConnectionMode;
+import io.tapdata.zoho.service.zoho.impl.TicketLoader;
 import io.tapdata.zoho.utils.Checker;
 
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 

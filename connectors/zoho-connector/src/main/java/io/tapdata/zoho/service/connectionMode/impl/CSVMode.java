@@ -1,6 +1,5 @@
-package io.tapdata.zoho.service.connectionMode;
+package io.tapdata.zoho.service.connectionMode.impl;
 
-import cn.hutool.json.JSONNull;
 import cn.hutool.json.JSONObject;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.logger.TapLogger;
@@ -9,8 +8,9 @@ import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.zoho.entity.ContextConfig;
 import io.tapdata.zoho.enums.Constants;
 import io.tapdata.zoho.enums.FieldModelType;
-import io.tapdata.zoho.service.zoho.OrganizationFieldLoader;
-import io.tapdata.zoho.service.zoho.TicketLoader;
+import io.tapdata.zoho.service.connectionMode.ConnectionMode;
+import io.tapdata.zoho.service.zoho.impl.OrganizationFieldLoader;
+import io.tapdata.zoho.service.zoho.impl.TicketLoader;
 import io.tapdata.zoho.utils.Checker;
 import io.tapdata.zoho.utils.MapUtil;
 

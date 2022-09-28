@@ -1,11 +1,8 @@
 package io.tapdata.zoho.entity;
 
-import io.tapdata.zoho.enums.HttpCode;
 import io.tapdata.zoho.service.zoho.ZoHoBase;
-import lombok.Data;
 
 import java.io.Serializable;
-import java.util.HashMap;
 import java.util.Map;
 
 public class RefreshTokenEntity extends HttpBaseEntity implements Serializable {

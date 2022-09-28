@@ -17,7 +17,7 @@ public interface CommandMode {
         if (Checker.isEmpty(command)) return null;
         Class clz = null;
         try {
-            clz = Class.forName("io.tapdata.zoho.service.commandMode."+command);
+            clz = Class.forName("io.tapdata.zoho.service.commandMode.impl."+command);
             return ((CommandMode)clz.newInstance()).command(connectionContext,commandInfo);
         } catch (ClassNotFoundException e) {
             e.printStackTrace();

@@ -1,4 +1,4 @@
-package io.tapdata.zoho.service.zoho;
+package io.tapdata.zoho.service.zoho.impl;
 
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.entity.TestItem;
@@ -6,6 +6,8 @@ import io.tapdata.zoho.entity.HttpEntity;
 import io.tapdata.zoho.entity.HttpResult;
 import io.tapdata.zoho.entity.HttpType;
 import io.tapdata.zoho.enums.ZoHoTestItem;
+import io.tapdata.zoho.service.zoho.ZoHoBase;
+import io.tapdata.zoho.service.zoho.ZoHoStarter;
 import io.tapdata.zoho.utils.Checker;
 import io.tapdata.zoho.utils.ZoHoHttp;
 
@@ -13,7 +15,7 @@ import java.util.Map;
 
 import static io.tapdata.base.ConnectorBase.testItem;
 
-public class ZoHoConnectionTest extends ZoHoStarter implements ZoHoBase  {
+public class ZoHoConnectionTest extends ZoHoStarter implements ZoHoBase {
     protected ZoHoConnectionTest(TapConnectionContext tapConnectionContext) {
         super(tapConnectionContext);
     }

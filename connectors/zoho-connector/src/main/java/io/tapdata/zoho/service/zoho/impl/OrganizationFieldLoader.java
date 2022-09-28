@@ -1,14 +1,14 @@
-package io.tapdata.zoho.service.zoho;
+package io.tapdata.zoho.service.zoho.impl;
 
-import io.tapdata.entity.error.CoreException;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.zoho.entity.*;
 import io.tapdata.zoho.enums.FieldModelType;
 import io.tapdata.zoho.enums.HttpCode;
+import io.tapdata.zoho.service.zoho.ZoHoBase;
+import io.tapdata.zoho.service.zoho.ZoHoStarter;
 import io.tapdata.zoho.utils.Checker;
 import io.tapdata.zoho.utils.ZoHoHttp;
 
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -37,19 +37,7 @@ public class OrganizationFieldLoader extends ZoHoStarter implements ZoHoBase {
         HttpEntity<String,Object> form = HttpEntity.create().build("module",model.getModel());
         ZoHoHttp http = ZoHoHttp.create(String.format(ZO_HO_BASE_URL,"/api/v1/organizationFields"), HttpType.GET,header).form(form);
         HttpResult httpResult = this.readyAccessToken(http);
-        //HttpResult httpResult = http.get();
         String code = httpResult.getCode();
-        //if (HttpCode.INVALID_OAUTH.getCode().equals(code)){
-        //    //重新获取超时的AccessToken，并添加到stateMap
-        //    String newAccessToken = this.refreshAndBackAccessToken();
-        //    this.addNewAccessTokenToStateMap(newAccessToken);
-        //    header.build("Authorization",newAccessToken);
-        //    httpResult = http.get();
-        //    code = httpResult.getCode();
-        //    if (Checker.isEmpty(httpResult) || Checker.isEmpty(httpResult.getResult()) || Checker.isEmpty(httpResult.getResult().get("data"))){
-        //        throw new CoreException("Try to get ticket list , but faild.");
-        //    }
-        //}
         if (HttpCode.SUCCEED.getCode().equals(code)){
             Map<String,Object> resultObj = (Map<String,Object>)httpResult.getResult();
             if (Checker.isEmpty(resultObj)) return null;

@@ -1,12 +1,12 @@
-package io.tapdata.zoho.service.zoho;
+package io.tapdata.zoho.service.zoho.impl;
 
-import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import io.tapdata.zoho.entity.*;
-import io.tapdata.zoho.enums.HttpCode;
+import io.tapdata.zoho.service.zoho.ZoHoBase;
+import io.tapdata.zoho.service.zoho.ZoHoStarter;
 import io.tapdata.zoho.utils.Checker;
 import io.tapdata.zoho.utils.ZoHoHttp;
 
@@ -59,21 +59,6 @@ public class TicketLoader extends ZoHoStarter implements ZoHoBase {
         }
         ZoHoHttp http = ZoHoHttp.create(String.format(ZO_HO_BASE_URL,url), HttpType.GET,header).header(header).form(form);
         HttpResult httpResult = this.readyAccessToken(http);
-//        HttpResult httpResult = http.get();
-//        if (Checker.isEmpty(httpResult) ){
-//            TapLogger.debug(TAG,"Try to get ticket list , but AccessToken is.");
-//        }
-//        String code = httpResult.getCode();
-//        if (HttpCode.INVALID_OAUTH.getCode().equals(code)){
-//            //重新获取超时的AccessToken，并添加到stateMap
-//            String newAccessToken = this.refreshAndBackAccessToken();
-//            this.addNewAccessTokenToStateMap(newAccessToken);
-//            header.build("Authorization",newAccessToken);
-//            httpResult = http.get();
-//            if (Checker.isEmpty(httpResult) || Checker.isEmpty(httpResult.getResult()) || Checker.isEmpty(httpResult.getResult().get("data"))){
-//                throw new CoreException("Try to get ticket list , but faild.");
-//            }
-//        }
         TapLogger.debug(TAG,"Get ticket list succeed.");
         Object data = ((Map<String,Object>)httpResult.getResult()).get("data");
         return Checker.isEmpty(data)?new ArrayList<>():(List<Map<String,Object>>)data;
@@ -98,21 +83,6 @@ public class TicketLoader extends ZoHoStarter implements ZoHoBase {
         while (true){
             form.build("from",startPage);
             HttpResult httpResult = this.readyAccessToken(http);
-            //HttpResult httpResult = http.get();
-            //if (Checker.isEmpty(httpResult) ){
-            //    TapLogger.debug(TAG,"Try to get ticket list , but AccessToken is.");
-            //}
-            //String code = httpResult.getCode();
-            //if (HttpCode.INVALID_OAUTH.getCode().equals(code)){
-            //    //重新获取超时的AccessToken，并添加到stateMap
-            //    String newAccessToken = this.refreshAndBackAccessToken();
-            //    this.addNewAccessTokenToStateMap(newAccessToken);
-            //    heards.build("Authorization",newAccessToken);
-            //    httpResult = http.get();
-            //    if (Checker.isEmpty(httpResult) || Checker.isEmpty(httpResult.getResult()) || Checker.isEmpty(httpResult.getResult().get("data"))){
-            //        throw new CoreException("Try to get ticket list , but faild.");
-            //    }
-            //}
             Object data = ((Map<String,Object>)httpResult.getResult()).get("data");
             list = Checker.isEmpty(data)?null:(List<Map<String,Object>>)data;
             int pageSizeBatch = 0;

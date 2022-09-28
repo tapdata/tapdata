@@ -77,8 +77,8 @@ public class CodingConnector extends ConnectorBase {
 			throw new CoreException("Error in connection parameter [streamReadType], please go to verify");
 		}
 		switch (streamReadType){
-			case "Polling":this.connectorFunctions.supportStreamRead(null);break;
-			case "WebHook":this.connectorFunctions.supportRawDataCallbackFilterFunction(null);break;
+			case "Polling":this.connectorFunctions.supportStreamRead(this::streamRead);break;
+			case "WebHook":this.connectorFunctions.supportRawDataCallbackFilterFunction(this::rawDataCallbackFilterFunction);break;
 //			default:
 //				throw new CoreException("Error in connection parameters [streamReadType],just be [WebHook] or [Polling], please go to verify");
 		}
