@@ -6,6 +6,7 @@ import io.tapdata.base.ConnectorBase;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.event.TapEvent;
+import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.pdk.apis.annotations.TapConnectorClass;
@@ -17,8 +18,10 @@ import io.tapdata.pdk.apis.entity.CommandResult;
 import io.tapdata.pdk.apis.entity.ConnectionOptions;
 import io.tapdata.pdk.apis.entity.TestItem;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
+import io.tapdata.zoho.entity.ContextConfig;
 import io.tapdata.zoho.entity.HttpEntity;
 import io.tapdata.zoho.entity.ZoHoOffset;
+import io.tapdata.zoho.entity.webHook.EventBaseEntity;
 import io.tapdata.zoho.service.commandMode.CommandMode;
 import io.tapdata.zoho.service.connectionMode.ConnectionMode;
 import io.tapdata.zoho.service.zoho.TicketLoader;
@@ -105,9 +108,19 @@ public class ZoHoConnector extends ConnectorBase {
 	}
 
 	private TapEvent rawDataCallbackFilterFunction(TapConnectorContext connectorContext, Map<String, Object> issueEventData) {
+		if (Checker.isEmpty(issueEventData)){
+			TapLogger.debug(TAG,"WebHook of ZoHo patch body is empty, Data callback has been over.");
+			return null;
+		}
 		//@TODO 获取筛选条件
+		TicketLoader ticketLoader = TicketLoader.create(connectorContext);
+		ContextConfig contextConfig = ticketLoader.veryContextConfigAndNodeConfig();
 
-		return null;
+		EventBaseEntity instanceByEventType = EventBaseEntity.getInstanceByEventType(issueEventData);
+		if (Checker.isEmpty(instanceByEventType)){
+			TapLogger.debug(TAG,"An event type with unknown origin was found and cannot be processed .");
+		}
+		return instanceByEventType.outputTapEvent("Tickets");
 	}
 
 	private void streamRead(
