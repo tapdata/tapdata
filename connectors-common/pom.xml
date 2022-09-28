@@ -13,6 +13,7 @@
 		<module>mysql-core</module>
 		<module>postgres-core</module>
         <module>mq-core</module>
+        <module>file-core</module>
         <module>logminer-core</module>
     </modules>
 	<properties>

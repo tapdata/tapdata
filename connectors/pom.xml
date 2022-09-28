@@ -25,6 +25,10 @@
 		<module>mariadb-connector</module>
 		<module>hive1-connector</module>
 		<module>coding-connector</module>
+		<module>excel-connector</module>
+		<module>csv-connector</module>
+		<module>xml-connector</module>
+		<module>json-connector</module>
 	</modules>
 	<properties>
 		<connector.file.name>${project.artifactId}-v${project.version}</connector.file.name>

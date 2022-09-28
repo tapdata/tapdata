@@ -7,9 +7,9 @@
         <artifactId>connectors-common</artifactId>
         <version>1.0-SNAPSHOT</version>
     </parent>
-    <artifactId>logminer-core</artifactId>
+    <artifactId>file-core</artifactId>
     <version>1.0-SNAPSHOT</version>
-    <name>LogMiner-core</name>
+    <name>file-core</name>
     <packaging>jar</packaging>
 
     <properties>
@@ -19,7 +19,7 @@
     <dependencies>
         <dependency>
             <groupId>io.tapdata</groupId>
-            <artifactId>sql-core</artifactId>
+            <artifactId>connector-core</artifactId>
             <version>1.0-SNAPSHOT</version>
         </dependency>
         <dependency>
@@ -28,20 +28,13 @@
             <scope>provided</scope>
         </dependency>
         <dependency>
-            <groupId>net.openhft</groupId>
-            <artifactId>chronicle-map</artifactId>
-            <version>3.21.86</version>
-            <exclusions>
-                <exclusion>
-                    <groupId>org.slf4j</groupId>
-                    <artifactId>slf4j-api</artifactId>
-                </exclusion>
-            </exclusions>
-        </dependency>
-        <dependency>
-            <groupId>net.sf.ehcache</groupId>
-            <artifactId>ehcache-core</artifactId>
-            <version>2.6.11</version>
+            <groupId>com.google.guava</groupId>
+            <artifactId>guava</artifactId>
+            <version>31.1-jre</version>
         </dependency>
     </dependencies>
+
+    <dependencyManagement>
+
+    </dependencyManagement>
 </project>
