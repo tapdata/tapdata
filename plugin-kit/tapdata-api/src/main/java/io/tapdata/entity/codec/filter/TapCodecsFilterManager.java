@@ -64,7 +64,7 @@ public class TapCodecsFilterManager {
             if(theValue != null && fieldName != null) {
                 if((theValue instanceof TapValue)) {
                     TapLogger.debug(TAG, "Value {} for field {} already in TapValue format, no need do ToTapValue conversion. ", theValue, fieldName);
-                   return null;
+                    return null;
                 }
 
                 String dataType = null;

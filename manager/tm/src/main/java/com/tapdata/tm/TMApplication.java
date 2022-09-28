@@ -6,6 +6,9 @@ import com.tapdata.tm.discovery.service.DefaultDataDirectoryService;
 import com.tapdata.tm.user.dto.UserDto;
 import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.utils.SpringContextHelper;
+import io.tapdata.entity.logger.TapLogger;
+import io.tapdata.pdk.core.runtime.TapRuntime;
+import io.tapdata.pdk.core.utils.CommonUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
@@ -19,6 +22,8 @@ import org.springframework.data.mongodb.repository.config.EnableMongoRepositorie
 import org.springframework.scheduling.annotation.EnableAsync;
 
 import java.util.TimeZone;
+
+import static io.tapdata.pdk.core.utils.CommonUtils.dateString;
 
 /**
  * @author lg<lirufei0808 @ gmail.com>
@@ -34,7 +39,11 @@ import java.util.TimeZone;
 @Slf4j
 public class TMApplication {
 
+	private static final String TAG = TMApplication.class.getSimpleName();
+
 	public static void main(String[] args) {
+		CommonUtils.setProperty("tap_verbose", "true");
+
 		ConfigurableApplicationContext applicationContext = SpringApplication.run(TMApplication.class, args);
 		SpringContextHelper.applicationContext = applicationContext;
 
@@ -53,6 +62,50 @@ public class TMApplication {
 		}
 
 		TimeZone.setDefault(TimeZone.getTimeZone("Asia/Shanghai"));
+		TapLogger.setLogListener(new TapLogger.LogListener() {
+			String format(String msg) {
+				return "PDK - " + dateString() + " " + Thread.currentThread().getName() + ": " + msg;
+			}
+			@Override
+			public void debug(String msg) {
+				log.info(format(msg));
+//				System.out.println(msg);
+			}
+
+			@Override
+			public void info(String msg) {
+				log.info(format(msg));
+//					System.out.println(log);
+			}
+
+			@Override
+			public void warn(String msg) {
+				log.warn(format(msg));
+//				System.out.println(msg);
+			}
+
+			@Override
+			public void error(String msg) {
+				log.error(format(msg));
+			}
+
+			@Override
+			public void fatal(String msg) {
+				log.error(format(msg));
+			}
+
+			@Override
+			public void memory(String msg) {
+				log.info(format(msg));
+			}
+		});
+
+		TapLogger.debug(TAG, "TapRuntime will start");
+
+		CommonUtils.setProperty("tapdata_proxy_mongodb_uri", userService.getMongodbUri());
+		CommonUtils.setProperty("tapdata_proxy_server_port", userService.getServerPort());
+		TapRuntime.getInstance();
+		TapLogger.debug(TAG, "TapRuntime initialized");
 
 		new Thread(() -> {
 			DefaultDataDirectoryService bean = applicationContext.getBean(DefaultDataDirectoryService.class);
@@ -62,7 +115,6 @@ public class TMApplication {
 			bean.addPdkIds(userDetail);
 			bean.addConnections(userDetail);
 		}).start();
-
 
 	}
 }

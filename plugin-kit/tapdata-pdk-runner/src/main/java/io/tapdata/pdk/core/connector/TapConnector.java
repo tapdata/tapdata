@@ -2,19 +2,21 @@ package io.tapdata.pdk.core.connector;
 
 import com.alibaba.fastjson.JSON;
 import io.tapdata.entity.logger.TapLogger;
-import io.tapdata.entity.utils.ParagraphFormatter;
+import io.tapdata.entity.utils.DataMap;
+import io.tapdata.entity.memory.MemoryFetcher;
 import io.tapdata.pdk.core.tapnode.TapNodeClassFactory;
 import io.tapdata.pdk.core.tapnode.TapNodeInstance;
 import io.tapdata.pdk.core.utils.state.StateMachine;
 
 import java.io.File;
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 
 /**
  * Each jar will have a TapConnector.
  */
-public class TapConnector {
+public class TapConnector implements MemoryFetcher {
     private static final String TAG = TapConnector.class.getSimpleName();
 
     private TapNodeClassFactory tapNodeClassFactory;
@@ -36,15 +38,6 @@ public class TapConnector {
 
     private final Object lock = new int[0];
 
-    public String toMemoryString(String memoryLevel, int indentation) {
-        ParagraphFormatter paragraphFormatter = new ParagraphFormatter(TapConnector.class.getSimpleName(), indentation)
-                .addRow("JarFile", jarFile)
-                .addRow("JarFileTime", jarFileTime)
-                .addRow("LoadingJarFile", loadingJarFile)
-                .addRow("State", stateMachine != null ? stateMachine.getCurrentState() : null)
-        ;
-        return paragraphFormatter.toString();
-    }
     public String toString() {
         return TapConnector.class.getSimpleName() + "#" + (stateMachine != null ? stateMachine.getCurrentState() : STATE_NONE) + " jarFile " + (jarFile != null ? jarFile.getName() : "none") + " jarFileTime " + jarFileTime;
     }
@@ -202,5 +195,14 @@ public class TapConnector {
         } else {
             TapLogger.error(TAG, "State is not loading, but {}, failed to execute load completed, this is a serious bug, please check it, jarFile {}, classloader {}, throwable {}", stateMachine.getCurrentState(), jarFile.getAbsolutePath(), classLoader, throwable);
         }
+    }
+
+    @Override
+    public DataMap memory(List<String> mapKeys, String memoryLevel) {
+        return DataMap.create()
+                .kv("jarFile", jarFile)
+                .kv("jarFileTime", jarFileTime)
+                .kv("loadingJarFile", loadingJarFile)
+                .kv("state", stateMachine != null ? stateMachine.getCurrentState() : null);
     }
 }

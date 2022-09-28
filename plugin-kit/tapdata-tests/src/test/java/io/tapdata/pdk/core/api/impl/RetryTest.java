@@ -2,6 +2,8 @@ package io.tapdata.pdk.core.api.impl;
 
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.schema.TapTable;
+import io.tapdata.entity.utils.DataMap;
+import io.tapdata.entity.utils.ReflectionUtil;
 import io.tapdata.pdk.apis.TapConnector;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.entity.ConnectionOptions;
@@ -13,7 +15,6 @@ import io.tapdata.pdk.apis.functions.connection.RetryOptions;
 import io.tapdata.pdk.core.api.ConnectionNode;
 import io.tapdata.pdk.core.entity.params.PDKMethodInvoker;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
-import io.tapdata.pdk.core.utils.ReflectionUtil;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;

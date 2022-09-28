@@ -6,6 +6,7 @@ import io.tapdata.entity.codec.ToTapValueCodec;
 import io.tapdata.entity.codec.detector.impl.NewFieldDetector;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
 import io.tapdata.entity.schema.TapField;
+import io.tapdata.entity.schema.type.TapMap;
 import io.tapdata.entity.schema.type.TapType;
 import io.tapdata.entity.schema.value.*;
 import io.tapdata.entity.utils.InstanceFactory;
@@ -237,7 +238,6 @@ public class TapCodecsFilterManagerTest {
 
     @Test
     public void testTapMapInMap() {
-        //TODO need pass this case.
         TapCodecsRegistry codecsRegistry = TapCodecsRegistry.create();
         codecsRegistry.registerFromTapValue(TapMapValue.class, tapValue -> {
             return toJson(tapValue.getValue());

@@ -1,5 +1,6 @@
 package io.tapdata.entity.utils;
 
+import java.lang.reflect.Type;
 import java.util.List;
 
 public interface JsonParser {
@@ -12,6 +13,7 @@ public interface JsonParser {
     List<?> fromJsonArray(String json);
     Object fromJson(String json);
 
+    <T> T fromJson(String json, Type clazz);
     <T> T fromJson(String json, Class<T> clazz);
 
     <T> T fromJson(String json, Class<T> clazz, List<AbstractClassDetector> abstractClassDetectors);

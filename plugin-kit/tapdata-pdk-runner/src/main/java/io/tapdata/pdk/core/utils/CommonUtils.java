@@ -17,17 +17,18 @@ import io.tapdata.pdk.core.entity.params.PDKMethodInvoker;
 import io.tapdata.pdk.core.error.PDKRunnerErrorCodes;
 import io.tapdata.pdk.core.error.QuiteException;
 import io.tapdata.pdk.core.executor.ExecutorsManager;
+import org.apache.commons.lang3.exception.ExceptionUtils;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
 import org.apache.commons.io.output.AppendableOutputStream;
 
 import javax.naming.CommunicationException;
+import java.nio.charset.StandardCharsets;
 import java.text.SimpleDateFormat;
-import java.util.Date;
-import java.util.List;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
+import java.util.zip.CRC32;
 
 public class CommonUtils {
     static SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss,SSS");
@@ -37,9 +38,7 @@ public class CommonUtils {
     public static String dateString(Date date) {
         return sdf.format(date);
     }
-    public static String uuid() {
-        return UUID.randomUUID().toString().replace("-", "");
-    }
+
     public static int getJavaVersion() {
         String version = System.getProperty("java.version");
         if(version.startsWith("1.")) {
@@ -196,11 +195,11 @@ public class CommonUtils {
             runnable.run();
         } catch(CoreException coreException) {
             coreException.printStackTrace();
-            TapLogger.warn(tag, "Error code {} message {} will be ignored. ", coreException.getCode(), coreException.getMessage());
+            TapLogger.warn(tag, "Error code {} message {} will be ignored. ", coreException.getCode(), ExceptionUtils.getStackTrace(coreException));
         } catch(Throwable throwable) {
             if(!(throwable instanceof QuiteException)) {
                 throwable.printStackTrace();
-                TapLogger.warn(tag, "Unknown error message {} will be ignored. ", throwable.getMessage());
+                TapLogger.warn(tag, "Unknown error message {} will be ignored. ", ExceptionUtils.getStackTrace(throwable));
             }
         }
     }
@@ -218,14 +217,24 @@ public class CommonUtils {
         return Long.toHexString(System.currentTimeMillis()) + Long.toHexString(counter.getAndIncrement());
     }
 
-
     public static void handleAnyError(AnyError r) {
+        handleAnyError(r, null);
+    }
+    public static void handleAnyError(AnyError r, Consumer<Throwable> consumer) {
         try {
             r.run();
         } catch(CoreException coreException) {
-            throw coreException;
+            if(consumer != null) {
+                consumer.accept(coreException);
+            } else {
+                throw coreException;
+            }
         } catch(Throwable throwable) {
-            throw new CoreException(PDKRunnerErrorCodes.COMMON_UNKNOWN, throwable.getMessage(), throwable);
+            if(consumer != null) {
+                consumer.accept(throwable);
+            } else {
+                throw new CoreException(PDKRunnerErrorCodes.COMMON_UNKNOWN, throwable.getMessage(), throwable);
+            }
         }
     }
 

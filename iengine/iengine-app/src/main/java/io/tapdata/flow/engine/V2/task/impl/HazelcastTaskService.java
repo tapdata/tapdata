@@ -88,6 +88,7 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 	private static final Logger logger = LogManager.getLogger(HazelcastTaskService.class);
 
 	private static HazelcastInstance hazelcastInstance;
+	private static HazelcastTaskService taskService;
 
 	@Autowired
 	private ConfigurationCenter configurationCenter;
@@ -106,6 +107,11 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 		if (HazelcastTaskService.clientMongoOperator == null) {
 			HazelcastTaskService.clientMongoOperator = clientMongoOperator;
 		}
+		taskService = this;
+	}
+
+	public static HazelcastTaskService taskService() {
+		return taskService;
 	}
 
 	@PostConstruct
@@ -650,7 +656,7 @@ public class HazelcastTaskService implements TaskService<TaskDto> {
 		return null;
 	}
 
-	private Connections getConnection(String connectionId) {
+	public Connections getConnection(String connectionId) {
 		final Connections connections = clientMongoOperator.findOne(
 				new Query(where("_id").is(connectionId)),
 				ConnectorConstant.CONNECTION_COLLECTION,
