@@ -124,19 +124,6 @@ public class PDKTestBase {
         return id.replace('-', '_').replace(" ", "").replace('>', '_') + "_" + RandomStringUtils.randomAlphabetic(6);
     }
 
-    public interface AssertionCall {
-        void assertIt() throws InvocationTargetException, IllegalAccessException;
-    }
-
-    public void $(AssertionCall assertionCall) {
-        try {
-            assertionCall.assertIt();
-        } catch (Throwable throwable) {
-            lastThrowable = throwable;
-            completed(true);
-        }
-    }
-
     public static SupportFunction supportAny(List<Class<? extends TapFunction>> functions, String errorMessage) {
         return new SupportFunction(functions, errorMessage);
     }
@@ -181,7 +168,18 @@ public class PDKTestBase {
         return false;
     }
 
+    public interface AssertionCall {
+        void assertIt() throws InvocationTargetException, IllegalAccessException;
+    }
 
+    public void $(AssertionCall assertionCall) {
+        try {
+            assertionCall.assertIt();
+        } catch (Throwable throwable) {
+            lastThrowable = throwable;
+            completed(true);
+        }
+    }
     public void completed() {
         completed(false);
     }

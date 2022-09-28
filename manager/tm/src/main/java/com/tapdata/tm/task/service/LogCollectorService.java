@@ -511,7 +511,7 @@ public class LogCollectorService {
         Boolean canUpdate = checkUpdateConfig(user);
 
         if (!canUpdate) {
-            throw new BizException("LogCollectConfigUpdateError");
+            throw new BizException("LogCollect.ConfigUpdateError");
         }
 
         String persistenceMode = logSystemConfigDto.getPersistenceMode();
@@ -550,12 +550,34 @@ public class LogCollectorService {
 //            }
 //        }
         if (persistenceMongodb_uri_db != null) {
-            if (!persistenceMongodb_uri_db.contains("******")) {
+            try {
+                ConnectionString connectionString = new ConnectionString(persistenceMongodb_uri_db);
+                if (persistenceMongodb_uri_db.contains("******")) {
+                    String old = SettingsEnum.SHARE_CDC_PERSISTENCE_MONGODB_URI_DB.getValue();
+                    if (StringUtils.isBlank(old)) {
+                        throw new BizException("LogCollect.UriInvalid");
+                    }
+
+                    if (!persistenceMongodb_uri_db.equals(old)) {
+                        ConnectionString connectionStringOld = new ConnectionString(old);
+                        if (connectionStringOld.getHosts().equals(connectionString.getHosts())) {
+                            if (connectionStringOld.getPassword() == null) {
+                                throw new BizException("LogCollect.UriInvalid");
+                            }
+                            persistenceMongodb_uri_db = persistenceMongodb_uri_db.replace("******", new String(connectionStringOld.getPassword()));
+                        } else {
+                            throw new BizException("LogCollect.UriInvalid");
+                        }
+                    }
+                }
+
                 settingsService.update(SettingsEnum.SHARE_CDC_PERSISTENCE_MONGODB_URI_DB, persistenceMongodb_uri_db);
                 if (persistenceMode == null) {
                     persistenceMode = "MongoDB";
                     settingsService.update(SettingsEnum.SHARE_CDC_PERSISTENCE_MODE, persistenceMode);
                 }
+            } catch (Exception e) {
+                throw new BizException("LogCollect.UriInvalid");
             }
         }
 
@@ -582,7 +604,7 @@ public class LogCollectorService {
      */
     public Boolean checkUpdateConfig(UserDetail user) {
         //查询所有的开启挖掘的任务跟，挖掘任务，是否都停止并且重置
-        Criteria criteria = Criteria.where("shareCdcEnable").is(true).and("is_deleted").is(false).and("status").ne(TaskDto.STATUS_EDIT);
+        Criteria criteria = Criteria.where("shareCdcEnable").is(true).and("is_deleted").is(false).and("status").nin(TaskDto.STATUS_EDIT, TaskDto.STATUS_WAIT_START);
         Query query = new Query(criteria);
         query.fields().include("shareCdcEnable", "is_deleted", "status");
         TaskDto taskDto = taskService.findOne(query);
@@ -591,7 +613,7 @@ public class LogCollectorService {
         }
 
         Criteria criteria1 = Criteria.where("is_deleted").is(false).and("dag.nodes").elemMatch(Criteria.where("type").is("logCollector"))
-                .and("status").ne(TaskDto.STATUS_EDIT);
+                .and("status").nin(TaskDto.STATUS_EDIT, TaskDto.STATUS_WAIT_START);
         Query query1 = new Query(criteria1);
         query1.fields().include("shareCdcEnable", "is_deleted", "status");
         TaskDto taskDto1 = taskService.findOne(query1);

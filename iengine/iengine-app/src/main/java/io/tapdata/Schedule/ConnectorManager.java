@@ -16,6 +16,8 @@ import com.tapdata.validator.ConnectionValidator;
 import com.tapdata.validator.ValidatorConstant;
 import io.tapdata.Runnable.LoadSchemaRunner;
 import io.tapdata.TapInterface;
+import io.tapdata.aspect.LoginSuccessfullyAspect;
+import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.common.*;
 import io.tapdata.common.sample.CollectorFactory;
 import io.tapdata.dao.MessageDao;
@@ -401,6 +403,11 @@ public class ConnectorManager {
 						configCenter.putConfig(ConfigurationCenter.USER_INFO, user);
 						user.setRole(user.getRole() == null ? 0 : user.getRole());
 					}
+
+					AspectUtils.executeAspect(LoginSuccessfullyAspect.class, () -> new LoginSuccessfullyAspect()
+							.configCenter(configCenter)
+							.baseUrls(restTemplateOperator.getBaseURLs())
+							.user(user));
 				} else {
 					logger.warn("Login fail response {}, waiting 60(s) retry.", loginResp);
 					Thread.sleep(60000L);

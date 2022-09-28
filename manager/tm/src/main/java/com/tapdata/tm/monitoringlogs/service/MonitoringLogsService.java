@@ -1,18 +1,20 @@
 package com.tapdata.tm.monitoringlogs.service;
 
+import cn.hutool.core.date.DateUtil;
 import com.tapdata.manager.common.utils.IOUtils;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.base.service.BaseService;
 import com.tapdata.tm.commons.schema.MonitoringLogsDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
+import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.monitoringlogs.entity.MonitoringLogsEntity;
 import com.tapdata.tm.monitoringlogs.param.MonitoringLogCountParam;
 import com.tapdata.tm.monitoringlogs.param.MonitoringLogExportParam;
 import com.tapdata.tm.monitoringlogs.param.MonitoringLogQueryParam;
 import com.tapdata.tm.monitoringlogs.repository.MonitoringLogsRepository;
-import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.monitoringlogs.vo.MonitoringLogCountVo;
+import com.tapdata.tm.utils.QuartzCronDateUtils;
 import lombok.NonNull;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
@@ -31,7 +33,10 @@ import org.springframework.data.util.CloseableIterator;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.regex.Pattern;
 import java.util.zip.ZipOutputStream;
@@ -84,7 +89,9 @@ public class MonitoringLogsService extends BaseService<MonitoringLogsDto, Monito
             criteria.and("taskRecordId").is(param.getTaskRecordId());
         }
 
-        criteria.and("date").gte(new Date(param.getStart())).lt(new Date(param.getEnd()));
+        Date startDate = DateUtil.offsetMinute(DateUtil.date(param.getStart()), -1);
+        Date endDate = DateUtil.offsetMinute(DateUtil.date(param.getEnd()), 10);
+        criteria.and("date").gte(startDate).lt(endDate);
 
         if (StringUtils.isNotEmpty(param.getNodeId())) {
             criteria.and("nodeId").is(param.getNodeId());
@@ -214,14 +221,13 @@ public class MonitoringLogsService extends BaseService<MonitoringLogsDto, Monito
 
     //
 
-    public void startTaskMonitoringLog(TaskDto taskDto, UserDetail user) {
+    public void startTaskMonitoringLog(TaskDto taskDto, UserDetail user, Date date) {
         MonitoringLogsDto.MonitoringLogsDtoBuilder builder = MonitoringLogsDto.builder();
-        long now = System.currentTimeMillis();
         builder.taskId(taskDto.getId().toHexString())
                 .taskName(taskDto.getName())
                 .taskRecordId(taskDto.getTaskRecordId())
-                .date(new Date(now))
-                .timestamp(now)
+                .date(date)
+                .timestamp(System.currentTimeMillis())
                 .level("INFO")
                 .message("Start task...")
                 ;

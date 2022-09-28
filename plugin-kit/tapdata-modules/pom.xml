@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+	<parent>
+		<groupId>io.tapdata</groupId>
+		<artifactId>plugin-kit</artifactId>
+		<version>1.0-SNAPSHOT</version>
+	</parent>
+	<modelVersion>4.0.0</modelVersion>
+    <artifactId>tapdata-modules</artifactId>
+    <name>tapdata-modules</name>
+    <packaging>pom</packaging>
+    <modules>
+		<module>modules-api</module>
+		<module>mongodb-storage-module</module>
+		<module>websocket-server-module</module>
+		<module>websocket-client-module</module>
+    </modules>
+
+	<properties>
+		<java.version>8</java.version>
+		<junit.jupiter.version>5.8.1</junit.jupiter.version>
+		<junit.platform.version>1.8.1</junit.platform.version>
+	</properties>
+	<dependencyManagement>
+
+	</dependencyManagement>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.felix</groupId>
+                <artifactId>maven-bundle-plugin</artifactId>
+                <version>4.2.1</version>
+                <extensions>true</extensions>
+            </plugin>
+            <plugin>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>3.7.0</version>
+                <configuration>
+                    <source>${java.version}</source>
+                    <target>${java.version}</target>
+                </configuration>
+            </plugin>
+
+        </plugins>
+    </build>
+    <distributionManagement>
+        <repository>
+            <!--必须与 settings.xml 的 id 一致-->
+            <id>tapdata-tapdata-maven</id>
+            <name>maven</name>
+            <url>https://tapdata-maven.pkg.coding.net/repository/tapdata/maven/</url>
+        </repository>
+    </distributionManagement>
+</project>
+

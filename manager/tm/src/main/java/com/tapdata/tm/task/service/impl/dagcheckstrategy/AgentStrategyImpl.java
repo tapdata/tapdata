@@ -34,10 +34,13 @@ public class AgentStrategyImpl implements DagLogStrategy {
     public List<TaskDagCheckLog> getLogs(TaskDto taskDto, UserDetail userDetail) {
 
         List<Worker> availableAgent;
+        String agent;
         if (StringUtils.equals(AccessNodeTypeEnum.AUTOMATIC_PLATFORM_ALLOCATION.name(), taskDto.getAccessNodeType())) {
             availableAgent = workerService.findAvailableAgent(userDetail);
+            agent = AccessNodeTypeEnum.AUTOMATIC_PLATFORM_ALLOCATION.getName();
         } else {
             availableAgent = workerService.findAvailableAgentByAccessNode(userDetail, taskDto.getAccessNodeProcessIdList());
+            agent = taskDto.getAccessNodeProcessIdList().get(0);
         }
 
         String template;
@@ -51,7 +54,7 @@ public class AgentStrategyImpl implements DagLogStrategy {
             grade = Level.INFO;
         } else {
             template = templateEnum.getErrorTemplate();
-            content = MessageFormat.format(template, DateUtil.now(), taskDto.getAccessNodeProcessIdList().get(0));
+            content = MessageFormat.format(template, DateUtil.now(), agent);
             grade = Level.ERROR;
         }
 

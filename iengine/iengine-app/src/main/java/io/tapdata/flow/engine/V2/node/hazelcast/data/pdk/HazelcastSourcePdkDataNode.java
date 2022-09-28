@@ -29,6 +29,7 @@ import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
 import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.apis.functions.connector.source.BatchCountFunction;
 import io.tapdata.pdk.apis.functions.connector.source.BatchReadFunction;
+import io.tapdata.pdk.apis.functions.connector.source.RawDataCallbackFilterFunction;
 import io.tapdata.pdk.apis.functions.connector.source.StreamReadFunction;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.entity.params.PDKMethodInvoker;
@@ -121,26 +122,6 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 			}
 		} catch (Throwable throwable) {
 			errorHandle(throwable, throwable.getMessage());
-		} finally {
-			try {
-				while (isRunning()) {
-					try {
-						if (sourceRunnerLock.tryLock(1L, TimeUnit.SECONDS)) {
-							break;
-						}
-					} catch (InterruptedException e) {
-						break;
-					}
-				}
-				if (this.sourceRunnerFirstTime.get()) {
-					this.running.set(false);
-				}
-			} finally {
-				try {
-					sourceRunnerLock.unlock();
-				} catch (Exception ignored) {
-				}
-			}
 		}
 	}
 
@@ -419,77 +400,106 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 			logger.warn("Failed to get source node");
 			return;
 		}
+		RawDataCallbackFilterFunction rawDataCallbackFilterFunction = connectorNode.getConnectorFunctions().getRawDataCallbackFilterFunction();
 		StreamReadFunction streamReadFunction = connectorNode.getConnectorFunctions().getStreamReadFunction();
-		if (streamReadFunction != null) {
+		if (streamReadFunction != null || rawDataCallbackFilterFunction != null) {
 			logger.info("Starting stream read, table list: " + tapTableMap.keySet() + ", offset: " + syncProgress.getOffsetObj());
 			List<String> tables = new ArrayList<>(tapTableMap.keySet());
 			cdcDelayCalculation.addHeartbeatTable(tables);
 			int batchSize = 1;
+			String streamReadFunctionName = null;
+			if(rawDataCallbackFilterFunction != null)
+				streamReadFunctionName = rawDataCallbackFilterFunction.getClass().getSimpleName();
+			if(streamReadFunctionName == null)
+				streamReadFunctionName = streamReadFunction.getClass().getSimpleName();
+			String finalStreamReadFunctionName = streamReadFunctionName;
+			PDKMethodInvoker pdkMethodInvoker = PDKMethodInvoker.create();
 			executeDataFuncAspect(StreamReadFuncAspect.class, () -> new StreamReadFuncAspect()
 					.connectorContext(getConnectorNode().getConnectorContext())
 					.dataProcessorContext(getDataProcessorContext())
+					.streamReadFunction(finalStreamReadFunctionName)
 					.tables(tables)
 					.eventBatchSize(batchSize)
 					.offsetState(syncProgress.getStreamOffsetObj())
 					.start(), streamReadFuncAspect -> PDKInvocationMonitor.invoke(getConnectorNode(), PDKMethod.SOURCE_STREAM_READ,
-					PDKMethodInvoker.create()
+					pdkMethodInvoker
 							.runnable(
-									() -> streamReadFunction.streamRead(getConnectorNode().getConnectorContext(), tables,
-											syncProgress.getStreamOffsetObj(), batchSize, StreamReadConsumer.create((events, offsetObj) -> {
-												try {
-													while (isRunning()) {
-														try {
-															if (sourceRunnerLock.tryLock(1L, TimeUnit.SECONDS)) {
-																break;
-															}
-														} catch (InterruptedException e) {
+									() -> {
+										this.streamReadFuncAspect = streamReadFuncAspect;
+										StreamReadConsumer streamReadConsumer = StreamReadConsumer.create((events, offsetObj) -> {
+											try {
+												while (isRunning()) {
+													try {
+														if (sourceRunnerLock.tryLock(1L, TimeUnit.SECONDS)) {
 															break;
 														}
-													}
-													if (events != null && !events.isEmpty()) {
-														events.forEach(event -> {
-															if (null == event.getTime()) {
-																throw new NodeException("Invalid TapEvent, `TapEvent.time` should be NonNUll").context(getProcessorBaseContext()).event(event);
-															}
-															event.addInfo("eventId", UUID.randomUUID().toString());
-														});
-
-														if (streamReadFuncAspect != null) {
-															AspectUtils.accept(streamReadFuncAspect.state(StreamReadFuncAspect.STATE_STREAMING_READ_COMPLETED).getStreamingReadCompleteConsumers(), events);
-														}
-
-														List<TapdataEvent> tapdataEvents = wrapTapdataEvent(events, SyncStage.CDC, offsetObj);
-														if (logger.isDebugEnabled()) {
-															logger.debug("Stream read {} of events, {}", events.size(), LoggerUtils.sourceNodeMessage(getConnectorNode()));
-														}
-
-														if (streamReadFuncAspect != null)
-															AspectUtils.accept(streamReadFuncAspect.state(StreamReadFuncAspect.STATE_STREAMING_PROCESS_COMPLETED).getStreamingProcessCompleteConsumers(), tapdataEvents);
-
-														if (CollectionUtils.isNotEmpty(tapdataEvents)) {
-															tapdataEvents.forEach(this::enqueue);
-															syncProgress.setStreamOffsetObj(offsetObj);
-															if (streamReadFuncAspect != null)
-																AspectUtils.accept(streamReadFuncAspect.state(StreamReadFuncAspect.STATE_STREAMING_ENQUEUED).getStreamingEnqueuedConsumers(), tapdataEvents);
-														}
-													}
-												} catch (Throwable throwable) {
-													errorHandle(throwable, "Error processing incremental data, error: " + throwable.getMessage());
-												} finally {
-													try {
-														sourceRunnerLock.unlock();
-													} catch (Exception ignored) {
+													} catch (InterruptedException e) {
+														break;
 													}
 												}
-											}).stateListener((oldState, newState) -> {
-												if (null != newState && StreamReadConsumer.STATE_STREAM_READ_STARTED == newState) {
-													// MILESTONE-READ_CDC_EVENT-FINISH
+												if (events != null && !events.isEmpty()) {
+													events.forEach(event -> {
+														if (null == event.getTime()) {
+															throw new NodeException("Invalid TapEvent, `TapEvent.time` should be NonNUll").context(getProcessorBaseContext()).event(event);
+														}
+														event.addInfo("eventId", UUID.randomUUID().toString());
+													});
+
+													if (streamReadFuncAspect != null) {
+														AspectUtils.accept(streamReadFuncAspect.state(StreamReadFuncAspect.STATE_STREAMING_READ_COMPLETED).getStreamingReadCompleteConsumers(), events);
+													}
+
+													List<TapdataEvent> tapdataEvents = wrapTapdataEvent(events, SyncStage.CDC, offsetObj);
+													if (logger.isDebugEnabled()) {
+														logger.debug("Stream read {} of events, {}", events.size(), LoggerUtils.sourceNodeMessage(getConnectorNode()));
+													}
+
 													if (streamReadFuncAspect != null)
-														executeAspect(streamReadFuncAspect.state(StreamReadFuncAspect.STATE_STREAM_STARTED).streamStartedTime(System.currentTimeMillis()));
-													TaskMilestoneFuncAspect.execute(dataProcessorContext, MilestoneStage.READ_CDC_EVENT, MilestoneStatus.FINISH);
-													MilestoneUtil.updateMilestone(milestoneService, MilestoneStage.READ_CDC_EVENT, MilestoneStatus.FINISH);
+														AspectUtils.accept(streamReadFuncAspect.state(StreamReadFuncAspect.STATE_STREAMING_PROCESS_COMPLETED).getStreamingProcessCompleteConsumers(), tapdataEvents);
+
+													if (CollectionUtils.isNotEmpty(tapdataEvents)) {
+														tapdataEvents.forEach(this::enqueue);
+														syncProgress.setStreamOffsetObj(offsetObj);
+														if (streamReadFuncAspect != null)
+															AspectUtils.accept(streamReadFuncAspect.state(StreamReadFuncAspect.STATE_STREAMING_ENQUEUED).getStreamingEnqueuedConsumers(), tapdataEvents);
+													}
 												}
-											}))
+											} catch (Throwable throwable) {
+												errorHandle(throwable, "Error processing incremental data, error: " + throwable.getMessage());
+											} finally {
+												try {
+													sourceRunnerLock.unlock();
+												} catch (Exception ignored) {
+												}
+											}
+										}).stateListener((oldState, newState) -> {
+											PDKInvocationMonitor.invokerRetrySetter(pdkMethodInvoker);
+											if (null != newState && StreamReadConsumer.STATE_STREAM_READ_STARTED == newState) {
+												// MILESTONE-READ_CDC_EVENT-FINISH
+												if (streamReadFuncAspect != null)
+													executeAspect(streamReadFuncAspect.state(StreamReadFuncAspect.STATE_STREAM_STARTED).streamStartedTime(System.currentTimeMillis()));
+												TaskMilestoneFuncAspect.execute(dataProcessorContext, MilestoneStage.READ_CDC_EVENT, MilestoneStatus.FINISH);
+												MilestoneUtil.updateMilestone(milestoneService, MilestoneStage.READ_CDC_EVENT, MilestoneStatus.FINISH);
+											}
+										});
+
+										if(rawDataCallbackFilterFunction != null && streamReadFuncAspect != null) {
+											executeAspect(streamReadFuncAspect.state(StreamReadFuncAspect.STATE_CALLBACK_RAW_DATA).streamReadConsumer(streamReadConsumer));
+											while(isRunning()) {
+												if(!streamReadFuncAspect.waitRawData()) {
+													break;
+												}
+											}
+											if(streamReadFuncAspect.getErrorDuringWait() != null) {
+												throw streamReadFuncAspect.getErrorDuringWait();
+											}
+										} else {
+											if(streamReadFunction != null) {
+												streamReadFunction.streamRead(getConnectorNode().getConnectorContext(), tables,
+														syncProgress.getStreamOffsetObj(), batchSize, streamReadConsumer);
+											}
+										}
+									}
 							).logTag(TAG)
 							.retryPeriodSeconds(dataProcessorContext.getTaskConfig().getTaskRetryConfig().getRetryIntervalSecond())
 							.maxRetryTimeMinute(dataProcessorContext.getTaskConfig().getTaskRetryConfig().getMaxRetryTime(TimeUnit.MINUTES))

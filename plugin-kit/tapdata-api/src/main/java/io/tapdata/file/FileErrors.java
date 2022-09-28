@@ -1,0 +1,10 @@
+package io.tapdata.file;
+
+public interface FileErrors {
+	int PATH_IS_DIRECTORY = 9000;
+	int ILLEGAL_PARAMETERS = 9001;
+	int CLASS_NOT_FOUND = 9002;
+	int NEED_IMPLEMENT_TAP_FILE_STORAGE = 9003;
+	int NEW_INSTANCE_FAILED = 9004;
+	int MISSING_STORAGE_CLASS_NAME = 9005;
+}

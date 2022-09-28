@@ -67,7 +67,6 @@ import com.tapdata.tm.transform.service.MetadataTransformerItemService;
 import com.tapdata.tm.transform.service.MetadataTransformerService;
 import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.utils.*;
-import com.tapdata.tm.worker.dto.WorkerDto;
 import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.service.WorkerService;
 import com.tapdata.tm.worker.vo.CalculationEngineVo;
@@ -545,7 +544,6 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         checkDDLConflict(taskDto);
 
         //saveInspect(existedTask, taskDto, user);
-        taskDto.setStatus(TaskDto.STATUS_WAIT_START);
         return confirmById(taskDto, user, confirm, false);
     }
 
@@ -632,6 +630,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     }
 
     public TaskDto confirmById(TaskDto taskDto, UserDetail user, boolean confirm, boolean importTask) {
+        taskDto.setStatus(TaskDto.STATUS_WAIT_START);
         DAG dag = taskDto.getDag();
 
         if (!taskDto.getShareCache()) {
@@ -852,8 +851,11 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         log.debug("copy task success, task name = {}", copyName);
 
         taskDto.setName(copyName);
-        taskDto.setStatus(TaskDto.STATUS_EDIT);
+        //taskDto.setStatus(TaskDto.STATUS_EDIT);
         taskDto.setStatuses(new ArrayList<>());
+        taskDto.setStartTime(null);
+        taskDto.setStopTime(null);
+        taskDto.setErrorTime(null);
         //taskDto.setTemp(null);
 
         //创建新任务， 直接调用事务不会生效
@@ -918,7 +920,10 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         updateById(taskDto.getId(), update, user);
 
         taskDto.setStatus(TaskDto.STATUS_WAIT_START);
+        taskDto.setAgentId(null);
         taskDto.setTaskRecordId(lastTaskRecordId);
+        taskDto.setAccessNodeType(AccessNodeTypeEnum.AUTOMATIC_PLATFORM_ALLOCATION.name());
+        taskDto.setAccessNodeProcessIdList(Lists.newArrayList());
 
         //清除校验结果
         taskAutoInspectResultsService.cleanResultsByTask(taskDto);
@@ -1789,6 +1794,11 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         return transformSchemaService.getTransformParam(taskDto, user);
     }
 
+    public TransformerWsMessageDto findTransformAllParam(String taskId, UserDetail user) {
+        TaskDto taskDto = checkExistById(MongoUtils.toObjectId(taskId), user);
+        return transformSchemaService.getTransformParam(taskDto, user, true);
+    }
+
     public TaskDto findByTaskId(ObjectId id, String... fields) {
         Query query = new Query(Criteria.where("_id").is(id));
         query.fields().include(fields);
@@ -1881,8 +1891,8 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     }
 
 
-    public void batchUpTask(MultipartFile multipartFile, UserDetail user, boolean cover) {
-        byte[] bytes = new byte[0];
+    public void batchUpTask(MultipartFile multipartFile, UserDetail user, boolean cover, List<Map<String, String>> tags) {
+        byte[] bytes;
         List<TaskUpAndLoadDto> taskUpAndLoadDtos;
 
         if (!Objects.requireNonNull(multipartFile.getOriginalFilename()).endsWith("json.gz")) {
@@ -1940,13 +1950,13 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             log.error("dataSourceService.batchImport error", e);
         }
         try {
-            batchImport(tasks, user, cover);
+            batchImport(tasks, user, cover, tags);
         } catch (Exception e) {
             log.error("tasks.batchImport error", e);
         }
     }
 
-    public void batchImport(List<TaskDto> taskDtos, UserDetail user, boolean cover) {
+    public void batchImport(List<TaskDto> taskDtos, UserDetail user, boolean cover, List<Map<String, String>> tags) {
         for (TaskDto taskDto : taskDtos) {
             Query query = new Query(Criteria.where("_id").is(taskDto.getId()).and("is_deleted").ne(true));
             query.fields().include("id");
@@ -1961,6 +1971,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                     taskDto.setName(taskDto.getName() + "_import");
                 }
 
+                taskDto.setListtags(tags);
                 if (one == null) {
                     taskDto.setId(null);
                     TaskEntity taskEntity = repository.importEntity(convertToEntity(TaskEntity.class, taskDto), user);
@@ -1975,7 +1986,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                         continue;
                     }
                 }
-//                checkDagAgentConflict(taskDto, false);
+
                 confirmById(taskDto, user, true, true);
             }
         }
@@ -2305,9 +2316,6 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         start(taskDto, user, "11");
     }
     private void start(TaskDto taskDto, UserDetail user, String startFlag) {
-
-        monitoringLogsService.startTaskMonitoringLog(taskDto, user);
-
         //日志挖掘
         if (startFlag.charAt(0) == '1') {
             logCollectorService.logCollector(user, taskDto);
@@ -2353,7 +2361,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
     public void run(TaskDto taskDto, UserDetail user) {
         //将子任务的状态改成启动
-        DAG dag = taskDto.getDag();
+//        DAG dag = taskDto.getDag();
         Query query = new Query(Criteria.where("id").is(taskDto.getId()).and("status").is(taskDto.getStatus()));
         //需要将重启标识清除
         UpdateResult update = update(query, Update.update("status", TaskDto.STATUS_SCHEDULING).set("isEdit", false).set("restartFlag", false), user);
@@ -2383,7 +2391,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             updateTaskRecordStatus(taskDto, TaskDto.STATUS_SCHEDULE_FAILED, user);
         }
 
-        WorkerDto workerDto = workerService.findOne(new Query(Criteria.where("processId").is(taskDto.getAgentId())));
+//        WorkerDto workerDto = workerService.findOne(new Query(Criteria.where("processId").is(taskDto.getAgentId())));
 
         //调度完成之后，改成待运行状态
         Query query1 = new Query(Criteria.where("_id").is(taskDto.getId()).and("status").is(TaskDto.STATUS_SCHEDULING));
@@ -2540,6 +2548,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
      * @param id
      */
     public String running(ObjectId id, UserDetail user) {
+
         //判断子任务是否存在
         TaskDto taskDto = checkExistById(id, user, "_id", "status", "name", "taskRecordId", "startTime");
         //将子任务状态改成运行中
@@ -2550,9 +2559,12 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         Query query1 = new Query(Criteria.where("_id").is(taskDto.getId()).and("status").is(TaskDto.STATUS_WAIT_RUN));
 
         Update update = Update.update("status", TaskDto.STATUS_RUNNING);
+        Date now = DateUtil.date();
         if (taskDto.getStartTime() == null) {
-            update.set("startTime", new Date());
+            update.set("startTime", now);
         }
+
+        monitoringLogsService.startTaskMonitoringLog(taskDto, user, now);
 
         UpdateResult update1 = update(query1, update, user);
         updateTaskRecordStatus(taskDto, TaskDto.STATUS_RUNNING, user);
@@ -2579,7 +2591,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         }
         //将子任务状态更新成错误.
         Query query1 = new Query(Criteria.where("_id").is(taskDto.getId()).and("status").in(TaskOpStatusEnum.to_error_status.v()));
-        UpdateResult update1 = update(query1, Update.update("status", TaskDto.STATUS_ERROR).set("errorTime", new Date()).set("stopTime", new Date()), user);
+        UpdateResult update1 = update(query1, Update.update("status", TaskDto.STATUS_ERROR).set("errorTime", DateUtil.date()).set("stopTime", DateUtil.date()), user);
         updateTaskRecordStatus(taskDto, TaskDto.STATUS_ERROR, user);
         if (update1.getModifiedCount() == 0) {
             log.info("concurrent runError operations, this operation don‘t effective, task name = {}", taskDto.getName());
@@ -2605,7 +2617,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         }
         //将子任务状态更新成为已完成
         Query query1 = new Query(Criteria.where("_id").is(taskDto.getId()).and("status").in(TaskOpStatusEnum.to_complete_status.v()));
-        UpdateResult update1 = update(query1, Update.update("status", TaskDto.STATUS_COMPLETE).set("finishTime", new Date()).set("stopTime", new Date()), user);
+        UpdateResult update1 = update(query1, Update.update("status", TaskDto.STATUS_COMPLETE).set("finishTime", DateUtil.date()).set("stopTime", DateUtil.date()), user);
         updateTaskRecordStatus(taskDto, TaskDto.STATUS_COMPLETE, user);
         if (update1.getModifiedCount() == 0) {
             log.info("concurrent complete operations, this operation don‘t effective, task name = {}", taskDto.getName());
@@ -2635,7 +2647,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
         //endConnHeartbeat(user, TaskDto);
 
-        UpdateResult update1 = update(query1, Update.update("status", TaskDto.STATUS_STOP).set("stopTime", new Date()), user);
+        UpdateResult update1 = update(query1, Update.update("status", TaskDto.STATUS_STOP).set("stopTime", DateUtil.date()), user);
         updateTaskRecordStatus(taskDto, TaskDto.STATUS_STOP, user);
         if (update1.getModifiedCount() == 0) {
             log.info("concurrent stopped operations, this operation don‘t effective, task name = {}", taskDto.getName());

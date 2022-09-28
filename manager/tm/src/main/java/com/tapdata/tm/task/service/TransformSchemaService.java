@@ -14,6 +14,7 @@ import com.tapdata.tm.commons.dag.process.CustomProcessorNode;
 import com.tapdata.tm.commons.dag.process.JsProcessorNode;
 import com.tapdata.tm.commons.dag.process.MigrateJsProcessorNode;
 import com.tapdata.tm.commons.schema.*;
+import com.tapdata.tm.commons.schema.bean.SourceTypeEnum;
 import com.tapdata.tm.commons.task.dto.Message;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.util.PdkSchemaConvert;
@@ -107,6 +108,9 @@ public class TransformSchemaService {
     }
 
     public TransformerWsMessageDto getTransformParam(TaskDto taskDto, UserDetail user) {
+        return getTransformParam(taskDto, user, false);
+    }
+    public TransformerWsMessageDto getTransformParam(TaskDto taskDto, UserDetail user, boolean allParam) {
         log.debug("start transform schema, task = {}, user = {}", taskDto, user);
         taskDto.setUserId(user.getUserId());
         DAG dag = taskDto.getDag();
@@ -149,37 +153,47 @@ public class TransformSchemaService {
             }
         }
 
-        List<String> qualifiedNames = new ArrayList<>();
-        for (Node node : nodes) {
-            if (node instanceof TableNode) {
-                String connectionId = ((TableNode) node).getConnectionId();
-                DataSourceConnectionDto dataSourceConnectionDto = dataSourceMap.get(connectionId);
-                DataSourceDefinitionDto dataSourceDefinitionDto = definitionDtoMap.get(dataSourceConnectionDto.getDatabase_type());
-                String qualifiedName = metadataInstancesService.getQualifiedNameByNodeId(node, user, dataSourceConnectionDto, dataSourceDefinitionDto, taskDto.getId().toHexString());
-                qualifiedNames.add(qualifiedName);
-            } else if (node instanceof DatabaseNode) {
-                String connectionId = ((DatabaseNode) node).getConnectionId();
-                DataSourceConnectionDto dataSourceConnectionDto = dataSourceMap.get(connectionId);
-                DataSourceDefinitionDto dataSourceDefinitionDto = definitionDtoMap.get(dataSourceConnectionDto.getDatabase_type());
-                List<String> metas = metadataInstancesService.findDatabaseNodeQualifiedName(node.getId(), user, taskDto, dataSourceConnectionDto, dataSourceDefinitionDto);
-                qualifiedNames.addAll(metas);
+        if (!allParam) {
+            List<String> qualifiedNames = new ArrayList<>();
+            for (Node node : nodes) {
+                if (node instanceof TableNode) {
+                    String connectionId = ((TableNode) node).getConnectionId();
+                    DataSourceConnectionDto dataSourceConnectionDto = dataSourceMap.get(connectionId);
+                    DataSourceDefinitionDto dataSourceDefinitionDto = definitionDtoMap.get(dataSourceConnectionDto.getDatabase_type());
+                    String qualifiedName = metadataInstancesService.getQualifiedNameByNodeId(node, user, dataSourceConnectionDto, dataSourceDefinitionDto, taskDto.getId().toHexString());
+                    qualifiedNames.add(qualifiedName);
+                } else if (node instanceof DatabaseNode) {
+                    String connectionId = ((DatabaseNode) node).getConnectionId();
+                    DataSourceConnectionDto dataSourceConnectionDto = dataSourceMap.get(connectionId);
+                    DataSourceDefinitionDto dataSourceDefinitionDto = definitionDtoMap.get(dataSourceConnectionDto.getDatabase_type());
+                    List<String> metas = metadataInstancesService.findDatabaseNodeQualifiedName(node.getId(), user, taskDto, dataSourceConnectionDto, dataSourceDefinitionDto);
+                    qualifiedNames.addAll(metas);
+                }
             }
-        }
 
-        if (CollectionUtils.isNotEmpty(qualifiedNames)) {
-            //优先获取逻辑表，没有找到的话，取物理表的。
-            metadataList = metadataInstancesService.findByQualifiedNameNotDelete(qualifiedNames, user, "histories");
-            Map<String, MetadataInstancesDto> qualifiedMap = metadataList.stream().collect(Collectors.toMap(MetadataInstancesDto::getQualifiedName, m -> m, (m1, m2) -> m1));
-            qualifiedNames.removeAll(qualifiedMap.keySet());
-            qualifiedNames = qualifiedNames.stream().map(q->{
-                int i = q.lastIndexOf("_");
-                return q.substring(0, i);
-            }).collect(Collectors.toList());
-            List<MetadataInstancesDto> metadataList1 = metadataInstancesService.findByQualifiedNameNotDelete(qualifiedNames, user, "histories");
-            for (MetadataInstancesDto metadataInstancesDto : metadataList1) {
-                metadataInstancesDto.setQualifiedName(metadataInstancesDto.getQualifiedName() + "_" + taskDto.getId().toHexString());
+            if (CollectionUtils.isNotEmpty(qualifiedNames)) {
+                //优先获取逻辑表，没有找到的话，取物理表的。
+                metadataList = metadataInstancesService.findByQualifiedNameNotDelete(qualifiedNames, user, "histories");
+                Map<String, MetadataInstancesDto> qualifiedMap = metadataList.stream().collect(Collectors.toMap(MetadataInstancesDto::getQualifiedName, m -> m, (m1, m2) -> m1));
+                qualifiedNames.removeAll(qualifiedMap.keySet());
+                qualifiedNames = qualifiedNames.stream().map(q -> {
+                    int i = q.lastIndexOf("_");
+                    return q.substring(0, i);
+                }).collect(Collectors.toList());
+                List<MetadataInstancesDto> metadataList1 = metadataInstancesService.findByQualifiedNameNotDelete(qualifiedNames, user, "histories");
+                for (MetadataInstancesDto metadataInstancesDto : metadataList1) {
+                    metadataInstancesDto.setQualifiedName(metadataInstancesDto.getQualifiedName() + "_" + taskDto.getId().toHexString());
+                }
+                metadataList.addAll(metadataList1);
             }
-            metadataList.addAll(metadataList1);
+        } else {
+            Criteria criteria = Criteria.where("taskId").is(taskDto.getId().toHexString())
+                    .and("is_deleted").ne(true)
+                    .and("sourceType").is(SourceTypeEnum.VIRTUAL.name());
+            Query query1 = new Query(criteria);
+            query1.fields().exclude("histories");
+            metadataList = metadataInstancesService.findAllDto(query1, user);
+
         }
 
 

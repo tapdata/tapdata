@@ -19,6 +19,7 @@ public class ImplementationClassFactory {
     private ClassLoader classLoader;
     private List<URL> urls;
     private ImplementationAnnotationHandler implementationAnnotationHandler;
+    private BeanAnnotationHandler beanAnnotationHandler;
 
     public ImplementationClassFactory() {
     }
@@ -41,6 +42,7 @@ public class ImplementationClassFactory {
         this.urls = urls;
 
         implementationAnnotationHandler = new ImplementationAnnotationHandler();
+        beanAnnotationHandler = new BeanAnnotationHandler();
         scan();
 //        implementationAnnotationHandler.apply();
     }
@@ -60,9 +62,10 @@ public class ImplementationClassFactory {
             builder.forPackages(this.scanPackages);
         }
         Reflections reflections = new Reflections(builder);
-
+        TapLogger.debug(TAG, "Start scanning implementation classes");
         AnnotationUtils.runClassAnnotationHandlers(reflections, new ClassAnnotationHandler[]{
                 implementationAnnotationHandler,
+                beanAnnotationHandler
         }, TAG);
     }
 
@@ -120,8 +123,8 @@ public class ImplementationClassFactory {
                 }
             }
         }
-
-        throw new CoreException(PDKRunnerErrorCodes.IMPL_CREATE_FAILED, "Create failed, no implementation for interfaceClass " + interfaceClass);
+        return null;
+//        throw new CoreException(PDKRunnerErrorCodes.IMPL_CREATE_FAILED, "Create failed, no implementation for interfaceClass " + interfaceClass);
     }
 
     public <T> T create(Class<T> interfaceClass, String type) {
@@ -136,7 +139,7 @@ public class ImplementationClassFactory {
                 }
             }
         }
-
-        throw new CoreException(PDKRunnerErrorCodes.IMPL_CREATE_TYPE_FAILED, "Create failed, no implementation for interfaceClass " + interfaceClass + " type " + type);
+        return null;
+//        throw new CoreException(PDKRunnerErrorCodes.IMPL_CREATE_TYPE_FAILED, "Create failed, no implementation for interfaceClass " + interfaceClass + " type " + type);
     }
 }

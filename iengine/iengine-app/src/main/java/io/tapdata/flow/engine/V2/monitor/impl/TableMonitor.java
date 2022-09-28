@@ -64,6 +64,7 @@ public class TableMonitor implements Monitor<TableMonitor.TableResult> {
 	}
 
 	private void verify() {
+		//TODO should use PDKInvocationMonitor.invoke(connectorNode, PDKMethod.GET_TABLE_NAMES,
 		ConnectorNode connectorNode = ConnectorNodeService.getInstance().getConnectorNode(associateId);
 		GetTableNamesFunction getTableNamesFunction = connectorNode.getConnectorFunctions().getGetTableNamesFunction();
 		if (null == getTableNamesFunction) {

@@ -17,6 +17,7 @@ public class TapRuntime {
             synchronized (lock) {
                 if(instance == null) {
                     instance = new TapRuntime();
+                    instance.init();
                 }
             }
         }
@@ -24,6 +25,8 @@ public class TapRuntime {
     }
 
     private TapRuntime() {
+    }
+    private void init() {
         String scanPackage = CommonUtils.getProperty("pdk_implementation_scan_package", "io.tapdata,com.tapdata");
         String[] packages = scanPackage.split(",");
         implementationClassFactory = new ImplementationClassFactory();

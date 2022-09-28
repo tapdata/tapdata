@@ -83,7 +83,7 @@ public class CustomNodeService extends BaseService<CustomNodeDto, CustomNodeEnti
                 .and("is_deleted").ne(true);
 
         Query query = new Query(criteria);
-        query.fields().include("_id", "name");
+        query.fields().include("_id", "name", "status");
 
         List<TaskDto> taskDtos = taskService.findAllDto(query, user);
         return taskDtos;

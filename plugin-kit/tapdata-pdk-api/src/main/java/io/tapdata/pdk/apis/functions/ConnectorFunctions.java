@@ -13,7 +13,6 @@ import io.tapdata.pdk.apis.functions.connector.target.*;
 import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.function.Consumer;
 
@@ -49,6 +48,11 @@ public class ConnectorFunctions extends ConnectionFunctions<ConnectorFunctions> 
     protected DropFieldFunction dropFieldFunction;
     //new_field_event
     protected NewFieldFunction newFieldFunction;
+    protected RawDataCallbackFilterFunction rawDataCallbackFilterFunction;
+    public ConnectorFunctions supportRawDataCallbackFilterFunction(RawDataCallbackFilterFunction function) {
+        rawDataCallbackFilterFunction = function;
+        return this;
+    }
     public ConnectorFunctions supportAlterDatabaseTimeZoneFunction(AlterDatabaseTimeZoneFunction function) {
         alterDatabaseTimeZoneFunction = function;
         return this;
@@ -323,5 +327,9 @@ public class ConnectorFunctions extends ConnectionFunctions<ConnectorFunctions> 
 
     public CreateTableV2Function getCreateTableV2Function() {
         return createTableV2Function;
+    }
+
+    public RawDataCallbackFilterFunction getRawDataCallbackFilterFunction() {
+        return rawDataCallbackFilterFunction;
     }
 }

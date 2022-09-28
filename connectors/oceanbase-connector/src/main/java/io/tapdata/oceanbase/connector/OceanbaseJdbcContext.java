@@ -112,7 +112,7 @@ public class OceanbaseJdbcContext extends JdbcContext {
     }
 
     public List<DataMap> query(String sql, final Set<String> fieldNames) throws Throwable {
-        TapLogger.info(TAG, "Execute query, sql: " + sql);
+        TapLogger.debug(TAG, "Execute query, sql: " + sql);
         try (
                 Connection connection = getConnection();
                 Statement statement = connection.createStatement();
@@ -137,7 +137,7 @@ public class OceanbaseJdbcContext extends JdbcContext {
     }
 
     public void query(String sql, ResultSetConsumer resultSetConsumer) throws Throwable {
-        TapLogger.info(TAG, "Execute query, sql: " + sql);
+        TapLogger.debug(TAG, "Execute query, sql: " + sql);
         try (
                 Connection connection = getConnection();
                 Statement statement = connection.createStatement();
@@ -153,7 +153,7 @@ public class OceanbaseJdbcContext extends JdbcContext {
     }
 
     public void query(PreparedStatement preparedStatement, ResultSetConsumer resultSetConsumer) throws Throwable {
-        TapLogger.info(TAG, "Execute query, sql: " + preparedStatement);
+        TapLogger.debug(TAG, "Execute query, sql: " + preparedStatement);
         preparedStatement.setFetchSize(1000);
         try (
                 ResultSet resultSet = preparedStatement.executeQuery()
@@ -167,7 +167,7 @@ public class OceanbaseJdbcContext extends JdbcContext {
     }
 
     public void execute(String sql) throws SQLException {
-        TapLogger.info(TAG, "Execute sql: " + sql);
+        TapLogger.debug(TAG, "Execute sql: " + sql);
         try (
                 Connection connection = getConnection();
                 Statement statement = connection.createStatement()
