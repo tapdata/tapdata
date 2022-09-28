@@ -139,11 +139,9 @@ public class CodingConnector extends ConnectorBase {
 			throw new CoreException("ProjectName must be not Empty or not null.");
 		}
 		if (Checker.isEmpty(token)){
-			TapLogger.warn(TAG,"token must be not null or not empty.");
 			throw new CoreException("token must be not null or not empty.");
 		}
 		if (Checker.isEmpty(teamName)){
-			TapLogger.warn(TAG,"teamName must be not null or not empty.");
 			throw new CoreException("teamName must be not null or not empty.");
 		}
 
@@ -160,7 +158,7 @@ public class CodingConnector extends ConnectorBase {
 		Object response = postResult.get("Response");
 		Map<String,Object> responseMap = (Map<String, Object>) response;
 		if (Checker.isEmpty(response)){
-			TapLogger.info(TAG, "HTTP request exception, list acquisition failed: {} ", CodingStarter.OPEN_API_URL+"?Action="+command);
+			//TapLogger.info(TAG, "HTTP request exception, list acquisition failed: {} ", CodingStarter.OPEN_API_URL+"?Action="+command);
 			throw new RuntimeException("Get list failed: " + CodingStarter.OPEN_API_URL+"?Action="+command);
 		}
 
@@ -260,7 +258,7 @@ public class CodingConnector extends ConnectorBase {
 			}
 		}
 
-		TapLogger.debug(TAG, "Start {} stream read [WebHook]", "Issues");
+		//TapLogger.debug(TAG, "Start {} stream read [WebHook]", "Issues");
 		TapEvent event = null;
 		long referenceTime = System.currentTimeMillis();
 		CodingEvent issueEvent = CodingEvent.event(webHookEventType);
@@ -306,7 +304,7 @@ public class CodingConnector extends ConnectorBase {
 					event = insertRecordEvent(issueDetail, "Issues").referenceTime(referenceTime)  ;
 				};break;
 			}
-			TapLogger.debug(TAG, "End {} stream read [WebHook]", "Issues");
+			//TapLogger.debug(TAG, "End {} stream read [WebHook]", "Issues");
 		}else {
 			TapLogger.debug(TAG,"An event type with unknown origin was found and cannot be processed - ["+event+"]. The data has been discarded. Data to be processed:"+issueDetail);
 		}
@@ -341,9 +339,9 @@ public class CodingConnector extends ConnectorBase {
 		while (isAlive()) {
 			long current = tableUpdateTimeMap.get(tableList.get(0));
 			Long last = Long.MAX_VALUE;
-			TapLogger.debug(TAG, "start {} stream read [Polling]", currentTable);
+			//TapLogger.debug(TAG, "start {} stream read [Polling]", currentTable);
 			this.read(nodeContext, current, last, currentTable, recordSize, codingOffset, consumer,tableList.get(0));
-			TapLogger.debug(TAG, "compile {} once stream read [Polling]", currentTable);
+			//TapLogger.debug(TAG, "compile {} once stream read [Polling]", currentTable);
 			synchronized (this) {
 				try {
 					this.wait(streamExecutionGap);
@@ -375,7 +373,6 @@ public class CodingConnector extends ConnectorBase {
 			Object offset,
 			int batchCount,
 			BiConsumer<List<TapEvent>, Object> consumer) {
-		TapLogger.debug(TAG, "start {} batch read", table.getName());
 		Long readEnd = System.currentTimeMillis();
 		CodingOffset codingOffset =  new CodingOffset();
 		//current read end as next read begin
@@ -386,7 +383,6 @@ public class CodingConnector extends ConnectorBase {
 		String token = connectionConfig.getString("token");
 		String teamName = connectionConfig.getString("teamName");
 		this.read(connectorContext,null,readEnd,table.getId(),batchCount,codingOffset,consumer,table.getId());
-		TapLogger.debug(TAG, "compile {} batch read", table.getName());
 	}
 
 	private long batchCount(TapConnectorContext tapConnectorContext, TapTable tapTable) throws Throwable {
