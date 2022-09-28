@@ -1,36 +1,27 @@
 package io.tapdata.oceanbase;
 
-import com.google.common.collect.Maps;
-import io.tapdata.common.CommonDbConfig;
-import io.tapdata.common.JdbcContext;
 import io.tapdata.common.RecordWriter;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
-import io.tapdata.entity.schema.TapIndex;
 import io.tapdata.entity.schema.TapTable;
-import io.tapdata.kit.EmptyKit;
 import io.tapdata.oceanbase.connector.OceanbaseJdbcContext;
 import io.tapdata.pdk.apis.entity.WriteListResult;
 
-import java.sql.Connection;
 import java.sql.SQLException;
-import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.function.Consumer;
 
 /**
  * @Author dayun
  * @Date 8/24/22
  */
-public class OceanbaseRecordWriter extends RecordWriter implements AutoCloseable {
+public class OceanbaseRecordWriter extends RecordWriter {
 
-    private final OceanbaseWriteRecorder singleInsertRecorder;
-    private final OceanbaseWriteRecorder singleUpdateRecorder;
-    private final OceanbaseWriteRecorder singleDeleteRecorder;
+    private  OceanbaseWriteRecorder singleInsertRecorder;
+    private  OceanbaseWriteRecorder singleUpdateRecorder;
+    private  OceanbaseWriteRecorder singleDeleteRecorder;
 
     public OceanbaseRecordWriter(OceanbaseJdbcContext jdbcContext, TapTable tapTable) throws SQLException {
         super(jdbcContext, tapTable);
@@ -80,22 +71,18 @@ public class OceanbaseRecordWriter extends RecordWriter implements AutoCloseable
             connection.commit();
         }
 
-        writeListResultConsumer.accept(listResult
-                .insertedCount(singleInsertRecorder.getAtomicLong().get())
-                .modifiedCount(singleUpdateRecorder.getAtomicLong().get())
-                .removedCount(singleDeleteRecorder.getAtomicLong().get()));
-        singleInsertRecorder.getAtomicLong().set(0);
-        singleUpdateRecorder.getAtomicLong().set(0);
-        singleDeleteRecorder.getAtomicLong().set(0);
-    }
-
-    @Override
-    public void close() throws Exception {
         singleInsertRecorder.releaseResource();
         singleUpdateRecorder.releaseResource();
         singleDeleteRecorder.releaseResource();
         connection.close();
+        writeListResultConsumer.accept(listResult
+                .insertedCount(singleInsertRecorder.getAtomicLong().get())
+                .modifiedCount(singleUpdateRecorder.getAtomicLong().get())
+                .removedCount(singleDeleteRecorder.getAtomicLong().get()));
+
     }
+
+
 
     // todo by dayun
 //    private boolean makeSureHasUnique(OceanbaseJdbcContext jdbcContext, TapTable tapTable) {
