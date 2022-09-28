@@ -91,7 +91,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 	 * This is added as an async control center because pdk and jet have two different thread model. pdk thread is
 	 * blocked when reading data from data source while jet using async when passing the event to next node.
 	 */
-	protected LinkedBlockingQueue<TapdataEvent> eventQueue = new LinkedBlockingQueue<>(10);
+	protected LinkedBlockingQueue<TapdataEvent> eventQueue = new LinkedBlockingQueue<>(100);
 	private TapdataEvent pendingEvent;
 	protected SourceMode sourceMode = SourceMode.NORMAL;
 	protected Long initialFirstStartTime = System.currentTimeMillis();
@@ -141,7 +141,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 		this.sourceRunnerLock = new ReentrantLock(true);
 		this.endSnapshotLoop = new AtomicBoolean(false);
 		this.transformerWsMessageDto = clientMongoOperator.findOne(new Query(),
-				ConnectorConstant.TASK_COLLECTION + "/transformParam/" + processorBaseContext.getTaskDto().getId().toHexString(),
+				ConnectorConstant.TASK_COLLECTION + "/transformAllParam/" + processorBaseContext.getTaskDto().getId().toHexString(),
 				TransformerWsMessageDto.class);
 		this.sourceRunnerFirstTime = new AtomicBoolean(true);
 		sourceRunnerFuture = this.sourceRunner.submit(this::startSourceRunner);
@@ -339,8 +339,16 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 				throw new NodeException(error).context(getProcessorBaseContext());
 			}
 
-			if (sourceRunnerFuture != null && sourceRunnerFuture.isDone() && sourceRunnerFirstTime.get()) {
-				this.running.set(false);
+			if (sourceRunnerFuture != null && sourceRunnerFuture.isDone() && sourceRunnerFirstTime.get()
+					&& null == pendingEvent && eventQueue.isEmpty()) {
+				if (TaskDto.TYPE_INITIAL_SYNC.equals(taskDto.getType())) {
+					Object completedInitial = getGlobalMap(getCompletedInitialKey());
+					if (completedInitial instanceof Boolean && (Boolean) completedInitial) {
+						this.running.set(false);
+					}
+				} else {
+					this.running.set(false);
+				}
 			}
 		} catch (Exception e) {
 			logger.error("Source sync failed {}.", e.getMessage(), e);
@@ -602,7 +610,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 				List<String> removeMetadata = new CopyOnWriteArrayList<>();
 				if (null == transformerWsMessageDto) {
 					transformerWsMessageDto = clientMongoOperator.findOne(new Query(),
-							ConnectorConstant.TASK_COLLECTION + "/transformParam/" + processorBaseContext.getTaskDto().getId().toHexString(),
+							ConnectorConstant.TASK_COLLECTION + "/transformAllParam/" + processorBaseContext.getTaskDto().getId().toHexString(),
 							TransformerWsMessageDto.class);
 				}
 				List<MetadataInstancesDto> metadataInstancesDtoList = transformerWsMessageDto.getMetadataInstancesDtoList();

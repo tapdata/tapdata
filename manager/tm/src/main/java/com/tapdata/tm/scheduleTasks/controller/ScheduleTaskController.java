@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 
 
 /**
@@ -231,9 +232,14 @@ public class ScheduleTaskController extends BaseController {
         Where where = parseWhere(whereJson);
         ScheduleTasksDto scheduleTasksDto = new ScheduleTasksDto();
         Map setMap = updateScheduleParam.getSet();
+        HashMap<String, Long> countValue = new HashMap<>();
         if (null != setMap) {
             String status = (String) setMap.get("status");
             String agentId = (String) setMap.get("agent_id");
+            if (Objects.isNull(agentId)) {
+                countValue.put("count", 0L);
+                return success(countValue);
+            }
             Long ping_time = (Long) setMap.get("ping_time");
             scheduleTasksDto.setLast_updated(new Date());
             scheduleTasksDto.setStatus(status);
@@ -242,7 +248,6 @@ public class ScheduleTaskController extends BaseController {
         }
 
         long count = scheduleTaskService.updateByWhere(where, scheduleTasksDto, getLoginUser());
-        HashMap<String, Long> countValue = new HashMap<>();
         countValue.put("count", count);
         return success(countValue);
     }

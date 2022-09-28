@@ -49,10 +49,10 @@ public class MysqlAlterColumnNameDDLWrapper extends MysqlDDLWrapper {
             if (null == columnDataType || EmptyKit.isBlank(columnDataType.getColumnName())) {
                 return;
             }
-            String before = StringKit.removeHeadTail(alterExpression.getColumnOldName(), ccjddlWrapperConfig.getSplit(), false);
+            String before = StringKit.removeHeadTail(alterExpression.getColumnOldName(), ccjddlWrapperConfig.getSplit(), null);
             tapAlterFieldNameEvent.nameChange(ValueChange.create(
                     before,
-                    StringKit.removeHeadTail(columnDataType.getColumnName(), ccjddlWrapperConfig.getSplit(), false)));
+                    StringKit.removeHeadTail(columnDataType.getColumnName(), ccjddlWrapperConfig.getSplit(), null)));
             consumer.accept(tapAlterFieldNameEvent);
         } else if (alterExpression.getOperation() == AlterOperation.RENAME) {
             String columnName = alterExpression.getColumnName();
@@ -60,10 +60,10 @@ public class MysqlAlterColumnNameDDLWrapper extends MysqlDDLWrapper {
             if (EmptyKit.isBlank(columnName) || EmptyKit.isBlank(columnOldName)) {
                 return;
             }
-            String before = StringKit.removeHeadTail(columnOldName, ccjddlWrapperConfig.getSplit(), false);
+            String before = StringKit.removeHeadTail(columnOldName, ccjddlWrapperConfig.getSplit(), null);
             tapAlterFieldNameEvent.nameChange(ValueChange.create(
                     before,
-                    StringKit.removeHeadTail(columnName, ccjddlWrapperConfig.getSplit(), false)));
+                    StringKit.removeHeadTail(columnName, ccjddlWrapperConfig.getSplit(), null)));
             consumer.accept(tapAlterFieldNameEvent);
         }
     }

@@ -246,9 +246,6 @@ public class PostgresConnector extends ConnectorBase {
         if (EmptyKit.isNotNull(slotName)) {
             clearSlot();
         }
-        if (EmptyKit.isNotNull(postgresJdbcContext)) {
-            postgresJdbcContext.finish(connectorContext.getId());
-        }
         //stateMap will be cleared by engine
     }
 
@@ -274,6 +271,7 @@ public class PostgresConnector extends ConnectorBase {
         }
         if (EmptyKit.isNotNull(postgresTest)) {
             postgresTest.close();
+            postgresTest = null;
         }
         if (EmptyKit.isNotNull(postgresJdbcContext)) {
             postgresJdbcContext.finish(connectionContext.getId());
