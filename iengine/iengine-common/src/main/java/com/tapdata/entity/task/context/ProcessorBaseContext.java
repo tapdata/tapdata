@@ -2,6 +2,7 @@ package com.tapdata.entity.task.context;
 
 import com.tapdata.constant.ConfigurationCenter;
 import com.tapdata.entity.RelateDataBaseTable;
+import com.tapdata.entity.task.config.TaskConfig;
 import com.tapdata.tm.commons.dag.Edge;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.task.dto.TaskDto;
@@ -26,6 +27,7 @@ public class ProcessorBaseContext implements Serializable {
 	private final ConfigurationCenter configurationCenter;
 	private final List<RelateDataBaseTable> nodeSchemas;
 	private final TapTableMap<String, TapTable> tapTableMap;
+	private final TaskConfig taskConfig;
 
 	private String pdkAssociateId;
 
@@ -37,6 +39,7 @@ public class ProcessorBaseContext implements Serializable {
 		configurationCenter = builder.configurationCenter;
 		nodeSchemas = builder.nodeSchemas;
 		tapTableMap = builder.tapTableMap;
+		taskConfig = builder.taskConfig;
 	}
 
 	public TaskDto getTaskDto() {
@@ -87,6 +90,7 @@ public class ProcessorBaseContext implements Serializable {
 		private ConfigurationCenter configurationCenter;
 		private List<RelateDataBaseTable> nodeSchemas;
 		private TapTableMap<String, TapTable> tapTableMap;
+		private TaskConfig taskConfig;
 
 		public T withTaskDto(TaskDto taskDto) {
 			this.taskDto = taskDto;
@@ -123,6 +127,11 @@ public class ProcessorBaseContext implements Serializable {
 			return (T) this;
 		}
 
+		public T withTaskConfig(TaskConfig taskConfig) {
+			this.taskConfig = taskConfig;
+			return (T) this;
+		}
+
 		public ProcessorBaseContext build() {
 			return new ProcessorBaseContext(this);
 		}
@@ -138,5 +147,9 @@ public class ProcessorBaseContext implements Serializable {
 
 	public void setPdkAssociateId(String pdkAssociateId) {
 		this.pdkAssociateId = pdkAssociateId;
+	}
+
+	public TaskConfig getTaskConfig() {
+		return taskConfig;
 	}
 }

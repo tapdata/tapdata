@@ -1,0 +1,41 @@
+[
+  {
+	"update": "Settings",
+	"updates": [
+	  {
+		"q": {
+		  "key": "retry_interval_second"
+		},
+		"u": {
+		  "$set": {
+			"category": "Job",
+			"default_value": "60",
+			"user_visible": true,
+			"key_label": "retry_interval_second"
+		  },
+		  "$setOnInsert": {
+			"value": "60"
+		  }
+		},
+		"upsert": true
+	  },
+	  {
+		"q": {
+		  "key": "max_retry_time_minute"
+		},
+		"u": {
+		  "$set": {
+			"category": "Job",
+			"default_value": "60",
+			"user_visible": true,
+			"key_label": "max_retry_time_minute"
+		  },
+		  "$setOnInsert": {
+			"value": "60"
+		  }
+		},
+		"upsert": true
+	  }
+	]
+  }
+]

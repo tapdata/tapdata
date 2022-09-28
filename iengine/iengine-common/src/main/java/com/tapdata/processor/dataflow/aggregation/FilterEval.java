@@ -8,8 +8,6 @@ import javax.script.ScriptException;
 import java.util.Map;
 
 public class FilterEval {
-
-	private static final String JS_ENGINE_NAME = "nashorn";
 	private static final String JS_FILTER_FUNCTION = "filter";
 
 	private static final String FILTER_SCRIPT_FUNCTION = "" +

@@ -48,6 +48,7 @@ public class HazelcastVirtualTargetNode extends HazelcastDataBaseNode {
 		} finally {
 			ThreadContext.clearAll();
 			logger.info("Target process finished, total {}", counter.get());
+			ThreadContext.clearAll();
 		}
 	}
 }

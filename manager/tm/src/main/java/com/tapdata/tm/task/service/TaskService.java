@@ -5,14 +5,13 @@ import cn.hutool.core.date.DateUnit;
 import cn.hutool.core.date.DateUtil;
 import cn.hutool.core.lang.Assert;
 import cn.hutool.core.map.MapUtil;
-import cn.hutool.json.JSONConverter;
-import com.alibaba.fastjson.JSON;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.google.common.collect.Maps;
 import com.mongodb.client.result.UpdateResult;
 import com.tapdata.manager.common.utils.JsonUtil;
 import com.tapdata.tm.CustomerJobLogs.CustomerJobLog;
 import com.tapdata.tm.CustomerJobLogs.service.CustomerJobLogsService;
+import com.tapdata.tm.autoinspect.constants.AutoInspectConstants;
 import com.tapdata.tm.autoinspect.entity.AutoInspectProgress;
 import com.tapdata.tm.autoinspect.service.TaskAutoInspectResultsService;
 import com.tapdata.tm.autoinspect.utils.AutoInspectUtil;
@@ -58,7 +57,6 @@ import com.tapdata.tm.task.constant.SyncType;
 import com.tapdata.tm.task.constant.TaskEnum;
 import com.tapdata.tm.task.constant.TaskOpStatusEnum;
 import com.tapdata.tm.task.constant.TaskStatusEnum;
-import com.tapdata.tm.task.entity.TaskDagCheckLog;
 import com.tapdata.tm.task.entity.TaskEntity;
 import com.tapdata.tm.task.entity.TaskRecord;
 import com.tapdata.tm.task.param.SaveShareCacheParam;
@@ -95,7 +93,6 @@ import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -2124,7 +2121,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         if (taskDto.getAttrs() != null) {
             taskDto.getAttrs().remove("syncProgress");
             taskDto.getAttrs().remove("edgeMilestones");
-            taskDto.getAttrs().remove("autoInspectProgress");
+            AutoInspectUtil.removeProgress(taskDto.getAttrs());
 
             set.set("attrs", taskDto.getAttrs());
         }
@@ -2316,14 +2313,19 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         }
 
         if (TaskDto.SYNC_TYPE_MIGRATE.equals(taskDto.getSyncType()) || TaskDto.SYNC_TYPE_SYNC.equals(taskDto.getSyncType())) {
-            for (int i = 0; i < 30; i++) {
+            for (int i = 1; i < 6; i++) {
                 TaskDto transformedCheck = findByTaskId(taskDto.getId(), "transformed");
                 if (transformedCheck.getTransformed() != null && transformedCheck.getTransformed()) {
                     run(taskDto, user);
                     return;
                 }
                 try {
-                    Thread.sleep(500);
+                    long sleepTime = 1;
+                    for (int j = 0; j < i; j++) {
+                        sleepTime = sleepTime * 2;
+                    }
+                    sleepTime = sleepTime * 1000;
+                    Thread.sleep(sleepTime);
                 } catch (InterruptedException e) {
                     throw new BizException("SystemError");
                 }
@@ -3062,10 +3064,9 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
         Map<String, Object> data = new HashMap<>();
 
-        Query query = Query.query(Criteria.where("_id").is(new ObjectId(taskId)));
-        TaskDto taskDto = findOne(query);
+        TaskDto taskDto = findByTaskId(new ObjectId(taskId), AutoInspectConstants.AUTO_INSPECT_PROGRESS_PATH);
         if (null != taskDto) {
-            AutoInspectProgress progress = AutoInspectUtil.parse(taskDto.getAttrs());
+            AutoInspectProgress progress = AutoInspectUtil.toAutoInspectProgress(taskDto.getAttrs());
             if (null != progress) {
                 data.put("totals", progress.getTableCounts());
                 data.put("ignore", progress.getTableIgnore());

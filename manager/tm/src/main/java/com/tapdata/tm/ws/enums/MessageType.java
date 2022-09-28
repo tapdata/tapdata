@@ -33,7 +33,9 @@ public enum MessageType {
 	/**  */
 	LOADJAR("loadJar"),
 
-	CREATETABLEDDL("createTableDDL");
+	CREATETABLEDDL("createTableDDL"),
+
+	AUTO_INSPECT_AGAIN("autoInspectAgain");
 
 	private String type;
 

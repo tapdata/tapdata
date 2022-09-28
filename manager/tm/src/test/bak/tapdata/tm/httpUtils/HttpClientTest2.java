@@ -77,15 +77,22 @@ public class HttpClientTest2 {
         }
     }
 
+    public static void main(String[] args) {
+        String url = "{url}";
+        String access_token = "{access_token}";
+        String param = "{param}";
+        doGet(url, access_token, param);
+        doPost(url, access_token, param);
+    }
+
 
     /**
-     *
      * @param url
      * @param access_token
      * @param param
      * @return
      */
-    public String doGet(String url, String access_token, String param) {
+    public static String doGet(String url, String access_token, String param) {
         try (CloseableHttpClient httpClient = HttpClients.createDefault()) {
             StringBuilder urlBuilder = new StringBuilder(url);
             urlBuilder.append("?access_token=").append(access_token);
@@ -120,7 +127,7 @@ public class HttpClientTest2 {
      * @param reqBody
      * @return
      */
-    public String doPost(String url, String access_token, String reqBody) {
+    public static String doPost(String url, String access_token, String reqBody) {
         try (CloseableHttpClient httpClient = HttpClients.createDefault()) {
             StringBuilder urlBuilder = new StringBuilder(url);
             urlBuilder.append("?access_token=").append(access_token);

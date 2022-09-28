@@ -4,7 +4,6 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import com.tapdata.tm.commons.base.dto.BaseDto;
-import org.springframework.data.mongodb.core.mapping.Field;
 
 import java.util.List;
 
@@ -18,9 +17,12 @@ public class MetadataDefinitionDto extends BaseDto {
     private String value;
     @JsonProperty("parent_id")
     private String parent_id;
-
     @JsonProperty("item_type")
     private List<String> itemType;
+    private String desc;
+    private long objCount;
+    private String linkId;
+    private Boolean readOnly;
 
     private String desc;
 
