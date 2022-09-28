@@ -26,6 +26,7 @@ import io.tapdata.modules.api.net.service.node.connection.NodeConnectionFactory;
 import io.tapdata.modules.api.net.service.node.connection.entity.NodeMessage;
 import io.tapdata.modules.api.proxy.constants.ProxyConstants;
 import io.tapdata.pdk.apis.entity.CommandInfo;
+import io.tapdata.pdk.core.api.PDKIntegration;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.pdk.core.utils.JWTUtils;
 import io.tapdata.wsserver.channels.health.NodeHealthManager;
@@ -377,5 +378,12 @@ public class ProxyController extends BaseController {
     public ResponseMessage<List<String>> cleanUp(HttpServletRequest request) {
         NodeHealthManager nodeHealthManager = InstanceFactory.bean(NodeHealthManager.class);
         return success(nodeHealthManager.cleanUpDeadNodes());
+    }
+
+    @Operation(summary = "External callback url")
+    @GetMapping("memory")
+    public void memory(HttpServletRequest request, HttpServletResponse response) throws IOException {
+        response.setContentType("application/json");
+        response.getOutputStream().write(PDKIntegration.outputMemoryFetchers(null, "Detail").getBytes(StandardCharsets.UTF_8));
     }
 }

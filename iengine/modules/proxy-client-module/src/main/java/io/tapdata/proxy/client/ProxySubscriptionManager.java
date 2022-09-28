@@ -68,7 +68,7 @@ public class ProxySubscriptionManager {
 							.withBaseUrl(newBaseUrls)
 							.withService("engine")
 							.withPrefix("e")
-							.withClientId(ConfigurationCenter.processId + UUID.randomUUID().toString().replace("-", ""))
+							.withClientId(ConfigurationCenter.processId + "_" + UUID.randomUUID().toString().replace("-", ""))
 							.withTerminal(1)
 							.withToken(accessToken)
 							.build();

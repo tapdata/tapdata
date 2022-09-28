@@ -1,9 +1,11 @@
 package io.tapdata.modules.api.net.service.node.connection;
 
+import io.tapdata.entity.memory.MemoryFetcher;
+
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 
-public interface NodeConnectionFactory {
+public interface NodeConnectionFactory extends MemoryFetcher {
 	NodeConnection getNodeConnection(String nodeId);
 
 	boolean isDisconnected(String nodeId);

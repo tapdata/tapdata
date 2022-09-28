@@ -1,5 +1,6 @@
 package io.tapdata.modules.api.net.service.node.connection;
 
+import io.tapdata.entity.memory.MemoryFetcher;
 import io.tapdata.modules.api.net.entity.NodeRegistry;
 
 import java.io.IOException;
@@ -8,7 +9,7 @@ import java.util.concurrent.Callable;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
-public interface NodeConnection {
+public interface NodeConnection extends MemoryFetcher {
 
 	void init(NodeRegistry nodeRegistry, BiConsumer<NodeRegistry, String> nodeRegistryReasonSelfDestroy);
 

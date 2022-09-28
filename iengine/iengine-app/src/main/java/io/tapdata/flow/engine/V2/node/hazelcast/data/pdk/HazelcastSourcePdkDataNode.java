@@ -122,26 +122,6 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 			}
 		} catch (Throwable throwable) {
 			errorHandle(throwable, throwable.getMessage());
-		} finally {
-			try {
-				while (isRunning()) {
-					try {
-						if (sourceRunnerLock.tryLock(1L, TimeUnit.SECONDS)) {
-							break;
-						}
-					} catch (InterruptedException e) {
-						break;
-					}
-				}
-				if (this.sourceRunnerFirstTime.get()) {
-					this.running.set(false);
-				}
-			} finally {
-				try {
-					sourceRunnerLock.unlock();
-				} catch (Exception ignored) {
-				}
-			}
 		}
 	}
 
@@ -433,6 +413,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 			if(streamReadFunctionName == null)
 				streamReadFunctionName = streamReadFunction.getClass().getSimpleName();
 			String finalStreamReadFunctionName = streamReadFunctionName;
+			PDKMethodInvoker pdkMethodInvoker = PDKMethodInvoker.create();
 			executeDataFuncAspect(StreamReadFuncAspect.class, () -> new StreamReadFuncAspect()
 					.connectorContext(getConnectorNode().getConnectorContext())
 					.dataProcessorContext(getDataProcessorContext())
@@ -441,7 +422,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 					.eventBatchSize(batchSize)
 					.offsetState(syncProgress.getStreamOffsetObj())
 					.start(), streamReadFuncAspect -> PDKInvocationMonitor.invoke(getConnectorNode(), PDKMethod.SOURCE_STREAM_READ,
-					PDKMethodInvoker.create()
+					pdkMethodInvoker
 							.runnable(
 									() -> {
 										this.streamReadFuncAspect = streamReadFuncAspect;
@@ -492,6 +473,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 												}
 											}
 										}).stateListener((oldState, newState) -> {
+											PDKInvocationMonitor.invokerRetrySetter(pdkMethodInvoker);
 											if (null != newState && StreamReadConsumer.STATE_STREAM_READ_STARTED == newState) {
 												// MILESTONE-READ_CDC_EVENT-FINISH
 												if (streamReadFuncAspect != null)

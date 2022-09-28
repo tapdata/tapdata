@@ -48,6 +48,7 @@ public abstract class LogMiner implements ILogMiner {
     protected final Map<Long, Long> instanceThreadSCNMap = new HashMap<>(); //Map<Thread#, SCN>
     protected boolean hasRollbackTemp; //whether rollback temp exists
 
+    protected String connectorId;
     protected KVReadOnlyMap<TapTable> tableMap; //pdk tableMap in streamRead
     protected List<String> tableList; //tableName list
     protected Map<String, TapTable> lobTables; //table those have lob type
@@ -128,10 +129,11 @@ public abstract class LogMiner implements ILogMiner {
             case SqlConstant.REDO_LOG_OPERATION_SEL_LOB_LOCATOR:
                 if (!transactionBucket.containsKey(xid)) {
                     TapLogger.debug(TAG, TapLog.D_CONN_LOG_0003.getMsg(), xid);
-                    Map<String, List<RedoLogContent>> redoLogContents = new LinkedHashMap<>();
+                    Map<String, List> redoLogContents = new LinkedHashMap<>();
                     redoLogContents.put(rsId, new ArrayList<>(4));
                     redoLogContents.get(rsId).add(redoLogContent);
                     LogTransaction orclTransaction = new LogTransaction(rsId, scn, xid, redoLogContents, redoLogContent.getTimestamp().getTime());
+                    orclTransaction.setConnectorId(connectorId);
                     setRacMinimalScn(orclTransaction);
                     orclTransaction.incrementSize(1);
                     if (SqlConstant.REDO_LOG_OPERATION_UPDATE.equals(redoLogContent.getOperation())) {
@@ -140,7 +142,7 @@ public abstract class LogMiner implements ILogMiner {
                     transactionBucket.put(xid, orclTransaction);
                 } else {
                     LogTransaction logTransaction = transactionBucket.get(xid);
-                    Map<String, List<RedoLogContent>> redoLogContents = logTransaction.getRedoLogContents();
+                    Map<String, List> redoLogContents = logTransaction.getRedoLogContents();
                     try {
                         if (!needToAborted(operation, redoLogContent, redoLogContents)) {
                             logTransaction.addRedoLogContent(redoLogContent);
@@ -167,10 +169,11 @@ public abstract class LogMiner implements ILogMiner {
                     }
 
                 } else {
-                    Map<String, List<RedoLogContent>> redoLogContents = new LinkedHashMap<>();
+                    Map<String, List> redoLogContents = new LinkedHashMap<>();
                     redoLogContents.put(rsId, new ArrayList<>(4));
                     redoLogContents.get(rsId).add(redoLogContent);
                     LogTransaction orclTransaction = new LogTransaction(rsId, scn, xid, redoLogContents);
+                    orclTransaction.setConnectorId(connectorId);
                     setRacMinimalScn(orclTransaction);
                     orclTransaction.setTransactionType(LogTransaction.TX_TYPE_COMMIT);
                     orclTransaction.incrementSize(1);
@@ -181,10 +184,11 @@ public abstract class LogMiner implements ILogMiner {
                 break;
             case SqlConstant.REDO_LOG_OPERATION_DDL:
                 TapLogger.debug(TAG, TapLog.D_CONN_LOG_0003.getMsg(), xid);
-                Map<String, List<RedoLogContent>> redoLogContents = new LinkedHashMap<>();
+                Map<String, List> redoLogContents = new LinkedHashMap<>();
                 redoLogContents.put(rsId, new ArrayList<>(4));
                 redoLogContents.get(rsId).add(redoLogContent);
                 LogTransaction orclTransaction = new LogTransaction(rsId, scn, xid, redoLogContents);
+                orclTransaction.setConnectorId(connectorId);
                 setRacMinimalScn(orclTransaction);
                 orclTransaction.setTransactionType(LogTransaction.TX_TYPE_DDL);
                 Map<String, LogTransaction> cacheCommitTraction = new HashMap<>();
@@ -212,7 +216,7 @@ public abstract class LogMiner implements ILogMiner {
             LogTransaction logTransaction = txEntry.getValue();
             List<TapEvent> eventList = TapSimplify.list();
             RedoLogContent lastRedoLogContent = null;
-            Map<String, List<RedoLogContent>> redoLogContents = logTransaction.getRedoLogContents();
+            Map<String, List> redoLogContents = logTransaction.getRedoLogContents();
             for (List<RedoLogContent> redoLogContentList : redoLogContents.values()) {
                 for (RedoLogContent redoLogContent : redoLogContentList) {
                     lastRedoLogContent = redoLogContent;
@@ -269,6 +273,7 @@ public abstract class LogMiner implements ILogMiner {
                 }
             }
             submitEvent(lastRedoLogContent, eventList);
+            txEntry.getValue().clearRedoLogContents();
         }
     }
 
@@ -347,7 +352,7 @@ public abstract class LogMiner implements ILogMiner {
         }
     }
 
-    private boolean needToAborted(String operation, RedoLogContent redoLogContent, Map<String, List<RedoLogContent>> redoLogContents) {
+    private boolean needToAborted(String operation, RedoLogContent redoLogContent, Map<String, List> redoLogContents) {
         boolean needToAborted = false;
         if (EmptyKit.isNotBlank(redoLogContent.getSqlUndo()) || EmptyKit.isNotEmpty(redoLogContent.getRedoRecord())) {
             return false;
