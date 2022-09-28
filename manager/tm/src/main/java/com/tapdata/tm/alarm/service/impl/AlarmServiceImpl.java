@@ -5,6 +5,7 @@ import cn.hutool.core.date.DateTime;
 import cn.hutool.core.date.DateUnit;
 import cn.hutool.core.date.DateUtil;
 import cn.hutool.core.lang.Assert;
+import cn.hutool.extra.cglib.CglibUtil;
 import com.google.common.collect.Maps;
 import com.tapdata.tm.Settings.dto.MailAccountDto;
 import com.tapdata.tm.Settings.entity.Settings;
@@ -187,7 +188,7 @@ public class AlarmServiceImpl implements AlarmService {
             taskDto.getDag().getNodes().forEach(node -> {
                 ruleDtos.addAll(Optional.ofNullable(node.getAlarmRules()).orElse(Collections.emptyList()));
             });
-            return ruleDtos;
+            return CglibUtil.copyList(ruleDtos, Rule::new);
         }
         return null;
     }
