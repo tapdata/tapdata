@@ -89,7 +89,7 @@ public class CodingConnector extends ConnectorBase {
 		synchronized (this) {
 			this.notify();
 		}
-		TapLogger.info(TAG, "Stop connector");
+		TapLogger.debug(TAG, "Stop connector");
 	}
 
 	private ConnectorFunctions connectorFunctions;

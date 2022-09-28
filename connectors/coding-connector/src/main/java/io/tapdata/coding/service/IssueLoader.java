@@ -88,13 +88,13 @@ public class IssueLoader extends CodingStarter {
         String streamReadType = connectionConfig.getString("streamReadType");
         String connectionMode = connectionConfig.getString("connectionMode");
         if ( null == projectName || "".equals(projectName)){
-            TapLogger.info(TAG, "Connection parameter exception: {} ", projectName);
+            TapLogger.debug(TAG, "Connection parameter exception: {} ", projectName);
         }
         if ( null == token || "".equals(token) ){
-            TapLogger.info(TAG, "Connection parameter exception: {} ", token);
+            TapLogger.debug(TAG, "Connection parameter exception: {} ", token);
         }
         if ( null == teamName || "".equals(teamName) ){
-            TapLogger.info(TAG, "Connection parameter exception: {} ", teamName);
+            TapLogger.debug(TAG, "Connection parameter exception: {} ", teamName);
         }
         if ( null == streamReadType || "".equals(streamReadType) ){
             TapLogger.info(TAG, "Connection parameter streamReadType exception: {} ", token);
@@ -117,7 +117,7 @@ public class IssueLoader extends CodingStarter {
         Object response = resultMap.get("Response");
         Map<String,Object> responseMap = (Map<String, Object>) response;
         if (null == response ){
-            TapLogger.info(TAG, "HTTP request exception, Issue list acquisition failed: {} ", url+"?Action=DescribeIssueListWithPage");
+            TapLogger.debug(TAG, "HTTP request exception, Issue list acquisition failed: {} ", url+"?Action=DescribeIssueListWithPage");
             throw new RuntimeException("HTTP request exception, Issue list acquisition failed: " + url+"?Action=DescribeIssueListWithPage");
         }
         Object data = responseMap.get("Data");

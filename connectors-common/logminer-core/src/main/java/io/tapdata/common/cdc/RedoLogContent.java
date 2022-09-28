@@ -3,6 +3,7 @@ package io.tapdata.common.cdc;
 import io.tapdata.kit.DateTimeKit;
 import io.tapdata.kit.EmptyKit;
 
+import java.io.Serializable;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
@@ -12,7 +13,7 @@ import java.util.*;
 /**
  * Created by tapdata on 08/12/2017.
  */
-public class RedoLogContent {
+public class RedoLogContent implements Serializable {
 
     private final static String ID_DELIM = "-";
 
