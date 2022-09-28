@@ -262,7 +262,7 @@ public class PDKInvocationMonitor implements MemoryFetcher {
 //    private static final long MAX_RETRY_TIMES = 10000L;
 //    private static final long MAX_RETRY_PERIOD_SECOND = 100000L;
 //    private static final long MAX_MAX_RETRY_TIME_MINUTE = 100000L;
-    private boolean invokerRetrySetter(PDKMethodInvoker invoker){
+    public static boolean invokerRetrySetter(PDKMethodInvoker invoker){
 //        if (invoker.getRetryTimes()>MAX_RETRY_TIMES){
 //            invoker.setRetryTimes(MAX_RETRY_TIMES);
 //        }
