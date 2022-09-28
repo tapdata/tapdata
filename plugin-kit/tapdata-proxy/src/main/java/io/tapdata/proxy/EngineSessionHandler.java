@@ -28,6 +28,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 
 
@@ -50,6 +51,8 @@ public class EngineSessionHandler extends GatewaySessionHandler {
 		typeHandlers.register(FetchNewData.class, this::handleFetchNewData);
 		typeHandlers.register(CommandResultEntity.class, this::handleCommandResultEntity);
 	}
+
+	private AtomicBoolean connected = new AtomicBoolean(false);
 
 	private Result handleCommandResultEntity(CommandResultEntity commandResultEntity) {
 		if(commandResultEntity == null) {
@@ -194,11 +197,17 @@ public class EngineSessionHandler extends GatewaySessionHandler {
 	@Override
 	public void onChannelConnected() {
 		TapLogger.debug(TAG, "onChannelConnected");
+		connected.set(true);
 	}
 
 	@Override
 	public void onChannelDisconnected() {
 		TapLogger.debug(TAG, "onChannelDisconnected");
+		connected.set(false);
+		releaseSubscribeIds();
+	}
+
+	private void releaseSubscribeIds() {
 		subscribeMap.unbindSubscribeIds(this);
 		cachedSubscribedIds.clear();
 	}
@@ -206,6 +215,9 @@ public class EngineSessionHandler extends GatewaySessionHandler {
 	@Override
 	public void onSessionDestroyed() {
 		TapLogger.debug(TAG, "onSessionDestroyed");
+		if(connected.compareAndSet(true, false)) {
+			releaseSubscribeIds();
+		}
 	}
 
 	@Override
