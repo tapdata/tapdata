@@ -571,8 +571,6 @@ public class GatewaySessionManager implements HealthWeightListener, MemoryFetche
         DataMap userIdGatewaySessionHandlerMap = DataMap.create().keyRegex(keyRegex);
         dataMap.kv("userIdGatewaySessionHandlerMap", userIdGatewaySessionHandlerMap);
         for(Map.Entry<String, GatewaySessionHandler> entry : this.userIdGatewaySessionHandlerMap.entrySet()) {
-            if(keyRegex != null && !keyRegex.isEmpty() && !keyRegex.contains(entry.getKey()))
-                continue;
             userIdGatewaySessionHandlerMap.kv(entry.getKey(), entry.getValue().memory(keyRegex, memoryLevel));
         }
 

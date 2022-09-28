@@ -6,10 +6,7 @@ import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.ResponseMessage;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.config.security.UserDetail;
-import com.tapdata.tm.proxy.dto.LoginProxyDto;
-import com.tapdata.tm.proxy.dto.LoginProxyResponseDto;
-import com.tapdata.tm.proxy.dto.SubscribeDto;
-import com.tapdata.tm.proxy.dto.SubscribeResponseDto;
+import com.tapdata.tm.proxy.dto.*;
 import com.tapdata.tm.utils.WebUtils;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -381,9 +378,23 @@ public class ProxyController extends BaseController {
     }
 
     @Operation(summary = "External callback url")
-    @GetMapping("memory")
-    public void memory(HttpServletRequest request, HttpServletResponse response) throws IOException {
+    @PostMapping("memory")
+    public void memory(@RequestBody MemoryDto memoryDto, HttpServletRequest request, HttpServletResponse response) throws IOException {
         response.setContentType("application/json");
-        response.getOutputStream().write(PDKIntegration.outputMemoryFetchers(null, "Detail").getBytes(StandardCharsets.UTF_8));
+        String keyRegex = null;
+        String level = null;
+        if(memoryDto != null) {
+            keyRegex = memoryDto.getKeyRegex();
+            String theLevel = memoryDto.getLevel();
+            if(theLevel != null && (theLevel.equals("Detail") || theLevel.equals("Summary"))) {
+                level = theLevel;
+            }
+        }
+        if(level == null)
+            level = "Summary";
+
+        //exclude TapConnectorManager and PDKInvocationMonitor
+        //^((?!TapConnectorManager|PDKInvocationMonitor).)*$
+        response.getOutputStream().write(PDKIntegration.outputMemoryFetchers(keyRegex, level).getBytes(StandardCharsets.UTF_8));
     }
 }

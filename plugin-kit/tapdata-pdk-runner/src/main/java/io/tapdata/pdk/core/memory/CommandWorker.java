@@ -106,7 +106,7 @@ public class CommandWorker implements Runnable {
         if(mapType == null) {
             mapType = MemoryFetcher.MEMORY_LEVEL_SUMMARY;
         }
-        DataMap allMap = DataMap.create();
+        DataMap allMap = DataMap.create().keyRegex(keyRegex);
         for(Map.Entry<String, MemoryFetcher> entry : finalMap.entrySet()) {
             allMap.kv(entry.getKey(), entry.getValue().memory(keyRegex, mapType));
         }
