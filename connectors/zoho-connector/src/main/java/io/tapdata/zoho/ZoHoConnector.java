@@ -73,8 +73,8 @@ public class ZoHoConnector extends ConnectorBase {
 			throw new CoreException("Error in connection parameter [streamReadType], please go to verify");
 		}
 		switch (streamReadType){
-			//case "WebHook":this.connectorFunctions.supportStreamRead(null);break;
-			case "WebHook":this.connectorFunctions.supportRawDataCallbackFilterFunction(null);break;
+			//case "Polling":this.connectorFunctions.supportStreamRead(this::streamRead);break;
+			case "WebHook":this.connectorFunctions.supportRawDataCallbackFilterFunction(this::rawDataCallbackFilterFunction);break;
 //			default:
 //				throw new CoreException("Error in connection parameters [streamReadType],just be [WebHook] or [Polling], please go to verify");
 		}
@@ -93,7 +93,7 @@ public class ZoHoConnector extends ConnectorBase {
 		connectorFunctions.supportBatchRead(this::batchRead)
 				.supportBatchCount(this::batchCount)
 				.supportTimestampToStreamOffset(this::timestampToStreamOffset)
-				.supportStreamRead(this::streamRead)
+				//.supportStreamRead(this::streamRead)
 				.supportRawDataCallbackFilterFunction(this::rawDataCallbackFilterFunction)
 				.supportCommandCallbackFunction(this::handleCommand)
 		;
