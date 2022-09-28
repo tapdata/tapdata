@@ -40,42 +40,42 @@ public class CSVMode implements ConnectionMode {
             TapTable tapTable = table("Tickets")
                     .add(field("id","Long").isPrimaryKey(true).primaryKeyPos(1))    //"Ticket Reference Id"
                     .add(field("ticketNumber","Long"))
-                    .add(field("departmentName","String"))    //"Department"     department（需要从分页中需添加到详情） ->  department.name（掉方法打平）
+                    .add(field("departmentName","StringNormal"))    //"Department"     department（需要从分页中需添加到详情） ->  department.name（掉方法打平）
                     .add(field("departmentId","Long"))
-                    .add(field("contactAccountAccountName","Long"))//contact      contact（需要从分页中需添加到详情）->contact.account.accountName（掉方法打平）
+                    .add(field("contactAccountAccountName","StringNormal"))//contact      contact（需要从分页中需添加到详情）->contact.account.accountName（掉方法打平）
                     .add(field("contactAccountId","Long"))//contactID      contact（需要从分页中需添加到详情）->contact.account.id（掉方法打平）
-                    .add(field("contactLastName","Long"))//联系人名称      contact（需要从分页中需添加到详情）->contact.lastName（掉方法打平）
+                    .add(field("contactLastName","StringNormal"))//联系人名称      contact（需要从分页中需添加到详情）->contact.lastName（掉方法打平）
                     .add(field("contactId","Long"))//联系人名称 Id      contact（需要从分页中需添加到详情）->contact.id（掉方法打平）
-                    .add(field("email","String"))
-                    .add(field("phone","Long"))
-                    .add(field("subject","String"))
+                    .add(field("email","Email"))
+                    .add(field("phone","Phone"))
+                    .add(field("subject","StringNormal"))
                     .add(field("description","Textarea"))
-                    .add(field("status","String"))
-                    .add(field("productName","String"))//产品名称
+                    .add(field("status","StringMinor"))
+                    .add(field("productName","StringNormal"))//产品名称
                     .add(field("productId","Long"))//产品名称 Id
-                    .add(field("assigneeName","String"))//工单所有者   assignee（需要从分页中需添加到详情）->assignee.lastName（掉方法打平）
+                    .add(field("assigneeName","StringNormal"))//工单所有者   assignee（需要从分页中需添加到详情）->assignee.lastName（掉方法打平）
                     .add(field("assigneeId","Long"))//工单所有者 Id    assignee（需要从分页中需添加到详情）->assignee.id（掉方法打平）
-                    .add(field("createdByName","String"))
+                    .add(field("createdByName","StringNormal"))
                     .add(field("createdBy","Long"))
-                    .add(field("modifiedByName","String"))
+                    .add(field("modifiedByName","StringNormal"))
                     .add(field("modifiedBy","Long"))
-                    .add(field("createdTime","String"))
-                    .add(field("modifiedTime","String"))
-                    .add(field("closedTime","String"))
-                    .add(field("dueDate","String"))
-                    .add(field("priority","String"))
-                    .add(field("channel","String"))//Model
+                    .add(field("createdTime","DateTime"))
+                    .add(field("modifiedTime","DateTime"))
+                    .add(field("closedTime","DateTime"))
+                    .add(field("dueDate","Date"))
+                    .add(field("priority","StringMinor"))
+                    .add(field("channel","StringMinor"))//Model
                     .add(field("isOverDue","Boolean"))
                     .add(field("isEscalated","Boolean"))
-                    .add(field("classification","String"))
-                    .add(field("resolution","String"))//object
-                    .add(field("category","String"))//object
-                    .add(field("subCategory","String"))//object
-                    .add(field("customerResponseTime","String"))
+                    .add(field("classification","StringNormal"))
+                    .add(field("resolution","StringNormal"))//object
+                    .add(field("category","StringNormal"))//object
+                    .add(field("subCategory","StringNormal"))//object
+                    .add(field("customerResponseTime","DateTime"))
                     .add(field("teamId","Long"))
-                    .add(field("teamName","String"))//object工单所有者 Id    team（需要从分页中需添加到详情）->team.name  （掉方法打平）
-                    .add(field("tags","String")) //@TODO
-                    .add(field("language","String"))
+                    .add(field("teamName","StringNormal"))//object工单所有者 Id    team（需要从分页中需添加到详情）->team.name  （掉方法打平）
+                    .add(field("tags","StringNormal")) //@TODO
+                    .add(field("language","StringMinor"))
                     .add(field("timeEntryCount","Integer"))//@TODO 工单搁置时间
 /**
                     .add(field("statusType","String"))

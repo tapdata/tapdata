@@ -440,7 +440,7 @@
     "Boolean": {"to": "TapBoolean"},
     "StringNormal": {
       "to" : "TapString",
-      "byte" : 512
+      "byte" : 255
     },
     "StringMinor": {
       "to" : "TapString",

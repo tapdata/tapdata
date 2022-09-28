@@ -30,57 +30,57 @@ public class DocumentMode implements ConnectionMode {
             return list(
                     table("Tickets")
                             .add(field("id","Long").isPrimaryKey(true).primaryKeyPos(1))
-                            .add(field("modifiedTime","String"))
+                            .add(field("modifiedTime","DateTime"))
                             .add(field("subCategory","Map"))//Object
-                            .add(field("statusType","String"))
-                            .add(field("subject","String"))
-                            .add(field("dueDate","String"))
+                            .add(field("statusType","StringMinor"))
+                            .add(field("subject","StringNormal"))
+                            .add(field("dueDate","Date"))
                             .add(field("departmentId","Long"))
-                            .add(field("channel","String"))
-                            .add(field("onholdTime","String"))//Object
-                            .add(field("language","String"))
+                            .add(field("channel","StringMinor"))
+                            .add(field("onholdTime","DateTime"))//Object
+                            .add(field("language","StringMinor"))
                             .add(field("source","Map"))
-                            .add(field("resolution","String"))//Object
+                            .add(field("resolution","StringNormal"))//Object
                             .add(field("sharedDepartments","JAVA_Array"))
-                            .add(field("closedTime","String"))//Object
+                            .add(field("closedTime","DateTime"))//Object
                             .add(field("approvalCount","Integer"))
                             .add(field("isOverDue","Boolean"))//Object
                             .add(field("isTrashed","Boolean"))//Boolean
                             .add(field("contact","Map"))
-                            .add(field("createdTime","String"))
+                            .add(field("createdTime","DateTime"))
                             .add(field("isResponseOverdue","Boolean"))//Object
-                            .add(field("customerResponseTime","String"))
+                            .add(field("customerResponseTime","DateTime"))
                             .add(field("productId","Long"))//Object
                             .add(field("contactId","Long"))
                             .add(field("threadCount","Integer"))
                             .add(field("secondaryContacts","JAVA_Array"))
-                            .add(field("priority","String"))
-                            .add(field("classification","String"))
+                            .add(field("priority","StringMinor"))
+                            .add(field("classification","StringNormal"))
                             .add(field("commentCount","Integer"))
                             .add(field("taskCount","Integer"))
-                            .add(field("accountId","String"))//Object
-                            .add(field("phone","Long"))
-                            .add(field("webUrl","String"))
+                            .add(field("accountId","Long"))//Object
+                            .add(field("phone","Phone"))
+                            .add(field("webUrl","URL"))
                             .add(field("assignee","Map"))
                             .add(field("isSpam","Boolean"))//Object
-                            .add(field("status","String"))
+                            .add(field("status","StringMinor"))
                             .add(field("entitySkills","JAVA_Array"))
                             .add(field("ticketNumber","Integer"))
                             .add(field("sentiment","Map"))//Object
                             .add(field("customFields","Map"))
-                            .add(field("isArchived","String"))//Object
-                            .add(field("Textarea","String"))
+                            .add(field("isArchived","Boolean"))//Object
+                            .add(field("Textarea","Textarea"))
                             .add(field("timeEntryCount","Integer"))
                             .add(field("channelRelatedInfo","Map"))//Object
-                            .add(field("responseDueDate","String"))//Object
+                            .add(field("responseDueDate","Date"))//Object
                             .add(field("isDeleted","Boolean"))//Object
                             .add(field("modifiedBy","Long"))
                             .add(field("department","Map"))
                             .add(field("followerCount","Integer"))
-                            .add(field("email","String"))
+                            .add(field("email","Email"))
                             .add(field("layoutDetails","Map"))
-                            .add(field("channelCode","String"))//Object
-                            .add(field("product","String"))//Object
+                            .add(field("channelCode","StringMinor"))//Object
+                            .add(field("product","Map"))//Object
                             .add(field("isFollowing","Boolean"))//Object
                             .add(field("cf","Map"))
                             .add(field("slaId","Long"))

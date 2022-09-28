@@ -29,7 +29,7 @@ public class UpdateEventEntity extends EventBaseEntity<UpdateEventEntity> {
 
     @Override
     public TapEvent outputTapEvent(String table) {
-        return TapSimplify.updateDMLEvent(this.prevState, this.payload(), table);
+        return TapSimplify.updateDMLEvent(this.prevState, this.payload(), table).referenceTime(System.currentTimeMillis());
     }
 
     public Map<String, Object> getPrevState() {
