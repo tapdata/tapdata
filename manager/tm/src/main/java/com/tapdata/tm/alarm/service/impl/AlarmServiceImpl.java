@@ -5,6 +5,7 @@ import cn.hutool.core.date.DateTime;
 import cn.hutool.core.date.DateUnit;
 import cn.hutool.core.date.DateUtil;
 import cn.hutool.core.lang.Assert;
+import cn.hutool.extra.cglib.CglibUtil;
 import com.google.common.collect.Maps;
 import com.tapdata.tm.Settings.dto.MailAccountDto;
 import com.tapdata.tm.Settings.entity.Settings;
@@ -14,6 +15,7 @@ import com.tapdata.tm.alarm.constant.AlarmMailTemplate;
 import com.tapdata.tm.alarm.constant.AlarmStatusEnum;
 import com.tapdata.tm.alarm.dto.*;
 import com.tapdata.tm.alarm.entity.AlarmInfo;
+import com.tapdata.tm.alarm.scheduler.Rule;
 import com.tapdata.tm.alarm.service.AlarmService;
 import com.tapdata.tm.alarmrule.service.AlarmRuleService;
 import com.tapdata.tm.base.dto.Page;
@@ -166,6 +168,27 @@ public class AlarmServiceImpl implements AlarmService {
                 ruleDtos.addAll(Optional.ofNullable(node.getAlarmRules()).orElse(Collections.emptyList()));
             });
             return ruleDtos;
+        }
+        return null;
+    }
+
+    @Override
+    public List<Rule> findAllRuleWithMoreInfo(String taskId) {
+        TaskDto taskDto = taskService.findById(MongoUtils.toObjectId(taskId));
+        return getAlarmRules(taskDto);
+    }
+
+    @Nullable
+    @SuppressWarnings("unchecked")
+    private List<Rule> getAlarmRules(TaskDto taskDto) {
+        if (Objects.nonNull(taskDto)) {
+            List<AlarmRuleDto> ruleDtos = Lists.newArrayList();
+            ruleDtos.addAll(Optional.ofNullable(taskDto.getAlarmRules()).orElse(Collections.emptyList()));
+
+            taskDto.getDag().getNodes().forEach(node -> {
+                ruleDtos.addAll(Optional.ofNullable(node.getAlarmRules()).orElse(Collections.emptyList()));
+            });
+            return CglibUtil.copyList(ruleDtos, Rule::new);
         }
         return null;
     }

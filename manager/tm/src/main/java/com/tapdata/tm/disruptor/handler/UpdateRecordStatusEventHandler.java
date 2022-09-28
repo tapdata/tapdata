@@ -2,6 +2,7 @@ package com.tapdata.tm.disruptor.handler;
 
 import cn.hutool.core.date.DateUtil;
 import cn.hutool.extra.spring.SpringUtil;
+import com.tapdata.tm.alarm.scheduler.RuleRenew;
 import com.tapdata.tm.commons.task.constant.AlarmKeyEnum;
 import com.tapdata.tm.alarm.constant.AlarmComponentEnum;
 import com.tapdata.tm.alarm.constant.AlarmContentTemplate;
@@ -32,6 +33,10 @@ public class UpdateRecordStatusEventHandler implements BaseEventHandler<SyncTask
         TaskRecordService taskRecordService = SpringUtil.getBean(TaskRecordService.class);
         SyncTaskStatusDto data = event.getData();
         taskRecordService.updateTaskStatus(data);
+
+        RuleRenew alertRuleRenew = SpringUtil.getBean(RuleRenew.class);
+        alertRuleRenew.renewTaskAlertRule(event.getData());
+
 
         CompletableFuture.runAsync(() -> handlerStatusDoSomething(data));
 
