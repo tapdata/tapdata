@@ -378,6 +378,13 @@ public class ProxyController extends BaseController {
     }
 
     @Operation(summary = "External callback url")
+    @GetMapping("memory")
+    public void memoryGet(HttpServletRequest request, HttpServletResponse response) throws IOException {
+        response.setContentType("application/json");
+        response.getOutputStream().write(PDKIntegration.outputMemoryFetchers(null, "Detail").getBytes(StandardCharsets.UTF_8));
+    }
+
+    @Operation(summary = "External callback url")
     @PostMapping("memory")
     public void memory(@RequestBody MemoryDto memoryDto, HttpServletRequest request, HttpServletResponse response) throws IOException {
         response.setContentType("application/json");
