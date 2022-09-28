@@ -20,7 +20,7 @@ import io.tapdata.pdk.apis.spec.TapNodeSpecification;
 import io.tapdata.pdk.core.connector.TapConnectorManager;
 import io.tapdata.pdk.core.dag.TapDAGNode;
 import io.tapdata.pdk.core.error.PDKRunnerErrorCodes;
-import io.tapdata.pdk.core.memory.MemoryFetcher;
+import io.tapdata.entity.memory.MemoryFetcher;
 import io.tapdata.pdk.core.memory.MemoryManager;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
 import io.tapdata.pdk.core.tapnode.TapNodeInstance;
@@ -452,4 +452,10 @@ public class PDKIntegration {
         init();
         memoryManager.unregister(key);
     }
+
+    public static String outputMemoryFetchers(List<String> mapKeys, String mapType) {
+        init();
+        return memoryManager.output(mapKeys, mapType);
+    }
+
 }

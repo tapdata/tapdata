@@ -6,6 +6,7 @@ import io.tapdata.entity.annotations.MainMethod;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.reflection.ClassAnnotationHandler;
+import io.tapdata.entity.utils.DataMap;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.entity.utils.JsonParser;
 import io.tapdata.modules.api.net.data.*;
@@ -16,6 +17,8 @@ import io.tapdata.modules.api.net.service.node.NodeHealthService;
 import io.tapdata.modules.api.net.service.node.NodeRegistryService;
 import io.tapdata.modules.api.net.service.node.connection.NodeConnection;
 import io.tapdata.modules.api.net.service.node.connection.NodeConnectionFactory;
+import io.tapdata.entity.memory.MemoryFetcher;
+import io.tapdata.pdk.core.api.PDKIntegration;
 import io.tapdata.pdk.core.utils.AnnotationUtils;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.pdk.core.utils.IPHolder;
@@ -40,13 +43,12 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Consumer;
 
 import static io.tapdata.entity.simplify.TapSimplify.map;
 
 @MainMethod(value = "start", order = 100000)
 @Bean
-public class GatewaySessionManager implements HealthWeightListener {
+public class GatewaySessionManager implements HealthWeightListener, MemoryFetcher {
     public final String TAG = GatewaySessionManager.class.getSimpleName();
 
     private String jwtKey = "adfJ#R$LKLKFJERL(*$#@FD";
@@ -127,6 +129,8 @@ public class GatewaySessionManager implements HealthWeightListener {
                 .configState(STATE_TERMINATED, stateMachine.execute());
 
         stateMachine.gotoState(STATE_SCAN_GATEWAY_SESSION, "Start scanning GatewaySessionHandler class");
+
+        PDKIntegration.registerMemoryFetcher(GatewaySessionManager.class.getSimpleName(), this);
     }
 
     private void handlerStartedState(GatewaySessionManager gatewaySessionManager, StateMachine<Integer, GatewaySessionManager> integerGatewaySessionManagerStateMachine) {
@@ -554,5 +558,30 @@ public class GatewaySessionManager implements HealthWeightListener {
 
     public NodeRegistry getNodeRegistry() {
         return nodeRegistry;
+    }
+
+    @Override
+    public DataMap memory(List<String> mapKeys, String memoryLevel) {
+        DataMap dataMap = DataMap.create()
+                .kv("threadPoolExecutor", threadPoolExecutor.toString())
+                .kv("maxChannels", maxChannels)
+                .kv("nodeHealthManager", nodeHealthManager.memory(mapKeys, memoryLevel))
+                .kv("gatewayChannelModule", this.gatewayChannelModule.memory(mapKeys, memoryLevel))
+                ;
+        DataMap userIdGatewaySessionHandlerMap = DataMap.create();
+        dataMap.kv("userIdGatewaySessionHandlerMap", userIdGatewaySessionHandlerMap);
+        for(Map.Entry<String, GatewaySessionHandler> entry : this.userIdGatewaySessionHandlerMap.entrySet()) {
+            if(mapKeys != null && !mapKeys.isEmpty() && !mapKeys.contains(entry.getKey()))
+                continue;
+            userIdGatewaySessionHandlerMap.kv(entry.getKey(), entry.getValue().memory(mapKeys, memoryLevel));
+        }
+
+        DataMap userIdSingleThreadMap = DataMap.create();
+        dataMap.kv("userIdSingleThreadMap", userIdSingleThreadMap);
+        for(Map.Entry<String, SingleThreadBlockingQueue<UserAction>> entry : this.userIdSingleThreadMap.entrySet()) {
+            userIdSingleThreadMap.put(entry.getKey(), entry.getValue().memory(mapKeys, memoryLevel));
+        }
+
+        return dataMap;
     }
 }

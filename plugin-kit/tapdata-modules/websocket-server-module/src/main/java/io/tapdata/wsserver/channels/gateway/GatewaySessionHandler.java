@@ -3,20 +3,24 @@ package io.tapdata.wsserver.channels.gateway;
 import com.google.common.collect.Maps;
 import io.tapdata.entity.annotations.Bean;
 import io.tapdata.entity.error.CoreException;
+import io.tapdata.entity.utils.DataMap;
 import io.tapdata.modules.api.net.data.*;
 import io.tapdata.modules.api.net.message.TapEntity;
+import io.tapdata.entity.memory.MemoryFetcher;
 import io.tapdata.wsserver.channels.error.WSErrors;
 import io.tapdata.wsserver.channels.gateway.data.GatewayUserSession;
 import io.tapdata.wsserver.channels.gateway.data.UserChannel;
 import io.tapdata.wsserver.channels.gateway.modules.GatewayChannelModule;
 import io.tapdata.wsserver.channels.websocket.utils.ValidateUtils;
 
+import java.util.Date;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-public abstract class GatewaySessionHandler {
+public abstract class GatewaySessionHandler implements MemoryFetcher {
     private final String TAG = GatewaySessionHandler.class.getSimpleName();
 
     private long touch;
@@ -176,5 +180,12 @@ public abstract class GatewaySessionHandler {
 
     public void setToken(String token) {
         this.token = token;
+    }
+    public DataMap memory(List<String> mapKeys, String memoryLevel) {
+        return DataMap.create()
+                .kv("touch", new Date(touch))
+                .kv("token", token)
+                .kv("id", id)
+                .kv("userChannel", userChannel);
     }
 }

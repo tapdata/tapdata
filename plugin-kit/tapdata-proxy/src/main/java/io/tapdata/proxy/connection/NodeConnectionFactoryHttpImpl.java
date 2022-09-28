@@ -4,6 +4,7 @@ import io.tapdata.entity.annotations.Bean;
 import io.tapdata.entity.annotations.Implementation;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.logger.TapLogger;
+import io.tapdata.entity.utils.DataMap;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.modules.api.net.entity.NodeRegistry;
 import io.tapdata.modules.api.net.error.NetErrors;
@@ -15,6 +16,7 @@ import io.tapdata.wsserver.channels.health.NodeHandler;
 import io.tapdata.wsserver.channels.health.NodeHealthManager;
 
 import java.lang.reflect.Proxy;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -108,5 +110,23 @@ public class NodeConnectionFactoryHttpImpl implements NodeConnectionFactory {
 
 		nodeConnectionFactory.registerReceiver("aaa", (Receiver<ReceiverEntity, Proxy>) (nodeId, proxy, biConsumer) -> {});
 
+	}
+
+	@Override
+	public DataMap memory(List<String> mapKeys, String memoryLevel) {
+		DataMap dataMap = DataMap.create()
+				.kv("disconnectedNodeIds", disconnectedNodeIds)
+				;
+		DataMap typeNodeIdBiFunctionMap = DataMap.create();
+		dataMap.kv("typeNodeIdBiFunctionMap", typeNodeIdBiFunctionMap);
+		for(Map.Entry<String, ReceiverEntity<?, ?>> entry : this.typeNodeIdBiFunctionMap.entrySet()) {
+			typeNodeIdBiFunctionMap.kv(entry.getKey(), entry.getValue());
+		}
+		DataMap nodeIdConnectionMap = DataMap.create();
+		dataMap.kv("nodeIdConnectionMap", nodeIdConnectionMap);
+		for(Map.Entry<String, NodeConnection> entry : this.nodeIdConnectionMap.entrySet()) {
+			nodeIdConnectionMap.kv(entry.getKey(), entry.getValue().memory(mapKeys, memoryLevel));
+		}
+		return null;
 	}
 }

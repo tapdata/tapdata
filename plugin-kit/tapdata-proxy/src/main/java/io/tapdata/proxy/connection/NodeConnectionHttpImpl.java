@@ -3,6 +3,7 @@ package io.tapdata.proxy.connection;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.logger.TapLogger;
+import io.tapdata.entity.utils.DataMap;
 import io.tapdata.entity.utils.FormatUtils;
 import io.tapdata.modules.api.net.data.Data;
 import io.tapdata.modules.api.net.data.Result;
@@ -24,6 +25,7 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
 import java.util.concurrent.*;
 import java.util.function.BiConsumer;
@@ -343,5 +345,19 @@ public class NodeConnectionHttpImpl implements NodeConnection {
 
 	public List<String> getWorkableIps() {
 		return workableIps;
+	}
+
+	@Override
+	public DataMap memory(List<String> mapKeys, String memoryLevel) {
+		return DataMap.create()
+				.kv("stateMachine", stateMachine.getCurrentState())
+				.kv("nodeRegistry", nodeRegistry)
+				.kv("terminateReason", terminateReason)
+				.kv("MAX_RETRY", MAX_RETRY)
+				.kv("retryTimes", retryTimes)
+				.kv("touch", new Date(touch))
+				.kv("workableIps", workableIps)
+				.kv("asyncQueue", asyncQueue.memory(mapKeys, memoryLevel))
+				;
 	}
 }

@@ -3,6 +3,8 @@ package io.tapdata.wsserver.channels.health;
 import io.tapdata.entity.annotations.Bean;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.logger.TapLogger;
+import io.tapdata.entity.memory.MemoryFetcher;
+import io.tapdata.entity.utils.DataMap;
 import io.tapdata.entity.utils.TypeHolder;
 import io.tapdata.modules.api.net.entity.NodeHealth;
 import io.tapdata.modules.api.net.entity.NodeRegistry;
@@ -31,7 +33,7 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
 @Bean
-public class NodeHealthManager {
+public class NodeHealthManager implements MemoryFetcher {
 	private static final String TAG = NodeHealthManager.class.getSimpleName();
 	@Bean
 	private NodeHealthService nodeHealthService;
@@ -249,5 +251,20 @@ public class NodeHealthManager {
 
 	public void setDeleteNodeConsumer(Consumer<NodeRegistry> deleteNodeConsumer) {
 		this.deleteNodeConsumer = deleteNodeConsumer;
+	}
+
+	@Override
+	public DataMap memory(List<String> mapKeys, String memoryLevel) {
+		DataMap dataMap = DataMap.create()
+				.kv("started", started.get())
+				.kv("currentNodeHealth", currentNodeHealth)
+				.kv("nodeDeadExpiredSeconds", nodeDeadExpiredSeconds)
+				.kv("nodeConnectionFactory", nodeConnectionFactory.memory(mapKeys, memoryLevel));
+		DataMap idNodeHandlerMap = DataMap.create();
+		dataMap.kv("idNodeHandlerMap", idNodeHandlerMap);
+		for(Map.Entry<String, NodeHandler> entry : this.idNodeHandlerMap.entrySet()) {
+			idNodeHandlerMap.kv(entry.getKey(), entry.getValue());
+		}
+		return dataMap;
 	}
 }

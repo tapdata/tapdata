@@ -2,8 +2,10 @@ package io.tapdata.pdk.core.utils.queue;
 
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.error.CoreException;
+import io.tapdata.entity.utils.DataMap;
 import io.tapdata.pdk.core.error.PDKRunnerErrorCodes;
 import io.tapdata.pdk.core.executor.ExecutorsManager;
+import io.tapdata.entity.memory.MemoryFetcher;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.pdk.core.workflow.engine.DataFlowEngine;
 
@@ -20,7 +22,7 @@ import java.util.concurrent.atomic.LongAdder;
  *
  * @param <T>
  */
-public class SingleThreadBlockingQueue<T> implements Runnable {
+public class SingleThreadBlockingQueue<T> implements Runnable, MemoryFetcher {
     private static final String TAG = SingleThreadBlockingQueue.class.getSimpleName();
     private ExecutorService threadPoolExecutor;
     private int maxSize = 20;
@@ -300,5 +302,22 @@ public class SingleThreadBlockingQueue<T> implements Runnable {
 
     public long counter() {
         return counter.longValue();
+    }
+
+    @Override
+    public DataMap memory(List<String> mapKeys, String memoryLevel) {
+        return DataMap.create()
+                .kv("name", name)
+                .kv("handleSize", handleSize)
+                .kv("maxSize", maxSize)
+                .kv("maxWaitMilliSeconds", maxWaitMilliSeconds)
+                .kv("isFull", isFull.get())
+                .kv("queueSize", queue.size())
+                .kv("threadPoolExecutor", threadPoolExecutor.toString())
+                .kv("isRunning", isRunning)
+                .kv("isStopping",isStopping)
+                .kv("counter", counter.longValue())
+                .kv("notifyCounter", notifyCounter.longValue())
+                .kv("notifySize", notifySize);
     }
 }

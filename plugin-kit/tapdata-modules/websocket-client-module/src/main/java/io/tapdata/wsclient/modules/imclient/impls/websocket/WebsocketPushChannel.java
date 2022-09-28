@@ -135,6 +135,11 @@ public class WebsocketPushChannel extends PushChannel {
 
     @Override
     public void send(Data data) {
+        if(channel == null) {
+            TapLogger.debug(TAG, "Channel not initialized before sending data, {}", data);
+            return;
+        }
+
         byte[] bytes = data.getData();
         if(bytes == null) {
             data.persistent();
@@ -263,7 +268,10 @@ public class WebsocketPushChannel extends PushChannel {
     }
 
     private void sendIdentity(Identity data) {
-        if(channel == null) return;
+        if(channel == null) {
+            TapLogger.debug(TAG, "Channel not initialized before sending identity, {}", data);
+            return;
+        }
 
         send(data);
     }

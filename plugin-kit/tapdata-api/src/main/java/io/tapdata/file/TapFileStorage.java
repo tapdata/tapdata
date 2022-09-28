@@ -32,11 +32,6 @@ public interface TapFileStorage {
      * c:\root\app\tapdata\1.png
      * file://root/app/tapdata/1.png
      *
-     * If there is custom root path needed, then it should configure in params from init method, and the path is base on the root path.
-     * like params defined root path is /home/tapdata/
-     * if path is /running/log/server.log, then the final path should be /home/tapdata/running/log/server.log.
-     * need be caution for security reason, if the path is ../runner/server.log, the "../" can not be applied, this API can not visit outside of root path for security design.
-     *
      * if file/directory is not exist on the path, return null, shall avoid to throw exception.
      *
      * @param path
@@ -103,12 +98,13 @@ public interface TapFileStorage {
      * If directoryPath is not exists or is a file, then throw CoreException with specified code.
      *
      * @param directoryPath
-     * @param matchingReg can be null
+     * @param includeReg can be null
+     * @param excludeReg can be null
      * @param recursive
      * @param batchSize the max batch size when consumer accept a batch TapFile.
      * @param consumer accept a batch of TapFile.
      */
-    void getFilesInDirectory(String directoryPath, String matchingReg, boolean recursive, int batchSize, Consumer<List<TapFile>> consumer);
+    void getFilesInDirectory(String directoryPath, String includeReg, String excludeReg, boolean recursive, int batchSize, Consumer<List<TapFile>> consumer);
 
     /**
      * Check the directory is exists or not on the path.

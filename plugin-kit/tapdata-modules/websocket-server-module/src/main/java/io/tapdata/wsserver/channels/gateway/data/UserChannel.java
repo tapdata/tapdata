@@ -1,5 +1,7 @@
 package io.tapdata.wsserver.channels.gateway.data;
 
+import java.util.Date;
+
 public class UserChannel {
     private String userId;
     public UserChannel userId(String userId) {
@@ -96,5 +98,10 @@ public class UserChannel {
 
     public void setUpdateTime(Long updateTime) {
         this.updateTime = updateTime;
+    }
+
+    @Override
+    public String toString() {
+        return UserChannel.class.getSimpleName() + ": userId " + userId + " authorisedExpression " + authorisedExpression + " deviceToken " + deviceToken + " terminal " + terminal + " createTime " + (createTime != null ? new Date(createTime) : null) + " updateTime " + (updateTime != null ? new Date(updateTime) : null) + " ip " + ip;
     }
 }

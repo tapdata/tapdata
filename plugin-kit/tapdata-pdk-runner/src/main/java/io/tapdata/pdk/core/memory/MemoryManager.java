@@ -2,6 +2,7 @@ package io.tapdata.pdk.core.memory;
 
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.logger.TapLogger;
+import io.tapdata.entity.memory.MemoryFetcher;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.entity.utils.JsonParser;
 import io.tapdata.pdk.core.error.PDKRunnerErrorCodes;
@@ -14,6 +15,7 @@ import org.apache.commons.lang3.exception.ExceptionUtils;
 import java.io.File;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 
@@ -122,5 +124,13 @@ public class MemoryManager {
         return new MemoryManager();
     }
 
-
+    public String output() {
+        return output(null, null);
+    }
+    public String output(List<String> mapKeys) {
+        return output(null);
+    }
+    public String output(List<String> mapKeys, String mapType) {
+        return new CommandWorker().keyMemoryFetcherMap(keyMemoryFetcherMap).output(mapKeys, mapType);
+    }
 }

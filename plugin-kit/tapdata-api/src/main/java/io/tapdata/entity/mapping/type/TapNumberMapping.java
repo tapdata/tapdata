@@ -356,7 +356,7 @@ public class TapNumberMapping extends TapMapping {
     final BigDecimal theMaxValue = BigDecimal.valueOf(10).pow(2406);
     final BigDecimal valueValue = BigDecimal.valueOf(10).pow(2405);
     final BigDecimal scaleValue = BigDecimal.valueOf(10).pow(2405);
-    final BigDecimal fixedValue = BigDecimal.valueOf(10).pow(600);
+    final BigDecimal fixedValue = BigDecimal.valueOf(10).pow(1600);
     final BigDecimal unsignedValue = BigDecimal.valueOf(10).pow(2404);
 
     @Override
@@ -389,7 +389,8 @@ public class TapNumberMapping extends TapMapping {
 //            final BigDecimal scaleValue =  fixedValue.multiply(BigDecimal.TEN);
 //            final BigDecimal valueValue = scaleValue.multiply(BigDecimal.TEN);
 
-            if((scale != null && scale > 0 && isScale()) ||
+            //scale is minus, still consider as scaled, not as an integer. so use scale != 0 instead of scale > 0
+            if((scale != null && scale != 0 && isScale()) ||
                     (scale == null && !isScale())) {
 //                score += scaleValue;
                 score = score.add(scaleValue);

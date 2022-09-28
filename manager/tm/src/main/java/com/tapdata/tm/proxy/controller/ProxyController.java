@@ -10,6 +10,7 @@ import com.tapdata.tm.proxy.dto.LoginProxyDto;
 import com.tapdata.tm.proxy.dto.LoginProxyResponseDto;
 import com.tapdata.tm.proxy.dto.SubscribeDto;
 import com.tapdata.tm.proxy.dto.SubscribeResponseDto;
+import com.tapdata.tm.utils.WebUtils;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import io.tapdata.entity.error.CoreException;
@@ -25,9 +26,11 @@ import io.tapdata.modules.api.net.service.node.connection.NodeConnectionFactory;
 import io.tapdata.modules.api.net.service.node.connection.entity.NodeMessage;
 import io.tapdata.modules.api.proxy.constants.ProxyConstants;
 import io.tapdata.pdk.apis.entity.CommandInfo;
+import io.tapdata.pdk.core.api.PDKIntegration;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.pdk.core.utils.JWTUtils;
 import io.tapdata.wsserver.channels.health.NodeHealthManager;
+import io.tapdata.wsserver.channels.websocket.impl.WebSocketProperties;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.exception.ExceptionUtils;
@@ -40,11 +43,7 @@ import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
-import java.util.Date;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
-import java.util.function.BiConsumer;
+import java.util.*;
 
 import static io.tapdata.entity.simplify.TapSimplify.*;
 import static io.tapdata.entity.simplify.TapSimplify.toJson;
@@ -72,9 +71,14 @@ public class ProxyController extends BaseController {
             throw new BizException("Illegal service for generating token");
         UserDetail userDetail = getLoginUser();
 
+        String nodeId = CommonUtils.getProperty("tapdata_node_id");
+        if(nodeId == null)
+            throw new BizException("Current nodeId not found");
+
         LoginProxyResponseDto loginProxyResponseDto = new LoginProxyResponseDto();
         String token = JWTUtils.createToken(key,
                 map(
+                        entry("nodeId", nodeId),
                         entry("service", loginProxyDto.getService().toLowerCase()),
                         entry("clientId", loginProxyDto.getClientId()),
                         entry("terminal", loginProxyDto.getTerminal()),
@@ -82,7 +86,7 @@ public class ProxyController extends BaseController {
                         entry("cid", userDetail.getCustomerId())
                 ), 30000L);
         loginProxyResponseDto.setToken(token);
-        loginProxyResponseDto.setWsPort(wsPort);
+        loginProxyResponseDto.setWsPort(InstanceFactory.bean(WebSocketProperties.class).getPort());
         /**
          * Use the ws url to do the load balancing.
          * Nginx for example
@@ -146,8 +150,10 @@ public class ProxyController extends BaseController {
         if(commandInfo == null)
             throw new BizException("commandInfo is illegal");
 
-//        CommandInfo commandInfo = fromJson(body, CommandInfo.class);
+        Locale locale = WebUtils.getLocale(request);
         commandInfo.setId(UUID.randomUUID().toString().replace("-", ""));
+        if(locale != null)
+            commandInfo.setLocale(locale.toString());
         CommandExecutionService commandExecutionService = InstanceFactory.instance(CommandExecutionService.class);
         if(commandExecutionService == null) {
             throw new BizException("commandExecutionService is null");
@@ -372,5 +378,12 @@ public class ProxyController extends BaseController {
     public ResponseMessage<List<String>> cleanUp(HttpServletRequest request) {
         NodeHealthManager nodeHealthManager = InstanceFactory.bean(NodeHealthManager.class);
         return success(nodeHealthManager.cleanUpDeadNodes());
+    }
+
+    @Operation(summary = "External callback url")
+    @GetMapping("memory")
+    public void memory(HttpServletRequest request, HttpServletResponse response) throws IOException {
+        response.setContentType("application/json");
+        response.getOutputStream().write(PDKIntegration.outputMemoryFetchers(null, "Detail").getBytes(StandardCharsets.UTF_8));
     }
 }

@@ -4,6 +4,7 @@ import java.util.Date;
 import java.util.Map;
 
 public class CommandInfo {
+	private String locale;
 	private String id;
 	private String connectionId;
 	public static final String TYPE_NODE = "node";
@@ -19,7 +20,7 @@ public class CommandInfo {
 
 	@Override
 	public String toString() {
-		return "CommandInfo id " + id + " type " + type + " connectionId " + connectionId + " pdkHash " + pdkHash + " command " + command + " action " + action + " time " + (time != null ? new Date(time) : null) + " connectionConfig " + connectionConfig + " nodeConfig " + nodeConfig + ";";
+		return "CommandInfo id " + id + " type " + type + " language " + locale + " connectionId " + connectionId + " pdkHash " + pdkHash + " command " + command + " action " + action + " time " + (time != null ? new Date(time) : null) + " connectionConfig " + connectionConfig + " nodeConfig " + nodeConfig + ";";
 	}
 
 	public String getPdkHash() {
@@ -100,5 +101,13 @@ public class CommandInfo {
 
 	public void setType(String type) {
 		this.type = type;
+	}
+
+	public String getLocale() {
+		return locale;
+	}
+
+	public void setLocale(String locale) {
+		this.locale = locale;
 	}
 }

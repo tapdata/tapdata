@@ -54,7 +54,7 @@ public class LocalFileStorage implements TapFileStorage {
 	}
 
 	@Override
-	public void getFilesInDirectory(String directoryPath, String matchingReg, boolean recursive, int batchSize, Consumer<List<TapFile>> consumer) {
+	public void getFilesInDirectory(String directoryPath, String includeReg, String excludeReg, boolean recursive, int batchSize, Consumer<List<TapFile>> consumer) {
 
 	}
 
