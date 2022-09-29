@@ -75,7 +75,6 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
     private SettingsService settingsService;
     @Autowired
     private ScheduleTasksService scheduleTasksService;
-    private TaskService taskService;
 
     @Autowired
     private TaskService taskService;
