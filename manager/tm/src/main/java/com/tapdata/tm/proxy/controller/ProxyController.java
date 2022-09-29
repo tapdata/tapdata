@@ -12,9 +12,11 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.logger.TapLogger;
+import io.tapdata.entity.utils.FormatUtils;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.modules.api.net.data.Data;
 import io.tapdata.modules.api.net.data.Result;
+import io.tapdata.modules.api.net.entity.SubscribeToken;
 import io.tapdata.modules.api.net.error.NetErrors;
 import io.tapdata.modules.api.net.message.MessageEntity;
 import io.tapdata.modules.api.net.service.CommandExecutionService;
@@ -25,6 +27,7 @@ import io.tapdata.modules.api.proxy.constants.ProxyConstants;
 import io.tapdata.pdk.apis.entity.CommandInfo;
 import io.tapdata.pdk.core.api.PDKIntegration;
 import io.tapdata.pdk.core.utils.CommonUtils;
+//import io.tapdata.pdk.core.utils.JWTUtils;
 import io.tapdata.pdk.core.utils.JWTUtils;
 import io.tapdata.wsserver.channels.health.NodeHealthManager;
 import io.tapdata.wsserver.channels.websocket.impl.WebSocketProperties;
@@ -37,6 +40,8 @@ import org.springframework.web.bind.annotation.*;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
@@ -44,6 +49,7 @@ import java.util.*;
 
 import static io.tapdata.entity.simplify.TapSimplify.*;
 import static io.tapdata.entity.simplify.TapSimplify.toJson;
+import static org.apache.http.HttpStatus.*;
 
 
 @Tag(name = "Proxy", description = "代理网关相关接口")
@@ -110,11 +116,28 @@ public class ProxyController extends BaseController {
         if(subscribeDto.getExpireSeconds() == null)
             throw new BizException("SubscribeDto expireSeconds is null");
         UserDetail userDetail = getLoginUser(); //only for check access_token
-        String token = JWTUtils.createToken(key,
-                map(
-                        entry("service", subscribeDto.getService().toLowerCase()),
-                        entry("subscribeId", subscribeDto.getSubscribeId())
-                ), subscribeDto.getExpireSeconds() * 1000);
+//        String token = JWTUtils.createToken(key,
+//                map(
+//                        entry("service", subscribeDto.getService().toLowerCase()),
+//                        entry("subscribeId", subscribeDto.getSubscribeId())
+//                ), (long)subscribeDto.getExpireSeconds() * 1000);
+        SubscribeToken subscribeToken = new SubscribeToken();
+        subscribeToken.setSubscribeId(subscribeDto.getSubscribeId());
+        subscribeToken.setService(subscribeDto.getService());
+        subscribeToken.setExpireAt(System.currentTimeMillis() + (subscribeDto.getExpireSeconds() * 1000));
+        byte[] tokenBytes = null;
+        try (ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
+            subscribeToken.to(baos);
+            tokenBytes = baos.toByteArray();
+        } catch (IOException e) {
+            throw new BizException("Serialize SubscribeDto failed, " + e.getMessage());
+        }
+        String token = null;
+        try {
+            token = new String(Base64.getUrlEncoder().encode(CommonUtils.encryptWithRC4(tokenBytes, key)), StandardCharsets.US_ASCII);
+        } catch (Exception e) {
+            throw new BizException("Encrypt SubscribeDto failed, " + e.getMessage());
+        }
 
         SubscribeResponseDto subscribeResponseDto = new SubscribeResponseDto();
         subscribeResponseDto.setToken(token);
@@ -122,14 +145,34 @@ public class ProxyController extends BaseController {
     }
     @Operation(summary = "External callback url")
     @PostMapping("callback/{token}")
-    public ResponseMessage<Void> rawDataCallback(@PathVariable("token") String token, @RequestBody Map<String, Object> content, HttpServletRequest request) {
+    public void rawDataCallback(@PathVariable("token") String token, @RequestBody Map<String, Object> content, HttpServletRequest request, HttpServletResponse response) throws IOException {
         if(content == null)
             throw new BizException("content is illegal, " + null);
-        Map<String, Object> claims = JWTUtils.getClaims(key, token);
-        String service = (String) claims.get("service");
-        String subscribeId = (String) claims.get("subscribeId");
+        byte[] data = null;
+        try {
+            data = CommonUtils.decryptWithRC4(Base64.getUrlDecoder().decode(token.getBytes(StandardCharsets.US_ASCII)), key);
+        } catch (Exception e) {
+            response.sendError(SC_UNAUTHORIZED, "Token illegal");
+            return;
+        }
+        SubscribeToken subscribeDto = new SubscribeToken();
+        try (ByteArrayInputStream bais = new ByteArrayInputStream(data)) {
+            subscribeDto.from(bais);
+        } catch (IOException e) {
+            response.sendError(SC_INTERNAL_SERVER_ERROR, "Deserialize token failed, " + e.getMessage());
+            return;
+        }
+//        Map<String, Object> claims = JWTUtils.getClaims(key, token);
+        String service = subscribeDto.getService();
+        String subscribeId = subscribeDto.getSubscribeId();
+        Long expireAt = subscribeDto.getExpireAt();
         if(service == null || subscribeId == null) {
-            throw new BizException("Illegal arguments for subscribeId {}, subscribeId {}", service, subscribeId);
+            response.sendError(SC_BAD_REQUEST, FormatUtils.format("Illegal arguments for subscribeId {}, subscribeId {}", service, subscribeId));
+            return;
+        }
+        if(expireAt != null && System.currentTimeMillis() > expireAt) {
+            response.sendError(SC_UNAUTHORIZED, "Token expired");
+            return;
         }
 
         EventQueueService eventQueueService = InstanceFactory.instance(EventQueueService.class, "sync");
@@ -137,8 +180,7 @@ public class ProxyController extends BaseController {
             MessageEntity message = new MessageEntity().content(content).time(new Date()).subscribeId(subscribeId).service(service);
             eventQueueService.offer(message);
         }
-
-        return success();
+        response.setStatus(SC_OK);
     }
 
     @Operation(summary = "External callback url")
