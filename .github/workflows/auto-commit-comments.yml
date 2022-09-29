@@ -17,8 +17,15 @@ jobs:
       commit-id: ${{ steps.check-style.outputs.commit-id }}
     steps:
       - name: Checkout Enterprise Branch
+        if: $GITHUB_EVENT_NAME == 'push'
         uses: actions/checkout@v3
         with:
+          fetch-depth: 0
+      - name: Checkout Enterprise Branch
+        if: $GITHUB_EVENT_NAME == 'pull_request'
+        uses: actions/checkout@v3
+        with:
+          ref: ${{ GITHUB_HEAD_REF }}
           fetch-depth: 0
       - name: Commit Message End With \#$number
         id: check-style
@@ -27,7 +34,7 @@ jobs:
           echo "::set-output name=commit-message::$message"
           commit_id=`git rev-parse HEAD`
           echo "::set-output name=commit-id::$commit_id"
-          echo $message | egrep "#[0-9]+" -o | egrep "[0-9]+" -o > /tmp/commit_msg | cat /tmp/commit_msg
+          echo $message | egrep "#[0-9]+" -o | egrep "[0-9]+" -o > /tmp/commit_msg
           echo "::set-output name=issue-code::`cat /tmp/commit_msg`"
           flag=`cat /tmp/commit_msg`
           if [[ "X${flag}" != "X" ]]; then isPost='true'; else isPost='false'; fi
