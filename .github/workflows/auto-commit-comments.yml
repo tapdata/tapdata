@@ -27,7 +27,7 @@ jobs:
         with:
           ref: ${{ github.head_ref }}
           fetch-depth: 0
-      - name: Commit Message End With \#$number
+      - name: Commit Message With \#$number
         id: check-style
         run: |
           message=`git log -1 --pretty=%B`
