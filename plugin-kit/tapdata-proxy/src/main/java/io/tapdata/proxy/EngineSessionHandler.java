@@ -141,7 +141,7 @@ public class EngineSessionHandler extends GatewaySessionHandler {
 
 		@Override
 		public DataMap memory(String keyRegex, String memoryLevel) {
-			return DataMap.create().keyRegex(keyRegex)
+			return DataMap.create().keyRegex(keyRegex)/*.prefix(this.getClass().getSimpleName())*/
 					.kv("scheduledFuture", scheduledFuture != null ? scheduledFuture.toString() : null)
 					.kv("commandInfo", commandInfo);
 		}
@@ -233,7 +233,7 @@ public class EngineSessionHandler extends GatewaySessionHandler {
 	}
 
 	public DataMap memory(String keyRegex, String memoryLevel) {
-		DataMap dataMap = DataMap.create().keyRegex(keyRegex)
+		DataMap dataMap = DataMap.create().keyRegex(keyRegex)/*.prefix(this.getClass().getSimpleName())*/
 				.kv("touch", new Date(getTouch()))
 				.kv("token", getToken())
 				.kv("id", getId())
@@ -242,7 +242,7 @@ public class EngineSessionHandler extends GatewaySessionHandler {
 				.kv("subscribeMap", subscribeMap.memory(keyRegex, memoryLevel))
 				.kv("cachedSubscribedIds", cachedSubscribedIds)
 				;
-		DataMap commandIdExecutorMap = DataMap.create().keyRegex(keyRegex);
+		DataMap commandIdExecutorMap = DataMap.create().keyRegex(keyRegex)/*.prefix(this.getClass().getSimpleName())*/;
 		dataMap.kv("commandIdExecutorMap", commandIdExecutorMap);
 		for(Map.Entry<String, CommandInfoExecutor> entry : this.commandIdExecutorMap.entrySet()) {
 			commandIdExecutorMap.kv(entry.getKey(), entry.getValue().memory(keyRegex, memoryLevel));

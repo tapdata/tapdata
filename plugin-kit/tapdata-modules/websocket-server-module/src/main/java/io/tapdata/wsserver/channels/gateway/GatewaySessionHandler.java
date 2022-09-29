@@ -181,7 +181,7 @@ public abstract class GatewaySessionHandler implements MemoryFetcher {
         this.token = token;
     }
     public DataMap memory(String keyRegex, String memoryLevel) {
-        return DataMap.create().keyRegex(keyRegex)
+        return DataMap.create().keyRegex(keyRegex)/*.prefix(this.getClass().getSimpleName())*/
                 .kv("touch", new Date(touch))
                 .kv("token", token)
                 .kv("id", id)

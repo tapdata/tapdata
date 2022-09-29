@@ -57,7 +57,7 @@ public class InvocationCollector implements MemoryFetcher {
 
     @Override
     public DataMap memory(String keyRegex, String memoryLevel) {
-        DataMap dataMap = DataMap.create().keyRegex(keyRegex)
+        DataMap dataMap = DataMap.create().keyRegex(keyRegex)/*.prefix(this.getClass().getSimpleName())*/
                 .kv("counter", counter.longValue())
                 .kv("totalTakes", totalTakes.longValue())
                 ;
@@ -67,7 +67,7 @@ public class InvocationCollector implements MemoryFetcher {
             detailed = false;
         }
         if(detailed) {
-            DataMap invokerMap = DataMap.create().keyRegex(keyRegex);
+            DataMap invokerMap = DataMap.create().keyRegex(keyRegex)/*.prefix(this.getClass().getSimpleName())*/;
             dataMap.kv("invokeIdTimeMap", invokerMap);
             for(Map.Entry<String, Long> entry : invokeIdTimeMap.entrySet()) {
                 if(entry.getValue() != null)

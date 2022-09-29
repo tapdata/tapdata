@@ -248,12 +248,12 @@ public class NodeHealthManager implements MemoryFetcher {
 
 	@Override
 	public DataMap memory(String keyRegex, String memoryLevel) {
-		DataMap dataMap = DataMap.create().keyRegex(keyRegex)
+		DataMap dataMap = DataMap.create().keyRegex(keyRegex)/*.prefix(this.getClass().getSimpleName())*/
 				.kv("started", started.get())
 				.kv("currentNodeHealth", currentNodeHealth)
 				.kv("nodeDeadExpiredSeconds", nodeDeadExpiredSeconds)
 				.kv("nodeConnectionFactory", nodeConnectionFactory.memory(keyRegex, memoryLevel));
-		DataMap idNodeHandlerMap = DataMap.create().keyRegex(keyRegex);
+		DataMap idNodeHandlerMap = DataMap.create().keyRegex(keyRegex)/*.prefix(this.getClass().getSimpleName())*/;
 		dataMap.kv("idNodeHandlerMap", idNodeHandlerMap);
 		for(Map.Entry<String, NodeHandler> entry : this.idNodeHandlerMap.entrySet()) {
 			idNodeHandlerMap.kv(entry.getKey(), entry.getValue());

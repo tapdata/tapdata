@@ -126,7 +126,7 @@ public class SubscribeMap implements MemoryFetcher {
 
 	@Override
 	public DataMap memory(String keyRegex, String memoryLevel) {
-		DataMap dataMap = DataMap.create().keyRegex(keyRegex);
+		DataMap dataMap = DataMap.create().keyRegex(keyRegex)/*.prefix(this.getClass().getSimpleName())*/;
 		for(Map.Entry<String, List<EngineSessionHandler>> entry : subscribeIdSessionMap.entrySet()) {
 			List<EngineSessionHandler> handlers = entry.getValue();
 			if(handlers != null) {

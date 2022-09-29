@@ -282,7 +282,7 @@ public class ProxySubscriptionManager implements MemoryFetcher {
 
 	@Override
 	public DataMap memory(String keyRegex, String memoryLevel) {
-		DataMap dataMap = DataMap.create().keyRegex(keyRegex)
+		DataMap dataMap = DataMap.create().keyRegex(keyRegex)/*.prefix(this.getClass().getSimpleName())*/
 //				.kv("maxFrequencyLimiter", maxFrequencyLimiter.toString())
 //				.kv("needSync", needSync.get())
 //				.kv("imClient", imClient.memory(keyRegex, memoryLevel))

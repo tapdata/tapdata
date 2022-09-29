@@ -18,10 +18,10 @@ class TaskSubscribeInfo implements MemoryFetcher {
 
 	@Override
 	public DataMap memory(String keyRegex, String memoryLevel) {
-		DataMap dataMap = DataMap.create().keyRegex(keyRegex)
+		DataMap dataMap = DataMap.create().keyRegex(keyRegex)/*.prefix(TaskSubscribeInfo.class.getSimpleName())*/
 				.kv("taskId", taskId)
 				;
-		DataMap typeConnectionIdPDKNodeMap = DataMap.create().keyRegex(keyRegex);
+		DataMap typeConnectionIdPDKNodeMap = DataMap.create().keyRegex(keyRegex)/*.prefix(TaskSubscribeInfo.class.getSimpleName())*/;
 		dataMap.kv("typeConnectionIdPDKNodeMap", typeConnectionIdPDKNodeMap);
 		for(Map.Entry<String, List<Node>> entry : this.typeConnectionIdPDKNodeMap.entrySet()) {
 			List<String> nodeList = new ArrayList<>();

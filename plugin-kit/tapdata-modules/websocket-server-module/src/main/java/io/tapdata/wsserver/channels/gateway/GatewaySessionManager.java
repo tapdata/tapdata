@@ -562,19 +562,19 @@ public class GatewaySessionManager implements HealthWeightListener, MemoryFetche
 
     @Override
     public DataMap memory(String keyRegex, String memoryLevel) {
-        DataMap dataMap = DataMap.create().keyRegex(keyRegex)
+        DataMap dataMap = DataMap.create().keyRegex(keyRegex)/*.prefix(this.getClass().getSimpleName())*/
                 .kv("threadPoolExecutor", threadPoolExecutor.toString())
                 .kv("maxChannels", maxChannels)
                 .kv("nodeHealthManager", nodeHealthManager.memory(keyRegex, memoryLevel))
                 .kv("gatewayChannelModule", this.gatewayChannelModule.memory(keyRegex, memoryLevel))
                 ;
-        DataMap userIdGatewaySessionHandlerMap = DataMap.create().keyRegex(keyRegex);
+        DataMap userIdGatewaySessionHandlerMap = DataMap.create().keyRegex(keyRegex)/*.prefix(this.getClass().getSimpleName())*/;
         dataMap.kv("userIdGatewaySessionHandlerMap", userIdGatewaySessionHandlerMap);
         for(Map.Entry<String, GatewaySessionHandler> entry : this.userIdGatewaySessionHandlerMap.entrySet()) {
             userIdGatewaySessionHandlerMap.kv(entry.getKey(), entry.getValue().memory(keyRegex, memoryLevel));
         }
 
-        DataMap userIdSingleThreadMap = DataMap.create().keyRegex(keyRegex);
+        DataMap userIdSingleThreadMap = DataMap.create().keyRegex(keyRegex)/*.prefix(this.getClass().getSimpleName())*/;
         dataMap.kv("userIdSingleThreadMap", userIdSingleThreadMap);
         for(Map.Entry<String, SingleThreadBlockingQueue<UserAction>> entry : this.userIdSingleThreadMap.entrySet()) {
             userIdSingleThreadMap.put(entry.getKey(), entry.getValue().memory(keyRegex, memoryLevel));

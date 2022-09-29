@@ -311,7 +311,7 @@ public class ExternalJarManager implements MemoryFetcher {
 
     @Override
     public DataMap memory(String keyRegex, String memoryLevel) {
-        return DataMap.create().keyRegex(keyRegex)
+        return DataMap.create().keyRegex(keyRegex)/*.prefix(this.getClass().getSimpleName())*/
                 .kv("Path", path)
                 .kv("JarFiles", jarFiles != null ? Arrays.toString(jarFiles.toArray()) : null)
                 .kv("LoadNewJarAtRuntime", loadNewJarAtRuntime)

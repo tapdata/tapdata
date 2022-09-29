@@ -198,7 +198,7 @@ public class TapConnector implements MemoryFetcher {
 
     @Override
     public DataMap memory(String keyRegex, String memoryLevel) {
-        return DataMap.create().keyRegex(keyRegex)
+        return DataMap.create().keyRegex(keyRegex)/*.prefix(this.getClass().getSimpleName())*/
                 .kv("jarFile", jarFile)
                 .kv("jarFileTime", jarFileTime)
                 .kv("loadingJarFile", loadingJarFile)

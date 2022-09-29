@@ -184,7 +184,7 @@ public class GatewayChannelModule implements MemoryFetcher {
 
     @Override
     public DataMap memory(String keyRegex, String memoryLevel) {
-        DataMap dataMap = DataMap.create().keyRegex(keyRegex);
+        DataMap dataMap = DataMap.create().keyRegex(keyRegex)/*.prefix(this.getClass().getSimpleName())*/;
         for(Map.Entry<String, ChannelHandlerContext> entry : userIdChannelMap.entrySet()) {
             dataMap.put(entry.getKey(), entry.getValue().toString());
         }

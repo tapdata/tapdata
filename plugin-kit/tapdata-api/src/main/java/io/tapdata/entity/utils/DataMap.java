@@ -19,6 +19,11 @@ public class DataMap extends LinkedHashMap<String, Object> {
 			keyPattern = Pattern.compile(keyRegex, Pattern.MULTILINE | Pattern.CASE_INSENSITIVE);
 		return this;
 	}
+	private String prefix;
+	public DataMap prefix(String prefix) {
+		this.prefix = prefix;
+		return this;
+	}
 
 	public static DataMap create(Map<String, Object> map) {
 		DataMap dataMap = new DataMap();
@@ -37,6 +42,8 @@ public class DataMap extends LinkedHashMap<String, Object> {
 			if(!matcher.matches())
 				return this;
 		}
+		if(prefix != null)
+			key = prefix + "_" + key;
 		super.put(key, value);
 		return this;
 	}
@@ -59,11 +66,5 @@ public class DataMap extends LinkedHashMap<String, Object> {
 		return super.get(key);
 	}
 
-	public String getKeyRegex() {
-		return keyRegex;
-	}
 
-	public void setKeyRegex(String keyRegex) {
-		this.keyRegex = keyRegex;
-	}
 }

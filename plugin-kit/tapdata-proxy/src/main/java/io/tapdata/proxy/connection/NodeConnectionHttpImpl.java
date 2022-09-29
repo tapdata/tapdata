@@ -351,7 +351,7 @@ public class NodeConnectionHttpImpl implements NodeConnection {
 
 	@Override
 	public DataMap memory(String keyRegex, String memoryLevel) {
-		return DataMap.create().keyRegex(keyRegex)
+		return DataMap.create().keyRegex(keyRegex)/*.prefix(this.getClass().getSimpleName())*/
 				.kv("stateMachine", stateMachine.getCurrentState())
 				.kv("nodeRegistry", nodeRegistry)
 				.kv("terminateReason", terminateReason)
