@@ -129,9 +129,9 @@ public class SubscriptionAspectTask extends AbstractAspectTask {
 
 							for(MessageEntity message : messages) {
 								PDKInvocationMonitor.invoke(connectorNode, PDKMethod.RAW_DATA_CALLBACK_FILTER, () -> {
-									TapEvent tapEvent = function.filter(connectorNode.getConnectorContext(), message.getContent());
-									if(tapEvent != null)
-										events.add(tapEvent);
+									List<TapEvent> tapEvents = function.filter(connectorNode.getConnectorContext(), message.getContent());
+									if(tapEvents != null)
+										events.addAll(tapEvents);
 								}, TAG);
 							}
 							if(!messages.isEmpty()) {

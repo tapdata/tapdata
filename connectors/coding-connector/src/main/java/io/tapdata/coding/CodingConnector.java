@@ -221,7 +221,7 @@ public class CodingConnector extends ConnectorBase {
 		return new CommandResult().result(pageResult);
 	}
 
-	private TapEvent rawDataCallbackFilterFunction(TapConnectorContext connectorContext, Map<String, Object> issueEventData) {
+	private List<TapEvent> rawDataCallbackFilterFunction(TapConnectorContext connectorContext, Map<String, Object> issueEventData) {
 		if (Checker.isEmpty(issueEventData)){
 			TapLogger.debug(TAG,"An event with Event Data is null or empty,this callBack is stop.The data has been discarded. Data detial is:"+issueEventData);
 			return null;
@@ -310,7 +310,7 @@ public class CodingConnector extends ConnectorBase {
 		}else {
 			TapLogger.debug(TAG,"An event type with unknown origin was found and cannot be processed - ["+event+"]. The data has been discarded. Data to be processed:"+issueDetail);
 		}
-		return event;
+		return Collections.singletonList(event);
 	}
 
 	private void streamRead(
