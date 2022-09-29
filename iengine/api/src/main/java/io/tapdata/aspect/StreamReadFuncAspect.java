@@ -203,6 +203,7 @@ public class StreamReadFuncAspect extends DataFunctionAspect<StreamReadFuncAspec
 		noMoreWaitRawData(null);
 	}
 	public void noMoreWaitRawData(Throwable errorDuringWait) {
+		TapLogger.debug(TAG, "noMoreWaitRawData errorDuringWait {}", errorDuringWait);
 		synchronized (this) {
 			this.errorDuringWait = errorDuringWait;
 			waitRawData = false;

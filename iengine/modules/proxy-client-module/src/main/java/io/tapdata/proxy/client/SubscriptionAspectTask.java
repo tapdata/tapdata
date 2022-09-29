@@ -51,7 +51,7 @@ public class SubscriptionAspectTask extends AbstractAspectTask {
 	private boolean isStarted;
 	private StreamReadFuncAspect streamReadFuncAspect;
 	private final AtomicBoolean isFetchingNewData = new AtomicBoolean(false);
-	private boolean needFetchingNewData = false;
+	private volatile boolean needFetchingNewData = false;
 
 	private String currentOffset;
 
@@ -77,11 +77,10 @@ public class SubscriptionAspectTask extends AbstractAspectTask {
 							currentOffset = null;
 						}
 
-						BiConsumer<Result, Throwable> biConsumer = (result, throwable) -> {
-							handleFetchNewDataResult(streamReadFuncAspect, subscribeId, result, throwable);
-						};
-						if(startFetchingNewData())
-							fetchNewData(subscribeId, currentOffset, biConsumer);
+						if(startFetchingNewData()) {
+							TapLogger.debug(TAG, "start fetching new data, started {} isFetchingNewData {}", isStarted, isFetchingNewData.get());
+							fetchNewData(subscribeId, currentOffset, (result, throwable) -> handleFetchNewDataResult(streamReadFuncAspect, subscribeId, result, throwable));
+						}
 					}
 				} else {
 					TapLogger.debug(TAG, "StreamReadFuncAspect.STATE_CALLBACK_RAW_DATA shouldn't enter more than once");
@@ -102,14 +101,20 @@ public class SubscriptionAspectTask extends AbstractAspectTask {
 	}
 
 	private void handleFetchNewDataResult(StreamReadFuncAspect streamReadFuncAspect, String subscribeId, Result result, Throwable throwable) {
-		if(!isStarted)
+		if(!isStarted) {
+			TapLogger.debug(TAG, "handleFetchNewDataResult will end because isStarted is false. isFetchingNewData {}", isFetchingNewData.get());
 			return;
+		}
 		if(throwable != null) {
 			streamReadFuncAspect.noMoreWaitRawData(throwable);
 			return;
 		}
 		if(result == null) {
 			streamReadFuncAspect.noMoreWaitRawData(new CoreException(NetErrors.RESULT_IS_NULL, "Result/Throwable are both null in handleFetchNewDataResult, subscribeId {} offset {}", subscribeId, currentOffset));
+			return;
+		}
+		if(result.getCode() != 1) {
+			streamReadFuncAspect.noMoreWaitRawData(new CoreException(NetErrors.RESULT_CODE_FAILED, "Result code is not OK, message {}, subscribeId {} offset {}", result.getMessage(), subscribeId, currentOffset));
 			return;
 		}
 
@@ -141,6 +146,7 @@ public class SubscriptionAspectTask extends AbstractAspectTask {
 							synchronized (this) {
 								if(!messages.isEmpty() || needFetchingNewData) {
 									needFetchingNewData = false;
+									TapLogger.debug(TAG, "Still need fetching new data, messages size {}, needFetchingNewData {}", messages.size(), needFetchingNewData);
 									fetchNewData(subscribeId, currentOffset, (result1, throwable1) -> handleFetchNewDataResult(streamReadFuncAspect, subscribeId, result1, throwable1));
 									return;
 								}
@@ -153,10 +159,11 @@ public class SubscriptionAspectTask extends AbstractAspectTask {
 				if(needFetchingNewData) {
 					needFetchingNewData = false;
 					Object finalNextOffset = nextOffset;
+					TapLogger.debug(TAG, "Still need fetching new data, needFetchingNewData {}", needFetchingNewData);
 					fetchNewData(subscribeId, currentOffset, (result1, throwable1) -> handleFetchNewDataResult(streamReadFuncAspect, subscribeId, result1, throwable1));
 				} else {
 					if(stopFetchingNewData()) {
-						TapLogger.debug(TAG, "isFetchingNewData is false");
+						TapLogger.debug(TAG, "Stop fetching new data as isFetchingNewData is false");
 					}
 				}
 			}
