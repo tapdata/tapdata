@@ -465,6 +465,8 @@ public class TaskController extends BaseController {
                 } else if ("running".equals(status)) {
                     messageService.addMigration(name, idString, MsgTypeEnum.CONNECTED, Level.INFO, getLoginUser());
                 }
+
+                alarmService.checkFullAndCdcEvent(taskDto);
             }
         } catch (Exception e) {
             log.error("任务状态添加 message 异常",e);
