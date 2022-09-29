@@ -1948,6 +1948,97 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         dataFlowInsightStatisticsDto.setGranularity("month");
         return dataFlowInsightStatisticsDto;
     }
+
+    public DataFlowInsightStatisticsDto statsTransport1(UserDetail userDetail) {
+
+        Criteria criteria = Criteria.where("is_deleted").ne(true);
+        Query query = new Query(criteria);
+        query.fields().include("_id");
+        List<TaskDto> allDto = findAllDto(query, userDetail);
+        List<String> ids = allDto.stream().map(a->a.getId().toHexString()).collect(Collectors.toList());
+
+        List<LocalDate> localDates = new ArrayList<>();
+        LocalDate now = LocalDate.now();
+        LocalDate lastMonthDay = now.minusMonths(1);
+        while (!now.equals(lastMonthDay)) {
+            localDates.add(now);
+            now = now.minusDays(1);
+        }
+        List<Date> localDateTimes = new ArrayList<>();
+        for (LocalDate localDate : localDates) {
+            for (int i = 0; i < 24; i++) {
+                LocalDateTime localDateTime = LocalDateTime.of(localDate.getYear(), localDate.getMonthValue(), localDate.getDayOfMonth(), i, 0, 0);
+                Date date = Date.from(localDateTime.atZone(ZoneId.systemDefault()).toInstant());
+                localDateTimes.add(date);
+            }
+        }
+
+
+        Criteria in = Criteria.where("tags.taskId").in(ids)
+                .and("date").in(localDateTimes)
+                .and("grnty").is("hour")
+                .and("tags.type").is("task");
+        Query query1 = new Query(in);
+        query1.fields().include("ss");
+        DateTimeFormatter format = DateTimeFormatter.ofPattern("yyyyMMdd");
+        List<MeasurementEntity> measurementEntities = repository.getMongoOperations().find(query1, MeasurementEntity.class, "AgentMeasurementV2");
+
+        Map<String, List<MeasurementEntity>> taskMap = measurementEntities.stream().collect(Collectors.groupingBy(m -> m.getTags().get("taskId")));
+
+        Map<LocalDate, Long> allInputNumMap = new HashMap<>();
+
+        taskMap.forEach((k1, v1) -> {
+            Map<LocalDate, Long> inputNumMap = new HashMap<>();
+            Map<LocalDate, List<Sample>> sampleMap = v1.stream().flatMap(m -> m.getSamples().stream()).collect(Collectors.groupingBy(s -> {
+                Date date = s.getDate();
+                return date.toInstant().atZone(ZoneId.systemDefault()).toLocalDate();
+            }));
+            sampleMap.forEach((k, v) -> {
+                long value = 0;
+                Optional<Sample> max = v.stream().max(Comparator.comparing(Sample::getDate));
+                if (max.isPresent()) {
+                    Sample sample = max.get();
+                    Map<String, Number> vs = sample.getVs();
+                    value += (int) vs.get("inputInsertTotal");
+                    value += (int) vs.get("inputOthersTotal");
+                    value += (int) vs.get("inputDdlTotal");
+                    value += (int) vs.get("inputUpdateTotal");
+                    value += (int) vs.get("inputDeleteTotal");
+                }
+                LocalDate localDate = k.minusDays(1L);
+                Long lastNum = inputNumMap.get(localDate);
+                if (lastNum != null) {
+                    value = value - lastNum;
+                }
+                inputNumMap.put(k, value);
+            });
+
+            inputNumMap.forEach((k2, v2) -> {
+                Long allNum = allInputNumMap.get(k2);
+                if (allNum != null) {
+                    v2 = v2 + allNum;
+                }
+
+                allInputNumMap.put(k2, v2);
+
+            });
+
+        });
+
+        List<DataFlowInsightStatisticsDto.DataStatisticInfo> inputDataStatistics = new ArrayList<>();
+        AtomicLong totalInputDataCount = new AtomicLong();
+        allInputNumMap.forEach((k, v) -> {
+            inputDataStatistics.add(new DataFlowInsightStatisticsDto.DataStatisticInfo(k.format(format), v));
+            totalInputDataCount.addAndGet(v);
+        });
+
+        DataFlowInsightStatisticsDto dataFlowInsightStatisticsDto = new DataFlowInsightStatisticsDto();
+        inputDataStatistics.sort(Comparator.comparing(DataFlowInsightStatisticsDto.DataStatisticInfo::getTime));
+        dataFlowInsightStatisticsDto.setInputDataStatistics(inputDataStatistics);
+        dataFlowInsightStatisticsDto.setTotalInputDataCount(totalInputDataCount.get());
+        dataFlowInsightStatisticsDto.setGranularity("month");
+        return dataFlowInsightStatisticsDto;
+    }
     @Data
     @AllArgsConstructor
     @NoArgsConstructor
