@@ -90,13 +90,12 @@ public class CommonUtils {
         final String logTag = invoker.getLogTag();
         boolean async = invoker.isAsync();
         long retryPeriodSeconds = invoker.getRetryPeriodSeconds();
-
         if(retryPeriodSeconds <= 0) {
             throw new IllegalArgumentException("PeriodSeconds can not be zero or less than zero");
         }
         try {
             runable.run();
-        } catch(Throwable throwable) {
+        }catch(Throwable errThrowable) {
             ErrorHandleFunction function = null;
             TapConnectionContext tapConnectionContext = null;
             ConnectionFunctions<?> connectionFunctions = null;
@@ -125,30 +124,33 @@ public class CommonUtils {
 
             if(null == function){
                 TapLogger.debug(logTag,"This PDK data source not support retry. ");
-                throw (CoreException) throwable;
-//                throw new CoreException( "This PDK data source not support retry ." );
+                if(errThrowable instanceof CoreException) {
+                    throw (CoreException) errThrowable;
+                }
+                throw new CoreException(PDKRunnerErrorCodes.COMMON_UNKNOWN, message + " execute failed, " + errThrowable.getMessage(),errThrowable);
             }
 
             ErrorHandleFunction finalFunction = function;
             TapConnectionContext finalTapConnectionContext = tapConnectionContext;
             try {
-                RetryOptions retryOptions = finalFunction.needRetry(finalTapConnectionContext, method, throwable);
+                RetryOptions retryOptions = finalFunction.needRetry(finalTapConnectionContext, method,errThrowable);
                 if(retryOptions == null || !retryOptions.isNeedRetry()) {
-                    throw throwable;
+                    throw errThrowable;
                 }
                 if(retryOptions.getBeforeRetryMethod() != null) {
                     CommonUtils.ignoreAnyError(() -> retryOptions.getBeforeRetryMethod().run(), logTag);
                 }
             } catch (Throwable e) {
-                e.printStackTrace();
                 TapLogger.info(logTag,TapAPIErrorCodes.NEED_RETRY_FAILED+" Error retry failed: Not need retry." + logTag);
-                throw (CoreException) throwable;
-                //throw new CoreException(TapAPIErrorCodes.NEED_RETRY_FAILED, "Error retry failed." );
+                if(errThrowable instanceof CoreException) {
+                    throw (CoreException) errThrowable;
+                }
+                throw new CoreException(PDKRunnerErrorCodes.COMMON_UNKNOWN, message + " execute failed, " + errThrowable.getMessage(),errThrowable);
             }
 
             long retryTimes = invoker.getRetryTimes();
             if(retryTimes > 0) {
-                TapLogger.info(logTag, "AutoRetry info: retry times ({}) | periodSeconds ({}). Please wait...\n", message, invoker.getRetryTimes(), retryPeriodSeconds);
+                TapLogger.warn(logTag, "AutoRetry info: retry times ({}) | periodSeconds ({}s) | error [{}] Please wait...", invoker.getRetryTimes(), retryPeriodSeconds,errThrowable.getMessage());//, message
                 invoker.setRetryTimes(retryTimes-1);
                 if(async) {
                     ExecutorsManager.getInstance().getScheduledExecutorService().schedule(() -> autoRetry(node,method,invoker), retryPeriodSeconds, TimeUnit.SECONDS);
@@ -163,10 +165,10 @@ public class CommonUtils {
                     autoRetry(node, method, invoker);
                 }
             } else {
-                if(throwable instanceof CoreException) {
-                    throw (CoreException) throwable;
+                if(errThrowable instanceof CoreException) {
+                    throw (CoreException) errThrowable;
                 }
-                throw new CoreException(PDKRunnerErrorCodes.COMMON_UNKNOWN, message + " execute failed, " + throwable.getMessage());
+                throw new CoreException(PDKRunnerErrorCodes.COMMON_UNKNOWN, message + " execute failed, " + errThrowable.getMessage(),errThrowable);
             }
         }
     }

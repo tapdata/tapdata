@@ -1,5 +1,6 @@
 package com.tapdata.tm.monitoringlogs.service;
 
+import cn.hutool.core.date.DateUtil;
 import com.tapdata.manager.common.utils.IOUtils;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.exception.BizException;
@@ -88,8 +89,8 @@ public class MonitoringLogsService extends BaseService<MonitoringLogsDto, Monito
             criteria.and("taskRecordId").is(param.getTaskRecordId());
         }
 
-        Date startDate = QuartzCronDateUtils.dateToISODate(param.getStart());
-        Date endDate = QuartzCronDateUtils.dateToISODate(param.getEnd());
+        Date startDate = DateUtil.offsetMinute(DateUtil.date(param.getStart()), -1);
+        Date endDate = DateUtil.offsetMinute(DateUtil.date(param.getEnd()), 10);
         criteria.and("date").gte(startDate).lt(endDate);
 
         if (StringUtils.isNotEmpty(param.getNodeId())) {
@@ -220,14 +221,13 @@ public class MonitoringLogsService extends BaseService<MonitoringLogsDto, Monito
 
     //
 
-    public void startTaskMonitoringLog(TaskDto taskDto, UserDetail user) {
+    public void startTaskMonitoringLog(TaskDto taskDto, UserDetail user, Date date) {
         MonitoringLogsDto.MonitoringLogsDtoBuilder builder = MonitoringLogsDto.builder();
-        long now = System.currentTimeMillis();
         builder.taskId(taskDto.getId().toHexString())
                 .taskName(taskDto.getName())
                 .taskRecordId(taskDto.getTaskRecordId())
-                .date(new Date(now))
-                .timestamp(now)
+                .date(date)
+                .timestamp(System.currentTimeMillis())
                 .level("INFO")
                 .message("Start task...")
                 ;

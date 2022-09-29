@@ -48,7 +48,6 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
-import java.util.stream.Collectors;
 
 import static com.hazelcast.jet.impl.util.ExceptionUtil.sneakyThrow;
 
@@ -76,7 +75,6 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 	private int initialConcurrentWriteNum;
 	private boolean cdcConcurrent;
 	private int cdcConcurrentWriteNum;
-
 	private PartitionConcurrentProcessor initialPartitionConcurrentProcessor;
 	private PartitionConcurrentProcessor cdcPartitionConcurrentProcessor;
 	private boolean inCdc = false;
@@ -128,6 +126,12 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 					this.cdcPartitionConcurrentProcessor.start();
 				}
 			}
+		}
+
+		TaskDto taskDto = dataProcessorContext.getTaskDto();
+		String type = taskDto.getType();
+		if (TaskDto.TYPE_INITIAL_SYNC.equals(type)) {
+			putInGlobalMap(getCompletedInitialKey(), false);
 		}
 	}
 
@@ -279,6 +283,9 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 	}
 
 	protected void handleTapdataCompleteSnapshotEvent() {
+		if (TaskDto.TYPE_INITIAL_SYNC.equals(dataProcessorContext.getTaskDto().getType())) {
+			putInGlobalMap(getCompletedInitialKey(), true);
+		}
 		// MILESTONE-WRITE_SNAPSHOT-FINISH
 		TaskMilestoneFuncAspect.execute(dataProcessorContext, MilestoneStage.WRITE_SNAPSHOT, MilestoneStatus.FINISH);
 		MilestoneUtil.updateMilestone(milestoneService, MilestoneStage.WRITE_SNAPSHOT, MilestoneStatus.FINISH);
@@ -482,6 +489,7 @@ public abstract class HazelcastTargetPdkBaseNode extends HazelcastPdkBaseNode {
 		try {
 			CommonUtils.ignoreAnyError(() -> Optional.ofNullable(this.initialPartitionConcurrentProcessor).ifPresent(PartitionConcurrentProcessor::forceStop), TAG);
 			CommonUtils.ignoreAnyError(() -> Optional.ofNullable(this.cdcPartitionConcurrentProcessor).ifPresent(PartitionConcurrentProcessor::forceStop), TAG);
+			CommonUtils.ignoreAnyError(() -> removeGlobalMap(getCompletedInitialKey()), TAG);
 		} finally {
 			super.doClose();
 		}
