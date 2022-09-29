@@ -344,19 +344,9 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
                 if (worker.getWeight() == null) {
                     worker.setWeight(1);
                 }
-                ArrayList<String> status = new ArrayList<>();
-                status.add("scheduled");
-                status.add("running");
-                Where q = new Where().and("status", new BasicDBObject().append("$in", status))
-                        .and("agentId", worker.getProcessId());
-                long workNum;
-                if (isCloud) {
-                    workNum = dataFlowService.count(q, userService.loadUserById(new ObjectId(entity.getUserId())));
-                } else {
-                    workNum = taskService.count(Query.query(Criteria.where("agentId").is(worker.getProcessId())
+                long workNum = taskService.count(Query.query(Criteria.where("agentId").is(worker.getProcessId())
                             .and("is_deleted").ne(true)
                             .and("status").in(Lists.newArrayList(TaskDto.STATUS_RUNNING, TaskDto.STATUS_STOPPING, TaskDto.STATUS_ERROR))));
-                }
                 worker.setRunningThread((int) workNum);
                 threadLog.add(new BasicDBObject()
                         .append("process_id", worker.getProcessId())
