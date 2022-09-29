@@ -107,7 +107,7 @@ public class ZoHoConnector extends ConnectorBase {
 		return CommandMode.getInstanceByName(tapConnectionContext,commandInfo);
 	}
 
-	private TapEvent rawDataCallbackFilterFunction(TapConnectorContext connectorContext, Map<String, Object> issueEventData) {
+	private List<TapEvent> rawDataCallbackFilterFunction(TapConnectorContext connectorContext, Map<String, Object> issueEventData) {
 		if (Checker.isEmpty(issueEventData)){
 			TapLogger.debug(TAG,"WebHook of ZoHo patch body is empty, Data callback has been over.");
 			return null;
@@ -137,11 +137,10 @@ public class ZoHoConnector extends ConnectorBase {
 			//	events[0] = new ArrayList<>();
 			//}
 		});
-		if (events[0].size()>0){
+		//if (events[0].size()>0){
 			//	consumer.accept(events[0], offsetState);
-		}
-		return null;
-		//return instanceByEventType.outputTapEvent("Tickets");
+		//}
+		return events[0];
 	}
 
 	private void streamRead(

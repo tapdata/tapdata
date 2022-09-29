@@ -51,7 +51,7 @@
           }
         },
         "getTokenButton": {
-          "type": "string",
+          "type": "void",
           "title": "${tokenButton}",
           "x-decorator": "FormItem",
           "extra": true,
