@@ -159,7 +159,7 @@ public class PostgresConnector extends ConnectorBase {
         connectorFunctions.supportCreateTableV2(this::createTableV2);
         connectorFunctions.supportClearTable(this::clearTable);
         connectorFunctions.supportDropTable(this::dropTable);
-        connectorFunctions.supportCreateIndex(this::createIndex);
+//        connectorFunctions.supportCreateIndex(this::createIndex);
         // source
         connectorFunctions.supportBatchCount(this::batchCount);
         connectorFunctions.supportBatchRead(this::batchRead);
