@@ -5,6 +5,7 @@ import com.alibaba.fastjson.JSONArray;
 import com.google.common.collect.Maps;
 import com.google.gson.reflect.TypeToken;
 import com.tapdata.manager.common.utils.JsonUtil;
+import com.tapdata.tm.alarm.service.AlarmService;
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.*;
 import com.tapdata.tm.commons.dag.DAG;
@@ -87,6 +88,7 @@ public class TaskController extends BaseController {
     private SnapshotEdgeProgressService snapshotEdgeProgressService;
     private TaskRecordService taskRecordService;
     private WorkerService workerService;
+    private AlarmService alarmService;
 
     /**
      * Create a new instance of the model and persist it into the data source
@@ -456,6 +458,8 @@ public class TaskController extends BaseController {
                 } else if ("running".equals(status)) {
                     messageService.addMigration(name, idString, MsgTypeEnum.CONNECTED, Level.INFO, getLoginUser());
                 }
+
+                alarmService.checkFullAndCdcEvent(taskDto);
             }
         } catch (Exception e) {
             log.error("任务状态添加 message 异常",e);

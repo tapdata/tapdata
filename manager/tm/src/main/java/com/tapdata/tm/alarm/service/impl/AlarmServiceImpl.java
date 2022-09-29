@@ -6,25 +6,23 @@ import cn.hutool.core.date.DateUnit;
 import cn.hutool.core.date.DateUtil;
 import cn.hutool.core.lang.Assert;
 import cn.hutool.extra.cglib.CglibUtil;
+import cn.hutool.extra.spring.SpringUtil;
 import com.google.common.collect.Maps;
 import com.tapdata.tm.Settings.dto.MailAccountDto;
 import com.tapdata.tm.Settings.entity.Settings;
 import com.tapdata.tm.Settings.service.AlarmSettingService;
 import com.tapdata.tm.Settings.service.SettingsService;
-import com.tapdata.tm.alarm.constant.AlarmMailTemplate;
-import com.tapdata.tm.alarm.constant.AlarmStatusEnum;
+import com.tapdata.tm.alarm.constant.*;
 import com.tapdata.tm.alarm.dto.*;
 import com.tapdata.tm.alarm.entity.AlarmInfo;
 import com.tapdata.tm.alarm.scheduler.Rule;
 import com.tapdata.tm.alarm.service.AlarmService;
-import com.tapdata.tm.alarmrule.service.AlarmRuleService;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.dto.TmPageable;
 import com.tapdata.tm.commons.dag.Node;
-import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
-import com.tapdata.tm.commons.dag.process.TableRenameProcessNode;
 import com.tapdata.tm.commons.task.constant.AlarmKeyEnum;
 import com.tapdata.tm.commons.task.constant.NotifyEnum;
+import com.tapdata.tm.commons.task.dto.Milestone;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmRuleDto;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmSettingDto;
@@ -51,7 +49,6 @@ import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
-import org.springframework.data.querydsl.QuerydslUtils;
 import org.springframework.stereotype.Service;
 
 import java.text.MessageFormat;
@@ -71,7 +68,6 @@ public class AlarmServiceImpl implements AlarmService {
     private MongoTemplate mongoTemplate;
     private TaskService taskService;
     private AlarmSettingService alarmSettingService;
-    private AlarmRuleService alarmRuleService;
     private MessageService messageService;
     private SettingsService settingsService;
     private UserService userService;
@@ -426,6 +422,37 @@ public class AlarmServiceImpl implements AlarmService {
     @Override
     public void closeWhenTaskRunning(String taskId) {
         mongoTemplate.updateMulti(Query.query(Criteria.where("taskId").is(taskId).and("status").ne(AlarmStatusEnum.CLOESE)), Update.update("status", AlarmStatusEnum.CLOESE), AlarmInfo.class);
+    }
+
+    @Override
+    public void checkFullAndCdcEvent(TaskDto taskDto) {
+        String taskId = taskDto.getId().toHexString();
+        List<Milestone> milestones = taskDto.getMilestones();
+        if (CollectionUtils.isEmpty(milestones)) {
+            return;
+        }
+
+        AlarmService alarmService = SpringUtil.getBean(AlarmService.class);
+
+        for (Milestone milestone : milestones) {
+            if ("WRITE_SNAPSHOT".equals(milestone.getCode()) && "finish".equals(milestone.getStatus())) {
+                String summary = MessageFormat.format(AlarmContentTemplate.TASK_FULL_COMPLETE, milestone.getEnd() - milestone.getStart(), DateUtil.now());
+                AlarmInfo alarmInfo = AlarmInfo.builder().status(AlarmStatusEnum.ING).level(Level.WARNING).component(AlarmComponentEnum.FE)
+                        .type(AlarmTypeEnum.SYNCHRONIZATIONTASK_ALARM).agentId(taskDto.getAgentId()).taskId(taskId)
+                        .name(taskDto.getName()).summary(summary).metric(AlarmKeyEnum.TASK_FULL_COMPLETE)
+                        .build();
+                alarmService.save(alarmInfo);
+            }
+
+            if ("WRITE_CDC_EVENT".equals(milestone.getCode()) && "running".equals(milestone.getStatus())) {
+                String summary = MessageFormat.format(AlarmContentTemplate.TASK_INCREMENT_START, DateUtil.now());
+                AlarmInfo alarmInfo = AlarmInfo.builder().status(AlarmStatusEnum.ING).level(Level.WARNING).component(AlarmComponentEnum.FE)
+                        .type(AlarmTypeEnum.SYNCHRONIZATIONTASK_ALARM).agentId(taskDto.getAgentId()).taskId(taskId)
+                        .name(taskDto.getName()).summary(summary).metric(AlarmKeyEnum.TASK_INCREMENT_START)
+                        .build();
+                alarmService.save(alarmInfo);
+            }
+        }
     }
 
     private MailAccountDto getMailAccount() {

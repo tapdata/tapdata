@@ -40,4 +40,6 @@ public interface AlarmService {
     List<AlarmInfo> find(String taskId, String nodeId, AlarmKeyEnum key);
 
     void closeWhenTaskRunning(String taskId);
+
+    void checkFullAndCdcEvent(TaskDto taskDto);
 }
