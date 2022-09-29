@@ -36,313 +36,316 @@ import java.util.stream.IntStream;
  **/
 public class MongodbUtil {
 
-		public final static String SUB_COLUMN_NAME = "__tapd8";
+	public final static String SUB_COLUMN_NAME = "__tapd8";
 
-		private static final int SAMPLE_SIZE_BATCH_SIZE = 1000;
+	private static final int SAMPLE_SIZE_BATCH_SIZE = 1000;
 
-		private final static String BUILDINFO = "buildinfo";
-		private final static String VERSION = "version";
+	private final static String BUILDINFO = "buildinfo";
+	private final static String VERSION = "version";
 
-		public static int getVersion(MongoClient mongoClient, String database) {
-				int versionNum = 0;
-				MongoDatabase mongoDatabase = mongoClient.getDatabase(database);
-				Document buildinfo = mongoDatabase.runCommand(new BsonDocument(BUILDINFO, new BsonString("")));
-				String versionStr = buildinfo.get(VERSION).toString();
-				String[] versions = versionStr.split("\\.");
-				versionNum = Integer.valueOf(versions[0]);
+	public static int getVersion(MongoClient mongoClient, String database) {
+		int versionNum = 0;
+		MongoDatabase mongoDatabase = mongoClient.getDatabase(database);
+		Document buildinfo = mongoDatabase.runCommand(new BsonDocument(BUILDINFO, new BsonString("")));
+		String versionStr = buildinfo.get(VERSION).toString();
+		String[] versions = versionStr.split("\\.");
+		versionNum = Integer.valueOf(versions[0]);
 
-				return versionNum;
+		return versionNum;
+	}
+
+	public static String getVersionString(MongoClient mongoClient, String database) {
+		MongoDatabase mongoDatabase = mongoClient.getDatabase(database);
+		Document buildinfo = mongoDatabase.runCommand(new BsonDocument(BUILDINFO, new BsonString("")));
+		return buildinfo.get(VERSION).toString();
+	}
+
+	public static void sampleDataRow(MongoCollection collection, int sampleSize, Consumer<BsonDocument> callback) {
+
+		int sampleTime = 1;
+		int sampleBatchSize = SAMPLE_SIZE_BATCH_SIZE;
+		if (sampleSize > SAMPLE_SIZE_BATCH_SIZE) {
+			if (sampleSize % SAMPLE_SIZE_BATCH_SIZE != 0) {
+				sampleTime = sampleSize / SAMPLE_SIZE_BATCH_SIZE + 1;
+			} else {
+				sampleTime = sampleSize / SAMPLE_SIZE_BATCH_SIZE;
+			}
+		} else {
+			sampleBatchSize = sampleSize;
 		}
-
-		public static String getVersionString(MongoClient mongoClient, String database) {
-				MongoDatabase mongoDatabase = mongoClient.getDatabase(database);
-				Document buildinfo = mongoDatabase.runCommand(new BsonDocument(BUILDINFO, new BsonString("")));
-				return buildinfo.get(VERSION).toString();
-		}
-
-		public static void sampleDataRow(MongoCollection collection, int sampleSize, Consumer<BsonDocument> callback) {
-
-				int sampleTime = 1;
-				int sampleBatchSize = SAMPLE_SIZE_BATCH_SIZE;
-				if (sampleSize > SAMPLE_SIZE_BATCH_SIZE) {
-						if (sampleSize % SAMPLE_SIZE_BATCH_SIZE != 0) {
-								sampleTime = sampleSize / SAMPLE_SIZE_BATCH_SIZE + 1;
-						} else {
-								sampleTime = sampleSize / SAMPLE_SIZE_BATCH_SIZE;
-						}
-				} else {
-						sampleBatchSize = sampleSize;
-				}
-				int finalSampleBatchSize = sampleBatchSize;
-				IntStream.range(0, sampleTime).forEach(i -> {
-						List<Document> pipeline = new ArrayList<>();
-						pipeline.add(new Document("$sample", new Document("size", finalSampleBatchSize)));
-						try (MongoCursor<BsonDocument> cursor = collection.aggregate(pipeline, BsonDocument.class).allowDiskUse(true).iterator()){
-								while (cursor.hasNext()) {
-										BsonDocument next = cursor.next();
-										callback.accept(next);
-								}
-						} catch (Exception e) {
-								e.printStackTrace();
-						}
-				});
-		}
-
-		public static Map<String, String> nodesURI(MongoClient mongoClient, String mongodbURI){
-				Map<String, String> nodeConnURIs = new HashMap<>();
-				ConnectionString connectionString = new ConnectionString(mongodbURI);
-				String username = connectionString.getUsername();
-				String password = connectionString.getPassword() != null && connectionString.getPassword().length > 0 ? new String(connectionString.getPassword()) : null;
-				final String database = connectionString.getDatabase();
-				final String mongoDBURIOptions = getMongoDBURIOptions(mongodbURI);
-				MongoCollection<Document> collection = mongoClient.getDatabase("config").getCollection("shards");
-				final MongoCursor<Document> cursor = collection.find().iterator();
+		int finalSampleBatchSize = sampleBatchSize;
+		IntStream.range(0, sampleTime).forEach(i -> {
+			List<Document> pipeline = new ArrayList<>();
+			pipeline.add(new Document("$sample", new Document("size", finalSampleBatchSize)));
+			try (MongoCursor<BsonDocument> cursor = collection.aggregate(pipeline, BsonDocument.class).allowDiskUse(true).iterator()) {
 				while (cursor.hasNext()) {
-						Document doc = cursor.next();
-						String hostStr = doc.getString("host");
-						String replicaSetName = replicaSetUsedIn(hostStr);
-						String addresses = hostStr.split("/")[1];
+					BsonDocument next = cursor.next();
+					callback.accept(next);
+				}
+			} catch (Exception e) {
+				e.printStackTrace();
+			}
+		});
+	}
+
+	public static Map<String, String> nodesURI(MongoClient mongoClient, String mongodbURI) {
+		Map<String, String> nodeConnURIs = new HashMap<>();
+		ConnectionString connectionString = new ConnectionString(mongodbURI);
+		String username = connectionString.getUsername();
+		String password = connectionString.getPassword() != null && connectionString.getPassword().length > 0 ? new String(connectionString.getPassword()) : null;
+		final String database = connectionString.getDatabase();
+		final String mongoDBURIOptions = getMongoDBURIOptions(mongodbURI);
+		MongoCollection<Document> collection = mongoClient.getDatabase("config").getCollection("shards");
+		final MongoCursor<Document> cursor = collection.find().iterator();
+		while (cursor.hasNext()) {
+			Document doc = cursor.next();
+			String hostStr = doc.getString("host");
+			String replicaSetName = replicaSetUsedIn(hostStr);
+			String addresses = hostStr.split("/")[1];
+			StringBuilder sb = new StringBuilder();
+			if (EmptyKit.isNotEmpty(username) && EmptyKit.isNotEmpty(password)) {
+				try {
+					sb.append("mongodb://").append(URLEncoder.encode(connectionString.getUsername(), "UTF-8")).append(":").append(URLEncoder.encode(String.valueOf(password), "UTF-8")).append("@").append(addresses).append("/").append(database);
+				} catch (UnsupportedEncodingException e) {
+					throw new RuntimeException("url encode username/password failed", e);
+				}
+			} else {
+				sb.append("mongodb://").append(addresses).append("/").append(database);
+			}
+			if (EmptyKit.isNotBlank(mongoDBURIOptions)) {
+				sb.append("?").append(mongoDBURIOptions);
+			}
+			nodeConnURIs.put(replicaSetName, sb.toString());
+		}
+
+		if (nodeConnURIs.size() == 0) {
+			// The addresses may be a replica set ...
+			try {
+				Document document = mongoClient.getDatabase("admin").runCommand(new Document("replSetGetStatus", 1));
+				List members = document.get("members", List.class);
+				if (members != null && !members.isEmpty()) {
+
+					StringBuilder sb = new StringBuilder();
+					// This is a replica set ...
+					for (Object member : members) {
+						Document doc = (Document) member;
+						sb.append(doc.getString("name")).append(",");
+					}
+					String addressStr = sb.deleteCharAt(sb.length() - 1).toString();
+					String replicaSetName = document.getString("set");
+
+					StringBuilder uriSB = new StringBuilder();
+					if (EmptyKit.isNotBlank(username) && EmptyKit.isNotBlank(password)) {
+						uriSB.append("mongodb://").append(URLEncoder.encode(username, "UTF-8")).append(":").append(URLEncoder.encode(password, "UTF-8")).append("@").append(addressStr).append("/").append(database);
+					} else {
+						uriSB.append("mongodb://").append(addressStr).append("/").append(database);
+					}
+					if (EmptyKit.isNotBlank(mongoDBURIOptions)) {
+						uriSB.append("?").append(mongoDBURIOptions);
+					}
+					nodeConnURIs.put(replicaSetName, uriSB.toString());
+				}
+			} catch (Exception e) {
+				String replicaSetName = "single";
+				if (replicaSetName != null) {
+
+					for (String address : connectionString.getHosts()) {
 						StringBuilder sb = new StringBuilder();
-						if (EmptyKit.isNotEmpty(username) && EmptyKit.isNotEmpty(password)) {
-								try {
-										sb.append("mongodb://").append(URLEncoder.encode(connectionString.getUsername(), "UTF-8")).append(":").append(URLEncoder.encode(String.valueOf(password), "UTF-8")).append("@").append(addresses).append("/").append(database);
-								} catch (UnsupportedEncodingException e) {
-										throw new RuntimeException("url encode username/password failed", e);
-								}
+						if (EmptyKit.isNotBlank(username) && EmptyKit.isNotBlank(password)) {
+							try {
+								sb.append("mongodb://").append(URLEncoder.encode(username, "UTF-8")).append(":").append(URLEncoder.encode(password, "UTF-8")).append("@").append(address).append("/").append(database);
+							} catch (UnsupportedEncodingException ex) {
+								throw new RuntimeException("url encode username/password failed", e);
+							}
 						} else {
-								sb.append("mongodb://").append(addresses).append("/").append(database);
+							sb.append("mongodb://").append(address).append("/").append(database);
 						}
 						if (EmptyKit.isNotBlank(mongoDBURIOptions)) {
-								sb.append("?").append(mongoDBURIOptions);
+							sb.append("?").append(mongoDBURIOptions);
 						}
 						nodeConnURIs.put(replicaSetName, sb.toString());
+					}
 				}
-
-				if (nodeConnURIs.size() == 0) {
-						// The addresses may be a replica set ...
-						try {
-								Document document = mongoClient.getDatabase("admin").runCommand(new Document("replSetGetStatus", 1));
-								List members = document.get("members", List.class);
-								if (members != null && !members.isEmpty()) {
-
-										StringBuilder sb = new StringBuilder();
-										// This is a replica set ...
-										for (Object member : members) {
-												Document doc = (Document) member;
-												sb.append(doc.getString("name")).append(",");
-										}
-										String addressStr = sb.deleteCharAt(sb.length() - 1).toString();
-										String replicaSetName = document.getString("set");
-
-										StringBuilder uriSB = new StringBuilder();
-										if (EmptyKit.isNotBlank(username) && EmptyKit.isNotBlank(password)) {
-												uriSB.append("mongodb://").append(URLEncoder.encode(username, "UTF-8")).append(":").append(URLEncoder.encode(password, "UTF-8")).append("@").append(addressStr).append("/").append(database);
-										} else {
-												uriSB.append("mongodb://").append(addressStr).append("/").append(database);
-										}
-										if (EmptyKit.isNotBlank(mongoDBURIOptions)) {
-												uriSB.append("?").append(mongoDBURIOptions);
-										}
-										nodeConnURIs.put(replicaSetName, uriSB.toString());
-								}
-						} catch (Exception e) {
-								String replicaSetName = "single";
-								if (replicaSetName != null) {
-
-										for (String address : connectionString.getHosts()) {
-												StringBuilder sb = new StringBuilder();
-												if (EmptyKit.isNotBlank(username) && EmptyKit.isNotBlank(password)) {
-														try {
-																sb.append("mongodb://").append(URLEncoder.encode(username, "UTF-8")).append(":").append(URLEncoder.encode(password, "UTF-8")).append("@").append(address).append("/").append(database);
-														} catch (UnsupportedEncodingException ex) {
-																throw new RuntimeException("url encode username/password failed", e);
-														}
-												} else {
-														sb.append("mongodb://").append(address).append("/").append(database);
-												}
-												if (EmptyKit.isNotBlank(mongoDBURIOptions)) {
-														sb.append("?").append(mongoDBURIOptions);
-												}
-												nodeConnURIs.put(replicaSetName, sb.toString());
-										}
-								}
-						}
-				}
-
-				return nodeConnURIs;
+			}
 		}
 
-		public static String replicaSetUsedIn(String addresses) {
-				if (addresses.startsWith("[")) {
-						// Just an IPv6 address, so no replica set name ...
-						return null;
+		return nodeConnURIs;
+	}
+
+	public static String replicaSetUsedIn(String addresses) {
+		if (addresses.startsWith("[")) {
+			// Just an IPv6 address, so no replica set name ...
+			return null;
+		}
+		// Either a replica set name + an address, or just an IPv4 address ...
+		int index = addresses.indexOf('/');
+		if (index < 0) return null;
+		return addresses.substring(0, index);
+	}
+
+	public static String getMongoDBURIOptions(String databaseUri) {
+		String options = null;
+		try {
+
+			if (EmptyKit.isNotBlank(databaseUri)) {
+				String[] split = databaseUri.split("\\?", 2);
+				if (split.length == 2) {
+					options = split[1];
 				}
-				// Either a replica set name + an address, or just an IPv4 address ...
-				int index = addresses.indexOf('/');
-				if (index < 0) return null;
-				return addresses.substring(0, index);
+			}
+
+		} catch (Exception e) {
+			throw new RuntimeException(e);
 		}
 
-		public static String getMongoDBURIOptions(String databaseUri) {
-				String options = null;
+		return options;
+	}
+
+	public static String maskUriPassword(String mongodbUri) {
+		if (EmptyKit.isNotBlank(mongodbUri)) {
+			try {
+				ConnectionString connectionString = new ConnectionString(mongodbUri);
+				MongoCredential credentials = connectionString.getCredential();
+				if (credentials != null) {
+					char[] password = credentials.getPassword();
+					if (password != null) {
+						String pass = new String(password);
+						pass = URLEncoder.encode(pass, "UTF-8");
+
+						mongodbUri = StringKit.replaceOnce(mongodbUri, pass + "@", "******@");
+					}
+				}
+
+			} catch (Exception e) {
+				TapLogger.error(MongodbUtil.class.getSimpleName(), "Mask password for mongodb uri {} failed {}", mongodbUri, e);
+			}
+		}
+
+		return mongodbUri;
+	}
+
+	public static long mongodbServerTimestamp(MongoDatabase mongoDatabase) {
+		Document result = mongoDatabase.runCommand(new Document("isMaster", 1));
+		Date serverDate = result.getDate("localTime");
+		if (result.containsKey("$clusterTime")) {
+			Object clusterTime = result.get("$clusterTime", Document.class).get("clusterTime");
+			if (clusterTime instanceof Date) {
+				serverDate = (Date) clusterTime;
+			} else {
+				BsonTimestamp bsonTimestamp = (BsonTimestamp) clusterTime;
+				serverDate = new Date(bsonTimestamp.getTime() * 1000L);
+			}
+		}
+		return serverDate != null ? serverDate.getTime() : 0;
+	}
+
+	public static String mongodbKeySpecialCharHandler(String key, String replacement) {
+
+		if (EmptyKit.isNotBlank(key)) {
+			if (key.startsWith("$")) {
+				key = key.replaceFirst("\\$", replacement);
+			}
+
+			if (key.contains(".") && !key.startsWith(SUB_COLUMN_NAME + ".")) {
+				key = key.replaceAll("\\.", replacement);
+			}
+
+			if (key.contains(" ")) {
+				key = key.replaceAll(" ", replacement);
+			}
+		}
+
+		return key;
+	}
+
+	public static MongoClient createMongoClient(MongodbConfig mongodbConfig) {
+		final MongoClientSettings.Builder builder = MongoClientSettings.builder();
+		String mongodbUri = mongodbConfig.getUri();
+		if (null == mongodbUri || "".equals(mongodbUri)) {
+			throw new RuntimeException("Create MongoDB client failed, error: uri is blank");
+		}
+		builder.applyConnectionString(new ConnectionString(mongodbUri));
+
+		if (mongodbConfig.isSsl()) {
+			if (EmptyKit.isNotEmpty(mongodbUri) &&
+					(mongodbUri.indexOf("tlsAllowInvalidCertificates=true") > 0 ||
+							mongodbUri.indexOf("sslAllowInvalidCertificates=true") > 0)) {
+				builder.applyToSslSettings(sslSettingBuilder -> {
+					SSLContext sslContext = null;
+					try {
+						sslContext = SSLContext.getInstance("SSL");
+					} catch (NoSuchAlgorithmException e) {
+						throw new RuntimeException(String.format("Create ssl context failed %s", e.getMessage()), e);
+					}
+					try {
+						sslContext.init(null, new TrustManager[]{new X509TrustManager() {
+							@Override
+							public void checkClientTrusted(X509Certificate[] x509Certificates, String s) throws CertificateException {
+							}
+
+							@Override
+							public void checkServerTrusted(X509Certificate[] x509Certificates, String s) throws CertificateException {
+							}
+
+							@Override
+							public X509Certificate[] getAcceptedIssuers() {
+								return null;
+							}
+						}}, new SecureRandom());
+					} catch (KeyManagementException e) {
+						throw new RuntimeException(String.format("Initialize ssl context failed %s", e.getMessage()), e);
+					}
+					sslSettingBuilder.enabled(true).context(sslContext).invalidHostNameAllowed(true);
+				});
+
+			} else {
+				sslMongoClientOption(mongodbConfig.isSslValidate(), mongodbConfig.getSslCA(), mongodbConfig.getSslCA(),
+						mongodbConfig.getSslKey(), mongodbConfig.getSslPass(), mongodbConfig.getCheckServerIdentity(), builder);
+			}
+		}
+
+		return MongoClients.create(builder.build());
+	}
+
+	public static void sslMongoClientOption(boolean sslValidate, String sslCA, String sslCert, String sslKeyStr, String sslPass,
+											boolean checkServerIdentity, MongoClientSettings.Builder builder) {
+
+
+		List<String> certificates = SSLUtil.retriveCertificates(sslCert);
+		String sslKey = SSLUtil.retrivePrivateKey(sslKeyStr);
+		if (EmptyKit.isNotBlank(sslKey) && CollectionUtils.isNotEmpty(certificates)) {
+
+			builder.applyToSslSettings(sslSettingsBuilder -> {
+				List<String> trustCertificates = null;
+				if (sslValidate) {
+					trustCertificates = SSLUtil.retriveCertificates(sslCA);
+				}
+				SSLContext sslContext = null;
 				try {
-
-						if (EmptyKit.isNotBlank(databaseUri)) {
-								String[] split = databaseUri.split("\\?", 2);
-								if (split.length == 2) {
-										options = split[1];
-								}
-						}
-
+					sslContext = SSLUtil.createSSLContext(sslKey, certificates, trustCertificates, sslPass);
 				} catch (Exception e) {
-						throw new RuntimeException(e);
+					throw new RuntimeException(String.format("Create ssl context failed %s", e.getMessage()), e);
 				}
+				sslSettingsBuilder.context(sslContext);
+				sslSettingsBuilder.enabled(true);
+				sslSettingsBuilder.invalidHostNameAllowed(!checkServerIdentity);
+			});
+		}
+	}
 
-				return options;
+	public static String getSimpleMongodbUri(ConnectionString connectionString) {
+		if (connectionString == null) {
+			return "";
 		}
 
-		public static String maskUriPassword(String mongodbUri) {
-				if (EmptyKit.isNotBlank(mongodbUri)) {
-						try {
-								ConnectionString connectionString = new ConnectionString(mongodbUri);
-								MongoCredential credentials = connectionString.getCredential();
-								if (credentials != null) {
-										char[] password = credentials.getPassword();
-										if (password != null) {
-												String pass = new String(password);
-												pass = URLEncoder.encode(pass, "UTF-8");
+		String uri = "mongodb://";
 
-												mongodbUri = StringKit.replaceOnce(mongodbUri, pass + "@", "******@");
-										}
-								}
+		uri += connectionString.getHosts().stream().collect(Collectors.joining(",")).trim();
 
-						} catch (Exception e) {
-								TapLogger.error(MongodbUtil.class.getSimpleName(), "Mask password for mongodb uri {} failed {}", mongodbUri, e);
-						}
-				}
-
-				return mongodbUri;
+		if (EmptyKit.isNotBlank(connectionString.getDatabase())) {
+			uri += "/" + connectionString.getDatabase();
 		}
 
-		public static long mongodbServerTimestamp(MongoDatabase mongoDatabase) {
-				Document result = mongoDatabase.runCommand(new Document("isMaster", 1));
-				Date serverDate = result.getDate("localTime");
-				if (result.containsKey("$clusterTime")) {
-						Object clusterTime = result.get("$clusterTime", Document.class).get("clusterTime");
-						if (clusterTime instanceof Date) {
-								serverDate = (Date) clusterTime;
-						} else {
-								BsonTimestamp bsonTimestamp = (BsonTimestamp) clusterTime;
-								serverDate = new Date(bsonTimestamp.getTime() * 1000L);
-						}
-				}
-				return serverDate != null ? serverDate.getTime() : 0;
-		}
-
-		public static String mongodbKeySpecialCharHandler(String key, String replacement) {
-
-				if (EmptyKit.isNotBlank(key)) {
-						if (key.startsWith("$")) {
-								key = key.replaceFirst("\\$", replacement);
-						}
-
-						if (key.contains(".") && !key.startsWith(SUB_COLUMN_NAME + ".")) {
-								key = key.replaceAll("\\.", replacement);
-						}
-
-						if (key.contains(" ")) {
-								key = key.replaceAll(" ", replacement);
-						}
-				}
-
-				return key;
-		}
-
-		public static MongoClient createMongoClient(MongodbConfig mongodbConfig) {
-				final MongoClientSettings.Builder builder = MongoClientSettings.builder();
-				String mongodbUri = mongodbConfig.getUri();
-				builder.applyConnectionString(new ConnectionString(mongodbUri));
-
-				if (mongodbConfig.isSsl()) {
-						if (EmptyKit.isNotEmpty(mongodbUri) &&
-										(mongodbUri.indexOf("tlsAllowInvalidCertificates=true") > 0 ||
-														mongodbUri.indexOf("sslAllowInvalidCertificates=true") > 0)) {
-								builder.applyToSslSettings(sslSettingBuilder -> {
-										SSLContext sslContext = null;
-										try {
-												sslContext = SSLContext.getInstance("SSL");
-										} catch (NoSuchAlgorithmException e) {
-												throw new RuntimeException(String.format("Create ssl context failed %s", e.getMessage()), e);
-										}
-										try {
-												sslContext.init(null, new TrustManager[]{new X509TrustManager() {
-														@Override
-														public void checkClientTrusted(X509Certificate[] x509Certificates, String s) throws CertificateException {
-														}
-
-														@Override
-														public void checkServerTrusted(X509Certificate[] x509Certificates, String s) throws CertificateException {
-														}
-
-														@Override
-														public X509Certificate[] getAcceptedIssuers() {
-																return null;
-														}
-												}}, new SecureRandom());
-										} catch (KeyManagementException e) {
-												throw new RuntimeException(String.format("Initialize ssl context failed %s", e.getMessage()), e);
-										}
-										sslSettingBuilder.enabled(true).context(sslContext).invalidHostNameAllowed(true);
-								});
-
-						} else {
-								sslMongoClientOption(mongodbConfig.isSslValidate(), mongodbConfig.getSslCA(), mongodbConfig.getSslCA(),
-												mongodbConfig.getSslKey(), mongodbConfig.getSslPass(), mongodbConfig.getCheckServerIdentity(), builder);
-						}
-				}
-
-				return MongoClients.create(builder.build());
-		}
-
-		public static void sslMongoClientOption(boolean sslValidate, String sslCA, String sslCert, String sslKeyStr, String sslPass,
-																						boolean checkServerIdentity, MongoClientSettings.Builder builder){
-
-
-				List<String> certificates = SSLUtil.retriveCertificates(sslCert);
-				String sslKey = SSLUtil.retrivePrivateKey(sslKeyStr);
-				if (EmptyKit.isNotBlank(sslKey) && CollectionUtils.isNotEmpty(certificates)) {
-
-						builder.applyToSslSettings(sslSettingsBuilder -> {
-								List<String> trustCertificates = null;
-								if (sslValidate) {
-										trustCertificates = SSLUtil.retriveCertificates(sslCA);
-								}
-								SSLContext sslContext = null;
-								try {
-										sslContext = SSLUtil.createSSLContext(sslKey, certificates, trustCertificates, sslPass);
-								} catch (Exception e) {
-										throw new RuntimeException(String.format("Create ssl context failed %s", e.getMessage()), e);
-								}
-								sslSettingsBuilder.context(sslContext);
-								sslSettingsBuilder.enabled(true);
-								sslSettingsBuilder.invalidHostNameAllowed(!checkServerIdentity);
-						});
-				}
-		}
-
-		public static String getSimpleMongodbUri(ConnectionString connectionString) {
-				if (connectionString == null) {
-						return "";
-				}
-
-				String uri = "mongodb://";
-
-				uri += connectionString.getHosts().stream().collect(Collectors.joining(",")).trim();
-
-				if (EmptyKit.isNotBlank(connectionString.getDatabase())) {
-						uri += "/" + connectionString.getDatabase();
-				}
-
-				return uri;
-		}
+		return uri;
+	}
 }

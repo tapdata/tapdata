@@ -24,4 +24,5 @@ public class DiscoveryStorageDto extends DataDiscoveryDto {
     private String connectionType;
     /** 连接描述 */
     private String connectionDesc;
+    private String version;
 }

@@ -207,4 +207,19 @@ public class TapAlterFieldAttributesEvent extends TapFieldBaseEvent {
 	public void setFieldName(String fieldName) {
 		this.fieldName = fieldName;
 	}
+
+	@Override
+	public String toString() {
+		return "TapAlterFieldAttributesEvent{" +
+				"tableId='" + tableId + '\'' +
+				", fieldName='" + fieldName + '\'' +
+				", dataTypeChange=" + dataTypeChange +
+				", checkChange=" + checkChange +
+				", constraintChange=" + constraintChange +
+				", nullableChange=" + nullableChange +
+				", commentChange=" + commentChange +
+				", defaultChange=" + defaultChange +
+				", primaryChange=" + primaryChange +
+				'}';
+	}
 }

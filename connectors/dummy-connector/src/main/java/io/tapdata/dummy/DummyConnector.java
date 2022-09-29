@@ -7,12 +7,14 @@ import io.tapdata.dummy.po.DummyOffset;
 import io.tapdata.dummy.utils.TapEventBuilder;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.event.TapEvent;
+import io.tapdata.entity.event.ddl.table.TapFieldBaseEvent;
 import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapTable;
+import io.tapdata.entity.utils.DelayCalculation;
 import io.tapdata.pdk.apis.annotations.TapConnectorClass;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
@@ -42,6 +44,7 @@ public class DummyConnector extends ConnectorBase {
     private IRate writeRate;
     private IDummyConfig config;
     private final TapEventBuilder builder = new TapEventBuilder();
+    private DelayCalculation delayCalculation;
 
     @Override
     public void onStart(TapConnectionContext connectionContext) throws Throwable {
@@ -52,6 +55,7 @@ public class DummyConnector extends ConnectorBase {
         Integer writeIntervalTotals = config.getWriteIntervalTotals();
         writeRate = IRate.getInstance(writeInterval, writeIntervalTotals);
         writeLog = config.isWriteLog();
+        delayCalculation = new DelayCalculation(writeIntervalTotals);
 
         schemas = new LinkedHashMap<>();
         config.getSchemas().forEach(table -> {
@@ -61,7 +65,11 @@ public class DummyConnector extends ConnectorBase {
 
     @Override
     public void onStop(TapConnectionContext connectionContext) throws Throwable {
-        TapLogger.info(TAG, "Stop connector");
+        if (delayCalculation.hasData()) {
+            TapLogger.info(TAG, "Stop connector: {}", delayCalculation);
+        } else {
+            TapLogger.info(TAG, "Stop connector");
+        }
     }
 
     @Override
@@ -79,6 +87,11 @@ public class DummyConnector extends ConnectorBase {
 //        connectorFunctions.supportDropTable(this::supportDropTable);
 //        connectorFunctions.supportClearTable(this::supportClearTable);
 //        connectorFunctions.supportCreateIndex(this::supportCreateIndex);
+        connectorFunctions.supportNewFieldFunction(this::fieldDDLHandler);
+        connectorFunctions.supportAlterFieldNameFunction(this::fieldDDLHandler);
+        connectorFunctions.supportAlterFieldAttributesFunction(this::fieldDDLHandler);
+        connectorFunctions.supportDropFieldFunction(this::fieldDDLHandler);
+        connectorFunctions.supportGetTableNamesFunction(this::getTableNames);
         // target DML
         connectorFunctions.supportWriteRecord(this::supportWriteRecord);
         // test and inspect
@@ -90,13 +103,16 @@ public class DummyConnector extends ConnectorBase {
         TapLogger.info(TAG, "Discover dummy schema");
 
         // 过滤表
+        List<TapTable> tableSchemas = new ArrayList<>();
         if (null != tables && !tables.isEmpty()) {
             for (String tn : tables) {
-                schemas.remove(tn);
+                tableSchemas.add(schemas.get(tn));
             }
+        } else {
+            tableSchemas.addAll(schemas.values());
         }
 
-        consumer.accept(new ArrayList<>(schemas.values()));
+        consumer.accept(tableSchemas);
     }
 
     @Override
@@ -205,6 +221,8 @@ public class DummyConnector extends ConnectorBase {
             for (TapRecordEvent e : recordEvents) {
                 if (!(isAlive() && writeRate.addReturn())) return;
 
+                delayCalculation.log(e.getTime());
+
                 if (e instanceof TapInsertRecordEvent) {
                     insert.addAndGet(1);
                     if (writeLog) {
@@ -228,6 +246,26 @@ public class DummyConnector extends ConnectorBase {
                     .insertedCount(insert.get())
                     .modifiedCount(update.get())
                     .removedCount(delete.get()));
+        }
+    }
+
+    private void fieldDDLHandler(TapConnectorContext tapConnectorContext, TapFieldBaseEvent tapFieldBaseEvent) {
+        if (writeLog) {
+            TapLogger.info(TAG, "Show field DDL: {}", tapFieldBaseEvent.toString());
+        }
+    }
+
+    private void getTableNames(TapConnectionContext tapConnectionContext, int batchSize, Consumer<List<String>> listConsumer) {
+        List<String> batchList = new ArrayList<>();
+        for (String table : schemas.keySet()) {
+            batchList.add(table);
+            if (batchList.size() >= batchSize) {
+                listConsumer.accept(batchList);
+                batchList = new ArrayList<>();
+            }
+        }
+        if (!batchList.isEmpty()) {
+            listConsumer.accept(batchList);
         }
     }
 }

@@ -224,29 +224,27 @@ public class MetaDataBuilderUtils {
             metadataObj.setTaskId(taskId);
 
             if (sourceDto.getLoadSchemaField() != null && sourceDto.getLoadSchemaField()) {
-                if (oldModel != null && newModel != null && CollectionUtils.isNotEmpty(newModel.getFields())) {
-                    mergeModel(metadataObj, oldModel, metaType, sourceDto);
-                } else {
-                    metadataObj.setCreateSource(createSource);
-                    if (newModel != null && CollectionUtils.isNotEmpty(newModel.getFields())) {
-                        for (Field field : newModel.getFields()) {
-                            field.setId(StringUtils.isBlank(field.getId()) ? ObjectId.get().toString() : field.getId());
+
+                metadataObj.setCreateSource(createSource);
+                if (newModel != null && CollectionUtils.isNotEmpty(newModel.getFields())) {
+                    for (Field field : newModel.getFields()) {
+                        field.setId(StringUtils.isBlank(field.getId()) ? ObjectId.get().toString() : field.getId());
                             /*field.setIsAutoAllowed(createSource.equals("auto"));
                             field.setSource(createSource);*/
-                            field.setIsAutoAllowed(createSource.equals("auto") || createSource.equals("job_analyze"));
-                            if (StringUtils.isBlank(field.getSource())) {
-                                field.setSource(createSource);
-                            }
-                        }
-                    } else {
-                        if (oldModel != null && CollectionUtils.isNotEmpty(oldModel.getFields())) {
-                            metadataObj.setFields(oldModel.getFields());
-                        }
-                        for (Field field : metadataObj.getFields()) {
-                            field.setDeleted(true);
+                        field.setIsAutoAllowed(createSource.equals("auto") || createSource.equals("job_analyze"));
+                        if (StringUtils.isBlank(field.getSource())) {
+                            field.setSource(createSource);
                         }
                     }
+                } else {
+                    if (oldModel != null && CollectionUtils.isNotEmpty(oldModel.getFields())) {
+                        metadataObj.setFields(oldModel.getFields());
+                    }
+                    for (Field field : metadataObj.getFields()) {
+                        field.setDeleted(true);
+                    }
                 }
+
             } else {
                 if (oldModel != null && CollectionUtils.isNotEmpty(oldModel.getFields())) {
                     metadataObj.setFields(oldModel.getFields());

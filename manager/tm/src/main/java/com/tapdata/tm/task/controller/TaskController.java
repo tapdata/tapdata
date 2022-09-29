@@ -1,5 +1,10 @@
 package com.tapdata.tm.task.controller;
 
+import com.alibaba.fastjson.JSON;
+import com.alibaba.fastjson.JSONArray;
+import com.google.common.collect.Maps;
+import com.google.gson.reflect.TypeToken;
+import com.tapdata.manager.common.utils.JsonUtil;
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.*;
 import com.tapdata.tm.commons.dag.DAG;
@@ -25,6 +30,7 @@ import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
 import com.tapdata.tm.metadatainstance.vo.SourceTypeEnum;
 import com.tapdata.tm.task.bean.*;
 import com.tapdata.tm.task.entity.TaskEntity;
+import com.tapdata.tm.task.param.LogSettingParam;
 import com.tapdata.tm.task.service.*;
 import com.tapdata.tm.task.vo.JsResultDto;
 import com.tapdata.tm.task.vo.JsResultVo;
@@ -32,11 +38,13 @@ import com.tapdata.tm.task.vo.TaskDetailVo;
 import com.tapdata.tm.task.vo.TaskRecordListVo;
 import com.tapdata.tm.utils.Lists;
 import com.tapdata.tm.utils.MongoUtils;
+import com.tapdata.tm.worker.service.WorkerService;
 import io.github.openlg.graphlib.Graph;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.enums.ParameterIn;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import io.tapdata.entity.utils.JsonParser;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
@@ -75,10 +83,10 @@ public class TaskController extends BaseController {
     private MetadataInstancesService metadataInstancesService;
     private TaskNodeService taskNodeService;
     private TaskSaveService taskSaveService;
-
     private TaskStartService taskStartService;
     private SnapshotEdgeProgressService snapshotEdgeProgressService;
     private TaskRecordService taskRecordService;
+    private WorkerService workerService;
 
     /**
      * Create a new instance of the model and persist it into the data source
@@ -104,6 +112,7 @@ public class TaskController extends BaseController {
     public ResponseMessage<TaskDto> update(@RequestBody TaskDto task) {
         UserDetail user = getLoginUser();
         taskCheckInspectService.getInspectFlagDefaultFlag(task, user);
+        task.setStatus(null);
         return success(taskService.updateById(task, user));
     }
 
@@ -181,6 +190,7 @@ public class TaskController extends BaseController {
         task.setId(MongoUtils.toObjectId(id));
         UserDetail user = getLoginUser();
         taskCheckInspectService.getInspectFlagDefaultFlag(task, user);
+        task.setStatus(null);
         TaskDto taskDto = taskService.updateById(task, user);
         return success(taskDto);
     }
@@ -267,6 +277,9 @@ public class TaskController extends BaseController {
             taskCheckInspectService.getInspectFlagDefaultFlag(taskDto, user);
 
             taskNodeService.checkFieldNode(taskDto, user);
+
+            // set hostName;
+            workerService.setHostName(taskDto);
         }
         return success(taskDto);
     }
@@ -482,12 +495,12 @@ public class TaskController extends BaseController {
         return success(snapshotEdgeProgressService.syncTableView(subTaskId, skip, limit));
     }
 
-    @GetMapping("view/increase/{taskId}")
-    public ResponseMessage<List<IncreaseSyncVO>> increaseView(@PathVariable("taskId") String taskId,
-                                                              @RequestParam(value = "skip", required = false, defaultValue = "0") Long skip,
-                                                              @RequestParam(value = "limit", required = false, defaultValue = "20") Integer limit) {
-        return success(taskService.increaseView(taskId, getLoginUser()));
-    }
+//    @GetMapping("view/increase/{taskId}")
+//    public ResponseMessage<List<IncreaseSyncVO>> increaseView(@PathVariable("taskId") String taskId,
+//                                                              @RequestParam(value = "skip", required = false, defaultValue = "0") Long skip,
+//                                                              @RequestParam(value = "limit", required = false, defaultValue = "20") Integer limit) {
+//        return success(taskService.increaseView(taskId, getLoginUser()));
+//    }
 
     @PostMapping("increase/clear/{taskId}")
     public ResponseMessage<List<IncreaseSyncVO>> increaseClear(@PathVariable("taskId") String taskId,
@@ -859,16 +872,22 @@ public class TaskController extends BaseController {
 
     @Operation(summary = "任务导出")
     @GetMapping("batch/load")
-    public ResponseMessage<Void> batchLoadTasks(@RequestParam("taskId") List<String> taskId, HttpServletResponse response) {
+    public void batchLoadTasks(@RequestParam("taskId") List<String> taskId, HttpServletResponse response) {
         taskService.batchLoadTask(response, taskId, getLoginUser());
-        return success();
     }
 
     @Operation(summary = "任务导入")
     @PostMapping(path = "batch/import", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ResponseMessage<Void> upload(@RequestParam(value = "file") MultipartFile file
-            , @RequestParam(value = "cover", required = false, defaultValue = "false") boolean cover) {
-        taskService.batchUpTask(file, getLoginUser(), cover);
+    public ResponseMessage<Void> upload(@RequestParam(value = "file") MultipartFile file,
+                                        @RequestParam(value = "cover", required = false, defaultValue = "false") boolean cover,
+                                        @RequestParam String listtags) {
+        List<String> tags = JsonUtil.parseJson(listtags, new TypeToken<List<String>>() {}.getType());
+        List<Map<String, String>> collect = tags.stream().map(id -> {
+            Map<String, String> map = Maps.newHashMap();
+            map.put("id", id);
+            return map;
+        }).collect(Collectors.toList());
+        taskService.batchUpTask(file, getLoginUser(), cover, collect);
         return success();
     }
 
@@ -931,6 +950,12 @@ public class TaskController extends BaseController {
         return success(dto);
     }
 
+    @GetMapping("transformAllParam/{taskId}")
+    public ResponseMessage<TransformerWsMessageDto> findTransformAllParam(@PathVariable("taskId") String taskId) {
+        TransformerWsMessageDto dto = taskService.findTransformAllParam(taskId, getLoginUser());
+        return success(dto);
+    }
+
 
     @PostMapping("dag")
     public ResponseMessage<Void> updateDagAndHistory(@RequestBody TaskDto taskDto) {
@@ -982,6 +1007,24 @@ public class TaskController extends BaseController {
                                                            @RequestParam(defaultValue = "1") Integer page,
                                                            @RequestParam(defaultValue = "20") Integer size) {
         return success(taskRecordService.queryRecords(taskId, page, size));
+    }
+
+    @Operation(summary = "任务日志设置")
+    @PutMapping("/logSetting/{taskId}")
+    public ResponseMessage<Void> logSetting (@PathVariable("taskId") String taskId,
+                                             @RequestBody LogSettingParam logSettingParam) {
+        taskService.updateTaskLogSetting(taskId, logSettingParam, getLoginUser());
+        return success();
+    }
+
+    @Operation(summary = "任务日志设置")
+    @PostMapping("/logSetting/{level}/{taskId}")
+    public ResponseMessage<Void> logSettingPost (@PathVariable("taskId") String taskId,
+                                                 @PathVariable("level") String level) {
+        LogSettingParam logSettingParam = new LogSettingParam();
+        logSettingParam.setLevel(level);
+        taskService.updateTaskLogSetting(taskId, logSettingParam, getLoginUser());
+        return success();
     }
 
 }

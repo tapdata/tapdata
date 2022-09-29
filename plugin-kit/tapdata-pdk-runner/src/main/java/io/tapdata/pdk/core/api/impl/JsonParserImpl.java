@@ -23,6 +23,9 @@ import java.util.List;
 
 @Implementation(JsonParser.class)
 public class JsonParserImpl implements JsonParser {
+    public JsonParserImpl() {
+
+    }
 
     @Override
     public String toJsonWithClass(Object obj) {
@@ -98,6 +101,10 @@ public class JsonParserImpl implements JsonParser {
         return JSON.parseObject(json, Feature.OrderedField, /*Feature.UseNativeJavaObject, */Feature.DisableCircularReferenceDetect);
     }
 
+    @Override
+    public <T> T fromJson(String json, Type clazz) {
+        return JSON.parseObject(json, clazz, Feature.OrderedField, /*Feature.UseNativeJavaObject, */Feature.DisableCircularReferenceDetect);
+    }
     @Override
     public <T> T fromJson(String json, Class<T> clazz) {
         return JSON.parseObject(json, clazz, Feature.OrderedField, /*Feature.UseNativeJavaObject, */Feature.DisableCircularReferenceDetect);

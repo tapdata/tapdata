@@ -2,20 +2,18 @@ package io.tapdata.pdk.core.monitor;
 
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.error.CoreException;
-import io.tapdata.entity.utils.ParagraphFormatter;
+import io.tapdata.entity.utils.DataMap;
 import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.core.api.Node;
 import io.tapdata.pdk.core.entity.params.PDKMethodInvoker;
 import io.tapdata.pdk.core.error.PDKRunnerErrorCodes;
 import io.tapdata.pdk.core.executor.ExecutorsManager;
-import io.tapdata.pdk.core.memory.MemoryFetcher;
+import io.tapdata.entity.memory.MemoryFetcher;
 import io.tapdata.pdk.core.utils.CommonUtils;
-import org.apache.commons.lang3.exception.ExceptionUtils;
 
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 
@@ -28,8 +26,33 @@ public class PDKInvocationMonitor implements MemoryFetcher {
     private static final Object lock = new int[0];
 
     private Map<PDKMethod, InvocationCollector> methodInvocationCollectorMap = new ConcurrentHashMap<>();
-
     private Consumer<String> errorListener;
+
+    private static Map<Node,List<PDKMethodInvoker>> nodeStopInvokerMap = new ConcurrentHashMap<>();
+    public void invokerEnter(Node node,PDKMethodInvoker invoker){
+        if (null == node || invoker == null){
+            return;
+        }
+        nodeStopInvokerMap.computeIfAbsent(node, list-> new CopyOnWriteArrayList<>()).add(invoker);
+    }
+
+    public static void release(Node releaseNode,PDKMethodInvoker releaseInvoker){
+        List<PDKMethodInvoker> list = nodeStopInvokerMap.get(releaseNode);
+        if (null != releaseInvoker && null != list && !list.isEmpty()){
+            releaseInvoker.cancelRetry();
+            list.remove(releaseInvoker);
+        }
+    }
+
+    public static void stop(Node closeNode){
+        List<PDKMethodInvoker> invokerList = nodeStopInvokerMap.get(closeNode);
+        if ( !( null == invokerList || invokerList.isEmpty() ) ) {
+            for (PDKMethodInvoker pdkMethodInvoker : invokerList) {
+                pdkMethodInvoker.cancelRetry();
+            }
+        }
+        nodeStopInvokerMap.remove(closeNode);
+    }
 
     private PDKInvocationMonitor() {}
 
@@ -101,23 +124,28 @@ public class PDKInvocationMonitor implements MemoryFetcher {
         boolean async = invoker.isAsync();
         ClassLoader contextClassLoader = invoker.getContextClassLoader();
         if (!this.invokerRetrySetter(invoker)){
-            TapLogger.error(logTag, "Do not retry :maxRetryTimeMinute {}, retryPeriodSeconds {}, retryTimes {}. ",invoker.getMaxRetryTimeMinute(),invoker.getRetryPeriodSeconds(),invoker.getRetryTimes());
+            TapLogger.debug(logTag, "Do not retry : maxRetryTimeMinute {}, retryPeriodSeconds {}, retryTimes {}. ",invoker.getMaxRetryTimeMinute(),invoker.getRetryPeriodSeconds(),invoker.getRetryTimes());
             return;
         }
         long retryTimes = invoker.getRetryTimes();
-        if(async) {
-            ExecutorsManager.getInstance().getExecutorService().execute(() -> {
-                if(contextClassLoader != null) {
-                    Thread.currentThread().setContextClassLoader(contextClassLoader);
-                }
-                if(retryTimes > 0) {
-                    CommonUtils.autoRetry(node,method,invoker.runnable(() -> node.applyClassLoaderContext(() -> invokePDKMethodPrivate(method, r, message, logTag, errorConsumer) )));
-                } else {
-                    node.applyClassLoaderContext(() -> invokePDKMethodPrivate(method, r, message, logTag, errorConsumer));
-                }
-            });
-        } else {
-            CommonUtils.autoRetry(node,method,invoker.runnable(() -> node.applyClassLoaderContext(() -> invokePDKMethodPrivate(method, r, message, logTag, errorConsumer) )));
+        try {
+            this.invokerEnter(node,invoker);
+            if (async) {
+                ExecutorsManager.getInstance().getExecutorService().execute(() -> {
+                    if (contextClassLoader != null) {
+                        Thread.currentThread().setContextClassLoader(contextClassLoader);
+                    }
+                    if (retryTimes > 0) {
+                        CommonUtils.autoRetry(node, method, invoker.runnable(() -> node.applyClassLoaderContext(() -> invokePDKMethodPrivate(method, r, message, logTag, errorConsumer))));
+                    } else {
+                        node.applyClassLoaderContext(() -> invokePDKMethodPrivate(method, r, message, logTag, errorConsumer));
+                    }
+                });
+            } else {
+                CommonUtils.autoRetry(node, method, invoker.runnable(() -> node.applyClassLoaderContext(() -> invokePDKMethodPrivate(method, r, message, logTag, errorConsumer))));
+            }
+        }finally {
+            PDKInvocationMonitor.release(node,invoker);
         }
     }
     private void invokePDKMethodPrivate(PDKMethod method, CommonUtils.AnyError r, String message, String logTag, Consumer<CoreException> errorConsumer) {
@@ -136,7 +164,6 @@ public class PDKInvocationMonitor implements MemoryFetcher {
                 throw coreException;
             }
         } catch(Throwable throwable) {
-            throwable.printStackTrace();
             theError = throwable;
 
             CoreException coreException = new CoreException(PDKRunnerErrorCodes.COMMON_UNKNOWN, throwable.getMessage(), throwable);
@@ -172,8 +199,9 @@ public class PDKInvocationMonitor implements MemoryFetcher {
                 collector.getCounter().increment();
                 long takes = System.currentTimeMillis() - time;
                 collector.getTotalTakes().add(takes);
-                if(error != null) {
-                    TapLogger.error(logTag, "methodEnd {} invokeId {} failed, message {} takes {} error {}", method, invokeId, message, takes, ExceptionUtils.getStackTrace(error));
+                if(error != null && logTag != null) {
+                    TapLogger.info(logTag, "methodEnd - {} | message - ({})", method, error.getMessage());//ExceptionUtils.getStackTrace(error)
+                    //throw new CoreException(PDKRunnerErrorCodes.COMMON_UNKNOWN, error.getMessage(), error);
                 } else {
 //                    TapLogger.info(logTag, "methodEnd {} invokeId {} successfully, message {} takes {}", method, invokeId, message, takes);
                 }
@@ -200,14 +228,14 @@ public class PDKInvocationMonitor implements MemoryFetcher {
     }
 
     @Override
-    public String memory(List<String> mapKeys, String memoryLevel) {
-        ParagraphFormatter paragraphFormatter = new ParagraphFormatter(PDKInvocationMonitor.class.getSimpleName());
+    public DataMap memory(List<String> mapKeys, String memoryLevel) {
+        DataMap dataMap = DataMap.create();
         for(Map.Entry<PDKMethod, InvocationCollector> entry : methodInvocationCollectorMap.entrySet()) {
             if(mapKeys != null && !mapKeys.isEmpty() && !mapKeys.contains(entry.getKey().name()))
                 continue;
-            paragraphFormatter.addRow(entry.getKey().name(), entry.getValue().toMemoryString(memoryLevel));
+            dataMap.kv(entry.getKey().name(), entry.getValue().memory(mapKeys, memoryLevel));
         }
-        return paragraphFormatter.toString();
+        return dataMap;
     }
 
     /**
@@ -234,7 +262,7 @@ public class PDKInvocationMonitor implements MemoryFetcher {
 //    private static final long MAX_RETRY_TIMES = 10000L;
 //    private static final long MAX_RETRY_PERIOD_SECOND = 100000L;
 //    private static final long MAX_MAX_RETRY_TIME_MINUTE = 100000L;
-    private boolean invokerRetrySetter(PDKMethodInvoker invoker){
+    public static boolean invokerRetrySetter(PDKMethodInvoker invoker){
 //        if (invoker.getRetryTimes()>MAX_RETRY_TIMES){
 //            invoker.setRetryTimes(MAX_RETRY_TIMES);
 //        }

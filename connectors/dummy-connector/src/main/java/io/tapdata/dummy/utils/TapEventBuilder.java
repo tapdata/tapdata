@@ -65,6 +65,12 @@ public class TapEventBuilder {
         return tapEvent;
     }
 
+    public TapInsertRecordEvent copy(TapTable table, TapInsertRecordEvent event) {
+        TapInsertRecordEvent tapEvent = TapSimplify.insertRecordEvent(event.getAfter(), table.getName());
+        updateOffset(table.getName(), RecordOperators.Insert, tapEvent);
+        return tapEvent;
+    }
+
     public TapUpdateRecordEvent generateUpdateRecordEvent(TapTable table, Map<String, Object> before) {
         before = (null == before) ? generateInsertRecordEvent(table).getAfter() : new HashMap<>(before);
         Map<String, Object> after = new HashMap<>(before);
@@ -107,50 +113,49 @@ public class TapEventBuilder {
      * @return TapEvent
      */
     private Object generateEventValue(TapField field, RecordOperators op) {
-        Matcher m = Pattern.compile("^([^(]+)(\\(([^)]*)\\))?$").matcher(field.getDataType());
-        if (m.find()) {
-            String fn = m.group(1);
-            String params = m.group(2);
+        if (null != field.getDefaultValue()) {
+            return field.getDefaultValue();
+        }
 
-            switch (fn.toLowerCase()) {
-                case "serial":
-                    if (RecordOperators.Insert == op) {
-                        if (null == serial) {
-                            try {
-                                String[] splitStr = params.split(",");
-                                serial = new AtomicLong(Integer.parseInt(splitStr[0]));
-                                serialStep = Math.max(Integer.parseInt(splitStr[1]), 1);
-                            } catch (Throwable e) {
-                                serial = new AtomicLong(1);
-                                serialStep = 1;
-                            }
-                        }
-                        return serial.getAndAdd(serialStep);
-                    } else {
-                        return (int) (Math.random() * serial.get()) - serial.get() % serialStep;
-                    }
-                case "now":
-                    return Timestamp.from(Instant.now());
-                case "rnumber":
+        if ("uuid".equalsIgnoreCase(field.getDataType())) {
+            return UUID.randomUUID().toString();
+        } else if ("now".equalsIgnoreCase(field.getDataType())) {
+            return Timestamp.from(Instant.now());
+        } else {
+            String ftype = field.getDataType();
+            if (ftype.startsWith("runmber")) {
+                if (ftype.endsWith(")")) {
                     try {
-                        if (null != params) {
-                            return Math.random() * Long.parseLong(params);
-                        }
-                    } catch (NumberFormatException ignore) {
+                        return Math.random() * Long.parseLong(ftype.substring(8, ftype.length() - 1));
+                    } catch (NumberFormatException e) {
+                        e.printStackTrace();
                     }
-                    return Math.random() * 4;
-                case "rstring":
+                }
+                return Math.random() * 4;
+            } else if (ftype.startsWith("rstring")) {
+                if (ftype.endsWith(")")) {
                     try {
-                        if (null != params) {
-                            return randomString(Integer.parseInt(params));
-                        }
-                    } catch (NumberFormatException ignore) {
+                        return randomString(Integer.parseInt(ftype.substring(8, ftype.length() - 1)));
+                    } catch (NumberFormatException e) {
+                        e.printStackTrace();
                     }
-                    return randomString(8);
-                case "uuid":
-                    return UUID.randomUUID().toString();
-                default:
-                    break;
+                }
+                return randomString(8);
+            } else if (ftype.startsWith("serial")) {
+                if (RecordOperators.Insert == op) {
+                    if (null == serial) {
+                        try {
+                            String[] splitStr = ftype.substring(7, ftype.length() - 1).split(",");
+                            serial = new AtomicLong(Integer.parseInt(splitStr[0]));
+                            serialStep = Math.max(Integer.parseInt(splitStr[1]), 1);
+                        } catch (Throwable e) {
+                            serial = new AtomicLong(1);
+                            serialStep = 1;
+                        }
+                    }
+                    return serial.getAndAdd(serialStep);
+                }
+                return (int) (Math.random() * serial.get()) - serial.get() % serialStep;
             }
         }
         return field.getDefaultValue();

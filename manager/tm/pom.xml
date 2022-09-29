@@ -88,7 +88,16 @@
 			<artifactId>de.flapdoodle.embed.mongo</artifactId>
 			<scope>test</scope>
 		</dependency>
-
+		<dependency>
+			<groupId>io.tapdata</groupId>
+			<artifactId>tapdata-proxy</artifactId>
+			<version>1.0-SNAPSHOT</version>
+		</dependency>
+		<dependency>
+			<groupId>io.tapdata</groupId>
+			<artifactId>mongodb-storage-module</artifactId>
+			<version>1.0-SNAPSHOT</version>
+		</dependency>
 		<dependency>
 			<groupId>com.tapdata</groupId>
 			<artifactId>common</artifactId>
@@ -104,7 +113,7 @@
 		<dependency>
 			<groupId>io.tapdata</groupId>
 			<artifactId>tapdata-common</artifactId>
-			<version>0.2.22-SNAPSHOT</version>
+			<version>0.2.23-SNAPSHOT</version>
 		</dependency>
 
 		<dependency>
@@ -376,9 +385,12 @@
 		<dependency>
 			<groupId>org.quartz-scheduler</groupId>
 			<artifactId>quartz</artifactId>
-			<version>2.3.0</version>
 		</dependency>
-
+		<dependency>
+			<groupId>com.novemberain</groupId>
+			<artifactId>quartz-mongodb</artifactId>
+			<version>2.2.0-rc2</version>
+		</dependency>
 		<dependency>
 			<groupId>com.github.oshi</groupId>
 			<artifactId>oshi-core</artifactId>
@@ -388,7 +400,7 @@
 		<dependency>
 			<groupId>com.lmax</groupId>
 			<artifactId>disruptor</artifactId>
-			<version>3.4.2</version>
+			<version>3.4.4</version>
 		</dependency>
 
 	</dependencies>

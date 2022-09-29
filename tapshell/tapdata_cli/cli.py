@@ -5,6 +5,7 @@ import json
 import shlex
 import sys
 import time
+import traceback
 import uuid
 import re
 from logging import *
@@ -32,6 +33,7 @@ from tapdata_cli.check import ConfigCheck
 from tapdata_cli.request import RequestSession
 from tapdata_cli.log import logger, get_log_level
 from tapdata_cli.config_parse import Config
+
 
 config: Config = Config()
 server = config["backend.server"]
@@ -422,11 +424,11 @@ def get_table_fields(t, whole=False, source=None, cache=True):
 def gen_dag_stage(obj):
     objType = type(obj)
     pdkHash = ""
-    if isinstance(obj, Source) or isinstance(obj, Sink):
+    if objType == Source or objType == Sink:
         if obj.databaseType.lower() in client_cache["connectors"]:
             pdkHash = client_cache["connectors"][obj.databaseType.lower()]["pdkHash"]
 
-    if isinstance(obj, Source):
+    if objType == Source:
         return {
             "attrs": {
                 "accessNodeProcessId": "",
@@ -447,7 +449,7 @@ def gen_dag_stage(obj):
             "increaseReadSize": 100,
 
         }
-    if isinstance(obj, Sink):
+    if objType == Sink:
         return {
             "attrs": {
                 "accessNodeProcessId": "",
@@ -465,7 +467,7 @@ def gen_dag_stage(obj):
             "type": "table"
         }
 
-    if isinstance(obj, Merge):
+    if objType == Merge:
         return obj.to_dict()
 
     if obj.func_header:
@@ -850,7 +852,6 @@ def show_db(line):
         if v is None or v == "":
             continue
         display[k] = v
-    print(json.dumps(display, indent=4))
 
 
 @magics_class
@@ -1207,7 +1208,7 @@ def desc_table(line):
         return
 
     display_fields = get_table_fields(line, source=connection_id)
-    print(json.dumps(display_fields, indent=4))
+
 
 def login_with_access_code(server, access_code):
     global system_server_conf, req
@@ -1297,6 +1298,14 @@ class system_command(Magics):
             return
         _lang = l
         _l = i18n[_lang]
+
+
+ip = TerminalInteractiveShell.instance()
+ip.register_magics(global_help)
+ip.register_magics(system_command)
+ip.register_magics(show_command)
+ip.register_magics(op_object_command)
+ip.register_magics(ApiCommand)
 
 
 @help_decorate("Enum, used to describe a job status")
@@ -1623,9 +1632,9 @@ class Pipeline:
 
     @help_decorate("read data from source", args="p.readFrom($source)")
     def readFrom(self, source):
-        if isinstance(source, QuickDataSourceMigrateJob):
+        if type(source) == type(QuickDataSourceMigrateJob()):
             source = source.__db__
-        if isinstance(source, str):
+        if type(source) == type(""):
             if "." in source:
                 db = source.split(".")[0]
                 table = source.split(".")[1]
@@ -1741,9 +1750,7 @@ class Pipeline:
         if type(script) == types.FunctionType:
             from metapensiero.pj.api import translates
             import inspect
-            source_code = inspect.getsource(script)
-            source_code = "def process(" + source_code.split("(", 2)[1]
-            js_script = translates(source_code)[0]
+            js_script = translates(inspect.getsource(script))[0]
             f = Js(js_script, False)
         else:
             if script.endswith(".js"):
@@ -2325,7 +2332,7 @@ class Api:
             "id": self.id,
             "status": "pending"
         }
-        res = req.patch("/Modules", json=payload)
+        res = requests.patch("/Modules", json=payload)
         res = res.json()
         if res["code"] == "ok":
             logger.info("unpublish {} success", self.id)
@@ -2376,14 +2383,14 @@ class Job:
     @staticmethod
     def list():
         res = req.get(
-            "/Task",
+            "/DataFlows",
             params={"filter": '{"fields":{"id":true,"name":true,"status":true,"agentId":true,"stats":true}}'}
         )
         if res.status_code != 200:
             return None
         res = res.json()
         jobs = []
-        for i in res["data"]['items']:
+        for i in res["data"]:
             jobs.append(Job(id=i["id"]))
         return jobs
 
@@ -2488,6 +2495,7 @@ class Job:
         try:
             status = self.status()
         except (KeyError, TypeError) as e:
+            logger.info("job {} is not save, error is {}, job will be save soon", self.id, e)
             resp = self.save()
             if not resp:
                 logger.info("job {} save failed.")
@@ -2500,8 +2508,6 @@ class Job:
         if self.id is None:
             logger.warn("save job fail")
             return False
-        # TODO: sleep 1 seconds, wait for js gen schema
-        time.sleep(1)
         res = req.put("/Task/batchStart", params={"taskIds": self.id}).json()
         if res["code"] != "ok":
             return False
@@ -3415,30 +3421,9 @@ op_object_command_class = {
 
 
 def main():
-    # set ipython settings
-    ip = TerminalInteractiveShell.instance()
-    ip.register_magics(global_help)
-    ip.register_magics(system_command)
-    ip.register_magics(show_command)
-    ip.register_magics(op_object_command)
-    ip.register_magics(ApiCommand)
-
     login_with_access_code(server, access_code)
     show_connections(quiet=True)
     show_connectors(quiet=True)
 
 
-def init(custom_server, custom_access_code):
-    """
-    provide for python sdk to init env
-    """
-    global server, access_code
-    server = custom_server
-    access_code = custom_access_code
-    login_with_access_code(server, access_code)
-    show_connections(quiet=True)
-    show_connectors(quiet=True)
-
-
-if __name__ == "__main__":
-    main()
+main()

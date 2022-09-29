@@ -42,10 +42,15 @@ public class TaskAutoInspectResultDto extends BaseDto {
     private Map<String, Object> targetData;
 
     public TaskAutoInspectResultDto() {
+    }
+
+    public TaskAutoInspectResultDto(@NonNull String taskId, @NonNull CompareRecord sourceRecord) {
         setCheckAgainSN(AutoInspectConstants.CHECK_AGAIN_DEFAULT_SN);
         setStatus(ResultStatus.Completed);
         setCreateAt(new Date());
         setLastUpdAt(new Date());
+        setTaskId(taskId);
+        fillSource(sourceRecord);
     }
 
     public CompareRecord toSourceRecord() {
@@ -76,9 +81,7 @@ public class TaskAutoInspectResultDto extends BaseDto {
      * @return difference record
      */
     public static TaskAutoInspectResultDto parse(@NonNull String taskId, @NonNull CompareRecord sourceRecord, @NonNull CompareRecord targetRecord) {
-        TaskAutoInspectResultDto dto = new TaskAutoInspectResultDto();
-        dto.setTaskId(taskId);
-        dto.fillSource(sourceRecord);
+        TaskAutoInspectResultDto dto = new TaskAutoInspectResultDto(taskId, sourceRecord);
         dto.fillTarget(targetRecord);
         return dto;
     }
@@ -91,10 +94,7 @@ public class TaskAutoInspectResultDto extends BaseDto {
      * @return difference record
      */
     public static TaskAutoInspectResultDto parseNoneTarget(@NonNull String taskId, @NonNull CompareRecord sourceRecord, @NonNull ObjectId targetConnId, @NonNull String targetTableName) {
-        TaskAutoInspectResultDto dto = new TaskAutoInspectResultDto();
-        dto.setTaskId(taskId);
-        dto.fillSource(sourceRecord);
-
+        TaskAutoInspectResultDto dto = new TaskAutoInspectResultDto(taskId, sourceRecord);
         dto.setTargetConnId(targetConnId);
         dto.setTargetTableName(targetTableName);
         dto.setTargetKeymap(new LinkedHashMap<>());

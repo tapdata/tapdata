@@ -3,9 +3,11 @@ package com.tapdata.tm.monitoringlogs.controller;
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.*;
 import com.tapdata.tm.commons.schema.MonitoringLogsDto;
+import com.tapdata.tm.monitoringlogs.param.MonitoringLogCountParam;
 import com.tapdata.tm.monitoringlogs.param.MonitoringLogExportParam;
 import com.tapdata.tm.monitoringlogs.param.MonitoringLogQueryParam;
 import com.tapdata.tm.monitoringlogs.service.MonitoringLogsService;
+import com.tapdata.tm.monitoringlogs.vo.MonitoringLogCountVo;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.extern.slf4j.Slf4j;
@@ -17,6 +19,7 @@ import java.io.IOException;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.List;
+import java.util.Map;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
@@ -59,6 +62,16 @@ public class MonitoringLogsController extends BaseController {
     public ResponseMessage<Page<MonitoringLogsDto>> query(
             @RequestBody MonitoringLogQueryParam param) {
         return success(monitoringLogsService.query(param));
+    }
+
+    /**
+     * Find all instances of the model matched by filter from the data source with pagination.
+     */
+    @Operation(summary = "Find all instances of the model matched by filter from the data source")
+    @PostMapping("count")
+    public ResponseMessage<List<MonitoringLogCountVo>> count(
+            @RequestBody MonitoringLogCountParam param) {
+        return success(monitoringLogsService.count(param.getTaskId(), param.getTaskRecordId()));
     }
 
     /**

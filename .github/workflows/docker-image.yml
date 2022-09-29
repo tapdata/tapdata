@@ -5,11 +5,14 @@ on:
     branches: [ "master", "release-v*.*.*", "develop-v*.*.0", "develop-v*.*", "release-v*.*" ]
   pull_request:
     branches: [ "master", "release-v*.*.*", "develop-v*.*.0", "develop-v*.*", "release-v*.*" ]
+  schedule:
+    - cron: "30 17 * * *"
+    - cron: "30 20 * * *"
+    - cron: "30 1 * * *"
 
 env:
   REGISTRY: ghcr.io
   TEST_DATABASE: ${{ secrets.TEST_DATABASE }}
-  STYLE_CHECK_PASS: "1"
   PYPI_USERNAME: ${{ secrets.PYPI_USERNAME }}
   PYPI_PASSWORD: ${{ secrets.PYPI_PASSWORD }}
   FEISHU_PERSON_IN_CHARGE: ${{ secrets.FEISHU_PERSON_IN_CHARGE }}
@@ -23,7 +26,7 @@ jobs:
   Code-Style-Check:
     runs-on: ubuntu-latest
     outputs:
-      check-style: ${{ steps.check-style.outputs.pass }}
+      check-style: ${{ steps.check-style.outputs.error }}
     steps:
       - name: Checkout Code to Get Message
         uses: actions/checkout@v3
@@ -35,21 +38,21 @@ jobs:
           echo "COMMIT_MESSAGE=$message" >> $GITHUB_ENV
       - name: check commit message
         id: check-style
-        if: (!startsWith(github.event.head_commit.message, 'feat')) && 
-            (!startsWith(github.event.head_commit.message, 'fix')) &&
-            (!startsWith(github.event.head_commit.message, 'refactor')) &&
-            (!startsWith(github.event.head_commit.message, 'test')) &&
-            (!startsWith(github.event.head_commit.message, 'chore')) &&
-            (!startsWith(github.event.head_commit.message, 'Merge'))
+        if: (!startsWith(env.COMMIT_MESSAGE, 'feat')) && 
+            (!startsWith(env.COMMIT_MESSAGE, 'fix')) &&
+            (!startsWith(env.COMMIT_MESSAGE, 'refactor')) &&
+            (!startsWith(env.COMMIT_MESSAGE, 'test')) &&
+            (!startsWith(env.COMMIT_MESSAGE, 'chore')) &&
+            (!startsWith(env.COMMIT_MESSAGE, 'Merge'))
         run: |
-          echo ${{ github.event.head_commit.message }}
-          echo "::set-output name=pass::false"
+          echo ${{ env.COMMIT_MESSAGE }}
+          echo "::set-output name=error::true"
 
   Integration-Testing:
     runs-on: ubuntu-latest
     needs: Code-Style-Check
-    if: needs.Code-Style-Check.outputs.check-style != 'false'
     timeout-minutes: 60
+    if: needs.Code-Style-Check.outputs.check-style != 'true'
     steps:
       - name: Set Env if Push
         if: ${{ github.event_name == 'push' }}
@@ -139,9 +142,18 @@ jobs:
           RUN_SIGN: ${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}
           BRANCH: ${{ github.ref }}
         run: |
+          git diff-tree --name-only HEAD^ HEAD | grep tapshell > /dev/null
+          sed -i "/__version__/${{ env.TAG }}/" tapshell/pyproject.toml
+          if [[ $? -ne 0 ]]; then echo "Do not publish pip package" && exit 0; fi
+          cd tapshell && poetry build && poetry publish --username ${{ env.PYPI_USERNAME }} --password ${{ env.PYPI_PASSWORD }}
+      - name: print summary
+        if: ${{ steps.gh_pages.conclusion == 'success' }}
+        env:
+          RUN_SIGN: ${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}
+          BRANCH: ${{ github.ref }}
+        run: |
           BRANCH_DIR=`echo $BRANCH | sed "s:/:-:g"`
           echo "[Click to view test report](https://tapdata.github.io/tapdata/$BRANCH_DIR/$RUN_SIGN)" >> $GITHUB_STEP_SUMMARY
-
       - name: Send notices to feishu
         if : ${{ failure() }}
         run: |

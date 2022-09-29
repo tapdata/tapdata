@@ -375,7 +375,12 @@ public class MysqlReader implements Closeable {
 		Struct value = (Struct) record.value();
 		Struct source = value.getStruct("source");
 		Long eventTime = source.getInt64("ts_ms");
-		String table = source.getString("table");
+		String table = Optional.of(record.topic().split("\\.")).map(arr -> {
+			if (arr.length > 0) {
+				return arr[arr.length-1];
+			}
+			return null;
+		}).orElse(source.getString("table"));
 		String op = value.getString("op");
 		MysqlOpType mysqlOpType = MysqlOpType.fromOp(op);
 		if (null == mysqlOpType) {
@@ -442,6 +447,7 @@ public class MysqlReader implements Closeable {
 						tapTableMap,
 						tapDDLEvent -> {
 							MysqlStreamEvent mysqlStreamEvent = new MysqlStreamEvent(tapDDLEvent, mysqlStreamOffset);
+							tapDDLEvent.setTime(System.currentTimeMillis());
 							tapDDLEvent.setReferenceTime(eventTime);
 							mysqlStreamEvents.add(mysqlStreamEvent);
 							TapLogger.info(TAG, "Read DDL: " + ddlStr + ", about to be packaged as some event(s)");

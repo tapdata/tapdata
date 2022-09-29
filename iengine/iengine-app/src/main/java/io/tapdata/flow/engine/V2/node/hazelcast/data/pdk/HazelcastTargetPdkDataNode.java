@@ -32,6 +32,7 @@ import io.tapdata.pdk.apis.functions.connector.target.*;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.entity.params.PDKMethodInvoker;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
+import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.pdk.core.utils.LoggerUtils;
 import io.tapdata.schema.TapTableMap;
 import org.apache.commons.collections.CollectionUtils;
@@ -532,14 +533,6 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 
 													if (writeRecordFuncAspect != null)
 														AspectUtils.accept(writeRecordFuncAspect.state(WriteRecordFuncAspect.STATE_WRITING).getConsumers(), tapRecordEvents, writeListResult);
-
-													timeCostAvg.add(events.size(), System.currentTimeMillis() - start);
-													resetInsertedCounter.inc(writeListResult.getInsertedCount());
-													insertedCounter.inc(writeListResult.getInsertedCount());
-													resetUpdatedCounter.inc(writeListResult.getModifiedCount());
-													updatedCounter.inc(writeListResult.getModifiedCount());
-													resetDeletedCounter.inc(writeListResult.getRemovedCount());
-													deletedCounter.inc(writeListResult.getRemovedCount());
 													logger.debug("Wrote {} of record events, {}", tapRecordEvents.size(), LoggerUtils.targetNodeMessage(getConnectorNode()));
 												})
 										).logTag(TAG)
@@ -614,7 +607,8 @@ public class HazelcastTargetPdkDataNode extends HazelcastTargetPdkBaseNode {
 	public void doClose() throws Exception {
 		try {
 			if (null != getConnectorNode()) {
-				PDKInvocationMonitor.invoke(getConnectorNode(), PDKMethod.STOP, () -> getConnectorNode().connectorStop(), TAG);
+				CommonUtils.ignoreAnyError(() -> PDKInvocationMonitor.stop(getConnectorNode()), TAG);
+				CommonUtils.ignoreAnyError(() -> PDKInvocationMonitor.invoke(getConnectorNode(), PDKMethod.STOP, () -> getConnectorNode().connectorStop(), TAG), TAG);
 			}
 		} finally {
 			super.doClose();

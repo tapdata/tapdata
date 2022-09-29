@@ -20,6 +20,8 @@ import static io.tapdata.base.ConnectorBase.testItem;
  * @create 2022-08-24 10:16
  * token 68042a4bad082da78dc44118b4d3e3ec4bd44c6d   DFS         tapdata.net
  *
+ * token cc0113a95b99618127ed50b119cfc09cd31d79e9   Tapdata DaaS    tapdata.net
+ *
  * token 0190b04d98dec1cdd7a2825388c17a81fdebd08f   TestIssue   testhookgavin.net
  **/
 public class TestCoding extends CodingStarter{

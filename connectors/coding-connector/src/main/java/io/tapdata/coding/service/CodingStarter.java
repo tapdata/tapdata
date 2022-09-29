@@ -9,11 +9,13 @@ public abstract class CodingStarter {
     public static final String TOKEN_URL = "https://%s.coding.net/api/me";
 
     protected TapConnectionContext tapConnectionContext;
+    protected boolean isVerify;
     CodingStarter(TapConnectionContext tapConnectionContext){
         this.tapConnectionContext = tapConnectionContext;
+        this.isVerify = Boolean.FALSE;
     }
 
-    protected Entry entry(String key, Object value){
+    protected static Entry entry(String key, Object value){
         return new Entry(key,value);
     }
 }

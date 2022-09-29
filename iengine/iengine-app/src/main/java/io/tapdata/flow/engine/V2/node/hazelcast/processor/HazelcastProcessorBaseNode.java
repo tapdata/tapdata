@@ -6,21 +6,14 @@ import com.tapdata.entity.task.context.ProcessorBaseContext;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.aspect.ProcessorNodeProcessAspect;
 import io.tapdata.aspect.utils.AspectUtils;
-import io.tapdata.common.sample.sampler.AverageSampler;
-import io.tapdata.common.sample.sampler.CounterSampler;
-import io.tapdata.common.sample.sampler.ResetCounterSampler;
-import io.tapdata.common.sample.sampler.SpeedSampler;
 import io.tapdata.flow.engine.V2.exception.node.NodeException;
 import io.tapdata.flow.engine.V2.node.hazelcast.HazelcastBaseNode;
-import io.tapdata.metrics.TaskSampleRetriever;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.ThreadContext;
 import org.jetbrains.annotations.NotNull;
 
-import java.util.Arrays;
-import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 
@@ -32,38 +25,10 @@ import java.util.function.BiConsumer;
 public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 	private Logger logger = LogManager.getLogger(HazelcastProcessorBaseNode.class);
 
-	// statistic and sample related
-	protected ResetCounterSampler resetInputCounter;
-	protected CounterSampler inputCounter;
-	protected ResetCounterSampler resetOutputCounter;
-	protected CounterSampler outputCounter;
-	protected SpeedSampler inputQPS;
-	protected SpeedSampler outputQPS;
-	protected AverageSampler timeCostAvg;
 	private TapdataEvent pendingEvent;
 
 	public HazelcastProcessorBaseNode(ProcessorBaseContext processorBaseContext) {
 		super(processorBaseContext);
-	}
-
-	@Override
-	protected void initSampleCollector() {
-		super.initSampleCollector();
-
-		// TODO: init outputCounter initial value
-		Map<String, Number> values = TaskSampleRetriever.getInstance().retrieve(tags, Arrays.asList(
-				"inputTotal", "outputTotal"
-		));
-		// init statistic and sample related initialize
-		resetInputCounter = statisticCollector.getResetCounterSampler("inputTotal");
-		inputCounter = sampleCollector.getCounterSampler("inputTotal", values.getOrDefault("inputTotal", 0).longValue());
-		resetOutputCounter = statisticCollector.getResetCounterSampler("outputTotal");
-		outputCounter = sampleCollector.getCounterSampler("outputTotal", values.getOrDefault("outputTotal", 0).longValue());
-		inputQPS = sampleCollector.getSpeedSampler("inputQPS");
-		outputQPS = sampleCollector.getSpeedSampler("outputQPS");
-		timeCostAvg = sampleCollector.getAverageSampler("timeCostAvg");
-
-		super.initSampleCollector();
 	}
 
 	@Override
@@ -94,8 +59,9 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 					}
 					// Update memory from ddl event info map
 					updateMemoryFromDDLInfoMap(tapdataEvent, getTgtTableNameFromTapEvent(tapdataEvent.getTapEvent()));
+					AtomicReference<TapValueTransform> tapValueTransform = new AtomicReference<>();
 					if (tapdataEvent.isDML()) {
-						transformFromTapValue(tapdataEvent, null);
+						tapValueTransform.set(transformFromTapValue(tapdataEvent));
 					}
 					tryProcess(tapdataEvent, (event, processResult) -> {
 						if (null == event) {
@@ -103,9 +69,9 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 						}
 						if (tapdataEvent.isDML()) {
 							if (null != processResult && null != processResult.getTableId()) {
-								transformToTapValue(event, processorBaseContext.getTapTableMap(), processResult.getTableId());
+								transformToTapValue(event, processorBaseContext.getTapTableMap(), processResult.getTableId(), tapValueTransform.get());
 							} else {
-								transformToTapValue(event, processorBaseContext.getTapTableMap(), getNode().getId());
+								transformToTapValue(event, processorBaseContext.getTapTableMap(), getNode().getId(), tapValueTransform.get());
 							}
 						}
 
@@ -139,7 +105,7 @@ public abstract class HazelcastProcessorBaseNode extends HazelcastBaseNode {
 
 	protected ProcessResult getProcessResult(String tableName) {
 		if (!multipleTables && !StringUtils.equalsAnyIgnoreCase(processorBaseContext.getTaskDto().getSyncType(),
-						TaskDto.SYNC_TYPE_DEDUCE_SCHEMA)) {
+				TaskDto.SYNC_TYPE_DEDUCE_SCHEMA)) {
 			tableName = processorBaseContext.getNode().getId();
 		}
 		return ProcessResult.create().tableId(tableName);

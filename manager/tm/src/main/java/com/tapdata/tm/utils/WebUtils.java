@@ -12,7 +12,15 @@ import java.util.stream.Collectors;
 import static java.lang.String.format;
 
 public final class WebUtils {
-
+	public static String getParameter(HttpServletRequest request, String key) {
+		String parameter = request.getParameter(key);
+		if(parameter == null) {
+			parameter = request.getHeader(key);
+		}
+		if(parameter == null)
+			return null;
+		return parameter;
+	}
 	public static String getRealIpAddress(HttpServletRequest request) {
 		String ip = request.getHeader("X-Forwarded-For");
 		if (ip == null || ip.length() == 0 || "unknown".equalsIgnoreCase(ip)) {

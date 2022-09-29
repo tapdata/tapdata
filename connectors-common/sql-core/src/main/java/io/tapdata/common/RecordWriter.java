@@ -37,6 +37,7 @@ public class RecordWriter {
         deleteRecorder.setVersion(version);
         //result of these events
         WriteListResult<TapRecordEvent> listResult = new WriteListResult<>();
+        //insert,update,delete events must consecutive, so execute the other two first
         for (TapRecordEvent recordEvent : tapRecordEvents) {
             if (recordEvent instanceof TapInsertRecordEvent) {
                 updateRecorder.executeBatch(listResult);
@@ -61,9 +62,11 @@ public class RecordWriter {
         insertRecorder.executeBatch(listResult);
         updateRecorder.executeBatch(listResult);
         deleteRecorder.executeBatch(listResult);
+        //some datasource must be auto commit, error will occur when commit
         if (!connection.getAutoCommit()) {
             connection.commit();
         }
+        //release resource
         insertRecorder.releaseResource();
         updateRecorder.releaseResource();
         deleteRecorder.releaseResource();

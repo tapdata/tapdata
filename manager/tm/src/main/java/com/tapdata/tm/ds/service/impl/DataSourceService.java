@@ -28,7 +28,6 @@ import com.tapdata.tm.commons.schema.bean.PlatformInfo;
 import com.tapdata.tm.commons.schema.bean.Schema;
 import com.tapdata.tm.commons.schema.bean.Table;
 import com.tapdata.tm.commons.task.dto.TaskDto;
-import com.tapdata.tm.commons.util.CreateTypeEnum;
 import com.tapdata.tm.commons.util.MetaDataBuilderUtils;
 import com.tapdata.tm.commons.util.PdkSchemaConvert;
 import com.tapdata.tm.config.security.UserDetail;
@@ -79,10 +78,7 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.context.request.RequestContextHolder;
-import org.springframework.web.context.request.ServletRequestAttributes;
 
-import javax.servlet.http.HttpServletRequest;
 import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -119,7 +115,6 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 	public DataSourceService(@NonNull DataSourceRepository repository) {
 		super(repository, DataSourceConnectionDto.class, DataSourceEntity.class);
 	}
-
 	public DataSourceConnectionDto add(DataSourceConnectionDto connectionDto, UserDetail userDetail) {
 		Boolean submit = connectionDto.getSubmit();
 		connectionDto.setLastUpdAt(new Date());
@@ -128,6 +123,20 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 		desensitizeMongoConnection(connectionDto);
 		sendTestConnection(connectionDto, false, submit, userDetail);
 		defaultDataDirectoryService.addConnection(connectionDto, userDetail);
+		return connectionDto;
+	}
+	public DataSourceConnectionDto addWithSpecifiedId(DataSourceConnectionDto connectionDto, UserDetail userDetail) {
+		Boolean submit = connectionDto.getSubmit();
+		connectionDto.setLastUpdAt(new Date());
+
+		beforeSave(connectionDto, userDetail);
+
+		repository.insert(convertToEntity(DataSourceEntity.class, connectionDto), userDetail);
+
+		connectionDto = findById(connectionDto.getId(), userDetail);
+
+		desensitizeMongoConnection(connectionDto);
+		sendTestConnection(connectionDto, false, submit, userDetail);
 		return connectionDto;
 	}
 
@@ -248,8 +257,15 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 
 			if (updateDto.getDatabase_type().toLowerCase(Locale.ROOT).contains("mongo") && config.get("uri") != null) {
 				String uri1 = (String) config.get("uri");
-				if (uri1.contains("******")) {
-					config.put("uri", connectionDto.getConfig().get("uri"));
+				if (StringUtils.isNotBlank(uri1) && uri1.contains("******")) {
+					ConnectionString uri2 = new ConnectionString((String) connectionDto.getConfig().get("uri"));
+					if (uri2.getPassword() != null) {
+						String password1 = new String(uri2.getPassword());
+						uri1 = uri1.replace("******", password1);
+						config.put("uri", uri1);
+					} else {
+						config.put("uri", connectionDto.getConfig().get("uri"));
+					}
 				}
 			}
 		}
@@ -390,6 +406,14 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 			if (StringUtils.isEmpty(item.getAccessNodeType())) {
 				item.setAccessNodeType(AccessNodeTypeEnum.AUTOMATIC_PLATFORM_ALLOCATION.name());
 			}
+
+			// --！
+			int loadCount = Objects.nonNull(item.getLoadCount()) ? item.getLoadCount() : 0;
+			int tableCount = Objects.nonNull(item.getTableCount()) ? item.getTableCount().intValue() : 0;
+			if (loadCount > tableCount) {
+				item.setLoadCount(tableCount);
+			}
+
 
 			String id = item.getId().toHexString();
 			connectMap.put(id, item);
@@ -636,10 +660,13 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 		entity.setId(null);
 		//将数据源连接的名称修改成为名称后面+_copy
 		String connectionName = entity.getName() + " - Copy";
+		entity.setLastUpdAt(new Date());
 		while (true) {
 			try {
 				//插入复制的数据源
 				entity.setName(connectionName);
+				entity.setLoadCount(0);
+				entity.setLoadFieldsStatus("");
 				entity = repository.save(entity, user);
 				break;
 			} catch (Exception e) {
@@ -1129,17 +1156,17 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 					if (CollectionUtils.isNotEmpty(tables)) {
 
 						//处理自定义加载的表。
-						Boolean loadAllTable = oldConnectionDto.getLoadAllTables();
-						if (loadAllTable != null && !loadAllTable) {
-							String table_filter = oldConnectionDto.getTable_filter();
-							if (StringUtils.isNotBlank(table_filter)) {
-								List<String> loadTables = Splitter.on(',').trimResults().omitEmptyStrings().splitToList(table_filter);
-								if (CollectionUtils.isNotEmpty(loadTables)) {
-									tables = tables.stream().filter(t -> loadTables.contains(t.getName())).collect(Collectors.toList());
-
-								}
-							}
-						}
+//						Boolean loadAllTable = oldConnectionDto.getLoadAllTables();
+//						if (loadAllTable != null && !loadAllTable) {
+//							String table_filter = oldConnectionDto.getTable_filter();
+//							if (StringUtils.isNotBlank(table_filter)) {
+//								List<String> loadTables = Splitter.on(',').trimResults().omitEmptyStrings().splitToList(table_filter);
+//								if (CollectionUtils.isNotEmpty(loadTables)) {
+//									tables = tables.stream().filter(t -> loadTables.contains(t.getName())).collect(Collectors.toList());
+//
+//								}
+//							}
+//						}
 						for (TapTable table : tables) {
 							String expression = definitionDto.getExpression();
 							PdkSchemaConvert.tableFieldTypesGenerator.autoFill(table.getNameFieldMap() == null ? new LinkedHashMap<>() : table.getNameFieldMap(), DefaultExpressionMatchingMap.map(expression));
@@ -1249,6 +1276,11 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 			Criteria criteria = Criteria.where("source.id").is(connectionDto.getId()).and("meta_type").is("database");
 			Update update = Update.update("original_name", connectionDto.getName()).set("source.name", connectionDto.getName());
 			metadataInstancesService.update(new Query(criteria), update, user);
+		}
+
+		//更新数据目录
+		if (StringUtils.isNotBlank(oldName)) {
+			defaultDataDirectoryService.updateConnection(connectionDto, user);
 		}
 
 		sendTestConnection(connectionDto, true, submit, user);

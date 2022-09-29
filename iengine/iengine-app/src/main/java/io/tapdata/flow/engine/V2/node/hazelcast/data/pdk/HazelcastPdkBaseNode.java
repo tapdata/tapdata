@@ -11,6 +11,9 @@ import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
+import io.tapdata.aspect.DataNodeInitAspect;
+import io.tapdata.aspect.PDKNodeInitAspect;
+import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
@@ -30,7 +33,6 @@ import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
 import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.schema.PdkTableMap;
-import io.tapdata.schema.TapTableMap;
 import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
@@ -48,6 +50,7 @@ import java.util.Optional;
 public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 	private final Logger logger = LogManager.getLogger(HazelcastPdkBaseNode.class);
 	private static final String TAG = HazelcastPdkBaseNode.class.getSimpleName();
+	protected static final String COMPLETED_INITIAL_SYNC_KEY_PREFIX = "COMPLETED-INITIAL-SYNC-";
 	protected MonitorManager monitorManager;
 	protected SyncProgress syncProgress;
 	protected String associateId;
@@ -97,6 +100,7 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 				)
 		);
 		processorBaseContext.setPdkAssociateId(this.associateId);
+		AspectUtils.executeAspect(PDKNodeInitAspect.class, () -> new PDKNodeInitAspect().dataProcessorContext((DataProcessorContext) processorBaseContext));
 	}
 
 	private void initDmlPolicy(Node<?> node, ConnectorCapabilities connectorCapabilities) {
@@ -143,7 +147,6 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 			if (this.monitorManager != null) {
 				this.monitorManager.close();
 			}
-			CommonUtils.ignoreAnyError(() -> Optional.ofNullable(dataProcessorContext.getTapTableMap()).ifPresent(TapTableMap::reset), TAG);
 			CommonUtils.ignoreAnyError(() -> {
 				logger.info("Starting stop and release PDK connector node: " + associateId);
 				Optional.ofNullable(getConnectorNode())
@@ -172,5 +175,25 @@ public abstract class HazelcastPdkBaseNode extends HazelcastDataBaseNode {
 			Map<String, Object> before = TapEventUtil.getBefore(tapEvent);
 			toTapValue(before, tableName, codecsFilterManager);
 		}
+	}
+
+	protected String getCompletedInitialKey() {
+		return COMPLETED_INITIAL_SYNC_KEY_PREFIX + dataProcessorContext.getTaskDto().getId().toHexString();
+	}
+
+	private PdkStateMap globalMap() {
+		return PdkStateMap.globalStateMap(jetContext.hazelcastInstance());
+	}
+
+	protected Object getGlobalMap(String key) {
+		return globalMap().get(key);
+	}
+
+	protected void putInGlobalMap(String key, Object value) {
+		globalMap().put(key, value);
+	}
+
+	protected void removeGlobalMap(String key) {
+		globalMap().remove(key);
 	}
 }

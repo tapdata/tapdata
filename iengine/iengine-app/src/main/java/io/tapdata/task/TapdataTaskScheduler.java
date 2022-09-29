@@ -115,7 +115,7 @@ public class TapdataTaskScheduler {
 						schedulingTasks.put(scheduleTask.getId(), new TaskExecuteInfo(scheduledFuture, scheduleTask));
 					}
 				} else {
-					logger.warn("Cannot support this task type {}, task id {} task name {} .", scheduleTask.getTask_type(), scheduleTask.getId(), scheduleTask.getTask_name());
+//					logger.warn("Cannot support this task type {}, task id {} task name {} .", scheduleTask.getTask_type(), scheduleTask.getId(), scheduleTask.getTask_name());
 				}
 			} catch (Exception e) {
 				logger.error("Schedule task {} failed {}", scheduleTask.getTask_name(), e.getMessage(), e);

@@ -47,7 +47,7 @@ public abstract class CCJBaseDDLWrapper extends BaseDDLWrapper<Alter> {
 	}
 
 	protected String getDataType(ColDataType colDataType) {
-		StringBuilder dataType = new StringBuilder(colDataType.getDataType());
+		StringBuilder dataType = new StringBuilder(getDataTypeFromAlias(colDataType.getDataType()));
 		List<String> argumentsStringList = colDataType.getArgumentsStringList();
 		if (null != argumentsStringList && argumentsStringList.size() > 0) {
 			dataType.append("(")
@@ -56,6 +56,8 @@ public abstract class CCJBaseDDLWrapper extends BaseDDLWrapper<Alter> {
 		}
 		return dataType.toString();
 	}
+
+	protected abstract String getDataTypeFromAlias(String alias);
 
 	protected void setColumnPos(TapTable tapTable, TapField tapField) {
 		if (null != tapTable) {

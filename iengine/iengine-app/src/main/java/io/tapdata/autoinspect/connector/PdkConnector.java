@@ -47,14 +47,14 @@ public class PdkConnector implements IPdkConnector {
     private final TapCodecsFilterManager defaultCodecsFilterManager;
     private final TaskRetryConfig taskRetryConfig;
 
-    public PdkConnector(@NonNull ClientMongoOperator clientMongoOperator, @NonNull String taskId, @NonNull String nodeId, @NonNull Connections connections, @NonNull DatabaseTypeEnum.DatabaseType sourceDatabaseType, Supplier<Boolean> isRunning, TaskRetryConfig taskRetryConfig) {
+    public PdkConnector(@NonNull ClientMongoOperator clientMongoOperator, @NonNull String taskId, @NonNull String nodeId, @NonNull String associateId, @NonNull Connections connections, @NonNull DatabaseTypeEnum.DatabaseType sourceDatabaseType, Supplier<Boolean> isRunning, TaskRetryConfig taskRetryConfig) {
         this.isRunning = isRunning;
         this.connections = connections;
         this.connectorNode = PdkUtil.createNode(
                 taskId,
                 sourceDatabaseType,
                 clientMongoOperator,
-                getClass().getSimpleName() + "-" + nodeId,
+                associateId,
                 connections.getConfig(),
                 new PdkTableMap(TapTableUtil.getTapTableMapByNodeId(nodeId)),
                 new PdkStateMap(nodeId, HazelcastUtil.getInstance()),

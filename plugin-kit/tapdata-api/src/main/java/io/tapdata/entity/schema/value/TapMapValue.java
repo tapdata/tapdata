@@ -4,9 +4,9 @@ import io.tapdata.entity.schema.type.TapType;
 
 import java.util.Map;
 
-public class TapMapValue extends TapValue<Map<?, ?>, TapMap> {
+public class TapMapValue extends TapValue<Map<String, Object>, TapMap> {
     public TapMapValue() {}
-    public TapMapValue(Map<?, ?> value) {
+    public TapMapValue(Map<String, Object> value) {
         this.value = value;
     }
 
