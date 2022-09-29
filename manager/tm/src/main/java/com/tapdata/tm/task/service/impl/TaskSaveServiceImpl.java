@@ -120,7 +120,7 @@ public class TaskSaveServiceImpl implements TaskSaveService {
             taskDto.setAlarmRules(alarmRuleDtos);
         }
 
-        if (CollectionUtils.isNotEmpty(taskDto.getDag().getNodes())) {
+        if (Objects.nonNull(taskDto.getDag()) && CollectionUtils.isNotEmpty(taskDto.getDag().getNodes())) {
             for (Node<?> node : taskDto.getDag().getNodes()) {
                 alarmSettingDtos = Lists.newArrayList();
                 alarmRuleDtos = Lists.newArrayList();

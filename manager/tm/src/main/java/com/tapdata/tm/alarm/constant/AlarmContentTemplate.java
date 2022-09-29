@@ -43,17 +43,17 @@ public class AlarmContentTemplate {
 
     /**
      * 【Warning】任务[MySQL-2-Oracle]增量延迟大于阈值500ms，当前值：628ms，请关注！时间：2022-08-08 12:23:12
-     * 【Recovery】任务[MySQL-2-Oracle] 增量延迟已恢复正常，当前值：28ms。时间：2022-08-08 12:23:12
      * 【Warning】任务[MySQL-2-Oracle] 增量延迟大于阈值500ms，已持续5分钟，当前值：928ms，请关注！时间：2022-08-08 12:23:12
+     * 【Recovery】任务[MySQL-2-Oracle] 增量延迟已恢复正常，当前值：28ms。时间：2022-08-08 12:23:12
      */
-    public static final String TASK_INCREMENT_DELAY_START = "";
-    public static final String TASK_INCREMENT_DELAY_ALWAYS = "";
-    public static final String TASK_INCREMENT_DELAY_RECOVER = "";
+    public static final String TASK_INCREMENT_DELAY_START = "任务[$taskName]增量延迟大于阈值{0}ms，当前值：{1}ms，请关注！时间：{2}";
+    public static final String TASK_INCREMENT_DELAY_ALWAYS = "任务[$taskName]增量延迟大于阈值{0}ms，已持续{1}分钟，当前值：{2}ms，请关注！时间：{3}";
+    public static final String TASK_INCREMENT_DELAY_RECOVER = "任务[$taskName]增量延迟已恢复正常，当前值：{0}ms。时间：{1}";
 
     /**
-     * 【Critical】任务[MySQL-2-Oracle] 使用的源连接 [MySQL-Test]当前无法正常连接，请尽快处理！时间：2022-08-08 12:23:12
+     * 【Critical】任务[$taskName] 使用的源连接 [MySQL-Test]当前无法正常连接，请尽快处理！时间：2022-08-08 12:23:12
      */
-    public static final String DATANODE_CANNOT_CONNECT = "";
+    public static final String DATANODE_CANNOT_CONNECT = "任务[$taskName] 使用的源连接 [{0}]当前无法正常连接，请尽快处理！时间：{1}";
 
     /**
      * 【Warning】任务[MySQL-2-Oracle] 使用的源连接 [MySQL-Test]网络连接耗时超过阈值500ms，当前值：899ms，请关注！时间：2022-08-08 12:23:12
@@ -78,13 +78,18 @@ public class AlarmContentTemplate {
      * 【Warning】任务[MySQL-2-Oracle] 的源节点[CUSTOMER]平均处理耗时超过阈值500ms，已持续5分钟，当前值：899ms，请关注！时间：2022-08-08 12:23:12
      * 【Recovery】任务[MySQL-2-Oracle] 的源节点[CUSTOMER] 平均处理耗时已恢复正常，当前值：9ms。时间：2022-08-08 12:23:12
      */
-    public static final String DATANODE_AVERAGE_HANDLE_CONSUME_START = "";
+    public static final String DATANODE_AVERAGE_HANDLE_CONSUME_START = "任务[$taskName]的源节点[{0}]平均处理耗时超过阈值{1}ms，当前值：{2}ms，请关注！时间：{3}";
+    public static final String DATANODE_AVERAGE_HANDLE_CONSUME_ALWAYS = "任务[$taskName]的源节点[{0}]平均处理耗时超过阈值{1}ms，已持续{2}分钟，当前值：{3}ms，请关注！时间：{4}";
+    public static final String DATANODE_AVERAGE_HANDLE_CONSUME_RECOVER = "任务[$taskName]的源节点[{0}]平均处理耗时已恢复正常，当前值：{1}ms。时间：{2}";
 
     /**
      * 【Warning】任务[MySQL-2-Oracle]的处理节点[JS节点] 平均处理耗时超过阈值500ms，当前值：899ms，请关注！时间：2022-08-08 12:23:12
      * 【Warning】任务[MySQL-2-Oracle]的处理节点[JS节点] 平均处理耗时超过阈值500ms，已持续5分钟，当前值：899ms，请关注！时间：2022-08-08 12:23:12
      * 【Recovery】任务[MySQL-2-Oracle] 的处理节点[JS节点] 平均处理耗时已恢复正常，当前值：9ms。时间：2022-08-08 12:23:12
      */
+    public static final String PROCESSNODE_AVERAGE_HANDLE_CONSUME_START = "任务[$taskName]的处理节点[{0}]平均处理耗时超过阈值{1}ms，当前值：{2}ms，请关注！时间：{3}";
+    public static final String PROCESSNODE_AVERAGE_HANDLE_CONSUME_ALWAYS = "任务[$taskName]的处理节点[{0}]平均处理耗时超过阈值{1}ms，已持续{2}分钟，当前值：{3}ms，请关注！时间：{4}";
+    public static final String PROCESSNODE_AVERAGE_HANDLE_CONSUME_RECOVER = "任务[$taskName]的处理节点[{0}]平均处理耗时已恢复正常，当前值：{1}ms。时间：{2}";
 
     /**
      * 【Critical】任务[MySQL-2-Oracle] 使用的目标连接 [Oracle-Test]当前无法正常连接，请尽快处理！时间：2022-08-08 12:23:12
@@ -107,6 +112,9 @@ public class AlarmContentTemplate {
      * 【Warning】任务[MySQL-2-Oracle] 的目标节点[CUSTOMER]平均处理耗时超过阈值500ms，已持续5分钟，当前值：899ms，请关注！时间：2022-08-08 12:23:12
      * 【Recovery】任务[MySQL-2-Oracle] 的目标节点[CUSTOMER] 平均处理耗时已恢复正常，当前值：9ms。时间：2022-08-08 12:23:12
      */
+    public static final String TARGET_AVERAGE_HANDLE_CONSUME_START = "任务[$taskName]的目标节点[{0}]平均处理耗时超过阈值{1}ms，当前值：{2}ms，请关注！时间：{3}";
+    public static final String TARGET_AVERAGE_HANDLE_CONSUME_ALWAYS = "任务[$taskName]的目标节点[{0}]平均处理耗时超过阈值{1}ms，已持续{2}分钟，当前值：{3}ms，请关注！时间：{4}";
+    public static final String TARGET_AVERAGE_HANDLE_CONSUME_RECOVER = "任务[$taskName]的目标节点[{0}]平均处理耗时已恢复正常，当前值：{1}ms。时间：{2}";
 
     /**
      * 【Warning】任务[MySQL-2-Oracle] 所在Agent[Agent01]已停止运行，当前还有2个可用Agent，任务将重新调度到Agent[Agent02]上运行，请关注！时间：2022-08-08 12:23:12

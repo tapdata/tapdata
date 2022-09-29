@@ -33,11 +33,6 @@ public class UpdateRecordStatusEventHandler implements BaseEventHandler<SyncTask
         TaskRecordService taskRecordService = SpringUtil.getBean(TaskRecordService.class);
         SyncTaskStatusDto data = event.getData();
         taskRecordService.updateTaskStatus(data);
-
-        RuleRenew alertRuleRenew = SpringUtil.getBean(RuleRenew.class);
-        alertRuleRenew.renewTaskAlertRule(event.getData());
-
-
         CompletableFuture.runAsync(() -> handlerStatusDoSomething(data));
 
         return true;
@@ -51,20 +46,20 @@ public class UpdateRecordStatusEventHandler implements BaseEventHandler<SyncTask
             case TaskDto.STATUS_STOP:
                 String summary = MessageFormat.format(AlarmContentTemplate.TASK_STATUS_STOP_MANUAL, data.getUpdatorName(), DateUtil.now());
                 AlarmInfo alarmInfo = AlarmInfo.builder().status(AlarmStatusEnum.ING).level(Level.WARNING).component(AlarmComponentEnum.FE)
-                        .type(AlarmTypeEnum.SYNCHRONIZATIONTASK_ALARM).agnetId(data.getAgentId()).taskId(taskId)
+                        .type(AlarmTypeEnum.SYNCHRONIZATIONTASK_ALARM).agentId(data.getAgentId()).taskId(taskId)
                         .name(data.getTaskName()).summary(summary).metric(AlarmKeyEnum.TASK_STATUS_STOP)
                         .build();
                 alarmService.save(alarmInfo);
 
                 break;
             case TaskDto.STATUS_RUNNING:
-                // start task quartz job
+                alarmService.closeWhenTaskRunning(taskId);
 
                 break;
             case TaskDto.STATUS_ERROR:
                 String errorSummary = MessageFormat.format(AlarmContentTemplate.TASK_STATUS_STOP_ERROR, DateUtil.now());
                 AlarmInfo errorInfo = AlarmInfo.builder().status(AlarmStatusEnum.ING).level(Level.EMERGENCY).component(AlarmComponentEnum.FE)
-                        .type(AlarmTypeEnum.SYNCHRONIZATIONTASK_ALARM).agnetId(data.getAgentId()).taskId(taskId)
+                        .type(AlarmTypeEnum.SYNCHRONIZATIONTASK_ALARM).agentId(data.getAgentId()).taskId(taskId)
                         .name(data.getTaskName()).summary(errorSummary).metric(AlarmKeyEnum.TASK_STATUS_ERROR)
                         .build();
                 alarmService.save(errorInfo);

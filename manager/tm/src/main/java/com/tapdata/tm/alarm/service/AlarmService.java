@@ -8,17 +8,19 @@ import com.tapdata.tm.alarm.scheduler.Rule;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.commons.task.constant.AlarmKeyEnum;
 import com.tapdata.tm.commons.task.constant.NotifyEnum;
+import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmRuleDto;
 import com.tapdata.tm.config.security.UserDetail;
 
 import java.util.List;
+import java.util.Map;
 
 public interface AlarmService {
     void save(AlarmInfo info);
 
     boolean checkOpen(String taskId, String nodeId, AlarmKeyEnum key, NotifyEnum notityType);
 
-    List<AlarmRuleDto> findAllRule(String taskId);
+    Map<String, List<AlarmRuleDto>> getAlarmRuleDtos(TaskDto taskDto);
     List<Rule> findAllRuleWithMoreInfo(String taskId);
 
     void notifyAlarm();
@@ -34,4 +36,8 @@ public interface AlarmService {
                                UserDetail userDetail);
 
     TaskAlarmInfoVo listByTask(AlarmListReqDto dto);
+
+    List<AlarmInfo> find(String taskId, String nodeId, AlarmKeyEnum key);
+
+    void closeWhenTaskRunning(String taskId);
 }

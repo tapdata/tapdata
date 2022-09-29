@@ -51,6 +51,7 @@ import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
+import org.springframework.data.querydsl.QuerydslUtils;
 import org.springframework.stereotype.Service;
 
 import java.text.MessageFormat;
@@ -152,22 +153,17 @@ public class AlarmServiceImpl implements AlarmService {
     }
 
     @Override
-    public List<AlarmRuleDto> findAllRule(String taskId) {
-        TaskDto taskDto = taskService.findById(MongoUtils.toObjectId(taskId));
-        return getAlarmRuleDtos(taskDto);
-    }
-
     @Nullable
     @SuppressWarnings("unchecked")
-    private List<AlarmRuleDto> getAlarmRuleDtos(TaskDto taskDto) {
+    public Map<String, List<AlarmRuleDto>> getAlarmRuleDtos(TaskDto taskDto) {
         if (Objects.nonNull(taskDto)) {
-            List<AlarmRuleDto> ruleDtos = Lists.newArrayList();
-            ruleDtos.addAll(Optional.ofNullable(taskDto.getAlarmRules()).orElse(Collections.emptyList()));
+            Map<String, List<AlarmRuleDto>> ruleMap = Maps.newHashMap();
+            ruleMap.put(taskDto.getId().toHexString(), Optional.ofNullable(taskDto.getAlarmRules()).orElse(Collections.emptyList()));
 
             taskDto.getDag().getNodes().forEach(node -> {
-                ruleDtos.addAll(Optional.ofNullable(node.getAlarmRules()).orElse(Collections.emptyList()));
+                ruleMap.put(node.getId(), Optional.ofNullable(node.getAlarmRules()).orElse(Collections.emptyList()));
             });
-            return ruleDtos;
+            return ruleMap;
         }
         return null;
     }
@@ -411,6 +407,25 @@ public class AlarmServiceImpl implements AlarmService {
                 .alarmList(collect)
                 .alarmNum(new AlarmNumVo(alert, error))
                 .build();
+    }
+
+    @Override
+    public List<AlarmInfo> find(String taskId, String nodeId, AlarmKeyEnum key) {
+        Criteria criteria = Criteria.where("taskId").is(taskId)
+                .and("metric").is(key)
+                .and("status").ne(AlarmStatusEnum.CLOESE)
+                .and("is_deleted").ne(true);
+        if (Objects.nonNull(nodeId)) {
+            criteria.and("nodeId").is(nodeId);
+        }
+
+        Query query = new Query(criteria);
+        return mongoTemplate.find(query, AlarmInfo.class);
+    }
+
+    @Override
+    public void closeWhenTaskRunning(String taskId) {
+        mongoTemplate.updateMulti(Query.query(Criteria.where("taskId").is(taskId).and("status").ne(AlarmStatusEnum.CLOESE)), Update.update("status", AlarmStatusEnum.CLOESE), AlarmInfo.class);
     }
 
     private MailAccountDto getMailAccount() {

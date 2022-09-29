@@ -32,7 +32,7 @@ public class AlarmInfo extends BaseEntity {
     @Schema(description = "告警类型 同步任务告警、共享缓存告警、共享挖掘告警、数据校验告警、精准延迟告警")
     private AlarmTypeEnum type;
     @Schema(description = "所属引擎")
-    private String agnetId;
+    private String agentId;
     private String taskId;
     @Schema(description = "具体的任务名")
     private String name;
