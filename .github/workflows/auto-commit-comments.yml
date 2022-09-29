@@ -17,12 +17,12 @@ jobs:
       commit-id: ${{ steps.check-style.outputs.commit-id }}
     steps:
       - name: Checkout Enterprise Branch if PUSH
-        if: $GITHUB_EVENT_NAME == 'push'
+        if: ${{ github.event_name == 'push' }}
         uses: actions/checkout@v3
         with:
           fetch-depth: 0
       - name: Checkout Enterprise Branch if PULL_REQUEST
-        if: $GITHUB_EVENT_NAME == 'pull_request'
+        if: ${{ github.event_name == 'pull_request' }}
         uses: actions/checkout@v3
         with:
           ref: $GITHUB_HEAD_REF
