@@ -25,7 +25,7 @@ jobs:
         if: $GITHUB_EVENT_NAME == 'pull_request'
         uses: actions/checkout@v3
         with:
-          ref: ${{ GITHUB_HEAD_REF }}
+          ref: $GITHUB_HEAD_REF
           fetch-depth: 0
       - name: Commit Message End With \#$number
         id: check-style
