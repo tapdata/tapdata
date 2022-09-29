@@ -193,6 +193,7 @@ public class StreamReadFuncAspect extends DataFunctionAspect<StreamReadFuncAspec
 			try {
 				this.wait();
 			} catch (InterruptedException ignored) {
+				TapLogger.debug(TAG, "waitRawData interrupted {}", ignored.getMessage());
 			}
 		}
 		return waitRawData;
