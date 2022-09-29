@@ -43,6 +43,7 @@ import org.bson.conversions.Bson;
 import org.bson.types.*;
 
 import java.io.Closeable;
+import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.CountDownLatch;
@@ -376,7 +377,8 @@ public class MongodbConnector extends ConnectorBase {
 				|| null != matchThrowable(throwable, MongoSocketException.class)
 				|| null != matchThrowable(throwable, MongoNotPrimaryException.class)
 				|| null != matchThrowable(throwable, MongoServerUnavailableException.class)
-				|| null != matchThrowable(throwable, MongoNodeIsRecoveringException.class)) {
+				|| null != matchThrowable(throwable, MongoNodeIsRecoveringException.class)
+				|| null != matchThrowable(throwable, IOException.class)) {
 			retryOptions.needRetry(true);
 			return retryOptions;
 		}
