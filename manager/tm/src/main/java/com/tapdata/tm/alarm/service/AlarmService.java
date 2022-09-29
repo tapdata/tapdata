@@ -8,9 +8,11 @@ import com.tapdata.tm.alarm.scheduler.Rule;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.commons.task.constant.AlarmKeyEnum;
 import com.tapdata.tm.commons.task.constant.NotifyEnum;
+import com.tapdata.tm.commons.task.dto.Milestone;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmRuleDto;
 import com.tapdata.tm.config.security.UserDetail;
+import org.bson.Document;
 
 import java.util.List;
 import java.util.Map;
@@ -40,4 +42,6 @@ public interface AlarmService {
     List<AlarmInfo> find(String taskId, String nodeId, AlarmKeyEnum key);
 
     void closeWhenTaskRunning(String taskId);
+
+    void checkFullAndCdcEvent(String taskId);
 }

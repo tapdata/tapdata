@@ -5,6 +5,7 @@ import com.alibaba.fastjson.JSONArray;
 import com.google.common.collect.Maps;
 import com.google.gson.reflect.TypeToken;
 import com.tapdata.manager.common.utils.JsonUtil;
+import com.tapdata.tm.alarm.service.AlarmService;
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.*;
 import com.tapdata.tm.commons.dag.DAG;
@@ -87,6 +88,7 @@ public class TaskController extends BaseController {
     private SnapshotEdgeProgressService snapshotEdgeProgressService;
     private TaskRecordService taskRecordService;
     private WorkerService workerService;
+    private AlarmService alarmService;
 
     /**
      * Create a new instance of the model and persist it into the data source
@@ -442,9 +444,16 @@ public class TaskController extends BaseController {
         HashMap<String, Long> countValue = new HashMap<>();
         countValue.put("count", count);
 
+        Object id = where.get("_id");
+        if (count > 0) {
+            boolean containsKey = ((Document) update.get("$set")).containsKey("milestones");
+            if (containsKey) {
+                alarmService.checkFullAndCdcEvent(id.toString());
+            }
+        }
+
         //更新完任务，addMessage
         try {
-            Object id = where.get("_id");
             String status = update.getString("status");
             if (StringUtils.isNotEmpty(status) && null != id) {
                 String idString = id.toString();
