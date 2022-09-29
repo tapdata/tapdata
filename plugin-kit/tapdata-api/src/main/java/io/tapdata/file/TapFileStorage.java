@@ -1,9 +1,7 @@
 package io.tapdata.file;
 
-import io.tapdata.entity.error.CoreException;
-
 import java.io.InputStream;
-import java.lang.reflect.InvocationTargetException;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
@@ -27,11 +25,11 @@ public interface TapFileStorage {
     /**
      * Get file by path. The path should be relative path without protocol. like
      * /root/app/tapdata/1.png
-     *
+     * <p>
      * should not be
      * c:\root\app\tapdata\1.png
      * file://root/app/tapdata/1.png
-     *
+     * <p>
      * if file/directory is not exist on the path, return null, shall avoid to throw exception.
      *
      * @param path
@@ -41,9 +39,9 @@ public interface TapFileStorage {
 
     /**
      * Read a path into InputStream to transfer the file bytes into network or other storages.
-     *
+     * <p>
      * InputStream need to be closed when finish using.
-     *
+     * <p>
      * if file is not exists on path, then return null.
      *
      * @param path
@@ -63,7 +61,7 @@ public interface TapFileStorage {
     /**
      * Move file or directory from sourcePath to destPath.
      * Return true means move successfully， otherwise is false.
-     *
+     * <p>
      * If either sourcePath or destPath is not exist, shall return false.
      *
      * @param sourcePath
@@ -98,13 +96,13 @@ public interface TapFileStorage {
      * If directoryPath is not exists or is a file, then throw CoreException with specified code.
      *
      * @param directoryPath
-     * @param includeReg can be null
-     * @param excludeReg can be null
+     * @param includeRegs   can be null
+     * @param excludeRegs   can be null
      * @param recursive
-     * @param batchSize the max batch size when consumer accept a batch TapFile.
-     * @param consumer accept a batch of TapFile.
+     * @param batchSize     the max batch size when consumer accept a batch TapFile.
+     * @param consumer      accept a batch of TapFile.
      */
-    void getFilesInDirectory(String directoryPath, String includeReg, String excludeReg, boolean recursive, int batchSize, Consumer<List<TapFile>> consumer);
+    void getFilesInDirectory(String directoryPath, Collection<String> includeRegs, Collection<String> excludeRegs, boolean recursive, int batchSize, Consumer<List<TapFile>> consumer);
 
     /**
      * Check the directory is exists or not on the path.

@@ -1,13 +1,16 @@
 package io.tapdata.storage.local;
 
+import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.file.TapFile;
 import io.tapdata.file.TapFileStorage;
 
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
@@ -64,28 +67,51 @@ public class LocalFileStorage implements TapFileStorage {
             Files.move(Paths.get(sourcePath), Paths.get(destPath));
             return true;
         } catch (IOException e) {
-            throw new RuntimeException(e);
+            TapLogger.warn(TAG, "move file failed!", e);
+            return false;
         }
     }
 
     @Override
     public boolean delete(String path) {
-        return false;
+        try {
+            return Files.deleteIfExists(Paths.get(path));
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     @Override
     public TapFile saveFile(String path, InputStream is, boolean canReplace) {
-        return null;
+        if (isDirectoryExist(path)) {
+            return null;
+        }
+        if (isFileExist(path) && !canReplace) {
+            return getFile(path);
+        }
+        try {
+            OutputStream os = Files.newOutputStream(Paths.get(path));
+            int bytesRead;
+            byte[] buffer = new byte[8192];
+            while ((bytesRead = is.read(buffer, 0, 8192)) != -1) {
+                os.write(buffer, 0, bytesRead);
+            }
+            os.close();
+            return getFile(path);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     @Override
-    public void getFilesInDirectory(String directoryPath, String includeReg, String excludeReg, boolean recursive, int batchSize, Consumer<List<TapFile>> consumer) {
-
+    public void getFilesInDirectory(String directoryPath, Collection<String> includeRegs, Collection<String> excludeRegs, boolean recursive, int batchSize, Consumer<List<TapFile>> consumer) {
+//        Files.
     }
 
     @Override
     public boolean isDirectoryExist(String path) {
-        return false;
+        File file = new File(path);
+        return file.exists() && file.isDirectory();
     }
 
 }

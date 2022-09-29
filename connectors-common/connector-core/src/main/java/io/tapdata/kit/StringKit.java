@@ -1,9 +1,7 @@
 package io.tapdata.kit;
 
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Iterator;
-import java.util.List;
+import java.util.*;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 public class StringKit {
@@ -198,5 +196,17 @@ public class StringKit {
         } else {
             return str.toLowerCase();
         }
+    }
+
+    public static List<String> matchRegs(Collection<String> collection, Collection<String> includeRegs, Collection<String> excludeRegs) {
+        List<String> res = new ArrayList<>();
+        collection.forEach(str -> {
+            if ((EmptyKit.isEmpty(includeRegs) || includeRegs.stream().anyMatch(reg -> Pattern.matches(reg, str)))
+                    && (EmptyKit.isEmpty(excludeRegs) || excludeRegs.stream().noneMatch(reg -> Pattern.matches(reg, str)))) {
+                res.add(str);
+            }
+        });
+        res.sort(Comparator.naturalOrder());
+        return res;
     }
 }
