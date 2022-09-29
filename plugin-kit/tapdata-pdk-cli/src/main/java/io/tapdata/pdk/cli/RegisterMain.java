@@ -35,8 +35,6 @@ public class RegisterMain {
         Mariadb(BASE_PATH + "connectors/dist/mariadb-connector-v1.0-SNAPSHOT.jar", "all", "mariadb"),
         Coding(BASE_PATH + "connectors/dist/Coding-connector-v1.0-SNAPSHOT.jar", "all", "coding"),
         ZoHo(BASE_PATH + "connectors/dist/ZoHo-connector-v1.0-SNAPSHOT.jar", "all", "zoho"),
-        Coding(BASE_PATH + "connectors/dist/coding-connector-v1.0-SNAPSHOT.jar", "all", "coding"),
-        Mariadb(BASE_PATH + "connectors/dist/mariadb-connector-v1.0-SNAPSHOT.jar", "all", "mariadb"),
         Tidb(BASE_PATH + "connectors/dist/tidb-connector-v1.0-SNAPSHOT.jar", "all", "tidb"),
 
 
