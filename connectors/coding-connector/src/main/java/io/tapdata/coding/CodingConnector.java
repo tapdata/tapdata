@@ -77,8 +77,9 @@ public class CodingConnector extends ConnectorBase {
 			throw new CoreException("Error in connection parameter [streamReadType], please go to verify");
 		}
 		switch (streamReadType){
-			case "Polling":this.connectorFunctions.supportStreamRead(this::streamRead);break;
-			case "WebHook":this.connectorFunctions.supportRawDataCallbackFilterFunction(this::rawDataCallbackFilterFunction);break;
+			//反向赋空，如果使用webhook那么取消polling能力，如果使用polling南无取消webhook能力,一山不容二虎.--------GavinXiao
+			case "WebHook":this.connectorFunctions.supportStreamRead(null);break;
+			case "Polling":this.connectorFunctions.supportRawDataCallbackFilterFunction(null);break;
 //			default:
 //				throw new CoreException("Error in connection parameters [streamReadType],just be [WebHook] or [Polling], please go to verify");
 		}
@@ -222,47 +223,56 @@ public class CodingConnector extends ConnectorBase {
 	}
 
 	private List<TapEvent> rawDataCallbackFilterFunction(TapConnectorContext connectorContext, Map<String, Object> issueEventData) {
-		if (Checker.isEmpty(issueEventData)){
-			TapLogger.debug(TAG,"An event with Event Data is null or empty,this callBack is stop.The data has been discarded. Data detial is:"+issueEventData);
+		if (Checker.isEmpty(issueEventData)) {
+			TapLogger.debug(TAG, "An event with Event Data is null or empty,this callBack is stop.The data has been discarded. Data detial is:" + issueEventData);
 			return null;
 		}
 		Object issueObj = issueEventData.get("issue");
-		if (Checker.isEmpty(issueObj)){
-			TapLogger.debug(TAG,"An event with Issue Data is null or empty,this callBack is stop.The data has been discarded. Data detial is:"+issueEventData);
+		if (Checker.isEmpty(issueObj)) {
+			TapLogger.debug(TAG, "An event with Issue Data is null or empty,this callBack is stop.The data has been discarded. Data detial is:" + issueEventData);
 			return null;
 		}
 		String webHookEventType = String.valueOf(issueEventData.get("event"));
-		Map<String, Object> issueMap = (Map<String, Object>)issueObj;
+		Map<String, Object> issueMap = (Map<String, Object>) issueObj;
 		Object codeObj = issueMap.get("code");
-		if (Checker.isEmpty(codeObj)){
-			TapLogger.debug(TAG,"An event with Issue Code is be null or be empty,this callBack is stop.The data has been discarded. Data detial is:"+issueEventData);
+		if (Checker.isEmpty(codeObj)) {
+			TapLogger.debug(TAG, "An event with Issue Code is be null or be empty,this callBack is stop.The data has been discarded. Data detial is:" + issueEventData);
 			return null;
 		}
 		IssueLoader loader = IssueLoader.create(connectorContext);
 		ContextConfig contextConfig = loader.veryContextConfigAndNodeConfig();
 
 		IssueType issueType = contextConfig.getIssueType();
-		if (Checker.isNotEmpty(issueType)){
+		if (Checker.isNotEmpty(issueType)) {
 			String issueTypeName = issueType.getName();
 			Object o = issueMap.get("type");
-			if (Checker.isNotEmpty(o) && !"ALL".equals(issueTypeName) && !issueTypeName.equals(o)){
+			if (Checker.isNotEmpty(o) && !"ALL".equals(issueTypeName) && !issueTypeName.equals(o)) {
 				return null;
 			}
 		}
 		String iterationCodes = contextConfig.getIterationCodes();
-		if (Checker.isNotEmpty(iterationCodes)){
-			Object iterationObj = issueMap.get("iteration");
-			if (Checker.isNotEmpty(iterationObj)) {
+		Object iterationObj = issueMap.get("iteration");
+		if ( Checker.isNotEmpty(iterationCodes) && !"-1".equals(iterationCodes) ) {
+			if(Checker.isNotEmpty(iterationObj)) {
 				Object iteration = ((Map<String, Object>) iterationObj).get("code");
-				if (Checker.isNotEmpty(iteration) && !iterationCodes.matches(".*"+String.valueOf(iteration)+".*")) {
+				if (Checker.isNotEmpty(iteration) && !iterationCodes.matches(".*" + String.valueOf(iteration) + ".*")) {
 					return null;
 				}
+			}else {
+				return null;
 			}
 		}
 
+
+
 		//TapLogger.debug(TAG, "Start {} stream read [WebHook]", "Issues");
 		TapEvent event = null;
-		long referenceTime = System.currentTimeMillis();
+		Object referenceTimeObj = issueMap.get("updated_at");
+		Long referenceTime = null;
+		if (Checker.isNotEmpty(referenceTimeObj)) {
+			referenceTime = (Long) referenceTimeObj;
+		}
+
 		CodingEvent issueEvent = CodingEvent.event(webHookEventType);
 
 		Map<String, Object> issueDetail = null;
@@ -558,7 +568,7 @@ public class CodingConnector extends ConnectorBase {
 				//如果不在，说明时全新增加或修改的数据，需要在本次读取这条数据
 				//如果在，说明上一次批量读取中以及读取了这条数据，本次不在需要读取 !currentTimePoint.equals(lastTimePoint) &&
 				if (!lastTimeSplitIssueCode.contains(issueDetialHash)) {
-					events[0].add(insertRecordEvent(issueDetail, readTable).referenceTime(referenceTime));
+					events[0].add(insertRecordEvent(issueDetail, readTable).referenceTime(System.currentTimeMillis()));
 
 					if (null == currentTimePoint || !currentTimePoint.equals(this.lastTimePoint)){
 						this.lastTimePoint = currentTimePoint;
