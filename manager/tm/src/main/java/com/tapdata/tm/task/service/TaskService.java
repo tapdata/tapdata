@@ -1914,7 +1914,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                 .and("grnty").is("hour")
                 .and("tags.type").is("task");
         Query query1 = new Query(in);
-        query1.fields().include("ss");
+        query1.fields().include("ss", "tags");
         DateTimeFormatter format = DateTimeFormatter.ofPattern("yyyyMMdd");
         List<MeasurementEntity> measurementEntities = repository.getMongoOperations().find(query1, MeasurementEntity.class, "AgentMeasurementV2");
 
