@@ -5,7 +5,6 @@ import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.memory.MemoryFetcher;
 import io.tapdata.entity.utils.DataMap;
-import io.tapdata.entity.utils.TypeHolder;
 import io.tapdata.modules.api.net.entity.NodeHealth;
 import io.tapdata.modules.api.net.entity.NodeRegistry;
 import io.tapdata.modules.api.net.entity.ProxySubscription;
@@ -13,23 +12,17 @@ import io.tapdata.modules.api.net.error.NetErrors;
 import io.tapdata.modules.api.net.service.node.NodeHealthService;
 import io.tapdata.modules.api.net.service.node.NodeRegistryService;
 import io.tapdata.modules.api.net.service.ProxySubscriptionService;
-import io.tapdata.modules.api.net.service.node.connection.NodeConnection;
 import io.tapdata.modules.api.net.service.node.connection.NodeConnectionFactory;
-import io.tapdata.pdk.apis.entity.CommandInfo;
 import io.tapdata.pdk.core.executor.ExecutorsManager;
 import io.tapdata.pdk.core.utils.CommonUtils;
-import io.tapdata.pdk.core.utils.RandomDraw;
 import io.tapdata.wsserver.channels.gateway.GatewaySessionManager;
 
-import java.io.IOException;
-import java.lang.reflect.Type;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
 @Bean
@@ -254,13 +247,13 @@ public class NodeHealthManager implements MemoryFetcher {
 	}
 
 	@Override
-	public DataMap memory(List<String> mapKeys, String memoryLevel) {
-		DataMap dataMap = DataMap.create()
+	public DataMap memory(String keyRegex, String memoryLevel) {
+		DataMap dataMap = DataMap.create().keyRegex(keyRegex)/*.prefix(this.getClass().getSimpleName())*/
 				.kv("started", started.get())
 				.kv("currentNodeHealth", currentNodeHealth)
 				.kv("nodeDeadExpiredSeconds", nodeDeadExpiredSeconds)
-				.kv("nodeConnectionFactory", nodeConnectionFactory.memory(mapKeys, memoryLevel));
-		DataMap idNodeHandlerMap = DataMap.create();
+				.kv("nodeConnectionFactory", nodeConnectionFactory.memory(keyRegex, memoryLevel));
+		DataMap idNodeHandlerMap = DataMap.create().keyRegex(keyRegex)/*.prefix(this.getClass().getSimpleName())*/;
 		dataMap.kv("idNodeHandlerMap", idNodeHandlerMap);
 		for(Map.Entry<String, NodeHandler> entry : this.idNodeHandlerMap.entrySet()) {
 			idNodeHandlerMap.kv(entry.getKey(), entry.getValue());

@@ -221,7 +221,7 @@ public class CodingConnector extends ConnectorBase {
 		return new CommandResult().result(pageResult);
 	}
 
-	private TapEvent rawDataCallbackFilterFunction(TapConnectorContext connectorContext, Map<String, Object> issueEventData) {
+	private List<TapEvent> rawDataCallbackFilterFunction(TapConnectorContext connectorContext, Map<String, Object> issueEventData) {
 		if (Checker.isEmpty(issueEventData)){
 			TapLogger.debug(TAG,"An event with Event Data is null or empty,this callBack is stop.The data has been discarded. Data detial is:"+issueEventData);
 			return null;
@@ -260,7 +260,7 @@ public class CodingConnector extends ConnectorBase {
 			}
 		}
 
-		TapLogger.debug(TAG, "Start {} stream read [WebHook]", "Issues");
+		//TapLogger.debug(TAG, "Start {} stream read [WebHook]", "Issues");
 		TapEvent event = null;
 		long referenceTime = System.currentTimeMillis();
 		CodingEvent issueEvent = CodingEvent.event(webHookEventType);
@@ -306,11 +306,11 @@ public class CodingConnector extends ConnectorBase {
 					event = insertRecordEvent(issueDetail, "Issues").referenceTime(referenceTime)  ;
 				};break;
 			}
-			TapLogger.debug(TAG, "End {} stream read [WebHook]", "Issues");
+			//TapLogger.debug(TAG, "End {} stream read [WebHook]", "Issues");
 		}else {
 			TapLogger.debug(TAG,"An event type with unknown origin was found and cannot be processed - ["+event+"]. The data has been discarded. Data to be processed:"+issueDetail);
 		}
-		return event;
+		return Collections.singletonList(event);
 	}
 
 	private void streamRead(
@@ -341,9 +341,9 @@ public class CodingConnector extends ConnectorBase {
 		while (isAlive()) {
 			long current = tableUpdateTimeMap.get(tableList.get(0));
 			Long last = Long.MAX_VALUE;
-			TapLogger.debug(TAG, "start {} stream read [Polling]", currentTable);
+			//TapLogger.debug(TAG, "start {} stream read [Polling]", currentTable);
 			this.read(nodeContext, current, last, currentTable, recordSize, codingOffset, consumer,tableList.get(0));
-			TapLogger.debug(TAG, "compile {} once stream read [Polling]", currentTable);
+			//TapLogger.debug(TAG, "compile {} once stream read [Polling]", currentTable);
 			synchronized (this) {
 				try {
 					this.wait(streamExecutionGap);

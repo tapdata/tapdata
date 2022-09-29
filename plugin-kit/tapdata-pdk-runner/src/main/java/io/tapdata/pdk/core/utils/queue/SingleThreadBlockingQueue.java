@@ -305,8 +305,8 @@ public class SingleThreadBlockingQueue<T> implements Runnable, MemoryFetcher {
     }
 
     @Override
-    public DataMap memory(List<String> mapKeys, String memoryLevel) {
-        return DataMap.create()
+    public DataMap memory(String keyRegex, String memoryLevel) {
+        return DataMap.create().keyRegex(keyRegex)/*.prefix(this.getClass().getSimpleName())*/
                 .kv("name", name)
                 .kv("handleSize", handleSize)
                 .kv("maxSize", maxSize)

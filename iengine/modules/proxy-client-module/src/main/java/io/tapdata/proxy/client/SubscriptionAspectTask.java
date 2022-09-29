@@ -15,6 +15,8 @@ import io.tapdata.entity.annotations.Bean;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.logger.TapLogger;
+import io.tapdata.entity.memory.MemoryFetcher;
+import io.tapdata.entity.utils.DataMap;
 import io.tapdata.modules.api.net.data.IncomingData;
 import io.tapdata.modules.api.net.data.Result;
 import io.tapdata.modules.api.net.error.NetErrors;
@@ -32,6 +34,7 @@ import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Date;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -126,9 +129,9 @@ public class SubscriptionAspectTask extends AbstractAspectTask {
 
 							for(MessageEntity message : messages) {
 								PDKInvocationMonitor.invoke(connectorNode, PDKMethod.RAW_DATA_CALLBACK_FILTER, () -> {
-									TapEvent tapEvent = function.filter(connectorNode.getConnectorContext(), message.getContent());
-									if(tapEvent != null)
-										events.add(tapEvent);
+									List<TapEvent> tapEvents = function.filter(connectorNode.getConnectorContext(), message.getContent());
+									if(tapEvents != null)
+										events.addAll(tapEvents);
 								}, TAG);
 							}
 							if(!messages.isEmpty()) {
@@ -270,5 +273,12 @@ public class SubscriptionAspectTask extends AbstractAspectTask {
 		proxySubscriptionManager.removeTaskSubscribeInfo(taskSubscribeInfo);
 		if(streamReadFuncAspect != null)
 			streamReadFuncAspect.noMoreWaitRawData();
+	}
+
+	@Override
+	public DataMap memory(String keyRegex, String memoryLevel) {
+		return super.memory(keyRegex, memoryLevel)
+				.kv("taskStartTime", taskStartTime != null ? new Date(taskStartTime) : null)
+				.kv("taskSubscribeInfo", taskSubscribeInfo);
 	}
 }

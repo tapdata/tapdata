@@ -163,6 +163,8 @@ public class NodeConnectionHttpImpl implements NodeConnection {
 		theExecutorService.allowCoreThreadTimeOut(true);
 		List<String> pendingIps = new ArrayList<>(ips);
 		for(String ip : ips) {
+//			if(ip.equals("127.0.0.1") || ip.equals("localhost"))
+//				continue;
 			long time = System.currentTimeMillis();
 			theExecutorService.execute(() -> {
 				String url = "http://" + ip + ":" + port + "/api/proxy/internal?key=" + ProxyConstants.INTERNAL_KEY + "&ping=" + nodeRegistry.id();
@@ -348,8 +350,8 @@ public class NodeConnectionHttpImpl implements NodeConnection {
 	}
 
 	@Override
-	public DataMap memory(List<String> mapKeys, String memoryLevel) {
-		return DataMap.create()
+	public DataMap memory(String keyRegex, String memoryLevel) {
+		return DataMap.create().keyRegex(keyRegex)/*.prefix(this.getClass().getSimpleName())*/
 				.kv("stateMachine", stateMachine.getCurrentState())
 				.kv("nodeRegistry", nodeRegistry)
 				.kv("terminateReason", terminateReason)
@@ -357,7 +359,7 @@ public class NodeConnectionHttpImpl implements NodeConnection {
 				.kv("retryTimes", retryTimes)
 				.kv("touch", new Date(touch))
 				.kv("workableIps", workableIps)
-				.kv("asyncQueue", asyncQueue.memory(mapKeys, memoryLevel))
+				.kv("asyncQueue", asyncQueue.memory(keyRegex, memoryLevel))
 				;
 	}
 }

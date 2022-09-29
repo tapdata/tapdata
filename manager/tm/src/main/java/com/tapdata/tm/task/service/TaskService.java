@@ -925,7 +925,10 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         updateById(taskDto.getId(), update, user);
 
         taskDto.setStatus(TaskDto.STATUS_WAIT_START);
+        taskDto.setAgentId(null);
         taskDto.setTaskRecordId(lastTaskRecordId);
+        taskDto.setAccessNodeType(AccessNodeTypeEnum.AUTOMATIC_PLATFORM_ALLOCATION.name());
+        taskDto.setAccessNodeProcessIdList(Lists.newArrayList());
 
         //清除校验结果
         taskAutoInspectResultsService.cleanResultsByTask(taskDto);
