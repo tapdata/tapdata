@@ -12,30 +12,7 @@
       "properties": {
       }
     },
-    "stateMap": {
-      "type": "object",
-      "properties": {
-        "refreshToken": {
-          "type": "String",
-          "title": "${refreshToken}",
-          "x-decorator": "FormItem",
-          "x-component": "Input",
-          "apiServerKey": "database_host",
-          "x-index": 50,
-          "required": true
-        },
-        "accessToken": {
-          "type": "String",
-          "title": "${accessToken}",
-          "x-decorator": "FormItem",
-          "x-component": "Input",
-          "apiServerKey": "database_host",
-          "x-index": 60,
-          "required": true
-        }
-      }
-    },
-    "connection":{
+    "connection": {
       "type": "object",
       "properties": {
         "clientID": {
@@ -74,11 +51,12 @@
           }
         },
         "getTokenButton": {
-          "type": "void",
-          "title": " ",
+          "type": "string",
+          "title": "${tokenButton}",
           "x-decorator": "FormItem",
+          "extra": true,
           "x-component-props": {
-            "onClick": "{{useAsyncDataSourceByConfig({service: getTokenCommand, withoutField: true}, $values, $form, { command: 'TokenCommand', fill: ['refreshToken', 'accessToken'] })}}"
+            "onClick": "{{useAsyncDataSourceByConfig({service: getCommandAndSetValue, withoutField: true}, $values, $form, { command: 'TokenCommand' })}}"
           },
           "x-reactions": [{
             "dependencies": ["generateCode"],
@@ -96,7 +74,7 @@
             }
           }],
           "x-content": "hookButton",
-          "x-component": "Button",
+          "x-component": "CommandButton",
           "x-index": 41
         },
         "getTokenMsg": {
@@ -122,10 +100,10 @@
         },
         "getRefreshTokenButton": {
           "type": "void",
-          "title": " ",
+          "title": "${tokenButton}",
           "x-decorator": "FormItem",
           "x-component-props": {
-            "onClick": "{{useAsyncDataSourceByConfig({service: refreshTokenCommand, withoutField: true}, {name:'getRefreshTokenButton'}, $values, $form, { command: 'RefreshTokenCommand', fill: ['accessToken','getRefreshMsg'] })}}"
+            "onClick": "{{useAsyncDataSourceByConfig({service: getCommandAndSetValue, withoutField: true}, $values, $form, { command: 'RefreshTokenCommand' })}}"
           },
           "x-reactions": [{
             "dependencies": ["refreshToken"],
@@ -158,7 +136,7 @@
               }
             }
           }],
-          "x-index": 42
+          "x-index": 44
         },
         "refreshToken": {
           "type": "String",
@@ -271,6 +249,7 @@
       "orgId": "Organization",
       "webHook": "Service Hook",
       "hookButton": "Hook Button",
+      "tokenButton": "Get Token",
 
       "iterationCodes": "Iteration",
       "issueType": "Issue Type",
@@ -319,6 +298,7 @@
       "orgId": "组织",
       "webHook": "Service Hook",
       "hookButton": "Hook Button",
+      "tokenButton": "获取令牌",
 
       "connectionMode": "连接模式",
       "document": "普通文档格式",
@@ -357,6 +337,7 @@
       "orgId": "組織",
       "webHook": "Service Hook",
       "hookButton": "Hook Button",
+      "tokenButton": "獲取權杖",
 
       "connectionMode": "連接模式",
       "document": "普通文檔格式",

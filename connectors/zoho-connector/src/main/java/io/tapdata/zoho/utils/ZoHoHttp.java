@@ -1,9 +1,6 @@
 package io.tapdata.zoho.utils;
 
-import cn.hutool.http.HttpRequest;
-import cn.hutool.http.HttpResponse;
-import cn.hutool.http.HttpStatus;
-import cn.hutool.http.HttpUtil;
+import cn.hutool.http.*;
 import cn.hutool.json.JSONObject;
 import cn.hutool.json.JSONUtil;
 import io.tapdata.entity.logger.TapLogger;
@@ -71,7 +68,6 @@ public class ZoHoHttp {
         this.form = form;
         return this;
     }
-
     private void beforeSend(){
         if (Checker.isEmpty(this.refreshToken)){
 //            TapLogger.debug(TAG,"refresh_token is empty.");

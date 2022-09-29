@@ -112,16 +112,36 @@ public class ZoHoConnector extends ConnectorBase {
 			TapLogger.debug(TAG,"WebHook of ZoHo patch body is empty, Data callback has been over.");
 			return null;
 		}
-		//@TODO 获取筛选条件
-		TicketLoader ticketLoader = TicketLoader.create(connectorContext);
-		ContextConfig contextConfig = ticketLoader.veryContextConfigAndNodeConfig();
-
-		EventBaseEntity instanceByEventType = EventBaseEntity.getInstanceByEventType(issueEventData);
-		if (Checker.isEmpty(instanceByEventType)){
-			TapLogger.debug(TAG,"An event type with unknown origin was found and cannot be processed .");
+		Object listObj = issueEventData.get("data");
+		if (Checker.isEmpty(listObj) && !(listObj instanceof List)){
+			TapLogger.debug(TAG,"WebHook of ZoHo patch body is empty, Data callback has been over.");
 			return null;
 		}
-		return instanceByEventType.outputTapEvent("Tickets");
+		List<Map<String,Object>> dataEventList = (List<Map<String, Object>>)listObj;
+		final List<TapEvent>[] events = new List[]{new ArrayList<>()};
+		//@TODO BiConsumer<List<TapEvent>, Object> consumer;
+		dataEventList.forEach(eventMap->{
+			//@TODO 获取筛选条件
+			TicketLoader ticketLoader = TicketLoader.create(connectorContext);
+			ContextConfig contextConfig = ticketLoader.veryContextConfigAndNodeConfig();
+
+			EventBaseEntity instanceByEventType = EventBaseEntity.getInstanceByEventType(issueEventData);
+			if (Checker.isEmpty(instanceByEventType)){
+				TapLogger.debug(TAG,"An event type with unknown origin was found and cannot be processed .");
+				return;
+			}
+			events[0].add(instanceByEventType.outputTapEvent("Tickets"));
+			//consumer.accept(events[0], offsetState);
+			//if (events[0].size() == readSize){
+			//	consumer.accept(events[0], offsetState);
+			//	events[0] = new ArrayList<>();
+			//}
+		});
+		if (events[0].size()>0){
+			//	consumer.accept(events[0], offsetState);
+		}
+		return null;
+		//return instanceByEventType.outputTapEvent("Tickets");
 	}
 
 	private void streamRead(
