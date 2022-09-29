@@ -24,8 +24,4 @@ public class MetadataDefinitionDto extends BaseDto {
     private String linkId;
     private Boolean readOnly;
 
-    private String desc;
-
-    private long objCount;
-
 }
