@@ -1,4 +1,4 @@
-package io.tapdata.common;
+package io.tapdata.storage;
 
 public enum FileProtocolEnum {
 

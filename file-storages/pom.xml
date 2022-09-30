@@ -8,6 +8,7 @@
     <packaging>pom</packaging>
 	<version>1.0-SNAPSHOT</version>
     <modules>
+		<module>file-core</module>
 		<module>local-file</module>
     </modules>
 	<properties>
