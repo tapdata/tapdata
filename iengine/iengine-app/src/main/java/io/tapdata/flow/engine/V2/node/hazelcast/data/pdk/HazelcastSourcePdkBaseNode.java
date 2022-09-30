@@ -66,6 +66,7 @@ import org.apache.logging.log4j.ThreadContext;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.data.mongodb.core.query.Query;
 
+import java.text.MessageFormat;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -352,7 +353,7 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 			}
 		} catch (Exception e) {
 			logger.error("Source sync failed {}.", e.getMessage(), e);
-			obsLogger.error("Source sync failed {}.", e.getMessage(), e);
+			obsLogger.error(MessageFormat.format("Source sync failed {0}.", e.getMessage()), e);
 			throw new SourceException(e, true);
 		} finally {
 			ThreadContext.clearAll();
