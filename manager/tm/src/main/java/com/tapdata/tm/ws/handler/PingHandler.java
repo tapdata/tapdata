@@ -18,7 +18,7 @@ public class PingHandler implements WebSocketHandler {
     @Override
     public void handleMessage(WebSocketContext context) throws Exception {
         MessageInfo messageInfo = context.getMessageInfo();
-        if (messageInfo == null){
+        if (messageInfo != null){
             try {
                 WebSocketManager.sendMessage(context.getSender(), "{\"type\":\"pong\"}");
             } catch (Exception e) {

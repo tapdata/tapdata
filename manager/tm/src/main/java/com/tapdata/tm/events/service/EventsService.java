@@ -270,7 +270,8 @@ public class EventsService extends BaseService<EventsDto, Events, ObjectId, Even
         Query query = Query.query(Criteria.where("id").is(id));
         update.inc("failed_result.retry", 1);
         update.set("failed_result.fail_message", sendStatus.getErrorMessage());
-        return super.update(query, update, userDetail);
+        update.set("event_status", sendStatus.getStatus());
+        return super.update(query, update);
     }
 
 
@@ -280,7 +281,9 @@ public class EventsService extends BaseService<EventsDto, Events, ObjectId, Even
     public Long updateEventStatus(ObjectId id, String eventStatus, UserDetail userDetail) {
         Update update = new Update();
         update.set("event_status", eventStatus);
-        UpdateResult updateResult = super.updateById(id, update, userDetail);
+        update.inc("failed_result.retry", 1);
+        update.set("failed_result.fail_message", "");
+        UpdateResult updateResult = super.update(Query.query(Criteria.where("id").is(id)), update);
         return updateResult.getModifiedCount();
     }
 
