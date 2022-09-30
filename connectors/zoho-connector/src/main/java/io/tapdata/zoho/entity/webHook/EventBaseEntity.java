@@ -2,6 +2,7 @@ package io.tapdata.zoho.entity.webHook;
 
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.logger.TapLogger;
+import io.tapdata.zoho.service.connectionMode.ConnectionMode;
 import io.tapdata.zoho.utils.Checker;
 
 import java.util.Map;
@@ -44,7 +45,7 @@ public abstract class EventBaseEntity<T> {
     /**
      * 子类实现了此方法按自己类型输出对应得TapEvent事件
      * */
-    public abstract TapEvent outputTapEvent(String table);
+    public abstract TapEvent outputTapEvent(String table, ConnectionMode instance);
 
 
 

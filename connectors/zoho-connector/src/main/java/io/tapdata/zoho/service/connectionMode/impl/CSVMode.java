@@ -138,21 +138,8 @@ public class CSVMode implements ConnectionMode {
         }
         return null;
     }
-
     @Override
-    public Map<String,Object> attributeAssignment(Map<String,Object> stringObjectMap) {
-        Object ticketIdObj = stringObjectMap.get("id");
-        if (Checker.isEmpty(ticketIdObj)){
-            TapLogger.debug(TAG,"Ticket Id can not be null or not be empty.");
-            return null;
-        }
-        TicketLoader ticketLoader = TicketLoader.create(connectionContext);
-        Map<String, Object> ticketDetail = ticketLoader.getOne((String) ticketIdObj);
-        //把分页结果中具有但详情结果中不具有切CSV结构数据需要的结构进行提取
-        ticketDetail.put("department",stringObjectMap.get("department"));
-        ticketDetail.put("contact",stringObjectMap.get("contact"));
-        ticketDetail.put("assignee",stringObjectMap.get("assignee"));
-
+    public Map<String,Object> attributeAssignmentSelf(Map<String,Object> ticketDetail) {
         Map<String,Object> ticketCSVDetail = new HashMap<>();
         //加入自定义属性
         Map<String, Object> customFieldMap = this.setCustomField(ticketDetail, contextConfig);
@@ -203,6 +190,21 @@ public class CSVMode implements ConnectionMode {
         );
         this.removeJsonNull(ticketCSVDetail);
         return ticketCSVDetail;
+    }
+    @Override
+    public Map<String,Object> attributeAssignment(Map<String,Object> stringObjectMap) {
+        Object ticketIdObj = stringObjectMap.get("id");
+        if (Checker.isEmpty(ticketIdObj)){
+            TapLogger.debug(TAG,"Ticket Id can not be null or not be empty.");
+            return null;
+        }
+        TicketLoader ticketLoader = TicketLoader.create(connectionContext);
+        Map<String, Object> ticketDetail = ticketLoader.getOne((String) ticketIdObj);
+        //把分页结果中具有但详情结果中不具有切CSV结构数据需要的结构进行提取
+        ticketDetail.put("department",stringObjectMap.get("department"));
+        ticketDetail.put("contact",stringObjectMap.get("contact"));
+        ticketDetail.put("assignee",stringObjectMap.get("assignee"));
+        return this.attributeAssignmentSelf(ticketDetail);
     }
 
     //CustomFields

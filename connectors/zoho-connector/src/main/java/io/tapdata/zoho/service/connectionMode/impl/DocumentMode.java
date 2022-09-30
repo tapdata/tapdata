@@ -100,6 +100,11 @@ public class DocumentMode implements ConnectionMode {
     }
 
     @Override
+    public Map<String,Object> attributeAssignmentSelf(Map<String,Object> ticketDetail) {
+        this.removeJsonNull(ticketDetail);
+        return ticketDetail;
+    }
+    @Override
     public Map<String,Object> attributeAssignment(Map<String,Object> stringObjectMap) {
         Object ticketIdObj = stringObjectMap.get("id");
         if (Checker.isEmpty(ticketIdObj)){
@@ -109,8 +114,7 @@ public class DocumentMode implements ConnectionMode {
         ticketDetail.put("department",stringObjectMap.get("department"));
         ticketDetail.put("contact",stringObjectMap.get("contact"));
         ticketDetail.put("assignee",stringObjectMap.get("assignee"));
-        this.removeJsonNull(ticketDetail);
-        return ticketDetail;
+        return this.attributeAssignmentSelf(ticketDetail);
     }
     /***
     public static void main(String[] args) {

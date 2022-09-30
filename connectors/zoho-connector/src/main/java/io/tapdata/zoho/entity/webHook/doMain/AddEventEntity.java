@@ -5,6 +5,8 @@ import cn.hutool.core.bean.copier.CopyOptions;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.zoho.entity.webHook.EventBaseEntity;
+import io.tapdata.zoho.service.connectionMode.ConnectionMode;
+import io.tapdata.zoho.service.connectionMode.impl.CSVMode;
 
 import java.util.Map;
 
@@ -19,7 +21,10 @@ public class AddEventEntity extends EventBaseEntity<AddEventEntity> {
     }
 
     @Override
-    public TapEvent outputTapEvent(String table) {
-        return TapSimplify.insertRecordEvent(this.payload(),table).referenceTime(System.currentTimeMillis());
+    public TapEvent outputTapEvent(String table, ConnectionMode instance) {
+        return TapSimplify.insertRecordEvent(
+                instance instanceof CSVMode ? instance.attributeAssignmentSelf(this.payload()):this.payload()
+                ,table)
+                .referenceTime(System.currentTimeMillis());
     }
 }

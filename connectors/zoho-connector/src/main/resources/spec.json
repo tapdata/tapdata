@@ -56,7 +56,7 @@
           "x-decorator": "FormItem",
           "extra": true,
           "x-component-props": {
-            "onClick": "{{useAsyncDataSourceByConfig({service: getCommandAndSetValue, withoutField: true}, $values, $form, { command: 'TokenCommand' })}}"
+            "onClick": "{{useAsyncDataSourceByConfig({service: getCommandAndSetValue, withoutField: true}, $form, { command: 'TokenCommand' })}}"
           },
           "x-reactions": [{
             "dependencies": ["generateCode"],
@@ -103,7 +103,7 @@
           "title": "${tokenButton}",
           "x-decorator": "FormItem",
           "x-component-props": {
-            "onClick": "{{useAsyncDataSourceByConfig({service: getCommandAndSetValue, withoutField: true}, $values, $form, { command: 'RefreshTokenCommand' })}}"
+            "onClick": "{{useAsyncDataSourceByConfig({service: getCommandAndSetValue, withoutField: true}, $form, { command: 'RefreshTokenCommand' })}}"
           },
           "x-reactions": [{
             "dependencies": ["refreshToken"],

@@ -123,13 +123,18 @@ public class ZoHoConnector extends ConnectorBase {
 		//@TODO 获取筛选条件
 		TicketLoader ticketLoader = TicketLoader.create(connectorContext);
 		ContextConfig contextConfig = ticketLoader.veryContextConfigAndNodeConfig();
+		String modeName = connectorContext.getConnectionConfig().getString("connectionMode");
+		ConnectionMode instance = ConnectionMode.getInstanceByName(connectorContext, modeName);
+		if (null == instance){
+			throw new CoreException("Connection Mode must be not empty or not null.");
+		}
 		dataEventList.forEach(eventMap->{
 			EventBaseEntity instanceByEventType = EventBaseEntity.getInstanceByEventType(eventMap);
 			if (Checker.isEmpty(instanceByEventType)){
 				TapLogger.debug(TAG,"An event type with unknown origin was found and cannot be processed .");
 				return;
 			}
-			events[0].add(instanceByEventType.outputTapEvent("Tickets"));
+			events[0].add(instanceByEventType.outputTapEvent("Tickets",instance));
 			//consumer.accept(events[0], offsetState);
 			//if (events[0].size() == readSize){
 			//	consumer.accept(events[0], offsetState);

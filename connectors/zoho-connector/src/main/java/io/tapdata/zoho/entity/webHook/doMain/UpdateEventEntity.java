@@ -5,6 +5,8 @@ import cn.hutool.core.bean.copier.CopyOptions;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.zoho.entity.webHook.EventBaseEntity;
+import io.tapdata.zoho.service.connectionMode.ConnectionMode;
+import io.tapdata.zoho.service.connectionMode.impl.CSVMode;
 
 import java.util.Map;
 
@@ -27,8 +29,12 @@ public class UpdateEventEntity extends EventBaseEntity<UpdateEventEntity> {
     }
 
     @Override
-    public TapEvent outputTapEvent(String table) {
-        return TapSimplify.updateDMLEvent(this.prevState, this.payload(), table).referenceTime(System.currentTimeMillis());
+    public TapEvent outputTapEvent(String table, ConnectionMode instance) {
+        return TapSimplify.updateDMLEvent(
+                instance instanceof CSVMode ? instance.attributeAssignmentSelf(this.prevState):this.prevState,
+                instance instanceof CSVMode ? instance.attributeAssignmentSelf(this.payload()):this.payload(),
+                table)
+                .referenceTime(System.currentTimeMillis());
     }
 
     public Map<String, Object> getPrevState() {
