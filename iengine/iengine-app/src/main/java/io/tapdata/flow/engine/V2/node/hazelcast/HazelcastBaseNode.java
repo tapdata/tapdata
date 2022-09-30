@@ -113,11 +113,15 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 
 	public HazelcastBaseNode(ProcessorBaseContext processorBaseContext) {
 		this.processorBaseContext = processorBaseContext;
-		this.obsLogger = ObsLoggerFactory.getInstance().getObsLogger(
-				processorBaseContext.getTaskDto(),
-				processorBaseContext.getNode().getId(),
-				processorBaseContext.getNode().getName()
-		);
+
+		if (!StringUtils.equalsAnyIgnoreCase(processorBaseContext.getTaskDto().getSyncType(),
+				TaskDto.SYNC_TYPE_DEDUCE_SCHEMA, TaskDto.SYNC_TYPE_TEST_RUN)) {
+			this.obsLogger = ObsLoggerFactory.getInstance().getObsLogger(
+					processorBaseContext.getTaskDto(),
+					processorBaseContext.getNode().getId(),
+					processorBaseContext.getNode().getName()
+			);
+		}
 
 		if (null != processorBaseContext.getConfigurationCenter()) {
 			this.clientMongoOperator = BeanUtil.getBean(ClientMongoOperator.class);
