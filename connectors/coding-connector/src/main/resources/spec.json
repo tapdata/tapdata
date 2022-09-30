@@ -319,19 +319,19 @@
     },
     "StringNormal": {
       "to" : "TapString",
-      "byte" : 512
+      "byte" : 2048
     },
     "StringSmaller": {
       "to" : "TapString",
-      "byte" : 128
+      "byte" : 512
     },
     "StringMinor": {
       "to" : "TapString",
-      "byte" : 64
+      "byte" : 256
     },
     "StringBit": {
       "to" : "TapString",
-      "byte" : 5
+      "byte" : 20
     },
     "Integer": {
       "to": "TapNumber",
