@@ -791,37 +791,54 @@ public class DiscoveryServiceImpl implements DiscoveryService {
 
 
         for (TagBindingParam tagBindingParam : tagBindingParams) {
+
             com.tapdata.tm.base.dto.Field field = new com.tapdata.tm.base.dto.Field();
             field.put("listtags", true);
-                MetadataInstancesDto metadataInstancesDto = metadataInstancesService.findById(MongoUtils.toObjectId(tagBindingParam.getId()), field);
-                List<Tag> listtags = metadataInstancesDto.getListtags();
-                if (listtags == null) {
-                    listtags = new ArrayList<>();
-                }
-                for (Tag allTag : allTags) {
-                    if (!listtags.contains(allTag)) {
-                        listtags.add(allTag);
-                    }
-                }
-
-            if (listtags == null) {
-                listtags = new ArrayList<>();
-            }
-            for (Tag allTag : allTags) {
-                if (!listtags.contains(allTag)) {
-                    listtags.add(allTag);
-                }
-            }
-            Update update = Update.update("listtags", listtags);
             switch (tagBindingParam.getObjCategory()) {
                 case storage:
+                    MetadataInstancesDto metadataInstancesDto = metadataInstancesService.findById(MongoUtils.toObjectId(tagBindingParam.getId()), field);
+                    List<Tag> listtags = metadataInstancesDto.getListtags();
+                    if (listtags == null) {
+                        listtags = new ArrayList<>();
+                    }
+                    for (Tag allTag : allTags) {
+                        if (!listtags.contains(allTag)) {
+                            listtags.add(allTag);
+                        }
+                    }
+                    Update update = Update.update("listtags", listtags);
                     metadataInstancesService.updateById(MongoUtils.toObjectId(tagBindingParam.getId()), update, user);
                     break;
                 case job:
-                    taskService.updateById(MongoUtils.toObjectId(tagBindingParam.getId()), update, user);
+                    TaskDto taskDto = taskService.findById(MongoUtils.toObjectId(tagBindingParam.getId()), field);
+                    List<Map<String, String>> listtags1 = taskDto.getListtags();
+                    if (listtags1 == null) {
+                        listtags1 = new ArrayList<>();
+                    }
+                    for (Tag allTag : allTags) {
+                        Map<String, String> tagMap = new HashMap<>();
+                        tagMap.put("id", allTag.getId().toHexString());
+                        tagMap.put("value", allTag.getValue());
+                        if (!listtags1.contains(tagMap)) {
+                            listtags1.add(tagMap);
+                        }
+                    }
+                    Update updateJob = Update.update("listtags", listtags1);
+                    taskService.updateById(MongoUtils.toObjectId(tagBindingParam.getId()), updateJob, user);
                     break;
                 case api:
-                    modulesService.updateById(MongoUtils.toObjectId(tagBindingParam.getId()), update, user);
+                    ModulesDto modulesDto = modulesService.findById(MongoUtils.toObjectId(tagBindingParam.getId()), field);
+                    List<Tag> listtagsModules = modulesDto.getListTags();
+                    if (listtagsModules == null) {
+                        listtagsModules = new ArrayList<>();
+                    }
+                    for (Tag allTag : allTags) {
+                        if (!listtagsModules.contains(allTag)) {
+                            listtagsModules.add(allTag);
+                        }
+                    }
+                    Update updateModules = Update.update("listtags", listtagsModules);
+                    modulesService.updateById(MongoUtils.toObjectId(tagBindingParam.getId()), updateModules, user);
                     break;
                 default:
                     break;
@@ -1003,7 +1020,6 @@ public class DiscoveryServiceImpl implements DiscoveryService {
         DataDiscoveryDto dataDiscoveryDto = new DataDiscoveryDto();
         dataDiscoveryDto.setId(unionQueryResult.get_id().toHexString());
         List listtagsOld = unionQueryResult.getListtags();
-        String json = JsonUtil.toJsonUseJackson(listtagsOld);
         if (StringUtils.isNotBlank(unionQueryResult.getMeta_type())) {
             dataDiscoveryDto.setCategory(DataObjCategoryEnum.storage);
             dataDiscoveryDto.setType(unionQueryResult.getMeta_type());
@@ -1029,9 +1045,12 @@ public class DiscoveryServiceImpl implements DiscoveryService {
             dataDiscoveryDto.setName(unionQueryResult.getName());
         }
 
-        List<Tag> tags = JsonUtil.parseJsonUseJackson(json, new TypeReference<List<Tag>>() {
-        });
-        dataDiscoveryDto.setListtags(tags);
+        if (listtagsOld != null) {
+            String json = JsonUtil.toJsonUseJackson(listtagsOld);
+            List<Tag> tags = JsonUtil.parseJsonUseJackson(json, new TypeReference<List<Tag>>() {
+            });
+            dataDiscoveryDto.setListtags(tags);
+        }
         List<Tag> listtags = dataDiscoveryDto.getListtags();
         if (CollectionUtils.isNotEmpty(listtags)) {
             List<ObjectId> ids = listtags.stream().map(Tag::getId).collect(Collectors.toList());
@@ -1046,8 +1065,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
     private DataDirectoryDto convertToDataDirectory(UnionQueryResult unionQueryResult) {
         DataDirectoryDto dataDirectoryDto = new DataDirectoryDto();
         dataDirectoryDto.setId(unionQueryResult.get_id().toHexString());
-        List listtagsOld = unionQueryResult.getListtags();
-        String json = JsonUtil.toJsonUseJackson(listtagsOld);
+
         if (StringUtils.isNotBlank(unionQueryResult.getMeta_type())) {
             dataDirectoryDto.setType(unionQueryResult.getMeta_type());
             dataDirectoryDto.setSourceType(unionQueryResult.getSource() == null ? null : unionQueryResult.getSource().getDatabase_type());
@@ -1069,9 +1087,13 @@ public class DiscoveryServiceImpl implements DiscoveryService {
             dataDirectoryDto.setDesc(unionQueryResult.getDesc());
         }
 
-        List<Tag> tags = JsonUtil.parseJsonUseJackson(json, new TypeReference<List<Tag>>() {
-        });
-        dataDirectoryDto.setListtags(tags);
+        List listtagsOld = unionQueryResult.getListtags();
+        if (listtagsOld != null) {
+            String json = JsonUtil.toJsonUseJackson(listtagsOld);
+            List<Tag> tags = JsonUtil.parseJsonUseJackson(json, new TypeReference<List<Tag>>() {
+            });
+            dataDirectoryDto.setListtags(tags);
+        }
         List<Tag> listtags = dataDirectoryDto.getListtags();
         if (CollectionUtils.isNotEmpty(listtags)) {
             List<ObjectId> ids = listtags.stream().map(Tag::getId).collect(Collectors.toList());
