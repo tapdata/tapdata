@@ -24,13 +24,14 @@ public class TDDMysqlMain {
 //                "B:\\code\\tapdata\\idaas-pdk\\connectors\\aerospike-connector\\target\\aerospike-connector-v1.0-SNAPSHOT.jar",
 //                "/Users/aplomb/dev/tapdata/GithubProjects/idaas-pdk/dist/doris-connector-v1.0-SNAPSHOT.jar",
 //                "/Users/aplomb/dev/tapdata/GithubProjects/idaas-pdk/dist/empty-connector-v1.1-SNAPSHOT.jar",
-//                "/Users/aplomb/dev/tapdata/GithubProjects/idaas-pdk/dist/file-connector-v1.0-SNAPSHOT.jar",
+				//换成dist目录下绝对路径
+				"/Users/jarad/IdeaProjects/tapdata/connectors/dist/mysql-connector-v1.0-SNAPSHOT.jar",
 //				"-i", "tapdata-api",
 //                "-i", "tapdata-pdk-api",
 //                "-i", "connectors/connector-core",
 //                "-i", "connectors/mysql/mysql-core",
 //				"-m", "/Users/samuel/apache-maven-3.6.1",
-				"connectors/mysql-connector",
+//				"connectors/mysql-connector",
 		};
 
 		Main.registerCommands().execute(args);
