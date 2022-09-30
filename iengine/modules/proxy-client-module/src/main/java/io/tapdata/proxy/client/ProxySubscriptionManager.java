@@ -180,7 +180,10 @@ public class ProxySubscriptionManager implements MemoryFetcher {
 				List<TaskSubscribeInfo> taskSubscribeInfoList = typeConnectionIdSubscribeInfosMap.get(subscribeId);
 				if(taskSubscribeInfoList != null) {
 					for(TaskSubscribeInfo taskSubscribeInfo : taskSubscribeInfoList) {
-						taskSubscribeInfo.subscriptionAspectTask.enableFetchingNewData(subscribeId);
+						if(taskSubscribeInfo.subscriptionAspectTask.streamReadConsumer != null)
+							taskSubscribeInfo.subscriptionAspectTask.enableFetchingNewData(subscribeId);
+						else
+							TapLogger.debug(TAG, "streamRead is not started yet, new data request will be ignored for task {}", taskSubscribeInfo.taskId);
 					}
 				}
 				//TODO

@@ -48,7 +48,7 @@ public class TokenEncryptionTest {
 		SubscribeToken subscribeToken = new SubscribeToken();
 		subscribeToken.setService("engine");
 		subscribeToken.setSubscribeId("source#632e6df6664f9328b8bb633c");
-		subscribeToken.setExpireSeconds(Integer.MAX_VALUE);
+		subscribeToken.setExpireAt((long) Integer.MAX_VALUE);
 
 		ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
 		subscribeToken.to(byteArrayOutputStream);
@@ -67,7 +67,7 @@ public class TokenEncryptionTest {
 		decryptedToken.from(new ByteArrayInputStream(decryptedData));
 		assertEquals("engine", decryptedToken.getService());
 		assertEquals("source#632e6df6664f9328b8bb633c", decryptedToken.getSubscribeId());
-		assertEquals(Integer.MAX_VALUE, decryptedToken.getExpireSeconds());
+		assertEquals(Integer.MAX_VALUE, decryptedToken.getExpireAt());
 	}
 
 
