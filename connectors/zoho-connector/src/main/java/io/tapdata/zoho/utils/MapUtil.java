@@ -72,12 +72,12 @@ public class MapUtil {
         String currentKey = key.substring(0, index);
         Object value = map.get(currentKey);
         if (Checker.isEmpty(value)){
-            return "";//@TODO null
+            return null;//@TODO null
         }
         if (index<key.length()-1){
             String nextKey = key.substring(index + 1);
             if (value instanceof JSONNull){
-                return "";
+                return null;
             }
             else if ((value instanceof JSONObject) || (value instanceof Map)){
                 Map<String,Object> obj = (Map<String,Object>)value;
@@ -102,9 +102,9 @@ public class MapUtil {
                     //});
                 }
             }else {
-                return "";//@TODO null
+                return null;//@TODO null
             }
         }
-        return null == value ? "":value;//@TODO null
+        return value;//@TODO null
     }
 }

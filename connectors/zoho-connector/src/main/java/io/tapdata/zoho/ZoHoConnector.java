@@ -69,18 +69,18 @@ public class ZoHoConnector extends ConnectorBase {
 
 	@Override
 	public void onStart(TapConnectionContext connectionContext) throws Throwable {
-		TicketLoader.create(connectionContext).verifyConnectionConfig();
-		DataMap connectionConfig = connectionContext.getConnectionConfig();
-		String streamReadType = connectionConfig.getString("streamReadType");
-		if (Checker.isEmpty(streamReadType)){
-			throw new CoreException("Error in connection parameter [streamReadType], please go to verify");
-		}
-		switch (streamReadType){
-			//case "Polling":this.connectorFunctions.supportStreamRead(this::streamRead);break;
-			case "WebHook":this.connectorFunctions.supportRawDataCallbackFilterFunction(this::rawDataCallbackFilterFunction);break;
-			default:
-				throw new CoreException("Error in connection parameters [streamReadType],just be [WebHook], please go to verify");
-		}
+		//TicketLoader.create(connectionContext).verifyConnectionConfig();
+		//DataMap connectionConfig = connectionContext.getConnectionConfig();
+		//String streamReadType = connectionConfig.getString("streamReadType");
+		//if (Checker.isEmpty(streamReadType)){
+		//	throw new CoreException("Error in connection parameter [streamReadType], please go to verify");
+		//}
+		//switch (streamReadType){
+		//	//case "Polling":this.connectorFunctions.supportStreamRead(this::streamRead);break;
+		//	case "WebHook":this.connectorFunctions.supportRawDataCallbackFilterFunction(this::rawDataCallbackFilterFunction);break;
+		//	default:
+		//		throw new CoreException("Error in connection parameters [streamReadType],just be [WebHook], please go to verify");
+		//}
 	}
 
 	@Override
@@ -90,7 +90,7 @@ public class ZoHoConnector extends ConnectorBase {
 		}
 	}
 
-	private ConnectorFunctions connectorFunctions;
+	//private ConnectorFunctions connectorFunctions;
 	@Override
 	public void registerCapabilities(ConnectorFunctions connectorFunctions, TapCodecsRegistry codecRegistry) {
 		connectorFunctions.supportBatchRead(this::batchRead)
@@ -100,7 +100,7 @@ public class ZoHoConnector extends ConnectorBase {
 				.supportRawDataCallbackFilterFunction(this::rawDataCallbackFilterFunction)
 				.supportCommandCallbackFunction(this::handleCommand)
 		;
-		this.connectorFunctions = connectorFunctions;
+		//this.connectorFunctions = connectorFunctions;
 	}
 
 	private CommandResult handleCommand(TapConnectionContext tapConnectionContext, CommandInfo commandInfo) {

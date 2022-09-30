@@ -62,7 +62,7 @@ public class CSVMode implements ConnectionMode {
                     .add(field("createdTime","DateTime"))
                     .add(field("modifiedTime","DateTime"))
                     .add(field("closedTime","DateTime"))
-                    .add(field("dueDate","Date"))
+                    .add(field("dueDate","DateTime"))
                     .add(field("priority","StringMinor"))
                     .add(field("channel","StringMinor"))//Model
                     .add(field("isOverDue","Boolean"))

@@ -28,10 +28,11 @@ public class DocumentMode implements ConnectionMode {
                     table("Tickets")
                             .add(field("id","Long").isPrimaryKey(true).primaryKeyPos(1))
                             .add(field("modifiedTime","DateTime"))
+                            .add(field("description","Textarea"))
                             .add(field("subCategory","Map"))//Object
                             .add(field("statusType","StringMinor"))
                             .add(field("subject","StringNormal"))
-                            .add(field("dueDate","Date"))
+                            .add(field("dueDate","DateTime"))
                             .add(field("departmentId","Long"))
                             .add(field("channel","StringMinor"))
                             .add(field("onholdTime","DateTime"))//Object
