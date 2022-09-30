@@ -143,6 +143,12 @@ public class ProxyController extends BaseController {
         subscribeResponseDto.setToken(token);
         return success(subscribeResponseDto);
     }
+
+    @GetMapping("callback/{token}")
+    public void get(@PathVariable("token") String token, HttpServletRequest request, HttpServletResponse response){
+
+    }
+
     @Operation(summary = "External callback url")
     @PostMapping("callback/{token}")
     public void rawDataCallback(@PathVariable("token") String token, @RequestBody Map<String, Object> content, HttpServletRequest request, HttpServletResponse response) throws IOException {
