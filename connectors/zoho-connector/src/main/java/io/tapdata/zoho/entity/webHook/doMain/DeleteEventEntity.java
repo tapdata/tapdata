@@ -25,6 +25,6 @@ public class DeleteEventEntity extends EventBaseEntity<DeleteEventEntity> {
         return TapSimplify.deleteDMLEvent(
                 instance instanceof CSVMode ? instance.attributeAssignmentSelf(this.payload()):this.payload()
                 , table)
-                .referenceTime(System.currentTimeMillis());
+                .referenceTime(this.eventTime());
     }
 }

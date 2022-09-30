@@ -34,7 +34,7 @@ public class UpdateEventEntity extends EventBaseEntity<UpdateEventEntity> {
                 instance instanceof CSVMode ? instance.attributeAssignmentSelf(this.prevState):this.prevState,
                 instance instanceof CSVMode ? instance.attributeAssignmentSelf(this.payload()):this.payload(),
                 table)
-                .referenceTime(System.currentTimeMillis());
+                .referenceTime(this.eventTime());
     }
 
     public Map<String, Object> getPrevState() {

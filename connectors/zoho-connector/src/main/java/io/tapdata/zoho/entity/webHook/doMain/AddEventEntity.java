@@ -25,6 +25,6 @@ public class AddEventEntity extends EventBaseEntity<AddEventEntity> {
         return TapSimplify.insertRecordEvent(
                 instance instanceof CSVMode ? instance.attributeAssignmentSelf(this.payload()):this.payload()
                 ,table)
-                .referenceTime(System.currentTimeMillis());
+                .referenceTime(this.eventTime());
     }
 }
