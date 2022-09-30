@@ -1928,7 +1928,9 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                 Date date = s.getDate();
                 return date.toInstant().atZone(ZoneId.systemDefault()).toLocalDate();
             }));
-            sampleMap.forEach((k, v) -> {
+            List<LocalDate> collect = sampleMap.keySet().stream().sorted().collect(Collectors.toList());
+            for (LocalDate k : collect) {
+                List<Sample> v = sampleMap.get(k);
                 long value = 0;
                 Optional<Sample> max = v.stream().max(Comparator.comparing(Sample::getDate));
                 if (max.isPresent()) {
@@ -1946,7 +1948,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
                     value = value - lastNum;
                 }
                 inputNumMap.put(k, value);
-            });
+            }
 
             inputNumMap.forEach((k2, v2) -> {
                 Long allNum = allInputNumMap.get(k2);
