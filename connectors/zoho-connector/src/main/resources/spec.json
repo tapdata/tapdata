@@ -241,6 +241,7 @@
   "messages": {
     "default": "en_US",
     "en_US": {
+      "doc": "docs/zoho_zh_CN.md",
       "clientID": "Client ID",
       "clientSecret": "Client Secret",
       "generateCode": "Generate Code",
@@ -269,7 +270,6 @@
       "pollingRead": "Polling Read",
 
 
-      "doc": "docs/coding_en_US.md",
       "df_initial_totals": "Initial data amount",
       "df_incremental_interval": "Incremental interval (ms)",
       "df_incremental_interval_totals": "Incremental Interval Upper Limits",
@@ -308,7 +308,7 @@
       "webHookRead": "Web Hook",
       "pollingRead": "轮询式",
 
-      "doc": "docs/coding_zh_CN.md",
+      "doc": "docs/zoho_zh_CN.md",
       "df_initial_totals": "初始化数据量",
       "df_incremental_interval": "增量间隔（毫秒）",
       "df_incremental_interval_totals": "增量间隔上限",
@@ -347,7 +347,7 @@
       "webHookRead": "Web Hook",
       "pollingRead": "輪詢式",
 
-      "doc": "docs/coding_zh_TW.md",
+      "doc": "docs/zoho_zh_TW.md",
       "df_initial_totals": "初始化數據量",
       "df_incremental_interval": "增量間隔（毫秒）",
       "df_incremental_interval_totals": "增量間隔上限",
