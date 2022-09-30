@@ -155,29 +155,21 @@ public class CodingConnector extends ConnectorBase {
 			body.builder("ProjectName", projectName);
 		}
 
-		CodingHttp http = CodingHttp.create(header.getEntity(),body.getEntity(), String.format(CodingStarter.OPEN_API_URL, teamName ));
+		String url = String.format(CodingStarter.OPEN_API_URL, teamName );
+		CodingHttp http = CodingHttp.create(header.getEntity(),body.getEntity(), url);
 		Map<String, Object> postResult = http.post();
 
 		Object response = postResult.get("Response");
 		Map<String,Object> responseMap = (Map<String, Object>) response;
 		if (Checker.isEmpty(response)){
-			TapLogger.info(TAG, "HTTP request exception, list acquisition failed: {} ", CodingStarter.OPEN_API_URL+"?Action="+command);
-			throw new RuntimeException("Get list failed: " + CodingStarter.OPEN_API_URL+"?Action="+command);
+			//TapLogger.info(TAG, "HTTP request exception, list acquisition failed: {} ", CodingStarter.OPEN_API_URL+"?Action="+command);
+			throw new RuntimeException("Get list failed: " + url +"?Action="+command);
 		}
 
 		Map<String,Object> pageResult = new HashMap<>();
 		Object dataObj = responseMap.get("Data");
 		if(Checker.isEmpty(dataObj)){
-			Object errorObj = responseMap.get("Error");
-			String message = "";
-			if (Checker.isNotEmpty(errorObj)){
-				message = String.valueOf(((Map<String,Object>)errorObj).get("Message"));
-			}
-			if ("ProjectIssueNotInit".equals(message)) {
-				throw new CoreException(" " );
-			}else {
-				throw new CoreException("Project list is empty, please ensure your params are correct: " + message);
-			}
+			return new CommandResult();
 		}
 		Map<String,Object> data = (Map<String,Object>)dataObj;
 		if ("DescribeIterationList".equals(command)){
