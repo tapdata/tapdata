@@ -1,0 +1,263 @@
+{
+  "properties": {
+    "name": "InfluxDB",
+    "icon": "icons/influxDB.png",
+    "id": "influxDB",
+    "docs": "${docs}"
+  },
+  "configOptions": {
+    "connection": {
+      "type": "object",
+      "properties": {
+        "host": {
+          "type": "string",
+          "title": "${host}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "apiServerKey": "database_host",
+          "required": true,
+          "x-index": 10
+        },
+        "port": {
+          "type": "string",
+          "title": "${port}",
+          "x-decorator": "FormItem",
+          "x-component": "InputNumber",
+          "apiServerKey": "database_port",
+          "required": true,
+          "x-index": 20
+        },
+        "maxinumLinesPerRequest": {
+          "type": "string",
+          "title": "${maxinumLinesPerRequest}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "required": true,
+          "x-index": 30
+        },
+        "deserializer": {
+          "type": "string",
+          "title": "${deserializer}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "required": true,
+          "x-index": 40
+        },
+        "username": {
+          "type": "string",
+          "title": "${username}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "apiServerKey": "database_user",
+          "required": true,
+          "x-index": 50
+        },
+        "password": {
+          "type": "string",
+          "title": "${password}",
+          "x-decorator": "FormItem",
+          "apiServerKey": "database_pwd",
+          "x-component": "Input",
+          "required": true,
+          "x-index": 60
+        },
+        "precision": {
+          "type": "string",
+          "title": "${precision}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "apiServerKey": "database_timeformat",
+          "required": true,
+          "x-index": 70
+        },
+        "retension": {
+          "type": "string",
+          "title": "${retension}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "required": true,
+          "x-index": 80
+        },
+        "timezone": {
+          "type": "string",
+          "title": "${timezone}",
+          "default": "",
+          "x-decorator": "FormItem",
+          "x-decorator-props": {
+            "feedbackLayout": "none"
+          },
+          "x-component": "Select",
+          "enum": [
+            {
+              "label": "Database Timezone",
+              "value": ""
+            },
+            {
+              "label": "UTC -11",
+              "value": "-11:00"
+            },
+            {
+              "label": "UTC -10",
+              "value": "-10:00"
+            },
+            {
+              "label": "UTC -09",
+              "value": "-09:00"
+            },
+            {
+              "label": "UTC -08",
+              "value": "-08:00"
+            },
+            {
+              "label": "UTC -07",
+              "value": "-07:00"
+            },
+            {
+              "label": "UTC -06",
+              "value": "-06:00"
+            },
+            {
+              "label": "UTC -05",
+              "value": "-05:00"
+            },
+            {
+              "label": "UTC -04",
+              "value": "-04:00"
+            },
+            {
+              "label": "UTC -03",
+              "value": "-03:00"
+            },
+            {
+              "label": "UTC -02",
+              "value": "-02:00"
+            },
+            {
+              "label": "UTC -01",
+              "value": "-01:00"
+            },
+            {
+              "label": "UTC",
+              "value": "+00:00"
+            },
+            {
+              "label": "UTC +01",
+              "value": "+01:00"
+            },
+            {
+              "label": "UTC +02",
+              "value": "+02:00"
+            },
+            {
+              "label": "UTC +03",
+              "value": "+03:00"
+            },
+            {
+              "label": "UTC +04",
+              "value": "+04:00"
+            },
+            {
+              "label": "UTC +05",
+              "value": "+05:00"
+            },
+            {
+              "label": "UTC +06",
+              "value": "+06:00"
+            },
+            {
+              "label": "UTC +07",
+              "value": "+07:00"
+            },
+            {
+              "label": "UTC +08",
+              "value": "+08:00"
+            },
+            {
+              "label": "UTC +09",
+              "value": "+09:00"
+            },
+            {
+              "label": "UTC +10",
+              "value": "+10:00"
+            },
+            {
+              "label": "UTC +11",
+              "value": "+11:00"
+            },
+            {
+              "label": "UTC +12",
+              "value": "+12:00"
+            },
+            {
+              "label": "UTC +13",
+              "value": "+13:00"
+            },
+            {
+              "label": "UTC +14",
+              "value": "+14:00"
+            }
+          ],
+          "x-index": 80
+        }
+      },
+      "messages": {
+        "default": "en_US",
+        "en_US": {
+        }
+      },
+      "dataTypes": {
+        "varchar[($byte)]": {
+          "byte": "65535",
+          "to": "TapString"
+        },
+        "tinyint[($zerofill)]": {
+          "to": "TapNumber",
+          "bit": 8,
+          "precision": 3,
+          "value": [
+            -128,
+            127
+          ]
+        },
+        "tinyint[($zerofill)]": {
+          "to": "TapNumber",
+          "bit": 8,
+          "precision": 3,
+          "value": [
+            -128,
+            127
+          ]
+        },
+        "varchar[($byte)]": {
+          "byte": "65535",
+          "to": "TapString"
+        },
+        "varchar[($byte)]": {
+          "byte": "65535",
+          "to": "TapString"
+        },
+        "varchar[($byte)]": {
+          "byte": "65535",
+          "to": "TapString"
+        },
+        "varchar[($byte)]": {
+          "byte": "65535",
+          "to": "TapString"
+        },
+        "tinyint[($zerofill)]": {
+          "to": "TapNumber",
+          "bit": 8,
+          "precision": 3,
+          "value": [
+            -128,
+            127
+          ]
+        },
+        "string": {
+          "byte": "2147483643",
+          "to": "TapString"
+        }
+      }
+    }
+  }
+}

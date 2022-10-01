@@ -14,6 +14,7 @@
         <module>iengine</module>
         <module>connectors-common</module>
         <module>connectors</module>
+        <module>influxdb-core</module>
     </modules>
 
     <build>
