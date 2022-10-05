@@ -33,22 +33,22 @@ public class TaskSampleReporter implements BulkReporter {
 		Map<String, Map<String, String>> taskSampleTags = new HashMap<>();
 		Map<String, Date> taskSampleDate = new HashMap<>();
 		for (SampleRequest sample : bulkRequest.getSamples()) {
-			String subTaskId = sample.getTags().getOrDefault("subTaskId", null);
-			if (subTaskId == null) {
+			String taskId = sample.getTags().getOrDefault("taskId", null);
+			if (taskId == null) {
 				continue;
 			}
 
-			Map<String, List<Number>> samplesMap = taskSamples.computeIfAbsent(subTaskId, s -> new HashMap<>());
-			if (!taskSampleTags.containsKey(subTaskId)) {
+			Map<String, List<Number>> samplesMap = taskSamples.computeIfAbsent(taskId, s -> new HashMap<>());
+			if (!taskSampleTags.containsKey(taskId)) {
 				Map<String, String> tags = new HashMap<>(sample.getTags());
 				tags.remove("nodeId");
-				tags.put("type", "subTask");
-				taskSampleTags.put(subTaskId, tags);
+				tags.put("type", "task");
+				taskSampleTags.put(taskId, tags);
 			}
 
-			Date date = taskSampleDate.getOrDefault(subTaskId, null);
+			Date date = taskSampleDate.getOrDefault(taskId, null);
 			if (date == null || date.before(sample.getSample().getDate())) {
-				taskSampleDate.put(subTaskId, sample.getSample().getDate());
+				taskSampleDate.put(taskId, sample.getSample().getDate());
 			}
 			for (Map.Entry<String, Number> entry : sample.getSample().getVs().entrySet()) {
 				List<Number> samplesListByKey = samplesMap.computeIfAbsent(entry.getKey(), s -> new ArrayList<>());
@@ -56,13 +56,13 @@ public class TaskSampleReporter implements BulkReporter {
 			}
 		}
 
-		for (String subTaskId : taskSamples.keySet()) {
+		for (String taskId : taskSamples.keySet()) {
 			SampleRequest sampleRequest = new SampleRequest();
-			sampleRequest.setTags(taskSampleTags.get(subTaskId));
+			sampleRequest.setTags(taskSampleTags.get(taskId));
 			Sample sample = new Sample();
-			sample.setDate(taskSampleDate.get(subTaskId));
+			sample.setDate(taskSampleDate.get(taskId));
 			Map<String, Number> sampleValues = new HashMap<>();
-			for (Map.Entry<String, List<Number>> entry : taskSamples.get(subTaskId).entrySet()) {
+			for (Map.Entry<String, List<Number>> entry : taskSamples.get(taskId).entrySet()) {
 				Number value = calculateByName(entry.getKey(), entry.getValue());
 				if (value != null) {
 					sampleValues.put(entry.getKey(), value);
@@ -79,22 +79,22 @@ public class TaskSampleReporter implements BulkReporter {
 		Map<String, Date> taskStaticticDate = new HashMap<>();
 		Map<String, Boolean> taskStatisticShouldInc = new HashMap<>();
 		for (StatisticRequest statistic : bulkRequest.getStatistics()) {
-			String subTaskId = statistic.getTags().get("subTaskId");
-			if (subTaskId == null) {
+			String taskId = statistic.getTags().get("taskId");
+			if (taskId == null) {
 				continue;
 			}
 			List<String> incFields = statistic.getStatistic().getIncFields();
-			Map<String, List<Number>> statisticsMap = taskStatistics.computeIfAbsent(subTaskId, s -> new HashMap<>());
-			if (!taskStatisticTags.containsKey(subTaskId)) {
+			Map<String, List<Number>> statisticsMap = taskStatistics.computeIfAbsent(taskId, s -> new HashMap<>());
+			if (!taskStatisticTags.containsKey(taskId)) {
 				Map<String, String> tags = new HashMap<>(statistic.getTags());
 				tags.remove("nodeId");
-				tags.put("type", "subTask");
-				taskStatisticTags.put(subTaskId, tags);
+				tags.put("type", "task");
+				taskStatisticTags.put(taskId, tags);
 			}
 
-			Date date = taskStaticticDate.getOrDefault(subTaskId, null);
+			Date date = taskStaticticDate.getOrDefault(taskId, null);
 			if (date == null || date.before(statistic.getStatistic().getDate())) {
-				taskSampleDate.put(subTaskId, statistic.getStatistic().getDate());
+				taskSampleDate.put(taskId, statistic.getStatistic().getDate());
 			}
 
 			for (Map.Entry<String, Number> entry : statistic.getStatistic().getValues().entrySet()) {
@@ -106,14 +106,14 @@ public class TaskSampleReporter implements BulkReporter {
 			}
 		}
 
-		for (String subTaskId : taskStatistics.keySet()) {
+		for (String taskId : taskStatistics.keySet()) {
 			StatisticRequest statisticRequest = new StatisticRequest();
-			statisticRequest.setTags(taskStatisticTags.get(subTaskId));
+			statisticRequest.setTags(taskStatisticTags.get(taskId));
 			Statistic statistic = new Statistic();
-			statistic.setDate(taskSampleDate.get(subTaskId));
+			statistic.setDate(taskSampleDate.get(taskId));
 			Map<String, Number> statisticValues = new HashMap<>();
 			List<String> incFields = new ArrayList<>();
-			for (Map.Entry<String, List<Number>> entry : taskStatistics.get(subTaskId).entrySet()) {
+			for (Map.Entry<String, List<Number>> entry : taskStatistics.get(taskId).entrySet()) {
 				Number value = calculateByName(entry.getKey(), entry.getValue());
 				if (value != null) {
 					statisticValues.put(entry.getKey(), calculateByName(entry.getKey(), entry.getValue()));

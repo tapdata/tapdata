@@ -2,25 +2,36 @@ package io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.concurrent;
 
 import com.google.common.collect.Queues;
 import com.tapdata.constant.ExecutorUtil;
+import com.tapdata.constant.Log4jUtil;
 import com.tapdata.entity.TapdataEvent;
+import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.entity.event.TapEvent;
-import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.concurrent.partitioner.KeysPartitioner;
+import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
+import io.tapdata.entity.event.dml.TapInsertRecordEvent;
+import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.concurrent.partitioner.PartitionResult;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.concurrent.partitioner.Partitioner;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.concurrent.selector.PartitionKeySelector;
-import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.concurrent.selector.TapEventPartitionKeySelector;
 import org.apache.commons.collections.CollectionUtils;
+import org.apache.commons.collections.MapUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.ThreadContext;
 
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
-import java.util.concurrent.*;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -45,35 +56,38 @@ public class PartitionConcurrentProcessor {
 	private int partitionSize;
 	private int batchSize;
 
-	private AtomicBoolean running = new AtomicBoolean(false);
+	private AtomicBoolean currentRunning = new AtomicBoolean(false);
 
 	private Consumer<List<TapdataEvent>> eventProcessor;
 
 	private Partitioner<TapdataEvent, List<Object>> partitioner;
 
-	private PartitionKeySelector<String, TapEvent, Object> keySelector;
+	private PartitionKeySelector<TapEvent, Object, Map<String, Object>> keySelector;
 
 	private AtomicLong eventSeq = new AtomicLong(0L);
 
 	private LinkedBlockingQueue<WatermarkEvent> watermarkQueue;
 
 	private Consumer<TapdataEvent> flushOffset;
-	private ErrorHandler<Throwable, String> errorHandler;
+	private final ErrorHandler<Throwable, String> errorHandler;
+	private final Supplier<Boolean> nodeRunning;
+	private TaskDto taskDto;
 
 	public PartitionConcurrentProcessor(
 			int partitionSize,
 			int batchSize,
 			Partitioner<TapdataEvent, List<Object>> partitioner,
-			PartitionKeySelector<String, TapEvent, Object> keySelector,
+			PartitionKeySelector<TapEvent, Object, Map<String, Object>> keySelector,
 			Consumer<List<TapdataEvent>> eventProcessor,
 			Consumer<TapdataEvent> flushOffset,
 			ErrorHandler<Throwable, String> errorHandler,
-			String taskId,
-			String taskName
+			Supplier<Boolean> nodeRunning,
+			TaskDto taskDto
 	) {
 
-		this.concurrentProcessThreadNamePrefix = "concurrent-process-thread-" + taskId + "-" + taskName + "-";
+		this.concurrentProcessThreadNamePrefix = "concurrent-process-thread-" + taskDto.getId().toHexString() + "-" + taskDto.getName() + "-";
 
+		this.taskDto = taskDto;
 		this.batchSize = batchSize;
 
 		this.partitionSize = partitionSize;
@@ -85,6 +99,7 @@ public class PartitionConcurrentProcessor {
 		logger.info(LOG_PREFIX + "completed create thread pool, pool size {}", partitionSize + 1);
 
 		this.errorHandler = errorHandler;
+		this.nodeRunning = nodeRunning;
 		this.partitionsQueue = IntStream
 				.range(0, partitionSize)
 				.mapToObj(
@@ -95,7 +110,7 @@ public class PartitionConcurrentProcessor {
 
 		this.eventProcessor = eventProcessor;
 
-		running.compareAndSet(false, true);
+		currentRunning.compareAndSet(false, true);
 
 		if (partitioner == null) {
 			throw new RuntimeException(LOG_PREFIX + "partitioner cannot be null.");
@@ -108,14 +123,15 @@ public class PartitionConcurrentProcessor {
 		this.keySelector = keySelector;
 		this.flushOffset = flushOffset;
 		this.executorService.submit(() -> {
-			while (running.get()) {
-				Thread.currentThread().setName(taskId + "-" + taskName + "-watermark-event-process");
+			while (isRunning()) {
+				Log4jUtil.setThreadContext(taskDto);
+				Thread.currentThread().setName(taskDto.getId().toHexString() + "-" + taskDto.getName() + "-watermark-event-process");
 				try {
 					final WatermarkEvent watermarkEvent = watermarkQueue.poll(3, TimeUnit.SECONDS);
 					if (watermarkEvent != null) {
 						final CountDownLatch countDownLatch = watermarkEvent.getCountDownLatch();
 						final TapdataEvent event = watermarkEvent.getEvent();
-						while (running.get() && !countDownLatch.await(3, TimeUnit.SECONDS)) {
+						while (isRunning() && !countDownLatch.await(3, TimeUnit.SECONDS)) {
 							if (logger.isInfoEnabled()) {
 								final Long sourceTime = event.getSourceTime();
 								logger.info("waiting watermark event for all thread process, ts {}", sourceTime != null ? new Date(sourceTime) : null);
@@ -126,8 +142,10 @@ public class PartitionConcurrentProcessor {
 				} catch (InterruptedException e) {
 					break;
 				} catch (Throwable throwable) {
-					running.compareAndSet(true, false);
+					currentRunning.compareAndSet(true, false);
 					errorHandler.accept(throwable, "process watermark event failed");
+				} finally {
+					ThreadContext.clearAll();
 				}
 			}
 		});
@@ -138,46 +156,51 @@ public class PartitionConcurrentProcessor {
 			final LinkedBlockingQueue<PartitionEvent<TapdataEvent>> linkedBlockingQueue = partitionsQueue.get(partition);
 			int finalPartition = partition;
 			executorService.submit(() -> {
-				Thread.currentThread().setName(concurrentProcessThreadNamePrefix + finalPartition);
-				List<TapdataEvent> processEvents = new ArrayList<>();
-				while (running.get()) {
-					try {
-						List<PartitionEvent<TapdataEvent>> events = new ArrayList<>();
-						Queues.drain(linkedBlockingQueue, events, batchSize, 3, TimeUnit.SECONDS);
-						if (CollectionUtils.isNotEmpty(events)) {
-							for (PartitionEvent partitionEvent : events) {
-								if (partitionEvent instanceof NormalEvent) {
-									final NormalEvent<?> normalEvent = (NormalEvent<?>) partitionEvent;
-									final TapdataEvent event = (TapdataEvent) normalEvent.getEvent();
-									processEvents.add(event);
-								} else if (partitionEvent instanceof WatermarkEvent) {
-									final CountDownLatch countDownLatch = ((WatermarkEvent) partitionEvent).getCountDownLatch();
-									countDownLatch.countDown();
-								} else {
-									if (CollectionUtils.isNotEmpty(processEvents)) {
-										eventProcessor.accept(processEvents);
-										processEvents.clear();
-									}
-									final CountDownLatch countDownLatch = ((BarrierEvent) partitionEvent).getCountDownLatch();
-									countDownLatch.countDown();
-									while (running.get() && !countDownLatch.await(3L, TimeUnit.SECONDS)) {
-										if (logger.isDebugEnabled()) {
-											logger.debug(LOG_PREFIX + "thread-{} process completed, waiting other thread completed.", finalPartition);
+				try {
+					Log4jUtil.setThreadContext(taskDto);
+					Thread.currentThread().setName(concurrentProcessThreadNamePrefix + finalPartition);
+					List<TapdataEvent> processEvents = new ArrayList<>();
+					while (isRunning()) {
+						try {
+							List<PartitionEvent<TapdataEvent>> events = new ArrayList<>();
+							Queues.drain(linkedBlockingQueue, events, batchSize, 3, TimeUnit.SECONDS);
+							if (CollectionUtils.isNotEmpty(events)) {
+								for (PartitionEvent partitionEvent : events) {
+									if (partitionEvent instanceof NormalEvent) {
+										final NormalEvent<?> normalEvent = (NormalEvent<?>) partitionEvent;
+										final TapdataEvent event = (TapdataEvent) normalEvent.getEvent();
+										processEvents.add(event);
+									} else if (partitionEvent instanceof WatermarkEvent) {
+										final CountDownLatch countDownLatch = ((WatermarkEvent) partitionEvent).getCountDownLatch();
+										countDownLatch.countDown();
+									} else {
+										if (CollectionUtils.isNotEmpty(processEvents)) {
+											eventProcessor.accept(processEvents);
+											processEvents.clear();
+										}
+										final CountDownLatch countDownLatch = ((BarrierEvent) partitionEvent).getCountDownLatch();
+										countDownLatch.countDown();
+										while (isRunning() && !countDownLatch.await(3L, TimeUnit.SECONDS)) {
+											if (logger.isDebugEnabled()) {
+												logger.debug(LOG_PREFIX + "thread-{} process completed, waiting other thread completed.", finalPartition);
+											}
 										}
 									}
 								}
+								if (CollectionUtils.isNotEmpty(processEvents)) {
+									eventProcessor.accept(processEvents);
+									processEvents.clear();
+								}
 							}
-							if (CollectionUtils.isNotEmpty(processEvents)) {
-								eventProcessor.accept(processEvents);
-								processEvents.clear();
-							}
+						} catch (InterruptedException e) {
+							break;
+						} catch (Throwable throwable) {
+							currentRunning.compareAndSet(true, false);
+							errorHandler.accept(throwable, "process watermark event failed");
 						}
-					} catch (InterruptedException e) {
-						break;
-					} catch (Throwable throwable) {
-						running.compareAndSet(true, false);
-						errorHandler.accept(throwable, "process watermark event failed");
 					}
+				} finally {
+					ThreadContext.clearAll();
 				}
 			});
 		}
@@ -186,9 +209,28 @@ public class PartitionConcurrentProcessor {
 	public void process(List<TapdataEvent> tapdataEvents, boolean async) {
 		if (CollectionUtils.isNotEmpty(tapdataEvents)) {
 			for (TapdataEvent tapdataEvent : tapdataEvents) {
+				if (!isRunning()) {
+					break;
+				}
 				if (tapdataEvent.isDML()) {
-					final List<Object> partitionValue = keySelector.select(tapdataEvent.getTapEvent());
-					final PartitionResult<TapdataEvent> partitionResult = partitioner.partition(partitionSize, tapdataEvent, partitionValue);
+					Map<String, Object> row = null;
+					final TapEvent tapEvent = tapdataEvent.getTapEvent();
+					if (tapEvent instanceof TapInsertRecordEvent) {
+						row = ((TapInsertRecordEvent) tapEvent).getAfter();
+					} else if (tapEvent instanceof TapDeleteRecordEvent) {
+						row = ((TapDeleteRecordEvent) tapEvent).getBefore();
+					} else if (tapEvent instanceof TapUpdateRecordEvent) {
+						// if update partition value, will generate barrier event
+						if (updatePartitionValueEvent(tapEvent)) {
+							generateBarrierEvent();
+							row = ((TapUpdateRecordEvent) tapEvent).getBefore();
+						} else {
+							row = ((TapUpdateRecordEvent) tapEvent).getAfter();
+						}
+					}
+					final List<Object> partitionValue = keySelector.select(tapEvent, row);
+					final List<Object> partitionOriginalValues = keySelector.convert2OriginValue(partitionValue);
+					final PartitionResult<TapdataEvent> partitionResult = partitioner.partition(partitionSize, tapdataEvent, partitionOriginalValues);
 					final int partition = partitionResult.getPartition() < 0 ? DEFAULT_PARTITION : partitionResult.getPartition();
  					final LinkedBlockingQueue<PartitionEvent<TapdataEvent>> queue = partitionsQueue.get(partition);
 					final NormalEvent<TapdataEvent> normalEvent = new NormalEvent<>(eventSeq.incrementAndGet(), tapdataEvent);
@@ -206,24 +248,28 @@ public class PartitionConcurrentProcessor {
 			generateWatermarkEvent(tapdataEvents.get(tapdataEvents.size() - 1));
 
 			if (!async) {
-				final BarrierEvent barrierEvent = generateBarrierEvent();
-				final CountDownLatch countDownLatch = barrierEvent.getCountDownLatch();
-				try {
-					while (running.get() && !countDownLatch.await(3, TimeUnit.SECONDS)) {
-						if (logger.isInfoEnabled()) {
-							logger.info(LOG_PREFIX + "waiting all events processed for thread");
-						}
-					}
-				} catch (InterruptedException e) {
-					// nothing to do
+				waitingForProcessToCurrent();
+			}
+		}
+	}
+
+	private void waitingForProcessToCurrent() {
+		final BarrierEvent barrierEvent = generateBarrierEvent();
+		final CountDownLatch countDownLatch = barrierEvent.getCountDownLatch();
+		try {
+			while (isRunning() && !countDownLatch.await(3, TimeUnit.SECONDS)) {
+				if (logger.isInfoEnabled()) {
+					logger.info(LOG_PREFIX + "waiting all events processed for thread");
 				}
 			}
+		} catch (InterruptedException e) {
+			// nothing to do
 		}
 	}
 
 	private boolean enqueuePartitionEvent(int partition, LinkedBlockingQueue<PartitionEvent<TapdataEvent>> queue, NormalEvent<TapdataEvent> normalEvent) {
 		try {
-			while (running.get() && !queue.offer(normalEvent, 3, TimeUnit.SECONDS)) {
+			while (isRunning() && !queue.offer(normalEvent, 3, TimeUnit.SECONDS)) {
 				if (logger.isInfoEnabled()) {
 					logger.info(LOG_PREFIX + "thread-{} process queue if full, waiting for enqueue.", partition);
 				}
@@ -241,7 +287,7 @@ public class PartitionConcurrentProcessor {
 			for (int i = 0; i < partitionsQueue.size(); i++) {
 				final LinkedBlockingQueue<PartitionEvent<TapdataEvent>> queue = partitionsQueue.get(i);
 				try {
-					while (running.get() && !queue.offer(watermarkEvent, 3, TimeUnit.SECONDS)) {
+					while (isRunning() && !queue.offer(watermarkEvent, 3, TimeUnit.SECONDS)) {
 						if (logger.isInfoEnabled()) {
 							logger.info(LOG_PREFIX + "thread {} queue is full when generate barrier event to queue.", i);
 						}
@@ -253,7 +299,7 @@ public class PartitionConcurrentProcessor {
 			}
 
 			try {
-				while (running.get() && !watermarkQueue.offer(watermarkEvent, 3, TimeUnit.SECONDS)) {
+				while (isRunning() && !watermarkQueue.offer(watermarkEvent, 3, TimeUnit.SECONDS)) {
 					if (logger.isInfoEnabled()) {
 						logger.info(LOG_PREFIX + "watermark queue is full when generate watermark event to queue.");
 					}
@@ -270,7 +316,7 @@ public class PartitionConcurrentProcessor {
 			for (int i = 0; i < partitionsQueue.size(); i++) {
 				final LinkedBlockingQueue<PartitionEvent<TapdataEvent>> queue = partitionsQueue.get(i);
 				try {
-					while (running.get() && !queue.offer(barrierEvent, 3, TimeUnit.SECONDS)){
+					while (isRunning() && !queue.offer(barrierEvent, 3, TimeUnit.SECONDS)){
 						if (logger.isInfoEnabled()) {
 							logger.info(LOG_PREFIX + "thread {} queue is full when generate barrier event to queue.", i);
 						}
@@ -287,9 +333,40 @@ public class PartitionConcurrentProcessor {
 		return null;
 	}
 
+	private boolean isRunning() {
+		return currentRunning.get() && nodeRunning.get();
+	}
+
 	public void stop(){
-		running.compareAndSet(true, false);
+		waitingForProcessToCurrent();
+		currentRunning.compareAndSet(true, false);
 		ExecutorUtil.shutdownEx(this.executorService, 60L, TimeUnit.SECONDS);
+	}
+
+
+	public void forceStop(){
+		currentRunning.compareAndSet(true, false);
+		ExecutorUtil.shutdownEx(this.executorService, 60L, TimeUnit.SECONDS);
+	}
+
+	private boolean updatePartitionValueEvent(TapEvent tapEvent) {
+		if (tapEvent instanceof TapUpdateRecordEvent) {
+			List<Object> beforeValue = null;
+			final Map<String, Object> before = ((TapUpdateRecordEvent) tapEvent).getBefore();
+			if (MapUtils.isNotEmpty(before)) {
+				beforeValue = keySelector.select(tapEvent, before);
+			}
+			List<Object> afterValue = null;
+			final Map<String, Object> after = ((TapUpdateRecordEvent) tapEvent).getAfter();
+			if (MapUtils.isNotEmpty(before)) {
+				afterValue = keySelector.select(tapEvent, after);
+			}
+			if (beforeValue != null && afterValue != null) {
+				return Objects.hash(beforeValue) != Objects.hash(afterValue);
+			}
+		}
+
+		return false;
 	}
 
 	@FunctionalInterface

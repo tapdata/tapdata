@@ -14,14 +14,17 @@ import org.apache.logging.log4j.Logger;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.List;
 import java.util.Map;
 
 /**
  * 大家一致同意先不要搞太复杂
  * 因此每个聚合节点只支持1个同类算子，比如SUM只能有1个，这样可以简化代码
  * 算子为什么没有处理update，因为前置处理器：CrossGroupP和groupByP 把update拆成了delete+insert
+ *
  * 从source传过来的update事件，都通过前置处理器CrossGroupP和groupByP 把update拆成了delete+insert
  * 从source传过来的insert事件，除了第一条记录，后续都在前置处理器进行转化成update，因此走到算子里的update实际上都为insert
+ *
  * @author alexouyang
  * @Date 2022/4/26
  */
@@ -76,7 +79,7 @@ public class AggregateOps {
 
     }
 
-    public static boolean max(String aggregatorField, ConstructIMap<BigDecimal> cache, ConstructIMap<ArrayList<BigDecimal>> cacheList,
+    public static boolean max(String aggregatorField, ConstructIMap<BigDecimal> cache, ConstructIMap<List<BigDecimal>> cacheList,
                               WrapItem wrappedItem, boolean isMessageEntity) throws Exception {
         if (isMessageEntity) {
             return maxMessageEntity(aggregatorField, cache, cacheList, wrappedItem);
@@ -85,7 +88,7 @@ public class AggregateOps {
         }
     }
 
-    public static boolean min(String aggregatorField, ConstructIMap<BigDecimal> cache, ConstructIMap<ArrayList<BigDecimal>> cacheList,
+    public static boolean min(String aggregatorField, ConstructIMap<BigDecimal> cache, ConstructIMap<List<BigDecimal>> cacheList,
                               WrapItem wrappedItem, boolean isMessageEntity) throws Exception {
         if (isMessageEntity) {
             return minMessageEntity(aggregatorField, cache, cacheList, wrappedItem);
@@ -277,14 +280,15 @@ public class AggregateOps {
     }
 
     private static void postProcessSum(TapRecordEvent tapRecordEvent, BigDecimal sum) {
+        final String sumStr = sum.toPlainString();
         if (tapRecordEvent != null) {
             Map<String, Object> before = TapEventUtil.getBefore(tapRecordEvent);
             if (before != null) {
-                before.put(SUM, sum);
+                before.put(SUM, sumStr);
             }
             Map<String, Object> after = TapEventUtil.getAfter(tapRecordEvent);
             if (after != null) {
-                after.put(SUM, sum);
+                after.put(SUM, sumStr);
             }
         }
     }
@@ -341,14 +345,15 @@ public class AggregateOps {
     }
 
     private static void postProcessAvg(TapRecordEvent tapRecordEvent, BigDecimal sum, BigDecimal counter) {
+        final String avgStr = sum.divide(counter, scale, roundingMode).toPlainString();
         if (tapRecordEvent != null) {
             Map<String, Object> before = TapEventUtil.getBefore(tapRecordEvent);
             if (before != null) {
-                before.put(AVG, sum.divide(counter, scale, roundingMode));
+                before.put(AVG, avgStr);
             }
             Map<String, Object> after = TapEventUtil.getAfter(tapRecordEvent);
             if (after != null) {
-                after.put(AVG, sum.divide(counter, scale, roundingMode));
+                after.put(AVG, avgStr);
             }
         }
     }
@@ -561,7 +566,7 @@ public class AggregateOps {
         return true;
     }
 
-    private static boolean maxMessageEntity(String aggregatorField, ConstructIMap<BigDecimal> cache, ConstructIMap<ArrayList<BigDecimal>> cacheList,
+    private static boolean maxMessageEntity(String aggregatorField, ConstructIMap<BigDecimal> cache, ConstructIMap<List<BigDecimal>> cacheList,
                                             WrapItem wrappedItem) throws Exception {
         String cacheKey = wrappedItem.getCachedGroupByKey();
         MessageEntity messageEntity = (MessageEntity) wrappedItem.getMessage();
@@ -573,7 +578,7 @@ public class AggregateOps {
         BigDecimal groupedRecordCount = updateCounter(cache, cacheKey, messageEntity, changedCount);
 
         if (cacheList.exists(cacheKey)) {
-            ArrayList<BigDecimal> groupedMaxList = cacheList.find(cacheKey);
+            List<BigDecimal> groupedMaxList = cacheList.find(cacheKey);
             if (groupedMaxList.contains(fieldValue)) {
                 if (operationType == OperationType.DELETE) {
                     groupedMaxList.remove(fieldValue);
@@ -618,7 +623,7 @@ public class AggregateOps {
 
     }
 
-    private static boolean maxTapRecordEvent(String aggregatorField, ConstructIMap<BigDecimal> cache, ConstructIMap<ArrayList<BigDecimal>> cacheList, WrapItem wrappedItem) throws Exception {
+    private static boolean maxTapRecordEvent(String aggregatorField, ConstructIMap<BigDecimal> cache, ConstructIMap<List<BigDecimal>> cacheList, WrapItem wrappedItem) throws Exception {
         String cacheKey = wrappedItem.getCachedGroupByKey();
         TapRecordEvent tapRecordEvent = (TapRecordEvent) wrappedItem.getMessage();
 
@@ -628,7 +633,8 @@ public class AggregateOps {
         BigDecimal groupedRecordCount = updateCounter(cache, cacheKey, tapRecordEvent, wrappedItem.getChangedCount());
         BigDecimal changedCount = wrappedItem.getChangedCount();
         if (cacheList.exists(cacheKey)) {
-            ArrayList<BigDecimal> groupedMaxList = cacheList.find(cacheKey);
+            List<BigDecimal> groupedMaxList = cacheList.find(cacheKey);
+            groupedMaxList.sort(new MaxComparator());
             if (groupedMaxList.contains(fieldValue)) {
                 if (tapRecordEvent instanceof TapDeleteRecordEvent) {
                     groupedMaxList.remove(fieldValue);
@@ -678,7 +684,7 @@ public class AggregateOps {
         return true;
     }
 
-    private static void postProcessMax(MessageEntity messageEntity, ArrayList<BigDecimal> groupedMaxList) {
+    private static void postProcessMax(MessageEntity messageEntity, List<BigDecimal> groupedMaxList) {
         if (messageEntity != null) {
             if (messageEntity.getBefore() != null && groupedMaxList.size() > 0) {
                 messageEntity.getBefore().put(MAX, groupedMaxList.get(0));
@@ -689,20 +695,21 @@ public class AggregateOps {
         }
     }
 
-    private static void postProcessMax(TapRecordEvent tapRecordEvent, ArrayList<BigDecimal> groupedMaxList) {
+    private static void postProcessMax(TapRecordEvent tapRecordEvent, List<BigDecimal> groupedMaxList) {
         if (tapRecordEvent != null) {
+            final String maxStr = groupedMaxList.size() > 0 ? groupedMaxList.get(0).toPlainString() : null;
             Map<String, Object> before = TapEventUtil.getBefore(tapRecordEvent);
             if (before != null && groupedMaxList.size() > 0) {
-                before.put(MAX, groupedMaxList.get(0));
+                before.put(MAX, maxStr);
             }
             Map<String, Object> after = TapEventUtil.getAfter(tapRecordEvent);
             if (after != null && groupedMaxList.size() > 0) {
-                after.put(MAX, groupedMaxList.get(0));
+                after.put(MAX, maxStr);
             }
         }
     }
 
-    private static ArrayList<BigDecimal> doInsertAndCut(ArrayList<BigDecimal> groupedMaxList, BigDecimal fieldValue, Comparator comparator, BigDecimal changedCount) {
+    private static List<BigDecimal> doInsertAndCut(List<BigDecimal> groupedMaxList, BigDecimal fieldValue, Comparator comparator, BigDecimal changedCount) {
         if (changedCount != null) {
             groupedMaxList.add(fieldValue);
         }
@@ -714,7 +721,7 @@ public class AggregateOps {
         }
     }
 
-    private static boolean minMessageEntity(String aggregatorField, ConstructIMap<BigDecimal> cache, ConstructIMap<ArrayList<BigDecimal>> cacheList,
+    private static boolean minMessageEntity(String aggregatorField, ConstructIMap<BigDecimal> cache, ConstructIMap<List<BigDecimal>> cacheList,
                                             WrapItem wrappedItem) throws Exception {
         String cacheKey = wrappedItem.getCachedGroupByKey();
         MessageEntity messageEntity = (MessageEntity) wrappedItem.getMessage();
@@ -726,7 +733,7 @@ public class AggregateOps {
         BigDecimal groupedRecordCount = updateCounter(cache, cacheKey, messageEntity, wrappedItem.getChangedCount());
         BigDecimal changedCount = wrappedItem.getChangedCount();
         if (cacheList.exists(cacheKey)) {
-            ArrayList<BigDecimal> groupedMinList = cacheList.find(cacheKey);
+            List<BigDecimal> groupedMinList = cacheList.find(cacheKey);
             if (groupedMinList.contains(fieldValue)) {
                 if (operationType == OperationType.DELETE) {
                     groupedMinList.remove(fieldValue);
@@ -760,10 +767,10 @@ public class AggregateOps {
             postProcessMin(messageEntity, groupedMinList);
         } else {
             if (operationType == OperationType.INSERT) {
-                ArrayList<BigDecimal> groupedMaxList = new ArrayList<>(1);
-                groupedMaxList.add(fieldValue);
-                cacheList.insert(cacheKey, groupedMaxList);
-                postProcessMin(messageEntity, groupedMaxList);
+                ArrayList<BigDecimal> groupedMinList = new ArrayList<>(1);
+                groupedMinList.add(fieldValue);
+                cacheList.insert(cacheKey, groupedMinList);
+                postProcessMin(messageEntity, groupedMinList);
             } else {
                 throw new RuntimeException("unexpect logic");
             }
@@ -774,7 +781,7 @@ public class AggregateOps {
         return true;
     }
 
-    private static boolean minTapRecordEvent(String aggregatorField, ConstructIMap<BigDecimal> cache, ConstructIMap<ArrayList<BigDecimal>> cacheList, WrapItem wrappedItem) throws Exception {
+    private static boolean minTapRecordEvent(String aggregatorField, ConstructIMap<BigDecimal> cache, ConstructIMap<List<BigDecimal>> cacheList, WrapItem wrappedItem) throws Exception {
         String cacheKey = wrappedItem.getCachedGroupByKey();
         TapRecordEvent tapRecordEvent = (TapRecordEvent) wrappedItem.getMessage();
 
@@ -784,7 +791,8 @@ public class AggregateOps {
         BigDecimal groupedRecordCount = updateCounter(cache, cacheKey, tapRecordEvent, wrappedItem.getChangedCount());
         BigDecimal changedCount = wrappedItem.getChangedCount();
         if (cacheList.exists(cacheKey)) {
-            ArrayList<BigDecimal> groupedMinList = cacheList.find(cacheKey);
+            List<BigDecimal> groupedMinList = cacheList.find(cacheKey);
+            groupedMinList.sort(new MinComparator());
             if (groupedMinList.contains(fieldValue)) {
                 if (tapRecordEvent instanceof TapDeleteRecordEvent) {
                     groupedMinList.remove(fieldValue);
@@ -820,10 +828,10 @@ public class AggregateOps {
             postProcessMin(tapRecordEvent, groupedMinList);
         } else {
             if (tapRecordEvent instanceof TapInsertRecordEvent) {
-                ArrayList<BigDecimal> groupedMaxList = new ArrayList<>(1);
-                groupedMaxList.add(fieldValue);
-                cacheList.insert(cacheKey, groupedMaxList);
-                postProcessMin(tapRecordEvent, groupedMaxList);
+                ArrayList<BigDecimal> groupedMinList = new ArrayList<>(1);
+                groupedMinList.add(fieldValue);
+                cacheList.insert(cacheKey, groupedMinList);
+                postProcessMin(tapRecordEvent, groupedMinList);
             } else {
                 throw new RuntimeException("unexpect logic");
             }
@@ -834,7 +842,7 @@ public class AggregateOps {
         return true;
     }
 
-    private static void postProcessMin(MessageEntity messageEntity, ArrayList<BigDecimal> groupedMinList) {
+    private static void postProcessMin(MessageEntity messageEntity, List<BigDecimal> groupedMinList) {
         if (messageEntity != null) {
             if (messageEntity.getBefore() != null && groupedMinList.size() > 0) {
                 messageEntity.getBefore().put(MIN, groupedMinList.get(0));
@@ -845,15 +853,16 @@ public class AggregateOps {
         }
     }
 
-    private static void postProcessMin(TapRecordEvent tapRecordEvent, ArrayList<BigDecimal> groupedMinList) {
+    private static void postProcessMin(TapRecordEvent tapRecordEvent, List<BigDecimal> groupedMinList) {
         if (tapRecordEvent != null) {
             Map<String, Object> before = TapEventUtil.getBefore(tapRecordEvent);
+            final String minStr = groupedMinList.size() > 0 ? groupedMinList.get(0).toPlainString() : null;
             if (before != null && groupedMinList.size() > 0) {
-                before.put(MIN, groupedMinList.get(0));
+                before.put(MIN, minStr);
             }
             Map<String, Object> after = TapEventUtil.getAfter(tapRecordEvent);
             if (after != null && groupedMinList.size() > 0) {
-                after.put(MIN, groupedMinList.get(0));
+                after.put(MIN, minStr);
             }
         }
     }

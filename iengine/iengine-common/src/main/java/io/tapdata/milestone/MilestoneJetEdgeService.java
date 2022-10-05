@@ -14,7 +14,6 @@ import com.tapdata.tm.commons.dag.nodes.CacheNode;
 import com.tapdata.tm.commons.dag.nodes.DataParentNode;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
-import com.tapdata.tm.commons.task.dto.SubTaskDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.collections.MapUtils;
@@ -65,7 +64,7 @@ public class MilestoneJetEdgeService extends MilestoneService {
 
 	@Override
 	public List<Milestone> initMilestones() {
-		if (null == this.milestoneContext.getSubTaskDto() || null == this.milestoneContext.getSourceNode() || null == this.milestoneContext.getDestNode()) {
+		if (null == this.milestoneContext.getTaskDto() || null == this.milestoneContext.getSourceNode() || null == this.milestoneContext.getDestNode()) {
 			throw new IllegalArgumentException("Milestone context missing task, source node, target node");
 		}
 
@@ -122,11 +121,10 @@ public class MilestoneJetEdgeService extends MilestoneService {
 
 	private List<Milestone> generateMilestonesByEdge() {
 		MilestoneStage[] allMilestoneStages = MilestoneStage.values();
-		SubTaskDto subTaskDto = milestoneContext.getSubTaskDto();
-		final TaskDto parentTask = subTaskDto.getParentTask();
-		String syncType = subTaskDto.getParentTask().getType();
+		TaskDto taskDto = milestoneContext.getTaskDto();
+		String syncType = taskDto.getType();
 		String mappingTemplate;
-		if ("migrate".equals(parentTask.getSyncType())) {
+		if ("migrate".equals(taskDto.getSyncType())) {
 			mappingTemplate = ConnectorConstant.MAPPING_TEMPLATE_CLUSTER_CLONE;
 		} else {
 			mappingTemplate = ConnectorConstant.MAPPING_TEMPLATE_CUSTOM;
@@ -183,7 +181,7 @@ public class MilestoneJetEdgeService extends MilestoneService {
 			}
 
 			boolean needOffsetEmpty = milestoneStage.isNeedOffsetEmpty();
-			if (needOffsetEmpty && null != subTaskDto.getAttrs() && null != subTaskDto.getAttrs().get("syncProgress")) {
+			if (needOffsetEmpty && null != taskDto.getAttrs() && null != taskDto.getAttrs().get("syncProgress")) {
 				continue;
 			}
 
@@ -211,7 +209,7 @@ public class MilestoneJetEdgeService extends MilestoneService {
 				continue;
 			}
 
-			if (milestoneStage.equals(MilestoneStage.CREATE_TARGET_INDEX) && !this.milestoneContext.getSubTaskDto().getParentTask().getIsAutoCreateIndex()) {
+			if (milestoneStage.equals(MilestoneStage.CREATE_TARGET_INDEX) && !this.milestoneContext.getTaskDto().getIsAutoCreateIndex()) {
 				continue;
 			}
 
@@ -335,21 +333,21 @@ public class MilestoneJetEdgeService extends MilestoneService {
 
 	@Override
 	public void updateList() {
-		Query query = new Query(Criteria.where("_id").is(milestoneContext.getSubTaskDto().getId().toHexString()));
+		Query query = new Query(Criteria.where("_id").is(milestoneContext.getTaskDto().getId().toHexString()));
 		final Map<String, EdgeMilestone> edgeMilestones = taskMilestoneContext.getEdgeMilestones();
 		Update update = new Update().set("attrs.edgeMilestones", edgeMilestones);
-		clientMongoOperator.update(query, update, ConnectorConstant.SUB_TASK_COLLECTION);
+		clientMongoOperator.update(query, update, ConnectorConstant.TASK_COLLECTION);
 	}
 
 	@Override
 	public void updateList(List<Milestone> milestoneList) {
 		String edgeKey = MilestoneUtil.getEdgeKey(this.milestoneContext.getSourceVertexName(), this.milestoneContext.getDestVertexName());
-		Query query = new Query(Criteria.where("_id").is(milestoneContext.getSubTaskDto().getId().toHexString()));
+		Query query = new Query(Criteria.where("_id").is(milestoneContext.getTaskDto().getId().toHexString()));
 		Update update = new Update().set("attrs.edgeMilestones." + edgeKey, new EdgeMilestone(
 				this.milestoneContext.getSourceVertexName(), this.milestoneContext.getDestVertexName(),
 				milestoneList
 		));
-		clientMongoOperator.update(query, update, ConnectorConstant.SUB_TASK_COLLECTION);
+		clientMongoOperator.update(query, update, ConnectorConstant.TASK_COLLECTION);
 	}
 
 	@Override
@@ -366,7 +364,7 @@ public class MilestoneJetEdgeService extends MilestoneService {
 			} else {
 				throw new IllegalArgumentException("Source vertex names and desc vertex names cannot both empty");
 			}
-			String collection = ConnectorConstant.SUB_TASK_COLLECTION;
+			String collection = ConnectorConstant.TASK_COLLECTION;
 			for (String vertexName : vertexNames) {
 				String edgeKey;
 				switch (vertexType) {
@@ -381,7 +379,7 @@ public class MilestoneJetEdgeService extends MilestoneService {
 						break;
 				}
 				String key = "attrs.edgeMilestones." + edgeKey + "." + MILESTONES_FIELD_NAME;
-				Query query = new Query(Criteria.where("_id").is(milestoneContext.getSubTaskDto().getId()).and(key).elemMatch(Criteria.where("code").is(milestoneStage.name()).and("status").ne(MilestoneStatus.ERROR.getStatus())));
+				Query query = new Query(Criteria.where("_id").is(milestoneContext.getTaskDto().getId()).and(key).elemMatch(Criteria.where("code").is(milestoneStage.name()).and("status").ne(MilestoneStatus.ERROR.getStatus())));
 				Update update = new Update().set(key + ".$.status", milestoneStatus.getStatus());
 				// 开始时间
 				if (milestoneStatus.equals(MilestoneStatus.RUNNING)) {

@@ -4,12 +4,13 @@ import cn.hutool.core.date.DatePattern;
 import cn.hutool.core.date.DateUtil;
 import cn.hutool.extra.spring.SpringUtil;
 import com.google.common.base.Splitter;
+import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.commons.dag.Node;
-import com.tapdata.tm.commons.dag.process.MigrateJsProcessorNode;
+import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.message.constant.Level;
-import com.tapdata.tm.observability.dto.TaskLogDto;
+import com.tapdata.tm.monitor.dto.TaskLogDto;
 import com.tapdata.tm.task.constant.DagOutputTemplateEnum;
 import com.tapdata.tm.task.entity.TaskDagCheckLog;
 import com.tapdata.tm.task.repository.TaskDagCheckLogRepository;
@@ -35,6 +36,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.text.MessageFormat;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
 @Service
@@ -58,6 +60,11 @@ public class TaskDagCheckLogServiceImpl implements TaskDagCheckLogService {
     @Override
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public List<TaskDagCheckLog> dagCheck(TaskDto taskDto, UserDetail userDetail, boolean onlySave) {
+
+        if(taskDto.getDag().checkMultiDag()){
+            throw new BizException("不支持多条链路，请编辑后重试");
+        }
+
         List<TaskDagCheckLog> result = Lists.newArrayList();
 
         LinkedList<DagOutputTemplateEnum> checkList = onlySave ? DagOutputTemplateEnum.getSaveCheck() : DagOutputTemplateEnum.getStartCheck();
@@ -111,7 +118,7 @@ public class TaskDagCheckLogServiceImpl implements TaskDagCheckLogService {
                 DagOutputTemplateEnum.SOURCE_CONNECT_CHECK.name(),
                 DagOutputTemplateEnum.TARGET_CONNECT_CHECK.name());
         Query logQuery = new Query(criteria.and("checkType").nin(delayList));
-        logQuery.with(Sort.by("createTime"));
+        logQuery.with(Sort.by("_id"));
         List<TaskDagCheckLog> taskDagCheckLogs = find(logQuery);
         if (CollectionUtils.isEmpty(taskDagCheckLogs)) {
             TaskDagCheckLogVo taskDagCheckLogVo = new TaskDagCheckLogVo();
@@ -120,7 +127,7 @@ public class TaskDagCheckLogServiceImpl implements TaskDagCheckLogService {
         }
 
         Query modelQuery = new Query(modelCriteria.and("checkType").in(delayList));
-        modelQuery.with(Sort.by("createTime"));
+        modelQuery.with(Sort.by("_id"));
         List<TaskDagCheckLog> modelLogs = find(modelQuery);
 
         LinkedList<TaskLogInfoVo> data = taskDagCheckLogs.stream()
@@ -136,10 +143,6 @@ public class TaskDagCheckLogServiceImpl implements TaskDagCheckLogService {
         TaskDagCheckLogVo result = new TaskDagCheckLogVo(nodeMap, data, null, false);
 
         if (CollectionUtils.isNotEmpty(modelLogs)) {
-            // duplication
-            modelLogs = modelLogs.stream()
-                    .collect(Collectors.collectingAndThen(Collectors.toCollection(() ->
-                            new TreeSet<>(Comparator.comparing(TaskDagCheckLog::getLog))), LinkedList::new));
 
             LinkedList<TaskLogInfoVo> collect = modelLogs.stream()
                     .map(g -> {
@@ -153,13 +156,14 @@ public class TaskDagCheckLogServiceImpl implements TaskDagCheckLogService {
 
             result.setModelList(collect);
 
-            boolean present = modelLogs.stream()
-                    .filter(n -> DagOutputTemplateEnum.MODEL_PROCESS_CHECK.name().equals(n.getCheckType()))
-                    .anyMatch(n -> {
-                        int size = taskDto.getDag().getSourceNode().getFirst().getTableNames().size();
-                        return n.getLog().contains(size + "/" + size);
-                    });
+            boolean present = taskDto.getTransformed();
+
             result.setOver(present);
+
+            // over=true => To prevent the front-end parallel request from getting old data
+            if (present) {
+                CompletableFuture.runAsync(() -> removeAllByTaskId(taskId));
+            }
         }
 
         return result;

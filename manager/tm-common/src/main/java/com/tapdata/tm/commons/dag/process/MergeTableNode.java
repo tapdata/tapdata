@@ -9,6 +9,7 @@ import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
 import com.tapdata.tm.commons.schema.Field;
 import com.tapdata.tm.commons.schema.Schema;
+import com.tapdata.tm.commons.schema.SchemaUtils;
 import com.tapdata.tm.commons.task.dto.MergeTableProperties;
 import com.tapdata.tm.commons.util.MetaDataBuilderUtils;
 import com.tapdata.tm.commons.util.MetaType;
@@ -113,7 +114,7 @@ public class MergeTableNode extends ProcessorNode {
             }
         }
 
-        main = super.mergeSchema(Lists.newArrayList(main), schema1);
+        main = SchemaUtils.mergeSchema(Lists.newArrayList(main), schema1, false);
 
         List<MergeTableProperties> children = mergeProperty.getChildren();
         if (CollectionUtils.isNotEmpty(children)) {
@@ -139,9 +140,9 @@ public class MergeTableNode extends ProcessorNode {
             }
 
             String tableName = ((TableNode) node).transformTableName(((TableNode) node).getTableName());
-            return MetaDataBuilderUtils.generateQualifiedName(metaType, dataSource, tableName);
+            return MetaDataBuilderUtils.generateQualifiedName(metaType, dataSource, tableName, getTaskId());
         } else if (node instanceof ProcessorNode) {
-            return MetaDataBuilderUtils.generateQualifiedName(MetaType.processor_node.name(), nodeId, null);
+            return MetaDataBuilderUtils.generateQualifiedName(MetaType.processor_node.name(), nodeId, null, getTaskId());
         }
         return null;
     }

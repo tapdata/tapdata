@@ -3,14 +3,16 @@ package io.tapdata.websocket.handler;
 import com.alibaba.fastjson.JSON;
 import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.constant.JSONUtil;
+import com.tapdata.entity.schema.SchemaApplyResult;
+import com.tapdata.manager.common.utils.JsonUtil;
 import com.tapdata.mongo.ClientMongoOperator;
+import com.tapdata.tm.autoinspect.utils.GZIPUtil;
 import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.DAGDataServiceImpl;
 import com.tapdata.tm.commons.dag.vo.MigrateJsResultVo;
 import com.tapdata.tm.commons.schema.*;
 import com.tapdata.tm.commons.task.dto.Message;
 import com.tapdata.tm.commons.task.dto.ParentTaskDto;
-import com.tapdata.tm.commons.task.dto.SubTaskDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.common.SettingService;
 import io.tapdata.entity.schema.TapTable;
@@ -24,6 +26,7 @@ import org.apache.commons.collections.CollectionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -35,7 +38,7 @@ public class DeduceSchemaHandler implements WebSocketEventHandler<WebSocketEvent
 
 	private ClientMongoOperator clientMongoOperator;
 
-	private TaskService<SubTaskDto> taskService;
+	private TaskService<TaskDto> taskService;
 
 	@Override
 	public void initialize(ClientMongoOperator clientMongoOperator) {
@@ -43,14 +46,18 @@ public class DeduceSchemaHandler implements WebSocketEventHandler<WebSocketEvent
 	}
 
 	@Override
-	public void initialize(TaskService<SubTaskDto> taskService, ClientMongoOperator clientMongoOperator, SettingService settingService) {
+	public void initialize(TaskService<TaskDto> taskService, ClientMongoOperator clientMongoOperator, SettingService settingService) {
 		this.initialize(clientMongoOperator, settingService);
 		this.taskService = taskService;
 	}
 
 	@Override
 	public WebSocketEventResult handle(Map event) {
-		DeduceSchemaRequest request = JSONUtil.map2POJO(event, DeduceSchemaRequest.class);
+		String data = (String) event.get("data");
+		byte[] decode = Base64.getDecoder().decode(data);
+		byte[] bytes = GZIPUtil.unGzip(decode);
+		String json = new String(bytes);
+		DeduceSchemaRequest request = JsonUtil.parseJsonUseJackson(json, DeduceSchemaRequest.class);
 
 		DAGDataServiceImpl dagDataService = new DAGDataServiceImpl(
 			request.getMetadataInstancesDtoList(),
@@ -63,14 +70,14 @@ public class DeduceSchemaHandler implements WebSocketEventHandler<WebSocketEvent
 		) {
 
 			@Override
-			public TapTable loadTapTable(List<Schema> schemas, String script, String nodeId, String virtualId, String customNodeId, Map<String, Object> form, SubTaskDto subTaskDto) {
+			public TapTable loadTapTable(List<Schema> schemas, String script, String nodeId, String virtualId, String customNodeId, Map<String, Object> form, TaskDto taskDto) {
 				// 跑任务加载js模型
-				String schemaKey = subTaskDto.getId() + "-" + virtualId;
+				String schemaKey = taskDto.getId() + "-" + virtualId;
 				long startTs = System.currentTimeMillis();
-				TaskClient<SubTaskDto> taskClient = execTask(subTaskDto);
+				TaskClient<TaskDto> taskClient = execTask(taskDto);
 
 				logger.info("load tapTable task {} {}, cost {}ms", schemaKey, taskClient.getStatus(), (System.currentTimeMillis() - startTs));
-				if (SubTaskDto.STATUS_COMPLETE.equals(taskClient.getStatus())) {
+				if (TaskDto.STATUS_COMPLETE.equals(taskClient.getStatus())) {
 					//成功
 					TapTable tapTable = HazelcastSchemaTargetNode.getTapTable(schemaKey);
 					if (logger.isDebugEnabled()) {
@@ -83,16 +90,16 @@ public class DeduceSchemaHandler implements WebSocketEventHandler<WebSocketEvent
 			}
 
 			@Override
-			public List<MigrateJsResultVo> getJsResult(String jsNodeId, String virtualTargetId, SubTaskDto subTaskDto) {
-				String schemaKey = subTaskDto.getId() + "-" + virtualTargetId;
+			public List<MigrateJsResultVo> getJsResult(String jsNodeId, String virtualTargetId, TaskDto taskDto) {
+				String schemaKey = taskDto.getId() + "-" + virtualTargetId;
 				long startTs = System.currentTimeMillis();
 
-				TaskClient<SubTaskDto> taskClient = execTask(subTaskDto);
+				TaskClient<TaskDto> taskClient = execTask(taskDto);
 
 				logger.info("load tapTable task {} {}, cost {}ms", schemaKey, taskClient.getStatus(), (System.currentTimeMillis() - startTs));
-				if (SubTaskDto.STATUS_COMPLETE.equals(taskClient.getStatus())) {
+				if (TaskDto.STATUS_COMPLETE.equals(taskClient.getStatus())) {
 					//成功
-					List<HazelcastSchemaTargetNode.SchemaApplyResult> schemaApplyResultList = HazelcastSchemaTargetNode.getSchemaApplyResultList(schemaKey);
+					List<SchemaApplyResult> schemaApplyResultList = HazelcastSchemaTargetNode.getSchemaApplyResultList(schemaKey);
 					if (logger.isDebugEnabled()) {
 						logger.debug("derivation results: {}", JSON.toJSONString(schemaApplyResultList));
 					}
@@ -106,15 +113,17 @@ public class DeduceSchemaHandler implements WebSocketEventHandler<WebSocketEvent
 				return null;
 			}
 
-			private TaskClient<SubTaskDto> execTask(SubTaskDto subTaskDto) {
-				subTaskDto.getParentTask().setType(ParentTaskDto.TYPE_INITIAL_SYNC);
-				TaskClient<SubTaskDto> taskClient = taskService.startTestTask(subTaskDto);
+			private TaskClient<TaskDto> execTask(TaskDto taskDto) {
+				taskDto.setType(ParentTaskDto.TYPE_INITIAL_SYNC);
+				TaskClient<TaskDto> taskClient = taskService.startTestTask(taskDto);
 				taskClient.join();
 				return taskClient;
 			}
 		};
 
+		long start = System.currentTimeMillis();
 		Map<String, List<Message>> transformSchema = request.getTaskDto().getDag().transformSchema(null, dagDataService, request.getOptions());
+		logger.info("transformed cons={}", System.currentTimeMillis()-start + "ms");
 
 		TransformerWsMessageResult wsMessageResult = new TransformerWsMessageResult();
 		wsMessageResult.setBatchMetadataUpdateMap(dagDataService.getBatchMetadataUpdateMap());
@@ -122,6 +131,14 @@ public class DeduceSchemaHandler implements WebSocketEventHandler<WebSocketEvent
 		wsMessageResult.setUpsertItems(dagDataService.getUpsertItems());
 		wsMessageResult.setUpsertTransformer(dagDataService.getUpsertTransformer());
 		wsMessageResult.setTransformSchema(transformSchema);
+		wsMessageResult.setTaskId(request.getTaskDto().getId().toHexString());
+		wsMessageResult.setTransformUuid(request.getOptions().getUuid());
+
+		// Update task's dag
+		TaskDto updateTaskDto = new TaskDto();
+		updateTaskDto.setId(request.getTaskDto().getId());
+		updateTaskDto.setDag(request.getTaskDto().getDag());
+		clientMongoOperator.insertOne(updateTaskDto, ConnectorConstant.TASK_COLLECTION + "/dagNotHistory");
 
 		//返回结果调用接口返回
 		clientMongoOperator.insertOne(wsMessageResult, ConnectorConstant.TASK_COLLECTION + "/transformer/result");

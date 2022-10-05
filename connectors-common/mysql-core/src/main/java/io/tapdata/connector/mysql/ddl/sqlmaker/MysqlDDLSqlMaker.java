@@ -1,6 +1,6 @@
 package io.tapdata.connector.mysql.ddl.sqlmaker;
 
-import io.tapdata.connector.mysql.ddl.DDLSqlMaker;
+import io.tapdata.common.ddl.DDLSqlMaker;
 import io.tapdata.connector.mysql.util.MysqlUtil;
 import io.tapdata.entity.event.ddl.entity.ValueChange;
 import io.tapdata.entity.event.ddl.table.TapAlterFieldAttributesEvent;
@@ -9,12 +9,11 @@ import io.tapdata.entity.event.ddl.table.TapDropFieldEvent;
 import io.tapdata.entity.event.ddl.table.TapNewFieldEvent;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapField;
+import io.tapdata.entity.schema.TapTable;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 import org.apache.commons.lang3.StringUtils;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
+import java.util.*;
 
 /**
  * @author samuel
@@ -24,7 +23,7 @@ import java.util.List;
 public class MysqlDDLSqlMaker implements DDLSqlMaker {
 	private final static String ALTER_TABLE_PREFIX = "alter table `%s`.`%s`";
 	public static final String TAG = MysqlDDLSqlMaker.class.getSimpleName();
-	private String version;
+	private final String version;
 
 	public MysqlDDLSqlMaker(String version) {
 		this.version = version;
@@ -159,7 +158,54 @@ public class MysqlDDLSqlMaker implements DDLSqlMaker {
 		if (StringUtils.isBlank(after)) {
 			throw new RuntimeException("Append alter column name ddl sql failed, new column name is blank");
 		}
-		return Collections.singletonList(String.format(ALTER_TABLE_PREFIX, database, tableId) + " rename column `" + before + "` to `" + after + "`");
+		Integer subVersion = MysqlUtil.getSubVersion(version, 1);
+		String sql = String.format(ALTER_TABLE_PREFIX, database, tableId);
+		if (subVersion != null && subVersion >= 8) {
+			return Collections.singletonList(sql + " rename column `" + before + "` to `" + after + "`");
+		} else {
+			TapTable tapTable = tapConnectorContext.getTableMap().get(tableId);
+			if (tapTable == null) {
+				throw new RuntimeException("Append alter column name ddl sql failed, tapTable is blank");
+			}
+			Optional<TapField> tapFieldOptional = tapTable.getNameFieldMap().entrySet().stream()
+							.filter(e -> StringUtils.equalsIgnoreCase(e.getKey(), before)).map(Map.Entry::getValue).findFirst();
+			if (!tapFieldOptional.isPresent()) {
+				throw new RuntimeException("Append alter column name ddl sql failed, field is blank");
+			}
+			TapField field = tapFieldOptional.get();
+			sql += " change `" + before + "` " + "`" + after + "` " + field.getDataType();
+			if (null != field.getAutoInc() && field.getAutoInc()) {
+				if (field.getPrimaryKeyPos() == 1) {
+					sql += " auto_increment";
+				} else {
+					TapLogger.warn(TAG, "Field \"{}\" cannot be auto increment in mysql, there can be only one auto column and it must be defined the first key", field.getName());
+				}
+			}
+			if (field.getNullable()) {
+				sql += " null";
+			} else {
+				sql += " not null";
+			}
+			// default value
+			String defaultValue = field.getDefaultValue() == null ? "" : field.getDefaultValue().toString();
+			if (StringUtils.isNotBlank(defaultValue)) {
+				sql += " default '" + defaultValue + "'";
+			}
+
+			// comment
+			String comment = field.getComment();
+			if (StringUtils.isNotBlank(comment)) {
+				// try to escape the single quote in comments
+				comment = comment.replace("'", "\\'");
+				sql += " comment '" + comment + "'";
+			}
+
+			Boolean primaryKey = field.getPrimaryKey();
+			if (null != primaryKey && primaryKey) {
+				sql += " key";
+			}
+			return Collections.singletonList(sql);
+		}
 	}
 
 	@Override

@@ -8,7 +8,7 @@ import com.tapdata.entity.RelateDataBaseTable;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.logCollector.LogCollectorNode;
-import com.tapdata.tm.commons.task.dto.SubTaskDto;
+import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.flow.engine.V2.common.task.SyncTypeEnum;
 import io.tapdata.schema.SchemaList;
 import org.apache.logging.log4j.LogManager;
@@ -39,7 +39,7 @@ public class HazelcastLogCollectSource extends HazelcastTaskSource {
 
 	@Override
 	protected void doInit(@NotNull Processor.Context context) throws Exception {
-		SubTaskDto subTaskDto = dataProcessorContext.getSubTaskDto();
+		TaskDto taskDto = dataProcessorContext.getTaskDto();
 		Node<?> node = dataProcessorContext.getNode();
 		if (!(node instanceof LogCollectorNode)) {
 			throw new RuntimeException("Expected LogCollectorNode, actual is: " + node.getClass().getName());
@@ -49,7 +49,7 @@ public class HazelcastLogCollectSource extends HazelcastTaskSource {
 		while (iterator.hasNext()) {
 			String connectionId = iterator.next();
 			dataProcessorContext = DataProcessorContext.newBuilder()
-					.withSubTaskDto(dataProcessorContext.getSubTaskDto())
+					.withTaskDto(taskDto)
 					.withNode(dataProcessorContext.getNode())
 					.withNodes(dataProcessorContext.getNodes())
 					.withEdges(dataProcessorContext.getEdges())

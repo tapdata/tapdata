@@ -10,4 +10,6 @@ import java.lang.annotation.*;
 public @interface AspectObserverClass {
     Class<? extends Aspect> value();
     int order() default Integer.MAX_VALUE;
+
+    boolean ignoreErrors() default true;
 }

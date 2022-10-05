@@ -1,6 +1,5 @@
 package com.tapdata.tm.task.constant;
 
-import com.tapdata.tm.commons.task.dto.SubTaskDto;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -51,8 +50,6 @@ public enum TaskStatusEnum {
         String cacheStatus = status;
         if (STATUS_SCHEDULE_FAILED.getValue().equals(status)) {
             cacheStatus = STATUS_ERROR.getValue();
-        } else if (STATUS_WAIT_RUN.getValue().equals(status)  || STATUS_SCHEDULING.equals(status)) {
-            cacheStatus = STATUS_RUNNING.getValue();
         }
         else if (STATUS_PAUSED.getValue().equals(status)) {
             cacheStatus = STATUS_STOP.getValue();

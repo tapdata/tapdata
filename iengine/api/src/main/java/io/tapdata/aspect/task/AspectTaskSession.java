@@ -11,4 +11,6 @@ public @interface AspectTaskSession {
 	String[] excludeTypes() default "";
 
 	int order() default Integer.MAX_VALUE;
+
+	boolean ignoreErrors() default true;
 }

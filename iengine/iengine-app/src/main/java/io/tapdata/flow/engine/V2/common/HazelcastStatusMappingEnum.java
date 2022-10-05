@@ -1,7 +1,7 @@
 package io.tapdata.flow.engine.V2.common;
 
 import com.hazelcast.jet.core.JobStatus;
-import com.tapdata.tm.commons.task.dto.SubTaskDto;
+import com.tapdata.tm.commons.task.dto.TaskDto;
 
 /**
  * task状态与hazelcast job status映射枚举
@@ -11,21 +11,21 @@ import com.tapdata.tm.commons.task.dto.SubTaskDto;
  **/
 public enum HazelcastStatusMappingEnum {
 
-	NOT_RUNNING(JobStatus.NOT_RUNNING, SubTaskDto.STATUS_SCHEDULING),
+	NOT_RUNNING(JobStatus.NOT_RUNNING, TaskDto.STATUS_SCHEDULING),
 
-	STARTING(JobStatus.STARTING, SubTaskDto.STATUS_SCHEDULING),
+	STARTING(JobStatus.STARTING, TaskDto.STATUS_SCHEDULING),
 
-	RUNNING(JobStatus.RUNNING, SubTaskDto.STATUS_RUNNING),
+	RUNNING(JobStatus.RUNNING, TaskDto.STATUS_RUNNING),
 
-	SUSPENDED(JobStatus.SUSPENDED, SubTaskDto.STATUS_STOPPING),
+	SUSPENDED(JobStatus.SUSPENDED, TaskDto.STATUS_STOPPING),
 
-	SUSPENDED_EXPORTING_SNAPSHOT(JobStatus.SUSPENDED_EXPORTING_SNAPSHOT, SubTaskDto.STATUS_STOPPING),
+	SUSPENDED_EXPORTING_SNAPSHOT(JobStatus.SUSPENDED_EXPORTING_SNAPSHOT, TaskDto.STATUS_STOPPING),
 
-	COMPLETING(JobStatus.COMPLETING, SubTaskDto.STATUS_STOPPING),
+	COMPLETING(JobStatus.COMPLETING, TaskDto.STATUS_STOPPING),
 
-	FAILED(JobStatus.FAILED, SubTaskDto.STATUS_ERROR),
+	FAILED(JobStatus.FAILED, TaskDto.STATUS_ERROR),
 
-	COMPLETED(JobStatus.COMPLETED, SubTaskDto.STATUS_COMPLETE),
+	COMPLETED(JobStatus.COMPLETED, TaskDto.STATUS_COMPLETE),
 	;
 
 	/**

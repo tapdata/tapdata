@@ -1,10 +1,15 @@
 package io.tapdata.connector.doris;
 
+import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
+import org.apache.commons.lang3.StringUtils;
 
 import java.util.Collection;
-import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 /**
  * @Author dayun
@@ -13,7 +18,7 @@ import java.util.LinkedHashMap;
 public class DorisDDLInstance {
     private static final DorisDDLInstance DDLInstance = new DorisDDLInstance();
 
-    public static DorisDDLInstance getInstance(){
+    public static DorisDDLInstance getInstance() {
         return DDLInstance;
     }
 
@@ -27,24 +32,46 @@ public class DorisDDLInstance {
         return builder.toString();
     }
 
-    public String buildColumnDefinition(TapTable tapTable) {
-        LinkedHashMap<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
-        StringBuilder builder = new StringBuilder();
-        for (String columnName : nameFieldMap.keySet()) {
-            TapField tapField = nameFieldMap.get(columnName);
-            if (tapField.getDataType() == null) continue;
-            builder.append(tapField.getName()).append(' ');
-            builder.append(tapField.getDataType()).append(' ');
-            if (tapField.getNullable() != null && !tapField.getNullable()) {
-                builder.append("NOT NULL").append(' ');
-            } else {
-                builder.append("NULL").append(' ');
-            }
-            if (tapField.getDefaultValue() != null) {
-                builder.append("DEFAULT").append(' ').append(tapField.getDefaultValue()).append(' ');
-            }
-            builder.append(',');
+    public String buildColumnDefinition(final TapTable tapTable) {
+        final Map<String, TapField> nameFieldMap = tapTable.getNameFieldMap();
+        final Collection<String> pks = tapTable.primaryKeys();
+        Set<String> pkSet = Sets.newHashSet();
+        final List<String> fieldStrs = Lists.newArrayList();
+        for (String pk : pks) {
+            final String fieldStr = concatFieldInCreateSql(nameFieldMap.get(pk));
+            fieldStrs.add(fieldStr);
+            pkSet.add(pk);
         }
-        builder.delete(builder.length() - 1, builder.length());
-        return builder.toString();
-    }}
+        for (final String columnName : nameFieldMap.keySet()) {
+            if (pkSet.contains(columnName)) {
+                continue;
+            }
+            final String fieldStr = concatFieldInCreateSql(nameFieldMap.get(columnName));
+            if (StringUtils.isBlank(fieldStr)) {
+                continue;
+            }
+            fieldStrs.add(fieldStr);
+        }
+        return StringUtils.join(fieldStrs, ",");
+    }
+
+    private String concatFieldInCreateSql(final TapField tapField) {
+        List<String> fieldStrs = Lists.newArrayList();
+        if (tapField.getDataType() == null) {
+            return null;
+        }
+        fieldStrs.add(tapField.getName());
+        fieldStrs.add(tapField.getDataType());
+        Boolean nullable = tapField.getNullable();
+        if (nullable != null && !nullable) {
+            fieldStrs.add("NOT NULL");
+        } else {
+            fieldStrs.add("NULL");
+        }
+        if (tapField.getDefaultValue() != null) {
+            fieldStrs.add("DEFAULT");
+            fieldStrs.add(tapField.getDefaultValue().toString());
+        }
+        return StringUtils.join(fieldStrs, " ");
+    }
+}

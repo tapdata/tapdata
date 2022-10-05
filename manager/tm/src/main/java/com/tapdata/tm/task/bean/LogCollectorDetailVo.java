@@ -16,10 +16,5 @@ import java.util.List;
 public class LogCollectorDetailVo extends LogCollectorVo {
 
     private List<SyncTaskVo> taskList;
-
-    /** 挖掘时间 */
-    private Date logTime;
-
-    private long delayTime;
-    private String subTaskId;
+    private String taskId;
 }

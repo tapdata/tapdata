@@ -1,8 +1,17 @@
 package io.tapdata.Schedule;
 
 import com.tapdata.constant.ConnectorConstant;
+import com.tapdata.entity.task.context.DataProcessorContext;
+import com.tapdata.entity.task.context.ProcessorBaseContext;
 import com.tapdata.mongo.ClientMongoOperator;
-import io.tapdata.logging.JobCustomerLogger;
+import com.tapdata.tm.commons.dag.Node;
+import io.tapdata.entity.event.TapBaseEvent;
+import io.tapdata.entity.event.TapEvent;
+import io.tapdata.entity.schema.TapTable;
+import io.tapdata.flow.engine.V2.exception.node.NodeException;
+import io.tapdata.observable.logging.LogEventData;
+import io.tapdata.observable.logging.ObsLogger;
+import io.tapdata.observable.logging.ObsLoggerFactory;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.ThreadContext;
 import org.apache.logging.log4j.core.*;
@@ -14,6 +23,7 @@ import org.apache.logging.log4j.core.config.plugins.PluginFactory;
 import org.apache.logging.log4j.util.ReadOnlyStringMap;
 import org.bson.Document;
 
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
@@ -51,10 +61,6 @@ public class CustomHttpAppender extends AbstractAppender {
 		entity.put("level", level);
 		entity.put("loggerName", event.getLoggerName());
 		String message = event.getMessage() == null ? null : event.getMessage().getFormattedMessage();
-		boolean knownCustomerErrLog = message != null && message.contains(JobCustomerLogger.CUSTOMER_ERROR_LOG_PREFIX);
-		if (knownCustomerErrLog) {
-			message = StringUtils.removeStart(message, JobCustomerLogger.CUSTOMER_ERROR_LOG_PREFIX);
-		}
 		entity.put("message", message);
 
 
@@ -122,32 +128,136 @@ public class CustomHttpAppender extends AbstractAppender {
 
 		clientMongoOperator.insertOne(entity, ConnectorConstant.LOG_COLLECTION);
 
-		// add customer unknown error logs
-		String jobName = ThreadContext.get("jobName");
-		String dataFlowId = ThreadContext.get("dataFlowId");
-		if (filterUnnecessaryUnknownErrorForCustomerErrorLog(knownCustomerErrLog, level, event.getLoggerName(), message)) {
-			JobCustomerLogger.unknownError(dataFlowId, jobName, clientMongoOperator, message);
+		if (null != contextMap) {
+			String taskId = contextMap.getValue("taskId");
+			if (null != taskId) {
+				ObsLogger obsLogger = ObsLoggerFactory.getInstance().getObsLogger(taskId);
+				if (null != obsLogger) {
+					// only keep pdk loggers
+					if (null == message || !StringUtils.strip(message).startsWith("$$tag::")) {
+						return;
+					}
+					switch (level.toUpperCase()) {
+						case "INFO":
+							obsLogger.info(message);
+							break;
+						case "WARN":
+							obsLogger.warn(message);
+							break;
+						case "ERROR":
+							Throwable throwable = event.getThrown();
+							if (null == throwable) {
+								obsLogger.error(message);
+								break;
+							}
+
+							List<TapEvent> events = null;
+							ProcessorBaseContext context = null;
+							if (throwable instanceof NodeException) {
+								NodeException nodeException = (NodeException) throwable;
+								events = nodeException.getEvents();
+								context = nodeException.getContext();
+							}
+							if (null == message) {
+								message = throwable.getMessage();
+							}
+
+							error(obsLogger, taskId, message, throwable, events, context);
+							break;
+						default:
+					}
+				}
+			}
 		}
 	}
 
-
-	/**
-	 * Filter the unknown error logs, some logs are redundant，filter the logs out of the customer logs;
-	 */
-	private boolean filterUnnecessaryUnknownErrorForCustomerErrorLog(boolean knownCustomerErrLog, String level, String loggerName,
-																	 String message) {
-		if (!"ERROR".equals(level)) {
-			return false;
-		}
-		if (knownCustomerErrLog) {
-			return false;
-		}
-		// 1. filter the "To see additional job metrics enable JobConfig.storeMetricsAfterJobCompletion" error logged by jet
-		if ("com.hazelcast.jet.impl.MasterJobContext".equals(loggerName)
-				&& message.contains("To see additional job metrics enable JobConfig.storeMetricsAfterJobCompletion")) {
-			return false;
+	private void error(ObsLogger obsLogger, String taskId, String message, Throwable throwable, List<TapEvent> events, ProcessorBaseContext context) {
+		if (null == events || events.isEmpty()) {
+			error(obsLogger, taskId, message, throwable, context);
+			return;
 		}
 
-		return true;
+		Node<?> node = context.getNode();
+		List<Map<String, Object>> data = new ArrayList<>();
+		for(TapEvent event : events) {
+			if (null == event) {
+				continue;
+			}
+			TapBaseEvent baseEvent = (TapBaseEvent) event;
+			Collection<String> pkFields = getPkFields(context, baseEvent.getTableId());
+			data.add(LogEventData.builder()
+					.eventType(LogEventData.LOG_EVENT_TYPE_PROCESS)
+					.status(LogEventData.LOG_EVENT_STATUS_ERROR)
+					.message(message)
+					.time(System.currentTimeMillis())
+					.withNode(node)
+					.withTapEvent(event, pkFields)
+					.build().toMap());
+		}
+		if (null != node) {
+			ObsLogger nodeObsLogger = ObsLoggerFactory.getInstance().getObsLogger(taskId, node.getId());
+			if (null != nodeObsLogger) {
+				obsLogger = nodeObsLogger;
+			}
+		}
+
+		ObsLogger obsLoggerFinal = obsLogger;
+		obsLoggerFinal.error(() -> obsLoggerFinal.logBaseBuilder().data(data), throwable, message);
+	}
+
+	private void error(ObsLogger obsLogger, String taskId, String message, Throwable throwable, ProcessorBaseContext context) {
+		if (null == context) {
+			error(obsLogger, throwable);
+			return;
+		}
+
+		Node<?> node = context.getNode();
+		if (null == node) {
+			error(obsLogger, throwable);
+			return;
+		}
+
+		LogEventData.LogEventDataBuilder builder = LogEventData.builder()
+				.eventType(LogEventData.LOG_EVENT_TYPE_PROCESS)
+				.status(LogEventData.LOG_EVENT_STATUS_ERROR)
+				.message(throwable.getMessage())
+				.time(System.currentTimeMillis())
+				.withNode(node);
+
+		if (null != node) {
+			ObsLogger nodeObsLogger = ObsLoggerFactory.getInstance().getObsLogger(taskId, node.getId());
+			if (null != nodeObsLogger) {
+				obsLogger = nodeObsLogger;
+			}
+		}
+
+		ObsLogger obsLoggerFinal = obsLogger;
+		obsLoggerFinal.error(() -> obsLoggerFinal.logBaseBuilder().record(builder.build().toMap()), throwable);
+	}
+
+	private void error(ObsLogger obsLogger, Throwable throwable) {
+		obsLogger.error(obsLogger::logBaseBuilder, throwable);
+	}
+
+	private Collection<String> getPkFields(ProcessorBaseContext context, String tableName) {
+		if (!(context instanceof DataProcessorContext)) {
+			return Collections.emptyList();
+		}
+
+		TapTable table = context.getTapTableMap().get(tableName);
+		if (null == table) {
+			return Collections.emptyList();
+		}
+
+		Collection<String> pkFields =  table.primaryKeys();
+		if (null == pkFields || pkFields.isEmpty()) {
+			pkFields = table.primaryKeys(true);
+		}
+
+		if (null == pkFields || pkFields.isEmpty()) {
+			pkFields = table.getNameFieldMap().keySet();
+		}
+
+		return pkFields;
 	}
 }

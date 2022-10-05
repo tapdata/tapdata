@@ -1,6 +1,6 @@
 package com.tapdata.tm.ds.dto;
 
-import com.tapdata.tm.ds.bean.Tag;
+import com.tapdata.tm.commons.schema.Tag;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.Setter;

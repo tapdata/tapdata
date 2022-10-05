@@ -1,0 +1,395 @@
+{
+  "properties": {
+    "name": "Redis",
+    "icon": "icons/redis.svg",
+    "doc": "${doc}",
+    "id": "redis"
+  },
+  "configOptions": {
+    "connection": {
+      "type": "object",
+      "properties": {
+        "deploymentMode": {
+          "type": "string",
+          "title": "${deploymentMode}",
+          "default": "standalone",
+          "x-decorator": "FormItem",
+          "x-component": "Select",
+          "x-index": 1,
+          "enum": [
+            {
+              "label": "${standalone}",
+              "value": "standalone"
+            },
+            {
+              "label": "${sentinel}",
+              "value": "sentinel"
+            }
+          ],
+          "x-reactions": [
+            {
+              "target": "*(host,port)",
+              "fulfill": {
+                "state": {
+                  "visible": "{{$self.value === 'standalone'}}"
+                }
+              }
+            },
+            {
+              "target": "*(sentinelName,sentinelAddress)",
+              "fulfill": {
+                "state": {
+                  "visible": "{{$self.value === 'sentinel'}}"
+                }
+              }
+            }
+          ]
+        },
+        "host": {
+          "required": true,
+          "type": "string",
+          "title": "${host}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "apiServerKey": "database_host",
+          "x-index": 2
+        },
+        "port": {
+          "type": "string",
+          "title": "${port}",
+          "x-decorator": "FormItem",
+          "x-component": "InputNumber",
+          "apiServerKey": "database_port",
+          "x-index": 3,
+          "required": true
+        },
+        "database": {
+          "type": "string",
+          "title": "${database}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "apiServerKey": "database_name",
+          "x-index": 4,
+          "required": true
+        },
+
+        "passwordDisplay": {
+          "type": "boolean",
+          "title": "${passwordDisplay}",
+          "x-decorator": "FormItem",
+          "x-component": "Switch",
+          "x-index": 6,
+          "x-reactions": {
+            "target": "password",
+            "fulfill": {
+              "state": {
+                "visible": "{{!!$self.value}}"
+              }
+            }
+          }
+        },
+        "password": {
+          "type": "string",
+          "title": "${password}",
+          "x-decorator": "FormItem",
+          "x-component": "Password",
+          "apiServerKey": "database_password",
+          "x-index": 7
+        },
+        "sentinelName": {
+          "type": "string",
+          "title": "${sentinelName}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "x-index": 8,
+          "required": true
+        },
+        "sentinelAddress": {
+          "type": "array",
+          "title": "${sentinelAddress}",
+          "x-decorator": "FormItem",
+          "x-component": "ArrayItems",
+          "x-index": 9,
+          "items": {
+            "type": "object",
+            "properties": {
+              "space": {
+                "type": "void",
+                "x-component": "Space",
+                "properties": {
+                  "host": {
+                    "type": "string",
+                    "x-decorator": "FormItem",
+                    "x-component": "Input",
+                    "x-component-props": {
+                      "placeholder": "${Address}"
+                    },
+                    "x-index": 1
+                  },
+                  "port": {
+                    "type": "number",
+                    "x-decorator": "FormItem",
+                    "x-component": "InputNumber",
+                    "x-component-props": {
+                      "placeholder": "${sentinelPort}"
+                    },
+                    "x-index": 2
+                  },
+                  "remove": {
+                    "type": "void",
+                    "x-decorator": "FormItem",
+                    "x-component": "ArrayItems.Remove"
+                  }
+                }
+              }
+            }
+          },
+          "properties": {
+            "add": {
+              "type": "void",
+              "title": "${prompt}",
+              "x-component": "ArrayItems.Addition"
+            }
+          }
+        }
+      }
+    },
+    "node":{
+      "properties":{
+        "valueType": {
+          "type": "string",
+          "title": "${valueType}",
+          "default": "list",
+          "x-decorator": "FormItem",
+          "x-component": "Select",
+          "x-index": 3,
+          "enum": [
+            {
+              "label": "list with header",
+              "value": "list"
+            },
+            {
+              "label": "json",
+              "value": "json"
+            }
+          ],
+          "x-reactions": [
+            {
+              "target": ".cacheKeys",
+              "fulfill": {
+                "state": {
+                  "visible": "{{$self.value === 'json'}}"
+                }
+              }
+            }
+          ],
+          "index": 1
+        },
+        "cachePrefix": {
+          "type": "string",
+          "title": "${cachePrefix}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "index": 2,
+          "required": true
+
+        },
+        "cacheKeys": {
+          "type": "string",
+          "title": "${cacheKey}",
+          "x-decorator": "FormItem",
+          "x-component": "FieldSelect",
+          "x-component-props": {
+            "allowCreate": true,
+            "multiple": true,
+            "filterable": true
+          },
+          "x-reactions": ["{{useAsyncDataSourceByConfig({service: loadNodeFieldOptions, withoutField: true}, $values.$inputs[0])}}",
+            {
+              "dependencies": [".valueType"],
+              "fulfill": {
+                "state": {
+                  "visible": "{{$deps[0] === 'json'}}"
+                }
+              }
+            }
+          ],
+          "index": 3,
+          "required": true
+
+        }
+      }
+    }
+  },
+  "messages": {
+    "default": "en_US",
+    "en_US": {
+      "doc": "docs/redis_en_US.md",
+      "host": "DB Host",
+      "database": "Database Name",
+      "port": "Port",
+      "password": "Password",
+      "deploymentMode": "Deployment mode",
+      "passwordDisplay":"Whether to use a password",
+      "sentinelName": "Sentinel name",
+      "standalone": "Single machine deployment",
+      "sentinel": "Sentinel deployment",
+      "valueType": "storage format",
+      "sentinelAddress" : "Server address",
+      "Address" : "Please enter the server address",
+      "sentinelPort": "server port",
+      "cacheKey": "cache key",
+      "cachePrefix": "cache key",
+      "prompt": "add"
+    },
+    "zh_CN": {
+      "doc": "docs/redis_zh_CN.md",
+      "host": "数据库地址",
+      "database": "数据库名称",
+      "port": "端口",
+      "password": "密码",
+      "deploymentMode": "部署模式",
+      "passwordDisplay":"是否使用密码",
+      "sentinelName": "哨兵名称",
+      "standalone": "单机部署",
+      "sentinel": "哨兵部署",
+      "valueType": "存储格式",
+      "sentinelAddress" : "服务器地址",
+      "Address" : "服务器地址",
+      "sentinelPort": "端口",
+      "cacheKey": "缓存键",
+      "cachePrefix": "缓存key",
+      "prompt": "添加"
+    },
+    "zh_TW": {
+      "doc": "docs/redis_zh_TW.md",
+      "host": "數據庫地址",
+      "database": "數據庫名稱",
+      "port": "端口",
+      "password": "密碼",
+      "deploymentMode": "部署模式",
+      "passwordDisplay":"是否使用密碼",
+      "sentinelName": "哨兵名稱",
+      "standalone": "單機部署",
+      "sentinel": "哨兵部署",
+      "valueType": "存儲格式",
+      "sentinelAddress" : "服務器地址",
+      "Address" : "服務器地址",
+      "sentinelPort": "服務器端口",
+      "cacheKey": "緩存鍵",
+      "cachePrefix": "緩存key",
+      "prompt": "添加"
+    }
+  },
+  "dataTypes": {
+    "string": {
+      "queryOnly": true,
+      "to": "TapString"
+    },
+    "text": {
+      "byte": "4g",
+      "to": "TapString"
+    },
+    "keyword": {
+      "byte": 32766,
+      "to": "TapString"
+    },
+    "long": {
+      "bit": 64,
+      "priority": 3,
+      "value": [
+        -9223372036854775808,
+        9223372036854775807
+      ],
+      "to": "TapNumber"
+    },
+    "integer": {
+      "bit": 32,
+      "priority": 1,
+      "value": [
+        -2147483648,
+        2147483647
+      ],
+      "to": "TapNumber"
+    },
+    "short": {
+      "bit": 16,
+      "priority": 3,
+      "value": [
+        -32768,
+        32767
+      ],
+      "to": "TapNumber"
+    },
+    "byte": {
+      "bit": 8,
+      "priority": 3,
+      "value": [
+        -128,
+        127
+      ],
+      "to": "TapNumber"
+    },
+    "double": {
+      "precision": [
+        1,
+        17
+      ],
+      "preferPrecision": 11,
+      "scale": [
+        0,
+        17
+      ],
+      "preferScale": 4,
+      "fixed": false,
+      "to": "TapNumber"
+    },
+    "float": {
+      "precision": [
+        1,
+        6
+      ],
+      "scale": [
+        0,
+        6
+      ],
+      "fixed": false,
+      "to": "TapNumber"
+    },
+    "half_float": {
+      "queryOnly": true,
+      "fixed": false,
+      "to": "TapNumber"
+    },
+    "scaled_float": {
+      "queryOnly": true,
+      "fixed": false,
+      "to": "TapNumber"
+    },
+    "boolean": {
+      "to": "TapBoolean"
+    },
+    "date": {
+      "byte": 3,
+      "range": [
+        "1000-01-01",
+        "9999-12-31"
+      ],
+      "to": "TapDate"
+    },
+    "datetime": {
+      "byte": 8,
+      "range": [
+        "1000-01-01 00:00:00 000000000",
+        "9999-12-31 23:59:59 999999999"
+      ],
+      "to": "TapDateTime"
+    },
+    "binary": {
+      "to": "TapBinary"
+    },
+    "object": {
+      "to": "TapString"
+    }
+  }
+}

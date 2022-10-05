@@ -10,19 +10,30 @@ import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.Edge;
 import com.tapdata.tm.commons.dag.Node;
+import com.tapdata.tm.commons.dag.logCollector.HazelCastImdgNode;
 import com.tapdata.tm.commons.dag.logCollector.LogCollectorNode;
 import com.tapdata.tm.commons.dag.nodes.DataNode;
 import com.tapdata.tm.commons.dag.nodes.DataParentNode;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
-import com.tapdata.tm.commons.task.dto.SubTaskDto;
+import com.tapdata.tm.commons.schema.DataSourceDefinitionDto;
+import com.tapdata.tm.commons.schema.MetadataInstancesDto;
+import com.tapdata.tm.commons.task.dto.Dag;
+import com.tapdata.tm.commons.task.dto.ParentTaskDto;
+import com.tapdata.tm.commons.task.dto.Status;
 import com.tapdata.tm.commons.task.dto.TaskDto;
+import com.tapdata.tm.commons.util.ConnHeartbeatUtils;
+import com.tapdata.tm.commons.util.CreateTypeEnum;
+import com.tapdata.tm.commons.util.MetaDataBuilderUtils;
 import com.tapdata.tm.config.security.UserDetail;
+import com.tapdata.tm.ds.service.impl.DataSourceDefinitionService;
 import com.tapdata.tm.ds.service.impl.DataSourceService;
+import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
 import com.tapdata.tm.task.bean.*;
 import com.tapdata.tm.utils.Lists;
 import com.tapdata.tm.utils.MongoUtils;
+import com.tapdata.tm.utils.UUIDUtil;
 import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.service.WorkerService;
 import lombok.extern.slf4j.Slf4j;
@@ -53,16 +64,17 @@ public class LogCollectorService {
 
     private final TaskService taskService;
 
-    private final SubTaskService subTaskService;
     private final DataSourceService dataSourceService;
     private final WorkerService workerService;
 
     private final SettingsService settingsService;
 
-    public LogCollectorService(TaskService taskService, SubTaskService subTaskService, DataSourceService dataSourceService,
+    private DataSourceDefinitionService dataSourceDefinitionService;
+    private MetadataInstancesService metadataInstancesService;
+
+    public LogCollectorService(TaskService taskService, DataSourceService dataSourceService,
                                WorkerService workerService, SettingsService settingsService) {
         this.taskService = taskService;
-        this.subTaskService = subTaskService;
         this.dataSourceService = dataSourceService;
         this.workerService = workerService;
         this.settingsService = settingsService;
@@ -82,7 +94,7 @@ public class LogCollectorService {
         query.skip(skip);
         query.limit(limit);
         MongoUtils.applySort(query, sort);
-        query.fields().include("status", "name", "createTime", "dag", "statuses");
+        query.fields().include("status", "name", "createTime", "dag", "statuses", "attrs");
 
         List<TaskDto> allDto = taskService.findAllDto(query, user);
         long count = taskService.count(new Query(criteria), user);
@@ -101,7 +113,7 @@ public class LogCollectorService {
      * @param taskDto
      * @return
      */
-    public List<SubTaskDto> findSyncTaskById(TaskDto taskDto, UserDetail user) {
+    public List<TaskDto> findSyncTaskById(TaskDto taskDto, UserDetail user) {
 
         if (taskDto == null) {
             return null;
@@ -127,47 +139,12 @@ public class LogCollectorService {
 
 
         Query taskQuery = new Query(taskCriteria);
-        taskQuery.fields().include("_id", "syncType");
+        taskQuery.fields().include("_id", "syncType", "name", "status", "attrs");
         List<TaskDto> allDtos = taskService.findAllDto(taskQuery, user);
-        if (CollectionUtils.isEmpty(allDtos)) {
-            return null;
-        }
 
-        Map<ObjectId, TaskDto> dtoMap = allDtos.stream().collect(Collectors.toMap(TaskDto::getId, t -> t));
-
-        //再通过主任务去查询子任务
-        List<ObjectId> parentIds = allDtos.stream().map(TaskDto::getId).collect(Collectors.toList());
-        Criteria subTaskCriteria = Criteria.where("parentId").in(parentIds).and("dag.nodes").elemMatch(Criteria.where("catalog").is("data").and("connectionId").in(connectionIds));
-        Query subTaskQuery = new Query(subTaskCriteria);
-        List<SubTaskDto> subTaskDtos = subTaskService.findAllDto(subTaskQuery, user);
-
-        List<SubTaskDto> callSubtasks = new ArrayList<>();
-        if (CollectionUtils.isNotEmpty(subTaskDtos)) {
-            for (SubTaskDto subTaskDto : subTaskDtos) {
-                List<Node> nodes = subTaskDto.getDag().getNodes();
-                List<Node> targets = subTaskDto.getDag().getTargets();
-                nodes.removeAll(targets);
-                for (Node node2 : nodes) {
-                    if (node2 instanceof DataParentNode) {
-                        String connectionId = ((DataParentNode<?>) node2).getConnectionId();
-                        if (connectionIds.contains(connectionId)) {
-                            callSubtasks.add(subTaskDto);
-                        }
-                    }
-                }
-
-            }
-        }
-
-        if (CollectionUtils.isNotEmpty(callSubtasks)) {
-            for (SubTaskDto subTaskDto : callSubtasks) {
-                TaskDto taskDto1 = dtoMap.get(subTaskDto.getParentId());
-                subTaskDto.setParentSyncType(taskDto1.getSyncType());
-            }
-        }
 
         //考虑下要不要把task设置到subTaskDto里面
-        return callSubtasks;
+        return allDtos;
     }
 
     /**
@@ -195,30 +172,21 @@ public class LogCollectorService {
 
     /**
      * 通过子任务id查询当前任务用到的共享挖掘任务
-     * @param subTaskId
+     * @param taskId
      * @return
      */
-    public List<LogCollectorVo> findBySubTaskId(String subTaskId, UserDetail user) {
-        ObjectId objectId = MongoUtils.toObjectId(subTaskId);
+    public List<LogCollectorVo> findBySubTaskId(String taskId, UserDetail user) {
+        ObjectId objectId = MongoUtils.toObjectId(taskId);
         //查询任务是否存在，任务不能是一个挖掘任务
-        Criteria subTaskCriteria = Criteria.where("_id").is(objectId);
+        Criteria subTaskCriteria = Criteria.where("_id").is(objectId).and("shareCdcEnable").is(true).and("sync_type").ne("logCollector");
         Query subTaskQuery = new Query(subTaskCriteria);
-        subTaskQuery.fields().include("dag", "parentId");
-        SubTaskDto subTaskDto = subTaskService.findOne(subTaskQuery, user);
-        if (subTaskDto == null) {
+        subTaskQuery.fields().include("dag");
+        TaskDto taskDto = taskService.findOne(subTaskQuery, user);
+        if (taskDto == null) {
             return new ArrayList<>();
         }
 
-        Query query = new Query(Criteria.where("_id").is(subTaskDto.getParentId()).and("shareCdcEnable").is(true).and("sync_type").ne("logCollector"));
-        query.fields().include("_id");
-        long count = taskService.count(query, user);
-
-        if (count < 1) {
-            return new ArrayList<>();
-        }
-
-        DAG dag = subTaskDto.getDag();
-        return getLogCollectorVos(dag, user);
+        return getLogCollectorVos(taskDto.getDag(), user);
 
     }
 
@@ -247,7 +215,7 @@ public class LogCollectorService {
         }
 
         Query query = new Query(criteria1);
-        query.fields().include("status", "name", "createTime", "dag");
+        query.fields().include("status", "name", "createTime", "dag", "attrs");
         if (limit != null) {
             query.limit(limit);
         }
@@ -338,18 +306,13 @@ public class LogCollectorService {
         List<Node> sources = taskDto.getDag().getSources();
         Node node = sources.get(0);
 
-        List<SubTaskDto> subTaskDtos = subTaskService.findByTaskId(taskDto.getId(), "_id");
-        if (CollectionUtils.isEmpty(subTaskDtos)) {
-            return;
-        }
-        SubTaskDto subTaskDto = subTaskDtos.get(0);
 
         if (logCollectorEditVo.getStorageTime() != null) {
             Document document = new Document();
             document.put("storageTime", logCollectorEditVo.getStorageTime());
             Document _body = new Document();
             _body.put("$set", document);
-            subTaskService.updateNode(subTaskDto.getId(), node.getId(), _body, user);
+            taskService.updateNode(taskDto.getId(), node.getId(), _body, user);
         }
     }
 
@@ -377,28 +340,26 @@ public class LogCollectorService {
         }
         if (node instanceof LogCollectorNode ) {
 
-            List<SubTaskDto> subTaskDtos = findSyncTaskById(taskDto, user);
+            List<TaskDto> taskDtos = findSyncTaskById(taskDto, user);
 
             LogCollectorVo logCollectorVo = convert(taskDto);
             LogCollectorDetailVo logCollectorDetailVo = new LogCollectorDetailVo();
             BeanUtils.copyProperties(logCollectorVo, logCollectorDetailVo);
-            if (CollectionUtils.isNotEmpty(subTaskDtos)) {
-                List<SyncTaskVo> syncTaskVos = convertSubTask(subTaskDtos, ((LogCollectorNode) node).getConnectionIds());
+            if (CollectionUtils.isNotEmpty(taskDtos)) {
+                List<SyncTaskVo> syncTaskVos = convertSubTask(taskDtos, ((LogCollectorNode) node).getConnectionIds());
                 logCollectorDetailVo.setTaskList(syncTaskVos);
             }
 
-            List<SubTaskDto> logSubTasks = subTaskService.findByTaskId(taskDto.getId(), "attrs", "dag");
-            if (CollectionUtils.isNotEmpty(logSubTasks)) {
-                SubTaskDto subTaskDto = logSubTasks.get(0);
-                logCollectorDetailVo.setSubTaskId(subTaskDto.getId().toHexString());
-                DAG dag1 = subTaskDto.getDag();
-                if (dag1 != null) {
-                    List<Edge> edges = dag1.getEdges();
-                    Edge edge = edges.get(0);
-                    Date eventTime = getAttrsValues(edge.getSource(), edge.getTarget(), "eventTime", subTaskDto.getAttrs());
-                    logCollectorDetailVo.setLogTime(eventTime);
-                }
+            TaskDto taskDto1 = taskDtos.get(0);
+            logCollectorDetailVo.setTaskId(taskDto1.getId().toHexString());
+            DAG dag1 = taskDto1.getDag();
+            if (dag1 != null) {
+                List<Edge> edges = dag1.getEdges();
+                Edge edge = edges.get(0);
+                Date eventTime = getAttrsValues(edge.getSource(), edge.getTarget(), "eventTime", taskDto1.getAttrs());
+                logCollectorDetailVo.setLogTime(eventTime);
             }
+
             return logCollectorDetailVo;
         } else {
             return null;
@@ -413,32 +374,40 @@ public class LogCollectorService {
         logCollectorVo.setCreateTime(taskDto.getCreateAt());
         logCollectorVo.setStatus(taskDto.getStatus());
         logCollectorVo.setStatuses(taskDto.getStatuses());
-        List<TaskDto.SyncPoint> syncPoints = taskDto.getSyncPoints();
-        if (CollectionUtils.isNotEmpty(syncPoints)) {
-            TaskDto.SyncPoint syncPoint = syncPoints.get(0);
-            logCollectorVo.setSyncTimePoint(syncPoint.getPointType());
-            logCollectorVo.setSyncTime(new Date(syncPoint.getDateTime()));
-            logCollectorVo.setSyncTimeZone(syncPoint.getTimeZone());
-        }
+//        List<TaskDto.SyncPoint> syncPoints = taskDto.getSyncPoints();
+//        if (CollectionUtils.isNotEmpty(syncPoints)) {
+//            TaskDto.SyncPoint syncPoint = syncPoints.get(0);
+//            logCollectorVo.setSyncTimePoint(syncPoint.getPointType());
+//            logCollectorVo.setSyncTime(new Date(syncPoint.getDateTime()));
+//            logCollectorVo.setSyncTimeZone(syncPoint.getTimeZone());
+//        }
+
+
 
         if (taskDto.getDag() != null) {
             List<Node> sources = taskDto.getDag().getSources();
+            List<Node> targets = taskDto.getDag().getTargets();
 
-            if (CollectionUtils.isNotEmpty(sources)) {
+            if (CollectionUtils.isNotEmpty(sources) && CollectionUtils.isNotEmpty(targets)) {
                 Node node = sources.get(0);
+                Node targetNode = targets.get(0);
+                Date eventTime = getAttrsValues(node.getId(), targetNode.getId(), "eventTime", taskDto.getAttrs());
+                Date sourceTime = getAttrsValues(node.getId(), targetNode.getId(), "sourceTime", taskDto.getAttrs());
+                logCollectorVo.setLogTime(eventTime);
+                long delayTime = sourceTime.getTime() - eventTime.getTime();
+
+                logCollectorVo.setDelayTime(delayTime > 0 ? delayTime : 0);
                 if (node instanceof LogCollectorNode) {
-                    LogCollectorNode logCollectorNode = (LogCollectorNode) sources.get(0);
-                    if (logCollectorNode != null) {
-                        List<ObjectId> ids = logCollectorNode.getConnectionIds().stream().map(MongoUtils::toObjectId).collect(Collectors.toList());
-                        Criteria criteria = Criteria.where("_id").in(ids);
-                        Query query = new Query(criteria);
-                        query.fields().include("name");
-                        List<DataSourceConnectionDto> datasources = dataSourceService.findAll(query);
-                        List<Pair<String, String>> datasourcePairs = datasources.stream().map(d -> ImmutablePair.of(d.getId().toHexString(), d.getName())).collect(Collectors.toList());
-                        logCollectorVo.setConnections(datasourcePairs);
-                        logCollectorVo.setTableName(logCollectorNode.getTableNames());
-                        logCollectorVo.setStorageTime(logCollectorNode.getStorageTime());
-                    }
+                    LogCollectorNode logCollectorNode = (LogCollectorNode) node;
+                    List<ObjectId> ids = logCollectorNode.getConnectionIds().stream().map(MongoUtils::toObjectId).collect(Collectors.toList());
+                    Criteria criteria = Criteria.where("_id").in(ids);
+                    Query query = new Query(criteria);
+                    query.fields().include("name");
+                    List<DataSourceConnectionDto> datasources = dataSourceService.findAll(query);
+                    List<Pair<String, String>> datasourcePairs = datasources.stream().map(d -> ImmutablePair.of(d.getId().toHexString(), d.getName())).collect(Collectors.toList());
+                    logCollectorVo.setConnections(datasourcePairs);
+                    logCollectorVo.setTableName(logCollectorNode.getTableNames());
+                    logCollectorVo.setStorageTime(logCollectorNode.getStorageTime());
                 }
             }
         }
@@ -447,17 +416,16 @@ public class LogCollectorService {
     }
 
 
-    private SyncTaskVo convert(SubTaskDto subTaskDto, List<String> connectionIds) {
+    private SyncTaskVo convert(TaskDto taskDto, List<String> connectionIds) {
         SyncTaskVo logCollectorVo = new SyncTaskVo();
-        logCollectorVo.setId(subTaskDto.getId().toString());
-        logCollectorVo.setName(subTaskDto.getName());
-        logCollectorVo.setStatus(subTaskDto.getStatus());
+        logCollectorVo.setId(taskDto.getId().toString());
+        logCollectorVo.setName(taskDto.getName());
+        logCollectorVo.setStatus(taskDto.getStatus());
         logCollectorVo.setSyncTimestamp(new Date());
         logCollectorVo.setSourceTimestamp(new Date());
-        logCollectorVo.setParentId(subTaskDto.getParentId().toHexString());
-        logCollectorVo.setSyncType(subTaskDto.getParentSyncType());
+        logCollectorVo.setSyncType(taskDto.getSyncType());
 
-        DAG dag = subTaskDto.getDag();
+        DAG dag = taskDto.getDag();
         try {
             if (dag != null) {
                 List<Node> nodes = dag.getNodes();
@@ -469,8 +437,8 @@ public class LogCollectorService {
                                 List<Node> target = dag.getTarget(node.getId());
                                 if (CollectionUtils.isNotEmpty(target)) {
                                     Node targetNode = target.get(0);
-                                    Date eventTime = getAttrsValues(node.getId(), targetNode.getId(), "eventTime", subTaskDto.getAttrs());
-                                    Date sourceTime = getAttrsValues(node.getId(), targetNode.getId(), "sourceTime", subTaskDto.getAttrs());
+                                    Date eventTime = getAttrsValues(node.getId(), targetNode.getId(), "eventTime", taskDto.getAttrs());
+                                    Date sourceTime = getAttrsValues(node.getId(), targetNode.getId(), "sourceTime", taskDto.getAttrs());
                                     logCollectorVo.setSyncTimestamp(eventTime);
                                     logCollectorVo.setSourceTimestamp(sourceTime);
                                     break;
@@ -489,10 +457,10 @@ public class LogCollectorService {
 
 
 
-    private List<SyncTaskVo> convertSubTask(List<SubTaskDto> subTaskDtos, List<String> connectionIds) {
+    private List<SyncTaskVo> convertSubTask(List<TaskDto> taskDtos, List<String> connectionIds) {
         List<SyncTaskVo> syncTaskVos = new ArrayList<>();
-        for (SubTaskDto subTaskDto : subTaskDtos) {
-            syncTaskVos.add(convert(subTaskDto, connectionIds));
+        for (TaskDto taskDto : taskDtos) {
+            syncTaskVos.add(convert(taskDto, connectionIds));
         }
         return syncTaskVos;
     }
@@ -614,18 +582,18 @@ public class LogCollectorService {
      */
     public Boolean checkUpdateConfig(UserDetail user) {
         //查询所有的开启挖掘的任务跟，挖掘任务，是否都停止并且重置
-        Criteria criteria = Criteria.where("shareCdcEnable").is(true).and("is_deleted").is(false).and("statuses").elemMatch(Criteria.where("status").ne(SubTaskDto.STATUS_EDIT));
+        Criteria criteria = Criteria.where("shareCdcEnable").is(true).and("is_deleted").is(false).and("status").ne(TaskDto.STATUS_EDIT);
         Query query = new Query(criteria);
-        query.fields().include("shareCdcEnable", "is_deleted", "statuses");
+        query.fields().include("shareCdcEnable", "is_deleted", "status");
         TaskDto taskDto = taskService.findOne(query);
         if (taskDto != null) {
             return false;
         }
 
         Criteria criteria1 = Criteria.where("is_deleted").is(false).and("dag.nodes").elemMatch(Criteria.where("type").is("logCollector"))
-                .and("statuses").elemMatch(Criteria.where("status").ne(SubTaskDto.STATUS_EDIT));
+                .and("status").ne(TaskDto.STATUS_EDIT);
         Query query1 = new Query(criteria1);
-        query1.fields().include("shareCdcEnable", "is_deleted", "statuses");
+        query1.fields().include("shareCdcEnable", "is_deleted", "status");
         TaskDto taskDto1 = taskService.findOne(query1);
         return taskDto1 == null;
     }
@@ -673,7 +641,8 @@ public class LogCollectorService {
             Map syncProgressMap = (Map) syncProgress;
             List<String> key = Lists.newArrayList(sourceId, targetId);
 
-            Map valueMap = (Map) syncProgressMap.get(JsonUtil.toJsonUseJackson(key));
+            String valueMapString = (String) syncProgressMap.get(JsonUtil.toJsonUseJackson(key));
+            LinkedHashMap valueMap = JsonUtil.parseJson(valueMapString, LinkedHashMap.class);
             if (valueMap == null) {
                 return new Date();
             }
@@ -683,7 +652,7 @@ public class LogCollectorService {
                 return new Date();
             }
 
-            return new Date((Long) o);
+            return new Date(((Double) o).longValue());
 
         } catch (Exception e) {
             return new Date();
@@ -708,7 +677,7 @@ public class LogCollectorService {
 
         Field field = new Field();
         field.put("dag", true);
-        SubTaskDto subTaskDto = subTaskService.findById(new ObjectId(callSubId), field);
+        TaskDto subTaskDto = taskService.findById(new ObjectId(callSubId), field);
         if (subTaskDto != null) {
             List<String> nodeTableNames = new ArrayList<>();
             DAG dag = subTaskDto.getDag();
@@ -746,5 +715,464 @@ public class LogCollectorService {
         }
 
         return mapPage;
+    }
+
+    /**
+     * 日志挖掘
+     *
+     * @param user
+     * @param oldTaskDto
+     */
+    public void logCollector(UserDetail user, TaskDto oldTaskDto) {
+
+        if (!oldTaskDto.getShareCdcEnable()) {
+            //任务没有开启共享挖掘
+            return;
+        }
+
+        //获取DAG所有的源节点并分组
+        DAG dag = oldTaskDto.getDag();
+
+        if (!TaskDto.SYNC_TYPE_MIGRATE.equals(oldTaskDto.getSyncType()) && !TaskDto.SYNC_TYPE_SYNC.equals(oldTaskDto.getSyncType())) {
+            //日志挖掘类型的任务，不需要进行日志挖掘
+            return;
+        }
+
+        //只有全量+增量或者增量的时候可以使用挖掘任务
+        if (ParentTaskDto.TYPE_INITIAL_SYNC.equals(oldTaskDto.getType())) {
+            //只是全量任务不用开启共享日志挖掘
+            return;
+        }
+
+        List<Node> allNodes = dag.getNodes();
+        List<Node> targets = dag.getTargets();
+        Set<String> sinkIds = targets.stream().map(Node::getId).collect(Collectors.toSet());
+
+        Map<ObjectId, List<Node>> group = allNodes.stream().
+                filter(Node::isDataNode)
+                .filter(n -> !sinkIds.contains(n.getId()))
+                .collect(Collectors.groupingBy(s -> MongoUtils.toObjectId(((DataParentNode<?>) s).getConnectionId())));
+        //查询获取所有源的数据源连接
+        Criteria criteria = Criteria.where("_id").in(group.keySet());
+        Query query = new Query(criteria);
+        query.fields().include("_id", "shareCdcEnable", "shareCdcTTL", "uniqueName", "database_type", "name");
+        List<DataSourceConnectionDto> dataSourceDtos = dataSourceService.findAllDto(query, user);
+
+        //根据数据源连接
+        Set<String> sourceUniqSet = new HashSet<>();
+        List<DataSourceConnectionDto> _dataSourceDtos = new ArrayList<>();
+        List<DataSourceConnectionDto> createLogCollects = new ArrayList<>();
+        for (DataSourceConnectionDto dataSourceDto : dataSourceDtos) {
+            if (dataSourceDto.getShareCdcEnable() == null || !dataSourceDto.getShareCdcEnable()) {
+                continue;
+            }
+
+            String uniqueName = dataSourceDto.getUniqueName();
+
+            if (sourceUniqSet.contains(uniqueName)) {
+                _dataSourceDtos.add(dataSourceDto);
+            }
+
+            if (StringUtils.isBlank(uniqueName) || !sourceUniqSet.contains(uniqueName)) {
+                createLogCollects.add(dataSourceDto);
+                sourceUniqSet.add(uniqueName);
+            }
+        }
+
+        _dataSourceDtos.addAll(createLogCollects);
+        dataSourceDtos = _dataSourceDtos;
+
+        Map<String, List<DataSourceConnectionDto>> datasourceMap = dataSourceDtos.stream().collect(Collectors.groupingBy(d -> StringUtils.isBlank(d.getUniqueName()) ? d.getId().toHexString() : d.getUniqueName()));
+
+
+        //不同类型数据源的id缓存
+        Map<String, List<DataSourceConnectionDto>> dataSourceCacheByType = new HashMap<>();
+
+        //数据源id对应创建的挖掘任务id
+        Map<String, String> newLogCollectorMap = new HashMap<>();
+
+        datasourceMap.forEach((k, v) -> {
+
+
+            //获取需要日志挖掘的表名
+            List<String> tableNames = new ArrayList<>();
+            for (DataSourceConnectionDto d : v) {
+                List<Node> nodes = group.get(d.getId());
+                for (Node node : nodes) {
+                    if (node instanceof TableNode) {
+
+                        tableNames.add(((TableNode) node).getTableName());
+
+                    } else if (node instanceof DatabaseNode) {
+                        tableNames = ((DatabaseNode) node).getSourceNodeTableNames();
+                    }
+                }
+            }
+
+            //查询是否存在相同的日志挖掘任务，存在，并且表也存在，则不处理
+            //根据unique name查询，或者根据id查询
+            DataSourceConnectionDto dataSource = v.get(0);
+            List<String> ids = new ArrayList<>();
+
+            //如果没有uniqname,则唯一键采用的id，所以不会存在相似的数据源
+            if (StringUtils.isBlank(dataSource.getUniqueName())) {
+                ids.add(dataSource.getId().toHexString());
+
+            } else {
+
+                List<DataSourceConnectionDto> cache = dataSourceCacheByType.get(dataSource.getDatabase_type());
+                if (CollectionUtils.isEmpty(cache)) {
+                    Criteria criteria1 = Criteria.where("database_type").is(dataSource.getDatabase_type());
+                    Query query1 = new Query(criteria1);
+                    query1.fields().include("_id", "uniqueName");
+                    cache = dataSourceService.findAllDto(query1, user);
+                    dataSourceCacheByType.put(dataSource.getDatabase_type(), cache);
+
+                }
+
+
+                ids = cache.stream().filter(c -> dataSource.getUniqueName().equals(c.getUniqueName())).map(d -> d.getId().toHexString()).collect(Collectors.toList());
+            }
+
+
+            Criteria criteria1 = Criteria.where("is_deleted").is(false).and("dag.nodes").elemMatch(Criteria.where("type").is("logCollector").and("connectionIds").elemMatch(Criteria.where("$in").is(ids)));
+            Query query1 = new Query(criteria1);
+            query1.fields().include("dag", "status");
+            List<String> connectionIds = v.stream().map(d -> d.getId().toHexString()).collect(Collectors.toList());
+            TaskDto oldLogCollectorTask = taskService.findOne(query1, user);
+            if (oldLogCollectorTask != null) {
+                List<Node> sources1 = oldLogCollectorTask.getDag().getSources();
+                LogCollectorNode logCollectorNode = (LogCollectorNode) sources1.get(0);
+                List<String> oldTableNames = logCollectorNode.getTableNames();
+                for (String id : ids) {
+                    newLogCollectorMap.put(id, oldLogCollectorTask.getId().toHexString());
+                }
+
+                List<String> oldConnectionIds = logCollectorNode.getConnectionIds();
+
+                boolean updateConnectionId = false;
+                for (String connectionId : connectionIds) {
+                    if (!oldConnectionIds.contains(connectionId)) {
+                        oldConnectionIds.add(connectionId);
+                        updateConnectionId = true;
+                    }
+                }
+
+                if (CollectionUtils.isNotEmpty(oldTableNames) && oldTableNames.containsAll(tableNames)) {
+                    //检查状态，如果状态不是启动的，需要启动起来
+                    String status = oldLogCollectorTask.getStatus();
+                    if (updateConnectionId) {
+                        taskService.confirmById(oldLogCollectorTask, user, true);
+                    }
+
+                    if (TaskDto.STATUS_RUNNING.equals(status)) {
+                        return;
+                    }
+                    taskService.start(oldLogCollectorTask.getId(), user);
+                    return;
+                }
+
+                tableNames.addAll(oldTableNames);
+                tableNames = tableNames.stream().distinct().collect(Collectors.toList());
+                logCollectorNode.setTableNames(tableNames);
+                taskService.confirmById(oldLogCollectorTask, user, true);
+                updateLogCollectorMap(oldTaskDto.getId(), newLogCollectorMap, user);
+                //这个stop是异步的， 需要重启，重启的逻辑是通过定时任务跑的
+                taskService.pause(oldLogCollectorTask.getId(), user, false, true);
+                return;
+            }
+
+
+            LogCollectorNode logCollectorNode = new LogCollectorNode();
+            logCollectorNode.setId(UUIDUtil.getUUID());
+            logCollectorNode.setConnectionIds(connectionIds);
+            logCollectorNode.setDatabaseType(v.get(0).getDatabase_type());
+            logCollectorNode.setName(UUIDUtil.getUUID());
+
+
+            logCollectorNode.setTableNames(tableNames);
+            logCollectorNode.setSelectType(LogCollectorNode.SELECT_TYPE_RESERVATION);
+
+            HazelCastImdgNode hazelCastImdgNode = new HazelCastImdgNode();
+            hazelCastImdgNode.setId(UUIDUtil.getUUID());
+            hazelCastImdgNode.setName(hazelCastImdgNode.getId());
+
+            List<Node> nodes = Lists.newArrayList(logCollectorNode, hazelCastImdgNode);
+
+            Edge edge = new Edge(logCollectorNode.getId(), hazelCastImdgNode.getId());
+            List<Edge> edges = Lists.newArrayList(edge);
+            Dag dag1 = new Dag(edges, nodes);
+            DAG build = DAG.build(dag1);
+            TaskDto taskDto = new TaskDto();
+            taskDto.setName("来自" + dataSource.getName() + "的共享挖掘任务");
+            taskDto.setDag(build);
+            taskDto.setType("cdc");
+            taskDto.setSyncType("logCollector");
+            taskDto = taskService.create(taskDto, user);
+            taskDto = taskService.confirmById(taskDto, user, true);
+
+            //保存新增挖掘任务id到子任务中
+            for (String id : ids) {
+                newLogCollectorMap.put(id, taskDto.getId().toHexString());
+            }
+
+            taskService.start(taskDto.getId(), user);
+        });
+
+        updateLogCollectorMap(oldTaskDto.getId(), newLogCollectorMap, user);
+    }
+
+    /**
+     * 根据同步任务启动连接心跳打点任务
+     * <pre>
+     * 启动条件：
+     *   - 同步任务启动时检查，并启动连接对应打点任务
+     *   - 同步任务类型为：迁移、同步
+     *   - 同步任务包含增量同步（全量+增量、增量）
+     *   - 同步任务源连接非 dummy 节点，并支持增量同步
+     * 打点任务逻辑：
+     *   - 增量任务
+     *   - 一个打点任务对应一个连接的心跳数据生成
+     *   - 源为 dummy 节点，mode=ConnHeartbeat
+     *   - 目标为任务源节点
+     * </pre>
+     *
+     * @param user       操作用户信息
+     * @param taskDto 启动任务
+     */
+    public void startConnHeartbeat(UserDetail user, TaskDto taskDto) {
+        if (!ConnHeartbeatUtils.checkTask(taskDto.getType(), taskDto.getSyncType())) return;
+        log.info("start connection heartbeat: {}({})", taskDto.getId(), taskDto.getName());
+
+        String subTaskId;
+        DataSourceConnectionDto heartbeatConnection = null;
+        List<DataSourceConnectionDto> dataSourceDtos;
+        Set<String> joinConnectionIdSet = new HashSet<>();
+        Map<String, List<DataSourceConnectionDto>> dataSourceCacheByType = new HashMap<>(); //不同类型数据源的id缓存
+
+        subTaskId = taskDto.getId().toHexString();
+        dataSourceDtos = getConnectionByDag(user, taskDto.getDag());
+        for (DataSourceConnectionDto dataSource : dataSourceDtos) {
+            String dataSourceId = dataSource.getId().toHexString();
+            if (!ConnHeartbeatUtils.checkConnection(dataSource.getDatabase_type(), dataSource.getCapabilities()) || joinConnectionIdSet.contains(dataSourceId))
+                continue;
+
+            //如果连接已经有心跳任务，将连接任务编号添加到 heartbeatTasks，并尝试启动任务
+            List<String> connectionIds = getConnectionIds(user, dataSourceCacheByType, dataSource);
+            TaskDto oldConnHeartbeatTask = queryTask(user, connectionIds);
+            if (oldConnHeartbeatTask != null) {
+                HashSet<String> heartbeatTasks = Optional.ofNullable(oldConnHeartbeatTask.getHeartbeatTasks()).orElseGet(HashSet::new);
+                heartbeatTasks.add(subTaskId);
+                taskService.update(new Query(Criteria.where("_id").is(oldConnHeartbeatTask.getId())), Update.update(ConnHeartbeatUtils.TASK_RELATION_FIELD, heartbeatTasks), user);
+                if (!TaskDto.STATUS_RUNNING.equals(oldConnHeartbeatTask.getStatus())) {
+                    taskService.start(oldConnHeartbeatTask.getId(), user);
+                }
+                joinConnectionIdSet.add(dataSourceId);
+                continue;
+            }
+
+            //循环中只需要获取一次dummy源跟打点模型表
+            if (heartbeatConnection == null) {
+                boolean addDummy = false;
+                //获取打点的Dummy数据源
+                Query query2 = new Query(Criteria.where("database_type").is(ConnHeartbeatUtils.PDK_NAME)
+                        .and("createType").is(CreateTypeEnum.System)
+                        .and("config.mode").is(ConnHeartbeatUtils.MODE)
+                );
+                heartbeatConnection = dataSourceService.findOne(query2, user);
+                if (heartbeatConnection == null) {
+                    Query query3 = new Query(Criteria.where("pdkId").is(ConnHeartbeatUtils.PDK_ID));
+                    query3.fields().include("pdkHash", "type");
+                    DataSourceDefinitionDto definitionDto = dataSourceDefinitionService.findOne(query3);
+
+                    heartbeatConnection = new DataSourceConnectionDto();
+                    heartbeatConnection.setName(ConnHeartbeatUtils.CONNECTION_NAME);
+                    heartbeatConnection.setConfig(Optional.of(new LinkedHashMap<String, Object>()).map(m -> {
+                        m.put("mode", ConnHeartbeatUtils.MODE);
+                        m.put("connId", dataSourceId);
+                        return m;
+                    }).get());
+                    heartbeatConnection.setConnection_type("source");
+                    heartbeatConnection.setPdkType("pdk");
+                    heartbeatConnection.setRetry(0);
+                    heartbeatConnection.setStatus("testing");
+                    heartbeatConnection.setShareCdcEnable(false);
+                    heartbeatConnection.setDatabase_type(definitionDto.getType());
+                    heartbeatConnection.setPdkHash(definitionDto.getPdkHash());
+                    heartbeatConnection.setCreateType(CreateTypeEnum.System);
+                    heartbeatConnection = dataSourceService.add(heartbeatConnection, user);
+                    dataSourceService.sendTestConnection(heartbeatConnection, true, true, user); //添加后没加载模型，手动加载一次
+                    addDummy = true;
+                }
+
+                String qualifiedName = MetaDataBuilderUtils.generateQualifiedName("table", heartbeatConnection, "heartbeatTable");
+                MetadataInstancesDto metadata = metadataInstancesService.findByQualifiedNameNotDelete(qualifiedName, user, "_id");
+                if (metadata == null) {
+                    if (!addDummy) {
+                        //新增数据源的时候 我自动加载模型
+                        dataSourceService.sendTestConnection(heartbeatConnection, true, true, user);
+                    }
+
+                    for (int i = 0; i < 8; i++) {
+                        if (metadataInstancesService.findByQualifiedNameNotDelete(qualifiedName, user, "_id") == null) {
+                            try {
+                                Thread.sleep(500 * i);
+                            } catch (InterruptedException e) {
+                                throw new BizException("SystemError");
+                            }
+                        }
+
+                    }
+                }
+            }
+
+            TaskDto taskDto1 = ConnHeartbeatUtils.generateTask(subTaskId, dataSourceId, dataSource.getName(), dataSource.getDatabase_type(), heartbeatConnection.getId().toHexString(), heartbeatConnection.getDatabase_type());
+            taskDto1 = taskService.create(taskDto1, user);
+            taskDto1 = taskService.confirmById(taskDto1, user, true);
+            taskService.start(taskDto1.getId(), user);
+            joinConnectionIdSet.add(dataSourceId);
+        }
+    }
+
+
+
+
+    private List<String> getConnectionIds(UserDetail user, Map<String, List<DataSourceConnectionDto>> dataSourceCacheByType, DataSourceConnectionDto dataSource) {
+        List<String> ids = new ArrayList<>();
+
+        //如果没有uniqname,则唯一键采用的id，所以不会存在相似的数据源
+        if (StringUtils.isBlank(dataSource.getUniqueName())) {
+            ids.add(dataSource.getId().toHexString());
+
+        } else {
+
+            List<DataSourceConnectionDto> cache = dataSourceCacheByType.get(dataSource.getDatabase_type());
+            if (CollectionUtils.isEmpty(cache)) {
+                Criteria criteria1 = Criteria.where("database_type").is(dataSource.getDatabase_type());
+                Query query1 = new Query(criteria1);
+                query1.fields().include("_id", "uniqueName");
+                cache = dataSourceService.findAllDto(query1, user);
+                dataSourceCacheByType.put(dataSource.getDatabase_type(), cache);
+
+            }
+
+
+            ids = cache.stream().filter(c -> dataSource.getUniqueName().equals(c.getUniqueName())).map(d -> d.getId().toHexString()).collect(Collectors.toList());
+        }
+        return ids;
+    }
+
+    public void endConnHeartbeat(UserDetail user, TaskDto taskDto) {
+        if (null == taskDto) {
+            log.warn("end connections heartbeat not found parent task: {}({})", taskDto.getId(), taskDto.getName());
+            return;
+        }
+        log.info("stop connection heartbeat: {}({})", taskDto.getId(), taskDto.getName());
+
+        if (!ConnHeartbeatUtils.checkTask(taskDto.getType(), taskDto.getSyncType())) return;
+
+        //不同类型数据源的id缓存
+        Map<String, List<DataSourceConnectionDto>> dataSourceCacheByType = new HashMap<>();
+        List<DataSourceConnectionDto> dataSourceDtos = getConnectionByDag(user, taskDto.getDag());
+        for (DataSourceConnectionDto dataSource : dataSourceDtos) {
+            //获取是否存在这些connectionIds作为源的任务。
+            List<String> connectionIds = getConnectionIds(user, dataSourceCacheByType, dataSource);
+            TaskDto oldConnHeartbeatTask = queryTask(user, connectionIds);
+            if (null == oldConnHeartbeatTask) {
+                log.warn("not found heartbeat task, connId: {}", dataSource.getId().toHexString());
+                continue;
+            }
+            HashSet<String> heartbeatTasks = oldConnHeartbeatTask.getHeartbeatTasks();
+            if (heartbeatTasks.remove(taskDto.getId().toHexString())) {
+                taskService.update(new Query(Criteria.where("_id").is(oldConnHeartbeatTask.getId())), Update.update(ConnHeartbeatUtils.TASK_RELATION_FIELD, heartbeatTasks), user);
+            }
+            if (heartbeatTasks.size() == 0) {
+                taskService.stop(oldConnHeartbeatTask.getId(), user, false);
+            }
+        }
+    }
+
+    private TaskDto queryTask(UserDetail user, List<String> ids) {
+        Criteria criteria1 = Criteria.where("is_deleted").is(false)
+                .and("syncType").is(TaskDto.SYNC_TYPE_CONN_HEARTBEAT)
+                .and("dag.nodes").elemMatch(Criteria.where("connectionId").in(ids));
+        Query query1 = new Query(criteria1);
+        query1.fields().include("dag", "status", ConnHeartbeatUtils.TASK_RELATION_FIELD);
+        TaskDto oldConnHeartbeatTask = taskService.findOne(query1, user);
+        return oldConnHeartbeatTask;
+    }
+
+    private List<DataSourceConnectionDto> getConnectionByDag(UserDetail user, DAG dag) {
+        List<Node> sources = dag.getSources();
+
+        Set<String> connectionIds = sources.stream().map(n -> ((DataParentNode) n).getConnectionId()).collect(Collectors.toSet());
+        //查询获取所有源的数据源连接
+        Criteria criteria = Criteria.where("_id").in(connectionIds);
+        Query query = new Query(criteria);
+        query.fields().include("_id", "uniqueName", "database_type", "name", "capabilities");
+        List<DataSourceConnectionDto> dataSourceDtos = dataSourceService.findAllDto(query, user);
+        return dataSourceDtos;
+    }
+
+
+    //由于调用这个方法的都是异步方法，不存在返回时长问题，所以这里直接使用sleep等待
+    private void delayCheckSubTaskStatus(ObjectId taskId, String subStatus, UserDetail user) {
+        Criteria criteria = Criteria.where("parentId").is(taskId);
+        Query query = new Query(criteria);
+        query.fields().include("status");
+        level1:
+        //如果16秒钟还没有等到想要的结果，就不再继续等待了
+        for (int i = 0; i < 100; i++) {
+            int ms = (1 << i) * 1000;
+            try {
+                Thread.sleep(ms);
+            } catch (InterruptedException e) {
+                log.warn("thread sleep interrupt exception, e = {}", e.getMessage());
+                return;
+            }
+
+            List<TaskDto> allDto = taskService.findAllDto(query, user);
+            for (TaskDto TaskDto : allDto) {
+                if (!subStatus.equals(TaskDto.getStatus())) {
+                    break;
+                }
+                break level1;
+            }
+        }
+    }
+
+
+    //将启动的挖掘任务id更新到任务中去
+    private void updateLogCollectorMap(ObjectId taskId, Map<String, String> newLogCollectorMap, UserDetail user) {
+        TaskDto taskDto = taskService.findByTaskId(taskId, "dag", "_id");
+        if (taskDto == null) {
+            return;
+        }
+
+        if (newLogCollectorMap == null || newLogCollectorMap.isEmpty()) {
+
+            return;
+        }
+
+        DAG dag = taskDto.getDag();
+        List<Node> sources = dag.getSources();
+        Map<String, String> shareCdcTaskId = taskDto.getShareCdcTaskId();
+        if (shareCdcTaskId == null) {
+            shareCdcTaskId = new HashMap<>();
+            taskDto.setShareCdcTaskId(shareCdcTaskId);
+        }
+
+        for (Node source : sources) {
+            if (source instanceof DataParentNode) {
+                String id = ((DataParentNode<?>) source).getConnectionId();
+                if (newLogCollectorMap.get(id) != null) {
+                    shareCdcTaskId.put(id, newLogCollectorMap.get(id));
+                }
+            }
+        }
+
+        Update update = new Update();
+        update.set("shareCdcTaskId", shareCdcTaskId);
+        taskService.updateById(taskDto.getId(), update, user);
     }
 }

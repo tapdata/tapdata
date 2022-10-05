@@ -1,6 +1,6 @@
 package io.tapdata.aspect.task.impl;
 
-import com.tapdata.tm.commons.task.dto.SubTaskDto;
+import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.aspect.TaskStartAspect;
 import io.tapdata.aspect.TaskStopAspect;
 import io.tapdata.aspect.task.AspectTask;
@@ -38,7 +38,7 @@ public class AspectTaskManagerImpl implements AspectTaskManager {
 				if (aspectManager != null) {
 					final int order = 10000;
 					aspectManager.registerAspectObserver(TaskStartAspect.class, order, aspect -> {
-						SubTaskDto task = aspect.getTask();
+						TaskDto task = aspect.getTask();
 						if (task == null || task.getId() == null) {
 							TapLogger.warn(TAG, "SubTaskDto is missing or taskId is null for TaskStartAspect, task {}", task);
 							return;
@@ -50,11 +50,11 @@ public class AspectTaskManagerImpl implements AspectTaskManager {
 									classHolder.ensureTaskSessionCreated(aspect);
 							}
 						}
-					});
+					}, false);
 					aspectManager.registerAspectObserver(TaskStopAspect.class, order, aspect -> {
-						SubTaskDto task = aspect.getTask();
+						TaskDto task = aspect.getTask();
 						if (task == null || task.getId() == null) {
-							TapLogger.warn(TAG, "SubTaskDto is missing or taskId is null for TaskStopAspect, task {}", task);
+							TapLogger.warn(TAG, "TaskDto is missing or taskId is null for TaskStopAspect, task {}", task);
 							return;
 						}
 						Collection<TaskSessionClassHolder> classHolders = taskSessionMap.get("default");
@@ -63,7 +63,7 @@ public class AspectTaskManagerImpl implements AspectTaskManager {
 								classHolder.ensureTaskSessionStopped(aspect);
 							}
 						}
-					});
+					}, false);
 				}
 			}
 		}

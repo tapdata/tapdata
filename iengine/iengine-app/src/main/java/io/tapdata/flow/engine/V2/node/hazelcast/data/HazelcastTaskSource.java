@@ -5,7 +5,7 @@ import com.tapdata.entity.*;
 import com.tapdata.entity.dataflow.SyncProgress;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.tm.commons.dag.Node;
-import com.tapdata.tm.commons.task.dto.SubTaskDto;
+import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.Source;
 import io.tapdata.common.ClassScanner;
 import io.tapdata.common.sample.sampler.CounterSampler;
@@ -97,13 +97,11 @@ public class HazelcastTaskSource extends HazelcastDataBaseNode {
 	@Override
 	protected void doInit(@Nonnull Context context) throws Exception {
 		try {
-			// test the source connection
-			TestConnectionHandler.testConnectionWithRetry(sourceContext.getCustomerLogger(), sourceContext.getSourceConn(), "source");
-			SubTaskDto subTaskDto = dataProcessorContext.getSubTaskDto();
+			TaskDto taskDto = dataProcessorContext.getTaskDto();
 			Node<?> node = dataProcessorContext.getNode();
 			ConfigurationCenter configurationCenter = dataProcessorContext.getConfigurationCenter();
 
-			Log4jUtil.setThreadContext(subTaskDto);
+			Log4jUtil.setThreadContext(taskDto);
 
 			running.compareAndSet(false, true);
 			super.doInit(context);
@@ -115,7 +113,7 @@ public class HazelcastTaskSource extends HazelcastDataBaseNode {
 //      initTimeZone();
 			initJobOffset();
 			source.sourceInit(sourceContext);
-			monitorManager.startMonitor(MonitorManager.MonitorType.SOURCE_TS_MONITOR, subTaskDto, dataProcessorContext.getSourceConn());
+			monitorManager.startMonitor(MonitorManager.MonitorType.SOURCE_TS_MONITOR, taskDto, dataProcessorContext.getSourceConn());
 
 			ConnectorContext connectorContext = new ConnectorContext();
 			connectorContext.setJob(sourceContext.getJob());
@@ -133,9 +131,9 @@ public class HazelcastTaskSource extends HazelcastDataBaseNode {
 
 	private void initJobOffset() {
 		try {
-			SubTaskDto subTaskDto = dataProcessorContext.getSubTaskDto();
+			TaskDto taskDto = dataProcessorContext.getTaskDto();
 			Connections sourceConn = dataProcessorContext.getSourceConn();
-			this.syncProgress = initSyncProgress(subTaskDto.getAttrs());
+			this.syncProgress = initSyncProgress(taskDto.getAttrs());
 
 			if (this.syncProgress == null || StringUtils.isBlank(this.syncProgress.getOffset()) || this.sourceContext == null || this.sourceContext.getJob() == null) {
 				return;
@@ -333,8 +331,8 @@ public class HazelcastTaskSource extends HazelcastDataBaseNode {
 	@Override
 	public boolean complete() {
 		try {
-			SubTaskDto subTaskDto = dataProcessorContext.getSubTaskDto();
-			Log4jUtil.setThreadContext(subTaskDto);
+			TaskDto taskDto = dataProcessorContext.getTaskDto();
+			Log4jUtil.setThreadContext(taskDto);
 			TapdataEvent dataEvent = null;
 			if (pendingEvent != null) {
 				dataEvent = pendingEvent;
@@ -353,7 +351,7 @@ public class HazelcastTaskSource extends HazelcastDataBaseNode {
 
 			if (!running()) {
 				if (error != null) {
-					logger.error("Running task {} failed {}", subTaskDto.getId(), error.getMessage(), error);
+					logger.error("Running task {} failed {}", taskDto.getId(), error.getMessage(), error);
 					throw new RuntimeException(error);
 				}
 				return true;

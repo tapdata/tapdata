@@ -58,6 +58,9 @@
           "title": "${krb5Keytab}",
           "x-decorator": "FormItem",
           "x-component": "TextFileReader",
+          "x-component-props": {
+            "base64": true
+          },
           "apiServerKey": "krb5Keytab",
           "fileNameField": "krb5KeytabFile",
           "required": true,
@@ -68,6 +71,9 @@
           "title": "${krb5Conf}",
           "x-decorator": "FormItem",
           "x-component": "TextFileReader",
+          "x-component-props": {
+            "base64": true
+          },
           "apiServerKey": "krb5Conf",
           "fileNameField": "krb5ConfFile",
           "required": true,

@@ -7,6 +7,8 @@ import com.tapdata.tm.commons.schema.bean.*;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import org.apache.commons.collections4.CollectionUtils;
+import org.bson.types.ObjectId;
+import org.springframework.stereotype.Component;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -26,6 +28,7 @@ public class MetadataInstancesDto extends BaseDto {
     private boolean isDeleted = false;
     @JsonProperty("original_name")
     private String originalName;
+    // 原始表名
     private String ancestorsName;
     @JsonProperty("dev_version")
     private Integer devVersion;
@@ -43,7 +46,7 @@ public class MetadataInstancesDto extends BaseDto {
     private SourceDto source;
     private String createSource;
     private Boolean virtual;
-    private List<Tag> classifications;
+    private List<Tag> listtags;
     @JsonProperty("last_user_name")
     private String lastUserName;
     private List<TableIndex> indices;
@@ -76,6 +79,7 @@ public class MetadataInstancesDto extends BaseDto {
     //查询'collection', 'table', 'view', 'mongo_view' 等metatype的时候需要设置的属性
     private String database;
     private String username;
+    private String transformUuid;
 
 
     private List<MetadataInstancesDto> histories;
@@ -93,12 +97,23 @@ public class MetadataInstancesDto extends BaseDto {
     //auto ddl need this param
     private String taskId;
 
+    private String nodeId;
+
     /**
      * 是否是虚拟表 'virtual' 'source'
      */
     @JsonInclude(JsonInclude.Include.ALWAYS)
     private String sourceType= SourceTypeEnum.SOURCE.name();
 
+    private ObjectId oldId;
+
+    public String getDatabaseId() {
+        return databaseId;
+    }
+
+    public void setDatabaseId(String databaseId) {
+        this.databaseId = databaseId;
+    }
 
     public static void sortField(List<Field> fields) {
         if (CollectionUtils.isNotEmpty(fields)) {

@@ -1,9 +1,10 @@
 package com.tapdata.tm.commons.task.dto;
 
-import com.tapdata.tm.commons.base.dto.BaseDto;
+import com.tapdata.tm.commons.base.dto.SchedulableDto;
 import com.tapdata.tm.commons.dag.AccessNodeTypeEnum;
 import com.tapdata.tm.commons.dag.EqField;
 import com.tapdata.tm.commons.dag.SchemaTransformerResult;
+import com.tapdata.tm.commons.schema.Tag;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import org.apache.commons.lang3.StringUtils;
@@ -16,7 +17,7 @@ import java.util.*;
  */
 @EqualsAndHashCode(callSuper = true)
 @Data
-public class ParentTaskDto extends BaseDto {
+public class ParentTaskDto extends SchedulableDto {
 
     public final static String TYPE_INITIAL_SYNC = "initial_sync";
     public final static String TYPE_INITIAL_SYNC_CDC = "initial_sync+cdc";
@@ -109,7 +110,7 @@ public class ParentTaskDto extends BaseDto {
     private Boolean shareCdcEnable;
 
     /** 子任务状态*/
-    private List<SubStatus> statuses;
+    private List<Status> statuses;
 
     /** 状态*/
     private String status;
@@ -163,7 +164,7 @@ public class ParentTaskDto extends BaseDto {
 
     private double transformProcess;
     private String transformStatus;
-    private List<Map<String,String>> listtags;
+    private List<Tag> listtags;
 
     /**
      * 计划开始事件开关
@@ -178,6 +179,7 @@ public class ParentTaskDto extends BaseDto {
      * 界面展示的任务开始时间
      */
     private Date startTime;
+    private Date stopTime;
 
     /**
      * 访问节点
@@ -193,6 +195,44 @@ public class ParentTaskDto extends BaseDto {
     private String accessNodeProcessId;
 
     private HashSet<String> heartbeatTasks;
+
+
+    /** 里程碑相关数据 */
+    private List<Milestone> milestones;
+    /** 报错信息 */
+    private List<Message> messages;
+
+    /** 需要用到的共享挖掘的task id, 每个数据源对应一个共享挖掘的任务id */
+    private Map<String, String> shareCdcTaskId;
+    /** 是否编辑中 */
+    private Boolean isEdit;
+
+    //private Date startTime;
+    private Date scheduledTime;
+    private Date stoppingTime;
+    private Date runningTime;
+    private Date errorTime;
+    private Date pausedTime;
+    private Date finishTime;
+    private Date pingTime;
+
+    //需要重启标识
+    private Boolean restartFlag;
+    //重启需要的用户id
+    private String restartUserId;
+
+
+    /** 自动处理ddl */
+    //private Boolean isOpenAutoDDL = true;
+            //todo 这个参数可能要删除掉
+    private String parentSyncType;
+
+    private Long tmCurrentTime;
+
+    private String transformUuid;
+    private Boolean transformed;
+
+    private int transformDagHash;
 
     public List<String> getAccessNodeProcessIdList() {
         accessNodeProcessIdList = new ArrayList<>();

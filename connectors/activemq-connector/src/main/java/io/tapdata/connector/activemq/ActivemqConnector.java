@@ -19,6 +19,7 @@ import io.tapdata.pdk.apis.entity.ConnectionOptions;
 import io.tapdata.pdk.apis.entity.TestItem;
 import io.tapdata.pdk.apis.entity.WriteListResult;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
+import io.tapdata.pdk.apis.functions.connection.ConnectionCheckItem;
 
 import java.util.List;
 import java.util.function.BiConsumer;
@@ -56,6 +57,7 @@ public class ActivemqConnector extends ConnectorBase {
         codecRegistry.registerFromTapValue(TapDateTimeValue.class, tapDateTimeValue -> formatTapDateTime(tapDateTimeValue.getValue(), "yyyy-MM-dd HH:mm:ss.SSSSSS"));
         codecRegistry.registerFromTapValue(TapDateValue.class, tapDateValue -> formatTapDateTime(tapDateValue.getValue(), "yyyy-MM-dd"));
 
+        connectorFunctions.supportConnectionCheckFunction(this::checkConnection);
         connectorFunctions.supportWriteRecord(this::writeRecord);
         connectorFunctions.supportBatchRead(this::batchRead);
         connectorFunctions.supportStreamRead(this::streamRead);
@@ -70,10 +72,18 @@ public class ActivemqConnector extends ConnectorBase {
     @Override
     public ConnectionOptions connectionTest(TapConnectionContext connectionContext, Consumer<TestItem> consumer) {
         activemqConfig = (ActivemqConfig) new ActivemqConfig().load(connectionContext.getConnectionConfig());
-        ActivemqService activemqService = new ActivemqService(activemqConfig);
-        activemqService.testConnection(consumer);
-        activemqService.close();
-        return null;
+        ConnectionOptions connectionOptions = ConnectionOptions.create();
+        connectionOptions.connectionString(activemqConfig.getConnectionString());
+        try (
+                ActivemqService activemqService = new ActivemqService(activemqConfig)
+        ) {
+            TestItem testConnect = activemqService.testConnect();
+            consumer.accept(testConnect);
+            if (testConnect.getResult() == TestItem.RESULT_FAILED) {
+                return connectionOptions;
+            }
+        }
+        return connectionOptions;
     }
 
     @Override
@@ -95,5 +105,10 @@ public class ActivemqConnector extends ConnectorBase {
 
     private Object timestampToStreamOffset(TapConnectorContext connectorContext, Long offsetStartTime) {
         return TapSimplify.list();
+    }
+
+    private void checkConnection(TapConnectionContext connectionContext, List<String> items, Consumer<ConnectionCheckItem> consumer) {
+        ConnectionCheckItem testConnection = activemqService.testConnection();
+        consumer.accept(testConnection);
     }
 }

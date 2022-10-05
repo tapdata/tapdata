@@ -27,7 +27,6 @@ public class TableEditStrategyImpl implements DagLogStrategy {
     @Override
     public List<TaskDagCheckLog> getLogs(TaskDto taskDto, UserDetail userDetail) {
         ObjectId taskId = taskDto.getId();
-        String taskName = taskDto.getName();
         String current = DateUtil.now();
         Date now = new Date();
 
@@ -49,7 +48,7 @@ public class TableEditStrategyImpl implements DagLogStrategy {
             template = templateEnum.getInfoTemplate();
             grade = Level.INFO.getValue();
 
-            String content = MessageFormat.format(template, current, taskName);
+            String content = MessageFormat.format(template, current, node.getName());
 
             TaskDagCheckLog log = new TaskDagCheckLog();
             log.setTaskId(taskId.toHexString());

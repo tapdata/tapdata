@@ -10,7 +10,7 @@ import com.tapdata.entity.AppType;
 import com.tapdata.entity.Version;
 import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.mongo.CloudSignUtil;
-import com.tapdata.tm.commons.task.dto.SubTaskDto;
+import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.common.SettingService;
 import io.tapdata.flow.engine.V2.task.TaskService;
 import org.apache.commons.collections.CollectionUtils;
@@ -111,7 +111,7 @@ public class ManagementWebsocketHandler implements WebSocketHandler {
 	private ClientMongoOperator clientMongoOperator;
 
 	@Autowired
-	private TaskService<SubTaskDto> taskService;
+	private TaskService<TaskDto> taskService;
 
 	WebSocketSession session;
 
@@ -234,8 +234,12 @@ public class ManagementWebsocketHandler implements WebSocketHandler {
 		});
 
 		Map eventRequestData = event.getData();
-		String messageType = eventRequestData != null && eventRequestData.containsKey("type") && eventRequestData.get("type") != null ?
-				eventRequestData.get("type").toString() : event.getType();
+		String messageType = event.getType();
+		if(!org.apache.commons.lang3.StringUtils.equals(messageType, TaskDto.SYNC_TYPE_TEST_RUN)) {
+			messageType = eventRequestData != null && eventRequestData.containsKey("type") && eventRequestData.get("type") != null ?
+							eventRequestData.get("type").toString() : event.getType();
+		}
+
 		WebSocketEventHandler<WebSocketEventResult> eventHandler = eventHandler(messageType);
 
 		WebSocketEventResult eventResult;

@@ -7,6 +7,7 @@ import io.tapdata.entity.event.ddl.table.TapClearTableEvent;
 import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
 import io.tapdata.entity.event.ddl.table.TapDropTableEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
+import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.value.*;
@@ -46,6 +47,7 @@ public class ElasticsearchConnector extends ConnectorBase {
     private ElasticsearchHttpContext elasticsearchHttpContext;
     private ElasticsearchConfig elasticsearchConfig;
     private String elasticsearchVersion;
+    private static final String TAG = ElasticsearchConnector.class.getSimpleName();
 
     private void initConnection(TapConnectionContext connectorContext) {
         elasticsearchConfig = new ElasticsearchConfig().load(connectorContext.getConnectionConfig());
@@ -110,6 +112,11 @@ public class ElasticsearchConnector extends ConnectorBase {
             indexList.forEach(index -> {
                 TapTable tapTable = table(index);
                 LinkedHashMap<String, LinkedHashMap> fields = (LinkedHashMap) mappings.get(index).getSourceAsMap().get("properties");
+                if (EmptyKit.isEmpty(fields)) {
+                    TapLogger.warn(TAG, "discover schema no fields, index: " + index);
+                    tapTableList.add(tapTable);
+                    return;
+                }
                 fields.forEach((key, value) -> {
                     TapField tapField = new TapField();
                     tapField.setName(key);

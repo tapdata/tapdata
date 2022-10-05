@@ -444,6 +444,7 @@ public class Connections implements Serializable {
 
 	private Map<String, Object> extParam;
 
+
 	public Connections() {
 	}
 
@@ -1999,6 +2000,12 @@ public class Connections implements Serializable {
 		this.pdkType = pdkType;
 	}
 
+	public boolean isSsl() {
+		return ssl;
+	}
+
+
+
 	@Override
 	public String toString() {
 		return "Connections{" +
@@ -2092,6 +2099,8 @@ public class Connections implements Serializable {
 				", mqTopicSet=" + mqTopicSet +
 				", routeKeyField='" + routeKeyField + '\'' +
 				", nameSrvAddr='" + nameSrvAddr + '\'' +
+				", productGroup='" + productGroup + '\'' +
+				", consumerGroup='" + consumerGroup + '\'' +
 				", avro_namespace='" + avro_namespace + '\'' +
 				", avro_encoder_type='" + avro_encoder_type + '\'' +
 				", service='" + service + '\'' +
@@ -2128,6 +2137,12 @@ public class Connections implements Serializable {
 				", sslPass='" + sslPass + '\'' +
 				", sslCRL='" + sslCRL + '\'' +
 				", checkServerIdentity=" + checkServerIdentity +
+				", krb5=" + krb5 +
+				", krb5Keytab='" + krb5Keytab + '\'' +
+				", krb5Conf='" + krb5Conf + '\'' +
+				", krb5Principal='" + krb5Principal + '\'' +
+				", krb5ServiceName='" + krb5ServiceName + '\'' +
+				", kafkaSaslMechanism='" + kafkaSaslMechanism + '\'' +
 				", pgsql_log_decorder_plugin_name='" + pgsql_log_decorder_plugin_name + '\'' +
 				", node_name='" + node_name + '\'' +
 				", socketReadTimeout=" + socketReadTimeout +
@@ -2153,13 +2168,26 @@ public class Connections implements Serializable {
 				", searchDatabaseType='" + searchDatabaseType + '\'' +
 				", hiveConnType='" + hiveConnType + '\'' +
 				", tidbPdServer='" + tidbPdServer + '\'' +
+				", hanaType='" + hanaType + '\'' +
+				", jsEngineName='" + jsEngineName + '\'' +
 				", loadSchemaField=" + loadSchemaField +
 				", tableConsumer=" + tableConsumer +
 				", fileProperty=" + fileProperty +
 				", pdb='" + pdb + '\'' +
 				", tcpUdpType='" + tcpUdpType + '\'' +
+				", config=" + config +
+				", virtualHost='" + virtualHost + '\'' +
+				", hazelcastConstructType=" + hazelcastConstructType +
 				", vika_space_name='" + vika_space_name + '\'' +
 				", vika_space_id='" + vika_space_id + '\'' +
+				", uniqueName='" + uniqueName + '\'' +
+				", shareCdcEnable=" + shareCdcEnable +
+				", shareCdcTTL=" + shareCdcTTL +
+				", pdkType='" + pdkType + '\'' +
+				", pdkHash='" + pdkHash + '\'' +
+				", redoLogParserEnable=" + redoLogParserEnable +
+				", redoLogParserHost='" + redoLogParserHost + '\'' +
+				", redoLogParserPort=" + redoLogParserPort +
 				'}';
 	}
 

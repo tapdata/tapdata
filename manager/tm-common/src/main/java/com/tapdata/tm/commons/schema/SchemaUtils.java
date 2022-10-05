@@ -35,6 +35,18 @@ public class SchemaUtils {
      * @return 合并后的结果
      */
     public static Schema mergeSchema(List<Schema> inputSchemas, Schema schema) {
+        return mergeSchema(inputSchemas, schema, true);
+    }
+
+    /**
+     *
+     * @param inputSchemas 输入
+     * @param schema 原有表
+     * @param logicInput 输入为逻辑表：true  输入为物理表:  false
+     * @return 合并后的模型
+     */
+    public static Schema mergeSchema(List<Schema> inputSchemas, Schema schema, boolean logicInput) {
+
 
         List<Schema> _inputSchemas = inputSchemas.stream().filter(Objects::nonNull).collect(Collectors.toList());
         Schema targetSchema = cloneSchema(schema);
@@ -49,15 +61,17 @@ public class SchemaUtils {
                 return null;
             }
         } else {
-            List<Field> fields = targetSchema.getFields();
-            if (CollectionUtils.isNotEmpty(fields)) {
-                List<Field> removeList = new ArrayList<>();
-                for (Field field : fields) {
-                    if (!"manual".equals(field.getSource())) {
-                        removeList.add(field);
+            if (logicInput) {
+                List<Field> fields = targetSchema.getFields();
+                if (CollectionUtils.isNotEmpty(fields)) {
+                    List<Field> removeList = new ArrayList<>();
+                    for (Field field : fields) {
+                        if (!"manual".equals(field.getSource())) {
+                            removeList.add(field);
+                        }
                     }
+                    fields.removeAll(removeList);
                 }
-                fields.removeAll(removeList);
             }
         }
         if (targetSchema == null) {

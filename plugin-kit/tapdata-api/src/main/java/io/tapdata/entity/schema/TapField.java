@@ -26,12 +26,12 @@ public class TapField extends TapItem<TapField> implements Serializable {
 
     public TapField(String name, String dataType) {
         this.name = name;
-        this.dataType = dataType;
+        this.dataType = dataType != null ? dataType.trim() : null;
     }
 
     private String dataType;
     public TapField dataType(String dataType) {
-        this.dataType = dataType;
+        this.dataType = dataType != null ? dataType.trim() : null;
         return this;
     }
     /**

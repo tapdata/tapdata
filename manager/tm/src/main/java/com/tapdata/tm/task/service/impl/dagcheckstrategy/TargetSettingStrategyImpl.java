@@ -57,7 +57,7 @@ public class TargetSettingStrategyImpl implements DagLogStrategy {
             }
             nameMap.put(name, value);
 
-            String content = MessageFormat.format(template, current, taskName, name);
+            String content = MessageFormat.format(template, current, name);
 
             TaskDagCheckLog log = new TaskDagCheckLog();
             log.setTaskId(taskId.toHexString());

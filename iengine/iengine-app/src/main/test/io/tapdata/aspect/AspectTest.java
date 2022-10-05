@@ -2,25 +2,20 @@ package io.tapdata.aspect;
 
 import com.tapdata.entity.TapdataEvent;
 import com.tapdata.entity.task.context.ProcessorBaseContext;
-import com.tapdata.tm.commons.task.dto.SubTaskDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
-import io.tapdata.aspect.ApplicationStartAspect;
-import io.tapdata.aspect.TaskStartAspect;
-import io.tapdata.aspect.TaskStopAspect;
 import io.tapdata.aspect.task.AspectTask;
 import io.tapdata.aspect.task.AspectTaskManager;
-import io.tapdata.entity.aspect.Aspect;
 import io.tapdata.entity.aspect.AspectManager;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.utils.InstanceFactory;
 import org.bson.types.ObjectId;
 import org.junit.Test;
-import org.reflections.Reflections;
 
 import java.util.List;
 
 import static io.tapdata.entity.simplify.TapSimplify.*;
 import static junit.framework.TestCase.*;
+import static org.junit.Assert.assertNotEquals;
 
 public class AspectTest {
 	@Test
@@ -29,14 +24,12 @@ public class AspectTest {
 		assertNotNull(aspectTaskManager);
 		AspectManager aspectManager = InstanceFactory.instance(AspectManager.class);
 		assertNotNull(aspectManager);
-		SubTaskDto subTaskDto = new SubTaskDto();
-		subTaskDto.setId(new ObjectId());
 		TaskDto taskDto = new TaskDto();
+		taskDto.setId(new ObjectId());
 		taskDto.setSyncType("TEST_TARGET");
-		subTaskDto.setParentTask(taskDto);
 
-		aspectManager.executeAspect(new TaskStartAspect().task(subTaskDto));
-		List<AspectTask> aspectTasks = aspectTaskManager.getAspectTasks(subTaskDto.getId().toString());
+		aspectManager.executeAspect(new TaskStartAspect().task(taskDto));
+		List<AspectTask> aspectTasks = aspectTaskManager.getAspectTasks(taskDto.getId().toString());
 		TestSampleTask testSampleTask = null;
 		for(AspectTask aspectTask : aspectTasks) {
 			if(aspectTask.getClass().equals(TestSampleTask.class)) {
@@ -46,7 +39,8 @@ public class AspectTest {
 		}
 		assertNotNull(testSampleTask);
 
-		aspectManager.executeAspect(new TaskStartAspect().task(subTaskDto));
+		aspectManager.executeAspect(new TaskStartAspect().task(taskDto));
+		aspectTasks = aspectTaskManager.getAspectTasks(taskDto.getId().toString());
 		TestSampleTask testSampleTaskAnother = null;
 		for(AspectTask aspectTask : aspectTasks) {
 			if(aspectTask.getClass().equals(TestSampleTask.class)) {
@@ -55,11 +49,14 @@ public class AspectTest {
 			}
 		}
 		assertNotNull(testSampleTaskAnother);
-		assertEquals(testSampleTaskAnother, testSampleTask);
+		assertNotEquals(testSampleTaskAnother, testSampleTask);
 		assertEquals(1, testSampleTask.onStartCounter.intValue());
-		assertEquals(0, testSampleTask.onStopCounter.intValue());
+		assertEquals(1, testSampleTask.onStopCounter.intValue());
 
-		ProcessorBaseContext processorBaseContext = ProcessorBaseContext.newBuilder().withSubTaskDto(subTaskDto).build();
+		// the old task has been removed, use the new task to replace the old one;
+		testSampleTask = testSampleTaskAnother;
+
+		ProcessorBaseContext processorBaseContext = ProcessorBaseContext.newBuilder().withTaskDto(taskDto).build();
 
 		TapdataEvent event = new TapdataEvent();
 		event.setTapEvent(insertRecordEvent(map(entry("aa", 1)), "table1"));
@@ -72,8 +69,8 @@ public class AspectTest {
 		aspectManager.executeAspect(processorNodeProcessAspect.state(ProcessorFunctionAspect.STATE_END));
 		assertEquals(ProcessorNodeProcessAspect.STATE_END, testSampleTask.nodeProcessAspect.getState());
 
-		aspectManager.executeAspect(new TaskStopAspect().task(subTaskDto));
-		aspectTasks = aspectTaskManager.getAspectTasks(subTaskDto.getId().toString());
+		aspectManager.executeAspect(new TaskStopAspect().task(taskDto));
+		aspectTasks = aspectTaskManager.getAspectTasks(taskDto.getId().toString());
 		TestSampleTask testSampleTaskNone = null;
 		for(AspectTask aspectTask : aspectTasks) {
 			if(aspectTask.getClass().equals(TestSampleTask.class)) {
@@ -85,7 +82,7 @@ public class AspectTest {
 		assertEquals(1, testSampleTask.onStartCounter.intValue());
 		assertEquals(1, testSampleTask.onStopCounter.intValue());
 
-		aspectManager.executeAspect(new TaskStopAspect().task(subTaskDto));
+		aspectManager.executeAspect(new TaskStopAspect().task(taskDto));
 		testSampleTaskNone = null;
 		for(AspectTask aspectTask : aspectTasks) {
 			if(aspectTask.getClass().equals(TestSampleTask.class)) {
@@ -104,14 +101,12 @@ public class AspectTest {
 		assertNotNull(aspectTaskManager);
 		AspectManager aspectManager = InstanceFactory.instance(AspectManager.class);
 		assertNotNull(aspectManager);
-		SubTaskDto subTaskDto = new SubTaskDto();
-		subTaskDto.setId(new ObjectId());
 		TaskDto taskDto = new TaskDto();
+		taskDto.setId(new ObjectId());
 		taskDto.setSyncType("include1");
-		subTaskDto.setParentTask(taskDto);
-		aspectManager.executeAspect(new TaskStartAspect().task(subTaskDto));
+		aspectManager.executeAspect(new TaskStartAspect().task(taskDto));
 
-		List<AspectTask> taskList = aspectTaskManager.getAspectTasks(subTaskDto.getId().toString());
+		List<AspectTask> taskList = aspectTaskManager.getAspectTasks(taskDto.getId().toString());
 		boolean hasIncludesSampleTask = false;
 		boolean hasDefaultSampleTask = false;
 		for(AspectTask aspectTask : taskList) {
@@ -124,9 +119,9 @@ public class AspectTest {
 		}
 		assertTrue(hasIncludesSampleTask);
 		assertTrue(hasDefaultSampleTask);
-		aspectManager.executeAspect(new TaskStopAspect().task(subTaskDto));
+		aspectManager.executeAspect(new TaskStopAspect().task(taskDto));
 
-		taskList = aspectTaskManager.getAspectTasks(subTaskDto.getId().toString());
+		taskList = aspectTaskManager.getAspectTasks(taskDto.getId().toString());
 		boolean hasIncludesSampleTask1 = false;
 		boolean hasDefaultSampleTask1 = false;
 		for(AspectTask aspectTask : taskList) {
@@ -147,23 +142,19 @@ public class AspectTest {
 		assertNotNull(aspectTaskManager);
 		AspectManager aspectManager = InstanceFactory.instance(AspectManager.class);
 		assertNotNull(aspectManager);
-		SubTaskDto subTaskDto = new SubTaskDto();
-		subTaskDto.setName("A");
-		subTaskDto.setId(new ObjectId());
 		TaskDto taskDto = new TaskDto();
+		taskDto.setName("A");
+		taskDto.setId(new ObjectId());
 		taskDto.setSyncType("TEST_TARGET");
-		subTaskDto.setParentTask(taskDto);
 
-		SubTaskDto subTaskDto1 = new SubTaskDto();
-		subTaskDto1.setId(new ObjectId());
-		subTaskDto1.setName("B");
 		TaskDto taskDto1 = new TaskDto();
+		taskDto1.setId(new ObjectId());
+		taskDto1.setName("B");
 		taskDto1.setSyncType("TEST_TARGET");
-		subTaskDto1.setParentTask(taskDto1);
 
-		aspectManager.executeAspect(new TaskStartAspect().task(subTaskDto));
-		aspectManager.executeAspect(new TaskStartAspect().task(subTaskDto1));
-		List<AspectTask> aspectTasks = aspectTaskManager.getAspectTasks(subTaskDto.getId().toString());
+		aspectManager.executeAspect(new TaskStartAspect().task(taskDto));
+		aspectManager.executeAspect(new TaskStartAspect().task(taskDto1));
+		List<AspectTask> aspectTasks = aspectTaskManager.getAspectTasks(taskDto.getId().toString());
 		TestSampleTask testSampleTask = null;
 		for(AspectTask aspectTask : aspectTasks) {
 			if(aspectTask.getClass().equals(TestSampleTask.class)) {
@@ -173,7 +164,7 @@ public class AspectTest {
 		}
 		assertNotNull(testSampleTask);
 
-		aspectTasks = aspectTaskManager.getAspectTasks(subTaskDto1.getId().toString());
+		aspectTasks = aspectTaskManager.getAspectTasks(taskDto1.getId().toString());
 		TestSampleTask testSampleTask1 = null;
 		for(AspectTask aspectTask : aspectTasks) {
 			if(aspectTask.getClass().equals(TestSampleTask.class)) {
@@ -183,7 +174,7 @@ public class AspectTest {
 		}
 		assertNotNull(testSampleTask1);
 
-		ProcessorBaseContext processorBaseContext = ProcessorBaseContext.newBuilder().withSubTaskDto(subTaskDto).build();
+		ProcessorBaseContext processorBaseContext = ProcessorBaseContext.newBuilder().withTaskDto(taskDto).build();
 
 		TapdataEvent event = new TapdataEvent();
 		event.setTapEvent(insertRecordEvent(map(entry("aa", 1)), "table1"));
@@ -196,9 +187,9 @@ public class AspectTest {
 		aspectManager.executeAspect(processorNodeProcessAspect.state(ProcessorFunctionAspect.STATE_END));
 		assertEquals(ProcessorNodeProcessAspect.STATE_END, testSampleTask.nodeProcessAspect.getState());
 
-		aspectManager.executeAspect(new TaskStopAspect().task(subTaskDto));
-		aspectManager.executeAspect(new TaskStopAspect().task(subTaskDto1));
-		aspectTasks = aspectTaskManager.getAspectTasks(subTaskDto.getId().toString());
+		aspectManager.executeAspect(new TaskStopAspect().task(taskDto));
+		aspectManager.executeAspect(new TaskStopAspect().task(taskDto1));
+		aspectTasks = aspectTaskManager.getAspectTasks(taskDto.getId().toString());
 		TestSampleTask testSampleTaskNone = null;
 		for(AspectTask aspectTask : aspectTasks) {
 			if(aspectTask.getClass().equals(TestSampleTask.class)) {
@@ -210,7 +201,7 @@ public class AspectTest {
 		assertEquals(1, testSampleTask.onStartCounter.intValue());
 		assertEquals(1, testSampleTask.onStopCounter.intValue());
 
-		aspectTasks = aspectTaskManager.getAspectTasks(subTaskDto1.getId().toString());
+		aspectTasks = aspectTaskManager.getAspectTasks(taskDto1.getId().toString());
 		TestSampleTask testSampleTaskNone1 = null;
 		for(AspectTask aspectTask : aspectTasks) {
 			if(aspectTask.getClass().equals(TestSampleTask.class)) {

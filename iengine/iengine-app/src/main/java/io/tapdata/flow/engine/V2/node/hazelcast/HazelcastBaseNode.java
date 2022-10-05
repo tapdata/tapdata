@@ -18,7 +18,7 @@ import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;
 import com.tapdata.tm.commons.task.dto.Dag;
-import com.tapdata.tm.commons.task.dto.SubTaskDto;
+import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.aspect.*;
 import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.common.SettingService;
@@ -40,6 +40,8 @@ import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.value.TapDateTimeValue;
 import io.tapdata.flow.engine.V2.common.node.NodeTypeEnum;
+import io.tapdata.flow.engine.V2.exception.node.NodeException;
+import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.HazelcastSourcePdkDataNode;
 import io.tapdata.flow.engine.V2.node.hazelcast.processor.HazelcastProcessorBaseNode;
 import io.tapdata.flow.engine.V2.node.hazelcast.processor.aggregation.HazelcastMultiAggregatorProcessor;
 import io.tapdata.flow.engine.V2.util.GraphUtil;
@@ -48,10 +50,14 @@ import io.tapdata.flow.engine.V2.util.TapEventUtil;
 import io.tapdata.milestone.MilestoneContext;
 import io.tapdata.milestone.MilestoneFactory;
 import io.tapdata.milestone.MilestoneService;
+import io.tapdata.observable.logging.ObsLogger;
+import io.tapdata.observable.logging.ObsLoggerFactory;
 import io.tapdata.schema.TapTableMap;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.collections.MapUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.ThreadContext;
 import org.bson.types.ObjectId;
 import org.jetbrains.annotations.NotNull;
@@ -67,6 +73,7 @@ import java.util.stream.Collectors;
  * @date 2021/12/7 3:25 PM
  **/
 public abstract class HazelcastBaseNode extends AbstractProcessor {
+	private final Logger logger = LogManager.getLogger(HazelcastSourcePdkDataNode.class);
 	/**
 	 * [sub task id]-[node id]
 	 */
@@ -91,7 +98,7 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 	protected SampleCollector sampleCollector;
 	protected SampleCollector statisticCollector;
 	protected MilestoneService milestoneService;
-	protected Throwable error;
+	protected NodeException error;
 	protected String errorMessage;
 	protected ProcessorBaseContext processorBaseContext;
 	protected String threadName;
@@ -104,8 +111,15 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 	 */
 	protected final boolean multipleTables;
 
+	protected ObsLogger obsLogger;
+
 	public HazelcastBaseNode(ProcessorBaseContext processorBaseContext) {
 		this.processorBaseContext = processorBaseContext;
+		this.obsLogger = ObsLoggerFactory.getInstance().getObsLogger(
+				processorBaseContext.getTaskDto(),
+				processorBaseContext.getNode().getId(),
+				processorBaseContext.getNode().getName()
+		);
 
 		if (null != processorBaseContext.getConfigurationCenter()) {
 			this.clientMongoOperator = BeanUtil.getBean(ClientMongoOperator.class);
@@ -115,14 +129,14 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 		if (null != processorBaseContext.getNode() && null == processorBaseContext.getNode().getGraph()) {
 			Dag dag = new Dag(processorBaseContext.getEdges(), processorBaseContext.getNodes());
 			DAG _DAG = DAG.build(dag);
-			_DAG.setTaskId(processorBaseContext.getSubTaskDto().getParentId());
-			processorBaseContext.getSubTaskDto().setDag(_DAG);
+			_DAG.setTaskId(processorBaseContext.getTaskDto().getId());
+			processorBaseContext.getTaskDto().setDag(_DAG);
 		}
 
-		threadName = String.format(THREAD_NAME_TEMPLATE, processorBaseContext.getSubTaskDto().getId().toHexString(), processorBaseContext.getNode() != null ? processorBaseContext.getNode().getName() : null);
+		threadName = String.format(THREAD_NAME_TEMPLATE, processorBaseContext.getTaskDto().getId().toHexString(), processorBaseContext.getNode() != null ? processorBaseContext.getNode().getName() : null);
 
 		//如果为迁移任务、且源节点为数据库类型
-		this.multipleTables = CollectionUtils.isNotEmpty(processorBaseContext.getSubTaskDto().getDag().getSourceNode());
+		this.multipleTables = CollectionUtils.isNotEmpty(processorBaseContext.getTaskDto().getDag().getSourceNode());
 	}
 
 	public <T extends DataFunctionAspect<T>> AspectInterceptResult executeDataFuncAspect(Class<T> aspectClass, Callable<T> aspectCallable, Consumer<T> consumer) {
@@ -142,21 +156,25 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 
 	@Override
 	public final void init(@NotNull Processor.Context context) throws Exception {
-		this.jetContext = context;
-		super.init(context);
-		Log4jUtil.setThreadContext(processorBaseContext.getSubTaskDto());
-		running.compareAndSet(false, true);
-		TapCodecsRegistry tapCodecsRegistry = TapCodecsRegistry.create();
-		tapCodecsRegistry.registerFromTapValue(TapDateTimeValue.class, tapValue -> tapValue.getValue().toInstant());
-		codecsFilterManager = TapCodecsFilterManager.create(tapCodecsRegistry);
-		initSampleCollector();
-		CollectorFactory.getInstance().recordCurrentValueByTag(tags);
-
-		doInit(context);
-		if (this instanceof HazelcastProcessorBaseNode || this instanceof HazelcastMultiAggregatorProcessor) {
-			AspectUtils.executeAspect(ProcessorNodeInitAspect.class, () -> new ProcessorNodeInitAspect().processorBaseContext(processorBaseContext));
-		} else {
-			AspectUtils.executeAspect(DataNodeInitAspect.class, () -> new DataNodeInitAspect().dataProcessorContext((DataProcessorContext) processorBaseContext));
+		try {
+			this.jetContext = context;
+			super.init(context);
+			Log4jUtil.setThreadContext(processorBaseContext.getTaskDto());
+			running.compareAndSet(false, true);
+			TapCodecsRegistry tapCodecsRegistry = TapCodecsRegistry.create();
+			tapCodecsRegistry.registerFromTapValue(TapDateTimeValue.class, tapValue -> tapValue.getValue().toInstant());
+			codecsFilterManager = TapCodecsFilterManager.create(tapCodecsRegistry);
+			initSampleCollector();
+			CollectorFactory.getInstance().recordCurrentValueByTag(tags);
+			// execute ProcessorNodeInitAspect before doInit since we need to init the aspect first;
+			if (this instanceof HazelcastProcessorBaseNode || this instanceof HazelcastMultiAggregatorProcessor) {
+				AspectUtils.executeAspect(ProcessorNodeInitAspect.class, () -> new ProcessorNodeInitAspect().processorBaseContext(processorBaseContext));
+			} else {
+				AspectUtils.executeAspect(DataNodeInitAspect.class, () -> new DataNodeInitAspect().dataProcessorContext((DataProcessorContext) processorBaseContext));
+			}
+			doInit(context);
+		} catch (Throwable e) {
+			throw errorHandle(e, "Node init failed");
 		}
 	}
 
@@ -230,6 +248,7 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 		messageEntity.setOp(TapEventUtil.getOp(dataEvent));
 		messageEntity.setTableName(dataEvent.getTableId());
 		messageEntity.setTimestamp(dataEvent.getReferenceTime());
+		messageEntity.setTime(dataEvent.getTime());
 		return messageEntity;
 	}
 
@@ -261,6 +280,7 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 		if (null != tapRecordEvent) {
 			tapRecordEvent.setTableId(messageEntity.getTableName());
 			tapRecordEvent.setReferenceTime(messageEntity.getTimestamp());
+			tapRecordEvent.setTime(messageEntity.getTime());
 		}
 		return tapRecordEvent;
 	}
@@ -305,17 +325,17 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 	}
 
 	protected DataFlow convertTask2DataFlow(ProcessorBaseContext processorBaseContext) {
-		SubTaskDto subTaskDto = processorBaseContext.getSubTaskDto();
+		TaskDto taskDto = processorBaseContext.getTaskDto();
 		Node<?> node = processorBaseContext.getNode();
 		List<Node> nodes = processorBaseContext.getNodes();
 		List<Edge> edges = processorBaseContext.getEdges();
 		DataFlow dataFlow = new DataFlow();
-		dataFlow.setId(subTaskDto.getId().toHexString());
-		dataFlow.setName(subTaskDto.getName());
-		dataFlow.setStatus(subTaskDto.getStatus());
-		dataFlow.setTaskId(subTaskDto.getParentId().toHexString());
-		dataFlow.setSubTaskId(subTaskDto.getId().toHexString());
-		dataFlow.setUser_id(subTaskDto.getUserId());
+		dataFlow.setId(taskDto.getId().toHexString());
+		dataFlow.setName(taskDto.getName());
+		dataFlow.setStatus(taskDto.getStatus());
+		dataFlow.setTaskId(taskDto.getId().toHexString());
+		dataFlow.setSubTaskId(taskDto.getId().toHexString());
+		dataFlow.setUser_id(taskDto.getUserId());
 		if (node instanceof DatabaseNode) {
 			dataFlow.setMappingTemplate(ConnectorConstant.MAPPING_TEMPLATE_CLUSTER_CLONE);
 		} else {
@@ -323,17 +343,17 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 		}
 
 		DataFlowSetting setting = new DataFlowSetting();
-		setting.setCdcConcurrency(subTaskDto.getParentTask().getIncreSyncConcurrency());
-		setting.setIsOpenAutoDDL(subTaskDto.getParentTask().getIsOpenAutoDDL());
-		setting.setIsSchedule(subTaskDto.getParentTask().getIsSchedule());
-		setting.setStopOnError(subTaskDto.getParentTask().getIsStopOnError());
+		setting.setCdcConcurrency(taskDto.getIncreSyncConcurrency());
+		setting.setIsOpenAutoDDL(taskDto.getIsOpenAutoDDL());
+		setting.setIsSchedule(taskDto.getIsSchedule());
+		setting.setStopOnError(taskDto.getIsStopOnError());
 		setting.setTransformerConcurrency(8);
 		setting.setReadCdcInterval(500);
 
-		setting.setCdcFetchSize(subTaskDto.getParentTask().getIncreaseReadSize());
-		setting.setCdcShareFilterOnServer(!subTaskDto.getParentTask().getIsFilter());
-		setting.setCronExpression(subTaskDto.getParentTask().getCrontabExpression());
-		setting.setDistinctWriteType("force".equals(subTaskDto.getParentTask().getDeduplicWriteMode()) ? ConnectorConstant.DISTINCT_WRITE_TYPE_COMPEL : ConnectorConstant.DISTINCT_WRITE_TYPE_INTELLECT);
+		setting.setCdcFetchSize(taskDto.getIncreaseReadSize());
+		setting.setCdcShareFilterOnServer(!taskDto.getIsFilter());
+		setting.setCronExpression(taskDto.getCrontabExpression());
+		setting.setDistinctWriteType("force".equals(taskDto.getDeduplicWriteMode()) ? ConnectorConstant.DISTINCT_WRITE_TYPE_COMPEL : ConnectorConstant.DISTINCT_WRITE_TYPE_INTELLECT);
 
 		// For data write idempotent, used force de-duplicate mode when source has join node
 		final List<Node> allPreNodes = NodeUtil.findAllPreNodes(node);
@@ -346,11 +366,11 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 		if (node instanceof TableNode) {
 			setting.setMaxTransactionLength(Double.valueOf(((TableNode) node).getMaxTransactionDuration()));
 		}
-		setting.setNeedToCreateIndex(subTaskDto.getParentTask().getIsAutoCreateIndex());
+		setting.setNeedToCreateIndex(taskDto.getIsAutoCreateIndex());
 		//todo
 		setting.setProcessorConcurrency(1);
 		setting.setReadBatchSize(100);
-		setting.setSync_type(subTaskDto.getParentTask().getType());
+		setting.setSync_type(taskDto.getType());
 		dataFlow.setSetting(setting);
 		setting.setNoPrimaryKey(true);
 
@@ -453,37 +473,40 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 	@Override
 	public final void close() throws Exception {
 		try {
-			doClose();
+			try {
+				doClose();
+			} finally {
+				running.set(false);
+				if (this instanceof HazelcastProcessorBaseNode || this instanceof HazelcastMultiAggregatorProcessor) {
+					AspectUtils.executeAspect(ProcessorNodeCloseAspect.class, () -> new ProcessorNodeCloseAspect().processorBaseContext(processorBaseContext));
+				} else {
+					AspectUtils.executeAspect(DataNodeCloseAspect.class, () -> new DataNodeCloseAspect().dataProcessorContext((DataProcessorContext) processorBaseContext));
+				}
+				//		InstanceFactory.instance(AspectManager.class).executeAspect(DataNodeCloseAspect.class, () -> new DataNodeCloseAspect().node(HazelcastBaseNode.this));
+				if (processorBaseContext.getTaskDto() != null) {
+					if (sampleCollector != null) {
+						CollectorFactory.getInstance().unregisterSampleCollectorFromGroup(processorBaseContext.getTaskDto().getId().toString(), sampleCollector);
+					}
+					if (statisticCollector != null) {
+						CollectorFactory.getInstance().unregisterStatisticCollectorFromGroup(processorBaseContext.getTaskDto().getId().toString(), statisticCollector);
+					}
+				} else {
+					if (sampleCollector != null) {
+						sampleCollector.stop();
+						CollectorFactory.getInstance().removeSampleCollectorByTags(sampleCollector.tags());
+					}
+					if (statisticCollector != null) {
+						statisticCollector.stop();
+						CollectorFactory.getInstance().removeStatisticCollectorByTags(statisticCollector.tags());
+					}
+				}
+				if (error != null) {
+					throw new RuntimeException(errorMessage, error);
+				}
+			}
 		} finally {
-			running.set(false);
-			if (this instanceof HazelcastProcessorBaseNode || this instanceof HazelcastMultiAggregatorProcessor) {
-				AspectUtils.executeAspect(ProcessorNodeCloseAspect.class, () -> new ProcessorNodeCloseAspect().processorBaseContext(processorBaseContext));
-			} else {
-				AspectUtils.executeAspect(DataNodeCloseAspect.class, () -> new DataNodeCloseAspect().dataProcessorContext((DataProcessorContext) processorBaseContext));
-			}
-//		InstanceFactory.instance(AspectManager.class).executeAspect(DataNodeCloseAspect.class, () -> new DataNodeCloseAspect().node(HazelcastBaseNode.this));
-			if (processorBaseContext.getSubTaskDto() != null) {
-				if (sampleCollector != null) {
-					CollectorFactory.getInstance().unregisterSampleCollectorFromGroup(processorBaseContext.getSubTaskDto().getId().toString(), sampleCollector);
-				}
-				if (statisticCollector != null) {
-					CollectorFactory.getInstance().unregisterStatisticCollectorFromGroup(processorBaseContext.getSubTaskDto().getId().toString(), statisticCollector);
-				}
-			} else {
-				if (sampleCollector != null) {
-					sampleCollector.stop();
-					CollectorFactory.getInstance().removeSampleCollectorByTags(sampleCollector.tags());
-				}
-				if (statisticCollector != null) {
-					statisticCollector.stop();
-					CollectorFactory.getInstance().removeStatisticCollectorByTags(statisticCollector.tags());
-				}
-			}
 			ThreadContext.clearAll();
 			super.close();
-			if (error != null) {
-				throw new RuntimeException(errorMessage, error);
-			}
 		}
 	}
 
@@ -498,15 +521,14 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 			tags.put("nodeId", processorBaseContext.getNode().getId());
 			tags.put("type", "node");
 		}
-		if (processorBaseContext.getSubTaskDto() != null) {
-			tags.put("subTaskId", processorBaseContext.getSubTaskDto().getId().toString());
-			tags.put("taskId", processorBaseContext.getSubTaskDto().getParentId().toString());
+		if (processorBaseContext.getTaskDto() != null) {
+			tags.put("taskId", processorBaseContext.getTaskDto().getId().toString());
 		}
 		sampleCollector = CollectorFactory.getInstance().getSampleCollectorByTags("nodeSamples", tags);
 		statisticCollector = CollectorFactory.getInstance().getStatisticCollectorByTags("nodeStatistics", tags);
-		if (processorBaseContext.getSubTaskDto() != null) {
-			CollectorFactory.getInstance().registerSampleCollectorToGroup(processorBaseContext.getSubTaskDto().getId().toString(), sampleCollector);
-			CollectorFactory.getInstance().registerStatisticCollectorToGroup(processorBaseContext.getSubTaskDto().getId().toString(), statisticCollector);
+		if (processorBaseContext.getTaskDto() != null) {
+			CollectorFactory.getInstance().registerSampleCollectorToGroup(processorBaseContext.getTaskDto().getId().toString(), sampleCollector);
+			CollectorFactory.getInstance().registerStatisticCollectorToGroup(processorBaseContext.getTaskDto().getId().toString(), statisticCollector);
 		}
 	}
 
@@ -621,28 +643,42 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 		List<String> vertexNames = nextOrPreDataNodes.stream().map(NodeUtil::getVertexName).collect(Collectors.toList());
 
 		HttpClientMongoOperator httpClientMongoOperator = (HttpClientMongoOperator) clientMongoOperator;
-		this.milestoneService = MilestoneFactory.getJetEdgeMilestoneService(processorBaseContext.getSubTaskDto(), httpClientMongoOperator.getRestTemplateOperator().getBaseURLs(), httpClientMongoOperator.getRestTemplateOperator().getRetryTime(), httpClientMongoOperator.getConfigCenter(), node, vertexName, vertexNames, null, vertexType);
+		this.milestoneService = MilestoneFactory.getJetEdgeMilestoneService(processorBaseContext.getTaskDto(), httpClientMongoOperator.getRestTemplateOperator().getBaseURLs(), httpClientMongoOperator.getRestTemplateOperator().getRetryTime(), httpClientMongoOperator.getConfigCenter(), node, vertexName, vertexNames, null, vertexType);
 	}
 
-	protected synchronized void errorHandle(Throwable throwable, String errorMessage) {
-		if (null != error) {
-			return;
+	protected synchronized NodeException errorHandle(Throwable throwable, String errorMessage) {
+		NodeException currentEx;
+		if (throwable instanceof NodeException) {
+			currentEx = (NodeException) throwable;
+		} else {
+			currentEx = new NodeException(errorMessage, throwable).context(getProcessorBaseContext());
 		}
-		this.error = throwable;
-		this.errorMessage = errorMessage;
-		this.running.set(false);
-		SubTaskDto subTaskDto = processorBaseContext.getSubTaskDto();
-		com.hazelcast.jet.Job hazelcastJob = jetContext.hazelcastInstance().getJet().getJob(subTaskDto.getName() + "-" + subTaskDto.getId().toHexString());
-		if (hazelcastJob != null) {
-			AspectUtils.executeAspect(new TaskStopAspect().task(subTaskDto).error(throwable));
-			hazelcastJob.cancel();
+
+		if (null == error) {
+			this.error = currentEx;
+			if (null != errorMessage) {
+				this.errorMessage = errorMessage;
+			} else {
+				this.errorMessage = currentEx.getMessage();
+			}
+			logger.error(errorMessage, currentEx);
+			obsLogger.error(errorMessage, currentEx);
+			this.running.set(false);
+			TaskDto taskDto = processorBaseContext.getTaskDto();
+			com.hazelcast.jet.Job hazelcastJob = jetContext.hazelcastInstance().getJet().getJob(taskDto.getName() + "-" + taskDto.getId().toHexString());
+			if (hazelcastJob != null) {
+				AspectUtils.executeAspect(new TaskStopAspect().task(taskDto).error(currentEx));
+				hazelcastJob.cancel();
+			}
 		}
+
+		return currentEx;
 	}
 
 	protected boolean taskHasBeenRun() {
-		final SubTaskDto subTaskDto = processorBaseContext.getSubTaskDto();
-		if (subTaskDto != null && MapUtils.isNotEmpty(subTaskDto.getAttrs())) {
-			return subTaskDto.getAttrs().containsKey("syncProgress");
+		final TaskDto taskDto = processorBaseContext.getTaskDto();
+		if (taskDto != null && MapUtils.isNotEmpty(taskDto.getAttrs())) {
+			return taskDto.getAttrs().containsKey("syncProgress");
 		}
 
 		return false;
@@ -657,9 +693,6 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 		return running.get() && !Thread.currentThread().isInterrupted();
 	}
 
-	protected void updateMemoryFromDDLInfoMap(TapdataEvent tapdataEvent) {
-		updateMemoryFromDDLInfoMap(tapdataEvent, null);
-	}
 
 	protected void updateMemoryFromDDLInfoMap(TapdataEvent tapdataEvent, String tableName) {
 		if (null == tapdataEvent) {
@@ -690,7 +723,7 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 		if (!(newDAG instanceof DAG)) {
 			return;
 		}
-		processorBaseContext.getSubTaskDto().setDag((DAG) newDAG);
+		processorBaseContext.getTaskDto().setDag((DAG) newDAG);
 		processorBaseContext.setNodes(((DAG) newDAG).getNodes());
 		processorBaseContext.setEdges(((DAG) newDAG).getEdges());
 	}
@@ -724,9 +757,10 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 		if (tapEvent instanceof TapCreateTableEvent) {
 			Object insertMetadata = tapEvent.getInfo(INSERT_METADATA_INFO_KEY);
 			if (insertMetadata instanceof List) {
-				String finalTableName = tableName;
-				MetadataInstancesDto metadata = ((DAGDataServiceImpl) dagDataService).getBatchInsertMetaDataList().stream().filter(m -> m.getOriginalName().equals(finalTableName))
-						.findFirst().orElse(null);
+//				String finalTableName = tableName;
+//				MetadataInstancesDto metadata = ((DAGDataServiceImpl) dagDataService).getBatchInsertMetaDataList().stream().filter(m -> m.getOriginalName().equals(finalTableName))
+//						.findFirst().orElse(null);
+				MetadataInstancesDto metadata = ((DAGDataServiceImpl) dagDataService).getSchemaByNodeAndTableName(getNode().getId(), tableName);
 				if (null != metadata) {
 					qualifiedName = metadata.getQualifiedName();
 					((List<MetadataInstancesDto>) insertMetadata).add(metadata);
@@ -771,5 +805,9 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 	}
 
 	protected void updateNodeConfig() {
+	}
+
+	protected String getTgtTableNameFromTapEvent(TapEvent tapEvent) {
+		return TapEventUtil.getTableId(tapEvent);
 	}
 }

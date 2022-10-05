@@ -104,16 +104,19 @@ public class Application {
 				@Override
 				public void debug(String log) {
 					pdkLogger.debug(log);
+//					System.out.println(log);
 				}
 
 				@Override
 				public void info(String log) {
 					pdkLogger.info(log);
+//					System.out.println(log);
 				}
 
 				@Override
 				public void warn(String log) {
 					pdkLogger.warn(log);
+//					System.out.println(log);
 				}
 
 				@Override

@@ -14,16 +14,14 @@ import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.nodes.TableNode;
 import com.tapdata.tm.commons.dag.process.MergeTableNode;
 import com.tapdata.tm.commons.dag.vo.SyncObjects;
-import com.tapdata.tm.commons.task.dto.SubTaskDto;
+import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.Target;
 import io.tapdata.common.ClassScanner;
-import io.tapdata.common.logging.format.CustomerLogMessagesEnum;
 import io.tapdata.entity.OnData;
 import io.tapdata.entity.TargetContext;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.flow.engine.V2.exception.node.NodeException;
 import io.tapdata.flow.engine.V2.node.hazelcast.HazelcastBaseNode;
-import io.tapdata.logging.JobCustomerLogger;
 import io.tapdata.schema.SchemaList;
 import io.tapdata.websocket.handler.TestConnectionHandler;
 import org.apache.commons.collections.CollectionUtils;
@@ -89,16 +87,11 @@ public class HazelcastTaskTarget extends HazelcastBaseNode {
 	@Override
 	protected void doInit(@Nonnull Context context) throws Exception {
 		try {
-			// test the target connection
-			try {
-				TestConnectionHandler.testConnectionWithRetry(targetContext.getCustomerLogger(), targetContext.getTargetConn(), "target");
-			} catch (Exception ignored) {
-			}
 			Thread.currentThread().setName(threadName);
-			SubTaskDto subTaskDto = dataProcessorContext.getSubTaskDto();
+			TaskDto taskDto = dataProcessorContext.getTaskDto();
 			Node<?> node = dataProcessorContext.getNode();
 			ConfigurationCenter configurationCenter = dataProcessorContext.getConfigurationCenter();
-			Log4jUtil.setThreadContext(subTaskDto);
+			Log4jUtil.setThreadContext(taskDto);
 			this.running = new AtomicBoolean(true);
 			super.doInit(context);
 
@@ -180,9 +173,9 @@ public class HazelcastTaskTarget extends HazelcastBaseNode {
 	public void process(int ordinal, Inbox inbox) {
 		try {
 			Thread.currentThread().setName(threadName);
-			SubTaskDto subTaskDto = dataProcessorContext.getSubTaskDto();
+			TaskDto taskDto = dataProcessorContext.getTaskDto();
 			Node<?> node = dataProcessorContext.getNode();
-			Log4jUtil.setThreadContext(subTaskDto);
+			Log4jUtil.setThreadContext(taskDto);
 
 			if (!inbox.isEmpty()) {
 
@@ -486,7 +479,6 @@ public class HazelcastTaskTarget extends HazelcastBaseNode {
 		if (targetContext != null && targetContext.needCleanTarget() && targetContext.isRunning()) {
 			try {
 				Job job = targetContext.getJob();
-				JobCustomerLogger customerLogger = job.getJobCustomerLogger();
 				List<Mapping> mappings = job.getMappings();
 				if (job.isOnlyInitialAddMapping()) {
 					mappings = job.getAddInitialMapping();
@@ -503,20 +495,11 @@ public class HazelcastTaskTarget extends HazelcastBaseNode {
 					op = "delete index(es)";
 				}
 
-				String finalToTableStr = toTableStr;
-				customerLogger.info(CustomerLogMessagesEnum.AGENT_CLEAR_DATA_STARTED, ImmutableMap.of(
-						"targetName", targetContext.getTargetConn().getName(),
-						"tables", toTableStr
-				));
-				Optional.ofNullable(customerLogger).ifPresent(cl -> cl.info(CustomerLogMessagesEnum.AGENT_CLEAR_DATA_STARTED, ImmutableMap.of("targetName", targetConn.getName(), "tables", finalToTableStr)));
 				try {
 					ReflectUtil.invokeInterfaceMethod(target, TARGET_EXTENT_CLASS_NAME, "deleteTargetTables");
 				} catch (InvocationTargetException e) {
 					throw e;
 				}
-				customerLogger.info(CustomerLogMessagesEnum.AGENT_CLEAR_DATA_COMPLETED, ImmutableMap.of(
-						"targetName", targetContext.getTargetConn().getName()
-				));
 
 				if (StringUtils.isNotBlank(toTableStr)) {
 					logger.info("Finished {} in target {} database: {}", op, databaseType, toTableStr);
@@ -537,8 +520,8 @@ public class HazelcastTaskTarget extends HazelcastBaseNode {
 
 	@Override
 	public boolean saveToSnapshot() {
-		SubTaskDto subTaskDto = dataProcessorContext.getSubTaskDto();
-		String collection = ConnectorConstant.SUB_TASK_COLLECTION + "/syncProgress/" + subTaskDto.getId();
+		TaskDto taskDto = dataProcessorContext.getTaskDto();
+		String collection = ConnectorConstant.TASK_COLLECTION + "/syncProgress/" + taskDto.getId();
 		try {
 			clientMongoOperator.insertOne(this.syncProgressMap, collection);
 		} catch (Exception e) {

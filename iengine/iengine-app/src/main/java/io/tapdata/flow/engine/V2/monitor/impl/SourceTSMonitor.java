@@ -2,7 +2,7 @@ package io.tapdata.flow.engine.V2.monitor.impl;
 
 import com.tapdata.constant.ExecutorUtil;
 import com.tapdata.entity.Connections;
-import com.tapdata.tm.commons.task.dto.SubTaskDto;
+import com.tapdata.tm.commons.task.dto.TaskDto;
 
 import java.io.IOException;
 import java.util.concurrent.ScheduledExecutorService;
@@ -22,8 +22,8 @@ public class SourceTSMonitor extends TaskMonitor<Long> {
 	private ScheduledExecutorService monitorThreadPool;
 	private long dbTimestamp;
 
-	public SourceTSMonitor(SubTaskDto subTaskDto, Connections connections) {
-		super(subTaskDto);
+	public SourceTSMonitor(TaskDto taskDto, Connections connections) {
+		super(taskDto);
 		assert null != connections;
 		this.connections = connections;
 	}
@@ -32,7 +32,7 @@ public class SourceTSMonitor extends TaskMonitor<Long> {
 	public void start() {
 		this.monitorThreadPool = new ScheduledThreadPoolExecutor(1, r -> {
 			Thread thread = new Thread(r);
-			thread.setName("Source-TS-Monitor-" + subTaskDto.getName() + "-" + subTaskDto.getId()
+			thread.setName("Source-TS-Monitor-" + taskDto.getName() + "-" + taskDto.getId()
 					+ "-" + connections.getName() + "-" + connections.getId());
 			return thread;
 		});

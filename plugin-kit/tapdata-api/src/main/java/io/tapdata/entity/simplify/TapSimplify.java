@@ -34,6 +34,10 @@ public class TapSimplify {
 		tapUtils.interval(runnable, seconds);
 	}
 
+	public static String getStackTrace(Throwable throwable) {
+		return tapUtils.getStackTrace(throwable);
+	}
+
 
 	public static String toJsonWithClass(Object obj) {
 		return jsonParser.toJsonWithClass(obj);

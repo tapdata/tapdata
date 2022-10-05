@@ -52,7 +52,7 @@ public class AgentStrategyImpl implements DagLogStrategy {
             grade = Level.INFO.getValue();
         } else {
             template = templateEnum.getErrorTemplate();
-            content = MessageFormat.format(template, DateUtil.now(), taskDto.getName());
+            content = MessageFormat.format(template, DateUtil.now(), taskDto.getAccessNodeProcessIdList().get(0));
             grade = Level.ERROR.getValue();
         }
 

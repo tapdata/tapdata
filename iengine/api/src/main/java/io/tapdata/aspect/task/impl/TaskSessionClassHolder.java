@@ -2,13 +2,13 @@ package io.tapdata.aspect.task.impl;
 
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.entity.task.context.ProcessorBaseContext;
-import com.tapdata.tm.commons.task.dto.SubTaskDto;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.aspect.DataNodeAspect;
 import io.tapdata.aspect.ProcessorNodeAspect;
 import io.tapdata.aspect.TaskStartAspect;
 import io.tapdata.aspect.TaskStopAspect;
 import io.tapdata.aspect.task.AspectTask;
+import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.entity.aspect.*;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.utils.InstanceFactory;
@@ -27,6 +27,12 @@ public class TaskSessionClassHolder implements Comparable<TaskSessionClassHolder
 	private Class<? extends AspectTask> taskClass;
 	private final AspectObserver<Aspect> aspectObserver;
 	private final AspectInterceptor<Aspect> aspectInterceptor;
+
+	private boolean ignoreErrors = true;
+	public TaskSessionClassHolder ignoreErrors(boolean ignoreErrors) {
+		this.ignoreErrors = ignoreErrors;
+		return this;
+	}
 
 	public TaskSessionClassHolder() {
 		aspectObserver = this::observeNodeAspect;
@@ -81,7 +87,7 @@ public class TaskSessionClassHolder implements Comparable<TaskSessionClassHolder
 
 	private <T extends Aspect> void observeNodeAspect(T aspect) {
 		String theTaskId = null;
-		SubTaskDto taskDto = getSubTaskDto(aspect);
+		TaskDto taskDto = getSubTaskDto(aspect);
 		if (taskDto != null && taskDto.getId() != null) {
 			theTaskId = taskDto.getId().toString();
 			AspectTaskEx aspectTask = aspectTaskMap.get(theTaskId);
@@ -90,23 +96,23 @@ public class TaskSessionClassHolder implements Comparable<TaskSessionClassHolder
 				return;
 			}
 		}
-		TapLogger.warn(TAG, "Observe aspect {} is illegal for taskId {}, no aspect task will handle it. ", aspect, theTaskId);
+//		TapLogger.debug(TAG, "Observe aspect {} is illegal for taskId {}, no aspect task will handle it. ", aspect, theTaskId);
 	}
 
 	@Nullable
-	private <T extends Aspect> SubTaskDto getSubTaskDto(T aspect) {
-		SubTaskDto taskDto = null;
+	private <T extends Aspect> TaskDto getSubTaskDto(T aspect) {
+		TaskDto taskDto = null;
 		if (aspect instanceof ProcessorNodeAspect) {
 			ProcessorBaseContext processorBaseContext = ((ProcessorNodeAspect<?>) aspect).getProcessorBaseContext();
 			if (processorBaseContext != null) {
-				taskDto = processorBaseContext.getSubTaskDto();
+				taskDto = processorBaseContext.getTaskDto();
 			}
 		}
 
 		if (aspect instanceof DataNodeAspect) {
 			DataProcessorContext dataProcessorContext = ((DataNodeAspect<?>) aspect).getDataProcessorContext();
 			if (dataProcessorContext != null) {
-				taskDto = dataProcessorContext.getSubTaskDto();
+				taskDto = dataProcessorContext.getTaskDto();
 			}
 		}
 		return taskDto;
@@ -114,7 +120,7 @@ public class TaskSessionClassHolder implements Comparable<TaskSessionClassHolder
 
 	private <T extends Aspect> AspectInterceptResult interceptNodeAspect(T aspect) {
 		String theTaskId = null;
-		SubTaskDto taskDto = getSubTaskDto(aspect);
+		TaskDto taskDto = getSubTaskDto(aspect);
 		if (taskDto != null && taskDto.getId() != null) {
 			theTaskId = taskDto.getId().toString();
 			AspectTaskEx aspectTask = aspectTaskMap.get(theTaskId);
@@ -122,12 +128,12 @@ public class TaskSessionClassHolder implements Comparable<TaskSessionClassHolder
 				return aspectTask.aspectTask.onInterceptAspect(aspect);
 			}
 		}
-		TapLogger.warn(TAG, "Intercept aspect {} is illegal for taskId {}, no aspect task will handle it. ", aspect, theTaskId);
+//		TapLogger.debug(TAG, "Intercept aspect {} is illegal for taskId {}, no aspect task will handle it. ", aspect, theTaskId);
 		return null;
 	}
 
 	public synchronized void ensureTaskSessionCreated(TaskStartAspect startAspect) {
-		SubTaskDto task = startAspect.getTask();
+		TaskDto task = startAspect.getTask();
 		String taskId = task.getId().toString();
 		AtomicReference<AspectTaskEx> newRef = new AtomicReference<>();
 		AspectTaskEx theAspectTask = aspectTaskMap.computeIfAbsent(taskId, id -> {
@@ -135,35 +141,51 @@ public class TaskSessionClassHolder implements Comparable<TaskSessionClassHolder
 			newRef.set(aspectTask);
 			return aspectTask;
 		});
-		if (newRef.get() != null && theAspectTask.equals(newRef.get())) {
-			//new created AspectTask
+		if (newRef.get() == null || !theAspectTask.equals(newRef.get())) {
+			ensureTaskSessionStopped(new TaskStopAspect().task(theAspectTask.aspectTask.getTask())
+					.error(new RuntimeException("Force call stop aspect")));
+
+			aspectTaskMap.computeIfAbsent(taskId, id -> {
+				AspectTaskEx aspectTask = newAspectTask(task);
+				newRef.set(aspectTask);
+				return aspectTask;
+			});
+		}
+
+
+
+		//new created AspectTask
 //			final int order = 10000;
-			List<Class<? extends Aspect>> observerClasses = theAspectTask.aspectTask.observeAspects();
-			AspectManager aspectManager = InstanceFactory.instance(AspectManager.class);
-			if (observerClasses != null && !observerClasses.isEmpty()) {
-				for (Class<? extends Aspect> aspectClass : observerClasses) {
-					if (DataNodeAspect.class.isAssignableFrom(aspectClass) || ProcessorNodeAspect.class.isAssignableFrom(aspectClass)) {
-						aspectManager.registerObserver(aspectClass, order, aspectObserver);
-					} else {
-						aspectManager.registerObserver(aspectClass, order, theAspectTask.aspectObserver);
-					}
+		AspectTaskEx aspectTaskEx = newRef.get();
+		List<Class<? extends Aspect>> observerClasses = aspectTaskEx.aspectTask.observeAspects();
+		AspectManager aspectManager = InstanceFactory.instance(AspectManager.class);
+		if (observerClasses != null && !observerClasses.isEmpty()) {
+			for (Class<? extends Aspect> aspectClass : observerClasses) {
+				if (DataNodeAspect.class.isAssignableFrom(aspectClass) || ProcessorNodeAspect.class.isAssignableFrom(aspectClass)) {
+					aspectManager.registerObserver(aspectClass, order, aspectObserver, ignoreErrors);
+				} else {
+					aspectManager.registerObserver(aspectClass, order, aspectTaskEx.aspectObserver, ignoreErrors);
 				}
 			}
-			List<Class<? extends Aspect>> interceptClasses = theAspectTask.aspectTask.interceptAspects();
-			if (interceptClasses != null && !interceptClasses.isEmpty()) {
-				for (Class<? extends Aspect> aspectClass : interceptClasses) {
-					if (DataNodeAspect.class.isAssignableFrom(aspectClass) || ProcessorNodeAspect.class.isAssignableFrom(aspectClass)) {
-						aspectManager.registerInterceptor(aspectClass, order, aspectInterceptor);
-					} else {
-						aspectManager.registerInterceptor(aspectClass, order, theAspectTask.aspectInterceptor);
-					}
+		}
+		List<Class<? extends Aspect>> interceptClasses = aspectTaskEx.aspectTask.interceptAspects();
+		if (interceptClasses != null && !interceptClasses.isEmpty()) {
+			for (Class<? extends Aspect> aspectClass : interceptClasses) {
+				if (DataNodeAspect.class.isAssignableFrom(aspectClass) || ProcessorNodeAspect.class.isAssignableFrom(aspectClass)) {
+					aspectManager.registerInterceptor(aspectClass, order, aspectInterceptor, ignoreErrors);
+				} else {
+					aspectManager.registerInterceptor(aspectClass, order, aspectTaskEx.aspectInterceptor, ignoreErrors);
 				}
 			}
-			CommonUtils.ignoreAnyError(() -> theAspectTask.aspectTask.onStart(startAspect), TAG);
+		}
+		if(ignoreErrors) {
+			CommonUtils.ignoreAnyError(() -> aspectTaskEx.aspectTask.onStart(startAspect), TAG);
+		} else {
+			CommonUtils.handleAnyError(() -> aspectTaskEx.aspectTask.onStart(startAspect));
 		}
 	}
 
-	private AspectTaskEx newAspectTask(SubTaskDto task) {
+	private AspectTaskEx newAspectTask(TaskDto task) {
 		try {
 			AspectTask aspectTask = taskClass.getConstructor().newInstance();
 			aspectTask.setTask(task);
@@ -183,7 +205,10 @@ public class TaskSessionClassHolder implements Comparable<TaskSessionClassHolder
 			return;
 		AspectTaskEx aspectTask = aspectTaskMap.remove(taskId);
 		if (aspectTask != null) {
-			CommonUtils.ignoreAnyError(() -> aspectTask.aspectTask.onStop(stopAspect), TAG);
+			if(ignoreErrors)
+				CommonUtils.ignoreAnyError(() -> aspectTask.aspectTask.onStop(stopAspect), TAG);
+			else
+				CommonUtils.handleAnyError(() -> aspectTask.aspectTask.onStop(stopAspect));
 
 			List<Class<? extends Aspect>> observerClasses = aspectTask.aspectTask.observeAspects();
 			AspectManager aspectManager = InstanceFactory.instance(AspectManager.class);
@@ -212,10 +237,9 @@ public class TaskSessionClassHolder implements Comparable<TaskSessionClassHolder
 		}
 	}
 
-	public boolean isTaskSupported(SubTaskDto task) {
-		TaskDto taskDto = task.getParentTask();
-		if(taskDto != null && taskDto.getSyncType() != null) {
-			String syncType = taskDto.getSyncType();
+	public boolean isTaskSupported(TaskDto task) {
+		if(task != null && task.getSyncType() != null) {
+			String syncType = task.getSyncType();
 			if(excludeTypes != null && excludeTypes.contains(syncType)) {
 				return false;
 			}
@@ -254,5 +278,13 @@ public class TaskSessionClassHolder implements Comparable<TaskSessionClassHolder
 			return aspectTaskEx.aspectTask;
 		}
 		return null;
+	}
+
+	public void setIgnoreErrors(boolean ignoreErrors) {
+		this.ignoreErrors = ignoreErrors;
+	}
+
+	public boolean isIgnoreErrors() {
+		return ignoreErrors;
 	}
 }

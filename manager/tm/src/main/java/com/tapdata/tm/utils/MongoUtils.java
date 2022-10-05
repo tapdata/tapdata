@@ -370,4 +370,12 @@ public class MongoUtils {
     }
 
 
+    public static String replaceLike(String like) {
+        for (String s : REGEX_CHAR) {
+            if (like.contains(s)) {
+                like = like.replace(s, "\\" + s);
+            }
+        }
+        return like;
+    }
 }

@@ -2,12 +2,12 @@ package io.tapdata.flow.engine.V2.node.hazelcast.data;
 
 
 import com.hazelcast.jet.core.Inbox;
+import com.tapdata.constant.Log4jUtil;
 import com.tapdata.entity.TapdataEvent;
 import com.tapdata.entity.task.context.DataProcessorContext;
-import io.tapdata.entity.event.dml.TapRecordEvent;
-import io.tapdata.entity.schema.TapTable;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.ThreadContext;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;
@@ -30,6 +30,7 @@ public class HazelcastVirtualTargetNode extends HazelcastDataBaseNode {
 	@Override
 	public void process(int ordinal, @NotNull Inbox inbox) {
 		try {
+			Log4jUtil.setThreadContext(dataProcessorContext.getTaskDto());
 			if (!inbox.isEmpty()) {
 				while (isRunning()) {
 					List<TapdataEvent> tapdataEvents = new ArrayList<>();
@@ -45,6 +46,7 @@ public class HazelcastVirtualTargetNode extends HazelcastDataBaseNode {
 			logger.error("Target process failed {}", e.getMessage(), e);
 			throw sneakyThrow(e);
 		} finally {
+			ThreadContext.clearAll();
 			logger.info("Target process finished, total {}", counter.get());
 		}
 	}

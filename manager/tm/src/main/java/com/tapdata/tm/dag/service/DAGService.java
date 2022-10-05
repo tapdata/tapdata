@@ -47,6 +47,8 @@ import io.tapdata.entity.schema.TapTable;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.bson.types.ObjectId;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -71,6 +73,7 @@ import static com.tapdata.tm.utils.MongoUtils.toObjectId;
 @Slf4j
 @Setter(onMethod_ = {@Autowired})
 public class DAGService implements DAGDataService {
+    private final Logger logger = LogManager.getLogger(DAGService.class);
 
     private MetadataInstancesService metadataInstancesService;
     private DataSourceService dataSourceService;
@@ -791,6 +794,7 @@ public class DAGService implements DAGDataService {
             if (transformer.getFinished() == total) {
                 transformer.setStatus(MetadataTransformerDto.StatusEnum.done.name());
             }
+
             Map<String, Boolean> tableNameMap = schemaTransformerResults.stream().collect(Collectors.toMap(SchemaTransformerResult::getSinkObjectName, s -> true, (v1, v2) -> v1));
             transformer.setTableName(tableNameMap);
         } else {

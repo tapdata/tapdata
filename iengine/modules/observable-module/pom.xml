@@ -12,6 +12,10 @@
     <artifactId>observable-module</artifactId>
 
     <dependencies>
-
+        <dependency>
+            <groupId>net.openhft</groupId>
+            <artifactId>chronicle-queue</artifactId>
+            <version>5.21.91</version>
+        </dependency>
     </dependencies>
 </project>

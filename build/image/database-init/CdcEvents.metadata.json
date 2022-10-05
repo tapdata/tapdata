@@ -1,1 +1,0 @@
-{"options":{},"indexes":[{"v":2,"key":{"_id":1},"name":"_id_","ns":"tapdata.CdcEvents"},{"v":2,"key":{"opDate":1},"name":"opDate_1","background":true,"ns":"tapdata.CdcEvents"},{"v":2,"key":{"insertDate":1},"name":"insertDate_1","ns":"tapdata.CdcEvents","background":true}],"uuid":"bce270d8805b442f9138f733b1b94855"}

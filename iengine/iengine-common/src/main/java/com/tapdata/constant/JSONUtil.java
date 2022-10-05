@@ -8,13 +8,17 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.*;
 import com.fasterxml.jackson.databind.module.SimpleModule;
 import com.fasterxml.jackson.databind.node.IntNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.fasterxml.jackson.databind.node.TextNode;
 import com.fasterxml.jackson.databind.type.TypeFactory;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import io.tapdata.entity.schema.type.TapNumber;
 import io.tapdata.entity.schema.type.TapType;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -26,7 +30,7 @@ public class JSONUtil {
 
 	private static Logger logger = LogManager.getLogger(JSONUtil.class);
 
-	protected static ObjectMapper mapper;
+	public static ObjectMapper mapper;
 
 	static {
 		mapper = new ObjectMapper();
@@ -148,47 +152,39 @@ public class JSONUtil {
 		return mapper.writerWithDefaultPrettyPrinter().writeValueAsString(map);
 	}
 
-	public static void main(String[] args) throws Exception {
-		ObjectMapper objectMapper = new ObjectMapper();
-		objectMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
-		objectMapper.configure(SerializationFeature.FAIL_ON_EMPTY_BEANS, false);
-		SimpleModule simpleModule = new SimpleModule();
-		simpleModule.addDeserializer(TapType.class, new TapTypeDeserializer());
-		objectMapper.registerModule(simpleModule);
-		objectMapper.registerModule(new JavaTimeModule());
-    /*TapString tapString = new TapString(10L, false);
-    tapString.setDefaultValue(11L);
-    tapString.setByteRatio(1);
-    String json = objectMapper.writeValueAsString(tapString);
-//    String json = "[{\"lastUpdate\":1652347748818,\"nameFieldMap\":{\"CLAIM_ID\":{\"dataType\":\"varchar(12)\",\"nullable\":false,\"name\":\"CLAIM_ID\",\"partitionKeyPos\":null,\"pos\":1,\"primaryKeyPos\":1,\"foreignKeyTable\":null,\"foreignKeyField\":null,\"defaultValue\":null,\"autoInc\":false,\"autoIncStartValue\":null,\"check\":null,\"comment\":null,\"constraint\":null,\"tapType\":{\"bytes\":12,\"fixed\":null,\"defaultValue\":1,\"byteRatio\":1,\"tapValueClass\":\"io.tapdata.entity.schema.value.TapStringValue\"},\"primaryKey\":true,\"partitionKey\":false},\"POLICY_ID\":{\"dataType\":\"varchar(12)\",\"nullable\":true,\"name\":\"POLICY_ID\",\"partitionKeyPos\":null,\"pos\":2,\"primaryKeyPos\":null,\"foreignKeyTable\":null,\"foreignKeyField\":null,\"defaultValue\":null,\"autoInc\":false,\"autoIncStartValue\":null,\"check\":null,\"comment\":null,\"constraint\":null,\"tapType\":{\"bytes\":12,\"fixed\":null,\"defaultValue\":1,\"byteRatio\":1,\"tapValueClass\":\"io.tapdata.entity.schema.value.TapStringValue\"},\"primaryKey\":false,\"partitionKey\":false},\"CLAIM_DATE\":{\"dataType\":\"datetime\",\"nullable\":true,\"name\":\"CLAIM_DATE\",\"partitionKeyPos\":null,\"pos\":3,\"primaryKeyPos\":null,\"foreignKeyTable\":null,\"foreignKeyField\":null,\"defaultValue\":null,\"autoInc\":false,\"autoIncStartValue\":null,\"check\":null,\"comment\":null,\"constraint\":null,\"tapType\":{\"withTimeZone\":null,\"bytes\":null,\"min\":-3.0610224E10,\"max\":2.534023008E11,\"fraction\":0,\"defaultFraction\":0,\"tapValueClass\":\"io.tapdata.entity.schema.value.TapDateTimeValue\"},\"primaryKey\":false,\"partitionKey\":false},\"SETTLED_DATE\":{\"dataType\":\"datetime\",\"nullable\":true,\"name\":\"SETTLED_DATE\",\"partitionKeyPos\":null,\"pos\":4,\"primaryKeyPos\":null,\"foreignKeyTable\":null,\"foreignKeyField\":null,\"defaultValue\":null,\"autoInc\":false,\"autoIncStartValue\":null,\"check\":null,\"comment\":null,\"constraint\":null,\"tapType\":{\"withTimeZone\":null,\"bytes\":null,\"min\":-3.0610224E10,\"max\":2.534023008E11,\"fraction\":0,\"defaultFraction\":0,\"tapValueClass\":\"io.tapdata.entity.schema.value.TapDateTimeValue\"},\"primaryKey\":false,\"partitionKey\":false},\"CLAIM_AMOUNT\":{\"dataType\":\"decimal(30,2)\",\"nullable\":true,\"name\":\"CLAIM_AMOUNT\",\"partitionKeyPos\":null,\"pos\":5,\"primaryKeyPos\":null,\"foreignKeyTable\":null,\"foreignKeyField\":null,\"defaultValue\":null,\"autoInc\":false,\"autoIncStartValue\":null,\"check\":null,\"comment\":null,\"constraint\":null,\"tapType\":{\"bit\":null,\"fixed\":null,\"unsigned\":null,\"zerofill\":null,\"minValue\":-999999999999999999999999999999,\"maxValue\":999999999999999999999999999999,\"precision\":30,\"scale\":2,\"tapValueClass\":\"io.tapdata.entity.schema.value.TapNumberValue\"},\"primaryKey\":false,\"partitionKey\":false},\"SETTLED_AMOUNT\":{\"dataType\":\"decimal(30,2)\",\"nullable\":true,\"name\":\"SETTLED_AMOUNT\",\"partitionKeyPos\":null,\"pos\":6,\"primaryKeyPos\":null,\"foreignKeyTable\":null,\"foreignKeyField\":null,\"defaultValue\":null,\"autoInc\":false,\"autoIncStartValue\":null,\"check\":null,\"comment\":null,\"constraint\":null,\"tapType\":{\"bit\":null,\"fixed\":null,\"unsigned\":null,\"zerofill\":null,\"minValue\":-999999999999999999999999999999,\"maxValue\":999999999999999999999999999999,\"precision\":30,\"scale\":2,\"tapValueClass\":\"io.tapdata.entity.schema.value.TapNumberValue\"},\"primaryKey\":false,\"partitionKey\":false},\"CLAIM_REASON\":{\"dataType\":\"varchar(30)\",\"nullable\":true,\"name\":\"CLAIM_REASON\",\"partitionKeyPos\":null,\"pos\":7,\"primaryKeyPos\":null,\"foreignKeyTable\":null,\"foreignKeyField\":null,\"defaultValue\":null,\"autoInc\":false,\"autoIncStartValue\":null,\"check\":null,\"comment\":null,\"constraint\":null,\"tapType\":{\"bytes\":30,\"fixed\":null,\"defaultValue\":1,\"byteRatio\":1,\"tapValueClass\":\"io.tapdata.entity.schema.value.TapStringValue\"},\"primaryKey\":false,\"partitionKey\":false},\"LAST_CHANGE\":{\"dataType\":\"datetime(6)\",\"nullable\":true,\"name\":\"LAST_CHANGE\",\"partitionKeyPos\":null,\"pos\":8,\"primaryKeyPos\":null,\"foreignKeyTable\":null,\"foreignKeyField\":null,\"defaultValue\":null,\"autoInc\":false,\"autoIncStartValue\":null,\"check\":null,\"comment\":null,\"constraint\":null,\"tapType\":{\"withTimeZone\":null,\"bytes\":null,\"min\":-3.0610224E10,\"max\":2.534023008E11,\"fraction\":6,\"defaultFraction\":0,\"tapValueClass\":\"io.tapdata.entity.schema.value.TapDateTimeValue\"},\"primaryKey\":false,\"partitionKey\":false}},\"defaultPrimaryKeys\":null,\"indexList\":null,\"id\":\"CAR_CLAIM\",\"name\":\"CAR_CLAIM\",\"storageEngine\":null,\"charset\":null,\"comment\":null,\"pdkId\":null,\"pdkGroup\":null,\"pdkVersion\":null}]";
-    System.out.println(json);
-    TapType tapType = objectMapper.readValue(json, new TypeReference<TapType>() {
-    });
-    List<TapTable> tapTables = objectMapper.readValue("[{\"lastUpdate\":1652347748818,\"nameFieldMap\":{\"CLAIM_ID\":{\"dataType\":\"varchar(12)\",\"nullable\":false,\"name\":\"CLAIM_ID\",\"partitionKeyPos\":null,\"pos\":1,\"primaryKeyPos\":1,\"foreignKeyTable\":null,\"foreignKeyField\":null,\"defaultValue\":null,\"autoInc\":false,\"autoIncStartValue\":null,\"check\":null,\"comment\":null,\"constraint\":null,\"tapType\":{\"bytes\":12,\"fixed\":null,\"defaultValue\":1,\"byteRatio\":1,\"tapValueClass\":\"io.tapdata.entity.schema.value.TapStringValue\"},\"primaryKey\":true,\"partitionKey\":false},\"POLICY_ID\":{\"dataType\":\"varchar(12)\",\"nullable\":true,\"name\":\"POLICY_ID\",\"partitionKeyPos\":null,\"pos\":2,\"primaryKeyPos\":null,\"foreignKeyTable\":null,\"foreignKeyField\":null,\"defaultValue\":null,\"autoInc\":false,\"autoIncStartValue\":null,\"check\":null,\"comment\":null,\"constraint\":null,\"tapType\":{\"bytes\":12,\"fixed\":null,\"defaultValue\":1,\"byteRatio\":1,\"tapValueClass\":\"io.tapdata.entity.schema.value.TapStringValue\"},\"primaryKey\":false,\"partitionKey\":false},\"CLAIM_DATE\":{\"dataType\":\"datetime\",\"nullable\":true,\"name\":\"CLAIM_DATE\",\"partitionKeyPos\":null,\"pos\":3,\"primaryKeyPos\":null,\"foreignKeyTable\":null,\"foreignKeyField\":null,\"defaultValue\":null,\"autoInc\":false,\"autoIncStartValue\":null,\"check\":null,\"comment\":null,\"constraint\":null,\"tapType\":{\"withTimeZone\":null,\"bytes\":null,\"min\":-3.0610224E10,\"max\":2.534023008E11,\"fraction\":0,\"defaultFraction\":0,\"tapValueClass\":\"io.tapdata.entity.schema.value.TapDateTimeValue\"},\"primaryKey\":false,\"partitionKey\":false},\"SETTLED_DATE\":{\"dataType\":\"datetime\",\"nullable\":true,\"name\":\"SETTLED_DATE\",\"partitionKeyPos\":null,\"pos\":4,\"primaryKeyPos\":null,\"foreignKeyTable\":null,\"foreignKeyField\":null,\"defaultValue\":null,\"autoInc\":false,\"autoIncStartValue\":null,\"check\":null,\"comment\":null,\"constraint\":null,\"tapType\":{\"withTimeZone\":null,\"bytes\":null,\"min\":-3.0610224E10,\"max\":2.534023008E11,\"fraction\":0,\"defaultFraction\":0,\"tapValueClass\":\"io.tapdata.entity.schema.value.TapDateTimeValue\"},\"primaryKey\":false,\"partitionKey\":false},\"CLAIM_AMOUNT\":{\"dataType\":\"decimal(30,2)\",\"nullable\":true,\"name\":\"CLAIM_AMOUNT\",\"partitionKeyPos\":null,\"pos\":5,\"primaryKeyPos\":null,\"foreignKeyTable\":null,\"foreignKeyField\":null,\"defaultValue\":null,\"autoInc\":false,\"autoIncStartValue\":null,\"check\":null,\"comment\":null,\"constraint\":null,\"tapType\":{\"bit\":null,\"fixed\":null,\"unsigned\":null,\"zerofill\":null,\"minValue\":-999999999999999999999999999999,\"maxValue\":999999999999999999999999999999,\"precision\":30,\"scale\":2,\"tapValueClass\":\"io.tapdata.entity.schema.value.TapNumberValue\"},\"primaryKey\":false,\"partitionKey\":false},\"SETTLED_AMOUNT\":{\"dataType\":\"decimal(30,2)\",\"nullable\":true,\"name\":\"SETTLED_AMOUNT\",\"partitionKeyPos\":null,\"pos\":6,\"primaryKeyPos\":null,\"foreignKeyTable\":null,\"foreignKeyField\":null,\"defaultValue\":null,\"autoInc\":false,\"autoIncStartValue\":null,\"check\":null,\"comment\":null,\"constraint\":null,\"tapType\":{\"bit\":null,\"fixed\":null,\"unsigned\":null,\"zerofill\":null,\"minValue\":-999999999999999999999999999999,\"maxValue\":999999999999999999999999999999,\"precision\":30,\"scale\":2,\"tapValueClass\":\"io.tapdata.entity.schema.value.TapNumberValue\"},\"primaryKey\":false,\"partitionKey\":false},\"CLAIM_REASON\":{\"dataType\":\"varchar(30)\",\"nullable\":true,\"name\":\"CLAIM_REASON\",\"partitionKeyPos\":null,\"pos\":7,\"primaryKeyPos\":null,\"foreignKeyTable\":null,\"foreignKeyField\":null,\"defaultValue\":null,\"autoInc\":false,\"autoIncStartValue\":null,\"check\":null,\"comment\":null,\"constraint\":null,\"tapType\":{\"bytes\":30,\"fixed\":null,\"defaultValue\":1,\"byteRatio\":1,\"tapValueClass\":\"io.tapdata.entity.schema.value.TapStringValue\"},\"primaryKey\":false,\"partitionKey\":false},\"LAST_CHANGE\":{\"dataType\":\"datetime(6)\",\"nullable\":true,\"name\":\"LAST_CHANGE\",\"partitionKeyPos\":null,\"pos\":8,\"primaryKeyPos\":null,\"foreignKeyTable\":null,\"foreignKeyField\":null,\"defaultValue\":null,\"autoInc\":false,\"autoIncStartValue\":null,\"check\":null,\"comment\":null,\"constraint\":null,\"tapType\":{\"withTimeZone\":null,\"bytes\":null,\"min\":-3.0610224E10,\"max\":2.534023008E11,\"fraction\":6,\"defaultFraction\":0,\"tapValueClass\":\"io.tapdata.entity.schema.value.TapDateTimeValue\"},\"primaryKey\":false,\"partitionKey\":false}},\"defaultPrimaryKeys\":null,\"indexList\":null,\"id\":\"CAR_CLAIM\",\"name\":\"CAR_CLAIM\",\"storageEngine\":null,\"charset\":null,\"comment\":null,\"pdkId\":null,\"pdkGroup\":null,\"pdkVersion\":null}]",
-      new TypeReference<List<TapTable>>() {
-      });
-    System.out.println(tapType);*/
-		Map<String, Object> map = objectMapper.readValue("{\n" +
-				"  \"timestamp\": \"2022-05-13T11:04:21Z\",\n" +
-				"  \"version\": \"@env.VERSION@\",\n" +
-				"  \"gitCommitId\": \"@env.DAAS_GIT_VERSION@\"\n" +
-				"}", new TypeReference<HashMap<String, Object>>() {
-		});
-		System.out.println(map);
-	}
-
 	static class TapTypeDeserializer extends JsonDeserializer<TapType> {
 		@Override
-		public TapType deserialize(JsonParser p, DeserializationContext ctxt) throws IOException, JsonProcessingException {
+		public TapType deserialize(JsonParser p, DeserializationContext ctxt) throws IOException {
 			ObjectCodec codec = p.getCodec();
 			TreeNode treeNode = codec.readTree(p);
+			if (!(treeNode instanceof ObjectNode)) {
+				throw new RuntimeException("Deserialize TapType failed, expected ObjectNode, actual: " + treeNode.getClass().getSimpleName() + ", tree node: " + treeNode);
+			}
 			TreeNode type = treeNode.get("type");
-			int typeInt = (int) ((IntNode) type).numberValue();
+			if (null == type) {
+				throw new RuntimeException("Deserialize TapType failed, type number not exists: " + treeNode);
+			}
+			int typeInt;
+			try {
+				typeInt = (int) ((IntNode) type).numberValue();
+			} catch (Throwable e) {
+				throw new RuntimeException("Deserialize TapType failed, expected type node is a IntNode, actual: " + type.getClass().getSimpleName() + ", type node: " + type);
+			}
 			Class<? extends TapType> tapTypeClass = TapType.getTapTypeClass((byte) typeInt);
 			if (null != tapTypeClass) {
+				if (tapTypeClass.getName().equals(TapNumber.class.getName())) {
+					TreeNode minValue = treeNode.get("minValue");
+					if (minValue instanceof TextNode && "-Infinity".equals(((TextNode) minValue).asText())) {
+						((ObjectNode) treeNode).put("minValue", new BigDecimal("-1E+6145"));
+					}
+					TreeNode maxValue = treeNode.get("maxValue");
+					if (maxValue instanceof TextNode && "Infinity".equals(((TextNode) maxValue).asText())) {
+						((ObjectNode) treeNode).put("maxValue", new BigDecimal("1E+6145"));
+					}
+				}
 				return codec.treeToValue(treeNode, tapTypeClass);
 			} else {
-				throw new RuntimeException("Unsupported tap type: " + typeInt);
+				throw new RuntimeException("Deserialize TapType failed, cannot find a TapType class by type number: " + typeInt + ", tree node: " + treeNode);
 			}
 		}
 	}

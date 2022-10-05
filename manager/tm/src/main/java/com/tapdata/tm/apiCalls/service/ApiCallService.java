@@ -67,30 +67,32 @@ public class ApiCallService {
         ApiCallEntity apiCallEntity = mongoOperations.findById(id, ApiCallEntity.class);
 
         apiCallDetailVo = BeanUtil.copyProperties(apiCallEntity, ApiCallDetailVo.class);
-        ModulesDto modulesDto = modulesService.findById(MongoUtils.toObjectId(apiCallEntity.getAllPathId()));
-        if (null != modulesDto) {
-            apiCallDetailVo.setName(modulesDto.getName());
-        }
+        if (apiCallEntity != null && StringUtils.isNotBlank(apiCallEntity.getAllPathId())) {
+            ModulesDto modulesDto = modulesService.findById(MongoUtils.toObjectId(apiCallEntity.getAllPathId()));
+            if (null != modulesDto) {
+                apiCallDetailVo.setName(modulesDto.getName());
 
-        //
-        List<ApiCallEntity> apiCallEntityList = findByModuleIds(Arrays.asList(modulesDto.getId().toString()));
-        //计算平均耗时
-        if (CollectionUtils.isNotEmpty(apiCallEntityList)) {
-            Double totalReqRows = apiCallEntityList.stream().filter(item -> null != item.getResRows()).collect(Collectors.toList()).stream().mapToDouble(ApiCallEntity::getResRows).sum();
-            apiCallDetailVo.setVisitTotalCount(totalReqRows.longValue());
+                //
+                List<ApiCallEntity> apiCallEntityList = findByModuleIds(Arrays.asList(modulesDto.getId().toString()));
+                //计算平均耗时
+                if (CollectionUtils.isNotEmpty(apiCallEntityList)) {
+                    Double totalReqRows = apiCallEntityList.stream().filter(item -> null != item.getResRows()).collect(Collectors.toList()).stream().mapToDouble(ApiCallEntity::getResRows).sum();
+                    apiCallDetailVo.setVisitTotalCount(totalReqRows.longValue());
 
-            Double totalReqByte = apiCallEntityList.stream().mapToDouble(ApiCallEntity::getReqBytes).sum();
-            //要转 成秒
-            Double totalLatency = apiCallEntityList.stream().mapToDouble(ApiCallEntity::getLatency).sum();
-            if (totalLatency > 0) {
-                apiCallDetailVo.setSpeed((long) ((totalReqByte / totalLatency) * 1000));
+                    double totalReqByte = apiCallEntityList.stream().mapToDouble(ApiCallEntity::getReqBytes).sum();
+                    //要转 成秒
+                    double totalLatency = apiCallEntityList.stream().mapToDouble(ApiCallEntity::getLatency).sum();
+                    if (totalLatency > 0) {
+                        apiCallDetailVo.setSpeed((long) ((totalReqByte / totalLatency) * 1000));
+                    }
+
+                    if (totalReqRows > 0) {
+                        apiCallDetailVo.setAverResponseTime((long) (totalLatency / totalReqRows));
+                    }
+
+                    apiCallDetailVo.setLatency((long) (totalLatency / apiCallEntityList.size()));
+                }
             }
-
-            if (null != totalReqRows && totalReqRows > 0) {
-                apiCallDetailVo.setAverResponseTime((long) (totalLatency / totalReqRows));
-            }
-
-            apiCallDetailVo.setLatency((long) (totalLatency / apiCallEntityList.size()));
         }
         return apiCallDetailVo;
     }
@@ -303,7 +305,7 @@ public class ApiCallService {
     /**
      * 获取某个用户名下的所有请求
      *
-     * @param userDetail
+     * @param modulesDtoList
      * @return
      */
     public List<ApiCallEntity> findByUser(List<ModulesDto> modulesDtoList) {

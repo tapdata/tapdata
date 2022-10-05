@@ -26,7 +26,7 @@ public class PDKKVMapFactory implements KVMapFactory {
     @Override
     public <T> KVMap<T> getPersistentMap(String mapKey, Class<T> valueClass) {
         return (KVMap<T>) kvMapMap.computeIfAbsent(mapKey, key -> {
-            KVMap<T> map = ClassFactory.create(KVMap.class, "mongodb");
+            KVMap<T> map = ClassFactory.create(KVMap.class, "persistent");
             if(map != null)
                 map.init(key, valueClass);
             return map;

@@ -14,6 +14,7 @@
     <modules>
         <module>observable-module</module>
         <module>test-run-module</module>
+        <module>deduction-module</module>
     </modules>
     <dependencies>
         <dependency>
@@ -21,6 +22,5 @@
             <artifactId>api</artifactId>
             <version>0.5.2-SNAPSHOT</version>
         </dependency>
-
     </dependencies>
 </project>

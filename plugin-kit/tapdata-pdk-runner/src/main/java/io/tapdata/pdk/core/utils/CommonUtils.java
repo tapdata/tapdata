@@ -85,11 +85,11 @@ public class CommonUtils {
             runnable.run();
         } catch(CoreException coreException) {
             coreException.printStackTrace();
-            TapLogger.error(tag, "Error code {} message {} will be ignored. ", coreException.getCode(), coreException.getMessage());
+            TapLogger.warn(tag, "Error code {} message {} will be ignored. ", coreException.getCode(), coreException.getMessage());
         } catch(Throwable throwable) {
             if(!(throwable instanceof QuiteException)) {
                 throwable.printStackTrace();
-                TapLogger.error(tag, "Unknown error message {} will be ignored. ", throwable.getMessage());
+                TapLogger.warn(tag, "Unknown error message {} will be ignored. ", throwable.getMessage());
             }
         }
     }
@@ -158,6 +158,13 @@ public class CommonUtils {
             value = System.getenv(key);
         if(value == null)
             value = defaultValue;
+        return value;
+    }
+
+    public static String getProperty(String key) {
+        String value = System.getProperty(key);
+        if(value == null)
+            value = System.getenv(key);
         return value;
     }
 

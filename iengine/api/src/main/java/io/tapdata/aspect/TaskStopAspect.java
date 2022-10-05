@@ -1,6 +1,6 @@
 package io.tapdata.aspect;
 
-import com.tapdata.tm.commons.task.dto.SubTaskDto;
+import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.entity.aspect.Aspect;
 
 public class TaskStopAspect extends Aspect {
@@ -9,18 +9,18 @@ public class TaskStopAspect extends Aspect {
 		this.error = error;
 		return this;
 	}
-	private SubTaskDto task;
+	private TaskDto task;
 
-	public TaskStopAspect task(SubTaskDto task) {
+	public TaskStopAspect task(TaskDto task) {
 		this.task = task;
 		return this;
 	}
 
-	public SubTaskDto getTask() {
+	public TaskDto getTask() {
 		return task;
 	}
 
-	public void setTask(SubTaskDto task) {
+	public void setTask(TaskDto task) {
 		this.task = task;
 	}
 

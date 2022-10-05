@@ -4,7 +4,7 @@ import com.tapdata.constant.ConfigurationCenter;
 import com.tapdata.entity.RelateDataBaseTable;
 import com.tapdata.tm.commons.dag.Edge;
 import com.tapdata.tm.commons.dag.Node;
-import com.tapdata.tm.commons.task.dto.SubTaskDto;
+import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.schema.TapTableMap;
 
@@ -19,7 +19,7 @@ import java.util.List;
 public class ProcessorBaseContext implements Serializable {
 
 	private static final long serialVersionUID = -8383020637450262788L;
-	private final SubTaskDto subTaskDto;
+	private final TaskDto taskDto;
 	private Node<?> node;
 	private List<Node> nodes;
 	private List<Edge> edges;
@@ -30,7 +30,7 @@ public class ProcessorBaseContext implements Serializable {
 	private String pdkAssociateId;
 
 	protected <T extends ProcessorBaseContextBuilder<T>> ProcessorBaseContext(ProcessorBaseContextBuilder<T> builder) {
-		subTaskDto = builder.subTaskDto;
+		taskDto = builder.taskDto;
 		node = builder.node;
 		nodes = builder.nodes;
 		edges = builder.edges;
@@ -39,8 +39,8 @@ public class ProcessorBaseContext implements Serializable {
 		tapTableMap = builder.tapTableMap;
 	}
 
-	public SubTaskDto getSubTaskDto() {
-		return subTaskDto;
+	public TaskDto getTaskDto() {
+		return taskDto;
 	}
 
 	public Node<?> getNode() {
@@ -80,7 +80,7 @@ public class ProcessorBaseContext implements Serializable {
 	}
 
 	public static class ProcessorBaseContextBuilder<T extends ProcessorBaseContextBuilder<T>> {
-		private SubTaskDto subTaskDto;
+		private TaskDto taskDto;
 		private Node<?> node;
 		private List<Node> nodes;
 		private List<Edge> edges;
@@ -88,8 +88,8 @@ public class ProcessorBaseContext implements Serializable {
 		private List<RelateDataBaseTable> nodeSchemas;
 		private TapTableMap<String, TapTable> tapTableMap;
 
-		public T withSubTaskDto(SubTaskDto subTaskDto) {
-			this.subTaskDto = subTaskDto;
+		public T withTaskDto(TaskDto taskDto) {
+			this.taskDto = taskDto;
 			return (T) this;
 		}
 
