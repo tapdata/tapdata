@@ -1,26 +1,4 @@
 {
-  "total" : 2,
-  "items" : [ {
-    "uid" : "84dd92a19d90f9aebbb61cea7e057e2e",
-    "name" : "pipeline",
-    "statistic" : {
-      "failed" : 0,
-      "broken" : 0,
-      "skipped" : 0,
-      "passed" : 20,
-      "unknown" : 0,
-      "total" : 20
-    }
-  }, {
-    "uid" : "bb215dd62abdab27b6599b77efa1112d",
-    "name" : "datasource",
-    "statistic" : {
-      "failed" : 0,
-      "broken" : 0,
-      "skipped" : 0,
-      "passed" : 5,
-      "unknown" : 0,
-      "total" : 5
-    }
-  } ]
+  "total" : 0,
+  "items" : [ ]
 }
