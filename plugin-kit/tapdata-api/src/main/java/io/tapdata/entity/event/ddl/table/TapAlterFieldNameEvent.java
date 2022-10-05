@@ -29,4 +29,12 @@ public class TapAlterFieldNameEvent extends TapFieldBaseEvent {
     public void setNameChange(ValueChange<String> nameChange) {
         this.nameChange = nameChange;
     }
+
+    @Override
+    public String toString() {
+        return "TapAlterFieldNameEvent{" +
+                "tableId='" + tableId + '\'' +
+                ", nameChange=" + nameChange +
+                '}';
+    }
 }

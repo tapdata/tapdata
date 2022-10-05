@@ -11,6 +11,10 @@ import io.tapdata.kit.EmptyKit;
  */
 public class PostgresColumn extends CommonColumn {
 
+    public PostgresColumn() {
+
+    }
+
     public PostgresColumn(DataMap dataMap) {
         this.columnName = dataMap.getString("column_name");
         this.dataType = dataMap.getString("dataType"); //'dataType' with precision and scale (postgres has its function)

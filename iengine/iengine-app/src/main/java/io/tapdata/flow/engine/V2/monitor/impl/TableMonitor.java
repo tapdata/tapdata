@@ -9,7 +9,7 @@ import io.tapdata.node.pdk.ConnectorNodeService;
 import io.tapdata.pdk.apis.functions.connection.GetTableNamesFunction;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
-import io.tapdata.pdk.core.monitor.PDKMethod;
+import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.schema.TapTableMap;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.logging.log4j.LogManager;
@@ -64,6 +64,7 @@ public class TableMonitor implements Monitor<TableMonitor.TableResult> {
 	}
 
 	private void verify() {
+		//TODO should use PDKInvocationMonitor.invoke(connectorNode, PDKMethod.GET_TABLE_NAMES,
 		ConnectorNode connectorNode = ConnectorNodeService.getInstance().getConnectorNode(associateId);
 		GetTableNamesFunction getTableNamesFunction = connectorNode.getConnectorFunctions().getGetTableNamesFunction();
 		if (null == getTableNamesFunction) {

@@ -59,7 +59,8 @@ public class ScriptDataFlowProcessor implements DataFlowProcessor {
 				context.getClientMongoOperator(),
 				sourceScriptConnection,
 				targetScriptConnection,
-				cacheService);
+				cacheService,
+						logger);
 
 		processContext = new ConcurrentHashMap<>();
 

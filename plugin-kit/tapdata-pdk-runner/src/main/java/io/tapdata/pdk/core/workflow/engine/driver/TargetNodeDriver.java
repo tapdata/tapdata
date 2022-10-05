@@ -16,7 +16,6 @@ import io.tapdata.entity.result.ResultItem;
 import io.tapdata.entity.result.TapResult;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapIndex;
-import io.tapdata.entity.schema.TapIndexField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.ClassFactory;
 import io.tapdata.entity.utils.InstanceFactory;
@@ -30,13 +29,12 @@ import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.pdk.core.error.PDKRunnerErrorCodes;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
-import io.tapdata.pdk.core.monitor.PDKMethod;
+import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.pdk.core.utils.LoggerUtils;
 import io.tapdata.pdk.core.utils.queue.ListHandler;
 import io.tapdata.pdk.core.workflow.engine.JobOptions;
 import io.tapdata.pdk.core.workflow.engine.driver.task.TaskManager;
-import net.sf.cglib.core.CollectionUtils;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -71,12 +69,16 @@ public class TargetNodeDriver extends Driver implements ListHandler<List<TapEven
     private Void handleCreateTableEvent(TapCreateTableEvent createTableEvent) {
         PDKInvocationMonitor pdkInvocationMonitor = PDKInvocationMonitor.getInstance();
         CreateTableFunction createTableFunction = targetNode.getConnectorFunctions().getCreateTableFunction();
-        if(createTableFunction != null) {
+        CreateTableV2Function createTableV2Function = targetNode.getConnectorFunctions().getCreateTableV2Function();
+        if (createTableV2Function != null || createTableFunction != null) {
             TapLogger.debug(TAG, "Create table {} before start. {}", createTableEvent.getTable(), LoggerUtils.targetNodeMessage(targetNode));
 
-
-            pdkInvocationMonitor.invokePDKMethod(targetNode, PDKMethod.TARGET_CREATE_TABLE, () -> {
-                createTableFunction.createTable(targetNode.getConnectorContext(), createTableEvent);
+            PDKInvocationMonitor.invoke(targetNode, PDKMethod.TARGET_CREATE_TABLE, () -> {
+                if (createTableV2Function != null) {
+                    CreateTableOptions createTableOptions = createTableV2Function.createTable(targetNode.getConnectorContext(), createTableEvent);
+                } else {
+                    createTableFunction.createTable(targetNode.getConnectorContext(), createTableEvent);
+                }
             }, "Create table " + LoggerUtils.targetNodeMessage(targetNode), TAG);
         }
         return null;

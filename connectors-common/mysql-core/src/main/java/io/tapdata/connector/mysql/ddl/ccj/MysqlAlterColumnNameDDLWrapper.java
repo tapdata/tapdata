@@ -1,6 +1,5 @@
 package io.tapdata.connector.mysql.ddl.ccj;
 
-import io.tapdata.common.ddl.ccj.CCJBaseDDLWrapper;
 import io.tapdata.entity.event.ddl.TapDDLEvent;
 import io.tapdata.entity.event.ddl.entity.ValueChange;
 import io.tapdata.entity.event.ddl.table.TapAlterFieldNameEvent;
@@ -23,7 +22,7 @@ import java.util.function.Consumer;
  * @Description
  * @create 2022-07-04 17:52
  **/
-public class MysqlAlterColumnNameDDLWrapper extends CCJBaseDDLWrapper {
+public class MysqlAlterColumnNameDDLWrapper extends MysqlDDLWrapper {
 
     @Override
     public List<Capability> getCapabilities() {
@@ -50,10 +49,10 @@ public class MysqlAlterColumnNameDDLWrapper extends CCJBaseDDLWrapper {
             if (null == columnDataType || EmptyKit.isBlank(columnDataType.getColumnName())) {
                 return;
             }
-            String before = StringKit.removeHeadTail(alterExpression.getColumnOldName(), ccjddlWrapperConfig.getSplit(), false);
+            String before = StringKit.removeHeadTail(alterExpression.getColumnOldName(), ccjddlWrapperConfig.getSplit(), null);
             tapAlterFieldNameEvent.nameChange(ValueChange.create(
                     before,
-                    StringKit.removeHeadTail(columnDataType.getColumnName(), ccjddlWrapperConfig.getSplit(), false)));
+                    StringKit.removeHeadTail(columnDataType.getColumnName(), ccjddlWrapperConfig.getSplit(), null)));
             consumer.accept(tapAlterFieldNameEvent);
         } else if (alterExpression.getOperation() == AlterOperation.RENAME) {
             String columnName = alterExpression.getColumnName();
@@ -61,10 +60,10 @@ public class MysqlAlterColumnNameDDLWrapper extends CCJBaseDDLWrapper {
             if (EmptyKit.isBlank(columnName) || EmptyKit.isBlank(columnOldName)) {
                 return;
             }
-            String before = StringKit.removeHeadTail(columnOldName, ccjddlWrapperConfig.getSplit(), false);
+            String before = StringKit.removeHeadTail(columnOldName, ccjddlWrapperConfig.getSplit(), null);
             tapAlterFieldNameEvent.nameChange(ValueChange.create(
                     before,
-                    StringKit.removeHeadTail(columnName, ccjddlWrapperConfig.getSplit(), false)));
+                    StringKit.removeHeadTail(columnName, ccjddlWrapperConfig.getSplit(), null)));
             consumer.accept(tapAlterFieldNameEvent);
         }
     }

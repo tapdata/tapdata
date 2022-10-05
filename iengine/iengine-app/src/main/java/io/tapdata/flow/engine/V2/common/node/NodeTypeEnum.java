@@ -1,5 +1,7 @@
 package io.tapdata.flow.engine.V2.common.node;
 
+import com.tapdata.tm.autoinspect.constants.AutoInspectConstants;
+
 import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -12,7 +14,7 @@ public enum NodeTypeEnum {
 	DATABASE("database"),
 	TABLE("table"),
 	CACHE("mem_cache"),
-	AUTO_INSPECT("auto_inspect"),
+	AUTO_INSPECT(AutoInspectConstants.NODE_TYPE),
 	VIRTUAL_TARGET("VirtualTarget"),
 	JOIN("join_processor"),
 	CACHE_LOOKUP_PROCESSOR("cache_lookup_processor"),

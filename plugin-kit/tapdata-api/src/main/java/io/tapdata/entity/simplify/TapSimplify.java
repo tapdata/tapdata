@@ -21,50 +21,68 @@ import io.tapdata.entity.utils.*;
 
 import java.io.PrintWriter;
 import java.io.StringWriter;
+import java.lang.reflect.Type;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 
 public class TapSimplify {
-	private static final TapUtils tapUtils = InstanceFactory.instance(TapUtils.class);
-	private static final JsonParser jsonParser = InstanceFactory.instance(JsonParser.class);
+	private static TapUtils tapUtils;
+	private static JsonParser jsonParser;
 
 	public static void interval(Runnable runnable, int seconds) {
-		tapUtils.interval(runnable, seconds);
+		tapUtils().interval(runnable, seconds);
 	}
 
 	public static String getStackTrace(Throwable throwable) {
-		return tapUtils.getStackTrace(throwable);
+		return tapUtils().getStackTrace(throwable);
 	}
 
 
 	public static String toJsonWithClass(Object obj) {
-		return jsonParser.toJsonWithClass(obj);
+		return jsonParser().toJsonWithClass(obj);
 	}
 
 	public static Object fromJsonWithClass(String json) {
-		return jsonParser.fromJsonWithClass(json);
+		return jsonParser().fromJsonWithClass(json);
 	}
 
+	public static JsonParser jsonParser() {
+		if(jsonParser == null) {
+			jsonParser = InstanceFactory.instance(JsonParser.class);
+		}
+		return jsonParser;
+	}
+
+	public static TapUtils tapUtils() {
+		if(tapUtils == null) {
+			tapUtils = InstanceFactory.instance(TapUtils.class);
+		}
+		return tapUtils;
+	}
 
 	public static String toJson(Object obj, JsonParser.ToJsonFeature... features) {
-		return jsonParser.toJson(obj, features);
+		return jsonParser().toJson(obj, features);
 	}
 
 	public static Object fromJson(String json) {
-		return jsonParser.fromJson(json);
+		return jsonParser().fromJson(json);
 	}
 
 	public static DataMap fromJsonObject(String json) {
-		return jsonParser.fromJsonObject(json);
+		return jsonParser().fromJsonObject(json);
 	}
 
 	public static List<?> fromJsonArray(String json) {
-		return jsonParser.fromJsonArray(json);
+		return jsonParser().fromJsonArray(json);
 	}
 
 	public static <T> T fromJson(String json, Class<T> clazz) {
+		return jsonParser().fromJson(json, clazz);
+	}
+
+	public static <T> T fromJson(String json, Type clazz) {
 		return jsonParser.fromJson(json, clazz);
 	}
 

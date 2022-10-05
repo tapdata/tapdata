@@ -1,7 +1,6 @@
 package io.tapdata.flow.engine.V2.node.hazelcast.processor;
 
 import com.hazelcast.core.HazelcastInstance;
-import com.hazelcast.map.IMap;
 import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.constant.HazelcastUtil;
 import com.tapdata.constant.MapUtil;
@@ -10,7 +9,6 @@ import com.tapdata.entity.MessageEntity;
 import com.tapdata.entity.TapdataEvent;
 import com.tapdata.entity.task.context.DataProcessorContext;
 import com.tapdata.processor.ScriptUtil;
-import com.tapdata.processor.constant.JSEngineEnum;
 import com.tapdata.tm.commons.customNode.CustomNodeTempDto;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.process.CustomProcessorNode;
@@ -71,10 +69,11 @@ public class HazelcastCustomProcessor extends HazelcastProcessorBaseNode {
 					ConnectorConstant.JAVASCRIPT_FUNCTION_COLLECTION, JavaScriptFunctions.class, n -> !running.get());
 			try {
 				engine = ScriptUtil.getScriptEngine(
-						JSEngineEnum.GRAALVM_JS.getEngineName(),
-						customNodeTempDto.getTemplate(),
-						javaScriptFunctions,
-						clientMongoOperator);
+								customNodeTempDto.getTemplate(),
+								javaScriptFunctions,
+								clientMongoOperator,
+								((DataProcessorContext) processorBaseContext).getCacheService(),
+								logger);
 				stateMap = getStateMap(context.hazelcastInstance(), node.getId());
 				((ScriptEngine) engine).put("state", stateMap);
 			} catch (ScriptException e) {
@@ -135,16 +134,7 @@ public class HazelcastCustomProcessor extends HazelcastProcessorBaseNode {
 
 		Object result;
 		try {
-			int cnt = 1;
-			resetInputCounter.inc(cnt);
-			inputCounter.inc(cnt);
-			inputQPS.add(cnt);
-			long start = System.currentTimeMillis();
 			result = engine.invokeFunction(FUNCTION_NAME, record, ((CustomProcessorNode) node).getForm());
-			timeCostAvg.add(System.currentTimeMillis() - start);
-			resetOutputCounter.inc(cnt);
-			outputCounter.inc(cnt);
-			outputQPS.add(cnt);
 		} catch (ScriptException e) {
 			throw new RuntimeException("Execute script error, record: " + record + ", error: " + e.getMessage());
 		} catch (NoSuchMethodException e) {

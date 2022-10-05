@@ -3,7 +3,6 @@ package io.tapdata.observable.logging;
 import com.tapdata.constant.BeanUtil;
 import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.tm.commons.schema.MonitoringLogsDto;
-import io.tapdata.common.SettingService;
 import io.tapdata.observable.logging.appender.FileAppender;
 import io.tapdata.observable.logging.appender.AppenderFactory;
 import io.tapdata.observable.logging.appender.TMAppender;
@@ -15,13 +14,18 @@ import org.jetbrains.annotations.NotNull;
 import java.io.Serializable;
 import java.util.Date;
 import java.util.concurrent.Callable;
+import java.util.function.BiConsumer;
 
 /**
  * @author Dexter
  **/
 class TaskLogger extends ObsLogger implements Serializable {
+	private static final Long RECORD_CEILING_DEFAULT = 500L;
+	private static final Long INTERVAL_CEILING_DEFAULT = 500L;
+
 	private static AppenderFactory logAppendFactory = null;
 	private static FileAppender fileAppender = null;
+	private static BiConsumer<String, LogLevel> closeDebugConsumer;
 
 	@Getter
  	private String taskId;
@@ -30,11 +34,13 @@ class TaskLogger extends ObsLogger implements Serializable {
 	@Getter
 	private String taskName;
 
-	private final SettingService settingService;
+	private LogLevel level;
+	private LogLevel formerLevel;
+	private Long recordCeiling;
+	private Long intervalCeiling;
 
-	TaskLogger() {
-		settingService = BeanUtil.getBean(SettingService.class);
-		if (null != logAppendFactory && null != fileAppender) {
+	TaskLogger(BiConsumer<String, LogLevel> consumer) {
+		if (null != logAppendFactory && null != fileAppender && closeDebugConsumer != null) {
 			return;
 		}
 
@@ -47,12 +53,42 @@ class TaskLogger extends ObsLogger implements Serializable {
 		ClientMongoOperator clientMongoOperator = BeanUtil.getBean(ClientMongoOperator.class);
 		TMAppender tmAppender = new TMAppender(clientMongoOperator);
 		logAppendFactory.register(tmAppender);
+
+		// add close debug consumer
+		closeDebugConsumer = consumer;
 	}
 
 	TaskLogger withTask(String taskId, String taskName, String taskRecordId) {
 		this.taskId = taskId;
 		this.taskName = taskName;
 		this.taskRecordId = taskRecordId;
+
+		return this;
+	}
+
+	TaskLogger withTaskLogSetting(String level, Long recordCeiling, Long intervalCeiling) {
+		LogLevel logLevel = LogLevel.getLogLevel(level);
+		if (this.level == logLevel)  {
+			return this;
+		}
+		this.formerLevel = this.level;
+		this.level = logLevel;
+		if (this.level.isDebug()) {
+			if (null == recordCeiling && null == intervalCeiling) {
+				this.recordCeiling = RECORD_CEILING_DEFAULT;
+				this.intervalCeiling = System.currentTimeMillis() + INTERVAL_CEILING_DEFAULT * 1000;
+				return this;
+			}
+
+			this.recordCeiling = recordCeiling;
+			if (intervalCeiling != null) {
+				this.intervalCeiling = System.currentTimeMillis() + intervalCeiling * 1000;
+			}
+			return this;
+		}
+
+		this.recordCeiling = null;
+		this.intervalCeiling = null;
 		return this;
 	}
 
@@ -69,8 +105,34 @@ class TaskLogger extends ObsLogger implements Serializable {
 	}
 
 	public boolean noNeedLog(String level) {
-		String settingLevel = settingService.getSetting("logLevel").getValue();
-		return LogLevel.lt(level, settingLevel);
+		if (!this.level.isDebug()) {
+			return !this.level.shouldLog(level);
+		}
+
+		boolean noNeedLog = false;
+		if (null != recordCeiling) {
+			recordCeiling--;
+			noNeedLog = recordCeiling <= 0;
+		}
+
+		if (!noNeedLog && null != intervalCeiling) {
+			noNeedLog =  intervalCeiling < System.currentTimeMillis();
+		}
+
+		if (noNeedLog && this.level.isDebug()) {
+			// fix NPE when task start as DEBUG level
+			if (null == formerLevel) {
+				formerLevel = LogLevel.INFO;
+			}
+			this.level = formerLevel;
+			this.recordCeiling = null;
+			this.intervalCeiling = null;
+			if (null != closeDebugConsumer) {
+				closeDebugConsumer.accept(taskId, formerLevel);
+			}
+		}
+
+		return noNeedLog;
 	}
 
 	private MonitoringLogsDto.MonitoringLogsDtoBuilder call(Callable<MonitoringLogsDto.MonitoringLogsDtoBuilder> callable) {

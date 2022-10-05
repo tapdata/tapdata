@@ -20,7 +20,7 @@ import io.tapdata.entity.utils.DataMap;
 import io.tapdata.pdk.core.api.ConnectionNode;
 import io.tapdata.pdk.core.api.PDKIntegration;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
-import io.tapdata.pdk.core.monitor.PDKMethod;
+import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.schema.SchemaProxy;
 import io.tapdata.websocket.EventHandlerAnnotation;
 import io.tapdata.websocket.SendMessage;

@@ -22,8 +22,6 @@ import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.aspect.*;
 import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.common.SettingService;
-import io.tapdata.common.sample.CollectorFactory;
-import io.tapdata.common.sample.SampleCollector;
 import io.tapdata.entity.OnData;
 import io.tapdata.entity.aspect.Aspect;
 import io.tapdata.entity.aspect.AspectInterceptResult;
@@ -39,6 +37,7 @@ import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.value.TapDateTimeValue;
+import io.tapdata.entity.schema.value.TapValue;
 import io.tapdata.flow.engine.V2.common.node.NodeTypeEnum;
 import io.tapdata.flow.engine.V2.exception.node.NodeException;
 import io.tapdata.flow.engine.V2.node.hazelcast.data.pdk.HazelcastSourcePdkDataNode;
@@ -52,6 +51,7 @@ import io.tapdata.milestone.MilestoneFactory;
 import io.tapdata.milestone.MilestoneService;
 import io.tapdata.observable.logging.ObsLogger;
 import io.tapdata.observable.logging.ObsLoggerFactory;
+import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.schema.TapTableMap;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.collections.MapUtils;
@@ -95,8 +95,6 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 	protected SettingService settingService;
 
 	protected Map<String, String> tags;
-	protected SampleCollector sampleCollector;
-	protected SampleCollector statisticCollector;
 	protected MilestoneService milestoneService;
 	protected NodeException error;
 	protected String errorMessage;
@@ -164,8 +162,6 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 			TapCodecsRegistry tapCodecsRegistry = TapCodecsRegistry.create();
 			tapCodecsRegistry.registerFromTapValue(TapDateTimeValue.class, tapValue -> tapValue.getValue().toInstant());
 			codecsFilterManager = TapCodecsFilterManager.create(tapCodecsRegistry);
-			initSampleCollector();
-			CollectorFactory.getInstance().recordCurrentValueByTag(tags);
 			// execute ProcessorNodeInitAspect before doInit since we need to init the aspect first;
 			if (this instanceof HazelcastProcessorBaseNode || this instanceof HazelcastMultiAggregatorProcessor) {
 				AspectUtils.executeAspect(ProcessorNodeInitAspect.class, () -> new ProcessorNodeInitAspect().processorBaseContext(processorBaseContext));
@@ -174,7 +170,7 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 			}
 			doInit(context);
 		} catch (Throwable e) {
-			throw errorHandle(e, "Node init failed");
+			throw errorHandle(e, "Node init failed: " + e.getMessage());
 		}
 	}
 
@@ -207,22 +203,26 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 		return null;
 	}
 
-	protected void transformFromTapValue(TapdataEvent tapdataEvent, Map<String, TapField> sourceNameFieldMap) {
-		if (null == tapdataEvent.getTapEvent()) return;
+	protected TapValueTransform transformFromTapValue(TapdataEvent tapdataEvent) {
+		if (null == tapdataEvent.getTapEvent()) return null;
 		TapEvent tapEvent = tapdataEvent.getTapEvent();
+		TapValueTransform tapValueTransform = TapValueTransform.create();
 		Map<String, Object> before = TapEventUtil.getBefore(tapEvent);
 		if (MapUtils.isNotEmpty(before)) {
-			if (null == sourceNameFieldMap) codecsFilterManager.transformFromTapValueMap(before);
-			else codecsFilterManager.transformFromTapValueMap(before, sourceNameFieldMap);
+			tapValueTransform.before(codecsFilterManager.transformFromTapValueMap(before));
 		}
 		Map<String, Object> after = TapEventUtil.getAfter(tapEvent);
 		if (MapUtils.isNotEmpty(after)) {
-			if (null == sourceNameFieldMap) codecsFilterManager.transformFromTapValueMap(after);
-			else codecsFilterManager.transformFromTapValueMap(after, sourceNameFieldMap);
+			tapValueTransform.after(codecsFilterManager.transformFromTapValueMap(after));
 		}
+		return tapValueTransform;
 	}
 
 	protected void transformToTapValue(TapdataEvent tapdataEvent, TapTableMap<String, TapTable> tapTableMap, String tableName) {
+		transformToTapValue(tapdataEvent, tapTableMap, tableName, null);
+	}
+
+	protected void transformToTapValue(TapdataEvent tapdataEvent, TapTableMap<String, TapTable> tapTableMap, String tableName, TapValueTransform tapValueTransform) {
 		if (!(tapdataEvent.getTapEvent() instanceof TapRecordEvent)) return;
 		if (null == tapTableMap)
 			throw new IllegalArgumentException("Transform to TapValue failed, tapTableMap is empty, table name: " + tableName);
@@ -233,10 +233,18 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 		if (MapUtils.isEmpty(nameFieldMap))
 			throw new IllegalArgumentException("Transform to TapValue failed, field map is empty, table name: " + tableName);
 		TapEvent tapEvent = tapdataEvent.getTapEvent();
+
 		Map<String, Object> before = TapEventUtil.getBefore(tapEvent);
-		if (MapUtils.isNotEmpty(before)) codecsFilterManager.transformToTapValueMap(before, nameFieldMap);
 		Map<String, Object> after = TapEventUtil.getAfter(tapEvent);
-		if (MapUtils.isNotEmpty(after)) codecsFilterManager.transformToTapValueMap(after, nameFieldMap);
+		if (null != tapValueTransform) {
+			if (MapUtils.isNotEmpty(before))
+				codecsFilterManager.transformToTapValueMap(before, nameFieldMap, tapValueTransform.getBefore());
+			if (MapUtils.isNotEmpty(after))
+				codecsFilterManager.transformToTapValueMap(after, nameFieldMap, tapValueTransform.getAfter());
+		} else {
+			if (MapUtils.isNotEmpty(before)) codecsFilterManager.transformToTapValueMap(before, nameFieldMap);
+			if (MapUtils.isNotEmpty(after)) codecsFilterManager.transformToTapValueMap(after, nameFieldMap);
+		}
 	}
 
 	protected MessageEntity tapEvent2Message(TapRecordEvent dataEvent) {
@@ -466,9 +474,8 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 	}
 
 	protected void doClose() throws Exception {
+		CommonUtils.ignoreAnyError(() -> Optional.ofNullable(processorBaseContext.getTapTableMap()).ifPresent(TapTableMap::reset), TAG);
 	}
-
-	;
 
 	@Override
 	public final void close() throws Exception {
@@ -483,23 +490,6 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 					AspectUtils.executeAspect(DataNodeCloseAspect.class, () -> new DataNodeCloseAspect().dataProcessorContext((DataProcessorContext) processorBaseContext));
 				}
 				//		InstanceFactory.instance(AspectManager.class).executeAspect(DataNodeCloseAspect.class, () -> new DataNodeCloseAspect().node(HazelcastBaseNode.this));
-				if (processorBaseContext.getTaskDto() != null) {
-					if (sampleCollector != null) {
-						CollectorFactory.getInstance().unregisterSampleCollectorFromGroup(processorBaseContext.getTaskDto().getId().toString(), sampleCollector);
-					}
-					if (statisticCollector != null) {
-						CollectorFactory.getInstance().unregisterStatisticCollectorFromGroup(processorBaseContext.getTaskDto().getId().toString(), statisticCollector);
-					}
-				} else {
-					if (sampleCollector != null) {
-						sampleCollector.stop();
-						CollectorFactory.getInstance().removeSampleCollectorByTags(sampleCollector.tags());
-					}
-					if (statisticCollector != null) {
-						statisticCollector.stop();
-						CollectorFactory.getInstance().removeStatisticCollectorByTags(statisticCollector.tags());
-					}
-				}
 				if (error != null) {
 					throw new RuntimeException(errorMessage, error);
 				}
@@ -512,24 +502,6 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 
 	public void setMilestoneService(MilestoneService milestoneService) {
 		this.milestoneService = milestoneService;
-	}
-
-	protected void initSampleCollector() {
-		// new version of metrics and statistics collector
-		tags = new HashMap<>();
-		if (processorBaseContext.getNode() != null) {
-			tags.put("nodeId", processorBaseContext.getNode().getId());
-			tags.put("type", "node");
-		}
-		if (processorBaseContext.getTaskDto() != null) {
-			tags.put("taskId", processorBaseContext.getTaskDto().getId().toString());
-		}
-		sampleCollector = CollectorFactory.getInstance().getSampleCollectorByTags("nodeSamples", tags);
-		statisticCollector = CollectorFactory.getInstance().getStatisticCollectorByTags("nodeStatistics", tags);
-		if (processorBaseContext.getTaskDto() != null) {
-			CollectorFactory.getInstance().registerSampleCollectorToGroup(processorBaseContext.getTaskDto().getId().toString(), sampleCollector);
-			CollectorFactory.getInstance().registerStatisticCollectorToGroup(processorBaseContext.getTaskDto().getId().toString(), statisticCollector);
-		}
 	}
 
 	protected void onDataStats(OnData onData, Stats stats) {
@@ -653,23 +625,43 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 		} else {
 			currentEx = new NodeException(errorMessage, throwable).context(getProcessorBaseContext());
 		}
+		try {
+			if (null == error) {
+				this.error = currentEx;
+				if (null != errorMessage) {
+					this.errorMessage = errorMessage;
+				} else {
+					this.errorMessage = currentEx.getMessage();
+				}
+				logger.error(errorMessage, currentEx);
+				obsLogger.error(errorMessage, currentEx);
+				this.running.set(false);
+				TaskDto taskDto = processorBaseContext.getTaskDto();
 
-		if (null == error) {
-			this.error = currentEx;
-			if (null != errorMessage) {
-				this.errorMessage = errorMessage;
-			} else {
-				this.errorMessage = currentEx.getMessage();
+				// jetContext async injection, Attempt 5 times to get the instance every 500ms
+				com.hazelcast.jet.Job hazelcastJob = null;
+				for (int i = 5; i > 0; i--) {
+					if (null != jetContext) {
+						hazelcastJob = jetContext.hazelcastInstance().getJet().getJob(taskDto.getName() + "-" + taskDto.getId().toHexString());
+					}
+
+					if (null != hazelcastJob) break;
+					try {
+						Thread.sleep(500);
+					} catch (InterruptedException ignore) {
+						break;
+					}
+				}
+
+				if (hazelcastJob != null) {
+					AspectUtils.executeAspect(new TaskStopAspect().task(taskDto).error(currentEx));
+					hazelcastJob.cancel();
+				} else {
+					logger.warn("The jet instance cannot be found and needs to be stopped manually", currentEx);
+				}
 			}
-			logger.error(errorMessage, currentEx);
-			obsLogger.error(errorMessage, currentEx);
-			this.running.set(false);
-			TaskDto taskDto = processorBaseContext.getTaskDto();
-			com.hazelcast.jet.Job hazelcastJob = jetContext.hazelcastInstance().getJet().getJob(taskDto.getName() + "-" + taskDto.getId().toHexString());
-			if (hazelcastJob != null) {
-				AspectUtils.executeAspect(new TaskStopAspect().task(taskDto).error(currentEx));
-				hazelcastJob.cancel();
-			}
+		} catch (Exception e) {
+			logger.warn("error handler failed: " + e.getMessage(), e);
 		}
 
 		return currentEx;
@@ -797,11 +789,6 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 				((Map<String, MetadataInstancesDto>) updateMetadataObj).put(metadata.getId().toHexString(), metadata);
 			}
 		}
-		if (tapTableMap.containsKey(tableName)) {
-
-		} else {
-
-		}
 	}
 
 	protected void updateNodeConfig() {
@@ -809,5 +796,35 @@ public abstract class HazelcastBaseNode extends AbstractProcessor {
 
 	protected String getTgtTableNameFromTapEvent(TapEvent tapEvent) {
 		return TapEventUtil.getTableId(tapEvent);
+	}
+
+	public static class TapValueTransform {
+		private Map<String, TapValue<?, ?>> before;
+		private Map<String, TapValue<?, ?>> after;
+
+		private TapValueTransform() {
+		}
+
+		public static TapValueTransform create() {
+			return new TapValueTransform();
+		}
+
+		public TapValueTransform before(Map<String, TapValue<?, ?>> before) {
+			this.before = before;
+			return this;
+		}
+
+		public TapValueTransform after(Map<String, TapValue<?, ?>> after) {
+			this.after = after;
+			return this;
+		}
+
+		public Map<String, TapValue<?, ?>> getBefore() {
+			return before;
+		}
+
+		public Map<String, TapValue<?, ?>> getAfter() {
+			return after;
+		}
 	}
 }

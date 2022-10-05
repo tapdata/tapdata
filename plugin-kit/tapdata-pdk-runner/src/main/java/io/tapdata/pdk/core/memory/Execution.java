@@ -1,5 +1,7 @@
 package io.tapdata.pdk.core.memory;
 
+import io.tapdata.entity.memory.MemoryFetcher;
+
 import java.util.List;
 public class Execution {
     public static final String OUTPUT_TYPE_TAP_LOGGER = "TapLogger";

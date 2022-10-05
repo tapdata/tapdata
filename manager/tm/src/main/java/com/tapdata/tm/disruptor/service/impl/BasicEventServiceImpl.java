@@ -1,6 +1,6 @@
 package com.tapdata.tm.disruptor.service.impl;
 
-import com.lmax.disruptor.SleepingWaitStrategy;
+import com.lmax.disruptor.BlockingWaitStrategy;
 import com.lmax.disruptor.dsl.Disruptor;
 import com.lmax.disruptor.dsl.ProducerType;
 import com.tapdata.tm.disruptor.ObjectEvent;
@@ -19,7 +19,7 @@ import java.util.function.Consumer;
 @Service
 @Slf4j
 public class  BasicEventServiceImpl implements BasicEventService {
-    private static final int BUFFER_SIZE = 1024;
+    private static final int BUFFER_SIZE = 128;
     private ObjectEventProducer disruptorQueue;
 
     private final AtomicLong eventCount = new AtomicLong();
@@ -28,8 +28,8 @@ public class  BasicEventServiceImpl implements BasicEventService {
     private void init() {
         Disruptor<ObjectEvent> disruptor = new Disruptor<>(new ObjectEventFactory(),
                 BUFFER_SIZE,
-                new CustomizableThreadFactory("event-handler-"),
-                ProducerType.SINGLE, new SleepingWaitStrategy());
+                new CustomizableThreadFactory("disruptor-event-handler-"),
+                ProducerType.SINGLE, new BlockingWaitStrategy());
 
         Consumer<Object> eventCountPrinter = o -> {
             long count = eventCount.incrementAndGet();

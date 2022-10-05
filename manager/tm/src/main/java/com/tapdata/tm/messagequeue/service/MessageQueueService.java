@@ -20,6 +20,7 @@ import org.bson.types.ObjectId;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
+import java.util.Map;
 
 @Service
 @Slf4j
@@ -63,4 +64,12 @@ public class MessageQueueService extends BaseService<MessageQueueDto, MessageQue
 		}*/
 	}
 
+	public void sendPipeMessage(Map<String, Object> map, String sender, String receiver) {
+		MessageQueueDto queueDto = new MessageQueueDto();
+		queueDto.setSender(sender);
+		queueDto.setReceiver(receiver);
+		queueDto.setData(map);
+		queueDto.setType("pipe");
+		sendMessage(queueDto);
+	}
 }

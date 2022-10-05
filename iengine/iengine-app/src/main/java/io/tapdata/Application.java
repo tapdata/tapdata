@@ -13,6 +13,8 @@ import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.aspect.task.AspectTaskManager;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.utils.InstanceFactory;
+import io.tapdata.pdk.core.runtime.TapRuntime;
+import io.tapdata.pdk.core.utils.CommonUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
@@ -74,6 +76,7 @@ public class Application {
 	private static String tapdataWorkDir;
 
 	public static void main(String[] args) {
+		CommonUtils.setProperty("tap_verbose", "true");
 		try {
 			System.setProperty(LoggingSystem.class.getName(), "none");
 			tapdataWorkDir = System.getenv("TAPDATA_WORK_DIR");
@@ -135,6 +138,7 @@ public class Application {
 				}
 			});
 
+			TapRuntime.getInstance();
 			configurationCenter = run.getBean(ConfigurationCenter.class);
 			configurationCenter.putConfig("version", "@env.VERSION@".equals(buildInfo.get("version")) ? "-" : buildInfo.get("version"));
 			configurationCenter.putConfig("gitCommitId", "@env.DAAS_GIT_VERSION@".equals(buildInfo.get("gitCommitId")) ? "-" : buildInfo.get("gitCommitId"));
@@ -234,7 +238,7 @@ public class Application {
 		final LoggerContext ctx = (LoggerContext) LogManager.getContext(false);
 		final org.apache.logging.log4j.core.config.Configuration config = ctx.getConfiguration();
 		PatternLayout patternLayout = PatternLayout.newBuilder()
-				.withPattern("[%-5level] %date{yyyy-MM-dd HH:mm:ss.SSS} [%t] %c{1} - %msg%n")
+				.withPattern("[%-5level] %date{yyyy-MM-dd HH:mm:ss.SSS} %X{taskId} [%t] %c{1} - %msg%n")
 				.build();
 
 		TimeBasedTriggeringPolicy timeBasedTriggeringPolicy = TimeBasedTriggeringPolicy.newBuilder().withInterval(1).withModulate(true).build();

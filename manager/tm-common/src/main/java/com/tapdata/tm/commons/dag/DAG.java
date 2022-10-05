@@ -6,6 +6,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.tapdata.manager.common.utils.JsonUtil;
+import com.tapdata.tm.commons.dag.nodes.DataNode;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.process.TableRenameProcessNode;
 import com.tapdata.tm.commons.dag.process.ProcessorNode;
@@ -937,21 +938,50 @@ public class DAG implements Serializable, Cloneable {
     public LinkedList<DatabaseNode> getSourceNode() {
         return graph.getNodes()
                 .stream()
-                .map(id -> (Node)graph.getNode(id))
+                .map(graph::getNode)
                 .collect(Collectors.toList())
                 .stream()
                 .filter(node -> node instanceof DatabaseNode && graph.getSources().contains(node.getId()))
                 .map(node -> (DatabaseNode) node).collect(Collectors.toCollection(LinkedList::new));
     }
 
+    public DatabaseNode getSourceNode(String nodeId) {
+        String sourceNodeId = getSourceNodeIdByNode(nodeId);
+        Node<?> node = graph.getNode(sourceNodeId);
+        return node instanceof DatabaseNode ? (DatabaseNode) node : null;
+    }
+
+    private String getSourceNodeIdByNode(String nodeId) {
+        Collection<String> collection = graph.predecessors(nodeId);
+        if (collection.isEmpty()) {
+            return nodeId;
+        } else {
+            return getSourceNodeIdByNode(collection.iterator().next());
+        }
+    }
+
+    private String getTargetNodeIdByMigrateNode(String nodeId) {
+        Collection<String> collection = graph.successors(nodeId);
+        if (collection.isEmpty()) {
+            return nodeId;
+        } else {
+            return getTargetNodeIdByMigrateNode(collection.iterator().next());
+        }
+    }
+
     public LinkedList<DatabaseNode> getTargetNode() {
         return graph.getNodes()
                 .stream()
-                .map(id -> (Node)graph.getNode(id))
+                .map(graph::getNode)
                 .collect(Collectors.toList())
                 .stream()
                 .filter(node -> node instanceof DatabaseNode && graph.getSinks().contains(node.getId()))
                 .map(node -> (DatabaseNode) node).collect(Collectors.toCollection(LinkedList::new));
+    }
+
+    public DatabaseNode getTargetNode(String nodeId) {
+        Node<?> node = graph.getNode(getTargetNodeIdByMigrateNode(nodeId));
+        return node instanceof DatabaseNode ? (DatabaseNode) node : null;
     }
 
     @Data

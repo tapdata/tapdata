@@ -1,6 +1,7 @@
 package com.tapdata.tm.ds.dto;
 
 import com.tapdata.tm.commons.base.dto.BaseDto;
+import io.tapdata.pdk.apis.entity.Capability;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 
@@ -56,4 +57,6 @@ public class DataSourceTypeDto extends BaseDto {
     private String jarFile;
     private Long jarTime;
     private String jarRid;
+
+    private List<Capability> capabilities;
 }

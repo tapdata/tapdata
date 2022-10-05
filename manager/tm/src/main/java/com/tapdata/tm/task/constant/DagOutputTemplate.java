@@ -10,7 +10,7 @@ public class DagOutputTemplate {
      * 【ERROR】 2022-05-24 21:05:22  【任务A】【Agent可用性检测】：当前无可用Agent，任务运行失败
      */
     public static String AGENT_CAN_USE_INFO = "$date【$taskName】【Agent可用性检测】：检查到当前有{1}个可用Agent：[{2}],当前任务将在Agent：'{'{3}}上运行";
-    public static String AGENT_CAN_USE_ERROR = "$date【$taskName】【Agent可用性检测】：当前手动指定的Agent：{1}不可用，请尽快恢复，或者重新指定其它Agent。";
+    public static String AGENT_CAN_USE_ERROR = "$date【$taskName】【Agent可用性检测】：当前指定的Agent：{1}不可用，请尽快恢复，或者重新指定其它Agent。";
 
     /**
      * 任务设置检测
@@ -33,6 +33,8 @@ public class DagOutputTemplate {
      */
     public static String SOURCE_SETTING_INFO = "$date【$taskName】【源节点设置检测】：节点'{'{1}}检测通过";
     public static String SOURCE_SETTING_ERROR = "$date【$taskName】【源节点设置检测】：节点'{'{1}}检测未通过，异常项{节点名称}，异常原因：节点名称重复，请重新设置";
+    public static String SOURCE_SETTING_ERROR_SCHEMA = "$date【$taskName】【源节点设置检测】：节点'{'{0}}检测未通过，源库没有表";
+    public static String SOURCE_SETTING_ERROR_SCHEMA_LOAD = "$date【$taskName】【源节点设置检测】：节点'{'{0}}检测未通过，连接模型未加载完成";
 
     /**
      * JS节点设置检测：（没有可跳过检测）

@@ -19,7 +19,7 @@ public class ModulesListVo extends BaseVo {
     @JsonProperty("datasource")
     private String dataSource;
 
-    @JsonProperty("tablename")
+    @JsonProperty("tableName")
     private String tableName;
 
     private String apiVersion;
@@ -66,4 +66,9 @@ public class ModulesListVo extends BaseVo {
     @JsonProperty("last_updated")
     private Date lastUpdAt;
 
+    private String operationType;
+
+    private String connectionType;
+
+    private String connectionName;
 }

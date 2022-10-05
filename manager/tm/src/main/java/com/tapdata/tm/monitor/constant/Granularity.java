@@ -1,6 +1,5 @@
 package com.tapdata.tm.monitor.constant;
 
-import com.tapdata.manager.common.utils.DateUtil;
 import com.tapdata.tm.utils.TimeUtil;
 
 import java.util.Date;

@@ -28,6 +28,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.format.DateTimeFormatter;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 @Service
@@ -54,6 +55,15 @@ public class TaskRecordServiceImpl implements TaskRecordService {
         } else {
             update.set("taskSnapshot.last_updated", now);
         }
+        if (StringUtils.equalsAny(taskStatus, TaskDto.STATUS_COMPLETE, TaskDto.STATUS_STOP, TaskDto.STATUS_ERROR)) {
+            Long[] values = measurementServiceV2.countEventByTaskRecord(dto.getTaskId(), dto.getTaskRecordId());
+            if (null != values) {
+                update.set("inputTotal", values[0]);
+                update.set("outputTotal", values[1]);
+            }
+        }
+        update.push("statusStack", new TaskRecord.TaskStatusUpdate(taskStatus, now));
+
 
         mongoTemplate.updateFirst(query, update, TaskRecord.class);
     }
@@ -80,9 +90,6 @@ public class TaskRecordServiceImpl implements TaskRecordService {
 
         List<TaskRecord> taskRecords = partition.get(page - 1);
 
-        List<String> ids = taskRecords.stream().map(t -> t.getId().toHexString()).collect(Collectors.toList());
-        Map<String, Long[]> totalMap = measurementServiceV2.countEventByTaskRecord(ids);
-
         List<String> userIds = taskRecords.stream().map(TaskRecord::getUserId).distinct().collect(Collectors.toList());
         List<UserDetail> users = userService.getUserByIdList(userIds);
         Map<String, String> userMap = users.stream().collect(Collectors.toMap(UserDetail::getUserId, u -> {
@@ -94,6 +101,7 @@ public class TaskRecordServiceImpl implements TaskRecordService {
         }));
 
 
+        final AtomicReference<Boolean> first = new AtomicReference<>(true);
         List<TaskRecordListVo> collect = taskRecords.stream().map(r -> {
             String taskRecordId = r.getId().toHexString();
 
@@ -110,13 +118,40 @@ public class TaskRecordServiceImpl implements TaskRecordService {
             }
             vo.setStatus(taskSnapshot.getStatus());
 
-            if (totalMap.containsKey(taskRecordId)) {
-                vo.setInputTotal(totalMap.get(taskRecordId)[0]);
-                vo.setOutputTotal(totalMap.get(taskRecordId)[1]);
+            Long inputTotal = r.getInputTotal();
+            Long outputTotal = r.getOutputTotal();
+            if (first.get()) {
+                if (StringUtils.equalsAny(vo.getStatus(), TaskDto.STATUS_RUNNING, TaskDto.STATUS_STOPPING)) {
+                    Long[] values = measurementServiceV2.countEventByTaskRecord(taskId, taskRecordId);
+                    if (null != values && values.length == 2) {
+                        inputTotal = values[0];
+                        outputTotal = values[1];
+                    }
+                }
+                first.set(false);
             }
+            vo.setInputTotal(inputTotal);
+            vo.setOutputTotal(outputTotal);
 
             if (userMap.containsKey(r.getUserId())) {
                 vo.setOperator(userMap.get(r.getUserId()));
+            }
+
+            List<TaskRecord.TaskStatusUpdate> statusStack = r.getStatusStack();
+            if (null != statusStack && !statusStack.isEmpty()) {
+                Date lastStartDate = null;
+                int idx = statusStack.size() - 1;
+                while (idx >= 0) {
+                    TaskRecord.TaskStatusUpdate taskStatusUpdate = statusStack.get(idx);
+                    if (taskStatusUpdate.getStatus().equals(TaskDto.STATUS_RUNNING)) {
+                        lastStartDate = taskStatusUpdate.getTimestamp();
+                        break;
+                    }
+                    idx -= 1;
+                }
+                if (null != lastStartDate) {
+                    vo.setLastStartDate(DateUtil.toLocalDateTime(lastStartDate).format(DateTimeFormatter.ofPattern(DatePattern.NORM_DATETIME_PATTERN)));
+                }
             }
 
             return vo;

@@ -5,7 +5,7 @@ import com.tapdata.tm.autoinspect.connector.IConnector;
 import com.tapdata.tm.autoinspect.connector.IDataCursor;
 import com.tapdata.tm.autoinspect.constants.CompareStatus;
 import com.tapdata.tm.autoinspect.constants.CompareStep;
-import com.tapdata.tm.autoinspect.constants.Constants;
+import com.tapdata.tm.autoinspect.constants.AutoInspectConstants;
 import com.tapdata.tm.autoinspect.constants.TaskType;
 import com.tapdata.tm.autoinspect.dto.TaskAutoInspectResultDto;
 import com.tapdata.tm.autoinspect.entity.AutoInspectProgress;
@@ -36,7 +36,7 @@ public abstract class AutoInspectRunner<S extends IConnector, T extends IConnect
 
     @Override
     public void run() {
-        Thread.currentThread().setName(String.format("th-%s-%s", Constants.MODULE_NAME, taskId));
+        Thread.currentThread().setName(String.format("th-%s-%s", AutoInspectConstants.MODULE_NAME, taskId));
         try (
                 S sourceConnector = openSourceConnector();
                 T targetConnector = openTargetConnector()
@@ -110,7 +110,7 @@ public abstract class AutoInspectRunner<S extends IConnector, T extends IConnect
                     if (null == targetData) {
                         // more source
                         while (isRunning() && null != sourceData) {
-                            autoCompare.autoCompare(TaskAutoInspectResultDto.parse(taskId, sourceData, targetConnector.getConnId(), compareItem.getTableName()));
+                            autoCompare.autoCompare(TaskAutoInspectResultDto.parseNoneTarget(taskId, sourceData, targetConnector.getConnId(), compareItem.getTableName()));
                             sourceData = sourceCursor.next();
                         }
                         break;
@@ -119,7 +119,7 @@ public abstract class AutoInspectRunner<S extends IConnector, T extends IConnect
                     CompareStatus compareStatus = sourceData.compare(targetData);
                     switch (compareStatus) {
                         case MoveSource:
-                            autoCompare.autoCompare(TaskAutoInspectResultDto.parse(taskId, sourceData, targetConnector.getConnId(), compareItem.getTableName()));
+                            autoCompare.autoCompare(TaskAutoInspectResultDto.parseNoneTarget(taskId, sourceData, targetConnector.getConnId(), compareItem.getTableName()));
                             sourceData = sourceCursor.next();
                             break;
                         case MoveTarget:
