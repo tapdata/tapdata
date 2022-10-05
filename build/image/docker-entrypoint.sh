@@ -44,8 +44,8 @@ start_server() {
 
         if [[ "x"$mode == "xtest" ]]; then
             cd /tapdata/apps
-            cd manager/dist && bash bin/start.sh && cd -
-            cd iengine/dist && bash bin/start.sh && cd -
+            cd manager && bash bin/start.sh && cd -
+            cd iengine && bash bin/start.sh && cd -
         fi
     fi
 
