@@ -72,11 +72,9 @@ start_server() {
 _main() {
     start_mongo
     start_server
-    sleep infinity
+    if [[ "x"$mode != "xtest" ]]; then
+        sleep infinity
+    fi
 }
 
 _main "$@"
-
-while [[ 1 ]]; do
-    sleep 10
-done
