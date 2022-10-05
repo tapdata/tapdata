@@ -60,7 +60,7 @@ start_server() {
         cp ../build/test.sh ./
         mv ../build/test ./
         chmod u+x test.sh
-        test.sh
+        ./test.sh
         if [[ $? -ne 0 ]]; then
             exit 127
         else
