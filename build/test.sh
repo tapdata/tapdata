@@ -1,5 +1,6 @@
 #!/bin/bash
 basepath=$(cd `dirname $0`; pwd)
+sourcepath=$(cd `dirname $0`/../; pwd)
 cd $basepath
 
 error() {
@@ -23,13 +24,13 @@ mkdir -p ./allure-results/history
 
 retCode=$?
 
-mv ../../build/filter_history.py ../
-mv ../../build/template ../
+mv $sourcepath/build/filter_history.py ../
+mv $sourcepath/build/template ../
 
 BRANCH_DIR=`echo $BRANCH | sed "s:/:-:g"`
 
-if [[ -d "../../report-test/$BRANCH_DIR/last-history" ]]; then
-    cp -r ../../report-test/$BRANCH_DIR/last-history/* ./allure-results/history
+if [[ -d "$sourcepath/report-test/$BRANCH_DIR/last-history" ]]; then
+    cp -r $sourcepath/report-test/$BRANCH_DIR/last-history/* ./allure-results/history
     python ../filter_history.py ./allure-results/history
 fi
 
@@ -66,6 +67,6 @@ cp index.html gh_pages/
 cp executors.json gh_pages/$BRANCH_DIR/$RUN_SIGN/widgets/
 cp environment.json gh_pages/$BRANCH_DIR/$RUN_SIGN/widgets/
 
-mv gh_pages/ ../../
+mv gh_pages/ $sourcepath
 
 exit $retCode

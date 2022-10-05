@@ -62,7 +62,9 @@ start_server() {
         chmod u+x test.sh
         bash test.sh
         if [[ $? -ne 0 ]]; then
-          exit 127
+            exit 127
+        else
+            exit 0
         fi
     fi
 }
