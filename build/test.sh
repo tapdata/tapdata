@@ -69,4 +69,4 @@ cp environment.json gh_pages/$BRANCH_DIR/$RUN_SIGN/widgets/
 
 mv gh_pages/ $sourcepath
 
-exit $retCode
+return $retCode
