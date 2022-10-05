@@ -72,6 +72,7 @@ public class IterationLoader extends CodingStarter {
         DataMap connectionConfig = tapConnectionContext.getConnectionConfig();
         String projectName = connectionConfig.getString("projectName");
         String token = connectionConfig.getString("token");
+        token = this.tokenSetter(token);
         String teamName = connectionConfig.getString("teamName");
 
         int currentQueryCount = 0,queryIndex = 0;

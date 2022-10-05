@@ -1,5 +1,6 @@
 package io.tapdata.coding.service;
 
+import io.tapdata.coding.utils.tool.Checker;
 import io.tapdata.entity.utils.Entry;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 
@@ -17,5 +18,13 @@ public abstract class CodingStarter {
 
     protected static Entry entry(String key, Object value){
         return new Entry(key,value);
+    }
+
+    public String tokenSetter(String token){
+        if (Checker.isNotEmpty(token)) {
+            String upToken = token.toUpperCase();
+            token = (upToken.startsWith("TOKEN ") ? token : "token " + token);
+        }
+        return token;
     }
 }

@@ -275,6 +275,7 @@ public class IssueLoader extends CodingStarter {
         DataMap connectionConfigConfigMap = this.tapConnectionContext.getConnectionConfig();
         String projectName = connectionConfigConfigMap.getString("projectName");
         String token = connectionConfigConfigMap.getString("token");
+        token = this.tokenSetter(token);
         String teamName = connectionConfigConfigMap.getString("teamName");
         String streamReadType = connectionConfigConfigMap.getString("streamReadType");
         String connectionMode = connectionConfigConfigMap.getString("connectionMode");
@@ -332,4 +333,5 @@ public class IssueLoader extends CodingStarter {
         }
         return (List<Map<String,Object>>)issueTypes;
     }
+
 }

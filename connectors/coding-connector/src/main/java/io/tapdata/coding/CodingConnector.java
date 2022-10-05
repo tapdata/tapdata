@@ -148,6 +148,8 @@ public class CodingConnector extends ConnectorBase {
 			throw new CoreException("teamName must be not null or not empty.");
 		}
 
+		String upToken = token.toUpperCase();
+		token = (upToken.startsWith("TOKEN ") ? token : "token " + token);
 		HttpEntity<String,String> header = HttpEntity.create().builder("Authorization",token);
 		HttpEntity<String,Object> body = IterationLoader.create(tapConnectionContext,argMap)
 				.commandSetter(command,HttpEntity.create());
@@ -383,10 +385,10 @@ public class CodingConnector extends ConnectorBase {
 		//current read end as next read begin
 		codingOffset.setTableUpdateTimeMap(new HashMap<String,Long>(){{ put(table.getId(),readEnd);}});
 		IssueLoader.create(connectorContext).verifyConnectionConfig();
-		DataMap connectionConfig = connectorContext.getConnectionConfig();
-		String projectName = connectionConfig.getString("projectName");
-		String token = connectionConfig.getString("token");
-		String teamName = connectionConfig.getString("teamName");
+//		DataMap connectionConfig = connectorContext.getConnectionConfig();
+//		String projectName = connectionConfig.getString("projectName");
+//		String token = connectionConfig.getString("token");
+//		String teamName = connectionConfig.getString("teamName");
 		this.read(connectorContext,null,readEnd,table.getId(),batchCount,codingOffset,consumer,table.getId());
 		TapLogger.debug(TAG, "compile {} batch read", table.getName());
 	}
@@ -397,9 +399,10 @@ public class CodingConnector extends ConnectorBase {
 		issueLoader.verifyConnectionConfig();
 		try {
 			DataMap connectionConfig = tapConnectorContext.getConnectionConfig();
-
+			String token = connectionConfig.getString("token");
+			token = issueLoader.tokenSetter(token);
 			HttpEntity<String,String> header = HttpEntity.create()
-					.builder("Authorization",connectionConfig.getString("token"));
+					.builder("Authorization",token);
 			HttpEntity<String,Object> body = HttpEntity.create()
 					.builder("Action",       "DescribeIssueListWithPage")
 					.builder("ProjectName",  connectionConfig.getString("projectName"))
