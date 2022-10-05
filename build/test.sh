@@ -1,7 +1,7 @@
 #!/bin/bash
-basepath=$(cd `dirname $0`; pwd)
-sourcepath=$(cd `dirname $0`/../; pwd)
-cd $basepath
+basepath="/tapdata-source/tapshell"
+sourcepath="/tapdata-source"
+pkgpath="/tapdata"
 
 error() {
     echo -e "["`date +'%D %T'`"]" ${header}:"\033[31m $1 \033[0m"
@@ -17,15 +17,15 @@ if [[ $? -ne 0 ]]; then
     error "no pytest module found, please run pip install pytest first"
 fi
 
-cd $basepath/test/
+cd $basepath/test
 
 pytest --alluredir=./allure-results
 retCode=$?
 
 mkdir -p ./allure-results/history
 
-mv $sourcepath/build/filter_history.py ../
-mv $sourcepath/build/template ../
+cp $sourcepath/build/filter_history.py ../
+cp -r $sourcepath/build/template ../
 
 BRANCH_DIR=`echo $BRANCH | sed "s:/:-:g"`
 
