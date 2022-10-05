@@ -136,16 +136,16 @@ jobs:
           publish_branch: report-test
           publish_dir: gh_pages
           keep_files: true
-      - name: print summary
-        if: ${{ steps.gh_pages.conclusion == 'success' }}
-        env:
-          RUN_SIGN: ${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}
-          BRANCH: ${{ github.ref }}
-        run: |
-          git diff-tree --name-only HEAD^ HEAD | grep tapshell > /dev/null
-          sed -i "/__version__/${{ env.TAG }}/" tapshell/pyproject.toml
-          if [[ $? -ne 0 ]]; then echo "Do not publish pip package" && exit 0; fi
-          cd tapshell && poetry build && poetry publish --username ${{ env.PYPI_USERNAME }} --password ${{ env.PYPI_PASSWORD }}
+#      - name: print summary
+#        if: ${{ steps.gh_pages.conclusion == 'success' }}
+#        env:
+#          RUN_SIGN: ${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}
+#          BRANCH: ${{ github.ref }}
+#        run: |
+#          git diff-tree --name-only HEAD^ HEAD | grep tapshell > /dev/null
+#          sed -i "/__version__/${{ env.TAG }}/" tapshell/pyproject.toml
+#          if [[ $? -ne 0 ]]; then echo "Do not publish pip package" && exit 0; fi
+#          cd tapshell && poetry build && poetry publish --username ${{ env.PYPI_USERNAME }} --password ${{ env.PYPI_PASSWORD }}
       - name: print summary
         if: ${{ steps.gh_pages.conclusion == 'success' }}
         env:
