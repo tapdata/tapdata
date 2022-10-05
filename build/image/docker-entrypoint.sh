@@ -45,7 +45,7 @@ if [[ "x"$tapdata_run_env != "xlocal" ]]; then
     fi
 
     if [[ "x"$mode == "xtest" ]]; then
-        cd /tapdata-source
+        cd /tapdata/apps
         cd manager/dist && bash bin/start.sh && cd -
         cd iengine/dist && bash bin/start.sh && cd -
     fi
