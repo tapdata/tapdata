@@ -3017,6 +3017,7 @@ class DataSource():
             "name": self._name,
             "user_id": self.user_id,
             "response_body": {},
+            "status": "testing",
         }
         for k, v in self.custom_options.items():
             d[k[1:]] = v
@@ -3091,8 +3092,11 @@ class DataSource():
             async with websockets.connect(system_server_conf["ws_uri"]) as websocket:
                 data = self.to_dict()
                 data["updateSchema"] = True
+                if isinstance(self.id, str):
+                    data.update({
+                        "id": self.id,
+                    })
                 data.update({
-                    "id": self.id,
                     "accessNodeType": "AUTOMATIC_PLATFORM_ALLOCATION"
                 })
                 payload = {
@@ -3131,7 +3135,7 @@ class DataSource():
                     return res
 
         try:
-            asyncio.get_event_loop().run_until_complete(l())
+            asyncio.run(l())
         except Exception as e:
             logger.warn("load schema exception, err is: {}", e)
         logger.info("datasource valid finished, will check table schema now, please wait for a while ...")
