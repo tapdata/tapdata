@@ -127,7 +127,7 @@ public class TaskEntity extends BaseEntity {
      */
     private List<SchemaTransformerResult> metadataMappings;
 
-    private List<Map<String, String>> listtags;
+    private List<Tag> listtags;
 
     /**
      * 访问节点

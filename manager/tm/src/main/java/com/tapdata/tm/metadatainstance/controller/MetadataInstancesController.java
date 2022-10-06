@@ -641,7 +641,7 @@ public class MetadataInstancesController extends BaseController {
     public ResponseMessage upload(HttpServletRequest request,
                                   @RequestParam(value = "upsert") String upsert,
                                   @RequestParam(value = "type", required = false) String type,
-                                  @RequestParam(value = "listtags", required = false) List listtags) throws IOException {
+                                  @RequestParam(value = "listtags", required = false) List<com.tapdata.tm.commons.schema.Tag> listtags) throws IOException {
         MultipartHttpServletRequest multipartRequest = (MultipartHttpServletRequest) request;
         MultipartFile file = multipartRequest.getFile("file");
 
