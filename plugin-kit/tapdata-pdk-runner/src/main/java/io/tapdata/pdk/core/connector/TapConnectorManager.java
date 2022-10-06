@@ -1,10 +1,9 @@
 package io.tapdata.pdk.core.connector;
 
-import io.tapdata.entity.utils.ParagraphFormatter;
+import io.tapdata.entity.utils.DataMap;
 import io.tapdata.pdk.core.classloader.ExternalJarManager;
 import io.tapdata.pdk.core.executor.ExecutorsManager;
-import io.tapdata.pdk.core.memory.MemoryFetcher;
-import io.tapdata.pdk.core.memory.MemoryMap;
+import io.tapdata.entity.memory.MemoryFetcher;
 import io.tapdata.pdk.core.tapnode.TapNodeInstance;
 import io.tapdata.pdk.core.utils.CommonUtils;
 
@@ -203,16 +202,16 @@ public class TapConnectorManager implements MemoryFetcher {
     }
 
     @Override
-    public String memory(List<String> mapKeys, String memoryLevel) {
-        ParagraphFormatter paragraphFormatter = new ParagraphFormatter(TapConnectorManager.class.getSimpleName())
-                .addRow("IsStarted", isStarted)
-                .addRow("ExternalJarManager", externalJarManager != null ? externalJarManager.toMemoryString(memoryLevel, 1) : null)
-                ;
+    public DataMap memory(String keyRegex, String memoryLevel) {
+        DataMap dataMap = DataMap.create().keyRegex(keyRegex)/*.prefix(this.getClass().getSimpleName())*/
+                .kv("isStarted", isStarted)
+                .kv("ExternalJarManager", externalJarManager != null ? externalJarManager.memory(keyRegex, memoryLevel) : null);
+
         for(Map.Entry<String, TapConnector> entry : jarNameTapConnectorMap.entrySet()) {
-            if(mapKeys != null && !mapKeys.isEmpty() && !mapKeys.contains(entry.getKey()))
+            if(keyRegex != null && !keyRegex.isEmpty() && !keyRegex.contains(entry.getKey()))
                 continue;
-            paragraphFormatter.addRow(entry.getKey(), entry.getValue().toMemoryString(memoryLevel, 1));
+            dataMap.kv(entry.getKey(), entry.getValue().memory(keyRegex, memoryLevel));
         }
-        return paragraphFormatter.toString();
+        return dataMap;
     }
 }

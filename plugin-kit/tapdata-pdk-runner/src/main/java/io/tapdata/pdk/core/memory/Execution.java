@@ -1,5 +1,7 @@
 package io.tapdata.pdk.core.memory;
 
+import io.tapdata.entity.memory.MemoryFetcher;
+
 import java.util.List;
 public class Execution {
     public static final String OUTPUT_TYPE_TAP_LOGGER = "TapLogger";
@@ -13,7 +15,7 @@ public class Execution {
     private String scope;
     private List<String> customScopes;
 
-    private List<String> mapKeys;
+    private String keyRegex;
     public static final String MEMORY_LEVEL_SUMMARY = MemoryFetcher.MEMORY_LEVEL_SUMMARY;
     public static final String MEMORY_LEVEL_IN_DETAIL = MemoryFetcher.MEMORY_LEVEL_SUMMARY;
     private String memoryLevel;
@@ -52,14 +54,6 @@ public class Execution {
         this.outputType = outputType;
     }
 
-    public List<String> getMapKeys() {
-        return mapKeys;
-    }
-
-    public void setMapKeys(List<String> mapKeys) {
-        this.mapKeys = mapKeys;
-    }
-
     public String getOutputFile() {
         return outputFile;
     }
@@ -74,5 +68,13 @@ public class Execution {
 
     public void setMemoryLevel(String memoryLevel) {
         this.memoryLevel = memoryLevel;
+    }
+
+    public String getKeyRegex() {
+        return keyRegex;
+    }
+
+    public void setKeyRegex(String keyRegex) {
+        this.keyRegex = keyRegex;
     }
 }

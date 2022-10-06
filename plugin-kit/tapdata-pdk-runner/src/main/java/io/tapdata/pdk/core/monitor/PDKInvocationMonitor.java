@@ -2,13 +2,13 @@ package io.tapdata.pdk.core.monitor;
 
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.error.CoreException;
-import io.tapdata.entity.utils.ParagraphFormatter;
+import io.tapdata.entity.utils.DataMap;
 import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.core.api.Node;
 import io.tapdata.pdk.core.entity.params.PDKMethodInvoker;
 import io.tapdata.pdk.core.error.PDKRunnerErrorCodes;
 import io.tapdata.pdk.core.executor.ExecutorsManager;
-import io.tapdata.pdk.core.memory.MemoryFetcher;
+import io.tapdata.entity.memory.MemoryFetcher;
 import io.tapdata.pdk.core.utils.CommonUtils;
 
 import java.util.*;
@@ -228,14 +228,14 @@ public class PDKInvocationMonitor implements MemoryFetcher {
     }
 
     @Override
-    public String memory(List<String> mapKeys, String memoryLevel) {
-        ParagraphFormatter paragraphFormatter = new ParagraphFormatter(PDKInvocationMonitor.class.getSimpleName());
+    public DataMap memory(String keyRegex, String memoryLevel) {
+        DataMap dataMap = DataMap.create().keyRegex(keyRegex)/*.prefix(this.getClass().getSimpleName())*/;
         for(Map.Entry<PDKMethod, InvocationCollector> entry : methodInvocationCollectorMap.entrySet()) {
-            if(mapKeys != null && !mapKeys.isEmpty() && !mapKeys.contains(entry.getKey().name()))
+            if(keyRegex != null && !keyRegex.isEmpty() && !keyRegex.contains(entry.getKey().name()))
                 continue;
-            paragraphFormatter.addRow(entry.getKey().name(), entry.getValue().toMemoryString(memoryLevel));
+            dataMap.kv(entry.getKey().name(), entry.getValue().memory(keyRegex, memoryLevel));
         }
-        return paragraphFormatter.toString();
+        return dataMap;
     }
 
     /**

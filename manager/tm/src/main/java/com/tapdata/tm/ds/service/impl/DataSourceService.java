@@ -28,7 +28,6 @@ import com.tapdata.tm.commons.schema.bean.PlatformInfo;
 import com.tapdata.tm.commons.schema.bean.Schema;
 import com.tapdata.tm.commons.schema.bean.Table;
 import com.tapdata.tm.commons.task.dto.TaskDto;
-import com.tapdata.tm.commons.util.CreateTypeEnum;
 import com.tapdata.tm.commons.util.MetaDataBuilderUtils;
 import com.tapdata.tm.commons.util.PdkSchemaConvert;
 import com.tapdata.tm.config.security.UserDetail;
@@ -79,10 +78,7 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.context.request.RequestContextHolder;
-import org.springframework.web.context.request.ServletRequestAttributes;
 
-import javax.servlet.http.HttpServletRequest;
 import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -119,7 +115,6 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 	public DataSourceService(@NonNull DataSourceRepository repository) {
 		super(repository, DataSourceConnectionDto.class, DataSourceEntity.class);
 	}
-
 	public DataSourceConnectionDto add(DataSourceConnectionDto connectionDto, UserDetail userDetail) {
 		Boolean submit = connectionDto.getSubmit();
 		connectionDto.setLastUpdAt(new Date());
@@ -128,6 +123,20 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 		desensitizeMongoConnection(connectionDto);
 		sendTestConnection(connectionDto, false, submit, userDetail);
 		defaultDataDirectoryService.addConnection(connectionDto, userDetail);
+		return connectionDto;
+	}
+	public DataSourceConnectionDto addWithSpecifiedId(DataSourceConnectionDto connectionDto, UserDetail userDetail) {
+		Boolean submit = connectionDto.getSubmit();
+		connectionDto.setLastUpdAt(new Date());
+
+		beforeSave(connectionDto, userDetail);
+
+		repository.insert(convertToEntity(DataSourceEntity.class, connectionDto), userDetail);
+
+		connectionDto = findById(connectionDto.getId(), userDetail);
+
+		desensitizeMongoConnection(connectionDto);
+		sendTestConnection(connectionDto, false, submit, userDetail);
 		return connectionDto;
 	}
 

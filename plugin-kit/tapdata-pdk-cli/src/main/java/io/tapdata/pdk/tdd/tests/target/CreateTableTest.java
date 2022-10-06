@@ -177,7 +177,7 @@ public class CreateTableTest extends PDKTestBase {
                 support(WriteRecordFunction.class, "WriteRecord is a must to implement a Target, please implement it in registerCapabilities method."),
                 supportAny(asList(QueryByFilterFunction.class, QueryByAdvanceFilterFunction.class), "QueryByFilter or QueryByAdvanceFilter is needed for TDD to verify the record is written correctly, please implement it in registerCapabilities method."),
                 support(DropTableFunction.class, "DropTable is needed for TDD to drop the table created by tests, please implement it in registerCapabilities method."),
-                support(CreateTableFunction.class, "CreateTable is needed for database who need create table before insert records, please implement it in registerCapabilities method.")
+                supportAny(asList(CreateTableFunction.class, CreateTableV2Function.class), "CreateTable is needed for database who need create table before insert records, please implement it in registerCapabilities method.")
         );
     }
 

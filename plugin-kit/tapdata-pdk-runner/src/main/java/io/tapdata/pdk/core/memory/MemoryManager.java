@@ -2,6 +2,7 @@ package io.tapdata.pdk.core.memory;
 
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.logger.TapLogger;
+import io.tapdata.entity.memory.MemoryFetcher;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.entity.utils.JsonParser;
 import io.tapdata.pdk.core.error.PDKRunnerErrorCodes;
@@ -12,9 +13,9 @@ import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.lang3.exception.ExceptionUtils;
 
 import java.io.File;
-import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 
@@ -119,9 +120,17 @@ public class MemoryManager {
             throw new CoreException(PDKRunnerErrorCodes.COMMON_ILLEGAL_PARAMETERS, "Illegal parameter for key when unregister");
         return keyMemoryFetcherMap.remove(key);
     }
-    public static MemoryManager build() {
+    public static MemoryManager create() {
         return new MemoryManager();
     }
 
-
+    public String output() {
+        return output(null, null);
+    }
+    public String output(String keyRegex) {
+        return output(keyRegex, null);
+    }
+    public String output(String keyRegex, String mapType) {
+        return new CommandWorker().keyMemoryFetcherMap(keyMemoryFetcherMap).output(keyRegex, mapType);
+    }
 }

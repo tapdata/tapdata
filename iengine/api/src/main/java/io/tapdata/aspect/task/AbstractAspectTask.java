@@ -5,6 +5,7 @@ import io.tapdata.aspect.TaskStopAspect;
 import io.tapdata.entity.aspect.Aspect;
 import io.tapdata.entity.aspect.AspectInterceptResult;
 import io.tapdata.entity.simplify.pretty.TypeHandlers;
+import io.tapdata.entity.utils.DataMap;
 
 import java.util.List;
 
@@ -40,5 +41,11 @@ public abstract class AbstractAspectTask extends AspectTask {
 
     public AspectInterceptResult onInterceptAspect(Aspect aspect) {
         return interceptHandlers.handle(aspect);
+    }
+    @Override
+    public DataMap memory(String keyRegex, String memoryLevel) {
+        return super.memory(keyRegex, memoryLevel)
+                .kv("observerHandlers", observerHandlers.keyList())
+                .kv("interceptHandlers", interceptHandlers.keyList());
     }
 }

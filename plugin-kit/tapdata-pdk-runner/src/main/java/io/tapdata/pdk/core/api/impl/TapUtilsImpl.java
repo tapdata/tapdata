@@ -9,7 +9,7 @@ import io.tapdata.entity.utils.TapUtils;
 import io.tapdata.entity.annotations.Implementation;
 import io.tapdata.pdk.core.dag.TapDAGNode;
 import io.tapdata.pdk.core.executor.ExecutorsManager;
-import io.tapdata.pdk.core.utils.ReflectionUtil;
+import io.tapdata.entity.utils.ReflectionUtil;
 import org.apache.commons.lang3.SerializationUtils;
 import org.apache.commons.lang3.exception.ExceptionUtils;
 
@@ -17,14 +17,15 @@ import java.io.Serializable;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.util.*;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
 @Implementation(TapUtils.class)
 public class TapUtilsImpl implements TapUtils {
 
     @Override
-    public void interval(Runnable runnable, int seconds) {
-        ExecutorsManager.getInstance().getScheduledExecutorService().schedule(runnable, seconds, TimeUnit.SECONDS);
+    public ScheduledFuture<?> interval(Runnable runnable, int seconds) {
+        return ExecutorsManager.getInstance().getScheduledExecutorService().schedule(runnable, seconds, TimeUnit.SECONDS);
     }
 
     @Override

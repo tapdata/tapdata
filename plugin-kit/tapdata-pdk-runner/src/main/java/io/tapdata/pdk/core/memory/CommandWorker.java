@@ -1,6 +1,9 @@
 package io.tapdata.pdk.core.memory;
 
+import com.alibaba.fastjson.JSON;
 import io.tapdata.entity.logger.TapLogger;
+import io.tapdata.entity.memory.MemoryFetcher;
+import io.tapdata.entity.utils.DataMap;
 import io.tapdata.pdk.core.executor.ExecutorsManager;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import org.apache.commons.io.FileUtils;
@@ -22,8 +25,13 @@ public class CommandWorker implements Runnable {
     private Command command;
     private AtomicBoolean isClosed = new AtomicBoolean(false);
     private ConcurrentHashMap<String, MemoryFetcher> keyMemoryFetcherMap;
+    public CommandWorker keyMemoryFetcherMap(ConcurrentHashMap<String, MemoryFetcher> keyMemoryFetcherMap) {
+        this.keyMemoryFetcherMap = keyMemoryFetcherMap;
+        return this;
+    }
     private List<ScheduledFuture<?>> scheduledFutureList = new CopyOnWriteArrayList<>();
 
+    public CommandWorker() {}
     public CommandWorker(Command command, ConcurrentHashMap<String, MemoryFetcher> keyMemoryFetcherMap) {
         this.command = command;
         this.keyMemoryFetcherMap = keyMemoryFetcherMap;
@@ -67,7 +75,7 @@ public class CommandWorker implements Runnable {
         String outputType = execution.getOutputType();
         String outputPath = execution.getOutputFile();
 
-        String outputString = toString(finalMap, execution.getMapKeys(), execution.getMemoryLevel());
+        String outputString = toString(finalMap, execution.getKeyRegex(), execution.getMemoryLevel());
 
         if(outputPath != null) {
             File outputFile = new File(outputPath);
@@ -87,18 +95,22 @@ public class CommandWorker implements Runnable {
         }
     }
 
-    private String toString(Map<String, MemoryFetcher> finalMap, List<String> mapKeys, String mapType) {
+    public String output(String keyRegex) {
+        return output(keyRegex, null);
+    }
+    public String output(String keyRegex, String mapType) {
+        return toString(keyMemoryFetcherMap, keyRegex, mapType);
+    }
+
+    private String toString(Map<String, MemoryFetcher> finalMap, String keyRegex, String mapType) {
         if(mapType == null) {
-            mapType = MemoryFetcher.MEMORY_LEVEL_IN_DETAIL;
+            mapType = MemoryFetcher.MEMORY_LEVEL_SUMMARY;
         }
-        StringBuilder builder = new StringBuilder("\r\n");
+        DataMap allMap = DataMap.create().keyRegex(keyRegex);
         for(Map.Entry<String, MemoryFetcher> entry : finalMap.entrySet()) {
-            builder.append("---------------------------").append(entry.getKey()).append("---------------------------").append("\r\n");
-            String finalMapType = mapType;
-            CommonUtils.ignoreAnyError(() -> builder.append(entry.getValue().memory(mapKeys, finalMapType)).append("\r\n"), TAG);
-            builder.append("---------------------------").append(entry.getKey()).append("---------------------------").append("\r\n").append("\r\n");
+            allMap.kv(entry.getKey(), entry.getValue().memory(keyRegex, mapType));
         }
-        return builder.toString();
+        return JSON.toJSONString(allMap, true);
     }
 
     public void close() {

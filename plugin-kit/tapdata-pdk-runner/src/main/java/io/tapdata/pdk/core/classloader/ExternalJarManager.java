@@ -2,7 +2,8 @@ package io.tapdata.pdk.core.classloader;
 
 import com.google.common.collect.Lists;
 import io.tapdata.entity.error.CoreException;
-import io.tapdata.entity.utils.ParagraphFormatter;
+import io.tapdata.entity.memory.MemoryFetcher;
+import io.tapdata.entity.utils.DataMap;
 import io.tapdata.pdk.apis.annotations.TapConnectorClass;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.pdk.core.error.PDKRunnerErrorCodes;
@@ -27,7 +28,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 /**
  * Use independent classloader to load each jar and scan the tap nodes in each classloader.
  */
-public class ExternalJarManager {
+public class ExternalJarManager implements MemoryFetcher {
     private static final String TAG = ExternalJarManager.class.getSimpleName();
     /**
      * jar path
@@ -58,17 +59,6 @@ public class ExternalJarManager {
 
     private AtomicBoolean firstTime = new AtomicBoolean(false);
 
-    public String toMemoryString(String memoryLevel, int indentation) {
-        ParagraphFormatter paragraphFormatter = new ParagraphFormatter(ExternalJarManager.class.getSimpleName(), indentation)
-                .addRow("Path", path)
-                .addRow("JarFiles", jarFiles != null ? Arrays.toString(jarFiles.toArray()) : null)
-                .addRow("LoadNewJarAtRuntime", loadNewJarAtRuntime)
-                .addRow("UpdateJarWhenIdleAtRuntime", updateJarWhenIdleAtRuntime)
-                .addRow("RefreshLocalJars", refreshLocalJars)
-                .addRow("IsStarted", isStarted)
-                ;
-        return paragraphFormatter.toString();
-    }
     private ExternalJarManager() {}
     public static ExternalJarManager build() {
         return new ExternalJarManager();
@@ -317,5 +307,17 @@ public class ExternalJarManager {
 
     public boolean isRefreshLocalJars() {
         return refreshLocalJars;
+    }
+
+    @Override
+    public DataMap memory(String keyRegex, String memoryLevel) {
+        return DataMap.create().keyRegex(keyRegex)/*.prefix(this.getClass().getSimpleName())*/
+                .kv("Path", path)
+                .kv("JarFiles", jarFiles != null ? Arrays.toString(jarFiles.toArray()) : null)
+                .kv("LoadNewJarAtRuntime", loadNewJarAtRuntime)
+                .kv("UpdateJarWhenIdleAtRuntime", updateJarWhenIdleAtRuntime)
+                .kv("RefreshLocalJars", refreshLocalJars)
+                .kv("IsStarted", isStarted)
+                ;
     }
 }

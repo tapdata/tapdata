@@ -10,14 +10,18 @@
     "node": {
       "type": "object",
       "properties": {
-        "iterationCodes": {
-          "type": "String",
-          "title": "${iterationCodes}",
-          "x-decorator": "FormItem",
-          "x-component": "Input",
-          "x-index": 1,
-          "required": true
-        },
+        "DescribeIterationList":  {
+            "title": "${iterationCodes}",
+            "type": "string",
+            "required": true,
+            "x-decorator": "FormItem",
+            "x-component": "AsyncSelect",
+            "x-index": 1,
+            "x-component-props": {
+              "method": "{{loadCommandList}}",
+              "params": "{{ {$values: $values, command: \"DescribeIterationList\"} }}"
+            }
+          },
         "issueType": {
           "type": "String",
           "default": "ALL",
@@ -60,26 +64,114 @@
           "x-decorator": "FormItem",
           "x-component": "Input",
           "apiServerKey": "database_host",
-          "x-index": 1,
+          "x-index": 10,
           "required": true
         },
-       "token": {
-         "type": "String",
-         "title": "${token}",
-         "x-decorator": "FormItem",
-         "x-component": "Input",
-         "apiServerKey": "database_host",
-         "x-index": 2,
-         "required": true
-       },
-        "projectName": {
+        "token": {
           "type": "String",
-          "title": "${projectName}",
+          "title": "${token}",
           "x-decorator": "FormItem",
           "x-component": "Input",
           "apiServerKey": "database_host",
-          "x-index": 3,
+          "x-index": 20,
           "required": true
+        },
+        "projectName": {
+          "title": "${projectName}",
+          "type": "string",
+          "required": true,
+          "x-decorator": "FormItem",
+          "x-component": "AsyncSelect",
+          "x-component-props": {
+            "method": "{{loadCommandList}}",
+            "params": "{{ {$values: $values, command: \"DescribeCodingProjects\"} }}"
+          },
+          "x-index": 30,
+          "x-reactions": [
+            {
+              "dependencies": ["teamName", "token"],
+              "fulfill": {
+                "state": {
+                  "display": "{{$deps[0]&&$deps[1] ? \"visible\":\"hidden\"}}"
+                }
+              }
+            }
+          ]
+        },
+        "connectionMode": {
+          "type": "String",
+          "default": "DocumentMode",
+          "title": "${connectionMode}",
+          "x-decorator": "FormItem",
+          "x-component": "Select",
+          "enum": [
+            {
+              "label": "${document}",
+              "value": "DocumentMode"
+            },
+            {
+              "label": "${csv}",
+              "value": "CSVMode"
+            }
+          ],
+          "x-index": 40,
+          "required": false
+        },
+        "streamReadType": {
+          "type": "String",
+          "default": "WebHook",
+          "title": "${streamReadType}",
+          "x-decorator": "FormItem",
+          "x-component": "Select",
+          "enum": [
+            {
+              "label": "${webHookRead}",
+              "value": "WebHook"
+            },
+            {
+              "label": "${pollingRead}",
+              "value": "Polling"
+            }
+          ],
+          "x-index": 50,
+          "required": false
+        },
+        "hookButton": {
+          "type": "void",
+          "title": "${hookButton}",
+          "x-decorator": "FormItem",
+          "x-component-props": {
+            "onClick": "{{useAsyncDataSourceByConfig({service: getToken, withoutField: true}, {name:'hookText'}, $values, $form)}}"
+          },
+          "x-reactions": {
+            "dependencies": ["streamReadType"],
+            "fulfill": {
+              "state": {
+                "display": "{{$deps[0] === \"WebHook\" ? \"visible\" : \"hidden\"}}"
+              }
+            }
+          },
+          "x-content": "hookButton",
+          "x-component": "Button",
+          "x-index": 60
+        },
+        "hookText": {
+          "type": "string",
+          "title": " ",
+          "x-decorator": "FormItem",
+          "x-decorator-props": {
+            "colon": false
+          },
+          "x-reactions": {
+            "dependencies": ["streamReadType"],
+            "fulfill": {
+              "state": {
+                "display": "{{$deps[0] === \"WebHook\" ? \"visible\" : \"hidden\"}}"
+              }
+            }
+          },
+          "x-component": "Input",
+          "x-index": 70
         }
       }
     }
@@ -90,6 +182,8 @@
       "token": "Token",
       "projectName": "project name",
       "teamName": "Team name",
+      "webHook": "Service Hook",
+      "hookButton": "Hook Button",
 
       "iterationCodes": "Iteration",
       "issueType": "Issue Type",
@@ -99,6 +193,15 @@
       "requirementIssue": "Requirement",
       "missionIssue": "Mission",
       "epicIssue": "Epic",
+
+      "connectionMode": "Connection mode",
+      "document": "General document",
+      "csv": "CSV format",
+
+      "streamReadType": "Incremental mode",
+      "webHookRead": "Web Hook",
+      "pollingRead": "Polling Read",
+
 
       "doc": "docs/coding_en_US.md",
       "df_initial_totals": "Initial data amount",
@@ -124,6 +227,8 @@
       "token": "令牌",
       "projectName": "项目名称",
       "teamName": "团队名称",
+      "webHook": "Service Hook",
+      "hookButton": "Hook Button",
 
       "iterationCodes": "迭代",
       "issueType": "事项类型",
@@ -133,6 +238,14 @@
       "requirementIssue": "需求",
       "missionIssue": "任务",
       "epicIssue": "史诗",
+
+      "connectionMode": "连接模式",
+      "document": "普通文档格式",
+      "csv": "CSV格式",
+
+      "streamReadType": "增量方式",
+      "webHookRead": "Web Hook",
+      "pollingRead": "轮询式",
 
       "doc": "docs/coding_zh_CN.md",
       "df_initial_totals": "初始化数据量",
@@ -158,6 +271,8 @@
       "token": "權杖",
       "projectName": "項目名稱",
       "teamName": "團隊名稱",
+      "webHook": "Service Hook",
+      "hookButton": "Hook Button",
 
       "iterationCodes": "迭代",
       "issueType": "事項类型",
@@ -167,6 +282,14 @@
       "requirementIssue": "需求",
       "missionIssue": "任務",
       "epicIssue": "史詩",
+
+      "connectionMode": "連接模式",
+      "document": "普通文檔格式",
+      "csv": "CSV格式",
+
+      "streamReadType": "增量方式",
+      "webHookRead": "Web Hook",
+      "pollingRead": "輪詢式",
 
       "doc": "docs/coding_zh_TW.md",
       "df_initial_totals": "初始化數據量",
@@ -190,7 +313,26 @@
     }
   },
   "dataTypes": {
-    "String": {"to" : "TapString","byte" : 1024},
+    "StringLonger": {
+      "to" : "TapString",
+      "byte" : "1m"
+    },
+    "StringNormal": {
+      "to" : "TapString",
+      "byte" : 2048
+    },
+    "StringSmaller": {
+      "to" : "TapString",
+      "byte" : 512
+    },
+    "StringMinor": {
+      "to" : "TapString",
+      "byte" : 256
+    },
+    "StringBit": {
+      "to" : "TapString",
+      "byte" : 20
+    },
     "Integer": {
       "to": "TapNumber",
       "value" : [-2147483648, 2147483647]
@@ -201,12 +343,10 @@
       "to": "TapNumber",
       "value" : [-9223372036854775808, 9223372036854775807]
     },
-    "Double": {
+    "WorkingHours": {
       "to": "TapNumber",
-      "precision": [ 1, 11],
-      "value": [ -1.7976931348623157E+308, 1.7976931348623157E+308],
-      "scale": [ 0, 11],
-      "fixed": false
+      "value": [ 0.00 , 10000.00],
+      "scale": [ 0, 2]
     },
     "Float": {
       "to": "TapNumber",
@@ -215,6 +355,9 @@
       "scale": [ 0, 30],
       "fixed": false
     },
-    "Array": {"to" : "TapArray"}
+    "Array": {"to" : "TapArray"},
+    "NULL": {
+      "to": "TapRaw"
+    }
   }
 }
