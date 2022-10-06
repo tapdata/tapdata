@@ -28,12 +28,11 @@ os.environ['PYTHONSTARTUP'] = '>>>'
 os.environ["PROJECT_PATH"] = os.sep.join([os.path.dirname(os.path.abspath(__file__)), ".."])
 
 from tapdata_cli.graph import Node, Graph
-from tapdata_cli.rules import job_config
+from tapdata_cli.rules import job_config, node_config, node_config_sync
 from tapdata_cli.check import ConfigCheck
 from tapdata_cli.request import RequestSession
 from tapdata_cli.log import logger, get_log_level
 from tapdata_cli.config_parse import Config
-
 
 config: Config = Config()
 server = config["backend.server"]
@@ -432,43 +431,12 @@ def gen_dag_stage(obj):
             pdkHash = client_cache["connectors"][obj.databaseType.lower()]["pdkHash"]
 
     if objType == Source:
-        return {
-            "attrs": {
-                "accessNodeProcessId": "",
-                "connectionType": "source_and_target",
-                "position": [0, 0],
-                "pdkType": "pdk",
-                "pdkHash": pdkHash
-            },
-            "connectionId": obj.connectionId,
-            "databaseType": obj.databaseType,
-            "database_type": obj.databaseType,
-            "id": str(obj.id),
-            "tableName": obj.tableName,
-            "name": obj.tableName,
-            "type": "table",
-            "totalReadMethod": "fullRead",
-            "increasePoll": "fullRead",
-            "increaseReadSize": 100,
+        obj.config({})
+        return obj.setting
 
-        }
     if objType == Sink:
-        return {
-            "attrs": {
-                "accessNodeProcessId": "",
-                "connectionType": "source_and_target",
-                "position": [0, 0],
-                "pdkHash": pdkHash,
-                "pdkType": "pdk"
-            },
-            "connectionId": obj.connectionId,
-            "databaseType": obj.databaseType,
-            "id": str(obj.id),
-            "tableId": obj.tableId,
-            "tableName": obj.tableName,
-            "name": obj.tableName,
-            "type": "table"
-        }
+        obj.config({})
+        return obj.setting
 
     if objType == Merge:
         return obj.to_dict()
@@ -1241,7 +1209,6 @@ def desc_table(line):
     display_fields = get_table_fields(line, source=connection_id)
 
 
-
 def login_with_access_code(server, access_code):
     global system_server_conf, req
     api = "http://" + server + "/api"
@@ -1664,16 +1631,20 @@ class Pipeline:
 
     @help_decorate("read data from source", args="p.readFrom($source)")
     def readFrom(self, source):
-        if type(source) == type(QuickDataSourceMigrateJob()):
+        if self.dag.jobType == JobType.migrate:
+            mode = "migrate"
+        else:
+            mode = "sync"
+        if isinstance(source, QuickDataSourceMigrateJob):
             source = source.__db__
-        if type(source) == type(""):
+        if isinstance(source, str):
             if "." in source:
                 db = source.split(".")[0]
                 table = source.split(".")[1]
-                source = Source(db, table)
+                source = Source(db, table, mode=mode)
             else:
                 db = source
-                source = Source(db)
+                source = Source(db, mode=mode)
         if source.type == "database":
             self.dag.jobType = JobType.migrate
         else:
@@ -1684,19 +1655,23 @@ class Pipeline:
     @help_decorate("write data to sink", args="p.writeTo($sink, $relation)")
     def writeTo(self, sink, relation=MultiTableRelation(), writeMode=WriteMode.upsert, ttl="", prefix="", suffix="",
                 path="", array_key="", association=[], drop_type=""):
-        if type(sink) == type(QuickDataSourceMigrateJob()):
+        if self.dag.jobType == JobType.migrate:
+            mode = "migrate"
+        else:
+            mode = "sync"
+        if isinstance(sink, QuickDataSourceMigrateJob):
             sink = sink.__db__
-        if type(sink) == type(""):
+        if isinstance(sink, str):
             if sink in self.cache_sinks:
                 sink = self.cache_sinks[sink]
             else:
                 if "." in sink:
                     db = sink.split(".")[0]
                     table = sink.split(".")[1]
-                    self.cache_sinks[sink] = Sink(db, table)
+                    self.cache_sinks[sink] = Sink(db, table, mode=mode)
                 else:
                     db = sink.split(".")[0]
-                    self.cache_sinks[sink] = Sink(db)
+                    self.cache_sinks[sink] = Sink(db, mode=mode)
                 sink = self.cache_sinks[sink]
         if self.dag.jobType == JobType.sync and isinstance(relation, MultiTableRelation):
             auto_association = []
@@ -1893,13 +1868,13 @@ class Pipeline:
         return self.config({"accurate_delay": True})
 
     @help_decorate("config pipeline", args="config map, please h pipeline_config get all config key and it's meaning")
-    def config(self, config: dict = None):
+    def config(self, config: dict = None, keep_extra=True):
 
         if not isinstance(config, dict):
             logger.warn("type {} must be {}", config, "dict", "notice", "notice")
             return
         mode = self.dag.jobType
-        resp = ConfigCheck(config, job_config[mode], keep_extra=True).checked_config
+        resp = ConfigCheck(config, job_config[mode], keep_extra=keep_extra).checked_config
         self.dag.config(resp)
         return self
 
@@ -1952,12 +1927,13 @@ class Pipeline:
         job = Job(name=self.name, pipeline=self)
         job.validateConfig = self.validateConfig
         self.job = job
+        self.config(config={})
         job.config(self.dag.setting)
         job.config({
             "sync_type": SyncType.both,
             "stopOnError": True,
             "needToCreateIndex": True,
-            "readBatchSize": 100,
+            "readBatchSize": 500,
             "transformModelVersion": "v1",
             "readShareLogMode": "STREAMING",
             "processorConcurrency": 1
@@ -1990,8 +1966,9 @@ class Pipeline:
         if self.job is None:
             logger.warn("pipeline not start, no status can show")
             return self
-        logger.info("job {} status is: {}", self.name, self.job.status())
-        return self.job.status()
+        status = self.job.status()
+        logger.info("job {} status is: {}", self.name, status)
+        return status
 
     def wait_status(self, status, t=30):
         if self.job is None:
@@ -2068,15 +2045,13 @@ class Source:
     def __getattr__(self, key):
         return None
 
-    @help_decorate("__init__ method", args="connection, table, sql")
-    def __init__(self, connection, table=["_"], table_re=None, sql=""):
+    def _get_connection_and_table(self, connection, table, table_re):
         global client_cache
-        self.ori_connection = connection
-        if type(connection) == type(QuickDataSourceMigrateJob()):
+        if isinstance(connection, QuickDataSourceMigrateJob):
             connection = connection.__db__
         if client_cache.get("connections") is None:
             show_connections(quiet=True)
-        if type(connection) != type(Connection()):
+        if not isinstance(connection, Connection):
             index_type = get_index_type(connection)
             if index_type == "short_id_index":
                 connection = match_line(client_cache["connections"]["id_index"], connection)
@@ -2101,25 +2076,28 @@ class Source:
                 if re.match(table_re, t["original_name"]):
                     tables.append(t["original_name"])
                 table = tables
-
-        if type(table) == type([]):
+        if isinstance(table, list):
             connection.c["type"] = "database"
         else:
             if c["database_type"] == "mongodb":
                 connection.c["type"] = "collection"
             else:
                 connection.c["type"] = "table"
-        self.connection = connection
+        return connection, table
 
+    @help_decorate("__init__ method", args="connection, table, sql")
+    def __init__(self, connection, table=["_"], table_re=None, sql="", mode="migrate"):
+        self.ori_connection = connection
+        self.connection, table = self._get_connection_and_table(connection, table, table_re)
         self.id = str(uuid.uuid4())
-        self.connectionId = str(connection["id"])
-        self.databaseType = connection["database_type"]
-        self.type = connection["type"]
+        self.connectionId = str(self.connection.c["id"])
+        self.databaseType = self.connection.c["database_type"]
+        self.type = self.connection.c["type"]
         self.sql = sql
-
+        self.config_type = node_config if mode == "migrate" else node_config_sync
         client_cache["connection"] = self.connectionId
 
-        if type(table) == type([]):
+        if isinstance(table, list):
             if len(table) > 0:
                 self.tableName = table[0]
                 self.table = table
@@ -2134,6 +2112,30 @@ class Source:
         if self.tableId is None:
             self.tableId = str(uuid.uuid4())
         self.source = None
+        self.setting = {
+            "connectionId": self.connectionId,
+            "databaseType": self.databaseType,
+            "id": self.id,
+            "name": self.connection.c["name"],
+            "attrs": {
+                "accessNodeProcessId": "",
+                "connectionType": self.connection.c["connection_type"],
+                "position": [0, 0],
+                "pdkType": "pdk",
+                "pdkHash": self.connection.c["pdkHash"],
+                "capabilities": self.connection.c["capabilities"],
+                "connectionName": self.connection.c["name"]
+            },
+        }
+
+    def config(self, config: dict = None, keep_extra=True):
+        if not isinstance(config, dict):
+            logger.warn("type {} must be {}", config, "dict", "notice", "notice")
+            return False
+        self.setting.update(config)
+        resp = ConfigCheck(self.setting, self.config_type[type(self).__name__.lower()], keep_extra=keep_extra).checked_config
+        self.setting.update(resp)
+        return True
 
     def test(self):
         self.connection.test()
@@ -2170,8 +2172,8 @@ class Source:
 
 @help_decorate("sink is end of a pipeline", "sink = Sink($Datasource, $table)")
 class Sink(Source):
-    def __init__(self, connection, table=["_"]):
-        super().__init__(connection, table)
+    def __init__(self, connection, table=["_"], mode="migrate"):
+        super().__init__(connection, table, mode=mode)
 
 
 class Api:
@@ -2588,15 +2590,19 @@ class Job:
             if self.validateConfig is not None:
                 self.job["validateConfig"] = self.validateConfig
         self.job.update(self.setting)
+        print(json.dumps(self.job, indent=4))
         res = req.patch("/Task", json=self.job)
         res = res.json()
         if res["code"] != "ok":
+            logger.warn("save failed {}", res)
             return False
         self.id = res["data"]["id"]
         job = res["data"]
+        job.update(self.setting)
         res = req.patch("/Task/confirm/" + self.id, json=job)
         res = res.json()
         if res["code"] != "ok":
+            logger.warn("start failed {}", res)
             return False
         self.job = res["data"]
         self.setting = res["data"]
@@ -2609,7 +2615,7 @@ class Job:
             logger.info("job {} is not save, error is {}, job will be save soon", self.id, e)
             resp = self.save()
             if not resp:
-                logger.info("job {} save failed.")
+                logger.warn("job {} save failed.", self.name)
                 return False
             status = self.status()
         if status in [JobStatus.running, JobStatus.scheduled, JobStatus.wait_run]:
@@ -3565,23 +3571,29 @@ class Dag:
         if relation is None:
             return
 
-        if type(source) == Source:
+        if isinstance(source, Source):
             lastSource = source
         else:
             lastSource = sink.source
 
-        if type(relation) == SingleTableRelation:
+        if isinstance(relation, SingleTableRelation):
+            if self.jobType == JobType.sync:
+                _source["tableName"] = lastSource.table[0]
+                _sink["tableName"] = lastSource.table[0]
+                # _sink["node_config"] = {}
             _sink["existDataProcessMode"] = "keepData"
             _sink["writeStrategy"] = relation.writeMode
             updateConditionFields = []
             for i in relation.association:
                 updateConditionFields.append(i[0])
             _sink["updateConditionFields"] = updateConditionFields
-        if type(relation) == MultiTableRelation:
-            del (_source["tableName"])
-            _source["tableNames"] = lastSource.table
+        if isinstance(relation, MultiTableRelation):
+            if self.jobType == JobType.sync:
+                _source["tableName"] = lastSource.table[0]
+                _sink["tableName"] = lastSource.table[0]
+                # _sink["node_config"] = {}
             _source["type"] = "database"
-            _sink["syncObjects"] = [{
+            _source["syncObjects"] = [{
                 "type": "table",
                 "objectNames": lastSource.table
             }]

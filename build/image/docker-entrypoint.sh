@@ -58,7 +58,7 @@ start_server() {
         cd /tapdata-source/tapshell
         bash register-all-connectors.sh
         cp ../build/test.sh ./
-        mv ../build/test ./
+        cp -r ../build/test ./
         chmod u+x test.sh
         . ./test.sh
         if [[ $? -ne 0 ]]; then

@@ -47,13 +47,21 @@ def wait_scheduling(pipeline: Pipeline, count: int=5, except_status: Iterable[st
         except_status = ['running']
     for i in range(count):
         status = pipeline.status()
-        if status not in except_status:
+        if status not in except_status and status != "error":
             time.sleep(1)
             logger.log(f"the status is {pipeline.status()} now, this is {i+1} times, {count - i} times remaining")
             continue
+        elif status == "error":
+            return False
         else:
             return True
     return False
+
+
+def stop(p: Pipeline):
+    time.sleep(60)
+    p.stop()
+    return wait_scheduling(p, except_status=("stop", "complete"), count=60)
 
 
 @allure.feature("pipeline")
@@ -64,22 +72,24 @@ class TestPipeline:
         p1 = p.readFrom(source_name).writeTo(sink_name)
         p1.start()
         assert wait_scheduling(p1, except_status=('running', 'wait_run'))
+        assert stop(p1)
 
     @allure.title("real time table sync between mongodb")
     def test_sync_job_create(self):
         p = make_new_pipeline(f"sync_{random_str()}")
-        p1 = p.readFrom(f"{source_name}.source")
+        p1 = p.readFrom(f"{source_name}.test")
         p1.dag.jobType = JobType.sync
-        p2 = p1.writeTo(f"{sink_name}.target")
+        p2 = p1.writeTo(f"{sink_name}.test")
         p2.start()
         assert wait_scheduling(p2, except_status=('running', 'wait_run'))
+        assert stop(p2)
 
     @allure.title("filter row in migrate")
     def test_filter_migrate(self):
         p = make_new_pipeline(f"filter_migrate_{random_str()}")
         p1 = p.readFrom(source_name)
         p1.dag.jobType = JobType.migrate
-        p2 = p1.filter("id > 2 and sex=male")
+        p2 = p1.filter("id > 2 && sex=male")
         assert id(p1) == id(p2)
 
     @allure.title("filter row in sync")
@@ -87,9 +97,10 @@ class TestPipeline:
         p = make_new_pipeline(f"filter_sync_{random_str()}")
         p1 = p.readFrom(source_name)
         p1.dag.jobType = JobType.sync
-        p2 = p1.filter("id > 2 and sex=male").writeTo(sink_name)
+        p2 = p1.filter("id > 2 && sex == male").writeTo(sink_name)
         p2.start()
         assert wait_scheduling(p2, except_status=('running', 'wait_run'))
+        assert stop(p2)
 
     @allure.title("filter column in migrate")
     def test_filter_column_migrate(self):
@@ -107,6 +118,7 @@ class TestPipeline:
         p2 = p1.filterColumn(["id", "name"]).writeTo(sink_name)
         p2.start()
         assert wait_scheduling(p2, except_status=('running', 'wait_run'))
+        assert stop(p2)
 
     @allure.title("rename column in migrate")
     def test_rename_migrate(self):
@@ -129,6 +141,7 @@ class TestPipeline:
         assert id(p1) != id(p2)
         p2.start()
         assert wait_scheduling(p2, except_status=('running', 'wait_run'))
+        assert stop(p2)
 
     @allure.title("js udf in migrate")
     def test_js_migrate(self):
@@ -146,6 +159,7 @@ class TestPipeline:
         p2 = p1.js().writeTo(sink_name)
         p2.start()
         assert wait_scheduling(p2, except_status=('running', 'wait_run'))
+        assert stop(p2)
 
     @allure.title("table merge in migrate?")
     def test_merge_migrate(self):
@@ -165,6 +179,7 @@ class TestPipeline:
         p3 = p1.merge(p2, [('id', 'id')]).writeTo(sink_mysql)
         p3.start()
         assert wait_scheduling(p3, except_status=('running', 'wait_run'))
+        assert stop(p3)
 
     @allure.title("multi layer table merge in sync")
     def test_merge_sync_multi_nesting(self):
@@ -177,7 +192,8 @@ class TestPipeline:
         p4 = p1.merge(p2.merge(p3))
         p5 = p4.writeTo(sink_mysql)
         p5.start()
-        assert wait_scheduling(p5, except_status=('running', 'wait_run', 'error'))
+        assert wait_scheduling(p5, except_status=('running', 'wait_run'))
+        assert stop(p5)
 
     @allure.title("js udf in sync")
     def test_processor_sync(self):
@@ -189,6 +205,7 @@ class TestPipeline:
         p3 = p2.writeTo(sink_name)
         p3.start()
         assert wait_scheduling(p3, except_status=('running', 'wait_run'))
+        assert stop(p3)
 
     def test_processor_migrate(self):
         p = make_new_pipeline(f"processor_migrate_{random_str()}")
@@ -210,9 +227,8 @@ class TestPipeline:
         p = make_new_pipeline(f"stop_{random_str()}")
         p1 = p.readFrom(source_mongo_1).writeTo(sink_mysql)
         p1.start()
-        assert wait_scheduling(p1, except_status=('running', 'error'))
-        p1.stop()
-        assert wait_scheduling(p1, except_status=('stop', 'stopping', 'error'))
+        assert wait_scheduling(p1, except_status=('running',))
+        assert stop(p1)
 
     @allure.title("test get job status")
     def test_stats(self):
@@ -221,6 +237,7 @@ class TestPipeline:
         p1.start()
         assert wait_scheduling(p1, except_status=('running', ))
         p1.stats()
+        assert stop(p1)
 
     @allure.title("test monitor job status")
     def test_monitor(self):
@@ -237,3 +254,4 @@ class TestPipeline:
         p2.start()
         assert wait_scheduling(p2, except_status=('running',))
         p1.check()
+        assert stop(p2)
