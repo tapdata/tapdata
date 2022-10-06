@@ -21,9 +21,9 @@
         "instance": {
           "required": true,
           "type": "string",
-          "title": "${endpoint}",
+          "title": "${instance}",
           "x-decorator": "FormItem",
-          "x-component": "InputNumber",
+          "x-component": "Input",
           "apiServerKey": "database_instance",
           "x-index": 2
         },
@@ -46,7 +46,7 @@
           "x-index": 4
         },
         "token": {
-          "required": true,
+          "required": false,
           "type": "string",
           "title": "${token}",
           "x-decorator": "FormItem",
@@ -66,9 +66,6 @@
             {
               "label": "宽表模型",
               "value": "NORMAL"
-            },{
-              "label": "时序模型",
-              "value": "TIMESERIES"
             }
           ]
         }

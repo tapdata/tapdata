@@ -344,9 +344,8 @@ public class TablestoreConnector extends ConnectorBase {
         CreateTableOptions createTableOptions = new CreateTableOptions();
         TapTable tapTable = tapCreateTableEvent.getTable();
         if ("NORMAL".equals(tablestoreConfig.getClientType())) {
-            DescribeTableResponse describeTableResponse = client.describeTable(new DescribeTableRequest(tapTable.getId()));
-            if (Objects.isNull(describeTableResponse) || Objects.isNull(describeTableResponse.getTableMeta())) {
-
+            ListTableResponse listTableResponse = client.listTable();
+            if (Objects.nonNull(listTableResponse) && listTableResponse.getTableNames().contains(tapTable.getId())) {
                 TableMeta tableMeta = new TableMeta(tapTable.getId());
                 List<String> primaryKeyList = Lists.newArrayList();
                 List<String> definedColumnKeyList = Lists.newArrayList();
