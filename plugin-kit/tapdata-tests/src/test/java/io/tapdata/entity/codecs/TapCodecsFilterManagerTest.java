@@ -189,7 +189,8 @@ public class TapCodecsFilterManagerTest {
                 entry("floatNegativeMax", -Float.MAX_VALUE),
                 entry("floatMin", Float.MIN_VALUE),
                 entry("floatOverflow", Float.MAX_VALUE + 1),
-                entry("double", 343.324d)
+                entry("double", 343.324d),
+                entry("int", 5)
         );
 
         Map<String, TapField> sourceNameFieldMap = new HashMap<>();
@@ -212,6 +213,7 @@ public class TapCodecsFilterManagerTest {
         assertEquals(map.get("floatMin"), Float.MIN_VALUE);
         assertEquals(map.get("floatOverflow"), Float.valueOf(String.valueOf(Float.MAX_VALUE + 1)));
         assertEquals(map.get("double"), 343.324d);
+        assertEquals(map.get("int"), 5);
     }
 
     @Test
