@@ -143,18 +143,17 @@ jobs:
         run: |
           BRANCH_DIR=`echo $BRANCH | sed "s:/:-:g"`
           echo "[Click to view test report](https://tapdata.github.io/tapdata/$BRANCH_DIR/$RUN_SIGN)" >> $GITHUB_STEP_SUMMARY
-#      - name: Send notices to feishu
-#        if : ${{ failure() }}
-#        run: |
-#          pip install requests GitPython
-#          python build/feishu_notice.py \
-#            --branch ${{ env.CURRENT_BRANCH}} \
-#            --runner "LDP Continuous Integration" \
-#            --detail_url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
-#            --token ${{ secrets.GITHUB_TOKEN }} \
-#            --job_id ${{ github.run_id }} \
-#            --person_in_charge ${{ env.FEISHU_PERSON_IN_CHARGE }} \
-#            --app_id ${{ env.FEISHU_APP_ID }} \
-#            --app_secret ${{ env.FEISHU_APP_SECRET}} \
-#            --chat_id ${{ env.FEISHU_CHAT_ID }}
-          
+      - name: Send notices to feishu
+        if : ${{ failure() }}
+        run: |
+          pip install requests GitPython
+          python build/feishu_notice.py \
+            --branch ${{ env.CURRENT_BRANCH}} \
+            --runner "LDP Continuous Integration" \
+            --detail_url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+            --token ${{ secrets.GITHUB_TOKEN }} \
+            --job_id ${{ github.run_id }} \
+            --person_in_charge ${{ env.FEISHU_PERSON_IN_CHARGE }} \
+            --app_id ${{ env.FEISHU_APP_ID }} \
+            --app_secret ${{ env.FEISHU_APP_SECRET}} \
+            --chat_id ${{ env.FEISHU_CHAT_ID }}
