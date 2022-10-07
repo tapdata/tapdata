@@ -205,6 +205,7 @@ NODE_TARGET = {
     "cdcConcurrent": {require: True, type: bool, default: False},
     "cdcConcurrentWriteNum": {require: True, type: int, default: 4},
     "existDataProcessMode": {require: True, type: str, default: "keepData", option: ["dropTable", "removeData", "keepData"]},
+    "isFilter": {require: False, type: bool, default: False},
 }
 
 
@@ -235,6 +236,7 @@ NODE_SOURCE_SYNC = {
     "tableName": {require: False, type: str},
     "type": {require: True, type: str, default: "table"},
     "node_config": {require: True, type: dict, default: {}},
+    "isFilter": {require: False, type: bool, default: False},
 }
 
 

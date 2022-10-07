@@ -425,10 +425,6 @@ def get_table_fields(t, whole=False, source=None, cache=True):
 # generate dag stage, used by dag object, stage is used to describe a dag in server
 def gen_dag_stage(obj):
     objType = type(obj)
-    pdkHash = ""
-    if objType == Source or objType == Sink:
-        if obj.databaseType.lower() in client_cache["connectors"]:
-            pdkHash = client_cache["connectors"][obj.databaseType.lower()]["pdkHash"]
 
     if objType == Source:
         obj.config({})
@@ -1927,7 +1923,7 @@ class Pipeline:
         job = Job(name=self.name, pipeline=self)
         job.validateConfig = self.validateConfig
         self.job = job
-        self.config(config={})
+        # self.config(config={})
         job.config(self.dag.setting)
         job.config({
             "sync_type": SyncType.both,
@@ -2590,7 +2586,6 @@ class Job:
             if self.validateConfig is not None:
                 self.job["validateConfig"] = self.validateConfig
         self.job.update(self.setting)
-        print(json.dumps(self.job, indent=4))
         res = req.patch("/Task", json=self.job)
         res = res.json()
         if res["code"] != "ok":
@@ -3522,7 +3517,7 @@ class DataCheck:
 
 # used to describe a pipeline job
 class Dag:
-    def __init__(self, name=""):
+    def __init__(self, name="", is_filter=False):
         self.name = name
         self.status = JobStatus.edit
         self.dag = {
@@ -3563,24 +3558,33 @@ class Dag:
             _sink = gen_dag_stage(sink)
             self.dag["nodes"].append(_sink)
 
+        if isinstance(source, Filter) or isinstance(sink, Filter):
+            nodes = []
+            for node in self.dag["nodes"]:
+                if node["type"] == "table":
+                    node["isFilter"] = True
+                nodes.append(node)
+
         self.dag["edges"].append({
             "source": source.id,
             "target": sink.id
         })
-
-        if relation is None:
-            return
 
         if isinstance(source, Source):
             lastSource = source
         else:
             lastSource = sink.source
 
+        if isinstance(source, Source) and self.jobType == JobType.sync:
+            _source["tableName"] = lastSource.table[0]
+
+        if isinstance(sink, Sink) and self.jobType == JobType.sync:
+            _sink["tableName"] = lastSource.table[0]
+
+        if relation is None:
+            return
+
         if isinstance(relation, SingleTableRelation):
-            if self.jobType == JobType.sync:
-                _source["tableName"] = lastSource.table[0]
-                _sink["tableName"] = lastSource.table[0]
-                # _sink["node_config"] = {}
             _sink["existDataProcessMode"] = "keepData"
             _sink["writeStrategy"] = relation.writeMode
             updateConditionFields = []
@@ -3588,10 +3592,6 @@ class Dag:
                 updateConditionFields.append(i[0])
             _sink["updateConditionFields"] = updateConditionFields
         if isinstance(relation, MultiTableRelation):
-            if self.jobType == JobType.sync:
-                _source["tableName"] = lastSource.table[0]
-                _sink["tableName"] = lastSource.table[0]
-                # _sink["node_config"] = {}
             _source["type"] = "database"
             _source["syncObjects"] = [{
                 "type": "table",
