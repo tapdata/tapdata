@@ -253,7 +253,11 @@ public class TablestoreConnector extends ConnectorBase {
                             PrimaryKeyBuilder pkBuilder = PrimaryKeyBuilder.createPrimaryKeyBuilder();
                             for (String k : resSet) {
                                 ColumnType columnType = ColumnType.valueOf(tableMeta.getPrimaryKeyMap().get(k).name());
-                                pkBuilder.addPrimaryKeyColumn(k, PrimaryKeyValue.fromColumn(new ColumnValue(after.get(k), columnType)));
+                                Object value = after.get(k);
+                                if (ColumnType.INTEGER.equals(columnType)) {
+                                    value = Long.valueOf(value.toString());
+                                }
+                                pkBuilder.addPrimaryKeyColumn(k, PrimaryKeyValue.fromColumn(new ColumnValue(value, columnType)));
                             }
                             putChange = new RowPutChange(tableId, pkBuilder.build());
                         } else {
@@ -266,7 +270,11 @@ public class TablestoreConnector extends ConnectorBase {
                                 continue;
                             }
                             ColumnType columnType = ColumnType.valueOf(tableMeta.getDefinedColumnMap().get(fieldName).name());
-                            putChange.addColumn(fieldName, new ColumnValue(entry.getValue(), columnType));
+                            Object value = entry.getValue();
+                            if (ColumnType.INTEGER.equals(columnType)) {
+                                value = Long.valueOf(value.toString());
+                            }
+                            putChange.addColumn(fieldName, new ColumnValue(value, columnType));
                         }
                         try {
                             client.putRow(new PutRowRequest(putChange));
@@ -345,7 +353,7 @@ public class TablestoreConnector extends ConnectorBase {
         TapTable tapTable = tapCreateTableEvent.getTable();
         if ("NORMAL".equals(tablestoreConfig.getClientType())) {
             ListTableResponse listTableResponse = client.listTable();
-            if (Objects.nonNull(listTableResponse) && listTableResponse.getTableNames().contains(tapTable.getId())) {
+            if (Objects.nonNull(listTableResponse) && !listTableResponse.getTableNames().contains(tapTable.getId())) {
                 TableMeta tableMeta = new TableMeta(tapTable.getId());
                 List<String> primaryKeyList = Lists.newArrayList();
                 List<String> definedColumnKeyList = Lists.newArrayList();
