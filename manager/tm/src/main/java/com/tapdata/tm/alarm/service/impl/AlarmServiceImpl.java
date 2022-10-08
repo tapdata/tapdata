@@ -4,6 +4,7 @@ import cn.hutool.core.date.DateField;
 import cn.hutool.core.date.DateTime;
 import cn.hutool.core.date.DateUnit;
 import cn.hutool.core.date.DateUtil;
+import cn.hutool.core.io.unit.DataSizeUtil;
 import cn.hutool.core.lang.Assert;
 import cn.hutool.extra.cglib.CglibUtil;
 import cn.hutool.extra.spring.SpringUtil;
@@ -45,6 +46,7 @@ import org.bson.Document;
 import org.bson.types.ObjectId;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.jsoup.helper.DataUtil;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
@@ -315,7 +317,21 @@ public class AlarmServiceImpl implements AlarmService {
         pageable.setPage(page);
         pageable.setSize(size);
 
-        Query query = new Query();
+        Criteria criteria = new Criteria();
+        if (Objects.nonNull(status)) {
+            criteria.and("status").is(AlarmStatusEnum.valueOf(status));
+        }
+        if (Objects.nonNull(keyword)) {
+            criteria.and("name").regex(keyword);
+        }
+        if (Objects.nonNull(start)) {
+            criteria.and("lastOccurrenceTime").gt(DateUtil.date(start));
+        }
+        if (Objects.nonNull(end)) {
+            criteria.and("lastOccurrenceTime").lt(DateUtil.date(end));
+        }
+
+        Query query = new Query(criteria);
         long count = mongoTemplate.count(query, AlarmInfo.class);
 
         List<AlarmInfo> alarmInfos = mongoTemplate.find(query.with(pageable), AlarmInfo.class);
