@@ -53,7 +53,7 @@ public class AlarmContentTemplate {
     /**
      * 【Critical】任务[$taskName] 使用的源连接 [MySQL-Test]当前无法正常连接，请尽快处理！时间：2022-08-08 12:23:12
      */
-    public static final String DATANODE_CANNOT_CONNECT = "任务[$taskName] 使用的源连接 [{0}]当前无法正常连接，请尽快处理！时间：{1}";
+    public static final String DATANODE_SOURCE_CANNOT_CONNECT = "任务[$taskName] 使用的源连接 [{0}]当前无法正常连接，请尽快处理！时间：{1}";
 
     /**
      * 【Warning】任务[MySQL-2-Oracle] 使用的源连接 [MySQL-Test]网络连接耗时超过阈值500ms，当前值：899ms，请关注！时间：2022-08-08 12:23:12
@@ -94,6 +94,7 @@ public class AlarmContentTemplate {
     /**
      * 【Critical】任务[MySQL-2-Oracle] 使用的目标连接 [Oracle-Test]当前无法正常连接，请尽快处理！时间：2022-08-08 12:23:12
      */
+    public static final String DATANODE_TARGET_CANNOT_CONNECT = "任务[$taskName] 使用的源连接 [{0}]当前无法正常连接，请尽快处理！时间：{1}";
 
     /**
      * 【Warning】任务[MySQL-2-Oracle] 使用的目标连接 [Oracle-Test]网络连接耗时超过阈值500ms，当前值：899ms，请关注！时间：2022-08-08 12:23:12

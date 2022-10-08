@@ -3,6 +3,7 @@ package com.tapdata.tm.alarm.scheduler;
 import cn.hutool.core.date.DateTime;
 import cn.hutool.core.date.DateUnit;
 import cn.hutool.core.date.DateUtil;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
 import com.tapdata.tm.alarm.constant.AlarmComponentEnum;
 import com.tapdata.tm.alarm.constant.AlarmContentTemplate;
@@ -11,18 +12,25 @@ import com.tapdata.tm.alarm.constant.AlarmTypeEnum;
 import com.tapdata.tm.alarm.entity.AlarmInfo;
 import com.tapdata.tm.alarm.service.AlarmService;
 import com.tapdata.tm.commons.base.dto.SchedulableDto;
+import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.Node;
+import com.tapdata.tm.commons.dag.nodes.DataParentNode;
+import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
+import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
 import com.tapdata.tm.commons.task.constant.AlarmKeyEnum;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmRuleDto;
 import com.tapdata.tm.config.security.UserDetail;
+import com.tapdata.tm.ds.service.impl.DataSourceService;
 import com.tapdata.tm.message.constant.Level;
 import com.tapdata.tm.monitor.entity.MeasurementEntity;
 import com.tapdata.tm.monitor.service.MeasurementServiceV2;
+import com.tapdata.tm.task.constant.DagOutputTemplateEnum;
 import com.tapdata.tm.task.entity.TaskEntity;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.utils.Lists;
+import com.tapdata.tm.utils.MongoUtils;
 import com.tapdata.tm.worker.dto.WorkerDto;
 import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.service.WorkerService;
@@ -54,11 +62,59 @@ public class TaskAlarmScheduler {
     private TaskService taskService;
     private AlarmService alarmService;
     private MeasurementServiceV2 measurementServiceV2;
-    private MongoTemplate mongoTemplate;
     private WorkerService workerService;
     private UserService userService;
+    private DataSourceService dataSourceService;
 
     private final ExecutorService executorService = ExecutorsManager.getInstance().getExecutorService();
+
+
+    @Scheduled(initialDelay = 5000, fixedRate = 60000)
+    @SchedulerLock(name ="task_dataNode_connect_alarm_lock", lockAtMostFor = "10s", lockAtLeastFor = "10s")
+    public void taskDataNodeConnectAlarm() {
+        Query query = new Query(Criteria.where("status").is(TaskDto.STATUS_RUNNING)
+                .and("is_deleted").ne(true));
+        List<TaskDto> taskDtos = taskService.findAll(query);
+        if (CollectionUtils.isEmpty(taskDtos)) {
+            return;
+        }
+
+        List<String> userIds = taskDtos.stream().map(TaskDto::getUserId).distinct().collect(Collectors.toList());
+        List<UserDetail> userByIdList = userService.getUserByIdList(userIds);
+        Map<String, UserDetail> userDetailMap = userByIdList.stream().collect(Collectors.toMap(UserDetail::getUserId, Function.identity(), (e1, e2) -> e1));
+
+        for (TaskDto taskDto : taskDtos) {
+
+            DAG dag = taskDto.getDag();
+            dag.getNodes().stream().filter(node -> node instanceof DataParentNode).forEach(node -> {
+                DataSourceConnectionDto connectionDto = dataSourceService.findById(MongoUtils.toObjectId(((DataParentNode<?>) node).getConnectionId()));
+
+                DagOutputTemplateEnum templateEnum;
+                String type;
+                if (dag.getSources().contains(node)) {
+                    templateEnum = DagOutputTemplateEnum.SOURCE_CONNECT_CHECK;
+                    type = "source";
+                } else {
+                    templateEnum = DagOutputTemplateEnum.TARGET_CONNECT_CHECK;
+                    type = "target";
+                }
+
+                connectionDto.setExtParam(
+                        ImmutableMap.of("taskId", taskDto.getId().toHexString(),
+                                "templateEnum", templateEnum,
+                                "userId", taskDto.getUserId(),
+                                "type", type,
+                                "agentId", taskDto.getAgentId(),
+                                "taskName", taskDto.getName(),
+                                "nodeName", connectionDto.getName(),
+                                "alarmCheck", true
+                        )
+                );
+
+                dataSourceService.sendTestConnection(connectionDto, false, connectionDto.getSubmit(), userDetailMap.get(taskDto.getUserId()));
+            });
+        }
+    }
 
 
     @Scheduled(initialDelay = 5000, fixedRate = 5000)

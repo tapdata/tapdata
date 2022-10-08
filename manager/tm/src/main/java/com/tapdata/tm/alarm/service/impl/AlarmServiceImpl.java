@@ -4,7 +4,6 @@ import cn.hutool.core.date.DateField;
 import cn.hutool.core.date.DateTime;
 import cn.hutool.core.date.DateUnit;
 import cn.hutool.core.date.DateUtil;
-import cn.hutool.core.io.unit.DataSizeUtil;
 import cn.hutool.core.lang.Assert;
 import cn.hutool.extra.cglib.CglibUtil;
 import cn.hutool.extra.spring.SpringUtil;
@@ -42,12 +41,11 @@ import com.tapdata.tm.utils.MongoUtils;
 import lombok.Setter;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
-import org.bson.Document;
 import org.bson.types.ObjectId;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
-import org.jsoup.helper.DataUtil;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
@@ -94,6 +92,7 @@ public class AlarmServiceImpl implements AlarmService {
             mongoTemplate.save(one);
         } else {
             info.setFirstOccurrenceTime(DateUtil.date());
+            info.setLastOccurrenceTime(DateUtil.date());
             mongoTemplate.insert(info);
         }
     }
@@ -308,7 +307,7 @@ public class AlarmServiceImpl implements AlarmService {
                 .set("closeTime", DateUtil.date())
                 .set("closeBy", userDetail.getUserId())
                 ;
-        mongoTemplate.updateFirst(query, update, AlarmInfo.class);
+        mongoTemplate.updateMulti(query, update, AlarmInfo.class);
     }
 
     @Override
@@ -320,20 +319,25 @@ public class AlarmServiceImpl implements AlarmService {
         Criteria criteria = new Criteria();
         if (Objects.nonNull(status)) {
             criteria.and("status").is(AlarmStatusEnum.valueOf(status));
+        } else {
+            criteria.and("status").is(AlarmStatusEnum.CLOESE.name());
         }
         if (Objects.nonNull(keyword)) {
             criteria.and("name").regex(keyword);
         }
-        if (Objects.nonNull(start)) {
+
+        if (Objects.nonNull(start) && Objects.nonNull(end)){
+            criteria.and("lastOccurrenceTime").gt(DateUtil.date(start)).lt(DateUtil.date(end));
+        } else if (Objects.nonNull(start)) {
             criteria.and("lastOccurrenceTime").gt(DateUtil.date(start));
-        }
-        if (Objects.nonNull(end)) {
+        } else if (Objects.nonNull(end)) {
             criteria.and("lastOccurrenceTime").lt(DateUtil.date(end));
         }
 
         Query query = new Query(criteria);
         long count = mongoTemplate.count(query, AlarmInfo.class);
 
+        query.with(Sort.by(Sort.Direction.DESC, "_id"));
         List<AlarmInfo> alarmInfos = mongoTemplate.find(query.with(pageable), AlarmInfo.class);
 
         List<AlarmListInfoVo> collect = alarmInfos.stream()
@@ -372,6 +376,7 @@ public class AlarmServiceImpl implements AlarmService {
             criteria.and("nodeId").is(nodeId);
         }
         Query query = new Query(criteria);
+        query.with(Sort.by(Sort.Direction.DESC, "_id"));
         List<AlarmInfo> alarmInfos = mongoTemplate.find(query, AlarmInfo.class);
 
         Map<String, Integer> nodeNumMap = Maps.newHashMap();
@@ -411,7 +416,7 @@ public class AlarmServiceImpl implements AlarmService {
         ).collect(Collectors.toList());
 
         long alert = alarmInfos.stream().filter(t -> !AlarmStatusEnum.CLOESE.equals(t.getStatus())
-                && Lists.of(Level.NORMAL, Level.WARNING).contains(t.getLevel())).count();
+                && Lists.of(Level.WARNING).contains(t.getLevel())).count();
         long error = alarmInfos.stream().filter(t -> !AlarmStatusEnum.CLOESE.equals(t.getStatus())
                 && Lists.of(Level.CRITICAL, Level.EMERGENCY).contains(t.getLevel())).count();
 

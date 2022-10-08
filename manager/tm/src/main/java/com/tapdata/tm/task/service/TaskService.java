@@ -932,10 +932,6 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         TaskEntity taskSnapshot = new TaskEntity();
         BeanUtil.copyProperties(taskDto, taskSnapshot);
         disruptorService.sendMessage(DisruptorTopicEnum.CREATE_RECORD, new TaskRecord(lastTaskRecordId, taskDto.getId().toHexString(), taskSnapshot, user.getUserId(), new Date()));
-
-        findById(taskDto.getId());
-
-
     }
 
     /**
