@@ -1791,7 +1791,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
     public Boolean checkRun(String taskId, UserDetail user) {
         TaskDto taskDto = checkExistById(MongoUtils.toObjectId(taskId), user, "status");
-        return TaskDto.STATUS_EDIT.equals(taskDto.getStatus());
+        return TaskDto.STATUS_EDIT.equals(taskDto.getStatus()) || TaskDto.STATUS_WAIT_START.equals(taskDto.getStatus());
     }
 
     public TransformerWsMessageDto findTransformParam(String taskId, UserDetail user) {
