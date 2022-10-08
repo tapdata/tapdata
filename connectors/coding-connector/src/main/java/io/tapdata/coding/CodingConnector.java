@@ -379,18 +379,14 @@ public class CodingConnector extends ConnectorBase {
 			Object offset,
 			int batchCount,
 			BiConsumer<List<TapEvent>, Object> consumer) {
-		TapLogger.debug(TAG, "start {} batch read", table.getName());
+		//TapLogger.debug(TAG, "start {} batch read", table.getName());
 		Long readEnd = System.currentTimeMillis();
 		CodingOffset codingOffset =  new CodingOffset();
 		//current read end as next read begin
 		codingOffset.setTableUpdateTimeMap(new HashMap<String,Long>(){{ put(table.getId(),readEnd);}});
 		IssueLoader.create(connectorContext).verifyConnectionConfig();
-//		DataMap connectionConfig = connectorContext.getConnectionConfig();
-//		String projectName = connectionConfig.getString("projectName");
-//		String token = connectionConfig.getString("token");
-//		String teamName = connectionConfig.getString("teamName");
 		this.read(connectorContext,null,readEnd,table.getId(),batchCount,codingOffset,consumer,table.getId());
-		TapLogger.debug(TAG, "compile {} batch read", table.getName());
+		//TapLogger.debug(TAG, "compile {} batch read", table.getName());
 	}
 
 	private long batchCount(TapConnectorContext tapConnectorContext, TapTable tapTable) throws Throwable {
