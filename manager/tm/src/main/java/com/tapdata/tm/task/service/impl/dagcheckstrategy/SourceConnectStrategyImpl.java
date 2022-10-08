@@ -36,17 +36,24 @@ public class SourceConnectStrategyImpl implements DagLogStrategy {
             return Lists.newArrayList();
         }
 
-        String connectionId = sourceNode.getFirst().getConnectionId();
-        DataSourceConnectionDto connectionDto = dataSourceService.findById(MongoUtils.toObjectId(connectionId));
-        connectionDto.setExtParam(
-                ImmutableMap.of("taskId", taskDto.getId().toHexString(),
-                        "templateEnum", templateEnum,
-                        "userId", userDetail.getUserId(),
-                        "type", "source"
-                )
-        );
+        for (DatabaseNode node : sourceNode) {
+            String connectionId = node.getConnectionId();
+            DataSourceConnectionDto connectionDto = dataSourceService.findById(MongoUtils.toObjectId(connectionId));
+            connectionDto.setExtParam(
+                    ImmutableMap.of("taskId", taskDto.getId().toHexString(),
+                            "templateEnum", templateEnum,
+                            "userId", userDetail.getUserId(),
+                            "type", "source",
+                            "agentId", taskDto.getAgentId(),
+                            "taskName", taskDto.getName(),
+                            "nodeName", connectionDto.getName(),
+                            "alarmCheck", false
+                    )
+            );
 
-        dataSourceService.sendTestConnection(connectionDto, false, connectionDto.getSubmit(), userDetail);
+            dataSourceService.sendTestConnection(connectionDto, false, connectionDto.getSubmit(), userDetail);
+        }
+
 
         return result;
     }
