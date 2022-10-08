@@ -119,9 +119,11 @@ public class AlarmContentTemplate {
     /**
      * 【Warning】任务[MySQL-2-Oracle] 所在Agent[Agent01]已停止运行，当前还有2个可用Agent，任务将重新调度到Agent[Agent02]上运行，请关注！时间：2022-08-08 12:23:12
      */
+    public static final String SYSTEM_FLOW_EGINGE_DOWN_CHANGE_AGENT = "任务[$taskName]所在Agent[{0}]已停止运行，当前还有{1}个可用Agent，任务将重新调度到Agent[{2}]上运行，请关注！时间：{3}";
 
     /**
      * 【Warning】任务[MySQL-2-Oracle] 所在Agent[Agent01]已停止运行，当前已无可用Agent，任务已停止运行，请尽快处理！时间：2022-08-08 12:23:12
      */
+    public static final String SYSTEM_FLOW_EGINGE_DOWN_NO_AGENT = "任务[$taskName]所在Agent[{0}]已停止运行，当前已无可用Agent，任务已停止运行，请尽快处理！时间：{1}";
 
 }

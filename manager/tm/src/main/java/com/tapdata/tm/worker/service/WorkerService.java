@@ -91,6 +91,14 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
         return repository.findAll(query);
     }
 
+    public List<Worker> findAvailableAgentBySystem() {
+        // 引擎定时任务是5秒
+        Query query = Query.query(Criteria.where("worker_type").is("connector")
+                .and("ping_time").gte(System.currentTimeMillis() - 1000 * 5 * 2)
+                .and("isDeleted").ne(true).and("stopping").ne(true));
+        return repository.findAll(query);
+    }
+
     public List<Worker> findAvailableAgentByAccessNode(UserDetail userDetail, List<String> processIdList) {
         if (Objects.isNull(userDetail)) {
             return null;

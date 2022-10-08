@@ -10,33 +10,42 @@ import com.tapdata.tm.alarm.constant.AlarmStatusEnum;
 import com.tapdata.tm.alarm.constant.AlarmTypeEnum;
 import com.tapdata.tm.alarm.entity.AlarmInfo;
 import com.tapdata.tm.alarm.service.AlarmService;
+import com.tapdata.tm.commons.base.dto.SchedulableDto;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.task.constant.AlarmKeyEnum;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.commons.task.dto.alarm.AlarmRuleDto;
+import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.message.constant.Level;
 import com.tapdata.tm.monitor.entity.MeasurementEntity;
 import com.tapdata.tm.monitor.service.MeasurementServiceV2;
+import com.tapdata.tm.task.entity.TaskEntity;
 import com.tapdata.tm.task.service.TaskService;
+import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.utils.Lists;
+import com.tapdata.tm.worker.dto.WorkerDto;
+import com.tapdata.tm.worker.entity.Worker;
+import com.tapdata.tm.worker.service.WorkerService;
+import com.tapdata.tm.worker.vo.CalculationEngineVo;
 import io.tapdata.common.executor.ExecutorsManager;
 import io.tapdata.common.sample.request.Sample;
 import lombok.Setter;
 import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.apache.commons.collections.CollectionUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 import java.text.MessageFormat;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 @Component
 @Setter(onMethod_ = {@Autowired})
@@ -45,8 +54,75 @@ public class TaskAlarmScheduler {
     private TaskService taskService;
     private AlarmService alarmService;
     private MeasurementServiceV2 measurementServiceV2;
+    private MongoTemplate mongoTemplate;
+    private WorkerService workerService;
+    private UserService userService;
 
     private final ExecutorService executorService = ExecutorsManager.getInstance().getExecutorService();
+
+
+    @Scheduled(initialDelay = 5000, fixedRate = 5000)
+    @SchedulerLock(name ="task_agent_alarm_lock", lockAtMostFor = "10s", lockAtLeastFor = "10s")
+    public void taskAgentAlarm() {
+        Query query = new Query(Criteria.where("status").is(TaskDto.STATUS_RUNNING)
+                .and("is_deleted").ne(true));
+        List<TaskDto> taskDtos = taskService.findAll(query);
+        if (CollectionUtils.isEmpty(taskDtos)) {
+            return;
+        }
+
+        List<String> collect = taskDtos.stream().map(TaskDto::getAgentId).distinct().collect(Collectors.toList());
+
+        Query worerQuery = new Query(Criteria.where("worker_type").is("connector")
+                .and("process_id").in(collect));
+        List<WorkerDto> workers = workerService.findAll(worerQuery);
+        if (CollectionUtils.isEmpty(workers)) {
+            return;
+        }
+
+        Map<String, WorkerDto> stopEgineMap = workers.stream().filter(w -> (Objects.nonNull(w.getIsDeleted()) && w.getIsDeleted()) ||
+                        (Objects.nonNull(w.getStopping()) && w.getStopping()) ||
+                        w.getPingTime() < (System.currentTimeMillis() - 1000 * 60))
+                .collect(Collectors.toMap(WorkerDto::getProcessId, Function.identity(), (e1, e2) -> e1));
+        if (stopEgineMap.isEmpty()) {
+            return;
+        }
+
+        Set<String> agentIds = stopEgineMap.keySet();
+
+        //Object buildProfile = settingsService.getValueByCategoryAndKey(CategoryEnum.SYSTEM, KeyEnum.BUILD_PROFILE);
+        //boolean isCloud = "CLOUD".equals(buildProfile) || "DRS".equals(buildProfile) || "DFS".equals(buildProfile);
+        // 云版需要修改这里
+        List<Worker> availableWorkers = workerService.findAvailableAgentBySystem();
+        Stream<TaskDto> taskDtoStream = taskDtos.stream().filter(t -> agentIds.contains(t.getAgentId()));
+
+        List<String> userIds = taskDtoStream.map(TaskDto::getUserId).distinct().collect(Collectors.toList());
+        List<UserDetail> userByIdList = userService.getUserByIdList(userIds);
+        Map<String, UserDetail> userDetailMap = userByIdList.stream().collect(Collectors.toMap(UserDetail::getUserId, Function.identity(), (e1, e2) -> e1));
+
+        taskDtoStream.forEach(data -> {
+            if (CollectionUtils.isEmpty(availableWorkers)) {
+                String summary = MessageFormat.format(AlarmContentTemplate.SYSTEM_FLOW_EGINGE_DOWN_NO_AGENT, data.getAgentId(), DateUtil.now());
+                AlarmInfo alarmInfo = AlarmInfo.builder().status(AlarmStatusEnum.ING).level(Level.WARNING).component(AlarmComponentEnum.FE)
+                        .type(AlarmTypeEnum.SYNCHRONIZATIONTASK_ALARM).agentId(data.getAgentId()).taskId(data.getId().toHexString())
+                        .name(data.getName()).summary(summary).metric(AlarmKeyEnum.SYSTEM_FLOW_EGINGE_DOWN)
+                        .build();
+                alarmService.save(alarmInfo);
+            } else {
+                CalculationEngineVo calculationEngineVo = workerService.scheduleTaskToEngine(data, userDetailMap.get(data.getUserId()), "task", data.getName());
+
+                String summary = MessageFormat.format(AlarmContentTemplate.SYSTEM_FLOW_EGINGE_DOWN_CHANGE_AGENT, data.getAgentId(), availableWorkers.size(), calculationEngineVo.getProcessId(), DateUtil.now());
+                AlarmInfo alarmInfo = AlarmInfo.builder().status(AlarmStatusEnum.ING).level(Level.WARNING).component(AlarmComponentEnum.FE)
+                        .type(AlarmTypeEnum.SYNCHRONIZATIONTASK_ALARM).agentId(data.getAgentId()).taskId(data.getId().toHexString())
+                        .name(data.getName()).summary(summary).metric(AlarmKeyEnum.SYSTEM_FLOW_EGINGE_DOWN)
+                        .build();
+                alarmService.save(alarmInfo);
+
+                Update update = new Update().set("status", TaskDto.STATUS_SCHEDULING).set("restartFlag", true).set("agentId", calculationEngineVo.getProcessId());
+                taskService.update(Query.query(Criteria.where("_id").is(data.getId())), update);
+            }
+        });
+    }
 
     @Scheduled(initialDelay = 5000, fixedRate = 30000)
     @SchedulerLock(name ="task_alarm_lock", lockAtMostFor = "10s", lockAtLeastFor = "10s")
