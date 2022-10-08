@@ -100,7 +100,7 @@ public class MysqlConnector extends ConnectorBase {
         connectorFunctions.supportTimestampToStreamOffset(this::timestampToStreamOffset);
         connectorFunctions.supportQueryByAdvanceFilter(this::query);
         connectorFunctions.supportWriteRecord(this::writeRecord);
-//        connectorFunctions.supportCreateIndex(this::createIndex);
+        connectorFunctions.supportCreateIndex(this::createIndex);
         connectorFunctions.supportNewFieldFunction(this::fieldDDLHandler);
         connectorFunctions.supportAlterFieldNameFunction(this::fieldDDLHandler);
         connectorFunctions.supportAlterFieldAttributesFunction(this::fieldDDLHandler);

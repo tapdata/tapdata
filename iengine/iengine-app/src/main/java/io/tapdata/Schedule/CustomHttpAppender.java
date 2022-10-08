@@ -158,6 +158,9 @@ public class CustomHttpAppender extends AbstractAppender {
 								events = nodeException.getEvents();
 								context = nodeException.getContext();
 							}
+							if (null == message) {
+								message = throwable.getMessage();
+							}
 
 							error(obsLogger, taskId, message, throwable, events, context);
 							break;

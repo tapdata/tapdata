@@ -36,7 +36,7 @@ public class TaskRestartSchedule {
     @SchedulerLock(name ="restart_task_lock", lockAtMostFor = "5s", lockAtLeastFor = "5s")
     public void restartTask() {
         //查询到所有需要重启的任务
-        Criteria criteria = Criteria.where("restartFlag").is(true).and("status").is(TaskDto.STATUS_STOP);
+        Criteria criteria = Criteria.where("restartFlag").is(true).and("status").is("stop");
         Query query = new Query(criteria);
         query.fields().include("_id", "restartUserId");
         List<TaskDto> restartTasks = taskService.findAll(query);

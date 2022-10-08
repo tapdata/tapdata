@@ -2361,6 +2361,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
     public void run(TaskDto taskDto, UserDetail user) {
         //将子任务的状态改成启动
+//        DAG dag = taskDto.getDag();
         Query query = new Query(Criteria.where("id").is(taskDto.getId()).and("status").is(taskDto.getStatus()));
         //需要将重启标识清除
         UpdateResult update = update(query, Update.update("status", TaskDto.STATUS_SCHEDULING).set("isEdit", false).set("restartFlag", false), user);

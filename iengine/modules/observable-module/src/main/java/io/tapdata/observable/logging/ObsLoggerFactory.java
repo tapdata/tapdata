@@ -18,7 +18,6 @@ import org.springframework.data.mongodb.core.query.Update;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -68,10 +67,6 @@ public final class ObsLoggerFactory {
 				TaskDto task = clientMongoOperator.findOne(
 						new Query(Criteria.where("_id").is(new ObjectId(taskId))), ConnectorConstant.TASK_COLLECTION, TaskDto.class
 				);
-				if (Objects.isNull(task)) {
-					taskLoggersMap.remove(taskId);
-					continue;
-				}
 				taskLoggersMap.computeIfPresent(taskId, (id, taskLogger) -> {
 					taskLogger.withTaskLogSetting(getLogSettingLogLevel(task),
 							getLogSettingRecordCeiling(task), getLogSettingIntervalCeiling(task));
@@ -79,7 +74,7 @@ public final class ObsLoggerFactory {
 					return taskLogger;
 				});
 			} catch (Throwable throwable) {
-				logger.warn("failed to renew task logger setting for task {}", taskId, throwable);
+				logger.warn("failed to renew task logger setting for task {}", taskId);
 			}
 		}
 	}
