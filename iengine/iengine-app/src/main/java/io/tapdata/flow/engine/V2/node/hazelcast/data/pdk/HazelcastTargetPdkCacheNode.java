@@ -19,6 +19,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.NotNull;
 
+import java.text.MessageFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -86,7 +87,7 @@ public class HazelcastTargetPdkCacheNode extends HazelcastPdkBaseNode {
 			}
 		} catch (Exception e) {
 			logger.error("Target process failed {}", e.getMessage(), e);
-			obsLogger.error("Target process failed {}", e.getMessage(), e);
+			obsLogger.error(MessageFormat.format("Target process failed {0}", e.getMessage()), e);
 			throw sneakyThrow(e);
 		}
 	}

@@ -6,6 +6,8 @@
  */
 package com.tapdata.tm.schedule;
 
+import cn.hutool.core.date.DateTime;
+import cn.hutool.core.date.DateUtil;
 import com.mongodb.client.result.UpdateResult;
 import com.tapdata.manager.common.utils.JsonUtil;
 import com.tapdata.manager.common.utils.StringUtils;
@@ -46,13 +48,12 @@ import org.springframework.stereotype.Component;
 public class StateMachineScheduleTask {
 	private StateMachineService stateMachineService;
 	private UserService userService;
-	private DataFlowService dataFlowService;
 	private WorkerService workerService;
 	private SettingsService settingsService;
 	private TaskService taskService;
 
-	@Scheduled(fixedDelay = 5 * 1000)
-	@SchedulerLock(name ="checkScheduledTask", lockAtMostFor = "5s", lockAtLeastFor = "5s")
+	//@Scheduled(fixedDelay = 5 * 1000)
+	//@SchedulerLock(name ="checkScheduledTask", lockAtMostFor = "5s", lockAtLeastFor = "5s")
 	public void checkScheduledTask() {
 		Query query = query(Criteria.where("status").is(TaskState.WAITING_RUN.getName()).and("scheduledTime").lt(new Date(System.currentTimeMillis() - 1000 * 60)));
 		List<TaskDto> taskDtos = taskService.findAll(query);
@@ -67,8 +68,8 @@ public class StateMachineScheduleTask {
 		});
 	}
 
-	@Scheduled(fixedDelay = 5 * 1000)
-	@SchedulerLock(name ="checkStoppingTask", lockAtMostFor = "5s", lockAtLeastFor = "5s")
+	//@Scheduled(fixedDelay = 5 * 1000)
+	//@SchedulerLock(name ="checkStoppingTask", lockAtMostFor = "5s", lockAtLeastFor = "5s")
 	public void checkStoppingTask() {
 		Query query = query(Criteria.where("status").is(TaskState.STOPPING.getName()).and("stoppingTime").lt(new Date(System.currentTimeMillis() - 1000 * 60 * 5)));
 		List<TaskDto> taskDtos = taskService.findAll(query);
@@ -83,15 +84,6 @@ public class StateMachineScheduleTask {
 		});
 	}
 
-	/**
-	 * dataflow心跳超时处理
-	 * 企业版:  调度中会重新分配agentId,一直调度中
-	 *         运行中会重新分配agentId, 分配后变为调度中
-	 *         停止中（强制停止中）超过5倍心跳超时时间会变为已暂停
-	 * 云版:   调度中不会分配agentId,一直调度中
-	 *         运行中会变为调度中,不会分配agentId,
-	 *         停止中（强制停止中）超过5倍心跳超时时间会变为已暂停
-	 **/
 	@Scheduled(fixedDelay = 5 * 1000)
 	@SchedulerLock(name ="checkScheduledDataFlow", lockAtMostFor = "5s", lockAtLeastFor = "5s")
 	public void checkScheduledDataFlow() {
@@ -100,40 +92,30 @@ public class StateMachineScheduleTask {
 			log.warn("The setting of jobHeartTimeout must be greater than 0, jobHeartTimeout: {}", jobHeartTimeout);
 			return;
 		}
-		long timeoutMillis = Long.parseLong(jobHeartTimeout.toString());
-		Object buildProfile = settingsService.getValueByCategoryAndKey(CategoryEnum.SYSTEM, KeyEnum.BUILD_PROFILE);
-		boolean isCloud = "CLOUD".equals(buildProfile) || "DRS".equals(buildProfile) || "DFS".equals(buildProfile);
-		List<String> statusList = new ArrayList<>();
-		statusList.add(DataFlowState.RUNNING.getName());
-		//  任务心跳超时在云版情况下不会重新设置agentId，所以scheduling状态下的任务不做处理，直到它被接管running为止
-		if (!isCloud){
-			statusList.add(DataFlowState.SCHEDULING.getName());
-		}
+		int timeoutMillis = Integer.parseInt(jobHeartTimeout.toString());
 
-		checkScheduledTask(timeoutMillis, isCloud);
+		DateTime dateTime = DateUtil.offsetMillisecond(DateUtil.date(), -timeoutMillis);
 
-		Query query = Query.query(new Criteria().orOperator(
-				new Criteria("status").in(statusList).and("pingTime").lt(System.currentTimeMillis() - timeoutMillis),
-				new Criteria("status").in(DataFlowState.STOPPING.getName(), DataFlowState.FORCE_STOPPING.getName())
-						.and("pingTime").lt(System.currentTimeMillis() - timeoutMillis * 5)
-		));
-		List<DataFlowDto> dataFlowDtos = dataFlowService.findAll(query);
-		dataFlowDtos.forEach(dataFlowDto -> {
+		Query query = Query.query(new Criteria("status").in(TaskDto.STATUS_SCHEDULING).and("pingTime").lt(dateTime));
+		List<TaskDto> taskDtos = taskService.findAll(query);
+		taskDtos.forEach(taskDto -> {
 			try {
-				log.info("checkScheduledTask start,dataFlowId: {}, status: {}", dataFlowDto.getId().toHexString(), dataFlowDto.getStatus());
-				UserDetail userDetail = userService.loadUserById(toObjectId(dataFlowDto.getUserId()));
-				if (DataFlowState.SCHEDULING.getName().equals(dataFlowDto.getStatus())){
-					dataFlowDto.setAgentId(null);
-					workerService.scheduleTaskToEngine(dataFlowDto, userDetail);
-					String processId = dataFlowDto.getAgentId();
-					log.info("checkScheduledTask complete,dataFlowId: {}, processId: {}", dataFlowDto.getId().toHexString(), processId);
-				}else {
-					StateMachineResult result = stateMachineService.executeAboutDataFlow(dataFlowDto, DataFlowEvent.OVERTIME, userDetail);
-					log.info("checkScheduledTask complete,dataFlowId: {}, result: {}", dataFlowDto.getId().toHexString(), JsonUtil.toJson(result));
+				log.info("checkScheduledTask start,dataFlowId: {}, status: {}", taskDto.getId().toHexString(), taskDto.getStatus());
+				UserDetail userDetail = userService.loadUserById(toObjectId(taskDto.getUserId()));
+				if (taskDto.getRestartFlag()){
+					taskDto.setAgentId(null);
+					workerService.scheduleTaskToEngine(taskDto, userDetail, "task", taskDto.getName());
+					String processId = taskDto.getAgentId();
+					log.info("checkScheduledTask complete,dataFlowId: {}, processId: {}", taskDto.getId().toHexString(), processId);
+
+					taskService.run(taskDto, userDetail);
+				} else {
+					taskDto.setRestartFlag(true);
+					taskService.save(taskDto, userDetail);
 				}
 
 			} catch (Throwable e) {
-				log.error("Failed to execute state machine,dataFlowId: {}, event: {},message: {}", dataFlowDto.getId().toHexString(), DataFlowEvent.OVERTIME.getName(), e.getMessage(), e);
+				log.error("Failed to execute state machine,dataFlowId: {}, event: {},message: {}", taskDto.getId().toHexString(), DataFlowEvent.OVERTIME.getName(), e.getMessage(), e);
 			}
 		});
 	}
