@@ -7,8 +7,8 @@
         <artifactId>file-storages</artifactId>
         <version>1.0-SNAPSHOT</version>
     </parent>
-    <artifactId>local-file</artifactId>
-    <name>local-file</name>
+    <artifactId>ftp-file</artifactId>
+    <name>ftp-file</name>
     <packaging>jar</packaging>
     <modules>
 
@@ -25,6 +25,11 @@
             <scope>provided</scope>
         </dependency>
         <dependency>
+            <groupId>io.tapdata</groupId>
+            <artifactId>tapdata-pdk-runner</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
             <groupId>org.junit.jupiter</groupId>
             <artifactId>junit-jupiter</artifactId>
             <version>5.8.1</version>
@@ -34,6 +39,11 @@
             <groupId>io.tapdata</groupId>
             <artifactId>file-core</artifactId>
             <version>1.0-SNAPSHOT</version>
+        </dependency>
+        <dependency>
+            <groupId>commons-net</groupId>
+            <artifactId>commons-net</artifactId>
+            <version>3.8.0</version>
         </dependency>
     </dependencies>
     <build>

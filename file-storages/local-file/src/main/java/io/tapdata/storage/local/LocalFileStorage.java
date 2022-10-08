@@ -1,8 +1,8 @@
 package io.tapdata.storage.local;
 
-import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.file.TapFile;
 import io.tapdata.file.TapFileStorage;
+import io.tapdata.storage.kit.FileMatchKit;
 
 import java.io.File;
 import java.io.IOException;
@@ -10,19 +10,17 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Paths;
-import java.util.Collection;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 public class LocalFileStorage implements TapFileStorage {
 
     private final static String TAG = LocalFileStorage.class.getSimpleName();
-    private Map<String, Object> params;
 
     @Override
     public void init(Map<String, Object> params) {
-        this.params = params;
+
     }
 
     @Override
@@ -47,12 +45,8 @@ public class LocalFileStorage implements TapFileStorage {
     }
 
     @Override
-    public InputStream readFile(String path) {
-        try {
-            return Files.newInputStream(Paths.get(path));
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
+    public InputStream readFile(String path) throws IOException {
+        return Files.newInputStream(Paths.get(path));
     }
 
     @Override
@@ -62,50 +56,71 @@ public class LocalFileStorage implements TapFileStorage {
     }
 
     @Override
-    public boolean move(String sourcePath, String destPath) {
-        try {
-            Files.move(Paths.get(sourcePath), Paths.get(destPath));
-            return true;
-        } catch (IOException e) {
-            TapLogger.warn(TAG, "move file failed!", e);
-            return false;
-        }
+    public boolean move(String sourcePath, String destPath) throws IOException {
+        Files.move(Paths.get(sourcePath), Paths.get(destPath));
+        return true;
     }
 
     @Override
-    public boolean delete(String path) {
-        try {
-            return Files.deleteIfExists(Paths.get(path));
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
+    public boolean delete(String path) throws IOException {
+        return Files.deleteIfExists(Paths.get(path));
     }
 
     @Override
-    public TapFile saveFile(String path, InputStream is, boolean canReplace) {
+    public TapFile saveFile(String path, InputStream is, boolean canReplace) throws IOException {
         if (isDirectoryExist(path)) {
             return null;
         }
         if (isFileExist(path) && !canReplace) {
             return getFile(path);
         }
-        try {
-            OutputStream os = Files.newOutputStream(Paths.get(path));
-            int bytesRead;
-            byte[] buffer = new byte[8192];
-            while ((bytesRead = is.read(buffer, 0, 8192)) != -1) {
-                os.write(buffer, 0, bytesRead);
-            }
-            os.close();
-            return getFile(path);
-        } catch (IOException e) {
-            throw new RuntimeException(e);
+        OutputStream os = Files.newOutputStream(Paths.get(path));
+        int bytesRead;
+        byte[] buffer = new byte[8192];
+        while ((bytesRead = is.read(buffer, 0, 8192)) != -1) {
+            os.write(buffer, 0, bytesRead);
         }
+        os.flush();
+        os.close();
+        return getFile(path);
     }
 
     @Override
-    public void getFilesInDirectory(String directoryPath, Collection<String> includeRegs, Collection<String> excludeRegs, boolean recursive, int batchSize, Consumer<List<TapFile>> consumer) {
-//        Files.
+    public void getFilesInDirectory(String directoryPath,
+                                    Collection<String> includeRegs,
+                                    Collection<String> excludeRegs,
+                                    boolean recursive,
+                                    int batchSize,
+                                    Consumer<List<TapFile>> consumer) {
+        AtomicReference<List<TapFile>> listAtomicReference = new AtomicReference<>(new ArrayList<>());
+        getFiles(directoryPath, includeRegs, excludeRegs, recursive, batchSize, consumer, listAtomicReference);
+        if (listAtomicReference.get().size() > 0) {
+            consumer.accept(listAtomicReference.get());
+        }
+    }
+
+    private void getFiles(String directoryPath,
+                          Collection<String> includeRegs,
+                          Collection<String> excludeRegs,
+                          boolean recursive,
+                          int batchSize,
+                          Consumer<List<TapFile>> consumer,
+                          AtomicReference<List<TapFile>> listAtomicReference) {
+        if (!isDirectoryExist(directoryPath)) {
+            return;
+        }
+        File dir = new File(directoryPath);
+        for (File file : Objects.requireNonNull(dir.listFiles())) {
+            if (file.isFile() && FileMatchKit.matchRegs(file.getName(), includeRegs, excludeRegs)) {
+                listAtomicReference.get().add(getFile(file.getAbsolutePath()));
+                if (listAtomicReference.get().size() >= batchSize) {
+                    consumer.accept(listAtomicReference.get());
+                    listAtomicReference.set(new ArrayList<>());
+                }
+            } else if (recursive) {
+                getFiles(file.getAbsolutePath(), includeRegs, excludeRegs, true, batchSize, consumer, listAtomicReference);
+            }
+        }
     }
 
     @Override

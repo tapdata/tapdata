@@ -97,5 +97,11 @@ public class TapFile {
         this.metadata = metadata;
     }
 
-
+    public String toString() {
+        return "TapFile{" + "path='" + path + '\'' +
+                ", type=" + (type == TYPE_FILE ? "FILE" : "DIRECTORY") +
+                ", size='" + length + '\'' +
+                ", lastModified=" + lastModified +
+                '}';
+    }
 }

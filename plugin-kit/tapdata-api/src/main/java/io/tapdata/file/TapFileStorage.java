@@ -15,12 +15,16 @@ public interface TapFileStorage {
      *
      * @param params should be provided from spec.json' json schema.
      */
-    void init(Map<String, Object> params);
+    void init(Map<String, Object> params) throws Exception;
+
+    ;
 
     /**
      * Release current resources.
      */
-    void destroy();
+    void destroy() throws Exception;
+
+    ;
 
     /**
      * Get file by path. The path should be relative path without protocol. like
@@ -35,7 +39,7 @@ public interface TapFileStorage {
      * @param path
      * @return
      */
-    TapFile getFile(String path);
+    TapFile getFile(String path) throws Exception;
 
     /**
      * Read a path into InputStream to transfer the file bytes into network or other storages.
@@ -47,7 +51,7 @@ public interface TapFileStorage {
      * @param path
      * @return
      */
-    InputStream readFile(String path);
+    InputStream readFile(String path) throws Exception;
 
     /**
      * Check the file is exists or not on the path.
@@ -56,7 +60,7 @@ public interface TapFileStorage {
      * @param path
      * @return
      */
-    boolean isFileExist(String path);
+    boolean isFileExist(String path) throws Exception;
 
     /**
      * Move file or directory from sourcePath to destPath.
@@ -68,7 +72,7 @@ public interface TapFileStorage {
      * @param destPath
      * @return
      */
-    boolean move(String sourcePath, String destPath);
+    boolean move(String sourcePath, String destPath) throws Exception;
 
     /**
      * Delete file on the path.
@@ -77,7 +81,7 @@ public interface TapFileStorage {
      * @param path
      * @return
      */
-    boolean delete(String path);
+    boolean delete(String path) throws Exception;
 
     /**
      * Save file into path.
@@ -89,7 +93,7 @@ public interface TapFileStorage {
      * @param canReplace
      * @return
      */
-    TapFile saveFile(String path, InputStream is, boolean canReplace);
+    TapFile saveFile(String path, InputStream is, boolean canReplace) throws Exception;
 
     /**
      * Get files/directories on path "directoryPath" with matching regression "matchingReg".
@@ -102,7 +106,7 @@ public interface TapFileStorage {
      * @param batchSize     the max batch size when consumer accept a batch TapFile.
      * @param consumer      accept a batch of TapFile.
      */
-    void getFilesInDirectory(String directoryPath, Collection<String> includeRegs, Collection<String> excludeRegs, boolean recursive, int batchSize, Consumer<List<TapFile>> consumer);
+    void getFilesInDirectory(String directoryPath, Collection<String> includeRegs, Collection<String> excludeRegs, boolean recursive, int batchSize, Consumer<List<TapFile>> consumer) throws Exception;
 
     /**
      * Check the directory is exists or not on the path.
@@ -111,7 +115,7 @@ public interface TapFileStorage {
      * @param path
      * @return
      */
-    boolean isDirectoryExist(String path);
+    boolean isDirectoryExist(String path) throws Exception;
 
 
 }
