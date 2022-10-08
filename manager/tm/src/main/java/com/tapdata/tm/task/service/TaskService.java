@@ -1978,7 +1978,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
                 taskDto.setListtags(tags);
                 if (one == null) {
-                    taskDto.setId(null);
+                    //taskDto.setId(null);
                     TaskEntity taskEntity = repository.importEntity(convertToEntity(TaskEntity.class, taskDto), user);
                     taskDto = convertToDto(taskEntity, TaskDto.class);
                 }
