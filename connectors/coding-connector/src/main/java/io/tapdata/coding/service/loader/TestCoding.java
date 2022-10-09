@@ -1,15 +1,13 @@
-package io.tapdata.coding.service;
+package io.tapdata.coding.service.loader;
 
 import cn.hutool.json.*;
 import io.tapdata.coding.utils.http.CodingHttp;
 import io.tapdata.coding.enums.CodingTestItem;
 import io.tapdata.coding.utils.http.HttpEntity;
-import io.tapdata.coding.utils.tool.Checker;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.entity.TestItem;
 
-import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 

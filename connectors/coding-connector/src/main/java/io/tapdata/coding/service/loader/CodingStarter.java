@@ -1,4 +1,4 @@
-package io.tapdata.coding.service;
+package io.tapdata.coding.service.loader;
 
 import io.tapdata.coding.entity.ContextConfig;
 import io.tapdata.coding.enums.IssueType;
@@ -8,6 +8,8 @@ import io.tapdata.entity.utils.DataMap;
 import io.tapdata.entity.utils.Entry;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
+
+import java.util.Map;
 
 public abstract class CodingStarter {
     private static final String TAG = CodingStarter.class.getSimpleName();
@@ -43,7 +45,8 @@ public abstract class CodingStarter {
         String teamName = connectionConfigConfigMap.getString("teamName");
         String streamReadType = connectionConfigConfigMap.getString("streamReadType");
         String connectionMode = connectionConfigConfigMap.getString("connectionMode");
-        ContextConfig config = ContextConfig.create().projectName(projectName)
+        ContextConfig config = ContextConfig.create()
+                .projectName(projectName)
                 .teamName(teamName)
                 .token(token)
                 .streamReadType(streamReadType)
@@ -61,14 +64,19 @@ public abstract class CodingStarter {
                 if (null != iterationCodeArr) iterationCodeArr = iterationCodeArr.trim();
                 String issueType = nodeConfigMap.getString("issueType");
                 if (null != issueType) issueType = issueType.trim();
-
-                if (null == iterationCodeArr || "".equals(iterationCodeArr)) {
+                String issueCodes = nodeConfigMap.getString("issueCodes");
+                if (null != issueCodes) issueCodes = issueCodes.trim();
+                if (Checker.isEmpty(issueCodes)){
+                    TapLogger.info(TAG, "Connection node config issueCodes exception: {} ", projectName);
+                }
+                if (Checker.isEmpty(iterationCodeArr)) {
                     TapLogger.info(TAG, "Connection node config iterationName exception: {} ", projectName);
                 }
-                if (null == issueType || "".equals(issueType)) {
+                if (Checker.isEmpty(issueType)) {
                     TapLogger.info(TAG, "Connection node config issueType exception: {} ", token);
                 }
                 config.issueType(issueType).iterationCodes(iterationCodeArr);
+                config.iterationCodes(issueCodes);
             }
         }
         return config;
