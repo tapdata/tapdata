@@ -150,13 +150,13 @@ public class TaskAlarmScheduler {
         //boolean isCloud = "CLOUD".equals(buildProfile) || "DRS".equals(buildProfile) || "DFS".equals(buildProfile);
         // 云版需要修改这里
         List<Worker> availableWorkers = workerService.findAvailableAgentBySystem();
-        Stream<TaskDto> taskDtoStream = taskDtos.stream().filter(t -> agentIds.contains(t.getAgentId()));
+        List<TaskDto> taskList = taskDtos.stream().filter(t -> agentIds.contains(t.getAgentId())).collect(Collectors.toList());
 
-        List<String> userIds = taskDtoStream.map(TaskDto::getUserId).distinct().collect(Collectors.toList());
+        List<String> userIds = taskList.stream().map(TaskDto::getUserId).distinct().collect(Collectors.toList());
         List<UserDetail> userByIdList = userService.getUserByIdList(userIds);
         Map<String, UserDetail> userDetailMap = userByIdList.stream().collect(Collectors.toMap(UserDetail::getUserId, Function.identity(), (e1, e2) -> e1));
 
-        taskDtoStream.forEach(data -> {
+        taskList.forEach(data -> {
             if (CollectionUtils.isEmpty(availableWorkers)) {
                 String summary = MessageFormat.format(AlarmContentTemplate.SYSTEM_FLOW_EGINGE_DOWN_NO_AGENT, data.getAgentId(), DateUtil.now());
                 AlarmInfo alarmInfo = AlarmInfo.builder().status(AlarmStatusEnum.ING).level(Level.WARNING).component(AlarmComponentEnum.FE)
