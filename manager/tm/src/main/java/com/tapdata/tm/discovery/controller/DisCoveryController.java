@@ -39,6 +39,18 @@ public class DisCoveryController extends BaseController {
         return success(discoveryService.storageOverview(id, getLoginUser()));
     }
 
+    @Operation(summary = "find task object overview")
+    @GetMapping("task/overview/{id}")
+    public ResponseMessage<DiscoveryTaskOverviewDto> taskOverview(@PathVariable("id") String id) {
+        return success(discoveryService.taskOverview(id, getLoginUser()));
+    }
+
+    @Operation(summary = "find api object overview")
+    @GetMapping("api/overview/{id}")
+    public ResponseMessage<DiscoveryApiOverviewDto> apiOverview(@PathVariable("id") String id) {
+        return success(discoveryService.apiOverview(id, getLoginUser()));
+    }
+
     @Operation(summary = "find storage object preview")
     @GetMapping("storage/preview/{id}")
     public ResponseMessage<Page<Object>> storagePreview(@PathVariable("id") String id, @RequestParam(value = "skip", defaultValue = "0") Integer skip,

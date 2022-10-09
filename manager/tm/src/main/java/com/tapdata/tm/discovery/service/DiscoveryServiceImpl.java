@@ -1,4 +1,12 @@
 package com.tapdata.tm.discovery.service;
+import java.util.Date;
+import com.google.common.collect.Lists;
+import com.tapdata.tm.commons.dag.Edge;
+import com.tapdata.tm.commons.dag.Node;
+import com.tapdata.tm.commons.dag.nodes.DataParentNode;
+import com.tapdata.tm.discovery.bean.DataObjCategoryEnum;
+import com.tapdata.tm.commons.dag.DAG;
+import com.tapdata.tm.discovery.bean.DataSourceCategoryEnum;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.mongodb.ConnectionString;
@@ -12,6 +20,7 @@ import com.tapdata.tm.commons.schema.bean.SourceTypeEnum;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.discovery.bean.*;
+import com.tapdata.tm.ds.service.impl.DataSourceService;
 import com.tapdata.tm.metadatadefinition.dto.MetadataDefinitionDto;
 import com.tapdata.tm.metadatadefinition.service.MetadataDefinitionService;
 import com.tapdata.tm.metadatainstance.repository.MetadataInstancesRepository;
@@ -20,7 +29,6 @@ import com.tapdata.tm.modules.dto.ModulesDto;
 import com.tapdata.tm.modules.service.ModulesService;
 import com.tapdata.tm.task.repository.TaskRepository;
 import com.tapdata.tm.task.service.TaskService;
-import com.tapdata.tm.utils.Lists;
 import com.tapdata.tm.utils.MongoUtils;
 import io.tapdata.entity.schema.type.*;
 import lombok.Data;
@@ -56,6 +64,8 @@ public class DiscoveryServiceImpl implements DiscoveryService {
 
     private ModulesService modulesService;
 
+    private DataSourceService dataSourceService;
+
     /**
      * 查询对象概览列表
      *
@@ -74,7 +84,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
         }
 
         Page<DataDiscoveryDto> page = new Page<>();
-        page.setItems(Lists.of());
+        page.setItems(Lists.newArrayList());
         page.setTotal(0);
 
 
@@ -116,7 +126,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
         }
 
         if (StringUtils.isNotBlank(param.getTagId())) {
-            List<MetadataDefinitionDto> andChild = metadataDefinitionService.findAndChild(Lists.of(MongoUtils.toObjectId(param.getTagId())));
+            List<MetadataDefinitionDto> andChild = metadataDefinitionService.findAndChild(Lists.newArrayList(MongoUtils.toObjectId(param.getTagId())));
             List<ObjectId> tagIds = andChild.stream().map(BaseDto::getId).collect(Collectors.toList());
             criteria.and("listtags.id").in(tagIds);
         }
@@ -197,7 +207,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
         }
 
         Page<DataDiscoveryDto> page = new Page<>();
-        page.setItems(Lists.of());
+        page.setItems(Lists.newArrayList());
         page.setTotal(0);
 
         Criteria taskCriteria = Criteria.where("is_deleted").ne(true);
@@ -240,7 +250,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
         }
 
         if (StringUtils.isNotBlank(param.getTagId())) {
-            List<MetadataDefinitionDto> andChild = metadataDefinitionService.findAndChild(Lists.of(MongoUtils.toObjectId(param.getTagId())));
+            List<MetadataDefinitionDto> andChild = metadataDefinitionService.findAndChild(Lists.newArrayList(MongoUtils.toObjectId(param.getTagId())));
             List<ObjectId> tagIds = andChild.stream().map(BaseDto::getId).collect(Collectors.toList());
             metadataCriteria.and("listtags.id").in(tagIds);
             taskCriteria.and("listtags.id").in(tagIds);
@@ -448,16 +458,128 @@ public class DiscoveryServiceImpl implements DiscoveryService {
     @Override
     public DiscoveryTaskOverviewDto taskOverview(String id, UserDetail user) {
         TaskDto taskDto = taskService.findById(MongoUtils.toObjectId(id), user);
+        DiscoveryTaskOverviewDto dto = new DiscoveryTaskOverviewDto();
+        dto.setCreateAt(taskDto.getCreateAt());
+        dto.setLastUpdAt(taskDto.getLastUpdAt());
+        int nodeNum = 0;
+
+        DAG dag = taskDto.getDag();
+        if (dag != null) {
+            nodeNum = dag.getNodes().size();
+        }
+
+        dto.setNodeNum(nodeNum);
+        dto.setTaskDesc(taskDto.getDesc());
+        dto.setVersion("");
+        dto.setDag(dag);
+        dto.setId(id);
+        dto.setCategory(DataObjCategoryEnum.job);
+        dto.setType(taskDto.getSyncType());
+        dto.setSourceCategory(DataSourceCategoryEnum.pipe);
+        dto.setSourceType(taskDto.getAgentId());
+        //TODO dto.setSourceInfo("");
+        dto.setName(taskDto.getName());
+        dto.setListtags(taskDto.getListtags());
+
+        dto.setTaskConnections(getTaskConnection(dag));
+        return dto;
+    }
 
 
+    private List<TaskConnectionsDto> getTaskConnection(DAG dag) {
+        List<Node> nodes = dag.getNodes();
+        List<ObjectId> connectionIds = nodes.stream().filter(n -> n instanceof DataParentNode).map(n -> MongoUtils.toObjectId(((DataParentNode<?>) n)
+                .getConnectionId())).collect(Collectors.toList());
+        Criteria criteria = Criteria.where("_id").in(connectionIds);
+        Query query = new Query(criteria);
+        List<DataSourceConnectionDto> dataSourceConnectionDtos = dataSourceService.findAll(query);
+        Map<String, DataSourceConnectionDto> dataSourceConnectionDtoMap = dataSourceConnectionDtos.stream().collect(Collectors.toMap(d -> d.getId().toHexString(), d -> d, (d1, d2) -> d1));
 
-        return null;
+        Map<String, List<String>> inputMap = new HashMap<>();
+        Map<String, List<String>> outputMap = new HashMap<>();
+
+        List<TaskConnectionsDto> taskConnectionsDtos = new ArrayList<>();
+        for (Edge edge : dag.getEdges()) {
+            List<String> inputs = inputMap.get(edge.getTarget());
+            if (inputs == null) {
+                inputs = new ArrayList<>();
+            }
+            inputs.add(edge.getSource());
+
+            inputMap.put(edge.getTarget(), inputs);
+
+            List<String> targets = outputMap.get(edge.getSource());
+            if (targets == null) {
+                targets = new ArrayList<>();
+            }
+            targets.add(edge.getTarget());
+            outputMap.put(edge.getSource(), targets);
+        }
+
+
+        for (Node node : nodes) {
+            TaskConnectionsDto taskConnectionsDto = new TaskConnectionsDto();
+            taskConnectionsDto.setName(node.getName());
+
+            List<String> targets = outputMap.get(node.getId());
+            List<String> inputs = inputMap.get(node.getId());
+
+            StringBuilder inputName = new StringBuilder();
+            for (String input : inputs) {
+                Node<?> node1 = dag.getNode(input);
+                inputName.append(node1.getName()).append(";");
+            }
+            String inputNodeName = inputName.substring(0, inputName.length()-1);
+
+            StringBuilder outName = new StringBuilder();
+            for (String target : targets) {
+                Node<?> node1 = dag.getNode(target);
+                outName.append(node1.getName()).append(";");
+            }
+            String outputNodeName = outName.substring(0, outName.length()-1);
+
+            taskConnectionsDto.setInputNodeName(inputNodeName);
+            taskConnectionsDto.setOutputNodeName(outputNodeName);
+            if (node instanceof DataParentNode) {
+                if (CollectionUtils.isNotEmpty(targets)) {
+                    taskConnectionsDto.setType("source");
+                } else {
+                    taskConnectionsDto.setType("target");
+                }
+                String connectionId = ((DataParentNode<?>) node).getConnectionId();
+                DataSourceConnectionDto connectionDto = dataSourceConnectionDtoMap.get(connectionId);
+
+                taskConnectionsDto.setConnectionName(connectionDto.getName());
+                SourceDto sourceDto = JsonUtil.parseJsonUseJackson(JsonUtil.toJsonUseJackson(connectionDto), SourceDto.class);
+                taskConnectionsDto.setConnectionInfo(getConnectInfo(sourceDto, null));
+            } else {
+                taskConnectionsDto.setType("calculate");
+            }
+            taskConnectionsDtos.add(taskConnectionsDto);
+
+        }
+
+        return taskConnectionsDtos;
     }
 
     @Override
     public DiscoveryApiOverviewDto apiOverview(String id, UserDetail user) {
         ModulesDto modulesDto = modulesService.findById(MongoUtils.toObjectId(id), user);
-        return null;
+        DiscoveryApiOverviewDto dto = new DiscoveryApiOverviewDto();
+        dto.setPaths(modulesDto.getPaths());
+        dto.setFields(modulesDto.getFields());
+        dto.setCreateAt(modulesDto.getCreateAt());
+        dto.setLastUpdAt(modulesDto.getLastUpdAt());
+        dto.setInputParamNum(2);
+        dto.setOutputParamNum(modulesDto.getFields().size());
+        dto.setId(id);
+        dto.setCategory(DataObjCategoryEnum.api);
+        dto.setType(modulesDto.getApiType());
+        dto.setSourceCategory(DataSourceCategoryEnum.server);
+        dto.setName(dto.getName());
+        dto.setListtags(modulesDto.getListtags());
+
+        return dto;
     }
     @Override
     public Map<ObjectFilterEnum, List<String>> filterList(List<ObjectFilterEnum> filterTypes, UserDetail user) {
@@ -506,7 +628,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
         }
 
         Page<DataDirectoryDto> page = new Page<>();
-        page.setItems(Lists.of());
+        page.setItems(Lists.newArrayList());
         page.setTotal(0);
 
         Criteria taskCriteria = Criteria.where("is_deleted").ne(true);
@@ -546,7 +668,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
             if (definitionDto != null) {
                 List<String> itemTypes = definitionDto.getItemType();
                 boolean isDefault = itemTypes.contains("default");
-                List<MetadataDefinitionDto> andChild = metadataDefinitionService.findAndChild(Lists.of(MongoUtils.toObjectId(param.getTagId())));
+                List<MetadataDefinitionDto> andChild = metadataDefinitionService.findAndChild(Lists.newArrayList(MongoUtils.toObjectId(param.getTagId())));
                 if (!isDefault) {
 
                     if (StringUtils.isBlank(param.getObjType())) {
@@ -631,7 +753,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
         }
 
         Page<DataDirectoryDto> page = new Page<>();
-        page.setItems(Lists.of());
+        page.setItems(Lists.newArrayList());
         page.setTotal(0);
         Criteria criteria = Criteria.where("sourceType").is(SourceTypeEnum.SOURCE.name())
                 .and("taskId").exists(false)
@@ -661,7 +783,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
             if (definitionDto != null) {
                 List<String> itemTypes = definitionDto.getItemType();
                 boolean isDefault = itemTypes.contains("default");
-                List<MetadataDefinitionDto> andChild = metadataDefinitionService.findAndChild(Lists.of(MongoUtils.toObjectId(param.getTagId())));
+                List<MetadataDefinitionDto> andChild = metadataDefinitionService.findAndChild(Lists.newArrayList(MongoUtils.toObjectId(param.getTagId())));
                 if (!isDefault) {
                     List<ObjectId> tagIds = andChild.stream().map(BaseDto::getId).collect(Collectors.toList());
                     criteria.and("listtags.id").in(tagIds);
@@ -1039,7 +1161,11 @@ public class DiscoveryServiceImpl implements DiscoveryService {
             }
         }
 
-        return ipAndPort + "/" + name;
+        if (StringUtils.isNotBlank(name)) {
+            return ipAndPort + "/" + name;
+        } else {
+            return ipAndPort.toString();
+        }
     }
 
     public String tapTypeString(String tapType) {
