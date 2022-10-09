@@ -258,13 +258,11 @@
     "createIndexes": "AgentMeasurementV2",
     "indexes":[
       {
-        "name" : "tags.taskId_1_tags.taskRecordId_1_tags.engineId_1_tags.type_1_grnty_1_date_-1",
+        "name" : "grnty_1_tags.type_1_tags.engineId_1_date_-1",
         "key" : {
-          "tags.taskId" : 1,
-          "tags.taskRecordId" : 1,
-          "tags.engineId" : 1,
-          "tags.type" : 1,
           "grnty" : 1,
+          "tags.type" : 1,
+          "tags.engineId" : 1,
           "date" : -1
         },
         "background": true,
