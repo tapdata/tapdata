@@ -2857,9 +2857,8 @@ class DataSource:
             return self
         return _config_pdk_setting
 
-    def _config_setting(self, value):
-        key = sys._getframe(1).f_code.co_name
-        self.setting.update({key: value})
+    def set(self, config):
+        self.setting.update(config)
         return self
 
     def __getattribute__(self, item):
