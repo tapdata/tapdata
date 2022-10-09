@@ -32,4 +32,5 @@ public class AlarmListInfoVo {
     private String taskId;
     private String nodeId;
     private AlarmKeyEnum metric;
+    private String syncType;
 }

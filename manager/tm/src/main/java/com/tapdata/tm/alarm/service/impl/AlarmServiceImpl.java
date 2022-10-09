@@ -336,9 +336,16 @@ public class AlarmServiceImpl implements AlarmService {
 
         Query query = new Query(criteria);
         long count = mongoTemplate.count(query, AlarmInfo.class);
+        if (count == 0) {
+            return new Page<>(count, Lists.newArrayList());
+        }
 
         query.with(Sort.by(Sort.Direction.DESC, "_id"));
         List<AlarmInfo> alarmInfos = mongoTemplate.find(query.with(pageable), AlarmInfo.class);
+
+        List<String> taskIds = alarmInfos.stream().map(AlarmInfo::getTaskId).collect(Collectors.toList());
+
+        Map<String, TaskDto> taskDtoMap = taskService.findAllTasksByIds(taskIds).stream().collect(Collectors.toMap(t -> t.getId().toHexString(), Function.identity(), (e1, e2) -> e1));
 
         List<AlarmListInfoVo> collect = alarmInfos.stream()
                 .map(t -> AlarmListInfoVo.builder()
@@ -351,6 +358,7 @@ public class AlarmServiceImpl implements AlarmService {
                         .lastOccurrenceTime(t.getLastOccurrenceTime())
                         .taskId(t.getTaskId())
                         .metric(t.getMetric())
+                        .syncType(taskDtoMap.get(t.getTaskId()).getSyncType())
                 .build()).collect(Collectors.toList());
 
         return new Page<>(count, collect);
