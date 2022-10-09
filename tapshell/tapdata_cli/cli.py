@@ -27,12 +27,12 @@ os.environ['PYTHONSTARTUP'] = '>>>'
 os.environ["PROJECT_PATH"] = os.sep.join([os.path.dirname(os.path.abspath(__file__)), ".."])
 
 from tapdata_cli.graph import Node, Graph
-from tapdata_cli.rules import job_config, node_config, node_config_sync
 from tapdata_cli.check import ConfigCheck
 from tapdata_cli.log import logger, get_log_level
 from tapdata_cli.config_parse import config
 from tapdata_cli.request import DataSourceApi, req
 from tapdata_cli.params.datasource import pdk_config, DATASOURCE_CONFIG
+from tapdata_cli.params.job import job_config, node_config, node_config_sync
 
 
 server = config["backend.server"]
