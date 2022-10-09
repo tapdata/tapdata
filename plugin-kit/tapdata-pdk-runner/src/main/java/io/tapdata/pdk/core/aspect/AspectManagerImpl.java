@@ -5,6 +5,7 @@ import io.tapdata.entity.aspect.*;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.reflection.ClassAnnotationManager;
 import io.tapdata.entity.utils.ClassFactory;
+import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.pdk.core.utils.CommonUtils;
 
 import java.lang.reflect.InvocationTargetException;
@@ -253,7 +254,9 @@ public class AspectManagerImpl implements AspectManager {
             if(observer == null) {
                 observer = aspectObserverInstanceMap.computeIfAbsent(observerClass.getAspectClass(), aClass -> {
                     try {
-                        return observerClass.getAspectClass().getConstructor().newInstance();
+                        AspectObserver<? extends Aspect> aspectObserver = observerClass.getAspectClass().getConstructor().newInstance();
+                        InstanceFactory.injectBean(aspectObserver);
+                        return aspectObserver;
                     } catch (InstantiationException | IllegalAccessException | InvocationTargetException |
                              NoSuchMethodException e) {
                         throw new RuntimeException("Instantiate AspectObserver sub class " + observerClass + " failed, " + e.getMessage());

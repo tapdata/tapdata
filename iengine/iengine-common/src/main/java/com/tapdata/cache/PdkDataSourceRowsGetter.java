@@ -9,20 +9,18 @@ import com.tapdata.entity.dataflow.DataFlowCacheConfig;
 import com.tapdata.mongo.ClientMongoOperator;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.externalStorage.ExternalStorageDto;
-import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
 import io.tapdata.entity.schema.TapTable;
-import io.tapdata.entity.schema.value.TapDateTimeValue;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.flow.engine.V2.entity.PdkStateMap;
 import io.tapdata.flow.engine.V2.util.ExternalStorageUtil;
 import io.tapdata.flow.engine.V2.util.PdkUtil;
 import io.tapdata.pdk.apis.entity.TapAdvanceFilter;
+import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.apis.functions.connector.target.QueryByAdvanceFilterFunction;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.api.PDKIntegration;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
-import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.schema.PdkTableMap;
 import io.tapdata.schema.TapTableMap;
 import io.tapdata.schema.TapTableUtil;
@@ -78,9 +76,7 @@ public class PdkDataSourceRowsGetter implements IDataSourceRowsGetter {
       throw new RuntimeException("Failed to init pdk connector, database type: " + databaseType + ", message: " + e.getMessage(), e);
     }
 
-    TapCodecsRegistry tapCodecsRegistry = TapCodecsRegistry.create();
-    tapCodecsRegistry.registerFromTapValue(TapDateTimeValue.class, tapValue -> tapValue.getValue().toInstant());
-    codecsFilterManager = TapCodecsFilterManager.create(tapCodecsRegistry);
+    this.codecsFilterManager = connectorNode.getCodecsFilterManager();
   }
 
   @Override

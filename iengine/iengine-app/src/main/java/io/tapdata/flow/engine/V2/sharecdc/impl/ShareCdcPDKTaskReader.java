@@ -19,6 +19,8 @@ import io.tapdata.entity.event.dml.TapDeleteRecordEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
+import io.tapdata.entity.schema.type.TapString;
+import io.tapdata.entity.schema.value.TapStringValue;
 import io.tapdata.flow.engine.V2.sharecdc.ShareCdcContext;
 import io.tapdata.flow.engine.V2.sharecdc.ShareCdcTaskContext;
 import io.tapdata.flow.engine.V2.sharecdc.ShareCdcTaskPdkContext;
@@ -26,7 +28,9 @@ import io.tapdata.flow.engine.V2.sharecdc.exception.ShareCdcUnsupportedException
 import io.tapdata.flow.engine.V2.util.PdkUtil;
 import org.apache.commons.collections.MapUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.bson.BsonType;
 import org.bson.Document;
+import org.bson.types.Binary;
 import org.bson.types.ObjectId;
 import org.springframework.data.mongodb.core.query.Query;
 
@@ -274,21 +278,25 @@ public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializa
 		OperationType operationType = OperationType.fromOp(logContent.getOp());
 		switch (operationType) {
 			case INSERT:
-				tapEvent = new TapInsertRecordEvent();
+				tapEvent = new TapInsertRecordEvent().init();
 				if (MapUtils.isNotEmpty(logContent.getAfter())) {
+					handleData(logContent.getAfter());
 					((TapInsertRecordEvent) tapEvent).setAfter(logContent.getAfter());
 				} else {
 					throw new RuntimeException("Insert event must have after data: " + logContent);
 				}
 				break;
 			case UPDATE:
-				tapEvent = new TapUpdateRecordEvent();
+				tapEvent = new TapUpdateRecordEvent().init();
+				handleData(logContent.getBefore());
 				((TapUpdateRecordEvent) tapEvent).setBefore(logContent.getBefore());
+				handleData(logContent.getAfter());
 				((TapUpdateRecordEvent) tapEvent).setAfter(logContent.getAfter());
 				break;
 			case DELETE:
-				tapEvent = new TapDeleteRecordEvent();
+				tapEvent = new TapDeleteRecordEvent().init();
 				if (MapUtils.isNotEmpty(logContent.getBefore())) {
+					handleData(logContent.getBefore());
 					((TapDeleteRecordEvent) tapEvent).setBefore(logContent.getBefore());
 				} else {
 					throw new RuntimeException("Delete event must have before data: " + logContent);
@@ -331,5 +339,26 @@ public class ShareCdcPDKTaskReader extends ShareCdcHZReader implements Serializa
 			}
 		}
 		ExecutorUtil.shutdown(this.readThreadPool, 20L, TimeUnit.SECONDS);
+	}
+
+	private void handleData(Map<String, Object> data) {
+		if (null == data) {
+			return;
+		}
+		data.forEach((k, v) -> {
+			if (v instanceof Binary) {
+				byte[] bytes = ((Binary) v).getData();
+				if (bytes.length == 26 && bytes[0] == 99 && bytes[bytes.length - 1] == 23) {
+					byte[] dest = new byte[bytes.length - 2];
+					System.arraycopy(bytes, 1, dest, 0, dest.length);
+					TapStringValue tapStringValue = new TapStringValue();
+					tapStringValue.setOriginValue(bytes);
+					tapStringValue.setTapType(new TapString(24L, true));
+					tapStringValue.setOriginType(BsonType.OBJECT_ID.name());
+					tapStringValue.setValue(new String(dest));
+					data.put(k, tapStringValue);
+				}
+			}
+		});
 	}
 }

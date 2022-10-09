@@ -1,32 +1,44 @@
 package io.tapdata.entity.utils;
 
+import io.tapdata.entity.error.CoreException;
+import io.tapdata.entity.error.TapAPIErrorCodes;
+
 import java.lang.reflect.Method;
 
 public class ClassFactory {
     private static volatile Object classFactory;
     private static Method createMethod;
     private static Method createMethod2;
-    private static final Object lock = new int[0];
+    private static Method getImplClass;
     private ClassFactory() {}
 
     public static <T> T create(Class<T> clazz) {
         initClassFactory();
         try {
+            //noinspection unchecked
             return (T) createMethod.invoke(classFactory, clazz);
         } catch (Throwable e) {
-            e.printStackTrace();
+            throw new CoreException(TapAPIErrorCodes.ERROR_CREATE_CLASS_FAILED, "create for class {}, failed {}", clazz, e.getMessage());
         }
-        return null;
     }
 
     public static <T> T create(Class<T> clazz, String type) {
         initClassFactory();
         try {
+            //noinspection unchecked
             return (T) createMethod2.invoke(classFactory, clazz, type);
         } catch (Throwable e) {
-            e.printStackTrace();
+            throw new CoreException(TapAPIErrorCodes.ERROR_CREATE_CLASS_WITH_TYPE_FAILED, "create for class {} type {}, failed {}", clazz, type, e.getMessage());
         }
-        return null;
+    }
+
+    public static <T> Class<T> getImplementationClass(Class<T> tClass, String type) {
+        try {
+            //noinspection unchecked
+            return (Class<T>) getImplClass.invoke(classFactory, tClass, type);
+        } catch (Throwable e) {
+            throw new CoreException(TapAPIErrorCodes.ERROR_GET_IMPL_CLASS_FAILED, "getImplementationClass for class {} type {}, failed {}", tClass, type, e.getMessage());
+        }
     }
 
     private static void initClassFactory() {
@@ -42,6 +54,7 @@ public class ClassFactory {
                         classFactory = factoryMethod.invoke(tapRuntime);
                         createMethod = classFactory.getClass().getDeclaredMethod("create", Class.class);
                         createMethod2 = classFactory.getClass().getDeclaredMethod("create", Class.class, String.class);
+                        getImplClass = classFactory.getClass().getDeclaredMethod("getImplementationClass", Class.class, String.class);
                     } catch (Throwable e) {
                         e.printStackTrace();
                     }

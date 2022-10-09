@@ -25,6 +25,7 @@ import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.Runnable.LoadSchemaRunner;
 import io.tapdata.aspect.SourceCDCDelayAspect;
 import io.tapdata.aspect.SourceDynamicTableAspect;
+import io.tapdata.aspect.StreamReadFuncAspect;
 import io.tapdata.aspect.TaskMilestoneFuncAspect;
 import io.tapdata.aspect.utils.AspectUtils;
 import io.tapdata.entity.codec.filter.TapCodecsFilterManager;
@@ -91,7 +92,8 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 	 * This is added as an async control center because pdk and jet have two different thread model. pdk thread is
 	 * blocked when reading data from data source while jet using async when passing the event to next node.
 	 */
-	protected LinkedBlockingQueue<TapdataEvent> eventQueue = new LinkedBlockingQueue<>(100);
+	protected LinkedBlockingQueue<TapdataEvent> eventQueue = new LinkedBlockingQueue<>(10);
+	protected StreamReadFuncAspect streamReadFuncAspect;
 	private TapdataEvent pendingEvent;
 	protected SourceMode sourceMode = SourceMode.NORMAL;
 	protected Long initialFirstStartTime = System.currentTimeMillis();
@@ -430,6 +432,11 @@ public abstract class HazelcastSourcePdkBaseNode extends HazelcastPdkBaseNode {
 									if (null != sourceRunner) {
 										this.sourceRunnerFirstTime.set(false);
 										if (null != getConnectorNode()) {
+											//Release webhook waiting thread before stop connectorNode.
+											if(streamReadFuncAspect != null) {
+												streamReadFuncAspect.noMoreWaitRawData();
+												streamReadFuncAspect = null;
+											}
 											PDKInvocationMonitor.invoke(getConnectorNode(), PDKMethod.STOP, () -> getConnectorNode().connectorStop(), TAG);
 											PDKIntegration.releaseAssociateId(this.associateId);
 											ConnectorNodeService.getInstance().removeConnectorNode(this.associateId);

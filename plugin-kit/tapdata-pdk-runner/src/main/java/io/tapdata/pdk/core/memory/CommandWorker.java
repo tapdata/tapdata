@@ -1,6 +1,9 @@
 package io.tapdata.pdk.core.memory;
 
+import com.alibaba.fastjson.JSON;
 import io.tapdata.entity.logger.TapLogger;
+import io.tapdata.entity.memory.MemoryFetcher;
+import io.tapdata.entity.utils.DataMap;
 import io.tapdata.pdk.core.executor.ExecutorsManager;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import org.apache.commons.io.FileUtils;
@@ -22,8 +25,13 @@ public class CommandWorker implements Runnable {
     private Command command;
     private AtomicBoolean isClosed = new AtomicBoolean(false);
     private ConcurrentHashMap<String, MemoryFetcher> keyMemoryFetcherMap;
+    public CommandWorker keyMemoryFetcherMap(ConcurrentHashMap<String, MemoryFetcher> keyMemoryFetcherMap) {
+        this.keyMemoryFetcherMap = keyMemoryFetcherMap;
+        return this;
+    }
     private List<ScheduledFuture<?>> scheduledFutureList = new CopyOnWriteArrayList<>();
 
+    public CommandWorker() {}
     public CommandWorker(Command command, ConcurrentHashMap<String, MemoryFetcher> keyMemoryFetcherMap) {
         this.command = command;
         this.keyMemoryFetcherMap = keyMemoryFetcherMap;
@@ -87,18 +95,22 @@ public class CommandWorker implements Runnable {
         }
     }
 
+    public String output(List<String> mapKeys) {
+        return output(mapKeys, null);
+    }
+    public String output(List<String> mapKeys, String mapType) {
+        return toString(keyMemoryFetcherMap, mapKeys, mapType);
+    }
+
     private String toString(Map<String, MemoryFetcher> finalMap, List<String> mapKeys, String mapType) {
         if(mapType == null) {
-            mapType = MemoryFetcher.MEMORY_LEVEL_IN_DETAIL;
+            mapType = MemoryFetcher.MEMORY_LEVEL_SUMMARY;
         }
-        StringBuilder builder = new StringBuilder("\r\n");
+        DataMap allMap = DataMap.create();
         for(Map.Entry<String, MemoryFetcher> entry : finalMap.entrySet()) {
-            builder.append("---------------------------").append(entry.getKey()).append("---------------------------").append("\r\n");
-            String finalMapType = mapType;
-            CommonUtils.ignoreAnyError(() -> builder.append(entry.getValue().memory(mapKeys, finalMapType)).append("\r\n"), TAG);
-            builder.append("---------------------------").append(entry.getKey()).append("---------------------------").append("\r\n").append("\r\n");
+            allMap.kv(entry.getKey(), entry.getValue().memory(mapKeys, mapType));
         }
-        return builder.toString();
+        return JSON.toJSONString(allMap, true);
     }
 
     public void close() {

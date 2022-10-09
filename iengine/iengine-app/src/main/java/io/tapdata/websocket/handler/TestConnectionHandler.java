@@ -159,9 +159,12 @@ public class TestConnectionHandler implements WebSocketEventHandler {
 				if (StringUtils.isNotBlank(id) && !editTest) {
 					connectionIdQuery = new Query(Criteria.where("_id").is(id));
 					connectionIdQuery.fields().exclude("schema");
-					connection = clientMongoOperator.findOne(connectionIdQuery, ConnectorConstant.CONNECTION_COLLECTION, Connections.class);
-					connection.setExtParam((Map) event.getOrDefault("extParam", Maps.newHashMap()));
-					save = true;
+					Connections newConnection = clientMongoOperator.findOne(connectionIdQuery, ConnectorConstant.CONNECTION_COLLECTION, Connections.class);
+					if(newConnection != null) {
+						connection = newConnection;
+						connection.setExtParam((Map) event.getOrDefault("extParam", Maps.newHashMap()));
+						save = true;
+					}
 				}
 
 				// Decode passwords

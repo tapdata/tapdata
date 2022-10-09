@@ -1,6 +1,10 @@
 package io.tapdata.pdk.cli;
 
+import org.apache.commons.io.FilenameUtils;
+import java.io.IOException;
 import java.net.URL;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.*;
 
 /**
@@ -28,8 +32,8 @@ public class RegisterMain {
         Clickhouse(BASE_PATH + "connectors/dist/clickhouse-connector-v1.0-SNAPSHOT.jar", "all", "clickhouse"),
         Redis(BASE_PATH + "connectors/dist/redis-connector-v1.0-SNAPSHOT.jar", "all", "redis"),
         Hive1(BASE_PATH + "connectors/dist/hive1-connector-v1.0-SNAPSHOT.jar", "all", "hive1"),
+        Coding(BASE_PATH + "connectors/dist/coding-connector-v1.0-SNAPSHOT.jar", "all", "coding"),
         Mariadb(BASE_PATH + "connectors/dist/mariadb-connector-v1.0-SNAPSHOT.jar", "all", "mariadb"),
-
         ;
 
         private final String path;
@@ -82,11 +86,14 @@ public class RegisterMain {
             return "/";
         }
 
-//            Path path = Paths.get(resource.getPath() + "../../../../");
-//            String basePath = path.toFile().getCanonicalPath() + "/";
+        try {
+            Path path = Paths.get(resource.getPath() + "../../../../");
+            String basePath = path.toFile().getCanonicalPath() + "/";
+            System.out.println("basePath:" + basePath);
+            return basePath;
+        } catch (Throwable throwable) {
+            return FilenameUtils.concat(resource.getPath(), "../../../../");
+        }
 
-        String basePath = resource.getPath() + "../../../../";
-        System.out.println("basePath:" + basePath);
-        return basePath;
     }
 }

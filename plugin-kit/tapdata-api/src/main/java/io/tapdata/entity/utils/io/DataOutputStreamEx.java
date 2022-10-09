@@ -1,6 +1,9 @@
 package io.tapdata.entity.utils.io;
 
 import io.tapdata.entity.logger.TapLogger;
+import io.tapdata.entity.serializer.JavaCustomSerializer;
+import io.tapdata.entity.utils.InstanceFactory;
+import io.tapdata.entity.utils.ObjectSerializable;
 
 import java.io.DataOutputStream;
 import java.io.IOException;
@@ -12,7 +15,9 @@ import java.util.Collection;
 import java.util.Date;
 import java.util.Map;
 
-public class DataOutputStreamEx {
+import static io.tapdata.entity.simplify.TapSimplify.toJson;
+
+public class DataOutputStreamEx extends OutputStream {
 	private static final byte HASVALUE = 1;
 	private static final byte NOVALUE = 0;
 	private DataOutputStream dos;
@@ -112,6 +117,19 @@ public class DataOutputStreamEx {
 		  dos.writeInt(paramInt);
   }
 
+	public void writeJson(Object obj)
+			throws IOException{
+		if(writeValueStatus(obj))
+			dos.writeUTF(toJson(obj));
+	}
+
+	public void writeDate(Date date)
+			throws IOException {
+		if(writeValueStatus(date)) {
+			dos.writeLong(date.getTime());
+		}
+	}
+
   public void writeLong(Long paramLong)
     throws IOException {
 	  if(writeValueStatus(paramLong))
@@ -136,7 +154,21 @@ public class DataOutputStreamEx {
 		  dos.writeBytes(paramString);
   }
 
-  public void write(byte[] paramString)
+  public void writeBytes(byte[] data) throws IOException {
+		if(data == null) {
+			dos.writeInt(0);
+			return;
+		}
+		dos.writeInt(data.length);
+		dos.write(data);
+  }
+
+	@Override
+	public void write(int b) throws IOException {
+		dos.write(b);
+	}
+
+	public void write(byte[] paramString)
 		  throws IOException {
 	  if(writeValueStatus(paramString))
 		  dos.write(paramString);
@@ -214,7 +246,7 @@ public class DataOutputStreamEx {
 	  }
   }
 
-  public <T extends BinarySerializable> void writeCollectionBinaryObject(Collection<T> collectionAcuObjects) throws IOException {
+  public <T extends JavaCustomSerializer> void writeCollectionBinaryObject(Collection<T> collectionAcuObjects) throws IOException {
 		if(collectionAcuObjects == null) {
 			dos.writeInt(NOVALUE);
 			return;
@@ -226,7 +258,7 @@ public class DataOutputStreamEx {
 				dos.writeByte(NOVALUE);
 			} else {
 				dos.writeByte(HASVALUE);
-				t.persistent(dos);
+				t.to(dos);
 			}
 		}
 	}
@@ -255,6 +287,11 @@ public class DataOutputStreamEx {
 		  object.persistent(dos);
   }
 
+	public void writeJavaCustomSerializer(JavaCustomSerializer object) throws IOException {
+		if(writeValueStatus(object))
+			object.to(dos);
+	}
+
   public void close() throws IOException {
 	  dos.close();
   }
@@ -266,4 +303,8 @@ public class DataOutputStreamEx {
   public DataOutputStream getDataOutputStream() {
 	  return dos;
   }
+
+	public void writeObject(Object object) throws IOException {
+		writeBytes(InstanceFactory.instance(ObjectSerializable.class).fromObject(object));
+	}
 }

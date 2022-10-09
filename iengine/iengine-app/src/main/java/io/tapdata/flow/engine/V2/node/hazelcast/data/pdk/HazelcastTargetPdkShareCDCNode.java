@@ -23,6 +23,7 @@ import org.apache.logging.log4j.Logger;
 import org.bson.Document;
 import org.jetbrains.annotations.NotNull;
 
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 
@@ -111,7 +112,12 @@ public class HazelcastTargetPdkShareCDCNode extends HazelcastTargetPdkBaseNode {
 			}
 			String valueClassName = v.getClass().getName();
 			if (valueClassName.equals("org.bson.types.ObjectId")) {
-				data.put(k, v.toString());
+				byte[] bytes = v.toString().getBytes();
+				byte[] dest = new byte[bytes.length + 2];
+				dest[0] = 99;
+				dest[dest.length - 1] = 23;
+				System.arraycopy(bytes, 0, dest, 1, bytes.length);
+				data.put(k, dest);
 			}
 		});
 	}
