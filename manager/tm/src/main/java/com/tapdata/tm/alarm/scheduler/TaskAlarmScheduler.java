@@ -117,7 +117,7 @@ public class TaskAlarmScheduler {
     }
 
 
-    @Scheduled(initialDelay = 5000, fixedRate = 5000)
+    @Scheduled(initialDelay = 5000, fixedRate = 30000)
     @SchedulerLock(name ="task_agent_alarm_lock", lockAtMostFor = "10s", lockAtLeastFor = "10s")
     public void taskAgentAlarm() {
         Query query = new Query(Criteria.where("status").is(TaskDto.STATUS_RUNNING)
@@ -146,8 +146,6 @@ public class TaskAlarmScheduler {
 
         Set<String> agentIds = stopEgineMap.keySet();
 
-        //Object buildProfile = settingsService.getValueByCategoryAndKey(CategoryEnum.SYSTEM, KeyEnum.BUILD_PROFILE);
-        //boolean isCloud = "CLOUD".equals(buildProfile) || "DRS".equals(buildProfile) || "DFS".equals(buildProfile);
         // 云版需要修改这里
         List<Worker> availableWorkers = workerService.findAvailableAgentBySystem();
         List<TaskDto> taskList = taskDtos.stream().filter(t -> agentIds.contains(t.getAgentId())).collect(Collectors.toList());
@@ -165,11 +163,13 @@ public class TaskAlarmScheduler {
                         .build();
                 alarmService.save(alarmInfo);
             } else {
+                String orginAgentId = data.getAgentId();
+                data.setAgentId(null);
                 CalculationEngineVo calculationEngineVo = workerService.scheduleTaskToEngine(data, userDetailMap.get(data.getUserId()), "task", data.getName());
 
-                String summary = MessageFormat.format(AlarmContentTemplate.SYSTEM_FLOW_EGINGE_DOWN_CHANGE_AGENT, data.getAgentId(), availableWorkers.size(), calculationEngineVo.getProcessId(), DateUtil.now());
+                String summary = MessageFormat.format(AlarmContentTemplate.SYSTEM_FLOW_EGINGE_DOWN_CHANGE_AGENT, orginAgentId, availableWorkers.size(), calculationEngineVo.getProcessId(), DateUtil.now());
                 AlarmInfo alarmInfo = AlarmInfo.builder().status(AlarmStatusEnum.ING).level(Level.WARNING).component(AlarmComponentEnum.FE)
-                        .type(AlarmTypeEnum.SYNCHRONIZATIONTASK_ALARM).agentId(data.getAgentId()).taskId(data.getId().toHexString())
+                        .type(AlarmTypeEnum.SYNCHRONIZATIONTASK_ALARM).agentId(orginAgentId).taskId(data.getId().toHexString())
                         .name(data.getName()).summary(summary).metric(AlarmKeyEnum.SYSTEM_FLOW_EGINGE_DOWN)
                         .build();
                 alarmService.save(alarmInfo);

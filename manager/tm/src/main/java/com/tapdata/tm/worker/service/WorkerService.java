@@ -39,6 +39,7 @@ import org.apache.commons.collections4.CollectionUtils;
 import org.bson.BsonDocument;
 import org.bson.BsonValue;
 import org.bson.types.ObjectId;
+import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Sort;
@@ -85,17 +86,19 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
             return null;
         }
         // 引擎定时任务是5秒
-        Query query = Query.query(Criteria.where("worker_type").is("connector")
-                .and("ping_time").gte(System.currentTimeMillis() - 1000 * 5 * 2)
-                .and("isDeleted").ne(true).and("stopping").ne(true));
+        Query query = getAvailableAgentQuery();
         return repository.findAll(query);
     }
 
-    public List<Worker> findAvailableAgentBySystem() {
-        // 引擎定时任务是5秒
-        Query query = Query.query(Criteria.where("worker_type").is("connector")
+    @NotNull
+    private Query getAvailableAgentQuery() {
+        return Query.query(Criteria.where("worker_type").is("connector")
                 .and("ping_time").gte(System.currentTimeMillis() - 1000 * 5 * 2)
                 .and("isDeleted").ne(true).and("stopping").ne(true));
+    }
+
+    public List<Worker> findAvailableAgentBySystem() {
+        Query query = getAvailableAgentQuery();
         return repository.findAll(query);
     }
 
@@ -103,10 +106,7 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
         if (Objects.isNull(userDetail)) {
             return null;
         }
-        // 引擎定时任务是5秒
-        Query query = Query.query(Criteria.where("worker_type").is("connector")
-                .and("ping_time").gte(System.currentTimeMillis() - 1000 * 5 * 2)
-                .and("isDeleted").ne(true).and("stopping").ne(true));
+        Query query = getAvailableAgentQuery();
         if (CollectionUtils.isNotEmpty(processIdList)) {
             query.addCriteria(Criteria.where("process_id").in(processIdList));
         }
