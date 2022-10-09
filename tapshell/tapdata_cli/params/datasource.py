@@ -79,6 +79,30 @@ PDK_POSTGRESQL_FORM = {
     "user": {"type": str, "require": True},
 }
 
+PDK_ORACLE_FORM = {
+    "extParams": {"type": str, "require": True, "default": "", "desc": "Connection String Params"},
+    "host": {"type": str, "require": True},
+    "port": {"type": int, "require": True},
+    "logPluginName": {"type": str, "require": True, "default": "logMiner", "option": ["grpc", "logMiner"]},
+    # if logPluginName is grpc, the rawLogServerHost/rawLogServerPort must be provided
+    "rawLogServerHost": {"type": str, "require": False, "desc": "if logPluginName is grpc, require is True"},
+    "rawLogServerPort": {"type": bool, "require": False, "desc": "if rawLogServerPort is grpc, require is True"},
+
+    "schema": {"type": str, "require": True},
+    "standBy": {"type": bool, "require": True, "default": False},
+    "thinType": {"type": str, "require": True, "default": "SID", "option": ["SID", "SERVICE_NAME"]},
+    # SID or SERVER_NAME
+    "SERVICE_NAME": {"type": str, "require": False, "desc": "if thinType is SERVICE_NAME, require is True"},
+    "sid": {"type": str, "require": False, "desc": "if thinType is SID, require is True"},
+
+    "timezone": {"type": str, "require": True, "default": "", "desc": "example: -09:00, +04:00, +00:00"},
+    "user": {"type": str, "require": True},
+    "password": {"type": str, "require": True},
+    "multiTenant": {"type": bool, "require": False, "default": False},
+    # if multiTenant is True, multiTenant is require
+    "pdb": {"type": str, "require": False},
+}
+
 
 pdk_config = {
     "mongodb": {
@@ -90,7 +114,10 @@ pdk_config = {
     },
     "postgresql": {
         "form": PDK_POSTGRESQL_FORM,
-    }
+    },
+    "oracle": {
+        "form": PDK_ORACLE_FORM,
+    },
 }
 
 

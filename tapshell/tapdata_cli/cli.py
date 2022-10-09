@@ -2979,7 +2979,6 @@ class DataSource:
 
     def save(self):
         data = self.to_dict()
-        print(json.dumps(data, indent=4))
         data = DataSourceApi().post(data)
         show_connections(quiet=True)
         if data["code"] == "ok":
@@ -3014,9 +3013,6 @@ class DataSource:
                     data.update({
                         "id": self.id,
                     })
-                data.update({
-                    "accessNodeType": "AUTOMATIC_PLATFORM_ALLOCATION"
-                })
                 payload = {
                     "type": "testConnection",
                     "data": data
