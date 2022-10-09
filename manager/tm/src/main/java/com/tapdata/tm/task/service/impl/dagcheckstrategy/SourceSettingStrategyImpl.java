@@ -54,11 +54,11 @@ public class SourceSettingStrategyImpl implements DagLogStrategy {
             String name = node.getName();
             Integer value;
             String template;
-            String grade;
+            Level grade;
             if (nameMap.containsKey(name)) {
                 value = nameMap.get(name) + 1;
                 template = templateEnum.getErrorTemplate();
-                grade = Level.ERROR.getValue();
+                grade = Level.ERROR;
 
                 String content = MessageFormat.format(template, current, name);
                 TaskDagCheckLog log = new TaskDagCheckLog();
@@ -90,7 +90,7 @@ public class SourceSettingStrategyImpl implements DagLogStrategy {
                     schemaLog.setCreateAt(now);
                     schemaLog.setCreateUser(userDetail.getUserId());
                     schemaLog.setLog(MessageFormat.format(DagOutputTemplate.SOURCE_SETTING_ERROR_SCHEMA, name));
-                    schemaLog.setGrade(Level.ERROR.getValue());
+                    schemaLog.setGrade(Level.ERROR);
                     schemaLog.setNodeId(node.getId());
                     result.add(schemaLog);
                 } else {
@@ -101,7 +101,7 @@ public class SourceSettingStrategyImpl implements DagLogStrategy {
                         schemaLog.setCreateAt(now);
                         schemaLog.setCreateUser(userDetail.getUserId());
                         schemaLog.setLog(MessageFormat.format(DagOutputTemplate.SOURCE_SETTING_ERROR_SCHEMA_LOAD, name));
-                        schemaLog.setGrade(Level.ERROR.getValue());
+                        schemaLog.setGrade(Level.ERROR);
                         schemaLog.setNodeId(node.getId());
                         result.add(schemaLog);
                     }
@@ -117,7 +117,7 @@ public class SourceSettingStrategyImpl implements DagLogStrategy {
             log.setCreateAt(now);
             log.setCreateUser(userDetail.getUserId());
             log.setLog(content);
-            log.setGrade(Level.INFO.getValue());
+            log.setGrade(Level.INFO);
             log.setNodeId(taskDto.getDag().getSourceNode().getFirst().getId());
 
             result.add(log);

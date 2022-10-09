@@ -16,7 +16,6 @@ import io.tapdata.wsserver.channels.health.NodeHandler;
 import io.tapdata.wsserver.channels.health.NodeHealthManager;
 
 import java.lang.reflect.Proxy;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -113,19 +112,19 @@ public class NodeConnectionFactoryHttpImpl implements NodeConnectionFactory {
 	}
 
 	@Override
-	public DataMap memory(List<String> mapKeys, String memoryLevel) {
-		DataMap dataMap = DataMap.create()
+	public DataMap memory(String keyRegex, String memoryLevel) {
+		DataMap dataMap = DataMap.create().keyRegex(keyRegex)/*.prefix(this.getClass().getSimpleName())*/
 				.kv("disconnectedNodeIds", disconnectedNodeIds)
 				;
-		DataMap typeNodeIdBiFunctionMap = DataMap.create();
+		DataMap typeNodeIdBiFunctionMap = DataMap.create().keyRegex(keyRegex)/*.prefix(this.getClass().getSimpleName())*/;
 		dataMap.kv("typeNodeIdBiFunctionMap", typeNodeIdBiFunctionMap);
 		for(Map.Entry<String, ReceiverEntity<?, ?>> entry : this.typeNodeIdBiFunctionMap.entrySet()) {
 			typeNodeIdBiFunctionMap.kv(entry.getKey(), entry.getValue());
 		}
-		DataMap nodeIdConnectionMap = DataMap.create();
+		DataMap nodeIdConnectionMap = DataMap.create().keyRegex(keyRegex)/*.prefix(this.getClass().getSimpleName())*/;
 		dataMap.kv("nodeIdConnectionMap", nodeIdConnectionMap);
 		for(Map.Entry<String, NodeConnection> entry : this.nodeIdConnectionMap.entrySet()) {
-			nodeIdConnectionMap.kv(entry.getKey(), entry.getValue().memory(mapKeys, memoryLevel));
+			nodeIdConnectionMap.kv(entry.getKey(), entry.getValue().memory(keyRegex, memoryLevel));
 		}
 		return null;
 	}

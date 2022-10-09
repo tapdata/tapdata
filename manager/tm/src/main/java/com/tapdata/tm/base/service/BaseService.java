@@ -149,8 +149,9 @@ public abstract class BaseService<Dto extends BaseDto, Entity extends BaseEntity
         return dtoList;
     }
 
-
-
+    public List<Entity> findAllEntity(Query query) {
+        return repository.findAll(query);
+    }
 
     public List<Entity> findAll(Query query, UserDetail userDetail) {
         return repository.findAll(query, userDetail);

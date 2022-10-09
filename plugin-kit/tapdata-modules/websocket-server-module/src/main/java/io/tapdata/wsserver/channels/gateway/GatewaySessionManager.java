@@ -561,25 +561,23 @@ public class GatewaySessionManager implements HealthWeightListener, MemoryFetche
     }
 
     @Override
-    public DataMap memory(List<String> mapKeys, String memoryLevel) {
-        DataMap dataMap = DataMap.create()
+    public DataMap memory(String keyRegex, String memoryLevel) {
+        DataMap dataMap = DataMap.create().keyRegex(keyRegex)/*.prefix(this.getClass().getSimpleName())*/
                 .kv("threadPoolExecutor", threadPoolExecutor.toString())
                 .kv("maxChannels", maxChannels)
-                .kv("nodeHealthManager", nodeHealthManager.memory(mapKeys, memoryLevel))
-                .kv("gatewayChannelModule", this.gatewayChannelModule.memory(mapKeys, memoryLevel))
+                .kv("nodeHealthManager", nodeHealthManager.memory(keyRegex, memoryLevel))
+                .kv("gatewayChannelModule", this.gatewayChannelModule.memory(keyRegex, memoryLevel))
                 ;
-        DataMap userIdGatewaySessionHandlerMap = DataMap.create();
+        DataMap userIdGatewaySessionHandlerMap = DataMap.create().keyRegex(keyRegex)/*.prefix(this.getClass().getSimpleName())*/;
         dataMap.kv("userIdGatewaySessionHandlerMap", userIdGatewaySessionHandlerMap);
         for(Map.Entry<String, GatewaySessionHandler> entry : this.userIdGatewaySessionHandlerMap.entrySet()) {
-            if(mapKeys != null && !mapKeys.isEmpty() && !mapKeys.contains(entry.getKey()))
-                continue;
-            userIdGatewaySessionHandlerMap.kv(entry.getKey(), entry.getValue().memory(mapKeys, memoryLevel));
+            userIdGatewaySessionHandlerMap.kv(entry.getKey(), entry.getValue().memory(keyRegex, memoryLevel));
         }
 
-        DataMap userIdSingleThreadMap = DataMap.create();
+        DataMap userIdSingleThreadMap = DataMap.create().keyRegex(keyRegex)/*.prefix(this.getClass().getSimpleName())*/;
         dataMap.kv("userIdSingleThreadMap", userIdSingleThreadMap);
         for(Map.Entry<String, SingleThreadBlockingQueue<UserAction>> entry : this.userIdSingleThreadMap.entrySet()) {
-            userIdSingleThreadMap.put(entry.getKey(), entry.getValue().memory(mapKeys, memoryLevel));
+            userIdSingleThreadMap.put(entry.getKey(), entry.getValue().memory(keyRegex, memoryLevel));
         }
 
         return dataMap;

@@ -21,8 +21,12 @@ import org.apache.commons.lang3.exception.ExceptionUtils;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
 import org.apache.commons.io.output.AppendableOutputStream;
 
+import javax.crypto.Cipher;
+import javax.crypto.KeyGenerator;
+import javax.crypto.SecretKey;
 import javax.naming.CommunicationException;
 import java.nio.charset.StandardCharsets;
+import java.security.SecureRandom;
 import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
@@ -335,6 +339,31 @@ public class CommonUtils {
 
     public static void setProperty(String key, String value) {
         System.setProperty(key, value);
+    }
+    public static byte[] encryptWithRC4(byte[] content, String key) throws Exception {
+        SecureRandom secureRandom = SecureRandom.getInstance("SHA1PRNG");
+        secureRandom.setSeed(key.getBytes());
+        KeyGenerator keyGenerator = KeyGenerator.getInstance("RC4");
+        keyGenerator.init(secureRandom);
+        SecretKey secretKey = keyGenerator.generateKey();
+
+        Cipher cipher = Cipher.getInstance("RC4");
+        cipher.init(Cipher.ENCRYPT_MODE, secretKey);
+
+        return cipher.doFinal(content);
+    }
+
+    public static byte[] decryptWithRC4(byte[] cipherText, String key) throws Exception {
+        SecureRandom secureRandom = SecureRandom.getInstance("SHA1PRNG");
+        secureRandom.setSeed(key.getBytes());
+        KeyGenerator keyGenerator = KeyGenerator.getInstance("RC4");
+        keyGenerator.init(secureRandom);
+        SecretKey secretKey = keyGenerator.generateKey();
+
+        Cipher cipher = Cipher.getInstance("RC4");
+        cipher.init(Cipher.DECRYPT_MODE, secretKey);
+
+        return cipher.doFinal(cipherText);
     }
 
     public static void main(String[] args) {

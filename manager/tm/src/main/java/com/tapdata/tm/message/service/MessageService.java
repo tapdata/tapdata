@@ -31,7 +31,6 @@ import com.tapdata.tm.message.dto.MessageDto;
 import com.tapdata.tm.message.entity.MessageEntity;
 import com.tapdata.tm.message.repository.MessageRepository;
 import com.tapdata.tm.message.vo.MessageListVo;
-import com.tapdata.tm.messagequeue.service.MessageQueueService;
 import com.tapdata.tm.task.constant.TaskEnum;
 import com.tapdata.tm.task.entity.TaskEntity;
 import com.tapdata.tm.task.repository.TaskRepository;
@@ -42,10 +41,12 @@ import com.tapdata.tm.utils.MongoUtils;
 import com.tapdata.tm.utils.SendStatus;
 import com.tapdata.tm.utils.SmsUtils;
 import lombok.NonNull;
+import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.bson.types.ObjectId;
+import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.mongodb.core.query.Criteria;
@@ -53,10 +54,10 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
 
-import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 /**
@@ -66,44 +67,20 @@ import java.util.stream.Collectors;
  */
 @Service
 @Slf4j
+@Setter(onMethod_ = {@Autowired})
 public class MessageService extends BaseService {
 
-    @Autowired
     MessageRepository messageRepository;
-
-    @Autowired
     UserService userService;
-
-
-    @Autowired(required = false)
     TaskRepository taskRepository;
-
-    @Autowired
     MailUtils mailUtils;
-
-    @Autowired
     EventsService eventsService;
-
-    @Autowired
     SettingsService settingsService;
 
-    @Autowired
-    private MessageQueueService messageQueueService;
-
     private final static String MAIL_SUBJECT = "【Tapdata】";
-
-
-    /*
-            emailObj.agent.event_data.willReleaseAgent.title = '【Tapdata】测试Agent资源即将回收提醒';
-            emailObj.agent.event_data.willReleaseAgent.message = willReleaseAgent;
-            emailObj.agent.event_data.releaseAgent.title = '【Tapdata】测试Agent资源回收提醒';
-            emailObj.agent.event_data.releaseAgent.message = releaseAgent;
-
-        */
     private final static String MAIL_CONTENT = "尊敬的用户您好，您在Tapdata Cloud上创建的Agent:";
     private final static String WILL_RELEASE_AGENT_MAIL_CONTENT = "因超过一周未使用即将在明天晚上20:00自动回收，如果您需要继续使用可以在清理前登录系统自动延长使用时间。";
     private final static String RELEASE_AGENT_MAIL_CONTENT = "因超过一周未使用已自动回收，如果您需要继续使用可通过新手引导再次创建。";
-
 
     //mail title
     private final static String WILL_RELEASE_AGENT_TITLE = "Tapdata】测试Agent资源即将回收提醒";
@@ -131,11 +108,17 @@ public class MessageService extends BaseService {
         tmPageable.setSize(filter.getLimit());
 
         Query query = parseWhereCondition(filter.getWhere(), userDetail);
+        query.addCriteria(Criteria.where("msg").ne(MsgTypeEnum.ALARM.getValue()));
+        query.with(tmPageable);
+        return getMessageListVoPage(query, tmPageable);
+    }
 
-        Long total = messageRepository.getMongoOperations().count(query, MessageEntity.class);
+    @NotNull
+    private Page<MessageListVo> getMessageListVoPage(Query query, TmPageable tmPageable) {
+        long total = messageRepository.getMongoOperations().count(query, MessageEntity.class);
         List<MessageEntity> messageEntityList = messageRepository.getMongoOperations().find(query.with(tmPageable), MessageEntity.class);
 
-        List<MessageListVo> messageListVoList = new ArrayList<>();
+        List<MessageListVo> messageListVoList;
         messageListVoList = com.tapdata.tm.utils.BeanUtil.deepCloneList(messageEntityList, MessageListVo.class);
         messageListVoList.forEach(messageListVo -> {
             if (StringUtils.isEmpty(messageListVo.getServerName())) {
@@ -143,8 +126,26 @@ public class MessageService extends BaseService {
             }
         });
 
-        Page<MessageListVo> result = new Page(total, messageListVoList);
-        return result;
+        return new Page<>(total, messageListVoList);
+    }
+
+    public Page<MessageListVo> list(MsgTypeEnum type, String level, Boolean read, Integer page, Integer size, UserDetail userDetail) {
+        Criteria criteria = Criteria.where("msg").is(type.getValue());
+        if (StringUtils.isNotBlank(level)) {
+            criteria.and("level").is(level);
+        }
+        if (Objects.nonNull(read)) {
+            criteria.and("read").is(read);
+        }
+        Query query = new Query(criteria);
+        String userId = userDetail.getUserId();
+        query.addCriteria(new Criteria().orOperator(Criteria.where("oldUserId").is(userId), Criteria.where("user_id").is(userId)));
+
+        TmPageable tmPageable = new TmPageable();
+        tmPageable.setPage(page);
+        tmPageable.setSize(size);
+
+        return getMessageListVoPage(query, tmPageable);
     }
 
     /**
@@ -265,40 +266,6 @@ public class MessageService extends BaseService {
         BeanUtil.copyProperties(saveMessage, messageDto);
         return messageDto;
     }
-
-
- /*   @Deprecated
-    public MessageDto addAgentMess(String serverName, String sourceId, MsgTypeEnum msgTypeEnum, String title, Level level, UserDetail userDetail) {
-        NotificationDto notificationDto = needInform(SystemEnum.MIGRATION, msgTypeEnum);
-        MessageEntity saveMessage = null;
-        Notification userNotification = userDetail.getNotification();
-        saveMessage = addMessage(serverName, sourceId, SystemEnum.MIGRATION, msgTypeEnum, title, level, userDetail);
-        if (null != userNotification) {
-            //用户设置优先
-            if (userNotification.getStoppedByError().getEmail()) {
-                log.info("dataflow出错，email 通知");
-                asynInformUserEmail(msgTypeEnum, SystemEnum.AGENT, saveMessage.getId().toString(), userDetail);
-            }
-            if (userNotification.getStoppedByError().getSms()) {
-                log.info("dataflow出错，sms 通知");
-                asynInformUserSms(saveMessage.getId().toString(), userDetail);
-            }
-        } else if (null != notificationDto) {
-            if (notificationDto.getNotice()) {
-                saveMessage = addMessage(serverName, sourceId, SystemEnum.MIGRATION, msgTypeEnum, title, level, userDetail);
-            }
-            if (notificationDto.getEmail()) {
-//                UserInfoDto userInfoDto = tcmService.getUserInfo(userDetail.getExternalUserId());
-                SendStatus sendStatus = mailUtils.sendHtmlMail(userDetail.getEmail(), userDetail.getUsername(), serverName, SystemEnum.MIGRATION, msgTypeEnum, sourceId);
-                eventsService.recordEvents(MAIL_SUBJECT, MAIL_CONTENT, userDetail.getEmail(), saveMessage.getId().toString(), userDetail.getUserId(), sendStatus, 0, Type.NOTICE_MAIL);
-            }
-        }
-
-        MessageDto messageDto = new MessageDto();
-        BeanUtil.copyProperties(saveMessage, messageDto);
-        return messageDto;
-    }*/
-
 
     /**
      * 增加迁移任务消息
@@ -450,6 +417,10 @@ public class MessageService extends BaseService {
         messageEntity.setIsDeleted((!isNotify));
         repository.getMongoOperations().save(messageEntity);
         return messageEntity;
+    }
+
+    public void addMessage(MessageEntity messageEntity) {
+        repository.getMongoOperations().save(messageEntity);
     }
 
     /**
