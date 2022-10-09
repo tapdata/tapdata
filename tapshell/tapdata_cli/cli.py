@@ -10,7 +10,6 @@ import uuid
 import re
 from logging import *
 from platform import python_version
-from types import FunctionType
 from typing import Iterable, Tuple, Sequence
 
 import asyncio
@@ -30,15 +29,14 @@ os.environ["PROJECT_PATH"] = os.sep.join([os.path.dirname(os.path.abspath(__file
 from tapdata_cli.graph import Node, Graph
 from tapdata_cli.rules import job_config, node_config, node_config_sync
 from tapdata_cli.check import ConfigCheck
-from tapdata_cli.request import RequestSession
 from tapdata_cli.log import logger, get_log_level
-from tapdata_cli.config_parse import Config
+from tapdata_cli.config_parse import config
+from tapdata_cli.request import DataSourceApi, req
+from tapdata_cli.params.datasource import pdk_config, DATASOURCE_CONFIG
 
-config: Config = Config()
+
 server = config["backend.server"]
 access_code = config["backend.access_code"]
-
-req: RequestSession = RequestSession(server)
 
 
 # Helper class, used to provide operation tips
@@ -1206,9 +1204,8 @@ def desc_table(line):
 
 
 def login_with_access_code(server, access_code):
-    global system_server_conf, req
+    global system_server_conf
     api = "http://" + server + "/api"
-    req = RequestSession(server)
     res = req.post("/users/generatetoken", json={"accesscode": access_code})
     if res.status_code != 200:
         logger.warn("init get token request fail, err is: {}", res.json())
@@ -2817,60 +2814,73 @@ class Job:
 
 @help_decorate("Data Source, you can see it as database",
                'ds = DataSource("mysql", "mysql-datasource").host("127.0.0.1").port(3306).username().password().db()')
-class DataSource():
+class DataSource:
+
     def __init__(self, connector="", name=None, type="source_and_target", id=None):
+        """
+        @param connector: pdkType name
+        @param name: datasource name
+        @param type: datasource can be used as source and target at the same time
+        @param id: datasource id, it will get datasource config from backend by api if id provide
+        """
+        self.pdk_setting = {}
+        self.setting = {}
+        # get datasource config
         if id is not None:
             self.id = id
-            self.c = self.get(id=id)
+            self.setting = self.get(connector_id=id)
             return
-        if connector != "" and name is None:
-            name = connector
+        # name is not provide
+        name = connector if connector != "" and name is None else name
+        # if name is already exists
+        obj = get_obj("datasource", name)
+        if obj is not None:
+            self.id = obj.id
+            self.setting = obj.setting
+            return
+        self.id = id
+        self.connection_type = type
+        self.setting = {
+            "name": name,
+            "database_type": client_cache["connectors"][connector]["name"],
+            "connection_type": self.connection_type
+        }
 
-        if name != "":
-            obj = get_obj("datasource", name)
-            if obj is not None:
-                self.id = obj.id
-                self.c = obj.c
-                return
-
-        self.custom_options = {}
-        self.is_url = False
-        self.user_id = system_server_conf["user_id"]
-        self._name = name
-        self._options = ""
-        self._type = "source_and_target"
-        self._host = ""
-        self._port = ""
-        self._username = ""
-        self._password = ""
-        self._db = ""
-        self._manual_options = []
-        self._connector = ""
-        self._schema = ""
-        self._uri = ""
-        self._sid = ""
-        self.c = None
-        if connector != "":
-            self._connector = connector
-        self._type = type
-
-    def __getattr__(self, key):
-        def set_custom_options(*args, **kwargs):
-            self.custom_options["_" + key] = args[0]
+    def _set_pdk_setting(self, key):
+        """closure function to update value into pdk_setting, only be called by __getattribute__
+        """
+        def _config_pdk_setting(value):
+            if key == "uri" and value:
+                self.pdk_setting.update({"isUri": True, key: value})
+            else:
+                self.pdk_setting.update({key: value})
             return self
+        return _config_pdk_setting
 
-        if key in dir(self):
-            return getattr(self, key)
-        return set_custom_options
+    def _config_setting(self, value):
+        key = sys._getframe(1).f_code.co_name
+        self.setting.update({key: value})
+        return self
+
+    def __getattribute__(self, item):
+        """
+        1. if item is attribute of self, return
+        2. if not, return _config_pdk_setting to set pdk_setting
+        """
+
+        try:
+            return object.__getattribute__(self, item)
+        except AttributeError:
+            return self._set_pdk_setting(item)
 
     @staticmethod
     @help_decorate("static method, used to list all datasources", res="datasource list, list")
     def list():
-        return req.get("/Connections").json()["data"]
+        return DataSourceApi().list()["data"]
 
     @help_decorate("desc a datasource, display readable struct", res="datasource struct")
     def desc(self, quiet=True):
-        c = self.c
+        c = copy.deepcopy(self.setting)
         remove_keys = [
             "response_body",
             "user_id",
@@ -2898,7 +2908,7 @@ class DataSource():
 
     @help_decorate("get a datasource status", "")
     def status(self, quiet=True):
-        if self.id is None or isinstance(self.id, FunctionType):
+        if self.id is None:
             logger.warn("datasource is not save, please save first")
             return
         info = self.get(self.id)
@@ -2912,182 +2922,85 @@ class DataSource():
                         info.get("name"), status, tableCount, loadCount, loadSchemaDate)
         return status
 
-    def host(self, host):
-        self._manual_options.append(sys._getframe().f_code.co_name)
-        self._host = host.split(":")[0]
-        if ":" in host:
-            self.port(int(host.split(":")[1]))
-        if self._connector == "mysql" or self._connector == "oracle":
-            self._manual_options.append("port")
-            if ":" in host:
-                self._host = host.split(":")[0]
-                self._port = int(host.split(":")[1])
-            else:
-                self._host = host
-                self._port = 3306
-        return self
+    def to_dict(self):
+        """
+        1. get datasource config by connector
+        2. check the settings by ConfigCheck
+        3. add pdk_setting
+        """
+        # get database_type check rules
+        self.setting.update({"pdkHash": self._get_pdkHash()})
+        res = ConfigCheck(self.setting, DATASOURCE_CONFIG, keep_extra=True).checked_config
+        self.setting.update(res)
+        self.setting.update({"config": self.to_pdk_dict()})
+        return self.setting
 
-    def schema(self, schema):
-        self._schema = schema
-        self._manual_options.append(sys._getframe().f_code.co_name)
-        return self
-
-    def uri(self, uri):
-        self._uri = uri
-        self._manual_options.append(sys._getframe().f_code.co_name)
-        return self
-
-    def port(self, port):
-        self._port = port
-        self._manual_options.append(sys._getframe().f_code.co_name)
-        return self
-
-    def username(self, username):
-        self._username = username
-        self._manual_options.append(sys._getframe().f_code.co_name)
-        return self
-
-    def password(self, password):
-        self._password = password
-        self._manual_options.append(sys._getframe().f_code.co_name)
-        return self
-
-    def db(self, db):
-        self._database = db
-        self._manual_options.append("database")
-        return self
-
-    def connector(self, connector):
-        self._connector = connector
-        return self
-
-    def type(self, connection_type):
-        self._type = connection_type
-        return self
-
-    def sid(self, sid):
-        self._sid = sid
-        return self
-
-    def props(self, options):
-        self._options = options
-        return self
+    def _get_pdkHash(self):
+        connector = client_cache["connectors"][self.setting["database_type"].lower()]
+        return connector["pdkHash"]
 
     def to_pdk_dict(self):
-        d = {}
-        if self._connector.lower() == "kafka":
-            if isinstance(self._uri, str) and len(self._uri) > 0:
-                d["nameSrvAddr"] = self._uri.replace("kafka://", "")
-            else:
-                d["nameSrvAddr"] = f"{self._host}:{self._port}"
-            d["kafkaAcks"] = "-1"
-            d["kafkaCompressionType"] = "gzip"
-            d["kafkaIgnoreInvalidRecord"] = False
-            d["kafkaIgnorePushError"] = False
-            d["kafkaSaslMechanism"] = "PLAIN"
-            d["krb5"] = False
-            return d
-        if self._connector.lower() == "oracle":
-            d["host"] = self._host
-            d["logPluginName"] = "logMiner"
-            d["password"] = self._password
-            d["port"] = "" if not self._port else int(self._port)
-            d["schema"] = self._schema
-            d["sid"] = self._sid
-            d["user"] = self._username
-            d["thinType"] = "SID"
-            d["timezone"] = ""
-            return d
-        for i in self._manual_options:
-            if i == "sid":
-                continue
-            d[i] = getattr(self, "_" + i)
-        return d
-
-    def to_dict(self):
-        if isinstance(self._uri, str):
-            uri = self._uri
-        else:
-            uri = ""
-        d = {
-            "additionalString": self._options,
-            "connection_type": self._type,
-            "database_host": self._host,
-            "database_port": self._port,
-            "database_name": self._db,
-            "database_type": self._connector,
-            "database_uri": uri,
-            "database_owner": self._schema,
-            "database_username": self._username,
-            "plain_password": self._password,
-            "name": self._name,
-            "user_id": self.user_id,
-            "response_body": {},
-            "status": "testing",
-        }
-        for k, v in self.custom_options.items():
-            d[k[1:]] = v
-
-        d["database_password"] = d.get("plain_password")
-        database_type = d.get("database_type", "")
-        if database_type.lower() not in client_cache["connectors"]:
-            logger.warn("connector {} not support, support list is: {}", database_type, client_cache["connectors"])
-            return
-        connector = client_cache["connectors"][database_type.lower()]
-        d["pdkType"] = "pdk"
-        d["pdkHash"] = connector["pdkHash"]
-        d["database_type"] = connector["name"]
-        d["config"] = self.to_pdk_dict()
-        d["config"].update({
-            "isUri": True if uri else False,
-        })
-        return d
+        """
+        1. get datasource config by connector
+        2. check the settings by ConfigCheck
+        """
+        mode = "uri" if self.pdk_setting.get("isUri") else "form"
+        # get database_config
+        database_type = self.setting["database_type"].lower()
+        if pdk_config.get(database_type):
+            param_config = pdk_config.get(database_type)[mode]
+            res = ConfigCheck(self.pdk_setting, param_config, keep_extra=True).checked_config
+            self.pdk_setting.update(res)
+        return self.pdk_setting
 
     @staticmethod
     @help_decorate("get a datasource by it's id or name", args="id or name, using kargs", res="a DataSource Object")
-    def get(id=None, name=None):
-        if id is not None:
+    def get(connector_id=None, connector_name=None):
+        if connector_id is not None:
             f = {
                 "where": {
-                    "id": id,
+                    "id": connector_id,
                 }
             }
         else:
             f = {
                 "where": {
-                    "name": name,
+                    "name": connector_name,
                 }
             }
-        data = req.get("/Connections", params={'filter': json.dumps(f)}).json()["data"]
-        if len(data["items"]) == 0:
+        params = {
+            "filter": json.dumps(f)
+        }
+        data = DataSourceApi().list(params=params)
+        if not data:
             return None
-        return data["items"][0]
+        if len(data["data"]["items"]) == 0:
+            return None
+        return data["data"]["items"][0]
 
-    @help_decorate("save a connection in idaas system")
     def save(self):
         data = self.to_dict()
-        if data is None:
-            return
-        res = req.post("/Connections", json=data)
+        print(json.dumps(data, indent=4))
+        data = DataSourceApi().post(data)
         show_connections(quiet=True)
-        if res.status_code == 200 and res.json()["code"] == "ok":
-            self.id = res.json()["data"]["id"]
-            self.c = DataSource.get(self.id)
+        if data["code"] == "ok":
+            self.id = data["data"]["id"]
+            self.setting = DataSource.get(self.id)
             self.validate(quiet=False)
             return True
         else:
-            logger.warn("save Connection fail, err is: {}", res.json()["message"])
+            logger.warn("save Connection fail, err is: {}", data["message"])
         return False
 
     def delete(self):
-        if self.id is None or isinstance(self.id, FunctionType):
+        if self.id is None:
             return
-        res = req.delete("/Connections/" + self.id, json=self.c)
-        if res.status_code == 200 and res.json()["code"] == "ok":
+        data = DataSourceApi().delete(self.id, self.setting)
+        if data["code"] == "ok":
             logger.info("delete {} Connection success", self.id)
             return True
         else:
-            logger.warn("delete Connection fail, err is: {}", res.json())
+            logger.warn("delete Connection fail, err is: {}", data)
         return False
 
     @help_decorate("validate this datasource")
@@ -3149,8 +3062,7 @@ class DataSource():
         while True:
             try:
                 time.sleep(5)
-                res = req.get("/Connections/" + self.id)
-                res = res.json()
+                res = DataSourceApi().get(self.id)
                 if res["data"] is None:
                     break
                 if "loadFieldsStatus" not in res["data"]:

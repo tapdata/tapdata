@@ -48,11 +48,34 @@ PDK_MONGO_URI = {
 
 PDK_MONGO_FORM = {
     "additionalString": {"type": str, "require": False},
+    "isUri": {"type": bool, "require": True, "default": False, "option": [False]},
     "database": {"type": str, "require": True},
     "host": {"type": str, "require": True},
-    "isUri": {"type": bool, "require": False, "default": False, "option": [False]},
     "password": {"type": str, "require": True},
     "ssl": {"type": bool, "require": True, "default": False},
+    "user": {"type": str, "require": True},
+}
+
+
+PDK_MYSQL_FORM = {
+    "database": {"type": str, "require": True},
+    "host": {"type": str, "require": True},
+    "username": {"type": str, "require": True},
+    "password": {"type": str, "require": True},
+    "port": {"type": int, "require": True},
+    "additionalString": {"type": str, "require": False},
+    "timezone": {"type": str, "require": True, "default": "", "desc": "example: -09:00, +04:00, +00:00"},
+}
+
+PDK_POSTGRESQL_FORM = {
+    "database": {"type": str, "require": True},
+    "host": {"type": str, "require": True},
+    "logPluginName": {"type": str, "require": True, "default": "PGOUTPUT", "option": [
+        "wal2json", "PGOUTPUT", "wal2json_rds", "wal2json_streaming", "wal2json_rds_streaming", "decoderbufs"
+    ]},
+    "password": {"type": str, "require": True},
+    "port": {"type": int, "require": True},
+    "schema": {"type": str, "require": True},
     "user": {"type": str, "require": True},
 }
 
@@ -62,6 +85,12 @@ pdk_config = {
         "uri": PDK_MONGO_URI,
         "form": PDK_MONGO_FORM,
     },
+    "mysql": {
+        "form": PDK_MYSQL_FORM,
+    },
+    "postgresql": {
+        "form": PDK_POSTGRESQL_FORM,
+    }
 }
 
 

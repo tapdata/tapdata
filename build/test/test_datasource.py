@@ -22,14 +22,14 @@ class TestDataSource:
         assert ds.save()
         assert ds.desc() is not None
         assert ds.status() == "ready"
-        DataSource().list()
+        DataSource.list()
         ds.delete()
 
     @allure.title("create mongodb datasource with form")
     def test_create_datasource_by_form(self):
         ds = DataSource("mongodb", name=f"form_{random_str()}")
-        ds.host(env['database_1.HOST']).db(env['database_1.DB']).username(env['database_1.USERNAME'])\
-            .password(env['database_1.PASSWORD']).type("source").props(env['database_1.PROPS'])
+        ds.host(env['database_1.HOST']).database(env['database_1.DB']).user(env['database_1.USERNAME']) \
+            .password(env['database_1.PASSWORD']).additionalString(env['database_1.PROPS'])
         assert ds.save()
         assert ds.status() == "ready"
         ds.delete()
@@ -46,21 +46,21 @@ class TestDataSource:
     @allure.title("test mysql form valid")
     def test_mysql_to_dict(self):
         test_ds = Mysql(f"test_mongo_{random_str()}")
-        test_ds.host(env['mysql.HOST']).db(env['mysql.DB']).username(env['mysql.USERNAME'])\
-            .password(env['mysql.PASSWORD']).type("source").props(env['mysql.PROPS'])
-        test_ds.to_dict()
+        host, port = env['mysql.HOST'].split(":")
+        test_ds.host(host).port(int(port)).database(env['mysql.DB']).username(env['mysql.USERNAME'])\
+            .password(env['mysql.PASSWORD'])
+        assert test_ds.save()
+        assert test_ds.validate()
+        assert test_ds.status() == "ready"
+        test_ds.delete()
 
     @allure.title("create PG datasource with form")
     def test_postgres(self):
-        schema = 'admin'
-        test_ds = Postgres(f"test_postgres_{random_str()}")
-        test_ds.host(env['postgres.HOST']).db(env['postgres.DB']).username(env['postgres.USERNAME']) \
-            .password(env['postgres.PASSWORD']).type("source").props(env['postgres.PROPS'])
-        test_ds.schema(schema)
-        assert test_ds.to_dict().get('database_owner') == schema
-        plugin = "wal2json_streaming"
-        test_ds.set_log_decorder_plugin(plugin)
-        assert test_ds.to_dict().get('pgsql_log_decorder_plugin_name') == plugin
+        host, port = env['postgres.HOST'].split(":")
+        test_ds = DataSource("postgresql", f"test_postgres_{random_str()}")
+        test_ds.host(host).database(env['postgres.DB']).user(env['postgres.USERNAME']) \
+            .password(env['postgres.PASSWORD']).schema("admin").port(int(port))
         assert test_ds.save()
+        assert test_ds.validate()
         assert test_ds.status() == "ready"
         test_ds.delete()

@@ -42,3 +42,6 @@ class Config:
     @classmethod
     def get_value(cls, k):
         return cls._config[k]
+
+
+config: Config = Config()
