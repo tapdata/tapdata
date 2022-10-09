@@ -8,39 +8,32 @@ package com.tapdata.tm.schedule;
 
 import cn.hutool.core.date.DateTime;
 import cn.hutool.core.date.DateUtil;
-import com.mongodb.client.result.UpdateResult;
 import com.tapdata.manager.common.utils.JsonUtil;
-import com.tapdata.manager.common.utils.StringUtils;
 import com.tapdata.tm.Settings.constant.CategoryEnum;
 import com.tapdata.tm.Settings.constant.KeyEnum;
 import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
-import com.tapdata.tm.dataflow.dto.DataFlowDto;
-import com.tapdata.tm.dataflow.service.DataFlowService;
 import com.tapdata.tm.statemachine.enums.DataFlowEvent;
-import com.tapdata.tm.statemachine.enums.DataFlowState;
 import com.tapdata.tm.statemachine.enums.TaskState;
 import com.tapdata.tm.statemachine.model.StateMachineResult;
 import com.tapdata.tm.statemachine.service.StateMachineService;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.user.service.UserService;
-import static com.tapdata.tm.utils.MongoUtils.toObjectId;
-import com.tapdata.tm.worker.dto.WorkerDto;
 import com.tapdata.tm.worker.service.WorkerService;
-
-import java.util.*;
-
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
-import static org.springframework.data.mongodb.core.query.Query.query;
-import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
+
+import java.util.*;
+
+import static com.tapdata.tm.utils.MongoUtils.toObjectId;
+import static org.springframework.data.mongodb.core.query.Query.query;
 
 @Slf4j
 @Component
@@ -94,19 +87,22 @@ public class StateMachineScheduleTask {
 		}
 		int timeoutMillis = Integer.parseInt(jobHeartTimeout.toString());
 
-		DateTime dateTime = DateUtil.offsetMillisecond(DateUtil.date(), -timeoutMillis);
+		long checkTime = System.currentTimeMillis() - timeoutMillis;
 
-		Query query = Query.query(new Criteria("status").in(TaskDto.STATUS_SCHEDULING).and("pingTime").lt(dateTime));
+		DateTime dateTime = DateUtil.date(checkTime);
+
+		Query query = Query.query(new Criteria("status").in(TaskDto.STATUS_SCHEDULING)
+				.orOperator(Criteria.where("pingTime").lt(dateTime), Criteria.where("pingTime").lt(checkTime)));
 		List<TaskDto> taskDtos = taskService.findAll(query);
 		taskDtos.forEach(taskDto -> {
 			try {
-				log.info("checkScheduledTask start,dataFlowId: {}, status: {}", taskDto.getId().toHexString(), taskDto.getStatus());
+				log.info("checkScheduledDataFlow start,dataFlowId: {}, status: {}", taskDto.getId().toHexString(), taskDto.getStatus());
 				UserDetail userDetail = userService.loadUserById(toObjectId(taskDto.getUserId()));
 				if (taskDto.getRestartFlag()){
 					taskDto.setAgentId(null);
 					workerService.scheduleTaskToEngine(taskDto, userDetail, "task", taskDto.getName());
 					String processId = taskDto.getAgentId();
-					log.info("checkScheduledTask complete,dataFlowId: {}, processId: {}", taskDto.getId().toHexString(), processId);
+					log.info("checkScheduledDataFlow complete,dataFlowId: {}, processId: {}", taskDto.getId().toHexString(), processId);
 
 					taskService.run(taskDto, userDetail);
 				} else {
@@ -115,7 +111,7 @@ public class StateMachineScheduleTask {
 				}
 
 			} catch (Throwable e) {
-				log.error("Failed to execute state machine,dataFlowId: {}, event: {},message: {}", taskDto.getId().toHexString(), DataFlowEvent.OVERTIME.getName(), e.getMessage(), e);
+				log.error("checkScheduledDataFlow Failed to execute state machine,dataFlowId: {}, event: {},message: {}", taskDto.getId().toHexString(), DataFlowEvent.OVERTIME.getName(), e.getMessage(), e);
 			}
 		});
 	}

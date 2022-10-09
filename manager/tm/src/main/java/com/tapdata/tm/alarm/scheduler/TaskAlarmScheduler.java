@@ -174,7 +174,7 @@ public class TaskAlarmScheduler {
                         .build();
                 alarmService.save(alarmInfo);
 
-                Update update = new Update().set("status", TaskDto.STATUS_SCHEDULING).set("restartFlag", true).set("agentId", calculationEngineVo.getProcessId());
+                Update update = new Update().set("status", TaskDto.STATUS_SCHEDULING).set("restartFlag", true);
                 taskService.update(Query.query(Criteria.where("_id").is(data.getId())), update);
             }
         });
