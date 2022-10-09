@@ -81,6 +81,16 @@ public class SmbFileStorage implements TapFileStorage {
         }
     }
 
+    private TapFile toTapFile(FileIdBothDirectoryInformation smbFile, String path) {
+        TapFile tapFile = new TapFile();
+        tapFile.type(TapFile.TYPE_FILE)
+                .name(smbFile.getFileName())
+                .path(path)
+                .length(smbFile.getAllocationSize())
+                .lastModified(smbFile.getLastWriteTime().getWindowsTimeStamp());
+        return tapFile;
+    }
+
     @Override
     public InputStream readFile(String path) {
         return share.openFile(path, EnumSet.of(AccessMask.GENERIC_READ), null,
@@ -138,6 +148,9 @@ public class SmbFileStorage implements TapFileStorage {
                                     boolean recursive,
                                     int batchSize,
                                     Consumer<List<TapFile>> consumer) {
+        if (!isDirectoryExist(directoryPath)) {
+            return;
+        }
         AtomicReference<List<TapFile>> listAtomicReference = new AtomicReference<>(new ArrayList<>());
         getFiles(directoryPath, includeRegs, excludeRegs, recursive, batchSize, consumer, listAtomicReference);
         if (listAtomicReference.get().size() > 0) {
@@ -152,19 +165,18 @@ public class SmbFileStorage implements TapFileStorage {
                           int batchSize,
                           Consumer<List<TapFile>> consumer,
                           AtomicReference<List<TapFile>> listAtomicReference) {
-        if (!isDirectoryExist(directoryPath)) {
-            return;
-        }
         for (FileIdBothDirectoryInformation smbFile : share.list(directoryPath)) {
             String fileName = smbFile.getFileName();
             if (fileName.equals(".") || fileName.equals("..")) {
                 continue;
             }
-            if (!isDir(smbFile.getFileAttributes()) && FileMatchKit.matchRegs(fileName, includeRegs, excludeRegs)) {
-                listAtomicReference.get().add(getFile(getAbsolutePath(directoryPath, fileName)));
-                if (listAtomicReference.get().size() >= batchSize) {
-                    consumer.accept(listAtomicReference.get());
-                    listAtomicReference.set(new ArrayList<>());
+            if (!isDir(smbFile.getFileAttributes())) {
+                if (FileMatchKit.matchRegs(fileName, includeRegs, excludeRegs)) {
+                    listAtomicReference.get().add(toTapFile(smbFile, getAbsolutePath(directoryPath, fileName)));
+                    if (listAtomicReference.get().size() >= batchSize) {
+                        consumer.accept(listAtomicReference.get());
+                        listAtomicReference.set(new ArrayList<>());
+                    }
                 }
             } else if (recursive) {
                 getFiles(getAbsolutePath(directoryPath, fileName), includeRegs, excludeRegs, true, batchSize, consumer, listAtomicReference);

@@ -34,14 +34,18 @@ public class LocalFileStorage implements TapFileStorage {
         if (!file.exists()) {
             return null;
         } else {
-            TapFile tapFile = new TapFile();
-            tapFile.type(file.isFile() ? TapFile.TYPE_FILE : TapFile.TYPE_DIRECTORY)
-                    .name(file.getName())
-                    .path(file.getAbsolutePath())
-                    .length(file.length())
-                    .lastModified(file.lastModified());
-            return tapFile;
+            return toTapFile(file);
         }
+    }
+
+    private TapFile toTapFile(File file) {
+        TapFile tapFile = new TapFile();
+        tapFile.type(file.isFile() ? TapFile.TYPE_FILE : TapFile.TYPE_DIRECTORY)
+                .name(file.getName())
+                .path(file.getAbsolutePath())
+                .length(file.length())
+                .lastModified(file.lastModified());
+        return tapFile;
     }
 
     @Override
@@ -92,6 +96,9 @@ public class LocalFileStorage implements TapFileStorage {
                                     boolean recursive,
                                     int batchSize,
                                     Consumer<List<TapFile>> consumer) {
+        if (!isDirectoryExist(directoryPath)) {
+            return;
+        }
         AtomicReference<List<TapFile>> listAtomicReference = new AtomicReference<>(new ArrayList<>());
         getFiles(directoryPath, includeRegs, excludeRegs, recursive, batchSize, consumer, listAtomicReference);
         if (listAtomicReference.get().size() > 0) {
@@ -106,16 +113,15 @@ public class LocalFileStorage implements TapFileStorage {
                           int batchSize,
                           Consumer<List<TapFile>> consumer,
                           AtomicReference<List<TapFile>> listAtomicReference) {
-        if (!isDirectoryExist(directoryPath)) {
-            return;
-        }
         File dir = new File(directoryPath);
         for (File file : Objects.requireNonNull(dir.listFiles())) {
-            if (file.isFile() && FileMatchKit.matchRegs(file.getName(), includeRegs, excludeRegs)) {
-                listAtomicReference.get().add(getFile(file.getAbsolutePath()));
-                if (listAtomicReference.get().size() >= batchSize) {
-                    consumer.accept(listAtomicReference.get());
-                    listAtomicReference.set(new ArrayList<>());
+            if (file.isFile()) {
+                if (FileMatchKit.matchRegs(file.getName(), includeRegs, excludeRegs)) {
+                    listAtomicReference.get().add(toTapFile(file));
+                    if (listAtomicReference.get().size() >= batchSize) {
+                        consumer.accept(listAtomicReference.get());
+                        listAtomicReference.set(new ArrayList<>());
+                    }
                 }
             } else if (recursive) {
                 getFiles(file.getAbsolutePath(), includeRegs, excludeRegs, true, batchSize, consumer, listAtomicReference);

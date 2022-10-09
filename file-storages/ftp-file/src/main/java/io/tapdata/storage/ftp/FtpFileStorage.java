@@ -74,15 +74,19 @@ public class FtpFileStorage implements TapFileStorage {
             if (ftpFiles.length != 1) {
                 return null;
             } else {
-                TapFile tapFile = new TapFile();
-                tapFile.type(TapFile.TYPE_FILE)
-                        .name(fileName)
-                        .path(path)
-                        .length(ftpFiles[0].getSize())
-                        .lastModified(ftpFiles[0].getTimestamp().getTimeInMillis());
-                return tapFile;
+                return toTapFile(ftpFiles[0], path);
             }
         }
+    }
+
+    private TapFile toTapFile(FTPFile file, String path) {
+        TapFile tapFile = new TapFile();
+        tapFile.type(TapFile.TYPE_FILE)
+                .name(file.getName())
+                .path(path)
+                .length(file.getSize())
+                .lastModified(file.getTimestamp().getTimeInMillis());
+        return tapFile;
     }
 
     @Override
@@ -122,6 +126,9 @@ public class FtpFileStorage implements TapFileStorage {
                                     Collection<String> excludeRegs,
                                     boolean recursive, int batchSize,
                                     Consumer<List<TapFile>> consumer) throws IOException {
+        if (!isDirectoryExist(directoryPath)) {
+            return;
+        }
         AtomicReference<List<TapFile>> listAtomicReference = new AtomicReference<>(new ArrayList<>());
         getFiles(directoryPath, includeRegs, excludeRegs, recursive, batchSize, consumer, listAtomicReference);
         if (listAtomicReference.get().size() > 0) {
@@ -136,15 +143,14 @@ public class FtpFileStorage implements TapFileStorage {
                           int batchSize,
                           Consumer<List<TapFile>> consumer,
                           AtomicReference<List<TapFile>> listAtomicReference) throws IOException {
-        if (!isDirectoryExist(directoryPath)) {
-            return;
-        }
         for (FTPFile ftpFile : Objects.requireNonNull(ftpClient.listFiles(encodeISO(directoryPath)))) {
-            if (ftpFile.isFile() && FileMatchKit.matchRegs(ftpFile.getName(), includeRegs, excludeRegs)) {
-                listAtomicReference.get().add(getFile(getAbsolutePath(directoryPath, ftpFile.getName())));
-                if (listAtomicReference.get().size() >= batchSize) {
-                    consumer.accept(listAtomicReference.get());
-                    listAtomicReference.set(new ArrayList<>());
+            if (ftpFile.isFile()) {
+                if (FileMatchKit.matchRegs(ftpFile.getName(), includeRegs, excludeRegs)) {
+                    listAtomicReference.get().add(toTapFile(ftpFile, getAbsolutePath(directoryPath, ftpFile.getName())));
+                    if (listAtomicReference.get().size() >= batchSize) {
+                        consumer.accept(listAtomicReference.get());
+                        listAtomicReference.set(new ArrayList<>());
+                    }
                 }
             } else if (recursive) {
                 getFiles(getAbsolutePath(directoryPath, ftpFile.getName()), includeRegs, excludeRegs, true, batchSize, consumer, listAtomicReference);

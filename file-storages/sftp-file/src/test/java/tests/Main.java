@@ -38,8 +38,8 @@ public class Main {
 //        storage.saveFile("/root/jarad/ks.txt", nis, true);
 //        byteArrayOutputStream.close();
 //        nis.close();
-        System.out.println(storage.getFile("/root/j/jmc.txt"));
-//        storage.getFilesInDirectory("/root", Collections.singleton("*.txt"), null, false, 1, System.out::println);
+//        System.out.println(storage.getFile("/root/j/jmc.txt"));
+        storage.getFilesInDirectory("/root", Collections.singleton("*.txt"), null, false, 1, System.out::println);
         storage.destroy();
     }
 }

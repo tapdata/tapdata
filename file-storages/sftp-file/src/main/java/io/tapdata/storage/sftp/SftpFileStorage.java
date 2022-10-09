@@ -62,6 +62,16 @@ public class SftpFileStorage implements TapFileStorage {
         }
     }
 
+    private TapFile toTapFile(ChannelSftp.LsEntry lsEntry, String path) {
+        TapFile tapFile = new TapFile();
+        tapFile.type(TapFile.TYPE_FILE)
+                .name(lsEntry.getFilename())
+                .path(path)
+                .length(lsEntry.getAttrs().getSize())
+                .lastModified(lsEntry.getAttrs().getMTime() * 1000L);
+        return tapFile;
+    }
+
     @Override
     public InputStream readFile(String path) throws SftpException {
         return channel.get(path);
@@ -129,6 +139,9 @@ public class SftpFileStorage implements TapFileStorage {
                                     boolean recursive,
                                     int batchSize,
                                     Consumer<List<TapFile>> consumer) throws SftpException {
+        if (!isDirectoryExist(directoryPath)) {
+            return;
+        }
         AtomicReference<List<TapFile>> listAtomicReference = new AtomicReference<>(new ArrayList<>());
         getFiles(directoryPath, includeRegs, excludeRegs, recursive, batchSize, consumer, listAtomicReference);
         if (listAtomicReference.get().size() > 0) {
@@ -143,20 +156,19 @@ public class SftpFileStorage implements TapFileStorage {
                           int batchSize,
                           Consumer<List<TapFile>> consumer,
                           AtomicReference<List<TapFile>> listAtomicReference) throws SftpException {
-        if (!isDirectoryExist(directoryPath)) {
-            return;
-        }
         for (Object o : channel.ls(directoryPath)) {
             ChannelSftp.LsEntry lsEntry = (ChannelSftp.LsEntry) o;
             String fileName = lsEntry.getFilename();
             if (fileName.equals(".") || fileName.equals("..")) {
                 continue;
             }
-            if (!lsEntry.getAttrs().isDir() && FileMatchKit.matchRegs(fileName, includeRegs, excludeRegs)) {
-                listAtomicReference.get().add(getFile(getAbsolutePath(directoryPath, fileName)));
-                if (listAtomicReference.get().size() >= batchSize) {
-                    consumer.accept(listAtomicReference.get());
-                    listAtomicReference.set(new ArrayList<>());
+            if (!lsEntry.getAttrs().isDir()) {
+                if (FileMatchKit.matchRegs(fileName, includeRegs, excludeRegs)) {
+                    listAtomicReference.get().add(toTapFile(lsEntry, getAbsolutePath(directoryPath, fileName)));
+                    if (listAtomicReference.get().size() >= batchSize) {
+                        consumer.accept(listAtomicReference.get());
+                        listAtomicReference.set(new ArrayList<>());
+                    }
                 }
             } else if (recursive) {
                 getFiles(getAbsolutePath(directoryPath, fileName), includeRegs, excludeRegs, true, batchSize, consumer, listAtomicReference);
