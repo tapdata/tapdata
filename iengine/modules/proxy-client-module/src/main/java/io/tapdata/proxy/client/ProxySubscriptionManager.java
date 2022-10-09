@@ -17,14 +17,13 @@ import io.tapdata.modules.api.pdk.PDKUtils;
 import io.tapdata.modules.api.proxy.data.CommandReceived;
 import io.tapdata.modules.api.proxy.data.NewDataReceived;
 import io.tapdata.modules.api.proxy.data.NodeSubscribeInfo;
-import io.tapdata.pdk.apis.entity.CommandInfo;
+import io.tapdata.pdk.apis.entity.message.CommandInfo;
 import io.tapdata.pdk.apis.entity.CommandResult;
 import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.apis.functions.connection.CommandCallbackFunction;
 import io.tapdata.pdk.core.api.ConnectionNode;
 import io.tapdata.pdk.core.api.Node;
 import io.tapdata.pdk.core.api.PDKIntegration;
-import io.tapdata.pdk.core.executor.ExecutorsManager;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
 import io.tapdata.pdk.core.utils.timer.MaxFrequencyLimiter;
 import io.tapdata.wsclient.modules.imclient.IMClient;
@@ -34,7 +33,6 @@ import io.tapdata.wsclient.utils.EventManager;
 
 import java.util.*;
 import java.util.concurrent.*;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 @Bean

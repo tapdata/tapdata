@@ -1,11 +1,10 @@
-package io.tapdata.pdk.apis.entity;
+package io.tapdata.pdk.apis.entity.message;
 
 import java.util.Date;
 import java.util.Map;
 
-public class CommandInfo {
+public class CommandInfo extends EngineMessage {
 	private String locale;
-	private String id;
 	private String connectionId;
 	public static final String TYPE_NODE = "node";
 	public static final String TYPE_CONNECTION  = "connection";
@@ -77,14 +76,6 @@ public class CommandInfo {
 
 	public void setTime(Long time) {
 		this.time = time;
-	}
-
-	public String getId() {
-		return id;
-	}
-
-	public void setId(String id) {
-		this.id = id;
 	}
 
 	public String getConnectionId() {
