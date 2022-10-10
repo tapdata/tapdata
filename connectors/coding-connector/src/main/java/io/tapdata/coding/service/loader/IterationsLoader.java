@@ -209,9 +209,9 @@ public class IterationsLoader extends CodingStarter implements CodingLoader<Iter
                 .builder("Offset",param.offset())
                 .builder("Limit",param.limit())
                 .builderIfNotAbsent("Assignee",param.assignee())
-                .builderIfNotAbsent("Status",param.status())
-                .builderIfNotAbsent("EndDate",this.longToDateStr(param.endDate()))
-                .builderIfNotAbsent("StartDate",this.longToDateStr(param.startDate()));
+                .builderIfNotAbsent("Status",param.status());
+//                .builderIfNotAbsent("EndDate",this.longToDateStr(param.endDate()))
+//                .builderIfNotAbsent("StartDate",this.longToDateStr(param.startDate()));
         return CodingHttp.create(
                 header.getEntity(),
                 body.getEntity(),
