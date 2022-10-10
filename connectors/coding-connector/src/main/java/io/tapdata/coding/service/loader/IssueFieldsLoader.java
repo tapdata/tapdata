@@ -28,6 +28,10 @@ public class IssueFieldsLoader extends CodingStarter implements CodingLoader<Iss
         return new IssueFieldsLoader(tapConnectionContext);
     }
 
+    private boolean stopRead = false;
+    public void stopRead(){
+        stopRead = true;
+    }
     @Override
     public Long streamReadTime() {
         return 5 * 60 * 1000L;

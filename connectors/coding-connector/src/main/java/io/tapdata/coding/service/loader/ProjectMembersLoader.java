@@ -41,6 +41,11 @@ public class ProjectMembersLoader extends CodingStarter implements CodingLoader<
     public Long streamReadTime() {
         return 5*60*1000l;
     }
+
+    private boolean stopRead = false;
+    public void stopRead(){
+        stopRead = true;
+    }
     @Override
     public List<Map<String,Object>> list(ProjectMemberParam param) {
         Map<String,Object> resultMap = this.codingHttp(param).post();

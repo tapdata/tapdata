@@ -24,6 +24,8 @@ import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 
 import java.util.*;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
@@ -49,9 +51,15 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
     private Long lastTimePoint;
     private List<Integer> lastTimeSplitIssueCode = new ArrayList<>();//hash code list
     int tableSize;
+    ContextConfig contextConfig ;
+    private AtomicBoolean stopRead = new AtomicBoolean(false);
+    public void stopRead(){
+        stopRead.set(true);
+    }
 
     public IssuesLoader(TapConnectionContext tapConnectionContext) {
         super(tapConnectionContext);
+        this.contextConfig = this.veryContextConfigAndNodeConfig();
     }
 
     public IssuesLoader setTableSize(int tableSize) {
@@ -64,7 +72,6 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
         if (null == consumer) {
             throw new IllegalArgumentException("Consumer cannot be null");
         }
-
     }
 
 
@@ -227,14 +234,13 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
     }
 
     public List<Map<String,Object>> getAllIssueType(){
-        ContextConfig contextConfig = this.veryContextConfigAndNodeConfig();
-        HttpEntity<String,String> header = HttpEntity.create().builder("Authorization",contextConfig.getToken());
-        String projectName = contextConfig.getProjectName();
+        HttpEntity<String,String> header = HttpEntity.create().builder("Authorization",this.contextConfig.getToken());
+        String projectName = this.contextConfig.getProjectName();
         HttpEntity<String,Object> pageBody = HttpEntity.create().builder("Action","DescribeTeamIssueTypeList");
         Map<String, Object> issueResponse = CodingHttp.create(
                 header.getEntity(),
                 pageBody.getEntity(),
-                String.format(CodingStarter.OPEN_API_URL, contextConfig.getTeamName())
+                String.format(CodingStarter.OPEN_API_URL, this.contextConfig.getTeamName())
         ).post();
         if (Checker.isEmpty(issueResponse)){
             return null;
@@ -279,13 +285,12 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
 
     @Override
     public CodingHttp codingHttp(IssueParam param) {
-        ContextConfig contextConfig = this.veryContextConfigAndNodeConfig();
         param.action("DescribeIterationList");
         HttpEntity<String,String> header = HttpEntity.create()
-                .builder("Authorization",contextConfig.getToken());
+                .builder("Authorization",this.contextConfig.getToken());
         HttpEntity<String,Object> body = HttpEntity.create()
                 .builderIfNotAbsent("Action","DescribeIssueListWithPage")
-                .builder("ProjectName",contextConfig.getProjectName())
+                .builder("ProjectName",this.contextConfig.getProjectName())
                 .builder("IssueType",param.issueType().getName())
                 .builder("PageNumber",param.offset())
                 .builder("PageSize",param.limit())
@@ -295,30 +300,28 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
         return CodingHttp.create(
                 header.getEntity(),
                 body.getEntity(),
-                String.format(OPEN_API_URL,contextConfig.getTeamName()));
+                String.format(OPEN_API_URL,this.contextConfig.getTeamName()));
     }
 
     @Override
     public Map<String,Object> get(IssueParam param) {
-        ContextConfig contextConfig = this.veryContextConfigAndNodeConfig();
-        param.action("DescribeIterationList");
         HttpEntity<String,String> header = HttpEntity.create()
-                .builder("Authorization",contextConfig.getToken());
+                .builder("Authorization",this.contextConfig.getToken());
         HttpEntity<String,Object> body = HttpEntity.create()
                 .builderIfNotAbsent("Action","DescribeIssue")
-                .builder("ProjectName",contextConfig.getProjectName())
+                .builder("ProjectName",this.contextConfig.getProjectName())
                 .builder("IssueCode",param.issueCode());
         Map<String,Object> resultMap = CodingHttp.create(
                 header.getEntity(),
                 body.getEntity(),
-                String.format(OPEN_API_URL,contextConfig.getTeamName())).post();
+                String.format(OPEN_API_URL,this.contextConfig.getTeamName())).post();
         Object response = resultMap.get("Response");
         if (null == response){
             return null;
         }
         Map<String,Object> responseMap = (Map<String,Object>)response;
         Object dataObj = responseMap.get("Issue");
-        return null !=  responseMap? (Map<String, Object>) responseMap : null;
+        return null !=  dataObj? (Map<String, Object>) dataObj : null;
     }
 
     @Override
@@ -420,8 +423,7 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
             return null;
         }
 
-        ContextConfig contextConfig = this.veryContextConfigAndNodeConfig();
-        IssueType issueType = contextConfig.getIssueType();
+        IssueType issueType = this.contextConfig.getIssueType();
         if (Checker.isNotEmpty(issueType)) {
             String issueTypeName = issueType.getName();
             Object o = issueMap.get("type");
@@ -429,7 +431,7 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
                 return null;
             }
         }
-        String iterationCodes = contextConfig.getIterationCodes();
+        String iterationCodes = this.contextConfig.getIterationCodes();
         Object iterationObj = issueMap.get("iteration");
         if ( Checker.isNotEmpty(iterationCodes) && !"-1".equals(iterationCodes) ) {
             if(Checker.isNotEmpty(iterationObj)) {
@@ -451,11 +453,11 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
 
         Map<String, Object> issueDetail = null;
         if (!DELETED_EVENT.equals(issueEvent)) {
-            HttpEntity<String, String> header = HttpEntity.create().builder("Authorization", contextConfig.getToken());
+            HttpEntity<String, String> header = HttpEntity.create().builder("Authorization", this.contextConfig.getToken());
             HttpEntity<String, Object> issueDetialBody = HttpEntity.create()
                     .builder("Action", "DescribeIssue")
-                    .builder("ProjectName", contextConfig.getProjectName());
-            CodingHttp authorization = CodingHttp.create(header.getEntity(), String.format(CodingStarter.OPEN_API_URL, contextConfig.getTeamName()));
+                    .builder("ProjectName", this.contextConfig.getProjectName());
+            CodingHttp authorization = CodingHttp.create(header.getEntity(), String.format(CodingStarter.OPEN_API_URL, this.contextConfig.getTeamName()));
             HttpRequest requestDetail = authorization.createHttpRequest();
 
             issueDetail = this.readIssueDetail(
@@ -463,8 +465,8 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
                     authorization,
                     requestDetail,
                     (codeObj instanceof Integer) ? (Integer) codeObj : Integer.parseInt(codeObj.toString()),
-                    contextConfig.getProjectName(),
-                    contextConfig.getTeamName());
+                    this.contextConfig.getProjectName(),
+                    this.contextConfig.getTeamName());
             String modeName = this.tapConnectionContext.getConnectionConfig().getString("connectionMode");
             ConnectionMode instance = ConnectionMode.getInstanceByName(this.tapConnectionContext, modeName);
             if (null == instance){
@@ -479,8 +481,8 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
             switch (evenType){
                 case DELETED_EVENT:{
                     issueDetail = (Map<String, Object>) issueObj;
-                    issueDetail.put("teamName",contextConfig.getTeamName());
-                    issueDetail.put("projectName",contextConfig.getProjectName());
+                    issueDetail.put("teamName",this.contextConfig.getTeamName());
+                    issueDetail.put("projectName",this.contextConfig.getProjectName());
                     event = TapSimplify.deleteDMLEvent(issueDetail, "Issues").referenceTime(referenceTime)  ;
                 };break;
                 case UPDATE_EVENT:{
@@ -510,19 +512,18 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
             int readSize,
             Object offsetState,
             BiConsumer<List<TapEvent>, Object> consumer){
-        ContextConfig contextConfig = this.veryContextConfigAndNodeConfig();
         int currentQueryCount = 0,queryIndex = 0 ;
         final List<TapEvent>[] events = new List[]{new ArrayList<>()};
-        HttpEntity<String,String> header = HttpEntity.create().builder("Authorization",contextConfig.getToken());
-        String projectName = contextConfig.getProjectName();
+        HttpEntity<String,String> header = HttpEntity.create().builder("Authorization",this.contextConfig.getToken());
+        String projectName = this.contextConfig.getProjectName();
         HttpEntity<String,Object> pageBody = HttpEntity.create()
                 .builder("Action","DescribeIssueListWithPage")
                 .builder("ProjectName",projectName)
                 .builder("SortKey","UPDATED_AT")
                 .builder("PageSize",readSize)
                 .builder("SortValue","ASC");
-        if (Checker.isNotEmpty(contextConfig) && Checker.isNotEmpty(contextConfig.getIssueType())){
-            pageBody.builder("IssueType", IssueType.verifyType(contextConfig.getIssueType().getName()));
+        if (Checker.isNotEmpty(this.contextConfig) && Checker.isNotEmpty(this.contextConfig.getIssueType())){
+            pageBody.builder("IssueType", IssueType.verifyType(this.contextConfig.getIssueType().getName()));
         }else {
             pageBody.builder("IssueType","ALL");
         }
@@ -530,7 +531,7 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
                 entry("Key","UPDATED_AT"),
                 entry("Value", this.longToDateStr(readStartTime)+"_"+ this.longToDateStr(readEndTime)))
         );
-        String iterationCodes = contextConfig.getIterationCodes();
+        String iterationCodes = this.contextConfig.getIterationCodes();
         if (null != iterationCodes && !"".equals(iterationCodes) && !",".equals(iterationCodes)) {
             if (!"-1".equals(iterationCodes)) {
                 //-1时表示全选
@@ -541,12 +542,18 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
             }
         }
         pageBody.builder("Conditions",coditions);
-        String teamName = contextConfig.getTeamName();
-//        String modeName = contextConfig.getConnectionMode();
+        String teamName = this.contextConfig.getTeamName();
+//        String modeName = this.contextConfig.getConnectionMode();
 //        ConnectionMode instance = ConnectionMode.getInstanceByName(nodeContext,modeName);
 //        if (null == instance){
 //            throw new CoreException("Connection Mode is not empty or not null.");
 //        }
+        if (Checker.isEmpty(offsetState)) {
+            offsetState = new CodingOffset();
+        }
+        CodingOffset offset = (CodingOffset)offsetState;
+        //AtomicBoolean startRead = new AtomicBoolean(true);
+        //Queue<Map<String,Object>> queue = new ConcurrentLinkedQueue();
         do{
             pageBody.builder("PageNumber",queryIndex++);
             Map<String,Object> dataMap = this.getIssuePage(header.getEntity(),pageBody.getEntity(),String.format(CodingStarter.OPEN_API_URL,teamName));
@@ -558,36 +565,109 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
             currentQueryCount = resultList.size();
             batchReadPageSize = null != dataMap.get("PageSize") ? (int)(dataMap.get("PageSize")) : batchReadPageSize;
             for (Map<String, Object> stringObjectMap : resultList) {
-//                Map<String,Object> issueDetail = instance.attributeAssignment(stringObjectMap);
-                Map<String,Object> issueDetail = stringObjectMap;
-                Long referenceTime = (Long)issueDetail.get("UpdatedAt");
-                Long currentTimePoint = referenceTime - referenceTime % (24*60*60*1000);//时间片段
-                Integer issueDetialHash = MapUtil.create().hashCode(issueDetail);
+                Object code = stringObjectMap.get("Code");
+                //Map<String,Object> issueDetail = instance.attributeAssignment(stringObjectMap);
+                Map<String,Object> issueDetail = this.get(IssueParam.create().issueCode((Integer)code));// stringObjectMap;
+                if (null == issueDetail){
+                    events[0].add(TapSimplify.insertRecordEvent(stringObjectMap, TABLE_NAME).referenceTime(System.currentTimeMillis()));
+                    events[0].add(TapSimplify.deleteDMLEvent(stringObjectMap, TABLE_NAME).referenceTime(System.currentTimeMillis()));
+                }else {
+                    Long referenceTime = (Long) issueDetail.get("UpdatedAt");
+                    Long currentTimePoint = referenceTime - referenceTime % (24 * 60 * 60 * 1000);//时间片段
+                    Integer issueDetialHash = MapUtil.create().hashCode(issueDetail);
 
-                //issueDetial的更新时间字段值是否属于当前时间片段，并且issueDiteal的hashcode是否在上一次批量读取同一时间段内
-                //如果不在，说明时全新增加或修改的数据，需要在本次读取这条数据
-                //如果在，说明上一次批量读取中以及读取了这条数据，本次不在需要读取 !currentTimePoint.equals(lastTimePoint) &&
-                if (!lastTimeSplitIssueCode.contains(issueDetialHash)) {
-                    events[0].add(TapSimplify.insertRecordEvent(issueDetail, TABLE_NAME).referenceTime(System.currentTimeMillis()));
+                    //issueDetial的更新时间字段值是否属于当前时间片段，并且issueDiteal的hashcode是否在上一次批量读取同一时间段内
+                    //如果不在，说明时全新增加或修改的数据，需要在本次读取这条数据
+                    //如果在，说明上一次批量读取中以及读取了这条数据，本次不在需要读取 !currentTimePoint.equals(lastTimePoint) &&
+                    if (!lastTimeSplitIssueCode.contains(issueDetialHash)) {
+                        events[0].add(TapSimplify.insertRecordEvent(issueDetail, TABLE_NAME).referenceTime(System.currentTimeMillis()));
 
-                    if (null == currentTimePoint || !currentTimePoint.equals(this.lastTimePoint)){
-                        this.lastTimePoint = currentTimePoint;
-                        lastTimeSplitIssueCode = new ArrayList<Integer>();
+                        if (null == currentTimePoint || !currentTimePoint.equals(this.lastTimePoint)) {
+                            this.lastTimePoint = currentTimePoint;
+                            lastTimeSplitIssueCode = new ArrayList<Integer>();
+                        }
+                        lastTimeSplitIssueCode.add(issueDetialHash);
                     }
-                    lastTimeSplitIssueCode.add(issueDetialHash);
-                }
 
-                if (Checker.isEmpty(offsetState)){
-                    offsetState = new CodingOffset();
+                    if (Checker.isEmpty(offsetState)) {
+                        offsetState = new CodingOffset();
+                    }
+                    ((CodingOffset) offsetState).getTableUpdateTimeMap().put(TABLE_NAME, referenceTime);
                 }
-                ((CodingOffset)offsetState).getTableUpdateTimeMap().put(TABLE_NAME,referenceTime);
                 if (events[0].size() == readSize) {
                     consumer.accept(events[0], offsetState);
                     events[0] = new ArrayList<>();
                 }
             }
-        }while (currentQueryCount >= batchReadPageSize);
-        if (events[0].size() > 0)  consumer.accept(events[0], offsetState);
+
+            /**
+            queue.addAll(resultList);
+            new Thread(()->{
+                while (!queue.isEmpty() || ( startRead.get() && !stopRead.get())){
+                    Map<String, Object> peek = queue.poll();
+                    Object code = peek.get("Code");
+                    Map<String,Object> issueDetail = this.get(IssueParam.create().issueCode((Integer)code));
+                    Integer issueDetialHash = MapUtil.create().hashCode(issueDetail);
+                    run(issueDetail,peek,events,issueDetialHash, offset,readSize,consumer);
+                }
+                if (!events[0].isEmpty()) {
+                    consumer.accept(events[0], offset);
+                    synchronized (events[0]){
+                        if (!events[0].isEmpty())
+                            events[0] = new ArrayList<>();
+                    }
+                }
+            }).start();
+            new Thread(()->{
+                while (!queue.isEmpty() || ( startRead.get() && !stopRead.get())){
+                    Map<String, Object> peek = queue.poll();
+                    Object code = peek.get("Code");
+                    Map<String,Object> issueDetail = this.get(IssueParam.create().issueCode((Integer)code));
+                    Integer issueDetialHash = MapUtil.create().hashCode(issueDetail);
+                    run(issueDetail,peek,events,issueDetialHash, offset,readSize,consumer);
+                }
+                if (!events[0].isEmpty()) {
+                    consumer.accept(events[0], offset);
+                    synchronized (events[0]){
+                        if (!events[0].isEmpty())
+                            events[0] = new ArrayList<>();
+                    }
+                }
+            }).start();
+             **/
+        }while (currentQueryCount >= batchReadPageSize && !stopRead.get());
+        if (!events[0].isEmpty()) {
+            consumer.accept(events[0], offset);
+        }
+        //startRead.set(false);
     }
 
+    /**
+    public synchronized void run(Map<String,Object> issueDetail,Map<String,Object> stringObjectMap,List<TapEvent>[] events,Integer issueDetialHash,CodingOffset offsetState,int readSize,BiConsumer<List<TapEvent>, Object> consumer){
+            if (null == issueDetail) {
+                events[0].add(TapSimplify.insertRecordEvent(stringObjectMap, TABLE_NAME).referenceTime(System.currentTimeMillis()));
+                events[0].add(TapSimplify.deleteDMLEvent(stringObjectMap, TABLE_NAME).referenceTime(System.currentTimeMillis()));
+            } else {
+                Long referenceTime = (Long) issueDetail.get("UpdatedAt");
+                Long currentTimePoint = referenceTime - referenceTime % (24 * 60 * 60 * 1000);
+                if (!lastTimeSplitIssueCode.contains(issueDetialHash)) {
+                    events[0].add(TapSimplify.insertRecordEvent(issueDetail, TABLE_NAME).referenceTime(System.currentTimeMillis()));
+
+                    if (null == currentTimePoint || !currentTimePoint.equals(this.lastTimePoint)) {
+                        this.lastTimePoint = currentTimePoint;
+                        lastTimeSplitIssueCode = new ArrayList<Integer>();
+                    }
+                    lastTimeSplitIssueCode.add(issueDetialHash);
+                }
+                offsetState.getTableUpdateTimeMap().put(TABLE_NAME, referenceTime);
+            }
+            if (events[0].size() == readSize) {
+                consumer.accept(events[0], offsetState);
+                synchronized (events[0]){
+                    if (!events[0].isEmpty())
+                        events[0] = new ArrayList<>();
+                }
+            }
+    }
+    */
 }

@@ -22,6 +22,7 @@ import java.util.function.BiConsumer;
 
 public interface CodingLoader<T extends Param> {
     public Long streamReadTime();
+    public void stopRead();
 
     public static CodingLoader<Param> loader(TapConnectionContext tapConnectionContext, String tableName){
         Class clz = null;

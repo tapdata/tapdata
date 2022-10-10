@@ -33,6 +33,7 @@ import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -84,7 +85,8 @@ public class CodingConnector extends ConnectorBase {
 				.supportBatchCount(this::batchCount)
 				.supportTimestampToStreamOffset(this::timestampToStreamOffset)
 				.supportStreamRead(this::streamRead)
-				.supportRawDataCallbackFilterFunction(this::rawDataCallbackFilterFunction)
+				//.supportRawDataCallbackFilterFunction(this::rawDataCallbackFilterFunction)
+				.supportRawDataCallbackFilterFunctionV2(this::rawDataCallbackFilterFunction)
 				.supportCommandCallbackFunction(this::handleCommand)
 		;
 		this.connectorFunctions = connectorFunctions;
@@ -199,8 +201,8 @@ public class CodingConnector extends ConnectorBase {
 		}
 		return new CommandResult().result(pageResult);
 	}
-	private List<TapEvent> rawDataCallbackFilterFunction(TapConnectorContext connectorContext, Map<String, Object> issueEventData){
-		return rawDataCallbackFilterFunctionV2(connectorContext,new ArrayList<>(), issueEventData);
+	private List<TapEvent> rawDataCallbackFilterFunction(TapConnectorContext connectorContext, List<String> tables, Map<String, Object> issueEventData){
+		return rawDataCallbackFilterFunctionV2(connectorContext,tables, issueEventData);
 	}
 
 	private List<TapEvent> rawDataCallbackFilterFunctionV2(TapConnectorContext connectorContext,List<String> tableList, Map<String, Object> issueEventData){
@@ -299,6 +301,7 @@ public class CodingConnector extends ConnectorBase {
 				issueDetail = instance.attributeAssignment(issueDetail);
 			}
 		}
+
 		if (Checker.isNotEmpty(issueEvent)){
 			String evenType = issueEvent.getEventType();
 			switch (evenType){
@@ -399,6 +402,9 @@ public class CodingConnector extends ConnectorBase {
 			for (CodingLoader<Param> loader : loaders) {
 				loader.streamRead(tableList,offsetState, recordSize, consumer);
 			}
+		}
+		for (CodingLoader<Param> loader : loaders) {
+			loader.stopRead();
 		}
 	}
 

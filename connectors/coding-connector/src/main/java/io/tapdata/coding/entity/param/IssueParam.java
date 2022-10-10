@@ -11,7 +11,7 @@ public class IssueParam extends Param {
     private String sortKey;
     private String sortValue;
     private Integer issueCode;
-    public IssueParam create(){
+    public static IssueParam create(){
         return new IssueParam();
     }
 

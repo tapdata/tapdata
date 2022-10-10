@@ -56,7 +56,7 @@ public abstract class CodingStarter {
             if (null == nodeConfigMap) {
                 config.issueType(IssueType.ALL);
                 config.iterationCodes("-1");
-                TapLogger.debug(TAG,"TapTable' NodeConfig is empty. ");
+                //TapLogger.debug(TAG,"TapTable' NodeConfig is empty. ");
                 //throw new IllegalArgumentException("TapTable' NodeConfig cannot be null");
             }else{
                 //iterationName is Multiple selection values separated by commas
@@ -66,15 +66,15 @@ public abstract class CodingStarter {
                 if (null != issueType) issueType = issueType.trim();
                 String issueCodes = nodeConfigMap.getString("issueCodes");
                 if (null != issueCodes) issueCodes = issueCodes.trim();
-                if (Checker.isEmpty(issueCodes)){
-                    TapLogger.info(TAG, "Connection node config issueCodes exception: {} ", projectName);
-                }
-                if (Checker.isEmpty(iterationCodeArr)) {
-                    TapLogger.info(TAG, "Connection node config iterationName exception: {} ", projectName);
-                }
-                if (Checker.isEmpty(issueType)) {
-                    TapLogger.info(TAG, "Connection node config issueType exception: {} ", token);
-                }
+                //if (Checker.isEmpty(issueCodes)){
+                    //TapLogger.info(TAG, "Connection node config issueCodes exception: {} ", projectName);
+                //}
+                //if (Checker.isEmpty(iterationCodeArr)) {
+                    //TapLogger.info(TAG, "Connection node config iterationName exception: {} ", projectName);
+                //}
+                //if (Checker.isEmpty(issueType)) {
+                    //TapLogger.info(TAG, "Connection node config issueType exception: {} ", token);
+                //}
                 config.issueType(issueType).iterationCodes(iterationCodeArr);
                 config.iterationCodes(issueCodes);
             }

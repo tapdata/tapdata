@@ -28,6 +28,10 @@ public class CommentsLoader extends CodingStarter implements CodingLoader<Commen
     public static CommentsLoader create(TapConnectionContext tapConnectionContext) {
         return new CommentsLoader(tapConnectionContext);
     }
+    private boolean stopRead = false;
+    public void stopRead(){
+        stopRead = true;
+    }
     @Override
     public Long streamReadTime() {
         long streamReadTime = 5 * 60 * 1000;

@@ -146,6 +146,10 @@ public class IterationsLoader extends CodingStarter implements CodingLoader<Iter
         return matterList;
     }
 
+    private boolean stopRead = false;
+    public void stopRead(){
+        stopRead = true;
+    }
     @Override
     public Long streamReadTime() {
         return 1*60*1000l;

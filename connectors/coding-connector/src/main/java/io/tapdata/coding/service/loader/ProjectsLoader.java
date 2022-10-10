@@ -26,6 +26,10 @@ public class ProjectsLoader extends CodingStarter implements CodingLoader<Projec
     public static ProjectsLoader create(TapConnectionContext tapConnectionContext) {
         return new ProjectsLoader(tapConnectionContext);
     }
+    private boolean stopRead = false;
+    public void stopRead(){
+        stopRead = true;
+    }
     @Override
     public Long streamReadTime() {
         return 5*60*1000l;

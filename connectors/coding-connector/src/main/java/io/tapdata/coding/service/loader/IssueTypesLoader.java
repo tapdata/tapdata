@@ -28,6 +28,10 @@ public class IssueTypesLoader extends CodingStarter implements CodingLoader<Issu
         return new IssueTypesLoader(context);
     }
 
+    private boolean stopRead = false;
+    public void stopRead(){
+        stopRead = true;
+    }
     @Override
     public Long streamReadTime() {
         return 5 * 60 * 1000L;
