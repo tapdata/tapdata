@@ -57,30 +57,32 @@ mongo.type("source")  # 数据源类型，source -> 只可作为源，target -> 
 mongo.save()  # success -> True, Failure -> False
 ```
 
-创建Oracle数据源：
+创建Oracle数据源（已废弃）：
 
 ```python
 from tapdata_cli import cli
 
 datasource_name = "ds_name"  # 数据源名称，自定义
-oracle = cli.Oracle(datasource_name)
+oracle = cli.Oracle(datasource_name)  # 已废弃，请使用DataSource接口
 oracle.thinType("SERVICE_NAME")  # 连接方式 SID/SERVER_NAME (数据库/服务名)
 oracle.host("106.55.169.3").password("Gotapd8!").port("3521").schema("TAPDATA").db("TAPDATA").username("tapdata")
 oracle.save()
 ```
 
-创建Kafka数据源：
+创建Kafka数据源（已废弃）：
 
 ```python
 from tapdata_cli import cli
 
 database_name = "kafka_name"
-kafka = cli.Kafka(database_name)
+kafka = cli.Kafka(database_name)  # 已废弃，请使用DataSource接口
 kafka.host("106.55.169.3").port("9092")
 kafka.save()
 ```
 
-*关于Kafka/Oracle的创建方式存在异构，未来将以DataSource的方式提供统一的接口，同时向后兼容，不影响现有版本。*
+~~*关于Kafka/Oracle的创建方式存在异构，未来将以DataSource的方式提供统一的接口，同时向后兼容，不影响现有版本。*~~
+
+**新版本（tapdata_cli > 2.2.15，tapshell >= 2.10 ）已经废弃Kafka/Oracle等接口，统一使用DataSource接口。**
 
 ### 数据源列表
 

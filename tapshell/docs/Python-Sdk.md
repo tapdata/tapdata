@@ -69,29 +69,31 @@ oracle.host("106.55.169.3").password("Gotapd8!").port("3521").schema("TAPDATA").
 oracle.save()
 ```
 
-To create Kafka datasource:
+To create Kafka datasource(discarded):
 
 ```python
 from tapdata_cli import cli
 
 database_name = "kafka_name"
-kafka = cli.Kafka(database_name)
+kafka = cli.Kafka(database_name)  # discarded, use cli.DataSource()
 kafka.host("106.xx.xx.x").port("9092")
 kafka.save()
 ```
 
-To create Postgres datasource:
+To create Postgres datasource(discarded):
 
 ```python
 from tapdata_cli import cli
 
-pg = cli.Postgres("jack_postgre") 
+pg = cli.Postgres("jack_postgre")  # discarded, use cli.DataSource()
 pg.host("106.55.169.3").port(5496).db("insurance").username("postgres").password("tapdata").type("source").schema("insurance")
 pg.validate()
 pg.save()
 ```
 
-*As for Kafka/Oracle/Postgres, the creation mode is heterogeneous. In the future, a unified interface will be provided in the form of datasource, which is backward compatible and will not affect the existing version.*
+~~*As for Kafka/Oracle/Postgres, the creation mode is heterogeneous. In the future, a unified interface will be provided in the form of datasource, which is backward compatible and will not affect the existing version.*~~
+
+**In the new version (tapdata_cli>2.2.15, tapshell>=2.10), interfaces such as Kafka/Oracle have been discarded and the DataSource interface is used uniformly.**
 
 ### DataSource List
 
