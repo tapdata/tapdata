@@ -728,19 +728,26 @@ public class DiscoveryServiceImpl implements DiscoveryService {
             List<String> targets = outputMap.get(node.getId());
             List<String> inputs = inputMap.get(node.getId());
 
-            StringBuilder inputName = new StringBuilder();
-            for (String input : inputs) {
-                Node<?> node1 = dag.getNode(input);
-                inputName.append(node1.getName()).append(";");
-            }
-            String inputNodeName = inputName.substring(0, inputName.length()-1);
 
-            StringBuilder outName = new StringBuilder();
-            for (String target : targets) {
-                Node<?> node1 = dag.getNode(target);
-                outName.append(node1.getName()).append(";");
+            String inputNodeName = "";
+            StringBuilder inputName = new StringBuilder();
+            if (CollectionUtils.isNotEmpty(inputs)) {
+                for (String input : inputs) {
+                    Node<?> node1 = dag.getNode(input);
+                    inputName.append(node1.getName()).append(";");
+                }
+                inputNodeName = inputName.substring(0, inputName.length()-1);
             }
-            String outputNodeName = outName.substring(0, outName.length()-1);
+
+            String outputNodeName = "";
+            StringBuilder outName = new StringBuilder();
+            if (CollectionUtils.isNotEmpty(targets)) {
+                for (String target : targets) {
+                    Node<?> node1 = dag.getNode(target);
+                    outName.append(node1.getName()).append(";");
+                }
+                outputNodeName = outName.substring(0, outName.length()-1);
+            }
 
             taskConnectionsDto.setInputNodeName(inputNodeName);
             taskConnectionsDto.setOutputNodeName(outputNodeName);

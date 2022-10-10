@@ -1,5 +1,9 @@
 package com.tapdata.tm.discovery.bean;
 
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import com.tapdata.tm.commons.base.convert.DagDeserialize;
+import com.tapdata.tm.commons.base.convert.DagSerialize;
 import com.tapdata.tm.commons.dag.DAG;
 import lombok.Data;
 
@@ -20,5 +24,7 @@ public class DiscoveryTaskDto extends DataDiscoveryDto {
     /** 任务描述 */
     private String taskDesc;
     private String version;
+    @JsonSerialize( using = DagSerialize.class)
+    @JsonDeserialize( using = DagDeserialize.class)
     private DAG dag;
 }
