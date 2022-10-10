@@ -3,7 +3,6 @@ package io.tapdata.coding.service.loader;
 import cn.hutool.json.JSONUtil;
 import io.tapdata.coding.entity.CodingOffset;
 import io.tapdata.coding.entity.ContextConfig;
-import io.tapdata.coding.entity.param.CommentParam;
 import io.tapdata.coding.entity.param.IterationParam;
 import io.tapdata.coding.entity.param.Param;
 import io.tapdata.coding.enums.CodingEvent;
@@ -19,13 +18,11 @@ import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
-import io.tapdata.pdk.apis.context.TapConnectorContext;
-import javafx.beans.property.adapter.ReadOnlyJavaBeanBooleanProperty;
 
 import java.util.*;
 import java.util.function.BiConsumer;
 
-import static io.tapdata.coding.enums.IssueEventTypes.*;
+import static io.tapdata.coding.enums.TapEventTypes.*;
 
 public class IterationsLoader extends CodingStarter implements CodingLoader<IterationParam> {
     private static final String TAG = IterationsLoader.class.getSimpleName();
@@ -35,8 +32,12 @@ public class IterationsLoader extends CodingStarter implements CodingLoader<Iter
     private int batchReadPageSize = 500;//coding page 1~500,
 
     private Long lastTimePoint;
-    private List<Integer> lastTimeSplitIssueCode = new ArrayList<>();//hash code list
+    private List<Integer> lastTimeSplitIterationCode = new ArrayList<>();//hash code list
     int tableSize;
+
+
+//    private Map<Integer,Integer> iterationHashMap = new HashMap<>();
+//    private Set<Integer> currentBatchIterationSet = new HashSet<>();
 
     public static IterationsLoader create(TapConnectionContext tapConnectionContext, Map<String,Object> queryMap){
         return new IterationsLoader(tapConnectionContext, queryMap);
@@ -389,16 +390,18 @@ public class IterationsLoader extends CodingStarter implements CodingLoader<Iter
                     Long currentTimePoint = referenceTime - referenceTime % (24*60*60*1000);//时间片段
                     Integer iterationHash = MapUtil.create().hashCode(iteration);
 
-                    if (!lastTimeSplitIssueCode.contains(iterationHash)) {
+                    if (!lastTimeSplitIterationCode.contains(iterationHash)) {
                         events.add(TapSimplify.insertRecordEvent(iteration, TABLE_NAME).referenceTime(System.currentTimeMillis()));
 
                         if (null == currentTimePoint || !currentTimePoint.equals(this.lastTimePoint)){
                             this.lastTimePoint = currentTimePoint;
-                            lastTimeSplitIssueCode = new ArrayList<Integer>();
+                            lastTimeSplitIterationCode = new ArrayList<Integer>();
                         }
-                        lastTimeSplitIssueCode.add(iterationHash);
+                        lastTimeSplitIterationCode.add(iterationHash);
                     }
-
+                    if (Checker.isEmpty(offset)){
+                        offset = new CodingOffset();
+                    }
                     ((CodingOffset)offset).getTableUpdateTimeMap().put(TABLE_NAME,referenceTime);
                     if (events.size() == batchCount) {
                         consumer.accept(events, offset);

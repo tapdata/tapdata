@@ -2,6 +2,7 @@ package io.tapdata.coding.service.loader;
 
 import io.tapdata.coding.entity.ContextConfig;
 import io.tapdata.coding.entity.param.IssueFieldParam;
+import io.tapdata.coding.utils.collection.MapUtil;
 import io.tapdata.coding.utils.http.CodingHttp;
 import io.tapdata.coding.utils.http.HttpEntity;
 import io.tapdata.coding.utils.tool.Checker;
@@ -15,7 +16,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
 
-public class IssueFieldsLoader extends CodingStarter implements CodingLoader<IssueFieldParam> {
+import static io.tapdata.coding.enums.TapEventTypes.CREATED_EVENT;
+import static io.tapdata.coding.enums.TapEventTypes.UPDATE_EVENT;
+
+public class IssueFieldsLoader extends CodingStarter implements CodingLoader<IssueFieldParam>,OverlayQueryEventDifferentiator {
     public final static String TABLE_NAME = "IssueFields";
     public IssueFieldsLoader(TapConnectionContext tapConnectionContext) {
         super(tapConnectionContext);
@@ -83,11 +87,22 @@ public class IssueFieldsLoader extends CodingStarter implements CodingLoader<Iss
         }
         List<TapEvent> events = new ArrayList<>();
         for (Map<String, Object> issueType : list) {
-            events.add(TapSimplify.insertRecordEvent(issueType, TABLE_NAME).referenceTime(System.currentTimeMillis()));
+            Integer issueTypeId = (Integer) issueType.get("IssueFieldId");
+            Integer issueTypeHash = MapUtil.create().hashCode(issueType);
+            switch (createOrUpdateEvent(issueTypeId,issueTypeHash)){
+                case UPDATE_EVENT:events.add(TapSimplify.insertRecordEvent(issueType, TABLE_NAME).referenceTime(System.currentTimeMillis()));break;
+                case CREATED_EVENT:events.add(TapSimplify.updateDMLEvent(null,issueType, TABLE_NAME).referenceTime(System.currentTimeMillis()));break;
+            }
+            //events.add(TapSimplify.insertRecordEvent(issueType, TABLE_NAME).referenceTime(System.currentTimeMillis()));
             if (events.size() == batchCount) {
                 consumer.accept(events, offset);
                 events = new ArrayList<>();
             }
+        }
+
+        List<TapEvent> delEvents = delEvent(TABLE_NAME,"IssueFieldId");
+        if (!delEvents.isEmpty()){
+            events.addAll(delEvents);
         }
         if (events.size() > 0)  consumer.accept(events, offset);
     }

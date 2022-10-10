@@ -2,8 +2,10 @@ package io.tapdata.coding.service.loader;
 
 import io.tapdata.coding.entity.ContextConfig;
 import io.tapdata.coding.entity.param.IssueTypeParam;
+import io.tapdata.coding.utils.collection.MapUtil;
 import io.tapdata.coding.utils.http.CodingHttp;
 import io.tapdata.coding.utils.http.HttpEntity;
+import io.tapdata.coding.utils.tool.Checker;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
@@ -14,7 +16,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
 
-public class IssueTypesLoader extends CodingStarter implements CodingLoader<IssueTypeParam> {
+import static io.tapdata.coding.enums.TapEventTypes.CREATED_EVENT;
+import static io.tapdata.coding.enums.TapEventTypes.UPDATE_EVENT;
+
+public class IssueTypesLoader extends CodingStarter implements CodingLoader<IssueTypeParam>,OverlayQueryEventDifferentiator{
     public static final String TABLE_NAME = "IssueTypes";
     public IssueTypesLoader(TapConnectionContext tapConnectionContext) {
         super(tapConnectionContext);
@@ -31,8 +36,12 @@ public class IssueTypesLoader extends CodingStarter implements CodingLoader<Issu
     @Override
     public List<Map<String, Object>> list(IssueTypeParam param) {
         Map<String,Object> resultMap = this.codingHttp(param).post();
-        Object response = resultMap.get("IssueTypes");
-        return null !=  response? (List<Map<String, Object>>) response : null;
+        Object response = resultMap.get("Response");
+        if (Checker.isEmpty(response)){
+            return null;
+        }
+        Object IssueTypesObj = ((Map<String,Object>)response).get("IssueTypes");
+        return null !=  IssueTypesObj? (List<Map<String, Object>>) IssueTypesObj : null;
     }
 
     @Override
@@ -65,11 +74,22 @@ public class IssueTypesLoader extends CodingStarter implements CodingLoader<Issu
         }
         List<TapEvent> events = new ArrayList<>();
         for (Map<String, Object> issueType : list) {
-            events.add(TapSimplify.insertRecordEvent(issueType, TABLE_NAME).referenceTime(System.currentTimeMillis()));
+            Integer issueTypeId = (Integer) issueType.get("Id");
+            Integer issueTypeHash = MapUtil.create().hashCode(issueType);
+            switch (createOrUpdateEvent(issueTypeId,issueTypeHash)){
+                case UPDATE_EVENT:events.add(TapSimplify.insertRecordEvent(issueType, TABLE_NAME).referenceTime(System.currentTimeMillis()));break;
+                case CREATED_EVENT:events.add(TapSimplify.updateDMLEvent(null,issueType, TABLE_NAME).referenceTime(System.currentTimeMillis()));break;
+            }
+            //events.add(TapSimplify.insertRecordEvent(issueType, TABLE_NAME).referenceTime(System.currentTimeMillis()));
             if (events.size() == batchCount) {
                 consumer.accept(events, offset);
                 events = new ArrayList<>();
             }
+        }
+
+        List<TapEvent> delEvents = delEvent(TABLE_NAME,"Id");
+        if (!delEvents.isEmpty()){
+            events.addAll(delEvents);
         }
         if (events.size() > 0)  consumer.accept(events, offset);
     }

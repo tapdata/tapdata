@@ -7,6 +7,7 @@ import io.tapdata.coding.entity.param.Param;
 import io.tapdata.coding.entity.param.ProjectMemberParam;
 import io.tapdata.coding.enums.CodingEvent;
 import io.tapdata.coding.service.schema.SchemaStart;
+import io.tapdata.coding.utils.collection.MapUtil;
 import io.tapdata.coding.utils.http.CodingHttp;
 import io.tapdata.coding.utils.http.HttpEntity;
 import io.tapdata.coding.utils.tool.Checker;
@@ -21,9 +22,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
 
-import static io.tapdata.coding.enums.IssueEventTypes.*;
+import static io.tapdata.coding.enums.TapEventTypes.*;
 
-public class ProjectMembersLoader extends CodingStarter implements CodingLoader<ProjectMemberParam>{
+public class ProjectMembersLoader extends CodingStarter implements CodingLoader<ProjectMemberParam>,OverlayQueryEventDifferentiator{
     public static final String TABLE_NAME = "ProjectMembers";
     private Integer currentProjectId ;
     public ProjectMembersLoader(TapConnectionContext tapConnectionContext) {
@@ -126,10 +127,16 @@ public class ProjectMembersLoader extends CodingStarter implements CodingLoader<
             Object teamMembersObj = data.get(TABLE_NAME);
             if (Checker.isNotEmpty(teamMembersObj)){
                 List<Map<String, Object>> teamMembers = (List<Map<String, Object>>) teamMembersObj;
-                for (Map<String, Object> stringObjectMap : teamMembers) {
-                    Object updatedAtObj = stringObjectMap.get("UpdatedAt");
+                for (Map<String, Object> teamMember : teamMembers) {
+                    Object updatedAtObj = teamMember.get("UpdatedAt");
                     Long updatedAt = Checker.isEmpty(updatedAtObj) ? System.currentTimeMillis() : (Long)updatedAtObj;
-                    events.add(TapSimplify.insertRecordEvent(stringObjectMap,TABLE_NAME).referenceTime(updatedAt));
+                    Integer teamMemberId = (Integer) teamMember.get("Id");
+                    Integer teamMemberHash = MapUtil.create().hashCode(teamMember);
+                    switch (createOrUpdateEvent(teamMemberId,teamMemberHash)){
+                        case UPDATE_EVENT:events.add(TapSimplify.insertRecordEvent(teamMember, TABLE_NAME).referenceTime(updatedAt));break;
+                        case CREATED_EVENT:events.add(TapSimplify.updateDMLEvent(null,teamMember, TABLE_NAME).referenceTime(updatedAt));break;
+                    }
+                    //events.add(TapSimplify.insertRecordEvent(stringObjectMap,TABLE_NAME).referenceTime(updatedAt));
                     //((CodingOffset)offsetState).offset().put(TABLE_NAME,updatedAt);
                     if (teamMembers.size() == recordSize) {
                         consumer.accept(events,offsetState);
@@ -143,6 +150,10 @@ public class ProjectMembersLoader extends CodingStarter implements CodingLoader<
             }else {
                 break;
             }
+        }
+        List<TapEvent> delEvents = delEvent(TABLE_NAME,"Id");
+        if (!delEvents.isEmpty()){
+            events.addAll(delEvents);
         }
         if (events.size() > 0)  consumer.accept(events, offsetState);
     }

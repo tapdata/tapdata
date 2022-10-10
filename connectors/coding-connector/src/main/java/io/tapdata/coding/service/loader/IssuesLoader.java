@@ -4,9 +4,7 @@ import cn.hutool.http.HttpRequest;
 import cn.hutool.json.JSONArray;
 import io.tapdata.coding.entity.CodingOffset;
 import io.tapdata.coding.entity.ContextConfig;
-import io.tapdata.coding.entity.param.CommentParam;
 import io.tapdata.coding.entity.param.IssueParam;
-import io.tapdata.coding.entity.param.Param;
 import io.tapdata.coding.enums.CodingEvent;
 import io.tapdata.coding.enums.IssueType;
 import io.tapdata.coding.service.connectionMode.CSVMode;
@@ -25,14 +23,12 @@ import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
 
-import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
-import static io.tapdata.entity.simplify.TapSimplify.list;
 import static io.tapdata.entity.simplify.TapSimplify.map;
-import static io.tapdata.coding.enums.IssueEventTypes.*;
+import static io.tapdata.coding.enums.TapEventTypes.*;
 
 /**
  * @author GavinX
@@ -503,10 +499,8 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
 
     /**
      * 分页读取事项列表，并依次查询事项详情
-     * @param nodeContext
      * @param readStartTime
      * @param readEndTime
-     * @param readTable
      * @param readSize
      * @param consumer
      */
@@ -583,6 +577,9 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
                     lastTimeSplitIssueCode.add(issueDetialHash);
                 }
 
+                if (Checker.isEmpty(offsetState)){
+                    offsetState = new CodingOffset();
+                }
                 ((CodingOffset)offsetState).getTableUpdateTimeMap().put(TABLE_NAME,referenceTime);
                 if (events[0].size() == readSize) {
                     consumer.accept(events[0], offsetState);

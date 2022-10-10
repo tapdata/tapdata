@@ -2,6 +2,7 @@ package io.tapdata.coding.service.loader;
 
 import io.tapdata.coding.entity.param.Param;
 import io.tapdata.coding.enums.CodingEvent;
+import io.tapdata.coding.service.schema.SchemaStart;
 import io.tapdata.coding.utils.http.CodingHttp;
 import io.tapdata.coding.utils.tool.Checker;
 import io.tapdata.entity.event.TapEvent;
@@ -43,15 +44,15 @@ public interface CodingLoader<T extends Param> {
     }
 
     public static List<CodingLoader<Param>> loader(TapConnectionContext tapConnectionContext, List<String> tableName){
-        if (Checker.isEmpty(tableName)) return null;
         List<CodingLoader<Param>> loaders = new ArrayList<>();
+        if (Checker.isEmpty(tableName)) return loaders;
         for (String table : tableName) {
             CodingLoader<Param> loader = CodingLoader.loader(tapConnectionContext,table);
             if (Checker.isNotEmpty(loader)){
                 loaders.add(loader);
             }
         }
-        return loaders.isEmpty()?null:loaders;
+        return loaders;
     }
 
     public List<Map<String,Object>> list(T param);
