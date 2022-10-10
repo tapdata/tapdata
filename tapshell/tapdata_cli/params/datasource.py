@@ -104,6 +104,22 @@ PDK_ORACLE_FORM = {
 }
 
 
+PDK_KAFKA_FORM = {
+    "kafkaAcks": {"type": str, "require": True, "default": "-1"},
+    "kafkaCompressionType": {"type": str, "require": True, "default": "gzip", "option": [
+        "gzip", "zstd", "lz4", "snappy"
+    ]},
+    "kafkaIgnoreInvalidRecord": {"type": bool, "require": True, "default": False},
+    "kafkaIgnorePushError": {"type": bool, "require": True, "default": False},
+    "kafkaSaslMechanism": {"type": str, "require": True, "default": "PLAIN", "option": [
+        "PLAIN", "SHA256", "SHA512"
+    ]},
+    "krb5": {"type": bool, "require": True, "default": False},
+    "mqTopicString": {"type": str, "require": True},
+    "nameSrvAddr": {"type": str, "require": True},
+}
+
+
 pdk_config = {
     "mongodb": {
         "uri": PDK_MONGO_URI,
@@ -117,6 +133,9 @@ pdk_config = {
     },
     "oracle": {
         "form": PDK_ORACLE_FORM,
+    },
+    "kafka": {
+        "form": PDK_KAFKA_FORM,
     },
 }
 
