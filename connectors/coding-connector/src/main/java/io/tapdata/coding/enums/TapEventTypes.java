@@ -1,6 +1,6 @@
 package io.tapdata.coding.enums;
 
-public class IssueEventTypes {
+public class TapEventTypes {
 //    public static final String ISSUE_DELETED = "ISSUE_DELETED";
 //    public static final String ISSUE_CREATED = "ISSUE_CREATED";
 //    public static final String ISSUE_UPDATE = "ISSUE_UPDATED";     //更新事项信息

@@ -37,7 +37,7 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
-import static io.tapdata.coding.enums.IssueEventTypes.*;
+import static io.tapdata.coding.enums.TapEventTypes.*;
 import static io.tapdata.entity.simplify.TapSimplify.list;
 import static io.tapdata.entity.simplify.TapSimplify.map;
 
@@ -54,7 +54,6 @@ public class CodingConnector extends ConnectorBase {
 
 	@Override
 	public void onStart(TapConnectionContext connectionContext) throws Throwable {
-		//isConnectorStarted(connectionContext, connectorContext -> {});
 		IssuesLoader.create(connectionContext).verifyConnectionConfig();
 		DataMap connectionConfig = connectionContext.getConnectionConfig();
 		String streamReadType = connectionConfig.getString("streamReadType");
@@ -201,15 +200,27 @@ public class CodingConnector extends ConnectorBase {
 		return new CommandResult().result(pageResult);
 	}
 	private List<TapEvent> rawDataCallbackFilterFunction(TapConnectorContext connectorContext, Map<String, Object> issueEventData){
-		return rawDataCallbackFilterFunctionV2(connectorContext, issueEventData);
+		return rawDataCallbackFilterFunctionV2(connectorContext,new ArrayList<>(), issueEventData);
 	}
-	private List<TapEvent> rawDataCallbackFilterFunctionV2(TapConnectorContext connectorContext, Map<String, Object> issueEventData){
-		CodingLoader<Param> loader = CodingLoader.loader(connectorContext, "");//Table
-		if (Checker.isNotEmpty(loader)) {
-			return loader.rawDataCallbackFilterFunction(issueEventData);
+
+	private List<TapEvent> rawDataCallbackFilterFunctionV2(TapConnectorContext connectorContext,List<String> tableList, Map<String, Object> issueEventData){
+		//CodingLoader<Param> loader = CodingLoader.loader(connectorContext, "");
+		//return Checker.isNotEmpty(loader) ? loader.rawDataCallbackFilterFunction(issueEventData) : null;
+		List<CodingLoader<Param>> loaders = CodingLoader.loader(connectorContext, tableList);
+		if (Checker.isNotEmpty(loaders) && !loaders.isEmpty()){
+			List<TapEvent> events = new ArrayList<TapEvent>(){{
+				for (CodingLoader<Param> loader : loaders) {
+					List<TapEvent> tapEvents = loader.rawDataCallbackFilterFunction(issueEventData);
+					if (Checker.isNotEmpty(tapEvents) && !tapEvents.isEmpty()) {
+						addAll(tapEvents);
+					}
+				}
+			}};
+			return !events.isEmpty()?events:null;
 		}
 		return null;
 	}
+
 	private List<TapEvent> rawDataCallbackFilterFunctionV1(TapConnectorContext connectorContext, Map<String, Object> issueEventData) {
 		if (Checker.isEmpty(issueEventData)) {
 			TapLogger.debug(TAG, "An event with Event Data is null or empty,this callBack is stop.The data has been discarded. Data detial is:" + issueEventData);
@@ -311,14 +322,12 @@ public class CodingConnector extends ConnectorBase {
 		return Collections.singletonList(event);
 	}
 
-
 	private void streamRead(
 			TapConnectorContext nodeContext,
 			List<String> tableList,
 			Object offsetState,
 			int recordSize,
 			StreamReadConsumer consumer ) {
-		//this.streamReadV1(nodeContext, tableList, offsetState, recordSize, consumer);
 		this.streamReadV2(nodeContext, tableList, offsetState, recordSize, consumer);
 	}
 
@@ -368,24 +377,26 @@ public class CodingConnector extends ConnectorBase {
 			Object offsetState,
 			int recordSize,
 			StreamReadConsumer consumer ){
-		if (null == tableList || tableList.isEmpty()){
-			throw new RuntimeException("tableList not Exist.");
-		}
-		String currentTable = tableList.get(0);
-		if (null == currentTable){
-			throw new RuntimeException("TableList is Empty or not Exist!");
-		}
+		//String currentTable = tableList.get(0);
+		//if (null == currentTable){
+		//	throw new RuntimeException("TableList is Empty or not Exist!");
+		//}
+		//CodingLoader<Param> loader = CodingLoader.loader(nodeContext, currentTable);
+		List<CodingLoader<Param>> loaders = CodingLoader.loader(nodeContext, tableList);
+		if (Checker.isEmpty(loaders) || loaders.isEmpty()) return;
 		consumer.streamReadStarted();
 		while (isAlive()) {
-			CodingLoader<Param> loader = CodingLoader.loader(nodeContext, currentTable);
 			synchronized (this) {
 				try {
-					this.wait(loader.streamReadTime());
+					this.wait(loaders.get(0).streamReadTime());
 				} catch (InterruptedException e) {
 					e.printStackTrace();
 				}
 			}
-			if (Checker.isNotEmpty(loader)){
+			//if (Checker.isNotEmpty(loader)){
+			//	loader.streamRead(tableList,offsetState, recordSize, consumer);
+			//}
+			for (CodingLoader<Param> loader : loaders) {
 				loader.streamRead(tableList,offsetState, recordSize, consumer);
 			}
 		}

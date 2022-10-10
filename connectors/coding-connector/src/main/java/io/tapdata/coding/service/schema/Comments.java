@@ -10,7 +10,7 @@ import static io.tapdata.entity.simplify.TapSimplify.table;
 import static io.tapdata.entity.utils.JavaTypesToTapTypes.*;
 
 public class Comments implements SchemaStart {
-    public final Boolean use = true;
+    public final Boolean use = false;
     @Override
     public Boolean use() {
         return use;
