@@ -38,15 +38,15 @@ public class SmbFileStorage implements TapFileStorage {
     public void init(Map<String, Object> params) throws IOException {
         smbConfig = new SmbConfig().load(params);
         smbClient = new SMBClient();
-        connection = smbClient.connect(smbConfig.getHost());
+        connection = smbClient.connect(smbConfig.getSmbHost());
         AuthenticationContext ac;
-        if (EmptyKit.isNotBlank(smbConfig.getUsername())) {
-            ac = new AuthenticationContext(smbConfig.getUsername(), smbConfig.getPassword().toCharArray(), smbConfig.getDomain());
+        if (EmptyKit.isNotBlank(smbConfig.getSmbUsername())) {
+            ac = new AuthenticationContext(smbConfig.getSmbUsername(), smbConfig.getSmbPassword().toCharArray(), smbConfig.getSmbDomain());
         } else {
             ac = AuthenticationContext.anonymous();
         }
         session = connection.authenticate(ac);
-        share = (DiskShare) session.connectShare(smbConfig.getShareDir());
+        share = (DiskShare) session.connectShare(smbConfig.getSmbShareDir());
     }
 
     @Override
@@ -187,6 +187,11 @@ public class SmbFileStorage implements TapFileStorage {
     @Override
     public boolean isDirectoryExist(String path) {
         return share.folderExists(path);
+    }
+
+    @Override
+    public String getConnectInfo() {
+        return "smb://" + smbConfig.getSmbHost() + "/" + smbConfig.getSmbShareDir() + "/";
     }
 
     private String getAbsolutePath(String parentPath, String fileName) {

@@ -8,12 +8,12 @@ import java.util.Map;
 
 public class FtpConfig implements Serializable {
 
-    private String host;
-    private int port = 21;
-    private String username;
-    private String password;
-    private Boolean ssl = false;
-    private String account;
+    private String ftpHost;
+    private int ftpPort = 21;
+    private String ftpUsername;
+    private String ftpPassword;
+    private Boolean ftpSsl = false;
+    private String ftpAccount;
     private String encoding;
     private Boolean ftpPassiveMode = true;
 
@@ -25,60 +25,52 @@ public class FtpConfig implements Serializable {
         return this;
     }
 
-    public String getHost() {
-        return host;
+    public String getFtpHost() {
+        return ftpHost;
     }
 
-    public void setHost(String host) {
-        this.host = host;
+    public void setFtpHost(String ftpHost) {
+        this.ftpHost = ftpHost;
     }
 
-    public int getPort() {
-        return port;
+    public int getFtpPort() {
+        return ftpPort;
     }
 
-    public void setPort(int port) {
-        this.port = port;
+    public void setFtpPort(int ftpPort) {
+        this.ftpPort = ftpPort;
     }
 
-    public String getUsername() {
-        return username;
+    public String getFtpUsername() {
+        return ftpUsername;
     }
 
-    public void setUsername(String username) {
-        this.username = username;
+    public void setFtpUsername(String ftpUsername) {
+        this.ftpUsername = ftpUsername;
     }
 
-    public String getPassword() {
-        return password;
+    public String getFtpPassword() {
+        return ftpPassword;
     }
 
-    public void setPassword(String password) {
-        this.password = password;
+    public void setFtpPassword(String ftpPassword) {
+        this.ftpPassword = ftpPassword;
     }
 
-    public Boolean getSsl() {
-        return ssl;
+    public Boolean getFtpSsl() {
+        return ftpSsl;
     }
 
-    public void setSsl(Boolean ssl) {
-        this.ssl = ssl;
+    public void setFtpSsl(Boolean ftpSsl) {
+        this.ftpSsl = ftpSsl;
     }
 
-    public Boolean getFtpPassiveMode() {
-        return ftpPassiveMode;
+    public String getFtpAccount() {
+        return ftpAccount;
     }
 
-    public void setFtpPassiveMode(Boolean ftpPassiveMode) {
-        this.ftpPassiveMode = ftpPassiveMode;
-    }
-
-    public String getAccount() {
-        return account;
-    }
-
-    public void setAccount(String account) {
-        this.account = account;
+    public void setFtpAccount(String ftpAccount) {
+        this.ftpAccount = ftpAccount;
     }
 
     public String getEncoding() {
@@ -87,5 +79,13 @@ public class FtpConfig implements Serializable {
 
     public void setEncoding(String encoding) {
         this.encoding = encoding;
+    }
+
+    public Boolean getFtpPassiveMode() {
+        return ftpPassiveMode;
+    }
+
+    public void setFtpPassiveMode(Boolean ftpPassiveMode) {
+        this.ftpPassiveMode = ftpPassiveMode;
     }
 }

@@ -8,11 +8,11 @@ import java.util.Map;
 
 public class SmbConfig implements Serializable {
 
-    private String host;
-    private String username;
-    private String password;
-    private String domain;
-    private String shareDir;
+    private String smbHost;
+    private String smbUsername;
+    private String smbPassword;
+    private String smbDomain;
+    private String smbShareDir;
 
     private static final BeanUtils beanUtils = InstanceFactory.instance(BeanUtils.class); //bean util
 
@@ -22,43 +22,43 @@ public class SmbConfig implements Serializable {
         return this;
     }
 
-    public String getHost() {
-        return host;
+    public String getSmbHost() {
+        return smbHost;
     }
 
-    public void setHost(String host) {
-        this.host = host;
+    public void setSmbHost(String smbHost) {
+        this.smbHost = smbHost;
     }
 
-    public String getUsername() {
-        return username;
+    public String getSmbUsername() {
+        return smbUsername;
     }
 
-    public void setUsername(String username) {
-        this.username = username;
+    public void setSmbUsername(String smbUsername) {
+        this.smbUsername = smbUsername;
     }
 
-    public String getPassword() {
-        return password;
+    public String getSmbPassword() {
+        return smbPassword;
     }
 
-    public void setPassword(String password) {
-        this.password = password;
+    public void setSmbPassword(String smbPassword) {
+        this.smbPassword = smbPassword;
     }
 
-    public String getDomain() {
-        return domain;
+    public String getSmbDomain() {
+        return smbDomain;
     }
 
-    public void setDomain(String domain) {
-        this.domain = domain;
+    public void setSmbDomain(String smbDomain) {
+        this.smbDomain = smbDomain;
     }
 
-    public String getShareDir() {
-        return shareDir;
+    public String getSmbShareDir() {
+        return smbShareDir;
     }
 
-    public void setShareDir(String shareDir) {
-        this.shareDir = shareDir;
+    public void setSmbShareDir(String smbShareDir) {
+        this.smbShareDir = smbShareDir;
     }
 }

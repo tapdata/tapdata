@@ -19,10 +19,10 @@ public class Main {
         TapFileStorage storage = new TapFileStorageBuilder()
                 .withClassLoader(SftpFileStorage.class.getClassLoader()) //PDK's classloader
                 .withParams(map(
-                        entry("host", "192.168.1.189"),
-                        entry("port", 22),
-                        entry("username", "root"),
-                        entry("password", "Gotapd8!")
+                        entry("sftpHost", "192.168.1.189"),
+                        entry("sftpPort", 22),
+                        entry("sftpUsername", "root"),
+                        entry("sftpPassword", "Gotapd8!")
                 ))
                 .withStorageClassName("io.tapdata.storage.sftp.SftpFileStorage")
                 .build();

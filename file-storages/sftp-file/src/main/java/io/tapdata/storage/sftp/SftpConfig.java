@@ -8,10 +8,10 @@ import java.util.Map;
 
 public class SftpConfig implements Serializable {
 
-    private String host;
-    private int port = 22;
-    private String username;
-    private String password;
+    private String sftpHost;
+    private int sftpPort = 22;
+    private String sftpUsername;
+    private String sftpPassword;
 
     private static final BeanUtils beanUtils = InstanceFactory.instance(BeanUtils.class); //bean util
 
@@ -21,35 +21,35 @@ public class SftpConfig implements Serializable {
         return this;
     }
 
-    public String getHost() {
-        return host;
+    public String getSftpHost() {
+        return sftpHost;
     }
 
-    public void setHost(String host) {
-        this.host = host;
+    public void setSftpHost(String sftpHost) {
+        this.sftpHost = sftpHost;
     }
 
-    public int getPort() {
-        return port;
+    public int getSftpPort() {
+        return sftpPort;
     }
 
-    public void setPort(int port) {
-        this.port = port;
+    public void setSftpPort(int sftpPort) {
+        this.sftpPort = sftpPort;
     }
 
-    public String getUsername() {
-        return username;
+    public String getSftpUsername() {
+        return sftpUsername;
     }
 
-    public void setUsername(String username) {
-        this.username = username;
+    public void setSftpUsername(String sftpUsername) {
+        this.sftpUsername = sftpUsername;
     }
 
-    public String getPassword() {
-        return password;
+    public String getSftpPassword() {
+        return sftpPassword;
     }
 
-    public void setPassword(String password) {
-        this.password = password;
+    public void setSftpPassword(String sftpPassword) {
+        this.sftpPassword = sftpPassword;
     }
 }

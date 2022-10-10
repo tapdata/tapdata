@@ -23,9 +23,9 @@ public class SftpFileStorage implements TapFileStorage {
     public void init(Map<String, Object> params) throws JSchException {
         sftpConfig = new SftpConfig().load(params);
         JSch jsch = new JSch();
-        session = jsch.getSession(sftpConfig.getUsername(), sftpConfig.getHost(), sftpConfig.getPort());
-        if (EmptyKit.isNotBlank(sftpConfig.getPassword())) {
-            session.setPassword(sftpConfig.getPassword());
+        session = jsch.getSession(sftpConfig.getSftpUsername(), sftpConfig.getSftpHost(), sftpConfig.getSftpPort());
+        if (EmptyKit.isNotBlank(sftpConfig.getSftpPassword())) {
+            session.setPassword(sftpConfig.getSftpPassword());
         }
         Properties config = new Properties();
         config.put("StrictHostKeyChecking", "no");
@@ -184,6 +184,11 @@ public class SftpFileStorage implements TapFileStorage {
         } catch (SftpException e) {
             return false;
         }
+    }
+
+    @Override
+    public String getConnectInfo() {
+        return "sftp://" + sftpConfig.getSftpHost() + (sftpConfig.getSftpPort() == 22 ? "" : (":" + sftpConfig.getSftpPort())) + "/";
     }
 
     private String getAbsolutePath(String parentPath, String fileName) {

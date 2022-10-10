@@ -135,4 +135,9 @@ public class LocalFileStorage implements TapFileStorage {
         return file.exists() && file.isDirectory();
     }
 
+    @Override
+    public String getConnectInfo() {
+        return "local:";
+    }
+
 }

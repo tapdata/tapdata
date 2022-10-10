@@ -1,4 +1,4 @@
-package io.tapdata.storage;
+package io.tapdata.common;
 
 public enum FileTypeEnum {
 

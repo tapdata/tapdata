@@ -19,10 +19,10 @@ public class Main {
         TapFileStorage storage = new TapFileStorageBuilder()
                 .withClassLoader(FtpFileStorage.class.getClassLoader()) //PDK's classloader
 				.withParams(map(
-                        entry("host", "192.168.1.126"),
-                        entry("port", 50021),
-                        entry("username", "root"),
-                        entry("password", "Gotapd8!"),
+                        entry("ftpHost", "192.168.1.126"),
+                        entry("ftpPort", 50021),
+                        entry("ftpUsername", "root"),
+                        entry("ftpPassword", "Gotapd8!"),
                         entry("encoding", "UTF-8")
                 ))
                 .withStorageClassName("io.tapdata.storage.ftp.FtpFileStorage")

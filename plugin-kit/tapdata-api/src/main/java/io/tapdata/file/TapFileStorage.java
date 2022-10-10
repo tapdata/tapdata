@@ -117,5 +117,5 @@ public interface TapFileStorage {
      */
     boolean isDirectoryExist(String path) throws Exception;
 
-
+    String getConnectInfo();
 }

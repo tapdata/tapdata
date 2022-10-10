@@ -27,11 +27,11 @@ public class FtpFileStorage implements TapFileStorage {
     public void init(Map<String, Object> params) throws IOException {
         ftpConfig = new FtpConfig().load(params);
         ftpClient = new FTPClient();
-        ftpClient.connect(ftpConfig.getHost(), ftpConfig.getPort());
-        if (ftpConfig.getSsl() && EmptyKit.isNotBlank(ftpConfig.getAccount())) {
-            ftpClient.login(ftpConfig.getUsername(), ftpConfig.getPassword(), ftpConfig.getAccount());
+        ftpClient.connect(ftpConfig.getFtpHost(), ftpConfig.getFtpPort());
+        if (ftpConfig.getFtpSsl() && EmptyKit.isNotBlank(ftpConfig.getFtpAccount())) {
+            ftpClient.login(ftpConfig.getFtpUsername(), ftpConfig.getFtpPassword(), ftpConfig.getFtpAccount());
         } else {
-            ftpClient.login(ftpConfig.getUsername(), ftpConfig.getPassword());
+            ftpClient.login(ftpConfig.getFtpUsername(), ftpConfig.getFtpPassword());
         }
         if (FTPReply.isPositiveCompletion(ftpClient.getReplyCode())) {
             ftpClient.setControlEncoding(ftpConfig.getEncoding());
@@ -161,6 +161,11 @@ public class FtpFileStorage implements TapFileStorage {
     @Override
     public synchronized boolean isDirectoryExist(String path) throws IOException {
         return ftpClient.changeWorkingDirectory(encodeISO(path));
+    }
+
+    @Override
+    public String getConnectInfo() {
+        return "ftp://" + ftpConfig.getFtpHost() + (ftpConfig.getFtpPort() == 21 ? "" : (":" + ftpConfig.getFtpPort())) + "/";
     }
 
     private String encodeISO(String path) {

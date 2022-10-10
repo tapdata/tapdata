@@ -159,6 +159,11 @@ public class S3fsFileStorage implements TapFileStorage {
         return amazonS3Client.listObjectsV2(s3fsConfig.getBucket(), completionPath(path)).getKeyCount() > 0;
     }
 
+    @Override
+    public String getConnectInfo() {
+        return "s3fs://" + s3fsConfig.getEndpoint() + "/" + s3fsConfig.getBucket() + "/";
+    }
+
     private String completionPath(String path) {
         if (EmptyKit.isBlank(path) || path.equals("/")) {
             return "";

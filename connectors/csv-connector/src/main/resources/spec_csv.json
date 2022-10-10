@@ -1,0 +1,368 @@
+{
+  "properties": {
+    "name": "CSV",
+    "icon": "icons/csv.png",
+    "doc": "${doc}",
+    "id": "csv"
+  },
+  "configOptions": {
+    "connection": {
+      "type": "object",
+      "properties": {
+        "protocol": {
+          "type": "string",
+          "title": "${protocol}",
+          "x-decorator": "FormItem",
+          "x-component": "Select",
+          "x-index": 10,
+          "default": "Local",
+          "enum": [
+            {
+              "label": "LOCAL",
+              "value": "local"
+            },
+            {
+              "label": "FTP",
+              "value": "ftp"
+            },
+            {
+              "label": "SFTP",
+              "value": "sftp"
+            },
+            {
+              "label": "SMB",
+              "value": "smb"
+            },
+            {
+              "label": "S3FS",
+              "value": "s3fs"
+            }
+          ],
+          "x-reactions": [
+            {
+              "target": "*(ftpHost,ftpPort,ftpUsername,ftpPassword,ftpPassiveMode)",
+              "fulfill": {
+                "state": {
+                  "visible": "{{$self.value==='ftp'}}"
+                }
+              }
+            },
+            {
+              "target": "*(sftpHost,sftpPort,sftpUsername,sftpPassword)",
+              "fulfill": {
+                "state": {
+                  "visible": "{{$self.value==='sftp'}}"
+                }
+              }
+            },
+            {
+              "target": "*(smbHost,smbUsername,smbPassword)",
+              "fulfill": {
+                "state": {
+                  "visible": "{{$self.value==='smb'}}"
+                }
+              }
+            },
+            {
+              "target": "*(accessKey,secretKey,endpoint,region,bucket)",
+              "fulfill": {
+                "state": {
+                  "visible": "{{$self.value==='s3fs'}}"
+                }
+              }
+            }
+          ]
+        },
+        "encoding": {
+          "type": "string",
+          "title": "${encoding}",
+          "x-decorator": "FormItem",
+          "x-component": "Select",
+          "x-index": 20,
+          "default": "UTF-8",
+          "enum": [
+            {
+              "label": "UTF-8",
+              "value": "UTF-8"
+            },
+            {
+              "label": "UTF-16",
+              "value": "UTF-16"
+            },
+            {
+              "label": "GBK",
+              "value": "GBK"
+            },
+            {
+              "label": "ASCII",
+              "value": "ASCII"
+            }
+          ]
+        },
+        "ftpHost": {
+          "required": true,
+          "type": "string",
+          "title": "${ftpHost}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "apiServerKey": "ftpHost",
+          "x-index": 30
+        },
+        "ftpPort": {
+          "required": true,
+          "type": "string",
+          "title": "${ftpPort}",
+          "default": 21,
+          "x-decorator": "FormItem",
+          "x-component": "InputNumber",
+          "apiServerKey": "ftpPort",
+          "x-index": 40
+        },
+        "ftpUsername": {
+          "type": "string",
+          "title": "${ftpUsername}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "apiServerKey": "ftpUsername",
+          "x-index": 50
+        },
+        "ftpPassword": {
+          "type": "string",
+          "title": "${ftpPassword}",
+          "x-decorator": "FormItem",
+          "x-component": "Password",
+          "apiServerKey": "ftpPassword",
+          "x-index": 60
+        },
+        "ftpPassiveMode": {
+          "type": "boolean",
+          "title": "${ftpPassiveMode}",
+          "default": true,
+          "x-decorator": "FormItem",
+          "x-component": "Switch",
+          "x-index": 70
+        },
+        "sftpHost": {
+          "required": true,
+          "type": "string",
+          "title": "${sftpHost}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "apiServerKey": "sftpHost",
+          "x-index": 80
+        },
+        "sftpPort": {
+          "required": true,
+          "type": "string",
+          "title": "${sftpPort}",
+          "default": 22,
+          "x-decorator": "FormItem",
+          "x-component": "InputNumber",
+          "apiServerKey": "sftpPort",
+          "x-index": 90
+        },
+        "sftpUsername": {
+          "required": true,
+          "type": "string",
+          "title": "${sftpUsername}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "apiServerKey": "sftpUsername",
+          "x-index": 100
+        },
+        "sftpPassword": {
+          "required": true,
+          "type": "string",
+          "title": "${sftpPassword}",
+          "x-decorator": "FormItem",
+          "x-component": "Password",
+          "apiServerKey": "sftpPassword",
+          "x-index": 110
+        },
+        "smbHost": {
+          "required": true,
+          "type": "string",
+          "title": "${smbHost}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "apiServerKey": "smbHost",
+          "x-index": 120
+        },
+        "smbUsername": {
+          "type": "string",
+          "title": "${smbUsername}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "apiServerKey": "smbUsername",
+          "x-index": 130
+        },
+        "smbPassword": {
+          "type": "string",
+          "title": "${smbPassword}",
+          "x-decorator": "FormItem",
+          "x-component": "Password",
+          "apiServerKey": "smbPassword",
+          "x-index": 140
+        },
+        "accessKey": {
+          "required": true,
+          "type": "string",
+          "title": "${accessKey}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "apiServerKey": "accessKey",
+          "x-index": 150
+        },
+        "secretKey": {
+          "required": true,
+          "type": "string",
+          "title": "${secretKey}",
+          "x-decorator": "FormItem",
+          "x-component": "Password",
+          "apiServerKey": "secretKey",
+          "x-index": 160
+        },
+        "endpoint": {
+          "required": true,
+          "type": "string",
+          "title": "${endpoint}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "apiServerKey": "endpoint",
+          "x-index": 170
+        },
+        "region": {
+          "type": "string",
+          "title": "${region}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "apiServerKey": "region",
+          "x-index": 180
+        },
+        "bucket": {
+          "required": true,
+          "type": "string",
+          "title": "${bucket}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "apiServerKey": "bucket",
+          "x-index": 190
+        }
+      }
+    }
+  },
+  "messages": {
+    "default": "en_US",
+    "en_US": {
+      "doc": "docs/csv_en_US.md",
+      "protocol": "File Protocol",
+      "encoding": "Charset",
+      "ftpHost": "Host",
+      "ftpPort": "Port",
+      "ftpUsername": "Username",
+      "ftpPassword": "Password",
+      "ftpPassiveMode": "Passive Mode",
+      "sftpHost": "Host",
+      "sftpPort": "Port",
+      "sftpUsername": "Username",
+      "sftpPassword": "Password",
+      "smbHost": "Host",
+      "smbUsername": "Username",
+      "smbPassword": "Password",
+      "accessKey": "Access-Key",
+      "secretKey": "Secret-Key",
+      "endpoint": "Endpoint",
+      "region": "Region",
+      "bucket": "Bucket"
+    },
+    "zh_CN": {
+      "doc": "docs/csv_zh_CN.md",
+      "protocol": "文件协议",
+      "encoding": "字符编码",
+      "ftpHost": "地址",
+      "ftpPort": "端口",
+      "ftpUsername": "用户名",
+      "ftpPassword": "口令",
+      "ftpPassiveMode": "被动连接模式",
+      "sftpHost": "地址",
+      "sftpPort": "端口",
+      "sftpUsername": "用户名",
+      "sftpPassword": "口令",
+      "smbHost": "地址",
+      "smbUsername": "用户名",
+      "smbPassword": "口令",
+      "accessKey": "Access-Key",
+      "secretKey": "Secret-Key",
+      "endpoint": "终端",
+      "region": "域",
+      "bucket": "桶"
+    },
+    "zh_TW": {
+      "doc": "docs/csv_zh_TW.md",
+      "protocol": "檔案協定",
+      "encoding": "字元編碼",
+      "ftpHost": "地址",
+      "ftpPort": "端口",
+      "ftpUsername": "用戶名",
+      "ftpPassword": "口令",
+      "ftpPassiveMode": "被動連接模式",
+      "sftpHost": "地址",
+      "sftpPort": "端口",
+      "sftpUsername": "用戶名",
+      "sftpPassword": "口令",
+      "smbHost": "地址",
+      "smbUsername": "用戶名",
+      "smbPassword": "口令",
+      "accessKey": "Access-Key",
+      "secretKey": "Secret-Key",
+      "endpoint": "終端",
+      "region": "域",
+      "bucket": "桶"
+    }
+  },
+  "dataTypes": {
+    "OBJECT": {
+      "to": "TapMap"
+    },
+    "ARRAY": {
+      "to": "TapArray"
+    },
+    "NUMBER": {
+      "precision": [
+        1,
+        1000
+      ],
+      "scale": [
+        0,
+        1000
+      ],
+      "fixed": true,
+      "preferPrecision": 20,
+      "preferScale": 8,
+      "priority": 1,
+      "to": "TapNumber"
+    },
+    "INTEGER": {
+      "bit": 32,
+      "priority": 1,
+      "value": [
+        -2147483648,
+        2147483647
+      ],
+      "to": "TapNumber"
+    },
+    "BOOLEAN": {
+      "to": "TapBoolean"
+    },
+    "STRING": {
+      "byte": 200,
+      "priority": 1,
+      "defaultByte": 200,
+      "preferByte": 200,
+      "to": "TapString"
+    },
+    "TEXT": {
+      "to": "TapString"
+    }
+  }
+}
