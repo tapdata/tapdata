@@ -115,7 +115,7 @@ PDK_KAFKA_FORM = {
         "PLAIN", "SHA256", "SHA512"
     ]},
     "krb5": {"type": bool, "require": True, "default": False},
-    "mqTopicString": {"type": str, "require": True},
+    "mqTopicString": {"type": str, "require": False},
     "nameSrvAddr": {"type": str, "require": True},
 }
 

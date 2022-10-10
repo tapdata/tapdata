@@ -2,43 +2,42 @@ import sys
 import time
 from typing import List, Iterable
 
-import pytest, allure
+import pytest
+import allure
 
 from . import random_str, env
-from tapdata_cli.cli import DataSource, logger, Pipeline, JobType, get_obj, Source, Sink, Mysql, Postgres, main
-
+from tapdata_cli.cli import DataSource, logger, Pipeline, JobType, get_obj, Source, Sink, main
 
 main()
 
-
 try:
-    source_name, sink_name, mysql_name, postgres_name = f"{env['database_1.NAME_PRE']}",\
-                                                 f"{env['database_2.NAME_PRE']}", \
-                                                 f"{env['mysql.NAME_PRE']}", \
-                                                 f"{env['postgres.NAME_PRE']}"
+    # format kafka name
+    source_name, sink_name, mysql_name, postgres_name, kafka_name = (
+        f"{env['database_1.NAME_PRE']}",
+        f"{env['database_2.NAME_PRE']}",
+        f"{env['mysql.NAME_PRE']}",
+        f"{env['postgres.NAME_PRE']}",
+        f"{env['kafka.NAME_PRE']}"
+    )
+    # init datasource
     source_db = DataSource("mongodb", name=source_name).uri(env['database_1.URI'])
     sink_db = DataSource("mongodb", name=sink_name).uri(env['database_2.URI'])
-    mysql_db = Mysql(mysql_name).host(env['mysql.HOST']).db(env['mysql.DB']).username(env['mysql.USERNAME'])\
-            .password(env['mysql.PASSWORD']).type("source").props(env['mysql.PROPS'])
-    postgres_db = Postgres(postgres_name).host(env['postgres.HOST']).db(env['postgres.DB']).username(env['postgres.USERNAME']) \
-            .password(env['postgres.PASSWORD']).type("source").props(env['postgres.PROPS'])
+    host, port = env['mysql.HOST'].split(":")
+    mysql_db = DataSource("mysql", mysql_name).host(host).port(int(port)).database(env['mysql.DB']). \
+        username(env['mysql.USERNAME']).password(env['mysql.PASSWORD'])
+    postgres_db = DataSource("postgresql", postgres_name).host(host).database(env['postgres.DB']). \
+        user(env['postgres.USERNAME']).password(env['postgres.PASSWORD']).schema("admin").port(int(port))
+    kafka_db = DataSource("kafka").nameSrvAddr(env['kafka.HOST'])
 
-    if source_db.validate() and sink_db.validate() and mysql_db.validate() and postgres_db.validate():
-        source_db.save()
-        sink_db.save()
-        mysql_db.save()
-        postgres_db.save()
-    else:
-        logger.error("datasource check failed, please check !")
-        sys.exit(1)
+    # save datasource
+    source_db.save()
+    sink_db.save()
+    mysql_db.save()
+    postgres_db.save()
+    kafka_db.save()
+
 except AttributeError:
     pass
-
-
-source_mongo_1 = Source(source_name)
-source_mongo_2 = Source(sink_name)
-source_postgres = Source(postgres_name)
-sink_mysql = Sink(mysql_name)
 
 
 def make_new_pipeline(name):
@@ -46,14 +45,14 @@ def make_new_pipeline(name):
     return p
 
 
-def wait_scheduling(pipeline: Pipeline, count: int=5, except_status: Iterable[str]=()) -> bool:
+def wait_scheduling(pipeline: Pipeline, count: int = 5, except_status: Iterable[str] = ()) -> bool:
     if not except_status:
         except_status = ['running']
     for i in range(count):
         status = pipeline.status()
         if status not in except_status and status != "error":
             time.sleep(1)
-            logger.log(f"the status is {pipeline.status()} now, this is {i+1} times, {count - i} times remaining")
+            logger.log(f"the status is {pipeline.status()} now, this is {i + 1} times, {count - i} times remaining")
             continue
         elif status == "error":
             return False
@@ -63,9 +62,7 @@ def wait_scheduling(pipeline: Pipeline, count: int=5, except_status: Iterable[st
 
 
 def stop(p: Pipeline):
-    # time.sleep(60)
-    # p.stop()
-    # return wait_scheduling(p, except_status=("stop", "complete"), count=60)
+    # TODO: wait and check job status then stop job, finally delete job
     return True
 
 
@@ -143,19 +140,6 @@ class TestPipeline:
         assert wait_scheduling(p3, except_status=('running', 'wait_run'))
         assert stop(p3)
 
-    # @allure.title("multi layer table merge in sync")
-    # def test_merge_sync_multi_nesting(self):
-    #     p = make_new_pipeline(f"merge_sync_nesting_{random_str()}")
-    #     p.dag.jobType = JobType.sync
-    #     p1 = p.readFrom(f"{source_name}.test")
-    #     p2 = p.readFrom(f"{sink_name}.test")
-    #     p3 = p.readFrom(source_postgres)
-    #     p4 = p1.merge(p2.merge(p3))
-    #     p5 = p4.writeTo(sink_mysql)
-    #     p5.start()
-    #     assert wait_scheduling(p5, except_status=('running', 'wait_run'))
-    #     assert stop(p5)
-
     @allure.title("js udf in sync")
     def test_processor_sync(self):
         p = make_new_pipeline(f"processor_sync_{random_str()}")
@@ -189,7 +173,7 @@ class TestPipeline:
         p = make_new_pipeline(f"stats_{random_str()}")
         p1 = p.readFrom(source_name).writeTo(sink_name)
         p1.start()
-        assert wait_scheduling(p1, except_status=('running', "wait_run"))
+        assert wait_scheduling(p1, except_status=('running',))
         p1.stats()
         assert stop(p1)
 
@@ -198,14 +182,15 @@ class TestPipeline:
         p = make_new_pipeline(f"monitor_job{random_str()}")
         p1 = p.readFrom(source_name).writeTo(sink_name)
         p1.start()
+        assert wait_scheduling(p1, except_status=('running',))
         p1.monitor(t=2)
 
     def test_check(self):
         p = make_new_pipeline(f"check_job{random_str()}")
         p.dag.jobType = JobType.sync
-        p1 = p.readFrom(source_name)
-        p2 = p1.writeTo(sink_name)
-        p2.start()
-        assert wait_scheduling(p2, except_status=('running', "wait_run"))
+        p1 = p.readFrom(source_name).writeTo(sink_name)
+        p1.config({'isAutoInspect': True})
+        p1.start()
+        assert wait_scheduling(p1, except_status=('running',), count=10)
         p1.check()
-        assert stop(p2)
+        assert stop(p1)

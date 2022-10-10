@@ -1,7 +1,8 @@
-import pytest, allure
+import pytest
+import allure
 
 from . import env, random_str
-from tapdata_cli.cli import DataSource, logger, MongoDB, Mysql, Postgres, main
+from tapdata_cli.cli import DataSource, main
 
 
 main()
@@ -36,7 +37,7 @@ class TestDataSource:
 
     @allure.title("create mongodb datasource with uri")
     def test_mongo_create_by_uri(self):
-        mongo_test = MongoDB(f"test_mongo_{random_str()}")
+        mongo_test = DataSource("mongodb", f"test_mongo_{random_str()}")
         mongo_test.uri(env['database_1.URI'])
         assert mongo_test.save()
         assert mongo_test.validate()
@@ -45,12 +46,11 @@ class TestDataSource:
 
     @allure.title("test mysql form valid")
     def test_mysql_to_dict(self):
-        test_ds = Mysql(f"test_mongo_{random_str()}")
+        test_ds = DataSource("mysql", f"test_mysql_{random_str()}")
         host, port = env['mysql.HOST'].split(":")
         test_ds.host(host).port(int(port)).database(env['mysql.DB']).username(env['mysql.USERNAME'])\
             .password(env['mysql.PASSWORD'])
         assert test_ds.save()
-        assert test_ds.validate()
         assert test_ds.status() == "ready"
         test_ds.delete()
 
@@ -62,5 +62,13 @@ class TestDataSource:
             .password(env['postgres.PASSWORD']).schema("admin").port(int(port))
         assert test_ds.save()
         assert test_ds.validate()
+        assert test_ds.status() == "ready"
+        test_ds.delete()
+
+    @allure.title("create Kafka datasource with form")
+    def test_kafka(self):
+        test_ds = DataSource("kafka", f"test_kafka_{random_str()}")
+        test_ds.nameSrvAddr(env['kafka.HOST'])
+        assert test_ds.save()
         assert test_ds.status() == "ready"
         test_ds.delete()

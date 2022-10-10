@@ -30,10 +30,9 @@ from tapdata_cli.graph import Node, Graph
 from tapdata_cli.check import ConfigCheck
 from tapdata_cli.log import logger, get_log_level
 from tapdata_cli.config_parse import config
-from tapdata_cli.request import DataSourceApi, req
+from tapdata_cli.request import DataSourceApi, req, InspectApi, TaskApi
 from tapdata_cli.params.datasource import pdk_config, DATASOURCE_CONFIG
 from tapdata_cli.params.job import job_config, node_config, node_config_sync
-
 
 server = config["backend.server"]
 access_code = config["backend.access_code"]
@@ -1310,6 +1309,7 @@ class JobStatus():
     stopping = 'stopping'
     complete = "complete"
     wait_run = "wait_run"
+    error = "error"
 
 
 @help_decorate("Enum, used to describe a connection readable or writeable")
@@ -1591,12 +1591,15 @@ class JobType:
 
 
 class JobStats:
-    input = 0
-    output = 0
-    insert = 0
-    update = 0
-    delete = 0
-    delay = 0
+
+    qps = 0
+    total = 0
+    input_insert = 0
+    input_update = 0
+    input_delete = 0
+    output_insert = 0
+    output_update = 0
+    output_Delete = 0
 
 
 class LogMinerMode:
@@ -1990,35 +1993,33 @@ class Pipeline:
         self.job.monitor(t)
         return self
 
-    def check(self):
+    def check(self, count=10):
         if self.status() not in [JobStatus.running, JobStatus.stop, JobStatus.complete]:
             logger.warn(
                 "{}", "The status of this task is not in [running, stop, complete], unable to check data."
             )
             return
-        if self.check_job is None:
-            self.check_job = DataCheck(self.sources[0], self.sinks[0]["sink"], self.sinks[0]["relation"],
-                                       name=self.name)
-            self.check_job.start()
-        while True:
+        if not self.dag.setting.get("isAutoInspect"):
+            logger.warn("please set {} to enable auto inspect", "$pipeline.config({'isAutoInspect': True})", "info")
+            return
+        for _ in range(count):
             time.sleep(1)
-            if self.check_job.status() == "scheduling":
-                logger.info("prepareing for data check, please wait for a while ...", wrap=False, logger_header=True)
-                continue
-            stats = self.check_job.stats()
-            if self.check_job.status() == "running":
-                logger.info("data check running, progress is: {} %", stats["progress"] * 100, wrap=False,
-                            logger_header=True)
-                continue
-            if self.check_job.status() == "done":
-                logger.log(
-                    "data check finished, check result is: {}, same row is number is: {}, diff row number is: {}",
-                    stats["result"],
-                    stats["row_passed"],
-                    stats["row_failed"],
-                    "info" if stats["result"] != "failed" else "error", "info",
-                    "warn"
-                )
+
+            data = InspectApi().post({"id": self.job.id})
+            if not data:
+                pass
+            data = data["data"]
+            diff_record = data.get("diffRecords", 0)
+            diff_tables = data.get("diffTables", 0)
+            totals = data.get("totals", 0)
+            ignore = data.get("ignore", 0)
+
+            logger.log(
+                "data check start, total is {}, ignore row number is {}, diff row number is {}, diff table number is {}",
+                totals, ignore, diff_record, diff_tables,
+                "info", "info", "warn", "warn",
+            )
+            if self.status() in [JobStatus.stop, JobStatus.complete, JobStatus.error]:
                 break
 
 
@@ -2126,7 +2127,8 @@ class Source:
             logger.warn("type {} must be {}", config, "dict", "notice", "notice")
             return False
         self.setting.update(config)
-        resp = ConfigCheck(self.setting, self.config_type[type(self).__name__.lower()], keep_extra=keep_extra).checked_config
+        resp = ConfigCheck(self.setting, self.config_type[type(self).__name__.lower()],
+                           keep_extra=keep_extra).checked_config
         self.setting.update(resp)
         return True
 
@@ -2644,29 +2646,40 @@ class Job:
         return sub_task_ids
 
     def stats(self, res=None):
-        res = req.get("/Task/" + self.id).json()
-        statuses = res["data"]["statuses"]
-        jobStats = JobStats()
-        for subTask in statuses:
-            payload = {
-                "statistics": [
-                    {
-                        "tags": {
-                            "subTaskId": subTask["id"],
-                            "type": "subTask"
-                        }
-                    }
-                ]
+        data = TaskApi().get(self.id)["data"]
+        payload = {
+            "startAt": int(time.time() * 1000),
+            "endAt": int(time.time() * 1000),
+            "samples": {
+                "totalData": {
+                    "endAt": int(time.time() * 1000),
+                    "fields": [
+                        "inputInsertTotal", "inputUpdateTotal", "inputDeleteTotal",
+                        "outputInsertTotal", "outputUpdateTotal", "outputDeleteTotal",
+                        "tableTotal", "outputQps"
+                    ],
+                    "tags": {
+                        "taskId": self.id,
+                        "taskRecordId": data["taskRecordId"],
+                        "type": "task"
+                    },
+                    "type": "instant",
+                }
             }
-            res = req.post("/measurement/query", json=payload).json()
-            for statistic in res["data"]["statistics"]:
-                jobStats.delay = statistic["replicateLag"]
-                jobStats.output = statistic["outputTotal"]
-                jobStats.input = statistic["inputTotal"]
-                jobStats.insert = statistic["insertedTotal"]
-                jobStats.update = statistic["updatedTotal"]
-                jobStats.delete = statistic["deletedTotal"]
-        return jobStats
+        }
+        res = req.post("/measurement/query/v2", json=payload).json()
+        job_stats = JobStats()
+        if len(res["data"]["samples"]["totalData"]) > 0:
+            stats = res["data"]["samples"]["totalData"][0]
+            job_stats.qps = stats["outputQps"]
+            job_stats.total = stats["tableTotal"]
+            job_stats.input_insert = stats["inputInsertTotal"]
+            job_stats.input_update = stats["inputUpdateTotal"]
+            job_stats.input_delete = stats["inputDeleteTotal"]
+            job_stats.output_insert = stats["outputInsertTotal"]
+            job_stats.output_update = stats["outputUpdateTotal"]
+            job_stats.output_Delete = stats["outputDeleteTotal"]
+        return job_stats
 
     def logs(self, res=None, limit=100, level="info", t=30, tail=False, quiet=True):
         logs = []
@@ -2730,16 +2743,21 @@ class Job:
             status = self.status()
             if print_log:
                 logger.info(
-                    "job {} status: {}, delay: {}, stats: input {}, output {}, insert {}, update {}, delete {}",
-                    self.name, status, stats.delay, stats.input, stats.output, stats.insert, stats.update, stats.delete,
-                    "info", "info", "notice", "info", "info", "info", "info", "info", wrap=False, logger_header=True
+                    "job {} status: {}, qps: {}, total: {} input_stats: insert: {}, update: {}, delete: {} output_stats: insert: {}, update: {}, delete: {}",
+                    self.name, status, stats.qps, stats.total, stats.input_insert, stats.input_update, stats.input_delete,
+                    stats.output_insert, stats.output_update, stats.output_Delete,
+                    "info", "info", "notice", "info", "info", "info", "info", "info", "info", "info", wrap=False, logger_header=True
                 )
             if status in [JobStatus.running, JobStatus.edit, JobStatus.scheduled]:
                 continue
             logger.info(
-                "job {} status: {}, delay: {}, stats: input {}, output {}, insert {}, update {}, delete {}",
-                self.name, status, stats.delay, stats.input, stats.output, stats.insert, stats.update, stats.delete,
-                "info", "info", "notice", "info", "info", "info", "info", "info", wrap=False, logger_header=True
+                "job {} status: {}, qps: {}, total: {}\n" + \
+                "input_stats: insert: {}, update: {}, delete: {}" + \
+                "output_stats: insert: {}, update: {}, delete: {}",
+                self.name, status, stats["outputQps"], stats["tableTotal"],
+                stats["inputInsertTotal"], stats["inputUpdateTotal"], stats["inputDeleteTotal"],
+                stats["outputInsertTotal"], stats["outputUpdateTotal"], stats["outputDeleteTotal"],
+                "info", "info", "notice", "info", "info", "info", "info", "info", "info", "info", wrap=False, logger_header=True
             )
             break
 
@@ -2849,12 +2867,14 @@ class DataSource:
     def _set_pdk_setting(self, key):
         """closure function to update value into pdk_setting, only be called by __getattribute__
         """
+
         def _config_pdk_setting(value):
             if key == "uri" and value:
                 self.pdk_setting.update({"isUri": True, key: value})
             else:
                 self.pdk_setting.update({key: value})
             return self
+
         return _config_pdk_setting
 
     def set(self, config):
@@ -3225,112 +3245,6 @@ class Connection:
             except Exception as e:
                 break
         return res
-
-
-class DataCheck:
-    @help_decorate("__init__ method", args="source, sink, relation, name, check_mode",
-                   res="DataCheck Object, DataCheck")
-    def __init__(self, source, sink, relation, name=None, check_mode="field"):
-        if name is None:
-            name = uuid.uuid4()
-        self.check_job = DataCheck.get(name)
-        association = relation.association
-        source_sort_column = ""
-        sink_sort_column = ""
-        for c in association:
-            source_sort_column = source_sort_column + "," + c[0]
-        source_sort_column = source_sort_column[0:len(source_sort_column) - 1]
-        for c in association:
-            sink_sort_column = sink_sort_column + "," + c[1]
-        sink_sort_column = sink_sort_column[0:len(sink_sort_column) - 1]
-        if self.check_job is not None:
-            self.id = self.check_job["id"]
-            return
-        self.check_job = {
-            "mode": "manual",
-            "inspectMethod": check_mode,
-            "name": name,
-            "status": "scheduling",
-            "limit": {"keep": 100},
-            "tasks": [
-                {
-                    "fullMatch": True,
-                    "source": {
-                        "connectionId": source.connectionId,
-                        "databaseType": source.databaseType,
-                        "table": source.tableName,
-                        "sortColumn": source_sort_column,
-                    },
-                    "target": {
-                        "connectionId": sink.connectionId,
-                        "databaseType": sink.databaseType,
-                        "table": sink.tableName,
-                        "sortColumn": sink_sort_column,
-                    }
-                }
-            ]
-        }
-        self.name = name
-
-    @staticmethod
-    @help_decorate("get a data check job by it's name", args="data check name",
-                   res="DataCheck or None if not exists, DataCheck")
-    def get(name):
-        data = req.get("/Inspects", params={"filter": json.dumps({"where": {"name": name}})}).json()["data"]
-        if data["total"] == 0:
-            return None
-        return data[0]
-
-    @help_decorate("save a data check job, and start it")
-    def save(self):
-        res = req.post("/Inspects", json=self.check_job)
-        data = res.json()["data"]
-        self.id = data["id"]
-
-    @help_decorate("start data check job")
-    def start(self):
-        self.save()
-
-    @help_decorate("get data check job status", res="job status")
-    def status(self):
-        res = req.get("/Inspects", params={"filter": json.dumps({"where": {"id": self.id}})})
-        return res.json()["data"][0]["status"]
-
-    @help_decorate("get data check job stats", res="job stats")
-    def stats(self, quiet=False):
-        res = req.get("/Inspects", params={"filter": json.dumps({"where": {"id": self.id}})})
-        stats = res.json()["data"][0]["InspectResult"]["stats"][0]
-        if not quiet:
-            logger.log(
-                "data check finished, check result is: {}, same row is number is: {}, diff row number is: {}",
-                stats["result"], stats["row_passed"], stats["row_failed"],
-                "info" if stats["result"] != "failed" else "error", "info", "warn"
-            )
-        return stats
-
-    @help_decorate("monitor this job until it finished", args="timeout seconds")
-    def monitor(self, t=30, quiet=False):
-        if self.id is None:
-            logger.warn("data check job not start, no monitor can show")
-            return
-        start_time = time.time()
-        while True:
-            if time.time() - start_time > t:
-                break
-            time.sleep(1)
-            status = self.status()
-            stats = self.stats()
-            if status == "running":
-                logger.info("data check running, progress is: {} %", stats["progress"] * 100, wrap=False,
-                            logger_header=True)
-            if status == "done":
-                logger.log(
-                    "data check finished, check result is: {}, same row is number is: {}, diff row number is: {}",
-                    stats["result"], stats["row_passed"], stats["row_failed"],
-                    "info" if stats["result"] != "failed" else "error", "info", "warn",
-                    logger_header=True
-                )
-                break
 
 
 # used to describe a pipeline job

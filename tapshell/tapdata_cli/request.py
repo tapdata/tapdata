@@ -95,3 +95,8 @@ class TaskApi(Api):
 class MeasurementApi(Api):
 
     url = "/measurement"
+
+
+class InspectApi(Api):
+
+    url = "/task/auto-inspect-totals"
