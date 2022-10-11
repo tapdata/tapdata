@@ -29,6 +29,8 @@ public interface DiscoveryService {
      * @return
      */
     DiscoveryStorageOverviewDto storageOverview(String id, UserDetail user);
+    DiscoveryTaskOverviewDto taskOverview(String id, UserDetail user);
+    DiscoveryApiOverviewDto apiOverview(String id, UserDetail user);
 
 
     Map<ObjectFilterEnum, List<String>> filterList(List<ObjectFilterEnum> filterTypes, UserDetail user);
@@ -37,7 +39,7 @@ public interface DiscoveryService {
 
     void updateListTags(List<TagBindingParam> tagBindingParams, List<String> tagIds, UserDetail user);
 
-    void addListTags(List<TagBindingParam> tagBindingParams, List<String> tagIds, UserDetail user);
+    void addListTags(List<TagBindingParam> tagBindingParams, List<String> tagIds, UserDetail user, boolean add);
 
     void addObjCount(List<MetadataDefinitionDto> tagDtos, UserDetail user);
 }

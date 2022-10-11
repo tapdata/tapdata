@@ -2,6 +2,7 @@ package com.tapdata.tm.message.service;
 
 
 import cn.hutool.core.bean.BeanUtil;
+import cn.hutool.extra.cglib.CglibUtil;
 import cn.hutool.json.JSONUtil;
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONObject;
@@ -54,10 +55,7 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
 
-import java.util.Date;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
+import java.util.*;
 import java.util.stream.Collectors;
 
 /**
@@ -108,7 +106,8 @@ public class MessageService extends BaseService {
         tmPageable.setSize(filter.getLimit());
 
         Query query = parseWhereCondition(filter.getWhere(), userDetail);
-        query.addCriteria(Criteria.where("msg").ne(MsgTypeEnum.ALARM.getValue()));
+        List<String> collect = Arrays.stream(MsgTypeEnum.values()).filter(t -> t != MsgTypeEnum.ALARM).map(MsgTypeEnum::getValue).collect(Collectors.toList());
+        query.addCriteria(Criteria.where("msg").in(collect));
         query.with(tmPageable);
         return getMessageListVoPage(query, tmPageable);
     }
@@ -118,8 +117,7 @@ public class MessageService extends BaseService {
         long total = messageRepository.getMongoOperations().count(query, MessageEntity.class);
         List<MessageEntity> messageEntityList = messageRepository.getMongoOperations().find(query.with(tmPageable), MessageEntity.class);
 
-        List<MessageListVo> messageListVoList;
-        messageListVoList = com.tapdata.tm.utils.BeanUtil.deepCloneList(messageEntityList, MessageListVo.class);
+        List<MessageListVo> messageListVoList = CglibUtil.copyList(messageEntityList, MessageListVo::new);
         messageListVoList.forEach(messageListVo -> {
             if (StringUtils.isEmpty(messageListVo.getServerName())) {
                 messageListVo.setServerName(messageListVo.getAgentName());
@@ -130,16 +128,13 @@ public class MessageService extends BaseService {
     }
 
     public Page<MessageListVo> list(MsgTypeEnum type, String level, Boolean read, Integer page, Integer size, UserDetail userDetail) {
-        Criteria criteria = Criteria.where("msg").is(type.getValue());
+        Query query = new Query(Criteria.where("user_id").is(userDetail.getUserId()).and("msg").is(type.getValue()));
         if (StringUtils.isNotBlank(level)) {
-            criteria.and("level").is(level);
+            query.addCriteria(Criteria.where("level").is(level));
         }
         if (Objects.nonNull(read)) {
-            criteria.and("read").is(read);
+            query.addCriteria(Criteria.where("read").is(read));
         }
-        Query query = new Query(criteria);
-        String userId = userDetail.getUserId();
-        query.addCriteria(new Criteria().orOperator(Criteria.where("oldUserId").is(userId), Criteria.where("user_id").is(userId)));
 
         TmPageable tmPageable = new TmPageable();
         tmPageable.setPage(page);
@@ -158,9 +153,7 @@ public class MessageService extends BaseService {
     @Override
     public long count(Where where, UserDetail userDetail) {
         Query query = parseWhereCondition(where, userDetail);
-        Long total = 0L;
-        total = messageRepository.getMongoOperations().count(query, MessageEntity.class);
-        return total;
+        return messageRepository.getMongoOperations().count(query, MessageEntity.class);
     }
 
     public void add(String jobName, String serverName, MsgTypeEnum msgTypeEnum, SystemEnum systemEnum, String sourceId, String title, Level level, UserDetail userDetail) {
@@ -821,10 +814,8 @@ public class MessageService extends BaseService {
     }
 
     private Query parseWhereCondition(Where where, UserDetail userDetail) {
-        Query query = new Query();
-        query.addCriteria(Criteria.where("isDeleted").ne(true));
-        String userId = userDetail.getUserId();
-        query.addCriteria(new Criteria().orOperator(Criteria.where("oldUserId").is(userId), Criteria.where("user_id").is(userId)));
+        Query query = new Query(Criteria.where("user_id").is(userDetail.getUserId())
+                .and("isDeleted").is(false));
 
         where.forEach((prop, value) -> {
             if (!query.getQueryObject().containsKey(prop)) {
