@@ -90,7 +90,7 @@ public class Issues implements SchemaStart {
 
     @Override
     public TapTable csv(TapConnectionContext connectionContext) {
-        TapTable tapTable = table("Issues")
+        TapTable tapTable = table(tableName())
                 .add(field("Code",              "Integer").isPrimaryKey(true).primaryKeyPos(3))        //事项 Code
                 .add(field("ProjectName",       "StringMinor").isPrimaryKey(true).primaryKeyPos(2))    //项目名称
                 .add(field("TeamName",          "StringMinor").isPrimaryKey(true).primaryKeyPos(1))    //团队名称

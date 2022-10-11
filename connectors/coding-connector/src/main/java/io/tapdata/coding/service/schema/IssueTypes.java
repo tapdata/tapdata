@@ -12,7 +12,7 @@ import static io.tapdata.entity.utils.JavaTypesToTapTypes.*;
 public class IssueTypes implements SchemaStart {
     @Override
     public Boolean use() {
-        return true;
+        return false;
     }
 
     @Override
