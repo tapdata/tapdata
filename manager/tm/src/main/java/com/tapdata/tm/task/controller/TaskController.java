@@ -6,6 +6,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.google.common.collect.Maps;
 import com.google.gson.reflect.TypeToken;
 import com.tapdata.manager.common.utils.JsonUtil;
+import com.tapdata.tm.alarm.service.AlarmService;
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.*;
 import com.tapdata.tm.commons.dag.DAG;
@@ -88,6 +89,7 @@ public class TaskController extends BaseController {
     private SnapshotEdgeProgressService snapshotEdgeProgressService;
     private TaskRecordService taskRecordService;
     private WorkerService workerService;
+    private AlarmService alarmService;
 
     /**
      * Create a new instance of the model and persist it into the data source
@@ -113,6 +115,7 @@ public class TaskController extends BaseController {
     public ResponseMessage<TaskDto> update(@RequestBody TaskDto task) {
         UserDetail user = getLoginUser();
         taskCheckInspectService.getInspectFlagDefaultFlag(task, user);
+        taskSaveService.supplementAlarm(task, user);
         task.setStatus(null);
         return success(taskService.updateById(task, user));
     }
@@ -191,6 +194,7 @@ public class TaskController extends BaseController {
         task.setId(MongoUtils.toObjectId(id));
         UserDetail user = getLoginUser();
         taskCheckInspectService.getInspectFlagDefaultFlag(task, user);
+        taskSaveService.supplementAlarm(task, user);
         task.setStatus(null);
         TaskDto taskDto = taskService.updateById(task, user);
         return success(taskDto);
@@ -209,7 +213,7 @@ public class TaskController extends BaseController {
         task.setId(MongoUtils.toObjectId(id));
         UserDetail user = getLoginUser();
         taskCheckInspectService.getInspectFlagDefaultFlag(task, user);
-
+        taskSaveService.supplementAlarm(task, user);
         TaskDto taskDto = taskService.confirmById(task, user, confirm);
         boolean noPass = taskSaveService.taskSaveCheckLog(taskDto, user);
         if (noPass) {
@@ -230,6 +234,7 @@ public class TaskController extends BaseController {
     public ResponseMessage<TaskDto> confirmById(@RequestParam(value = "confirm", required = false, defaultValue = "false") Boolean confirm,
                                                 @RequestBody TaskDto task) {
         UserDetail user = getLoginUser();
+        taskSaveService.supplementAlarm(task, user);
         return success(taskService.confirmById(task, user, confirm));
     }
 
@@ -440,9 +445,16 @@ public class TaskController extends BaseController {
         HashMap<String, Long> countValue = new HashMap<>();
         countValue.put("count", count);
 
+        Object id = where.get("_id");
+        if (count > 0) {
+            boolean containsKey = ((Document) update.get("$set")).containsKey("milestones");
+            if (containsKey) {
+                alarmService.checkFullAndCdcEvent(id.toString());
+            }
+        }
+
         //更新完任务，addMessage
         try {
-            Object id = where.get("_id");
             String status = update.getString("status");
             if (StringUtils.isNotEmpty(status) && null != id) {
                 String idString = id.toString();
@@ -454,6 +466,8 @@ public class TaskController extends BaseController {
                 } else if ("running".equals(status)) {
                     messageService.addMigration(name, idString, MsgTypeEnum.CONNECTED, Level.INFO, getLoginUser());
                 }
+
+                alarmService.checkFullAndCdcEvent(taskDto.getId().toHexString());
             }
         } catch (Exception e) {
             log.error("任务状态添加 message 异常",e);
@@ -1023,5 +1037,4 @@ public class TaskController extends BaseController {
         taskService.updateTaskLogSetting(taskId, logSettingParam, getLoginUser());
         return success();
     }
-
 }
