@@ -1,5 +1,7 @@
 package com.tapdata.tm.file.service;
 
+import cn.hutool.core.io.IORuntimeException;
+import cn.hutool.core.io.IoUtil;
 import com.mongodb.client.MongoDatabase;
 import com.mongodb.client.gridfs.GridFSBucket;
 import com.mongodb.client.gridfs.GridFSBuckets;
@@ -157,8 +159,11 @@ public class FileService {
             throw new RuntimeException("ID对应文件不存在");
         }
         String fileName = file.getFilename();
-        try (InputStream in = convertGridFSFile2Resource(file).getInputStream();
-             OutputStream out = response.getOutputStream()) {
+        InputStream in = null;
+        OutputStream out = null;
+        try {
+            in = convertGridFSFile2Resource(file).getInputStream();
+            out = response.getOutputStream();
             //取后缀
             String filename = file.getFilename();
             String fileType = filename.substring(filename.lastIndexOf(".") + 1);
@@ -181,6 +186,7 @@ public class FileService {
                 in.read(data);
                 //response here is the HttpServletResponse object
                 response.setContentLength(contentLength);
+                response.addHeader("Cache-Control", "max-age=60, must-revalidate, no-transform");
                 out.write(data);
                 /** 采用压缩方式，则需注释调这段代码-结束 **/
                 out.flush();
@@ -193,13 +199,16 @@ public class FileService {
                 response.setHeader("Content-Length", String.valueOf(file.getLength()));
                 try {
                     //IO复制
-                    IOUtils.copy(in, out);
-                } catch (IOException e) {
-                    log.error(e.getMessage());
+                    IoUtil.copy(in, out);
+                } catch (IORuntimeException e) {
+                    log.error("IoUtil.copy error", e);
                 }
             }
         } catch (Exception e) {
             log.warn("download file failed, file id = {}", fileId);
+        } finally {
+            IoUtil.close(out);
+            IoUtil.close(in);
         }
     }
 
