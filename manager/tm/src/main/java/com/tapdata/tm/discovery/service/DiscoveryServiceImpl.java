@@ -950,9 +950,10 @@ public class DiscoveryServiceImpl implements DiscoveryService {
                 List<MetadataDefinitionDto> andChild = metadataDefinitionService.findAndChild(Lists.newArrayList(MongoUtils.toObjectId(param.getTagId())));
                 if (!isDefault) {
 
-                    if (StringUtils.isBlank(param.getObjType())
-                            || (!param.getObjType().equals(TaskDto.SYNC_TYPE_SYNC) && !param.getObjType().equals(TaskDto.SYNC_TYPE_MIGRATE))) {
+                    if (StringUtils.isBlank(param.getObjType())) {
                         taskCriteria.and("syncType").in(TaskDto.SYNC_TYPE_MIGRATE, TaskDto.SYNC_TYPE_SYNC);
+                    } else if ((!param.getObjType().equals(TaskDto.SYNC_TYPE_SYNC) && !param.getObjType().equals(TaskDto.SYNC_TYPE_MIGRATE))) {
+                        taskCriteria.and("_id").is("1231231231");
                     } else {
                         taskCriteria.and("syncType").is(param.getObjType());
                     }
