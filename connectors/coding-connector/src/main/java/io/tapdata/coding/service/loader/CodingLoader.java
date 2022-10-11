@@ -27,7 +27,7 @@ public interface CodingLoader<T extends Param> {
     public static CodingLoader<Param> loader(TapConnectionContext tapConnectionContext, String tableName){
         Class clz = null;
         try {
-            clz = Class.forName(CodingLoader.class.getPackage().getName() + "." + tableName+"Loader");
+            clz = Class.forName( "io.tapdata.coding.service.loader." + tableName+"Loader");//CodingLoader.class.getPackage().getName()
             Constructor com = clz.getConstructor(TapConnectionContext.class);
             return (CodingLoader)com.newInstance(tapConnectionContext);
         } catch (ClassNotFoundException e0) {

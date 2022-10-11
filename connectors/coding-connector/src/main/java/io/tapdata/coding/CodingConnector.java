@@ -562,8 +562,9 @@ public class CodingConnector extends ConnectorBase {
 
 	@Override
 	public int tableCount(TapConnectionContext connectionContext) throws Throwable {
-		List<SchemaStart> allSchemas = SchemaStart.getAllSchemas();
-		return allSchemas.size();
+		return 3;
+//		List<SchemaStart> allSchemas = SchemaStart.getAllSchemas();
+//		return allSchemas.size();
 	}
 
 	/**
