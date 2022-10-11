@@ -20,6 +20,7 @@ import io.tapdata.modules.api.net.error.NetErrors;
 import io.tapdata.modules.api.service.ArgumentsSerializer;
 import io.tapdata.modules.api.service.SkeletonService;
 import io.tapdata.pdk.apis.entity.message.ServiceCaller;
+import io.tapdata.pdk.core.utils.TapConstants;
 import org.apache.commons.lang3.exception.ExceptionUtils;
 
 import java.io.ByteArrayInputStream;
@@ -114,7 +115,7 @@ public class ArgumentsSerializerImpl implements ArgumentsSerializer {
 						case ARGUMENT_TYPE_JSON:
 							String jsonString = dis.getDataInputStream().readUTF();
 							if(parameterTypes[i] != null) {
-								Object value = parseObject(jsonString, parameterTypes[i], ParserConfig.global);
+								Object value = JSON.parseObject(jsonString, parameterTypes[i], TapConstants.tapdataParserConfig, Feature.DisableCircularReferenceDetect);//parseObject(jsonString, parameterTypes[i], TapConstants.tapdataParserConfig);
 								args[i] = value;
 							}
 							break;
@@ -323,9 +324,9 @@ public class ArgumentsSerializerImpl implements ArgumentsSerializer {
 			case MethodRequest.ARGUMENT_TYPE_JSON:
 				String jsonString = dis.getDataInputStream().readUTF();
 				if(returnClass == null || returnClass.equals(JSONObject.class)) {
-					content = JSON.parse(jsonString);
+					content = JSON.parse(jsonString, TapConstants.tapdataParserConfig, Feature.DisableCircularReferenceDetect);
 				} else {
-					content = JSON.parseObject(jsonString, returnClass);
+					content = JSON.parseObject(jsonString, returnClass, TapConstants.tapdataParserConfig, Feature.DisableCircularReferenceDetect);
 				}
 				break;
 			case MethodRequest.ARGUMENT_TYPE_NONE:

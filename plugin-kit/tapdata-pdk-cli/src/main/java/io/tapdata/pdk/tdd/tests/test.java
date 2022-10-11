@@ -1,19 +1,23 @@
 package io.tapdata.pdk.tdd.tests;
 
 import com.alibaba.fastjson.JSON;
+import com.alibaba.fastjson.parser.Feature;
 import io.tapdata.entity.codec.FromTapValueCodec;
 import io.tapdata.entity.codec.TapCodecsRegistry;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.event.dml.TapInsertRecordEvent;
 import io.tapdata.entity.schema.TapField;
+import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.schema.value.DateTime;
 import io.tapdata.entity.schema.value.TapMapValue;
 import io.tapdata.entity.schema.value.TapNumberValue;
 import io.tapdata.entity.schema.value.TapValue;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.entity.utils.JsonParser;
+import io.tapdata.entity.utils.TypeHolder;
 import io.tapdata.entity.utils.TypeUtils;
 import io.tapdata.pdk.core.tapnode.TapNodeContainer;
+import io.tapdata.pdk.core.utils.TapConstants;
 import org.apache.commons.io.FileUtils;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.xssf.usermodel.XSSFCreationHelper;
@@ -39,33 +43,8 @@ import static io.tapdata.entity.simplify.TapSimplify.*;
 
 public class test {
 	public static void main(String... args) throws Throwable {
-		Map<String, String> map1 = new ConcurrentHashMap<>();
-		map1.put("TapMapValue.class", "aaa");
-
-		Map<Class<?>, String> map = new ConcurrentHashMap<>();
-		map.put(TapMapValue.class, "aaa");
-
-		TapCodecsRegistry codecsRegistry = TapCodecsRegistry.create();
-		codecsRegistry.registerFromTapValue(TapMapValue.class, tapValue -> toJson(tapValue.getValue()));
-		TapValue<?,?> tapMapValue = new TapMapValue();
-
-		long time = System.currentTimeMillis();
-		for(int i = 0; i < 10000000; i++) {
-			FromTapValueCodec<TapValue<?, ?>> fromTapValueCodec = codecsRegistry.getCustomFromTapValueCodec((Class<TapValue<?, ?>>) tapMapValue.getClass());
-		}
-		System.out.println("takes " + (System.currentTimeMillis() - time));
-
-		time = System.currentTimeMillis();
-		for(int i = 0; i < 10000000; i++) {
-			String str = map.get(tapMapValue.getClass());
-		}
-		System.out.println("takes " + (System.currentTimeMillis() - time));
-
-
-		time = System.currentTimeMillis();
-		for(int i = 0; i < 10000000; i++) {
-			String str = map1.get("TapMapValue.class");
-		}
-		System.out.println("takes " + (System.currentTimeMillis() - time));
+		String json = "{\"id\":\"adfs\",\"nameFieldMap\":{\"a\":{\"name\":\"a\",\"dataType\":\"varchar\",\"tapType\":{\"type\":8,\"bit\":32}}}}";
+		Object value = JSON.parseObject(json, TapTable.class, TapConstants.tapdataParserConfig, Feature.DisableCircularReferenceDetect);//parseObject(jsonString, parameterTypes[i], TapConstants.tapdataParserConfig);
+		Object value1 = InstanceFactory.instance(JsonParser.class).fromJson(json, TapTable.class, TapConstants.abstractClassDetectors);
     }
 }

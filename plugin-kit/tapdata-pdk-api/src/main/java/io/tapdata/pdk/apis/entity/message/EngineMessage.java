@@ -1,6 +1,6 @@
 package io.tapdata.pdk.apis.entity.message;
 
-public class EngineMessage {
+public abstract class EngineMessage {
 	protected String id;
 
 	public String getId() {
@@ -10,4 +10,6 @@ public class EngineMessage {
 	public void setId(String id) {
 		this.id = id;
 	}
+
+	public abstract String key();
 }

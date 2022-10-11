@@ -4,6 +4,7 @@ import java.util.Date;
 import java.util.Map;
 
 public class CommandInfo extends EngineMessage {
+	public static final String KEY_PREFIX = "CommandInfo_";
 	private String locale;
 	private String connectionId;
 	public static final String TYPE_NODE = "node";
@@ -16,7 +17,6 @@ public class CommandInfo extends EngineMessage {
 	private String action;
 	private Map<String, Object> argMap;
 	private Long time;
-
 	@Override
 	public String toString() {
 		return "CommandInfo id " + id + " type " + type + " language " + locale + " connectionId " + connectionId + " pdkHash " + pdkHash + " command " + command + " action " + action + " time " + (time != null ? new Date(time) : null) + " connectionConfig " + connectionConfig + " nodeConfig " + nodeConfig + ";";
@@ -100,5 +100,14 @@ public class CommandInfo extends EngineMessage {
 
 	public void setLocale(String locale) {
 		this.locale = locale;
+	}
+
+	@Override
+	public String key() {
+		return KEY_PREFIX + command;
+	}
+
+	public String matchingKey(String command) {
+		return KEY_PREFIX + command;
 	}
 }

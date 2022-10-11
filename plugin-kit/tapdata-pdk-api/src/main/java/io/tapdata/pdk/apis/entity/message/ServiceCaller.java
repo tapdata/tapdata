@@ -4,6 +4,7 @@ import java.util.Date;
 import java.util.Map;
 
 public class ServiceCaller extends EngineMessage {
+	public static final String KEY_PREFIX = "ServiceCaller_";
 	public static ServiceCaller create(String id) {
 		ServiceCaller serviceCaller = new ServiceCaller();
 		serviceCaller.setId(id);
@@ -75,5 +76,19 @@ public class ServiceCaller extends EngineMessage {
 
 	public void setArgCount(Integer argCount) {
 		this.argCount = argCount;
+	}
+
+	@Override
+	public String key() {
+		return KEY_PREFIX + className + "#" + method;
+	}
+
+	public String matchingKey(String className, String method) {
+		StringBuilder builder = new StringBuilder(KEY_PREFIX);
+		if(className != null)
+			builder.append(className);
+		if(method != null)
+			builder.append(method);
+		return builder.toString();
 	}
 }
