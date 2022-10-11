@@ -49,8 +49,14 @@ public class ConnectorFunctions extends ConnectionFunctions<ConnectorFunctions> 
     //new_field_event
     protected NewFieldFunction newFieldFunction;
     protected RawDataCallbackFilterFunction rawDataCallbackFilterFunction;
+    protected RawDataCallbackFilterFunctionV2 rawDataCallbackFilterFunctionV2;
     public ConnectorFunctions supportRawDataCallbackFilterFunction(RawDataCallbackFilterFunction function) {
         rawDataCallbackFilterFunction = function;
+        return this;
+    }
+
+    public ConnectorFunctions supportRawDataCallbackFilterFunctionV2(RawDataCallbackFilterFunctionV2 function) {
+        rawDataCallbackFilterFunctionV2 = function;
         return this;
     }
     public ConnectorFunctions supportAlterDatabaseTimeZoneFunction(AlterDatabaseTimeZoneFunction function) {
@@ -331,5 +337,9 @@ public class ConnectorFunctions extends ConnectionFunctions<ConnectorFunctions> 
 
     public RawDataCallbackFilterFunction getRawDataCallbackFilterFunction() {
         return rawDataCallbackFilterFunction;
+    }
+
+    public RawDataCallbackFilterFunctionV2 getRawDataCallbackFilterFunctionV2() {
+        return rawDataCallbackFilterFunctionV2;
     }
 }

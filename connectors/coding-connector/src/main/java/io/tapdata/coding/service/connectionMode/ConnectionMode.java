@@ -16,7 +16,7 @@ public interface ConnectionMode {
         if (Checker.isEmpty(name)) return null;
         Class clz = null;
         try {
-            clz = Class.forName("io.tapdata.coding.service.connectionMode."+name);
+            clz = Class.forName(ConnectionMode.class.getPackage().getName() + "." + name);
             return ((ConnectionMode)clz.newInstance()).config(connectionContext);
         } catch (ClassNotFoundException e) {
             e.printStackTrace();
