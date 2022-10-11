@@ -26,4 +26,7 @@ public class ConnectionTestService {
 		LoadSchemaEventHandler.LoadSchemaEvent event1 = new LoadSchemaEventHandler.LoadSchemaEvent("adf", "fff", table("bb").add(field("bb", "varchar").tapType(tapString().bytes(32L))));
 		return list(event, event1);
 	}
+
+	public void get() {}
+
 }

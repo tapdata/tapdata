@@ -253,6 +253,7 @@ public class ArgumentsSerializerImpl implements ArgumentsSerializer {
 				dos.getDataOutputStream().writeUTF(returnStr);
 			}
 		} else {
+			dos.writeUTF(contentClass);
 			dos.getDataOutputStream().writeByte(MethodRequest.ARGUMENT_TYPE_NONE);
 		}
 	}

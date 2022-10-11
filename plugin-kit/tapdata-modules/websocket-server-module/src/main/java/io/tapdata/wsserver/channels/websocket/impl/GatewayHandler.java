@@ -15,6 +15,7 @@ import io.tapdata.wsserver.channels.error.WSErrors;
 import io.tapdata.wsserver.channels.websocket.event.*;
 import io.tapdata.wsserver.channels.websocket.utils.NetUtils;
 import io.tapdata.wsserver.eventbus.EventBusHolder;
+import org.apache.commons.lang3.exception.ExceptionUtils;
 
 public class GatewayHandler extends AbstractWebSocketServerHandler {
     private final static String TAG = GatewayHandler.class.getSimpleName();
@@ -54,7 +55,7 @@ public class GatewayHandler extends AbstractWebSocketServerHandler {
 
     @Override
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
-        TapLogger.info(TAG, "exceptionCaught {} {}", ctx, cause.getMessage());
+        TapLogger.info(TAG, "exceptionCaught {} {}", ctx, ExceptionUtils.getStackTrace(cause));
 
 //        Channel channel = ctx.channel();
 //        if(channel != null && channel.isActive()) {
