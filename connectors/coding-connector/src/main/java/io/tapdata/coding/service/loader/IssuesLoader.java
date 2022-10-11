@@ -574,7 +574,6 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
                 Object code = stringObjectMap.get("Code");
                 //Map<String,Object> issueDetail = instance.attributeAssignment(stringObjectMap);
                 Map<String,Object> issueDetail = this.get(IssueParam.create().issueCode((Integer)code));// stringObjectMap;
-                this.composeIssue(projectName,teamName,issueDetail);
                 if (null == issueDetail){
                     events[0].add(TapSimplify.insertRecordEvent(stringObjectMap, TABLE_NAME).referenceTime(System.currentTimeMillis()));
                     events[0].add(TapSimplify.deleteDMLEvent(stringObjectMap, TABLE_NAME).referenceTime(System.currentTimeMillis()));
