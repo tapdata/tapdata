@@ -2,14 +2,19 @@ package io.tapdata.modules.api.net.message;
 
 import io.tapdata.entity.annotations.Implementation;
 import io.tapdata.entity.logger.TapLogger;
+import io.tapdata.entity.utils.InstanceFactory;
+import io.tapdata.entity.utils.io.BinarySerializable;
 import io.tapdata.entity.utils.io.DataInputStreamEx;
 import io.tapdata.entity.utils.io.DataOutputStreamEx;
+import io.tapdata.modules.api.service.ArgumentsSerializer;
 import io.tapdata.pdk.apis.entity.message.ServiceCaller;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.Map;
+import java.util.Objects;
 
 import static io.tapdata.entity.simplify.TapSimplify.toJson;
 
@@ -46,29 +51,34 @@ public class EngineMessageResultEntity implements TapEntity {
 	@Override
 	public void from(InputStream inputStream) throws IOException {
 		DataInputStreamEx dis = dataInputStream(inputStream);
-		contentClass = dis.readUTF();
-		if(contentClass != null && !contentClass.equals(ServiceCaller.RETURN_CLASS_MAP)) {
-			try {
-				content = dis.readJson(Class.forName(contentClass));
-			} catch (ClassNotFoundException e) {
-				TapLogger.debug(TAG, "contentClass {} not found while deserialize, will fallback to json object", contentClass);
-			}
-		}
-		if(content == null)
-			content = dis.readJson();
 		id = dis.readUTF();
 		code = dis.readInt();
 		message = dis.readUTF();
+//		if(contentClass != null && !contentClass.equals(ServiceCaller.RETURN_CLASS_MAP)) {
+//			try {
+//				content = dis.readJson(Class.forName(contentClass));
+//			} catch (ClassNotFoundException e) {
+//				TapLogger.debug(TAG, "contentClass {} not found while deserialize, will fallback to json object", contentClass);
+//			}
+//		}
+//		if(content == null)
+//			content = dis.readJson();
+
+		contentClass = dis.readUTF();
+		ArgumentsSerializer argumentsSerializer = InstanceFactory.instance(ArgumentsSerializer.class);
+		content = Objects.requireNonNull(argumentsSerializer).returnObjectFrom(dis, contentClass);
 	}
 
 	@Override
 	public void to(OutputStream outputStream) throws IOException {
 		DataOutputStreamEx dos = dataOutputStream(outputStream);
-		dos.writeUTF(contentClass);
-		dos.writeJson(content);
 		dos.writeUTF(id);
 		dos.writeInt(code);
 		dos.writeUTF(message);
+//		dos.writeJson(content);
+
+		ArgumentsSerializer argumentsSerializer = InstanceFactory.instance(ArgumentsSerializer.class);
+		Objects.requireNonNull(argumentsSerializer).returnObjectTo(dos, content, contentClass);
 	}
 
 	public String getId() {

@@ -428,7 +428,7 @@ public class ProxyController extends BaseController {
         UserDetail userDetail = getLoginUser();
 //        Locale locale = WebUtils.getLocale(request);
         serviceCaller.setId(UUID.randomUUID().toString().replace("-", ""));
-        serviceCaller.setReturnClass(ServiceCaller.RETURN_CLASS_MAP);
+        serviceCaller.setReturnClass(Object.class.getName());
 //        if(locale != null)
 //            serviceCaller.setLocale(locale.toString());
         executeEngineMessage(serviceCaller, request, response);

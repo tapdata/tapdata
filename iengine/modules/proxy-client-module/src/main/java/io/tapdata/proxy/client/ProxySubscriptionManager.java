@@ -206,7 +206,7 @@ public class ProxySubscriptionManager implements MemoryFetcher {
 					() -> {
 						CommandResult commandResult = commandCallbackFunction.filter(connectionNode.getConnectionContext(), commandInfo);
 						mapAtomicReference.set(new EngineMessageResultEntity()
-								.content(commandResult != null ? commandResult.getResult() : null)
+								.content(commandResult != null ? (commandResult.getData() != null ? commandResult.getData() : commandResult.getResult()) : null)
 								.code(Data.CODE_SUCCESS)
 								.id(commandInfo.getId()));
 					}, TAG) ;

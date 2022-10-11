@@ -1,6 +1,7 @@
 package io.tapdata.service.skeleton;
 
 import com.alibaba.fastjson.JSON;
+import com.alibaba.fastjson.JSONObject;
 import com.alibaba.fastjson.parser.DefaultJSONParser;
 import com.alibaba.fastjson.parser.Feature;
 import com.alibaba.fastjson.parser.ParserConfig;
@@ -9,6 +10,7 @@ import io.tapdata.entity.annotations.Implementation;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.serializer.JavaCustomSerializer;
+import io.tapdata.entity.utils.DataMap;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.entity.utils.ReflectionUtil;
 import io.tapdata.entity.utils.io.BinarySerializable;
@@ -28,16 +30,11 @@ import java.lang.reflect.Type;
 
 @Implementation(ArgumentsSerializer.class)
 public class ArgumentsSerializerImpl implements ArgumentsSerializer {
-	static final byte ARGUMENT_TYPE_BYTES = 1;
-	static final byte ARGUMENT_TYPE_JSON = 2;
-	static final byte ARGUMENT_TYPE_JAVA_BINARY = 3;
 
-	static final byte ARGUMENT_TYPE_JAVA_CUSTOM = 4;
-	static final byte ARGUMENT_TYPE_NONE = 10;
 	private static final String TAG = ArgumentsSerializerImpl.class.getSimpleName();
 
 	@Override
-	public Object[] from(DataInputStreamEx dis, ServiceCaller serviceCaller) throws IOException {
+	public Object[] argumentsFrom(DataInputStreamEx dis, ServiceCaller serviceCaller) throws IOException {
 		String service = SkeletonService.SERVICE_ENGINE;
 
 		long crc = ReflectionUtil.getCrc(serviceCaller.getClassName(), serviceCaller.getMethod(), SkeletonService.SERVICE_ENGINE);
@@ -67,6 +64,7 @@ public class ArgumentsSerializerImpl implements ArgumentsSerializer {
 							args[i] = bytes;
 							break;
 						case ARGUMENT_TYPE_JAVA_BINARY:
+						case ARGUMENT_TYPE_JAVA_CUSTOM:
 							int length1 = dis.getDataInputStream().readInt();
 							byte[] bytes1 = new byte[length1];
 							dis.getDataInputStream().readFully(bytes1);
@@ -86,17 +84,31 @@ public class ArgumentsSerializerImpl implements ArgumentsSerializer {
 								}
 							}
 							if(theClass != null) {
-								BinarySerializable binarySerializable = null;
-								try {
-									binarySerializable = (BinarySerializable) theClass.getConstructor().newInstance();
-									try (ByteArrayInputStream bais = new ByteArrayInputStream(bytes1)) {
-										binarySerializable.resurrect(bais);
+								if(argumentType == ARGUMENT_TYPE_JAVA_BINARY) {
+									BinarySerializable binarySerializable = null;
+									try {
+										binarySerializable = (BinarySerializable) theClass.getConstructor().newInstance();
+										try (ByteArrayInputStream bais = new ByteArrayInputStream(bytes1)) {
+											binarySerializable.resurrect(bais);
+										}
+									} catch (Throwable e) {
+										e.printStackTrace();
+										TapLogger.error(TAG, "binarySerializable resurrect failed, " + e.getMessage() + " argument " + parameterTypes[i] + " from method " + methodMapping.getMethod() + " stack " + ExceptionUtils.getStackTrace(e) + " binarySerializable " + JSON.toJSONString(binarySerializable));
 									}
-								} catch (Throwable e) {
-									e.printStackTrace();
-									TapLogger.error(TAG, "binarySerializable resurrect failed, " + e.getMessage() + " argument " + parameterTypes[i] + " from method " + methodMapping.getMethod() + " stack " + ExceptionUtils.getStackTrace(e) + " binarySerializable " + JSON.toJSONString(binarySerializable));
+									args[i] = binarySerializable;
+								} else {
+									JavaCustomSerializer javaCustomSerializer = null;
+									try {
+										javaCustomSerializer = (JavaCustomSerializer) theClass.getConstructor().newInstance();
+										try (ByteArrayInputStream bais = new ByteArrayInputStream(bytes1)) {
+											javaCustomSerializer.from(bais);
+										}
+									} catch (Throwable e) {
+										e.printStackTrace();
+										TapLogger.error(TAG, "javaCustomSerializer resurrect failed, " + e.getMessage() + " argument " + parameterTypes[i] + " from method " + methodMapping.getMethod() + " stack " + ExceptionUtils.getStackTrace(e) + " binarySerializable " + JSON.toJSONString(javaCustomSerializer));
+									}
+									args[i] = javaCustomSerializer;
 								}
-								args[i] = binarySerializable;
 							}
 							break;
 						case ARGUMENT_TYPE_JSON:
@@ -116,7 +128,7 @@ public class ArgumentsSerializerImpl implements ArgumentsSerializer {
 	}
 
 	@Override
-	public void to(DataOutputStreamEx dos, ServiceCaller serviceCaller) throws IOException {
+	public void argumentsTo(DataOutputStreamEx dos, ServiceCaller serviceCaller) throws IOException {
 		Object[] args = serviceCaller.getArgs();
 
 		long crc = ReflectionUtil.getCrc(serviceCaller.getClassName(), serviceCaller.getMethod(), SkeletonService.SERVICE_ENGINE);
@@ -185,6 +197,142 @@ public class ArgumentsSerializerImpl implements ArgumentsSerializer {
 				}
 			}
 		}
+	}
+
+	@Override
+	public void returnObjectTo(DataOutputStreamEx dos, Object content, String contentClass) throws IOException {
+		byte[] returnBytes = null;
+		if (content != null) {
+			if(content instanceof byte[]) {
+				dos.writeUTF(contentClass);
+				dos.getDataOutputStream().writeByte(ArgumentsSerializer.ARGUMENT_TYPE_BYTES);
+				returnBytes = (byte[]) content;
+				dos.getDataOutputStream().writeInt(returnBytes.length);
+				dos.getDataOutputStream().write(returnBytes);
+			} else if(content instanceof BinarySerializable) {
+				if(contentClass != null)
+					dos.writeUTF(contentClass);
+				else
+					dos.writeUTF(content.getClass().getName());
+
+				dos.getDataOutputStream().writeByte(ArgumentsSerializer.ARGUMENT_TYPE_JAVA_BINARY);
+				BinarySerializable binarySerializable = (BinarySerializable) content;
+				try (ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream()) {
+					binarySerializable.persistent(byteArrayOutputStream);
+
+					byte[] finalBytes = byteArrayOutputStream.toByteArray();
+					dos.getDataOutputStream().writeInt(finalBytes.length);
+					dos.getDataOutputStream().write(finalBytes);
+				}
+			} else if(content instanceof JavaCustomSerializer) {
+				if(contentClass != null)
+					dos.writeUTF(contentClass);
+				else
+					dos.writeUTF(content.getClass().getName());
+
+				dos.getDataOutputStream().writeByte(ArgumentsSerializer.ARGUMENT_TYPE_JAVA_CUSTOM);
+				JavaCustomSerializer binarySerializable = (JavaCustomSerializer) content;
+				try (ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream()) {
+					binarySerializable.to(byteArrayOutputStream);
+
+					byte[] finalBytes = byteArrayOutputStream.toByteArray();
+					dos.getDataOutputStream().writeInt(finalBytes.length);
+					dos.getDataOutputStream().write(finalBytes);
+				}
+			} else {
+				if(contentClass != null)
+					dos.writeUTF(contentClass);
+				else
+					dos.writeUTF(content.getClass().getName());
+
+				dos.getDataOutputStream().writeByte(ArgumentsSerializer.ARGUMENT_TYPE_JSON);
+
+				String returnStr = JSON.toJSONString(content, SerializerFeature.DisableCircularReferenceDetect);
+
+				dos.getDataOutputStream().writeUTF(returnStr);
+			}
+		} else {
+			dos.getDataOutputStream().writeByte(MethodRequest.ARGUMENT_TYPE_NONE);
+		}
+	}
+
+	@Override
+	public Object returnObjectFrom(DataInputStreamEx dis, String contentClass) throws IOException {
+		Class<?> clazz = null;
+		if(contentClass != null && !contentClass.equals("java.lang.Object")) {
+			try {
+				clazz = Class.forName(contentClass);
+			} catch (ClassNotFoundException e) {
+				TapLogger.debug(TAG, "contentClass {} not found", contentClass);
+			}
+		}
+//		if(clazz == null) {
+//			clazz = DataMap.class;
+//		}
+		Class<?> returnClass = clazz;
+
+		Object content = null;
+		byte argumentType = dis.getDataInputStream().readByte();
+		switch (argumentType) {
+			case MethodRequest.ARGUMENT_TYPE_BYTES:
+				int length = dis.getDataInputStream().readInt();
+				byte[] bytes2 = new byte[length];
+				dis.getDataInputStream().readFully(bytes2);
+				content = bytes2;
+				break;
+			case MethodRequest.ARGUMENT_TYPE_JAVA_BINARY:
+				int length1 = dis.getDataInputStream().readInt();
+				byte[] bytes1 = new byte[length1];
+				dis.getDataInputStream().readFully(bytes1);
+				if(returnClass == null) {
+					TapLogger.debug(TAG, "");
+					break;
+				}
+				if(ReflectionUtil.canBeInitiated(returnClass)) {
+					try {
+						BinarySerializable binarySerializable = (BinarySerializable) returnClass.getConstructor().newInstance();
+						try (ByteArrayInputStream bais1 = new ByteArrayInputStream(bytes1)) {
+							binarySerializable.resurrect(bais1);
+							content = binarySerializable;
+						}
+					} catch (Throwable e) {
+						e.printStackTrace();
+						TapLogger.error(TAG, "Deserialize return object(BinarySerializable) " + returnClass + " failed, " + e.getMessage());
+					}
+				}
+				break;
+			case MethodRequest.ARGUMENT_TYPE_JAVA_CUSTOM:
+				int length3 = dis.getDataInputStream().readInt();
+				byte[] bytes3 = new byte[length3];
+				dis.getDataInputStream().readFully(bytes3);
+				if (JavaCustomSerializer.class.isAssignableFrom(returnClass)) {
+					if(ReflectionUtil.canBeInitiated(returnClass)) {
+						try {
+							JavaCustomSerializer binarySerializable = (JavaCustomSerializer) returnClass.getConstructor().newInstance();
+							try (ByteArrayInputStream bais1 = new ByteArrayInputStream(bytes3)) {
+								binarySerializable.from(bais1);
+								content = binarySerializable;
+							}
+						} catch (Throwable e) {
+							e.printStackTrace();
+							TapLogger.error(TAG, "Deserialize(JavaCustomSerializer) return object " + returnClass + " failed, " + e.getMessage());
+						}
+					}
+				}
+				break;
+			case MethodRequest.ARGUMENT_TYPE_JSON:
+				String jsonString = dis.getDataInputStream().readUTF();
+				if(returnClass == null || returnClass.equals(JSONObject.class)) {
+					content = JSON.parse(jsonString);
+				} else {
+					content = JSON.parseObject(jsonString, returnClass);
+				}
+				break;
+			case MethodRequest.ARGUMENT_TYPE_NONE:
+				break;
+		}
+
+		return content;
 	}
 
 	private Type[] getParameterTypes(MethodMapping methodMapping, int argCount, long crc) {

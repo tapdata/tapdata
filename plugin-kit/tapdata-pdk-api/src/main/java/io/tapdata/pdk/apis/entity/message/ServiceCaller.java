@@ -26,8 +26,6 @@ public class ServiceCaller extends EngineMessage {
 	}
 
 	private Integer argCount;
-
-	public static final String RETURN_CLASS_MAP = "map";
 	private String returnClass;
 	public ServiceCaller returnClass(String returnClass) {
 		this.returnClass = returnClass;

@@ -31,7 +31,7 @@ public class ServiceCallerReceived implements TapEntity {
 		serviceCaller = ServiceCaller.create(id).className(className).method(method).returnClass(returnClass);
 
 		ArgumentsSerializer argumentsSerializer = InstanceFactory.instance(ArgumentsSerializer.class);
-		Object[] args = Objects.requireNonNull(argumentsSerializer).from(dis, serviceCaller);
+		Object[] args = Objects.requireNonNull(argumentsSerializer).argumentsFrom(dis, serviceCaller);
 		serviceCaller.args(args);
 	}
 
@@ -44,7 +44,7 @@ public class ServiceCallerReceived implements TapEntity {
 		dos.writeUTF(serviceCaller.getReturnClass());
 
 		ArgumentsSerializer argumentsSerializer = InstanceFactory.instance(ArgumentsSerializer.class);
-		Objects.requireNonNull(argumentsSerializer).to(dos, serviceCaller);
+		Objects.requireNonNull(argumentsSerializer).argumentsTo(dos, serviceCaller);
 	}
 
 	public ServiceCaller getServiceCaller() {

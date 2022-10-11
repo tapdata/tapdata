@@ -7,7 +7,7 @@ import java.util.Map;
 import java.util.function.BiConsumer;
 
 public interface EngineMessageExecutionService {
-	boolean callLocal(EngineMessage commandInfo, BiConsumer<Map<String, Object>, Throwable> biConsumer);
+	boolean callLocal(EngineMessage commandInfo, BiConsumer<Object, Throwable> biConsumer);
 
-	void call(EngineMessage commandInfo, BiConsumer<Map<String, Object>, Throwable> biConsumer);
+	void call(EngineMessage commandInfo, BiConsumer<Object, Throwable> biConsumer);
 }

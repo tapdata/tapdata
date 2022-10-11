@@ -7,7 +7,17 @@ import io.tapdata.pdk.apis.entity.message.ServiceCaller;
 import java.io.IOException;
 
 public interface ArgumentsSerializer {
-	Object[] from(DataInputStreamEx dis, ServiceCaller serviceCaller) throws IOException;
+	byte ARGUMENT_TYPE_BYTES = 1;
+	byte ARGUMENT_TYPE_JSON = 2;
+	byte ARGUMENT_TYPE_JAVA_BINARY = 3;
 
-	void to(DataOutputStreamEx dos, ServiceCaller serviceCaller) throws IOException;
+	byte ARGUMENT_TYPE_JAVA_CUSTOM = 4;
+	byte ARGUMENT_TYPE_NONE = 10;
+	Object[] argumentsFrom(DataInputStreamEx dis, ServiceCaller serviceCaller) throws IOException;
+
+	void argumentsTo(DataOutputStreamEx dos, ServiceCaller serviceCaller) throws IOException;
+
+	void returnObjectTo(DataOutputStreamEx dos, Object content, String contentClass) throws IOException;
+
+	Object returnObjectFrom(DataInputStreamEx dis, String contentClass) throws IOException;
 }

@@ -38,16 +38,16 @@ public class EngineMessageExecutionServiceImpl implements EngineMessageExecution
 	private NodeConnectionFactory nodeConnectionFactory;
 
 	@Override
-	public boolean callLocal(EngineMessage commandInfo, BiConsumer<Map<String, Object>, Throwable> biConsumer) {
+	public boolean callLocal(EngineMessage commandInfo, BiConsumer<Object, Throwable> biConsumer) {
 		return handleEngineMessageInLocal(commandInfo, biConsumer);
 	}
 	@Override
-	public void call(EngineMessage engineMessage, BiConsumer<Map<String, Object>, Throwable> biConsumer) {
+	public void call(EngineMessage engineMessage, BiConsumer<Object, Throwable> biConsumer) {
 		if (handleEngineMessageInLocal(engineMessage, biConsumer)) return;
-		send(engineMessage.getClass().getSimpleName(), engineMessage, new TypeHolder<Map<String, Object>>(){}, biConsumer);
+		send(engineMessage.getClass().getSimpleName(), engineMessage, Object.class, biConsumer);
 	}
 
-	private boolean handleEngineMessageInLocal(EngineMessage engineMessage, BiConsumer<Map<String, Object>, Throwable> biConsumer) {
+	private boolean handleEngineMessageInLocal(EngineMessage engineMessage, BiConsumer<Object, Throwable> biConsumer) {
 		Collection<GatewaySessionHandler> gatewaySessionHandlers = gatewaySessionManager.getUserIdGatewaySessionHandlerMap().values();
 		for(GatewaySessionHandler gatewaySessionHandler : gatewaySessionHandlers) {
 			if(gatewaySessionHandler instanceof EngineSessionHandler) {

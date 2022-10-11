@@ -165,8 +165,8 @@ public class ServiceSkeletonAnnotationHandler extends ClassAnnotationHandler {
             response.setRequest(request);
             response.setVersion(request.getVersion());
             response.setCrc(crc);
-            if (returnObj != null)
-                response.setReturnTmpStr(JSON.toJSONString(returnObj, SerializerFeature.DisableCircularReferenceDetect));
+//            if (returnObj != null)
+//                response.setReturnTmpStr(JSON.toJSONString(returnObj, SerializerFeature.DisableCircularReferenceDetect));
 //            builder.append(" $$returnobj:: " + response.getReturnTmpStr());
 //            if (error)
 //                AnalyticsLogger.error(TAG, builder.toString());

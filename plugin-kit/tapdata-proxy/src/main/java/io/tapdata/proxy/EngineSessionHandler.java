@@ -73,7 +73,7 @@ public class EngineSessionHandler extends GatewaySessionHandler {
 
 		if(engineMessageExecutor != null) {
 			try {
-				if(!engineMessageExecutor.result((Map<String, Object>) content, null)) {
+				if(!engineMessageExecutor.result(content, null)) {
 					TapLogger.debug(TAG, "Command result was not accept successfully, maybe already handled somewhere else, id {}", id);
 				}
 			} catch (Throwable throwable) {
@@ -92,17 +92,17 @@ public class EngineSessionHandler extends GatewaySessionHandler {
 
 	public static class EngineMessageExecutor<T> implements MemoryFetcher {
 		private T commandInfo;
-		private volatile BiConsumer<Map<String, Object>, Throwable> biConsumer;
+		private volatile BiConsumer<Object, Throwable> biConsumer;
 		private volatile ScheduledFuture<?> scheduledFuture;
 		private Runnable doneRunnable;
 
-		public EngineMessageExecutor(T commandInfo, BiConsumer<Map<String, Object>, Throwable> biConsumer, Runnable doneRunnable) {
+		public EngineMessageExecutor(T commandInfo, BiConsumer<Object, Throwable> biConsumer, Runnable doneRunnable) {
 			this.commandInfo = commandInfo;
 			this.biConsumer = biConsumer;
 			this.doneRunnable = doneRunnable;
 		}
 
-		public boolean result(Map<String, Object> result, Throwable throwable) {
+		public boolean result(Object result, Throwable throwable) {
 			boolean done = false;
 			if(cancelTimer()) {
 				if(biConsumer != null) {
@@ -145,7 +145,7 @@ public class EngineSessionHandler extends GatewaySessionHandler {
 					.kv("commandInfo", commandInfo);
 		}
 	}
-	public boolean handleCommandInfo(CommandInfo commandInfo, BiConsumer<Map<String, Object>, Throwable> biConsumer) {
+	public boolean handleCommandInfo(CommandInfo commandInfo, BiConsumer<Object, Throwable> biConsumer) {
 		if(commandInfo == null || biConsumer == null)
 			throw new CoreException(NetErrors.ILLEGAL_PARAMETERS, "handleCommandInfo missing parameters, commandInfo {}, biConsumer {}", commandInfo, biConsumer);
 		if(isChannelActive()) {
@@ -172,7 +172,7 @@ public class EngineSessionHandler extends GatewaySessionHandler {
 		}
 	}
 
-	public boolean handleServiceCaller(ServiceCaller serviceCaller, BiConsumer<Map<String, Object>, Throwable> biConsumer) {
+	public boolean handleServiceCaller(ServiceCaller serviceCaller, BiConsumer<Object, Throwable> biConsumer) {
 		if(serviceCaller == null || biConsumer == null)
 			throw new CoreException(NetErrors.ILLEGAL_PARAMETERS, "handleCommandInfo missing parameters, commandInfo {}, biConsumer {}", serviceCaller, biConsumer);
 		if(isChannelActive()) {

@@ -54,29 +54,29 @@ public class GatewayHandler extends AbstractWebSocketServerHandler {
 
     @Override
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
-        TapLogger.info(TAG, "exceptionCaught $ctx $cause");
+        TapLogger.info(TAG, "exceptionCaught {} {}", ctx, cause.getMessage());
 
-        Channel channel = ctx.channel();
-        if(channel != null && channel.isActive()) {
-            String forId = null;
-            Integer code = null;
-            if(cause instanceof WSCoreException) {
-                WSCoreException wsCoreException = (WSCoreException) cause;
-                forId = wsCoreException.getForId();
-                code = wsCoreException.getCode();
-            } else if(cause instanceof CoreException) {
-                CoreException coreException = (CoreException) cause;
-                code = coreException.getCode();
-            } else {
-                code = WSErrors.ERROR_UNKNOWN;
-            }
-
-            try {
-                sendResult(ctx, Result.create().forId(forId).code(code).time(System.currentTimeMillis()));
-            } catch(Throwable ignored) {} finally {
-                try { channel.close(); } catch(Throwable ignored) {}
-            }
-        }
+//        Channel channel = ctx.channel();
+//        if(channel != null && channel.isActive()) {
+//            String forId = null;
+//            Integer code = null;
+//            if(cause instanceof WSCoreException) {
+//                WSCoreException wsCoreException = (WSCoreException) cause;
+//                forId = wsCoreException.getForId();
+//                code = wsCoreException.getCode();
+//            } else if(cause instanceof CoreException) {
+//                CoreException coreException = (CoreException) cause;
+//                code = coreException.getCode();
+//            } else {
+//                code = WSErrors.ERROR_UNKNOWN;
+//            }
+//
+//            try {
+//                sendResult(ctx, Result.create().forId(forId).code(code).description(cause.getMessage()).time(System.currentTimeMillis()));
+//            } catch(Throwable ignored) {} finally {
+//                try { channel.close(); } catch(Throwable ignored) {}
+//            }
+//        }
     }
 
     @Override
