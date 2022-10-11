@@ -16,7 +16,6 @@ import com.tapdata.tm.monitor.entity.MeasurementEntity;
 import com.tapdata.tm.monitor.param.AggregateMeasurementParam;
 import com.tapdata.tm.monitor.param.MeasurementQueryParam;
 import com.tapdata.tm.monitor.vo.TableSyncStaticVo;
-import com.tapdata.tm.task.service.TaskRecordService;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.utils.FunctionUtils;
 import com.tapdata.tm.utils.TimeUtil;
@@ -35,7 +34,6 @@ import org.springframework.data.mongodb.core.aggregation.*;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
-import org.springframework.data.util.CloseableIterator;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -49,9 +47,12 @@ import java.util.stream.Collectors;
 @Setter(onMethod_ = {@Autowired})
 public class MeasurementServiceV2 {
     private MongoTemplate mongoOperations;
-    private TaskRecordService taskRecordService;
     private MetadataInstancesService metadataInstancesService;
     private TaskService taskService;
+
+    public List<MeasurementEntity> find(Query query) {
+        return mongoOperations.find(query, MeasurementEntity.class, MeasurementEntity.COLLECTION_NAME);
+    }
 
     public void addAgentMeasurement(List<SampleRequest> samples) {
         addBulkAgentMeasurement(samples, Granularity.GRANULARITY_MINUTE);
