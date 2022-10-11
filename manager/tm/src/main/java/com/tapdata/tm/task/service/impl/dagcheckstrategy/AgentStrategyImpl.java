@@ -11,7 +11,6 @@ import com.tapdata.tm.task.service.DagLogStrategy;
 import com.tapdata.tm.utils.Lists;
 import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.service.WorkerService;
-import io.tapdata.common.sample.sampler.AverageSampler;
 import lombok.Setter;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -46,17 +45,17 @@ public class AgentStrategyImpl implements DagLogStrategy {
 
         String template;
         String content;
-        String grade;
+        Level grade;
         if (CollectionUtils.isNotEmpty(availableAgent)) {
             template = templateEnum.getInfoTemplate();
             List<String> collect = availableAgent.stream().map(Worker::getHostname).collect(Collectors.toList());
             content = MessageFormat.format(template, DateUtil.now(), availableAgent.size(), StringUtils.join(collect, ","),
                     availableAgent.get(0).getHostname());
-            grade = Level.INFO.getValue();
+            grade = Level.INFO;
         } else {
             template = templateEnum.getErrorTemplate();
             content = MessageFormat.format(template, DateUtil.now(), agent);
-            grade = Level.ERROR.getValue();
+            grade = Level.ERROR;
         }
 
         TaskDagCheckLog log = new TaskDagCheckLog();

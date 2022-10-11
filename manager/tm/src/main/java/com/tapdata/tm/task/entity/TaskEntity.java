@@ -5,6 +5,8 @@ import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.SchemaTransformerResult;
 import com.tapdata.tm.commons.schema.Tag;
 import com.tapdata.tm.commons.task.dto.*;
+import com.tapdata.tm.commons.task.dto.alarm.AlarmRuleDto;
+import com.tapdata.tm.commons.task.dto.alarm.AlarmSettingDto;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import org.apache.commons.collections4.CollectionUtils;
@@ -205,7 +207,8 @@ public class TaskEntity extends BaseEntity {
     private String transformUuid;
     private Boolean transformed;
 
-    private int transformDagHash;
+    private List<AlarmSettingDto> alarmSettings;
+    private List<AlarmRuleDto> alarmRules;
 
     private Map<String, Object> logSetting;
 

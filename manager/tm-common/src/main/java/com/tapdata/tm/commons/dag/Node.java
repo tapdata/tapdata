@@ -7,6 +7,8 @@ import com.tapdata.tm.commons.schema.Field;
 import com.tapdata.tm.commons.schema.Schema;
 import com.tapdata.tm.commons.schema.bean.SourceTypeEnum;
 import com.tapdata.tm.commons.task.dto.Message;
+import com.tapdata.tm.commons.task.dto.alarm.AlarmRuleDto;
+import com.tapdata.tm.commons.task.dto.alarm.AlarmSettingDto;
 import io.github.openlg.graphlib.Graph;
 import io.tapdata.entity.event.ddl.TapDDLEvent;
 import io.tapdata.entity.event.ddl.entity.ValueChange;
@@ -67,6 +69,9 @@ public abstract class Node<S> extends Element{
 
     //本次已经推演过
     private boolean isTransformed;
+
+    private List<AlarmSettingDto> alarmSettings;
+    private List<AlarmRuleDto> alarmRules;
 
     protected transient DAGDataService service;
 

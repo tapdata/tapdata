@@ -1,5 +1,6 @@
 package com.tapdata.tm.task.vo;
 
+import com.tapdata.tm.message.constant.Level;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -15,7 +16,7 @@ public class TaskLogInfoVo {
     @Schema(description = "id")
     private String id;
     @Schema(description = "等级 INFO WARN ERROR")
-    private String grade;
+    private Level grade;
     @Schema(description = "日志文本")
     private String log;
 }

@@ -1,5 +1,6 @@
 package com.tapdata.tm.base.filter;
 
+import cn.hutool.extra.servlet.ServletUtil;
 import com.tapdata.tm.base.dto.ResponseMessage;
 import com.tapdata.tm.utils.ThreadLocalUtils;
 import com.tapdata.tm.utils.WebUtils;
@@ -39,27 +40,25 @@ public class RequestFilter implements Filter {
 
 		ThreadLocalUtils.set(ThreadLocalUtils.USER_LOCALE, WebUtils.getLocale((HttpServletRequest) servletRequest));
 		String reqId = ResponseMessage.generatorReqId();
-		String ip = WebUtils.getRealIpAddress(httpServletRequest);
+		String ip = ServletUtil.getClientIP(httpServletRequest);
 		ThreadLocalUtils.set(ThreadLocalUtils.REQUEST_ID, reqId);
 		Thread.currentThread().setName(ip + "-" + Thread.currentThread().getId() + "-" + reqId);
 
-		if (log.isDebugEnabled()) logReq(httpServletRequest);
+		if (log.isDebugEnabled()) {
+			logReq(httpServletRequest);
+		}
 
-		String uri = httpServletRequest.getRequestURI();
-		String method = httpServletRequest.getMethod();
-		String clientIp = WebUtils.getRealIpAddress(httpServletRequest);
 		try {
 			filterChain.doFilter(httpServletRequest, httpServletResponse);
 		} catch (Throwable e){
 			log.error("Process request error", e);
+		} finally {
+			log.info("{} {} {} {}ms ", Thread.currentThread().getName(), httpServletRequest.getMethod(), httpServletRequest.getRequestURI(), System.currentTimeMillis() - startTime);
 		}
-		long endTime = System.currentTimeMillis();
-		double time = (endTime - startTime)/ 1000D;
-		//log.info("{} {} {} {}s ", clientIp, method, uri, BigDecimal.valueOf(time).setScale(3, RoundingMode.HALF_UP));
 
-		if (log.isDebugEnabled()) logRes(httpServletResponse);
-
-
+		if (log.isDebugEnabled()) {
+			logRes(httpServletResponse);
+		}
 	}
 
 	private void logReq(ServletRequest servletRequest) {
