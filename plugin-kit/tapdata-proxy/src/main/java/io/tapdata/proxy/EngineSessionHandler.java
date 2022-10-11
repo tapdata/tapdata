@@ -7,7 +7,7 @@ import io.tapdata.entity.memory.MemoryFetcher;
 import io.tapdata.entity.simplify.pretty.TypeHandlers;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.modules.api.net.data.*;
-import io.tapdata.modules.api.net.message.CommandResultEntity;
+import io.tapdata.modules.api.net.message.EngineMessageResultEntity;
 import io.tapdata.modules.api.proxy.data.*;
 import io.tapdata.pdk.apis.entity.message.CommandInfo;
 import io.tapdata.modules.api.net.entity.ProxySubscription;
@@ -44,37 +44,37 @@ public class EngineSessionHandler extends GatewaySessionHandler {
 	private final TypeHandlers<TapEntity, Result> typeHandlers = new TypeHandlers<>();
 
 	private Set<String> cachedSubscribedIds;
-	private final Map<String, EngineMessageExecutor> commandIdExecutorMap = new ConcurrentHashMap<>();
+	private final Map<String, EngineMessageExecutor<?>> commandIdExecutorMap = new ConcurrentHashMap<>();
 	public EngineSessionHandler() {
 		typeHandlers.register(NodeSubscribeInfo.class, this::handleNodeSubscribeInfo);
 		typeHandlers.register(FetchNewData.class, this::handleFetchNewData);
-		typeHandlers.register(CommandResultEntity.class, this::handleCommandResultEntity);
+		typeHandlers.register(EngineMessageResultEntity.class, this::handleEngineMessageResultEntity);
 	}
 
 	private AtomicBoolean connected = new AtomicBoolean(false);
 
-	private Result handleCommandResultEntity(CommandResultEntity commandResultEntity) {
-		if(commandResultEntity == null) {
+	private Result handleEngineMessageResultEntity(EngineMessageResultEntity engineMessageResultEntity) {
+		if(engineMessageResultEntity == null) {
 			return new Result().code(NetErrors.ILLEGAL_PARAMETERS).description("commandResultEntity is null");
 		}
-		String commandId = commandResultEntity.getCommandId();
-		Integer code = commandResultEntity.getCode();
-		String message = commandResultEntity.getMessage();
-		Map<String, Object> content = commandResultEntity.getContent();
-		if(commandId == null) {
+		String id = engineMessageResultEntity.getId();
+		Integer code = engineMessageResultEntity.getCode();
+		String message = engineMessageResultEntity.getMessage();
+		Object content = engineMessageResultEntity.getContent();
+		if(id == null) {
 			return new Result().code(NetErrors.ILLEGAL_PARAMETERS).description("code {} or commandId {} is null");
 		}
-		EngineMessageExecutor engineMessageExecutor = commandIdExecutorMap.get(commandId);
+		EngineMessageExecutor<?> engineMessageExecutor = commandIdExecutorMap.get(id);
 		if(code == null || code != Data.CODE_SUCCESS) {
 			if(engineMessageExecutor != null)
-				engineMessageExecutor.result(null, new CoreException(code, message));
+				engineMessageExecutor.result(null, new CoreException(code == null ? NetErrors.UNKNOWN_ERROR : code, message));
 			return new Result().code(code).description(message);
 		}
 
 		if(engineMessageExecutor != null) {
 			try {
-				if(!engineMessageExecutor.result(content, null)) {
-					TapLogger.debug(TAG, "Command result was not accept successfully, maybe already handled somewhere else, id {}", commandId);
+				if(!engineMessageExecutor.result((Map<String, Object>) content, null)) {
+					TapLogger.debug(TAG, "Command result was not accept successfully, maybe already handled somewhere else, id {}", id);
 				}
 			} catch (Throwable throwable) {
 				int resultCode = NetErrors.CONSUME_COMMAND_RESULT_FAILED;
@@ -85,7 +85,7 @@ public class EngineSessionHandler extends GatewaySessionHandler {
 				return new Result().code(resultCode).description("Consumer command result failed, " + throwable.getMessage());
 			}
 		} else {
-			return new Result().code(NetErrors.NO_WAITING_COMMAND).description("Command " + commandId + " is expired already");
+			return new Result().code(NetErrors.NO_WAITING_COMMAND).description("Command " + id + " is expired already");
 		}
 		return null;
 	}
@@ -263,7 +263,7 @@ public class EngineSessionHandler extends GatewaySessionHandler {
 				;
 		DataMap commandIdExecutorMap = DataMap.create().keyRegex(keyRegex)/*.prefix(this.getClass().getSimpleName())*/;
 		dataMap.kv("commandIdExecutorMap", commandIdExecutorMap);
-		for(Map.Entry<String, EngineMessageExecutor> entry : this.commandIdExecutorMap.entrySet()) {
+		for(Map.Entry<String, EngineMessageExecutor<?>> entry : this.commandIdExecutorMap.entrySet()) {
 			commandIdExecutorMap.kv(entry.getKey(), entry.getValue().memory(keyRegex, memoryLevel));
 		}
 		return dataMap;

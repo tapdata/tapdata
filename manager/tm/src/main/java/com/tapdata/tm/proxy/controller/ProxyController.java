@@ -197,7 +197,7 @@ public class ProxyController extends BaseController {
     public void command(@RequestBody CommandInfo commandInfo, HttpServletRequest request, HttpServletResponse response) {
         if(commandInfo == null)
             throw new BizException("commandInfo is illegal");
-
+        UserDetail userDetail = getLoginUser();
         Locale locale = WebUtils.getLocale(request);
         commandInfo.setId(UUID.randomUUID().toString().replace("-", ""));
         if(locale != null)
@@ -420,21 +420,18 @@ public class ProxyController extends BaseController {
     public void methodRequest(@RequestBody ServiceCaller serviceCaller, HttpServletRequest request, HttpServletResponse response) {
         if(serviceCaller == null)
             throw new BizException("serviceCaller is illegal");
+        if(serviceCaller.getClassName() == null)
+            throw new BizException("Missing className");
+        if(serviceCaller.getMethod() == null)
+            throw new BizException("Missing method");
 
-        Locale locale = WebUtils.getLocale(request);
+        UserDetail userDetail = getLoginUser();
+//        Locale locale = WebUtils.getLocale(request);
         serviceCaller.setId(UUID.randomUUID().toString().replace("-", ""));
+        serviceCaller.setReturnClass(ServiceCaller.RETURN_CLASS_MAP);
 //        if(locale != null)
 //            serviceCaller.setLocale(locale.toString());
         executeEngineMessage(serviceCaller, request, response);
-//        if(service == null || subscribeId == null) {
-//            throw new BizException("Illegal arguments for subscribeId {}, subscribeId {}", service, subscribeId);
-//        }
-
-//        EventQueueService eventQueueService = InstanceFactory.instance(EventQueueService.class, "sync");
-//        if(eventQueueService != null) {
-//            MessageEntity message = new MessageEntity().content(content).time(new Date()).subscribeId(subscribeId).service(service);
-//            eventQueueService.offer(message);
-//        }
     }
 
     private void executeEngineMessage(EngineMessage engineMessage, HttpServletRequest request, HttpServletResponse response) {

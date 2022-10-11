@@ -4,6 +4,7 @@ import io.tapdata.entity.annotations.Bean;
 import io.tapdata.entity.annotations.MainMethod;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.reflection.ClassAnnotationHandler;
+import io.tapdata.modules.api.service.SkeletonService;
 import io.tapdata.pdk.core.utils.AnnotationUtils;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import org.reflections.Reflections;
@@ -28,6 +29,7 @@ public class AutoConfigServiceSkeleton {
         builder.forPackages(packages);
         Reflections reflections = new Reflections(builder);
 
+        serviceSkeletonAnnotationHandler.setService(SkeletonService.SERVICE_ENGINE);
         TapLogger.debug(TAG, "Start scanning service skeleton classes");
         AnnotationUtils.runClassAnnotationHandlers(reflections, new ClassAnnotationHandler[]{
                 serviceSkeletonAnnotationHandler

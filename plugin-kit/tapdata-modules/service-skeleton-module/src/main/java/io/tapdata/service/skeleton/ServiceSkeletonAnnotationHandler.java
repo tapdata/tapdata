@@ -195,41 +195,44 @@ public class ServiceSkeletonAnnotationHandler extends ClassAnnotationHandler {
         int concurrentLimit = remoteService.concurrentLimit();
         int queueSize = remoteService.waitingSize();
         Method[] methods = ReflectionUtil.getMethods(clazz);
-        if (methods != null) {
-            for (Method method : methods) {
-                if (method.isSynthetic() || method.getModifiers() == Modifier.PRIVATE)
-                    continue;
+        for (Method method : methods) {
+            if (method.isSynthetic() || method.getModifiers() == Modifier.PRIVATE)
+                continue;
 //                if(method.getDeclaringClass().isAssignableFrom(GroovyObject.class)) {
 //                    continue;
 //                }
-                SkeletonMethodMapping mm = new SkeletonMethodMapping(method);
-                mm.setRemoteService(serverAdapter);
-                long value = ReflectionUtil.getCrc(method, service);
-                if (methodMap.contains(value)) {
-                    TapLogger.warn(TAG, "Don't support override methods, please rename your method " + method + " for crc " + value + " and existing method " + methodMap.get(value).getMethod());
-                    continue;
-                }
-                Class<?>[] parameterTypes = method.getParameterTypes();
-                Type[] genericParamterTypes = method.getGenericParameterTypes();
-                if (parameterTypes != null) {
-                    boolean failed = false;
-                    for (int i = 0; i < parameterTypes.length; i++) {
-                        parameterTypes[i] = ReflectionUtil.getInitiatableClass(parameterTypes[i]);
-                        Class<?> parameterType = parameterTypes[i];
-                        if (!ReflectionUtil.canBeInitiated(parameterType)) {
-                            failed = true;
-                            TapLogger.warn(TAG, "Parameter " + parameterType + " in method " + method + " couldn't be initialized. ");
-                            break;
-                        }
+            SkeletonMethodMapping mm = new SkeletonMethodMapping(method);
+            mm.setRemoteService(serverAdapter);
+            long value = ReflectionUtil.getCrc(method, service);
+            if(value == -1) {
+                TapLogger.warn(TAG, "Method {} generate crc failed, will be ignored", method.getName());
+                continue;
+            }
+            if (methodMap.containsKey(value)) {
+                TapLogger.warn(TAG, "Don't support override methods, please rename your method " + method + " for crc " + value + " and existing method " + methodMap.get(value).getMethod());
+                continue;
+            }
+            Class<?>[] parameterTypes = method.getParameterTypes();
+            Type[] genericParamterTypes = method.getGenericParameterTypes();
+            if (parameterTypes != null) {
+                boolean failed = false;
+                for (int i = 0; i < parameterTypes.length; i++) {
+                    parameterTypes[i] = ReflectionUtil.getInitiatableClass(parameterTypes[i]);
+                    Class<?> parameterType = parameterTypes[i];
+                    if (!ReflectionUtil.canBeInitiated(parameterType)) {
+                        failed = true;
+                        TapLogger.warn(TAG, "Parameter " + parameterType + " in method " + method + " couldn't be initialized. ");
+                        break;
                     }
-                    if (failed)
-                        continue;
                 }
-                mm.setParameterTypes(parameterTypes);
-                mm.setGenericParameterTypes(genericParamterTypes);
-                Class<?> returnType = method.getReturnType();
-                returnType = ReflectionUtil.getInitiatableClass(returnType);
-                mm.setReturnClass(returnType);
+                if (failed)
+                    continue;
+            }
+            mm.setParameterTypes(parameterTypes);
+            mm.setGenericParameterTypes(genericParamterTypes);
+            Class<?> returnType = method.getReturnType();
+            returnType = ReflectionUtil.getInitiatableClass(returnType);
+            mm.setReturnClass(returnType);
 //                if (method.getGenericReturnType().getTypeName().contains(CompletableFuture.class.getTypeName())) {
 //                    mm.setAsync(true);
 //                    if (concurrentLimit != -1) {
@@ -239,13 +242,12 @@ public class ServiceSkeletonAnnotationHandler extends ClassAnnotationHandler {
 //                        mm.setRpcServerInterceptors(rpcServerInterceptors);
 //                    }
 //                } else {
-                    mm.setAsync(false);
+                mm.setAsync(false);
 //                }
-                methodMap.put(value, mm);
-                RpcCacheManager.getInstance().putCrcMethodMap(value, service + "_" + clazz.getSimpleName() + "_" + method.getName());
+            methodMap.put(value, mm);
+            RpcCacheManager.getInstance().putCrcMethodMap(value, service + "_" + clazz.getSimpleName() + "_" + method.getName());
 
-                TapLogger.info("SCAN", "Mapping crc " + value + " for class " + clazz.getName() + " method " + method.getName() + " for service " + service);
-            }
+            TapLogger.info("SCAN", "Mapping crc " + value + " for class " + clazz.getName() + " method " + method.getName() + " for service " + service);
         }
     }
 

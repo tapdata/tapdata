@@ -1,16 +1,19 @@
 package io.tapdata.modules.api.proxy.data;
 
 import io.tapdata.entity.annotations.Implementation;
+import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.entity.utils.io.DataInputStreamEx;
 import io.tapdata.entity.utils.io.DataOutputStreamEx;
 import io.tapdata.modules.api.net.message.TapEntity;
+import io.tapdata.modules.api.service.ArgumentsSerializer;
 import io.tapdata.pdk.apis.entity.message.ServiceCaller;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.util.Objects;
 
-@Implementation(value = TapEntity.class, type = "ServiceCaller")
+@Implementation(value = TapEntity.class, type = "ServiceCallerReceived")
 public class ServiceCallerReceived implements TapEntity {
 	private ServiceCaller serviceCaller;
 	public ServiceCallerReceived serviceCaller(ServiceCaller serviceCaller) {
@@ -20,13 +23,36 @@ public class ServiceCallerReceived implements TapEntity {
 	@Override
 	public void from(InputStream inputStream) throws IOException {
 		DataInputStreamEx dis = dataInputStream(inputStream);
-		serviceCaller = dis.readJson(ServiceCaller.class);
+		String id = dis.readUTF();
+		String className = dis.readUTF();
+		String method = dis.readUTF();
+		String returnClass = dis.readUTF();
+
+		serviceCaller = ServiceCaller.create(id).className(className).method(method).returnClass(returnClass);
+
+		ArgumentsSerializer argumentsSerializer = InstanceFactory.instance(ArgumentsSerializer.class);
+		Object[] args = Objects.requireNonNull(argumentsSerializer).from(dis, serviceCaller);
+		serviceCaller.args(args);
 	}
 
 	@Override
 	public void to(OutputStream outputStream) throws IOException {
 		DataOutputStreamEx dos = dataOutputStream(outputStream);
-		dos.writeJson(serviceCaller);
+		dos.writeUTF(serviceCaller.getId());
+		dos.writeUTF(serviceCaller.getClassName());
+		dos.writeUTF(serviceCaller.getMethod());
+		dos.writeUTF(serviceCaller.getReturnClass());
+
+		ArgumentsSerializer argumentsSerializer = InstanceFactory.instance(ArgumentsSerializer.class);
+		Objects.requireNonNull(argumentsSerializer).to(dos, serviceCaller);
+	}
+
+	public ServiceCaller getServiceCaller() {
+		return serviceCaller;
+	}
+
+	public void setServiceCaller(ServiceCaller serviceCaller) {
+		this.serviceCaller = serviceCaller;
 	}
 
 	@Override

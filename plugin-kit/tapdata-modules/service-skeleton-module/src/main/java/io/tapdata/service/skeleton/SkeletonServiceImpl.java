@@ -15,7 +15,7 @@ import java.util.function.Consumer;
 public class SkeletonServiceImpl implements SkeletonService {
 	@Bean
 	private ServiceSkeletonAnnotationHandler serviceSkeletonAnnotationHandler;
-	private final static String SERVICE_ENGINE = "tapdata_engine";
+
 
 	@Override
 	public CompletableFuture<Object> call(String className, String method, Object... args) {

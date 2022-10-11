@@ -13,4 +13,7 @@ public class ConnectionTestService {
 	public Map<String, Object> connectionTest(Connections connections) {
 		return map(entry("1", 1));
 	}
+
+	public void a() {}
+
 }

@@ -12,13 +12,16 @@ import io.tapdata.modules.api.net.data.Data;
 import io.tapdata.modules.api.net.data.IncomingData;
 import io.tapdata.modules.api.net.data.OutgoingData;
 import io.tapdata.modules.api.net.error.NetErrors;
-import io.tapdata.modules.api.net.message.CommandResultEntity;
+import io.tapdata.modules.api.net.message.EngineMessageResultEntity;
 import io.tapdata.modules.api.pdk.PDKUtils;
 import io.tapdata.modules.api.proxy.data.CommandReceived;
 import io.tapdata.modules.api.proxy.data.NewDataReceived;
 import io.tapdata.modules.api.proxy.data.NodeSubscribeInfo;
+import io.tapdata.modules.api.proxy.data.ServiceCallerReceived;
+import io.tapdata.modules.api.service.SkeletonService;
 import io.tapdata.pdk.apis.entity.message.CommandInfo;
 import io.tapdata.pdk.apis.entity.CommandResult;
+import io.tapdata.pdk.apis.entity.message.ServiceCaller;
 import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.apis.functions.connection.CommandCallbackFunction;
 import io.tapdata.pdk.core.api.ConnectionNode;
@@ -34,6 +37,7 @@ import io.tapdata.wsclient.utils.EventManager;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiConsumer;
 
 @Bean
 public class ProxySubscriptionManager implements MemoryFetcher {
@@ -46,6 +50,10 @@ public class ProxySubscriptionManager implements MemoryFetcher {
 	private IMClient imClient;
 
 	private MaxFrequencyLimiter maxFrequencyLimiter;
+
+
+	@Bean
+	private SkeletonService skeletonService;
 
 	public ProxySubscriptionManager() {
 //		String nodeId = CommonUtils.getProperty("tapdata_node_id");
@@ -78,20 +86,81 @@ public class ProxySubscriptionManager implements MemoryFetcher {
 					//prefix + "." + data.getClass().getSimpleName() + "." + data.getContentType()
 					eventManager.registerEventListener(imClient.getPrefix() + "." + OutgoingData.class.getSimpleName() + "." + NewDataReceived.class.getSimpleName(), this::handleNewDataReceived);
 					eventManager.registerEventListener(imClient.getPrefix() + "." + OutgoingData.class.getSimpleName() + "." + CommandReceived.class.getSimpleName(), this::handleCommandReceived);
+					eventManager.registerEventListener(imClient.getPrefix() + "." + OutgoingData.class.getSimpleName() + "." + ServiceCallerReceived.class.getSimpleName(), this::handleServiceCallerReceived);
 				}
 			}
+		}
+	}
+
+	private void handleServiceCallerReceived(String contentType, OutgoingData outgoingData) {
+		ServiceCallerReceived serviceCallerReceived = (ServiceCallerReceived) outgoingData.getMessage();
+		if(serviceCallerReceived == null || serviceCallerReceived.getServiceCaller() == null) {
+			EngineMessageResultEntity engineMessageResultEntity = new EngineMessageResultEntity()
+					.code(NetErrors.MISSING_SERVICE_CALLER)
+					.message("Missing service caller");
+			imClient.sendData(new IncomingData().message(engineMessageResultEntity))
+					.exceptionally(throwable -> {
+						TapLogger.error(TAG, "Send EngineMessageResultEntity(MISSING_SERVICE_CALLER) failed, {} engineMessageResultEntity {}", throwable.getMessage(), engineMessageResultEntity);
+						return null;
+					});
+			return;
+		}
+		ServiceCaller serviceCaller = serviceCallerReceived.getServiceCaller();
+		try {
+			PDKUtils pdkUtils = InstanceFactory.instance(PDKUtils.class);
+			if(pdkUtils == null)
+				throw new CoreException(NetErrors.ILLEGAL_PARAMETERS, "pdkUtils is null");
+			if(serviceCaller == null)
+				throw new CoreException(NetErrors.ILLEGAL_PARAMETERS, "serviceCaller is null");
+			if(serviceCaller.getClassName() == null || serviceCaller.getMethod() == null)
+				throw new CoreException(NetErrors.ILLEGAL_PARAMETERS, "some parameter are null, className {}, method {}, args {}", serviceCaller.getClassName(), serviceCaller.getMethod(), serviceCaller.getArgs());
+
+			skeletonService.call(serviceCaller.getClassName(), serviceCaller.getMethod(), serviceCaller.getArgs()).whenComplete((callResult, throwable) -> {
+				EngineMessageResultEntity engineMessageResultEntity;
+				if(throwable != null) {
+					engineMessageResultEntity = new EngineMessageResultEntity()
+							.contentClass(serviceCaller.getReturnClass())
+							.code(NetErrors.COMMAND_EXECUTE_FAILED)
+							.id(serviceCaller.getId())
+							.message(throwable.getMessage());
+				} else {
+					engineMessageResultEntity = new EngineMessageResultEntity()
+							.contentClass(serviceCaller.getReturnClass())
+							.content(callResult)
+							.code(Data.CODE_SUCCESS)
+							.id(serviceCaller.getId());
+				}
+				imClient.sendData(new IncomingData().message(engineMessageResultEntity)).exceptionally(throwable1 -> {
+					TapLogger.error(TAG, "Send EngineMessageResultEntity failed, {} EngineMessageResultEntity {}", throwable1.getMessage(), engineMessageResultEntity);
+					return null;
+				});
+			});
+		} catch(Throwable throwable) {
+			int code = NetErrors.SERVICE_CALLER_EXECUTE_FAILED;
+			if(throwable instanceof CoreException) {
+				code = ((CoreException) throwable).getCode();
+			}
+			EngineMessageResultEntity engineMessageResultEntity = new EngineMessageResultEntity()
+					.id(serviceCaller != null ? serviceCaller.getId() : null)
+					.code(code)
+					.message(throwable.getMessage());
+			imClient.sendData(new IncomingData().message(engineMessageResultEntity))
+					.exceptionally(throwable1 -> {
+						TapLogger.error(TAG, "Send CommandResultEntity(SERVICE_CALLER_EXECUTE_FAILED) failed, {} CommandResultEntity {}", throwable1.getMessage(), engineMessageResultEntity);
+						return null;
+					});
 		}
 	}
 
 	private void handleCommandReceived(String contentType, OutgoingData outgoingData) {
 		CommandReceived commandReceived = (CommandReceived) outgoingData.getMessage();
 		if(commandReceived == null || commandReceived.getCommandInfo() == null) {
-			CommandResultEntity commandResultEntity = new CommandResultEntity()
+			EngineMessageResultEntity engineMessageResultEntity = new EngineMessageResultEntity()
 					.code(NetErrors.MISSING_COMMAND_INFO)
 					.message("Missing commandInfo");
-			imClient.sendData(new IncomingData().message(commandResultEntity))
+			imClient.sendData(new IncomingData().message(engineMessageResultEntity))
 					.exceptionally(throwable -> {
-						TapLogger.error(TAG, "Send CommandResultEntity(MISSING_COMMAND_INFO) failed, {} CommandResultEntity {}", throwable.getMessage(), commandResultEntity);
+						TapLogger.error(TAG, "Send EngineMessageResultEntity(MISSING_COMMAND_INFO) failed, {} engineMessageResultEntity {}", throwable.getMessage(), engineMessageResultEntity);
 						return null;
 					});
 			return;
@@ -120,39 +189,43 @@ public class ProxySubscriptionManager implements MemoryFetcher {
 			}
 			CommandCallbackFunction commandCallbackFunction = connectionNode.getConnectionFunctions().getCommandCallbackFunction();
 			if(commandCallbackFunction == null) {
-				CommandResultEntity commandResultEntity = new CommandResultEntity()
-						.commandId(commandInfo.getId())
+				EngineMessageResultEntity engineMessageResultEntity = new EngineMessageResultEntity()
+						.id(commandInfo.getId())
 						.code(NetErrors.PDK_NOT_SUPPORT_COMMAND_CALLBACK)
 						.message("pdkId " + pdkInfo.getPdkId() + " doesn't support CommandCallbackFunction");
-				imClient.sendData(new IncomingData().message(commandResultEntity))
+				imClient.sendData(new IncomingData().message(engineMessageResultEntity))
 						.exceptionally(throwable -> {
-							TapLogger.error(TAG, "Send CommandResultEntity(PDK_NOT_SUPPORT_COMMAND_CALLBACK) failed, {} CommandResultEntity {}", throwable.getMessage(), commandResultEntity);
+							TapLogger.error(TAG, "Send CommandResultEntity(PDK_NOT_SUPPORT_COMMAND_CALLBACK) failed, {} CommandResultEntity {}", throwable.getMessage(), engineMessageResultEntity);
 							return null;
 						});
 				return;
 //			return new Result().code(NetErrors.PDK_NOT_SUPPORT_COMMAND_CALLBACK).description("pdkId " + commandInfo.getPdkId() + " doesn't support CommandCallbackFunction");
 			}
-			AtomicReference<CommandResultEntity> mapAtomicReference = new AtomicReference<>();
-			PDKInvocationMonitor.invoke(connectionNode, PDKMethod.CONNECTION_TEST,
+			AtomicReference<EngineMessageResultEntity> mapAtomicReference = new AtomicReference<>();
+			PDKInvocationMonitor.invoke(connectionNode, PDKMethod.COMMAND_CALLBACK,
 					() -> {
 						CommandResult commandResult = commandCallbackFunction.filter(connectionNode.getConnectionContext(), commandInfo);
-						mapAtomicReference.set(new CommandResultEntity()
+						mapAtomicReference.set(new EngineMessageResultEntity()
 								.content(commandResult != null ? commandResult.getResult() : null)
 								.code(Data.CODE_SUCCESS)
-								.commandId(commandInfo.getId()));
+								.id(commandInfo.getId()));
 					}, TAG) ;
 			imClient.sendData(new IncomingData().message(mapAtomicReference.get())).exceptionally(throwable -> {
 				TapLogger.error(TAG, "Send CommandResultEntity failed, {} CommandResultEntity {}", throwable.getMessage(), mapAtomicReference.get());
 				return null;
 			});
 		} catch(Throwable throwable) {
-			CommandResultEntity commandResultEntity = new CommandResultEntity()
-					.commandId(commandInfo != null ? commandInfo.getId() : null)
-					.code(NetErrors.MISSING_COMMAND_EXECUTE_FAILED)
+			int code = NetErrors.COMMAND_EXECUTE_FAILED;
+			if(throwable instanceof CoreException) {
+				code = ((CoreException) throwable).getCode();
+			}
+			EngineMessageResultEntity engineMessageResultEntity = new EngineMessageResultEntity()
+					.id(commandInfo != null ? commandInfo.getId() : null)
+					.code(code)
 					.message(throwable.getMessage());
-			imClient.sendData(new IncomingData().message(commandResultEntity))
+			imClient.sendData(new IncomingData().message(engineMessageResultEntity))
 					.exceptionally(throwable1 -> {
-						TapLogger.error(TAG, "Send CommandResultEntity(MISSING_COMMAND_INFO) failed, {} CommandResultEntity {}", throwable1.getMessage(), commandResultEntity);
+						TapLogger.error(TAG, "Send CommandResultEntity(COMMAND_EXECUTE_FAILED) failed, {} CommandResultEntity {}", throwable1.getMessage(), engineMessageResultEntity);
 						return null;
 					});
 		}

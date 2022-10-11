@@ -4,13 +4,39 @@ import java.util.Date;
 import java.util.Map;
 
 public class ServiceCaller extends EngineMessage {
+	public static ServiceCaller create(String id) {
+		ServiceCaller serviceCaller = new ServiceCaller();
+		serviceCaller.setId(id);
+		return serviceCaller;
+	}
 	private String className;
+	public ServiceCaller className(String className) {
+		this.className = className;
+		return this;
+	}
 	private String method;
+	public ServiceCaller method(String method) {
+		this.method = method;
+		return this;
+	}
 	private Object[] args;
+	public ServiceCaller args(Object[] args) {
+		this.args = args;
+		return this;
+	}
+
+	private Integer argCount;
+
+	public static final String RETURN_CLASS_MAP = "map";
+	private String returnClass;
+	public ServiceCaller returnClass(String returnClass) {
+		this.returnClass = returnClass;
+		return this;
+	}
 
 	@Override
 	public String toString() {
-		return "ServiceCaller id " + id + " className " + className + " method " + method + " args " + args + ";";
+		return "ServiceCaller id " + id + " className " + className + " method " + method + " args " + args + " returnClass " + returnClass + ";";
 	}
 
 	public String getClassName() {
@@ -37,4 +63,19 @@ public class ServiceCaller extends EngineMessage {
 		this.args = args;
 	}
 
+	public String getReturnClass() {
+		return returnClass;
+	}
+
+	public void setReturnClass(String returnClass) {
+		this.returnClass = returnClass;
+	}
+
+	public Integer getArgCount() {
+		return argCount;
+	}
+
+	public void setArgCount(Integer argCount) {
+		this.argCount = argCount;
+	}
 }
