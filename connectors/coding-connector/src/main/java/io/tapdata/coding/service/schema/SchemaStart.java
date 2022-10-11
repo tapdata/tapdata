@@ -1,6 +1,8 @@
 package io.tapdata.coding.service.schema;
 
+import io.tapdata.coding.CodingConnector;
 import io.tapdata.coding.utils.tool.Checker;
+import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import org.reflections.Reflections;
@@ -8,6 +10,7 @@ import org.reflections.Reflections;
 import java.util.*;
 
 public interface SchemaStart {
+    static final String TAG = SchemaStart.class.getSimpleName();
     Set<Class<? extends SchemaStart>> schemaSet = new HashSet<>();
     public Boolean use();
     public String tableName();
@@ -25,11 +28,11 @@ public interface SchemaStart {
             clz = Class.forName("io.tapdata.coding.service.schema" + "."+schemaName);
             return ((SchemaStart)clz.newInstance());
         } catch (ClassNotFoundException e) {
-            e.printStackTrace();
+            TapLogger.debug(TAG, "ClassNotFoundException for Schema {}",schemaName);
         } catch (InstantiationException e1) {
-            e1.printStackTrace();
+            TapLogger.debug(TAG, "InstantiationException for Schema {}",schemaName);
         } catch (IllegalAccessException e2) {
-            e2.printStackTrace();
+            TapLogger.debug(TAG, "IllegalAccessException for Schema {}",schemaName);
         }
         return null;
     }
@@ -51,9 +54,9 @@ public interface SchemaStart {
                     schemaList.add(schema);
                 }
             } catch (InstantiationException e) {
-
+                TapLogger.debug(TAG, "InstantiationException for Schema.");
             } catch (IllegalAccessException e) {
-
+                TapLogger.debug(TAG,"IllegalAccessException for Schema.");
             }
         });
         return schemaList;

@@ -6,6 +6,7 @@ import io.tapdata.coding.service.schema.SchemaStart;
 import io.tapdata.coding.utils.http.CodingHttp;
 import io.tapdata.coding.utils.tool.Checker;
 import io.tapdata.entity.event.TapEvent;
+import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
@@ -21,6 +22,8 @@ import java.util.Map;
 import java.util.function.BiConsumer;
 
 public interface CodingLoader<T extends Param> {
+
+    static final String TAG = CodingLoader.class.getSimpleName();
     public Long streamReadTime();
     public void stopRead();
 
@@ -31,15 +34,15 @@ public interface CodingLoader<T extends Param> {
             Constructor com = clz.getConstructor(TapConnectionContext.class);
             return (CodingLoader)com.newInstance(tapConnectionContext);
         } catch (ClassNotFoundException e0) {
-            //e0.printStackTrace();
+            TapLogger.debug(TAG, "ClassNotFoundException for Schema {}",tableName);
         }catch (NoSuchMethodException e1) {
-            //e1.printStackTrace();
+            TapLogger.debug(TAG, "NoSuchMethodException for Schema {}",tableName);
         } catch (InstantiationException e2) {
-            //e2.printStackTrace();
+            TapLogger.debug(TAG, "InstantiationException for Schema {}",tableName);
         } catch (IllegalAccessException e3) {
-            //e3.printStackTrace();
+            TapLogger.debug(TAG, "IllegalAccessException for Schema {}",tableName);
         } catch (InvocationTargetException e4) {
-            //e4.printStackTrace();
+            TapLogger.debug(TAG, "InvocationTargetException for Schema {}", tableName);
         }
         return null;
     }

@@ -471,6 +471,7 @@ public class CodingConnector extends ConnectorBase {
 		if (Checker.isNotEmpty(loader)) {
 			return loader.batchCount();
 		}
+		TapLogger.debug(TAG, "batchCountV2 = 0",tapTable.getId());
 		return 0;
 	}
 	private long batchCountV1(TapConnectorContext tapConnectorContext, TapTable tapTable) throws Throwable {
