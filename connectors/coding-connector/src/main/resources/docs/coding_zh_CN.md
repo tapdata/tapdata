@@ -38,6 +38,9 @@
     此时按您的需求设置配置，同时把之前的生成的URL粘贴到服务 URL中。
 ```
 - 一键前往配置web Hook：https://tapdata.coding.net/p/testissue/setting/webhook
+---
+特别说明：**创建新的Coding连接，如果选择WebHook模式，一定要记得前往Coding为此连接节点配置ServiceHook哦！**
+---
 ### **3. 先决条件（作为目标）**
 ...
 

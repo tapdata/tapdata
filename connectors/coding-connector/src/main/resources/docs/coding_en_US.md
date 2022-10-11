@@ -22,7 +22,7 @@ It can also be obtained intuitively in your coding link, such as：https://{team
 #### **1.4 Select Incremental Method**
 - At this moment, there are web hooks supported by Coding, and there are also incremental methods of regular polling on time.
 - Of course, if you choose the WebHook mode that saves processor performance, you need to go to Coding to configure the web hook (click the HookButton and you can see a line of concise URLs. Here, you need to copy the URL input box that goes to Coding and pastes to the WebHook configuration page.)
-##### **1.4.1 轮询式**
+##### **1.4.1 polled**
 ##### **1.4.1 WebHook**
 - In this mode, you need to configure ServiceHook before creating tasks:
 - The process of configuring web hooks is as follows:
@@ -38,6 +38,11 @@ It can also be obtained intuitively in your coding link, such as：https://{team
     At this time, set the configuration according to your needs, and paste the previously generated URL into the service URL.
 ```
 - One click to configure WebHook：https://tapdata.coding.net/p/testissue/setting/webhook
+
+---
+ Special instructions ：**Create a new coding connection. If you choose WebHook mode, remember to go to Coding to configure ServiceHook for this connection node!**
+---
+
 ### **3. Prerequisites (As goals)**
 ...
 
