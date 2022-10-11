@@ -102,7 +102,7 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
      * @param issueDetail
      */
     public void composeIssue(String projectName, String teamName, Map<String, Object> issueDetail) {
-        this.addParamToBatch(issueDetail);//给自定义字段赋值
+        //this.addParamToBatch(issueDetail);//给自定义字段赋值
         issueDetail.put("ProjectName",projectName);
         issueDetail.put("TeamName",   teamName);
     }
@@ -321,7 +321,11 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
         }
         Map<String,Object> responseMap = (Map<String,Object>)response;
         Object dataObj = responseMap.get("Issue");
-        return null !=  dataObj? (Map<String, Object>) dataObj : null;
+        Map<String, Object> result = null !=  dataObj? (Map<String, Object>) dataObj : null;
+        if (Checker.isNotEmpty(result)) {
+            this.composeIssue(this.contextConfig.getProjectName(), this.contextConfig.getTeamName(), result);
+        }
+        return result;
     }
 
     @Override
@@ -472,9 +476,11 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
             if (null == instance){
                 throw new CoreException("Connection Mode is not empty or not null.");
             }
-            if (instance instanceof CSVMode) {
-                issueDetail = instance.attributeAssignment(issueDetail);
-            }
+//            if (instance instanceof CSVMode) {
+//                issueDetail = instance.attributeAssignment(issueDetail);
+//            }else {
+//
+//            }
         }
         if (Checker.isNotEmpty(issueEvent)){
             String evenType = issueEvent.getEventType();
@@ -483,13 +489,13 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
                     issueDetail = (Map<String, Object>) issueObj;
                     issueDetail.put("teamName",this.contextConfig.getTeamName());
                     issueDetail.put("projectName",this.contextConfig.getProjectName());
-                    event = TapSimplify.deleteDMLEvent(issueDetail, "Issues").referenceTime(referenceTime)  ;
+                    event = TapSimplify.deleteDMLEvent(issueDetail, TABLE_NAME).referenceTime(referenceTime)  ;
                 };break;
                 case UPDATE_EVENT:{
-                    event = TapSimplify.updateDMLEvent(null,issueDetail, "Issues").referenceTime(referenceTime) ;
+                    event = TapSimplify.updateDMLEvent(null,issueDetail, TABLE_NAME).referenceTime(referenceTime) ;
                 };break;
                 case CREATED_EVENT:{
-                    event = TapSimplify.insertRecordEvent(issueDetail, "Issues").referenceTime(referenceTime)  ;
+                    event = TapSimplify.insertRecordEvent(issueDetail, TABLE_NAME).referenceTime(referenceTime)  ;
                 };break;
             }
             //TapLogger.debug(TAG, "End {} stream read [WebHook]", "Issues");
@@ -568,6 +574,7 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
                 Object code = stringObjectMap.get("Code");
                 //Map<String,Object> issueDetail = instance.attributeAssignment(stringObjectMap);
                 Map<String,Object> issueDetail = this.get(IssueParam.create().issueCode((Integer)code));// stringObjectMap;
+                this.composeIssue(projectName,teamName,issueDetail);
                 if (null == issueDetail){
                     events[0].add(TapSimplify.insertRecordEvent(stringObjectMap, TABLE_NAME).referenceTime(System.currentTimeMillis()));
                     events[0].add(TapSimplify.deleteDMLEvent(stringObjectMap, TABLE_NAME).referenceTime(System.currentTimeMillis()));
