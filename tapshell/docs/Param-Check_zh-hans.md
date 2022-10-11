@@ -1,8 +1,8 @@
-# 数据源参数校验/提示
+# 数据源接口说明
 
 [TOC]
 
-pdk支持自由定义表单，该模块旨在支持更新的数据源，方便用户/开发者使用tapshell或通过tapshell进行开发。
+pdk支持自由定义表单，该模块旨在支持更新的数据源，方便用户/开发者使用tapshell/sdk或通过tapshell/sdk进行开发。
 
 
 ## 数据源创建接口
@@ -42,7 +42,7 @@ d.save()
 
 ## 接口参数规范
 
-查看`tapshell/params/datasource.py`文件，我们可以看到这里定义了4个数据源：
+查看[这个文件](https://github.com/tapdata/tapdata/blob/feat-tapshell/tapshell/tapdata_cli/params/datasource.py) ，我们可以看到这里定义了4个数据源：
 ```python
 pdk_config = {
     "mongodb": {
@@ -92,3 +92,22 @@ d.set({"name": "mongo_custom"})  # 通过set接口来设置通用参数
 ```
 
 内置的set、save、delete等接口会和上述自定义接口冲突，这是需要注意的地方。
+
+## Python-Sdk接口变动说明
+
+从Python-Sdk 2.2.15升级到Python-Sdk 2.2.20，有一些接口变动：
+
+1. 统一使用DataSource类作为数据源操作的统一接口，**废弃原有的Oracle/Kafka/MongoDB/Mysql/Postgres接口**。
+2. Oracle数据源接口变动：
+- port: 参数类型由str/int变为int
+- username: 变为user
+- database: 如果thinType设置为SERVICE_NAME（默认为SID），则database变为SERVICE_NAME
+3. Kafka数据源接口变动：
+- uri: 变为nameSrvAddr
+4. MongoDB数据源form模式下/Mysql数据源接口变动：
+- db: 变为database
+- port: 参数类型由str/int变为int
+- additionalString: 变为props
+5. postgresql数据源接口变动:
+- set_log_decorder_plugin: 变为logPluginName
+- port: 参数类型由str/int变为int

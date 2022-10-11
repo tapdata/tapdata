@@ -1,5 +1,4 @@
 import requests
-from tapdata_cli.config_parse import config
 from tapdata_cli.log import logger
 
 
@@ -19,8 +18,13 @@ class RequestSession(requests.Session):
         return super(RequestSession, self).prepare_request(request)
 
 
-server = config["backend.server"]
-req: RequestSession = RequestSession(server)
+req = None
+
+
+def set_req(server):
+    global req
+    req = RequestSession(server)
+    return req
 
 
 class Api:

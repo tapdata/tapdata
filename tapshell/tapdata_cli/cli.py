@@ -30,11 +30,12 @@ from tapdata_cli.graph import Node, Graph
 from tapdata_cli.check import ConfigCheck
 from tapdata_cli.log import logger, get_log_level
 from tapdata_cli.config_parse import config
-from tapdata_cli.request import DataSourceApi, req, InspectApi, TaskApi
+from tapdata_cli.request import DataSourceApi, InspectApi, TaskApi, set_req
 from tapdata_cli.params.datasource import pdk_config, DATASOURCE_CONFIG
 from tapdata_cli.params.job import job_config, node_config, node_config_sync
 
 server = config["backend.server"]
+req = set_req(server)
 access_code = config["backend.access_code"]
 
 
@@ -1203,7 +1204,8 @@ def desc_table(line):
 
 
 def login_with_access_code(server, access_code):
-    global system_server_conf
+    global system_server_conf, req
+    req = set_req(server)
     api = "http://" + server + "/api"
     res = req.post("/users/generatetoken", json={"accesscode": access_code})
     if res.status_code != 200:
@@ -1289,14 +1291,6 @@ class system_command(Magics):
             return
         _lang = l
         _l = i18n[_lang]
-
-
-ip = TerminalInteractiveShell.instance()
-ip.register_magics(global_help)
-ip.register_magics(system_command)
-ip.register_magics(show_command)
-ip.register_magics(op_object_command)
-ip.register_magics(ApiCommand)
 
 
 @help_decorate("Enum, used to describe a job status")
@@ -1753,7 +1747,9 @@ class Pipeline:
         if type(script) == types.FunctionType:
             from metapensiero.pj.api import translates
             import inspect
-            js_script = translates(inspect.getsource(script))[0]
+            source_code = inspect.getsource(script)
+            source_code = "def process(" + source_code.split("(", 2)[1]
+            js_script = translates(source_code)[0]
             f = Js(js_script, False)
         else:
             if script.endswith(".js"):
@@ -1923,17 +1919,6 @@ class Pipeline:
         job = Job(name=self.name, pipeline=self)
         job.validateConfig = self.validateConfig
         self.job = job
-        # self.config(config={})
-        job.config(self.dag.setting)
-        job.config({
-            "sync_type": SyncType.both,
-            "stopOnError": True,
-            "needToCreateIndex": True,
-            "readBatchSize": 500,
-            "transformModelVersion": "v1",
-            "readShareLogMode": "STREAMING",
-            "processorConcurrency": 1
-        })
         job.config(self.dag.setting)
         if job.start():
             logger.info("job {} start running ...", self.name)
@@ -2370,7 +2355,7 @@ class Api:
             "id": self.id,
             "status": "pending"
         }
-        res = requests.patch("/Modules", json=payload)
+        res = req.patch("/Modules", json=payload)
         res = res.json()
         if res["code"] == "ok":
             logger.info("unpublish {} success", self.id)
@@ -2491,14 +2476,14 @@ class Job:
     @staticmethod
     def list():
         res = req.get(
-            "/DataFlows",
+            "/Task",
             params={"filter": '{"fields":{"id":true,"name":true,"status":true,"agentId":true,"stats":true}}'}
         )
         if res.status_code != 200:
             return None
         res = res.json()
         jobs = []
-        for i in res["data"]:
+        for i in res["data"]['items']:
             jobs.append(Job(id=i["id"]))
         return jobs
 
@@ -2567,13 +2552,8 @@ class Job:
     def save(self):
         if self.id is None:
             self.job = {
-                "accessNodeProcessId": "",
-                "accessNodeProcessIdList": [],
-                "accessNodeType": "AUTOMATIC_PLATFORM_ALLOCATION",
-                "deduplicWriteMode": "intelligent",
                 "editVersion": int(time.time() * 1000),
                 "syncType": self.dag.jobType,
-                "type": "initial_sync+cdc",
                 "mappingTemplate": self.dag.jobType,
                 "name": self.name,
                 "status": JobStatus.edit,
@@ -3249,7 +3229,7 @@ class Connection:
 
 # used to describe a pipeline job
 class Dag:
-    def __init__(self, name="", is_filter=False):
+    def __init__(self, name=""):
         self.name = name
         self.status = JobStatus.edit
         self.dag = {
@@ -3365,9 +3345,29 @@ op_object_command_class = {
 
 
 def main():
+    # ipython settings
+    ip = TerminalInteractiveShell.instance()
+    ip.register_magics(global_help)
+    ip.register_magics(system_command)
+    ip.register_magics(show_command)
+    ip.register_magics(op_object_command)
+    ip.register_magics(ApiCommand)
     login_with_access_code(server, access_code)
     show_connections(quiet=True)
     show_connectors(quiet=True)
 
 
-main()
+def init(custom_server, custom_access_code):
+    """
+    provide for python sdk to init env
+    """
+    global server, access_code
+    server = custom_server
+    access_code = custom_access_code
+    login_with_access_code(server, access_code)
+    show_connections(quiet=True)
+    show_connectors(quiet=True)
+
+
+if __name__ == "__main__":
+    main()
