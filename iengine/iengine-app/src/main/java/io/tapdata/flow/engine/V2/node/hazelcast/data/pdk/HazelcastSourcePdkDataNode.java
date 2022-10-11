@@ -27,10 +27,7 @@ import io.tapdata.milestone.MilestoneStage;
 import io.tapdata.milestone.MilestoneStatus;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
 import io.tapdata.pdk.apis.functions.PDKMethod;
-import io.tapdata.pdk.apis.functions.connector.source.BatchCountFunction;
-import io.tapdata.pdk.apis.functions.connector.source.BatchReadFunction;
-import io.tapdata.pdk.apis.functions.connector.source.RawDataCallbackFilterFunction;
-import io.tapdata.pdk.apis.functions.connector.source.StreamReadFunction;
+import io.tapdata.pdk.apis.functions.connector.source.*;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.entity.params.PDKMethodInvoker;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
@@ -401,14 +398,20 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 			return;
 		}
 		RawDataCallbackFilterFunction rawDataCallbackFilterFunction = connectorNode.getConnectorFunctions().getRawDataCallbackFilterFunction();
+		RawDataCallbackFilterFunctionV2 rawDataCallbackFilterFunctionV2 = connectorNode.getConnectorFunctions().getRawDataCallbackFilterFunctionV2();
+//		if(rawDataCallbackFilterFunctionV2 != null) {
+//			rawDataCallbackFilterFunction = null;
+//		}
 		StreamReadFunction streamReadFunction = connectorNode.getConnectorFunctions().getStreamReadFunction();
-		if (streamReadFunction != null || rawDataCallbackFilterFunction != null) {
+		if (streamReadFunction != null || rawDataCallbackFilterFunction != null || rawDataCallbackFilterFunctionV2 != null) {
 			logger.info("Starting stream read, table list: " + tapTableMap.keySet() + ", offset: " + syncProgress.getOffsetObj());
 			List<String> tables = new ArrayList<>(tapTableMap.keySet());
 			cdcDelayCalculation.addHeartbeatTable(tables);
 			int batchSize = 1;
 			String streamReadFunctionName = null;
-			if(rawDataCallbackFilterFunction != null)
+			if(rawDataCallbackFilterFunctionV2 != null)
+				streamReadFunctionName = rawDataCallbackFilterFunctionV2.getClass().getSimpleName();
+			if(rawDataCallbackFilterFunction != null && streamReadFunctionName == null)
 				streamReadFunctionName = rawDataCallbackFilterFunction.getClass().getSimpleName();
 			if(streamReadFunctionName == null)
 				streamReadFunctionName = streamReadFunction.getClass().getSimpleName();
@@ -483,7 +486,7 @@ public class HazelcastSourcePdkDataNode extends HazelcastSourcePdkBaseNode {
 											}
 										});
 
-										if(rawDataCallbackFilterFunction != null && streamReadFuncAspect != null) {
+										if((rawDataCallbackFilterFunction != null || rawDataCallbackFilterFunctionV2 != null) && streamReadFuncAspect != null) {
 											executeAspect(streamReadFuncAspect.state(StreamReadFuncAspect.STATE_CALLBACK_RAW_DATA).streamReadConsumer(streamReadConsumer));
 											while(isRunning()) {
 												if(!streamReadFuncAspect.waitRawData()) {

@@ -29,6 +29,7 @@ import io.tapdata.node.pdk.ConnectorNodeService;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
 import io.tapdata.pdk.apis.functions.PDKMethod;
 import io.tapdata.pdk.apis.functions.connector.source.RawDataCallbackFilterFunction;
+import io.tapdata.pdk.apis.functions.connector.source.RawDataCallbackFilterFunctionV2;
 import io.tapdata.pdk.core.api.ConnectorNode;
 import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
 
@@ -129,12 +130,18 @@ public class SubscriptionAspectTask extends AbstractAspectTask {
 					if(associateId != null) {
 						ConnectorNode connectorNode = ConnectorNodeService.getInstance().getConnectorNode(associateId);
 						RawDataCallbackFilterFunction function = connectorNode.getConnectorFunctions().getRawDataCallbackFilterFunction();
-						if(function != null) {
+						RawDataCallbackFilterFunctionV2 functionV2 = connectorNode.getConnectorFunctions().getRawDataCallbackFilterFunctionV2();
+						if(function != null || functionV2 != null) {
 							List<TapEvent> events = new ArrayList<>();
 
 							for(MessageEntity message : messages) {
 								PDKInvocationMonitor.invoke(connectorNode, PDKMethod.RAW_DATA_CALLBACK_FILTER, () -> {
-									List<TapEvent> tapEvents = function.filter(connectorNode.getConnectorContext(), message.getContent());
+									List<TapEvent> tapEvents;
+									if(functionV2 != null) {
+										tapEvents = functionV2.filter(connectorNode.getConnectorContext(), streamReadFuncAspect.getTables(), message.getContent());
+									} else {
+										tapEvents = function.filter(connectorNode.getConnectorContext(), message.getContent());
+									}
 									if(tapEvents != null)
 										events.addAll(tapEvents);
 								}, TAG);

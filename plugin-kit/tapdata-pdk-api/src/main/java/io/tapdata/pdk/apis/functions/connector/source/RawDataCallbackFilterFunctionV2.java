@@ -7,7 +7,6 @@ import io.tapdata.pdk.apis.functions.connector.TapFunction;
 import java.util.List;
 import java.util.Map;
 
-@Deprecated
-public interface RawDataCallbackFilterFunction extends TapFunction {
-	List<TapEvent> filter(TapConnectorContext context, Map<String, Object> rawData);
+public interface RawDataCallbackFilterFunctionV2 extends TapFunction {
+	List<TapEvent> filter(TapConnectorContext context, List<String> tables, Map<String, Object> rawData);
 }
