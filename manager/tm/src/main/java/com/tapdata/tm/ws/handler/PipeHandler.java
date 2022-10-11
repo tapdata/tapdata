@@ -74,7 +74,7 @@ public class PipeHandler implements WebSocketHandler {
 						String nodeId = extParam.getString("nodeId");
 						String nodeName = extParam.getString("nodeName");
 						String dataNodeType = extParam.getString("type");
-						boolean alarmCheck = extParam.getBoolean("alarmCheck");
+						boolean alarmCheck = (Boolean) extParam.getOrDefault("alarmCheck", false);
 
 						if (StringUtils.isNotBlank(templateEnum)) {
 							JSONObject responseBody = jsonObject.getJSONObject("response_body");
