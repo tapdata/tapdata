@@ -42,7 +42,7 @@ d.save()
 
 ## 接口参数规范
 
-查看[这个文件](https://github.com/tapdata/tapdata/blob/feat-tapshell/tapshell/tapdata_cli/params/datasource.py) ，我们可以看到这里定义了4个数据源：
+查看[这个文件](https://github.com/tapdata/tapdata/blob/feat-tapshell/tapshell/tapdata_cli/params/datasource.py) ，我们可以看到这里定义了一系列数据源：
 ```python
 pdk_config = {
     "mongodb": {
