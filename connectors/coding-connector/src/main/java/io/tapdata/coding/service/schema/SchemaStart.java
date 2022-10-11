@@ -1,6 +1,5 @@
 package io.tapdata.coding.service.schema;
 
-import io.tapdata.coding.utils.beanUtil.BeanUtil;
 import io.tapdata.coding.utils.tool.Checker;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
@@ -9,6 +8,7 @@ import org.reflections.Reflections;
 import java.util.*;
 
 public interface SchemaStart {
+    Set<Class<? extends SchemaStart>> schemaSet = new HashSet<>();
     public Boolean use();
     public String tableName();
 
@@ -35,8 +35,13 @@ public interface SchemaStart {
     }
 
     public static List<SchemaStart> getAllSchemas(){
-        Reflections reflections = new Reflections("io.tapdata.coding.service.schema");//SchemaStart.class.getPackage().getName()
-        Set<Class<? extends SchemaStart>> allImplClass = reflections.getSubTypesOf(SchemaStart.class);
+        //Reflections reflections = new Reflections("io.tapdata.coding.service.schema");//SchemaStart.class.getPackage().getName()
+        //Set<Class<? extends SchemaStart>> allImplClass = reflections.getSubTypesOf(SchemaStart.class);
+        Set<Class<? extends SchemaStart>> allImplClass = new HashSet<Class<? extends SchemaStart>>(){{
+            add(Issues.class);
+            add(Iterations.class);
+            add(ProjectMembers.class);
+        }};
         List<SchemaStart> schemaList = new ArrayList<>();
         allImplClass.forEach(schemaClass->{
             SchemaStart schema = null;
