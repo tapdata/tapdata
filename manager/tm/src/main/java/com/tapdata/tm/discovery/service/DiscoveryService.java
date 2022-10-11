@@ -39,7 +39,7 @@ public interface DiscoveryService {
 
     void updateListTags(List<TagBindingParam> tagBindingParams, List<String> tagIds, UserDetail user);
 
-    void addListTags(List<TagBindingParam> tagBindingParams, List<String> tagIds, UserDetail user);
+    void addListTags(List<TagBindingParam> tagBindingParams, List<String> tagIds, UserDetail user, boolean add);
 
     void addObjCount(List<MetadataDefinitionDto> tagDtos, UserDetail user);
 }

@@ -1,6 +1,8 @@
 package com.tapdata.tm.discovery.service;
 import java.util.Date;
 import com.google.common.collect.Lists;
+import com.tapdata.tm.apiServer.dto.ApiServerDto;
+import com.tapdata.tm.apiServer.service.ApiServerService;
 import com.tapdata.tm.commons.dag.Edge;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.nodes.DataParentNode;
@@ -30,6 +32,9 @@ import com.tapdata.tm.modules.service.ModulesService;
 import com.tapdata.tm.task.repository.TaskRepository;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.utils.MongoUtils;
+import com.tapdata.tm.worker.dto.WorkerDto;
+import com.tapdata.tm.worker.entity.Worker;
+import com.tapdata.tm.worker.service.WorkerService;
 import io.tapdata.entity.schema.type.*;
 import lombok.Data;
 import lombok.Setter;
@@ -65,6 +70,11 @@ public class DiscoveryServiceImpl implements DiscoveryService {
     private ModulesService modulesService;
 
     private DataSourceService dataSourceService;
+
+
+    private WorkerService workerService;
+
+    private ApiServerService apiServerService;
 
     /**
      * 查询对象概览列表
@@ -373,6 +383,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
         if (StringUtils.isNotBlank(param.getType())) {
             metadataCriteria.and("meta_type").is(param.getType());
             taskCriteria.and("syncType").is(param.getType());
+            apiCriteria.and("apiType").is(param.getType());
         } else {
             taskCriteria.and("syncType").in(TaskDto.SYNC_TYPE_MIGRATE, TaskDto.SYNC_TYPE_SYNC);
             metadataCriteria.and("meta_type").is("table");
@@ -380,6 +391,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
         if (StringUtils.isNotBlank(param.getSourceType())) {
             metadataCriteria.and("source.database_type").is(param.getSourceType());
             taskCriteria.and("agentId").is(param.getSourceType());
+            apiCriteria.and("_id").is("123");
         } else {
             taskCriteria.and("agentId").exists(true);
         }
@@ -555,6 +567,34 @@ public class DiscoveryServiceImpl implements DiscoveryService {
             return page;
         }
 
+
+        List<String> agentIds = unionQueryResults.stream().filter(u -> StringUtils.isNotBlank(u.getSyncType()))
+                .map(UnionQueryResult::getAgentId).collect(Collectors.toList());
+
+        if (CollectionUtils.isNotEmpty(agentIds)) {
+            Map<String, String> agentMap = new HashMap<>();
+            Criteria agentIdCriteria = Criteria.where("agentId").in(agentIds).and("worker_type").is("connector");
+            Query query = new Query(agentIdCriteria);
+            query.fields().include("hostname", "process_id");
+            List<Worker> workers = workerService.findAll(query, user);
+            if (CollectionUtils.isNotEmpty(workers)) {
+                agentMap = workers.stream().collect(Collectors.toMap(Worker::getProcessId, Worker::getHostname, (w1, w2) -> w1));
+            }
+            for (UnionQueryResult unionQueryResult : unionQueryResults) {
+                if (StringUtils.isNotBlank(unionQueryResult.getAgentId())) {
+                    unionQueryResult.setSourceInfo(agentMap.get(unionQueryResult.getAgentId()));
+                }
+            }
+        }
+
+        String clientURI = getClientURI(user);
+        for (UnionQueryResult unionQueryResult : unionQueryResults) {
+            if (StringUtils.isBlank(unionQueryResult.getMeta_type()) && StringUtils.isBlank(unionQueryResult.getSyncType())) {
+                unionQueryResult.setSourceInfo(clientURI);
+            }
+        }
+
+
         List<DataDiscoveryDto> dataDiscoveryDtos = unionQueryResults.stream().map(this::convertToDataDiscovery).collect(Collectors.toList());
 
         for (DataDiscoveryDto dataDiscoveryDto : dataDiscoveryDtos) {
@@ -675,13 +715,25 @@ public class DiscoveryServiceImpl implements DiscoveryService {
         dto.setNodeNum(nodeNum);
         dto.setTaskDesc(taskDto.getDesc());
         dto.setVersion("");
+        dto.setAgentId(taskDto.getAgentId());
         dto.setDag(dag);
         dto.setId(id);
         dto.setCategory(DataObjCategoryEnum.job);
         dto.setType(taskDto.getSyncType());
         dto.setSourceCategory(DataSourceCategoryEnum.pipe);
         dto.setSourceType(taskDto.getAgentId());
-        //TODO dto.setSourceInfo("");
+
+
+        if (StringUtils.isNotBlank(taskDto.getAgentId())) {
+            Criteria criteria = Criteria.where("process_id").is(taskDto.getAgentId());
+            Query query = new Query(criteria);
+            query.fields().include("hostname");
+            WorkerDto one = workerService.findOne(query, user);
+            dto.setSourceInfo(one.getHostname());
+            dto.setAgentDesc(one.getHostname());
+        }
+
+
         dto.setName(taskDto.getName());
         dto.setListtags(taskDto.getListtags());
 
@@ -784,6 +836,11 @@ public class DiscoveryServiceImpl implements DiscoveryService {
         dto.setInputParamNum(2);
         dto.setOutputParamNum(modulesDto.getFields().size());
         dto.setId(id);
+        dto.setDescription(modulesDto.getDescription());
+
+        String clientURI = getClientURI(user);
+
+        dto.setSourceInfo(clientURI);
         dto.setCategory(DataObjCategoryEnum.api);
         dto.setType(modulesDto.getApiType());
         dto.setSourceCategory(DataSourceCategoryEnum.server);
@@ -792,6 +849,17 @@ public class DiscoveryServiceImpl implements DiscoveryService {
 
         return dto;
     }
+
+    @NotNull
+    private String getClientURI(UserDetail user) {
+        ApiServerDto one = apiServerService.findOne(new Query(), user);
+        String clientURI = one.getClientURI();
+        int i = clientURI.indexOf("://");
+        clientURI = clientURI.substring(i + 3);
+        clientURI = clientURI.replace(":", "/");
+        return clientURI;
+    }
+
     @Override
     public Map<ObjectFilterEnum, List<String>> filterList(List<ObjectFilterEnum> filterTypes, UserDetail user) {
         Map<ObjectFilterEnum, List<String>> returnMap = new HashMap<>();
@@ -842,7 +910,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
         page.setItems(Lists.newArrayList());
         page.setTotal(0);
 
-        Criteria taskCriteria = Criteria.where("is_deleted").ne(true);
+        Criteria taskCriteria = Criteria.where("is_deleted").ne(true).and("agentId").exists(true);
         Criteria apiCriteria = Criteria.where("status").is("active");
 
         Criteria metadataCriteria = Criteria.where("sourceType").is(SourceTypeEnum.SOURCE.name())
@@ -1206,35 +1274,33 @@ public class DiscoveryServiceImpl implements DiscoveryService {
 
 
         for (TagBindingParam tagBindingParam : tagBindingParams) {
+
             com.tapdata.tm.base.dto.Field field = new com.tapdata.tm.base.dto.Field();
             field.put("listtags", true);
-            MetadataInstancesDto metadataInstancesDto = metadataInstancesService.findById(MongoUtils.toObjectId(tagBindingParam.getId()), field);
-            List<Tag> listtags = metadataInstancesDto.getListtags();
-            if (listtags == null) {
-                listtags = new ArrayList<>();
-            }
-            for (Tag allTag : allTags) {
-                listtags.remove(allTag);
-            }
             switch (tagBindingParam.getObjCategory()) {
                 case storage:
-                    Update update = Update.update("listtags", listtags);
+                    MetadataInstancesDto metadataInstancesDto = metadataInstancesService.findById(MongoUtils.toObjectId(tagBindingParam.getId()), field);
+                    Update update = getUpdate(allTags, metadataInstancesDto.getListtags(), false);
                     metadataInstancesService.updateById(MongoUtils.toObjectId(tagBindingParam.getId()), update, user);
                     break;
                 case job:
+                    TaskDto taskDto = taskService.findById(MongoUtils.toObjectId(tagBindingParam.getId()), field);
+                    Update updateJob = getUpdate(allTags, taskDto.getListtags(), false);
+                    taskService.updateById(MongoUtils.toObjectId(tagBindingParam.getId()), updateJob, user);
                     break;
                 case api:
+                    ModulesDto modulesDto = modulesService.findById(MongoUtils.toObjectId(tagBindingParam.getId()), field);
+                    Update updateModules = getUpdate(allTags, modulesDto.getListtags(), false);
+                    modulesService.updateById(MongoUtils.toObjectId(tagBindingParam.getId()), updateModules, user);
                     break;
                 default:
                     break;
             }
         }
 
-
-
     }
 
-    public void addListTags(List<TagBindingParam> tagBindingParams,  List<String> tagIds, UserDetail user) {
+    public void addListTags(List<TagBindingParam> tagBindingParams,  List<String> tagIds, UserDetail user, boolean add) {
         Criteria criteriaTags = Criteria.where("_id").in(tagIds);
         Query query = new Query(criteriaTags);
         List<MetadataDefinitionDto> all = metadataDefinitionService.findAll(query);
@@ -1248,17 +1314,17 @@ public class DiscoveryServiceImpl implements DiscoveryService {
             switch (tagBindingParam.getObjCategory()) {
                 case storage:
                     MetadataInstancesDto metadataInstancesDto = metadataInstancesService.findById(MongoUtils.toObjectId(tagBindingParam.getId()), field);
-                    Update update = getUpdate(allTags, metadataInstancesDto.getListtags());
+                    Update update = getUpdate(allTags, metadataInstancesDto.getListtags(), add);
                     metadataInstancesService.updateById(MongoUtils.toObjectId(tagBindingParam.getId()), update, user);
                     break;
                 case job:
                     TaskDto taskDto = taskService.findById(MongoUtils.toObjectId(tagBindingParam.getId()), field);
-                    Update updateJob = getUpdate(allTags, taskDto.getListtags());
+                    Update updateJob = getUpdate(allTags, taskDto.getListtags(), add);
                     taskService.updateById(MongoUtils.toObjectId(tagBindingParam.getId()), updateJob, user);
                     break;
                 case api:
                     ModulesDto modulesDto = modulesService.findById(MongoUtils.toObjectId(tagBindingParam.getId()), field);
-                    Update updateModules = getUpdate(allTags, modulesDto.getListtags());
+                    Update updateModules = getUpdate(allTags, modulesDto.getListtags(), add);
                     modulesService.updateById(MongoUtils.toObjectId(tagBindingParam.getId()), updateModules, user);
                     break;
                 default:
@@ -1268,13 +1334,17 @@ public class DiscoveryServiceImpl implements DiscoveryService {
     }
 
     @NotNull
-    private static Update getUpdate(List<Tag> allTags, List<Tag> listtags) {
+    private static Update getUpdate(List<Tag> allTags, List<Tag> listtags, boolean add) {
         if (listtags == null) {
             listtags = new ArrayList<>();
         }
         for (Tag allTag : allTags) {
-            if (!listtags.contains(allTag)) {
-                listtags.add(allTag);
+            if (add) {
+                if (!listtags.contains(allTag)) {
+                    listtags.add(allTag);
+                }
+            } else {
+                listtags.remove(allTag);
             }
         }
         return Update.update("listtags", listtags);
@@ -1534,16 +1604,14 @@ public class DiscoveryServiceImpl implements DiscoveryService {
             dataDiscoveryDto.setSourceCategory(DataSourceCategoryEnum.pipe);
             dataDiscoveryDto.setSourceType(unionQueryResult.getAgentId());
             // TODO 查询woker表  得到引擎的地址跟端口
-            // dataDiscoveryDto.setSourceInfo();
+            dataDiscoveryDto.setSourceInfo(unionQueryResult.getSourceInfo());
             dataDiscoveryDto.setName(unionQueryResult.getName());
         } else {
             dataDiscoveryDto.setCategory(DataObjCategoryEnum.api);
             dataDiscoveryDto.setType(unionQueryResult.getApiType());
             dataDiscoveryDto.setSourceCategory(DataSourceCategoryEnum.server);
-            //dataDiscoveryDto.setSourceType(unionQueryResult.getAgentId());
-            // TODO 查询woker表  得到引擎的地址跟端口
-            // dataDiscoveryDto.setSourceInfo();
             dataDiscoveryDto.setName(unionQueryResult.getName());
+            dataDiscoveryDto.setSourceInfo(unionQueryResult.getSourceInfo());
         }
 
         if (listtagsOld != null) {
@@ -1572,6 +1640,7 @@ public class DiscoveryServiceImpl implements DiscoveryService {
             dataDirectoryDto.setSourceType(unionQueryResult.getSource() == null ? null : unionQueryResult.getSource().getDatabase_type());
             dataDirectoryDto.setName(unionQueryResult.getOriginal_name());
             dataDirectoryDto.setDesc(unionQueryResult.getComment());
+            dataDirectoryDto.setCategory(DataObjCategoryEnum.storage);
             dataDirectoryDto.setListtags(unionQueryResult.getListtags());
         } else if (StringUtils.isNotBlank(unionQueryResult.getSyncType())) {
             dataDirectoryDto.setType(unionQueryResult.getSyncType());
@@ -1579,6 +1648,8 @@ public class DiscoveryServiceImpl implements DiscoveryService {
             dataDirectoryDto.setName(unionQueryResult.getName());
             dataDirectoryDto.setListtags(unionQueryResult.getListtags());
             dataDirectoryDto.setDesc(unionQueryResult.getDesc());
+            dataDirectoryDto.setCategory(DataObjCategoryEnum.job);
+
 
         } else {
             dataDirectoryDto.setType(unionQueryResult.getApiType());
@@ -1586,6 +1657,8 @@ public class DiscoveryServiceImpl implements DiscoveryService {
             dataDirectoryDto.setName(unionQueryResult.getName());
             dataDirectoryDto.setListtags(unionQueryResult.getListtags());
             dataDirectoryDto.setDesc(unionQueryResult.getDesc());
+            dataDirectoryDto.setCategory(DataObjCategoryEnum.api);
+
         }
 
         List listtagsOld = unionQueryResult.getListtags();

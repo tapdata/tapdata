@@ -17,4 +17,5 @@ public class DiscoveryApiDto extends DataDiscoveryDto {
     /** 数据项 */
     private Integer inputParamNum;
     private Integer outputParamNum;
+    private String description;
 }

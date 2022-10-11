@@ -74,14 +74,14 @@ public class DisCoveryController extends BaseController {
     @Operation(summary = "discovery object update tags")
     @PatchMapping("tags")
     public ResponseMessage<Void> updateListTags(@RequestBody TagBindingReq req) {
-        discoveryService.updateListTags(req.getTagBindingParams(), req.getTagIds(), getLoginUser());
+        discoveryService.addListTags(req.getTagBindingParams(), req.getTagIds(), getLoginUser(), false);
         return success();
     }
 
     @Operation(summary = "discovery object add tags")
     @PostMapping("tags")
     public ResponseMessage<Void> addListTags(@RequestBody TagBindingReq req) {
-        discoveryService.addListTags(req.getTagBindingParams(), req.getTagIds(), getLoginUser());
+        discoveryService.addListTags(req.getTagBindingParams(), req.getTagIds(), getLoginUser(), true);
         return success();
     }
 }

@@ -24,6 +24,8 @@ public class DiscoveryTaskDto extends DataDiscoveryDto {
     /** 任务描述 */
     private String taskDesc;
     private String version;
+    private String agentId;
+    private String agentDesc;
     @JsonSerialize( using = DagSerialize.class)
     @JsonDeserialize( using = DagDeserialize.class)
     private DAG dag;

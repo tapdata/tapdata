@@ -24,4 +24,5 @@ public class UnionQueryResult {
     private String tableName;
     private String comment;
     private String desc;
+    private String sourceInfo;
 }
