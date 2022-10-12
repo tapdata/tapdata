@@ -19,7 +19,8 @@ import java.util.function.BiConsumer;
 
 import static io.tapdata.coding.enums.TapEventTypes.*;
 
-public class ProjectMembersLoader extends CodingStarter implements CodingLoader<ProjectMemberParam>,OverlayQueryEventDifferentiator{
+public class ProjectMembersLoader extends CodingStarter implements CodingLoader<ProjectMemberParam>{
+    OverlayQueryEventDifferentiator overlayQueryEventDifferentiator = new OverlayQueryEventDifferentiator();
     public static final String TABLE_NAME = "ProjectMembers";
     private Integer currentProjectId ;
     public ProjectMembersLoader(TapConnectionContext tapConnectionContext) {
@@ -133,7 +134,7 @@ public class ProjectMembersLoader extends CodingStarter implements CodingLoader<
                     Long updatedAt = Checker.isEmpty(updatedAtObj) ? System.currentTimeMillis() : (Long)updatedAtObj;
                     Integer teamMemberId = (Integer) teamMember.get("Id");
                     Integer teamMemberHash = MapUtil.create().hashCode(teamMember);
-                    switch (createOrUpdateEvent(teamMemberId,teamMemberHash)){
+                    switch (overlayQueryEventDifferentiator.createOrUpdateEvent(teamMemberId,teamMemberHash)){
                         case CREATED_EVENT:events.add(TapSimplify.insertRecordEvent(teamMember, TABLE_NAME).referenceTime(updatedAt));break;
                         case UPDATE_EVENT:events.add(TapSimplify.updateDMLEvent(null,teamMember, TABLE_NAME).referenceTime(updatedAt));break;
                     }
@@ -152,7 +153,7 @@ public class ProjectMembersLoader extends CodingStarter implements CodingLoader<
                 break;
             }
         }
-        List<TapEvent> delEvents = delEvent(TABLE_NAME,"Id");
+        List<TapEvent> delEvents = overlayQueryEventDifferentiator.delEvent(TABLE_NAME,"Id");
         if (!delEvents.isEmpty()){
             events.addAll(delEvents);
         }
