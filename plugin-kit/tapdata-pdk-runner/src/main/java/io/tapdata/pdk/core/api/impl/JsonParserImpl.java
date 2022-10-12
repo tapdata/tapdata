@@ -6,11 +6,7 @@ import com.alibaba.fastjson.parser.ParserConfig;
 import com.alibaba.fastjson.parser.deserializer.ObjectDeserializer;
 import com.alibaba.fastjson.serializer.SerializerFeature;
 import io.tapdata.entity.annotations.Implementation;
-import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
-import io.tapdata.entity.schema.type.TapDateTime;
-import io.tapdata.entity.schema.type.TapNumber;
-import io.tapdata.entity.schema.type.TapString;
 import io.tapdata.entity.schema.type.TapType;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.entity.utils.InstanceFactory;
@@ -23,6 +19,15 @@ import java.util.List;
 
 @Implementation(JsonParser.class)
 public class JsonParserImpl implements JsonParser {
+    List<AbstractClassDetector> abstractClassDetectors;
+    ParserConfig parserConfig;
+
+    public JsonParser config( List<AbstractClassDetector> abstractClassDetectors){
+        this.abstractClassDetectors = abstractClassDetectors;
+        this.parserConfig = new ParserConfig();
+        return this;
+    }
+
     public JsonParserImpl() {
 
     }
@@ -105,17 +110,20 @@ public class JsonParserImpl implements JsonParser {
     public <T> T fromJson(String json, Type clazz) {
         return JSON.parseObject(json, clazz, Feature.OrderedField, /*Feature.UseNativeJavaObject, */Feature.DisableCircularReferenceDetect);
     }
+//    @Override
+//    public <T> T fromJson(String json, Class<T> clazz) {
+//        return JSON.parseObject(json, clazz, Feature.OrderedField, /*Feature.UseNativeJavaObject, */Feature.DisableCircularReferenceDetect);
+//    }
+
     @Override
     public <T> T fromJson(String json, Class<T> clazz) {
-        return JSON.parseObject(json, clazz, Feature.OrderedField, /*Feature.UseNativeJavaObject, */Feature.DisableCircularReferenceDetect);
+        return fromJson(json,clazz,this.abstractClassDetectors);
     }
 
     @Override
     public <T> T fromJson(String json, Class<T> clazz, List<AbstractClassDetector> abstractClassDetectors) {
-        ParserConfig parserConfig = null;
-        if (abstractClassDetectors != null && !abstractClassDetectors.isEmpty()) {
-            parserConfig = new ParserConfig();
-            parserConfig.putDeserializer(TapType.class, new AbstractResultDeserializer(abstractClassDetectors));
+        if (null == abstractClassDetectors || !abstractClassDetectors.isEmpty() ) {
+            ( null == parserConfig ? parserConfig = new ParserConfig() : parserConfig).putDeserializer(TapType.class, new AbstractResultDeserializer(abstractClassDetectors));
         }
         return JSON.parseObject(json, clazz, parserConfig, Feature.OrderedField, /*Feature.UseNativeJavaObject, */Feature.DisableCircularReferenceDetect);
     }
@@ -143,19 +151,150 @@ public class JsonParserImpl implements JsonParser {
     }
 
     public static void main(String[] args) {
-        TapTable tapTable = new TapTable("aa")
-                .add(new TapField("aaa", "bbb").tapType(new TapString().bytes(123L)))
-                .add(new TapField("aacc", "aaa").tapType(new TapNumber().bit(2334)))
-                .add(new TapField("aaa1", "adsf").tapType(new TapDateTime().fraction(234)));
+        System.out.println("============JsonParser Takes Whit TapData And Not Set Config Before======================================");
+        goJsonParserTakesWhitTapDataAndNotSetConfigBefore(100,1000);
+        System.out.println("\n");
+        System.out.println("============JSON.ParseObject Takes Whit TapData And Not Set Config Before================================");
+        goJSONParseObjectTakesWhitTapDataAndNotSetConfigBefore(100,1000);
+        System.out.println("\n");
+        System.out.println("============JsonParser Takes Whit No TapData And Not Set Config Before===================================");
+        goJsonParserTakesWhitNoTapDataAndNotSetConfigBefore(100,1000);
+        System.out.println("\n");
+        System.out.println("============JsonParser Takes Whit TapData Not Set Config Before==========================================");
+        goJsonParserTakesWhitTapDataNotSetConfigBefore(100,1000);
+        System.out.println("\n");
+        System.out.println("============JsonParser Takes Whit TapData And Set Config Before==========================================");
+        goJsonParserTakesWhitTapDataAndSetConfigBefore(100,1000);
+        System.out.println("\n");
+    }
+    public static void goJsonParserTakesWhitTapDataAndNotSetConfigBefore(int testTimes,int runs){
+        long total = 0;
+        long max = 0;
+        long min = 0;
+        for (int i = 0; i < testTimes ; i++) {
+            long test = goJsonParserTakesWhitTapDataAndNotSetConfigBefore(runs);
+            min = i == 0 ? test : Math.min(min, test);
+            total += test;
+            max = Math.max(max,test);
+        }
+        System.out.println("|==============>Average QPS of " + testTimes + " times: " + total / testTimes);
+        System.out.println("|==============>Max QPS of " + testTimes + " times: " + max);
+        System.out.println("|==============>Min QPS of " + testTimes + " times: " + min);
+    }
+    public static void goJSONParseObjectTakesWhitTapDataAndNotSetConfigBefore(int testTimes,int runs){
+        long total = 0;
+        long max = 0;
+        long min = 0;
+        for (int i = 0; i < testTimes ; i++) {
+            long test = goJSONParseObjectTakesWhitTapDataAndNotSetConfigBefore(runs);
+            min = i == 0 ? test : Math.min(min, test);
+            total += test;
+            if (max<=test){
+                max = test;
+            }
+        }
+        System.out.println("|==============>Average QPS of " + testTimes + " times: " + total / testTimes);
+        System.out.println("|==============>Max QPS of " + testTimes + " times: " + max);
+        System.out.println("|==============>Min QPS of " + testTimes + " times: " + min);
+    }
+    public static void goJsonParserTakesWhitNoTapDataAndNotSetConfigBefore(int testTimes,int runs){
+        long total = 0;
+        long max = 0;
+        long min = 0;
+        for (int i = 0; i < testTimes ; i++) {
+            long test = goJsonParserTakesWhitNoTapDataAndNotSetConfigBefore(runs);
+            min = i == 0 ? test : Math.min(min, test);
+            total += test;
+            if (max<=test){
+                max = test;
+            }
+        }
+        System.out.println("|==============>Average QPS of " + testTimes + " times: " + total / testTimes);
+        System.out.println("|==============>Max QPS of " + testTimes + " times: " + max);
+        System.out.println("|==============>Min QPS of " + testTimes + " times: " + min);
+    }
+    public static void goJsonParserTakesWhitTapDataNotSetConfigBefore(int testTimes,int runs){
+        long total = 0;
+        long max = 0;
+        long min = 0;
+        for (int i = 0; i < testTimes ; i++) {
+            long test = goJsonParserTakesWhitTapDataNotSetConfigBefore(runs);
+            min = i == 0 ? test : Math.min(min, test);
+            total += test;
+            if (max<=test){
+                max = test;
+            }
+        }
+        System.out.println("|==============>Average QPS of " + testTimes + " times: " + total / testTimes);
+        System.out.println("|==============>Max QPS of " + testTimes + " times: " + max);
+        System.out.println("|==============>Min QPS of " + testTimes + " times: " + min);
+    }
+    public static void goJsonParserTakesWhitTapDataAndSetConfigBefore(int testTimes,int runs){
+        long total = 0;
+        long max = 0;
+        long min = 0;
+        for (int i = 0; i < testTimes ; i++) {
+            long test = goJsonParserTakesWhitTapDataAndSetConfigBefore(runs);
+            min = i == 0 ? test : Math.min(min, test);
+            total += test;
+            if (max<=test){
+                max = test;
+            }
+        }
+        System.out.println("|==============>Average QPS of " + testTimes + " times: " + total / testTimes);
+        System.out.println("|==============>Max QPS of " + testTimes + " times: " + max);
+        System.out.println("|==============>Min QPS of " + testTimes + " times: " + min);
+    }
 
 
-//        String str = JSON.toJSONString(tapTable, SerializerFeature.WriteClassName);
-//        TapTable t = (TapTable) JSON.parse(str, Feature.SupportAutoType);
-
-        String str = JSON.toJSONString(tapTable);
-
-        TapTable t1 = InstanceFactory.instance(JsonParser.class).fromJson(str, TapTable.class,
-                TapConstants.abstractClassDetectors);
-
+    public static long goJsonParserTakesWhitTapDataAndNotSetConfigBefore(int testTimes){
+        JsonParser jsonParser = InstanceFactory.instance(JsonParser.class);
+        String json = "{\"id\":\"adfs\",\"nameFieldMap\":{\"a\":{\"name\":\"a\",\"dataType\":\"varchar\",\"tapType\":{\"type\":8,\"bit\":32}}}}";
+        Object value = JSON.parseObject(json, TapTable.class, TapConstants.tapdataParserConfig, Feature.DisableCircularReferenceDetect);//parseObject(jsonString, parameterTypes[i], TapConstants.tapdataParserConfig);
+        long time = System.currentTimeMillis();
+        for(int i = 0; i< testTimes; i++) {
+            Object value1 = jsonParser.fromJson(json, TapTable.class, TapConstants.abstractClassDetectors);
+        }
+        //System.out.println("JsonParser takes whit TapData and Not set config before: " + (System.currentTimeMillis() - time));
+        return System.currentTimeMillis() - time;
+    }
+    public static long goJSONParseObjectTakesWhitTapDataAndNotSetConfigBefore(int testTimes) {
+        String json = "{\"id\":\"adfs\",\"nameFieldMap\":{\"a\":{\"name\":\"a\",\"dataType\":\"varchar\",\"tapType\":{\"type\":8,\"bit\":32}}}}";
+        long time = System.currentTimeMillis();
+        for(int i = 0; i< testTimes; i++) {
+            Object value1 = JSON.parseObject(json, TapTable.class, TapConstants.tapdataParserConfig, Feature.DisableCircularReferenceDetect);//parseObject(jsonString, parameterTypes[i], TapConstants.tapdataParserConfig);
+        }
+        //System.out.println("JSON.parseObject takes whit TapData and Not set config before: " + (System.currentTimeMillis() - time));
+        return System.currentTimeMillis() - time;
+    }
+    public static long goJsonParserTakesWhitNoTapDataAndNotSetConfigBefore(int testTimes) {
+        JsonParser jsonParser = InstanceFactory.instance(JsonParser.class);
+        String json1 = "{\"id\":\"adfs\",\"nameFieldMap\":{\"a\":{\"name\":\"a\",\"dataType\":\"varchar\"}}}";
+        long time = System.currentTimeMillis();
+        for(int i = 0; i< testTimes; i++) {
+            Object value1 = jsonParser.fromJson(json1, TapTable.class, TapConstants.abstractClassDetectors);
+        }
+        //System.out.println("JsonParser takes whit no TapData and Not set config before: :" + (System.currentTimeMillis() - time));
+        return System.currentTimeMillis() - time;
+    }
+    public static long goJsonParserTakesWhitTapDataNotSetConfigBefore( int testTimes){
+        JsonParser jsonParser = InstanceFactory.instance(JsonParser.class);
+        String json = "{\"id\":\"adfs\",\"nameFieldMap\":{\"a\":{\"name\":\"a\",\"dataType\":\"varchar\",\"tapType\":{\"type\":8,\"bit\":32}}}}";
+        long time = System.currentTimeMillis();
+        for(int i = 0; i< testTimes; i++) {
+            Object value1 = jsonParser.fromJson(json, TapTable.class);
+        }
+        //System.out.println("JsonParser takes whit TapData Not set config before: " + (System.currentTimeMillis() - time));
+        return System.currentTimeMillis() - time;
+    }
+    public static long goJsonParserTakesWhitTapDataAndSetConfigBefore(int testTimes){
+        JsonParser jsonParser = InstanceFactory.instance(JsonParser.class).config(TapConstants.abstractClassDetectors);
+        String json = "{\"id\":\"adfs\",\"nameFieldMap\":{\"a\":{\"name\":\"a\",\"dataType\":\"varchar\",\"tapType\":{\"type\":8,\"bit\":32}}}}";
+        long time = System.currentTimeMillis();
+        for(int i = 0; i< testTimes; i++) {
+            Object value5 = jsonParser.fromJson(json, TapTable.class);
+        }
+        //System.out.println("JsonParser takes whit TapData and set config before: " + (System.currentTimeMillis() - time));
+        return System.currentTimeMillis() - time;
     }
 }

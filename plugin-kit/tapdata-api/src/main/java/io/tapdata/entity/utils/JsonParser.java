@@ -4,6 +4,8 @@ import java.lang.reflect.Type;
 import java.util.List;
 
 public interface JsonParser {
+    JsonParser config( List<AbstractClassDetector> abstractClassDetectors);
+    
     String toJson(Object obj, ToJsonFeature... features);
 
     byte[] toJsonBytes(Object obj, ToJsonFeature... features);
