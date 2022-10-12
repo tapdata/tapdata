@@ -71,7 +71,7 @@ public interface CodingLoader<T extends Param> {
 
     public void batchRead(Object offset, int batchCount, BiConsumer<List<TapEvent>, Object> consumer);
 
-    public long batchCount() throws Throwable;
+    public int batchCount() throws Throwable;
 
     public void streamRead(List<String> tableList, Object offsetState, int recordSize, StreamReadConsumer consumer);
 

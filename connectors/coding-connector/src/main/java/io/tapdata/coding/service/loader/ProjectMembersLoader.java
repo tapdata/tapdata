@@ -1,8 +1,6 @@
 package io.tapdata.coding.service.loader;
 
-import io.tapdata.coding.entity.CodingOffset;
 import io.tapdata.coding.entity.ContextConfig;
-import io.tapdata.coding.entity.param.IterationParam;
 import io.tapdata.coding.entity.param.Param;
 import io.tapdata.coding.entity.param.ProjectMemberParam;
 import io.tapdata.coding.enums.CodingEvent;
@@ -21,7 +19,8 @@ import java.util.function.BiConsumer;
 
 import static io.tapdata.coding.enums.TapEventTypes.*;
 
-public class ProjectMembersLoader extends CodingStarter implements CodingLoader<ProjectMemberParam>,OverlayQueryEventDifferentiator{
+public class ProjectMembersLoader extends CodingStarter implements CodingLoader<ProjectMemberParam>{
+    OverlayQueryEventDifferentiator overlayQueryEventDifferentiator = new OverlayQueryEventDifferentiator();
     public static final String TABLE_NAME = "ProjectMembers";
     private Integer currentProjectId ;
     public ProjectMembersLoader(TapConnectionContext tapConnectionContext) {
@@ -74,7 +73,7 @@ public class ProjectMembersLoader extends CodingStarter implements CodingLoader<
                 .builder("Authorization",contextConfig.getToken());
         HttpEntity<String,Object> body = HttpEntity.create()
                 .builder("Action","DescribeProjectMembers")
-                .builder("ProjectId",this.currentProjectId) //contextConfig.getProjectId())//@TODO 项目ID
+                .builder("ProjectId",this.currentProjectId)
                 .builder("PageNumber",param.offset())
                 .builder("PageSize",param.limit())
                 .builderIfNotAbsent("RoleId",param.roleId());
@@ -90,7 +89,7 @@ public class ProjectMembersLoader extends CodingStarter implements CodingLoader<
     }
 
     @Override
-    public long batchCount() throws Throwable {
+    public int batchCount() throws Throwable {
         Param param = ProjectMemberParam.create().limit(1).offset(1);
         Map<String,Object> resultMap = this.codingHttp((ProjectMemberParam)param).post();
         Object response = resultMap.get("Response");
@@ -104,7 +103,8 @@ public class ProjectMembersLoader extends CodingStarter implements CodingLoader<
         }
         Map<String,Object> data = (Map<String,Object>)dataObj;
         Object totalCountObj = data.get("TotalCount");
-        return null !=  totalCountObj ? (Long) totalCountObj : 0;
+        if (Checker.isEmpty(totalCountObj)) return 0;
+        return (Integer)totalCountObj;
     }
 
     private void read(Object offsetState, int recordSize,  BiConsumer<List<TapEvent>, Object> consumer){
@@ -134,7 +134,7 @@ public class ProjectMembersLoader extends CodingStarter implements CodingLoader<
                     Long updatedAt = Checker.isEmpty(updatedAtObj) ? System.currentTimeMillis() : (Long)updatedAtObj;
                     Integer teamMemberId = (Integer) teamMember.get("Id");
                     Integer teamMemberHash = MapUtil.create().hashCode(teamMember);
-                    switch (createOrUpdateEvent(teamMemberId,teamMemberHash)){
+                    switch (overlayQueryEventDifferentiator.createOrUpdateEvent(teamMemberId,teamMemberHash)){
                         case CREATED_EVENT:events.add(TapSimplify.insertRecordEvent(teamMember, TABLE_NAME).referenceTime(updatedAt));break;
                         case UPDATE_EVENT:events.add(TapSimplify.updateDMLEvent(null,teamMember, TABLE_NAME).referenceTime(updatedAt));break;
                     }
@@ -153,7 +153,7 @@ public class ProjectMembersLoader extends CodingStarter implements CodingLoader<
                 break;
             }
         }
-        List<TapEvent> delEvents = delEvent(TABLE_NAME,"Id");
+        List<TapEvent> delEvents = overlayQueryEventDifferentiator.delEvent(TABLE_NAME,"Id");
         if (!delEvents.isEmpty()){
             events.addAll(delEvents);
         }

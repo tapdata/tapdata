@@ -17,7 +17,8 @@ import java.util.function.BiConsumer;
 import static io.tapdata.coding.enums.TapEventTypes.CREATED_EVENT;
 import static io.tapdata.coding.enums.TapEventTypes.UPDATE_EVENT;
 
-public class IssueFieldsLoader extends CodingStarter implements CodingLoader<IssueFieldParam>,OverlayQueryEventDifferentiator {
+public class IssueFieldsLoader extends CodingStarter implements CodingLoader<IssueFieldParam>{
+    OverlayQueryEventDifferentiator overlayQueryEventDifferentiator = new OverlayQueryEventDifferentiator();
     public final static String TABLE_NAME = "IssueFields";
     public IssueFieldsLoader(TapConnectionContext tapConnectionContext) {
         super(tapConnectionContext);
@@ -91,7 +92,7 @@ public class IssueFieldsLoader extends CodingStarter implements CodingLoader<Iss
         for (Map<String, Object> issueType : list) {
             Integer issueTypeId = (Integer) issueType.get("IssueFieldId");
             Integer issueTypeHash = MapUtil.create().hashCode(issueType);
-            switch (createOrUpdateEvent(issueTypeId,issueTypeHash)){
+            switch (overlayQueryEventDifferentiator.createOrUpdateEvent(issueTypeId,issueTypeHash)){
                 case CREATED_EVENT:events.add(TapSimplify.insertRecordEvent(issueType, TABLE_NAME).referenceTime(System.currentTimeMillis()));break;
                 case UPDATE_EVENT:events.add(TapSimplify.updateDMLEvent(null,issueType, TABLE_NAME).referenceTime(System.currentTimeMillis()));break;
             }
@@ -102,7 +103,7 @@ public class IssueFieldsLoader extends CodingStarter implements CodingLoader<Iss
             }
         }
 
-        List<TapEvent> delEvents = delEvent(TABLE_NAME,"IssueFieldId");
+        List<TapEvent> delEvents = overlayQueryEventDifferentiator.delEvent(TABLE_NAME,"IssueFieldId");
         if (!delEvents.isEmpty()){
             events.addAll(delEvents);
         }
@@ -110,7 +111,7 @@ public class IssueFieldsLoader extends CodingStarter implements CodingLoader<Iss
     }
 
     @Override
-    public long batchCount() throws Throwable {
+    public int batchCount() throws Throwable {
         List<Map<String, Object>> list = list(null);
         if (null == list) {
             return 0;

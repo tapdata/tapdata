@@ -101,7 +101,7 @@ public class ProjectsLoader extends CodingStarter implements CodingLoader<Projec
     }
 
     @Override
-    public long batchCount() throws Throwable {
+    public int batchCount() throws Throwable {
         Param param = ProjectParam.create().limit(1).offset(1);
         Map<String,Object> resultMap = this.codingHttp((ProjectParam)param).post();
         Object response = resultMap.get("Response");
@@ -115,7 +115,7 @@ public class ProjectsLoader extends CodingStarter implements CodingLoader<Projec
         }
         Map<String,Object> data = (Map<String,Object>)dataObj;
         Object totalCountObj = data.get("TotalCount");
-        return null !=  totalCountObj ? (Long) totalCountObj : 0;
+        return null !=  totalCountObj ? (Integer)totalCountObj : 0;
     }
 
     private void read(Object offset, int batchCount, BiConsumer<List<TapEvent>, Object> consumer) {

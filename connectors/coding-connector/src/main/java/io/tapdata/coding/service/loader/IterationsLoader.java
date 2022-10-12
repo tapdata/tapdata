@@ -228,7 +228,7 @@ public class IterationsLoader extends CodingStarter implements CodingLoader<Iter
     }
 
     @Override
-    public long batchCount() throws Throwable {
+    public int batchCount() throws Throwable {
         Param param = IterationParam.create().limit(1).offset(1);
         Map<String,Object> resultMap = this.codingHttp((IterationParam)param).post();
         Object response = resultMap.get("Response");
@@ -242,7 +242,7 @@ public class IterationsLoader extends CodingStarter implements CodingLoader<Iter
         }
         Map<String,Object> data = (Map<String,Object>)dataObj;
         Object totalRowObj = data.get("TotalRow");
-        return null !=  totalRowObj ? (Long) totalRowObj : 0;
+        return null !=  totalRowObj ? (Integer) totalRowObj : 0;
     }
 
     @Override

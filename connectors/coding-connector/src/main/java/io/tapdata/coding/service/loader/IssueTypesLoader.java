@@ -17,7 +17,8 @@ import java.util.function.BiConsumer;
 import static io.tapdata.coding.enums.TapEventTypes.CREATED_EVENT;
 import static io.tapdata.coding.enums.TapEventTypes.UPDATE_EVENT;
 
-public class IssueTypesLoader extends CodingStarter implements CodingLoader<IssueTypeParam>,OverlayQueryEventDifferentiator{
+public class IssueTypesLoader extends CodingStarter implements CodingLoader<IssueTypeParam>{
+    OverlayQueryEventDifferentiator overlayQueryEventDifferentiator = new OverlayQueryEventDifferentiator();
     public static final String TABLE_NAME = "IssueTypes";
     public IssueTypesLoader(TapConnectionContext tapConnectionContext) {
         super(tapConnectionContext);
@@ -78,7 +79,7 @@ public class IssueTypesLoader extends CodingStarter implements CodingLoader<Issu
         for (Map<String, Object> issueType : list) {
             Integer issueTypeId = (Integer) issueType.get("Id");
             Integer issueTypeHash = MapUtil.create().hashCode(issueType);
-            switch (createOrUpdateEvent(issueTypeId,issueTypeHash)){
+            switch (overlayQueryEventDifferentiator.createOrUpdateEvent(issueTypeId,issueTypeHash)){
                 case CREATED_EVENT:events.add(TapSimplify.insertRecordEvent(issueType, TABLE_NAME).referenceTime(System.currentTimeMillis()));break;
                 case UPDATE_EVENT:events.add(TapSimplify.updateDMLEvent(null,issueType, TABLE_NAME).referenceTime(System.currentTimeMillis()));break;
             }
@@ -89,7 +90,7 @@ public class IssueTypesLoader extends CodingStarter implements CodingLoader<Issu
             }
         }
 
-        List<TapEvent> delEvents = delEvent(TABLE_NAME,"Id");
+        List<TapEvent> delEvents = overlayQueryEventDifferentiator.delEvent(TABLE_NAME,"Id");
         if (!delEvents.isEmpty()){
             events.addAll(delEvents);
         }
@@ -101,7 +102,7 @@ public class IssueTypesLoader extends CodingStarter implements CodingLoader<Issu
     }
 
     @Override
-    public long batchCount() throws Throwable {
+    public int batchCount() throws Throwable {
         List<Map<String, Object>> list = list(null);
         if (null == list){
             return 0;
