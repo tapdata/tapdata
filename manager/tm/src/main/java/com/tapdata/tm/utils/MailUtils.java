@@ -6,14 +6,12 @@ import com.tapdata.tm.Settings.dto.MailAccountDto;
 import com.tapdata.tm.message.constant.MsgTypeEnum;
 import com.tapdata.tm.message.constant.SystemEnum;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang3.StringUtils;
 import org.jetbrains.annotations.NotNull;
 import org.jsoup.nodes.Document;
 import org.springframework.stereotype.Component;
 
 import java.io.*;
 import java.util.List;
-import java.util.Map;
 
 
 /**
@@ -295,14 +293,8 @@ public class MailUtils {
 
     /**
      * 发送HTML邮件
-     *
-     * @param parms     邮件配置参数
-     * @param adressees 收件人列表
-     * @param title     邮件标题
-     * @param html      邮件内容
-     * @return 是否成功
      */
-    public static boolean sendHtmlEmail(MailAccountDto parms, List<String> adressees, String title, String content) {
+    public static void sendHtmlEmail(MailAccountDto parms, List<String> adressees, String title, String content) {
         boolean flag = true;
         try {
             MailAccount account = new MailAccount();
@@ -316,17 +308,16 @@ public class MailUtils {
             account.setSslEnable(true);
             //指定实现javax.net.SocketFactory接口的类的名称,这个类将被用于创建SMTP的套接字
             account.setSocketFactoryClass("javax.net.ssl.SSLSocketFactory");
-            //如果设置为true,未能创建一个套接字使用指定的套接字工厂类将导致使用java.net.Socket创建的套接字类, 默认值为true
+            //如果设置为true,未能创建一个套接字使用指定9的套接字工厂类将导致使用java.net.Socket创建的套接字类, 默认值为true
             account.setSocketFactoryFallback(true);
             // 指定的端口连接到在使用指定的套接字工厂。如果没有设置,将使用默认端口456
             account.setSocketFactoryPort(465);
             MailUtil.send(account, adressees, title, assemblyMessageBody(content), true);
         } catch (Exception e) {
-            log.debug("邮件发送异常信息：{}", e.getMessage());
+            log.error("mail send error：{}", e.getMessage(), e);
             flag = false;
         }
-        log.debug("邮件发送状态：{}", flag ? "发送成功" : "发送失败");
-        return flag;
+        log.debug("mail send status：{}", flag ? "suc" : "error");
     }
 
     protected static String assemblyMessageBody(String message) {
