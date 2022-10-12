@@ -20,7 +20,7 @@ import java.util.function.BiConsumer;
 import static io.tapdata.coding.enums.TapEventTypes.*;
 
 public class ProjectMembersLoader extends CodingStarter implements CodingLoader<ProjectMemberParam>{
-    OverlayQueryEventDifferentiator overlayQueryEventDifferentiator = new OverlayQueryEventDifferentiator();
+    //OverlayQueryEventDifferentiator overlayQueryEventDifferentiator = new OverlayQueryEventDifferentiator();
     public static final String TABLE_NAME = "ProjectMembers";
     private Integer currentProjectId ;
     public ProjectMembersLoader(TapConnectionContext tapConnectionContext) {
@@ -85,7 +85,7 @@ public class ProjectMembersLoader extends CodingStarter implements CodingLoader<
 
     @Override
     public void batchRead(Object offset, int batchCount, BiConsumer<List<TapEvent>, Object> consumer) {
-        this.read(offset, batchCount, consumer);
+        this.read(offset, batchCount, consumer,true);
     }
 
     @Override
@@ -107,7 +107,7 @@ public class ProjectMembersLoader extends CodingStarter implements CodingLoader<
         return (Integer)totalCountObj;
     }
 
-    private void read(Object offsetState, int recordSize,  BiConsumer<List<TapEvent>, Object> consumer){
+    private void read(Object offsetState, int recordSize,  BiConsumer<List<TapEvent>, Object> consumer,boolean batchFlag){
         int startPage = 1;
         Param param = ProjectMemberParam.create()
                 .limit(recordSize)
@@ -132,13 +132,20 @@ public class ProjectMembersLoader extends CodingStarter implements CodingLoader<
                 for (Map<String, Object> teamMember : teamMembers) {
                     Object updatedAtObj = teamMember.get("UpdatedAt");
                     Long updatedAt = Checker.isEmpty(updatedAtObj) ? System.currentTimeMillis() : (Long)updatedAtObj;
-                    Integer teamMemberId = (Integer) teamMember.get("Id");
-                    Integer teamMemberHash = MapUtil.create().hashCode(teamMember);
-                    switch (overlayQueryEventDifferentiator.createOrUpdateEvent(teamMemberId,teamMemberHash)){
-                        case CREATED_EVENT:events.add(TapSimplify.insertRecordEvent(teamMember, TABLE_NAME).referenceTime(updatedAt));break;
-                        case UPDATE_EVENT:events.add(TapSimplify.updateDMLEvent(null,teamMember, TABLE_NAME).referenceTime(updatedAt));break;
-                    }
-                    //events.add(TapSimplify.insertRecordEvent(stringObjectMap,TABLE_NAME).referenceTime(updatedAt));
+//                    if (!batchFlag) {
+//                        Integer teamMemberId = (Integer) teamMember.get("Id");
+//                        Integer teamMemberHash = MapUtil.create().hashCode(teamMember);
+//                        switch (overlayQueryEventDifferentiator.createOrUpdateEvent(teamMemberId, teamMemberHash)) {
+//                            case CREATED_EVENT:
+//                                events.add(TapSimplify.insertRecordEvent(teamMember, TABLE_NAME).referenceTime(updatedAt));
+//                                break;
+//                            case UPDATE_EVENT:
+//                                events.add(TapSimplify.updateDMLEvent(null, teamMember, TABLE_NAME).referenceTime(updatedAt));
+//                                break;
+//                        }
+//                    }else {
+                        events.add(TapSimplify.insertRecordEvent(teamMember,TABLE_NAME).referenceTime(updatedAt));
+//                    }
                     //((CodingOffset)offsetState).offset().put(TABLE_NAME,updatedAt);
                     if (teamMembers.size() == recordSize) {
                         consumer.accept(events,offsetState);
@@ -153,16 +160,18 @@ public class ProjectMembersLoader extends CodingStarter implements CodingLoader<
                 break;
             }
         }
-        List<TapEvent> delEvents = overlayQueryEventDifferentiator.delEvent(TABLE_NAME,"Id");
-        if (!delEvents.isEmpty()){
-            events.addAll(delEvents);
-        }
+//        if (!batchFlag) {
+//            List<TapEvent> delEvents = overlayQueryEventDifferentiator.delEvent(TABLE_NAME, "Id");
+//            if (!delEvents.isEmpty()) {
+//                events.addAll(delEvents);
+//            }
+//        }
         if (events.size() > 0)  consumer.accept(events, offsetState);
     }
 
     @Override
     public void streamRead(List<String> tableList, Object offsetState, int recordSize, StreamReadConsumer consumer) {
-        this.read(offsetState, recordSize, consumer);
+        this.read(offsetState, recordSize, consumer,false);
     }
 
     @Override
