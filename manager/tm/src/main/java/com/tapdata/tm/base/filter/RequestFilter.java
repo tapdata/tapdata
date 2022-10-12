@@ -10,9 +10,8 @@ import org.springframework.stereotype.Component;
 import javax.servlet.*;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
+import java.io.IOException;
 import java.io.UnsupportedEncodingException;
-import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.net.URLDecoder;
 import java.util.Enumeration;
 
@@ -31,11 +30,17 @@ public class RequestFilter implements Filter {
 	}
 
 	@Override
-	public void doFilter(ServletRequest servletRequest, ServletResponse servletResponse, FilterChain filterChain) throws ServletException {
+	public void doFilter(ServletRequest servletRequest, ServletResponse servletResponse, FilterChain filterChain) throws ServletException, IOException {
 		long startTime = System.currentTimeMillis();
 
 		HttpServletRequest httpServletRequest = new HttpServletRequestWrapper((HttpServletRequest) servletRequest);
 		HttpServletResponse httpServletResponse = new HttpServletResponseWrapper((HttpServletResponse) servletResponse);
+
+		String requestURI = httpServletRequest.getRequestURI();
+		if (requestURI.contains("api/pdk")) {
+			filterChain.doFilter(servletRequest, servletResponse);
+			return;
+		}
 
 		ThreadLocalUtils.set(ThreadLocalUtils.USER_LOCALE, WebUtils.getLocale((HttpServletRequest) servletRequest));
 		String reqId = ResponseMessage.generatorReqId();
@@ -52,6 +57,8 @@ public class RequestFilter implements Filter {
 			filterChain.doFilter(httpServletRequest, httpServletResponse);
 		} catch (Throwable e){
 			log.error("Process request error", e);
+		} finally {
+			log.info("{} {} {} {}ms ", Thread.currentThread().getName(), httpServletRequest.getMethod(), requestURI, System.currentTimeMillis() - startTime);
 		}
 		long endTime = System.currentTimeMillis();
 		double time = (endTime - startTime)/ 1000D;
