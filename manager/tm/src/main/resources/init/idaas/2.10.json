@@ -11,8 +11,8 @@
         "key": "TASK_STATUS_ERROR",
         "sort": 1,
         "notify": ["SYSTEM","EMAIL"],
-        "interval": 500,
-        "unit": "MS"
+        "interval": 300,
+        "unit": "SECOND"
       }
     ]
   },
@@ -48,8 +48,8 @@
         "key": "TASK_STATUS_ERROR",
         "sort": 1,
         "notify": ["SYSTEM","EMAIL"],
-        "interval": 500,
-        "unit": "MS"
+        "interval": 300,
+        "unit": "SECOND"
       },
       {
         "_id": {
@@ -60,8 +60,8 @@
         "key": "TASK_INSPECT_ERROR",
         "sort": 2,
         "notify": ["SYSTEM","EMAIL"],
-        "interval": 500,
-        "unit": "MS"
+        "interval": 300,
+        "unit": "SECOND"
       },
       {
         "_id": {
@@ -72,8 +72,8 @@
         "key": "TASK_FULL_COMPLETE",
         "sort": 3,
         "notify": ["SYSTEM","EMAIL"],
-        "interval": 500,
-        "unit": "MS"
+        "interval": 300,
+        "unit": "SECOND"
       },
       {
         "_id": {
@@ -84,8 +84,8 @@
         "key": "TASK_INCREMENT_START",
         "sort": 4,
         "notify": ["SYSTEM","EMAIL"],
-        "interval": 500,
-        "unit": "MS"
+        "interval": 300,
+        "unit": "SECOND"
       },
       {
         "_id": {
@@ -96,8 +96,8 @@
         "key": "TASK_STATUS_STOP",
         "sort": 5,
         "notify": ["SYSTEM","EMAIL"],
-        "interval": 500,
-        "unit": "MS"
+        "interval": 300,
+        "unit": "SECOND"
       },
       {
         "_id": {
@@ -108,8 +108,8 @@
         "key": "TASK_INCREMENT_DELAY",
         "sort": 6,
         "notify": ["SYSTEM","EMAIL"],
-        "interval": 500,
-        "unit": "MS"
+        "interval": 300,
+        "unit": "SECOND"
       },
       {
         "_id": {
@@ -120,8 +120,8 @@
         "key": "DATANODE_CANNOT_CONNECT",
         "sort": 1,
         "notify": ["SYSTEM","EMAIL"],
-        "interval": 500,
-        "unit": "MS"
+        "interval": 300,
+        "unit": "SECOND"
       },
       {
         "_id": {
@@ -132,8 +132,8 @@
         "key": "DATANODE_HTTP_CONNECT_CONSUME",
         "sort": 2,
         "notify": ["SYSTEM","EMAIL"],
-        "interval": 500,
-        "unit": "MS"
+        "interval": 300,
+        "unit": "SECOND"
       },
       {
         "_id": {
@@ -144,8 +144,8 @@
         "key": "DATANODE_TCP_CONNECT_CONSUME",
         "sort": 3,
         "notify": ["SYSTEM","EMAIL"],
-        "interval": 500,
-        "unit": "MS"
+        "interval": 300,
+        "unit": "SECOND"
       },
       {
         "_id": {
@@ -156,8 +156,8 @@
         "key": "DATANODE_AVERAGE_HANDLE_CONSUME",
         "sort": 4,
         "notify": ["SYSTEM","EMAIL"],
-        "interval": 500,
-        "unit": "MS"
+        "interval": 300,
+        "unit": "SECOND"
       },
       {
         "_id": {
@@ -168,8 +168,8 @@
         "key": "PROCESSNODE_AVERAGE_HANDLE_CONSUME",
         "sort": 1,
         "notify": ["SYSTEM","EMAIL"],
-        "interval": 500,
-        "unit": "MS"
+        "interval": 300,
+        "unit": "SECOND"
       },
       {
         "_id": {
@@ -180,8 +180,8 @@
         "key": "SYSTEM_FLOW_EGINGE_DOWN",
         "sort": 1,
         "notify": ["SYSTEM","EMAIL"],
-        "interval": 500,
-        "unit": "MS"
+        "interval": 300,
+        "unit": "SECOND"
       }
     ]
   },

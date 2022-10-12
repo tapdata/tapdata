@@ -73,7 +73,8 @@ public class TaskAlarmScheduler {
     @SchedulerLock(name ="task_dataNode_connect_alarm_lock", lockAtMostFor = "10s", lockAtLeastFor = "10s")
     public void taskDataNodeConnectAlarm() {
         Query query = new Query(Criteria.where("status").is(TaskDto.STATUS_RUNNING)
-                .and("is_deleted").ne(true));
+                .and("syncType").in(TaskDto.SYNC_TYPE_SYNC, TaskDto.SYNC_TYPE_MIGRATE)
+                .and("is_deleted").is(false));
         List<TaskDto> taskDtos = taskService.findAll(query);
         if (CollectionUtils.isEmpty(taskDtos)) {
             return;
@@ -121,7 +122,8 @@ public class TaskAlarmScheduler {
     @SchedulerLock(name ="task_agent_alarm_lock", lockAtMostFor = "10s", lockAtLeastFor = "10s")
     public void taskAgentAlarm() {
         Query query = new Query(Criteria.where("status").is(TaskDto.STATUS_RUNNING)
-                .and("is_deleted").ne(true));
+                .and("syncType").in(TaskDto.SYNC_TYPE_SYNC, TaskDto.SYNC_TYPE_MIGRATE)
+                .and("is_deleted").is(false));
         List<TaskDto> taskDtos = taskService.findAll(query);
         if (CollectionUtils.isEmpty(taskDtos)) {
             return;
@@ -183,9 +185,9 @@ public class TaskAlarmScheduler {
     @Scheduled(initialDelay = 5000, fixedRate = 30000)
     @SchedulerLock(name ="task_alarm_lock", lockAtMostFor = "10s", lockAtLeastFor = "10s")
     public void taskAlarm() {
-
         Query query = new Query(Criteria.where("status").is(TaskDto.STATUS_RUNNING)
-                .and("is_deleted").ne(true));
+                .and("syncType").in(TaskDto.SYNC_TYPE_SYNC, TaskDto.SYNC_TYPE_MIGRATE)
+                .and("is_deleted").is(false));
         List<TaskDto> all = taskService.findAll(query);
 
         all.forEach(task -> executorService.submit(() -> {

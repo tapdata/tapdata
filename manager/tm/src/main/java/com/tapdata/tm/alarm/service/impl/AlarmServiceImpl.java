@@ -340,7 +340,7 @@ public class AlarmServiceImpl implements AlarmService {
             return new Page<>(count, Lists.newArrayList());
         }
 
-        query.with(Sort.by(Sort.Direction.DESC, "_id"));
+        query.with(Sort.by(Sort.Direction.DESC, "lastOccurrenceTime"));
         List<AlarmInfo> alarmInfos = mongoTemplate.find(query.with(pageable), AlarmInfo.class);
 
         List<String> taskIds = alarmInfos.stream().map(AlarmInfo::getTaskId).collect(Collectors.toList());
@@ -384,7 +384,7 @@ public class AlarmServiceImpl implements AlarmService {
             criteria.and("nodeId").is(nodeId);
         }
         Query query = new Query(criteria);
-        query.with(Sort.by(Sort.Direction.DESC, "_id"));
+        query.with(Sort.by(Sort.Direction.DESC, "lastOccurrenceTime"));
         List<AlarmInfo> alarmInfos = mongoTemplate.find(query, AlarmInfo.class);
 
         Map<String, Integer> nodeNumMap = Maps.newHashMap();
@@ -494,18 +494,19 @@ public class AlarmServiceImpl implements AlarmService {
 
     private MailAccountDto getMailAccount() {
         List<Settings> all = settingsService.findAll();
-        Map<String, Settings> collect = all.stream().collect(Collectors.toMap(Settings::getKey, Function.identity(), (e1, e2) -> e1));
+        Map<String, Object> collect = all.stream().collect(Collectors.toMap(Settings::getKey, Settings::getValue, (e1, e2) -> e1));
 
-        String host = (String) collect.get("smtp.server.host").getValue();
-        Integer port = (Integer) collect.get("smtp.server.port").getValue();
-        String from = (String) collect.get("email.send.address").getValue();
-        String user = (String) collect.get("smtp.server.user").getValue();
-        Object pwd = collect.get("smtp.server.password").getValue();
+        String host = (String) collect.get("smtp.server.host");
+        String port = (String) collect.getOrDefault("smtp.server.port", "465");
+        String from = (String) collect.get("email.send.address");
+        String user = (String) collect.get("smtp.server.user");
+        Object pwd = collect.get("smtp.server.password");
         String password = Objects.nonNull(pwd) ? pwd.toString() : null;
-        String receivers = (String) collect.get("email.receivers").getValue();
+        String receivers = (String) collect.get("email.receivers");
         String[] split = receivers.split(",");
 
-        return MailAccountDto.builder().host(host).port(port).from(from).user(user).pass(password).receivers(Arrays.asList(split)).build();
+        return MailAccountDto.builder().host(host).port(Integer.valueOf(port)).from(from).user(user).pass(password)
+                .receivers(Arrays.asList(split)).build();
     }
 
 }
