@@ -132,6 +132,8 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
     private LogCollectorService logCollectorService;
 
+    private TaskCollectionObjService taskCollectionObjService;
+
     static {
 
         runningStatus.add(TaskDto.STATUS_SCHEDULING);
@@ -2428,6 +2430,13 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         } else {
             updateTaskRecordStatus(taskDto, taskDto.getStatus(), user);
         }
+
+        //数据发现的任务收集
+        TaskDto newTaskDto = findById(taskDto.getId(), user);
+        TaskCollectionObjDto taskCollectionObjDto = new TaskCollectionObjDto();
+        BeanUtils.copyProperties(newTaskDto, taskCollectionObjDto);
+        Query query2 = new Query(Criteria.where("_id").is(taskDto.getId()));
+        taskCollectionObjService.upsert(query2, taskCollectionObjDto, user);
     }
 
     private void updateTaskRecordStatus(TaskDto dto, String status, UserDetail userDetail) {

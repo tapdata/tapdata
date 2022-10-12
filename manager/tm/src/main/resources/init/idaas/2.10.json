@@ -283,6 +283,43 @@
     ]
   },
   {
+    "createIndexes": "TaskCollectionObj",
+    "indexes":[
+      {
+        "name" : "index_task_coll_obj_syncType",
+        "key" : {
+          "syncType" : 1
+        },
+        "background": true,
+        "sparse": true
+      }
+    ,{
+        "name" : "index_task_coll_obj_agentId",
+        "key" : {
+          "agentId" : 1
+        },
+        "background": true,
+        "sparse": true
+      }
+    ,{
+        "name" : "index_task_coll_obj_name",
+        "key" : {
+          "name" : 1
+        },
+        "background": true,
+        "sparse": true
+      }
+    ,{
+        "name" : "index_task_coll_obj_desc",
+        "key" : {
+          "desc" : 1
+        },
+        "background": true,
+        "sparse": true
+      }
+    ]
+  },
+  {
     "dropIndexes": "Message",
     "index": "userId_1_createTime_1"
   },
