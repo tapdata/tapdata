@@ -331,7 +331,7 @@ public class LoadSchemaRunner implements Runnable {
 		}
 	}
 
-	private static class TableFilter implements Predicate<String> {
+	public static class TableFilter implements Predicate<String> {
 		private List<Pattern> patterns;
 
 		private TableFilter() {
