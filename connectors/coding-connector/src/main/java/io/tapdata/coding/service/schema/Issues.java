@@ -48,6 +48,7 @@ public class Issues implements SchemaStart {
                 .add(field("Type", "StringMinor"))                                         //事项类型：DEFECT - 缺陷;REQUIREMENT - 需求;MISSION - 任务;EPIC - 史诗;SUB_TASK - 子工作项
 //                .add(field("IssueTypeDetailId", JAVA_Integer))                               //事项类型ID
                 .add(field("IssueTypeDetail", JAVA_Map))                                         //事项类型具体信息
+                .add(field("IssueTypeId", JAVA_Integer))                                         //事项类型具体信息
                 .add(field("Name", "StringMinor"))                                              //名称
                 .add(field("Description", "StringLonger"))                                       //描述
                 .add(field("IterationId", JAVA_Integer))                                     //迭代 Id
@@ -87,6 +88,7 @@ public class Issues implements SchemaStart {
 //                .add(field("IterationCode", JAVA_Integer))                                   //所属迭代Code
                 .add(field("Iteration", JAVA_Map)) ;                                              //所属迭代;
     }
+
 
     @Override
     public TapTable csv(TapConnectionContext connectionContext) {
