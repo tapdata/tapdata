@@ -190,9 +190,7 @@ public class ConnectionValidator {
 			try {
 				// Create connection node
 				connectionNode = PDKIntegration.createConnectionConnectorBuilder()
-						.withConnectionConfig(new DataMap() {{
-							putAll(connections.getConfig());
-						}})
+						.withConnectionConfig(DataMap.create(connections.getConfig()))
 						.withGroup(databaseType.getGroup())
 						.withPdkId(databaseType.getPdkId())
 						.withAssociateId(connections.getName() + "_" + ts)
