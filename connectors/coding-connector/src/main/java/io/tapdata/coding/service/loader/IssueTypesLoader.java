@@ -101,7 +101,7 @@ public class IssueTypesLoader extends CodingStarter implements CodingLoader<Issu
     }
 
     @Override
-    public long batchCount() throws Throwable {
+    public int batchCount() throws Throwable {
         List<Map<String, Object>> list = list(null);
         if (null == list){
             return 0;

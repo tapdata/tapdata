@@ -1,8 +1,6 @@
 package io.tapdata.coding.service.loader;
 
-import io.tapdata.coding.entity.CodingOffset;
 import io.tapdata.coding.entity.ContextConfig;
-import io.tapdata.coding.entity.param.IterationParam;
 import io.tapdata.coding.entity.param.Param;
 import io.tapdata.coding.entity.param.ProjectMemberParam;
 import io.tapdata.coding.enums.CodingEvent;
@@ -74,7 +72,7 @@ public class ProjectMembersLoader extends CodingStarter implements CodingLoader<
                 .builder("Authorization",contextConfig.getToken());
         HttpEntity<String,Object> body = HttpEntity.create()
                 .builder("Action","DescribeProjectMembers")
-                .builder("ProjectId",this.currentProjectId) //contextConfig.getProjectId())//@TODO 项目ID
+                .builder("ProjectId",this.currentProjectId)
                 .builder("PageNumber",param.offset())
                 .builder("PageSize",param.limit())
                 .builderIfNotAbsent("RoleId",param.roleId());
@@ -90,21 +88,22 @@ public class ProjectMembersLoader extends CodingStarter implements CodingLoader<
     }
 
     @Override
-    public long batchCount() throws Throwable {
+    public int batchCount() throws Throwable {
         Param param = ProjectMemberParam.create().limit(1).offset(1);
         Map<String,Object> resultMap = this.codingHttp((ProjectMemberParam)param).post();
         Object response = resultMap.get("Response");
         if (null == response){
-            return 0L;
+            return 0;
         }
         Map<String,Object> responseMap = (Map<String,Object>)response;
         Object dataObj = responseMap.get("Data");
         if (null == dataObj){
-            return 0L;
+            return 0;
         }
         Map<String,Object> data = (Map<String,Object>)dataObj;
         Object totalCountObj = data.get("TotalCount");
-        return null !=  totalCountObj ? (Integer)(totalCountObj)  : 0L;
+        if (Checker.isEmpty(totalCountObj)) return 0;
+        return (Integer)totalCountObj;
     }
 
     private void read(Object offsetState, int recordSize,  BiConsumer<List<TapEvent>, Object> consumer){

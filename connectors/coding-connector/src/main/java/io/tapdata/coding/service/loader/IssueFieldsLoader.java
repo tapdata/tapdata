@@ -110,7 +110,7 @@ public class IssueFieldsLoader extends CodingStarter implements CodingLoader<Iss
     }
 
     @Override
-    public long batchCount() throws Throwable {
+    public int batchCount() throws Throwable {
         List<Map<String, Object>> list = list(null);
         if (null == list) {
             return 0;

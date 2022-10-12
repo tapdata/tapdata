@@ -228,7 +228,7 @@ public class IterationsLoader extends CodingStarter implements CodingLoader<Iter
     }
 
     @Override
-    public long batchCount() throws Throwable {
+    public int batchCount() throws Throwable {
         Param param = IterationParam.create().limit(1).offset(1);
         Map<String,Object> resultMap = this.codingHttp((IterationParam)param).post();
         Object response = resultMap.get("Response");
