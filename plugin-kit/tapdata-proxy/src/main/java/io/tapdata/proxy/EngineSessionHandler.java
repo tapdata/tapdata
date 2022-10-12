@@ -7,17 +7,16 @@ import io.tapdata.entity.memory.MemoryFetcher;
 import io.tapdata.entity.simplify.pretty.TypeHandlers;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.modules.api.net.data.*;
-import io.tapdata.modules.api.net.message.CommandResultEntity;
-import io.tapdata.pdk.apis.entity.CommandInfo;
+import io.tapdata.modules.api.net.message.EngineMessageResultEntity;
+import io.tapdata.modules.api.proxy.data.*;
+import io.tapdata.pdk.apis.entity.message.CommandInfo;
 import io.tapdata.modules.api.net.entity.ProxySubscription;
 import io.tapdata.modules.api.net.error.NetErrors;
 import io.tapdata.modules.api.net.message.TapEntity;
 import io.tapdata.modules.api.net.service.MessageEntityService;
 import io.tapdata.modules.api.net.service.ProxySubscriptionService;
-import io.tapdata.modules.api.proxy.data.CommandReceived;
-import io.tapdata.modules.api.proxy.data.FetchNewData;
-import io.tapdata.modules.api.proxy.data.FetchNewDataResult;
-import io.tapdata.modules.api.proxy.data.NodeSubscribeInfo;
+import io.tapdata.pdk.apis.entity.message.EngineMessage;
+import io.tapdata.pdk.apis.entity.message.ServiceCaller;
 import io.tapdata.pdk.core.executor.ExecutorsManager;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.wsserver.channels.annotation.GatewaySession;
@@ -45,37 +44,37 @@ public class EngineSessionHandler extends GatewaySessionHandler {
 	private final TypeHandlers<TapEntity, Result> typeHandlers = new TypeHandlers<>();
 
 	private Set<String> cachedSubscribedIds;
-	private final Map<String, CommandInfoExecutor> commandIdExecutorMap = new ConcurrentHashMap<>();
+	private final Map<String, EngineMessageExecutor<?>> commandIdExecutorMap = new ConcurrentHashMap<>();
 	public EngineSessionHandler() {
 		typeHandlers.register(NodeSubscribeInfo.class, this::handleNodeSubscribeInfo);
 		typeHandlers.register(FetchNewData.class, this::handleFetchNewData);
-		typeHandlers.register(CommandResultEntity.class, this::handleCommandResultEntity);
+		typeHandlers.register(EngineMessageResultEntity.class, this::handleEngineMessageResultEntity);
 	}
 
 	private AtomicBoolean connected = new AtomicBoolean(false);
 
-	private Result handleCommandResultEntity(CommandResultEntity commandResultEntity) {
-		if(commandResultEntity == null) {
+	private Result handleEngineMessageResultEntity(EngineMessageResultEntity engineMessageResultEntity) {
+		if(engineMessageResultEntity == null) {
 			return new Result().code(NetErrors.ILLEGAL_PARAMETERS).description("commandResultEntity is null");
 		}
-		String commandId = commandResultEntity.getCommandId();
-		Integer code = commandResultEntity.getCode();
-		String message = commandResultEntity.getMessage();
-		Map<String, Object> content = commandResultEntity.getContent();
-		if(commandId == null) {
+		String id = engineMessageResultEntity.getId();
+		Integer code = engineMessageResultEntity.getCode();
+		String message = engineMessageResultEntity.getMessage();
+		Object content = engineMessageResultEntity.getContent();
+		if(id == null) {
 			return new Result().code(NetErrors.ILLEGAL_PARAMETERS).description("code {} or commandId {} is null");
 		}
-		CommandInfoExecutor commandInfoExecutor = commandIdExecutorMap.get(commandId);
+		EngineMessageExecutor<?> engineMessageExecutor = commandIdExecutorMap.get(id);
 		if(code == null || code != Data.CODE_SUCCESS) {
-			if(commandInfoExecutor != null)
-				commandInfoExecutor.result(null, new CoreException(code, message));
+			if(engineMessageExecutor != null)
+				engineMessageExecutor.result(null, new CoreException(code == null ? NetErrors.UNKNOWN_ERROR : code, message));
 			return new Result().code(code).description(message);
 		}
 
-		if(commandInfoExecutor != null) {
+		if(engineMessageExecutor != null) {
 			try {
-				if(!commandInfoExecutor.result(content, null)) {
-					TapLogger.debug(TAG, "Command result was not accept successfully, maybe already handled somewhere else, id {}", commandId);
+				if(!engineMessageExecutor.result(content, null)) {
+					TapLogger.debug(TAG, "Command result was not accept successfully, maybe already handled somewhere else, id {}", id);
 				}
 			} catch (Throwable throwable) {
 				int resultCode = NetErrors.CONSUME_COMMAND_RESULT_FAILED;
@@ -86,24 +85,24 @@ public class EngineSessionHandler extends GatewaySessionHandler {
 				return new Result().code(resultCode).description("Consumer command result failed, " + throwable.getMessage());
 			}
 		} else {
-			return new Result().code(NetErrors.NO_WAITING_COMMAND).description("Command " + commandId + " is expired already");
+			return new Result().code(NetErrors.NO_WAITING_COMMAND).description("Command " + id + " is expired already");
 		}
 		return null;
 	}
 
-	public static class CommandInfoExecutor implements MemoryFetcher {
-		private CommandInfo commandInfo;
-		private volatile BiConsumer<Map<String, Object>, Throwable> biConsumer;
+	public static class EngineMessageExecutor<T> implements MemoryFetcher {
+		private T commandInfo;
+		private volatile BiConsumer<Object, Throwable> biConsumer;
 		private volatile ScheduledFuture<?> scheduledFuture;
 		private Runnable doneRunnable;
 
-		public CommandInfoExecutor(CommandInfo commandInfo, BiConsumer<Map<String, Object>, Throwable> biConsumer, Runnable doneRunnable) {
+		public EngineMessageExecutor(T commandInfo, BiConsumer<Object, Throwable> biConsumer, Runnable doneRunnable) {
 			this.commandInfo = commandInfo;
 			this.biConsumer = biConsumer;
 			this.doneRunnable = doneRunnable;
 		}
 
-		public boolean result(Map<String, Object> result, Throwable throwable) {
+		public boolean result(Object result, Throwable throwable) {
 			boolean done = false;
 			if(cancelTimer()) {
 				if(biConsumer != null) {
@@ -146,21 +145,41 @@ public class EngineSessionHandler extends GatewaySessionHandler {
 					.kv("commandInfo", commandInfo);
 		}
 	}
-	public boolean handleCommandInfo(CommandInfo commandInfo, BiConsumer<Map<String, Object>, Throwable> biConsumer) {
+	public boolean handleCommandInfo(CommandInfo commandInfo, BiConsumer<Object, Throwable> biConsumer) {
 		if(commandInfo == null || biConsumer == null)
 			throw new CoreException(NetErrors.ILLEGAL_PARAMETERS, "handleCommandInfo missing parameters, commandInfo {}, biConsumer {}", commandInfo, biConsumer);
 		if(isChannelActive()) {
-			CommandInfoExecutor commandInfoExecutor = new CommandInfoExecutor(commandInfo, biConsumer, () -> commandIdExecutorMap.remove(commandInfo.getId()));
-			commandInfoExecutor.scheduledFuture = ExecutorsManager.getInstance().getScheduledExecutorService().schedule(() -> {
-				commandInfoExecutor.result(null, new TimeoutException("Time out"));
-			}, 30, TimeUnit.SECONDS);
-			CommandInfoExecutor old = commandIdExecutorMap.put(commandInfo.getId(), commandInfoExecutor);
-			if(old != null) {
-				TapLogger.debug(TAG, "Command info id {} already exists, will use new one instead, timer will be another 30 seconds", commandInfo.getId());
-				old.cancelTimer();
-			}
+			EngineMessageExecutor<CommandInfo> engineMessageExecutor = new EngineMessageExecutor<>(commandInfo, biConsumer, () -> commandIdExecutorMap.remove(commandInfo.getId()));
+			startMessageExecutor(commandInfo, engineMessageExecutor);
 			if(!sendData(new OutgoingData().time(System.currentTimeMillis()).message(new CommandReceived().commandInfo(commandInfo)))) {
-				commandInfoExecutor.result(null, new CoreException(NetErrors.ENGINE_CHANNEL_OFFLINE, "Engine channel is offline, please try again"));
+				engineMessageExecutor.result(null, new CoreException(NetErrors.ENGINE_CHANNEL_OFFLINE, "Engine channel is offline, please try again"));
+			}
+			return true;
+		} else {
+			return false;
+//			throw new CoreException(NetErrors.ENGINE_CHANNEL_OFFLINE, "Engine is offline");
+		}
+	}
+
+	private void startMessageExecutor(EngineMessage engineMessage, EngineMessageExecutor<?> engineMessageExecutor) {
+		engineMessageExecutor.scheduledFuture = ExecutorsManager.getInstance().getScheduledExecutorService().schedule(() -> {
+			engineMessageExecutor.result(null, new TimeoutException("Time out"));
+		}, 45, TimeUnit.SECONDS);
+		EngineMessageExecutor<?> old = commandIdExecutorMap.put(engineMessage.getId(), engineMessageExecutor);
+		if(old != null) {
+			TapLogger.debug(TAG, "Command info id {} already exists, will use new one instead, timer will be another 30 seconds", engineMessage.getId());
+			old.cancelTimer();
+		}
+	}
+
+	public boolean handleServiceCaller(ServiceCaller serviceCaller, BiConsumer<Object, Throwable> biConsumer) {
+		if(serviceCaller == null || biConsumer == null)
+			throw new CoreException(NetErrors.ILLEGAL_PARAMETERS, "handleCommandInfo missing parameters, commandInfo {}, biConsumer {}", serviceCaller, biConsumer);
+		if(isChannelActive()) {
+			EngineMessageExecutor<ServiceCaller> engineMessageExecutor = new EngineMessageExecutor<>(serviceCaller, biConsumer, () -> commandIdExecutorMap.remove(serviceCaller.getId()));
+			startMessageExecutor(serviceCaller, engineMessageExecutor);
+			if(!sendData(new OutgoingData().time(System.currentTimeMillis()).message(new ServiceCallerReceived().serviceCaller(serviceCaller)))) {
+				engineMessageExecutor.result(null, new CoreException(NetErrors.ENGINE_CHANNEL_OFFLINE, "Engine channel is offline, please try again"));
 			}
 			return true;
 		} else {
@@ -244,7 +263,7 @@ public class EngineSessionHandler extends GatewaySessionHandler {
 				;
 		DataMap commandIdExecutorMap = DataMap.create().keyRegex(keyRegex)/*.prefix(this.getClass().getSimpleName())*/;
 		dataMap.kv("commandIdExecutorMap", commandIdExecutorMap);
-		for(Map.Entry<String, CommandInfoExecutor> entry : this.commandIdExecutorMap.entrySet()) {
+		for(Map.Entry<String, EngineMessageExecutor<?>> entry : this.commandIdExecutorMap.entrySet()) {
 			commandIdExecutorMap.kv(entry.getKey(), entry.getValue().memory(keyRegex, memoryLevel));
 		}
 		return dataMap;

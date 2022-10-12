@@ -1,11 +1,11 @@
-package io.tapdata.pdk.apis.entity;
+package io.tapdata.pdk.apis.entity.message;
 
 import java.util.Date;
 import java.util.Map;
 
-public class CommandInfo {
+public class CommandInfo extends EngineMessage {
+	public static final String KEY_PREFIX = "CommandInfo_";
 	private String locale;
-	private String id;
 	private String connectionId;
 	public static final String TYPE_NODE = "node";
 	public static final String TYPE_CONNECTION  = "connection";
@@ -17,7 +17,6 @@ public class CommandInfo {
 	private String action;
 	private Map<String, Object> argMap;
 	private Long time;
-
 	@Override
 	public String toString() {
 		return "CommandInfo id " + id + " type " + type + " language " + locale + " connectionId " + connectionId + " pdkHash " + pdkHash + " command " + command + " action " + action + " time " + (time != null ? new Date(time) : null) + " connectionConfig " + connectionConfig + " nodeConfig " + nodeConfig + ";";
@@ -79,14 +78,6 @@ public class CommandInfo {
 		this.time = time;
 	}
 
-	public String getId() {
-		return id;
-	}
-
-	public void setId(String id) {
-		this.id = id;
-	}
-
 	public String getConnectionId() {
 		return connectionId;
 	}
@@ -109,5 +100,14 @@ public class CommandInfo {
 
 	public void setLocale(String locale) {
 		this.locale = locale;
+	}
+
+	@Override
+	public String key() {
+		return KEY_PREFIX + command;
+	}
+
+	public String matchingKey(String command) {
+		return KEY_PREFIX + command;
 	}
 }

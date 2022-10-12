@@ -12,6 +12,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.logger.TapLogger;
+import io.tapdata.entity.utils.DataMap;
 import io.tapdata.entity.utils.FormatUtils;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.modules.api.net.data.Data;
@@ -19,12 +20,14 @@ import io.tapdata.modules.api.net.data.Result;
 import io.tapdata.modules.api.net.entity.SubscribeToken;
 import io.tapdata.modules.api.net.error.NetErrors;
 import io.tapdata.modules.api.net.message.MessageEntity;
-import io.tapdata.modules.api.net.service.CommandExecutionService;
+import io.tapdata.modules.api.net.service.EngineMessageExecutionService;
 import io.tapdata.modules.api.net.service.EventQueueService;
 import io.tapdata.modules.api.net.service.node.connection.NodeConnectionFactory;
 import io.tapdata.modules.api.net.service.node.connection.entity.NodeMessage;
 import io.tapdata.modules.api.proxy.constants.ProxyConstants;
-import io.tapdata.pdk.apis.entity.CommandInfo;
+import io.tapdata.pdk.apis.entity.message.CommandInfo;
+import io.tapdata.pdk.apis.entity.message.EngineMessage;
+import io.tapdata.pdk.apis.entity.message.ServiceCaller;
 import io.tapdata.pdk.core.api.PDKIntegration;
 import io.tapdata.pdk.core.utils.CommonUtils;
 //import io.tapdata.pdk.core.utils.JWTUtils;
@@ -35,6 +38,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.bson.types.ObjectId;
+import org.jetbrains.annotations.NotNull;
 import org.springframework.web.bind.annotation.*;
 
 import javax.servlet.http.HttpServletRequest;
@@ -194,54 +198,14 @@ public class ProxyController extends BaseController {
     public void command(@RequestBody CommandInfo commandInfo, HttpServletRequest request, HttpServletResponse response) {
         if(commandInfo == null)
             throw new BizException("commandInfo is illegal");
-
+        UserDetail userDetail = getLoginUser();
         Locale locale = WebUtils.getLocale(request);
         commandInfo.setId(UUID.randomUUID().toString().replace("-", ""));
         if(locale != null)
             commandInfo.setLocale(locale.toString());
-        CommandExecutionService commandExecutionService = InstanceFactory.instance(CommandExecutionService.class);
-        if(commandExecutionService == null) {
-            throw new BizException("commandExecutionService is null");
-        }
-        asyncContextManager.registerAsyncJob(commandInfo.getId(), request, (result, error) -> {
-            String responseStr;
-            if(error != null) {
-                int code = NetErrors.UNKNOWN_ERROR;
-                if(error instanceof CoreException) {
-                    CoreException coreException = (CoreException) error;
-                    code = coreException.getCode();
-                }
-                responseStr =
-                                "           {\n" +
-                                "                \"reqId\": \"" + UUID.randomUUID() + "\",\n" +
-                                "                \"ts\": " + System.currentTimeMillis() + ",\n" +
-                                "                \"code\": \"" + code + "\",\n" +
-                                "                \"message\": \"" + error.getMessage() + "\"\n" +
-                                "            }";
-            } else {
-                responseStr =
-                                "           {\n" +
-                                "                \"reqId\": \"" + UUID.randomUUID() + "\",\n" +
-                                "                \"ts\": " + System.currentTimeMillis() + ",\n" +
-                                "                \"data\": " + (result != null ? toJson(result) : "{}") + ",\n" +
-                                "                \"code\": \"ok\"\n" +
-                                "            }";
-            }
+//        configContext(commandInfo, userDetail);
+        executeEngineMessage(commandInfo, request, response);
 
-            try {
-                response.setContentType("application/json");
-                response.getOutputStream().write(responseStr.getBytes(StandardCharsets.UTF_8));
-            } catch (IOException e) {
-                response.sendError(500, e.getMessage());
-            }
-        });
-        try {
-            commandExecutionService.call(commandInfo, (result, throwable) -> {
-                asyncContextManager.applyAsyncJobResult(commandInfo.getId(), result, throwable);
-            });
-        } catch(Throwable throwable) {
-            asyncContextManager.applyAsyncJobResult(commandInfo.getId(), null, throwable);
-        }
 //        if(service == null || subscribeId == null) {
 //            throw new BizException("Illegal arguments for subscribeId {}, subscribeId {}", service, subscribeId);
 //        }
@@ -451,5 +415,91 @@ public class ProxyController extends BaseController {
         //exclude TapConnectorManager and PDKInvocationMonitor
         //^((?!TapConnectorManager|PDKInvocationMonitor).)*$
         response.getOutputStream().write(PDKIntegration.outputMemoryFetchers(keyRegex, level).getBytes(StandardCharsets.UTF_8));
+    }
+
+    @Operation(summary = "External callback url")
+    @PostMapping("call")
+    public void call(@RequestBody ServiceCaller serviceCaller, HttpServletRequest request, HttpServletResponse response) {
+        if(serviceCaller == null)
+            throw new BizException("serviceCaller is illegal");
+        if(serviceCaller.getClassName() == null)
+            throw new BizException("Missing className");
+        if(serviceCaller.getMethod() == null)
+            throw new BizException("Missing method");
+
+        UserDetail userDetail = getLoginUser();
+//        Locale locale = WebUtils.getLocale(request);
+        serviceCaller.setId(UUID.randomUUID().toString().replace("-", ""));
+        serviceCaller.setReturnClass(Object.class.getName());
+        Object[] args = serviceCaller.getArgs();
+        DataMap context = DataMap.create().kv("userId", userDetail.getUserId()).kv("customerId", userDetail.getCustomerId());
+        if(args == null) {
+            serviceCaller.setArgs(new Object[]{context});
+        } else {
+            Object[] newArgs = new Object[args.length + 1];
+            System.arraycopy(args, 0, newArgs, 0, args.length);
+            newArgs[args.length] = context;
+            serviceCaller.setArgs(newArgs);
+        }
+
+//        if(locale != null)
+//            serviceCaller.setLocale(locale.toString());
+        executeEngineMessage(serviceCaller, request, response);
+    }
+
+    private void executeEngineMessage(EngineMessage engineMessage, HttpServletRequest request, HttpServletResponse response) {
+        EngineMessageExecutionService engineMessageExecutionService = getEngineMessageExecutionService();
+        registerAsyncJob(engineMessage.getId(), request, response);
+        try {
+            engineMessageExecutionService.call(engineMessage, (result, throwable) -> {
+                asyncContextManager.applyAsyncJobResult(engineMessage.getId(), result, throwable);
+            });
+        } catch(Throwable throwable) {
+            asyncContextManager.applyAsyncJobResult(engineMessage.getId(), null, throwable);
+        }
+    }
+
+    private void registerAsyncJob(String id, HttpServletRequest request, HttpServletResponse response) {
+        asyncContextManager.registerAsyncJob(id, request, (result, error) -> {
+            String responseStr;
+            if(error != null) {
+                int code = NetErrors.UNKNOWN_ERROR;
+                if(error instanceof CoreException) {
+                    CoreException coreException = (CoreException) error;
+                    code = coreException.getCode();
+                }
+                responseStr =
+                        "           {\n" +
+                                "                \"reqId\": \"" + UUID.randomUUID() + "\",\n" +
+                                "                \"ts\": " + System.currentTimeMillis() + ",\n" +
+                                "                \"code\": \"" + code + "\",\n" +
+                                "                \"message\": \"" + error.getMessage() + "\"\n" +
+                                "            }";
+            } else {
+                responseStr =
+                        "           {\n" +
+                                "                \"reqId\": \"" + UUID.randomUUID() + "\",\n" +
+                                "                \"ts\": " + System.currentTimeMillis() + ",\n" +
+                                "                \"data\": " + (result != null ? toJson(result) : "{}") + ",\n" +
+                                "                \"code\": \"ok\"\n" +
+                                "            }";
+            }
+
+            try {
+                response.setContentType("application/json");
+                response.getOutputStream().write(responseStr.getBytes(StandardCharsets.UTF_8));
+            } catch (IOException e) {
+                response.sendError(500, e.getMessage());
+            }
+        });
+    }
+
+    @NotNull
+    private EngineMessageExecutionService getEngineMessageExecutionService() {
+        EngineMessageExecutionService engineMessageExecutionService = InstanceFactory.instance(EngineMessageExecutionService.class);
+        if(engineMessageExecutionService == null) {
+            throw new BizException("commandExecutionService is null");
+        }
+        return engineMessageExecutionService;
     }
 }
