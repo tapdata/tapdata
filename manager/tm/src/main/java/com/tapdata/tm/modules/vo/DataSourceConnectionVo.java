@@ -62,6 +62,7 @@ public class DataSourceConnectionVo extends DsBaseDto {
     private Boolean ssl;
     private String fill;
     private String table_filter;
+    private String tableExcludeFilter;
     private String auth_db;
     private String project;
 

@@ -97,7 +97,7 @@ public class TableMonitor implements Monitor<TableMonitor.TableResult> {
 						break;
 					}
 				}
-				LoadSchemaRunner.TableFilter tableFilter = LoadSchemaRunner.TableFilter.create(connections.getTable_filter());
+				LoadSchemaRunner.TableFilter tableFilter = LoadSchemaRunner.TableFilter.create(connections.getTable_filter(), connections.getTableExcludeFilter());
 				List<String> tapTableNames = new ArrayList<>(tapTableMap.keySet());
 				tapTableNames = tapTableNames.stream().filter(name -> !removeTables.contains(name)).collect(Collectors.toList());
 				GetTableNamesFunction getTableNamesFunction = connectorNode.getConnectorFunctions().getGetTableNamesFunction();
