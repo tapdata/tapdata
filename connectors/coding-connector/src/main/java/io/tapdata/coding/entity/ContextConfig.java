@@ -1,6 +1,7 @@
 package io.tapdata.coding.entity;
 
 import io.tapdata.coding.enums.IssueType;
+import io.tapdata.coding.service.schema.SchemaStart;
 import io.tapdata.coding.utils.tool.Checker;
 
 import java.util.*;
