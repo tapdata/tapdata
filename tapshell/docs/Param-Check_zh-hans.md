@@ -91,6 +91,35 @@ d = cli.DataSource("mongodb", name="jerry_test")
 d.set({"name": "mongo_custom"})  # 通过set接口来设置通用参数
 ```
 
+例如修改连接器类型，我们可以看到`DATASOURCE_CONFIG`结构体存在如下设置: 
+```python
+DATASOURCE_CONFIG = {
+    ...
+    "connection_type": {
+        "type": str, "default": "source_and_target", "require": True,
+        "option": ["source", "target", "source_and_target"],
+        "desc": "This data connection can be used as source and target at the same time",
+    },
+    ...
+}
+```
+
+其中我们可以看到`connection_type`字段的option值可以为`source/target/source_and_target`对应三种连接器类型，所以我们可以这样来修改值：
+```python
+from tapdata_cli import cli
+
+d = cli.DataSource("mongodb", name="jerry_test")
+d.set({"connection_type": "target"})  # 将数据源类型修改为target
+```
+
+除此之外，数据源类型还可以在数据源初始化的时候直接赋值，因为DataSource类提供了type的默认参数（source_and_target）:
+```python
+from tapdata_cli import cli
+
+d = cli.DataSource("mongodb", name="jerry_test", type="target")
+d.save()
+```
+
 内置的set、save、delete等接口会和上述自定义接口冲突，这是需要注意的地方。
 
 ## Python-Sdk接口变动说明
