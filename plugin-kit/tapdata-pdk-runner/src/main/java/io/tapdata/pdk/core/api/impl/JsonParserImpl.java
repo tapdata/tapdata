@@ -126,10 +126,7 @@ public class JsonParserImpl implements JsonParser {
 
     @Override
     public <T> T fromJson(String json, Class<T> clazz, List<AbstractClassDetector> abstractClassDetectors) {
-        if (null == abstractClassDetectors){
-            return JSON.parseObject(json, clazz, Feature.OrderedField, /*Feature.UseNativeJavaObject, */Feature.DisableCircularReferenceDetect);
-        }
-        if (!abstractClassDetectors.isEmpty() ) {
+        if (null != abstractClassDetectors && !abstractClassDetectors.isEmpty() ) {
             ( null == parserConfig ? parserConfig = new ParserConfig() : parserConfig)
                     .putDeserializer(TapType.class, new AbstractResultDeserializer(abstractClassDetectors));
         }
