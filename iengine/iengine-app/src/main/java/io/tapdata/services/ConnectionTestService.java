@@ -2,6 +2,7 @@ package io.tapdata.services;
 
 import com.tapdata.entity.Connections;
 import io.tapdata.entity.schema.TapTable;
+import io.tapdata.entity.utils.DataMap;
 import io.tapdata.service.skeleton.annotation.RemoteService;
 import io.tapdata.websocket.handler.LoadSchemaEventHandler;
 
@@ -13,12 +14,14 @@ import static io.tapdata.entity.simplify.TapSimplify.*;
 
 @RemoteService
 public class ConnectionTestService {
-	public Map<String, Object> connectionTest(Connections connections) {
-		return map(entry("1", 1));
+	public Map<String, Object> connectionTest(Connections connections, DataMap context) {
+		return context.kv("1", 123);
 	}
 
-	public TapTable testTable(TapTable tapTable) {
-		return tapTable;
+	public List<TapTable> testTable(TapTable tapTable, TapTable tapTable1, String comment) {
+		if(tapTable1 != null)
+			tapTable1.setComment(comment);
+		return list(tapTable, tapTable1);
 	}
 
 	public List<LoadSchemaEventHandler.LoadSchemaEvent> getLoadSchemaEvents() {

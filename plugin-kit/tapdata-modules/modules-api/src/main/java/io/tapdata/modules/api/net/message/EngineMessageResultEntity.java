@@ -19,7 +19,7 @@ import java.util.Objects;
 import static io.tapdata.entity.simplify.TapSimplify.toJson;
 
 @Implementation(value = TapEntity.class, type = "EngineMessageResultEntity")
-public class EngineMessageResultEntity implements TapEntity {
+public class EngineMessageResultEntity extends TapEntityEx {
 	private static final String TAG = EngineMessageResultEntity.class.getSimpleName();
 	private String message;
 	public EngineMessageResultEntity message(String message) {

@@ -5,6 +5,7 @@ import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.entity.utils.io.DataInputStreamEx;
 import io.tapdata.entity.utils.io.DataOutputStreamEx;
 import io.tapdata.modules.api.net.message.TapEntity;
+import io.tapdata.modules.api.net.message.TapEntityEx;
 import io.tapdata.modules.api.service.ArgumentsSerializer;
 import io.tapdata.pdk.apis.entity.message.ServiceCaller;
 
@@ -14,7 +15,7 @@ import java.io.OutputStream;
 import java.util.Objects;
 
 @Implementation(value = TapEntity.class, type = "ServiceCallerReceived")
-public class ServiceCallerReceived implements TapEntity {
+public class ServiceCallerReceived extends TapEntityEx {
 	private ServiceCaller serviceCaller;
 	public ServiceCallerReceived serviceCaller(ServiceCaller serviceCaller) {
 		this.serviceCaller = serviceCaller;

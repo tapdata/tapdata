@@ -12,6 +12,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.logger.TapLogger;
+import io.tapdata.entity.utils.DataMap;
 import io.tapdata.entity.utils.FormatUtils;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.modules.api.net.data.Data;
@@ -202,6 +203,7 @@ public class ProxyController extends BaseController {
         commandInfo.setId(UUID.randomUUID().toString().replace("-", ""));
         if(locale != null)
             commandInfo.setLocale(locale.toString());
+//        configContext(commandInfo, userDetail);
         executeEngineMessage(commandInfo, request, response);
 
 //        if(service == null || subscribeId == null) {
@@ -417,7 +419,7 @@ public class ProxyController extends BaseController {
 
     @Operation(summary = "External callback url")
     @PostMapping("call")
-    public void methodRequest(@RequestBody ServiceCaller serviceCaller, HttpServletRequest request, HttpServletResponse response) {
+    public void call(@RequestBody ServiceCaller serviceCaller, HttpServletRequest request, HttpServletResponse response) {
         if(serviceCaller == null)
             throw new BizException("serviceCaller is illegal");
         if(serviceCaller.getClassName() == null)
@@ -429,6 +431,17 @@ public class ProxyController extends BaseController {
 //        Locale locale = WebUtils.getLocale(request);
         serviceCaller.setId(UUID.randomUUID().toString().replace("-", ""));
         serviceCaller.setReturnClass(Object.class.getName());
+        Object[] args = serviceCaller.getArgs();
+        DataMap context = DataMap.create().kv("userId", userDetail.getUserId()).kv("customerId", userDetail.getCustomerId());
+        if(args == null) {
+            serviceCaller.setArgs(new Object[]{context});
+        } else {
+            Object[] newArgs = new Object[args.length + 1];
+            System.arraycopy(args, 0, newArgs, 0, args.length);
+            newArgs[args.length] = context;
+            serviceCaller.setArgs(newArgs);
+        }
+
 //        if(locale != null)
 //            serviceCaller.setLocale(locale.toString());
         executeEngineMessage(serviceCaller, request, response);

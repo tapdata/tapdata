@@ -94,7 +94,22 @@ public class ProxySubscriptionManager implements MemoryFetcher {
 
 	private void handleServiceCallerReceived(String contentType, OutgoingData outgoingData) {
 		ServiceCallerReceived serviceCallerReceived = (ServiceCallerReceived) outgoingData.getMessage();
-		if(serviceCallerReceived == null || serviceCallerReceived.getServiceCaller() == null) {
+		Throwable parseError = serviceCallerReceived.getParseError();
+		if(parseError != null) {
+			ServiceCaller serviceCaller = serviceCallerReceived.getServiceCaller();
+			String id = serviceCaller != null ? serviceCaller.getId() : null;
+			EngineMessageResultEntity engineMessageResultEntity = new EngineMessageResultEntity()
+					.id(id)
+					.code(NetErrors.SERVICE_CALLER_PARSE_FAILED)
+					.message(parseError.getMessage());
+			imClient.sendData(new IncomingData().message(engineMessageResultEntity))
+					.exceptionally(throwable -> {
+						TapLogger.error(TAG, "Send EngineMessageResultEntity(SERVICE_CALLER_PARSE_FAILED) failed, {} engineMessageResultEntity {}", throwable.getMessage(), engineMessageResultEntity);
+						return null;
+					});
+			return;
+		}
+		if(serviceCallerReceived.getServiceCaller() == null) {
 			EngineMessageResultEntity engineMessageResultEntity = new EngineMessageResultEntity()
 					.code(NetErrors.MISSING_SERVICE_CALLER)
 					.message("Missing service caller");
@@ -154,7 +169,22 @@ public class ProxySubscriptionManager implements MemoryFetcher {
 
 	private void handleCommandReceived(String contentType, OutgoingData outgoingData) {
 		CommandReceived commandReceived = (CommandReceived) outgoingData.getMessage();
-		if(commandReceived == null || commandReceived.getCommandInfo() == null) {
+		Throwable parseError = commandReceived.getParseError();
+		if(parseError != null) {
+			CommandInfo commandInfo = commandReceived.getCommandInfo();
+			String id = commandInfo != null ? commandInfo.getId() : null;
+			EngineMessageResultEntity engineMessageResultEntity = new EngineMessageResultEntity()
+					.id(id)
+					.code(NetErrors.COMMAND_INFO_PARSE_FAILED)
+					.message(parseError.getMessage());
+			imClient.sendData(new IncomingData().message(engineMessageResultEntity))
+					.exceptionally(throwable -> {
+						TapLogger.error(TAG, "Send EngineMessageResultEntity(COMMAND_INFO_PARSE_FAILED) failed, {} engineMessageResultEntity {}", throwable.getMessage(), engineMessageResultEntity);
+						return null;
+					});
+			return;
+		}
+		if(commandReceived.getCommandInfo() == null) {
 			EngineMessageResultEntity engineMessageResultEntity = new EngineMessageResultEntity()
 					.code(NetErrors.MISSING_COMMAND_INFO)
 					.message("Missing commandInfo");
