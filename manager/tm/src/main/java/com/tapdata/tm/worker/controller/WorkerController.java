@@ -350,7 +350,7 @@ public class WorkerController extends BaseController {
      * @return key:status  value: online在线 offline离线 deleted已删除
      */
     @Operation(summary = "校验任务所使用的agent是否可以强制停止")
-    @GetMapping("/availableAgent")
+    @GetMapping("/available/taskUsedAgent")
     public ResponseMessage<Map<String, String>> checkTaskUsedAgent(@RequestParam("taskId") String taskId) {
         String status = workerService.checkTaskUsedAgent(taskId, getLoginUser());
         HashMap<String, String> result = new HashMap<>();
