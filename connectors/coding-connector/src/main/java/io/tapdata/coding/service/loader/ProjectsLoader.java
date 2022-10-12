@@ -115,7 +115,7 @@ public class ProjectsLoader extends CodingStarter implements CodingLoader<Projec
         }
         Map<String,Object> data = (Map<String,Object>)dataObj;
         Object totalCountObj = data.get("TotalCount");
-        return null !=  totalCountObj ? (Long) totalCountObj : 0;
+        return null !=  totalCountObj ? (Integer) totalCountObj : 0;
     }
 
     private void read(Object offset, int batchCount, BiConsumer<List<TapEvent>, Object> consumer) {

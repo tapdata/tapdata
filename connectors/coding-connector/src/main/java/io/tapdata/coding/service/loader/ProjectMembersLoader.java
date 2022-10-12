@@ -95,16 +95,16 @@ public class ProjectMembersLoader extends CodingStarter implements CodingLoader<
         Map<String,Object> resultMap = this.codingHttp((ProjectMemberParam)param).post();
         Object response = resultMap.get("Response");
         if (null == response){
-            return 0;
+            return 0L;
         }
         Map<String,Object> responseMap = (Map<String,Object>)response;
         Object dataObj = responseMap.get("Data");
         if (null == dataObj){
-            return 0;
+            return 0L;
         }
         Map<String,Object> data = (Map<String,Object>)dataObj;
         Object totalCountObj = data.get("TotalCount");
-        return null !=  totalCountObj ? (Long) totalCountObj : 0;
+        return null !=  totalCountObj ? (Integer)(totalCountObj)  : 0L;
     }
 
     private void read(Object offsetState, int recordSize,  BiConsumer<List<TapEvent>, Object> consumer){

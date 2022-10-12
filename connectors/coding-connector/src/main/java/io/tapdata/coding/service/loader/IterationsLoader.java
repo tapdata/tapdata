@@ -242,7 +242,7 @@ public class IterationsLoader extends CodingStarter implements CodingLoader<Iter
         }
         Map<String,Object> data = (Map<String,Object>)dataObj;
         Object totalRowObj = data.get("TotalRow");
-        return null !=  totalRowObj ? (Long) totalRowObj : 0;
+        return null !=  totalRowObj ? (Integer) totalRowObj : 0;
     }
 
     @Override
