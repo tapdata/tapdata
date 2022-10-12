@@ -228,12 +228,12 @@ public class PDKInvocationMonitor implements MemoryFetcher {
     }
 
     @Override
-    public DataMap memory(List<String> mapKeys, String memoryLevel) {
-        DataMap dataMap = DataMap.create();
+    public DataMap memory(String keyRegex, String memoryLevel) {
+        DataMap dataMap = DataMap.create().keyRegex(keyRegex)/*.prefix(this.getClass().getSimpleName())*/;
         for(Map.Entry<PDKMethod, InvocationCollector> entry : methodInvocationCollectorMap.entrySet()) {
-            if(mapKeys != null && !mapKeys.isEmpty() && !mapKeys.contains(entry.getKey().name()))
+            if(keyRegex != null && !keyRegex.isEmpty() && !keyRegex.contains(entry.getKey().name()))
                 continue;
-            dataMap.kv(entry.getKey().name(), entry.getValue().memory(mapKeys, memoryLevel));
+            dataMap.kv(entry.getKey().name(), entry.getValue().memory(keyRegex, memoryLevel));
         }
         return dataMap;
     }

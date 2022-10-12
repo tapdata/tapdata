@@ -2,7 +2,6 @@ package com.tapdata.tm.task.service.impl.dagcheckstrategy;
 
 import cn.hutool.core.date.DateUtil;
 import com.tapdata.tm.commons.dag.process.MigrateFieldRenameProcessorNode;
-import com.tapdata.tm.commons.dag.process.TableRenameProcessNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.message.constant.Level;
@@ -27,7 +26,6 @@ public class FieldEditStrategyImpl implements DagLogStrategy {
     @Override
     public List<TaskDagCheckLog> getLogs(TaskDto taskDto, UserDetail userDetail) {
         ObjectId taskId = taskDto.getId();
-        String taskName = taskDto.getName();
         String current = DateUtil.now();
         Date now = new Date();
 
@@ -44,10 +42,10 @@ public class FieldEditStrategyImpl implements DagLogStrategy {
         collect.forEach(node -> {
 
             String template;
-            String grade;
+            Level grade;
 
             template = templateEnum.getInfoTemplate();
-            grade = Level.INFO.getValue();
+            grade = Level.INFO;
 
             String content = MessageFormat.format(template, current, node.getName());
 

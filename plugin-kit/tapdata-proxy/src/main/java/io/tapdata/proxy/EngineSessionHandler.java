@@ -6,7 +6,6 @@ import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.memory.MemoryFetcher;
 import io.tapdata.entity.simplify.pretty.TypeHandlers;
 import io.tapdata.entity.utils.DataMap;
-import io.tapdata.entity.utils.ParagraphFormatter;
 import io.tapdata.modules.api.net.data.*;
 import io.tapdata.modules.api.net.message.CommandResultEntity;
 import io.tapdata.pdk.apis.entity.CommandInfo;
@@ -19,11 +18,7 @@ import io.tapdata.modules.api.proxy.data.CommandReceived;
 import io.tapdata.modules.api.proxy.data.FetchNewData;
 import io.tapdata.modules.api.proxy.data.FetchNewDataResult;
 import io.tapdata.modules.api.proxy.data.NodeSubscribeInfo;
-import io.tapdata.pdk.apis.functions.connection.CommandCallbackFunction;
-import io.tapdata.pdk.core.api.ConnectionNode;
-import io.tapdata.pdk.core.api.PDKIntegration;
 import io.tapdata.pdk.core.executor.ExecutorsManager;
-import io.tapdata.pdk.core.monitor.PDKInvocationMonitor;
 import io.tapdata.pdk.core.utils.CommonUtils;
 import io.tapdata.wsserver.channels.annotation.GatewaySession;
 import io.tapdata.wsserver.channels.gateway.GatewaySessionHandler;
@@ -33,7 +28,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 
 
@@ -56,6 +51,8 @@ public class EngineSessionHandler extends GatewaySessionHandler {
 		typeHandlers.register(FetchNewData.class, this::handleFetchNewData);
 		typeHandlers.register(CommandResultEntity.class, this::handleCommandResultEntity);
 	}
+
+	private AtomicBoolean connected = new AtomicBoolean(false);
 
 	private Result handleCommandResultEntity(CommandResultEntity commandResultEntity) {
 		if(commandResultEntity == null) {
@@ -143,8 +140,8 @@ public class EngineSessionHandler extends GatewaySessionHandler {
 		}
 
 		@Override
-		public DataMap memory(List<String> mapKeys, String memoryLevel) {
-			return DataMap.create()
+		public DataMap memory(String keyRegex, String memoryLevel) {
+			return DataMap.create().keyRegex(keyRegex)/*.prefix(this.getClass().getSimpleName())*/
 					.kv("scheduledFuture", scheduledFuture != null ? scheduledFuture.toString() : null)
 					.kv("commandInfo", commandInfo);
 		}
@@ -200,11 +197,17 @@ public class EngineSessionHandler extends GatewaySessionHandler {
 	@Override
 	public void onChannelConnected() {
 		TapLogger.debug(TAG, "onChannelConnected");
+		connected.set(true);
 	}
 
 	@Override
 	public void onChannelDisconnected() {
 		TapLogger.debug(TAG, "onChannelDisconnected");
+		connected.set(false);
+		releaseSubscribeIds();
+	}
+
+	private void releaseSubscribeIds() {
 		subscribeMap.unbindSubscribeIds(this);
 		cachedSubscribedIds.clear();
 	}
@@ -212,6 +215,9 @@ public class EngineSessionHandler extends GatewaySessionHandler {
 	@Override
 	public void onSessionDestroyed() {
 		TapLogger.debug(TAG, "onSessionDestroyed");
+		if(connected.compareAndSet(true, false)) {
+			releaseSubscribeIds();
+		}
 	}
 
 	@Override
@@ -226,20 +232,20 @@ public class EngineSessionHandler extends GatewaySessionHandler {
 		return null;
 	}
 
-	public DataMap memory(List<String> mapKeys, String memoryLevel) {
-		DataMap dataMap = DataMap.create()
+	public DataMap memory(String keyRegex, String memoryLevel) {
+		DataMap dataMap = DataMap.create().keyRegex(keyRegex)/*.prefix(this.getClass().getSimpleName())*/
 				.kv("touch", new Date(getTouch()))
 				.kv("token", getToken())
 				.kv("id", getId())
 				.kv("userChannel", getUserChannel())
 				.kv("isConnected", isChannelActive())
-				.kv("subscribeMap", subscribeMap.memory(mapKeys, memoryLevel))
+				.kv("subscribeMap", subscribeMap.memory(keyRegex, memoryLevel))
 				.kv("cachedSubscribedIds", cachedSubscribedIds)
 				;
-		DataMap commandIdExecutorMap = DataMap.create();
+		DataMap commandIdExecutorMap = DataMap.create().keyRegex(keyRegex)/*.prefix(this.getClass().getSimpleName())*/;
 		dataMap.kv("commandIdExecutorMap", commandIdExecutorMap);
 		for(Map.Entry<String, CommandInfoExecutor> entry : this.commandIdExecutorMap.entrySet()) {
-			commandIdExecutorMap.kv(entry.getKey(), entry.getValue().memory(mapKeys, memoryLevel));
+			commandIdExecutorMap.kv(entry.getKey(), entry.getValue().memory(keyRegex, memoryLevel));
 		}
 		return dataMap;
 	}

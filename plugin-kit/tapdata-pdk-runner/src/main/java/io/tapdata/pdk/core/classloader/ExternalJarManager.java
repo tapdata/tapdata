@@ -4,7 +4,6 @@ import com.google.common.collect.Lists;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.memory.MemoryFetcher;
 import io.tapdata.entity.utils.DataMap;
-import io.tapdata.entity.utils.ParagraphFormatter;
 import io.tapdata.pdk.apis.annotations.TapConnectorClass;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.pdk.core.error.PDKRunnerErrorCodes;
@@ -311,8 +310,8 @@ public class ExternalJarManager implements MemoryFetcher {
     }
 
     @Override
-    public DataMap memory(List<String> mapKeys, String memoryLevel) {
-        return DataMap.create()
+    public DataMap memory(String keyRegex, String memoryLevel) {
+        return DataMap.create().keyRegex(keyRegex)/*.prefix(this.getClass().getSimpleName())*/
                 .kv("Path", path)
                 .kv("JarFiles", jarFiles != null ? Arrays.toString(jarFiles.toArray()) : null)
                 .kv("LoadNewJarAtRuntime", loadNewJarAtRuntime)

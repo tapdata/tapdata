@@ -127,10 +127,10 @@ public class MemoryManager {
     public String output() {
         return output(null, null);
     }
-    public String output(List<String> mapKeys) {
-        return output(null);
+    public String output(String keyRegex) {
+        return output(keyRegex, null);
     }
-    public String output(List<String> mapKeys, String mapType) {
-        return new CommandWorker().keyMemoryFetcherMap(keyMemoryFetcherMap).output(mapKeys, mapType);
+    public String output(String keyRegex, String mapType) {
+        return new CommandWorker().keyMemoryFetcherMap(keyMemoryFetcherMap).output(keyRegex, mapType);
     }
 }

@@ -2,14 +2,15 @@ package com.tapdata.tm.task.entity;
 
 
 import com.tapdata.tm.base.entity.BaseEntity;
+import com.tapdata.tm.message.constant.Level;
 import lombok.AllArgsConstructor;
-import lombok.Getter;
+import lombok.Data;
+import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
-import lombok.Setter;
 import org.springframework.data.mongodb.core.mapping.Document;
 
-@Getter
-@Setter
+@Data
+@EqualsAndHashCode(callSuper = true)
 @AllArgsConstructor
 @NoArgsConstructor
 @Document("TaskDagCheckLog")
@@ -18,5 +19,5 @@ public class TaskDagCheckLog extends BaseEntity {
     private String nodeId;
     private String checkType;
     private String log;
-    private String grade;
+    private Level grade;
 }

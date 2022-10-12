@@ -1,6 +1,7 @@
 package io.tapdata.pdk.apis.entity;
 
 import java.util.Date;
+import java.util.HashMap;
 import java.util.Map;
 
 public class CommandResult {
