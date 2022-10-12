@@ -14,7 +14,7 @@ import static io.tapdata.entity.simplify.TapSimplify.*;
 
 @RemoteService
 public class ConnectionTestService {
-	public Map<String, Object> connectionTest(Connections connections, DataMap context) {
+	public Map<String, Object> connectionTest(Connections connections, Boolean needUpdateSchema, Boolean editMode, DataMap context) {
 		return context.kv("1", 123);
 	}
 

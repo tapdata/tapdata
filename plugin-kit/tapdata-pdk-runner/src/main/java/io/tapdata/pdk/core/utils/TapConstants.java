@@ -24,18 +24,4 @@ public class TapConstants {
             JsonParser.AbstractClassDetector.create().key("type").value(TapType.TYPE_STRING).deserializeClass(TapString.class),
             JsonParser.AbstractClassDetector.create().key("type").value(TapType.TYPE_DATE).deserializeClass(TapDate.class)
     );
-
-    public final static ParserConfig tapdataParserConfig = new ParserConfig()/* {
-        @Override
-        public ObjectDeserializer getDeserializer(Type type) {
-            if (type == TapType.class) {
-                return new AbstractResultDeserializer(abstractClassDetectors);
-            }
-            return super.getDeserializer(type);
-        }
-    }*/;
-    static {
-        tapdataParserConfig.putDeserializer(TapType.class, new AbstractResultDeserializer(abstractClassDetectors));
-    }
-
 }

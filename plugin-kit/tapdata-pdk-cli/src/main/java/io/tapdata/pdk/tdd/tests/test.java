@@ -43,8 +43,21 @@ import static io.tapdata.entity.simplify.TapSimplify.*;
 
 public class test {
 	public static void main(String... args) throws Throwable {
+		JsonParser jsonParser = InstanceFactory.instance(JsonParser.class);
+
+		String json1 = "{\"id\":\"adfs\",\"nameFieldMap\":{\"a\":{\"name\":\"a\",\"dataType\":\"varchar\"}}}";
+		long time = System.currentTimeMillis();
+		for(int i = 0; i< 1000000; i++) {
+			Object value1 = jsonParser.fromJson(json1, TapTable.class);
+		}
+		System.out.println("2takes " + (System.currentTimeMillis() - time));
+
+
 		String json = "{\"id\":\"adfs\",\"nameFieldMap\":{\"a\":{\"name\":\"a\",\"dataType\":\"varchar\",\"tapType\":{\"type\":8,\"bit\":32}}}}";
-		Object value = JSON.parseObject(json, TapTable.class, TapConstants.tapdataParserConfig, Feature.DisableCircularReferenceDetect);//parseObject(jsonString, parameterTypes[i], TapConstants.tapdataParserConfig);
-		Object value1 = InstanceFactory.instance(JsonParser.class).fromJson(json, TapTable.class, TapConstants.abstractClassDetectors);
+		time = System.currentTimeMillis();
+		for(int i = 0; i< 1000000; i++) {
+			Object value1 = jsonParser.fromJson(json, TapTable.class);
+		}
+		System.out.println("3takes " + (System.currentTimeMillis() - time));
     }
 }

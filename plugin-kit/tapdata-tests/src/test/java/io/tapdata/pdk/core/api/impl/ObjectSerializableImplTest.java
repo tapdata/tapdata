@@ -8,7 +8,6 @@ import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.entity.utils.BeanUtils;
 import io.tapdata.entity.utils.InstanceFactory;
 import io.tapdata.entity.utils.ObjectSerializable;
-import io.tapdata.pdk.core.vo.TapTableView;
 import org.bson.BsonTimestamp;
 import org.bson.Document;
 import org.bson.types.ObjectId;
