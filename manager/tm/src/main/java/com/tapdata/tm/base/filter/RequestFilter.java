@@ -2,6 +2,7 @@ package com.tapdata.tm.base.filter;
 
 import cn.hutool.extra.servlet.ServletUtil;
 import com.tapdata.tm.base.dto.ResponseMessage;
+import com.tapdata.tm.utils.Lists;
 import com.tapdata.tm.utils.ThreadLocalUtils;
 import com.tapdata.tm.utils.WebUtils;
 import lombok.extern.slf4j.Slf4j;
@@ -39,7 +40,7 @@ public class RequestFilter implements Filter {
 		HttpServletResponse httpServletResponse = new HttpServletResponseWrapper((HttpServletResponse) servletResponse);
 
 		String requestURI = httpServletRequest.getRequestURI();
-		if (requestURI.contains("api/pdk")) {
+		if (Lists.of("/api/pdk/jar", "/api/pdk/icon", "/api/pdk/doc").contains(requestURI)) {
 			filterChain.doFilter(servletRequest, servletResponse);
 			return;
 		}
