@@ -1,16 +1,17 @@
 package com.tapdata.tm.alarm.entity;
 
-import com.tapdata.tm.commons.task.constant.AlarmKeyEnum;
 import com.tapdata.tm.alarm.constant.AlarmComponentEnum;
 import com.tapdata.tm.alarm.constant.AlarmStatusEnum;
 import com.tapdata.tm.alarm.constant.AlarmTypeEnum;
 import com.tapdata.tm.base.entity.BaseEntity;
+import com.tapdata.tm.commons.task.constant.AlarmKeyEnum;
 import com.tapdata.tm.message.constant.Level;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.*;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import java.util.Date;
+import java.util.Map;
 
 /**
  * @author jiuyetx
@@ -62,7 +63,7 @@ public class AlarmInfo extends BaseEntity {
     @Schema(description = "告警被谁关闭")
     private String closeBy;
 
-
+    private Map<String, Object> param;
 
     public Integer getTally() {
         return tally == null ? 0 : tally;
