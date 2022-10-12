@@ -185,10 +185,13 @@ public class TapdataTaskScheduler {
 		if (subTaskDtoTaskClient == null || subTaskDtoTaskClient.getTask() == null || StringUtils.isBlank(subTaskDtoTaskClient.getTask().getId().toHexString())) {
 			return;
 		}
-		final String taskId = subTaskDtoTaskClient.getTask().getId().toHexString();
-		clientMongoOperator.updateById(new Update(), ConnectorConstant.TASK_COLLECTION + "/runError", taskId, TaskDto.class);
-		removeTask(taskId, false);
-		destroyCache(subTaskDtoTaskClient);
+		final boolean stop = subTaskDtoTaskClient.stop();
+		if (stop) {
+			final String taskId = subTaskDtoTaskClient.getTask().getId().toHexString();
+			clientMongoOperator.updateById(new Update(), ConnectorConstant.TASK_COLLECTION + "/runError", taskId, TaskDto.class);
+			removeTask(taskId, false);
+			destroyCache(subTaskDtoTaskClient);
+		}
 	}
 
 	private void removeTask(String taskId, boolean stopAspect) {

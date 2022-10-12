@@ -22,7 +22,7 @@ public interface SchemaStart {
         if (Checker.isEmpty(schemaName)) return null;
         Class clz = null;
         try {
-            clz = Class.forName(SchemaStart.class.getPackage().getName() + "."+schemaName);
+            clz = Class.forName("io.tapdata.coding.service.schema" + "."+schemaName);
             return ((SchemaStart)clz.newInstance());
         } catch (ClassNotFoundException e) {
             e.printStackTrace();
@@ -35,7 +35,7 @@ public interface SchemaStart {
     }
 
     public static List<SchemaStart> getAllSchemas(){
-        Reflections reflections = new Reflections(SchemaStart.class.getPackage().getName());
+        Reflections reflections = new Reflections("io.tapdata.coding.service.schema");//SchemaStart.class.getPackage().getName()
         Set<Class<? extends SchemaStart>> allImplClass = reflections.getSubTypesOf(SchemaStart.class);
         List<SchemaStart> schemaList = new ArrayList<>();
         allImplClass.forEach(schemaClass->{

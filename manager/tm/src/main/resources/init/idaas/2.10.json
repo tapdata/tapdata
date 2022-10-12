@@ -281,5 +281,27 @@
         "sparse": true
       }
     ]
+  },
+  {
+    "dropIndexes": "Message",
+    "index": "userId_1_createTime_1"
+  },
+  {
+    "dropIndexes": "Message",
+    "index": "userId_1_read_1"
+  },
+  {
+    "createIndexes": "Message",
+    "indexes":[
+      {
+        "name" : "user_id_1_msg_1",
+        "key" : {
+          "user_id" : 1,
+          "msg" : 1
+        },
+        "background": true,
+        "sparse": true
+      }
+    ]
   }
 ]

@@ -16,10 +16,7 @@ import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.function.BiConsumer;
 
 import static io.tapdata.coding.enums.TapEventTypes.*;
@@ -138,8 +135,8 @@ public class ProjectMembersLoader extends CodingStarter implements CodingLoader<
                     Integer teamMemberId = (Integer) teamMember.get("Id");
                     Integer teamMemberHash = MapUtil.create().hashCode(teamMember);
                     switch (createOrUpdateEvent(teamMemberId,teamMemberHash)){
-                        case UPDATE_EVENT:events.add(TapSimplify.insertRecordEvent(teamMember, TABLE_NAME).referenceTime(updatedAt));break;
-                        case CREATED_EVENT:events.add(TapSimplify.updateDMLEvent(null,teamMember, TABLE_NAME).referenceTime(updatedAt));break;
+                        case CREATED_EVENT:events.add(TapSimplify.insertRecordEvent(teamMember, TABLE_NAME).referenceTime(updatedAt));break;
+                        case UPDATE_EVENT:events.add(TapSimplify.updateDMLEvent(null,teamMember, TABLE_NAME).referenceTime(updatedAt));break;
                     }
                     //events.add(TapSimplify.insertRecordEvent(stringObjectMap,TABLE_NAME).referenceTime(updatedAt));
                     //((CodingOffset)offsetState).offset().put(TABLE_NAME,updatedAt);
@@ -321,4 +318,34 @@ public class ProjectMembersLoader extends CodingStarter implements CodingLoader<
      *     "hook_id": "17fb4cb3-c679-4fb1-829c-1f02ffe2a815"
      * }
      * */
+
+//    public Map<Integer,Integer> recordHashMap = new HashMap<>();
+//
+//    //用来记录上一轮事件完成后的全部记录的主键
+//    //如果某个记录的主键在这个Set中存在，并且在recordHashMap中存在，那么表示上一轮操作和本论操作都存在这个记录，否则表示这个记录被删除了
+//    public Set<Integer> currentBatchSet = new HashSet<>();
+//    public String createOrUpdateEvent(Integer code, Integer hash){
+//        String event = recordHashMap.containsKey(code) ?
+//                (!hash.equals(recordHashMap.get(code)) ? UPDATE_EVENT : null)
+//                : CREATED_EVENT;
+//        if (Checker.isNotEmpty(event)) {
+//            currentBatchSet.add(code);
+//            recordHashMap.put(code, hash);
+//            return event;
+//        }
+//        return "NOT_EVENT";
+//    }
+//    public List<TapEvent> delEvent(String tableName,String primaryKeyName){
+//        List<TapEvent> events = new ArrayList<>();
+//        recordHashMap.forEach((iterationCode,hash)->{
+//            if (!currentBatchSet.contains(iterationCode)){
+//                events.add(TapSimplify.deleteDMLEvent(
+//                        new HashMap<String,Object>(){{put(primaryKeyName,iterationCode);}}
+//                        ,tableName
+//                ).referenceTime(System.currentTimeMillis()));
+//            }
+//        });
+//        currentBatchSet.clear();
+//        return events;
+//    }
 }

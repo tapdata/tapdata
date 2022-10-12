@@ -11,9 +11,7 @@ import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.function.BiConsumer;
 
 import static io.tapdata.coding.enums.TapEventTypes.CREATED_EVENT;
@@ -81,8 +79,8 @@ public class IssueTypesLoader extends CodingStarter implements CodingLoader<Issu
             Integer issueTypeId = (Integer) issueType.get("Id");
             Integer issueTypeHash = MapUtil.create().hashCode(issueType);
             switch (createOrUpdateEvent(issueTypeId,issueTypeHash)){
-                case UPDATE_EVENT:events.add(TapSimplify.insertRecordEvent(issueType, TABLE_NAME).referenceTime(System.currentTimeMillis()));break;
-                case CREATED_EVENT:events.add(TapSimplify.updateDMLEvent(null,issueType, TABLE_NAME).referenceTime(System.currentTimeMillis()));break;
+                case CREATED_EVENT:events.add(TapSimplify.insertRecordEvent(issueType, TABLE_NAME).referenceTime(System.currentTimeMillis()));break;
+                case UPDATE_EVENT:events.add(TapSimplify.updateDMLEvent(null,issueType, TABLE_NAME).referenceTime(System.currentTimeMillis()));break;
             }
             //events.add(TapSimplify.insertRecordEvent(issueType, TABLE_NAME).referenceTime(System.currentTimeMillis()));
             if (events.size() == batchCount) {
@@ -115,4 +113,5 @@ public class IssueTypesLoader extends CodingStarter implements CodingLoader<Issu
     public List<TapEvent> rawDataCallbackFilterFunction(Map<String, Object> issueEventData) {
         return null;
     }
+
 }

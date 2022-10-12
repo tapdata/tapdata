@@ -467,6 +467,10 @@ public class CodingConnector extends ConnectorBase {
 		return this.batchCountV2(tapConnectorContext, tapTable);
 	}
 	private long batchCountV2(TapConnectorContext tapConnectorContext, TapTable tapTable) throws Throwable {
+		CodingLoader<Param> loader = CodingLoader.loader(tapConnectorContext, tapTable.getId());
+		if (Checker.isNotEmpty(loader)) {
+			return loader.batchCount();
+		}
 		return 0;
 	}
 	private long batchCountV1(TapConnectorContext tapConnectorContext, TapTable tapTable) throws Throwable {
@@ -558,8 +562,9 @@ public class CodingConnector extends ConnectorBase {
 
 	@Override
 	public int tableCount(TapConnectionContext connectionContext) throws Throwable {
-		List<SchemaStart> allSchemas = SchemaStart.getAllSchemas();
-		return allSchemas.size();
+		return 3;
+//		List<SchemaStart> allSchemas = SchemaStart.getAllSchemas();
+//		return allSchemas.size();
 	}
 
 	/**

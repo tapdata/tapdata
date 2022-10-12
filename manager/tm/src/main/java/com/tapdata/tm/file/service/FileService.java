@@ -8,13 +8,16 @@ import com.mongodb.client.gridfs.GridFSBuckets;
 import com.mongodb.client.gridfs.GridFSDownloadStream;
 import com.mongodb.client.gridfs.GridFSFindIterable;
 import com.mongodb.client.gridfs.model.GridFSFile;
+import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.utils.FunctionUtils;
 import com.tapdata.tm.utils.GZIPUtil;
+import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.compress.utils.IOUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.bson.Document;
 import org.bson.types.ObjectId;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.mongodb.MongoDatabaseFactory;
@@ -27,10 +30,7 @@ import org.springframework.stereotype.Service;
 
 import javax.annotation.Resource;
 import javax.servlet.http.HttpServletResponse;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
-import java.io.UnsupportedEncodingException;
+import java.io.*;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
@@ -61,7 +61,7 @@ public class FileService {
 
     @Resource
     private GridFSBucket gridFSBucket;
-    private GridFsTemplate gridFsTemplate;
+    private final GridFsTemplate gridFsTemplate;
     public FileService(GridFsTemplate gridFsTemplate){
         this.gridFsTemplate = gridFsTemplate;
     }
@@ -159,11 +159,7 @@ public class FileService {
             throw new RuntimeException("ID对应文件不存在");
         }
         String fileName = file.getFilename();
-        InputStream in = null;
-        OutputStream out = null;
-        try {
-            in = convertGridFSFile2Resource(file).getInputStream();
-            out = response.getOutputStream();
+        try (BufferedOutputStream out = new BufferedOutputStream(response.getOutputStream())) {
             //取后缀
             String filename = file.getFilename();
             String fileType = filename.substring(filename.lastIndexOf(".") + 1);
@@ -180,35 +176,23 @@ public class FileService {
                 FunctionUtils.isTureOrFalse(file.getFilename().contains(".svg")).trueOrFalseHandle(
                         () -> response.setContentType("image/svg+xml"),
                         () -> response.setContentType("image/jpeg"));
-                // 不进行压缩的文件大小，单位为bit
-                int contentLength = (int) convertGridFSFile2Resource(file).contentLength();
-                byte[] data = new byte[contentLength];
-                in.read(data);
-                //response here is the HttpServletResponse object
-                response.setContentLength(contentLength);
+                response.setContentLength(Math.toIntExact(file.getLength()));
                 response.addHeader("Cache-Control", "max-age=60, must-revalidate, no-transform");
-                out.write(data);
-                /** 采用压缩方式，则需注释调这段代码-结束 **/
+                gridFSBucket.downloadToStream(fileId, out);
                 out.flush();
             } else {
                 log.info("非图片类型,进入下载");
                 //转成GridFsResource类取文件类型
                 response.setContentType(MediaType.APPLICATION_OCTET_STREAM_VALUE);
                 response.setHeader("Content-Disposition", "attachment; filename=" + fileName);
-                //文件长度
                 response.setHeader("Content-Length", String.valueOf(file.getLength()));
-                try {
-                    //IO复制
-                    IoUtil.copy(in, out);
-                } catch (IORuntimeException e) {
-                    log.error("IoUtil.copy error", e);
-                }
+
+                gridFSBucket.downloadToStream(fileId, out);
+                out.flush();
             }
         } catch (Exception e) {
             log.warn("download file failed, file id = {}", fileId);
-        } finally {
-            IoUtil.close(out);
-            IoUtil.close(in);
+            throw new BizException(e);
         }
     }
 
