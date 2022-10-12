@@ -104,17 +104,16 @@ public class StateMachineScheduleTask {
 			try {
 				//如果任务的agent掉线了，在云版环境是不能重新调度的，云版的agent与tm的网络环境不会很好，掉线是经常的事情。
 				//但是如果agent如果已经被删除了，是应该重新调度的。
+				UserDetail userDetail = userService.loadUserById(toObjectId(taskDto.getUserId()));
 				if (isCloud) {
-					Criteria criteria = Criteria.where("process_id").is(taskDto.getAgentId());
-					long count = workerService.count(new Query(criteria));
-					if (count > 0) {
+					String status = workerService.checkUsedAgent(taskDto.getAgentId(), userDetail);
+					if ("offline".equals(status)) {
 						log.debug("The cloud version does not need this rescheduling");
 						return;
 					}
 				}
 
 				log.info("checkScheduledDataFlow start,dataFlowId: {}, status: {}", taskDto.getId().toHexString(), taskDto.getStatus());
-				UserDetail userDetail = userService.loadUserById(toObjectId(taskDto.getUserId()));
 				if (taskDto.getRestartFlag()){
 					taskDto.setAgentId(null);
 					workerService.scheduleTaskToEngine(taskDto, userDetail, "task", taskDto.getName());

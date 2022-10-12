@@ -344,4 +344,18 @@ public class WorkerController extends BaseController {
 	    return success(new HashMap<String, List>(){{put("result", workerDtos);}});
     }
 
+    /**
+     * 校验任务所使用的agent是否可以强制停止, agent如果离线状态，则提醒用户会存在问题，入agent在线，或者已删除，则可以使用。
+     * @param taskId
+     * @return key:status  value: online在线 offline离线 deleted已删除
+     */
+    @Operation(summary = "校验任务所使用的agent是否可以强制停止")
+    @GetMapping("/availableAgent")
+    public ResponseMessage<Map<String, String>> checkTaskUsedAgent(@RequestParam("taskId") String taskId) {
+        String status = workerService.checkTaskUsedAgent(taskId, getLoginUser());
+        HashMap<String, String> result = new HashMap<>();
+        result.put("status", status);
+        return success(result);
+    }
+
 }
