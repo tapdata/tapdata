@@ -3,8 +3,6 @@ package io.tapdata.coding.utils.http;
 import cn.hutool.http.*;
 import cn.hutool.json.JSONUtil;
 import io.tapdata.entity.logger.TapLogger;
-
-import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -97,7 +95,7 @@ public class CodingHttp {
         return this;
     }
     public CodingHttp buildBodyIfAbsent(String key,Object value){
-        if (null != value && !( value instanceof Collection && ((Collection)value).isEmpty() )){
+        if (null != value && !( value instanceof Map && ((Map)value).isEmpty() )){
             this.buildBody(key, value);
         }
         return this;
