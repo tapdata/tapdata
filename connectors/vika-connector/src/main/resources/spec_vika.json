@@ -1,0 +1,126 @@
+{
+  "properties": {
+    "name": "vika",
+    "icon": "icons/vika.png",
+    "doc" : "${doc}",
+    "id": "vika"
+  },
+  "configOptions": {
+    "connection": {
+      "type": "object",
+      "properties": {
+        "credential": {
+          "required": true,
+          "type": "string",
+          "title": "${credential}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "apiServerKey": "database_token",
+          "x-index": 1
+        },
+        "hostUrl": {
+          "required": false,
+          "type": "string",
+          "title": "${hostUrl}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "apiServerKey": "database_host",
+          "x-index": 2
+        },
+        "spaceId": {
+          "required": true,
+          "type": "string",
+          "title": "${spaceId}",
+          "x-decorator": "FormItem",
+          "x-component": "Input",
+          "apiServerKey": "database_host",
+          "x-index": 3
+        }
+      }
+    }
+  },
+  "messages": {
+    "default": "en_US",
+    "en_US": {
+      "doc": "docs/vika_en_US.md",
+      "credential": "Your API Key",
+      "hostUrl": "Host Url",
+      "spaceId": "Space Id"
+    },
+    "zh_CN": {
+      "doc": "docs/vika_zh_CN.md",
+      "credential": "凭证",
+      "hostUrl": "服务地址和端口",
+      "spaceId": "空间站ID"
+    },
+    "zh_TW": {
+      "doc": "docs/vika_zh_TW.md",
+      "credential": "凭证",
+      "hostUrl": "服务地址和端口",
+      "spaceId": "空间站ID"
+    }
+  },
+  "dataTypes": {
+    "SingleText": {
+      "queryOnly": true,
+      "to": "TapString"
+    },
+    "Text": {
+      "byte": "4g",
+      "to": "TapString"
+    },
+    "Number": {
+      "bit": 64,
+      "priority": 3,
+      "value": [
+        -9223372036854775808,
+        9223372036854775807
+      ],
+      "to": "TapNumber"
+    },
+    "Rating": {
+      "bit": 16,
+      "priority": 3,
+      "value": [
+        -32768,
+        32767
+      ],
+      "to": "TapNumber"
+    },
+    "Percent": {
+      "precision": [
+        1,
+        17
+      ],
+      "preferPrecision": 11,
+      "scale": [
+        0,
+        17
+      ],
+      "preferScale": 4,
+      "fixed": false,
+      "to": "TapNumber"
+    },
+    "Currency": {
+      "precision": [
+        1,
+        6
+      ],
+      "scale": [
+        0,
+        6
+      ],
+      "fixed": false,
+      "to": "TapNumber"
+    },
+    "Checkbox": {
+      "to": "TapBoolean"
+    },
+    "DateTime": {
+      "to": "TapDateTime"
+    },
+    "Attachment": {
+      "to": "TapBinary"
+    }
+  }
+}

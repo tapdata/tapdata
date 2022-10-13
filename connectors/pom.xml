@@ -27,6 +27,7 @@
 		<module>coding-connector</module>
 		<module>zoho-connector</module>
 		<module>tidb-connector</module>
+		<module>vika-connector</module>
 	</modules>
 	<properties>
 		<connector.file.name>${project.artifactId}-v${project.version}</connector.file.name>
