@@ -118,7 +118,7 @@ public class CommentsLoader extends CodingStarter implements CodingLoader<Commen
     }
 
     @Override
-    public long batchCount() throws Throwable {
+    public int batchCount() throws Throwable {
         return 0;
     }
 

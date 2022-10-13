@@ -339,8 +339,8 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
     }
 
     @Override
-    public long batchCount() throws Throwable {
-        long count = 0;
+    public int batchCount() throws Throwable {
+        int count = 0;
         IssuesLoader issuesLoader = IssuesLoader.create(this.tapConnectionContext);
         issuesLoader.verifyConnectionConfig();
         try {
@@ -383,7 +383,7 @@ public class IssuesLoader extends CodingStarter implements CodingLoader<IssuePar
             );
             if (null!= dataMap){
                 Object obj = dataMap.get("TotalCount");
-                if (null != obj ) count = Long.parseLong(String.valueOf(obj));
+                if (null != obj ) count = (Integer)obj;
             }
         } catch (Exception e) {
             throw new RuntimeException();
