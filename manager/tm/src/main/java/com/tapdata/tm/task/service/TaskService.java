@@ -132,6 +132,8 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
     private LogCollectorService logCollectorService;
 
+    private TaskCollectionObjService taskCollectionObjService;
+
     static {
 
         runningStatus.add(TaskDto.STATUS_SCHEDULING);
@@ -1782,7 +1784,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
     public Boolean checkRun(String taskId, UserDetail user) {
         TaskDto taskDto = checkExistById(MongoUtils.toObjectId(taskId), user, "status");
-        return TaskDto.STATUS_EDIT.equals(taskDto.getStatus());
+        return TaskDto.STATUS_EDIT.equals(taskDto.getStatus()) || TaskDto.STATUS_WAIT_START.equals(taskDto.getStatus());
     }
 
     public TransformerWsMessageDto findTransformParam(String taskId, UserDetail user) {
@@ -1887,7 +1889,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     }
 
 
-    public void batchUpTask(MultipartFile multipartFile, UserDetail user, boolean cover, List<Map<String, String>> tags) {
+    public void batchUpTask(MultipartFile multipartFile, UserDetail user, boolean cover, List<Tag> tags) {
         byte[] bytes;
         List<TaskUpAndLoadDto> taskUpAndLoadDtos;
 
@@ -1952,7 +1954,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         }
     }
 
-    public void batchImport(List<TaskDto> taskDtos, UserDetail user, boolean cover, List<Map<String, String>> tags) {
+    public void batchImport(List<TaskDto> taskDtos, UserDetail user, boolean cover, List<Tag> tags) {
         for (TaskDto taskDto : taskDtos) {
             Query query = new Query(Criteria.where("_id").is(taskDto.getId()).and("is_deleted").ne(true));
             query.fields().include("id");
@@ -2428,6 +2430,13 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         } else {
             updateTaskRecordStatus(taskDto, taskDto.getStatus(), user);
         }
+
+        //数据发现的任务收集
+        TaskDto newTaskDto = findById(taskDto.getId(), user);
+        TaskCollectionObjDto taskCollectionObjDto = new TaskCollectionObjDto();
+        BeanUtils.copyProperties(newTaskDto, taskCollectionObjDto);
+        Query query2 = new Query(Criteria.where("_id").is(taskDto.getId()));
+        taskCollectionObjService.upsert(query2, taskCollectionObjDto, user);
     }
 
     private void updateTaskRecordStatus(TaskDto dto, String status, UserDetail userDetail) {

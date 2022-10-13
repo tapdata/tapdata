@@ -2,6 +2,7 @@ package com.tapdata.tm.disruptor.handler;
 
 import cn.hutool.core.date.DateUtil;
 import cn.hutool.extra.spring.SpringUtil;
+import com.google.common.collect.Maps;
 import com.tapdata.tm.alarm.scheduler.RuleRenew;
 import com.tapdata.tm.commons.task.constant.AlarmKeyEnum;
 import com.tapdata.tm.alarm.constant.AlarmComponentEnum;
@@ -18,6 +19,7 @@ import com.tapdata.tm.task.service.TaskRecordService;
 import org.springframework.stereotype.Component;
 
 import java.text.MessageFormat;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
 /**
@@ -45,10 +47,14 @@ public class UpdateRecordStatusEventHandler implements BaseEventHandler<SyncTask
         switch (data.getTaskStatus()) {
             case TaskDto.STATUS_STOP:
                 String summary = MessageFormat.format(AlarmContentTemplate.TASK_STATUS_STOP_MANUAL, data.getUpdatorName(), DateUtil.now());
+                Map<String, Object> param = Maps.newHashMap();
+                param.put("updatorName", data.getUpdatorName());
                 AlarmInfo alarmInfo = AlarmInfo.builder().status(AlarmStatusEnum.ING).level(Level.WARNING).component(AlarmComponentEnum.FE)
                         .type(AlarmTypeEnum.SYNCHRONIZATIONTASK_ALARM).agentId(data.getAgentId()).taskId(taskId)
                         .name(data.getTaskName()).summary(summary).metric(AlarmKeyEnum.TASK_STATUS_STOP)
+                        .param(param)
                         .build();
+
                 alarmService.save(alarmInfo);
 
                 break;

@@ -1,98 +1,73 @@
-package com.tapdata.tm.commons.task.dto;
+package com.tapdata.tm.task.entity;
 
-import com.tapdata.tm.commons.base.dto.SchedulableDto;
-import com.tapdata.tm.commons.dag.AccessNodeTypeEnum;
-import com.tapdata.tm.commons.dag.EqField;
-import com.tapdata.tm.commons.dag.SchemaTransformerResult;
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import com.tapdata.tm.base.entity.BaseEntity;
+import com.tapdata.tm.commons.base.convert.DagDeserialize;
+import com.tapdata.tm.commons.base.convert.DagSerialize;
+import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.schema.Tag;
+import com.tapdata.tm.commons.task.dto.*;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
-import org.apache.commons.lang3.StringUtils;
+import org.springframework.data.mongodb.core.mapping.Document;
 
-import java.util.*;
+import java.util.Date;
+import java.util.HashSet;
+import java.util.List;
 
 
-/**
- * Task
- */
 @EqualsAndHashCode(callSuper = true)
+@Document("TaskCollectionObj")
 @Data
-public class ParentTaskDto extends SchedulableDto {
+public class TaskCollectionObj extends BaseEntity {
 
-    public final static String TYPE_INITIAL_SYNC = "initial_sync";
-    public final static String TYPE_INITIAL_SYNC_CDC = "initial_sync+cdc";
-    public final static String TYPE_CDC = "cdc";
+    private String agentId; //调度到指定的实例上去
+    private String hostName;
+    private List<String> agentTags; // 标签
 
-    /** 扩展参数*/
-    private Map<String, Object> attrs;
-
-    /** crontab表达式  */
-    @EqField
-    private String crontabExpression;
-
-    /**去重写入机制   intelligent 智能去重， force 强制去重 */
-    @EqField
-    private String deduplicWriteMode;
-
-    /** 描述*/
+    private Integer scheduleTimes;  // 调度次数
+    private Long scheduleTime;  // 上次调度时间
     private String desc;
 
-    /**错误策略 */
-    private List<ErrorStrategy> errorStrategy;
-
-    /** 增量之后判断时间间隔 ms */
-    @EqField
     private Long hysteresisInterval;
 
     /**增量滞后判断时间设置  默认关闭 */
-    @EqField
     private Boolean increHysteresis;
 
     /** 增量数据处理模式，支持批量false  跟逐行true */
-    @EqField
     private Boolean increOperationMode;
 
     /** 共享增量读取模式, 支持流式读取STREAMING和轮询读取POLLING两种模式 */
-    @EqField
     private String increShareReadMode;
 
     /** 增量同步并发写入 默认关闭 */
-    @EqField
     private Boolean increSyncConcurrency;
 
     /** 处理器线程数 */
-    @EqField
     private Integer processorThreadNum;
 
     /** 增量读取条数 */
-    @EqField
     private Integer increaseReadSize;
     /** 全量一批读取条数 */
-    @EqField
     private Integer readBatchSize;
 
     /** 增量同步间隔*/
-    @EqField
     private Integer increaseSyncInterval;
 
     /** 自动创建索引 */
-    @EqField
     private Boolean isAutoCreateIndex;
 
     /** 过滤设置*/
-    @EqField
     private Boolean isFilter;
 
     /** 自动处理ddl */
-    @EqField
     private Boolean isOpenAutoDDL;
 
     /** 定时调度任务 */
-    @EqField
     private Boolean isSchedule;
 
     /** 遇到错误时停止*/
-    @EqField
     private Boolean isStopOnError;
 
     /** */
@@ -102,11 +77,9 @@ public class ParentTaskDto extends SchedulableDto {
     private String name;
 
     /** 通知设置 多选  当任务停止（默认选中），当任务出错（默认选中），当任务被编辑，当任务开启*/
-    @EqField
     private List<String> notifyTypes;
 
     /** 共享挖掘 */
-    @EqField
     private Boolean shareCdcEnable;
 
     /** 子任务状态*/
@@ -116,11 +89,9 @@ public class ParentTaskDto extends SchedulableDto {
     private String status;
 
     /** 类型 [{label: '全量+增量', value: 'initial_sync+cdc'}, {label: '全量', value: 'initial_sync'}, {label: '增量', value: 'cdc'} ]*/
-    @EqField
     private String type;
 
     /** 目标写入线程数*/
-    @EqField
     private Integer writeThreadSize;
 
     /** 删除标记*/
@@ -130,7 +101,6 @@ public class ParentTaskDto extends SchedulableDto {
     private String editVersion;
 
     /** 增量时间点*/
-    @EqField
     private List<TaskDto.SyncPoint> syncPoints;
 
 
@@ -157,10 +127,6 @@ public class ParentTaskDto extends SchedulableDto {
 
     private String rollback; //: "table"/"all"
     private String rollbackTable; //: "Leon_CAR_CUSTOMER";
-    /**
-     * 模型推演结果
-     */
-    private List<SchemaTransformerResult> metadataMappings;
 
     private double transformProcess;
     private String transformStatus;
@@ -197,13 +163,6 @@ public class ParentTaskDto extends SchedulableDto {
     private HashSet<String> heartbeatTasks;
 
 
-    /** 里程碑相关数据 */
-    private List<Milestone> milestones;
-    /** 报错信息 */
-    private List<Message> messages;
-
-    /** 需要用到的共享挖掘的task id, 每个数据源对应一个共享挖掘的任务id */
-    private Map<String, String> shareCdcTaskId;
     /** 是否编辑中 */
     private Boolean isEdit;
 
@@ -223,8 +182,6 @@ public class ParentTaskDto extends SchedulableDto {
 
 
     /** 自动处理ddl */
-    //private Boolean isOpenAutoDDL = true;
-            //todo 这个参数可能要删除掉
     private String parentSyncType;
 
     private Long tmCurrentTime;
@@ -234,15 +191,32 @@ public class ParentTaskDto extends SchedulableDto {
 
     private int transformDagHash;
 
-    public List<String> getAccessNodeProcessIdList() {
-        accessNodeProcessIdList = new ArrayList<>();
-        if (StringUtils.equals(AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER.name(), accessNodeType)
-                &&StringUtils.isNotBlank(accessNodeProcessId)) {
-            accessNodeProcessIdList.add(accessNodeProcessId);
-        } else {
-            accessNodeType = AccessNodeTypeEnum.AUTOMATIC_PLATFORM_ALLOCATION.name();
-        }
 
-        return accessNodeProcessIdList;
-    }
+    @JsonSerialize( using = DagSerialize.class)
+    @JsonDeserialize( using = DagDeserialize.class)
+    private DAG dag;
+
+    private Boolean shareCache=false;
+
+    // 需要根据数据源是否支持 数据校验功能来判断
+    private boolean canOpenInspect;
+    //是否开启数据校验
+    private Boolean isAutoInspect;
+
+    private String creator;
+
+    private boolean showInspectTips;
+
+    private String inspectId;
+
+
+
+    //用户对接pdk重置删除的标记
+    private Boolean resetFlag;
+    private Boolean deleteFlag;
+    private Long version;
+
+    private String taskRecordId;
+
+
 }

@@ -16,6 +16,7 @@ import com.tapdata.tm.base.dto.Where;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.base.service.BaseService;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
+import com.tapdata.tm.commons.schema.Tag;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.commons.schema.DataSourceDefinitionDto;
 import com.tapdata.tm.ds.service.impl.DataSourceDefinitionService;
@@ -255,7 +256,7 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
      * @param userDetail
      * @param listTag
      */
-    public void importData(String json, String upsert, List<String> listTag, UserDetail userDetail) {
+    public void importData(String json, String upsert, List<Tag> listTag, UserDetail userDetail) {
         Map map = JsonUtil.parseJson(json, Map.class);
         List<Map<String, Object>> data = (List) map.get("data");
 
@@ -292,7 +293,7 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
                 }
 
                 if (CollectionUtils.isNotEmpty(listTag)) {
-                    newDto.setListTags(listTag);
+                    newDto.setListtags(listTag);
                 }
                 newDto.setIsDeleted(false);
                 super.upsert(query, newDto, userDetail);
@@ -476,7 +477,7 @@ public class ModulesService extends BaseService<ModulesDto, ModulesEntity, Objec
         map.put("format", "JSON");
         map.put("user", allDto.getUser());//getUser
         map.put("createUser", userDetail.getEmail());
-        map.put("listtags", allDto.getListTags());//getListTags
+        map.put("listtags", allDto.getListtags());//getListTags
         map.put("last_updated", allDto.getLast_updated());//getLast_updated
         map.put("apiVersion", allDto.getApiVersion());//getApiVersion
         map.put("basePath", allDto.getBasePath());
