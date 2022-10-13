@@ -2589,7 +2589,7 @@ class Job:
         try:
             status = self.status()
         except (KeyError, TypeError) as e:
-            logger.info("job {} is not save, error is {}, job will be save soon", self.id, e)
+            logger.info("job {} is not save, it will be save soon", self.id, e)
             resp = self.save()
             if not resp:
                 logger.warn("job {} save failed.", self.name)
