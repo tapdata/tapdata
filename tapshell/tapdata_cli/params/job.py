@@ -177,6 +177,7 @@ NODE_SOURCE = {
     "migrateTableSelectType": {require: True, type: str, default: "all", option: ["all", "custom"]},
     "name": {require: True, type: str},
     "enableDynamicTable": {require: False, type: bool, default: False},
+    "tableNames": {require: False, type: list},
 }
 
 
@@ -233,7 +234,7 @@ NODE_SOURCE_SYNC = {
     "increaseReadSize": {require: True, type: int, default: 100},
     "increaseSyncInterval": {"type": int, "require": True, "default": 500},
     "name": {require: True, type: str},
-    "tableName": {require: False, type: str},
+    "tableName": {require: True, type: str},
     "type": {require: True, type: str, default: "table"},
     "node_config": {require: True, type: dict, default: {}},
     "isFilter": {require: False, type: bool, default: False},
@@ -260,10 +261,28 @@ NODE_TARGET_SYNC = {
     "initialConcurrentWriteNum": {require: True, type: int, default: 8},
     "cdcConcurrent": {require: True, type: bool, default: False},
     "cdcConcurrentWriteNum": {require: True, type: int, default: 4},
-    "tableName": {require: False, type: str},
+    "tableName": {require: True, type: str},
     "type": {require: True, type: str, default: "table"},
     "updateConditionFields": {require: True, type: list, default: ["_id"]},
     "existDataProcessMode": {require: True, type: str, default: "keepData", option: ["dropTable", "removeData", "keepData"]},
+}
+
+
+# Master-slave Node
+MERGE_NODE = {
+    "name": {require: True, type: str, default: "主从合并"},
+    "processorThreadNum": {require: True, type: int, default: 1},
+    "type": {require: True, type: str, default: "merge_table_processor"},
+    "isTransformed": {require: True, type: bool, default: False},
+    "elementType": {require: True, type: str, default: "Node"},
+    "catalog": {require: True, type: str, default: "processor"},
+    "mergeProperties": {require: True, type: list, value: {
+        "children": {require: True, type: list, default: []},
+        "isArray": {require: True, type: bool, default: False},
+        "mergeType": {require: True, type: str, default: "updateOrInsert"},
+        "tableName": {require: True, type: str},
+        "targetPath": {require: False, type: str},
+    }},
 }
 
 
@@ -282,6 +301,7 @@ node_config = {
 node_config_sync = {
     "source": NODE_SOURCE_SYNC,
     "sink": NODE_TARGET_SYNC,
+    "merge": MERGE_NODE,
 }
 
 

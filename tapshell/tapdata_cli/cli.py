@@ -425,12 +425,10 @@ def gen_dag_stage(obj):
     objType = type(obj)
 
     if objType == Source:
-        obj.config({})
-        return obj.setting
+        return obj.to_dict()
 
     if objType == Sink:
-        obj.config({})
-        return obj.setting
+        return obj.to_dict()
 
     if objType == Merge:
         return obj.to_dict()
@@ -555,7 +553,7 @@ def show_apiserver(quite=False):
 # show all apis
 def show_apis(quiet=False):
     global client_cache
-    res = req.get("/Modules")
+    res = req.get("/Modules", params={"order":"createAt DESC","limit":20,"skip":0,"where":{}})
     data = res.json()["data"]["items"]
     client_cache["apis"]["name_index"] = {}
     if not quiet:
@@ -1314,10 +1312,9 @@ class ConnectionType:
 
 
 @help_decorate("Enum, used to describe write mode for a row")
-class WriteMode():
-    upsert = "updateOrInsert"
-    update = "updateWrite"
-    upsert_array = "merge_embed"
+class WriteMode:
+    updateOrInsert = "updateOrInsert"
+    appendWrite = "appendWrite"
 
 
 upsert = "updateOrInsert"
@@ -1333,31 +1330,14 @@ class SyncType:
 
 @help_decorate("Enum, used to config action before sync data")
 class DropType:
-    no_drop = "no_drop"
-    data = "drop_data"
-    all = "drop_schema"
+    drop_table = "dropTable"
+    remove_data = "removeData"
+    keep_data = "keepData"
 
 
 no_drop = "no_drop"
 drop_data = "drop_data"
 drop_schema = "drop_schema"
-
-
-@help_decorate("Single Table Relation, used to config how a row from source infect it's sink")
-class SingleTableRelation:
-    def __init__(self, writeMode, association, path="", array_key=""):
-        self.writeMode = writeMode
-        self.association = association
-        self.path = path
-        self.array_key = array_key
-
-
-@help_decorate("Multi Table Relation used to add prefix/suffix when migrate multi tables")
-class MultiTableRelation:
-    def __init__(self, prefix="", suffix="", drop_type=DropType.no_drop):
-        self.prefix = prefix
-        self.suffix = suffix
-        self.drop_type = drop_type
 
 
 class BaseObj:
@@ -1373,7 +1353,7 @@ class MergeNode(BaseObj):
                  node_id: str,
                  table_name: str,
                  association: Iterable[Sequence[Tuple[str, str]]],
-                 mergeType=WriteMode.update,
+                 mergeType=WriteMode.updateOrInsert,
                  targetPath=""
                  ):
         self.node_id = node_id
@@ -1410,7 +1390,7 @@ class Merge(MergeNode):
                  node_id: str,
                  table_name: str,
                  association: Iterable[Sequence[Tuple[str, str]]],
-                 mergeType=WriteMode.update,
+                 mergeType=WriteMode.updateOrInsert,
                  targetPath=""
                  ):
         super(Merge, self).__init__(
@@ -1604,10 +1584,12 @@ class LogMinerMode:
 @help_decorate("use to define a stream pipeline", "p = new Pipeline($name).readFrom($source).writeTo($sink)")
 class Pipeline:
     @help_decorate("__init__ method", args="p = Pipeline($name)")
-    def __init__(self, name=None):
+    def __init__(self, name=None, mode="migrate"):
         if name is None:
             name = str(uuid.uuid4())
         self.dag = Dag(name="name")
+        self.dag.config({})
+        self.dag.jobType = mode
         self.stage = None
         self.job = None
         self.check_job = None
@@ -1619,75 +1601,47 @@ class Pipeline:
         self.get()
         self.cache_sinks = {}
 
+    def mode(self, value):
+        self.dag.jobType = value
+
     @help_decorate("read data from source", args="p.readFrom($source)")
     def readFrom(self, source):
-        if self.dag.jobType == JobType.migrate:
-            mode = "migrate"
-        else:
-            mode = "sync"
         if isinstance(source, QuickDataSourceMigrateJob):
             source = source.__db__
-        if isinstance(source, str):
+            source = Source(source)
+        elif isinstance(source, str):
             if "." in source:
-                db = source.split(".")[0]
-                table = source.split(".")[1]
-                source = Source(db, table, mode=mode)
+                db, table = source.split(".")
+                source = Source(db, table, mode=self.dag.jobType)
             else:
-                db = source
-                source = Source(db, mode=mode)
-        if source.type == "database":
-            self.dag.jobType = JobType.migrate
-        else:
-            self.dag.jobType = JobType.sync
+                source = Source(source, mode=self.dag.jobType)
         self.sources.append(source)
         return self._clone(source)
 
     @help_decorate("write data to sink", args="p.writeTo($sink, $relation)")
-    def writeTo(self, sink, relation=MultiTableRelation(), writeMode=WriteMode.upsert, ttl="", prefix="", suffix="",
-                path="", array_key="", association=[], drop_type=""):
-        if self.dag.jobType == JobType.migrate:
-            mode = "migrate"
-        else:
-            mode = "sync"
+    def writeTo(self, sink):
         if isinstance(sink, QuickDataSourceMigrateJob):
             sink = sink.__db__
-        if isinstance(sink, str):
-            if sink in self.cache_sinks:
-                sink = self.cache_sinks[sink]
+            sink = Sink(sink)
+        elif isinstance(sink, str):
+            if "." in sink:
+                db, table = sink.split(".")
+                sink = Sink(db, table, mode=self.dag.jobType)
             else:
-                if "." in sink:
-                    db = sink.split(".")[0]
-                    table = sink.split(".")[1]
-                    self.cache_sinks[sink] = Sink(db, table, mode=mode)
-                else:
-                    db = sink.split(".")[0]
-                    self.cache_sinks[sink] = Sink(db, mode=mode)
-                sink = self.cache_sinks[sink]
-        if self.dag.jobType == JobType.sync and isinstance(relation, MultiTableRelation):
-            auto_association = []
-            for pk in self.sources[len(self.sources) - 1].primary_key:
-                auto_association.append((pk, pk))
-            relation = SingleTableRelation(writeMode=writeMode, association=auto_association)
-        if self.dag.jobType == JobType.migrate:
-            if relation.prefix == "" and prefix != "":
-                relation.prefix = prefix
-            if relation.suffix == "" and suffix != "":
-                relation.suffix = suffix
-            if drop_type != "":
-                relation.drop_type = drop_type
+                sink = Sink(sink, mode=self.dag.jobType)
+
         if self.dag.jobType == JobType.sync:
-            if relation.array_key == "" and array_key != "":
-                relation.array_key = array_key
-            if relation.path == "" and path != "":
-                relation.path = path
-            if len(relation.association) == 0 and len(association) != 0:
-                relation.association = association
-        self.dag.edge(self.stage, sink, relation, ttl)
-        self.sinks.append({"sink": sink, "relation": relation})
+            primary_key = self.sources[-1].primary_key
+            sink.config({
+                "updateConditionFields": primary_key,
+            })
+
+        self.dag.edge(self.stage, sink)
+        self.sinks.append({"sink": sink})
         return self._clone(sink)
 
     def _common_stage(self, f):
-        self.dag.edge(self.stage, f, None, "")
+        self.dag.edge(self.stage, f)
         return self._clone(f)
 
     def _common_stage2(self, p, f):
@@ -1701,10 +1655,10 @@ class Pipeline:
             for i in self.dag.dag["edges"]:
                 if i["target"] == p.stage.id:
                     i["target"] = f.id
-            self.dag.edge(self.stage, f, None, "")
+            self.dag.edge(self.stage, f)
         else:
-            self.dag.edge(self.stage, f, None, "")
-            self.dag.edge(p.stage, f, None, "")
+            self.dag.edge(self.stage, f)
+            self.dag.edge(p.stage, f)
         return self._clone(f)
 
     @help_decorate("using simple query filter data", args='p.filter("id > 2 and sex=male")')
@@ -1866,7 +1820,8 @@ class Pipeline:
             logger.warn("type {} must be {}", config, "dict", "notice", "notice")
             return
         mode = self.dag.jobType
-        resp = ConfigCheck(config, job_config[mode], keep_extra=keep_extra).checked_config
+        self.dag.config(config)
+        resp = ConfigCheck(self.dag.setting, job_config[mode], keep_extra=keep_extra).checked_config
         self.dag.config(resp)
         return self
 
@@ -1919,6 +1874,7 @@ class Pipeline:
         job = Job(name=self.name, pipeline=self)
         job.validateConfig = self.validateConfig
         self.job = job
+        self.config({})
         job.config(self.dag.setting)
         if job.start():
             logger.info("job {} start running ...", self.name)
@@ -2019,10 +1975,35 @@ class Agg(BaseObj):
         self.ttl = ttl
 
 
-@help_decorate("source is start of a pipeline", "source = Source($Datasource, $table)")
-class Source:
-    def __getattr__(self, key):
-        return None
+class BaseNode:
+
+    @help_decorate("__init__ method", args="connection, table, sql")
+    def __init__(self, connection, table=None, table_re=None, mode=JobType.migrate):
+        self.mode = mode
+        self.id = str(uuid.uuid4())
+        self.connection, self.table = self._get_connection_and_table(connection, table, table_re)
+        self.tableName = self.table
+        self.connectionId = str(self.connection.c["id"])
+        self.databaseType = self.connection.c["database_type"]
+        self.config_type = node_config if mode == JobType.migrate else node_config_sync
+        client_cache["connection"] = self.connectionId
+
+        self.source = None
+        self.setting = {
+            "connectionId": self.connectionId,
+            "databaseType": self.databaseType,
+            "id": self.id,
+            "name": self.connection.c["name"],
+            "attrs": {
+                "connectionType": self.connection.c["connection_type"],
+                "position": [0, 0],
+                "pdkType": "pdk",
+                "pdkHash": self.connection.c["pdkHash"],
+                "capabilities": self.connection.c["capabilities"],
+                "connectionName": self.connection.c["name"]
+            },
+            "type": "database" if self.mode == "migrate" else "table"
+        }
 
     def _get_connection_and_table(self, connection, table, table_re):
         global client_cache
@@ -2030,6 +2011,8 @@ class Source:
             connection = connection.__db__
         if client_cache.get("connections") is None:
             show_connections(quiet=True)
+
+        # get connection
         if not isinstance(connection, Connection):
             index_type = get_index_type(connection)
             if index_type == "short_id_index":
@@ -2041,11 +2024,24 @@ class Source:
                 table = connection_and_table[1]
             c = client_cache["connections"][index_type][connection]
             connection = Connection(id=c["id"])
-        if table == ["_"]:
+
+        # select all tables default if table not provide (only migrate mode)
+        if table is None and self.mode == JobType.migrate:
             if c["id"] not in client_cache["tables"]:
                 show_tables(source=connection.id, quiet=True)
             table = list(client_cache["tables"][c["id"]]["name_index"].keys())
-        if table_re is not None:
+        # select first table if table not provide (only sync mode)
+        if table is None and self.mode == JobType.sync:
+            if c["id"] not in client_cache["tables"]:
+                show_tables(source=connection.id, quiet=True)
+            try:
+                table = list(client_cache["tables"][c["id"]]["name_index"].keys())[0]
+            except IndexError:
+                logger.error("Source {} no table", c["name"])
+                return None, None
+
+        # filter table_re if table_re provide
+        if table_re is not None and self.mode == JobType.migrate:
             tables = []
             all_tables = show_tables(source=connection.id, quiet=True)
             import re
@@ -2054,58 +2050,12 @@ class Source:
                     continue
                 if re.match(table_re, t["original_name"]):
                     tables.append(t["original_name"])
-                table = tables
-        if isinstance(table, list):
-            connection.c["type"] = "database"
-        else:
-            if c["database_type"] == "mongodb":
-                connection.c["type"] = "collection"
-            else:
-                connection.c["type"] = "table"
+            table = tables
         return connection, table
 
-    @help_decorate("__init__ method", args="connection, table, sql")
-    def __init__(self, connection, table=["_"], table_re=None, sql="", mode="migrate"):
-        self.ori_connection = connection
-        self.connection, table = self._get_connection_and_table(connection, table, table_re)
-        self.id = str(uuid.uuid4())
-        self.connectionId = str(self.connection.c["id"])
-        self.databaseType = self.connection.c["database_type"]
-        self.type = self.connection.c["type"]
-        self.sql = sql
-        self.config_type = node_config if mode == "migrate" else node_config_sync
-        client_cache["connection"] = self.connectionId
-
-        if isinstance(table, list):
-            if len(table) > 0:
-                self.tableName = table[0]
-                self.table = table
-            else:
-                self.tableName = ""
-                self.table = []
-        else:
-            self.tableName = table
-            self.table = [table]
-
-        self.tableId = self._getTableId(self.tableName)
-        if self.tableId is None:
-            self.tableId = str(uuid.uuid4())
-        self.source = None
-        self.setting = {
-            "connectionId": self.connectionId,
-            "databaseType": self.databaseType,
-            "id": self.id,
-            "name": self.connection.c["name"],
-            "attrs": {
-                "accessNodeProcessId": "",
-                "connectionType": self.connection.c["connection_type"],
-                "position": [0, 0],
-                "pdkType": "pdk",
-                "pdkHash": self.connection.c["pdkHash"],
-                "capabilities": self.connection.c["capabilities"],
-                "connectionName": self.connection.c["name"]
-            },
-        }
+    def to_dict(self):
+        self.config({})
+        return self.setting
 
     def config(self, config: dict = None, keep_extra=True):
         if not isinstance(config, dict):
@@ -2150,10 +2100,34 @@ class Source:
         self.cache_p.status()
 
 
+@help_decorate("source is start of a pipeline", "source = Source($Datasource, $table)")
+class Source(BaseNode):
+
+    def __init__(self, connection, table=None, mode="migrate"):
+        super().__init__(connection, table, mode=mode)
+        if self.mode == "migrate":
+            self.config_type = node_config
+            self.setting.update({
+                "tableNames": self.table
+            })
+        else:
+            self.config_type = node_config_sync
+            _ = self._getTableId(table)  # to set self.primary_key, don't delete this line
+            self.setting.update({
+                "tableName": table,
+            })
+
+
 @help_decorate("sink is end of a pipeline", "sink = Sink($Datasource, $table)")
 class Sink(Source):
-    def __init__(self, connection, table=["_"], mode="migrate"):
+    def __init__(self, connection, table=None, mode="migrate"):
         super().__init__(connection, table, mode=mode)
+        if self.mode == JobType.sync:
+            self.config_type = node_config_sync
+            _ = self._getTableId(table)  # to set self.primary_key, don't delete this line
+            self.setting.update({
+                "tableName": table,
+            })
 
 
 class Api:
@@ -2565,6 +2539,7 @@ class Job:
             if self.validateConfig is not None:
                 self.job["validateConfig"] = self.validateConfig
         self.job.update(self.setting)
+        print(json.dumps(self.job, indent=4))
         res = req.patch("/Task", json=self.job)
         res = res.json()
         if res["code"] != "ok":
@@ -3244,10 +3219,9 @@ class Dag:
     def config(self, config=None):
         if config is None:
             return self.setting
-        for k, v in config.items():
-            self.setting[k] = v
+        self.setting.update(config)
 
-    def edge(self, source, sink, relation, ttl):
+    def edge(self, source, sink):
         _source = None
         _sink = None
 
@@ -3281,35 +3255,6 @@ class Dag:
             "source": source.id,
             "target": sink.id
         })
-
-        if isinstance(source, Source):
-            lastSource = source
-        else:
-            lastSource = sink.source
-
-        if isinstance(source, Source) and self.jobType == JobType.sync:
-            _source["tableName"] = lastSource.table[0]
-
-        if isinstance(sink, Sink) and self.jobType == JobType.sync:
-            _sink["tableName"] = lastSource.table[0]
-
-        if relation is None:
-            return
-
-        if isinstance(relation, SingleTableRelation):
-            _sink["existDataProcessMode"] = "keepData"
-            _sink["writeStrategy"] = relation.writeMode
-            updateConditionFields = []
-            for i in relation.association:
-                updateConditionFields.append(i[0])
-            _sink["updateConditionFields"] = updateConditionFields
-        if isinstance(relation, MultiTableRelation):
-            _source["type"] = "database"
-            _source["syncObjects"] = [{
-                "type": "table",
-                "objectNames": lastSource.table
-            }]
-            _sink["type"] = "database"
 
 
 # object that can be operate by command
