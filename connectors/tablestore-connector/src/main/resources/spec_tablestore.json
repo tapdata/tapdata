@@ -104,6 +104,7 @@
   },
   "dataTypes": {
     "STRING": {
+      "byte": "16m",
       "to": "TapString"
     },
     "INTEGER": {

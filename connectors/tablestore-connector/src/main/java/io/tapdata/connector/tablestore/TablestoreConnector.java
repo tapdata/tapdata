@@ -271,16 +271,14 @@ public class TablestoreConnector extends ConnectorBase {
                             }
                             ColumnType columnType = ColumnType.valueOf(tableMeta.getDefinedColumnMap().get(fieldName).name());
                             Object value = entry.getValue();
-                            if (ColumnType.INTEGER.equals(columnType)) {
-                                value = Long.valueOf(value.toString());
-                            }
+                            value = transferValueType(columnType, value);
                             putChange.addColumn(fieldName, new ColumnValue(value, columnType));
                         }
                         try {
                             client.putRow(new PutRowRequest(putChange));
                             insertCount ++;
                         } catch (Exception e) {
-                            writeListResult().addError(recordEvent, e);
+                            listResult.addError(recordEvent, e);
                         }
 
                     } else if (recordEvent instanceof TapUpdateRecordEvent) {
@@ -306,13 +304,15 @@ public class TablestoreConnector extends ConnectorBase {
                                 continue;
                             }
                             ColumnType columnType = ColumnType.valueOf(tableMeta.getDefinedColumnMap().get(fieldName).name());
-                            updateChange.put(fieldName, new ColumnValue(entry.getValue(), columnType));
+                            Object value = entry.getValue();
+                            value = transferValueType(columnType, value);
+                            updateChange.put(fieldName, new ColumnValue(value, columnType));
                         }
                         try {
                             client.updateRow(new UpdateRowRequest(updateChange));
                             updateCount ++;
                         }  catch (Exception e) {
-                            writeListResult().addError(recordEvent, e);
+                            listResult.addError(recordEvent, e);
                         }
                     } else if (recordEvent instanceof TapDeleteRecordEvent) {
                         Map<String, Object> before = ((TapDeleteRecordEvent) recordEvent).getBefore();
@@ -333,7 +333,7 @@ public class TablestoreConnector extends ConnectorBase {
                             client.deleteRow(new DeleteRowRequest(deleteChange));
                             deleteCount ++;
                         }  catch (Exception e) {
-                            writeListResult().addError(recordEvent, e);
+                            listResult.addError(recordEvent, e);
                         }
                     }
                 }
@@ -348,6 +348,15 @@ public class TablestoreConnector extends ConnectorBase {
         }
     }
 
+    private Object transferValueType(ColumnType columnType, Object value) {
+        if (ColumnType.INTEGER.equals(columnType)) {
+            value = Long.valueOf(value.toString());
+        } else if (ColumnType.DOUBLE.equals(columnType)) {
+            value = Double.valueOf(value.toString());
+        }
+        return value;
+    }
+
     private CreateTableOptions createTableV2(TapConnectorContext tapConnectorContext, TapCreateTableEvent tapCreateTableEvent) throws Throwable {
         CreateTableOptions createTableOptions = new CreateTableOptions();
         TapTable tapTable = tapCreateTableEvent.getTable();
@@ -355,17 +364,15 @@ public class TablestoreConnector extends ConnectorBase {
             ListTableResponse listTableResponse = client.listTable();
             if (Objects.nonNull(listTableResponse) && !listTableResponse.getTableNames().contains(tapTable.getId())) {
                 TableMeta tableMeta = new TableMeta(tapTable.getId());
-                List<String> primaryKeyList = Lists.newArrayList();
-                List<String> definedColumnKeyList = Lists.newArrayList();
+
+                Collection<String> primaryKeyList = tapTable.primaryKeys(true);
+
                 for (TapField field : tapTable.getNameFieldMap().values()) {
-                    Boolean primaryKey = field.getPrimaryKey();
                     String dataType = field.getDataType();
-                    if (primaryKey) {
+                    if (primaryKeyList.contains(field.getName())) {
                         tableMeta.addPrimaryKeyColumn(field.getName(), PrimaryKeyType.valueOf(dataType));
-                        primaryKeyList.add(field.getName());
                     } else {
                         tableMeta.addDefinedColumn(field.getName(), DefinedColumnType.valueOf(dataType));
-                        definedColumnKeyList.add(field.getName());
                     }
                 }
 
@@ -380,7 +387,7 @@ public class TablestoreConnector extends ConnectorBase {
                         for (TapIndexField indexField : index.getIndexFields()) {
                             if (primaryKeyList.contains(indexField.getName())) {
                                 indexMeta.addPrimaryKeyColumn(indexField.getName());
-                            } else if (definedColumnKeyList.contains(index.getName())) {
+                            } else {
                                 indexMeta.addDefinedColumn(indexField.getName());
                             }
                         }
