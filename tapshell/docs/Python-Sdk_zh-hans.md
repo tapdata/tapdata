@@ -113,6 +113,7 @@ target = cli.Sink("target")
 # 如果想要自定义多张表，创建源节点时增加table字段
 # 如果想要筛选表，传入table_re字段进行正则匹配
 source = cli.Source("source", table=["table_1", "table_2", "table_3"], table_re="table_*")
+source.config({"migrateTableSelectType": "custom"})  # 更新 migrateTableSelectType配置: 从 all 到 custom
 
 # 创建Pipeline
 p = cli.Pipeline(name="example_job")

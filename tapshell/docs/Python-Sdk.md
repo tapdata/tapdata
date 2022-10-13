@@ -113,6 +113,7 @@ target = cli.Sink("target")
 # copy by tables you want to, use table=[]
 # filter table, by table_re
 source = cli.Source("source", table=["table_1", "table_2", "table_3"], table_re="table_*")
+source.config({"migrateTableSelectType": "custom"})  # change migrateTableSelectType: from all to custom
 
 # init pipeline install
 p = cli.Pipeline(name="example_job")
