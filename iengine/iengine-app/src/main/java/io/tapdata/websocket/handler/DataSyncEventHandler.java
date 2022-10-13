@@ -158,9 +158,7 @@ public class DataSyncEventHandler extends BaseEventHandler {
 		ConnectorNode connectorNode = PDKIntegration.createConnectorBuilder()
 				.withDagId(taskDto.getId().toHexString())
 				.withAssociateId(this.getClass().getSimpleName() + "-" + node.getId())
-				.withConnectionConfig(new DataMap() {{
-					putAll(finalConnections.getConfig());
-				}})
+				.withConnectionConfig(DataMap.create(finalConnections.getConfig()))
 				.withGroup(databaseType.getGroup())
 				.withVersion(databaseType.getVersion())
 				.withPdkId(databaseType.getPdkId())
