@@ -1,4 +1,4 @@
-package io.tapdata.zoho.service.zoho;
+package io.tapdata.zoho.service.zoho.loader;
 
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.entity.logger.TapLogger;
@@ -11,7 +11,6 @@ import io.tapdata.zoho.entity.HttpEntity;
 import io.tapdata.zoho.entity.HttpResult;
 import io.tapdata.zoho.entity.RefreshTokenEntity;
 import io.tapdata.zoho.enums.HttpCode;
-import io.tapdata.zoho.service.zoho.impl.TokenLoader;
 import io.tapdata.zoho.utils.Checker;
 import io.tapdata.zoho.utils.ZoHoHttp;
 

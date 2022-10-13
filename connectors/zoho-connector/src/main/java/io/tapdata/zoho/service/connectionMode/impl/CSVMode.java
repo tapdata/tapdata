@@ -9,8 +9,8 @@ import io.tapdata.zoho.entity.ContextConfig;
 import io.tapdata.zoho.enums.Constants;
 import io.tapdata.zoho.enums.FieldModelType;
 import io.tapdata.zoho.service.connectionMode.ConnectionMode;
-import io.tapdata.zoho.service.zoho.impl.OrganizationFieldLoader;
-import io.tapdata.zoho.service.zoho.impl.TicketLoader;
+import io.tapdata.zoho.service.zoho.loader.OrganizationFieldLoader;
+import io.tapdata.zoho.service.zoho.loader.TicketLoader;
 import io.tapdata.zoho.utils.Checker;
 import io.tapdata.zoho.utils.MapUtil;
 

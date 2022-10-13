@@ -10,7 +10,7 @@ import io.tapdata.zoho.entity.TokenEntity;
 import io.tapdata.zoho.enums.HttpCode;
 import io.tapdata.zoho.service.commandMode.CommandMode;
 import io.tapdata.zoho.service.commandMode.ConfigContextChecker;
-import io.tapdata.zoho.service.zoho.impl.TokenLoader;
+import io.tapdata.zoho.service.zoho.loader.TokenLoader;
 import io.tapdata.zoho.utils.Checker;
 
 import java.util.HashMap;

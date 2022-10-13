@@ -1,4 +1,4 @@
-package io.tapdata.zoho.service.zoho;
+package io.tapdata.zoho.service.zoho.loader;
 
 public interface ZoHoBase {
     String AUTHORIZATION_KEY = "Authorization";

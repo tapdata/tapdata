@@ -4,7 +4,7 @@ import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.zoho.service.connectionMode.ConnectionMode;
-import io.tapdata.zoho.service.zoho.impl.TicketLoader;
+import io.tapdata.zoho.service.zoho.loader.TicketLoader;
 import io.tapdata.zoho.utils.Checker;
 
 import java.util.List;

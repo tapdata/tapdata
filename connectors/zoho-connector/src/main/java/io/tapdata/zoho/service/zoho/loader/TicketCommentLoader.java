@@ -1,12 +1,10 @@
-package io.tapdata.zoho.service.zoho.impl;
+package io.tapdata.zoho.service.zoho.loader;
 
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.zoho.entity.HttpEntity;
 import io.tapdata.zoho.entity.HttpResult;
 import io.tapdata.zoho.entity.HttpType;
-import io.tapdata.zoho.service.zoho.ZoHoBase;
-import io.tapdata.zoho.service.zoho.ZoHoStarter;
 import io.tapdata.zoho.utils.Checker;
 import io.tapdata.zoho.utils.ZoHoHttp;
 

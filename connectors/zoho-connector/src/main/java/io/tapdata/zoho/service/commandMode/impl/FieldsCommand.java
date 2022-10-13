@@ -8,7 +8,7 @@ import io.tapdata.zoho.entity.CommandResultV2;
 import io.tapdata.zoho.enums.FieldModelType;
 import io.tapdata.zoho.service.commandMode.CommandMode;
 import io.tapdata.zoho.service.commandMode.ConfigContextChecker;
-import io.tapdata.zoho.service.zoho.impl.OrganizationFieldLoader;
+import io.tapdata.zoho.service.zoho.loader.OrganizationFieldLoader;
 import io.tapdata.zoho.utils.Checker;
 
 import java.util.Map;
