@@ -5,6 +5,7 @@ import lombok.Data;
 import lombok.NonNull;
 import org.bson.types.ObjectId;
 
+import java.text.SimpleDateFormat;
 import java.util.*;
 
 @Data
@@ -76,25 +77,27 @@ public class CompareRecord {
     public CompareStatus compare(CompareRecord targetData) {
         CompareStatus compareStatus = this.compareKeys(targetData);
         if (CompareStatus.Diff == compareStatus) {
-            Object odata;
+            Object odata, ndata;
             List<String> diffKeys = new ArrayList<>();
             Map<String, Object> omap = targetData.getData();
-            for (Map.Entry<String, Object> en : this.getData().entrySet()) {
-                //filter keys
-                if (this.getKeyNames().contains(en.getKey())) continue;
-
+            for (String key : this.getData().keySet()) {
                 //check null value
-                odata = omap.get(en.getKey());
-                if (null == en.getValue()) {
+                odata = omap.compute(key, this::parse);
+                ndata = this.getData().compute(key, this::parse);
+
+                //filter keys
+                if (this.getKeyNames().contains(key)) continue;
+
+                if (null == ndata) {
                     if (null != odata) {
-                        diffKeys.add(en.getKey());
+                        diffKeys.add(key);
                     }
                     continue;
                 }
 
                 //check value
-                if (!en.getValue().equals(odata)) {
-                    diffKeys.add(en.getKey());
+                if (!ndata.equals(odata)) {
+                    diffKeys.add(key);
                 }
             }
 
@@ -105,5 +108,19 @@ public class CompareRecord {
         }
 
         return compareStatus;
+    }
+
+    public Object parse(String k, Object v) {
+        if (null == v) return null;
+
+        if (v instanceof String) {
+            return v;
+        } else if (v instanceof ObjectId) {
+            return ((ObjectId) v).toHexString();
+        } else if (v instanceof Date) {
+            SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM_dd HH:mm:ss.S");
+            return sdf.format(v);
+        }
+        return v.toString();
     }
 }

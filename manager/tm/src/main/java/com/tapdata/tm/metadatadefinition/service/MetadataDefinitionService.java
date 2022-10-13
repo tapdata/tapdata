@@ -10,6 +10,7 @@ import com.tapdata.tm.base.entity.BaseEntity;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.base.service.BaseService;
 import com.tapdata.tm.commons.base.dto.BaseDto;
+import com.tapdata.tm.commons.schema.Tag;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.discovery.service.DiscoveryService;
 import com.tapdata.tm.ds.entity.DataSourceEntity;
@@ -76,7 +77,7 @@ public class MetadataDefinitionService extends BaseService<MetadataDefinitionDto
      */
     public List<String> batchUpdateListTags(String tableName, BatchUpdateParam batchUpdateParam,UserDetail userDetail) {
         List<String> idList = batchUpdateParam.getId();
-        List<Map<String, String>> listTags = batchUpdateParam.getListtags();
+        List<Tag> listTags = batchUpdateParam.getListtags();
         //todo updateMulti  如果用表名传入，更新不了多条，只能用for循环更新，应该优化成直接更新多条
         //todo 改成动态实例来更新数据
         Update update=new Update().set("listtags",listTags);

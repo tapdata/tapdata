@@ -10,6 +10,7 @@ import lombok.Getter;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.io.Serializable;
 import java.util.Date;
@@ -183,7 +184,9 @@ class TaskLogger extends ObsLogger implements Serializable {
 		if (noNeedLog(LogLevel.ERROR.getLevel())) {
 			return;
 		}
-
+		if (null == throwable) {
+			throwable = findThrowable(params);
+		}
 		if (null == message && throwable != null) {
 			message = throwable.getMessage();
 		}
@@ -192,16 +195,7 @@ class TaskLogger extends ObsLogger implements Serializable {
 		MonitoringLogsDto.MonitoringLogsDtoBuilder builder = call(callable);
 		builder.level(Level.ERROR.toString());
 		builder.message(parameterizedMessage.getFormattedMessage());
-
-		StringBuilder errorStackSB = new StringBuilder();
-		while (throwable != null) {
-			errorStackSB.append(throwable.getMessage()).append('\n');
-			for (StackTraceElement stackTraceElement : throwable.getStackTrace()) {
-				errorStackSB.append(stackTraceElement.toString()).append('\n');
-			}
-			throwable = throwable.getCause();
-		}
-		builder.errorStack(errorStackSB.toString());
+		builder.errorStack(getErrorStack(throwable));
 
 		logAppendFactory.appendLog(builder.build());
 	}
@@ -210,7 +204,9 @@ class TaskLogger extends ObsLogger implements Serializable {
 		if (noNeedLog(LogLevel.FATAL.getLevel())) {
 			return;
 		}
-
+		if (null == throwable) {
+			throwable = findThrowable(params);
+		}
 		if (null == message && throwable != null) {
 			message = throwable.getMessage();
 		}
@@ -219,18 +215,34 @@ class TaskLogger extends ObsLogger implements Serializable {
 		MonitoringLogsDto.MonitoringLogsDtoBuilder builder = call(callable);
 		builder.level(Level.FATAL.toString());
 		builder.message(parameterizedMessage.getFormattedMessage());
+		builder.errorStack(getErrorStack(throwable));
 
+		logAppendFactory.appendLog(builder.build());
+	}
+
+	@Nullable
+	private static Throwable findThrowable(Object[] params) {
+		Throwable throwable = null;
+		for (Object param : params) {
+			if (param instanceof Throwable) {
+				throwable = (Throwable) param;
+				break;
+			}
+		}
+		return throwable;
+	}
+
+	@NotNull
+	private static String getErrorStack(Throwable throwable) {
 		StringBuilder errorStackSB = new StringBuilder();
 		while (throwable != null) {
 			errorStackSB.append(throwable.getMessage()).append('\n');
 			for (StackTraceElement stackTraceElement : throwable.getStackTrace()) {
-				errorStackSB.append(stackTraceElement.toString()).append('\n');
+				errorStackSB.append("  ").append(stackTraceElement.toString()).append('\n');
 			}
 			throwable = throwable.getCause();
 		}
-		builder.errorStack(errorStackSB.toString());
-
-		logAppendFactory.appendLog(builder.build());
+		return errorStackSB.toString();
 	}
 
 	@NotNull
