@@ -2,6 +2,7 @@ package com.tapdata.mongo;
 
 import com.tapdata.entity.AppType;
 import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.ThreadContext;
 
 import java.util.ArrayList;
@@ -88,6 +89,9 @@ public class TmStatusService {
 
   public static boolean isAllowReport(String taskId) {
     if (!appType.isCloud()) {
+      return true;
+    }
+    if (StringUtils.isEmpty(taskId)) {
       return true;
     }
     AtomicBoolean status = taskReportStatusMap.get(taskId);
