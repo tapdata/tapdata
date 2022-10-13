@@ -86,7 +86,7 @@ To create Postgres datasource(discarded):
 from tapdata_cli import cli
 
 pg = cli.Postgres("jack_postgre")  # discarded, use cli.DataSource()
-pg.host("106.55.169.3").port(5496).db("insurance").username("postgres").password("tapdata").type("source").schema("insurance")
+pg.host("106.55.169.3").port(5496).db("insurance").username("postgres").password("tapdata").schema("insurance")
 pg.validate()
 pg.save()
 ```
