@@ -384,7 +384,7 @@ def get_table_fields(t, whole=False, source=None, cache=True):
         index_type = "id_index"
     if index_type == "id_index":
         table_id = t
-    if client_cache["tables"].get(source) is None:
+    if client_cache["tables"].get(t) is None:
         show_tables(quiet=True, source=source)
 
     table = client_cache["tables"][source][index_type].get(t, None)
@@ -568,14 +568,14 @@ def show_apis(quiet=False):
     for i in range(len(data)):
         client_cache["apis"]["name_index"][data[i]["basePath"]] = {
             "id": data[i]["id"],
-            "table": data[i]["tablename"],
+            "table": data[i]["tableName"],
             "name": data[i]["name"]
         }
         if not quiet:
             logger.log(
                 "{} {} {} {} {}",
                 pad(data[i]["name"], 20),
-                pad(data[i]["tablename"], 20),
+                pad(data[i]["tableName"], 20),
                 pad(data[i]["basePath"], 20),
                 pad(data[i]["status"], 10),
                 "http://" + server + "#/apiDocAndTest?id=" + data[i]["basePath"] + "_v1",
@@ -2159,25 +2159,30 @@ class Api:
         if db not in client_cache["connections"]["name_index"]:
             logger.warn("no Datasource {} found in system", db)
             return
-        db = client_cache["connections"]["name_index"][db]["id"]
+        db = client_cache["connections"]["name_index"][db]
 
-        fields = get_table_fields(table2, whole=True, source=db)
+        fields = get_table_fields(table2, whole=True, source=db["id"])
         self.base_path = base_path
         self.tablename = table2
         self.payload = {
             "apiType": "defaultApi",
-            "apiVersion": "v1",
+            "apiVersion": "",
             "basePath": base_path,
-            "createType": "",
-            "datasource": db,
-            "describtion": "",
-            "name": base_path,
-            "path": "/api/v1/" + base_path,
-            "readConcern": "majority",
-            "readPreference": "primary",
-            "status": "active",
-            "tablename": self.tablename,
+            "connectionId": db["id"],
+            "connectionName": db["name"],
+            "connectionType": db["database_type"],
+            "datasource": db["id"],
             "fields": fields,
+            "listtags": [],
+            "name": name,
+            "operationType": "GET",
+            "prefix": "",
+            "readConcern": "",
+            "readPreference": "",
+            "readPreferenceTag": "",
+            "tableName": table2,
+            "tablename": table2,
+            "status": "active",
             "paths": [
                 {
                     "acl": [
@@ -2285,7 +2290,30 @@ class Api:
 
     def publish(self):
         if self.id is None:
-            res = req.post("/Modules", json=self.payload).json()
+            res = req.post("/Modules", json=self.payload).json()["data"]  # save
+            res.update({
+                "operationType": "POST",
+                "status": "pending",
+                "paths": [{
+                    "name": "findPage",
+                    "method": "POST",
+                    "fields": [],
+                    "acl": ["admin"],
+                    "params": [],
+                    "path": f'/api/{res["name"]}',
+                    result: "Page<Document>",
+                    "sort": [],
+                    "type": "preset",
+                    "where": []
+                }]
+            })
+            res = req.patch("/Modules", json=res).json()  # generate
+            res = res["data"]
+            res = req.patch("/Modules", json={
+                "id": res["id"],
+                "status": res["status"],
+                "tableName": res["tableName"],
+            }).json()  # publish
             if res["code"] == "ok":
                 logger.info("publish api {} success, you can test it by: {}", self.base_path,
                             "http://" + server + "#/apiDocAndTest?id=" + self.base_path + "_v1")
