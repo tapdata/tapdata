@@ -1,7 +1,5 @@
 package io.tapdata.zoho.entity.webHook.doMain;
 
-import cn.hutool.core.bean.BeanUtil;
-import cn.hutool.core.bean.copier.CopyOptions;
 import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.simplify.TapSimplify;
 import io.tapdata.zoho.entity.webHook.EventBaseEntity;
@@ -17,13 +15,14 @@ public class DeleteEventEntity extends EventBaseEntity<DeleteEventEntity> {
 
     @Override
     protected DeleteEventEntity event(Map<String, Object> issueEventData) {
-        return BeanUtil.mapToBean(issueEventData,DeleteEventEntity.class,true, CopyOptions.create().ignoreError());
+        super.config(issueEventData);
+        return this;
     }
 
     @Override
     public TapEvent outputTapEvent(String table, ConnectionMode instance) {
         return TapSimplify.deleteDMLEvent(
-                instance instanceof CSVMode ? instance.attributeAssignmentSelf(this.payload()):this.payload()
+                instance instanceof CSVMode ? instance.attributeAssignmentSelf(this.payload(),table):this.payload()
                 , table)
                 .referenceTime(this.eventTime());
     }

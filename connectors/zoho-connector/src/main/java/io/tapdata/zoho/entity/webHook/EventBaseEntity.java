@@ -15,6 +15,20 @@ public abstract class EventBaseEntity<T> {
     private Long orgId;
     private Map<String,Object> payload;
 
+    protected void config(Map<String, Object> issueEventData){
+        if (Checker.isEmpty(issueEventData)) return;
+        Object eventTime = issueEventData.get("eventTime");
+        this.eventTime(Checker.isEmpty(eventTime)?0:(Long)eventTime);
+
+        Object eventType = issueEventData.get("eventType");
+        this.eventType(null == eventType?null:(String)eventType);
+
+        Object orgId = issueEventData.get("orgId");
+        this.orgId(null == orgId?0:(Long)orgId);
+
+        Object payload = issueEventData.get("payload");
+        this.payload(null == payload?null:(Map<String,Object>)payload);
+    }
 
     /**
      * 外部调用者使用此方法根据事件类型获取子类

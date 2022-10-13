@@ -25,14 +25,17 @@ public class UpdateEventEntity extends EventBaseEntity<UpdateEventEntity> {
 
     @Override
     protected UpdateEventEntity event(Map<String, Object> issueEventData) {
-        return BeanUtil.mapToBean(issueEventData,UpdateEventEntity.class,true, CopyOptions.create().ignoreError());
+        super.config(issueEventData);
+        Object prevState = issueEventData.get("prevState");
+        this.prevState(null == prevState?null:(Map<String,Object>)prevState);
+        return this;
     }
 
     @Override
     public TapEvent outputTapEvent(String table, ConnectionMode instance) {
         return TapSimplify.updateDMLEvent(
-                instance instanceof CSVMode ? instance.attributeAssignmentSelf(this.prevState):this.prevState,
-                instance instanceof CSVMode ? instance.attributeAssignmentSelf(this.payload()):this.payload(),
+                instance instanceof CSVMode ? instance.attributeAssignmentSelf(this.prevState,table):this.prevState,
+                instance instanceof CSVMode ? instance.attributeAssignmentSelf(this.payload(),table):this.payload(),
                 table)
                 .referenceTime(this.eventTime());
     }

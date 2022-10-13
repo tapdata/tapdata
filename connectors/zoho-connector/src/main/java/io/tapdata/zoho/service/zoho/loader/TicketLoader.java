@@ -4,6 +4,7 @@ import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.utils.DataMap;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
+import io.tapdata.pdk.apis.context.TapContext;
 import io.tapdata.zoho.entity.*;
 import io.tapdata.zoho.utils.Checker;
 import io.tapdata.zoho.utils.ZoHoHttp;
@@ -15,6 +16,9 @@ import java.util.Map;
 
 public class TicketLoader extends ZoHoStarter implements ZoHoBase {
     private static final String TAG = TicketLoader.class.getSimpleName();
+    public TapConnectionContext getContext(){
+        return this.tapConnectionContext;
+    }
 
     private TicketLoader(TapConnectionContext tapConnectionContext) {
         super(tapConnectionContext);

@@ -175,7 +175,7 @@ public class ZoHoConnector extends ConnectorBase {
 		if (null == connectionMode){
 			throw new CoreException("Connection Mode is not empty or not null.");
 		}
-		List<TapTable> tapTables = connectionMode.discoverSchema(tables, tableSize);
+		List<TapTable> tapTables = connectionMode.discoverSchemaV1(tables, tableSize);
 		if (null != tapTables){
 			consumer.accept(tapTables);
 		}
@@ -264,7 +264,7 @@ public class ZoHoConnector extends ConnectorBase {
 			if (Checker.isNotEmpty(list) && !list.isEmpty()){
 				fromPageIndex += pageSize;
 				list.stream().forEach(ticket->{
-					Map<String, Object> oneTicket = connectionMode.attributeAssignment(ticket);
+					Map<String, Object> oneTicket = connectionMode.attributeAssignment(ticket,table);
 					if (Checker.isNotEmpty(oneTicket) && !oneTicket.isEmpty()){
 						Object modifiedTimeObj = oneTicket.get("modifiedTime");
 						long referenceTime = System.currentTimeMillis();
