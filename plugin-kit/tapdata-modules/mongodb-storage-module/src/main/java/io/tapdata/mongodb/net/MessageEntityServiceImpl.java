@@ -16,8 +16,8 @@ import io.tapdata.modules.api.proxy.data.FetchNewDataResult;
 import io.tapdata.mongodb.entity.NodeMessageEntity;
 import io.tapdata.mongodb.net.dao.NodeMessageDAO;
 import org.bson.Document;
-import org.bson.types.ObjectId;
 
+import java.time.Instant;
 import java.util.*;
 
 import static io.tapdata.entity.simplify.TapSimplify.toJson;
@@ -63,7 +63,7 @@ public class MessageEntityServiceImpl implements MessageEntityService {
 	public String getOffsetByTimestamp(Long startTime) {
 		if(startTime == null)
 			startTime = System.currentTimeMillis();
-		NodeMessageEntity nodeMessageEntity = nodeMessageDAO.findOne(new Document("message.time", new Document("$lte", new Date(startTime))), "_id");
+		NodeMessageEntity nodeMessageEntity = nodeMessageDAO.findOne(new Document("message.time", new Document("$lte", Date.from(Instant.ofEpochMilli(startTime)))), "_id");
 		if(nodeMessageEntity != null)
 			return nodeMessageEntity.getId().toString();
 		return null;
@@ -76,18 +76,18 @@ public class MessageEntityServiceImpl implements MessageEntityService {
 		try {
 			Document filter = new Document("message.service", service).append("message.subscribeId", subscribeId);
 			if(offset != null) {
-				filter.append("_id", new Document("$gt", new ObjectId(offset)));
+				filter.append("_id", new Document("$gt", offset));
 			}
 			FindIterable<NodeMessageEntity> iterable = nodeMessageDAO.getMongoCollection().find(filter).limit(limit);
 			cursor = iterable.cursor();
 			List<MessageEntity> list = Lists.newArrayList();
-			ObjectId lastObjectId = null;
+			String lastObjectId = null;
 			while (cursor.hasNext()) {
 				NodeMessageEntity nodeMessageEntity = cursor.next();
 				list.add(nodeMessageEntity.getMessage());
-				lastObjectId = (ObjectId) nodeMessageEntity.getId();
+				lastObjectId = (String) nodeMessageEntity.getId();
 			}
-			return new FetchNewDataResult().messages(list).offset(lastObjectId != null ? lastObjectId.toHexString() : null);
+			return new FetchNewDataResult().messages(list).offset(lastObjectId);
 		} finally {
 			if (cursor != null) {
 				try {
