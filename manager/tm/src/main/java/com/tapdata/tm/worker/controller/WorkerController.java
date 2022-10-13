@@ -2,9 +2,11 @@ package com.tapdata.tm.worker.controller;
 
 import com.google.gson.reflect.TypeToken;
 import com.tapdata.manager.common.utils.JsonUtil;
+import com.tapdata.tm.Settings.service.SettingsService;
 import com.tapdata.tm.base.controller.BaseController;
 import com.tapdata.tm.base.dto.*;
 import com.tapdata.tm.utils.MongoUtils;
+import com.tapdata.tm.worker.dto.CheckTaskUsedAgentDto;
 import com.tapdata.tm.worker.dto.WorkerDto;
 import com.tapdata.tm.worker.dto.WorkerProcessInfoDto;
 import com.tapdata.tm.worker.service.WorkerService;
@@ -40,8 +42,11 @@ public class WorkerController extends BaseController {
     }
 
     private WorkerService workerService;
-    public WorkerController(WorkerService workerService) {
+
+    private SettingsService settingsService;
+    public WorkerController(WorkerService workerService, SettingsService settingsService) {
         this.workerService = workerService;
+        this.settingsService = settingsService;
     }
 
     /**
@@ -351,11 +356,16 @@ public class WorkerController extends BaseController {
      */
     @Operation(summary = "校验任务所使用的agent是否可以强制停止")
     @GetMapping("/available/taskUsedAgent")
-    public ResponseMessage<Map<String, String>> checkTaskUsedAgent(@RequestParam("taskId") String taskId) {
+    public ResponseMessage<CheckTaskUsedAgentDto> checkTaskUsedAgent(@RequestParam("taskId") String taskId) {
         String status = workerService.checkTaskUsedAgent(taskId, getLoginUser());
-        HashMap<String, String> result = new HashMap<>();
-        result.put("status", status);
-        return success(result);
+
+        CheckTaskUsedAgentDto dto = new CheckTaskUsedAgentDto();
+        dto.setStatus(status);
+        Object buildProfile = settingsService.getByCategoryAndKey("System", "buildProfile");
+        final boolean isCloud = buildProfile.equals("CLOUD") || buildProfile.equals("DRS") || buildProfile.equals("DFS");
+
+        dto.setCloudVersion(isCloud);
+        return success(dto);
     }
 
 }
