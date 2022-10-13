@@ -69,8 +69,15 @@ public class CsvConnector extends ConnectorBase {
     }
 
     @Override
-    public void discoverSchema(TapConnectionContext connectionContext, List<String> tables, int tableSize, Consumer<List<TapTable>> consumer) {
-        //as file-connector this api is not supported
+    public void discoverSchema(TapConnectionContext connectionContext, List<String> tables, int tableSize, Consumer<List<TapTable>> consumer) throws Throwable {
+        //as file-connector: nodeConfig is supported, so initConnection can be used
+        initConnection(connectionContext);
+//        storage.getFilesInDirectory(csvConfig.getFilePathSet());
+        onStop(connectionContext);
+    }
+
+    private void sampleFile() {
+
     }
 
     @Override
