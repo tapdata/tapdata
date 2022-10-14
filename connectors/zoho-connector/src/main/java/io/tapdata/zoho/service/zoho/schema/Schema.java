@@ -4,6 +4,8 @@ import cn.hutool.json.JSONArray;
 import cn.hutool.json.JSONNull;
 import cn.hutool.json.JSONObject;
 import io.tapdata.entity.schema.TapTable;
+import io.tapdata.pdk.apis.context.TapConnectionContext;
+import io.tapdata.zoho.entity.ContextConfig;
 import io.tapdata.zoho.utils.BeanUtil;
 
 import java.util.Iterator;
@@ -15,17 +17,17 @@ public interface Schema {
         return BeanUtil.bean("io.tapdata.zoho.service.zoho.schema." + name);
     }
     public List<TapTable> document(List<String> tables, int tableSize );
-    public List<TapTable> csv(List<String> tables, int tableSize );
+    public List<TapTable> csv(List<String> tables, int tableSize, TapConnectionContext connectionContext);
 
 
-    public Map<String,Object> attributeAssignmentDocument(Map<String, Object> obj);
+    public Map<String,Object> attributeAssignmentDocument(Map<String, Object> obj, TapConnectionContext connectionContext);
     public default Map<String,Object> attributeAssignmentSelfDocument(Map<String, Object> obj){
         this.removeJsonNull(obj);
         return obj;
     }
 
-    public Map<String,Object> attributeAssignmentCsv(Map<String, Object> obj);
-    public Map<String,Object> attributeAssignmentSelfCsv(Map<String, Object> obj);
+    public Map<String,Object> attributeAssignmentCsv(Map<String, Object> obj, TapConnectionContext connectionContext, ContextConfig contextConfig);
+    public Map<String,Object> attributeAssignmentSelfCsv(Map<String, Object> obj, ContextConfig contextConfig);
 
 
     public default void removeJsonNull(Map<String, Object> map){

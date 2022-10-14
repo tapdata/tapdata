@@ -145,7 +145,7 @@ public class CSVMode implements ConnectionMode {
         List<Schema> schemas = Schemas.allSupportSchemas();
         if (null != schemas && !schemas.isEmpty()){
             List<TapTable> tapTables = new ArrayList<>();
-            schemas.forEach(schema -> tapTables.addAll(schema.csv(tables,tableSize)));
+            schemas.forEach(schema -> tapTables.addAll(schema.csv(tables,tableSize,connectionContext)));
             return null != tables && !tables.isEmpty()? tapTables : null;
         }
         return null;
@@ -314,7 +314,7 @@ public class CSVMode implements ConnectionMode {
     }
 
     public Map<String,Object> attributeAssignmentSelfV2(Map<String,Object> objectMap,String tableName){
-        return Schema.schema(tableName).attributeAssignmentSelfCsv(objectMap);
+        return Schema.schema(tableName).attributeAssignmentSelfCsv(objectMap,contextConfig);
     }
 
     @Override
@@ -334,7 +334,7 @@ public class CSVMode implements ConnectionMode {
     }
 
     public Map<String,Object> attributeAssignmentV2(Map<String,Object> stringObjectMap,String tableName){
-        return Schema.schema(tableName).attributeAssignmentCsv(stringObjectMap);
+        return Schema.schema(tableName).attributeAssignmentCsv(stringObjectMap,connectionContext,contextConfig);
     }
     //CustomFields
     private Map<String,Object> setCustomField(Map<String,Object> stringObjectMap,ContextConfig contextConfig){

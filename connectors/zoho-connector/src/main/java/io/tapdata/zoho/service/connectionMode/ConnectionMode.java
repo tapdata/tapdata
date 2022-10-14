@@ -14,8 +14,10 @@ import java.util.Map;
 public interface ConnectionMode {
     public List<TapTable> discoverSchema(List<String> tables, int tableSize);
     public List<TapTable> discoverSchemaV1(List<String> tables, int tableSize);
+
     public Map<String,Object> attributeAssignment(Map<String, Object> obj,String tableName);
     public Map<String,Object> attributeAssignmentSelf(Map<String, Object> obj,String tableName);
+
     public ConnectionMode config(TapConnectionContext connectionContext);
     public default void removeJsonNull(Map<String, Object> map){
         if (null == map || map.isEmpty()) return;

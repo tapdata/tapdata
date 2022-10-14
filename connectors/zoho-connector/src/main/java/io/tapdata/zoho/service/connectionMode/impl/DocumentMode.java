@@ -211,7 +211,7 @@ public class DocumentMode implements ConnectionMode {
     }
 
     public Map<String,Object> attributeAssignmentV2(Map<String,Object> stringObjectMap,String tableName) {
-        return Schema.schema(tableName).attributeAssignmentDocument(stringObjectMap);
+        return Schema.schema(tableName).attributeAssignmentDocument(stringObjectMap,connectionContext);
     }
     /***
     public static void main(String[] args) {
