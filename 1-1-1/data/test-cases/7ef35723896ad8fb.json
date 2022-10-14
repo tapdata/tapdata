@@ -1,0 +1,145 @@
+{
+  "uid" : "7ef35723896ad8fb",
+  "name" : "test monitor job status",
+  "fullName" : "test_pipeline.TestPipeline#test_monitor",
+  "historyId" : "3fd54ac5d350d86ca5d030675fbb6f2d",
+  "time" : {
+    "start" : 1665733849938,
+    "stop" : 1665733849943,
+    "duration" : 5
+  },
+  "status" : "broken",
+  "statusMessage" : "NameError: name 'source_name' is not defined",
+  "statusTrace" : "self = <test.test_pipeline.TestPipeline object at 0x7f45710dc650>\n\n    @allure.title(\"test monitor job status\")\n    def test_monitor(self):\n        p = make_new_pipeline(f\"monitor_job{random_str()}\")\n>       p1 = p.readFrom(source_name).writeTo(sink_name)\nE       NameError: name 'source_name' is not defined\n\ntest_pipeline.py:183: NameError",
+  "flaky" : false,
+  "newFailed" : false,
+  "beforeStages" : [ ],
+  "afterStages" : [ ],
+  "labels" : [ {
+    "name" : "feature",
+    "value" : "pipeline"
+  }, {
+    "name" : "suite",
+    "value" : "test_pipeline"
+  }, {
+    "name" : "subSuite",
+    "value" : "TestPipeline"
+  }, {
+    "name" : "host",
+    "value" : "630f06b1e847"
+  }, {
+    "name" : "thread",
+    "value" : "1152-MainThread"
+  }, {
+    "name" : "framework",
+    "value" : "pytest"
+  }, {
+    "name" : "language",
+    "value" : "cpython3"
+  }, {
+    "name" : "package",
+    "value" : "test_pipeline"
+  }, {
+    "name" : "resultFormat",
+    "value" : "allure2"
+  } ],
+  "parameters" : [ ],
+  "links" : [ ],
+  "hidden" : false,
+  "retry" : false,
+  "extra" : {
+    "severity" : "normal",
+    "retries" : [ ],
+    "categories" : [ {
+      "name" : "Test defects",
+      "matchedStatuses" : [ ],
+      "flaky" : false
+    } ],
+    "history" : {
+      "statistic" : {
+        "failed" : 0,
+        "broken" : 1,
+        "skipped" : 0,
+        "passed" : 9,
+        "unknown" : 0,
+        "total" : 10
+      },
+      "items" : [ {
+        "uid" : "6831c5b2cd7a87d0",
+        "status" : "passed",
+        "time" : {
+          "start" : 1657780864601,
+          "stop" : 1657780867109,
+          "duration" : 2508
+        }
+      }, {
+        "uid" : "8663cadec5dc67b1",
+        "status" : "passed",
+        "time" : {
+          "start" : 1657772643609,
+          "stop" : 1657772645987,
+          "duration" : 2378
+        }
+      }, {
+        "uid" : "ab2ff91ea023c9b7",
+        "status" : "passed",
+        "time" : {
+          "start" : 1657771796916,
+          "stop" : 1657771799216,
+          "duration" : 2300
+        }
+      }, {
+        "uid" : "11f7ddc9ebf2df02",
+        "status" : "passed",
+        "time" : {
+          "start" : 1657771012331,
+          "stop" : 1657771014571,
+          "duration" : 2240
+        }
+      }, {
+        "uid" : "52cb3392994662b7",
+        "status" : "passed",
+        "time" : {
+          "start" : 1657739272499,
+          "stop" : 1657739274669,
+          "duration" : 2170
+        }
+      }, {
+        "uid" : "96f0955356806910",
+        "status" : "passed",
+        "time" : {
+          "start" : 1657737804280,
+          "stop" : 1657737806688,
+          "duration" : 2408
+        }
+      }, {
+        "uid" : "f20ff4f288fcacd5",
+        "status" : "passed",
+        "time" : {
+          "start" : 1657735117407,
+          "stop" : 1657735119629,
+          "duration" : 2222
+        }
+      }, {
+        "uid" : "991d610146e9c6eb",
+        "status" : "passed",
+        "time" : {
+          "start" : 1657733722424,
+          "stop" : 1657733724690,
+          "duration" : 2266
+        }
+      }, {
+        "uid" : "c2d89fa063f151df",
+        "status" : "passed",
+        "time" : {
+          "start" : 1657733048846,
+          "stop" : 1657733051204,
+          "duration" : 2358
+        }
+      } ]
+    },
+    "tags" : [ ]
+  },
+  "source" : "7ef35723896ad8fb.json",
+  "parameterValues" : [ ]
+}

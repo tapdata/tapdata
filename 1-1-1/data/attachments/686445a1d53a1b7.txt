@@ -1,0 +1,11 @@
+start validate datasource config, please wait for a while ...                      
+[1;0mCheck host port is invalid[0m: [1;32mpassed[0m                            
+[1;0mConnection[0m: [1;32mpassed[0m                                            
+[1;0mCheck database version[0m: [1;32mpassed[0m                                
+[1;0mCheck binlog mode[0m: [1;32mpassed[0m                                     
+[1;0mCheck binlog row image[0m: [1;32mpassed[0m                                
+[1;0mCheck database cdc privileges[0m: [1;32mpassed[0m                         
+[1;0mCheck create table privilege[0m: [1;32mpassed[0m                          
+datasource valid finished, will check table schema now, please wait for a while ...
+table schema check percent is: [1;32m0[0m%                                       table schema check percent is: [1;32m37[0m%                                      table schema check percent is: [1;32m74[0m%                                      datasource table schema check finished, cost time: [1;32m20[0m seconds           
+delete [1;32m6349143c5a66f20ff5b9e0cd[0m Connection success                      

@@ -1,0 +1,62 @@
+{
+  "uid" : "a42448f42aa71e36",
+  "name" : "create Kafka datasource with form",
+  "fullName" : "test_datasource.TestDataSource#test_kafka",
+  "historyId" : "93cd385d45fab8e0a4ef410091f20aa6",
+  "time" : {
+    "start" : 1665733849539,
+    "stop" : 1665733849540,
+    "duration" : 1
+  },
+  "status" : "broken",
+  "statusMessage" : "AttributeError: item not found in .env file or env",
+  "statusTrace" : "self = <test.Args object at 0x7f4573eb9b50>, item = 'kafka.HOST'\n\n    def __getitem__(self, item) -> T:\n    \n        try:\n            key_1, key_2 = item.split(SEP)\n>           result = self.get_value(key_1)[key_2]\n\n__init__.py:32: \n_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _\n\ncls = <class 'test.Args'>, k = 'kafka'\n\n    @classmethod\n    def get_value(cls, k):\n>       return cls._ini_read[k]\n\n__init__.py:41: \n_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _\n\nself = <configparser.ConfigParser object at 0x7f4573eb2f50>, key = 'kafka'\n\n    def __getitem__(self, key):\n        if key != self.default_section and not self.has_section(key):\n>           raise KeyError(key)\nE           KeyError: 'kafka'\n\n/usr/lib/python3.7/configparser.py:958: KeyError\n\nDuring handling of the above exception, another exception occurred:\n\nself = <test.test_datasource.TestDataSource object at 0x7f45710a2950>\n\n    @allure.title(\"create Kafka datasource with form\")\n    def test_kafka(self):\n        test_ds = DataSource(\"kafka\", f\"test_kafka_{random_str()}\")\n>       test_ds.nameSrvAddr(env['kafka.HOST'])\n\ntest_datasource.py:71: \n_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _\n\nself = <test.Args object at 0x7f4573eb9b50>, item = 'kafka.HOST'\n\n    def __getitem__(self, item) -> T:\n    \n        try:\n            key_1, key_2 = item.split(SEP)\n            result = self.get_value(key_1)[key_2]\n        except KeyError:\n            if not os.getenv(item):\n>               raise AttributeError(\"item not found in .env file or env\")\nE               AttributeError: item not found in .env file or env\n\n__init__.py:35: AttributeError",
+  "flaky" : false,
+  "newFailed" : false,
+  "beforeStages" : [ ],
+  "afterStages" : [ ],
+  "labels" : [ {
+    "name" : "feature",
+    "value" : "datasource"
+  }, {
+    "name" : "suite",
+    "value" : "test_datasource"
+  }, {
+    "name" : "subSuite",
+    "value" : "TestDataSource"
+  }, {
+    "name" : "host",
+    "value" : "630f06b1e847"
+  }, {
+    "name" : "thread",
+    "value" : "1152-MainThread"
+  }, {
+    "name" : "framework",
+    "value" : "pytest"
+  }, {
+    "name" : "language",
+    "value" : "cpython3"
+  }, {
+    "name" : "package",
+    "value" : "test_datasource"
+  }, {
+    "name" : "resultFormat",
+    "value" : "allure2"
+  } ],
+  "parameters" : [ ],
+  "links" : [ ],
+  "hidden" : false,
+  "retry" : false,
+  "extra" : {
+    "severity" : "normal",
+    "retries" : [ ],
+    "categories" : [ {
+      "name" : "Test defects",
+      "matchedStatuses" : [ ],
+      "flaky" : false
+    } ],
+    "tags" : [ ]
+  },
+  "source" : "a42448f42aa71e36.json",
+  "parameterValues" : [ ]
+}

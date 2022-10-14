@@ -1,0 +1,19 @@
+start validate datasource config, please wait for a while ...                      
+[1;0mCheck host port is invalid[0m: [1;32mpassed[0m                            
+[1;0mConnection[0m: [1;32mpassed[0m                                            
+[1;0mCheck all for table privilege[0m: [1;32mpassed[0m                         
+[1;0mCheck replication privileges[0m: [1;32mpassed[0m                          
+[1;0mCheck log plugin for database[0m: [1;32mpassed[0m, message: [1;32mInvalid log plugin, Maybe cdc events cannot work![0m
+[1;0mLoad Schema[0m: [1;32mfailed[0m, message: [1;33mNot found any schema[0m                                               
+datasource valid finished, will check table schema now, please wait for a while ...                                              
+datasource table schema check finished, cost time: [1;32m5[0m seconds                                                          
+start validate datasource config, please wait for a while ...                                                                    
+[1;0mCheck host port is invalid[0m: [1;32mpassed[0m                                                                          
+[1;0mConnection[0m: [1;32mpassed[0m                                                                                          
+[1;0mCheck all for table privilege[0m: [1;32mpassed[0m                                                                       
+[1;0mCheck replication privileges[0m: [1;32mpassed[0m                                                                        
+[1;0mCheck log plugin for database[0m: [1;32mpassed[0m, message: [1;32mInvalid log plugin, Maybe cdc events cannot work![0m
+[1;0mLoad Schema[0m: [1;32mfailed[0m, message: [1;33mNot found any schema[0m                                               
+datasource valid finished, will check table schema now, please wait for a while ...                                              
+datasource table schema check finished, cost time: [1;32m5[0m seconds                                                          
+delete [1;32m634914bd5a66f20ff5b9f0ee[0m Connection success                                                                    
