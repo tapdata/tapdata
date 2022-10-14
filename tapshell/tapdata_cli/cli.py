@@ -566,11 +566,13 @@ def show_apis(quiet=False):
             "test url", "debug", "debug", "debug", "debug", "debug"
         )
     for i in range(len(data)):
-        client_cache["apis"]["name_index"][data[i]["basePath"]] = {
+        client_cache["connections"]["id_index"][data[i]["datasource"]]["name"]
+        client_cache["apis"]["name_index"][data[i]["name"]] = {
             "id": data[i]["id"],
             "table": data[i]["tableName"],
             "name": data[i]["name"],
             "tableName": data[i]["tableName"],
+            "database": client_cache["connections"]["id_index"][data[i]["datasource"]]["name"],
         }
         if not quiet:
             logger.log(
@@ -2141,7 +2143,8 @@ class Api:
         if name is None:
             return
         else:
-            self.get(name)
+            if self.get(name):
+                table = f"{self.db}.{self.tablename}"
 
         if table is None:
             return
@@ -2163,6 +2166,9 @@ class Api:
         db = client_cache["connections"]["name_index"][db]
 
         fields = get_table_fields(table2, whole=True, source=db["id"])
+        for index, field in enumerate(fields):
+            field["comment"] = ""
+            fields[index] = field
         self.base_path = base_path
         self.tablename = table2
         self.payload = {
@@ -2183,115 +2189,59 @@ class Api:
             "readPreferenceTag": "",
             "tableName": table2,
             "tablename": table2,
-            "status": "active",
-            "paths": [
-                {
-                    "acl": [
-                        "admin"
-                    ],
-                    "description": "Create a new record",
-                    "method": "POST",
-                    "name": "create",
-                    "path": "/api/v1/" + base_path,
-                    "result": "Document",
-                    "type": "preset"
-                },
-                {
-                    "acl": [
-                        "admin"
-                    ],
-                    "description": "Get records based on id",
-                    "method": "GET",
-                    "name": "findById",
-                    "params": [
-                        {
-                            "defaultvalue": 1,
-                            "description": "document id",
-                            "name": "id",
-                            "type": "string"
-                        }
-                    ],
-                    "path": "/api/v1/" + base_path + "/{id}",
-                    "result": "Document",
-                    "type": "preset"
-                },
-                {
-                    "acl": [
-                        "admin"
-                    ],
-                    "description": "Update record according to id",
-                    "method": "PATCH",
-                    "name": "updateById",
-                    "params": [
-                        {
-                            "defaultvalue": 1,
-                            "description": "document id",
-                            "name": "id",
-                            "type": "string"
-                        }
-                    ],
-                    "path": "/api/v1/" + base_path + "{id}",
-                    "result": "Document",
-                    "type": "preset"
-                },
-                {
-                    "acl": [
-                        "admin"
-                    ],
-                    "description": "Delete records based on id",
-                    "method": "DELETE",
-                    "name": "deleteById",
-                    "params": [
-                        {
-                            "description": "document id",
-                            "name": "id",
-                            "type": "string"
-                        }
-                    ],
-                    "path": "/api/v1/" + base_path + "{id}",
-                    "type": "preset"
-                },
-                {
-                    "acl": [
-                        "admin"
-                    ],
-                    "description": "Get records by page",
-                    "method": "GET",
-                    "name": "findPage",
-                    "params": [
-                        {
-                            "defaultvalue": 1,
-                            "description": "page number",
-                            "name": "page",
-                            "type": "number"
-                        },
-                        {
-                            "defaultvalue": 20,
-                            "description": "max records per page",
-                            "name": "limit",
-                            "type": "number"
-                        },
-                        {
-                            "description": "sort setting,Array ,format like [{'propertyName':'ASC'}]",
-                            "name": "sort",
-                            "type": "object"
-                        },
-                        {
-                            "description": "search filter object,Array",
-                            "name": "filter",
-                            "type": "object"
-                        }
-                    ],
-                    "path": "/api/v1/" + base_path,
-                    "result": "Page<Document>",
-                    "type": "preset"
-                }
-            ]
+            "status": "generating",
+            "paths": [{
+                "acl": [
+                    "admin"
+                ],
+                "fields": fields,
+                "description": "Get records by page",
+                "method": "POST",
+                "name": "findPage",
+                "params": [
+                    {
+                        "defaultvalue": 1,
+                        "description": "page number",
+                        "name": "page",
+                        "type": "number",
+                        "require": True,
+                    },
+                    {
+                        "defaultvalue": 20,
+                        "description": "max records per page",
+                        "name": "limit",
+                        "type": "number",
+                        "require": True,
+                    },
+                    {
+                        "description": "sort setting,Array ,format like [{'propertyName':'ASC'}]",
+                        "name": "sort",
+                        "type": "object"
+                    },
+                    {
+                        "description": "search filter object,Array",
+                        "name": "filter",
+                        "type": "object"
+                    }
+                ],
+                "path": f"/api/{base_path}",
+                "result": "Page<Document>",
+                "type": "preset",
+                "sort": [],
+                "where": [],
+            }]
         }
 
     def publish(self):
         if self.id is None:
-            res = req.post("/Modules", json=self.payload).json()["data"]  # save
+            res = req.post("/Modules", json=self.payload).json()  # save
+            id = res["data"]["id"]
+            payload = copy.deepcopy(self.payload)
+            payload.update({
+                "id": res["data"]["id"],
+                "status": "pending"
+            })
+            res = req.patch("/Modules", json=payload).json()["data"]
             res = req.patch("/Modules", json={
                 "id": res["id"],
                 "status": "active",
@@ -2322,10 +2272,12 @@ class Api:
             show_apis(quiet=True)
         api = client_cache["apis"]["name_index"].get(name)
         if api is None:
-            return None
+            return False
         api_id = api["id"]
         self.id = api_id
+        self.db = api["database"]
         self.tablename = api["tableName"]
+        return True
 
     def status(self, name):
         res = req.get("/Modules")
