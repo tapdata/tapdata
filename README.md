@@ -12,6 +12,13 @@
 
 [中文简要文档地址](https://github.com/tapdata/tapdata/blob/master/README.zh-CN.md)
 
+## Special Event: Connector Plugin Development Competition
+
+Got some Java & Database skill? Help tapdata to add a data source and win prize!
+
+https://github.com/tapdata/tapdata.github.io/blob/main/plugin-contributor-program/plugin-contributor-program.md
+
+
 ## Online Document: https://tapdata.github.io/
 ## What is Tapdata?
 Tapdata is a live data platform designed to connect data silos and provide fresh data to the downstream operational applications & operational analytics. 
