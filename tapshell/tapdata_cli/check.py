@@ -5,10 +5,11 @@ class ConfigCheck:
     """
     check job config and set default value
     """
+
     def __init__(self, config: dict, rules: dict, keep_extra=False):
         """
         param config: job config
-        param rules: check rules in tapdata_cli/rules.py
+        param rules: check rules in tapdata_cli/params/*.py
         param keep_extra: Whether values not in the check rules are saved
         """
         self.config = config
@@ -36,11 +37,15 @@ class ConfigCheck:
 
     def _get_child(self, k, v):
         """if config value is dict or list"""
-        if isinstance(self.config[k], dict):
-            self.result[k] = ConfigCheck(self.config[k], v["value"]).checked_config
+        if isinstance(self.config[k], dict) and v.get("value") is not None:
+            try:
+                self.result[k] = ConfigCheck(self.config[k], v["value"]).checked_config
+            except KeyError:
+                print(k, v)
+                raise Exception
             del self.config[k]
             return False
-        elif isinstance(self.config[k], list):
+        elif isinstance(self.config[k], list) and v.get("value") is not None:
             self.result[k] = []
             for i in self.config[k]:
                 self.result[k].append(ConfigCheck(i, v["value"]).checked_config)
@@ -59,8 +64,9 @@ class ConfigCheck:
     def _check_require(self, key, value):
         if value.get("require"):
             if not self.config.get(key):
-                assert value.get("default") is not None, f'{key} is require or must set default value'
-                self.config[key] = value.get("default")
+                assert value.get("default") is not None or value.get("value") is not None, \
+                    f'{key} is require or must set default value'
+                self.config[key] = value.get("default", value.get("type")())
             return True
         else:
             return bool(self.config.get(key))
@@ -70,9 +76,11 @@ class ConfigCheck:
         return True
 
     def _check_option(self, key, value):
-        assert value.get("option") is None or self.config.get(key) in value.get("option"), f"`{key}` must in {value.get('option')}"
+        assert value.get("option") is None or self.config.get(key) in value.get(
+            "option"), f"`{key}` must in {value.get('option')}"
         return True
 
     def _check_reg(self, key, value):
-        assert value.get("reg") is None or re.match(value.get("reg"), self.config.get(key)) is not None, "Regular expression mismatch"
+        assert value.get("reg") is None or re.match(value.get("reg"),
+                                                    self.config.get(key)) is not None, "Regular expression mismatch"
         return True
