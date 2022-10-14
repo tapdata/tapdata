@@ -876,13 +876,17 @@ public class TaskController extends BaseController {
      */
     @Operation(summary = "check task repeat name")
     @PostMapping("checkName")
-    public ResponseMessage<Boolean> checkName(@RequestParam("name") String name
-            , @RequestParam(value = "id", required = false) String id) {
-        ObjectId objectId = null;
-        if (StringUtils.isNotBlank(id)) {
-            objectId = MongoUtils.toObjectId(id);
+    public ResponseMessage<Boolean> checkName(@RequestBody CheckNameReq req) {
+
+        if (StringUtils.isBlank(req.getName())) {
+            return success(true);
         }
-        return success(taskService.checkTaskNameNotError(name, getLoginUser(), objectId));
+
+        ObjectId objectId = null;
+        if (StringUtils.isNotBlank(req.getId())) {
+            objectId = MongoUtils.toObjectId(req.getId());
+        }
+        return success(taskService.checkTaskNameNotError(req.getName(), getLoginUser(), objectId));
     }
 
     @Operation(summary = "任务导出")
