@@ -89,7 +89,6 @@ public class TaskRecordServiceImpl implements TaskRecordService {
         }
 
         List<TaskRecord> taskRecords = partition.get(page - 1);
-
         List<String> userIds = taskRecords.stream().map(TaskRecord::getUserId).distinct().collect(Collectors.toList());
         List<UserDetail> users = userService.getUserByIdList(userIds);
         Map<String, String> userMap = users.stream().collect(Collectors.toMap(UserDetail::getUserId, u -> {

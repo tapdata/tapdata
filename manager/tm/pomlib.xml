@@ -83,7 +83,16 @@
 	</profiles>
 
 	<dependencies>
-
+		<dependency>
+			<groupId>io.tapdata</groupId>
+			<artifactId>tapdata-proxy</artifactId>
+			<version>1.0-SNAPSHOT</version>
+		</dependency>
+		<dependency>
+			<groupId>io.tapdata</groupId>
+			<artifactId>mongodb-storage-module</artifactId>
+			<version>1.0-SNAPSHOT</version>
+		</dependency>
 		<dependency>
 			<groupId>com.tapdata</groupId>
 			<artifactId>common</artifactId>

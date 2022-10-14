@@ -10,7 +10,6 @@ import io.tapdata.pdk.core.utils.state.StateMachine;
 
 import java.io.File;
 import java.util.Collection;
-import java.util.List;
 import java.util.Map;
 
 /**
@@ -198,8 +197,8 @@ public class TapConnector implements MemoryFetcher {
     }
 
     @Override
-    public DataMap memory(List<String> mapKeys, String memoryLevel) {
-        return DataMap.create()
+    public DataMap memory(String keyRegex, String memoryLevel) {
+        return DataMap.create().keyRegex(keyRegex)/*.prefix(this.getClass().getSimpleName())*/
                 .kv("jarFile", jarFile)
                 .kv("jarFileTime", jarFileTime)
                 .kv("loadingJarFile", loadingJarFile)

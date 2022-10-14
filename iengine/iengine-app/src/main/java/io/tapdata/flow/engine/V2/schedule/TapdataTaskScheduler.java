@@ -4,10 +4,10 @@ import com.tapdata.constant.CollectionUtil;
 import com.tapdata.constant.ConfigurationCenter;
 import com.tapdata.constant.ConnectorConstant;
 import com.tapdata.constant.Log4jUtil;
-import com.tapdata.entity.AppType;
 import com.tapdata.entity.TapLog;
 import com.tapdata.entity.dataflow.DataFlow;
 import com.tapdata.mongo.ClientMongoOperator;
+import com.tapdata.mongo.TmStatusService;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.aspect.TaskStopAspect;
 import io.tapdata.aspect.utils.AspectUtils;
@@ -68,8 +68,6 @@ public class TapdataTaskScheduler {
 	@Autowired
 	private MessageDao messageDao;
 
-	private AppType appType;
-
 
 	@PostConstruct
 	public void init() {
@@ -77,6 +75,36 @@ public class TapdataTaskScheduler {
 //    appType = (AppType) configCenter.getConfig(ConfigurationCenter.APPTYPE);
 		instanceNo = (String) configCenter.getConfig(ConfigurationCenter.AGENT_ID);
 		logger.info("[Task scheduler] instance no: {}", instanceNo);
+
+		TmStatusService.registeredTmAvailableHandler(() -> {
+			//Reconnect tm, do something
+			/**
+			 * 1、查询还在跑的任务，如果agentId不匹配，则停止
+			 * 2、上报任务已停止/错误的状态信息
+			 */
+			try {
+				for (Map.Entry<String, TaskClient<TaskDto>> entry : taskClientMap.entrySet()) {
+					TaskClient<TaskDto> subTaskDtoTaskClient = entry.getValue();
+					final TaskDto taskDto = subTaskDtoTaskClient.getTask();
+					String taskId = taskDto.getId().toHexString();
+					Criteria rescheduleCriteria = where("_id").is(taskId).andOperator(where("agentId").ne(instanceNo));
+
+					Query query = new Query(rescheduleCriteria);
+					query.fields().include("id").include("status");
+					final List<TaskDto> subTaskDtos = clientMongoOperator.find(query, ConnectorConstant.TASK_COLLECTION, TaskDto.class);
+					if (CollectionUtil.isNotEmpty(subTaskDtos)) {
+						stopTask(subTaskDtoTaskClient);
+					} else {
+						TmStatusService.setAllowReport(taskId);
+					}
+
+				}
+
+			} catch (Exception e) {
+				logger.error("Scan reschedule task failed {}", e.getMessage(), e);
+			}
+
+		});
 	}
 
 	/**
@@ -102,8 +130,8 @@ public class TapdataTaskScheduler {
 					try {
 						Log4jUtil.setThreadContext(taskDto);
 						final String taskId = taskDto.getId().toHexString();
+						TmStatusService.addNewTask(taskId);
 						clientMongoOperator.updateById(new Update(), ConnectorConstant.TASK_COLLECTION + "/running", taskId, TaskDto.class);
-						Log4jUtil.setThreadContext(taskDto);
 						final TaskClient<TaskDto> subTaskDtoTaskClient = hazelcastTaskService.startTask(taskDto);
 						taskClientMap.put(subTaskDtoTaskClient.getTask().getId().toHexString(), subTaskDtoTaskClient);
 					} catch (ManagementException e) {
@@ -159,6 +187,10 @@ public class TapdataTaskScheduler {
 
 				Map.Entry<String, TaskClient<TaskDto>> entry = it.next();
 				TaskClient<TaskDto> subTaskDtoTaskClient = entry.getValue();
+				final String taskId = subTaskDtoTaskClient.getTask().getId().toHexString();
+				if (TmStatusService.isNotAllowReport(taskId)) {
+					continue;
+				}
 				final String status = subTaskDtoTaskClient.getStatus();
 				if (TaskDto.STATUS_ERROR.equals(status)) {
 					errorTask(subTaskDtoTaskClient);
@@ -185,10 +217,13 @@ public class TapdataTaskScheduler {
 		if (subTaskDtoTaskClient == null || subTaskDtoTaskClient.getTask() == null || StringUtils.isBlank(subTaskDtoTaskClient.getTask().getId().toHexString())) {
 			return;
 		}
-		final String taskId = subTaskDtoTaskClient.getTask().getId().toHexString();
-		clientMongoOperator.updateById(new Update(), ConnectorConstant.TASK_COLLECTION + "/runError", taskId, TaskDto.class);
-		removeTask(taskId, false);
-		destroyCache(subTaskDtoTaskClient);
+		final boolean stop = subTaskDtoTaskClient.stop();
+		if (stop) {
+			final String taskId = subTaskDtoTaskClient.getTask().getId().toHexString();
+			clientMongoOperator.updateById(new Update(), ConnectorConstant.TASK_COLLECTION + "/runError", taskId, TaskDto.class);
+			removeTask(taskId, false);
+			destroyCache(subTaskDtoTaskClient);
+		}
 	}
 
 	private void removeTask(String taskId, boolean stopAspect) {
@@ -198,6 +233,7 @@ public class TapdataTaskScheduler {
 				AspectUtils.executeAspect(new TaskStopAspect().task(taskClient.getTask()));
 			}
 		}
+		TmStatusService.removeTask(taskId);
 	}
 
 	/**

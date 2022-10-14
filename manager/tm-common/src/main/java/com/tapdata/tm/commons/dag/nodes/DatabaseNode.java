@@ -1,7 +1,5 @@
 package com.tapdata.tm.commons.dag.nodes;
 
-import cn.hutool.core.thread.ThreadUtil;
-import com.google.common.collect.Lists;
 import com.tapdata.tm.commons.dag.DAG;
 import com.tapdata.tm.commons.dag.Node;
 import com.tapdata.tm.commons.dag.NodeType;
@@ -13,11 +11,10 @@ import com.tapdata.tm.commons.dag.vo.FieldProcess;
 import com.tapdata.tm.commons.dag.vo.SyncObjects;
 import com.tapdata.tm.commons.dag.vo.TableRenameTableInfo;
 import com.tapdata.tm.commons.schema.*;
+import com.tapdata.tm.commons.task.dto.TaskDto;
 import io.tapdata.entity.event.ddl.TapDDLEvent;
 import io.tapdata.entity.event.ddl.table.TapCreateTableEvent;
 import io.tapdata.entity.event.ddl.table.TapDropTableEvent;
-import io.tapdata.entity.event.ddl.table.TapFieldBaseEvent;
-import com.tapdata.tm.commons.task.dto.TaskDto;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.SneakyThrows;
@@ -27,7 +24,6 @@ import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.ListUtils;
 
 import java.util.*;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;

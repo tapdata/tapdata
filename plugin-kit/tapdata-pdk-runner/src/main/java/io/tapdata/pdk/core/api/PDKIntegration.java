@@ -453,9 +453,9 @@ public class PDKIntegration {
         memoryManager.unregister(key);
     }
 
-    public static String outputMemoryFetchers(List<String> mapKeys, String mapType) {
+    public static String outputMemoryFetchers(String keyRegex, String mapType) {
         init();
-        return memoryManager.output(mapKeys, mapType);
+        return memoryManager.output(keyRegex, mapType);
     }
 
 }

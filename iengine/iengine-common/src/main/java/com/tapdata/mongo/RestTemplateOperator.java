@@ -49,6 +49,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
@@ -71,6 +72,8 @@ public class RestTemplateOperator {
 	private Supplier<Long> getRetryTimeout;
 
 	private long retryInterval = 500;
+
+	private final AtomicLong logCount = new AtomicLong(0);
 
 	private RestTemplateOperator() {
 	}
@@ -853,6 +856,12 @@ public class RestTemplateOperator {
 	}
 
 	private void handleRequestFailed(String uri, String method, Object param, ResponseBody responseBody) throws JsonProcessingException {
+		if (TmStatusService.isNotAvailable()) {
+			if (logCount.incrementAndGet() % 1000 == 0) {
+				logger.warn("tm unavailable...");
+			}
+			return;
+		}
 		if (responseBody == null) {
 			throw new ManagementException("Request management failed, response body is empty.");
 		} else if (StringUtils.containsAny(responseBody.getCode(), "SystemError", "IllegalArgument")) {

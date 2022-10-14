@@ -17,6 +17,7 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 import com.tapdata.tm.utils.MailUtils;
+import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -35,15 +36,9 @@ import org.springframework.stereotype.Service;
  */
 @Slf4j
 @Service
+@Setter(onMethod_ = {@Autowired})
 public class SettingsService {
-
-    @Autowired
-    SettingsRepository settingsRepository;
-
-    @Autowired
-    MailUtils mailUtils;
-
-    @Autowired
+    private SettingsRepository settingsRepository;
     private MongoTemplate mongoTemplate;
 
     /**
@@ -241,13 +236,8 @@ public class SettingsService {
         mongoTemplate.updateFirst(query, update, Settings.class);
     }
 
-    public void testEmail() {
-        String receiver = (String) getValueByCategoryAndKey(CategoryEnum.SMTP, KeyEnum.EMAIL_RECEIVER);
-        String titlePrefix = (String) getValueByCategoryAndKey(CategoryEnum.SMTP, KeyEnum.EMAIL_TITLE_PREFIX);
-        // 读取html模板
-        String html = MailUtils.readHtmlToString("mailTemplate.html");
-        org.jsoup.nodes.Document doc = Jsoup.parse(html);
-        mailUtils.sendMail(receiver, doc, titlePrefix+"test");
+    public List<Settings> findAll() {
+        return mongoTemplate.find(new Query(), Settings.class);
     }
 
 }
