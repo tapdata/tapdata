@@ -5,7 +5,7 @@ basepath=$(cd `dirname $0`; pwd)
 . $basepath/../build/log.sh
 
 container_name=$dev_container_name
-tapshell_path="/tapdata-source/tapshell"
+tapshell_path="/tapdata/apps/tapshell"
 
 docker ps|grep $container_name &> /dev/null
 if [[ $? -ne 0 ]]; then
