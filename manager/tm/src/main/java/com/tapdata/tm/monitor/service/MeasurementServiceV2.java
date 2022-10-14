@@ -62,12 +62,15 @@ public class MeasurementServiceV2 {
         BulkOperations bulkOperations = mongoOperations.bulkOps(BulkOperations.BulkMode.UNORDERED, MeasurementEntity.class, MeasurementEntity.COLLECTION_NAME);
         for (SampleRequest singleSampleRequest : sampleRequestList) {
             Criteria criteria = Criteria.where(MeasurementEntity.FIELD_GRANULARITY).is(granularity);
-            Date theDate = TimeUtil.cleanTimeAfterMinute(new Date());
-            criteria.and(MeasurementEntity.FIELD_DATE).is(theDate);
 
             Map<String, String> tags = singleSampleRequest.getTags();
             if (null == tags || 0 == tags.size()) {
                 continue;
+            }
+
+            Date theDate = TimeUtil.cleanTimeAfterMinute(new Date());
+            if (!"table".equals(tags.get("type"))) {
+                criteria.and(MeasurementEntity.FIELD_DATE).is(theDate);
             }
 
             for (Map.Entry<String, String> entry : tags.entrySet()) {
@@ -81,9 +84,16 @@ public class MeasurementServiceV2 {
             upd.put("$slice", 200); //为了保护数组过长， 在出bug的情况下
             upd.put("$sort", new Document().append(Sample.FIELD_DATE, -1));
 
-            Update update = new Update().push(MeasurementEntity.FIELD_SAMPLES, upd)
+            Update update = new Update()
                     .min(MeasurementEntity.FIELD_FIRST, singleSampleRequest.getSample().getDate())
                     .max(MeasurementEntity.FIELD_LAST, singleSampleRequest.getSample().getDate());
+            if ("table".equals(tags.get("type"))) {
+                update.set(MeasurementEntity.FIELD_SAMPLES, Collections.singletonList(sampleMap));
+                update.set(MeasurementEntity.FIELD_DATE, theDate);
+            } else {
+                update.push(MeasurementEntity.FIELD_SAMPLES, upd);
+            }
+
             bulkOperations.upsert(query, update);
         }
 
@@ -758,5 +768,9 @@ public class MeasurementServiceV2 {
         });
 
         return new Page<>(total, result);
+    }
+
+    public void delDataWhenTaskReset(String taskId) {
+        mongoOperations.remove(new Query(Criteria.where("tags.taskId").is(taskId)), MeasurementEntity.COLLECTION_NAME);
     }
 }
