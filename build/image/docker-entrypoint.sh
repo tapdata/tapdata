@@ -72,7 +72,7 @@ start_server() {
 _main() {
     start_mongo
     start_server
-    if [[ "x"$mode != "xtest" ]]; then
+    if [[ $mode != "test" ]]; then
         sleep infinity
     fi
 }
