@@ -2995,16 +2995,19 @@ class DataSource:
             logger.warn("load schema exception, err is: {}", e)
         logger.info("datasource valid finished, will check table schema now, please wait for a while ...")
         start_time = time.time()
-        while True:
+
+        for _ in range(24):
             try:
                 time.sleep(5)
                 res = DataSourceApi().get(self.id)
                 if res["data"] is None:
                     break
-                if "loadFieldsStatus" not in res["data"]:
-                    continue
+                if res["data"]["loadFieldsStatus"] == "invalid":
+                    break
                 if res["data"]["loadFieldsStatus"] == "finished":
                     break
+                if "loadFieldsStatus" not in res["data"]:
+                    continue
                 loadCount = res["data"].get("loadCount", 0)
                 tableCount = res["data"].get("tableCount", 1)
                 logger.info("table schema check percent is: {}%", int(loadCount / tableCount * 100), wrap=False)
