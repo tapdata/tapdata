@@ -30,6 +30,58 @@ public class ProjectsLoader extends CodingStarter implements CodingLoader<Projec
     public void stopRead(){
         stopRead = true;
     }
+    public List<Map<String,Object>> myProjectList(){
+        Map<String,Object> user = this.myselfInfo();
+        if (Checker.isNotEmptyCollection(user)){
+            Object userIdObj = user.get("Id");
+            if (Checker.isNotEmpty(userIdObj)) return null;
+            return this.userProjectList((Integer)userIdObj);
+        }
+        return null;
+    }
+    public List<Map<String,Object>> userProjectList(Integer userId){
+        ContextConfig contextConfig = this.veryContextConfigAndNodeConfig();
+        HttpEntity<String,String> header = HttpEntity.create()
+                .builder("Authorization",contextConfig.getToken());
+        HttpEntity<String,Object> body = HttpEntity.create()
+                .builderIfNotAbsent("Action","DescribeUserProjects")
+                .builder("userId",userId);
+        Map<String, Object> post = CodingHttp.create(
+                header.getEntity(),
+                body.getEntity(),
+                String.format(OPEN_API_URL, contextConfig.getTeamName())).post();
+        if (null == post || post.isEmpty()){
+            return null;
+        }
+        Object responseObj = post.get("Response");
+        if (Checker.isNotEmptyCollection(responseObj)){
+            return null;
+        }
+        Object ProjectListObj = ((Map<String,Object>)responseObj).get("ProjectList");
+        return Checker.isNotEmptyCollection(ProjectListObj)?null:(List<Map<String, Object>>)ProjectListObj;
+    }
+
+    public Map<String,Object> myselfInfo(){
+        ContextConfig contextConfig = this.veryContextConfigAndNodeConfig();
+        HttpEntity<String,String> header = HttpEntity.create()
+                .builder("Authorization",contextConfig.getToken());
+        HttpEntity<String,Object> body = HttpEntity.create()
+                .builderIfNotAbsent("Action","DescribeCodingCurrentUser");
+        Map<String, Object> post = CodingHttp.create(
+                header.getEntity(),
+                body.getEntity(),
+                String.format(OPEN_API_URL, contextConfig.getTeamName())).post();
+        if (null == post || post.isEmpty()){
+            return null;
+        }
+        Object userObj = post.get("User");
+        if (Checker.isNotEmptyCollection(userObj)){
+            Object error = post.get("Error");//Message ->  User not found, authorization invalid
+            return null;
+        }
+        return Checker.isNotEmptyCollection(userObj)?null:(Map<String, Object>)userObj;
+    }
+
     @Override
     public Long streamReadTime() {
         return 5*60*1000l;
