@@ -7,6 +7,10 @@ import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.entity.CommandResult;
 import io.tapdata.pdk.apis.entity.message.CommandInfo;
 
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Map;
+
 public interface Command {
     static final String TAG = Command.class.getSimpleName();
     public static Command command(String command){
@@ -45,4 +49,13 @@ public interface Command {
     }
 
     public CommandResult commandResult(TapConnectionContext tapConnectionContext, CommandInfo commandInfo);
+
+    public static CommandResult emptyResult(){
+        Map<String, Object> pageResult = new HashMap<>();
+        pageResult.put("page",0);
+        pageResult.put("size",0);
+        pageResult.put("total",0);
+        pageResult.put("items",new ArrayList<>());
+        return new CommandResult().result(pageResult);
+    }
 }

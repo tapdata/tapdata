@@ -83,7 +83,7 @@ public class DescribeCodingProjects implements Command {
         Map<String,Object> pageResult = new HashMap<>();
         Object dataObj = responseMap.get("Data");
         if(Checker.isEmpty(dataObj)){
-            return new CommandResult();
+            return Command.emptyResult();
         }
         Map<String,Object> data = (Map<String,Object>)dataObj;
         if ("DescribeIterationList".equals(command)){

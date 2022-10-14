@@ -1,6 +1,5 @@
 package io.tapdata.coding.service.command;
 
-import io.tapdata.coding.service.loader.IssuesLoader;
 import io.tapdata.coding.service.loader.ProjectsLoader;
 import io.tapdata.coding.utils.tool.Checker;
 import io.tapdata.entity.error.CoreException;
@@ -9,10 +8,7 @@ import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.entity.CommandResult;
 import io.tapdata.pdk.apis.entity.message.CommandInfo;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 import static io.tapdata.base.ConnectorBase.entry;
 import static io.tapdata.base.ConnectorBase.map;
@@ -29,8 +25,8 @@ public class DescribeUserProjects implements Command {
         ProjectsLoader loader = ProjectsLoader.create(tapConnectionContext);
         List<Map<String, Object>> maps = loader.myProjectList();
         Map<String,Object> pageResult = new HashMap<>();
-        if (Checker.isNotEmptyCollection(maps)){
-            return new CommandResult();
+        if (Checker.isEmptyCollection(maps)){
+            return Command.emptyResult();
         }
         Integer page = 1;
         Integer size = maps.size();

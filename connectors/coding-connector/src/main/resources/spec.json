@@ -84,7 +84,7 @@
           "x-component": "AsyncSelect",
           "x-component-props": {
             "method": "{{loadCommandList}}",
-            "params": "{{ {$values: $values, command: \"DescribeCodingProjects\"} }}"
+            "params": "{{ {$values: $values, command: \"DescribeUserProjects\"} }}"
           },
           "x-index": 30,
           "x-reactions": [

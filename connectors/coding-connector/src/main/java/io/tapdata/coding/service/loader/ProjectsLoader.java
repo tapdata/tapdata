@@ -34,7 +34,7 @@ public class ProjectsLoader extends CodingStarter implements CodingLoader<Projec
         Map<String,Object> user = this.myselfInfo();
         if (Checker.isNotEmptyCollection(user)){
             Object userIdObj = user.get("Id");
-            if (Checker.isNotEmpty(userIdObj)) return null;
+            if (Checker.isEmpty(userIdObj)) return null;
             return this.userProjectList((Integer)userIdObj);
         }
         return null;
@@ -54,11 +54,11 @@ public class ProjectsLoader extends CodingStarter implements CodingLoader<Projec
             return null;
         }
         Object responseObj = post.get("Response");
-        if (Checker.isNotEmptyCollection(responseObj)){
+        if (Checker.isEmptyCollection(responseObj)){
             return null;
         }
         Object ProjectListObj = ((Map<String,Object>)responseObj).get("ProjectList");
-        return Checker.isNotEmptyCollection(ProjectListObj)?null:(List<Map<String, Object>>)ProjectListObj;
+        return Checker.isNotEmptyCollection(ProjectListObj)?(List<Map<String, Object>>)ProjectListObj:null;
     }
 
     public Map<String,Object> myselfInfo(){
@@ -74,12 +74,12 @@ public class ProjectsLoader extends CodingStarter implements CodingLoader<Projec
         if (null == post || post.isEmpty()){
             return null;
         }
-        Object userObj = post.get("User");
-        if (Checker.isNotEmptyCollection(userObj)){
-            Object error = post.get("Error");//Message ->  User not found, authorization invalid
+        Object responseObj = post.get("Response");
+        if (Checker.isEmptyCollection(responseObj)){
             return null;
         }
-        return Checker.isNotEmptyCollection(userObj)?null:(Map<String, Object>)userObj;
+        Object userObj = ((Map<Object, Object>)responseObj).get("User");
+        return Checker.isNotEmptyCollection(userObj)?(Map<String, Object>)userObj:null;
     }
 
     @Override
