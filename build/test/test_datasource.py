@@ -10,12 +10,6 @@ main()
 
 @allure.feature("datasource")
 class TestDataSource:
-    def make_data_source_by_uri(self, name: str = None):
-        name = name or f"test_ds_uri_{random_str()}"
-        test_ds = DataSource("mongodb", name=name).uri(env['database_1.URI'])
-        test_ds.validate()
-        test_ds.save()
-        return test_ds
 
     @allure.title("create datasource with mongodb uri")
     def test_mongo_create_datasource_by_uri(self):
