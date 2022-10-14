@@ -1,0 +1,26 @@
+{
+  "total" : 2,
+  "items" : [ {
+    "uid" : "bb215dd62abdab27b6599b77efa1112d",
+    "name" : "datasource",
+    "statistic" : {
+      "failed" : 5,
+      "broken" : 1,
+      "skipped" : 0,
+      "passed" : 0,
+      "unknown" : 0,
+      "total" : 6
+    }
+  }, {
+    "uid" : "84dd92a19d90f9aebbb61cea7e057e2e",
+    "name" : "pipeline",
+    "statistic" : {
+      "failed" : 0,
+      "broken" : 13,
+      "skipped" : 0,
+      "passed" : 0,
+      "unknown" : 0,
+      "total" : 13
+    }
+  } ]
+}

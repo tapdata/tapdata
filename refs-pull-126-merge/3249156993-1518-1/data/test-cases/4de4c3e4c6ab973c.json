@@ -1,0 +1,100 @@
+{
+  "uid" : "4de4c3e4c6ab973c",
+  "name" : "test mysql form valid",
+  "fullName" : "test_datasource.TestDataSource#test_mysql_to_dict",
+  "historyId" : "7c9985d4825733cb93540a6061d9b8f3",
+  "time" : {
+    "start" : 1665743089629,
+    "stop" : 1665743094788,
+    "duration" : 5159
+  },
+  "status" : "failed",
+  "statusMessage" : "AssertionError: assert 'invalid' == 'ready'\n  - ready\n  + invalid",
+  "statusTrace" : "self = <test.test_datasource.TestDataSource object at 0x7fe5b661d790>\n\n    @allure.title(\"test mysql form valid\")\n    def test_mysql_to_dict(self):\n        test_ds = DataSource(\"mysql\", f\"test_mysql_{random_str()}\")\n        host, port = env['mysql.HOST'].split(\":\")\n        test_ds.host(host).port(int(port)).database(env['mysql.DB']).username(env['mysql.USERNAME'])\\\n            .password(env['mysql.PASSWORD'])\n        assert test_ds.save()\n>       assert test_ds.status() == \"ready\"\nE       AssertionError: assert 'invalid' == 'ready'\nE         - ready\nE         + invalid\n\ntest_datasource.py:48: AssertionError",
+  "flaky" : false,
+  "newFailed" : false,
+  "beforeStages" : [ ],
+  "testStage" : {
+    "status" : "failed",
+    "statusMessage" : "AssertionError: assert 'invalid' == 'ready'\n  - ready\n  + invalid",
+    "statusTrace" : "self = <test.test_datasource.TestDataSource object at 0x7fe5b661d790>\n\n    @allure.title(\"test mysql form valid\")\n    def test_mysql_to_dict(self):\n        test_ds = DataSource(\"mysql\", f\"test_mysql_{random_str()}\")\n        host, port = env['mysql.HOST'].split(\":\")\n        test_ds.host(host).port(int(port)).database(env['mysql.DB']).username(env['mysql.USERNAME'])\\\n            .password(env['mysql.PASSWORD'])\n        assert test_ds.save()\n>       assert test_ds.status() == \"ready\"\nE       AssertionError: assert 'invalid' == 'ready'\nE         - ready\nE         + invalid\n\ntest_datasource.py:48: AssertionError",
+    "steps" : [ ],
+    "attachments" : [ {
+      "uid" : "6566e3bb1f318976",
+      "name" : "stdout",
+      "source" : "6566e3bb1f318976.txt",
+      "type" : "text/plain",
+      "size" : 412
+    } ],
+    "parameters" : [ ],
+    "stepsCount" : 0,
+    "attachmentsCount" : 1,
+    "shouldDisplayMessage" : true,
+    "hasContent" : true
+  },
+  "afterStages" : [ ],
+  "labels" : [ {
+    "name" : "feature",
+    "value" : "datasource"
+  }, {
+    "name" : "suite",
+    "value" : "test_datasource"
+  }, {
+    "name" : "subSuite",
+    "value" : "TestDataSource"
+  }, {
+    "name" : "host",
+    "value" : "da057a19b0f7"
+  }, {
+    "name" : "thread",
+    "value" : "854-MainThread"
+  }, {
+    "name" : "framework",
+    "value" : "pytest"
+  }, {
+    "name" : "language",
+    "value" : "cpython3"
+  }, {
+    "name" : "package",
+    "value" : "test_datasource"
+  }, {
+    "name" : "resultFormat",
+    "value" : "allure2"
+  } ],
+  "parameters" : [ ],
+  "links" : [ ],
+  "hidden" : false,
+  "retry" : false,
+  "extra" : {
+    "severity" : "normal",
+    "retries" : [ ],
+    "categories" : [ {
+      "name" : "Product defects",
+      "matchedStatuses" : [ ],
+      "flaky" : false
+    } ],
+    "history" : {
+      "statistic" : {
+        "failed" : 2,
+        "broken" : 0,
+        "skipped" : 0,
+        "passed" : 0,
+        "unknown" : 0,
+        "total" : 2
+      },
+      "items" : [ {
+        "uid" : "25398d9a59de9e80",
+        "status" : "failed",
+        "statusDetails" : "AssertionError: assert 'invalid' == 'ready'\n  - ready\n  + invalid",
+        "time" : {
+          "start" : 1665738846487,
+          "stop" : 1665738851623,
+          "duration" : 5136
+        }
+      } ]
+    },
+    "tags" : [ ]
+  },
+  "source" : "4de4c3e4c6ab973c.json",
+  "parameterValues" : [ ]
+}

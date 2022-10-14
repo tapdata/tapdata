@@ -1,0 +1,100 @@
+{
+  "uid" : "3f461ee5014d0cc",
+  "name" : "create mongodb datasource with uri",
+  "fullName" : "test_datasource.TestDataSource#test_mongo_create_by_uri",
+  "historyId" : "b4d87711d3a8f3ded82c4677aae2c954",
+  "time" : {
+    "start" : 1665743079314,
+    "stop" : 1665743089623,
+    "duration" : 10309
+  },
+  "status" : "failed",
+  "statusMessage" : "AssertionError: assert 'invalid' == 'ready'\n  - ready\n  + invalid",
+  "statusTrace" : "self = <test.test_datasource.TestDataSource object at 0x7fe5b661dc50>\n\n    @allure.title(\"create mongodb datasource with uri\")\n    def test_mongo_create_by_uri(self):\n        mongo_test = DataSource(\"mongodb\", f\"test_mongo_{random_str()}\")\n        mongo_test.uri(env['database_1.URI'])\n        assert mongo_test.save()\n        assert mongo_test.validate()\n>       assert mongo_test.status() == \"ready\"\nE       AssertionError: assert 'invalid' == 'ready'\nE         - ready\nE         + invalid\n\ntest_datasource.py:38: AssertionError",
+  "flaky" : false,
+  "newFailed" : false,
+  "beforeStages" : [ ],
+  "testStage" : {
+    "status" : "failed",
+    "statusMessage" : "AssertionError: assert 'invalid' == 'ready'\n  - ready\n  + invalid",
+    "statusTrace" : "self = <test.test_datasource.TestDataSource object at 0x7fe5b661dc50>\n\n    @allure.title(\"create mongodb datasource with uri\")\n    def test_mongo_create_by_uri(self):\n        mongo_test = DataSource(\"mongodb\", f\"test_mongo_{random_str()}\")\n        mongo_test.uri(env['database_1.URI'])\n        assert mongo_test.save()\n        assert mongo_test.validate()\n>       assert mongo_test.status() == \"ready\"\nE       AssertionError: assert 'invalid' == 'ready'\nE         - ready\nE         + invalid\n\ntest_datasource.py:38: AssertionError",
+    "steps" : [ ],
+    "attachments" : [ {
+      "uid" : "3b8a1fd80cb66fda",
+      "name" : "stdout",
+      "source" : "3b8a1fd80cb66fda.txt",
+      "type" : "text/plain",
+      "size" : 824
+    } ],
+    "parameters" : [ ],
+    "stepsCount" : 0,
+    "attachmentsCount" : 1,
+    "shouldDisplayMessage" : true,
+    "hasContent" : true
+  },
+  "afterStages" : [ ],
+  "labels" : [ {
+    "name" : "feature",
+    "value" : "datasource"
+  }, {
+    "name" : "suite",
+    "value" : "test_datasource"
+  }, {
+    "name" : "subSuite",
+    "value" : "TestDataSource"
+  }, {
+    "name" : "host",
+    "value" : "da057a19b0f7"
+  }, {
+    "name" : "thread",
+    "value" : "854-MainThread"
+  }, {
+    "name" : "framework",
+    "value" : "pytest"
+  }, {
+    "name" : "language",
+    "value" : "cpython3"
+  }, {
+    "name" : "package",
+    "value" : "test_datasource"
+  }, {
+    "name" : "resultFormat",
+    "value" : "allure2"
+  } ],
+  "parameters" : [ ],
+  "links" : [ ],
+  "hidden" : false,
+  "retry" : false,
+  "extra" : {
+    "severity" : "normal",
+    "retries" : [ ],
+    "categories" : [ {
+      "name" : "Product defects",
+      "matchedStatuses" : [ ],
+      "flaky" : false
+    } ],
+    "history" : {
+      "statistic" : {
+        "failed" : 2,
+        "broken" : 0,
+        "skipped" : 0,
+        "passed" : 0,
+        "unknown" : 0,
+        "total" : 2
+      },
+      "items" : [ {
+        "uid" : "bcd859f896f2d440",
+        "status" : "failed",
+        "statusDetails" : "AssertionError: assert 'invalid' == 'ready'\n  - ready\n  + invalid",
+        "time" : {
+          "start" : 1665738836188,
+          "stop" : 1665738846480,
+          "duration" : 10292
+        }
+      } ]
+    },
+    "tags" : [ ]
+  },
+  "source" : "3f461ee5014d0cc.json",
+  "parameterValues" : [ ]
+}
