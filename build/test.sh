@@ -20,8 +20,6 @@ fi
 cd $basepath/test
 
 pytest --alluredir=./allure-results
-retCode=$?
-
 mkdir -p ./allure-results/history
 
 cp $sourcepath/build/filter_history.py ../
@@ -68,8 +66,3 @@ cp executors.json gh_pages/$BRANCH_DIR/$RUN_SIGN/widgets/
 cp environment.json gh_pages/$BRANCH_DIR/$RUN_SIGN/widgets/
 
 mv gh_pages/ $sourcepath
-if [[ $retCode -ne 0 ]]; then
-    return 1
-else
-    return 0
-fi
