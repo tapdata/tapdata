@@ -50,6 +50,9 @@ import com.tapdata.tm.metadatainstance.service.MetadataInstancesService;
 import com.tapdata.tm.metadatainstance.vo.SourceTypeEnum;
 import com.tapdata.tm.modules.dto.ModulesDto;
 import com.tapdata.tm.modules.service.ModulesService;
+import com.tapdata.tm.proxy.dto.SubscribeDto;
+import com.tapdata.tm.proxy.dto.SubscribeResponseDto;
+import com.tapdata.tm.proxy.service.impl.ProxyService;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.utils.*;
 import com.tapdata.tm.worker.entity.Worker;
@@ -79,6 +82,10 @@ import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.net.MalformedURLException;
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.net.URL;
 import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -96,6 +103,7 @@ import static com.tapdata.tm.utils.MongoUtils.toObjectId;
 public class DataSourceService extends BaseService<DataSourceConnectionDto, DataSourceEntity, ObjectId, DataSourceRepository> {
 
 	private final static String connectNameReg = "^([\u4e00-\u9fa5]|[A-Za-z])([a-zA-Z0-9_\\s-]|[\u4e00-\u9fa5])*$";
+	public static final String key = "asdfFSDJKFHKLASHJDKQJWKJehrklHDFJKSMhkj3h24jkhhJKASDH723ty4jkhasdkdfjhaksjdfjfhJDJKLHSAfadsf";
 
 	private ClassificationService classificationService;
 	private MetadataInstancesService metadataInstancesService;
@@ -655,7 +663,7 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 			log.warn("Data source connection not found");
 			throw new BizException("Datasource.NotFound", "data source connection not found");
 		}
-
+		//json schemal
 		DataSourceEntity entity = optional.get();
 		entity.setId(null);
 		//将数据源连接的名称修改成为名称后面+_copy
@@ -668,6 +676,44 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 				entity.setLoadCount(0);
 				entity.setLoadFieldsStatus("");
 				entity = repository.save(entity, user);
+
+				String pdkHash = entity.getPdkHash();
+				if (null == pdkHash || "".equals(pdkHash)) break;
+				DataSourceDefinitionDto dataSource = dataSourceDefinitionService.findByPdkHash(pdkHash, user);
+				LinkedHashMap<String, Object> properties = dataSource.getProperties();
+				if (null == properties || properties.isEmpty()) break;
+				Object connection = properties.get("connection");
+				if (null == connection || !(connection instanceof Map) || ((Map<String,Object>)connection).isEmpty()) break;
+				Object connectionPropertiesObj = ((Map<String, Object>) connection).get("properties");
+				if (null == connectionPropertiesObj || !(connectionPropertiesObj instanceof Map)) break;
+				Map<String, Object> connectionProperties = (Map<String, Object>) connectionPropertiesObj;
+				final DataSourceEntity entityFinal = entity;
+				String entityId = entity.getId().toHexString();
+				connectionProperties.forEach((key,propertiesObj)->{
+					if (null == propertiesObj || !(propertiesObj instanceof Map) || ((Map)propertiesObj).isEmpty()) return;
+					Object actionOnCopyObj = ((Map<String,Object>)propertiesObj).get("actionOnCopy");
+					if (null == actionOnCopyObj) return;
+					if("NEW_WEB_HOOK_URL".equals(String.valueOf(actionOnCopyObj))){
+
+						Map<String, Object> config = entityFinal.getConfig();
+						Object keyObjOfCopyConnectionConfig = config.get(key);
+						if (null == keyObjOfCopyConnectionConfig ) return;
+						String keyValue = String.valueOf(keyObjOfCopyConnectionConfig);
+						if (null == keyValue || !keyValue.contains("/api/proxy/callback/")){
+							config.put(key,"");
+						}else {
+							int lastCharIndex = keyValue.lastIndexOf('/') + 1;
+							int lenOfToken = keyValue.length();
+							SubscribeDto subscribeDto = new SubscribeDto();
+							subscribeDto.setExpireSeconds(100000000);
+							subscribeDto.setSubscribeId("source#" + entityId);
+							SubscribeResponseDto subscribeResponseDto = ProxyService.create().generateSubscriptionToken(subscribeDto, user, key);
+							String webHookUrl = keyValue.substring(0, Math.min(lastCharIndex, lenOfToken)) + subscribeResponseDto.getToken();
+							config.put(key, webHookUrl);
+						}
+						repository.updateByWhere(Query.query(Criteria.where("_id").is(entityId)), entityFinal, user);
+					}
+				});
 				break;
 			} catch (Exception e) {
 				if (e.getMessage().contains("duplicate key error")) {

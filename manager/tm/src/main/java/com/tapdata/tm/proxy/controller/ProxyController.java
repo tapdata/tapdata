@@ -7,6 +7,7 @@ import com.tapdata.tm.base.dto.ResponseMessage;
 import com.tapdata.tm.base.exception.BizException;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.proxy.dto.*;
+import com.tapdata.tm.proxy.service.impl.ProxyService;
 import com.tapdata.tm.utils.WebUtils;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -63,7 +64,7 @@ import static org.apache.http.HttpStatus.*;
 public class ProxyController extends BaseController {
     private static final String TAG = ProxyController.class.getSimpleName();
     private final AsyncContextManager asyncContextManager = new AsyncContextManager();
-    private static final String key = "asdfFSDJKFHKLASHJDKQJWKJehrklHDFJKSMhkj3h24jkhhJKASDH723ty4jkhasdkdfjhaksjdfjfhJDJKLHSAfadsf";
+    public static final String key = "asdfFSDJKFHKLASHJDKQJWKJehrklHDFJKSMhkj3h24jkhhJKASDH723ty4jkhasdkdfjhaksjdfjfhJDJKLHSAfadsf";
     private static final int wsPort = 8246;
     /**
      *
@@ -111,41 +112,42 @@ public class ProxyController extends BaseController {
     @Operation(summary = "Generate callback url token")
     @PostMapping("subscribe")
     public ResponseMessage<SubscribeResponseDto> generateSubscriptionToken(@RequestBody SubscribeDto subscribeDto, HttpServletRequest request) {
-        if(subscribeDto == null)
-            throw new BizException("SubscribeDto is null");
-        if(subscribeDto.getSubscribeId() == null)
-            throw new BizException("SubscribeId is null");
-        if(subscribeDto.getService() == null)
-            subscribeDto.setService("engine");
-        if(subscribeDto.getExpireSeconds() == null)
-            throw new BizException("SubscribeDto expireSeconds is null");
-        UserDetail userDetail = getLoginUser(); //only for check access_token
-//        String token = JWTUtils.createToken(key,
-//                map(
-//                        entry("service", subscribeDto.getService().toLowerCase()),
-//                        entry("subscribeId", subscribeDto.getSubscribeId())
-//                ), (long)subscribeDto.getExpireSeconds() * 1000);
-        SubscribeToken subscribeToken = new SubscribeToken();
-        subscribeToken.setSubscribeId(subscribeDto.getSubscribeId());
-        subscribeToken.setService(subscribeDto.getService());
-        subscribeToken.setExpireAt(System.currentTimeMillis() + (subscribeDto.getExpireSeconds() * 1000));
-        byte[] tokenBytes = null;
-        try (ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
-            subscribeToken.to(baos);
-            tokenBytes = baos.toByteArray();
-        } catch (IOException e) {
-            throw new BizException("Serialize SubscribeDto failed, " + e.getMessage());
-        }
-        String token = null;
-        try {
-            token = new String(Base64.getUrlEncoder().encode(CommonUtils.encryptWithRC4(tokenBytes, key)), StandardCharsets.US_ASCII);
-        } catch (Exception e) {
-            throw new BizException("Encrypt SubscribeDto failed, " + e.getMessage());
-        }
-
-        SubscribeResponseDto subscribeResponseDto = new SubscribeResponseDto();
-        subscribeResponseDto.setToken(token);
-        return success(subscribeResponseDto);
+        return success(ProxyService.create().generateSubscriptionToken(subscribeDto,getLoginUser(),key));
+//        if(subscribeDto == null)
+//            throw new BizException("SubscribeDto is null");
+//        if(subscribeDto.getSubscribeId() == null)
+//            throw new BizException("SubscribeId is null");
+//        if(subscribeDto.getService() == null)
+//            subscribeDto.setService("engine");
+//        if(subscribeDto.getExpireSeconds() == null)
+//            throw new BizException("SubscribeDto expireSeconds is null");
+//        UserDetail userDetail = getLoginUser(); //only for check access_token
+////        String token = JWTUtils.createToken(key,
+////                map(
+////                        entry("service", subscribeDto.getService().toLowerCase()),
+////                        entry("subscribeId", subscribeDto.getSubscribeId())
+////                ), (long)subscribeDto.getExpireSeconds() * 1000);
+//        SubscribeToken subscribeToken = new SubscribeToken();
+//        subscribeToken.setSubscribeId(subscribeDto.getSubscribeId());
+//        subscribeToken.setService(subscribeDto.getService());
+//        subscribeToken.setExpireAt(System.currentTimeMillis() + (subscribeDto.getExpireSeconds() * 1000));
+//        byte[] tokenBytes = null;
+//        try (ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
+//            subscribeToken.to(baos);
+//            tokenBytes = baos.toByteArray();
+//        } catch (IOException e) {
+//            throw new BizException("Serialize SubscribeDto failed, " + e.getMessage());
+//        }
+//        String token = null;
+//        try {
+//            token = new String(Base64.getUrlEncoder().encode(CommonUtils.encryptWithRC4(tokenBytes, key)), StandardCharsets.US_ASCII);
+//        } catch (Exception e) {
+//            throw new BizException("Encrypt SubscribeDto failed, " + e.getMessage());
+//        }
+//
+//        SubscribeResponseDto subscribeResponseDto = new SubscribeResponseDto();
+//        subscribeResponseDto.setToken(token);
+//        return success(subscribeResponseDto);
     }
 
     @GetMapping("callback/{token}")

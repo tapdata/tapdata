@@ -167,7 +167,8 @@
             }
           },
           "x-component": "Input",
-          "x-index": 70
+          "x-index": 70,
+          "actionOnCopy" : "NEW_WEB_HOOK_URL"
         }
       }
     }
