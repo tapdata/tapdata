@@ -428,7 +428,7 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
         UpdateResult updateResult = update(query, update);
 
         BsonValue upsertedId = updateResult.getUpsertedId();
-        BsonDocument bsonDocument = upsertedId.asDocument();
+        //BsonDocument bsonDocument = upsertedId.asDocument();
 
         log.info("clean worker :{}", updateResult.getModifiedCount());
     }

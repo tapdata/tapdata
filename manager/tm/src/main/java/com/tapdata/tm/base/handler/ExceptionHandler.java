@@ -39,7 +39,7 @@ import java.util.stream.Collectors;
 public class ExceptionHandler extends BaseController {
 
 	@org.springframework.web.bind.annotation.ExceptionHandler(Throwable.class)
-	public ResponseMessage<Void> handlerException(Throwable e, HttpServletRequest request) throws Throwable {
+	public ResponseMessage<?> handlerException(Throwable e, HttpServletRequest request, HttpServletResponse response) throws Throwable {
 		log.error(e.getMessage(), e);
 
 		Locale locale = WebUtils.getLocale(request);
@@ -48,7 +48,7 @@ public class ExceptionHandler extends BaseController {
 		String message = e.getMessage();
 
 		if (e instanceof BizException){
-			return handlerException((BizException) e, request);
+			return handlerException((BizException) e, request, response);
 		} else if (e instanceof IllegalArgumentException) {
 			errorCode = "IllegalArgument";
 			message = e.getMessage();
@@ -125,7 +125,7 @@ public class ExceptionHandler extends BaseController {
 	}
 
 	@org.springframework.web.bind.annotation.ExceptionHandler(BizException.class)
-	public ResponseMessage handlerException(BizException e, HttpServletRequest request, HttpServletResponse response) {
+	public ResponseMessage<?> handlerException(BizException e, HttpServletRequest request, HttpServletResponse response) {
 		log.error(e.getMessage(), e);
 
 		if ("NotLogin".equals(e.getErrorCode())){
