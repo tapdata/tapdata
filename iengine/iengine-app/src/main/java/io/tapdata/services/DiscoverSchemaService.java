@@ -30,15 +30,10 @@ public class DiscoverSchemaService {
 		if (connections == null)
 			throw new CoreException(NetErrors.CONNECTIONS_NOT_FOUND, "Connections {} not found", connectionId);
 
-		Map<String, Object> connectionConfig = connections.getConfig();
-
 		PDKUtils.PDKInfo pdkInfo = pdkUtils.downloadPdkFileIfNeed(connections.getPdkHash());
-		if(nodeConfig == null) {
-
-		}
 
 		ClientMongoOperator clientMongoOperator = BeanUtil.getBean(ClientMongoOperator.class);
-		LoadSchemaRunner loadSchemaRunner = new LoadSchemaRunner(connections, clientMongoOperator, 0);
+		LoadSchemaRunner loadSchemaRunner = new LoadSchemaRunner(connections, clientMongoOperator, 0, nodeConfig);
 		loadSchemaRunner.run();
 	}
 }

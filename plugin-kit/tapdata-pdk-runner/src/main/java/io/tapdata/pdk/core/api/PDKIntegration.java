@@ -40,6 +40,7 @@ public class PDKIntegration {
     public abstract static class ConnectionBuilder<T extends Node> {
         protected String associateId;
         protected DataMap connectionConfig;
+        protected DataMap nodeConfig;
         protected String pdkId;
         protected String group;
         protected String version;
@@ -83,6 +84,11 @@ public class PDKIntegration {
 
         public ConnectionBuilder<T> withConnectionConfig(DataMap connectionConfig) {
             this.connectionConfig = connectionConfig;
+            return this;
+        }
+
+        public ConnectionBuilder<T> withNodeConfig(DataMap nodeConfig) {
+            this.nodeConfig = nodeConfig;
             return this;
         }
 
@@ -343,7 +349,7 @@ public class PDKIntegration {
             connectionNode.init((TapConnector) nodeInstance.getTapNode());
             connectionNode.associateId = associateId;
             connectionNode.tapNodeInfo = nodeInstance.getTapNodeInfo();
-            connectionNode.connectionContext = new TapConnectionContext(nodeInstance.getTapNodeInfo().getTapNodeSpecification(), connectionConfig);
+            connectionNode.connectionContext = new TapConnectionContext(nodeInstance.getTapNodeInfo().getTapNodeSpecification(), connectionConfig, nodeConfig);
 
             PDKInvocationMonitor.getInstance().invokePDKMethod(connectionNode, PDKMethod.REGISTER_CAPABILITIES,
                     connectionNode::registerCapabilities,
