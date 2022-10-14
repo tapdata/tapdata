@@ -197,6 +197,62 @@ public class DefaultDataDirectoryServiceImpl implements DefaultDataDirectoryServ
         }
     }
 
+    @Override
+    public void addJobs(UserDetail user) {
+        //检查是否存在storage目录。如果不存在的话则需要创建storage的目录
+        Criteria criteria = Criteria.where("item_type").is("root");
+        Query query = new Query(criteria);
+        MetadataDefinitionDto root = metadataDefinitionService.findOne(query, user);
+        if (root == null) {
+            root = addDefaultRoot(user);
+        }
+
+        MetadataDefinitionDto metadataDefinitionDto = new MetadataDefinitionDto();
+        metadataDefinitionDto.setValue("Job");
+        metadataDefinitionDto.setItemType(Lists.newArrayList("job", "default"));
+        metadataDefinitionDto.setDesc("job");
+        metadataDefinitionDto.setReadOnly(true);
+        metadataDefinitionDto.setParent_id(root.getId().toHexString());
+
+        MetadataDefinitionDto jobRoot = metadataDefinitionService.save(metadataDefinitionDto, user);
+
+        MetadataDefinitionDto metadataDefinitionDtoSync = new MetadataDefinitionDto();
+        metadataDefinitionDtoSync.setValue("sync");
+        metadataDefinitionDtoSync.setItemType(Lists.newArrayList( "default"));
+        metadataDefinitionDtoSync.setDesc("sync");
+        metadataDefinitionDtoSync.setReadOnly(true);
+        metadataDefinitionDtoSync.setParent_id(jobRoot.getId().toHexString());
+
+        metadataDefinitionService.save(metadataDefinitionDtoSync, user);
+
+
+        MetadataDefinitionDto metadataDefinitionDtoMigrate = new MetadataDefinitionDto();
+        metadataDefinitionDtoMigrate.setValue("migrate");
+        metadataDefinitionDtoMigrate.setItemType(Lists.newArrayList( "default"));
+        metadataDefinitionDtoMigrate.setDesc("migrate");
+        metadataDefinitionDtoMigrate.setReadOnly(true);
+        metadataDefinitionDtoMigrate.setParent_id(jobRoot.getId().toHexString());
+
+        metadataDefinitionService.save(metadataDefinitionDtoMigrate, user);
+    }
+
+    @Override
+    public void addApi(UserDetail user) {
+        Criteria criteria = Criteria.where("item_type").is("root");
+        Query query = new Query(criteria);
+        MetadataDefinitionDto root = metadataDefinitionService.findOne(query, user);
+        if (root == null) {
+            root = addDefaultRoot(user);
+        }
+
+        MetadataDefinitionDto metadataDefinitionDto = new MetadataDefinitionDto();
+        metadataDefinitionDto.setValue("Api");
+        metadataDefinitionDto.setItemType(Lists.newArrayList("apis", "default"));
+        metadataDefinitionDto.setDesc("api");
+        metadataDefinitionDto.setReadOnly(true);
+        metadataDefinitionDto.setParent_id(root.getId().toHexString());
+        metadataDefinitionService.save(metadataDefinitionDto, user);
+    }
 
 
     private MetadataDefinitionDto addPdkId(String pdkId, UserDetail user) {

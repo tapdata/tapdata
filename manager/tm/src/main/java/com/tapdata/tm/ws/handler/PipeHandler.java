@@ -16,6 +16,13 @@ import com.tapdata.manager.common.utils.StringUtils;
 import com.tapdata.tm.base.dto.Field;
 import com.tapdata.tm.commons.schema.DataSourceConnectionDto;
 import com.tapdata.tm.ds.service.impl.DataSourceService;
+import com.tapdata.tm.alarm.constant.AlarmComponentEnum;
+import com.tapdata.tm.alarm.constant.AlarmContentTemplate;
+import com.tapdata.tm.alarm.constant.AlarmStatusEnum;
+import com.tapdata.tm.alarm.constant.AlarmTypeEnum;
+import com.tapdata.tm.alarm.entity.AlarmInfo;
+import com.tapdata.tm.alarm.service.AlarmService;
+import com.tapdata.tm.commons.task.constant.AlarmKeyEnum;
 import com.tapdata.tm.message.constant.Level;
 import com.tapdata.tm.messagequeue.dto.MessageQueueDto;
 import com.tapdata.tm.messagequeue.service.MessageQueueService;
@@ -31,6 +38,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 
+import java.text.MessageFormat;
 import java.util.Map;
 import java.util.Objects;
 
@@ -46,6 +54,7 @@ public class PipeHandler implements WebSocketHandler {
 	private final MessageQueueService queueService;
 	private final DataSourceService dataSourceService;
 	private TaskDagCheckLogService taskDagCheckLogService;
+	private AlarmService alarmService;
 
 	public PipeHandler(MessageQueueService queueService, DataSourceService dataSourceService) {
 		this.queueService = queueService;
@@ -67,19 +76,39 @@ public class PipeHandler implements WebSocketHandler {
 				if (Objects.nonNull(jsonObject)) {
 					JSONObject extParam = jsonObject.getJSONObject("extParam");
 					if (Objects.nonNull(extParam) && "testConnectionResult".equals(data.get("type").toString())) {
+						String agentId = extParam.getString("agentId");
 						String taskId = extParam.getString("taskId");
+						String taskName = extParam.getString("taskName");
 						String templateEnum = extParam.getString("templateEnum");
 						String userId = extParam.getString("userId");
+						String nodeId = extParam.getString("nodeId");
+						String nodeName = extParam.getString("nodeName");
+						String dataNodeType = extParam.getString("type");
+						boolean alarmCheck = (Boolean) extParam.getOrDefault("alarmCheck", false);
 
-						if (org.apache.commons.lang3.StringUtils.isNotBlank(templateEnum)) {
+						if (StringUtils.isNotBlank(templateEnum)) {
 							JSONObject responseBody = jsonObject.getJSONObject("response_body");
 							JSONArray validateDetails = responseBody.getJSONArray("validate_details");
 
-							String grade = ("passed").equals(validateDetails.getJSONObject(0).getString("status")) ?
-									Level.INFO.getValue() : Level.ERROR.getValue();
+							Level grade = ("passed").equals(validateDetails.getJSONObject(0).getString("status")) ? Level.INFO : Level.ERROR;
 
-							taskDagCheckLogService.createLog(taskId, userId, grade, DagOutputTemplateEnum.valueOf(templateEnum),
-									true, true, DateUtil.now(), jsonObject.getJSONObject("response_body").toJSONString());
+							if (!alarmCheck) {
+								taskDagCheckLogService.createLog(taskId, userId, grade, DagOutputTemplateEnum.valueOf(templateEnum),
+										true, true, DateUtil.now(), jsonObject.getJSONObject("response_body").toJSONString());
+							} else if (grade == Level.ERROR) {
+								String summary;
+								if ("source".equals(dataNodeType)) {
+									summary = MessageFormat.format(AlarmContentTemplate.DATANODE_SOURCE_CANNOT_CONNECT, agentId, DateUtil.now());
+								} else {
+									summary = MessageFormat.format(AlarmContentTemplate.DATANODE_TARGET_CANNOT_CONNECT, agentId, DateUtil.now());
+								}
+								AlarmInfo alarmInfo = AlarmInfo.builder().status(AlarmStatusEnum.ING).level(Level.CRITICAL).component(AlarmComponentEnum.FE)
+										.type(AlarmTypeEnum.SYNCHRONIZATIONTASK_ALARM).agentId(agentId).taskId(taskId)
+										.name(taskName).summary(summary).metric(AlarmKeyEnum.DATANODE_CANNOT_CONNECT)
+										.nodeId(nodeId).node(nodeName)
+										.build();
+								alarmService.save(alarmInfo);
+							}
 						}
 					}
 				}

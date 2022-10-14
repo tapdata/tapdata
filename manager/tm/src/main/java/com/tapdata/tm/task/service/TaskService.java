@@ -5,9 +5,9 @@ import cn.hutool.core.date.DateUnit;
 import cn.hutool.core.date.DateUtil;
 import cn.hutool.core.lang.Assert;
 import cn.hutool.core.map.MapUtil;
+import cn.hutool.extra.cglib.CglibUtil;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.google.common.collect.Maps;
-import com.google.gson.reflect.TypeToken;
 import com.mongodb.client.result.UpdateResult;
 import com.tapdata.manager.common.utils.JsonUtil;
 import com.tapdata.tm.autoinspect.constants.AutoInspectConstants;
@@ -35,7 +35,8 @@ import com.tapdata.tm.commons.util.CapitalizedEnum;
 import com.tapdata.tm.commons.util.MetaDataBuilderUtils;
 import com.tapdata.tm.config.security.UserDetail;
 import com.tapdata.tm.dataflowinsight.dto.DataFlowInsightStatisticsDto;
-import com.tapdata.tm.disruptor.service.BasicEventService;
+import com.tapdata.tm.disruptor.constants.DisruptorTopicEnum;
+import com.tapdata.tm.disruptor.service.DisruptorService;
 import com.tapdata.tm.ds.service.impl.DataSourceService;
 import com.tapdata.tm.file.service.FileService;
 import com.tapdata.tm.inspect.constant.InspectResultEnum;
@@ -72,7 +73,6 @@ import com.tapdata.tm.userLog.constant.Modular;
 import com.tapdata.tm.userLog.service.UserLogService;
 import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.utils.*;
-import com.tapdata.tm.worker.dto.WorkerDto;
 import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.service.WorkerService;
 import com.tapdata.tm.worker.vo.CalculationEngineVo;
@@ -100,7 +100,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import javax.servlet.http.HttpServletResponse;
-import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -143,8 +142,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     private UserLogService userLogService;
     private MessageQueueService messageQueueService;
     private UserService userService;
-    private TaskDagCheckLogService taskDagCheckLogService;
-    private BasicEventService basicEventService;
+    private DisruptorService disruptorService;
     private MonitoringLogsService monitoringLogsService;
     private TaskAutoInspectResultsService taskAutoInspectResultsService;
     private TaskSaveService taskSaveService;
@@ -160,6 +158,8 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     private LogCollectorService logCollectorService;
 
     private static final DateTimeFormatter format = DateTimeFormatter.ofPattern("yyyyMMdd");
+
+    private TaskCollectionObjService taskCollectionObjService;
 
     static {
 
@@ -673,7 +673,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
         updateById(taskDto, user);
 
-        updateTaskRecordStatus(taskDto,taskDto.getStatus());
+        updateTaskRecordStatus(taskDto,taskDto.getStatus(), user);
 
         return taskDto;
     }
@@ -971,11 +971,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         // publish queue
         TaskEntity taskSnapshot = new TaskEntity();
         BeanUtil.copyProperties(taskDto, taskSnapshot);
-        basicEventService.publish(new TaskRecord(lastTaskRecordId, taskDto.getId().toHexString(), taskSnapshot, user.getUserId(), new Date()));
-
-        findById(taskDto.getId());
-
-
+        disruptorService.sendMessage(DisruptorTopicEnum.CREATE_RECORD, new TaskRecord(lastTaskRecordId, taskDto.getId().toHexString(), taskSnapshot, user.getUserId(), new Date()));
     }
 
     /**
@@ -1829,7 +1825,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
     public Boolean checkRun(String taskId, UserDetail user) {
         TaskDto taskDto = checkExistById(MongoUtils.toObjectId(taskId), user, "status");
-        return TaskDto.STATUS_EDIT.equals(taskDto.getStatus());
+        return TaskDto.STATUS_EDIT.equals(taskDto.getStatus()) || TaskDto.STATUS_WAIT_START.equals(taskDto.getStatus());
     }
 
     public TransformerWsMessageDto findTransformParam(String taskId, UserDetail user) {
@@ -2062,7 +2058,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     }
 
 
-    public void batchUpTask(MultipartFile multipartFile, UserDetail user, boolean cover, List<Map<String, String>> tags) {
+    public void batchUpTask(MultipartFile multipartFile, UserDetail user, boolean cover, List<Tag> tags) {
         byte[] bytes;
         List<TaskUpAndLoadDto> taskUpAndLoadDtos;
 
@@ -2127,7 +2123,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         }
     }
 
-    public void batchImport(List<TaskDto> taskDtos, UserDetail user, boolean cover, List<Map<String, String>> tags) {
+    public void batchImport(List<TaskDto> taskDtos, UserDetail user, boolean cover, List<Tag> tags) {
         for (TaskDto taskDto : taskDtos) {
             Query query = new Query(Criteria.where("_id").is(taskDto.getId()).and("is_deleted").ne(true));
             query.fields().include("id");
@@ -2144,7 +2140,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
                 taskDto.setListtags(tags);
                 if (one == null) {
-                    taskDto.setId(null);
+                    //taskDto.setId(null);
                     TaskEntity taskEntity = repository.importEntity(convertToEntity(TaskEntity.class, taskDto), user);
                     taskDto = convertToDto(taskEntity, TaskDto.class);
                 }
@@ -2283,7 +2279,9 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         List<ObjectId> ids = list.stream().map(ObjectId::new).collect(Collectors.toList());
 
         Query query = new Query(Criteria.where("_id").in(ids));
-        return findAll(query);
+        List<TaskEntity> entityList = findAllEntity(query);
+        return CglibUtil.copyList(entityList, TaskDto::new);
+//        return findAll(query);
     }
 
     public void updateStatus(ObjectId taskId, String status) {
@@ -2530,7 +2528,6 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
     public void run(TaskDto taskDto, UserDetail user) {
         //将子任务的状态改成启动
-//        DAG dag = taskDto.getDag();
         Query query = new Query(Criteria.where("id").is(taskDto.getId()).and("status").is(taskDto.getStatus()));
         //需要将重启标识清除
         UpdateResult update = update(query, Update.update("status", TaskDto.STATUS_SCHEDULING).set("isEdit", false).set("restartFlag", false), user);
@@ -2539,7 +2536,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             log.info("concurrent start operations, this operation don‘t effective, task name = {}", taskDto.getName());
             return;
         } else {
-            updateTaskRecordStatus(taskDto, TaskDto.STATUS_SCHEDULING);
+            updateTaskRecordStatus(taskDto, TaskDto.STATUS_SCHEDULING, user);
         }
 
         if (StringUtils.equals(AccessNodeTypeEnum.MANUALLY_SPECIFIED_BY_THE_USER.name(), taskDto.getAccessNodeType())
@@ -2557,7 +2554,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             update(query1, Update.update("status", TaskDto.STATUS_SCHEDULE_FAILED), user);
             throw new BizException("Task.AgentNotFound");
         } else {
-            updateTaskRecordStatus(taskDto, TaskDto.STATUS_SCHEDULE_FAILED);
+            updateTaskRecordStatus(taskDto, TaskDto.STATUS_SCHEDULE_FAILED, user);
         }
 
 //        WorkerDto workerDto = workerService.findOne(new Query(Criteria.where("processId").is(taskDto.getAgentId())));
@@ -2576,7 +2573,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             log.info("concurrent start operations, this operation don‘t effective, task name = {}", taskDto.getName());
             return;
         } else {
-            updateTaskRecordStatus(taskDto, TaskDto.STATUS_WAIT_RUN);
+            updateTaskRecordStatus(taskDto, TaskDto.STATUS_WAIT_RUN, user);
         }
         //发送websocket消息，提醒flowengin启动
         DataSyncMq dataSyncMq = new DataSyncMq();
@@ -2598,16 +2595,33 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         if (needCreateRecord) {
             TaskEntity taskSnapshot = new TaskEntity();
             BeanUtil.copyProperties(taskDto, taskSnapshot);
-            basicEventService.publish(new TaskRecord(taskDto.getTaskRecordId(), taskDto.getId().toHexString(), taskSnapshot, user.getUserId(), new Date()));
+            disruptorService.sendMessage(DisruptorTopicEnum.CREATE_RECORD, new TaskRecord(taskDto.getTaskRecordId(), taskDto.getId().toHexString(), taskSnapshot, user.getUserId(), new Date()));
         } else {
-            updateTaskRecordStatus(taskDto, taskDto.getStatus());
+            updateTaskRecordStatus(taskDto, taskDto.getStatus(), user);
         }
+
+        //数据发现的任务收集
+        TaskDto newTaskDto = findById(taskDto.getId(), user);
+        TaskCollectionObjDto taskCollectionObjDto = new TaskCollectionObjDto();
+        BeanUtils.copyProperties(newTaskDto, taskCollectionObjDto);
+        Query query2 = new Query(Criteria.where("_id").is(taskDto.getId()));
+        taskCollectionObjService.upsert(query2, taskCollectionObjDto, user);
     }
 
-    private void updateTaskRecordStatus(TaskDto dto, String status) {
+    private void updateTaskRecordStatus(TaskDto dto, String status, UserDetail userDetail) {
         dto.setStatus(status);
         if (StringUtils.isNotBlank(dto.getTaskRecordId())) {
-            basicEventService.publish(new SyncTaskStatusDto(dto.getId().toHexString(), dto.getTaskRecordId(), status));
+            SyncTaskStatusDto info = SyncTaskStatusDto.builder()
+                    .taskId(dto.getId().toHexString())
+                    .taskName(dto.getName())
+                    .taskRecordId(dto.getTaskRecordId())
+                    .taskStatus(status)
+                    .updateBy(userDetail.getUserId())
+                    .updatorName(userDetail.getUsername())
+                    .agentId(dto.getAgentId())
+                    .syncType(dto.getSyncType())
+                    .build();
+            disruptorService.sendMessage(DisruptorTopicEnum.TASK_STATUS, info);
         }
     }
 
@@ -2697,7 +2711,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         log.debug("build stop task websocket context, processId = {}, userId = {}, queueDto = {}", taskDto.getAgentId(), user.getUserId(), queueDto);
         messageQueueService.sendMessage(queueDto);
 
-        updateTaskRecordStatus(taskDto, pauseStatus);
+        updateTaskRecordStatus(taskDto, pauseStatus, user);
     }
 
 
@@ -2726,7 +2740,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         monitoringLogsService.startTaskMonitoringLog(taskDto, user, now);
 
         UpdateResult update1 = update(query1, update, user);
-        updateTaskRecordStatus(taskDto, TaskDto.STATUS_RUNNING);
+        updateTaskRecordStatus(taskDto, TaskDto.STATUS_RUNNING, user);
         if (update1.getModifiedCount() == 0) {
             log.info("concurrent running operations, this operation don‘t effective, task name = {}", taskDto.getName());
             return null;
@@ -2751,7 +2765,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         //将子任务状态更新成错误.
         Query query1 = new Query(Criteria.where("_id").is(taskDto.getId()).and("status").in(TaskOpStatusEnum.to_error_status.v()));
         UpdateResult update1 = update(query1, Update.update("status", TaskDto.STATUS_ERROR).set("errorTime", DateUtil.date()).set("stopTime", DateUtil.date()), user);
-        updateTaskRecordStatus(taskDto, TaskDto.STATUS_ERROR);
+        updateTaskRecordStatus(taskDto, TaskDto.STATUS_ERROR, user);
         if (update1.getModifiedCount() == 0) {
             log.info("concurrent runError operations, this operation don‘t effective, task name = {}", taskDto.getName());
             return null;
@@ -2777,7 +2791,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         //将子任务状态更新成为已完成
         Query query1 = new Query(Criteria.where("_id").is(taskDto.getId()).and("status").in(TaskOpStatusEnum.to_complete_status.v()));
         UpdateResult update1 = update(query1, Update.update("status", TaskDto.STATUS_COMPLETE).set("finishTime", DateUtil.date()).set("stopTime", DateUtil.date()), user);
-        updateTaskRecordStatus(taskDto, TaskDto.STATUS_COMPLETE);
+        updateTaskRecordStatus(taskDto, TaskDto.STATUS_COMPLETE, user);
         if (update1.getModifiedCount() == 0) {
             log.info("concurrent complete operations, this operation don‘t effective, task name = {}", taskDto.getName());
             return null;
@@ -2807,7 +2821,7 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         //endConnHeartbeat(user, TaskDto);
 
         UpdateResult update1 = update(query1, Update.update("status", TaskDto.STATUS_STOP).set("stopTime", DateUtil.date()), user);
-        updateTaskRecordStatus(taskDto, TaskDto.STATUS_STOP);
+        updateTaskRecordStatus(taskDto, TaskDto.STATUS_STOP, user);
         if (update1.getModifiedCount() == 0) {
             log.info("concurrent stopped operations, this operation don‘t effective, task name = {}", taskDto.getName());
             return null;

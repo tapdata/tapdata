@@ -6,6 +6,7 @@ import io.tapdata.entity.event.dml.TapRecordEvent;
 import io.tapdata.entity.event.dml.TapUpdateRecordEvent;
 import io.tapdata.entity.schema.TapField;
 import io.tapdata.entity.schema.TapTable;
+import org.apache.commons.collections4.MapUtils;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -45,18 +46,23 @@ public class MessageSerializer {
     }
 
     public static String buildCSVString(TapTable table, Map<String, Object> values, boolean delete) throws IOException {
-        StringJoiner joiner = new StringJoiner(Constants.FIELD_DELIMITER_DEFAULT);
-        final Map<String, TapField> tapFieldMap = table.getNameFieldMap();
-        for (final Map.Entry<String, TapField> entry : tapFieldMap.entrySet()) {
-            Object value = values.getOrDefault(entry.getKey(), Constants.NULL_VALUE);
-            // value get from the value map may be null
-            if (value == null) {
-                value = Constants.NULL_VALUE;
+        if(MapUtils.isNotEmpty(values)) {
+            Object value="";
+            StringJoiner joiner = new StringJoiner(Constants.FIELD_DELIMITER_DEFAULT);
+            final Map<String, TapField> tapFieldMap = table.getNameFieldMap();
+            for (final Map.Entry<String, TapField> entry : tapFieldMap.entrySet()) {
+                if(values.containsKey(entry.getKey())) {
+                     value = values.getOrDefault(entry.getKey(), Constants.NULL_VALUE);
+                    // value get from the value map may be null
+                    if (value == null) {
+                        value = Constants.NULL_VALUE;
+                    }
+                }
+                joiner.add(value.toString());
             }
-            joiner.add(value.toString());
+            joiner.add(delete ? "1" : "0");
+            return joiner.toString();
         }
-        joiner.add(delete ? "1" : "0");
-
-        return joiner.toString();
+        return "";
     }
 }

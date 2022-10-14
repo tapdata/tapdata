@@ -41,7 +41,10 @@ import lombok.NonNull;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
+import org.bson.BsonDocument;
+import org.bson.BsonValue;
 import org.bson.types.ObjectId;
+import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Sort;
@@ -101,20 +104,27 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
             return null;
         }
         // 引擎定时任务是5秒
-        Query query = Query.query(Criteria.where("worker_type").is("connector")
+        Query query = getAvailableAgentQuery();
+        return repository.findAll(query, userDetail);
+    }
+
+    @NotNull
+    private Query getAvailableAgentQuery() {
+        return Query.query(Criteria.where("worker_type").is("connector")
                 .and("ping_time").gte(System.currentTimeMillis() - 1000 * 5 * 2)
                 .and("isDeleted").ne(true).and("stopping").ne(true));
-        return repository.findAll(query, userDetail);
+    }
+
+    public List<Worker> findAvailableAgentBySystem() {
+        Query query = getAvailableAgentQuery();
+        return repository.findAll(query);
     }
 
     public List<Worker> findAvailableAgentByAccessNode(UserDetail userDetail, List<String> processIdList) {
         if (Objects.isNull(userDetail)) {
             return null;
         }
-        // 引擎定时任务是5秒
-        Query query = Query.query(Criteria.where("worker_type").is("connector")
-                .and("ping_time").gte(System.currentTimeMillis() - 1000 * 5 * 2)
-                .and("isDeleted").ne(true).and("stopping").ne(true));
+        Query query = getAvailableAgentQuery();
         if (CollectionUtils.isNotEmpty(processIdList)) {
             query.addCriteria(Criteria.where("process_id").in(processIdList));
         }
@@ -416,6 +426,9 @@ public class WorkerService extends BaseService<WorkerDto, Worker, ObjectId, Work
         update.set("updateStatus", "fail");
         update.set("updateMsg", "time out");
         UpdateResult updateResult = update(query, update);
+
+        BsonValue upsertedId = updateResult.getUpsertedId();
+        BsonDocument bsonDocument = upsertedId.asDocument();
 
         log.info("clean worker :{}", updateResult.getModifiedCount());
     }

@@ -114,6 +114,8 @@ public class TMApplication {
 			bean.deleteDefault(userDetail);
 			bean.addPdkIds(userDetail);
 			bean.addConnections(userDetail);
+			bean.addJobs(userDetail);
+			bean.addApi(userDetail);
 		}).start();
 
 	}

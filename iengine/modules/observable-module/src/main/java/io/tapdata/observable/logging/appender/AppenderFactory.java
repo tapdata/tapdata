@@ -6,6 +6,7 @@ import com.tapdata.tm.commons.schema.MonitoringLogsDto;
 import lombok.SneakyThrows;
 import net.openhft.chronicle.queue.ChronicleQueue;
 import net.openhft.chronicle.queue.ExcerptTailer;
+import net.openhft.chronicle.queue.impl.single.SingleChronicleQueue;
 import net.openhft.chronicle.queue.impl.single.SingleChronicleQueueBuilder;
 import net.openhft.chronicle.wire.ValueIn;
 import net.openhft.chronicle.wire.ValueOut;
@@ -172,5 +173,15 @@ public class AppenderFactory implements Serializable {
 
 	private <T> T nullStringProcess(String inputString, Supplier<T> nullSupplier, Supplier<T> getResult) {
 		return "null".equals(inputString) || null == inputString ? nullSupplier.get() : getResult.get();
+	}
+
+	public static void main(String[] args) {
+		SingleChronicleQueue singleChronicleQueue = SingleChronicleQueueBuilder.binary("./"+CACHE_QUEUE_DIR).build();
+		ExcerptTailer tailer = singleChronicleQueue.createTailer();
+		while (true) {
+			tailer.readDocument(r->{
+				System.out.println(r.asText());
+			});
+		}
 	}
 }

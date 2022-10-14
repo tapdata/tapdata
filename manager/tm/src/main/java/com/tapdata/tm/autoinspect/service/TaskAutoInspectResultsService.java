@@ -18,7 +18,6 @@ import com.tapdata.tm.task.entity.TaskAutoInspectGroupTableResultEntity;
 import com.tapdata.tm.task.entity.TaskAutoInspectResultEntity;
 import com.tapdata.tm.task.repository.TaskAutoInspectResultRepository;
 import com.tapdata.tm.task.service.TaskService;
-import com.tapdata.tm.user.service.UserService;
 import com.tapdata.tm.ws.enums.MessageType;
 import lombok.NonNull;
 import lombok.Setter;
@@ -42,7 +41,6 @@ import java.util.Map;
 @Slf4j
 @Setter(onMethod_ = {@Autowired})
 public class TaskAutoInspectResultsService extends BaseService<TaskAutoInspectResultDto, TaskAutoInspectResultEntity, ObjectId, TaskAutoInspectResultRepository> {
-    private UserService userService;
     private TaskService taskService;
     private MessageQueueService messageQueueService;
 
@@ -95,5 +93,11 @@ public class TaskAutoInspectResultsService extends BaseService<TaskAutoInspectRe
 
         update = Update.update(AutoInspectConstants.CHECK_AGAIN_PROGRESS_PATH + ".status", CheckAgainStatus.Timeout);
         taskService.updateById(taskId, update, userDetail);
+    }
+
+    public long countByTaskId(String taskId) {
+        Query query = new Query(Criteria.where("taskId").is(taskId));
+
+        return repository.count(query);
     }
 }

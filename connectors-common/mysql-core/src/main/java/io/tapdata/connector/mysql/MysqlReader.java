@@ -96,6 +96,7 @@ public class MysqlReader implements Closeable {
 		Collection<String> pks = tapTable.primaryKeys(true);
 		AtomicLong row = new AtomicLong(0L);
 		try {
+			Set<String> dateTypeSet = dateFields(tapTable);
 			this.mysqlJdbcContext.queryWithStream(sql, rs -> {
 				ResultSetMetaData metaData = rs.getMetaData();
 				while ((null == stop || !stop.test(null)) && rs.next()) {
@@ -105,6 +106,9 @@ public class MysqlReader implements Closeable {
 						String columnName = metaData.getColumnName(i + 1);
 						try {
 							Object value = rs.getObject(i + 1);
+							if (null == value && dateTypeSet.contains(columnName)) {
+								value = rs.getString(i + 1);
+							}
 							data.put(columnName, value);
 							if (pks.contains(columnName)) {
 								mysqlSnapshotOffset.getOffset().put(columnName, value);
@@ -131,6 +135,7 @@ public class MysqlReader implements Closeable {
 		String sql = sqlMaker.selectSql(tapConnectorContext, tapTable, tapAdvanceFilter);
 		AtomicLong row = new AtomicLong(0L);
 		try {
+			Set<String> dateTypeSet = dateFields(tapTable);
 			this.mysqlJdbcContext.queryWithStream(sql, rs -> {
 				ResultSetMetaData metaData = rs.getMetaData();
 				while (rs.next()) {
@@ -143,6 +148,9 @@ public class MysqlReader implements Closeable {
 						String columnName = metaData.getColumnName(i + 1);
 						try {
 							Object value = rs.getObject(i + 1);
+							if (null == value && dateTypeSet.contains(columnName)) {
+								value = rs.getString(i + 1);
+							}
 							data.put(columnName, value);
 						} catch (Exception e) {
 							throw new Exception("Read column value failed, row: " + row.get() + ", column name: " + columnName + ", data: " + data + "; Error: " + e.getMessage(), e);
@@ -594,5 +602,20 @@ public class MysqlReader implements Closeable {
 		public static MysqlOpType fromOp(String op) {
 			return map.get(op);
 		}
+	}
+
+	private Set<String> dateFields(TapTable tapTable) {
+		Set<String> dateTypeSet = new HashSet<>();
+		tapTable.getNameFieldMap().forEach((n, v) -> {
+			switch (v.getTapType().getType()) {
+				case TapType.TYPE_DATE:
+				case TapType.TYPE_DATETIME:
+					dateTypeSet.add(n);
+					break;
+				default:
+					break;
+			}
+		});
+		return dateTypeSet;
 	}
 }

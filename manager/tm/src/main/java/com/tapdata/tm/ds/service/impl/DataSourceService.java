@@ -568,7 +568,7 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 	private void checkTagList(UserDetail user, List<Tag> tags) {
 		log.debug("check classification, tags = {}, user = {}", tags, user == null ? null : user.getUserId());
 		for (Tag tag : tags) {
-			ClassificationDto classificationDto = classificationService.findById(tag.getId(), user);
+			ClassificationDto classificationDto = classificationService.findById(MongoUtils.toObjectId(tag.getId()), user);
 			if (classificationDto == null) {
 				throw new BizException("Tag.NotFound", "resource tag not found");
 			}
