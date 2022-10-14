@@ -569,7 +569,8 @@ def show_apis(quiet=False):
         client_cache["apis"]["name_index"][data[i]["basePath"]] = {
             "id": data[i]["id"],
             "table": data[i]["tableName"],
-            "name": data[i]["name"]
+            "name": data[i]["name"],
+            "tableName": data[i]["tableName"],
         }
         if not quiet:
             logger.log(
@@ -2262,13 +2263,13 @@ class Api:
                             "defaultvalue": 1,
                             "description": "page number",
                             "name": "page",
-                            "type": "int"
+                            "type": "number"
                         },
                         {
                             "defaultvalue": 20,
                             "description": "max records per page",
                             "name": "limit",
-                            "type": "int"
+                            "type": "number"
                         },
                         {
                             "description": "sort setting,Array ,format like [{'propertyName':'ASC'}]",
@@ -2291,27 +2292,9 @@ class Api:
     def publish(self):
         if self.id is None:
             res = req.post("/Modules", json=self.payload).json()["data"]  # save
-            res.update({
-                "operationType": "POST",
-                "status": "pending",
-                "paths": [{
-                    "name": "findPage",
-                    "method": "POST",
-                    "fields": [],
-                    "acl": ["admin"],
-                    "params": [],
-                    "path": f'/api/{res["name"]}',
-                    result: "Page<Document>",
-                    "sort": [],
-                    "type": "preset",
-                    "where": []
-                }]
-            })
-            res = req.patch("/Modules", json=res).json()  # generate
-            res = res["data"]
             res = req.patch("/Modules", json={
                 "id": res["id"],
-                "status": res["status"],
+                "status": "active",
                 "tableName": res["tableName"],
             }).json()  # publish
             if res["code"] == "ok":
@@ -2323,7 +2306,8 @@ class Api:
         else:
             payload = {
                 "id": self.id,
-                "status": "active"
+                "status": "active",
+                "tableName": self.tablename,
             }
             res = req.patch("/Modules", json=payload)
             res = res.json()
@@ -2341,6 +2325,7 @@ class Api:
             return None
         api_id = api["id"]
         self.id = api_id
+        self.tablename = api["tableName"]
 
     def status(self, name):
         res = req.get("/Modules")
@@ -2355,7 +2340,8 @@ class Api:
             return
         payload = {
             "id": self.id,
-            "status": "pending"
+            "status": "pending",
+            "tableName": self.tablename,
         }
         res = req.patch("/Modules", json=payload)
         res = res.json()
