@@ -90,6 +90,8 @@ public class TaskController extends BaseController {
     private WorkerService workerService;
     private AlarmService alarmService;
 
+    private TaskResetLogService taskResetLogService;
+
     /**
      * Create a new instance of the model and persist it into the data source
      *
@@ -1039,5 +1041,12 @@ public class TaskController extends BaseController {
         logSettingParam.setLevel(level);
         taskService.updateTaskLogSetting(taskId, logSettingParam, getLoginUser());
         return success();
+    }
+
+
+    @Operation(summary = "任务重置日志查询")
+    @PostMapping("/reset/logs/{taskId}")
+    public ResponseMessage<List<TaskResetLogs>> taskResetLogs(@PathVariable("taskId") String taskId) {
+        return success(taskResetLogService.findByTaskId(taskId));
     }
 }

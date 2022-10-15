@@ -71,6 +71,7 @@ import com.tapdata.tm.worker.entity.Worker;
 import com.tapdata.tm.worker.service.WorkerService;
 import com.tapdata.tm.worker.vo.CalculationEngineVo;
 import com.tapdata.tm.ws.enums.MessageType;
+import com.tapdata.tm.ws.handler.EditFlushHandler;
 import lombok.*;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
@@ -131,6 +132,8 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
     public static Set<String> runningStatus = new HashSet<>();
 
     private LogCollectorService logCollectorService;
+
+    private TaskResetLogService taskResetLogService;
 
     static {
 
@@ -716,8 +719,12 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         }
 
         sendRenewMq(taskDto, user, DataSyncMq.OP_TYPE_DELETE);
+        afterRemove(taskDto, user);
+    }
 
+    public void afterRemove(TaskDto taskDto, UserDetail user) {
         //将任务删除标识改成true
+        ObjectId id = taskDto.getId();
         update(new Query(Criteria.where("_id").is(id)), Update.update("is_deleted", true));
 
         //delete AutoInspectResults
@@ -736,7 +743,6 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         } catch (Exception e) {
             log.warn("remove task, but remove schema error, task name = {}", taskDto.getName());
         }
-
     }
 
     /**
@@ -908,6 +914,10 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
 
         log.debug("check task status complete, task name = {}", taskDto.getName());
         sendRenewMq(taskDto, user, DataSyncMq.OP_TYPE_RESET);
+        afterRenew(taskDto, user);
+    }
+
+    public void afterRenew(TaskDto taskDto, UserDetail user) {
         renewNotSendMq(taskDto, user);
         renewAgentMeasurement(taskDto.getId().toString());
         log.debug("renew task complete, task name = {}", taskDto.getName());
@@ -987,6 +997,25 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
             query.fields().include(fields);
         }
         TaskDto taskDto = findOne(query, user);
+        if (taskDto == null) {
+            throw new BizException("Task.NotFound", "The copied task does not exist");
+        }
+
+        return taskDto;
+    }
+
+    /**
+     * 根据id校验任务是否存在
+     *
+     * @param id   id
+     * @return
+     */
+    public TaskDto checkExistById(ObjectId id, String... fields) {
+        Query query = new Query(Criteria.where("_id").is(id));
+        if (fields != null && fields.length > 0) {
+            query.fields().include(fields);
+        }
+        TaskDto taskDto = findOne(query);
         if (taskDto == null) {
             throw new BizException("Task.NotFound", "The copied task does not exist");
         }
@@ -1801,6 +1830,57 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         return findOne(query);
     }
 
+    /**
+     * 处理ws上报的任务重置删除状态信息
+     * @param objectId
+     * @param user
+     * @param resetEventDto
+     */
+    public void resetReport(ObjectId objectId, UserDetail user, TaskResetEventDto resetEventDto) {
+        //封装成为日志上报给前端。
+        TaskDto taskDto = checkExistById(objectId, user);
+
+        TaskResetLogs taskResetLogs = new TaskResetLogs();
+        taskResetLogs.setTaskId(objectId.toHexString());
+        taskResetLogs.setTime(new Date());
+        taskResetLogs.setDescription(resetEventDto.getDescribe());
+        switch (resetEventDto.getStatus()) {
+            case START:
+                //存到表里面。
+                //拼装日志推送到前端
+                break;
+            case FINISHED:
+                break;
+            case TASK_START:
+                break;
+            case TASK_FINISHED:
+                //根据任务的状态，如果是重置中，则继续重置的操作，如果为删除中，则删除继续删除的操作
+                if (TaskDto.STATUS_RENEWING.equals(taskDto.getStatus())) {
+                    afterRenew(taskDto, user);
+                } else if (TaskDto.STATUS_DELETING.equals(taskDto.getStatus())) {
+                    afterRemove(taskDto, user);
+                }
+                break;
+            case TASK_FAILED:
+                //根据任务的状态，如果是重置中，更新成为重置失败，如果为删除中，则删除失败
+                if (TaskDto.STATUS_RENEWING.equals(taskDto.getStatus())) {
+                    updateStatus(taskDto.getId(), TaskDto.STATUS_RENEW_FAILED);
+                } else if (TaskDto.STATUS_DELETING.equals(taskDto.getStatus())) {
+                    updateStatus(taskDto.getId(), TaskDto.STATUS_DELETE_FAILED);
+                }
+                break;
+            default:
+                break;
+        }
+
+        taskResetLogService.save(taskResetLogs);
+
+        //推送给前端
+        if (TaskDto.STATUS_RENEWING.equals(taskDto.getStatus())) {
+            EditFlushHandler.sendEditFlushMessage(objectId.toHexString(), resetEventDto, "resetReport");
+        }
+    }
+
     @Data
     @AllArgsConstructor
     @NoArgsConstructor
@@ -2244,25 +2324,25 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         }
     }
 
-    public boolean deleteById(TaskDto taskDto, UserDetail user) {
-        //如果子任务在运行中，将任务停止，再删除（在这之前，应该提示用户这个风险）
-        if (taskDto == null) {
-            return true;
-        }
-
-        sendRenewMq(taskDto, user, DataSyncMq.OP_TYPE_DELETE);
-
-        renewNotSendMq(taskDto, user);
-
-        if (runningStatus.contains(taskDto.getStatus())) {
-            log.warn("task is run, can not delete it");
-            throw new BizException("Task.DeleteTaskIsRun");
-        }
-
-        //TODO 删除当前模块的模型推演
-        resetFlag(taskDto.getId(), user, "deleteFlag");
-        return super.deleteById(taskDto.getId(), user);
-    }
+//    public boolean deleteById(TaskDto taskDto, UserDetail user) {
+//        //如果子任务在运行中，将任务停止，再删除（在这之前，应该提示用户这个风险）
+//        if (taskDto == null) {
+//            return true;
+//        }
+//
+//        sendRenewMq(taskDto, user, DataSyncMq.OP_TYPE_DELETE);
+//
+//        renewNotSendMq(taskDto, user);
+//
+//        if (runningStatus.contains(taskDto.getStatus())) {
+//            log.warn("task is run, can not delete it");
+//            throw new BizException("Task.DeleteTaskIsRun");
+//        }
+//
+//        //TODO 删除当前模块的模型推演
+//        resetFlag(taskDto.getId(), user, "deleteFlag");
+//        return super.deleteById(taskDto.getId(), user);
+//    }
 
 
 
