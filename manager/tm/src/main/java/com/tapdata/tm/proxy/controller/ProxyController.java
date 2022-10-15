@@ -112,7 +112,7 @@ public class ProxyController extends BaseController {
     @Operation(summary = "Generate callback url token")
     @PostMapping("subscribe")
     public ResponseMessage<SubscribeResponseDto> generateSubscriptionToken(@RequestBody SubscribeDto subscribeDto, HttpServletRequest request) {
-        return success(ProxyService.create().generateSubscriptionToken(subscribeDto,getLoginUser(),key));
+        return success(ProxyService.create().generateSubscriptionToken(subscribeDto,getLoginUser()));
 //        if(subscribeDto == null)
 //            throw new BizException("SubscribeDto is null");
 //        if(subscribeDto.getSubscribeId() == null)

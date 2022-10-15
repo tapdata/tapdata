@@ -103,7 +103,6 @@ import static com.tapdata.tm.utils.MongoUtils.toObjectId;
 public class DataSourceService extends BaseService<DataSourceConnectionDto, DataSourceEntity, ObjectId, DataSourceRepository> {
 
 	private final static String connectNameReg = "^([\u4e00-\u9fa5]|[A-Za-z])([a-zA-Z0-9_\\s-]|[\u4e00-\u9fa5])*$";
-	public static final String key = "asdfFSDJKFHKLASHJDKQJWKJehrklHDFJKSMhkj3h24jkhhJKASDH723ty4jkhasdkdfjhaksjdfjfhJDJKLHSAfadsf";
 
 	private ClassificationService classificationService;
 	private MetadataInstancesService metadataInstancesService;
@@ -707,7 +706,7 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 							SubscribeDto subscribeDto = new SubscribeDto();
 							subscribeDto.setExpireSeconds(100000000);
 							subscribeDto.setSubscribeId("source#" + entityId);
-							SubscribeResponseDto subscribeResponseDto = ProxyService.create().generateSubscriptionToken(subscribeDto, user, key);
+							SubscribeResponseDto subscribeResponseDto = ProxyService.create().generateSubscriptionToken(subscribeDto, user);
 							String webHookUrl = keyValue.substring(0, Math.min(lastCharIndex, lenOfToken)) + subscribeResponseDto.getToken();
 							config.put(key, webHookUrl);
 						}

@@ -17,10 +17,14 @@ import java.util.Base64;
  * @Description:
  */
 public class ProxyService {
+    public static final String key = "asdfFSDJKFHKLASHJDKQJWKJehrklHDFJKSMhkj3h24jkhhJKASDH723ty4jkhasdkdfjhaksjdfjfhJDJKLHSAfadsf";
     public static ProxyService create(){
         return new ProxyService();
     }
-    public SubscribeResponseDto generateSubscriptionToken(SubscribeDto subscribeDto, UserDetail userDetail,String key) {
+    public SubscribeResponseDto generateSubscriptionToken(SubscribeDto subscribeDto, UserDetail userDetail) {
+        return this.generateSubscriptionToken(subscribeDto, key);
+    }
+    private SubscribeResponseDto generateSubscriptionToken(SubscribeDto subscribeDto, String key) {
         if(subscribeDto == null)
             throw new BizException("SubscribeDto is null");
         if(subscribeDto.getSubscribeId() == null)
