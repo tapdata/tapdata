@@ -55,7 +55,7 @@ public class GatewayHandler extends AbstractWebSocketServerHandler {
 
     @Override
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
-        TapLogger.info(TAG, "exceptionCaught {} {}", ctx, ExceptionUtils.getStackTrace(cause));
+        TapLogger.debug(TAG, "exceptionCaught {} {}", ctx, ExceptionUtils.getStackTrace(cause));
 
 //        Channel channel = ctx.channel();
 //        if(channel != null && channel.isActive()) {
@@ -82,7 +82,7 @@ public class GatewayHandler extends AbstractWebSocketServerHandler {
 
     @Override
     protected void messageReceived(ChannelHandlerContext ctx, BinaryWebSocketFrame webSocketFrame) {
-//        TapLogger.info(TAG, "messageReceived $ctx $webSocketFrame");
+//        TapLogger.debug(TAG, "messageReceived $ctx $webSocketFrame");
         byte[] body = null;
 
         ByteBuf byteBuf = webSocketFrame.content();

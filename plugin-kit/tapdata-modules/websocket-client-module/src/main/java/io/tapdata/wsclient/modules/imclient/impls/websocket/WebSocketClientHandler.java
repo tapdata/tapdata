@@ -53,19 +53,19 @@ public class WebSocketClientHandler extends SimpleChannelInboundHandler<Object> 
 
     @Override
     public void handlerAdded(ChannelHandlerContext ctx) {
-        TapLogger.info(TAG, "handlerAdded, " + ctx.name());
+        TapLogger.debug(TAG, "handlerAdded, " + ctx.name());
         handshakeFuture = ctx.newPromise();
     }
 
     @Override
     public void channelActive(ChannelHandlerContext ctx) {
-        TapLogger.info(TAG, "channelActive, " + ctx.name());
+//        TapLogger.debug(TAG, "channelActive, " + ctx.name());
         handshaker.handshake(ctx.channel());
     }
 
     @Override
     public void channelInactive(ChannelHandlerContext ctx) {
-        TapLogger.info(TAG, "channelInactive, " + ctx.name());
+//        TapLogger.debug(TAG, "channelInactive, " + ctx.name());
         pushChannel.isConnected = false;
         eventManager.sendEvent(pushChannel.getImClient().getPrefix() + ".status", new ChannelStatus(pushChannel, ChannelStatus.STATUS_DISCONNECTED));
     }
@@ -94,7 +94,7 @@ public class WebSocketClientHandler extends SimpleChannelInboundHandler<Object> 
 
         WebSocketFrame frame = (WebSocketFrame) msg;
         if(frame instanceof BinaryWebSocketFrame) {
-//            TapLogger.info(TAG, "channel read");
+//            TapLogger.debug(TAG, "channel read");
             BinaryWebSocketFrame binaryWebSocketFrame = (BinaryWebSocketFrame) frame;
             ByteBuf byteBuf = binaryWebSocketFrame.content();
             byte type = byteBuf.readByte();
@@ -115,30 +115,30 @@ public class WebSocketClientHandler extends SimpleChannelInboundHandler<Object> 
                 String prefix = pushChannel.getImClient().getPrefix();
                 //Any data received will cancel the ping timer.
                 if(pushChannel.pingFuture != null) {
-//                    TapLogger.info(TAG, "ping timeout canceled");
+//                    TapLogger.debug(TAG, "ping timeout canceled");
                     pushChannel.pingFuture.cancel(true);
                     pushChannel.pingFuture = null;
                 }
                 switch (type) {
                     case Ping.TYPE:
-//                        TapLogger.info(TAG, "pong");
+//                        TapLogger.debug(TAG, "pong");
                         break;
                     case Result.TYPE:
                         Result result = (Result) data;
                         if(result.getCode() == 1 && !pushChannel.isConnected) {
                             pushChannel.isConnected = true;
-                            TapLogger.info(TAG, "PushChannel connected");
+                            TapLogger.debug(TAG, "PushChannel connected");
                             eventManager.sendEvent(prefix + ".status", new ChannelStatus(pushChannel, ChannelStatus.STATUS_CONNECTED));
                         } else if(result.getCode() == 11) {
                             eventManager.sendEvent(prefix + ".status", new ChannelStatus(pushChannel, ChannelStatus.STATUS_OFFLINEMESSAGECONSUMED));
                         } else if(result.getCode() == 1075) { //kicked
-                            TapLogger.info(TAG, "PushChannel kicked");
+                            TapLogger.debug(TAG, "PushChannel kicked");
                             eventManager.sendEvent(pushChannel.getImClient().getPrefix() + ".status", new ChannelStatus(pushChannel, ChannelStatus.STATUS_KICKED));
                         } else if(result.getCode() == 1094) {
-                            TapLogger.info(TAG, "PushChannel byed");
+                            TapLogger.debug(TAG, "PushChannel byed");
                             eventManager.sendEvent(pushChannel.getImClient().getPrefix() + ".status", new ChannelStatus(pushChannel, ChannelStatus.STATUS_BYE));
                         } else {
-                            TapLogger.info(TAG, "PushChannel receive result " + result);
+                            TapLogger.debug(TAG, "PushChannel receive result " + result);
                             eventManager.sendEvent(prefix + ".result", result);
                         }
                         break;
