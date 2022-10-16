@@ -36,7 +36,7 @@ public class MonitorThread<T extends PushChannel> extends Thread {
     private final int[] channelLock = new int[0];
 
     private int count = 0;
-    private final long[] idleTimes = new long[]{RETRY_TIME, 1000, 2000, 300, 4000, 5000, 10000};
+    private final long[] idleTimes = new long[]{RETRY_TIME, 1000, 2000, 3000, 4000, 5000, 10000};
     private long idleTime = 0;
     private static final long RETRY_TIME = 300;
 
@@ -112,10 +112,10 @@ public class MonitorThread<T extends PushChannel> extends Thread {
         final int MAX = 5;
         if(count > MAX) {
             //Switch to another baseUrls to reconnect.
-            hurry = true;
             List<String> baseUrls = imClient.getBaseUrls();
             int baseUrlSize = baseUrls.size();
             if(baseUrlSize > 1) {
+                hurry = true;
                 if(baseUrlIndex + 1 >= baseUrlSize) {
                     baseUrlIndex = 0;
                 } else {
