@@ -11,8 +11,10 @@ import com.tapdata.tm.monitor.service.MeasurementServiceV2;
 import com.tapdata.tm.monitoringlogs.param.MonitoringLogCountParam;
 import com.tapdata.tm.monitoringlogs.param.MonitoringLogQueryParam;
 import com.tapdata.tm.monitoringlogs.service.MonitoringLogsService;
+import com.tapdata.tm.task.service.TaskConsoleService;
 import com.tapdata.tm.task.service.TaskDagCheckLogService;
 import com.tapdata.tm.task.service.TaskService;
+import com.tapdata.tm.task.vo.RelationTaskRequest;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 
@@ -26,6 +28,7 @@ public enum BatchServiceEnum {
     TASK_AUTO_INSPECT_RESULTS_GROUP_BY_TABLE(TaskAutoInspectResultsService.class.getName(), "groupByTable", "/api/task/auto-inspect-results-group-by-table", IdFilterPageParam.class.getName()),
     MEASUREMENTQUERY(MeasurementServiceV2.class.getName(), "getSamples", "/api/measurement/query/v2", MeasurementQueryParam.class.getName()),
     TASK_ALARM_LIST(AlarmService.class.getName(), "listByTask", "/api/alarm/list_task", AlarmListReqDto.class.getName()),
+    TASK_RELATION(TaskConsoleService.class.getName(), "getRelationTasks", "/api/task-console/relations", RelationTaskRequest.class.getName())
     ;
 
     private final String service;

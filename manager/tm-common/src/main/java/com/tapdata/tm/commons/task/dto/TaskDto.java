@@ -21,7 +21,7 @@ import java.util.Map;
  */
 @Data
 public class TaskDto extends ParentTaskDto {
-    /** migrate迁移  logCollector 挖掘任务*/
+    /** migrate迁移  logColleshareCachector 挖掘任务*/
     public static final String SYNC_TYPE_SYNC = "sync";
     public static final String SYNC_TYPE_MIGRATE = "migrate";
     public static final String SYNC_TYPE_LOG_COLLECTOR = "logCollector";
