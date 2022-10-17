@@ -344,7 +344,8 @@
       "preferPrecision": 20,
       "preferScale": 8,
       "scale": 17,
-      "precision": 309
+      "precision": 309,
+      "fixed": true
     },
     "STRING": {
       "to": "TapString",
