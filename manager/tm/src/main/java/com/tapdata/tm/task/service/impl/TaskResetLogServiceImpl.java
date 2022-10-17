@@ -11,7 +11,9 @@ import com.tapdata.tm.task.vo.TaskLogInfoVo;
 import com.tapdata.tm.ws.handler.EditFlushHandler;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
+import org.bson.types.ObjectId;
 import org.springframework.beans.BeanUtils;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
@@ -24,6 +26,7 @@ import java.util.*;
 public class TaskResetLogServiceImpl implements TaskResetLogService {
     private MongoTemplate mongoTemplate;
 
+    @Autowired
     private TaskService taskService;
 
     public TaskResetLogServiceImpl(MongoTemplate mongoTemplate) {
@@ -34,7 +37,7 @@ public class TaskResetLogServiceImpl implements TaskResetLogService {
     @Override
     public TaskResetEventDto save(TaskResetEventDto resetEventDto, UserDetail user) {
          //封装成为日志上报给前端。
-        TaskDto taskDto = taskService.checkExistById(resetEventDto.getId(), user);
+        TaskDto taskDto = taskService.checkExistById(new ObjectId(resetEventDto.getTaskId()), user);
 
         resetEventDto.setTime(new Date());
         switch (resetEventDto.getStatus()) {

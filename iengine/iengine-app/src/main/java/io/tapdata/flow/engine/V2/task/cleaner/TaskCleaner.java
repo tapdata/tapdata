@@ -48,6 +48,7 @@ import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.springframework.data.mongodb.core.query.Criteria.where;
@@ -67,6 +68,7 @@ public abstract class TaskCleaner {
 	protected AtomicInteger succeedCounter = new AtomicInteger();
 	protected AtomicInteger failedCounter = new AtomicInteger();
 	protected long elapsedTime = 0L;
+	protected AtomicBoolean hasError = new AtomicBoolean();
 
 	protected TaskCleaner(TaskCleanerContext taskCleanerContext) {
 		this.taskCleanerContext = taskCleanerContext;
@@ -201,21 +203,29 @@ public abstract class TaskCleaner {
 				.withGlobalStateMap(globalStateMap)
 				.build();
 		try {
-			PDKInvocationMonitor.invoke(connectorNode, PDKMethod.INIT, connectorNode::connectorInit, TAG);
-
-			ReleaseExternalFunction releaseExternalFunction = connectorNode.getConnectorFunctions().getReleaseExternalFunction();
-			if (releaseExternalFunction != null) {
-				try {
-					PDKInvocationMonitor.invoke(connectorNode, PDKMethod.RELEASE_EXTERNAL, () -> releaseExternalFunction.release(connectorNode.getConnectorContext()), TAG);
-					succeed(node, NodeResetDesc.task_reset_pdk_node_external_resource, (System.currentTimeMillis() - startTs));
-				} catch (Throwable e) {
-					TapNodeSpecification specification = connectorNode.getConnectorContext().getSpecification();
-					String msg = String.format("Call pdk function releaseExternalFunction occur an error: %s\n Task: %s(%s), node: %s(%s), pdk connector: %s-%s-%s",
-							e.getMessage(), taskDto.getName(), taskDto.getId(), node.getName(), node.getId(), specification.getGroup(), specification.getId(), specification.getVersion());
-					TaskCleanerException taskCleanerException = new TaskCleanerException(msg, e, true);
-					failed(node, NodeResetDesc.task_reset_pdk_node_external_resource, (System.currentTimeMillis() - startTs), taskCleanerException);
+			try {
+				PDKInvocationMonitor.invoke(connectorNode, PDKMethod.INIT, connectorNode::connectorInit, TAG);
+				ReleaseExternalFunction releaseExternalFunction = connectorNode.getConnectorFunctions().getReleaseExternalFunction();
+				if (releaseExternalFunction != null) {
+					try {
+						PDKInvocationMonitor.invoke(connectorNode, PDKMethod.RELEASE_EXTERNAL, () -> releaseExternalFunction.release(connectorNode.getConnectorContext()), TAG);
+						succeed(node, NodeResetDesc.task_reset_pdk_node_external_resource, (System.currentTimeMillis() - startTs));
+					} catch (Throwable e) {
+						TapNodeSpecification specification = connectorNode.getConnectorContext().getSpecification();
+						String msg = String.format("Call pdk function releaseExternalFunction occur an error: %s\n Task: %s(%s), node: %s(%s), pdk connector: %s-%s-%s",
+								e.getMessage(), taskDto.getName(), taskDto.getId(), node.getName(), node.getId(), specification.getGroup(), specification.getId(), specification.getVersion());
+						TaskCleanerException taskCleanerException = new TaskCleanerException(msg, e, true);
+						failed(node, NodeResetDesc.task_reset_pdk_node_external_resource, (System.currentTimeMillis() - startTs), taskCleanerException);
+					}
 				}
+			} catch (Throwable e) {
+				TapNodeSpecification specification = connectorNode.getConnectorContext().getSpecification();
+				String msg = String.format("Call pdk function init occur an error: %s\n Task: %s(%s), node: %s(%s), pdk connector: %s-%s-%s",
+						e.getMessage(), taskDto.getName(), taskDto.getId(), node.getName(), node.getId(), specification.getGroup(), specification.getId(), specification.getVersion());
+				TaskCleanerException taskCleanerException = new TaskCleanerException(msg, e, true);
+				failed(node, NodeResetDesc.task_reset_pdk_node_external_resource, (System.currentTimeMillis() - startTs), taskCleanerException);
 			}
+
 			AspectUtils.executeAspect(TaskResetAspect.class, () -> new TaskResetAspect().task(taskDto));
 			TapConnectorContext connectorContext = connectorNode.getConnectorContext();
 			if (connectorContext != null) {
@@ -284,6 +294,7 @@ public abstract class TaskCleaner {
 	}
 
 	protected TaskResetEventDto failed(Node node, NodeResetDesc nodeResetDesc, Long elapsedTime, Throwable throwable) {
+		hasError.set(true);
 		TaskResetEventDto taskResetEventDto = genTaskResetEvent(node, nodeResetDesc, elapsedTime, throwable);
 		return addEvent(taskResetEventDto);
 	}
@@ -325,6 +336,7 @@ public abstract class TaskCleaner {
 		taskResetEventDto.setTaskId(taskDto.getId().toHexString());
 		taskResetEventDto.setLevel(Level.INFO);
 		taskResetEventDto.setDescribe(NodeResetDesc.task_reset_start.name());
+		taskResetEventDto.setStatus(TaskResetEventDto.ResetStatusEnum.START);
 		taskCleanerReporter.addEvent(taskCleanerContext.getClientMongoOperator(), taskResetEventDto);
 	}
 
@@ -337,6 +349,11 @@ public abstract class TaskCleaner {
 		taskResetEventDto.setFailedEvent(failedCounter.get());
 		taskResetEventDto.setElapsedTime(elapsedTime);
 		taskResetEventDto.setLevel(Level.INFO);
+		if (hasError.get()) {
+			taskResetEventDto.setStatus(TaskResetEventDto.ResetStatusEnum.TASK_FAILED);
+		} else {
+			taskResetEventDto.setStatus(TaskResetEventDto.ResetStatusEnum.TASK_SUCCEED);
+		}
 		taskCleanerReporter.addEvent(taskCleanerContext.getClientMongoOperator(), taskResetEventDto);
 	}
 
