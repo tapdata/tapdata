@@ -1042,11 +1042,4 @@ public class TaskController extends BaseController {
         taskService.updateTaskLogSetting(taskId, logSettingParam, getLoginUser());
         return success();
     }
-
-
-    @Operation(summary = "任务重置日志查询")
-    @PostMapping("/reset/logs/{taskId}")
-    public ResponseMessage<List<TaskResetLogs>> taskResetLogs(@PathVariable("taskId") String taskId) {
-        return success(taskResetLogService.findByTaskId(taskId));
-    }
 }

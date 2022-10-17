@@ -1,19 +1,21 @@
 package com.tapdata.tm.task.service;
 
+import com.tapdata.tm.commons.task.dto.TaskResetEventDto;
+import com.tapdata.tm.config.security.UserDetail;
+import com.tapdata.tm.monitor.dto.TaskLogDto;
 import com.tapdata.tm.task.bean.TaskResetLogs;
+import com.tapdata.tm.task.vo.TaskDagCheckLogVo;
 import org.springframework.data.mongodb.core.query.Query;
 
 import java.util.List;
 
 public interface TaskResetLogService {
-    void save(TaskResetLogs taskResetLogs);
+    TaskResetEventDto save(TaskResetEventDto taskResetEventDto, UserDetail userDetail);
 
-    List<TaskResetLogs> findByTaskId(String taskId);
-
-    List<TaskResetLogs> find(Query query);
+    List<TaskResetEventDto> find(Query query);
 
     void clearLogByTaskId(String taskId);
 
 
-
+    TaskDagCheckLogVo getLogs(TaskLogDto dto);
 }

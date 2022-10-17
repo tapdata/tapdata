@@ -1830,57 +1830,6 @@ public class TaskService extends BaseService<TaskDto, TaskEntity, ObjectId, Task
         return findOne(query);
     }
 
-    /**
-     * 处理ws上报的任务重置删除状态信息
-     * @param objectId
-     * @param user
-     * @param resetEventDto
-     */
-    public void resetReport(ObjectId objectId, UserDetail user, TaskResetEventDto resetEventDto) {
-        //封装成为日志上报给前端。
-        TaskDto taskDto = checkExistById(objectId, user);
-
-        TaskResetLogs taskResetLogs = new TaskResetLogs();
-        taskResetLogs.setTaskId(objectId.toHexString());
-        taskResetLogs.setTime(new Date());
-        taskResetLogs.setDescription(resetEventDto.getDescribe());
-        switch (resetEventDto.getStatus()) {
-            case START:
-                //存到表里面。
-                //拼装日志推送到前端
-                break;
-            case FINISHED:
-                break;
-            case TASK_START:
-                break;
-            case TASK_FINISHED:
-                //根据任务的状态，如果是重置中，则继续重置的操作，如果为删除中，则删除继续删除的操作
-                if (TaskDto.STATUS_RENEWING.equals(taskDto.getStatus())) {
-                    afterRenew(taskDto, user);
-                } else if (TaskDto.STATUS_DELETING.equals(taskDto.getStatus())) {
-                    afterRemove(taskDto, user);
-                }
-                break;
-            case TASK_FAILED:
-                //根据任务的状态，如果是重置中，更新成为重置失败，如果为删除中，则删除失败
-                if (TaskDto.STATUS_RENEWING.equals(taskDto.getStatus())) {
-                    updateStatus(taskDto.getId(), TaskDto.STATUS_RENEW_FAILED);
-                } else if (TaskDto.STATUS_DELETING.equals(taskDto.getStatus())) {
-                    updateStatus(taskDto.getId(), TaskDto.STATUS_DELETE_FAILED);
-                }
-                break;
-            default:
-                break;
-        }
-
-        taskResetLogService.save(taskResetLogs);
-
-        //推送给前端
-        if (TaskDto.STATUS_RENEWING.equals(taskDto.getStatus())) {
-            EditFlushHandler.sendEditFlushMessage(objectId.toHexString(), resetEventDto, "resetReport");
-        }
-    }
-
     @Data
     @AllArgsConstructor
     @NoArgsConstructor

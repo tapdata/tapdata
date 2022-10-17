@@ -4,10 +4,12 @@ import com.tapdata.tm.commons.base.dto.BaseDto;
 import com.tapdata.tm.commons.task.constant.Level;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
+import org.springframework.data.mongodb.core.mapping.Document;
 
 import java.io.PrintWriter;
 import java.io.Serializable;
 import java.io.StringWriter;
+import java.util.Date;
 
 /**
  * @author samuel
@@ -19,6 +21,7 @@ import java.io.StringWriter;
  **/
 @EqualsAndHashCode(callSuper = true)
 @Data
+@Document("TaskResetLogs")
 public class TaskResetEventDto extends BaseDto implements Serializable {
 	private static final long serialVersionUID = -3102894699787546947L;
 	private String taskId;
@@ -41,6 +44,7 @@ public class TaskResetEventDto extends BaseDto implements Serializable {
 	private Integer succeedEvent;
 	private Integer failedEvent;
 	private Long elapsedTime;
+	private Date time;
 
 	public TaskResetEventDto succeed() {
 		this.status = ResetStatusEnum.SUCCEED;

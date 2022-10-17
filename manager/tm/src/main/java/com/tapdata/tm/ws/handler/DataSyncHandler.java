@@ -98,10 +98,10 @@ public class DataSyncHandler implements WebSocketHandler{
                     //任务状态在运行中，可能收到运行已完成。
                     taskService.deleted(objectId, userDetail);
                     break;
-                case DataSyncMq.OP_TYPE_RESET_DELETE_REPORT:
-                    //任务状态在运行中，可能收到运行已完成。
-                    taskService.resetReport(objectId, userDetail, dataSyncMq.getResetEventDto());
-                    break;
+//                case DataSyncMq.OP_TYPE_RESET_DELETE_REPORT:
+//                    //任务状态在运行中，可能收到运行已完成。
+//                    taskService.resetReport(objectId, userDetail, dataSyncMq.getResetEventDto());
+//                    break;
                 default:
                     break;
             }
