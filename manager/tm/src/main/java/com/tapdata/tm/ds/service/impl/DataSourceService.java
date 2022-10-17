@@ -4,7 +4,6 @@ import cn.hutool.core.lang.Assert;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.google.common.base.Splitter;
 import com.mongodb.BasicDBObject;
 import com.mongodb.ConnectionString;
 import com.mongodb.client.result.UpdateResult;
@@ -82,10 +81,6 @@ import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.net.MalformedURLException;
-import java.net.URI;
-import java.net.URISyntaxException;
-import java.net.URL;
 import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -668,6 +663,7 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 		//将数据源连接的名称修改成为名称后面+_copy
 		String connectionName = entity.getName() + " - Copy";
 		entity.setLastUpdAt(new Date());
+
 		while (true) {
 			try {
 				//插入复制的数据源
@@ -675,44 +671,6 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 				entity.setLoadCount(0);
 				entity.setLoadFieldsStatus("");
 				entity = repository.save(entity, user);
-
-				String pdkHash = entity.getPdkHash();
-				if (null == pdkHash || "".equals(pdkHash)) break;
-				DataSourceDefinitionDto dataSource = dataSourceDefinitionService.findByPdkHash(pdkHash, user);
-				LinkedHashMap<String, Object> properties = dataSource.getProperties();
-				if (null == properties || properties.isEmpty()) break;
-				Object connection = properties.get("connection");
-				if (null == connection || !(connection instanceof Map) || ((Map<String,Object>)connection).isEmpty()) break;
-				Object connectionPropertiesObj = ((Map<String, Object>) connection).get("properties");
-				if (null == connectionPropertiesObj || !(connectionPropertiesObj instanceof Map)) break;
-				Map<String, Object> connectionProperties = (Map<String, Object>) connectionPropertiesObj;
-				final DataSourceEntity entityFinal = entity;
-				String entityId = entity.getId().toHexString();
-				connectionProperties.forEach((key,propertiesObj)->{
-					if (null == propertiesObj || !(propertiesObj instanceof Map) || ((Map)propertiesObj).isEmpty()) return;
-					Object actionOnCopyObj = ((Map<String,Object>)propertiesObj).get("actionOnCopy");
-					if (null == actionOnCopyObj) return;
-					if("NEW_WEB_HOOK_URL".equals(String.valueOf(actionOnCopyObj))){
-
-						Map<String, Object> config = entityFinal.getConfig();
-						Object keyObjOfCopyConnectionConfig = config.get(key);
-						if (null == keyObjOfCopyConnectionConfig ) return;
-						String keyValue = String.valueOf(keyObjOfCopyConnectionConfig);
-						if (null == keyValue || !keyValue.contains("/api/proxy/callback/")){
-							config.put(key,"");
-						}else {
-							int lastCharIndex = keyValue.lastIndexOf('/') + 1;
-							int lenOfToken = keyValue.length();
-							SubscribeDto subscribeDto = new SubscribeDto();
-							subscribeDto.setExpireSeconds(100000000);
-							subscribeDto.setSubscribeId("source#" + entityId);
-							SubscribeResponseDto subscribeResponseDto = ProxyService.create().generateSubscriptionToken(subscribeDto, user);
-							String webHookUrl = keyValue.substring(0, Math.min(lastCharIndex, lenOfToken)) + subscribeResponseDto.getToken();
-							config.put(key, webHookUrl);
-						}
-						repository.updateByWhere(Query.query(Criteria.where("_id").is(entityId)), entityFinal, user);
-					}
-				});
 				break;
 			} catch (Exception e) {
 				if (e.getMessage().contains("duplicate key error")) {
@@ -722,6 +680,7 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 				}
 			}
 		}
+		this.resetWebHookOnCopy(entity,user);//重置WebHook URL
 
 		log.debug("copy datasource success, datasource name = {}", connectionName);
 
@@ -732,6 +691,73 @@ public class DataSourceService extends BaseService<DataSourceConnectionDto, Data
 		return connectionDto;
 	}
 
+	/**
+	 * 复制数据源时，重置WebHook连接（For SaaS）
+	 * 在数据源JSONSchema中对connection配置了actionOnCopy属性
+	 * @Author Gavin
+	 * @Date 2022-10-17
+	 * @param entity
+	 * @param user
+	 * */
+	private void resetWebHookOnCopy(DataSourceEntity entity,UserDetail user){
+			ObjectId copyId = entity.getId();
+			if (null == copyId) entity.setId(copyId = new ObjectId());
+			//获取并校验pdkHash,用于获取jsonSchema
+			String pdkHash = entity.getPdkHash();
+			if (null == pdkHash || "".equals(pdkHash)) {
+				log.debug("Reset WebHook URL error, datasource name = {}, message : PdkHash must be not null or not empty.", entity.getName());
+				return;
+			}
+			DataSourceDefinitionDto dataSource = dataSourceDefinitionService.findByPdkHash(pdkHash, user);
+			LinkedHashMap<String, Object> properties = dataSource.getProperties();
+			//获取connection配置
+			if (null == properties || properties.isEmpty()) {
+				log.debug("Reset WebHook URL error, datasource name = {}, message : Connector's jsonSchema must be not null or not empty.", entity.getName());
+				return;
+			}
+			Object connection = properties.get("connection");
+			if (null == connection || !(connection instanceof Map) || ((Map<String, Object>) connection).isEmpty()) {
+				log.debug("Reset WebHook URL error, datasource name = {}, message : Connector's connection must be not null or not empty.",entity.getName());
+				return;
+			}
+			//获取properties配置信息
+			Object connectionPropertiesObj = ((Map<String, Object>) connection).get("properties");
+			if (null == connectionPropertiesObj || !(connectionPropertiesObj instanceof Map)) {
+				log.debug("Reset WebHook URL error, datasource name = {}, message : Connector's properties must be not null or not empty.",entity.getName());
+				return;
+			}
+			Map<String, Object> connectionProperties = (Map<String, Object>) connectionPropertiesObj;
+			String entityId = copyId.toHexString();
+			//遍历properties属性，对含有actionOnCopy属性的字段进行重置WebHook操作
+			for (Map.Entry<String, Object> entry : connectionProperties.entrySet()) {
+				String key = entry.getKey();
+				Object propertiesObj = entry.getValue();
+				if (null == propertiesObj || !(propertiesObj instanceof Map) || ((Map) propertiesObj).isEmpty()) continue;
+				Object actionOnCopyObj = ((Map<String, Object>) propertiesObj).get("actionOnCopy");
+				if (null == actionOnCopyObj) continue;
+				//对actionOnCopy值为NEW_WEB_HOOK_URL的属性进行WebHook重置操作，使用connection Id生成特有的WebHook url
+				if ("NEW_WEB_HOOK_URL".equals(String.valueOf(actionOnCopyObj))) {
+					Map<String, Object> config = entity.getConfig();
+					Object keyObjOfCopyConnectionConfig = config.get(key);
+					if (null == keyObjOfCopyConnectionConfig) continue;
+					String keyValue = String.valueOf(keyObjOfCopyConnectionConfig);
+					if (null == keyValue || !keyValue.contains("/api/proxy/callback/")) {
+						config.put(key, "");
+					} else {
+						int lastCharIndex = keyValue.lastIndexOf('/') + 1;
+						int lenOfToken = keyValue.length();
+						SubscribeDto subscribeDto = new SubscribeDto();
+						subscribeDto.setExpireSeconds(100000000);
+						subscribeDto.setSubscribeId("source#" + entityId);
+						SubscribeResponseDto subscribeResponseDto = ProxyService.create().generateSubscriptionToken(subscribeDto, user);
+						String webHookUrl = keyValue.substring(0, Math.min(lastCharIndex, lenOfToken)) + subscribeResponseDto.getToken();
+						config.put(key, webHookUrl);
+
+						repository.update(new Query(Criteria.where("_id").is(entityId)),entity);
+					}
+				}
+			}
+	}
 
 	/**
 	 * mongodb这种类型数据源类型的，存在库里面的就是一个uri,需要解析成为一个标准模式的返回

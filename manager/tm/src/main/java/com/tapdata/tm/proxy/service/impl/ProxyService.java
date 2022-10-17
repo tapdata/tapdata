@@ -17,12 +17,12 @@ import java.util.Base64;
  * @Description:
  */
 public class ProxyService {
-    public static final String key = "asdfFSDJKFHKLASHJDKQJWKJehrklHDFJKSMhkj3h24jkhhJKASDH723ty4jkhasdkdfjhaksjdfjfhJDJKLHSAfadsf";
+    public static final String KEY = "asdfFSDJKFHKLASHJDKQJWKJehrklHDFJKSMhkj3h24jkhhJKASDH723ty4jkhasdkdfjhaksjdfjfhJDJKLHSAfadsf";
     public static ProxyService create(){
         return new ProxyService();
     }
     public SubscribeResponseDto generateSubscriptionToken(SubscribeDto subscribeDto, UserDetail userDetail) {
-        return this.generateSubscriptionToken(subscribeDto, key);
+        return this.generateSubscriptionToken(subscribeDto, KEY);
     }
     private SubscribeResponseDto generateSubscriptionToken(SubscribeDto subscribeDto, String key) {
         if(subscribeDto == null)

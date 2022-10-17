@@ -46,7 +46,6 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
 import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
@@ -64,7 +63,7 @@ import static org.apache.http.HttpStatus.*;
 public class ProxyController extends BaseController {
     private static final String TAG = ProxyController.class.getSimpleName();
     private final AsyncContextManager asyncContextManager = new AsyncContextManager();
-    public static final String key = "asdfFSDJKFHKLASHJDKQJWKJehrklHDFJKSMhkj3h24jkhhJKASDH723ty4jkhasdkdfjhaksjdfjfhJDJKLHSAfadsf";
+
     private static final int wsPort = 8246;
     /**
      *
@@ -84,7 +83,7 @@ public class ProxyController extends BaseController {
             throw new BizException("Current nodeId not found");
 
         LoginProxyResponseDto loginProxyResponseDto = new LoginProxyResponseDto();
-        String token = JWTUtils.createToken(key,
+        String token = JWTUtils.createToken(ProxyService.KEY,
                 map(
                         entry("nodeId", nodeId),
                         entry("service", loginProxyDto.getService().toLowerCase()),
@@ -162,7 +161,7 @@ public class ProxyController extends BaseController {
             throw new BizException("content is illegal, " + null);
         byte[] data = null;
         try {
-            data = CommonUtils.decryptWithRC4(Base64.getUrlDecoder().decode(token.getBytes(StandardCharsets.US_ASCII)), key);
+            data = CommonUtils.decryptWithRC4(Base64.getUrlDecoder().decode(token.getBytes(StandardCharsets.US_ASCII)), ProxyService.KEY);
         } catch (Exception e) {
             response.sendError(SC_UNAUTHORIZED, "Token illegal");
             return;
