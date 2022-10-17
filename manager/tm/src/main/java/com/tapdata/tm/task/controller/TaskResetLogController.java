@@ -12,7 +12,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@RequestMapping("")
+@RequestMapping("api/TaskResetLogs")
 public class TaskResetLogController extends BaseController {
 
     @Autowired
