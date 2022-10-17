@@ -55,7 +55,7 @@ public class OrganizationFieldsSchema implements SchemaLoader {
         List<Map<String, Object>> listDepartment = fieldLoader.list(ModuleEnums.TICKETS, null, null);//分页数
         if (Checker.isNotEmpty(listDepartment) && !listDepartment.isEmpty()) {
             for (Map<String, Object> stringObjectMap : listDepartment) {
-                Map<String, Object> department = connectionMode.attributeAssignment(stringObjectMap, table);
+                Map<String, Object> department = connectionMode.attributeAssignment(stringObjectMap, table,fieldLoader);
                 if (Checker.isNotEmpty(department) && !department.isEmpty()) {
                     long referenceTime = System.currentTimeMillis();
                     ((ZoHoOffset) offset).getTableUpdateTimeMap().put(table, referenceTime);

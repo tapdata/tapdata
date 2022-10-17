@@ -11,6 +11,7 @@ import io.tapdata.zoho.enums.Constants;
 import io.tapdata.zoho.enums.FieldModelType;
 import io.tapdata.zoho.service.zoho.loader.OrganizationFieldLoader;
 import io.tapdata.zoho.service.zoho.loader.TicketLoader;
+import io.tapdata.zoho.service.zoho.loader.ZoHoBase;
 import io.tapdata.zoho.utils.Checker;
 import io.tapdata.zoho.utils.MapUtil;
 
@@ -27,6 +28,14 @@ import static io.tapdata.entity.simplify.TapSimplify.field;
  * */
 public class Tickets implements Schema {
     private static final String TAG = Tickets.class.getSimpleName();
+
+    private TicketLoader ticketLoader;
+    @Override
+    public Schema config(ZoHoBase openApi) {
+        if (openApi instanceof TicketLoader) ticketLoader = (TicketLoader)openApi;
+        return this;
+    }
+
     @Override
     public List<TapTable> document(List<String> tables, int tableSize) {
         if(tables == null || tables.isEmpty()) {
@@ -216,7 +225,10 @@ public class Tickets implements Schema {
         if (Checker.isEmpty(ticketIdObj)){
             TapLogger.debug(TAG,"Ticket Id can not be null or not be empty.");
         }
-        Map<String, Object> ticketDetail = TicketLoader.create(connectionContext).getOne((String) ticketIdObj);
+        if (Checker.isEmpty(ticketLoader)){
+            ticketLoader = TicketLoader.create(connectionContext);
+        }
+        Map<String, Object> ticketDetail = ticketLoader.getOne((String) ticketIdObj);
         ticketDetail.put("department",obj.get("department"));
         ticketDetail.put("contact",obj.get("contact"));
         ticketDetail.put("assignee",obj.get("assignee"));
@@ -284,7 +296,9 @@ public class Tickets implements Schema {
             TapLogger.debug(TAG,"Ticket Id can not be null or not be empty.");
             return null;
         }
-        TicketLoader ticketLoader = TicketLoader.create(connectionContext);
+        if (Checker.isEmpty(ticketLoader)){
+            ticketLoader = TicketLoader.create(connectionContext);
+        }
         Map<String, Object> ticketDetail = ticketLoader.getOne((String) ticketIdObj);
         //把分页结果中具有但详情结果中不具有切CSV结构数据需要的结构进行提取
         ticketDetail.put("department",obj.get("department"));

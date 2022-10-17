@@ -135,7 +135,7 @@ public class TickersSchema implements SchemaLoader {
             if (Checker.isNotEmpty(list) && !list.isEmpty()){
                 fromPageIndex += pageSize;
                 list.stream().forEach(ticket->{
-                    Map<String, Object> oneTicket = connectionMode.attributeAssignment(ticket,tableName);
+                    Map<String, Object> oneTicket = connectionMode.attributeAssignment(ticket,tableName,ticketLoader);
                     if (Checker.isNotEmpty(oneTicket) && !oneTicket.isEmpty()){
                         Object modifiedTimeObj = oneTicket.get("modifiedTime");
                         long referenceTime = System.currentTimeMillis();

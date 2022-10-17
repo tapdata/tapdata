@@ -6,6 +6,8 @@ import cn.hutool.json.JSONObject;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.zoho.entity.ContextConfig;
+import io.tapdata.zoho.service.zoho.loader.ProductsOpenApi;
+import io.tapdata.zoho.service.zoho.loader.ZoHoBase;
 import io.tapdata.zoho.utils.BeanUtil;
 
 import java.util.Iterator;
@@ -17,6 +19,7 @@ import java.util.Map;
  * 通过Schema.allSupportSchemas()获取所有支持的表
  * */
 public interface Schema {
+    public Schema config(ZoHoBase openApi);
     public static Schema schema(String name){
         return BeanUtil.bean("io.tapdata.zoho.service.zoho.schema." + name);
     }

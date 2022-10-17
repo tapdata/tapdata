@@ -3,6 +3,8 @@ package io.tapdata.zoho.service.zoho.schema;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.zoho.entity.ContextConfig;
+import io.tapdata.zoho.service.zoho.loader.DepartmentOpenApi;
+import io.tapdata.zoho.service.zoho.loader.ZoHoBase;
 import io.tapdata.zoho.utils.Checker;
 import io.tapdata.zoho.utils.MapUtil;
 
@@ -16,6 +18,14 @@ import static io.tapdata.base.ConnectorBase.*;
  * 部门表 ，Schema 的 部门策略
  * */
 public class Departments implements Schema {
+    private DepartmentOpenApi departmentOpenApi;
+
+    @Override
+    public Schema config(ZoHoBase openApi) {
+        if (openApi instanceof DepartmentOpenApi) this.departmentOpenApi = (DepartmentOpenApi)departmentOpenApi;
+        return this;
+    }
+
     /**
      * {
      *   "isAssignToTeamEnabled" : true,

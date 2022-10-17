@@ -47,4 +47,8 @@ public class ZoHoConnectionTest extends ZoHoStarter implements ZoHoBase {
         }
     }
 
+    @Override
+    public TapConnectionContext getContext() {
+        return this.tapConnectionContext;
+    }
 }

@@ -11,6 +11,7 @@ import io.tapdata.zoho.enums.FieldModelType;
 import io.tapdata.zoho.service.connectionMode.ConnectionMode;
 import io.tapdata.zoho.service.zoho.loader.OrganizationFieldLoader;
 import io.tapdata.zoho.service.zoho.loader.TicketLoader;
+import io.tapdata.zoho.service.zoho.loader.ZoHoBase;
 import io.tapdata.zoho.service.zoho.schema.Schema;
 import io.tapdata.zoho.service.zoho.schema.Schemas;
 import io.tapdata.zoho.utils.Checker;
@@ -333,8 +334,8 @@ public class CSVMode implements ConnectionMode {
     }
 
     @Override
-    public Map<String,Object> attributeAssignment(Map<String,Object> stringObjectMap,String tableName){
-        return Schema.schema(tableName).attributeAssignmentCsv(stringObjectMap,connectionContext,contextConfig);
+    public Map<String,Object> attributeAssignment(Map<String,Object> stringObjectMap, String tableName, ZoHoBase openApi){
+        return Schema.schema(tableName).config(openApi).attributeAssignmentCsv(stringObjectMap,connectionContext,contextConfig);
     }
     //CustomFields
     private Map<String,Object> setCustomField(Map<String,Object> stringObjectMap,ContextConfig contextConfig){

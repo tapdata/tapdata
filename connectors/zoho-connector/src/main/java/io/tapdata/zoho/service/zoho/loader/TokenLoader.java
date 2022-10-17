@@ -76,4 +76,9 @@ public class TokenLoader extends ZoHoStarter implements ZoHoBase {
         TapLogger.debug(TAG,"Try to get AccessToken and RefreshToken.");
         return TokenEntity.create().entity(http.post()) ;
     }
+
+    @Override
+    public TapConnectionContext getContext() {
+        return this.tapConnectionContext;
+    }
 }

@@ -291,7 +291,7 @@ public class ZoHoConnector extends ConnectorBase {
 			if (Checker.isNotEmpty(list) && !list.isEmpty()){
 				fromPageIndex += pageSize;
 				list.stream().forEach(ticket->{
-					Map<String, Object> oneTicket = connectionMode.attributeAssignment(ticket,table);
+					Map<String, Object> oneTicket = connectionMode.attributeAssignment(ticket,table,ticketLoader);
 					if (Checker.isNotEmpty(oneTicket) && !oneTicket.isEmpty()){
 						Object modifiedTimeObj = oneTicket.get("modifiedTime");
 						long referenceTime = System.currentTimeMillis();

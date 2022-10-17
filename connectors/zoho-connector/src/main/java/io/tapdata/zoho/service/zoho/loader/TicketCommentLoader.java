@@ -133,4 +133,9 @@ public class TicketCommentLoader extends ZoHoStarter implements ZoHoBase {
                 new ArrayList<>() : (
                 Checker.isEmpty(data.get("data")) ? new ArrayList<>(): (List<Map<String,Object>>)data.get("data"));
     }
+
+    @Override
+    public TapConnectionContext getContext() {
+        return this.tapConnectionContext;
+    }
 }

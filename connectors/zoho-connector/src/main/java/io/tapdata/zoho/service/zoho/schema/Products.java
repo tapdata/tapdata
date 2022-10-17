@@ -1,10 +1,15 @@
 package io.tapdata.zoho.service.zoho.schema;
 
+import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.zoho.entity.ContextConfig;
+import io.tapdata.zoho.service.zoho.loader.ProductsOpenApi;
+import io.tapdata.zoho.service.zoho.loader.ZoHoBase;
+import io.tapdata.zoho.utils.Checker;
 import io.tapdata.zoho.utils.MapUtil;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -13,6 +18,14 @@ import static io.tapdata.base.ConnectorBase.*;
 import static io.tapdata.base.ConnectorBase.field;
 
 public class Products implements Schema {
+    private static final String TAG = Products.class.getSimpleName();
+
+    private ProductsOpenApi productsOpenApi;
+    public Products config(ZoHoBase openApi){
+        if ( openApi instanceof ProductsOpenApi )
+            this.productsOpenApi = (ProductsOpenApi) openApi;
+        return this;
+    }
     /**
      * "owner" : {
      *     "photoURL" : "https://desk.zoho.com.cn/api/v1/agents/6000000009050/photo?orgId=581861259",
@@ -100,12 +113,30 @@ public class Products implements Schema {
 
     @Override
     public Map<String, Object> attributeAssignmentDocument(Map<String, Object> obj, TapConnectionContext connectionContext) {
-        return null;
+        if (Checker.isEmpty(productsOpenApi)){
+            productsOpenApi = ProductsOpenApi.create(connectionContext);
+        }
+        Object productIdObj = obj.get("id");
+        if (Checker.isEmpty(productIdObj)){
+            TapLogger.debug(TAG,"Ticket Id can not be null or not be empty.");
+            return Collections.emptyMap();
+        }
+        Map<String,Object> product = productsOpenApi.get(String.valueOf(productIdObj));
+        return this.attributeAssignmentSelfDocument(product);
     }
 
     @Override
     public Map<String, Object> attributeAssignmentCsv(Map<String, Object> obj, TapConnectionContext connectionContext, ContextConfig contextConfig) {
-        return null;
+        if (Checker.isEmpty(productsOpenApi)){
+            productsOpenApi = ProductsOpenApi.create(connectionContext);
+        }
+        Object productIdObj = obj.get("id");
+        if (Checker.isEmpty(productIdObj)){
+            TapLogger.debug(TAG,"Ticket Id can not be null or not be empty.");
+            return Collections.emptyMap();
+        }
+        Map<String,Object> product = productsOpenApi.get(String.valueOf(productIdObj));
+        return this.attributeAssignmentSelfCsv(product,contextConfig);
     }
 
     @Override
@@ -124,7 +155,7 @@ public class Products implements Schema {
                 "layoutId",
                 "departmentIds",
                 "description",
-                "cf","Map",
+                "cf",//@TODO "Map",
                 "modifiedTime",
                 "unitPrice"
         );

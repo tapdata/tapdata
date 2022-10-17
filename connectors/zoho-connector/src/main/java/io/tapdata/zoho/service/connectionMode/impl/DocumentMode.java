@@ -5,6 +5,7 @@ import io.tapdata.entity.schema.TapTable;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.zoho.service.connectionMode.ConnectionMode;
 import io.tapdata.zoho.service.zoho.loader.TicketLoader;
+import io.tapdata.zoho.service.zoho.loader.ZoHoBase;
 import io.tapdata.zoho.service.zoho.schema.Schema;
 import io.tapdata.zoho.service.zoho.schema.Schemas;
 import io.tapdata.zoho.utils.Checker;
@@ -134,7 +135,7 @@ public class DocumentMode implements ConnectionMode {
     }
 
     @Override
-    public Map<String,Object> attributeAssignment(Map<String,Object> stringObjectMap,String tableName) {
-        return Schema.schema(tableName).attributeAssignmentDocument(stringObjectMap,connectionContext);
+    public Map<String,Object> attributeAssignment(Map<String,Object> stringObjectMap,String tableName, ZoHoBase openApi) {
+        return Schema.schema(tableName).config(openApi).attributeAssignmentDocument(stringObjectMap,connectionContext);
     }
 }

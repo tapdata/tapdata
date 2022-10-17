@@ -3,6 +3,8 @@ package io.tapdata.zoho.service.zoho.schema;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.zoho.entity.ContextConfig;
+import io.tapdata.zoho.service.zoho.loader.OrganizationFieldsOpenApi;
+import io.tapdata.zoho.service.zoho.loader.ZoHoBase;
 import io.tapdata.zoho.utils.MapUtil;
 
 import java.util.HashMap;
@@ -13,6 +15,13 @@ import static io.tapdata.base.ConnectorBase.*;
 import static io.tapdata.base.ConnectorBase.field;
 
 public class OrganizationFields implements Schema {
+    private OrganizationFieldsOpenApi fieldsOpenApi;
+    @Override
+    public Schema config(ZoHoBase openApi) {
+        if (openApi instanceof OrganizationFieldsOpenApi) this.fieldsOpenApi = (OrganizationFieldsOpenApi)openApi;
+        return this;
+    }
+
     /**
      *  "displayLabel" : "Account Name",
      *     "apiName" : "accountId",
