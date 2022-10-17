@@ -2,7 +2,11 @@ package io.tapdata.connector.mysql.util;
 
 import org.apache.commons.lang3.StringUtils;
 
+import java.time.Duration;
+import java.time.LocalDateTime;
+import java.time.ZonedDateTime;
 import java.util.Random;
+import java.util.TimeZone;
 import java.util.regex.Pattern;
 
 /**
@@ -106,5 +110,13 @@ public class MysqlUtil extends JdbcUtil {
 			throw new RuntimeException("Get first version number failed, version string: " + version + ", error: " + e.getMessage(), e);
 		}
 		return firstVersion;
+	}
+
+	public static long convertTimestamp(long timestamp, TimeZone fromTimeZone, TimeZone toTimeZone) {
+		LocalDateTime dt = LocalDateTime.now();
+		ZonedDateTime fromZonedDateTime = dt.atZone(fromTimeZone.toZoneId());
+		ZonedDateTime toZonedDateTime = dt.atZone(toTimeZone.toZoneId());
+		long diff = Duration.between(toZonedDateTime, fromZonedDateTime).toMillis();
+		return timestamp + diff;
 	}
 }
