@@ -9,6 +9,7 @@ import com.tapdata.tm.transform.service.MetadataTransformerService;
 import com.tapdata.tm.ws.handler.TransformerStatusPushHandler;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.collections4.CollectionUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
@@ -60,6 +61,9 @@ public class TransformerSchedule {
         log.debug("start transform ws message push.");
         //获取当前节点监听的任务id
         Set<String> taskIds = TransformerStatusPushHandler.transformMap.keySet();
+        if (CollectionUtils.isEmpty(taskIds)) {
+            return;
+        }
         //查询所有的当前监听的，并且在推演过程中的任务
 
         Criteria criteria = Criteria.where("dataFlowId").in(taskIds).and("pingTime").gte(System.currentTimeMillis() - (8 *1000));

@@ -100,7 +100,7 @@ public class MysqlConnector extends ConnectorBase {
         connectorFunctions.supportTimestampToStreamOffset(this::timestampToStreamOffset);
         connectorFunctions.supportQueryByAdvanceFilter(this::query);
         connectorFunctions.supportWriteRecord(this::writeRecord);
-        connectorFunctions.supportCreateIndex(this::createIndex);
+//        connectorFunctions.supportCreateIndex(this::createIndex);
         connectorFunctions.supportNewFieldFunction(this::fieldDDLHandler);
         connectorFunctions.supportAlterFieldNameFunction(this::fieldDDLHandler);
         connectorFunctions.supportAlterFieldAttributesFunction(this::fieldDDLHandler);
@@ -175,6 +175,7 @@ public class MysqlConnector extends ConnectorBase {
     private void createIndex(TapConnectorContext tapConnectorContext, TapTable tapTable, TapCreateIndexEvent tapCreateIndexEvent) throws Throwable {
         List<TapIndex> indexList = tapCreateIndexEvent.getIndexList();
         SqlMaker sqlMaker = new MysqlMaker();
+        // todo 判断是否需要自动创建索引
         for (TapIndex tapIndex : indexList) {
             String createIndexSql;
             try {
@@ -185,7 +186,12 @@ public class MysqlConnector extends ConnectorBase {
             try {
                 this.mysqlJdbcContext.execute(createIndexSql);
             } catch (Throwable e) {
-                throw new RuntimeException("Execute create index failed, sql: " + createIndexSql + ", message: " + e.getMessage(), e);
+                // mysql index  less than  3072 bytes。
+                if (e.getMessage() != null && e.getMessage().contains("42000 1071")) {
+                    TapLogger.warn(TAG, "Execute create index failed, sql: " + createIndexSql + ", message: " + e.getMessage(), e);
+                } else {
+                    throw new RuntimeException("Execute create index failed, sql: " + createIndexSql + ", message: " + e.getMessage(), e);
+                }
             }
         }
     }

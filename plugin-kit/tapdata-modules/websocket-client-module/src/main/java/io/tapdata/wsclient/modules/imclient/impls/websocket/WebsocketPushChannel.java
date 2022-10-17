@@ -71,7 +71,7 @@ public class WebsocketPushChannel extends PushChannel {
 
     @Override
     public void stop() {
-        TapLogger.info(TAG, "stop");
+        TapLogger.debug(TAG, "stop");
         if(pingFuture != null) {
             pingFuture.cancel(true);
         }
@@ -99,7 +99,7 @@ public class WebsocketPushChannel extends PushChannel {
         if(imClient == null)
             throw new NullPointerException("IMClient is needed for creating channels.");
         eventManager = EventManager.getInstance();
-        TapLogger.info(TAG, "PushChannel started");
+        TapLogger.debug(TAG, "PushChannel started");
 
         CompletableFuture.supplyAsync((Supplier<Void>) () -> {
             login();
@@ -115,11 +115,11 @@ public class WebsocketPushChannel extends PushChannel {
         });
 //        Promise.handle((Handler<Void>) () -> {
 //            login();
-//            TapLogger.info(TAG, "Login successfully, " + host + " " + wsPort + " " + server + " " + sid);
+//            TapLogger.debug(TAG, "Login successfully, " + host + " " + wsPort + " " + server + " " + sid);
 //            return null;
 //        }).then((ThenHandler<Void, Void>) param -> {
 //            connectWS("wss", host, wsPort, null);
-//            TapLogger.info(TAG, "WS connected successfully, " + host + " " + wsPort + " " + server + " " + sid);
+//            TapLogger.debug(TAG, "WS connected successfully, " + host + " " + wsPort + " " + server + " " + sid);
 //            return null;
 //        }).error(throwable -> {
 //            TapLogger.error(TAG, "WS connected failed, " + host + " " + wsPort + " " + server + " " + sid);
@@ -258,13 +258,13 @@ public class WebsocketPushChannel extends PushChannel {
             throw new CoreException(NetErrors.WEBSOCKET_CONNECT_FAILED, "Connect and handshake websocket failed, " + e.getMessage(), e);
         }
 //        sendServer();
-//        TapLogger.info(TAG, "connectWS: "+"sendServer");
+//        TapLogger.debug(TAG, "connectWS: "+"sendServer");
         Identity identity = new Identity();
         identity.setId("id");
         identity.setToken(sid);
         identity.setIdType(getImClient().getService());
         sendIdentity(identity);
-        TapLogger.info(TAG, "connectWS: "+"sendIdentity"+identity);
+        TapLogger.debug(TAG, "connectWS: "+"sendIdentity"+identity);
     }
 
     private void sendIdentity(Identity data) {
@@ -287,10 +287,10 @@ public class WebsocketPushChannel extends PushChannel {
             pingFuture = TimerEx.scheduleInSeconds(() -> {
                 pingFuture = null;
                 stop();
-                TapLogger.info(TAG, "Stop channel because of ping timeout");
+                TapLogger.debug(TAG, "Stop channel because of ping timeout");
             }, 10);
             send(ping);
-//            TapLogger.info(TAG, "ping");
+//            TapLogger.debug(TAG, "ping");
         }
     }
 

@@ -4,14 +4,12 @@ import io.tapdata.entity.annotations.Bean;
 import io.tapdata.entity.annotations.MainMethod;
 import io.tapdata.entity.error.CoreException;
 import io.tapdata.modules.api.net.error.NetErrors;
-import io.tapdata.modules.api.net.service.CommandExecutionService;
+import io.tapdata.modules.api.net.service.EngineMessageExecutionService;
 import io.tapdata.modules.api.net.service.EventQueueService;
 import io.tapdata.modules.api.net.service.node.connection.NodeConnectionFactory;
 import io.tapdata.modules.api.proxy.data.NewDataReceived;
-import io.tapdata.pdk.apis.entity.CommandInfo;
+import io.tapdata.pdk.apis.entity.message.CommandInfo;
 
-import java.util.Map;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 
 import static io.tapdata.entity.simplify.TapSimplify.map;
@@ -22,7 +20,7 @@ public class ProxyMain {
 	@Bean
 	private NodeConnectionFactory nodeConnectionFactory;
 	@Bean
-	private CommandExecutionService commandExecutionService;
+	private EngineMessageExecutionService engineMessageExecutionService;
 
 	@Bean(type = "sync")
 	private EventQueueService eventQueueService;
@@ -37,7 +35,7 @@ public class ProxyMain {
 	}
 
 	private void handleCommandInfo(String nodeId, CommandInfo commandInfo, BiConsumer<Object, Throwable> biConsumer) {
-		commandExecutionService.callLocal(commandInfo, (result, throwable) -> {
+		engineMessageExecutionService.callLocal(commandInfo, (result, throwable) -> {
 			CoreException coreException = null;
 			if(throwable != null) {
 				if(throwable instanceof CoreException) {

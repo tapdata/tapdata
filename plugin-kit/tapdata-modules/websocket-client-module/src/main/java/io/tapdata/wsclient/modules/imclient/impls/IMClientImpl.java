@@ -70,7 +70,7 @@ public class IMClientImpl implements IMClient {
     @Override
     public void start() {
         stop();
-        TapLogger.info(TAG, "IMClient started");
+        TapLogger.debug(TAG, "IMClient started");
         monitorThread = new MonitorThread<>(WebsocketPushChannel.class/*TcpPushChannel.class*/);
         monitorThread.setImClient(this);
 //        messageWorkerQueue.setHandler(monitorThread.new PushHandler());

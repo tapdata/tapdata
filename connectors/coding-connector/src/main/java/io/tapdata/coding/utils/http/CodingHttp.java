@@ -4,6 +4,7 @@ import cn.hutool.http.*;
 import cn.hutool.json.JSONUtil;
 import io.tapdata.entity.logger.TapLogger;
 
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -82,5 +83,29 @@ public class CodingHttp {
         }
         return null == execute || execute.getStatus() != HttpStatus.HTTP_OK ?
                 Collections.emptyMap() : JSONUtil.parseObj(execute.body());
+    }
+    public CodingHttp buildBody(String key,Object value){
+        if (null != this.body) {
+            this.body.put(key, value);
+        }
+        return this;
+    }
+    public CodingHttp buildHeard(String key,String value){
+        if (null == this.heads){
+            this.heads.put(key,value);
+        }
+        return this;
+    }
+    public CodingHttp buildBodyIfAbsent(String key,Object value){
+        if (null != value && !( value instanceof Collection && ((Collection)value).isEmpty() )){
+            this.buildBody(key, value);
+        }
+        return this;
+    }
+    public CodingHttp buildHeardIfAbsent(String key,String value){
+        if (null != value){
+            this.buildBody(key, value);
+        }
+        return this;
     }
 }

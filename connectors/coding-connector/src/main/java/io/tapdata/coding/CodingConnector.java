@@ -1,21 +1,16 @@
 package io.tapdata.coding;
 
-import cn.hutool.core.date.DateUtil;
 import cn.hutool.http.HttpRequest;
-import cn.hutool.json.JSONUtil;
 import io.tapdata.base.ConnectorBase;
 import io.tapdata.coding.entity.CodingOffset;
 import io.tapdata.coding.entity.ContextConfig;
+import io.tapdata.coding.entity.param.Param;
 import io.tapdata.coding.enums.CodingEvent;
-import io.tapdata.coding.enums.Constants;
-import io.tapdata.coding.enums.IssueEventTypes;
 import io.tapdata.coding.enums.IssueType;
-import io.tapdata.coding.service.CodingStarter;
-import io.tapdata.coding.service.IssueLoader;
-import io.tapdata.coding.service.IterationLoader;
-import io.tapdata.coding.service.TestCoding;
+import io.tapdata.coding.service.loader.*;
 import io.tapdata.coding.service.connectionMode.CSVMode;
 import io.tapdata.coding.service.connectionMode.ConnectionMode;
+import io.tapdata.coding.service.schema.SchemaStart;
 import io.tapdata.coding.utils.collection.MapUtil;
 import io.tapdata.coding.utils.http.CodingHttp;
 import io.tapdata.coding.utils.http.HttpEntity;
@@ -26,35 +21,26 @@ import io.tapdata.entity.event.TapEvent;
 import io.tapdata.entity.logger.TapLogger;
 import io.tapdata.entity.schema.TapTable;
 import io.tapdata.entity.utils.DataMap;
-import io.tapdata.entity.utils.Entry;
-import io.tapdata.kit.StringKit;
 import io.tapdata.pdk.apis.annotations.TapConnectorClass;
 import io.tapdata.pdk.apis.consumer.StreamReadConsumer;
 import io.tapdata.pdk.apis.context.TapConnectionContext;
 import io.tapdata.pdk.apis.context.TapConnectorContext;
-import io.tapdata.pdk.apis.entity.CommandInfo;
 import io.tapdata.pdk.apis.entity.CommandResult;
 import io.tapdata.pdk.apis.entity.ConnectionOptions;
 import io.tapdata.pdk.apis.entity.TestItem;
+import io.tapdata.pdk.apis.entity.message.CommandInfo;
 import io.tapdata.pdk.apis.functions.ConnectorFunctions;
 
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.text.SimpleDateFormat;
-import java.time.LocalDate;
-import java.time.format.DateTimeFormatter;
-import java.time.temporal.ChronoUnit;
 import java.util.*;
-import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
-import static io.tapdata.coding.enums.IssueEventTypes.*;
+import static io.tapdata.coding.enums.TapEventTypes.*;
 import static io.tapdata.entity.simplify.TapSimplify.list;
 import static io.tapdata.entity.simplify.TapSimplify.map;
-import static io.tapdata.entity.utils.JavaTypesToTapTypes.*;
 
 @TapConnectorClass("spec.json")
 public class CodingConnector extends ConnectorBase {
@@ -69,8 +55,7 @@ public class CodingConnector extends ConnectorBase {
 
 	@Override
 	public void onStart(TapConnectionContext connectionContext) throws Throwable {
-		//isConnectorStarted(connectionContext, connectorContext -> {});
-		IssueLoader.create(connectionContext).verifyConnectionConfig();
+		IssuesLoader.create(connectionContext).verifyConnectionConfig();
 		DataMap connectionConfig = connectionContext.getConnectionConfig();
 		String streamReadType = connectionConfig.getString("streamReadType");
 		if (Checker.isEmpty(streamReadType)){
@@ -100,7 +85,8 @@ public class CodingConnector extends ConnectorBase {
 				.supportBatchCount(this::batchCount)
 				.supportTimestampToStreamOffset(this::timestampToStreamOffset)
 				.supportStreamRead(this::streamRead)
-				.supportRawDataCallbackFilterFunction(this::rawDataCallbackFilterFunction)
+				//.supportRawDataCallbackFilterFunction(this::rawDataCallbackFilterFunction)
+				.supportRawDataCallbackFilterFunctionV2(this::rawDataCallbackFilterFunction)
 				.supportCommandCallbackFunction(this::handleCommand)
 		;
 		this.connectorFunctions = connectorFunctions;
@@ -148,8 +134,10 @@ public class CodingConnector extends ConnectorBase {
 			throw new CoreException("teamName must be not null or not empty.");
 		}
 
+		String upToken = token.toUpperCase();
+		token = (upToken.startsWith("TOKEN ") ? token : "token " + token);
 		HttpEntity<String,String> header = HttpEntity.create().builder("Authorization",token);
-		HttpEntity<String,Object> body = IterationLoader.create(tapConnectionContext,argMap)
+		HttpEntity<String,Object> body = IterationsLoader.create(tapConnectionContext,argMap)
 				.commandSetter(command,HttpEntity.create());
 		if ("DescribeIterationList".equals(command) && Checker.isNotEmpty(projectName)) {
 			body.builder("ProjectName", projectName);
@@ -213,8 +201,29 @@ public class CodingConnector extends ConnectorBase {
 		}
 		return new CommandResult().result(pageResult);
 	}
+	private List<TapEvent> rawDataCallbackFilterFunction(TapConnectorContext connectorContext, List<String> tables, Map<String, Object> issueEventData){
+		return rawDataCallbackFilterFunctionV2(connectorContext,tables, issueEventData);
+	}
 
-	private List<TapEvent> rawDataCallbackFilterFunction(TapConnectorContext connectorContext, Map<String, Object> issueEventData) {
+	private List<TapEvent> rawDataCallbackFilterFunctionV2(TapConnectorContext connectorContext,List<String> tableList, Map<String, Object> issueEventData){
+		//CodingLoader<Param> loader = CodingLoader.loader(connectorContext, "");
+		//return Checker.isNotEmpty(loader) ? loader.rawDataCallbackFilterFunction(issueEventData) : null;
+		List<CodingLoader<Param>> loaders = CodingLoader.loader(connectorContext, tableList);
+		if (Checker.isNotEmpty(loaders) && !loaders.isEmpty()){
+			List<TapEvent> events = new ArrayList<TapEvent>(){{
+				for (CodingLoader<Param> loader : loaders) {
+					List<TapEvent> tapEvents = loader.rawDataCallbackFilterFunction(issueEventData);
+					if (Checker.isNotEmpty(tapEvents) && !tapEvents.isEmpty()) {
+						addAll(tapEvents);
+					}
+				}
+			}};
+			return !events.isEmpty()?events:null;
+		}
+		return null;
+	}
+
+	private List<TapEvent> rawDataCallbackFilterFunctionV1(TapConnectorContext connectorContext, Map<String, Object> issueEventData) {
 		if (Checker.isEmpty(issueEventData)) {
 			TapLogger.debug(TAG, "An event with Event Data is null or empty,this callBack is stop.The data has been discarded. Data detial is:" + issueEventData);
 			return null;
@@ -231,7 +240,7 @@ public class CodingConnector extends ConnectorBase {
 			TapLogger.debug(TAG, "An event with Issue Code is be null or be empty,this callBack is stop.The data has been discarded. Data detial is:" + issueEventData);
 			return null;
 		}
-		IssueLoader loader = IssueLoader.create(connectorContext);
+		IssuesLoader loader = IssuesLoader.create(connectorContext);
 		ContextConfig contextConfig = loader.veryContextConfigAndNodeConfig();
 
 		IssueType issueType = contextConfig.getIssueType();
@@ -292,6 +301,7 @@ public class CodingConnector extends ConnectorBase {
 				issueDetail = instance.attributeAssignment(issueDetail);
 			}
 		}
+
 		if (Checker.isNotEmpty(issueEvent)){
 			String evenType = issueEvent.getEventType();
 			switch (evenType){
@@ -321,6 +331,15 @@ public class CodingConnector extends ConnectorBase {
 			Object offsetState,
 			int recordSize,
 			StreamReadConsumer consumer ) {
+		this.streamReadV2(nodeContext, tableList, offsetState, recordSize, consumer);
+	}
+
+	public void streamReadV1(
+			TapConnectorContext nodeContext,
+			List<String> tableList,
+			Object offsetState,
+			int recordSize,
+			StreamReadConsumer consumer ){
 		if (null == tableList || tableList.size()==0){
 			throw new RuntimeException("tableList not Exist.");
 		}
@@ -329,7 +348,7 @@ public class CodingConnector extends ConnectorBase {
 				null != offsetState && offsetState instanceof CodingOffset
 						? (CodingOffset)offsetState : new CodingOffset();
 		Map<String, Long> tableUpdateTimeMap = codingOffset.getTableUpdateTimeMap();
-		if (null == tableUpdateTimeMap || tableUpdateTimeMap.size()==0){
+		if (null == tableUpdateTimeMap || tableUpdateTimeMap.isEmpty()){
 			TapLogger.warn(TAG,"offsetState is Empty or not Exist!");
 			return;
 		}
@@ -343,9 +362,9 @@ public class CodingConnector extends ConnectorBase {
 		while (isAlive()) {
 			long current = tableUpdateTimeMap.get(tableList.get(0));
 			Long last = Long.MAX_VALUE;
-			//TapLogger.debug(TAG, "start {} stream read [Polling]", currentTable);
+
 			this.read(nodeContext, current, last, currentTable, recordSize, codingOffset, consumer,tableList.get(0));
-			//TapLogger.debug(TAG, "compile {} once stream read [Polling]", currentTable);
+
 			synchronized (this) {
 				try {
 					this.wait(streamExecutionGap);
@@ -355,11 +374,48 @@ public class CodingConnector extends ConnectorBase {
 			}
 		}
 	}
+	public void streamReadV2(
+			TapConnectorContext nodeContext,
+			List<String> tableList,
+			Object offsetState,
+			int recordSize,
+			StreamReadConsumer consumer ){
+		//String currentTable = tableList.get(0);
+		//if (null == currentTable){
+		//	throw new RuntimeException("TableList is Empty or not Exist!");
+		//}
+		//CodingLoader<Param> loader = CodingLoader.loader(nodeContext, currentTable);
+		List<CodingLoader<Param>> loaders = CodingLoader.loader(nodeContext, tableList);
+		if (Checker.isEmpty(loaders) || loaders.isEmpty()) return;
+		consumer.streamReadStarted();
+		while (isAlive()) {
+			synchronized (this) {
+				try {
+					this.wait(loaders.get(0).streamReadTime());
+				} catch (InterruptedException e) {
+					e.printStackTrace();
+				}
+			}
+			//if (Checker.isNotEmpty(loader)){
+			//	loader.streamRead(tableList,offsetState, recordSize, consumer);
+			//}
+			for (CodingLoader<Param> loader : loaders) {
+				loader.streamRead(tableList,offsetState, recordSize, consumer);
+			}
+		}
+		for (CodingLoader<Param> loader : loaders) {
+			loader.stopRead();
+		}
+	}
 
 
 	private Object timestampToStreamOffset(TapConnectorContext tapConnectorContext, Long time) {
 		Long date = time != null ? time: System.currentTimeMillis();
-		return CodingOffset.create(new HashMap<String,Long>(){{put("Issues", date);}});
+		List<SchemaStart> allSchemas = SchemaStart.getAllSchemas();
+		return CodingOffset.create(allSchemas.stream().collect(Collectors.toMap(
+				schema -> ((SchemaStart)schema).tableName(),
+				schema -> date
+		)));
 	}
 
 	/**
@@ -377,29 +433,58 @@ public class CodingConnector extends ConnectorBase {
 			Object offset,
 			int batchCount,
 			BiConsumer<List<TapEvent>, Object> consumer) {
-		TapLogger.debug(TAG, "start {} batch read", table.getName());
+		//this.batchReadV1(connectorContext, table, offset, batchCount, consumer);
+		this.batchReadV2(connectorContext, table, offset, batchCount, consumer);
+	}
+
+	private void batchReadV1(
+			TapConnectorContext connectorContext,
+			TapTable table,
+			Object offset,
+			int batchCount,
+			BiConsumer<List<TapEvent>, Object> consumer) {
+		//TapLogger.debug(TAG, "start {} batch read", table.getName());
 		Long readEnd = System.currentTimeMillis();
 		CodingOffset codingOffset =  new CodingOffset();
 		//current read end as next read begin
 		codingOffset.setTableUpdateTimeMap(new HashMap<String,Long>(){{ put(table.getId(),readEnd);}});
-		IssueLoader.create(connectorContext).verifyConnectionConfig();
-		DataMap connectionConfig = connectorContext.getConnectionConfig();
-		String projectName = connectionConfig.getString("projectName");
-		String token = connectionConfig.getString("token");
-		String teamName = connectionConfig.getString("teamName");
+		IssuesLoader.create(connectorContext).verifyConnectionConfig();
 		this.read(connectorContext,null,readEnd,table.getId(),batchCount,codingOffset,consumer,table.getId());
-		TapLogger.debug(TAG, "compile {} batch read", table.getName());
+		//TapLogger.debug(TAG, "compile {} batch read", table.getName());
+	}
+	public void batchReadV2(TapConnectorContext connectorContext,
+						  TapTable table,
+						  Object offset,
+						  int batchCount,
+						  BiConsumer<List<TapEvent>, Object> consumer){
+		CodingLoader<Param> loader = CodingLoader.loader(connectorContext, table.getId());
+		if (Checker.isNotEmpty(loader)) {
+			loader.batchRead(offset, batchCount, consumer);
+		}
 	}
 
 	private long batchCount(TapConnectorContext tapConnectorContext, TapTable tapTable) throws Throwable {
+		return this.batchCountV2(tapConnectorContext, tapTable);
+	}
+	private long batchCountV2(TapConnectorContext tapConnectorContext, TapTable tapTable) throws Throwable {
+		CodingLoader<Param> loader = CodingLoader.loader(tapConnectorContext, tapTable.getId());
+		if (Checker.isNotEmpty(loader)) {
+			int count = loader.batchCount();
+			return Long.parseLong(String.valueOf(count));
+		}
+		TapLogger.debug(TAG, "batchCountV2 = 0",tapTable.getId());
+		return 0L;
+	}
+	private long batchCountV1(TapConnectorContext tapConnectorContext, TapTable tapTable) throws Throwable {
 		long count = 0;
-		IssueLoader issueLoader = IssueLoader.create(tapConnectorContext);
-		issueLoader.verifyConnectionConfig();
+		IssuesLoader issuesLoader = IssuesLoader.create(tapConnectorContext);
+		issuesLoader.verifyConnectionConfig();
 		try {
 			DataMap connectionConfig = tapConnectorContext.getConnectionConfig();
-
+			String token = connectionConfig.getString("token");
+			token = issuesLoader.tokenSetter(token);
 			HttpEntity<String,String> header = HttpEntity.create()
-					.builder("Authorization",connectionConfig.getString("token"));
+					.builder("Authorization",token);
 			HttpEntity<String,Object> body = HttpEntity.create()
 					.builder("Action",       "DescribeIssueListWithPage")
 					.builder("ProjectName",  connectionConfig.getString("projectName"))
@@ -424,7 +509,7 @@ public class CodingConnector extends ConnectorBase {
 			}catch (Exception e){
 				TapLogger.debug(TAG,"Count table error: {}" ,tapTable.getName(), e.getMessage());
 			}
-			Map<String,Object> dataMap = issueLoader.getIssuePage(
+			Map<String,Object> dataMap = issuesLoader.getIssuePage(
 					header.getEntity(),
 					body.getEntity(),
 					String.format(CodingStarter.OPEN_API_URL,connectionConfig.getString("teamName"))
@@ -479,8 +564,9 @@ public class CodingConnector extends ConnectorBase {
 
 	@Override
 	public int tableCount(TapConnectionContext connectionContext) throws Throwable {
-		//check how many projects
-		return 1;
+		return 3;
+//		List<SchemaStart> allSchemas = SchemaStart.getAllSchemas();
+//		return allSchemas.size();
 	}
 
 	/**
@@ -501,8 +587,8 @@ public class CodingConnector extends ConnectorBase {
 			Object offsetState,
 			BiConsumer<List<TapEvent>, Object> consumer,
 			String table ){
-		IssueLoader issueLoader = IssueLoader.create(nodeContext);
-		ContextConfig contextConfig = issueLoader.veryContextConfigAndNodeConfig();
+		IssuesLoader issuesLoader = IssuesLoader.create(nodeContext);
+		ContextConfig contextConfig = issuesLoader.veryContextConfigAndNodeConfig();
 
 		int currentQueryCount = 0,queryIndex = 0 ;
 		final List<TapEvent>[] events = new List[]{new ArrayList<>()};
@@ -521,7 +607,7 @@ public class CodingConnector extends ConnectorBase {
 		}
 		List<Map<String,Object>> coditions = list(map(
 				entry("Key","UPDATED_AT"),
-				entry("Value",issueLoader.longToDateStr(readStartTime)+"_"+issueLoader.longToDateStr(readEndTime)))
+				entry("Value", issuesLoader.longToDateStr(readStartTime)+"_"+ issuesLoader.longToDateStr(readEndTime)))
 		);
 		String iterationCodes = contextConfig.getIterationCodes();
 		if (null != iterationCodes && !"".equals(iterationCodes) && !",".equals(iterationCodes)) {
@@ -542,7 +628,7 @@ public class CodingConnector extends ConnectorBase {
 		}
 		do{
 			pageBody.builder("PageNumber",queryIndex++);
-			Map<String,Object> dataMap = issueLoader.getIssuePage(header.getEntity(),pageBody.getEntity(),String.format(CodingStarter.OPEN_API_URL,teamName));
+			Map<String,Object> dataMap = issuesLoader.getIssuePage(header.getEntity(),pageBody.getEntity(),String.format(CodingStarter.OPEN_API_URL,teamName));
 			if (null == dataMap || null == dataMap.get("List")) {
 				TapLogger.error(TAG, "Paging result request failed, the Issue list is empty: page index = {}",queryIndex);
 				throw new RuntimeException("Paging result request failed, the Issue list is empty: "+CodingStarter.OPEN_API_URL+"?Action=DescribeIssueListWithPage");
@@ -577,5 +663,16 @@ public class CodingConnector extends ConnectorBase {
 			}
 		}while (currentQueryCount >= batchReadPageSize);
 		if (events[0].size() > 0)  consumer.accept(events[0], offsetState);
+	}
+	public void readV2(
+			TapConnectorContext nodeContext,
+			Long readStartTime,
+			Long readEndTime,
+			String readTable,
+			int readSize,
+			Object offsetState,
+			BiConsumer<List<TapEvent>, Object> consumer,
+			String table ){
+
 	}
 }

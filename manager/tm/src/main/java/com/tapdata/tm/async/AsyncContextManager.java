@@ -119,7 +119,7 @@ public class AsyncContextManager {
      * @param <T> defined any job result type
      */
     public <T> void registerAsyncJob(String jobId, ServletRequest servletRequest, AsyncJobWaiter<T> asyncJobWaiter) {
-        registerAsyncJob(jobId, servletRequest, 30000L, asyncJobWaiter);
+        registerAsyncJob(jobId, servletRequest, 45000L, asyncJobWaiter);
     }
 
     /**
