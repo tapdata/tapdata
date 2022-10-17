@@ -103,6 +103,11 @@ public class MysqlJdbcContext implements AutoCloseable {
 		}
 
 		Map<String, String> properties = new HashMap<>();
+
+		if ("huaweiCloudRdsMysql".equals(type)) {
+			type = "mysql";
+		}
+
 		StringBuilder sbURL = new StringBuilder("jdbc:").append(type).append("://").append(host).append(":").append(port).append("/").append(databaseName);
 
 		if (StringUtils.isNotBlank(additionalString)) {
