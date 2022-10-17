@@ -104,4 +104,9 @@ public class OrganizationFieldLoader extends ZoHoStarter implements ZoHoBase {
         }
         return fieldMap;
     }
+
+    @Override
+    public TapConnectionContext getContext() {
+        return null;
+    }
 }

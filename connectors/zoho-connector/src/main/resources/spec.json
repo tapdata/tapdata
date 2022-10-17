@@ -427,6 +427,10 @@
       "to" : "TapString",
       "byte" : 64
     },
+    "StringStatus": {
+      "to" : "TapString",
+      "byte" : 32
+    },
     "StringBit": {
       "to" : "TapString",
       "byte" : 5
@@ -443,6 +447,11 @@
     "WorkingHours": {
       "to": "TapNumber",
       "value": [ 0.00 , 10000.00],
+      "scale": [ 0, 2]
+    },
+    "price": {
+      "to": "TapNumber",
+      "value": [ 0.00 , 10000000.00],
       "scale": [ 0, 2]
     },
     "Float": {

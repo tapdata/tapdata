@@ -12,24 +12,51 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * 策略接口，根据表名称生成表
+ * 通过Schema.allSupportSchemas()获取所有支持的表
+ * */
 public interface Schema {
     public static Schema schema(String name){
         return BeanUtil.bean("io.tapdata.zoho.service.zoho.schema." + name);
     }
+
+    /**
+     * 文档类型输出表结构
+     * */
     public List<TapTable> document(List<String> tables, int tableSize );
+
+    /**
+     * CSV类型输出表结构
+     * */
     public List<TapTable> csv(List<String> tables, int tableSize, TapConnectionContext connectionContext);
 
-
+    /**
+     * 文档类型数据获取：此接口方法为---需要根据主键请求一次详情信息，如果Map为详情信息就不需要请求详情了
+     * */
     public Map<String,Object> attributeAssignmentDocument(Map<String, Object> obj, TapConnectionContext connectionContext);
+
+    /**
+     * 文档类型数据获取：此接口方法为---直接使用Map根据需要处理成表数据，不需要去获取详情
+     * */
     public default Map<String,Object> attributeAssignmentSelfDocument(Map<String, Object> obj){
         this.removeJsonNull(obj);
         return obj;
     }
 
+    /**
+     * CSV类型数据获取：此接口方法为---需要根据主键请求一次详情信息，如果Map为详情信息就不需要请求详情了
+     * */
     public Map<String,Object> attributeAssignmentCsv(Map<String, Object> obj, TapConnectionContext connectionContext, ContextConfig contextConfig);
+
+    /**
+     * CSV类型数据获取：此接口方法为---直接使用Map根据需要处理成表数据，不需要去获取详情
+     * */
     public Map<String,Object> attributeAssignmentSelfCsv(Map<String, Object> obj, ContextConfig contextConfig);
 
-
+    /**
+     * 移除Map中值为null的键值
+     * */
     public default void removeJsonNull(Map<String, Object> map){
         if (null == map || map.isEmpty()) return;
         Iterator<Map.Entry<String,Object>> iteratorMap = map.entrySet().iterator();

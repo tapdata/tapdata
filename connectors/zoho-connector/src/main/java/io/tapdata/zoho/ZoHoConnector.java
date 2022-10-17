@@ -26,6 +26,9 @@ import io.tapdata.zoho.service.connectionMode.ConnectionMode;
 import io.tapdata.zoho.service.zoho.loader.TicketLoader;
 import io.tapdata.zoho.service.zoho.loader.TokenLoader;
 import io.tapdata.zoho.service.zoho.loader.ZoHoConnectionTest;
+import io.tapdata.zoho.service.zoho.schema.Schema;
+import io.tapdata.zoho.service.zoho.schema.Schemas;
+import io.tapdata.zoho.service.zoho.schemaLoader.SchemaLoader;
 import io.tapdata.zoho.utils.Checker;
 
 import java.util.ArrayList;
@@ -96,22 +99,34 @@ public class ZoHoConnector extends ConnectorBase {
 				.supportBatchCount(this::batchCount)
 				.supportTimestampToStreamOffset(this::timestampToStreamOffset)
 				//.supportStreamRead(this::streamRead)
-				.supportRawDataCallbackFilterFunction(this::rawDataCallbackFilterFunction)
+				//.supportRawDataCallbackFilterFunction(this::rawDataCallbackFilterFunction)
+				.supportRawDataCallbackFilterFunctionV2(this::rawDataCallbackFilterFunction)
 				.supportCommandCallbackFunction(this::handleCommand)
 		;
 		//this.connectorFunctions = connectorFunctions;
 	}
 
-	private CommandResult handleCommand(TapConnectionContext tapConnectionContext, CommandInfo commandInfo) {
+	private CommandResult handleCommand(TapConnectionContext tapConnectionContext,  CommandInfo commandInfo) {
 		return CommandMode.getInstanceByName(tapConnectionContext,commandInfo);
 	}
 
-	private List<TapEvent> rawDataCallbackFilterFunction(TapConnectorContext connectorContext, Map<String, Object> issueEventData) {
-		if (Checker.isEmpty(issueEventData)){
+	private List<TapEvent> rawDataCallbackFilterFunction(TapConnectorContext connectorContext, List<String> tables, Map<String, Object> eventData){
+		return this.rawDataCallbackFilterFunctionV2(connectorContext, tables, eventData);
+	}
+
+	private List<TapEvent> rawDataCallbackFilterFunctionV2(TapConnectorContext connectorContext, List<String> tables, Map<String, Object> eventData){
+		if (Checker.isEmpty(tables) || tables.isEmpty()) return null;
+		SchemaLoader loader = SchemaLoader.loader(tables.get(0),connectorContext);
+		if (Checker.isEmpty(loader)) return null;
+		List<TapEvent> events = loader.rawDataCallbackFilterFunction(eventData);
+		return Checker.isEmpty(events)|| events.isEmpty()?null:events;
+	}
+	private List<TapEvent> rawDataCallbackFilterFunctionV1(TapConnectorContext connectorContext, Map<String, Object> eventData) {
+		if (Checker.isEmpty(eventData)){
 			TapLogger.debug(TAG,"WebHook of ZoHo patch body is empty, Data callback has been over.");
 			return null;
 		}
-		Object listObj = issueEventData.get("data");
+		Object listObj = eventData.get("array");//array
 		if (Checker.isEmpty(listObj) || !(listObj instanceof List)){
 			TapLogger.debug(TAG,"WebHook of ZoHo patch body is empty, Data callback has been over.");
 			return null;
@@ -175,8 +190,9 @@ public class ZoHoConnector extends ConnectorBase {
 		if (null == connectionMode){
 			throw new CoreException("Connection Mode is not empty or not null.");
 		}
-		List<TapTable> tapTables = connectionMode.discoverSchemaV1(tables, tableSize);
-		if (null != tapTables){
+		List<TapTable> tapTables = connectionMode.discoverSchema(tables, tableSize);
+		//List<TapTable> tapTables = connectionMode.discoverSchemaV1(tables, tableSize);
+		if (null != tapTables && !tapTables.isEmpty()){
 			consumer.accept(tapTables);
 		}
 	}
@@ -201,23 +217,34 @@ public class ZoHoConnector extends ConnectorBase {
 			Object offset,
 			int batchCount,
 			BiConsumer<List<TapEvent>, Object> consumer) {
-		TokenLoader.create(connectorContext).addTokenToStateMap();
-		Long readEnd = System.currentTimeMillis();
-		ZoHoOffset zoHoOffset =  new ZoHoOffset();
-		//current read end as next read begin
-		zoHoOffset.setTableUpdateTimeMap(new HashMap<String,Long>(){{ put(table.getId(),readEnd);}});
-		this.read(connectorContext,batchCount,zoHoOffset,consumer,table.getId());
+//		TokenLoader.create(connectorContext).addTokenToStateMap();
+//		Long readEnd = System.currentTimeMillis();
+//		ZoHoOffset zoHoOffset =  new ZoHoOffset();
+//		//current read end as next read begin
+//		zoHoOffset.setTableUpdateTimeMap(new HashMap<String,Long>(){{ put(table.getId(),readEnd);}});
+//		this.read(connectorContext,batchCount,zoHoOffset,consumer,table.getId());
+		if (Checker.isEmpty(table) || Checker.isEmpty(connectorContext)) return ;
+		SchemaLoader loader = SchemaLoader.loader(table.getId(),connectorContext);
+		if (Checker.isNotEmpty(loader)){
+			loader.batchRead(offset,batchCount,consumer);
+		}
 	}
 
 	private long batchCount(TapConnectorContext tapConnectorContext, TapTable tapTable) throws Throwable {
 		//return TicketLoader.create(tapConnectorContext).count();
+		if (Checker.isEmpty(tapTable) || Checker.isEmpty(tapConnectorContext)) return 0;
+		SchemaLoader loader = SchemaLoader.loader(tapTable.getId(),tapConnectorContext);
+		if (Checker.isNotEmpty(loader)){
+			return loader.batchCount();
+		}
 		return 0;
 	}
 
 	@Override
 	public int tableCount(TapConnectionContext connectionContext) throws Throwable {
 		//check how many projects
-		return 1;
+		List<Schema> schemas = Schemas.allSupportSchemas();
+		return (null == schemas || schemas.isEmpty())?0:schemas.size();
 	}
 
 	/**

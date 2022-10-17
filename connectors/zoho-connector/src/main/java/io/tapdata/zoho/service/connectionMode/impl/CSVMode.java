@@ -259,8 +259,7 @@ public class CSVMode implements ConnectionMode {
         return null;
     }
 
-    @Override
-    public Map<String,Object> attributeAssignmentSelf(Map<String,Object> ticketDetail,String tableName) {
+    public Map<String,Object> attributeAssignmentSelfV2(Map<String,Object> ticketDetail,String tableName) {
         Map<String,Object> ticketCSVDetail = new HashMap<>();
         //加入自定义属性
         Map<String, Object> customFieldMap = this.setCustomField(ticketDetail, contextConfig);
@@ -313,12 +312,12 @@ public class CSVMode implements ConnectionMode {
         return ticketCSVDetail;
     }
 
-    public Map<String,Object> attributeAssignmentSelfV2(Map<String,Object> objectMap,String tableName){
+    @Override
+    public Map<String,Object> attributeAssignmentSelf(Map<String,Object> objectMap,String tableName){
         return Schema.schema(tableName).attributeAssignmentSelfCsv(objectMap,contextConfig);
     }
 
-    @Override
-    public Map<String,Object> attributeAssignment(Map<String,Object> stringObjectMap,String tableName) {
+    public Map<String,Object> attributeAssignmentV2(Map<String,Object> stringObjectMap,String tableName) {
         Object ticketIdObj = stringObjectMap.get("id");
         if (Checker.isEmpty(ticketIdObj)){
             TapLogger.debug(TAG,"Ticket Id can not be null or not be empty.");
@@ -333,7 +332,8 @@ public class CSVMode implements ConnectionMode {
         return this.attributeAssignmentSelf(ticketDetail,tableName);
     }
 
-    public Map<String,Object> attributeAssignmentV2(Map<String,Object> stringObjectMap,String tableName){
+    @Override
+    public Map<String,Object> attributeAssignment(Map<String,Object> stringObjectMap,String tableName){
         return Schema.schema(tableName).attributeAssignmentCsv(stringObjectMap,connectionContext,contextConfig);
     }
     //CustomFields

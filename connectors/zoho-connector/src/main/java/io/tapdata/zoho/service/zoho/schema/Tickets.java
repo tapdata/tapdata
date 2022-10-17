@@ -22,13 +22,17 @@ import static io.tapdata.base.ConnectorBase.list;
 import static io.tapdata.base.ConnectorBase.table;
 import static io.tapdata.entity.simplify.TapSimplify.field;
 
+/**
+ * 工单表 ，Schema 的 工单策略
+ * */
 public class Tickets implements Schema {
     private static final String TAG = Tickets.class.getSimpleName();
     @Override
     public List<TapTable> document(List<String> tables, int tableSize) {
         if(tables == null || tables.isEmpty()) {
             return list(
-                    // sentiment   customFields  channelRelatedInfo  department  layoutDetails  product  cf team category
+                    /** customFields  department*/
+                    // sentiment     channelRelatedInfo  layoutDetails  product  team category
                     // subCategory   source    sharedDepartments   contact  secondaryContacts assignee   entitySkills
                     table(Schemas.Tickets.getTableName())
                             .add(field("id","Long").isPrimaryKey(true).primaryKeyPos(1))

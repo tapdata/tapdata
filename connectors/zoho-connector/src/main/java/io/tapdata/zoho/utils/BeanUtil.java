@@ -8,11 +8,11 @@ public class BeanUtil {
             clz = Class.forName(packageName);
             return ((T)clz.newInstance());
         } catch (ClassNotFoundException e) {
-            e.printStackTrace();
+            //e.printStackTrace();
         } catch (InstantiationException e1) {
-            e1.printStackTrace();
+            //e1.printStackTrace();
         } catch (IllegalAccessException e2) {
-            e2.printStackTrace();
+            //e2.printStackTrace();
         }
         return null;
     }

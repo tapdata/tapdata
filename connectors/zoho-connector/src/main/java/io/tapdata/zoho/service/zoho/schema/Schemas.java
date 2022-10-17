@@ -4,8 +4,9 @@ import java.util.ArrayList;
 import java.util.List;
 
 public enum Schemas {
-    Tickets("Tickets",      Tickets.class,        Boolean.TRUE),
-
+    Tickets("Tickets",         Tickets.class,        Boolean.TRUE),
+    Departments("Departments", Departments.class,    Boolean.TRUE),
+//    Departments("Departments", Departments.class,    Boolean.TRUE),
 
     ;
     String tableName;
