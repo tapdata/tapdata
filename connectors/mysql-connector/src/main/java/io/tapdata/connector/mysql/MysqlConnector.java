@@ -185,7 +185,12 @@ public class MysqlConnector extends ConnectorBase {
             try {
                 this.mysqlJdbcContext.execute(createIndexSql);
             } catch (Throwable e) {
-                throw new RuntimeException("Execute create index failed, sql: " + createIndexSql + ", message: " + e.getMessage(), e);
+                // mysql index  less than  3072 bytes。
+                if (e.getMessage() != null && e.getMessage().contains("42000 1071")) {
+                    TapLogger.warn(TAG, "Execute create index failed, sql: " + createIndexSql + ", message: " + e.getMessage(), e);
+                } else {
+                    throw new RuntimeException("Execute create index failed, sql: " + createIndexSql + ", message: " + e.getMessage(), e);
+                }
             }
         }
     }
