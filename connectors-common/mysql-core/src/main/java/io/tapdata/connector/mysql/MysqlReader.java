@@ -4,6 +4,8 @@ import io.debezium.config.Configuration;
 import io.debezium.connector.mysql.MySqlConnectorConfig;
 import io.debezium.embedded.EmbeddedEngine;
 import io.debezium.engine.DebeziumEngine;
+import io.debezium.time.Date;
+import io.debezium.time.MicroTimestamp;
 import io.tapdata.common.ddl.DDLFactory;
 import io.tapdata.common.ddl.ccj.CCJBaseDDLWrapper;
 import io.tapdata.common.ddl.type.DDLParserType;
@@ -495,6 +497,17 @@ public class MysqlReader implements Closeable {
 		for (Field field : schema.fields()) {
 			String fieldName = field.name();
 			Object value = struct.get(fieldName);
+			if (field.schema().type() == Schema.Type.INT64 && MicroTimestamp.SCHEMA_NAME.equals(field.schema().name())) {
+				if (value instanceof Long && Long.MIN_VALUE == ((Long) value)) {
+					result.put(fieldName, "0000-00-00 00:00:00");
+					continue;
+				}
+			} else if (field.schema().type() == Schema.Type.INT32 && Date.SCHEMA_NAME.equals(field.schema().name())) {
+				if (value instanceof Integer && Integer.MIN_VALUE == ((Integer) value)) {
+					result.put(fieldName, "0000-00-00");
+					continue;
+				}
+			}
 			if (value instanceof ByteBuffer) {
 				value = ((ByteBuffer) value).array();
 			}
