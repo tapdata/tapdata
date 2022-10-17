@@ -273,7 +273,7 @@ public class RowDeserializers {
         int month = value % 16; // 1-based month number
         int year = value >> 4;
         if (year == 0 || month == 0 || day == 0) {
-            return null;
+            return LocalDate.ofEpochDay(Integer.MIN_VALUE);
         }
         return LocalDate.of(year, month, day);
     }
@@ -365,7 +365,7 @@ public class RowDeserializers {
         int seconds = split[0];
         int nanoOfSecond = 0; // This version does not support fractional seconds
         if (year == 0 || month == 0 || day == 0) {
-            return null;
+            return LocalDateTime.of(LocalDateTime.MIN.toLocalDate(), LocalDateTime.MIN.toLocalTime());
         }
         return LocalDateTime.of(year, month, day, hours, minutes, seconds, nanoOfSecond);
     }
@@ -406,7 +406,7 @@ public class RowDeserializers {
         int seconds = bitSlice(datetime, 34, 6, 40);
         int nanoOfSecond = deserializeFractionalSecondsInNanos(meta, inputStream);
         if (year == 0 || month == 0 || day == 0) {
-            return null;
+            return LocalDateTime.of(LocalDateTime.MIN.toLocalDate(), LocalDateTime.MIN.toLocalTime());
         }
         return LocalDateTime.of(year, month, day, hours, minutes, seconds, nanoOfSecond);
     }
@@ -439,6 +439,12 @@ public class RowDeserializers {
     protected static Serializable deserializeTimestampV2(int meta, ByteArrayInputStream inputStream) throws IOException {
         long epochSecond = bigEndianLong(inputStream.read(4), 0, 4);
         int nanoSeconds = deserializeFractionalSecondsInNanos(meta, inputStream);
+
+        // mysql timestamp can not write '1970-01-01T00:00:00Z'
+        // debezium resolves to '1970-01-01T00:00:00Z' when '0000-00-00 00:00:00' is written
+        if (0 == epochSecond && 0 == nanoSeconds) {
+            return "0000-00-00 00:00:00";
+        }
         return ZonedDateTime.ofInstant(Instant.ofEpochSecond(epochSecond, nanoSeconds), ZoneOffset.UTC);
     }
 
