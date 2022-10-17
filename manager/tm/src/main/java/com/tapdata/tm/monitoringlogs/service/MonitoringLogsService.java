@@ -1,6 +1,7 @@
 package com.tapdata.tm.monitoringlogs.service;
 
 import cn.hutool.core.date.DateUtil;
+import com.alibaba.fastjson.JSON;
 import com.tapdata.manager.common.utils.IOUtils;
 import com.tapdata.tm.base.dto.Page;
 import com.tapdata.tm.base.exception.BizException;
@@ -87,6 +88,11 @@ public class MonitoringLogsService extends BaseService<MonitoringLogsDto, Monito
         Criteria criteria = Criteria.where("taskId").is(param.getTaskId());
         if (StringUtils.isNotBlank(param.getTaskRecordId())) {
             criteria.and("taskRecordId").is(param.getTaskRecordId());
+        }
+
+        if (!param.isStartEndValid()) {
+            log.error("Invalid value for start or end param:{}", JSON.toJSONString(param));
+            return new Page<>(0, new ArrayList<>());
         }
 
         Date startDate = DateUtil.offsetMinute(DateUtil.date(param.getStart()), -1);
@@ -190,6 +196,10 @@ public class MonitoringLogsService extends BaseService<MonitoringLogsDto, Monito
         Criteria criteria = Criteria.where("taskId").is(param.getTaskId());
         if (StringUtils.isNotBlank(param.getTaskRecordId())) {
             criteria.and("taskRecordId").is(param.getTaskRecordId());
+        }
+
+        if (!param.isStartEndValid()) {
+            throw new BizException("Invalid value for start or end");
         }
 
         criteria.and("date").gte(new Date(param.getStart())).lt(new Date(param.getEnd()));
