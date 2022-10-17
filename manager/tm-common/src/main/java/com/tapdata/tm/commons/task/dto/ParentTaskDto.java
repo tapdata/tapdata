@@ -164,7 +164,7 @@ public class ParentTaskDto extends SchedulableDto {
 
     private double transformProcess;
     private String transformStatus;
-    private List<Map<String, String>> listtags;
+    private List<Tag> listtags;
 
     /**
      * 计划开始事件开关

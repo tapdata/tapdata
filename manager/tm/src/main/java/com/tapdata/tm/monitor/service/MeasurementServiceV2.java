@@ -4,6 +4,7 @@ import com.mongodb.bulk.BulkWriteResult;
 import com.mongodb.client.result.DeleteResult;
 import com.tapdata.manager.common.utils.JsonUtil;
 import com.tapdata.tm.base.dto.Page;
+import com.tapdata.tm.base.dto.TmPageable;
 import com.tapdata.tm.commons.dag.nodes.DatabaseNode;
 import com.tapdata.tm.commons.dag.process.TableRenameProcessNode;
 import com.tapdata.tm.commons.schema.MetadataInstancesDto;
@@ -16,7 +17,6 @@ import com.tapdata.tm.monitor.entity.MeasurementEntity;
 import com.tapdata.tm.monitor.param.AggregateMeasurementParam;
 import com.tapdata.tm.monitor.param.MeasurementQueryParam;
 import com.tapdata.tm.monitor.vo.TableSyncStaticVo;
-import com.tapdata.tm.task.service.TaskRecordService;
 import com.tapdata.tm.task.service.TaskService;
 import com.tapdata.tm.utils.FunctionUtils;
 import com.tapdata.tm.utils.TimeUtil;
@@ -35,7 +35,6 @@ import org.springframework.data.mongodb.core.aggregation.*;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
-import org.springframework.data.util.CloseableIterator;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -49,9 +48,12 @@ import java.util.stream.Collectors;
 @Setter(onMethod_ = {@Autowired})
 public class MeasurementServiceV2 {
     private MongoTemplate mongoOperations;
-    private TaskRecordService taskRecordService;
     private MetadataInstancesService metadataInstancesService;
     private TaskService taskService;
+
+    public List<MeasurementEntity> find(Query query) {
+        return mongoOperations.find(query, MeasurementEntity.class, MeasurementEntity.COLLECTION_NAME);
+    }
 
     public void addAgentMeasurement(List<SampleRequest> samples) {
         addBulkAgentMeasurement(samples, Granularity.GRANULARITY_MINUTE);
@@ -61,12 +63,15 @@ public class MeasurementServiceV2 {
         BulkOperations bulkOperations = mongoOperations.bulkOps(BulkOperations.BulkMode.UNORDERED, MeasurementEntity.class, MeasurementEntity.COLLECTION_NAME);
         for (SampleRequest singleSampleRequest : sampleRequestList) {
             Criteria criteria = Criteria.where(MeasurementEntity.FIELD_GRANULARITY).is(granularity);
-            Date theDate = TimeUtil.cleanTimeAfterMinute(new Date());
-            criteria.and(MeasurementEntity.FIELD_DATE).is(theDate);
 
             Map<String, String> tags = singleSampleRequest.getTags();
             if (null == tags || 0 == tags.size()) {
                 continue;
+            }
+
+            Date theDate = TimeUtil.cleanTimeAfterMinute(new Date());
+            if (!"table".equals(tags.get("type"))) {
+                criteria.and(MeasurementEntity.FIELD_DATE).is(theDate);
             }
 
             for (Map.Entry<String, String> entry : tags.entrySet()) {
@@ -80,9 +85,16 @@ public class MeasurementServiceV2 {
             upd.put("$slice", 200); //为了保护数组过长， 在出bug的情况下
             upd.put("$sort", new Document().append(Sample.FIELD_DATE, -1));
 
-            Update update = new Update().push(MeasurementEntity.FIELD_SAMPLES, upd)
+            Update update = new Update()
                     .min(MeasurementEntity.FIELD_FIRST, singleSampleRequest.getSample().getDate())
                     .max(MeasurementEntity.FIELD_LAST, singleSampleRequest.getSample().getDate());
+            if ("table".equals(tags.get("type"))) {
+                update.set(MeasurementEntity.FIELD_SAMPLES, Collections.singletonList(sampleMap));
+                update.set(MeasurementEntity.FIELD_DATE, theDate);
+            } else {
+                update.push(MeasurementEntity.FIELD_SAMPLES, upd);
+            }
+
             bulkOperations.upsert(query, update);
         }
 
@@ -676,23 +688,18 @@ public class MeasurementServiceV2 {
                 .and("tags.type").is("table")
                 .and(MeasurementEntity.FIELD_GRANULARITY).is(Granularity.GRANULARITY_MINUTE);
 
-        MatchOperation match = Aggregation.match(criteria);
-        GroupOperation group = Aggregation.group(MeasurementEntity.FIELD_TAGS)
-                .first(MeasurementEntity.FIELD_DATE).as(MeasurementEntity.FIELD_DATE)
-                .first(MeasurementEntity.FIELD_TAGS).as(MeasurementEntity.FIELD_TAGS)
-                .first(MeasurementEntity.FIELD_SAMPLES).as(MeasurementEntity.FIELD_SAMPLES);
+        TmPageable tmPageable = new TmPageable();
+        tmPageable.setPage(dto.getPage());
+        tmPageable.setSize(dto.getSize());
 
-        LimitOperation limit = Aggregation.limit(dto.getSize());
-        SkipOperation skip = Aggregation.skip(dto.getSize() * (dto.getPage() - 1));
-
-        // TODO(dexter): find out a more elegant way to get the aggregate size
-        // match should be at the first param, sort should be the second while group be the last
-        Aggregation cntAggregation = Aggregation.newAggregation(match, group);
-        AggregationResults<MeasurementEntity> results = mongoOperations.aggregate(cntAggregation, MeasurementEntity.COLLECTION_NAME, MeasurementEntity.class);
-        long total = results.getMappedResults().size();
-        if (total == 0) {
+        Query query = new Query(criteria);
+        long count = mongoOperations.count(query, MeasurementEntity.COLLECTION_NAME);
+        if (count == 0) {
             return new Page<>(0, Collections.emptyList());
         }
+
+        query.with(tmPageable);
+        List<MeasurementEntity> measurementEntities = mongoOperations.find(query, MeasurementEntity.class, MeasurementEntity.COLLECTION_NAME);
 
         // get table map from task dag
         AtomicReference<Map<String, String>> tableNameMap = new AtomicReference<>();
@@ -709,11 +716,7 @@ public class MeasurementServiceV2 {
         }
 
         List<TableSyncStaticVo> result = new ArrayList<>();
-        SortOperation sort = Aggregation.sort(Sort.by(MeasurementEntity.FIELD_DATE).descending())
-                .and(Sort.by(String.format(TAG_FORMAT, "table")).ascending());
-        // match should be at the first param, sort should be the second while group be the last
-        Aggregation aggregation = Aggregation.newAggregation( match, sort, group, sort, skip, limit);
-        mongoOperations.aggregateStream(aggregation, MeasurementEntity.COLLECTION_NAME, MeasurementEntity.class).forEachRemaining(measurementEntity -> {
+        for (MeasurementEntity measurementEntity : measurementEntities) {
             String originTable = measurementEntity.getTags().get("table");
             AtomicReference<String> originTableName = new AtomicReference<>();
             FunctionUtils.isTureOrFalse(hasTableRenameNode).trueOrFalseHandle(
@@ -722,14 +725,14 @@ public class MeasurementServiceV2 {
 
             List<Sample> samples = measurementEntity.getSamples();
             if (CollectionUtils.isEmpty(samples)) {
-                return;
+                continue;
             }
 
             Map<String, Number> vs = samples.get(0).getVs();
             long snapshotInsertRowTotal = vs.get("snapshotInsertRowTotal").longValue();
             long snapshotRowTotal = vs.get("snapshotRowTotal").longValue();
 
-            BigDecimal syncRate = BigDecimal.ZERO;
+            BigDecimal syncRate;
             if (snapshotRowTotal != 0) {
                 syncRate = new BigDecimal(snapshotInsertRowTotal).divide(new BigDecimal(snapshotRowTotal), 2, RoundingMode.HALF_UP);
             } else {
@@ -754,8 +757,12 @@ public class MeasurementServiceV2 {
             vo.setSyncRate(syncRate);
 
             result.add(vo);
-        });
+        }
 
-        return new Page<>(total, result);
+        return new Page<>(count, result);
+    }
+
+    public void delDataWhenTaskReset(String taskId) {
+        mongoOperations.remove(new Query(Criteria.where("tags.taskId").is(taskId)), MeasurementEntity.COLLECTION_NAME);
     }
 }

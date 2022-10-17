@@ -179,7 +179,7 @@ public class TaskDagCheckLogServiceImpl implements TaskDagCheckLogService {
     }
 
     @Override
-    public void createLog(String taskId, String userId, String grade, DagOutputTemplateEnum templateEnum,
+    public void createLog(String taskId, String userId, Level grade, DagOutputTemplateEnum templateEnum,
                           boolean delOther, boolean needSave, Object ... param) {
         Date now = new Date();
         if (delOther) {
@@ -196,9 +196,9 @@ public class TaskDagCheckLogServiceImpl implements TaskDagCheckLogService {
         log.setGrade(grade);
 
         String template;
-        if (StringUtils.equals(Level.INFO.getValue(), grade)) {
+        if (Level.INFO.equals(grade)) {
             template = templateEnum.getInfoTemplate();
-        } else if (StringUtils.equals(Level.ERROR.getValue(), grade)){
+        } else if (Level.ERROR.equals(grade)){
             template = templateEnum.getErrorTemplate();
         } else {
             template = templateEnum.getInfoTemplate();

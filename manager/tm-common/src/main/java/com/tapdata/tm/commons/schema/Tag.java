@@ -8,6 +8,7 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import org.bson.types.ObjectId;
+import org.springframework.data.mongodb.core.mapping.Field;
 
 import java.io.Serializable;
 
@@ -24,9 +25,10 @@ public class Tag implements Serializable {
     /**
      * 分类id
      */
-    @JsonSerialize(using = ObjectIdSerialize.class)
-    @JsonDeserialize(using = ObjectIdDeserialize.class)
-    private ObjectId id;
+//    @JsonSerialize(using = ObjectIdSerialize.class)
+//    @JsonDeserialize(using = ObjectIdDeserialize.class)
+            @Field("id")
+    private String id;
     /**
      * 分类名称
      */

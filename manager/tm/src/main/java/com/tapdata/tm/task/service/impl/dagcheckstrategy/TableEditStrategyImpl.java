@@ -1,7 +1,6 @@
 package com.tapdata.tm.task.service.impl.dagcheckstrategy;
 
 import cn.hutool.core.date.DateUtil;
-import com.tapdata.tm.commons.dag.process.JsProcessorNode;
 import com.tapdata.tm.commons.dag.process.TableRenameProcessNode;
 import com.tapdata.tm.commons.task.dto.TaskDto;
 import com.tapdata.tm.config.security.UserDetail;
@@ -43,10 +42,10 @@ public class TableEditStrategyImpl implements DagLogStrategy {
         collect.forEach(node -> {
 
             String template;
-            String grade;
+            Level grade;
 
             template = templateEnum.getInfoTemplate();
-            grade = Level.INFO.getValue();
+            grade = Level.INFO;
 
             String content = MessageFormat.format(template, current, node.getName());
 

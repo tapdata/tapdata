@@ -1,6 +1,8 @@
 package io.tapdata.coding.utils.http;
 
+import java.util.Collection;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 public class HttpEntity<String,V> {
@@ -10,6 +12,13 @@ public class HttpEntity<String,V> {
     }
     public HttpEntity<String,V> builder(String key,V value){
         if (null==this.entity) this.entity = new HashMap<>();
+        this.entity.put(key,value);
+        return this;
+    }
+    public HttpEntity<String,V> builderIfNotAbsent(String key,V value){
+        if (null == this.entity) this.entity = new HashMap<>();
+        if (null == value) return this;
+        if (value instanceof Map && ((Map<String,V>)value).isEmpty() ) return this;
         this.entity.put(key,value);
         return this;
     }

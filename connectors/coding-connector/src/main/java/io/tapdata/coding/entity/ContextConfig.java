@@ -1,16 +1,17 @@
 package io.tapdata.coding.entity;
 
 import io.tapdata.coding.enums.IssueType;
+import io.tapdata.coding.service.schema.SchemaStart;
+import io.tapdata.coding.utils.tool.Checker;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
+import java.util.*;
 
 public class ContextConfig {
     public static ContextConfig create(){
         return new ContextConfig();
     }
     private String projectName;
+    private Long projectId;
     private String token;
     private String teamName;
     private String iterationCodes;
@@ -18,8 +19,14 @@ public class ContextConfig {
     private String connectionMode;
     private String streamReadType;
 
+    private List<Integer> issueCodes;
+
     public ContextConfig projectName(String projectName){
         this.projectName = projectName;
+        return this;
+    }
+    public ContextConfig projectId(Long projectId){
+        this.projectId = projectId;
         return this;
     }
     public ContextConfig streamReadType(String streamReadType){
@@ -49,6 +56,21 @@ public class ContextConfig {
     }
     public ContextConfig issueType(IssueType issueType){
         this.issueType = issueType;
+        return this;
+    }
+    public ContextConfig issueCodes(List<Integer> issueCodes){
+        this.issueCodes = issueCodes;
+        return this;
+    }
+    public ContextConfig issueCodes(String issueCodes){
+        if (Checker.isNotEmpty(issueCodes)) {
+            Set<Integer> list = new HashSet<Integer>();
+            String[] issueCodeArr = issueCodes.split(",");
+            for (String issueCode : issueCodeArr) {
+                list.add(Integer.parseInt(issueCode));
+            }
+            this.issueCodes = new ArrayList<>(list);
+        }
         return this;
     }
 
@@ -84,6 +106,14 @@ public class ContextConfig {
 //        return null==iterationCodes ? result: new ArrayList<String>(){{Arrays.asList(iterationCodes.split(","));}};
 //    }
 
+    public Long getProjectId() {
+        return projectId;
+    }
+
+    public void setProjectId(Long projectId) {
+        this.projectId = projectId;
+    }
+
     public void setIterationCodes(String iterationCodes) {
         this.iterationCodes = iterationCodes;
     }
@@ -110,5 +140,8 @@ public class ContextConfig {
 
     public void setStreamReadType(String streamReadType) {
         this.streamReadType = streamReadType;
+    }
+    public List<Integer> issueCodes() {
+        return this.issueCodes;
     }
 }
